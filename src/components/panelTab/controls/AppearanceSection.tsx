@@ -75,6 +75,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     const setLatentBackgroundTuning = useVisualizerSettingsStore(state => state.handleSetLatentBackgroundTuning);
     const soraBackgroundTuning = useVisualizerSettingsStore(state => state.soraBackgroundTuning);
     const setSoraBackgroundTuning = useVisualizerSettingsStore(state => state.handleSetSoraBackgroundTuning);
+    const tideBackgroundTuning = useVisualizerSettingsStore(state => state.tideBackgroundTuning);
+    const setTideBackgroundTuning = useVisualizerSettingsStore(state => state.handleSetTideBackgroundTuning);
 
     const visualizerOptions = useMemo(
         () => VISUALIZER_REGISTRY.map(entry => ({
@@ -130,6 +132,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             nomand: { tuning: nomandBackgroundTuning },
             latent: { tuning: latentBackgroundTuning },
             sora: { tuning: soraBackgroundTuning },
+            tide: { tuning: tideBackgroundTuning },
         },
         actions: {
             common: { onCoverColorChange: onToggleCoverColorBg },
@@ -137,6 +140,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             nomand: { onTuningChange: setNomandBackgroundTuning },
             latent: { onTuningChange: setLatentBackgroundTuning },
             sora: { onTuningChange: setSoraBackgroundTuning },
+            tide: { onTuningChange: setTideBackgroundTuning },
         },
         t,
         isDaylight,

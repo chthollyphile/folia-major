@@ -30,6 +30,7 @@ export const BUILTIN_VISUALIZER_MODES = [
 ] as const;
 
 export const BUILTIN_VISUALIZER_BACKGROUND_MODES = [
+    'tide',
     'common',
     'latent',
     'monet',

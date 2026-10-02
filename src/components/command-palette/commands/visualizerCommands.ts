@@ -187,5 +187,16 @@ export const visualizerCommands: CommandPaletteCommand[] = [
             context.visualizer.setVisualizerBackgroundMode('sora');
             return true;
         },
+    },
+    {
+        id: 'background-tide',
+        group: 'visualizer',
+        title: 'Background: Tide',
+        description: 'Switch background to Tide (lyric-driven fluid)',
+        keywords: ['tide', 'fluid', 'fluid background', 'lyric fluid', '潮汐', '流体', '流体背景', '歌词流体', '歌词跟随', '背景切换到 潮汐', '背景切换到潮汐'],
+        execute: (_input, context) => {
+            context.visualizer.setVisualizerBackgroundMode('tide');
+            return true;
+        },
     }
 ];

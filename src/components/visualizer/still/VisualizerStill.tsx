@@ -39,6 +39,8 @@ const VisualizerStill: React.FC<VisualizerSharedProps> = ({
             sharedProps={{
                 ...sharedProps,
                 isDaylight,
+                lines,
+                currentLineIndex,
             }}
             renderBackground={false}
             className="visualizer-still"

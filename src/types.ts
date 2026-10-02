@@ -907,7 +907,7 @@ export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
 export type MonetPortraitSource = 'cover' | 'custom';
-export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
+export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora' | 'tide';
 export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
 export interface UrlBackgroundItem {
@@ -983,6 +983,51 @@ export interface SoraBackgroundTuning {
   blank: boolean;
 }
 
+export type TideColorMode = 'theme' | 'custom';
+
+export interface TideBackgroundTuning {
+  /** 歌词锚点的推力强度：0 时只剩背景自带的水流。 */
+  intensity: number;
+  /** 没有歌词时的卷曲扰动强度，负责让流体一直活着。 */
+  flow: number;
+  /** 速度与染料的耗散系数，越大越快恢复平静。 */
+  dissipation: number;
+  /** 单股锚点力的作用半径。 */
+  spread: number;
+  /** 是否用歌词位置推动流体。 */
+  followLyrics: boolean;
+  /** 文字层多少秒采样一次：调大则向量更少更稳，调小更跟手。 */
+  sampleSeconds: number;
+  /** 每次采样最多取几组字形向量：直接限制喂给流体的向量数量。 */
+  maxAnchors: number;
+  /** 两次采样之间锚点的滑行比例：越大越丝滑，0 则直接吸附。 */
+  smoothing: number;
+  /** 背景是否跟着歌词做相机运动：正在唱的字偏向哪边，镜头就往哪边偏。 */
+  cameraFollow: boolean;
+  /** 相机偏移强度：越大镜头偏得越多，0 等于不偏。 */
+  cameraStrength: number;
+  /** 浪的整体尺度倍率。 */
+  waveScale: number;
+  /** 浪涌推进速度倍率。 */
+  waveSpeed: number;
+  /** 浪的陡度（碎浪感）。 */
+  chop: number;
+  /** 浪尖反光强度。 */
+  glintStrength: number;
+  /** 远处雾气浓度。 */
+  fog: number;
+  /** 透视强度：越大越像贴近水面的俯视。 */
+  perspective: number;
+  /** 配色来源：跟随主题，还是使用下面的自定义颜色。 */
+  colorMode: TideColorMode;
+  /** 自定义水色。 */
+  waterColor: string;
+  /** 自定义浪尖色。 */
+  glintColor: string;
+  /** 自定义底色。 */
+  backgroundColor: string;
+}
+
 export interface MonetTuning {
   keywordColoringEnabled: boolean;
   showDescription: boolean;
@@ -1056,6 +1101,29 @@ export const DEFAULT_LATENT_BACKGROUND_TUNING: LatentBackgroundTuning = {
 
 export const DEFAULT_SORA_BACKGROUND_TUNING: SoraBackgroundTuning = {
   blank: false,
+};
+
+export const DEFAULT_TIDE_BACKGROUND_TUNING: TideBackgroundTuning = {
+  intensity: 1.15,
+  flow: 0.6,
+  dissipation: 0.6,
+  spread: 1.3,
+  followLyrics: true,
+  sampleSeconds: 0.18,
+  maxAnchors: 4,
+  smoothing: 0.5,
+  cameraFollow: true,
+  cameraStrength: 0.45,
+  waveScale: 1,
+  waveSpeed: 1,
+  chop: 0.55,
+  glintStrength: 0.9,
+  fog: 0.35,
+  perspective: 0.55,
+  colorMode: 'theme',
+  waterColor: '#a855f7',
+  glintColor: '#ffffff',
+  backgroundColor: '#05060d',
 };
 
 export const DEFAULT_MONET_TUNING: MonetTuning = {
