@@ -15,6 +15,8 @@ import { resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfi
 import type { LyricApiStatus } from '../../../types/lyricApi';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
+import { SpoutOutputSettingsSection } from './SpoutOutputSettingsSection';
+import type { SpoutOutputConfigPatch, SpoutOutputStatus } from '../../../types/spoutOutput';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
@@ -88,6 +90,10 @@ type IntegrationSettingsSubviewProps = {
     discord: IntegrationDiscordModel;
     lyricApi: IntegrationLyricApiModel;
     navidrome: IntegrationNavidromeModel;
+    spout?: {
+        status: SpoutOutputStatus;
+        onApplyConfig: (patch: SpoutOutputConfigPatch) => Promise<SpoutOutputStatus> | void;
+    };
     stage: IntegrationStageModel;
 };
 
@@ -102,6 +108,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
     discord,
     lyricApi,
     navidrome,
+    spout,
     stage,
 }) => {
     const {
@@ -496,6 +503,21 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                         )}
                     </div>
                 </SettingsAnchor>
+            )}
+
+            {isElectron && spout?.status.supported && (
+                <SpoutOutputSettingsSection
+                    status={spout.status}
+                    onApplyConfig={spout.onApplyConfig}
+                    isDaylight={isDaylight}
+                    theme={theme}
+                    settingsCardClass={settingsCardClass}
+                    toggleOffBackgroundClass={toggleOffBackgroundClass}
+                    successBgColor={successBgColor}
+                    successTextColor={successTextColor}
+                    errorBgColor={errorBgColor}
+                    errorTextColor={errorTextColor}
+                />
             )}
 
             {isElectron && lyricApi.status && (

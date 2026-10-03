@@ -44,6 +44,9 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // panels being mutually exclusive; it is still one destination.
     discordRichPresence: { section: 'integration', labelKey: 'options.discordRichPresence', electronOnly: true },
     obsBrowserSource: { section: 'integration', labelKey: 'options.obsBrowserSource', electronOnly: true },
+    // Rendered only while the main process reports Spout support (win32); the coverage test's
+    // two-direction check greps source text, so the anchor stays declared alongside the render.
+    spoutOutput: { section: 'integration', labelKey: 'options.spoutOutput', electronOnly: true },
     lyricApi: { section: 'integration', labelKey: 'options.lyricApi', electronOnly: true },
     stageMode: { section: 'integration', labelKey: 'options.stageMode' },
     navidrome: { section: 'integration', labelKey: 'navidrome.settings' },

@@ -32,6 +32,12 @@ export interface ObsBrowserSourceStatus {
     token: string | null;
     url: string | null;
     clientCount: number;
+    /**
+     * True while anything is consuming the overlay server: a connected browser-source client, or
+     * the Windows Spout output's offscreen client. Optional because a status from a build before
+     * the Spout feature lacks it; readers treat missing as "no external consumer".
+     */
+    externallyConsumed?: boolean;
 }
 
 export interface ObsBrowserSourceConfig {

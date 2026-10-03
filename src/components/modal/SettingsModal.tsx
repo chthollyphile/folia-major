@@ -49,6 +49,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { ObsBrowserSourceStatus } from '../../types/obsBrowserSource';
 import { getWebAiProvider } from '../../services/runtimeConfig';
 import type { LyricApiStatus } from '../../types/lyricApi';
+import type { SpoutOutputConfigPatch, SpoutOutputStatus } from '../../types/spoutOutput';
 import type { SongResult } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
@@ -118,6 +119,8 @@ interface SettingsModalProps {
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
     lyricApiStatus?: LyricApiStatus | null;
     onToggleLyricApi?: (enabled: boolean) => Promise<void> | void;
+    spoutOutputStatus?: SpoutOutputStatus | null;
+    setSpoutOutputConfig?: (patch: SpoutOutputConfigPatch) => Promise<SpoutOutputStatus>;
     onAudioOutputDeviceChange: (deviceId: string) => Promise<boolean> | boolean;
     replayGainMode: ReplayGainMode;
     onReplayGainModeChange: (mode: ReplayGainMode) => void;
@@ -182,6 +185,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     onRegenerateObsBrowserSourceToken,
     lyricApiStatus = null,
     onToggleLyricApi,
+    spoutOutputStatus = null,
+    setSpoutOutputConfig,
     onAudioOutputDeviceChange,
     replayGainMode,
     onReplayGainModeChange,
@@ -1769,6 +1774,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     status: lyricApiStatus,
                                                     onToggle: onToggleLyricApi,
                                                 }}
+                                                spout={setSpoutOutputConfig && spoutOutputStatus ? {
+                                                    status: spoutOutputStatus,
+                                                    onApplyConfig: setSpoutOutputConfig,
+                                                } : undefined}
                                                 stage={{
                                                     nowPlayingConnectionStatus,
                                                     playerCapConnectionStatus,

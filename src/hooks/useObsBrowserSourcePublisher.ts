@@ -81,6 +81,7 @@ const emptyObsStatus = (): ObsBrowserSourceStatus => ({
     token: null,
     url: null,
     clientCount: 0,
+    externallyConsumed: false,
 });
 
 const getSongArtist = (song: SongResult | null) => getSongArtistLabel(song) || null;
@@ -167,7 +168,19 @@ export const useObsBrowserSourcePublisher = ({
         monetPortrait: MonetPortraitImage | null;
         temperaLayer: { id: string; name: string; url: string }[];
     }>({ cappellaEmoji: [], cappellaAvatar: [], monetBackground: null, monetPortrait: null, temperaLayer: [] });
+    // External rendering means someone is actually compositing the overlay right now: an SSE
+    // browser-source client, or the Spout output's offscreen client. `enabled` (either the browser
+    // source or Spout) only means the data should be *published*; `isExternallyRendering` also
+    // drives the main window's visualizer downgrade, which must NOT trigger for a Spout output
+    // running with zero browser-source clients — the heavy animation is the whole point of the
+    // Spout sender, and downgrading it would degrade the stream OBS captures.
     const isExternallyRendering = status.enabled && status.clientCount > 0;
+    // The Spout offscreen client consumes the same overlay page, so config must be published while
+    // either output is enabled even before any SSE client connects.
+    const shouldPublishOverlayData = status.enabled || Boolean(status.externallyConsumed);
+    // Clock/audio stream at a high rate, so they only flow while something actually renders the
+    // overlay: a connected browser source client or the Spout output (not merely "OBS enabled").
+    const hasOverlayConsumer = isExternallyRendering || Boolean(status.externallyConsumed);
     const lastPublishedClockRef = useRef<ObsBrowserSourceClock | null>(null);
     const lastClockPublishMsRef = useRef(0);
     const configPublicationTrackerRef = useRef(new ObsBrowserSourceConfigPublicationTracker());
@@ -353,7 +366,7 @@ export const useObsBrowserSourcePublisher = ({
     useEffect(() => {
         const tracker = configPublicationTrackerRef.current;
         const publishConfig = window.electron?.publishObsBrowserSourceConfig;
-        if (!status.enabled || !publishConfig) {
+        if (!shouldPublishOverlayData || !publishConfig) {
             tracker.reset();
             return;
         }
@@ -369,20 +382,20 @@ export const useObsBrowserSourcePublisher = ({
                 tracker.markFailed(publication.signature);
                 console.warn('[OBS] Failed to publish browser source config', error);
             });
-    }, [config, status.enabled]);
+    }, [config, shouldPublishOverlayData]);
 
     useEffect(() => {
-        if (!isExternallyRendering || !window.electron?.publishObsBrowserSourceClock) {
+        if (!hasOverlayConsumer || !window.electron?.publishObsBrowserSourceClock) {
             return;
         }
 
         publishClock();
         const intervalId = window.setInterval(publishClock, OBS_CLOCK_INTERVAL_MS);
         return () => window.clearInterval(intervalId);
-    }, [isExternallyRendering, publishClock]);
+    }, [hasOverlayConsumer, publishClock]);
 
     useEffect(() => {
-        if (!isExternallyRendering) {
+        if (!hasOverlayConsumer) {
             return;
         }
 
@@ -403,10 +416,10 @@ export const useObsBrowserSourcePublisher = ({
                 publishClock();
             }
         });
-    }, [currentTime, isExternallyRendering, publishClock]);
+    }, [currentTime, hasOverlayConsumer, publishClock]);
 
     useEffect(() => {
-        if (!isExternallyRendering || !window.electron?.publishObsBrowserSourceAudio) {
+        if (!hasOverlayConsumer || !window.electron?.publishObsBrowserSourceAudio) {
             return;
         }
 
@@ -419,7 +432,7 @@ export const useObsBrowserSourcePublisher = ({
         publishAudio();
         const intervalId = window.setInterval(publishAudio, OBS_AUDIO_INTERVAL_MS);
         return () => window.clearInterval(intervalId);
-    }, [buildAudio, isExternallyRendering]);
+    }, [buildAudio, hasOverlayConsumer]);
 
     return {
         obsBrowserSourceStatus: status,

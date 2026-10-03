@@ -95,6 +95,7 @@ import { usePlaybackVisualizerBridge } from './hooks/usePlaybackVisualizerBridge
 import { useRandomVisualizerMode } from './hooks/useRandomVisualizerMode';
 import { useObsBrowserSourcePublisher } from './hooks/useObsBrowserSourcePublisher';
 import { useLyricApiPublisher } from './hooks/useLyricApiPublisher';
+import { useSpoutOutput } from './hooks/useSpoutOutput';
 import { useSessionRestoreController } from './hooks/useSessionRestoreController';
 import { useStagePlaybackController } from './hooks/useStagePlaybackController';
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
@@ -1687,6 +1688,12 @@ export default function App() {
         lyrics,
         offset: effectiveLyricTimelineOffsetMs,
     });
+    // Spout output status mirrors the main process; the settings section and the palette toggle
+    // read the same pair (see useSpoutOutput and buildSettingsCommandContext).
+    const {
+        spoutStatus: spoutOutputStatus,
+        applySpoutConfig: setSpoutOutputConfig,
+    } = useSpoutOutput({ isElectronWindow });
     const canGenerateAITheme = Boolean((lyrics?.lines.length ?? 0) > 0 || currentSong?.isPureMusic);
     const generateCurrentSongTheme = useCallback(() => {
         void generateAITheme(lyrics, currentSong);
@@ -2332,6 +2339,8 @@ export default function App() {
         refreshObsBrowserSourceStatus,
         lyricApiStatus,
         setLyricApiEnabled,
+        spoutOutputStatus,
+        setSpoutOutputConfig,
         onAudioOutputDeviceChange: handleAudioOutputDeviceChange,
         onReplayGainModeChange: handleChangeReplayGainMode,
         onToggleTransparentPlayerBackground: toggleTransparentModeWithHandoff,

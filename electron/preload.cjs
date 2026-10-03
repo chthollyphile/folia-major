@@ -187,6 +187,9 @@ contextBridge.exposeInMainWorld('electron', {
     publishObsBrowserSourceConfig: (config) => ipcRenderer.invoke('obs-browser-source-publish-config', config),
     publishObsBrowserSourceClock: (clock) => ipcRenderer.invoke('obs-browser-source-publish-clock', clock),
     publishObsBrowserSourceAudio: (audio) => ipcRenderer.invoke('obs-browser-source-publish-audio', audio),
+    // Windows-only Spout2 output of the OBS overlay (see electron/spoutOutput.cjs).
+    getSpoutOutputStatus: () => ipcRenderer.invoke('spout-output-get-status'),
+    setSpoutOutputConfig: (patch) => ipcRenderer.invoke('spout-output-set-config', patch),
     getLyricApiStatus: () => ipcRenderer.invoke('lyric-api-get-status'),
     setLyricApiEnabled: (enabled) => ipcRenderer.invoke('lyric-api-set-enabled', enabled),
     publishLyricApiData: (lyrics, offset) => ipcRenderer.invoke('lyric-api-publish', lyrics, offset),
@@ -218,6 +221,11 @@ contextBridge.exposeInMainWorld('electron', {
         const listener = (_event, status) => callback(status);
         ipcRenderer.on('obs-browser-source-status-changed', listener);
         return () => ipcRenderer.removeListener('obs-browser-source-status-changed', listener);
+    },
+    onSpoutOutputStatusChanged: (callback) => {
+        const listener = (_event, status) => callback(status);
+        ipcRenderer.on('spout-output-status-changed', listener);
+        return () => ipcRenderer.removeListener('spout-output-status-changed', listener);
     },
     updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
     onTaskbarControl: (callback) => {

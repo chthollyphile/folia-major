@@ -177,6 +177,16 @@ export const buildSettingsCommandContext = (
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
         ),
+        // Reads + flips through the main-process controller so the command and the settings
+        // section share one source of truth (the broadcast status), not two stored booleans.
+        toggleSpoutOutput: async () => {
+            if (!window.electron?.getSpoutOutputStatus || !window.electron?.setSpoutOutputConfig) {
+                return false;
+            }
+            const status = await window.electron.getSpoutOutputStatus();
+            await window.electron.setSpoutOutputConfig({ enabled: !status.enabled });
+            return true;
+        },
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,
         ),

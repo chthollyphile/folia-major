@@ -30,6 +30,10 @@ const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = requ
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createLyricApi } = require('./lyricApi.cjs');
+const {
+  createSpoutOutputController,
+  validateSpoutConfigPatch,
+} = require('./spoutOutput.cjs');
 const { createLocalCoverAssetStore, getLocalCoverAssetDirectory } = require('./localCoverAssets.cjs');
 const {
   compareVersions,
@@ -2010,20 +2014,62 @@ function buildObsBrowserSourceUrl() {
   return `http://127.0.0.1:${getConfiguredObsBrowserSourcePort()}/obs?obs=1&token=${encodeURIComponent(token)}`;
 }
 
+function isSpoutOutputEnabled() {
+  return spoutOutput.isEnabled();
+}
+
 function buildObsBrowserSourceStatus() {
-  const token = getObsBrowserSourceToken({ generateIfMissing: isObsBrowserSourceEnabled() });
+  const token = getObsBrowserSourceToken({ generateIfMissing: isObsBrowserSourceEnabled() || isSpoutOutputEnabled() });
   return {
     enabled: isObsBrowserSourceEnabled(),
     port: getConfiguredObsBrowserSourcePort(),
     token,
     url: token ? buildObsBrowserSourceUrl() : null,
     clientCount: obsBrowserSourceClients.size,
+    // True while the OBS overlay server has any consumer: browser source clients, or the Spout
+    // output's offscreen overlay client. The renderer publisher gates its config/clock/audio
+    // traffic on this (used to be `enabled`), so it must cover the Spout case too.
+    externallyConsumed: obsBrowserSourceClients.size > 0 || isSpoutOutputEnabled(),
   };
 }
 
 function broadcastObsBrowserSourceStatus() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('obs-browser-source-status-changed', buildObsBrowserSourceStatus());
+  }
+}
+
+// --- Spout output (Windows-only) ---
+// Renders the OBS overlay in a hidden offscreen window and hands each paint's shared texture to
+// the folia-spout-sender.exe helper; see electron/spoutOutput.cjs and the integration contract.
+// The overlay URL needs the OBS token, so the server/token logic above must have run at least once
+// before `start` is called — the closures below read it lazily for exactly that reason.
+const spoutOutput = createSpoutOutputController({
+  store,
+  BrowserWindow,
+  isSupportedPlatform: () => process.platform === 'win32',
+  // Spout must force the token to exist even when the browser source toggle is off: the offscreen
+  // client loads the same token-protected URL, so buildObsBrowserSourceUrl needs generateIfMissing.
+  getOverlayUrl: () => {
+    const token = getObsBrowserSourceToken({ generateIfMissing: true });
+    return token
+      ? `http://127.0.0.1:${getConfiguredObsBrowserSourcePort()}/obs?obs=1&token=${encodeURIComponent(token)}`
+      : null;
+  },
+  ensureOverlayServer: () => startObsBrowserSourceServerIfNeeded(),
+  onStatusChange: () => {
+    broadcastSpoutOutputStatus();
+    // externallyConsumed in the OBS status flips with Spout; the renderer publisher reads it.
+    broadcastObsBrowserSourceStatus();
+    // Spout toggling changes `externallyConsumed`, and start/stop keeps the overlay server
+    // lifecycle honest; both surfaces re-read the same status.
+    void syncObsBrowserSourceServerState();
+  },
+});
+
+function broadcastSpoutOutputStatus() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('spout-output-status-changed', spoutOutput.getStatus());
   }
 }
 
@@ -4456,7 +4502,9 @@ async function handleObsBrowserSourceHttpRequest(req, res) {
     return;
   }
 
-  if (!isObsBrowserSourceEnabled()) {
+  // Either the browser source or the Spout output being enabled keeps the overlay servable; with
+  // both off there is no consumer and the server answers 503 (it would not even be listening).
+  if (!isObsBrowserSourceEnabled() && !isSpoutOutputEnabled()) {
     sendObsJson(res, 503, { error: 'OBS browser source is disabled.' });
     return;
   }
@@ -4507,7 +4555,9 @@ async function handleObsBrowserSourceHttpRequest(req, res) {
 }
 
 async function startObsBrowserSourceServerIfNeeded() {
-  if (!isObsBrowserSourceEnabled()) {
+  // The overlay HTTP server must run while EITHER consumer is enabled: an OBS browser source, or
+  // the Spout output's offscreen client (which loads the same overlay URL).
+  if (!isObsBrowserSourceEnabled() && !isSpoutOutputEnabled()) {
     return;
   }
 
@@ -4555,7 +4605,9 @@ async function stopObsBrowserSourceServer() {
 }
 
 async function syncObsBrowserSourceServerState() {
-  if (isObsBrowserSourceEnabled()) {
+  // Either-enabled: disabling the browser source must not kill the server while Spout is on, and
+  // vice versa — only turning both off stops it.
+  if (isObsBrowserSourceEnabled() || isSpoutOutputEnabled()) {
     await startObsBrowserSourceServerIfNeeded();
   } else {
     await stopObsBrowserSourceServer();
@@ -5423,6 +5475,18 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('[OBS] Failed to start browser source server during app startup', error);
   }
+  // Spout output: reconcile the stored toggle into a running (or absent) session. Runs after the
+  // overlay server start above because the offscreen client loads the overlay URL immediately.
+  try {
+    if (isSpoutOutputEnabled()) {
+      // The either-enabled server rule needs the Spout side up first; applyConfig with the
+      // persisted values performs the start (and is a no-op reconciliation on non-Windows).
+      spoutOutput.applyConfig({});
+      await startObsBrowserSourceServerIfNeeded();
+    }
+  } catch (error) {
+    console.error('[Spout] Failed to start the Spout output during app startup', error);
+  }
   await lyricApi.start();
   ensureTray();
   // macOS wallpaper: create the controller once userData is available and recover a Dock left
@@ -5609,6 +5673,9 @@ app.on('before-quit', () => {
   }
   voiceInputPauseMonitor.stop();
   displaySleepBlocker.stop();
+  // Spout output: stop the helper (releases every in-flight texture) and destroy the offscreen
+  // overlay window before the process tears its GPU state down.
+  spoutOutput.dispose();
   // Detach (graceful) instead of killing: the helper un-parents the window from the WorkerW
   // and repaints the layer before the window is destroyed — a window torn down while still
   // parented leaves its last frame stuck on the desktop. killHelper() is the fallback for
@@ -6346,6 +6413,31 @@ ipcMain.handle('window-set-always-on-top', (event, enabled) => {
 
 ipcMain.handle('obs-browser-source-get-status', () => {
   return buildObsBrowserSourceStatus();
+});
+
+// --- Spout output IPC ---
+// get returns the status as-is; set validates + clamps the patch (pure validateSpoutConfigPatch in
+// electron/spoutOutput.cjs), applies it and returns the post-application status.
+ipcMain.handle('spout-output-get-status', () => {
+  return spoutOutput.getStatus();
+});
+
+ipcMain.handle('spout-output-set-config', async (event, rawPatch) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to change the Spout output config.');
+  }
+
+  const { patch, error: validationError } = validateSpoutConfigPatch(rawPatch);
+  if (validationError) {
+    throw new Error(`Invalid Spout output config: ${validationError}`);
+  }
+
+  const status = spoutOutput.applyConfig(patch);
+  // Enabling Spout needs the overlay server up even when the browser source toggle is off;
+  // disabling it must stop the server when the browser source is also off. Both run through the
+  // same either-enabled reconciliation.
+  await syncObsBrowserSourceServerState();
+  return status;
 });
 
 ipcMain.handle('obs-browser-source-set-enabled', async (event, enabled) => {
