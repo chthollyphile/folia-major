@@ -3,11 +3,13 @@ import type { MotionValue } from 'framer-motion';
 import type {
     AudioBands,
     LatentBackgroundTuning,
+    Line,
     MonetBackgroundImage,
     MonetBackgroundTuning,
     NomandBackgroundTuning,
     SoraBackgroundTuning,
     Theme,
+    TideBackgroundTuning,
     UrlBackgroundItem,
     VisualizerBackgroundMode,
 } from '../../../types';
@@ -36,6 +38,9 @@ export interface VisualizerBackgroundConfig {
     };
     sora?: {
         tuning?: SoraBackgroundTuning;
+    };
+    tide?: {
+        tuning?: TideBackgroundTuning;
     };
     url?: {
         items?: UrlBackgroundItem[];
@@ -72,6 +77,10 @@ export interface VisualizerBackgroundActions {
         onTuningChange?: (patch: Partial<SoraBackgroundTuning>) => void;
         onResetTuning?: () => void;
     };
+    tide?: {
+        onTuningChange?: (patch: Partial<TideBackgroundTuning>) => void;
+        onResetTuning?: () => void;
+    };
     url?: {
         onAdd?: (item: UrlBackgroundItem) => void;
         onUpdate?: (id: string, patch: Partial<Omit<UrlBackgroundItem, 'id'>>) => void;
@@ -90,6 +99,11 @@ export interface VisualizerBackgroundRenderProps {
     seed?: string | number;
     staticMode: boolean;
     paused: boolean;
+    /** 舞台根节点：需要歌词 DOM 位置的背景（tide）靠它采样文字层。 */
+    stageRef?: { readonly current: HTMLElement | null };
+    lines?: Line[];
+    currentLineIndex?: number;
+    currentTime?: MotionValue<number>;
 }
 
 export interface VisualizerBackgroundSettingsProps {

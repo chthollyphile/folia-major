@@ -9,6 +9,7 @@ import {
     DEFAULT_PENDOLO_TUNING,
     DEFAULT_SONNET_TUNING,
     DEFAULT_TEMPERA_TUNING,
+    DEFAULT_TIDE_BACKGROUND_TUNING,
     type DualTheme,
     type Theme,
 } from '../types';
@@ -330,6 +331,56 @@ const decompressSoraBackground = (o: any): any => ({
     blank: o.bl !== undefined ? o.bl : DEFAULT_SORA_BACKGROUND_TUNING.blank,
 });
 
+// tide 流体背景调参：键名取 t + 两字母缩写，避免和 sora 的 single 键冲突。
+const compressTideBackground = (t: any): any => ({
+    tbi: t.intensity,
+    tbf: t.flow,
+    tbd: t.dissipation,
+    tbs: t.spread,
+    tfl: t.followLyrics,
+    tss: t.sampleSeconds,
+    tmn: t.maxAnchors,
+    tsm: t.smoothing,
+    tcf: t.cameraFollow,
+    tcs: t.cameraStrength,
+    tsr: t.soundReactive,
+    tll: t.lyricLift,
+    tws: t.waveScale,
+    twv: t.waveSpeed,
+    twc: t.chop,
+    twg: t.glintStrength,
+    twf: t.fog,
+    twp: t.perspective,
+    tcm: t.colorMode,
+    tcw: t.waterColor,
+    tcg: t.glintColor,
+    tcb: t.backgroundColor,
+});
+const decompressTideBackground = (o: any): any => ({
+    intensity: o.tbi !== undefined ? o.tbi : DEFAULT_TIDE_BACKGROUND_TUNING.intensity,
+    flow: o.tbf !== undefined ? o.tbf : DEFAULT_TIDE_BACKGROUND_TUNING.flow,
+    dissipation: o.tbd !== undefined ? o.tbd : DEFAULT_TIDE_BACKGROUND_TUNING.dissipation,
+    spread: o.tbs !== undefined ? o.tbs : DEFAULT_TIDE_BACKGROUND_TUNING.spread,
+    followLyrics: o.tfl !== undefined ? o.tfl : DEFAULT_TIDE_BACKGROUND_TUNING.followLyrics,
+    sampleSeconds: o.tss !== undefined ? o.tss : DEFAULT_TIDE_BACKGROUND_TUNING.sampleSeconds,
+    maxAnchors: o.tmn !== undefined ? o.tmn : DEFAULT_TIDE_BACKGROUND_TUNING.maxAnchors,
+    smoothing: o.tsm !== undefined ? o.tsm : DEFAULT_TIDE_BACKGROUND_TUNING.smoothing,
+    cameraFollow: o.tcf !== undefined ? o.tcf : DEFAULT_TIDE_BACKGROUND_TUNING.cameraFollow,
+    cameraStrength: o.tcs !== undefined ? o.tcs : DEFAULT_TIDE_BACKGROUND_TUNING.cameraStrength,
+    soundReactive: o.tsr !== undefined ? o.tsr : DEFAULT_TIDE_BACKGROUND_TUNING.soundReactive,
+    lyricLift: o.tll !== undefined ? o.tll : DEFAULT_TIDE_BACKGROUND_TUNING.lyricLift,
+    waveScale: o.tws !== undefined ? o.tws : DEFAULT_TIDE_BACKGROUND_TUNING.waveScale,
+    waveSpeed: o.twv !== undefined ? o.twv : DEFAULT_TIDE_BACKGROUND_TUNING.waveSpeed,
+    chop: o.twc !== undefined ? o.twc : DEFAULT_TIDE_BACKGROUND_TUNING.chop,
+    glintStrength: o.twg !== undefined ? o.twg : DEFAULT_TIDE_BACKGROUND_TUNING.glintStrength,
+    fog: o.twf !== undefined ? o.twf : DEFAULT_TIDE_BACKGROUND_TUNING.fog,
+    perspective: o.twp !== undefined ? o.twp : DEFAULT_TIDE_BACKGROUND_TUNING.perspective,
+    colorMode: o.tcm || DEFAULT_TIDE_BACKGROUND_TUNING.colorMode,
+    waterColor: o.tcw || DEFAULT_TIDE_BACKGROUND_TUNING.waterColor,
+    glintColor: o.tcg || DEFAULT_TIDE_BACKGROUND_TUNING.glintColor,
+    backgroundColor: o.tcb || DEFAULT_TIDE_BACKGROUND_TUNING.backgroundColor,
+});
+
 const compressMonet = (t: any): any => ({
     kce: t.keywordColoringEnabled,
     msd: t.showDescription,
@@ -542,6 +593,7 @@ export const compressConfig = (config: any): string => {
     if (config.nomandBackgroundTuning) minified.nbt = compressNomandBackground(config.nomandBackgroundTuning);
     if (config.latentBackgroundTuning) minified.lbt = compressLatentBackground(config.latentBackgroundTuning);
     if (config.soraBackgroundTuning) minified.sbt = compressSoraBackground(config.soraBackgroundTuning);
+    if (config.tideBackgroundTuning) minified.tbt = compressTideBackground(config.tideBackgroundTuning);
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.pendoloTuning) minified.pdt = compressPendolo(config.pendoloTuning);
     if (config.sonnetTuning) minified.snt = compressSonnet(config.sonnetTuning);
@@ -669,6 +721,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.nbt) decompressed.nomandBackgroundTuning = decompressNomandBackground(parsed.nbt);
         if (parsed.lbt) decompressed.latentBackgroundTuning = decompressLatentBackground(parsed.lbt);
         if (parsed.sbt) decompressed.soraBackgroundTuning = decompressSoraBackground(parsed.sbt);
+        if (parsed.tbt) decompressed.tideBackgroundTuning = decompressTideBackground(parsed.tbt);
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.pdt) decompressed.pendoloTuning = decompressPendolo(parsed.pdt);
         if (parsed.snt) decompressed.sonnetTuning = decompressSonnet(parsed.snt);
@@ -697,7 +750,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontInheritsLyrics', 'subtitleFontScale', 'subtitleFontStyle', 'subtitleFontWeight', 'subtitleFontFamily',
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
-            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'soraBackgroundTuning', 'monetTuning',
+            'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'soraBackgroundTuning', 'tideBackgroundTuning', 'monetTuning',
             'pendoloTuning', 'sonnetTuning', 'temperaTuning', 'lumiereTuning', 'foliumParams',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',

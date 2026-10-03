@@ -159,6 +159,7 @@
 - `src/components/visualizer/backgrounds/monet/entry.tsx`
 - `src/components/visualizer/backgrounds/nomand/entry.tsx`
 - `src/components/visualizer/backgrounds/sora/entry.tsx`
+- `src/components/visualizer/backgrounds/tide/entry.tsx`
 - `src/components/visualizer/backgrounds/url/entry.tsx`
 
 ### `src/components/visualizer/registry.tsx`

@@ -1139,6 +1139,119 @@ export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
 
 const clampCladdaghLetterSpacingOffset = (val: number) => Math.min(20, Math.max(-5, val));
 
+/**
+ * 回环与波环共用的几何控件（焦点缩放 / 半径 / 倾角 / 轴线 / 字距）。
+ * 两个模式的 tuning 在这几个字段上同构，抽出来免得两份面板漂移。
+ */
+const CladdaghGeometryFields: React.FC<{
+    t: VisualizerSettingsPanelProps['t'];
+    isDaylight: boolean;
+    theme: VisualizerSettingsPanelProps['theme'];
+    rangeInputClass: string;
+    onSliderPointerDown?: () => void;
+    onSliderCommit?: () => void;
+    tuning: CladdaghTuning;
+    onChange: (patch: Partial<CladdaghTuning>) => void;
+}> = ({ t, isDaylight, theme, rangeInputClass, onSliderPointerDown, onSliderCommit, tuning, onChange }) => {
+    const axisLineOptions: PresetOption<boolean>[] = useMemo(() => ([
+        { value: true, label: t('options.partitaGuideLinesOn') },
+        { value: false, label: t('options.partitaGuideLinesOff') },
+    ]), [t]);
+
+    return (
+        <>
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghFocusScaleRatio') }</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {(tuning.focusScaleRatio + 1.0).toFixed(2)}x
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0.0"
+                    max="1.5"
+                    step="0.05"
+                    value={tuning.focusScaleRatio}
+                    onChange={(event) => onChange({ focusScaleRatio: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghRadiusScale') }</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {tuning.radiusScale.toFixed(2)}x
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.05"
+                    value={tuning.radiusScale}
+                    onChange={(event) => onChange({ radiusScale: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghEllipseTiltDeg') }</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {tuning.ellipseTiltDeg}°
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="0"
+                    max="60"
+                    step="1"
+                    value={tuning.ellipseTiltDeg}
+                    onChange={(event) => onChange({ ellipseTiltDeg: parseInt(event.target.value, 10) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+
+            <PresetGroup
+                label={t('options.claddaghShowAxisLine')}
+                value={tuning.showAxisLine}
+                options={axisLineOptions}
+                onChange={(next) => onChange({ showAxisLine: next })}
+                isDaylight={isDaylight}
+                theme={theme}
+            />
+
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
+                    <span>{t('options.claddaghLetterSpacingOffset')}</span>
+                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                        {tuning.letterSpacingOffset > 0 ? '+' : ''}{tuning.letterSpacingOffset.toFixed(1)}px
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min="-5"
+                    max="20"
+                    step="0.5"
+                    value={tuning.letterSpacingOffset}
+                    onChange={(event) => onChange({ letterSpacingOffset: parseFloat(event.target.value) })}
+                    onPointerDown={onSliderPointerDown}
+                    onPointerUp={onSliderCommit}
+                    className={rangeInputClass}
+                />
+            </div>
+        </>
+    );
+};
+
 export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     t,
     isDaylight,
@@ -1158,11 +1271,6 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         letterSpacingOffset: clampCladdaghLetterSpacingOffset(claddaghTuning.letterSpacingOffset ?? DEFAULT_CLADDAGH_TUNING.letterSpacingOffset),
     };
 
-    const axisLineOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn') },
-        { value: false, label: t('options.partitaGuideLinesOff') },
-    ]), [t]);
-
     return (
         <div
             className="rounded-[24px] border border-white/10 p-4 space-y-4"
@@ -1177,94 +1285,16 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghFocusScaleRatio') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {(resolvedTuning.focusScaleRatio + 1.0).toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.0"
-                    max="1.5"
-                    step="0.05"
-                    value={resolvedTuning.focusScaleRatio}
-                    onChange={(event) => onCladdaghTuningChange?.({ focusScaleRatio: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghRadiusScale') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.radiusScale.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.5"
-                    max="1.5"
-                    step="0.05"
-                    value={resolvedTuning.radiusScale}
-                    onChange={(event) => onCladdaghTuningChange?.({ radiusScale: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghEllipseTiltDeg') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.ellipseTiltDeg}°
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="60"
-                    step="1"
-                    value={resolvedTuning.ellipseTiltDeg}
-                    onChange={(event) => onCladdaghTuningChange?.({ ellipseTiltDeg: parseInt(event.target.value, 10) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <PresetGroup
-                label={t('options.claddaghShowAxisLine')}
-                value={resolvedTuning.showAxisLine}
-                options={axisLineOptions}
-                onChange={(next) => onCladdaghTuningChange?.({ showAxisLine: next })}
+            <CladdaghGeometryFields
+                t={t}
                 isDaylight={isDaylight}
                 theme={theme}
+                rangeInputClass={rangeInputClass}
+                onSliderPointerDown={onSliderPointerDown}
+                onSliderCommit={onSliderCommit}
+                tuning={resolvedTuning}
+                onChange={(patch) => onCladdaghTuningChange?.(patch)}
             />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghLetterSpacingOffset')}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.letterSpacingOffset > 0 ? '+' : ''}{resolvedTuning.letterSpacingOffset.toFixed(1)}px
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="-5"
-                    max="20"
-                    step="0.5"
-                    value={resolvedTuning.letterSpacingOffset}
-                    onChange={(event) => onCladdaghTuningChange?.({ letterSpacingOffset: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
         </div>
     );
 };

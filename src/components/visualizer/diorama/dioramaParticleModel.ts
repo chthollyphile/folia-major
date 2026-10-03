@@ -17,6 +17,15 @@ import {
     type DioramaParticleCorridorSpan,
 } from './dioramaParticleCorridor';
 import { buildDioramaStructuredSurface } from './dioramaParticleSurfaces';
+import {
+    type BandOnsetSignal,
+    type BandOnsetTracker,
+    createBandOnsetTracker,
+    stepBandOnsetTracker,
+    stepEnvelopeToward,
+} from '../bandOnsetTracker';
+
+const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
 // src/components/visualizer/diorama/dioramaParticleModel.ts
 // Builds the deterministic point buffers for BOTH geometry modes (formation clouds and the path tunnel)
@@ -271,115 +280,13 @@ export const createDioramaBufferGeometry = (data: DioramaParticleGeometryData): 
     return geometry;
 };
 
-export const stepDioramaEnvelope = (
-    current: number,
-    target: number,
-    attack: number,
-    release: number,
-    delta: number,
-): number => current + (target - current) * (1 - Math.exp(-(target > current ? attack : release) * delta));
-
-const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
-
-/**
- * Per-band tracker that separates the two signals the geometry needs, and - crucially - does NOT lose
- * sensitivity to a beat that keeps playing.
- *
- * The previous model was `onset = level - EMA(level)`. A single symmetric EMA converges to the MEAN of
- * its input, so under a steady kick pattern the reference climbed toward the kick itself and the onset
- * shrank away: the drums were still there, the geometry had simply decided they were the new background.
- * (It also started at 0, so the first seconds read `onset = level` - a full-scale spike. That inflated
- * opening was the "normal" the rest of the song then appeared to decay away from. Both halves of the
- * reported symptom came from this one line.)
- *
- * Instead we track the band's VALLEY and its PEAK separately, each asymmetric:
- *
- *   floor - rises slowly, falls fast. A kick is too brief to drag it up, so it settles in the gaps
- *           BETWEEN kicks. `fast - floor` is then the kick's full height, forever, however long the
- *           pattern runs. When the drums actually stop, the floor drops out from under it within ~0.25s
- *           and the response falls away on its own - so this stays honest, not a latch.
- *   peak  - rises fast, falls slowly (~3.5s of memory). This is the only adaptive part, and it can only
- *           adapt to how loud the SONG is, which is what it is for. Its fall is bounded and MIN_RANGE
- *           stops a near-silent passage from being normalised back up into full-scale flicker.
- *
- * transient = (fast - floor) / (peak - floor): the kick, normalised against the band's own live dynamic
- *             range. Loudness-invariant, and constant under a constant beat.
- * sustained = fast / peak: how present this band is relative to the song, which does NOT self-cancel
- *             (a held bass note keeps reading high) - the continuous-energy signal.
- */
-export interface DioramaBandTracker {
-    fast: number;
-    floor: number;
-    peak: number;
-    /** Schmitt trigger: true once a transient crossed the high edge, until it falls back under the low. */
-    armed: boolean;
-    primed: boolean;
-}
-
-export const createDioramaBandTracker = (): DioramaBandTracker => ({
-    fast: 0, floor: 0, peak: 0, armed: false, primed: false,
-});
-
-const FAST_ATTACK = 22;
-const FAST_RELEASE = 7;
-/**
- * The floor's rise has to clear a real range: slow enough that a hit cannot drag it up to itself, fast
- * enough to SETTLE into the gaps of a dense band. Too slow and a continuous band (sustained hi-hats) never
- * lets the floor reach its valleys, the transient never falls back to the re-arm level, and the trigger
- * latches armed - measurably zero onsets in 40s at 0.35, against ~3.7/s at 2.0. A 2 Hz kick reads
- * identically either way (its gaps are long), so one value serves every band; 2.5 keeps margin over the
- * cliff between 1.4 and 2.0.
- */
-const FLOOR_RISE = 2.5;
-const FLOOR_FALL = 4;
-const PEAK_RISE = 9;
-const PEAK_FALL = 0.28;
-/** Floors both denominators, so a silent or near-silent band can never be amplified into noise. */
-const MIN_RANGE = 0.12;
-const MIN_PEAK = 0.22;
-/** Hysteresis. One ripple per hit: fire crossing HIGH, re-arm only after falling back under LOW. */
-const TRIGGER_HIGH = 0.42;
-const TRIGGER_LOW = 0.2;
-
-export interface DioramaBandSignal {
-    /** 0..1 kick/transient strength, normalised against the band's own dynamic range. */
-    transient: number;
-    /** 0..1 continuous energy in this band relative to the song's loudness. */
-    sustained: number;
-    /** True on the single frame a hit crosses the trigger - the only thing that spawns a ripple. */
-    onset: boolean;
-}
-
-export const stepDioramaBandTracker = (
-    state: DioramaBandTracker,
-    level: number,
-    delta: number,
-): DioramaBandSignal => {
-    const safe = clamp01(level);
-    if (!state.primed) {
-        // Start ON the signal, not at zero: otherwise the first frames read a full-scale transient that
-        // nothing later in the song can match.
-        state.fast = safe;
-        state.floor = safe;
-        state.peak = safe;
-        state.primed = true;
-    } else {
-        state.fast = stepDioramaEnvelope(state.fast, safe, FAST_ATTACK, FAST_RELEASE, delta);
-        state.floor = stepDioramaEnvelope(state.floor, safe, FLOOR_RISE, FLOOR_FALL, delta);
-        state.peak = stepDioramaEnvelope(state.peak, safe, PEAK_RISE, PEAK_FALL, delta);
-    }
-    const range = Math.max(MIN_RANGE, state.peak - state.floor);
-    const transient = clamp01((state.fast - state.floor) / range);
-    const sustained = clamp01(state.fast / Math.max(MIN_PEAK, state.peak));
-    let onset = false;
-    if (!state.armed && transient >= TRIGGER_HIGH) {
-        state.armed = true;
-        onset = true;
-    } else if (state.armed && transient <= TRIGGER_LOW) {
-        state.armed = false;
-    }
-    return { transient, sustained, onset };
-};
+// 频段起音检测已提到公共层（波环的「重拍透视」也要用），这里只保留 diorama 的别名，
+// 让本模块原有的导出与调用点一个都不用改。
+export type DioramaBandTracker = BandOnsetTracker;
+export type DioramaBandSignal = BandOnsetSignal;
+export const createDioramaBandTracker = createBandOnsetTracker;
+export const stepDioramaBandTracker = stepBandOnsetTracker;
+export const stepDioramaEnvelope = stepEnvelopeToward;
 
 /**
  * Each band spawns its OWN SCALE of ripple, so a track never reads as one size of bump at one speed:

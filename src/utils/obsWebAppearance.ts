@@ -147,6 +147,7 @@ export function buildObsAppearanceFromShortcode(
     nomand: decoded?.nomandBackgroundTuning ? { tuning: decoded.nomandBackgroundTuning } : undefined,
     latent: decoded?.latentBackgroundTuning ? { tuning: decoded.latentBackgroundTuning } : undefined,
     sora: decoded?.soraBackgroundTuning ? { tuning: decoded.soraBackgroundTuning } : undefined,
+    tide: decoded?.tideBackgroundTuning ? { tuning: decoded.tideBackgroundTuning } : undefined,
     url: (urlBackgroundItems || decoded?.urlBackgroundSelectedId)
       ? { items: urlBackgroundItems, selectedId: decoded?.urlBackgroundSelectedId }
       : undefined,

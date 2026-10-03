@@ -29,6 +29,10 @@ type VisualizerShellSharedProps = Pick<
     | 'alwaysShowBackButton'
     | 'onPlayerPanelGuideHotspotChange'
     | 'isPreviewMode'
+    // 歌词 DOM 位置来源：tide 背景要按歌词实际动的位置搅动流体。
+    | 'lines'
+    | 'currentLineIndex'
+    | 'currentTime'
 >;
 
 interface VisualizerShellProps {
@@ -63,6 +67,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const [showBackButton, setShowBackButton] = useState(false);
+    const stageElementRef = useRef<HTMLDivElement | null>(null);
     const playerPanelGuideHotspotRef = useRef(false);
     const touchGuideHideTimeoutRef = useRef<number | null>(null);
     const resolvedCoverUrl = getSizedCoverUrl(sharedProps?.coverUrl, 1024) || undefined;
@@ -76,6 +81,19 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     const onPlayerPanelGuideHotspotChange = sharedProps?.onPlayerPanelGuideHotspotChange;
     const isBackButtonVisible = sharedProps?.alwaysShowBackButton || showBackButton;
     const showStageLayers = !sharedProps?.isPreviewMode && !resolvedStaticMode;
+
+    // Merge the shell's own stage node (the tide background samples lyric DOM inside it) with the
+    // ref consumers forward to the shell.
+    const setRootRef = (node: HTMLDivElement | null) => {
+        stageElementRef.current = node;
+        if (typeof ref === 'function') {
+            ref(node);
+            return;
+        }
+        if (ref) {
+            (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+    };
 
     const updatePlayerPanelGuideHotspot = (isActive: boolean) => {
         if (playerPanelGuideHotspotRef.current === isActive) {
@@ -124,7 +142,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 
     return (
         <div
-            ref={ref}
+            ref={setRootRef}
             className={`w-full h-full flex flex-col items-center justify-center overflow-hidden relative ${fontClassName} transition-colors duration-1000 ${className}`.trim()}
             style={{
                 backgroundColor: 'transparent',
@@ -193,6 +211,10 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                     seed={sharedProps?.seed}
                     staticMode={resolvedStaticMode || resolvedBackgroundStaticMode}
                     paused={resolvedPaused}
+                    stageRef={stageElementRef}
+                    lines={sharedProps?.lines}
+                    currentLineIndex={sharedProps?.currentLineIndex}
+                    currentTime={sharedProps?.currentTime}
                 />
             )}
 

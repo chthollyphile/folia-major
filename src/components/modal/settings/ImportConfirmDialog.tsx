@@ -82,6 +82,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     nomandBackgroundTuning: 'options.importFieldNomandBackgroundTuning',
     latentBackgroundTuning: 'options.importFieldLatentBackgroundTuning',
     soraBackgroundTuning: 'options.importFieldSoraBackgroundTuning',
+    tideBackgroundTuning: 'options.importFieldTideBackgroundTuning',
     // The card's three rows reuse the settings panel's own wording. The mode row borrows the
     // section heading, which is what that group of three buttons is actually labelled by.
     stageTrackPillMode: 'options.stageTrackPill',

@@ -143,6 +143,10 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
                     // bottom 由共享 MotionValue 直接驱动，跟着底部基线走。
                     // 不要改回 transform：这一层下面压着 blur 辉光，多一个合成层就会变色。
                     style={{ bottom: subtitleBottomPx }}
+                    // 这一层是底部翻译/罗马音字幕，不是各模式自己的逐字歌词布局。
+                    // 不加这个标记的话，canvas 类模式（商籁 / 绘光）的歌词 tide 量不到，
+                    // 就会退而把水面锚在这层字幕上 —— 水在屏幕底部乱搅。
+                    data-tide-skip-anchor="true"
                     className="absolute left-0 right-0 text-center space-y-2 px-4 z-20 pointer-events-none"
                 >
                     {subtitleText ? (

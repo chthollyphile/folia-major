@@ -18,6 +18,7 @@ describe('visualizer background registry', () => {
             'nomand',
             'latent',
             'url',
+            'tide',
             'sora',
         ]);
     });
@@ -40,6 +41,7 @@ describe('visualizer background registry', () => {
     it('uses label fallback when translation is missing', () => {
         expect(getVisualizerBackgroundModeLabel('nomand', key => key)).toBe('Nomand');
         expect(getVisualizerBackgroundModeLabel('latent', key => key)).toBe('Latent');
+        expect(getVisualizerBackgroundModeLabel('tide', key => key)).toBe('Tide');
     });
 
     it('resets only the active background settings without changing its mode', () => {

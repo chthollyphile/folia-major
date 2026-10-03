@@ -82,6 +82,7 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
     if (value.nomandBackgroundTuning !== undefined) settings.nomandBackgroundTuning = value.nomandBackgroundTuning;
     if (value.latentBackgroundTuning !== undefined) settings.latentBackgroundTuning = value.latentBackgroundTuning;
     if (value.soraBackgroundTuning !== undefined) settings.soraBackgroundTuning = value.soraBackgroundTuning;
+    if (value.tideBackgroundTuning !== undefined) settings.tideBackgroundTuning = value.tideBackgroundTuning;
     if (value.monetTuning !== undefined) settings.monetTuning = value.monetTuning;
     if (value.pendoloTuning !== undefined) settings.pendoloTuning = value.pendoloTuning;
     if (value.sonnetTuning !== undefined) settings.sonnetTuning = value.sonnetTuning;

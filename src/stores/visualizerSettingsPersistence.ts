@@ -1,4 +1,65 @@
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_LUMIERE_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_SORA_BACKGROUND_TUNING, DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, TEMPERA_MAX_LAYER_IMAGES, type CadenzaTuning, type CappellaAvatarSource, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LumiereTuning, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundEffect, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type SonnetTuning, type SoraBackgroundTuning, type TemperaLayerImage, type TemperaTuning, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import {
+    DEFAULT_CADENZA_TUNING,
+    DEFAULT_CAPPELLA_TUNING,
+    DEFAULT_CLADDAGH_TUNING,
+    DEFAULT_CLASSIC_TUNING,
+    DEFAULT_DIORAMA_TUNING,
+    DEFAULT_FUME_TUNING,
+    DEFAULT_LATENT_BACKGROUND_TUNING,
+    DEFAULT_LUMIERE_TUNING,
+    DEFAULT_MONET_BACKGROUND_TUNING,
+    DEFAULT_MONET_TUNING,
+    DEFAULT_NOMAND_BACKGROUND_TUNING,
+    DEFAULT_PARTITA_TUNING,
+    DEFAULT_PENDOLO_TUNING,
+    DEFAULT_SONNET_TUNING,
+    DEFAULT_SORA_BACKGROUND_TUNING,
+    DEFAULT_TEMPERA_LAYER_IMAGE,
+    DEFAULT_TEMPERA_TUNING,
+    DEFAULT_TIDE_BACKGROUND_TUNING,
+    DEFAULT_TILT_TUNING,
+    DIORAMA_PARTICLE_DENSITY_MAX,
+    DIORAMA_PARTICLE_DENSITY_MIN,
+    DIORAMA_PARTICLE_GLOW_INTENSITY_MAX,
+    DIORAMA_PARTICLE_GLOW_INTENSITY_MIN,
+    DIORAMA_PARTICLE_SIZE_MAX,
+    DIORAMA_PARTICLE_SIZE_MIN,
+    TEMPERA_MAX_LAYER_IMAGES,
+    type CadenzaTuning,
+    type CappellaAvatarSource,
+    type CappellaTuning,
+    type CladdaghTuning,
+    type ClassicTuning,
+    type DioramaTuning,
+    type FumeTuning,
+    type LatentBackgroundColorSource,
+    type LatentBackgroundDisplayMode,
+    type LatentBackgroundTuning,
+    type LumiereTuning,
+    type MonetBackgroundLayout,
+    type MonetBackgroundSource,
+    type MonetBackgroundTuning,
+    type MonetBackgroundWashColorMode,
+    type MonetPortraitSource,
+    type MonetTuning,
+    type NomandBackgroundDitheringType,
+    type NomandBackgroundEffect,
+    type NomandBackgroundSource,
+    type NomandBackgroundTuning,
+    type PartitaTuning,
+    type PendoloTuning,
+    type SonnetTuning,
+    type SoraBackgroundTuning,
+    type TemperaLayerImage,
+    type TemperaTuning,
+    type TideBackgroundTuning,
+    type TideColorMode,
+    type TiltTuning,
+    type UrlBackgroundItem,
+    type VisualizerBackgroundMode,
+    type VisualizerFrameRate,
+    type VisualizerMode,
+} from '../types';
 // 只做字符串校验，走 types/visualizerModes 而不是 registry：后者的 eager glob 会把 13 个
 // renderer（含 three.js）拉进来，而这里读的只是一个 localStorage 字符串。
 // mod 模式在启动时本来就看不到——bootstrap.tsx 的 restoreStoredModVisualizer 在 mods 注册完
@@ -924,6 +985,56 @@ export const readStoredSoraBackgroundTuning = (): SoraBackgroundTuning => {
         return resolveStoredSoraBackgroundTuning(JSON.parse(saved) as Partial<SoraBackgroundTuning>);
     } catch {
         return DEFAULT_SORA_BACKGROUND_TUNING;
+    }
+};
+
+export const resolveTideColorMode = (value: TideColorMode | undefined): TideColorMode => (
+    value === 'custom' ? 'custom' : DEFAULT_TIDE_BACKGROUND_TUNING.colorMode
+);
+
+export const clampTideNumber = (value: unknown, fallback: number, min: number, max: number) => (
+    Math.min(max, Math.max(min, typeof value === 'number' && Number.isFinite(value) ? value : fallback))
+);
+
+export const resolveStoredTideBackgroundTuning = (
+    parsed: Partial<TideBackgroundTuning>,
+): TideBackgroundTuning => ({
+    intensity: clampTideNumber(parsed.intensity, DEFAULT_TIDE_BACKGROUND_TUNING.intensity, 0, 3),
+    flow: clampTideNumber(parsed.flow, DEFAULT_TIDE_BACKGROUND_TUNING.flow, 0, 2),
+    dissipation: clampTideNumber(parsed.dissipation, DEFAULT_TIDE_BACKGROUND_TUNING.dissipation, 0, 1),
+    spread: clampTideNumber(parsed.spread, DEFAULT_TIDE_BACKGROUND_TUNING.spread, 0.2, 3),
+    followLyrics: typeof parsed.followLyrics === 'boolean' ? parsed.followLyrics : DEFAULT_TIDE_BACKGROUND_TUNING.followLyrics,
+    sampleSeconds: clampTideNumber(parsed.sampleSeconds, DEFAULT_TIDE_BACKGROUND_TUNING.sampleSeconds, 0.06, 0.6),
+    maxAnchors: Math.round(clampTideNumber(parsed.maxAnchors, DEFAULT_TIDE_BACKGROUND_TUNING.maxAnchors, 1, 6)),
+    smoothing: clampTideNumber(parsed.smoothing, DEFAULT_TIDE_BACKGROUND_TUNING.smoothing, 0, 0.92),
+    cameraFollow: typeof parsed.cameraFollow === 'boolean' ? parsed.cameraFollow : DEFAULT_TIDE_BACKGROUND_TUNING.cameraFollow,
+    cameraStrength: clampTideNumber(parsed.cameraStrength, DEFAULT_TIDE_BACKGROUND_TUNING.cameraStrength, 0, 1),
+    soundReactive: clampTideNumber(parsed.soundReactive, DEFAULT_TIDE_BACKGROUND_TUNING.soundReactive, 0, 2),
+    lyricLift: clampTideNumber(parsed.lyricLift, DEFAULT_TIDE_BACKGROUND_TUNING.lyricLift, 0, 2),
+    waveScale: clampTideNumber(parsed.waveScale, DEFAULT_TIDE_BACKGROUND_TUNING.waveScale, 0.4, 2.5),
+    waveSpeed: clampTideNumber(parsed.waveSpeed, DEFAULT_TIDE_BACKGROUND_TUNING.waveSpeed, 0, 2.5),
+    chop: clampTideNumber(parsed.chop, DEFAULT_TIDE_BACKGROUND_TUNING.chop, 0, 1.5),
+    glintStrength: clampTideNumber(parsed.glintStrength, DEFAULT_TIDE_BACKGROUND_TUNING.glintStrength, 0, 2.5),
+    fog: clampTideNumber(parsed.fog, DEFAULT_TIDE_BACKGROUND_TUNING.fog, 0, 1),
+    perspective: clampTideNumber(parsed.perspective, DEFAULT_TIDE_BACKGROUND_TUNING.perspective, 0, 1),
+    colorMode: resolveTideColorMode(parsed.colorMode),
+    waterColor: normalizeHexColor(parsed.waterColor, DEFAULT_TIDE_BACKGROUND_TUNING.waterColor),
+    glintColor: normalizeHexColor(parsed.glintColor, DEFAULT_TIDE_BACKGROUND_TUNING.glintColor),
+    backgroundColor: normalizeHexColor(parsed.backgroundColor, DEFAULT_TIDE_BACKGROUND_TUNING.backgroundColor),
+});
+
+export const readStoredTideBackgroundTuning = (): TideBackgroundTuning => {
+    if (typeof window === 'undefined') {
+        return DEFAULT_TIDE_BACKGROUND_TUNING;
+    }
+
+    const saved = localStorage.getItem('tide_background_tuning');
+    if (!saved) return DEFAULT_TIDE_BACKGROUND_TUNING;
+
+    try {
+        return resolveStoredTideBackgroundTuning(JSON.parse(saved) as Partial<TideBackgroundTuning>);
+    } catch {
+        return DEFAULT_TIDE_BACKGROUND_TUNING;
     }
 };
 

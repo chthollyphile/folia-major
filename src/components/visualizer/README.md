@@ -60,6 +60,7 @@ App / ThemePark / VisPlayground / OBS source
 - `monet`：`MonetBackgroundLayer.tsx`、设置卡
 - `nomand`：`NomandBackgroundLayer.tsx`、设置卡
 - `sora`：`SoraBackground.tsx`
+- `tide`：`TideBackground.tsx`、`LyricAnchorSampler.ts`、`tideCamera.ts`、设置卡（歌词 DOM 锚点驱动的流体水面；相机开关让水面跟着歌词平移俯仰）
 - `url`：`UrlBackgroundLayer.tsx`、设置卡
 
 共享背景 props 与默认值在 `backgrounds/definition.ts`；实际渲染在 `backgrounds/VisualizerBackgroundRenderer.tsx`。新增背景不要在每个 visualizer 中内联。
