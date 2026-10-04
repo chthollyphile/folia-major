@@ -82,6 +82,10 @@ mods/*.zip
 build/folia-wallpaper-helper.exe
 packaging/windows/wallpaper-helper/target/
 
+# Built by packaging/windows/build-spout-sender.mjs (Spout2 output helper for OBS).
+build/folia-spout-sender.exe
+packaging/windows/spout-sender/target/
+
 # Python bytecode from the htdemucs runner, written beside it by the downloaded runtime.
 __pycache__/
 

@@ -123,6 +123,16 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run build:wallpaper-helper
 
+      - name: Cache spout-sender Cargo build
+        if: runner.os == 'Windows'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packaging/windows/spout-sender
+
+      - name: Build Spout sender (Windows only)
+        if: runner.os == 'Windows'
+        run: npm run build:spout-sender
+
       - name: Build windowtolayer (Linux only)
         if: runner.os == 'Linux'
         run: npm run build:windowtolayer

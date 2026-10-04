@@ -155,6 +155,19 @@ jobs:
           # into build/folia-wallpaper-helper.exe for the win extraResources. No-op elsewhere.
           node packaging/windows/build-wallpaper-helper.mjs
 
+      - name: Cache spout-sender Cargo build
+        if: runner.os == 'Windows'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packaging/windows/spout-sender
+
+      - name: Build Spout sender (Windows only)
+        if: runner.os == 'Windows'
+        run: |
+          # Builds packaging/windows/spout-sender (Spout2 sender for OBS capture of the overlay)
+          # into build/folia-spout-sender.exe for the win extraResources. No-op elsewhere.
+          node packaging/windows/build-spout-sender.mjs
+
       - name: Build windowtolayer from upstream + patch (Linux only)
         if: runner.os == 'Linux'
         run: |

@@ -82,6 +82,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "transition-performance-toggle",
   "settings-discord-presence",
   "settings-obs-browser-source",
+  "settings-spout-output",
+  "desktop-toggle-spout-output",
   "obs-toggle-keep-main-window-animation",
   "desktop-toggle-lyric-api",
   "settings-obs-copy-css",

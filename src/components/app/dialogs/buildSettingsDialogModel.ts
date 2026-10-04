@@ -15,6 +15,7 @@ import { type SettingsModalState, useSettingsModalStore } from '../../../stores/
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
 import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
 import type { LyricApiStatus } from '../../../types/lyricApi';
+import type { SpoutOutputConfigPatch, SpoutOutputStatus } from '../../../types/spoutOutput';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
 
@@ -56,6 +57,8 @@ export type SettingsDialogDeps = {
     refreshObsBrowserSourceStatus?: () => Promise<ObsBrowserSourceStatus>;
     lyricApiStatus?: LyricApiStatus | null;
     setLyricApiEnabled?: (enabled: boolean) => Promise<LyricApiStatus>;
+    spoutOutputStatus?: SpoutOutputStatus | null;
+    setSpoutOutputConfig?: (patch: SpoutOutputConfigPatch) => Promise<SpoutOutputStatus>;
 };
 
 type BuildSettingsDialogModelParams = SettingsDialogAmbient & SettingsDialogDeps;
@@ -90,6 +93,8 @@ export const buildSettingsDialogModel = ({
     refreshObsBrowserSourceStatus,
     lyricApiStatus,
     setLyricApiEnabled,
+    spoutOutputStatus,
+    setSpoutOutputConfig,
 }: BuildSettingsDialogModelParams): SettingsDialogProps | null => {
     if (!state.isOpen) {
         return null;
@@ -125,6 +130,8 @@ export const buildSettingsDialogModel = ({
         playerCapPlayers,
         obsBrowserSourceStatus,
         lyricApiStatus,
+        spoutOutputStatus,
+        setSpoutOutputConfig,
         onToggleLyricApi: setLyricApiEnabled
             ? async (enabled) => {
                 await setLyricApiEnabled(enabled);

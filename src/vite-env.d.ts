@@ -265,6 +265,8 @@ declare global {
   type ElectronObsBrowserSourceConfig = import('./types/obsBrowserSource').ObsBrowserSourceConfig;
   type ElectronObsBrowserSourceClock = import('./types/obsBrowserSource').ObsBrowserSourceClock;
   type ElectronObsBrowserSourceAudio = import('./types/obsBrowserSource').ObsBrowserSourceAudio;
+  type ElectronSpoutOutputStatus = import('./types/spoutOutput').SpoutOutputStatus;
+  type ElectronSpoutOutputConfigPatch = import('./types/spoutOutput').SpoutOutputConfigPatch;
 
   interface ElectronDiscordPresenceStatus {
     enabled: boolean;
@@ -829,6 +831,9 @@ declare global {
       publishObsBrowserSourceConfig: (config: ElectronObsBrowserSourceConfig) => Promise<boolean>;
       publishObsBrowserSourceClock: (clock: ElectronObsBrowserSourceClock) => Promise<boolean>;
       publishObsBrowserSourceAudio: (audio: ElectronObsBrowserSourceAudio) => Promise<boolean>;
+      /** Windows-only Spout2 output of the OBS overlay; absent on other platforms' UI paths. */
+      getSpoutOutputStatus: () => Promise<ElectronSpoutOutputStatus>;
+      setSpoutOutputConfig: (patch: ElectronSpoutOutputConfigPatch) => Promise<ElectronSpoutOutputStatus>;
       getLyricApiStatus: () => Promise<import('./types/lyricApi').LyricApiStatus>;
       setLyricApiEnabled: (enabled: boolean) => Promise<import('./types/lyricApi').LyricApiStatus>;
       publishLyricApiData: (lyrics: import('./types').LyricData | null, offset: number) => Promise<boolean>;
@@ -841,6 +846,7 @@ declare global {
       onPlaybackSyncBridgeStatusChanged: (callback: (status: ElectronPlaybackSyncBridgeStatus) => void) => () => void;
       onDiscordPresenceStatusChanged: (callback: (status: ElectronDiscordPresenceStatus) => void) => () => void;
       onObsBrowserSourceStatusChanged: (callback: (status: ElectronObsBrowserSourceStatus) => void) => () => void;
+      onSpoutOutputStatusChanged: (callback: (status: ElectronSpoutOutputStatus) => void) => () => void;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       openRemoteControl: () => Promise<boolean>;

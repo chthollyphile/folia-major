@@ -152,6 +152,34 @@ export const settingsCommands: CommandPaletteCommand[] = [
     },
     createSettingsAnchorCommand('settings-discord-presence', 'Discord playback status', 'Open Discord Rich Presence settings', ['discord', 'rich presence', 'discord presence', 'playing status', '播放状态', 'discord状态', 'discordzhuangtai', 'dc'], 'discordRichPresence'),
     createSettingsAnchorCommand('settings-obs-browser-source', 'OBS browser source', 'Open OBS browser source settings', ['obs', 'browser source', 'live source', '直播源', '浏览器源'], 'obsBrowserSource'),
+    createSettingsAnchorCommand(
+        'settings-spout-output',
+        'Spout output settings',
+        'Open the Windows Spout2 output settings',
+        ['spout settings', 'spout output', 'spout capture', 'Spout输出设置', 'Spout设置'],
+        'spoutOutput',
+        { platform: ['win'] },
+    ),
+    {
+        // Windows-only functional toggle; same IPC path as the integration settings row. No
+        // executeShortcut: starting the output spawns a helper process and an offscreen renderer.
+        id: 'desktop-toggle-spout-output',
+        platform: ['win'],
+        group: 'settings',
+        title: 'Toggle Spout output',
+        description: 'Publish the OBS overlay to OBS via Spout2',
+        keywords: [
+            'spout', 'spout2', 'spout output', 'spout sender', 'video output',
+            'Spout输出', 'Spout发送', '视频输出', '输出画面',
+        ],
+        execute: async (_input, context) => {
+            const toggled = await context.settings.toggleSpoutOutput();
+            if (!toggled) {
+                return false;
+            }
+            return true;
+        },
+    },
     createToggleCommand(
         'obs-toggle-keep-main-window-animation',
         'settings',

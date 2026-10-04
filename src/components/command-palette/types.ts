@@ -272,6 +272,11 @@ export type CommandPaletteSettingsContext = {
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
     toggleObsKeepMainWindowAnimation: () => void;
+    /**
+     * Windows-only Spout2 output of the OBS overlay. Reads the live status (async IPC) and flips
+     * the persisted enabled toggle through the main-process controller.
+     */
+    toggleSpoutOutput: () => Promise<boolean>;
     /** macOS-only: the wallpaper-mode Dock auto-hide override (on by default). */
     toggleWallpaperMacAutohideDock: () => void;
     sleepTimerEnabled: boolean;
