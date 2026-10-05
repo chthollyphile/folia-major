@@ -9,7 +9,7 @@
 | 项 | 内容 |
 | --- | --- |
 | npm 包 | [`@yakult-green-tea/qq-music-api`](https://www.npmjs.com/package/@yakult-green-tea/qq-music-api) |
-| 版本 | `3.1.0`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
+| 版本 | `3.1.3`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
 | 原始上游 | [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api)，作者 Rain120 |
 | 许可证 | MIT；全文随包安装在 `node_modules/@yakult-green-tea/qq-music-api/LICENSE` |
 | 镜像定义 | [`images/qq-api.Dockerfile`](../images/qq-api.Dockerfile) |
@@ -192,6 +192,8 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 | `502` | 装置注册（QIMEI / GetSession）或二维码创建向上游失败 | 首次返回 502 并附 `Retry-After`，随后转为 429；属于预期的退避行为 |
 
 `GET /login/qr/cancel?key=<key>` 是幂等的，未知或已过期的 key 同样返回 200：客户端在关闭登录弹窗时会直接发送取消而不等待结果，不应该因此收到需要处理的错误。已经确认成功的会话不会被取消掉，留给它自然过期，以免还在途中的轮询把一次成功的登录读成过期。
+
+3.1.3 起，扫码失败响应包含失败阶段、原因和上游状态；本地退避 `429` 保留前一次失败摘要。Folia 的复制报告会将这些信息写入 `qq details`，不包含登录凭证或响应正文。
 
 排查时先看容器日志：
 

@@ -236,20 +236,20 @@ export const requestQq = async <T = unknown>(operation: QqOperation, params: QqP
         // A missing, expired, rejected, or non-persisted backend session is surfaced uniformly as 401.
         if (response.status === 401) {
             clearQqSession();
-            throw new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq', failure);
+            throw Object.assign(new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq', failure), { httpStatus: response.status });
         }
         // 404 是「这个后端没有这条路由」，不是网络故障 —— 用户可以自行部署任意版本的后端，
         // 新路由在旧后端上必然 404。报成 `unsupported`，调用方才能据此回落到旧路径，
         // 而不必去解析错误文案里的状态码。
         if (response.status === 404) {
-            throw new OnlineProviderError(
+            throw Object.assign(new OnlineProviderError(
                 'unsupported',
                 `QQMusicApi has no ${operation} route`,
                 'qq',
                 failure,
-            );
+            ), { httpStatus: response.status });
         }
-        throw new OnlineProviderError('network', `QQMusicApi request failed: ${response.status}`, 'qq', failure);
+        throw Object.assign(new OnlineProviderError('network', `QQMusicApi request failed: ${response.status}`, 'qq', failure), { httpStatus: response.status });
     }
 
     const body = await readJsonBody(response);

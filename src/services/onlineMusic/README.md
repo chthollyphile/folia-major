@@ -20,6 +20,8 @@ UI / hooks / stores / app services
 当前 registry 注册 `netease`、`kugou`、`qq` 和桌面端的 `bodian`。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
+QQ 扫码的失败摘要由 `qqProvider.ts` 收集，经 `omni.getQrLoginDiagnostics` 写入复制报告。摘要只接受固定阶段、原因和安全数字字段，并保留 HTTP 错误及退避来源；上一轮的晚回响应不会覆盖新报告。
+
 ## Public contract
 
 调用前先看 `omni.ts` 的方法和 `src/types/onlineMusic.ts` 的类型。常用入口按能力分组：

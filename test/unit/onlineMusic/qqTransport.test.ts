@@ -8,6 +8,11 @@ const storage = new Map<string, string>();
 const CONFIRMED_COOKIE = 'qqmusic_session=opaque-token';
 
 describe('QQ Music Web transport', () => {
+    it.each([401, 404, 429, 502])('keeps HTTP %s separate from the backend body code', async (status) => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 123, token: 'private-token' }, { status })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+        await expect(requestQq('login_qr_key')).rejects.toMatchObject({ httpStatus: status, cause: { code: 123 } });
+    });
     beforeEach(() => {
         vi.resetModules();
         storage.clear();
