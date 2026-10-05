@@ -15,17 +15,20 @@ export const buildQrLoginDiagnosticsProps = ({
     providerId: OnlineProviderId;
     failure: QrLoginFailureKind;
     buildReport: () => Promise<string>;
-}): QrLoginDiagnosticsPromptProps => ({
-    prompt: t(failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt'),
-    privacyNote: t('home.qrDiagnosticsPrivacy'),
-    copyLabel: t('home.qrDiagnosticsCopy'),
-    copiedLabel: t('home.qrDiagnosticsCopied'),
-    copyFailedLabel: t('home.qrDiagnosticsCopyFailed'),
-    reportLabel: t('home.qrDiagnosticsReport'),
-    buildReport,
-    buildIssueUrl: report => buildQrLoginIssueUrl({
-        providerId,
-        report,
-        pasteHint: t('home.qrDiagnosticsPasteHint'),
-    }),
-});
+}): QrLoginDiagnosticsPromptProps | undefined => {
+    if (providerId === 'qq') return undefined;
+    return {
+        prompt: t(failure === 'expired-after-scan' ? 'home.qrDiagnosticsPromptScanned' : 'home.qrDiagnosticsPrompt'),
+        privacyNote: t('home.qrDiagnosticsPrivacy'),
+        copyLabel: t('home.qrDiagnosticsCopy'),
+        copiedLabel: t('home.qrDiagnosticsCopied'),
+        copyFailedLabel: t('home.qrDiagnosticsCopyFailed'),
+        reportLabel: t('home.qrDiagnosticsReport'),
+        buildReport,
+        buildIssueUrl: report => buildQrLoginIssueUrl({
+            providerId,
+            report,
+            pasteHint: t('home.qrDiagnosticsPasteHint'),
+        }),
+    };
+};

@@ -283,9 +283,9 @@ GET /api/qq/getSongInfo/0039MnYb0qxYhV
 
 前两条用于确认通道和登录服务；歌曲详情用于确认匿名曲库路由没有被登录配置拖垮。
 
-## 扫码失败报告
+## 扫码失败诊断
 
-登录失败时复制诊断报告，`qq details` 会记录失败步骤、HTTP 状态及后端提供的安全原因代码。`@yakult-green-tea/qq-music-api` 3.1.3 起提供这些字段，本地退避 `429` 还会带上 `last-failure`；旧后端缺失的字段显示 `unavailable`，不能据此判断首次失败原因。
+QQ 登录弹窗不显示诊断区块。开发时可通过 `omni.getQrLoginDiagnostics('qq')` 读取失败摘要；报告格式化后，`qq details` 会记录失败步骤、HTTP 状态及后端提供的安全原因代码。`@yakult-green-tea/qq-music-api` 3.1.3 起提供这些字段，本地退避 `429` 还会带上 `last-failure`；旧后端缺失的字段显示 `unavailable`，不能据此判断首次失败原因。
 
 报告也会记录缺少会话 key、二维码图片，以及确认响应是否带有会话。扫完码后无法加载账号时，会区分缺少会话、账号未登录和请求失败。诊断摘要不包含 cookie、token、IP、账号信息或响应正文；重试会清空上一轮摘要。
 
