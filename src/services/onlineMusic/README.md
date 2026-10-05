@@ -20,7 +20,7 @@ UI / hooks / stores / app services
 当前 registry 注册 `netease`、`kugou`、`qq` 和桌面端的 `bodian`。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
-QQ 扫码的失败摘要由 `qqProvider.ts` 收集，通过 `omni.getQrLoginDiagnostics` 读取。摘要只接受固定阶段、原因和安全数字字段，并保留 HTTP 错误及退避来源；上一轮的晚回响应不会覆盖新报告。QQ 登录弹窗不显示诊断区块。
+QQ 扫码的安全失败摘要由 `qqProvider.ts` 收集，写入普通日志的 `[QQProvider] qr-login:failed`，也可通过 `omni.getQrLoginDiagnostics` 读取。覆盖 key、图片、检查和确认后的账号加载，保留 HTTP 状态、固定原因、安全数字和退避来源；相同失败不因倒计时重复输出，上一轮晚回的诊断不会污染新尝试或日志。QQ hook 不输出原始错误文字，登录弹窗不显示诊断区块。
 
 ## Public contract
 

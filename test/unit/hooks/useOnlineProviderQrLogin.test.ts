@@ -257,6 +257,30 @@ describe('useOnlineProviderQrLogin', () => {
         expect(next.failure).toBe('account-refresh-failed');
     });
 
+    it.each(['start', 'check', 'state', 'account', 'cancel'] as const)('keeps raw QQ %s failures out of ordinary logs', async step => {
+        const secret = 'private-token https://private.example/?cookie=private-cookie';
+        const error = new Error(secret);
+        error.name = 'private-name';
+        if (step === 'start') omniMock.createQrLogin.mockRejectedValueOnce(error);
+        if (step === 'check') omniMock.checkQrLogin.mockRejectedValueOnce(error);
+        if (step === 'state') omniMock.checkQrLogin.mockResolvedValueOnce({ state: 'error', message: secret });
+        if (step === 'account') {
+            omniMock.checkQrLogin.mockResolvedValueOnce({ state: 'confirmed' });
+            onConfirmed.mockRejectedValueOnce(error);
+        }
+        const hook = render('netease');
+        await hook.start('qq', 'wechat');
+        if (step === 'cancel') {
+            omniMock.cancelQrLogin.mockRejectedValueOnce(error);
+            hook.stop();
+            await Promise.resolve();
+        } else if (step !== 'start') await vi.advanceTimersByTimeAsync(QR_POLL_INTERVAL_MS);
+        const logs = JSON.stringify([vi.mocked(console.warn).mock.calls, vi.mocked(console.info).mock.calls]);
+        expect(logs).toContain('ProviderQrLogin');
+        expect(logs).not.toMatch(/private-|https?:/);
+        if (step !== 'cancel') expect(render('netease').qrState).toBe('error');
+    });
+
     it('builds a report from this session only and clears the failure on retry', async () => {
         omniMock.checkQrLogin.mockResolvedValue({ state: 'error', message: 'code 404: Not Found' });
         const hook = render('netease');

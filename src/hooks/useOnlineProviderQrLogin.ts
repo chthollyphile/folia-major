@@ -23,7 +23,7 @@ const clearTimer = (timeoutRef: { current: number | null }): void => {
     timeoutRef.current = null;
 };
 
-const describeError = (error: unknown) => ({
+const describeError = (providerId: OnlineProviderId, error: unknown) => providerId === 'qq' ? { reason: 'provider-error' } : ({
     name: error instanceof Error ? error.name : 'Error',
     message: error instanceof Error ? error.message : String(error),
 });
@@ -33,7 +33,7 @@ const describeError = (error: unknown) => ({
 const releaseSession = (session: ActiveQrSession | null): void => {
     if (!session) return;
     void omni.cancelQrLogin(session.providerId, session.key).catch(error => {
-        console.warn('[ProviderQrLogin] cancel:error', { providerId: session.providerId, ...describeError(error) });
+        console.warn('[ProviderQrLogin] cancel:error', { providerId: session.providerId, ...describeError(session.providerId, error) });
     });
 };
 
@@ -155,7 +155,7 @@ export const useOnlineProviderQrLogin = ({
                         note('state', {
                             state: result.state,
                             polls,
-                            ...(result.state === 'error' && result.message ? { message: result.message } : {}),
+                            ...(targetProviderId !== 'qq' && result.state === 'error' && result.message ? { message: result.message } : {}),
                         }, result.state === 'error' ? 'warn' : 'info');
                     }
                     if (result.state === 'confirmed') {
@@ -181,7 +181,7 @@ export const useOnlineProviderQrLogin = ({
                     }
                 } catch (error) {
                     if (sessionId !== sessionIdRef.current) return;
-                    note('check:error', { polls, scanned, ...describeError(error) }, 'warn');
+                    note('check:error', { polls, scanned, ...describeError(targetProviderId, error) }, 'warn');
                     setQrState('error');
                     setFailure('check-error');
                     qrCheckTimeoutRef.current = null;
@@ -191,7 +191,7 @@ export const useOnlineProviderQrLogin = ({
             qrCheckTimeoutRef.current = window.setTimeout(poll, QR_POLL_INTERVAL_MS);
         } catch (error) {
             if (sessionId !== sessionIdRef.current) return;
-            note('start:error', describeError(error), 'warn');
+            note('start:error', describeError(targetProviderId, error), 'warn');
             setQrState('error');
             setFailure('start-error');
         }

@@ -48,7 +48,8 @@ export const handleLoginStatusFailure = async (
             freshness: 'error',
         });
     }
-    console.warn('[LoginStatus] failure', {
+    // QQ provider already logs a filtered summary and isolates superseded QR attempts.
+    if (providerId !== 'qq') console.warn('[LoginStatus] failure', {
         providerId,
         hadCachedAccount: Boolean(cachedUser),
         authRequired,
