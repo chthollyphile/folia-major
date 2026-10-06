@@ -17,29 +17,29 @@ import { fileURLToPath } from "node:url";
 // Downloads one pinned Folia FFmpeg release asset for the Electron target and
 // stages only its runtime binary plus redistribution metadata for electron-builder.
 
-export const FFMPEG_RELEASE_TAG = "v8.1.2-folia.1";
+export const FFMPEG_RELEASE_TAG = "v8.1.2-folia.3";
 const RELEASE_BASE_URL = `https://github.com/chthollyphile/folia-ffmpeg-build/releases/download/${FFMPEG_RELEASE_TAG}`;
 
 export const FFMPEG_ASSETS = Object.freeze({
   "linux-x64": {
     archive: "ffmpeg-8.1.2-folia-x86_64-linux-gnu.tar.gz",
-    sha256: "f3a5da6e9d9dbfaf4bed50f6f2d39831bb0e7f3fbfd07e0b1b55f668b045256f",
+    sha256: "6e0cf37cde86ca11d22978f0dfdc50593d986ca596219d0884e024ec141e405a",
   },
   "linux-arm64": {
     archive: "ffmpeg-8.1.2-folia-arm64-linux-gnu.tar.gz",
-    sha256: "ada0c4fafcf74fecceeaee71e367e7b21dd58168b6b6ad182e61c0a332b8a6cb",
+    sha256: "0c8defb12e8de8f01d0a4c6a3d1daf02bdd155272de5f360c3f06f3787639b36",
   },
   "mac-x64": {
     archive: "ffmpeg-8.1.2-folia-x86_64-apple-macos10.9.tar.gz",
-    sha256: "8ea2154fd21020f2032b6d368c2681b6a7b4658042be747bba9e173613544552",
+    sha256: "6f27eebeb76937708872256f328127926264c9f7f5b9aac3592403db1376e967",
   },
   "mac-arm64": {
     archive: "ffmpeg-8.1.2-folia-arm64-apple-macos11.tar.gz",
-    sha256: "7568a12e6f3a028b1846b79ac61a2b3b3c294417701785a9118926209a67e63e",
+    sha256: "2223c3da4f94f0ef447a3b5e9e4f90188cb3ead7c030b901109069b87cc636fe",
   },
   "win-x64": {
     archive: "ffmpeg-8.1.2-folia-x86_64-w64-mingw32.tar.gz",
-    sha256: "6575c45fc4568e9280281e09d6febf3d23a9a950d9c81ea50e46f5e0ed8fd5e9",
+    sha256: "266ca412da14330a96859f6b7fb64fc7d8bcd07bf84616179bc18af9900959ec",
   },
 });
 
