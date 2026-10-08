@@ -89,6 +89,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-queue-behavior",
   "settings-netease-scrobble",
   "netease-scrobble-toggle",
+  "spotify-login",
   "settings-audio-output",
   "settings-transition",
   "settings-local-lyrics-priority",

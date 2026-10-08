@@ -82,6 +82,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
         settings: {
             toggleRememberHomeCardPosition: vi.fn(),
             openSettings: vi.fn(),
+            startProviderLogin: vi.fn(async () => undefined),
             lyricStaffPolicy: 'smart' as const,
             cycleLyricStaffPolicy: vi.fn(),
             lyricStaffAbsorbMode: 'off' as const,

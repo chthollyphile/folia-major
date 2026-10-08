@@ -1778,6 +1778,11 @@ export default function App() {
         themeGenerationSource,
         setThemeGenerationSource: handleThemeGenerationSourceChange,
         voiceInputPauseSupported: isElectronWindow && typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win'),
+        // 在线音源的登录 / Client ID 入口在首页的登录弹窗里（provider 没有设置页）：先把首页切到前台，再开一轮登录。
+        startProviderLogin: async (providerId: OnlineProviderId) => {
+            navigateToHome();
+            await accountController.startLogin(providerId);
+        },
         canUseTransitionPerformance,
     }, lyricSegmentationActions);
     const commandPalette = useCommandPalette({

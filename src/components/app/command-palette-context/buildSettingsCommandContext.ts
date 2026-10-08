@@ -24,6 +24,7 @@ import { useTypographySettingsStore } from '../../../stores/useTypographySetting
 import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorStore';
 import { usePlayerBottomBarLayoutStore } from '../../../stores/usePlayerBottomBarLayoutStore';
 import type { SongResult } from '../../../types';
+import type { OnlineProviderId } from '../../../types/onlineMusic';
 import { cycleSubtitleContentMode } from '../../../utils/lyrics/alternateText';
 
 // src/components/app/command-palette-context/buildSettingsCommandContext.ts
@@ -48,6 +49,8 @@ export type SettingsCommandContextDeps = {
     themeGenerationSource: ThemeGenerationSource;
     setThemeGenerationSource: (source: ThemeGenerationSource) => void;
     voiceInputPauseSupported: boolean;
+    /** 打开某个在线音源的登录 / 授权弹窗；App 先把首页切到前台，再把请求交给账户 controller。 */
+    startProviderLogin: (providerId: OnlineProviderId) => Promise<void>;
     /** A getter: the answer changes when a model download finishes, with nothing re-rendering. */
     canUseTransitionPerformance: () => boolean;
 };
@@ -69,6 +72,7 @@ export const buildSettingsCommandContext = (
 
     return {
         openSettings: modal.openSettings,
+        startProviderLogin: deps.startProviderLogin,
         setAppLanguagePreference: modal.handleSetAppLanguagePreference,
         toggleTransparentBackground: deps.toggleTransparentBackground,
         toggleDaylightMode: deps.toggleDaylightMode,

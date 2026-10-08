@@ -18,6 +18,7 @@ import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
 import type { TransitionMode } from '../../services/automix/transitionStrategy';
 import type { PersonalFmSelection } from '../../services/onlineMusic/fmModes';
+import type { OnlineProviderId } from '../../types/onlineMusic';
 import type { QueueBatchAction, QueueFacetKind } from './queueQuery';
 import type { CommandPlatform } from './availability';
 import type { CommandPaletteSurface } from './surfaces/types';
@@ -211,6 +212,11 @@ export type CommandPaletteSettingsContext = {
         initialVisualizerSection?: VisualizerSettingsSection | null,
         initialAnchorId?: SettingsAnchorId | null,
     ) => void;
+    /**
+     * 打开某个在线音源的登录 / 授权流程：登录弹窗挂在首页外壳上，App 先把首页切到前台，再把请求交给账户 controller。
+     * Spotify 的 Client ID 就在那个弹窗里改（provider 自己没有设置页）。
+     */
+    startProviderLogin: (providerId: OnlineProviderId) => Promise<void>;
     setAppLanguagePreference: (preference: AppLanguagePreference) => Promise<void> | void;
     toggleTransparentBackground: () => void;
     toggleDaylightMode: () => void;

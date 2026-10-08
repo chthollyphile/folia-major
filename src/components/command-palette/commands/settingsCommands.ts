@@ -113,6 +113,22 @@ export const settingsCommands: CommandPaletteCommand[] = [
         // signing out has to close the command off while the palette is already open.
         { isAvailable: context => context?.settings.canReportNeteasePlayback() ?? true },
     ),
+    // Spotify 音源没有设置页：登录与 Client ID（弹窗里默认展开的那一段）都在登录弹窗里，
+    // 命令直接把那一轮登录开起来。App 会先把首页切到前台，弹窗挂在首页外壳上才挂得出来。
+    {
+        id: 'spotify-login',
+        group: 'settings',
+        title: 'Spotify sign-in',
+        description: 'Sign in to Spotify, or use your own Spotify Client ID',
+        keywords: [
+            'spotify', 'spotify client id', 'spotify oauth', 'spotify account',
+            'spotify 登录', 'spotify 授权', 'spotify 音源', 'spotify 客户端 id',
+        ],
+        execute: async (_input, context) => {
+            await context.settings.startProviderLogin('spotify');
+            return true;
+        },
+    },
     createSettingsAnchorCommand('settings-audio-output', 'Audio output', 'Jump to the audio output device and format settings', ['output device', 'audio device', 'sound card', '输出设备'], 'audioOutputSettings'),
     createSettingsAnchorCommand('settings-transition', 'Smart transition', 'Jump to the FOLIA transition settings', ['automix', 'crossfade', 'transition', '智能过渡', '转场'], 'transitionSettings'),
     createSettingsAnchorCommand('settings-local-lyrics-priority', 'Local song lyrics priority', 'Choose whether local songs prefer local or online lyrics', ['local lyrics priority', 'online lyrics first', 'local song lyrics', '本地歌曲歌词优先级', '在线优先', '本地歌词', 'bendigeciyouxianji', 'bdgcyxj'], 'lyrics'),

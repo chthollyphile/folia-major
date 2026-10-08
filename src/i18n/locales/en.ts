@@ -580,6 +580,7 @@ export default {
       "settings-queue-behavior": { "title": "Queue behavior", "description": "Jump to how the play queue is built and kept" },
       "settings-netease-scrobble": { "title": "NetEase listening report", "description": "Jump to whether finished plays are reported to NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "NetEase listening report", "description": "Turn reporting of finished NetEase plays on or off" },
+      "spotify-login": { "title": "Spotify sign-in", "description": "Sign in to Spotify, or use your own Spotify Client ID" },
       "settings-audio-output": { "title": "Audio output", "description": "Jump to the audio output device and format settings" },
       "settings-transition": { "title": "Smart transition", "description": "Jump to the FOLIA transition settings" },
       "settings-navidrome": { "title": "Navidrome server", "description": "Jump to the Navidrome server connection" },
