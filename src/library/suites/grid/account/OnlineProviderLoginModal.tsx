@@ -242,11 +242,20 @@ const OnlineProviderLoginModal = ({
                                         </button>
                                     </div>
                                 )}
-                                <details className="mt-3 w-full max-w-xs text-left">
-                                    <summary className="cursor-pointer text-[11px] text-white/45 hover:text-white/75 transition-colors">
-                                        其他账号登录报错？填写自己的 Spotify Client ID
+                                <details open className="mt-3 w-full max-w-xs text-left">
+                                    <summary className="cursor-pointer text-[11px] font-semibold text-emerald-300/90 hover:text-emerald-200 transition-colors">
+                                        登录报错？用你自己的 Spotify Client ID
                                     </summary>
                                     <div className="mt-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
+                                        <p className="mb-2 text-[10px] leading-relaxed text-white/55">
+                                            Client ID 要去 Spotify 开发者后台拿，四步：
+                                        </p>
+                                        <p className="mb-2 space-y-0.5 text-[10px] leading-relaxed text-white/55">
+                                            <span className="block">1. 点下面「创建自己的 app」，打开 developer.spotify.com/dashboard/create。</span>
+                                            <span className="block">2. 名字随便填，勾上 Web API；Redirect URI 填下面「复制回调地址」得到的那串，必须一字不差。</span>
+                                            <span className="block">3. 建好后进 app 的 Settings，复制 Client ID，粘到下面的输入框。</span>
+                                            <span className="block">4. 保存并重新登录。该账号要有 Spotify Premium；开发模式的 app 只放行白名单账号，所以每个账号用自己的 app。</span>
+                                        </p>
                                         <input
                                             type="text"
                                             value={spotifyClientIdDraft}
@@ -278,10 +287,6 @@ const OnlineProviderLoginModal = ({
                                                 {copiedRedirectUri ? '已复制回调地址' : '复制回调地址'}
                                             </button>
                                         </div>
-                                        <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
-                                            在 Spotify Dashboard 建一个 app，Redirect URI 填刚复制的地址，再把 Client ID 粘到上面。
-                                            开发模式的 app 只放行白名单账号，所以每个账号需要自己的 app，且该账号需要 Spotify Premium。
-                                        </p>
                                     </div>
                                 </details>
                             </div>
