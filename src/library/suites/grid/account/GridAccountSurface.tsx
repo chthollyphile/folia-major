@@ -105,6 +105,8 @@ const buildLoginModalProps = (
             : undefined,
         providerId: session.providerId,
         onRetry: () => void account.retryLogin(),
+        // 改完 Client ID 这类"换配置"要重开一轮：retryLogin 只在 expired / error 才放行
+        onRestartLogin: () => void account.startLogin(session.providerId),
         onClose: () => void account.closeLogin(),
     };
 };

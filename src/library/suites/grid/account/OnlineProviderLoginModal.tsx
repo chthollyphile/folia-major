@@ -48,6 +48,8 @@ type OnlineProviderLoginModalProps = {
     failureHelp?: QrLoginFailureHelpProps;
     providerId?: string;
     onRetry: () => void;
+    /** 整轮重启登录（重开一次要码会话）。retryLogin 只在失败态放行，等待中改配置必须走这条。 */
+    onRestartLogin?: () => void;
     onClose: () => void;
 };
 
@@ -65,6 +67,7 @@ const OnlineProviderLoginModal = ({
     failureHelp,
     providerId,
     onRetry,
+    onRestartLogin,
     onClose,
 }: OnlineProviderLoginModalProps) => {
     // 步骤一：还没选登录方式，二维码区显示占位框，且不会向后端发出任何请求。
@@ -106,11 +109,17 @@ const OnlineProviderLoginModal = ({
         () => (providerId === 'spotify' ? getCustomSpotifyClientId() : ''),
     );
     const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
+    const [spotifyClientIdSaved, setSpotifyClientIdSaved] = useState(false);
 
     /** 保存用户自己的 Spotify Client ID 并重走登录：旧令牌已随切换失效，必须重新授权 */
     const handleSaveSpotifyClientId = () => {
         setSpotifyClientId(spotifyClientIdDraft);
-        onRetry();
+        // 旧的本地回调与那个用旧 id 打开的授权页一起作废，否则旧页面送回来的 code 只会换出 invalid_grant
+        void window.electron?.stopSpotifyAuthServer?.();
+        setSpotifyClientIdSaved(true);
+        window.setTimeout(() => setSpotifyClientIdSaved(false), 3000);
+        if (onRestartLogin) onRestartLogin();
+        else onRetry();
     };
 
     /** 复制回调地址，方便直接粘进 Spotify Dashboard 的 Redirect URI 设置 */
@@ -270,7 +279,7 @@ const OnlineProviderLoginModal = ({
                                                 onClick={handleSaveSpotifyClientId}
                                                 className="px-2.5 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px] font-semibold transition-colors"
                                             >
-                                                保存并重新登录
+                                                {spotifyClientIdSaved ? '已保存，正在重新登录…' : '保存并重新登录'}
                                             </button>
                                             <button
                                                 type="button"
