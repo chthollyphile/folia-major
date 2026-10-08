@@ -12,6 +12,7 @@ import type {
     LibraryNeteaseBackendPort,
     LibraryProviderAccountPort,
     LibraryProviderSwitchCleanupPort,
+    LibrarySpotifyAuthConfigPort,
 } from '@/library/core/contracts/account';
 import { OnlineProviderError, type OnlineProviderId, type ProviderAccountSummary, type QrLoginMethod, type QrLoginState } from '@/types/onlineMusic';
 
@@ -158,12 +159,14 @@ let backend: ReturnType<typeof createBackend>;
 let refresh: ReturnType<typeof vi.fn<LibraryProviderAccountPort['refresh']>>;
 let logoutPort: ReturnType<typeof vi.fn<LibraryProviderAccountPort['logout']>>;
 let cleanup: ReturnType<typeof vi.fn<LibraryProviderSwitchCleanupPort['resetForProviderSwitch']>>;
+let spotifyAuth: { [K in keyof LibrarySpotifyAuthConfigPort]: ReturnType<typeof vi.fn> };
 let keySeq: number;
 
 const createController = (): LibraryAccountController => createProviderAccountController({
     auth: auth as unknown as LibraryAccountAuthPort,
     accounts: accounts.port,
     providerAccounts: { refresh, logout: logoutPort },
+    spotifyAuth: spotifyAuth as unknown as LibrarySpotifyAuthConfigPort,
     switchCleanup: { resetForProviderSwitch: cleanup },
     neteaseBackend: backend.port,
     clock: manual.clock,
@@ -213,6 +216,11 @@ beforeEach(() => {
         accounts.update(providerId, { status: 'anonymous' });
     });
     cleanup = vi.fn<LibraryProviderSwitchCleanupPort['resetForProviderSwitch']>(async (next: OnlineProviderId, previous: OnlineProviderId) => { ops.push(['cleanup', next, previous]); });
+    spotifyAuth = {
+        getCustomClientId: vi.fn().mockReturnValue(''),
+        saveClientId: vi.fn(),
+        getRedirectUri: vi.fn().mockReturnValue('http://127.0.0.1:32110/callback'),
+    };
 });
 
 const opsOf = (...names: string[]) => ops.filter(op => names.includes(op[0]));
@@ -970,5 +978,30 @@ describe('providerAccountController · failures are logged in full for every pro
         const text = report.status === 'ok' ? report.report : '';
         expect(text).toContain('message="QQMusicApi login_qr_key failed: HTTP 429 (QR login is temporarily backed off)"');
         expect(text).toContain('"failureReason":"local-backoff"');
+    });
+});
+
+// ─── Spotify 授权配置（Client ID 与回调地址经端口透出，弹窗不直连 provider service） ───
+
+describe('providerAccountController · Spotify auth config', () => {
+    it('reads and saves the Client ID through the injected port', () => {
+        spotifyAuth.getCustomClientId.mockReturnValue('user-client-id');
+        const controller = createController();
+
+        expect(controller.getSpotifyAuthConfig()).toEqual({
+            clientId: 'user-client-id',
+            redirectUri: 'http://127.0.0.1:32110/callback',
+        });
+
+        controller.saveSpotifyClientId('next-client-id');
+        expect(spotifyAuth.saveClientId).toHaveBeenCalledWith('next-client-id');
+    });
+
+    it('does not write after dispose', () => {
+        const controller = createController();
+        controller.dispose();
+
+        controller.saveSpotifyClientId('late-client-id');
+        expect(spotifyAuth.saveClientId).not.toHaveBeenCalled();
     });
 });

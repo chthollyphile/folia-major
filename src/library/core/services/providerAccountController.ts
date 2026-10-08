@@ -16,6 +16,7 @@ import type {
     LibraryProviderSwitchReason,
     LibraryProviderSwitchRequest,
     LibrarySelectProviderResult,
+    LibrarySpotifyAuthConfig,
     LibraryStartLoginResult,
     LibrarySwitchCancelResult,
     LibrarySwitchConfirmResult,
@@ -133,7 +134,7 @@ const sameLoginSnapshot = (a: LibraryLoginSessionSnapshot, b: LibraryLoginSessio
 
 /** 建在线账户 controller；寿命由宿主决定（首页外壳），dispose 之后的调用安全无效。 */
 export const createProviderAccountController = (deps: LibraryAccountControllerDeps): LibraryAccountController => {
-    const { auth, accounts, providerAccounts, switchCleanup, neteaseBackend } = deps;
+    const { auth, accounts, providerAccounts, spotifyAuth, switchCleanup, neteaseBackend } = deps;
     const log = deps.log ?? consoleAccountLogger;
     const listeners = new Set<() => void>();
 
@@ -502,6 +503,20 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         }
     };
 
+    // ─── Spotify 授权配置 ───────────────────────────────────────────────
+
+    /** 弹窗要的只读配置：用户自填的 Client ID 与回调地址，都来自注入端口。 */
+    const getSpotifyAuthConfig = (): LibrarySpotifyAuthConfig => ({
+        clientId: spotifyAuth.getCustomClientId(),
+        redirectUri: spotifyAuth.getRedirectUri(),
+    });
+
+    /** 保存 Client ID 并清掉旧令牌（端口实现）；宿主卸载后不再写。 */
+    const saveSpotifyClientId = (clientId: string): void => {
+        if (disposed) return;
+        spotifyAuth.saveClientId(clientId);
+    };
+
     // ─── 寿命 ───────────────────────────────────────────────────────────
 
     const dispose = (): void => {
@@ -534,6 +549,8 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         closeLogin,
         restartLoginBackend,
         buildLoginDiagnosticReport,
+        getSpotifyAuthConfig,
+        saveSpotifyClientId,
         logout: logoutProvider,
         dispose,
     };

@@ -55,6 +55,8 @@ const buildLoginModalProps = (
     features: GridLoginFeatures,
 ): LoginModalProps => {
     const { session } = view;
+    // Spotify 的 Client ID 与回调地址经账户 controller 透出，suite 不直接 import provider service。
+    const spotifyConfig = session.providerId === 'spotify' ? account.getSpotifyAuthConfig() : null;
     return {
         title: view.title,
         note: view.note,
@@ -104,6 +106,13 @@ const buildLoginModalProps = (
             })
             : undefined,
         providerId: session.providerId,
+        spotifyAuth: spotifyConfig
+            ? {
+                clientId: spotifyConfig.clientId,
+                redirectUri: spotifyConfig.redirectUri,
+                onSaveClientId: (clientId: string) => account.saveSpotifyClientId(clientId),
+            }
+            : undefined,
         onRetry: () => void account.retryLogin(),
         // 改完 Client ID 这类"换配置"要重开一轮：retryLogin 只在 expired / error 才放行
         onRestartLogin: () => void account.startLogin(session.providerId),

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, ExternalLink, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import QrLoginFailureHelp, { type QrLoginFailureHelpProps } from './QrLoginFailureHelp';
-import { getCustomSpotifyClientId, setSpotifyClientId, SPOTIFY_REDIRECT_URI } from '../../../../services/onlineMusic/spotifyClientId';
 
 // src/library/suites/grid/account/OnlineProviderLoginModal.tsx
 // 扫码登录弹窗。平时是窄的单栏：二维码、状态行、重试 / 重启；登录失败后变成两栏，失败帮助（简单办法、自检、
@@ -32,6 +31,16 @@ type BackendFailureProps = {
     onRestart?: () => void;
 };
 
+// Spotify 的授权配置由账户 controller 透出：Client ID 的读写与回调地址都不再由弹窗直接 import provider service。
+type SpotifyAuthProps = {
+    /** 用户自填的 Client ID 初值；没填过是空串（不把内置默认值抄进输入框）。 */
+    clientId: string;
+    /** OAuth 本地回环回调地址，用户要原样填进 Spotify Dashboard。 */
+    redirectUri: string;
+    /** 保存由 controller 承担（同时清掉与旧 id 绑定的令牌）；保存后由调用方重走登录。 */
+    onSaveClientId: (clientId: string) => void;
+};
+
 type OnlineProviderLoginModalProps = {
     title: string;
     note: string;
@@ -47,6 +56,8 @@ type OnlineProviderLoginModalProps = {
     // 只在扫码登录失败时传入（含后端没拉起来），显示在二维码旁边。
     failureHelp?: QrLoginFailureHelpProps;
     providerId?: string;
+    /** 只在 Spotify 登录时传入；传了就显示「用自己的 Client ID」那一块。 */
+    spotifyAuth?: SpotifyAuthProps;
     onRetry: () => void;
     /** 整轮重启登录（重开一次要码会话）。retryLogin 只在失败态放行，等待中改配置必须走这条。 */
     onRestartLogin?: () => void;
@@ -66,6 +77,7 @@ const OnlineProviderLoginModal = ({
     backendFailure,
     failureHelp,
     providerId,
+    spotifyAuth,
     onRetry,
     onRestartLogin,
     onClose,
@@ -105,15 +117,13 @@ const OnlineProviderLoginModal = ({
         };
     }, [providerId]);
 
-    const [spotifyClientIdDraft, setSpotifyClientIdDraft] = useState(
-        () => (providerId === 'spotify' ? getCustomSpotifyClientId() : ''),
-    );
+    const [spotifyClientIdDraft, setSpotifyClientIdDraft] = useState(() => spotifyAuth?.clientId ?? '');
     const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
     const [spotifyClientIdSaved, setSpotifyClientIdSaved] = useState(false);
 
     /** 保存用户自己的 Spotify Client ID 并重走登录：旧令牌已随切换失效，必须重新授权 */
     const handleSaveSpotifyClientId = () => {
-        setSpotifyClientId(spotifyClientIdDraft);
+        spotifyAuth?.onSaveClientId(spotifyClientIdDraft);
         // 旧的本地回调与那个用旧 id 打开的授权页一起作废，否则旧页面送回来的 code 只会换出 invalid_grant
         void window.electron?.stopSpotifyAuthServer?.();
         setSpotifyClientIdSaved(true);
@@ -124,8 +134,8 @@ const OnlineProviderLoginModal = ({
 
     /** 复制回调地址，方便直接粘进 Spotify Dashboard 的 Redirect URI 设置 */
     const handleCopyRedirectUri = () => {
-        if (typeof navigator === 'undefined' || !navigator.clipboard) return;
-        void navigator.clipboard.writeText(SPOTIFY_REDIRECT_URI).then(() => {
+        if (!spotifyAuth || typeof navigator === 'undefined' || !navigator.clipboard) return;
+        void navigator.clipboard.writeText(spotifyAuth.redirectUri).then(() => {
             setCopiedRedirectUri(true);
             window.setTimeout(() => setCopiedRedirectUri(false), 2000);
         }).catch(() => {});
@@ -212,7 +222,7 @@ const OnlineProviderLoginModal = ({
                                 <div className="w-40 h-40 flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 px-4 text-center text-[11px] font-medium leading-snug text-gray-400">
                                     {loginMethods?.pendingText}
                                 </div>
-                            ) : providerId === 'spotify' ? (
+                            ) : spotifyAuth ? (
                                 // Spotify 走的是浏览器授权 + 本机回环回调，二维码指向同一个授权页，
                                 // 手机扫了只会把回调打到手机自己身上，必然失败——这里不放二维码，免得误导。
                                 <div className="w-40 h-40 flex flex-col items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 text-center">
@@ -241,7 +251,7 @@ const OnlineProviderLoginModal = ({
                         <p className={`text-xs font-medium mt-2 ${state === 'confirmed' ? 'text-green-400' : 'opacity-60'}`} style={{ color: state === 'confirmed' ? undefined : 'var(--text-secondary)' }}>
                             {awaitingMethod || backendFailure ? '' : statusText}
                         </p>
-                        {providerId === 'spotify' && state !== 'confirmed' && (
+                        {spotifyAuth && state !== 'confirmed' && (
                             <div className="flex flex-col items-center">
                                 <p className="text-[11px] text-emerald-400/90 mt-2 font-medium px-4 leading-relaxed text-center">
                                     已在浏览器中打开 Spotify 授权页面，请在网页中确认授权。这个二维码是同一个授权页的地址，回调只能回到本机，请不要用手机扫码。

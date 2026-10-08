@@ -250,6 +250,16 @@ export type LibraryLogoutResult =
     | { status: 'busy'; providerId: OnlineProviderId }
     | { status: 'failed'; providerId: OnlineProviderId; message: string };
 
+// ─── Spotify 授权配置（登录弹窗经 controller 读写，不直连 provider service） ───
+
+/** Spotify 登录弹窗要渲染的授权配置。 */
+export type LibrarySpotifyAuthConfig = {
+    /** 用户自填的 Client ID；没填过是空串（界面不把内置默认值抄进输入框）。 */
+    clientId: string;
+    /** OAuth 本地回环回调地址，用户要原样填进 Spotify Dashboard。 */
+    redirectUri: string;
+};
+
 // ─── controller ─────────────────────────────────────────────────────────
 
 /**
@@ -276,6 +286,10 @@ export interface LibraryAccountController {
     /** 只在 backend.canRestart 时；恢复运行后自动要码。 */
     restartLoginBackend(): Promise<LibraryBackendRestartResult>;
     buildLoginDiagnosticReport(): Promise<LibraryLoginDiagnosticResult>;
+    /** Spotify 登录弹窗的授权配置；其他 provider 不调用。 */
+    getSpotifyAuthConfig(): LibrarySpotifyAuthConfig;
+    /** 保存用户自填的 Client ID：端口同时清掉与旧 id 绑定的令牌（之后必须重新授权）。 */
+    saveSpotifyClientId(clientId: string): void;
     /** 只对当前且已登录的平台；走宿主注入的 per-provider logout。 */
     logout(providerId: OnlineProviderId): Promise<LibraryLogoutResult>;
     /** 宿主卸载：关闭登录会话（keyed 取消），待确认切换按 declined / disposed 结算。 */
@@ -337,6 +351,20 @@ export type LibraryProviderAccountPort = {
 };
 
 /**
+ * Spotify 授权配置的读写端口：真源在 services/onlineMusic/spotifyClientId（它刻意不依赖 providerStorage / omni，
+ * 否则弹窗经 spotifyProvider -> omni -> providerRegistry 会拿到循环导入）。suite 只经 controller 读写，
+ * 默认装配在 providerAccountDeps。
+ */
+export type LibrarySpotifyAuthConfigPort = {
+    /** 用户自己填的 Client ID；没填过返回空串（界面不把内置默认值抄进输入框）。 */
+    getCustomClientId(): string;
+    /** 保存并清掉旧令牌：refresh_token 与 client id 绑定，换 id 后必须重新走一次授权。 */
+    saveClientId(clientId: string): void;
+    /** OAuth 本地回环回调地址（与授权 URL 里用的是同一个常量）。 */
+    getRedirectUri(): string;
+};
+
+/**
  * 切换清理端口：用户确认切换后、写新的当前平台之前调用。宿主在这里清掉播放（automix 尾音、audio、队列、歌词、
  * prefetch、track profile）、搜索运行态与集合导航（现 App.tsx 的 handleConfirmProviderSwitch）。
  */
@@ -389,6 +417,7 @@ export type LibraryAccountControllerDeps = {
     auth: LibraryAccountAuthPort;
     accounts: LibraryAccountStorePort;
     providerAccounts: LibraryProviderAccountPort;
+    spotifyAuth: LibrarySpotifyAuthConfigPort;
     switchCleanup: LibraryProviderSwitchCleanupPort;
     neteaseBackend: LibraryNeteaseBackendPort;
     clock: LibraryAccountClock;

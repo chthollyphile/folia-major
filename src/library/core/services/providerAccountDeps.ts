@@ -1,4 +1,5 @@
 import { omni } from '../../../services/onlineMusic/omni';
+import { getCustomSpotifyClientId, setSpotifyClientId, SPOTIFY_REDIRECT_URI } from '../../../services/onlineMusic/spotifyClientId';
 import { useNeteaseApiStatusStore } from '../../../stores/useNeteaseApiStatusStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import type {
@@ -11,12 +12,14 @@ import type {
     LibraryNeteaseBackendPort,
     LibraryProviderAccountPort,
     LibraryProviderSwitchCleanupPort,
+    LibrarySpotifyAuthConfigPort,
 } from '../contracts/account';
 
 // src/library/core/services/providerAccountDeps.ts
 // 在线账户 controller 的默认装配：扫码 auth 直接用 omni 的同名方法；provider 列表与当前平台读
 // useOnlineProviderAccountStore + omni（mod 源增删经 omni.subscribeProviders）；网易后端健康读
 // useNeteaseApiStatusStore；时钟用 window 定时器；诊断环境读 __APP_VERSION__ 与 navigator。
+// Spotify 授权配置读 services/onlineMusic/spotifyClientId（弹窗经 controller 读写，不直接 import 它）。
 // 刷新、登出与切换清理属于宿主（App 的 per-provider hook 与播放状态），由调用方以函数形状传入。
 // 单测给 createProviderAccountController 注入假端口，不经过这里。
 
@@ -38,6 +41,16 @@ export const accountStorePort: LibraryAccountStorePort = {
             unsubscribeRegistry();
         };
     },
+};
+
+/**
+ * Spotify 授权配置：Client ID 与回调地址的真源在 services/onlineMusic/spotifyClientId，
+ * 保存由它自己清掉与旧 id 绑定的令牌；suite 只经 controller 读写。
+ */
+export const spotifyAuthConfigPort: LibrarySpotifyAuthConfigPort = {
+    getCustomClientId: () => getCustomSpotifyClientId(),
+    saveClientId: clientId => setSpotifyClientId(clientId),
+    getRedirectUri: () => SPOTIFY_REDIRECT_URI,
 };
 
 /** 网易本地后端：useNeteaseApiStatusStore 拍平成 controller 要的健康值（web 构建 supported=false）。 */
@@ -80,6 +93,7 @@ export const createProviderAccountDeps = (host: ProviderAccountHostPorts): Libra
     auth: omniAccountAuthPort,
     accounts: accountStorePort,
     providerAccounts: host.providerAccounts,
+    spotifyAuth: spotifyAuthConfigPort,
     switchCleanup: host.switchCleanup,
     neteaseBackend: neteaseBackendPort,
     clock: windowAccountClock,
