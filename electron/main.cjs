@@ -30,6 +30,7 @@ const {
   stopLibrespotDaemon,
   getLibrespotStatus,
   getLibrespotAuthCode,
+  startLibrespotTrack,
   playLibrespotTrack,
   pauseLibrespotTrack,
   resumeLibrespotTrack,
@@ -5847,6 +5848,10 @@ ipcMain.handle('librespot-get-status', () => {
 
 ipcMain.handle('librespot-get-auth-code', () => {
   return getLibrespotAuthCode();
+});
+
+ipcMain.handle('librespot-start-track', (_event, uri, playId) => {
+  return startLibrespotTrack(uri, playId);
 });
 
 ipcMain.handle('librespot-play', (_event, uri) => {

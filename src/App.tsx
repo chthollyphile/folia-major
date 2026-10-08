@@ -2392,7 +2392,14 @@ export default function App() {
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
                 if (audioSrc?.includes('32112')) {
-                    void window.electron?.resumeLibrespotTrack?.();
+                    // 起播只在这里发起：载波被"只加载不播放"（恢复会话但保持暂停、取元数据）时
+                    // 也会被请求，在服务端触发会让界面显示暂停、声音却在放。
+                    const carrierId = /[?&]id=([^&]+)/.exec(audioSrc);
+                    const carrierPlayId = /[?&]playId=([^&]+)/.exec(audioSrc);
+                    void window.electron?.startLibrespotTrack?.(
+                        carrierId ? decodeURIComponent(carrierId[1]) : '',
+                        carrierPlayId ? decodeURIComponent(carrierPlayId[1]) : '',
+                    );
                 } else {
                     void window.electron?.stopLibrespotTrack?.();
                 }

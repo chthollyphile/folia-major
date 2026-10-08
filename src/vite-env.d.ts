@@ -853,6 +853,7 @@ declare global {
       stopLibrespotDaemon?: () => Promise<void>;
       getLibrespotStatus?: () => Promise<{ online: boolean; playbackReady?: boolean; player?: any }>;
       getLibrespotAuthCode?: () => Promise<{ code: string; url: string; expires_at: string } | null>;
+      startLibrespotTrack?: (uri: string, playId?: string) => Promise<{ success: boolean; error?: string }>;
       playLibrespotTrack?: (uri: string) => Promise<{ success: boolean; status?: number; error?: string }>;
       pauseLibrespotTrack?: () => Promise<{ success: boolean; error?: string }>;
       resumeLibrespotTrack?: () => Promise<{ success: boolean; error?: string }>;

@@ -117,16 +117,6 @@ function startSilentStreamServer() {
           Math.max(1, parseFloat(parsedUrl.searchParams.get('duration') || '180') || 180),
         );
 
-        // 新曲目播放触发（仅在 GET 请求时触发，避免 preflight 或 HEAD 误触发）
-        if (req.method === 'GET' && playId && playId !== currentPlayingTrackId) {
-          currentPlayingTrackId = playId;
-          const targetUri = normalizeSpotifyTrackUri(id);
-          console.log('[Librespot] Requesting playback of track URI:', targetUri);
-          playLibrespotTrack(targetUri).catch(err => {
-            console.warn('[Librespot] Auto play triggered error:', err);
-          });
-        }
-
         const totalBuffer = getSilentWavBuffer(durationSec);
         const totalSize = totalBuffer.length;
 
@@ -388,6 +378,21 @@ async function getLibrespotAuthCode() {
 }
 
 /**
+ * 起播或续播。同一个 playId 再次进来就是"继续播"（暂停后恢复），换了 playId 才是换曲。
+ *
+ * 起播必须由渲染进程在真正 onPlay 时发起：浏览器"只加载不播放"（恢复上次会话但保持暂停、
+ * 或仅取元数据）同样会 GET 静音载波，在那里触发会让界面显示暂停、声音却在放。
+ */
+async function startLibrespotTrack(rawIdOrUri, playId) {
+  const normalizedPlayId = playId ? String(playId) : '';
+  if (normalizedPlayId && normalizedPlayId === currentPlayingTrackId) {
+    return resumeLibrespotTrack();
+  }
+  currentPlayingTrackId = normalizedPlayId || null;
+  return playLibrespotTrack(normalizeSpotifyTrackUri(rawIdOrUri));
+}
+
+/**
  * 调用 go-librespot 播放指定 Spotify URI 曲目
  */
 async function playLibrespotTrack(spotifyUri) {
@@ -490,6 +495,7 @@ module.exports = {
   stopLibrespotDaemon,
   getLibrespotStatus,
   getLibrespotAuthCode,
+  startLibrespotTrack,
   playLibrespotTrack,
   pauseLibrespotTrack,
   resumeLibrespotTrack,

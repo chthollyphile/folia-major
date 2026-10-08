@@ -109,6 +109,7 @@ contextBridge.exposeInMainWorld('electron', {
     stopLibrespotDaemon: () => ipcRenderer.invoke('librespot-stop-daemon'),
     getLibrespotStatus: () => ipcRenderer.invoke('librespot-get-status'),
     getLibrespotAuthCode: () => ipcRenderer.invoke('librespot-get-auth-code'),
+    startLibrespotTrack: (uri, playId) => ipcRenderer.invoke('librespot-start-track', uri, playId),
     playLibrespotTrack: (uri) => ipcRenderer.invoke('librespot-play', uri),
     pauseLibrespotTrack: () => ipcRenderer.invoke('librespot-pause'),
     resumeLibrespotTrack: () => ipcRenderer.invoke('librespot-resume'),
