@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import QrLoginFailureHelp, { type QrLoginFailureHelpProps } from './QrLoginFailureHelp';
+import { getCustomSpotifyClientId, setSpotifyClientId, SPOTIFY_REDIRECT_URI } from '../../../../services/onlineMusic/spotifyClientId';
 
 // src/library/suites/grid/account/OnlineProviderLoginModal.tsx
 // 扫码登录弹窗。平时是窄的单栏：二维码、状态行、重试 / 重启；登录失败后变成两栏，失败帮助（简单办法、自检、
@@ -81,6 +82,27 @@ const OnlineProviderLoginModal = ({
             }).catch(() => {});
         }
     }, [providerId]);
+
+    const [spotifyClientIdDraft, setSpotifyClientIdDraft] = useState(
+        () => (providerId === 'spotify' ? getCustomSpotifyClientId() : ''),
+    );
+    const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
+
+    /** 保存用户自己的 Spotify Client ID 并重走登录：旧令牌已随切换失效，必须重新授权 */
+    const handleSaveSpotifyClientId = () => {
+        setSpotifyClientId(spotifyClientIdDraft);
+        onRetry();
+    };
+
+    /** 复制回调地址，方便直接粘进 Spotify Dashboard 的 Redirect URI 设置 */
+    const handleCopyRedirectUri = () => {
+        if (typeof navigator === 'undefined' || !navigator.clipboard) return;
+        void navigator.clipboard.writeText(SPOTIFY_REDIRECT_URI).then(() => {
+            setCopiedRedirectUri(true);
+            window.setTimeout(() => setCopiedRedirectUri(false), 2000);
+        }).catch(() => {});
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -201,6 +223,48 @@ const OnlineProviderLoginModal = ({
                                         </button>
                                     </div>
                                 )}
+                                <details className="mt-3 w-full max-w-xs text-left">
+                                    <summary className="cursor-pointer text-[11px] text-white/45 hover:text-white/75 transition-colors">
+                                        其他账号登录报错？填写自己的 Spotify Client ID
+                                    </summary>
+                                    <div className="mt-2 p-2.5 rounded-xl bg-white/5 border border-white/10">
+                                        <input
+                                            type="text"
+                                            value={spotifyClientIdDraft}
+                                            onChange={event => setSpotifyClientIdDraft(event.target.value)}
+                                            placeholder="粘贴 32 位 Client ID，留空用内置默认值"
+                                            spellCheck={false}
+                                            className="w-full px-2 py-1.5 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-white/90 outline-none focus:border-emerald-500/60"
+                                        />
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveSpotifyClientId}
+                                                className="px-2.5 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-[11px] font-semibold transition-colors"
+                                            >
+                                                保存并重新登录
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void window.electron?.openExternalUrl?.('https://developer.spotify.com/dashboard/create')}
+                                                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 text-[11px] font-semibold transition-colors"
+                                            >
+                                                创建自己的 app
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleCopyRedirectUri}
+                                                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 text-[11px] font-semibold transition-colors"
+                                            >
+                                                {copiedRedirectUri ? '已复制回调地址' : '复制回调地址'}
+                                            </button>
+                                        </div>
+                                        <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
+                                            在 Spotify Dashboard 建一个 app，Redirect URI 填刚复制的地址，再把 Client ID 粘到上面。
+                                            开发模式的 app 只放行白名单账号，所以每个账号需要自己的 app，且该账号需要 Spotify Premium。
+                                        </p>
+                                    </div>
+                                </details>
                             </div>
                         )}
                         {backendFailure?.onRestart && (

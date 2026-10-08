@@ -4,20 +4,20 @@ import type {
     OnlineMusicProvider,
     ProviderCollection,
     ProviderPage,
-    UnifiedSong,
 } from '../../types/onlineMusic';
-import type { SongResult } from '../../types';
+import type { SongResult, UnifiedSong } from '../../types';
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { readProviderSessionValue, writeProviderSessionValue, removeProviderSessionValue } from './providerStorage';
 import { normalizeSpotifySong, normalizeSpotifyUser, normalizeSpotifyCollection } from './spotifyNormalize';
+import { getSpotifyClientId, SPOTIFY_REDIRECT_URI } from './spotifyClientId';
 import { omni } from './omni';
 import { autoMatchBestLyric } from '../../utils/lyrics/autoMatchBestLyric';
 
 // src/services/onlineMusic/spotifyProvider.ts
 // Spotify 音乐源适配器：提供 OAuth 2.0 PKCE 认证、用户曲库同步、搜索、跨源音频直链替换与逐字歌词匹配
 
-export const SPOTIFY_CLIENT_ID = 'ca5819e5e46b4af5aaaca0e71044214d';
-export const SPOTIFY_REDIRECT_URI = 'http://127.0.0.1:32110/callback';
+// Client ID 与回调地址在 ./spotifyClientId：登录弹窗要直接引用它们，从本文件导出会把 omni 那条
+// 依赖链拖进 UI，进而让 providerRegistry 的循环导入在注册时拿到 undefined。
 
 let currentCodeVerifier: string | null = null;
 let currentOAuthState: string | null = null;
@@ -65,14 +65,23 @@ async function getValidAccessToken(): Promise<string | null> {
         const body = new URLSearchParams({
             grant_type: 'refresh_token',
             refresh_token: refreshToken,
-            client_id: SPOTIFY_CLIENT_ID,
+            client_id: getSpotifyClientId(),
         });
         const res = await fetch('https://accounts.spotify.com/api/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString(),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            // invalid_client / invalid_grant：Client ID 换过或授权已撤销。清掉本地令牌回到「请重新登录」，
+            // 否则界面会一直拿着刷不动的旧令牌反复报错。
+            if (res.status === 400 || res.status === 401) {
+                removeProviderSessionValue('spotify', 'access_token');
+                removeProviderSessionValue('spotify', 'refresh_token');
+                removeProviderSessionValue('spotify', 'expires_at');
+            }
+            return null;
+        }
         const data = await res.json();
         if (data.access_token) {
             writeProviderSessionValue('spotify', 'access_token', data.access_token);
@@ -108,6 +117,16 @@ async function spotifyFetch<T>(endpoint: string, options: RequestInit = {}): Pro
     });
     if (res.status === 401) {
         throw new OnlineProviderError('auth-required', 'Spotify 会话已过期，请重新登录', 'spotify');
+    }
+    if (res.status === 403) {
+        // 开发模式的 app 只对白名单账号放行：未列入白名单的账号能登录成功，但所有 API 请求都会 403
+        throw new OnlineProviderError(
+            'auth-required',
+            'Spotify 拒绝了该账号的请求（403）：它不在当前 Client ID 的开发者白名单里。请在登录弹窗里填写自己的 Spotify Client ID 后重新登录。',
+            'spotify',
+            undefined,
+            res.status,
+        );
     }
     if (!res.ok) {
         throw new OnlineProviderError('invalid-response', `Spotify API 错误: ${res.status} ${res.statusText}`, 'spotify', undefined, res.status);
@@ -222,7 +241,10 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const me = await spotifyFetch<any>('me');
                 return normalizeSpotifyUser(me);
-            } catch {
+            } catch (error) {
+                // 403/401 是「登录成功但没权限」而不是「没登录」。静默返回 null 只会让用户看到一句
+                // 「登录错误」，把带原因的 auth-required 抛出去，诊断里才会写着该填自己的 Client ID。
+                if (error instanceof OnlineProviderError && error.code === 'auth-required') throw error;
                 return null;
             }
         },
@@ -247,7 +269,7 @@ export const spotifyProvider: OnlineMusicProvider = {
                 'user-top-read',
             ].join(' ');
 
-            const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(SPOTIFY_REDIRECT_URI)}&scope=${encodeURIComponent(scopes)}&code_challenge_method=S256&code_challenge=${challenge}&state=${currentOAuthState}`;
+            const authUrl = `https://accounts.spotify.com/authorize?client_id=${getSpotifyClientId()}&response_type=code&redirect_uri=${encodeURIComponent(SPOTIFY_REDIRECT_URI)}&scope=${encodeURIComponent(scopes)}&code_challenge_method=S256&code_challenge=${challenge}&state=${currentOAuthState}`;
             currentAuthUrl = authUrl;
 
             // 桌面端唤起本地监听服务器，并在浏览器中打开授权页
@@ -286,7 +308,7 @@ export const spotifyProvider: OnlineMusicProvider = {
                         grant_type: 'authorization_code',
                         code: codeResult.code,
                         redirect_uri: SPOTIFY_REDIRECT_URI,
-                        client_id: SPOTIFY_CLIENT_ID,
+                        client_id: getSpotifyClientId(),
                         code_verifier: currentCodeVerifier || '',
                     });
                     const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
@@ -327,7 +349,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getUserPlaylists(userId, limit, offset) {
             const data = await spotifyFetch<any>(`me/playlists?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map(item => normalizeSpotifyCollection(item, 'playlist', item.owner?.id === userId));
+            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'playlist', item.owner?.id === userId));
             return {
                 items,
                 total: data.total,
@@ -340,7 +362,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const data = await spotifyFetch<any>('me/tracks?limit=50');
                 const rawItems = Array.isArray(data.items) ? data.items : [];
-                return rawItems.map(item => String(item.track?.id || '')).filter(Boolean);
+                return rawItems.map((item: any) => String(item.track?.id || '')).filter(Boolean);
             } catch {
                 return [];
             }
@@ -349,7 +371,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getUserAlbums(userId, limit, offset) {
             const data = await spotifyFetch<any>(`me/albums?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map(item => normalizeSpotifyCollection(item.album, 'album', false));
+            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item.album, 'album', false));
             return {
                 items,
                 total: data.total,
@@ -366,9 +388,9 @@ export const spotifyProvider: OnlineMusicProvider = {
             const data = await spotifyFetch<any>(`playlists/${id}/tracks?limit=${Math.min(limit, 100)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
             const items = rawItems
-                .map(item => item.track)
+                .map((item: any) => item.track)
                 .filter(Boolean)
-                .map(track => normalizeSpotifySong(track));
+                .map((track: any) => normalizeSpotifySong(track));
             return {
                 items,
                 total: data.total,
@@ -386,7 +408,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             const data = await spotifyFetch<any>(`albums/${id}/tracks?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const albumData = await spotifyFetch<any>(`albums/${id}`).catch(() => null);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map(track => {
+            const items = rawItems.filter(Boolean).map((track: any) => {
                 if (albumData && !track.album) track.album = albumData;
                 return normalizeSpotifySong(track);
             });
@@ -406,7 +428,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getArtistSongs(id, limit, offset) {
             const data = await spotifyFetch<any>(`artists/${id}/top-tracks?market=from_token`);
             const rawItems = Array.isArray(data.tracks) ? data.tracks : [];
-            const items = rawItems.slice(offset, offset + limit).map(track => normalizeSpotifySong(track));
+            const items = rawItems.slice(offset, offset + limit).map((track: any) => normalizeSpotifySong(track));
             return {
                 items,
                 total: rawItems.length,
@@ -418,7 +440,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getArtistAlbums(id, limit, offset) {
             const data = await spotifyFetch<any>(`artists/${id}/albums?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map(item => normalizeSpotifyCollection(item, 'album'));
+            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'album'));
             return {
                 items,
                 total: data.total,
@@ -444,7 +466,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async searchSongs(query, limit, offset) {
             const data = await spotifyFetch<any>(`search?q=${encodeURIComponent(query)}&type=track&limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.tracks?.items) ? data.tracks.items : [];
-            const items = rawItems.filter(Boolean).map(track => normalizeSpotifySong(track));
+            const items = rawItems.filter(Boolean).map((track: any) => normalizeSpotifySong(track));
             return {
                 items,
                 total: data.tracks?.total,
@@ -459,7 +481,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const data = await spotifyFetch<any>('me/top/tracks?limit=30');
                 const rawItems = Array.isArray(data.items) ? data.items : [];
-                return rawItems.filter(Boolean).map(track => normalizeSpotifySong(track));
+                return rawItems.filter(Boolean).map((track: any) => normalizeSpotifySong(track));
             } catch {
                 return [];
             }
@@ -469,7 +491,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const data = await spotifyFetch<any>(`browse/featured-playlists?limit=${Math.min(limit, 20)}`);
                 const rawItems = Array.isArray(data.playlists?.items) ? data.playlists.items : [];
-                return rawItems.filter(Boolean).map(item => normalizeSpotifyCollection(item, 'playlist'));
+                return rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'playlist'));
             } catch {
                 return [];
             }
@@ -553,8 +575,14 @@ export const spotifyProvider: OnlineMusicProvider = {
 
             for (const candidateSong of candidates) {
                 try {
-                    const matched = await autoMatchBestLyric(candidateSong);
-                    if (matched?.lyrics) {
+                    // autoMatchBestLyric 收的是歌名/歌手/时长三个参数，不是整个 song 对象
+                    const matched = await autoMatchBestLyric(
+                        candidateSong.name,
+                        candidateSong.artists?.[0]?.name || '',
+                        candidateSong.durationMs || 0,
+                    );
+                    // isPureMusic 为真时结果里没有歌词，必须先窄化再取 lyrics
+                    if (matched && !matched.isPureMusic) {
                         return {
                             lyrics: matched.lyrics,
                             isPureMusic: false,
