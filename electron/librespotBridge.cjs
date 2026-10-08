@@ -20,6 +20,27 @@ const MAX_RESTART_ATTEMPTS = 3;
 let silentServer = null;
 let currentPlayingTrackId = null;
 
+/** 静音载波单次分配的时长上限：duration 完全来自查询串，不封顶时一个超长值就能把内存打满 */
+const SILENT_WAV_MAX_SECONDS = 3600;
+/** 按秒缓存已生成的静音缓冲，最多留两份（双 deck 交叉淡入时会同时要两个时长） */
+const silentWavCache = new Map();
+
+/**
+ * 取（必要时生成）指定时长的静音 WAV 缓冲。
+ * 每次请求都重新分配整段缓冲的话，长曲子按 Range 分段请求会反复占几十到几百 MB。
+ */
+function getSilentWavBuffer(durationSec) {
+  const cached = silentWavCache.get(durationSec);
+  if (cached) return cached;
+
+  const buffer = createSilentWavBuffer(durationSec);
+  silentWavCache.set(durationSec, buffer);
+  while (silentWavCache.size > 2) {
+    silentWavCache.delete(silentWavCache.keys().next().value);
+  }
+  return buffer;
+}
+
 /**
  * 标准化 Spotify 曲目 URI，避免双重前缀导致 go-librespot 无法解析
  */
@@ -91,7 +112,10 @@ function startSilentStreamServer() {
       if (parsedUrl.pathname === '/silent.wav') {
         const id = parsedUrl.searchParams.get('id');
         const playId = parsedUrl.searchParams.get('playId') || id;
-        const durationSec = Math.max(1, parseFloat(parsedUrl.searchParams.get('duration') || '180'));
+        const durationSec = Math.min(
+          SILENT_WAV_MAX_SECONDS,
+          Math.max(1, parseFloat(parsedUrl.searchParams.get('duration') || '180') || 180),
+        );
 
         // 新曲目播放触发（仅在 GET 请求时触发，避免 preflight 或 HEAD 误触发）
         if (req.method === 'GET' && playId && playId !== currentPlayingTrackId) {
@@ -103,7 +127,7 @@ function startSilentStreamServer() {
           });
         }
 
-        const totalBuffer = createSilentWavBuffer(durationSec);
+        const totalBuffer = getSilentWavBuffer(durationSec);
         const totalSize = totalBuffer.length;
 
         if (req.method === 'HEAD') {
@@ -276,6 +300,13 @@ function startLibrespotDaemon() {
       console.error('[Librespot] Process error:', err);
       librespotProcess = null;
     });
+
+    // 计数针对「连续失败」：稳定运行一段时间后清零，否则累计崩满 MAX_RESTART_ATTEMPTS 次
+    // 之后，本次会话里再也不会自动拉起守护进程
+    const spawnedProcess = librespotProcess;
+    setTimeout(() => {
+      if (!isShuttingDown && librespotProcess === spawnedProcess) restartAttempts = 0;
+    }, 15000);
 
     return { success: true, running: true };
   } catch (err) {

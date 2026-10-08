@@ -76,11 +76,30 @@ const OnlineProviderLoginModal = ({
     const [librespotAuth, setLibrespotAuth] = useState<{ code: string; url: string } | null>(null);
 
     useEffect(() => {
-        if (providerId === 'spotify' && typeof window !== 'undefined' && window.electron?.getLibrespotAuthCode) {
-            window.electron.getLibrespotAuthCode().then(res => {
-                if (res) setLibrespotAuth(res);
-            }).catch(() => {});
-        }
+        if (providerId !== 'spotify' || typeof window === 'undefined') return;
+        const fetchAuthCode = window.electron?.getLibrespotAuthCode;
+        if (!fetchAuthCode) return;
+
+        let cancelled = false;
+        let timer: number | null = null;
+
+        // 守护进程可能还没起来、或刚重启过，配对码要补取；拿到之后就不再轮询
+        const load = async () => {
+            const res = await fetchAuthCode().catch(() => null);
+            if (cancelled || !res) return;
+            setLibrespotAuth(res);
+            if (timer !== null) {
+                window.clearInterval(timer);
+                timer = null;
+            }
+        };
+
+        void load();
+        timer = window.setInterval(() => void load(), 5000);
+        return () => {
+            cancelled = true;
+            if (timer !== null) window.clearInterval(timer);
+        };
     }, [providerId]);
 
     const [spotifyClientIdDraft, setSpotifyClientIdDraft] = useState(
@@ -204,7 +223,7 @@ const OnlineProviderLoginModal = ({
                         {providerId === 'spotify' && state !== 'confirmed' && (
                             <div className="flex flex-col items-center">
                                 <p className="text-[11px] text-emerald-400/90 mt-2 font-medium px-4 leading-relaxed text-center">
-                                    已在浏览器中打开 Spotify 授权页面，请在网页中确认授权；亦可使用手机相机扫描二维码直接授权。
+                                    已在浏览器中打开 Spotify 授权页面，请在网页中确认授权。这个二维码是同一个授权页的地址，回调只能回到本机，请不要用手机扫码。
                                 </p>
                                 {librespotAuth && (
                                     <div className="mt-3 w-full max-w-xs p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">

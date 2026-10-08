@@ -846,7 +846,7 @@ declare global {
       markUpdateSeen: (version?: string | null) => Promise<ElectronUpdateStatus>;
       openUpdateReleasePage: (version?: string | null) => Promise<boolean>;
       openExternalUrl: (url: string) => Promise<boolean>;
-      startSpotifyAuthServer?: () => Promise<{ port: number; url: string }>;
+      startSpotifyAuthServer?: (state?: string | null) => Promise<{ port: number; url: string }>;
       waitForSpotifyAuthCode?: () => Promise<{ code?: string; state?: string; error?: string } | null>;
       stopSpotifyAuthServer?: () => Promise<void>;
       startLibrespotDaemon?: () => Promise<{ success: boolean; running?: boolean; error?: string }>;

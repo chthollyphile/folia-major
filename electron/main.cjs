@@ -5821,8 +5821,8 @@ ipcMain.handle('open-external-url', (event, url) => {
   return openExternalUrl(url);
 });
 
-ipcMain.handle('spotify-auth-start', () => {
-  return startSpotifyAuthServer();
+ipcMain.handle('spotify-auth-start', (_event, state) => {
+  return startSpotifyAuthServer(state);
 });
 
 ipcMain.handle('spotify-auth-wait', () => {

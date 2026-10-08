@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld('electron', {
     markUpdateSeen: (version) => ipcRenderer.invoke('updates-mark-seen', version),
     openUpdateReleasePage: (version) => ipcRenderer.invoke('updates-open-release-page', version),
     openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
-    startSpotifyAuthServer: () => ipcRenderer.invoke('spotify-auth-start'),
+    startSpotifyAuthServer: (state) => ipcRenderer.invoke('spotify-auth-start', state),
     waitForSpotifyAuthCode: () => ipcRenderer.invoke('spotify-auth-wait'),
     stopSpotifyAuthServer: () => ipcRenderer.invoke('spotify-auth-stop'),
     startLibrespotDaemon: () => ipcRenderer.invoke('librespot-start'),

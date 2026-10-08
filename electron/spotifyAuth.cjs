@@ -7,6 +7,7 @@ const url = require('url');
 let server = null;
 let pendingResolve = null;
 let currentCode = null;
+let pendingState = null;
 
 const SPOTIFY_CALLBACK_PORT = 32110;
 
@@ -49,7 +50,8 @@ function renderCallbackPage({ ok, detail }) {
 /**
  * 启动 Spotify OAuth 本地回调监听服务
  */
-function startSpotifyAuthServer() {
+function startSpotifyAuthServer(expectedState) {
+  pendingState = typeof expectedState === 'string' && expectedState ? expectedState : null;
   if (server) {
     return Promise.resolve({ port: SPOTIFY_CALLBACK_PORT, url: `http://127.0.0.1:${SPOTIFY_CALLBACK_PORT}/callback` });
   }
@@ -60,12 +62,19 @@ function startSpotifyAuthServer() {
       const parsedUrl = url.parse(req.url, true);
       if (parsedUrl.pathname === '/callback') {
         const { code, error, state } = parsedUrl.query;
-        const callbackOk = Boolean(code);
+        // state 必须和本次登录发出的一致：不校验的话，任何能访问这个端口的页面都能把别人的授权码塞进来
+        const stateMatches = !pendingState || String(state || '') === pendingState;
+        const callbackOk = Boolean(code) && stateMatches;
         res.writeHead(callbackOk ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(renderCallbackPage({
           ok: callbackOk,
-          detail: escapeHtml(error || '回调里没有授权码，可能授权被取消或重定向地址不匹配'),
+          detail: escapeHtml(stateMatches
+            ? (error || '回调里没有授权码，可能授权被取消或重定向地址不匹配')
+            : '授权状态不匹配，本次回调已被忽略，请回到 Folia 重新发起登录'),
         }));
+
+        // state 不符时到此为止，不把 code 交给渲染进程；没有 code 但有 error 的情况仍要照常上报
+        if (!stateMatches) return;
 
         if (code) {
           currentCode = { code, state };
@@ -126,6 +135,7 @@ function stopSpotifyAuthServer() {
   }
   pendingResolve = null;
   currentCode = null;
+  pendingState = null;
 }
 
 module.exports = {

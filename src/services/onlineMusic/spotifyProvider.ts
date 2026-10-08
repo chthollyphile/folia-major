@@ -135,6 +135,24 @@ async function spotifyFetch<T>(endpoint: string, options: RequestInit = {}): Pro
 }
 
 /**
+ * 逐项归一化并跳过映射失败的条目。
+ * Spotify 歌单里会混进本地文件（is_local 为真、id 为 null），每条都要有自己的 id，
+ * 让其中一条抛异常会连带整页加载失败，所以坏条目单独跳过。
+ */
+function normalizeSpotifyList<T>(rawItems: any[], normalize: (item: any) => T): T[] {
+    const items: T[] = [];
+    for (const raw of rawItems) {
+        if (!raw) continue;
+        try {
+            items.push(normalize(raw));
+        } catch {
+            // 单条无法映射就跳过，不影响整页
+        }
+    }
+    return items;
+}
+
+/**
  * 清理 Spotify 歌曲名称中的重置/版本/伴唱等修饰标签，提高跨源检索成功率
  */
 export function sanitizeSongTitle(title: string): string {
@@ -274,7 +292,7 @@ export const spotifyProvider: OnlineMusicProvider = {
 
             // 桌面端唤起本地监听服务器，并在浏览器中打开授权页
             if (typeof window !== 'undefined' && window.electron?.startSpotifyAuthServer) {
-                await window.electron.startSpotifyAuthServer();
+                await window.electron.startSpotifyAuthServer(currentOAuthState);
                 if (window.electron.openExternalUrl) {
                     void window.electron.openExternalUrl(authUrl);
                 }
@@ -349,7 +367,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getUserPlaylists(userId, limit, offset) {
             const data = await spotifyFetch<any>(`me/playlists?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'playlist', item.owner?.id === userId));
+            const items = normalizeSpotifyList(rawItems, item => normalizeSpotifyCollection(item, 'playlist', item.owner?.id === userId));
             return {
                 items,
                 total: data.total,
@@ -371,7 +389,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getUserAlbums(userId, limit, offset) {
             const data = await spotifyFetch<any>(`me/albums?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item.album, 'album', false));
+            const items = normalizeSpotifyList(rawItems, item => normalizeSpotifyCollection(item.album, 'album', false));
             return {
                 items,
                 total: data.total,
@@ -387,10 +405,10 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getPlaylistTracks(id, limit, offset) {
             const data = await spotifyFetch<any>(`playlists/${id}/tracks?limit=${Math.min(limit, 100)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems
-                .map((item: any) => item.track)
-                .filter(Boolean)
-                .map((track: any) => normalizeSpotifySong(track));
+            const items = normalizeSpotifyList(
+                rawItems.map((item: any) => item.track),
+                track => normalizeSpotifySong(track),
+            );
             return {
                 items,
                 total: data.total,
@@ -408,7 +426,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             const data = await spotifyFetch<any>(`albums/${id}/tracks?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const albumData = await spotifyFetch<any>(`albums/${id}`).catch(() => null);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map((track: any) => {
+            const items = normalizeSpotifyList(rawItems, track => {
                 if (albumData && !track.album) track.album = albumData;
                 return normalizeSpotifySong(track);
             });
@@ -428,7 +446,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getArtistSongs(id, limit, offset) {
             const data = await spotifyFetch<any>(`artists/${id}/top-tracks?market=from_token`);
             const rawItems = Array.isArray(data.tracks) ? data.tracks : [];
-            const items = rawItems.slice(offset, offset + limit).map((track: any) => normalizeSpotifySong(track));
+            const items = normalizeSpotifyList(rawItems.slice(offset, offset + limit), track => normalizeSpotifySong(track));
             return {
                 items,
                 total: rawItems.length,
@@ -440,7 +458,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async getArtistAlbums(id, limit, offset) {
             const data = await spotifyFetch<any>(`artists/${id}/albums?limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.items) ? data.items : [];
-            const items = rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'album'));
+            const items = normalizeSpotifyList(rawItems, item => normalizeSpotifyCollection(item, 'album'));
             return {
                 items,
                 total: data.total,
@@ -466,7 +484,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         async searchSongs(query, limit, offset) {
             const data = await spotifyFetch<any>(`search?q=${encodeURIComponent(query)}&type=track&limit=${Math.min(limit, 50)}&offset=${offset}`);
             const rawItems = Array.isArray(data.tracks?.items) ? data.tracks.items : [];
-            const items = rawItems.filter(Boolean).map((track: any) => normalizeSpotifySong(track));
+            const items = normalizeSpotifyList(rawItems, track => normalizeSpotifySong(track));
             return {
                 items,
                 total: data.tracks?.total,
@@ -481,7 +499,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const data = await spotifyFetch<any>('me/top/tracks?limit=30');
                 const rawItems = Array.isArray(data.items) ? data.items : [];
-                return rawItems.filter(Boolean).map((track: any) => normalizeSpotifySong(track));
+                return normalizeSpotifyList(rawItems, track => normalizeSpotifySong(track));
             } catch {
                 return [];
             }
@@ -491,7 +509,7 @@ export const spotifyProvider: OnlineMusicProvider = {
             try {
                 const data = await spotifyFetch<any>(`browse/featured-playlists?limit=${Math.min(limit, 20)}`);
                 const rawItems = Array.isArray(data.playlists?.items) ? data.playlists.items : [];
-                return rawItems.filter(Boolean).map((item: any) => normalizeSpotifyCollection(item, 'playlist'));
+                return normalizeSpotifyList(rawItems, item => normalizeSpotifyCollection(item, 'playlist'));
             } catch {
                 return [];
             }
