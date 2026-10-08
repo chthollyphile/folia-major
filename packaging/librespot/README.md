@@ -26,7 +26,9 @@ clone 就永远要为它付一次带宽。这和 `models/`、`build/ffmpeg/` 是
 
 - 工具链与包路径和上游 `release.yml` 的 windows 作业一致：MSYS2 MINGW64 下的
   `mingw-w64-x86_64-{gcc,pkg-config,libogg,libvorbis,flac,mpg123}`，构建 `./cmd/daemon`；
-- 只多一个 `-ldflags "-s -w -linkmode external -extldflags -static"`，静态库就来自上面那几个包；
+- 在官方命令基础上加三处：`-ldflags "-s -w -linkmode external -extldflags -static"`（静态库来自上面那几个
+  包）、`CGO_CFLAGS=-DFLAC__NO_DLL`（MSYS2 的 FLAC 头按 dllimport 声明，与 `libFLAC.a` 对不上）、
+  `CGO_LDFLAGS=-lshlwapi`（`libmpg123.a` 的 `compat.o` 用到 shlwapi 的 `Path*` 函数）；
 - 按 [CROSS_COMPILE.md](https://github.com/devgianlu/go-librespot/blob/master/CROSS_COMPILE.md)，用 vcpkg 的
   `x64-mingw-static` triplet 从 Linux 交叉编译也能得到同样的静态产物。
 

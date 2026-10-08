@@ -112,10 +112,15 @@ export async function buildStaticLibrespot({
 
   await mkdir(outputRoot, { recursive: true });
   const binaryPath = path.join(outputRoot, LIBRESPOT_BINARY);
+  // MSYS2 的 FLAC 头文件按 dllimport 声明，与 libFLAC.a 对不上，必须定义 FLAC__NO_DLL；
+  // libmpg123.a 的 compat.o 用到 shlwapi 的 Path* 系列函数，静态链接时要显式带上它。
+  const cgoCflags = "-DFLAC__NO_DLL";
+  const cgoLdflags = "-lshlwapi";
   const ldflags = "-s -w -linkmode external -extldflags -static";
   runInMsys2(
     msys2Root,
-    `cd "${toMsysPath(sourceDir)}" && CC=gcc CGO_ENABLED=1 go build -trimpath -o "${toMsysPath(binaryPath)}" -ldflags "${ldflags}" ./cmd/daemon`,
+    `cd "${toMsysPath(sourceDir)}" && CC=gcc CGO_ENABLED=1 CGO_CFLAGS="${cgoCflags}" CGO_LDFLAGS="${cgoLdflags}" ` +
+      `go build -trimpath -o "${toMsysPath(binaryPath)}" -ldflags "${ldflags}" ./cmd/daemon`,
   );
 
   if (!existsSync(binaryPath)) throw new Error(`编译结束但找不到产物：${binaryPath}`);
