@@ -1,45 +1,28 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import {
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { spawnSync } from "node:child_process";
-import os from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packaging/librespot/fetch-librespot.mjs
-// Puts the pinned go-librespot Windows build where Electron's extraResources FileSet and a dev
-// checkout expect it - resources/librespot - and refuses to hand over a file it cannot vouch for.
+// 校验 Electron 的 extraResources 与开发检出都指向的 resources/librespot 是否可用。
+// 文件名保留 fetch- 前缀是因为 build/beforePack.cjs 按这个名字 import；它现在不再下载任何东西。
 //
-// Why this is not in git: a 13.8MB third-party executable that only changes when upstream cuts a
-// release does not belong in every clone's history. Same rule as models/ and build/ffmpeg/: the
-// hash is the point of this script, not the download.
+// 上游发布包是动态链接的：运行需要 libFLAC.dll / libmpg123-0.dll 等六个 MinGW 解码库，而那些库
+// 在上游没有任何可 pin 的分发渠道。所以运行时改成用 npm run librespot:build 从下面 pin 住的
+// 来源自己编成静态链接的 exe（上游 release.yml 的 windows 作业用的是同一套 MSYS2 工具链与同一个
+// 包路径，只多了 -static）。
 //
-// go-librespot is GPL-3.0 (https://github.com/devgianlu/go-librespot). Its Windows build links
-// against MinGW decoder libraries that upstream's archive does not ship, so this script checks for
-// them too and names what is missing, instead of letting a packaged app fail to start on a user's
-// machine. See README.md beside this file.
+// 仍然遵守仓库规则：二进制不入库，来源与版本 pin 在这里，产物哈希写进 BUNDLE-INFO.txt。
+// go-librespot 是 GPL-3.0，来源见 LIBRESPOT_SOURCE_URL。
 
 export const LIBRESPOT_RELEASE_TAG = "v0.10.3";
-const RELEASE_BASE_URL = `https://github.com/devgianlu/go-librespot/releases/download/${LIBRESPOT_RELEASE_TAG}`;
+export const LIBRESPOT_COMMIT = "4dbc099f46da3529adaa85feb97c4f49deb0b130";
+export const LIBRESPOT_SOURCE_URL = "https://github.com/devgianlu/go-librespot";
+export const LIBRESPOT_BINARY = "go-librespot.exe";
+export const BUNDLE_INFO_NAME = "BUNDLE-INFO.txt";
 
-export const LIBRESPOT_ASSET = Object.freeze({
-  archive: "go-librespot_windows_amd64.tar.gz",
-  sha256: "d58659bbd66fc3c57029c7cc5d9c1a6d7d866bc1026f819bd95bc964d3e7872a",
-  binaryName: "go-librespot.exe",
-});
-
-/**
- * 上游发布包只带 exe，它在 Windows 上动态链接这些 MinGW 解码库；缺任何一个进程都起不来，
- * 所以在交给打包之前显式检查，而不是让用户机器上的应用静默失败。
- */
-export const REQUIRED_DLLS = Object.freeze([
+/** 动态链接版本会引用这些 MinGW 库；静态构建里一个都不该出现 */
+export const DYNAMIC_IMPORTS = Object.freeze([
   "libFLAC.dll",
   "libmpg123-0.dll",
   "libogg-0.dll",
@@ -57,34 +40,22 @@ export const DEFAULT_OUTPUT_ROOT = path.resolve(
   "librespot",
 );
 
-const sha256File = async (file) =>
-  createHash("sha256").update(await readFile(file)).digest("hex");
+export const sha256File = (file) =>
+  createHash("sha256").update(readFileSync(file)).digest("hex");
 
-/** 下载 pin 住的发布包；非 200 直接失败，避免把错误页当压缩包解开。 */
-const download = async (url, destination) => {
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok)
-    throw new Error(`Unable to download ${url}: HTTP ${response.status}`);
-  await writeFile(destination, Buffer.from(await response.arrayBuffer()));
-};
-
-/** 解官方 tar.gz；只取 exe，压缩包里的 README 不进 resources。 */
-const extractArchive = (archive, destination) => {
-  const result = spawnSync("tar", ["-xzf", archive, "-C", destination], {
-    stdio: "inherit",
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0)
-    throw new Error(`tar failed with exit code ${result.status}`);
+/** 二进制里还引用哪些 MinGW 运行库；静态构建应当返回空数组 */
+export const dynamicImportsOf = (file) => {
+  const bytes = readFileSync(file).toString("latin1");
+  return DYNAMIC_IMPORTS.filter((dll) => bytes.includes(dll));
 };
 
 /**
- * Prepares resources/librespot for this machine.
+ * 校验 resources/librespot 里的静态运行时是否可用，可用时返回根目录。
  *
  * 只有 Windows 打包需要 go-librespot（main.cjs 也只在 win32 启动守护进程），其余平台直接跳过：
  * 这里"没有文件"是正常的，不是失败。
  */
-export async function prepareBundledLibrespot({
+export function verifyBundledLibrespot({
   platform = process.platform,
   outputRoot = DEFAULT_OUTPUT_ROOT,
 } = {}) {
@@ -92,82 +63,53 @@ export async function prepareBundledLibrespot({
     console.log(`[librespot] no bundled runtime for ${platform}, skipping`);
     return null;
   }
-  if (!/^[a-f0-9]{64}$/.test(LIBRESPOT_ASSET.sha256))
-    throw new Error("go-librespot checksum is not pinned");
 
-  const binaryPath = path.join(outputRoot, LIBRESPOT_ASSET.binaryName);
-  const markerPrefix = `Release: ${LIBRESPOT_RELEASE_TAG}\nArchive: ${LIBRESPOT_ASSET.archive}\nArchive SHA-256: ${LIBRESPOT_ASSET.sha256}\n`;
-  try {
-    const cachedMarker = await readFile(
-      path.join(outputRoot, "BUNDLE-INFO.txt"),
-      "utf8",
+  const binaryPath = path.join(outputRoot, LIBRESPOT_BINARY);
+  if (!existsSync(binaryPath)) {
+    throw new Error(
+      `缺少 ${binaryPath}。先跑 npm run librespot:build，从 ${LIBRESPOT_SOURCE_URL} 的 ` +
+        `${LIBRESPOT_RELEASE_TAG}（${LIBRESPOT_COMMIT}）编出静态版本；` +
+        "它不入库，所以每台构建机都要跑一次。",
     );
-    const cachedBinarySha256 = /^Binary SHA-256: ([a-f0-9]{64})$/m.exec(
-      cachedMarker,
-    )?.[1];
-    if (
-      cachedMarker.startsWith(markerPrefix) &&
-      cachedBinarySha256 &&
-      (await sha256File(binaryPath)) === cachedBinarySha256 &&
-      REQUIRED_DLLS.every((dll) => existsSync(path.join(outputRoot, dll)))
-    )
-      return outputRoot;
-  } catch {
-    // Missing or stale output is rebuilt below.
   }
 
-  await mkdir(outputRoot, { recursive: true });
-  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "folia-librespot-"));
-  try {
-    const archivePath = path.join(temporaryRoot, LIBRESPOT_ASSET.archive);
-    await download(`${RELEASE_BASE_URL}/${LIBRESPOT_ASSET.archive}`, archivePath);
-    const actualSha256 = await sha256File(archivePath);
-    if (actualSha256 !== LIBRESPOT_ASSET.sha256) {
+  const stillDynamic = dynamicImportsOf(binaryPath);
+  if (stillDynamic.length > 0) {
+    throw new Error(
+      `${binaryPath} 是动态链接版本（引用了 ${stillDynamic.join(", ")}），它需要上游没有分发渠道的 MinGW 解码库。` +
+        "改用 npm run librespot:build 编出的静态版本。",
+    );
+  }
+
+  const binarySha256 = sha256File(binaryPath);
+  const markerPath = path.join(outputRoot, BUNDLE_INFO_NAME);
+  if (existsSync(markerPath)) {
+    const recorded = /^Binary SHA-256: ([a-f0-9]{64})$/m.exec(
+      readFileSync(markerPath, "utf8"),
+    )?.[1];
+    if (recorded && recorded !== binarySha256) {
       throw new Error(
-        `Checksum mismatch for ${LIBRESPOT_ASSET.archive}: expected ${LIBRESPOT_ASSET.sha256}, got ${actualSha256}`,
+        `${markerPath} 记的哈希与 ${LIBRESPOT_BINARY} 不符：期望 ${recorded}，实际 ${binarySha256}。` +
+          "要么重新跑 npm run librespot:build，要么说明这个 exe 被换过。",
       );
     }
-
-    extractArchive(archivePath, temporaryRoot);
-    const sourceBinary = path.join(temporaryRoot, LIBRESPOT_ASSET.binaryName);
-    const binarySha256 = await sha256File(sourceBinary);
-    await copyFile(sourceBinary, binaryPath);
-    if ((await sha256File(binaryPath)) !== binarySha256)
-      throw new Error("go-librespot binary changed while it was being staged");
-    // 最后才写标记文件：一次中途失败的复制不该被下一次运行当成有效缓存。
-    await writeFile(
-      path.join(outputRoot, "BUNDLE-INFO.txt"),
-      `${markerPrefix}Binary SHA-256: ${binarySha256}\n`,
-    );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
   }
 
-  const missing = REQUIRED_DLLS.filter(
-    (dll) => !existsSync(path.join(outputRoot, dll)),
-  );
-  if (missing.length > 0) {
-    throw new Error(
-      `go-librespot cannot run without ${missing.join(", ")} in ${outputRoot}. ` +
-        "Upstream's release archive ships the executable alone and this repo has no " +
-        "redistribution channel for the MinGW decoder libraries yet - see " +
-        "packaging/librespot/README.md.",
-    );
-  }
   return outputRoot;
 }
+
+/** build/beforePack.cjs 用的旧名字，行为等同校验 */
+export const prepareBundledLibrespot = verifyBundledLibrespot;
 
 if (
   process.argv[1] &&
   fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
 ) {
-  prepareBundledLibrespot().then(
-    (output) => {
-      if (output) console.log(`[librespot] prepared ${output}`);
-    },
-    (error) => {
-      console.error(error);
-      process.exitCode = 1;
-    },
-  );
+  try {
+    const output = verifyBundledLibrespot();
+    if (output) console.log(`[librespot] verified ${output}`);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }

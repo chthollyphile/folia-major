@@ -56,7 +56,8 @@
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
-    "librespot:fetch": "node packaging/librespot/fetch-librespot.mjs",
+    "librespot:build": "node packaging/librespot/build-librespot-static.mjs",
+    "librespot:verify": "node packaging/librespot/fetch-librespot.mjs",
     "manual:ai-probe": "node test/manual/ai_probe.mjs"
   },
   "build": {

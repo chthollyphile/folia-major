@@ -1,44 +1,52 @@
 # librespot 运行时（Windows）
 
-`resources/librespot/` 里的文件不入库，由 `packaging/librespot/fetch-librespot.mjs` 在开发机和构建机上准备：
+`resources/librespot/` 里的文件不入库，由 `packaging/librespot/build-librespot-static.mjs` 在开发机和
+构建机上从 pin 住的来源编出来：
 
 ```powershell
-npm run librespot:fetch
+npm run librespot:build     # 编静态版，需要 MSYS2（见下）
+npm run librespot:verify    # 只校验；build/beforePack.cjs 在打包前走的也是这条校验
 ```
 
 ## 为什么不在 git 里
 
-`go-librespot.exe` 有 13.8MB，只有在我们上调 pin 的版本时才会变。这类第三方二进制一旦进 git，每个
-clone 就永远要为它付一次带宽。这和 `models/`、`build/ffmpeg/` 是同一条规则，做法也一致：脚本下载
-+ SHA-256 校验，哈希写死在脚本里，不匹配就拒绝使用。
+`go-librespot.exe` 有 13MB 上下，只有在我们上调 pin 的版本时才会变。这类第三方二进制一旦进 git，每个
+clone 就永远要为它付一次带宽。这和 `models/`、`build/ffmpeg/` 是同一条规则：来源写死在脚本里
+（tag 与 commit 都在 `packaging/librespot/fetch-librespot.mjs`），产物哈希写进 `BUNDLE-INFO.txt`，
+对不上就拒绝打包。
+
+## 为什么改成静态链接
+
+上游的 Windows 发布包是**动态链接**的：运行需要 `libFLAC.dll`、`libmpg123-0.dll`、`libogg-0.dll`、
+`libvorbis-0.dll`、`libvorbisenc-2.dll`、`libwinpthread-1.dll` 这六个 MinGW 库，而发布包里一个都不带。
+这六个库在上游没有可 pin 的分发渠道（MSYS2 仓库只保留每个包的最新版本，旧文件会被删掉），照搬上游产物
+就等于要求每台构建机自己凑齐它们，打包出来的应用也仍然依赖一堆 DLL。
+
+改成静态链接后 `resources/librespot/` 里只有一个 exe，运行时不依赖任何第三方 DLL：
+
+- 工具链与包路径和上游 `release.yml` 的 windows 作业一致：MSYS2 MINGW64 下的
+  `mingw-w64-x86_64-{gcc,pkg-config,libogg,libvorbis,flac,mpg123}`，构建 `./cmd/daemon`；
+- 只多一个 `-ldflags "-s -w -linkmode external -extldflags -static"`，静态库就来自上面那几个包；
+- 按 [CROSS_COMPILE.md](https://github.com/devgianlu/go-librespot/blob/master/CROSS_COMPILE.md)，用 vcpkg 的
+  `x64-mingw-static` triplet 从 Linux 交叉编译也能得到同样的静态产物。
 
 ## 里面有什么
 
 | 文件 | 来源 | 许可证 |
 | --- | --- | --- |
-| `go-librespot.exe` | [devgianlu/go-librespot](https://github.com/devgianlu/go-librespot) 官方 `v0.10.3` Windows amd64 发布包（脚本下载并校验 SHA-256） | GPL-3.0 |
-| `libogg-0.dll`、`libvorbis-0.dll`、`libvorbisenc-2.dll` | Xiph.Org 的 libogg / libvorbis，MinGW-w64 构建 | BSD-3-Clause |
-| `libFLAC.dll` | Xiph.Org 的 FLAC，MinGW-w64 构建 | BSD-3-Clause |
-| `libmpg123-0.dll` | mpg123，MinGW-w64 构建 | LGPL-2.1 |
-| `libwinpthread-1.dll` | mingw-w64 运行时 | 见 mingw-w64 的 runtime 许可 |
+| `go-librespot.exe` | [devgianlu/go-librespot](https://github.com/devgianlu/go-librespot) `v0.10.3`（commit `4dbc099f46da3529adaa85feb97c4f49deb0b130`）静态链接构建 | GPL-3.0 |
 
 Folia 自身是 AGPL-3.0，与 GPL-3.0 的 go-librespot 兼容；以二进制形式分发时按上表保留来源与许可声明。
 
-## 与仓库规则的冲突点，以及这样处理的原因
+## 本地准备（Windows）
 
-规则是"第三方二进制不放进 git，改为 pin 住来源 + 校验哈希、构建期下载"，`go-librespot.exe` 满足这条：
-GitHub Release 的资产地址是永久的，脚本里已经写死版本和 SHA-256。六个解码 DLL 不满足，原因有三条：
+```powershell
+winget install MSYS2.MSYS2        # 装完重开终端；装在别处就设 MSYS2_ROOT
+npm run librespot:build
+```
 
-1. 上游的 Windows 发布包**只含 exe 和 README**，不含它动态链接的解码库。上游 README 的做法是让使用者
-   自己装 MSYS2 的 `mingw-w64-x86_64-libogg`、`-libvorbis`、`-flac`、`-mpg123` 包。
-2. 直接 pin MSYS2 的软件包文件不可靠：MSYS2 仓库只保留每个包的最新版本，旧文件会被删掉，pin 住的 URL
-   早晚失效（这点和 GitHub Release 资产不同，那里删不掉）。
-3. 改用 MSYS2 当前版本的 DLL，等于把作者已经人工验证过的运行时换成没验证过的一套，与"提交内容必须经过
-   人工验证"相抵触。
+脚本会自己 `pacman -S` 装上表那几个包、把源码按 pin 住的 commit 检出到临时目录、编译，再把产物和哈希写进
+`resources/librespot/`。产物不入库，所以每台构建机（含 CI）在打包前都要跑一次；`npm run librespot:verify`
+会检查 exe 在不在、是不是静态链接、哈希和 `BUNDLE-INFO.txt` 是否一致。
 
-因此脚本的形态是：从上游取 exe 并校验，然后检查那 6 个 DLL 是否就位；缺任何一个都直接报错并列出文件名，
-而不是让打包出来的应用在用户机器上起不来。**Windows 打包必须先把这 6 个 DLL 放进 `resources/librespot/`**，
-`build/beforePack.cjs` 会在 electron-builder 打包前自动执行这一步。
-
-推荐的处理方式照 `folia-ffmpeg-build` 的先例：建一个只放运行时的 release（exe + 6 个 DLL，附来源与许可
-声明），再把脚本的来源换成它。这属于维护者的基础设施决定，所以写在这里而不是自行决定。
+只有 Windows 打包需要它：`main.cjs` 也只在 win32 启动守护进程，其余平台这一步直接跳过。
