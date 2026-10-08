@@ -103,6 +103,7 @@ const buildLoginModalProps = (
                 },
             })
             : undefined,
+        providerId: session.providerId,
         onRetry: () => void account.retryLogin(),
         onClose: () => void account.closeLogin(),
     };

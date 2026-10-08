@@ -15,6 +15,11 @@ exports.default = async (context) => {
     "../packaging/ffmpeg/fetch-ffmpeg.mjs"
   );
   await prepareBundledFfmpeg({ platform: context.electronPlatformName, arch });
+  const { prepareBundledLibrespot } = await import(
+    "../packaging/librespot/fetch-librespot.mjs"
+  );
+  // Windows 打包需要 go-librespot 运行时；其他平台这一步自己跳过。
+  await prepareBundledLibrespot({ platform: context.electronPlatformName });
   if (context.electronPlatformName === 'darwin') {
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });

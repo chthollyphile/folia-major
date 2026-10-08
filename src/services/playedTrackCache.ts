@@ -38,7 +38,8 @@ export const cachePlayedTrackAssets = async (
 
     // Audio needs a source that can actually be refetched: a blob: URL is this session's own handle
     // to bytes that are either already cached or on disk, so there is nothing to fetch and store.
-    if (src && !src.startsWith('blob:') && !await hasCachedSongAudio(song)) {
+    const isCarrierOrPreview = typeof src === 'string' && (src.includes('32112') || src.includes('scdn.co'));
+    if (src && !src.startsWith('blob:') && !isCarrierOrPreview && !await hasCachedSongAudio(song)) {
         console.log('[Cache] Caching fully played song:', song.name);
         try {
             const response = await fetch(src);

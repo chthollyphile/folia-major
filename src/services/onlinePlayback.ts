@@ -24,7 +24,9 @@ export async function loadOnlineSongAudioSource(
     | { kind: 'ok'; audioSrc: string; blobUrl?: string; replayGain?: ReplayGainInfo }
     | { kind: 'unavailable'; reason?: ProviderErrorCode }
 > {
-    const cachedAudioBlob = await getCachedSongAudioBlob(song);
+    const isSpotifyOnline = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'spotify';
+    // Spotify 在桌面端接入了 librespot 完整音频内核，不应复用此前可能残留的 30 秒预览本地缓存或过期预览链接
+    const cachedAudioBlob = isSpotifyOnline ? null : await getCachedSongAudioBlob(song);
     if (cachedAudioBlob) {
         const blobUrl = createSafeObjectUrl(cachedAudioBlob);
         if (blobUrl) {
@@ -39,7 +41,8 @@ export async function loadOnlineSongAudioSource(
         }
     }
 
-    if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
+    const isSpotifyPreviewUrl = isSpotifyOnline && typeof prefetched?.audioUrl === 'string' && prefetched.audioUrl.includes('scdn.co');
+    if (!isSpotifyPreviewUrl && prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
         return {
             kind: 'ok',
             audioSrc: prefetched.audioUrl,
