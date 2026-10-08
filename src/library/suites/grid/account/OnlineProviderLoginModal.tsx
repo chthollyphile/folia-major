@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Check, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
+import { AlertTriangle, Check, ExternalLink, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import QrLoginFailureHelp, { type QrLoginFailureHelpProps } from './QrLoginFailureHelp';
 import { getCustomSpotifyClientId, setSpotifyClientId, SPOTIFY_REDIRECT_URI } from '../../../../services/onlineMusic/spotifyClientId';
@@ -211,6 +211,18 @@ const OnlineProviderLoginModal = ({
                             ) : awaitingMethod ? (
                                 <div className="w-40 h-40 flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 px-4 text-center text-[11px] font-medium leading-snug text-gray-400">
                                     {loginMethods?.pendingText}
+                                </div>
+                            ) : providerId === 'spotify' ? (
+                                // Spotify 走的是浏览器授权 + 本机回环回调，二维码指向同一个授权页，
+                                // 手机扫了只会把回调打到手机自己身上，必然失败——这里不放二维码，免得误导。
+                                <div className="w-40 h-40 flex flex-col items-center justify-center gap-2 rounded-lg bg-gray-100 px-3 text-center">
+                                    <ExternalLink className="text-gray-400 shrink-0" size={22} />
+                                    <p className="text-[11px] font-medium leading-snug text-gray-500">
+                                        授权在浏览器里完成
+                                    </p>
+                                    <p className="text-[10px] leading-snug text-gray-400">
+                                        这个流程只认本机回调，不能用手机扫码
+                                    </p>
                                 </div>
                             ) : qrCodeImg ? (
                                 <img src={qrCodeImg} alt="QR Code" className="w-40 h-40" />
