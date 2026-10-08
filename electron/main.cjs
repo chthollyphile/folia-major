@@ -24,6 +24,19 @@ const { createWindowsWallpaperMouseInjector } = require('./windowsWallpaperMouse
 const macWallpaperModule = require('./macWallpaperController.cjs');
 const { createKugouApiBridge } = require('./kugouApiBridge.cjs');
 const { createBodianApiBridge } = require('./bodianApiBridge.cjs');
+const { startSpotifyAuthServer, waitForSpotifyAuthCode, stopSpotifyAuthServer } = require('./spotifyAuth.cjs');
+const {
+  startLibrespotDaemon,
+  stopLibrespotDaemon,
+  getLibrespotStatus,
+  getLibrespotAuthCode,
+  playLibrespotTrack,
+  pauseLibrespotTrack,
+  resumeLibrespotTrack,
+  seekLibrespotTrack,
+  setLibrespotVolume,
+  stopLibrespotTrack,
+} = require('./librespotBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createQqAuthSessionRepository } = require('./qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -5144,6 +5157,7 @@ app.whenReady().then(async () => {
 
   if (process.platform === 'win32') {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
+    startLibrespotDaemon();
   }
 
   if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
@@ -5381,6 +5395,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  stopLibrespotDaemon();
   transcodeService.dispose();
   isAppQuitting = true;
   clearPendingWindowPlaybackHandoffRequests();
@@ -5812,6 +5827,58 @@ ipcMain.handle('updates-open-release-page', (event, version) => {
 
 ipcMain.handle('open-external-url', (event, url) => {
   return openExternalUrl(url);
+});
+
+ipcMain.handle('spotify-auth-start', () => {
+  return startSpotifyAuthServer();
+});
+
+ipcMain.handle('spotify-auth-wait', () => {
+  return waitForSpotifyAuthCode();
+});
+
+ipcMain.handle('spotify-auth-stop', () => {
+  return stopSpotifyAuthServer();
+});
+
+ipcMain.handle('librespot-start', () => {
+  return startLibrespotDaemon();
+});
+
+ipcMain.handle('librespot-stop-daemon', () => {
+  return stopLibrespotDaemon();
+});
+
+ipcMain.handle('librespot-get-status', () => {
+  return getLibrespotStatus();
+});
+
+ipcMain.handle('librespot-get-auth-code', () => {
+  return getLibrespotAuthCode();
+});
+
+ipcMain.handle('librespot-play', (_event, uri) => {
+  return playLibrespotTrack(uri);
+});
+
+ipcMain.handle('librespot-pause', () => {
+  return pauseLibrespotTrack();
+});
+
+ipcMain.handle('librespot-resume', () => {
+  return resumeLibrespotTrack();
+});
+
+ipcMain.handle('librespot-seek', (_event, posMs) => {
+  return seekLibrespotTrack(posMs);
+});
+
+ipcMain.handle('librespot-set-volume', (_event, vol) => {
+  return setLibrespotVolume(vol);
+});
+
+ipcMain.handle('librespot-stop', () => {
+  return stopLibrespotTrack();
 });
 
 ipcMain.handle('updates-download', () => {

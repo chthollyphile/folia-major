@@ -67,6 +67,7 @@ import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useKugouLibrary } from './hooks/useKugouLibrary';
 import { useQqLibrary } from './hooks/useQqLibrary';
 import { useBodianLibrary } from './hooks/useBodianLibrary';
+import { useSpotifyLibrary } from './hooks/useSpotifyLibrary';
 import { useLibraryAccountController } from './library/app/useLibraryAccountController';
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
 import { useLibraryAccountProviders } from './library/core/bindings/useLibraryAccount';
@@ -529,6 +530,7 @@ export default function App() {
                 audioRef.current.volume = 1;
                 audioRef.current.muted = false;
             }
+            void window.electron?.setLibrespotVolume?.(isMuted ? 0 : clampedVolume * 100);
             return;
         }
 
@@ -536,6 +538,7 @@ export default function App() {
             audioRef.current.volume = clampedVolume;
             audioRef.current.muted = isMuted;
         }
+        void window.electron?.setLibrespotVolume?.(isMuted ? 0 : clampedVolume * 100);
     }, [isMuted]);
 
     const { handleAudioOutputDeviceChange } = useAudioOutputDevice({
@@ -728,18 +731,21 @@ export default function App() {
         logout: logoutQqLibrary,
     } = useQqLibrary();
     const { refresh: refreshBodianLibrary, logout: logoutBodianLibrary } = useBodianLibrary();
+    const { refresh: refreshSpotifyLibrary, logout: logoutSpotifyLibrary } = useSpotifyLibrary();
     const onlineProviderRefreshers = useMemo<Partial<Record<OnlineProviderId, () => Promise<unknown>>>>(() => ({
         netease: refreshUserData,
         kugou: refreshKugouLibrary,
         qq: refreshQqLibrary,
         bodian: refreshBodianLibrary,
-    }), [refreshKugouLibrary, refreshQqLibrary, refreshBodianLibrary, refreshUserData]);
+        spotify: refreshSpotifyLibrary,
+    }), [refreshKugouLibrary, refreshQqLibrary, refreshBodianLibrary, refreshSpotifyLibrary, refreshUserData]);
     const onlineProviderLogouts = useMemo<Partial<Record<OnlineProviderId, () => Promise<void>>>>(() => ({
         netease: handleLogout,
         kugou: logoutKugouLibrary,
         qq: logoutQqLibrary,
         bodian: logoutBodianLibrary,
-    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary, logoutBodianLibrary]);
+        spotify: logoutSpotifyLibrary,
+    }), [handleLogout, logoutKugouLibrary, logoutQqLibrary, logoutBodianLibrary, logoutSpotifyLibrary]);
 
     // 在线账户 controller（Library v2 · A4）：扫码登录、选平台、切换确认与登出都在 core，App 只交出 per-provider 的
     // 刷新与登出，以及确认切换后的播放清理端口。端口读的三样（audio / automix 句柄、歌词写入）都是稳定引用，建一次。
@@ -2385,6 +2391,11 @@ export default function App() {
             onPlay={(e) => {
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
+                if (audioSrc?.includes('32112')) {
+                    void window.electron?.resumeLibrespotTrack?.();
+                } else {
+                    void window.electron?.stopLibrespotTrack?.();
+                }
                 // The same split onTimeUpdate, onSeeked and onLoadedMetadata all make, and the two
                 // handlers that were missing it: while the picture is held this deck is the track
                 // ARRIVING, so its position belongs to a song whose title nobody can see yet.
@@ -2394,6 +2405,9 @@ export default function App() {
             onPlaying={(e) => {
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
+                if (audioSrc?.includes('32112')) {
+                    void window.electron?.resumeLibrespotTrack?.();
+                }
                 if (!isShowingTail) currentTime.set(e.currentTarget.currentTime);
                 setupAudioAnalyzer();
                 playbackAutoSkipCountRef.current = 0;
@@ -2408,6 +2422,9 @@ export default function App() {
                 // the transport state and play intent belong to that song now.
                 if (consumeProgrammaticPause(e.currentTarget)) return;
                 if (!automix.isActiveDeck(e.currentTarget)) return;
+                if (audioSrc?.includes('32112')) {
+                    void window.electron?.pauseLibrespotTrack?.();
+                }
                 // A deck whose source failed fires `pause` immediately AFTER `error` - Chromium
                 // clears the play state as part of failing the load - and that is not the listener
                 // pausing. Read as one, it dropped the transport to PAUSED and spent the autoplay
@@ -2455,6 +2472,9 @@ export default function App() {
                 // on it has to be reflected from.
                 const isActive = automix.isActiveDeck(e.currentTarget);
                 if (isShowingTail ? !isActive : isActive) currentTime.set(e.currentTarget.currentTime);
+                if (audioSrc?.includes('32112')) {
+                    void window.electron?.seekLibrespotTrack?.(e.currentTarget.currentTime * 1000);
+                }
             }}
             // Buffer progress debug helper. Uncomment to inspect how much of
             // the current source the browser has actually buffered.
@@ -2490,7 +2510,7 @@ export default function App() {
                 }
 
                 // Cache if playing fully
-                if (audioSrc && !audioSrc.startsWith('blob:') && currentSong && !isStagePlaybackSong(currentSong)) {
+                if (audioSrc && !audioSrc.startsWith('blob:') && !audioSrc.includes('32112') && currentSong && !isStagePlaybackSong(currentSong)) {
                     cacheSongAssets();
                 }
 

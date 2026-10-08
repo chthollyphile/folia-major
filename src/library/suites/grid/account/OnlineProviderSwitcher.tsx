@@ -28,6 +28,7 @@ const AVATAR_BADGE_BY_PROVIDER: Record<string, { label: string; iconUrl?: string
     kugou: { label: 'K', className: 'bg-blue-600' },
     qq: { label: 'Q', className: 'bg-green-600' },
     bodian: { label: '波', className: 'bg-teal-600' },
+    spotify: { label: 'S', className: 'bg-emerald-600' },
 };
 
 // Providers without a builtin badge (Folium mod sources) get their name's first letter, like the

@@ -59,6 +59,10 @@ plan/
 # Model weights: fetched and hash-verified by build/fetchModels.mjs, shipped in the installer,
 # never committed - 83MB that never changes does not belong in every clone's history.
 models/
+# go-librespot runtime for Windows: fetched and hash-verified by
+# packaging/librespot/fetch-librespot.mjs, never committed - a third-party executable that only
+# changes when the pinned release changes.
+resources/librespot/
 build/windowtolayer
 build/windowtolayer-COPYING
 build/ffmpeg/

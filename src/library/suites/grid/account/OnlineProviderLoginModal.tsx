@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Check, Loader2, RotateCcw, ServerCog, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import QrLoginFailureHelp, { type QrLoginFailureHelpProps } from './QrLoginFailureHelp';
@@ -44,6 +45,7 @@ type OnlineProviderLoginModalProps = {
     backendFailure?: BackendFailureProps;
     // 只在扫码登录失败时传入（含后端没拉起来），显示在二维码旁边。
     failureHelp?: QrLoginFailureHelpProps;
+    providerId?: string;
     onRetry: () => void;
     onClose: () => void;
 };
@@ -60,6 +62,7 @@ const OnlineProviderLoginModal = ({
     loginMethods,
     backendFailure,
     failureHelp,
+    providerId,
     onRetry,
     onClose,
 }: OnlineProviderLoginModalProps) => {
@@ -68,6 +71,16 @@ const OnlineProviderLoginModal = ({
     // 后端故障优先于其余所有状态：这时候刷新二维码没有意义。
     const canRetry = (state === 'expired' || state === 'error') && !awaitingMethod && !backendFailure;
     const twoColumns = Boolean(failureHelp);
+
+    const [librespotAuth, setLibrespotAuth] = useState<{ code: string; url: string } | null>(null);
+
+    useEffect(() => {
+        if (providerId === 'spotify' && typeof window !== 'undefined' && window.electron?.getLibrespotAuthCode) {
+            window.electron.getLibrespotAuthCode().then(res => {
+                if (res) setLibrespotAuth(res);
+            }).catch(() => {});
+        }
+    }, [providerId]);
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -166,6 +179,30 @@ const OnlineProviderLoginModal = ({
                         <p className={`text-xs font-medium mt-2 ${state === 'confirmed' ? 'text-green-400' : 'opacity-60'}`} style={{ color: state === 'confirmed' ? undefined : 'var(--text-secondary)' }}>
                             {awaitingMethod || backendFailure ? '' : statusText}
                         </p>
+                        {providerId === 'spotify' && state !== 'confirmed' && (
+                            <div className="flex flex-col items-center">
+                                <p className="text-[11px] text-emerald-400/90 mt-2 font-medium px-4 leading-relaxed text-center">
+                                    已在浏览器中打开 Spotify 授权页面，请在网页中确认授权；亦可使用手机相机扫描二维码直接授权。
+                                </p>
+                                {librespotAuth && (
+                                    <div className="mt-3 w-full max-w-xs p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                                        <p className="text-[11px] text-emerald-300 font-medium">
+                                            官方无损流媒体配对码：
+                                            <span className="font-mono font-bold tracking-wider text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded ml-1">
+                                                {librespotAuth.code}
+                                            </span>
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => void window.electron?.openExternalUrl?.(librespotAuth.url)}
+                                            className="mt-2 px-3 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[11px] font-semibold transition-colors"
+                                        >
+                                            在网页中一键配对 Spotify Connect (320k全长)
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {backendFailure?.onRestart && (
                             <button
                                 type="button"
