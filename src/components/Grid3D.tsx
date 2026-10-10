@@ -437,6 +437,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [categoryPanelOpen, setCategoryPanelOpen] = useState(false);
     const [categorySongLists, setCategorySongLists] = useState<ProviderCollection[]>([]);
     const [loadingCategory, setLoadingCategory] = useState(false);
+    const [categoryError, setCategoryError] = useState<string | null>(null);
     // 已经拉过的分类（provider:categoryId）：切 tab 回来时据此复用，不重拉、不闪骨架。
     const categorySongListsScopeRef = useRef<string | null>(null);
 
@@ -471,10 +472,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     // 选中分类后拉该分类的歌单；取消选中（null）则回到推荐广场。
     useEffect(() => {
-        if (homeViewTab !== "radio") return;
+        // 切走时也要复位：否则 loadingCategory 留在 true，切回来时会先看到一帧永远的骨架。
+        if (homeViewTab !== "radio") {
+            setLoadingCategory(false);
+            return;
+        }
         if (!categorySelected) {
             setCategorySongLists([]);
             categorySongListsScopeRef.current = null;
+            setCategoryError(null);
             return;
         }
         // 切到别的 tab 再回来时，这个分类的数据可能已经拉过了。直接复用：
@@ -486,6 +492,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             return;
         }
         let cancelled = false;
+        setCategoryError(null);
         setLoadingCategory(true);
         // 一屏的量就够：分类本身就是“逐层挑”，先给一屏，不做无限滚动。
         void omni.getCategorySongLists(activeProviderId, categorySelected.itemId, { limit: 35, offset: 0 })
@@ -501,10 +508,14 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 if (!cancelled) {
                     setCategorySongLists([]);
                     categorySongListsScopeRef.current = null;
+                    // 只写 console 的话用户看到的就是「我刚选的分类空了」，无法区分是真的没有还是请求挂了。
+                    const message = t('home.categoryLoadFailed');
+                    setCategoryError(message);
+                    onStatusMessage?.({ type: 'error', text: message });
                 }
             })
             .finally(() => { if (!cancelled) setLoadingCategory(false); });
-        return () => { cancelled = true; };
+        return () => { cancelled = true; setLoadingCategory(false); };
     }, [homeViewTab, categorySelected, activeProviderId, categorySongLists.length]);
 
     const isLoading =
@@ -537,6 +548,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // 会话内每个「音源+账号」只预热一次；用户若先一步进过发现页（已有内容）也不再预热，
     // 免得和进页拉取撞成双倍请求。
     const discoverCountRef = useRef(0);
+    const discoverGenerationRef = useRef(0);
+    /** 广场拉取的代次：「换一批」与首次进入可能并发，迟到的旧响应不能覆盖新批次。 */
+    const radioGenerationRef = useRef(0);
+    /** 发现页拉取的代次：启动预热与「换一批」是两条真实并发的路径，
+     * 迟到的旧响应会覆盖已经换好的新批次、并把旧内容写回缓存。每次发起拿一个新代次，
+     * 回调里对不上就丢弃。 */
     discoverCountRef.current = discoverSections.length;
     const prefetchedKeyRef = useRef<string | null>(null);
     useEffect(() => {
@@ -574,8 +591,27 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         setRadioItems([]);
         setDiscoverSections([]);
         setDiscoverError(null);
+        // 分类也要清：分类 id 是各音源上游的内部键（QQ 的 categoryId 在酷狗/网易云那里根本不存在）。
+        // 切过来不清就会立刻渲染旧音源的分类歌单，而这些卡片可以点，
+        // 点进去会用新音源去解析旧音源的 id。
+        setCategorySongLists([]);
+        categorySongListsScopeRef.current = null;
+        setCategoryError(null);
+        setCategorySelected(null);
+        setCategoryPanelOpen(false);
+        setLoadingCategory(false);
         setFocusedIndex(0);
     }, [activeProviderId, activeUser?.id]);
+
+    /**
+     * 切 provider / 切账号时 omni 会主动抛 AbortError（withActiveProvider 里的
+     * `new DOMException('Active online provider changed', 'AbortError')`）。那是「这个结果不再适用」的信号，
+     * 不是失败。当真失败处理的后果是：切到了并排队的请求被当成错误，弹出误导性错误提示，
+     * 甚至延迟 1.2s 重试一次。
+     */
+    const isAbandonedRequest = (error: unknown): boolean => (
+        error instanceof DOMException && error.name === 'AbortError'
+    );
 
     const fetchFavoriteAlbums = async () => {
         if (!canUseOnlineAlbums) {
@@ -602,6 +638,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             }
             setFavoriteAlbums(allAlbums);
         } catch (e) {
+            // 切 provider 导致的中止不报错：用户根本没在岗台页，弹一条「专辑没能加载出来」
+            // 只会让人以为是自己的账号出了问题。
+            if (isAbandonedRequest(e)) return;
             console.error('[Grid3D] Failed to fetch favorite albums', e);
             // 失败要告诉用户：只写 console 的话，界面表现是「骨架闪一下、然后一片空白」，
             // 用户既不知道发生了什么，也无从重试。走全局单通道提示 + tab 的空态文案兜底。
@@ -638,6 +677,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             const cached = readRadioCache();
             if (cached && cached.length > 0) setRadioItems(cached);
         }
+        const generation = ++radioGenerationRef.current;
         setLoadingRadio(true);
         try {
             // 电台页要的是「大家都在听的」那一半；发现页要的是「给你的」那一半（见 fetchDiscoverItems）。
@@ -671,10 +711,16 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             const nextRadioItems = dailySongs.length > 0
                 ? [dailyItem, ...recommendedItems]
                 : recommendedItems;
+            // 已有更新的一批在飞：这份旧响应不能覆盖它，也不能把旧内容写回缓存。
+            // 守卫必须在 setRadioItems 之前：写过 state 再判无意义，旧批次已经显在界面上了。
+            if (generation !== radioGenerationRef.current) return 0;
             setRadioItems(nextRadioItems);
             writeRadioCache(nextRadioItems);
             return nextRadioItems.length;
         } catch (e) {
+            // 中止不是失败：切 provider 时 omni 会抛 AbortError，若当真错处理，就会无端地睡 1.2s 再拉一次，
+            // 而且那次重试用的是新 provider 的闭包。
+            if (isAbandonedRequest(e)) return 0;
             console.error(`[Grid3D] Failed to fetch radio items${isRetry ? ' (after retry)' : ''}`, e);
             if (!isRetry) {
                 await new Promise(resolve => setTimeout(resolve, 1200));
@@ -765,6 +811,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             }
             if (discoverSections.length > 0) return;
         }
+        const generation = ++discoverGenerationRef.current;
         setLoadingDiscover(true);
         setDiscoverError(null);
         // 相似歌曲跟着此刻在听的这首走；没有在播放就不请求，那一段整段不出。
@@ -827,6 +874,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             });
             // 空结果（上游全挂了）绝不覆盖已有内容、也绝不写缓存——否则一次 500 风暴就能
             // 把缓存污染成空，之后每次回来都绕开缓存重拉，列表永远在变、还越拉越卡。
+            // 已经有更新的一批在飞：这份是旧的，写回去会把用户刚换好的内容拉回来。
+            if (generation !== discoverGenerationRef.current) {
+                setLoadingDiscover(false);
+                return;
+            }
             if (sections.length > 0) {
                 const dedupedSections = dedupeDiscoverSongs(sections);
                 setDiscoverSections(dedupedSections);
@@ -837,7 +889,18 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             setLoadingDiscover(false);
             return;
         } catch (e) {
+            // 中止不报错：切 provider / 切账号时 omni 会抛 AbortError。
+            // 注意：这里的 return 不能直接走。跳过尾部的 setLoadingDiscover(false) 就会把骨架永远挂住，
+            // 而新的那一批可能正在飞（用户又点了一次换一批）。所以先走到底部复位再返回。
+            if (isAbandonedRequest(e)) {
+                setLoadingDiscover(false);
+                return;
+            }
             console.error(`[Grid3D] Failed to fetch discover items`, e);
+        }
+        if (generation !== discoverGenerationRef.current) {
+            setLoadingDiscover(false);
+            return;
         }
         // 拉取失败：有内容就留着让用户继续听同一批，彻底空白才给一句能看懂的原因。
         if (discoverSections.length === 0) {
@@ -1021,6 +1084,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const albumsEmptyMessage = (canUseOnlineAlbums && activeUser && albumsLoadedScopeRef.current !== null && favoriteAlbums.length === 0)
         ? t('home.albumsEmpty')
         : (currentOnlineTabUnavailableReason || t('home.loadingLibrary'));
+
+    // 广场空态同理要区分空与失败：选了分类却拉不到时，默认文案是「暂无内容」，
+    // 用户会以为是这个分类真的没有歌单。报错时用 categoryError 文案。
+    const radioEmptyMessage = (homeViewTab === 'radio' && categorySelected)
+        ? (categoryError || t('home.loadingLibrary'))
+        : undefined;
 
     // Delegate GridView opening to the app-level host so Grid3D remains only the home surface.
     // If Personal FM is clicked, it plays Personal FM directly instead of opening GridView.
@@ -1549,7 +1618,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         isLoading={isLoading}
                         emptyMessage={homeViewTab === 'albums'
                             ? albumsEmptyMessage
-                            : (currentOnlineTabUnavailableReason || t('home.loadingLibrary'))}
+                            : (radioEmptyMessage || currentOnlineTabUnavailableReason || t('home.loadingLibrary'))}
                         theme={theme}
                         isDaylight={isDaylight}
                         isInteractive={isInteractive}

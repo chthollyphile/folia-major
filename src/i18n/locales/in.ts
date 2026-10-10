@@ -1010,6 +1010,7 @@ export default {
     "categoryTitle": "Kategori",
     "categoryAll": "Semua",
     "categoryClear": "Hapus",
+    "categoryLoadFailed": "Tidak bisa memuat daftar lagu di kategori ini, coba kategori lain",
     "welcome": "Selamat datang di Folia",
     "lattice": "Kolase antrean",
     "latticeLabel": "Kolase antrean",

@@ -640,6 +640,27 @@ const RECOMMEND_PLAYLIST = {
         expect(song.artists).toEqual([{ id: 0, name: 'Beyond' }]);
     });
 
+    // 空 id 会把整片网格拉崩：卡片的 React key 就是 collection.id，
+    // 两张 key="" 的卡片会让 React 报「Encountered two children with the same key」
+    // 并且整个网格绘制失败。getArtistAlbums / getArtistSongs 都有这一扇。
+    it('drops category song lists that normalize to an empty id', async () => {
+        requestMock.mockImplementation(async () => ({
+            response: {
+                data: {
+                    sum: 2,
+                    list: [
+                        { dissid: 111, dissname: '有 id 的歌单', imgurl: 'http://qpic.y.qq.com/music_cover/a' },
+                        { dissname: '没有任何 id 的歌单' },
+                    ],
+                },
+            },
+        }));
+
+        const page = await qqProvider.catalog?.getCategorySongLists?.('10000000', 20, 0);
+
+        expect(page?.items.map((item: { id: unknown }) => item.id)).toEqual([111]);
+    });
+
     // 分类筛选的歌单要得有封面。实测 2026-10-11 抓 /getSongLists 真实响应，
     // 封面在 `imgurl`（单数字串）——这个键不在原来的候选里，所以分类卡片整片只剩骨架。
     it('reads the cover of a category song list, whose cover arrives under imgurl', () => {

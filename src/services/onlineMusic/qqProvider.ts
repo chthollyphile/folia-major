@@ -275,7 +275,12 @@ const fetchQqCategorySongLists = async (
         limit,
     });
     const data = response?.response?.data ?? {};
-    const list = (Array.isArray(data?.list) ? data.list : []).map((item: unknown) => normalizeQqCollection(item, 'playlist'));
+    // 过滤空 id：正规化在 tid/dissid/rawId/dirId 全部缺失时会给出 `id: ''`，
+    // 而卡片的 React key 就是这个 id——两张空 id 卡片会把整片网格拉崩。
+    // 同一个仓库里的 getArtistAlbums / getArtistSongs 都有这一扇。
+    const list = (Array.isArray(data?.list) ? data.list : [])
+        .map((item: unknown) => normalizeQqCollection(item, 'playlist'))
+        .filter((collection: ProviderCollection) => collection.id !== '');
     const total = Number(data?.sum) || list.length;
     return {
         items: list,

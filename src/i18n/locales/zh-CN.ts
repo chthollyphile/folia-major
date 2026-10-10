@@ -1014,6 +1014,7 @@ export default {
     "categoryTitle": "分类",
     "categoryAll": "全部",
     "categoryClear": "清除",
+    "categoryLoadFailed": "这个分类的歌单没能加载出来，换个分类试试",
     "welcome": "欢迎使用 Folia",
     "lattice": "队列拼贴",
     "latticeLabel": "队列拼贴",

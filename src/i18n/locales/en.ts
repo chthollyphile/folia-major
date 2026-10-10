@@ -1015,6 +1015,7 @@ export default {
     "categoryTitle": "Categories",
     "categoryAll": "All",
     "categoryClear": "Clear",
+    "categoryLoadFailed": "Could not load the song lists in this category, try another one",
     "welcome": "Welcome to Folia",
     "lattice": "Queue collage",
     "latticeLabel": "Queue collage",
