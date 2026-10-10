@@ -3,9 +3,9 @@
 
 export default {
   "libraryBravais": {
-    "suiteName": "Tường album Bravais",
+    "suiteName": "Không gian Bravais",
     "homeTitle": "Thư viện",
-    "wallLabel": "Tường album thư viện",
+    "wallLabel": "Không gian thư viện",
     "seamLabel": "Thanh thông tin",
     "emptyCollection": "Chưa có gì ở đây",
     "trackCount_one": "{{count}} bài hát",
@@ -46,17 +46,17 @@ export default {
     "toolsMute": "Tắt tiếng",
     "toolsUnmute": "Bật tiếng",
     "toolsMuted": "Đã tắt tiếng",
-    "toolsAppearance": "Giao diện tường album",
-    "helpMove": "Di chuyển tiêu điểm (tường album hoặc thanh thông tin)",
+    "toolsAppearance": "Giao diện thư viện",
+    "helpMove": "Di chuyển tiêu điểm (thư viện hoặc thanh thông tin)",
     "helpOpen": "Mở thẻ bài hát hoặc bộ sưu tập",
     "helpPlay": "Phát bài hát trong thẻ đang mở",
     "helpEnqueue": "Thêm bài hát được chọn vào hàng đợi",
     "helpBack": "Quay lại một cấp",
-    "helpSeam": "Chuyển giữa tường album và thanh thông tin",
+    "helpSeam": "Chuyển giữa thư viện và thanh thông tin",
     "helpTabs": "Chuyển thẻ trang chủ",
     "helpLocate": "Định vị bài đang phát",
     "helpShuffle": "Xáo trộn hàng đợi phát",
-    "helpLattice": "Đến Lattice (ảnh ghép hàng đợi)",
+    "helpLattice": "Đến Lattice (hàng đợi 3D)",
     "helpCommands": "Mở bảng lệnh",
     "helpFilter": "Nhập để lọc trang này",
     "helpSearch": "Tìm kiếm trực tuyến (trang chủ)",
@@ -274,7 +274,7 @@ export default {
     "openHomeOnLaunch": "Mặc định mở trang chủ khi khởi động",
     "visualizerSwitched": "Đã chuyển sang hiệu ứng thị giác {{mode}}",
     "classicReset": "Đã đặt lại thông số Classic",
-    "cadenzaReset": "Đã đặt lại thông số Mindscape",
+    "cadenzaReset": "Đã đặt lại thông số Cadenza",
     "partitaReset": "Đã đặt lại thông số Partita",
     "fumeReset": "Đã đặt lại thông số Fume",
     "claddaghReset": "Đã đặt lại thông số Claddagh",
@@ -915,7 +915,7 @@ export default {
       },
       "lattice-focus-current": {
         "title": "Lattice: Tiêu điểm bài hát hiện tại",
-        "description": "Căn giữa bài hát đang phát trong lưới ghép hàng đợi"
+        "description": "Căn giữa bài hát đang phát trong hàng đợi Lattice"
       },
       "bravais-list": {
         "title": "Mở danh sách bài hát",
@@ -927,11 +927,11 @@ export default {
       },
       "bravais-seam-full": {
         "title": "Mở rộng thanh thông tin",
-        "description": "Mở rộng hoàn toàn thanh thông tin trên tường album"
+        "description": "Mở rộng hoàn toàn thanh thông tin trong Không gian Bravais"
       },
       "bravais-seam-spine": {
         "title": "Thu gọn thanh thông tin",
-        "description": "Thu gọn thanh thông tin thành dạng gáy sách mỏng"
+        "description": "Thu gọn thanh thông tin thành cột hẹp"
       },
       "bravais-seam-hide": {
         "title": "Gập thanh thông tin",
@@ -943,19 +943,19 @@ export default {
       },
       "bravais-locate-playing": {
         "title": "Định vị bài đang phát",
-        "description": "Di chuyển tiêu điểm tường đến bài hát đang phát"
+        "description": "Di chuyển tiêu điểm đến bài hát đang phát trong thư viện"
       },
       "bravais-wall-look": {
-        "title": "Đổi độ trong suốt tường",
-        "description": "Chuyển tường thư viện giữa đục, mờ và trong suốt"
+        "title": "Độ trong suốt thư viện Bravais",
+        "description": "Chuyển giao diện Bravais giữa đục, mờ và trong suốt"
       },
       "bravais-more-windows": {
-        "title": "Thêm ô cửa tường",
-        "description": "Thêm một ô cửa trong suốt vào mỗi khối tường thư viện"
+        "title": "Thêm ô cửa sổ (Bravais)",
+        "description": "Thêm một ô cửa trong suốt vào mỗi khối Không gian Bravais"
       },
       "bravais-fewer-windows": {
-        "title": "Bớt ô cửa tường",
-        "description": "Đóng một ô cửa trong suốt ở mỗi khối tường thư viện"
+        "title": "Bớt ô cửa sổ (Bravais)",
+        "description": "Đóng một ô cửa trong suốt ở mỗi khối Không gian Bravais"
       },
       "navigate-lattice": {
         "title": "Mở Lattice",
@@ -1022,12 +1022,12 @@ export default {
         "description": "Dọn dẹp tiêu đề, nghệ sĩ và album của thư mục này"
       },
       "library-wall-backdrop-lyrics-toggle": {
-        "description": "Hiển thị lời bài hát trong hiệu ứng thị giác phía sau tường",
-        "title": "Lời bài hát phía sau tường"
+        "description": "Hiển thị lời bài hát trong hiệu ứng thị giác phía sau thư viện",
+        "title": "Lời bài hát sau nền thư viện"
       },
       "library-wall-backdrop-blur-toggle": {
-        "title": "Làm mờ phía sau tường",
-        "description": "Làm mờ hiệu ứng thị giác hiển thị phía sau tường"
+        "title": "Làm mờ nền sau thư viện",
+        "description": "Làm mờ hiệu ứng thị giác hiển thị phía sau thư viện"
       },
       "settings-theme-presets": {
         "title": "Chủ đề cài sẵn",
@@ -1147,7 +1147,7 @@ export default {
       },
       "playback-entry-view-lattice": {
         "title": "Khi phát mở: Lattice",
-        "description": "Nhấn phát để mở khung ghép hàng đợi"
+        "description": "Nhấn phát để mở hàng đợi Lattice"
       },
       "playback-entry-view-stay": {
         "title": "Khi phát: Ở lại đây",
@@ -1162,16 +1162,16 @@ export default {
         "description": "Chuyển đổi giao diện dùng để duyệt thư viện"
       },
       "library-wall-look-picker": {
-        "title": "Chọn độ trong suốt tường",
-        "description": "Chọn mức độ hiệu ứng thị giác hiển thị xuyên qua tường thư viện"
+        "title": "Chọn độ trong suốt thư viện",
+        "description": "Chọn mức độ hiệu ứng thị giác hiển thị xuyên qua thư viện"
       },
       "library-wall-windows-picker": {
-        "title": "Chọn số ô cửa sổ mỗi khối",
-        "description": "Chọn số ô xếp làm cửa sổ trong mỗi khối tường"
+        "title": "Số ô cửa sổ mỗi khối",
+        "description": "Chọn số ô trong suốt làm cửa sổ trong mỗi khối Không gian Bravais"
       },
       "settings-bravais": {
-        "title": "Cài đặt tường Bravais",
-        "description": "Đi đến các cài đặt chỉ áp dụng cho tường Bravais"
+        "title": "Cài đặt Không gian Bravais",
+        "description": "Đi đến các cài đặt chỉ áp dụng cho Không gian Bravais"
       },
       "library-wall-stack-edges-toggle": {
         "title": "Viền xếp chồng bộ sưu tập",
@@ -1179,7 +1179,7 @@ export default {
       },
       "library-wall-seam-clear-toggle": {
         "title": "Thanh thông tin trong suốt",
-        "description": "Cho phép thanh thông tin hiển thị hiệu ứng thị giác phía sau tường"
+        "description": "Cho phép thanh thông tin hiển thị hiệu ứng thị giác phía sau thư viện"
       },
       "library-wall-seam-style-picker": {
         "title": "Chọn kiểu thanh thông tin",
@@ -1414,12 +1414,12 @@ export default {
         "description": "Chuyển sang hiệu ứng tĩnh tiết kiệm tài nguyên"
       },
       "visualizer-classic": {
-        "title": "Hiệu ứng thị giác: Luminous",
-        "description": "Chuyển sang hiệu ứng cổ điển"
+        "title": "Hiệu ứng thị giác: Cổ điển (Classic)",
+        "description": "Chuyển sang hiệu ứng lời bài hát cổ điển"
       },
       "visualizer-cadenza": {
-        "title": "Hiệu ứng thị giác: Mindscape",
-        "description": "Chuyển sang hiệu ứng Cadenza"
+        "title": "Hiệu ứng thị giác: Cadenza",
+        "description": "Chuyển sang hiệu ứng lời bài hát Cadenza"
       },
       "visualizer-partita": {
         "title": "Hiệu ứng thị giác: Partita",
@@ -1538,24 +1538,24 @@ export default {
         "description": "Bật/tắt thẻ tràn viền dạng vuông thay vì poster"
       },
       "settings-toggle-lattice-vignette": {
-        "title": "Tối góc tường poster",
-        "description": "Bật/tắt viền tối góc trên ảnh ghép hàng đợi (Lattice) và tường thư viện"
+        "title": "Tối viền (Lattice & Thư viện)",
+        "description": "Bật/tắt viền tối trên hàng đợi Lattice và Không gian Bravais"
       },
       "settings-toggle-lattice-auto-focus": {
         "title": "Tự động lấy nét Lattice",
-        "description": "Bật/tắt ảnh ghép hàng đợi cuộn theo bài hát đang phát khi đổi bài"
+        "description": "Bật/tắt Lattice cuộn theo bài hát đang phát khi đổi bài"
       },
       "lattice-poster-tint": {
-        "title": "Màu phủ tường poster",
-        "description": "Chỉnh lớp phủ làm dịu poster ngoài tiêu điểm trên ảnh ghép hàng đợi (Lattice) và tường thư viện"
+        "title": "Màu phủ làm dịu (Lattice & Thư viện)",
+        "description": "Chỉnh lớp phủ làm dịu ảnh bìa ngoài tiêu điểm trên Lattice và Không gian Bravais"
       },
       "settings-reduce-motion": {
         "title": "Giảm chuyển động",
         "description": "Giảm hoạt ảnh trên từng bề mặt hoặc theo cài đặt hệ thống"
       },
       "settings-toggle-reduce-lattice-motion": {
-        "title": "Giảm chuyển động ảnh ghép hàng đợi",
-        "description": "Chuyển hiệu ứng mở rộng, lia góc nhìn và xuất hiện ảnh ghép thành tức thì"
+        "title": "Giảm chuyển động trong Lattice",
+        "description": "Chuyển hiệu ứng mở rộng, lia góc nhìn và xuất hiện ô thành tức thì"
       },
       "settings-toggle-follow-system-reduced-motion": {
         "title": "Theo cài đặt giảm chuyển động hệ thống",
@@ -1678,8 +1678,8 @@ export default {
     "visualizerTemporary": "Bàn làm việc tạm thời",
     "visualizerMode": "Chế độ",
     "visualizerStill": "Tĩnh",
-    "visualizerClassic": "Luminous",
-    "visualizerCadenze": "Mindscape",
+    "visualizerClassic": "Cổ điển (Classic)",
+    "visualizerCadenze": "Cadenza",
     "visualizerPartita": "Partita",
     "visualizerFume": "Fume",
     "visualizerMonet": "Monet",
@@ -1691,10 +1691,10 @@ export default {
     "visualizerSonnet": "Sonnet",
     "visualizerTempera": "Tempera",
     "visualizerLumiere": "Lumiere",
-    "cadenzeTuning": "Tinh chỉnh Mindscape",
+    "cadenzeTuning": "Tinh chỉnh Cadenza",
     "resetVisualizerTuning": "Đặt lại thông số hiệu ứng lời",
     "livePreview": "Xem trước trực tiếp",
-    "cadenzeOnly": "Chỉ Mindscape",
+    "cadenzeOnly": "Chỉ Cadenza",
     "background": "Nền",
     "default": "Mặc định",
     "aiTheme": "Chủ đề AI",
@@ -1986,8 +1986,8 @@ export default {
   },
   "home": {
     "welcome": "Chào mừng đến với Folia",
-    "lattice": "Ghép hàng đợi",
-    "latticeLabel": "Ghép hàng đợi",
+    "lattice": "Lattice",
+    "latticeLabel": "Lattice",
     "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape thu gọn poster hoặc bỏ tiêu điểm bàn phím trước, sau đó quay lại ở lần nhấn tiếp.",
     "latticePlay": "PHÁT",
     "latticeFocusCurrent": "Định vị bài đang phát",
@@ -2424,8 +2424,8 @@ export default {
     "playbackEntryViewDesc": "Giao diện mặc định mở ra sau khi nhấn phát.",
     "librarySuite": "Giao diện thư viện",
     "librarySuiteDesc": "Giao diện duyệt trang chủ, tuyển tập và trang nghệ sĩ. Khi chuyển đổi vẫn giữ bộ lọc, lựa chọn và hàng đợi.",
-    "libraryWallLook": "Độ trong suốt tường poster",
-    "libraryWallLookDesc": "Mức độ hiển thị hiệu ứng thị giác xuyên qua tường poster.",
+    "libraryWallLook": "Độ trong suốt thư viện",
+    "libraryWallLookDesc": "Mức độ hiển thị hiệu ứng thị giác xuyên qua Không gian Bravais.",
     "libraryWallLookSolid": "Đặc",
     "libraryWallLookSolidDesc": "Che hoàn toàn trình phát, tương tự Lattice.",
     "libraryWallLookPartial": "Bán trong suốt",
@@ -2475,14 +2475,14 @@ export default {
     "libraryWallWindows": "Cửa sổ mỗi khối",
     "libraryWallWindowsDesc": "Số ô là cửa sổ trong 12 ô của mỗi khối.",
     "libraryWallWindowsOption": "{{count}}/12 ô ({{percent}}%)",
-    "bravaisSettings": "Tường Bravais",
-    "bravaisSettingsDesc": "Cài đặt chỉ áp dụng khi thư viện dùng tường Bravais.",
+    "bravaisSettings": "Không gian Bravais",
+    "bravaisSettingsDesc": "Cài đặt chỉ áp dụng khi thư viện dùng giao diện Không gian Bravais.",
     "bravaisStackEdges": "Viền chồng bộ sưu tập",
     "bravaisStackEdgesDesc": "Album, danh sách phát và thư mục hiện các mép so le ở góc dưới phải như chồng đĩa hát. Khi tắt sẽ hiển thị dạng poster thường; số bài hát vẫn ở trên nhãn.",
     "bravaisSeamClear": "Thanh thông tin trong suốt (See-through)",
-    "bravaisSeamClearDesc": "Thanh thông tin (trang chủ, gáy, bộ sưu tập, nghệ sĩ, bảng điều khiển) bỏ nền đặc để lộ hiệu ứng thị giác phía sau qua lớp phủ mờ, kể cả trên tường đặc. Các kiểu thanh thông tin bên dưới không áp dụng khi bật tùy chọn này.",
+    "bravaisSeamClearDesc": "Thanh thông tin (thanh trang chủ, thanh thu gọn, thanh bộ sưu tập và nghệ sĩ, các bảng điều khiển) bỏ nền đặc để lộ hiệu ứng thị giác phía sau qua lớp phủ mờ, kể cả khi giao diện ở dạng màu đặc. Các kiểu thanh thông tin bên dưới không áp dụng khi bật tùy chọn này.",
     "bravaisSeamStyle": "Kiểu thanh thông tin",
-    "bravaisSeamStyleDesc": "Mặt giấy của thanh thông tin nền đặc. Kiểu chủ đề theo màu sắc giao diện; kiểu in dùng giấy và mực cố định. Độ trong suốt của tường không làm thay đổi các kiểu này.",
+    "bravaisSeamStyleDesc": "Mặt giấy của thanh thông tin nền đặc. Kiểu chủ đề theo màu sắc giao diện; kiểu in dùng giấy và mực cố định. Độ trong suốt của Không gian Bravais không làm thay đổi các kiểu này.",
     "bravaisSeamStyleDisabled": "Thanh thông tin đang đặt trong suốt nên không áp dụng các kiểu này. Tắt “Thanh thông tin xuyên thấu” để sử dụng.",
     "bravaisSeamStylePaper": "Giấy chủ đề",
     "bravaisSeamStyleWhite": "In trắng",
@@ -2493,10 +2493,10 @@ export default {
     "bravaisSeamStyleContour": "Đường đồng mức",
     "bravaisSeamStyleCheck": "Caro",
     "bravaisSeamSwatchGlyph": "Aa",
-    "bravaisBackdropLyrics": "Lời bài hát sau tường",
-    "bravaisBackdropLyricsDesc": "Vẽ lời bài hát trong hiệu ứng thị giác hiện qua cửa sổ và thanh thông tin trong suốt. Tắt đi giúp trang chủ gọn mắt hơn; trang trình phát luôn hiển thị.",
-    "bravaisBackdropBlur": "Làm mờ sau tường",
-    "bravaisBackdropBlurDesc": "Làm mờ hiệu ứng thị giác hiển thị xuyên qua tường hoặc thanh thông tin. Đây là hiệu ứng làm mờ toàn màn hình trên lớp hiệu ứng thị giác và có thể giảm khung hình trên máy cấu hình yếu có tần số quét cao. Chỉ áp dụng khi có phần tử xuyên thấu.",
+    "bravaisBackdropLyrics": "Lời bài hát sau nền thư viện",
+    "bravaisBackdropLyricsDesc": "Hiển thị lời bài hát trong hiệu ứng thị giác qua các ô cửa sổ và thanh thông tin trong suốt. Tắt đi giúp trang chủ gọn mắt hơn; trang trình phát luôn hiển thị.",
+    "bravaisBackdropBlur": "Làm mờ nền sau thư viện",
+    "bravaisBackdropBlurDesc": "Làm mờ hiệu ứng thị giác hiển thị xuyên qua Không gian Bravais hoặc thanh thông tin. Đây là hiệu ứng làm mờ toàn màn hình trên lớp hiệu ứng thị giác và có thể giảm khung hình trên máy cấu hình yếu có tần số quét cao. Chỉ áp dụng khi có phần tử xuyên thấu.",
     "homeTabsVisibility": "Thanh điều hướng đầu trang (Capsule)",
     "rememberHomeCardPosition": "Nhớ vị trí thẻ trang chủ",
     "rememberHomeCardPositionDesc": "Quay lại thẻ cuối cùng trong từng phần khi chuyển tab hoặc rời trình phát. Vị trí được lưu cho đến khi đóng hoặc tải lại ứng dụng.",
@@ -2589,8 +2589,8 @@ export default {
     "reduceMotionFollowSystem": "Theo cài đặt hệ thống",
     "reduceMotionFollowSystemDesc": "Để cài đặt hiệu ứng của hệ điều hành giảm chuyển động toàn bộ, như các phiên bản trước.",
     "reduceMotionForcedBySystem": "Hiện đang bị giảm bởi cài đặt hệ thống phía trên.",
-    "reduceMotionLattice": "Ghép thẻ hàng đợi",
-    "reduceMotionLatticeDesc": "Mở rộng poster, góc máy lướt, sóng mở màn, quán tính kéo và hiệu ứng mờ lời trên thẻ ghép hàng đợi.",
+    "reduceMotionLattice": "Lattice (hàng đợi poster)",
+    "reduceMotionLatticeDesc": "Mở rộng poster, góc máy lướt, sóng mở màn, quán tính kéo và hiệu ứng mờ lời trên hàng đợi Lattice.",
     "reduceMotionTransitionOverlay": "Chuyển tiếp hòa âm",
     "reduceMotionTransitionOverlayDesc": "Vòng tiến trình automix và viền tiến trình hiển thị quanh thẻ đang phát.",
     "reduceMotionCollectionMorph": "Hiệu ứng mở bộ sưu tập",
@@ -2684,13 +2684,13 @@ export default {
     "stageTrackPillMode_always": "Luôn hiển thị",
     "stageTrackPillMode_never": "Không hiển thị",
     "stageTrackPillOnHome": "Hiện cả ở trang chủ",
-    "stageTrackPillOnHomeDesc": "Tắt sẽ giữ thẻ ở trình phát và hàng đợi. Bật sẽ hiện thêm ở trang chủ, gồm sau khi mở app hoặc đổi bài. Với thư viện Bravais, thẻ luôn nằm trên tường.",
+    "stageTrackPillOnHomeDesc": "Tắt sẽ giữ thẻ ở trình phát và hàng đợi. Bật sẽ hiện thêm ở trang chủ, gồm sau khi mở app hoặc đổi bài. Với thư viện Bravais, thẻ luôn được ghim trên không gian thư viện.",
     "stageTrackPillTimeout": "Thời gian hiển thị",
     "disableVisualizerVignette": "Tắt làm tối góc",
     "disableVisualizerVignetteDesc": "Chỉ loại bỏ viền tối ở rìa nền hình học. Nền trong suốt và các khối hình học vẫn tách biệt.",
-    "latticeSettings": "Giao diện tường thẻ",
+    "latticeSettings": "Giao diện Lattice & Thư viện",
     "latticeVignette": "Viền tối cạnh",
-    "latticeVignetteDesc": "Làm tối rìa tranh ghép hàng đợi và tường thư viện để tập trung ánh nhìn vào giữa.",
+    "latticeVignetteDesc": "Làm tối viền xung quanh hàng đợi Lattice và thư viện album để tập trung ánh nhìn vào giữa.",
     "latticePosterTint": "Màu phủ làm nổi poster",
     "latticePosterTintDesc": "Phủ màu poster không hoạt động để poster đang phát, được chọn hoặc rê chuột nổi bật hơn.",
     "latticePosterTintCustomColor": "Bắt buộc dùng màu tùy chỉnh",
@@ -2699,7 +2699,7 @@ export default {
     "latticePosterTintIntensity": "Độ đậm lớp phủ",
     "gridViewCardSettings": "Thẻ dạng lưới",
     "gridViewFullBleedCover": "Bìa tràn viền",
-    "gridViewFullBleedCoverDesc": "Để ảnh bìa lấp đầy thẻ lưới. Tên bài hát và nghệ sĩ chuyển lên dải gradient trên bìa, tương tự như tranh ghép hàng đợi.",
+    "gridViewFullBleedCoverDesc": "Để ảnh bìa lấp đầy thẻ lưới. Tên bài hát và nghệ sĩ chuyển lên dải gradient trên bìa, tương tự như hàng đợi Lattice.",
     "gridViewSquareCard": "Thẻ vuông",
     "gridViewSquareCardDesc": "Đặt chiều cao bằng chiều rộng để hiển thị trọn vẹn bìa vuông thay vì bị cắt trên dưới. Diện tích thẻ giữ nguyên, mở rộng chiều ngang khi giảm chiều cao và khoảng cách lưới sẽ tự căn chỉnh.",
     "gridViewMinCardScale": "Kích thước thẻ tối thiểu",
@@ -2763,7 +2763,7 @@ export default {
     "remoteControlClickThrough": "Nhấp xuyên thấu Remote Control",
     "remoteControlClickThroughDesc": "Khi bật, cửa sổ Remote Control sẽ bỏ qua chuột và lượt nhấp sẽ xuyên thấu xuống màn hình nền và cửa sổ bên dưới; không thể thao tác hay kéo cửa sổ. Để dùng lại, chọn \"Mở khóa cửa sổ điều khiển\" trong menu khay hoặc trong bảng lệnh, hoặc tắt tùy chọn này tại đây.",
     "openPlayerOnLaunch": "Vào giao diện phát khi khởi động",
-    "openPlayerOnLaunchDesc": "Mở giao diện phát khi khởi động ứng dụng. Tuân theo \"Chế độ xem khi nhấn Phát\": nếu chọn Lattice, khởi động sẽ mở ghép ảnh hàng đợi.",
+    "openPlayerOnLaunchDesc": "Mở giao diện phát khi khởi động ứng dụng. Tuân theo \"Chế độ xem khi nhấn Phát\": nếu chọn Lattice, khởi động sẽ mở hàng đợi Lattice.",
     "wallpaperMode": "Chế độ hình nền",
     "wallpaperModeDesc": "Đưa cửa sổ xuống đáy màn hình nền làm hình nền lời bài hát cố định. Không hỗ trợ phím tắt bàn phím.",
     "wallpaperModeMacPermissionHint": "Chế độ hình nền Mac cần quyền Giám sát đầu vào: bật Folia trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Giám sát đầu vào, sau đó khởi động lại ứng dụng.",
@@ -2853,7 +2853,7 @@ export default {
     "fumeCameraTrackingSmooth": "Mượt mà",
     "fumeGlowIntensity": "Phát sáng dòng phát",
     "fumeHeroScale": "Tỷ lệ tiêu đề chính",
-    "cappellaSettings": "Tinh chỉnh Hợp xướng",
+    "cappellaSettings": "Tinh chỉnh Cappella",
     "cappellaSettingsDesc": "Quản lý nguồn ảnh đại diện, hiển thị biểu cảm và ô xem trước.",
     "cappellaAvatarSource": "Nguồn ảnh đại diện",
     "cappellaAvatarSourceCover": "Ảnh bìa",
@@ -3437,7 +3437,7 @@ export default {
     "importGroupBackground": "Nền",
     "importGroupSongTheme": "Tự động hóa chủ đề bài hát",
     "importGroupTrackCard": "Thẻ thông tin bài hát",
-    "importGroupLibraryWall": "Tường thư viện",
+    "importGroupLibraryWall": "Không gian thư viện",
     "importDerivedUnpin": "Thao tác này cũng sẽ tắt \"ưu tiên chủ đề tùy chỉnh\"",
     "importDerivedUploadedFont": "Phông chữ đã tải lên sẽ bị thay thế và xóa — cần tải lên lại",
     "importFontUnavailable": "Phông chữ này chưa cài đặt trên máy, sẽ quay về phông mặc định",
@@ -3643,10 +3643,10 @@ export default {
       }
     },
     "v0_7_4": {
-      "intro": "Phiên bản 0.7.4 bổ sung chế độ xem ghép hàng đợi, chế độ hình nền trên macOS và tính năng tự động chuyển đổi định dạng âm thanh mà trình duyệt không thể giải mã.",
+      "intro": "Phiên bản 0.7.4 bổ sung hàng đợi Lattice, chế độ hình nền trên macOS và tính năng tự động chuyển đổi định dạng âm thanh mà trình duyệt không thể giải mã.",
       "latticeQueueCollage": {
-        "title": "Chế độ xem ghép hàng đợi",
-        "description": "Mở từ bảng lệnh hoặc nút cạnh thanh tiến trình để trải rộng toàn bộ hàng đợi phát thành một tường poster: kéo rê hoặc di chuyển bằng các phím mũi tên, nhấn Enter để mở rộng bài hát và nhấn Enter lần nữa để phát, đi kèm lời bài hát chạy chữ trên poster mở rộng. Tính năng tự căn chỉnh có thể đưa poster đang phát về giữa màn hình mỗi khi chuyển bài, cùng với khả năng chỉnh hiệu ứng tối góc và ám màu poster. Phím tắt Ctrl/Cmd+B để bật/tắt trực tiếp; không khả dụng ở chế độ FM riêng tư."
+        "title": "Hàng đợi Lattice (chế độ xem poster)",
+        "description": "Mở từ bảng lệnh hoặc nút cạnh thanh tiến trình để trải rộng toàn bộ hàng đợi phát thành một lưới poster: kéo rê hoặc di chuyển bằng các phím mũi tên, nhấn Enter để mở rộng bài hát và nhấn Enter lần nữa để phát, đi kèm lời bài hát chạy chữ trên poster mở rộng. Tính năng tự căn chỉnh có thể đưa poster đang phát về giữa màn hình mỗi khi chuyển bài, cùng với khả năng chỉnh hiệu ứng tối góc và ám màu poster. Phím tắt Ctrl/Cmd+B để bật/tắt trực tiếp; không khả dụng ở chế độ FM riêng tư."
       },
       "macWallpaperMode": {
         "title": "Chế độ hình nền trên macOS",
@@ -3670,18 +3670,18 @@ export default {
       }
     },
     "v0_7_17": {
-      "intro": "Chào mừng bạn đến với 0.7.17, bản cập nhật Spica — một bản phát hành lớn. Thư viện sở hữu giao diện Bravais hoàn toàn mới: bức tường poster cho phép kéo duyệt linh hoạt. Sau khi cập nhật, Folia sẽ hỏi một lần để bạn chọn Bravais hay dạng lưới cổ điển; chế độ xem mở khi phát nhạc có thêm tùy chọn \"Ở lại đây\", cùng khả năng đánh dấu bài hát cục bộ là nhạc không lời.",
+      "intro": "Chào mừng bạn đến với 0.7.17, bản cập nhật Spica — một bản phát hành lớn. Thư viện sở hữu giao diện Bravais hoàn toàn mới: không gian poster 3D cho phép kéo duyệt linh hoạt. Sau khi cập nhật, Folia sẽ hỏi một lần để bạn chọn Bravais hay dạng lưới cổ điển; chế độ xem mở khi phát nhạc có thêm tùy chọn \"Ở lại đây\", cùng khả năng đánh dấu bài hát cục bộ là nhạc không lời.",
       "bravais": {
         "title": "Bravais, giao diện thư viện mới",
-        "description": "Thư viện hóa thành bức tường poster: mở danh sách phát, album hoặc nghệ sĩ sẽ lật poster sang nội dung mới, thông tin trang và các thao tác nằm gọn trong thanh thông tin mở trên mặt tường. Kéo để duyệt, di chuyển bằng phím mũi tên hoặc gõ phím để lọc trang hiện tại. Dạng lưới cổ điển vẫn khả dụng tại Cài đặt → Giao diện → Giao diện thư viện."
+        "description": "Thư viện hóa thành không gian poster 3D: mở danh sách phát, album hoặc nghệ sĩ sẽ lật poster sang nội dung mới, thông tin trang và các thao tác nằm gọn trong thanh thông tin mở trên giao diện. Kéo để duyệt, di chuyển bằng phím mũi tên hoặc gõ phím để lọc trang hiện tại. Dạng lưới cổ điển vẫn khả dụng tại Cài đặt → Giao diện → Giao diện thư viện."
       },
       "chooseLibrary": {
         "title": "Chọn giao diện, giữ nguyên vị trí",
         "description": "Sau khi cập nhật, Folia sẽ hỏi một lần để bạn chọn Bravais hay dạng lưới cổ điển (bản cài mới cũng được hỏi thêm chế độ xem mở khi phát nhạc). Tùy chọn \"Ở lại đây\" mới giúp bạn giữ nguyên vị trí khi nhấn Phát, và thẻ đang phát sẽ chuyển thành nút tạm dừng / tiếp tục."
       },
       "wallLook": {
-        "title": "Tùy biến diện mạo tường poster",
-        "description": "Bức tường Bravais có thể hiển thị màu đặc, bán trong suốt hoặc trong suốt hoàn toàn để lộ trình phát phía sau. Các bộ sưu tập có thể hiện viền trang xếp chồng, thanh thông tin có nhiều kiểu dáng, nền sau có thể hiện lời bài hát và làm mờ. Ánh sáng và màu phủ poster dùng chung với Lattice, đồng thời Lattice nay cuộn mượt mà hơn bằng con lăn chuột."
+        "title": "Tùy biến diện mạo không gian Bravais",
+        "description": "Không gian Bravais có thể hiển thị màu đặc, bán trong suốt hoặc trong suốt hoàn toàn để lộ trình phát phía sau. Các bộ sưu tập có thể hiện viền trang xếp chồng, thanh thông tin có nhiều kiểu dáng, nền sau có thể hiện lời bài hát và làm mờ. Ánh sáng và màu phủ poster dùng chung với Lattice, đồng thời Lattice nay cuộn mượt mà hơn bằng con lăn chuột."
       },
       "pureMusic": {
         "title": "Đánh dấu bài hát cục bộ là nhạc không lời",
@@ -3708,7 +3708,7 @@ export default {
       },
       "gridTabKeys": {
         "title": "Chuyển thẻ trang chủ bằng phím Tab",
-        "description": "Trên trang chủ tường poster, dùng Tab và Shift + Tab để chuyển vòng quanh giữa danh sách phát, radio, album, nhạc cục bộ và Navidrome, tự động bỏ qua thẻ không khả dụng. Thao tác này giúp điều khiển bằng bàn phím và remote dễ dàng hơn."
+        "description": "Trên trang chủ Không gian Bravais, dùng Tab và Shift + Tab để chuyển vòng quanh giữa danh sách phát, radio, album, nhạc cục bộ và Navidrome, tự động bỏ qua thẻ không khả dụng. Thao tác này giúp điều khiển bằng bàn phím và remote dễ dàng hơn."
       },
       "searchLinks": {
         "title": "Kết quả tìm kiếm cục bộ giữ nguyên liên kết",
@@ -4282,8 +4282,8 @@ export default {
       "description": "Chế độ xem lời bài hát đơn có thể tùy biến, kết hợp nhiều hoạt ảnh lời và hình nền."
     },
     "lattice": {
-      "title": "Lattice (ảnh ghép hàng đợi)",
-      "description": "Toàn bộ hàng đợi phát xếp thành bức tường poster, bài đang phát được phóng to nổi bật."
+      "title": "Lattice (hàng đợi poster)",
+      "description": "Toàn bộ hàng đợi phát xếp thành không gian poster 3D, bài đang phát được phóng to nổi bật."
     },
     "stay": {
       "title": "Ở lại vị trí hiện tại",
@@ -4302,7 +4302,7 @@ export default {
     "bravais": {
       "title": "Bravais",
       "tag": "Vô tận",
-      "description": "Không gian tường album vô tận để kéo duyệt. Nội dung lật mở trực quan trên tường, thông tin chi tiết và thao tác được gom gọn trong thanh thông tin ở giữa."
+      "description": "Không gian album vô tận để kéo duyệt. Nội dung lật mở trực quan trên giao diện, thông tin chi tiết và thao tác được gom gọn trong thanh thông tin ở giữa."
     }
   },
   "userGuide": {
@@ -4321,10 +4321,10 @@ export default {
       "desc": "Nhấn phím bất kỳ trong danh sách bài hát để bắt đầu tìm kiếm."
     },
     "posterSearch": {
-      "entryTitle": "Bắt đầu từ tường poster",
-      "entryDesc": "Khi chọn tường poster bài hát, nhập chữ cái hoặc số để tìm trong danh sách.",
+      "entryTitle": "Bắt đầu từ lưới poster",
+      "entryDesc": "Khi chọn lưới poster bài hát, nhập chữ cái hoặc số để tìm trong danh sách.",
       "escapeTitle": "Đóng tìm kiếm",
-      "escapeDesc": "Nhấn Esc để đóng bảng tìm kiếm tường poster."
+      "escapeDesc": "Nhấn Esc để đóng bảng tìm kiếm lưới poster."
     },
     "theme": {
       "title": "Chủ đề màu sắc",
@@ -4430,7 +4430,7 @@ export default {
       "seen": "Đã xem"
     },
     "summaries": {
-      "bravais_seam": "Khe hở giữa tường: ba nấc độ rộng, thẻ trang chủ & công cụ, lọc và tìm kiếm.",
+      "bravais_seam": "Thanh thông tin Bravais: ba nấc độ rộng, thẻ trang chủ & công cụ, lọc và tìm kiếm.",
       "queue_shuffle": "Folia không có chế độ xáo trộn mà xáo trộn hàng đợi. Bốn cách để thao tác.",
       "audio_equalizer": "Mười dải tần và chuỗi hiệu ứng — kéo thanh trượt sẽ ghi đè ô tùy chỉnh.",
       "vis_playground": "Ba vùng nhấp chuột ẩn trên màn hình xem trước.",
@@ -4444,16 +4444,16 @@ export default {
       "folia_desktop": "Chế độ hình nền, khay hệ thống và cửa sổ điều khiển — các tính năng ngoài ứng dụng.",
       "folia_shortcuts": "K, P, B và G dẫn tới đâu.",
       "folia_transport": "Phím media hệ thống dùng mọi nơi; trong app dùng Space và {{mod}}+←/→.",
-      "grid3d_card_style": "Chỉ bìa hoặc thẻ polaroid trên tường poster trang chủ.",
+      "grid3d_card_style": "Chỉ bìa hoặc thẻ polaroid trên trang chủ Bravais.",
       "grid_action_button": "Nút góc dưới bên phải: chạm để mở danh sách, vuốt trái cho tác vụ thứ hai.",
-      "grid_page": "Cách tổ chức tường poster, cùng thao tác di chuyển, mở và tìm kiếm.",
+      "grid_page": "Cách tổ chức không gian album, cùng thao tác di chuyển, mở và tìm kiếm.",
       "grid_view_card_settings": "Hình dạng bìa của thẻ lưới và mức độ mờ dần về phía viền.",
       "grid_view_edit_mode": "Thay đổi trên thẻ và thời điểm việc đổi tên có hiệu lực.",
       "grid_view_page": "Trang bộ sưu tập: cấu trúc, kéo thả, di chuyển bằng phím, bộ lọc.",
       "help_page": "Khám phá, bảng lệnh, các ví dụ thường dùng và tài liệu chính thức.",
       "lattice_chrome": "Thanh điều khiển dưới poster mở rộng; hai ô ở giữa dùng chung với thanh đáy.",
-      "lattice_page": "Trải toàn bộ hàng đợi phát thành một tường poster.",
-      "bravais_wall": "Kéo tường vô tận, lật lớp mới, phân biệt ô thẻ, thẻ tiêu điểm, độ trong suốt và vào Lattice.",
+      "lattice_page": "Trải toàn bộ hàng đợi phát thành một lưới poster 3D.",
+      "bravais_wall": "Kéo không gian vô tận, lật lớp mới, phân biệt ô thẻ, thẻ tiêu điểm, độ trong suốt và vào Lattice.",
       "lattice_style_settings": "Hiệu ứng tối góc và sắc thái poster mở khóa từng lớp.",
       "local_folder_actions": "Quét lại, dọn dẹp thẻ thông tin và nút đỏ dùng để xóa.",
       "local_grid_controls": "Chuyển thư mục cục bộ, album, nghệ sĩ, playlist; nhập hoặc làm mới thư viện.",
@@ -4467,7 +4467,7 @@ export default {
       "panel_controls_tab": "Ba nút lớn, âm lượng và hai hàng khung ngắm chế độ.",
       "panel_cover_actions": "Bốn nút chỉ xuất hiện khi di chuột qua ảnh bìa.",
       "panel_cover_tab": "Tên bài hát, nghệ sĩ, album đang phát và thao tác khi nhấp.",
-      "panel_queue_tab": "Danh sách chờ: tác vụ từng dòng, xáo trộn, dàn dạng tường poster.",
+      "panel_queue_tab": "Danh sách chờ: tác vụ từng dòng, xáo trộn, hiển thị hàng đợi Lattice.",
       "queue_command_surface": "@ thu hẹp phạm vi, -- tác động lên mọi mục khớp.",
       "transition_settings": "Chuyển tiếp mờ dần hoặc tự trộn nhạc, và lý do cài đặt chưa có hiệu lực.",
       "local_library_watch": "Ý nghĩa của biểu tượng cảnh báo trong danh sách theo dõi.",
@@ -4522,8 +4522,8 @@ export default {
       "openGridActionButton": "Đổi mục tiêu trượt",
       "openGrid3dCardStyle": "Mở kiểu thẻ trang chủ",
       "openGridViewCard": "Mở cài đặt thẻ lưới",
-      "openBravaisSettings": "Mở cài đặt tường Bravais",
-      "openLatticeSettings": "Mở diện mạo tường ghép"
+      "openBravaisSettings": "Mở cài đặt Không gian Bravais",
+      "openLatticeSettings": "Mở cài đặt Lattice"
     },
     "anchors": {
       "bravaisSeam": {
@@ -4536,12 +4536,12 @@ export default {
         "list": "Danh sách",
         "more": "⋯ Thêm",
         "menuFold": "Thu gọn thanh thông tin",
-        "spine": "Gáy sách",
+        "spine": "Cột hẹp (thanh thu gọn)",
         "spineTitle": "Tiêu đề dọc",
         "edgeTab": "Tab cạnh",
         "panel": "Bảng danh sách",
         "hoverRow": "Dòng trỏ chuột",
-        "linkedTile": "Cùng bài hát trên tường",
+        "linkedTile": "Cùng bài hát trên không gian album",
         "homePage": "Trang chủ",
         "homeSeam": "Thanh trang chủ",
         "tabs": "Tab chính",
@@ -4556,14 +4556,14 @@ export default {
         "menuPopup": "Menu ⋯",
         "stageRow": "Sân khấu",
         "filter": "Ô bộ lọc",
-        "wall": "Tường",
+        "wall": "Không gian album",
         "searchSeam": "Tìm kiếm",
         "searchBox": "Ô tìm kiếm",
-        "toolsButton": "Công cụ tường",
+        "toolsButton": "Công cụ giao diện",
         "toolsPanel": "Bảng công cụ",
         "toolsQuick": "Thao tác nhanh",
         "toolsVolume": "Âm lượng",
-        "toolsAppearance": "Giao diện tường"
+        "toolsAppearance": "Giao diện không gian"
       },
       "audioEqualizer": {
         "noiseBadge": "Thêm nhiễu",
@@ -4701,8 +4701,8 @@ export default {
         "bottomBar": "Thanh điều khiển dưới"
       },
       "bravaisWall": {
-        "page": "Tường Bravais",
-        "wall": "Tường ô thẻ",
+        "page": "Không gian Bravais",
+        "wall": "Không gian album",
         "seam": "Thanh thông tin",
         "seamTab": "Thẻ khác",
         "song": "Bài hát",
@@ -4718,7 +4718,7 @@ export default {
         "focusQueue": "Thêm vào hàng đợi",
         "focusEnter": "Mở giao diện phát",
         "window": "Cửa sổ",
-        "tools": "Công cụ tường",
+        "tools": "Công cụ giao diện",
         "toolsPanel": "Bảng công cụ",
         "toolsLattice": "Đến Lattice",
         "toolsLook": "Xuyên thấu"
@@ -4855,7 +4855,7 @@ export default {
         "reset": "Đặt lại độ suy giảm"
       },
       "latticeStyle": {
-        "panel": "Cài đặt · Giao diện tường ô",
+        "panel": "Cài đặt · Giao diện Lattice",
         "vignette": "Tối góc",
         "tint": "Phủ màu poster",
         "customColor": "Màu cố định",
@@ -4915,7 +4915,7 @@ export default {
       },
       "lattice": {
         "back": "Quay lại",
-        "wall": "Tường poster hàng đợi",
+        "wall": "Lưới poster hàng đợi",
         "poster": "Poster hàng đợi",
         "expanded": "Bài hát đã mở rộng",
         "chrome": "Điều khiển phát",
@@ -4990,7 +4990,7 @@ export default {
       "importExportSettings": "Sao lưu và nhập",
       "playerBar": "Thanh điều khiển dưới cùng",
       "panelSlide": "Bật/tắt bảng điều khiển bên",
-      "gridPage": "Trang tường poster",
+      "gridPage": "Trang Không gian Bravais",
       "gridViewPage": "Trang lưới bộ sưu tập",
       "playerPage": "Trang trình phát",
       "commandPalette": "Cửa sổ lệnh",
@@ -4998,7 +4998,7 @@ export default {
       "lyricsAnimationSettings": "Cài đặt hoạt ảnh lời bài hát",
       "themeSettings": "Cài đặt màu chủ đề",
       "sidePanel": "Bảng điều khiển bên",
-      "gridActionButton": "Nút tác vụ tường poster",
+      "gridActionButton": "Nút tác vụ Không gian Bravais",
       "gridViewEditMode": "Chế độ sửa bộ sưu tập",
       "localFolderActions": "Tác vụ cho bộ sưu tập cục bộ",
       "localMetadataMatch": "Khớp thông tin bài hát thủ công",
@@ -5009,7 +5009,7 @@ export default {
       "localGridMapDirectoryTree": "Cây thư mục GridMap",
       "grid3dCardStyle": "Kiểu thẻ trang chủ",
       "gridViewCardSettings": "Cài đặt thẻ dạng lưới",
-      "latticeStyleSettings": "Giao diện tường ảnh",
+      "latticeStyleSettings": "Giao diện Lattice",
       "panelCoverActions": "Bốn nút trên ảnh bìa",
       "panelCoverTab": "Bảng điều khiển · Tab ảnh bìa",
       "panelSourceTab": "Bảng điều khiển · Tab nguồn",
@@ -5018,7 +5018,7 @@ export default {
       "panelQueueTab": "Bảng điều khiển · Tab hàng đợi",
       "panelAccountTab": "Bảng điều khiển · Tab tài khoản",
       "latticePage": "Trang Lattice",
-      "bravaisWall": "Tường Bravais",
+      "bravaisWall": "Không gian Bravais",
       "helpPage": "Tìm hiểu Folia",
       "ponderBasics": "Cách Khám phá hoạt động",
       "foliaTransport": "Phát lại và phím media",
@@ -5033,12 +5033,12 @@ export default {
       "settingsPage": "Trang cài đặt"
     },
     "scenes": {
-      "bravaisSeamLevels": "Ba kích cỡ: đầy đủ, gáy sách, thu gọn",
+      "bravaisSeamLevels": "Ba kích cỡ: đầy đủ, cột hẹp, thu gọn",
       "bravaisSeamCollection": "Thanh thông tin trên trang bộ sưu tập và nghệ sĩ",
       "bravaisSeamHomeNavigation": "Trang chủ: tab, phân mục và lối tắt",
       "bravaisSeamHomeDock": "Lối vào tài khoản và lưới công cụ",
       "bravaisSeamFilter": "Lọc trang này không phải là tìm kiếm",
-      "bravaisSeamTools": "Công cụ tường ở góc",
+      "bravaisSeamTools": "Công cụ giao diện ở góc",
       "queueShuffleNoMode": "Không có chế độ xáo trộn, chỉ xáo trộn hàng đợi",
       "queueShuffleCommand": "Xáo trộn bằng lệnh",
       "queueShuffleSlot": "Đặt trên thanh điều khiển",
@@ -5138,12 +5138,12 @@ export default {
       "sidePanelStructure": "Có gì trong bảng điều khiển",
       "sidePanelTabs": "Chuyển tab",
       "latticePageOverview": "Cách tổ chức Lattice",
-      "latticePageStructure": "Tường hàng đợi, quay lại và công cụ",
-      "latticePageNavigation": "Di chuyển tiêu điểm trên tường vô tận",
+      "latticePageStructure": "Lưới hàng đợi, quay lại và công cụ",
+      "latticePageNavigation": "Di chuyển tiêu điểm trên lưới vô tận",
       "latticePagePoster": "Mở rộng poster và điều khiển phát",
       "latticePageTools": "Tiêu điểm, theo dõi, hàng đợi và ánh sáng",
       "latticePageKeyboard": "Điều khiển bàn phím đầy đủ trong Lattice",
-      "bravaisWallStructure": "Một bức tường, một đường nối",
+      "bravaisWallStructure": "Không gian vô tận và thanh thông tin",
       "bravaisWallPan": "Kéo thả và con lăn",
       "bravaisWallTiles": "Phân biệt các ô thẻ",
       "bravaisWallOpen": "Lật sang lớp mới",
@@ -5183,30 +5183,30 @@ export default {
     },
     "captions": {
       "bravaisSeam": {
-        "levelsIntro": "Thanh thông tin mở ra dọc theo giữa tường album. Tiêu đề, mô tả và các thao tác của cấp này đều nằm ở đây. Thanh có ba mức hiển thị: đầy đủ, gáy sách và gập gọn.",
-        "levelsSpine": "Nhấp vùng tiêu đề (dấu ngoặc kép cùng tiêu đề dọc lớn) để thu vào gáy sách hẹp; tường hai bên sẽ khép lại. Nhấp tiêu đề dọc trên gáy sách để mở rộng lại.",
-        "levelsFold": "Để ẩn hẳn, chọn mục cuối trong “⋯ Thêm”: “Thu gọn thanh thông tin”. Biểu tượng trên đỉnh gáy sách có hai mũi tên hướng vào giữa cũng có chức năng thu gọn.",
-        "levelsHidden": "Khi đã thu gọn, tường khép lại liền mạch và chỉ còn một thẻ dọc mang tiêu đề cấp này ở cạnh bên. Nhấp vào để trở lại độ rộng trước đó.",
-        "levelsGlobal": "Độ rộng áp dụng toàn cục: khi thu gọn và mở danh sách khác, nó vẫn giữ nguyên. Cửa sổ hẹp hơn 900px mặc định ở dạng gáy sách. Cả ba độ rộng đều có lệnh tương ứng trong bảng lệnh.",
+        "levelsIntro": "Thanh thông tin mở ra dọc theo giữa không gian album. Tiêu đề, mô tả và các thao tác của cấp này đều nằm ở đây. Thanh có ba mức hiển thị: đầy đủ, cột hẹp và gập gọn.",
+        "levelsSpine": "Nhấp vùng tiêu đề (dấu ngoặc kép cùng tiêu đề dọc lớn) để thu vào cột hẹp; hai bên sẽ khép lại. Nhấp tiêu đề dọc trên cột hẹp để mở rộng lại.",
+        "levelsFold": "Để ẩn hẳn, chọn mục cuối trong “⋯ Thêm”: “Thu gọn thanh thông tin”. Biểu tượng trên đỉnh thanh thu gọn có hai mũi tên hướng vào giữa cũng có chức năng thu gọn.",
+        "levelsHidden": "Khi đã thu gọn, hai bên khép lại liền mạch và chỉ còn một thẻ dọc mang tiêu đề cấp này ở cạnh bên. Nhấp vào để trở lại độ rộng trước đó.",
+        "levelsGlobal": "Độ rộng áp dụng toàn cục: khi thu gọn và mở danh sách khác, nó vẫn giữ nguyên. Cửa sổ hẹp hơn 900px mặc định ở dạng cột hẹp. Cả ba độ rộng đều có lệnh tương ứng trong bảng lệnh.",
         "collectionCrumbs": "Phía trên: ‹ Quay lại và thanh điều hướng: Thư viện › nghệ sĩ › album… Nhấp vào cấp bất kỳ để quay lại ngay; nếu có nhiều cấp ở giữa sẽ thu gọn thành “…”. Ô gạch chân bên dưới dùng để lọc trang này.",
-        "collectionAbout": "Dưới tiêu đề lớn là mô tả của cấp này: giới thiệu danh sách hoặc ghi chú album. Trên trang nghệ sĩ có ảnh, tên và tiểu sử, trình bày như bìa gấp sách. Đoạn văn dài sẽ bị cắt bớt; nhấp để mở rộng.",
+        "collectionAbout": "Dưới tiêu đề lớn là mô tả của cấp này: giới thiệu danh sách hoặc ghi chú album. Trên trang nghệ sĩ có ảnh, tên và tiểu sử, trình bày như tập giới thiệu. Đoạn văn dài sẽ bị cắt bớt; nhấp để mở rộng.",
         "collectionActions": "Phát tất cả, thêm vào hàng đợi, và biểu tượng sao ở cuối hàng để yêu thích (chỉ với bộ sưu tập hỗ trợ yêu thích). Trên trang nghệ sĩ, hai mục này tác động lên bài hát nổi bật.",
-        "collectionList": "“Danh sách” mở rộng thanh thành danh sách bài hát, và thanh điều hướng thêm cấp “Danh sách”. Rê chuột vào một hàng để làm sáng mọi bản sao của bài hát đó trên tường; nhấp để chuyển tới, nhấp đúp để phát. Quay lại sẽ đóng danh sách trước.",
+        "collectionList": "“Danh sách” mở rộng thanh thành danh sách bài hát, và thanh điều hướng thêm cấp “Danh sách”. Rê chuột vào một hàng để làm sáng mọi bản sao của bài hát đó trên không gian album; nhấp để chuyển tới, nhấp đúp để phát. Quay lại sẽ đóng danh sách trước.",
         "homeTabs": "Tại trang chủ, thanh thông tin là một dải hẹp: “Thư viện” cùng nút thu gọn ở trên cùng, bên dưới là các thẻ dọc: Danh sách phát, Radio, Album, Cục bộ, Navidrome.",
-        "homeFlip": "Chuyển thẻ sẽ lật toàn bộ thanh thông tin và đổi toàn bộ tường sang thẻ đó. Trên bàn phím, dùng F6 / Shift + F6 để chuyển qua lại giữa các thẻ.",
-        "homeSections": "Mục Cục bộ và Navidrome có thêm một cột phân mục (thư mục, album, nghệ sĩ, danh sách phát…). Chỉ mục được chọn mới hiện tên; các mục còn lại là biểu tượng, rê chuột để xem tên đầy đủ. Chuyển đổi sẽ đổi nội dung tường mà không mở cấp mới.",
-        "homeShortcuts": "Các chữ dọc nhỏ bên dưới là lối tắt: Bài hát yêu thích, FM cá nhân, Tất cả bài hát… Nhấp vào tương tự như nhấp thẻ trên tường; FM cá nhân sẽ phát ngay lập tức. Khi hết chỗ, chúng được chuyển vào “⋯”.",
+        "homeFlip": "Chuyển thẻ sẽ lật toàn bộ thanh thông tin và đổi toàn bộ không gian sang thẻ đó. Trên bàn phím, dùng F6 / Shift + F6 để chuyển qua lại giữa các thẻ.",
+        "homeSections": "Mục Cục bộ và Navidrome có thêm một cột phân mục (thư mục, album, nghệ sĩ, danh sách phát…). Chỉ mục được chọn mới hiện tên; các mục còn lại là biểu tượng, rê chuột để xem tên đầy đủ. Chuyển đổi sẽ đổi nội dung hiển thị mà không mở cấp mới.",
+        "homeShortcuts": "Các chữ dọc nhỏ bên dưới là lối tắt: Bài hát yêu thích, FM cá nhân, Tất cả bài hát… Nhấp vào tương tự như nhấp thẻ trong không gian album; FM cá nhân sẽ phát ngay lập tức. Khi hết chỗ, chúng được chuyển vào “⋯”.",
         "dockAccount": "Ngay phía trên lưới công cụ là lối vào tài khoản: ảnh đại diện và tên khi đã đăng nhập, hoặc “Kết nối dịch vụ phát nhạc” khi chưa đăng nhập.",
         "dockPlatforms": "Nhấp vào để mở danh sách nền tảng phía trên. Nhấp một hàng để chuyển sang nền tảng đó; biểu tượng nhỏ ở hàng hiện tại dùng để đăng xuất. Với nền tảng cần đăng nhập, bạn quét mã QR ngay trong thanh thông tin.",
-        "dockTools": "Bốn ô dưới cùng: tìm kiếm nền tảng trực tuyến, cài đặt, ảnh ghép hàng đợi (vào Lattice) và “⋯”.",
+        "dockTools": "Bốn ô dưới cùng: tìm kiếm nền tảng trực tuyến, cài đặt, hàng đợi poster (vào Lattice) và “⋯”.",
         "dockMenu": "Mọi thứ khác nằm trong “⋯”: ưu tiên mục của thẻ hiện tại (lọc trang này, thư mục, quản lý ẩn, nhập…), sau vạch phân cách là các điều hướng như “Quay lại trình phát”.",
         "dockStage": "Khi bật chế độ sân khấu, một hàng “Sân khấu” rộng tối đa xuất hiện trên đỉnh lưới công cụ; nhấp vào để mở trình phát sân khấu.",
-        "filterType": "Để tìm nội dung trên tường, chỉ cần gõ trực tiếp: ô lọc sẽ hiện trong thanh thông tin, tường thu hẹp lại chỉ còn các kết quả khớp xếp quanh thanh.",
-        "filterKeys": "Bộ lọc không dùng mạng; chỉ thu hẹp nội dung trên tường. Phím Esc xóa chữ trước, nhấn lần nữa để thoát gõ; ↓ hoặc Enter chuyển tiêu điểm sang ô đầu tiên trên tường.",
+        "filterType": "Để tìm nội dung trong thư viện, chỉ cần gõ trực tiếp: ô lọc sẽ hiện trong thanh thông tin, không gian thu hẹp lại chỉ còn các kết quả khớp xếp quanh thanh.",
+        "filterKeys": "Bộ lọc không dùng mạng; chỉ thu hẹp nội dung trong không gian hiển thị. Phím Esc xóa chữ trước, nhấn lần nữa để thoát gõ; ↓ hoặc Enter chuyển tiêu điểm sang ô đầu tiên.",
         "filterSearch": "Biểu tượng kính lúp để tìm kiếm trực tuyến (trên trang chủ có thể nhấn /): toàn bộ thanh thông tin chuyển thành khung tìm kiếm, nhấn gửi để tới trang kết quả.",
-        "toolsQuick": "Nút góc dưới bên phải là công cụ tường. Hàng trên cùng chứa các thao tác nhanh: định vị bài đang phát, xáo trộn hàng đợi, tạo chủ đề cho bài hát, chuyển tới Lattice.",
+        "toolsQuick": "Nút góc dưới bên phải là công cụ giao diện. Hàng trên cùng chứa các thao tác nhanh: định vị bài đang phát, xáo trộn hàng đợi, tạo chủ đề cho bài hát, chuyển tới Lattice.",
         "toolsVolume": "Ở giữa là âm lượng, đồng bộ với thanh phát nhạc; nhấp biểu tượng bên trái để tắt tiếng.",
-        "toolsAppearance": "Dưới cùng là giao diện tường: độ trong suốt đổi qua ba mức, cùng tông màu poster và bật / tắt đèn. Vuốt nút sang trái để mở trực tiếp bảng lệnh."
+        "toolsAppearance": "Dưới cùng là giao diện không gian: độ trong suốt đổi qua ba mức, cùng tông màu poster và bật / tắt đèn. Vuốt nút sang trái để mở trực tiếp bảng lệnh."
       },
       "queueShuffle": {
         "noMode": "Folia không có chế độ phát ngẫu nhiên truyền thống và nút lặp lại không chuyển sang chế độ này. Để nghe ngẫu nhiên, chỉ cần xáo trộn hàng đợi hiện tại.",
@@ -5278,7 +5278,7 @@ export default {
         "inAppTransport": "Trong ứng dụng: Space để phát/tạm dừng, {{mod}} + ← / → để chuyển bài. Trên trang phát nhạc, phím mũi tên tua 5 giây. Mọi thao tác khác nằm trong cửa sổ lệnh, hoặc gõ dấu hai chấm trong chế độ thực thi.",
         "shortcutK": "{{mod}} + K mở cửa sổ lệnh. Mọi tìm kiếm tính năng đều nằm ở đây — lệnh và cài đặt đều có thể tìm theo tên, không cần nhớ cấp bậc menu.",
         "shortcutP": "{{mod}} + P mở hàng đợi phát. Đây cũng là một cửa sổ lệnh: dòng nhập liệu là ô tìm kiếm hàng đợi, hỗ trợ bộ lọc như @artist: trước khi thao tác hàng loạt.",
-        "shortcutB": "{{mod}} + B mở Lattice, hiển thị toàn bộ hàng đợi phát dưới dạng tường poster. Nhấn lại khi đang ở Lattice để quay về.",
+        "shortcutB": "{{mod}} + B mở Lattice, hiển thị toàn bộ hàng đợi phát dưới dạng lưới poster. Nhấn lại khi đang ở Lattice để quay về.",
         "shortcutG": "Ctrl + G là thao tác bạn vừa thực hiện: mở hướng dẫn cho trang hiện tại. Bất cứ khi nào bỡ ngỡ, hãy nhấn tổ hợp phím này.",
         "hintSettings": "Đã quen thuộc với Folia? Bạn có thể tắt gợi ý Khám phá trong cài đặt hoặc chỉ giữ ở các mục chưa xem — tùy chọn nằm ở Cài đặt · Chung, \"Gợi ý hướng dẫn Khám phá\", gồm ba chế độ: luôn hiển thị, chỉ nơi chưa xem và tắt. Nút bên dưới đưa bạn đến thẳng cài đặt.",
         "docs": "Bốn chương này chỉ là phần mở đầu. Lệnh, phím tắt, nguồn trực tuyến, thư viện cục bộ, hiệu ứng thị giác và giao diện đều có bài hướng dẫn đầy đủ trên trang tài liệu — nút bên dưới mở trang này.",
@@ -5329,14 +5329,14 @@ export default {
         "playerShuffleHow": "Cách nhanh nhất là không cần mở gì: nhấn phím hai chấm trên trang phát — cửa sổ mở ở chế độ thực thi — rồi nhấn r. Thứ tự mới sẽ được áp dụng; nhấn lại để xáo lần nữa.",
         "playerShuffleSlot": "Nếu dùng thường xuyên, hãy gán “Xáo trộn hàng đợi” vào một trong hai ô bên phải thanh điều khiển để thao tác với một lần nhấn.",
         "lattice": "Lattice trải hàng đợi phát thành một trường poster. Di chuyển trên trường để duyệt hàng đợi và chọn poster để thao tác với bài hát đó.",
-        "latticeWall": "Lattice lặp lại hàng đợi phát trên tường poster bất đối xứng để quét góc nhìn liên tục. Bài đang phát có số thứ tự hàng đợi và dấu hiệu đang phát.",
+        "latticeWall": "Lattice lặp lại hàng đợi phát trên lưới poster bất đối xứng để quét góc nhìn liên tục. Bài đang phát có số thứ tự hàng đợi và dấu hiệu đang phát.",
         "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape lùi từng lớp một — thu nhỏ poster mở rộng hoặc xóa tiêu điểm bàn phím trước, lần nhấn tiếp theo mới quay lại.",
         "latticePan": "Kéo trường hiển thị hoặc dùng con lăn để lia góc nhìn. Poster xuất hiện theo chuyển động khung nhìn và quán tính không làm đổi thứ tự hàng đợi.",
         "latticeFocusKeys": "Các phím mũi tên trước tiên chọn poster gần tâm khung nhìn nhất, sau đó di chuyển theo không gian và lia góc nhìn để giữ mục tiêu tiếp theo luôn hiển thị.",
         "latticePosterOpen": "Nhấp hoặc nhấn Enter để mở rộng poster. Bài đang phát sẽ hiện lời bài hát đồng bộ; bài khác hiện tiêu đề và nút phát mà không xếp lại hàng đợi.",
         "latticeChrome": "Poster mở rộng chứa nút phát/tạm dừng, các ô bổ sung, thời gian, tua nhanh và Mở trình phát. Chạm lại poster hoặc nhấn Space để ẩn/hiện thanh này.",
         "latticeTools": "Các công cụ góc dưới bên phải gồm: tập trung bài đang phát, bám sát khi đổi bài, mở lệnh hàng đợi, bật/tắt đèn và trợ giúp phím tắt. Trượt nút sang trái để mở bảng lệnh.",
-        "latticeLights": "Tắt đèn sẽ làm mờ tường hiển thị nhưng vẫn giữ cấu trúc. Đây chỉ là cài đặt hiển thị: phát nhạc và thứ tự hàng đợi không thay đổi.",
+        "latticeLights": "Tắt đèn sẽ làm mờ không gian hiển thị nhưng vẫn giữ cấu trúc. Đây chỉ là cài đặt hiển thị: phát nhạc và thứ tự hàng đợi không thay đổi.",
         "latticePosterKeys": "Enter hoặc Space mở rộng poster đang đóng. Khi mở, Enter phát/tạm dừng, Space bật/tắt điều khiển, còn Escape thu gọn và xóa tiêu điểm trước.",
         "latticePageKeys": ": + C định vị bài đang phát, {{mod}} + P mở hàng đợi, {{mod}} + B quay lại, {{mod}} + K mở cửa sổ lệnh; phím mũi tên di chuyển chọn poster.",
         "help": "Folia tách riêng duyệt nhạc, phát nhạc, lệnh và tùy chọn. Ctrl+G giải thích trang hiện tại; hướng dẫn từng thành phần sẽ hiển thị riêng khi có hành vi đặc biệt.",
@@ -5412,7 +5412,7 @@ export default {
         "executeKeys": "Bên trong, mỗi phím là một lệnh: r xáo trộn hàng đợi, v âm lượng, o cài đặt, h trợ giúp. Các phím không trùng tiền tố nên sẽ thực thi ngay khi nhấn."
       },
       "latticeChrome": {
-        "intro": "Mở rộng một poster trên tường, thanh phát nhạc sẽ xuất hiện dọc mép dưới của nó. Thanh này chỉ thuộc về thẻ đang mở; thu gọn thẻ thì thanh cũng biến mất.",
+        "intro": "Mở rộng một poster trong hàng đợi, thanh phát nhạc sẽ xuất hiện dọc mép dưới của nó. Thanh này chỉ thuộc về thẻ đang mở; thu gọn thẻ thì thanh cũng biến mất.",
         "playAndSeek": "Phát/Tạm dừng nằm ở góc ngoài cùng bên trái: khi thẻ không phải bài đang phát, nhấn nút sẽ phát bài này. Thanh bên dưới cho phép kéo để tua.",
         "openPlayer": "Mũi tên chéo bên phải dùng để quay lại trang phát nhạc. Mọi vị trí khác trên poster đều dùng để chọn và mở rộng; chỉ nút này mới thoát khỏi Lattice.",
         "ends": "Trong 4 nút ở giữa, 2 nút ngoài cùng luôn là bài trước và bài tiếp theo — hai vị trí này không thể tùy chỉnh.",
@@ -5422,31 +5422,31 @@ export default {
         "barShows": "Đó là lúc thanh điều khiển đáy thay thế: ngay khi poster của bài đang phát rời khỏi khung nhìn, thanh đáy xuất hiện, và thu gọn lại khi poster quay lại tầm mắt. Thanh điều khiển phát nhạc không bao giờ thực sự biến mất."
       },
       "bravaisWall": {
-        "intro": "Bravais dàn trải thư viện thành một bức tường: danh sách phát, album, nghệ sĩ và bài hát đều là các ô trên đó. Việc mở, quay lại và lọc không bao giờ chuyển trang — chỉ thay đổi nội dung hiển thị ở từng vị trí trên tường.",
-        "seam": "Đường rãnh xẻ ở giữa là thanh thông tin. Các thẻ, tiêu đề, bộ lọc và tác vụ đều nằm ở đó, và mục này có bài hướng dẫn riêng.",
-        "entrance": "Khi chuyển thẻ trang chủ hoặc nguồn nhạc, hay quay lại thư viện từ nơi khác, toàn bộ bức tường sẽ nhấc lên và nội dung mới lướt xuống từng đợt từ góc trên bên trái.",
-        "pan": "Nhấn giữ và kéo bức tường; thả tay ra tường sẽ trượt tiếp theo quán tính. Kéo ngang thì đường rãnh di chuyển cùng tường. Trang chủ và các bộ sưu tập thông thường là tường vô tận: nội dung ngắn sẽ tự lặp lại nên bạn không bao giờ chạm mép.",
+        "intro": "Bravais dàn trải thư viện thành một không gian poster 3D: danh sách phát, album, nghệ sĩ và bài hát đều là các ô trên đó. Việc mở, quay lại và lọc không bao giờ chuyển trang — chỉ thay đổi nội dung hiển thị ở từng vị trí trên giao diện.",
+        "seam": "Dải phân cách ở giữa là thanh thông tin. Các thẻ, tiêu đề, bộ lọc và tác vụ đều nằm ở đó, và mục này có bài hướng dẫn riêng.",
+        "entrance": "Khi chuyển thẻ trang chủ hoặc nguồn nhạc, hay quay lại thư viện từ nơi khác, toàn bộ không gian sẽ nhấc lên và nội dung mới lướt xuống từng đợt từ góc trên bên trái.",
+        "pan": "Nhấn giữ và kéo không gian thư viện; thả tay ra màn hình sẽ trượt tiếp theo quán tính. Kéo ngang thì thanh thông tin di chuyển cùng các ô. Trang chủ và các bộ sưu tập thông thường là không gian vô tận: nội dung ngắn sẽ tự lặp lại nên bạn không bao giờ chạm mép.",
         "wheel": "Cuộn chuột cũng dùng để lia: mỗi nấc trượt mượt mà, cuộn nhanh sẽ dồn thành một lượt trượt dài. Giữ Shift để cuộn ngang. Bàn rê chuột không làm mượt quán tính — nó bám sát trực tiếp theo ngón tay.",
-        "finite": "Lọc từ thanh thông tin sẽ biến tường thành dạng hữu hạn: kết quả không còn lặp lại và việc kéo sẽ dừng ở điểm cuối. Xóa bộ lọc thì tường chuyển lại thành dạng vô tận.",
+        "finite": "Lọc từ thanh thông tin sẽ biến không gian thành dạng hữu hạn: kết quả không còn lặp lại và việc kéo sẽ dừng ở điểm cuối. Xóa bộ lọc thì không gian chuyển lại thành dạng vô tận.",
         "song": "Bài hát hiển thị dưới dạng poster tràn viền, với số thứ tự ở góc trên bên trái.",
         "collection": "Album, danh sách phát và thư mục hiển thị hiệu ứng xếp lớp lệch mép ở góc dưới bên phải, kèm nhãn “loại · số bài”. Nhấn mở sẽ hiện danh sách bài. Hiệu ứng xếp lớp có thể tắt trong cài đặt.",
         "artist": "Nghệ sĩ hiển thị dưới dạng chân dung hai tông màu (duotone) với tên lớn hơn và không có phụ đề.",
         "artistHover": "Di chuột vào hoặc chuyển tiêu điểm bàn phím tới, chân dung sẽ trở về màu sắc ban đầu.",
         "special": "Các thẻ đặc biệt như Bài hát đã thích, FM cá nhân và Tất cả bài hát có nhãn màu nhấn kèm biểu tượng nhỏ phía trước. FM cá nhân là luồng radio: nhấp vào sẽ phát ngay thay vì mở lớp mới.",
         "open": "Nhấp vào một bộ sưu tập không chuyển sang trang mới. Ô được nhấp lập tức trở thành bài 1 của lớp mới (bìa bộ sưu tập thường là bìa bài đầu tiên), và các ô xung quanh lần lượt lật mở nội dung mới theo từng vòng.",
-        "openSeam": "Đường rãnh vẫn giữ nguyên vị trí mở; nội dung bên trong chuyển sang thanh thông tin của bộ sưu tập này.",
-        "back": "Khi quay lại (nút ‹ trên thanh thông tin, phím Esc hoặc nút quay lại của trình duyệt), bức tường lật về lớp trước từ đường rãnh ra ngoài, và tiêu điểm bàn phím trở về ô đã nhấp ban đầu.",
+        "openSeam": "Thanh thông tin vẫn giữ nguyên vị trí mở; nội dung bên trong chuyển sang thông tin của bộ sưu tập này.",
+        "back": "Khi quay lại (nút ‹ trên thanh thông tin, phím Esc hoặc nút quay lại của trình duyệt), không gian lật về lớp trước từ thanh thông tin ra ngoài, và tiêu điểm bàn phím trở về ô đã nhấp ban đầu.",
         "expand": "Nhấp vào một bài hát sẽ không phát ngay. Bài hát sẽ mở rộng tại chỗ thành một thẻ lớn. Chỉ các ô trong cùng khối nhường chỗ; mọi thứ ngoài khối giữ nguyên vị trí.",
         "queue": "“Thêm vào hàng đợi” đưa bài hát vào hàng đợi phát; nút sau đó đổi thành “✓ Trong hàng đợi”.",
         "play": "Chỉ nút phát mới bắt đầu phát nhạc. Giao diện sau khi phát tùy thuộc vào “Chế độ xem sau khi phát” trong cài đặt: trình phát hiệu ứng thị giác, Lattice hoặc giữ nguyên vị trí.",
         "current": "Trên thẻ của bài đang phát, nút phát chuyển thành tạm dừng / tiếp tục, kèm nút “mở” bổ sung để đến trình phát hoặc Lattice.",
-        "keep": "Khi quay lại từ trình phát hoặc Lattice, bài đang phát sẽ tự động mở rộng trở lại. Nếu bạn thu gọn bằng phím Esc hoặc nhấp vào khoảng trống trên tường, bài hát sẽ ngừng tự mở rộng.",
+        "keep": "Khi quay lại từ trình phát hoặc Lattice, bài đang phát sẽ tự động mở rộng trở lại. Nếu bạn thu gọn bằng phím Esc hoặc nhấp vào khoảng trống trên màn hình, bài hát sẽ ngừng tự mở rộng.",
         "keyboard": "Có thể dùng bàn phím: phím mũi tên để chuyển tiêu điểm, Enter để mở rộng, Enter lần nữa để phát, Shift + Enter để thêm vào hàng đợi và Esc để đóng từng cấp một.",
-        "tools": "Các công cụ tường nằm ở góc dưới cùng bên phải: hàng trên là thao tác nhanh, ở giữa là âm lượng, bên dưới là giao diện tường.",
+        "tools": "Các công cụ nằm ở góc dưới cùng bên phải: hàng trên là thao tác nhanh, ở giữa là âm lượng, bên dưới là giao diện không gian.",
         "windows": "“Nhìn xuyên” luân chuyển qua ba chế độ. Ở chế độ một phần, một số ô cố định trong mỗi khối trở thành cửa sổ nhìn xuống hiệu ứng thị giác bên dưới. Cửa sổ không che nội dung — nội dung chỉ đơn giản bỏ qua các ô này.",
         "clear": "Ở chế độ trong suốt, mọi ô đều là cửa sổ và chỉ giữ lại tiêu đề; thẻ tiêu điểm được mở rộng vẫn hiển thị ảnh bìa.",
-        "solid": "Nhấp lần nữa để chuyển sang dạng đặc. Dạng đặc tương tự Lattice: tường che phủ hoàn toàn trình phát và hiệu ứng thị giác dừng hiển thị ngầm phía sau.",
-        "lattice": "“Lattice” ở phía trên ({{mod}} + B) biến toàn bộ tường thành hàng đợi phát: đường nối khép lại, các cửa sổ đóng và các ô lật từ gốc thành poster của Lattice. Thao tác quay lại diễn ra ngược lại, và bài đang phát mở rộng khi đường nối mở ra."
+        "solid": "Nhấp lần nữa để chuyển sang dạng đặc. Dạng đặc che phủ hoàn toàn trình phát và hiệu ứng thị giác dừng hiển thị ngầm phía sau.",
+        "lattice": "“Lattice” ở phía trên ({{mod}} + B) biến toàn bộ giao diện thành hàng đợi phát: thanh thông tin khép lại, các cửa sổ đóng và các ô lật từ gốc thành poster của Lattice. Thao tác quay lại diễn ra ngược lại, và bài đang phát mở rộng khi thanh thông tin mở ra."
       },
       "sidePanel": {
         "controlsSteppers": "Hai hàng khung ngắm dùng để chọn hiệu ứng chuyển động lời bài hát và hình nền. Mũi tên ở hai đầu chuyển từng chế độ liền kề — với hàng tá hiệu ứng thì chuyển kiểu này khá mất thời gian.",
@@ -5473,7 +5473,7 @@ export default {
         "controlsTab": "Đầu thẻ điều khiển là ba nút lớn: chế độ lặp, thích và tạo chủ đề. Đây là hàng nút cảm ứng lớn duy nhất trong toàn bộ bảng điều khiển.",
         "controlsTabDetail": "Bên dưới là: hàng âm lượng với bộ cân bằng âm thanh và trộn âm tự động ở bên phải, hai hàng “‹ chế độ ›” cho hiệu ứng lời bài hát và hình nền, tiếp đến là nguồn bảng màu và chỉnh sửa chủ đề nhanh. Cân bằng âm lượng (ReplayGain) và độ lệch lời nằm ở thẻ nguồn, không nằm ở đây.",
         "queueTab": "Thẻ hàng đợi là danh sách đầy đủ của hàng đợi phát hiện tại, với số lượng bài hát nằm ở hàng tiêu đề.",
-        "queueTabDetail": "Nhấp vào một hàng để phát từ bài đó; rê chuột sẽ hiện các nút phát tiếp theo, chuyển xuống cuối và xóa ở bên phải. Các nút ở tiêu đề cho phép hiển thị hàng đợi dạng tường Lattice và xáo trộn. Không thể kéo thả để sắp xếp lại các hàng.",
+        "queueTabDetail": "Nhấp vào một hàng để phát từ bài đó; rê chuột sẽ hiện các nút phát tiếp theo, chuyển xuống cuối và xóa ở bên phải. Các nút ở tiêu đề cho phép hiển thị hàng đợi Lattice và xáo trộn. Không thể kéo thả để sắp xếp lại các hàng.",
         "accountTab": "Thẻ tài khoản quản lý các thông tin thuộc về nguồn nhạc hiện tại.",
         "accountTabDetail": "Phía trên là trạng thái đăng nhập của nguồn đó: ảnh đại diện, biệt danh, tên nguồn và ID, cùng nút đăng xuất ở bên phải. Bên dưới là mức chất lượng âm thanh — tiêu chuẩn, cao, không nén (lossless), hi-res — và dưới cùng là đồng bộ dữ liệu lên đám mây. Chuyển nguồn nhạc sẽ hiển thị thông tin tương ứng khác."
       },
@@ -5500,7 +5500,7 @@ export default {
         "offsetSum": "Trùng tên với độ lệch ±250ms ở tab nguồn nhưng không giống nhau: độ lệch đó chỉ áp dụng cho bài hát hiện tại và mất khi chuyển bài, còn độ lệch này có hiệu lực toàn cục và lâu dài. Cả hai giá trị cộng dồn, nên khi một bài bị lệch nhiều, hãy kiểm tra cả hai."
       },
       "gridHotkey": {
-        "off": "Trên tường poster và các trang bộ sưu tập, phím chữ bất kỳ sẽ lọc trang ngay mà không cần nhấp vào ô tìm kiếm. Mặc định bao gồm cả phím S, nên nhấn S trên trang dạng lưới sẽ mở bộ lọc thay vì cửa sổ lệnh.",
+        "off": "Trên trang Không gian Bravais và các trang bộ sưu tập, phím chữ bất kỳ sẽ lọc trang ngay mà không cần nhấp vào ô tìm kiếm. Mặc định bao gồm cả phím S, nên nhấn S trên trang dạng lưới sẽ mở bộ lọc thay vì cửa sổ lệnh.",
         "on": "Bật tùy chọn này, phím S sẽ mở cửa sổ lệnh, trong khi các ký tự khác vẫn dùng để lọc. Tùy theo thói quen thao tác trên trang lưới — và giao diện không chú thích điều này, nên đây là nơi duy nhất để thiết lập."
       },
       "lyricExport": {
@@ -5528,10 +5528,10 @@ export default {
         "remoteChrome": "Cửa sổ này có bộ công tắc riêng: luôn trên cùng, nền trong suốt, nhấp xuyên thấu (chuột xuyên thẳng xuống bên dưới), ẩn biểu tượng thanh tác vụ và tự ẩn giao diện. Việc là một cửa sổ tách rời thay vì một góc của cửa sổ chính giúp các thiết lập này hoàn toàn độc lập."
       },
       "gridActionButton": {
-        "tap": "Cả trang bộ sưu tập và tường poster đều có nút này ở góc dưới cùng bên phải. Nhấn vào để trượt danh sách bản nhạc từ bên phải vào — đó là thao tác đầu tiên.",
+        "tap": "Cả trang bộ sưu tập và Không gian Bravais đều có nút này ở góc dưới cùng bên phải. Nhấn vào để trượt danh sách bản nhạc từ bên phải vào — đó là thao tác đầu tiên.",
         "list": "Mỗi dòng một bài hát; nhấp vào một dòng để phát từ bài đó. Trong thư mục cục bộ, danh sách còn có hai nút điều khiển sắp xếp ở phần đầu.",
         "track": "Phía sau còn có một rãnh trượt ẩn kéo sang trái — cùng thao tác vuốt như tay nắm ở cạnh phải trang phát nhạc. Nhấn giữ nút và kéo sang trái.",
-        "slideTarget": "Thả tay để mở bộ lọc của trang: lọc các bài hát tại chỗ mà không cần chuyển trang. Đích đến khi trượt có thể tùy chỉnh — Cài đặt · Tương tác, “nút tác vụ tường poster”, cho phép đổi sang mở cửa sổ lệnh, biểu tượng ở cuối rãnh trượt sẽ thay đổi tương ứng."
+        "slideTarget": "Thả tay để mở bộ lọc của trang: lọc các bài hát tại chỗ mà không cần chuyển trang. Đích đến khi trượt có thể tùy chỉnh — Cài đặt · Tương tác, “nút tác vụ Không gian Bravais”, cho phép đổi sang mở cửa sổ lệnh, biểu tượng ở cuối rãnh trượt sẽ thay đổi tương ứng."
       },
       "gridViewEdit": {
         "normalCard": "Ở trạng thái tĩnh, chân thẻ có hai nút: nút tròn để phát, nút còn lại để thêm bài hát vào hàng đợi. Nhấp vào thẻ sẽ không phát — chỉ đưa thẻ vào giữa màn hình.",
@@ -5549,7 +5549,7 @@ export default {
       },
       "panelCoverActions": {
         "settings": "Nút trên cùng bên trái mở Cài đặt. Nhấn vào sẽ thu gọn bảng trước, sau đó mở cửa sổ cài đặt phủ lên trang.",
-        "home": "Nút dưới cùng bên trái quay lại tường poster ở trang chủ, cũng thu gọn bảng trước. Nhạc vẫn tiếp tục phát.",
+        "home": "Nút dưới cùng bên trái quay lại trang chủ thư viện, cũng thu gọn bảng trước. Nhạc vẫn tiếp tục phát.",
         "transparent": "Nút trên cùng bên phải là \"Nền trình phát trong suốt\", dễ bấm nhầm nhất: chuyển toàn bộ cửa sổ sang chế độ trong suốt cho nguồn trình duyệt OBS hoặc lớp phủ phông xanh, và chỉ áp dụng cho trang trình phát.",
         "addToPlaylist": "Nút dưới cùng bên phải thêm bài hát hiện tại vào danh sách phát. Nút chỉ xuất hiện khi nguồn hiện tại hỗ trợ danh sách phát; nếu không thể thêm, nút sẽ mờ đi và hiển thị lý do khi rê chuột.",
         "touch": "Màn hình cảm ứng không có thao tác rê chuột: chạm vào ảnh bìa để hiện bốn nút, chạm ra ngoài để ẩn đi.",
@@ -5618,18 +5618,18 @@ export default {
         "direction": "Nút bên trái chuyển đổi giữa tăng dần và giảm dần, độc lập với tiêu chí sắp xếp."
       },
       "gridStyle": {
-        "grid3dImage": "“Chỉ ảnh bìa” là mặc định của tường poster: toàn bộ thẻ là một ảnh bìa hoàn chỉnh, tên bộ sưu tập nằm trên dải chuyển màu ở đáy thẻ.",
+        "grid3dImage": "“Chỉ ảnh bìa” là mặc định trên trang chủ Bravais: toàn bộ thẻ là một ảnh bìa hoàn chỉnh, tên bộ sưu tập nằm trên dải chuyển màu ở đáy thẻ.",
         "grid3dCard": "“Thẻ Polaroid” đưa ảnh bìa lên nửa trên và để dải trắng bên dưới cho tên — như một tấm ảnh polaroid. Ảnh không bị cắt xén, nhưng màn hình hiển thị được ít thẻ hơn.",
-        "fullBleed": "“Bìa tràn viền” áp dụng cho lưới tổ ong bên trong bộ sưu tập: khi bật, ảnh bìa lấp đầy toàn bộ thẻ, tiêu đề và nghệ sĩ chuyển lên lớp phủ chuyển màu bên trên, tương tự ảnh ghép hàng đợi.",
+        "fullBleed": "“Bìa tràn viền” áp dụng cho lưới tổ ong bên trong bộ sưu tập: khi bật, ảnh bìa lấp đầy toàn bộ thẻ, tiêu đề và nghệ sĩ chuyển lên lớp phủ chuyển màu bên trên, tương tự hàng đợi Lattice.",
         "squareCard": "“Thẻ vuông” chỉ xuất hiện khi đã bật bìa tràn viền. Khi bật, chiều cao thẻ bằng chiều rộng, giúp ảnh bìa vuông không bị cắt trên dưới. Diện tích thẻ giữ nguyên, chiều cao giảm thì bề rộng tăng và khoảng cách lưới sẽ tự căn chỉnh.",
         "minScale": "Thanh trượt này không chỉnh kích thước thẻ, mà đặt mức thu nhỏ tối thiểu: các thẻ càng xa tâm khung nhìn càng nhỏ lại và đây là giới hạn nhỏ nhất. Tăng lên giúp viền dễ nhìn hơn, giảm xuống giúp tăng cảm giác chiều sâu.",
         "minOpacity": "Tương tự, thanh này chỉnh mức mờ tối đa cho phép. Hai thanh trượt kết hợp quyết định lưới hiển thị dạng phẳng hay có chiều sâu.",
         "falloffReset": "Bấm nút này để đặt lại độ suy giảm về mặc định. Thao tác chỉ đặt lại hai thanh trượt trên — hai công tắc kiểu dáng bìa vẫn giữ nguyên.",
-        "latticeVignette": "“Hiệu ứng mờ viền (Vignette)” làm tối nhẹ các góc của ảnh ghép hàng đợi, hướng sự chú ý vào poster ở giữa. Đây chỉ là hiệu ứng hiển thị, không ảnh hưởng đến hàng đợi.",
+        "latticeVignette": "“Hiệu ứng mờ viền (Vignette)” làm tối nhẹ các góc của hàng đợi Lattice, hướng sự chú ý vào poster ở giữa. Đây chỉ là hiệu ứng hiển thị, không ảnh hưởng đến hàng đợi.",
         "latticeTint": "“Phủ màu poster” phủ một lớp màu lên các poster thường để bài đang phát, được chọn hoặc di chuột nổi bật hơn. Đây là công tắc chính — khi tắt, độ phủ màu và màu cố định sẽ bị ẩn hoàn toàn.",
         "latticeIntensity": "“Độ phủ màu” chỉ hiển thị khi đã bật phủ màu. Giá trị tính theo phần trăm: mức 0 không phủ màu; tăng cao làm poster thường tối đi và làm bài đang phát nổi bật hơn.",
         "latticeCustomColor": "Mặc định lớp phủ màu là dải chuyển màu theo chủ đề hiện tại. Bật “Màu cố định” sẽ ghim vào một màu duy nhất không thay đổi theo chủ đề.",
-        "latticePicker": "Hộp chọn màu chỉ xuất hiện khi bật màu cố định. Tường poster thay đổi trực tiếp khi kéo chuột; giá trị chỉ được lưu khi bạn nhả chuột."
+        "latticePicker": "Hộp chọn màu chỉ xuất hiện khi bật màu cố định. Giao diện thay đổi trực tiếp khi kéo chuột; giá trị chỉ được lưu khi bạn nhả chuột."
       }
     }
   },
