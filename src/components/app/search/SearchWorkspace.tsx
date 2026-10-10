@@ -82,6 +82,9 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const getSourceLabel = (source: SearchSource) => {
         if (source === 'local') return t('search.sourceLocal');
         if (source === 'navidrome') return t('search.sourceNavidrome');
+        if (source === 'netease') return t('neteaseSource', { defaultValue: 'NetEase' });
+        if (source === 'qq') return t('qqSource', { defaultValue: 'QQ Music' });
+        if (source === 'kugou') return t('kugouSource', { defaultValue: 'KuGou Music' });
         return omni.getProviderLabel(source);
     };
 

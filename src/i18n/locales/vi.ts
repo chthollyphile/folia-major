@@ -1414,8 +1414,8 @@ export default {
         "description": "Chuyển sang hiệu ứng tĩnh tiết kiệm tài nguyên"
       },
       "visualizer-classic": {
-        "title": "Hiệu ứng thị giác: Cổ điển (Classic)",
-        "description": "Chuyển sang hiệu ứng lời bài hát cổ điển"
+        "title": "Hiệu ứng thị giác: Classic",
+        "description": "Chuyển sang hiệu ứng lời bài hát Classic"
       },
       "visualizer-cadenza": {
         "title": "Hiệu ứng thị giác: Cadenza",
@@ -1506,8 +1506,8 @@ export default {
         "description": "Hiển thị cả hai lớp shader"
       },
       "background-url": {
-        "title": "Nền: Web nhúng",
-        "description": "Chuyển nền sang chế độ trang web nhúng"
+        "title": "Nền: Trang Web",
+        "description": "Chuyển nền sang chế độ trang web"
       },
       "background-sora": {
         "title": "Nền: Sora",
@@ -1678,7 +1678,7 @@ export default {
     "visualizerTemporary": "Bàn làm việc tạm thời",
     "visualizerMode": "Chế độ",
     "visualizerStill": "Tĩnh",
-    "visualizerClassic": "Cổ điển (Classic)",
+    "visualizerClassic": "Classic",
     "visualizerCadenze": "Cadenza",
     "visualizerPartita": "Partita",
     "visualizerFume": "Fume",
@@ -2903,9 +2903,9 @@ export default {
     "visualizerBackgroundModeMonet": "Monet",
     "visualizerBackgroundModeNomand": "Nomand",
     "visualizerBackgroundModeLatent": "Latent",
-    "visualizerBackgroundModeUrl": "Web nhúng",
+    "visualizerBackgroundModeUrl": "Trang Web",
     "visualizerBackgroundModeSora": "Sora",
-    "urlBackgroundSettings": "Nền Web nhúng",
+    "urlBackgroundSettings": "Nền Trang Web",
     "urlBackgroundSettingsDesc": "Hiển thị trang web làm nền trình phát. Lưu ý: một số trang web chặn nhúng vào iframe và có thể không hiển thị.",
     "urlBackgroundNotePlaceholder": "Ghi chú (dễ nhận biết)",
     "urlBackgroundAdd": "Thêm URL",
@@ -3140,9 +3140,9 @@ export default {
     "uploadCustomFontDesc": "Trình duyệt di động không đọc được phông hệ thống. Hãy tải tệp woff2, woff, ttf hoặc otf.",
     "uploadingCustomFont": "Đang tải lên...",
     "uploadFontFailed": "Tải phông chữ lên thất bại.",
-    "fontSans": "Không chân",
-    "fontSerif": "Có chân",
-    "fontMono": "Đơn cách",
+    "fontSans": "Sans-serif",
+    "fontSerif": "Serif",
+    "fontMono": "Monospace",
     "fontFallbackFamilies": "Phông chữ dự phòng",
     "fontFallbackEmpty": "Chưa đặt phông dự phòng",
     "fontFallbackFamiliesPlaceholder": "Songti SC, SimSun, serif",
