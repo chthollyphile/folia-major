@@ -12,6 +12,7 @@ type FrameRateLimitedRaf = {
     cancelAnimationFrame: CancelAnimationFrameFn;
     setFrameRate: (frameRate: VisualizerFrameRate) => void;
     getFrameRate: () => VisualizerFrameRate;
+    setPaused: (paused: boolean) => void;
 };
 
 type WindowWithVisualizerFrameRateLimiter = Window & {
@@ -67,13 +68,14 @@ export const createFrameRateLimitedRaf = (
     initialFrameRate: VisualizerFrameRate = 60,
 ): FrameRateLimitedRaf => {
     let frameRate = initialFrameRate;
+    let paused = false;
     let nextHandle = 1;
     let nativeFrameHandle: number | null = null;
     let lastProcessedTimestamp = 0;
     const callbacks = new Map<number, AnimationFrameCallback>();
 
     const scheduleNativeFrame = () => {
-        if (nativeFrameHandle !== null || callbacks.size === 0) {
+        if (paused || nativeFrameHandle !== null || callbacks.size === 0) {
             return;
         }
 
@@ -83,6 +85,8 @@ export const createFrameRateLimitedRaf = (
     const processNativeFrame = (timestamp: number) => {
         nativeFrameHandle = null;
 
+        if (paused) return;
+
         if (!shouldProcessFrameAtRate(timestamp, lastProcessedTimestamp, frameRate)) {
             scheduleNativeFrame();
             return;
@@ -90,9 +94,9 @@ export const createFrameRateLimitedRaf = (
 
         lastProcessedTimestamp = timestamp;
         const frameCallbacks = Array.from(callbacks.entries());
-        callbacks.clear();
-
-        for (const [, callback] of frameCallbacks) {
+        for (const [handle, callback] of frameCallbacks) {
+            if (paused) break;
+            if (!callbacks.delete(handle)) continue;
             try {
                 callback(timestamp);
             } catch (error) {
@@ -125,18 +129,28 @@ export const createFrameRateLimitedRaf = (
             scheduleNativeFrame();
         },
         getFrameRate: () => frameRate,
+        setPaused: (nextPaused) => {
+            if (paused === nextPaused) return;
+            paused = nextPaused;
+            lastProcessedTimestamp = 0;
+            if (paused && nativeFrameHandle !== null) {
+                nativeCancelAnimationFrame(nativeFrameHandle);
+                nativeFrameHandle = null;
+            }
+            // Keep callbacks and handles intact: renderers resume without being recreated.
+            scheduleNativeFrame();
+        },
     };
 };
 
 let installedLimiter: FrameRateLimitedRaf | null = null;
 
+export const setGlobalVisualizerFramesPaused = (paused: boolean) => {
+    installedLimiter?.setPaused(paused);
+};
+
 export const setGlobalVisualizerFrameRate = (frameRate: VisualizerFrameRate) => {
     if (typeof window === 'undefined') {
-        return;
-    }
-
-    if (frameRate === 'off') {
-        restoreGlobalVisualizerFrameRateLimiter();
         return;
     }
 
@@ -153,6 +167,7 @@ export const restoreGlobalVisualizerFrameRateLimiter = () => {
         return;
     }
 
+    installedLimiter?.setPaused(true);
     const frameWindow = window as WindowWithVisualizerFrameRateLimiter;
     if (frameWindow.__foliaNativeRequestAnimationFrame) {
         window.requestAnimationFrame = frameWindow.__foliaNativeRequestAnimationFrame;
@@ -170,11 +185,6 @@ export const installGlobalVisualizerFrameRateLimiter = (overrideFrameRate?: Visu
 
     const initialFrameRate = overrideFrameRate
         ?? parseVisualizerFrameRate(window.localStorage.getItem(VISUALIZER_FRAME_RATE_STORAGE_KEY));
-    if (initialFrameRate === 'off') {
-        restoreGlobalVisualizerFrameRateLimiter();
-        return;
-    }
-
     if (installedLimiter) {
         installedLimiter.setFrameRate(initialFrameRate);
         return;

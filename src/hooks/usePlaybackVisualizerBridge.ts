@@ -7,6 +7,7 @@ import type { AudioBands, LyricData } from '../types';
 import { setCurrentLineIndex, setPlayerState } from '../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../stores/usePlaybackStore';
 import { audioBands, audioPower, currentTime, lyricCurrentTime } from '../stores/motionSignals';
+import { areVisualsPaused, subscribeVisualActivity } from '../utils/visualActivity';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -75,6 +76,7 @@ export function usePlaybackVisualizerBridge({
     const currentLineIndexRef = useRef(-1);
 
     const updateLoop = useCallback(() => {
+        const visualsPaused = areVisualsPaused();
         // Normally the active deck; the outgoing one for as long as a blend holds the picture on
         // the track it is finishing, so that clock and picture never describe different songs.
         const audioElement = getDisplayElement?.() ?? audioRef.current;
@@ -135,9 +137,9 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(time);
 
             const effectiveLyricTime = time - lyricTimelineOffsetMs / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
+            if (!visualsPaused) lyricCurrentTime.set(effectiveLyricTime);
 
-            if (lyrics) {
+            if (!visualsPaused && lyrics) {
                 const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
@@ -151,15 +153,15 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(nextTime);
 
             const effectiveLyricTime = nextTime - lyricTimelineOffsetMs / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
+            if (!visualsPaused) lyricCurrentTime.set(effectiveLyricTime);
 
-            if (lyrics) {
+            if (!visualsPaused && lyrics) {
                 const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
                 }
-            } else if (currentLineIndexRef.current !== -1) {
+            } else if (!visualsPaused && currentLineIndexRef.current !== -1) {
                 currentLineIndexRef.current = -1;
                 setCurrentLineIndex(-1);
             }
@@ -168,7 +170,7 @@ export function usePlaybackVisualizerBridge({
                 if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
                     syncNowPlayingClock(0, duration, false);
                     currentTime.set(0);
-                    if (lyrics) {
+                    if (!visualsPaused && lyrics) {
                         const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, 0);
                         if (restartedLineIndex !== currentLineIndexRef.current) {
                             currentLineIndexRef.current = restartedLineIndex;
@@ -186,15 +188,15 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(nextTime);
 
             const effectiveLyricTime = nextTime - lyricTimelineOffsetMs / 1000;
-            lyricCurrentTime.set(effectiveLyricTime);
+            if (!visualsPaused) lyricCurrentTime.set(effectiveLyricTime);
 
-            if (lyrics) {
+            if (!visualsPaused && lyrics) {
                 const foundIndex = findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime);
                 if (foundIndex !== currentLineIndexRef.current) {
                     currentLineIndexRef.current = foundIndex;
                     setCurrentLineIndex(foundIndex);
                 }
-            } else if (currentLineIndexRef.current !== -1) {
+            } else if (!visualsPaused && currentLineIndexRef.current !== -1) {
                 currentLineIndexRef.current = -1;
                 setCurrentLineIndex(-1);
             }
@@ -206,7 +208,7 @@ export function usePlaybackVisualizerBridge({
             currentTime.set(nextTime);
 
             const foundIndex = findLatestActiveLineIndex(lyrics.lines, nextTime);
-            if (foundIndex !== currentLineIndexRef.current) {
+            if (!visualsPaused && foundIndex !== currentLineIndexRef.current) {
                 currentLineIndexRef.current = foundIndex;
                 setCurrentLineIndex(foundIndex);
             }
@@ -216,7 +218,7 @@ export function usePlaybackVisualizerBridge({
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
                     const restartedLineIndex = findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec);
-                    if (restartedLineIndex !== currentLineIndexRef.current) {
+                    if (!visualsPaused && restartedLineIndex !== currentLineIndexRef.current) {
                         currentLineIndexRef.current = restartedLineIndex;
                         setCurrentLineIndex(restartedLineIndex);
                     }
@@ -226,12 +228,9 @@ export function usePlaybackVisualizerBridge({
                 }
             }
         }
-
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
     }, [
         activePlaybackContext,
         analyserRef,
-        animationFrameRef,
         audioBands,
         audioPower,
         audioRef,
@@ -259,11 +258,27 @@ export function usePlaybackVisualizerBridge({
     ]);
 
     useEffect(() => {
-        animationFrameRef.current = requestAnimationFrame(updateLoop);
+        let clockTimer: ReturnType<typeof setTimeout> | undefined;
+        const cancelTick = () => {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = 0;
+            clearTimeout(clockTimer);
+        };
+        const tick = () => {
+            updateLoop();
+            // Playback/stage clocks and OBS signals must continue even with visual RAF suspended.
+            // The main window's lyric signal stays frozen until focus returns.
+            if (areVisualsPaused()) clockTimer = setTimeout(tick, 50);
+            else animationFrameRef.current = requestAnimationFrame(tick);
+        };
+        const unsubscribe = subscribeVisualActivity(() => {
+            cancelTick();
+            tick();
+        });
+        tick();
         return () => {
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
-            }
+            unsubscribe();
+            cancelTick();
         };
     }, [animationFrameRef, updateLoop]);
 }

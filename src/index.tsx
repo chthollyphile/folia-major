@@ -1,5 +1,7 @@
 import { Buffer } from 'buffer';
 import { installGlobalVisualizerFrameRateLimiter } from './utils/frameRateLimiter';
+import { installVisualActivityPause } from './utils/visualActivity';
+import { isObsBrowserSourceSurface } from './utils/appSurface';
 import { installConsoleLogCapture } from './utils/consoleLogBuffer';
 import { installDebugModule } from './services/debug/debugModule';
 import { installMemorySampleFeed } from './services/debug/memorySamples';
@@ -21,5 +23,6 @@ installMemorySampleFeed();
 // observer or the rows it retains.
 // if (import.meta.env.DEV) installCoverSizeAudit();
 installGlobalVisualizerFrameRateLimiter();
+if (!isObsBrowserSourceSurface) installVisualActivityPause();
 
 void import('./bootstrap');

@@ -13,6 +13,7 @@ import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
 import { librarySuitePickerSurface } from '../surfaces/librarySuitePickerSurface';
 import { libraryWallLookCommands } from './libraryWallLookCommands';
 import { openCurrentPagePonder } from '../../../services/ponder/pagePonderTarget';
+import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 
 // src/components/command-palette/commands/settingsCommands.ts
 // Commands in the `settings` group: settings subviews, app toggles, theme, sync, and desktop-only switches.
@@ -385,6 +386,17 @@ export const settingsCommands: CommandPaletteCommand[] = [
         },
     },
     createSettingsCommand('settings-graphics', 'Graphics settings', 'Open static mode, frame rate cap, Linux glow fix and reduced motion', ['graphics', 'performance', 'frame rate', 'fps', 'rendering', '图形', '图形设置', '性能', '帧率', '渲染'], 'options', 'graphics'),
+    createToggleCommand(
+        'pause-inactive-visuals-toggle',
+        'settings',
+        'Pause visuals when inactive',
+        'Toggle pausing visuals when the window is hidden or loses focus',
+        ['background', 'focus', 'pause animations', '后台', '失焦', '暂停动效'],
+        () => {
+            const state = useVisualizerSettingsStore.getState();
+            state.handleTogglePauseInactiveVisuals(!state.pauseInactiveVisuals);
+        },
+    ),
     createSettingsCommand('settings-mods', 'Mod settings', 'Open the mod system switch and the installed mods', ['mod manager', 'mod system', 'plugins', '模组设置', '模组系统', '插件'], 'options', 'mods', { platform: ['electron'] }),
     createSettingsCommand('settings-lab', 'Lab settings', 'Open experimental settings', ['lab', 'experimental', '实验', '实验室'], 'options', 'lab'),
     createSettingsAnchorCommand(

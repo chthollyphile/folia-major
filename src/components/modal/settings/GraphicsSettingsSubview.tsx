@@ -64,6 +64,8 @@ const GraphicsSettingsSubview: React.FC<GraphicsSettingsSubviewProps> = ({
     const enablePlayerPageNativeBlur = usePlayerChromeSettingsStore(state => state.enablePlayerPageNativeBlur);
     const onTogglePlayerPageNativeBlur = usePlayerChromeSettingsStore(state => state.handleTogglePlayerPageNativeBlur);
     const visualizerFrameRate = useVisualizerSettingsStore(state => state.visualizerFrameRate);
+    const pauseInactiveVisuals = useVisualizerSettingsStore(state => state.pauseInactiveVisuals);
+    const onTogglePauseInactiveVisuals = useVisualizerSettingsStore(state => state.handleTogglePauseInactiveVisuals);
     const onVisualizerFrameRateChange = useVisualizerSettingsStore(state => state.handleSetVisualizerFrameRate);
     const glowBlurQuantize = useVisualizerSettingsStore(state => state.glowBlurQuantize);
     const onToggleGlowBlurQuantize = useVisualizerSettingsStore(state => state.handleToggleGlowBlurQuantize);
@@ -124,6 +126,12 @@ const GraphicsSettingsSubview: React.FC<GraphicsSettingsSubviewProps> = ({
                             dividerClass={dividerClass}
                         />
                     )}
+                    <SettingsRow
+                        title={t('options.pauseInactiveVisuals')}
+                        description={t('options.pauseInactiveVisualsDesc')}
+                        control={renderToggle(pauseInactiveVisuals, () => onTogglePauseInactiveVisuals(!pauseInactiveVisuals))}
+                        dividerClass={dividerClass}
+                    />
                     <SettingsRow
                         title={t('options.visualizerFrameRate')}
                         description={t('options.visualizerFrameRateDesc')}

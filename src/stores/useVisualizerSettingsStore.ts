@@ -21,6 +21,7 @@ import { LUMIERE_TUNING_STORAGE_KEY, VISUALIZER_OPACITY_STORAGE_KEY, clampCladda
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 import { useVisualizerAssetStore } from './useVisualizerAssetStore';
 import { normalizeLumiereTuning } from '../utils/lumiereTuning';
+import { getPauseInactiveVisuals, setPauseInactiveVisuals } from '../utils/visualActivity';
 
 export type VisualizerSettingsState = {
     disableVisualizerVignette: boolean;
@@ -31,6 +32,9 @@ export type VisualizerSettingsState = {
     urlBackgroundList: UrlBackgroundItem[];
     urlBackgroundSelectedId: string | null;
     visualizerFrameRate: VisualizerFrameRate;
+    /** Local performance preference; sharing a theme must not change this window's activity policy. */
+    pauseInactiveVisuals: boolean;
+    handleTogglePauseInactiveVisuals: (enabled: boolean) => void;
     visualizerMode: VisualizerMode;
     randomVisualizerModePerSong: boolean;
     /** Snap animated glow blur radii to a bounded set. See components/visualizer/wordGlow.ts. */
@@ -120,6 +124,11 @@ export const useVisualizerSettingsStore = create<VisualizerSettingsState>((set, 
     urlBackgroundList: readStoredUrlBackgroundList(),
     urlBackgroundSelectedId: readStoredUrlBackgroundSelectedId(),
     visualizerFrameRate: readStoredVisualizerFrameRate(),
+    pauseInactiveVisuals: getPauseInactiveVisuals(),
+    handleTogglePauseInactiveVisuals: (enabled) => {
+        setPauseInactiveVisuals(enabled);
+        set({ pauseInactiveVisuals: enabled });
+    },
     visualizerMode: readStoredVisualizerMode(),
     randomVisualizerModePerSong: getStoredBoolean('random_visualizer_mode_per_song', false),
     glowBlurQuantize: readStoredGlowBlurQuantize(),

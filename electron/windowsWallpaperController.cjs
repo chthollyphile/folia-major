@@ -67,6 +67,7 @@ function createWindowsWallpaperController(options = {}) {
     // Chromium's TrackMouseEvent tears the hover state back down between every forwarded move
     // (the real cursor sits above us on the desktop icon layer).
     onMouseInput,
+    onForegroundChanged,
   } = options;
 
   let helperProcess = null;
@@ -218,6 +219,9 @@ function createWindowsWallpaperController(options = {}) {
         }
         break;
       case 'heartbeat':
+        break;
+      case 'foreground-changed':
+        if (typeof event.otherAppFocused === 'boolean') onForegroundChanged?.(event.otherAppFocused);
         break;
       // Mouse reports are high frequency but never fatal; they double as liveness evidence
       // because handleHelperEvent refreshes lastEventAt before this switch.

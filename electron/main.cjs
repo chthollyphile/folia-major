@@ -17,6 +17,7 @@ const {
   applyRemoteControlMouseIgnore,
 } = require('./remoteControlWindowSettings.cjs');
 const wallpaperWatchdogModule = require('./wallpaperWatchdog.cjs');
+const { createVisualActivityMonitor } = require('./visualActivity.cjs');
 const { requestWallpaperEntryConfirmation } = require('./wallpaperEntryRequest.cjs');
 const windowsWallpaperModule = require('./windowsWallpaperController.cjs');
 const { createWindowsWallpaperTargetResolver } = require('./windowsWallpaperTarget.cjs');
@@ -456,6 +457,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
     reconcileWindowsWallpaperWindowTransparency();
   },
   onMouseInput: forwardWallpaperMouseInput,
+  onForegroundChanged: focused => visualActivity.setOtherAppFocused(focused),
 });
 
 // Renderer crash / WorkerW teardown broke the wallpaper session: attach the helper to a live
@@ -1772,6 +1774,10 @@ installCrashHandlers({
 let mainWindow = null;
 let modSystem = null;
 let remoteControlWindow = null;
+const visualActivity = createVisualActivityMonitor({
+  isWallpaperWindow: win => win === mainWindow && isWallpaperModeEnabled(),
+});
+ipcMain.handle('get-visual-inactive', event => visualActivity.getInactive(BrowserWindow.fromWebContents(event.sender)));
 let appTray = null;
 let latestRemoteControlSnapshot = null;
 let obsBrowserSourceServer = null;
@@ -4596,6 +4602,7 @@ function createRemoteControlWindow() {
   });
 
   remoteControlWindow = win;
+  visualActivity.bind(win);
   broadcastPlaybackSyncBridgeStatus();
   win.on('page-title-updated', (event) => {
     event.preventDefault();
@@ -4875,6 +4882,7 @@ function createWindow(options = {}) {
     throw error;
   }
   win.__wallpaperWindowTransparent = useTransparentWindow;
+  visualActivity.bind(win);
   win.__wallpaperGeometry = useWallpaperGeometry;
   win.__transparentFullscreen = false;
 

@@ -17,8 +17,8 @@ use windows::Win32::Foundation::HWND;
 // constants stay in WindowsAndMessaging.
 use windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowA, GetWindowThreadProcessId, IsWindow, SetTimer, EVENT_OBJECT_DESTROY,
-    EVENT_OBJECT_REORDER, OBJID_WINDOW, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+    FindWindowA, GetForegroundWindow, GetWindowThreadProcessId, IsWindow, SetTimer, EVENT_OBJECT_DESTROY,
+    EVENT_OBJECT_REORDER, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
 use crate::events::Event;
@@ -41,6 +41,7 @@ pub struct AppState {
     pub zguard: bool,
     pub explorer_pid: u32,
     pub last_zassert: Option<Instant>,
+    pub last_other_app_focused: Option<bool>,
 }
 
 static APP_STATE: Mutex<Option<AppState>> = Mutex::new(None);
@@ -78,9 +79,12 @@ pub unsafe fn start(hwnd: HWND, worker_w: HWND, zguard: bool) -> Result<(), Stri
         zguard,
         explorer_pid,
         last_zassert: None,
+        last_other_app_focused: None,
     });
 
+    crate::mouse_forward::refresh_desktop_handles(worker_w);
     install_win_event_hooks()?;
+    report_foreground();
     let message_window = crate::message_window::hwnd()
         .ok_or_else(|| "message window not created".to_string())?;
     if SetTimer(Some(message_window), HEARTBEAT_TIMER_ID, HEARTBEAT_TIMER_MS, None) == 0 {
@@ -90,6 +94,13 @@ pub unsafe fn start(hwnd: HWND, worker_w: HWND, zguard: bool) -> Result<(), Stri
 }
 
 unsafe fn install_win_event_hooks() -> Result<(), String> {
+    let foreground_hook = SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None,
+        Some(win_event_proc), 0, 0, WINEVENT_OUTOFCONTEXT,
+    );
+    if foreground_hook.is_invalid() {
+        return Err("SetWinEventHook(EVENT_SYSTEM_FOREGROUND) failed".to_string());
+    }
     let destroy_hook = SetWinEventHook(
         EVENT_OBJECT_DESTROY,
         EVENT_OBJECT_DESTROY,
@@ -126,6 +137,10 @@ unsafe extern "system" fn win_event_proc(
     _thread: u32,
     _time: u32,
 ) {
+    if event == EVENT_SYSTEM_FOREGROUND {
+        report_foreground();
+        return;
+    }
     if id_object != OBJID_WINDOW.0 {
         return;
     }
@@ -151,6 +166,27 @@ unsafe extern "system" fn win_event_proc(
             maybe_reassert_z_order();
         }
         _ => {}
+    }
+}
+
+// Desktop and Folia's own windows stay active; only another foreground application pauses.
+unsafe fn report_foreground() {
+    let foreground = GetForegroundWindow();
+    let Some(folia) = resident_folia_hwnd() else { return; };
+    let mut foreground_pid = 0;
+    let mut folia_pid = 0;
+    GetWindowThreadProcessId(foreground, Some(&mut foreground_pid));
+    GetWindowThreadProcessId(HWND(folia as _), Some(&mut folia_pid));
+    let other_app_focused = !foreground.0.is_null()
+        && !crate::mouse_forward::is_desktop_window(foreground)
+        && foreground_pid != folia_pid;
+    let changed = with_state(|state| {
+        let changed = state.last_other_app_focused != Some(other_app_focused);
+        state.last_other_app_focused = Some(other_app_focused);
+        changed
+    });
+    if changed == Some(true) {
+        emit(&Event::ForegroundChanged { other_app_focused });
     }
 }
 
@@ -195,6 +231,7 @@ unsafe fn maybe_reassert_z_order() {
 /// the z-order guard.
 pub unsafe fn on_timer() {
     emit(&Event::Heartbeat);
+    report_foreground();
     if with_state(|state| state.zguard).unwrap_or(false) {
         maybe_reassert_z_order();
     }
@@ -270,6 +307,8 @@ fn spawn_reattach() {
                         state.worker_w = worker_w.0 as isize;
                         state.last_zassert = None;
                     });
+                    crate::mouse_forward::refresh_desktop_handles(worker_w);
+                    report_foreground();
                     emit(&Event::Attached {
                         hwnd: folia,
                         workerw: worker_w.0 as isize,

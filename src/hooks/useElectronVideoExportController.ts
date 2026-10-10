@@ -22,6 +22,7 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { setIsPanelOpen } from '../stores/useAppViewStore';
 import { currentTime } from '../stores/motionSignals';
+import { keepVisualsActiveForRecording } from '../utils/visualActivity';
 
 // src/hooks/useElectronVideoExportController.ts
 // Records the real player window so audio.currentTime remains the single animation clock.
@@ -99,6 +100,7 @@ export const useElectronVideoExportController = ({
         let endedListener: (() => void) | null = null;
         let removeCursorGuard: (() => void) | null = null;
         let canvasCropCleanup: (() => void) | null = null;
+        let releaseVisualActivity: (() => void) | null = null;
         const wasPaused = audioElement.paused;
         const previousLoop = audioElement.loop;
         const previousTime = audioElement.currentTime;
@@ -139,6 +141,7 @@ export const useElectronVideoExportController = ({
             });
 
             navigateToPlayer();
+            releaseVisualActivity = keepVisualsActiveForRecording();
             setIsPanelOpen(false);
             setIsPlayerChromeHidden(true);
             removeCursorGuard = installVideoExportCursorGuard();
@@ -282,6 +285,7 @@ export const useElectronVideoExportController = ({
             setIsPlayerChromeHidden(false);
             removeCursorGuard?.();
             canvasCropCleanup?.();
+            releaseVisualActivity?.();
             void electron.restoreVideoExportWindow();
             runningRef.current = false;
             cancelRequestedRef.current = false;
