@@ -292,8 +292,8 @@ export default {
     "uploadEmojiFirst": "Cần tải lên gói biểu cảm tùy chỉnh trước",
     "monetBgUpdated": "Đã cập nhật ảnh nền Monet",
     "monetBgCleared": "Đã xóa ảnh nền Monet",
-    "monetPortraitUpdated": "Đã cập nhật ảnh chân dung Monet",
-    "monetPortraitCleared": "Đã xóa ảnh chân dung Monet",
+    "monetPortraitUpdated": "Đã cập nhật ảnh nhân vật (Portrait) Monet",
+    "monetPortraitCleared": "Đã xóa ảnh nhân vật (Portrait) Monet",
     "emojiPackAdded": "Đã thêm {{added}} biểu cảm, tổng cộng {{total}}",
     "emojiPackCleared": "Đã xóa gói biểu cảm tùy chỉnh",
     "avatarAdded": "Đã thêm {{added}} ảnh đại diện, tổng cộng {{total}}",
@@ -334,7 +334,7 @@ export default {
     "autoSwitchThemeOff": "Đã tắt tự động chuyển chủ đề",
     "autoGenerateThemeOn": "Đã bật tự tạo chủ đề cho bài hát đang phát",
     "autoGenerateThemeOff": "Đã tắt tự tạo chủ đề cho bài hát đang phát",
-    "themeSourceAi": "Tạo chủ đề chuyển sang suy luận AI",
+    "themeSourceAi": "Tạo chủ đề chuyển sang phân tích AI",
     "themeSourceCover": "Tạo chủ đề chuyển sang trích xuất màu bìa",
     "aiThemeUpdatedCustomPreferred": "Đã cập nhật chủ đề AI, vẫn ưu tiên chủ đề tùy chỉnh",
     "aiThemeGeneratedCustomPreferred": "Đã tạo chủ đề AI, nhưng vẫn ưu tiên chủ đề tùy chỉnh"
@@ -495,7 +495,7 @@ export default {
         "cappella": "Lời hát hiện dạng bong bóng chat hai bên, kèm avatar và nhãn dán",
         "tilt": "Câu dài tự ngắt dòng và nghiêng chữ, tựa lời thì thầm bên tai",
         "claddagh": "Lời hát xoay quanh quỹ đạo nghiêng, độ tương phản tạo chiều sâu",
-        "monet": "Bố cục áp phích — lời bên trái, ảnh bên phải, phổ âm ở đáy",
+        "monet": "Bố cục poster — lời bên trái, ảnh bên phải, phổ âm ở đáy",
         "diorama": "Chữ ma trận điểm bay trong không gian 3D, góc nhìn bám theo lời bài hát",
         "pendolo": "Bìa đặt trong mặt đồng hồ; lời bài hát nhích dọc cung tròn theo nhịp kim",
         "sonnet": "Đường nét thanh mảnh, khung và chữ lớn rỗng lần lượt mở ra, tựa trang thơ lật mở",
@@ -690,7 +690,7 @@ export default {
         "description": "Mở bộ cân bằng và chuỗi hiệu ứng"
       },
       "playback-sound-preset-flat": {
-        "title": "Âm thanh: Phẳng",
+        "title": "Âm thanh: Cân bằng (Flat)",
         "description": "Đặt lại bộ cân bằng và mọi hiệu ứng"
       },
       "playback-sound-preset-lofi": {
@@ -702,15 +702,15 @@ export default {
         "description": "Dải tần hẹp, âm sắc phát thanh gần như mono"
       },
       "playback-sound-preset-hall": {
-        "title": "Âm thanh: Khán phòng",
+        "title": "Âm thanh: Khán phòng (Hall)",
         "description": "Không gian stereo rộng cùng âm vang"
       },
       "playback-sound-preset-vocal": {
-        "title": "Âm thanh: Giọng hát",
+        "title": "Âm thanh: Giọng hát (Vocal)",
         "description": "Nâng dải giọng hát và siết gọn dải động"
       },
       "playback-sound-preset-bass": {
-        "title": "Âm thanh: Tăng âm trầm",
+        "title": "Âm thanh: Tăng Bass (Bass Boost)",
         "description": "Dải trầm dày hơn và lực đánh mạnh mẽ"
       },
       "playback-sound-preset-custom1": {
@@ -754,12 +754,12 @@ export default {
         "description": "Mở cài đặt Discord Rich Presence"
       },
       "lyric-staff-policy-cycle": {
-        "title": "Xử lý danh đề mở đầu",
-        "description": "Chuyển đổi cách xử lý khối danh đề ở đầu lời bài hát"
+        "title": "Xử lý thông tin sản xuất (Credits)",
+        "description": "Chuyển đổi cách xử lý khối thông tin sản xuất (Credits) ở đầu bài"
       },
       "lyric-staff-absorb-cycle": {
-        "title": "Chế độ gộp danh đề mở đầu",
-        "description": "Chuyển đổi việc gộp các dòng lân cận vào khối danh đề"
+        "title": "Chế độ gộp thông tin sản xuất (Credits)",
+        "description": "Chuyển đổi việc gộp các dòng lân cận vào khối thông tin sản xuất (Credits)"
       },
       "settings-obs-browser-source": {
         "title": "Nguồn trình duyệt OBS",
@@ -1322,7 +1322,7 @@ export default {
         "description": "Chỉnh sửa nhanh chủ đề AI cho bài hát hiện tại"
       },
       "theme-source-ai": {
-        "title": "Nguồn chủ đề: AI suy luận",
+        "title": "Nguồn chủ đề: Phân tích AI",
         "description": "Tạo chủ đề bài hát bằng cách cho AI đọc lời bài hát"
       },
       "theme-source-cover": {
@@ -1506,7 +1506,7 @@ export default {
         "description": "Hiển thị cả hai lớp shader"
       },
       "background-url": {
-        "title": "Nền: Nền nhúng",
+        "title": "Nền: Web nhúng",
         "description": "Chuyển nền sang chế độ trang web nhúng"
       },
       "background-sora": {
@@ -1595,7 +1595,7 @@ export default {
     "equalizerDescription": "Cân bằng dải tần và hiệu ứng âm thanh",
     "equalizerEnabled": "Bật xử lý âm",
     "equalizerDisabled": "Tắt xử lý âm",
-    "equalizerGain": "Độ lợi dải tần",
+    "equalizerGain": "Khuếch đại EQ (Gain)",
     "equalizerReset": "Đặt lại cấu hình tùy chỉnh hiện tại",
     "equalizerEffects": "Chuỗi hiệu ứng",
     "equalizerEffectsHint": "Áp dụng sau các dải tần",
@@ -1613,12 +1613,12 @@ export default {
       "punch": "Độ nảy"
     },
     "equalizerPreset": {
-      "flat": "Phẳng",
+      "flat": "Cân bằng (Flat)",
       "lofi": "Lo-Fi",
       "radio": "Radio",
-      "hall": "Khán phòng",
-      "vocal": "Giọng hát",
-      "bass": "Tăng âm trầm",
+      "hall": "Khán phòng (Hall)",
+      "vocal": "Giọng hát (Vocal)",
+      "bass": "Tăng Bass (Bass Boost)",
       "custom1": "Tùy chỉnh 1",
       "custom2": "Tùy chỉnh 2"
     },
@@ -1988,11 +1988,11 @@ export default {
     "welcome": "Chào mừng đến với Folia",
     "lattice": "Ghép hàng đợi",
     "latticeLabel": "Ghép hàng đợi",
-    "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape thu gọn áp phích hoặc bỏ tiêu điểm bàn phím trước, sau đó quay lại ở lần nhấn tiếp.",
+    "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape thu gọn poster hoặc bỏ tiêu điểm bàn phím trước, sau đó quay lại ở lần nhấn tiếp.",
     "latticePlay": "PHÁT",
     "latticeFocusCurrent": "Định vị bài đang phát",
     "latticeAutoFocusOnSongChange": "Tự định vị khi đổi bài",
-    "latticeLights": "Ánh sáng áp phích",
+    "latticeLights": "Ánh sáng poster",
     "latticeLightsOn": "Bật đèn",
     "latticeLightsOff": "Tắt đèn",
     "latticeTools": "Công cụ Lattice",
@@ -2005,7 +2005,7 @@ export default {
     "latticeHelpOpen": "Thoát Lattice",
     "latticePlaybackControls": "Điều khiển phát",
     "latticeOpenPlayer": "MỞ TRÌNH PHÁT",
-    "latticeClose": "Thu gọn áp phích",
+    "latticeClose": "Thu gọn poster",
     "latticeEmptyTitle": "HÀNG ĐỢI TRỐNG",
     "latticeEmptyText": "Phát một bài hát bất kỳ và hàng đợi sẽ hiển thị tại đây.",
     "latticeBadgeNow": "ĐANG PHÁT",
@@ -2298,7 +2298,7 @@ export default {
     "customShortcutClear": "Xóa",
     "customShortcutTaken": "Phím này đã được gán cho phím tắt khác",
     "customShortcutLettersOnly": "Chỉ chấp nhận chữ cái A–Z",
-    "replayGainSettings": "Độ lợi âm thanh",
+    "replayGainSettings": "Cân bằng âm lượng (ReplayGain)",
     "replayGainMode": "Chế độ ReplayGain (Cân bằng âm lượng)",
     "replayGainModeDesc": "Chuẩn hóa âm lượng phát bằng siêu dữ liệu ReplayGain của bài hát hoặc album khi khả dụng.",
     "transitionSettings": "Chuyển tiếp Folia",
@@ -2478,12 +2478,12 @@ export default {
     "bravaisSettings": "Tường Bravais",
     "bravaisSettingsDesc": "Cài đặt chỉ áp dụng khi thư viện dùng tường Bravais.",
     "bravaisStackEdges": "Viền chồng bộ sưu tập",
-    "bravaisStackEdgesDesc": "Album, danh sách phát và thư mục hiện các mép so le ở góc dưới phải như chồng đĩa hát. Khi tắt sẽ hiển thị dạng áp phích thường; số bài hát vẫn ở trên nhãn.",
-    "bravaisSeamClear": "Thanh thông tin xuyên thấu",
+    "bravaisStackEdgesDesc": "Album, danh sách phát và thư mục hiện các mép so le ở góc dưới phải như chồng đĩa hát. Khi tắt sẽ hiển thị dạng poster thường; số bài hát vẫn ở trên nhãn.",
+    "bravaisSeamClear": "Thanh thông tin trong suốt (See-through)",
     "bravaisSeamClearDesc": "Thanh thông tin (trang chủ, gáy, bộ sưu tập, nghệ sĩ, bảng điều khiển) bỏ nền đặc để lộ hiệu ứng thị giác phía sau qua lớp phủ mờ, kể cả trên tường đặc. Các kiểu thanh thông tin bên dưới không áp dụng khi bật tùy chọn này.",
     "bravaisSeamStyle": "Kiểu thanh thông tin",
     "bravaisSeamStyleDesc": "Mặt giấy của thanh thông tin nền đặc. Kiểu chủ đề theo màu sắc giao diện; kiểu in dùng giấy và mực cố định. Độ trong suốt của tường không làm thay đổi các kiểu này.",
-    "bravaisSeamStyleDisabled": "Thanh thông tin đang đặt xuyên thấu nên không áp dụng các kiểu này. Tắt “Thanh thông tin xuyên thấu” để sử dụng.",
+    "bravaisSeamStyleDisabled": "Thanh thông tin đang đặt trong suốt nên không áp dụng các kiểu này. Tắt “Thanh thông tin xuyên thấu” để sử dụng.",
     "bravaisSeamStylePaper": "Giấy chủ đề",
     "bravaisSeamStyleWhite": "In trắng",
     "bravaisSeamStyleBlack": "In đen",
@@ -2494,13 +2494,13 @@ export default {
     "bravaisSeamStyleCheck": "Caro",
     "bravaisSeamSwatchGlyph": "Aa",
     "bravaisBackdropLyrics": "Lời bài hát sau tường",
-    "bravaisBackdropLyricsDesc": "Vẽ lời bài hát trong hiệu ứng thị giác hiện qua cửa sổ và thanh thông tin xuyên thấu. Tắt đi giúp trang chủ gọn mắt hơn; trang trình phát luôn hiển thị.",
+    "bravaisBackdropLyricsDesc": "Vẽ lời bài hát trong hiệu ứng thị giác hiện qua cửa sổ và thanh thông tin trong suốt. Tắt đi giúp trang chủ gọn mắt hơn; trang trình phát luôn hiển thị.",
     "bravaisBackdropBlur": "Làm mờ sau tường",
     "bravaisBackdropBlurDesc": "Làm mờ hiệu ứng thị giác hiển thị xuyên qua tường hoặc thanh thông tin. Đây là hiệu ứng làm mờ toàn màn hình trên lớp hiệu ứng thị giác và có thể giảm khung hình trên máy cấu hình yếu có tần số quét cao. Chỉ áp dụng khi có phần tử xuyên thấu.",
-    "homeTabsVisibility": "Mục con nhộng trên",
+    "homeTabsVisibility": "Thanh điều hướng đầu trang (Capsule)",
     "rememberHomeCardPosition": "Nhớ vị trí thẻ trang chủ",
     "rememberHomeCardPositionDesc": "Quay lại thẻ cuối cùng trong từng phần khi chuyển tab hoặc rời trình phát. Vị trí được lưu cho đến khi đóng hoặc tải lại ứng dụng.",
-    "homeTabsVisibilityDesc": "Tùy chỉnh các mục con nhộng hiển thị ở đầu trang chủ",
+    "homeTabsVisibilityDesc": "Tùy chỉnh các mục trên thanh điều hướng bo tròn (Capsule) ở đầu trang chủ",
     "bottomUiSettings": "Điều khiển dưới",
     "showHomeTabPlaylist": "Hiện danh sách phát",
     "showHomeTabRadio": "Hiện Radio",
@@ -2903,9 +2903,9 @@ export default {
     "visualizerBackgroundModeMonet": "Monet",
     "visualizerBackgroundModeNomand": "Nomand",
     "visualizerBackgroundModeLatent": "Latent",
-    "visualizerBackgroundModeUrl": "Nhúng",
+    "visualizerBackgroundModeUrl": "Web nhúng",
     "visualizerBackgroundModeSora": "Sora",
-    "urlBackgroundSettings": "Nền nhúng",
+    "urlBackgroundSettings": "Nền Web nhúng",
     "urlBackgroundSettingsDesc": "Hiển thị trang web làm nền trình phát. Lưu ý: một số trang web chặn nhúng vào iframe và có thể không hiển thị.",
     "urlBackgroundNotePlaceholder": "Ghi chú (dễ nhận biết)",
     "urlBackgroundAdd": "Thêm URL",
@@ -3084,8 +3084,8 @@ export default {
     "dioramaMotionAmount": "Biên độ chuyển động",
     "dioramaAudioReactivity": "Độ nhạy âm thanh hạt",
     "dioramaGlowEffect": "Phát sáng theo lời",
-    "dioramaSoulEffect": "Tách hồn theo lời",
-    "dioramaSoulActiveEffect": "Tách hồn từ hiện tại",
+    "dioramaSoulEffect": "Bóng mờ bay theo lời (Soul Drift)",
+    "dioramaSoulActiveEffect": "Bóng mờ từ đang hát",
     "dioramaGradientEffect": "Chuyển màu tiến trình",
     "dioramaKeywordColoring": "Tô màu từ khóa",
     "dioramaEffectOn": "Bật",
@@ -3252,10 +3252,10 @@ export default {
     "autoSwitchSongThemeDesc": "Tự động áp dụng chủ đề AI đã lưu trong bộ nhớ đệm. Không dùng chung với tùy chọn ưu tiên chủ đề tùy chỉnh.",
     "autoGenerateSongTheme": "Tự tạo chủ đề cho bài hát đang phát",
     "themeGenerationSource": "Nguồn tạo chủ đề",
-    "themeGenerationSourceAi": "Suy luận AI",
+    "themeGenerationSourceAi": "Phân tích AI",
     "themeGenerationSourceCover": "Màu ảnh bìa",
-    "themeGenerationSourceAiDesc": "Dùng AI đọc lời bài hát để suy luận bảng màu theo cảm xúc. Cần cấu hình API key và sẽ tiêu tốn token.",
-    "themeGenerationSourceAiUnavailable": "Chưa thiết lập API key cho nhà cung cấp AI đã chọn, tính năng suy luận AI bị tắt.",
+    "themeGenerationSourceAiDesc": "Dùng AI đọc lời bài hát để phân tích bảng màu theo cảm xúc. Cần cấu hình API key và sẽ tiêu tốn token.",
+    "themeGenerationSourceAiUnavailable": "Chưa cấu hình API Key cho nhà cung cấp AI đã chọn, tính năng phân tích AI bị tắt.",
     "configureAiApiKey": "Mở cài đặt chủ đề AI",
     "themeGenerationSourceCoverDesc": "Tạo bảng màu trực tiếp từ ảnh bìa. Không cần API key nhưng tính biểu cảm và số thuộc tính sẽ ít hơn.",
     "autoGenerateSongThemeCoverDesc": "Khi bài hát đang phát chưa có chủ đề trong bộ nhớ đệm, tự tạo từ ảnh bìa và áp dụng.",
@@ -3381,7 +3381,7 @@ export default {
     "monetBackgroundWashTheme": "Màu chủ đề",
     "monetBackgroundWashCustom": "Tùy chỉnh",
     "monetBackgroundWashCustomColor": "Màu phai tùy chỉnh",
-    "monetPortraitSource": "Nguồn chân dung bên phải",
+    "monetPortraitSource": "Nguồn ảnh nhân vật (Portrait) bên phải",
     "monetPortraitSourceCover": "Ảnh bìa",
     "monetPortraitSourceCustom": "Ảnh tùy chỉnh",
     "monetPortraitStyle": "Hình dạng bìa",
@@ -3390,8 +3390,8 @@ export default {
     "monetPortraitDragHanger": "Nút kéo điều chỉnh",
     "monetPortraitDragHangerShow": "Hiển thị",
     "monetPortraitDragHangerHide": "Ẩn",
-    "monetUploadPortrait": "Tải ảnh chân dung",
-    "monetClearPortrait": "Xóa ảnh chân dung",
+    "monetUploadPortrait": "Tải ảnh nhân vật (Portrait)",
+    "monetClearPortrait": "Xóa ảnh nhân vật (Portrait)",
     "monetAudioStyle": "Kiểu phổ âm",
     "monetAudioStyleBar": "Cột",
     "monetAudioStyleLine": "Đường nét",
@@ -3412,7 +3412,7 @@ export default {
     "copyJson": "Sao chép JSON",
     "copyObsUrl": "Sao chép URL OBS",
     "copyObsCss": "Sao chép CSS OBS",
-    "copyObsCssHint": "Sao chép CSS cho tệp đã tải lên (hình nền/ảnh chân dung) để dán vào ô CSS tùy chỉnh của Nguồn trình duyệt OBS",
+    "copyObsCssHint": "Sao chép CSS cho tệp đã tải lên (hình nền/ảnh nhân vật (Portrait)) để dán vào ô CSS tùy chỉnh của Nguồn trình duyệt OBS",
     "obsCssCopiedHint": "Đã sao chép CSS; dán vào Nguồn trình duyệt OBS -> CSS tùy chỉnh (dùng kèm với liên kết).",
     "obsCssCopiedHintDegraded": "Đã sao chép CSS; {{count}} tệp GIF vượt quá dung lượng và được sao chép dưới dạng khung hình tĩnh. Dán vào Nguồn trình duyệt OBS -> CSS tùy chỉnh.",
     "obsUrlCustomFontHint": "Đã sao chép (gồm phông chữ tùy chỉnh); sẽ trở về mặc định nếu hệ thống chưa cài phông.",
@@ -3554,7 +3554,7 @@ export default {
       "intro": "Dưới đây là các tính năng mới và cải tiến trong phiên bản 0.7.0.",
       "temperaVisualExpansion": {
         "title": "Mở rộng ngôn ngữ thị giác Tempera",
-        "description": "Tempera mở rộng bố cục khung hình từ 62 lên 121 với các nhóm mềm mại, đục rỗng và đồ sộ mới, kèm khả năng căn lề tốt hơn cùng xem trước độ phân giải cho ảnh tùy chỉnh."
+        "description": "Tempera mở rộng bố cục khung hình từ 62 lên 121 với các nhóm kiểu dáng mềm mại, khung viền rỗng (cutout) và đồ sộ mới, kèm khả năng căn lề tốt hơn cùng xem trước độ phân giải cho ảnh tùy chỉnh."
       },
       "commandPaletteWorkflows": {
         "title": "Quy trình bảng lệnh nâng cao",
@@ -3619,7 +3619,7 @@ export default {
       "intro": "Phiên bản 0.7.3 giúp các lệnh, tinh chỉnh lời bài hát, điều khiển trình phát và tài nguyên Tempera trở nên linh hoạt hơn, đồng thời bổ sung tùy chọn tự động phát tiếp khi khởi chạy.",
       "commandPaletteUpgrade": {
         "title": "Bảng lệnh toàn cục nhanh hơn",
-        "description": "Mở bảng lệnh từ bất kỳ đâu, tìm kiếm lệnh bằng khớp mờ và bính âm, truy cập nhanh các tác vụ thường dùng. Bộ lọc lưới áp phích và các tùy chọn lệnh nay mở trực tiếp ngay trong bảng lệnh."
+        "description": "Mở bảng lệnh từ bất kỳ đâu, tìm kiếm lệnh bằng khớp mờ và bính âm, truy cập nhanh các tác vụ thường dùng. Bộ lọc lưới poster và các tùy chọn lệnh nay mở trực tiếp ngay trong bảng lệnh."
       },
       "interactionControls": {
         "title": "Tùy chỉnh điều khiển tương tác",
@@ -3646,7 +3646,7 @@ export default {
       "intro": "Phiên bản 0.7.4 bổ sung chế độ xem ghép hàng đợi, chế độ hình nền trên macOS và tính năng tự động chuyển đổi định dạng âm thanh mà trình duyệt không thể giải mã.",
       "latticeQueueCollage": {
         "title": "Chế độ xem ghép hàng đợi",
-        "description": "Mở từ bảng lệnh hoặc nút cạnh thanh tiến trình để trải rộng toàn bộ hàng đợi phát thành một tường áp phích: kéo rê hoặc di chuyển bằng các phím mũi tên, nhấn Enter để mở rộng bài hát và nhấn Enter lần nữa để phát, đi kèm lời bài hát chạy chữ trên áp phích mở rộng. Tính năng tự căn chỉnh có thể đưa áp phích đang phát về giữa màn hình mỗi khi chuyển bài, cùng với khả năng chỉnh hiệu ứng tối góc và ám màu áp phích. Phím tắt Ctrl/Cmd+B để bật/tắt trực tiếp; không khả dụng ở chế độ FM riêng tư."
+        "description": "Mở từ bảng lệnh hoặc nút cạnh thanh tiến trình để trải rộng toàn bộ hàng đợi phát thành một tường poster: kéo rê hoặc di chuyển bằng các phím mũi tên, nhấn Enter để mở rộng bài hát và nhấn Enter lần nữa để phát, đi kèm lời bài hát chạy chữ trên poster mở rộng. Tính năng tự căn chỉnh có thể đưa poster đang phát về giữa màn hình mỗi khi chuyển bài, cùng với khả năng chỉnh hiệu ứng tối góc và ám màu poster. Phím tắt Ctrl/Cmd+B để bật/tắt trực tiếp; không khả dụng ở chế độ FM riêng tư."
       },
       "macWallpaperMode": {
         "title": "Chế độ hình nền trên macOS",
@@ -3812,7 +3812,7 @@ export default {
       },
       "latticeArtworkEfficiency": {
         "title": "Tải ảnh bìa Lattice nhẹ hơn",
-        "description": "Lattice nay tải kích thước ảnh bìa phù hợp với từng áp phích và tải trước ảnh lớn khi mở bài hát, giúp giảm giải mã hình ảnh không cần thiết trong khi vẫn giữ hiệu ứng mở rộng mượt mà và sắc nét."
+        "description": "Lattice nay tải kích thước ảnh bìa phù hợp với từng poster và tải trước ảnh lớn khi mở bài hát, giúp giảm giải mã hình ảnh không cần thiết trong khi vẫn giữ hiệu ứng mở rộng mượt mà và sắc nét."
       }
     },
     "v0_7_8": {
@@ -4009,7 +4009,7 @@ export default {
     "replayGainTrack": "Bài hát",
     "replayGainAlbum": "Album",
     "replayGainUnavailable": "Không tìm thấy ReplayGain",
-    "replayGainTitle": "Độ lợi âm thanh",
+    "replayGainTitle": "Cân bằng âm lượng (ReplayGain)",
     "lyricsSource": "Lời bài hát",
     "lyricTimelineOffset": "Lệch mốc thời gian",
     "lyricTimelineOffsetHint": "Chỉ áp dụng cho lần phát này. Giá trị dương làm lời xuất hiện trễ hơn.",
@@ -4262,8 +4262,8 @@ export default {
     "importJsonToDraftHint": "Dán JSON chủ đề AI để tải vào trình chỉnh sửa. Thay đổi chỉ áp dụng sau khi lưu.",
     "exportDraftJson": "Xuất bản nháp hiện tại",
     "editingBadge": "Đang chỉnh sửa",
-    "midnightDefault": "Nửa đêm mặc định",
-    "daylightDefault": "Ban ngày mặc định"
+    "midnightDefault": "Midnight Default",
+    "daylightDefault": "Daylight Default"
   },
   "timeline": {
     "title": "Dòng thời gian",
@@ -4283,7 +4283,7 @@ export default {
     },
     "lattice": {
       "title": "Lattice (ảnh ghép hàng đợi)",
-      "description": "Toàn bộ hàng đợi phát xếp thành bức tường áp phích, bài đang phát được phóng to nổi bật."
+      "description": "Toàn bộ hàng đợi phát xếp thành bức tường poster, bài đang phát được phóng to nổi bật."
     },
     "stay": {
       "title": "Ở lại vị trí hiện tại",
@@ -4444,17 +4444,17 @@ export default {
       "folia_desktop": "Chế độ hình nền, khay hệ thống và cửa sổ điều khiển — các tính năng ngoài ứng dụng.",
       "folia_shortcuts": "K, P, B và G dẫn tới đâu.",
       "folia_transport": "Phím media hệ thống dùng mọi nơi; trong app dùng Space và {{mod}}+←/→.",
-      "grid3d_card_style": "Chỉ bìa hoặc thẻ polaroid trên tường áp phích trang chủ.",
+      "grid3d_card_style": "Chỉ bìa hoặc thẻ polaroid trên tường poster trang chủ.",
       "grid_action_button": "Nút góc dưới bên phải: chạm để mở danh sách, vuốt trái cho tác vụ thứ hai.",
-      "grid_page": "Cách tổ chức tường áp phích, cùng thao tác di chuyển, mở và tìm kiếm.",
+      "grid_page": "Cách tổ chức tường poster, cùng thao tác di chuyển, mở và tìm kiếm.",
       "grid_view_card_settings": "Hình dạng bìa của thẻ lưới và mức độ mờ dần về phía viền.",
       "grid_view_edit_mode": "Thay đổi trên thẻ và thời điểm việc đổi tên có hiệu lực.",
       "grid_view_page": "Trang bộ sưu tập: cấu trúc, kéo thả, di chuyển bằng phím, bộ lọc.",
       "help_page": "Khám phá, bảng lệnh, các ví dụ thường dùng và tài liệu chính thức.",
-      "lattice_chrome": "Thanh điều khiển dưới áp phích mở rộng; hai ô ở giữa dùng chung với thanh đáy.",
-      "lattice_page": "Trải toàn bộ hàng đợi phát thành một tường áp phích.",
+      "lattice_chrome": "Thanh điều khiển dưới poster mở rộng; hai ô ở giữa dùng chung với thanh đáy.",
+      "lattice_page": "Trải toàn bộ hàng đợi phát thành một tường poster.",
       "bravais_wall": "Kéo tường vô tận, lật lớp mới, phân biệt ô thẻ, thẻ tiêu điểm, độ trong suốt và vào Lattice.",
-      "lattice_style_settings": "Hiệu ứng tối góc và sắc thái áp phích mở khóa từng lớp.",
+      "lattice_style_settings": "Hiệu ứng tối góc và sắc thái poster mở khóa từng lớp.",
       "local_folder_actions": "Quét lại, dọn dẹp thẻ thông tin và nút đỏ dùng để xóa.",
       "local_grid_controls": "Chuyển thư mục cục bộ, album, nghệ sĩ, playlist; nhập hoặc làm mới thư viện.",
       "online_collection_actions": "Các tác vụ khả dụng cho bộ sưu tập trực tuyến hoặc máy chủ.",
@@ -4475,9 +4475,9 @@ export default {
       "lyrics_settings": "Tự động chọn sẽ ghi đè nguồn thủ công, và cộng gộp hai độ lệch.",
       "grid_palette_hotkey": "Tại trang lưới, phím S mở cửa sổ lệnh hay bộ lọc.",
       "panel_slide": "Nút này cũng có thể trượt sang trái để mở cửa sổ lệnh.",
-      "panel_source_tab": "Ô theo nguồn: độ lợi âm thanh, nguồn lời, độ lệch mốc thời gian.",
+      "panel_source_tab": "Ô theo nguồn: cân bằng âm lượng (ReplayGain), nguồn lời, độ lệch mốc thời gian.",
       "lyric_export": "Đóng gói lời bài hát lưu tạm trên thiết bị thành tệp zip chứa .fia và LRC nâng cao.",
-      "player_bar": "Chi tiết trên thanh con nhộng và hai vị trí bạn tự tùy chọn.",
+      "player_bar": "Chi tiết trên thanh điều khiển (Capsule) và hai vị trí bạn tự tùy chọn.",
       "player_page": "Chi tiết trên trang phát, vị trí từng mục và cách phát xáo trộn.",
       "ponder_basics": "Gợi ý khi rê chuột, giữ G, Ctrl+G toàn trang và cách tắt gợi ý.",
       "settings_page": "Cách phân nhóm cài đặt và cách chuyển nhanh tới đó từ cửa sổ lệnh.",
@@ -4501,7 +4501,7 @@ export default {
       "openAudioEqualizer": "Mở hiệu ứng âm thanh",
       "openCustomShortcut": "Mở cài đặt phím tắt",
       "openPinnedCommands": "Mở lệnh đã ghim",
-      "openReplayGain": "Mở khuếch đại âm lượng",
+      "openReplayGain": "Mở cân bằng âm lượng (ReplayGain)",
       "openImportExport": "Mở sao lưu & nhập",
       "openBottomUiSettings": "Mở cài đặt thanh đáy",
       "openLyricsAnimation": "Mở cài đặt hiệu ứng lời",
@@ -4651,7 +4651,7 @@ export default {
         "modeTrack": "Theo bài hát",
         "modeAlbum": "Theo album",
         "panelTab": "Bảng điều khiển · Nguồn",
-        "panelSummary": "Thẻ gain bài này",
+        "panelSummary": "Thẻ ReplayGain của bài này",
         "panelModes": "Ba chế độ tương ứng"
       },
       "importExport": {
@@ -4893,7 +4893,7 @@ export default {
         "tabs": "Thẻ",
         "body": "Thẻ hiện tại",
         "sourceInfo": "Thông tin nguồn",
-        "sourceGain": "Độ lợi âm thanh",
+        "sourceGain": "Cân bằng âm lượng (ReplayGain)",
         "sourceLyrics": "Lời bài hát",
         "sourceOffset": "Độ lệch thời gian",
         "sourceLyricsFile": "Nhập / xuất",
@@ -4960,7 +4960,7 @@ export default {
     "noComponentsOnPage": "Trang này chưa có hướng dẫn thành phần riêng.",
     "onboarding": {
       "title": "Khám phá Ponder",
-      "description": "Giữ Ctrl + G đến khi đầy thanh con nhộng để mở hướng dẫn cho trang hiện tại.",
+      "description": "Giữ Ctrl + G đến khi đầy thanh điều khiển (Capsule) để mở hướng dẫn cho trang hiện tại.",
       "touchDescription": "Nhấn nút bên dưới để mở hướng dẫn cho trang này.",
       "shortcut": "Giữ Ctrl + G",
       "required": "Thử Khám phá trang một lần để tiếp tục."
@@ -5129,7 +5129,7 @@ export default {
       "latticeStyleTint": "Tối góc và phủ màu poster",
       "latticeStyleCustomColor": "Ghim một màu cố định",
       "panelSourceTabWhere": "Khi nào ô này xuất hiện",
-      "panelSourceTabContents": "Gain, lời bài hát và dòng thời gian",
+      "panelSourceTabContents": "Cân bằng âm lượng, lời bài hát và mốc thời gian",
       "panelSourceTabExport": "Nhập và xuất tệp lời bài hát",
       "lyricExportScope": "Bài hát nào, phiên bản nào",
       "lyricExportFormats": "Hai định dạng và tên tệp",
@@ -5172,7 +5172,7 @@ export default {
       "helpPageHintSettings": "Tắt gợi ý khi xong",
       "settingsPageOverview": "Cài đặt nhóm theo mục đích",
       "settingsPageDirectNavigation": "Chuyển nhanh từ lệnh",
-      "playerBarBasics": "Thành phần trên thanh con nhộng",
+      "playerBarBasics": "Thành phần trên thanh điều khiển (Capsule)",
       "playerBarHeight": "Có thể đổi chiều cao",
       "playerBarSlots": "Có thể hoán đổi hai vị trí",
       "playerBarShuffle": "Xáo trộn chia bài một lần",
@@ -5206,7 +5206,7 @@ export default {
         "filterSearch": "Biểu tượng kính lúp để tìm kiếm trực tuyến (trên trang chủ có thể nhấn /): toàn bộ thanh thông tin chuyển thành khung tìm kiếm, nhấn gửi để tới trang kết quả.",
         "toolsQuick": "Nút góc dưới bên phải là công cụ tường. Hàng trên cùng chứa các thao tác nhanh: định vị bài đang phát, xáo trộn hàng đợi, tạo chủ đề cho bài hát, chuyển tới Lattice.",
         "toolsVolume": "Ở giữa là âm lượng, đồng bộ với thanh phát nhạc; nhấp biểu tượng bên trái để tắt tiếng.",
-        "toolsAppearance": "Dưới cùng là giao diện tường: độ trong suốt đổi qua ba mức, cùng tông màu áp phích và bật / tắt đèn. Vuốt nút sang trái để mở trực tiếp bảng lệnh."
+        "toolsAppearance": "Dưới cùng là giao diện tường: độ trong suốt đổi qua ba mức, cùng tông màu poster và bật / tắt đèn. Vuốt nút sang trái để mở trực tiếp bảng lệnh."
       },
       "queueShuffle": {
         "noMode": "Folia không có chế độ phát ngẫu nhiên truyền thống và nút lặp lại không chuyển sang chế độ này. Để nghe ngẫu nhiên, chỉ cần xáo trộn hàng đợi hiện tại.",
@@ -5328,17 +5328,17 @@ export default {
         "playerShuffleNoSwitch": "Folia không có công tắc xáo trộn. Bạn sẽ không thấy trên thanh điều khiển vì xáo trộn không phải chế độ duy trì — đó là một tác vụ tức thời: xáo lại hàng đợi hiện tại ngay tại chỗ.",
         "playerShuffleHow": "Cách nhanh nhất là không cần mở gì: nhấn phím hai chấm trên trang phát — cửa sổ mở ở chế độ thực thi — rồi nhấn r. Thứ tự mới sẽ được áp dụng; nhấn lại để xáo lần nữa.",
         "playerShuffleSlot": "Nếu dùng thường xuyên, hãy gán “Xáo trộn hàng đợi” vào một trong hai ô bên phải thanh điều khiển để thao tác với một lần nhấn.",
-        "lattice": "Lattice trải hàng đợi phát thành một trường áp phích. Di chuyển trên trường để duyệt hàng đợi và chọn áp phích để thao tác với bài hát đó.",
-        "latticeWall": "Lattice lặp lại hàng đợi phát trên tường áp phích bất đối xứng để quét góc nhìn liên tục. Bài đang phát có số thứ tự hàng đợi và dấu hiệu đang phát.",
-        "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape lùi từng lớp một — thu nhỏ áp phích mở rộng hoặc xóa tiêu điểm bàn phím trước, lần nhấn tiếp theo mới quay lại.",
-        "latticePan": "Kéo trường hiển thị hoặc dùng con lăn để lia góc nhìn. Áp phích xuất hiện theo chuyển động khung nhìn và quán tính không làm đổi thứ tự hàng đợi.",
-        "latticeFocusKeys": "Các phím mũi tên trước tiên chọn áp phích gần tâm khung nhìn nhất, sau đó di chuyển theo không gian và lia góc nhìn để giữ mục tiêu tiếp theo luôn hiển thị.",
-        "latticePosterOpen": "Nhấp hoặc nhấn Enter để mở rộng áp phích. Bài đang phát sẽ hiện lời bài hát đồng bộ; bài khác hiện tiêu đề và nút phát mà không xếp lại hàng đợi.",
-        "latticeChrome": "Áp phích mở rộng chứa nút phát/tạm dừng, các ô bổ sung, thời gian, tua nhanh và Mở trình phát. Chạm lại áp phích hoặc nhấn Space để ẩn/hiện thanh này.",
+        "lattice": "Lattice trải hàng đợi phát thành một trường poster. Di chuyển trên trường để duyệt hàng đợi và chọn poster để thao tác với bài hát đó.",
+        "latticeWall": "Lattice lặp lại hàng đợi phát trên tường poster bất đối xứng để quét góc nhìn liên tục. Bài đang phát có số thứ tự hàng đợi và dấu hiệu đang phát.",
+        "latticeBack": "Nút trên cùng bên trái để quay lại. {{mod}} + B cũng đóng Lattice; Escape lùi từng lớp một — thu nhỏ poster mở rộng hoặc xóa tiêu điểm bàn phím trước, lần nhấn tiếp theo mới quay lại.",
+        "latticePan": "Kéo trường hiển thị hoặc dùng con lăn để lia góc nhìn. Poster xuất hiện theo chuyển động khung nhìn và quán tính không làm đổi thứ tự hàng đợi.",
+        "latticeFocusKeys": "Các phím mũi tên trước tiên chọn poster gần tâm khung nhìn nhất, sau đó di chuyển theo không gian và lia góc nhìn để giữ mục tiêu tiếp theo luôn hiển thị.",
+        "latticePosterOpen": "Nhấp hoặc nhấn Enter để mở rộng poster. Bài đang phát sẽ hiện lời bài hát đồng bộ; bài khác hiện tiêu đề và nút phát mà không xếp lại hàng đợi.",
+        "latticeChrome": "Poster mở rộng chứa nút phát/tạm dừng, các ô bổ sung, thời gian, tua nhanh và Mở trình phát. Chạm lại poster hoặc nhấn Space để ẩn/hiện thanh này.",
         "latticeTools": "Các công cụ góc dưới bên phải gồm: tập trung bài đang phát, bám sát khi đổi bài, mở lệnh hàng đợi, bật/tắt đèn và trợ giúp phím tắt. Trượt nút sang trái để mở bảng lệnh.",
         "latticeLights": "Tắt đèn sẽ làm mờ tường hiển thị nhưng vẫn giữ cấu trúc. Đây chỉ là cài đặt hiển thị: phát nhạc và thứ tự hàng đợi không thay đổi.",
-        "latticePosterKeys": "Enter hoặc Space mở rộng áp phích đang đóng. Khi mở, Enter phát/tạm dừng, Space bật/tắt điều khiển, còn Escape thu gọn và xóa tiêu điểm trước.",
-        "latticePageKeys": ": + C định vị bài đang phát, {{mod}} + P mở hàng đợi, {{mod}} + B quay lại, {{mod}} + K mở cửa sổ lệnh; phím mũi tên di chuyển chọn áp phích.",
+        "latticePosterKeys": "Enter hoặc Space mở rộng poster đang đóng. Khi mở, Enter phát/tạm dừng, Space bật/tắt điều khiển, còn Escape thu gọn và xóa tiêu điểm trước.",
+        "latticePageKeys": ": + C định vị bài đang phát, {{mod}} + P mở hàng đợi, {{mod}} + B quay lại, {{mod}} + K mở cửa sổ lệnh; phím mũi tên di chuyển chọn poster.",
         "help": "Folia tách riêng duyệt nhạc, phát nhạc, lệnh và tùy chọn. Ctrl+G giải thích trang hiện tại; hướng dẫn từng thành phần sẽ hiển thị riêng khi có hành vi đặc biệt.",
         "helpCommands": "{{mod}} + K tìm kiếm mọi lệnh và cài đặt. Với tùy chọn ẩn sâu, tìm tên thường nhanh hơn nhớ vị trí tầng menu.",
         "helpOperatingModel": "Chọn nhạc ở dạng lưới, sau đó phát độc lập trong Player hoặc Lattice. Thanh đáy điều khiển phát ở mọi nơi; Trợ giúp và Tùy chọn phủ lên trang hiện tại.",
@@ -5374,7 +5374,7 @@ export default {
         "off": "ReplayGain là thẻ âm lượng ghi trong tệp nhạc. Khi tắt, Folia bỏ qua thẻ này và phát theo mức âm gốc — khiến âm lượng giữa các album có thể chênh lệch lớn.",
         "trackAlbum": "\"Theo bài\" cân bằng âm lượng giữa các bài khi phát xáo trộn. \"Theo album\" áp dụng một mức cho toàn album, giữ nguyên độ tương phản to nhỏ gốc. Cả hai chỉ đổi âm lượng phát, không mã hóa lại tệp.",
         "sameValue": "Ba nút này đồng bộ trực tiếp với tab Nguồn trong bảng điều khiển: đổi ở nơi nào thì nơi còn lại cũng đổi theo.",
-        "summary": "Tab Nguồn còn hiển thị thêm thẻ khuếch đại bài hát (T và A tính bằng dB), hoặc \"không khả dụng\" nếu tệp không có. Nếu bật chế độ mà âm lượng không đổi, nguyên nhân là do tệp thiếu thẻ này."
+        "summary": "Tab Nguồn còn hiển thị thêm thẻ ReplayGain của bài hát (T và A tính bằng dB), hoặc \"không khả dụng\" nếu tệp không có. Nếu bật chế độ mà âm lượng không đổi, nguyên nhân là do tệp thiếu thẻ này."
       },
       "importExport": {
         "scope": "Mục này chứa toàn bộ thiết lập giao diện Folia: chủ đề màu, hiệu ứng động lời bài hát và thông số dựng hình, phụ đề, phông chữ, hình nền cùng thẻ bài hát.",
@@ -5386,11 +5386,11 @@ export default {
         "derived": "Các dòng dưới cùng liệt kê thay đổi phát sinh kèm theo: nhận màu sẽ tự chuyển sang chủ đề tùy chỉnh, nhận phông hệ thống sẽ xóa tệp phông đã tải lên. Không thể bỏ chọn riêng các mục này trừ khi bỏ chọn mục gốc."
       },
       "playerBar": {
-        "basicsAutoExpand": "Không chỉ rê chuột mới mở thanh. Khi tạm dừng và không ở màn hình chính, thanh con nhộng sẽ tự mở rộng — đúng lúc cần điều khiển nhất thì thanh ngừng ẩn. Phát tiếp hoặc quay về trang chủ, thanh sẽ thu gọn lại.",
-        "basicsIntro": "Cụm điều khiển của Folia gói gọn trong thanh con nhộng này. Hàng nút cố định ở đáy như trình phát khác — bài trước, bài sau, xáo trộn, lặp lại, âm lượng — hoàn toàn không có chỗ cố định tại đây.",
+        "basicsAutoExpand": "Không chỉ rê chuột mới mở thanh. Khi tạm dừng và không ở màn hình chính, thanh điều khiển (Capsule) sẽ tự mở rộng — đúng lúc cần điều khiển nhất thì thanh ngừng ẩn. Phát tiếp hoặc quay về trang chủ, thanh sẽ thu gọn lại.",
+        "basicsIntro": "Cụm điều khiển của Folia gói gọn trong thanh điều khiển (Capsule) này. Hàng nút cố định ở đáy như trình phát khác — bài trước, bài sau, xáo trộn, lặp lại, âm lượng — hoàn toàn không có chỗ cố định tại đây.",
         "basicsPlay": "Nút duy nhất luôn xuất hiện là phát / tạm dừng. Ở cửa sổ rộng, nút nằm ngoài cùng bên trái; khi chiều rộng không đủ một dòng, nút chuyển vào giữa dòng thứ hai với hai ô ở hai bên.",
         "basicsTitle": "Chuyển bài qua tiêu đề chứ không bằng nút bấm. Rê chuột vào tiêu đề sẽ hiện mũi tên hai bên xem trước bài trước và bài sau — bạn chọn bài bằng cách đọc tên chứ không bấm mò.",
-        "basicsProgress": "Kéo hoặc nhấp thanh tiến trình để tua. Nhấp vào bất kỳ điểm nào khác trên thanh con nhộng không làm tạm dừng: thao tác này mở trang phát, hoặc trong Lattice sẽ đưa góc nhìn về bài đang phát.",
+        "basicsProgress": "Kéo hoặc nhấp thanh tiến trình để tua. Nhấp vào bất kỳ điểm nào khác trên thanh điều khiển (Capsule) không làm tạm dừng: thao tác này mở trang phát, hoặc trong Lattice sẽ đưa góc nhìn về bài đang phát.",
         "basicsSlots": "Các tính năng còn lại nằm ở hai vị trí bên phải. Bạn chọn 2 trong 10 tác vụ để đặt vào; phần còn lại sẽ ẩn khỏi thanh — đó là lý do không có hàng nút cố định.",
         "basicsCollapsed": "Rê chuột ra xa, thanh điều khiển thu gọn thành một thanh tiến trình đơn. Đó là hình dáng hiển thị thông thường; di chuột lại gần để mở rộng.",
         "heightIntro": "Khoảng cách từ thanh này đến đáy màn hình có thể tùy chỉnh, các thẻ bài hát và bảng bên sẽ tự động dịch chuyển theo trên mọi trang.",
@@ -5446,7 +5446,7 @@ export default {
         "windows": "“Nhìn xuyên” luân chuyển qua ba chế độ. Ở chế độ một phần, một số ô cố định trong mỗi khối trở thành cửa sổ nhìn xuống hiệu ứng thị giác bên dưới. Cửa sổ không che nội dung — nội dung chỉ đơn giản bỏ qua các ô này.",
         "clear": "Ở chế độ trong suốt, mọi ô đều là cửa sổ và chỉ giữ lại tiêu đề; thẻ tiêu điểm được mở rộng vẫn hiển thị ảnh bìa.",
         "solid": "Nhấp lần nữa để chuyển sang dạng đặc. Dạng đặc tương tự Lattice: tường che phủ hoàn toàn trình phát và hiệu ứng thị giác dừng hiển thị ngầm phía sau.",
-        "lattice": "“Lattice” ở phía trên ({{mod}} + B) biến toàn bộ tường thành hàng đợi phát: đường nối khép lại, các cửa sổ đóng và các ô lật từ gốc thành áp phích của Lattice. Thao tác quay lại diễn ra ngược lại, và bài đang phát mở rộng khi đường nối mở ra."
+        "lattice": "“Lattice” ở phía trên ({{mod}} + B) biến toàn bộ tường thành hàng đợi phát: đường nối khép lại, các cửa sổ đóng và các ô lật từ gốc thành poster của Lattice. Thao tác quay lại diễn ra ngược lại, và bài đang phát mở rộng khi đường nối mở ra."
       },
       "sidePanel": {
         "controlsSteppers": "Hai hàng khung ngắm dùng để chọn hiệu ứng chuyển động lời bài hát và hình nền. Mũi tên ở hai đầu chuyển từng chế độ liền kề — với hàng tá hiệu ứng thì chuyển kiểu này khá mất thời gian.",
@@ -5618,18 +5618,18 @@ export default {
         "direction": "Nút bên trái chuyển đổi giữa tăng dần và giảm dần, độc lập với tiêu chí sắp xếp."
       },
       "gridStyle": {
-        "grid3dImage": "“Chỉ ảnh bìa” là mặc định của tường áp phích: toàn bộ thẻ là một ảnh bìa hoàn chỉnh, tên bộ sưu tập nằm trên dải chuyển màu ở đáy thẻ.",
+        "grid3dImage": "“Chỉ ảnh bìa” là mặc định của tường poster: toàn bộ thẻ là một ảnh bìa hoàn chỉnh, tên bộ sưu tập nằm trên dải chuyển màu ở đáy thẻ.",
         "grid3dCard": "“Thẻ Polaroid” đưa ảnh bìa lên nửa trên và để dải trắng bên dưới cho tên — như một tấm ảnh polaroid. Ảnh không bị cắt xén, nhưng màn hình hiển thị được ít thẻ hơn.",
         "fullBleed": "“Bìa tràn viền” áp dụng cho lưới tổ ong bên trong bộ sưu tập: khi bật, ảnh bìa lấp đầy toàn bộ thẻ, tiêu đề và nghệ sĩ chuyển lên lớp phủ chuyển màu bên trên, tương tự ảnh ghép hàng đợi.",
         "squareCard": "“Thẻ vuông” chỉ xuất hiện khi đã bật bìa tràn viền. Khi bật, chiều cao thẻ bằng chiều rộng, giúp ảnh bìa vuông không bị cắt trên dưới. Diện tích thẻ giữ nguyên, chiều cao giảm thì bề rộng tăng và khoảng cách lưới sẽ tự căn chỉnh.",
         "minScale": "Thanh trượt này không chỉnh kích thước thẻ, mà đặt mức thu nhỏ tối thiểu: các thẻ càng xa tâm khung nhìn càng nhỏ lại và đây là giới hạn nhỏ nhất. Tăng lên giúp viền dễ nhìn hơn, giảm xuống giúp tăng cảm giác chiều sâu.",
         "minOpacity": "Tương tự, thanh này chỉnh mức mờ tối đa cho phép. Hai thanh trượt kết hợp quyết định lưới hiển thị dạng phẳng hay có chiều sâu.",
         "falloffReset": "Bấm nút này để đặt lại độ suy giảm về mặc định. Thao tác chỉ đặt lại hai thanh trượt trên — hai công tắc kiểu dáng bìa vẫn giữ nguyên.",
-        "latticeVignette": "“Hiệu ứng mờ viền (Vignette)” làm tối nhẹ các góc của ảnh ghép hàng đợi, hướng sự chú ý vào áp phích ở giữa. Đây chỉ là hiệu ứng hiển thị, không ảnh hưởng đến hàng đợi.",
-        "latticeTint": "“Phủ màu áp phích” phủ một lớp màu lên các áp phích thường để bài đang phát, được chọn hoặc di chuột nổi bật hơn. Đây là công tắc chính — khi tắt, độ phủ màu và màu cố định sẽ bị ẩn hoàn toàn.",
-        "latticeIntensity": "“Độ phủ màu” chỉ hiển thị khi đã bật phủ màu. Giá trị tính theo phần trăm: mức 0 không phủ màu; tăng cao làm áp phích thường tối đi và làm bài đang phát nổi bật hơn.",
+        "latticeVignette": "“Hiệu ứng mờ viền (Vignette)” làm tối nhẹ các góc của ảnh ghép hàng đợi, hướng sự chú ý vào poster ở giữa. Đây chỉ là hiệu ứng hiển thị, không ảnh hưởng đến hàng đợi.",
+        "latticeTint": "“Phủ màu poster” phủ một lớp màu lên các poster thường để bài đang phát, được chọn hoặc di chuột nổi bật hơn. Đây là công tắc chính — khi tắt, độ phủ màu và màu cố định sẽ bị ẩn hoàn toàn.",
+        "latticeIntensity": "“Độ phủ màu” chỉ hiển thị khi đã bật phủ màu. Giá trị tính theo phần trăm: mức 0 không phủ màu; tăng cao làm poster thường tối đi và làm bài đang phát nổi bật hơn.",
         "latticeCustomColor": "Mặc định lớp phủ màu là dải chuyển màu theo chủ đề hiện tại. Bật “Màu cố định” sẽ ghim vào một màu duy nhất không thay đổi theo chủ đề.",
-        "latticePicker": "Hộp chọn màu chỉ xuất hiện khi bật màu cố định. Tường áp phích thay đổi trực tiếp khi kéo chuột; giá trị chỉ được lưu khi bạn nhả chuột."
+        "latticePicker": "Hộp chọn màu chỉ xuất hiện khi bật màu cố định. Tường poster thay đổi trực tiếp khi kéo chuột; giá trị chỉ được lưu khi bạn nhả chuột."
       }
     }
   },
