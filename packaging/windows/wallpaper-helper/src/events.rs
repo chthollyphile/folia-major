@@ -10,6 +10,8 @@ pub enum Event {
     Attached { hwnd: isize, workerw: isize, mode: &'static str },
     /// Liveness probe for the main-process watchdog (every 5s while resident).
     Heartbeat,
+    /// Only the activity bit is sent, never another application's title or process details.
+    ForegroundChanged { other_app_focused: bool },
     /// The WorkerW we parented into was destroyed; a re-attach attempt is starting.
     WorkerwDestroyed { hwnd: isize },
     /// Explorer restarted (Shell_TrayWnd PID changed); a re-attach attempt is starting.
@@ -76,6 +78,7 @@ impl Event {
         match self {
             Event::Attached { .. } => "attached",
             Event::Heartbeat => "heartbeat",
+            Event::ForegroundChanged { .. } => "foreground-changed",
             Event::WorkerwDestroyed { .. } => "workerw-destroyed",
             Event::ExplorerRestarted => "explorer-restarted",
             Event::Reasserted { .. } => "reasserted",
@@ -98,6 +101,9 @@ impl Event {
                 hwnd, workerw, mode
             ),
             Event::Heartbeat => "{\"event\":\"heartbeat\"}".to_string(),
+            Event::ForegroundChanged { other_app_focused } => format!(
+                "{{\"event\":\"foreground-changed\",\"otherAppFocused\":{other_app_focused}}}"
+            ),
             Event::WorkerwDestroyed { hwnd } => {
                 format!("{{\"event\":\"workerw-destroyed\",\"hwnd\":{}}}", hwnd)
             }

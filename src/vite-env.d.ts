@@ -832,6 +832,8 @@ declare global {
       platform: string;
       isLinuxX11: boolean;
       getSettings: () => Promise<any>;
+      getVisualInactive?: () => Promise<boolean>;
+      onVisualActivityChanged?: (callback: (inactive: boolean) => void) => () => void;
       saveSettings: (key: string, value: any) => Promise<any>;
       onWallpaperModeChanged?: (callback: (settings: Record<string, unknown>) => void) => () => void;
       onWallpaperTransparentRefused?: (callback: (settings: Record<string, unknown>) => void) => () => void;

@@ -145,7 +145,8 @@ const SoraBackground: React.FC<SoraBackgroundProps> = ({ theme, isDaylight, paus
 
     const render = (now: number) => {
       if (!pausedRef.current) {
-        const delta = (now - lastTimestamp) / 1000;
+        // Do not advance the particle phase by the entire time spent unfocused.
+        const delta = Math.min((now - lastTimestamp) / 1000, 0.1);
         timeRef.current += delta;
       }
       lastTimestamp = now;

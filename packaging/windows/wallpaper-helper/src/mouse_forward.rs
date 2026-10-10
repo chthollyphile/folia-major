@@ -66,7 +66,10 @@ static LAST_SENT_Y: AtomicI32 = AtomicI32::new(POSITION_UNKNOWN);
 static PRIMARY_DOWN: AtomicBool = AtomicBool::new(false);
 
 unsafe fn is_desktop_foreground() -> bool {
-    let foreground = GetForegroundWindow();
+    is_desktop_window(GetForegroundWindow())
+}
+
+pub unsafe fn is_desktop_window(foreground: HWND) -> bool {
     if foreground.0.is_null() {
         return false;
     }
@@ -100,19 +103,23 @@ unsafe fn find_progman_hwnd() -> Option<HWND> {
     windows::Win32::UI::WindowsAndMessaging::FindWindowA(s!("Progman"), None).ok()
 }
 
-/// Registers raw input on the message window (RIDEV_INPUTSINK keeps the helper background
-/// while receiving WM_INPUT) and starts the move-coalescing timer (~60 Hz).
-pub unsafe fn register(worker_w: HWND) -> Result<(), String> {
-    super::attach::ensure_thread_dpi_awareness();
+/// Refresh desktop identity even when mouse forwarding is disabled.
+pub unsafe fn refresh_desktop_handles(worker_w: HWND) {
     WORKERW_HWND.store(worker_w.0 as isize, Ordering::Relaxed);
     ICON_WORKERW_HWND.store(
         find_icon_worker_w().map_or(0, |hwnd| hwnd.0 as isize),
         Ordering::Relaxed,
     );
+}
+
+/// Registers raw input on the message window (RIDEV_INPUTSINK keeps the helper background
+/// while receiving WM_INPUT) and starts the move-coalescing timer (~60 Hz).
+pub unsafe fn register(worker_w: HWND) -> Result<(), String> {
+    super::attach::ensure_thread_dpi_awareness();
+    refresh_desktop_handles(worker_w);
 
     let raw_input_window = super::message_window::hwnd()
         .ok_or_else(|| "message window not created".to_string())?;
-
     let devices: [RAWINPUTDEVICE; 1] = [RAWINPUTDEVICE {
         usUsagePage: HID_USAGE_PAGE_GENERIC,
         usUsage: HID_USAGE_GENERIC_MOUSE,

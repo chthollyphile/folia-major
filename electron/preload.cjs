@@ -71,6 +71,12 @@ contextBridge.exposeInMainWorld('electron', {
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,
     getSettings: () => ipcRenderer.invoke('get-settings'),
+    getVisualInactive: () => ipcRenderer.invoke('get-visual-inactive'),
+    onVisualActivityChanged: (callback) => {
+        const listener = (_event, inactive) => callback(inactive);
+        ipcRenderer.on('visual-activity-changed', listener);
+        return () => ipcRenderer.removeListener('visual-activity-changed', listener);
+    },
     saveSettings: (key, value) => ipcRenderer.invoke('save-settings', key, value),
     onWallpaperModeChanged: (callback) => {
         const listener = (_event, settings) => callback(settings);

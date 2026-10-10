@@ -10,6 +10,7 @@ import {
     type Theme,
 } from '../../../../types';
 import { extractRepresentativeColors } from '../../../../utils/colorExtractor';
+import { areVisualsPaused, subscribeVisualActivity } from '../../../../utils/visualActivity';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
@@ -250,8 +251,21 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             animationFrame = requestAnimationFrame(updateAudioResponse);
         };
 
-        animationFrame = requestAnimationFrame(updateAudioResponse);
-        return () => cancelAnimationFrame(animationFrame);
+        const syncActivity = () => {
+            cancelAnimationFrame(animationFrame);
+            ditheringRef.current?.paperShaderMount?.setSpeed(0);
+            meshRef.current?.paperShaderMount?.setSpeed(0);
+            if (!areVisualsPaused()) {
+                // setSpeed restarts the shader clock, excluding time spent unfocused.
+                animationFrame = requestAnimationFrame(updateAudioResponse);
+            }
+        };
+        const unsubscribe = subscribeVisualActivity(syncActivity);
+        syncActivity();
+        return () => {
+            unsubscribe();
+            cancelAnimationFrame(animationFrame);
+        };
     }, [audioBands, audioPower, showMesh, staticMode, tuning]);
 
     return (

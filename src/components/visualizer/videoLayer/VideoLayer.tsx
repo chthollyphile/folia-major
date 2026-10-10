@@ -4,6 +4,7 @@ import { PlayerState } from '../../../types';
 import { currentTime } from '../../../stores/motionSignals';
 import { selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { ensureVideoLayerFileRestored, useVideoLayerSettingsStore } from '../../../stores/useVideoLayerSettingsStore';
+import { areVisualsPaused, subscribeVisualActivity } from '../../../utils/visualActivity';
 
 // src/components/visualizer/videoLayer/VideoLayer.tsx
 // Built-in muted video behind the lyrics (above the background, under the lyrics). The video follows
@@ -44,13 +45,14 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
         if (!active || !video) return;
 
         const align = () => {
+            if (areVisualsPaused()) return;
             if (!Number.isFinite(video.duration) || video.duration <= 0 || video.seeking) return;
             const target = currentTime.get() % video.duration;
             if (Math.abs(video.currentTime - target) > DRIFT_TOLERANCE_SEC) video.currentTime = target;
         };
         const followState = () => {
             const playing = selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING;
-            if (playing && !pausedRef.current) void video.play().catch(() => {});
+            if (playing && !pausedRef.current && !areVisualsPaused()) void video.play().catch(() => {});
             else video.pause();
         };
         const onMetadata = () => {
@@ -59,6 +61,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
         };
 
         video.addEventListener('loadedmetadata', onMetadata);
+        const unsubscribeActivity = subscribeVisualActivity(onMetadata);
         if (video.readyState >= HTMLMediaElement.HAVE_METADATA) onMetadata();
 
         const unsubscribeStore = usePlaybackStore.subscribe((state, previous) => {
@@ -75,6 +78,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
         return () => {
             window.clearInterval(drift);
             unsubscribeClock();
+            unsubscribeActivity();
             unsubscribeStore();
             video.removeEventListener('loadedmetadata', onMetadata);
             video.pause();
@@ -85,7 +89,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
     useEffect(() => {
         const video = videoRef.current;
         if (!active || !video) return;
-        if (paused) {
+        if (paused || areVisualsPaused()) {
             video.pause();
         } else if (selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING) {
             void video.play().catch(() => {});
