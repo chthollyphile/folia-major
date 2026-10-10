@@ -640,6 +640,21 @@ const RECOMMEND_PLAYLIST = {
         expect(song.artists).toEqual([{ id: 0, name: 'Beyond' }]);
     });
 
+    // 分类筛选的歌单要得有封面。实测 2026-10-11 抓 /getSongLists 真实响应，
+    // 封面在 `imgurl`（单数字串）——这个键不在原来的候选里，所以分类卡片整片只剩骨架。
+    it('reads the cover of a category song list, whose cover arrives under imgurl', () => {
+        expect(normalizeQqCollection({
+            dissid: 7707261125,
+            dissname: '甜度爆表 | 旋律说喛射击少女心',
+            imgurl: 'http://qpic.y.qq.com/music_cover/s4SoBc0IrDEDpHKlD',
+            listennum: 8553372,
+        })).toMatchObject({
+            id: 7707261125,
+            name: '甜度爆表 | 旋律说喛射击少女心',
+            coverUrl: expect.stringContaining('s4SoBc0IrDEDpHKlD'),
+        });
+    });
+
     // 缓存水合会把正规化结果再喂回来，mid 必须原样活下来。
     it('keeps album and artist mids across a normalize round trip', () => {
         const once = normalizeQqSong(SEARCH_ITEM);

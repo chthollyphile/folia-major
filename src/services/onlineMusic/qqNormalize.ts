@@ -314,8 +314,10 @@ export const normalizeQqCollection = (raw: unknown, type = 'playlist'): Provider
     // 这样的平铺字符串，而推荐歌单广场（`GetRecommendFeed`）给的是 `cover` 对象
     //（`{ big_url, medium_url, small_url, ... }`，其中 `mid` 是空串）。两种形状都要认，
     // 否则推荐歌单会整片没有封面。类型搜索（item_songlist）的封面键是 `logo`。
+    // 分类歌单（/getSongLists）又是另一套：实测 2026-10-11 抓真实响应，封面在
+    // `imgurl`（单数字符串）。上面的候选里没有它，所以分类筛出来的歌单整片没有封面。
     const cover = record(item.cover);
-    const coverUrl = normalizeQqCoverUrl(pick(item, 'bigpicUrl', 'picUrl', 'picurl', 'coverUrl', 'logo'))
+    const coverUrl = normalizeQqCoverUrl(pick(item, 'bigpicUrl', 'imgurl', 'picUrl', 'picurl', 'coverUrl', 'logo'))
         || normalizeQqCoverUrl(pick(cover, 'big_url', 'medium_url', 'default_url', 'small_url'));
     // 曲数同样是两套拼法：推荐广场给 `song_cnt`，用户歌单给 `songNum` / `songnum`。
     const trackCount = Number(pick(item, 'songNum', 'songnum', 'song_cnt', 'trackCount'));

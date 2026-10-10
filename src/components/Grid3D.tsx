@@ -437,6 +437,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [categoryPanelOpen, setCategoryPanelOpen] = useState(false);
     const [categorySongLists, setCategorySongLists] = useState<ProviderCollection[]>([]);
     const [loadingCategory, setLoadingCategory] = useState(false);
+    // 已经拉过的分类（provider:categoryId）：切 tab 回来时据此复用，不重拉、不闪骨架。
+    const categorySongListsScopeRef = useRef<string | null>(null);
 
     // 分类树：只在电台 tab 且该 provider 支持时拉（静态数据，不随选中变化）。
     // 失败要重试一次：上游偶发的出网抖动（实测见过 TLS socket 被断）会让这一趟空手而归，
@@ -472,6 +474,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         if (homeViewTab !== "radio") return;
         if (!categorySelected) {
             setCategorySongLists([]);
+            categorySongListsScopeRef.current = null;
+            return;
+        }
+        // 切到别的 tab 再回来时，这个分类的数据可能已经拉过了。直接复用：
+        // 不复用的话每次切走都清空、切回来重拉，用户看到的就是「闪一下骨架再出内容」，
+        // 而且白白多打一次请求。拉过就记住是哪个分类。
+        const scope = `${activeProviderId}:${categorySelected.itemId}`;
+        if (categorySongListsScopeRef.current === scope && categorySongLists.length > 0) {
+            setLoadingCategory(false);
             return;
         }
         let cancelled = false;
@@ -481,19 +492,25 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             .then(page => {
                 if (cancelled) return;
                 setCategorySongLists(page.items);
+                categorySongListsScopeRef.current = scope;
             })
             .catch(error => {
                 console.warn('[Grid3D] category song lists failed', error);
-                if (!cancelled) setCategorySongLists([]);
+                // 失败就不算拉过：记住的 scope 是上一个成功的分类，留着会让它挪到下一次
+                // 切回来时误以为「这个已经有数据」，实际给的是刚过失败的那个空。
+                if (!cancelled) {
+                    setCategorySongLists([]);
+                    categorySongListsScopeRef.current = null;
+                }
             })
             .finally(() => { if (!cancelled) setLoadingCategory(false); });
         return () => { cancelled = true; };
-    }, [homeViewTab, categorySelected, activeProviderId]);
+    }, [homeViewTab, categorySelected, activeProviderId, categorySongLists.length]);
 
     const isLoading =
         (homeViewTab === 'playlist' && canUseOnlinePlaylists && activeCollections.length === 0 && activeUser !== null) ||
         (homeViewTab === 'albums' && canUseOnlineAlbums && loadingAlbums) ||
-        (homeViewTab === 'radio' && canUseOnlineRadio && loadingRadio) ||
+        (homeViewTab === 'radio' && canUseOnlineRadio && (loadingRadio || loadingCategory)) ||
         (homeViewTab === 'discover' && canUseOnlineRadio && loadingDiscover);
 
     // Load favorite albums and recommendations
@@ -1326,10 +1343,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                                 aria-label={tab.disabledReason || tab.label}
                                                 onClick={() => {
                                                     setHomeViewTab(tab.key as any);
-                                                    // 分类筛选只属于广场 tab：离开就重置。否则用户去别的 tab
-                                                    // 干完事回来，看到的还是筛过的那一批，而界面上没有任何
-                                                    // 提示说「你现在只看到睡前」，只会以为推荐坏了。
-                                                    setCategorySelected(null);
+                                                    // 分类筛选跨 tab 保留：用户切到别的 tab 干完事回来，看到的还是
+                                                    // 自己筛的那一批。曾经切走就重置，用户反馈「点发现再回来就变回
+                                                    // 默认的了」——筛出来的结果不该因为路过别的 tab 就丢。
+                                                    // 「会不会不知道自己在看筛过的内容」不会：工具栏那颗分类按钮的
+                                                    // 文字就是当前分类名（categorySelected.itemLabel）并处于点亮态。
                                                     setCategoryPanelOpen(false);
                                                     focusActiveSlider();
                                                 }}
