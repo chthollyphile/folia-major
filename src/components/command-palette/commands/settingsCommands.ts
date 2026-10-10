@@ -675,5 +675,6 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createAppLanguageCommand('settings-language-system', 'system', 'Follow system language', 'Use the browser or system language', ['system language', 'follow system', 'auto language', '跟随系统', '系统语言']),
     createAppLanguageCommand('settings-language-zh-CN', 'zh-CN', 'Switch language to Chinese', 'Use Simplified Chinese in the interface', ['chinese', 'simplified chinese', '中文', '简体中文']),
     createAppLanguageCommand('settings-language-en', 'en', 'Switch language to English', 'Use English in the interface', ['english', 'interface english', '英文']),
+    createAppLanguageCommand('settings-language-vi', 'vi', 'Switch language to Vietnamese', 'Use Vietnamese in the interface', ['vietnamese', 'tiếng việt', 'vietnam', 'tieng viet']),
     createAppLanguageCommand('settings-language-in', 'in', 'Switch language to Indonesian', 'Use Bahasa Indonesia in the interface', ['indonesian', 'bahasa indonesia', 'indonesia', '印尼语', 'bhs'])
 ];

@@ -67,7 +67,8 @@
     "electronLanguages": [
       "en-US",
       "zh-CN",
-      "id"
+      "id",
+      "vi"
     ],
     "generateUpdatesFilesForAllChannels": true,
     "directories": {
@@ -178,7 +179,8 @@
       "installerLanguages": [
         "en_US",
         "zh_CN",
-        "id"
+        "id",
+        "vi"
       ],
       "include": "build/installer.nsh"
     },

@@ -802,6 +802,7 @@ export default {
       "settings-language-system": { "title": "Follow system language", "description": "Use the browser or system language" },
       "settings-language-zh-CN": { "title": "Switch language to Chinese", "description": "Use Simplified Chinese in the interface" },
       "settings-language-en": { "title": "Switch language to English", "description": "Use English in the interface" },
+      "settings-language-vi": { "title": "Switch language to Vietnamese", "description": "Use Vietnamese in the interface" },
       "settings-language-in": { "title": "Switch language to Indonesian", "description": "Use Bahasa Indonesia in the interface" }
     }
   },
@@ -1668,6 +1669,7 @@ export default {
     "appLanguageSystem": "Follow system",
     "appLanguageZhCN": "Simplified Chinese",
     "appLanguageEnUS": "English",
+    "appLanguageViVN": "Vietnamese",
     "appLanguageInID": "Indonesian",
     "appLanguageSystemHint": "Follow the browser or system language. Current: {{language}}",
     "playbackEntryView": "View opened by Play",

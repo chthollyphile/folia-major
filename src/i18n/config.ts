@@ -4,6 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.ts';
 import zhCN from './locales/zh-CN.ts';
 import ind from './locales/in.ts';
+import vi from './locales/vi.ts';
 import { resolveMissingTranslation } from './missingTranslation';
 
 /*
@@ -26,16 +27,20 @@ function flattenLocale(obj: Record<string, any>, prefix = ''): Record<string, st
 
 const ZH_FALLBACKS: Record<string, string> = flattenLocale(zhCN);
 
-export type AppLanguagePreference = 'system' | 'en' | 'zh-CN' | 'in';
+export type AppLanguagePreference = 'system' | 'en' | 'zh-CN' | 'in' | 'vi';
 export const APP_LANGUAGE_STORAGE_KEY = 'folia_app_language';
 
 const isSupportedManualLanguage = (value: string | null | undefined): value is Exclude<AppLanguagePreference, 'system'> => (
-  value === 'en' || value === 'zh-CN' || value === 'in'
+  value === 'en' || value === 'zh-CN' || value === 'in' || value === 'vi'
 );
 
 const normalizeSupportedLanguage = (value: string | null | undefined): Exclude<AppLanguagePreference, 'system'> => {
   if (!value) {
     return 'en';
+  }
+
+  if (value === 'vi' || value.toLowerCase().startsWith('vi')) {
+    return 'vi';
   }
 
   if (value === 'in' || value.toLowerCase().startsWith('id')) {
@@ -94,13 +99,16 @@ i18n
       },
       in: {
         translation: ind
+      },
+      vi: {
+        translation: vi
       }
     },
     fallbackLng: 'en',
     parseMissingKeyHandler: (key: string, defaultValue?: string): string => (
       resolveMissingTranslation(ZH_FALLBACKS, key, defaultValue)
     ),
-    supportedLngs: ['en', 'zh-CN', 'in'],
+    supportedLngs: ['en', 'zh-CN', 'in', 'vi'],
     ...(initialLanguagePreference !== 'system' ? { lng: initialLanguagePreference } : {}),
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
