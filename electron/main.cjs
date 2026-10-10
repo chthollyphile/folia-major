@@ -16,6 +16,7 @@ const {
   shouldShowRemoteUnlockTrayItem,
   applyRemoteControlMouseIgnore,
 } = require('./remoteControlWindowSettings.cjs');
+const { finalizeVideoExport } = require('./videoExportMp4.cjs');
 const wallpaperWatchdogModule = require('./wallpaperWatchdog.cjs');
 const { requestWallpaperEntryConfirmation } = require('./wallpaperEntryRequest.cjs');
 const windowsWallpaperModule = require('./windowsWallpaperController.cjs');
@@ -6532,7 +6533,7 @@ ipcMain.handle('video-export-write-file', async (event, filePath, data) => {
     throw new Error('Missing video export path.');
   }
 
-  await fsp.writeFile(filePath, Buffer.from(data));
+  await fsp.writeFile(filePath, finalizeVideoExport(Buffer.from(data)));
   return true;
 });
 
