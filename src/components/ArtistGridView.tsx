@@ -869,6 +869,15 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     // direct style manipulation using single centralized rAF loop
     const cardWrapperRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+    // 200ms 节流定时器：200ms 窗口内离开页面（点开歌单、返回）就会 fire 到已卸载组件上。
+    // GridMap.tsx 对同名 ref 有这段清理，ArtistGridView 一直没有。
+    useEffect(() => () => {
+        if (pendingTimeoutRef.current !== null) {
+            clearTimeout(pendingTimeoutRef.current);
+            pendingTimeoutRef.current = null;
+        }
+    }, []);
+
     useEffect(() => {
         let rafId: number | null = null;
 

@@ -117,6 +117,17 @@ const readNeteaseRetryAfterMs = (body: unknown, response: Response): number | un
   return Number.isSafeInteger(seconds * 1000) ? seconds * 1000 : undefined;
 };
 
+/**
+ * 传输层失败的哨兵：重试耗尽后 fetchWithCreds 返回 { code: -1, msg: 'network_error' }。
+ * 它**不是**业务响应——拿 `response?.playlist || []` 这种写法接它，会把「后端没连上」
+ * 读成「这个账号一首歌都没有」，上层据此清空并落盘一个看起来新鲜的快照。
+ * 所以读任何列表型接口前都要先过这一关。
+ */
+export const isNeteaseTransportFailure = (response: unknown): boolean => {
+  const code = (response as { code?: unknown } | null | undefined)?.code;
+  return code === -1 || code === '-1';
+};
+
 const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
   const base = await getApiBase();
   const url = `${base}${endpoint}`;

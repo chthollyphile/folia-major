@@ -12,10 +12,12 @@ export default function LatticeExtraControls({ disabled }: { disabled: boolean }
     const secondary = usePlayerChromeSettingsStore(state => state.playerControlSlotSecondary);
     const actions: PlayerControlSlotActionId[] = ['prev', primary, secondary, 'next'];
     return <div className="lattice-chrome-actions">
-        {actions.map((action, index) => {
+        {actions.map((action) => {
             const slot = resolvePlayerControlSlot(action, context);
             const Icon = slot.icon;
-            return <button key={index} type="button" data-action={action} className={slot.active ? 'is-active' : ''}
+            // key 用 action 而非 index：primary/secondary 是用户可配置的两个插槽，
+            // 换成别的功能时 index 不变，React 会把旧按钮的焦点态和 CSS transition 接着用。
+            return <button key={action} type="button" data-action={action} className={slot.active ? 'is-active' : ''}
                 disabled={disabled || slot.disabled} onClick={() => slot.onActivate()}
                 aria-label={t(slot.labelKey)} title={t(slot.labelKey)}
                 aria-pressed={action === 'loop' || action === 'like' ? slot.active : undefined}>

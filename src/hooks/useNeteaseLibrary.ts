@@ -45,7 +45,9 @@ const getAllUserPlaylists = async (userId: MediaId): Promise<ProviderCollection[
     const limit = 50;
     let hasMore = true;
 
-    while (hasMore) {
+    // offset 上限与 omni/useQqLibrary 的同类循环保持一致：上游某页持续报满页且 hasMore 时，
+    // 没有上限就是无限翻页。1000 条自建+收藏歌单远超任何真实账号。
+    while (hasMore && offset < 1000) {
         const page = await omni.getProviderUserPlaylists('netease', userId, { limit, offset });
         allPlaylists.push(...page.items);
         hasMore = page.hasMore && page.nextOffset > offset;

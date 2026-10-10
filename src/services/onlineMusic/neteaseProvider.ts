@@ -18,7 +18,7 @@ import { getPersonalFmRequestOptions } from '../../stores/usePersonalFmModeStore
 import { parseNeteaseChorusRanges, processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { toFiniteNumber } from '../../utils/replayGain';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
-import { isSongMarkedUnavailable, neteaseApi } from '../netease';
+import { isNeteaseTransportFailure, isSongMarkedUnavailable, neteaseApi } from '../netease';
 import { writeProviderSessionValue } from './providerStorage';
 import { collectNeteaseLoginDiagnostics } from './neteaseLoginDiagnostics';
 
@@ -135,6 +135,8 @@ const normalizeNeteaseComment = (raw: any, isHot = false): ProviderComment | nul
 const toHttpsCommentUrl = (url: string): string => url.replace(/^http:/, 'https:');
 
 const neteaseChorusRangesCache = new Map<string, Promise<Array<{ startTime: number; endTime: number }>>>();
+// 副歌范围缓存的容量上限：Map 无界的话，每听一首新歌就多一条，长会话里只增不减。
+const NETEASE_CHORUS_CACHE_LIMIT = 200;
 
 const getNeteaseChorusRanges = async (songId: MediaId): Promise<Array<{ startTime: number; endTime: number }>> => {
     const parsedId = toNeteaseId(songId);
@@ -144,9 +146,22 @@ const getNeteaseChorusRanges = async (songId: MediaId): Promise<Array<{ startTim
 
     if (typeof neteaseApi.getChorus !== 'function') return [];
 
+    // 在途请求也进 Map（并发同一首歌只发一次），但**失败的那份不留**：
+    // .then 用成功结果替换，.catch 直接 delete —— 否则一次网络抖动会让这首歌
+    // 本次会话再也拿不到副歌范围。
     const request = Promise.resolve(neteaseApi.getChorus(parsedId))
-        .then(parseNeteaseChorusRanges)
+        .then(ranges => {
+            const parsed = parseNeteaseChorusRanges(ranges);
+            // 有容量上限：每首歌一条，长期听歌会无界增长。
+            if (neteaseChorusRangesCache.size >= NETEASE_CHORUS_CACHE_LIMIT) {
+                const oldest = neteaseChorusRangesCache.keys().next();
+                if (!oldest.done) neteaseChorusRangesCache.delete(oldest.value);
+            }
+            neteaseChorusRangesCache.set(cacheKey, Promise.resolve(parsed));
+            return parsed;
+        })
         .catch(error => {
+            neteaseChorusRangesCache.delete(cacheKey);
             console.warn(`[NeteaseProvider] Failed to fetch chorus ranges for song ${songId}:`, error);
             return [];
         });
@@ -455,6 +470,11 @@ export const neteaseProvider: OnlineMusicProvider = {
     library: {
         async getUserPlaylists(userId, limit, offset) {
             const response = await neteaseApi.getUserPlaylists(toNeteaseId(userId), limit, offset);
+            // 传输层失败（重试耗尽）返回 { code: -1 }，不是「这个账号没有歌单」。
+            // 直接接成空数组会让上层清空本地歌单并把这个空列表当新鲜快照落盘，直到下次成功刷新。
+            if (isNeteaseTransportFailure(response)) {
+                throw new OnlineProviderError('unavailable', 'NetEase is unreachable; playlists were not read', 'netease');
+            }
             const items = (response?.playlist || []).map((item: any) => normalizeCollection(item));
             return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
         },
@@ -474,6 +494,10 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
         async getUserAlbums(_userId, limit, offset) {
             const response = await neteaseApi.getFavoriteAlbums(limit, offset);
+            if (isNeteaseTransportFailure(response)) {
+                throw new OnlineProviderError('unavailable', 'NetEase is unreachable; the list was not read', 'netease');
+            }
+
             const items = (response?.data || []).map((item: any) => normalizeCollection(item, 'album'));
             return { items, hasMore: Boolean(response?.hasMore), nextOffset: offset + items.length };
         },
@@ -495,11 +519,19 @@ export const neteaseProvider: OnlineMusicProvider = {
     catalog: {
         async getPlaylistTracks(id, limit, offset) {
             const response = await neteaseApi.getPlaylistTracks(toNeteaseId(id), limit, offset);
+            if (isNeteaseTransportFailure(response)) {
+                throw new OnlineProviderError('unavailable', 'NetEase is unreachable; the list was not read', 'netease');
+            }
+
             const items = (response?.songs || []).map(normalizeNeteaseSong);
             return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
         },
         async getCloudTracks(limit, offset) {
             const response = await neteaseApi.getUserCloud(limit, offset);
+            if (isNeteaseTransportFailure(response)) {
+                throw new OnlineProviderError('unavailable', 'NetEase is unreachable; the list was not read', 'netease');
+            }
+
             const items = (response?.songs || []).map((item: unknown) => {
                 const song = normalizeNeteaseSong(item);
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } } as UnifiedSong;

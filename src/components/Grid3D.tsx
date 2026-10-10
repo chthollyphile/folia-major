@@ -1159,7 +1159,11 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     setHeaderSuggestions(items);
                     setHeaderSuggestionIndex(-1);
                 })
-                .catch(() => setHeaderSuggestions([]));
+                .catch(() => {
+                    // 失败路径同样要过开关：.then 校验了 headerSuggestOpen，这里不校验的话，
+                    // 提交搜索/失焦后回来的空数组会把面板状态清成一帧空面板。
+                    if (headerSuggestOpen) setHeaderSuggestions([]);
+                });
         }, 250);
         return () => window.clearTimeout(timer);
     }, [activeProviderId, headerSuggestOpen, isOnlineTab, searchQuery]);

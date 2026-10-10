@@ -1161,9 +1161,13 @@ export const qqProvider: OnlineMusicProvider = {
             if (songIds.length === 0) {
                 throw new OnlineProviderError('unsupported', 'no track resolved to a numeric QQ song id', 'qq');
             }
-            await requestQq(operation === 'add' ? 'playlist_songs' : 'playlist_songs', {
+            // operation 必须显式传：后端 recommend 控制器是 `operation === 'del' ? del : add`，
+            // 缺省当成添加。曾经这里写成 `operation === 'add' ? 'playlist_songs' : 'playlist_songs'`
+            // （两个分支一样、字段也没给），删歌会被后端执行成加歌——用户侧是「删不掉、越删越多」。
+            await requestQq('playlist_songs', {
                 dirid: String(dirId),
                 songids: songIds.join(','),
+                operation: operation === 'add' ? 'add' : 'del',
             });
         },
         // 后端 AddPlaylist 的回包形状不稳定（不带 dirId），所以建完重拉自建歌单按名字认领；

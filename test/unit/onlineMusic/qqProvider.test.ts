@@ -1453,4 +1453,30 @@ const RECOMMEND_PLAYLIST = {
         expect(qqProvider.library?.getUserAlbums).toBeTypeOf('function');
         expect(qqProvider.getAvailability?.()).toEqual({ configured: true });
     });
+
+    // 删歌必须把 operation=del 传给后端。后端 recommend 控制器是
+    // `operation === 'del' ? del : add`——缺省就是加。这里曾经写成
+    // `operation === 'add' ? 'playlist_songs' : 'playlist_songs'`（两个分支一样），
+    // 用户删一首歌会被加回去，界面表现是「删不掉、越删越多」。
+    it('sends operation=add and operation=del to the QQ playlist write route', async () => {
+        requestMock.mockImplementation(async () => ({ code: 200 }));
+        const playlist = {
+            id: '202',
+            providerData: { owned: true, dirId: 202 },
+        } as never;
+
+        await qqProvider.mutations?.updatePlaylistTracks?.('add', playlist, [5105918]);
+        expect(requestMock).toHaveBeenLastCalledWith('playlist_songs', {
+            dirid: '202',
+            songids: '5105918',
+            operation: 'add',
+        });
+
+        await qqProvider.mutations?.updatePlaylistTracks?.('del', playlist, [5105918]);
+        expect(requestMock).toHaveBeenLastCalledWith('playlist_songs', {
+            dirid: '202',
+            songids: '5105918',
+            operation: 'del',
+        });
+    });
 });

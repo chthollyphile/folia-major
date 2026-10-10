@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Clock3, Loader2, Music, Search, User, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -130,6 +130,12 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const [activeSuggestion, setActiveSuggestion] = useState(-1);
     const [collections, setCollections] = useState<GridViewCollectionDescriptor[]>([]);
     const [history, setHistory] = useState<string[]>(() => readSearchHistory());
+    /** 失焦后关历史/联想的延迟句柄：Escape 或点 X 关掉工作台时组件会卸载，
+        没有句柄的话这个 120ms 定时器仍会 fire 到已卸载组件上。 */
+    const blurDismissTimerRef = useRef<number | null>(null);
+    useEffect(() => () => {
+        if (blurDismissTimerRef.current) window.clearTimeout(blurDismissTimerRef.current);
+    }, []);
     const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
     const isOnlineTab = searchSourceTab !== 'local' && searchSourceTab !== 'navidrome';
@@ -289,7 +295,15 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                         }
                                     }}
                                     onFocus={() => { setIsHistoryVisible(true); setSuggestionsVisible(true); }}
-                                    onBlur={() => window.setTimeout(() => { setIsHistoryVisible(false); setSuggestionsVisible(false); }, HISTORY_BLUR_DELAY_MS)}
+                                    onBlur={() => {
+                                        // 点别处先清掉上一个，别让连续 blur 叠出多个定时器。
+                                        if (blurDismissTimerRef.current) window.clearTimeout(blurDismissTimerRef.current);
+                                        blurDismissTimerRef.current = window.setTimeout(() => {
+                                            blurDismissTimerRef.current = null;
+                                            setIsHistoryVisible(false);
+                                            setSuggestionsVisible(false);
+                                        }, HISTORY_BLUR_DELAY_MS);
+                                    }}
                                     placeholder={t('search.placeholder')}
                                     className="w-full bg-transparent py-3.5 pl-11 pr-4 text-sm outline-none"
                                     autoFocus
@@ -445,6 +459,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                                 <div className="h-[clamp(18rem,52vh,34rem)]">
                                                     <SearchResultsList
                                                         tracks={songResults}
+                                                        scrollScope={searchQuery}
                                                         scrollTop={songListScrollTop}
                                                         onScrollTopChange={setSongListScrollTop}
                                                         isDaylight={isDaylight}
