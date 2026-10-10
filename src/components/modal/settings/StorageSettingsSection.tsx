@@ -357,6 +357,12 @@ const StorageSettingsSection: React.FC<StorageSettingsSectionProps> = ({
                                 className="w-full rounded-lg border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-white/25"
                                 style={{ color: 'var(--text-primary)' }}
                             />
+                            {/* 存哪儿要说清楚：这个 token 走浏览器 localStorage，没进 safeStorage。*/}
+                            {/* 迁存储要动 getSyncConfig 的同步读取契约，牵连设置面板一堆 state 初始化，*/}
+                            {/* 不是这一处能安全收尾的；先把性质告诉用户。*/}
+                            <p className="text-[11px] leading-relaxed opacity-55">
+                                {t('options.r2SyncTokenStorageNote')}
+                            </p>
                         </label>
                     </div>
 

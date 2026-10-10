@@ -3518,12 +3518,28 @@ async function openUpdateReleasePage(version) {
   return true;
 }
 
+// 白名单而非黑名单：渲染进程只要被注入过一次，就能借这个 IPC 拉起任意协议——
+// file:// 读本地、ms-settings: 改系统、自定义协议则取决于机器上装了什么。
+// 现有调用方（GitHub issue 页、发布页）全部是 http(s)，收紧不会破坏任何功能。
+const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+
 async function openExternalUrl(url) {
   if (typeof url !== 'string' || !url.trim()) {
     return false;
   }
 
-  await shell.openExternal(url.trim());
+  let parsed;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return false;
+  }
+  if (!OPEN_EXTERNAL_ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+    console.warn('[main] blocked openExternal for a non-http(s) protocol:', parsed.protocol);
+    return false;
+  }
+
+  await shell.openExternal(parsed.toString());
   return true;
 }
 
@@ -6158,12 +6174,25 @@ ipcMain.handle('get-netease-login-diagnostics', () => ({
 }));
 
 // Retrieve dynamic port of the embedded QQ API server; null until it is running.
-ipcMain.handle('get-qq-port', () => qqApiStatus.port);
+// 这三个通道是本地 HTTP 桥的入口：报出内嵌后端的监听端口、状态，以及把 renderer 给的
+// operation 直接透传给内嵌 API（写通道）。合法调用方只有主窗与远程控制窗两个第一方窗口，
+// 但 window.open 出来的窗口同样带着 preload，不设判据就能从那里读到端口并驱动 API。
+// 读通道回退成 null（主窗拿不到端口时 qqTransport 会报 unavailable），写通道直接拒绝。
+const isFirstPartyWindowContents = (event) => (
+  isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
+);
 
-ipcMain.handle('get-qq-api-status', () => qqApiStatus);
+ipcMain.handle('get-qq-port', (event) => (isFirstPartyWindowContents(event) ? qqApiStatus.port : null));
 
-ipcMain.handle('kugou-api-status', () => kugouApiBridge.getStatus());
-ipcMain.handle('kugou-api-request', (_event, operation, params) => kugouApiBridge.request(operation, params));
+ipcMain.handle('get-qq-api-status', (event) => (isFirstPartyWindowContents(event) ? qqApiStatus : null));
+
+ipcMain.handle('kugou-api-status', (event) => (isFirstPartyWindowContents(event) ? kugouApiBridge.getStatus() : null));
+ipcMain.handle('kugou-api-request', (event, operation, params) => {
+  if (!isFirstPartyWindowContents(event)) {
+    throw new Error('Untrusted renderer attempted to call the KuGou API bridge.');
+  }
+  return kugouApiBridge.request(operation, params);
+});
 
 ipcMain.handle('window-minimize', () => {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -6342,7 +6371,13 @@ ipcMain.handle('window-set-always-on-top', (event, enabled) => {
   return setMainWindowAlwaysOnTop(enabled);
 });
 
-ipcMain.handle('obs-browser-source-get-status', () => {
+ipcMain.handle('obs-browser-source-get-status', (event) => {
+  // 这个回包里带着明文 token 和完整 URL，是同组四个 handler 里唯一泄漏凭据的。
+  // 邻居（set-enabled / regenerate-token / publish-config）都校验了来源，这里漏了——
+  // 任何拿到 preload 的表面（远程控制窗、被 window.open 出来的窗口）都能读到它。
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read OBS browser source status.');
+  }
   return buildObsBrowserSourceStatus();
 });
 

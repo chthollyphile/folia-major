@@ -1481,6 +1481,7 @@ export default {
     "r2SyncDeployDocs": "Deployment guide",
     "r2SyncWorkerUrl": "Sync Server URL",
     "r2SyncToken": "Bearer Token",
+    "r2SyncTokenStorageNote": "The token is stored in this machine's browser storage, unencrypted: other processes on this machine can read it.",
     "r2SyncTokenPlaceholder": "Worker SYNC_TOKEN",
     "r2SyncSave": "Save",
     "r2SyncTest": "Test",

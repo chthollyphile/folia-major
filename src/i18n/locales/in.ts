@@ -1473,6 +1473,7 @@ export default {
     "r2SyncDeployDocs": "Panduan penerapan",
     "r2SyncWorkerUrl": "URL Server Sinkronisasi",
     "r2SyncToken": "Token Bearer",
+    "r2SyncTokenStorageNote": "Token hanya disimpan di penyimpanan browser mesin ini, tidak dienkripsi: proses lain di mesin ini bisa membacanya.",
     "r2SyncTokenPlaceholder": "SYNC_TOKEN Worker",
     "r2SyncSave": "Simpan",
     "r2SyncTest": "Uji",

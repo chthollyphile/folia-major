@@ -1480,6 +1480,7 @@ export default {
     "r2SyncDeployDocs": "部署文档",
     "r2SyncWorkerUrl": "Sync Server 地址",
     "r2SyncToken": "Bearer Token",
+    "r2SyncTokenStorageNote": "token 只存在本机浏览器存储，未加密：同机其他进程可读。",
     "r2SyncTokenPlaceholder": "Worker 中的 SYNC_TOKEN",
     "r2SyncSave": "保存",
     "r2SyncTest": "测试",
