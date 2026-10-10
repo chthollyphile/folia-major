@@ -132,7 +132,21 @@ describe('signed digest and message (shared vector)', () => {
         expect(crypto.sign(null, buildSignedMessage(VECTOR_FIELDS), privateKey).toString('base64')).toBe(VECTOR_SIGNATURE);
     });
 
-    it('refuses trees that cannot hash the same on every machine', () => {
+    // Windows 非管理员/未开开发者模式时没有创建 symlink 的权限（EPERM），前提不成立：
+    // 建不出链接就无从断言「含链接的树不可哈希」，只能跳过而不是假装通过。
+    // 建链接需要 symlink 权限：Windows 未提权/未开开发者模式时 symlinkSync 会 EPERM，
+    // 前提不成立就只能跳过，不能当成通过。
+    const lacksSymlinkPrivilege = () => {
+        try {
+            const probe = path.join(os.tmpdir(), `folia-symlink-probe-${process.pid}`);
+            fs.symlinkSync('probe-target.mjs', probe);
+            fs.rmSync(probe, { force: true });
+            return false;
+        } catch {
+            return true;
+        }
+    };
+    it.skipIf(lacksSymlinkPrivilege())('refuses trees that cannot hash the same on every machine', () => {
         const dir = writeVectorTree();
         fs.symlinkSync('client.mjs', path.join(dir, 'link.mjs'));
         expect(computeSignedDigest(dir)).toBeNull();

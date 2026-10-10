@@ -31,6 +31,11 @@ const legacyRecord = {
     source: 'manual' as const,
 };
 
+// 每个用例一次 resetModules() + 动态 import，一次重建整棵模块图实测约 850ms（vitest 默认 5s 超时）。
+// 全量并发跑时 CPU 争抢会把它放大到 4 秒以上——这就是它在全量里偶发 timeout、单跑必过的原因。
+// 这里的 resetModules 语义上删不得：被测模块用 legacyMigrationPromise 缓存迁移结果，
+// 三个用例（成功迁移 / 跳过较新记录 / 写失败保留）必须各自拿到干净的模块状态。
+// 所以对策是把超时提到匹配真实成本，而不是把必要的重建删掉。
 describe('themeSyncRegistry migration', () => {
     const getEntriesMock = vi.mocked(getThemeRegistryEntries);
     const upsertEntriesMock = vi.mocked(upsertThemeRegistryEntries);
