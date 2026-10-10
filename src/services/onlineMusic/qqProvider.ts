@@ -500,10 +500,16 @@ const getPlaylistTracks = async (
         .slice(offset, offset + Math.max(0, limit))
         .map(normalizeQqSong);
     const nextOffset = offset + items.length;
+    // total 不能直接用上游的 total_song_num：匿名这条路由实测会把歌单截断（实测一张
+    // 100 首的收藏歌单只回 37 首，total 也跟着变成 37）。若原样透传，卡片会写上
+    // 「共 100 首」，而 hasMore 按实到的 37 首算 —— 用户点到底也翻不出剩下的，
+    // 只会以为应用坏了。所以对不齐时以「真的拿得到」为准。
+    const reachableTotal = tracks.length;
+    const reportedTotal = total === undefined ? undefined : Math.min(total, reachableTotal);
     return {
         items,
-        ...(total === undefined ? {} : { total }),
-        hasMore: nextOffset < tracks.length,
+        ...(reportedTotal === undefined ? {} : { total: reportedTotal }),
+        hasMore: nextOffset < reachableTotal,
         nextOffset,
     };
 };

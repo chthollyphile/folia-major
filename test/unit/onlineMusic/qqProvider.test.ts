@@ -661,6 +661,21 @@ const RECOMMEND_PLAYLIST = {
         expect(page?.items.map((item: { id: unknown }) => item.id)).toEqual([111]);
     });
 
+    // 播放量：ProviderCollection 本来就有 playCount，网易云一直映射，
+    // 只是 QQ 一直缺失。实测上游字段是 listennum（原始次数，不是「万」）。
+    it('reads the play count of a category song list from listennum', () => {
+        expect(normalizeQqCollection({
+            dissid: 7707261125,
+            dissname: '甜度爆表',
+            listennum: 8553372,
+        })).toMatchObject({ playCount: 8553372 });
+    });
+
+    it('leaves playCount absent when the upstream payload has no listen count', () => {
+        expect(normalizeQqCollection({ dissid: 1, dissname: '无播放量' }))
+            .not.toHaveProperty('playCount');
+    });
+
     // 分类筛选的歌单要得有封面。实测 2026-10-11 抓 /getSongLists 真实响应，
     // 封面在 `imgurl`（单数字串）——这个键不在原来的候选里，所以分类卡片整片只剩骨架。
     it('reads the cover of a category song list, whose cover arrives under imgurl', () => {
@@ -1010,6 +1025,29 @@ const RECOMMEND_PLAYLIST = {
             ['user_liked_songs', { offset: 0, limit: 100 }],
             ['user_liked_songs', { offset: 0, limit: 50 }],
         ]);
+    });
+
+    // 匿名这条路由会把歌单截断：上游 total_song_num 说 100 首，disssonglist 只给 2 首。
+    // 若原样透传 total，卡片会写上「共 100 首」而「加载更多」点到底也翻不出来——
+    // 用户只会觉得应用坏了。对不齐时以「真的拿得到」为准。
+    it('never reports more songs than the anonymous route can actually return', async () => {
+        requestMock.mockResolvedValueOnce({
+            response: {
+                cdlist: [{
+                    disstid: '7',
+                    dissname: '被截断的歌单',
+                    songnum: 100,
+                    total_song_num: 100,
+                    songlist: [SEARCH_ITEM],
+                }],
+            },
+        });
+
+        const page = await qqProvider.catalog!.getPlaylistTracks!(7, 50, 0);
+
+        expect(page.total).toBe(1);
+        expect(page.hasMore).toBe(false);
+        expect(page.nextOffset).toBe(1);
     });
 
     // 「歌单读不到」和「歌单是空的」必须分开，判据是 `dissname` 在不在。

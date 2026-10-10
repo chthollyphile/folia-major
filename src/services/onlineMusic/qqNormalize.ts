@@ -321,6 +321,9 @@ export const normalizeQqCollection = (raw: unknown, type = 'playlist'): Provider
         || normalizeQqCoverUrl(pick(cover, 'big_url', 'medium_url', 'default_url', 'small_url'));
     // 曲数同样是两套拼法：推荐广场给 `song_cnt`，用户歌单给 `songNum` / `songnum`。
     const trackCount = Number(pick(item, 'songNum', 'songnum', 'song_cnt', 'trackCount'));
+    // 播放量（实测 2026-10-11 抓 /getSongLists：原始次数，量级正常—800万、5000万——不需要换算）。
+    // ProviderCollection 本来就有 playCount，网易云那侧也映射了，只是 QQ 一直缺失。
+    const playCount = Number(pick(item, 'listennum', 'listennum_c', 'playCount'));
 
     return {
         providerId: 'qq',
@@ -329,6 +332,7 @@ export const normalizeQqCollection = (raw: unknown, type = 'playlist'): Provider
         type: text(item.type) || type,
         ...(coverUrl ? { coverUrl } : {}),
         ...(Number.isFinite(trackCount) && trackCount >= 0 ? { trackCount } : {}),
+        ...(Number.isFinite(playCount) && playCount >= 0 ? { playCount } : {}),
         providerData: jsonData([
             ['tid', tid],
             ['dirId', dirId],
