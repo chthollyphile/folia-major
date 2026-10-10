@@ -45,6 +45,7 @@ import {
 import PlaylistSelectionDialog from './shared/PlaylistSelectionDialog';
 import TextInputDialog from './shared/TextInputDialog';
 import ConfirmDialog from './shared/ConfirmDialog';
+import { PERSONAL_FM_CARD_ID } from './app/home/buildDiscoverSections';
 import { SidePanelList, TrackListItem } from './shared/SidePanelList';
 import { GridListSearchButton } from './shared/GridListSearchButton';
 import { LocalTrackSortDirectionButton, LocalTrackSortMenu } from './shared/LocalTrackSortMenu';
@@ -831,7 +832,7 @@ export const GridView: React.FC<GridViewProps> = ({
                 let hasMoreSync = false;
                 let totalTracksSync: number | undefined;
 
-                if (collection.type === 'radio' && collection.id === 'personal_fm') {
+                if (collection.type === 'radio' && collection.id === PERSONAL_FM_CARD_ID) {
                     responseTracks = await omni.getPersonalFm();
                 } else if (isDailyRecommendationsCollection) {
                     responseTracks = await omni.getDailySongs();

@@ -24,7 +24,7 @@ import { useHomeCardPositionStore } from '../stores/useHomeCardPositionStore';
 import { CategoryFilterButton, CategoryFilterPanel, type CategorySelection } from './folia-grid/CategoryFilterPanel';
 import type { ProviderSongListCategoryGroup } from '../types/onlineMusic';
 import { getPersonalFmSelectionLabel } from '../services/onlineMusic/fmModes';
-import { buildDiscoverSections, buildDiscoverSongCardId, dedupeDiscoverSongs, type DiscoverSection } from './app/home/buildDiscoverSections';
+import { buildDiscoverSections, buildDiscoverSongCardId, dedupeDiscoverSongs, PERSONAL_FM_CARD_ID, type DiscoverSection } from './app/home/buildDiscoverSections';
 import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
 import { useRecentPlaysStore } from '../stores/useRecentPlaysStore';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
@@ -682,7 +682,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         try {
             // 电台页要的是「大家都在听的」那一半；发现页要的是「给你的」那一半（见 fetchDiscoverItems）。
             const { personalFm: fmSongs, dailySongs, recommendedCollections } = await omni.getHomeFeed(RADIO_PAGE_SIZE, { scope: 'editorial', from });
-            const fmCoverUrl = getSongCoverUrl(fmSongs[0], activeProviderId);
 
 
             const dailyItem = {
@@ -738,7 +737,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // FM 卡的 type/id 是有契约的：GridView 认 `type === 'radio' && id === 'personal_fm'` 才切 FM 模式。
     // 猜你喜欢聚合的拉取次数与目标首数。5 首不够「扫」，20 首差不多是一屏列表的量。
     const DISCOVER_FM_CALLS = 4;
-    const DISCOVER_FM_TARGET = 20;
 
     // 上次的发现页/广场内容缓存（同 provider 隔离，24h 过期，localStorage 跨会话保留）。
     // 首次进入先渲染缓存再后台刷新（stale-while-revalidate）：重启应用后第一次点开也是秒开，
@@ -1099,7 +1097,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             onPlaySong(card.raw.song, card.raw.queue, card.raw.isFmCall);
             return;
         }
-        if (card.id === 'personal_fm' || card.raw?.id === 'personal_fm') {
+        if (card.id === PERSONAL_FM_CARD_ID || card.raw?.id === PERSONAL_FM_CARD_ID) {
             try {
                 const fmSongs = await omni.getPersonalFm();
                 if (fmSongs.length > 0) {

@@ -111,8 +111,11 @@ export const resolveGrid3DWheelInput = (
 /**
  * Serializes item IDs safely to prevent collision when IDs contain commas (e.g. folder paths).
  */
-export const getGrid3DItemsSignature = (items: { id: string | number }[]): string =>
-    JSON.stringify(items.map(item => String(item.id)));
+// 签名不能只看 id：「换一批」后新批次若在同一位置出现了相同的 id，
+// 仅比 id 序列会判定「没变」，布局就走 smooth 而不是跳变，用户体感是「换了但卡片没换位置」。
+// 带上封面后内容变了也算变。
+export const getGrid3DItemsSignature = (items: { id: string | number; name?: unknown; coverUrl?: unknown }[]): string =>
+    JSON.stringify(items.map(item => `${String(item.id)}|${String(item.name ?? '')}|${String(item.coverUrl ?? '')}`));
 
 /**
  * Calculates clamped target scrollLeft to center the card at the given index.

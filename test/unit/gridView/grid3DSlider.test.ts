@@ -140,7 +140,7 @@ describe('resolveGrid3DWheelInput', () => {
 describe('getGrid3DItemsSignature', () => {
     it('serializes item IDs safely', () => {
         const items = [{ id: 'album-1' }, { id: 'album-2' }];
-        expect(getGrid3DItemsSignature(items)).toBe('["album-1","album-2"]');
+        expect(getGrid3DItemsSignature(items)).toBe('["album-1||","album-2||"]');
     });
 
     it('prevents collision when IDs contain commas', () => {
@@ -150,6 +150,22 @@ describe('getGrid3DItemsSignature', () => {
         expect(getGrid3DItemsSignature(singleItemWithComma)).not.toBe(
             getGrid3DItemsSignature(twoItemsSplit),
         );
+    });
+
+    // 只比 id 序列会漏判「换了内容但 id 没变」：换一批后新批次在同一位置出现相同 id 时，
+    // 布局会走 smooth 过渡而不是跳变，用户体感是「换了但卡片没换位置」。
+    it('treats same IDs with different content as a changed list', () => {
+        const before = [{ id: 'a', name: '旧歌名', coverUrl: 'old.jpg' }];
+        const after = [{ id: 'a', name: '新歌名', coverUrl: 'new.jpg' }];
+
+        expect(getGrid3DItemsSignature(after)).not.toBe(getGrid3DItemsSignature(before));
+    });
+
+    it('treats a changed cover alone as a changed list', () => {
+        const before = [{ id: 'a', name: '同名', coverUrl: 'old.jpg' }];
+        const after = [{ id: 'a', name: '同名', coverUrl: 'new.jpg' }];
+
+        expect(getGrid3DItemsSignature(after)).not.toBe(getGrid3DItemsSignature(before));
     });
 });
 
