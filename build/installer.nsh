@@ -1,6 +1,7 @@
 LangString foliaUserDataPrompt 1033 "Delete user data?"
 LangString foliaUserDataPrompt 2052 "是否删除用户数据？"
 LangString foliaUserDataPrompt 1057 "Hapus data pengguna?"
+LangString foliaUserDataPrompt 1066 "Xóa dữ liệu người dùng?"
 
 !macro customUnInstall
   ; Electron always uses per-user app data, so look under the current user's

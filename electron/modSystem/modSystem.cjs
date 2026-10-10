@@ -141,6 +141,28 @@ const TRUST_DIALOG_LOCALE = {
         enable: 'Tetap aktifkan',
         cancel: 'Batal',
     },
+    vi: {
+        title: 'Bật mod',
+        message: (name, id) => `Bật mod "${name}" (${id})?`,
+        risk: 'Mod là mã nguồn từ bên thứ ba và chưa được kiểm tra an toàn chính thức. Khi được bật, mod sẽ chạy với toàn bộ quyền của ứng dụng: có thể đọc/ghi tệp cục bộ, truy cập mạng, đọc hoặc sửa đổi bất kỳ cài đặt nào (bao gồm URL và API key dịch vụ AI), và thực thi mã trong giao diện. Chỉ bật mod từ các nguồn bạn tin cậy.',
+        permissions: 'Quyền hạn đã khai báo: ',
+        noPermissions: 'Quyền hạn đã khai báo: không có',
+        location: 'Vị trí cài đặt: ',
+        fingerprint: 'Mã băm nội dung: ',
+        client: 'Mã giao diện: ',
+        noClient: 'Mã giao diện: không có',
+        experimental: 'API thử nghiệm sử dụng: ',
+        embedOrigins: 'Trang web bên ngoài được nhúng: ',
+        internals: 'Dùng API nội bộ; chỉ tương thích với phiên bản: ',
+        verifiedRisk: 'Mod này có chữ ký chính thức hợp lệ từ Folium: nguồn và nội dung đã được Folium xem xét và không bị thay đổi kể từ khi ký. Sau khi bật, mod vẫn chạy với toàn bộ quyền của ứng dụng: có thể đọc/ghi tệp cục bộ, truy cập mạng, đọc hoặc sửa đổi cài đặt ứng dụng và chạy mã trong giao diện.',
+        signatureVerified: (key) => `Chữ ký: Chứng nhận chính thức (${key})`,
+        signatureUnsigned: 'Chữ ký: Không có (mod bên thứ ba chưa được Folium xem xét)',
+        signatureInvalid: (reason) => `Chữ ký: Không khớp (${reason}). Nội dung mod đã bị thay đổi sau khi ký hoặc chữ ký không hợp lệ; đây không còn là mod được chứng nhận chính thức.`,
+        rebind: 'Xác nhận này chỉ có hiệu lực với nội dung tệp hiện tại; cần xác nhận lại nếu mã nguồn của mod thay đổi.',
+        devSource: 'Chế độ phát triển: Mod này nằm trong thư mục mods/ của mã nguồn, việc sửa đổi tệp sau xác nhận này sẽ không hủy bỏ xác nhận. Bản cài đặt và thư mục mod người dùng không được miễn trừ này.',
+        enable: 'Vẫn bật',
+        cancel: 'Hủy',
+    },
 };
 
 const IPC = {

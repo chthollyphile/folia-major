@@ -6,6 +6,7 @@ import { assertExecuteShortcutsArePrefixFree } from '../../../src/components/com
 import en from '../../../src/i18n/locales/en';
 import zhCN from '../../../src/i18n/locales/zh-CN';
 import id from '../../../src/i18n/locales/in';
+import vi from '../../../src/i18n/locales/vi';
 import { buildSuiteChromeCommands } from '../../../src/components/command-palette/commands/suiteChromeCommands';
 import { listLibrarySuites } from '../../../src/library/registry';
 import { findKeywordOffenders, findUntranslatedCommands, listStaticCommands } from './commandContractChecks';
@@ -18,7 +19,7 @@ import { findKeywordOffenders, findUntranslatedCommands, listStaticCommands } fr
 // them itself from the registry. No shipped suite declares any yet; the same checks run over a fixture
 // suite in suiteChromeCommands.test.ts.
 
-const LOCALES = { en, 'zh-CN': zhCN, in: id } as const;
+const LOCALES = { en, 'zh-CN': zhCN, in: id, vi } as const;
 
 // The chrome commands every available suite declares, built the way the app installs them
 // (library/app/installLibrarySuiteChromeCommands), checked alongside the static list.

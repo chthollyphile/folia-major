@@ -180,6 +180,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-language-system",
   "settings-language-zh-CN",
   "settings-language-en",
+  "settings-language-vi",
   "settings-language-in",
   "lattice-focus-current",
   "navigate-home",

@@ -800,6 +800,7 @@ export default {
       "settings-language-system": { "title": "Ikuti bahasa sistem", "description": "Gunakan bahasa browser atau sistem" },
       "settings-language-zh-CN": { "title": "Ganti bahasa ke Tionghoa", "description": "Gunakan Bahasa Tionghoa Sederhana di antarmuka" },
       "settings-language-en": { "title": "Ganti bahasa ke Inggris", "description": "Gunakan Bahasa Inggris di antarmuka" },
+      "settings-language-vi": { "title": "Ganti bahasa ke Vietnam", "description": "Gunakan Bahasa Vietnam di antarmuka" },
       "settings-language-in": { "title": "Ganti bahasa ke Indonesia", "description": "Gunakan Bahasa Indonesia di antarmuka" }
     }
   },
@@ -1661,6 +1662,7 @@ export default {
     "appLanguageSystem": "Ikuti sistem",
     "appLanguageZhCN": "Tionghoa Sederhana",
     "appLanguageEnUS": "Inggris",
+    "appLanguageViVN": "Vietnam",
     "appLanguageInID": "Indonesia",
     "appLanguageSystemHint": "Ikuti bahasa browser atau sistem. Saat ini: {{language}}",
     "playbackEntryView": "Tampilan yang dibuka Putar",
