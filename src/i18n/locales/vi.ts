@@ -3,9 +3,9 @@
 
 export default {
   "libraryBravais": {
-    "suiteName": "Tường Bravais",
+    "suiteName": "Tường album Bravais",
     "homeTitle": "Thư viện",
-    "wallLabel": "Tường thư viện",
+    "wallLabel": "Tường album thư viện",
     "seamLabel": "Thanh thông tin",
     "emptyCollection": "Chưa có gì ở đây",
     "trackCount_one": "{{count}} bài hát",
@@ -26,11 +26,11 @@ export default {
     "seamFold": "Gập",
     "seamExpand": "Mở rộng",
     "seamRestore": "Mở rộng thanh thông tin",
-    "seamReopenHere": "Tách tại đây",
-    "crumbMore": "Hiện mọi cấp",
+    "seamReopenHere": "Mở thanh thông tin tại đây",
+    "crumbMore": "Hiện toàn bộ đường dẫn",
     "crumbSearch": "Tìm kiếm",
     "crumbPlayer": "Đang phát",
-    "tools": "Công cụ tường",
+    "tools": "Công cụ thư viện",
     "toolsLocate": "Định vị bài đang phát",
     "toolsLocateShort": "Định vị",
     "toolsShuffle": "Xáo trộn hàng đợi",
@@ -46,13 +46,13 @@ export default {
     "toolsMute": "Tắt tiếng",
     "toolsUnmute": "Bật tiếng",
     "toolsMuted": "Đã tắt tiếng",
-    "toolsAppearance": "Giao diện tường",
-    "helpMove": "Di chuyển tiêu điểm (tường hoặc thanh thông tin)",
+    "toolsAppearance": "Giao diện tường album",
+    "helpMove": "Di chuyển tiêu điểm (tường album hoặc thanh thông tin)",
     "helpOpen": "Mở thẻ bài hát hoặc bộ sưu tập",
     "helpPlay": "Phát bài hát trong thẻ đang mở",
     "helpEnqueue": "Thêm bài hát được chọn vào hàng đợi",
     "helpBack": "Quay lại một cấp",
-    "helpSeam": "Chuyển giữa tường và thanh thông tin",
+    "helpSeam": "Chuyển giữa tường album và thanh thông tin",
     "helpTabs": "Chuyển thẻ trang chủ",
     "helpLocate": "Định vị bài đang phát",
     "helpShuffle": "Xáo trộn hàng đợi phát",
@@ -81,7 +81,7 @@ export default {
     "manageDone": "Xong",
     "search": "Tìm kiếm",
     "searchPlaceholder": "Tìm kiếm trực tuyến",
-    "searchHint": "Tìm bài hát, nghệ sĩ và album trực tuyến; kết quả mở ở trang tìm kiếm và không thu hẹp tường này.",
+    "searchHint": "Tìm bài hát, nghệ sĩ và album trực tuyến; kết quả mở ở trang tìm kiếm và không thu hẹp giao diện này.",
     "searchOnline": "Tìm kiếm trực tuyến",
     "searchSubmit": "Tìm kiếm",
     "searchClose": "Đóng tìm kiếm",
@@ -919,27 +919,27 @@ export default {
       },
       "bravais-list": {
         "title": "Mở danh sách bài hát",
-        "description": "Mở rộng khe trên tường thư viện thành danh sách bài hát của tuyển tập này"
+        "description": "Mở rộng thanh thông tin thành danh sách bài hát của tuyển tập này"
       },
       "bravais-directory": {
         "title": "Mở thư mục",
-        "description": "Mở rộng khe trang chủ thư viện thành cây thư mục để chọn hàng loạt"
+        "description": "Mở rộng thanh thông tin thành cây thư mục để chọn hàng loạt"
       },
       "bravais-seam-full": {
         "title": "Mở rộng thanh thông tin",
-        "description": "Mở rộng hoàn toàn khe trên tường thư viện thành thanh thông tin"
+        "description": "Mở rộng hoàn toàn thanh thông tin trên tường album"
       },
       "bravais-seam-spine": {
         "title": "Thu gọn thanh thông tin",
-        "description": "Thu hẹp khe trên tường thư viện thành dạng gáy sách"
+        "description": "Thu gọn thanh thông tin thành dạng gáy sách mỏng"
       },
       "bravais-seam-hide": {
-        "title": "Gấp thanh thông tin",
-        "description": "Khép khe lại và chỉ chừa một thẻ ở cạnh màn hình"
+        "title": "Gập thanh thông tin",
+        "description": "Gập thanh thông tin và chỉ giữ lại một thẻ ở cạnh màn hình"
       },
       "bravais-seam-here": {
-        "title": "Tách khe tại đây",
-        "description": "Tạo đường ghép mới trong khung nhìn sau khi đường cũ trượt khỏi màn hình"
+        "title": "Mở thanh thông tin tại đây",
+        "description": "Mở lại thanh thông tin trong khung nhìn hiện tại sau khi thanh cũ trượt khỏi màn hình"
       },
       "bravais-locate-playing": {
         "title": "Định vị bài đang phát",
@@ -4302,7 +4302,7 @@ export default {
     "bravais": {
       "title": "Bravais",
       "tag": "Vô tận",
-      "description": "Bức tường ô gạch vô tận để kéo duyệt. Nội dung lật mở trên tường, thông tin và thao tác nằm ở khe giữa."
+      "description": "Không gian tường album vô tận để kéo duyệt. Nội dung lật mở trực quan trên tường, thông tin chi tiết và thao tác được gom gọn trong thanh thông tin ở giữa."
     }
   },
   "userGuide": {
@@ -5183,7 +5183,7 @@ export default {
     },
     "captions": {
       "bravaisSeam": {
-        "levelsIntro": "Thanh thông tin là khe hở mở ra ở giữa tường. Tiêu đề, mô tả và thao tác của cấp này đều nằm ở đây. Nó có ba độ rộng: đầy đủ, gáy sách và thu gọn.",
+        "levelsIntro": "Thanh thông tin mở ra dọc theo giữa tường album. Tiêu đề, mô tả và các thao tác của cấp này đều nằm ở đây. Thanh có ba mức hiển thị: đầy đủ, gáy sách và gập gọn.",
         "levelsSpine": "Nhấp vùng tiêu đề (dấu ngoặc kép cùng tiêu đề dọc lớn) để thu vào gáy sách hẹp; tường hai bên sẽ khép lại. Nhấp tiêu đề dọc trên gáy sách để mở rộng lại.",
         "levelsFold": "Để ẩn hẳn, chọn mục cuối trong “⋯ Thêm”: “Thu gọn thanh thông tin”. Biểu tượng trên đỉnh gáy sách có hai mũi tên hướng vào giữa cũng có chức năng thu gọn.",
         "levelsHidden": "Khi đã thu gọn, tường khép lại liền mạch và chỉ còn một thẻ dọc mang tiêu đề cấp này ở cạnh bên. Nhấp vào để trở lại độ rộng trước đó.",
@@ -5192,7 +5192,7 @@ export default {
         "collectionAbout": "Dưới tiêu đề lớn là mô tả của cấp này: giới thiệu danh sách hoặc ghi chú album. Trên trang nghệ sĩ có ảnh, tên và tiểu sử, trình bày như bìa gấp sách. Đoạn văn dài sẽ bị cắt bớt; nhấp để mở rộng.",
         "collectionActions": "Phát tất cả, thêm vào hàng đợi, và biểu tượng sao ở cuối hàng để yêu thích (chỉ với bộ sưu tập hỗ trợ yêu thích). Trên trang nghệ sĩ, hai mục này tác động lên bài hát nổi bật.",
         "collectionList": "“Danh sách” mở rộng thanh thành danh sách bài hát, và thanh điều hướng thêm cấp “Danh sách”. Rê chuột vào một hàng để làm sáng mọi bản sao của bài hát đó trên tường; nhấp để chuyển tới, nhấp đúp để phát. Quay lại sẽ đóng danh sách trước.",
-        "homeTabs": "Tại trang chủ, thanh thông tin là một khe hẹp: “Thư viện” cùng nút thu gọn ở trên cùng, bên dưới là các thẻ dọc: Danh sách phát, Radio, Album, Cục bộ, Navidrome.",
+        "homeTabs": "Tại trang chủ, thanh thông tin là một dải hẹp: “Thư viện” cùng nút thu gọn ở trên cùng, bên dưới là các thẻ dọc: Danh sách phát, Radio, Album, Cục bộ, Navidrome.",
         "homeFlip": "Chuyển thẻ sẽ lật toàn bộ thanh thông tin và đổi toàn bộ tường sang thẻ đó. Trên bàn phím, dùng F6 / Shift + F6 để chuyển qua lại giữa các thẻ.",
         "homeSections": "Mục Cục bộ và Navidrome có thêm một cột phân mục (thư mục, album, nghệ sĩ, danh sách phát…). Chỉ mục được chọn mới hiện tên; các mục còn lại là biểu tượng, rê chuột để xem tên đầy đủ. Chuyển đổi sẽ đổi nội dung tường mà không mở cấp mới.",
         "homeShortcuts": "Các chữ dọc nhỏ bên dưới là lối tắt: Bài hát yêu thích, FM cá nhân, Tất cả bài hát… Nhấp vào tương tự như nhấp thẻ trên tường; FM cá nhân sẽ phát ngay lập tức. Khi hết chỗ, chúng được chuyển vào “⋯”.",
