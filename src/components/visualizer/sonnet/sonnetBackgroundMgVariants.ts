@@ -288,9 +288,15 @@ const drawArcGauge = (context: FrameContext) => {
         [hw - marginX, hh - marginY, Math.PI, Math.PI * 1.5],
         [-hw + marginX, hh - marginY, Math.PI * 1.5, Math.PI * 2],
     ] as const;
+    // An arc continues the current path, so each one first moves to its own start point; without it
+    // Pixi joins it to the previous shape's last point (a stray connector) and, while the arc has not
+    // drawn in yet, strokes the previous fill's path in its place.
+    const arcFrom = (cx: number, cy: number, r: number, start: number, end: number) => target
+        .moveTo(cx + Math.cos(start) * r, cy + Math.sin(start) * r)
+        .arc(cx, cy, r, start, end);
     corners.forEach(([cx, cy, start, end], index) => {
-        target.arc(cx, cy, arcR, start, end).stroke({ color: primary, width: 2, alpha: 0.5 });
-        target.arc(cx, cy, arcR * 0.72, start, end).stroke({ color: primary, width: 1, alpha: 0.25 });
+        arcFrom(cx, cy, arcR, start, end).stroke({ color: primary, width: 2, alpha: 0.5 });
+        arcFrom(cx, cy, arcR * 0.72, start, end).stroke({ color: primary, width: 1, alpha: 0.25 });
         const mid = (start + end) / 2;
         target.circle(cx + Math.cos(mid) * arcR, cy + Math.sin(mid) * arcR, 2)
             .fill({ color: index % 2 === 0 ? secondary : primary, alpha: 0.6 });
@@ -304,7 +310,7 @@ const drawArcGauge = (context: FrameContext) => {
     // Bottom semicircular gauge with a seed-fixed needle.
     const gaugeY = hh - marginY + arcR * 0.4;
     const gaugeR = Math.min(hw, hh) * 0.16;
-    target.arc(0, gaugeY, gaugeR, Math.PI, Math.PI * 2).stroke({ color: primary, width: 1.5, alpha: 0.4 });
+    arcFrom(0, gaugeY, gaugeR, Math.PI, Math.PI * 2).stroke({ color: primary, width: 1.5, alpha: 0.4 });
     for (let i = 0; i <= 8; i += 1) {
         const angle = Math.PI + (i / 8) * Math.PI;
         target.moveTo(Math.cos(angle) * (gaugeR - 5), gaugeY + Math.sin(angle) * (gaugeR - 5))
