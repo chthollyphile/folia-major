@@ -25,6 +25,7 @@ import { CategoryFilterButton, CategoryFilterPanel, type CategorySelection } fro
 import type { ProviderSongListCategoryGroup } from '../types/onlineMusic';
 import { getPersonalFmSelectionLabel } from '../services/onlineMusic/fmModes';
 import { buildDiscoverSections, buildDiscoverSongCardId, dedupeDiscoverSongs, PERSONAL_FM_CARD_ID, type DiscoverSection } from './app/home/buildDiscoverSections';
+import { canReuseCategorySongLists, categoryScopeOf } from './app/home/categorySelectionState';
 import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
 import { useRecentPlaysStore } from '../stores/useRecentPlaysStore';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
@@ -486,8 +487,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         // 切到别的 tab 再回来时，这个分类的数据可能已经拉过了。直接复用：
         // 不复用的话每次切走都清空、切回来重拉，用户看到的就是「闪一下骨架再出内容」，
         // 而且白白多打一次请求。拉过就记住是哪个分类。
-        const scope = `${activeProviderId}:${categorySelected.itemId}`;
-        if (categorySongListsScopeRef.current === scope && categorySongLists.length > 0) {
+        const scope = categoryScopeOf(activeProviderId, categorySelected.itemId);
+        if (canReuseCategorySongLists(categorySongListsScopeRef.current, scope, categorySongLists.length)) {
             setLoadingCategory(false);
             return;
         }
@@ -734,7 +735,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // 「发现」与「电台」拿的是同一批上游数据，区别只在排序与去重：
     // 电台是 QQ/网易云/酷狗各自的推荐入口混排，发现把「猜你喜欢」提到第一位并去掉每日推荐卡
     // （每日推荐只有部分 provider 有，混进来会让同一个位置的含义随音源变化）。
-    // FM 卡的 type/id 是有契约的：GridView 认 `type === 'radio' && id === 'personal_fm'` 才切 FM 模式。
+    // FM 卡的 type/id 契约：GridView 认 `type === 'radio' && id === 'personal_fm'` 才切 FM 模式。
+    // 注：这条链路当前没有生效（radioItems 从不给 isFm，也没人赋 personal_fm id）；
+    // 真正让 FM 进模式的入口是下面那个 isFmCall（连字符的发现页段 id）。见 PERSONAL_FM_CARD_ID 的注释。
     // 猜你喜欢聚合的拉取次数与目标首数。5 首不够「扫」，20 首差不多是一屏列表的量。
     const DISCOVER_FM_CALLS = 4;
 

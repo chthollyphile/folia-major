@@ -832,6 +832,11 @@ export const GridView: React.FC<GridViewProps> = ({
                 let hasMoreSync = false;
                 let totalTracksSync: number | undefined;
 
+                // ⚠️ 这一支当前是死的（实测 2026-10-11 确认）：整个 src 里没有任何地方给
+                // collection 赋上 personal_fm 这个 id，Grid3D 的 `r.isFm` 也从未被设置（radioItems 的数据源
+                // fetchRadioItems 不构造它）。能真正进入 FM 模式的入口是 Grid3D 里的
+                // `isFmCall: section.id === 'personal-fm'`（连字符的段 id，另一个东西）。
+                // 先保留不动，避免误计它还在工作；确定要用它时再重新接上。
                 if (collection.type === 'radio' && collection.id === PERSONAL_FM_CARD_ID) {
                     responseTracks = await omni.getPersonalFm();
                 } else if (isDailyRecommendationsCollection) {

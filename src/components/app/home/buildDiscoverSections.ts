@@ -18,11 +18,14 @@ export type DiscoverSection = {
 };
 
 /**
- * 私人FM 卡的 id。
+ * FM 卡的 id（personal_fm，下划线）。
  *
- * ⚠️ 这个值不是随便取的：`GridView` 认 `type === 'radio' && id === 'personal_fm'` 才会切进
- * FM 模式（队列末尾自动补歌由 `usePlaybackQueueController` 接）。改了它等于静默关掉刷歌，
- * 而首页只是少一张卡，肉眼看不出坏了。
+ * ⚠️ 当前没有任何代码给卡赋上这个 id（实测 2026-10-11：全 src 零处赋值，Grid3D 的
+ * `r.isFm` 也从未被设置），所以 GridView 里靠它切进 FM 模式的那一支是死代码。
+ * 真正让 FM 生效的入口是 Grid3D 的 `isFmCall: section.id === 'personal-fm'`
+ *（连字符的“发现页 FM 段 id”，跟这个卡 id 不是一回事，别混用）。
+ *
+ * 保留它是为了那条动线路还在（GridView 里调 getPersonalFm），不是说它现在还负责。
  */
 export const PERSONAL_FM_CARD_ID = 'personal_fm';
 

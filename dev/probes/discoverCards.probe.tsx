@@ -12,7 +12,9 @@ import type { ProbeDefinition } from './definition';
 // 2. 封面加载失败时的落点。失败的封面必须停在**静止**的占位图上；没有这条路径时它会永远转下去，
 //    读起来像还在加载。
 
-const COVER_OK = 'https://p1.music.126.net/QrD8drwrRcegfKLPoiiG2Q==/109951166288436155.jpg';
+// 同源路径 + 测试 route 桩（同仓库 latticeArtwork 的做法）：曾经用真实外网起义云图，封面加载慢或被网络拦下时卡片会走占位图，
+// 断言「三张卡」就变成 2 张——这种失败与被测代码无关，纯粹环境抖动，会掩盖真回归。
+const COVER_OK = '/probe-cover-ok.png';
 /** 同源不存在的路径：立刻 404，不依赖网络可达性，失败态是确定的。 */
 const COVER_BROKEN = '/probe-definitely-missing-cover.png';
 

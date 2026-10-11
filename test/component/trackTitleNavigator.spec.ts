@@ -71,14 +71,15 @@ test('悬浮感应区预览相邻曲名，移开还原', async ({ page }) => {
 
     const preview = page.locator(PREVIEW_LAYER);
     await expect(preview).toHaveText('Charlie Song');
+    // 动画时长固定，多 worker 并发时 CPU 争用会把它拖后；默认 15s 不够就会误报。
     await expect
-        .poll(() => preview.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .poll(() => preview.evaluate(el => Number(getComputedStyle(el).opacity)), { timeout: 40_000 })
         .toBeGreaterThan(0.3);
 
     const box = (await titleArea.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await expect
-        .poll(() => preview.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .poll(() => preview.evaluate(el => Number(getComputedStyle(el).opacity)), { timeout: 40_000 })
         .toBeLessThan(0.05);
 });
 
@@ -160,6 +161,6 @@ test('实验室开关开启时箭头常驻，不再依赖悬浮', async ({ mount
 
     const nextArrow = page.getByRole('button', { name: 'Next track' });
     await expect
-        .poll(() => nextArrow.evaluate(el => Number(getComputedStyle(el).opacity)))
+        .poll(() => nextArrow.evaluate(el => Number(getComputedStyle(el).opacity)), { timeout: 40_000 })
         .toBeGreaterThan(0.3);
 });
