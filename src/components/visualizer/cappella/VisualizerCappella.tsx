@@ -214,6 +214,7 @@ const VisualizerCappella: React.FC<VisualizerCappellaProps> = (props) => {
             `}</style>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={recentCompletedLine}

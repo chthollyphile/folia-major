@@ -7,7 +7,7 @@ import { colorWithAlpha } from '../colorMix';
 
 import { type VisualizerSharedProps } from '../definition';
 import { buildFumeBackgroundScene } from '../FumeBackground';
-import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
+import { useVisualizerRuntime } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import type { FumeArticleLayout, ViewportSize } from './fumeTypes';
@@ -102,20 +102,12 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         return () => observer.disconnect();
     }, []);
 
-    const runtime = useMemo(() => {
-        const activeLine = lines[currentLineIndex] ?? null;
-        const timeNow = currentTime.get();
-        return {
-            activeLine,
-            recentCompletedLine: getRecentCompletedLine({
-                lines,
-                currentLineIndex,
-                currentTime: timeNow,
-                getLineEndTime: getLineRenderEndTime,
-            }),
-            nextLines: getUpcomingLines(lines, currentLineIndex, 2),
-        };
-    }, [currentLineIndex, lines]);
+    const runtime = useVisualizerRuntime({
+        currentTime,
+        currentLineIndex,
+        lines,
+        getLineEndTime: getLineRenderEndTime,
+    });
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
         hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
         disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
@@ -376,6 +368,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
             </div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={runtime.activeLine}
                 recentCompletedLine={runtime.recentCompletedLine}

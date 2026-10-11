@@ -677,6 +677,7 @@ const VisualizerTilt: React.FC<VisualizerTiltProps & { staticMode?: boolean; }> 
             </div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={recentCompletedLine}

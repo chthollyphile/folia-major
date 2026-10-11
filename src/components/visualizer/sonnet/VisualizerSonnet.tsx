@@ -225,6 +225,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
             </div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={creditsRecentCompletedLine}
