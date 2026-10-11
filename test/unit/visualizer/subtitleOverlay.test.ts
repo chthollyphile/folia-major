@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getUpcomingLyricsClassName, resolveVisualizerSubtitleOverlayContent } from '@/components/visualizer/VisualizerSubtitleOverlay';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { motionValue } from 'framer-motion';
+import VisualizerSubtitleOverlay, { getUpcomingLyricsClassName, resolveVisualizerSubtitleOverlayContent } from '@/components/visualizer/VisualizerSubtitleOverlay';
+import { DEFAULT_THEME } from '@/services/baseThemes';
 import type { Line } from '@/types';
 
 // test/unit/visualizer/subtitleOverlay.test.ts
@@ -175,5 +179,44 @@ describe('VisualizerSubtitleOverlay content resolution', () => {
 
         expect(content.shouldRenderOverlay).toBe(false);
         expect(content.subtitleTracks).toEqual([]);
+    });
+
+    it('unmounts an empty interlude overlay so AnimatePresence can fade out its previous content', () => {
+        const content = resolveVisualizerSubtitleOverlayContent({
+            showText: true,
+            activeLine: null,
+            recentCompletedLine: null,
+            nextLines: [nextLine],
+        });
+
+        expect(content.shouldRenderOverlay).toBe(false);
+        expect(content.upcomingLines).toEqual([]);
+    });
+
+    it('holds completed subtitles for 1.5 playback seconds and restores them when seeking back', () => {
+        const currentTime = motionValue(2.1);
+        const render = () => renderToStaticMarkup(createElement(VisualizerSubtitleOverlay, {
+            currentTime,
+            showText: true,
+            activeLine: null,
+            recentCompletedLine: activeLine,
+            nextLines: [],
+            theme: DEFAULT_THEME,
+            translationFontSize: '1rem',
+            upcomingFontSize: '0.9rem',
+            subtitleContentMode: 'both',
+        }));
+
+        expect(render()).toContain('data-subtitle-track="translation"');
+        currentTime.set(3.49);
+        expect(render()).toContain('data-subtitle-track="romanization"');
+        currentTime.set(3.5);
+        expect(render()).not.toContain('data-subtitle-track');
+        currentTime.set(30);
+        expect(render()).not.toContain('data-subtitle-track');
+        currentTime.set(2.1);
+        expect(render()).toContain('data-subtitle-track="translation"');
+        currentTime.set(0);
+        expect(render()).not.toContain('data-subtitle-track');
     });
 });

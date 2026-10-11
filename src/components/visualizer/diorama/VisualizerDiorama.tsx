@@ -474,6 +474,7 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
             </div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={recentCompletedLine}

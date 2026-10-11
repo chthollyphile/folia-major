@@ -49,6 +49,7 @@ const FoliumSubtitleOverlay: React.FC<VisualizerSharedProps> = (props) => {
     const subtitleFontSizes = resolveSubtitleFontSizes(lyricsFontScale);
     return (
         <VisualizerSubtitleOverlay
+            currentTime={currentTime}
             showText={showText}
             activeLine={activeLine}
             recentCompletedLine={recentCompletedLine}

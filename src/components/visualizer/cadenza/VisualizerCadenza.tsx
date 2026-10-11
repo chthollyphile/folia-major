@@ -541,6 +541,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
             </div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={recentCompletedLine}
