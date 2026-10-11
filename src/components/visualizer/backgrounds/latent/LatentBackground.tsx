@@ -11,6 +11,7 @@ import {
 } from '../../../../types';
 import { extractRepresentativeColors } from '../../../../utils/colorExtractor';
 import { updatePaperShaderUniforms } from '../../../../utils/paperShaderUniforms';
+import { createPaperShaderReleaseRef, PAPER_SHADER_CONTEXT_ATTRIBUTES } from '../../../../utils/paperShaderContext';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
@@ -118,6 +119,9 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
 }) => {
     const ditheringRef = useRef<PaperShaderElement | null>(null);
     const meshRef = useRef<PaperShaderElement | null>(null);
+    // Stable callback refs: they also lose each shader's WebGL context when it unmounts.
+    const ditheringShaderRef = useMemo(() => createPaperShaderReleaseRef(ditheringRef), []);
+    const meshShaderRef = useMemo(() => createPaperShaderReleaseRef(meshRef), []);
     const ditheringLayerRef = useRef<HTMLDivElement | null>(null);
     const meshLayerRef = useRef<HTMLDivElement | null>(null);
     const pausedRef = useRef(paused);
@@ -287,7 +291,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                     style={{ transform: 'scale(1.025)', transformOrigin: 'center' }}
                 >
                     <MeshGradient
-                        ref={meshRef}
+                        ref={meshShaderRef}
                         width="100%"
                         height="100%"
                         colors={shaderColors.mesh}
@@ -300,6 +304,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                             : resolveLatentShaderSpeed(tuning.meshSpeed, tuning.meshAudioSpeed, 0, paused)}
                         minPixelRatio={1}
                         maxPixelCount={MAX_SHADER_PIXELS}
+                        webGlContextAttributes={PAPER_SHADER_CONTEXT_ATTRIBUTES}
                         style={{ width: '100%', height: '100%' }}
                     />
                 </div>
@@ -316,7 +321,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                     }}
                 >
                     <Dithering
-                        ref={ditheringRef}
+                        ref={ditheringShaderRef}
                         width="100%"
                         height="100%"
                         colorBack={shaderColors.ditheringBack}
@@ -329,6 +334,7 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                             : resolveLatentShaderSpeed(tuning.ditheringSpeed, tuning.ditheringAudioSpeed, 0, paused)}
                         minPixelRatio={1}
                         maxPixelCount={MAX_SHADER_PIXELS}
+                        webGlContextAttributes={PAPER_SHADER_CONTEXT_ATTRIBUTES}
                         style={{ width: '100%', height: '100%' }}
                     />
                 </div>
