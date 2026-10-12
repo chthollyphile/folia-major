@@ -1018,6 +1018,7 @@ export default {
     "copyPrompt": "复制提示词",
     "copyCurrent": "复制当前结果",
     "reset": "恢复默认",
+    "importPlaceholder": "请将分段后的歌词粘贴到此处：每行一条歌词，单行内的词语用“/”分隔，也可以粘贴 JSON 数组",
     "noLyrics": "当前没有可分词的歌词",
     "saved": "分词结果已保存",
     "restored": "已恢复默认分词",
