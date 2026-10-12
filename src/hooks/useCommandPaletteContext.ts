@@ -29,6 +29,8 @@ import { useAutomixSettingsStore } from '../stores/useAutomixSettingsStore';
 import { useDesktopSettingsStore } from '../stores/useDesktopSettingsStore';
 import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
+import { useHeartbeatModeStore } from '../stores/useHeartbeatModeStore';
+import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { useSleepTimerStore } from '../stores/useSleepTimerStore';
 import { useTypographySettingsStore } from '../stores/useTypographySettingsStore';
@@ -144,6 +146,13 @@ export const useCommandPaletteContext = (
     const lyricStaffPolicy = useLyricSettingsStore(state => state.lyricStaffPolicy);
     const lyricStaffAbsorbMode = useLyricSettingsStore(state => state.lyricStaffAbsorbMode);
     const personalFmSelection = usePersonalFmModeStore(state => state.selection);
+    const heartbeatSignals = useHeartbeatModeStore(useShallow(state => ({ session: state.session, loading: state.loading })));
+    const heartbeatAccount = useOnlineProviderAccountStore(useShallow(state => ({
+        providerId: state.activeProviderId,
+        status: state.accounts[state.activeProviderId]?.status,
+        userId: state.accounts[state.activeProviderId]?.user?.id,
+    })));
+    const heartbeatPlaybackContext = usePlaybackStore(state => state.activePlaybackContext);
     // Which surface the palette is opening over; commands that only apply to one of them gate on it.
     const latticeFocusAction = useLatticeControlsStore(state => state.focusCurrentSong);
     const view = useAppViewStore(state => state.view);
@@ -212,5 +221,6 @@ export const useCommandPaletteContext = (
         sleepTimerSignals, latticeSignals, audioSignals, visualizerSignals,
         lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
         lyricSegmentationRecord, lyricSegmentationActions, latticeFocusAction,
+        heartbeatSignals, heartbeatAccount, heartbeatPlaybackContext,
     ]);
 };

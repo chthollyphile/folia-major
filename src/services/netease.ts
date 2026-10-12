@@ -853,6 +853,12 @@ export const neteaseApi = {
     };
   },
 
+  getHeartbeatSongs: async (id: number, pid: number, sid?: number) => {
+    const params = new URLSearchParams({ id: String(id), pid: String(pid), timestamp: String(Date.now()) });
+    if (sid !== undefined) params.set('sid', String(sid));
+    return fetchWithCreds(`/playmode/intelligence/list?${params.toString()}`);
+  },
+
   dislikeDailyRecommendedSong: async (songId: number) => {
     const res = await fetchWithCreds(`/recommend/songs/dislike?id=${songId}&timestamp=${Date.now()}`);
     return {

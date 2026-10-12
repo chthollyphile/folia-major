@@ -11,6 +11,9 @@ import { openAddToPlaylist, useAddToPlaylistStore } from '../../../stores/useAdd
 import { useInteractionSettingsStore } from '../../../stores/useInteractionSettingsStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { isLocalPlaybackSong } from '../../../utils/appPlaybackGuards';
+import { canStartHeartbeatMode, startHeartbeatMode } from '../../../services/heartbeatPlayback';
+import { exitHeartbeatMode } from '../playback/heartbeatQueueReturn';
+import { useHeartbeatModeStore } from '../../../stores/useHeartbeatModeStore';
 
 // src/components/app/command-palette-context/buildAppOwnedCommandContext.ts
 // The four namespaces whose state genuinely still lives in App.tsx: shared, playback, navigation
@@ -66,7 +69,13 @@ export const buildPlaybackCommandContext = (
         // Queue selection follows the surface that owns playback at execution time.
         playSong: (song, queue) => deps.playSong(song, queue, false, {
             shouldNavigateToPlayer: useAppViewStore.getState().view !== 'lattice',
+            heartbeatSessionId: useHeartbeatModeStore.getState().session?.id,
         }),
+        isHeartbeatMode: Boolean(useHeartbeatModeStore.getState().session),
+        isHeartbeatLoading: useHeartbeatModeStore.getState().loading,
+        canStartHeartbeat: canStartHeartbeatMode(),
+        startHeartbeat: () => startHeartbeatMode(deps.playSong),
+        stopHeartbeat: exitHeartbeatMode,
         volume: audio.volume,
         isMuted: audio.isMuted,
         setVolume: audio.handleSetVolume,

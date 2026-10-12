@@ -1,4 +1,7 @@
 import type React from 'react';
+import type { SongResult } from '../../../types';
+import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
+import { useHeartbeatModeStore } from '../../../stores/useHeartbeatModeStore';
 import type { RefObject } from 'react';
 import type UnifiedPanel from '../../UnifiedPanel';
 import { setIsPanelOpen, setPanelTab } from '../../../stores/useAppViewStore';
@@ -92,7 +95,7 @@ export type PlayerPanelDeps = {
     openCommandPalette?: UnifiedPanelProps['playback']['onOpenCommandPalette'];
     isCommandPaletteOpen?: boolean;
     playQueue: UnifiedPanelProps['queue']['playQueue'];
-    playSong: UnifiedPanelProps['queue']['onPlaySong'];
+    playSong: (song: SongResult, queue?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void | Promise<void>;
     queueScrollRef: RefObject<HTMLDivElement | null>;
     shuffleQueue: UnifiedPanelProps['queue']['onShuffle'];
     removeQueueSong: UnifiedPanelProps['queue']['onRemoveSong'];
@@ -266,7 +269,9 @@ export const buildPlayerPanelModel = ({
         },
         queue: {
             playQueue,
-            onPlaySong: playSong,
+            onPlaySong: (song, queue) => { void playSong(song, queue, false, {
+                heartbeatSessionId: useHeartbeatModeStore.getState().session?.id,
+            }); },
             queueScrollRef,
             onShuffle: shuffleQueue,
             onRemoveSong: removeQueueSong,

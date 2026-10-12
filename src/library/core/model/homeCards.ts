@@ -8,6 +8,7 @@ import type { LibraryHomeCard, LibraryHomeRadioFeed } from '../contracts/homeMod
 
 /** 电台页签里的私人 FM 卡：点它直接播放，不打开集合。 */
 export const PERSONAL_FM_CARD_ID = 'personal_fm';
+export const HEARTBEAT_CARD_ID = 'heartbeat';
 /** 电台页签里的每日推荐卡。 */
 export const DAILY_RECOMMENDATIONS_CARD_ID = 'daily_recommendations';
 
@@ -58,6 +59,7 @@ type RadioSource = {
     description?: string;
     summary?: string;
     isFm?: boolean;
+    isHeartbeat?: boolean;
     isDailyRecommendations?: boolean;
 };
 
@@ -67,7 +69,7 @@ type RadioSource = {
  */
 export const buildOnlineRadioCards = (
     feed: LibraryHomeRadioFeed | null,
-    { t, personalFmModeLabel = '' }: { t: TFunction; personalFmModeLabel?: string },
+    { t, personalFmModeLabel = '', supportsHeartbeat = false }: { t: TFunction; personalFmModeLabel?: string; supportsHeartbeat?: boolean },
 ): LibraryHomeCard[] => {
     if (!feed) return [];
     const sources: RadioSource[] = [
@@ -78,6 +80,13 @@ export const buildOnlineRadioCards = (
             description: t('home.personalFm'),
             isFm: true,
         },
+        ...(supportsHeartbeat ? [{
+            id: HEARTBEAT_CARD_ID,
+            name: t('heartbeat.title'),
+            coverUrl: feed.personalFmCoverUrl,
+            description: t('heartbeat.description'),
+            isHeartbeat: true,
+        }] : []),
         ...(feed.supportsDailySongs === false ? [] : [{
             id: DAILY_RECOMMENDATIONS_CARD_ID,
             name: t('home.dailyRecommendations'),
@@ -104,7 +113,7 @@ export const buildOnlineRadioCards = (
         trackCount: source.trackCount,
         description: (source.isFm && personalFmModeLabel) || source.description || t('home.radio'),
         summary: source.summary || '',
-        type: source.isFm
+        type: source.isFm || source.isHeartbeat
             ? 'radio'
             : source.isDailyRecommendations
                 ? 'daily_recommendations'
@@ -117,6 +126,8 @@ export const buildOnlineRadioCards = (
 export const isPersonalFmCard = (card: Pick<LibraryHomeCard, 'id' | 'raw'>): boolean => (
     card.id === PERSONAL_FM_CARD_ID || (card.raw as { id?: unknown } | undefined)?.id === PERSONAL_FM_CARD_ID
 );
+
+export const isHeartbeatCard = (card: Pick<LibraryHomeCard, 'id'>): boolean => card.id === HEARTBEAT_CARD_ID;
 
 /** 打开在线卡片时交给集合描述工厂的对象：来源对象带上卡片的类型（电台里的推荐歌单记作 playlist）。 */
 export const onlineCardCollection = (card: LibraryHomeCard): Record<string, unknown> => (

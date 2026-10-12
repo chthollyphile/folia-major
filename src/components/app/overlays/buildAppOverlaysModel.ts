@@ -55,6 +55,7 @@ type AppOverlaysAmbient = {
     noTrackText: string;
     playQueue: SongResult[];
     isFmMode: boolean;
+    canFetchMore?: boolean;
     prevTrackLabel: string;
     nextTrackLabel: string;
     /**
@@ -166,6 +167,7 @@ export const buildAppOverlaysModel = ({
     noTrackText,
     playQueue,
     isFmMode,
+    canFetchMore,
     isNowPlayingStageActive,
     handlePrevTrack,
     handleNextTrack,
@@ -302,6 +304,7 @@ export const buildAppOverlaysModel = ({
                     currentSong,
                     loopMode: effectiveLoopMode,
                     isFmMode,
+                    canFetchMore,
                     isStageActive: isNowPlayingStageActive,
                 });
 

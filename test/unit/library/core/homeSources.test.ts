@@ -61,6 +61,15 @@ const source = (patch: Partial<Parameters<typeof resolveHomeOnlineSource>[0]> = 
 });
 
 describe('resolveHomeOnlineSource', () => {
+    it('requires both provider capability and a signed-in owner for Heartbeat', () => {
+        const capabilities = { ...ALL, heartbeatRecommendations: true };
+        const provider = summary({ user: { id: 1, nickname: 'N' } });
+        expect(source({ capabilities, provider }).hasHeartbeatRecommendations).toBe(true);
+        expect(source({ provider }).hasHeartbeatRecommendations).toBe(false);
+        expect(source({ capabilities }).hasHeartbeatRecommendations).toBe(false);
+        expect(source({ capabilities, provider: summary({ status: 'anonymous' }) }).hasHeartbeatRecommendations).toBe(false);
+        expect(source({ capabilities, provider: summary({}) }).hasHeartbeatRecommendations).toBe(false);
+    });
     it('prefers the provider summary: its user, collections and short name', () => {
         const user = { id: 7, nickname: 'U' };
         const owned = collection('owned');

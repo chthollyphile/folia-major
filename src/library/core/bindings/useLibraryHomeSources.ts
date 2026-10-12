@@ -63,7 +63,7 @@ export const useLibraryHomeSources = ({
     const { providers, activeProviderId: providerId } = useLibraryAccountProviders(account);
     const provider = useMemo(() => resolveActiveProviderSummary(providers, providerId), [providerId, providers]);
     const capabilities = readOnlineProviderCapabilities(providerId);
-    const { userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes } = capabilities;
+    const { userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, heartbeatRecommendations } = capabilities;
     const online = useMemo(() => resolveHomeOnlineSource({
         providerId,
         provider,
@@ -76,7 +76,7 @@ export const useLibraryHomeSources = ({
     }), [
         // capabilities 每次读都是新对象：按用到的几个开关比较。
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        canListPlaylists, cloudPlaylist, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
+        canListPlaylists, cloudPlaylist, personalFmModes, heartbeatRecommendations, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
     ]);
 
     const localAvailability = getLocalLibraryAvailability();

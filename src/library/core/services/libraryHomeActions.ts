@@ -9,7 +9,7 @@ import type {
     LibraryHomePort,
     LibraryHomeScanProgress,
 } from '../contracts/homeModel';
-import { isPersonalFmCard, onlineCardCollection } from '../model/homeCards';
+import { isHeartbeatCard, isPersonalFmCard, onlineCardCollection } from '../model/homeCards';
 import { isHomeImportBusy, resolveLocalUnavailableReason } from '../model/homeSources';
 
 // src/library/core/services/libraryHomeActions.ts
@@ -135,6 +135,10 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         playPersonalFm,
 
         openOnlineCard: async (card: LibraryHomeCard, providerId: string, open: LibraryHomeOpenCollection) => {
+            if (isHeartbeatCard(card)) {
+                if (!port.startHeartbeat) return UNSUPPORTED;
+                return await port.startHeartbeat() ? OK : FAILED;
+            }
             if (isPersonalFmCard(card)) return playPersonalFm();
             open(port.describeOnlineCollection(onlineCardCollection(card), providerId));
             return OK;

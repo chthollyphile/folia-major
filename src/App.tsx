@@ -93,6 +93,7 @@ import { useTranscodeFallback } from './hooks/useTranscodeFallback';
 import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
 import { usePlaybackInteractionBridge } from './hooks/usePlaybackInteractionBridge';
 import { usePersonalFmModeController } from './hooks/usePersonalFmModeController';
+import { selectHeartbeatSequentialPlayback, useHeartbeatModeStore } from './stores/useHeartbeatModeStore';
 import { PERSONAL_FM_MODE_COMMAND_ID } from './components/command-palette/commands/fmModeCommand';
 import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
@@ -511,7 +512,8 @@ export default function App() {
     // control below keeps editing the per-song value alone.
     const effectiveLyricTimelineOffsetMs = lyricTimelineOffsetMs + globalLyricTimelineOffsetMs;
 
-    const effectiveLoopMode: StageLoopMode = loopMode;
+    const heartbeatSequential = useHeartbeatModeStore(selectHeartbeatSequentialPlayback);
+    const effectiveLoopMode: StageLoopMode = heartbeatSequential ? 'off' : loopMode;
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -2776,7 +2778,10 @@ export default function App() {
                                 onGoHome={navigateToHome}
                                 onOpenPlayer={navigateToPlayer}
                                 onPlaySong={(song, queue) => {
-                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
+                                    void playSong(song, queue, false, {
+                                        shouldNavigateToPlayer: false,
+                                        heartbeatSessionId: useHeartbeatModeStore.getState().session?.id,
+                                    });
                                 }}
                                 onTogglePlayback={togglePlay}
                                 onSeek={seekMainAudio}

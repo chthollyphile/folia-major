@@ -11,6 +11,7 @@ import type {
 } from '../../../types';
 import type { ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
 import type { NavidromeSong } from '../../../types/navidrome';
+import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
 
 // src/library/core/contracts/home.ts
 // 首页 surface 的数据契约：应用的首页模型（buildHomeModel）交给任何一套 suite 的同一份输入——账户与在线歌单、
@@ -43,7 +44,7 @@ export type LibraryLocalCatalogSnapshot = {
 
 /** 首页模型给出的数据与回调（即原 HomeSurfaceProps）。集合宿主与端口也从这里取来源回调。 */
 export interface LibraryHomeData {
-    onPlaySong: (song: SongResult, playlistCtx?: SongResult[], isFmCall?: boolean) => void;
+    onPlaySong: (song: SongResult, playlistCtx?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void | Promise<void>;
     onBackToPlayer: () => void;
     /**
      * fb3：暂停 / 继续正在播放的那首（与播放条、空格同一个开关）。资料库里「正在播放的那张卡」上的播放键用它，

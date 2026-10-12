@@ -14,6 +14,8 @@ import type { MediaId } from './onlineMusic';
 
 // Shared playback-specific types extracted from App.tsx.
 export type PlaybackNavigationOptions = {
+    /** Internal Heartbeat queue navigation only; ordinary playback cancels the live recommendation session. */
+    heartbeatSessionId?: number;
     shouldNavigateToPlayer?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];

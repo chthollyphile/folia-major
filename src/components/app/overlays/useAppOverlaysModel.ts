@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useHeartbeatModeStore } from '../../../stores/useHeartbeatModeStore';
 import { currentTime, lyricCurrentTime } from '../../../stores/motionSignals';
 import { useAppViewStore } from '../../../stores/useAppViewStore';
 import { useAppChromeStore } from '../../../stores/useAppChromeStore';
@@ -46,6 +47,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const playQueue = usePlaybackStore(state => state.playQueue);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const canFetchMore = useHeartbeatModeStore(state => state.session !== null);
     const activePlaybackContext = usePlaybackStore(state => state.activePlaybackContext);
     // The held picture, not the live one: a blend keeps song, lyrics, duration and cover describing
     // the same track for its whole length. See the note on `coverUrl` above.
@@ -98,6 +100,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         isPlayerChromeHidden,
         playQueue,
         isFmMode,
+        canFetchMore,
         coverUrl: displayCoverUrl,
         stageTrackPillMode,
         stageTrackPillTimeoutSec,
@@ -117,6 +120,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [
         ...Object.values(deps),
+        canFetchMore,
         currentView,
         isSearchOpen,
         isDaylight,

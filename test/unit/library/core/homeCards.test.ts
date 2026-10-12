@@ -77,6 +77,15 @@ describe('online home cards', () => {
         expect(buildOnlineRadioCards(null, { t })).toEqual([]);
     });
 
+    it('offers a distinct Heartbeat card only when the caller has enabled its capability', () => {
+        const feed = { dailyCoverUrl: '', dailyCount: 0, recommended: [] };
+        expect(buildOnlineRadioCards(feed, { t }).some(card => card.id === 'heartbeat')).toBe(false);
+        const cards = buildOnlineRadioCards(feed, { t, supportsHeartbeat: true });
+        const heartbeat = cards.find(card => card.id === 'heartbeat')!;
+        expect(heartbeat).toMatchObject({ name: 't:heartbeat.title', type: 'radio' });
+        expect(isPersonalFmCard(heartbeat)).toBe(false);
+    });
+
     it('recognises the FM card and builds the collection handed to the descriptor factory', () => {
         const [fm, daily] = buildOnlineRadioCards({ dailyCoverUrl: '', dailyCount: 1, recommended: [] }, { t });
         expect(isPersonalFmCard(fm)).toBe(true);

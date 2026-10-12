@@ -65,6 +65,13 @@ describe('resolvePlaybackNeighbors', () => {
             .toEqual({ canGo: true, key: keyOf(queue[2]), title: 'Charlie', artist: null, coverUrl: null });
     });
 
+    it('keeps next available at the Heartbeat tail without enabling FM behavior', () => {
+        expect(resolve({ currentSong: queue[2], canFetchMore: true, isFmMode: false }).next)
+            .toEqual({ canGo: true, key: null, title: null, artist: null, coverUrl: null });
+        expect(resolve({ currentSong: queue[2], canFetchMore: false }).next.canGo).toBe(false);
+        expect(resolve({ currentSong: queue[2], canFetchMore: true, isStageActive: true }).next.canGo).toBe(false);
+    });
+
     it('blocks both directions while the stage is active', () => {
         const result = resolve({ isStageActive: true });
         expect(result.prev.canGo).toBe(false);

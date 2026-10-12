@@ -1,6 +1,18 @@
 
 
 export default {
+  "heartbeat": {
+    "title": "Heartbeat",
+    "description": "Your liked songs with NetEase recommendations",
+    "active": "Heartbeat is on",
+    "stop": "Stop Heartbeat",
+    "loading": "Loading Heartbeat recommendations…",
+    "started": "Heartbeat is on. New recommendations are added as you listen.",
+    "stopped": "Heartbeat stopped. The current track will finish, then your previous queue resumes.",
+    "emptyLikes": "Add a playable song to your NetEase liked songs to start Heartbeat.",
+    "emptyRecommendations": "NetEase returned no new Heartbeat recommendations. Your queue is kept.",
+    "failed": "Could not load Heartbeat recommendations. Try again later."
+  },
   "libraryBravais": {
     "suiteName": "Bravais wall",
     "homeTitle": "Library",
@@ -103,7 +115,7 @@ export default {
     "connect": "Connect a streaming service",
     "noMatch": "Nothing on this page matches",
     "shortcuts": "Jump to",
-    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
+    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "heartbeat": "Heartbeat", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {
     "back": "Back",
@@ -593,6 +605,8 @@ export default {
       "queue": { "title": "Queue", "description": "Search the queue; use @ for metadata and -- for batch actions" },
       "playback-volume": { "title": "Volume", "description": "Adjust playback volume" },
       "playback-fm-mode": { "title": "Personal FM mode", "description": "Switch the Personal FM mode or scene" },
+      "heartbeat-start": { "title": "Start Heartbeat", "description": "Play your liked songs with NetEase recommendations" },
+      "heartbeat-stop": { "title": "Stop Heartbeat", "description": "Finish the current track, then resume your previous queue" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },

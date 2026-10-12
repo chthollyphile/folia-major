@@ -1,6 +1,18 @@
 
 
 export default {
+  "heartbeat": {
+    "title": "Heartbeat",
+    "description": "Lagu favorit Anda dengan rekomendasi NetEase",
+    "active": "Heartbeat aktif",
+    "stop": "Hentikan Heartbeat",
+    "loading": "Memuat rekomendasi Heartbeat…",
+    "started": "Heartbeat aktif. Rekomendasi baru ditambahkan saat Anda mendengarkan.",
+    "stopped": "Heartbeat dihentikan. Setelah lagu ini selesai, antrean sebelumnya dilanjutkan.",
+    "emptyLikes": "Tambahkan lagu yang dapat diputar ke favorit NetEase untuk memulai Heartbeat.",
+    "emptyRecommendations": "Tidak ada rekomendasi Heartbeat baru dari NetEase. Antrean tetap dipertahankan.",
+    "failed": "Gagal memuat rekomendasi Heartbeat. Coba lagi nanti."
+  },
   "libraryBravais": {
     "suiteName": "Dinding Bravais",
     "homeTitle": "Pustaka",
@@ -103,7 +115,7 @@ export default {
     "connect": "Hubungkan layanan streaming",
     "noMatch": "Tidak ada yang cocok di halaman ini",
     "shortcuts": "Langsung ke",
-    "special": {"liked": "Lagu Disukai", "cloud": "Cloud Drive", "personal-fm": "FM Pribadi", "daily": "Harian", "all-songs": "Semua Lagu", "local-favorites": "Favorit", "navidrome-random": "Acak", "navidrome-favorites": "Berbintang"}
+    "special": {"liked": "Lagu Disukai", "cloud": "Cloud Drive", "personal-fm": "FM Pribadi", "heartbeat": "Heartbeat", "daily": "Harian", "all-songs": "Semua Lagu", "local-favorites": "Favorit", "navidrome-random": "Acak", "navidrome-favorites": "Berbintang"}
   },
   "libraryTui": {
     "back": "Kembali",
@@ -591,6 +603,8 @@ export default {
       "queue": { "title": "Antrean", "description": "Cari antrean; gunakan @ untuk metadata dan -- untuk aksi massal" },
       "playback-volume": { "title": "Volume", "description": "Atur volume pemutaran" },
       "playback-fm-mode": { "title": "Mode FM Pribadi", "description": "Ganti mode atau suasana FM Pribadi" },
+      "heartbeat-start": { "title": "Mulai Heartbeat", "description": "Putar lagu favorit Anda dengan rekomendasi NetEase" },
+      "heartbeat-stop": { "title": "Hentikan Heartbeat", "description": "Selesaikan lagu ini, lalu lanjutkan antrean sebelumnya" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
       "settings-options": { "title": "Buka Opsi", "description": "Buka pusat opsi" },

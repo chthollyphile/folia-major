@@ -288,6 +288,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         albums: true,
         artists: true,
         recommendations: true,
+        heartbeatRecommendations: true,
         mutations: true,
         personalFmModes: true,
         wordByWordLyrics: true,
@@ -577,6 +578,32 @@ export const neteaseProvider: OnlineMusicProvider = {
             // card, the radio grid, the queue refill — on whatever mode the user picked.
             const response = await neteaseApi.getPersonalFm(options ?? getPersonalFmRequestOptions());
             return (response?.data || []).map(normalizeNeteaseSong);
+        },
+        async getHeartbeatSongs(options) {
+            const ids = [options.seedSongId, options.playlistId, options.startSongId ?? options.seedSongId].map(Number);
+            if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+                throw new OnlineProviderError('unavailable', 'Heartbeat recommendations require valid song and playlist IDs', 'netease');
+            }
+            const response = await neteaseApi.getHeartbeatSongs(ids[0], ids[1], options.startSongId === undefined ? undefined : ids[2]);
+            const code = Number(response?.code);
+            if (code !== 200) {
+                const reason = code === 301 || code === 401 ? 'auth-required' : 'unavailable';
+                throw new OnlineProviderError(reason, response?.message || `NetEase heartbeat request failed (code ${response?.code})`, 'netease', response);
+            }
+            if (!Array.isArray(response.data)) {
+                throw new OnlineProviderError('invalid-response', 'NetEase returned no heartbeat recommendation list', 'netease', response);
+            }
+            // This endpoint wraps each ordinary song in songInfo; do not normalize the wrapper itself.
+            const songs = response.data.flatMap((entry: any) => {
+                const raw = entry?.songInfo;
+                const id = Number(raw?.id ?? entry?.id);
+                if (!raw || typeof raw !== 'object' || !Number.isSafeInteger(id) || id <= 0) return [];
+                return [normalizeNeteaseSong({ ...raw, id })];
+            });
+            if (response.data.length > 0 && songs.length === 0) {
+                throw new OnlineProviderError('invalid-response', 'NetEase returned no valid heartbeat songs', 'netease', response);
+            }
+            return songs;
         },
         async getRecommendedCollections(limit) {
             const response = await neteaseApi.getPersonalizedPlaylists(limit);

@@ -41,6 +41,8 @@ export interface ProviderCapabilities {
     mutations: boolean;
     /** Personal FM can be steered by mode/scene, i.e. `getPersonalFm` honours PersonalFmRequestOptions. */
     personalFmModes?: boolean;
+    /** Playlist-seeded recommendations, separate from Personal FM. */
+    heartbeatRecommendations?: boolean;
     wordByWordLyrics: boolean;
     userCloud?: boolean;
     historyRecommendations?: boolean;
@@ -410,11 +412,19 @@ export interface PersonalFmRequestOptions {
 export interface OnlineRecommendationProvider {
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
+    getHeartbeatSongs?(options: HeartbeatRequestOptions): Promise<UnifiedSong[]>;
     getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
     dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }>;
+}
+
+/** The source playlist and seed used to continue a heartbeat recommendation session. */
+export interface HeartbeatRequestOptions {
+    playlistId: MediaId;
+    seedSongId: MediaId;
+    startSongId?: MediaId;
 }
 
 export interface OnlineMutationProvider {

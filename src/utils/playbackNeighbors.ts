@@ -30,6 +30,7 @@ type ResolvePlaybackNeighborsParams = {
     currentSong: SongResult | null;
     loopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
+    canFetchMore?: boolean;
     isStageActive: boolean;
     /**
      * 是否连艺术家与封面一起解析。这两项要走 provider 元数据（注册表查找 + 新建元数据对象），
@@ -48,6 +49,7 @@ export const resolvePlaybackNeighbors = ({
     currentSong,
     loopMode,
     isFmMode,
+    canFetchMore = false,
     isStageActive,
     withMetadata = false,
 }: ResolvePlaybackNeighborsParams): PlaybackNeighbors => {
@@ -88,7 +90,7 @@ export const resolvePlaybackNeighbors = ({
     }
 
     // FM 走到队列末尾时会追加新曲目再跳，标题此刻无法预知
-    const fmWillFetch = isFmMode && currentIndex === lastIndex;
+    const fmWillFetch = (isFmMode || canFetchMore) && currentIndex === lastIndex;
 
     return {
         prev: prevIndex >= 0 ? neighborAt(prevIndex) : blockedNeighbor(),

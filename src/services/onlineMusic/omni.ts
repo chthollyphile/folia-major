@@ -1,6 +1,7 @@
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
+    HeartbeatRequestOptions,
     MediaId,
     OmniAudioSource,
     OmniChorusRange,
@@ -455,6 +456,15 @@ export const omni = {
 
     async getPersonalFm(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]> {
         return withActiveProvider(async provider => provider.recommendations?.getPersonalFm?.(options) ?? []);
+    },
+
+    async getHeartbeatSongs(options: HeartbeatRequestOptions): Promise<UnifiedSong[]> {
+        return withActiveProvider(async provider => {
+            if (!providerSupports(provider, 'heartbeatRecommendations') || !provider.recommendations?.getHeartbeatSongs) {
+                return unsupported(provider.id, 'heartbeatRecommendations');
+            }
+            return provider.recommendations.getHeartbeatSongs(options);
+        });
     },
 
     async getDailySongs(refresh?: boolean): Promise<UnifiedSong[]> {

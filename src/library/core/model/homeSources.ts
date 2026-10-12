@@ -72,6 +72,8 @@ export const resolveHomeOnlineSource = ({
         canUseAlbums: capabilities.userLibrary && Boolean(capabilities.userAlbums),
         canUseRadio: capabilities.recommendations,
         hasPersonalFmModes: Boolean(capabilities.personalFmModes),
+        hasHeartbeatRecommendations: Boolean(capabilities.heartbeatRecommendations)
+            && provider?.status === 'authenticated' && Boolean(provider.user),
     };
 };
 

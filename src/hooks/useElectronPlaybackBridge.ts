@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useHeartbeatModeStore } from '../stores/useHeartbeatModeStore';
 import type React from 'react';
 import type { RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -131,6 +132,7 @@ export const useElectronPlaybackBridge = ({
     const cachedCoverUrl = usePlaybackStore(state => state.cachedCoverUrl);
     const playQueue = usePlaybackStore(state => state.playQueue);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const canFetchMore = useHeartbeatModeStore(state => state.session !== null);
     // The HELD picture and its clock, so the remote, Discord and the taskbar switch song when a
     // blend settles rather than when it arms - the same thing useMediaSessionBridge publishes.
     // The raw transport reads IDLE for the length of a blend's lead, which drew a stopped player
@@ -258,6 +260,7 @@ export const useElectronPlaybackBridge = ({
             cachedCoverUrl,
             effectiveLoopMode,
             isFmMode,
+            canFetchMore,
             isStageActive: isNowPlayingStageActive,
             controlsDisabled: isNowPlayingControlDisabledRef.current,
             transparentModeEnabled: transparentPlayerBackground,
@@ -426,7 +429,7 @@ export const useElectronPlaybackBridge = ({
             console.warn('[Electron] Failed to update Windows taskbar controls', error);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
+    }, [currentSong, effectiveLoopMode, isFmMode, canFetchMore, isNowPlayingStageActive, playQueue, playerState]);
 
     // System/IME voice input pauses playback and resumes it afterwards. Resume only
     // fires when this bridge caused the pause and the track is still paused, so a
@@ -515,7 +518,7 @@ export const useElectronPlaybackBridge = ({
             window.removeEventListener('resize', handleResize);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, playerChromeVisibilityMode, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
+    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, canFetchMore, isNowPlayingStageActive, isPlayerChromeHidden, playerChromeVisibilityMode, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
 
     useEffect(() => {
         if (!playbackSyncBridgeStatus.discordPresenceEnabled || !window.electron?.publishDiscordPresenceSnapshot) {
@@ -546,7 +549,7 @@ export const useElectronPlaybackBridge = ({
             window.clearInterval(intervalId);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activePlaybackContext, audioSrc, cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, getSyntheticStageLyricsTime, isFmMode, isNowPlayingStageActive, isStagePlayerSnapshotEnabled, playQueue, playerState]);
+    }, [activePlaybackContext, audioSrc, cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, getSyntheticStageLyricsTime, isFmMode, canFetchMore, isNowPlayingStageActive, isStagePlayerSnapshotEnabled, playQueue, playerState]);
 
     useEffect(() => {
         if (!window.electron?.onRemoteControlCommand) {

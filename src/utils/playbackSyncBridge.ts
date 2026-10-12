@@ -25,6 +25,7 @@ export interface PlaybackSyncBridgeModel {
     playerState: PlayerState;
     loopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
+    canFetchMore?: boolean;
     canGoPrevious: boolean;
     canGoNext: boolean;
     controlsDisabled: boolean;
@@ -56,6 +57,7 @@ export interface BuildPlaybackSyncBridgeModelArgs {
     cachedCoverUrl?: string | null;
     effectiveLoopMode: 'off' | 'all' | 'one';
     isFmMode: boolean;
+    canFetchMore?: boolean;
     isStageActive: boolean;
     controlsDisabled: boolean;
     transparentModeEnabled: boolean;
@@ -116,6 +118,7 @@ export const buildPlaybackSyncBridgeModel = ({
     cachedCoverUrl,
     effectiveLoopMode,
     isFmMode,
+    canFetchMore = false,
     isStageActive,
     controlsDisabled,
     transparentModeEnabled,
@@ -139,7 +142,7 @@ export const buildPlaybackSyncBridgeModel = ({
     const hasQueueNeighbors = playQueue.length > 1;
     const canGoPrevious = hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
     const canGoNext = hasTrack && (
-        isFmMode ||
+        isFmMode || canFetchMore ||
         currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
         (effectiveLoopMode === 'all' && hasQueueNeighbors)
     );
@@ -162,6 +165,7 @@ export const buildPlaybackSyncBridgeModel = ({
         playerState,
         loopMode: effectiveLoopMode,
         isFmMode,
+        canFetchMore,
         canGoPrevious,
         canGoNext,
         controlsDisabled: controlsDisabled || !hasTrack,
@@ -190,6 +194,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
         currentSong: model.currentSong,
         loopMode: model.loopMode,
         isFmMode: model.isFmMode,
+        canFetchMore: model.canFetchMore,
         isStageActive: model.isStageActive,
         // 遥控窗口要靠邻居的艺术家与封面预读下一首
         withMetadata: true,

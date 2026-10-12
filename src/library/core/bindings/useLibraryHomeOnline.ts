@@ -43,8 +43,8 @@ export const useLibraryHomeOnline = (
     const playlistCards = useMemo(() => buildOnlinePlaylistCards(online.collections, t), [online.collections, t]);
     const albumCards = useMemo(() => buildOnlineAlbumCards(favoriteAlbums.data, t), [favoriteAlbums.data, t]);
     const radioCards = useMemo(
-        () => buildOnlineRadioCards(radioFeed.data, { t, personalFmModeLabel }),
-        [personalFmModeLabel, radioFeed.data, t],
+        () => buildOnlineRadioCards(radioFeed.data, { t, personalFmModeLabel, supportsHeartbeat: online.hasHeartbeatRecommendations }),
+        [online.hasHeartbeatRecommendations, personalFmModeLabel, radioFeed.data, t],
     );
 
     const items = tab === 'playlist' ? playlistCards : tab === 'albums' ? albumCards : tab === 'radio' ? radioCards : NO_CARDS;

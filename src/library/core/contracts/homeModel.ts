@@ -54,6 +54,8 @@ export type LibraryHomeOnlineSource = {
     canUseRadio: boolean;
     /** provider 支持私人 FM 模式（FM 卡的描述显示当前模式）。 */
     hasPersonalFmModes: boolean;
+    /** Heartbeat entry is offered only by capable, authenticated providers. */
+    hasHeartbeatRecommendations?: boolean;
 };
 
 /** 本地曲库能不能用（浏览器要安全上下文与文件系统 API）。 */
@@ -199,6 +201,7 @@ export interface LibraryHomePort {
     subscribeScanProgress(listener: (progress: LibraryHomeScanProgress | null) => void): () => void;
     getPersonalFm(): Promise<SongResult[]>;
     playPersonalFm(song: SongResult, queue: SongResult[]): void;
+    startHeartbeat?(): Promise<boolean>;
     describeOnlineCollection(collection: Record<string, unknown>, providerId: string): LibraryCollectionDescriptor;
     describeLocalGroup(group: LocalLibraryGroup): LibraryCollectionDescriptor;
     describeNavidromeCard(card: LibraryHomeCard, type: NavidromeGridViewCollectionType): LibraryCollectionDescriptor;

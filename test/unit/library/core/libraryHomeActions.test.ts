@@ -48,6 +48,31 @@ const createPort = (patch: Partial<LibraryHomePort> = {}) => {
 
 const file = new File(['#EXTM3U'], 'list.m3u');
 
+describe('createLibraryHomeActions — Heartbeat', () => {
+    it('uses the host Heartbeat action without opening a collection or fetching Personal FM', async () => {
+        const startHeartbeat = vi.fn(async () => true);
+        const { port } = createPort({ startHeartbeat });
+        const open = vi.fn();
+        expect(await createLibraryHomeActions(port).openOnlineCard(
+            { id: 'heartbeat', name: 'Heartbeat', type: 'radio' }, 'netease', open,
+        )).toEqual({ ok: true });
+        expect(startHeartbeat).toHaveBeenCalledOnce();
+        expect(port.getPersonalFm).not.toHaveBeenCalled();
+        expect(open).not.toHaveBeenCalled();
+    });
+
+    it('reports an unavailable or declined Heartbeat action without opening a collection', async () => {
+        const open = vi.fn();
+        const card = { id: 'heartbeat', name: 'Heartbeat', type: 'radio' };
+        expect(await createLibraryHomeActions(createPort().port).openOnlineCard(card, 'netease', open))
+            .toEqual({ ok: false, reason: 'unsupported' });
+        const { port } = createPort({ startHeartbeat: vi.fn(async () => false) });
+        expect(await createLibraryHomeActions(port).openOnlineCard(card, 'netease', open))
+            .toEqual({ ok: false, reason: 'failed' });
+        expect(open).not.toHaveBeenCalled();
+    });
+});
+
 describe('createLibraryHomeActions — local imports', () => {
     it('imports a folder and refreshes the library only when songs came in', async () => {
         const { port } = createPort();

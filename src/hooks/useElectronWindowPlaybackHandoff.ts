@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { stopHeartbeatMode } from '../services/heartbeatPlayback';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { restorePlaybackSourceForSong } from '../components/app/playback/restorePlaybackSource';
@@ -231,6 +232,8 @@ export function useElectronWindowPlaybackHandoff({
     ]);
 
     const restoreMainPlaybackSnapshot = useCallback(async (snapshot: PlaybackSnapshot | null) => {
+        // Handoffs restore an ordinary queue; account-bound recommendation sessions are never serialized.
+        stopHeartbeatMode();
         mainPlaybackSnapshotRef.current = snapshot;
         if (!snapshot?.currentSong) {
             pendingResumeTimeRef.current = null;

@@ -164,6 +164,11 @@ export type CommandPalettePlaybackContext = {
     setReplayGainMode: (mode: ReplayGainMode) => void;
     /** Personal FM owns the queue while it is on air; queue commands stand down. */
     isFmMode: boolean;
+    isHeartbeatMode: boolean;
+    isHeartbeatLoading: boolean;
+    canStartHeartbeat: boolean;
+    startHeartbeat: () => Promise<boolean>;
+    stopHeartbeat: () => void;
     personalFmSelection: PersonalFmSelection;
     /** Only the providers that actually implement FM modes offer the picker. */
     isPersonalFmModeSupported: boolean;

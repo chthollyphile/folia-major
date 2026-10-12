@@ -8,6 +8,7 @@ import TextInputDialog from '../shared/TextInputDialog';
 import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { HeartbeatStatus } from './HeartbeatStatus';
 
 // src/components/panelTab/QueueTab.tsx
 
@@ -223,6 +224,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     if (playQueue.length === 0) {
         return (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px] select-none">
+                <HeartbeatStatus />
                 <div className="flex items-center justify-center h-full text-xs opacity-40">
                     {t('queue.empty')}
                 </div>
@@ -233,6 +235,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     return (
         <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px] select-none">
+                <HeartbeatStatus />
                 <div className="flex items-center justify-between px-2 pb-2 shrink-0">
                     <span className="text-xs font-medium opacity-60">
                         {t('queue.title')} ({playQueue.length})

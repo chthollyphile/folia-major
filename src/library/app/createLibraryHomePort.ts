@@ -6,6 +6,7 @@ import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from 
 import { getLocalLibraryAvailability } from '../../services/localLibraryAvailability';
 import { importLocalPlaylistFile } from '../../services/localPlaylistFileService';
 import { omni } from '../../services/onlineMusic/omni';
+import { startHeartbeatMode } from '../../services/heartbeatPlayback';
 import {
     createLocalGridViewCollection,
     createNavidromeGridViewCollection,
@@ -41,6 +42,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
     },
     getPersonalFm: () => omni.getPersonalFm(),
     playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
+    startHeartbeat: () => startHeartbeatMode((...args) => getSurface().onPlaySong(...args)),
     describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
     describeLocalGroup: group => createLocalGridViewCollection(group),
     describeNavidromeCard: (card, type) => createNavidromeGridViewCollection(card, type),

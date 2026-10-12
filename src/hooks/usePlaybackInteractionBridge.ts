@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
 import { omni } from '../services/onlineMusic/omni';
+import { stopHeartbeatMode } from '../services/heartbeatPlayback';
 import { playbackFade } from '../services/playbackFade';
 import { PlayerState } from '../types';
 import type { ReplayGainMode, SongResult, StageLoopMode, StatusMessage } from '../types';
@@ -174,6 +175,7 @@ export function usePlaybackInteractionBridge({
             return;
         }
 
+        stopHeartbeatMode();
         handleToggleLoopMode();
     }, [handleToggleLoopMode, isNowPlayingStageActive]);
 
