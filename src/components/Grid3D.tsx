@@ -26,6 +26,7 @@ import type { ProviderSongListCategoryGroup } from '../types/onlineMusic';
 import { getPersonalFmSelectionLabel } from '../services/onlineMusic/fmModes';
 import { buildDiscoverSections, buildDiscoverSongCardId, dedupeDiscoverSongs, PERSONAL_FM_CARD_ID, type DiscoverSection } from './app/home/buildDiscoverSections';
 import { canReuseCategorySongLists, categoryScopeOf } from './app/home/categorySelectionState';
+import { useCategorySongLists } from './app/home/useCategorySongLists';
 import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
 import { useRecentPlaysStore } from '../stores/useRecentPlaysStore';
 import { getSongCoverUrl } from '../services/onlineMusic/songMetadata';
@@ -434,13 +435,24 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     // 歌单广场的分类筛选（语种/流派/主题/心情/场景）。provider 没实现时 groups 为空，入口自动不出。
     // 选中后广场的数据源从推荐切到该分类下的歌单，而不是另开一个页面。
     const [categoryGroups, setCategoryGroups] = useState<ProviderSongListCategoryGroup[]>([]);
-    const [categorySelected, setCategorySelected] = useState<CategorySelection | null>(null);
-    const [categoryPanelOpen, setCategoryPanelOpen] = useState(false);
-    const [categorySongLists, setCategorySongLists] = useState<ProviderCollection[]>([]);
-    const [loadingCategory, setLoadingCategory] = useState(false);
-    const [categoryError, setCategoryError] = useState<string | null>(null);
-    // 已经拉过的分类（provider:categoryId）：切 tab 回来时据此复用，不重拉、不闪骨架。
-    const categorySongListsScopeRef = useRef<string | null>(null);
+    // 分类筛选的状态机抽在 useCategorySongLists：那里守着两条用户可感知的契约
+    //（切 tab 保留筛选、切回命中缓存不闪骨架），探针挂同一个 hook，浏览器里跑的
+    // 就是这里正在用的同一份代码。跨 provider 切清分类也在那个 hook 里。
+    const {
+        categorySelected,
+        setCategorySelected,
+        categoryPanelOpen,
+        setCategoryPanelOpen,
+        categorySongLists,
+        loadingCategory,
+        categoryError,
+    } = useCategorySongLists({
+        isActiveTab: homeViewTab === 'radio',
+        activeProviderId,
+        loadCategorySongLists: categoryId => omni.getCategorySongLists(activeProviderId, categoryId, { limit: 35, offset: 0 }).then(page => page.items),
+        onError: () => onStatusMessage?.({ type: 'error', text: t('home.categoryLoadFailed') }),
+    });
+
 
     // 分类树：只在电台 tab 且该 provider 支持时拉（静态数据，不随选中变化）。
     // 失败要重试一次：上游偶发的出网抖动（实测见过 TLS socket 被断）会让这一趟空手而归，
@@ -471,53 +483,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         };
     }, [homeViewTab, canUseOnlineRadio, activeProviderId]);
 
-    // 选中分类后拉该分类的歌单；取消选中（null）则回到推荐广场。
-    useEffect(() => {
-        // 切走时也要复位：否则 loadingCategory 留在 true，切回来时会先看到一帧永远的骨架。
-        if (homeViewTab !== "radio") {
-            setLoadingCategory(false);
-            return;
-        }
-        if (!categorySelected) {
-            setCategorySongLists([]);
-            categorySongListsScopeRef.current = null;
-            setCategoryError(null);
-            return;
-        }
-        // 切到别的 tab 再回来时，这个分类的数据可能已经拉过了。直接复用：
-        // 不复用的话每次切走都清空、切回来重拉，用户看到的就是「闪一下骨架再出内容」，
-        // 而且白白多打一次请求。拉过就记住是哪个分类。
-        const scope = categoryScopeOf(activeProviderId, categorySelected.itemId);
-        if (canReuseCategorySongLists(categorySongListsScopeRef.current, scope, categorySongLists.length)) {
-            setLoadingCategory(false);
-            return;
-        }
-        let cancelled = false;
-        setCategoryError(null);
-        setLoadingCategory(true);
-        // 一屏的量就够：分类本身就是“逐层挑”，先给一屏，不做无限滚动。
-        void omni.getCategorySongLists(activeProviderId, categorySelected.itemId, { limit: 35, offset: 0 })
-            .then(page => {
-                if (cancelled) return;
-                setCategorySongLists(page.items);
-                categorySongListsScopeRef.current = scope;
-            })
-            .catch(error => {
-                console.warn('[Grid3D] category song lists failed', error);
-                // 失败就不算拉过：记住的 scope 是上一个成功的分类，留着会让它挪到下一次
-                // 切回来时误以为「这个已经有数据」，实际给的是刚过失败的那个空。
-                if (!cancelled) {
-                    setCategorySongLists([]);
-                    categorySongListsScopeRef.current = null;
-                    // 只写 console 的话用户看到的就是「我刚选的分类空了」，无法区分是真的没有还是请求挂了。
-                    const message = t('home.categoryLoadFailed');
-                    setCategoryError(message);
-                    onStatusMessage?.({ type: 'error', text: message });
-                }
-            })
-            .finally(() => { if (!cancelled) setLoadingCategory(false); });
-        return () => { cancelled = true; setLoadingCategory(false); };
-    }, [homeViewTab, categorySelected, activeProviderId, categorySongLists.length]);
 
     const isLoading =
         (homeViewTab === 'playlist' && canUseOnlinePlaylists && activeCollections.length === 0 && activeUser !== null) ||
@@ -592,15 +557,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         setRadioItems([]);
         setDiscoverSections([]);
         setDiscoverError(null);
-        // 分类也要清：分类 id 是各音源上游的内部键（QQ 的 categoryId 在酷狗/网易云那里根本不存在）。
-        // 切过来不清就会立刻渲染旧音源的分类歌单，而这些卡片可以点，
-        // 点进去会用新音源去解析旧音源的 id。
-        setCategorySongLists([]);
-        categorySongListsScopeRef.current = null;
-        setCategoryError(null);
-        setCategorySelected(null);
-        setCategoryPanelOpen(false);
-        setLoadingCategory(false);
+        // 分类数据与全部缓存由 useCategorySongLists 按 activeProviderId 清理（分类 id
+        // 是各音源上游的内部键，不清会让旧音源的卡片可点、点进去却用新音源解析）。
         setFocusedIndex(0);
     }, [activeProviderId, activeUser?.id]);
 

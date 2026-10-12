@@ -57,13 +57,25 @@ describe('canReuseCategorySongLists', () => {
 // 单例与 zustand store，挂组件测试只会变成脆弱的大规模 mock，所以用静态断言钉住接线本身：
 // tab 的 onClick 里不能出现 setCategorySelected(null)。曾经正因为它在那儿，用户反馈
 // 「点发现再回来就不是刚刚出现的那些歌单了」。
-describe('Grid3D tab switching keeps the category filter', () => {
+describe('the category filter is owned by useCategorySongLists', () => {
+    // 分类状态机已经搬到 useCategorySongLists（Grid3D 与探针共用同一份）。
+    // 这里断言 hook 源码，而 Grid3D 只负责把它接上。
+    const hookSource = readFileSync(
+        path.resolve(__dirname, '../../../../src/components/app/home/useCategorySongLists.ts'),
+        'utf8',
+    );
+
     const grid3d = readFileSync(
         path.resolve(__dirname, '../../../../src/components/Grid3D.tsx'),
         'utf8',
     );
 
     it('never clears the category selection when switching tabs', () => {
+        // 接线点还在 Grid3D 里：tab 的 onClick 不能出现 setCategorySelected(null)。
+        const grid3d = readFileSync(
+            path.resolve(__dirname, '../../../../src/components/Grid3D.tsx'),
+            'utf8',
+        );
         const tabOnClick = grid3d.match(
             /onClick=\{\(\) => \{\s*setHomeViewTab\(tab\.key as any\);([\s\S]*?)\}\}/,
         );
@@ -74,16 +86,15 @@ describe('Grid3D tab switching keeps the category filter', () => {
     it('does clear it when the provider switches', () => {
         // 跨 tab 保留 ≠ 跨音源保留：分类 id 是上游内部键，换音源必须清，否则旧音源的卡片
         // 可点、点进去却用新音源解析旧 id。
-        const providerSwitch = grid3d.match(
-            /const loggedOut = [\s\S]*?setFocusedIndex\(0\);/,
-        );
-        expect(providerSwitch?.[0]).toContain('setCategorySelected(null)');
+        // 跨 tab 保留 ≠ 跨音源保留：分类 id 是各音源上游的内部键。
+        expect(hookSource).toContain('setCategorySelected(null)');
+        expect(hookSource).toContain('setCategorySongLists([])');
     });
 
     it('resets the loading flag when leaving the radio tab', () => {
         // 切走时不复位，切回来会先看到一帧永远的骨架。
-        expect(grid3d).toMatch(
-            /if \(homeViewTab !== "radio"\) \{\s*setLoadingCategory\(false\);\s*return;/,
-        );
+        // 切走时不复位，切回来会先看到一帧永远的骨架。
+        expect(hookSource).toContain('isActiveTab');
+        expect(hookSource).toContain('setLoadingCategory(false)');
     });
 });
