@@ -8,6 +8,8 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { currentTime } from '../stores/motionSignals';
 import { markProgrammaticPause, playbackFade, type PlaybackFadeSettleReason } from '../services/playbackFade';
 import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
+import { getPlaybackFailureMessage, isPlaybackFailureStatus } from '../services/playbackRecovery/playbackFailurePolicy';
+import type { OnlineRecoveryOptions, OnlineRecoveryResult, PlaybackFailure } from '../types/playbackFailure';
 
 // src/hooks/usePlaybackTransportController.ts
 
@@ -26,12 +28,7 @@ type UsePlaybackTransportControllerParams = {
     syncOutputGain: (targetVolume: number, smoothing?: number) => void;
     getTargetPlaybackVolume: () => number;
     shouldRefreshCurrentOnlineAudioSource: () => boolean;
-    recoverOnlinePlaybackSource: (options: {
-        failedSrc?: string | null;
-        resumeAt?: number;
-        autoplay: boolean;
-        shouldAutoplay?: () => boolean;
-    }) => Promise<boolean>;
+    recoverOnlinePlaybackSource: (options: OnlineRecoveryOptions) => Promise<OnlineRecoveryResult>;
     getSyntheticStageLyricsTime: () => number;
     syncStageLyricsClock: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
     /**
@@ -131,6 +128,9 @@ export function usePlaybackTransportController({
         if (!isCurrent()) return;
 
         syncOutputGain(getTargetPlaybackVolume(), 0);
+        // A failed TTL refresh still falls back to the old URL below, as before. Its reason is kept
+        // so that, should that play fail too, the message names it rather than a generic error.
+        let refreshFailure: PlaybackFailure | null = null;
         if (shouldRefreshCurrentOnlineAudioSource()) {
             const refreshed = await recoverOnlinePlaybackSource({
                 failedSrc: audio.currentSrc || audioSrc,
@@ -139,9 +139,10 @@ export function usePlaybackTransportController({
                 shouldAutoplay,
             });
 
-            if (!isCurrent() || refreshed) {
+            if (!isCurrent() || refreshed.status === 'recovered') {
                 return;
             }
+            refreshFailure = refreshed.status === 'failed' ? refreshed.failure : null;
         }
 
         // Silent first, ramped up once play() has really started. Null when the fade is off or
@@ -155,6 +156,9 @@ export function usePlaybackTransportController({
             if (!isCurrent()) { playbackFade.abortFadeIn(fadeToken); return; }
             playbackFade.runFadeIn(fadeToken);
             setPlayerState(PlayerState.PLAYING);
+            // Playback is back, so a leftover playback-failure toast goes too: its two buttons are
+            // retry and skip, with no close control. Countdowns and every other toast stay.
+            setStatusMsg(prev => (isPlaybackFailureStatus(prev) ? null : prev));
         } catch (error) {
             playbackFade.abortFadeIn(fadeToken);
             if (!isCurrent()) return;
@@ -165,7 +169,7 @@ export function usePlaybackTransportController({
                 shouldAutoplay,
             });
 
-            if (!isCurrent() || recovered) {
+            if (!isCurrent() || recovered.status === 'recovered') {
                 return;
             }
 
@@ -180,7 +184,15 @@ export function usePlaybackTransportController({
                 return;
             }
 
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
+            const failure = recovered.status === 'failed' ? recovered.failure : refreshFailure;
+            const failureMessage = failure ? getPlaybackFailureMessage(failure) : null;
+            const text = failureMessage
+                ? (failureMessage.params ? t(failureMessage.key, failureMessage.params) : t(failureMessage.key))
+                : t('status.playbackError');
+            // 已有带「重试 / 跳过」的常驻失败提示时保留它：它已写明原因，而且没有关闭按钮，「重试」是唯一的强制刷新入口。
+            // 在出错的元素上按播放（play() 以 NotSupportedError 拒绝、刷新被按文件去重）或与 onError 共用同一个恢复任务时，
+            // 这条 3 秒后消失的提示都会把它连同按钮一起盖掉。
+            setStatusMsg(prev => (isPlaybackFailureStatus(prev) ? prev : { type: 'error', text }));
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }

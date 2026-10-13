@@ -28,6 +28,9 @@ import {
     resolveKugouSongCatalogRefs,
 } from '@/services/onlineMusic/kugouProvider';
 import { resolveSongCatalogRef } from '@/services/onlineMusic/catalogRefs';
+import { classifyPlaybackError } from '@/services/playbackRecovery/onlinePlaybackFailure';
+import { resolvePlaybackFailurePolicy } from '@/services/playbackRecovery/playbackFailurePolicy';
+import { OnlineProviderError } from '@/types/onlineMusic';
 
 describe('kugouProvider', () => {
     beforeEach(async () => {
@@ -607,15 +610,238 @@ describe('kugouProvider', () => {
         expect(source?.url).toBe('https://legacy.example.test/backup.mp3');
     });
 
-    it('still returns null when the legacy mobile playInfo has no playable URL', async () => {
+    it('rejects as not-playable with the attempts when the legacy mobile playInfo has no playable URL', async () => {
         requestMock.mockResolvedValue({ status: 3 });
         legacyPlayInfoMock.mockResolvedValue({ status: 3 });
         const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
 
-        const source = await kugouProvider.playback?.getAudioSource(song, 'standard');
+        await expect(kugouProvider.playback!.getAudioSource(song, 'standard')).rejects.toMatchObject({
+            code: 'not-playable',
+            details: { attempts: expect.any(Array) },
+        });
 
         expect(legacyPlayInfoMock).toHaveBeenCalledWith('HASH');
-        expect(source).toBeNull();
+    });
+
+    describe('getAudioSource failure summary', () => {
+        const networkError = () => new OnlineProviderError('network', 'KuGou request failed (operation=song_url)', 'kugou');
+        const timeoutError = () => new OnlineProviderError(
+            'timeout',
+            'KuGou request timed out (operation=song_url): ETIMEDOUT: connect ETIMEDOUT 1.2.3.4:443',
+            'kugou',
+        );
+        const authError = () => new OnlineProviderError(
+            'auth-required',
+            'KuGou login required (operation=song_url status=502 error_code=152)',
+            'kugou',
+        );
+        const metadataSong = () => normalizeKugouSong({
+            FileHash: 'hash', SongName: 'Song', AlbumID: 164446399, album_audio_id: 500617606,
+        });
+
+        it('records every empty attempt and stays not-playable', async () => {
+            requestMock.mockResolvedValue({ status: 3, errcode: 0 });
+            legacyPlayInfoMock.mockResolvedValue({ status: 0 });
+
+            const error = await kugouProvider.playback!.getAudioSource(metadataSong(), 'high').catch(caught => caught);
+
+            expect(error).toBeInstanceOf(OnlineProviderError);
+            expect(error).toMatchObject({ code: 'not-playable', providerId: 'kugou', details: { stage: 'audio-source' } });
+            expect(error.details.attempts).toEqual([
+                { stage: 'song_url', outcome: 'empty', quality: 'high', variant: 'metadata', upstreamCode: 0, detail: 'status=3' },
+                { stage: 'song_url', outcome: 'empty', quality: 'high', variant: 'hash-only', upstreamCode: 0, detail: 'status=3' },
+                { stage: 'song_url', outcome: 'empty', quality: 'standard', variant: 'metadata', upstreamCode: 0, detail: 'status=3' },
+                { stage: 'song_url', outcome: 'empty', quality: 'standard', variant: 'hash-only', upstreamCode: 0, detail: 'status=3' },
+                { stage: 'legacy_play_info', outcome: 'empty', detail: 'status=0' },
+            ]);
+            expect(error.details.signInMayHelp).toBe(false);
+        });
+
+        it('hints that signing in may help when no session exists and every attempt was empty', async () => {
+            transportState.hasAuthenticatedSearchSession = false;
+            requestMock.mockResolvedValue({ status: 3 });
+            legacyPlayInfoMock.mockResolvedValue({ status: 3 });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            await expect(kugouProvider.playback!.getAudioSource(song, 'standard')).rejects.toMatchObject({
+                code: 'not-playable',
+                details: { signInMayHelp: true },
+            });
+        });
+
+        it('does not hint at signing in when nothing came back empty', async () => {
+            transportState.hasAuthenticatedSearchSession = false;
+            requestMock.mockRejectedValue(networkError());
+            legacyPlayInfoMock.mockRejectedValue(new OnlineProviderError('network', 'KuGou legacy playInfo failed: 502', 'kugou'));
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            await expect(kugouProvider.playback!.getAudioSource(song, 'standard')).rejects.toMatchObject({
+                code: 'network',
+                details: { signInMayHelp: false },
+            });
+        });
+
+        it('stops the song_url chain after auth-required and still uses a legacy URL', async () => {
+            requestMock.mockRejectedValue(authError());
+            legacyPlayInfoMock.mockResolvedValue({ status: 1, url: 'https://legacy.example.test/song.mp3' });
+
+            const source = await kugouProvider.playback!.getAudioSource(metadataSong(), 'hires');
+
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(legacyPlayInfoMock).toHaveBeenCalledWith('HASH');
+            expect(source).toMatchObject({ url: 'https://legacy.example.test/song.mp3', quality: 'standard' });
+        });
+
+        it('rejects auth-required when the legacy fallback also fails after an auth stop', async () => {
+            const sessionError = authError();
+            requestMock.mockRejectedValue(sessionError);
+            legacyPlayInfoMock.mockResolvedValue({ status: 3 });
+
+            const error = await kugouProvider.playback!.getAudioSource(metadataSong(), 'hires').catch(caught => caught);
+
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(error).toMatchObject({ code: 'auth-required', providerId: 'kugou' });
+            expect(error.details.attempts).toHaveLength(2);
+            expect(error.details.attempts[0]).toMatchObject({
+                stage: 'song_url', outcome: 'error', code: 'auth-required', quality: 'hires', variant: 'metadata',
+            });
+        });
+
+        it('concludes network when every attempt fails without an HTTP answer', async () => {
+            requestMock.mockRejectedValue(networkError());
+            legacyPlayInfoMock.mockRejectedValue(new OnlineProviderError(
+                'network', 'KuGou legacy playInfo failed: 502', 'kugou', undefined, undefined, undefined,
+                { stage: 'legacy_play_info' },
+            ));
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const error = await kugouProvider.playback!.getAudioSource(song, 'lossless').catch(caught => caught);
+
+            expect(requestMock).toHaveBeenCalledTimes(3);
+            expect(error).toMatchObject({ code: 'network', providerId: 'kugou' });
+            expect(error.details.attempts).toHaveLength(4);
+            expect(error.details.attempts.at(-1)).toMatchObject({ stage: 'legacy_play_info', code: 'network' });
+        });
+
+        it('treats a legacy HTTP 404 after empty song_url answers as an answer, not a network failure', async () => {
+            requestMock.mockResolvedValue({ status: 3 });
+            legacyPlayInfoMock.mockRejectedValue(new OnlineProviderError(
+                'network', 'KuGou legacy playInfo failed: 404', 'kugou', undefined, 404, undefined,
+                { stage: 'legacy_play_info' },
+            ));
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const error = await kugouProvider.playback!.getAudioSource(song, 'lossless').catch(caught => caught);
+
+            // The 404 is an answer, so the last-attempt rule decides: not-playable, never a network failure.
+            expect(error).toMatchObject({ code: 'not-playable', providerId: 'kugou' });
+            expect(error.httpStatus).toBeUndefined();
+            expect(error.details.attempts.at(-1)).toMatchObject({ stage: 'legacy_play_info', code: 'network', httpStatus: 404 });
+            const failure = classifyPlaybackError(error, { stage: 'resolve-url', providerId: 'kugou' });
+            expect(failure.reason).toBe('unknown');
+            expect(resolvePlaybackFailurePolicy(failure, 'play').autoRetryDelaysMs).toEqual([]);
+        });
+
+        it('keeps the sign-in hint when a legacy HTTP 403 follows empty answers without a session', async () => {
+            transportState.hasAuthenticatedSearchSession = false;
+            requestMock.mockResolvedValue({ status: 3 });
+            legacyPlayInfoMock.mockRejectedValue(new OnlineProviderError(
+                'network', 'KuGou legacy playInfo failed: 403', 'kugou', undefined, 403, undefined,
+                { stage: 'legacy_play_info' },
+            ));
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const error = await kugouProvider.playback!.getAudioSource(song, 'standard').catch(caught => caught);
+
+            expect(error).toMatchObject({ code: 'not-playable', details: { signInMayHelp: true } });
+            expect(classifyPlaybackError(error, { stage: 'resolve-url', providerId: 'kugou' })).toMatchObject({
+                reason: 'unknown', hint: 'sign-in-may-help',
+            });
+        });
+
+        it('concludes network when an empty answer is followed by network failures', async () => {
+            requestMock
+                .mockResolvedValueOnce({ status: 3 })
+                .mockRejectedValue(networkError());
+            legacyPlayInfoMock.mockResolvedValue({ status: 3 });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            await expect(kugouProvider.playback!.getAudioSource(song, 'lossless')).rejects.toMatchObject({
+                code: 'network',
+            });
+            expect(requestMock).toHaveBeenCalledTimes(3);
+        });
+
+        it('stops the song_url chain after a timeout and only tries legacy', async () => {
+            requestMock.mockRejectedValue(timeoutError());
+            legacyPlayInfoMock.mockResolvedValue({ status: 3 });
+
+            const error = await kugouProvider.playback!.getAudioSource(metadataSong(), 'hires').catch(caught => caught);
+
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(legacyPlayInfoMock).toHaveBeenCalledTimes(1);
+            expect(error).toMatchObject({ code: 'timeout', providerId: 'kugou' });
+        });
+
+        it('throws after a single request when the KuGou service is not configured', async () => {
+            requestMock.mockRejectedValue(new OnlineProviderError(
+                'unavailable', 'VITE_KUGOU_API_BASE is not configured', 'kugou', undefined, undefined, undefined,
+                { stage: 'config', transient: false },
+            ));
+
+            await expect(kugouProvider.playback!.getAudioSource(metadataSong(), 'hires')).rejects.toMatchObject({
+                code: 'unavailable',
+                details: { transient: false },
+            });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(legacyPlayInfoMock).not.toHaveBeenCalled();
+        });
+
+        it('throws after a single request when KuGouMusicApi rate-limits playback', async () => {
+            requestMock.mockRejectedValue(new OnlineProviderError(
+                'network', 'KuGouMusicApi request failed: 429', 'kugou', undefined, 429, 25_000,
+            ));
+
+            await expect(kugouProvider.playback!.getAudioSource(metadataSong(), 'hires')).rejects.toMatchObject({
+                code: 'rate-limited',
+                retryAfterMs: 25_000,
+            });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(legacyPlayInfoMock).not.toHaveBeenCalled();
+        });
+
+        it('returns a lower quality after the preferred one comes back empty', async () => {
+            requestMock
+                .mockResolvedValueOnce({ status: 3 })
+                .mockResolvedValueOnce({ data: { play_url: 'https://example.test/lossless.flac' } });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const source = await kugouProvider.playback!.getAudioSource(song, 'hires');
+
+            expect(requestMock.mock.calls.map(call => call[1].quality)).toEqual(['high', 'flac']);
+            expect(source).toMatchObject({ url: 'https://example.test/lossless.flac', quality: 'lossless' });
+            expect(legacyPlayInfoMock).not.toHaveBeenCalled();
+        });
+
+        it('never tries legacy for cloud songs and still summarizes the failure', async () => {
+            requestMock.mockRejectedValue(authError());
+            const song = {
+                ...normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' }),
+                sourceRef: {
+                    kind: 'online' as const,
+                    providerId: 'kugou' as const,
+                    mediaId: 'HASH',
+                    variant: 'cloud' as const,
+                    providerData: { hash: 'HASH', fileId: 'cloud-file' },
+                },
+            };
+
+            await expect(kugouProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
+                code: 'auth-required',
+                details: { attempts: [expect.objectContaining({ stage: 'user_cloud_url', variant: 'cloud' })] },
+            });
+            expect(legacyPlayInfoMock).not.toHaveBeenCalled();
+        });
     });
 
     it('hydrates canonical album and artist ids through hash-verified KRM metadata once', async () => {

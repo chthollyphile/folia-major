@@ -85,7 +85,7 @@ const buildTransport = () => usePlaybackTransportController({
     syncOutputGain: syncOutputGain as (targetVolume: number, smoothing?: number) => void,
     getTargetPlaybackVolume: () => 0.8,
     shouldRefreshCurrentOnlineAudioSource: () => false,
-    recoverOnlinePlaybackSource: vi.fn(async () => false),
+    recoverOnlinePlaybackSource: vi.fn(async () => ({ status: 'not-attempted' as const })),
     getSyntheticStageLyricsTime: () => 0,
     syncStageLyricsClock: vi.fn(),
     pauseDuringTransition: pauseDuringTransition as () => boolean,

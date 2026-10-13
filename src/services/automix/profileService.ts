@@ -4,6 +4,7 @@ import { saveAudioBlob } from '../audioCache';
 import { getFromCache, saveToCache } from '../db';
 import { getCachedSongAudioBlob } from '../onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
+import { isCacheableAudioResponse } from '../playbackRecovery/mediaCacheGuard';
 import { getPlaybackAnalysisKey, getPlaybackRepresentation } from '../playbackRecovery/representationRegistry';
 import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThread';
 import { analyseBeatGrid, canRunBeatThis } from './beatThis';
@@ -246,7 +247,19 @@ const readBytes = async (
             return await readPrefix(audioUrl);
         }
 
-        const blob = await (await fetch(audioUrl)).blob();
+        const response = await fetch(audioUrl);
+        const blob = await response.blob();
+        // An error page, a JSON refusal or a truncated body is not audio: cached, it would stand in
+        // for the real track on every later play, and decoded, it would be remembered as a permanent
+        // "unsupported" verdict for a track that merely failed to download this once.
+        if (!isCacheableAudioResponse(response, blob)) {
+            console.warn('[Automix] the download for analysis does not look like audio', {
+                status: response.status,
+                contentType: response.headers?.get('content-type') ?? blob.type,
+                size: blob.size,
+            });
+            return { skipped: 'the download was not audio' };
+        }
         if (!isLocal) {
             // The same write the audio bridge would have done after playback. Fetching once and
             // feeding both is the whole reason a full read is allowed here at all.

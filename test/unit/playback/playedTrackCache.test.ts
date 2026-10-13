@@ -18,6 +18,20 @@ vi.mock('../../../src/services/db', () => ({
 }));
 
 const { cachePlayedTrackAssets } = await import('../../../src/services/playedTrackCache');
+const { getSongResourceCacheKey } = await import('../../../src/services/onlineMusic/resourceKeys');
+const {
+    clearCachedSongAudioDistrust,
+    distrustCachedSongAudio,
+    isCachedSongAudioDistrusted,
+} = await import('../../../src/services/playbackRecovery/mediaCacheGuard');
+
+/** A download that passes the cache write guard: HTTP OK, an audio type, and more than 16 KiB. */
+const audioResponse = (overrides: { ok?: boolean; status?: number; contentType?: string; size?: number } = {}) => ({
+    ok: overrides.ok ?? true,
+    status: overrides.status ?? 200,
+    headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? overrides.contentType ?? 'audio/mpeg' : null) },
+    blob: async () => new Blob([new Uint8Array(overrides.size ?? 32 * 1024)]),
+});
 
 // The audio and cover caches are pruned under separate categories, so every combination of
 // "one present, the other missing" is a state ordinary use reaches. Each resource has to be asked
@@ -44,8 +58,9 @@ describe('cachePlayedTrackAssets', () => {
         hasCachedSongCover.mockResolvedValue(false);
         saveAudioBlob.mockResolvedValue(undefined);
         saveToCache.mockResolvedValue(undefined);
-        vi.stubGlobal('fetch', vi.fn(async () => ({ blob: async () => new Blob(['x']) })));
+        vi.stubGlobal('fetch', vi.fn(async () => audioResponse()));
         vi.spyOn(console, 'log').mockImplementation(() => { });
+        clearCachedSongAudioDistrust(onlineSong);
     });
 
     it('stores both when neither is cached', async () => {
@@ -115,5 +130,66 @@ describe('cachePlayedTrackAssets', () => {
         expect(written).toEqual({ audio: false, cover: false });
         expect(saveAudioBlob).not.toHaveBeenCalled();
         expect(saveToCache).not.toHaveBeenCalled();
+    });
+
+    // 缓存命中优先于 provider：一份错误页一旦被存成音频，之后每次播放都会顶替真音源。
+    describe('the audio write guard', () => {
+        const stubAudioDownload = (response: ReturnType<typeof audioResponse>) => {
+            vi.stubGlobal('fetch', vi.fn(async (url: string) => (url.endsWith('.mp3') ? response : audioResponse())));
+            vi.spyOn(console, 'warn').mockImplementation(() => { });
+        };
+
+        it('does not store a 403 answer', async () => {
+            stubAudioDownload(audioResponse({ ok: false, status: 403 }));
+
+            const written = await cachePlayedTrackAssets(onlineSong, 'https://cdn.example/audio.mp3');
+
+            expect(written).toEqual({ audio: false, cover: true });
+            expect(saveAudioBlob).not.toHaveBeenCalled();
+        });
+
+        it('does not store an HTML page served with 200', async () => {
+            stubAudioDownload(audioResponse({ contentType: 'text/html; charset=utf-8' }));
+
+            const written = await cachePlayedTrackAssets(onlineSong, 'https://cdn.example/audio.mp3');
+
+            expect(written).toEqual({ audio: false, cover: true });
+            expect(saveAudioBlob).not.toHaveBeenCalled();
+        });
+
+        it('does not store a truncated download', async () => {
+            stubAudioDownload(audioResponse({ size: 1024 }));
+
+            const written = await cachePlayedTrackAssets(onlineSong, 'https://cdn.example/audio.mp3');
+
+            expect(written.audio).toBe(false);
+            expect(saveAudioBlob).not.toHaveBeenCalled();
+        });
+
+        it('keeps a distrusted song distrusted when the new download is not audio either', async () => {
+            hasCachedSongAudio.mockResolvedValue(true);
+            distrustCachedSongAudio(onlineSong);
+            stubAudioDownload(audioResponse({ contentType: 'application/json' }));
+
+            const written = await cachePlayedTrackAssets(onlineSong, 'https://cdn.example/audio.mp3');
+
+            expect(written.audio).toBe(false);
+            expect(saveAudioBlob).not.toHaveBeenCalled();
+            expect(isCachedSongAudioDistrusted(onlineSong)).toBe(true);
+        });
+    });
+
+    // 缓存 blob 解码失败后本会话不再信任它；这首歌完整播放一遍（走的是 provider 地址）就用合格的下载覆盖掉坏的那份。
+    it('rewrites a distrusted cached song and clears the distrust', async () => {
+        hasCachedSongAudio.mockResolvedValue(true);
+        hasCachedSongCover.mockResolvedValue(true);
+        distrustCachedSongAudio(onlineSong);
+
+        const written = await cachePlayedTrackAssets(onlineSong, 'https://cdn.example/audio.mp3');
+
+        expect(written).toEqual({ audio: true, cover: false });
+        expect(saveAudioBlob).toHaveBeenCalledTimes(1);
+        expect(saveAudioBlob.mock.calls[0][0]).toBe(getSongResourceCacheKey('audio', onlineSong));
+        expect(isCachedSongAudioDistrusted(onlineSong)).toBe(false);
     });
 });

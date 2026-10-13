@@ -92,9 +92,17 @@ export interface ProviderAudioSource {
 
 export type ProviderSongAvailabilityState = 'playable' | 'unavailable' | 'unknown';
 
+export type ProviderSongUnavailableReason = 'taken-down' | 'restricted';
+
 export interface ProviderSongAvailability {
     state: ProviderSongAvailabilityState;
     label?: string;
+    /**
+     * state 'unavailable' 只能搭配 'taken-down'；不带 reason 的 'unavailable'（mod provider）也按 taken-down 处理。
+     * 权限 / 付费 / 地区这类限制只能是 state 'unknown' + reason 'restricted'，交给运行时判定。
+     * 运行时失败永不回写这里。
+     */
+    reason?: ProviderSongUnavailableReason;
 }
 
 export interface ProviderSongReplacement {
@@ -225,12 +233,59 @@ export type ProviderErrorCode =
     // 集合设为不公开，当前这条读取路径没资格读它。与 `unsupported`（这个后端或 provider 没有这项能力）
     // 分开，界面才能只在这种情况下给出「不是公开歌单」的解释。
     | 'not-public'
+    // 播放链路上表示「服务未配置 / 后端未运行 / 需要桌面版 / provider 未注册」，从不表示歌曲下架。
     | 'unavailable'
+    // 上游有应答但没给可播放音源，原因无法证实；播放侧归为 unknown。
     | 'not-playable'
     | 'preview-only'
     | 'region-restricted'
     | 'network'
-    | 'invalid-response';
+    | 'invalid-response'
+    // —— 以下只在 adapter 掌握对应证据时抛出 ——
+    | 'timeout'
+    | 'rate-limited'
+    | 'service-unavailable'
+    | 'membership-required'
+    | 'purchase-required'
+    // 缺少播放权限，但平台没区分会员还是购买。
+    | 'entitlement-required'
+    // 上游在单次请求中明确表示已下架。当前内置 provider 都没有经核实的此类信号；新增产出点必须附真实响应样本测试。
+    | 'taken-down';
+
+/** auth-required 的细分：本地没有会话（signed-out），或持有的会话被上游拒绝（expired）。 */
+export type ProviderAuthState = 'signed-out' | 'expired';
+
+/** 一次音源请求尝试留下的诊断证据；UI 不得按 stage / upstreamCode 分支。 */
+export interface ProviderPlaybackAttempt {
+    /** 'song_url' | 'user_cloud_url' | 'legacy_play_info' | 'music_play' ... */
+    stage: string;
+    quality?: AudioQualityPreference;
+    /** KuGou: 'metadata' | 'hash-only' | 'cloud' */
+    variant?: string;
+    /** empty = 服务有应答但没给 URL */
+    outcome: 'empty' | 'error';
+    code?: ProviderErrorCode;
+    httpStatus?: number;
+    /** 沿用 qq-music-api / bodian-music-api 的命名；不叫 code */
+    upstreamCode?: number | string;
+    retryAfterMs?: number;
+    transient?: boolean;
+    /** 后端原文，例如 QQ 的 '暂无播放链接' */
+    detail?: string;
+}
+
+export interface OnlineProviderErrorDetails {
+    /** 'config' | 'backend' | 'runtime' | 'ipc' | 'upstream' | 'local-api' | 'song-url' | 'audio-source' ... */
+    stage?: string;
+    upstreamCode?: number | string;
+    /** 仅 adapter 能证明时写 */
+    auth?: ProviderAuthState;
+    /** false = 已证实持久（未配置 / 需桌面版）；true = 已证实暂时；缺省 = 未知 */
+    transient?: boolean;
+    /** 没有会话且上游只是没给链接：登录“可能”有用，不能断定为 auth-required */
+    signInMayHelp?: boolean;
+    attempts?: readonly ProviderPlaybackAttempt[];
+}
 
 export class OnlineProviderError extends Error {
     constructor(
@@ -242,6 +297,8 @@ export class OnlineProviderError extends Error {
         public readonly httpStatus?: number,
         /** 后端要求的冷却时长（429 退避）；只有能读出它的 transport 会传。 */
         public readonly retryAfterMs?: number,
+        /** 诊断与归一化证据。追加在末尾，现有按位置传参的调用不用改。 */
+        public readonly details?: OnlineProviderErrorDetails,
     ) {
         super(message);
         this.name = 'OnlineProviderError';
@@ -573,4 +630,7 @@ export type OmniArtist = ProviderArtistSummary;
 export type OmniUser = ProviderUser;
 export type OmniCollection = ProviderCollection;
 export type OmniHistoryEntry = ProviderHistoryEntry;
+export type OmniErrorDetails = OnlineProviderErrorDetails;
+export type OmniPlaybackAttempt = ProviderPlaybackAttempt;
+export type OmniSongUnavailableReason = ProviderSongUnavailableReason;
 export { OnlineProviderError as OmniError };

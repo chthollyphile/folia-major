@@ -25,6 +25,59 @@ const createSystem = () => {
     return { system, group, bind };
 };
 
+interface FilterStackCompat {
+    _filterStack: { inputTexture: pixi.Texture }[];
+    _filterStackIndex: number;
+}
+
+/**
+ * A filter system with just enough renderer for push() to claim pooled input textures. pop()
+ * stands in for the real one minus the draw: it releases the entry and returns its input.
+ */
+const createPushSystem = () => {
+    const viewport = { width: 0, height: 0 };
+    const renderer = {
+        type: pixi.RendererType.WEBGL,
+        renderTarget: {
+            renderSurface: {},
+            renderTarget: { colorTexture: { source: { resolution: 1, antialias: false, ...viewport } } },
+            rootViewPort: viewport,
+            bind: () => {},
+            finishRenderPass: () => {},
+        },
+        globalUniforms: { push: () => {}, pop: () => {} },
+    };
+    const system = new pixi.FilterSystem(renderer as unknown as pixi.WebGLRenderer) as FilterSystem;
+    system.init();
+    systems.push(system);
+    const stack = system as unknown as FilterStackCompat;
+    // Only the fields push() reads; a real Filter would compile its program against a canvas.
+    const filter = {
+        enabled: true,
+        resolution: 1,
+        padding: 0,
+        antialias: 'off',
+        clipToViewport: true,
+        blendRequired: false,
+        compatibleRenderers: pixi.RendererType.WEBGL,
+    };
+    const frame = (width: number, height: number) => {
+        Object.assign(viewport, { width, height });
+        Object.assign(renderer.renderTarget.renderTarget.colorTexture.source, viewport);
+        return {
+            filterEffect: { filters: [filter], filterArea: new pixi.Rectangle(0, 0, width, height) },
+            container: { worldTransform: new pixi.Matrix(), renderGroup: { cacheToLocalTransform: null } },
+        } as unknown as pixi.FilterInstruction;
+    };
+    const pop = () => {
+        stack._filterStackIndex -= 1;
+        const texture = stack._filterStack[stack._filterStackIndex]!.inputTexture;
+        pixi.TexturePool.returnTexture(texture);
+        return texture;
+    };
+    return { system, frame, pop };
+};
+
 const expectUnbound = (group: pixi.BindGroup) => {
     expect(group.getResource(1)).toBe(pixi.Texture.EMPTY.source);
     expect(group.getResource(2)).toBe(pixi.Texture.EMPTY.source.style);
@@ -128,11 +181,31 @@ describe('Pixi 8.21.0 filter pool compatibility', () => {
         expect(() => pixi.TexturePool.clear()).not.toThrow();
     });
 
+    it('pushes a nested filter after a resize pruned its stack entry\'s previous input', () => {
+        const { system, frame, pop } = createPushSystem();
+        system.push(frame(301, 201));
+        system.push(frame(301, 201));
+        const stale = pop();
+        pop();
+
+        // The entry still holds the returned texture; the resize prunes its screen-sized bucket.
+        pixi.TexturePool.setScreenSize(SCREEN, 347, 229);
+        expect(stale.destroyed).toBe(true);
+
+        system.push(frame(347, 229));
+        expect(() => system.push(frame(347, 229))).not.toThrow();
+        const input = pop();
+        pop();
+        expect(input.destroyed).toBe(false);
+    });
+
     it('installs once and leaves other Pixi versions untouched', () => {
         const init = (pixi.FilterSystem.prototype as FilterSystem).init;
+        const push = pixi.FilterSystem.prototype.push;
         const returnTexture = pixi.TexturePool.returnTexture;
         installPixiFilterPoolCompat(pixi);
         expect((pixi.FilterSystem.prototype as FilterSystem).init).toBe(init);
+        expect(pixi.FilterSystem.prototype.push).toBe(push);
         expect(pixi.TexturePool.returnTexture).toBe(returnTexture);
 
         const OtherFilterSystem = class { init = vi.fn(); };

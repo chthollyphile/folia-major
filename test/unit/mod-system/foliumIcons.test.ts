@@ -33,6 +33,16 @@ describe('folium.ui.icon', () => {
         expect(icon!.getAttribute('viewBox')).toBe('0 0 24 24');
     });
 
+    it('draws an alias name as its canonical icon', async () => {
+        // lucide's alias files (icons/alarm-check.mjs) only re-export `default`, with no __iconData.
+        // dynamicIconImports routes alias keys to the canonical module instead; this pins that.
+        const alias = await createFoliumIcon('alarm-check');
+        const canonical = await createFoliumIcon('alarm-clock-check');
+        expect(alias).not.toBeNull();
+        expect(shapesOf(alias!)).toEqual(shapesOf(canonical!));
+        expect(alias!.getAttribute('class')).toBe('lucide lucide-alarm-check');
+    });
+
     it('returns null for unknown or malformed names', async () => {
         expect(hasFoliumIcon('play')).toBe(true);
         expect(hasFoliumIcon('not-an-icon')).toBe(false);

@@ -65,6 +65,95 @@ describe('QQ Music Web transport', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    // 没配后端地址是持久的：播放侧据 transient:false 显示「未配置」，而不是让用户反复重试。
+    it('marks a missing VITE_QQ_API_BASE as a persistent configuration gap', async () => {
+        vi.stubEnv('VITE_QQ_API_BASE', '');
+        vi.stubGlobal('fetch', vi.fn());
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('music_play', { songmid: 'song-mid' })).rejects.toMatchObject({
+            code: 'unavailable',
+            providerId: 'qq',
+            details: { stage: 'config', transient: false },
+        });
+    });
+
+    // 500 正文只给 `{ error }`（后端 observability.js）：原文要进 message，否则诊断时只剩一个状态码。
+    it('carries the backend error text of a 500 into the message', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json(
+            { error: 'get-music-play failed: upstream reset' },
+            { status: 500 },
+        )));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        const error = await requestQq('music_play', { songmid: 'song-mid', quality: 'flac' }).catch((thrown: unknown) => thrown);
+
+        expect(error).toMatchObject({
+            code: 'network',
+            httpStatus: 500,
+            message: 'QQMusicApi music_play failed: HTTP 500 (get-music-play failed: upstream reset)',
+        });
+        // 普通 5xx 不是「未配置」，不带 transient:false。
+        expect((error as { details?: unknown }).details).toBeUndefined();
+    });
+
+    // 登录态播放走 musicu：上游 HTTP 200 但带非零业务码时，后端的 QqProtocolError 一律包成 500 `{ error }`。
+    // 上游其实应答了，这不是服务故障：不带 httpStatus、带上游码，分类器读成 unknown，汇总也不算作暂时性失败。
+    it.each([
+        ['the request code', 'get-music-play failed (HTTP 200, global=0, code=104003)', 104003],
+        ['the global code when the request code is missing', 'get-music-play failed (HTTP 200, global=2000, code=unknown)', 2000],
+        ['a marker when the answer has no request item', 'get-music-play failed (HTTP 200, global=0, code=unknown)', 'missing'],
+    ])('reads an upstream business refusal wrapped in a 500 as %s', async (_label, backendText, upstreamCode) => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: backendText }, { status: 500 })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+        const { classifyPlaybackError } = await import('@/services/playbackRecovery/onlinePlaybackFailure');
+
+        const error = await requestQq('music_play', { songmid: 'song-mid', quality: 'flac' }).catch((thrown: unknown) => thrown);
+
+        expect(error).toMatchObject({
+            code: 'network',
+            message: `QQMusicApi music_play failed: HTTP 500 (${backendText})`,
+            details: { stage: 'upstream', upstreamCode },
+        });
+        expect((error as { httpStatus?: number }).httpStatus).toBeUndefined();
+        expect(classifyPlaybackError(error, { stage: 'resolve-url', providerId: 'qq' }).reason).toBe('unknown');
+    });
+
+    it.each([
+        ['an axios failure', 'Request failed with status code 503'],
+        ['a non-2xx upstream answer', 'get-music-play failed (HTTP 302, global=0, code=unknown)'],
+    ])('keeps %s inside a 500 as a service failure', async (_label, backendText) => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: backendText }, { status: 500 })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        const error = await requestQq('music_play', { songmid: 'song-mid' }).catch((thrown: unknown) => thrown);
+
+        expect(error).toMatchObject({ code: 'network', httpStatus: 500 });
+        expect((error as { details?: unknown }).details).toBeUndefined();
+    });
+
+    it('prefers the backend message over its error field and skips blank ones', async () => {
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce(Response.json({ message: 'primary text', error: 'secondary text' }, { status: 502 }))
+            .mockResolvedValueOnce(Response.json({ message: '   ', error: 'secondary text' }, { status: 502 })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('login_status')).rejects.toThrow('QQMusicApi login_status failed: HTTP 502 (primary text)');
+        await expect(requestQq('login_status')).rejects.toThrow('QQMusicApi login_status failed: HTTP 502 (secondary text)');
+    });
+
+    // 501 是后端没配好这项能力（serverless 入口缺少配置）：code 仍是 network，但标成持久的配置缺口。
+    it('marks a 501 as a persistent configuration gap while keeping the network code', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'QQ login is not configured' }, { status: 501 })));
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        await expect(requestQq('music_play', { songmid: 'song-mid' })).rejects.toMatchObject({
+            code: 'network',
+            httpStatus: 501,
+            details: { stage: 'config', transient: false },
+        });
+    });
+
     it('builds the documented endpoint URL with params and a cache-busting timestamp', async () => {
         const fetchMock = vi.fn().mockResolvedValue(Response.json({
             code: 200,
@@ -486,6 +575,18 @@ describe('QQ Music Web transport', () => {
 
         await expect(requestQq('login_status')).resolves.toMatchObject({ code: 200 });
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    // 内嵌后端没在监听可能只是还在启动：只标出阶段，不断言它是持久的。
+    it('tags an embedded backend that is not running with the backend stage only', async () => {
+        vi.stubGlobal('window', { electron: { getQqPort: vi.fn().mockResolvedValue(null) } });
+        vi.stubGlobal('fetch', vi.fn());
+        const { requestQq } = await import('@/services/onlineMusic/qqTransport');
+
+        const error = await requestQq('music_play', { songmid: 'song-mid' }).catch((thrown: unknown) => thrown);
+
+        expect(error).toMatchObject({ code: 'unavailable', details: { stage: 'backend' } });
+        expect((error as { details?: { transient?: boolean } }).details?.transient).toBeUndefined();
     });
 
     it('names the operation and the backend message, but never the session cookie', async () => {

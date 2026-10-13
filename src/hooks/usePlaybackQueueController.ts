@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongAudioSource, loadOnlineSongLyrics } from '../services/onlinePlayback';
@@ -15,8 +15,10 @@ import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest,
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../types';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, SkipPromptMessageKey, UnavailableReplacementRequest } from '../types/appPlayback';
+import type { PlaybackFailure, PlaybackFailureSkipOptions } from '../types/playbackFailure';
 import type { NavidromeSong } from '../types/navidrome';
 import {
+    getOnlineProviderIdForSong,
     getPlaybackSongKey,
     isLocalPlaybackSong,
     isNavidromePlaybackSong,
@@ -42,6 +44,9 @@ import { useSearchNavigationStore } from '../stores/useSearchNavigationStore';
 import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
 import { useStableActionSurface } from './useStableCallbacks';
 import { hasBeforePlayHook, runBeforePlayHook } from '../services/hostExtensionHooks';
+import { classifyPlaybackError, isTransientPlaybackFailure } from '../services/playbackRecovery/onlinePlaybackFailure';
+import { PLAYBACK_RETRYING_MESSAGE_KEY } from '../services/playbackRecovery/playbackFailurePolicy';
+import { presentPlaybackFailure, type PlaybackFailurePresenterDeps } from '../components/app/playback/presentPlaybackFailure';
 
 // src/hooks/usePlaybackQueueController.ts
 
@@ -102,6 +107,8 @@ type UsePlaybackQueueControllerParams = {
     blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
     currentSongRef: MutableRefObject<string | number | null>;
+    /** Bumped on every commit of the current song, a replay of the same song included (see usePlaybackRuntimeRefs). */
+    playbackGenerationRef: MutableRefObject<number>;
     mainPlaybackSnapshotRef: MutableRefObject<{
         currentSong: SongResult | null;
         lyrics: any;
@@ -166,6 +173,7 @@ export function usePlaybackQueueController({
     blobUrlRef,
     shouldAutoPlayRef,
     currentSongRef,
+    playbackGenerationRef,
     mainPlaybackSnapshotRef,
     playbackAutoSkipCountRef,
     pendingResumeTimeRef,
@@ -180,8 +188,26 @@ export function usePlaybackQueueController({
     const playbackRequestIdRef = useRef(0);
     /** Rising id per playSong call: a newer call supersedes an older one still awaiting `beforePlay`. */
     const playSongCallIdRef = useRef(0);
+    /** FM state from before the oldest play request that has not landed yet; a failed latest request puts it back. */
+    const fmModeBeforePendingPlayRef = useRef<boolean | null>(null);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
+
+    // Stage 接管同一个 audio 元素：还没落地的主播放请求就此作废（loader 不再重试，迟到的结果按陈旧丢弃）。否则迟到的失败
+    // 会暂停 Stage 的音频并在 Stage 上弹出重试 / 跳过，迟到的成功会落进 Stage 上下文、离开 Stage 时又被旧主快照盖掉。
+    // 进入 Stage 的入口（openStagePlayer 各分支、restoreStagePlaybackHandoff）都在碰 audio 之前同步切换 context，订阅 store
+    // 能一并覆盖；作废靠递增请求 id，离开 Stage 后旧请求也不会重新变成「最新」。
+    useEffect(() => usePlaybackStore.subscribe((state, previous) => {
+        if (state.activePlaybackContext !== 'stage' || previous.activePlaybackContext === 'stage') return;
+        playbackRequestIdRef.current += 1;
+        // 被作废的请求不会再跑 restoreFmModeIfNotLanded：openStagePlayer 刚存的主快照可能带着它写进去的 FM 状态，改回请求之前的值。
+        const fmModeBeforeRequest = fmModeBeforePendingPlayRef.current;
+        fmModeBeforePendingPlayRef.current = null;
+        const mainSnapshot = mainPlaybackSnapshotRef.current;
+        if (fmModeBeforeRequest !== null && mainSnapshot && mainSnapshot.isFmMode !== fmModeBeforeRequest) {
+            mainPlaybackSnapshotRef.current = { ...mainSnapshot, isFmMode: fmModeBeforeRequest };
+        }
+    }), [mainPlaybackSnapshotRef]);
 
     // Read here rather than passed in: every one of these lives in a store, a module-level setter or
     // i18n, and App.tsx was naming 15 of them purely to hand them straight back.
@@ -358,40 +384,6 @@ export function usePlaybackQueueController({
         return replacedQueue;
     }, []);
 
-    const handleMarkedUnavailableSong = useCallback(async (
-        song: SongResult,
-        queue: SongResult[],
-        isFmCall: boolean,
-        options: PlaybackNavigationOptions
-    ) => {
-        setIsLyricsLoading(false);
-        setStatusMsg({ type: 'info', text: t('status.loadingSong') });
-        try {
-            const replacement = await getSongReplacement(song);
-
-            if (!replacement || !replacement.song || isSongUnavailable(replacement.song)) {
-                setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
-                return true;
-            }
-
-            setStatusMsg(null);
-            setPendingUnavailableReplacement({
-                originalSong: song,
-                replacementSong: replacement.song,
-                replacementSongId: replacement.song.id,
-                typeDesc: replacement.label,
-                queue,
-                isFmCall,
-                options,
-            });
-            return true;
-        } catch (error) {
-            console.error('[App] Failed to load replacement song before dialog:', error);
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            return true;
-        }
-    }, [t, setIsLyricsLoading, setStatusMsg]);
-
     const showTimedSkipPrompt = useCallback((
         messageKey: SkipPromptMessageKey,
         onSkip: () => void,
@@ -420,7 +412,8 @@ export function usePlaybackQueueController({
             onCancel: cancel,
         });
 
-        setStatusMsg(buildMessage(remainingSeconds));
+        let lastBuilt = buildMessage(remainingSeconds);
+        setStatusMsg(lastBuilt);
         pendingUnavailableSkipTimerRef.current = window.setTimeout(skip, UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS);
         pendingUnavailableSkipIntervalRef.current = window.setInterval(() => {
             remainingSeconds -= 1;
@@ -432,14 +425,21 @@ export function usePlaybackQueueController({
                 return;
             }
 
+            // 只更新本次倒计时自己发出的那条消息；期间出现的其他常驻消息不覆盖。
             setStatusMsg(current => {
-                if (!current?.persistent) {
+                if (current !== lastBuilt) {
                     return current;
                 }
-                return buildMessage(remainingSeconds);
+                lastBuilt = buildMessage(remainingSeconds);
+                return lastBuilt;
             });
         }, UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS);
     }, [clearPendingUnavailableSkip, pendingUnavailableSkipIntervalRef, pendingUnavailableSkipTimerRef, setStatusMsg, t]);
+
+    const presenterDeps = useMemo<PlaybackFailurePresenterDeps>(() => ({
+        t, setStatusMsg, setPlayerState, audioRef, shouldAutoPlayRef, setIsLyricsLoading, showTimedSkipPrompt,
+        maxAutoSkipCount: MAX_UNAVAILABLE_AUTO_SKIP_COUNT,
+    }), [audioRef, setIsLyricsLoading, shouldAutoPlayRef, showTimedSkipPrompt, t]);
 
     // Loads one requested song and normalizes queue behavior across sources.
     const playSong = useCallback(async (
@@ -454,6 +454,9 @@ export function usePlaybackQueueController({
         // out instead of replacing the song the user picked last.
         // An automix advance skips the hook (see `isAutomixAdvance`).
         const playSongCallId = ++playSongCallIdRef.current;
+        // 没传队列，或传的就是 store 里的当前队列（下一首 / 上一首 / 队列面板 / FM 续歌）：失败按钮按点击时的最新队列走。
+        // 只有还没写进 store 的显式队列（如从歌单点歌）才用快照。在 beforePlay 的 await 之前取，比较的是调用方看到的队列。
+        const queueFollowsStore = queue.length === 0 || queue === usePlaybackStore.getState().playQueue;
         const allowedSong = !options.isAutomixAdvance && hasBeforePlayHook()
             ? await runBeforePlayHook(requestedSong)
             : requestedSong;
@@ -461,17 +464,6 @@ export function usePlaybackQueueController({
             return;
         }
         const song = allowedSong;
-        // 点的就是当前这首：不重新加载（不中断播放、不回 0），但把播放器页打开、暂停则续播——
-        // 也就是「点正在播的歌 = 展开现在正在播放的界面」。automix 自动前进不算（那是正常换曲）。
-        // 用 getState() 取实时值，避开 useCallback 闭包陈旧。
-        if (!options.isAutomixAdvance) {
-            const live = usePlaybackStore.getState();
-            if (live.currentSong && getPlaybackSongKey(song) === getPlaybackSongKey(live.currentSong)) {
-                if (live.playerState === PlayerState.PAUSED) void audioRef.current?.play();
-                navigateToPlaybackView();
-                return;
-            }
-        }
         // A pause still fading out belongs to the song being replaced. Run it now instead of
         // dropping it: the old song is still sounding and the new one can take seconds to load, so
         // dropping it would leave the old song at full volume under a PAUSED player. The fade node
@@ -483,10 +475,15 @@ export function usePlaybackQueueController({
         interruptStagePlaybackForMainTransition();
 
         console.log('[App] playSong initiated:', song.name, song.id, 'isFm:', isFmCall);
+        // 新请求取代上一首的替代版本弹窗。
+        setPendingUnavailableReplacement(null);
         clearPendingUnavailableSkip();
         setStatusMsg(prev => prev?.persistent ? null : prev);
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         const wasFmMode = usePlaybackStore.getState().isFmMode;
+        // 前面还有没落地的请求时沿用它记下的值：那次请求写进去的 FM 状态从没对应过真正在播的歌。
+        const fmModeToRestore = fmModeBeforePendingPlayRef.current ?? wasFmMode;
+        fmModeBeforePendingPlayRef.current = fmModeToRestore;
         setIsFmMode(isFmCall);
         if (isFmCall && !wasFmMode) {
             setPanelTab('queue');
@@ -498,6 +495,13 @@ export function usePlaybackQueueController({
 
         const playbackRequestId = ++playbackRequestIdRef.current;
         const isLatestPlaybackRequest = () => playbackRequestIdRef.current === playbackRequestId;
+        // 点歌没有落地：FM 状态退回本次请求之前的值，否则会和仍在播的上一首、旧队列对不上，handleNextTrack 会按错的模式选歌。
+        // 重试 / 跳过 / 替代版本都带着 isFmCall 重新调用 playSong，会再设一次；更新的请求已经写了自己的值，不能覆盖。
+        const restoreFmModeIfNotLanded = () => {
+            if (!isLatestPlaybackRequest()) return;
+            fmModeBeforePendingPlayRef.current = null;
+            if (usePlaybackStore.getState().isFmMode !== fmModeToRestore) setIsFmMode(fmModeToRestore);
+        };
         const isLocal = isLocalPlaybackSong(song);
         const isNavidrome = isNavidromePlaybackSong(song);
         let prefetched: ReturnType<typeof getPrefetchedData> = null;
@@ -509,11 +513,74 @@ export function usePlaybackQueueController({
         // For the plays this one defers (the replacement dialog, the timed skip): they start after a
         // prompt or a countdown, so they are not the blend's advance even when this call was.
         const deferredPlayOptions: PlaybackNavigationOptions = { ...options, isAutomixAdvance: undefined };
+        const providerId = getOnlineProviderIdForSong(song) ?? undefined;
 
-        if (!isLocal && !isNavidrome && isSongUnavailable(song)) {
-            if (await handleMarkedUnavailableSong(song, queueContext, isFmCall, deferredPlayOptions)) {
+        // 按策略表展示这次点歌的失败；“跳过”只在有下一首可播歌曲时提供，只有 taken-down 才累计连跳次数。
+        const presentOnlineFailure = (failure: PlaybackFailure) => {
+            restoreFmModeIfNotLanded();
+            const nextSong = getNextPlayableQueueSong(queueContext, song);
+            // 按钮可能很久以后才被点：队列跟着 store 走时，读点击那一刻的主队列（Stage 期间主队列在 mainPlaybackSnapshotRef 里）。
+            const readClickTimeQueue = (): SongResult[] | null => {
+                if (!queueFollowsStore) return null;
+                const live = usePlaybackStore.getState();
+                const liveQueue = live.activePlaybackContext === 'stage' ? mainPlaybackSnapshotRef.current?.playQueue ?? [] : live.playQueue;
+                return liveQueue.length > 0 ? liveQueue : null;
+            };
+            // 两个按钮都经 latestQueueActionsRef 调用最新一次渲染的 playSong，用的是点击时的音质、Stage 中断和队列。
+            presentPlaybackFailure({
+                failure, context: 'play', isCurrent: isLatestPlaybackRequest, skipCount,
+                // 原本没传队列时仍传空队列，保持“不改写 store 队列”的语义；队列已被清空时同样交给 playSong 自己处理。
+                retry: () => void latestQueueActionsRef.current.playSong(
+                    song, queue.length > 0 && queueFollowsStore ? readClickTimeQueue() ?? [] : queue, isFmCall,
+                    { ...deferredPlayOptions, unavailableSkipCount: 0 },
+                ),
+                skip: nextSong ? () => {
+                    if (!isLatestPlaybackRequest()) return;
+                    // 显式传入的队列还没写进 store，用快照；否则读最新队列，期间的编辑不被旧快照覆盖。
+                    // 传入的就是 store 队列时同样读最新队列（见 queueFollowsStore），只有从未写进 store 的队列才用快照。
+                    const targetQueue = readClickTimeQueue() ?? newQueue;
+                    void latestQueueActionsRef.current.playSong(getNextPlayableQueueSong(targetQueue, song) ?? nextSong, targetQueue, isFmCall, {
+                        ...deferredPlayOptions,
+                        unavailableSkipCount: failure.reason === 'taken-down' ? skipCount + 1 : 0,
+                    });
+                } : undefined,
+            }, presenterDeps);
+        };
+
+        // 下架：先查替代版本；查询本身暂时失败时只提示该失败、不倒计时，查不到才进入下架倒计时。
+        const presentTakenDown = async (failure: PlaybackFailure) => {
+            setIsLyricsLoading(false);
+            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+            let replacement: Awaited<ReturnType<typeof getSongReplacement>> = null;
+            let lookupFailure: PlaybackFailure | null = null;
+            try {
+                replacement = await getSongReplacement(song);
+            } catch (error) {
+                console.error('[App] Failed to load replacement song before dialog:', error);
+                lookupFailure = classifyPlaybackError(error, { stage: 'replacement', providerId });
+            }
+            if (!isLatestPlaybackRequest()) return;
+
+            if (replacement?.song && !isSongUnavailable(replacement.song)) {
+                restoreFmModeIfNotLanded();
+                setStatusMsg(null);
+                setPendingUnavailableReplacement({
+                    originalSong: song,
+                    replacementSong: replacement.song,
+                    replacementSongId: replacement.song.id,
+                    typeDesc: replacement.label,
+                    queue: queueContext,
+                    isFmCall,
+                    options: deferredPlayOptions,
+                });
                 return;
             }
+            presentOnlineFailure(lookupFailure && isTransientPlaybackFailure(lookupFailure) ? lookupFailure : failure);
+        };
+
+        if (!isLocal && !isNavidrome && isSongUnavailable(song)) {
+            await presentTakenDown({ reason: 'taken-down', stage: 'static', providerId });
+            return;
         }
 
         if (isLocal) {
@@ -525,6 +592,7 @@ export function usePlaybackQueueController({
             if (!isLatestPlaybackRequest()) return;
 
             if (!localData) {
+                restoreFmModeIfNotLanded();
                 setStatusMsg({ type: 'error', text: t('status.localFilePlaybackError') });
                 return;
             }
@@ -536,6 +604,7 @@ export function usePlaybackQueueController({
                     return songId ? localSongs.find(localSong => localSong.id === songId) : undefined;
                 })
                 .filter((queuedSong): queuedSong is LocalSong => Boolean(queuedSong));
+            fmModeBeforePendingPlayRef.current = null;
             await onPlayLocalSong(resolvedLocalData, localQueue, {
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
@@ -546,6 +615,7 @@ export function usePlaybackQueueController({
         if (isNavidrome) {
             const navidromeSong = resolveNavidromePlaybackCarrier(song);
             if (!navidromeSong) {
+                restoreFmModeIfNotLanded();
                 setStatusMsg({ type: 'error', text: t('status.playbackError') });
                 return;
             }
@@ -553,6 +623,7 @@ export function usePlaybackQueueController({
             const navidromeQueue = queueContext
                 .map(queuedSong => resolveNavidromePlaybackCarrier(queuedSong))
                 .filter((queuedSong): queuedSong is NavidromeSong => Boolean(queuedSong));
+            fmModeBeforePendingPlayRef.current = null;
             await onPlayNavidromeSong(navidromeSong, navidromeQueue, {
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
@@ -577,7 +648,14 @@ export function usePlaybackQueueController({
         }
 
         try {
-            preloadedOnlineAudioResult = await loadOnlineSongAudioSource(song, audioQuality, prefetched);
+            preloadedOnlineAudioResult = await loadOnlineSongAudioSource(song, audioQuality, prefetched, {
+                retry: {
+                    isCurrent: isLatestPlaybackRequest,
+                    onRetrying: () => {
+                        if (isLatestPlaybackRequest()) setStatusMsg({ type: 'info', text: t(PLAYBACK_RETRYING_MESSAGE_KEY) });
+                    },
+                },
+            });
             if (!isLatestPlaybackRequest()) {
                 if (preloadedOnlineAudioResult.kind === 'ok' && preloadedOnlineAudioResult.blobUrl) {
                     URL.revokeObjectURL(preloadedOnlineAudioResult.blobUrl);
@@ -585,55 +663,41 @@ export function usePlaybackQueueController({
                 return;
             }
 
-            if (preloadedOnlineAudioResult.kind === 'unavailable') {
-                if (preloadedOnlineAudioResult.reason === 'preview-only' || preloadedOnlineAudioResult.reason === 'auth-required'
-                    || preloadedOnlineAudioResult.reason === 'region-restricted') {
-                    shouldAutoPlayRef.current = false;
-                    audioRef.current?.pause();
-                    setPlayerState(PlayerState.IDLE);
-                    setIsLyricsLoading(false);
-                    setStatusMsg({ type: 'error', text: t(preloadedOnlineAudioResult.reason === 'preview-only'
-                        ? 'status.songPreviewOnly' : preloadedOnlineAudioResult.reason === 'region-restricted'
-                            ? 'status.songRegionRestricted' : 'status.loginExpired') });
-                    return;
-                }
-                const nextSong = getNextPlayableQueueSong(queueContext, song);
-                const canSkip = Boolean(nextSong) && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT;
-
-                setIsLyricsLoading(false);
-
-                if (canSkip && nextSong) {
-                    showTimedSkipPrompt('status.songUnavailablePrompt', () => {
-                        if (playbackRequestIdRef.current !== playbackRequestId) return;
-                        void playSong(nextSong, newQueue, isFmCall, {
-                            ...deferredPlayOptions,
-                            unavailableSkipCount: skipCount + 1,
-                        });
-                    });
-                } else {
-                    setStatusMsg({ type: 'error', text: t('status.songUnavailable') });
-                }
+            // 只有 taken-down 走替代版本与倒计时；其余原因按策略表停播并给出重试 / 跳过，保留队列。
+            if (preloadedOnlineAudioResult.kind === 'failed') {
+                if (preloadedOnlineAudioResult.failure.reason === 'taken-down') await presentTakenDown(preloadedOnlineAudioResult.failure);
+                else presentOnlineFailure(preloadedOnlineAudioResult.failure);
                 return;
             }
         } catch (error) {
+            if (!isLatestPlaybackRequest()) return;
             console.error('[App] Failed to fetch song URL:', error);
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            setIsLyricsLoading(false);
+            presentOnlineFailure(classifyPlaybackError(error, { stage: 'resolve-url', providerId }));
             return;
         }
 
+        // 先等歌词状态，再确认仍是最新请求，之后才写各个 ref：被取代的请求不得改动当前歌曲。
+        const onlineLyricsState = await loadOnlineLyricsState(song);
+        const audioResult = preloadedOnlineAudioResult;
+        if (!isLatestPlaybackRequest()) {
+            if (audioResult.blobUrl) URL.revokeObjectURL(audioResult.blobUrl);
+            return;
+        }
+        // 加载期间上一首的播放中失败可能已弹出常驻消息或倒计时；新歌落地后它们不再适用，与开头的清理一致。
+        clearPendingUnavailableSkip();
+        setStatusMsg(prev => prev?.persistent ? null : prev);
+
+        fmModeBeforePendingPlayRef.current = null;
         shouldAutoPlayRef.current = true;
         const songKey = getPlaybackSongKey(song);
-        const resolvedSong = preloadedOnlineAudioResult?.kind === 'ok'
-            ? applyOnlineAudioSourceMetadata(song, preloadedOnlineAudioResult.replayGain)
-            : song;
+        const resolvedSong = applyOnlineAudioSourceMetadata(song, audioResult.replayGain);
         const resolvedQueue = replacePlaybackSongInQueue(newQueue, resolvedSong);
         currentSongRef.current = songKey;
+        // 同一首歌重新点播也是一次新的播放：之前那次播放在途的刷新和失败据此作废（见 usePlaybackRuntimeRefs）。
+        const landedGeneration = ++playbackGenerationRef.current;
         pendingResumeTimeRef.current = null;
         lastAudioRecoverySourceRef.current = null;
         currentOnlineAudioUrlFetchedAtRef.current = null;
-
-        const onlineLyricsState = await loadOnlineLyricsState(song);
 
         setLyrics(null);
         setCurrentLineIndex(-1);
@@ -662,19 +726,17 @@ export function usePlaybackQueueController({
         setPlayerState(PlayerState.IDLE);
 
         const cachedCoverUrl = await getCachedSongCoverUrl(song);
-        if (currentSongRef.current !== songKey) return;
+        // 本次请求已经落地（当前歌曲、队列都已写入、audioSrc 已置空）：只有别的播放也落地了才放弃，
+        // 并回收这个还没交给任何 deck 的 blob。更新的请求只是开始、尚未落地不算取代，仍要接上音源，
+        // 否则那次请求失败时，当前歌会停在没有音源的半落地状态。
+        if (currentSongRef.current !== songKey || playbackGenerationRef.current !== landedGeneration) {
+            if (audioResult.blobUrl) URL.revokeObjectURL(audioResult.blobUrl);
+            return;
+        }
         if (cachedCoverUrl) {
             setCachedCoverUrl(cachedCoverUrl);
         } else if (prefetched?.coverUrl) {
             setCachedCoverUrl(prefetched.coverUrl);
-        }
-
-        const audioResult = preloadedOnlineAudioResult;
-        if (!audioResult || audioResult.kind !== 'ok') {
-            setStatusMsg({ type: 'error', text: t('status.playbackError') });
-            setPlayerState(PlayerState.IDLE);
-            setIsLyricsLoading(false);
-            return;
         }
 
         if (audioResult.blobUrl) {
@@ -719,7 +781,7 @@ export function usePlaybackQueueController({
 
         try {
             await restoreCachedThemeForSong(song);
-            if (currentSongRef.current !== songKey) return;
+            if (currentSongRef.current !== songKey || !isLatestPlaybackRequest()) return;
         } catch (error) {
             console.warn('Theme load error', error);
         }
@@ -737,11 +799,11 @@ export function usePlaybackQueueController({
         currentTime,
         getNextPlayableQueueSong,
         getPlayableOnlineQueue,
-        handleMarkedUnavailableSong,
         interruptStagePlaybackForMainTransition,
         isFmMode,
         lastAudioRecoverySourceRef,
         localSongs,
+        mainPlaybackSnapshotRef,
         navigateToPlaybackView,
         onPlayLocalSong,
         onPlayNavidromeSong,
@@ -749,7 +811,9 @@ export function usePlaybackQueueController({
         persistLastPlaybackCache,
         playQueue,
         playbackAutoSkipCountRef,
+        playbackGenerationRef,
         playbackRequestIdRef,
+        presenterDeps,
         restoreCachedThemeForSong,
         setAudioSrc,
         setCachedCoverUrl,
@@ -981,7 +1045,19 @@ export function usePlaybackQueueController({
         }
     }, [currentSong, endHeldTransition, getDisplaySong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, shouldNavigateToPlayerOnTrackChange]);
 
-    const skipAfterPlaybackFailure = useCallback(() => {
+    // 失败消息可能挂很久才被点：按钮经这里调用最新一次渲染的 handleNextTrack / playSong，按点击时的队列走，期间的编辑不被旧快照覆盖。
+    // 点歌失败（playSong 里的 presentOnlineFailure）的重试 / 跳过也用它；那些闭包只在点击时读 .current，晚于这里的声明。
+    const latestQueueActionsRef = useRef({ handleNextTrack, playSong });
+    latestQueueActionsRef.current = { handleNextTrack, playSong };
+
+    // 不带 failure：本地、Navidrome、转码的旧路径，倒计时跳歌，行为不变。
+    // 带 failure：在线源播放中失败，按策略表展示（PAUSED），失败歌曲已不是当前歌曲时什么都不做。
+    const skipAfterPlaybackFailure = useCallback((failure?: PlaybackFailure, options: PlaybackFailureSkipOptions = {}) => {
+        const { failedSongKey, failedGeneration } = options;
+        // 失败所属的那次播放是否仍在：歌曲没换，而且没有重新点播同一首（代次没变）。
+        const isFailedPlaybackCurrent = () => (!failedSongKey || currentSongRef.current === failedSongKey)
+            && (failedGeneration === undefined || playbackGenerationRef.current === failedGeneration);
+        if (failure && !isFailedPlaybackCurrent()) return;
         clearPendingUnavailableSkip();
         const skipCount = playbackAutoSkipCountRef.current;
         const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
@@ -992,6 +1068,24 @@ export function usePlaybackQueueController({
             currentIndex < playQueue.length - 1 ||
             (loopMode === 'all' && playQueue.length > 1)
         );
+
+        if (failure) {
+            presentPlaybackFailure({
+                failure, context: 'mid-playback', skipCount,
+                isCurrent: isFailedPlaybackCurrent,
+                retry: options.retry ?? (currentSong ? () => {
+                    const live = usePlaybackStore.getState();
+                    void latestQueueActionsRef.current.playSong(currentSong, live.playQueue, live.isFmMode, { shouldNavigateToPlayer: false });
+                } : undefined),
+                skip: hasNextTrack ? () => void latestQueueActionsRef.current.handleNextTrack({
+                    allowStopOnMissing: true,
+                    shouldNavigateToPlayer: false,
+                    unavailableSkipCount: failure.reason === 'taken-down' ? skipCount + 1 : 0,
+                    fromSong: currentSong ?? undefined,
+                }) : undefined,
+            }, presenterDeps);
+            return;
+        }
 
         if (!hasNextTrack || skipCount >= MAX_UNAVAILABLE_AUTO_SKIP_COUNT) {
             setPlayerState(PlayerState.IDLE);
@@ -1010,7 +1104,7 @@ export function usePlaybackQueueController({
                 fromSong: currentSong ?? undefined,
             });
         });
-    }, [clearPendingUnavailableSkip, currentSong, handleNextTrack, loopMode, playQueue, playbackAutoSkipCountRef, setPlayerState, showTimedSkipPrompt]);
+    }, [clearPendingUnavailableSkip, currentSong, currentSongRef, handleNextTrack, loopMode, playQueue, playbackAutoSkipCountRef, playbackGenerationRef, presenterDeps, setPlayerState, showTimedSkipPrompt]);
 
     const buildStageQueueOperationSnapshot = useCallback((
         nextCurrentSong: SongResult | null,

@@ -8,6 +8,7 @@ import type {
     ProviderComment,
     ProviderLyricsResult,
     ProviderPage,
+    ProviderPlaybackAttempt,
     ProviderUser,
     QrLoginMethod,
     QrLoginState,
@@ -21,6 +22,7 @@ import { QQ_SEARCH_TYPE, fetchQQLyrics, searchQQLyrics, searchQQByType } from '.
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
+import { attemptChainDecision, attemptFromError, emptyAttempt, summarizePlaybackAttempts } from './playbackAttempts';
 import { collectLoginBackendDiagnostics } from './loginBackendDiagnostics';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from './loginSelfCheck';
 import { formatDiagnosticClock } from '../../utils/qrLoginDiagnosticReport';
@@ -573,9 +575,26 @@ export const resolveQqSongCatalogRefs = async (song: UnifiedSong): Promise<Unifi
     };
 };
 
+// `data.playUrl` 缺失、不是对象，或者里面找不到条目：有应答但形态不可用，记成 invalid-response 的一次尝试。
+const missingPlayUrlEntryAttempt = (resolvedQuality: AudioQualityPreference): ProviderPlaybackAttempt => ({
+    stage: 'music_play',
+    quality: resolvedQuality,
+    outcome: 'error',
+    code: 'invalid-response',
+    detail: 'QQMusicApi music_play returned no playUrl entry',
+});
+
+/**
+ * 按音质降档请求 music_play，任意一档拿到 URL 就返回；每一档的失败都记成一次尝试，
+ * 全部失败（或遇到限流、服务缺失、超时这类继续降档也没用的失败）时抛出 summarizePlaybackAttempts 的汇总错误。
+ * auth-required 原样重抛同一个实例。
+ */
 const getAudioSource = async (song: SongResult, quality: AudioQualityPreference) => {
     const songmid = getQqSongMid(song);
-    if (!songmid) return null;
+    if (!songmid) {
+        // 拼不出 music_play 的路径：这是歌曲数据不完整，不是「没有音源」，不发请求。
+        throw new OnlineProviderError('invalid-response', 'QQ song has no songmid', 'qq');
+    }
     const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'qq'
         ? song.sourceRef
         : undefined;
@@ -584,7 +603,17 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
     // The backend answers HTTP 200 with an empty `url` plus an `error` string when the account may
     // not stream the song (membership, region, takedown). Without keeping that apart from a request
     // failure, an unplayable song looks exactly like a transient error worth retrying.
+    // Correction: the backend (qrLogin.js:482-495, getMusicPlay.js:113-122) replaces every file's reason
+    // with a fixed string, so an empty purl only proves "no link for this request" and is classified as
+    // unknown. It must never be read as membership, region or takedown.
     let sawEmptyPlayLink = false;
+    const attempts: ProviderPlaybackAttempt[] = [];
+    let lastError: unknown;
+    // 只有没有会话、且上游确实回过空链接时，登录才「可能」有用；不能据此断定为 auth-required。
+    const summarize = () => summarizePlaybackAttempts('qq', attempts, {
+        lastError,
+        signInMayHelp: !hasQqSession() && attempts.some(attempt => attempt.outcome === 'empty'),
+    });
 
     for (const candidate of QQ_QUALITY_FALLBACKS[quality]) {
         try {
@@ -593,8 +622,10 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
                 ...(mediaId ? { mediaId } : {}),
                 quality: candidate.apiQuality,
             });
-            const direct = response?.data?.playUrl?.[songmid];
-            const fallback = Object.values(response?.data?.playUrl ?? {})[0] as any;
+            const playUrl = response?.data?.playUrl;
+            const playUrlMap = playUrl && typeof playUrl === 'object' ? playUrl : {};
+            const direct = playUrlMap[songmid];
+            const fallback = Object.values(playUrlMap)[0] as any;
             const entry = direct ?? fallback;
             const url = toSafePlaybackUrl(String(direct?.url || fallback?.url || ''));
             if (url) {
@@ -604,8 +635,14 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
                     quality: candidate.resolvedQuality,
                 };
             }
-            if (entry) {
+            if (entry && typeof entry === 'object') {
                 sawEmptyPlayLink = true;
+                attempts.push(emptyAttempt('music_play', {
+                    quality: candidate.resolvedQuality,
+                    detail: typeof entry.error === 'string' ? entry.error : undefined,
+                }));
+            } else {
+                attempts.push(missingPlayUrlEntryAttempt(candidate.resolvedQuality));
             }
         } catch (error) {
             if (error instanceof OnlineProviderError && error.code === 'auth-required') throw error;
@@ -614,6 +651,11 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
                 candidateQuality: candidate.resolvedQuality,
                 ...errorFields(error),
             });
+            lastError = error;
+            const attempt = attemptFromError('music_play', error, { quality: candidate.resolvedQuality });
+            attempts.push(attempt);
+            // QQ 没有替代接口：stop-chain（超时）与 stop-all（限流、服务缺失）都立即结束；network 和 5xx 继续降档。
+            if (attemptChainDecision(attempt) !== 'continue') throw summarize();
         }
     }
 
@@ -623,7 +665,7 @@ const getAudioSource = async (song: SongResult, quality: AudioQualityPreference)
         // `true` means the upstream answered normally but issued no stream for this account.
         upstreamRefusedPlayLink: sawEmptyPlayLink,
     });
-    return null;
+    throw summarize();
 };
 
 // Delegates to the existing QRC pipeline, which owns decryption, translation and romanization.

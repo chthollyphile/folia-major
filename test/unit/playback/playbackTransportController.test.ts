@@ -3,7 +3,9 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePlaybackTransportController } from '@/hooks/usePlaybackTransportController';
+import { buildPlaybackFailureStatus, resolvePlaybackFailurePolicy } from '@/services/playbackRecovery/playbackFailurePolicy';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
+import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { PlayerState } from '@/types';
 
 // test/unit/playback/playbackTransportController.test.ts
@@ -23,6 +25,7 @@ vi.mock('react-i18next', async importOriginal => ({
 let root: Root | null = null;
 beforeEach(() => {
     usePlaybackStore.setState({ activePlaybackContext: 'main', audioSrc: 'fixture.mp3', playerState: PlayerState.PAUSED });
+    useStatusMessageStore.setState({ message: null });
 });
 afterEach(() => {
     act(() => root?.unmount());
@@ -41,7 +44,7 @@ function mount({ contextResume, audioPlay, refreshSource = false }: {
         currentSrc: 'fixture.mp3', currentTime: 0, paused: true, ended: false,
         play: vi.fn(() => audioPlay ?? Promise.resolve()), pause: vi.fn(),
     };
-    const recover = vi.fn<Parameters<typeof usePlaybackTransportController>[0]['recoverOnlinePlaybackSource']>(async () => false);
+    const recover = vi.fn<Parameters<typeof usePlaybackTransportController>[0]['recoverOnlinePlaybackSource']>(async () => ({ status: 'not-attempted' }));
     const params: Parameters<typeof usePlaybackTransportController>[0] = {
         stageActiveEntryKind: null, isNowPlayingStageActive: false,
         audioRef: { current: audio as unknown as HTMLAudioElement },
@@ -109,7 +112,7 @@ describe('transport pause during pending resume', () => {
         host.recover.mockImplementationOnce(async options => {
             shouldAutoplay = options.shouldAutoplay!;
             await source.promise;
-            return true;
+            return { status: 'recovered' };
         });
         let pending!: Promise<void>;
         act(() => { pending = host.actions().resumePlayback(); host.actions().pausePlayback(); });
@@ -118,5 +121,101 @@ describe('transport pause during pending resume', () => {
         expect(shouldAutoplay()).toBe(resumeAgain);
         await act(async () => { source.resolve(); await pending; });
         expect(usePlaybackStore.getState().playerState).toBe(resumeAgain ? PlayerState.PLAYING : PlayerState.PAUSED);
+    });
+});
+describe('transport failure reasons', () => {
+    it('falls back to the old URL and plays when the TTL refresh fails', async () => {
+        const host = mount({ refreshSource: true });
+        host.recover.mockResolvedValueOnce({
+            status: 'failed', failure: { reason: 'rate-limited', stage: 'refresh', providerId: 'qq', retryAfterMs: 25_000 },
+        });
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(host.recover).toHaveBeenCalledTimes(1);
+        expect(host.audio.play).toHaveBeenCalledTimes(1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+    it('names the recovery failure when play and the refresh both fail', async () => {
+        const playError = new Error('MEDIA_ELEMENT_ERROR: Format error');
+        const host = mount({ audioPlay: Promise.reject(playError) });
+        host.recover.mockResolvedValueOnce({
+            status: 'failed', failure: { reason: 'session-expired', stage: 'refresh', providerId: 'qq' },
+        });
+        await act(async () => { await expect(host.actions().resumePlayback()).rejects.toBe(playError); });
+        expect(useStatusMessageStore.getState().message).toEqual({ type: 'error', text: 'status.loginExpired' });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+    it('names a failed TTL refresh when the fallback play then fails without a further reason', async () => {
+        const playError = new Error('MEDIA_ELEMENT_ERROR: Format error');
+        const host = mount({ refreshSource: true, audioPlay: Promise.reject(playError) });
+        host.recover
+            .mockResolvedValueOnce({ status: 'failed', failure: { reason: 'network', stage: 'refresh' } })
+            .mockResolvedValueOnce({ status: 'not-attempted' });
+        await act(async () => { await expect(host.actions().resumePlayback()).rejects.toBe(playError); });
+        expect(useStatusMessageStore.getState().message).toEqual({ type: 'error', text: 'status.songNetworkFailed' });
+    });
+    it('keeps the generic message when no failure reason is known', async () => {
+        const playError = new Error('MEDIA_ELEMENT_ERROR: Format error');
+        const host = mount({ audioPlay: Promise.reject(playError) });
+        await act(async () => { await expect(host.actions().resumePlayback()).rejects.toBe(playError); });
+        expect(useStatusMessageStore.getState().message).toEqual({ type: 'error', text: 'status.playbackError' });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+    it('keeps a retry / skip failure toast when play on the failed deck is rejected again', async () => {
+        const failureToast = buildPlaybackFailureStatus(
+            resolvePlaybackFailurePolicy({ reason: 'unknown', stage: 'media-element', mediaErrorCode: 4 }, 'mid-playback'),
+            key => key,
+            { retry: vi.fn(), skip: vi.fn(), dismiss: vi.fn() },
+        );
+        useStatusMessageStore.setState({ message: failureToast });
+        const playError = new DOMException('The element has no supported sources.', 'NotSupportedError');
+        const host = mount({ audioPlay: Promise.reject(playError) });
+        await act(async () => { await expect(host.actions().resumePlayback()).rejects.toBe(playError); });
+        expect(host.recover).toHaveBeenCalledOnce();
+        expect(useStatusMessageStore.getState().message).toBe(failureToast);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+    it('keeps the toast onError showed for the same shared recovery that failed', async () => {
+        const failureToast = buildPlaybackFailureStatus(
+            resolvePlaybackFailurePolicy({ reason: 'network', stage: 'refresh' }, 'mid-playback'),
+            key => key,
+            { retry: vi.fn(), skip: vi.fn(), dismiss: vi.fn() },
+        );
+        useStatusMessageStore.setState({ message: failureToast });
+        const playError = new Error('MEDIA_ELEMENT_ERROR: Format error');
+        const host = mount({ audioPlay: Promise.reject(playError) });
+        host.recover.mockResolvedValueOnce({ status: 'failed', failure: { reason: 'network', stage: 'refresh' } });
+        await act(async () => { await expect(host.actions().resumePlayback()).rejects.toBe(playError); });
+        expect(useStatusMessageStore.getState().message).toBe(failureToast);
+    });
+    it('still asks for a click when autoplay is blocked', async () => {
+        const host = mount({ audioPlay: Promise.reject(new DOMException('Autoplay blocked', 'NotAllowedError')) });
+        host.recover.mockResolvedValueOnce({ status: 'failed', failure: { reason: 'unknown', stage: 'refresh' } });
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(useStatusMessageStore.getState().message).toEqual({ type: 'info', text: 'status.clickToPlay' });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+    it('stops once the recovery restored the source', async () => {
+        const host = mount({ audioPlay: Promise.reject(new Error('play failed')) });
+        host.recover.mockResolvedValueOnce({ status: 'recovered' });
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+    it('clears a leftover playback-failure toast once playback resumes, and nothing else', async () => {
+        const failureToast = buildPlaybackFailureStatus(
+            resolvePlaybackFailurePolicy({ reason: 'network', stage: 'resolve-url' }, 'play'),
+            key => key,
+            { retry: vi.fn(), skip: vi.fn(), dismiss: vi.fn() },
+        );
+        useStatusMessageStore.setState({ message: failureToast });
+        const host = mount();
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(useStatusMessageStore.getState().message).toBeNull();
+
+        const countdown = { type: 'error' as const, text: 'status.songUnavailablePrompt', persistent: true, onAction: vi.fn() };
+        useStatusMessageStore.setState({ message: countdown });
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(useStatusMessageStore.getState().message).toBe(countdown);
     });
 });

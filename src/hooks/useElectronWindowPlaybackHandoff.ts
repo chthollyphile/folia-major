@@ -5,8 +5,9 @@ import { restorePlaybackSourceForSong } from '../components/app/playback/restore
 import { PlayerState } from '../types';
 import type { LyricData, SongResult, StageSource, StageStatus, StatusMessage } from '../types';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
+import type { RestorePlaybackSourceOutcome } from '../types/playbackFailure';
 import type { ThemeCacheSongKey } from '../services/themeCache';
-import { isStagePlaybackSong } from '../utils/appPlaybackGuards';
+import { getPlaybackSongKey, isStagePlaybackSong } from '../utils/appPlaybackGuards';
 import type {
     PlaybackSnapshot,
     StageLyricsClockState,
@@ -60,6 +61,10 @@ type UseElectronWindowPlaybackHandoffParams = {
     setIsLyricsLoading: SetState<boolean>;
     blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
+    /** The playing song's key that recovery and failure handling gate on; the handoff commits to a song like playSong does. */
+    currentSongRef: MutableRefObject<string | number | null>;
+    /** Bumped with each commit of the current song (see usePlaybackRuntimeRefs). */
+    playbackGenerationRef: MutableRefObject<number>;
     pendingResumeTimeRef: MutableRefObject<number | null>;
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
@@ -122,6 +127,8 @@ export function useElectronWindowPlaybackHandoff({
     setIsLyricsLoading,
     blobUrlRef,
     shouldAutoPlayRef,
+    currentSongRef,
+    playbackGenerationRef,
     pendingResumeTimeRef,
     lastAudioRecoverySourceRef,
     currentOnlineAudioUrlFetchedAtRef,
@@ -256,6 +263,9 @@ export function useElectronWindowPlaybackHandoff({
         shouldAutoPlayRef.current = snapshot.playerState === PlayerState.PLAYING;
         lastAudioRecoverySourceRef.current = null;
         currentOnlineAudioUrlFetchedAtRef.current = null;
+        const handedOffSongKey = getPlaybackSongKey(snapshot.currentSong);
+        currentSongRef.current = handedOffSongKey;
+        playbackGenerationRef.current += 1;
         setCurrentSong(snapshot.currentSong);
         setLyrics(snapshot.lyrics);
         setCachedCoverUrl(snapshot.cachedCoverUrl);
@@ -275,6 +285,8 @@ export function useElectronWindowPlaybackHandoff({
             return;
         }
 
+        // The snapshot URL was playing moments ago: falling back to it beats seconds of silence spent on retries.
+        const fallbackAudioSrc = snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:') ? snapshot.audioSrc : null;
         const restored = await restorePlaybackSourceForSong(snapshot.currentSong, {
             audioQuality,
             userId,
@@ -285,23 +297,28 @@ export function useElectronWindowPlaybackHandoff({
             restoreCachedThemeForSong,
             persistLastPlaybackCache,
             queue: restoredQueue,
-        }).catch((error) => {
+            hasFallbackSource: fallbackAudioSrc !== null,
+        }).catch((error): RestorePlaybackSourceOutcome => {
             console.warn('[Electron] Failed to restore window playback handoff source', error);
-            return false;
+            // A throw for a song the listener has since left is stale too: the snapshot URL must not land on their deck.
+            return currentSongRef.current === handedOffSongKey ? 'failed' : 'stale';
         });
 
-        if (!restored && snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:')) {
-            setAudioSrc(snapshot.audioSrc);
+        // Only a failed restore falls back to the snapshot's URL; a stale one means another song now owns the deck.
+        if (restored === 'failed' && fallbackAudioSrc) {
+            setAudioSrc(fallbackAudioSrc);
         }
     }, [
         audioQuality,
         blobUrlRef,
         currentOnlineAudioUrlFetchedAtRef,
+        currentSongRef,
         currentTime,
         lastAudioRecoverySourceRef,
         mainPlaybackSnapshotRef,
         pendingResumeTimeRef,
         persistLastPlaybackCache,
+        playbackGenerationRef,
         restoreCachedThemeForSong,
         setAudioSrc,
         setCachedCoverUrl,

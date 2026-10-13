@@ -143,4 +143,27 @@ describe('Bodian provider', () => {
             .rejects.toMatchObject({ code: 'unsupported' });
         expect(request).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+        ['offline', { offline: true }, { state: 'unavailable', reason: 'taken-down' }],
+        ['online 0', { online: 0 }, { state: 'unavailable', reason: 'taken-down' }],
+        ['offline and cannotOnlinePlay', { offline: true, payInfo: { cannotOnlinePlay: 1 } }, { state: 'unavailable', reason: 'taken-down' }],
+        ['cannotOnlinePlay only', { payInfo: { cannotOnlinePlay: 1 } }, { state: 'unknown', reason: 'restricted' }],
+        ['membership fields only', { isListenFee: true, feeType: { vip: 1, song: 1 }, payInfo: { cannotOnlinePlay: 0, feeType: { vip: 1 } } }, { state: 'unknown' }],
+        ['no availability signal', {}, { state: 'unknown' }],
+    ])('derives static availability for %s without reading membership tags', (_label, fields, expected) => {
+        const song = normalizeBodianSong({ ...track, ...fields });
+        expect(bodianProvider.playback!.getAvailability!(song)).toEqual(expected);
+        // 新数据不再写布尔 unavailable；会员与付费标签也不进 providerData。
+        const providerData = song.sourceRef?.kind === 'online' ? song.sourceRef.providerData : undefined;
+        expect(providerData).not.toHaveProperty('unavailable');
+        expect(providerData).not.toHaveProperty('isListenFee');
+        expect(providerData).not.toHaveProperty('feeType');
+    });
+
+    it('treats a cached legacy boolean unavailable flag as unknown', () => {
+        const song = normalizeBodianSong(track);
+        const cached = normalizeBodianSong({ ...song, sourceRef: { ...song.sourceRef, providerData: { unavailable: true } } });
+        expect(bodianProvider.playback!.getAvailability!(cached)).toEqual({ state: 'unknown' });
+    });
 });

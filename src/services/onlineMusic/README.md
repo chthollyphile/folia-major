@@ -39,12 +39,12 @@ provider 段的内容来自主进程的内嵌后端快照（`loginBackendDiagnos
 | 推荐 | `getHomeFeed`、`getPersonalFm`、`supportsDailySongs`、`getDailySongs`、`getRecommendationHistory*`、`dislikeSong` | 首页推荐与历史推荐仍由 Omni 路由；日推入口按能力显示，空结果不隐藏入口 |
 | 播放/歌词 | `getSongDetail`、`canPlaySong`、`getAudioSource`、`getLyrics`、`getChorusRanges` | 输出 `OmniAudioSource` / `OmniLyricsResult`；Navidrome 歌词走独立 service |
 | 听歌上报 | `canReportPlayback`、`reportPlayback` | 只有声明 `playbackReports` 的 provider 支持（当前仅网易云）；时长必须是真实累计播放秒数，频控在 `playbackReportGate.ts` |
-| 可用性 | `getSongAvailability`、`getSongReplacement` | 保留 unsupported / unavailable / auth 等 `OmniError` 语义 |
+| 可用性 | `getSongAvailability`、`getSongReplacement` | 静态可用性只由 provider 的显式信号给出，`state: 'unavailable'` 只表示下架（taken-down），权限 / 付费 / 地区限制是 `unknown` + `reason: 'restricted'`；单次播放失败用 `OmniError`（`code` + `details`）加 `OmniPlaybackFailure` 表达，永不回写可用性、预取或缓存 |
 | 集合详情 | `getCollectionTracks`、`getCollectionDetail`、`getAlbumDetail`、`getArtistDetail`、`getArtistSongs`、`getArtistAlbums` | 按 collection 的 `providerId` 路由 |
 | 修改 | `likeSong`、`toggleSongLike`、`getSubscriptionStatus`、`subscribe`、`updateCollectionTracks` | mutation 按歌曲/集合所属 provider 执行并更新 account cache |
 | 外链与引用 | `canResolveCatalogRef`、`resolveCatalogRefs`、`getSongPageUrl` | 共享 `catalogRefs.ts` 的 provider-aware 引用 |
 
-共享类型包括 `UnifiedSong`、`OmniCollection`、`OmniPage`、`OmniLyricsResult`、`OmniAudioSource`、`OmniUser`、`OmniError`、`OmniProviderCapabilities`。调用方不能依赖 provider 的 raw field、numeric id 单独比较或 raw response envelope。
+共享类型包括 `UnifiedSong`、`OmniCollection`、`OmniPage`、`OmniLyricsResult`、`OmniAudioSource`、`OmniUser`、`OmniError`、`OmniErrorDetails`、`OmniPlaybackFailure`、`OmniSongUnavailableReason`、`OmniProviderCapabilities`。调用方不能依赖 provider 的 raw field、numeric id 单独比较或 raw response envelope。
 
 ## Provider and cache files
 
@@ -52,7 +52,8 @@ provider 段的内容来自主进程的内嵌后端快照（`loginBackendDiagnos
 - `bodianProvider.ts`：波点 adapter；`bodianTransport.ts` 通过受限 IPC 连接 `electron/bodianApiBridge.cjs`。
   桥接调用固定版本的 `bodian-music-api`，协议实现在独立仓库维护；Folia 负责加密存储与媒体策略。
   `bodianCatalog.ts` / `bodianLibrary.ts` 处理集合与用户库，`bodianNormalize.ts` 统一数据，凭据不返回 renderer。
-- `neteaseProvider.ts`：网易云 adapter，归一化到 Omni contract。
+  `bodianErrors.ts` 按固定版本 bodian-music-api@0.1.2 的 message 模板把桥返回的错误归一成 `OmniError`；升级包时要重跑 `bodianErrors.test.ts` 的契约测试。
+- `neteaseProvider.ts`：网易云 adapter，归一化到 Omni contract；`/song/url`、替代版本查询和静态可用性的原始码到 `OmniError` 的映射在 `neteasePlaybackFailure.ts`（纯函数，不依赖 `../netease` 运行时）。
 - `kugouProvider.ts`：酷狗 adapter；请求细节在 `kugouTransport.ts`，具体接口需结合 `docs/ku-go-api-docs.md` 和 `skills/kugou-provider-alignment`。
 - `qqProvider.ts`：QQ 音乐 adapter；请求与 opaque session 细节在 `qqTransport.ts`，归一化在 `qqNormalize.ts`。集合身份一律用 mid，数字 `albumid` / `singer.id` 会被上游拒收（返回 HTTP 200 但 `code` 非 0，只表现成空白页）。后端由 `VITE_QQ_API_BASE` 指向的私有 QQ API 提供，未配置时该 provider 不可用；填相对路径（`/api/qq`）时走的是本仓库内置的 serverless 入口（`worker/qq.ts` / `api-ts/qq.ts`）。扫码通道由后端 `/login/channels` 声明；打开登录时 UI 会等待能力发现并使用同一份结果决定流程，只宣告一个通道时直接进入单步流程。旧后端没有这条路由时回落到硬编码的 `qq` / `wechat` 两条，暂时性探测失败允许后续重试。
 - `providerAccountCache.ts`：按 provider 保存用户、集合、点赞 ID、hydration/freshness 快照；刷新失败保留旧快照。
@@ -60,6 +61,7 @@ provider 段的内容来自主进程的内嵌后端快照（`loginBackendDiagnos
 - `resourceCache.ts` / `resourceKeys.ts`：在线资源缓存键和缓存层。当前 kind：`audio`、`lyric`、`cover`、`theme`、`replayGain`。**新增 kind 必须同时在 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 与 `matchesCategory` 里登记前缀**，否则条目会静默落进 `api_cache` 兜底表、不属于任何一个「清除缓存」分类，变成清不掉的孤儿；若该 kind 是按歌曲存一份，还要确认它没有被计进 `mediaCount`（那个数字的语义是「已缓存歌曲数」，会翻倍）。
 - `playbackReportGate.ts`：听歌上报的频控与可用性判断。上报写的是用户真实账号，突发的不可能记录会触发风控，所以这里限制最小间隔与每小时上限、串行发送，并给设置面板和命令面板提供同一个 `isNeteaseScrobbleReady()`。真实播放秒数的计量在 `src/utils/playbackListenTracker.ts`，接线在 `src/hooks/useNeteaseScrobbleReporter.ts`。
 - `songMetadata.ts` / `songAvailability.ts`：歌曲元数据、可播放性和替代歌曲相关共享逻辑。
+- `playbackAttempts.ts`：adapter 内多次音源请求（音质 / 变体 / 备用接口）的记录与汇总，酷狗和 QQ 共用；全部失败时按证据给出一个 `OmniError`，诊断细节留在 `details.attempts`。
 - `catalogRefs.ts`：歌曲、歌单、专辑、歌手的 provider-aware catalog 引用。
 
 `omni.ts` 的 active-provider 调用带 request generation 检查：`withActiveProvider` 会丢弃 provider 切换后返回的旧响应，切换事务需要 `invalidateActiveRequests()`。不要在调用方重新实现一套取消/晚到响应防护。

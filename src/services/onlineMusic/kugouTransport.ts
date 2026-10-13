@@ -88,6 +88,9 @@ const KUGOU_AUTH_FAILURE_ERROR_CODES: ReadonlySet<number> = new Set([152]);
 const BRIDGE_ERROR_PREFIX = /^Error invoking remote method '[^']*':\s*(?:\w*Error:\s*)?/;
 const BRIDGE_FIELDS = /KuGouApi\[([^\]]*)\](?::\s*(.*))?/;
 
+// kugouApiBridge.cjs writes Node/axios failures as `CODE: message`; without an error_code, these codes mean a timeout.
+const KUGOU_TIMEOUT_DETAIL = /^(?:ECONNABORTED|ETIMEDOUT)\b/;
+
 export type KugouFailureDetails = {
     operation?: string;
     status?: number;
@@ -155,11 +158,71 @@ export const toKugouProviderError = (operation: KugouOperation, error: unknown):
     ].filter(Boolean).join(' ');
     const suffix = details.detail ? `: ${details.detail}` : '';
     const authFailure = isKugouAuthFailure(details);
+    if (authFailure) {
+        return new OnlineProviderError('auth-required', `KuGou login required (${summary})${suffix}`, 'kugou', error);
+    }
+    // A non-auth error_code means KuGou answered with a business refusal (e.g. 20028 device verification).
+    // Keep the network code and carry the upstream code only as diagnostic evidence.
+    if (details.errorCode !== undefined) {
+        return new OnlineProviderError(
+            'network',
+            `KuGou request failed (${summary})${suffix}`,
+            'kugou',
+            error,
+            undefined,
+            undefined,
+            { stage: 'upstream', upstreamCode: details.errorCode },
+        );
+    }
+    const timedOut = details.detail !== undefined && KUGOU_TIMEOUT_DETAIL.test(details.detail);
     return new OnlineProviderError(
-        authFailure ? 'auth-required' : 'network',
-        `${authFailure ? 'KuGou login required' : 'KuGou request failed'} (${summary})${suffix}`,
+        timedOut ? 'timeout' : 'network',
+        `${timedOut ? 'KuGou request timed out' : 'KuGou request failed'} (${summary})${suffix}`,
         'kugou',
         error,
+    );
+};
+
+// Reads a Web 429 Retry-After (delta seconds or HTTP date); anything unreadable is left out.
+const readRetryAfterMs = (response: Response): number | undefined => {
+    const raw = response.headers?.get?.('Retry-After')?.trim();
+    if (!raw) return undefined;
+    if (/^\d+$/.test(raw)) {
+        const ms = Number(raw) * 1000;
+        return Number.isSafeInteger(ms) ? ms : undefined;
+    }
+    const date = Date.parse(raw);
+    return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
+};
+
+/**
+ * Turns a non-2xx Web answer into an OnlineProviderError. 401/403 still mean the login was rejected; anything else
+ * stays `network`, with the upstream error_code read best-effort from the body. KuGouMusicApi reports every upstream
+ * failure (plain network errors included) as 502, so that status is too ambiguous to pass on as httpStatus.
+ * A 152 in the body is deliberately not promoted to auth-required, keeping the current Web logout behavior.
+ */
+const toKugouWebHttpError = async (response: Response): Promise<OnlineProviderError> => {
+    const message = `KuGouMusicApi request failed: ${response.status}`;
+    if (KUGOU_AUTH_FAILURE_STATUSES.has(response.status)) {
+        return new OnlineProviderError('auth-required', message, 'kugou');
+    }
+    let responseBody: any;
+    try {
+        responseBody = await response.json();
+    } catch {
+        responseBody = undefined;
+    }
+    const body = responseBody?.body ?? responseBody;
+    const upstreamCode = toFiniteNumber(body?.error_code ?? body?.errcode);
+    const httpStatus = response.status === 502 ? undefined : response.status;
+    return new OnlineProviderError(
+        'network',
+        upstreamCode === undefined ? message : `${message} (error_code=${upstreamCode})`,
+        'kugou',
+        undefined,
+        httpStatus,
+        response.status === 429 ? readRetryAfterMs(response) : undefined,
+        upstreamCode === undefined ? undefined : { stage: 'upstream', upstreamCode },
     );
 };
 
@@ -262,6 +325,35 @@ export const requestKugouAnonymousSearch = async (
     return body;
 };
 
+// Legacy playInfo failures: a non-2xx proxy answer is `network` (the proxy status says little), an unreadable body is
+// `invalid-response`.
+// A non-2xx is still a real HTTP answer, though, so its status rides along as `httpStatus` whenever it is m.kugou.com's
+// own: the classifier then reads 4xx as invalid-response, 429 as rate-limited, 504 as timeout and other 5xx as
+// service-unavailable, instead of "never got an answer". Left without one it stays a plain network failure.
+const legacyPlayInfoHttpError = (status: number, httpStatus?: number): OnlineProviderError => new OnlineProviderError(
+    'network',
+    `KuGou legacy playInfo failed: ${status}`,
+    'kugou',
+    undefined,
+    httpStatus,
+    undefined,
+    { stage: 'legacy_play_info' },
+);
+
+// The Web lyric proxies answer 500 / 502 themselves when their own fetch upstream fails, so those two say nothing
+// about m.kugou.com and are passed on without a status (like the main transport's Web 502).
+const isLyricProxyOwnFailureStatus = (status: number): boolean => status === 500 || status === 502;
+
+const legacyPlayInfoBodyError = (cause: unknown): OnlineProviderError => new OnlineProviderError(
+    'invalid-response',
+    'KuGou legacy playInfo returned an unreadable body',
+    'kugou',
+    cause,
+    undefined,
+    undefined,
+    { stage: 'legacy_play_info' },
+);
+
 /**
  * Legacy mobile play-info fallback used when the current /song/url endpoint refuses a hash.
  * It is intentionally kept outside the signed Web API transport because it calls KuGou's old
@@ -278,13 +370,14 @@ export const requestKugouLegacyPlayInfo = async (hash: string): Promise<any> => 
     if (typeof window !== 'undefined' && window.electron?.fetchLyricProxy) {
         const response = await window.electron.fetchLyricProxy(targetUrlString, { method: 'GET' });
         if (!response.ok) {
-            throw new OnlineProviderError(
-                'network',
-                `KuGou legacy playInfo failed: ${response.status}`,
-                'kugou',
-            );
+            // The main process rejects when it cannot reach the endpoint, so ok:false is always m.kugou.com's answer.
+            throw legacyPlayInfoHttpError(response.status, response.status);
         }
-        return JSON.parse(response.bodyText) as any;
+        try {
+            return JSON.parse(response.bodyText) as any;
+        } catch (error) {
+            throw legacyPlayInfoBodyError(error);
+        }
     }
 
     const requestUrl = typeof window !== 'undefined' && window.electron
@@ -298,13 +391,16 @@ export const requestKugouLegacyPlayInfo = async (hash: string): Promise<any> => 
         },
     });
     if (!response.ok) {
-        throw new OnlineProviderError(
-            'network',
-            `KuGou legacy playInfo failed: ${response.status}`,
-            'kugou',
+        throw legacyPlayInfoHttpError(
+            response.status,
+            requestUrl === targetUrlString || !isLyricProxyOwnFailureStatus(response.status) ? response.status : undefined,
         );
     }
-    return response.json();
+    try {
+        return await response.json();
+    } catch (error) {
+        throw legacyPlayInfoBodyError(error);
+    }
 };
 
 const clearWebDeviceIdentity = (): void => {
@@ -375,7 +471,15 @@ export const requestKugou = async <T = unknown>(operation: KugouOperation, param
 
     const base = getWebApiBase();
     if (!base) {
-        throw new OnlineProviderError('unavailable', 'VITE_KUGOU_API_BASE is not configured', 'kugou');
+        throw new OnlineProviderError(
+            'unavailable',
+            'VITE_KUGOU_API_BASE is not configured',
+            'kugou',
+            undefined,
+            undefined,
+            undefined,
+            { stage: 'config', transient: false },
+        );
     }
     const execute = async (targetOperation: KugouOperation, targetParams: KugouParams): Promise<any> => {
         const query = new URLSearchParams();
@@ -386,15 +490,30 @@ export const requestKugou = async <T = unknown>(operation: KugouOperation, param
         if (cookie) query.set('cookie', cookie);
         query.set('timestamp', String(Date.now()));
 
-        const response = await fetch(`${base}${ENDPOINTS[targetOperation]}?${query}`, { credentials: 'include' });
+        let response: Response;
+        try {
+            response = await fetch(`${base}${ENDPOINTS[targetOperation]}?${query}`, { credentials: 'include' });
+        } catch (error) {
+            // fetch only throws a TypeError when no HTTP answer arrived (offline, DNS, CORS); rethrow anything else.
+            if (error instanceof TypeError) {
+                throw new OnlineProviderError('network', `KuGouMusicApi ${targetOperation} unreachable`, 'kugou', error);
+            }
+            throw error;
+        }
         if (!response.ok) {
+            throw await toKugouWebHttpError(response);
+        }
+        let responseBody: any;
+        try {
+            responseBody = await response.json();
+        } catch (error) {
             throw new OnlineProviderError(
-                KUGOU_AUTH_FAILURE_STATUSES.has(response.status) ? 'auth-required' : 'network',
-                `KuGouMusicApi request failed: ${response.status}`,
+                'invalid-response',
+                `KuGouMusicApi ${targetOperation} returned an unreadable body`,
                 'kugou',
+                error,
             );
         }
-        const responseBody = await response.json();
         persistWebSession(responseBody);
         const body = responseBody?.body ?? responseBody;
         return body;

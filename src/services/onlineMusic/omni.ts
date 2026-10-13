@@ -629,7 +629,18 @@ export const omni = {
     },
 
     async getAudioSource(song: SongResult, quality: AudioQualityPreference): Promise<OmniAudioSource | null> {
-        const source = await (providerForSong(song).playback?.getAudioSource(song, quality) ?? null);
+        const provider = providerForSong(song);
+        let source: OmniAudioSource | null;
+        try {
+            source = await (provider.playback?.getAudioSource(song, quality) ?? null);
+        } catch (error) {
+            // The provider refused (network, auth, entitlement...). An installed audio hook may still
+            // supply a URL; without one, or when it has none, rethrow the very same error instance so
+            // the caller classifies the provider's evidence. Nothing is saved on this path.
+            const rescued = await applyOmniAudioHook(song, null);
+            if (rescued?.url) return rescued;
+            throw error;
+        }
         // Written here rather than at either caller because this is the only moment a provider ever
         // states a track's ReplayGain, and both callers - the prefetch pass and playback itself -
         // may be the one that happens to see it. See getCachedSongReplayGain for what is lost

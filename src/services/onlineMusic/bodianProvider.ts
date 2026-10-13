@@ -78,9 +78,13 @@ export const bodianProvider: OnlineMusicProvider = {
             if (audio.preview) throw new OnlineProviderError('preview-only', 'Bodian only offers a preview; sign in with an eligible account', 'bodian');
             return audio;
         },
+        // 只有下架信号会给 unavailable / taken-down；播放限制交给运行时。缓存里旧的布尔 `unavailable`
+        // 分不清下架还是限制（缓存歌曲在 normalizeBodianSong 原样放行），一律按 unknown。
         getAvailability(song) {
-            return song.sourceRef?.kind === 'online' && song.sourceRef.providerData?.unavailable
-                ? { state: 'unavailable' } : { state: 'unknown' };
+            const availability = song.sourceRef?.kind === 'online' ? song.sourceRef.providerData?.availability : undefined;
+            if (availability === 'off-shelf') return { state: 'unavailable', reason: 'taken-down' };
+            if (availability === 'online-play-restricted') return { state: 'unknown', reason: 'restricted' };
+            return { state: 'unknown' };
         },
     },
     lyrics: {

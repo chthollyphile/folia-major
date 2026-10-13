@@ -39,6 +39,7 @@
 | 64+ | `src/components/visualizer/colorMix.ts` |
 | 64+ | `src/library/core/contracts/suite.ts` |
 | 64+ | `src/stores/usePlaybackStore.ts` |
+| 64+ | `src/stores/useStatusMessageStore.ts` |
 | 64+ | `src/types/ponder.ts` |
 | 64+ | `src/utils/appPlaybackGuards.ts` |
 | 32+ | `dev/probes/definition.ts` |
@@ -58,7 +59,6 @@
 | 32+ | `src/services/onlineMusic/songMetadata.ts` |
 | 32+ | `src/stores/useAppViewStore.ts` |
 | 32+ | `src/stores/useAudioSettingsStore.ts` |
-| 32+ | `src/stores/useStatusMessageStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/utils/fontStacks.ts` |

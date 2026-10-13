@@ -29,7 +29,10 @@ export const normalizeBodianSong = (raw: unknown): UnifiedSong => {
     if (!item.id) throw new OnlineProviderError('invalid-response', 'Bodian song has no id', 'bodian');
     const data: Record<string, JsonValue> = {};
     if (typeof item.freeSign === 'string' || typeof item.fsig === 'string') data.freeSign = item.freeSign || item.fsig;
-    if (item.offline === true || item.online === 0 || item.payInfo?.cannotOnlinePlay === 1) data.unavailable = true;
+    // 下架信号（offline / online 0，未经核实，沿用现状）与「不能在线播放」分开记，后者只是限制，交给运行时判定；
+    // 不读 isListenFee、feeType 等会员或付费字段，单靠这些标签推不出播放结果。
+    if (item.offline === true || item.online === 0) data.availability = 'off-shelf';
+    else if (item.payInfo?.cannotOnlinePlay === 1) data.availability = 'online-play-restricted';
     if (item.payInfo?.refrain_start !== undefined) data.chorusStartMs = Number(item.payInfo.refrain_start);
     if (item.payInfo?.refrain_end !== undefined) data.chorusEndMs = Number(item.payInfo.refrain_end);
     return {

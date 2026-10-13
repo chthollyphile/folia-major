@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { neteaseApi } from '@/services/netease';
 import { neteaseProvider } from '@/services/onlineMusic/neteaseProvider';
 import type { UnifiedSong } from '@/types';
+import { OnlineProviderError } from '@/types/onlineMusic';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
 
 // test/unit/onlineMusic/neteaseProvider.test.ts
@@ -193,6 +194,92 @@ describe('neteaseProvider', () => {
             name: 'Recommended Playlist',
             description: '猜你喜欢的歌单',
         });
+    });
+
+    it('rejects with a network OmniError when the song URL request never reached the API', async () => {
+        const tagged = Object.assign(
+            new Error('NetEase API request /song/url/v1 failed: fetch failed', { cause: new TypeError('fetch failed') }),
+            { networkFailure: true },
+        );
+        vi.mocked(neteaseApi.getSongUrl).mockRejectedValue(tagged);
+
+        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
+            name: 'OnlineProviderError',
+            code: 'network',
+            providerId: 'netease',
+            message: 'NetEase API request /song/url/v1 failed: fetch failed',
+            cause: tagged,
+            details: { stage: 'song-url' },
+        });
+    });
+
+    it('rejects a non-JSON 5xx body as service-unavailable with the HTTP status', async () => {
+        vi.mocked(neteaseApi.getSongUrl).mockRejectedValue(
+            Object.assign(new Error('NetEase API /song/url/v1 returned HTTP 503 without a JSON body: (empty)'), { httpStatus: 503 }),
+        );
+
+        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
+            code: 'service-unavailable',
+            httpStatus: 503,
+        });
+    });
+
+    it.each([
+        [{ code: 200, data: [{ url: null, code: -110, fee: 1 }] }, 'membership-required'],
+        [{ code: 200, data: [{ url: null, code: -110, fee: 4 }] }, 'purchase-required'],
+        [{ code: 200, data: [{ url: 'http://music.test/clip.mp3', freeTrialInfo: { start: 0, end: 30 } }] }, 'preview-only'],
+        [{ code: 200, data: [{ url: null, code: 404 }] }, 'not-playable'],
+        [{ code: 502, msg: 'read ECONNRESET' }, 'network'],
+        [{ code: 301, msg: '需要登录' }, 'auth-required'],
+        [{ code: 200, data: [] }, 'invalid-response'],
+    ])('rejects an unplayable song URL response %j as %s instead of returning null', async (response, code) => {
+        vi.mocked(neteaseApi.getSongUrl).mockResolvedValue(response as any);
+
+        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
+            code,
+            providerId: 'netease',
+        });
+        // 只请求一次：不做客户端音质回退。
+        expect(neteaseApi.getSongUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('decides availability from the privilege itself, not from isSongMarkedUnavailable', () => {
+        // L10 的 mock 只认 st === -200；新逻辑对 -300 给 unknown，对有可播档位的 -200 也给 unknown。
+        expect(neteaseProvider.playback!.getAvailability!({ ...song, privilege: { st: -300 } })).toEqual({
+            state: 'unknown',
+            reason: 'restricted',
+        });
+        expect(neteaseProvider.playback!.getAvailability!({ ...song, privilege: { st: -200, pl: 320000 } })).toEqual({
+            state: 'unknown',
+            reason: 'restricted',
+        });
+        expect(neteaseProvider.playback!.getAvailability!({ ...song, privilege: { st: -200, cs: true } })).toEqual({
+            state: 'unknown',
+            reason: 'restricted',
+        });
+        expect(neteaseProvider.playback!.getAvailability!({
+            ...song,
+            privilege: { st: -200 },
+            noCopyrightRcmd: { typeDesc: '其它版本可播' },
+        })).toEqual({ state: 'unavailable', reason: 'taken-down', label: '其它版本可播' });
+        expect(neteaseProvider.playback!.getAvailability!(song)).toEqual({ state: 'playable' });
+    });
+
+    it('wraps a failed replacement lookup into an OmniError', async () => {
+        const unavailableSong = { ...song, privilege: { st: -200 } };
+        vi.mocked(neteaseApi.getUnavailableSongReplacement).mockRejectedValueOnce(
+            Object.assign(new Error('NetEase API request /song/copyright/rcmd failed: fetch failed'), { networkFailure: true }),
+        );
+        await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).rejects.toMatchObject({
+            name: 'OnlineProviderError',
+            code: 'network',
+            providerId: 'netease',
+            details: { stage: 'replacement' },
+        });
+
+        const omniError = new OnlineProviderError('timeout', 'NetEase upstream request failed', 'netease');
+        vi.mocked(neteaseApi.getUnavailableSongReplacement).mockRejectedValueOnce(omniError);
+        await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).rejects.toBe(omniError);
     });
 
     it('owns unavailable status and replacement normalization inside the provider', async () => {

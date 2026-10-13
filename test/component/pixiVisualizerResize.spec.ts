@@ -37,3 +37,34 @@ for (const mode of ['sonnet', 'tempera', 'lumiere']) {
         });
     }
 }
+
+// The visualizer cases above hit this only when a resize lands right after a frame whose nested
+// pass was screen-sized (tempera: scene post-process around the lyric inversion). This pins the
+// same Pixi path deterministically, through loadPixi so the shim reaches the renderer's FilterSystem.
+test('nested Pixi filters render after a resize prunes their pass textures', async ({ page }) => {
+    await page.goto('/dev-probe.html');
+    const sizes = await page.evaluate(async () => {
+        const loadPixiUrl = '/src/components/visualizer/loadPixi.ts';
+        const { loadPixi } = await import(/* @vite-ignore */ loadPixiUrl);
+        const pixi: typeof import('pixi.js') = await loadPixi();
+        const app = new pixi.Application();
+        await app.init({ width: 301, height: 201, preference: 'webgl', autoStart: false, sharedTicker: false });
+        const outer = new pixi.Container();
+        const inner = new pixi.Container();
+        outer.filters = [new pixi.AlphaFilter()];
+        inner.filters = [new pixi.AlphaFilter()];
+        inner.addChild(new pixi.Graphics().rect(0, 0, 400, 300).fill(0xff0000));
+        outer.addChild(inner);
+        app.stage.addChild(outer);
+        try {
+            app.render();
+            // Prunes the idle 301x201 pass textures the inner stack entry still points at.
+            app.renderer.resize(347, 229);
+            app.render();
+            return [app.renderer.width, app.renderer.height];
+        } finally {
+            app.destroy(true, { children: true });
+        }
+    });
+    expect(sizes).toEqual([347, 229]);
+});

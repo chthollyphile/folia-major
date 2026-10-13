@@ -11,6 +11,7 @@ import {
     type ProviderComment,
     type ProviderHistoryEntry,
     type ProviderPage,
+    type ProviderPlaybackAttempt,
     type ProviderUser,
 } from '../../types/onlineMusic';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
@@ -26,6 +27,7 @@ import {
     normalizeSongTitleForLyricSearch,
 } from '../../utils/lyrics/searchQuery';
 import { removeProviderSessionValue, readProviderSessionValue } from './providerStorage';
+import { attemptChainDecision, attemptFromError, emptyAttempt, summarizePlaybackAttempts } from './playbackAttempts';
 import {
     getKugouTransportAvailability,
     hasKugouAuthenticatedSearchSession,
@@ -1051,9 +1053,16 @@ export const kugouProvider: OnlineMusicProvider = {
             const qualities = sourceRef?.variant === 'cloud' ? [quality] : qualityFallbacks(quality);
             const albumId = String(sourceRef?.providerData?.albumId || '');
             const albumAudioId = String(sourceRef?.providerData?.albumAudioId || '');
+            // Diagnostic evidence for every failed request; when nothing plays, summarizePlaybackAttempts turns it into
+            // one evidence-based error instead of returning null.
+            const attempts: ProviderPlaybackAttempt[] = [];
+            let lastError: unknown;
+            // An auth failure or timeout stops the remaining /song/url qualities and variants; legacy still runs once.
+            let songUrlChainStopped = false;
 
             // Tries the preferred KuGou quality first and degrades until a playable URL is returned.
             for (const candidateQuality of qualities) {
+                if (songUrlChainStopped) break;
                 const requestVariants = sourceRef?.variant === 'cloud'
                     ? [{ name: 'cloud', operation: 'user_cloud_url' as const, params: {
                         hash, id: String(sourceRef.providerData?.fileId || ''),
@@ -1106,14 +1115,24 @@ export const kugouProvider: OnlineMusicProvider = {
                                 ...(replayGain ? { replayGain } : {}),
                             };
                         }
+                        const status = valueOf(data, 'status') ?? valueOf(response, 'status');
+                        const errorCode = valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code');
                         console.warn('[KuGouProvider] playback:no-url', {
                             hash,
                             requestedQuality: quality,
                             candidateQuality,
                             requestVariant: requestVariant.name,
-                            status: valueOf(data, 'status') ?? valueOf(response, 'status'),
-                            errorCode: valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code'),
+                            status,
+                            errorCode,
                         });
+                        // An answer without a URL (status 3, fail_process, ...) proves no reason: record it as an empty
+                        // attempt and never infer a takedown or a membership requirement from it.
+                        attempts.push(emptyAttempt(requestVariant.operation, {
+                            quality: candidateQuality,
+                            variant: requestVariant.name,
+                            upstreamCode: errorCode,
+                            detail: status === undefined ? undefined : `status=${status}`,
+                        }));
                     } catch (error) {
                         console.warn('[KuGouProvider] playback:quality-failed', {
                             hash,
@@ -1122,6 +1141,18 @@ export const kugouProvider: OnlineMusicProvider = {
                             requestVariant: requestVariant.name,
                             error: error instanceof Error ? error.message : String(error),
                         });
+                        lastError = error;
+                        const attempt = attemptFromError(requestVariant.operation, error, {
+                            quality: candidateQuality,
+                            variant: requestVariant.name,
+                        });
+                        attempts.push(attempt);
+                        const decision = attemptChainDecision(attempt);
+                        if (decision === 'stop-all') throw summarizePlaybackAttempts('kugou', attempts, { lastError });
+                        if (decision === 'stop-chain') {
+                            songUrlChainStopped = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -1145,22 +1176,33 @@ export const kugouProvider: OnlineMusicProvider = {
                             quality: 'standard',
                         };
                     }
+                    const legacyStatus = valueOf(legacyResponse, 'status') ?? valueOf(dataOf(legacyResponse), 'status');
                     console.warn('[KuGouProvider] playback:no-url-legacy', {
                         hash,
                         requestedQuality: quality,
-                        status: valueOf(legacyResponse, 'status') ?? valueOf(dataOf(legacyResponse), 'status'),
+                        status: legacyStatus,
                     });
+                    attempts.push(emptyAttempt('legacy_play_info', {
+                        detail: legacyStatus === undefined ? undefined : `status=${legacyStatus}`,
+                    }));
                 } catch (error) {
                     console.warn('[KuGouProvider] playback:legacy-failed', {
                         hash,
                         requestedQuality: quality,
                         error: error instanceof Error ? error.message : String(error),
                     });
+                    lastError = error;
+                    attempts.push(attemptFromError('legacy_play_info', error));
                 }
             }
 
             console.warn('[KuGouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
-            return null;
+            // Without a session and with empty answers, signing in only *may* help (the docs say no more), so this is
+            // a hint, never auth-required.
+            throw summarizePlaybackAttempts('kugou', attempts, {
+                lastError,
+                signInMayHelp: !hasKugouAuthenticatedSearchSession() && attempts.some(attempt => attempt.outcome === 'empty'),
+            });
         },
     },
     lyrics: {

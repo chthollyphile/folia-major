@@ -5,6 +5,7 @@ import { hasCachedSongAudio, hasCachedSongCover } from './onlineMusic/resourceCa
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
+import { clearCachedSongAudioDistrust, isCachedSongAudioDistrusted, isCacheableAudioResponse } from './playbackRecovery/mediaCacheGuard';
 
 // src/services/playedTrackCache.ts
 
@@ -38,14 +39,25 @@ export const cachePlayedTrackAssets = async (
 
     // Audio needs a source that can actually be refetched: a blob: URL is this session's own handle
     // to bytes that are either already cached or on disk, so there is nothing to fetch and store.
-    if (src && !src.startsWith('blob:') && !await hasCachedSongAudio(song)) {
+    // 缓存里那份已被标记为不可信（解码失败过）时，即使还在也要用这次的合格下载覆盖它。
+    if (src && !src.startsWith('blob:') && (!await hasCachedSongAudio(song) || isCachedSongAudioDistrusted(song))) {
         console.log('[Cache] Caching fully played song:', song.name);
         try {
             const response = await fetch(src);
             const blob = await response.blob();
-            await saveAudioBlob(getSongResourceCacheKey('audio', song), blob);
-            result.audio = true;
-            console.log('[Cache] Audio saved');
+            // 错误页、JSON 报错和截断的下载不能当成音频存进去：缓存命中优先于 provider，坏的一份会一直顶替真音源。
+            if (isCacheableAudioResponse(response, blob)) {
+                await saveAudioBlob(getSongResourceCacheKey('audio', song), blob);
+                clearCachedSongAudioDistrust(song);
+                result.audio = true;
+                console.log('[Cache] Audio saved');
+            } else {
+                console.warn('[Cache] Skipped caching a download that does not look like audio:', song.name, {
+                    status: response.status,
+                    contentType: response.headers?.get('content-type') ?? blob.type,
+                    size: blob.size,
+                });
+            }
         } catch (error) {
             console.error('[Cache] Failed to download audio for cache', error);
         }

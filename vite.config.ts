@@ -7,6 +7,7 @@ import { icuFoliaDataPlugin } from './dev/icuFolia/icuFoliaDataPlugin.mjs';
 import { normalizeBuildCommit, resolveBuildKind, resolveBuildRepo } from './dev/build/buildIdentity.mjs';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
+import { createHash } from 'crypto';
 import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -189,6 +190,16 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
   const appReleaseChannel = process.env.APP_RELEASE_CHANNEL?.trim().toLowerCase() || 'realeco';
   const dockerStackVersion = process.env.DOCKER_STACK_VERSION?.trim() || '';
 
+  // The /__folia_cover/ route (public/folia-cover-sw.js) runs inside the PWA worker instead of as a
+  // worker of its own: a scope holds one registration, so a second script at '/' replaced sw.js and
+  // left the precache with nothing to serve it offline. The query is the file's content hash: an edit
+  // to it alone still changes sw.js, and the new copy is not taken from the HTTP cache (imported
+  // scripts go through it under the default updateViaCache).
+  const localCoverWorkerImport = `folia-cover-sw.js?v=${createHash('sha256')
+    .update(fs.readFileSync(path.resolve(__dirname, 'public/folia-cover-sw.js')))
+    .digest('hex')
+    .slice(0, 12)}`;
+
   return {
     base: process.env.ELECTRON === 'true' ? './' : '/',
     worker: {
@@ -264,8 +275,10 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
         },
         workbox: {
           maximumFileSizeToCacheInBytes: 5000000,
+          importScripts: [localCoverWorkerImport],
           // Docker serves this file dynamically; it must never be pinned in the PWA precache.
-          globIgnores: ['**/runtime-config.js', '**/assets/folium-icons/**'],
+          // The cover route is stored with the worker script itself, so precaching it is redundant.
+          globIgnores: ['**/runtime-config.js', '**/assets/folium-icons/**', '**/folia-cover-sw.js'],
           runtimeCaching: [{
             // Per-icon chunks load on demand. Their names are content-hashed, so an icon cached on
             // first use can be served as-is when the app later starts offline.
@@ -276,8 +289,9 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
               expiration: { maxEntries: 400 },
             },
           }],
-          // API navigations must reach the deployment platform instead of the SPA shell.
-          navigateFallbackDenylist: [/^\/api(?:\/|$)/]
+          // API navigations must reach the deployment platform instead of the SPA shell. Opening a
+          // local cover in its own tab is a navigation too, and the cover route already answers it.
+          navigateFallbackDenylist: [/^\/api(?:\/|$)/, /^\/__folia_cover\//]
         },
         manifest: {
           name: 'Folia Music',

@@ -1,5 +1,9 @@
 // public/folia-cover-sw.js
 // Serves validated content-addressed local cover files directly from OPFS.
+// Not registered on its own: vite.config.ts imports it into the PWA worker (workbox importScripts),
+// which owns install/activate (skipWaiting + clientsClaim from registerType 'autoUpdate'). Only the
+// fetch listener lives here, and it answers nothing outside /__folia_cover/, so the precache and
+// navigation routes registered after it still see every other request.
 
 const COVER_PATH_PREFIX = '/__folia_cover/';
 const ASSET_ID_PATTERN = /^sha256:([0-9a-f]{64})$/;
@@ -15,9 +19,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
 ]);
-
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
 const parseThumbnailSize = (requestUrl) => {
   const value = Number(requestUrl.searchParams.get('size'));

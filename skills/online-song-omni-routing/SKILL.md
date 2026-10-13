@@ -141,3 +141,4 @@ If Omni lacks a normal capability, add the capability to `src/types/onlineMusic.
 - [ ] Are capability, availability, auth, network, and unsupported states preserved?
 - [ ] Are numeric IDs ever compared without provider identity? If yes, fix them.
 - [ ] Is there a focused test for the new routing or adapter behavior?
+- [ ] provider 不得用会员标签、网络失败或空 URL 推断下架；`unavailable` code 不表示下架；`upstreamCode` 和 `stage` 只用于诊断。

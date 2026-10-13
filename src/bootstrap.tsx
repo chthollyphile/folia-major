@@ -98,5 +98,6 @@ void Promise.allSettled([bootFolium(), bootNavidrome()])
         if (navidrome.status === 'rejected') console.warn('[Navidrome] Server preset boot failed:', navidrome.reason);
     })
     .finally(() => {
-        void initializeLocalCoverRuntime().finally(renderApp);
+        initializeLocalCoverRuntime();
+        renderApp();
     });

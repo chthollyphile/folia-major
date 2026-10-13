@@ -351,4 +351,215 @@ describe('KuGou Web transport', () => {
         expect(getKugouTransportAvailability()).toEqual({ configured: false, reason: 'not-configured' });
         await expect(requestKugou('search', { keywords: 'song' })).rejects.toMatchObject({ code: 'unavailable' });
     });
+
+    it('marks the missing Web configuration as a persistent config failure', async () => {
+        vi.stubGlobal('window', undefined);
+        vi.stubEnv('VITE_KUGOU_API_BASE', '');
+        const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+
+        await expect(requestKugou('song_url', { hash: 'HASH' })).rejects.toMatchObject({
+            code: 'unavailable',
+            providerId: 'kugou',
+            details: { stage: 'config', transient: false },
+        });
+    });
+
+    describe('Electron failure details', () => {
+        const rejectWith = async (bridgeMessage: string) => {
+            const ipcError = new Error(`Error invoking remote method 'kugou-api-request': KuGouApiError: ${bridgeMessage}`);
+            vi.stubGlobal('window', { electron: { kugouRequest: vi.fn().mockRejectedValue(ipcError) } });
+            const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+            return { ipcError, error: await requestKugou('song_url', { hash: 'HASH' }).catch((caught: unknown) => caught) };
+        };
+
+        it.each([
+            ['ETIMEDOUT', 'KuGouApi[operation=song_url status=502]: ETIMEDOUT: connect ETIMEDOUT 1.2.3.4:443'],
+            ['ECONNABORTED', 'KuGouApi[operation=song_url status=502]: ECONNABORTED: timeout of 10000ms exceeded'],
+        ])('maps a %s detail without error_code to timeout', async (_label, bridgeMessage) => {
+            const { ipcError, error } = await rejectWith(bridgeMessage);
+
+            expect(error).toMatchObject({ name: 'OnlineProviderError', code: 'timeout', providerId: 'kugou', cause: ipcError });
+            expect((error as Error).message).toContain('operation=song_url');
+            expect((error as { details?: unknown }).details).toBeUndefined();
+        });
+
+        it('keeps a non-auth error_code as network and records it as the upstream code', async () => {
+            const { error } = await rejectWith('KuGouApi[operation=song_url status=502 error_code=20028]: upstream busy');
+
+            expect(error).toMatchObject({
+                code: 'network',
+                providerId: 'kugou',
+                details: { stage: 'upstream', upstreamCode: 20028 },
+            });
+            expect((error as { httpStatus?: number }).httpStatus).toBeUndefined();
+        });
+
+        it('does not treat an error_code with a timeout-looking detail as a timeout', async () => {
+            const { error } = await rejectWith('KuGouApi[operation=song_url status=502 error_code=20010]: ETIMEDOUT');
+
+            expect(error).toMatchObject({ code: 'network', details: { upstreamCode: 20010 } });
+        });
+
+        it('keeps other detail-only failures as plain network errors', async () => {
+            const { error } = await rejectWith('KuGouApi[operation=song_url status=502]: ECONNRESET: socket hang up');
+
+            expect(error).toMatchObject({ code: 'network' });
+            expect((error as { details?: unknown }).details).toBeUndefined();
+        });
+
+        it('records the upstream code of a raw answer-object rejection', async () => {
+            vi.stubGlobal('window', {
+                electron: {
+                    kugouRequest: vi.fn().mockRejectedValue({ status: 502, body: { status: 0, errcode: 20028 } }),
+                },
+            });
+            const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugou('user_detail', {})).rejects.toMatchObject({
+                code: 'network',
+                details: { stage: 'upstream', upstreamCode: 20028 },
+            });
+        });
+    });
+
+    describe('Web failure details', () => {
+        const requestWithFetch = async (fetchMock: ReturnType<typeof vi.fn>) => {
+            vi.stubGlobal('window', undefined);
+            vi.stubGlobal('fetch', fetchMock);
+            const { requestKugou } = await import('@/services/onlineMusic/kugouTransport');
+            return requestKugou('song_url', { hash: 'HASH' }).catch((caught: unknown) => caught);
+        };
+
+        it('maps a fetch TypeError to network and keeps the cause', async () => {
+            const fetchError = new TypeError('Failed to fetch');
+
+            const error = await requestWithFetch(vi.fn().mockRejectedValue(fetchError));
+
+            expect(error).toMatchObject({
+                name: 'OnlineProviderError',
+                code: 'network',
+                providerId: 'kugou',
+                message: 'KuGouMusicApi song_url unreachable',
+                cause: fetchError,
+            });
+        });
+
+        it('rethrows a non-TypeError fetch failure unchanged', async () => {
+            const abortError = new DOMException('aborted', 'AbortError');
+
+            const error = await requestWithFetch(vi.fn().mockRejectedValue(abortError));
+
+            expect(error).toBe(abortError);
+        });
+
+        it('maps an unreadable 200 body to invalid-response with the parse error as cause', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(new Response('<html>', { status: 200 })));
+
+            expect(error).toMatchObject({ code: 'invalid-response', providerId: 'kugou' });
+            expect((error as { cause?: unknown }).cause).toBeInstanceOf(SyntaxError);
+        });
+
+        it('reads the upstream code from a 502 body without passing the ambiguous status', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(
+                Response.json({ status: 0, error_code: 31000 }, { status: 502 }),
+            ));
+
+            expect(error).toMatchObject({ code: 'network', details: { stage: 'upstream', upstreamCode: 31000 } });
+            expect((error as { httpStatus?: number }).httpStatus).toBeUndefined();
+        });
+
+        it('keeps error_code 152 in a 502 body as network on Web', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(
+                Response.json({ status: 0, errcode: 152 }, { status: 502 }),
+            ));
+
+            expect(error).toMatchObject({ code: 'network', details: { upstreamCode: 152 } });
+        });
+
+        it('passes non-502 HTTP statuses through', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(new Response('busy', { status: 503 })));
+
+            expect(error).toMatchObject({ code: 'network', httpStatus: 503 });
+            expect((error as { details?: unknown }).details).toBeUndefined();
+        });
+
+        it('converts Retry-After on a 429 into retryAfterMs', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(
+                new Response('{}', { status: 429, headers: { 'Retry-After': '25' } }),
+            ));
+
+            expect(error).toMatchObject({ code: 'network', httpStatus: 429, retryAfterMs: 25_000 });
+        });
+
+        it('keeps a 502 without a readable body as a plain network error', async () => {
+            const error = await requestWithFetch(vi.fn().mockResolvedValue(new Response('Bad Gateway', { status: 502 })));
+
+            expect(error).toMatchObject({ code: 'network' });
+            expect((error as { httpStatus?: number }).httpStatus).toBeUndefined();
+            expect((error as { details?: unknown }).details).toBeUndefined();
+        });
+    });
+
+    describe('legacy playInfo failures', () => {
+        it('marks a non-2xx Web answer as a network failure of the legacy stage', async () => {
+            vi.stubGlobal('window', undefined);
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 502 })));
+            const { requestKugouLegacyPlayInfo } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugouLegacyPlayInfo('HASH')).rejects.toMatchObject({
+                code: 'network',
+                providerId: 'kugou',
+                details: { stage: 'legacy_play_info' },
+            });
+        });
+
+        it('keeps the status of a real HTTP answer and drops the lyric proxy\'s own 500 / 502', async () => {
+            vi.stubGlobal('window', undefined);
+            vi.stubGlobal('fetch', vi.fn()
+                .mockResolvedValueOnce(new Response('', { status: 404 }))
+                .mockResolvedValueOnce(new Response('', { status: 502 })));
+            const { requestKugouLegacyPlayInfo } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugouLegacyPlayInfo('HASH')).rejects.toMatchObject({
+                code: 'network', httpStatus: 404, details: { stage: 'legacy_play_info' },
+            });
+            const proxyFailure = await requestKugouLegacyPlayInfo('HASH').catch((caught: unknown) => caught);
+            expect(proxyFailure).toMatchObject({ code: 'network', details: { stage: 'legacy_play_info' } });
+            expect((proxyFailure as { httpStatus?: number }).httpStatus).toBeUndefined();
+        });
+
+        it('keeps the status of an Electron proxy answer, which is always m.kugou.com\'s own', async () => {
+            const fetchLyricProxy = vi.fn().mockResolvedValue({ ok: false, status: 404, bodyText: '' });
+            vi.stubGlobal('window', { electron: { kugouRequest: vi.fn(), fetchLyricProxy } });
+            const { requestKugouLegacyPlayInfo } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugouLegacyPlayInfo('HASH')).rejects.toMatchObject({
+                code: 'network', httpStatus: 404, details: { stage: 'legacy_play_info' },
+            });
+        });
+
+        it('maps an unreadable Web body to invalid-response', async () => {
+            vi.stubGlobal('window', undefined);
+            vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 200 })));
+            const { requestKugouLegacyPlayInfo } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugouLegacyPlayInfo('HASH')).rejects.toMatchObject({ code: 'invalid-response' });
+        });
+
+        it('maps Electron proxy failures to network and unparsable text to invalid-response', async () => {
+            const fetchLyricProxy = vi.fn()
+                .mockResolvedValueOnce({ ok: false, status: 500, bodyText: '' })
+                .mockResolvedValueOnce({ ok: true, status: 200, bodyText: 'not json' });
+            vi.stubGlobal('window', { electron: { kugouRequest: vi.fn(), fetchLyricProxy } });
+            const { requestKugouLegacyPlayInfo } = await import('@/services/onlineMusic/kugouTransport');
+
+            await expect(requestKugouLegacyPlayInfo('HASH')).rejects.toMatchObject({
+                code: 'network',
+                details: { stage: 'legacy_play_info' },
+            });
+            const error = await requestKugouLegacyPlayInfo('HASH').catch((caught: unknown) => caught);
+            expect(error).toMatchObject({ code: 'invalid-response' });
+            expect((error as { cause?: unknown }).cause).toBeInstanceOf(SyntaxError);
+        });
+    });
 });

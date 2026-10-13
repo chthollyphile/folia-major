@@ -19,8 +19,13 @@ import { getPersonalFmRequestOptions } from '../../stores/usePersonalFmModeStore
 import { parseNeteaseChorusRanges, processNeteaseLyrics } from '../../utils/lyrics/neteaseProcessing';
 import { toFiniteNumber } from '../../utils/replayGain';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
-import { getNeteaseRemoteApiBase, isSongMarkedUnavailable, neteaseApi } from '../netease';
+import { getNeteaseRemoteApiBase, neteaseApi } from '../netease';
 import { readProviderSessionValue, writeProviderSessionValue } from './providerStorage';
+import {
+    classifyNeteaseSongUrlResponse,
+    resolveNeteaseSongAvailability,
+    toNeteaseRequestError,
+} from './neteasePlaybackFailure';
 import { collectLoginBackendDiagnostics } from './loginBackendDiagnostics';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from './loginSelfCheck';
 import { formatDiagnosticClock } from '../../utils/qrLoginDiagnosticReport';
@@ -406,7 +411,15 @@ export const neteaseProvider: OnlineMusicProvider = {
             return raw ? normalizeNeteaseSong(raw) : null;
         },
         async getAudioSource(song, quality) {
-            const response = await neteaseApi.getSongUrl(toNeteaseId(song.id), mapQuality(quality));
+            let response: any;
+            try {
+                response = await neteaseApi.getSongUrl(toNeteaseId(song.id), mapQuality(quality));
+            } catch (error) {
+                throw toNeteaseRequestError(error, 'song-url');
+            }
+            // 没给出可播 URL（或只给了试听片段）时按响应形态抛出 OmniError；不在客户端换音质重试。
+            const failure = classifyNeteaseSongUrlResponse(response);
+            if (failure) throw failure;
             const raw = response?.data?.[0];
             const rawUrl = raw?.url;
             if (!rawUrl) return null;
@@ -419,16 +432,15 @@ export const neteaseProvider: OnlineMusicProvider = {
             };
         },
         getAvailability(song): ProviderSongAvailability {
-            if (!isSongMarkedUnavailable(song)) return { state: 'playable' };
-            return {
-                state: 'unavailable',
-                label: typeof song.noCopyrightRcmd?.typeDesc === 'string'
-                    ? song.noCopyrightRcmd.typeDesc
-                    : undefined,
-            };
+            return resolveNeteaseSongAvailability(song);
         },
         async getReplacement(song): Promise<ProviderSongReplacement | null> {
-            const replacement = await neteaseApi.getUnavailableSongReplacement(song);
+            let replacement: Awaited<ReturnType<typeof neteaseApi.getUnavailableSongReplacement>>;
+            try {
+                replacement = await neteaseApi.getUnavailableSongReplacement(song);
+            } catch (error) {
+                throw toNeteaseRequestError(error, 'replacement');
+            }
             if (!replacement?.replacementSong) return null;
             return {
                 song: normalizeNeteaseSong(replacement.replacementSong),

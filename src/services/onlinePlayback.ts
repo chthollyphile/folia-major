@@ -6,36 +6,63 @@ import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, resolveOnlineLyricsPureMusic, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { createSafeObjectUrl } from '../utils/blobGuards';
-import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
-import { OnlineProviderError, type ProviderErrorCode } from '../types/onlineMusic';
+import type { AudioQualityPreference, MediaId, OmniAudioSource } from '../types/onlineMusic';
+import type { OnlineAudioSourceResult, PlaybackFailure } from '../types/playbackFailure';
 import { omni } from './onlineMusic/omni';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getCachedSongAudioBlob, getCachedSongReplayGain, getSongCacheWithLegacyMigration } from './onlineMusic/resourceCache';
-import { toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
+import { toPlayableAudioUrl } from '../utils/appPlaybackHelpers';
+import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
+import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { saveLyricCacheSongMetadata } from './lyricExport/lyricCacheMetadata';
+import { classifyMissingAudioUrl, classifyPlaybackError } from './playbackRecovery/onlinePlaybackFailure';
+import { resolvePlaybackFailurePolicy, sleepForPlaybackRetry } from './playbackRecovery/playbackFailurePolicy';
+import { getProviderPlaybackCooldown, noteProviderFailure } from './playbackRecovery/providerPlaybackCooldown';
+import { isCachedSongAudioDistrusted } from './playbackRecovery/mediaCacheGuard';
 
+export interface LoadOnlineAudioSourceOptions {
+    stage?: 'resolve-url' | 'refresh' | 'restore';
+    bypassMediaCache?: boolean;
+    retry?: {
+        isCurrent: () => boolean;
+        onRetrying?: (failure: PlaybackFailure, attempt: number) => void;
+        sleep?: (ms: number) => Promise<void>;     // 测试注入；默认 sleepForPlaybackRetry
+    };
+}
+
+/**
+ * 解析一首在线歌曲的音源：媒体缓存 → 有效预取 → provider。
+ * provider 失败时归一成 PlaybackFailure（不回写可用性、预取或缓存），按策略表对网络 / 超时做有限次静默重试，
+ * 每次等待后检查请求是否仍是当前的；限流冷却期内不发请求。
+ */
 export async function loadOnlineSongAudioSource(
     song: SongResult,
     audioQuality: AudioQualityPreference,
-    prefetched: PrefetchedSongData | null
-): Promise<
-    | { kind: 'ok'; audioSrc: string; blobUrl?: string; replayGain?: ReplayGainInfo }
-    | { kind: 'unavailable'; reason?: ProviderErrorCode }
-> {
-    const cachedAudioBlob = await getCachedSongAudioBlob(song);
-    if (cachedAudioBlob) {
-        const blobUrl = createSafeObjectUrl(cachedAudioBlob);
-        if (blobUrl) {
-            // Nothing on this path ever asks the provider again, so the stored gain is the only
-            // one a cached track can have. Without it every cached track reaches the fader at 0dB.
-            let replayGain = song.replayGain ?? prefetched?.replayGain;
-            if (!replayGain) {
-                replayGain = await getCachedSongReplayGain(song);
-                if (replayGain) console.log(`[Cache] ReplayGain recovered for "${song.name}" from the store, not the provider`);
+    prefetched: PrefetchedSongData | null,
+    options: LoadOnlineAudioSourceOptions = {},
+): Promise<OnlineAudioSourceResult> {
+    // 缓存 blob 解码失败过（distrust）或调用方要求绕过时不读缓存；读缓存出错只记日志，继续走 provider。
+    if (!options.bypassMediaCache && !isCachedSongAudioDistrusted(song)) {
+        let cachedAudioBlob: Blob | null = null;
+        try {
+            cachedAudioBlob = await getCachedSongAudioBlob(song);
+        } catch (error) {
+            console.warn('[OnlinePlayback] Failed to read the cached audio; asking the provider instead', error);
+        }
+        if (cachedAudioBlob) {
+            const blobUrl = createSafeObjectUrl(cachedAudioBlob);
+            if (blobUrl) {
+                // Nothing on this path ever asks the provider again, so the stored gain is the only
+                // one a cached track can have. Without it every cached track reaches the fader at 0dB.
+                let replayGain = song.replayGain ?? prefetched?.replayGain;
+                if (!replayGain) {
+                    replayGain = await getCachedSongReplayGain(song);
+                    if (replayGain) console.log(`[Cache] ReplayGain recovered for "${song.name}" from the store, not the provider`);
+                }
+                return { kind: 'ok', audioSrc: blobUrl, blobUrl, replayGain };
             }
-            return { kind: 'ok', audioSrc: blobUrl, blobUrl, replayGain };
         }
     }
 
@@ -47,21 +74,60 @@ export async function loadOnlineSongAudioSource(
         };
     }
 
-    let source = null;
-    try {
-        source = await omni.getAudioSource(song, audioQuality);
-    } catch (error) {
-        console.warn('[OnlinePlayback] Provider audio source is temporarily unavailable', error);
-        return { kind: 'unavailable', ...(error instanceof OnlineProviderError ? { reason: error.code } : {}) };
-    }
-    const url = toSafePlaybackUrl(source?.url);
-    if (!url) {
-        return { kind: 'unavailable' };
-    }
+    const sourceRef = getPlaybackSourceRef(song);
+    const providerId = sourceRef.kind === 'online' ? sourceRef.providerId : undefined;
+    const stage = options.stage ?? 'resolve-url';
+    const sleep = options.retry?.sleep ?? sleepForPlaybackRetry;
 
-    const replayGain = applyOnlineAudioSourceMetadata(song, source?.replayGain).replayGain;
-    updatePrefetchedAudioUrl(song, url, audioQuality, replayGain);
-    return { kind: 'ok', audioSrc: url, replayGain };
+    for (let attempt = 0; ; attempt += 1) {
+        const cooldown = providerId ? getProviderPlaybackCooldown(providerId, 'play') : null;
+        if (cooldown) {
+            return {
+                kind: 'failed',
+                failure: { reason: 'rate-limited', stage: 'cooldown', providerId, retryAfterMs: cooldown.remainingMs },
+            };
+        }
+
+        // 必须在请求之前读：鉴权失败后 transport 可能已经清理了会话，事后读会把“已失效”误判成“未登录”。
+        const account = providerId ? useOnlineProviderAccountStore.getState().accounts[providerId] : undefined;
+
+        let source: OmniAudioSource | null = null;
+        let failure: PlaybackFailure | null = null;
+        try {
+            source = await omni.getAudioSource(song, audioQuality);
+        } catch (error) {
+            console.warn('[OnlinePlayback] Provider audio source is temporarily unavailable', error);
+            failure = classifyPlaybackError(error, {
+                stage,
+                providerId,
+                account: { status: account?.status, error: account?.error },
+            });
+        }
+
+        if (!failure) {
+            const url = toPlayableAudioUrl(source?.url);
+            if (url) {
+                const replayGain = applyOnlineAudioSourceMetadata(song, source?.replayGain).replayGain;
+                // 预取条目只在成功时更新；失败永不回写。
+                updatePrefetchedAudioUrl(song, url, audioQuality, replayGain);
+                return { kind: 'ok', audioSrc: url, replayGain };
+            }
+            failure = classifyMissingAudioUrl(source?.url, { stage, providerId });
+            console.warn('[OnlinePlayback] Provider returned no playable audio URL', failure.reason);
+        }
+
+        noteProviderFailure(failure);
+
+        const delays = resolvePlaybackFailurePolicy(failure, 'play').autoRetryDelaysMs;
+        const retry = options.retry;
+        if (retry && attempt < delays.length && retry.isCurrent()) {
+            retry.onRetrying?.(failure, attempt + 1);
+            await sleep(delays[attempt]);
+            if (!retry.isCurrent()) return { kind: 'failed', failure };
+            continue;
+        }
+        return { kind: 'failed', failure };
+    }
 }
 
 export const applyOnlineAudioSourceMetadata = (

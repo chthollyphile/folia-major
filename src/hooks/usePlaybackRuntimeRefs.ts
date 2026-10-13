@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { SongResult } from '../types';
+import type { OnlineRecoveryResult } from '../types/playbackFailure';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
 
 // src/hooks/usePlaybackRuntimeRefs.ts
@@ -33,12 +34,19 @@ export const usePlaybackRuntimeRefs = () => {
     const shouldAutoPlay = useRef(false);
     /** The playing song's id, readable synchronously by loaders that must not close over state. */
     const currentSongRef = useRef<string | number | null>(null);
+    /**
+     * 主播放每提交一次当前歌曲就加一：点歌落地（同一首歌重新点播也算）、离开 Stage 恢复主快照、会话恢复、窗口交接、
+     * automix 取消。在途的音源刷新和播放中失败据此判断自己是否属于已被取代的那次播放；只比歌曲 key 时，
+     * 重播同一首会让旧结果冒充当前。本地 / Navidrome 播放不经在线恢复，没有接入。
+     */
+    const playbackGenerationRef = useRef(0);
     const currentSongFullRef = useRef<SongResult | null>(null);
     const playbackAutoSkipCountRef = useRef(0);
     const volumePreviewFrameRef = useRef<number | null>(null);
     const pendingVolumePreviewRef = useRef<number | null>(null);
     const pendingResumeTimeRef = useRef<number | null>(null);
-    const onlinePlaybackRecoveryRef = useRef<Promise<boolean> | null>(null);
+    /** In-flight online source refreshes, keyed by playback song key plus playback generation. */
+    const onlinePlaybackRecoveryRef = useRef<Map<string, Promise<OnlineRecoveryResult>>>(new Map());
     const lastAudioRecoverySourceRef = useRef<string | null>(null);
     const currentOnlineAudioUrlFetchedAtRef = useRef<number | null>(null);
 
@@ -57,6 +65,7 @@ export const usePlaybackRuntimeRefs = () => {
         animationFrameRef,
         shouldAutoPlay,
         currentSongRef,
+        playbackGenerationRef,
         currentSongFullRef,
         playbackAutoSkipCountRef,
         volumePreviewFrameRef,

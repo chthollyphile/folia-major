@@ -109,6 +109,16 @@ export const toSafePlaybackUrl = (
     return toSafeRemoteUrl(normalizedUrl);
 };
 
+// toSafePlaybackUrl only normalizes (http→https, drops trailing fallback URLs) and never filters the scheme;
+// script schemes and blank strings are not audio sources. Shared by the loader and the prefetch resolver.
+const NON_MEDIA_URL_SCHEME = /^\s*(javascript|vbscript):/i;
+
+export const toPlayableAudioUrl = (rawUrl: string | null | undefined): string | null => {
+    const url = toSafePlaybackUrl(rawUrl);
+    if (!url || !url.trim() || NON_MEDIA_URL_SCHEME.test(url)) return null;
+    return url;
+};
+
 export const resolveDebugSongSource = (song: SongResult | null): 'none' | 'local' | 'navidrome' | 'online' => {
     if (isStagePlaybackSong(song)) {
         return 'online';
