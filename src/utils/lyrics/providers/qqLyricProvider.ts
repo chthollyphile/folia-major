@@ -88,9 +88,33 @@ function detectIsQrc(content: string): boolean {
 }
 
 /**
- * Searches songs on QQ Music.
+ * `music.search.SearchCgiService` 的 search_type 实测值（2026-10-06 逐个探测确认）：
+ * 0 上游已拒收（内层 code 2001、零结果——就是「搜索无结果」的根因），
+ * 7/10=单曲（item_song，形状与 0 时代一致）、2=专辑（item_album）、3=歌单（item_songlist）、4=MV。
  */
-export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+export const QQ_SEARCH_TYPE = {
+  song: 7,
+  album: 2,
+  playlist: 3,
+} as const;
+
+/** search_type 对应的响应体数组键；未知类型按单曲兜底。 */
+const SEARCH_BODY_KEYS: Partial<Record<number, string>> = {
+  [QQ_SEARCH_TYPE.song]: 'item_song',
+  [QQ_SEARCH_TYPE.album]: 'item_album',
+  [QQ_SEARCH_TYPE.playlist]: 'item_songlist',
+};
+
+/**
+ * Searches QQ Music by result type and returns the raw upstream item list.
+ * `item_album` / `item_songlist` 是与歌曲不同的形状（平铺字符串字段），正规化交给调用方。
+ */
+export async function searchQQByType(
+  keyword: string,
+  page: number,
+  pageSize: number,
+  searchType: number,
+): Promise<unknown[]> {
   const safeKeyword = keyword.trim();
   if (!safeKeyword) return [];
 
@@ -103,7 +127,7 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
     ),
     remoteplace: "search.android.keyboard",
     query: safeKeyword.length > 60 ? safeKeyword.slice(0, 60) : safeKeyword,
-    search_type: 0, // 0 = SONG
+    search_type: searchType,
     num_per_page: pagesize,
     page_num: page,
     highlight: 0,
@@ -114,36 +138,44 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
 
   try {
     const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
-    const songs = data?.body?.item_song || [];
-    
-    return songs.map((info: any) => {
-      const artists = (info.singer || []).map((s: any, idx: number) => ({
-        id: s.id || idx,
-        name: s.name || 'Unknown Artist',
-      }));
-      
-      const albumMid = info.album?.mid;
-      const picUrl = albumMid
-        ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
-        : undefined;
-
-      return {
-        id: Number(info.id || 0),
-        name: info.title || 'Unknown Song',
-        artists,
-        album: {
-          id: Number(info.album?.id || 0),
-          name: info.album?.name || 'Unknown Album',
-          coverUrl: picUrl,
-        },
-        durationMs: (info.interval || 0) * 1000,
-        qqMid: info.mid,
-      };
-    });
+    const bodyKey = SEARCH_BODY_KEYS[searchType] ?? 'item_song';
+    return data?.body?.[bodyKey] || [];
   } catch (error) {
     console.error('[QQMusic] Search failed:', error);
     return [];
   }
+}
+
+/**
+ * Searches songs on QQ Music.
+ */
+export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+  const songs = await searchQQByType(keyword, page, pageSize, QQ_SEARCH_TYPE.song);
+
+  return songs.map((info: any) => {
+    const artists = (info.singer || []).map((s: any, idx: number) => ({
+      id: s.id || idx,
+      name: s.name || 'Unknown Artist',
+    }));
+
+    const albumMid = info.album?.mid;
+    const picUrl = albumMid
+      ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
+      : undefined;
+
+    return {
+      id: Number(info.id || 0),
+      name: info.title || 'Unknown Song',
+      artists,
+      album: {
+        id: Number(info.album?.id || 0),
+        name: info.album?.name || 'Unknown Album',
+        coverUrl: picUrl,
+      },
+      durationMs: (info.interval || 0) * 1000,
+      qqMid: info.mid,
+    };
+  });
 }
 
 /**

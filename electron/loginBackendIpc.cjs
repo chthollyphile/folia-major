@@ -49,6 +49,7 @@ function registerLoginBackendIpc({
   neteaseBackend,
   qqBackend,
   runSelfCheck = runLoginSelfCheck,
+  isTrustedSender,
 }) {
   const backends = { netease: neteaseBackend, qq: qqBackend };
   const backendOf = (providerId) => (
@@ -59,8 +60,11 @@ function registerLoginBackendIpc({
   ipcMain.handle('get-netease-port', () => neteaseBackend.getPort());
   ipcMain.handle('get-netease-api-status', () => neteaseBackend.getStatus());
   ipcMain.handle('restart-netease-api', () => neteaseBackend.start());
-  ipcMain.handle('get-qq-port', () => qqBackend.getPort());
-  ipcMain.handle('get-qq-api-status', () => qqBackend.getStatus());
+  // 这两个回包带着内嵌后端的监听端口：渲染进程拿到它就能绕过 preload 直连本地 API。
+  // 只回给第一方窗口；isTrustedSender 没注入时按不信任处理（fail closed），
+  // 读不到端口的调用方会走 qqTransport 的 unavailable 路径，而不是拿到一个能直连的地址。
+  ipcMain.handle('get-qq-port', (event) => (isTrustedSender?.(event) ? qqBackend.getPort() : null));
+  ipcMain.handle('get-qq-api-status', (event) => (isTrustedSender?.(event) ? qqBackend.getStatus() : null));
 
   // 扫码登录失败后渲染进程用它生成可以直接贴进 issue 的诊断报告。没有内嵌后端的 provider 回 null。
   ipcMain.handle('get-login-diagnostics', (_event, providerId) => {

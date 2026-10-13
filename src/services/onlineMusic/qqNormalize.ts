@@ -313,8 +313,20 @@ export const normalizeQqCollection = (raw: unknown, type = 'playlist'): Provider
         ?? (tid === undefined && dirId === undefined && Object.keys(existing).length === 0 ? rawId : undefined);
     const name = text(pick(item, 'dirName', 'dirname', 'dissname', 'title', 'name'));
     // GetPlaylistByUin exposes both cover sizes and songNum; cached normalized keys remain fallbacks.
-    const coverUrl = normalizeQqCoverUrl(pick(item, 'bigpicUrl', 'picUrl', 'picurl', 'coverUrl'));
-    const trackCount = Number(pick(item, 'songNum', 'songnum', 'trackCount'));
+    // `/getSongListCategories` 与 `/user/playlist` 那一族把封面给成 `picurl` / `picUrl` / `bigpicUrl`
+    // 这样的平铺字符串，而推荐歌单广场（`GetRecommendFeed`）给的是 `cover` 对象
+    //（`{ big_url, medium_url, small_url, ... }`，其中 `mid` 是空串）。两种形状都要认，
+    // 否则推荐歌单会整片没有封面。类型搜索（item_songlist）的封面键是 `logo`。
+    // 分类歌单（/getSongLists）又是另一套：实测 2026-10-11 抓真实响应，封面在
+    // `imgurl`（单数字符串）。上面的候选里没有它，所以分类筛出来的歌单整片没有封面。
+    const cover = record(item.cover);
+    const coverUrl = normalizeQqCoverUrl(pick(item, 'bigpicUrl', 'imgurl', 'picUrl', 'picurl', 'coverUrl', 'logo'))
+        || normalizeQqCoverUrl(pick(cover, 'big_url', 'medium_url', 'default_url', 'small_url'));
+    // 曲数同样是两套拼法：推荐广场给 `song_cnt`，用户歌单给 `songNum` / `songnum`。
+    const trackCount = Number(pick(item, 'songNum', 'songnum', 'song_cnt', 'trackCount'));
+    // 播放量（实测 2026-10-11 抓 /getSongLists：原始次数，量级正常—800万、5000万——不需要换算）。
+    // ProviderCollection 本来就有 playCount，网易云那侧也映射了，只是 QQ 一直缺失。
+    const playCount = Number(pick(item, 'listennum', 'listennum_c', 'playCount'));
     // 「我喜欢」是自建目录 201（GetPlaylistByUin 实测；getPlaylistTracks 也按它走 liked-songs 路由）。收藏条目的
     // dirId 是创建者账号里的目录号，所以还要 owned，别把收藏来的别人的「我喜欢」标成自己的。
     const isLiked = owned === true && Number(dirId) === QQ_LIKED_DIR_ID;
@@ -326,6 +338,7 @@ export const normalizeQqCollection = (raw: unknown, type = 'playlist'): Provider
         type: text(item.type) || type,
         ...(coverUrl ? { coverUrl } : {}),
         ...(Number.isFinite(trackCount) && trackCount >= 0 ? { trackCount } : {}),
+        ...(Number.isFinite(playCount) && playCount >= 0 ? { playCount } : {}),
         providerData: jsonData([
             ['tid', tid],
             ['dirId', dirId],

@@ -16,14 +16,17 @@ import type {
     OmniSongReplacement,
     OmniUser,
     OnlineMusicProvider,
+    OnlineSearchSuggestion,
     PersonalFmRequestOptions,
     ProviderCatalogEntityKind,
     LoginSelfCheckResult,
+    ProviderComment,
     QrLoginMethod,
     QrLoginState,
 } from '../../types/onlineMusic';
 import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
 import { OnlineProviderError } from '../../types/onlineMusic';
+import type { ProviderSongListCategoryGroup } from '../../types/onlineMusic';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { saveSongReplayGain } from './resourceCache';
@@ -38,6 +41,12 @@ import {
 } from './providerRegistry';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '../hostExtensionHooks';
+
+// 与各 provider 的 errorFields 同构：把错误抑制成可日志化的字段，不把错误对象本身扔进日志（可能带 cookie）。
+const errorFields = (error: unknown) => ({
+    name: error instanceof Error ? error.name : 'Error',
+    message: error instanceof Error ? error.message : String(error),
+});
 
 // src/services/onlineMusic/omni.ts
 // Online Music Network Interface (Omni) - a unified interface for interacting with multiple online music providers.
@@ -211,6 +220,20 @@ export const omni = {
         return provider.search.searchSongs(query, page.limit, page.offset);
     },
 
+    /** 搜索框输入联想；provider 没实现就返回空，调用方按「没有联想」处理。 */
+    async searchSmartboxSuggestions(providerId: OmniProviderId, query: string): Promise<OnlineSearchSuggestion[]> {
+        const provider = requireOnlineMusicProvider(providerId);
+        if (!providerSupports(provider, 'search') || !provider.search?.getSmartboxSuggestions) return [];
+        return provider.search.getSmartboxSuggestions(query);
+    },
+
+    /** 专辑/歌单类型搜索，返回集合卡；provider 没实现就返回空页。 */
+    async searchProviderCollections(providerId: OmniProviderId, query: string, page: PageInput): Promise<OmniPage<OmniCollection>> {
+        const provider = requireOnlineMusicProvider(providerId);
+        if (!providerSupports(provider, 'search') || !provider.search?.searchCollections) return emptyPage(page.offset);
+        return provider.search.searchCollections(query, page.limit, page.offset);
+    },
+
     async getLoginStatus(providerId: OmniProviderId): Promise<OmniUser | null> {
         const provider = requireOnlineMusicProvider(providerId);
         if (!provider.auth) return unsupported(providerId, 'auth');
@@ -363,6 +386,13 @@ export const omni = {
             && Boolean(provider?.mutations?.updatePlaylistTracks);
     },
 
+    /** Whether the provider can create an owned playlist in the account at all. */
+    canCreatePlaylist(providerId: OmniProviderId): boolean {
+        const provider = getOnlineMusicProvider(providerId);
+        return providerSupports(provider, 'mutations')
+            && Boolean(provider?.mutations?.createPlaylist);
+    },
+
     canLikeSong(song: SongResult): boolean {
         const source = getPlaybackSourceRef(song);
         if (source.kind !== 'online') return false;
@@ -388,6 +418,92 @@ export const omni = {
         const provider = getOnlineMusicProvider(source.providerId);
         return providerSupports(provider, 'recommendations')
             && Boolean(provider?.recommendations?.dislikeSong);
+    },
+
+    canBrowseSongListCategories(providerId: OmniProviderId): boolean {
+        const provider = getOnlineMusicProvider(providerId);
+        return providerSupports(provider, 'playlists')
+            && Boolean(provider?.catalog?.getSongListCategories);
+    },
+
+    async getSongListCategories(providerId: OmniProviderId): Promise<ProviderSongListCategoryGroup[]> {
+        const provider = getOnlineMusicProvider(providerId);
+        if (!provider || !this.canBrowseSongListCategories(providerId) || !provider.catalog?.getSongListCategories) {
+            return [];
+        }
+        return provider.catalog.getSongListCategories();
+    },
+
+    async getCategorySongLists(
+        providerId: OmniProviderId,
+        categoryId: string,
+        page: PageInput,
+    ): Promise<OmniPage<OmniCollection>> {
+        const provider = getOnlineMusicProvider(providerId);
+        if (!provider || !provider.catalog?.getCategorySongLists) {
+            return emptyPage(page.offset);
+        }
+        return provider.catalog.getCategorySongLists(categoryId, page.limit, page.offset);
+    },
+
+    canCommentSong(song: SongResult): boolean {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return false;
+        const provider = getOnlineMusicProvider(source.providerId);
+        return providerSupports(provider, 'comments')
+            && Boolean(provider?.comments?.getSongComments);
+    },
+
+    async getSongComments(
+        song: SongResult,
+        page: PageInput,
+    ): Promise<OmniPage<ProviderComment>> {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return emptyPage(page.offset);
+        const provider = getOnlineMusicProvider(source.providerId);
+        if (!provider || !this.canCommentSong(song) || !provider.comments?.getSongComments) {
+            return emptyPage(page.offset);
+        }
+        return provider.comments.getSongComments(song, page.limit, page.offset);
+    },
+
+    canThreadCommentReplies(song: SongResult): boolean {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return false;
+        const provider = getOnlineMusicProvider(source.providerId);
+        return providerSupports(provider, 'comments')
+            && Boolean(provider?.comments?.getCommentReplies);
+    },
+
+    async getSongCommentReplies(
+        song: SongResult,
+        commentId: ProviderComment['id'],
+        page: PageInput,
+    ): Promise<OmniPage<ProviderComment>> {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return emptyPage(page.offset);
+        const provider = getOnlineMusicProvider(source.providerId);
+        if (!provider || !this.canThreadCommentReplies(song) || !provider.comments?.getCommentReplies) {
+            return emptyPage(page.offset);
+        }
+        return provider.comments.getCommentReplies(song, commentId, page.limit, page.offset);
+    },
+
+    canLikeComment(song: SongResult): boolean {
+        const source = getPlaybackSourceRef(song);
+        if (source.kind !== 'online') return false;
+        const provider = getOnlineMusicProvider(source.providerId);
+        return providerSupports(provider, 'comments')
+            && Boolean(provider?.comments?.likeComment);
+    },
+
+    async likeComment(song: SongResult, commentId: ProviderComment['id'], liked: boolean): Promise<void> {
+        const source = getPlaybackSourceRef(song);
+        const provider = source.kind === 'online' ? getOnlineMusicProvider(source.providerId) : null;
+        if (!provider || !this.canLikeComment(song) || !provider.comments?.likeComment) {
+            throw new OnlineProviderError('unsupported', 'Comment likes are not supported here', source.kind === 'online' ? source.providerId : 'online');
+        }
+        return provider.comments.likeComment(song, commentId, liked);
     },
 
     canSubscribeCollection(collection: OmniCollection): boolean {
@@ -437,17 +553,28 @@ export const omni = {
         return requireOnlineMusicProvider(providerId).normalizeCollection?.(raw, type) ?? null;
     },
 
-    async getHomeFeed(limit = 35): Promise<{
+    async getHomeFeed(limit = 35, context?: { seedSongId?: MediaId; from?: number; scope?: 'personalized' | 'editorial' | 'all' }): Promise<{
         personalFm: UnifiedSong[];
         dailySongs: UnifiedSong[];
         recommendedCollections: OmniCollection[];
     }> {
         return withActiveProvider(async provider => {
             const recommendations = provider.recommendations;
+            // editorial 槽位只消费歌单广场，personalFm 那 862ms 的调用是纯浪费 —— 跳过它，
+            // 电台页的进入时间就从「最慢的一段」降到「歌单广场本身」。
+            const wantPersonalFm = context?.scope !== 'editorial';
+            // 三路各自兑底：Promise.all 会让任何一路失败把整个首页拉空（电台页就得到一个全白屏），
+            // 而现实里最常见的故障就是其中一路被限流。走失的那一段就不出，其余段照常。
+            const swallow = (label: string) => (error: unknown) => {
+                console.warn('[Omni] home feed section failed', { label, ...errorFields(error) });
+                return [] as never[];
+            };
             const [personalFm, dailySongs, recommendedCollections] = await Promise.all([
-                recommendations?.getPersonalFm?.() ?? [],
-                recommendations?.getDailySongs?.() ?? [],
-                recommendations?.getRecommendedCollections?.(limit) ?? [],
+                (wantPersonalFm ? recommendations?.getPersonalFm?.() : undefined)?.catch(swallow('personalFm'))
+                    ?? Promise.resolve([] as UnifiedSong[]),
+                (recommendations?.getDailySongs?.() ?? Promise.resolve([] as UnifiedSong[])).catch(swallow('dailySongs')),
+                (recommendations?.getRecommendedCollections?.(limit, context) ?? Promise.resolve([] as OmniCollection[]))
+                    .catch(swallow('recommendedCollections')),
             ]);
             return { personalFm, dailySongs, recommendedCollections };
         });
@@ -459,6 +586,26 @@ export const omni = {
 
     async getDailySongs(refresh?: boolean): Promise<UnifiedSong[]> {
         return withActiveProvider(async provider => provider.recommendations?.getDailySongs?.(refresh) ?? []);
+    },
+
+    /** 取某一段推荐的具体歌曲，`section` 的取值由各 provider 自己定义。 */
+    async getRecommendationRowSongs(
+        section: string,
+        options?: { seedSongId?: MediaId; limit?: number },
+    ): Promise<UnifiedSong[]> {
+        return withActiveProvider(async provider => (
+            provider.recommendations?.getRecommendationRowSongs?.(section, options) ?? []
+        ));
+    },
+
+    /**
+     * 按当前这首推同类。走 song-aware 的方式，与 dislikeSong 同一套身份判定：
+     * 种子用的是 `song.id`（provider 自己认的那个 id），不是跨 provider 可比的裸数字。
+     */
+    async getSimilarSongs(song: SongResult, limit = 20): Promise<UnifiedSong[]> {
+        return withActiveProvider(async provider => (
+            provider.recommendations?.getSimilarSongs?.(song.id, limit) ?? []
+        ));
     },
 
     async getRecommendationHistory(): Promise<OmniHistoryEntry[]> {
@@ -639,6 +786,24 @@ export const omni = {
                 name: error instanceof Error ? error.name : 'Error',
             });
         }
+    },
+
+    /** Creates an owned playlist in the given provider's account and returns it normalized. */
+    async createPlaylist(providerId: OmniProviderId, dirName: string): Promise<OmniCollection> {
+        const provider = requireOnlineMusicProvider(providerId);
+        if (!providerSupports(provider, 'mutations') || !provider.mutations?.createPlaylist) {
+            return unsupported(providerId, 'playlist-create');
+        }
+        const created = await provider.mutations.createPlaylist(dirName);
+        try {
+            await this.refreshProviderPlaylists(providerId);
+        } catch (error) {
+            console.warn('[Omni] Failed to refresh provider playlists after create', {
+                providerId,
+                name: error instanceof Error ? error.name : 'Error',
+            });
+        }
+        return created;
     },
 
     async likeSong(song: SongResult, liked: boolean): Promise<void> {

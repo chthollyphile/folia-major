@@ -461,6 +461,17 @@ export function usePlaybackQueueController({
             return;
         }
         const song = allowedSong;
+        // 点的就是当前这首：不重新加载（不中断播放、不回 0），但把播放器页打开、暂停则续播——
+        // 也就是「点正在播的歌 = 展开现在正在播放的界面」。automix 自动前进不算（那是正常换曲）。
+        // 用 getState() 取实时值，避开 useCallback 闭包陈旧。
+        if (!options.isAutomixAdvance) {
+            const live = usePlaybackStore.getState();
+            if (live.currentSong && getPlaybackSongKey(song) === getPlaybackSongKey(live.currentSong)) {
+                if (live.playerState === PlayerState.PAUSED) void audioRef.current?.play();
+                navigateToPlaybackView();
+                return;
+            }
+        }
         // A pause still fading out belongs to the song being replaced. Run it now instead of
         // dropping it: the old song is still sounding and the new one can take seconds to load, so
         // dropping it would leave the old song at full volume under a PAUSED player. The fade node

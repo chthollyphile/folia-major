@@ -38,11 +38,13 @@ export type HomeLayoutSettingsState = {
     homeLayoutStyle: 'carousel' | 'grid';
     showHomeTabPlaylist: boolean;
     showHomeTabRadio: boolean;
+    showHomeTabDiscover: boolean;
     showHomeTabAlbums: boolean;
     showHomeTabLocal: boolean;
     handleSetHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     handleToggleHomeTabPlaylist: (show: boolean) => void;
     handleToggleHomeTabRadio: (show: boolean) => void;
+    handleToggleHomeTabDiscover: (show: boolean) => void;
     handleToggleHomeTabAlbums: (show: boolean) => void;
     handleToggleHomeTabLocal: (show: boolean) => void;
 };
@@ -66,6 +68,7 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
     homeLayoutStyle: readStoredHomeLayoutStyle(),
     showHomeTabPlaylist: getStoredBoolean('show_home_tab_playlist', true),
     showHomeTabRadio: getStoredBoolean('show_home_tab_radio', true),
+    showHomeTabDiscover: getStoredBoolean('show_home_tab_discover', true),
     showHomeTabAlbums: getStoredBoolean('show_home_tab_albums', true),
     showHomeTabLocal: getStoredBoolean('show_home_tab_local', true),
     handleSetHomeLayoutStyle: () => {
@@ -85,6 +88,10 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
     handleToggleHomeTabRadio: (show) => {
         set({ showHomeTabRadio: show });
         if (typeof window !== 'undefined') localStorage.setItem('show_home_tab_radio', show.toString());
+    },
+    handleToggleHomeTabDiscover: (show) => {
+        set({ showHomeTabDiscover: show });
+        if (typeof window !== 'undefined') localStorage.setItem('show_home_tab_discover', show.toString());
     },
     handleToggleHomeTabAlbums: (show) => {
         set({ showHomeTabAlbums: show });
@@ -108,6 +115,7 @@ export const selectHomeLayoutSettingsSnapshot = (state: HomeLayoutSettingsState)
     homeLayoutStyle: state.homeLayoutStyle,
     showHomeTabPlaylist: state.showHomeTabPlaylist,
     showHomeTabRadio: state.showHomeTabRadio,
+    showHomeTabDiscover: state.showHomeTabDiscover,
     showHomeTabAlbums: state.showHomeTabAlbums,
     showHomeTabLocal: state.showHomeTabLocal,
     handleSetHomeLayoutStyle: state.handleSetHomeLayoutStyle,

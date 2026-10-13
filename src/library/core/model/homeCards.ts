@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
+import type { SongResult, UnifiedSong } from '../../../types';
 import type { ProviderCollection } from '../../../types/onlineMusic';
-import type { LibraryHomeCard, LibraryHomeRadioFeed } from '../contracts/homeModel';
+import type { LibraryHomeCard, LibraryHomeDiscoverSection, LibraryHomeRadioFeed } from '../contracts/homeModel';
+import { DISCOVER_SECTION_TITLE_KEY } from './discoverSections';
 
 // src/library/core/model/homeCards.ts
 // 在线首页三个页签的卡片视图模型（纯函数，原样搬自 Grid3D）：账户歌单、收藏专辑、电台（私人 FM、每日推荐、
@@ -22,9 +24,21 @@ export const getProviderCollectionArtistLabel = (
     return artists || collection?.creator?.nickname || '';
 };
 
-/** 账户歌单页签（含云盘）。 */
-export const buildOnlinePlaylistCards = (collections: readonly ProviderCollection[], t: TFunction): LibraryHomeCard[] => (
-    collections.map(collection => ({
+/** 最近播放卡的 id（跨音源的虚拟集合：曲目来自最近播放 store，不进任何 provider 缓存）。 */
+export const RECENT_PLAYS_CARD_ID = 'recent_plays';
+
+/**
+ * 账户歌单页签（含云盘）。有最近播放历史时，统一最近播放那张卡置顶。
+ *
+ * 它是虚拟集合：曲目来自应用自己的最近播放 store，绝不进 provider 缓存——缓存会把历史冻结在打开那一刻，
+ * 之后播的新歌就永远进不来。
+ */
+export const buildOnlinePlaylistCards = (
+    collections: readonly ProviderCollection[],
+    t: TFunction,
+    recentPlays?: readonly { song: SongResult }[] | null,
+): LibraryHomeCard[] => {
+    const cards = collections.map(collection => ({
         id: collection.id,
         name: collection.name,
         coverUrl: collection.coverUrl,
@@ -33,8 +47,23 @@ export const buildOnlinePlaylistCards = (collections: readonly ProviderCollectio
         summary: collection.description || '',
         type: collection.type,
         raw: collection,
-    }))
-);
+    }));
+    if (!recentPlays || recentPlays.length === 0) return cards;
+    const first = recentPlays[0]?.song;
+    return [
+        {
+            id: RECENT_PLAYS_CARD_ID,
+            name: t('home.recentPlays'),
+            coverUrl: first?.album?.coverUrl,
+            trackCount: recentPlays.length,
+            description: t('home.recentPlays'),
+            summary: '',
+            type: RECENT_PLAYS_CARD_ID,
+            raw: { id: RECENT_PLAYS_CARD_ID, name: t('home.recentPlays'), type: RECENT_PLAYS_CARD_ID },
+        },
+        ...cards,
+    ];
+};
 
 /** 收藏专辑页签。 */
 export const buildOnlineAlbumCards = (albums: readonly ProviderCollection[], t: TFunction): LibraryHomeCard[] => (
@@ -124,3 +153,28 @@ export const onlineCardCollection = (card: LibraryHomeCard): Record<string, unkn
         ? { ...(card.raw as Record<string, unknown>), type: card.type }
         : { ...card }
 );
+
+/**
+ * 发现页的一段拍平成歌曲卡（与集合卡同构的三行文字：歌名 / 歌手 / 这一段叫什么）。
+ *
+ * id 必须带段 id：四段之间没有去重，同一首歌完全可以同时出现在两段里（FM 要的是「现在适合你的」，
+ * 雷达要的是「同风格正在火的」，重合很常见）。只按播放键编 id 会让 React 撞 same key —— 它不抛异常崩溃，
+ * 而是随机丢弃/错位子节点，现象是往后拉时卡片莫名消失、位置乱跳，盯渲染代码看不出来（2026-10-08 实测）。
+ */
+export const buildDiscoverSongCards = (
+    sections: readonly LibraryHomeDiscoverSection[],
+    /** 封面按 provider 解析的函数由调用方注入：model 是纯变换层，不读 services。 */
+    { t, songCoverUrl }: { t: TFunction; songCoverUrl?: (song: SongResult | undefined) => string | undefined },
+): LibraryHomeCard[] => sections.flatMap(section => section.songs.map(song => ({
+    id: `discover-song-${section.id}-${String(song.sourceRef?.mediaId ?? song.id)}`,
+    name: song.name,
+    coverUrl: songCoverUrl?.(song) || '',
+    description: song.artists?.map(artist => artist.name).join(', ') || '',
+    summary: section.title || t(DISCOVER_SECTION_TITLE_KEY[section.id] ?? 'home.radio'),
+    type: 'song' as const,
+    raw: {
+        song,
+        queue: [...section.songs],
+        isFmCall: section.id === 'personal-fm',
+    },
+})));

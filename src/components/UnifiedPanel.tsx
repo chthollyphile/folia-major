@@ -1,7 +1,7 @@
 import React from 'react';
 import { PANEL_SLIDE_CLAMP_PX, PANEL_SLIDE_TRACK_BASE_PX, PANEL_SLIDE_TRACK_FULL_PX, PANEL_SLIDE_TRIGGER_PX } from '../utils/panelSlideGesture';
 import { motion, AnimatePresence, useTransform } from 'framer-motion';
-import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star, Command, ChevronLeft, MirrorRectangular, Puzzle } from 'lucide-react';
+import { Settings, Settings2, X, Disc, SlidersHorizontal, ListMusic, User as UserIcon, Home as HomeIcon, FileAudio, FileText, Radio, Cloud, Star, Command, ChevronLeft, MirrorRectangular, Puzzle, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Album, Artist, SongResult, Theme, PlayerState, ReplayGainMode, ThemeMode, VisualizerMode } from '../types';
 import type { ProviderUser } from '../types/onlineMusic';
@@ -14,6 +14,7 @@ import LocalTab from './panelTab/LocalTab';
 import FmTab from './panelTab/FmTab';
 import NaviTab from './panelTab/NaviTab';
 import OnlineLyricsTab from './panelTab/OnlineLyricsTab';
+import CommentsModal from './modal/CommentsModal';
 import type { OnlineLyricsState } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
@@ -26,10 +27,11 @@ import { openAddToPlaylist, useAddToPlaylistStore } from '../stores/useAddToPlay
 import { usePlayerPanelTabShortcut } from '../hooks/usePlayerPanelTabShortcut';
 import { FOLIUM_PANEL_TAB_PREFIX, FoliumPanelTabBody, useFoliumPanelTabs } from '../mods/folium/registries/playerPanelTabs';
 import { countRender } from '../dev/renderCount';
+import { omni } from '../services/onlineMusic/omni';
 
 const TOUCH_GUIDE_DISPLAY_MS = 1400;
 
-export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics'
+export type PanelTab = 'cover' | 'controls' | 'queue' | 'account' | 'local' | 'navi' | 'onlineLyrics' | 'comments'
     // Tabs registered by Folium mods (registries.playerPanelTabs).
     | `folium:${string}`;
 
@@ -241,6 +243,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     const coverAreaRef = React.useRef<HTMLDivElement>(null);
     const [isCoverActionsVisible, setIsCoverActionsVisible] = React.useState(false);
     const [showGuideLine, setShowGuideLine] = React.useState(false);
+    // 评论不是面板页而是独立大窗：tab 图标点了就弹 CommentsModal（面板内不再平铺小列表）。
+    const [isCommentsModalOpen, setIsCommentsModalOpen] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
     const guideHideTimeoutRef = React.useRef<number | null>(null);
 
@@ -283,6 +287,10 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         tabs.splice(1, 0, { id: 'navi' as PanelTab, label: 'Navidrome', icon: Cloud });
     } else if (isOnline) {
         tabs.splice(1, 0, { id: 'onlineLyrics' as PanelTab, label: t('localMusic.lyrics'), icon: FileText });
+        // 评论区只在当前这首歌的 provider 支持评论时出现（QQ 需登录，但能力位为真，登录后自然有数据）。
+        if (currentSong && omni.canCommentSong(currentSong)) {
+            tabs.push({ id: 'comments' as PanelTab, label: t('panel.comments'), icon: MessageCircle });
+        }
     }
 
     foliumTabs.forEach((tab) => tabs.push({ id: tab.id, label: tab.label, icon: Puzzle }));
@@ -298,7 +306,8 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
     usePlayerPanelTabShortcut({
         isOpen,
         currentTab,
-        availableTabs: tabs.map(tab => tab.id),
+        // 评论是弹窗入口不是面板页，别让它进键盘循环（循环到了会切出一个空白页）。
+        availableTabs: tabs.map(tab => tab.id).filter(id => id !== 'comments'),
         onTabChange,
     });
 
@@ -760,12 +769,18 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                                     {tabs.map((tab) => (
                                         <button
                                             key={tab.id}
-                                            onClick={() => onTabChange(tab.id)}
-                                            aria-pressed={currentTab === tab.id}
+                                            onClick={() => {
+                                                if (tab.id === 'comments') {
+                                                    setIsCommentsModalOpen(true);
+                                                    return;
+                                                }
+                                                onTabChange(tab.id);
+                                            }}
+                                            aria-pressed={tab.id === 'comments' ? isCommentsModalOpen : currentTab === tab.id}
                                             // 每一格各自是一个思索目标：停在哪一格，讲的就是那一页。
                                             data-ponder-panel-tab-button={tab.id}
                                             className={`flex-1 py-2 flex items-center justify-center transition-all rounded-lg
-                                                ${currentTab === tab.id ? `${activeTabBg} shadow-sm` : 'opacity-40 hover:opacity-100'}`}
+                                                ${(tab.id === 'comments' ? isCommentsModalOpen : currentTab === tab.id) ? `${activeTabBg} shadow-sm` : 'opacity-40 hover:opacity-100'}`}
                                             title={tab.label}
                                             style={{ color: 'var(--text-primary)' }}
                                         >
@@ -1045,6 +1060,17 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* 评论大窗：评论 tab 图标是唯一入口（portal 挂 body，不受面板滑动变换影响）。
+                开着时换歌，列表跟着新歌重拉；切回本地源则整窗消失。 */}
+            {isOnline && currentSong && (
+                <CommentsModal
+                    isOpen={isCommentsModalOpen}
+                    onClose={() => setIsCommentsModalOpen(false)}
+                    song={currentSong}
+                    isDaylight={isDaylight}
+                />
+            )}
         </motion.div>
     );
 };

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveProviderAccountSnapshot } from '@/services/onlineMusic/providerAccountCache';
 import { omni } from '@/services/onlineMusic/omni';
 import { registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
@@ -448,5 +448,102 @@ describe('omni like mutations', () => {
         expect(nextLiked).toBe(true);
         expect(account.likedSongIds.map(String)).toEqual(['7']);
         expect(account.likedSongFileIds).toEqual({});
+    });
+});
+
+// 盖楼门面：能力位决定「查看回复」按钮出不出；不支持的 provider 必须安静回空页而不是抛。
+describe('omni comment reply threading', () => {
+    const commentsProvider = (withReplies: boolean): OnlineMusicProvider => ({
+        ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+        capabilities: { ...capabilities, comments: true },
+        comments: {
+            getSongComments: async () => ({ items: [], hasMore: false, nextOffset: 0 }),
+            ...(withReplies ? {
+                getCommentReplies: async (_song: unknown, commentId: unknown) => ({
+                    items: [{ id: String(commentId), content: '回复', userName: 'u' }],
+                    hasMore: false,
+                    nextOffset: 0,
+                }),
+            } : {}),
+        },
+    });
+
+    it('threads replies through the owning provider when it supports the floor', async () => {
+        registerOnlineMusicProvider(commentsProvider(true));
+        const target = song(providerId, '9');
+        expect(omni.canThreadCommentReplies(target)).toBe(true);
+        const page = await omni.getSongCommentReplies(target, 'c-1', { limit: 20, offset: 0 });
+        expect(page.items).toEqual([{ id: 'c-1', content: '回复', userName: 'u' }]);
+    });
+
+    it('hides threading and returns an empty page for providers without reply support', async () => {
+        registerOnlineMusicProvider(commentsProvider(false));
+        const target = song(providerId, '9');
+        expect(omni.canThreadCommentReplies(target)).toBe(false);
+        const page = await omni.getSongCommentReplies(target, 'c-1', { limit: 20, offset: 0 });
+        expect(page.items).toEqual([]);
+    });
+
+    it('answers false for a song no online provider owns', () => {
+        const localSong = { ...song(providerId), sourceRef: { kind: 'local', mediaId: 'local-1' } } as UnifiedSong;
+        expect(omni.canThreadCommentReplies(localSong)).toBe(false);
+    });
+
+    // 点赞按能力位渲染：provider 没声明 likeComment 就 canLike=false，UI 连假按钮都不出。
+    it('hides comment likes when the provider does not declare the mutation', () => {
+        registerOnlineMusicProvider(commentsProvider(false));
+        expect(omni.canLikeComment(song(providerId, '9'))).toBe(false);
+    });
+
+    it('routes a comment like through the provider that supports it', async () => {
+        const likeComment = vi.fn(async () => undefined);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, comments: true },
+            comments: { getSongComments: async () => ({ items: [], hasMore: false, nextOffset: 0 }), likeComment },
+        });
+        const target = song(providerId, '9');
+        expect(omni.canLikeComment(target)).toBe(true);
+        await omni.likeComment(target, 'c-1', true);
+        expect(likeComment).toHaveBeenCalledWith(target, 'c-1', true);
+    });
+});
+
+// 首页（电台/发现）三段式信息流：任何一路失败都不得把整个首页拉空。
+describe('omni home feed resilience', () => {
+    const feedProvider = (overrides: Partial<NonNullable<OnlineMusicProvider['recommendations']>>): OnlineMusicProvider => ({
+        ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+        capabilities: { ...capabilities, recommendations: true },
+        recommendations: {
+            getPersonalFm: async () => [],
+            getDailySongs: async () => [],
+            getRecommendedCollections: async () => [],
+            ...overrides,
+        },
+    });
+
+    beforeEach(() => {
+        useOnlineProviderAccountStore.getState().setActiveProviderId(providerId);
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    it('keeps the surviving sections when one section throws', async () => {
+        registerOnlineMusicProvider(feedProvider({
+            getPersonalFm: async () => { throw new Error('fm rate limited'); },
+            getRecommendedCollections: async () => [{ id: 'c1', name: '广场', type: 'playlist' } as never],
+        }));
+
+        const feed = await omni.getHomeFeed(35, { scope: 'all' });
+        // 挂掉的那一段自为空，其余段照常返回
+        expect(feed.personalFm).toEqual([]);
+        expect(feed.dailySongs).toEqual([]);
+        expect(feed.recommendedCollections).toHaveLength(1);
+    });
+
+    it('skips the personal FM call entirely for the editorial scope', async () => {
+        const getPersonalFm = vi.fn(async () => []);
+        registerOnlineMusicProvider(feedProvider({ getPersonalFm }));
+        await omni.getHomeFeed(35, { scope: 'editorial' });
+        expect(getPersonalFm).not.toHaveBeenCalled();
     });
 });

@@ -31,6 +31,8 @@ export type OnlineCollectionResourceDeps = {
     getCollectionDetail: (collection: OmniCollection) => Promise<ProviderCollection | null>;
     getPersonalFm: () => Promise<SongResult[]>;
     getDailySongs: () => Promise<SongResult[]>;
+    /** 统一最近播放：跨音源的活数据，直接读 store，永远不进缓存。没有注入时按空列表处理。 */
+    getRecentPlays?: () => Promise<SongResult[]> | SongResult[];
     readCache: (collection: OnlineGridViewCollectionDescriptor, currentUserId?: MediaId | null) => Promise<OnlineTracksCacheEntry>;
     writeCache: (cacheKey: string, tracks: SongResult[], snapshotTime: number, progress?: OnlineTracksCacheProgress) => Promise<void>;
     /** 补页间隔与重试退避用的等待；单测里换成立即返回。 */
@@ -44,6 +46,7 @@ const toLoadError = (error: unknown): CollectionLoadError => (
 );
 
 const isPersonalFm = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'radio' && collection.id === 'personal_fm';
+const isRecentPlays = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'recent_plays';
 const isDailyRecommendations = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'daily_recommendations';
 
 export const createOnlineCollectionResource = (key: string, deps: OnlineCollectionResourceDeps): CollectionResource => {
@@ -176,6 +179,9 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
                 responseTracks = await deps.getPersonalFm();
             } else if (isDailyRecommendations(collection)) {
                 responseTracks = await deps.getDailySongs();
+            } else if (isRecentPlays(collection)) {
+                // 装配层一定注入；单测可不注入（它们不测最近播放）。
+                responseTracks = deps.getRecentPlays ? await deps.getRecentPlays() : [];
             } else {
                 const page = await deps.getCollectionTracks(collection, { limit: ONLINE_COLLECTION_FIRST_PAGE_SIZE, offset: 0 });
                 responseTracks = page.items;
@@ -198,7 +204,8 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             const tracks = withoutTombstones(responseTracks);
             upstreamOffset = nextOffset || responseTracks.length;
             state.set({ status: 'ready', tracks }, 'background');
-            void deps.writeCache(cacheKey(), tracks, targetTime, { nextOffset: upstreamOffset, hasMore, total });
+            // 最近播放是活数据：写缓存会把历史冻结在打开那一刻，之后播的新歌永远进不来。
+            if (!isRecentPlays(collection)) void deps.writeCache(cacheKey(), tracks, targetTime, { nextOffset: upstreamOffset, hasMore, total });
             if (hasMore) {
                 void startSync(tracks, targetTime, total, upstreamOffset);
             }

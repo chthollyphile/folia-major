@@ -25,6 +25,16 @@ vi.mock('@/services/netease', () => ({
         getQrKey: vi.fn(),
         createQr: vi.fn(),
         scrobbleV1: vi.fn(),
+        getTopPlaylists: vi.fn(),
+        getSimilarSongs: vi.fn(),
+        getPersonalizedNewSongs: vi.fn(),
+        getDailyRecommendedSongs: vi.fn(),
+        getSearchSuggest: vi.fn(),
+        searchByType: vi.fn(),
+        createPlaylist: vi.fn(),
+        getSongComments: vi.fn(),
+        getCommentFloor: vi.fn(),
+        likeSongComment: vi.fn(),
     },
 }));
 
@@ -294,6 +304,234 @@ describe('neteaseProvider user playlists', () => {
         // 归一化结果进缓存后回灌（omni.normalizeCachedCollection）仍是「我喜欢的音乐」。
         expect(neteaseProvider.normalizeCollection!(page.items[0]).isLiked).toBe(true);
         expect(neteaseProvider.normalizeCollection!(page.items[1]).isLiked).toBeUndefined();
+    });
+});
+
+describe('neteaseProvider smartbox suggestions', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('turns song and artist suggest groups into suggestions with a playable song', async () => {
+        vi.mocked(neteaseApi.getSearchSuggest).mockResolvedValue({
+            result: {
+                order: ['songs', 'artists'],
+                songs: [{ id: 42, name: '晴天', artists: [{ id: 1, name: '周杰伦' }], album: { id: 2, name: '叶惠美' }, duration: 269000 }],
+                artists: [{ id: 9, name: '周杰伦' }],
+                albums: [{ id: 3, name: '叶惠美' }],
+                playlists: [],
+            },
+        } as any);
+
+        const suggestions = await neteaseProvider.search!.getSmartboxSuggestions!('晴天');
+
+        expect(suggestions).toHaveLength(2);
+        expect(suggestions[0]).toMatchObject({
+            kind: 'song',
+            value: '晴天',
+            detail: '周杰伦',
+            song: { id: 42, sourceRef: { providerId: 'netease', mediaId: '42' } },
+        });
+        expect(suggestions[1]).toEqual({ kind: 'singer', value: '周杰伦' });
+    });
+
+    it('answers an empty query and a missing result body with no suggestions', async () => {
+        await expect(neteaseProvider.search!.getSmartboxSuggestions!('   ')).resolves.toEqual([]);
+        vi.mocked(neteaseApi.getSearchSuggest).mockResolvedValue({ code: 200 } as any);
+        await expect(neteaseProvider.search!.getSmartboxSuggestions!('晴天')).resolves.toEqual([]);
+    });
+});
+
+describe('neteaseProvider type-scoped collection search', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('merges album and playlist search rows in that order', async () => {
+        vi.mocked(neteaseApi.searchByType).mockImplementation(async (_keywords, type) => ({
+            result: type === 10
+                ? { albums: [{ id: 7, name: 'Album', picUrl: 'https://example.test/a.jpg', artist: { id: 9, name: 'Artist' } }] }
+                : { playlists: [{ id: 8, name: 'Playlist', coverImgUrl: 'https://example.test/p.jpg', trackCount: 5 }] },
+        } as any));
+
+        const page = await neteaseProvider.search!.searchCollections!('周杰伦', 10, 0);
+
+        expect(page.items).toHaveLength(2);
+        expect(page.items[0]).toMatchObject({ id: 7, type: 'album' });
+        expect(page.items[1]).toMatchObject({ id: 8, type: 'playlist', trackCount: 5 });
+        expect(page).toMatchObject({ hasMore: false, nextOffset: 2 });
+        expect(neteaseApi.searchByType).toHaveBeenCalledWith('周杰伦', 10, 10, 0);
+        expect(neteaseApi.searchByType).toHaveBeenCalledWith('周杰伦', 1000, 10, 0);
+    });
+
+    it('skips the requests entirely for a blank query', async () => {
+        const page = await neteaseProvider.search!.searchCollections!('  ', 10, 0);
+        expect(page.items).toEqual([]);
+        expect(neteaseApi.searchByType).not.toHaveBeenCalled();
+    });
+});
+
+describe('neteaseProvider discover rows', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('feeds the similar row from the seed song id', async () => {
+        vi.mocked(neteaseApi.getSimilarSongs).mockResolvedValue({ songs: [{ id: 5, name: 'Similar' }] } as any);
+        await expect(neteaseProvider.recommendations!.getRecommendationRowSongs!('similar', { seedSongId: '42' }))
+            .resolves.toMatchObject([{ id: 5, sourceRef: { providerId: 'netease', mediaId: '5' } }]);
+        expect(neteaseApi.getSimilarSongs).toHaveBeenCalledWith(42, 15);
+    });
+
+    it('gives the similar row nothing without a seed', async () => {
+        await expect(neteaseProvider.recommendations!.getRecommendationRowSongs!('similar', {})).resolves.toEqual([]);
+        expect(neteaseApi.getSimilarSongs).not.toHaveBeenCalled();
+    });
+
+    it('maps the radar row to taste-based daily recommendations', async () => {
+        vi.mocked(neteaseApi.getDailyRecommendedSongs).mockResolvedValue({ songs: [{ id: 6, name: 'Radar' }] } as any);
+        await expect(neteaseProvider.recommendations!.getRecommendationRowSongs!('radar'))
+            .resolves.toMatchObject([{ id: 6 }]);
+        expect(neteaseApi.getDailyRecommendedSongs).toHaveBeenCalledWith(false);
+    });
+
+    it('maps the new-songs row to the personalized new-song express', async () => {
+        vi.mocked(neteaseApi.getPersonalizedNewSongs).mockResolvedValue({ songs: [{ id: 7, name: 'New' }] } as any);
+        await expect(neteaseProvider.recommendations!.getRecommendationRowSongs!('new-songs', { limit: 8 }))
+            .resolves.toMatchObject([{ id: 7 }]);
+        expect(neteaseApi.getPersonalizedNewSongs).toHaveBeenCalledWith(8);
+    });
+
+    it('answers unknown sections with an empty list', async () => {
+        await expect(neteaseProvider.recommendations!.getRecommendationRowSongs!('mystery')).resolves.toEqual([]);
+    });
+
+    it('returns normalized similar songs through the standalone method', async () => {
+        vi.mocked(neteaseApi.getSimilarSongs).mockResolvedValue({ songs: [{ id: 5, name: 'Similar' }] } as any);
+        await expect(neteaseProvider.recommendations!.getSimilarSongs!('42', 10)).resolves.toMatchObject([{ id: 5 }]);
+    });
+});
+
+describe('neteaseProvider plaza paging', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('serves the editorial scope from top playlists with the batch offset', async () => {
+        vi.mocked(neteaseApi.getTopPlaylists).mockResolvedValue({
+            playlists: [{ id: 9, name: 'Top Playlist', coverImgUrl: 'https://example.test/t.jpg' }],
+        } as any);
+
+        const collections = await neteaseProvider.recommendations!.getRecommendedCollections!(35, { scope: 'editorial', from: 35 });
+
+        expect(collections).toMatchObject([{ id: 9, type: 'playlist' }]);
+        expect(neteaseApi.getTopPlaylists).toHaveBeenCalledWith(35, 35);
+        expect(neteaseApi.getPersonalizedPlaylists).not.toHaveBeenCalled();
+    });
+
+    it('keeps the personalized scope on /personalized only', async () => {
+        vi.mocked(neteaseApi.getPersonalizedPlaylists).mockResolvedValue({
+            result: [{ id: 7, name: 'Recommended Playlist' }],
+        } as any);
+
+        const collections = await neteaseProvider.recommendations!.getRecommendedCollections!(10, { scope: 'personalized' });
+
+        expect(collections).toMatchObject([{ id: 7 }]);
+        expect(neteaseApi.getTopPlaylists).not.toHaveBeenCalled();
+    });
+});
+
+describe('neteaseProvider playlist creation', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('normalizes the created playlist from the full playlist body', async () => {
+        vi.mocked(neteaseApi.createPlaylist).mockResolvedValue({
+            code: 200,
+            playlist: { id: 88, name: '新建歌单', userId: 1 },
+        } as any);
+        await expect(neteaseProvider.mutations!.createPlaylist!('新建歌单')).resolves.toMatchObject({
+            id: 88,
+            name: '新建歌单',
+            type: 'playlist',
+        });
+    });
+
+    it('falls back to the bare id when the playlist body is absent', async () => {
+        vi.mocked(neteaseApi.createPlaylist).mockResolvedValue({ code: 200, id: 89 } as any);
+        await expect(neteaseProvider.mutations!.createPlaylist!('My List')).resolves.toMatchObject({ id: 89, name: 'My List' });
+    });
+
+    it('rejects a signed-out creation as auth-required', async () => {
+        vi.mocked(neteaseApi.createPlaylist).mockResolvedValue({ code: 301, msg: '需要登录' } as any);
+        await expect(neteaseProvider.mutations!.createPlaylist!('新建歌单')).rejects.toMatchObject({ code: 'auth-required' });
+    });
+
+    it('rejects a success code without any created id as invalid-response', async () => {
+        vi.mocked(neteaseApi.createPlaylist).mockResolvedValue({ code: 200 } as any);
+        await expect(neteaseProvider.mutations!.createPlaylist!('新建歌单')).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+});
+
+describe('neteaseProvider song comments', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('merges hot comments first, then normal comments, with paging', async () => {
+        vi.mocked(neteaseApi.getSongComments).mockResolvedValue({
+            total: 100,
+            more: true,
+            hotComments: [{ commentId: 1, content: '热评', likedCount: 999, user: { nickname: 'A', avatarUrl: 'http://x/a.jpg' } }],
+            comments: [{ commentId: 2, content: '普通评论', likedCount: 3, user: { nickname: 'B' }, ipLocation: '北京', timeStr: '2小时前' }],
+        } as any);
+
+        const page = await neteaseProvider.comments!.getSongComments!(song, 20, 0);
+        expect(page.items).toHaveLength(2);
+        expect(page.items[0]).toMatchObject({ id: 1, isHot: true, likedCount: 999, avatarUrl: 'https://x/a.jpg' });
+        expect(page.items[1]).toMatchObject({ id: 2, ipLocation: '北京', timeStr: '2小时前' });
+        expect(page).toMatchObject({ total: 100, hasMore: true });
+    });
+
+    it('drops comments with empty content', async () => {
+        vi.mocked(neteaseApi.getSongComments).mockResolvedValue({
+            comments: [{ commentId: 5, content: '   ', user: { nickname: 'x' } }],
+        } as any);
+        const page = await neteaseProvider.comments!.getSongComments!(song, 20, 0);
+        expect(page.items).toEqual([]);
+    });
+
+    // 楼中楼：神回复置顶再拼普通回复；上游翻页是 time 游标，契约 offset 对不齐 → 首页封顶。
+    it('loads floor replies with best replies first and no fake pagination', async () => {
+        vi.mocked(neteaseApi.getCommentFloor).mockResolvedValue({
+            data: {
+                bestComments: [{ commentId: 9, content: '神回复', likedCount: 88, user: { nickname: 'S' } }],
+                comments: [{ commentId: 10, content: '普通回复', user: { nickname: 'T' } }],
+                totalCount: 40,
+                hasMore: true,
+            },
+        } as any);
+        const page = await neteaseProvider.comments!.getCommentReplies!(song, 9, 20, 0);
+        expect(neteaseApi.getCommentFloor).toHaveBeenCalledWith(expect.anything(), 9, Math.max(20, 30));
+        expect(page.items.map(i => i.id)).toEqual([9, 10]);
+        expect(page.items[0]).toMatchObject({ isHot: true, likedCount: 88 });
+        expect(page.hasMore).toBe(false);
+    });
+
+    it('refuses offset paging on replies instead of re-asking the first page', async () => {
+        const page = await neteaseProvider.comments!.getCommentReplies!(song, 9, 20, 20);
+        expect(page.items).toEqual([]);
+        expect(neteaseApi.getCommentFloor).not.toHaveBeenCalled();
+    });
+
+    // 点赞写操作：200 过；301/401/403 → auth-required；其余非 200 → unavailable。绝不静默装成功。
+    it('likes a comment and maps upstream auth failures', async () => {
+        vi.mocked(neteaseApi.likeSongComment).mockResolvedValue({ code: 200 } as any);
+        await expect(neteaseProvider.comments!.likeComment!(song, 42, true)).resolves.toBeUndefined();
+        expect(neteaseApi.likeSongComment).toHaveBeenCalledWith(expect.anything(), 42, true);
+
+        vi.mocked(neteaseApi.likeSongComment).mockResolvedValue({ code: 301, msg: '需要登录' } as any);
+        await expect(neteaseProvider.comments!.likeComment!(song, 42, true)).rejects.toMatchObject({ code: 'auth-required' });
+
+        vi.mocked(neteaseApi.likeSongComment).mockResolvedValue({ code: 502 } as any);
+        await expect(neteaseProvider.comments!.likeComment!(song, 42, false)).rejects.toMatchObject({ code: 'unavailable' });
+    });
+
+    it('carries the viewer liked flag when the upstream returns it', async () => {
+        vi.mocked(neteaseApi.getSongComments).mockResolvedValue({
+            comments: [{ commentId: 7, content: '赞过了', liked: true, user: { nickname: 'me' } }],
+        } as any);
+        const page = await neteaseProvider.comments!.getSongComments!(song, 20, 0);
+        expect(page.items[0]).toMatchObject({ liked: true });
     });
 });
 

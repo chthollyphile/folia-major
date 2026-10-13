@@ -28,6 +28,8 @@ export type LibraryHomeSources = {
     tabs: LibraryHomeTabView[];
     /** FM 卡上的当前模式（provider 不支持模式时为空）。 */
     personalFmModeLabel: string;
+    /** 发现页相似歌曲的种子（此刻在听、且与当前音源同源的那首；没有时为 null）。可选：别套首页不需要它。 */
+    discoverSeed?: { id: string; name?: string } | null;
 };
 
 export const useLibraryHomeSources = ({
@@ -36,6 +38,7 @@ export const useLibraryHomeSources = ({
     playlists,
     cloudPlaylist = null,
     navidromeEnabled = false,
+    discoverSeed = null,
 }: {
     /** 在线账户 controller：当前平台与它的账户摘要来自快照（未变时身份稳定）。 */
     account: LibraryAccountController;
@@ -44,6 +47,8 @@ export const useLibraryHomeSources = ({
     playlists: ProviderCollection[];
     cloudPlaylist?: ProviderCollection | null;
     navidromeEnabled?: boolean;
+    /** 发现页相似歌曲的种子（此刻在听、且与当前音源同源的那首）。 */
+    discoverSeed?: { id: string; name?: string } | null;
 }): LibraryHomeSources => {
     const { t } = useTranslation();
     const { tab, setTab } = useSearchNavigationStore(useShallow(state => ({
@@ -55,6 +60,7 @@ export const useLibraryHomeSources = ({
         radio: state.showHomeTabRadio,
         albums: state.showHomeTabAlbums,
         local: state.showHomeTabLocal,
+        discover: state.showHomeTabDiscover,
     })));
     // The FM card doubles as the mode readout: the card is the only place the current mode shows
     // up outside the player, and the picker can change it while this grid stays mounted.
@@ -98,5 +104,6 @@ export const useLibraryHomeSources = ({
         online,
         tabs,
         personalFmModeLabel,
+        discoverSeed,
     };
 };

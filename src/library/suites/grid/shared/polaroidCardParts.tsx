@@ -35,6 +35,23 @@ export const formatCardDuration = (durationMs?: number): string => {
 };
 
 /**
+ * 封面加载失败的落点：占位图不消失，但停转。
+ *
+ * 没有这条路径时，一张失败的封面会永远停在 3 秒一圈的旋转 Disc 上 —— 那读起来像「还在加载」，
+ * 而它其实已经不会成功了。推荐源特别容易命中：外部图床过期或 404 时，本地歌单的封面照常显示，
+ * 推荐行却整片看起来卡在加载中，用户分辨不出是网络慢还是封面没了。
+ */
+const settleCoverError = (img: HTMLImageElement): void => {
+    img.style.opacity = '0';
+    const placeholder = img.nextElementSibling as HTMLElement | null;
+    if (!placeholder) return;
+    placeholder.style.opacity = '1';
+    placeholder.style.display = '';
+    // 只摘掉 spin，不换元素：React 不会因为 className 字符串没变而把它加回来。
+    placeholder.querySelector('svg')?.classList.remove('animate-spin');
+};
+
+/**
  * Cover artwork plus the placeholder it crossfades out of. The placeholder is the image's next
  * sibling on purpose: the load handlers reach it through `nextElementSibling`, so an image decoded
  * from cache can hide it without a React render.
@@ -60,13 +77,18 @@ export const PolaroidCardCover: React.FC<{
                 loading="lazy"
                 decoding="async"
                 ref={(el) => {
-                    if (el && el.complete) {
-                        el.style.opacity = isUnavailable ? '0.3' : '1';
-                        const placeholder = el.nextElementSibling as HTMLElement;
-                        if (placeholder) {
-                            placeholder.style.opacity = '0';
-                            placeholder.style.display = 'none';
-                        }
+                    // `complete` 对「已缓存的成功」和「已缓存的失败」都为 true，只有 naturalWidth
+                    // 能区分：失败时它是 0。不能只看 complete，否则缓存里的坏图会把占位图藏掉。
+                    if (!el?.complete) return;
+                    if (el.naturalWidth === 0) {
+                        settleCoverError(el);
+                        return;
+                    }
+                    el.style.opacity = isUnavailable ? '0.3' : '1';
+                    const placeholder = el.nextElementSibling as HTMLElement;
+                    if (placeholder) {
+                        placeholder.style.opacity = '0';
+                        placeholder.style.display = 'none';
                     }
                 }}
                 onLoad={(e) => {
@@ -80,6 +102,7 @@ export const PolaroidCardCover: React.FC<{
                         }, 350);
                     }
                 }}
+                onError={(e) => settleCoverError(e.currentTarget)}
                 className="w-full h-full object-cover transition-opacity duration-350 pointer-events-none select-none opacity-0"
             />
             <div className="absolute inset-0 bg-zinc-300/40 dark:bg-zinc-700/40 transition-opacity duration-350 flex items-center justify-center">

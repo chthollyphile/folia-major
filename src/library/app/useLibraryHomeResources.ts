@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { LibraryHomeResources } from '../core/contracts/homeModel';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { createFavoriteAlbumsFeed, createRadioFeed } from '../core/services/onlineHomeFeeds';
+import { createDiscoverFeed } from '../core/services/onlineHomeDiscoverFeed';
+import { onlineHomeDiscoverDeps } from '../core/services/onlineHomeDiscoverDeps';
+import { buildDiscoverSectionsUntitled } from '../core/model/discoverSections';
 import { onlineHomeFeedDeps } from '../core/services/onlineHomeFeedDeps';
 import { createLibraryHomeActions } from '../core/services/libraryHomeActions';
 import { createNavidromeHomeLibrary } from '../core/services/navidromeHomeLibrary';
@@ -42,6 +45,13 @@ export const useLibraryHomeResources = (
     const [resources] = useState<LibraryHomeResources>(() => ({
         favoriteAlbums: createFavoriteAlbumsFeed(onlineHomeFeedDeps),
         radioFeed: createRadioFeed(onlineHomeFeedDeps),
+        // 发现页：这里只装配数据与段 id（标题不进缓存——缓存里存某一种语言的标题，切语言就会拿到旧标题）。
+        // 封面解析注入到资源：它按自己的归属 provider 去解析，卡片不必再回头问当前页签是谁。
+        discoverFeed: createDiscoverFeed(
+            onlineHomeDiscoverDeps,
+            buildDiscoverSectionsUntitled,
+            (song, providerId) => onlineHomeFeedDeps.songCoverUrl(song, providerId),
+        ),
         actions: createLibraryHomeActions(createLibraryHomePort(() => surfaceRef.current)),
         navidromeOverview: createNavidromeHomeLibrary(navidromeHomeLibraryDeps),
         localDirectoryTrees: createLocalDirectoryTrees(localDirectoryTreesDeps),

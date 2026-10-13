@@ -25,6 +25,14 @@ export default defineConfig({
     // 第二消费者始终参与单测；test.env 与 vi.stubEnv 使用同一入口，可覆写验证关闭/生产边界。
     // 初始选择钉在 grid：现有用例都假设没选过 suite 的人看到网格（开发阶段的初始选择是 bravais）。
     env: { VITE_LIBRARY_TUI: 'true', VITE_LIBRARY_INITIAL_SUITE: 'grid' },
-    include: ['test/unit/**/*.test.ts']
+    include: ['test/unit/**/*.test.ts'],
+    // 默认 5s 对不上这个仓库里几个文件的真实成本，并发跑时被 CPU 争抢放大后就会
+    // 偶发 timeout（单跑必过、全量随机失败，是很典型的 flaky 特征）：
+    //   - 每个用例 resetModules() + 动态 import 的（themeSyncRegistry、storeContract），
+    //     一次重建整棵模块图实测约 850ms，几个用例叠起来在并发下能到 4s 以上；
+    //   - 遍历整棵源码树的（modDigest / modSignature）本身就要扫几千个文件。
+    // 这些 reset 和遍历都是语义必需的，删不掉，所以按真实成本给超时而不是硬扛默认值。
+    testTimeout: 30000,
+    hookTimeout: 30000,
   }
 });

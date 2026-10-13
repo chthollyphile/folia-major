@@ -181,6 +181,18 @@ html[data-click-through='active'] body .click-through-interactive * {
 /* Grid 顶部标题的面板开关：用户第一次进入 grid 视图时，让开关自己呼吸几下并把
    "展开"文案短暂推出来，把"标题可以点开左侧面板"这件事主动说一次。
    两段动画都有固定的结束时间，跑完自动还原成 hover 控制的静止态，不需要计时器。 */
+/* 搜索刷新提示条：一条细线在固定轨道里来回扫。比把正文换成居中大转圈温和——
+   用户还看得见上一批结果，同时知道正在刷新。reduced-motion 下退化成静态半透明条。 */
+@keyframes searchSweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(400%);
+  }
+}
+
 @keyframes grid-panel-toggle-hint {
 
   0%,

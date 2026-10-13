@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LibraryHomeCard, LibraryHomeResources } from '../contracts/homeModel';
-import { buildOnlineAlbumCards, buildOnlinePlaylistCards, buildOnlineRadioCards } from '../model/homeCards';
+import { buildOnlineAlbumCards, buildOnlinePlaylistCards, buildOnlineRadioCards, buildDiscoverSongCards } from '../model/homeCards';
 import {
     isOnlineHomeTab,
     onlineHomeTitleKey,
@@ -10,6 +10,7 @@ import {
     translateHomeMessage,
 } from '../model/homeSources';
 import { useLibraryHomeOnlineFeeds } from './useLibraryHomeOnlineFeeds';
+import { useRecentPlaysStore } from '../../../stores/useRecentPlaysStore';
 import type { LibraryHomeSources } from './useLibraryHomeSources';
 
 // src/library/core/bindings/useLibraryHomeOnline.ts
@@ -26,28 +27,48 @@ export type LibraryHomeOnlineList = {
 };
 
 export const useLibraryHomeOnline = (
-    resources: Pick<LibraryHomeResources, 'favoriteAlbums' | 'radioFeed'>,
-    sources: Pick<LibraryHomeSources, 'tab' | 'online' | 'personalFmModeLabel'>,
+    resources: Pick<LibraryHomeResources, 'favoriteAlbums' | 'radioFeed' | 'discoverFeed'>,
+    sources: Pick<LibraryHomeSources, 'tab' | 'online' | 'personalFmModeLabel' | 'discoverSeed'>,
 ): LibraryHomeOnlineList => {
     const { t } = useTranslation();
-    const { tab, online, personalFmModeLabel } = sources;
-    const { favoriteAlbums, radioFeed } = useLibraryHomeOnlineFeeds({
+    const { tab, online, personalFmModeLabel, discoverSeed } = sources;
+    const { favoriteAlbums, radioFeed, discoverFeed, discoverFeedResource } = useLibraryHomeOnlineFeeds({
         resources,
         tab,
         providerId: online.providerId,
         userId: online.user?.id ?? null,
         canUseAlbums: online.canUseAlbums,
         canUseRadio: online.canUseRadio,
+        discoverSeed,
     });
 
-    const playlistCards = useMemo(() => buildOnlinePlaylistCards(online.collections, t), [online.collections, t]);
+    // 统一最近播放：跨音源的虚拟集合，曲目来自最近播放 store，绝不进 provider 缓存
+    // （缓存会把历史冻结在打开那一刻，之后播的新歌进不来）。有历史时这张卡置顶。
+    const recentPlays = useRecentPlaysStore(state => state.entries);
+    const playlistCards = useMemo(
+        () => buildOnlinePlaylistCards(online.collections, t, recentPlays),
+        [online.collections, recentPlays, t],
+    );
     const albumCards = useMemo(() => buildOnlineAlbumCards(favoriteAlbums.data, t), [favoriteAlbums.data, t]);
     const radioCards = useMemo(
         () => buildOnlineRadioCards(radioFeed.data, { t, personalFmModeLabel }),
         [personalFmModeLabel, radioFeed.data, t],
     );
 
-    const items = tab === 'playlist' ? playlistCards : tab === 'albums' ? albumCards : tab === 'radio' ? radioCards : NO_CARDS;
+    const discoverCards = useMemo(
+        () => buildDiscoverSongCards(discoverFeed.data, { t, songCoverUrl: discoverFeedResource.songCoverUrl }),
+        [discoverFeed, discoverFeedResource, t],
+    );
+
+    const items = tab === 'playlist'
+        ? playlistCards
+        : tab === 'albums'
+            ? albumCards
+            : tab === 'radio'
+                ? radioCards
+                : tab === 'discover'
+                    ? discoverCards
+                    : NO_CARDS;
     const onlineTab = isOnlineHomeTab(tab) ? tab : 'radio';
     const unavailable = resolveOnlineTabUnavailableReason(online, onlineTab);
     return {
@@ -58,6 +79,7 @@ export const useLibraryHomeOnline = (
             source: online,
             favoriteAlbumsLoading: favoriteAlbums.status === 'loading',
             radioFeedLoading: radioFeed.status === 'loading',
+            discoverLoading: discoverFeed.status === 'loading',
         }),
         emptyMessage: unavailable ? translateHomeMessage(t, unavailable) : t('home.loadingLibrary'),
     };

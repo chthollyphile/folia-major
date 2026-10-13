@@ -41,6 +41,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
     },
     getPersonalFm: () => omni.getPersonalFm(),
     playPersonalFm: (song, queue) => getSurface().onPlaySong(song, queue, true),
+    playSongs: (song, queue, isFmCall) => getSurface().onPlaySong(song, queue, isFmCall),
     describeOnlineCollection: (collection, providerId) => createOnlineGridViewCollection(collection, providerId),
     describeLocalGroup: group => createLocalGridViewCollection(group),
     describeNavidromeCard: (card, type) => createNavidromeGridViewCollection(card, type),

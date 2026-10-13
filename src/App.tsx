@@ -79,6 +79,7 @@ import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibra
 import { useAppWallToolsHost } from './components/app/wall-tools/useAppWallToolsHost';
 import { useLibraryAccountProviders } from './library/core/bindings/useLibraryAccount';
 import { resolveActiveProviderSummary } from './library/core/model/accountRules';
+import { useNetworkRecovery } from './hooks/useNetworkRecovery';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './hooks/useElectronPlaybackBridge';
 import { useElectronDisplaySleepBlocker } from './hooks/useElectronDisplaySleepBlocker';
@@ -99,6 +100,7 @@ import { usePlaybackUiEffects } from './hooks/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './hooks/useLibraryPlaybackController';
 import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReporter';
 import { useNeteaseScrobbleReporter } from './hooks/useNeteaseScrobbleReporter';
+import { useRecentPlaysRecorder } from './hooks/useRecentPlaysRecorder';
 import { usePlaybackQueueController } from './hooks/usePlaybackQueueController';
 import { usePlaybackTransportController } from './hooks/usePlaybackTransportController';
 import { useLocalLibraryCatalog } from './hooks/useLocalLibraryCatalog';
@@ -774,6 +776,8 @@ export default function App() {
     // （resolveSongLiked → omni.isSongLiked）经 getState 读各平台的 likedSongIds，账户摘要里没有它，
     // 只订阅 controller 快照的话收藏之后心形不会当场更新。取值没有用处。
     useOnlineProviderAccountStore(state => state.accounts);
+
+    useNetworkRecovery();
     const handleActiveProviderSyncData = useCallback(async () => {
         const providerId = activeProviderId;
         if (providerId === 'netease') {
@@ -913,6 +917,7 @@ export default function App() {
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
         addCurrentSongToOnlinePlaylist,
+        createCurrentOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         loadCurrentSongLyricPreview,
@@ -1098,6 +1103,11 @@ export default function App() {
         }
         setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
     }, [navigateToCollection, setStatusMsg, t]);
+    // 类型搜索（专辑/歌单）的集合卡：卡片已经是完整的 descriptor，直接走现有集合详情。
+    const handleSearchCollectionOpen = useCallback(
+        (collection: GridViewCollectionDescriptor) => navigateToCollection(collection, 'search'),
+        [navigateToCollection],
+    );
 
     usePlaybackUiEffects({
         statusMsg,
@@ -1417,6 +1427,9 @@ export default function App() {
         currentSong,
         activeDeck: automix.activeDeck,
     });
+
+    // 统一最近播放：订阅 currentSong 变化记一条历史，跨音源。放在这里而不是各 setCurrentSong 调用点。
+    useRecentPlaysRecorder();
 
     const {
         mediaSessionPlayRef,
@@ -2214,9 +2227,18 @@ export default function App() {
             ? applyLocalLibraryEntityDisplay(track, localLibraryCatalog, playerDisplayCatalogIndex)
             : track
     ), [localLibraryCatalog, playerDisplayCatalogIndex]);
+    const onlineSongProviderId = playerDisplayCurrentSong
+        ? getOnlineProviderIdForSong(playerDisplayCurrentSong)
+        : null;
+    // The account store owns the playlist lists (library refreshes and post-mutation refreshes both
+    // write it), so the picker's lists must subscribe to it — a plain memo over the song would keep
+    // showing the pre-create list until the song changed.
+    const songAccountCollections = useOnlineProviderAccountStore(state => (
+        onlineSongProviderId ? state.accounts[onlineSongProviderId]?.collections : undefined
+    ));
     const onlinePlaylists = useMemo(() => {
         return playerDisplayCurrentSong ? omni.getPlaylistsForSong(playerDisplayCurrentSong) : [];
-    }, [onlineProviders, playerDisplayCurrentSong]);
+    }, [onlineProviders, playerDisplayCurrentSong, songAccountCollections]);
 
     const playerPanelModel = usePlayerPanelModel({
         navigateToHome,
@@ -2291,6 +2313,7 @@ export default function App() {
         handleSearchResultArtistOpen,
         handleSearchResultAlbumOpen,
         resolveSearchResultDisplay,
+        handleSearchCollectionOpen,
         devDebugSnapshot,
         effectiveLoopMode,
         canToggleCurrentPlayback,
@@ -2779,6 +2802,12 @@ export default function App() {
                                 onGoHome={navigateToHome}
                                 onOpenPlayer={navigateToPlayer}
                                 onPlaySong={(song, queue) => {
+                                    // 点的就是当前这首（用户反馈：正在播还点会从头再来）。
+                                    // 同曲不重加载：暂停中就续播，正在播则什么都不做。
+                                    if (currentSong && getPlaybackSongKey(song) === getPlaybackSongKey(currentSong)) {
+                                        if (playerState !== PlayerState.PLAYING) togglePlay();
+                                        return;
+                                    }
                                     void playSong(song, queue, false, { shouldNavigateToPlayer: false });
                                 }}
                                 onTogglePlayback={togglePlay}
@@ -2861,6 +2890,7 @@ export default function App() {
                 onAddCurrentSongToLocalPlaylist={addCurrentSongToLocalPlaylist}
                 onCreateCurrentLocalPlaylist={createCurrentLocalPlaylist}
                 onAddCurrentSongToOnlinePlaylist={addCurrentSongToOnlinePlaylist}
+                onCreateCurrentOnlinePlaylist={createCurrentOnlinePlaylist}
                 onAddCurrentSongToNavidromePlaylist={addCurrentSongToNavidromePlaylist}
                 onCreateCurrentNavidromePlaylist={createCurrentNavidromePlaylist}
             />

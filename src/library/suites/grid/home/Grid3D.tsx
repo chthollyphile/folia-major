@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -8,7 +8,8 @@ import { SongResult, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, type St
 import LocalGrid3DView from './LocalGrid3DView';
 import NavidromeGrid3DView from './NavidromeGrid3DView';
 import { useGrid3DTabKeys } from './useGrid3DTabKeys';
-import DesktopGrid3DSurface from './DesktopGrid3DSurface';
+import DesktopGrid3DSurface, { type DesktopGrid3DAction } from './DesktopGrid3DSurface';
+import { useHomeCardPositionStore } from '../../../../stores/useHomeCardPositionStore';
 import OnlineProviderSwitcher from '../account/OnlineProviderSwitcher';
 import OnlineProviderConnectPanel from '../account/OnlineProviderConnectPanel';
 import OnlineProviderAccountlessPanel from '../account/OnlineProviderAccountlessPanel';
@@ -22,6 +23,13 @@ import type { LibraryHomeResources } from '../../../core/contracts/homeModel';
 import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
 import type { LibraryHomeCard, LibraryHomeListState } from '../../../core/contracts/homeModel';
 import { useLibraryHomeSources } from '../../../core/bindings/useLibraryHomeSources';
+import { useCategorySongLists } from '../../../core/bindings/useCategorySongLists';
+import { canReuseCategorySongLists, categoryScopeOf } from '../../../core/model/categorySelectionState';
+import { CategoryFilterPanel } from '../shared/CategoryFilterPanel';
+import type { CategorySelection } from '../../../core/model/categorySelectionState';
+import { RefreshCw, ListFilter } from 'lucide-react';
+import { omni } from '../../../../services/onlineMusic/omni';
+import type { ProviderSongListCategoryGroup } from '../../../../types/onlineMusic';
 import { useLibraryHomeOnline } from '../../../core/bindings/useLibraryHomeOnline';
 import { useLibraryHomeActions } from '../../../core/bindings/useLibraryHomeActions';
 import { useLibraryHomeDirectory } from '../../../core/bindings/useLibraryHomeDirectory';
@@ -114,6 +122,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         onOpenLattice,
         navidromeEnabled = false,
         onOpenGridView,
+        onStatusMessage,
         stageEnabled = false,
         stageIsActive = false,
         onOpenStagePlayer,
@@ -145,12 +154,21 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     // 来源、页签与在线列表都来自 Library Core 的首页模型（core/model/homeSources、homeCards 与首页资源）；
     // 这里只剩展示：布局、二维码登录、更新徽标、扫描进度胶囊。
+    // 发现页的相似段跟着「此刻在听」的那首走：种子必须与当前音源同源
+    // （A 家歌的数字 id 拿去打 B 家的相似接口只会问到无关的歌，跨源时宁可整段不出）。
+    const discoverSeed = useMemo(() => (
+        currentTrack && currentTrack.sourceRef?.kind === 'online'
+            ? { id: String(currentTrack.id), ...(currentTrack.name ? { name: currentTrack.name } : {}) }
+            : null
+    ), [currentTrack]);
+
     const homeSources = useLibraryHomeSources({
         account,
         user,
         playlists,
         cloudPlaylist,
         navidromeEnabled,
+        discoverSeed,
     });
     const { tab: homeViewTab, setTab: setHomeViewTab, isOnlineTab, online, tabs: homeTabs } = homeSources;
     const activeProviderId = online.providerId;
@@ -160,6 +178,41 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const activeAccountView = online.accountView;
     const activeProviderNeedsRelogin = online.needsRelogin;
     const onlineList = useLibraryHomeOnline(homeResources, homeSources);
+    // 商铺分类：状态机在 core（两条契约：跨 tab 保留筛选、切回来复用已拉过的那批）。
+    // 分类能力只看当前 provider 有没有声明（QQ/酷狗/网易各有自己的分类 id 空间）。
+    const canBrowseCategories = omni.canBrowseSongListCategories(online.providerId);
+    const [categoryGroups, setCategoryGroups] = useState<ProviderSongListCategoryGroup[]>([]);
+    useEffect(() => {
+        if (!canBrowseCategories) {
+            setCategoryGroups([]);
+            return undefined;
+        }
+        let cancelled = false;
+        omni.getSongListCategories(online.providerId)
+            .then(groups => { if (!cancelled) setCategoryGroups(groups); })
+            .catch(error => {
+                console.warn('[Grid3D] category groups failed', error);
+                if (!cancelled) setCategoryGroups([]);
+            });
+        return () => { cancelled = true; };
+    }, [canBrowseCategories, online.providerId]);
+
+    const {
+        categorySelected,
+        setCategorySelected,
+        categoryPanelOpen,
+        setCategoryPanelOpen,
+        categorySongLists,
+        loadingCategory,
+        categoryError,
+    } = useCategorySongLists({
+        isActiveTab: homeViewTab === 'radio',
+        activeProviderId: online.providerId,
+        loadCategorySongLists: categoryId => omni
+            .getCategorySongLists(online.providerId, categoryId, { limit: 35, offset: 0 })
+            .then(page => page.items),
+        onError: () => onStatusMessage?.({ type: 'error', text: t('home.categoryLoadFailed') }),
+    });
     const homeActions = homeResources.actions;
     const { snapshot: homeActionState, scanPercent: scanProgressPercent } = useLibraryHomeActions(homeActions);
     const scanProgress = homeActionState.scan;
@@ -176,6 +229,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         && activeAccountView !== 'guest';
 
     const [focusedIndex, setFocusedIndex] = useState(0);
+    // 卡片焦点记忆的作用域：与 surface 的 focusMemoryScope 同一份串，换一批后要把这份记忆清掉。
+    const homeCardFocusScope = useMemo(
+        () => JSON.stringify(['online', online.providerId, online.user?.id ?? null, homeViewTab]),
+        [homeViewTab, online.providerId, online.user?.id],
+    );
+    // 已经拉过的分类作用域（provider:categoryId）：状态机据此判断能不能复用，不由组件自己判断。
+    const categorySongListsScopeRef = useRef<string | null>(null);
     const gridRootRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [scanDetailsExpanded, setScanDetailsExpanded] = useState(false);
@@ -231,9 +291,72 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         setFocusedIndex(0);
     }, [activeProviderId, activeUser?.id]);
 
+    // 分类筛选时，商铺页签换成那一批歌单。分类是上游内部键，换音源必须清（状态机在 core 里守着）。
+    const categoryCards = useMemo<LibraryHomeCard[]>(() => {
+        if (homeViewTab !== 'radio' || !categorySelected) return [];
+        const scope = categoryScopeOf(online.providerId, categorySelected.itemId);
+        // 已经拉过这一批就直接复用：切走再回来不该重拉、也不该闪骨架。
+        if (!canReuseCategorySongLists(
+            categorySongListsScopeRef.current,
+            scope,
+            categorySongLists.length,
+        )) return onlineList.items;
+        return categorySongLists.map(collection => ({
+            id: collection.id,
+            name: collection.name,
+            coverUrl: collection.coverUrl,
+            trackCount: collection.trackCount,
+            description: collection.creator?.nickname || t('home.playlists'),
+            summary: collection.description || '',
+            type: collection.type,
+            raw: collection,
+        }));
+    }, [homeViewTab, categorySelected, categorySongLists, online.providerId, onlineList.items, t]);
+
+    const visibleItems = categoryCards.length > 0 ? categoryCards : onlineList.items;
+
+    // 发现页的「换一批」：整批替换后回到头部，否则停在第 30 张时看到的仍是「第 30 张」——
+    // 而新批的第 30 张与旧批完全不同，用户会以为后面的没换。
+    const discoverActions = useMemo<DesktopGrid3DAction[]>(() => (
+        homeViewTab === 'discover'
+            ? [{
+                id: 'refresh-discover',
+                label: onlineList.isLoading ? t('options.scanning') : t('home.discoverRefresh'),
+                icon: onlineList.isLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />,
+                disabled: onlineList.isLoading,
+                onClick: () => {
+                    useHomeCardPositionStore.getState().forget(homeCardFocusScope);
+                    void homeResources.discoverFeed.swapBatch(discoverSeed ? { seedSongId: discoverSeed.id, seedSongName: discoverSeed.name } : {});
+                },
+                title: t('home.discoverRefresh'),
+            }]
+            : []
+    ), [discoverSeed, homeCardFocusScope, homeResources.discoverFeed, homeViewTab, onlineList.isLoading, t]);
+
+    // 分类面板的入口（只在当前 provider 真的有分类时出现；空数组时不告诉用户「没这个功能」）。
+    const radioActions = useMemo<DesktopGrid3DAction[]>(() => (
+        homeViewTab === 'radio' && categoryGroups.length > 0
+            ? [{
+                id: 'category-filter',
+                label: categorySelected ? categorySelected.itemLabel : t('home.categoryTitle'),
+                icon: <ListFilter size={13} />,
+                active: categoryPanelOpen || Boolean(categorySelected),
+                onClick: () => setCategoryPanelOpen(open => !open),
+                title: t('home.categoryTitle'),
+            }]
+            : []
+    ), [categoryGroups.length, categoryPanelOpen, categorySelected, homeViewTab, setCategoryPanelOpen, t]);
+
+    // 空态要跟失败分开：选了分类却拉不到，默认「暂无内容」会让用户以为这个分类真的没有歌单。
+    const onlineEmptyMessage = homeViewTab === 'radio' && categorySelected && categoryError
+        ? categoryError
+        : onlineList.emptyMessage;
+
     // Delegate GridView opening to the app-level host so Grid3D remains only the home surface.
     // If Personal FM is clicked, it plays Personal FM directly instead of opening GridView.
     const handleSelectCollectionCard = (card: LibraryHomeCard) => {
+        // 集合卡与歌曲卡都走同一个动作：core 认歌曲卡（点卡即播，队列用所在段的那一批，
+        // FM 段带 isFmCall 进 FM 模式），也认私人 FM 卡（直接播放），其余按集合打开。
         void homeActions.openOnlineCard(card, activeProviderId, collection => onOpenGridView?.(collection));
     };
 
@@ -524,14 +647,30 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 ) : showOnlineList ? (
                     <DesktopGrid3DSurface
                         focusMemoryScope={JSON.stringify(['online', activeProviderId, activeUser?.id ?? null, homeViewTab])}
-                        title={onlineList.title}
-                        mapButtonLabel={t('home.allAlbums')}
-                        items={onlineList.items}
+                        title={homeViewTab === 'discover' ? t('home.discover') : onlineList.title}
+                        mapButtonLabel={homeViewTab === 'discover' ? t('home.allSongs') : t('home.allAlbums')}
+                        items={visibleItems}
                         focusedIndex={focusedIndex}
                         onFocusedIndexChange={setFocusedIndex}
                         onSelect={item => handleSelectCollectionCard(item as LibraryHomeCard)}
-                        isLoading={onlineList.isLoading}
-                        emptyMessage={onlineList.emptyMessage}
+                        actions={discoverActions.length > 0 ? discoverActions : radioActions}
+                        actionOverlay={
+                            homeViewTab === 'radio' && categoryPanelOpen && categoryGroups.length > 0 ? (
+                                <CategoryFilterPanel
+                                    groups={categoryGroups}
+                                    isDaylight={isDaylight}
+                                    selected={categorySelected}
+                                    onSelect={(selection: CategorySelection | null) => {
+                                        setCategorySelected(selection);
+                                        // 换一批同样道理：整批替换后回到头部。
+                                        useHomeCardPositionStore.getState().forget(homeCardFocusScope);
+                                    }}
+                                    onClose={() => setCategoryPanelOpen(false)}
+                                />
+                            ) : null
+                        }
+                        isLoading={onlineList.isLoading || (homeViewTab === 'radio' && loadingCategory)}
+                        emptyMessage={onlineEmptyMessage}
                         theme={theme}
                         isDaylight={isDaylight}
                         isInteractive={isInteractive}

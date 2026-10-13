@@ -1,4 +1,4 @@
-import type { LocalLibraryGroup } from '../../../types';
+import type { LocalLibraryGroup, SongResult } from '../../../types';
 import type { NavidromeGridViewCollectionType } from '../contracts/collection';
 import type {
     LibraryHomeActionResult,
@@ -136,6 +136,12 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
 
         openOnlineCard: async (card: LibraryHomeCard, providerId: string, open: LibraryHomeOpenCollection) => {
             if (isPersonalFmCard(card)) return playPersonalFm();
+            // 歌曲卡（发现页四段）：点卡即播，队列用所在段的那一批；猜你喜欢段带 isFmCall 进 FM 模式连续放。
+            const songCard = card.raw as { song?: SongResult; queue?: SongResult[]; isFmCall?: boolean } | undefined;
+            if (card.type === 'song' && songCard?.song) {
+                port.playSongs(songCard.song, songCard.queue ?? [songCard.song], songCard.isFmCall);
+                return OK;
+            }
             open(port.describeOnlineCollection(onlineCardCollection(card), providerId));
             return OK;
         },

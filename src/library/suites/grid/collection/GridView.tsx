@@ -463,11 +463,15 @@ export const GridView: React.FC<GridViewProps> = ({
     const isNavidromeCollection = collectionSource === 'navidrome';
     const isAlbumCollection = collection?.type === 'album';
     const isDailyRecommendationsCollection = collectionSource === 'online' && collection?.type === 'daily_recommendations';
+    // 统一最近播放：跨音源的本地虚拟集合，曲目来自 useRecentPlaysStore，绝不进 provider 缓存
+    // （缓存会把历史冻结在打开那一刻，之后播的新歌进不来）。
+    const isRecentPlaysCollection = collectionSource === 'online' && collection?.type === 'recent_plays';
     // 每日推荐自带「刷新」，私人 FM 不分页；其余在线集合都能跳过缓存整张重新拉取。
     const canReloadOnlineCollection = mode === 'tracks'
         && collectionSource === 'online'
         && isOnlineResource
         && !isDailyRecommendationsCollection
+        && !isRecentPlaysCollection
         && collection?.type !== 'radio';
     // 本地排序只给文件夹（含虚拟的「全部歌曲」）：这是视图规则，不随变更能力走。
     const supportsLocalTrackSorting = isLocalCollection && collection?.type === 'folder';

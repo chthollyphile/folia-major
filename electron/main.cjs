@@ -184,6 +184,8 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
   app.commandLine.appendSwitch('enable-gpu-rasterization');
 }
 
+
+
 const store = new Store({ projectName: 'Folia' });
 const transcodeService = createTranscodeService({
   app,
@@ -2830,6 +2832,13 @@ function isTrustedRemoteControlContents(webContents) {
   );
 }
 
+// The QQ port/status and KuGou channels hand the embedded backend to the renderer.
+// Only the main window and the remote-control window are first-party; a window.open()
+// popup carries the same preload, so it must not be able to read the port or drive the API.
+const isFirstPartyWindowContents = (event) => (
+  isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
+);
+
 function getMainWindowUrl() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return '';
@@ -3527,12 +3536,28 @@ async function openUpdateReleasePage(version) {
   return true;
 }
 
+// 白名单而非黑名单：渲染进程只要被注入过一次，就能借这个 IPC 拉起任意协议——
+// file:// 读本地、ms-settings: 改系统、自定义协议则取决于机器上装了什么。
+// 现有调用方（GitHub issue 页、发布页）全部是 http(s)，收紧不会破坏任何功能。
+const OPEN_EXTERNAL_ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
+
 async function openExternalUrl(url) {
   if (typeof url !== 'string' || !url.trim()) {
     return false;
   }
 
-  await shell.openExternal(url.trim());
+  let parsed;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return false;
+  }
+  if (!OPEN_EXTERNAL_ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+    console.warn('[main] blocked openExternal for a non-http(s) protocol:', parsed.protocol);
+    return false;
+  }
+
+  await shell.openExternal(parsed.toString());
   return true;
 }
 
@@ -4960,6 +4985,15 @@ function createWindow(options = {}) {
   // itself is no longer rendered in wallpaper mode.
   setMainWindowClickThroughEnabled(mainWindowClickThroughEnabled);
   updateWindowThumbarButtons();
+  // 开发版与已安装的官方版共用同一个 productName 与同一份 index.html，标题不区分的话任务栏、
+  // Alt+Tab、截图工具里全是两个 "Folia"，很容易开错那一个。BrowserWindow 的 `title` 选项会被
+  // 页面 <title> 覆盖，所以要在这里拦住 `page-title-updated` 才钉得住。打包产物不带这段。
+  if (process.env.ELECTRON_DEV === 'true') {
+    win.on('page-title-updated', (event) => {
+      event.preventDefault();
+    });
+    win.setTitle('Folia (dev)');
+  }
   win.on('resize', () => {
     saveWindowState(win, { deferred: true });
   });
@@ -5172,7 +5206,12 @@ app.whenReady().then(async () => {
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
-  // the rest of this handler, createWindow() included, from running.
+  // 窗口先于这些初始化出现：renderer 加载的是 dev server / 打包产物，与转码探测、各内嵌
+  // 服务的就绪没有强依赖（它自己会等端口、并按状态频道的消息降级）。把它们串在 createWindow
+  // 前面，用户看到的是一段黑屏——尤其 transcodeService.initialize() 要探测 ffmpeg 二进制。
+  // 代价是窗口刚出现时部分服务还没就绪，但那本来就有状态通道兜底。
+  createWindow();
+  focusMainWindow();
   try {
     await transcodeService.initialize();
   } catch (error) {
@@ -5230,8 +5269,6 @@ app.whenReady().then(async () => {
       void macController.recoverStrandedDock();
     }
   }
-  createWindow();
-  focusMainWindow();
   if (process.env.FOLIA_PENDING_DESKTOP_LYRIC === '1') {
     delete process.env.FOLIA_PENDING_DESKTOP_LYRIC;
     if (!isWallpaperModeEnabled()) {
@@ -5939,10 +5976,19 @@ registerLoginBackendIpc({
   getDefaultSession: () => session.defaultSession,
   neteaseBackend,
   qqBackend,
+  isTrustedSender: isFirstPartyWindowContents,
 });
 
-ipcMain.handle('kugou-api-status', () => kugouApiBridge.getStatus());
-ipcMain.handle('kugou-api-request', (_event, operation, params) => kugouApiBridge.request(operation, params));
+// The local HTTP bridge (QQ port/status, KuGou) is only meant for the two first-party
+// windows. A window.open() popup carries the same preload, so without this check any
+// renderer could read the embedded backend port and drive its API.
+ipcMain.handle('kugou-api-status', (event) => (isFirstPartyWindowContents(event) ? kugouApiBridge.getStatus() : null));
+ipcMain.handle('kugou-api-request', (event, operation, params) => {
+  if (!isFirstPartyWindowContents(event)) {
+    throw new Error('Untrusted renderer attempted to call the KuGou API bridge.');
+  }
+  return kugouApiBridge.request(operation, params);
+});
 ipcMain.handle('bodian-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };
@@ -6127,7 +6173,13 @@ ipcMain.handle('window-set-always-on-top', (event, enabled) => {
   return setMainWindowAlwaysOnTop(enabled);
 });
 
-ipcMain.handle('obs-browser-source-get-status', () => {
+ipcMain.handle('obs-browser-source-get-status', (event) => {
+  // 这个回包里带着明文 token 和完整 URL，是同组四个 handler 里唯一泄漏凭据的。
+  // 邻居（set-enabled / regenerate-token / publish-config）都校验了来源，这里漏了——
+  // 任何拿到 preload 的表面（远程控制窗、被 window.open 出来的窗口）都能读到它。
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to read OBS browser source status.');
+  }
   return buildObsBrowserSourceStatus();
 });
 

@@ -50,6 +50,8 @@ export interface ProviderCapabilities {
     userAlbums?: boolean;
     /** The provider accepts a listening report for a track the user actually played. */
     playbackReports?: boolean;
+    /** The provider exposes a read-only song comment list. */
+    comments?: boolean;
 }
 
 export interface ProviderAvailability {
@@ -246,8 +248,21 @@ export class OnlineProviderError extends Error {
     }
 }
 
+/** 搜索框联想的单条建议：value 是选中后填进搜索框的文本，detail 是副行（如歌手名）。 */
+export type OnlineSearchSuggestion = {
+    kind: 'song' | 'singer';
+    value: string;
+    detail?: string;
+    /** 单曲联想带一份正规化好的可播歌曲：点联想直接播，不经过结果页。 */
+    song?: UnifiedSong;
+};
+
 export interface OnlineSearchProvider {
     searchSongs(query: string, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
+    /** 输入联想（QQ smartbox）。没实现就没有联想，调用方按空数组处理。 */
+    getSmartboxSuggestions?(query: string): Promise<OnlineSearchSuggestion[]>;
+    /** 专辑/歌单类型搜索，返回集合卡；点卡片走现有集合详情，不新做 UI。 */
+    searchCollections?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
 export interface OnlinePlaybackProvider {
@@ -384,6 +399,22 @@ export interface OnlineLibraryProvider {
     getCloudCollection?(user?: ProviderUser): Promise<ProviderCollection | null>;
 }
 
+/**
+ * 歌单分类树（QQ 的「语种/流派/主题/心情/场景」分组）。
+ *  与  均为上游原生 id（字符串，不拆解），
+ * UI 只负责展示与选中，取数时原样交回 provider。
+ */
+export interface ProviderSongListCategoryGroup {
+    id: string;
+    label: string;
+    items: ProviderSongListCategoryItem[];
+}
+
+export interface ProviderSongListCategoryItem {
+    id: string;
+    label: string;
+}
+
 export interface OnlineCatalogProvider {
     canResolveSongCatalogRefs?(song: UnifiedSong): boolean;
     resolveSongCatalogRefs?(song: UnifiedSong): Promise<UnifiedSong>;
@@ -396,6 +427,10 @@ export interface OnlineCatalogProvider {
     getArtistAlbums?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     getArtistDetail?(id: MediaId): Promise<ProviderCollection | null>;
     getSubscriptionStatus?(type: 'playlist' | 'album', id: MediaId, collection?: ProviderCollection): Promise<boolean>;
+    /** 歌单分类树；没实现就没有分类筛选入口。 */
+    getSongListCategories?(): Promise<ProviderSongListCategoryGroup[]>;
+    /** 按分类取歌单广场（排序固定最热）。 */
+    getCategorySongLists?(categoryId: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
 /**
@@ -410,7 +445,35 @@ export interface PersonalFmRequestOptions {
 export interface OnlineRecommendationProvider {
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
-    getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
+    /**
+     * `context.seedSongId` 让 provider 能补一段「与当前这首相关」的内容。没有种子就只给
+     * 账号级的推荐 —— 传不传都必须能用，所以它是可选参数而不是另开一个方法。
+     *
+     * `context.scope` 选要哪一半：'personalized' 只要「跟这个账号有关」的（猜你喜欢/相似/雷达/新歌），
+     * 'editorial' 只要编辑选出来的歌单广场，'all'（默认）都要。
+     * 两个首页入口是两个语义不同的面：发现是「给你的」，电台是「大家都在听的」。
+     * 不分开的话两个 tab 会长得一模一样，用户无从判断该点哪个。
+     * `context.from` 是歌单广场的批次偏移（换一批用）；provider 不支持就当 0，不支持换批不算错。
+     */
+    getRecommendedCollections?(
+        limit: number,
+        context?: { seedSongId?: MediaId; from?: number; scope?: 'personalized' | 'editorial' | 'all' },
+    ): Promise<ProviderCollection[]>;
+    /**
+     * 按一首种子歌推同类。与 getPersonalFm 的差别：前者按账号画像给，后者按「此刻在听什么」给，
+     * 两者不能互相替代 —— 猜你喜欢换一百次也是那个口味，相似歌曲才会跟着当前这首走。
+     */
+    getSimilarSongs?(seed: MediaId, limit?: number): Promise<UnifiedSong[]>;
+    /**
+     * 取某一段推荐的具体歌曲，`section` 由 provider 自己定义（如 QQ 的 'radar' / 'new-songs'）。
+     * 与 `getRecommendedCollections` 的虚拟行是同一批数据的两种视图：那边给的是「一列歌」的壳子，
+     * 这边给的是壳子里的歌本身 —— 首页要平铺歌曲而不是让人点进去才看到，就要靠它。
+     * 与酷狗的推荐 cardId 是同一个约定。
+     */
+    getRecommendationRowSongs?(
+        section: string,
+        options?: { seedSongId?: MediaId; limit?: number },
+    ): Promise<UnifiedSong[]>;
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
@@ -429,8 +492,42 @@ export interface OnlineMutationProvider {
         playlist: MediaId | ProviderCollection,
         tracks: Array<MediaId | SongResult>,
     ): Promise<void>;
+    /** Create an owned playlist in the user's account and return it normalized. */
+    createPlaylist?(dirName: string): Promise<ProviderCollection>;
     subscribePlaylist?(playlist: MediaId | ProviderCollection, subscribed: boolean): Promise<void>;
     subscribeAlbum?(id: MediaId, subscribed: boolean): Promise<void>;
+}
+
+/** 一条歌曲评论。三家字段拼法各异，正规化到这一份；缺的留空，UI 按存在与否渲染。 */
+export type ProviderComment = {
+    id: MediaId;
+    content: string;
+    userName: string;
+    avatarUrl?: string;
+    likedCount?: number;
+    /** 我赞没赞（读态）。只有 provider 回得准才带；缺了就按未赞渲染，点赞能力位另判。 */
+    liked?: boolean;
+    /** 展示用的时间串，各平台自带（相对时间或日期），不再本地化以免口径打架。 */
+    timeStr?: string;
+    ipLocation?: string;
+    /** 热评置顶标记。 */
+    isHot?: boolean;
+};
+
+/**
+ * 歌曲评论区。读取匿名即可；点赞是写操作（动用户账号），按 provider 能力位逐家声明——
+ * 不给「看得到点不了」的假按钮。
+ */
+export interface OnlineCommentProvider {
+    getSongComments?(song: SongResult, limit: number, offset: number): Promise<ProviderPage<ProviderComment>>;
+    /**
+     * 盖楼：拉一条主评论下的回复。各平台游标不同（QQ 按 pagenum 页翻、网易按 time 游标走），
+     * 契约里统一 offset 语义对不齐的（网易）就只回首页并置 hasMore:false——宁可少翻一页，
+     * 也不能让 UI 对着不存在的游标请求出重复数据。
+     */
+    getCommentReplies?(song: SongResult, commentId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderComment>>;
+    /** 点赞/取消点赞一条评论。失败抛错，由 UI 回滚乐观态。 */
+    likeComment?(song: SongResult, commentId: MediaId, liked: boolean): Promise<void>;
 }
 
 export interface OnlineMusicProvider {
@@ -453,6 +550,7 @@ export interface OnlineMusicProvider {
     catalog?: OnlineCatalogProvider;
     recommendations?: OnlineRecommendationProvider;
     mutations?: OnlineMutationProvider;
+    comments?: OnlineCommentProvider;
 }
 
 // Public canonical contract consumed through the omni facade. Provider-prefixed

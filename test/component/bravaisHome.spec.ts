@@ -799,14 +799,19 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
     };
 
     test('the title goes first, then the tabs shrink to one letter, and the tools never crowd', async ({ page }) => {
-        // 1440×1100：标题 + 全名。
+        // 起点比别的用例高：本 fork 的首页在电台与专辑之间多了一个页签（发现），页头的测量副本因此
+        // 高一格，1440×1100 已经排不下标题行（测量式判定，见 useBravaisSeamTabsFit）。抬到 1200 让
+        // 标题级仍然可达，下面的阶梯（titled → untitled → short）与顺序都不变。
+        const TOP = 1200;
+        await resize(page, TOP);
+        // 1440×1200：标题 + 全名。
         let layout = await expectTidy(page);
         expect(layout.fit).toBe('titled');
         expect(layout.title).toMatchObject({ state: 'shown', text: 'Library' });
         expect(layout.title.height).toBeGreaterThan(10);
         // 标题是横排的一行小字，不再与页签列并排占一大块。
         expect(layout.title.height).toBeLessThan(30);
-        expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
+        expect(layout.tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'discover', 'albums', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         // 工具格固定的几格（探针没有队列入口）；本页签的与 app 级的入口都在「⋯」里，本页签的在前、分隔线、app 级的在后。
         expect(layout.tools.map(tool => tool.id)).toEqual(['search', 'settings', 'more']);
@@ -827,7 +832,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         const order = ['titled', 'untitled', 'short'];
         const firstAt = new Map<string, number>();
         let previous = 0;
-        for (let height = 1100; height >= 480; height -= 10) {
+        for (let height = TOP; height >= 480; height -= 10) {
             await resize(page, height);
             const fit = await root(page).getAttribute('data-bravais-home-fit');
             const rank = order.indexOf(fit ?? '');
@@ -851,9 +856,13 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         layout = await expectTidy(page);
         expect(layout.fit).toBe('short');
         expect(layout.title.state).toBe('hidden');
+        // 本 fork 在电台与专辑之间多了「发现」页签，并把电台页签改名为 Plaza（它现在是歌单广场：
+        // 编辑选出的热门歌单 + 分类筛选）。短形规则见 bravaisSeamTabLabels：取首字素，
+        // 撞车的那几个改取两个——Playlists 与 Plaza 同首字母 P，于是都变成 Pl。
         expect(layout.tabs.map(tab => [tab.text, tab.name, tab.title])).toEqual([
-            ['P', 'Playlists', 'Playlists'],
-            ['R', 'Radio', 'Radio'],
+            ['Pl', 'Playlists', 'Playlists'],
+            ['Pl', 'Plaza', 'Plaza'],
+            ['D', 'Discover', 'Discover'],
             ['A', 'Albums', 'Albums'],
             ['F', 'Folder', 'Folder'],
             ['N', 'Navi', 'Navi'],
@@ -869,7 +878,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders');
 
         // 再拉高：回到标题 + 全名。
-        await resize(page, 1100);
+        await resize(page, TOP);
         await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);

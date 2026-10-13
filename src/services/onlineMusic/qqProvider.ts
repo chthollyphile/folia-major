@@ -3,7 +3,9 @@ import type {
     AudioQualityPreference,
     MediaId,
     OnlineMusicProvider,
+    OnlineSearchSuggestion,
     ProviderCollection,
+    ProviderComment,
     ProviderLyricsResult,
     ProviderPage,
     ProviderUser,
@@ -11,9 +13,11 @@ import type {
     QrLoginState,
 } from '../../types/onlineMusic';
 import { OnlineProviderError } from '../../types/onlineMusic';
+import type { ProviderSongListCategoryGroup } from '../../types/onlineMusic';
+import { normalizeCommentText } from './commentText';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
-import { fetchQQLyrics, searchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
+import { QQ_SEARCH_TYPE, fetchQQLyrics, searchQQLyrics, searchQQByType } from '../../utils/lyrics/providers/qqLyricProvider';
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
@@ -33,6 +37,66 @@ const searchSongs = async (query: string, limit: number, offset: number) => {
     const results = await searchQQLyrics(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
     const items = results.map(normalizeQqSong);
     return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
+};
+
+// smartbox 联想：后端 controller 读 query 里的 `key`，回包是 `{ response: { data: { song/singer/... } } }`。
+// 单曲给 name + 歌手，歌手给 name（选中即搜歌手名）；MV 与专辑联想不进搜索框。
+// 单曲项额外带一份正规化好的可播歌曲：smartbox 的 singer 是平铺字符串，先映射成
+// normalizeQqSong 认的数组形状再正规化，点联想就能直接播，不必绕结果页。
+const getSmartboxSuggestions = async (query: string): Promise<OnlineSearchSuggestion[]> => {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    const response = await requestQq<any>('smartbox', { key: trimmed });
+    const data = response?.response?.data;
+    if (!data) return [];
+    const songItems = Array.isArray(data?.song?.itemlist) ? data.song.itemlist : [];
+    const singerItems = Array.isArray(data?.singer?.itemlist) ? data.singer.itemlist : [];
+    const readName = (item: unknown): string => {
+        const name = (item as { name?: unknown })?.name;
+        return typeof name === 'string' ? name.trim() : '';
+    };
+    const readSinger = (item: unknown): string => {
+        const singer = (item as { singer?: unknown })?.singer;
+        return typeof singer === 'string' ? singer.trim() : '';
+    };
+    const toPlayableShape = (item: Record<string, unknown>) => (
+        typeof item.singer === 'string'
+            ? { ...item, singer: [{ name: item.singer }] }
+            : item
+    );
+    return [
+        ...songItems.slice(0, 6).map((raw: unknown) => {
+            const item = (raw ?? {}) as Record<string, unknown>;
+            return {
+                kind: 'song' as const,
+                value: readName(item),
+                ...(readSinger(item) ? { detail: readSinger(item) } : {}),
+                song: normalizeQqSong(toPlayableShape(item)),
+            };
+        }),
+        ...singerItems.slice(0, 3).map((item: unknown) => ({
+            kind: 'singer' as const,
+            value: readName(item),
+        })),
+    ].filter(suggestion => suggestion.value.length > 0);
+};
+
+// 类型搜索：2=专辑（item_album）、3=歌单（item_songlist），一次各取一页。歌单卡不可写
+//（搜索到的是别人的歌单，normalizeQqCollection 认不出 owned），点卡片只导航。
+const searchCollections = async (query: string, limit: number, offset: number) => {
+    const trimmed = query.trim();
+    const page = Math.floor(offset / Math.max(1, limit)) + 1;
+    const [albums, playlists] = trimmed
+        ? await Promise.all([
+            searchQQByType(trimmed, page, limit, QQ_SEARCH_TYPE.album),
+            searchQQByType(trimmed, page, limit, QQ_SEARCH_TYPE.playlist),
+        ])
+        : [[], []];
+    const items = [
+        ...albums.map((item: unknown) => normalizeQqCollection(item, 'album')),
+        ...playlists.map((item: unknown) => normalizeQqCollection(item, 'playlist')),
+    ];
+    return { items, hasMore: false, nextOffset: offset + items.length };
 };
 
 const QQ_QUALITY_FALLBACKS: Record<
@@ -111,6 +175,218 @@ export const resetQqProviderRuntimeCache = (): void => {
     lastLoginStatusCheck = null;
 };
 
+// 推荐面向。猜你喜欢（刷歌）是唯一必须登录的一路；雷达与新歌速递各自一条上游接口。
+// 雷达和新歌没有独立的 provider 方法（`OnlineRecommendationProvider` 只约定了 getDailySongs /
+// getPersonalFm / getRecommendedCollections），所以按酷狗那套 `virtualRecommendation` 约定把它们
+// 伪装成歌单交给 UI：catalog 认出标记后回源拉歌，订阅与收藏这类写操作对它一律不适用。
+
+/** 新歌速递的地区页签：1 内地 / 2 欧美 / 3 日本 / 4 韩国 / 5 最新 / 6 港台。 */
+const QQ_NEW_SONG_TYPE = 5;
+
+/** 一次刷歌拉多少首。上游默认只回 5 条，连续刷歌靠这里一次多要一些。 */
+const QQ_PERSONAL_FM_SIZE = 30;
+
+/** 相似歌曲一段要多少首。后端封顶 50。 */
+const QQ_SIMILAR_SONG_SIZE = 20;
+
+/** 推荐歌单广场单页上限，与后端 `getRecommendPlaylists` 的封顶一致。 */
+const QQ_RECOMMEND_PLAYLIST_LIMIT = 40;
+
+type QqRecommendationRowId = 'similar' | 'radar' | 'new-songs';
+
+const QQ_RECOMMENDATION_ROWS: ReadonlyArray<{ id: QqRecommendationRowId; name: string }> = [
+    { id: 'similar', name: '相似歌曲' },
+    { id: 'radar', name: '雷达' },
+    { id: 'new-songs', name: '新歌速递' },
+];
+
+const asRecord = (value: unknown): Record<string, unknown> => (
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {}
+);
+
+/**
+ * 上游在不同接口上裹的层数不一样：`VecSongs[].Track` 与 `List[].Playlist.basic` 都要拆一层，
+ * 而 `tracks` / `songlist` 里的条目本身就是 Track。这里两种形状都认，免某一支改了包裹方式
+ * 就整行变空 —— 推荐行没有第二级数据源可以回退。
+ */
+const unwrapTrack = (value: unknown): unknown => {
+    const entry = asRecord(value);
+    const track = asRecord(entry.Track);
+    return Object.keys(track).length > 0 ? track : value;
+};
+
+const unwrapPlaylist = (value: unknown): unknown => {
+    const entry = asRecord(value);
+    const playlist = asRecord(entry.Playlist);
+    const basic = asRecord(playlist.basic);
+    return Object.keys(basic).length > 0 ? basic : value;
+};
+
+/**
+ * 归一化一批条目并丢掉没有 songmid 的。
+ * 判据是 `qqMid` 而不是 `sourceRef.mediaId`：后者在缺 mid 时会回退成数字 songId 而依然为真，
+ * 但 `getAudioSource` 与 catalog 解析都拿不到可用的 songmid，那种歌既播不了也点不开专辑。
+ */
+/**
+ * 歌单分类树（探针 2026-10-08）：上游  里每组带
+ *  与 （ 是数字字符串， 是中文名）。
+ * id 全部原样字符串化不做拆解：那些数字是上游的内部键，拆开就丢了连续性。
+ */
+/**
+ * 上游分类名带 HTML 实体（实测 ，即 R&B）。
+ * 只解决显示，id 不动：那些实体是上游注释编码，不解码用户就看到一串“&#38;”。
+ */
+export const decodeQqEntities = (text: string): string => text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+export const toQqCategoryGroups = (raw: unknown): ProviderSongListCategoryGroup[] => {
+    const groups = (raw as { response?: { data?: { categories?: unknown[] } } })
+        ?.response?.data?.categories;
+    if (!Array.isArray(groups)) return [];
+
+    return groups.map((group: any) => ({
+        id: String(group?.categoryGroupId ?? group?.categoryGroupName ?? ''),
+        label: decodeQqEntities(String(group?.categoryGroupName ?? '')),
+        items: (Array.isArray(group?.items) ? group.items : []).map((item: any) => ({
+            id: String(item?.categoryId ?? ''),
+            label: decodeQqEntities(String(item?.categoryName ?? '')),
+        })),
+        // 分组名空白或者没有条目的组是无意义占位，不要呈现给用户。
+    })).filter(group => group.label && group.items.length > 0);
+};
+
+/**
+ * 按分类拉歌单广场（排序固定最热 sortId=5，采用上游默认这个最稳的值）。
+ * 内容与其他广场场景完全同构： + 。
+ */
+const fetchQqCategorySongLists = async (
+    categoryId: string,
+    limit: number,
+    offset: number,
+): Promise<ProviderPage<ProviderCollection>> => {
+    const response = await requestQq<any>('song_lists', {
+        categoryId,
+        sortId: 5,
+        page: Math.floor(Math.max(0, offset) / Math.max(1, limit)),
+        limit,
+    });
+    const data = response?.response?.data ?? {};
+    // 过滤空 id：正规化在 tid/dissid/rawId/dirId 全部缺失时会给出 `id: ''`，
+    // 而卡片的 React key 就是这个 id——两张空 id 卡片会把整片网格拉崩。
+    // 同一个仓库里的 getArtistAlbums / getArtistSongs 都有这一扇。
+    const list = (Array.isArray(data?.list) ? data.list : [])
+        .map((item: unknown) => normalizeQqCollection(item, 'playlist'))
+        .filter((collection: ProviderCollection) => collection.id !== '');
+    const total = Number(data?.sum) || list.length;
+    return {
+        items: list,
+        total,
+        hasMore: offset + list.length < total,
+        nextOffset: offset + list.length,
+    };
+};
+
+const toQqSongs = (raw: unknown): UnifiedSong[] => (
+    Array.isArray(raw)
+        ? raw.map(unwrapTrack).map(normalizeQqSong).filter(song => Boolean(song.qqMid))
+        : []
+);
+
+/**
+ * QQ h5 评论字段拼法特殊（探针 2026-10-08 实测晴天）：正文是 rootcommentcontent
+ * （不是 content！读错会把每条评论当空过滤掉 → 热门歌也显示「还没有评论」）、
+ * 点赞 praisenum、时间 time（unix 秒）、头像 avatarurl。表情是 [em]xxxx[/em] 标记，剥掉只留文字。
+ * 主评论（hot/comment 两栏）与楼层回复共用这一份映射，别复制粘贴出第二套。
+ */
+const mapQqCommentList = (list: any, isHot: boolean): ProviderComment[] => {
+    return (Array.isArray(list) ? list : [])
+        .map((raw: any): ProviderComment | null => {
+            const content = normalizeCommentText(raw?.rootcommentcontent ?? raw?.middlecommentcontent ?? raw?.content);
+            if (!content) return null;
+            const likedCount = Number(raw?.praisenum ?? raw?.agree?.num);
+            const timeSec = Number(raw?.time ?? raw?.addtime);
+            return {
+                id: raw?.rootcommentid ?? raw?.commentid ?? 0,
+                content,
+                userName: String(raw?.nick || raw?.rootcommentnick || raw?.username || '匿名'),
+                avatarUrl: raw?.avatarurl ? String(raw.avatarurl).replace(/^http:/, 'https:') : undefined,
+                ...(Number.isFinite(likedCount) && likedCount >= 0 ? { likedCount } : {}),
+                // ispraise=我赞没赞。读取匿名时它恒 0（上游按观看者算），只有带登录态读才可信——
+                // 但如实映射没有副作用；QQ 点赞写通道另有一关（见 likeComment 未声明的注释）。
+                ...(raw?.ispraise !== undefined && raw?.ispraise !== null ? { liked: Number(raw.ispraise) > 0 } : {}),
+                ...(Number.isFinite(timeSec) && timeSec > 0 ? { timeStr: new Date(timeSec * 1000).toISOString().slice(0, 10) } : {}),
+                ...(isHot ? { isHot: true } : {}),
+            } satisfies ProviderComment;
+        })
+        .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+};
+
+/**
+ * 解析出上游写操作要的数字 songId。
+ * 红心（AddSonglist）只认数字 id，而对外身份是 songmid —— 对象歌优先用已带的数字 id，
+ * 只有一个 mid 时补一次歌曲详情（有去重缓存）。解析不出就返回 null，调用方决定怎么报错。
+ */
+const resolveQqNumericSongId = async (song: MediaId | SongResult): Promise<number | null> => {
+    if (typeof song === 'object' && song !== null) {
+        const direct = Number(song.id);
+        if (Number.isFinite(direct) && direct > 0) return direct;
+        const mid = getQqSongMid(song);
+        if (!mid) return null;
+        const detail = await requestQqSongDetail(mid);
+        return detail ? (Number(detail.id) || null) : null;
+    }
+    const direct = Number(song);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const detail = await requestQqSongDetail(String(song));
+    return detail ? (Number(detail.id) || null) : null;
+};
+
+const isQqVirtualRecommendation = (collection?: ProviderCollection): boolean => (
+    collection?.providerData?.virtualRecommendation === true
+);
+
+const getQqRecommendationRowId = (collection?: ProviderCollection): QqRecommendationRowId | undefined => {
+    const rowId = String(collection?.providerData?.rowId ?? '');
+    return QQ_RECOMMENDATION_ROWS.some(row => row.id === rowId) ? rowId as QqRecommendationRowId : undefined;
+};
+
+const getQqRecommendationSeed = (collection?: ProviderCollection): string => (
+    String(collection?.providerData?.seedSongId ?? '')
+);
+
+/**
+ * 回源拉一个虚拟推荐行的歌曲。按 rowId 分派到各自的上游接口。
+ *
+ * `similar` 一行必须带种子（当前正在听的那首），没有种子就返回空 —— 相似歌曲是唯一一段
+ * 跟着播放状态走的内容，没种子时它没有意义，宁可不出也不给一份账号级的通用推荐冒充。
+ */
+const loadQqRecommendationRow = async (
+    rowId: QqRecommendationRowId,
+    seedSongId?: string,
+): Promise<UnifiedSong[]> => {
+    if (rowId === 'similar') {
+        const seed = String(seedSongId ?? '').trim();
+        if (!seed) return [];
+        // 上游只认 songid 一个键；多带 num 会回 code 10006（实测）。条数由上游决定。
+        const response = await requestQq<any>('recommend_similar', { songid: seed });
+        return toQqSongs(response?.tracks);
+    }
+    if (rowId === 'radar') {
+        const response = await requestQq<any>('recommend_radar', { page: 0 });
+        return toQqSongs(response?.tracks);
+    }
+    const response = await requestQq<any>('recommend_new_songs', { type: QQ_NEW_SONG_TYPE });
+    return toQqSongs(response?.songs);
+};
+
 /**
  * 带凭据地读用户自己的歌单，响应形状与 `/user/liked-songs` 一致。
  *
@@ -170,6 +446,22 @@ const getPlaylistTracks = async (
 ): Promise<ProviderPage<ReturnType<typeof normalizeQqSong>>> => {
     const safeLimit = Math.max(1, limit);
     const safeOffset = Math.max(0, offset);
+
+    // 雷达 / 新歌速递没有上游歌单 id：它们是 getRecommendedCollections 造出来的虚拟歌单，
+    // 曲目要回源重拉。这里先于 dirId 判断走，否则它们会被当成普通歌单打到一个无效 id 上。
+    const virtualRowId = getQqRecommendationRowId(collection);
+    if (virtualRowId) {
+        const items = await loadQqRecommendationRow(virtualRowId, getQqRecommendationSeed(collection));
+        const page = items.slice(safeOffset, safeOffset + safeLimit);
+        return {
+            items: page,
+            total: items.length,
+            // 虚拟歌单是一次性拉回整行的，没有真正的下一页
+            hasMore: safeOffset + page.length < items.length,
+            nextOffset: safeOffset + page.length,
+        };
+    }
+
     const dirId = Number(collection?.providerData?.dirId);
     const owned = collection?.providerData?.owned === true;
 
@@ -212,10 +504,16 @@ const getPlaylistTracks = async (
         .slice(offset, offset + Math.max(0, limit))
         .map(normalizeQqSong);
     const nextOffset = offset + items.length;
+    // 匿名这条路由会把歌单截断：上游 total_song_num 说 100 首，songlist 只给 1 首。
+    // 原样透传的话卡片会写「共 100 首」，而用户点到底也翻不出剩下的——只会以为应用坏了。
+    // 对不齐时以「真的拿得到」为准（契约有专门的回归测试：never reports more songs than the
+    // anonymous route can actually return）。hasMore 同样按实到条数算，避免无限翻页。
+    const reachableTotal = tracks.length;
+    const reportedTotal = total === undefined ? undefined : Math.min(total, reachableTotal);
     return {
         items,
-        ...(total === undefined ? {} : { total }),
-        hasMore: nextOffset < tracks.length,
+        ...(reportedTotal === undefined ? {} : { total: reportedTotal }),
+        hasMore: nextOffset < reachableTotal,
         nextOffset,
     };
 };
@@ -785,11 +1083,13 @@ export const qqProvider: OnlineMusicProvider = {
         playlists: true,
         albums: true,
         artists: true,
-        recommendations: false,
-        mutations: false,
+        recommendations: true,
+        mutations: true,
+        playlistTrackMutations: true,
         wordByWordLyrics: true,
         likes: true,
         userAlbums: true,
+        comments: true,
     },
     normalizeSong: normalizeQqSong,
     normalizeUser: normalizeQqUser,
@@ -799,7 +1099,7 @@ export const qqProvider: OnlineMusicProvider = {
             return createProviderSongMetadata(song);
         },
     },
-    search: { searchSongs },
+    search: { searchSongs, searchCollections, getSmartboxSuggestions },
     playback: { getSongDetail, getAudioSource },
     lyrics: { getLyrics },
     auth: {
@@ -841,6 +1141,153 @@ export const qqProvider: OnlineMusicProvider = {
             });
         },
     },
+    recommendations: {
+        // 刷歌。队列接近末尾时 omni 会反复调这里，所以一次多要一些，并且每首都过一遍
+        // normalizeQqSong —— 上游偶尔会混进没有 mid 的条目，那种歌既播不了也点不开。
+        async getPersonalFm() {
+            const response = await requestQq<any>('recommend_radio', { num: QQ_PERSONAL_FM_SIZE });
+            return toQqSongs(response?.tracks);
+        },
+        async getRecommendationRowSongs(section, options) {
+            const row = QQ_RECOMMENDATION_ROWS.find(candidate => candidate.id === section);
+            if (!row) return [];
+            // seedSongId 在契约上是 MediaId（可能是数字），回源统一按字符串处理。
+            const seed = options?.seedSongId !== undefined ? String(options.seedSongId) : '';
+            const songs = await loadQqRecommendationRow(row.id, seed);
+            return options?.limit ? songs.slice(0, options.limit) : songs;
+        },
+        async getSimilarSongs(seed, limit = QQ_SIMILAR_SONG_SIZE) {
+            const songid = String(seed ?? '').trim();
+            if (!songid) return [];
+            // 同上：param 只有 songid。limit 只是本地上限，超出的丢掉。
+            const response = await requestQq<any>('recommend_similar', { songid });
+            return toQqSongs(response?.tracks).slice(0, limit);
+        },
+        async getRecommendedCollections(limit, context) {
+            const seedSongId = context?.seedSongId !== undefined ? String(context.seedSongId) : '';
+            // scope 把两个首页入口分成互不重叠的两半：发现要 personal（FM/相似/雷达/新歌），
+            // 电台要 editorial（编辑选出来的歌单广场）。不给的那一半连请求都不发。
+            const scope = context?.scope ?? 'all';
+            const wantEditorial = scope !== 'personalized';
+            const wantPersonal = scope !== 'editorial';
+            const wanted = Math.min(QQ_RECOMMEND_PLAYLIST_LIMIT, Math.max(1, Math.floor(limit) || 1));
+            // 四路各自独立，一条挂了不该让整行消失，所以逐个兜底而不是 Promise.all 一锅端。
+            const [playlistResponse, ...rows] = await Promise.all([
+                wantEditorial
+                    ? requestQq<any>('recommend_playlists', { from: Math.max(0, Math.floor(context?.from ?? 0)), size: wanted })
+                    .catch((error: unknown) => {
+                        console.warn('[QQProvider] recommend:playlists-failed', errorFields(error));
+                        return null;
+                    })
+                    : Promise.resolve(null),
+                ...(wantPersonal ? QQ_RECOMMENDATION_ROWS : []).map(row => (
+                    loadQqRecommendationRow(row.id, seedSongId).catch((error: unknown) => {
+                        console.warn('[QQProvider] recommend:row-failed', {
+                            rowId: row.id,
+                            ...errorFields(error),
+                        });
+                        return [] as UnifiedSong[];
+                    })
+                )),
+            ]);
+
+            const playlists = Array.isArray(playlistResponse?.playlists)
+                ? playlistResponse.playlists
+                    .map(unwrapPlaylist)
+                    .map((item: unknown) => normalizeQqCollection(item, 'playlist'))
+                    .filter((collection: ProviderCollection) => collection.id !== '')
+                : [];
+
+            // 这里必须和上面的请求列表用同一个范围：scope 为 editorial 时 rows 是空的，
+            // 若还遍历全部三行，`rows[index]` 就是 undefined，`.length` 直接抛异常，
+            // 整个 getRecommendedCollections 连坐失败，电台页会空掉。
+            const virtualRows = (wantPersonal ? QQ_RECOMMENDATION_ROWS : []).flatMap((row, index) => {
+                const songs = rows[index] as UnifiedSong[] | undefined;
+                return songs && songs.length > 0
+                    ? [{
+                        providerId: 'qq',
+                        id: `qq-recommend-${row.id}`,
+                        name: row.name,
+                        type: 'playlist' as const,
+                        ...(songs[0]?.album.coverUrl ? { coverUrl: songs[0].album.coverUrl } : {}),
+                        trackCount: songs.length,
+                        providerData: {
+                            virtualRecommendation: true,
+                            rowId: row.id,
+                            seedSongId: row.id === 'similar' ? seedSongId : '',
+                        },
+                    } satisfies ProviderCollection]
+                    : [];
+            });
+
+            // 顺序有语义：先是跟「你」和「此刻在听」挂钩的虚拟行，再是编辑选出来的歌单广场。
+            // 反过来会把「抖音热门」摆在最前面，让人误以为这就是它的个性化推荐。
+            return [...virtualRows, ...playlists];
+        },
+        // 电台「不感兴趣」：QQ 的反馈接口只认数字 songId，mid 要先解析一次。
+        // 上游不回替换曲（与网易/酷狗的 dislike 不同），replacement 留空，调用方（FmTab 垃圾桶）
+        // 自己 handleNextTrack。旧后端 404 → requestQq 抛 unsupported，omni.canDislikeSong 已把它挡在门外。
+        async dislikeSong(id) {
+            const songId = await resolveQqNumericSongId(id);
+            if (!songId) {
+                throw new OnlineProviderError('unsupported', 'QQ dislike requires a resolvable numeric song id', 'qq');
+            }
+            await requestQq('recommend_radio_dislike', { songid: String(songId) });
+            return {};
+        },
+    },
+    mutations: {
+        // 红心 = 写进官方「我喜欢」目录（dirid 201）。omni 的 canLikeSong 认的就是这个方法。
+        async likeSong(song, liked) {
+            const songId = await resolveQqNumericSongId(song);
+            if (!songId) {
+                throw new OnlineProviderError('unsupported', 'QQ like requires a resolvable numeric song id', 'qq');
+            }
+            await requestQq(liked ? 'like_song' : 'unlike_song', { songid: String(songId) });
+        },
+        // 只有自己建的歌单可写（normalizeQqCollection 用 dirName 判 owned）；收藏来的上游会拒。
+        canAddToPlaylist: playlist => (
+            Boolean(playlist.providerData?.owned) && Number(playlist.providerData?.dirId) > 0
+        ),
+        async updatePlaylistTracks(operation, playlist, tracks) {
+            const dirId = typeof playlist === 'object'
+                ? Number(playlist.providerData?.dirId)
+                : Number.NaN;
+            if (!Number.isFinite(dirId) || dirId <= 0) {
+                throw new OnlineProviderError('unsupported', 'QQ playlist write requires an owned playlist dirId', 'qq');
+            }
+            const resolved = await Promise.all(tracks.map(track => resolveQqNumericSongId(track)));
+            const songIds = resolved.filter((id): id is number => typeof id === 'number' && id > 0);
+            if (songIds.length === 0) {
+                throw new OnlineProviderError('unsupported', 'no track resolved to a numeric QQ song id', 'qq');
+            }
+            // operation 必须显式传：后端 recommend 控制器是 `operation === 'del' ? del : add`，
+            // 缺省当成添加。曾经这里写成 `operation === 'add' ? 'playlist_songs' : 'playlist_songs'`
+            // （两个分支一样、字段也没给），删歌会被后端执行成加歌——用户侧是「删不掉、越删越多」。
+            await requestQq('playlist_songs', {
+                dirid: String(dirId),
+                songids: songIds.join(','),
+                operation: operation === 'add' ? 'add' : 'del',
+            });
+        },
+        // 后端 AddPlaylist 的回包形状不稳定（不带 dirId），所以建完重拉自建歌单按名字认领；
+        // 认领不到就报错，让上层把「建了但不知道建到哪」如实交给用户，而不是返回一个空壳集合。
+        async createPlaylist(dirName) {
+            const trimmed = dirName.trim();
+            if (!trimmed) {
+                throw new OnlineProviderError('unsupported', 'QQ playlist create requires a non-empty name', 'qq');
+            }
+            await requestQq('playlist_create', { dirname: trimmed });
+            const page = await getUserPlaylists('' as MediaId, 100, 0);
+            const created = page.items.find(
+                item => item.name === trimmed && Boolean(item.providerData?.owned),
+            );
+            if (!created) {
+                throw new OnlineProviderError('invalid-response', 'QQ playlist create was accepted but the playlist was not found afterwards', 'qq');
+            }
+            return created;
+        },
+    },
     library: { getUserPlaylists, getUserAlbums, getLikedSongIds },
     catalog: {
         // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。
@@ -852,5 +1299,51 @@ export const qqProvider: OnlineMusicProvider = {
         getArtistDetail,
         getArtistSongs,
         getArtistAlbums,
+        async getSongListCategories() {
+            const response = await requestQq<unknown>('song_list_categories');
+            return toQqCategoryGroups(response);
+        },
+        getCategorySongLists: fetchQqCategorySongLists,
+    },
+    comments: {
+        // QQ 歌曲评论走 legacy h5 通道，匿名即可（探针 2026-10-08 判别：topid 必须是**数字 songid**，
+        // 传 mid 会 code:0 commenttotal:0 假空）。所以先像 likeSong 那样把 mid 解析成数字 id 再打。
+        // 上游热评/普通评论分两栏（hot_comment / comment），这里热评置顶再拼普通评论。
+        async getSongComments(song, limit, offset) {
+            const songId = await resolveQqNumericSongId(song);
+            if (!songId) return { items: [], hasMore: false, nextOffset: offset };
+            const response = await requestQq<any>('get_comments', {
+                id: String(songId),
+                pagesize: limit,
+                pagenum: Math.floor(offset / Math.max(1, limit)),
+            });
+            const resp = response?.response ?? {};
+            const items = [
+                ...mapQqCommentList(resp?.hot_comment?.commentlist, true),
+                ...mapQqCommentList(resp?.comment?.commentlist, false),
+            ];
+            // 上游 h5 评论翻页用的是 lasthotcommentid 游标（上一页末条的 rootcommentid），
+            // 不是页码；我们没有线程化这个游标，所以只出首页，别给 UI 一个会 400 的「加载更多」。
+            return { items, total: items.length, hasMore: false, nextOffset: offset };
+        },
+
+        // 楼层回复与主评论同路由，只是 cmd=6 且 rootcommentid=主评论 id（fork 控制器把它转成
+        // lasthotcommentid 传给 h5）。实测（晴天 2026-10-08）：回 response.comment.commentlist，
+        // 形状与主评论条目一致，pagenum 可真翻页。
+        async getCommentReplies(song, commentId, limit, offset) {
+            const songId = await resolveQqNumericSongId(song);
+            if (!songId || !commentId) return { items: [], hasMore: false, nextOffset: offset };
+            const response = await requestQq<any>('get_comments', {
+                id: String(songId),
+                cmd: 6,
+                rootcommentid: String(commentId),
+                pagesize: limit,
+                pagenum: Math.floor(offset / Math.max(1, limit)),
+            });
+            const section = response?.response?.comment ?? {};
+            const items = mapQqCommentList(section?.commentlist, false);
+            const total = Number(section?.commenttotal) || items.length;
+            return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
+        },
     },
 };

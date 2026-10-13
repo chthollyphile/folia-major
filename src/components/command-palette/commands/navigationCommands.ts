@@ -36,6 +36,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
     createHomeTabCommand('albums', 'Open albums', 'Open albums tab', ['albums', 'album', '专辑']),
     createHomeTabCommand('navidrome', 'Open Navidrome', 'Open Navidrome tab', ['navidrome', 'navi', '服务器']),
     createHomeTabCommand('radio', 'Open radio', 'Open radio tab', ['radio', 'fm', '电台']),
+    createHomeTabCommand('discover', 'Open discover', 'Open discover home tab', ['discover', 'recommend', '发现', '推荐', '刷歌']),
     {
         id: 'desktop-toggle-remote-control',
         platform: ['electron'],

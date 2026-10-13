@@ -7,6 +7,7 @@ const clearSessionMock = vi.hoisted(() => vi.fn());
 const writeSessionValueMock = vi.hoisted(() => vi.fn());
 const searchQQLyricsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
+const searchQQByTypeMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
 vi.mock('@/services/onlineMusic/qqTransport', () => ({
@@ -24,6 +25,8 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
 vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
     searchQQLyrics: searchQQLyricsMock,
     fetchQQLyrics: fetchQQLyricsMock,
+    searchQQByType: searchQQByTypeMock,
+    QQ_SEARCH_TYPE: { song: 7, album: 2, playlist: 3 },
 }));
 
 import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qqProvider';
@@ -40,6 +43,27 @@ const SEARCH_ITEM = {
     album: { id: 8112, mid: '0016l2F430zMux', name: '乐与怒' },
     file: { media_mid: '001MediaMidFixture' },
     interval: 326,
+};
+
+// `/getSongInfo`（`music.pf_song_detail_svr` 同族）响应：红心/歌单写操作要的数字 songId
+// 就从这里补齐 —— 对外身份是 songmid，写接口只认数字 id。
+const SONG_INFO_RESPONSE = {
+    response: {
+        code: 0,
+        songinfo: {
+            data: {
+                track_info: {
+                    id: 5105918,
+                    mid: '003rJSwm3TechU',
+                    name: '海阔天空',
+                    singer: [{ id: 4558, mid: '0025NhlN2yWrP4', name: 'Beyond' }],
+                    album: { id: 8112, mid: '0016l2F430zMux', name: '乐与怒' },
+                    file: { media_mid: '001MediaMidFixture' },
+                    interval: 326,
+                },
+            },
+        },
+    },
 };
 
 // Sanitized GetPlaylistByUin shape captured during account acceptance testing.
@@ -162,21 +186,381 @@ describe('qqProvider', () => {
         writeSessionValueMock.mockReset();
         searchQQLyricsMock.mockReset();
         fetchQQLyricsMock.mockReset();
+        searchQQByTypeMock.mockReset();
         transportState.hasSession = true;
         resetQqProviderRuntimeCache();
     });
 
-    it('declares readable library features without exposing unsupported mutations or recommendations', () => {
+    it('declares library features, recommendations and mutations', () => {
         expect(qqProvider.capabilities).toMatchObject({
             userLibrary: true,
             playlists: true,
             userAlbums: true,
             likes: true,
-            recommendations: false,
-            mutations: false,
+            recommendations: true,
+            mutations: true,
+            playlistTrackMutations: true,
         });
-        expect(qqProvider.mutations).toBeUndefined();
-        expect(qqProvider.recommendations).toBeUndefined();
+        expect(qqProvider.mutations).toBeDefined();
+        expect(qqProvider.recommendations).toBeDefined();
+    });
+
+    // 红心 = 写进「我喜欢」目录（dirid 201）。数字 id 来自歌曲对象本身；
+    // 只有一个 mid 时应先补详情换数字 id，不能拿 mid 去打写接口。
+    it('likes a song through the numeric id and unlikes through the same route', async () => {
+        requestMock
+            .mockImplementation(async (operation: string) => {
+                if (operation === 'song_info') return SONG_INFO_RESPONSE;
+                return { code: 200 };
+            });
+
+        await qqProvider.mutations?.likeSong?.({
+            id: '003rJSwm3TechU',
+            name: '海阔天空',
+            sourceRef: { kind: 'online', providerId: 'qq', mediaId: '003rJSwm3TechU' },
+        } as never, true);
+        expect(requestMock).toHaveBeenCalledWith('like_song', { songid: '5105918' });
+
+        await qqProvider.mutations?.likeSong?.(5105918, false);
+        expect(requestMock).toHaveBeenCalledWith('unlike_song', { songid: '5105918' });
+    });
+
+    // 电台「不感兴趣」：mid 先解析成数字 id 再打 feedback_radio，上游不回替换曲（replacement 空）。
+    it('dislikes a radio song through the numeric id', async () => {
+        requestMock
+            .mockImplementation(async (operation: string) => {
+                if (operation === 'song_info') return SONG_INFO_RESPONSE;
+                return { code: 200 };
+            });
+
+        const result = await qqProvider.recommendations?.dislikeSong?.('003rJSwm3TechU');
+        expect(requestMock).toHaveBeenCalledWith('recommend_radio_dislike', { songid: '5105918' });
+        expect(result).toEqual({});
+    });
+
+    it('refuses to dislike when the numeric id cannot be resolved', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'song_info') return null;
+            return { code: 200 };
+        });
+        await expect(qqProvider.recommendations?.dislikeSong?.('badmid'))
+            .rejects.toMatchObject({ code: 'unsupported' });
+        expect(requestMock).not.toHaveBeenCalledWith('recommend_radio_dislike', expect.anything());
+    });
+
+    // QQ 歌曲评论：topid 必须是数字 songid（mid 会假空），先解析再打；热评置顶再拼普通评论。
+    it('merges hot and normal comments fetched by numeric songid', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'song_info') return SONG_INFO_RESPONSE;
+            if (operation === 'get_comments') {
+                return {
+                    response: {
+                        hot_comment: { commentlist: [{ rootcommentid: 'h1', rootcommentcontent: '热评[em]e1[/em]', nick: 'A', praisenum: 500, time: 1700000000, avatarurl: 'http://x/a.jpg', ispraise: 1 }] },
+                        comment: { commentlist: [{ rootcommentid: 'c1', rootcommentcontent: '普通\\n第二行\\/斜杠', nick: 'B', praisenum: 2 }, { rootcommentid: 'c2', rootcommentcontent: '   ', nick: '空' }], commenttotal: 100 },
+                    },
+                };
+            }
+            return { code: 200 };
+        });
+        const commentSong = { id: '003rJSwm3TechU', name: '海阔天空', sourceRef: { kind: 'online', providerId: 'qq', mediaId: '003rJSwm3TechU' } } as never;
+        const page = await qqProvider.comments?.getSongComments?.(commentSong, 20, 0);
+        expect(page?.items).toHaveLength(2);
+        // 正文取 rootcommentcontent 且剥掉 [em] 表情；点赞 praisenum、头像 avatarurl 升 https
+        expect(page?.items[0]).toMatchObject({ id: 'h1', isHot: true, content: '热评', likedCount: 500, userName: 'A', avatarUrl: 'https://x/a.jpg', liked: true });
+        expect(page?.items[1]).toMatchObject({ id: 'c1', content: '普通\n第二行/斜杠' });
+        expect(page?.items[1]).not.toHaveProperty('liked');
+        // 关键：get_comments 的 topid 用的是解析出的数字 id，不是 mid
+        expect(requestMock).toHaveBeenCalledWith('get_comments', expect.objectContaining({ id: '5105918' }));
+    });
+
+    // 锁死现状（探针 2026-10-08）：评论点赞的 h5 通道拒收安卓扫码凭证（g_tk 过后仍 code -1），
+    // 音乐 app 会话接不通；在拿到 web 登录通道/已证实的 musicu 评论模块之前，QQ 不声明 likeComment，
+    // UI 连假按钮都不出。接通后实现这个方法并把断言反过来。
+    it('does not expose comment likes until the write channel authenticates', () => {
+        expect(qqProvider.comments?.likeComment).toBeUndefined();
+    });
+
+    // 楼中楼回复：cmd=6 + rootcommentid 走同一路由，形状同主评论、commenttotal 可真翻页。
+    it('loads comment replies via cmd=6 with the parent comment id', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'song_info') return SONG_INFO_RESPONSE;
+            if (operation === 'get_comments') {
+                return {
+                    response: {
+                        comment: { commentlist: [{ rootcommentid: 'r1', rootcommentcontent: '回复一', nick: 'C', praisenum: 3, time: 1700000000 }], commenttotal: 417 },
+                    },
+                };
+            }
+            return { code: 200 };
+        });
+        const commentSong = { id: '003rJSwm3TechU', name: '海阔天空', sourceRef: { kind: 'online', providerId: 'qq', mediaId: '003rJSwm3TechU' } } as never;
+        const page = await qqProvider.comments?.getCommentReplies?.(commentSong, 'c-root-1', 20, 0);
+        expect(page?.items).toHaveLength(1);
+        expect(page?.items[0]).toMatchObject({ id: 'r1', content: '回复一', userName: 'C', likedCount: 3 });
+        expect(page?.hasMore).toBe(true);
+        expect(page?.total).toBe(417);
+        expect(requestMock).toHaveBeenCalledWith('get_comments', expect.objectContaining({
+            id: '5105918', cmd: 6, rootcommentid: 'c-root-1',
+        }));
+    });
+
+    // 新建歌单：后端 AddPlaylist 的回包不带 dirId，所以建完重拉自建歌单按名字认领。
+    // 后端控制器读的是小写 `dirname` 查询参数，传错大小写会被 400 拒收。
+    it('creates a playlist and claims it back by name from the owned list', async () => {
+        requestMock
+            .mockImplementation(async (operation: string) => {
+                if (operation === 'playlist_create') return { code: 200, data: {} };
+                if (operation === 'user_playlist') {
+                    return {
+                        total: 1,
+                        playlist: [{ ...PLAYLIST_ITEM, tid: 8, dirId: 202, dirName: '我的测试歌单', songNum: 0 }],
+                    };
+                }
+                return { code: 200 };
+            });
+
+        const created = await qqProvider.mutations?.createPlaylist?.('我的测试歌单');
+
+        expect(requestMock).toHaveBeenCalledWith('playlist_create', { dirname: '我的测试歌单' });
+        expect(created).toMatchObject({
+            name: '我的测试歌单',
+            providerId: 'qq',
+            type: 'playlist',
+        });
+        expect(created?.providerData).toMatchObject({ owned: true, dirId: 202 });
+    });
+
+    it('refuses an empty playlist name without calling the write route', async () => {
+        await expect(qqProvider.mutations?.createPlaylist?.('   ')).rejects.toMatchObject({
+            code: 'unsupported',
+        });
+        expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    it('reports an invalid response when a created playlist cannot be claimed afterwards', async () => {
+        requestMock
+            .mockImplementation(async (operation: string) => {
+                if (operation === 'playlist_create') return { code: 200, data: {} };
+                if (operation === 'user_playlist') return { total: 0, playlist: [] };
+                return { code: 200 };
+            });
+
+        await expect(qqProvider.mutations?.createPlaylist?.('我的测试歌单')).rejects.toMatchObject({
+            code: 'invalid-response',
+        });
+    });
+
+    // smartbox 联想：后端回包是 `{ response: { data: { song, singer } } }`；单曲带歌手作副行，
+    // 歌手项选中即搜歌手名；MV/专辑联想不进搜索框，空查询直接短路。
+    it('reads smartbox suggestions out of the wrapped response and drops empty ones', async () => {
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'smartbox') {
+                return {
+                    response: {
+                        code: 0,
+                        data: {
+                            song: {
+                                itemlist: [
+                                    { id: 4835784, mid: '001yS0N33yPm1B', name: '海阔天空', singer: 'BEYOND' },
+                                    { id: 453246231, mid: '001FNg1I3mmdsP', name: '海阔天空', singer: 'G.E.M.邓紫棋' },
+                                    { id: 106643901, mid: '002rZjwv4ddzKt', name: '', singer: '' },
+                                ],
+                            },
+                            singer: {
+                                itemlist: [{ id: 38603, mid: '003yKo3P1yilYs', name: '海阔天空', singer: '海阔天空' }],
+                            },
+                            album: { itemlist: [{ id: 8561, mid: '002XWx9122oM17', name: '海阔天空', singer: '信乐团' }] },
+                            mv: { itemlist: [{ id: 134009, mid: '0024jbha2gPk27', name: '海阔天空', singer: 'BEYOND' }] },
+                        },
+                    },
+                };
+            }
+            return { code: 200 };
+        });
+
+        const suggestions = await qqProvider.search?.getSmartboxSuggestions?.('海阔天空');
+
+        expect(requestMock).toHaveBeenCalledWith('smartbox', { key: '海阔天空' });
+        expect(suggestions).toHaveLength(3);
+        expect(suggestions?.[0]).toMatchObject({ kind: 'song', value: '海阔天空', detail: 'BEYOND' });
+        // 单曲联想必须带可播歌曲：mid 进 qqMid，平铺的 singer 字符串要映射成数组歌手
+        expect(suggestions?.[0]?.song).toMatchObject({
+            qqMid: '001yS0N33yPm1B',
+            name: '海阔天空',
+            artists: [{ name: 'BEYOND' }],
+        });
+        expect(suggestions?.[0]?.song?.sourceRef).toMatchObject({ kind: 'online', providerId: 'qq' });
+        expect(suggestions?.[1]).toMatchObject({ kind: 'song', value: '海阔天空', detail: 'G.E.M.邓紫棋' });
+        expect(suggestions?.[2]).toMatchObject({ kind: 'singer', value: '海阔天空' });
+        expect(suggestions?.[2]?.song).toBeUndefined();
+    });
+
+    it('short-circuits smartbox suggestions on an empty query', async () => {
+        expect(await qqProvider.search?.getSmartboxSuggestions?.('  ')).toEqual([]);
+        expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    // 类型搜索：专辑（item_album）与歌单（item_songlist）各取一页；搜索到的歌单认不出
+    // owned，所以集合卡天然不可写 —— 点卡片只导航。
+    it('searches collections of both types and keeps them unwritable', async () => {
+        searchQQByTypeMock.mockImplementation(async (_keyword: string, _page: number, _size: number, searchType: number) => {
+            if (searchType === 2) {
+                return [{
+                    albummid: '002STRxZ3ptE8B',
+                    id: 30060997,
+                    name: '测试专辑',
+                    pic: 'https://img.example.test/album.jpg',
+                    singer: 'stowic',
+                    song_num: 3,
+                    publish_date: '2022-08-21',
+                }];
+            }
+            return [{
+                dissid: '7279275468',
+                dissname: '华语| 默写青春',
+                songnum: '35',
+                nickname: 'QQ音乐官方歌单',
+                logo: 'https://img.example.test/list.jpg',
+            }];
+        });
+
+        const page = await qqProvider.search?.searchCollections?.('华语', 12, 0);
+
+        expect(searchQQByTypeMock).toHaveBeenCalledWith('华语', 1, 12, 2);
+        expect(searchQQByTypeMock).toHaveBeenCalledWith('华语', 1, 12, 3);
+        expect(page?.items).toHaveLength(2);
+        expect(page?.items?.[0]).toMatchObject({ type: 'album', name: '测试专辑', providerId: 'qq' });
+        expect(page?.items?.[0]?.providerData).toMatchObject({ albumMid: '002STRxZ3ptE8B' });
+        expect(page?.items?.[1]).toMatchObject({ type: 'playlist', name: '华语| 默写青春' });
+        // 搜索到的歌单是别人的：没有 owned 标记，歌单写判定天然拒收。
+        expect(page?.items?.[1]?.providerData?.owned).toBeUndefined();
+    });
+
+    // ── 推荐面向 ────────────────────────────────────────────────────────────
+    // 下面三个用例固定三件事：请求打到了哪条路由、上游裹的那一层有没有被拆开、以及没有
+    // songmid 的条目会不会被丢掉。前两个是接口契约，第三个是数据可靠性 —— 一首播不了的歌混进
+    // 刷歌流里，用户点下去只会看到一次无解释的失败。
+
+    const RADIO_TRACK = {
+        mid: 'radio-mid-1',
+        id: 9001,
+        name: 'Radio Song',
+        title: 'Radio Song',
+        singer: [{ mid: '0025NhlN2yWrP4', name: 'Beyond' }],
+        album: { mid: '0016l2F430zMux', name: '乐与怒' },
+        interval: 240,
+    };
+
+    // 雷达条目裹在 `VecSongs[].Track` 里，比刷歌那条多一层。
+    const RADAR_TRACK = {
+        Track: {
+            ...RADIO_TRACK,
+            mid: 'radar-mid-1',
+            name: 'Radar Song',
+            title: 'Radar Song',
+        },
+    };
+
+    const NEW_SONG = {
+        ...RADIO_TRACK,
+        mid: 'newsong-mid-1',
+        name: 'New Song',
+        title: 'New Song',
+    };
+
+    // 没有 mid 的条目：既拿不到播放链接，也点不开专辑，必须在正规化阶段就丢掉。
+    const MIDLESS_TRACK = { id: 9002, name: 'No Mid', title: 'No Mid', interval: 200 };
+
+// 推荐歌单广场 `GetRecommendFeed` 的 `List[].Playlist.basic` 条目，形状取自 2026-10-05 的实测响应。
+// 与用户歌单那一族不同：封面在 `cover` 对象里（`mid` 为空串），曲数是 `song_cnt`。
+const RECOMMEND_PLAYLIST = {
+    creator: { uin: '1791747120', nick: 'someone' },
+    tid: 42,
+    dirid: 50,
+    title: '广场歌单',
+    desc: '歌单简介',
+    cover: {
+        id: 0,
+        mid: '',
+        small_url: 'https://music-file.example.test/small.jpg',
+        big_url: 'https://music-file.example.test/big.jpg',
+        default_url: 'https://music-file.example.test/big.jpg',
+    },
+    fav_cnt: 100,
+    play_cnt: 200,
+    song_cnt: 30,
+    dirshow: 1,
+};
+
+    const withRecommendationTransport = () => requestMock.mockImplementation(async (operation: string) => {
+        switch (operation) {
+            case 'recommend_radio':
+                return { code: 200, tracks: [RADIO_TRACK, MIDLESS_TRACK] };
+            case 'recommend_playlists':
+                return { code: 200, playlists: [{ Playlist: { basic: RECOMMEND_PLAYLIST } }], more: false };
+            case 'recommend_radar':
+                return { code: 200, tracks: [RADAR_TRACK], hasMore: false };
+            case 'recommend_new_songs':
+                return { code: 200, songs: [NEW_SONG] };
+            default:
+                return { code: 200 };
+        }
+    });
+
+    it('normalizes Personal FM tracks and drops the ones without a songmid', async () => {
+        withRecommendationTransport();
+
+        const songs = await qqProvider.recommendations?.getPersonalFm?.();
+
+        expect(requestMock).toHaveBeenCalledWith('recommend_radio', { num: 30 });
+        expect(songs).toHaveLength(1);
+        expect(songs?.[0]).toMatchObject({
+            id: 9001,
+            name: 'Radio Song',
+            qqMid: 'radio-mid-1',
+            durationMs: 240_000,
+        });
+    });
+
+    it('flattens wrapped recommendation rows and keeps virtual rows out of the playlist route', async () => {
+        withRecommendationTransport();
+
+        const collections = await qqProvider.recommendations?.getRecommendedCollections?.(25);
+        const playlists = collections?.filter(c => c.providerData?.virtualRecommendation !== true) ?? [];
+        const virtualRows = collections?.filter(c => c.providerData?.virtualRecommendation === true) ?? [];
+
+        expect(requestMock).toHaveBeenCalledWith('recommend_playlists', { from: 0, size: 25 });
+        // 真实歌单走脱壳后的 basic，id 必须是 tid 而不是外层的 Playlist 对象
+        expect(playlists).toHaveLength(1);
+        expect(playlists[0]).toMatchObject({ id: 42, name: '广场歌单', coverUrl: 'https://music-file.example.test/big.jpg' });
+
+        // 雷达与新歌没有上游歌单，只能作为虚拟歌单存在；雷达那条顺带证明 Track 包装被拆开了
+        expect(virtualRows.map(row => row.id)).toEqual(['qq-recommend-radar', 'qq-recommend-new-songs']);
+    });
+
+    // 「换一批」的批次偏移必须原样打到后端：context.from 传什么，请求里就是什么。
+    it('forwards the batch offset to the recommend_playlists route', async () => {
+        withRecommendationTransport();
+
+        await qqProvider.recommendations?.getRecommendedCollections?.(25, { scope: 'editorial', from: 35 });
+
+        expect(requestMock).toHaveBeenCalledWith('recommend_playlists', { from: 35, size: 25 });
+    });
+
+    it('re-fetches a virtual recommendation row instead of asking for a playlist that does not exist', async () => {
+        withRecommendationTransport();
+
+        const [radarRow] = (await qqProvider.recommendations?.getRecommendedCollections?.(25))
+            ?.filter(c => c.providerData?.virtualRecommendation === true) ?? [];
+        expect(radarRow).toBeDefined();
+
+        const page = await qqProvider.catalog?.getPlaylistTracks?.(radarRow!.id, 30, 0, radarRow);
+
+        expect(requestMock).toHaveBeenCalledWith('recommend_radar', { page: 0 });
+        expect(requestMock).not.toHaveBeenCalledWith('song_list_detail', expect.anything());
+        expect(page?.items[0]).toMatchObject({ qqMid: 'radar-mid-1' });
+        expect(page?.total).toBe(1);
+        expect(page?.hasMore).toBe(false);
     });
 
     it('normalizes a song onto songmid identity and keeps the numeric id in provider data', () => {
@@ -257,6 +641,57 @@ describe('qqProvider', () => {
         expect(song.artists).toEqual([{ id: 0, name: 'Beyond' }]);
     });
 
+    // 空 id 会把整片网格拉崩：卡片的 React key 就是 collection.id，
+    // 两张 key="" 的卡片会让 React 报「Encountered two children with the same key」
+    // 并且整个网格绘制失败。getArtistAlbums / getArtistSongs 都有这一扇。
+    it('drops category song lists that normalize to an empty id', async () => {
+        requestMock.mockImplementation(async () => ({
+            response: {
+                data: {
+                    sum: 2,
+                    list: [
+                        { dissid: 111, dissname: '有 id 的歌单', imgurl: 'http://qpic.y.qq.com/music_cover/a' },
+                        { dissname: '没有任何 id 的歌单' },
+                    ],
+                },
+            },
+        }));
+
+        const page = await qqProvider.catalog?.getCategorySongLists?.('10000000', 20, 0);
+
+        expect(page?.items.map((item: { id: unknown }) => item.id)).toEqual([111]);
+    });
+
+    // 播放量：ProviderCollection 本来就有 playCount，网易云一直映射，
+    // 只是 QQ 一直缺失。实测上游字段是 listennum（原始次数，不是「万」）。
+    it('reads the play count of a category song list from listennum', () => {
+        expect(normalizeQqCollection({
+            dissid: 7707261125,
+            dissname: '甜度爆表',
+            listennum: 8553372,
+        })).toMatchObject({ playCount: 8553372 });
+    });
+
+    it('leaves playCount absent when the upstream payload has no listen count', () => {
+        expect(normalizeQqCollection({ dissid: 1, dissname: '无播放量' }))
+            .not.toHaveProperty('playCount');
+    });
+
+    // 分类筛选的歌单要得有封面。实测 2026-10-11 抓 /getSongLists 真实响应，
+    // 封面在 `imgurl`（单数字串）——这个键不在原来的候选里，所以分类卡片整片只剩骨架。
+    it('reads the cover of a category song list, whose cover arrives under imgurl', () => {
+        expect(normalizeQqCollection({
+            dissid: 7707261125,
+            dissname: '甜度爆表 | 旋律说喛射击少女心',
+            imgurl: 'http://qpic.y.qq.com/music_cover/s4SoBc0IrDEDpHKlD',
+            listennum: 8553372,
+        })).toMatchObject({
+            id: 7707261125,
+            name: '甜度爆表 | 旋律说喛射击少女心',
+            coverUrl: expect.stringContaining('s4SoBc0IrDEDpHKlD'),
+        });
+    });
+
     // 缓存水合会把正规化结果再喂回来，mid 必须原样活下来。
     it('keeps album and artist mids across a normalize round trip', () => {
         const once = normalizeQqSong(SEARCH_ITEM);
@@ -296,6 +731,17 @@ describe('qqProvider', () => {
             coverUrl: 'https://img.example.test/fav.jpg',
             trackCount: 3,
             providerData: { dissid: 8 },
+        });
+        // 推荐歌单广场（`GetRecommendFeed` 的 `List[].Playlist.basic`）是另一套拼法：封面在 `cover`
+        // 对象里而不是 `picurl`，曲数字段是 `song_cnt` 而不是 `songnum`。实测形状，别再退化回去。
+        expect(normalizeQqCollection(RECOMMEND_PLAYLIST)).toEqual({
+            providerId: 'qq',
+            id: 42,
+            name: '广场歌单',
+            type: 'playlist',
+            coverUrl: 'https://music-file.example.test/big.jpg',
+            trackCount: 30,
+            providerData: { tid: 42, dirId: 50 },
         });
 
         expect(normalizeQqUser({ data: { profile: { musicid: 123, nickname: '我的 QQ 账号' } } })).toEqual({
@@ -798,6 +1244,29 @@ describe('qqProvider', () => {
         ]);
     });
 
+    // 匿名这条路由会把歌单截断：上游 total_song_num 说 100 首，disssonglist 只给 2 首。
+    // 若原样透传 total，卡片会写上「共 100 首」而「加载更多」点到底也翻不出来——
+    // 用户只会觉得应用坏了。对不齐时以「真的拿得到」为准。
+    it('never reports more songs than the anonymous route can actually return', async () => {
+        requestMock.mockResolvedValueOnce({
+            response: {
+                cdlist: [{
+                    disstid: '7',
+                    dissname: '被截断的歌单',
+                    songnum: 100,
+                    total_song_num: 100,
+                    songlist: [SEARCH_ITEM],
+                }],
+            },
+        });
+
+        const page = await qqProvider.catalog!.getPlaylistTracks!(7, 50, 0);
+
+        expect(page.total).toBe(1);
+        expect(page.hasMore).toBe(false);
+        expect(page.nextOffset).toBe(1);
+    });
+
     // 「歌单读不到」和「歌单是空的」必须分开，判据是 `dissname` 在不在。
     it('fails loudly when the playlist detail carries no cdlist entry', async () => {
         requestMock.mockResolvedValue({ response: { code: 0, cdlist: [] } });
@@ -918,7 +1387,9 @@ describe('qqProvider', () => {
         expect(official.providerData).not.toHaveProperty('owned');
         await expect(qqProvider.catalog!.getPlaylistTracks!(211111, 50, 0, official)).resolves.toMatchObject({
             items: [expect.objectContaining({ qqMid: '003rJSwm3TechU' })],
-            total: 50,
+            // songnum 说 50，但这条应答只带回 1 首：total 以实到条数封顶（契约见
+            // 'never reports more songs than the anonymous route can actually return'）。
+            total: 1,
         });
         expect(requestMock.mock.calls.map(call => call[0])).toEqual(['song_list_detail']);
     });
@@ -1283,7 +1754,8 @@ describe('qqProvider', () => {
             wordByWordLyrics: true,
             playback: true,
             likes: true,
-            mutations: false,
+            mutations: true,
+            playlistTrackMutations: true,
         });
         expect(qqProvider.playback).toBeDefined();
         expect(qqProvider.catalog?.getPlaylistTracks).toBeTypeOf('function');
@@ -1296,5 +1768,31 @@ describe('qqProvider', () => {
         // 后端 2.2.0 起有 `/user/albums`，收藏专辑不再是空页。
         expect(qqProvider.library?.getUserAlbums).toBeTypeOf('function');
         expect(qqProvider.getAvailability?.()).toEqual({ configured: true });
+    });
+
+    // 删歌必须把 operation=del 传给后端。后端 recommend 控制器是
+    // `operation === 'del' ? del : add`——缺省就是加。这里曾经写成
+    // `operation === 'add' ? 'playlist_songs' : 'playlist_songs'`（两个分支一样），
+    // 用户删一首歌会被加回去，界面表现是「删不掉、越删越多」。
+    it('sends operation=add and operation=del to the QQ playlist write route', async () => {
+        requestMock.mockImplementation(async () => ({ code: 200 }));
+        const playlist = {
+            id: '202',
+            providerData: { owned: true, dirId: 202 },
+        } as never;
+
+        await qqProvider.mutations?.updatePlaylistTracks?.('add', playlist, [5105918]);
+        expect(requestMock).toHaveBeenLastCalledWith('playlist_songs', {
+            dirid: '202',
+            songids: '5105918',
+            operation: 'add',
+        });
+
+        await qqProvider.mutations?.updatePlaylistTracks?.('del', playlist, [5105918]);
+        expect(requestMock).toHaveBeenLastCalledWith('playlist_songs', {
+            dirid: '202',
+            songids: '5105918',
+            operation: 'del',
+        });
     });
 });

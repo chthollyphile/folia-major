@@ -8,11 +8,13 @@ import {
     type OnlineMusicProvider,
     type ProviderCatalogRef,
     type ProviderCollection,
+    type ProviderComment,
     type ProviderHistoryEntry,
     type ProviderPage,
     type ProviderUser,
 } from '../../types/onlineMusic';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
+import { normalizeCommentText } from './commentText';
 import { parseLyricsByFormat } from '../../utils/lyrics/parserCore';
 import { isPureMusicLyricText } from '../../utils/lyrics/pureMusic';
 import { hasRenderableLyrics } from '../../utils/lyrics/validity';
@@ -95,7 +97,7 @@ const coverOf = (raw: any): string | undefined => {
         ?? valueOf(raw?.audio_info?.trans_param, 'union_cover')
         ?? valueOf(raw?.audioInfo?.transParam, 'union_cover')
         ?? valueOf(raw?.trans_param, 'union_cover')
-        ?? valueOf(raw, 'sizable_cover', 'Image', 'image', 'img', 'pic', 'picUrl', 'cover', 'coverUrl', 'sizable_avatar');
+        ?? valueOf(raw, 'sizable_cover', 'imgurl', 'flexible_cover', 'Image', 'image', 'img', 'pic', 'picUrl', 'cover', 'coverUrl', 'sizable_avatar');
     if (!value) return undefined;
     const cover = String(value).trim().replace('{size}', String(KUGOU_CANONICAL_COVER_SIZE));
     if (/^\d{8,}\.(?:jpe?g|png|webp)$/i.test(cover)) {
@@ -546,7 +548,8 @@ const normalizeCollection = (raw: any, type = 'playlist', owned = false): Provid
     const id = type === 'playlist'
         ? valueOf(raw, 'global_collection_id', 'globalCollectionId', 'specialid', 'specialId', 'id')
         : type === 'album'
-            ? valueOf(raw, 'album_id', 'AlbumID', 'albumId', 'musiclib_id', 'musicLibId', 'list_create_listid')
+            // `albumid`/`albumname`（连写）是搜索专辑结果的拼法，与歌单接口的 `album_id` 不同（探针 2026-10-08）。
+            ? valueOf(raw, 'album_id', 'albumid', 'AlbumID', 'albumId', 'musiclib_id', 'musicLibId', 'list_create_listid')
             : type === 'artist'
                 ? valueOf(raw, 'author_id', 'authorId')
                 : undefined;
@@ -563,7 +566,7 @@ const normalizeCollection = (raw: any, type = 'playlist', owned = false): Provid
     return {
         providerId: 'kugou',
         id: id ?? '',
-        name: String(valueOf(raw, 'name', 'listname', 'specialname', 'album_name', 'author_name') || ''),
+        name: String(valueOf(raw, 'name', 'listname', 'specialname', 'album_name', 'albumname', 'author_name') || ''),
         type,
         coverUrl: coverOf(raw),
         description: description === undefined || description === null ? undefined : String(description),
@@ -969,6 +972,7 @@ export const kugouProvider: OnlineMusicProvider = {
         playlists: true, albums: true, artists: true, recommendations: true, mutations: true,
         wordByWordLyrics: true, userCloud: true, historyRecommendations: true,
         playlistSubscription: true, playlistTrackMutations: true, likes: true, userAlbums: true,
+        comments: true,
     },
     normalizeSong: normalizeKugouSong,
     normalizeUser,
@@ -1005,6 +1009,34 @@ export const kugouProvider: OnlineMusicProvider = {
                 offset,
                 rawItems.length,
             );
+        },
+        // 输入联想：上游 search_suggest 返回的是平铺提示词（RecordDatas[].HintInfo，
+        // 如「晴天 周杰伦」），没有带 id 的歌曲对象——所以酷狗联想只能走「填词再搜」，
+        // 不能像 QQ 那样点联想直接播。kind 用 'singer'（UI 语义=选中后去搜这个词）。
+        async getSmartboxSuggestions(query) {
+            const trimmed = query.trim();
+            if (!trimmed) return [];
+            const response = await requestKugou<Record<string, any>>('search_suggest', { keywords: trimmed, keyword: trimmed });
+            const records = listOf(response?.data?.[0]?.RecordDatas ?? response?.data);
+            const hints = records
+                .map((record: any) => String(record?.HintInfo || record?.hint_info || ''))
+                .filter(Boolean);
+            return hints.slice(0, 8).map(hint => ({ kind: 'singer' as const, value: hint }));
+        },
+        // 专辑/歌单类型搜索：酷狗 complexsearch 的歌单类型是 'special' 不是 'playlist'（探针实测）。
+        async searchCollections(query, limit, offset) {
+            const trimmed = query.trim();
+            if (!trimmed) return { items: [], hasMore: false, nextOffset: offset };
+            const page = Math.floor(offset / Math.max(1, limit)) + 1;
+            const [albums, playlists] = await Promise.all([
+                requestKugou('search', { keywords: trimmed, keyword: trimmed, type: 'album', page, pagesize: limit }),
+                requestKugou('search', { keywords: trimmed, keyword: trimmed, type: 'special', page, pagesize: limit }),
+            ]);
+            const items = [
+                ...listOf(albums).map(item => normalizeCollection(item, 'album')),
+                ...listOf(playlists).map(item => normalizeCollection(item, 'playlist')),
+            ];
+            return { items, hasMore: false, nextOffset: offset + items.length };
         },
     },
     playback: {
@@ -1371,7 +1403,24 @@ export const kugouProvider: OnlineMusicProvider = {
             const response = await requestKugou('personal_fm');
             return songListOf(response).map(normalizeKugouSong).filter(song => song.id);
         },
-        async getRecommendedCollections(limit) {
+        async getRecommendedCollections(limit, context) {
+            // 广场（editorial）要的是「大家都在听的」+ 能换一批：走真实的歌单广场 top_playlist，
+            // `from` 换算成页码。其余范围维持既有的 6 张 youth 推荐卡（行为不变）。
+            if (context?.scope === 'editorial') {
+                const pagesize = Math.min(Math.max(Math.floor(limit) || KUGOU_RECOMMENDATION_PAGE_SIZE, 1), KUGOU_RECOMMENDATION_PAGE_SIZE);
+                const page = Math.floor(Math.max(0, context.from ?? 0) / pagesize) + 1;
+                try {
+                    const response = await requestKugou<Record<string, any>>('top_playlist', { page, pagesize });
+                    const items = listOf(response?.data?.special_list ?? response?.special_list)
+                        .map(item => normalizeCollection(item, 'playlist'));
+                    return items;
+                } catch (error) {
+                    console.warn('[KugouProvider] top-playlist:failed', {
+                        error: error instanceof Error ? error.message : String(error),
+                    });
+                    return [];
+                }
+            }
             const pagesize = Math.min(Math.max(Math.floor(limit) || KUGOU_RECOMMENDATION_PAGE_SIZE, 1), KUGOU_RECOMMENDATION_PAGE_SIZE);
             const collections = await Promise.all(KUGOU_RECOMMENDATION_CARDS.map(async card => {
                 try {
@@ -1570,6 +1619,41 @@ export const kugouProvider: OnlineMusicProvider = {
                 list_create_userid: String(creatorUserId),
                 list_create_listid: String(albumId),
             });
+        },
+    },
+    comments: {
+        // 酷狗评论匿名可用（探针 2026-10-08：晴天 count 70万，list[] 带 user_name/user_pic/like）。
+        // 评论接口只认 mixsongid，从歌曲的 sourceRef.providerData 取；取不到就当没有评论区。
+        async getSongComments(song, limit, offset) {
+            const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou'
+                ? song.sourceRef
+                : null;
+            const mixSongId = sourceRef?.providerData?.mixSongId;
+            if (!mixSongId) return { items: [], hasMore: false, nextOffset: offset };
+            const response = await requestKugou<Record<string, any>>('comment_music', {
+                mixsongid: String(mixSongId),
+                page: Math.floor(offset / Math.max(1, limit)) + 1,
+                pagesize: limit,
+            });
+            const body = response?.data ?? response;
+            const rawList = Array.isArray(body?.list) ? body.list : [];
+            const items = rawList
+                .map((raw: any) => {
+                    const content = normalizeCommentText(raw?.content);
+                    if (!content) return null;
+                    const likedCount = Number(raw?.like ?? raw?.praise);
+                    return {
+                        id: raw?.id ?? 0,
+                        content,
+                        userName: String(raw?.user_name || raw?.nickname || '匿名'),
+                        avatarUrl: raw?.user_pic ? String(raw.user_pic).replace(/^http:/, 'https:') : undefined,
+                        ...(Number.isFinite(likedCount) && likedCount >= 0 ? { likedCount } : {}),
+                        ...(raw?.addtime ? { timeStr: String(raw.addtime) } : {}),
+                    } satisfies ProviderComment;
+                })
+                .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+            const total = Number(body?.count) || items.length;
+            return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
         },
     },
 };

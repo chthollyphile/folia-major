@@ -3,6 +3,7 @@ import type { LocalSong } from '@/types';
 import type { ProviderCollection, ProviderPage } from '@/types/onlineMusic';
 import type { LibraryHomeActionsController, LibraryHomeResources } from '@/library/core/contracts/homeModel';
 import { createFavoriteAlbumsFeed, createRadioFeed } from '@/library/core/services/onlineHomeFeeds';
+import { createDiscoverFeed } from '@/library/core/services/onlineHomeDiscoverFeed';
 import { createNavidromeHomeLibrary, type NavidromeHomeLibraryDeps } from '@/library/core/services/navidromeHomeLibrary';
 import { createLocalDirectoryTrees } from '@/library/core/services/localDirectoryTrees';
 import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '@/library/core/services/libraryHomeLifetime';
@@ -38,6 +39,7 @@ const createResources = () => {
     const resources: LibraryHomeResources = {
         favoriteAlbums: createFavoriteAlbumsFeed({ getUserAlbums }),
         radioFeed: createRadioFeed({ getHomeFeed, songCoverUrl: () => undefined }),
+        discoverFeed: createDiscoverFeed({ getPersonalFm: async () => [], getRecommendationRowSongs: async () => [] }, () => [], () => undefined),
         actions: {} as LibraryHomeActionsController,
         navidromeOverview: createNavidromeHomeLibrary(navidrome),
         localDirectoryTrees: createLocalDirectoryTrees({ loadTrees }),

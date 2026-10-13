@@ -137,8 +137,19 @@ export function usePlaybackAudioBridge({
         if (!audioRef.current || audioContextRef.current) return;
         try {
             const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-            const ctx = new AudioContextClass();
+            // latencyHint: "playback" 增大缓冲区，减少蓝牙传输抖动导致的 buffer underrun（"滋啦"声）。
+            // 代价是延迟略增（~50-100ms），对音乐播放可接受。
+            const ctx = new AudioContextClass({ latencyHint: 'playback' });
             audioContextRef.current = ctx;
+
+            // 蓝牙断连/系统挂起时 AudioContext 可能进入 suspended，自动恢复
+            ctx.addEventListener('statechange', () => {
+                if (ctx.state === 'suspended' && audioRef.current && !audioRef.current.paused) {
+                    ctx.resume().catch(() => {
+                        // 恢复失败不阻塞播放，下次 statechange 会再试
+                    });
+                }
+            });
 
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 2048;

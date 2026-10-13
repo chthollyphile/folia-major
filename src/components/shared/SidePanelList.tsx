@@ -60,6 +60,8 @@ export function SidePanelList<T>({
     }, [isOpen]);
 
     const lastScrollTargetRef = useRef<number | null>(null);
+    /** 首帧定位后那段平滑滚动的句柄：和外层 timer 一起清，否则关面板会残留一次跳动。 */
+    const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Scroll to focused index when opened or focused index changes
     useEffect(() => {
@@ -78,7 +80,10 @@ export function SidePanelList<T>({
                         const jumpIndex = Math.max(0, focusedIndex - 8);
                         list.scrollToRow({ index: jumpIndex, align: 'start', behavior: 'auto' });
                         
-                        setTimeout(() => {
+                        // 内层也要句柄：只清外层的话，面板在 50ms 内被关掉，
+                        // 这次 scrollToRow 仍会打到一个已滚到别处（甚至已卸载）的列表上。
+                        settleTimerRef.current = setTimeout(() => {
+                            settleTimerRef.current = null;
                             list.scrollToRow({ index: focusedIndex, align: 'center', behavior: 'smooth' });
                         }, 50);
                     } else {
@@ -88,7 +93,13 @@ export function SidePanelList<T>({
                     
                     lastScrollTargetRef.current = focusedIndex;
                 }, delay);
-                return () => clearTimeout(timer);
+                return () => {
+                    clearTimeout(timer);
+                    if (settleTimerRef.current) {
+                        clearTimeout(settleTimerRef.current);
+                        settleTimerRef.current = null;
+                    }
+                };
             } else if (!isOpen) {
                 lastScrollTargetRef.current = null;
             }

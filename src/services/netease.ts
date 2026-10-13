@@ -1,5 +1,7 @@
 import { NeteaseUser, NeteasePlaylist, NoCopyrightRecommendation, SongPrivilege, SongResult } from "../types";
 import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from './onlineMusic/providerStorage';
+import { isOnline } from '../utils/networkStatus';
+import { dedupedRequest } from '../utils/requestDedup';
 import type { PersonalFmRequestOptions } from '../types/onlineMusic';
 
 type UnavailableSongReplacement = {
@@ -100,7 +102,36 @@ const getApiBase = async () => {
   throw new Error("Failed to access environment variables for API base. Please configure VITE_NETEASE_API_BASE.");
 };
 
+const NETEASE_REQUEST_TIMEOUT_MS = 10000;
+const NETEASE_MAX_RETRIES = 1;
+
+const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// 网易 429 限流退避时长：优先读响应体 retryAfterMs，其次 Retry-After 头（秒）。
+const readNeteaseRetryAfterMs = (body: unknown, response: Response): number | undefined => {
+  const fromBody = body && typeof body === 'object' ? (body as { retryAfterMs?: unknown }).retryAfterMs : undefined;
+  if (typeof fromBody === 'number' && Number.isSafeInteger(fromBody) && fromBody >= 0) return fromBody;
+  const raw = response.headers?.get?.('Retry-After')?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const seconds = Number(raw);
+  return Number.isSafeInteger(seconds * 1000) ? seconds * 1000 : undefined;
+};
+
 const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
+  // 离线时立刻抛，不去等一个必然失败的往返。抛错而非回 { code: -1 } 哨兵：
+  // 本文件已统一「传输失败 = throw」，回哨兵会被调用方读成「这个账号一首歌都没有」。
+  if (!isOnline()) {
+    throw new Error(`NetEase API request ${endpoint.split('?')[0]} skipped: browser reports offline`);
+  }
+
   const base = await getApiBase();
   const url = `${base}${endpoint}`;
   // Ensure we send credentials to persist session (cookies)
@@ -121,9 +152,6 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
     const separator = finalUrl.includes('?') ? '&' : '?';
     finalUrl = `${finalUrl}${separator}timestamp=${Date.now()}`;
   }
-
-  // Note: For Vercel hosted APIs, we rely on the `cookie` query param if cross-site cookies are blocked,
-  // or `credentials: 'include'` if the server allows it. 
 
   const storedCookie = readProviderSessionValue('netease', 'cookie', ['netease_cookie']);
 
@@ -159,28 +187,58 @@ const fetchWithCreds = async (endpoint: string, options: RequestInit = {}) => {
   }
 
   const target = endpoint.split('?')[0];
-  let res: Response;
-  try {
-    res = await fetch(finalUrl, { ...defaultOptions, credentials: 'include' });
-  } catch (error) {
-    // 连 API 本身都没连上（本地后端退出、远端 API 不可达），不是网易上游的失败：说清是哪个接口，原始错误挂在 cause 上。
-    throw new Error(`NetEase API request ${target} failed: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-  }
-  // 照旧不看 HTTP 状态（错误也以 JSON 的 code 返回，调用方看 code）；只是正文不是 JSON 时，
-  // 报出状态码与正文开头，而不是一句看不出来源的 SyntaxError。
-  const body = await res.text();
-  let data: any;
-  try {
-    data = JSON.parse(body);
-  } catch {
-    throw new Error(`NetEase API ${target} returned HTTP ${res.status} without a JSON body: ${body.slice(0, 200) || '(empty)'}`);
-  }
 
-  if (!storedCookie && cookieToUse && (data?.code === 301 || data?.code === 401 || data?.code === 403)) {
-    removeProviderSessionValue('netease', 'anonymous_cookie', ['netease_anonymous_cookie']);
-  }
+  // 请求去重：相同 URL 的并发请求只发一次，其他调用方共享结果。整段「发请求 + 解析 + 失败分类」
+  // 都在去重范围内，并发的两个调用方拿到同一份结果，而不是各自再打一次上游。
+  return dedupedRequest(finalUrl, async () => {
+    let res: Response | null = null;
+    for (let attempt = 0; attempt <= NETEASE_MAX_RETRIES; attempt++) {
+      try {
+        res = await fetchWithTimeout(finalUrl, { ...defaultOptions, credentials: 'include' }, NETEASE_REQUEST_TIMEOUT_MS);
+      } catch (error) {
+        // 连 API 本身都没连上（本地后端退出、远端 API 不可达），不是网易上游的失败：说清是哪个接口，
+        // 原始错误挂在 cause 上。这类失败值得再试一次——本地后端刚起来的那一下与真实的网络抖动长得一样。
+        if (attempt < NETEASE_MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, 300 * Math.pow(2, attempt)));
+          continue;
+        }
+        throw new Error(
+          `NetEase API request ${target} failed: ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        );
+      }
 
-  return data;
+      // 429 限流：读 retryAfterMs 退避（与 QQ 同一条规则）。但本地最多等 2 秒——上游给的建议值
+      // 可能是半分钟（扫码登录实测 31 秒），拿它当睡眠时长会让界面假死；建议值仍完整透传给调用方。
+      if (res.status === 429 && attempt < NETEASE_MAX_RETRIES) {
+        const failure = await res.clone().json().catch(() => undefined);
+        const retryAfterMs = readNeteaseRetryAfterMs(failure, res);
+        await new Promise(resolve => setTimeout(resolve, Math.min(retryAfterMs ?? 300 * Math.pow(2, attempt), 2000)));
+        continue;
+      }
+      break;
+    }
+
+    if (!res) {
+      throw new Error(`NetEase API request ${target} failed: no response`);
+    }
+
+    // 照旧不看 HTTP 状态（错误也以 JSON 的 code 返回，调用方看 code）；只是正文不是 JSON 时，
+    // 报出状态码与正文开头，而不是一句看不出来源的 SyntaxError。
+    const body = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(body);
+    } catch {
+      throw new Error(`NetEase API ${target} returned HTTP ${res.status} without a JSON body: ${body.slice(0, 200) || '(empty)'}`);
+    }
+
+    if (!storedCookie && cookieToUse && (data?.code === 301 || data?.code === 401 || data?.code === 403)) {
+      removeProviderSessionValue('netease', 'anonymous_cookie', ['netease_anonymous_cookie']);
+    }
+
+    return data;
+  });
 };
 
 const toHttps = (url?: unknown) => {
@@ -883,8 +941,74 @@ export const neteaseApi = {
     };
   },
 
+  // --- Song comments (read-only; anonymous works) ---
+  getSongComments: async (id: number, limit = 20, offset = 0) => {
+    return fetchWithCreds(`/comment/music?id=${id}&limit=${limit}&offset=${offset}`);
+  },
+
+  // --- Comment floor replies (盖楼; anonymous works). Upstream pages by a `time` cursor, not
+  // offset, so callers that speak the offset contract can only take the first page. ---
+  getCommentFloor: async (id: number, parentCommentId: number | string, limit = 20) => {
+    return fetchWithCreds(`/comment/floor?parentCommentId=${parentCommentId}&id=${id}&type=0&limit=${limit}`);
+  },
+
+  // --- Comment like (写操作，需登录) ---
+  likeSongComment: async (id: number, commentId: number | string, liked = true) => {
+    return fetchWithCreds(`/comment/like?id=${id}&cid=${commentId}&type=0&like=${liked}`);
+  },
+
   getPersonalizedPlaylists: async (limit = 35) => {
     return fetchWithCreds(`/personalized?limit=${limit}`);
+  },
+
+  // --- Editor's playlist plaza with real paging (discover-page「换一批」for this provider) ---
+  // `/personalized` has no offset — its module comments the parameter out — so paging has to go
+  // through the category playlist endpoint instead, which does honor `offset` (probed 2026-10-08).
+  getTopPlaylists: async (limit = 35, offset = 0) => {
+    const res = await fetchWithCreds(`/top/playlist?limit=${limit}&offset=${offset}`);
+    if (Array.isArray(res?.playlists)) {
+      res.playlists.forEach((p: any) => {
+        p.coverImgUrl = toHttps(p.coverImgUrl);
+      });
+    }
+    return res;
+  },
+
+  // --- Similar songs (discover-page「相似歌曲」seed section; requires a signed-in account) ---
+  getSimilarSongs: async (id: number, limit = 20) => {
+    const res = await fetchWithCreds(`/simi/song?id=${id}&limit=${limit}`);
+    return {
+      ...res,
+      songs: mergeSongsWithPrivileges(res?.songs, res?.privileges),
+    };
+  },
+
+  // --- New song express (discover-page「新歌速递」section) ---
+  getPersonalizedNewSongs: async (limit = 20) => {
+    const res = await fetchWithCreds(`/personalized/newsong?limit=${limit}`);
+    const rawSongs = (res?.data || []).map((item: any) => item?.song ?? item);
+    return {
+      ...res,
+      songs: mergeSongsWithPrivileges(rawSongs, res?.privileges),
+    };
+  },
+
+  // --- Search suggestions (smartbox dropdown). The response groups by `order`, with each
+  // group's entries carrying enough fields to normalize a playable song directly (probed). ---
+  getSearchSuggest: async (keywords: string, limit = 8) => {
+    return fetchWithCreds(`/search/suggest?keywords=${encodeURIComponent(keywords)}&limit=${limit}`);
+  },
+
+  // --- Type-scoped search for the collection card rows (10 = album, 1000 = playlist) ---
+  searchByType: async (keywords: string, type: 10 | 1000, limit = 20, offset = 0) => {
+    return fetchWithCreds(`/search?keywords=${encodeURIComponent(keywords)}&type=${type}&limit=${limit}&offset=${offset}`);
+  },
+
+  // --- Playlist create (add-to-playlist picker's「新建歌单」). Upstream returns the created
+  // playlist in `playlist`; anonymous calls fail with code 301 (probed), so callers treat
+  // auth-required errors as the "please sign in first" signal. ---
+  createPlaylist: async (name: string) => {
+    return fetchWithCreds(`/playlist/create?name=${encodeURIComponent(name)}&timestamp=${Date.now()}`);
   },
 
   fmTrash: async (songId: number) => {

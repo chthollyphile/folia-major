@@ -1744,4 +1744,119 @@ describe('kugouProvider', () => {
         });
         expect(requestMock).not.toHaveBeenCalledWith('playlist_tracks_add', expect.anything());
     });
+
+    describe('smartbox suggestions and type search', () => {
+        it('maps flat search_suggest hints to search-term suggestions', async () => {
+            requestMock.mockImplementation((operation: string) => {
+                if (operation === 'search_suggest') {
+                    return Promise.resolve({
+                        data: [
+                            {
+                                RecordDatas: [
+                                    { HintInfo: '晴天 周杰伦', Hot: 571 },
+                                    { HintInfo: '晴天 伴奏', Hot: 6 },
+                                ],
+                            },
+                        ],
+                    });
+                }
+                return Promise.resolve({});
+            });
+
+            const suggestions = await kugouProvider.search?.getSmartboxSuggestions?.('晴天');
+            expect(suggestions).toEqual([
+                { kind: 'singer', value: '晴天 周杰伦' },
+                { kind: 'singer', value: '晴天 伴奏' },
+            ]);
+        });
+
+        it('skips the request for a blank query', async () => {
+            await expect(kugouProvider.search?.getSmartboxSuggestions?.('  ')).resolves.toEqual([]);
+            expect(requestMock).not.toHaveBeenCalledWith('search_suggest', expect.anything());
+        });
+
+        it('searches albums and playlist specials and normalizes both spellings', async () => {
+            requestMock.mockImplementation((operation: string, params?: Record<string, unknown>) => {
+                if (operation !== 'search') return Promise.resolve({});
+                if (params?.type === 'album') {
+                    return Promise.resolve({
+                        data: { lists: [{ albumid: 700, albumname: '叶惠美', singer: '周杰伦', img: 'http://imge.kugou.com/a.jpg' }] },
+                    });
+                }
+                return Promise.resolve({
+                    data: { lists: [{ specialid: 6409645, specialname: '周杰伦必听热歌', img: 'http://imge.kugou.com/s.jpg', song_count: 154 }] },
+                });
+            });
+
+            const page = await kugouProvider.search?.searchCollections?.('周杰伦', 10, 0);
+            expect(page?.items).toHaveLength(2);
+            expect(page?.items[0]).toMatchObject({ id: 700, name: '叶惠美', type: 'album' });
+            expect(page?.items[1]).toMatchObject({ id: 6409645, name: '周杰伦必听热歌', type: 'playlist', trackCount: 154 });
+            expect(requestMock).toHaveBeenCalledWith('search', expect.objectContaining({ type: 'album', page: 1 }));
+            expect(requestMock).toHaveBeenCalledWith('search', expect.objectContaining({ type: 'special', page: 1 }));
+        });
+
+        it('serves the editorial scope from top_playlist with page math', async () => {
+            requestMock.mockImplementation((operation: string) => {
+                if (operation === 'top_playlist') {
+                    return Promise.resolve({
+                        data: {
+                            special_list: [
+                                { specialid: 5718020, specialname: '就怕rapper唱情歌', play_count: 23936446, imgurl: 'http://c1.kgimg.com/custom/{size}/20220620/x.jpg' },
+                            ],
+                        },
+                    });
+                }
+                return Promise.resolve({});
+            });
+
+            const collections = await kugouProvider.recommendations?.getRecommendedCollections?.(35, { scope: 'editorial', from: 35 });
+            expect(collections).toMatchObject([{
+                id: 5718020,
+                name: '就怕rapper唱情歌',
+                type: 'playlist',
+                coverUrl: 'https://c1.kgimg.com/custom/1024/20220620/x.jpg',
+            }]);
+            expect(requestMock).toHaveBeenCalledWith('top_playlist', expect.objectContaining({ page: 2, pagesize: 30 }));
+        });
+
+        it('keeps the youth cards for the default scope', async () => {
+            requestMock.mockResolvedValue({ data: {} });
+            const collections = await kugouProvider.recommendations?.getRecommendedCollections?.(30);
+            expect(requestMock).not.toHaveBeenCalledWith('top_playlist', expect.anything());
+            expect(collections).toEqual([]);
+        });
+
+        it('reads song comments by mixsongid and normalizes user/like fields', async () => {
+            requestMock.mockImplementation((operation: string) => {
+                if (operation === 'comment_music') {
+                    return Promise.resolve({
+                        count: 708022,
+                        list: [
+                            { id: 1723639894, content: '听了3000遍', user_name: '某人', user_pic: 'http://c/user.jpg', like: 42, addtime: '2025-12-26 19:46:04' },
+                            { id: 1, content: '', user_name: '空' },
+                        ],
+                    });
+                }
+                return Promise.resolve({});
+            });
+            const commentSong = { id: 'x', name: '晴天', artists: [], album: { id: '', name: '' }, durationMs: 0, sourceRef: { kind: 'online', providerId: 'kugou', mediaId: 'x', providerData: { mixSongId: '32100650' } } } as never;
+            const page = await kugouProvider.comments?.getSongComments?.(commentSong, 20, 0);
+            expect(page?.items).toHaveLength(1);
+            expect(page?.items[0]).toMatchObject({ id: 1723639894, content: '听了3000遍', userName: '某人', likedCount: 42, avatarUrl: 'https://c/user.jpg' });
+            expect(requestMock).toHaveBeenCalledWith('comment_music', expect.objectContaining({ mixsongid: '32100650' }));
+        });
+
+        it('returns empty comments when the song has no mixsongid', async () => {
+            const page = await kugouProvider.comments?.getSongComments?.(normalizeKugouSong({ hash: 'abc', name: 'x' }), 20, 0);
+            expect(page?.items).toEqual([]);
+            expect(requestMock).not.toHaveBeenCalledWith('comment_music', expect.anything());
+        });
+
+        // 锁死决定（探针 2026-10-08）：comment_floor 匿名回空（连 417 条回复的热评也是 0 条），
+        // 不给 UI 一个点了必然空转的「查看回复」。若日后登录态真测通再实现这个方法并改这条断言。
+        it('does not expose reply threading (anonymous floor comes back empty)', () => {
+            expect(kugouProvider.comments?.getCommentReplies).toBeUndefined();
+        });
+    });
 });

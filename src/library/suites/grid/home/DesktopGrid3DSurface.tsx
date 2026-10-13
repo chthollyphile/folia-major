@@ -37,6 +37,12 @@ interface DesktopGrid3DSurfaceProps {
     onSelect: (item: Grid3DSliderItem, index: number) => void;
     tabs?: DesktopGrid3DAction[];
     actions?: DesktopGrid3DAction[];
+    /**
+     * 挂在 actions 那一格里的浮层（如分类面板）。它必须是 actions 的兄弟而不是页面级浮层：
+     * actions 行自身在 surface 内的 `absolute top-2`，页面级容器各有各的坐标系，
+     * 分开定位只会永远错位，最后浮层压在按钮自己身上。
+     */
+    actionOverlay?: React.ReactNode;
     isInteractive?: boolean;
     isLoading?: boolean;
     emptyMessage?: string;
@@ -64,6 +70,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     onSelect,
     tabs = [],
     actions = [],
+    actionOverlay = null,
     isInteractive = true,
     isLoading = false,
     emptyMessage,
@@ -163,7 +170,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                         )}
                     </div>
 
-                    <div className="flex min-w-0 justify-end">
+                    <div className="relative flex min-w-0 justify-end">
                         {actions.length > 0 && (
                             <div data-ponder={ponderControls} className="pointer-events-auto flex flex-wrap items-center justify-end gap-2">
                                 {actions.map(action => (
@@ -182,6 +189,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                                 ))}
                             </div>
                         )}
+                        {actionOverlay}
                     </div>
                 </div>
             </div>

@@ -45,19 +45,23 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
     const {
         showHomeTabPlaylist,
         showHomeTabRadio,
+        showHomeTabDiscover,
         showHomeTabAlbums,
         showHomeTabLocal,
         handleToggleHomeTabPlaylist,
         handleToggleHomeTabRadio,
+        handleToggleHomeTabDiscover,
         handleToggleHomeTabAlbums,
         handleToggleHomeTabLocal,
     } = useHomeLayoutSettingsStore(useShallow(state => ({
         showHomeTabPlaylist: state.showHomeTabPlaylist,
         showHomeTabRadio: state.showHomeTabRadio,
+        showHomeTabDiscover: state.showHomeTabDiscover,
         showHomeTabAlbums: state.showHomeTabAlbums,
         showHomeTabLocal: state.showHomeTabLocal,
         handleToggleHomeTabPlaylist: state.handleToggleHomeTabPlaylist,
         handleToggleHomeTabRadio: state.handleToggleHomeTabRadio,
+        handleToggleHomeTabDiscover: state.handleToggleHomeTabDiscover,
         handleToggleHomeTabAlbums: state.handleToggleHomeTabAlbums,
         handleToggleHomeTabLocal: state.handleToggleHomeTabLocal,
     })));
@@ -151,6 +155,21 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
                             style={{ backgroundColor: showHomeTabRadio ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
                         >
                             <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${showHomeTabRadio ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    <div className={`flex items-center justify-between p-4 border-b ${settingsDividerClassFor(isDaylight)}`}>
+                        <div className="space-y-1">
+                            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                                {t('options.showHomeTabDiscover')}
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => handleToggleHomeTabDiscover(!showHomeTabDiscover)}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors shrink-0 ${!showHomeTabDiscover ? toggleOffBackgroundClass : ''}`}
+                            style={{ backgroundColor: showHomeTabDiscover ? theme?.secondaryColor || 'rgba(114, 119, 134, 1)' : undefined }}
+                        >
+                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${showHomeTabDiscover ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                     </div>
 

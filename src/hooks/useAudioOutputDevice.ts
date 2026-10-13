@@ -142,15 +142,33 @@ export const useAudioOutputDevice = ({
             void applyAudioOutputDevice(audioOutputDeviceId, false);
         };
 
+        // 蓝牙断连自动回退：设备变化时检查当前选中设备是否还在，不在则回退默认
+        const handleDeviceChange = async () => {
+            if (isDisposed) return;
+            if (!audioOutputDeviceId || audioOutputDeviceId === 'default') return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const stillExists = devices.some(d => d.deviceId === audioOutputDeviceId);
+                if (!stillExists) {
+                    persistAudioOutputDeviceId('default');
+                    void applyAudioOutputDevice('default', false);
+                }
+            } catch {
+                // enumerateDevices 可能失败，忽略
+            }
+        };
+
         audioElement.addEventListener('loadedmetadata', handleAudioDeviceRetry);
         audioElement.addEventListener('canplay', handleAudioDeviceRetry);
+        navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
         void applyAudioOutputDevice(audioOutputDeviceId, false);
         return () => {
             isDisposed = true;
             audioElement.removeEventListener('loadedmetadata', handleAudioDeviceRetry);
             audioElement.removeEventListener('canplay', handleAudioDeviceRetry);
+            navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
         };
-    }, [applyAudioOutputDevice, audioOutputDeviceId, audioSrc]);
+    }, [applyAudioOutputDevice, audioOutputDeviceId, audioSrc, persistAudioOutputDeviceId]);
 
     const handleAudioOutputDeviceChange = useCallback(async (deviceId: string) => (
         await applyAudioOutputDevice(deviceId, true)

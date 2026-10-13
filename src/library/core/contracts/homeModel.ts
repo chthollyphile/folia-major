@@ -1,4 +1,4 @@
-import type { HomeViewTab, LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
+import type { HomeViewTab, LocalLibraryGroup, LocalSong, SongResult, UnifiedSong } from '../../../types';
 import type { MediaId, ProviderAccountSummary, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
 import type { NavidromeConfig, SubsonicAlbum, SubsonicArtist, SubsonicPlaylist, SubsonicSong } from '../../../types/navidrome';
 import type { LibraryCollectionDescriptor, NavidromeGridViewCollectionType } from './collection';
@@ -12,7 +12,7 @@ import type { LibraryDirectoryNode, LibraryDirectorySelectionType, LibraryHidden
 /** 首页一级页签（与应用的 HomeViewTab 同一套）。 */
 export type LibraryHomeTabKey = HomeViewTab;
 /** 在线来源的三个页签。 */
-export type LibraryHomeOnlineTab = 'playlist' | 'radio' | 'albums';
+export type LibraryHomeOnlineTab = 'playlist' | 'radio' | 'albums' | 'discover';
 
 /** 待翻译的文案：core 只给 i18n key 与插值，翻译在绑定 / 端口里做（fallback 是翻译为空时的兜底）。 */
 export type LibraryHomeMessage = {
@@ -109,9 +109,46 @@ export type LibraryHomeRadioFeed = {
  * 读到的是同一份数据、不重新请求；离开首页时宿主放掉在线数据的归属、让 Navidrome 概览与文件夹树作废，
  * 回到首页再读（见 library/app/useLibraryHomeResources 与 core/services/libraryHomeLifetime）。
  */
+
+/** 发现页里的一段推荐（FM / 相似 / 雷达 / 新歌）。标题在装配时翻译好，纯数据。 */
+export type LibraryHomeDiscoverSection = {
+    id: 'personal-fm' | 'similar' | 'radar' | 'new-songs';
+    title: string;
+    /** 说明这一段为什么出现在这里（相似歌曲注明种子是哪首）。 */
+    subtitle?: string;
+    songs: readonly UnifiedSong[];
+};
+
+/**
+ * 发现页资源。与另两份 feed 的差别：带 24 小时缓存（退出再进来仍是同一批歌），
+ * 且「换一批」要绕开缓存重取；空结果绝不写缓存，否则一次上游故障会把缓存污染成空。
+ */
+export type LibraryHomeDiscoverFeed = {
+    getSnapshot(): LibraryHomeFeedSnapshot<LibraryHomeDiscoverSection[]>;
+    subscribe(listener: () => void): () => void;
+    setOwner(owner: LibraryHomeFeedOwner | null): void;
+    ensure(options?: LibraryHomeDiscoverLoadOptions): Promise<void>;
+    reload(options?: LibraryHomeDiscoverLoadOptions): Promise<void>;
+    /** 「换一批」：绕开缓存重取。 */
+    swapBatch(options?: LibraryHomeDiscoverLoadOptions): Promise<void>;
+    /** 封面按资源的归属 provider 解析（由宿主注入：model 是纯变换层，不读 services）。 */
+    songCoverUrl(song: SongResult | UnifiedSong | undefined): string | undefined;
+};
+
+export type LibraryHomeDiscoverLoadOptions = {
+    /** 「换一批」：绕开缓存直接去上游取新批次。 */
+    force?: boolean;
+    /** 相似歌曲的种子（此刻在听、且与当前音源同源的那首）。 */
+    seedSongId?: string;
+    /** 种子的歌名（相似段副标题「跟着正在播放的〈xxx〉」）。 */
+    seedSongName?: string;
+};
+
 export type LibraryHomeResources = {
     favoriteAlbums: LibraryHomeFeedResource<ProviderCollection[]>;
     radioFeed: LibraryHomeFeedResource<LibraryHomeRadioFeed | null>;
+    /** 发现页的四段推荐（FM / 相似 / 雷达 / 新歌）。 */
+    discoverFeed: LibraryHomeDiscoverFeed;
     actions: LibraryHomeActionsController;
     /** Navidrome 页签的概览（进页签时 ensure；离开页签或首页时作废，下次进来重读）。 */
     navidromeOverview: LibraryNavidromeHomeResource;
@@ -199,6 +236,8 @@ export interface LibraryHomePort {
     subscribeScanProgress(listener: (progress: LibraryHomeScanProgress | null) => void): () => void;
     getPersonalFm(): Promise<SongResult[]>;
     playPersonalFm(song: SongResult, queue: SongResult[]): void;
+    /** 歌曲卡（发现页）：点卡即播，队列用所在段的那一批；FM 段带 isFmCall 进 FM 模式连续放。 */
+    playSongs(song: SongResult, queue: SongResult[], isFmCall?: boolean): void;
     describeOnlineCollection(collection: Record<string, unknown>, providerId: string): LibraryCollectionDescriptor;
     describeLocalGroup(group: LocalLibraryGroup): LibraryCollectionDescriptor;
     describeNavidromeCard(card: LibraryHomeCard, type: NavidromeGridViewCollectionType): LibraryCollectionDescriptor;

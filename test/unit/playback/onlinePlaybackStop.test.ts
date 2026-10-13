@@ -44,7 +44,9 @@ const songs: UnifiedSong[] = ['1', '2'].map(id => ({
 beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
-    usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[0], playQueue: songs,
+    // 当前曲刻意取 songs[1]：这些用例测的是「播放一首不可用的歌」，而「点正在播的那首=只展开播放器、
+    // 不重新加载」是另一条早返回（见 usePlaybackQueueController 里的说明），两者混在一起会互相遮蔽。
+    usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[1], playQueue: songs,
         playerState: PlayerState.PLAYING, isFmMode: false });
     useStatusMessageStore.setState({ message: null });
 });
@@ -58,6 +60,8 @@ function controller() {
         audioRef: { current: { pause } }, shouldAutoPlayRef,
         playbackAutoSkipCountRef: { current: 0 }, setIsLyricsLoading: vi.fn(),
         interruptStagePlaybackForMainTransition: vi.fn(),
+        // 类型上必填（点当前曲会用它打开播放器）；这些用例不走那条路径，给个空实现即可。
+        navigateToPlaybackView: vi.fn(),
     } as never);
     return { ...result, pause, shouldAutoPlayRef };
 }

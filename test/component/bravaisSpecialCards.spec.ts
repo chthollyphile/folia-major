@@ -306,7 +306,7 @@ test.describe('[bravais-only] special collections', () => {
         }
         expect(await focusedName()).toBe('shortcut-liked');
         // 方向键序列：页签之后紧接着是入口（DOM 顺序），下一个是云盘。
-        expect(seen.slice(0, 4)).toEqual(['tab:radio', 'tab:albums', 'tab:local', 'tab:navidrome']);
+        expect(seen.slice(0, 5)).toEqual(['tab:radio', 'tab:discover', 'tab:albums', 'tab:local', 'tab:navidrome']);
         await page.keyboard.press('ArrowDown');
         expect(await focusedName()).toBe('shortcut-cloud');
         await page.keyboard.press('ArrowUp');

@@ -191,6 +191,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "home-albums",
   "home-navidrome",
   "home-radio",
+  "home-discover",
   "desktop-toggle-remote-control",
   "desktop-toggle-main-window-always-on-top",
   "panel-cover",

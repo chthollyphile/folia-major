@@ -9,6 +9,8 @@ import SearchResultRow from './SearchResultRow';
 type SearchResultsListProps = {
     tracks: UnifiedSong[];
     scrollTop: number;
+    /** 这批结果属于哪次搜索：卸载时只有 scope 没变，才敢把滚动位置交还给父组件。 */
+    scrollScope: string;
     isDaylight: boolean;
     onScrollTopChange: (scrollTop: number) => void;
     onPlayTrack: (track: UnifiedSong) => void;
@@ -17,7 +19,7 @@ type SearchResultsListProps = {
     onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
 
-type RowProps = Omit<SearchResultsListProps, 'scrollTop' | 'onScrollTopChange'>;
+type RowProps = Omit<SearchResultsListProps, 'scrollTop' | 'scrollScope' | 'onScrollTopChange'>;
 
 const Row = ({ index, style, tracks, ...props }: { index: number; style: React.CSSProperties } & RowProps) => (
     <SearchResultRow track={tracks[index]} style={style} {...props} />
@@ -26,6 +28,7 @@ const Row = ({ index, style, tracks, ...props }: { index: number; style: React.C
 const SearchResultsList: React.FC<SearchResultsListProps> = ({
     tracks,
     scrollTop,
+    scrollScope,
     onScrollTopChange,
     ...rowProps
 }) => {
@@ -42,12 +45,17 @@ const SearchResultsList: React.FC<SearchResultsListProps> = ({
         latestScrollTopRef.current = scrollTop;
     }, [listRef, scrollTop, tracks]);
 
+    // 记的是挂载时那一批结果的 scope，不跟随后续变化：换搜索词就意味着记录失效，
+    // 此时父组件刚把 scrollTop 归零，交还旧偏移会把它盖回去，新结果停在旧位置上看着像空列表。
+    const mountedScopeRef = useRef(scrollScope);
     useEffect(() => () => {
         if (commitTimerRef.current) {
             clearTimeout(commitTimerRef.current);
         }
-        onScrollTopChange(latestScrollTopRef.current);
-    }, [onScrollTopChange]);
+        if (mountedScopeRef.current === scrollScope) {
+            onScrollTopChange(latestScrollTopRef.current);
+        }
+    }, [onScrollTopChange, scrollScope]);
 
     return (
         <List

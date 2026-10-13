@@ -217,9 +217,12 @@ test.describe(`[${suite}] online tabs`, () => {
         expect(await scope(page)).toBe(`online:${A}`);
         expect(await distinctPages(page, 'userPlaylists', `${A}:userPlaylists`)).toEqual(['0+50']);
         expect((await requests(page, 'cloudCollection', `${A}:cloud`)).length).toBeGreaterThan(0);
+        // discover（发现页）排在电台与专辑之间：它是本 fork 加的第 4 个在线页签，
+        // 显示开关来自布局设置（默认打开），可用性跟电台一致（四段数据都来自推荐接口）。
         expect(await page.evaluate(() => window.__homeProbe!.tabs().map(tab => [tab.key, tab.disabled]))).toEqual([
             ['playlist', false],
             ['radio', false],
+            ['discover', false],
             ['albums', false],
             ['local', false],
             ['navidrome', false],

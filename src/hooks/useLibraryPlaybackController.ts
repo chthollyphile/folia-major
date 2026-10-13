@@ -363,6 +363,17 @@ export function useLibraryPlaybackController({
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [currentSong, setStatusMsg, t]);
 
+    const createCurrentOnlinePlaylist = useCallback(async (name: string) => {
+        if (!currentSong) throw new Error('No current song');
+        const source = getPlaybackSourceRef(currentSong);
+        if (source.kind !== 'online') throw new Error('Current song is not online');
+        const created = await omni.createPlaylist(source.providerId, name);
+        await omni.addSongToPlaylist(currentSong, created);
+        await removeFromCache(getProviderCacheKey(created.providerId, `playlist_tracks_${created.id}`));
+        await removeFromCache(getProviderCacheKey(created.providerId, `playlist_detail_${created.id}`));
+        setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
+    }, [currentSong, setStatusMsg, t]);
+
     const addCurrentSongToNavidromePlaylist = useCallback(async (playlistId: string) => {
         if (!isNavidromePlaybackSong(currentSong)) {
             throw new Error('Current song is not a Navidrome song');
@@ -1535,6 +1546,7 @@ export function useLibraryPlaybackController({
         addCurrentSongToLocalPlaylist,
         createCurrentLocalPlaylist,
         addCurrentSongToOnlinePlaylist,
+        createCurrentOnlinePlaylist,
         addCurrentSongToNavidromePlaylist,
         createCurrentNavidromePlaylist,
         resolveLocalMetadataUI,

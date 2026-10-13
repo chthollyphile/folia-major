@@ -69,7 +69,7 @@ export const resolveSearchSource = (tab: HomeViewTab | SearchSource): SearchSour
     if (tab === 'local' || tab === 'navidrome') {
         return tab;
     }
-    if (tab !== 'playlist' && tab !== 'albums' && tab !== 'radio') return tab as OnlineProviderId;
+    if (tab !== 'playlist' && tab !== 'albums' && tab !== 'radio' && tab !== 'discover') return tab as OnlineProviderId;
     return 'netease';
 };
 
@@ -171,7 +171,7 @@ const getInitialHomeViewTab = (): HomeViewTab => {
         return 'playlist';
     }
     const savedTab = localStorage.getItem(LAST_HOME_VIEW_TAB_KEY);
-    return savedTab === 'playlist' || savedTab === 'local' || savedTab === 'albums' || savedTab === 'navidrome' || savedTab === 'radio'
+    return savedTab === 'playlist' || savedTab === 'local' || savedTab === 'albums' || savedTab === 'navidrome' || savedTab === 'radio' || savedTab === 'discover'
         ? savedTab
         : 'playlist';
 };
@@ -268,10 +268,10 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
             isLoadingMore: false,
             searchError: null,
             requestId,
-            searchResults: null,
+            // 不清空 searchResults：保留上一批结果当占位，新结果到了再整体替换。
+            // 立刻置空会让用户看到「内容闪一下全没、只剩一个转圈」，尤其是连续改搜索词的时候。
             offset: 0,
             hasMore: false,
-            scrollTop: 0,
         });
 
         try {

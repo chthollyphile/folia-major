@@ -21,7 +21,7 @@ import { onlineHiddenScope } from './directoryVisibility';
 // 不可用原因（原先直接写在 Grid3D 的 JSX 里）；在线列表的加载态；本地导入的「忙」与扫描百分比。
 // 文案只给 i18n key（LibraryHomeMessage），由绑定翻译。
 
-const ONLINE_TABS: readonly LibraryHomeOnlineTab[] = ['playlist', 'radio', 'albums'];
+const ONLINE_TABS: readonly LibraryHomeOnlineTab[] = ['playlist', 'radio', 'albums', 'discover'];
 
 export const isOnlineHomeTab = (tab: LibraryHomeTabKey): tab is LibraryHomeOnlineTab => (
     (ONLINE_TABS as readonly string[]).includes(tab)
@@ -83,6 +83,7 @@ export const resolveOnlineTabUnavailableReason = (
     const values = { provider: source.providerLabel };
     if (tab === 'playlist') return source.canUsePlaylists ? undefined : { key: 'status.providerLibraryUnavailable', values };
     if (tab === 'albums') return source.canUseAlbums ? undefined : { key: 'status.providerUserAlbumsUnavailable', values };
+    // 发现页吃的是推荐能力（它的四段数据都来自推荐接口），与电台同一个开关。
     return source.canUseRadio ? undefined : { key: 'status.providerRecommendationsUnavailable', values };
 };
 
@@ -98,6 +99,8 @@ export type LibraryHomeTabVisibility = {
     radio: boolean;
     albums: boolean;
     local: boolean;
+    /** 发现页（可选）：缺省即隐藏——布局设置没打开过这个页签的界面不显示它。 */
+    discover?: boolean;
 };
 
 /** 一级页签：顺序是 歌单、电台、专辑、本地、Navidrome；隐藏的页签不出现，不可用的带原因。 */
@@ -114,6 +117,7 @@ export const resolveHomeTabs = ({
 }): LibraryHomeTab[] => [
     ...(visibility.playlist ? [{ key: 'playlist' as const, label: { key: 'home.playlists' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'playlist') }] : []),
     ...(visibility.radio ? [{ key: 'radio' as const, label: { key: 'home.radio' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'radio') }] : []),
+    ...(visibility.discover ? [{ key: 'discover' as const, label: { key: 'home.discover' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'discover') }] : []),
     ...(visibility.albums ? [{ key: 'albums' as const, label: { key: 'home.albums' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'albums') }] : []),
     ...(visibility.local ? [{ key: 'local' as const, label: { key: 'localMusic.folder' }, disabledReason: resolveLocalUnavailableReason(localAvailability) }] : []),
     ...(navidromeEnabled ? [{ key: 'navidrome' as const, label: { key: 'navidrome.title', fallback: 'Navidrome' } }] : []),
@@ -153,15 +157,20 @@ export const resolveOnlineHomeLoading = ({
     source,
     favoriteAlbumsLoading,
     radioFeedLoading,
+    /** 发现页的四段推荐读取中（可选：别套首页不传它）。 */
+    discoverLoading = false,
 }: {
     tab: LibraryHomeTabKey;
     source: Pick<LibraryHomeOnlineSource, 'canUsePlaylists' | 'canUseAlbums' | 'canUseRadio' | 'collections' | 'user'>;
     favoriteAlbumsLoading: boolean;
     radioFeedLoading: boolean;
+    discoverLoading?: boolean;
 }): boolean => (
     (tab === 'playlist' && source.canUsePlaylists && source.collections.length === 0 && source.user !== null)
     || (tab === 'albums' && source.canUseAlbums && favoriteAlbumsLoading)
     || (tab === 'radio' && source.canUseRadio && radioFeedLoading)
+    // 发现页吃的是推荐能力（四段数据都来自推荐接口），与电台同一个开关。
+    || (tab === 'discover' && source.canUseRadio && discoverLoading)
 );
 
 /** 三个本地导入动作（导入文件夹、刷新、导入歌单文件）此刻是否都该禁用：任何一个在进行，或扫描在进行。 */

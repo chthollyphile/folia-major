@@ -3,6 +3,7 @@ import type { LibraryCollectionDescriptor } from '../contracts/collection';
 import type { CollectionResource } from '../contracts/resource';
 import { collectionKey, isCloudDriveCollection } from '../model/collectionIdentity';
 import { omni } from '../../../services/onlineMusic/omni';
+import { useRecentPlaysStore } from '../../../stores/useRecentPlaysStore';
 import { readOnlineTracksCache, writeOnlineTracksCache } from './onlineCollectionCache';
 import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } from './onlineCollectionResource';
 import { createNavidromeCollectionResource } from './navidromeCollectionResource';
@@ -18,6 +19,7 @@ const onlineDeps: OnlineCollectionResourceDeps = {
     getCollectionDetail: collection => omni.getCollectionDetail(collection),
     getPersonalFm: () => omni.getPersonalFm(),
     getDailySongs: () => omni.getDailySongs(),
+    getRecentPlays: () => useRecentPlaysStore.getState().entries.map(entry => entry.song),
     readCache: readOnlineTracksCache,
     writeCache: writeOnlineTracksCache,
 };

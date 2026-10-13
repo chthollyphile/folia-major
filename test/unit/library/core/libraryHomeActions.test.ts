@@ -35,6 +35,7 @@ const createPort = (patch: Partial<LibraryHomePort> = {}) => {
         }),
         getPersonalFm: vi.fn(async () => [{ id: 'fm-1' }, { id: 'fm-2' }] as unknown as SongResult[]),
         playPersonalFm: vi.fn(),
+        playSongs: vi.fn(),
         describeOnlineCollection: vi.fn((collection, providerId) => ({ ...collection, source: 'online', providerId }) as unknown as LibraryCollectionDescriptor),
         describeLocalGroup: vi.fn(group => ({ source: 'local', id: group.id }) as unknown as LibraryCollectionDescriptor),
         describeNavidromeCard: vi.fn((card, type) => ({ source: 'navidrome', id: String(card.id), type }) as unknown as LibraryCollectionDescriptor),

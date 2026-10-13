@@ -1,14 +1,17 @@
 import type { SongResult, UnifiedSong } from '../../types';
 import { OnlineProviderError } from '../../types/onlineMusic';
+import { normalizeCommentText } from './commentText';
 import type {
     AudioQualityPreference,
     MediaId,
     OnlineMusicProvider,
+    OnlineSearchSuggestion,
     ProviderCollection,
     ProviderLyricsResult,
     ProviderSongAvailability,
     ProviderSongReplacement,
     ProviderArtistSummary,
+    ProviderComment,
     ProviderUser,
     QrLoginState,
 } from '../../types/onlineMusic';
@@ -156,7 +159,29 @@ const extractCloudLyricText = (response: any): string => (
     response?.lrc || response?.data?.lrc || response?.lyric || response?.data?.lyric || ''
 );
 
+const normalizeNeteaseComment = (raw: any, isHot = false): ProviderComment | null => {
+    const content = normalizeCommentText(raw?.content);
+    if (!content) return null;
+    const likedCount = Number(raw?.likedCount);
+    return {
+        id: raw?.commentId ?? 0,
+        content,
+        userName: String(raw?.user?.nickname || raw?.user?.userName || '匿名'),
+        avatarUrl: raw?.user?.avatarUrl ? toHttpsCommentUrl(String(raw.user.avatarUrl)) : undefined,
+        ...(Number.isFinite(likedCount) && likedCount >= 0 ? { likedCount } : {}),
+        ...(typeof raw?.liked === 'boolean' ? { liked: raw.liked } : {}),
+        ...(raw?.timeStr ? { timeStr: String(raw.timeStr) } : {}),
+        ...(raw?.ipLocation ? { ipLocation: String(raw.ipLocation) } : {}),
+        ...(isHot ? { isHot: true } : {}),
+    };
+};
+
+// 网易评论头像回的是 http，渲染层混合内容会被拦，统一升 https。
+const toHttpsCommentUrl = (url: string): string => url.replace(/^http:/, 'https:');
+
 const neteaseChorusRangesCache = new Map<string, Promise<Array<{ startTime: number; endTime: number }>>>();
+// 副歌范围缓存的容量上限：Map 无界的话，每听一首新歌就多一条，长会话里只增不减。
+const NETEASE_CHORUS_CACHE_LIMIT = 200;
 
 const getNeteaseChorusRanges = async (songId: MediaId): Promise<Array<{ startTime: number; endTime: number }>> => {
     const parsedId = toNeteaseId(songId);
@@ -166,9 +191,22 @@ const getNeteaseChorusRanges = async (songId: MediaId): Promise<Array<{ startTim
 
     if (typeof neteaseApi.getChorus !== 'function') return [];
 
+    // 在途请求也进 Map（并发同一首歌只发一次），但**失败的那份不留**：
+    // .then 用成功结果替换，.catch 直接 delete —— 否则一次网络抖动会让这首歌
+    // 本次会话再也拿不到副歌范围。
     const request = Promise.resolve(neteaseApi.getChorus(parsedId))
-        .then(parseNeteaseChorusRanges)
+        .then(ranges => {
+            const parsed = parseNeteaseChorusRanges(ranges);
+            // 有容量上限：每首歌一条，长期听歌会无界增长。
+            if (neteaseChorusRangesCache.size >= NETEASE_CHORUS_CACHE_LIMIT) {
+                const oldest = neteaseChorusRangesCache.keys().next();
+                if (!oldest.done) neteaseChorusRangesCache.delete(oldest.value);
+            }
+            neteaseChorusRangesCache.set(cacheKey, Promise.resolve(parsed));
+            return parsed;
+        })
         .catch(error => {
+            neteaseChorusRangesCache.delete(cacheKey);
             console.warn(`[NeteaseProvider] Failed to fetch chorus ranges for song ${songId}:`, error);
             return [];
         });
@@ -298,6 +336,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         likes: true,
         userAlbums: true,
         playbackReports: true,
+        comments: true,
     },
     normalizeSong: normalizeNeteaseSong,
     normalizeUser,
@@ -314,6 +353,50 @@ export const neteaseProvider: OnlineMusicProvider = {
             const items = (response.result?.songs || []).map(normalizeNeteaseSong);
             const total = Number(response.result?.songCount || items.length);
             return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
+        },
+        // 输入联想：上游 /search/suggest 的结果按 result.order 分组，songs 组的条目自带
+        // id/name/artists/album/duration（探针 2026-10-08），够 normalize 成可播歌曲直接播。
+        // albums/playlists 组不进联想框——它们有各自的集合卡行。
+        async getSmartboxSuggestions(query) {
+            const trimmed = query.trim();
+            if (!trimmed) return [];
+            const response = await neteaseApi.getSearchSuggest(trimmed);
+            const result = response?.result;
+            if (!result) return [];
+            const groups = Array.isArray(result.order) && result.order.length > 0
+                ? result.order
+                : ['songs', 'artists'];
+            const suggestions: OnlineSearchSuggestion[] = [];
+            for (const group of groups) {
+                const entries = Array.isArray(result[group]) ? result[group] : [];
+                for (const raw of entries) {
+                    const name = String(raw?.name || '');
+                    if (!name) continue;
+                    if (group === 'songs') {
+                        const song = normalizeNeteaseSong(raw);
+                        const detail = song.artists.map(artist => artist.name).filter(Boolean).join(' / ');
+                        suggestions.push({ kind: 'song', value: name, ...(detail ? { detail } : {}), song });
+                    } else if (group === 'artists') {
+                        suggestions.push({ kind: 'singer', value: name });
+                    }
+                }
+                if (suggestions.length >= 8) break;
+            }
+            return suggestions.slice(0, 8);
+        },
+        // 专辑/歌单类型搜索（10=专辑，1000=歌单，探针 2026-10-08），一次各取一页拼平。
+        async searchCollections(query, limit, offset) {
+            const trimmed = query.trim();
+            if (!trimmed) return { items: [], hasMore: false, nextOffset: offset };
+            const [albums, playlists] = await Promise.all([
+                neteaseApi.searchByType(trimmed, 10, limit, offset),
+                neteaseApi.searchByType(trimmed, 1000, limit, offset),
+            ]);
+            const items = [
+                ...((albums?.result?.albums) || []).map((item: any) => normalizeCollection(item, 'album')),
+                ...((playlists?.result?.playlists) || []).map((item: any) => normalizeCollection(item, 'playlist')),
+            ];
+            return { items, hasMore: false, nextOffset: offset + items.length };
         },
     },
     playback: {
@@ -478,6 +561,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
         async getUserAlbums(_userId, limit, offset) {
             const response = await neteaseApi.getFavoriteAlbums(limit, offset);
+
             const items = (response?.data || []).map((item: any) => normalizeCollection(item, 'album'));
             return { items, hasMore: Boolean(response?.hasMore), nextOffset: offset + items.length };
         },
@@ -499,11 +583,13 @@ export const neteaseProvider: OnlineMusicProvider = {
     catalog: {
         async getPlaylistTracks(id, limit, offset) {
             const response = await neteaseApi.getPlaylistTracks(toNeteaseId(id), limit, offset);
+
             const items = (response?.songs || []).map(normalizeNeteaseSong);
             return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
         },
         async getCloudTracks(limit, offset) {
             const response = await neteaseApi.getUserCloud(limit, offset);
+
             const items = (response?.songs || []).map((item: unknown) => {
                 const song = normalizeNeteaseSong(item);
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } } as UnifiedSong;
@@ -578,9 +664,50 @@ export const neteaseProvider: OnlineMusicProvider = {
             const response = await neteaseApi.getPersonalFm(options ?? getPersonalFmRequestOptions());
             return (response?.data || []).map(normalizeNeteaseSong);
         },
-        async getRecommendedCollections(limit) {
-            const response = await neteaseApi.getPersonalizedPlaylists(limit);
-            return (response?.result || []).map((item: any) => normalizeCollection(item));
+        async getRecommendedCollections(limit, context) {
+            const scope = context?.scope ?? 'all';
+            const items: ProviderCollection[] = [];
+            if (scope === 'personalized' || scope === 'all') {
+                const response = await neteaseApi.getPersonalizedPlaylists(limit);
+                items.push(...(response?.result || []).map((item: any) => normalizeCollection(item)));
+            }
+            if (scope === 'editorial' || scope === 'all') {
+                // 电台页（广场）要的是「大家都在听的」+ 能换一批。/personalized 没有 offset
+                // （包里把参数注释掉了，探针 2026-10-08），所以编辑语义走 /top/playlist，
+                // `from` 直接当 offset 用。
+                const response = await neteaseApi.getTopPlaylists(limit, context?.from ?? 0);
+                items.push(...(response?.playlists || []).map((item: any) => normalizeCollection(item)));
+            }
+            return items;
+        },
+        // 与当前这首相似的歌曲。上游 /simi/song 匿名返回空数组，需登录态（探针 2026-10-08）；
+        // 未登录时这里得到 []，发现页按「空段丢弃」处理，不会出空壳。
+        async getSimilarSongs(seed, limit) {
+            const response = await neteaseApi.getSimilarSongs(toNeteaseId(seed), limit ?? 15);
+            return (response?.songs || []).map(normalizeNeteaseSong);
+        },
+        // 发现页三段的歌曲视图。section 名字与 QQ/酷狗共用同一套约定（similar/radar/new-songs）：
+        // - similar: /simi/song（种子驱动）
+        // - radar: 网易云没有按红心推的独立接口，用口味日推 /recommend/songs 近似——
+        //   它同样是「跟着账号画像走」的语义，比不出一段更接近 QQ 雷达的本意。
+        // - new-songs: /personalized/newsong 新歌速递
+        async getRecommendationRowSongs(section, options) {
+            const limit = options?.limit ?? 15;
+            if (section === 'similar') {
+                const seed = options?.seedSongId;
+                if (!seed) return [];
+                const response = await neteaseApi.getSimilarSongs(toNeteaseId(seed), limit);
+                return (response?.songs || []).map(normalizeNeteaseSong);
+            }
+            if (section === 'radar') {
+                const response = await neteaseApi.getDailyRecommendedSongs(false);
+                return (response?.songs || []).map(normalizeNeteaseSong);
+            }
+            if (section === 'new-songs') {
+                const response = await neteaseApi.getPersonalizedNewSongs(limit);
+                return (response?.songs || []).map(normalizeNeteaseSong);
+            }
+            return [];
         },
         async getHistoryEntries() {
             const response = await neteaseApi.getDailyRecommendationHistoryDates();
@@ -614,9 +741,73 @@ export const neteaseProvider: OnlineMusicProvider = {
             const trackIds = tracks.map(track => typeof track === 'object' ? track.id : track);
             await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
         },
+        // 新建歌单。上游回包形状两种都见过（{playlist:{id}} 与 {id}），两种都认；
+        // 都没有就按 invalid-response 抛，让调用方看到真实失败而不是拿到 0 号歌单。
+        async createPlaylist(dirName) {
+            const response = await neteaseApi.createPlaylist(dirName);
+            const code = Number(response?.code);
+            if ([301, 401, 403].includes(code)) {
+                throw new OnlineProviderError('auth-required', 'NetEase rejected the playlist creation: not signed in', 'netease');
+            }
+            const createdId = response?.playlist?.id ?? response?.id;
+            if (code !== 200 || createdId === undefined || createdId === null) {
+                throw new OnlineProviderError(
+                    'invalid-response',
+                    `NetEase returned no created playlist id (code ${response?.code})`,
+                    'netease',
+                );
+            }
+            return normalizeCollection(response?.playlist ?? { id: createdId, name: dirName });
+        },
         async subscribePlaylist(playlist, subscribed) {
             await neteaseApi.subscribePlaylist(toNeteaseId(typeof playlist === 'object' ? playlist.id : playlist), subscribed);
         },
         async subscribeAlbum(id, subscribed) { await neteaseApi.subscribeAlbum(toNeteaseId(id), subscribed); },
+    },
+    comments: {
+        // 网易评论匿名可用（探针 2026-10-08：晴天 total 197万）。热评置顶，普通评论接在其后，
+        // 与网易自己的排序一致；offset 只作用于普通评论（热评每次都随首屏返回）。
+        async getSongComments(song, limit, offset) {
+            const response = await neteaseApi.getSongComments(toNeteaseId(song.id), limit, offset);
+            const hot = (response?.hotComments || [])
+                .map((item: any) => normalizeNeteaseComment(item, true))
+                .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+            const normal = (response?.comments || [])
+                .map((item: any) => normalizeNeteaseComment(item, false))
+                .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+            const items = [...hot, ...normal];
+            const total = Number(response?.total) || items.length;
+            return { items, total, hasMore: Boolean(response?.more), nextOffset: offset + limit };
+        },
+
+        // 盖楼：网易楼层接口（探针 2026-10-08：晴天热评回 data.comments + totalCount/hasMore，
+        // bestComments 是神回复）。上游翻页用 time 游标，契约只说 offset，对不齐 → 只回首页
+        // 并置 hasMore:false，limit 给足以覆盖绝大多数楼层；长尾等真需求再线程化游标。
+        async getCommentReplies(song, commentId, limit, offset) {
+            if (offset > 0) return { items: [], hasMore: false, nextOffset: offset };
+            const response = await neteaseApi.getCommentFloor(toNeteaseId(song.id), commentId, Math.max(limit, 30));
+            const data = response?.data ?? {};
+            const best = (data?.bestComments || [])
+                .map((item: any) => normalizeNeteaseComment(item, true))
+                .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+            const normal = (data?.comments || [])
+                .map((item: any) => normalizeNeteaseComment(item, false))
+                .filter((c: ProviderComment | null): c is ProviderComment => Boolean(c));
+            const items = [...best, ...normal];
+            return { items, total: Number(data?.totalCount) || items.length, hasMore: false, nextOffset: offset };
+        },
+
+        // 点赞是写操作：上游 code 301/401/403 都是「没登录」，抛 auth-required 让 UI 走
+        // 回滚+提示；其余非 200 归 unavailable，同样是失败回滚，不装成功。
+        async likeComment(song, commentId, liked) {
+            const response = await neteaseApi.likeSongComment(toNeteaseId(song.id), commentId, liked);
+            const code = Number(response?.code);
+            if ([301, 401, 403].includes(code)) {
+                throw new OnlineProviderError('auth-required', 'NetEase comment likes need a signed-in account', 'netease');
+            }
+            if (code !== 200) {
+                throw new OnlineProviderError('unavailable', `NetEase rejected the comment like (code ${code})`, 'netease');
+            }
+        },
     },
 };
