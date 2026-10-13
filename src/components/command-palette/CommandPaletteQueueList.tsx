@@ -5,6 +5,8 @@ import type { SongResult } from '../../types';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import type { CommandPaletteMatch } from './types';
 import CommandPaletteQueueRow, { type CommandPaletteQueueRowProps } from './CommandPaletteQueueRow';
+import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import { useQueueUi } from '../../hooks/useQueueUi';
 
 // src/components/command-palette/CommandPaletteQueueList.tsx
 // Virtualized queue results with the same row editing actions as the player queue tab.
@@ -40,6 +42,9 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
     onRemoveSong,
 }) => {
     const { t } = useTranslation();
+    const playQueue = usePlaybackStore(state => state.playQueue);
+    const { readEntry, entryLayout } = useQueueUi(playQueue, 'command');
+    const rowHeight = entryLayout === 'overline' ? 76 : ROW_HEIGHT;
     const listRef = useListRef(null);
     const hasPositionedRef = React.useRef(false);
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
@@ -71,13 +76,13 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
             if (!element) {
                 return;
             }
-            const viewportHeight = element.clientHeight || ROW_HEIGHT * DEFAULT_VISIBLE_ROWS;
-            const visibleRowCount = Math.max(1, Math.floor(viewportHeight / ROW_HEIGHT));
+            const viewportHeight = element.clientHeight || rowHeight * DEFAULT_VISIBLE_ROWS;
+            const visibleRowCount = Math.max(1, Math.floor(viewportHeight / rowHeight));
             const rowsAboveCurrent = Math.floor((visibleRowCount - 1) / 2);
             const topRowIndex = Math.max(0, currentMatchIndex - rowsAboveCurrent);
             // Align the destination before scrolling so a correction cannot interrupt the animation.
             const maxScrollTop = Math.max(0, element.scrollHeight - viewportHeight);
-            const targetScrollTop = Math.floor(Math.min(topRowIndex * ROW_HEIGHT, maxScrollTop) / ROW_HEIGHT) * ROW_HEIGHT;
+            const targetScrollTop = Math.floor(Math.min(topRowIndex * rowHeight, maxScrollTop) / rowHeight) * rowHeight;
             element.scrollTo({
                 top: targetScrollTop,
                 behavior: hasPositionedRef.current ? 'smooth' : 'instant',
@@ -85,7 +90,7 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
             hasPositionedRef.current = true;
         });
         return () => window.cancelAnimationFrame(frame);
-    }, [currentMatchIndex, listRef, onActiveIndexChange, query]);
+    }, [currentMatchIndex, listRef, onActiveIndexChange, query, rowHeight]);
 
     React.useEffect(() => {
         if (activeIndex < 0 || activeIndex >= matches.length) {
@@ -103,6 +108,7 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
         currentSongKey,
         isDaylight,
         isExecuting,
+        readEntry,
         labels: {
             moveToEnd: t('queue.moveToEnd'),
             playNext: t('queue.playNext'),
@@ -128,6 +134,7 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
         onMoveSongToEnd,
         onMoveSongToNext,
         onRemoveSong,
+        readEntry,
         t,
     ]);
 
@@ -135,7 +142,7 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
         <List
             listRef={listRef}
             rowCount={matches.length}
-            rowHeight={ROW_HEIGHT}
+            rowHeight={rowHeight}
             rowComponent={CommandPaletteQueueRow}
             rowProps={rowProps}
             overscanCount={2}

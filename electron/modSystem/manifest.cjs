@@ -29,6 +29,7 @@ const KNOWN_EXPERIMENTAL = new Set([
     'omni.providers',
     'omni.hooks',
     'ponder.targets',
+    'queue.ui',
 ]);
 
 /*

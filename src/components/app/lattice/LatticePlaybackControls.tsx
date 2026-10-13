@@ -63,7 +63,7 @@ export default function LatticePlaybackControls({
                     {isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
                 </button>
                 <div className="lattice-chrome-details" inert={!revealed} aria-hidden={!revealed}>
-                    <LatticeExtraControls disabled={!canControlCurrent} />
+                    <LatticeExtraControls disabled={!canControlCurrent} queueIndex={tile.queueIndex} song={tile.song} />
                 </div>
                 <LatticeChromeTime currentTime={canControlCurrent ? currentTime : idleTime} duration={duration} />
                 <button type="button" className="lattice-secondary-action" onClick={onOpenPlayer}

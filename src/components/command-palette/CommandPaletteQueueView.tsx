@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import CommandPaletteQueueList, { type CommandPaletteQueueListProps } from './CommandPaletteQueueList';
 import type { QueueSearchEvaluation, QueueSearchSuggestion } from './queueSearch';
 import type { QueueBatchAction, QueueFacetKind } from './queueQuery';
+import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import { useQueueUi } from '../../hooks/useQueueUi';
+import { QueueUiComponents } from '../shared/QueueUiAdditions';
 
 // src/components/command-palette/CommandPaletteQueueView.tsx
 // Adds queue syntax suggestions and an explicit batch-action preview above the virtualized results.
@@ -50,6 +53,8 @@ const CommandPaletteQueueView: React.FC<CommandPaletteQueueViewProps> = ({
     ...listProps
 }) => {
     const { t } = useTranslation();
+    const playQueue = usePlaybackStore(state => state.playQueue);
+    const { headerContent } = useQueueUi(playQueue, 'command');
     const { parsed, suggestions } = evaluation;
     const ActionIcon = parsed.action ? actionIcon[parsed.action] : null;
     const canExecuteBatch = Boolean(
@@ -64,7 +69,7 @@ const CommandPaletteQueueView: React.FC<CommandPaletteQueueViewProps> = ({
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-2" data-testid="command-palette-queue-view">
-            <div className="flex shrink-0 items-start justify-between gap-3 px-3 py-1 text-[11px]">
+            <div className={`flex shrink-0 ${headerContent.length ? 'items-center' : 'items-start'} justify-between gap-3 px-3 py-1 text-[11px]`}>
                 <div className="min-w-0 flex-1 opacity-40" data-testid="command-palette-queue-syntax-hint">
                     {!parsed.action && parsed.actionDraft === null && parsed.facetDraft === null && !parsed.text
                         ? t('commandPalette.queueSyntaxHint')
@@ -84,6 +89,7 @@ const CommandPaletteQueueView: React.FC<CommandPaletteQueueViewProps> = ({
                         style={{ accentColor }}
                     />
                 </label>
+                <QueueUiComponents components={headerContent} isDaylight={isDaylight} />
             </div>
             {(parsed.action || parsed.actionDraft !== null || parsed.facetDraft !== null) && (
                 <div className="flex flex-wrap items-center gap-1.5 px-1">

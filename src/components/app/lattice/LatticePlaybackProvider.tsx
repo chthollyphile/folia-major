@@ -18,7 +18,7 @@ export type LatticePlaybackActions = {
     isStageActive?: boolean;
     disabled?: boolean;
 };
-const PlaybackContext = createContext<PlayerControlSlotContext | null>(null);
+const PlaybackContext = createContext<(PlayerControlSlotContext & { isDaylight: boolean }) | null>(null);
 export const useLatticePlaybackActions = () => {
     const context = useContext(PlaybackContext);
     if (!context) throw new Error('Lattice playback controls need their provider');
@@ -39,10 +39,11 @@ type Props = {
 
 export default function LatticePlaybackProvider({ actions, currentSong, queue, lyrics, currentTime, duration, onSeek, isDaylight, children }: Props) {
     const [timelineOpen, setTimelineOpen] = useState(false);
-    const context = useMemo<PlayerControlSlotContext>(() => {
+    const context = useMemo<PlayerControlSlotContext & { isDaylight: boolean }>(() => {
         const neighbors = resolvePlaybackNeighbors({ playQueue: queue, currentSong, loopMode: actions.loopMode,
             isFmMode: actions.playback.isFmMode, isStageActive: Boolean(actions.isStageActive) });
         return {
+            isDaylight,
             loopMode: actions.loopMode,
             onToggleLoop: actions.playback.toggleLoop,
             onPrev: actions.playback.prev,
@@ -59,7 +60,7 @@ export default function LatticePlaybackProvider({ actions, currentSong, queue, l
             invokeCommandById: actions.invokeCommandById,
             canInvokeCommandById: actions.canInvokeCommandById,
         };
-    }, [actions, currentSong, lyrics, queue]);
+    }, [actions, currentSong, lyrics, queue, isDaylight]);
     return <PlaybackContext.Provider value={context}>
         {children}
         {timelineOpen && createPortal(<Suspense fallback={null}>

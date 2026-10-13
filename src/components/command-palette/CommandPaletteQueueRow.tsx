@@ -5,6 +5,8 @@ import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlin
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import type { CommandPaletteMatch } from './types';
+import type { QueueUiEntryContent } from '../../mods/folium/queueUi';
+import { QueueUiComponents, QueueUiOverline } from '../shared/QueueUiAdditions';
 
 // src/components/command-palette/CommandPaletteQueueRow.tsx
 // Renders one searchable queue entry and its three hover editing actions.
@@ -14,6 +16,7 @@ export type CommandPaletteQueueRowProps = {
     currentSongKey: string | null;
     isDaylight: boolean;
     isExecuting: boolean;
+    readEntry: (index: number) => QueueUiEntryContent;
     labels: {
         moveToEnd: string;
         playNext: string;
@@ -38,6 +41,7 @@ const CommandPaletteQueueRow = ({
     currentSongKey,
     isDaylight,
     isExecuting,
+    readEntry,
     labels,
     matches,
     onActiveIndexChange,
@@ -52,6 +56,11 @@ const CommandPaletteQueueRow = ({
     if (!match || !song || queueIndex === undefined) {
         return null;
     }
+    const additions = readEntry(queueIndex);
+    const hasAddedActions = additions.trailing.length > 0;
+    const rowStyle = hasAddedActions
+        ? { ...style, '--queue-ui-action-padding': `${120 + additions.trailing.reduce((width, component) => width + (component.width ?? 0) + 2, 0)}px` } as React.CSSProperties
+        : style;
 
     const isSelected = index === activeIndex;
     const isPlaying = currentSongKey === getPlaybackSongKey(song);
@@ -60,7 +69,7 @@ const CommandPaletteQueueRow = ({
     const hoverClass = isDaylight ? 'hover:bg-black/[0.05]' : 'hover:bg-white/[0.06]';
 
     return (
-        <div style={style} {...ariaAttributes} className="px-1 py-0.5">
+        <div style={rowStyle} {...ariaAttributes} className="px-1 py-0.5">
             <div
                 className={`group/queue-row relative h-full rounded-2xl ${
                     isSelected ? selectedClass : hoverClass
@@ -74,7 +83,7 @@ const CommandPaletteQueueRow = ({
                         onActiveIndexChange(index);
                         void onExecuteMatch(index);
                     }}
-                    className="flex h-full w-full items-center gap-1.5 rounded-2xl px-2 pr-[7.5rem] text-left"
+                    className={`flex h-full w-full items-center gap-1.5 rounded-2xl px-2 ${hasAddedActions ? 'pr-[var(--queue-ui-action-padding)]' : 'pr-[7.5rem]'} text-left${additions.overlines.length ? ' pt-3' : ''}`}
                 >
                     <span
                         className={`h-7 w-1 shrink-0 rounded-full ${
@@ -95,7 +104,7 @@ const CommandPaletteQueueRow = ({
                         </span>
                         <span className="block truncate text-xs opacity-45">{getSongArtistLabel(song)}</span>
                         {match.queueReasons && match.queueReasons.length > 0 && (
-                            <span className="absolute bottom-1.5 right-[7.5rem] flex gap-1">
+                            <span className={`absolute bottom-1.5 ${hasAddedActions ? 'right-[var(--queue-ui-action-padding)]' : 'right-[7.5rem]'} flex gap-1`}>
                                 {match.queueReasons.map(reason => (
                                     <span
                                         key={reason}
@@ -108,6 +117,10 @@ const CommandPaletteQueueRow = ({
                         )}
                     </span>
                 </button>
+                {additions.overlines.length > 0 && <div className="absolute left-12 top-1/2 -translate-y-6"
+                    style={{ right: hasAddedActions ? 'var(--queue-ui-action-padding)' : '7.5rem' }}>
+                    <QueueUiOverline content={additions} isDaylight={isDaylight} />
+                </div>}
                 <span
                     className={`absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5
                         pointer-events-none opacity-0
@@ -138,6 +151,7 @@ const CommandPaletteQueueRow = ({
                             <Icon size={14} />
                         </button>
                     ))}
+                    <QueueUiComponents components={additions.trailing} isDaylight={isDaylight} />
                 </span>
             </div>
         </div>

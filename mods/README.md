@@ -139,7 +139,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`queue.ui` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -206,6 +206,7 @@ export default function activate(folium) {
 | `styles` | 模组 CSS，只针对公开 part | 稳定 |
 | `experimental['omni.providers']` | 在线音乐源 | 实验 |
 | `experimental['ponder.targets']` | 思索（应用内教程）目标 | 实验 |
+| `experimental['queue.ui']` | 队列组件插槽（只能追加） | 实验 |
 
 ### 宿主托管容器
 
@@ -588,6 +589,59 @@ folium.experimental['omni.providers'].register({
 **建议**：别追求把界面画得像。用通用骨架勾出结构——一个 `surface` 面板、几个 `control` 按钮、几条 `rail`
 滑轨——再让字幕把意思讲清楚：每一步只讲一件事，用 `pointTo` 把字幕连到它讲的那个框，用 `highlight` 和
 `reveal` 标出「现在看这里」。这正是宿主思索的做法：骨架负责「在哪」，文字负责「是什么、为什么」。
+
+### queue.ui（只能追加的组件插槽）
+
+清单声明 `"experimental": ["queue.ui"]` 后，在主窗口调用
+`folium.experimental['queue.ui'].register(def)`。这是实验接口，没有稳定兼容承诺；
+类型见 [`queueUi.ts`](../src/mods/folium/queueUi.ts)，离线示例见
+[`sample-queue-ui`](../dev/folium/sample-queue-ui/README.md)。旧的动作描述格式已由组件挂载替代。
+
+```js
+// Keep mount functions stable; the host remounts when a component or its context changes.
+function mountFilter(container, ctx) {
+  const input = document.createElement('input');
+  input.placeholder = ctx.locale.startsWith('zh') ? '模组筛选' : 'Mod filter';
+  input.style.cssText = 'width:100%;color:var(--folium-primary);background:var(--folium-bg)';
+  input.addEventListener('input', () => void ctx.run(() => updateMyFilter(input.value)));
+  container.append(input);
+  return () => input.remove();
+}
+const handle = folium.experimental['queue.ui'].register({
+  id: 'my-queue-components',
+  getHeaderContent(surface) {
+    return [{ id: 'filter', width: 120, mount: mountFilter }];
+  },
+  getEntryLayout: () => 'plain',
+  getEntryContent({ song, index, surface }) {
+    return { trailing: [{ id: 'custom', width: 60, mount: mountMyComponent }] };
+  },
+});
+```
+
+- 宿主提供标题区、歌曲 overline 和行尾的追加位置；Lattice 海报控制区挂载该歌曲的 trailing 组件。
+  `surface` 区分 `panel`、`command`、`wall`（Lattice/资料库共享队列浮岛）、`lattice`（海报控制区）。
+  没有原生条目 ID 或编辑器，不能重排、隐藏或替换原生控件；无贡献时不生成插槽容器。
+- `getHeaderContent(surface)` 返回组件数组；`getEntryContent(ctx)` 返回
+  `{ overline?: { id, mount }, trailing?: [{ id, width, mount }] }`，也可返回 `null`。
+  每组至多八个组件，局部 ID 仅含小写字母、数字和连字符。`width` 为 1–512 CSS 像素，
+  用来在挂载前预留宽度，避免虚拟列表滚动和图标加载时布局塌缩。overline 填满文本区，不设置宽度。
+- `mount(container, ctx) => dispose?` 与其他 Folium 界面扩展使用相同模式；可挂载原生 DOM 或模组自行打包的组件。
+  每个容器使用 ShadowRoot。按钮、图标、计数、下拉框、悬停和聚焦样式全部由模组提供；宿主不提供业务按钮模板。
+  可使用继承的 `--folium-bg/primary/secondary/accent` 主题变量，样式不会串到原生控件。
+- 挂载上下文含 `surface`、`placement`（`header/overline/trailing`）、`locale`、`isDaylight` 和
+  `entry`（标题区为 null，否则为 `{ song, index, surface }`）。`song` 是冻结的 FoliumSong，
+  `index` 始终是原始宿主队列下标，可区分同歌重复条目，但不是跨重排稳定的业务 ID。
+- 在事件处理器中用 `ctx.run(handler)` 校验注册、当前 mount 和原队列下标后执行模组动作；
+  过期时返回 false，抛错时记录到该模组。`ctx.isCurrent()` 可直接查询有效性。
+  组件的禁用状态与业务判断由模组负责；异步操作在 await 后如还要操作队列，应重新检查。
+- 宿主拦住容器内部的点击、按键与 pointerdown 冒泡，保留输入框、按钮等元素的默认行为；
+  不会误触行点击或命令面板的 Enter 播放。交互式 overline 挂在歌曲按钮之外。
+- `getEntryLayout(surface)` 为 `plain/overline`，有条目 provider 时默认 overline。
+  宿主按布局声明预留单行附加区和虚拟行高，不为布局扫描整条队列。组件必须适应所在区域的高度。
+  `subscribe(notify)` 只通知结构、宽度或布局变化，必须返回清理函数；计数等内部状态可由组件自行订阅并更新 DOM，
+  无须让宿主重新读取队列或重挂组件。卸载、滚出虚拟可见区、队列上下文变化时调用 dispose。
+- 本接口只扩展宿主当前队列的展示，不接管播放、不替换队列来源。独立房间队列另行处理。
 
 ## internals（自由度出口）
 

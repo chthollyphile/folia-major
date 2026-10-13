@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "sample-queue-ui",
+  "name": "队列组件插槽示例",
+  "version": "2.0.2",
+  "author": "Folia Mod Samples",
+  "description": "在隔离插槽中自绘推荐者、圆角点赞计数和同步按钮，不修改歌曲或原生条目。",
+  "client": "client.mjs",
+  "experimental": ["queue.ui"],
+  "permissions": []
+}

@@ -15,11 +15,13 @@ import { addFoliumEventHandler, dispatchFoliumHookAsync, hasFoliumEventHandlers 
 import { createFoliumRegistry } from './registry';
 import { omniProvidersRegistry } from './registries/omniProviders';
 import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderText } from './ponderText';
+import { queueUiRegistry, type QueueUiExtension } from './queueUi';
 
 // src/mods/folium/experimental.ts
 // The unfrozen surfaces, each behind a manifest opt-in (`experimental`):
 //   - omni.providers: register an online music source (registries/omniProviders);
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
+//   - queue.ui:       append mod-mounted components to native queue surfaces;
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
 // Loaded lazily and only in the main window, so the export bundle never pulls
 // in the provider registry. These can change in any folium minor.
@@ -62,7 +64,7 @@ export const ponderTargetsRegistry = createFoliumRegistry<PonderTargetInput, Sto
 });
 
 /** Registries owned by this module, for teardown alongside the stable ones. */
-export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry];
+export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry, queueUiRegistry];
 
 // ---- omni.hooks: installed once, active only while some mod listens
 
@@ -90,6 +92,7 @@ installOmniResultHooks({
 
 /** The `folium.experimental` object for one mod (only the names it opted into are reachable). */
 export const createFoliumExperimental = (mod: ModRuntimeInfo): Record<string, unknown> => ({
+    'queue.ui': Object.freeze({ register: (def: QueueUiExtension) => queueUiRegistry.register(mod.id, def) }),
     'omni.providers': Object.freeze({
         register: (def: FoliumOmniProviderDef) => omniProvidersRegistry.register(mod.id, def),
     }),

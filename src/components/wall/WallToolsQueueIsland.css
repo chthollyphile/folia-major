@@ -356,3 +356,8 @@
 
 .lattice-tools-island-ghost > svg { width: 13px; height: 13px; flex: none; opacity: 0.6; }
 
+/* Only contributed overlines use the compact three-line layout; native rows remain unchanged. */
+.lattice-tools-island-row.has-queue-ui-overline .lattice-tools-island-text { line-height: 1; }
+.lattice-tools-island-row.has-queue-ui-overline .lattice-tools-island-title { line-height: 13px; }
+.lattice-tools-island-row.has-queue-ui-overline .lattice-tools-island-artist { line-height: 12px; }
+.lattice-tools-island-row .lattice-tools-island-overline { height: 10px; padding-left: 13px; padding-right: 6px; }

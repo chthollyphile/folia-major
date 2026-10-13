@@ -8,6 +8,10 @@ import TextInputDialog from '../shared/TextInputDialog';
 import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { useQueueUi } from '../../hooks/useQueueUi';
+import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import type { QueueUiEntryContent } from '../../mods/folium/queueUi';
+import { QueueUiComponents, QueueUiOverline } from '../shared/QueueUiAdditions';
 
 // src/components/panelTab/QueueTab.tsx
 
@@ -36,6 +40,7 @@ type QueueRowProps = {
     onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
     onRemoveSong: QueueTabProps['onRemoveSong'];
     isDaylight: boolean;
+    readEntry: (index: number) => QueueUiEntryContent;
     labels: {
         unavailable: string;
         playNext: string;
@@ -56,9 +61,11 @@ const QueueRow = ({
     onMoveSongToEnd,
     onRemoveSong,
     isDaylight,
+    readEntry,
     labels,
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
     const song = playQueue[index];
+    const additions = readEntry(index);
     const isActive = currentSongKey === getPlaybackSongKey(song);
     const isUnavailable = isSongUnavailable(song);
     const unavailableTagText = getSongUnavailableLabel(song, labels.unavailable);
@@ -77,6 +84,7 @@ const QueueRow = ({
         >
             <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : 'bg-transparent'}`} />
             <div className="min-w-0 flex-1">
+                <QueueUiOverline content={additions} isDaylight={isDaylight} />
                 <div className="text-xs font-medium truncate">
                     {song.name}
                     {isUnavailable && (
@@ -110,6 +118,7 @@ const QueueRow = ({
                         <Icon size={13} />
                     </button>
                 ))}
+                <QueueUiComponents components={additions.trailing} isDaylight={isDaylight} />
             </div>
         </div>
     );
@@ -132,6 +141,9 @@ const QueueTab: React.FC<QueueTabProps> = ({
 }) => {
     const { t } = useTranslation();
     const ITEM_HEIGHT = 50;
+    // The panel receives a display projection; extension actions must retain the canonical queue occurrence.
+    const sourceQueue = usePlaybackStore(state => state.playQueue);
+    const { headerContent, readEntry, entryLayout } = useQueueUi(sourceQueue, 'panel');
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
     // Adjust container height calculation if needed, or rely on flex
     // previously CONTAINER_HEIGHT = 200 was passed to List. 
@@ -160,6 +172,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
         onMoveSongToEnd,
         onRemoveSong,
         isDaylight,
+        readEntry,
         labels: {
             unavailable: t('status.songUnavailableTag'),
             playNext: t('queue.playNext'),
@@ -174,6 +187,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
         onPlaySong,
         onRemoveSong,
         playQueue,
+        readEntry,
         t,
     ]);
 
@@ -223,6 +237,11 @@ const QueueTab: React.FC<QueueTabProps> = ({
     if (playQueue.length === 0) {
         return (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px] select-none">
+                {headerContent.length > 0 && (
+                    <div className="flex shrink-0 justify-end px-2 pb-2">
+                        <QueueUiComponents components={headerContent} isDaylight={isDaylight} />
+                    </div>
+                )}
                 <div className="flex items-center justify-center h-full text-xs opacity-40">
                     {t('queue.empty')}
                 </div>
@@ -266,6 +285,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                                 <Shuffle size={14} />
                             </button>
                         )}
+                        <QueueUiComponents components={headerContent} isDaylight={isDaylight} />
                     </div>
                 </div>
 
@@ -276,7 +296,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                     <List
                         listRef={listRef}
                         rowCount={playQueue.length}
-                        rowHeight={ITEM_HEIGHT}
+                        rowHeight={entryLayout === 'overline' ? 64 : ITEM_HEIGHT}
                         rowComponent={QueueRow}
                         rowProps={rowProps}
                         overscanCount={5}

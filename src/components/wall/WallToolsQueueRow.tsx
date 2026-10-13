@@ -7,6 +7,8 @@ import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueRowShift } from './queueDragGeometry';
 import type { QueueDrag } from './useQueueDragReorder';
+import { useQueueUi } from '../../hooks/useQueueUi';
+import { QueueUiComponents, QueueUiOverline } from '../shared/QueueUiAdditions';
 
 // src/components/wall/WallToolsQueueRow.tsx
 // 队列浮岛（WallToolsQueueIsland）的一行（40px）：拖动手柄、主按钮（标题 + 歌手，点了播放、不跳页；当前歌曲有标记，
@@ -30,6 +32,7 @@ export type QueueIslandRowActions = {
 };
 
 export type QueueIslandRowProps = {
+    isDaylight?: boolean;
     playQueue: SongResult[];
     /** 显示歌曲（selectDisplaySong）的 key：画「当前」标记。 */
     currentSongKey: string | null;
@@ -59,7 +62,10 @@ export function WallToolsQueueRow({
     drag,
     actions,
     labels,
+    isDaylight = false,
 }: RowComponentProps<QueueIslandRowProps>): ReactElement | null {
+    const { readEntry } = useQueueUi(playQueue, 'wall');
+    const additions = readEntry(index);
     const song = playQueue[index];
     if (!song) return null;
     const songKey = getPlaybackSongKey(song);
@@ -68,6 +74,7 @@ export function WallToolsQueueRow({
     const shift = drag ? queueRowShift(index, drag.from, drag.to) : 0;
     const className = [
         'lattice-tools-island-row',
+        additions.overlines.length ? 'has-queue-ui-overline' : '',
         isCurrent ? 'is-current' : '',
         isUnavailable ? 'is-unavailable' : '',
         drag ? 'is-dragging' : '',
@@ -79,6 +86,28 @@ export function WallToolsQueueRow({
         { id: 'move-to-end', label: labels.moveToEnd, icon: ListEnd, run: actions.moveToEnd },
         ...(isPlaying ? [] : [{ id: 'remove', label: labels.remove, icon: Trash2, run: actions.remove }]),
     ];
+
+    const songButton = (
+        <button
+            type="button"
+            className="lattice-tools-island-song"
+            style={additions.overlines.length ? { width: '100%', height: 26 } : undefined}
+            aria-current={isCurrent ? 'true' : undefined}
+            onClick={() => actions.play(index)}
+            onKeyDown={event => actions.keyDown(index, event)}
+        >
+            <span className="lattice-tools-island-marker" aria-hidden="true" />
+            <span className="lattice-tools-island-text">
+                <span className="lattice-tools-island-title">
+                    <span className="lattice-tools-island-name">{song.name}</span>
+                    {isUnavailable && (
+                        <span className="lattice-tools-island-tag">{getSongUnavailableLabel(song, labels.unavailable)}</span>
+                    )}
+                </span>
+                <span className="lattice-tools-island-artist">{getSongArtistLabel(song)}</span>
+            </span>
+        </button>
+    );
 
     return (
         <div
@@ -99,25 +128,11 @@ export function WallToolsQueueRow({
                     <GripVertical aria-hidden="true" />
                 </span>
             )}
-            <button
-                type="button"
-                className="lattice-tools-island-song"
-                aria-current={isCurrent ? 'true' : undefined}
-                onClick={() => actions.play(index)}
-                onKeyDown={event => actions.keyDown(index, event)}
-            >
-                <span className="lattice-tools-island-marker" aria-hidden="true" />
-                <span className="lattice-tools-island-text">
-                    <span className="lattice-tools-island-title">
-                        <span className="lattice-tools-island-name">{song.name}</span>
-                        {isUnavailable && (
-                            <span className="lattice-tools-island-tag">{getSongUnavailableLabel(song, labels.unavailable)}</span>
-                        )}
-                    </span>
-                    <span className="lattice-tools-island-artist">{getSongArtistLabel(song)}</span>
-                </span>
-            </button>
-            {rowActions.length > 0 && (
+            {additions.overlines.length ? <div className="min-w-0 flex-1">
+                <QueueUiOverline content={additions} isDaylight={isDaylight} className="lattice-tools-island-overline" />
+                {songButton}
+            </div> : songButton}
+            {(rowActions.length > 0 || additions.trailing.length > 0) && (
                 <span className="lattice-tools-island-row-actions">
                     {rowActions.map(({ id, label, icon: Icon, run }) => (
                         <button
@@ -136,6 +151,7 @@ export function WallToolsQueueRow({
                             <Icon aria-hidden="true" />
                         </button>
                     ))}
+                    <QueueUiComponents components={additions.trailing} isDaylight={isDaylight} />
                 </span>
             )}
         </div>

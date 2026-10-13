@@ -88,6 +88,8 @@ export const createFoliumRegistry = <Def extends { id: string }, Stored = Def>(
             options.onAdd?.(entry);
         } catch (error) {
             entries.delete(id);
+            // A re-entrant onAdd may already have published this unfinished entry.
+            notify();
             throw error;
         }
         notify();

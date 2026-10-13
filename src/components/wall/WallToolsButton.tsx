@@ -222,7 +222,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                     )}
                 </AnimatePresence>
                 <AnimatePresence initial={false}>
-                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} trailsPanel={islandTrailsPanel} />}
+                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} isDaylight={isDaylight} trailsPanel={islandTrailsPanel} />}
                 </AnimatePresence>
             </div>
 

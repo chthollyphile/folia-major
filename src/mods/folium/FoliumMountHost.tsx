@@ -36,6 +36,7 @@ export type FoliumEntryKind =
     | 'stage-layer'
     | 'panel-tab'
     | 'control-button'
+    | 'queue-component'
     | 'progress-layer'
     | 'settings-section'
     | 'tuning';

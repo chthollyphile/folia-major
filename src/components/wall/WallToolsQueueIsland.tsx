@@ -49,7 +49,7 @@ const idealListHeight = (rowCount: number) => queueIslandHeight(rowCount) - ISLA
 /** 与面板一起打开时浮岛晚出现的那一拍（秒）：面板入场 0.2s，浮岛在它走了一小半时才开始浮现。 */
 const TRAIL_PANEL_DELAY = 0.09;
 
-export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: string; host: WallToolsHost; trailsPanel?: boolean }) {
+export function WallToolsQueueIsland({ id, host, trailsPanel = false, isDaylight = false }: { id: string; host: WallToolsHost; trailsPanel?: boolean; isDaylight?: boolean }) {
     const { t } = useTranslation();
     const playQueue = usePlaybackStore(state => state.playQueue);
     const currentSong = usePlaybackStore(state => state.currentSong);
@@ -188,8 +188,8 @@ export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: st
     }), [t]);
 
     const rowProps = useMemo<QueueIslandRowProps>(
-        () => ({ playQueue, currentSongKey, playingSongKey, readOnly, drag, actions, labels }),
-        [actions, currentSongKey, drag, labels, playQueue, playingSongKey, readOnly],
+        () => ({ playQueue, currentSongKey, playingSongKey, readOnly, drag, actions, labels, isDaylight }),
+        [actions, currentSongKey, drag, labels, playQueue, playingSongKey, readOnly, isDaylight],
     );
 
     useLayoutEffect(() => {
@@ -266,6 +266,7 @@ export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: st
         >
             <WallToolsQueueIslandHeader
                 host={host}
+                isDaylight={isDaylight}
                 count={count}
                 readOnly={readOnly}
                 canSave={canSave}

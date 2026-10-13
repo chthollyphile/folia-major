@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouse
 import { Lock, Save, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
+import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import { useQueueUi } from '../../hooks/useQueueUi';
+import { QueueUiComponents } from '../shared/QueueUiAdditions';
 import type { WallToolsHost } from './wallToolsHost';
 
 // src/components/wall/WallToolsQueueIslandHeader.tsx
@@ -19,6 +22,7 @@ const CLEAR_CONFIRM_MS = 3000;
 const CLEAR_CONFIRM_GUARD_MS = 400;
 
 type WallToolsQueueIslandHeaderProps = {
+    isDaylight?: boolean;
     host: WallToolsHost;
     count: number;
     readOnly: boolean;
@@ -30,8 +34,10 @@ type WallToolsQueueIslandHeaderProps = {
     isDragging: () => boolean;
 };
 
-export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, announce, isDragging }: WallToolsQueueIslandHeaderProps) {
+export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, announce, isDragging, isDaylight = false }: WallToolsQueueIslandHeaderProps) {
     const { t } = useTranslation();
+    const queue = usePlaybackStore(state => state.playQueue);
+    const { headerContent } = useQueueUi(queue, 'wall');
     const saveButtonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const [naming, setNaming] = useState(false);
@@ -176,6 +182,7 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
                     {clearPending && <span aria-hidden="true">{clearLabel}</span>}
                 </button>
             )}
+            {!naming && <QueueUiComponents components={headerContent} isDaylight={isDaylight} />}
         </header>
     );
 }
