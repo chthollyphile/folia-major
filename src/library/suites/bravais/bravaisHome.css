@@ -667,3 +667,12 @@
 .bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
 
 :root[data-reduce-motion~='lattice'] .bravais-seam-home .bravais-seam-shortcut { transition: none; }
+
+/* Mod shortcuts have one real mount; parked content remains measurable but never takes column space. */
+.bravais-home-mod-shortcuts { position: relative; width: 100%; flex: none; }
+
+/* Match the live shortcut group's intrinsic width, including when it moves into More. */
+.bravais-seam-home > .bravais-home-shortcuts-measure {
+    width: fit-content;
+    max-width: calc(100% - 2 * var(--bravais-home-pad-x));
+}

@@ -81,6 +81,8 @@ export const useBravaisSeamTabsFit = ({
     fullSlotRef,
     jumpsRef,
     jumpsMeasureRef,
+    appendedJumpsRef,
+    appendedJumpsGap = 0,
 }: {
     /** 可伸缩的导航区（flex 剩余空间，溢出时可滚）。 */
     navRef: RefObject<HTMLElement | null>;
@@ -102,6 +104,10 @@ export const useBravaisSeamTabsFit = ({
     jumpsRef: RefObject<HTMLElement | null>;
     /** 直达入口一块的测量副本（容器常在，没有入口时是空的）。 */
     jumpsMeasureRef: RefObject<HTMLElement | null>;
+    /** One live mod navigation mount, measured at column width even while parked in the menu. */
+    appendedJumpsRef?: RefObject<HTMLElement | null>;
+    /** Column-only spacing belongs to its slot, but counts even when the live mount is in the menu. */
+    appendedJumpsGap?: number;
 }): BravaisSeamTabsFit => {
     const [fit, setFit] = useState<BravaisSeamTabsFit>(FITS);
 
@@ -126,7 +132,7 @@ export const useBravaisSeamTabsFit = ({
                 pad,
                 titledHead: titledHead.offsetHeight,
                 bareHead: bareHead.offsetHeight,
-                withShortcuts: rest + jumpsMeasure.offsetHeight,
+                withShortcuts: rest + jumpsMeasure.offsetHeight + (appendedJumpsRef?.current?.offsetHeight ?? 0) + appendedJumpsGap,
                 withoutShortcuts: rest,
             });
             const overflowing = head.offsetHeight + pad + body.offsetHeight + jumps.offsetHeight > available;
@@ -146,8 +152,9 @@ export const useBravaisSeamTabsFit = ({
         observer.observe(fullSlot);
         observer.observe(jumps);
         observer.observe(jumpsMeasure);
+        if (appendedJumpsRef?.current) observer.observe(appendedJumpsRef.current);
         return () => observer.disconnect();
-    }, [bareHeadRef, bodyRef, fullSlotRef, headRef, jumpsMeasureRef, jumpsRef, middleRef, navRef, slotRef, titledHeadRef]);
+    }, [appendedJumpsGap, appendedJumpsRef, bareHeadRef, bodyRef, fullSlotRef, headRef, jumpsMeasureRef, jumpsRef, middleRef, navRef, slotRef, titledHeadRef]);
 
     return fit;
 };

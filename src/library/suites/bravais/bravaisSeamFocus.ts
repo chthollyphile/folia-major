@@ -1,3 +1,4 @@
+import { homePageFocusTargets } from '../../../mods/folium/homePageKeyboard';
 import type { WallDirection } from '../../../components/wall/wallNavigation';
 
 // src/library/suites/bravais/bravaisSeamFocus.ts
@@ -36,9 +37,17 @@ export const canTakeSeamFocus = (element: Element | null): element is HTMLElemen
 /** 缝里此刻能拿焦点的控件，按 DOM 顺序。`controlsOnly` 时去掉文本输入与 select（方向键的序列）。 */
 export const listSeamControls = (seam: HTMLElement | null, { controlsOnly = false }: { controlsOnly?: boolean } = {}) => (
     seam
-        ? [...seam.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(element => (
-            canTakeSeamFocus(element) && !(controlsOnly && isTextLike(element))
-        ))
+        ? [...seam.querySelectorAll<HTMLElement>(`${FOCUSABLE}, [data-folium-kind="home-navigation"]`)].flatMap(element => {
+            // Native arrows enter each isolated mod widget once; its own Tab/arrow handling stays inside.
+            if (element.dataset.foliumKind === 'home-navigation') {
+                const visible = typeof element.checkVisibility === 'function'
+                    ? element.checkVisibility({ visibilityProperty: true })
+                    : element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
+                if (element.closest('[inert]') || !visible) return [];
+                return homePageFocusTargets(element.shadowRoot ?? element).slice(0, 1);
+            }
+            return canTakeSeamFocus(element) && !(controlsOnly && isTextLike(element)) ? [element] : [];
+        })
         : []
 );
 

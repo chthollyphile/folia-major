@@ -7,6 +7,8 @@ import { useLibrarySuiteStore } from '../../library/core/state/useLibrarySuiteSt
 import { useLibraryDirectoryBatchController } from '../../library/app/useLibraryDirectoryBatchController';
 import { useLibraryHomeResources } from '../../library/app/useLibraryHomeResources';
 import type { HomeViewModel } from './home/buildHomeModel';
+import { FoliumHomePage } from './home/FoliumHomePage';
+import { useHomePageStore } from '../../mods/folium/homePages';
 import { countRender } from '../../dev/renderCount';
 
 // App-level entry for the home surface backed by a view model.
@@ -20,6 +22,7 @@ type AppHomeProps = {
 
 const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden, isInteractive = true }) => {
     countRender('Home');
+    const pageOpen = useHomePageStore(state => state.activeId !== null);
     // 只在切换 suite 时变（开发版浮层）；同一个回退结果是同一个组件，首页不会因此重新挂载。
     const suiteId = useLibrarySuiteStore(state => state.suite);
     // 目录批量动作（本地文件夹 / 专辑 / 歌手的播放、入队、建歌单、删除、重扫）：首页一个控制器，不随渲染重建。
@@ -44,7 +47,7 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden, isInteractive 
                 onPushCollection={model.onPushCollection}
                 onPopCollectionTo={model.onPopCollectionTo}
                 onBackCollection={model.onBackCollection}
-                isInteractive={isInteractive}
+                isInteractive={isInteractive && !pageOpen}
             >
                 {(openGridView, isHomeGridInteractive) => (
                     <React.Suspense fallback={null}>
@@ -61,12 +64,13 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden, isInteractive 
                     </React.Suspense>
                 )}
             </GridViewOverlayHost>
+            <FoliumHomePage theme={model.surfaceProps.theme} />
             {/* 登录弹窗与切换确认框：寿命与首页 surface 相同（首页整个藏起时卸载），换 suite 不卸载。 */}
             <LibraryAccountHost
                 account={model.account}
                 layer={accountLayer}
                 theme={model.surfaceProps.theme}
-                isInteractive={isInteractive}
+                isInteractive={isInteractive && !pageOpen}
             />
         </>
     );

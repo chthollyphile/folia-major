@@ -1,3 +1,4 @@
+import { useBravaisHomeNavigation } from './useBravaisHomeNavigation';
 import React, { useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -281,9 +282,12 @@ const BravaisSeamHome: React.FC<{
     const fullSlotRef = useRef<HTMLDivElement>(null);
     const jumpsRef = useRef<HTMLDivElement>(null);
     const jumpsMeasureRef = useRef<HTMLDivElement>(null);
+    const navigation = useBravaisHomeNavigation(jumpsMeasureRef);
     const fit = useBravaisSeamTabsFit({
         navRef, headRef, middleRef, bodyRef, slotRef, titledHeadRef, bareHeadRef, fullSlotRef, jumpsRef, jumpsMeasureRef,
+        appendedJumpsRef: navigation.measureRef, appendedJumpsGap: navigation.columnGap,
     });
+    const slots = navigation.place(fit.shortcuts);
     const { level, overflowing } = fit;
     const short = level === 'short';
     // 直达入口放得下就在中段，否则挪进「⋯」菜单（先于二级切换让位）。
@@ -343,10 +347,12 @@ const BravaisSeamHome: React.FC<{
                             {shortcuts && shortcutsInColumn && (
                                 <HomeSeamShortcuts shortcuts={shortcuts} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
                             )}
+                            {slots.column}
                         </div>
                     </div>
                 </div>
             </div>
+            {slots.mount}
             {/* 全名页头的测量副本：与页头同宽、绝对定位不占位（useBravaisSeamTabsFit 量它）。
                 fb2 第二轮：两份——带标题的全名页头、不带标题的全名页头。fb3：再加一份全名二级切换（容器常在）。 */}
             <div ref={titledHeadRef} className="bravais-seam-home-measure" aria-hidden>
@@ -365,7 +371,7 @@ const BravaisSeamHome: React.FC<{
                     </div>
                 )}
             </div>
-            <div ref={jumpsMeasureRef} className="bravais-seam-home-measure" aria-hidden>
+            <div ref={jumpsMeasureRef} className="bravais-seam-home-measure bravais-home-shortcuts-measure" aria-hidden>
                 {shortcuts && <HomeSeamShortcuts shortcuts={shortcuts} rule={Boolean(sections)} measure />}
             </div>
             <AnimatePresence initial={false}>
@@ -385,7 +391,8 @@ const BravaisSeamHome: React.FC<{
             {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
-                    menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut} />
+                    menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut}
+                    appendedShortcuts={slots.menu} />
             )}
             {compact && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

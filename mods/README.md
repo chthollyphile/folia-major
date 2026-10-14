@@ -139,7 +139,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`home.pages` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -588,6 +588,25 @@ folium.experimental['omni.providers'].register({
 **建议**：别追求把界面画得像。用通用骨架勾出结构——一个 `surface` 面板、几个 `control` 按钮、几条 `rail`
 滑轨——再让字幕把意思讲清楚：每一步只讲一件事，用 `pointTo` 把字幕连到它讲的那个框，用 `highlight` 和
 `reveal` 标出「现在看这里」。这正是宿主思索的做法：骨架负责「在哪」，文字负责「是什么、为什么」。
+
+### 首页组件插槽（实验：`home.pages`）
+
+清单声明 `"experimental": ["home.pages"]` 后，通过 `folium.experimental['home.pages']` 使用。
+稳定 Folium 1.4 契约和 `folium.registries` 不变；此接口只在主窗口加载，可在任意 minor 调整。
+
+- `register({ id, label, mountNavigation, mountPage })` 返回所属模组的注册句柄。
+- `open(id)` 进入首页并打开自己的页面；`close(id)` 仅关闭自己当前打开的页面。未注册返回 `false`。
+- `label` 为本地化无障碍名称；可见导航和正文均由模组 `mount(container, ctx)` 创建，并返回清理函数。
+- `ctx` 包含 `surface`（`grid` / `bravais` / `page`）、`locale`、`isDaylight`、`isCurrent()`、`open()`、`close()`。
+  旧注册卸载后，保存的上下文无法打开新注册或关闭别的页面；主题颜色通过 `--folium-*` CSS 变量继承。
+- 导航按注册顺序追加到网格首页导航末尾、墙面首页原生直达入口（如“我喜欢的音乐 / 云盘”）下方。没有原生 ID、排序、删除或替换原生条目的接口。
+  墙面首页高度不足时与直达入口一起收进“更多”，未登录也可使用；同一组件在列与菜单间移动，不重复挂载。
+  原生 Tab/F6 来源切换保持不变；组件内按键不冒泡给原生导航，保留输入控件自身的默认行为。
+- 正文在独立的首页内容层内挂载；返回或停用会卸载正文，保留原生首页的来源和浏览状态。
+  卸载页面时应清理订阅、事件和异步任务；语言或明暗模式切换可重新挂载。
+- 两个挂载点都使用 ShadowRoot 隔离。空注册不产生 DOM 或预留空间。
+
+离线示例：`dev/folium/sample-home-pages/`；实验类型与实现：`src/mods/folium/homePages.ts`。
 
 ## internals（自由度出口）
 

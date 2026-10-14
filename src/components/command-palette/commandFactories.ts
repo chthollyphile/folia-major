@@ -1,3 +1,4 @@
+import { closeHomePage } from '../../mods/folium/homePages';
 import type { HomeViewTab, ReplayGainMode, VisualizerMode } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
@@ -267,6 +268,7 @@ export const createHomeTabCommand = (
     description,
     keywords,
     execute: (_input, context) => {
+        closeHomePage();
         context.navigation.setHomeViewTab(tab);
         context.navigation.navigateToHome();
         return true;

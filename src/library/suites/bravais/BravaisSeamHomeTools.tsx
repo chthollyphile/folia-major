@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type KeyboardEvent } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Disc3,
@@ -74,18 +74,39 @@ const BravaisSeamHomeTools: React.FC<{
     /** 中段放不下、挪进菜单的直达入口（在中段时为 null）。 */
     menuShortcuts?: readonly BravaisHomeShortcut[] | null;
     onOpenShortcut?: (shortcut: BravaisHomeShortcut) => void;
-}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut }) => {
+    /** Append-only mod components after native shortcuts; no native menu item can be replaced. */
+    appendedShortcuts?: React.ReactNode;
+}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut, appendedShortcuts }) => {
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const dockRef = useRef<HTMLDivElement>(null);
+    const [menuHeight, setMenuHeight] = useState<number>();
     const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
     const { dock, page, app } = splitHomeTools(home.tools);
     const notice = dock.find(tool => tool.badge);
     const local = home.menu ?? [];
     const jumps = menuShortcuts ?? [];
-    const hasMenu = jumps.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
+    const hasMenu = Boolean(appendedShortcuts) || jumps.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
     const pop = bravaisPopMotion('above', useBravaisReducedTransitions());
+
+    // Appended components can be arbitrarily tall. Bound only the extended menu to its actual space.
+    useLayoutEffect(() => {
+        const dock = dockRef.current;
+        if (!open || !appendedShortcuts || !dock) return;
+        const measure = () => {
+            const height = Math.max(0, dock.getBoundingClientRect().top - 16);
+            setMenuHeight(current => current === height ? current : height);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(dock);
+        const seam = dock.closest('[data-bravais-home-seam]');
+        if (seam) observer.observe(seam);
+        window.addEventListener('resize', measure);
+        // Keep the last height while AnimatePresence finishes the closing animation.
+        return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+    }, [open, Boolean(appendedShortcuts)]);
 
     // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
     useEffect(() => {
@@ -152,7 +173,8 @@ const BravaisSeamHomeTools: React.FC<{
         <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
             <AnimatePresence>
                 {open && (
-                    <motion.div key="menu" className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu {...pop}>
+                    <motion.div key="menu" className="bravais-seam-menu is-home" role="menu" aria-label={home.menuLabel} data-bravais-seam-menu {...pop}
+                        style={appendedShortcuts ? { maxHeight: menuHeight, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', scrollbarWidth: 'none' } : undefined}>
                         {jumps.map(shortcut => {
                             const Icon = BRAVAIS_SPECIAL_ICONS[shortcut.special];
                             return (
@@ -163,7 +185,8 @@ const BravaisSeamHomeTools: React.FC<{
                                 </button>
                             );
                         })}
-                        {jumps.length > 0 && (page.length > 0 || local.length > 0 || app.length > 0) && <div className="bravais-seam-menu-rule" role="separator" />}
+                        {appendedShortcuts}
+                        {(jumps.length > 0 || appendedShortcuts) && (page.length > 0 || local.length > 0 || app.length > 0) && <div className="bravais-seam-menu-rule" role="separator" />}
                         {page.map(menuTool)}
                         {local.map(item => (
                             <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}

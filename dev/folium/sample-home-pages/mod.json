@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-home-pages",
+  "name": "首页组件插槽示例",
+  "version": "2.0.4",
+  "description": "离线演示自有导航与页面组件、输入、返回和停用清理。",
+  "client": "client.mjs",
+  "experimental": ["home.pages"],
+  "permissions": []
+}

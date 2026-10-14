@@ -13,6 +13,8 @@ import type {
 import { fromFoliumLines, toFoliumLines, toFoliumSong } from './dto';
 import { addFoliumEventHandler, dispatchFoliumHookAsync, hasFoliumEventHandlers } from './events';
 import { createFoliumRegistry } from './registry';
+import { homePagesRegistry, openHomePage, closeOwnedHomePage, type HomePageDefinition } from './homePages';
+import { createFoliumUiService } from './services';
 import { omniProvidersRegistry } from './registries/omniProviders';
 import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderText } from './ponderText';
 
@@ -20,6 +22,7 @@ import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderT
 // The unfrozen surfaces, each behind a manifest opt-in (`experimental`):
 //   - omni.providers: register an online music source (registries/omniProviders);
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
+//   - home.pages:     append mod-owned navigation and pages on the home surface;
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
 // Loaded lazily and only in the main window, so the export bundle never pulls
 // in the provider registry. These can change in any folium minor.
@@ -62,7 +65,7 @@ export const ponderTargetsRegistry = createFoliumRegistry<PonderTargetInput, Sto
 });
 
 /** Registries owned by this module, for teardown alongside the stable ones. */
-export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry];
+export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry, homePagesRegistry];
 
 // ---- omni.hooks: installed once, active only while some mod listens
 
@@ -103,6 +106,19 @@ export const createFoliumExperimental = (mod: ModRuntimeInfo): Record<string, un
                 throw new Error(`omni.hooks.on: unknown hook "${String(type)}"`);
             }
             return addFoliumEventHandler(mod.id, `omni.${type}` as 'omni.lyricsResolved', handler as never, options?.priority);
+        },
+    }),
+    'home.pages': Object.freeze({
+        register: (def: HomePageDefinition) => homePagesRegistry.register(mod.id, def),
+        open: (id: string) => {
+            const entry = homePagesRegistry.get(`${mod.id}:${id}`);
+            if (!entry) return false;
+            createFoliumUiService(mod, 'main').navigate('home');
+            return openHomePage(entry);
+        },
+        close: (id: string) => {
+            const entry = homePagesRegistry.get(`${mod.id}:${id}`);
+            return entry ? closeOwnedHomePage(entry) : false;
         },
     }),
     'ponder.targets': Object.freeze({

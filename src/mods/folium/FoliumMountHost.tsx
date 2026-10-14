@@ -35,6 +35,8 @@ export type FoliumEntryKind =
     | 'background-settings'
     | 'stage-layer'
     | 'panel-tab'
+    | 'home-navigation'
+    | 'home-page'
     | 'control-button'
     | 'progress-layer'
     | 'settings-section'

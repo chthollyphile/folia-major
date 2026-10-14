@@ -1,3 +1,4 @@
+import { FoliumHomeNavigation } from '../../../../mods/folium/HomePageMount';
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
@@ -435,6 +436,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         </span>
                                     </button>
                                 )}
+                                <FoliumHomeNavigation surface="grid" />
                             </div>
                         </div>
                     </div>
