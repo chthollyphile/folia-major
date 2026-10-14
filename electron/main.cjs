@@ -2837,6 +2837,20 @@ function isTrustedRemoteControlContents(webContents) {
   );
 }
 
+// The first-party predicate for channels that hand the renderer something it should not be able to
+// ask a stranger for: the KuGou bridge (a write-capable surface) and the embedded-backend channels
+// (ports, status, diagnostics, restart). Trusted means the two first-party windows - the main window
+// and the remote-control window, which runs the same app and the same online providers; a window.open()
+// popup carries the same preload, so identity is checked per event. `bodian-api-request` gates the
+// same way. One definition only, and it has to sit above its first use (an injection point near the
+// bottom of this file calls it while registering handlers).
+//
+// Boundary, stated plainly: comparing webContents identity rejects other windows; it cannot stop
+// script already running inside a trusted window - that is the CSP and preload layer's job.
+const isFirstPartyWindowContents = (event) => (
+  isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
+);
+
 function getMainWindowUrl() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return '';
@@ -5848,21 +5862,10 @@ registerLoginBackendIpc({
   getDefaultSession: () => session.defaultSession,
   neteaseBackend,
   qqBackend,
+  isTrustedSender: isFirstPartyWindowContents,
 });
 
-// Both channels reach the embedded KuGou API. `kugou-api-request` forwards the renderer's operation
-// and params verbatim, so it is a write-capable surface rather than a read-only one; the bridge keeps
-// its own operation allowlist, so what this guard adds is the caller surface. Trusted here means the
-// two first-party windows - the main window and the remote-control window, which runs the same app
-// and therefore the same online providers. `bodian-api-request` below gates the same way.
-//
-// Boundary, stated plainly: comparing webContents identity rejects other windows (a popup opened with
-// window.open carries the same preload). It cannot stop script already running inside a trusted
-// window - that is the CSP and preload layer's job, not this check's.
-const isFirstPartyWindowContents = (event) => (
-  isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
-);
-
+// isFirstPartyWindowContents 定义在信任判据旁边（见文件上方），这里直接复用。
 ipcMain.handle('kugou-api-status', createSenderGuardedHandler({
   channel: 'kugou-api-status',
   // 只回传可用性、登录状态与错误：拒绝时给一个「没有这个能力」的取值，让调用方走 unavailable 分支。
