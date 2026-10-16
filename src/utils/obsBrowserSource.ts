@@ -182,6 +182,42 @@ export const resolveObsBrowserSourceClockTime = (
     return (clock.duration > 0 ? Math.min(clock.duration, nextTime) : nextTime) - offsetSec;
 };
 
+// Longest gap the publisher will bridge for a stalled playback clock (see resolvePublishedObsClockTime).
+export const OBS_STALLED_CLOCK_MAX_EXTRAPOLATION_MS = 2000;
+
+type ResolvePublishedObsClockTimeParams = {
+    sampledTime: number;
+    changedAtMs: number;
+    nowMs: number;
+    playing: boolean;
+    duration: number;
+};
+
+/**
+ * The time the publisher should report for "now". The main window advances `currentTime` from its
+ * requestAnimationFrame loop, which Chromium stops entirely while the window is minimized
+ * (backgroundThrottling only keeps timers alive). Stage sources then move `currentTime` only when an
+ * anchor arrives - once a second for Now Playing - so publishing the raw value every 250ms under a
+ * PLAYING state makes the overlay extrapolate and snap back on every clock. While playing, the value
+ * is carried forward from when it last changed, for at most OBS_STALLED_CLOCK_MAX_EXTRAPOLATION_MS so
+ * that a genuinely stuck clock (buffering) is not run ahead indefinitely.
+ */
+export const resolvePublishedObsClockTime = ({
+    sampledTime,
+    changedAtMs,
+    nowMs,
+    playing,
+    duration,
+}: ResolvePublishedObsClockTimeParams) => {
+    const staleMs = nowMs - changedAtMs;
+    if (!playing || staleMs <= 0 || staleMs > OBS_STALLED_CLOCK_MAX_EXTRAPOLATION_MS) {
+        return sampledTime;
+    }
+
+    const nextTime = sampledTime + staleMs / 1000;
+    return duration > 0 ? Math.min(duration, nextTime) : nextTime;
+};
+
 // Clocks arrive every 250ms (OBS_CLOCK_INTERVAL_MS in the publisher), so 20 samples cover ~5s.
 const OBS_CLOCK_SKEW_WINDOW = 20;
 

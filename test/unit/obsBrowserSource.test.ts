@@ -4,6 +4,8 @@ import {
     buildObsBrowserSourceConfigSignature,
     buildLegacyObsBrowserSourceBackgroundConfig,
     createObsClockSkewCorrector,
+    OBS_STALLED_CLOCK_MAX_EXTRAPOLATION_MS,
+    resolvePublishedObsClockTime,
     downsampleObsSpectrum,
     ObsBrowserSourceConfigPublicationTracker,
     resolveMainWindowVisualizerMode,
@@ -213,6 +215,60 @@ describe('obsBrowserSource utilities', () => {
             playbackRate: 1,
             sentAtMs: 1_000,
         }, 5_000)).toBe(20);
+    });
+
+    describe('publishing a clock while the main window frame loop is stalled', () => {
+        it('replays the recorded minimized-window steps without moving the overlay backwards', () => {
+            // Recorded: currentTime held at 287.313 for a second, then stepped to 288.318, while every
+            // 250ms clock went out as PLAYING. Before the fix the overlay snapped back 0.25s each time.
+            const anchors = [{ at: 0, time: 287.313 }, { at: 1_005, time: 288.318 }];
+            let previousOverlayTime = -Infinity;
+            for (let nowMs = 0; nowMs <= 1_750; nowMs += 250) {
+                const anchor = [...anchors].reverse().find(item => item.at <= nowMs)!;
+                const published = resolvePublishedObsClockTime({
+                    sampledTime: anchor.time,
+                    changedAtMs: anchor.at,
+                    nowMs,
+                    playing: true,
+                    duration: 425,
+                });
+                const clock = {
+                    currentTime: published,
+                    duration: 425,
+                    playerState: PlayerState.PLAYING,
+                    playbackRate: 1,
+                    sentAtMs: nowMs,
+                };
+                // Overlay frames right after this clock arrives and just before the next one.
+                for (const renderAt of [nowMs + 10, nowMs + 240]) {
+                    const overlayTime = resolveObsBrowserSourceClockTime(clock, renderAt);
+                    expect(overlayTime).toBeGreaterThanOrEqual(previousOverlayTime - 0.01);
+                    previousOverlayTime = overlayTime;
+                }
+            }
+        });
+
+        it('reports the sampled value while paused, when fresh, or once the stall is too long', () => {
+            const base = { sampledTime: 30, changedAtMs: 1_000, duration: 200 };
+            expect(resolvePublishedObsClockTime({ ...base, nowMs: 1_600, playing: false })).toBe(30);
+            expect(resolvePublishedObsClockTime({ ...base, nowMs: 1_000, playing: true })).toBe(30);
+            expect(resolvePublishedObsClockTime({ ...base, nowMs: 1_600, playing: true })).toBeCloseTo(30.6, 6);
+            expect(resolvePublishedObsClockTime({
+                ...base,
+                nowMs: 1_000 + OBS_STALLED_CLOCK_MAX_EXTRAPOLATION_MS + 1,
+                playing: true,
+            })).toBe(30);
+        });
+
+        it('never carries the time past the track duration', () => {
+            expect(resolvePublishedObsClockTime({
+                sampledTime: 199.5,
+                changedAtMs: 0,
+                nowMs: 1_500,
+                playing: true,
+                duration: 200,
+            })).toBe(200);
+        });
     });
 
     describe('clock skew between the PC and an overlay on another device', () => {

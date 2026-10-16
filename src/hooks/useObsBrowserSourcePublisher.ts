@@ -16,7 +16,6 @@ import type {
     MonetTuning,
     PartitaTuning,
     PlaybackContext,
-    PlayerState,
     SongResult,
     StageSource,
     SubtitleContentMode,
@@ -39,8 +38,10 @@ import {
     resolveObsBrowserSourceCoverUrl,
     resolveObsBrowserSourceImageAsset,
     resolveObsBrowserSourceImageAssets,
+    resolvePublishedObsClockTime,
 } from '../utils/obsBrowserSource';
 import type { TemperaLayerImage } from '../types';
+import { PlayerState } from '../types';
 import { loadTemperaLayerImageBlobs } from '../services/temperaLayerImages';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
@@ -315,14 +316,29 @@ export const useObsBrowserSourcePublisher = ({
         visualizerOpacity,
     ]);
 
-    const buildClock = useCallback((): ObsBrowserSourceClock => ({
-        currentTime: currentTime.get(),
-        duration,
-        playerState,
-        sentAtMs: Date.now(),
-        playbackRate: 1,
-        lyricOffsetMs: offsetMs,
-    }), [currentTime, duration, playerState, offsetMs]);
+    // When currentTime last moved; a minimized main window stops its frame loop (see resolvePublishedObsClockTime).
+    const currentTimeChangedAtMsRef = useRef(Date.now());
+    useEffect(() => currentTime.on('change', () => {
+        currentTimeChangedAtMsRef.current = Date.now();
+    }), [currentTime]);
+
+    const buildClock = useCallback((): ObsBrowserSourceClock => {
+        const nowMs = Date.now();
+        return {
+            currentTime: resolvePublishedObsClockTime({
+                sampledTime: currentTime.get(),
+                changedAtMs: currentTimeChangedAtMsRef.current,
+                nowMs,
+                playing: playerState === PlayerState.PLAYING,
+                duration,
+            }),
+            duration,
+            playerState,
+            sentAtMs: nowMs,
+            playbackRate: 1,
+            lyricOffsetMs: offsetMs,
+        };
+    }, [currentTime, duration, playerState, offsetMs]);
 
     const buildAudio = useCallback((): ObsBrowserSourceAudio => ({
         audioPower: audioPower.get(),
