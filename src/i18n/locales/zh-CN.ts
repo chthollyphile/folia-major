@@ -2056,7 +2056,7 @@ export default {
     "enableStageModeDescElectron": "开启后会暴露本机 HTTP 接口，供 Stage 客户端读取当前播放和歌词状态。",
     "enableNowPlaying": "启用 Now Playing",
     "enableNowPlayingDesc": "开启后首页显示舞台入口，并通过本机 localhost 连接 now-playing 服务。",
-    "nowPlayingFixedConnectionDesc": "固定连接 ws://localhost:9863/api/ws/lyric，请先在本机启动 now-playing 服务。",
+    "nowPlayingFixedConnectionDesc": "固定连接 ws://localhost:9863/api/ws/lyric。macOS 桌面版在选择 Now Playing 后会自动启动内置 Music.app 桥接；Windows 仍需先启动外部 now-playing 服务。",
     "enableStageModeDescWeb": "开启后首页出现舞台入口，选择歌词来源后连接本机服务。",
     "playerCapAddress": "Nexus PlayerCap 地址",
     "playerCapAddressHint": "留空默认本机 localhost:8765；失焦自动保存并重连。",

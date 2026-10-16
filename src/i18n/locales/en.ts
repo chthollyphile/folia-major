@@ -2057,7 +2057,7 @@ export default {
     "enableStageModeDescElectron": "Exposes a local HTTP endpoint so Stage clients can read the current playback and lyric state.",
     "enableNowPlaying": "Enable Now Playing",
     "enableNowPlayingDesc": "When enabled, the home page shows a Stage entry point and connects via localhost to the now-playing service.",
-    "nowPlayingFixedConnectionDesc": "Connects to ws://localhost:9863/api/ws/lyric. Start the now-playing service on your machine first.",
+    "nowPlayingFixedConnectionDesc": "Connects to ws://localhost:9863/api/ws/lyric. On macOS the desktop app starts a built-in Music.app bridge when Now Playing is selected. On Windows, start the external now-playing service first.",
     "enableStageModeDescWeb": "When enabled, a Stage entry appears on the home page; pick a lyric source to connect to the local service.",
     "playerCapAddress": "Nexus PlayerCap address",
     "playerCapAddressHint": "Leave blank for the local default localhost:8765; saved and reconnected on blur.",

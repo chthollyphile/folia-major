@@ -2049,7 +2049,7 @@ export default {
     "enableStageModeDescElectron": "Ekspos endpoint HTTP lokal agar klien Stage bisa membaca status pemutaran dan lirik saat ini.",
     "enableNowPlaying": "Aktifkan Now Playing",
     "enableNowPlayingDesc": "Saat diaktifkan, halaman beranda menampilkan titik masuk Stage dan terhubung via localhost ke layanan now-playing.",
-    "nowPlayingFixedConnectionDesc": "Terhubung ke ws://localhost:9863/api/ws/lyric. Jalankan layanan now-playing di mesin Anda terlebih dahulu.",
+    "nowPlayingFixedConnectionDesc": "Terhubung ke ws://localhost:9863/api/ws/lyric. Di macOS, aplikasi desktop memulai jembatan Music.app bawaan saat Now Playing dipilih. Di Windows, jalankan layanan now-playing eksternal terlebih dahulu.",
     "enableStageModeDescWeb": "Saat diaktifkan, entri Stage muncul di halaman beranda; pilih sumber lirik untuk terhubung ke layanan lokal.",
     "playerCapAddress": "Alamat Nexus PlayerCap",
     "playerCapAddressHint": "Biarkan kosong untuk localhost:8765 bawaan lokal; disimpan dan terhubung ulang saat blur.",

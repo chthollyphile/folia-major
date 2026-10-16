@@ -1,0 +1,24 @@
+{
+  "name": "folia-macos-nowplaying",
+  "version": "0.1.0",
+  "description": "macOS Now Playing bridge for Folia — speaks the same ws://localhost:9863/api/ws/lyric protocol",
+  "type": "module",
+  "bin": {
+    "folia-macos-nowplaying": "src/server.js"
+  },
+  "scripts": {
+    "start": "node --max-old-space-size=64 src/server.js",
+    "demo": "node --max-old-space-size=64 src/server.js --demo",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.22.0"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": ""
+}

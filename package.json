@@ -90,6 +90,7 @@
     ],
     "asarUnpack": [
       "electron/analysis/htdemucs_runner.py",
+      "electron/macosMusicNowPlaying/*.applescript",
       "node_modules/@koromix/koffi-*/**/*.node"
     ],
     "extraResources": [
