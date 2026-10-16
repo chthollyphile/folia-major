@@ -20,6 +20,7 @@ import ThemeSourceRow from './ThemeSourceRow';
 import { BackgroundModeGlyph, VisualizerModeGlyph } from '../../visualizer/modeGlyphs';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { useSettingsModalStore } from '../../../stores/useSettingsModalStore';
+import VisualStyleActions from '../../shared/VisualStyleActions';
 
 // src/components/panelTab/controls/AppearanceSection.tsx
 // 外观区：歌词样式、背景、主题来源三件事放在一起。
@@ -147,6 +148,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
         <div className="space-y-1">
             {/* 思索「歌词样式」的埋点：两行一起算，因为那一章讲的就是歌词和背景各选各的。 */}
             <div data-ponder="lyric-style" className="space-y-1">
+                <VisualStyleActions theme={theme} isDaylight={isDaylight} compact />
                 <ModeStepperRow<VisualizerMode>
                     value={visualizerMode}
                     options={visualizerOptions}

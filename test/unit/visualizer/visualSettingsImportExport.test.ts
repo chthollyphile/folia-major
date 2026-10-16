@@ -6,6 +6,27 @@ import { DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_TEMPER
 // Verifies visual settings configuration compression, base64 encoding, and decompression/restoration.
 
 describe('Visual Settings Import and Export', () => {
+    it.each([true, false])('round-trips randomization scope %s through JSON and shortcode', randomizeAllEnabled => {
+        const config = { randomizeAllEnabled };
+        expect(decompressConfig(JSON.stringify(config))).toEqual(config);
+        expect(decompressConfig(compressConfig(config))).toEqual(config);
+    });
+
+    it.each([true, false])('imports standalone minified randomization scope %s from decoded JSON and shortcode', randomizeAllEnabled => {
+        const config = { randomizeAllEnabled };
+        const shortcode = compressConfig(config);
+        expect(decompressConfig(shortcode)).toEqual(config);
+
+        const decodedJson = atob(shortcode.slice('folia-theme://'.length));
+        expect(decompressConfig(decodedJson)).toEqual(config);
+    });
+
+    it('leaves the randomization scope absent in older configurations', () => {
+        const config = { visualizerMode: 'classic' };
+        expect(decompressConfig(JSON.stringify(config))).not.toHaveProperty('randomizeAllEnabled');
+        expect(decompressConfig(compressConfig(config))).not.toHaveProperty('randomizeAllEnabled');
+    });
+
     it('uses the requested Sonnet post-process defaults', () => {
         expect(DEFAULT_SONNET_TUNING).toMatchObject({
             postProcessEnabled: false,

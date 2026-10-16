@@ -1,6 +1,6 @@
 import { defineCommand } from '../commandFactories';
 import { backgroundPickerSurface, visualizerPickerSurface } from '../surfaces/pickerSurface';
-import { LayoutGrid, Wallpaper } from 'lucide-react';
+import { LayoutGrid, Wallpaper, Shuffle } from 'lucide-react';
 import type { CommandPaletteCommand } from '../types';
 import { createToggleCommand, createVisualizerCommand } from '../commandFactories';
 import { lyricSegmentationCommand } from './lyricSegmentationCommand';
@@ -73,6 +73,20 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         context => context.visualizer.toggleGlowBlurQuantize(),
     ),
     createToggleCommand('visualizer-toggle-random-per-song', 'visualizer', 'Random visualizer for every song', 'Toggle a random lyric animation mode whenever the song changes', ['random visualizer', 'random animation', 'per song', '随机歌词动画', '每首歌随机动画'], context => context.visualizer.toggleRandomVisualizerModePerSong()),
+    createToggleCommand(
+        'visualizer-toggle-random-all', 'visualizer', 'Randomize all',
+        'Include general and background settings in random styles while preserving subtitles',
+        ['shuffle appearance scope', 'include background', '全部随机', '随机范围', '随机背景'],
+        context => context.visualizer.handleToggleRandomizeAll(!context.visualizer.randomizeAllEnabled),
+        { icon: Shuffle },
+    ),
+    createToggleCommand(
+        'visualizer-random-style', 'visualizer', 'Random style',
+        'Randomize and save the current appearance using the selected scope',
+        ['shuffle current appearance', 'reroll style', '随机样式', '换个样式', '随机参数'],
+        context => context.visualizer.requestRandomStyle(),
+        { icon: Shuffle },
+    ),
     {
         id: 'background-monet-full-overlay',
         group: 'visualizer',

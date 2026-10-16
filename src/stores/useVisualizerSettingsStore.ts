@@ -22,6 +22,8 @@ import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 import { useVisualizerAssetStore } from './useVisualizerAssetStore';
 import { normalizeLumiereTuning } from '../utils/lumiereTuning';
 
+const RANDOMIZE_ALL_STORAGE_KEY = 'random_visual_style_all';
+
 export type VisualizerSettingsState = {
     disableVisualizerVignette: boolean;
     disableVisualizerGeometricBackground: boolean;
@@ -33,6 +35,7 @@ export type VisualizerSettingsState = {
     visualizerFrameRate: VisualizerFrameRate;
     visualizerMode: VisualizerMode;
     randomVisualizerModePerSong: boolean;
+    randomizeAllEnabled: boolean;
     /** Snap animated glow blur radii to a bounded set. See components/visualizer/wordGlow.ts. */
     glowBlurQuantize: boolean;
     classicTuning: ClassicTuning;
@@ -66,6 +69,7 @@ export type VisualizerSettingsState = {
     handleSetVisualizerFrameRate: (frameRate: VisualizerFrameRate) => void;
     handleSetVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
     handleToggleRandomVisualizerModePerSong: (enable: boolean) => void;
+    handleToggleRandomizeAll: (enable: boolean) => void;
     handleToggleGlowBlurQuantize: (enable: boolean) => void;
     handleSetClassicTuning: (patch: Partial<ClassicTuning>) => void;
     handleResetClassicTuning: () => void;
@@ -122,6 +126,7 @@ export const useVisualizerSettingsStore = create<VisualizerSettingsState>((set, 
     visualizerFrameRate: readStoredVisualizerFrameRate(),
     visualizerMode: readStoredVisualizerMode(),
     randomVisualizerModePerSong: getStoredBoolean('random_visualizer_mode_per_song', false),
+    randomizeAllEnabled: getStoredBoolean(RANDOMIZE_ALL_STORAGE_KEY, false),
     glowBlurQuantize: readStoredGlowBlurQuantize(),
     classicTuning: readStoredClassicTuning(),
     cadenzaTuning: readStoredCadenzaTuning(),
@@ -271,6 +276,10 @@ export const useVisualizerSettingsStore = create<VisualizerSettingsState>((set, 
             type: 'info',
             text: i18n.t(`status.randomVisualizerModePerSong${enable ? 'On' : 'Off'}`),
         });
+    },
+    handleToggleRandomizeAll: (enable) => {
+        setStoredBoolean(RANDOMIZE_ALL_STORAGE_KEY, enable);
+        set({ randomizeAllEnabled: enable });
     },
     handleToggleGlowBlurQuantize: (enable) => {
         if (typeof window !== 'undefined') {
@@ -894,6 +903,7 @@ export const selectVisualizerSettingsSnapshot = (state: VisualizerSettingsState)
     handleToggleDisableVisualizerGeometricBackground: state.handleToggleDisableVisualizerGeometricBackground,
     handleToggleDisableVisualizerVignette: state.handleToggleDisableVisualizerVignette,
     handleToggleRandomVisualizerModePerSong: state.handleToggleRandomVisualizerModePerSong,
+    handleToggleRandomizeAll: state.handleToggleRandomizeAll,
     handleUpdateUrlBackgroundItem: state.handleUpdateUrlBackgroundItem,
     handleUploadMonetBackgroundImage: state.handleUploadMonetBackgroundImage,
     handleUploadMonetPortraitImage: state.handleUploadMonetPortraitImage,
@@ -905,6 +915,7 @@ export const selectVisualizerSettingsSnapshot = (state: VisualizerSettingsState)
     partitaTuning: state.partitaTuning,
     pendoloTuning: state.pendoloTuning,
     randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+    randomizeAllEnabled: state.randomizeAllEnabled,
     sonnetTuning: state.sonnetTuning,
     soraBackgroundTuning: state.soraBackgroundTuning,
     temperaTuning: state.temperaTuning,

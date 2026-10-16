@@ -60,6 +60,7 @@ import VisPlaygroundPreviewHotspots, { type VisPlaygroundEditSection } from './V
 import VisPlaygroundSettingsPanel from './VisPlaygroundSettingsPanel';
 import type { VisualizerBackgroundActions, VisualizerBackgroundConfig } from './backgrounds/definition';
 import { useVisPlaygroundPreviewPlayback } from './useVisPlaygroundPreviewPlayback';
+import VisualStyleActions from '../shared/VisualStyleActions';
 
 interface VisPlaygroundProps {
     theme?: Theme;
@@ -1161,8 +1162,8 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                 data-ponder="vis-playground"
                 className={`mx-auto flex h-full max-w-[1600px] flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
             >
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-6">
-                    <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                    <div className="flex min-w-[200px] flex-1 items-center gap-3">
                         <button
                             type="button"
                             onClick={onClose}
@@ -1177,6 +1178,11 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                             </div>
                         </div>
                     </div>
+                    <VisualStyleActions
+                        theme={previewTheme}
+                        isDaylight={isDaylight}
+                        onBeforeRandomize={handleSliderCommit}
+                    />
                 </div>
 
                 <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.25fr)_360px]">

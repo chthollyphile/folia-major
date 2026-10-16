@@ -70,6 +70,7 @@ export const ACTIVATE_CUSTOM_THEME_KEY = 'activateCustomTheme';
 const FIELD_GROUPS: Record<string, ImportGroup> = {
     visualizerMode: 'visualizer',
     randomVisualizerModePerSong: 'visualizer',
+    randomizeAllEnabled: 'visualizer',
     visualizerOpacity: 'visualizer',
     hidePlayerTranslationSubtitle: 'visualizer',
     showSubtitleTranslation: 'visualizer',

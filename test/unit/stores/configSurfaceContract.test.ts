@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { buildSyncedVisualSettings, readSyncableSettingsState } from '@/services/sync/settingsSnapshot';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { applySyncedVisualSettings, buildSyncedVisualSettings, readSyncableSettingsState } from '@/services/sync/settingsSnapshot';
 import { buildVisualSettingsConfig } from '@/services/obs/visualSettingsConfig';
+import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 
 // test/unit/stores/configSurfaceContract.test.ts
 // Locks the two documents that carry a listener's settings off this machine.
@@ -13,6 +14,11 @@ import { buildVisualSettingsConfig } from '@/services/obs/visualSettingsConfig';
 // through a refactor that moves where each field is read from.
 
 describe('config surface contract', () => {
+    afterEach(() => {
+        useVisualizerSettingsStore.setState({ randomizeAllEnabled: false });
+        vi.unstubAllGlobals();
+    });
+
     it('keeps every field of the synced visual settings document', () => {
         const document = buildSyncedVisualSettings(readSyncableSettingsState());
 
@@ -23,5 +29,40 @@ describe('config surface contract', () => {
         const config = buildVisualSettingsConfig();
 
         expect(Object.keys(config).sort()).toMatchSnapshot();
+    });
+
+    it('defaults to lyric-only randomization and persists the selected scope across restart', async () => {
+        const values = new Map<string, string>();
+        const storage = {
+            getItem: (key: string) => values.get(key) ?? null,
+            setItem: (key: string, value: string) => values.set(key, value),
+            removeItem: (key: string) => values.delete(key),
+        };
+        vi.stubGlobal('localStorage', storage);
+        vi.stubGlobal('window', { localStorage: storage });
+        vi.resetModules();
+        const freshStore = (await import('@/stores/useVisualizerSettingsStore')).useVisualizerSettingsStore;
+        expect(freshStore.getState().randomizeAllEnabled).toBe(false);
+        freshStore.getState().handleToggleRandomizeAll(true);
+        expect(values.get('random_visual_style_all')).toBe('true');
+        vi.resetModules();
+        const restoredStore = (await import('@/stores/useVisualizerSettingsStore')).useVisualizerSettingsStore;
+        expect(restoredStore.getState().randomizeAllEnabled).toBe(true);
+        restoredStore.getState().handleToggleRandomizeAll(false);
+        expect(values.get('random_visual_style_all')).toBe('false');
+    });
+
+    it('exports and restores the randomization scope through the sync setter', () => {
+        const state = readSyncableSettingsState();
+        const setter = vi.fn();
+        const target = { ...state, handleToggleRandomizeAll: setter };
+        expect(buildSyncedVisualSettings({ ...state, randomizeAllEnabled: true }).randomizeAllEnabled).toBe(true);
+        for (const randomizeAllEnabled of [true, false]) {
+            applySyncedVisualSettings(target, { randomizeAllEnabled });
+            expect(setter).toHaveBeenLastCalledWith(randomizeAllEnabled);
+        }
+        setter.mockClear();
+        applySyncedVisualSettings(target, {});
+        expect(setter).not.toHaveBeenCalled();
     });
 });

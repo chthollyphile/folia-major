@@ -33,6 +33,7 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     followSystemTheme: state.followSystemTheme,
     visualizerMode: state.visualizerMode,
     randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+    randomizeAllEnabled: state.randomizeAllEnabled,
     visualizerBackgroundMode: state.visualizerBackgroundMode,
     backgroundOpacity: state.backgroundOpacity,
     visualizerOpacity: state.visualizerOpacity,
@@ -94,6 +95,7 @@ export const applySyncedVisualSettings = (
     if (settings.followSystemTheme !== undefined) state.setFollowSystemTheme(Boolean(settings.followSystemTheme));
     if (settings.visualizerMode !== undefined) state.handleSetVisualizerMode(settings.visualizerMode);
     if (settings.randomVisualizerModePerSong !== undefined) state.handleToggleRandomVisualizerModePerSong(Boolean(settings.randomVisualizerModePerSong));
+    if (settings.randomizeAllEnabled !== undefined) state.handleToggleRandomizeAll(settings.randomizeAllEnabled);
     if (settings.visualizerBackgroundMode === null) {
         state.handleResetVisualizerBackgroundMode();
     } else if (settings.visualizerBackgroundMode !== undefined) {

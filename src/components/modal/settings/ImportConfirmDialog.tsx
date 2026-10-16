@@ -69,6 +69,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     songThemeAutoSwitchEnabled: 'options.autoSwitchSongTheme',
     songThemeAutoGenerateEnabled: 'options.autoGenerateSongTheme',
     randomVisualizerModePerSong: 'options.importFieldRandomMode',
+    randomizeAllEnabled: 'options.randomizeAll',
     lyricsFontStyle: 'options.importFieldLyricsFontStyle',
     lyricsFontScale: 'options.importFieldLyricsFontScale',
     lyricsFontWeight: 'options.fontWeight',

@@ -231,7 +231,7 @@ vercel dev
 | `npm run preview` | 预览构建结果 |
 | `npm run dev:electron` | 启动 Electron 开发模式 |
 | `npm run dev:electron:update-preview` | 启动 Electron 开发模式，并模拟显示版本更新提示 |
-| `npm run dev:electron:wallpaper` | 先构建 `windowtolayer`，再启动 Electron 开发模式（Linux 壁纸模式联调） |
+| `npm run dev:electron:wallpaper` | 构建当前平台的壁纸辅助程序，再启动 Electron 开发模式（Windows / Linux 壁纸模式联调） |
 | `npm run dev:electron:dist` | 构建后以桌面模式运行 |
 | `npm run build:electron` | 打包桌面端应用 |
 | `npm run build:windowtolayer` | 单独构建 Linux 壁纸模式依赖的 `build/windowtolayer` |
@@ -241,6 +241,11 @@ vercel dev
 所有 `dev:electron*` 脚本都会注入 `FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer`，让开发运行也能找到壁纸模式所需的
 `windowtolayer`（打包运行时用的是 `resources/windowtolayer`）。该二进制不随仓库分发，首次联调壁纸模式前先跑一次
 `npm run build:windowtolayer`（或直接用 `npm run dev:electron:wallpaper`）；二进制缺失时壁纸模式开关会自动回退关闭。
+
+Windows 源码运行的壁纸模式同样需要辅助程序：先安装 Rust 和 MSVC C++ 构建工具，运行
+`npm run build:wallpaper-helper`，生成 `build/folia-wallpaper-helper.exe` 后再启动
+`npm run dev:electron`；也可直接使用 `npm run dev:electron:wallpaper` 完成构建和启动。
+仅运行 `npm install` 不会生成壁纸辅助程序。
 
 ## 代码速查地图
 

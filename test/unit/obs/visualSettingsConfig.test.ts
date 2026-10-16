@@ -60,6 +60,14 @@ describe('buildVisualSettingsConfig', () => {
         });
     });
 
+    it.each([true, false])('carries randomization scope %s through a copied OBS URL', randomizeAllEnabled => {
+        useVisualizerSettingsStore.setState({ randomizeAllEnabled });
+        const config = buildVisualSettingsConfig();
+        expect(config.randomizeAllEnabled).toBe(randomizeAllEnabled);
+        const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(config))));
+        expect(restored.randomizeAllEnabled).toBe(randomizeAllEnabled);
+    });
+
     it('never reports auto-generate on while auto-switch is off', () => {
         switchMock.mockReturnValue(false);
         generateMock.mockReturnValue(true);

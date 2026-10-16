@@ -137,6 +137,7 @@ export const useCommandPaletteContext = (
         visualizerMode: state.visualizerMode,
         visualizerBackgroundMode: state.visualizerBackgroundMode,
         randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+        randomizeAllEnabled: state.randomizeAllEnabled,
     })));
     // Read through getState() by the builder, so the subscription has to be here or the command
     // would keep the answer it had when the context was last built.

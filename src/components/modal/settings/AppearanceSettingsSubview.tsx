@@ -38,6 +38,7 @@ import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { isLibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
+import VisualStyleActions from '../../shared/VisualStyleActions';
 
 // src/components/modal/settings/AppearanceSettingsSubview.tsx
 // Visual settings subview for theme presets, lyric renderer entry, layout settings, and configurations import/export.
@@ -216,6 +217,8 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
     const storeVisualizer = useVisualizerSettingsStore(useShallow(state => ({
         visualizerMode: state.visualizerMode,
         randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+        randomizeAllEnabled: state.randomizeAllEnabled,
+        handleToggleRandomizeAll: state.handleToggleRandomizeAll,
         visualizerBackgroundMode: state.visualizerBackgroundMode,
         backgroundOpacity: state.backgroundOpacity,
         visualizerOpacity: state.visualizerOpacity,
@@ -417,6 +420,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('randomVisualizerModePerSong')) {
                 storeVisualizer.handleToggleRandomVisualizerModePerSong(Boolean(config.randomVisualizerModePerSong));
+            }
+            if (has('randomizeAllEnabled')) {
+                storeVisualizer.handleToggleRandomizeAll(Boolean(config.randomizeAllEnabled));
             }
             if (has('visualizerOpacity')) {
                 storeVisualizer.handleSetVisualizerOpacity(config.visualizerOpacity);
@@ -631,6 +637,9 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             <SettingsAnchor anchorId="lyricsRenderer" label={t('options.lyricsRenderer')}>
                 <SettingsSectionHeading icon={Monitor} label={t('options.lyricsRenderer')} />
                 <div className="space-y-3">
+                    <div className={`rounded-xl border p-4 ${settingsCardClass}`}>
+                        <VisualStyleActions theme={theme} isDaylight={isDaylight} />
+                    </div>
                     {storePlayerChromeSettings.enablePlayerPageNativeBlur && (
                         <div className={`flex items-center gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs ${isDaylight ? 'text-amber-600' : 'text-amber-400'}`}>
                             <AlertTriangle size={16} className="shrink-0 text-amber-500" />

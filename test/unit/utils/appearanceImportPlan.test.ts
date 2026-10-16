@@ -25,6 +25,14 @@ const plan = (incoming: Record<string, unknown>, current: Record<string, unknown
 const keys = (p: ReturnType<typeof plan>) => p.changes.map(c => c.key);
 
 describe('buildImportPlan', () => {
+    it.each([true, false])('offers randomization scope %s in the visualizer group', randomizeAllEnabled => {
+        const p = plan({ randomizeAllEnabled }, { randomizeAllEnabled: !randomizeAllEnabled });
+        expect(p.changes).toContainEqual({
+            key: 'randomizeAllEnabled', group: 'visualizer', from: !randomizeAllEnabled, to: randomizeAllEnabled,
+        });
+        expect(keys(plan({}, { randomizeAllEnabled }))).not.toContain('randomizeAllEnabled');
+    });
+
     it('reports nothing when the incoming config matches the current one', () => {
         const same = { visualizerMode: 'monet', backgroundOpacity: 0.75, lyricsFontScale: 1 };
         const p = plan(same, same, unpinned);

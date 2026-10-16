@@ -223,6 +223,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "video-layer-pick",
   "visualizer-toggle-glow-blur-quantize",
   "visualizer-toggle-random-per-song",
+  "visualizer-toggle-random-all",
+  "visualizer-random-style",
   "background-monet-full-overlay",
   "background-monet-half-gradient",
   "background-common",

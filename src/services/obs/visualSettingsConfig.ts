@@ -31,6 +31,7 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     followSystemTheme: storeThemeSettings.followSystemTheme,
     visualizerMode: storeVisualizer.visualizerMode,
     randomVisualizerModePerSong: storeVisualizer.randomVisualizerModePerSong,
+    randomizeAllEnabled: storeVisualizer.randomizeAllEnabled,
     visualizerBackgroundMode: storeVisualizer.visualizerBackgroundMode,
     backgroundOpacity: storeVisualizer.backgroundOpacity,
     // The other three legs of background.common, alongside the opacity above. The local OBS browser

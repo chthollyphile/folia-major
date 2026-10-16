@@ -46,6 +46,7 @@ const parseSyncedVisualSettings = (value: Record<string, unknown>): SyncedVisual
 
     if (typeof value.followSystemTheme === 'boolean') settings.followSystemTheme = value.followSystemTheme;
     if (typeof value.visualizerMode === 'string' && value.visualizerMode.trim()) settings.visualizerMode = value.visualizerMode;
+    if (typeof value.randomizeAllEnabled === 'boolean') settings.randomizeAllEnabled = value.randomizeAllEnabled;
     if (value.visualizerBackgroundMode === null) settings.visualizerBackgroundMode = null;
     else if (isVisualizerBackgroundMode(value.visualizerBackgroundMode)) settings.visualizerBackgroundMode = value.visualizerBackgroundMode;
     if (isFiniteNumber(value.backgroundOpacity)) settings.backgroundOpacity = value.backgroundOpacity;

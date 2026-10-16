@@ -184,6 +184,9 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             visualizerBackgroundMode: 'latent',
             setVisualizerMode: vi.fn(),
             toggleRandomVisualizerModePerSong: vi.fn(),
+            randomizeAllEnabled: false,
+            handleToggleRandomizeAll: vi.fn(),
+            requestRandomStyle: vi.fn(),
             toggleGlowBlurQuantize: vi.fn(),
             setVisualizerBackgroundMode: vi.fn(),
             setMonetBackgroundTuning: vi.fn(),
@@ -858,6 +861,20 @@ describe('command palette registry', () => {
         expect(match.command.id).toBe('visualizer-toggle-random-per-song');
         match.command.execute('', context);
         expect(context.visualizer.toggleRandomVisualizerModePerSong).toHaveBeenCalled();
+    });
+
+    it('offers a manual random style and scope toggle without requiring playback', () => {
+        const context = createContext();
+        const scope = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'visualizer-toggle-random-all')!;
+        scope.execute('', context);
+        expect(context.visualizer.handleToggleRandomizeAll).toHaveBeenCalledWith(true);
+        scope.execute('', createContext({ visualizer: { randomizeAllEnabled: true, handleToggleRandomizeAll: context.visualizer.handleToggleRandomizeAll } }));
+        expect(context.visualizer.handleToggleRandomizeAll).toHaveBeenLastCalledWith(false);
+        const randomStyle = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'visualizer-random-style')!;
+        expect(randomStyle.isAvailable?.(context) ?? true).toBe(true);
+        randomStyle.execute('', context);
+        expect(context.visualizer.requestRandomStyle).toHaveBeenCalledOnce();
+        expect(getCommandPaletteMatches('随机样式')[0].command.id).toBe('visualizer-random-style');
     });
 
     it('toggles the stepped glow radius', () => {

@@ -5,6 +5,7 @@ import { useVideoLayerSettingsStore } from '../../../stores/useVideoLayerSetting
 import { getVisualizerRegistryEntry } from '../../visualizer/registry';
 import { isLyricSegmentationAiAvailable } from '../../../services/lyricSegmentationAi';
 import type { LyricSegmentationActions } from '../playback/createLyricSegmentationActions';
+import { randomizeVisualStyle } from '../../visualizer/randomVisualStyle';
 
 // src/components/app/command-palette-context/buildVisualizerCommandContext.ts
 // The `visualizer` namespace. Almost entirely store-backed: App.tsx used to relay all seven
@@ -21,6 +22,12 @@ export const buildVisualizerCommandContext = (
         toggleRandomVisualizerModePerSong: () => visualizer.handleToggleRandomVisualizerModePerSong(
             !useVisualizerSettingsStore.getState().randomVisualizerModePerSong,
         ),
+        randomizeAllEnabled: visualizer.randomizeAllEnabled,
+        handleToggleRandomizeAll: visualizer.handleToggleRandomizeAll,
+        requestRandomStyle: () => {
+            const scope = useVisualizerSettingsStore.getState().randomizeAllEnabled ? 'all' : 'lyrics';
+            randomizeVisualStyle({ scope });
+        },
         toggleGlowBlurQuantize: () => visualizer.handleToggleGlowBlurQuantize(
             !useVisualizerSettingsStore.getState().glowBlurQuantize,
         ),

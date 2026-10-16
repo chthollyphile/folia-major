@@ -511,6 +511,20 @@ async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = 
   // recreates the window to match, and the playback handoff carries the session across the
   // renderer reload.
   if (process.platform === 'win32') {
+    if (expectedGeneration !== null && expectedGeneration !== wallpaperModeRelaunchGeneration) {
+      return;
+    }
+    // Check before rebuilding: without the helper, wallpaper geometry would leave an ordinary
+    // screen-sized window above the desktop instead of attaching it below the icons.
+    if (nextEnabled && !resolveWallpaperHelperPath()) {
+      console.warn('[WallpaperWin] helper binary missing, refusing wallpaper mode entry');
+      store.set(WALLPAPER_MODE_SETTING_KEY, false);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
+      }
+      refreshTrayMenu();
+      return;
+    }
     const handoff = await requestWindowPlaybackHandoff();
     if (expectedGeneration !== null && expectedGeneration !== wallpaperModeRelaunchGeneration) {
       return;
@@ -4847,7 +4861,9 @@ function createWindow(options = {}) {
   // 首屏加载遮罩是不透明的（index.html 里的 #app-splash）。透明播放背景和壁纸窗口在挂载前
   // 本来就该透出桌面，盖一层黑底会在桌面上闪一个黑块，所以这两种窗口显式关掉它。
   loadAppEntry(win, (useTransparentWindow || useWallpaperGeometry) ? { splash: '0' } : {});
-  if (isElectronDevRuntime()) {
+  // Docked DevTools sit inside the desktop-parented window, but wallpaper mouse forwarding
+  // targets the application webContents, so their controls cannot receive desktop clicks.
+  if (isElectronDevRuntime() && !isWallpaperModeEnabled()) {
     win.webContents.openDevTools();
   }
 

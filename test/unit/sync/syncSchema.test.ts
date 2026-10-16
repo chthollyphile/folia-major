@@ -13,6 +13,19 @@ import {
 // Guards sync schema parsing against malformed sync server responses.
 
 describe('sync schema parsing', () => {
+    it.each([true, false, 'false', 1, null, undefined])('validates randomization scope %s without defaulting old payloads', value => {
+        const record = parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-07-08T00:00:00.000Z',
+            data: { randomizeAllEnabled: value },
+        });
+        if (typeof value === 'boolean') {
+            expect(record?.data.randomizeAllEnabled).toBe(value);
+        } else {
+            expect(record?.data).not.toHaveProperty('randomizeAllEnabled');
+        }
+    });
+
     it('keeps only valid synced visual settings fields', () => {
         const record = parseSyncedSettingsRecord({
             schemaVersion: 1,
