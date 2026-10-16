@@ -6,7 +6,11 @@ import { NO_LYRIC_LINES } from '../../utils/lyrics/noLyricLines';
 import { PlayerState } from '../../types';
 import type { ObsBrowserSourceAudio, ObsBrowserSourceClock, ObsBrowserSourceConfig } from '../../types/obsBrowserSource';
 import { findLatestActiveLineIndex } from '../../utils/appPlaybackHelpers';
-import { buildObsBrowserSourceConfigSignature, resolveObsBrowserSourceClockTime } from '../../utils/obsBrowserSource';
+import {
+    buildObsBrowserSourceConfigSignature,
+    createObsClockSkewCorrector,
+    resolveObsBrowserSourceClockTime,
+} from '../../utils/obsBrowserSource';
 
 // src/components/obs/ObsBrowserSourceApp.tsx
 // Read-only OBS browser source renderer driven by Folia's main playback clock.
@@ -112,6 +116,8 @@ const ObsBrowserSourceApp: React.FC = () => {
 
     useEffect(() => {
         const eventSource = new EventSource(buildEventSourceUrl());
+        // The overlay may run on another device (LAN access); re-anchor each clock on this device's time.
+        const correctClockSkew = createObsClockSkewCorrector();
 
         eventSource.onopen = () => setConnected(true);
         eventSource.onerror = () => setConnected(false);
@@ -123,7 +129,7 @@ const ObsBrowserSourceApp: React.FC = () => {
             setConfig(nextConfig);
         });
         eventSource.addEventListener('clock', event => {
-            const nextClock = JSON.parse((event as MessageEvent).data) as ObsBrowserSourceClock;
+            const nextClock = correctClockSkew(JSON.parse((event as MessageEvent).data) as ObsBrowserSourceClock);
             clockRef.current = nextClock;
             setPlaybackState(prev => (
                 prev === nextClock.playerState ? prev : nextClock.playerState

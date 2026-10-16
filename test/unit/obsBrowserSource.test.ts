@@ -3,6 +3,7 @@ import { DEFAULT_SONNET_TUNING, PlayerState } from '../../src/types';
 import {
     buildObsBrowserSourceConfigSignature,
     buildLegacyObsBrowserSourceBackgroundConfig,
+    createObsClockSkewCorrector,
     downsampleObsSpectrum,
     ObsBrowserSourceConfigPublicationTracker,
     resolveMainWindowVisualizerMode,
@@ -212,6 +213,60 @@ describe('obsBrowserSource utilities', () => {
             playbackRate: 1,
             sentAtMs: 1_000,
         }, 5_000)).toBe(20);
+    });
+
+    describe('clock skew between the PC and an overlay on another device', () => {
+        const PC_SENT_AT = 1_000_000;
+        // The PC publishes "10s into the song" at PC time 1_000_000; the frame renders 2.5s later
+        // on the overlay device, with 20ms of network delay on the way.
+        const clockAt = (sentAtMs: number) => ({
+            currentTime: 10,
+            duration: 240,
+            playerState: PlayerState.PLAYING,
+            playbackRate: 1,
+            sentAtMs,
+        });
+
+        it.each([
+            ['3s ahead', 3_000],
+            ['3s behind', -3_000],
+            ['in sync', 0],
+        ])('keeps lyric time right when the overlay clock is %s', (_label, skewMs) => {
+            const correct = createObsClockSkewCorrector();
+            const receivedAt = PC_SENT_AT + 20 + skewMs;
+            const corrected = correct(clockAt(PC_SENT_AT), receivedAt);
+
+            const renderAt = receivedAt + 2_500;
+            expect(resolveObsBrowserSourceClockTime(corrected, renderAt)).toBeCloseTo(12.5, 3);
+        });
+
+        it('shows the bug it fixes: without correction a tablet 3s ahead runs the lyrics 3s early', () => {
+            const receivedAt = PC_SENT_AT + 20 + 3_000;
+            expect(resolveObsBrowserSourceClockTime(clockAt(PC_SENT_AT), receivedAt + 2_500)).toBeCloseTo(15.52, 3);
+        });
+
+        it('uses the fastest delivery in the window, so one late sample does not shift the lyrics', () => {
+            const correct = createObsClockSkewCorrector();
+            const skewMs = 1_000;
+            correct(clockAt(PC_SENT_AT), PC_SENT_AT + skewMs + 15);
+            // This one sat in a buffer for 400ms.
+            const late = correct(clockAt(PC_SENT_AT + 250), PC_SENT_AT + 250 + skewMs + 400);
+
+            expect(late.sentAtMs).toBe(PC_SENT_AT + 250 + skewMs + 15);
+        });
+
+        it('forgets samples older than the window, so a changed clock is picked up', () => {
+            const correct = createObsClockSkewCorrector(3);
+            correct(clockAt(0), 10);
+            correct(clockAt(250), 260);
+            correct(clockAt(500), 510);
+            // The overlay clock jumped forward by 5s (e.g. an NTP sync); older samples age out.
+            correct(clockAt(750), 5_760);
+            correct(clockAt(1_000), 6_010);
+            const settled = correct(clockAt(1_250), 6_260);
+
+            expect(settled.sentAtMs).toBe(1_250 + 5_010);
+        });
     });
 
     it('downsamples spectrum buckets by average value', () => {

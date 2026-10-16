@@ -182,6 +182,26 @@ export const resolveObsBrowserSourceClockTime = (
     return (clock.duration > 0 ? Math.min(clock.duration, nextTime) : nextTime) - offsetSec;
 };
 
+// Clocks arrive every 250ms (OBS_CLOCK_INTERVAL_MS in the publisher), so 20 samples cover ~5s.
+const OBS_CLOCK_SKEW_WINDOW = 20;
+
+/**
+ * Maps `sentAtMs` (the sending PC's wall clock) onto the overlay's own wall clock. With LAN access
+ * the overlay can run on a tablet whose clock differs from the PC's by seconds; extrapolating
+ * `Date.now() - sentAtMs` across two clocks then shifts the lyrics early, or freezes them between
+ * updates when the tablet is behind. The estimate is min(receivedAt - sentAt) over a sliding window:
+ * the clock skew plus the shortest transit delay, so one late sample cannot drag it. On the PC itself
+ * the skew is zero and the result differs from `sentAtMs` only by that few-millisecond delay.
+ */
+export const createObsClockSkewCorrector = (windowSize = OBS_CLOCK_SKEW_WINDOW) => {
+    const offsets: number[] = [];
+    return (clock: ObsBrowserSourceClock, receivedAtMs = Date.now()): ObsBrowserSourceClock => {
+        offsets.push(receivedAtMs - clock.sentAtMs);
+        if (offsets.length > windowSize) offsets.shift();
+        return { ...clock, sentAtMs: clock.sentAtMs + Math.min(...offsets) };
+    };
+};
+
 /**
  * Decides which visualizer mode the main window renders: while an OBS client is rendering, the
  * main window drops to the lightweight 'still' mode unless the user opted to keep its animation.
