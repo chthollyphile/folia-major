@@ -321,6 +321,11 @@ export const useObsBrowserSourcePublisher = ({
     useEffect(() => currentTime.on('change', () => {
         currentTimeChangedAtMsRef.current = Date.now();
     }), [currentTime]);
+    // A held value while paused is not a stall: restart the measurement when playback resumes or stops,
+    // otherwise a short pause would be carried forward as if the clock had kept running.
+    useEffect(() => {
+        currentTimeChangedAtMsRef.current = Date.now();
+    }, [playerState]);
 
     const buildClock = useCallback((): ObsBrowserSourceClock => {
         const nowMs = Date.now();
