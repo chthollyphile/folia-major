@@ -34,8 +34,22 @@ export interface ObsBrowserSourceStatus {
     clientCount: number;
     // Optional so a renderer paired with an older main process (or a test mock) still type-checks.
     lanAccess?: boolean;
-    /** Tokenized LAN URLs, one per local IPv4 address; empty unless LAN access is on and listening. */
-    lanUrls?: string[];
+    /** One tokenized URL per local IPv4 address, best first; empty unless LAN access is on and listening. */
+    lanEndpoints?: ObsLanEndpoint[];
+}
+
+/**
+ * How a LAN address was classified (electron/obsLanAccess.cjs): 'network' a physical adapter on a
+ * private range, 'hotspot' this PC's Windows mobile hotspot, 'virtual' a VM / WSL / VPN adapter other
+ * devices usually cannot reach, 'public' anything else.
+ */
+export type ObsLanAddressKind = 'network' | 'hotspot' | 'virtual' | 'public';
+
+export interface ObsLanEndpoint {
+    address: string;
+    interfaceName: string;
+    kind: ObsLanAddressKind;
+    url: string;
 }
 
 export interface ObsBrowserSourceConfig {

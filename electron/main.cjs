@@ -9,7 +9,7 @@ const { createStageApi } = require('./stageApi.cjs');
 const {
   resolveObsListenHost,
   listLanIpv4Addresses,
-  buildObsLanUrls,
+  buildObsLanEndpoints,
   buildPublicObsStatus,
 } = require('./obsLanAccess.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
@@ -2047,7 +2047,7 @@ function buildObsBrowserSourceStatus() {
     url: token ? buildObsBrowserSourceUrl() : null,
     clientCount: obsBrowserSourceClients.size,
     lanAccess,
-    lanUrls: lanAccess && lanListening ? buildObsLanUrls({ addresses: listLanIpv4Addresses(), port, token }) : [],
+    lanEndpoints: lanAccess && lanListening ? buildObsLanEndpoints({ addresses: listLanIpv4Addresses(), port, token }) : [],
   };
 }
 
