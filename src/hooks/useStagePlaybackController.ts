@@ -170,7 +170,11 @@ export function useStagePlaybackController({
     const lastNowPlayingPauseStateRef = useRef(nowPlayingPaused);
     const currentLineIndexRef = useRef(currentLineIndex);
 
-    nowPlayingPausedRef.current = nowPlayingPaused;
+    // nowPlayingPausedRef is not mirrored from state here: it is the latest pause state from Now Playing,
+    // written by the provider callback even while the state is not published (stage not entered yet).
+    // Mirroring the stale state on every render overwrote that value, so entering the stage published the
+    // default "paused" and the stage stayed paused until Now Playing reported another pause change.
+    // Every setNowPlayingPaused call writes the ref first.
     currentLineIndexRef.current = currentLineIndex;
 
     const stageActiveEntryKind = stageStatus?.activeEntryKind ?? null;
