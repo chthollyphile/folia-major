@@ -1,3 +1,5 @@
+import { useExternalPlaybackCapabilities } from './useExternalPlaybackCapabilities';
+import { getExternalPlaybackCapabilities, routeExternalPlayback } from '../services/externalPlaybackSession';
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import type { RefObject } from 'react';
@@ -226,6 +228,7 @@ export const useElectronPlaybackBridge = ({
         return Boolean(expectedSource && currentSource && expectedSource === currentSource);
     };
 
+    const externalCapabilities = useExternalPlaybackCapabilities();
     const buildPlaybackSyncBridgeModelFromCurrentState = () => {
         // The clock the picture belongs to: the outgoing deck during a blend, the active deck the
         // rest of the time. The metadata below is already the held picture (the caller passes
@@ -249,6 +252,7 @@ export const useElectronPlaybackBridge = ({
             : duration;
 
         return buildPlaybackSyncBridgeModel({
+            externalCapabilities: getExternalPlaybackCapabilities(),
             activePlaybackContext,
             currentSong,
             playQueue,
@@ -403,6 +407,7 @@ export const useElectronPlaybackBridge = ({
         }
 
         return window.electron.onTaskbarControl((action) => {
+            if ((action === 'previous' || action === 'next') && routeExternalPlayback({ type: action })) return;
             if (isNowPlayingControlDisabledRef.current || !audioRef.current || !taskbarHasTrackRef.current) {
                 return;
             }
@@ -436,7 +441,7 @@ export const useElectronPlaybackBridge = ({
             console.warn('[Electron] Failed to update Windows taskbar controls', error);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
+    }, [externalCapabilities, currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playerState]);
 
     // System/IME voice input pauses playback and resumes it afterwards. Resume only
     // fires when this bridge caused the pause and the track is still paused, so a
@@ -527,7 +532,7 @@ export const useElectronPlaybackBridge = ({
             window.removeEventListener('resize', handleResize);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, playerChromeVisibilityMode, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
+    }, [externalCapabilities, cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, playerChromeVisibilityMode, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, transparentPlayerBackground, isLiked]);
 
     useEffect(() => {
         if (!playbackSyncBridgeStatus.discordPresenceEnabled || !window.electron?.publishDiscordPresenceSnapshot) {
@@ -594,10 +599,13 @@ export const useElectronPlaybackBridge = ({
             }
 
             if (command.type === 'cycle-loop-mode') {
+                if (getExternalPlaybackCapabilities()) return;
                 if (!isNowPlayingControlDisabledRef.current) onRemoteCycleLoopMode?.();
                 return;
             }
 
+            if ((command.type === 'previous' || command.type === 'next')
+                && routeExternalPlayback({ type: command.type })) return;
             if (isNowPlayingControlDisabledRef.current || !taskbarHasTrackRef.current) {
                 return;
             }
@@ -633,6 +641,7 @@ export const useElectronPlaybackBridge = ({
                     ? safeDuration
                     : command.time;
                 const nextTime = Math.max(0, Math.min(command.time, upperBound));
+                if (routeExternalPlayback({ type: 'seek', seconds: nextTime, resume: false })) return;
                 // During a blend the visible track is the outgoing one; route through the same
                 // cancel-and-resume the window's bar uses instead of moving the hidden incoming deck.
                 if (onRemoteTransitionSeek?.(nextTime)) {
@@ -675,6 +684,11 @@ export const useElectronPlaybackBridge = ({
 
         return window.electron.onStagePlayerControlRequest((request) => {
             try {
+                if ((request.action === 'prev' || request.action === 'next')
+                    && routeExternalPlayback({ type: request.action === 'prev' ? 'previous' : 'next' })) {
+                    complete(request.requestId, true);
+                    return;
+                }
                 if (isNowPlayingControlDisabledRef.current || !taskbarHasTrackRef.current) {
                     throw new Error('Player controls are disabled in the current context.');
                 }
@@ -703,6 +717,11 @@ export const useElectronPlaybackBridge = ({
 
                 if (request.action === 'seek') {
                     const nextTime = Math.max(0, (request.positionMs ?? 0) / 1000);
+                    if (routeExternalPlayback({ type: 'seek', seconds: nextTime, resume: false })) {
+                        // The owning mod receives the intent and controls the resulting position.
+                        complete(request.requestId, true);
+                        return;
+                    }
                     // Same order as the remote's own seek above: mid-blend `audioRef` names the
                     // INCOMING deck, silent and holding a different track, so moving it moves
                     // nothing the listener can hear. The transition-aware path cancels the blend

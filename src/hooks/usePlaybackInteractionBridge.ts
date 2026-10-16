@@ -1,3 +1,4 @@
+import { hasExternalPlayback, routeExternalPlayback } from '../services/externalPlaybackSession';
 import { useCallback, useEffect } from 'react';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -169,6 +170,7 @@ export function usePlaybackInteractionBridge({
     }, [activePlaybackContext, audioRef, audioSrc, isNowPlayingStageActive, isTransitionAudible, pausePlayback, playerState, startPlaybackFromInteraction, stageActiveEntryKind]);
 
     const toggleLoop = useCallback((event?: React.MouseEvent) => {
+        if (hasExternalPlayback()) return;
         event?.stopPropagation();
         if (isNowPlayingStageActive) {
             return;
@@ -267,7 +269,7 @@ export function usePlaybackInteractionBridge({
                         : (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey);
 
                     if (isPrevTrackKey) {
-                        if (currentSong) {
+                        if (currentSong || hasExternalPlayback()) {
                             event.preventDefault();
                             if (isNowPlayingStageActive) {
                                 return;
@@ -291,7 +293,8 @@ export function usePlaybackInteractionBridge({
                         // Off the motion value, not the element: during a blend that value is driven
                         // by the deck on screen, which is the track this key is meant to move.
                         const nextTime = Math.max(0, currentTime.get() - 5);
-                        if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                        if (!routeExternalPlayback({ type: 'seek', seconds: nextTime, resume: false })
+                            && !seekDuringTransition?.(nextTime) && audioRef.current) {
                             audioRef.current.currentTime = nextTime;
                         }
                     }
@@ -302,7 +305,7 @@ export function usePlaybackInteractionBridge({
                         : (event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey);
 
                     if (isNextTrackKey) {
-                        if (currentSong) {
+                        if (currentSong || hasExternalPlayback()) {
                             event.preventDefault();
                             if (isNowPlayingStageActive) {
                                 return;
@@ -327,7 +330,8 @@ export function usePlaybackInteractionBridge({
                         // the element holds the ARRIVING track's length, and clamping this track's
                         // position against it lands past its end.
                         const nextTime = Math.min(duration || 0, currentTime.get() + 5);
-                        if (!seekDuringTransition?.(nextTime) && audioRef.current) {
+                        if (!routeExternalPlayback({ type: 'seek', seconds: nextTime, resume: false })
+                            && !seekDuringTransition?.(nextTime) && audioRef.current) {
                             audioRef.current.currentTime = nextTime;
                         }
                     }

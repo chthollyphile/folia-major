@@ -1,3 +1,4 @@
+import type { ExternalPlaybackCapabilities } from '../types/externalPlayback';
 import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlSnapshot, RemoteTrackTransition } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
@@ -13,6 +14,7 @@ export interface PlaybackSyncBridgeModel {
     activePlaybackContext: PlaybackContext;
     currentSong: SongResult | null;
     playQueue: SongResult[];
+    externalCapabilities?: Readonly<ExternalPlaybackCapabilities> | null;
     hasTrack: boolean;
     title: string | null;
     artist: string | null;
@@ -47,6 +49,7 @@ export interface BuildPlaybackSyncBridgeModelArgs {
     activePlaybackContext: PlaybackContext;
     currentSong: SongResult | null;
     playQueue: SongResult[];
+    externalCapabilities?: Readonly<ExternalPlaybackCapabilities> | null;
     currentTimeSec: number;
     stagePositionSec?: number;
     durationSec: number;
@@ -107,6 +110,7 @@ export const buildPlaybackSyncBridgeModel = ({
     activePlaybackContext,
     currentSong,
     playQueue,
+    externalCapabilities,
     currentTimeSec,
     stagePositionSec,
     durationSec,
@@ -137,8 +141,8 @@ export const buildPlaybackSyncBridgeModel = ({
         ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
         : -1;
     const hasQueueNeighbors = playQueue.length > 1;
-    const canGoPrevious = hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
-    const canGoNext = hasTrack && (
+    const canGoPrevious = externalCapabilities ? externalCapabilities.canPrevious : hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
+    const canGoNext = externalCapabilities ? externalCapabilities.canNext : hasTrack && (
         isFmMode ||
         currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
         (effectiveLoopMode === 'all' && hasQueueNeighbors)
@@ -150,6 +154,7 @@ export const buildPlaybackSyncBridgeModel = ({
         activePlaybackContext,
         currentSong,
         playQueue,
+        externalCapabilities,
         hasTrack,
         title: currentSong?.name ?? null,
         artist: resolvePlaybackSongArtist(currentSong),
@@ -164,7 +169,7 @@ export const buildPlaybackSyncBridgeModel = ({
         isFmMode,
         canGoPrevious,
         canGoNext,
-        controlsDisabled: controlsDisabled || !hasTrack,
+        controlsDisabled: controlsDisabled || isStageActive || (!hasTrack && !externalCapabilities),
         isStageActive,
         transparentModeEnabled,
         mainWindowClickThroughEnabled,
@@ -187,6 +192,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
 ): RemoteControlSnapshot => {
     const neighbors = resolvePlaybackNeighbors({
         playQueue: model.playQueue,
+        externalCapabilities: model.externalCapabilities,
         currentSong: model.currentSong,
         loopMode: model.loopMode,
         isFmMode: model.isFmMode,
@@ -197,6 +203,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
 
     return {
     hasTrack: model.hasTrack,
+    externalCapabilities: model.externalCapabilities ?? null,
     // 没有可控曲目时（舞台播放）与 prev/nextTrackKey 保持一致地置空，
     // 否则占位面会被 key 到一首歌上，之后真正播这首时节点被复用、动画不触发
     trackKey: model.hasTrack && model.currentSong ? getPlaybackSongKey(model.currentSong) : null,

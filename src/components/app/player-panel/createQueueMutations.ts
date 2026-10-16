@@ -1,3 +1,4 @@
+import { hasExternalPlayback, routeExternalPlayback } from '../../../services/externalPlaybackSession';
 import type { Dispatch, SetStateAction } from 'react';
 import { buildNavidromeQueue } from '../../../services/playbackAdapters';
 import { applyQueueAddBehavior } from '../../../utils/queueAddBehavior';
@@ -41,6 +42,7 @@ export const createQueueMutations = ({
         }
 
         const unifiedSongs = buildNavidromeQueue(songs);
+        if (routeExternalPlayback({ type: 'enqueue', songs: unifiedSongs })) return;
         const baseQueue = playQueue.length > 0 ? playQueue : (currentSong ? [currentSong] : []);
         const { nextQueue, affectedSongs, changed } = applyQueueAddBehavior({
             queue: baseQueue,
@@ -65,6 +67,7 @@ export const createQueueMutations = ({
     // 所有就地编辑（播放页队列页、命令面板、墙面工具的队列浮岛）都经这里：写 store、持久化，正在播放那首前后的
     // 预取窗口变了就重新预取（prefetchService.refreshPrefetchAfterQueueEdit；编辑前的队列就是这一份 playQueue）。
     const updateQueueOrder = (nextQueue: SongResult[]) => {
+        if (hasExternalPlayback()) { setStatusMsg({ type: 'info', text: t('status.externalPlaybackActive') }); return; }
         setPlayQueue(nextQueue);
         void persistLastPlaybackCache(currentSong, nextQueue);
         refreshPrefetchAfterQueueEdit(currentSong, playQueue, nextQueue, audioQuality, userId);
@@ -100,6 +103,7 @@ export const createQueueMutations = ({
     };
 
     const applyQueueBatchOperation = (action: QueueBatchAction, targetIndices: number[]) => {
+        if (hasExternalPlayback()) { setStatusMsg({ type: 'info', text: t('status.externalPlaybackActive') }); return false; }
         const result = transformQueueBatch({
             queue: playQueue,
             targetIndices,

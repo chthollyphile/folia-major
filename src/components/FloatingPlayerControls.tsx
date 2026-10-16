@@ -558,7 +558,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     context={slotContext}
                     primaryColor={primaryColor}
                     isDaylight={isDaylight}
-                    controlsDisabled={controlsDisabled}
+                    controlsDisabled={controlsDisabled || (!currentSong && slotPrimary === 'loop')}
                     className="col-start-1 row-start-2 justify-self-end sm:justify-self-auto"
                 />
 
@@ -567,7 +567,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     context={slotContext}
                     primaryColor={primaryColor}
                     isDaylight={isDaylight}
-                    controlsDisabled={controlsDisabled}
+                    controlsDisabled={controlsDisabled || (!currentSong && slotSecondary === 'loop')}
                     className="col-start-3 row-start-2 justify-self-start sm:justify-self-auto"
                 />
             </div>
@@ -581,7 +581,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     primaryColor={primaryColor}
                     secondaryColor={secondaryColor}
                     trackColor={trackColor}
-                    disabled={controlsDisabled}
+                    disabled={controlsDisabled || duration <= 0}
                 />
             </div>
         </div>
@@ -617,7 +617,7 @@ const CollapsedView: React.FC<CollapsedViewProps> = ({
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
                 trackColor={trackColor}
-                disabled={controlsDisabled}
+                disabled={controlsDisabled || duration <= 0}
                 collapsed
             />
         </div>

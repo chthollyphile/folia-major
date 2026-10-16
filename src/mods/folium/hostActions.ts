@@ -1,4 +1,7 @@
+import { hasExternalPlayback } from '@/services/externalPlaybackSession';
+import type { PlaybackRequest } from '@/types/externalPlayback';
 import { useEffect, useRef } from 'react';
+import { registerExternalPlaybackActions } from './externalPlayback';
 import type { SongResult } from '@/types';
 import { PlayerState } from '@/types';
 import {
@@ -32,13 +35,14 @@ export interface FoliumAppActions {
     seekToLyricTime: (lyricSeconds: number) => void;
     next: () => void;
     previous: () => void;
-    playSong: (song: SongResult) => void | Promise<void>;
+    playSong: (song: SongResult, request?: PlaybackRequest) => void | Promise<void>;
     /**
      * playQueueItem: plays `song` within `queue`, which must be the store's playQueue array itself
      * (the queue controller then retries and skips a failure against the live queue), keeping
      * Personal FM on when `isFm`.
      */
     playQueueSong: (song: SongResult, queue: SongResult[], isFm: boolean) => void | Promise<void>;
+    sessionTransport: { stop(): void; seek(seconds: number): void; canAcquire?(): boolean };
     enqueue: (song: SongResult) => void;
     navigateToPlayer: () => void;
     navigateToHome: () => void;
@@ -55,7 +59,7 @@ type PlaybackStoreState = ReturnType<typeof usePlaybackStore.getState>;
 
 /* Same rule as the player bar's shuffle slot, plus external Stage playback, which shuffleQueue ignores. */
 const canShuffleQueue = (state: PlaybackStoreState) => (
-    !state.isFmMode && state.playQueue.length > 1 && state.activePlaybackContext !== 'stage'
+    !hasExternalPlayback() && !state.isFmMode && state.playQueue.length > 1 && state.activePlaybackContext !== 'stage'
 );
 
 export const useFoliumHostActions = (actions: FoliumAppActions) => {
@@ -70,6 +74,12 @@ export const useFoliumHostActions = (actions: FoliumAppActions) => {
     ).disabled;
 
     useEffect(() => {
+        registerExternalPlaybackActions({
+            play: async (song, request) => { await actionsRef.current.playSong(song, request); },
+            stop: () => actionsRef.current.sessionTransport.stop(),
+            canAcquire: () => actionsRef.current.sessionTransport.canAcquire?.() !== false,
+            seek: (seconds) => actionsRef.current.sessionTransport.seek(seconds),
+        });
         registerFoliumHostActions({
             getPlaybackState: () => {
                 const state = usePlaybackStore.getState();
@@ -139,7 +149,7 @@ export const useFoliumHostActions = (actions: FoliumAppActions) => {
             navigate: (target) => (target === 'player' ? actionsRef.current.navigateToPlayer() : actionsRef.current.navigateToHome()),
             openVolume: () => actionsRef.current.openVolume(),
         });
-        return () => registerFoliumHostActions(null);
+        return () => { registerFoliumHostActions(null); registerExternalPlaybackActions(null); };
     }, []);
 
     // playback.likeChanged follows the value getState().liked reports, whatever changed it.

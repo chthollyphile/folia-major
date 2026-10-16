@@ -329,6 +329,7 @@ export default {
     "aiThemeGeneratedCustomPreferred": "Tema AI dibuat, tapi tema kustom tetap diutamakan"
   },
   "status": {
+    "externalPlaybackActive": "Sesi pemutaran eksternal sedang aktif. Gunakan kontrol sesi atau keluar dari sesi terlebih dahulu.",
     "playerChromeAlwaysHidden": "Antarmuka akan tetap tersembunyi",
     "playerChromeAlwaysVisible": "Antarmuka akan tetap terlihat",
     "playerChromeAutoHide": "Antarmuka akan otomatis tersembunyi",

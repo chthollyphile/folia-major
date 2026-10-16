@@ -201,8 +201,10 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
     const experimental = gatedNamespace(
         'experimental',
         options.experimental ?? {},
-        (name) => optedIn.has(name),
-        (name) => `experimental-not-declared:${name} (add it to "experimental" in mod.json)`,
+        (name) => optedIn.has(name) && (name !== 'playback.sessions' || context === 'main'),
+        (name) => name === 'playback.sessions' && context !== 'main'
+            ? 'playback.sessions-unavailable-in-export-context'
+            : `experimental-not-declared:${name} (add it to "experimental" in mod.json)`,
     );
 
     const internals = gatedNamespace(
@@ -239,7 +241,7 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         rpc,
         lyrics: FOLIUM_LYRICS_HELPERS,
         theme: FOLIUM_THEME_HELPERS,
-        experimental,
+        experimental: experimental as FoliumClientApi['experimental'],
         internals,
     });
 };

@@ -1,3 +1,4 @@
+import { disposeFoliumServices } from './lifecycle';
 import type { ModRuntimeInfo } from '../types';
 import { isModsBridgeAvailable, listMods } from '../ipc';
 import type { FoliumClientModule, FoliumContextKind, FoliumDisposer } from './contract';
@@ -60,6 +61,7 @@ const teardown = async (modId: string) => {
             reportFoliumIssue(modId, 'client dispose', error);
         }
     }
+    disposeFoliumServices(modId);
     const { listFoliumHostRegistries } = await loadApi();
     listFoliumHostRegistries().forEach((registry) => registry.unregisterAll(modId));
     removeFoliumEventHandlers(modId);
@@ -86,6 +88,7 @@ const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContext
             record.dispose = result;
         }
     } catch (error) {
+        await teardown(mod.id);
         reportFoliumIssue(mod.id, 'client activate', error);
     }
 };

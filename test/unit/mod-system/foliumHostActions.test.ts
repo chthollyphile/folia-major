@@ -48,6 +48,7 @@ const mod: ModRuntimeInfo = {
 const song = (id: number) => ({ id, name: `song ${id}` }) as unknown as SongResult;
 
 const appActions = (overrides: Partial<FoliumAppActions> = {}): FoliumAppActions => ({
+    sessionTransport: { stop: vi.fn(), seek: vi.fn() },
     play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), seek: vi.fn(), seekToLyricTime: vi.fn(),
     next: vi.fn(), previous: vi.fn(), playSong: vi.fn(), playQueueSong: vi.fn(), enqueue: vi.fn(),
     navigateToPlayer: vi.fn(), navigateToHome: vi.fn(),

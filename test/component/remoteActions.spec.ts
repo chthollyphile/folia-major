@@ -100,3 +100,31 @@ test('actions stay in an internally scrolling area and off other native panels',
     await page.getByTitle('Transparent controls', { exact: true }).click();
     await expect(area).toBeHidden();
 });
+
+
+test('empty external sessions keep permitted navigation available without enabling local playback', async ({ mount, page }) => {
+    await mount('remoteActions');
+    await page.evaluate(() => { window.remoteActionsProbe.track(null); window.remoteActionsProbe.sessionNavigation(true); });
+    const next = page.getByTitle('Next', { exact: true });
+    const previous = page.getByTitle('Previous', { exact: true });
+    await expect(next).toBeEnabled();
+    await expect(previous).toBeEnabled();
+    await expect(page.getByTitle('Play', { exact: true })).toBeDisabled();
+    await expect(page.getByRole('slider')).toBeDisabled();
+    await expect(page.getByTitle('Loop off', { exact: true })).toBeDisabled();
+    await next.click();
+    await previous.click();
+    expect(await page.evaluate(() => window.remoteActionsProbe.commands.map(command => command.type))).toEqual(['next', 'previous']);
+    await page.evaluate(() => window.remoteActionsProbe.hostDisabled(true));
+    await expect(next).toBeDisabled();
+    await expect(previous).toBeDisabled();
+    await page.evaluate(() => window.remoteActionsProbe.hostDisabled(false));
+    await expect(next).toBeEnabled();
+    await expect(previous).toBeEnabled();
+    await page.evaluate(() => window.remoteActionsProbe.sessionNavigation(false));
+    await expect(next).toBeDisabled();
+    await expect(previous).toBeDisabled();
+    await page.evaluate(() => window.remoteActionsProbe.sessionNavigation(null));
+    await expect(next).toBeDisabled();
+    await expect(previous).toBeDisabled();
+});

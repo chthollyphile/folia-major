@@ -989,6 +989,67 @@ export interface FoliumEvents {
     ): FoliumDisposer;
 }
 
+/** EXPERIMENTAL (`playback.sessions`): user intent while a mod owns the player. */
+export type FoliumPlaybackSessionIntent =
+    | { type: 'play'; song: FoliumSong }
+    | { type: 'enqueue'; songs: readonly FoliumSong[] }
+    | { type: 'next' | 'previous' | 'ended' | 'playback-error' }
+    | { type: 'seek'; seconds: number; resume: boolean };
+
+/** Source assignment, not an assertion that decoding or audible playback succeeded. */
+export interface FoliumPlaybackStartResult {
+    /** Whether the source committed, the request ended early, or the source was unavailable. */
+    status: 'source-committed' | 'cancelled' | 'superseded' | 'unavailable' | 'failed';
+}
+
+/** Native transport intents currently accepted by the owning session. */
+export interface FoliumPlaybackSessionCapabilities {
+    /** Whether a native next-track request may be forwarded to the owner. */
+    canNext: boolean;
+    /** Whether a native previous-track request may be forwarded to the owner. */
+    canPrevious: boolean;
+    /** Whether user seek requests may be forwarded. Direct session.seek remains available for synchronization. */
+    canSeek: boolean;
+}
+
+/** An exclusive session, released automatically on mod disable or failed activation. */
+export interface FoliumPlaybackSession {
+    /** Load a host-ref song without autoplay. Resolves at source assignment, cancellation or failure. */
+    play(song: FoliumSong): Promise<FoliumPlaybackStartResult>;
+    /** Set local audio time in seconds, preserving the current pause state. */
+    seek(seconds: number): void;
+    /** Cancel a pending load and clear current media without releasing ownership. */
+    stop(): void;
+    /** Update native transport availability; unsupported intents are consumed without changing local playback. */
+    setCapabilities(capabilities: FoliumPlaybackSessionCapabilities): void;
+    /** Idempotent. Restore the previous queue stopped; clear current audio, song and lyrics. */
+    release(): void;
+}
+
+/** EXPERIMENTAL: requires manifest `playback.sessions` and permission `playback.control`. Main window only. */
+export interface FoliumPlaybackSessions {
+    /** Experimental service contract version. */
+    readonly version: 1;
+    /** Resolve an online provider's opaque media ID through Omni, returning a host song ref. */
+    resolveSong(provider: string, id: string): Promise<FoliumSong>;
+    /** FM, Stage, video recording, active transitions and another session are rejected before changing playback. */
+    acquire(options: {
+        onIntent: (intent: FoliumPlaybackSessionIntent) => void | Promise<void>;
+        /** Explicit restoration policy: queue restored, current source cleared, no automatic playback. */
+        restore: 'queue-stopped';
+        /** Defaults to all three intents enabled; the mod may change these during the session. */
+        capabilities?: FoliumPlaybackSessionCapabilities;
+    }): FoliumPlaybackSession;
+}
+
+/** Typed experimental surfaces; reading an undeclared name throws. */
+export interface FoliumExperimentalServices {
+    /** Opt-in external playback ownership. */
+    readonly 'playback.sessions': FoliumPlaybackSessions;
+    /** Other experimental registries retain their existing contracts. */
+    readonly [name: string]: unknown;
+}
+
 // ---------------------------------------------------------------- Services
 
 /**
@@ -1451,7 +1512,7 @@ export interface FoliumClientApi {
     /** Folium 1.3. */
     readonly theme: FoliumThemeHelpers;
     /** Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. */
-    readonly experimental: Readonly<Record<string, unknown>>;
+    readonly experimental: Readonly<FoliumExperimentalServices>;
     /**
      * Host internals with no compatibility promise. Only available when the
      * manifest pins host versions with `"folia"`; otherwise accessing it throws.

@@ -1,0 +1,9 @@
+{
+  "folium": 1,
+  "id": "session-api-demo",
+  "name": "播放会话 API 验收",
+  "version": "1.0.1",
+  "client": "client.mjs",
+  "permissions": ["playback.control"],
+  "experimental": ["playback.sessions", "omni.providers"]
+}

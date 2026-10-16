@@ -265,6 +265,7 @@ const RemoteControlApp: React.FC = () => {
     const progressValue = duration > 0 ? Math.max(0, Math.min(currentTime, duration)) : 0;
     const isPlaying = snapshot.playerState === PlayerState.PLAYING;
     const primaryDisabled = snapshot.controlsDisabled || !snapshot.hasTrack;
+    const navigationDisabled = snapshot.controlsDisabled || (!snapshot.hasTrack && !snapshot.externalCapabilities);
     const likeDisabled = primaryDisabled || snapshot.canLike === false;
     const likeUnavailableReason = snapshot.likeUnavailableProvider
         ? t('status.providerLikeUnavailable', { provider: snapshot.likeUnavailableProvider })
@@ -771,7 +772,7 @@ const RemoteControlApp: React.FC = () => {
                                                         max={duration || 1}
                                                         step={0.1}
                                                         value={progressValue}
-                                                        disabled={primaryDisabled || duration <= 0}
+                                                        disabled={primaryDisabled || duration <= 0 || snapshot.externalCapabilities?.canSeek === false}
                                                         onChange={(event) => setPendingSeek(Number(event.currentTarget.value))}
                                                         onPointerDown={() => {
                                                             isDraggingRef.current = true;
@@ -828,7 +829,7 @@ const RemoteControlApp: React.FC = () => {
                                                                     <button
                                                                         type="button"
                                                                         title={t('remote.previous')}
-                                                                        disabled={primaryDisabled || !snapshot.canGoPrevious}
+                                                                        disabled={navigationDisabled || !snapshot.canGoPrevious}
                                                                         onMouseEnter={() => setHoverNavSide('prev')}
                                                                         onMouseLeave={() => setHoverNavSide(null)}
                                                                         onClick={() => navigateTrack('prev')}
@@ -851,7 +852,7 @@ const RemoteControlApp: React.FC = () => {
                                                                     <button
                                                                         type="button"
                                                                         title={t('remote.next')}
-                                                                        disabled={primaryDisabled || !snapshot.canGoNext}
+                                                                        disabled={navigationDisabled || !snapshot.canGoNext}
                                                                         onMouseEnter={() => setHoverNavSide('next')}
                                                                         onMouseLeave={() => setHoverNavSide(null)}
                                                                         onClick={() => navigateTrack('next')}
@@ -863,7 +864,7 @@ const RemoteControlApp: React.FC = () => {
                                                                         type="button"
                                                                         title={snapshot.loopMode === 'off' ? t('remote.loopOff') : snapshot.loopMode === 'one' ? t('remote.loopOne') : t('remote.loopAll')}
                                                                         aria-pressed={snapshot.loopMode !== 'off'}
-                                                                        disabled={primaryDisabled}
+                                                                        disabled={primaryDisabled || Boolean(snapshot.externalCapabilities)}
                                                                         onClick={() => sendCommand({ type: 'cycle-loop-mode' })}
                                                                         className={`${secondaryButtonBase} ml-2 ${snapshot.loopMode !== 'off' ? secondaryActiveClass : secondaryIdleClass}`}
                                                                     >

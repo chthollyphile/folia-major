@@ -1,3 +1,4 @@
+import { captureExternalPlaybackBoundary } from '../services/externalPlaybackSession';
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { PlayerState } from '../types';
@@ -109,8 +110,9 @@ export function usePlaybackTransportController({
         // A pause does not cancel source loading, but it must cancel an older
         // asynchronous resume. Store notifications alone cannot identify that
         // stale PLAYING event once a caller has already observed PAUSED.
+        const sameSession = captureExternalPlaybackBoundary();
         const source = usePlaybackStore.getState().audioSrc;
-        const isSameSource = () => audioRef.current === audio && usePlaybackStore.getState().audioSrc === source;
+        const isSameSource = () => sameSession() && audioRef.current === audio && usePlaybackStore.getState().audioSrc === source;
         const isCurrent = () => revision === transportRevision.current && isSameSource();
         // A pending refresh can still supply the source after a pause. Its autoplay
         // decision follows the latest transport intent, including a later resume.

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { getI18n } from 'react-i18next';
 import RemoteControlApp from '../../src/components/remote/RemoteControlApp';
-import { PlayerState } from '../../src/types';
+import { PlayerState, type SongResult } from '../../src/types';
+import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
+import { buildPlaybackSyncBridgeModel, buildRemoteControlSnapshotFromPlaybackSyncBridge, type BuildPlaybackSyncBridgeModelArgs } from '../../src/utils/playbackSyncBridge';
 import { idleVideoExportState } from '../../src/types/videoExport';
 import type { RemoteControlCommand, RemoteControlSnapshot } from '../../src/types/remoteControl';
 import { createRemoteControlActionBridge } from '../../src/services/remoteControlActions';
@@ -17,6 +19,7 @@ import type { ProbeDefinition } from './definition';
 declare global { interface Window { remoteActionsProbe: {
     enable(): void; disable(): void; daylight(): void; language(language: string): Promise<unknown>;
     track(id: string | null, delay?: boolean): void; flush(): void; many(): void;
+    sessionNavigation(enabled: boolean | null): void; hostDisabled(disabled: boolean): void;
     log: string[]; commands: RemoteControlCommand[]; results: boolean[];
 }; } }
 
@@ -25,24 +28,28 @@ function RemoteActionsProbe() {
     useEffect(() => {
         const log: string[] = []; const commands: RemoteControlCommand[] = []; const results: boolean[] = [];
         let dispose: (() => void) | undefined; let delayed = false;
-        const state: RemoteControlSnapshot = {
-            hasTrack: true, trackKey: 'probe:a', title: 'Remote actions demo', artist: 'Offline fixture', coverUrl: null,
-            currentTime: 12, duration: 180, playerState: PlayerState.PLAYING, loopMode: 'off',
-            canGoPrevious: true, canGoNext: true, prevTrackKey: null, prevTrackTitle: null, prevTrackArtist: null,
-            prevTrackCoverUrl: null, nextTrackKey: null, nextTrackTitle: null, nextTrackArtist: null, nextTrackCoverUrl: null,
-            trackTransition: null, controlsDisabled: false, isStageActive: false, transparentModeEnabled: false,
+        const song = (id: string): SongResult => ({ id, name: 'Remote actions demo', artists: [{ id: 1, name: 'Offline fixture' }], album: { id: 1, name: '' }, durationMs: 180_000 });
+        const current = song('a');
+        const state: BuildPlaybackSyncBridgeModelArgs = {
+            activePlaybackContext: 'main', currentSong: current, playQueue: [song('prev'), current, song('next')],
+            currentTimeSec: 12, durationSec: 180, playerState: PlayerState.PLAYING, effectiveLoopMode: 'off', isFmMode: false,
+            coverUrl: null, controlsDisabled: false, isStageActive: false, transparentModeEnabled: false,
             mainWindowClickThroughEnabled: false, mainWindowAlwaysOnTop: false, mainWindowBorderVisible: false,
-            playerChromeHidden: false, playerChromeVisibilityMode: 'auto-hide', exportState: idleVideoExportState(),
-            isDaylight: false, isLiked: false, canLike: true, updatedAt: 0,
+            playerChromeHidden: false, exportState: idleVideoExportState(),
+            isDaylight: false, isLiked: false, mainWindowWidth: 450, mainWindowHeight: 230,
         };
         const bridge = createRemoteControlActionBridge(() => ({
-            trackKey: state.trackKey,
+            trackKey: state.currentSong ? getPlaybackSongKey(state.currentSong) : null,
             context: {
-                song: state.trackKey ? { id: state.trackKey, title: state.title!, artist: state.artist!, album: null, source: 'local', ref: null } : null,
-                state: state.hasTrack ? 'playing' : 'stopped',
+                song: state.currentSong ? { id: String(state.currentSong.id), title: state.currentSong.name, artist: 'Offline fixture', album: null, source: 'local', ref: null } : null,
+                state: state.currentSong ? 'playing' : 'stopped',
             },
         }));
-        const snapshot = () => ({ ...state, remoteActions: bridge.read() });
+        // Use the main window's real producer: empty-song availability must not be hand-authored here.
+        const snapshot = () => ({
+            ...buildRemoteControlSnapshotFromPlaybackSyncBridge(buildPlaybackSyncBridgeModel(state), { playerChromeVisibilityMode: 'auto-hide' }),
+            canLike: Boolean(state.currentSong), remoteActions: bridge.read(),
+        });
         let listener: ((value: RemoteControlSnapshot) => void) | undefined;
         const publish = () => { if (!delayed) listener?.(snapshot()); };
         const unsubscribe = subscribeRemoteActions(publish);
@@ -68,10 +75,18 @@ function RemoteActionsProbe() {
             daylight: () => { state.isDaylight = !state.isDaylight; publish(); },
             language: (language) => getI18n().changeLanguage(language),
             track: (id, delay = false) => {
-                state.trackKey = id ? `probe:${id}` : null; state.hasTrack = id !== null;
+                state.currentSong = id ? song(id) : null;
+                state.playQueue = state.currentSong ? [song('prev'), state.currentSong, song('next')] : [];
+                state.currentTimeSec = id ? 12 : 0; state.durationSec = id ? 180 : 0;
+                state.playerState = id ? PlayerState.PLAYING : PlayerState.IDLE;
                 delayed = delay; publish();
             },
             flush: () => { delayed = false; publish(); },
+            sessionNavigation: (enabled) => {
+                state.externalCapabilities = enabled === null ? null : { canNext: enabled, canPrevious: enabled, canSeek: false };
+                publish();
+            },
+            hostDisabled: (disabled) => { state.controlsDisabled = disabled; publish(); },
             many: () => registerRemoteActions('overflow', { id: 'extra', actions: () => Array.from({ length: 30 }, (_, index) => ({
                 id: `extra-${index}`, label: { en: `Extra ${index}` }, icon: 'circle', scope: 'session' as const,
                 run: () => { log.push(`extra-${index}`); },

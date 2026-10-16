@@ -1,3 +1,4 @@
+import type { ExternalPlaybackCapabilities } from '../types/externalPlayback';
 import { getPlaybackSongKey } from './appPlaybackGuards';
 import { resolvePlaybackSongArtist, resolvePlaybackSongCoverUrl } from './playbackSongMeta';
 import type { SongResult } from '../types';
@@ -36,6 +37,7 @@ type ResolvePlaybackNeighborsParams = {
      * 只有需要预读下一首的遥控窗口用得上；浮动播放条只读 canGo 与 title，默认不付这份开销。
      */
     withMetadata?: boolean;
+    externalCapabilities?: Readonly<ExternalPlaybackCapabilities> | null;
 };
 
 /**
@@ -50,7 +52,12 @@ export const resolvePlaybackNeighbors = ({
     isFmMode,
     isStageActive,
     withMetadata = false,
+    externalCapabilities,
 }: ResolvePlaybackNeighborsParams): PlaybackNeighbors => {
+    if (externalCapabilities && !isStageActive) return {
+        prev: externalCapabilities.canPrevious ? unknownNeighbor() : blockedNeighbor(),
+        next: externalCapabilities.canNext ? unknownNeighbor() : blockedNeighbor(),
+    };
     // 舞台播放时两个 handler 都会直接 return，这里必须同步禁用，否则箭头点了没反应
     if (isStageActive || !currentSong || playQueue.length === 0) {
         return { prev: blockedNeighbor(), next: blockedNeighbor() };

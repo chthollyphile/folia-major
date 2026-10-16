@@ -1,3 +1,4 @@
+import type { PlaybackRequest } from './externalPlayback';
 import type {
     LyricData,
     NowPlayingLyricPayload,
@@ -14,6 +15,9 @@ import type { MediaId } from './onlineMusic';
 
 // Shared playback-specific types extracted from App.tsx.
 export type PlaybackNavigationOptions = {
+    /** Shared cancellation and source-commit acknowledgement across playback providers. */
+    request?: PlaybackRequest;
+    autoplay?: boolean;
     shouldNavigateToPlayer?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];
@@ -35,6 +39,7 @@ export type LibraryPlayOptions = PlaybackNavigationOptions & {
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {
+    reason?: 'ended' | 'playback-error';
     allowStopOnMissing?: boolean;
     /**
      * The track to step from, when it is deliberately NOT the one the listener can see.

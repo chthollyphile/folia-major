@@ -331,6 +331,7 @@ export default {
     "aiThemeGeneratedCustomPreferred": "AI 主题已生成，但当前仍优先使用自定义主题",
   },
   "status": {
+    "externalPlaybackActive": "外部播放会话正在运行，请使用该会话的控制界面，或先退出会话。",
     "playerChromeAlwaysHidden": "UI 将始终隐藏",
     "playerChromeAlwaysVisible": "UI 将始终显示",
     "playerChromeAutoHide": "UI 将自动隐藏",

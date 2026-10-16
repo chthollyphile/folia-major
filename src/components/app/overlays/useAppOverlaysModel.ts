@@ -1,3 +1,4 @@
+import { useExternalPlaybackCapabilities } from '@/hooks/useExternalPlaybackCapabilities';
 import { useMemo } from 'react';
 import { currentTime, lyricCurrentTime } from '../../../stores/motionSignals';
 import { useAppViewStore } from '../../../stores/useAppViewStore';
@@ -32,6 +33,7 @@ const MEMORY_MONITOR_SHORTCUT_LABEL = 'Alt+Shift+M';
  */
 export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => {
     const { t } = useTranslation();
+    const externalCapabilities = useExternalPlaybackCapabilities();
     const currentView = useAppViewStore(state => state.view);
     const isPlayerChromeHidden = useAppChromeStore(state => state.isPlayerChromeHidden);
     const isDevDebugOverlayVisible = useAppChromeStore(state => state.isDevDebugOverlayVisible);
@@ -56,7 +58,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
     const displayPlayerState = usePlaybackStore(selectDisplayPlayerState);
     const playerControlSlotContext = useMemo(() => ({
         onShuffle: deps.shuffleQueue,
-        canShuffle: !isFmMode && playQueue.length > 1,
+        canShuffle: !externalCapabilities && !isFmMode && playQueue.length > 1,
         onLike: deps.handleLike,
         isLiked: deps.isDisplaySongLiked,
         likeDisabled: resolveLikeAvailability(
@@ -67,6 +69,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         invokeCommandById: deps.invokeCommandById,
         canInvokeCommandById: deps.canInvokeCommandById,
     }), [
+        externalCapabilities,
         activePlaybackContext,
         deps.canInvokeCommandById,
         deps.handleLike,
@@ -94,6 +97,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         duration: displayDuration,
         audioSrc,
         lyrics: displayLyrics,
+        externalCapabilities,
         activePlaybackContext,
         isPlayerChromeHidden,
         playQueue,
@@ -127,6 +131,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         displayDuration,
         audioSrc,
         displayLyrics,
+        externalCapabilities,
         activePlaybackContext,
         isPlayerChromeHidden,
         playQueue,

@@ -154,7 +154,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `depends` | 模组 id 或 `id@^1.2.3`（仅支持 `^` 与 `*`）。缺失、版本不符、成环或依赖未启用时，只有该依赖子图不加载 |
 | `permissions` | 见下表。未知权限直接拒绝 |
 | `embedOrigins` | `folium.ui.embed` 可以加载的 https origin（形如 `https://host[:port]`），需要 `net.embed` |
-| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions` |
+| `experimental` | 选用的实验接口：`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`playback.sessions` |
 | `folia` | 宿主版本范围（空格分隔的比较式，支持 `>= > <= < = ^` 与 `*`）。**使用 `folium.internals` 时必填**；宿主版本不在范围内时加载器拒绝加载（`host-version-mismatch`） |
 
 | 权限 | 解锁 |
@@ -878,3 +878,7 @@ export default function activate(folium) {
 - 单模组加载失败不影响宿主与其他模组；依赖图损坏只波及相关子图。
 - 每次加载周期先停用当前模组再重新激活，不会叠加多代定时器与监听器。
 - 导出会话全局互斥（`export-already-running`）；取消 / 失败时清理 ffmpeg 进程、离屏窗口与半成品文件。
+
+## 外部播放会话（实验接口）
+
+`playback.sessions` 允许模组通过宿主播放器跟随外部队列和时间线，需要同名 experimental 声明及 `playback.control` 权限。会话绑定模组生命周期，禁用或激活失败时由宿主清理。参见 [接口说明](../docs/folium/playback-sessions.md)；它不属于稳定的 Folium 1.x 播放服务，也不需要使用 internals。

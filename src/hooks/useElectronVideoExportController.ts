@@ -1,3 +1,4 @@
+import { hasExternalPlayback } from '../services/externalPlaybackSession';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import type { RefObject } from 'react';
@@ -66,6 +67,10 @@ export const useElectronVideoExportController = ({
     }, []);
 
     const startExport = useCallback(async (preset: VideoExportPreset, startMode: 'from-start' | 'current') => {
+        if (hasExternalPlayback()) {
+            setExportState({ ...idleVideoExportState(), status: 'error', presetId: preset.id, error: t('status.externalPlaybackActive') });
+            return;
+        }
         if (!isElectronWindow || runningRef.current) {
             return;
         }
@@ -372,6 +377,7 @@ export const useElectronVideoExportController = ({
 
     return {
         exportState,
+        isExportRunning: () => runningRef.current,
         handleExportCommand,
     };
 };

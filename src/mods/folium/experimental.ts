@@ -1,3 +1,4 @@
+import { createFoliumPlaybackSessions } from './externalPlayback';
 import type { SongResult } from '@/types';
 import type { PonderTargetDefinition, PonderTargetId } from '@/types/ponder';
 import { registerPonderTarget, unregisterPonderTarget } from '@/components/ponder/ponderRegistry';
@@ -22,6 +23,7 @@ import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderT
 // The unfrozen surfaces, each behind a manifest opt-in (`experimental`):
 //   - omni.providers: register an online music source (registries/omniProviders);
 //   - omni.hooks:     rewrite lyrics / swap audio URLs Omni resolved;
+//   - playback.sessions: own source selection and queue intent with host-managed teardown.
 //   - ponder.targets: add Ponder (in-app tutorial) targets for the mod's own UI.
 //   - remote.actions: append host-rendered buttons in the remote window.
 // player.layout opts into FoliumStageContext.getLayout(), not a separate service.
@@ -94,6 +96,7 @@ installOmniResultHooks({
 
 /** The `folium.experimental` object for one mod (only the names it opted into are reachable). */
 export const createFoliumExperimental = (mod: ModRuntimeInfo): Record<string, unknown> => ({
+    ...(mod.experimental?.includes('playback.sessions') ? { 'playback.sessions': createFoliumPlaybackSessions(mod) } : {}),
     'omni.providers': Object.freeze({
         register: (def: FoliumOmniProviderDef) => omniProvidersRegistry.register(mod.id, def),
     }),

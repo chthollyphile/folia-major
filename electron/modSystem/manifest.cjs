@@ -26,6 +26,7 @@ const KNOWN_PERMISSIONS = new Set([
 
 // Unfrozen surfaces a mod must opt into explicitly; they may change in any minor.
 const KNOWN_EXPERIMENTAL = new Set([
+    'playback.sessions',
     'omni.providers',
     'omni.hooks',
     'ponder.targets',

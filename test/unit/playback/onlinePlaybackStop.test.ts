@@ -1,3 +1,5 @@
+import { acquireExternalPlayback, releaseAllExternalPlayback } from '@/services/externalPlaybackSession';
+import { beginPlaybackRequest } from '@/services/playbackRequest';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { PlayerState, type StatusMessage, type UnifiedSong } from '@/types';
 import { OnlineProviderError } from '@/types/onlineMusic';
@@ -124,6 +126,7 @@ beforeEach(() => {
     useStatusMessageStore.setState({ message: null });
 });
 afterEach(() => {
+    releaseAllExternalPlayback();
     effectCleanups.splice(0).forEach(cleanup => cleanup());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -1066,5 +1069,62 @@ describe('reporting playback failures', () => {
         expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: null, phase: 'mid-playback', willAutoSkip: true });
         expect(notified).toHaveBeenCalledTimes(2);
         expect(notified).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'play' }));
+    });
+});
+
+describe('external playback ownership at the online source boundary', () => {
+    beforeEach(() => { vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {}); });
+    const acquire = (dispatch = vi.fn()) => acquireExternalPlayback({
+        modId: 'online-test', dispatch, cleanup: vi.fn(), report: vi.fn(),
+    });
+    it('drops a private song resolving after an acquire/release round trip', async () => {
+        const source = deferred<OnlineAudioSourceResult>();
+        loader.mockReturnValueOnce(source.promise);
+        const queue = controller();
+        const pending = queue.playSong(songs[1], songs);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        acquire();
+        releaseAllExternalPlayback();
+        source.resolve({ kind: 'ok', audioSrc: 'blob:old', blobUrl: 'blob:old' });
+        await pending;
+        expect(usePlaybackStore.getState().audioSrc).toBe('https://cdn.example/1.mp3');
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:old');
+        expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
+    });
+    it('cannot commit a landed private source after a session takes over during the cover await', async () => {
+        const cover = deferred<string | null>();
+        vi.mocked(getCachedSongCoverUrl).mockReturnValueOnce(cover.promise);
+        loader.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'blob:old', blobUrl: 'blob:old' });
+        const queue = controller();
+        const pending = queue.playSong(songs[1], songs);
+        await vi.waitFor(() => expect(getCachedSongCoverUrl).toHaveBeenCalledOnce());
+        acquire();
+        usePlaybackStore.setState({ audioSrc: 'session-source' });
+        cover.resolve(null);
+        await pending;
+        expect(usePlaybackStore.getState().audioSrc).toBe('session-source');
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:old');
+    });
+    it('commits a session source without autoplay or persisting it as the private queue', async () => {
+        const request = beginPlaybackRequest(acquire());
+        loader.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'blob:session', blobUrl: 'blob:session' });
+        const queue = controller();
+        await queue.playSong(songs[1], [songs[1]], false, { request, autoplay: false });
+        expect(await request.result).toEqual({ status: 'source-committed' });
+        expect(queue.shouldAutoPlayRef.current).toBe(false);
+        expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
+    });
+    it('returns session load failure without a local retry/skip prompt and reports decoder failure to the owner', async () => {
+        const dispatch = vi.fn();
+        const token = acquire(dispatch);
+        const request = beginPlaybackRequest(token);
+        loader.mockResolvedValueOnce(failed('network'));
+        const queue = controller();
+        await queue.playSong(songs[1], [], false, { request, autoplay: false });
+        expect(await request.result).toEqual({ status: 'failed' });
+        expect(message()?.persistent).not.toBe(true);
+        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'resolve-url' });
+        expect(dispatch).toHaveBeenCalledWith({ type: 'playback-error' });
+        expect(window.setTimeout).not.toHaveBeenCalled();
     });
 });

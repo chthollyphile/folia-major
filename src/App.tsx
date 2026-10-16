@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { createSessionTransport } from './components/app/playback/createSessionTransport';
+import { hasExternalPlayback, subscribeExternalPlayback, routeExternalPlayback } from './services/externalPlaybackSession';
+import { useState, useSyncExternalStore, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
@@ -173,6 +175,7 @@ const LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC = 3;
 const NEXT_UP_LEAD_SEC = 5;
 
 export default function App() {
+    const externalPlaybackActive = useSyncExternalStore(subscribeExternalPlayback, hasExternalPlayback, () => false);
     countRender('App');
     const { t } = useTranslation();
     const {
@@ -514,7 +517,7 @@ export default function App() {
     // control below keeps editing the per-song value alone.
     const effectiveLyricTimelineOffsetMs = lyricTimelineOffsetMs + globalLyricTimelineOffsetMs;
 
-    const effectiveLoopMode: StageLoopMode = loopMode;
+    const effectiveLoopMode: StageLoopMode = externalPlaybackActive ? 'off' : loopMode;
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -1139,7 +1142,7 @@ export default function App() {
         currentSongKeyRef: currentSongRef,
         coverUrl,
         loopMode: effectiveLoopMode,
-        isEnabled: automixEnabled && !isNowPlayingStageActive,
+        isEnabled: automixEnabled && !isNowPlayingStageActive && !externalPlaybackActive,
         transition: transitionSettings,
         onAdvanceTrack: () => {
             // Same advance the end of a track would trigger, only early enough for the outgoing
@@ -1460,6 +1463,7 @@ export default function App() {
 
     const {
         exportState,
+        isExportRunning,
         handleExportCommand,
     } = useElectronVideoExportController({
         isElectronWindow,
@@ -2031,6 +2035,7 @@ export default function App() {
         return true;
     };
     const seekMainAudio = useCallback((time: number) => {
+        if (routeExternalPlayback({ type: 'seek', seconds: time, resume: true })) return;
         // A seek is a statement that playback should go on, same as it is on a paused track. If a
         // pause is still fading out, take it back (the audio never stopped) so the pending pause
         // cannot land after the seek.
@@ -2091,7 +2096,10 @@ export default function App() {
         seekToLyricTime: handleMonetLyricLineSeek,
         next: () => { void handleNextTrack(); },
         previous: handlePrevTrack,
-        playSong: (song) => playSong(song),
+        playSong: (song, request) => playSong(song, request ? [song] : [], false,
+            request ? { request, autoplay: false, shouldNavigateToPlayer: false } : {}),
+        sessionTransport: createSessionTransport({ audioRef, shouldAutoPlay, currentSongRef, blobUrlRef,
+            pendingResumeTimeRef, clearLoading: () => setIsLyricsLoading(false) }, () => !isExportRunning()),
         playQueueSong: (song, queue, isFm) => playSong(song, queue, isFm),
         enqueue: addOnlineSongToQueue,
         navigateToPlayer,
@@ -2584,7 +2592,7 @@ export default function App() {
                 // If single loop is active, native loop handles it.
                 // If not, we handle queue logic.
                 if (effectiveLoopMode !== 'one') {
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, reason: 'ended' });
                 }
             }}
             onLoadedMetadata={(e) => {
@@ -2643,7 +2651,7 @@ export default function App() {
                         return;
                     }
 
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, reason: 'playback-error' });
                     return;
                 }
 

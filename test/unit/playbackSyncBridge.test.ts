@@ -213,3 +213,43 @@ describe('playbackSyncBridge', () => {
         expect(model.canGoPrevious).toBe(true);
     });
 });
+
+
+it('publishes session navigation independently of the private queue without exposing a private neighbour', () => {
+    const currentSong = makeSong(1, 'Current');
+    const model = buildPlaybackSyncBridgeModel({
+        activePlaybackContext: 'main', currentSong, playQueue: [currentSong], currentTimeSec: 10, durationSec: 180,
+        playerState: PlayerState.PLAYING, coverUrl: null, effectiveLoopMode: 'off', isFmMode: false,
+        isStageActive: false, controlsDisabled: false, transparentModeEnabled: false, mainWindowClickThroughEnabled: false,
+        mainWindowBorderVisible: true, playerChromeHidden: false, exportState, isDaylight: false, isLiked: false,
+        mainWindowWidth: 1280, mainWindowHeight: 720,
+        externalCapabilities: { canPrevious: false, canNext: true, canSeek: false },
+    });
+    const remote = buildRemoteControlSnapshotFromPlaybackSyncBridge(model, { playerChromeVisibilityMode: 'auto-hide' });
+    expect(remote.canGoNext).toBe(true);
+    expect(remote.canGoPrevious).toBe(false);
+    expect(remote.nextTrackKey).toBeNull();
+    expect(remote.externalCapabilities?.canSeek).toBe(false);
+    expect(buildTaskbarControlsFromPlaybackSyncBridge(model).canGoNext).toBe(true);
+});
+
+it.each([
+    { session: null, hostDisabled: false, stage: false, disabled: true },
+    { session: true, hostDisabled: false, stage: false, disabled: false },
+    { session: false, hostDisabled: false, stage: false, disabled: false },
+    { session: true, hostDisabled: true, stage: false, disabled: true },
+    { session: true, hostDisabled: false, stage: true, disabled: true },
+])('publishes real empty-player availability: %j', ({ session, hostDisabled, stage, disabled }) => {
+    const model = buildPlaybackSyncBridgeModel({
+        activePlaybackContext: 'main', currentSong: null, playQueue: [], currentTimeSec: 0, durationSec: 0,
+        playerState: PlayerState.IDLE, coverUrl: null, effectiveLoopMode: 'off', isFmMode: false,
+        isStageActive: stage, controlsDisabled: hostDisabled, transparentModeEnabled: false, mainWindowClickThroughEnabled: false,
+        mainWindowBorderVisible: true, playerChromeHidden: false, exportState, isDaylight: false, isLiked: false,
+        mainWindowWidth: 1280, mainWindowHeight: 720,
+        externalCapabilities: session === null ? null : { canPrevious: session, canNext: session, canSeek: session },
+    });
+    const remote = buildRemoteControlSnapshotFromPlaybackSyncBridge(model, { playerChromeVisibilityMode: 'auto-hide' });
+    expect(remote).toMatchObject({ hasTrack: false, controlsDisabled: disabled, canGoNext: session === true, canGoPrevious: session === true });
+    expect(remote.trackKey).toBeNull();
+    expect(remote.nextTrackKey).toBeNull();
+});

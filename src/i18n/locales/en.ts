@@ -331,6 +331,7 @@ export default {
     "aiThemeGeneratedCustomPreferred": "AI theme generated, but custom theme is still preferred",
   },
   "status": {
+    "externalPlaybackActive": "An external playback session is active. Use its controls or leave the session first.",
     "playerChromeAlwaysHidden": "UI will remain hidden",
     "playerChromeAlwaysVisible": "UI will remain visible",
     "playerChromeAutoHide": "UI will auto-hide",

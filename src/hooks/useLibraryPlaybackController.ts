@@ -1,3 +1,5 @@
+import { beginPlaybackRequest } from '../services/playbackRequest';
+import { captureExternalPlaybackBoundary, routeExternalPlayback } from '../services/externalPlaybackSession';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -147,6 +149,7 @@ export function useLibraryPlaybackController({
     const managedCachedCoverObjectUrlRef = useRef<string | null>(null);
     /** 库内播放（onPlayLocalSong / onPlayNavidromeSong）的递增请求 id：更新的库内播放取代还在等待的旧请求。 */
     const libraryPlayRequestIdRef = useRef(0);
+    const librarySourceGenerationRef = useRef(0);
     const resolveLocalSongRecord = useCallback((song: SongResult | null | undefined): LocalSong | undefined => {
         const songId = (song as SongResult & { localRef?: { songId: string } } | null | undefined)?.localRef?.songId;
         return songId ? localSongs.find(localSong => localSong.id === songId) : undefined;
@@ -505,8 +508,10 @@ export function useLibraryPlaybackController({
     }, [currentSong, lyrics, resolveLocalSongRecord, resolveOnlineSongLyricsState]);
 
     const handleLocalQueueAdd = useCallback(async (localSong: LocalSong) => {
+        const isCurrentBoundary = captureExternalPlaybackBoundary();
         const preparedLocalSong = await ensureLocalSongCoverAsset(localSong);
         const { unifiedSong } = await resolveLocalMetadataUI(preparedLocalSong, null);
+        if (!isCurrentBoundary() || routeExternalPlayback({ type: 'enqueue', songs: [unifiedSong] })) return;
         const baseQueue = playQueue.length > 0 ? playQueue : (currentSong ? [currentSong] : []);
         const { nextQueue, affectedSongs, changed } = applyQueueAddBehavior({
             queue: baseQueue,
@@ -588,20 +593,29 @@ export function useLibraryPlaybackController({
     }, [patchLocalSongsInState, prewarmLocalSongMetadata]);
 
     const onPlayLocalSong = useCallback(async (localSong: LocalSong, queue: LocalSong[] = [], options: LibraryPlayOptions = {}) => {
+        const isCurrentBoundary = captureExternalPlaybackBoundary();
         const requestId = ++libraryPlayRequestIdRef.current;
+        const request = options.request ?? beginPlaybackRequest();
+        if (!request.isCurrent()) return;
         interruptStagePlaybackForMainTransition();
 
         const blobUrl = await getAudioFromLocalSong(localSong);
         if (!blobUrl) {
             // 读文件期间用户换了歌：这次失败已不是用户眼前的事，不提示也不报告（见 LibraryPlayOptions.isCurrent）。
             if (libraryPlayRequestIdRef.current !== requestId || options.isCurrent?.() === false) return;
+            if (!request.isCurrent()) return;
+            request.finish('unavailable');
             setStatusMsg({ type: 'error', text: t('status.localFileAccessError') || '' });
             notifyPlaybackFailed({ song: toReportedLocalSong(localSong), reason: null, phase: 'play', willAutoSkip: false });
             return;
         }
 
+        const handOffAudio = request.onCancel(() => { if (blobUrl.startsWith('blob:')) URL.revokeObjectURL(blobUrl); });
+        if (!request.isCurrent()) return;
         const preparedLocalSong = await ensureLocalSongCoverAsset(localSong);
+        if (!request.isCurrent()) return;
         const initialMeta = await resolveLocalMetadataUI(preparedLocalSong, null);
+        if (!request.isCurrent()) return;
         const initialSongKey = getPlaybackSongKey(initialMeta.unifiedSong);
         const recoveredRepresentation = getPlaybackRepresentationForRevision(
             initialSongKey,
@@ -611,6 +625,7 @@ export function useLibraryPlaybackController({
 
         // Handed over, not revoked here: a blend is still playing the song this replaces on the
         // other deck, and a revoked URL is a deck that can no longer be seeked. See `retireBlobUrl`.
+        handOffAudio();
         retireBlobUrl(blobUrlRef.current);
         blobUrlRef.current = recoveredRepresentation ? null : blobUrl;
         if (recoveredRepresentation) {
@@ -618,18 +633,28 @@ export function useLibraryPlaybackController({
             retireBlobUrl(null);
         }
 
-        shouldAutoPlayRef.current = true;
+        shouldAutoPlayRef.current = options.autoplay !== false;
         currentSongRef.current = initialSongKey;
         setLyrics(initialMeta.lyrics);
+        if (!request.isCurrent()) return;
         setActiveLocalLyricsSource(initialMeta.lyricsSource);
         setCurrentLineIndex(-1);
         currentTime.set(0);
         setCurrentSong(initialMeta.unifiedSong);
+        if (!request.isCurrent()) return;
+        const sourceGeneration = ++librarySourceGenerationRef.current;
         setAudioSrc(playbackUrl);
+        request.finish('source-committed');
+        // A newer pick can fail before replacing this source. Its cancellation must not discard
+        // this song's metadata, but a real source replacement or session boundary still must.
+        const isCurrentSource = () => isCurrentBoundary()
+            && librarySourceGenerationRef.current === sourceGeneration
+            && currentSongRef.current === initialSongKey
+            && usePlaybackStore.getState().audioSrc === playbackUrl;
 
         if (initialMeta.coverUrl) {
             loadCachedOrFetchCover(`cover_local_${preparedLocalSong.id}`, initialMeta.coverUrl).then((resolvedCoverUrl) => {
-                if (currentSongRef.current === initialSongKey) {
+                if (isCurrentSource()) {
                     setManagedCachedCoverUrl(resolvedCoverUrl);
                 }
             });
@@ -645,7 +670,7 @@ export function useLibraryPlaybackController({
                 ? buildLocalQueue(queue, initialMeta.unifiedSong, initialMeta.catalog)
                 : [initialMeta.unifiedSong];
         setPlayQueue(finalQueue);
-        void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
+        if (!request.external) void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
 
         if (options.shouldNavigateToPlayer ?? true) {
             navigateToPlaybackView();
@@ -670,9 +695,10 @@ export function useLibraryPlaybackController({
             try {
                 const { updatedLocalSong, matchedSongResult } = await handleLocalSongMatch(preparedLocalSong);
                 prewarmBaseSong = updatedLocalSong;
-                if (currentSongRef.current !== initialSongKey) return;
+                if (!isCurrentSource()) return;
 
                 const updatedMeta = await resolveLocalMetadataUI(updatedLocalSong, matchedSongResult);
+                if (!isCurrentSource()) return;
                 setCurrentSong(updatedMeta.unifiedSong);
                 setLyrics(updatedMeta.lyrics);
                 setActiveLocalLyricsSource(updatedMeta.lyricsSource);
@@ -680,7 +706,7 @@ export function useLibraryPlaybackController({
 
                 if (updatedMeta.coverUrl && updatedMeta.coverUrl !== initialMeta.coverUrl) {
                     loadCachedOrFetchCover(`cover_local_${updatedLocalSong.id}`, updatedMeta.coverUrl).then((resolvedCoverUrl) => {
-                        if (currentSongRef.current === initialSongKey) {
+                        if (isCurrentSource()) {
                             setManagedCachedCoverUrl(resolvedCoverUrl);
                         }
                     });
@@ -693,11 +719,11 @@ export function useLibraryPlaybackController({
                 });
             } catch (error) {
                 console.warn('Local song match pipeline failed:', error);
-                if (currentSongRef.current === initialSongKey) {
+                if (isCurrentSource()) {
                     setIsLyricsLoading(false);
                 }
             } finally {
-                if (currentSongRef.current === initialSongKey) {
+                if (isCurrentSource()) {
                     prewarmNearbyLocalSongs(prewarmBaseSong, queue);
                 }
             }
@@ -731,11 +757,14 @@ export function useLibraryPlaybackController({
         options: LibraryPlayOptions = {},
     ) => {
         const requestId = ++libraryPlayRequestIdRef.current;
+        const request = options.request ?? beginPlaybackRequest();
+        if (!request.isCurrent()) return;
         interruptStagePlaybackForMainTransition();
 
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         const config = getNavidromeConfig();
         if (!config) {
+            request.finish('unavailable');
             setStatusMsg({ type: 'error', text: 'Navidrome not configured' });
             notifyPlaybackFailed({ song: navidromeSong, reason: null, phase: 'play', willAutoSkip: false });
             return;
@@ -747,6 +776,7 @@ export function useLibraryPlaybackController({
             const navidromeId = navidromeSong.navidromeData.id;
             const streamUrl = navidromeApi.getStreamUrl(config, navidromeId);
             const serverSongPromise = navidromeApi.getSong(config, navidromeId);
+            void serverSongPromise.catch(() => {});
             const matchData = await getFromCacheWithMigration<NavidromeMatchData>(
                 `navidrome_match_${navidromeId}`,
                 migrateMatchedLyricsCarrierRenderHints,
@@ -863,6 +893,7 @@ export function useLibraryPlaybackController({
                 }
             }
 
+            if (!request.isCurrent()) return;
             const mutableSong = navidromeSong as NavidromeSong & {
                 matchedLyrics?: LyricData;
                 matchedIsPureMusic?: boolean;
@@ -893,6 +924,7 @@ export function useLibraryPlaybackController({
             }
 
             const serverSong = await serverSongPromise;
+            if (!request.isCurrent()) return;
             if (serverSong?.replayGain) {
                 navidromeSong.navidromeData.replayGain = serverSong.replayGain;
             }
@@ -911,14 +943,18 @@ export function useLibraryPlaybackController({
                 buildNavidromeSourceRevision(unifiedSong, streamUrl),
             );
 
-            shouldAutoPlayRef.current = true;
+            shouldAutoPlayRef.current = options.autoplay !== false;
             currentSongRef.current = unifiedSongKey;
             setLyrics(nextLyrics);
+            if (!request.isCurrent()) return;
             setCurrentLineIndex(-1);
             currentTime.set(0);
             setCurrentSong(unifiedSong);
             setManagedCachedCoverUrl(coverUrl ?? null);
+            if (!request.isCurrent()) return;
+            librarySourceGenerationRef.current++;
             setAudioSrc(recoveredRepresentation?.url ?? streamUrl);
+            request.finish('source-committed');
             setIsLyricsLoading(false);
 
             const finalQueue = options.unifiedQueue
@@ -927,7 +963,7 @@ export function useLibraryPlaybackController({
                     ? buildNavidromeQueue(queue, unifiedSong)
                     : [unifiedSong];
             setPlayQueue(finalQueue);
-            void persistLastPlaybackCache(unifiedSong, finalQueue);
+            if (!request.external) void persistLastPlaybackCache(unifiedSong, finalQueue);
 
             if (shouldNavigateToPlayer) {
                 navigateToPlaybackView();
@@ -938,6 +974,9 @@ export function useLibraryPlaybackController({
                 console.warn('Theme load error', error);
             });
         } catch (error) {
+            if (!request.isCurrent()) return;
+            if (request.external) throw error;
+            request.finish('failed');
             console.error('[App] Failed to play Navidrome song:', error);
             setIsLyricsLoading(false);
             // 前面有好几次网络等待（匹配缓存、歌词、歌曲详情）：期间用户换了歌，这次失败就不提示也不报告（见 LibraryPlayOptions.isCurrent）。

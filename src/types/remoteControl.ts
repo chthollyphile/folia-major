@@ -1,3 +1,4 @@
+import type { ExternalPlaybackCapabilities } from './externalPlayback';
 import type { PlayerState, LyricData } from '../types';
 import type { VideoExportPreset, VideoExportStartMode, VideoExportState } from './videoExport';
 import type { FoliumRemoteActionDef } from '../mods/folium/contract';
@@ -82,6 +83,7 @@ export interface RemoteControlSnapshot {
     /** Present while an AutoMix or explicitly selected Crossfade transition is audible. */
     trackTransition: RemoteTrackTransition | null;
     controlsDisabled: boolean;
+    externalCapabilities?: Readonly<ExternalPlaybackCapabilities> | null;
     isStageActive: boolean;
     transparentModeEnabled: boolean;
     mainWindowClickThroughEnabled: boolean;

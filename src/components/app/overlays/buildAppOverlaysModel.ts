@@ -1,3 +1,4 @@
+import type { ExternalPlaybackCapabilities } from '@/types/externalPlayback';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
 import type FloatingPlayerControls from '../../FloatingPlayerControls';
@@ -54,6 +55,7 @@ type AppOverlaysAmbient = {
     isPlayerChromeHidden: boolean;
     noTrackText: string;
     playQueue: SongResult[];
+    externalCapabilities?: Readonly<ExternalPlaybackCapabilities> | null;
     isFmMode: boolean;
     prevTrackLabel: string;
     nextTrackLabel: string;
@@ -165,6 +167,7 @@ export const buildAppOverlaysModel = ({
     onStagePlayerSeek,
     noTrackText,
     playQueue,
+    externalCapabilities,
     isFmMode,
     isNowPlayingStageActive,
     handlePrevTrack,
@@ -252,7 +255,7 @@ export const buildAppOverlaysModel = ({
             onClose: () => setIsMemoryMonitorVisible(false),
         }
         : null,
-    floatingControls: currentSong
+    floatingControls: currentSong || externalCapabilities
         ? {
             currentSong,
             playerState,
@@ -299,6 +302,7 @@ export const buildAppOverlaysModel = ({
             trackNavigation: ((): FloatingControlsProps['trackNavigation'] => {
                 const neighbors = resolvePlaybackNeighbors({
                     playQueue,
+                    externalCapabilities,
                     currentSong,
                     loopMode: effectiveLoopMode,
                     isFmMode,
@@ -306,7 +310,7 @@ export const buildAppOverlaysModel = ({
                 });
 
                 return {
-                    currentTrackKey: getPlaybackSongKey(currentSong),
+                    currentTrackKey: currentSong ? getPlaybackSongKey(currentSong) : '',
                     onPrev: handlePrevTrack,
                     onNext: handleNextTrack,
                     canPrev: neighbors.prev.canGo && !isNowPlayingControlDisabled,

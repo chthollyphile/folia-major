@@ -149,6 +149,7 @@ describe('validateManifest Folium entries and opt-ins', () => {
 
     it('only accepts known experimental opt-ins', () => {
         expect(validateManifest({ ...validManifest, experimental: ['omni.providers'] }).ok).toBe(true);
+        expect(validateManifest({ ...validManifest, experimental: ['playback.sessions'], permissions: ['playback.control'] }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, experimental: ['mixins'] }).ok).toBe(false);
     });
 
