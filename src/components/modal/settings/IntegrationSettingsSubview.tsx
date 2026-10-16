@@ -14,6 +14,7 @@ import { ObsCopyCssButton } from '../../shared/ObsCopyCssButton';
 import { resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import type { LyricApiStatus } from '../../../types/lyricApi';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
+import NowPlayingLauncherPanel from './NowPlayingLauncherPanel';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
@@ -367,6 +368,9 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
             <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>
                 {t('options.nowPlayingFixedConnectionDesc')}
             </div>
+            {isElectron && (
+                <NowPlayingLauncherPanel toggleOffBackgroundClass={toggleOffBackgroundClass} theme={theme} />
+            )}
         </div>
     );
 

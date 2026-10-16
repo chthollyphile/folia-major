@@ -227,6 +227,33 @@ export const settingsCommands: CommandPaletteCommand[] = [
         },
     },
     {
+        id: 'desktop-toggle-now-playing-autolaunch',
+        platform: ['win'],
+        group: 'settings',
+        title: 'Auto-launch Now Playing',
+        description: 'Toggle starting Now Playing in the background when it is the stage source',
+        keywords: ['now playing', 'auto launch', 'autostart', 'stage source', '自动启动', '舞台来源', '后台启动'],
+        execute: async (_input, context) => {
+            if (!window.electron?.getNowPlayingLauncherStatus || !window.electron?.setNowPlayingAutoLaunch) {
+                return false;
+            }
+            const currentStatus = await window.electron.getNowPlayingLauncherStatus();
+            if (!currentStatus.supported) {
+                return false;
+            }
+            const nextStatus = await window.electron.setNowPlayingAutoLaunch(!currentStatus.enabled);
+            context.shared.setStatusMsg({
+                type: nextStatus.enabled && nextStatus.lastError ? 'error' : 'success',
+                text: nextStatus.enabled
+                    ? nextStatus.lastError === 'missing-executable'
+                        ? context.shared.t('options.nowPlayingLauncherErrorMissing', 'Choose the Now Playing .exe program first.')
+                        : context.shared.t('options.nowPlayingAutoLaunchEnabledStatus', 'Now Playing auto-launch enabled')
+                    : context.shared.t('options.nowPlayingAutoLaunchDisabledStatus', 'Now Playing auto-launch disabled'),
+            });
+            return true;
+        },
+    },
+    {
         id: 'settings-obs-copy-css',
         group: 'settings',
         title: 'Copy OBS CSS',

@@ -981,6 +981,9 @@ declare global {
       abortVideoExportFile: (sessionId: string) => Promise<boolean>;
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
+      getNowPlayingLauncherStatus: () => Promise<import('./types/nowPlayingLauncher').NowPlayingLauncherStatus>;
+      setNowPlayingAutoLaunch: (enabled: boolean) => Promise<import('./types/nowPlayingLauncher').NowPlayingLauncherStatus>;
+      chooseNowPlayingExecutable: () => Promise<import('./types/nowPlayingLauncher').NowPlayingLauncherStatus>;
       regenerateStageToken: () => Promise<StageStatus>;
       clearStageState: () => Promise<StageStatus>;
       completeStageExternalPlayRequest: (result: StageExternalPlayResult) => Promise<boolean>;
