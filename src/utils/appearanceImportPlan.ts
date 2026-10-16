@@ -91,6 +91,8 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     monetTuning: 'visualizer',
     pendoloTuning: 'visualizer',
     sonnetTuning: 'visualizer',
+    // 智能动感模式: one setting for every visualizer, so not inside any one mode's tuning bundle.
+    smartBeat: 'visualizer',
     temperaTuning: 'visualizer',
     lumiereTuning: 'visualizer',
 
@@ -171,6 +173,7 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'monetTuning',
     'pendoloTuning',
     'sonnetTuning',
+    'smartBeat',
     'temperaTuning',
     'lumiereTuning',
     'monetBackgroundTuning',

@@ -396,6 +396,8 @@ export type CommandPaletteVisualizerContext = {
     setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
     /** The built-in video layer behind the lyrics. */
     toggleVideoLayer: () => void;
+    /** 智能动感模式 (beat_this-driven FX in every mode and background that draws them) on/off. */
+    toggleSmartBeat: () => void;
     /** Opens the file picker for the video layer; resolves to the picked name, or null when cancelled. */
     pickVideoLayerFile: () => Promise<string | null>;
     /**

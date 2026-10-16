@@ -6,14 +6,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 // test/unit/electron/modelPaths.test.ts
 // The weights can sit in three places now - the user's own folder, the directory the app downloads
-// into, and whatever the installer shipped - and the two models are separate downloads of 83MB and
-// 166MB. So "beat_this from one directory, htdemucs from another" is an ordinary state, and
+// into, and whatever the installer shipped - and the two models are separate downloads of 41MB and
+// 190MB. So "beat_this from one directory, htdemucs from another" is an ordinary state, and
 // resolving per DIRECTORY rather than per FILE would silently ignore half of what is installed.
 
 const require = createRequire(import.meta.url);
-const {
-    resolveModelFile, modelsPresent, resolveRuntime, resolveRuntimeDir, RUNTIME_BIN,
-} = require('../../../electron/analysis/modelPaths.cjs');
+const { resolveModelFile, modelsPresent, legacyLeftovers, MODEL_FILES, LEGACY_RUNTIME_BIN } = require('../../../electron/analysis/modelPaths.cjs');
 
 let root: string;
 let userDir: string;
@@ -21,15 +19,7 @@ let downloadDir: string;
 let bundledDir: string;
 
 const put = (dir: string, name: string, body = 'weights') => {
-    writeFileSync(path.join(dir, `${name}.onnx`), body);
-};
-
-/** A runtime that would pass the check: the interpreter where this platform puts it, and nothing else. */
-const putRuntime = (dir: string) => {
-    const exe = path.join(dir, 'runtime', ...RUNTIME_BIN);
-    mkdirSync(path.dirname(exe), { recursive: true });
-    writeFileSync(exe, 'not really python');
-    return exe;
+    writeFileSync(path.join(dir, MODEL_FILES[name]), body);
 };
 
 beforeAll(() => {
@@ -55,49 +45,10 @@ describe('finding model weights', () => {
         put(bundledDir, 'htdemucs');
         const dirs = [userDir, downloadDir, bundledDir];
 
-        expect(resolveModelFile(dirs, 'beat_this')).toBe(path.join(downloadDir, 'beat_this.onnx'));
-        expect(resolveModelFile(dirs, 'htdemucs')).toBe(path.join(bundledDir, 'htdemucs.onnx'));
-        // htdemucs is false with its weights RIGHT THERE, and that is the point - see below.
-        expect(modelsPresent(dirs)).toEqual({ beat_this: true, htdemucs: false });
-    });
-
-    /**
-     * modelsPresent answers "can the feature run", and separation needs two downloads: the weights
-     * and the Python they run in. Reporting the .onnx alone is how the settings page came to promise
-     * the full engine on a machine where every separation silently fell back to a plain crossfade -
-     * the weights were there, the runtime never had a download route at all, and nothing said so.
-     */
-    it('does not call htdemucs present until the runtime is there too', () => {
-        const alone = path.join(root, 'weights-only');
-        mkdirSync(alone, { recursive: true });
-        put(alone, 'htdemucs');
-
-        expect(resolveModelFile([alone], 'htdemucs')).toBe(path.join(alone, 'htdemucs.onnx'));
-        expect(modelsPresent([alone]).htdemucs).toBe(false);
-
-        const exe = putRuntime(alone);
-        expect(modelsPresent([alone]).htdemucs).toBe(true);
-        expect(resolveRuntime([alone])).toBe(exe);
-        expect(resolveRuntimeDir([alone])).toBe(path.join(alone, 'runtime'));
-    });
-
-    // beat_this runs in Electron's own onnxruntime-node and never touches the sidecar, so the
-    // runtime's absence must not drag it down with htdemucs.
-    it('leaves beat_this alone when there is no runtime', () => {
-        const alone = path.join(root, 'beat-only');
-        mkdirSync(alone, { recursive: true });
-        put(alone, 'beat_this');
-        expect(modelsPresent([alone])).toEqual({ beat_this: true, htdemucs: false });
-    });
-
-    // The folder can be there while the interpreter is not: an extraction that died half way,
-    // or a delete that got part way through. Either way it cannot run anything.
-    it('does not call an empty runtime folder a runtime', () => {
-        const hollow = path.join(root, 'hollow');
-        mkdirSync(path.join(hollow, 'runtime'), { recursive: true });
-        put(hollow, 'htdemucs');
-        expect(resolveRuntimeDir([hollow])).toBeNull();
-        expect(modelsPresent([hollow]).htdemucs).toBe(false);
+        expect(resolveModelFile(dirs, 'beat_this')).toBe(path.join(downloadDir, 'beat_this-wgsl.bin'));
+        expect(resolveModelFile(dirs, 'htdemucs')).toBe(path.join(bundledDir, 'htdemucs-v3.mnn'));
+        // The runtime is compiled into the app, so the file being there is the feature being able to run.
+        expect(modelsPresent(dirs)).toEqual({ beat_this: true, htdemucs: true });
     });
 
     // A file the listener put somewhere deliberately outranks one we fetched, which is the whole
@@ -105,43 +56,54 @@ describe('finding model weights', () => {
     it('prefers the user directory over the download and the bundle', () => {
         put(userDir, 'beat_this');
         expect(resolveModelFile([userDir, downloadDir, bundledDir], 'beat_this'))
-            .toBe(path.join(userDir, 'beat_this.onnx'));
+            .toBe(path.join(userDir, 'beat_this-wgsl.bin'));
     });
 
     // The configured directory is null until the user picks one, and it is passed through as such.
     it('skips empty entries rather than resolving against the process working directory', () => {
         expect(resolveModelFile([null, undefined, '', bundledDir], 'htdemucs'))
-            .toBe(path.join(bundledDir, 'htdemucs.onnx'));
+            .toBe(path.join(bundledDir, 'htdemucs-v3.mnn'));
         expect(resolveModelFile([], 'htdemucs')).toBeNull();
     });
 
-    // htdemucs-v2.onnx is the current file; htdemucs.onnx is what apps before it downloaded, and the
-    // runner still runs it, so it still counts - but never over the current file in the same place.
-    it('takes the current htdemucs file over the old name, and still accepts the old one', () => {
-        const both = path.join(root, 'both');
-        mkdirSync(both, { recursive: true });
-        put(both, 'htdemucs');
-        expect(resolveModelFile([both], 'htdemucs')).toBe(path.join(both, 'htdemucs.onnx'));
-
-        put(both, 'htdemucs-v2');
-        expect(resolveModelFile([both], 'htdemucs')).toBe(path.join(both, 'htdemucs-v2.onnx'));
+    // The files earlier versions ran - the ONNX models and the Python runtime beside them - are not
+    // models to this one. A listener who has only those has nothing this version can run.
+    it('does not count an earlier version\'s files as installed', () => {
+        const old = path.join(root, 'old-version');
+        const exe = path.join(old, 'runtime', ...LEGACY_RUNTIME_BIN);
+        mkdirSync(path.dirname(exe), { recursive: true });
+        writeFileSync(exe, 'not really python');
+        for (const name of ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx']) writeFileSync(path.join(old, name), 'weights');
+        expect(modelsPresent([old])).toEqual({ beat_this: false, htdemucs: false });
+        expect(legacyLeftovers([old]).sort()).toEqual(
+            ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx', 'runtime'].map(name => path.join(old, name)).sort(),
+        );
+        expect(legacyLeftovers([userDir, null])).toEqual([]);
     });
 
-    it('lets the directory order beat the file name order', () => {
-        const first = path.join(root, 'first-old');
-        const second = path.join(root, 'second-new');
-        mkdirSync(first, { recursive: true });
-        mkdirSync(second, { recursive: true });
-        put(first, 'htdemucs');
-        put(second, 'htdemucs-v2');
-        expect(resolveModelFile([first, second], 'htdemucs')).toBe(path.join(first, 'htdemucs.onnx'));
+    // The listener's own directory may hold a folder called `runtime` that is nothing of ours. Only the
+    // old build's runtime - its interpreter where that build put it - is ever offered for deletion.
+    it('does not take a folder called runtime for the old Python runtime', () => {
+        const mine = path.join(root, 'someone-elses-runtime');
+        mkdirSync(path.join(mine, 'runtime', 'bin'), { recursive: true });
+        writeFileSync(path.join(mine, 'runtime', 'notes.txt'), 'mine');
+        expect(legacyLeftovers([mine])).toEqual([]);
     });
 
     it('does not mistake a directory of that name for the weights file', () => {
         const oddDir = path.join(root, 'odd');
-        mkdirSync(path.join(oddDir, 'htdemucs.onnx'), { recursive: true });
+        mkdirSync(path.join(oddDir, 'htdemucs-v3.mnn'), { recursive: true });
         // existsSync says yes for a directory, so this is the one shape of wrong answer that would
-        // reach onnxruntime as a native load failure rather than as "no weights".
+        // reach the runtime as a native load failure rather than as "no weights".
         expect(modelsPresent([oddDir]).htdemucs).toBe(false);
+    });
+});
+
+describe('the bundled small0 export', () => {
+    it('resolves from the installer copy, and is not one of the downloadable models', () => {
+        put(bundledDir, 'beat_this_small');
+        expect(resolveModelFile([userDir, downloadDir, bundledDir], 'beat_this_small'))
+            .toBe(path.join(bundledDir, 'beat_this-small-wgsl.bin'));
+        expect(Object.keys(modelsPresent([userDir, downloadDir, bundledDir])).sort()).toEqual(['beat_this', 'htdemucs']);
     });
 });

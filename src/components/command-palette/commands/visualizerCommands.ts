@@ -36,6 +36,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
+    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode', 'Turn beat_this-driven beat FX (Sonnet, Diorama particles, Latent background) on or off', ['smart beat', 'beat fx', 'beat this', 'sonnet beat', 'diorama beat', 'latent beat', '智能动感模式', '动感', '节拍', '商籁动感', '镜台涟漪', '隐现', '重拍', '轻拍'], context => context.visualizer.toggleSmartBeat()),
     createVisualizerCommand('sonnet', 'Visualizer: Sonnet', 'Switch to Sonnet visualizer', ['sonnet', '商籁', '文字 pv', 'mg pv', 'vocaloid']),
     createVisualizerCommand('tempera', 'Visualizer: Tempera', 'Switch to Tempera visualizer', ['tempera', '凝彩', 'dancai', 'dc', '色块 pv', 'block pv']),
     createVisualizerCommand('lumiere', 'Visualizer: Lumiere', 'Switch to Lumiere visualizer', ['lumiere', '绘光', '光束', '舞台光', 'stage light', 'light pv']),

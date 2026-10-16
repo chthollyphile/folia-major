@@ -19,6 +19,8 @@ export default defineVisualizer({
     previewStartOffset: 0,
     tuningKind: 'sonnet',
     usesWordSegmentation: true,
+    // 智能动感模式: beat_this' beats drive the camera, tear and glow (sonnetBeatFx.ts).
+    drawsBeatFx: true,
     // Folium tunables read by createSonnetPixiRuntime's mod(key). Names are public API.
     foliumTunables: {
         cameraScale: SONNET_TUNABLE,

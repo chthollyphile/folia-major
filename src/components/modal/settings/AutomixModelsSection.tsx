@@ -3,12 +3,12 @@ import { Check, Copy, Disc3, Download, ExternalLink, FolderOpen, Loader2, Search
 import ConfirmDialog from '../../shared/ConfirmDialog';
 import ThemedDialog from '../../shared/ThemedDialog';
 import { useTranslation } from 'react-i18next';
-import { refreshModelAvailability } from '../../../services/automix/modelAvailability';
+import { refreshModelAvailability } from '../../../services/analysis/modelAvailability';
 
 // src/components/modal/settings/AutomixModelsSection.tsx
 // The two analysis models: whether they are here, and the three ways to get them.
 //
-// They are 83MB and 166MB, the difference between the full engine and the estimators, and most listeners
+// They are 41MB and 190MB, the difference between the full engine and the estimators, and most listeners
 // never turn this feature on - so they are a download rather than a quarter of every installer. That
 // makes "not installed" the state most desktop installs START in, which is why this block exists and why
 // it sits directly under the badge that reports the engine.
@@ -36,17 +36,10 @@ const scopesOf = (enables: string) => (enables === 'stems'
     ]
     : [{ key: 'options.modelScopeAutomix', Icon: Disc3 }]);
 
-/**
- * Keyed by name for the runtime and by capability for the rest.
- *
- * The runtime enables stems the same as the weights do, so `enables` cannot tell them apart - and
- * they are not the same thing to a listener. One is what separation knows; the other is what runs
- * it. A row calling both 人声分离 would look like the page listing the same download twice.
- */
-const rowTitle = (model: ElectronAutomixModelEntry) => {
-    if (model.name === 'runtime') return 'options.modelEnablesRuntime';
-    return model.enables === 'stems' ? 'options.modelEnablesStems' : 'options.modelEnablesBeatGrid';
-};
+/** Keyed by capability: one model per feature, so `enables` names the row. */
+const rowTitle = (model: ElectronAutomixModelEntry) => (
+    model.enables === 'stems' ? 'options.modelEnablesStems' : 'options.modelEnablesBeatGrid'
+);
 
 type Progress = ElectronAutomixModelProgress;
 
@@ -158,13 +151,12 @@ const AutomixModelsSection: React.FC<{ isDaylight: boolean }> = ({ isDaylight })
                 <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
                     {t('options.modelsTitle')}
                 </div>
-                {/* Added up rather than written down. It was a hardcoded 249MB, which the runtime
-                    made wrong on every platform and by a different amount on each - and there is
-                    no one number to write, because the runtime is a different size per OS. */}
+                {/* Added up rather than written down: a hardcoded total went stale the first time a
+                    model changed size, and the manifest already knows. */}
                 <div className="mt-1 text-[11px] leading-relaxed opacity-60" style={{ color: 'var(--text-secondary)' }}>
                     {t('options.modelsDesc', {
                         size: megabytes(status.models.reduce(
-                            (total, model) => total + (model.supported ? model.bytes : 0), 0,
+                            (total, model) => total + model.bytes, 0,
                         )),
                     })}
                 </div>
@@ -183,14 +175,10 @@ const AutomixModelsSection: React.FC<{ isDaylight: boolean }> = ({ isDaylight })
                                 <div className="text-[13px] font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                                     {model.path && <Check size={13} className="shrink-0 opacity-70" />}
                                     {t(rowTitle(model))}
-                                    {/* No size on a row with nothing to download. "0 MB" beside a
-                                        thing this machine cannot have reads like a bug. */}
-                                    {model.supported && (
-                                        <span className="font-mono text-[11px] opacity-50 tabular-nums">{megabytes(model.bytes)}</span>
-                                    )}
+                                    <span className="font-mono text-[11px] opacity-50 tabular-nums">{megabytes(model.bytes)}</span>
                                 </div>
                                 {/* What this weight is for (chips keyed by feature - see scopesOf),
-                                    said on the row because these are separate 83MB / 166MB downloads
+                                    said on the row because these are separate 41MB / 190MB downloads
                                     and "which of these do I need" is otherwise unanswered. Neither
                                     model touches a crossfade - that planner reads the profile's
                                     silence edges and nothing else. */}
@@ -206,20 +194,11 @@ const AutomixModelsSection: React.FC<{ isDaylight: boolean }> = ({ isDaylight })
                                         </span>
                                     ))}
                                     <span className="text-[11px] opacity-50 truncate" style={{ color: 'var(--text-secondary)' }}>
-                                        {model.supported
-                                            ? model.path ?? t('options.modelMissing')
-                                            : t('options.modelUnsupportedWhy')}
+                                        {model.path ?? t('options.modelMissing')}
                                     </span>
                                 </div>
                             </div>
-                            {/* Three states, not two. A machine with no build for it gets told so
-                                where the button would be - the one place someone looking for the
-                                download is already looking. */}
-                            {!model.supported ? (
-                                <span className="text-[11px] opacity-60 shrink-0" style={{ color: 'var(--text-secondary)' }}>
-                                    {t('options.modelUnsupported')}
-                                </span>
-                            ) : model.path ? (
+                            {model.path ? (
                                 <span className="text-[11px] opacity-60 shrink-0" style={{ color: 'var(--text-secondary)' }}>
                                     {t('options.modelInstalled')}
                                 </span>
@@ -286,8 +265,10 @@ const AutomixModelsSection: React.FC<{ isDaylight: boolean }> = ({ isDaylight })
                     {t('options.modelLocationChange')}
                 </button>
                 {/* Only when there is something to delete. A destructive button that would do
-                    nothing is worse than no button: it invites the click AND teaches nothing. */}
-                {status.models.some(model => model.path) && (
+                    nothing is worse than no button: it invites the click AND teaches nothing. An
+                    earlier version's ONNX models and Python runtime count - nothing else would ever
+                    remove them, and they are a few hundred MB this version cannot use. */}
+                {(status.models.some(model => model.path) || status.leftoverBytes > 0) && (
                     <button
                         type="button"
                         onClick={() => setRemoveOpen(true)}
@@ -394,7 +375,8 @@ const AutomixModelsSection: React.FC<{ isDaylight: boolean }> = ({ isDaylight })
                 isDaylight={isDaylight}
                 title={t('options.modelRemoveAll')}
                 description={t('options.modelRemoveConfirm', {
-                    size: megabytes(status.models.reduce((sum, m) => sum + (m.path ? m.bytes : 0), 0)),
+                    // Everything the button deletes, an earlier version's leftovers included.
+                    size: megabytes(status.models.reduce((sum, m) => sum + (m.path ? m.bytes : 0), status.leftoverBytes)),
                 })}
                 confirmVariant="danger"
                 onConfirm={removeAll}

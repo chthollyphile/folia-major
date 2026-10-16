@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const present = { beat_this: false, htdemucs: false };
 
-vi.mock('@/services/automix/modelAvailability', () => ({
+vi.mock('@/services/analysis/modelAvailability', () => ({
     modelsPresent: () => present,
 }));
 

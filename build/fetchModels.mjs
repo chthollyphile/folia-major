@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto';
-import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { unzipSync } from 'fflate';
-import { downloadables, resolveRuntimeDir, RUNTIME_BIN } from '../electron/analysis/modelPaths.cjs';
 
 // build/fetchModels.mjs
 // Puts the model weights where a dev checkout expects them, and refuses to hand over a file it
@@ -15,7 +13,7 @@ import { downloadables, resolveRuntimeDir, RUNTIME_BIN } from '../electron/analy
 // in this project, because two would eventually disagree and the way they'd tell us is a beat grid
 // that is confidently wrong.
 //
-// The weights are NOT in git: 240MB in an object store that every clone pays for forever, to hold
+// The weights are NOT in git: 230MB in an object store that every clone pays for forever, to hold
 // files that never change and are downloadable in seconds. What this script is for is a developer
 // checkout and a build machine, which is why it writes into the repo's models/.
 //
@@ -25,15 +23,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const MODELS = join(HERE, '..', 'models');
 const manifest = JSON.parse(await readFile(join(HERE, '..', 'shared', 'modelManifest.json'), 'utf8'));
 
-/**
- * What THIS machine can install. The runtime is a different archive per platform, so a checkout on
- * a Mac and one on Windows want different files - and on a platform with no build there is nothing
- * to fetch, which is a skip rather than a failure.
- *
- * The same function the app resolves with, imported rather than reimplemented: a dev checkout that
- * fetched something other than what the app looks for is the drift this manifest exists to prevent.
- */
-const WANTED = downloadables(manifest);
+/** Every model, one file each and the same file on every platform: the runtime is built into the app. */
+const WANTED = manifest.models;
 
 /**
  * How long a mirror gets to START answering. Deliberately NOT a budget for the whole download.
@@ -49,18 +40,14 @@ const WANTED = downloadables(manifest);
  */
 const RESPOND_TIMEOUT_MS = 45_000;
 
-/** Backstop for the transfer, sized for 166MB on a bad connection rather than a good one. */
+/** Backstop for the transfer, sized for 190MB on a bad connection rather than a good one. */
 const TRANSFER_TIMEOUT_MS = 15 * 60_000;
 
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
 
 const verified = (buffer, model) => buffer.length === model.bytes && sha256(buffer) === model.sha256;
 
-const alreadyThere = async (path, model) => (model.unpack
-    // A directory, and its contents were verified as an archive before they were ever unpacked.
-    // Re-hashing 1400 loose files to answer "did I already do this" is not worth the disk.
-    ? resolveRuntimeDir([MODELS]) !== null
-    : existsSync(path) && verified(await readFile(path), model));
+const alreadyThere = async (path, model) => existsSync(path) && verified(await readFile(path), model);
 
 const urlsFor = (model) => manifest.mirrors.map(template => template.replace('{file}', model.file));
 
@@ -69,10 +56,6 @@ const reason = (error) => error?.cause?.message || error?.message || String(erro
 await mkdir(MODELS, { recursive: true });
 
 for (const model of WANTED) {
-    if (!model.supported) {
-        console.log(`[models] ${model.name} has no build for this platform, skipping`);
-        continue;
-    }
     const path = join(MODELS, model.file);
     if (await alreadyThere(path, model)) {
         console.log(`[models] ${model.file} already present and verified`);
@@ -110,22 +93,7 @@ for (const model of WANTED) {
                 continue;
             }
 
-            if (model.unpack) {
-                // Straight from the buffer: this is a dev checkout, not the app's install path, and
-                // the archive is not worth keeping once its 1400 files are on disk. The chmod is the
-                // one thing a zip cannot carry, and without it the interpreter will not execute.
-                const home = join(MODELS, model.unpack);
-                await rm(home, { recursive: true, force: true });
-                for (const [name, body] of Object.entries(unzipSync(buffer))) {
-                    if (name.endsWith('/')) continue;
-                    const out = join(home, name);
-                    await mkdir(dirname(out), { recursive: true });
-                    await writeFile(out, body);
-                }
-                if (process.platform !== 'win32') await chmod(join(home, ...RUNTIME_BIN), 0o755);
-            } else {
-                await writeFile(path, buffer);
-            }
+            await writeFile(path, buffer);
             console.log(`[models] ${model.file} verified and written, from ${host}`);
             written = true;
             break;
@@ -146,3 +114,9 @@ for (const model of WANTED) {
 
     if (!written) throw new Error(`[models] could not get a good copy of ${model.file}`);
 }
+
+// The model that ships with the app rather than downloads (Sonnet's 智能动感模式, Beat This! small0):
+// a dev checkout needs it in models/ too, or the switch is on and silently inert. Pinned in its own
+// script, which the packaging step calls as well.
+const { prepareBundledBeatThisSmall } = await import('../packaging/beat-this-small/fetch-beat-this-small.mjs');
+console.log(`[models] ${await prepareBundledBeatThisSmall({ outputDir: MODELS })} verified`);

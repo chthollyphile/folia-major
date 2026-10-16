@@ -54,6 +54,7 @@
     "build:windowtolayer": "node packaging/linux/build-windowtolayer.mjs",
     "build:wallpaper-helper": "node packaging/windows/build-wallpaper-helper.mjs",
     "build:ffmpeg": "node packaging/ffmpeg/fetch-ffmpeg.mjs",
+    "build:beat-this-small": "node packaging/beat-this-small/fetch-beat-this-small.mjs",
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
@@ -89,13 +90,26 @@
       "build/thumbar/*.png"
     ],
     "asarUnpack": [
-      "electron/analysis/htdemucs_runner.py",
       "node_modules/@koromix/koffi-*/**/*.node"
     ],
     "extraResources": [
       {
         "from": "build/ffmpeg/${os}-${arch}",
         "to": "ffmpeg-audio"
+      },
+      {
+        "from": "build/mnn/${os}-${arch}",
+        "to": "mnn",
+        "filter": [
+          "*folia_mnn.*"
+        ]
+      },
+      {
+        "from": "models",
+        "to": "models",
+        "filter": [
+          "beat_this-small-wgsl.bin"
+        ]
       },
       {
         "from": "build/icon.png",
@@ -219,7 +233,6 @@
     "koffi": "^3.3.1",
     "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
     "music-metadata": "^11.16.1",
-    "onnxruntime-node": "^1.30.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {
@@ -240,6 +253,7 @@
     "@types/three": "^0.185.4",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.1",
+    "@webgpu/types": "0.1.74",
     "@xmldom/xmldom": "^0.9.12",
     "animejs": "^4.5.0",
     "autoprefixer": "^10.6.1",

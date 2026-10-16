@@ -72,6 +72,12 @@ App / ThemePark / VisPlayground / OBS source
 
 当前 tuning 覆盖 13 个模式，并通过 `VisualizerRenderer` 的 `applyVisualizerTuning` 统一注入。模式级设置面板和 reset 由各自 `entry.tsx` / `tuning.ts` 提供，再由 `settingsPanels.tsx` 和 `VisPlaygroundSettingsPanel.tsx` 复用。
 
+### 智能动感模式（beat FX）
+
+全局一个开关加轻拍 / 重拍两个强度（`SmartBeatSettings`，store 的 `smartBeat`，设置卡 `SmartBeatSettingsCard.tsx` 在「歌词动画」的模式选择下面），不属于任何一个模式的 tuning。哪些画面响应由 entry 声明：模式和背景的 entry 上 `drawsBeatFx: true`（目前商籁、镜台、隐现背景），不显示背景的模式写 `rendersBackground: false`（Still）。`beatClockTargets.ts` 据此决定节拍时钟和拍点分析跑不跑。
+
+各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`，没就绪就走原来的画面，所以关着时像素不变。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，隐现 `backgrounds/latent/LatentBackground.tsx`。
+
 ### Lyrics pipeline
 
 Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.lrc`、`.vtt`、`.yrc` 或 `.qrc`。

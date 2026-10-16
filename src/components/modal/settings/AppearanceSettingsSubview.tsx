@@ -260,6 +260,7 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
         handleSetMonetTuning: state.handleSetMonetTuning,
         handleSetPendoloTuning: state.handleSetPendoloTuning,
         handleSetSonnetTuning: state.handleSetSonnetTuning,
+        handleSetSmartBeat: state.handleSetSmartBeat,
         handleSetTemperaTuning: state.handleSetTemperaTuning,
         handleSetLumiereTuning: state.handleSetLumiereTuning,
         handleAddUrlBackgroundItem: state.handleAddUrlBackgroundItem,
@@ -420,6 +421,10 @@ const AppearanceSettingsSubview: React.FC<AppearanceSettingsSubviewProps> = ({
             }
             if (has('visualizerOpacity')) {
                 storeVisualizer.handleSetVisualizerOpacity(config.visualizerOpacity);
+            }
+            // Outside the visualizerTunings bundle: it belongs to no one mode.
+            if (has('smartBeat') && config.smartBeat) {
+                storeVisualizer.handleSetSmartBeat(config.smartBeat);
             }
             if (has('hidePlayerTranslationSubtitle')) {
                 storeTypographySettings.handleToggleHidePlayerTranslationSubtitle(Boolean(config.hidePlayerTranslationSubtitle));

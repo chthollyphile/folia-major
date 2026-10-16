@@ -13,5 +13,7 @@ export default defineVisualizer({
     previewSeed: 'still',
     previewStartOffset: 0,
     tuningKind: 'none',
+    // Draws no shell background, so the default background's beat FX must not run behind it.
+    rendersBackground: false,
     render: props => <VisualizerStill {...props} />,
 });

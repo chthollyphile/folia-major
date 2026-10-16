@@ -1,4 +1,4 @@
-import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_LUMIERE_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SONNET_TUNING, DEFAULT_SORA_BACKGROUND_TUNING, DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, TEMPERA_MAX_LAYER_IMAGES, type CadenzaTuning, type CappellaAvatarSource, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LumiereTuning, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundEffect, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type SonnetTuning, type SoraBackgroundTuning, type TemperaLayerImage, type TemperaTuning, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_CADENZA_TUNING, DEFAULT_CAPPELLA_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_LUMIERE_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_PENDOLO_TUNING, DEFAULT_SMART_BEAT_SETTINGS, DEFAULT_SONNET_TUNING, DEFAULT_SORA_BACKGROUND_TUNING, DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, TEMPERA_MAX_LAYER_IMAGES, type CadenzaTuning, type CappellaAvatarSource, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type LatentBackgroundColorSource, type LatentBackgroundDisplayMode, type LatentBackgroundTuning, type LumiereTuning, type MonetBackgroundLayout, type MonetBackgroundSource, type MonetBackgroundTuning, type MonetBackgroundWashColorMode, type MonetPortraitSource, type MonetTuning, type NomandBackgroundDitheringType, type NomandBackgroundEffect, type NomandBackgroundSource, type NomandBackgroundTuning, type PartitaTuning, type PendoloTuning, type SmartBeatSettings, type SonnetTuning, type SoraBackgroundTuning, type TemperaLayerImage, type TemperaTuning, type TiltTuning, type UrlBackgroundItem, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 // 只做字符串校验，走 types/visualizerModes 而不是 registry：后者的 eager glob 会把 13 个
 // renderer（含 three.js）拉进来，而这里读的只是一个 localStorage 字符串。
 // mod 模式在启动时本来就看不到——bootstrap.tsx 的 restoreStoredModVisualizer 在 mods 注册完
@@ -367,6 +367,29 @@ export const readStoredSonnetTuning = (): SonnetTuning => {
         };
     } catch {
         return DEFAULT_SONNET_TUNING;
+    }
+};
+
+export const SMART_BEAT_STORAGE_KEY = 'visualizer_smart_beat';
+
+/** Clamps a partial 智能动感模式 patch onto `base`; anything missing or malformed keeps base's value. */
+export const resolveSmartBeatSettings = (
+    patch: Partial<SmartBeatSettings> | null | undefined,
+    base: SmartBeatSettings = DEFAULT_SMART_BEAT_SETTINGS,
+): SmartBeatSettings => ({
+    enabled: typeof patch?.enabled === 'boolean' ? patch.enabled : base.enabled,
+    beatIntensity: resolvePendoloNumber(patch?.beatIntensity, base.beatIntensity, 0, 2),
+    downbeatIntensity: resolvePendoloNumber(patch?.downbeatIntensity, base.downbeatIntensity, 0, 2),
+});
+
+export const readStoredSmartBeatSettings = (): SmartBeatSettings => {
+    if (typeof window === 'undefined') return DEFAULT_SMART_BEAT_SETTINGS;
+    const saved = localStorage.getItem(SMART_BEAT_STORAGE_KEY);
+    if (!saved) return DEFAULT_SMART_BEAT_SETTINGS;
+    try {
+        return resolveSmartBeatSettings(JSON.parse(saved) as Partial<SmartBeatSettings>);
+    } catch {
+        return DEFAULT_SMART_BEAT_SETTINGS;
     }
 };
 

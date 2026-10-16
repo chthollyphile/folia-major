@@ -6,7 +6,7 @@ import type { Theme } from '../../../types';
 import { CROSSFADE_MAX_SEC, CROSSFADE_MIN_SEC } from '../../../services/automix/crossfadePlanner';
 import { canAnalyseTracks, type TransitionMode } from '../../../services/automix/transitionStrategy';
 import { transitionCapabilities } from '../../../services/automix/stems';
-import { modelsPresent, subscribeModelAvailability } from '../../../services/automix/modelAvailability';
+import { modelsPresent, subscribeModelAvailability } from '../../../services/analysis/modelAvailability';
 import { announceTransition, type TransitionRenderer } from '../../../services/automix/transitionCue';
 import AutomixModelsSection from './AutomixModelsSection';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';

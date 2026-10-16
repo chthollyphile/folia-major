@@ -1,20 +1,24 @@
 # Automix — 两个模型的改动
 
-本目录用到两个神经网络：拍点检测 `beat_this.onnx` 与人声分离 `htdemucs-v2.onnx`。
-两者都不进安装包，由设置页按需下载（清单见 `shared/modelManifest.json`，下载与校验在
-`electron/analysis/`）。
+本目录用到两个神经网络：拍点检测 `beat_this-wgsl.bin` 与人声分离 `htdemucs-v3.mnn`。
 
-**结论：`beat_this.onnx` 与上游逐字节一致；`htdemucs-v2.onnx` 在 Meta 原版上叠了四层改动，
-后两层由本仓库完成。**
+（智能动感模式用的是另一个更小的拍点模型 small0，`beat_this-small-wgsl.bin`，随应用打包、只走 GPU，与 automix 互不共用结果；见 `../analysis/README.md`。）
+两者都不进安装包，由设置页按需下载（清单见 `shared/modelManifest.json`，下载与校验在
+`electron/analysis/`）。运行它们的 MNN 编进 app（`native/folia-mnn`，`build/buildMnnRuntime.mjs`），
+不再有运行时下载。
+
+**结论：`beat_this-wgsl.bin` 是作者原版 final0 检查点的导出（权重值未改，只做 BN 折叠和 fp16 存储，
+见 §1）；`htdemucs-v3.mnn` 在 Meta 原版上叠了 §2 的各层改动，再改写成 MNN 图（§2.5）。**
+§2 里 ⑤ 之前的数字和 §4 的 Python 部分是上一版（onnxruntime + Python）的记录，留作来历。
 
 | | beat_this | htdemucs |
 | --- | --- | --- |
 | 上游 | [mosynthkey/beat_this_cpp](https://github.com/mosynthkey/beat_this_cpp) | [itamiArika/htdemucs-int8-memory](https://huggingface.co/itamiArika/htdemucs-int8-memory) |
 | 原始作者 | CPJKU，ISMIR 2024 | Meta Research |
 | 授权 | MIT | MIT |
-| 下载体积 | 83.1 MB | 107.9 MB |
-| 本仓库改过吗 | **没有** | **改过，见 §2** |
-| 跑在哪 | worker 进程内 onnxruntime-node，WebGPU | 独立 Python 进程，CPU；STFT/iSTFT 在 numpy |
+| 下载体积 | 41.1 MB | 189.7 MB |
+| 本仓库改过吗 | 导出格式（`build/beat_this_wgsl/export_weights.py`） | **改过，见 §2** |
+| 跑在哪 | 渲染进程 WebGPU（自写 WGSL）；automix 可退到分析 worker 的 MNN CPU | 分析 worker 进程内 MNN，CPU，fp32 |
 
 ---
 
@@ -22,7 +26,7 @@
 
 下载到的是作者 `final0` 检查点的社区 ONNX 导出，未做任何修改。
 
-**前处理全在本侧**（`beatThis.ts`）：梅尔频谱、1500 帧分块、峰值挑选、网格拟合。
+**前处理全在本侧**（`../analysis/beatThis.ts`）：梅尔频谱、1500 帧分块、峰值挑选、网格拟合。
 导出的图拒收长张量（整首歌喂入会在注意力层抛 `invalid expand shape`），故分块是必需而非优化。
 以下常量是契约而非参数——周期 Hann（长度取 `size` 而非 `size-1`）、`center=True` 反射填充、
 `/sqrt(win_length)`、Slaney 梅尔 30–11000、`log1p(1000x)`——错一个不会崩溃，只会给出一个
@@ -131,6 +135,17 @@ ORT 1.23.2 为 122.0 dB，Intel 运行时包经 Rosetta（x86_64）为 121.8 dB�
 
 ---
 
+### 2.5 改写成 MNN 图 —— 本仓库所做
+
+`build/htdemucs_mnn/make_model.py`，从旧版 `htdemucs.onnx`（sha256 099b5be7…，也就是 ④ 之后、⑤ 之前那份）出发：
+STFT/iSTFT 的 DFT 改成两级 64×64 矩阵乘（MNN 没有 DFT，⑤ 的 numpy 也随 Python 一起去掉）；四个百万级全局均值改成三级均值；
+GroupNorm 链融合；ConvTranspose 改成多相卷积；每个 DConv 层合成一个自写算子 `Folia::FoliaDConv`
+（`native/folia-mnn/folia_dconv.cpp`，NEON / SSE2 / AVX2+FMA 三套，运行时按 CPU 选）。权重外置并和图打成一个文件。
+
+红线：6 首 × 30 s，对上一版 Python + ORT，经真实 `worker.cjs` 每轨电平最差差值 0.003 / 0.002 / 0.0 dB
+（drums / bass / vocals），x86-64 两条路径 0.003 / 0.001 / 0.0 dB。M4 上每窗 3.2–3.8 s（上一版 3.7–4.1 s），
+物理内存峰值 511–535 MB（含 Node 基线约 60 MB；上一版 Python 进程 371–544 MB）。
+
 ## 3. 手术验证
 
 坏掉的图不会崩溃，故 strict shape inference + ONNX checker 只是第一道门。真正的判据有三层：
@@ -155,7 +170,18 @@ ORT 1.23.2 为 122.0 dB，Intel 运行时包经 Rosetta（x86_64）为 121.8 dB�
 
 ## 4. 模型之外：运行时侧的省法
 
-以下措施不改模型文件，但与上文同属一条内存故事，共同构成当前数字。完整诊断见
+当前做法：
+
+| 做法 | 在哪 | 省了什么 |
+| --- | --- | --- |
+| 外置权重（`--saveExternalData`） | `make_model.py` | MNN 不再在内存里多留一份权重：加载后 415 → 214 MB |
+| `Memory_Low` + 释放时把空闲内存还给系统 | `native/folia-mnn/folia_mnn.cpp` | 中间缓冲用完即还；`release()` 后物理占用回到几十 MB |
+| automix 开着时常驻、关掉时在进程内释放 | `host.cjs` / `worker.cjs` | 换歌之间不重载 190 MB；关掉功能即还内存，不杀进程 |
+| htdemucs 4 线程 | `worker.cjs` `HTDEMUCS_THREADS` | 与上一版 Python 运行器相同，留出核给播放和渲染 |
+| `folia_mnn_prefer_fast_cores()` | `folia_mnn.cpp`，worker 启动时调用 | 上一版 `prefer_fast_cores()` 的移植：Windows 最小化后不被挪到能效核（12.7s → 28.1s 那条） |
+| beat_this 走 GPU，CPU 只给 automix | `../analysis/beatThis.ts` `cpuFallback` | CPU 每块 0.4–0.7 s，GPU 约 0.06 s；只有提前几分钟分析的 automix 等得起 |
+
+以下是上一版（onnxruntime + Python）的做法，留作来历。完整诊断见
 [`docs/automix-memory-optimization.md`](../../../docs/automix-memory-optimization.md)。
 
 | 做法 | 在哪 | 省了什么 |
@@ -194,17 +220,17 @@ setter；自编 C++ 二进制会撞同一堵墙。因此 app 额外下载一个�
 
 ## 6. 改模型文件时要动什么
 
-1. 依次运行两个手术脚本（需一个装有 `onnx` 的 Python——**随 app 下发的运行时刻意未装**，
-   其只需 `onnxruntime`）。输出逐次运行字节一致。
+1. 重新生成（需一个装有 `onnx`、`numpy` 的 Python，以及从固定 MNN 源码编出的 `MNNConvert`）。输出逐次运行字节一致。
    ```
-   python build/htdemucs_halve_segment.py htdemucs-7.8s.onnx htdemucs-halved.onnx
-   python build/htdemucs_cut_fft.py htdemucs-halved.onnx models/htdemucs-v2.onnx
+   python build/htdemucs_mnn/make_model.py htdemucs.onnx models/htdemucs-v3.mnn --mnnconvert <MNNConvert>
+   python build/beat_this_wgsl/export_weights.py beat_this-final0.ckpt models/beat_this-wgsl.bin --f16
    ```
+   改了 `make_model.py` 或 `native/folia-mnn` 的算子，就要重跑 §2.5 的红线。
 2. 更新 `shared/modelManifest.json` 中该条目的 `bytes` 与 `sha256`。**哈希是此清单的重点。**
    被截断或被镜像替换的 ONNX 不会显式失败——它会加载成功，然后自信地给出错误答案。
 3. 重新上传到三条镜像（hf-mirror → hf → github，外加两个网盘兜底）。
 4. 代码侧通常无需改动：段长经 `segment_of()` 自动跟随。若改动采样率或轨序，则属契约变更，
-   须同步 `htdemucs_runner.py` 顶部的契约注释与 `SOURCES`/`RETURNED`。
+   须同步 `electron/analysis/htdemucs.cjs` 的 `SOURCES`/`RETURNED`。
 
 ---
 
@@ -213,7 +239,7 @@ setter；自编 C++ 二进制会撞同一堵墙。因此 app 额外下载一个�
 - **beat_this 切 CPU 开关**——面向「打游戏要求零显卡占用」的用户。当前占 ~580MB 显存 / 22%
   利用率 / 亚秒延迟，对游戏近乎无感，故非必需。
 - **再缩一档段长**——3.9s 已低于 500MB，再缩收益递减且上下文继续变短，需新一轮盲听方可确定。
-- **迁移到 MNN、拿掉 Python 运行时**——**触发条件：再有新模型加进来时启动，不再往 Python 壳子里加东西。**
+- **迁移到 MNN、拿掉 Python 运行时**——**已完成（§2.5）**，以下是当时的理由，留作来历。
   Python 进程只为 onnxruntime 一个开关存在（`enable_mem_reuse`，见 `htdemucs_runner.py` 顶部），
   代价是一份按平台分发的 35–60 MB 运行时、「模型在但运行时缺」这一类状态，以及被 onnxruntime 的
   wheel 支持面牵着走（Intel Mac 就是这么丢的，靠 ⑤ 才补回来）。在 onnxruntime 里提速要写自定义算子：

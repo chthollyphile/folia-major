@@ -15,73 +15,47 @@ import type { ProbeDefinition } from './definition';
  */
 const MANUAL = manifest.manual as { links: Array<{ label: string; url: string; code?: string }>; note: string };
 
-/**
- * The rows are ENUMERATED here, not folded out of the manifest the way modelStore does it.
- *
- * A probe's job is to name the visual states, and the third row has one the real resolver can only
- * produce on hardware this machine is not: a platform the runtime has no build for (Windows or Linux
- * on arm64), where the row has to say so instead of offering a download. Re-deriving it here would
- * mean the only way to look at that state is to own the machine that cannot use the feature.
- */
 type Row = ElectronAutomixModelStatus['models'][number];
 
-const buildStatus = (installed: boolean, runtimeSupported: boolean) => {
-    const [beatThis, htdemucs, runtime] = manifest.models;
-    // Both stems rows go dark together, the way downloadables makes them: htdemucs.onnx resolves on
-    // any platform, but 109MB of weights with no runtime to run them is not a download worth
-    // offering. A probe showing one supported and the other not would be showing a state the app
-    // cannot produce, which is worse than not showing the state at all.
-    const model = (entry: typeof beatThis): Row => {
-        const supported = runtimeSupported || entry.enables !== 'stems';
-        return {
-            name: entry.name,
-            file: entry.file ?? null,
-            bytes: supported ? entry.bytes ?? 0 : 0,
-            enables: entry.enables as 'beatGrid' | 'stems',
-            license: entry.license,
-            supported,
-            path: supported && installed ? `E:\\models\\${entry.file}` : null,
-            downloading: false,
-        };
-    };
-    // The one this machine would get. Any of the three would do - what is being drawn is the row.
-    const build = runtime.platforms?.['win32-x64'];
-    return {
-        manual: MANUAL,
-        downloadDir: String.raw`C:\Users\somebody\AppData\Roaming\Folia\models`,
-        models: [model(beatThis), model(htdemucs), {
-            name: runtime.name,
-            file: runtimeSupported ? build?.file ?? null : null,
-            bytes: runtimeSupported ? build?.bytes ?? 0 : 0,
-            enables: runtime.enables as 'stems',
-            license: runtime.license,
-            supported: runtimeSupported,
-            // Unpacks to a directory, so an installed runtime shows a folder and not a file.
-            path: runtimeSupported && installed ? String.raw`E:\models\runtime` : null,
-            downloading: false,
-        } satisfies Row],
-    };
-};
+/**
+ * The rows, from the manifest the way modelStore makes them: one file per model, the same on every
+ * platform, since what runs them is compiled into the app. `leftovers` is the one state the manifest
+ * cannot show - an earlier version's ONNX models and Python runtime still on disk, which is what makes
+ * "delete all" appear with no current model installed.
+ */
+const buildStatus = (installed: boolean, leftovers: boolean): ElectronAutomixModelStatus => ({
+    manual: MANUAL,
+    downloadDir: String.raw`C:\Users\somebody\AppData\Roaming\Folia\models`,
+    // About what the last Python runtime and ONNX models came to on Windows.
+    leftoverBytes: leftovers ? 296_000_000 : 0,
+    models: manifest.models.map((entry): Row => ({
+        name: entry.name,
+        file: entry.file,
+        bytes: entry.bytes,
+        enables: entry.enables as 'beatGrid' | 'stems',
+        license: entry.license,
+        path: installed ? `E:\\models\\${entry.file}` : null,
+        downloading: false,
+    })),
+});
 
 const AutomixModelsProbe: React.FC = () => {
     const [installed, setInstalled] = useState(false);
     const installedRef = React.useRef(installed);
     installedRef.current = installed;
     const [failed, setFailed] = useState(true);
-    const [runtimeSupported, setRuntimeSupported] = useState(true);
+    const [leftovers, setLeftovers] = useState(false);
     const [nonce, setNonce] = useState(0);
-    const supportedRef = React.useRef(runtimeSupported);
-    supportedRef.current = runtimeSupported;
+    const leftoversRef = React.useRef(leftovers);
+    leftoversRef.current = leftovers;
 
     // Installed as a side effect on purpose: the component asks on mount, so the stub has to be in
     // place before it renders, and remounting (via `key`) is what re-asks it.
     (window as unknown as { electron: Record<string, unknown> }).electron = {
-        getAutomixModelStatus: async () => buildStatus(installedRef.current, supportedRef.current),
+        getAutomixModelStatus: async () => buildStatus(installedRef.current, leftoversRef.current),
         getAutomixModelsPresent: async () => ({
             beat_this: installedRef.current,
-            // Weights AND runtime, the same conjunction modelsPresent makes - so a machine with no
-            // runtime build reports no stems however many .onnx files it has.
-            htdemucs: installedRef.current && supportedRef.current,
+            htdemucs: installedRef.current,
         }),
         downloadAutomixModel: async () => ({
             ok: false,
@@ -99,14 +73,16 @@ const AutomixModelsProbe: React.FC = () => {
         // follows sees the deletion even though this render's closure predates it.
         removeAllAutomixModels: async () => {
             installedRef.current = false;
+            leftoversRef.current = false;
             setInstalled(false);
+            setLeftovers(false);
             return {
                 ok: true,
                 removed: manifest.models.map(m => m.name),
                 // The real store sums stat().size, so the stub sums the manifest rather
                 // than inventing a round number - otherwise the confirm dialog and the
                 // result line disagree here and agree in the app, which is backwards.
-                freed: manifest.models.reduce((sum, m) => sum + (m.bytes ?? 0), 0),
+                freed: manifest.models.reduce((sum, m) => sum + m.bytes, 0),
                 failed: [],
             };
         },
@@ -138,11 +114,11 @@ const AutomixModelsProbe: React.FC = () => {
                 </button>
                 <button
                     type="button"
-                    data-probe-action="toggle-runtime-supported"
+                    data-probe-action="toggle-leftovers"
                     className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"
-                    onClick={() => { setRuntimeSupported(value => !value); setNonce(n => n + 1); }}
+                    onClick={() => { setLeftovers(value => !value); setNonce(n => n + 1); }}
                 >
-                    {runtimeSupported ? '运行时可用 → 设备不支持' : '设备不支持 → 运行时可用'}
+                    {leftovers ? '有旧版本残留 → 无残留' : '无残留 → 有旧版本残留'}
                 </button>
             </div>
             {[false, true].map(isDaylight => (
@@ -165,7 +141,7 @@ const AutomixModelsProbe: React.FC = () => {
 const definition: ProbeDefinition = {
     id: 'automixModels',
     title: '分析模型区块',
-    description: '模型下载区块：镜像失败后的两个网盘入口、各自的提取码按钮、已装/未装两态，以及运行时那一行在设备不支持时的样子。',
+    description: '模型下载区块：镜像失败后的两个网盘入口、各自的提取码按钮、已装/未装两态，以及只有旧版本残留时「删除所有模型」按钮的样子。',
     Component: AutomixModelsProbe,
 };
 

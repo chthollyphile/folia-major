@@ -48,6 +48,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     followSystemTheme: 'options.followSystemTheme',
     visualizerMode: 'options.visualizerMode',
     visualizerOpacity: 'options.visualizerOpacity',
+    smartBeat: 'options.smartBeat',
     hidePlayerTranslationSubtitle: 'options.hidePlayerTranslationSubtitle',
     showSubtitleTranslation: 'options.showSubtitleTranslation',
     subtitleContentMode: 'options.subtitleContentMode',

@@ -41,6 +41,8 @@ export interface ShotView {
     basePivotX: number;
     basePivotY: number;
     haloLayer: import('pixi.js').Container;
+    /** The halo's alpha as built; 智能动感模式's downbeat flare lifts from it and returns to it. */
+    haloBaseAlpha: number;
     mgLayer: import('pixi.js').Container;
     mgBackgroundLayer?: import('pixi.js').Container;
     mgGeoLayer?: import('pixi.js').Container;
@@ -64,6 +66,8 @@ export interface SonnetSceneBuildOptions {
     host: HTMLDivElement;
     theme: Theme;
     tuning: SonnetTuning;
+    /** 智能动感模式 (SmartBeatSettings.enabled): builds the MG onset pop and the downbeat tear's filter. */
+    smartBeatEnabled: boolean;
     lyricsFontScale: number;
     staticMode: boolean;
     transparentBackground: boolean;
@@ -200,7 +204,8 @@ export const buildSonnetScene = (
             width,
             height,
             shotSeed,
-            iconTextures
+            iconTextures,
+            options.smartBeatEnabled,
         );
         shotContainer.addChild(mgLayer);
         const mgBackgroundLayer = (mgLayer as any).bgLayer as import('pixi.js').Container | undefined;
@@ -310,6 +315,7 @@ export const buildSonnetScene = (
             basePivotX: focusX,
             basePivotY: focusY,
             haloLayer,
+            haloBaseAlpha: haloLayer.alpha,
             mgLayer,
             mgBackgroundLayer,
             mgGeoLayer,
@@ -346,7 +352,8 @@ export const buildSonnetScene = (
         container.filters = [...(container.filters ?? []), transitionBlurFilter];
         postProcessFilters.push(transitionBlurFilter);
     }
-    const transitionGlitchEffect = options.tuning.enableTransitions && !options.staticMode
+    // 智能动感模式 reuses this filter for the downbeat tear.
+    const transitionGlitchEffect = (options.tuning.enableTransitions || options.smartBeatEnabled) && !options.staticMode
         ? createSonnetGlitchEffect(pixi)
         : null;
     if (transitionGlitchEffect) {

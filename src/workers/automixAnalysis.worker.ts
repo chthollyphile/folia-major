@@ -1,4 +1,4 @@
-import { melSpectrogram } from '../services/automix/beatThis';
+import { melSpectrogram } from '../services/analysis/beatThis';
 import { analyseTrack } from '../services/automix/trackProfile';
 
 // src/workers/automixAnalysis.worker.ts

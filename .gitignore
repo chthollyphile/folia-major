@@ -63,6 +63,10 @@ build/windowtolayer
 build/windowtolayer-COPYING
 build/ffmpeg/
 build/koffi/
+# MNN runtime library (build/buildMnnRuntime.mjs): the pinned source, its build tree, and the result.
+build/mnn/
+build/.mnn-src/
+build/.mnn-build/
 # The transcode fallback's dev slot: same binary as build/ffmpeg/<os>-<arch>, staged here so
 # `npm run dev:electron` runs the audio-only runtime the release ships instead of system PATH.
 # `ffmpeg-8.1.2/` is the mod exporters' slot and is a full build the developer supplies.

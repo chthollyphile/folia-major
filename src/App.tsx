@@ -64,6 +64,7 @@ import { createQueueMutations } from './components/app/player-panel/createQueueM
 import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMode, StatusMessage, PlaybackContext, StageLoopMode, UnifiedSong } from './types';
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
+import { registerLocalTrackFileReader } from './services/analysis/trackAudio';
 import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
@@ -285,6 +286,12 @@ export default function App() {
         () => ({ mode: transitionMode, crossfadeMaxSec, performance: transitionPerformance }),
         [transitionMode, crossfadeMaxSec, transitionPerformance],
     );
+    // The analysis worker keeps htdemucs loaded while automix can ask for it, and releases it the
+    // moment it cannot - the switch off, or the crossfade mode, which reads no model. Sent on mount
+    // too: the main process starts out assuming off. See electron/analysis/host.cjs.
+    useEffect(() => {
+        window.electron?.setAutomixEnabled?.(automixEnabled && transitionMode === 'automix');
+    }, [automixEnabled, transitionMode]);
 
     const startupExperience = useStartupExperienceGate();
 
@@ -1132,6 +1139,12 @@ export default function App() {
         const local = localSongs.find(candidate => candidate.id === song.localRef.songId);
         return getLocalSongArrayBuffer((local ?? song) as unknown as LocalSong);
     }, [localSongs]);
+    // The same reader for every analyser (analysis/trackAudio.ts): 智能动感模式 and automix's
+    // profile read a local track that has no URL in hand through it too.
+    useEffect(() => {
+        registerLocalTrackFileReader(getLocalStemBytes);
+        return () => registerLocalTrackFileReader(null);
+    }, [getLocalStemBytes]);
 
     const automix = useAutomixDecks({
         audioRef,

@@ -15,6 +15,8 @@ export default defineVisualizer({
     previewSeed: 'diorama',
     previewStartOffset: 0,
     tuningKind: 'diorama',
+    // 智能动感模式: beat_this' beats spawn the particle ripples and drive the breath (dioramaBeatRipples.ts).
+    drawsBeatFx: true,
     render: props => <VisualizerDiorama {...props} />,
     renderSettingsPanel: props => <DioramaSettingsPanel {...props} />,
     resetSettings: ({ resetDioramaTuning }) => {

@@ -22,6 +22,8 @@ export default defineVisualizerBackground({
     order: 35,
     labelKey: 'options.visualizerBackgroundModeLatent',
     labelFallback: 'Latent',
+    // 智能动感模式: the beats replace the band onset in the speed pulse (LatentBackground.tsx).
+    drawsBeatFx: true,
     render: ({ config, theme, coverUrl, audioPower, audioBands, staticMode, paused }) => (
         <LatentBackground
             theme={theme}

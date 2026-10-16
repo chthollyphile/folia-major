@@ -1,4 +1,4 @@
-// src/services/automix/modelAvailability.ts
+// src/services/analysis/modelAvailability.ts
 // Which model weights are actually on disk, as a value the rest of the app can read synchronously.
 //
 // Every capability question in automix used to be answered with "am I running in Electron", which
@@ -76,7 +76,7 @@ export const refreshModelAvailability = async (): Promise<AutomixModelsPresent> 
     try {
         answer = await ask();
     } catch (error) {
-        console.warn('[Automix] could not check which models are installed', error);
+        console.warn('[Analysis] could not check which models are installed', error);
         return present;
     }
     if (!answer) return present;
@@ -104,7 +104,7 @@ export const refreshModelAvailability = async (): Promise<AutomixModelsPresent> 
  */
 export const noteModelFailed = async (name: AutomixModelName): Promise<void> => {
     const stillThere = (await refreshModelAvailability())[name];
-    if (!stillThere) console.warn(`[Automix] ${name} produced nothing and its weights are gone;`
+    if (!stillThere) console.warn(`[Analysis] ${name} produced nothing and its weights are gone;`
         + ' will use it again if they come back');
 };
 

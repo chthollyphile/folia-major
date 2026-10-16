@@ -1,13 +1,15 @@
 import type { SongResult } from '../../types';
-import { getPlaybackSongKey, getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
+import type { PlaybackRepresentation } from '../../types/playbackRecovery';
+import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { saveAudioBlob } from '../audioCache';
 import { getFromCache, saveToCache } from '../db';
-import { getCachedSongAudioBlob } from '../onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
 import { isCacheableAudioResponse } from '../playbackRecovery/mediaCacheGuard';
-import { getPlaybackAnalysisKey, getPlaybackRepresentation } from '../playbackRecovery/representationRegistry';
+import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThread';
-import { analyseBeatGrid, canRunBeatThis } from './beatThis';
+import { analyseBeatGrid, canRunBeatThis } from '../analysis/beatThis';
+import { getTrackBeatGrid } from '../analysis/beatGrid';
+import { decodeAtRate, readLocalTrackBytes, toMidSide } from '../analysis/trackAudio';
 import {
     measureEdges,
     PROFILE_SAMPLE_RATE,
@@ -117,50 +119,6 @@ export const getTrackProfile = (song: SongResult | null | undefined): TrackProfi
     song ? profiles.get(getPlaybackAnalysisKey(song)) ?? null : null
 );
 
-/**
- * Splits the decode into mid and side.
- *
- * Mid - (L+R)/2 - is the mono sum every other measurement here wants. Side - (L-R)/2 - is what is left
- * when the two channels cancel: everything the mix placed off-centre. Keeping it is what makes a voice
- * findable - lead vocals are panned dead centre on essentially every commercial master, so they live
- * almost entirely in mid and almost not at all in side. Cancelling one against the other is the same
- * arithmetic karaoke machines have used to drop the lead vocal for decades.
- *
- * Null side for a mono file: no two channels to cancel, so the question cannot be asked.
- */
-const toMidSide = (buffer: AudioBuffer): { mid: Float32Array; side: Float32Array | null } => {
-    const left = buffer.getChannelData(0);
-    if (buffer.numberOfChannels < 2) return { mid: Float32Array.from(left), side: null };
-
-    const right = buffer.getChannelData(1);
-    const mid = new Float32Array(buffer.length);
-    const side = new Float32Array(buffer.length);
-    for (let index = 0; index < mid.length; index += 1) {
-        mid[index] = (left[index] + right[index]) / 2;
-        side[index] = (left[index] - right[index]) / 2;
-    }
-    return { mid, side };
-};
-
-/**
- * Decodes straight to the analysis rate.
- *
- * decodeAudioData resamples to the context's own sample rate, so a context created at 22.05kHz
- * does the downsampling in the decoder - no render pass, no resampler here, and a four-minute
- * track lands as ~10MB of floats instead of ~80MB.
- */
-const decodeAtProfileRate = async (bytes: ArrayBuffer): Promise<AudioBuffer | null> => {
-    const OfflineContext = window.OfflineAudioContext
-        || (window as Window & { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
-    if (!OfflineContext) return null;
-    try {
-        return await new OfflineContext(1, 1, PROFILE_SAMPLE_RATE).decodeAudioData(bytes);
-    } catch (error) {
-        console.warn('[Automix] could not decode a track for analysis', error);
-        return null;
-    }
-};
-
 interface ProfileRequest {
     song: SongResult;
     /**
@@ -212,33 +170,18 @@ const readPrefix = async (audioUrl: string): Promise<BytesResult> => {
 
 const readBytes = async (
     { song, audioUrl, enableMediaCache }: ProfileRequest,
+    /** The representation `songKey` names, resolved with it (getPlaybackAnalysisTarget). */
+    representation: PlaybackRepresentation | null,
     /** A head-only profile is already stored, so there is nothing a second range request buys. */
     hasStoredPartial: boolean,
 ): Promise<BytesResult> => {
-    const representation = getPlaybackRepresentation(song);
-    if (representation) {
-        try {
-            const response = await fetch(representation.url);
-            // An evicted transcode answers 404 with a text body. Decoding that would be stored as a
-            // permanent "unsupported" verdict for a track that is merely no longer cached.
-            if (!response.ok) throw new Error(`representation responded ${response.status}`);
-            return { bytes: await response.arrayBuffer(), partial: false };
-        } catch (error) {
-            console.warn('[Automix] could not read the playback representation for analysis', error);
-            return { skipped: 'the playback representation could not be read' };
-        }
-    }
-    const cached = await getCachedSongAudioBlob(song);
-    if (cached) return { bytes: await cached.arrayBuffer(), partial: false };
+    // Everything already on this machine first: representation, media cache, local URL, local file.
+    const local = await readLocalTrackBytes(song, { representation, audioUrl });
+    if (local) return 'bytes' in local ? { bytes: local.bytes, partial: false } : local;
 
     if (!audioUrl) return { skipped: 'not cached yet and no URL to read it from' };
-    // A blob: or file: URL is already on this machine, so reading it is free whatever the setting
-    // says. Anything else is a real download and needs a reason.
-    const isLocal = audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')
-        || getPlaybackSourceRef(song).kind !== 'online';
-
     try {
-        if (!isLocal && !enableMediaCache) {
+        if (!enableMediaCache) {
             // Song caching is off, so the full file would be bandwidth nobody agreed to. Take the
             // front of it instead: less than the transition is worth, and it still answers the
             // questions about how this track STARTS - which is what the chooser needs from the
@@ -260,11 +203,9 @@ const readBytes = async (
             });
             return { skipped: 'the download was not audio' };
         }
-        if (!isLocal) {
-            // The same write the audio bridge would have done after playback. Fetching once and
-            // feeding both is the whole reason a full read is allowed here at all.
-            await saveAudioBlob(getSongResourceCacheKey('audio', song), blob);
-        }
+        // The same write the audio bridge would have done after playback. Fetching once and
+        // feeding both is the whole reason a full read is allowed here at all.
+        await saveAudioBlob(getSongResourceCacheKey('audio', song), blob);
         return { bytes: await blob.arrayBuffer(), partial: false };
     } catch (error) {
         console.warn('[Automix] could not read a track for analysis', error);
@@ -279,7 +220,8 @@ const readBytes = async (
  * unsupported codec - must not be retried on every pass of the prefetcher.
  */
 export const ensureTrackProfile = async (request: ProfileRequest): Promise<void> => {
-    const songKey = getPlaybackAnalysisKey(request.song);
+    // Resolved together: the bytes read below must be the representation this key names.
+    const { key: songKey, representation } = getPlaybackAnalysisTarget(request.song);
     if (inFlight.has(songKey)) return;
     if (profiles.has(songKey) && !needsGrid(request, profiles.get(songKey))) return;
     inFlight.add(songKey);
@@ -310,7 +252,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 return;
             }
 
-            const result = await readBytes(request, Boolean(usable?.partial));
+            const result = await readBytes(request, representation, Boolean(usable?.partial));
             if ('skipped' in result) {
                 if (usable) {
                     remember(songKey, usable);
@@ -331,7 +273,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
             if (!wanted.has(songKey)) return;
 
-            const buffer = await decodeAtProfileRate(result.bytes);
+            const buffer = await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE);
             const channels = buffer ? toMidSide(buffer) : null;
             // The beat grid, from a model rather than autocorrelation, when this build has one. Asked
             // for here rather than inside `analyseTrack` because it is the impure step - it crosses
@@ -344,8 +286,17 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // answer to nobody. `runModel` records whether the model RUNS; what it then answers is
             // separate, and the profile records this one - see `TrackProfile.gridless`.
             const runModel = request.wantGrid && canRunBeatThis();
-            const grid = channels && runModel
-                ? await analyseBeatGrid(await melSpectrogramOffThread(channels.mid))
+            // Automix analyses minutes ahead of the transition, so the CPU may stand in for the GPU.
+            //
+            // A whole track goes through analysis/beatGrid.ts: read back if an earlier
+            // run already has it, joined if one is running it right now, kept for the next one otherwise.
+            // A head-only read neither uses nor stores one there: its profile describes the head, and so
+            // must its grid.
+            const mid = channels?.mid;
+            const grid = mid && runModel
+                ? result.partial
+                    ? await analyseBeatGrid(await melSpectrogramOffThread(mid), { cpuFallback: true })
+                    : await getTrackBeatGrid(songKey, async () => mid, { cpuFallback: true })
                 : null;
             const profile = buffer && channels
                 ? await analyseTrackOffThread(channels.mid, buffer.sampleRate, {

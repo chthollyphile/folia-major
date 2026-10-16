@@ -652,26 +652,16 @@ declare global {
   }
 
   /**
-   * One downloadable as the settings page sees it. `path` is null when it is not installed.
-   *
-   * Not all of them are models: `runtime` is the Python separation runs in, which is a different
-   * archive per platform and unpacks to a directory rather than landing as a file. It is in the
-   * same list because everything the page does with it - size, progress, install, remove - is the
-   * same, and the two differences it does have are the two fields below.
+   * One model file as the settings page sees it. `path` is null when it is not installed. Weights only:
+   * what runs them is compiled into the app, so there is nothing else to download.
    */
   interface ElectronAutomixModelEntry {
     name: string;
-    /** null on a platform with no build, where there is no archive to name. */
-    file: string | null;
+    file: string;
     bytes: number;
     /** Which capability this buys: the beat grid, or the stems. */
     enables: 'beatGrid' | 'stems';
     license: string;
-    /**
-     * False only for `runtime`, and only where no build exists for this OS and architecture -
-     * today that is Intel Macs. The row is still drawn; it offers no download.
-     */
-    supported: boolean;
     path: string | null;
     downloading: boolean;
   }
@@ -684,6 +674,8 @@ declare global {
      */
     manual: { links: Array<{ label: string; url: string; code?: string }>; note: string };
     downloadDir: string;
+    /** Bytes of an earlier version's models and Python runtime still on disk; "delete all" removes them too. */
+    leftoverBytes: number;
     models: ElectronAutomixModelEntry[];
   }
 
@@ -777,12 +769,25 @@ declare global {
         /** Resolves the OS path of a dropped File (File.path was removed in modern Electron). */
         getPathForFile: (file: File) => string;
       };
-      /** Beat This! inference in the main process. Null when the weights or runtime are absent. */
+      /** Beat This! on the CPU in the analysis worker - automix's fallback only. Null when the weights are absent. */
       runBeatThis?: (
         chunks: Array<{ data: Float32Array; frames: number }>,
       ) => Promise<{ beat: Float32Array[]; downbeat: Float32Array[] } | null>;
       /**
-       * htdemucs separation in the main process, for one window of one track at 44.1kHz.
+       * The WebGPU export of Beat This! (fp16 tensors + manifest, one file), read by the main process.
+       * final0 (automix's download) by default, the bundled small0 with 'beat_this_small'. Null when absent.
+       */
+      getBeatThisGpuWeights?: (model?: 'beat_this' | 'beat_this_small') => Promise<{
+        weights: Uint8Array<ArrayBuffer>;
+        manifest: import('./services/analysis/beatThisWgsl/runtime').BeatThisWgslManifest;
+      } | null>;
+      /**
+       * Automix switched on or off. While on, the analysis worker keeps htdemucs loaded across tracks;
+       * off releases it in that process. One-way.
+       */
+      setAutomixEnabled?: (enabled: boolean) => void;
+      /**
+       * htdemucs separation in the analysis worker, for one window of one track at 44.1kHz.
        * `other` is not returned - it is derived by subtraction so the stems sum to the mix exactly.
        */
       separateStems?: (

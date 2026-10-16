@@ -5,12 +5,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { zipSync } from 'fflate';
 
 // test/unit/electron/modelStore.test.ts
 // The two ways weights reach a listener - downloaded, or found on their own disk - and the one rule
 // both obey: nothing lands under the real filename until its sha256 matches. A truncated or
-// substituted ONNX does not fail loudly; it loads and answers confidently and wrongly, which for a
+// substituted model does not fail loudly; it loads and answers confidently and wrongly, which for a
 // beat grid means every transition is off the beat with nothing in the log to say why.
 //
 // Run against a real local HTTP server rather than a mocked fetch, because everything worth testing
@@ -20,38 +19,16 @@ import { zipSync } from 'fflate';
 const require = createRequire(import.meta.url);
 const { createModelStore } = require('../../../electron/analysis/modelStore.cjs');
 const manifest = require('../../../shared/modelManifest.json');
+const { LEGACY_RUNTIME_BIN } = require('../../../electron/analysis/modelPaths.cjs');
 
 const sha256 = (buffer: Buffer) => createHash('sha256').update(buffer).digest('hex');
 
-// Stand-in weights. Small on purpose - the real 83MB would make this suite slow to prove nothing
+// Stand-in weights. Small on purpose - the real 41MB would make this suite slow to prove nothing
 // extra, since every rule under test is about bytes matching a hash, not about how many there are.
 const goodBytes = Buffer.alloc(4096, 7);
 const wrongBytes = Buffer.alloc(4096, 9);
 
-/**
- * The runtime's stand-in: a real zip, because unpacking it is the behaviour under test.
- *
- * Two files and a nested one, which is the shape that matters - the interpreter lives at a path
- * the extractor has to create directories for, and getting that wrong yields a runtime folder with
- * no interpreter in it, which is precisely the state resolveRuntimeDir exists to refuse.
- */
-const RUNTIME_EXE = require('../../../electron/analysis/modelPaths.cjs').RUNTIME_BIN.join('/');
-const archiveBytes = Buffer.from(zipSync({
-    [RUNTIME_EXE]: new Uint8Array([1, 2, 3]),
-    'lib/thing.py': new Uint8Array([4, 5]),
-}));
-
 const model = manifest.models[0];
-/** Downloaded and verified exactly like a model, then unpacked instead of renamed into place. */
-const runtime = {
-    name: 'runtime',
-    file: 'runtime.zip',
-    unpack: 'runtime',
-    enables: 'stems',
-    license: 'test',
-    bytes: archiveBytes.length,
-    sha256: sha256(archiveBytes),
-};
 
 let root: string;
 let downloadDir: string;
@@ -73,13 +50,11 @@ beforeAll(async () => {
     manifest.models.length = 1;
     model.bytes = goodBytes.length;
     model.sha256 = sha256(goodBytes);
-    manifest.models.push(runtime);
 
     server = createServer((request, response) => {
         const mode = serve[request.url?.split('/')[1] ?? ''] ?? 'missing';
         if (mode === 'missing') { response.writeHead(404); response.end(); return; }
-        const wanted = request.url?.split('/').pop();
-        const body = mode !== 'good' ? wrongBytes : (wanted === runtime.file ? archiveBytes : goodBytes);
+        const body = mode !== 'good' ? wrongBytes : goodBytes;
         response.writeHead(200, { 'content-length': String(body.length) });
         response.end(body);
     });
@@ -150,70 +125,23 @@ describe('downloading a model', () => {
         expect(result.ok).toBe(false);
         expect(result.skipped).toHaveLength(2);
         // Not under the real name, and not as a .part either: resolveModelFile would find the
-        // first and report the model installed, handing onnxruntime a truncated graph.
+        // first and report the model installed, handing the runtime a truncated graph.
         expect(readdirSync(downloadDir)).toEqual([]);
     });
 
-    /**
-     * The runtime is not a file - it is 1400 of them, and what counts as installed is one
-     * interpreter deep inside the result. Everything up to the hash is shared with the models;
-     * only the last step differs, so this checks the last step.
-     */
-    it('unpacks an archive into a directory and throws the archive away', async () => {
-        serve = { down: 'good', up: 'good' };
-
-        const result = await makeStore().download('runtime');
-
-        expect(result.ok).toBe(true);
-        expect(result.path).toBe(path.join(downloadDir, 'runtime'));
-        expect(readFileSync(path.join(downloadDir, 'runtime', ...RUNTIME_EXE.split('/'))))
-            .toEqual(Buffer.from([1, 2, 3]));
-        expect(readFileSync(path.join(downloadDir, 'runtime', 'lib', 'thing.py')))
-            .toEqual(Buffer.from([4, 5]));
-        // The zip has done its job, and it is a third the size of what came out of it.
-        expect(readdirSync(downloadDir)).toEqual(['runtime']);
-    });
-
-    // Same rule the models get, and it matters more here: a half-extracted directory has an
-    // interpreter in it some of the time, so "the folder is there" would report installed on a
-    // download that never finished. The staging name is what keeps that from being reachable.
-    it('leaves no runtime directory behind when the archive does not verify', async () => {
-        serve = { down: 'wrong', up: 'wrong' };
-
-        const result = await makeStore().download('runtime');
-
-        expect(result.ok).toBe(false);
-        expect(readdirSync(downloadDir)).toEqual([]);
-    });
-
-    // The listener's own copy off a netdisk. Unpacked where it lies, and NOT consumed: the file is
-    // theirs, they may want it for another machine, and installing must not take it away.
-    it('installs an archive the listener already has without eating it', async () => {
-        const carried = path.join(elsewhere, 'runtime (1).zip');
-        writeFileSync(carried, archiveBytes);
-
-        const found = await makeStore().scan([elsewhere]);
-        expect(found.found.map((hit: { name: string }) => hit.name)).toContain('runtime');
-
-        const result = await makeStore().installLocal('runtime', carried);
-
-        expect(result.ok).toBe(true);
-        expect(existsSync(path.join(downloadDir, 'runtime', ...RUNTIME_EXE.split('/')))).toBe(true);
-        expect(existsSync(carried)).toBe(true);
-    });
 });
 
 describe('finding a model already on the machine', () => {
     // The netdisk route in one test. Browsers and netdisk clients rename downloads, so matching on
     // filename would miss the exact case this feature exists for.
     it('recognises the weights under a completely different name', async () => {
-        writeFileSync(path.join(elsewhere, 'beat_this (1).onnx.download'), goodBytes);
+        writeFileSync(path.join(elsewhere, 'beat_this-wgsl (1).bin.download'), goodBytes);
 
         const { found } = await makeStore().scan([elsewhere]);
 
         expect(found).toHaveLength(1);
         expect(found[0]).toMatchObject({ name: model.name });
-        expect(path.basename(found[0].path)).toBe('beat_this (1).onnx.download');
+        expect(path.basename(found[0].path)).toBe('beat_this-wgsl (1).bin.download');
     });
 
     it('is not fooled by a wrong file wearing the right name', async () => {
@@ -231,7 +159,7 @@ describe('finding a model already on the machine', () => {
     });
 
     it('installs by copying, so the listener keeps their own download', async () => {
-        const source = path.join(elsewhere, 'downloaded.onnx');
+        const source = path.join(elsewhere, 'downloaded.bin');
         writeFileSync(source, goodBytes);
 
         const result = await makeStore().installLocal(model.name, source);
@@ -242,7 +170,7 @@ describe('finding a model already on the machine', () => {
     });
 
     it('refuses to install a file that is not this model', async () => {
-        const source = path.join(elsewhere, 'wrong.onnx');
+        const source = path.join(elsewhere, 'wrong.bin');
         writeFileSync(source, wrongBytes);
 
         const result = await makeStore().installLocal(model.name, source);
@@ -251,27 +179,12 @@ describe('finding a model already on the machine', () => {
         expect(readdirSync(downloadDir)).toEqual([]);
     });
 
-    // Nothing missing, so nothing is walked - not one stat. The runtime has to be installed too
-    // for that to hold: the scan looks for whatever is absent, and it is absent one entry at a time.
+    // Nothing missing, so nothing is walked - not one stat.
     it('does not go looking once everything is already installed', async () => {
         writeFileSync(installed(), goodBytes);
-        const exe = path.join(downloadDir, 'runtime', ...RUNTIME_EXE.split('/'));
-        mkdirSync(path.dirname(exe), { recursive: true });
-        writeFileSync(exe, 'not really python');
-        writeFileSync(path.join(elsewhere, 'spare.onnx'), goodBytes);
+        writeFileSync(path.join(elsewhere, 'spare.bin'), goodBytes);
 
         expect(await makeStore().scan([elsewhere])).toEqual({ found: [], scanned: 0 });
-    });
-
-    // ...and it still walks when only one of the two is there, which is the ordinary state on a
-    // machine part way through setting this up.
-    it('still goes looking when the weights are in but the runtime is not', async () => {
-        writeFileSync(installed(), goodBytes);
-        writeFileSync(path.join(elsewhere, 'carried.zip'), archiveBytes);
-
-        const { found } = await makeStore().scan([elsewhere]);
-
-        expect(found.map((hit: { name: string }) => hit.name)).toEqual(['runtime']);
     });
 
     it('deletes the resolved copy wherever it is, not just the download directory', async () => {
@@ -288,24 +201,23 @@ describe('finding a model already on the machine', () => {
         expect(existsSync(path.join(elsewhere, model.file))).toBe(false);
     });
 
-    it('deletes a model under every name it resolves by, not just the first', async () => {
-        // htdemucs resolves as htdemucs-v2.onnx or the htdemucs.onnx older apps downloaded. Deleting
-        // only the first would leave the page saying installed off the second.
-        const htdemucs = { name: 'htdemucs', file: 'htdemucs-v2.onnx', enables: 'stems', license: 'test',
-            bytes: goodBytes.length, sha256: sha256(goodBytes) };
-        manifest.models.push(htdemucs);
-        try {
-            writeFileSync(path.join(downloadDir, 'htdemucs-v2.onnx'), goodBytes);
-            writeFileSync(path.join(downloadDir, 'htdemucs.onnx'), goodBytes);
+    // What an earlier version installed and this one cannot run: nothing resolves it, so nothing else
+    // would ever delete it. Freed, but not listed as a removed model - the page never showed it as one.
+    it('deletes an earlier version\'s models and Python runtime too', async () => {
+        writeFileSync(installed(), goodBytes);
+        writeFileSync(path.join(downloadDir, 'beat_this.onnx'), goodBytes);
+        writeFileSync(path.join(downloadDir, 'htdemucs-v2.onnx'), goodBytes);
+        const exe = path.join(downloadDir, 'runtime', ...LEGACY_RUNTIME_BIN);
+        mkdirSync(path.dirname(exe), { recursive: true });
+        writeFileSync(exe, goodBytes);
+        expect(makeStore().status().leftoverBytes).toBe(3 * goodBytes.length);
 
-            const result = await makeStore().removeAll();
+        const result = await makeStore().removeAll();
 
-            expect(result.removed).toEqual(['htdemucs']);
-            expect(result.freed).toBe(2 * goodBytes.length);
-            expect(readdirSync(downloadDir)).toEqual([]);
-        } finally {
-            manifest.models.pop();
-        }
+        expect(result.removed).toEqual([model.name]);
+        expect(result.freed).toBe(4 * goodBytes.length);
+        expect(readdirSync(downloadDir)).toEqual([]);
+        expect(makeStore().status().leftoverBytes).toBe(0);
     });
 
     it('sweeps up half-finished downloads, which nothing else ever would', async () => {
@@ -330,5 +242,5 @@ describe('finding a model already on the machine', () => {
     // On this platform `fsp.rm` clears the read-only attribute itself and deletes through an open
     // handle, both verified, and a directory under the model's filename is never resolved as
     // installed in the first place (resolveModelFile uses isFile). Faking it would mean mocking
-    // fs/promises out from under the thirteen tests above that depend on it being the real one.
+    // fs/promises out from under the tests above that depend on it being the real one.
 });

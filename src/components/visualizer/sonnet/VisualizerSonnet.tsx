@@ -10,6 +10,7 @@ import { useVisualizerPixiHost } from '../pixiRuntimeHost';
 import { useVisualizerRuntime } from '../runtime';
 import { useVisualizerSongCommit } from '../songHandover';
 import { useFoliumTunings } from '@/mods/folium/registries/tunings';
+import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import VisualizerShell from '../VisualizerShell';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import type {
@@ -62,6 +63,10 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     pausedRef.current = paused;
     const sonnetTuningRef = useRef(sonnetTuning);
     sonnetTuningRef.current = sonnetTuning;
+    // 智能动感模式 is one setting for every visualizer, so it is not part of the Sonnet tuning prop.
+    const smartBeatEnabled = useVisualizerSettingsStore(state => state.smartBeat.enabled);
+    const smartBeatEnabledRef = useRef(smartBeatEnabled);
+    smartBeatEnabledRef.current = smartBeatEnabled;
     const latestSongMetadataRef = useRef<SonnetSongMetadata>({
         title: songTitle,
         artist: songArtist,
@@ -148,6 +153,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                 program: song.program,
                 theme: song.theme,
                 tuning: sonnetTuningRef.current,
+                smartBeatEnabled: smartBeatEnabledRef.current,
                 currentTime,
                 audioPower,
                 audioBands,
@@ -164,6 +170,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
             runtime.setSongMetadata(latestSongMetadataRef.current);
             // The tuning may have moved on while Pixi was importing or initializing.
             runtime.setTuning(sonnetTuningRef.current);
+            runtime.setSmartBeatEnabled(smartBeatEnabledRef.current);
             // The pause state may have changed while Pixi was importing or initializing.
             runtime.setPaused(pausedRef.current);
             return runtime;
@@ -184,6 +191,10 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     useEffect(() => {
         runtimeRef.current?.setTuning(sonnetTuning);
     }, [sonnetTuning]);
+
+    useEffect(() => {
+        runtimeRef.current?.setSmartBeatEnabled(smartBeatEnabled);
+    }, [smartBeatEnabled]);
 
     useEffect(() => {
         runtimeRef.current?.setModulation(modulation);

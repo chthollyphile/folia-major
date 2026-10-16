@@ -198,6 +198,17 @@ jobs:
           APP_RELEASE_CHANNEL: realeco
         run: npm run build
 
+      # The analysis models' runtime is built from the pinned MNN source in build/beforePack.cjs
+      # (build/buildMnnRuntime.mjs; cmake and the platform's C++ compiler are on every hosted image).
+      # Cached because MNN is minutes of compile; the key covers everything the build reads.
+      - name: Cache MNN runtime build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/.mnn-src
+            build/mnn
+          key: mnn-${{ runner.os }}-${{ hashFiles('build/buildMnnRuntime.mjs', 'native/folia-mnn/**') }}
+
       - name: Package Electron app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false

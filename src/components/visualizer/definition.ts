@@ -203,6 +203,19 @@ export interface VisualizerRegistryEntry {
      * Modes without this field cannot be targeted by `registries.tunings`.
      */
     foliumTunables?: Readonly<Record<string, FoliumTunable>>;
+    /*
+     * True when this mode draws beat FX under 智能动感模式 (SmartBeatSettings): its own reader turns
+     * the shared `beatImpact` / `downbeatImpact` signals (services/beatFx) into its picture - Sonnet:
+     * sonnet/sonnetBeatFx.ts, Diorama: diorama/dioramaBeatRipples.ts. The beat clock runs, and the
+     * playing track's beats are analysed, only while the mode or the background on screen draws
+     * them (beatClockTargets.ts).
+     */
+    drawsBeatFx?: boolean;
+    /*
+     * False for a mode that never shows the shell background (Still), so a background's beat FX do
+     * not start the beat clock behind it. Unset means it does show it.
+     */
+    rendersBackground?: boolean;
 }
 
 export interface FoliumTunable {

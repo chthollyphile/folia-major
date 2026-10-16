@@ -9,7 +9,7 @@ const fs = require('fs');
 // apart the symptom was a settings page promising an engine the worker had no weights for, so they are one
 // function rather than two identical-looking ones.
 //
-// Resolved per FILE rather than per directory. The two models are separate downloads of 83MB and 166MB and
+// Resolved per FILE rather than per directory. The two models are separate downloads of 41MB and 190MB and
 // a build may still bundle one of them, so "beat_this from the user's folder, htdemucs from the installer"
 // is an ordinary state rather than a corner case.
 
@@ -17,120 +17,86 @@ const fs = require('fs');
 const MODEL_NAMES = ['beat_this', 'htdemucs'];
 
 /**
- * The file names a model may be installed under, current first. The current one is the manifest's
- * `file`, what a download writes.
+ * The file a model is installed under. One file per model, and the manifest's `file` - what a download
+ * writes.
  *
- * htdemucs changed files without changing models: htdemucs-v2.onnx has the STFT and iSTFT taken out of
- * the graph (build/htdemucs_cut_fft.py), and an app from before that cannot run it. A new file name is
- * what keeps those apps working - overwriting htdemucs.onnx on the mirrors would have failed every one
- * of their downloads on the hash. The old name still counts as installed here, because the runner
- * still runs it: a listener who already has it keeps separation, just without the speed-up.
+ * Both are new names, because both are new files an older app cannot run: htdemucs-v3.mnn is the
+ * MNN build of the model (build/htdemucs_mnn/make_model.py), and beat_this-wgsl.bin is the WebGPU export
+ * with its manifest packed in (packedWeights.cjs), which the CPU fallback reads too. Reusing an old
+ * name would have failed every older app's download on the hash.
  */
 const MODEL_FILES = {
-    beat_this: ['beat_this.onnx'],
-    htdemucs: ['htdemucs-v2.onnx', 'htdemucs.onnx'],
+    beat_this: 'beat_this-wgsl.bin',
+    htdemucs: 'htdemucs-v3.mnn',
+    beat_this_small: 'beat_this-small-wgsl.bin',
 };
+
+/**
+ * Models that ship inside the app rather than download: not in MODEL_NAMES (the settings page's list,
+ * and what `modelsPresent` answers), not in shared/modelManifest.json (what a download or "delete
+ * all" acts on). Resolved from the installer's own models directory ONLY: a pinned file has no
+ * business being replaced by one of the same name in a folder the listener chose, which nothing
+ * would hash-check.
+ *
+ * beat_this_small is the authors' small0 checkpoint (2.1M parameters against final0's 20M), exported
+ * like final0 with --f16 into one 4.7MB file. Not in git: packaging/beat-this-small pulls the pinned
+ * release into models/ at build time, and extraResources ships it. 智能动感模式 runs it, on
+ * the GPU only; automix keeps final0, and the CPU fallback never sees this file.
+ */
+const BUNDLED_MODEL_NAMES = ['beat_this_small'];
+
+/**
+ * What earlier versions installed and this one no longer runs: the ONNX models, and the Python runtime
+ * htdemucs ran in. Nothing resolves them any more, so nothing would ever delete them either - up to a
+ * few hundred MB per directory - and "delete all models" removes these too (modelStore.cjs removeAll).
+ *
+ * The files go by exact name. The runtime is a DIRECTORY named `runtime`, and the first directory
+ * searched is one the listener chose, so a folder of that name counts only with the interpreter the
+ * old build put inside it - never `rm -rf` on a name alone.
+ */
+const LEGACY_FILES = ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx'];
+const LEGACY_RUNTIME = 'runtime';
+/** Where the old build (build/buildPythonRuntime.mjs, removed) put the interpreter inside it. */
+const LEGACY_RUNTIME_BIN = process.platform === 'win32' ? ['python.exe'] : ['bin', 'python3'];
+
+/** The legacy files and runtime directories present in `dirs`, as paths. */
+const legacyLeftovers = (dirs) => dirs.filter(Boolean).flatMap((dir) => {
+    const files = LEGACY_FILES.map(name => path.join(dir, name))
+        .filter(file => fs.statSync(file, { throwIfNoEntry: false })?.isFile());
+    const runtime = path.join(dir, LEGACY_RUNTIME);
+    const isOldRuntime = fs.statSync(path.join(runtime, ...LEGACY_RUNTIME_BIN), { throwIfNoEntry: false })?.isFile();
+    return isOldRuntime ? [...files, runtime] : files;
+});
 
 /**
  * The first of `dirs` that actually holds this model, or null.
  *
  * Order is the caller's: the user's own directory first, then what the app downloaded, then what
- * the installer shipped. A file the user put somewhere deliberately outranks one we fetched, so the
- * directory order wins over the file names' - within one directory, the current file wins.
+ * the installer shipped. A file the user put somewhere deliberately outranks one we fetched.
  */
 const resolveModelFile = (dirs, name) => {
+    const fileName = MODEL_FILES[name];
+    if (!fileName) return null;
     for (const dir of dirs) {
         if (!dir) continue;
-        for (const fileName of MODEL_FILES[name] ?? [`${name}.onnx`]) {
-            const file = path.join(dir, fileName);
-            // isFile rather than existsSync: a DIRECTORY of that name passes existsSync, and the result is
-            // the settings page reporting the model installed while onnxruntime gets handed a folder.
-            // Unlikely, but it is the "answers confidently and wrongly" shape, which this subsystem has
-            // paid for enough times to spend one stat on.
-            if (fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return file;
-        }
+        const file = path.join(dir, fileName);
+        // isFile rather than existsSync: a DIRECTORY of that name passes existsSync, and the result is
+        // the settings page reporting the model installed while the runtime gets handed a folder.
+        // Unlikely, but it is the "answers confidently and wrongly" shape, which this subsystem has
+        // paid for enough times to spend one stat on.
+        if (fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return file;
     }
     return null;
 };
-
-// The Python runtime htdemucs separation needs - an optional download that lands as a `runtime/`
-// folder beside the model files, in the same directories, best first. htdemucs is the one model not
-// run over onnxruntime-node; the reason is at the top of htdemucs_runner.py. Everything else (beat_this)
-// ignores this entirely.
-const RUNTIME_NAME = 'runtime';
-/** Where the interpreter sits inside the runtime directory. Set by build/buildPythonRuntime.mjs. */
-const RUNTIME_BIN = process.platform === 'win32' ? ['python.exe'] : ['bin', 'python3'];
-
-/**
- * The installed runtime DIRECTORY, or null. Probed by the interpreter inside it, never by the
- * folder existing: a half-extracted archive leaves the folder there, and a runtime directory with
- * no interpreter in it would otherwise read as installed.
- */
-const resolveRuntimeDir = (dirs) => {
-    for (const dir of dirs) {
-        if (!dir) continue;
-        const home = path.join(dir, RUNTIME_NAME);
-        if (fs.statSync(path.join(home, ...RUNTIME_BIN), { throwIfNoEntry: false })?.isFile()) return home;
-    }
-    return null;
-};
-
-/** The runtime interpreter's path if a usable runtime is installed in one of `dirs`, else null. */
-const resolveRuntime = (dirs) => {
-    const home = resolveRuntimeDir(dirs);
-    return home && path.join(home, ...RUNTIME_BIN);
-};
-
-const runtimePresent = (dirs) => resolveRuntime(dirs) !== null;
 
 /**
  * `{ beat_this: true, htdemucs: false }` for the settings page. A few stats, nothing loaded.
  *
- * This answers "can the feature RUN", not "is the file there", and for htdemucs those are
- * different questions: the weights are useless without the interpreter that runs them, and that is
- * a separate download. Reporting the .onnx alone is how a machine with the model and no runtime
- * gets a settings page promising the full engine while every separation silently declines - the
- * exact failure this file's header is about, and it was live here until this line was written.
+ * The weights are all each feature needs now: the runtime that runs them is compiled into the app
+ * (native/folia-mnn), so "the file is there" and "the feature can run" are the same answer again.
  */
-const modelsPresent = (dirs) => Object.fromEntries(MODEL_NAMES.map(name => [
-    name,
-    resolveModelFile(dirs, name) !== null && (name !== 'htdemucs' || runtimePresent(dirs)),
-]));
-
-/** What a per-platform manifest entry is keyed by. Matches Electron's own two strings. */
-const PLATFORM = `${process.platform}-${process.arch}`;
-
-/**
- * The manifest's downloadables as they apply to THIS machine, with the platform variant folded in.
- *
- * The models are one file for everyone; the runtime is a different archive per platform and does
- * not exist for all of them. Rather than teach every caller that difference, a per-platform entry
- * comes back looking exactly like a plain one - same `file`, `bytes`, `sha256` - plus `supported`.
- *
- * Unsupported platforms are RETURNED, not filtered out, which is the whole point of the flag: the
- * settings page has to draw a row saying this machine cannot run separation. Dropping the entry
- * would leave it silently absent, and "the feature isn't offered" and "the feature isn't listed"
- * look identical to someone who came looking for it.
- */
-const downloadables = (manifest, platform = PLATFORM) => {
-    const resolved = manifest.models.map((entry) => {
-        if (!entry.platforms) return { ...entry, supported: true };
-        const { platforms, ...rest } = entry;
-        const variant = platforms[platform];
-        return variant ? { ...rest, ...variant, supported: true } : { ...rest, supported: false };
-    });
-
-    // A download is offered only when the thing it switches on can actually run here. The weights
-    // are one file for every platform, so htdemucs.onnx resolves fine where the runtime has no build - and is 108MB
-    // that will never separate anything, because the runtime it needs has no build for that machine.
-    // Offering it is the same lie as a settings page reporting an engine with no weights behind it,
-    // just told in the other direction. `enables` is what ties them: both entries buy `stems`, and
-    // neither is worth having without the other.
-    const blocked = new Set(resolved.filter(entry => !entry.supported).map(entry => entry.enables));
-    return resolved.map(entry => (blocked.has(entry.enables) ? { ...entry, supported: false } : entry));
-};
+const modelsPresent = (dirs) => Object.fromEntries(MODEL_NAMES.map(name => [name, resolveModelFile(dirs, name) !== null]));
 
 module.exports = {
-    MODEL_NAMES, MODEL_FILES, RUNTIME_NAME, RUNTIME_BIN, PLATFORM,
-    resolveModelFile, modelsPresent, resolveRuntime, resolveRuntimeDir, runtimePresent, downloadables,
+    MODEL_NAMES, MODEL_FILES, BUNDLED_MODEL_NAMES, LEGACY_FILES, LEGACY_RUNTIME_BIN, legacyLeftovers, resolveModelFile, modelsPresent,
 };

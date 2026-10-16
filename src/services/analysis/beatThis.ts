@@ -1,8 +1,11 @@
-import { modelCanRun, noteModelFailed } from './modelAvailability';
-import { fft } from './signalAnalysis';
-import { YIELD_BUDGET_MS, yieldToUi } from './uiYield';
+import { runBeatThisGpu, type BeatThisModel } from './beatThisGpu';
 
-// src/services/automix/beatThis.ts
+export type { BeatThisModel } from './beatThisGpu';
+import { modelCanRun, noteModelFailed } from './modelAvailability';
+import { fft } from '../automix/signalAnalysis';
+import { YIELD_BUDGET_MS, yieldToUi } from '../automix/uiYield';
+
+// src/services/analysis/beatThis.ts
 // The two halves of the Beat This! contract that are plain arithmetic: the mel spectrogram it
 // expects on its input, and the peak picking that turns its two logit tracks into times.
 //
@@ -43,13 +46,25 @@ const melToHz = (mel: number): number => {
     return 1000 * Math.exp((Math.log(6.4) / 27) * (mel - minLogMel));
 };
 
+/** One mel band: its weights over the FFT bins, and the range of bins where they are not zero. */
+interface MelBand {
+    weights: Float64Array;
+    start: number;
+    end: number;
+}
+
 /**
  * Triangular filterbank, built once and reused for every track.
  *
  * The triangles are laid out in HERTZ between mel-spaced corners, which is what torchaudio does -
  * not in the mel domain, where they would be symmetric. Same corners, different slopes.
+ *
+ * Each band also carries the bins it covers. A triangle is a few to a few dozen bins wide - 1004
+ * non-zero weights in the whole 128 x 513 matrix - and summing only those was most of the transform's
+ * time saved (710 -> 155 ms on a four-minute track, M4 Pro). The skipped terms are exact zeros, so
+ * the result is bit for bit what the full sum gave.
  */
-const buildFilterbank = (): Float64Array[] => {
+const buildFilterbank = (): MelBand[] => {
     const bins = N_FFT / 2 + 1;
     const melMin = hzToMel(F_MIN);
     const melMax = hzToMel(F_MAX);
@@ -67,11 +82,15 @@ const buildFilterbank = (): Float64Array[] => {
             const falling = right === centre ? 0 : (right - hz) / (right - centre);
             row[bin] = Math.max(0, Math.min(rising, falling));
         }
-        return row;
+        let start = 0;
+        while (start < bins && row[start] === 0) start += 1;
+        let end = bins;
+        while (end > start && row[end - 1] === 0) end -= 1;
+        return { weights: row, start, end };
     });
 };
 
-let filterbank: Float64Array[] | null = null;
+let filterbank: MelBand[] | null = null;
 /**
  * Periodic Hann, the STFT convention - `size`, not `size - 1`, in the denominator.
  *
@@ -148,9 +167,9 @@ export const melSpectrogram = async (mono: Float32Array): Promise<MelSpectrogram
             magnitude[bin] = Math.sqrt(real[bin] * real[bin] + imag[bin] * imag[bin]) * scale;
         }
         for (let band = 0; band < N_MELS; band += 1) {
-            const row = filterbank[band];
+            const { weights, start: from, end: to } = filterbank[band];
             let energy = 0;
-            for (let bin = 0; bin < magnitude.length; bin += 1) energy += magnitude[bin] * row[bin];
+            for (let bin = from; bin < to; bin += 1) energy += magnitude[bin] * weights[bin];
             data[frame * N_MELS + band] = Math.log1p(LOG_MULTIPLIER * Math.max(energy, AMIN));
         }
     }
@@ -420,10 +439,13 @@ export const gridFromBeats = (
  * should say so rather than appear broken), and the model's weights have to be on disk, which
  * `modelCanRun` answers.
  */
-export const canRunBeatThis = (): boolean =>
-    typeof window !== 'undefined'
-    && typeof window.electron?.runBeatThis === 'function'
-    && modelCanRun('beat_this');
+export const canRunBeatThis = (model: BeatThisModel = 'beat_this'): boolean => {
+    if (typeof window === 'undefined') return false;
+    // small0 ships inside the app and runs on the GPU only: the desktop bridge that hands its weights
+    // over is the whole question. A broken install that lost the file answers null at the first run.
+    if (model === 'beat_this_small') return typeof window.electron?.getBeatThisGpuWeights === 'function';
+    return typeof window.electron?.runBeatThis === 'function' && modelCanRun('beat_this');
+};
 
 /**
  * The whole Beat This! pass: spectrogram in, beat grid out.
@@ -440,20 +462,34 @@ export const canRunBeatThis = (): boolean =>
  * Verified against the official Python inference on thirty tracks from the user's own library:
  * beat and downbeat F-measure 1.0000, mean offset 0.00 ms, identical beat counts on every track.
  * If that ever stops being true, the cause is in the spectrogram or the chunking above, not here.
+ *
+ * `cpuFallback` says whether the CPU may take what the GPU could not, and it is off unless asked for.
+ * The CPU run (the analysis worker, MNN) is ~0.4-0.7 s a chunk against the GPU's ~0.06: fine for
+ * automix, which analyses a track minutes before its transition, and far too slow for anything that
+ * needs the grid while the track is already playing. Such a caller gets null and keeps its estimator.
  */
-export const analyseBeatGrid = async (mel: MelSpectrogram): Promise<BeatGrid | null> => {
-    const run = typeof window !== 'undefined' ? window.electron?.runBeatThis : undefined;
-    if (!canRunBeatThis() || typeof run !== 'function') return null;
+export const analyseBeatGrid = async (
+    mel: MelSpectrogram,
+    { cpuFallback = false, model = 'beat_this' }: { cpuFallback?: boolean; model?: BeatThisModel } = {},
+): Promise<BeatGrid | null> => {
+    if (!canRunBeatThis(model)) return null;
+    // The CPU worker only has final0; small0 is GPU or nothing, whatever the caller allows.
+    const run = model === 'beat_this' && cpuFallback && typeof window !== 'undefined' ? window.electron?.runBeatThis : undefined;
+    if (model === 'beat_this' && cpuFallback && typeof run !== 'function') return null;
 
     const chunks = splitForModel(mel);
     if (!chunks.length) return null;
 
-    const logits = await run(chunks.map(({ data, frames }) => ({ data, frames })));
+    // The renderer's own GPU first (beatThisGpu.ts); it answers null for whatever it cannot take - no
+    // export on disk, no usable device, a failed run - and those go to the CPU, if this caller allows it.
+    const request = chunks.map(({ data, frames }) => ({ data, frames }));
+    const logits = await runBeatThisGpu(request, model) ?? (run ? await run(request) : null);
     if (!logits || logits.beat.length !== chunks.length) {
         // Nothing usable came back. Not remembered as a failure - the same empty answer arrives when
         // the weights were just deleted or the worker was restarted under this request - so this only
-        // re-checks disk, and the caller falls back to its own estimator.
-        await noteModelFailed('beat_this');
+        // re-checks disk, and the caller falls back to its own estimator. (small0 is not a download:
+        // there is no disk state of it for the settings page to re-check.)
+        if (model === 'beat_this') await noteModelFailed('beat_this');
         return null;
     }
 

@@ -22,6 +22,7 @@ import {
 } from '../../types';
 import { colorWithAlpha } from './colorMix';
 import FontFallbackStackControl from './FontFallbackStackControl';
+import SmartBeatSettingsCard from './SmartBeatSettingsCard';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, type VisualizerRegistryEntry } from './registry';
 import { type VisPlaygroundEditSection } from './VisPlaygroundPreviewHotspots';
 import { FoliumTuningCards } from '@/mods/folium/registries/tunings';
@@ -721,6 +722,16 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                             />
                             {renderMissingFoliumHint('visualizer')}
                         </div>
+
+                        <SmartBeatSettingsCard
+                            t={t}
+                            isDaylight={isDaylight}
+                            theme={theme}
+                            controlCardBg={controlCardBg}
+                            rangeInputClass={rangeInputClass}
+                            onSliderPointerDown={onSliderPointerDown}
+                            onSliderCommit={onSliderCommit}
+                        />
 
                         {visualizerEntry.renderSettingsPanel?.({
                             t,

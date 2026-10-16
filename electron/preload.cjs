@@ -6,10 +6,16 @@ contextBridge.exposeInMainWorld('electron', {
       // resolve the OS path of a dropped file from the renderer.
       getPathForFile: (file) => webUtils.getPathForFile(file),
     },
-    // Beat This! inference. Returns null whenever the weights or the runtime are not there,
-    // which is the browser build's permanent answer and any desktop install missing the model.
+    // Beat This! on the CPU, automix's fallback when the renderer's GPU path cannot run. Returns null
+    // whenever the weights are not there, which is the browser build's permanent answer.
     runBeatThis: (chunks) => ipcRenderer.invoke('automix-beat-this', chunks),
+    // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
+    // 'beat_this_small' asks for the bundled small0 the beat FX run instead.
+    getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
+    // Whether automix is switched on. While it is, the analysis worker keeps htdemucs loaded; switching
+    // it off releases it. See electron/analysis/host.cjs.
+    setAutomixEnabled: (enabled) => ipcRenderer.send('automix-enabled', enabled === true),
     // Which weights exist, answered without loading them. See the handler for why the settings page
     // is not allowed to infer this from "am I running in Electron".
     getAutomixModelsPresent: () => ipcRenderer.invoke('automix-models-present'),

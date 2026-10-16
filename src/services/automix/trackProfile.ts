@@ -1,4 +1,4 @@
-import { gridFromBeats, type BeatGrid } from './beatThis';
+import { gridFromBeats, type BeatGrid } from '../analysis/beatThis';
 import { YIELD_BUDGET_MS, yieldToUi } from './uiYield';
 import {
     estimateDownbeat,
