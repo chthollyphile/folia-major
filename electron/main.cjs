@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
+const { createNowPlayingLauncher } = require('./nowPlayingLauncher.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -1837,6 +1838,8 @@ const STAGE_MODE_ENABLED_SETTING_KEY = 'STAGE_MODE_ENABLED';
 const STAGE_MODE_SOURCE_SETTING_KEY = 'STAGE_MODE_SOURCE';
 const STAGE_API_TOKEN_SETTING_KEY = 'STAGE_API_TOKEN';
 const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
+const NOW_PLAYING_AUTO_LAUNCH_SETTING_KEY = 'NOW_PLAYING_AUTO_LAUNCH';
+const NOW_PLAYING_EXECUTABLE_PATH_SETTING_KEY = 'NOW_PLAYING_EXECUTABLE_PATH';
 const OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY = 'OBS_BROWSER_SOURCE_ENABLED';
 const OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY = 'OBS_BROWSER_SOURCE_TOKEN';
 const OBS_BROWSER_SOURCE_PORT_SETTING_KEY = 'OBS_BROWSER_SOURCE_PORT';
@@ -2059,6 +2062,20 @@ const stageApi = createStageApi({
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
   getNeteasePort: () => neteaseBackend.getPort(),
 });
+
+// 舞台模式开启且来源是 Now Playing 时才需要它；判断与 stageApi 读同一组设置。
+const nowPlayingLauncher = createNowPlayingLauncher({
+  store,
+  enabledSettingKey: NOW_PLAYING_AUTO_LAUNCH_SETTING_KEY,
+  executablePathSettingKey: NOW_PLAYING_EXECUTABLE_PATH_SETTING_KEY,
+  shouldLaunch: () => Boolean(store.get(STAGE_MODE_ENABLED_SETTING_KEY)) && store.get(STAGE_MODE_SOURCE_SETTING_KEY) === 'now-playing',
+});
+
+const ensureNowPlayingRunning = () => {
+  void nowPlayingLauncher.ensureRunning().catch((error) => {
+    console.error('[NowPlaying] Failed to check or launch Now Playing.', error);
+  });
+};
 
 const lyricApi = createLyricApi({
   store,
@@ -5123,6 +5140,7 @@ app.whenReady().then(async () => {
     console.error('[OBS] Failed to start browser source server during app startup', error);
   }
   await lyricApi.start();
+  ensureNowPlayingRunning();
   ensureTray();
   // macOS wallpaper: create the controller once userData is available and recover a Dock left
   // auto-hidden by a crashed wallpaper session. Recovery is enqueued FIRST on the Dock op queue
@@ -5395,6 +5413,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
   if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isReservedAiCredentialKey(key)) {
     return getPublicSettings();
   }
+  // Now Playing 自动启动会执行这个路径上的程序：只能经 now-playing-launcher-* IPC（文件选择框）修改。
+  if (key === NOW_PLAYING_EXECUTABLE_PATH_SETTING_KEY || key === NOW_PLAYING_AUTO_LAUNCH_SETTING_KEY) {
+    return getPublicSettings();
+  }
   if (isAiCredentialKey(key)) {
     // Only a string is a key; '' is the explicit clear. Anything else must not wipe a saved key.
     if (typeof value === 'string') {
@@ -5603,6 +5625,7 @@ ipcMain.handle('save-settings', (event, key, value) => {
     void stageApi.syncStageModeState?.().catch((error) => {
       console.error('[Stage] Failed to sync Stage mode source setting', error);
     });
+    ensureNowPlayingRunning();
   }
 
   if (key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY) {
@@ -6185,7 +6208,43 @@ ipcMain.handle('stage-get-status', () => {
 });
 
 ipcMain.handle('stage-set-enabled', async (_event, enabled) => {
-  return stageApi.setStageEnabled(enabled);
+  const status = await stageApi.setStageEnabled(enabled);
+  ensureNowPlayingRunning();
+  return status;
+});
+
+ipcMain.handle('now-playing-launcher-get-status', createSenderGuardedHandler({
+  channel: 'now-playing-launcher-get-status',
+  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
+  handler: () => nowPlayingLauncher.getStatus(),
+}));
+
+ipcMain.handle('now-playing-launcher-set-enabled', async (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to toggle Now Playing auto-launch.');
+  }
+
+  return nowPlayingLauncher.setEnabled(enabled);
+});
+
+// 路径只从这里的文件选择框取，不接受渲染进程传入，避免把「启动任意程序」暴露给渲染层。
+ipcMain.handle('now-playing-launcher-choose-executable', async (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to choose the Now Playing executable.');
+  }
+
+  const currentPath = nowPlayingLauncher.getStatus().executablePath;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Now Playing',
+    defaultPath: currentPath || undefined,
+    properties: ['openFile'],
+    filters: [{ name: 'Now Playing', extensions: ['exe'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return nowPlayingLauncher.getStatus();
+  }
+
+  return nowPlayingLauncher.setExecutablePath(result.filePaths[0]);
 });
 
 ipcMain.handle('stage-regenerate-token', async () => {

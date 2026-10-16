@@ -114,6 +114,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-obs-browser-source",
   "obs-toggle-keep-main-window-animation",
   "desktop-toggle-lyric-api",
+  "desktop-toggle-now-playing-autolaunch",
   "settings-obs-copy-css",
   "settings-storage",
   "settings-media-cache",
