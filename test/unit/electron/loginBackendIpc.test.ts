@@ -21,6 +21,7 @@ const setup = () => {
     const qq = createBackend('qq');
     const runSelfCheck = vi.fn(async (options: Record<string, unknown>) => ({ providerId: options.providerId }));
     const resolveProxy = vi.fn(async () => 'DIRECT');
+    const isTrustedSender = vi.fn((event: { sender?: { id: number } }) => event?.sender?.id === 1);
     registerLoginBackendIpc({
         ipcMain,
         app: { getVersion: () => '0.7.14-test', getLocale: () => 'zh-CN' },
@@ -29,9 +30,13 @@ const setup = () => {
         neteaseBackend: netease,
         qqBackend: qq,
         runSelfCheck,
+        isTrustedSender,
     });
-    const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!({}, ...args);
-    return { handlers, invoke, netease, qq, runSelfCheck, resolveProxy };
+    // fail closed 之后，通道按 event.sender 的身份给数据：invoke 默认扮主窗（id=1）。
+    const trustedEvent = { sender: { id: 1 } };
+    const untrustedEvent = { sender: { id: 2 } };
+    const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(trustedEvent, ...args);
+    return { handlers, invoke, netease, qq, runSelfCheck, resolveProxy, isTrustedSender, untrustedEvent };
 };
 
 describe('login backend IPC', () => {
@@ -83,5 +88,41 @@ describe('login backend IPC', () => {
         await options.resolveSystemProxy('https://netease.example');
         expect(resolveProxy).toHaveBeenCalledWith('https://netease.example');
         await expect(invoke('run-login-self-check', 'kugou')).resolves.toBeNull();
+    });
+
+    it('fail closed: untrusted senders get no port, no status, no diagnostics and no restart', async () => {
+        const { handlers, netease, qq, untrustedEvent } = setup();
+        const invokeUntrusted = (channel: string, ...args: unknown[]) => handlers.get(channel)!(untrustedEvent, ...args);
+
+        expect(invokeUntrusted('get-netease-port')).toBeNull();
+        expect(invokeUntrusted('get-netease-api-status')).toBeNull();
+        expect(invokeUntrusted('get-qq-port')).toBeNull();
+        expect(invokeUntrusted('get-qq-api-status')).toBeNull();
+        expect(invokeUntrusted('get-login-diagnostics', 'qq')).toBeNull();
+        expect(invokeUntrusted('run-login-self-check', 'netease')).toBeNull();
+        // restart 是写通道：直接拒，且后端没有被触碰。
+        // ipcMain.handle 会把 handler 的异常变成 renderer 侧的 rejection；测试里是直接调用，断言同步抛错。
+        expect(() => invokeUntrusted('restart-netease-api')).toThrow(/Untrusted renderer/);
+        expect(netease.start).not.toHaveBeenCalled();
+        expect(qq.getPort).not.toHaveBeenCalled();
+    });
+
+    it('fail closed even harder: no isTrustedSender injected at all means everything is untrusted', async () => {
+        const handlers = new Map<string, (...args: any[]) => unknown>();
+        const ipcMain = { handle: vi.fn((channel: string, handler: (...args: any[]) => unknown) => handlers.set(channel, handler)) };
+        registerLoginBackendIpc({
+            ipcMain,
+            app: { getVersion: () => '0.7.14-test', getLocale: () => 'zh-CN' },
+            safeStorage: { isEncryptionAvailable: () => true },
+            getDefaultSession: () => ({ resolveProxy: vi.fn(async () => 'DIRECT') }),
+            neteaseBackend: createBackend('netease'),
+            qqBackend: createBackend('qq'),
+        });
+        const invokeUntrusted = (channel: string, ...args: unknown[]) => handlers.get(channel)!({ sender: { id: 1 } }, ...args);
+
+        // 没人注入判据时连"第一方窗口"也拿不到数据：宁可不工作，不静默放开。
+        expect(invokeUntrusted('get-qq-port')).toBeNull();
+        // ipcMain.handle 会把 handler 的异常变成 renderer 侧的 rejection；测试里是直接调用，断言同步抛错。
+        expect(() => invokeUntrusted('restart-netease-api')).toThrow(/Untrusted renderer/);
     });
 });
