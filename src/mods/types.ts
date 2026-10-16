@@ -14,6 +14,7 @@ export interface ModLabelMap {
     'zh-CN'?: string;
     'en'?: string;
     'in'?: string;
+    'vi'?: string;
 }
 
 /**

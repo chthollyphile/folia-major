@@ -66,6 +66,9 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
         if (lang?.startsWith('zh')) {
             return t('options.appLanguageZhCN');
         }
+        if (lang === 'vi' || lang?.startsWith('vi')) {
+            return t('options.appLanguageViVN') || 'Tiếng Việt';
+        }
         if (lang === 'in' || lang?.startsWith('id')) {
             return t('options.appLanguageInID') || 'Bahasa Indonesia';
         }
@@ -78,6 +81,7 @@ const GeneralSettingsSubview: React.FC<GeneralSettingsSubviewProps> = ({
         { value: 'system', label: t('options.appLanguageSystem') },
         { value: 'zh-CN', label: t('options.appLanguageZhCN') },
         { value: 'en', label: t('options.appLanguageEnUS') || 'English' },
+        { value: 'vi', label: t('options.appLanguageViVN') || 'Tiếng Việt' },
         { value: 'in', label: t('options.appLanguageInID') || 'Bahasa Indonesia' },
     ];
 
