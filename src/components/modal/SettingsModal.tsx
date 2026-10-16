@@ -123,6 +123,7 @@ interface SettingsModalProps {
     playerCapPlayers?: string[];
     obsBrowserSourceStatus?: ObsBrowserSourceStatus | null;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
+    onToggleObsBrowserSourceLanAccess?: (enabled: boolean) => Promise<void> | void;
     onRegenerateObsBrowserSourceToken?: () => Promise<void> | void;
     lyricApiStatus?: LyricApiStatus | null;
     onToggleLyricApi?: (enabled: boolean) => Promise<void> | void;
@@ -187,6 +188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     playerCapPlayers = [],
     obsBrowserSourceStatus = null,
     onToggleObsBrowserSource,
+    onToggleObsBrowserSourceLanAccess,
     onRegenerateObsBrowserSourceToken,
     lyricApiStatus = null,
     onToggleLyricApi,
@@ -1853,6 +1855,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                                     onRegenerateStageToken,
                                                     onStageSourceChange,
                                                     onToggleObsBrowserSource,
+                                                    onToggleObsBrowserSourceLanAccess,
                                                     onToggleStageMode,
                                                     setStageActionStatus,
                                                     setStageAddressCopied,

@@ -136,6 +136,12 @@ export const buildSettingsDialogModel = ({
                 await refreshObsBrowserSourceStatus?.();
             }
         },
+        onToggleObsBrowserSourceLanAccess: async (enabled) => {
+            const nextStatus = await window.electron?.setObsBrowserSourceLanAccess?.(enabled);
+            if (!nextStatus) {
+                await refreshObsBrowserSourceStatus?.();
+            }
+        },
         onRegenerateObsBrowserSourceToken: async () => {
             const nextStatus = await window.electron?.regenerateObsBrowserSourceToken?.();
             if (!nextStatus) {

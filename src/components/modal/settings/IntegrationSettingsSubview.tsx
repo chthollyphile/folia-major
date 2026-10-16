@@ -14,6 +14,7 @@ import { ObsCopyCssButton } from '../../shared/ObsCopyCssButton';
 import { resolveObsCopyHintKey } from '../../../services/obs/visualSettingsConfig';
 import type { LyricApiStatus } from '../../../types/lyricApi';
 import { SettingsAnchor } from './navigation/SettingsAnchorContext';
+import ObsLanAccessPanel from './ObsLanAccessPanel';
 import SettingsSectionHeading from './navigation/SettingsSectionHeading';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
@@ -45,6 +46,7 @@ export type IntegrationStageModel = {
     onRegenerateStageToken?: () => Promise<void> | void;
     onStageSourceChange?: (source: StageSource) => Promise<void> | void;
     onToggleObsBrowserSource?: (enabled: boolean) => Promise<void> | void;
+    onToggleObsBrowserSourceLanAccess?: (enabled: boolean) => Promise<void> | void;
     onToggleStageMode?: (enabled: boolean) => Promise<void> | void;
     playerCapConnectionStatus?: PlayerCapConnectionStatus;
     playerCapPlayers?: string[];
@@ -129,6 +131,7 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
         onRegenerateStageToken,
         onStageSourceChange,
         onToggleObsBrowserSource,
+        onToggleObsBrowserSourceLanAccess,
         onToggleStageMode,
         setStageActionStatus,
         setStageAddressCopied,
@@ -472,6 +475,15 @@ const IntegrationSettingsSubview: React.FC<IntegrationSettingsSubviewProps> = ({
                                         </button>
                                     </div>
                                 </div>
+
+                                <ObsLanAccessPanel
+                                    status={obsBrowserSourceStatus}
+                                    onToggle={onToggleObsBrowserSourceLanAccess}
+                                    onCopyText={onCopyText}
+                                    settingsCardClass={settingsCardClass}
+                                    toggleOffBackgroundClass={toggleOffBackgroundClass}
+                                    theme={theme}
+                                />
 
                                 <div className={`rounded-xl border p-3 flex items-center justify-between gap-4 ${settingsCardClass}`}>
                                     <div className="space-y-1">

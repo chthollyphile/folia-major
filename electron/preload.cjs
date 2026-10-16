@@ -184,6 +184,7 @@ contextBridge.exposeInMainWorld('electron', {
     },
     getObsBrowserSourceStatus: () => ipcRenderer.invoke('obs-browser-source-get-status'),
     setObsBrowserSourceEnabled: (enabled) => ipcRenderer.invoke('obs-browser-source-set-enabled', enabled),
+    setObsBrowserSourceLanAccess: (enabled) => ipcRenderer.invoke('obs-browser-source-set-lan-access', enabled),
     regenerateObsBrowserSourceToken: () => ipcRenderer.invoke('obs-browser-source-regenerate-token'),
     publishObsBrowserSourceConfig: (config) => ipcRenderer.invoke('obs-browser-source-publish-config', config),
     publishObsBrowserSourceClock: (clock) => ipcRenderer.invoke('obs-browser-source-publish-clock', clock),

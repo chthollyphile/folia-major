@@ -6,6 +6,12 @@ const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
+const {
+  resolveObsListenHost,
+  listLanIpv4Addresses,
+  buildObsLanUrls,
+  buildPublicObsStatus,
+} = require('./obsLanAccess.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -1783,6 +1789,8 @@ let remoteControlWindow = null;
 let appTray = null;
 let latestRemoteControlSnapshot = null;
 let obsBrowserSourceServer = null;
+// 当前服务实际绑定的地址；切换局域网访问时据此判断是否需要重启监听。
+let obsBrowserSourceListenHost = null;
 let latestObsBrowserSourceConfig = null;
 let latestObsBrowserSourceClock = null;
 let latestObsBrowserSourceAudio = null;
@@ -1840,6 +1848,7 @@ const STAGE_API_PORT_SETTING_KEY = 'STAGE_API_PORT';
 const OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY = 'OBS_BROWSER_SOURCE_ENABLED';
 const OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY = 'OBS_BROWSER_SOURCE_TOKEN';
 const OBS_BROWSER_SOURCE_PORT_SETTING_KEY = 'OBS_BROWSER_SOURCE_PORT';
+const OBS_BROWSER_SOURCE_LAN_ACCESS_SETTING_KEY = 'OBS_BROWSER_SOURCE_LAN_ACCESS';
 const LYRIC_API_ENABLED_SETTING_KEY = 'LYRIC_API_ENABLED';
 const DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY = 'DISCORD_RICH_PRESENCE_ENABLED';
 const MINIMIZE_TO_TRAY_SETTING_KEY = 'MINIMIZE_TO_TRAY';
@@ -1997,6 +2006,10 @@ function isObsBrowserSourceEnabled() {
   return Boolean(store.get(OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY));
 }
 
+function isObsBrowserSourceLanAccessEnabled() {
+  return Boolean(store.get(OBS_BROWSER_SOURCE_LAN_ACCESS_SETTING_KEY));
+}
+
 function getObsBrowserSourceToken({ generateIfMissing = false } = {}) {
   const existing = store.get(OBS_BROWSER_SOURCE_TOKEN_SETTING_KEY);
   if (typeof existing === 'string' && existing.trim()) {
@@ -2023,12 +2036,18 @@ function buildObsBrowserSourceUrl() {
 
 function buildObsBrowserSourceStatus() {
   const token = getObsBrowserSourceToken({ generateIfMissing: isObsBrowserSourceEnabled() });
+  const port = getConfiguredObsBrowserSourcePort();
+  const lanAccess = isObsBrowserSourceLanAccessEnabled();
+  // 只在服务真的监听在所有网卡上时给出局域网链接，避免设置刚切换、服务还没重启时展示连不上的地址。
+  const lanListening = Boolean(obsBrowserSourceServer) && obsBrowserSourceListenHost === resolveObsListenHost(true);
   return {
     enabled: isObsBrowserSourceEnabled(),
-    port: getConfiguredObsBrowserSourcePort(),
+    port,
     token,
     url: token ? buildObsBrowserSourceUrl() : null,
     clientCount: obsBrowserSourceClients.size,
+    lanAccess,
+    lanUrls: lanAccess && lanListening ? buildObsLanUrls({ addresses: listLanIpv4Addresses(), port, token }) : [],
   };
 }
 
@@ -4244,7 +4263,8 @@ async function handleObsBrowserSourceHttpRequest(req, res) {
   const pathname = requestUrl.pathname;
 
   if (pathname === '/obs/health' && req.method === 'GET') {
-    sendObsJson(res, 200, buildObsBrowserSourceStatus());
+    // health 不校验 token，只返回公开字段；完整状态（含 token）只经 IPC 给主窗口。
+    sendObsJson(res, 200, buildPublicObsStatus(buildObsBrowserSourceStatus()));
     return;
   }
 
@@ -4315,15 +4335,26 @@ async function startObsBrowserSourceServerIfNeeded() {
     });
   });
 
-  await new Promise((resolve, reject) => {
-    obsBrowserSourceServer.once('error', reject);
-    obsBrowserSourceServer.listen(getConfiguredObsBrowserSourcePort(), '127.0.0.1', () => {
-      obsBrowserSourceServer.off('error', reject);
-      resolve();
+  const listenHost = resolveObsListenHost(isObsBrowserSourceLanAccessEnabled());
+  const server = obsBrowserSourceServer;
+  try {
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(getConfiguredObsBrowserSourcePort(), listenHost, () => {
+        server.off('error', reject);
+        resolve();
+      });
     });
-  });
+  } catch (error) {
+    // 监听失败（例如端口被占用）时丢掉这个未启动的实例，否则之后的切换会误以为服务在运行。
+    if (obsBrowserSourceServer === server) {
+      obsBrowserSourceServer = null;
+    }
+    throw error;
+  }
+  obsBrowserSourceListenHost = listenHost;
 
-  console.log(`[OBS] Browser source listening on ${buildObsBrowserSourceUrl()}.`);
+  console.log(`[OBS] Browser source listening on ${listenHost}:${getConfiguredObsBrowserSourcePort()}.`);
   broadcastObsBrowserSourceStatus();
 }
 
@@ -4340,6 +4371,7 @@ async function stopObsBrowserSourceServer() {
 
   const server = obsBrowserSourceServer;
   obsBrowserSourceServer = null;
+  obsBrowserSourceListenHost = null;
   await new Promise((resolve) => {
     server.close(() => resolve());
   });
@@ -4348,6 +4380,11 @@ async function stopObsBrowserSourceServer() {
 
 async function syncObsBrowserSourceServerState() {
   if (isObsBrowserSourceEnabled()) {
+    const expectedHost = resolveObsListenHost(isObsBrowserSourceLanAccessEnabled());
+    if (obsBrowserSourceServer && obsBrowserSourceListenHost !== expectedHost) {
+      // 监听地址变了只能重新 listen；已连接的浏览器源会断开，EventSource 会自行重连。
+      await stopObsBrowserSourceServer();
+    }
     await startObsBrowserSourceServerIfNeeded();
   } else {
     await stopObsBrowserSourceServer();
@@ -6078,6 +6115,18 @@ ipcMain.handle('obs-browser-source-set-enabled', async (event, enabled) => {
 
   store.set(OBS_BROWSER_SOURCE_ENABLED_SETTING_KEY, Boolean(enabled));
   return syncObsBrowserSourceServerState();
+});
+
+ipcMain.handle('obs-browser-source-set-lan-access', async (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to change OBS browser source LAN access.');
+  }
+
+  store.set(OBS_BROWSER_SOURCE_LAN_ACCESS_SETTING_KEY, Boolean(enabled));
+  const status = await syncObsBrowserSourceServerState();
+  // 浏览器源关着时 sync 不会重启服务，也就不会广播；这里补一次，让设置页拿到新的开关状态。
+  broadcastObsBrowserSourceStatus();
+  return status;
 });
 
 ipcMain.handle('obs-browser-source-regenerate-token', (event) => {

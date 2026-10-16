@@ -32,6 +32,10 @@ export interface ObsBrowserSourceStatus {
     token: string | null;
     url: string | null;
     clientCount: number;
+    // Optional so a renderer paired with an older main process (or a test mock) still type-checks.
+    lanAccess?: boolean;
+    /** Tokenized LAN URLs, one per local IPv4 address; empty unless LAN access is on and listening. */
+    lanUrls?: string[];
 }
 
 export interface ObsBrowserSourceConfig {
