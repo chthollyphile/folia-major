@@ -37,7 +37,8 @@ const BravaisHomeExplore: React.FC<{
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
 }> = ({ chrome, online, account: accountController, isInteractive, onPlaySong, onOpenGridView }) => {
     const { t, i18n } = useTranslation();
-    const isOn = online.accountView === 'authenticated' && online.canUseExplore;
+    // 无账户的平台也有自己的推荐页（不依赖账号），所以 accountless 和已登录一样读这一页。
+    const isOn = (online.accountView === 'authenticated' || online.accountView === 'accountless') && online.canUseExplore;
     const providerId = online.providerId as OnlineProviderId;
     const accountId = String(online.user?.id ?? '');
     // 与网格的探索页（ExploreSurface）同一个页键：换平台、账户或语言就是另一页。
@@ -72,8 +73,9 @@ const BravaisHomeExplore: React.FC<{
         : online.accountView === 'resolving'
             ? t('home.loadingLibrary')
             // 无账户的平台：与网格对同一状态的说法相同（OnlineProviderAccountlessPanel 的标题）。
+            // 有推荐页的平台不写这一行，页面上有自己的内容。
             : online.accountView === 'accountless'
-                ? t('home.accountlessTitle', { provider: online.providerLabel })
+                ? (online.canUseExplore ? undefined : t('home.accountlessTitle', { provider: online.providerLabel }))
                 : items.length > 0
                     ? undefined
                     : !feed || feed.status === 'loading' ? t('playlist.loading') : wall.emptyText ?? t('home.exploreEmpty');

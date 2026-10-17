@@ -484,7 +484,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
             {/* Desktop Canvas Surface */}
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative">
-                {isOnlineTab && activeAccountView === 'accountless' ? (
+                {/* 无账户的平台不挡探索页：那一页是 provider 自己的推荐页，不需要账号（见下面 explore 分支，只看 canUseExplore）。 */}
+                {isOnlineTab && homeViewTab !== 'explore' && activeAccountView === 'accountless' ? (
                     <OnlineProviderAccountlessPanel
                         providerLabel={activeProviderLabel}
                         isDaylight={isDaylight}
