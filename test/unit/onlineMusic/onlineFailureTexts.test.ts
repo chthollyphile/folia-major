@@ -68,6 +68,17 @@ describe('the texts of the cases', () => {
         expect(onlineFailureMessage(failure({}), keys)).toEqual({ title: 'status.playbackFailed', note: 'failure.noteUnknown' });
         expect(onlineFailureMessage(failure({}, 'collection'), keys)).toEqual({ title: 'playlist.loadFailedPlain', note: 'failure.noteUnknown' });
     });
+
+    it('has a note in the three languages for every possible likely cause', () => {
+        const causes = ['sign-in', 'subscription', 'region'] as const;
+        const noteKeys = ['failure.noteMaybeSignIn', 'failure.noteMaybeSubscription', 'failure.noteMaybeRegion'];
+        for (const [cause, key] of causes.map((c, i) => [c, noteKeys[i]] as const)) {
+            expect(onlineFailureMessage(failure({ case: 'no-audio', likelyCause: cause }), keys).note).toBe(key);
+        }
+        // 每个「可能的原因」的 note key 在三份语言文件里都要有译文。
+        const missing = noteKeys.flatMap(key => [['zh-CN', zh], ['en', en], ['in', id]].filter(([, texts]) => !textOf(texts, key)).map(([name]) => `${key} in ${name}`));
+        expect(missing).toEqual([]);
+    });
 });
 
 describe('the quote', () => {

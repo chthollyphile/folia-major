@@ -1361,6 +1361,9 @@ export default {
     "noteRestartApp": "Restart Folia",
     "noteRetryLater": "Try again later",
     "noteSignIn": "Sign in again",
+    "noteMaybeSignIn": "Signing in may make it playable",
+    "noteMaybeSubscription": "A subscription may be required",
+    "noteMaybeRegion": "It may be region-restricted",
     "noteUnknown": "Unknown error",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
     "signIn": "Sign in"
