@@ -1,12 +1,13 @@
 import type { Line } from '../../types';
 
 // src/utils/lyrics/staffCredits.ts
-// 识别歌词开头的制作人员（staff / credits）块。
+// 识别制作人员（staff / credits）块：开头块走带标题容忍的开头检测，其余块由全曲扫描发现。
 // 这一层刻意不复用用户的通用过滤正则：通用过滤器是全曲、无条件的用户指令，
 // staff 识别则依赖内置词表 + 位置约束，两者语义不同，混用会互相破坏。
 
 // 词表来自实际歌词文件里出现过的署名字段，保持宽松；误伤主要靠下面的
-// “冒号 + 冒号前片段很短 + 只看开头块”三重约束来压制。
+// “冒号 + 冒号前片段很短 + 位置约束”三重约束来压制（位置约束见文件末尾：
+// 开头块两行起，不在开头的块三行起）。
 const STAFF_ROLE_KEYWORDS = [
     '作词', '作曲', '词', '曲', '编曲', '制作人', '演唱', '吉他', '贝斯', '混音', '母带', '录音',
     '监制', '出品', '策划', '统筹', '设计', '宣传', '运营', '总监', '鸣谢', '工作室', '版权', '发行',
@@ -105,6 +106,12 @@ export interface StaffCreditBlock {
     headerLineCount: number;
     /** 吸收进块的相邻行下标，升序；detectLeadingStaffBlock 恒为空，由 absorbAdjacentLines 填充。 */
     absorbedIndexes: number[];
+    /**
+     * 该块是否由 detectLeadingStaffBlock 产出（即真的位于歌词开头）。
+     * 由检测函数自己设置；策略层用它决定要不要吸收相邻短行 ——
+     * 不再自己重新判断一遍位置，那等于把「什么算开头」维护成两份实现。
+     */
+    fromLeading?: boolean;
 }
 
 // 只有符号、标点或装饰字符的短行（"#"、"//"、"---"），署名块之间常用来分隔。
@@ -122,7 +129,7 @@ export const isFillerLine = (line: Line): boolean => {
 //
 // 字段名放到 60 字符是因为双语署名很长（"斯瓦希里语顾问 Swahili Language Consultant"、
 // "印第安笛 Native American Flute / 排箫 Pan Flute / 盖那笛 Quena"），卡在 24 会把整条链
-// 从中间截断。放宽的安全边界不在长度上，而在这条规则本身只作用于开头块、必须紧邻词表
+// 从中间截断。放宽的安全边界不在长度上，而在这条规则必须紧邻词表
 // 命中、且块尾至少要连着两条——正文里的 "他说：我爱你" 三条都过不了。
 // 排除句读符号：字段名不会带句号问号，带了就是一句话。
 const COLON_SHAPED_REGEX = /^[^:：，。！？；…!?]{1,60}[:：]\s*\S/;
@@ -166,42 +173,25 @@ interface AcceptedLine {
     leadingFiller: number[];
 }
 
-export const detectLeadingStaffBlock = (
+/**
+ * 从 `start` 这一条词表命中行起，向后扩展出一个完整署名块。
+ * 这是 detectLeadingStaffBlock 与 detectStaffBlocks 共用的唯一扩展逻辑：
+ * 结构续接的准入条件、块尾孤立结构行的退回、单行块不处理，全都只在这里判一次。
+ */
+const expandStaffBlockFrom = (
     lines: Line[],
+    start: number,
     isStaffLine: (line: Line) => boolean,
     options: DetectStaffBlockOptions = {}
 ): StaffCreditBlock | null => {
-    const maxHeaderLines = options.maxHeaderLines ?? 2;
     const minStaffLines = options.minStaffLines ?? 2;
     const minDictionaryHits = options.minDictionaryHits ?? 2;
     const minTrailingStructuralRun = options.minTrailingStructuralRun ?? 2;
-    const meta = options.meta ?? {};
-
-    let cursor = 0;
-    let headerLineCount = 0;
-
-    while (cursor < lines.length && !isStaffLine(lines[cursor])) {
-        if (isFillerLine(lines[cursor])) {
-            cursor += 1;
-            continue;
-        }
-
-        if (headerLineCount >= maxHeaderLines || !isHeaderLike(lines[cursor], meta)) {
-            return null;
-        }
-
-        headerLineCount += 1;
-        cursor += 1;
-    }
-
-    if (cursor >= lines.length) {
-        return null;
-    }
 
     const accepted: AcceptedLine[] = [];
     let dictionaryHits = 0;
     let pendingFiller: number[] = [];
-    let scan = cursor;
+    let scan = start;
 
     while (scan < lines.length) {
         const line = lines[scan];
@@ -263,5 +253,96 @@ export const detectLeadingStaffBlock = (
         }
     }
 
-    return { staffIndexes, memberIndexes, firstLyricIndex, headerLineCount, absorbedIndexes: [] };
+    return { staffIndexes, memberIndexes, firstLyricIndex, headerLineCount: 0, absorbedIndexes: [] };
+};
+
+export const detectLeadingStaffBlock = (
+    lines: Line[],
+    isStaffLine: (line: Line) => boolean,
+    options: DetectStaffBlockOptions = {}
+): StaffCreditBlock | null => {
+    const maxHeaderLines = options.maxHeaderLines ?? 2;
+    const meta = options.meta ?? {};
+
+    let cursor = 0;
+    let headerLineCount = 0;
+
+    while (cursor < lines.length && !isStaffLine(lines[cursor])) {
+        if (isFillerLine(lines[cursor])) {
+            cursor += 1;
+            continue;
+        }
+
+        if (headerLineCount >= maxHeaderLines || !isHeaderLike(lines[cursor], meta)) {
+            return null;
+        }
+
+        headerLineCount += 1;
+        cursor += 1;
+    }
+
+    if (cursor >= lines.length) {
+        return null;
+    }
+
+    const block = expandStaffBlockFrom(lines, cursor, isStaffLine, options);
+    // fromLeading 由检测函数自己带上，而不是交给上层补：直接调用这个函数的代码
+    // 也能拿到正确的位置信息，策略层不会因为少一个字段而静默关掉吸收。
+    return block ? { ...block, headerLineCount, fromLeading: true } : null;
+};
+
+/**
+ * 全曲扫描：署名块不只在开头。
+ * 有的团体曲一开口就是歌词，把制作名单塞在中间的间奏里；有的干脆放在末尾致谢。
+ * 只认开头块的检测会让这些行被当成正文唱出来，所以这里按同样的块规则扫全曲。
+ *
+ * 与开头版共用 expandStaffBlockFrom，扩展规则一致：词表命中起头、结构续接、
+ * 块尾孤立结构行退回。差别有两点：起点可以从任意一行开始；不在开头的块
+ * 要求至少三行署名（见 nonLeadingOptions），因为在正文中间误判的代价是删掉歌词。
+ */
+export const detectStaffBlocks = (
+    lines: Line[],
+    isStaffLine: (line: Line) => boolean,
+    options: DetectStaffBlockOptions = {}
+): StaffCreditBlock[] => {
+    const blocks: StaffCreditBlock[] = [];
+
+    // 第一步仍走原来的开头检测：这样一来开头块的 headerLineCount、标题容忍、
+    // 返回值形状全部按构造保持一致，策略层不需要为「开头」再写第二套判断。
+    const leading = detectLeadingStaffBlock(lines, isStaffLine, options);
+    if (leading) {
+        blocks.push(leading);
+    }
+
+    // 第二步从开头块之后继续扫，没有开头块时从第 0 行开始。
+    // 起点接在已识别块之后，既不会重复处理同一个块，也不会漏掉紧跟其后的块。
+    let cursor = leading
+        ? leading.memberIndexes[leading.memberIndexes.length - 1] + 1
+        : 0;
+
+    // 不在开头的块要求更多署名行：同一段「字段＋冒号」出现在正文中间时，
+    // 误判的代价是删掉正在唱的那句歌词，比漏检一份名单更难被用户接受。
+    const nonLeadingOptions: DetectStaffBlockOptions = {
+        ...options,
+        minStaffLines: Math.max(options.minStaffLines ?? 2, 3),
+    };
+
+    while (cursor < lines.length) {
+        if (!isStaffLine(lines[cursor])) {
+            cursor += 1;
+            continue;
+        }
+
+        const block = expandStaffBlockFrom(lines, cursor, isStaffLine, nonLeadingOptions);
+        if (!block) {
+            cursor += 1;
+            continue;
+        }
+
+        blocks.push(block);
+        // 跳过整个块（含块内分隔符），否则块中间的分隔行会被当成新的起点再扫一遍。
+        cursor = block.memberIndexes[block.memberIndexes.length - 1] + 1;
+    }
+
+    return blocks;
 };

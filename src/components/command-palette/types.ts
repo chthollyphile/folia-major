@@ -352,7 +352,7 @@ export type CommandPaletteSettingsContext = {
     canOpenThemeQuickEditor: boolean;
     themeGenerationSource: ThemeGenerationSource;
     setThemeGenerationSource: (source: ThemeGenerationSource) => void;
-    /** 开头制作人员信息的处理策略；命令只负责在三态之间轮换。 */
+    /** 制作人员信息的处理策略；命令只负责在三态之间轮换。 */
     lyricStaffPolicy: LyricStaffPolicy;
     cycleLyricStaffPolicy: () => void;
     /** 署名块是否吸收相邻行；命令只负责在三态之间轮换。 */

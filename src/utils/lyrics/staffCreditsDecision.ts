@@ -42,14 +42,36 @@ export const resolveStaffDecision = (
         absorbedIndexes: block.absorbedIndexes,
     };
 
-    // 整首都是署名信息时没有“前奏”可言，也没有别的内容可显示，直接保留。
+    // 块后面没有正文行有两种情况，语义完全不同：
+    //
+    // 1) 整首都是署名：块从第一行开始，全曲没有别的内容可显示，保留是唯一合理选择。
+    // 2) 末尾致谢：前面有正文，只是名单排在最后。
+    //    它没有可以参照的下一句，窗口就是自己占的时长 —— 「放不放得下」在这里没有意义，
+    //    所以只按行距二选一：读得清就 keep，读不清就 hide。
+    //
+    // 注意 windowSeconds / requiredSeconds 在这条路径上只是报告值，不参与判定；
+    // 末尾块拿不到「下一句」，这两个数会自相矛盾（窗口可能大于需求却仍是 hide），
+    // 预览界面不应该用它给末尾块下结论。
     if (!firstLyric) {
         const lastLine = lines[lines.length - 1];
-        return {
-            ...base,
-            verdict: 'keep',
-            windowSeconds: Math.max(0, lastLine.endTime - windowStart),
-        };
+        const windowSeconds = Math.max(0, lastLine.endTime - windowStart);
+
+        // 用 fromLeading 而不是 memberIndexes[0] === 0：标题行或首行分隔符会让块
+        // 从第 1 行开始，那首歌其实只有标题 + 名单，同样应该保留。
+        // 另外这个判据不能随吸收模式翻转（before 会把标题吸进块，让下标变成 0）。
+        if (block.fromLeading) {
+            // 整首都是署名：没有别的内容可显示，这两个窗口数字只是报告值。
+            return { ...base, verdict: 'keep', windowSeconds, windowKind: 'whole-song' };
+        }
+
+        // 末尾块后面没有正文可以参照，窗口就是它自己占的那段时间，
+        // 「放不放得下」在这里没有意义：能摊开的空间和需要的时间永远一起变。
+        // 所以只看行距 —— 读得清就保留，读不清就整块藏掉。
+        // needsRetime 的第二个参数是可用的时间上界，这里传无穷大：末尾块没有后续行，
+        // 判定不该受解析器给末行补的默认时长影响；TAIL_MARGIN 同理不该算
+        // （那 1 秒是给「下一句」留的，末尾块没有下一句）。
+        const needsCompact = needsRetime(displayLines, Number.POSITIVE_INFINITY, minDwell);
+        return { ...base, verdict: needsCompact ? 'hide' : 'keep', windowSeconds, windowKind: 'tail' };
     }
 
     const windowSeconds = Math.max(0, firstLyric.startTime - windowStart);

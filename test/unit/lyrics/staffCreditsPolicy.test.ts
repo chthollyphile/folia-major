@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyLyricStaffPolicy, buildLyricStaffPreview } from '@/utils/lyrics/staffCreditsPolicy';
 import { parseLyricsByFormat } from '@/utils/lyrics/parserCore';
+import { detectStaffBlocks, createStaffCreditMatcher } from '@/utils/lyrics/staffCredits';
 import type { Line, LyricData } from '@/types';
 
 // test/unit/lyrics/staffCreditsPolicy.test.ts
@@ -382,5 +383,401 @@ describe('lyric staff credit absorption', () => {
         const lyrics = parse('[00:01.00]第一句歌词\n[00:04.00]第二句歌词');
 
         expect(buildLyricStaffPreview(lyrics, { absorbMode: 'both' }).decision.absorbedLineCount).toBe(0);
+    });
+});
+
+describe('staff credits outside the intro', () => {
+    // 《告白》那种排法：开头就是歌词，制作名单塞在中间的间奏里。
+    // 只认开头块的检测会把这些行当正文唱出来。
+    const MID_SONG = [
+        '[00:00.50]又到这一天 熟悉的地方',
+        '[00:07.01]颤抖的指尖 拨响了吉他',
+        '[00:25.91]',
+        '[00:27.03]作词：Siren',
+        '[00:30.35]作曲：Siren',
+        '[00:33.15]编曲：璐儿爷',
+        '[00:36.13]制作人：MusikM',
+        '[00:50.16]',
+        '[00:51.43]天明之前 陪我去银河',
+    ].join('\n');
+
+    it('finds a credit block that sits in the middle of the song', () => {
+        const lyrics = parse(MID_SONG);
+        const preview = buildLyricStaffPreview(lyrics, { policy: 'hide' });
+
+        expect(preview.decision.blockLineCount).toBe(4);
+        expect(preview.decision.staffIndexes).toEqual([2, 3, 4, 5]);
+    });
+
+    it('hides only the mid-song block and leaves both lyrics intact', () => {
+        const result = applyLyricStaffPolicy(parse(MID_SONG), { policy: 'hide' });
+
+        expect(texts(result)).toEqual([
+            '又到这一天 熟悉的地方',
+            '颤抖的指尖 拨响了吉他',
+            '天明之前 陪我去银河',
+        ]);
+    });
+
+    it('keeps the mid-song block untouched under the keep policy', () => {
+        const lyrics = parse(MID_SONG);
+        expect(texts(applyLyricStaffPolicy(lyrics, { policy: 'keep' }))).toContain('作词：Siren');
+    });
+
+    it('finds a credit block at the end of the song', () => {
+        // 非开头块要求至少三行署名，所以这里给三条：两行以下的名单不再被识别。
+        const lyrics = parse([
+            '[00:10.00]第一句歌词',
+            '[00:20.00]第二句歌词',
+            '[01:40.00]作词：X',
+            '[01:42.00]作曲：Y',
+            '[01:44.00]编曲：Z',
+        ].join('\n'));
+
+        const preview = buildLyricStaffPreview(lyrics, { policy: 'hide' });
+        expect(preview.decision.staffIndexes).toEqual([2, 3, 4]);
+        expect(texts(applyLyricStaffPolicy(lyrics, { policy: 'hide' }))).toEqual(['第一句歌词', '第二句歌词']);
+    });
+
+    it('does not treat a lone colon line inside the lyrics as a block', () => {
+        const lyrics = parse([
+            '[00:10.00]鼓起勇气：向前走',
+            '[00:20.00]他说：我爱你',
+            '[00:30.00]第三句',
+        ].join('\n'));
+
+        const preview = buildLyricStaffPreview(lyrics, { policy: 'hide' });
+        expect(preview.decision.verdict).toBe('none');
+        expect(texts(applyLyricStaffPolicy(lyrics, { policy: 'hide' }))).toEqual([
+            '鼓起勇气：向前走', '他说：我爱你', '第三句',
+        ]);
+    });
+});
+
+describe('staff credits outside the intro under the default smart policy', () => {
+    // 中间块：块首 27.03，块后第一句 51.43 → 窗口约 24 秒，够放七行。
+    const MID = [
+        '[00:00.50]又到这一天 熟悉的地方',
+        '[00:07.01]颤抖的指尖 拨响了吉他',
+        '[00:27.03]作词：Siren',
+        '[00:30.35]作曲：Siren',
+        '[00:33.15]编曲：璐儿爷',
+        '[00:36.13]制作人：MusikM',
+        '[00:51.43]天明之前 陪我去银河',
+    ].join('\n');
+
+    it('evaluates a mid-song block under smart instead of silently skipping it', () => {
+        const lyrics = parse(MID);
+        const preview = buildLyricStaffPreview(lyrics);
+
+        // 窗口 24.40 秒、需求 7.00 秒，够放且行距已经排得开 → keep。
+        expect(preview.decision.blockLineCount).toBe(4);
+        expect(preview.decision.verdict).toBe('keep');
+    });
+
+    it('never loses lyrics under smart, whatever the verdict is', () => {
+        const result = applyLyricStaffPolicy(parse(MID));
+        const texts = (result?.lines ?? []).map(line => line.fullText);
+
+        expect(texts).toContain('又到这一天 熟悉的地方');
+        expect(texts).toContain('颤抖的指尖 拨响了吉他');
+        expect(texts).toContain('天明之前 陪我去银河');
+    });
+
+    it('handles an end-of-song block whose firstLyricIndex is null', () => {
+        // 末尾块没有「之后的正文行」，firstLyricIndex 在这条路径上是 null，
+        // 旧实现只在「整首都是署名」时才遇到 null，这里要确认不会算出 NaN。
+        const lyrics = parse([
+            '[00:10.00]第一句歌词',
+            '[00:20.00]第二句歌词',
+            '[01:40.00]作词：X',
+            '[01:42.00]作曲：Y',
+            '[01:44.00]编曲：Z',
+        ].join('\n'));
+
+        const preview = buildLyricStaffPreview(lyrics);
+
+        expect(preview.decision.verdict).toBe('keep');
+        expect(Number.isFinite(preview.decision.windowSeconds)).toBe(true);
+        const texts = (applyLyricStaffPolicy(lyrics)?.lines ?? []).map(line => line.fullText);
+        expect(texts).toContain('第一句歌词');
+        expect(texts).toContain('第二句歌词');
+    });
+
+    it('keeps the previous lyric timing when a mid-song block is hidden', () => {
+        const raw = parse(MID);
+        const reference = raw!.lines.find(item => item.fullText === '颤抖的指尖 拨响了吉他')!;
+        const result = applyLyricStaffPolicy(raw, { policy: 'hide' });
+        const line = (result?.lines ?? []).find(item => item.fullText === '颤抖的指尖 拨响了吉他');
+
+        expect(line).toBeTruthy();
+        // 与未处理时同一行严格相等：块被摘掉不该改动前一句的结束时间。
+        expect(line!.endTime).toBeCloseTo(reference.endTime, 5);
+    });
+});
+
+describe('staff credits: verdicts that actually exercise the new paths', () => {
+    it('hides a mid-song block when its window is too small', () => {
+        // 四行署名挤在 1 秒内，后一句 1 秒后就到：窗口 1 秒 < 需求 7 秒 → hide。
+        const lyrics = parse([
+            '[00:00.00]第一句',
+            '[00:05.00]作词：A',
+            '[00:05.20]作曲：B',
+            '[00:05.40]编曲：C',
+            '[00:05.60]制作人：D',
+            '[00:06.00]第二句',
+        ].join('\n'));
+
+        const result = applyLyricStaffPolicy(lyrics, { policy: 'smart' });
+        const texts = (result?.lines ?? []).map(line => line.fullText);
+
+        expect(texts).toEqual(['第一句', '第二句']);
+    });
+
+    it('retimes a mid-song block whose lines are packed too tight', () => {
+        // 窗口 30 秒足够，但四行只隔 0.1 秒 → 必须重排，且结果要落在前后句之间。
+        const lyrics = parse([
+            '[00:00.00]第一句',
+            '[00:20.00]作词：A',
+            '[00:20.10]作曲：B',
+            '[00:20.20]编曲：C',
+            '[00:50.00]第二句',
+        ].join('\n'));
+
+        const result = applyLyricStaffPolicy(lyrics, { policy: 'smart' });
+        const lines = result?.lines ?? [];
+        const credits = lines.filter(line => line.fullText.includes('：'));
+
+        expect(credits.length).toBeGreaterThanOrEqual(3);
+        // 时间必须单调递增，且全部落在前一句与后一句之间。
+        credits.forEach((line, index) => {
+            if (index > 0) expect(line.startTime).toBeGreaterThan(credits[index - 1].startTime);
+            // 块首行 20 秒，下一句 50 秒；重排后必须落在这个区间里。
+            expect(line.startTime).toBeGreaterThanOrEqual(20);
+            expect(line.endTime).toBeLessThanOrEqual(49);
+        });
+        // 每行至少停留用户设定的 1.5 秒。
+        credits.forEach((line, index) => {
+            const end = index + 1 < credits.length ? credits[index + 1].startTime : line.endTime;
+            expect(end - line.startTime).toBeGreaterThanOrEqual(1.5);
+        });
+    });
+
+    it('processes two blocks that both need work in one pass', () => {
+        // 开头一个块（2 行，够开头门槛）、中间一个块（3 行），hide 下两块都要被摘掉。
+        const lyrics = parse([
+            '[00:00.00]歌名 - 歌手',
+            '[00:01.00]作词：A',
+            '[00:02.00]作曲：B',
+            '[00:03.00]第一句歌词',
+            '[00:20.00]作词：C',
+            '[00:20.20]作曲：D',
+            '[00:20.40]编曲：E',
+            '[00:40.00]第二句歌词',
+        ].join('\n'));
+
+        const result = applyLyricStaffPolicy(lyrics, { policy: 'hide' });
+        const texts = (result?.lines ?? []).map(line => line.fullText);
+
+        expect(texts).toContain('歌名 - 歌手');
+        expect(texts).toContain('第一句歌词');
+        expect(texts).toContain('第二句歌词');
+        expect(texts.some(text => text.includes('作词'))).toBe(false);
+    });
+
+});
+
+describe('staff credits: block boundaries', () => {
+    it('keeps two adjacent blocks as separate ranges', () => {
+        const lyrics = parse([
+            '[00:00.00]歌名 - 歌手',
+            '[00:01.00]作词：A',
+            '[00:02.00]作曲：B',
+            '[00:03.00]短句',
+            '[00:03.50]作词：C',
+            '[00:04.00]作曲：D',
+            '[00:04.50]编曲：E',
+            '[00:20.00]正文',
+        ].join('\n'));
+
+        const lines = lyrics!.lines;
+        const blocks = detectStaffBlocks(lines, createStaffCreditMatcher());
+
+        expect(blocks.length).toBe(2);
+        expect(blocks[0].fromLeading).toBe(true);
+        expect(blocks[1].fromLeading).toBeUndefined();
+
+        // 两个块的下标区间不能相交：否则隐藏第一个块会连带删掉第二个块的署名行。
+        const first = new Set(blocks[0].memberIndexes);
+        const overlap = blocks[1].memberIndexes.filter(index => first.has(index));
+        expect(overlap).toEqual([]);
+    });
+});
+
+describe('staff credits: absorb must not reach into another block', () => {
+    it('keeps both blocks intact under smart + both', () => {
+        // 审查推演过的场景：块 2 的前两行各只有 0.5 秒，算短行，
+        // 没有禁区时会被块 1 一路吸进来，随后随块 1 一起被删掉。
+        const lyrics = parse([
+            '[00:00.00]歌名 - 歌手',
+            '[00:01.00]作词：A',
+            '[00:02.00]作曲：B',
+            '[00:03.00]短句',
+            '[00:03.50]作词：C',
+            '[00:04.00]作曲：D',
+            '[00:04.50]编曲：E',
+            '[00:20.00]正文',
+        ].join('\n'));
+
+        const result = applyLyricStaffPolicy(lyrics, { policy: 'smart', absorbMode: 'both' });
+        const texts = (result?.lines ?? []).map(line => line.fullText);
+
+        // 标题行会被 both 模式吸收（这是 absorbAdjacentLines 的既有语义，不是本次改动），
+        // 真正要守住的是：块 2 的三行不能被块 1 吞掉后一起删除，正文也不能丢。
+        expect(texts).toEqual(['......', '作词：C', '作曲：D', '编曲：E', '正文']);
+    });
+});
+
+describe('staff credits: whole-song credits behind a title line', () => {
+    const withTitle = (head: string) => parse([
+        head,
+        '[00:01.00]作词：A',
+        '[00:02.00]作曲：B',
+        '[00:03.00]编曲：C',
+    ].join('\n'));
+
+    it('keeps the whole-song block when it starts after a title line', () => {
+        const preview = buildLyricStaffPreview(withTitle('[00:00.00]某首歌 - 某歌手'));
+
+        expect(preview.decision.verdict).toBe('keep');
+    });
+
+    it('keeps the whole-song block when it starts after a filler line', () => {
+        const preview = buildLyricStaffPreview(withTitle('[00:00.00]###'));
+
+        expect(preview.decision.verdict).toBe('keep');
+    });
+
+    it('does not flip the verdict with the absorb mode', () => {
+        const off = buildLyricStaffPreview(withTitle('[00:00.00]某首歌 - 某歌手'), { absorbMode: 'off' });
+        const before = buildLyricStaffPreview(withTitle('[00:00.00]某首歌 - 某歌手'), { absorbMode: 'before' });
+
+        expect(off.decision.verdict).toBe('keep');
+        expect(before.decision.verdict).toBe('keep');
+    });
+});
+
+describe('staff credits: end-of-song block verdicts', () => {
+    // 末尾块没有可以参照的下一句，判定只看行距：读得清 keep，读不清 hide。
+    // windowSeconds 在这条路径上只是报告值，不参与判定。
+    const tail = (rows: string[]) => parse([
+        '[00:10.00]第一句歌词',
+        '[00:20.00]第二句歌词',
+        ...rows,
+    ].join('\n'));
+
+    it('hides a densely packed end-of-song block', () => {
+        const preview = buildLyricStaffPreview(tail(['[01:00.00]作词：X', '[01:00.20]作曲：Y', '[01:00.40]编曲：Z']));
+        expect(preview.decision.verdict).toBe('hide');
+    });
+
+    // 末尾块按设计不做 retime：没有下一句可以把它摊开，重排只会把行推到块尾之外。
+
+    it('hides an end-of-song block whose spacing is still under the dwell floor', () => {
+        // 三条行距 1.0 秒：旧窗口规则会算出窗口 7.0 >= 需求 5.5 然后判 retime，
+        // 新规则只看行距（1.0 < 1.5）判 hide。这条能把规则变回去的改动拦住。
+        const preview = buildLyricStaffPreview(tail(['[01:00.00]作词：X', '[01:01.00]作曲：Y', '[01:02.00]编曲：Z']));
+        expect(preview.decision.verdict).toBe('hide');
+    });
+
+    it('keeps an end-of-song block that is already readable', () => {
+        const preview = buildLyricStaffPreview(tail(['[01:00.00]作词：X', '[01:03.00]作曲：Y', '[01:06.00]编曲：Z']));
+        expect(preview.decision.verdict).toBe('keep');
+    });
+});
+
+describe('staff credits: two credit runs separated by a filler line', () => {
+    it('merges them into one block without losing any credit line', () => {
+        // 块 1 后面紧跟一行 #（分隔符，会被块 1 的块尾逻辑收走），再往下一行就是块 2。
+        const lyrics = parse([
+            '[00:00.00]歌名 - 歌手',
+            '[00:01.00]作词：A',
+            '[00:02.00]作曲：B',
+            '[00:03.00]#',
+            '[00:03.50]作词：C',
+            '[00:04.00]作曲：D',
+            '[00:04.50]编曲：E',
+            '[00:20.00]正文',
+        ].join('\n'));
+
+        const blocks = detectStaffBlocks(lyrics!.lines, createStaffCreditMatcher());
+
+        // 中间只隔一个分隔符的连续署名会被并成一个块 —— 这是扩展规则本身的行为
+        // （词表命中就续接，# 只是块内分隔符），不是本次改动引入的。
+        // 要守住的是合并不丢行：五条署名行全部在块里，而且正文不受影响。
+        expect(blocks.length).toBe(1);
+        expect(blocks[0].staffIndexes).toEqual([1, 2, 4, 5, 6]);
+
+        const texts = (applyLyricStaffPolicy(lyrics, { policy: 'hide' })?.lines ?? []).map(line => line.fullText);
+        expect(texts).toContain('正文');
+        expect(texts.some(text => text.includes('作词'))).toBe(false);
+    });
+});
+
+describe('staff credits: per-block records for the preview layer', () => {
+    // 开头块和中间块都要摊开：预览层需要逐块判定，不能只拿合并后的摘要。
+    const TWO_RETIME = parse([
+        '[00:00.00]某首歌 - 某歌手',
+        '[00:01.00]作词 : A',
+        '[00:01.50]作曲 : B',
+        '[00:10.00]第一句歌词',
+        '[00:20.00]编曲 : C',
+        '[00:20.50]制作人 : D',
+        '[00:21.00]混音 : E',
+        '[00:40.00]第二句歌词',
+    ].join('\n'));
+
+    it('exposes one record per detected block instead of only a merged summary', () => {
+        const preview = buildLyricStaffPreview(TWO_RETIME);
+
+        expect(preview.blocks.map(entry => entry.decision.verdict)).toEqual(['retime', 'retime']);
+        expect(preview.blocks.map(entry => entry.decision.blockLineCount)).toEqual([2, 3]);
+        expect(preview.blocks.map(entry => entry.block.fromLeading === true)).toEqual([true, false]);
+    });
+
+    it('marks the tail block window as report-only', () => {
+        const preview = buildLyricStaffPreview(parse([
+            '[00:10.00]第一句歌词',
+            '[00:20.00]第二句歌词',
+            '[01:00.00]作词：X',
+            '[01:03.00]作曲：Y',
+            '[01:06.00]编曲：Z',
+        ].join('\n')));
+
+        expect(preview.decision.verdict).toBe('keep');
+        expect(preview.decision.windowKind).toBe('tail');
+    });
+
+    it('marks whole-song credits as their own window kind', () => {
+        const preview = buildLyricStaffPreview(parse([
+            '[00:00.00]某首歌 - 某歌手',
+            '[00:01.00]作词：X',
+            '[00:05.00]作曲：Y',
+            '[00:09.00]编曲：Z',
+        ].join('\n')));
+
+        expect(preview.decision.verdict).toBe('keep');
+        expect(preview.decision.windowKind).toBe('whole-song');
+    });
+
+    it('keeps normal window decisions comparable', () => {
+        const preview = buildLyricStaffPreview(parse([
+            '[00:00.00]作词：X',
+            '[00:05.00]作曲：Y',
+            '[00:40.00]第一句歌词',
+        ].join('\n')));
+
+        expect(preview.decision.verdict).toBe('keep');
+        expect(preview.decision.windowKind).toBeUndefined();
     });
 });
