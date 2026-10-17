@@ -12,6 +12,10 @@
 // NOT try to tell those apart with a session-long "declined" latch - see `modelCanRun` for why that
 // latch was removed and what replaced it. Presence heals when a download lands, so it is re-asked.
 //
+// Since 2026-10-17 the weights ship inside the installer again (electron/analysis/modelPaths.cjs), so
+// in a packaged build every answer is true; false is a checkout without the files, or an install
+// missing one. The download history above is why the question is still asked rather than assumed.
+//
 // A leaf on purpose - it imports nothing from the app. beatThis.ts and stems.ts both read it, and
 // stems.ts already imports beatThis.ts, so anything shared between them has to sit below both.
 

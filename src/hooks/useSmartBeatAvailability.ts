@@ -6,7 +6,7 @@ import { probeBeatThisGpu } from '../services/analysis/beatThisGpu';
 // install, for a setting to say so next to its switch. The switch itself stays usable either way - it
 // is a preference - but a switch that is on and silently inert is the failure this is here to prevent.
 //
-// The model (small0) ships with the desktop app, so there is no "not downloaded" state: what can be
+// The model (Beat This! final0, shared with automix) ships with the desktop app, so there is no "not downloaded" state: what can be
 // missing is the desktop bridge (the web build) or a GPU that hands out an adapter.
 
 export type SmartBeatAvailability = 'ready' | 'desktopOnly' | 'noGpu';

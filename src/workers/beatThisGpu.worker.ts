@@ -6,7 +6,7 @@ import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/ht
 // src/workers/beatThisGpu.worker.ts
 // Beat This! on the renderer's own GPU, beside the visualizer, from a thread that does not paint.
 //
-// The worker owns its WebGPU device and the models built on it - final0 for automix, small0 for the
+// The worker owns its WebGPU device and the models built on it - Beat This! final0 for automix and the
 // beat FX, htdemucs for the beat FX's drum stem, each built the first time it is loaded - and answers
 // these messages: 'separate' (one htdemucs segment, stereo in, the drum stem out), 'load' (a model's
 // weights and manifest, transferred in once), 'run' (a model's mel chunks of up to 1500 frames, logits back;
@@ -23,7 +23,7 @@ import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/ht
 // Any failure is reported back and the caller drops this worker: a lost device or a failed
 // pipeline leaves nothing here worth keeping, and a fresh worker is the clean way to try again.
 
-type ModelName = 'beat_this' | 'beat_this_small';
+type ModelName = 'beat_this';
 
 type Request =
     | { id: number; kind: 'load'; model: ModelName; weights: Uint8Array<ArrayBuffer>; manifest: BeatThisWgslManifest }

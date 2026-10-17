@@ -9,60 +9,43 @@ const fs = require('fs');
 // apart the symptom was a settings page promising an engine the worker had no weights for, so they are one
 // function rather than two identical-looking ones.
 //
-// Resolved per FILE rather than per directory. The models are separate downloads of 41MB, 190MB and 92MB and
-// a build may still bundle one of them, so "beat_this from the user's folder, htdemucs from the installer"
-// is an ordinary state rather than a corner case.
+// Both models ship inside the installer now, and are read from its models directory alone: Beat This!
+// final0 and htdemucs, each as its WebGPU export, which the renderer's GPU runtime and the worker's MNN
+// both read. Nothing is downloaded any more; what earlier versions downloaded is deleted
+// (removeDownloadedLeftovers).
 
-/**
- * Every model this app knows how to run. The order is the order the settings page lists them in.
- *
- * htdemucs_gpu is the same htdemucs as htdemucs, exported for the renderer's WebGPU runtime
- * (build/htdemucs_wgsl/export_weights.py, src/services/analysis/htdemucsWgsl): the drum stem behind
- * 智能动感模式, GPU only. Its own download because the CPU model is an MNN graph whose weights no
- * other runtime can read, and the beat FX must not need automix's 190MB to get its 92MB.
- */
+/** Every model this app runs. modelsPresent answers for each. */
 const MODEL_NAMES = ['beat_this', 'htdemucs', 'htdemucs_gpu'];
 
 /**
- * The file a model is installed under. One file per model, and the manifest's `file` - what a download
- * writes.
- *
- * Both are new names, because both are new files an older app cannot run: htdemucs-v3.mnn is the
- * MNN build of the model (build/htdemucs_mnn/make_model.py), and beat_this-wgsl.bin is the WebGPU export
- * with its manifest packed in (packedWeights.cjs), which the CPU fallback reads too. Reusing an old
- * name would have failed every older app's download on the hash.
+ * The file a model is under. htdemucs (automix's stems, on the CPU) and htdemucs_gpu (智能动感模式's
+ * drum stem, on the GPU) are one file: native/folia-mnn/folia_htdemucs.cpp builds the CPU network over
+ * the same tensors the GPU runs (build/htdemucs_wgsl/export_weights.py). Two names because the renderer
+ * asks after each feature's engine; the answer is the same file. Beat This! is final0, exported with
+ * --f16 (build/beat_this_wgsl/export_weights.py), which the CPU fallback reads too
+ * (folia_beat_this.cpp); 智能动感模式 and automix share it and its stored beat lists.
  */
 const MODEL_FILES = {
     beat_this: 'beat_this-wgsl.bin',
-    htdemucs: 'htdemucs-v3.mnn',
+    htdemucs: 'htdemucs-wgsl.bin',
     htdemucs_gpu: 'htdemucs-wgsl.bin',
-    beat_this_small: 'beat_this-small-wgsl.bin',
 };
 
 /**
- * Models that ship inside the app rather than download: not in MODEL_NAMES (the settings page's list,
- * and what `modelsPresent` answers), not in shared/modelManifest.json (what a download or "delete
- * all" acts on). Resolved from the installer's own models directory ONLY: a pinned file has no
- * business being replaced by one of the same name in a folder the listener chose, which nothing
- * would hash-check.
- *
- * beat_this_small is the authors' small0 checkpoint (2.1M parameters against final0's 20M), exported
- * like final0 with --f16 into one 4.7MB file. Not in git: packaging/beat-this-small pulls the pinned
- * release into models/ at build time, and extraResources ships it. 智能动感模式 runs it, on
- * the GPU only; automix keeps final0, and the CPU fallback never sees this file.
- */
-const BUNDLED_MODEL_NAMES = ['beat_this_small'];
-
-/**
- * What earlier versions installed and this one no longer runs: the ONNX models, and the Python runtime
- * htdemucs ran in. Nothing resolves them any more, so nothing would ever delete them either - up to a
- * few hundred MB per directory - and "delete all models" removes these too (modelStore.cjs removeAll).
+ * What earlier versions downloaded into userData/models and this one never reads: the ONNX models,
+ * the Python runtime htdemucs ran in, the MNN htdemucs (htdemucs-v3.mnn), and the two exports this
+ * version ships itself (it reads the installer's copies). Up to a few hundred MB, deleted at startup
+ * (removeDownloadedLeftovers) - from that directory only, never the installer's models directory,
+ * which holds this version's own beat_this-wgsl.bin and htdemucs-wgsl.bin.
  *
  * The files go by exact name. The runtime is a DIRECTORY named `runtime`, and the first directory
  * searched is one the listener chose, so a folder of that name counts only with the interpreter the
  * old build put inside it - never `rm -rf` on a name alone.
  */
-const LEGACY_FILES = ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx'];
+const LEGACY_FILES = [
+    'beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx',
+    'htdemucs-v3.mnn', 'beat_this-wgsl.bin', 'htdemucs-wgsl.bin', 'beat_this-small-wgsl.bin',
+];
 const LEGACY_RUNTIME = 'runtime';
 /** Where the old build (build/buildPythonRuntime.mjs, removed) put the interpreter inside it. */
 const LEGACY_RUNTIME_BIN = process.platform === 'win32' ? ['python.exe'] : ['bin', 'python3'];
@@ -77,10 +60,27 @@ const legacyLeftovers = (dirs) => dirs.filter(Boolean).flatMap((dir) => {
 });
 
 /**
+ * Deletes the legacy files and runtime in `dir` (the userData download directory) and resolves to
+ * `{ removed, bytes }`. Rejects on the first that will not go; the next launch tries again.
+ *
+ * @param dir userData/models - never the installer's models directory (see LEGACY_FILES)
+ */
+const removeDownloadedLeftovers = async (dir) => {
+    const removed = [];
+    let bytes = 0;
+    for (const leftover of legacyLeftovers([dir])) {
+        const stat = await fs.promises.stat(leftover);
+        bytes += stat.isFile() ? stat.size : 0;
+        await fs.promises.rm(leftover, { recursive: true, force: true });
+        removed.push(leftover);
+    }
+    return { removed, bytes };
+};
+
+/**
  * The first of `dirs` that actually holds this model, or null.
  *
- * Order is the caller's: the user's own directory first, then what the app downloaded, then what
- * the installer shipped. A file the user put somewhere deliberately outranks one we fetched.
+ * In practice one directory, the installer's; a list so a dev checkout's models/ resolves the same way.
  */
 const resolveModelFile = (dirs, name) => {
     const fileName = MODEL_FILES[name];
@@ -98,13 +98,14 @@ const resolveModelFile = (dirs, name) => {
 };
 
 /**
- * `{ beat_this: true, htdemucs: false }` for the settings page. A few stats, nothing loaded.
+ * `{ beat_this: true, htdemucs: true, htdemucs_gpu: true }`: a few stats, nothing loaded. False only
+ * in a build or checkout without the files (a dev checkout before `npm run models:fetch`).
  *
- * The weights are all each feature needs now: the runtime that runs them is compiled into the app
- * (native/folia-mnn), so "the file is there" and "the feature can run" are the same answer again.
+ * The weights are all each feature needs: the runtime that runs them is compiled into the app
+ * (native/folia-mnn), so "the file is there" and "the feature can run" are the same answer.
  */
 const modelsPresent = (dirs) => Object.fromEntries(MODEL_NAMES.map(name => [name, resolveModelFile(dirs, name) !== null]));
 
 module.exports = {
-    MODEL_NAMES, MODEL_FILES, BUNDLED_MODEL_NAMES, LEGACY_FILES, LEGACY_RUNTIME_BIN, legacyLeftovers, resolveModelFile, modelsPresent,
+    MODEL_NAMES, MODEL_FILES, LEGACY_FILES, LEGACY_RUNTIME_BIN, legacyLeftovers, removeDownloadedLeftovers, resolveModelFile, modelsPresent,
 };

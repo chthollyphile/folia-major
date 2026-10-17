@@ -1,14 +1,15 @@
 # Automix — 两个模型的改动
 
-本目录用到两个神经网络：拍点检测 `beat_this-wgsl.bin` 与人声分离 `htdemucs-v3.mnn`。
+本目录用到两个神经网络：拍点检测 `beat_this-wgsl.bin` 与人声分离 `htdemucs-wgsl.bin`。
 
-（智能动感模式用的是另一个更小的拍点模型 small0，`beat_this-small-wgsl.bin`，随应用打包、只走 GPU，与 automix 互不共用结果；见 `../analysis/README.md`。）
-两者都不进安装包，由设置页按需下载（清单见 `shared/modelManifest.json`，下载与校验在
-`electron/analysis/`）。运行它们的 MNN 编进 app（`native/folia-mnn`，`build/buildMnnRuntime.mjs`），
-不再有运行时下载。
+两个文件都随安装包发布（`resources/models`，共 133 MB），不再下载（2026-10-17 起；清单
+`shared/modelManifest.json` 只给打包时按 sha256 校验用，`build/fetchModels.mjs`）。每个文件两种运行时
+都读：渲染进程的 WebGPU，和分析 worker 里编进 app 的 MNN（`native/folia-mnn`，`build/buildMnnRuntime.mjs`）。
+智能动感模式也用这两个文件：拍点和 automix 共用同一个 final0、同一份存盘结果（原先的 small0 已去掉），
+鼓点用 htdemucs 的 GPU 版。旧版下载到 userData/models 的模型文件，启动时自动删掉。
 
 **结论：`beat_this-wgsl.bin` 是作者原版 final0 检查点的导出（权重值未改，只做 BN 折叠和 fp16 存储，
-见 §1）；`htdemucs-v3.mnn` 在 Meta 原版上叠了 §2 的各层改动，再改写成 MNN 图（§2.5）。**
+见 §1）；`htdemucs-wgsl.bin` 是 §2 ④ 之后那份 ONNX 的权重原样导出（§2.6），CPU 上由 MNN 照它手写网络（§2.7）。**
 §2 里 ⑤ 之前的数字和 §4 的 Python 部分是上一版（onnxruntime + Python）的记录，留作来历。
 
 | | beat_this | htdemucs |
@@ -16,9 +17,9 @@
 | 上游 | [mosynthkey/beat_this_cpp](https://github.com/mosynthkey/beat_this_cpp) | [itamiArika/htdemucs-int8-memory](https://huggingface.co/itamiArika/htdemucs-int8-memory) |
 | 原始作者 | CPJKU，ISMIR 2024 | Meta Research |
 | 授权 | MIT | MIT |
-| 下载体积 | 41.1 MB | 189.7 MB |
+| 安装包内体积 | 41.1 MB | 91.8 MB |
 | 本仓库改过吗 | 导出格式（`build/beat_this_wgsl/export_weights.py`） | **改过，见 §2** |
-| 跑在哪 | 渲染进程 WebGPU（自写 WGSL）；automix 可退到分析 worker 的 MNN CPU | 分析 worker 进程内 MNN，CPU，fp32 |
+| 跑在哪 | 渲染进程 WebGPU（自写 WGSL）；automix 可退到分析 worker 的 MNN CPU | automix 的四轨：分析 worker 进程内 MNN，CPU，fp32 计算；智能动感的鼓轨：渲染进程 WebGPU |
 
 ---
 
@@ -135,7 +136,9 @@ ORT 1.23.2 为 122.0 dB，Intel 运行时包经 Rosetta（x86_64）为 121.8 dB�
 
 ---
 
-### 2.5 改写成 MNN 图 —— 本仓库所做
+### 2.5 改写成 MNN 图 —— 本仓库所做（已被 §2.7 取代）
+
+（2026-10-17 起不再使用：`htdemucs-v3.mnn` 和生成它的 `make_model.py` 已删，见 git 历史。下面留作来历。）
 
 `build/htdemucs_mnn/make_model.py`，从旧版 `htdemucs.onnx`（sha256 099b5be7…，也就是 ④ 之后、⑤ 之前那份）出发：
 STFT/iSTFT 的 DFT 改成两级 64×64 矩阵乘（MNN 没有 DFT，⑤ 的 numpy 也随 Python 一起去掉）；四个百万级全局均值改成三级均值；
@@ -158,7 +161,21 @@ sha256 27d5331a…），格式与 beat_this 的 WGSL 导出相同（`packedWeigh
 有 shader-f16 的设备上 GEMM 用 f16 计算（`htdemucsWgsl/kernels.ts` 的 `GemmMode`）：几乎无声的段过不了这条红线（0.018 dB，误差在混音以下 58–77 dB），
 按用途另验：整首有鼓的歌，鼓点 386 个里 385 个与 f32 同帧同类，强度差均值 0.0005。
 M4 单段 GPU 时间 f32 141.7 ms / f16 128.0 ms，自动切片后 186 / 170 ms，单个 dispatch 最长 4.7 ms。只取鼓轨，给时计的鼓点（`../analysis/drumHits.ts`）；
-automix 的人声分离仍走 MNN CPU。镜像上需要放这个文件（下载清单 `shared/modelManifest.json` 的 `htdemucs_gpu`）。
+automix 的人声分离走 MNN CPU，读的也是这个文件（§2.7）。
+
+### 2.7 MNN 照 `htdemucs-wgsl.bin` 手写网络 —— 本仓库所做
+
+照 beat_this 的做法（`native/folia-mnn/folia_beat_this.cpp`）：`native/folia-mnn/folia_htdemucs.cpp` 用 MNN 的
+表达式接口把整个 htdemucs 写出来，权重直接取 `htdemucs-wgsl.bin` 的张量（`electron/analysis/mnn.cjs`
+`loadHtdemucs`，逐个张量读文件、只用一块复用缓冲）。结构与 WGSL 版一一对应：STFT 两级 64×64 DFT、
+编码器卷积 + GELU、DConv 仍是 `Folia::FoliaDConv`、transformer 通道在前（线性层写成 1×1 卷积，注意力逐头算）、
+解码器多相卷积、iSTFT overlap-add。建图时卷积权重先写进一个临时文件、按 MNN 的外置权重加载、加载完删掉，
+省掉内存里那一份。
+
+这份权重是 f16（图里原本就是 fp16 的那些），计算全程 fp32。红线（6 段，对 ORT CPU，每轨电平差）：
+drums 0.0008 / bass 0.0071 / other 0.0005 / vocals 0.0000 dB，都在 0.01 dB 以内；M4 4 线程每段 0.3–0.4 s，与 v3 相当。
+内存（同一 6 段循环跑 30 段，Node 进程 RSS）：稳定在约 661 MB，v3 约 602 MB；加载后约 440 MB，v3 约 290 MB。
+多出的约 60 MB 是这次换来两个模型两个文件、安装包内 133 MB、不用下载的代价。
 
 ## 3. 手术验证
 
@@ -188,9 +205,9 @@ automix 的人声分离仍走 MNN CPU。镜像上需要放这个文件（下载�
 
 | 做法 | 在哪 | 省了什么 |
 | --- | --- | --- |
-| 外置权重（`--saveExternalData`） | `make_model.py` | MNN 不再在内存里多留一份权重：加载后 415 → 214 MB |
+| 外置权重 | `folia_htdemucs.cpp` 建图后写临时文件（原先是 `make_model.py` 的 `--saveExternalData`） | MNN 不再在内存里多留一份权重 |
 | `Memory_Low` + 释放时把空闲内存还给系统 | `native/folia-mnn/folia_mnn.cpp` | 中间缓冲用完即还；`release()` 后物理占用回到几十 MB |
-| automix 开着时常驻、关掉时在进程内释放 | `host.cjs` / `worker.cjs` | 换歌之间不重载 190 MB；关掉功能即还内存，不杀进程 |
+| automix 开着时常驻、关掉时在进程内释放 | `host.cjs` / `worker.cjs` | 换歌之间不重新建图；关掉功能即还内存，不杀进程 |
 | htdemucs 4 线程 | `worker.cjs` `HTDEMUCS_THREADS` | 与上一版 Python 运行器相同，留出核给播放和渲染 |
 | `folia_mnn_prefer_fast_cores()` | `folia_mnn.cpp`，worker 启动时调用 | 上一版 `prefer_fast_cores()` 的移植：Windows 最小化后不被挪到能效核（12.7s → 28.1s 那条） |
 | beat_this 走 GPU，CPU 只给 automix | `../analysis/beatThis.ts` `cpuFallback` | CPU 每块 0.4–0.7 s，GPU 约 0.06 s；只有提前几分钟分析的 automix 等得起 |

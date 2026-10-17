@@ -166,6 +166,11 @@ const UNSURE_RUN = 8;
  * How far above the beats either side of it the head's median beat logit must be. Measured on small0:
  * 小半 1.9, 麦恩莉 1.1, 走马 1.9, 绝对占有 相对自由 1.6, 理想三旬 1.1, another slow song ~0.8; the
  * third beat of the 4/4 tracks counted right 0.29 to 0.42.
+ *
+ * The beat FX run final0 since 2026-10-17 (small0 dropped), with this and the other thresholds here
+ * left as measured on small0, by the user's choice. final0 is surer of the beats between felt ones, so
+ * on 24 tracks it halved fewer of them: half of the tracks small0 read 1 in 2 or 1 in 3 read every beat
+ * (小半's head 7.6 against 6.7 / 7.6, a gap of 0), the rest kept their grouping.
  */
 const PULSE_CONFIDENCE_GAP = 0.7;
 /** Fewer bars of the usual length than this and the positions are not worth averaging. */

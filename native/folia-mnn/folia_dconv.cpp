@@ -21,8 +21,9 @@
 // and every edge between the layer's eight operators was a layout conversion. On an M4 that was 27ms of
 // a 145ms segment, and in fp32 the whole htdemucs window went from 4.2s to 3.1s with this operator -
 // faster than the onnxruntime build it replaced, where without it MNN was 12% slower. The model's
-// layers are rewritten into it by build/htdemucs_mnn/make_model.py; the result is identical to the
-// unfused graph to float rounding (the red line in that script's header).
+// layers are built on it by folia_htdemucs.cpp (rewritten into it by build/htdemucs_mnn/make_model.py
+// before that, removed); the result is identical to the unfused graph to float rounding (the red line
+// in src/services/automix/MODELS.md §2.7).
 //
 // fp32 only: the model ships and is checked in fp32. The arithmetic is in dconv_kernels.hpp, compiled
 // once per instruction set and chosen per CPU (dconv_kernels.h); this file is the operator around it.

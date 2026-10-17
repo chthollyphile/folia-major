@@ -31,9 +31,6 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     rememberHomeCardPosition: { section: 'home' },
     gridViewCardSettings: { section: 'home' },
 
-    // pages/PlaybackPage
-    automixModels: { section: 'playback' },
-
     // pages/LyricsPage
     localLyricFormatOrder: { section: 'lyrics' },
 

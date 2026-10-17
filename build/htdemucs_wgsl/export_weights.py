@@ -5,7 +5,8 @@ build/htdemucs_wgsl/export_weights.py
     python export_weights.py HTDEMUCS_ONNX OUT.bin [--f16]
 
 HTDEMUCS_ONNX is the four-stem export earlier versions shipped (`htdemucs.onnx`, 108644650 bytes,
-sha256 099b5be7...) - the same source build/htdemucs_mnn/make_model.py builds the CPU model from,
+sha256 099b5be7...) - the same source build/htdemucs_mnn/make_model.py (removed) built the CPU model
+from, and the CPU model now reads this export itself (native/folia-mnn/folia_htdemucs.cpp),
 checked before anything else, so the GPU and CPU paths run one set of weights. No torch: the
 weights are read straight off the graph's initializers, by the names of the nodes that consume them.
 

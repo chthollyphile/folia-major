@@ -42,15 +42,13 @@ const IDLE_MS = 120_000;
 const CHUNK_FRAMES = 1500;
 
 /**
- * Which export a run is for: final0, automix's download (and the CPU fallback's), or small0, bundled
- * with the app for the beat FX. Same kernels, different widths. The worker builds each on its one
- * device the first time it is asked for and keeps both until the idle drop: with both features on, a
- * track change asks for small0 and automix's look-ahead for final0, and reloading on every switch
- * would re-read 41MB and rebuild every pipeline beside the visualizer for nothing.
+ * Which Beat This! export a run is for: final0, shipped with the app, which automix and the beat FX
+ * both run (and the CPU fallback reads). One name now - small0, which the beat FX once ran, is gone -
+ * kept so the worker's messages say which model beside htdemucs.
  */
-export type BeatThisModel = 'beat_this' | 'beat_this_small';
+export type BeatThisModel = 'beat_this';
 
-/** Every model the GPU worker builds: the two Beat This! exports and htdemucs. */
+/** Every model the GPU worker builds: Beat This! and htdemucs. */
 type GpuModel = BeatThisModel | 'htdemucs';
 
 /**
@@ -90,7 +88,7 @@ const ready = new Map<GpuModel, Promise<boolean>>();
 let unsupported = false;
 /**
  * Models whose pipelines this device would not build, for the session. Kept per model so one export
- * failing does not take the GPU from the other: small0 failing must not send automix to the CPU.
+ * failing does not take the GPU from the other: htdemucs failing must not send Beat This! to the CPU.
  */
 const failedModels = new Set<GpuModel>();
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -161,7 +159,7 @@ const start = async (model: GpuModel): Promise<boolean> => {
         ? window.electron?.getHtdemucsGpuWeights
         : window.electron?.getBeatThisGpuWeights && (() => window.electron!.getBeatThisGpuWeights!(model));
     if (typeof fetchWeights !== 'function') return false;
-    // Not there is the ordinary state until final0 (or htdemucs_gpu) is downloaded; asked again on the next track.
+    // Not there only in a checkout without the models (both ship in the installer); asked again on the next track.
     const found = await fetchWeights();
     if (!found || !spawn()) return false;
 

@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NATIVE = path.join(ROOT, 'native', 'folia-mnn');
 
-/** MNN 3.6.1. The red line (build/htdemucs_mnn/make_model.py) and beat_this' were measured on this. */
+/** MNN 3.6.1. The red lines (htdemucs: src/services/automix/MODELS.md §2.7) and beat_this' were measured on this. */
 export const MNN_COMMIT = 'd407447ed56c4121a11ccbd266dc184ca1ead0c2';
 const MNN_REMOTE = 'https://github.com/alibaba/MNN.git';
 

@@ -36,9 +36,9 @@ const os = require('os');
 //     first (src/services/analysis/beatThisGpu.ts); what reaches this file is what that could not take.
 
 /**
- * Every directory a model may live in, best first: the user's own folder, then what the app
- * downloaded, then what the installer shipped. Handed over as argv by host.cjs, because nothing in
- * this file may require 'electron' to ask.
+ * The directory the models live in - the installer's (a dev checkout's models/) - as a list, the
+ * shape resolveModelFile takes. Handed over as argv by host.cjs, because nothing in this file may
+ * require 'electron' to ask.
  */
 const MODEL_DIRS = process.argv.slice(2);
 
@@ -69,9 +69,9 @@ const HTDEMUCS_THREADS = 4;
 /**
  * htdemucs, once loaded: `{ model, file }`, or null.
  *
- * Kept for as long as automix is switched on, however long the gap between tracks. A reload is a 190MB
- * read and a second or more, asked for the moment a track starts; holding ~200MB while the feature that
- * needs it is on is the trade the listener made by switching it on. Switching it off is what gives the
+ * Kept for as long as automix is switched on, however long the gap between tracks. A reload is a 92MB
+ * read and the network built over it, asked for the moment a track starts; holding ~400MB while the
+ * feature that needs it is on is the trade the listener made by switching it on. Switching it off is what gives the
  * memory back - the host sends 'release' and `release` below frees it in this process.
  */
 let stems = null;
@@ -183,8 +183,8 @@ const loadStems = () => {
     const file = resolveModelFile(MODEL_DIRS, 'htdemucs_gpu');
     if (!file) return decline('htdemucs', `no weights in ${MODEL_DIRS.join(', ') || '(no directories)'}`);
     if (stems?.file === file) return stems;
-    // A different file than the one loaded: the host restarts this process when the directory or a
-    // download changes, so this is belt and braces rather than a path expected to run.
+    // A different file than the one loaded: the directory is fixed for the process's life, so this is
+    // belt and braces rather than a path expected to run.
     release();
     try {
         const started = Date.now();

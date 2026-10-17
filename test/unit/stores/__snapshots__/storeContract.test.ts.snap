@@ -23,7 +23,6 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "folia_auto_play_on_launch",
   "folia_auto_skip_unplayable",
   "folia_automix_enabled",
-  "folia_automix_model_reminder_muted",
   "folia_cache_size",
   "folia_crossfade_max_sec",
   "folia_enable_media_cache",

@@ -72,7 +72,7 @@ const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers } = require('./debug/crashLog.cjs');
-const { createModelStore } = require('./analysis/modelStore.cjs');
+const { removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
 const { createTranscodeService } = require('./transcode/service.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
@@ -2213,7 +2213,6 @@ const DEFAULT_WINDOW_BOUNDS = {
 };
 const WINDOW_STATE_SAVE_DEBOUNCE_MS = 300;
 const CACHE_DIRECTORY_SETTING_KEY = 'CACHE_DIRECTORY';
-const MODELS_DIRECTORY_SETTING_KEY = 'MODELS_DIRECTORY';
 const ENABLE_UPDATE_CHECK_SETTING_KEY = 'ENABLE_UPDATE_CHECK';
 const ENABLE_AUTO_UPDATE_SETTING_KEY = 'ENABLE_AUTO_UPDATE';
 const UPDATE_CHANNEL_SETTING_KEY = 'UPDATE_CHANNEL';
@@ -2475,7 +2474,7 @@ const displaySleepBlocker = createDisplaySleepBlocker(powerSaveBlocker);
 createDebugHost({ app, ipcMain, store, BrowserWindow });
 
 const analysisHost = createAnalysisHost({
-  app, ipcMain, getModelsDirs: getModelsDirectories, getBundledModelsDir: getBundledModelsDirectory,
+  app, ipcMain, getModelsDir: getBundledModelsDirectory,
 });
 
 function buildPlaybackSyncBridgeStatus() {
@@ -2683,32 +2682,16 @@ function getConfiguredCacheDirectory() {
     : getDefaultCacheDirectory();
 }
 
-// The analysis model weights - 83MB and 166MB of ONNX - and the three places they are allowed to
-// live, best first.
-//
-// They used to be one place: `resources/models` inside the install directory, shipped in the
-// installer. That put 249MB into a 436MB download that most listeners never turn the feature on for,
-// and it put them somewhere an update or a reinstall overwrites - so "you do not have to download
-// the models again" was not true even though nothing about them had changed.
-//
-// Now: whatever directory the user pointed us at, then the app's own download directory under
-// userData (which no update touches), then the bundled copy - kept so a build that still ships them
-// works unchanged, and so `npm run models:fetch` keeps working in a dev checkout.
-function getDefaultModelsDirectory() {
+// The models ship inside the installer - Beat This! final0 and htdemucs, the WebGPU exports both
+// runtimes read (electron/analysis/modelPaths.cjs) - and are read from there alone. Earlier versions
+// downloaded them, or older forms of them, into userData/models; those copies are deleted once at
+// startup (removeDownloadedLeftovers), as nothing reads them any more.
+function getDownloadedModelsDirectory() {
   return path.join(app.getPath('userData'), 'models');
-}
-
-function getConfiguredModelsDirectory() {
-  const configured = store.get(MODELS_DIRECTORY_SETTING_KEY);
-  return typeof configured === 'string' && configured.trim().length > 0 ? configured.trim() : null;
 }
 
 function getBundledModelsDirectory() {
   return path.join(app.isPackaged ? process.resourcesPath : path.join(__dirname, '..'), 'models');
-}
-
-function getModelsDirectories() {
-  return [getConfiguredModelsDirectory(), getDefaultModelsDirectory(), getBundledModelsDirectory()];
 }
 
 function getAudioCacheDirectory() {
@@ -6245,65 +6228,15 @@ ipcMain.handle('reset-cache-directory', () => {
   };
 });
 
-// Where a fetched model is written: the directory the user pointed us at, or the app's own under
-// userData. Never the bundled copy - that lives in the install folder and is not ours to write into.
-// The settings page reads the live location off `automix-model-status`, so these handlers only DO
-// the change and let the page re-read; their own return value is not consumed.
-const modelsDownloadDir = () => getConfiguredModelsDirectory() ?? getDefaultModelsDirectory();
-
-ipcMain.handle('choose-models-directory', async () => {
-  if (!mainWindow || mainWindow.isDestroyed()) return { canceled: true };
-
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Choose model directory',
-    properties: ['openDirectory', 'createDirectory'],
-    defaultPath: modelsDownloadDir(),
-  });
-  if (result.canceled || result.filePaths.length === 0) return { canceled: true };
-
-  store.set(MODELS_DIRECTORY_SETTING_KEY, result.filePaths[0]);
-  // The running worker took its directories as argv, so it has to be restarted to see the new one.
-  analysisHost.reload();
-  return { canceled: false };
-});
-
-ipcMain.handle('reset-models-directory', () => {
-  store.delete(MODELS_DIRECTORY_SETTING_KEY);
-  analysisHost.reload();
-});
-
-// Getting the weights onto this machine. Everything about HOW is in analysis/modelStore.cjs; what
-// is here is the window it reports progress to and the file picker it cannot open for itself.
-const modelStore = createModelStore({
-  getModelsDirs: getModelsDirectories,
-  // Never the bundled directory: that one lives inside the install folder and is not ours to write
-  // into, and on a packaged app it may not even be writable.
-  getDownloadDir: modelsDownloadDir,
-  onProgress: (event) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('automix-model-progress', event);
-    }
-  },
-  // A model appearing or moving has to reach the worker, which took its directories as argv when it
-  // was forked. Restarting is how; it is what the idle timer does anyway.
-  onChanged: () => { analysisHost.reload(); },
-});
-
-ipcMain.handle('automix-model-status', () => modelStore.status());
-ipcMain.handle('automix-model-download', (_event, name) => modelStore.download(name));
-ipcMain.handle('automix-model-cancel', (_event, name) => modelStore.cancel(name));
-ipcMain.handle('automix-model-scan', () => modelStore.scan(scanHintDirectories()));
-ipcMain.handle('automix-model-install', (_event, name, source) => modelStore.installLocal(name, source));
-
-ipcMain.handle('automix-model-remove-all', () => modelStore.removeAll());
-
-// Where a manually downloaded file is likely to be. Passed to the scan rather than baked into it,
-// because these come from Electron's own path lookups and modelStore is plain Node.
-function scanHintDirectories() {
-  return ['downloads', 'desktop', 'documents']
-    .map((key) => { try { return app.getPath(key); } catch { return null; } })
-    .filter(Boolean);
-}
+// What earlier versions downloaded, gone from this machine: up to 330MB nothing reads now. Once per
+// launch, off the startup path; a file that will not go (in use, read-only) is tried again next time.
+app.whenReady().then(() => setTimeout(() => {
+  removeDownloadedLeftovers(getDownloadedModelsDirectory())
+    .then(({ removed, bytes }) => {
+      if (removed.length) console.log(`[Models] removed ${removed.length} downloaded model files (${Math.round(bytes / 1048576)}MB) the app no longer reads`);
+    })
+    .catch((error) => console.warn('[Models] could not remove the old downloads', error?.message || error));
+}, 10_000));
 
 ipcMain.handle('updates-get-status', () => {
   return getUpdateStatus();

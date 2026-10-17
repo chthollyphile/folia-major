@@ -114,7 +114,7 @@ App / ThemePark / VisPlayground / OBS source
 
 各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`（鼓点效果看自己的 `getBeatEffectStrength` 和 `getDrumHits`），没就绪就走原来的画面，所以关着时像素不变。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，时计 `pendolo/pendoloBeatFx.ts`（不读重音，只看节奏过滤，见 Pendolo 一节），隐现 `backgrounds/latent/LatentBackground.tsx`。
 
-每拍还带「重音」（`services/analysis/beatAccents.ts`，和拍点在同一次 small0 分析里从同一份梅尔频谱算出）：强度 0–1、低 / 中 / 高三段的占比、小节位置（从 beat_this 的重拍往后数），以及整首歌的动感系数（0.45–1，只降不升）。
+每拍还带「重音」（`services/analysis/beatAccents.ts`，和拍点在同一次 final0 分析里从同一份梅尔频谱算出）：强度 0–1、低 / 中 / 高三段的占比、小节位置（从 beat_this 的重拍往后数），以及整首歌的动感系数（0.45–1，只降不升）。
 
 - 时钟让每拍的峰值等于 `resolveBeatFxAccentGain`，即 (0.35 + 0.65 × 强度) × 动感系数，所以只读包络的画面（隐现）不用改代码就有强弱。
 - 要按拍区分的，用 `getBeatFxLastBeat` / `getBeatFxLastDownbeat` 取刚发射的那一拍：

@@ -1,59 +1,26 @@
 {
   "_comment": [
-    "The analysis model weights: what they are, where they come from, and how to know a copy is",
-    "intact. Read by build/fetchModels.mjs (the developer's copy) and by the Electron main process",
-    "(the listener's download), so the two cannot disagree about which file is the right file.",
+    "The analysis model weights the installer ships: what they are, where a build gets them, and how to",
+    "know a copy is intact. Read by build/fetchModels.mjs, which puts them in models/ (by hand, and from",
+    "build/beforePack.cjs when packaging); electron-builder's extraResources takes them from there. The",
+    "app reads them from its own resources/models and downloads nothing (electron/analysis/modelPaths.cjs).",
     "",
     "The hash is the point of this file, not the URLs. 'Downloaded successfully' and 'usable' are",
     "different claims, and four separate times in this project a publisher's weights arrived intact",
     "and still would not load. A truncated or mirror-substituted model does not fail loudly - it",
     "loads and answers confidently and wrongly, which for a beat grid means every transition lands",
-    "off the beat with nothing in the log to say why. That risk goes UP once the file can come from",
-    "a mirror, a netdisk, or a folder the listener pointed us at.",
+    "off the beat with nothing in the log to say why. A file already in models/ with this hash is",
+    "used as it is; a build machine without one tries the mirrors in order, first match wins.",
     "",
-    "Mirrors are tried in order and the first one whose bytes match the hash wins. hf-mirror is",
-    "first because it is the only route reachable from mainland China, which is where most of",
-    "Folia's listeners are; it serves everyone else too, so this is not a special case, it is the",
-    "order that works for the most people. The GitHub release is our own mirror of last resort.",
+    "Both models are MIT, which is what makes shipping and hosting our own copies allowed at all. A",
+    "CC-BY-NC model could never be listed here while Folia is AGPL-3.0 - see the licence field.",
     "",
-    "Both models are MIT, which is what makes hosting our own copies allowed at all. A CC-BY-NC",
-    "model could never be listed here while Folia is AGPL-3.0 - see the licence field.",
-    "",
-    "Weights only. What runs them is MNN, compiled into the app (native/folia-mnn,",
-    "build/buildMnnRuntime.mjs): there is no runtime download and no per-platform entry. The",
-    "files earlier versions used - beat_this.onnx, htdemucs-v2.onnx, htdemucs.onnx and the",
-    "Python runtime archives - stay on the mirrors for those versions; this one never reads them",
+    "Two files, each read by both runtimes: the renderer's WebGPU path and the analysis worker's MNN",
+    "(native/folia-mnn, built into the app), which builds each network over the same tensors. The",
+    "files earlier versions downloaded - the ONNX models, htdemucs-v3.mnn, the Python runtime - stay",
+    "on the mirrors for those versions; this one deletes any copy left in userData/models",
     "(electron/analysis/modelPaths.cjs LEGACY_FILES)."
   ],
-  "_manualComment": [
-    "Shown only when every mirror has failed. An empty list = the settings page does not offer the",
-    "manual route at all, which is right: an empty link is worse than no link. Adding a route is a",
-    "data change with no code edit, which is the point of it living here.",
-    "",
-    "Two netdisks rather than one because the failure they cover is regional and account-shaped:",
-    "Baidu throttles or demands a client, Quark does not, and which of the two a given listener can",
-    "actually use is not something we can know from here. Each carries its own extraction code, so",
-    "the code belongs to the link and not to the block.",
-    "",
-    "The manual route ends at the same place the automatic one does - a file in the models",
-    "directory - so what the app does with a netdisk download is verify it and copy it in, exactly",
-    "what it does with a downloaded one. There is no second trust level for files a human carried."
-  ],
-  "manual": {
-    "links": [
-      {
-        "label": "百度网盘",
-        "url": "https://pan.baidu.com/s/19TRe8VtDs3ENiv9J93JfqQ",
-        "code": "f86x"
-      },
-      {
-        "label": "夸克网盘",
-        "url": "https://pan.quark.cn/s/aed84d726374",
-        "code": "qWGi"
-      }
-    ],
-    "note": ""
-  },
   "mirrors": [
     "https://hf-mirror.com/HUAI4236/folia-models/resolve/main/{file}",
     "https://huggingface.co/HUAI4236/folia-models/resolve/main/{file}",
@@ -68,27 +35,17 @@
       "enables": "beatGrid",
       "license": "MIT",
       "upstream": "https://github.com/CPJKU/beat_this",
-      "note": "Beat This! (CPJKU, ISMIR 2024), the authors' own final0 checkpoint exported by build/beat_this_wgsl/export_weights.py --f16: BatchNorms and RMSNorm gammas folded, matmul weights fp16, everything else fp32, the tensor manifest packed into the same file. One file for both runtimes: the WebGPU path in the renderer (src/services/automix/beatThisWgsl) and the CPU fallback in the analysis worker, which builds the network over these tensors in MNN (native/folia-mnn/folia_beat_this.cpp). Beat and downbeat lists identical to the onnxruntime export on the seven test tracks, on both."
+      "note": "Beat This! (CPJKU, ISMIR 2024), the authors' own final0 checkpoint exported by build/beat_this_wgsl/export_weights.py --f16: BatchNorms and RMSNorm gammas folded, matmul weights fp16, everything else fp32, the tensor manifest packed into the same file. One file for both runtimes: the WebGPU path in the renderer (src/services/analysis/beatThisWgsl), for automix and 智能动感模式 alike, and the CPU fallback in the analysis worker, which builds the network over these tensors in MNN (native/folia-mnn/folia_beat_this.cpp). Beat and downbeat lists identical to the onnxruntime export on the seven test tracks, on both."
     },
     {
       "name": "htdemucs",
-      "file": "htdemucs-v3.mnn",
-      "bytes": 189714360,
-      "sha256": "41f1e56253ca37359c6bb31fc20e2f09db364239c5d6ea07e0419ed2e0598e93",
-      "enables": "stems",
-      "license": "MIT",
-      "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
-      "note": "htdemucs (Meta Research), single-file four-stem variant, built by build/htdemucs_mnn/make_model.py from the htdemucs.onnx earlier versions shipped (sha256 099b5be7...): the STFT/iSTFT as matrix products, GroupNorm chains fused, ConvTranspose as polyphase Conv, every DConv layer as one Folia::FoliaDConv operator, converted with MNNConvert from the pinned source, weights and graph packed into one file. fp32. Against the Python + onnxruntime path it replaces, on six 30 s excerpts: worst per-stem level difference 0.003 / 0.002 / 0.0 dB (drums / bass / vocals), 3.2-3.8 s per window against 3.7-4.1 s, on an M4. A new name because no earlier version can run it."
-    },
-    {
-      "name": "htdemucs_gpu",
       "file": "htdemucs-wgsl.bin",
       "bytes": 91838176,
       "sha256": "27d5331a74a4e23b18172b3d59d0378e698fd79bc0d0fed3316da77e3a37d8d1",
-      "enables": "drums",
+      "enables": "stems",
       "license": "MIT",
       "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
-      "note": "htdemucs (Meta Research), the same htdemucs.onnx the CPU model is built from (sha256 099b5be7...), exported by build/htdemucs_wgsl/export_weights.py --f16 for the renderer's WebGPU runtime (src/services/analysis/htdemucsWgsl): the graph's own weights, fp16 where the graph stores fp16 and fp32 elsewhere, Linear weights transposed, each ConvTranspose split into its four phases, the positional and frequency embeddings and the STFT windows as the graph bakes them, the tensor manifest packed into the same file. Drives 智能动感模式's drum hits, on the GPU only. Against onnxruntime on six 3.9 s segments: the drum stem's level within 0.0006 dB, every layer 73-103 dB SNR; 135 ms per segment on an M4."
+      "note": "htdemucs (Meta Research), the four-stem htdemucs.onnx earlier versions shipped (sha256 099b5be7...), exported by build/htdemucs_wgsl/export_weights.py --f16: the graph's own weights, fp16 where the graph stores fp16 and fp32 elsewhere, Linear weights transposed, each ConvTranspose split into its four phases, the positional and frequency embeddings and the STFT windows as the graph bakes them, the tensor manifest packed into the same file. One file for both runtimes: the renderer's WebGPU runtime (src/services/analysis/htdemucsWgsl), the drum stem of 智能动感模式, and the analysis worker's CPU stems for automix, whose network native/folia-mnn/folia_htdemucs.cpp builds over these tensors in MNN. Against onnxruntime on six 3.9 s segments: WebGPU, the drum stem's level within 0.0006 dB, every layer 73-103 dB SNR, 135 ms per segment on an M4; MNN, worst per-stem level difference drums 0.0008 / bass 0.0071 / other 0.0005 / vocals 0.0000 dB, 0.3-0.4 s per segment on an M4."
     }
   ]
 }

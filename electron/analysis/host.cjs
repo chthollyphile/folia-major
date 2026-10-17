@@ -1,4 +1,4 @@
-const { BUNDLED_MODEL_NAMES, modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
+const { modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
 const { unpackWeights } = require('./packedWeights.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
 const fs = require('fs');
@@ -34,13 +34,11 @@ const IDLE_MS = 120_000;
 const CRASHED = Symbol('crashed');
 
 /**
- * @param getModelsDirs a function, not a value: the weights are an optional download and their
- *   directory is a setting, so both "where they are" and "are they there" change while the app is
- *   running. Computing it once at startup is how a freshly downloaded model stayed invisible until
- *   the next launch.
+ * @param getModelsDir the installer's models directory (in a dev checkout, the repo's models/), which
+ *   holds both models (modelPaths.cjs).
  */
-const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, idleMs = IDLE_MS }) => {
-    const modelsDirs = () => (getModelsDirs?.() ?? []).filter(Boolean);
+const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) => {
+    const modelsDirs = () => [getModelsDir?.()].filter(Boolean);
 
     let child = null;
     let idleTimer = null;
@@ -128,14 +126,13 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
     /**
      * One retry, and it is load-bearing rather than optimism.
      *
-     * The host restarts the worker whenever the model directory changes or a download lands (see
-     * `reload`), which resolves any in-flight request with CRASHED. The retry re-forks the worker - now
-     * seeing the new directory - so a restart is invisible to the caller.
+     * A restart (`reload`) or a one-off crash resolves any in-flight request with CRASHED. The retry
+     * re-forks the worker, so a restart is invisible to the caller.
      *
      * It matters because of what a null means downstream: the renderer falls back to its estimator for
-     * that track. A worker restarted the instant a download finished would otherwise hand back a null with
-     * the weights now present, wasting the first transition after a download on the fallback. A crash that
-     * repeats is still answered null: twice in a row is the runtime, not a restart.
+     * that track. A crash that repeats is still answered null: twice in a row is the runtime, not a
+     * restart. (Models were once a download, and a finished download restarted the worker; they ship
+     * with the app now, but the retry still covers a crash.)
      */
     const ask = async (kind, payload) => {
         let answer = await send(kind, payload);
@@ -171,23 +168,21 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
      *
      * Read here and handed over rather than run here: the GPU belongs to the renderer, and this is
      * the only process that may read the models directory. Once per model per renderer-side load
-     * (41MB for final0, 4.7MB for small0), which that side drops again after two idle minutes. The
-     * final0 file is also the worker's CPU fallback; its tensors and manifest are one file
-     * (packedWeights.cjs), split here.
+     * (41MB for final0, 92MB for htdemucs), which that side drops again after two idle minutes. Both
+     * files are the worker's CPU models too; tensors and manifest are one file (packedWeights.cjs),
+     * split here.
      *
-     * The channel keeps its automix- name: the beat FX (智能动感模式) ask it for the bundled small0 too,
-     * and for htdemucs_gpu (92MB, a download of its own), whose file is the same packed format.
+     * The channel keeps its automix- name: the beat FX (智能动感模式) ask it for final0 as well, and
+     * for htdemucs, whose file is the same packed format.
      */
     ipcMain.handle('automix-beat-this-gpu-weights', async (_event, model) => {
-        // final0 (automix's download) unless the bundled small0 or htdemucs is asked for by name;
-        // nothing else is a WebGPU export, so no other name may pick a file. A bundled model is read
-        // from the installer's directory only (modelPaths.cjs BUNDLED_MODEL_NAMES).
-        const name = model === 'beat_this_small' ? 'beat_this_small' : model === 'htdemucs' ? 'htdemucs_gpu' : 'beat_this';
-        const dirs = BUNDLED_MODEL_NAMES.includes(name) ? [getBundledModelsDir?.()].filter(Boolean) : modelsDirs();
-        const file = resolveModelFile(dirs, name);
+        // final0 unless htdemucs is asked for by name; nothing else is a WebGPU export, so no other
+        // name may pick a file.
+        const name = model === 'htdemucs' ? 'htdemucs_gpu' : 'beat_this';
+        const file = resolveModelFile(modelsDirs(), name);
         if (!file) return null;
         try {
-            // A truncated download fails the trailer or the length check in unpackWeights, rather than
+            // A truncated file fails the trailer or the length check in unpackWeights, rather than
             // uploading as weights with a zero tail.
             const { weights, manifest } = unpackWeights(await fs.promises.readFile(file));
             // A plain Uint8Array over the tensor region, not the Buffer view: it crosses IPC by
@@ -203,15 +198,14 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
      * Which weights are on disk, without loading anything.
      *
      * The renderer could only find this out by ASKING for an inference, which forks the worker and loads a
-     * model to be told there is no model - and until it did, the settings page said this was the full
-     * build. That was survivable while the weights shipped inside the installer and their absence meant a
-     * broken install. It stops being survivable the moment they are an optional download: "not downloaded
-     * yet" becomes the normal state, and a page claiming the full engine over an empty directory is the
-     * failure this codebase has already paid for twice.
+     * model to be told there is no model. The weights ship with the app, so the answer is true in every
+     * packaged build; it is false in a dev checkout without them (`npm run models:fetch`) or an install
+     * missing a file, where a page claiming the full engine over an empty directory is the failure this
+     * codebase has already paid for twice.
      *
      * Deliberately the SAME FUNCTION the worker gates on rather than a matching-looking copy - see
      * modelPaths.cjs - so the page cannot say one thing while the worker does another. Not cached: it is
-     * two stats, and the answer is expected to CHANGE within a session, the whole point of a download button.
+     * a few stats.
      */
     ipcMain.handle('automix-models-present', () => modelsPresent(modelsDirs()));
 
@@ -221,9 +215,9 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
 
     app?.on('will-quit', () => { quitting = true; stop(); });
 
-    // The running worker took its directories as argv at fork time, so a model arriving - or the
-    // directory setting changing - has to reach it by restarting it. Cheap: stopping is what the
-    // idle timer does every couple of minutes anyway, and the next request forks a fresh one.
+    // Restarts the worker: stopping is what the idle timer does every couple of minutes anyway, and
+    // the next request forks a fresh one. (It once picked up a downloaded model or a new models
+    // directory; neither exists now.)
     return { reload: stop };
 };
 

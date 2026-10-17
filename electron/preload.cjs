@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('electron', {
     // whenever the weights are not there, which is the browser build's permanent answer.
     runBeatThis: (chunks) => ipcRenderer.invoke('automix-beat-this', chunks),
     // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
-    // 'beat_this_small' asks for the bundled small0 the beat FX run instead.
     getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     getHtdemucsGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights', 'htdemucs'),
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
@@ -70,23 +69,6 @@ contextBridge.exposeInMainWorld('electron', {
         const listener = (_event, sample) => callback(sample);
         ipcRenderer.on('debug-memory-sample', listener);
         return () => ipcRenderer.removeListener('debug-memory-sample', listener);
-    },
-    // Where the weights are kept. The settings page reads the live location off the model status;
-    // these two only change it.
-    chooseModelsDirectory: () => ipcRenderer.invoke('choose-models-directory'),
-    resetModelsDirectory: () => ipcRenderer.invoke('reset-models-directory'),
-    // Getting the weights onto this machine: over the network, off a file already here, or by
-    // pointing at one. All three end at the same verified file - see analysis/modelStore.cjs.
-    getAutomixModelStatus: () => ipcRenderer.invoke('automix-model-status'),
-    downloadAutomixModel: (name) => ipcRenderer.invoke('automix-model-download', name),
-    cancelAutomixModelDownload: (name) => ipcRenderer.invoke('automix-model-cancel', name),
-    scanForAutomixModels: () => ipcRenderer.invoke('automix-model-scan'),
-    installAutomixModel: (name, source) => ipcRenderer.invoke('automix-model-install', name, source),
-    removeAllAutomixModels: () => ipcRenderer.invoke('automix-model-remove-all'),
-    onAutomixModelProgress: (callback) => {
-        const listener = (_event, progress) => callback(progress);
-        ipcRenderer.on('automix-model-progress', listener);
-        return () => ipcRenderer.removeListener('automix-model-progress', listener);
     },
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,

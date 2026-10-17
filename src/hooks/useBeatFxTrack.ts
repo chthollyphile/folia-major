@@ -38,7 +38,7 @@ export function useBeatFxTrack(): boolean {
     const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects(state)
         .map(effect => `${effect.id}=${resolveBeatEffectSetting(state.smartBeat, effect.id).strength}`)
         .join(','));
-    // Asked again when htdemucs_gpu arrives (the startup check answering, or a download finishing).
+    // Asked again when htdemucs_gpu's answer arrives (the startup check; the file ships with the app).
     const drumModel = useSyncExternalStore(subscribeModelAvailability, modelsPresent).htdemucs_gpu;
 
     useEffect(() => {

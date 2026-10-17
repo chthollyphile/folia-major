@@ -655,50 +655,6 @@ declare global {
     result?: unknown;
   }
 
-  /**
-   * One model file as the settings page sees it. `path` is null when it is not installed. Weights only:
-   * what runs them is compiled into the app, so there is nothing else to download.
-   */
-  interface ElectronAutomixModelEntry {
-    name: string;
-    file: string;
-    bytes: number;
-    /** Which capability this buys: the beat grid, the stems, or the beat FX's drum hits. */
-    enables: 'beatGrid' | 'stems' | 'drums';
-    license: string;
-    path: string | null;
-    downloading: boolean;
-  }
-
-  interface ElectronAutomixModelStatus {
-    /**
-     * The netdisk routes, offered only once every mirror has failed. An empty list = not offered.
-     * The extraction code belongs to the link rather than to the block: the two disks have
-     * different ones, and a code shown beside the wrong link is worse than no code.
-     */
-    manual: { links: Array<{ label: string; url: string; code?: string }>; note: string };
-    downloadDir: string;
-    /** Bytes of an earlier version's models and Python runtime still on disk; "delete all" removes them too. */
-    leftoverBytes: number;
-    models: ElectronAutomixModelEntry[];
-  }
-
-  /** A verified copy of a model found somewhere on this machine. Matched by hash, not by name. */
-  interface ElectronAutomixModelFound {
-    name: string;
-    file: string;
-    path: string;
-    bytes: number;
-  }
-
-  interface ElectronAutomixModelProgress {
-    name: string;
-    status: 'downloading' | 'ready' | 'failed';
-    received: number;
-    total: number;
-    /** Which mirror is answering, or null before one has been reached. */
-    host: string | null;
-  }
 
   /** One connected display, for the choice of the display wallpaper mode uses. Geometry is in DIP, as Electron reports it. */
   interface ElectronWallpaperDisplay {
@@ -802,13 +758,13 @@ declare global {
       ) => Promise<{ beat: Float32Array[]; downbeat: Float32Array[] } | null>;
       /**
        * The WebGPU export of Beat This! (fp16 tensors + manifest, one file), read by the main process.
-       * final0 (automix's download) by default, the bundled small0 with 'beat_this_small'. Null when absent.
+       * final0, shipped with the app, which automix and 智能动感模式 both run. Null when absent.
        */
-      getBeatThisGpuWeights?: (model?: 'beat_this' | 'beat_this_small') => Promise<{
+      getBeatThisGpuWeights?: (model?: 'beat_this') => Promise<{
         weights: Uint8Array<ArrayBuffer>;
         manifest: import('./services/analysis/beatThisWgsl/runtime').BeatThisWgslManifest;
       } | null>;
-      /** htdemucs' WebGPU export (the htdemucs_gpu download), for the drum stem of 智能动感模式; null when not installed. */
+      /** htdemucs' WebGPU export, shipped with the app, for the drum stem of 智能动感模式; null when absent. */
       getHtdemucsGpuWeights?: () => Promise<{
         weights: Uint8Array<ArrayBuffer>;
         manifest: import('./services/analysis/htdemucsWgsl/runtime').HtdemucsWgslManifest;
@@ -837,27 +793,6 @@ declare global {
        * weights" rather than as "unknown".
        */
       getAutomixModelsPresent?: () => Promise<{ beat_this: boolean; htdemucs: boolean; htdemucs_gpu?: boolean }>;
-      chooseModelsDirectory?: () => Promise<{ canceled: boolean }>;
-      resetModelsDirectory?: () => Promise<void>;
-      getAutomixModelStatus?: () => Promise<ElectronAutomixModelStatus>;
-      downloadAutomixModel?: (name: string) => Promise<{ ok: boolean; skipped?: string[]; path?: string }>;
-      cancelAutomixModelDownload?: (name: string) => Promise<boolean>;
-      scanForAutomixModels?: () => Promise<{ found: ElectronAutomixModelFound[]; scanned: number }>;
-      installAutomixModel?: (name: string, source: string) => Promise<{ ok: boolean; reason?: string }>;
-      /**
-       * Deletes every copy of every model the app can reach, plus any `.part` leftovers.
-       * `failed` is non-empty when a copy could not be removed - typically one inside the
-       * installer's own read-only directory, which stays installed and is reported as such.
-       */
-      removeAllAutomixModels?: () => Promise<{
-        ok: boolean;
-        removed: string[];
-        freed: number;
-        failed: Array<{ name: string; reason: string }>;
-      }>;
-      onAutomixModelProgress?: (
-        callback: (progress: ElectronAutomixModelProgress) => void,
-      ) => () => void;
       /** Developer debug module. Absent in the browser build, where every caller no-ops. */
       debugGetState?: () => Promise<DebugModuleState>;
       debugSetState?: (patch: Partial<Pick<DebugModuleState, 'runtimeLogEnabled' | 'runtimeLogMode' | 'consoleCaptureEnabled' | 'memoryMonitorEnabled' | 'memoryLogEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => Promise<DebugModuleState>;

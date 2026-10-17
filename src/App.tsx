@@ -18,7 +18,6 @@ import { useProviderSignOut } from './components/app/dialogs/useProviderSignOut'
 import LoginHost from './components/login/LoginHost';
 import { useSettingsDialogModel } from './components/app/dialogs/useSettingsDialogModel';
 import AppOverlays from './components/app/overlays/AppOverlays';
-import AutomixModelReminder from './components/modal/AutomixModelReminder';
 import PonderHost from './components/ponder/PonderHost';
 // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
 // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
@@ -2851,10 +2850,6 @@ export default function App() {
                     <AutomixTransitionAnimation theme={theme} isDaylight={isDaylight} />
                 </Suspense>
             )}
-
-            {/* Same arrangement, same reason. Mounted here rather than beside either of the two
-                switches that can open it, so that both reach the same one. */}
-            <AutomixModelReminder isDaylight={isDaylight} />
 
             {/* 思索教程。常驻的只有悬停探测和提示胶囊；教程层自己走 React.lazy，
                 animejs 不进 bootstrap chunk。 */}

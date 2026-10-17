@@ -442,7 +442,7 @@ build-up 占据 `swap` 之前的若干小节，**结束于 `swap`**。所谓的 
 | `src/services/playbackGraph.ts` | `buildPlaybackGraph` | 汇合点之后的接线顺序都在这一个函数里，可被断言。音量推子在效果器**之后**：黑胶噪声、比特降质、punch 是绝对效果，推子在其上游会改变它们做什么而不是多响（实测数据写在该文件顶部）。均衡器是相对的，故不受此位置影响 |
 | `src/services/prefetchService.ts` | `ensureTrackProfile` | 预取下几首时顺带分析 |
 | `src/components/app/overlays/AutomixTransitionAnimation.tsx` / `src/components/app/playback/bridges/useElectronPlaybackBridge.ts` | `subscribeToTransitionCue` | 主窗口绘制与实际音频跨度一致的 AutoMix 过渡环；Electron 桥把 AutoMix 或 Crossfade 的同一个实际 cue 投影进 Remote 快照，使封面、标题与背景交接对齐音频 crossover。设置页 preview cue 带 `preview` 标记，不会发布到 Remote。每次排上日程的交接都会广播，纯淡化带 `plain` 标记：两个动画走 `shouldDrawCue` 拒掉它，Remote 故意不问，它对的是音频而不是混音 |
-| `electron/analysis/worker.cjs` | `mnn.cjs`（MNN）+ `models/htdemucs-v3.mnn`、`models/beat_this-wgsl.bin` | htdemucs 与 beat_this 的 CPU 退路都在此，运行于不拥有窗口的进程（见 §6.4） |
+| `electron/analysis/worker.cjs` | `mnn.cjs`（MNN）+ 安装包里的 `models/htdemucs-wgsl.bin`、`models/beat_this-wgsl.bin`（与 GPU 共用的同两个文件） | htdemucs 与 beat_this 的 CPU 退路都在此，运行于不拥有窗口的进程（见 §6.4） |
 | `electron/analysis/host.cjs` | `utilityProcess` | 主进程侧：拉起 worker、匹配请求与回复、automix 关着时闲置两分钟终止、关掉 automix 时让 worker 释放 htdemucs、崩溃自动重试一次 |
 | `electron/preload.cjs` / `electron/main.cjs` | `automix-beat-this`、`automix-htdemucs`、`automix-enabled`、`automix-beat-this-gpu-weights` | IPC 通道，主进程仅转发 |
 | `src/stores/useSettingsUiStore.ts` | `automixEnabled`、`transitionMode`、`crossfadeMaxSec`、`transitionPerformance` | 总开关 + 策略选择 + 交叉淡化长度 + 表现模式。开关同时挂在 `components/panelTab/controls/VolumeRow.tsx`，完整设置区在 `components/modal/settings/TransitionSettingsSection.tsx` |

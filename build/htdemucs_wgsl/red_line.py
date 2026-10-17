@@ -5,8 +5,8 @@ build/htdemucs_wgsl/red_line.py
     python red_line.py REF_DIR OUT_DIR [SOURCE]
 
 REF_DIR/stems.f32 from reference.py ([n, 4, 2, 172032]), OUT_DIR/out.f32 from dev/htdemucs-wgsl
-([n, 2, 172032], source SOURCE, default 0 = drums). The same gate make_model.py holds the CPU model
-to: per segment, the stem's level against the reference's within 0.01 dB. Also prints each
+([n, 2, 172032], source SOURCE, default 0 = drums). The same gate make_model.py (removed) held the CPU
+model to, and folia_htdemucs.cpp's red line too: per segment, the stem's level against the reference's within 0.01 dB. Also prints each
 segment's SNR against the reference. Exit code 0 only when every segment passes.
 """
 import sys

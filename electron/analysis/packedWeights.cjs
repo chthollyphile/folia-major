@@ -3,7 +3,7 @@
 //
 // One file because the two halves are only usable together - a manifest from one export over another's
 // tensors reads every tensor at the wrong offset, and nothing downstream would notice - and because a
-// model is one download, one hash and one row in shared/modelManifest.json. Both runtimes read this same
+// model is one file, one hash and one row in shared/modelManifest.json (shipped in the installer). Both runtimes read this same
 // file: the renderer's WebGPU path (beatThisGpu.ts, through host.cjs) and the CPU fallback in worker.cjs
 // (mnn.cjs loadBeatThis), so the fallback costs no second copy of the weights.
 //

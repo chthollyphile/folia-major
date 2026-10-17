@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/analysis/beatThisModel.test.ts
-// small0 - the beat FX' model, bundled with the app - is GPU or nothing: it never needs final0's
-// download, never reaches the CPU worker whatever the caller allows, and a run that comes back empty
-// does not touch automix's on-disk model state.
+// Beat This! final0, which automix and the beat FX both run: the GPU first, the CPU only for a caller
+// that allows it, and the whole spectrogram handed to the GPU when the percussive energy is wanted.
 
 const { runBeatThisGpu } = vi.hoisted(() => ({ runBeatThisGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ runBeatThisGpu }));
@@ -16,7 +15,7 @@ const host = globalThis as { window?: object };
 const runBeatThis = vi.fn();
 const mel = { data: new Float32Array(300 * 128), frames: 300 };
 
-describe('the small0 model', () => {
+describe('the final0 model', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         host.window = { electron: { getBeatThisGpuWeights: vi.fn(), runBeatThis } };
@@ -26,34 +25,38 @@ describe('the small0 model', () => {
         delete host.window;
     });
 
-    it('can run without final0 downloaded; final0 cannot', () => {
-        expect(canRunBeatThis('beat_this_small')).toBe(true);
+    it('runs where the desktop bridge is and the weights are', () => {
+        modelCanRun.mockReturnValue(true);
+        expect(canRunBeatThis()).toBe(true);
+        modelCanRun.mockReturnValue(false);
         expect(canRunBeatThis()).toBe(false);
+        modelCanRun.mockReturnValue(true);
         host.window = {};
-        expect(canRunBeatThis('beat_this_small')).toBe(false);
+        expect(canRunBeatThis()).toBe(false);
     });
 
-    it('asks the GPU for small0 and never the CPU, even when the caller allows it', async () => {
+    it('asks the GPU only, unless the caller allows the CPU', async () => {
+        modelCanRun.mockReturnValue(true);
         runBeatThisGpu.mockResolvedValue(null);
-        expect(await analyseBeatGrid(mel, { model: 'beat_this_small', cpuFallback: true })).toBeNull();
-        expect(runBeatThisGpu).toHaveBeenCalledWith(expect.any(Array), 'beat_this_small', undefined);
+        expect(await analyseBeatGrid(mel)).toBeNull();
+        expect(runBeatThisGpu).toHaveBeenCalledWith(expect.any(Array), 'beat_this', undefined);
         expect(runBeatThis).not.toHaveBeenCalled();
-        expect(noteModelFailed).not.toHaveBeenCalled();
     });
 
     it('hands the GPU the whole spectrogram for the percussive energy when asked, and returns it', async () => {
+        modelCanRun.mockReturnValue(true);
         const energy = { percussive: new Float32Array(1), total: new Float32Array(1) };
         runBeatThisGpu.mockImplementation(async (chunks: Array<{ frames: number }>) => ({
             beat: chunks.map(chunk => new Float32Array(chunk.frames).fill(-10)),
             downbeat: chunks.map(chunk => new Float32Array(chunk.frames).fill(-10)),
             percussive: energy,
         }));
-        const grid = await analyseBeatGrid(mel, { model: 'beat_this_small', percussive: true });
-        expect(runBeatThisGpu).toHaveBeenCalledWith(expect.any(Array), 'beat_this_small', mel);
+        const grid = await analyseBeatGrid(mel, { percussive: true });
+        expect(runBeatThisGpu).toHaveBeenCalledWith(expect.any(Array), 'beat_this', mel);
         expect(grid?.percussive).toBe(energy);
     });
 
-    it('leaves final0 on its old path: the GPU first, then the CPU when allowed', async () => {
+    it('goes the GPU first, then the CPU when allowed', async () => {
         modelCanRun.mockReturnValue(true);
         runBeatThisGpu.mockResolvedValue(null);
         runBeatThis.mockResolvedValue(null);

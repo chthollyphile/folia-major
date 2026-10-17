@@ -36,7 +36,9 @@
 // A handle is used by one caller at a time: worker.cjs serialises every request through one queue,
 // and the async run is awaited before anything else touches the handle.
 //
-// One model is one file, laid out by build/htdemucs_mnn/make_model.py (pack):
+// One model is one file, laid out by build/htdemucs_mnn/make_model.py (pack; removed with
+// htdemucs-v3.mnn, the one model in this format - the app's two models are built from their WebGPU
+// exports now, folia_beat_this.cpp and folia_htdemucs.cpp, and folia_mnn_load is kept for this layout):
 //
 //   [ weights ][ graph ][ "FOLIAMNN" | graph offset, uint64 little-endian ]
 //

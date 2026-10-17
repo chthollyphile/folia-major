@@ -6,7 +6,7 @@ import type { BeatEffectSetting, SmartBeatSettings } from '../../types';
 // by one in that mode's own settings (BeatEffectsGroup.tsx), under the one 智能动感模式 switch.
 //
 // An effect reads one source, and the source is what decides which model runs for the track on
-// screen (components/visualizer/beatClockTargets.ts): 'beats' is Beat This!' beat list (small0, the
+// screen (components/visualizer/beatClockTargets.ts): 'beats' is Beat This!' beat list (final0, the
 // beat clock in beatFxLive.ts), 'drums' htdemucs' drum hits (analysis/drumHits.ts). A picture whose
 // live effects read only drums never runs beat_this, and the other way round.
 //

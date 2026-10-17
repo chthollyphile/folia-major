@@ -5,17 +5,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // build/fetchModels.mjs
-// Puts the model weights where a dev checkout expects them, and refuses to hand over a file it
-// cannot vouch for.
+// Puts the model weights in the repo's models/ - where a dev checkout reads them and where
+// electron-builder's extraResources takes them into the installer - and refuses to hand over a file
+// it cannot vouch for. Run by hand (`npm run models:fetch`) and by build/beforePack.cjs
+// (prepareBundledModels).
 //
-// WHICH files, WHERE from, and what they should hash to all live in shared/modelManifest.json -
-// the same file the app reads when a listener downloads them. There is one description of a model
-// in this project, because two would eventually disagree and the way they'd tell us is a beat grid
-// that is confidently wrong.
+// WHICH files, WHERE from, and what they should hash to all live in shared/modelManifest.json. There
+// is one description of a model in this project, because two would eventually disagree and the way
+// they'd tell us is a beat grid that is confidently wrong.
 //
-// The weights are NOT in git: 230MB in an object store that every clone pays for forever, to hold
-// files that never change and are downloadable in seconds. What this script is for is a developer
-// checkout and a build machine, which is why it writes into the repo's models/.
+// The weights are NOT in git: 133MB in an object store that every clone pays for forever, to hold
+// files that never change and are downloadable in seconds. A file already in models/ with the right
+// hash is used as it is, so a build machine that has them needs no network.
 //
 // The hash is the point of this script, not the download; the manifest's own comment says why.
 
@@ -53,70 +54,70 @@ const urlsFor = (model) => manifest.mirrors.map(template => template.replace('{f
 
 const reason = (error) => error?.cause?.message || error?.message || String(error);
 
-await mkdir(MODELS, { recursive: true });
+/** Puts every model of the manifest, verified, in `outputDir`; downloads only what is not there already. */
+export async function prepareBundledModels({ outputDir = MODELS } = {}) {
+    await mkdir(outputDir, { recursive: true });
 
-for (const model of WANTED) {
-    const path = join(MODELS, model.file);
-    if (await alreadyThere(path, model)) {
-        console.log(`[models] ${model.file} already present and verified`);
-        continue;
-    }
-
-    console.log(`[models] fetching ${model.file} (${(model.bytes / 1e6).toFixed(0)}MB)`);
-    let written = false;
-    const skipped = [];
-
-    for (const url of urlsFor(model)) {
-        const host = new URL(url).host;
-        // Two deadlines on one controller: the first covers the headers, and the moment they
-        // arrive it is replaced by the transfer's. `fetch` resolves as soon as the response
-        // starts, so clearing it there is what stops a slow-but-working mirror being abandoned.
-        const controller = new AbortController();
-        let deadline = setTimeout(() => controller.abort(new Error('no response')), RESPOND_TIMEOUT_MS);
-        try {
-            const response = await fetch(url, { redirect: 'follow', signal: controller.signal });
-            clearTimeout(deadline);
-            deadline = setTimeout(() => controller.abort(new Error('transfer stalled')), TRANSFER_TIMEOUT_MS);
-
-            if (!response.ok) {
-                skipped.push(`${host}: ${response.status} ${response.statusText}`);
-                continue;
-            }
-            const buffer = Buffer.from(await response.arrayBuffer());
-
-            // A mirror that serves the wrong bytes is treated exactly like one that is down: move
-            // on. Nothing is written until something verifies, so an interrupted or substituted
-            // download never leaves a half-file behind for the next run to package.
-            if (!verified(buffer, model)) {
-                skipped.push(`${host}: ${buffer.length} bytes, sha256 ${sha256(buffer).slice(0, 12)}`
-                    + ` (wanted ${model.bytes}, ${model.sha256.slice(0, 12)})`);
-                continue;
-            }
-
-            await writeFile(path, buffer);
-            console.log(`[models] ${model.file} verified and written, from ${host}`);
-            written = true;
-            break;
-        } catch (error) {
-            skipped.push(`${host}: ${reason(error)}`);
-        } finally {
-            clearTimeout(deadline);
+    for (const model of WANTED) {
+        const path = join(outputDir, model.file);
+        if (await alreadyThere(path, model)) {
+            console.log(`[models] ${model.file} already present and verified`);
+            continue;
         }
+
+        console.log(`[models] fetching ${model.file} (${(model.bytes / 1e6).toFixed(0)}MB)`);
+        let written = false;
+        const skipped = [];
+
+        for (const url of urlsFor(model)) {
+            const host = new URL(url).host;
+            // Two deadlines on one controller: the first covers the headers, and the moment they
+            // arrive it is replaced by the transfer's. `fetch` resolves as soon as the response
+            // starts, so clearing it there is what stops a slow-but-working mirror being abandoned.
+            const controller = new AbortController();
+            let deadline = setTimeout(() => controller.abort(new Error('no response')), RESPOND_TIMEOUT_MS);
+            try {
+                const response = await fetch(url, { redirect: 'follow', signal: controller.signal });
+                clearTimeout(deadline);
+                deadline = setTimeout(() => controller.abort(new Error('transfer stalled')), TRANSFER_TIMEOUT_MS);
+
+                if (!response.ok) {
+                    skipped.push(`${host}: ${response.status} ${response.statusText}`);
+                    continue;
+                }
+                const buffer = Buffer.from(await response.arrayBuffer());
+
+                // A mirror that serves the wrong bytes is treated exactly like one that is down: move
+                // on. Nothing is written until something verifies, so an interrupted or substituted
+                // download never leaves a half-file behind for the next run to package.
+                if (!verified(buffer, model)) {
+                    skipped.push(`${host}: ${buffer.length} bytes, sha256 ${sha256(buffer).slice(0, 12)}`
+                        + ` (wanted ${model.bytes}, ${model.sha256.slice(0, 12)})`);
+                    continue;
+                }
+
+                await writeFile(path, buffer);
+                console.log(`[models] ${model.file} verified and written, from ${host}`);
+                written = true;
+                break;
+            } catch (error) {
+                skipped.push(`${host}: ${reason(error)}`);
+            } finally {
+                clearTimeout(deadline);
+            }
+        }
+
+        // Reported even when a later mirror worked, which is the whole point.
+        //
+        // These used to be printed only if EVERY route failed, so a successful run looked identical
+        // whether the first choice was healthy or dead. The first choice is the only route our
+        // mainland users can reach and the last is the only one they cannot, so a silent fallback
+        // means the route that matters most can rot while every build goes on saying it is fine.
+        for (const failure of skipped) console.warn(`[models]   skipped ${failure}`);
+
+        if (!written) throw new Error(`[models] could not get a good copy of ${model.file}`);
     }
-
-    // Reported even when a later mirror worked, which is the whole point.
-    //
-    // These used to be printed only if EVERY route failed, so a successful run looked identical
-    // whether the first choice was healthy or dead. The first choice is the only route our
-    // mainland users can reach and the last is the only one they cannot, so a silent fallback
-    // means the route that matters most can rot while every build goes on saying it is fine.
-    for (const failure of skipped) console.warn(`[models]   skipped ${failure}`);
-
-    if (!written) throw new Error(`[models] could not get a good copy of ${model.file}`);
 }
 
-// The model that ships with the app rather than downloads (Sonnet's 智能动感模式, Beat This! small0):
-// a dev checkout needs it in models/ too, or the switch is on and silently inert. Pinned in its own
-// script, which the packaging step calls as well.
-const { prepareBundledBeatThisSmall } = await import('../packaging/beat-this-small/fetch-beat-this-small.mjs');
-console.log(`[models] ${await prepareBundledBeatThisSmall({ outputDir: MODELS })} verified`);
+// Run directly (`npm run models:fetch`): into the repo's models/.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) await prepareBundledModels();

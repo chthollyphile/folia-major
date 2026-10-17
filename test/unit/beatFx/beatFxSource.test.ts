@@ -53,8 +53,8 @@ describe('loadBeatFxTrackBeats', () => {
         expect(second.source).toBe('beat_this');
         expect(second.events.length).toBeGreaterThan(0);
         expect(getTrackBeatGrid).toHaveBeenCalledTimes(2);
-        // small0 only: the beat FX never ask for, read or share automix's final0 lists.
-        for (const call of getTrackBeatGrid.mock.calls) expect(call[2]).toEqual({ model: 'beat_this_small' });
+        // final0's shared list, on the GPU only: the beat FX never ask for the CPU fallback.
+        for (const call of getTrackBeatGrid.mock.calls) expect(call[2]).toBeUndefined();
     });
 
     const ACCENTS = { v: BEAT_ACCENTS_VERSION, impact: [0.2, 1], low: [0.8, 0.2], mid: [0.1, 0.4], high: [0.1, 0.4], rhythmic: [1, 1], pulse: [1, 1], trackScale: 0.7 };

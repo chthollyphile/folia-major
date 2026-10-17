@@ -14,9 +14,9 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // Where the beat FX get the playing track's beat list from.
 //
 // analysis/beatGrid.ts answers it: the list stored for this track by an earlier play, or the run of
-// it already in flight, or a run now on the track's own bytes. The model is Beat This!'s small0
-// (2.1M parameters, 4.7MB, packaged with the app), not automix's downloaded final0: the beat FX work
-// on a fresh install, never wait on a download, and never read or share automix's lists.
+// it already in flight, or a run now on the track's own bytes. The model is Beat This!'s final0,
+// packaged with the app, and the list is automix's too: whichever of the two reaches a track first
+// runs it, and the other reads the list.
 //
 // The bytes are what is already on this machine (analysis/trackAudio.ts): the playback
 // representation, the media cache, the local file. An online track is only cached once played to the
@@ -26,16 +26,17 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // cached: the media cache keeps its own rule of fully played tracks. Before playback has resolved
 // that URL there are no bytes yet, and `retry` says so.
 //
-// The run is on the renderer's GPU only - small0 has no CPU path - so a machine whose GPU cannot take
-// it gets no beats - and the visualizer its original picture - rather than a CPU inference competing
+// The run is on the renderer's GPU only - the beat FX never ask for the CPU fallback automix may use -
+// so a machine whose GPU cannot take it gets no beats - and the visualizer its original picture - rather than a CPU inference competing
 // with playback for the length of a track.
 //
 // The beats come with their accents (analysis/beatAccents.ts) when the list was stored with them. A
-// list stored before accents existed answers at once without them - the beat FX as they were - and
+// list stored without them (by a CPU run of automix's, or before accents existed) answers at once
+// without them - the beat FX as they were - and
 // `accented` brings the same beats with accents once they are measured, for the caller to swap in.
 //
 // The track's drum hits (`loadBeatFxTrackDrums`, analysis/drumHits.ts: htdemucs' drum stem on the
-// GPU, with htdemucs_gpu installed) are read on their own, from the same bytes, only when a live effect
+// GPU) are read on their own, from the same bytes, only when a live effect
 // on screen plays them (时计's 仿真鼓面), as they cost the track's bytes and seconds of GPU. They no
 // longer wait on the beats: a picture that plays only drum hits never runs beat_this.
 
@@ -123,7 +124,7 @@ const resolveTrackBeats = async (
         return toMidSide(buffer).mid;
     };
     try {
-        grid = await getTrackBeatGrid(key, readMid, { model: 'beat_this_small' });
+        grid = await getTrackBeatGrid(key, readMid);
     } catch (error) {
         // A throw here (a cache read, a worker, a GPU device lost mid-run) is "no beats" like any
         // other: answered, so the caller's frame falls back, and not remembered, so a later play retries.
@@ -150,7 +151,7 @@ const resolveTrackBeats = async (
             .catch(() => null);
         return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented };
     }
-    if (!canRunBeatThis('beat_this_small')) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
+    if (!canRunBeatThis()) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
     return { events: [], source: 'none', note, trackScale: 1, ...(retry ? { retry } : {}) };
 };
 

@@ -9,7 +9,8 @@
 // `_chunked_separate_single`), carried over unchanged.
 //
 // The model takes the raw mix - its STFT and iSTFT are inside the graph again, as matrix products
-// (build/htdemucs_mnn/make_model.py), so nothing here does any DSP beyond the window.
+// (native/folia-mnn/folia_htdemucs.cpp; build/htdemucs_mnn/make_model.py before it, removed), so
+// nothing here does any DSP beyond the window.
 
 /** The model's own row order. */
 const SOURCES = ['drums', 'bass', 'other', 'vocals'];
