@@ -17,7 +17,7 @@ import {
     sodaPreview,
 } from '@/services/onlineMusic/soda/sodaNormalize';
 
-const cover = { uri: 'tos-cn-x/abc', urls: ['https://p3-luna.douyinpic.com/img/', 'https://p6-luna.douyinpic.com/img/'] };
+const cover = { uri: 'tos-cn-i-x/abc', urls: ['https://p3-luna.douyinpic.com/img/', 'https://p6-luna.douyinpic.com/img/'], template_prefix: 'tplv-b829550vbb' };
 const track = {
     id: 7678897838486882344,
     name: '晴天（杰伦）',
@@ -29,9 +29,9 @@ const track = {
 beforeEach(() => request.mockReset());
 
 describe('Soda normalize', () => {
-    it('joins the cover from the host prefix, the uri and the size template', () => {
+    it('joins the cover with the template prefix that every bucket answers', () => {
         expect(normalizeSodaSong(track).album.coverUrl)
-            .toBe('https://p3-luna.douyinpic.com/img/tos-cn-x/abc~c5_500x500.jpg');
+            .toBe('https://p3-luna.douyinpic.com/img/tos-cn-i-x/abc~tplv-b829550vbb-crop-center:500:500.jpg');
     });
 
     it('keeps the identity every song carries', () => {

@@ -26,11 +26,20 @@ const wordTag = (ms: number) => {
 interface SodaCover {
     uri?: string;
     urls?: string[];
+    template_prefix?: string;
 }
 
-export const sodaCoverUrl = (cover?: SodaCover | null): string | undefined => (
-    cover?.uri && Array.isArray(cover.urls) && cover.urls[0] ? `${cover.urls[0]}${cover.uri}~c5_500x500.jpg` : undefined
-);
+/**
+ * 封面 = 域名前缀 + uri + 尺寸模板。模板必须用 `template_prefix` 拼出来的裁剪模板：
+ * `tos-cn-i-*` 桶（大量歌单封面在这个桶里）不认 `~c5_500x500.jpg`，只答 403；
+ * `~tplv-<prefix>-crop-center:500:500.jpg` 对三种桶（tos-cn-i / tos-cn-v / ies-music）都答 200。
+ * 没有 template_prefix 时退回旧模板。
+ */
+export const sodaCoverUrl = (cover?: SodaCover | null): string | undefined => {
+    if (!cover?.uri || !Array.isArray(cover.urls) || !cover.urls[0]) return undefined;
+    const template = cover.template_prefix ? `${cover.template_prefix}-crop-center:500:500.jpg` : 'c5_500x500.jpg';
+    return `${cover.urls[0]}${cover.uri}~${template}`;
+};
 
 /** 搜索答复里的一条（`entity.track`）→ UnifiedSong。 */
 export const normalizeSodaSong = (track: any): UnifiedSong => {
