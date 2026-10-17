@@ -57,6 +57,13 @@
 - **我们改了什么**：不改包。协议上的问题在包的仓库里修好、发新版本，Folia 再升级依赖。
 - **上游变了怎么跟**：规则和验收步骤见 [`docs/bodian.md`](../../../docs/bodian.md) 的“会话”“验证”两节（版本必须钉死，锁文件只用 npm 上的版本）。测试里 `test/unit/onlineMusic/bodianAlbumPaging.test.ts`、`test/unit/gridView/bodianCollectionPaging.test.ts`、`test/unit/onlineMusic/loginFailurePlatforms.test.ts` 用真的 `createBodianApi`，只把发请求的那一层换成测试里写好的答复：包的接口或翻页规则变了，这几条会失败。`test/unit/electron/bodianApiBridge.test.ts` 管 IPC 和会话。
 
+## 汽水音乐（`soda`，仅桌面端）
+
+- **上游**：两套接口。匿名的搜索、歌单搜索、歌单详情和分享页由我们自己直接发（`electron/soda/sodaApiBridge.cjs`，UA 是 `LunaPC`），字段怎么读在 `soda/sodaNormalize.ts`。账号那部分（扫码登录、我的歌单、红心、歌单增删、VIP 播放地址与解密）交给库 `ly-music-source`（仓库 LuoYe17/ly-music-source），签名（a-bogus）、passport 扫码、`decryptAudio` 都在包里。
+- **版本**：0.1.0，钉死在根目录 `package.json`；纯 ESM，主进程用 `import('ly-music-source')` 动态加载（和 `electron/ytm` 引 `youtubei.js` 一样）。许可证 GPL-3.0-only，与本项目的 AGPL-3.0 兼容。
+- **怎么用**：主进程直接调包（`electron/soda/sodaApiBridge.cjs`），会话在 `electron/soda/session.cjs` 用 `safeStorage` 加密后进 electron-store。IPC 只放行桥自己的操作清单。
+- **上游变了怎么跟**：包是 0.1.0，接口和字段都不稳。改了先看 `ly-music-source` 的 CHANGELOG；包跟不上时把需要的几个模块（`abogus` / `passport` / `decrypt`）vendor 进 `electron/soda/`（GPL-3.0，法律上和现在一样）。验收的最小路径：扫码登录 → `getProfile().isVip` → `listUserPlaylists()` 里找 `kind: 'liked'` → 对一首 VIP 歌 `resolve()` 拿到非空字节。
+
 ## YouTube Music（`ytm`，仅桌面端）
 
 - **上游**：

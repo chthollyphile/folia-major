@@ -5,14 +5,25 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 // 汽水的接口只在主进程发出（api.qishui.com 带 Origin 头答 403），这一层是到 electron/soda/sodaApiBridge.cjs
 // 的受限 IPC 边界：操作清单在这里，别处不碰 window.electron。
 
-export type SodaOperation = 'search' | 'playlist_search' | 'playlist_detail' | 'share';
+export type SodaOperation =
+    | 'search' | 'playlist_search' | 'playlist_detail' | 'share'
+    | 'status' | 'login_qr_create' | 'login_qr_poll' | 'logout' | 'profile' | 'membership'
+    | 'user_playlists' | 'liked_ids' | 'like'
+    | 'playlist_create' | 'playlist_append' | 'playlist_remove';
 
 export interface SodaParams {
     query?: string;
     cursor?: number;
     count?: number;
+    limit?: number;
     playlistId?: string;
     trackId?: string;
+    token?: string;
+    songId?: string;
+    liked?: boolean;
+    name?: string;
+    description?: string;
+    trackIds?: string[];
 }
 
 export type SodaBridgeResult =

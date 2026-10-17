@@ -18,6 +18,9 @@ import {
     sodaTrackList,
 } from './sodaNormalize';
 import { sodaExplore } from './sodaExplore';
+import { sodaAuth } from './sodaAuth';
+import { sodaLibrary } from './sodaLibrary';
+import { sodaMutations } from './sodaMutations';
 
 // src/services/onlineMusic/soda/sodaProvider.ts
 //
@@ -74,13 +77,16 @@ export const sodaProvider: OnlineMusicProvider = {
         lyrics: true,
         wordByWordLyrics: true,
         explore: true,
-        auth: false,
-        userLibrary: false,
-        playlists: false,
+        // 登录之后才有账号：歌单库、红心、歌单增删都跟着账号走。
+        auth: true,
+        userLibrary: true,
+        playlists: true,
+        likes: true,
+        mutations: true,
+        playlistTrackMutations: true,
         albums: false,
         artists: false,
         recommendations: false,
-        mutations: false,
     },
     normalizeSong: (raw) => normalizeSodaSong(raw),
     normalizeCollection: (raw) => normalizeSodaCollection(raw),
@@ -155,4 +161,7 @@ export const sodaProvider: OnlineMusicProvider = {
     },
 
     explore: sodaExplore,
+    auth: sodaAuth,
+    library: sodaLibrary,
+    mutations: sodaMutations,
 };

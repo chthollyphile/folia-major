@@ -46,6 +46,7 @@ const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createSodaApiBridge } = require('./soda/sodaApiBridge.cjs');
+const { createSodaSessionStore } = require('./soda/session.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
@@ -236,8 +237,9 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
     return request;
   },
 });
-// 汽水没有账号、没有可存的东西，桥只做转发，所以不传 store / safeStorage。
-const sodaApiBridge = createSodaApiBridge();
+// 汽水的匿名接口只做转发；账号那部分（扫码登录、我的歌单、红心）的会话用 safeStorage 加密存在这里。
+const sodaSessionStore = createSodaSessionStore({ store, safeStorage });
+const sodaApiBridge = createSodaApiBridge({ sessionStore: sodaSessionStore });
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the

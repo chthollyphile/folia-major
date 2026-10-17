@@ -1405,6 +1405,8 @@ export default {
     "loginTitleQq": "Scan to sign in to QQ Music",
     "loginTitleBodian": "Scan with Bodian Music",
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
+    "loginTitleSoda": "Scan with Soda Music",
+    "loginNoteSoda": "Scan this code with the Soda Music app and confirm. Sign-in is needed for VIP tracks and your own playlists.",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",

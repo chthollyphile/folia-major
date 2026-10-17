@@ -224,6 +224,7 @@
     "file-type": "^21.3.4",
     "googlevideo": "4.1.1",
     "koffi": "^3.3.1",
+    "ly-music-source": "0.1.0",
     "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
     "music-metadata": "^11.16.1",
     "onnxruntime-node": "^1.30.0",

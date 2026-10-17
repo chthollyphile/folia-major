@@ -1404,6 +1404,8 @@ export default {
     "loginTitleQq": "扫码登录QQ音乐",
     "loginTitleBodian": "使用波点音乐 App 扫码",
     "loginNoteBodian": "打开波点音乐 App 扫描二维码并确认登录",
+    "loginTitleSoda": "使用汽水音乐 App 扫码",
+    "loginNoteSoda": "打开汽水音乐 App 扫描二维码并确认登录。登录后才能听 VIP 整首、看自己的歌单。",
     "loginTitleYtm": "登录 YouTube Music",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",

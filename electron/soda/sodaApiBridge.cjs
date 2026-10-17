@@ -3,8 +3,11 @@
 // 汽水音乐（Soda / Luna）的匿名接口，全部在主进程发出。api.qishui.com 只要请求带 Origin 头就答 403，
 // 渲染进程里的 fetch 一定失败，所以这一层是必须的，不是可选的优化。
 //
-// 只做转发的活：拿原始 JSON / 解析分享页的 _ROUTER_DATA，字段怎么读由 renderer 侧的 sodaNormalize.ts 决定。
-// 没有登录：汽水的登录接口要 X-Helios / X-Medusa 签名和设备注册，不在这一层。
+// 两段活：
+//   1. 匿名接口（搜索 / 歌单搜索 / 歌单详情 / 分享页）——直接发 HTTP，字段怎么读由 sodaNormalize.ts 决定。
+//   2. 账号（扫码登录、我的歌单、红心、歌单增删）——交给 ly-music-source，它管签名（a-bogus）、passport
+//      扫码和 cookie；会话在这里用 safeStorage 加密存着，之后每次请求前重新装回客户端。
+// 播放地址的解析（VIP 整首要解密）留给后续的 audio.cjs，不在这里。
 
 const API_HOST = 'https://api.qishui.com';
 const SHARE_HOST = 'https://music.douyin.com';
@@ -25,7 +28,12 @@ const DEVICE = {
     iid: '2204957404569386', device_id: '2204957404565290',
 };
 
-const OPERATIONS = ['search', 'playlist_search', 'playlist_detail', 'share'];
+const OPERATIONS = [
+    'search', 'playlist_search', 'playlist_detail', 'share',
+    'status', 'login_qr_create', 'login_qr_poll', 'logout', 'profile', 'membership',
+    'user_playlists', 'liked_ids', 'like',
+    'playlist_create', 'playlist_append', 'playlist_remove',
+];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
     Object.entries(params).map(([key, value]) => [key, String(value)]),
@@ -57,7 +65,24 @@ function readRouterData(html) {
     return null;
 }
 
-function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20000 } = {}) {
+function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20000, sessionStore = null } = {}) {
+    // ly-music-source 是纯 ESM，主进程是 CJS：用动态 import 加载一次（和 electron/ytm 引 youtubei.js 一样）。
+    let clientPromise = null;
+    const musicClient = () => {
+        if (!clientPromise) {
+            clientPromise = (async () => {
+                const { createMusicSource } = await import('ly-music-source');
+                const client = createMusicSource({ timeoutMs });
+                const saved = sessionStore?.get();
+                if (saved) {
+                    try { client.importSession(saved); } catch { /* 旧会话读不回来就当没登录 */ }
+                }
+                return client;
+            })();
+        }
+        return clientPromise;
+    };
+
     const call = async (url, headers) => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -111,13 +136,83 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         },
     };
 
+    const account = {
+        async status() {
+            const client = await musicClient();
+            const state = client.getAuthState();
+            return { authenticated: Boolean(state?.authenticated), profile: state?.authenticated ? await client.getProfile('qishui').catch(() => null) : null };
+        },
+        async login_qr_create() {
+            const client = await musicClient();
+            const session = await client.createQrLogin('qishui');
+            return { token: String(session?.token ?? ''), qrcode: session?.qrcode ? String(session.qrcode) : '', expireTime: Number(session?.expireTime) || undefined };
+        },
+        async login_qr_poll({ token }) {
+            if (!token) throw new Error('missing QR token');
+            const client = await musicClient();
+            const result = await client.pollQrLogin('qishui', token);
+            if (result?.status === 'confirmed') sessionStore?.set(client.exportSession());
+            return { status: String(result?.status ?? 'failed'), message: result?.message ? String(result.message) : undefined };
+        },
+        async logout() {
+            const client = await musicClient();
+            client.logout('qishui');
+            sessionStore?.clear();
+            return { ok: true };
+        },
+        async profile() {
+            const client = await musicClient();
+            return client.getProfile('qishui');
+        },
+        async membership() {
+            const client = await musicClient();
+            return client.getMembership('qishui');
+        },
+        async user_playlists({ limit = 50, cursor = 0 }) {
+            const client = await musicClient();
+            return { items: await client.listUserPlaylists({ limit, cursor }) };
+        },
+        async liked_ids({ limit = 500 } = {}) {
+            const client = await musicClient();
+            const playlists = await client.listUserPlaylists({ limit: 200 });
+            const liked = playlists.find((item) => String(item?.kind ?? '') === 'liked');
+            if (!liked) return { ids: [], whole: true };
+            const detail = await client.getPlaylist(String(liked.id), { limit });
+            return { ids: (detail?.songs ?? []).map((song) => String(song.id)), whole: (detail?.songs ?? []).length < limit };
+        },
+        async like({ songId, liked }) {
+            if (!songId) throw new Error('missing song id');
+            const client = await musicClient();
+            if (liked) await client.likeTrack(String(songId));
+            else await client.unlikeTrack(String(songId));
+            return { ok: true };
+        },
+        async playlist_create({ name, description }) {
+            const client = await musicClient();
+            return client.createPlaylist({ name: String(name ?? ''), ...(description ? { description: String(description) } : {}) });
+        },
+        async playlist_append({ playlistId, trackIds }) {
+            const client = await musicClient();
+            await client.appendPlaylistTracks(String(playlistId), (trackIds ?? []).map(String));
+            return { ok: true };
+        },
+        async playlist_remove({ playlistId, trackIds }) {
+            const client = await musicClient();
+            await client.removePlaylistTracks(String(playlistId), (trackIds ?? []).map(String));
+            return { ok: true };
+        },
+    };
+
     return {
         async request(operation, params = {}) {
             if (!OPERATIONS.includes(operation)) {
                 return { ok: false, error: { code: 'unsupported', message: 'Unsupported Soda operation' } };
             }
             try {
-                return { ok: true, data: await handlers[operation](params) };
+                const data = Object.prototype.hasOwnProperty.call(account, operation)
+                    ? await account[operation](params)
+                    : await handlers[operation](params);
+                return { ok: true, data };
             } catch (error) {
                 const code = typeof error?.status === 'number' && error.status >= 500 ? 'unavailable' : 'invalid-response';
                 return { ok: false, error: { code, message: String(error?.message || 'Soda request failed') } };

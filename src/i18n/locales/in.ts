@@ -1400,6 +1400,8 @@ export default {
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
     "loginTitleBodian": "Pindai dengan Bodian Music",
     "loginNoteBodian": "Pindai kode ini dengan aplikasi Bodian Music dan konfirmasi masuk",
+    "loginTitleSoda": "Pindai dengan Soda Music",
+    "loginNoteSoda": "Pindai kode ini dengan aplikasi Soda Music dan konfirmasi. Masuk diperlukan untuk lagu VIP dan playlist Anda.",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginNoteYtmBrowser": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
     "loginNoteYtmBrowserMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
