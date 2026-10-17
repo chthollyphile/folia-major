@@ -240,7 +240,11 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
   },
 });
 // 汽水的匿名接口只做转发；账号那部分（扫码登录、我的歌单、红心）的会话用 safeStorage 加密存在这里。
-const sodaSessionStore = createSodaSessionStore({ store, safeStorage });
+const sodaSessionStore = createSodaSessionStore({
+  store,
+  safeStorage,
+  filePath: path.join(app.getPath('userData'), 'soda-session.bin'),
+});
 // VIP 整首解密后的文件放在 userData 下；地址只在这次运行里有效。
 const sodaAudio = createSodaAudio();
 const sodaApiBridge = createSodaApiBridge({

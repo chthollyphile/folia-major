@@ -127,38 +127,63 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         const payload = JSON.parse(text);
         const trackPlayer = payload?.track_player ?? payload?.trackPlayer ?? {};
         const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
-        const pick = (list) => (Array.isArray(list) ? list : [])
-            .map((item) => {
-                const meta = item?.video_meta ?? item?.videoMeta ?? {};
-                // 码率/时长/是否试听都在 video_meta 里（实测 video_list 项的键是
-                // main_url / backup_url / video_meta / encrypt_info / gear_des_key）。
-                const bitrate = Number(meta?.bitrate ?? meta?.bit_rate ?? meta?.Bitrate ?? item?.bitrate ?? 0);
-                const durationMs = Number(meta?.duration ?? meta?.duration_ms ?? meta?.Duration ?? 0);
-                const audition = Boolean(meta?.is_audition ?? meta?.isAudition ?? meta?.audition ?? false);
-                return {
-                    url: item?.main_url || item?.MainPlayUrl || item?.backup_url || item?.BackupPlayUrl || '',
-                    auth: item?.encrypt_info?.spade_a || item?.PlayAuth || item?.encrypt_info?.SpadeA || '',
-                    bitrate,
-                    durationMs,
-                    audition,
-                    keys: item && typeof item === 'object' ? Object.keys(item).join(',') : '',
-                    meta: meta && typeof meta === 'object' ? JSON.stringify(meta).slice(0, 240) : '',
-                };
-            })
-            .filter((item) => item.url && !item.audition)
-            // 先取离目标码率最近的一档，同距离时取码率高的。
-            .sort((a, b) => Math.abs((a.bitrate || wanted) - wanted) - Math.abs((b.bitrate || wanted) - wanted) || b.bitrate - a.bitrate);
+        /**
+         * 把 video_model 展开成候选流。结构与 libresoda 的 collect_video_model_entries 一致：
+         * spade_a 和时长都可能是**父层**给的（时长键是 video_duration / duration），子项继承。
+         */
+        const collectStreams = (value, out, inherited, depth) => {
+            if (value == null || depth > 12) return;
+            if (Array.isArray(value)) {
+                for (const item of value) collectStreams(item, out, inherited, depth + 1);
+                return;
+            }
+            if (typeof value === 'string') {
+                const text = value.trim();
+                if (!text.startsWith('{') && !text.startsWith('[')) return;
+                try { collectStreams(JSON.parse(text), out, inherited, depth + 1); } catch { /* 不是 JSON 就算了 */ }
+                return;
+            }
+            if (typeof value !== 'object') return;
+
+            const auth = value?.encrypt_info?.spade_a || value?.encrypt_info?.SpadeA || value?.spade_a || inherited.auth;
+            const rawDuration = Number(value?.video_duration ?? value?.duration ?? value?.Duration ?? 0);
+            // 时长可能是秒，也可能是毫秒。
+            const duration = rawDuration > 0 ? (rawDuration > 1000 ? rawDuration / 1000 : rawDuration) : inherited.duration;
+            const url = value?.main_url || value?.main_play_url || value?.MainPlayUrl
+                || value?.backup_url || value?.backup_play_url || value?.play_url || '';
+            if (url) {
+                // 码率/大小/档位名在 video_meta 里，不在带 URL 的这一层。
+                const meta = value?.video_meta && typeof value.video_meta === 'object' ? value.video_meta : {};
+                out.push({
+                    url,
+                    auth,
+                    duration,
+                    bitrate: Number(meta.bitrate ?? meta.real_bitrate ?? value?.bitrate ?? 0),
+                    size: Number(meta.size ?? value?.size ?? 0),
+                    quality: String(meta.quality ?? value?.quality ?? ''),
+                    meta: Object.keys(meta).length ? JSON.stringify(meta).slice(0, 200) : '',
+                });
+            }
+            for (const child of Object.values(value)) {
+                if (child && typeof child === 'object') collectStreams(child, out, { auth, duration }, depth + 1);
+            }
+        };
+
+        const pick = (videoModel) => {
+            const out = [];
+            collectStreams(videoModel, out, { auth: '', duration: 0 }, 0);
+            // 整曲优先：时长最长的在前（试听档一般 30 秒）；同长度取码率高、文件大的。
+            return out
+                .filter((item) => item.url)
+                .sort((a, b) => (b.duration - a.duration)
+                    || Math.abs((a.bitrate || wanted) - wanted) - Math.abs((b.bitrate || wanted) - wanted)
+                    || b.size - a.size);
+        };
 
         // 现行 LunaPC 的整曲信息在 track_player.video_model.video_list；老的 url_player_info 也留着兜底。
         let streams = [];
         const videoModel = trackPlayer.video_model ?? trackPlayer.videoModel;
-        if (videoModel) {
-            let parsed = videoModel;
-            if (typeof videoModel === 'string') {
-                try { parsed = JSON.parse(videoModel); } catch { parsed = null; }
-            }
-            streams = pick(parsed?.video_list ?? parsed?.VideoList ?? parsed?.data?.play_info_list ?? parsed?.PlayInfoList);
-        }
+        if (videoModel) streams = pick(videoModel);
         const playerUrl = trackPlayer.url_player_info ?? trackPlayer.urlPlayerInfo;
         if (streams.length === 0 && playerUrl) {
             const player = await (await requestFactory(playerUrl, { headers: { 'User-Agent': UA_LUNA } })).json();
@@ -169,8 +194,8 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         }
         const best = streams[0];
-        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| duration', best.durationMs || 'unknown', '| auth', best.auth ? 'yes' : 'no');
-        console.info('[Soda] stream candidates:', streams.length, '| first meta:', best.meta || '(none)');
+        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| duration', best.duration ? `${best.duration}s` : 'unknown', '| size', best.size || 'unknown', '| quality', best.quality || 'unknown', '| auth', best.auth ? 'yes' : 'no');
+        console.info('[Soda] stream candidates:', streams.map((item) => `${item.duration}s/${item.bitrate}`).join(' '));
         const playAuth = best.auth;
         const audioUrl = best.url;
         const streamAnswer = await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } });
@@ -307,6 +332,7 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             sessionStore?.set(client.exportSession());
             // 只记 cookie 的名字，值不进日志。
             console.info('[Soda] PC client session imported:', found.userDataDir, '| cookies:', found.names.join(','));
+            console.info('[Soda] account vip:', profile?.isVip ? String(profile.vipLevel || 'vip') : 'none');
             return { ok: true, profile, cookies: found.names };
         },
         /** 扫码走不通时的退路：把浏览器里登录后的 cookie 整串交进来。 */

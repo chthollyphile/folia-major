@@ -3,9 +3,11 @@
 // 汽水登录状态的存放处：`ly-music-source` 的 SessionBundle（cookie + LunaPC 请求头 + 设备号），
 // 用 OS 的 safeStorage 加密后写进 electron-store，和波点、酷狗的做法一致。加密不可用时只在这次运行里留着。
 
+const { readFileSync, writeFileSync, rmSync } = require('node:fs');
+
 const SESSION_KEY = 'SODA_SESSION_V1';
 
-function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
+function createSodaSessionStore({ store, safeStorage, filePath = '', warn = console.warn }) {
     let loaded = false;
     let current = null;
     const canEncrypt = () => Boolean(safeStorage?.isEncryptionAvailable?.())
@@ -15,8 +17,16 @@ function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
         get() {
             if (loaded) return current;
             loaded = true;
-            const sealed = store.get(SESSION_KEY);
-            const hasSealed = typeof sealed === 'string' && sealed.length > 0;
+            // 先看独立文件，再看 electron-store：实测 store 那边写入后重启读不到。
+            let sealed = '';
+            if (filePath) {
+                try { sealed = readFileSync(filePath, 'utf8').trim(); } catch { sealed = ''; }
+            }
+            if (!sealed) {
+                const fromStore = store.get(SESSION_KEY);
+                sealed = typeof fromStore === 'string' ? fromStore : '';
+            }
+            const hasSealed = sealed.length > 0;
             if (!hasSealed) {
                 console.info('[SodaSession] no saved session on disk');
                 return null;
@@ -43,7 +53,9 @@ function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
             current = bundle;
             try {
                 if (!canEncrypt()) throw new Error('Encryption unavailable');
-                store.set(SESSION_KEY, safeStorage.encryptString(JSON.stringify(bundle)).toString('base64'));
+                const sealed = safeStorage.encryptString(JSON.stringify(bundle)).toString('base64');
+                store.set(SESSION_KEY, sealed);
+                if (filePath) writeFileSync(filePath, sealed, { mode: 0o600 });
                 console.info('[SodaSession] session encrypted and saved');
             } catch (error) {
                 console.warn('[SodaSession] could not save the session:', error?.message || error);
@@ -55,6 +67,7 @@ function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
             loaded = true;
             current = null;
             try { store.delete(SESSION_KEY); } catch { /* already gone */ }
+            if (filePath) { try { rmSync(filePath, { force: true }); } catch { /* already gone */ } }
         },
     };
 }
