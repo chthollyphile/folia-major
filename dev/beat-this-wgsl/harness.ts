@@ -1,5 +1,6 @@
 /// <reference types="@webgpu/types" />
 import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/automix/beatThisWgsl/runtime';
+import { readPackedWeights } from './packed';
 import { BEAT_THIS_SAMPLE_RATE, melSpectrogram, splitForModel } from '../../src/services/automix/beatThis';
 import { runBeatThisGpu } from '../../src/services/automix/beatThisGpu';
 
@@ -39,8 +40,7 @@ async function main() {
     });
     device.addEventListener('uncapturederror', (event) => log(`GPU error: ${(event as GPUUncapturedErrorEvent).error.message}`));
 
-    const manifest: BeatThisWgslManifest = JSON.parse(fs.readFileSync(config.weights.replace(/\.bin$/, '.json'), 'utf8'));
-    const weights: Uint8Array = fs.readFileSync(config.weights);
+    const { weights, manifest } = readPackedWeights(fs.readFileSync(config.weights));
     if (config.songs.length) {
         if (config.app) installAppBridge(weights, manifest, config.out);
         await runSongs(device, weights, manifest, config.songs, config.out, config.f16, config.trimSec, config.app);

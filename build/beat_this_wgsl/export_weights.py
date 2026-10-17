@@ -4,8 +4,10 @@ build/beat_this_wgsl/export_weights.py
 
     python export_weights.py CKPT OUT.bin [--f16]
 
-Writes OUT.bin (little-endian, every tensor 256-byte aligned) and OUT.json (name -> byte offset,
-shape, dtype, and for matmul weights the padded row stride). Everything that is a constant
+Writes OUT.bin: the tensors (little-endian, every tensor 256-byte aligned), then their manifest as
+JSON (name -> byte offset, shape, dtype, and for matmul weights the padded row stride), then the
+trailer b'FOLIABTW' + uint64 LE offset of the JSON - one file, read by electron/analysis/
+packedWeights.cjs for both the WebGPU runtime and the MNN CPU fallback. Everything that is a constant
 transform of the weights happens here, once, so the kernels never redo it per chunk:
 
 - BatchNorms folded: bn1d into a per-frequency scale/shift, every bn2d into its convolution, whose
@@ -32,6 +34,7 @@ its input there by ~25 dB (the same frames are the worst ones for f32 against fl
 """
 import json
 import math
+import struct
 import sys
 
 import numpy as np
@@ -133,9 +136,10 @@ def main():
             pad = -offset % ALIGN
             out.write(bytes(pad))
             offset += pad
-    manifest['bytes'] = offset
-    with open(out_path.removesuffix('.bin') + '.json', 'w') as f:
-        json.dump(manifest, f, indent=1)
+        manifest['bytes'] = offset
+        # The manifest rides in the same file, after the tensors so their offsets stay file offsets.
+        out.write(json.dumps(manifest, indent=1).encode('utf-8'))
+        out.write(b'FOLIABTW' + struct.pack('<Q', offset))
     print(f'{len(tensors)} tensors, {offset / 1e6:.1f} MB')
 
 

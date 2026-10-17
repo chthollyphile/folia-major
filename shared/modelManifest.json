@@ -6,7 +6,7 @@
     "",
     "The hash is the point of this file, not the URLs. 'Downloaded successfully' and 'usable' are",
     "different claims, and four separate times in this project a publisher's weights arrived intact",
-    "and still would not load. A truncated or mirror-substituted ONNX does not fail loudly - it",
+    "and still would not load. A truncated or mirror-substituted model does not fail loudly - it",
     "loads and answers confidently and wrongly, which for a beat grid means every transition lands",
     "off the beat with nothing in the log to say why. That risk goes UP once the file can come from",
     "a mirror, a netdisk, or a folder the listener pointed us at.",
@@ -19,11 +19,11 @@
     "Both models are MIT, which is what makes hosting our own copies allowed at all. A CC-BY-NC",
     "model could never be listed here while Folia is AGPL-3.0 - see the licence field.",
     "",
-    "The third entry is not a model - it is the Python the model runs in, and it is the one entry",
-    "with a `platforms` block because there is a different archive per OS. A platform missing from",
-    "that block cannot run separation at all, and is reported as unsupported rather than offered a",
-    "download. darwin-x64 is in it with an older onnxruntime than the rest (see buildPythonRuntime.mjs);",
-    "it could not be until build/htdemucs_cut_fft.py took the DFTs out of the model."
+    "Weights only. What runs them is MNN, compiled into the app (native/folia-mnn,",
+    "build/buildMnnRuntime.mjs): there is no runtime download and no per-platform entry. The",
+    "files earlier versions used - beat_this.onnx, htdemucs-v2.onnx, htdemucs.onnx and the",
+    "Python runtime archives - stay on the mirrors for those versions; this one never reads them",
+    "(electron/analysis/modelPaths.cjs LEGACY_FILES)."
   ],
   "_manualComment": [
     "Shown only when every mirror has failed. An empty list = the settings page does not offer the",
@@ -62,53 +62,23 @@
   "models": [
     {
       "name": "beat_this",
-      "file": "beat_this.onnx",
-      "bytes": 83077778,
-      "sha256": "c5c1466e08abdb03fdeb50668a06f244b787d564c212490482231a9cfbe9ccbd",
+      "file": "beat_this-wgsl.bin",
+      "bytes": 41102271,
+      "sha256": "6365ae5ba2e42922772da01fbfd0bde8dd20b7362a679018e78a5f251fe8a967",
       "enables": "beatGrid",
       "license": "MIT",
-      "upstream": "https://github.com/mosynthkey/beat_this_cpp",
-      "note": "Beat This! (CPJKU, ISMIR 2024), the community ONNX export of the authors' own final0 checkpoint."
+      "upstream": "https://github.com/CPJKU/beat_this",
+      "note": "Beat This! (CPJKU, ISMIR 2024), the authors' own final0 checkpoint exported by build/beat_this_wgsl/export_weights.py --f16: BatchNorms and RMSNorm gammas folded, matmul weights fp16, everything else fp32, the tensor manifest packed into the same file. One file for both runtimes: the WebGPU path in the renderer (src/services/automix/beatThisWgsl) and the CPU fallback in the analysis worker, which builds the network over these tensors in MNN (native/folia-mnn/folia_beat_this.cpp). Beat and downbeat lists identical to the onnxruntime export on the seven test tracks, on both."
     },
     {
       "name": "htdemucs",
-      "file": "htdemucs-v2.onnx",
-      "bytes": 107902864,
-      "sha256": "a8f542ef3a140d4879156c1b2b0bcad4b29254dcdbf0fd1ec578e3c9cdca925c",
+      "file": "htdemucs-v3.mnn",
+      "bytes": 189714360,
+      "sha256": "41f1e56253ca37359c6bb31fc20e2f09db364239c5d6ea07e0419ed2e0598e93",
       "enables": "stems",
       "license": "MIT",
       "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
-      "note": "htdemucs (Meta Research), single-file four-stem variant, fp16 weights, and the upstream repo's 'transparent' re-export, which makes the STFT a real DFT operator instead of an unrolled loop, taking the graph from 24917 nodes to 1556, so ORT's optimizer costs 353MB and 0.65s where the ordinary export cost 4594MB and 3.9s. Two edits are ours, on top of that. First, build/htdemucs_halve_segment.py halves the welded-in segment, 343980 to 172032 samples (7.8s to 3.9s): peak working set 789MB to 483MB and 19% FASTER, because attention is quadratic in the token count and the segment sets it. A blind A/B on four rendered transitions could not separate the two segment lengths. Second, build/htdemucs_cut_fft.py takes the STFT's and iSTFT's DFTs out of the graph and htdemucs_runner.py does them in numpy: onnxruntime before 1.25, the only kind with an Intel Mac wheel, cannot load the iSTFT's inverse one-sided DFT, and numpy's real FFT is faster anyway (4.9s to 4.2s per 30s window on onnxruntime 1.29), the stems differing by float rounding (123 dB SNR). A new file name rather than a new htdemucs.onnx, because an app from before cannot run it: overwriting the old name would have failed their downloads on the hash. The old file still resolves as installed (modelPaths.cjs MODEL_FILES)."
-    },
-    {
-      "name": "runtime",
-      "unpack": "runtime",
-      "enables": "stems",
-      "license": "PSF-2.0 (CPython), MIT (onnxruntime), BSD-3-Clause (numpy)",
-      "upstream": "https://github.com/astral-sh/python-build-standalone",
-      "note": "CPython 3.11.16 + onnxruntime 1.29.0 (1.23.2 on Intel Macs, the last with a wheel for them, which needs macOS 13) + numpy 2.4.6, built by build/buildPythonRuntime.mjs. Separation runs here rather than in Electron's own onnxruntime-node because `enable_mem_reuse` is bound only by onnxruntime's Python API, and turning it off is what takes one separation from 2543MB to under 500MB. A directory rather than a file: it is unpacked into <models>/runtime/ and the interpreter is <models>/runtime/python.exe, or bin/python3 off Windows.",
-      "platforms": {
-        "win32-x64": {
-          "file": "folia-runtime-win32-x64.zip",
-          "bytes": 35633855,
-          "sha256": "50a5829ac928071ab2eecaf2667e5dab9c3af2b4b44fb5bb4b7acfb9863cdacd"
-        },
-        "darwin-arm64": {
-          "file": "folia-runtime-darwin-arm64.zip",
-          "bytes": 44380755,
-          "sha256": "f8313150254d699396b4ff4c9289bdd2864ba3268bd137e5aeb17963be318cde"
-        },
-        "darwin-x64": {
-          "file": "folia-runtime-darwin-x64.zip",
-          "bytes": 53911212,
-          "sha256": "b6202a387b5d53c589788fa26b4fcba63ddfb0dd43b19d213bbdbf50280ef23c"
-        },
-        "linux-x64": {
-          "file": "folia-runtime-linux-x64.zip",
-          "bytes": 60509680,
-          "sha256": "cf1347f5621fed74f8b2dea243ea1365824ac77ab52ddc2183ca8a77180b60da"
-        }
-      }
+      "note": "htdemucs (Meta Research), single-file four-stem variant, built by build/htdemucs_mnn/make_model.py from the htdemucs.onnx earlier versions shipped (sha256 099b5be7...): the STFT/iSTFT as matrix products, GroupNorm chains fused, ConvTranspose as polyphase Conv, every DConv layer as one Folia::FoliaDConv operator, converted with MNNConvert from the pinned source, weights and graph packed into one file. fp32. Against the Python + onnxruntime path it replaces, on six 30 s excerpts: worst per-stem level difference 0.003 / 0.002 / 0.0 dB (drums / bass / vocals), 3.2-3.8 s per window against 3.7-4.1 s, on an M4. A new name because no earlier version can run it."
     }
   ]
 }

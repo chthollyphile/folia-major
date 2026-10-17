@@ -25,11 +25,10 @@ export const MODEL_OPTIONS = {
 /** A byte count as a person reads it. Sizes here are always tens or hundreds of MB. */
 const megabytes = (bytes: number) => `${Math.round(bytes / 1e6)} MB`;
 
-/** The runtime is named for itself; the two weights are named for what they are. */
-const titleKeyOf = (model: ElectronAutomixModelEntry) => {
-    if (model.name === 'runtime') return 'options.modelEnablesRuntime';
-    return model.enables === 'stems' ? 'options.modelEnablesStems' : 'options.modelEnablesBeatGrid';
-};
+/** Keyed by capability: one model per feature, so `enables` names the row. */
+const titleKeyOf = (model: ElectronAutomixModelEntry) => (
+    model.enables === 'stems' ? 'options.modelEnablesStems' : 'options.modelEnablesBeatGrid'
+);
 
 /** The features a download switches on: stems serve both, the beat grid serves Automix alone. */
 const scopeKeysOf = (model: ElectronAutomixModelEntry) => (model.enables === 'stems'
@@ -119,14 +118,12 @@ const AutomixModelsGroup: React.FC = () => {
     // Nothing to show until the desktop app has answered.
     if (!status) return null;
 
-    const wanted = status.models.filter(model => model.supported);
+    const wanted = status.models;
     const installed = status.models.filter(model => model.path);
-    // A device that can run none of the models: the closed row says what every row inside says.
-    const summary = wanted.length === 0
-        ? t('options.modelUnsupported')
-        : installed.length >= wanted.length
-            ? t('options.modelInstalled')
-            : installed.length === 0 ? t('options.modelMissing') : `${installed.length} / ${wanted.length}`;
+    // Weights only, and what runs them is compiled in: every device can have every model.
+    const summary = installed.length >= wanted.length
+        ? t('options.modelInstalled')
+        : installed.length === 0 ? t('options.modelMissing') : `${installed.length} / ${wanted.length}`;
     const anyFailed = Object.values(failures).some(list => list.length > 0);
     const manualLinks = (status.manual?.links ?? []).filter(link => link.url.trim());
 
@@ -144,7 +141,7 @@ const AutomixModelsGroup: React.FC = () => {
                         <Row
                             key={model.name}
                             label={t(titleKeyOf(model))}
-                            hint={model.supported ? (busy && live?.host) || scopes : t('options.modelUnsupportedWhy')}
+                            hint={(busy && live?.host) || scopes}
                             note={model.path ?? undefined}
                             below={reasons.length > 0 && (
                                 <div className="space-y-0.5 font-mono text-[11px] leading-4 text-[color:var(--st-t3)]">
@@ -152,10 +149,8 @@ const AutomixModelsGroup: React.FC = () => {
                                 </div>
                             )}
                         >
-                            {model.supported && <Value>{megabytes(model.bytes)}</Value>}
-                            {!model.supported ? (
-                                <Status>{t('options.modelUnsupported')}</Status>
-                            ) : model.path ? (
+                            <Value>{megabytes(model.bytes)}</Value>
+                            {model.path ? (
                                 <Status tone="ok">{t('options.modelInstalled')}</Status>
                             ) : (
                                 <>
@@ -184,7 +179,9 @@ const AutomixModelsGroup: React.FC = () => {
                     <Button onClick={() => void scan()} disabled={scanning}>
                         {t(scanning ? 'options.modelScanning' : 'options.modelScan')}
                     </Button>
-                    {installed.length > 0 && <Button onClick={() => setRemoveOpen(true)}>{t('options.modelRemoveAll')}</Button>}
+                    {/* An earlier version's ONNX models and Python runtime count: nothing else would ever
+                        remove them, and they are a few hundred MB this version cannot use. */}
+                    {(installed.length > 0 || status.leftoverBytes > 0) && <Button onClick={() => setRemoveOpen(true)}>{t('options.modelRemoveAll')}</Button>}
                 </Row>
                 <Reveal when={anyFailed && manualLinks.length > 0}>
                     <Row
@@ -223,7 +220,10 @@ const AutomixModelsGroup: React.FC = () => {
                 isOpen={removeOpen}
                 isDaylight={isDaylight}
                 title={t('options.modelRemoveAll')}
-                description={t('options.modelRemoveConfirm', { size: megabytes(installed.reduce((sum, model) => sum + model.bytes, 0)) })}
+                description={t('options.modelRemoveConfirm', {
+                    // Everything the button deletes, an earlier version's leftovers included.
+                    size: megabytes(installed.reduce((sum, model) => sum + model.bytes, status.leftoverBytes)),
+                })}
                 confirmVariant="danger"
                 onConfirm={() => void removeAll()}
                 onClose={() => setRemoveOpen(false)}

@@ -1,3 +1,5 @@
+import { readPackedWeights } from './packed';
+
 // dev/beat-this-wgsl/coexist.ts
 // Does beat_this on WebGPU cost the visualizer frames when both run in the one renderer process?
 //
@@ -89,10 +91,9 @@ async function main() {
     const config = await ipcRenderer.invoke('btw-config');
     // The shell's page loads this script from <head>, before there is a body to draw into.
     if (!document.body) await new Promise(resolve => addEventListener('DOMContentLoaded', resolve, { once: true }));
-    const weightsFile: Buffer = fs.readFileSync(config.weights);
-    const manifest = JSON.parse(fs.readFileSync(config.weights.replace(/\.bin$/, '.json'), 'utf8'));
+    const { weights: weightsFile, manifest } = readPackedWeights(fs.readFileSync(config.weights));
     const chunkFile: Buffer = fs.readFileSync(config.chunks);
-    const copy = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    const copy = (b: Uint8Array) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
 
     const frames: number[] = [];
     const renderGpu: { at: number; ms: number }[] = [];

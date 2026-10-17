@@ -447,7 +447,8 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // separate, and the profile records this one - see `TrackProfile.gridless`.
             const runModel = request.wantGrid && canRunBeatThis();
             const grid = channels && runModel
-                ? await analyseBeatGrid(await melSpectrogramOffThread(channels.mid))
+                // Automix analyses minutes ahead of the transition, so the CPU may stand in for the GPU.
+                ? await analyseBeatGrid(await melSpectrogramOffThread(channels.mid), { cpuFallback: true })
                 : null;
             const profile = buffer && channels
                 ? await analyseTrackOffThread(channels.mid, buffer.sampleRate, {

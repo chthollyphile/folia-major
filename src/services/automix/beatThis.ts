@@ -441,18 +441,26 @@ export const canRunBeatThis = (): boolean =>
  * Verified against the official Python inference on thirty tracks from the user's own library:
  * beat and downbeat F-measure 1.0000, mean offset 0.00 ms, identical beat counts on every track.
  * If that ever stops being true, the cause is in the spectrogram or the chunking above, not here.
+ *
+ * `cpuFallback` says whether the CPU may take what the GPU could not, and it is off unless asked for.
+ * The CPU run (the analysis worker, MNN) is ~0.4-0.7 s a chunk against the GPU's ~0.06: fine for
+ * automix, which analyses a track minutes before its transition, and far too slow for anything that
+ * needs the grid while the track is already playing. Such a caller gets null and keeps its estimator.
  */
-export const analyseBeatGrid = async (mel: MelSpectrogram): Promise<BeatGrid | null> => {
+export const analyseBeatGrid = async (
+    mel: MelSpectrogram,
+    { cpuFallback = false }: { cpuFallback?: boolean } = {},
+): Promise<BeatGrid | null> => {
     const run = typeof window !== 'undefined' ? window.electron?.runBeatThis : undefined;
     if (!canRunBeatThis() || typeof run !== 'function') return null;
 
     const chunks = splitForModel(mel);
     if (!chunks.length) return null;
 
-    // The renderer's own GPU first (beatThisGpu.ts); it answers null for whatever it cannot take - a
-    // short chunk, no WebGPU export on disk, no usable device - and those go over onnxruntime.
+    // The renderer's own GPU first (beatThisGpu.ts); it answers null for whatever it cannot take - no
+    // export on disk, no usable device, a failed run - and those go to the CPU, if this caller allows it.
     const request = chunks.map(({ data, frames }) => ({ data, frames }));
-    const logits = await runBeatThisGpu(request) ?? await run(request);
+    const logits = await runBeatThisGpu(request) ?? (cpuFallback ? await run(request) : null);
     if (!logits || logits.beat.length !== chunks.length) {
         // Nothing usable came back. Not remembered as a failure - the same empty answer arrives when
         // the weights were just deleted or the worker was restarted under this request - so this only

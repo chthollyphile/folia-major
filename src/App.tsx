@@ -291,6 +291,12 @@ export default function App() {
         () => ({ mode: transitionMode, crossfadeMaxSec, performance: transitionPerformance }),
         [transitionMode, crossfadeMaxSec, transitionPerformance],
     );
+    // The analysis worker keeps htdemucs loaded while automix can ask for it, and releases it the
+    // moment it cannot - the switch off, or the crossfade mode, which reads no model. Sent on mount
+    // too: the main process starts out assuming off. See electron/analysis/host.cjs.
+    useEffect(() => {
+        window.electron?.setAutomixEnabled?.(automixEnabled && transitionMode === 'automix');
+    }, [automixEnabled, transitionMode]);
 
     const startupExperience = useStartupExperienceGate();
 

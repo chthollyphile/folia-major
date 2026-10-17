@@ -1,6 +1,7 @@
 // src/services/automix/beatThisGpu.ts
-// Beat This! on WebGPU in this renderer - the process that also draws the visualizer - with the
-// onnxruntime path in the main process as the fallback for everything this cannot take.
+// Beat This! on WebGPU in this renderer - the process that also draws the visualizer - with the CPU
+// path in the analysis worker (electron/analysis/worker.cjs, MNN) as automix's fallback for everything
+// this cannot take.
 //
 // Where it runs: a dedicated worker (workers/beatThisGpu.worker.ts) with its own device, so neither
 // the upload nor the readbacks ever touch the thread that paints. The GPU itself is shared with the
@@ -20,9 +21,9 @@
 //
 // Weights come from the main process (the renderer cannot read the models directory) and are held,
 // on the GPU and in the worker, only while in use: two idle minutes and the worker is dropped, the
-// same rhythm as the onnxruntime worker in electron/analysis/host.cjs.
+// same rhythm as the analysis worker in electron/analysis/host.cjs.
 //
-// Every failure answers null and the caller runs the chunks over onnxruntime instead. A failure to
+// Every failure answers null and the caller runs the chunks on the CPU instead, if it may. A failure to
 // get a device at all is remembered for the session - that is the machine, not the moment - while
 // a lost device or a failed run only drops this worker, and the next track tries a fresh one.
 
@@ -117,7 +118,7 @@ const start = async (): Promise<boolean> => {
     if (reply.error) {
         // Before the first chunk: no WebGPU, no adapter, or a pipeline this device will not build.
         // None of those changes within a session.
-        console.warn(`[beat-this-gpu] unavailable, using onnxruntime: ${reply.error}`);
+        console.warn(`[beat-this-gpu] unavailable, falling back to the CPU: ${reply.error}`);
         unsupported = true;
         drop();
         return false;
@@ -127,7 +128,7 @@ const start = async (): Promise<boolean> => {
 };
 
 /**
- * Logits for these chunks from the WebGPU runtime, or null to have them run over onnxruntime.
+ * Logits for these chunks from the WebGPU runtime, or null to have them run on the CPU.
  *
  * Null without trying when there is no WebGPU export on disk, and when this machine has already
  * failed to run it.
@@ -153,7 +154,7 @@ const runNow = async (chunks: Array<{ data: Float32Array; frames: number }>): Pr
     const data = chunks.map(chunk => Float32Array.from(chunk.data.subarray(0, chunk.frames * 128)));
     const reply = await ask({ kind: 'run', chunks: data }, data.map(chunk => chunk.buffer));
     if (reply.error) {
-        console.warn(`[beat-this-gpu] run failed, using onnxruntime for this track: ${reply.error}`);
+        console.warn(`[beat-this-gpu] run failed, falling back to the CPU for this track: ${reply.error}`);
         drop();
         return null;
     }
