@@ -586,22 +586,29 @@ export const DEFAULT_SONNET_TUNING: SonnetTuning = {
 };
 
 /**
- * 智能动感模式, one switch for every visualizer and background that draws beat FX: beat_this' beats
- * drive the picture instead of the FFT bands (src/services/beatFx). Which ones do is declared on their
- * registry entries (`drawsBeatFx`). Off leaves every picture exactly as it was.
+ * One beat effect's own setting under 智能动感模式 (services/beatFx/beatEffects.ts): whether it plays,
+ * and its strength, 0..2, 1 being the look it was tuned to.
+ */
+export interface BeatEffectSetting {
+  on: boolean;
+  strength: number;
+}
+
+/**
+ * 智能动感模式, one switch for every visualizer and background that draws beat FX, and each effect's
+ * own setting. The effects a picture has are declared on its registry entry (`beatEffects`), each
+ * reading beat_this' beats or htdemucs' drum hits (src/services/beatFx). An effect with nothing
+ * stored plays at strength 1. Off leaves every picture exactly as it was.
  */
 export interface SmartBeatSettings {
   enabled: boolean;
-  /** 轻拍 strength, 0..2: scales every beat's envelope. 0 turns that layer off. */
-  beatIntensity: number;
-  /** 重拍 strength, 0..2: scales the downbeat's envelope. 0 turns that layer off. */
-  downbeatIntensity: number;
+  /** Keyed by effect id (`sonnet.lensTear`); only the effects the user has touched. */
+  effects: Readonly<Record<string, BeatEffectSetting>>;
 }
 
 export const DEFAULT_SMART_BEAT_SETTINGS: SmartBeatSettings = {
   enabled: false,
-  beatIntensity: 1,
-  downbeatIntensity: 1,
+  effects: {},
 };
 
 /**

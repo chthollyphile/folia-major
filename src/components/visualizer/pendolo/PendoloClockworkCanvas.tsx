@@ -7,6 +7,8 @@ import {
     isPendoloBeatFxIdle,
     readPendoloBeatTriggers,
 } from './pendoloBeatFx';
+import { getBeatEffectStrength } from '../../../services/beatFx/beatFxLive';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import {
     drawPendoloBeatFxOverlay2d,
     drawPendoloWaveLens2d,
@@ -238,7 +240,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             lastTimestampRef.current = timestamp;
 
             const rawBass = audioBassMotionValue ? audioBassMotionValue.get() : p.audioBass;
-            const beatFx = beatFxRef?.current.active ? beatFxRef.current : null;
+            // The gears step on beat_this' beats only while 齿轮随拍 plays; it is retired (2026-10-17),
+            // so they keep their own motion, and beat_this does not run for 时计 at all.
+            const beatFx = beatFxRef?.current.active && getBeatEffectStrength(BEAT_EFFECT_IDS.pendoloGearBeats) > 0 ? beatFxRef.current : null;
             let beatInput: PendoloClockworkBeatInput | null = null;
             if (beatFx) {
                 const triggers = readPendoloBeatTriggers(beatCounterRef.current, beatTriggersRef.current);

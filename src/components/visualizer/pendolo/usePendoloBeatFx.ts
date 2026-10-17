@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useMotionValue, type MotionValue } from 'framer-motion';
-import { getBeatFxBeatPeriod, getBeatFxHeard, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
+import { getBeatEffectStrength, getBeatFxBeatPeriod, getBeatFxHeard, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import { DRUM_HAT, DRUM_KICK, DRUM_SNARE, getDrumHits, type DrumHits } from '../../../services/analysis/drumHits';
 import {
     createPendoloBeatCounter,
@@ -230,6 +231,7 @@ export const usePendoloBeatFx = (
         let frame = 0;
         const drumCursor: DrumCursor = { key: null, time: null, next: 0, list: null };
         const drumFrame: DrumFrame = { kick: 0, snare: 0, hat: 0 };
+        const drumScaled: DrumFrame = { kick: 0, snare: 0, hat: 0 };
         let glow = 0;
         const tilt = { x: 0, y: 0, amount: 0, at: 0 };
         const swell = { amount: 0, at: 0 };
@@ -238,30 +240,32 @@ export const usePendoloBeatFx = (
             const now = timestamp / 1000;
             const dt = last === null ? 0 : Math.min(0.05, now - last);
             last = now;
-            if (!isBeatFxReady()) {
-                // Resynced on the frame the beats arrive, so nothing already fired bursts out.
-                counter.synced = false;
-                if (shared.current.active) rest();
-                return;
-            }
-            const { layout: current, meshPoints: points } = layoutRef.current;
-            readPendoloBeatTriggers(counter, triggers);
+            // 仿真鼓面's strength; 0 while it does not play (switched off, or 智能动感模式 off). Its hits
+            // need no beat list: with only it live, beat_this never runs and the clock is never "ready".
+            const drumStrength = getBeatEffectStrength(BEAT_EFFECT_IDS.pendoloDrumhead);
             const heard = getBeatFxHeard();
-            const known = getDrumHits(heard.key);
-            // Past where a track still separating has its hits (a seek ahead): its beats until they come.
+            const known = drumStrength > 0 ? getDrumHits(heard.key) : null;
+            // Past where a track still separating has its hits (a seek ahead): nothing until they come.
             const hits = known && (known.until === undefined || heard.time === null || heard.time < known.until) ? known : null;
             const drumHits = hits !== null;
-            if (!drumHits && !PENDOLO_BEAT_LIST_FX) {
-                // No drum hits, no effects: the beat list no longer plays 时计.
+            if (!drumHits && (!PENDOLO_BEAT_LIST_FX || !isBeatFxReady())) {
+                // No drum hits, no effects: the beat list no longer plays 时计. Resynced on the frame
+                // anything arrives, so nothing already fired bursts out.
                 counter.synced = false;
                 glow = 0;
                 if (shared.current.active) rest();
                 return;
             }
+            const { layout: current, meshPoints: points } = layoutRef.current;
+            readPendoloBeatTriggers(counter, triggers);
             if (hits) {
                 // The beat clock's triggers are dropped and no shockwave travels: kicks and snares
                 // light the halo where it stands.
                 readDrumFrame(hits, heard.key, heard.time, drumCursor, drumFrame);
+                // The thresholds below (tilt, shake) read the hit as heard; what it moves, by the strength.
+                drumScaled.kick = drumFrame.kick * drumStrength;
+                drumScaled.snare = drumFrame.snare * drumStrength;
+                drumScaled.hat = drumFrame.hat * drumStrength;
                 triggers.beats = 0;
                 triggers.downbeats = 0;
                 triggers.beatAccentGain = 0;
@@ -282,7 +286,7 @@ export const usePendoloBeatFx = (
                 glow *= Math.exp(-dt / DRUM_GLOW_FALL_SECONDS);
                 const hit = Math.max(drumFrame.kick, drumFrame.snare);
                 if (hit > 0) {
-                    const punch = resolvePendoloWavePunch(hit, 1);
+                    const punch = resolvePendoloWavePunch(hit, drumStrength);
                     glow = Math.max(glow, punch);
                     state.jewelFlare = Math.max(state.jewelFlare, punch);
                     state.smallJewelFlare = Math.max(state.smallJewelFlare, punch);
@@ -292,12 +296,12 @@ export const usePendoloBeatFx = (
                 if (snareStrike) {
                     // Struck somewhere off centre: the head tilts that way.
                     const angle = Math.random() * Math.PI * 2;
-                    if (drumFrame.snare >= DRUM_TILT_SHARE) Object.assign(tilt, { x: Math.cos(angle), y: Math.sin(angle), amount: drumFrame.snare, at: now });
+                    if (drumFrame.snare >= DRUM_TILT_SHARE) Object.assign(tilt, { x: Math.cos(angle), y: Math.sin(angle), amount: drumScaled.snare, at: now });
                 } else if (drumFrame.kick > 0) {
-                    Object.assign(swell, { amount: drumFrame.kick, at: now });
-                    if (drumFrame.kick >= DRUM_SHAKE_SHARE) state.shake = Math.max(state.shake, Math.min(1.5, drumFrame.kick * triggers.downbeatGain));
+                    Object.assign(swell, { amount: drumScaled.kick, at: now });
+                    if (drumFrame.kick >= DRUM_SHAKE_SHARE) state.shake = Math.max(state.shake, Math.min(1.5, drumScaled.kick));
                 }
-                if (drumFrame.hat > 0) state.tickDialLight = Math.max(state.tickDialLight, DRUM_HAT_LIGHT * drumFrame.hat);
+                if (drumFrame.hat > 0) state.tickDialLight = Math.max(state.tickDialLight, Math.min(1, DRUM_HAT_LIGHT * drumScaled.hat));
                 if (glow < 0.005) glow = 0;
             }
             const maxRadius = resolvePendoloWaveReach(current);

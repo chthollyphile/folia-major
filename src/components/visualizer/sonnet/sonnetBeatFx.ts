@@ -20,14 +20,15 @@ import type { SonnetAnimationCue } from './types';
 //   line flash    <- treble band, smoothed, continuous
 // Constants are the ones approved on the live picture (a 159 BPM track); the mockup they started from
 // is not in the repo. The 轻拍 strength
-// (`beatIntensity`) scales the first line, the 重拍 strength (`downbeatIntensity`) the next two and the
-// downbeat's share of the zoom - already applied to the two signals by the beat clock (beatFxLive's
-// `setBeatFxIntensities`); icon pop and line flash are not beats and follow the switch only.
+// scales the first line, the 重拍 strength the next two and the downbeat's share of the zoom - both
+// the strength of Sonnet's effect 推镜裂光 (`sonnet.lensTear`), already applied to the two signals by
+// the beat clock (beatFxLive's `setBeatFxIntensities`); icon pop and line flash are not beats and
+// follow the switch only.
 //
 // Until the playing track's beat list is installed (beatFxLive's `isBeatFxReady`) the reader answers
 // null and Sonnet draws its original frame - no half-on state while the analysis runs, or on a machine
-// it cannot run on. Which modes start the beat clock at all is their registry entry's
-// `drawsBeatFx`; another mode adds beat FX with its own reader over the same two signals.
+// it cannot run on. Which modes start the beat clock at all is their registry entry's live
+// `beatEffects`; another mode adds beat FX with its own reader over the same two signals.
 //
 // With accents (analysis/beatAccents.ts) the two signals already peak by how hard each beat hits, and
 // the last fired beat shapes the punch (`resolveSonnetBeatFxAccent`): a low hit pushes in more, a high

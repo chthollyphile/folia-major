@@ -4,6 +4,7 @@ import { DEFAULT_LATENT_BACKGROUND_TUNING, type LatentBackgroundDisplayMode } fr
 import LatentBackground from './LatentBackground';
 import LatentBackgroundSettingsCard from './LatentBackgroundSettingsCard';
 import { defineVisualizerBackground } from '../definition';
+import { BEAT_EFFECT_IDS } from '../../../../services/beatFx/beatEffects';
 import { QuickControlChip, QuickControlToggle } from '../../../shared/QuickControlChip';
 
 // src/components/visualizer/backgrounds/latent/entry.tsx
@@ -35,7 +36,14 @@ export default defineVisualizerBackground({
         keywords: ['latent', 'latent background', 'shader background', '隐现', '隐现背景', '音频响应背景'],
     },
     // 智能动感模式: the beats replace the band onset in the speed pulse (LatentBackground.tsx).
-    drawsBeatFx: true,
+    // Retired, its code kept: the user set it aside on 2026-10-17.
+    beatEffects: [{
+        id: BEAT_EFFECT_IDS.latentPulse,
+        nameKey: 'options.beatEffect_latentPulse',
+        descKey: 'options.beatEffect_latentPulseDesc',
+        source: 'beats',
+        retired: true,
+    }],
     // No `song`: a new song's cover colours blend in place (blendMs).
     render: ({ config, theme, coverUrl, audioPower, audioBands, staticMode, paused, blendMs }) => (
         <LatentBackground

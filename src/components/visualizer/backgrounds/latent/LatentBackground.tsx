@@ -15,7 +15,8 @@ import { createPaperShaderReleaseRef, PAPER_SHADER_CONTEXT_ATTRIBUTES } from '..
 import { useFirstFrameDrawn } from '../../styleTransition/firstFrame';
 import { useBlendedColors } from '../useBlendedColors';
 import { beatImpact, downbeatImpact } from '../../../../stores/motionSignals';
-import { isBeatFxReady } from '../../../../services/beatFx/beatFxLive';
+import { getBeatEffectStrength, isBeatFxReady } from '../../../../services/beatFx/beatFxLive';
+import { BEAT_EFFECT_IDS } from '../../../../services/beatFx/beatEffects';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
@@ -278,7 +279,9 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
             previousBeatEnergy = targetBeatEnergy;
             // The beats are the onset, whether or not the band onset was turned on: switching
             // 智能动感模式 on is asking for the beat response.
-            const beatSpeedTarget = !isPaused && isBeatFxReady()
+            // Only while 潮汐脉动 plays (retired 2026-10-17: the original pulse even under a mode whose
+            // own effect has the beats in).
+            const beatSpeedTarget = !isPaused && isBeatFxReady() && getBeatEffectStrength(BEAT_EFFECT_IDS.latentPulse) > 0
                 ? resolveLatentBeatSpeedTarget(
                     targetBeatEnergy,
                     resolveLatentBeatFxPulse(beatImpact.get(), downbeatImpact.get()),

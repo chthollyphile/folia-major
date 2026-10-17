@@ -14,7 +14,8 @@ import {
     stopBeatFx,
     tickBeatFx,
 } from '@/services/beatFx/beatFxLive';
-import { visualizerWantsBeatClock, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
+import { liveBeatEffectStrength, visualizerWantsBeatClock, visualizerWantsBeats, visualizerWantsDrumHits, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
+import { BEAT_EFFECT_IDS, resolveBeatEffectSetting } from '@/services/beatFx/beatEffects';
 import {
     SONNET_BEAT_FX,
     applySonnetBeatFxLayers,
@@ -68,26 +69,49 @@ describe('智能动感模式 setting', () => {
         vi.unstubAllGlobals();
     });
 
-    it('is off by default at full strength', () => {
-        expect(DEFAULT_SMART_BEAT_SETTINGS).toEqual({ enabled: false, beatIntensity: 1, downbeatIntensity: 1 });
+    it('is off by default, every effect at the strength it was tuned to', () => {
+        expect(DEFAULT_SMART_BEAT_SETTINGS).toEqual({ enabled: false, effects: {} });
+        expect(resolveBeatEffectSetting(DEFAULT_SMART_BEAT_SETTINGS, BEAT_EFFECT_IDS.pendoloDrumhead)).toEqual({ on: true, strength: 1 });
     });
 
     it('is no longer part of the Sonnet tuning', () => {
         expect(Object.keys(DEFAULT_SONNET_TUNING)).not.toContain('smartBeatEnabled');
     });
 
-    it('persists under its own key and clamps both strengths to 0..2', () => {
-        useVisualizerSettingsStore.getState().handleSetSmartBeat({ enabled: true, beatIntensity: 5, downbeatIntensity: -1 });
-        const expected = { enabled: true, beatIntensity: 2, downbeatIntensity: 0 };
+    it('persists under its own key and clamps each effect\'s strength to 0..2', () => {
+        useVisualizerSettingsStore.getState().handleSetSmartBeat({
+            enabled: true,
+            effects: { 'sonnet.lensTear': { strength: 5 }, 'pendolo.drumhead': { on: false, strength: -1 } },
+        });
+        const expected = {
+            enabled: true,
+            effects: { 'sonnet.lensTear': { on: true, strength: 2 }, 'pendolo.drumhead': { on: false, strength: 0 } },
+        };
         expect(useVisualizerSettingsStore.getState().smartBeat).toEqual(expected);
         expect(JSON.parse(storage.getItem(SMART_BEAT_STORAGE_KEY) ?? '{}')).toEqual(expected);
         expect(readStoredSmartBeatSettings()).toEqual(expected);
     });
 
-    it('patches one field at a time', () => {
+    it('patches one field of one effect at a time', () => {
         useVisualizerSettingsStore.getState().handleSetSmartBeat({ enabled: true });
-        useVisualizerSettingsStore.getState().handleSetSmartBeat({ downbeatIntensity: 1.5 });
-        expect(useVisualizerSettingsStore.getState().smartBeat).toEqual({ enabled: true, beatIntensity: 1, downbeatIntensity: 1.5 });
+        useVisualizerSettingsStore.getState().handleSetSmartBeat({ effects: { 'diorama.ripple': { strength: 1.5 } } });
+        useVisualizerSettingsStore.getState().handleSetSmartBeat({ effects: { 'diorama.ripple': { on: false } } });
+        expect(useVisualizerSettingsStore.getState().smartBeat).toEqual({ enabled: true, effects: { 'diorama.ripple': { on: false, strength: 1.5 } } });
+    });
+
+    it('folds the old 轻拍 / 重拍 pair into the beat-list effects as their mean', () => {
+        storage.setItem(SMART_BEAT_STORAGE_KEY, JSON.stringify({ enabled: true, beatIntensity: 1.5, downbeatIntensity: 0.5 }));
+        expect(readStoredSmartBeatSettings()).toEqual({
+            enabled: true,
+            effects: { 'sonnet.lensTear': { on: true, strength: 1 }, 'diorama.ripple': { on: true, strength: 1 } },
+        });
+        storage.setItem(SMART_BEAT_STORAGE_KEY, JSON.stringify({ enabled: false, beatIntensity: 2, downbeatIntensity: 1 }));
+        expect(readStoredSmartBeatSettings().effects['sonnet.lensTear'].strength).toBeCloseTo(1.5);
+    });
+
+    it('drops an effect id that is not `<mode>.<name>`', () => {
+        useVisualizerSettingsStore.getState().handleSetSmartBeat({ effects: { '__proto__': { on: false }, 'a b.c': { on: false } } });
+        expect(useVisualizerSettingsStore.getState().smartBeat.effects).toEqual({});
     });
 
     it('reads a malformed stored value as the default', () => {
@@ -96,9 +120,14 @@ describe('智能动感模式 setting', () => {
     });
 
     it('round-trips through visual config export and import, minified and long-form', () => {
-        const smartBeat = { enabled: true, beatIntensity: 1.4, downbeatIntensity: 0.3 };
+        const smartBeat = { enabled: true, effects: { 'sonnet.lensTear': { on: false, strength: 1.4 }, 'pendolo.drumhead': { on: true, strength: 0.3 } } };
         expect(decompressConfig(compressConfig({ smartBeat })).smartBeat).toEqual(smartBeat);
         expect(decompressConfig(JSON.stringify({ smartBeat })).smartBeat).toEqual(smartBeat);
+    });
+
+    it('imports an old minified config\'s 轻拍 / 重拍 pair for the store to fold', () => {
+        const old = decompressConfig(JSON.stringify({ smb: { on: true, bi: 2, dbi: 2 } }));
+        expect(old.smartBeat).toEqual({ enabled: true, beatIntensity: 2, downbeatIntensity: 2 });
     });
 
     it('leaves a config without it alone', () => {
@@ -135,14 +164,26 @@ describe('when the beat clock runs', () => {
         expect(visualizerWantsBeatClock(settings({ visualizerMode: 'pendolo', visualizerBackgroundMode: 'common' }))).toBe(true);
     });
 
-    it('for any other mode over the Latent background, which is also the default one', () => {
-        expect(visualizerWantsBeatClock(settings({ visualizerBackgroundMode: 'latent' }))).toBe(true);
-        expect(visualizerWantsBeatClock(settings({ visualizerBackgroundMode: null }))).toBe(true);
-        expect(visualizerWantsBeatClock(settings({ visualizerBackgroundMode: 'common' }))).toBe(false);
+    it('not for any other mode over the Latent background, whose 潮汐脉动 is retired', () => {
+        expect(visualizerWantsBeatClock(settings({ visualizerBackgroundMode: 'latent' }))).toBe(false);
+        expect(visualizerWantsBeatClock(settings({ visualizerBackgroundMode: null }))).toBe(false);
+        expect(visualizerWantsBeatClock(settings({ visualizerMode: 'still', visualizerBackgroundMode: 'latent' }))).toBe(false);
     });
 
-    it('not for Still, which shows no background', () => {
-        expect(visualizerWantsBeatClock(settings({ visualizerMode: 'still', visualizerBackgroundMode: 'latent' }))).toBe(false);
+    it('runs each model only for the live effects that read it', () => {
+        // 时计: 仿真鼓面 reads drums; 齿轮随拍 (beats) is retired, so beat_this never runs for it.
+        expect(visualizerWantsDrumHits(settings({ visualizerMode: 'pendolo' }))).toBe(true);
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'pendolo' }))).toBe(false);
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'sonnet' }))).toBe(true);
+        expect(visualizerWantsDrumHits(settings({ visualizerMode: 'sonnet' }))).toBe(false);
+    });
+
+    it('not for an effect switched off, and at each effect\'s own strength', () => {
+        const smartBeat = { enabled: true, effects: { 'pendolo.drumhead': { on: false, strength: 1 }, 'diorama.ripple': { on: true, strength: 0.4 } } };
+        expect(visualizerWantsBeatClock(settings({ smartBeat, visualizerMode: 'pendolo' }))).toBe(false);
+        expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'diorama' }), 'beats')).toBeCloseTo(0.4);
+        expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'sonnet' }), 'beats')).toBe(1);
+        expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'sonnet' }), 'drums')).toBe(0);
     });
 });
 

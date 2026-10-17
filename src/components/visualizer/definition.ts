@@ -1,4 +1,5 @@
 import React from 'react';
+import type { BeatEffectDef } from '../../services/beatFx/beatEffects';
 import { type MotionValue } from 'framer-motion';
 import {
     type AudioBands,
@@ -179,19 +180,15 @@ export interface VisualizerRegistryEntry {
      */
     foliumTunables?: Readonly<Record<string, FoliumTunable>>;
     /*
-     * True when this mode draws beat FX under 智能动感模式 (SmartBeatSettings): its own reader turns
-     * the shared `beatImpact` / `downbeatImpact` signals (services/beatFx) into its picture - Sonnet:
-     * sonnet/sonnetBeatFx.ts, Diorama: diorama/dioramaBeatRipples.ts. The beat clock runs, and the
-     * playing track's beats are analysed, only while the mode or the background on screen draws
-     * them (beatClockTargets.ts).
+     * The beat effects this mode draws under 智能动感模式 (services/beatFx/beatEffects.ts), each named,
+     * switched and scaled on its own in the mode's settings. An effect reading 'beats' turns the
+     * shared `beatImpact` / `downbeatImpact` signals (services/beatFx) into its picture - Sonnet:
+     * sonnet/sonnetBeatFx.ts, Diorama: diorama/dioramaBeatRipples.ts; one reading 'drums' plays the
+     * track's drum hits off htdemucs' drum stem (services/analysis/drumHits.ts; 时计:
+     * pendolo/usePendoloBeatFx.ts). Each model runs for the playing track only while a live effect on
+     * screen reads it (beatClockTargets.ts).
      */
-    drawsBeatFx?: boolean;
-    /*
-     * True when this mode plays the playing track's drum hits under 智能动感模式 (时计:
-     * pendolo/usePendoloBeatFx.ts), read off htdemucs' drum stem (services/analysis/drumHits.ts). The
-     * separation runs only while such a mode is on screen; it implies `drawsBeatFx`.
-     */
-    drawsDrumHits?: boolean;
+    beatEffects?: readonly BeatEffectDef[];
 }
 
 export interface FoliumTunable {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { defineVisualizer } from '../definition';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import PendoloSettingsPanel from './PendoloSettingsPanel';
 
 const VisualizerPendolo = React.lazy(() => import('./VisualizerPendolo'));
@@ -28,10 +29,24 @@ export default defineVisualizer({
         keywords: ['pendolo', '擒纵', '摆轮', 'pd', '切换到可视化：擒纵', '切换到可视化擒纵'],
     },
     seeksOnLineClick: true,
-    // 智能动感模式: the clockwork steps on the beats and draws its beat FX (pendolo/pendoloBeatFx.ts).
-    drawsBeatFx: true,
-    // ...and, once the track's drum stem is read (htdemucs_gpu), plays its drum hits instead.
-    drawsDrumHits: true,
+    // 智能动感模式: the dial plays the track's drum hits once its drum stem is read (htdemucs_gpu,
+    // usePendoloBeatFx.ts). The clockwork stepping on beat_this' beats (PendoloClockworkCanvas.tsx)
+    // is retired, its code kept: the user set it aside on 2026-10-17.
+    beatEffects: [
+        {
+            id: BEAT_EFFECT_IDS.pendoloDrumhead,
+            nameKey: 'options.beatEffect_pendoloDrumhead',
+            descKey: 'options.beatEffect_pendoloDrumheadDesc',
+            source: 'drums',
+        },
+        {
+            id: BEAT_EFFECT_IDS.pendoloGearBeats,
+            nameKey: 'options.beatEffect_pendoloGearBeats',
+            descKey: 'options.beatEffect_pendoloGearBeatsDesc',
+            source: 'beats',
+            retired: true,
+        },
+    ],
     // The song-scoped seed resets Pendolo's lyric rail state before the next track starts.
     render: props => <VisualizerPendolo key={props.seed} {...props} />,
     renderSettingsPanel: props => <PendoloSettingsPanel {...props} />,

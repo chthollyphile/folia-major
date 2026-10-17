@@ -82,7 +82,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
-    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode', 'Turn beat_this-driven beat FX (Sonnet, Diorama particles, Latent background) on or off', ['smart beat', 'beat fx', 'beat this', 'sonnet beat', 'diorama beat', 'latent beat', '智能动感模式', '动感', '节拍', '商籁动感', '镜台涟漪', '隐现', '重拍', '轻拍'], context => context.visualizer.toggleSmartBeat()),
+    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode', 'Turn the beat effects (Sonnet and Diorama on the beats, Pendolo on the drums) on or off', ['smart beat', 'beat fx', 'beat this', 'sonnet beat', 'diorama beat', 'pendolo drums', '智能动感模式', '动感', '节拍', '鼓点', '推镜裂光', '水镜涟漪', '仿真鼓面', '商籁动感', '镜台涟漪', '时计'], context => context.visualizer.toggleSmartBeat()),
     ...VISUALIZER_REGISTRY.flatMap(({ mode, command }) => (
         command ? [createVisualizerCommand(mode, command.title, command.description, command.keywords)] : []
     )),

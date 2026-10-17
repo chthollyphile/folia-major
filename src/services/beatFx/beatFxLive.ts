@@ -8,8 +8,10 @@ import type { BeatFxSourceKind } from './beatFxSource';
 // No React state anywhere on this path.
 //
 // The MotionValues carry the envelopes already scaled by 智能动感模式's 轻拍 / 重拍 strengths
-// (`setBeatFxIntensities`), so every visualizer reading them gets the user's strengths without
-// reading settings itself. Discrete effects (a ripple per beat) count `getBeatFxFiredCounts` instead
+// (`setBeatFxIntensities`: both the strength of the beat-list effect on screen, since effects have
+// their own), so every visualizer reading them gets the user's strengths without reading settings
+// itself. An effect not driven by these signals asks `getBeatEffectStrength` for its own. Discrete
+// effects (a ripple per beat) count `getBeatFxFiredCounts` instead
 // and scale by `getBeatFxIntensities`.
 //
 // With accents (analysis/beatAccents.ts) the envelopes already peak lower on a weak beat and on a
@@ -107,6 +109,20 @@ export const setBeatFxIntensities = (beat: number, downbeat: number) => {
 
 /** The current 轻拍 / 重拍 strengths; one shared object, read it rather than keep it. */
 export const getBeatFxIntensities = (): Readonly<{ beat: number; downbeat: number }> => intensities;
+
+/** The live effects on screen and their strengths (beatClockTargets.ts `liveBeatEffects`). */
+let liveEffects: Readonly<Record<string, number>> = {};
+
+/**
+ * Sets which beat effects play now and how strongly (services/beatFx/beatEffects.ts), from the
+ * settings and the picture on screen; a frame loop asks `getBeatEffectStrength` for its own.
+ */
+export const setBeatFxLiveEffects = (strengths: Readonly<Record<string, number>>) => {
+    liveEffects = strengths;
+};
+
+/** The strength an effect plays at now, 0..2; 0 while it does not play (off, retired, not on screen). */
+export const getBeatEffectStrength = (id: string): number => liveEffects[id] ?? 0;
 
 /**
  * How many beats and downbeats the clock has fired since the app started - only ever growing, across

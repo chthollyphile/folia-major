@@ -19,7 +19,7 @@ import { VISUALIZER_FRAME_RATE_STORAGE_KEY, setGlobalVisualizerFrameRate } from 
 import { GLOW_BLUR_QUANTIZE_STORAGE_KEY, readStoredGlowBlurQuantize, setGlowBlurQuantized } from '../utils/glowBlurQuantize';
 import i18n from '../i18n/config';
 import { setStatusMessage } from './useStatusMessageStore';
-import { SMART_BEAT_STORAGE_KEY, VISUALIZER_OPACITY_STORAGE_KEY, readStoredBackgroundOpacity, readStoredSmartBeatSettings, resolveSmartBeatSettings, readStoredTuning, readStoredVisualizerBackgroundMode, readStoredVisualizerFrameRate, readStoredVisualizerMode, readStoredVisualizerOpacity, writeStoredTuning } from './visualizerSettingsPersistence';
+import { SMART_BEAT_STORAGE_KEY, type SmartBeatPatch, VISUALIZER_OPACITY_STORAGE_KEY, readStoredBackgroundOpacity, readStoredSmartBeatSettings, resolveSmartBeatSettings, readStoredTuning, readStoredVisualizerBackgroundMode, readStoredVisualizerFrameRate, readStoredVisualizerMode, readStoredVisualizerOpacity, writeStoredTuning } from './visualizerSettingsPersistence';
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 
 type OwnSettingsState = {
@@ -45,7 +45,7 @@ type OwnSettingsState = {
     handleSetVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
     handleToggleRandomVisualizerModePerSong: (enable: boolean) => void;
     handleToggleGlowBlurQuantize: (enable: boolean) => void;
-    handleSetSmartBeat: (patch: Partial<SmartBeatSettings>) => void;
+    handleSetSmartBeat: (patch: SmartBeatPatch) => void;
 };
 
 export type VisualizerSettingsState = OwnSettingsState & VisualizerTuningSettings;

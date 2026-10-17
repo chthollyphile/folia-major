@@ -34,9 +34,10 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // list stored before accents existed answers at once without them - the beat FX as they were - and
 // `accented` brings the same beats with accents once they are measured, for the caller to swap in.
 //
-// A track with beats also offers its drum hits (`loadDrums`, analysis/drumHits.ts: htdemucs' drum stem
-// on the GPU, with htdemucs_gpu installed), read only when the picture on screen plays them (时计), as
-// they cost the track's bytes and seconds of GPU. The beats stay the answer here either way.
+// The track's drum hits (`loadBeatFxTrackDrums`, analysis/drumHits.ts: htdemucs' drum stem on the
+// GPU, with htdemucs_gpu installed) are read on their own, from the same bytes, only when a live effect
+// on screen plays them (时计's 仿真鼓面), as they cost the track's bytes and seconds of GPU. They no
+// longer wait on the beats: a picture that plays only drum hits never runs beat_this.
 
 export type BeatFxSourceKind = 'beat_this' | 'none';
 
@@ -51,12 +52,6 @@ export interface BeatFxTrackBeats {
     trackScale: number;
     /** The same beats with accents, when these came without; null if they cannot be measured now. */
     accented?: Promise<BeatFxTrackBeats | null>;
-    /**
-     * Starts reading the track's drum hits (analysis/drumHits.ts) - from the cache, or separated now
-     * on the GPU - for a picture that plays them (`drawsDrumHits`). Settles true once `getDrumHits`
-     * answers for the key; false for none (a drumless track, no htdemucs_gpu, no bytes yet).
-     */
-    loadDrums?: () => Promise<boolean>;
 }
 
 const memory = new Map<string, Promise<BeatFxTrackBeats>>();
@@ -79,6 +74,23 @@ const readStreamedTrackBytes = async (song: SongResult): Promise<ArrayBuffer | n
 };
 const MAX_TRACKS = 24;
 
+interface TrackBytes {
+    bytes: ArrayBuffer | null;
+    /** Why there are none, when there are none. */
+    note?: string;
+}
+
+/** The track's bytes as `key` names them: the representation's, or the local copy, or its stream. */
+const readTrackBytes = async (song: SongResult, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
+    const found = await readLocalTrackBytes(song, { representation });
+    let bytes = found && 'bytes' in found ? found.bytes : null;
+    // A representation's bytes are what the key names; an online track's stream is read only
+    // when there is none.
+    if (!bytes && !representation) bytes = await readStreamedTrackBytes(song);
+    if (bytes) return { bytes };
+    return { bytes: null, note: found && 'skipped' in found ? found.skipped : 'track not cached yet, and no stream URL resolved' };
+};
+
 const resolveTrackBeats = async (
     song: SongResult,
     key: string,
@@ -88,17 +100,12 @@ const resolveTrackBeats = async (
     let retry = false;
     let grid: Awaited<ReturnType<typeof getTrackBeatGrid>>;
     const readBytes = async () => {
-        const found = await readLocalTrackBytes(song, { representation });
-        let bytes = found && 'bytes' in found ? found.bytes : null;
-        // A representation's bytes are what the key names; an online track's stream is read only
-        // when there is none.
-        if (!bytes && !representation) bytes = await readStreamedTrackBytes(song);
-        if (!bytes) {
-            note = found && 'skipped' in found ? found.skipped : 'track not cached yet, and no stream URL resolved';
+        const read = await readTrackBytes(song, representation);
+        if (!read.bytes) {
+            note = read.note ?? note;
             retry = true;
-            return null;
         }
-        return bytes;
+        return read.bytes;
     };
     const readMid = async () => {
         // Asked before the read and the decode, which are seconds of work for nobody without one.
@@ -124,19 +131,11 @@ const resolveTrackBeats = async (
     }
     if (grid?.beats.length) {
         const found = grid;
-        // Read once, on the first ask: a stored analysis costs a cache read, a new one the track's
-        // bytes and the GPU for some seconds. Without htdemucs_gpu only a stored one is read.
-        // The track asked for is the one a separation may run for; the caller says when it is left.
-        const loadDrums = () => {
-            setWantedDrumTrack(key);
-            return loadTrackDrumHits(key, readBytes).then(analysis => analysis !== null && getDrumHits(key) !== null);
-        };
         if (found.accents) {
             return {
                 events: mergeBeatFxEvents(found.beats, found.downbeats, found.accents),
                 source: 'beat_this',
                 trackScale: found.accents.trackScale,
-                loadDrums,
             };
         }
         // Measured on a worker after the fact; a failure only leaves the beats as they are.
@@ -149,7 +148,7 @@ const resolveTrackBeats = async (
                 }
                 : null))
             .catch(() => null);
-        return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented, loadDrums };
+        return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented };
     }
     if (!canRunBeatThis('beat_this_small')) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
     return { events: [], source: 'none', note, trackScale: 1, ...(retry ? { retry } : {}) };
@@ -176,4 +175,29 @@ export const loadBeatFxTrackBeats = (song: SongResult): { key: string; beats: Pr
         if (result.source === 'none' && memory.get(key) === pending) memory.delete(key);
     });
     return { key, beats: pending };
+};
+
+/** How a drum hit lookup ended: hits to play, none for this track, or no bytes yet (ask again). */
+export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
+
+/**
+ * Starts reading a track's drum hits (analysis/drumHits.ts) - from the cache, or separated now on the
+ * GPU - for a live effect that plays them, under the same analysis key as its beats. 'hits' once
+ * `getDrumHits` answers for the key; 'none' for a drumless track, no htdemucs_gpu or no WebGPU;
+ * 'retry' when the bytes are not to be had yet (an online track whose stream URL playback has not
+ * resolved). The track asked for is the one a separation may run for; the caller says when it is
+ * left (`setWantedDrumTrack(null)`).
+ */
+export const loadBeatFxTrackDrums = (song: SongResult): { key: string; drums: Promise<BeatFxTrackDrums> } => {
+    const { key, representation } = getPlaybackAnalysisTarget(song);
+    setWantedDrumTrack(key);
+    let missing = false;
+    const readBytes = async () => {
+        const read = await readTrackBytes(song, representation);
+        if (!read.bytes) missing = true;
+        return read.bytes;
+    };
+    const drums = loadTrackDrumHits(key, readBytes)
+        .then((analysis): BeatFxTrackDrums => (analysis && getDrumHits(key) ? 'hits' : missing ? 'retry' : 'none'));
+    return { key, drums };
 };

@@ -1,21 +1,24 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
-import { visualizerWantsBeatClock, visualizerWantsDrumHits } from '../components/visualizer/beatClockTargets';
-import { beginBeatFxTrack, setBeatFxEvents, setBeatFxIntensities, stopBeatFx } from '../services/beatFx/beatFxLive';
-import { loadBeatFxTrackBeats } from '../services/beatFx/beatFxSource';
-import { getPlaybackAnalysisKey } from '../services/playbackRecovery/representationRegistry';
+import { liveBeatEffects, liveBeatEffectStrength, visualizerWantsBeats, visualizerWantsDrumHits } from '../components/visualizer/beatClockTargets';
+import { resolveBeatEffectSetting } from '../services/beatFx/beatEffects';
+import { beginBeatFxTrack, getBeatFxHeard, setBeatFxEvents, setBeatFxIntensities, setBeatFxLiveEffects, stopBeatFx } from '../services/beatFx/beatFxLive';
+import { loadBeatFxTrackBeats, loadBeatFxTrackDrums } from '../services/beatFx/beatFxSource';
+import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../services/playbackRecovery/representationRegistry';
 import { modelsPresent, subscribeModelAvailability } from '../services/analysis/modelAvailability';
 import { setWantedDrumTrack } from '../services/analysis/drumHits';
 
 // src/hooks/useBeatFxTrack.ts
 // Loads the beat list of the on-screen track into the live beat clock whenever the track changes,
-// while 智能动感模式 is on, the visualizer or background on screen draws beat FX
+// while 智能动感模式 is on, a live beat effect on screen reads beats
 // (components/visualizer/beatClockTargets.ts) and static mode is off. Also hands the clock the
-// 轻拍 / 重拍 strengths it scales the envelopes by. Only the track identity, that answer and the two
-// strengths enter React; the per-frame clock lives in services/beatFx/beatFxLive. While the mode on
-// screen plays drum hits (时计), the track's drum hits are read too, once its beats are in.
+// 轻拍 / 重拍 strengths it scales the envelopes by (the strength of the beat-list effect on screen)
+// and every live effect's strength. Only the track identity, those answers and the strengths enter
+// React; the per-frame clock lives in services/beatFx/beatFxLive. While a live effect on screen plays
+// drum hits (时计's 仿真鼓面), the track's drum hits are read, on their own: a picture with no live
+// beat-list effect never runs beat_this, and the clock then only carries the track and its time.
 
 /** An online track's stream URL is resolved by playback around the same time as the lookup. */
 const RETRY_ATTEMPTS = 4;
@@ -24,17 +27,33 @@ const RETRY_DELAY_MS = 3000;
 /** Whether the beat clock should be stepped; the caller's frame loop reads it. */
 export function useBeatFxTrack(): boolean {
     const staticMode = useThemeSettingsStore(state => state.staticMode);
-    const wanted = useVisualizerSettingsStore(state => visualizerWantsBeatClock(state))
-        && !staticMode;
-    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits(state)) && wanted;
+    const beatsWanted = useVisualizerSettingsStore(state => visualizerWantsBeats(state)) && !staticMode;
+    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits(state)) && !staticMode;
+    const wanted = beatsWanted || drumsWanted;
+    // Read by the drum hits' retries, which must not restart (and so cancel a separation) when it changes.
+    const beatsWantedRef = useRef(beatsWanted);
+    beatsWantedRef.current = beatsWanted;
+    const beatStrength = useVisualizerSettingsStore(state => liveBeatEffectStrength(state, 'beats'));
+    // The live effects and their strengths as one string, so the store's other changes do not re-render.
+    const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects(state)
+        .map(effect => `${effect.id}=${resolveBeatEffectSetting(state.smartBeat, effect.id).strength}`)
+        .join(','));
     // Asked again when htdemucs_gpu arrives (the startup check answering, or a download finishing).
     const drumModel = useSyncExternalStore(subscribeModelAvailability, modelsPresent).htdemucs_gpu;
-    const beatIntensity = useVisualizerSettingsStore(state => state.smartBeat.beatIntensity);
-    const downbeatIntensity = useVisualizerSettingsStore(state => state.smartBeat.downbeatIntensity);
 
     useEffect(() => {
-        setBeatFxIntensities(beatIntensity, downbeatIntensity);
-    }, [beatIntensity, downbeatIntensity]);
+        setBeatFxIntensities(beatStrength, beatStrength);
+    }, [beatStrength]);
+    useEffect(() => {
+        const strengths: Record<string, number> = {};
+        if (!staticMode && liveEffects) {
+            for (const pair of liveEffects.split(',')) {
+                const at = pair.lastIndexOf('=');
+                strengths[pair.slice(0, at)] = Number(pair.slice(at + 1));
+            }
+        }
+        setBeatFxLiveEffects(strengths);
+    }, [liveEffects, staticMode]);
     const song = usePlaybackStore(selectDisplaySong);
     // Only the identity, to key the effect; the load resolves the key it reads bytes for itself.
     const identity = wanted && song ? getPlaybackAnalysisKey(song) : null;
@@ -46,6 +65,11 @@ export function useBeatFxTrack(): boolean {
         }
         if (!identity || !song) {
             beginBeatFxTrack(null);
+            return;
+        }
+        if (!beatsWanted) {
+            // Drum hits alone: the clock carries the track and its heard time, with no beats installed.
+            beginBeatFxTrack(getPlaybackAnalysisTarget(song).key);
             return;
         }
         let cancelled = false;
@@ -84,20 +108,31 @@ export function useBeatFxTrack(): boolean {
             cancelled = true;
             if (retryTimer) clearTimeout(retryTimer);
         };
-        // Keyed on the track identity and the switch only; the song object changes for unrelated reasons.
+        // Keyed on the track identity and the switches only; the song object changes for unrelated reasons.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [identity, wanted]);
+    }, [identity, wanted, beatsWanted]);
 
     useEffect(() => {
         if (!drumsWanted || !identity || !song) return undefined;
         let left = false;
-        // The lookup above is shared, so this joins it rather than starting another; the hits are
-        // read off getDrumHits by the frame loop once in, and a track with none plays its beats.
-        void loadBeatFxTrackBeats(song).beats
-            .then(result => (left ? undefined : result.loadDrums?.()))
-            .catch(error => console.warn('[BeatFx] drum hits failed', error));
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        // The hits are read off getDrumHits by the frame loop once in; a track with none plays nothing.
+        const load = (attempt: number) => {
+            const { key, drums } = loadBeatFxTrackDrums(song);
+            // A retry may resolve another key (a transcode registered meanwhile); with no beats to
+            // follow it, the clock follows the drum hits' key, which they are looked up under.
+            if (!beatsWantedRef.current && key !== getBeatFxHeard().key) beginBeatFxTrack(key);
+            void drums
+                .then((result) => {
+                    // An online track whose stream URL playback has not resolved yet: asked again shortly.
+                    if (!left && result === 'retry' && attempt < RETRY_ATTEMPTS) retryTimer = setTimeout(() => load(attempt + 1), RETRY_DELAY_MS);
+                })
+                .catch(error => console.warn('[BeatFx] drum hits failed', error));
+        };
+        load(0);
         return () => {
             left = true;
+            if (retryTimer) clearTimeout(retryTimer);
             // A separation still running for this track stops at its next segment.
             setWantedDrumTrack(null);
         };

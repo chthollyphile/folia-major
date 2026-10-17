@@ -412,16 +412,20 @@ const decompressSonnet = (o: any): any => ({
     postProcessLensDispersion: o.pplx !== undefined ? o.pplx : DEFAULT_SONNET_TUNING.postProcessLensDispersion,
 });
 
-// 智能动感模式 is one setting for every visualizer, not a Sonnet tuning, so it has its own key.
+// 智能动感模式 is one setting for every visualizer, not a Sonnet tuning, so it has its own key. Each
+// effect's setting is `[on ? 1 : 0, strength]`; a config from before effects had their own carries
+// the shared 轻拍 / 重拍 pair (`bi` / `dbi`), passed on for the store to fold (resolveSmartBeatSettings).
 const compressSmartBeat = (t: any): any => ({
     on: t.enabled,
-    bi: t.beatIntensity,
-    dbi: t.downbeatIntensity,
+    ef: Object.fromEntries(Object.entries(t.effects ?? {}).map(([id, e]: [string, any]) => [id, [e.on ? 1 : 0, e.strength]])),
 });
 const decompressSmartBeat = (o: any): any => ({
     enabled: o.on !== undefined ? o.on : DEFAULT_SMART_BEAT_SETTINGS.enabled,
-    beatIntensity: o.bi !== undefined ? o.bi : DEFAULT_SMART_BEAT_SETTINGS.beatIntensity,
-    downbeatIntensity: o.dbi !== undefined ? o.dbi : DEFAULT_SMART_BEAT_SETTINGS.downbeatIntensity,
+    ...(o.ef && typeof o.ef === 'object'
+        ? { effects: Object.fromEntries(Object.entries(o.ef).map(([id, e]: [string, any]) => [id, Array.isArray(e) ? { on: e[0] === 1, strength: e[1] } : e])) }
+        : {}),
+    ...(o.bi !== undefined ? { beatIntensity: o.bi } : {}),
+    ...(o.dbi !== undefined ? { downbeatIntensity: o.dbi } : {}),
 });
 
 const compressTempera = (t: any): any => ({
