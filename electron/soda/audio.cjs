@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { createReadStream, statSync } = require('node:fs');
+const { createReadStream, readdirSync, rmSync, statSync } = require('node:fs');
 const { Readable } = require('node:stream');
 
 // electron/soda/audio.cjs
@@ -40,12 +40,55 @@ const parseRange = (header, size) => {
     return { start, end: Math.min(end, size - 1) };
 };
 
-function createSodaAudio({ warn = console.warn } = {}) {
+const MAX_CACHE_BYTES = 1.5 * 1024 * 1024 * 1024; // 解密后的整首最多留 1.5 GB
+
+function createSodaAudio({ warn = console.warn, cacheDir = () => '', maxBytes = MAX_CACHE_BYTES } = {}) {
     /** token → { path, type, at } */
     const entries = new Map();
 
     const prune = () => {
         while (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value);
+    };
+
+    /**
+     * 解密后的整首是明文，按最久没用先删，压到上限以内。
+     * 正在用的（还有 token 指着的）不删。
+     */
+    const pruneCache = () => {
+        const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
+        if (!dir) return;
+        const inUse = new Set(Array.from(entries.values(), (entry) => entry.path));
+        let files = [];
+        try {
+            files = readdirSync(dir)
+                .filter((name) => name.endsWith('.m4a') || name.endsWith('.mp4'))
+                .map((name) => {
+                    const full = path.join(dir, name);
+                    try {
+                        const stat = statSync(full);
+                        return { full, size: stat.size, mtime: stat.mtimeMs };
+                    } catch {
+                        return null;
+                    }
+                })
+                .filter(Boolean);
+        } catch {
+            return;
+        }
+        let total = files.reduce((sum, file) => sum + file.size, 0);
+        if (total <= maxBytes) return;
+        files.sort((a, b) => a.mtime - b.mtime);
+        for (const file of files) {
+            if (total <= maxBytes) break;
+            if (inUse.has(file.full)) continue;
+            try {
+                rmSync(file.full, { force: true });
+                total -= file.size;
+                console.info('[SodaAudio] pruned', path.basename(file.full));
+            } catch (error) {
+                warn('[SodaAudio] prune failed', error);
+            }
+        }
     };
 
     return {
@@ -54,7 +97,25 @@ function createSodaAudio({ warn = console.warn } = {}) {
             const token = crypto.randomUUID();
             entries.set(token, { path: filePath, type, at: Date.now() });
             prune();
+            pruneCache();
             return `${SODA_AUDIO_SCHEME}://audio/${token}`;
+        },
+
+        /** 宿主问「这个地址的文件是不是已经在它自己的缓存里」——我们写在自己的目录里。 */
+        has(url) {
+            const token = String(url || '').replace(/^folia-soda:\/\/audio\//, '');
+            const entry = entries.get(token);
+            if (!entry) return false;
+            try {
+                return statSync(entry.path).size > 0;
+            } catch {
+                return false;
+            }
+        },
+
+        /** 宿主要求「把这个地址的文件放进它自己的缓存」——已经在了（下载时就写好了）。 */
+        keep(url) {
+            return this.has(url);
         },
 
         async handleRequest(request) {

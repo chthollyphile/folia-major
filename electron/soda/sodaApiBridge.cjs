@@ -9,7 +9,7 @@
 //      扫码和 cookie；会话在这里用 safeStorage 加密存着，之后每次请求前重新装回客户端。
 // 播放地址的解析（VIP 整首要解密）留给后续的 audio.cjs，不在这里。
 
-const { mkdirSync, writeFileSync } = require('node:fs');
+const { mkdirSync, statSync, writeFileSync } = require('node:fs');
 const { readPcSession, findPcDeviceId } = require('./pcSession.cjs');
 const { createSodaSigner, md5Upper } = require('./sodaSigner.cjs');
 const { decryptAudio } = require('./decrypt.cjs');
@@ -52,6 +52,8 @@ const OPERATIONS = [
     'login_cookie_import',
     'pc_login',
     'signed_lyric',
+    'audio_kept',
+    'audio_keep',
 ];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
@@ -91,6 +93,48 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
      * 带应用签名的 VIP 取流。未签名时平台返回 HTTP 200 + 0 字节，所以这里必须先把
      * X-Helios / X-Medusa 签上；播放地址（MainPlayUrl）拿到后下载并用 playAuth 解密。
      */
+    /**
+     * 往 api.qishui.com 发一个带应用签名的 POST。写入类接口（红心、歌单增删、新建歌单）
+     * 和取流一样需要 X-Helios / X-Medusa：没签名时平台回 HTTP 200 + 空 body。
+     */
+    const postSigned = async (path, bodyObject) => {
+        const session = sessionStore?.get();
+        const cookie = session?.platforms?.qishui?.cookie || '';
+        if (!cookie) throw new Error('写入需要登录 cookie');
+        const deviceId = findPcDeviceId() || String(session?.platforms?.qishui?.deviceId || '');
+        if (!deviceId) throw new Error('没有找到客户端的 device_id');
+        const versionName = signer.version || DEFAULT_CLIENT_VERSION;
+        const ua = signer.version ? `LunaPC/${versionName}` : UA_LUNA;
+        const body = JSON.stringify(bodyObject);
+        const params = new URLSearchParams({
+            aid: '386088', app_name: 'luna_pc', region: 'cn', geo_region: 'cn', os_region: 'cn',
+            sim_region: '', device_id: deviceId, cdid: '', iid: '',
+            version_name: versionName, version_code: versionCodeOf(versionName),
+            channel: 'official', build_mode: 'master', network_carrier: '', ac: 'wifi',
+            tz_name: 'Asia/Shanghai', resolution: '', device_platform: 'windows', device_type: 'Windows',
+            os_version: 'Windows 10', fp: deviceId,
+        });
+        const url = `${API_HOST}${path}?${params}`;
+        const headers = {
+            'User-Agent': ua,
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-SS-STUB': md5Upper(body),
+            Cookie: cookie,
+            'X-Luna-Background-Type': 'foreground',
+            'X-Luna-Is-Background-Req': '0',
+            'X-Luna-Is-Local-User': '1',
+        };
+        const signature = signer.sign({ url, headers, deviceId });
+        const answer = await requestFactory(url, { method: 'POST', headers: { ...headers, ...signature }, body });
+        const text = await answer.text();
+        console.info('[Soda] signed', path, answer.status, text.length, 'bytes');
+        if (!text) throw new Error(`签名请求被清空（${path}）`);
+        const payload = JSON.parse(text);
+        const code = Number(payload?.status_code ?? payload?.status_info?.status_code ?? 0);
+        if (code !== 0) throw new Error(payload?.status_info?.status_msg || `接口回 status_code=${code}`);
+        return payload;
+    };
+
     // 一首歌的签名 track_v2 答复：播放要在里面找流，歌词要在里面找词，缓存几分钟省一次签名。
     const signedTrackCache = new Map();
     const signedTrack = async (trackId) => {
@@ -214,6 +258,16 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         const streams = await pickStreams(payload, wanted);
         if (streams.length === 0) throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         const best = streams[0];
+        const dir0 = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
+        const cachedPath = dir0 ? path.join(dir0, `${trackId}-${quality || 'higher'}.m4a`) : '';
+        if (cachedPath && audio) {
+            try {
+                if (statSync(cachedPath).size > 0) {
+                    console.info('[Soda] audio cache hit:', path.basename(cachedPath));
+                    return { url: audio.register(cachedPath, 'audio/mp4'), quality, ext: 'm4a' };
+                }
+            } catch { /* 没有就照常下载 */ }
+        }
         console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| duration', best.duration ? `${best.duration}s` : 'unknown', '| size', best.size || 'unknown', '| quality', best.quality || 'unknown', '| auth', best.auth ? 'yes' : 'no');
         console.info('[Soda] stream candidates:', streams.map((item) => `${item.duration}s/${item.bitrate}`).join(' '));
         const playAuth = best.auth;
@@ -405,6 +459,14 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
          *   [行起始ms,行时长ms]<词偏移ms,词时长ms,标志>词…
          * 分享页那份往往没有逐字，所以登录后优先用这一份。
          */
+        /** 这个播放地址的文件是不是已经在本地缓存里（宿主据此不再复制到媒体缓存）。 */
+        async audio_kept({ url }) {
+            return { kept: Boolean(audio?.has?.(String(url || ''))) };
+        },
+        /** 把文件放进本地缓存：下载时已经写好了，这里只是确认。 */
+        async audio_keep({ url }) {
+            return { kept: Boolean(audio?.keep?.(String(url || ''))) };
+        },
         async signed_lyric({ songId }) {
             if (!songId) throw new Error('missing song id');
             const payload = await signedTrack(String(songId));
@@ -420,24 +482,47 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         },
         async like({ songId, liked }) {
             if (!songId) throw new Error('missing song id');
+            const media = [{ id: String(songId), type: 'track' }];
+            if (signer.available) {
+                await postSigned(liked ? '/luna/pc/me/collection/media' : '/luna/pc/me/collection/media/delete',
+                    liked ? { scene: '', media } : { media });
+                return { ok: true, signed: true };
+            }
             const client = await musicClient();
             if (liked) await client.likeTrack(String(songId));
             else await client.unlikeTrack(String(songId));
-            return { ok: true };
+            return { ok: true, signed: false };
         },
         async playlist_create({ name, description }) {
+            if (signer.available) {
+                const payload = await postSigned('/luna/pc/me/playlist', { name: String(name ?? ''), is_private: false });
+                const created = payload?.playlist ?? payload?.data?.playlist ?? {};
+                return { id: String(created.id ?? ''), name: String(created.name ?? created.title ?? name), isOwned: true };
+            }
             const client = await musicClient();
             return client.createPlaylist({ name: String(name ?? ''), ...(description ? { description: String(description) } : {}) });
         },
         async playlist_append({ playlistId, trackIds }) {
+            const media = (trackIds ?? []).map((id) => ({ id: String(id), type: 'track' }));
+            if (media.length === 0) return { ok: true };
+            if (signer.available) {
+                await postSigned('/luna/pc/me/playlist/media/append', { playlist_id: String(playlistId), media });
+                return { ok: true, signed: true };
+            }
             const client = await musicClient();
-            await client.appendPlaylistTracks(String(playlistId), (trackIds ?? []).map(String));
-            return { ok: true };
+            await client.appendPlaylistTracks(String(playlistId), media.map((item) => item.id));
+            return { ok: true, signed: false };
         },
         async playlist_remove({ playlistId, trackIds }) {
+            const media = (trackIds ?? []).map((id) => ({ id: String(id), type: 'track' }));
+            if (media.length === 0) return { ok: true };
+            if (signer.available) {
+                await postSigned('/luna/pc/me/playlist/media/delete', { playlist_id: String(playlistId), media });
+                return { ok: true, signed: true };
+            }
             const client = await musicClient();
-            await client.removePlaylistTracks(String(playlistId), (trackIds ?? []).map(String));
-            return { ok: true };
+            await client.removePlaylistTracks(String(playlistId), media.map((item) => item.id));
+            return { ok: true, signed: false };
         },
         /**
          * 一首歌的播放地址。免费的整首直接给 CDN 地址；VIP 的整首在包里头下载并解密，落盘后用

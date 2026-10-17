@@ -246,7 +246,7 @@ const sodaSessionStore = createSodaSessionStore({
   filePath: path.join(app.getPath('userData'), 'soda-session.bin'),
 });
 // VIP 整首解密后的文件放在 userData 下；地址只在这次运行里有效。
-const sodaAudio = createSodaAudio();
+const sodaAudio = createSodaAudio({ cacheDir: () => path.join(app.getPath('userData'), 'soda-audio') });
 const sodaApiBridge = createSodaApiBridge({
   sessionStore: sodaSessionStore,
   audio: sodaAudio,

@@ -127,6 +127,10 @@ export const sodaProvider: OnlineMusicProvider = {
         // 账号接口按三档要：standard / higher / lossless（hires 按 lossless 要）。
         audioQualityLevels: ['standard', 'high', 'lossless'] as const,
 
+        // 解密后的整首由我们自己落盘（userData/soda-audio），告诉宿主别再复制一份到媒体缓存。
+        keepAudio: async (url: string) => (await requestSoda<{ kept: boolean }>('audio_keep', { url }))?.kept === true,
+        hasKeptAudio: async (url: string) => (await requestSoda<{ kept: boolean }>('audio_kept', { url }))?.kept === true,
+
         async getSongDetail(id) {
             const track = await shareOf(String(id));
             if (!track) return null;

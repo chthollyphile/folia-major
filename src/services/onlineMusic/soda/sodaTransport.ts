@@ -13,7 +13,9 @@ export type SodaOperation =
     | 'resolve'
     | 'login_cookie_import'
     | 'pc_login'
-    | 'signed_lyric';
+    | 'signed_lyric'
+    | 'audio_kept'
+    | 'audio_keep';
 
 export interface SodaParams {
     query?: string;
@@ -30,6 +32,7 @@ export interface SodaParams {
     trackIds?: string[];
     quality?: string;
     cookie?: string;
+    url?: string;
 }
 
 export type SodaBridgeResult =
