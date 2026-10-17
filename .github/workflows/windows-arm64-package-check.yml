@@ -1,0 +1,77 @@
+name: Windows ARM64 Package Check
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - build/**
+      - packaging/**
+      - electron/**
+      - .github/actions/windows-arm64-ffmpeg/**
+      - .github/workflows/windows-arm64-package-check.yml
+      - .github/workflows/electron-release.yml
+      - .github/workflows/release-candidate.yml
+      - .github/workflows/canary-pre-release.yml
+      - .github/workflows/nightly-pre-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-arm64-package-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-11-arm
+    timeout-minutes: 45
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare native Windows ARM64 FFmpeg
+        uses: ./.github/actions/windows-arm64-ffmpeg
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Build wallpaper helper
+        run: npm run build:wallpaper-helper
+
+      - name: Build web app for Electron
+        env:
+          ELECTRON: 'true'
+        run: npm run build
+
+      - name: Package Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
+        run: npx electron-builder --win --arm64 --publish never --config.publish.channel=latest-arm64
+
+      - name: Verify native installation and audio transcoding
+        run: node packaging/windows/verify-arm64-install.mjs
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-arm64-package-check
+          path: |
+            release/*-arm64.exe
+            release/*-arm64.exe.blockmap
+            release/latest-arm64.yml
+          if-no-files-found: error
+          retention-days: 7

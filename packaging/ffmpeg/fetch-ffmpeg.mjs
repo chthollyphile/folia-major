@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { prepareWindowsArm64Ffmpeg } from "./windows-arm64.mjs";
 
 // Downloads one pinned Folia FFmpeg release asset for the Electron target and
 // stages only its runtime binary plus redistribution metadata for electron-builder.
@@ -90,6 +91,9 @@ export async function prepareBundledFfmpeg({
   arch = process.arch,
   outputRoot = path.resolve("build", "ffmpeg"),
 } = {}) {
+  if ((platform === "win32" || platform === "win") && arch === "arm64") {
+    return prepareWindowsArm64Ffmpeg({ outputRoot });
+  }
   const asset = resolveFfmpegAsset(platform, arch);
   if (!/^[a-f0-9]{64}$/.test(asset.sha256)) {
     throw new Error(`Folia FFmpeg checksum is not pinned for ${asset.key}`);
