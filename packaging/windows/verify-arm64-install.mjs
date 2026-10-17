@@ -3,10 +3,18 @@ import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promise
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { assertArm64Executable } from '../ffmpeg/windows-arm64.mjs';
 
 // packaging/windows/verify-arm64-install.mjs
 // Exercise the real NSIS extraction path: a valid pre-install directory alone missed #9983.
+
+function assertArm64Executable(binary) {
+  const pe = binary.length >= 64 ? binary.readUInt32LE(0x3c) : -1;
+  if (binary.toString('ascii', 0, 2) !== 'MZ' || pe < 0 || pe + 6 > binary.length
+      || binary.toString('ascii', pe, pe + 4) !== 'PE\0\0'
+      || binary.readUInt16LE(pe + 4) !== 0xaa64) {
+    throw new Error('Installed native binary is not an ARM64 PE executable');
+  }
+}
 
 function run(file, args, options = {}) {
   const result = spawnSync(file, args, { encoding: 'utf8', windowsHide: true, timeout: 180_000, ...options });

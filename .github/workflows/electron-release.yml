@@ -130,10 +130,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare native Windows ARM64 FFmpeg
-        if: matrix.os == 'windows-11-arm'
-        uses: ./.github/actions/windows-arm64-ffmpeg
-
       - name: Install Rust toolchain
         if: runner.os == 'Linux' || runner.os == 'Windows'
         uses: dtolnay/rust-toolchain@master

@@ -29,7 +29,7 @@ describe("bundled Folia FFmpeg manifest", () => {
   });
 
   it("fails instead of silently bundling a binary for the wrong architecture", () => {
-    expect(() => resolveFfmpegAsset("win32", "ia32")).toThrow(
+    expect(() => resolveFfmpegAsset("win32", "arm64")).toThrow(
       "No bundled Folia FFmpeg release",
     );
   });

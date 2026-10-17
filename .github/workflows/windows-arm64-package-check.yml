@@ -8,7 +8,6 @@ on:
       - build/**
       - packaging/**
       - electron/**
-      - .github/actions/windows-arm64-ffmpeg/**
       - .github/workflows/windows-arm64-package-check.yml
       - .github/workflows/electron-release.yml
       - .github/workflows/release-candidate.yml
@@ -39,9 +38,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Prepare native Windows ARM64 FFmpeg
-        uses: ./.github/actions/windows-arm64-ffmpeg
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
