@@ -1,4 +1,4 @@
-const { existsSync, readdirSync, readFileSync } = require('node:fs');
+const { existsSync, readdirSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
 
@@ -14,19 +14,15 @@ const path = require('node:path');
 //   bdms.init({ deviceId })
 //   bdms.generateHttpSignatureHeaders(url, '名字\r\n值\r\n…').split('\r\n') → 成对的 name/value
 
-const CLIENT_ROOTS = [
-    () => path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Soda Music'),
-    () => path.join(process.env.LOCALAPPDATA || '', 'Soda Music'),
-    () => path.join(process.env.PROGRAMFILES || '', 'Soda Music'),
-];
+const { findClientRoots } = require('./clientPath.cjs');
 
 const MODULE_RELATIVE = path.join('resources', 'app.asar.unpacked', 'bdms.node');
 
-/** 从安装目录里找 bdms.node：先按版本号排，取最新的那个。 */
+/** 找 bdms.node：安装根可能直接放，也可能按版本号分目录，取最新的那个。 */
 function findBdmsModule() {
-    for (const make of CLIENT_ROOTS) {
-        const root = make();
-        if (!root || !existsSync(root)) continue;
+    for (const root of findClientRoots()) {
+        const direct = path.join(root, MODULE_RELATIVE);
+        if (existsSync(direct)) return direct;
         let versions = [];
         try {
             versions = readdirSync(root, { withFileTypes: true })
@@ -83,7 +79,7 @@ function createSodaSigner({ warn = console.warn } = {}) {
         if (failure) throw new Error(failure);
         modulePath = findBdmsModule();
         if (!modulePath) {
-            failure = '没有找到汽水客户端自带的 bdms.node';
+            failure = '没有找到汽水客户端自带的 bdms.node（装到别处的话，用环境变量 FOLIA_SODA_CLIENT_DIR 指定客户端目录）';
             throw new Error(failure);
         }
         try {

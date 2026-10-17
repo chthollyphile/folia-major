@@ -15,11 +15,7 @@ const path = require('node:path');
 // 解密主密钥这一步交给 PowerShell（System.Security.Cryptography.ProtectedData），密钥用 stdin 传，
 // 不出现在命令行里。读 SQLite 用 Node 24 自带的 node:sqlite，不引第三方包。
 
-const USER_DATA_CANDIDATES = [
-    () => path.join(process.env.APPDATA || '', 'SodaMusic'),
-    () => path.join(process.env.APPDATA || '', 'luna_pc'),
-    () => path.join(process.env.LOCALAPPDATA || '', 'SodaMusic'),
-];
+const { findUserDataDirs } = require('./clientPath.cjs');
 
 const COOKIE_DB = path.join('Network', 'Cookies');
 const LOCAL_STATE = 'Local State';
@@ -133,17 +129,8 @@ const readCookieRows = (dbPath) => {
 
 const domainOfInterest = (host) => /(^|\.)(qishui\.com|douyin\.com)$/i.test(String(host || '').replace(/^\./, ''));
 
-const dirsToInspect = () => {
-    const seen = new Set();
-    const out = [];
-    for (const make of USER_DATA_CANDIDATES) {
-        const dir = make();
-        if (!dir || seen.has(dir) || !existsSync(dir)) continue;
-        seen.add(dir);
-        out.push(dir);
-    }
-    return out;
-};
+// 默认的 SodaMusic / luna_pc 之外，还包括进程带 --user-data-dir 的绿色版。
+const dirsToInspect = () => findUserDataDirs();
 
 /**
  * 读出官方客户端里的汽水会话。
@@ -201,7 +188,7 @@ function readPcSession() {
             userDataDir,
         };
     }
-    throw new Error(`没有找到汽水客户端的登录态（${errors.join('; ') || '客户端数据目录不存在'}）。汽水音乐正在运行时它的 cookie 库可能被锁，退出客户端后切一下音源会重试。`);
+    throw new Error(`没有找到汽水客户端的登录态（${errors.join('; ') || '客户端数据目录不存在'}）。汽水音乐正在运行时它的 cookie 库可能被锁，退出客户端后切一下音源会重试；数据目录不在默认位置时可以用 FOLIA_SODA_USER_DATA_DIR 指定。`);
 }
 
 const DEVICE_KEYS = ['device_id', 'deviceId', 'deviceID', 'deviceid'];
