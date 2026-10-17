@@ -12,7 +12,9 @@
 //   [tensors: manifest.bytes][manifest JSON, UTF-8]["FOLIABTW"][uint64 LE: byte offset of the JSON]
 //
 // The tensors come first so every `byte_offset` in the manifest is an offset into the file itself.
-// Plain node, no 'electron': both the main process and the analysis worker require it.
+// Plain node, no 'electron': both the main process and the analysis worker require it. The worker
+// reads the manifest alone (readPackedManifest) and the tensors one at a time, so loading a model on
+// the CPU never holds the whole file.
 
 const MAGIC = 'FOLIABTW';
 const TRAILER = MAGIC.length + 8;
@@ -37,4 +39,27 @@ const unpackWeights = (file) => {
     return { weights: bytes.subarray(0, at), manifest };
 };
 
-module.exports = { unpackWeights, MAGIC };
+/**
+ * The manifest of the packed file open at `fd` (`size` bytes), read from its tail alone - for a reader
+ * that then takes the tensors one at a time (mnn.cjs) rather than holding the whole file. Throws as
+ * unpackWeights does.
+ *
+ * @param {number} fd an open file descriptor
+ * @param {number} size the file's length in bytes
+ */
+const readPackedManifest = (fd, size) => {
+    const fs = require('fs');
+    if (size < TRAILER) throw new Error('not a packed export (shorter than its trailer)');
+    const tail = Buffer.alloc(TRAILER);
+    fs.readSync(fd, tail, 0, TRAILER, size - TRAILER);
+    if (tail.toString('latin1', 0, MAGIC.length) !== MAGIC) throw new Error('not a packed export (no FOLIABTW trailer)');
+    const at = Number(tail.readBigUInt64LE(MAGIC.length));
+    if (!(at > 0 && at < size - TRAILER)) throw new Error(`manifest offset ${at} is outside the file`);
+    const json = Buffer.alloc(size - TRAILER - at);
+    fs.readSync(fd, json, 0, json.length, at);
+    const manifest = JSON.parse(json.toString('utf8'));
+    if (manifest.bytes !== at) throw new Error(`the tensors are ${at} bytes, the manifest says ${manifest.bytes}`);
+    return manifest;
+};
+
+module.exports = { unpackWeights, readPackedManifest, MAGIC };

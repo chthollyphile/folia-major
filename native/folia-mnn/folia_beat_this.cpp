@@ -31,13 +31,7 @@
 using namespace MNN;
 using namespace MNN::Express;
 
-struct FoliaBtWeights {
-    struct Tensor {
-        std::vector<float> data;
-        std::vector<int> shape;
-    };
-    std::map<std::string, Tensor> tensors;
-};
+// FoliaBtWeights is in folia_mnn.h: folia_htdemucs.cpp builds htdemucs over the same kind of set.
 
 namespace {
 

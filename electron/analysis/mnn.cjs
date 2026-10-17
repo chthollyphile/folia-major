@@ -1,6 +1,7 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { unpackWeights } = require('./packedWeights.cjs');
+const { readPackedManifest } = require('./packedWeights.cjs');
 
 // electron/analysis/mnn.cjs
 // The CPU runtime both analysis models run on: MNN, compiled into native/folia-mnn and reached
@@ -16,7 +17,7 @@ const { unpackWeights } = require('./packedWeights.cjs');
 // never was (see the top of worker.cjs). Everything else is a short synchronous call.
 
 /** Matches folia_mnn_abi() in native/folia-mnn/folia_mnn.cpp. */
-const ABI = 1;
+const ABI = 2;
 
 /** The library's file name on this platform. */
 const LIBRARY_FILE = process.platform === 'win32' ? 'folia_mnn.dll'
@@ -71,6 +72,7 @@ const bind = () => {
         btFree: lib.func('folia_bt_weights_free', 'void', [weights]),
         btPut: lib.func('folia_bt_weights_put', 'int', [weights, 'str', 'uint8_t *', 'int', 'int *', 'int', 'int']),
         btBuild: lib.func('folia_bt_build', handle, [weights, 'int', 'char *', 'int']),
+        hdBuild: lib.func('folia_hd_build', handle, [weights, 'int', 'str', 'char *', 'int']),
     };
     const abi = fns.abi();
     if (abi !== ABI) throw new Error(`${file} speaks interface ${abi}, this build expects ${ABI}`);
@@ -106,27 +108,69 @@ const loadModel = (file, { threads = 4, precision = 'high', shapeMutable = false
  * the weights. Resolves like loadModel; the one input is a mel chunk [frames, 128] of 1..1500 frames,
  * the outputs are beat and downbeat logits.
  *
- * @param file the export's bytes, whole
+ * @param file absolute path to the export
  */
-const loadBeatThis = (file, { threads = 4 } = {}) => {
-    const { weights: bin, manifest } = unpackWeights(file);
+const loadBeatThis = (file, { threads = 4 } = {}) => buildFromExport(file, 'beat_this', 'btBuild', threads);
+
+/**
+ * htdemucs on the CPU from its WebGPU export, htdemucs-wgsl.bin, the one copy of the model the app
+ * ships: the network is built in native/folia-mnn/folia_htdemucs.cpp over these tensors. Resolves like
+ * loadModel; the one input is a stereo segment [1, 2, 172032] at 44.1kHz, the one output the four
+ * stems [1, 4, 2, 172032] in the graph's order (htdemucs.cjs).
+ *
+ * @param file absolute path to the export
+ * @param options.scratchDir where the library may write (and then deletes) the convolutions' weights
+ */
+const loadHtdemucs = (file, { threads = 4, scratchDir = os.tmpdir() } = {}) => {
+    // The library writes the convolutions' weights here and deletes the file before it returns
+    // (folia_hd_build); the unlink below only covers a build that died between the two.
+    const scratch = path.join(scratchDir, `folia-htdemucs-${process.pid}-${Date.now()}.weights`);
+    try {
+        return buildFromExport(file, 'htdemucs', 'hdBuild', threads, [scratch]);
+    } finally {
+        fs.rmSync(scratch, { force: true });
+    }
+};
+
+/**
+ * Every tensor of the packed export at `file` handed to the library, then the network built over them by
+ * `build`, whose arguments after the weights and the thread count are `extra`. The tensors are read one
+ * at a time through one buffer the size of the largest: the whole file (92MB for htdemucs) read into this
+ * process would be handed back to the allocator afterwards, not to the system.
+ */
+const buildFromExport = (file, model, build, threads, extra = []) => {
     const fns = bind();
+    const fd = fs.openSync(file, 'r');
     const set = fns.btCreate();
     try {
-        for (const [name, entry] of Object.entries(manifest.tensors)) {
+        const size = fs.fstatSync(fd).size;
+        const manifest = readPackedManifest(fd, size);
+        const span = (entry) => {
+            // stride: a padded row length, the padding inside the tensor's own bytes (beat_this' matmuls)
+            const cols = entry.shape[entry.shape.length - 1];
+            const count = entry.shape.reduce((a, b) => a * b, 1);
+            const pitch = entry.stride || cols;
+            return (count / cols) * pitch * (entry.dtype === 'f16' ? 2 : 4);
+        };
+        const entries = Object.entries(manifest.tensors);
+        const buffer = Buffer.allocUnsafe(Math.max(0, ...entries.map(([, entry]) => span(entry))));
+        for (const [name, entry] of entries) {
+            const bytes = span(entry);
+            if (entry.byte_offset + bytes > manifest.bytes || fs.readSync(fd, buffer, 0, bytes, entry.byte_offset) !== bytes) {
+                throw new Error(`${model} tensor ${name} runs past the end of the weights`);
+            }
             const shape = Int32Array.from(entry.shape);
-            const at = bin.byteOffset + entry.byte_offset;
-            if (fns.btPut(set, name, new Uint8Array(bin.buffer, at, bin.byteLength - entry.byte_offset), entry.dtype === 'f16' ? 1 : 0,
-                shape, shape.length, entry.stride ?? 0) !== 0) {
-                throw new Error(`beat_this tensor ${name} [${entry.shape}] was refused`);
+            if (fns.btPut(set, name, buffer, entry.dtype === 'f16' ? 1 : 0, shape, shape.length, entry.stride ?? 0) !== 0) {
+                throw new Error(`${model} tensor ${name} [${entry.shape}] was refused`);
             }
         }
         const err = Buffer.alloc(1024);
-        const handle = fns.btBuild(set, threads, err, err.length);
+        const handle = fns[build](set, threads, ...extra, err, err.length);
         if (!handle) throw new Error(message(err));
         return wrap(fns, handle);
     } finally {
         fns.btFree(set);
+        fs.closeSync(fd);
     }
 };
 
@@ -195,4 +239,4 @@ const wrap = (fns, handle) => {
     };
 };
 
-module.exports = { loadModel, loadBeatThis, isa, preferFastCores, libraryPath, LIBRARY_FILE };
+module.exports = { loadModel, loadBeatThis, loadHtdemucs, isa, preferFastCores, libraryPath, LIBRARY_FILE };

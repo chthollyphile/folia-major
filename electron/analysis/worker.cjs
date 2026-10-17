@@ -129,7 +129,7 @@ const runBeatThis = async (chunks) => {
     }
     let model;
     try {
-        model = mnn.loadBeatThis(await fs.promises.readFile(file), { threads: THREADS });
+        model = mnn.loadBeatThis(file, { threads: THREADS });
     } catch (error) {
         return decline('beat-this', `could not load ${file}: ${error?.message || error}`);
     }
@@ -151,8 +151,9 @@ const runBeatThis = async (chunks) => {
 // ---------------------------------------------------------------------------- htdemucs
 //
 // Raw stereo float at 44.1kHz in, three raw stereo stems out. The segmenting and the overlap-add are
-// htdemucs.cjs; the model is a .mnn whose STFT/iSTFT are inside the graph (build/htdemucs_mnn/
-// make_model.py), so this function is the gate, the load and the hand-off.
+// htdemucs.cjs; the network, STFT and iSTFT included, is built by native/folia-mnn/folia_htdemucs.cpp
+// over the WebGPU export's weights (htdemucs-wgsl.bin, the file the GPU runs too), so this function is
+// the gate, the load and the hand-off.
 
 const MODEL_RATE = 44100;
 /**
@@ -179,7 +180,7 @@ const release = () => {
 };
 
 const loadStems = () => {
-    const file = resolveModelFile(MODEL_DIRS, 'htdemucs');
+    const file = resolveModelFile(MODEL_DIRS, 'htdemucs_gpu');
     if (!file) return decline('htdemucs', `no weights in ${MODEL_DIRS.join(', ') || '(no directories)'}`);
     if (stems?.file === file) return stems;
     // A different file than the one loaded: the host restarts this process when the directory or a
@@ -187,7 +188,7 @@ const loadStems = () => {
     release();
     try {
         const started = Date.now();
-        stems = { model: mnn.loadModel(file, { threads: HTDEMUCS_THREADS, precision: 'high' }), file };
+        stems = { model: mnn.loadHtdemucs(file, { threads: HTDEMUCS_THREADS }), file };
         console.log(`[htdemucs] loaded on the CPU (${HTDEMUCS_THREADS} threads, ${mnn.isa()}) in ${Date.now() - started}ms, rss ${rssMb()}MB`);
         return stems;
     } catch (error) {

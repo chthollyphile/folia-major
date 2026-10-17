@@ -31,7 +31,7 @@ set(MNN_WIN_RUNTIME_MT ON CACHE BOOL "" FORCE)
 set(MNN_WITH_PLUGIN ON CACHE BOOL "" FORCE)
 add_subdirectory("${MNN_SOURCE_DIR}" mnn EXCLUDE_FROM_ALL)
 
-add_library(folia_mnn SHARED folia_mnn.cpp folia_beat_this.cpp folia_dconv.cpp dconv_kernels_base.cpp)
+add_library(folia_mnn SHARED folia_mnn.cpp folia_beat_this.cpp folia_htdemucs.cpp folia_dconv.cpp dconv_kernels_base.cpp)
 
 # The architecture being built for: on macOS that is CMAKE_OSX_ARCHITECTURES (x86_64 is cross-built on
 # an arm64 machine), elsewhere the processor.
@@ -61,11 +61,12 @@ if(MSVC)
     # MNN header - breaks std::min/std::max in every file after.
     target_compile_definitions(folia_mnn PRIVATE NOMINMAX)
 endif()
-# folia_dconv.cpp is an MNN CPU operator and uses MNN's internal headers, as MNN's own operators do -
+# folia_dconv.cpp is an MNN CPU operator and uses MNN's internal headers, as MNN's own operators do (and
+# folia_htdemucs.cpp its FileLoader, which opens UTF-8 paths on Windows) -
 # so it must see them with MNN's own definitions (MNN_USE_THREAD_POOL and the rest change what those
 # classes contain). MNN sets them for its directory; they are copied from there, not repeated here.
 get_directory_property(FOLIA_MNN_DEFINITIONS DIRECTORY "${MNN_SOURCE_DIR}" COMPILE_DEFINITIONS)
-set_source_files_properties(folia_dconv.cpp PROPERTIES COMPILE_DEFINITIONS "${FOLIA_MNN_DEFINITIONS}")
+set_source_files_properties(folia_dconv.cpp folia_htdemucs.cpp PROPERTIES COMPILE_DEFINITIONS "${FOLIA_MNN_DEFINITIONS}")
 target_include_directories(folia_mnn PRIVATE
     "${MNN_SOURCE_DIR}/include"
     "${MNN_SOURCE_DIR}/source"

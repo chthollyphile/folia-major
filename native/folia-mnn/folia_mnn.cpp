@@ -127,8 +127,11 @@ bool readPackedGraph(const char* path, std::vector<uint8_t>& graph, std::string&
 
 const char* folia_dconv_isa();
 
-/** Version of this library's interface; worker.cjs refuses a library that answers another. */
-FOLIA_EXPORT int folia_mnn_abi() { return 1; }
+/**
+ * Version of this library's interface; worker.cjs refuses a library that answers another. 2: htdemucs is
+ * built from its WebGPU export (folia_hd_build) rather than loaded from htdemucs-v3.mnn.
+ */
+FOLIA_EXPORT int folia_mnn_abi() { return 2; }
 
 /** The instruction set the Folia operators run with on this CPU ("neon", "sse2", "avx2+fma"), for the log. */
 FOLIA_EXPORT const char* folia_mnn_isa() { return folia_dconv_isa(); }
@@ -264,6 +267,16 @@ FOLIA_EXPORT FoliaMnn* folia_mnn_load(const char* path, int threads, int precisi
     }
 }
 
+void foliaReturnFreed() {
+#if defined(__APPLE__)
+    malloc_zone_pressure_relief(nullptr, 0);
+#elif defined(_WIN32)
+    _heapmin();
+#elif defined(__GLIBC__)
+    malloc_trim(0);
+#endif
+}
+
 FOLIA_EXPORT void folia_mnn_free(FoliaMnn* handle) {
     std::shared_ptr<Executor> executor = handle->executor;
     {
@@ -279,13 +292,7 @@ FOLIA_EXPORT void folia_mnn_free(FoliaMnn* handle) {
     // Freed is not yet returned: the allocator keeps what a model let go of for the next allocation,
     // so without this the process goes on holding most of a model it no longer has. Measured on macOS
     // with htdemucs: physical footprint 435-620MB loaded, 49-81MB after the free alone, 7MB after this.
-#if defined(__APPLE__)
-    malloc_zone_pressure_relief(nullptr, 0);
-#elif defined(_WIN32)
-    _heapmin();
-#elif defined(__GLIBC__)
-    malloc_trim(0);
-#endif
+    foliaReturnFreed();
 }
 
 FOLIA_EXPORT int folia_mnn_input_count(FoliaMnn* handle) { return int(handle->net->getInfo()->inputs.size()); }
