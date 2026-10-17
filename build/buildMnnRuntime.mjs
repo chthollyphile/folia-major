@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -120,7 +121,10 @@ export async function prepareBundledMnn({ platform = process.platform, arch = pr
     }
     if (platform === 'win32') configure.push('-A', arch === 'arm64' ? 'ARM64' : 'x64');
     run('cmake', configure);
-    run('cmake', ['--build', buildDir, '--config', 'Release', '--target', 'folia_mnn', '--parallel']);
+    // A job count, never a bare --parallel: with the Makefile generator that is `make -j` with no limit,
+    // which starts every one of MNN's several hundred compiles at once - on a 16GB GitHub Linux runner
+    // that ran it out of memory and the runner was shut down mid-build.
+    run('cmake', ['--build', buildDir, '--config', 'Release', '--target', 'folia_mnn', '--parallel', String(availableParallelism())]);
 
     // Multi-config generators (Visual Studio) put it under Release/.
     const built = [path.join(buildDir, library), path.join(buildDir, 'Release', library)].find(file => existsSync(file));
