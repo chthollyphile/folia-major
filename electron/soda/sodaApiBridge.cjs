@@ -17,6 +17,15 @@ const path = require('node:path');
 const API_HOST = 'https://api.qishui.com';
 const SHARE_HOST = 'https://music.douyin.com';
 const UA_LUNA = 'LunaPC/3.4.0(388267242)';
+// 拿不到客户端版本时的默认值（音乐库社区实现一直用这一版，服务端认）。
+const DEFAULT_CLIENT_VERSION = '3.4.0';
+/** 3.7.0 → 30070000：官方 version_code 是 major*1e7 + minor*1e4 + patch*1e2。 */
+const versionCodeOf = (version) => {
+    const parts = String(version || '').split('.').map((part) => Number.parseInt(part, 10));
+    if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) return '30040000';
+    const [major, minor, patch = 0] = parts;
+    return String(major * 10000000 + minor * 10000 + patch * 100);
+};
 const UA_WEB = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1';
 
 // 搜索接口要的一整套安卓设备参数，被限流时换一组。
@@ -86,19 +95,22 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         if (!cookie) throw new Error('签名取流需要登录 cookie');
         const deviceId = findPcDeviceId() || String(session?.platforms?.qishui?.deviceId || '');
         if (!deviceId) throw new Error('没有找到客户端的 device_id');
+        // 客户端版本跟着实际安装的走：签名覆盖全部请求头，UA 与 version 参数必须和别的头对得上。
+        const versionName = signer.version || DEFAULT_CLIENT_VERSION;
+        const ua = signer.version ? `LunaPC/${versionName}` : UA_LUNA;
         const body = JSON.stringify({
             track_id: String(trackId), media_type: 'track', queue_type: 'search_one_track', scene_name: 'search',
         });
         const params = new URLSearchParams({
             aid: '386088', app_name: 'luna_pc', region: 'cn', geo_region: 'cn', os_region: 'cn',
-            sim_region: '', device_id: deviceId, cdid: '', iid: '', version_name: '3.4.0', version_code: '30040000',
+            sim_region: '', device_id: deviceId, cdid: '', iid: '', version_name: versionName, version_code: versionCodeOf(versionName),
             channel: 'official', build_mode: 'master', network_carrier: '', ac: 'wifi',
             tz_name: 'Asia/Shanghai', resolution: '', device_platform: 'windows', device_type: 'Windows',
             os_version: 'Windows 10', fp: deviceId,
         });
         const url = `${API_HOST}/luna/pc/track_v2?${params}`;
         const headers = {
-            'User-Agent': UA_LUNA,
+            'User-Agent': ua,
             'Content-Type': 'application/json; charset=utf-8',
             'X-SS-STUB': md5Upper(body),
             Cookie: cookie,
@@ -109,7 +121,7 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         const signature = signer.sign({ url, headers, deviceId });
         const answer = await requestFactory(url, { method: 'POST', headers: { ...headers, ...signature }, body });
         const text = await answer.text();
-        console.info('[Soda] signed track_v2:', answer.status, text.length, 'bytes');
+        console.info('[Soda] signed track_v2:', answer.status, text.length, 'bytes', '| client', versionName);
         if (!text) throw new Error(`签名请求被清空（HTTP ${answer.status}，0 字节）`);
         const payload = JSON.parse(text);
         const playerUrl = payload?.track_player?.url_player_info ?? payload?.track_player?.urlPlayerInfo;

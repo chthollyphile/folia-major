@@ -14,31 +14,12 @@ const path = require('node:path');
 //   bdms.init({ deviceId })
 //   bdms.generateHttpSignatureHeaders(url, '名字\r\n值\r\n…').split('\r\n') → 成对的 name/value
 
-const { findClientRoots } = require('./clientPath.cjs');
+const { findBdmsModule } = require('./clientPath.cjs');
 
 const MODULE_RELATIVE = path.join('resources', 'app.asar.unpacked', 'bdms.node');
 
-/** 找 bdms.node：安装根可能直接放，也可能按版本号分目录，取最新的那个。 */
-function findBdmsModule() {
-    for (const root of findClientRoots()) {
-        const direct = path.join(root, MODULE_RELATIVE);
-        if (existsSync(direct)) return direct;
-        let versions = [];
-        try {
-            versions = readdirSync(root, { withFileTypes: true })
-                .filter((entry) => entry.isDirectory())
-                .map((entry) => entry.name)
-                .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-        } catch {
-            continue;
-        }
-        for (const version of versions) {
-            const candidate = path.join(root, version, MODULE_RELATIVE);
-            if (existsSync(candidate)) return candidate;
-        }
-    }
-    return '';
-}
+/** 找 bdms.node 与它所属的版本号：布局和版本号都不写死，见 clientPath.cjs。 */
+const locateModule = () => findBdmsModule();
 
 /** 官方约定：headers 展平成 "名字\r\n值\r\n名字\r\n值…"。 */
 const flattenHeaders = (headers) => Object.entries(headers)
@@ -72,12 +53,15 @@ function createSodaSigner({ warn = console.warn } = {}) {
     let module = null;
     let modulePath = '';
     let boundDeviceId = '';
+    let clientVersion = '';
     let failure = '';
 
     const load = () => {
         if (module) return module;
         if (failure) throw new Error(failure);
-        modulePath = findBdmsModule();
+        const found = locateModule();
+        modulePath = found.modulePath;
+        clientVersion = found.version;
         if (!modulePath) {
             failure = '没有找到汽水客户端自带的 bdms.node（装到别处的话，用环境变量 FOLIA_SODA_CLIENT_DIR 指定客户端目录）';
             throw new Error(failure);
@@ -119,7 +103,11 @@ function createSodaSigner({ warn = console.warn } = {}) {
             return failure;
         },
         get modulePath() {
-            return modulePath || findBdmsModule();
+            return modulePath || locateModule().modulePath;
+        },
+        /** 客户端版本号（从安装目录名来，拿不到就是空串）。 */
+        get version() {
+            return clientVersion || locateModule().version;
         },
 
         /** 给一次要发出去的请求签名，返回要附加的头。headers 必须是真实要发的那一份。 */

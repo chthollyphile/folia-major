@@ -28,20 +28,40 @@ const runPowerShell = (script) => {
     }
 };
 
-/** 一个目录里有没有 bdms.node：它自己就是安装根，或者它下面按版本号分了目录。 */
-const hasBdms = (dir) => {
-    if (!dir) return false;
-    if (existsSync(path.join(dir, MODULE_RELATIVE))) return true;
-    let versions = [];
+const SEMVER = /^\d+\.\d+\.\d+$/;
+
+/**
+ * 在一个候选根目录里找 bdms.node，返回 { modulePath, version }。
+ * 兼容三种布局：
+ *   <root>/resources/app.asar.unpacked/bdms.node
+ *   <root>/<版本>/resources/app.asar.unpacked/bdms.node
+ *   以上两种之外，再往下找两层（有的安装器会把 app.asar.unpacked 放在别处）
+ */
+const locateIn = (dir) => {
+    if (!dir || !existsSync(dir)) return null;
+    const direct = path.join(dir, MODULE_RELATIVE);
+    if (existsSync(direct)) return { modulePath: direct, version: '' };
+    let children = [];
     try {
-        versions = readdirSync(dir, { withFileTypes: true })
-            .filter((entry) => entry.isDirectory())
-            .map((entry) => entry.name);
+        children = readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
     } catch {
-        return false;
+        return null;
     }
-    return versions.some((version) => existsSync(path.join(dir, version, MODULE_RELATIVE)));
+    // 版本目录优先，按数字排，取最新
+    const versions = children.filter((name) => SEMVER.test(name)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    for (const version of versions) {
+        const candidate = path.join(dir, version, MODULE_RELATIVE);
+        if (existsSync(candidate)) return { modulePath: candidate, version };
+    }
+    // 其他名字的目录：只再找一层，别扫整个磁盘
+    for (const name of children) {
+        const candidate = path.join(dir, name, MODULE_RELATIVE);
+        if (existsSync(candidate)) return { modulePath: candidate, version: SEMVER.test(name) ? name : '' };
+    }
+    return null;
 };
+
+const hasBdms = (dir) => Boolean(locateIn(dir));
 
 const expandRoot = (candidate) => {
     const dir = String(candidate || '').trim();
@@ -115,4 +135,21 @@ function findUserDataDirs() {
     return dirs.filter((dir) => existsSync(dir));
 }
 
-module.exports = { findClientRoots, findUserDataDirs, hasBdms, EXE_NAME };
+/** 找到的 bdms.node 与它所属的版本号（拿不到就是空串）。 */
+let cachedModule = null;
+function findBdmsModule() {
+    if (cachedModule) return cachedModule;
+    const envDir = String(process.env.FOLIA_SODA_CLIENT_DIR || '').trim();
+    if (envDir) {
+        const fromEnv = locateIn(envDir.toLowerCase().endsWith('.exe') ? path.dirname(envDir) : envDir);
+        if (fromEnv) { cachedModule = fromEnv; return cachedModule; }
+    }
+    for (const root of findClientRoots()) {
+        const found = locateIn(root);
+        if (found) { cachedModule = found; return cachedModule; }
+    }
+    cachedModule = { modulePath: '', version: '' };
+    return cachedModule;
+}
+
+module.exports = { findClientRoots, findUserDataDirs, findBdmsModule, hasBdms, EXE_NAME };
