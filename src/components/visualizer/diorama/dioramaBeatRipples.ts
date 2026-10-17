@@ -11,6 +11,8 @@ import { resolveBeatFxAccentGain, type BeatFxEvent } from '../../../services/bea
 //   every beat      -> one mid-scale ripple   (RIPPLE_BANDS[1]), strength x 轻拍
 //   every downbeat  -> one bass-scale ripple  (RIPPLE_BANDS[0]), strength x 重拍, instead of the mid one
 //   breath          <- beat and downbeat envelopes (already scaled by the clock)
+//   lyric hop       <- the same envelopes: the word being sung jumps up on each beat, higher on
+//                      the downbeat, and falls back as they decay (resolveDioramaLyricHop)
 //
 // The clock is read as counts of fired beats (beatFxLive's `getBeatFxFiredCounts`), not as the
 // envelopes crossing a threshold: one beat is exactly one ripple whatever the frame rate, and a seek -
@@ -20,9 +22,14 @@ import { resolveBeatFxAccentGain, type BeatFxEvent } from '../../../services/bea
 // (`resolveBeatFxAccentGain`), and a plain beat whose hit is mostly low takes the bass scale too.
 // Without them both are what they were: full strength, mid scale.
 
-/** Ripple strength a beat hands spawnRipple at strength 1, where a band onset hands its transient. */
-export const DIORAMA_BEAT_RIPPLE_STRENGTH = 0.9;
-export const DIORAMA_DOWNBEAT_RIPPLE_STRENGTH = 1;
+/**
+ * Ripple strength a beat hands spawnRipple at strength 1, where a band onset hands its transient
+ * (~0.3..1). Well past it on purpose: 智能动感模式 is the exaggerated reading, and at 0.9 / 1 the
+ * beat ripples moved the particles no more than the band onsets they replace (镜台 read as too
+ * restrained). Only the beat path uses these, so with the mode off nothing changes.
+ */
+export const DIORAMA_BEAT_RIPPLE_STRENGTH = 1.6;
+export const DIORAMA_DOWNBEAT_RIPPLE_STRENGTH = 2.2;
 
 export interface DioramaBeatCounter {
     beats: number;
@@ -59,13 +66,14 @@ export const stepDioramaBeatCounter = (
 };
 
 /**
- * The whole-body breath from the beat envelopes, in place of the band transients' `clusterPulse`: the
- * same small scale (see resolveDioramaParticleAudioResponse), a little on every beat and more on the
- * downbeat. The envelopes are 0..2 once scaled by the strengths; the cap keeps the spring in range.
+ * The whole-body breath from the beat envelopes, in place of the band transients' `clusterPulse`: a
+ * clear swell on every beat and a bigger one on the downbeat (+20% / +28% at strength 1; it was +8% /
+ * +10%, about what the band transients give, and read as restrained). The envelopes are 0..2 once
+ * scaled by the strengths; the cap keeps the spring in range and the clouds clear of the camera.
  */
 export const resolveDioramaBeatClusterPulse = (beat: number, downbeat: number): number => Math.min(
     DIORAMA_PARTICLE_AUDIO_SCALE_MAX,
-    1 + Math.max(0, beat) * 0.08 + Math.max(0, downbeat) * 0.1,
+    1 + Math.max(0, beat) * 0.2 + Math.max(0, downbeat) * 0.28,
 );
 
 /** A plain beat whose low band carries more than this share of its hit spawns a bass-scale ripple. */
@@ -92,3 +100,18 @@ export const resolveDioramaBeatRipple = (
     const low = event?.tone && event.tone.low > DIORAMA_LOW_BEAT_SHARE;
     return { index: low ? 0 : 1, strength: DIORAMA_BEAT_RIPPLE_STRENGTH * intensity * gain };
 };
+
+/**
+ * How far the word being sung jumps up, in line heights, from the beat envelopes (0..2 once scaled
+ * by the strengths, so 1 at strength 1): a quarter of a line on a beat, two fifths on a downbeat,
+ * falling back as the envelopes decay. Capped so a doubled strength stays a hop, not a leap off the
+ * frame.
+ */
+export const DIORAMA_LYRIC_HOP_BEAT = 0.25;
+export const DIORAMA_LYRIC_HOP_DOWNBEAT = 0.4;
+const DIORAMA_LYRIC_HOP_MAX = 0.8;
+
+export const resolveDioramaLyricHop = (beat: number, downbeat: number): number => Math.min(
+    DIORAMA_LYRIC_HOP_MAX,
+    Math.max(0, beat) * DIORAMA_LYRIC_HOP_BEAT + Math.max(0, downbeat) * DIORAMA_LYRIC_HOP_DOWNBEAT,
+);

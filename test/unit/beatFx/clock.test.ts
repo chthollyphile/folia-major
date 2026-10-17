@@ -10,7 +10,11 @@ import {
     resolveSonnetBeatFxFrame,
     resolveSonnetIconOnsetPop,
 } from '../../../src/components/visualizer/sonnet/sonnetBeatFx';
-import { resolveDioramaBeatRipple } from '../../../src/components/visualizer/diorama/dioramaBeatRipples';
+import {
+    DIORAMA_BEAT_RIPPLE_STRENGTH,
+    DIORAMA_DOWNBEAT_RIPPLE_STRENGTH,
+    resolveDioramaBeatRipple,
+} from '../../../src/components/visualizer/diorama/dioramaBeatRipples';
 
 // test/unit/beatFx/clock.test.ts
 
@@ -203,16 +207,16 @@ describe('accent-shaped responses', () => {
     });
 
     it('keeps the plain Diorama ripples without accents', () => {
-        expect(resolveDioramaBeatRipple('beat', null, 1, 1.2)).toEqual({ index: 1, strength: 0.9 * 1.2 });
-        expect(resolveDioramaBeatRipple('downbeat', { }, 1, 0.8)).toEqual({ index: 0, strength: 0.8 });
+        expect(resolveDioramaBeatRipple('beat', null, 1, 1.2)).toEqual({ index: 1, strength: DIORAMA_BEAT_RIPPLE_STRENGTH * 1.2 });
+        expect(resolveDioramaBeatRipple('downbeat', { }, 1, 0.8)).toEqual({ index: 0, strength: DIORAMA_DOWNBEAT_RIPPLE_STRENGTH * 0.8 });
     });
 
     it('sizes and scales Diorama ripples by the beat', () => {
         const lowWeak = resolveDioramaBeatRipple('beat', { impact: 0, tone: { low: 0.7, mid: 0.2, high: 0.1 } }, 1, 1);
         expect(lowWeak.index).toBe(0);
-        expect(lowWeak.strength).toBeCloseTo(0.9 * 0.35);
+        expect(lowWeak.strength).toBeCloseTo(DIORAMA_BEAT_RIPPLE_STRENGTH * 0.35);
         const highFull = resolveDioramaBeatRipple('beat', { impact: 1, tone: { low: 0.1, mid: 0.2, high: 0.7 } }, 0.5, 1);
-        expect(highFull).toEqual({ index: 1, strength: 0.9 * 0.5 });
+        expect(highFull).toEqual({ index: 1, strength: DIORAMA_BEAT_RIPPLE_STRENGTH * 0.5 });
     });
 });
 

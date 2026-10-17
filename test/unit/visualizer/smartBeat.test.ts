@@ -24,6 +24,7 @@ import {
 import {
     createDioramaBeatCounter,
     resolveDioramaBeatClusterPulse,
+    resolveDioramaLyricHop,
     stepDioramaBeatCounter,
 } from '@/components/visualizer/diorama/dioramaBeatRipples';
 import { DIORAMA_PARTICLE_AUDIO_SCALE_MAX } from '@/components/visualizer/diorama/cameraPath';
@@ -310,6 +311,11 @@ describe('Diorama beat ripples', () => {
         expect(resolveDioramaBeatClusterPulse(1, 0)).toBeGreaterThan(1);
         expect(resolveDioramaBeatClusterPulse(1, 1)).toBeGreaterThan(resolveDioramaBeatClusterPulse(1, 0));
         expect(resolveDioramaBeatClusterPulse(2, 2)).toBeLessThanOrEqual(DIORAMA_PARTICLE_AUDIO_SCALE_MAX);
+        // The lyric line hops a quarter line on a beat, two fifths on a downbeat, never past 0.8.
+        expect(resolveDioramaLyricHop(0, 0)).toBe(0);
+        expect(resolveDioramaLyricHop(1, 0)).toBeCloseTo(0.25);
+        expect(resolveDioramaLyricHop(1, 1)).toBeCloseTo(0.65);
+        expect(resolveDioramaLyricHop(2, 2)).toBe(0.8);
     });
 });
 

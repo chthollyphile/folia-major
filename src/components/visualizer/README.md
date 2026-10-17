@@ -115,7 +115,7 @@ App / ThemePark / VisPlayground / OBS source
 - 时钟让每拍的峰值等于 `resolveBeatFxAccentGain`，即 (0.35 + 0.65 × 强度) × 动感系数，所以只读包络的画面（隐现）不用改代码就有强弱。
 - 要按拍区分的，用 `getBeatFxLastBeat` / `getBeatFxLastDownbeat` 取刚发射的那一拍：
   - 商籁：偏低频的拍推近多一点，偏高频的拍横滚多一点，小节第 3 拍横滚减半（`resolveSonnetBeatFxAccent`）；
-  - 镜台：涟漪强度乘以 gain，偏低频的普通拍用大尺度涟漪（`resolveDioramaBeatRipple`）。
+  - 镜台：涟漪强度乘以 gain，偏低频的普通拍用大尺度涟漪（`resolveDioramaBeatRipple`）。拍点涟漪本身比频段起音的涟漪强得多（普通拍 1.6、重拍 2.2，起音约 0.3–1），整体呼吸每拍 +20%、重拍 +28%，比关着时夸张；正在唱的那个字随拍跳起（拍点发射时正在唱的单元，落在字与字之间时取最近开始的那个），普通拍 1/4 行高、重拍 2/5 行高，随包络回落，换字也不打断（`resolveDioramaLyricHop`；每个单元的三层平面在 `DioramaActiveUnitPlanes` 里同一个 group 下）；只走拍点那条路，关着时不变。
 - 复合拍子（6/8、9/8、12/8）里 Beat This! 数的是八分音符，比听感密三倍，慢歌也可能被数成双倍速，慢华尔兹按小节感受；重音里 `pulse` 为 0 的拍（只按重音位置认定，见 `services/analysis/README.md`）在 `mergeBeatFxEvents` 里就去掉了，所有画面只按附点四分音符的脉冲触发，小节位置也按留下的拍计。
 - 没有节奏的小节（打击成分远低于全曲平常水平，例如只有喇叭的前奏）里，`resolveBeatFxAccentGain` 返回 0，所有画面这一段都不出拍点特效（`rhythmic`，见 `services/analysis/README.md`）。
 - 没有重音数据时（旧存档，或读不到音频），以上各项都恰好等于 1，画面和加入重音之前一致。
