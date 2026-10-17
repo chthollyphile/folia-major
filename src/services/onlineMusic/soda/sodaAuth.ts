@@ -60,10 +60,25 @@ const pollToState = (answer: QrPoll): LoginState => {
     }
 };
 
+// 这一进程里试过一次从官方 PC 客户端导入就够，失败不要每次问都重扫磁盘。
+let pcImportTried = false;
+
 export const sodaAuth: OnlineAuthProvider = {
     async getLoginStatus() {
         const answer = await requestSoda<{ authenticated: boolean; profile: SodaProfile | null }>('status');
-        return answer.authenticated ? sodaUserOf(answer.profile) : null;
+        if (answer.authenticated) return sodaUserOf(answer.profile);
+        if (!pcImportTried) {
+            pcImportTried = true;
+            try {
+                await requestSoda('pc_login');
+                const retry = await requestSoda<{ authenticated: boolean; profile: SodaProfile | null }>('status');
+                if (retry.authenticated) return sodaUserOf(retry.profile);
+            } catch (error) {
+                // 没装客户端、没登录、不是 Windows：都落在这里，不影响扫码那条路。
+                console.info('[Soda] PC client session not imported:', error instanceof Error ? error.message : String(error));
+            }
+        }
+        return null;
     },
 
     async logout() {
@@ -97,6 +112,11 @@ export const sodaAuth: OnlineAuthProvider = {
     async checkLogin(key) {
         const answer = await requestSoda<QrPoll>('login_qr_poll', { token: key });
         console.info('[Soda] QR poll', answer.status, answer.message ? `— ${answer.message}` : '');
+        // 平台拒绝第三方客户端的几种回答：再等也不会有结果，把原话报给登录窗口。
+        if (/非官方|系统繁忙|版本过低|升级应用/i.test(answer.message || '')) {
+            pendingQr.delete(key);
+            return { state: 'error', message: answer.message };
+        }
         // 汽水在扫码后可能要求短信验证：这个流程包里没做，再等也不会有结果，直接把原因说给登录窗口。
         if (answer.status === 'scanned' && /短信|验证|verify/i.test(answer.message || '')) {
             pendingQr.delete(key);

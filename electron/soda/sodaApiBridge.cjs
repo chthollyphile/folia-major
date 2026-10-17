@@ -10,6 +10,7 @@
 // 播放地址的解析（VIP 整首要解密）留给后续的 audio.cjs，不在这里。
 
 const { mkdirSync, writeFileSync } = require('node:fs');
+const { readPcSession } = require('./pcSession.cjs');
 const path = require('node:path');
 
 const API_HOST = 'https://api.qishui.com';
@@ -38,6 +39,7 @@ const OPERATIONS = [
     'playlist_create', 'playlist_append', 'playlist_remove',
     'resolve',
     'login_cookie_import',
+    'pc_login',
 ];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
@@ -161,6 +163,21 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             // 只记状态和平台的提示，不记 cookie。
             console.info('[Soda] QR poll:', result?.status, result?.message ? `(${result.message})` : '');
             return { status: String(result?.status ?? 'failed'), message: result?.message ? String(result.message) : undefined };
+        },
+        /**
+         * 从汽水音乐 PC 客户端（SodaMusic，Electron）里读出已登录的会话并导入。
+         * 平台会拒绝第三方客户端的扫码登录（passport 回 1049），所以官方客户端那份是唯一可靠的来源。
+         */
+        async pc_login() {
+            const found = readPcSession();
+            const client = await musicClient();
+            client.importCookie('qishui', found.cookie);
+            const profile = await client.getProfile('qishui');
+            if (!profile?.id) throw new Error('客户端会话没有被平台接受（profile 为空）');
+            sessionStore?.set(client.exportSession());
+            // 只记 cookie 的名字，值不进日志。
+            console.info('[Soda] PC client session imported:', found.userDataDir, '| cookies:', found.names.join(','));
+            return { ok: true, profile, cookies: found.names };
         },
         /** 扫码走不通时的退路：把浏览器里登录后的 cookie 整串交进来。 */
         async login_cookie_import({ cookie }) {

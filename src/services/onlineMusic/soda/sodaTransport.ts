@@ -11,7 +11,8 @@ export type SodaOperation =
     | 'user_playlists' | 'liked_ids' | 'like'
     | 'playlist_create' | 'playlist_append' | 'playlist_remove'
     | 'resolve'
-    | 'login_cookie_import';
+    | 'login_cookie_import'
+    | 'pc_login';
 
 export interface SodaParams {
     query?: string;
