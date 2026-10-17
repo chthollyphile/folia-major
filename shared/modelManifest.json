@@ -19,9 +19,13 @@
     "(native/folia-mnn, built into the app), which builds each network over the same tensors. The",
     "files earlier versions downloaded - the ONNX models, htdemucs-v3.mnn, the Python runtime - stay",
     "on the mirrors for those versions; this one deletes any copy left in userData/models",
-    "(electron/analysis/modelPaths.cjs LEGACY_FILES)."
+    "(electron/analysis/modelPaths.cjs LEGACY_FILES).",
+    "",
+    "The first mirror is this repo's own models-v1 release (a prerelease, never 'latest', so the stable",
+    "updater's releases/latest is untouched); it is the one CI builds fetch from. The others follow it."
   ],
   "mirrors": [
+    "https://github.com/chthollyphile/folia-major/releases/download/models-v1/{file}",
     "https://hf-mirror.com/HUAI4236/folia-models/resolve/main/{file}",
     "https://huggingface.co/HUAI4236/folia-models/resolve/main/{file}",
     "https://github.com/AZURE-HUAI/folia-models/releases/download/weights-v1/{file}"
