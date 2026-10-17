@@ -170,7 +170,9 @@ export const sodaProvider: OnlineMusicProvider = {
         async getLyrics(song) {
             const track = await shareOf(mediaIdOf(song));
             if (!track) return { lyrics: null, isPureMusic: false };
-            return sodaLyricsOf(track);
+            const result = sodaLyricsOf(track);
+            if (!result.lyrics) console.info('[Soda] no lyrics on the share page for', mediaIdOf(song));
+            return result;
         },
     },
 

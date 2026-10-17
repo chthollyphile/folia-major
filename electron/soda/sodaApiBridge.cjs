@@ -159,9 +159,19 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| auth', best.auth ? 'yes' : 'no');
         const playAuth = best.auth;
         const audioUrl = best.url;
-        const media = Buffer.from(await (await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } })).arrayBuffer());
-        const { decryptAudio } = await import('ly-music-source/dist/providers/qishui/decrypt.js');
-        const decrypted = playAuth ? decryptAudio(media, playAuth) : media;
+        const streamAnswer = await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } });
+        const media = Buffer.from(await streamAnswer.arrayBuffer());
+        console.info('[Soda] stream fetch:', streamAnswer.status, media.length, 'bytes', streamAnswer.headers?.get?.('content-type') || '');
+        if (!media.length) throw new Error(`音频流是空的（HTTP ${streamAnswer.status}）`);
+        let decrypted = media;
+        if (playAuth) {
+            const module = await import('ly-music-source/dist/providers/qishui/decrypt.js');
+            const decrypt = module.decryptAudio || module.default?.decryptAudio;
+            if (typeof decrypt !== 'function') throw new Error('解密模块没有导出 decryptAudio');
+            decrypted = decrypt(media, playAuth);
+            console.info('[Soda] decrypted:', decrypted.length, 'bytes');
+            if (!decrypted.length) throw new Error('解密结果是空的（playAuth 可能不匹配）');
+        }
         const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
         if (!dir || !audio) throw new Error('没有缓存目录');
         mkdirSync(dir, { recursive: true });
@@ -345,7 +355,15 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         async resolve({ songId, quality }) {
             if (!songId) throw new Error('missing song id');
             const wanted = quality || 'higher';
-            // 先走包（免签名的路径）：能拿到地址或解密后的整首就用它。
+            // 有官方签名模块时先走签名：需要 resolve 的绝大多数是付费歌，包那条必然拿不到。
+            if (signer.available) {
+                try {
+                    return await signedPlay(String(songId), wanted);
+                } catch (error) {
+                    console.info('[Soda] signed play failed:', error?.message || error);
+                }
+            }
+            // 再走包（免签名的路径）：能拿到地址或解密后的整首就用它。
             try {
                 const client = await musicClient();
                 const result = await client.resolve({ ids: { qishui: String(songId) }, quality: wanted });
@@ -368,7 +386,12 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
                 console.info('[Soda] package resolve failed:', error?.message || error);
             }
             // 再走官方客户端的应用签名（VIP 整首只有这条路）。
-            return signedPlay(String(songId), wanted);
+            try {
+                return await signedPlay(String(songId), wanted);
+            } catch (error) {
+                console.info('[Soda] signed play failed:', error?.message || error);
+                return { url: '' };
+            }
         },
     };
 

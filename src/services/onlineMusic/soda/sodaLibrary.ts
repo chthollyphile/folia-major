@@ -20,11 +20,22 @@ interface SodaPlaylist {
     kind?: string;
 }
 
+/**
+ * 「我喜欢」的判定：官方是 type == 1 的系统歌单；不同版本 kind 会给数字，也可能给字符串，
+ * 所以再加一层名字兜底（SodaM 也是这么认的）。
+ */
+const isLikedPlaylist = (playlist: SodaPlaylist): boolean => {
+    const kind = String(playlist?.kind ?? '');
+    if (kind === 'liked' || Number(kind) === 1) return true;
+    const name = String(playlist?.name ?? playlist?.title ?? '');
+    return name.includes('喜欢') || name.includes('收藏');
+};
+
 const collectionOf = (playlist: SodaPlaylist): ProviderCollection => {
     // 账号接口给的是扁平字段（name/coverUrl），匿名接口给的是汽水原始字段（title/url_cover），两种都收。
     if (playlist?.url_cover || playlist?.title) return normalizeSodaCollection(playlist);
     const kind = String(playlist?.kind ?? '');
-    const liked = kind === 'liked';
+    const liked = isLikedPlaylist(playlist);
     return {
         providerId: 'soda',
         id: String(playlist?.id ?? ''),
@@ -42,7 +53,7 @@ const collectionOf = (playlist: SodaPlaylist): ProviderCollection => {
 const likedPlaylistOf = async (): Promise<SodaPlaylist | null> => {
     const answer = await requestSoda<{ items: SodaPlaylist[] }>('user_playlists', { limit: 200, cursor: 0 });
     const items = Array.isArray(answer.items) ? answer.items : [];
-    return items.find((item) => String(item?.kind ?? '') === 'liked') ?? null;
+    return items.find(isLikedPlaylist) ?? null;
 };
 
 export const sodaLibrary: OnlineLibraryProvider = {
