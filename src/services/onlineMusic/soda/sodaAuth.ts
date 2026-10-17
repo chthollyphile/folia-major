@@ -96,6 +96,12 @@ export const sodaAuth: OnlineAuthProvider = {
 
     async checkLogin(key) {
         const answer = await requestSoda<QrPoll>('login_qr_poll', { token: key });
+        console.info('[Soda] QR poll', answer.status, answer.message ? `— ${answer.message}` : '');
+        // 汽水在扫码后可能要求短信验证：这个流程包里没做，再等也不会有结果，直接把原因说给登录窗口。
+        if (answer.status === 'scanned' && /短信|验证|verify/i.test(answer.message || '')) {
+            pendingQr.delete(key);
+            return { state: 'error', message: answer.message || '汽水音乐要求短信验证，当前登录流程走不下去' };
+        }
         const state = pollToState(answer);
         if (state.state === 'confirmed' || state.state === 'expired') pendingQr.delete(key);
         return state;

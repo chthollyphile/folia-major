@@ -37,6 +37,7 @@ const OPERATIONS = [
     'user_playlists', 'liked_ids', 'like',
     'playlist_create', 'playlist_append', 'playlist_remove',
     'resolve',
+    'login_cookie_import',
 ];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
@@ -149,6 +150,7 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         async login_qr_create() {
             const client = await musicClient();
             const session = await client.createQrLogin('qishui');
+            console.info('[Soda] QR created; expires', session?.expireTime ?? 'unknown');
             return { token: String(session?.token ?? ''), qrcode: session?.qrcode ? String(session.qrcode) : '', expireTime: Number(session?.expireTime) || undefined };
         },
         async login_qr_poll({ token }) {
@@ -156,7 +158,20 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             const client = await musicClient();
             const result = await client.pollQrLogin('qishui', token);
             if (result?.status === 'confirmed') sessionStore?.set(client.exportSession());
+            // 只记状态和平台的提示，不记 cookie。
+            console.info('[Soda] QR poll:', result?.status, result?.message ? `(${result.message})` : '');
             return { status: String(result?.status ?? 'failed'), message: result?.message ? String(result.message) : undefined };
+        },
+        /** 扫码走不通时的退路：把浏览器里登录后的 cookie 整串交进来。 */
+        async login_cookie_import({ cookie }) {
+            const text = String(cookie || '').trim();
+            if (!text) throw new Error('missing cookie');
+            const client = await musicClient();
+            client.importCookie('qishui', text);
+            const profile = await client.getProfile('qishui');
+            sessionStore?.set(client.exportSession());
+            console.info('[Soda] Cookie imported for', profile?.nickname ? 'an account' : 'an unknown account');
+            return { ok: true, profile };
         },
         async logout() {
             const client = await musicClient();
