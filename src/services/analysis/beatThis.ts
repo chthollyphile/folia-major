@@ -200,6 +200,8 @@ export interface BeatGrid {
 /** A grid from `analyseBeatGrid`, with the run's percussive energy when it was asked for and computed. */
 export interface AnalysedBeatGrid extends BeatGrid {
     percussive?: PercussiveEnergyFrames;
+    /** The stitched beat logits, one per frame: how sure the model was of each beat (beatAccents' `pulse`). */
+    beatLogits?: Float32Array;
 }
 
 /**
@@ -525,6 +527,7 @@ export const analyseBeatGrid = async (
     }));
     const track = aggregateChunks(predictions, mel.frames);
     const grid: AnalysedBeatGrid = beatsFromLogits(track.beat, track.downbeat);
+    grid.beatLogits = track.beat;
     // Only the GPU run carries it; the CPU run's logits have none.
     const energy = (logits as { percussive?: PercussiveEnergyFrames }).percussive;
     if (energy) grid.percussive = energy;

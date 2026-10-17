@@ -171,7 +171,8 @@ describe('beat accents', () => {
         expect(a).toBe(b);
         expect(readMid).toHaveBeenCalledTimes(1);
         expect((await readStoredBeatGrid('song-1', 'beat_this_small'))?.accents).toEqual(a);
-        expect(analyseBeatGrid).not.toHaveBeenCalled();
+        // small0 runs again once, for its confidence in the stored beats and the percussive energy.
+        expect(analyseBeatGrid.mock.calls.map(call => call[1])).toEqual([{ model: 'beat_this_small', percussive: true }]);
     });
 
     it('does not file accents against a list replaced meanwhile, or without the bytes', async () => {

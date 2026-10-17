@@ -106,9 +106,9 @@ App / ThemePark / VisPlayground / OBS source
 
 ### 智能动感模式（beat FX）
 
-全局一个开关加轻拍 / 重拍两个强度（`SmartBeatSettings`，store 的 `smartBeat`，设置卡 `SmartBeatSettingsCard.tsx` 在「歌词动画」的模式选择下面），不属于任何一个模式的 tuning。哪些画面响应由 entry 声明：模式和背景的 entry 上 `drawsBeatFx: true`（目前商籁、镜台、隐现背景），不显示背景的模式本来就写着 `background: false`（Still）。`beatClockTargets.ts` 据此决定节拍时钟和拍点分析跑不跑。
+全局一个开关加轻拍 / 重拍两个强度（`SmartBeatSettings`，store 的 `smartBeat`，设置卡 `SmartBeatSettingsCard.tsx` 在可视化设置窗口「歌词动画」页的最上面），不属于任何一个模式的 tuning。哪些画面响应由 entry 声明：模式和背景的 entry 上 `drawsBeatFx: true`（目前商籁、镜台、时计、隐现背景），不显示背景的模式本来就写着 `background: false`（Still）。`beatClockTargets.ts` 据此决定节拍时钟和拍点分析跑不跑。
 
-各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`，没就绪就走原来的画面，所以关着时像素不变。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，隐现 `backgrounds/latent/LatentBackground.tsx`。
+各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`，没就绪就走原来的画面，所以关着时像素不变。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，时计 `pendolo/pendoloBeatFx.ts`（不读重音，只看节奏过滤，见 Pendolo 一节），隐现 `backgrounds/latent/LatentBackground.tsx`。
 
 每拍还带「重音」（`services/analysis/beatAccents.ts`，和拍点在同一次 small0 分析里从同一份梅尔频谱算出）：强度 0–1、低 / 中 / 高三段的占比、小节位置（从 beat_this 的重拍往后数），以及整首歌的动感系数（0.45–1，只降不升）。
 
@@ -116,6 +116,7 @@ App / ThemePark / VisPlayground / OBS source
 - 要按拍区分的，用 `getBeatFxLastBeat` / `getBeatFxLastDownbeat` 取刚发射的那一拍：
   - 商籁：偏低频的拍推近多一点，偏高频的拍横滚多一点，小节第 3 拍横滚减半（`resolveSonnetBeatFxAccent`）；
   - 镜台：涟漪强度乘以 gain，偏低频的普通拍用大尺度涟漪（`resolveDioramaBeatRipple`）。
+- 复合拍子（6/8、9/8、12/8）里 Beat This! 数的是八分音符，比听感密三倍，慢歌也可能被数成双倍速，慢华尔兹按小节感受；重音里 `pulse` 为 0 的拍（只按重音位置认定，见 `services/analysis/README.md`）在 `mergeBeatFxEvents` 里就去掉了，所有画面只按附点四分音符的脉冲触发，小节位置也按留下的拍计。
 - 没有节奏的小节（打击成分远低于全曲平常水平，例如只有喇叭的前奏）里，`resolveBeatFxAccentGain` 返回 0，所有画面这一段都不出拍点特效（`rhythmic`，见 `services/analysis/README.md`）。
 - 没有重音数据时（旧存档，或读不到音频），以上各项都恰好等于 1，画面和加入重音之前一致。
 
@@ -177,6 +178,17 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 ### Pendolo
 
 `pendolo/VisualizerPendolo.tsx` 是 React 外壳；`PendoloClockworkCanvas.tsx` 负责时钟机械 canvas（优先 WebGL2：`pendoloClockworkWebGL.ts` 绘制、`pendoloClockworkMeshes.ts` 缓存齿轮几何、`pendoloClockworkMotion.ts` 推进摆动；不支持时退回 `pendoloClockworkDraw2d.ts` 的 Canvas2D；`pendoloClockworkScene.ts` 放共用的帧输入、配色与画布包围盒），`pendoloTextLayout.ts`、`pendoloTimeline.ts`、`pendoloGeometry.ts` 负责有界布局与时间线，`PendoloSettingsPanel.tsx` 负责调参。
+
+智能动感模式下（`entry.tsx` 的 `drawsBeatFx`）：
+- 用的拍子：beat_this 的拍点经「无节奏关」过滤（beat_this + HPSS，`rhythmic`），被关掉的拍什么都不触发。齿轮、火花、震屏不读重音，每拍满强度，只乘轻拍 / 重拍强度；冲击波（连同光晕、刻度和表盘点亮）和宝石闪光按重音强度（`resolveBeatFxAccentGain`，已含轻拍 / 重拍强度）。原来每拍扫一圈、点亮刻度的扫光已去掉。
+- 机芯：大主齿轮和歌词照旧只跟歌词换行走，拍点不碰它们。主轮下方并排的传动齿轮和秒齿轮对着转：轻拍各走一齿，重拍各转一整圈，用略欠阻尼的弹簧，到位时冲过头不到一成再回弹（顿挫）。摆轮每拍换向。都在 `stepPendoloClockworkMotion` 的可选 `beat` 参数里，不传时与原来逐值一致（golden 单测锁定）；传动齿轮多转的角度是 `transBeatAngle`，关着时为 0。
+- 特效：状态和触发在 `pendoloBeatFx.ts`（纯函数），每帧推进在 `usePendoloBeatFx.ts`，画法在 `pendoloBeatFxDraw.ts`。
+  - 冲击波（轻拍、重拍都触发，强度跟重音）：透明的透镜，从轴心推到屏幕最远角，越往外越快（外角处约是出轴心时的五倍），一次走完用一拍的 85%，但在 0.3–0.5 秒之间（慢歌不会跟着变慢，只有快歌会更快），赶在下一拍的波从轴心重新出发前就出了表盘，推开（推出到轴心距离的 20% × 强度）、点亮并朝特效色染色经过的东西，不画任何环或线。齿轮上是 mesh shader 的 `u_wave` 位移、提亮和染色（Canvas2D 用 14 层切片重画），歌词行在 `PendoloRotatingLine` 里按到轴心的距离推开、提亮。摆轮上的主题图标（五角星）是 DOM，用 `resolvePendoloPointWave` 按 shader 同样的公式跟着摆轮移动。透镜本身不影响背景；同时 `VisualizerPendolo` 里有一层柔光晕（径向渐变，只有前沿一条软光带，后面是空的、扫过的地方立刻干净，边缘淡到 0，没有线；叠加混合），跟着冲击波从轴心长到屏幕最远角，扩散途中保持亮度，快到终点才淡出（`resolvePendoloHaloOpacity`）。强弱按分贝换算重音增益（`resolvePendoloWavePunch`：弱拍下限 0.35 比最强拍低 30 dB，亮度按指数变化，人眼看亮度近似对数，平方时中强拍看起来差不多；轻拍 / 重拍强度另外相乘）：弱拍的光晕淡、强拍满亮，都用同样的时间走到屏幕外角；表盘点亮的亮度也一样，放在震屏之外、齿轮和歌词之下。
+    - 波峰经过刻度那圈表盘（1.15 倍轮半径）时 60 个刻度一起亮，经过最外圈表盘（1.4 倍）时整圈亮起，都随后淡出（`lightPendoloDials`，overlay 里画）。
+  - 宝石闪光（各齿轮中心，轻拍、重拍都触发，强弱和光晕一样按重音增益的平方）：WebGL 是叠加混合的 overlay，Canvas2D 是 `lighter`。
+  - 以下只在重拍上：咬合火花（同样画在 overlay 里；火花和两个齿轮转整圈同时喷出，数量、速度、大小是最早一版的）、8px 震屏。
+- 颜色：主题强调色提亮到发光（`resolvePendoloBeatFxColor`），偏灰的主题用金色。
+- 关闭或未就绪时，所有 MotionValue 为 0、shader 的 wave uniform 为 0、不画 overlay，画面与原来一致。
 
 ### Sonnet
 

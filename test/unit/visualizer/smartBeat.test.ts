@@ -131,6 +131,7 @@ describe('when the beat clock runs', () => {
     it('for a mode that draws beat FX, whatever the background', () => {
         expect(visualizerWantsBeatClock(settings({ visualizerMode: 'sonnet', visualizerBackgroundMode: 'common' }))).toBe(true);
         expect(visualizerWantsBeatClock(settings({ visualizerMode: 'diorama', visualizerBackgroundMode: 'common' }))).toBe(true);
+        expect(visualizerWantsBeatClock(settings({ visualizerMode: 'pendolo', visualizerBackgroundMode: 'common' }))).toBe(true);
     });
 
     it('for any other mode over the Latent background, which is also the default one', () => {

@@ -17,6 +17,8 @@ export interface PendoloClockworkFrameInput extends PendoloClockworkLayout {
     phase: number;
     bassOscillation: number;
     secondGearAngle: number;
+    /** 智能动感模式's turn of the transmission gear on the beats, added to its usual one; absent or 0 otherwise. */
+    transBeatAngle?: number;
     primaryTextColor: string;
     accentTextColor: string;
     backgroundColor: string;

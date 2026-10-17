@@ -182,6 +182,7 @@ export const drawPendoloClockwork2d = (
         phase,
         bassOscillation,
         secondGearAngle,
+        transBeatAngle = 0,
         primaryTextColor,
         accentTextColor,
         backgroundColor,
@@ -361,20 +362,22 @@ export const drawPendoloClockwork2d = (
     );
 
     // Meshing Intermediate Transmission Gear (Lower-Left Offset)
+    // Turns with the wheel, plus 智能动感模式's beat turn (0 otherwise).
+    const transAngle = -escapementAngle * 1.4 + transBeatAngle;
     drawGearTeeth(
-        ctx, anchors.transCx, anchors.transCy, anchors.transR, 24, 7, -escapementAngle * 1.4,
+        ctx, anchors.transCx, anchors.transCy, anchors.transR, 24, 7, transAngle,
         palette.gearPrimaryAlpha, 1.8,
     );
     drawSpokedWheel(
         ctx, anchors.transCx, anchors.transCy,
-        anchors.transR * 0.25, anchors.transR * 0.85, 5, -escapementAngle * 1.4,
+        anchors.transR * 0.25, anchors.transR * 0.85, 5, transAngle,
         palette.gearPrimarySubtleAlpha, 1.5,
     );
 
     // Geneva stripes on transmission gear face (parallel lines clipped to gear circle)
     ctx.save();
     ctx.translate(anchors.transCx, anchors.transCy);
-    ctx.rotate(-escapementAngle * 1.4);
+    ctx.rotate(transAngle);
     // Clip to the gear's inner area
     ctx.beginPath();
     ctx.arc(0, 0, anchors.transR * 0.80, 0, Math.PI * 2);

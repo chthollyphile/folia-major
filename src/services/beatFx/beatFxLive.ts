@@ -82,6 +82,19 @@ let holdUntil = 0;
 /** Whether the last step had a deck being heard; false while paused or stopped. */
 let hearing = false;
 const intensities = { beat: 1, downbeat: 1 };
+/** Median gap between the installed track's beats, in seconds; see `getBeatFxBeatPeriod`. */
+const DEFAULT_BEAT_PERIOD = 0.5;
+let beatPeriod = DEFAULT_BEAT_PERIOD;
+
+/** Median gap between consecutive events, or the default for fewer than two. */
+export const resolveBeatFxBeatPeriod = (events: readonly BeatFxEvent[]): number => {
+    if (events.length < 2) return DEFAULT_BEAT_PERIOD;
+    const gaps: number[] = [];
+    for (let index = 1; index < events.length; index += 1) gaps.push(events[index].t - events[index - 1].t);
+    gaps.sort((a, b) => a - b);
+    const median = gaps[gaps.length >> 1];
+    return median > 0 ? median : DEFAULT_BEAT_PERIOD;
+};
 const firedCounts = { beats: 0, downbeats: 0 };
 
 /** The 轻拍 / 重拍 strengths (0..2) the envelopes are scaled by from the next step on. */
@@ -134,6 +147,7 @@ export const setBeatFxEvents = (
     if (key !== trackKey) return;
     state.events = events;
     state.trackScale = trackScale;
+    beatPeriod = resolveBeatFxBeatPeriod(events);
     holdUntil = 0;
     // Resync on the next step rather than firing everything before the current position.
     state.lastTime = null;
@@ -171,6 +185,9 @@ export const getBeatFxLastBeat = (): BeatFxEvent | null => state.lastBeat;
 
 /** The last fired downbeat of this track, or null. */
 export const getBeatFxLastDownbeat = (): BeatFxEvent | null => state.lastDownbeat;
+
+/** The playing track's typical beat length in seconds (median gap), for effects timed in beats. */
+export const getBeatFxBeatPeriod = (): number => beatPeriod;
 
 /** The playing track's dynamics scale (0.45..1); 1 without accents. */
 export const getBeatFxTrackScale = (): number => state.trackScale;

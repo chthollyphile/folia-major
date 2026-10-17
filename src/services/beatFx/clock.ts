@@ -101,14 +101,29 @@ export const findNextBeatFxEvent = (events: readonly BeatFxEvent[], time: number
 
 /**
  * Merges raw beat_this output into one sorted list; a downbeat replaces the beat it sits on. With
- * `accents` (one entry per beat) every beat also carries its impact, tone and bar position.
+ * `accents` (one entry per beat) every beat also carries its impact, tone and bar position, and a
+ * beat the accents mark as no felt beat (`pulse` 0, the eighth notes of compound time) is left out.
  */
 export const mergeBeatFxEvents = (
-    beats: readonly number[],
+    allBeats: readonly number[],
     downbeats: readonly number[],
-    accents?: BeatAccents,
+    allAccents?: BeatAccents,
 ): BeatFxEvent[] => {
     const downbeatSet = new Set(downbeats);
+    // Compound time: the dotted-quarter pulse only, each kept beat with its own accents.
+    const kept = allBeats.map((_, index) => index).filter(index => !allAccents || allAccents.pulse[index] !== 0);
+    const beats = kept.length < allBeats.length ? kept.map(index => allBeats[index]) : allBeats;
+    const accents = allAccents && kept.length < allBeats.length
+        ? {
+            ...allAccents,
+            impact: kept.map(index => allAccents.impact[index]),
+            low: kept.map(index => allAccents.low[index]),
+            mid: kept.map(index => allAccents.mid[index]),
+            high: kept.map(index => allAccents.high[index]),
+            rhythmic: kept.map(index => allAccents.rhythmic[index]),
+            pulse: kept.map(() => 1),
+        }
+        : allAccents;
     const events: BeatFxEvent[] = beats.map((t, index) => {
         const event: BeatFxEvent = { t, kind: downbeatSet.has(t) ? 'downbeat' : 'beat' };
         if (accents) {
@@ -119,7 +134,8 @@ export const mergeBeatFxEvents = (
         return event;
     });
     // beat_this snaps every downbeat onto a beat, but keep any stray one rather than drop it.
-    const beatSet = new Set(beats);
+    // Every beat the model found: one the pulse left out is no stray downbeat.
+    const beatSet = new Set(allBeats);
     downbeats.forEach((t) => {
         if (!beatSet.has(t)) events.push({ t, kind: 'downbeat' });
     });

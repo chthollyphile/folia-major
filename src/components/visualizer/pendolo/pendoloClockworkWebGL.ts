@@ -9,9 +9,22 @@ import {
     type PendoloMotionSample,
 } from './pendoloClockworkMeshes';
 import { resolvePendoloClockworkAnchors, type PendoloClockworkFrameInput } from './pendoloClockworkScene';
+import {
+    buildPendoloBeatFxOverlay,
+    PENDOLO_OVERLAY_MAX_VERTICES,
+    PENDOLO_OVERLAY_STRIDE,
+    resolvePendoloWaveUniform,
+    type PendoloBeatFxDrawFrame,
+} from './pendoloBeatFxDraw';
+import { PENDOLO_WAVE_TINT } from './pendoloBeatFx';
 
 // src/components/visualizer/pendolo/pendoloClockworkWebGL.ts
 // WebGL2 renderer for Pendolo clockwork; falls back when context/shaders fail.
+//
+// 智能动感模式 (pendoloBeatFx.ts / pendoloBeatFxDraw.ts) adds two things: the shockwave lens in the
+// mesh shader (`u_wave`, all zero when no wave is on - every vertex and colour then exactly as
+// before), and an additive overlay pass for the lit ticks, jewel flares and sparks, drawn only on
+// frames that have any.
 
 const VERT = `#version 300 es
 precision highp float;
@@ -22,7 +35,11 @@ uniform vec2 u_resolution;
 uniform float u_dpr;
 uniform vec2 u_origins[${PENDOLO_MAX_PARTS}];
 uniform float u_rotations[${PENDOLO_MAX_PARTS}];
+// Shockwave lens: centre (CSS px), and crest radius, width, push share, light share.
+uniform vec2 u_waveCenter;
+uniform vec4 u_wave;
 out vec4 v_color;
+out float v_light;
 void main() {
   v_color = a_color;
   int id = int(a_part + 0.5);
@@ -31,6 +48,17 @@ void main() {
   float c = cos(rotation);
   float s = sin(rotation);
   vec2 world = vec2(a_pos.x * c - a_pos.y * s, a_pos.x * s + a_pos.y * c) + origin;
+  v_light = 0.0;
+  if (u_wave.y > 0.0) {
+    vec2 rel = world - u_waveCenter;
+    float u = (length(rel) - (u_wave.x - u_wave.y)) / u_wave.y;
+    if (u > 0.0 && u < 1.0) {
+      float b = sin(3.14159265 * u);
+      b *= b;
+      world += rel * (u_wave.z * b);
+      v_light = u_wave.w * b;
+    }
+  }
   vec2 px = world * u_dpr;
   vec2 clip = vec2(
     (px.x / u_resolution.x) * 2.0 - 1.0,
@@ -43,9 +71,49 @@ void main() {
 const FRAG = `#version 300 es
 precision highp float;
 in vec4 v_color;
+in float v_light;
+uniform vec3 u_waveColor;
+uniform float u_waveTint;
 out vec4 outColor;
 void main() {
-  outColor = vec4(v_color.rgb * v_color.a, v_color.a);
+  // The lens lights what it passes, like the frame added onto itself, and tints it toward the effect
+  // colour; v_light is 0 outside it, where both are exact no-ops (mix by 0 is the colour itself).
+  float a = min(1.0, v_color.a * (1.0 + v_light));
+  vec3 rgb = mix(v_color.rgb, u_waveColor, min(1.0, u_waveTint * v_light));
+  outColor = vec4(rgb * a, a);
+}
+`;
+
+// Beat FX overlay: premultiplied colour; uv < -1 is a solid quad, otherwise a radial glow.
+const FX_VERT = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 a_pos;
+layout(location = 1) in vec4 a_color;
+layout(location = 2) in vec2 a_uv;
+uniform vec2 u_resolution;
+uniform float u_dpr;
+out vec4 v_color;
+out vec2 v_uv;
+void main() {
+  v_color = a_color;
+  v_uv = a_uv;
+  vec2 px = a_pos * u_dpr;
+  gl_Position = vec4((px.x / u_resolution.x) * 2.0 - 1.0, 1.0 - (px.y / u_resolution.y) * 2.0, 0.0, 1.0);
+}
+`;
+
+const FX_FRAG = `#version 300 es
+precision highp float;
+in vec4 v_color;
+in vec2 v_uv;
+out vec4 outColor;
+void main() {
+  float a = 1.0;
+  if (v_uv.x > -1.5) {
+    a = clamp(1.0 - length(v_uv), 0.0, 1.0);
+    a *= a;
+  }
+  outColor = v_color * a;
 }
 `;
 
@@ -170,6 +238,27 @@ export class PendoloClockworkRenderer {
 
     private coverProgram: WebGLProgram | null = null;
 
+    /** Beat FX overlay; created on the first frame that has any, never for a user who has none. */
+    private fxProgram: WebGLProgram | null = null;
+
+    private fxVbo: WebGLBuffer | null = null;
+
+    private fxVao: WebGLVertexArrayObject | null = null;
+
+    private fxUniformRes: WebGLUniformLocation | null = null;
+
+    private fxUniformDpr: WebGLUniformLocation | null = null;
+
+    private fxVerts: Float32Array | null = null;
+
+    private fxFailed = false;
+
+    private meshUniformWaveCenter: WebGLUniformLocation | null = null;
+
+    private meshUniformWave: WebGLUniformLocation | null = null;
+    private meshUniformWaveColor: WebGLUniformLocation | null = null;
+    private meshUniformWaveTint: WebGLUniformLocation | null = null;
+
     private meshVbo: WebGLBuffer | null = null;
 
     private meshVao: WebGLVertexArrayObject | null = null;
@@ -244,6 +333,10 @@ export class PendoloClockworkRenderer {
             this.meshUniformDpr = gl.getUniformLocation(this.meshProgram, 'u_dpr');
             this.meshUniformOrigins = gl.getUniformLocation(this.meshProgram, 'u_origins');
             this.meshUniformRotations = gl.getUniformLocation(this.meshProgram, 'u_rotations');
+            this.meshUniformWaveCenter = gl.getUniformLocation(this.meshProgram, 'u_waveCenter');
+            this.meshUniformWave = gl.getUniformLocation(this.meshProgram, 'u_wave');
+            this.meshUniformWaveColor = gl.getUniformLocation(this.meshProgram, 'u_waveColor');
+            this.meshUniformWaveTint = gl.getUniformLocation(this.meshProgram, 'u_waveTint');
         }
         if (this.gradProgram) {
             this.gradUniformCenter = gl.getUniformLocation(this.gradProgram, 'u_center');
@@ -311,6 +404,12 @@ export class PendoloClockworkRenderer {
         if (this.meshProgram) gl.deleteProgram(this.meshProgram);
         if (this.gradProgram) gl.deleteProgram(this.gradProgram);
         if (this.coverProgram) gl.deleteProgram(this.coverProgram);
+        if (this.fxVao) gl.deleteVertexArray(this.fxVao);
+        if (this.fxVbo) gl.deleteBuffer(this.fxVbo);
+        if (this.fxProgram) gl.deleteProgram(this.fxProgram);
+        this.fxVao = null;
+        this.fxVbo = null;
+        this.fxProgram = null;
         if (this.coverTex) gl.deleteTexture(this.coverTex);
         this.coverTex = null;
         this.coverSource = null;
@@ -377,16 +476,20 @@ export class PendoloClockworkRenderer {
         gl.viewport(0, 0, pixelWidth, pixelHeight);
     }
 
-    /** Draws one clockwork frame. Positions in the mesh are CSS pixels. */
+    /**
+     * Draws one clockwork frame. Positions in the mesh are CSS pixels. `beatFx` is 智能动感模式'
+     * frame; absent, the frame is exactly the one drawn before it existed.
+     */
     draw(options: {
         input: PendoloClockworkFrameInput;
         cssWidth: number;
         cssHeight: number;
         dpr: number;
+        beatFx?: PendoloBeatFxDrawFrame | null;
     }) {
         const gl = this.gl;
         if (!gl || !this.isReady) return;
-        const { input, cssWidth, cssHeight, dpr } = options;
+        const { input, cssWidth, cssHeight, dpr, beatFx = null } = options;
         const pixelW = Math.round(cssWidth * dpr);
         const pixelH = Math.round(cssHeight * dpr);
         if (pixelW <= 0 || pixelH <= 0) return;
@@ -404,8 +507,63 @@ export class PendoloClockworkRenderer {
             this.drawCover(input, pixelW, pixelH, dpr);
         }
         if (input.showGearDecor !== 'none') {
-            this.drawMesh(input, pixelW, pixelH, dpr);
+            this.drawMesh(input, pixelW, pixelH, dpr, beatFx);
+            if (beatFx) this.drawBeatFx(input, beatFx, pixelW, pixelH, dpr);
         }
+    }
+
+    /** Builds the overlay program on first use; false (and never again) if it cannot. */
+    private ensureFx() {
+        if (this.fxProgram) return true;
+        if (this.fxFailed) return false;
+        const gl = this.gl!;
+        this.fxProgram = linkProgram(gl, FX_VERT, FX_FRAG);
+        if (!this.fxProgram) {
+            this.fxFailed = true;
+            return false;
+        }
+        this.fxUniformRes = gl.getUniformLocation(this.fxProgram, 'u_resolution');
+        this.fxUniformDpr = gl.getUniformLocation(this.fxProgram, 'u_dpr');
+        this.fxVerts = new Float32Array(PENDOLO_OVERLAY_MAX_VERTICES * PENDOLO_OVERLAY_STRIDE);
+        this.fxVbo = gl.createBuffer();
+        this.fxVao = gl.createVertexArray();
+        gl.bindVertexArray(this.fxVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.fxVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, this.fxVerts.byteLength, gl.DYNAMIC_DRAW);
+        const strideBytes = PENDOLO_OVERLAY_STRIDE * 4;
+        gl.enableVertexAttribArray(0);
+        gl.enableVertexAttribArray(1);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, strideBytes, 0);
+        gl.vertexAttribPointer(1, 4, gl.FLOAT, false, strideBytes, 8);
+        gl.vertexAttribPointer(2, 2, gl.FLOAT, false, strideBytes, 24);
+        gl.bindVertexArray(null);
+        return true;
+    }
+
+    /** The additive overlay: lit ticks, jewel flares, sparks. Nothing at all on a frame without any. */
+    private drawBeatFx(
+        input: PendoloClockworkFrameInput,
+        beatFx: PendoloBeatFxDrawFrame,
+        pixelW: number,
+        pixelH: number,
+        dpr: number,
+    ) {
+        if (!this.fxVerts && !this.ensureFx()) return;
+        const verts = this.fxVerts!;
+        const count = buildPendoloBeatFxOverlay(verts, input, beatFx);
+        if (count === 0) return;
+        const gl = this.gl!;
+        gl.useProgram(this.fxProgram);
+        gl.bindVertexArray(this.fxVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.fxVbo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts, 0, count * PENDOLO_OVERLAY_STRIDE);
+        gl.uniform2f(this.fxUniformRes, pixelW, pixelH);
+        gl.uniform1f(this.fxUniformDpr, dpr);
+        gl.blendFunc(gl.ONE, gl.ONE);
+        gl.drawArrays(gl.TRIANGLES, 0, count);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.bindVertexArray(null);
     }
 
     private drawGradient(
@@ -479,6 +637,7 @@ export class PendoloClockworkRenderer {
         pixelW: number,
         pixelH: number,
         dpr: number,
+        beatFx: PendoloBeatFxDrawFrame | null,
     ) {
         const gl = this.gl!;
         const scene = this.ensureCachedScene(input);
@@ -489,6 +648,7 @@ export class PendoloClockworkRenderer {
             phase: input.phase,
             bassOscillation: input.bassOscillation,
             secondGearAngle: input.secondGearAngle,
+            transBeatAngle: input.transBeatAngle,
         };
         fillPendoloTransformTables(scene.parts, motion, this.originTable, this.rotationTable);
 
@@ -498,6 +658,12 @@ export class PendoloClockworkRenderer {
         gl.uniform1f(this.meshUniformDpr, dpr);
         gl.uniform2fv(this.meshUniformOrigins, this.originTable);
         gl.uniform1fv(this.meshUniformRotations, this.rotationTable);
+        const wave = resolvePendoloWaveUniform(beatFx?.wave ?? null);
+        gl.uniform2f(this.meshUniformWaveCenter, input.centerX, input.centerY);
+        gl.uniform4f(this.meshUniformWave, wave[0], wave[1], wave[2], wave[3]);
+        const tint = beatFx?.wave ? beatFx.color : null;
+        gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);
+        gl.uniform1f(this.meshUniformWaveTint, tint ? PENDOLO_WAVE_TINT : 0);
         gl.drawArrays(gl.TRIANGLES, 0, scene.vertexCount);
         gl.bindVertexArray(null);
     }

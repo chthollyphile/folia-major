@@ -121,7 +121,8 @@ import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNaviga
 import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
-import { getOnlineProviderIdForSong, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
+import { hasLoopedToStart } from './services/playedTrackCache';
+import { getOnlineProviderIdForSong, getPlaybackSongKey, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
 import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { BASE_DUAL_THEME, DAYLIGHT_THEME, DEFAULT_THEME } from './services/baseThemes';
@@ -1089,6 +1090,9 @@ export default function App() {
     // usePlaybackAudioBridge). A ref rather than a prop because the writer does not exist yet at this
     // call - the same ordering the harvest/advance callbacks inside the hook solve the same way.
     const cachePlayedOutRef = useRef<(song: SongResult, src: string | null) => void>(() => { });
+    // The active deck's last position on single loop, with the source it was on: a looping track
+    // never fires `ended`, so its wrap back to the start is what says it was played through.
+    const loopPositionRef = useRef<{ src: string; time: number } | null>(null);
 
     // Reads a local track's bytes off its own file handle, so automix can separate a next-up local
     // song whose head has no prefetch URL and never enters the online media cache. Resolved here
@@ -2492,6 +2496,23 @@ export default function App() {
                 // state describes what the app is playing, and the transition check has to read
                 // the position of the deck the NEXT blend will be planned from.
                 if (!isActive) return;
+                // Single loop: a wrap from the end back to the start is this track played in full,
+                // cached as `onEnded` caches one (which a looping element never fires). Only on the
+                // same source, so skipping to the next song near the end of this one is not a wrap.
+                if (audioElement.loop) {
+                    const previous = loopPositionRef.current;
+                    const src = audioElement.currentSrc;
+                    loopPositionRef.current = { src, time: audioElement.currentTime };
+                    if (
+                        previous?.src === src
+                        && hasLoopedToStart(previous.time, audioElement.currentTime, audioElement.duration)
+                        && audioSrc && !audioSrc.startsWith('blob:') && currentSong && !isStagePlaybackSong(currentSong)
+                    ) {
+                        cacheSongAssets();
+                    }
+                } else if (loopPositionRef.current) {
+                    loopPositionRef.current = null;
+                }
                 // A track that is not moving is not approaching anything. `pause()` fires one last
                 // timeupdate of its own, and a mid-blend pause cancels onto THIS deck before pausing
                 // it - so that stray tick arrives with the deck already active and the track sitting

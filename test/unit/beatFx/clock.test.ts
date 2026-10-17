@@ -106,6 +106,7 @@ describe('beat accents on the clock', () => {
         mid: [0.1, 0.4, 0.3, 0.2, 0.1, 0.3],
         high: [0.1, 0.4, 0.2, 0.2, 0.8, 0.4],
         rhythmic: [1, 1, 1, 1, 1, 1],
+        pulse: [1, 1, 1, 1, 1, 1],
         trackScale: 0.6,
     };
 
@@ -212,5 +213,34 @@ describe('accent-shaped responses', () => {
         expect(lowWeak.strength).toBeCloseTo(0.9 * 0.35);
         const highFull = resolveDioramaBeatRipple('beat', { impact: 1, tone: { low: 0.1, mid: 0.2, high: 0.7 } }, 0.5, 1);
         expect(highFull).toEqual({ index: 1, strength: 0.9 * 0.5 });
+    });
+});
+
+describe('compound time', () => {
+    // 6/8 as Beat This! counts it, six eighth notes a bar; the accents keep every third (the pulse).
+    const eighths = Array.from({ length: 12 }, (_, index) => index * 0.4);
+    const bars = [eighths[0], eighths[6]];
+    const ones = eighths.map(() => 1);
+    const accents = {
+        v: 4,
+        impact: eighths.map((_, index) => index / 100),
+        low: ones,
+        mid: ones,
+        high: ones,
+        rhythmic: ones,
+        pulse: eighths.map((_, index) => (index % 3 === 0 ? 1 : 0)),
+        trackScale: 1,
+    };
+
+    it('fires on the felt beats only, each with its own accents', () => {
+        const events = mergeBeatFxEvents(eighths, bars, accents);
+        expect(events.map(event => event.t)).toEqual([0, 3, 6, 9].map(index => eighths[index]));
+        expect(events.map(event => event.kind)).toEqual(['downbeat', 'beat', 'downbeat', 'beat']);
+        expect(events.map(event => event.impact)).toEqual([0, 0.03, 0.06, 0.09]);
+        expect(events.map(event => event.barPos)).toEqual([0, 1, 0, 1]);
+    });
+
+    it('keeps every beat without accents', () => {
+        expect(mergeBeatFxEvents(eighths, bars)).toHaveLength(12);
     });
 });

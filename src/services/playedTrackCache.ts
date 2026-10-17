@@ -12,6 +12,22 @@ import { mayStoreSongAudio, whyPreviewClip } from './wholeSongCheck';
 
 // src/services/playedTrackCache.ts
 
+/** How near its end a looping track has to have been, and how near its start it has to be now, seconds. */
+const LOOP_WRAP_WINDOW_SECONDS = 1.5;
+
+/**
+ * Whether a track on single loop (`<audio loop>`) just wrapped from its end back to its start. A
+ * looping element never fires `ended` - it seeks itself back to 0 - so this stands in for it: a
+ * track that ran through to its end has been played in full and is cached like one that ended.
+ * `previous` and `current` are two successive positions of the same source.
+ */
+export const hasLoopedToStart = (previous: number, current: number, duration: number): boolean => (
+    Number.isFinite(duration)
+    && duration > 2 * LOOP_WRAP_WINDOW_SECONDS
+    && previous >= duration - LOOP_WRAP_WINDOW_SECONDS
+    && current <= LOOP_WRAP_WINDOW_SECONDS
+);
+
 /** What a call actually wrote, so a caller can skip refreshing a cache-usage readout for nothing. */
 export type PlayedTrackCacheResult = { audio: boolean; cover: boolean };
 

@@ -28,6 +28,8 @@ export default defineVisualizer({
         keywords: ['pendolo', '擒纵', '摆轮', 'pd', '切换到可视化：擒纵', '切换到可视化擒纵'],
     },
     seeksOnLineClick: true,
+    // 智能动感模式: the clockwork steps on the beats and draws its beat FX (pendolo/pendoloBeatFx.ts).
+    drawsBeatFx: true,
     // The song-scoped seed resets Pendolo's lyric rail state before the next track starts.
     render: props => <VisualizerPendolo key={props.seed} {...props} />,
     renderSettingsPanel: props => <PendoloSettingsPanel {...props} />,

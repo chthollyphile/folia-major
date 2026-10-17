@@ -3,7 +3,7 @@ import { melSpectrogramOffThread } from '../automix/analysisOffThread';
 import { analyseBeatGrid, canRunBeatThis, type BeatGrid, type BeatThisModel } from './beatThis';
 import { runPercussiveEnergyGpu } from './beatThisGpu';
 import { BEAT_GRID_PREFIXES } from './beatGridKeys';
-import { computeBeatAccents, isBeatAccents, type BeatAccents } from './beatAccents';
+import { computeBeatAccents, formatBeatMeter, isBeatAccents, resolveBeatConfidence, type BeatAccents, type BeatMeter } from './beatAccents';
 
 // src/services/analysis/beatGrid.ts
 // A whole track's beats from Beat This!, run once and kept: on disk under the track's analysis key,
@@ -130,7 +130,13 @@ export const getTrackBeatGrid = async (
         const grid: BeatGrid | null = analysed ? { beats: analysed.beats, downbeats: analysed.downbeats } : null;
         // The accents ride on the spectrogram the beats were found on: a few ms, no second decode.
         const found: AccentedBeatGrid | null = grid?.beats.length && small
-            ? { ...grid, accents: computeBeatAccents(mel, grid.beats, grid.downbeats, analysed?.percussive ?? null) }
+            ? {
+                ...grid,
+                accents: computeBeatAccents(mel, grid.beats, grid.downbeats, analysed?.percussive ?? null, {
+                    confidence: analysed?.beatLogits ? resolveBeatConfidence(analysed.beatLogits, grid.beats) : null,
+                    onMeter: logBeatMeter(key),
+                }),
+            }
             : grid;
         if (found) await storeBeatGrid(key, found, model);
         return found;
@@ -144,11 +150,21 @@ export const getTrackBeatGrid = async (
     }
 };
 
+/**
+ * Logs how a track's bars read once its accents are measured - the model's tempo, its bar lengths,
+ * the rise by bar position and whether only every few beats fire - so a track whose beat FX feel off
+ * can be looked at from the console log alone. The key is the track's id, no URL or account data.
+ */
+const logBeatMeter = (key: string) => (meter: BeatMeter, pulse: readonly number[]) => {
+    console.info(`[BeatMeter] ${key}: ${formatBeatMeter(meter, pulse)}`);
+};
+
 const accentRuns = new Map<string, Promise<BeatAccents | null>>();
 
 /**
  * small0's accents for a stored list that has none - one stored before they existed. Decodes and
- * transforms the track again (on the worker; no GPU, the beats are already known), measures, and
+ * transforms the track again (on the worker), runs small0 again on the GPU for its percussive energy
+ * and its confidence in each stored beat (the beats themselves are already known), measures, and
  * stores the list back with them. Null when the bytes cannot be had, which is not remembered: a later
  * play may find them. Concurrent callers for one key share the run.
  */
@@ -163,9 +179,14 @@ export const getTrackBeatAccents = (
         const mid = await readMid();
         if (!mid) return null;
         const mel = await melSpectrogramOffThread(mid);
-        // The percussive energy alone on the GPU (no model run); null leaves every beat rhythmic.
-        const energy = await runPercussiveEnergyGpu(mel);
-        const accents = computeBeatAccents(mel, grid.beats, grid.downbeats, energy);
+        // small0 again for its logits at the stored beats and the percussive energy (~0.5 s on the
+        // GPU, once per track); when it cannot run, the energy alone, and null leaves every beat rhythmic.
+        const analysed = await analyseBeatGrid(mel, { model: 'beat_this_small', percussive: true });
+        const energy = analysed?.percussive ?? (analysed ? null : await runPercussiveEnergyGpu(mel));
+        const accents = computeBeatAccents(mel, grid.beats, grid.downbeats, energy, {
+            confidence: analysed?.beatLogits ? resolveBeatConfidence(analysed.beatLogits, grid.beats) : null,
+            onMeter: logBeatMeter(key),
+        });
         // Stored against the list now on disk, so a list replaced meanwhile is not given another's accents.
         const stored = await readStoredBeatGrid(key, 'beat_this_small');
         if (stored && stored.beats.length === grid.beats.length && stored.beats.every((time, index) => time === grid.beats[index])) {

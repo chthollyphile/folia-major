@@ -14,6 +14,10 @@ import { getPlaybackAnalysisKey } from '../services/playbackRecovery/representat
 // 轻拍 / 重拍 strengths it scales the envelopes by. Only the track identity, that answer and the two
 // strengths enter React; the per-frame clock lives in services/beatFx/beatFxLive.
 
+/** An online track's stream URL is resolved by playback around the same time as the lookup. */
+const RETRY_ATTEMPTS = 4;
+const RETRY_DELAY_MS = 3000;
+
 /** Whether the beat clock should be stepped; the caller's frame loop reads it. */
 export function useBeatFxTrack(): boolean {
     const staticMode = useThemeSettingsStore(state => state.staticMode);
@@ -38,26 +42,41 @@ export function useBeatFxTrack(): boolean {
             beginBeatFxTrack(null);
             return;
         }
-        const { key, beats } = loadBeatFxTrackBeats(song);
-        beginBeatFxTrack(key);
         let cancelled = false;
-        void beats.then((result) => {
-            if (cancelled) return;
-            setBeatFxEvents(key, result.events, result.source, result.note, result.trackScale);
-            // Only the case that needs explaining; a track with beats shows them.
-            if (result.source === 'none') console.info(`[BeatFx] no beats for this track: ${result.note}`);
-            // A list stored before accents existed: the same beats with them, once measured.
-            void result.accented?.then((accented) => {
-                if (cancelled || !accented) return;
-                setBeatFxEvents(key, accented.events, accented.source, accented.note, accented.trackScale);
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        let begunKey: string | null = null;
+        const load = (attempt: number) => {
+            const { key, beats } = loadBeatFxTrackBeats(song);
+            // A retry may resolve another key (a transcode registered meanwhile); the clock follows it.
+            if (key !== begunKey) {
+                beginBeatFxTrack(key);
+                begunKey = key;
+            }
+            void beats.then((result) => {
+                if (cancelled) return;
+                setBeatFxEvents(key, result.events, result.source, result.note, result.trackScale);
+                // An online track whose stream URL playback has not resolved yet: asked again shortly.
+                if (result.source === 'none' && result.retry && attempt < RETRY_ATTEMPTS) {
+                    retryTimer = setTimeout(() => load(attempt + 1), RETRY_DELAY_MS);
+                    return;
+                }
+                // Only the case that needs explaining; a track with beats shows them.
+                if (result.source === 'none') console.info(`[BeatFx] no beats for this track: ${result.note}`);
+                // A list stored before accents existed: the same beats with them, once measured.
+                void result.accented?.then((accented) => {
+                    if (cancelled || !accented) return;
+                    setBeatFxEvents(key, accented.events, accented.source, accented.note, accented.trackScale);
+                });
+            }).catch((error) => {
+                if (cancelled) return;
+                setBeatFxEvents(key, [], 'none', String(error));
+                console.warn('[BeatFx] beat lookup failed', error);
             });
-        }).catch((error) => {
-            if (cancelled) return;
-            setBeatFxEvents(key, [], 'none', String(error));
-            console.warn('[BeatFx] beat lookup failed', error);
-        });
+        };
+        load(0);
         return () => {
             cancelled = true;
+            if (retryTimer) clearTimeout(retryTimer);
         };
         // Keyed on the track identity and the switch only; the song object changes for unrelated reasons.
         // eslint-disable-next-line react-hooks/exhaustive-deps
