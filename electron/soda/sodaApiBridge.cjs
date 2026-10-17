@@ -131,7 +131,8 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             .map((item) => ({
                 url: item?.main_url || item?.MainPlayUrl || item?.backup_url || item?.BackupPlayUrl || '',
                 auth: item?.encrypt_info?.spade_a || item?.PlayAuth || item?.encrypt_info?.SpadeA || '',
-                bitrate: Number(item?.bitrate ?? item?.Bitrate ?? 0),
+                bitrate: Number(item?.bitrate ?? item?.bit_rate ?? item?.Bitrate ?? item?.BitRate ?? 0),
+                keys: item && typeof item === 'object' ? Object.keys(item).join(',') : '',
             }))
             .filter((item) => item.url)
             // 先取离目标码率最近的一档，同距离时取码率高的。
@@ -157,7 +158,7 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         }
         const best = streams[0];
-        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| auth', best.auth ? 'yes' : 'no');
+        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| auth', best.auth ? 'yes' : 'no', '| keys', best.keys || '');
         const playAuth = best.auth;
         const audioUrl = best.url;
         const streamAnswer = await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } });
@@ -187,9 +188,20 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
                 const { createMusicSource } = await import('ly-music-source');
                 const client = createMusicSource({ timeoutMs });
                 const saved = sessionStore?.get();
+                const cookie = saved?.platforms?.qishui?.cookie || '';
                 if (saved) {
-                    try { client.importSession(saved); } catch { /* 旧会话读不回来就当没登录 */ }
+                    try { client.importSession(saved); } catch (error) {
+                        console.warn('[Soda] session restore failed:', error?.message || error);
+                    }
                 }
+                // importSession 认不回来（包内部校验或旧格式）时，用 cookie 再装一次：
+                // 两条路都试过还是没登录，才把账号当成没人。
+                if (cookie && !client.getAuthState()?.authenticated) {
+                    try { client.importCookie('qishui', cookie); } catch (error) {
+                        console.warn('[Soda] cookie restore failed:', error?.message || error);
+                    }
+                }
+                console.info('[Soda] restored session:', client.getAuthState()?.authenticated ? 'signed in' : 'nobody');
                 return client;
             })();
         }
