@@ -8,6 +8,7 @@ import { getNavidromeConfig, saveNavidromeConfig, clearNavidromeConfig, hashPass
 import { fetchNavidromeServerPreset, markNavidromeConfigAsPresetIfMatching, restoreNavidromeServerPreset } from '../../services/navidromeServerPreset';
 import { NavidromeConfig, NavidromeServerProfile } from '../../types/navidrome';
 import VisPlayground from '../visualizer/window/VisPlayground';
+import FontPicker, { type LocalFontEntry } from '../visualizer/window/FontPicker';
 import { useVisualizerTunings } from '../visualizer/useVisualizerTunings';
 import ThemePark from './ThemePark';
 import LyricFilterSettingsModal from './LyricFilterSettingsModal';
@@ -322,6 +323,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const settingsAnchors = useSettingsAnchorList(settingsAnchorStore);
 
     const [showVisPlayground, setShowVisPlayground] = useState(false);
+    const [showLyricsFontPicker, setShowLyricsFontPicker] = useState(false);
     const [showThemePark, setShowThemePark] = useState(false);
     const [showLyricFilterSettings, setShowLyricFilterSettings] = useState(false);
     const [showGlobalLyricOffset, setShowGlobalLyricOffset] = useState(false);
@@ -1034,6 +1036,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             onChangeThemeGenerationSource,
         },
         onOpenVisPlayground: () => setShowVisPlayground(true),
+        onOpenLyricsFontPicker: () => setShowLyricsFontPicker(true),
         onOpenThemePark: () => setShowThemePark(true),
         onToggleTransparentPlayerBackground: resolvedToggleTransparentPlayerBackground,
         viewProps: {
@@ -1386,6 +1389,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                             setShowThemePark(false);
                         }}
                         onClose={() => closeSubviewOrModal(() => setShowThemePark(false))}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {showLyricsFontPicker && (
+                    <FontPicker
+                        family={lyricsCustomFontFamily}
+                        label={lyricsCustomFontLabel ?? ''}
+                        fallbackFamilies={lyricsFontFallbackFamilies}
+                        onFallbackFamiliesChange={onLyricsFontFallbackFamiliesChange}
+                        fontStyle={lyricsFontStyle}
+                        onChoose={(font: LocalFontEntry) => {
+                            onLyricsCustomFontChange({
+                                source: 'system',
+                                family: font.family,
+                                label: font.label,
+                            });
+                            setShowLyricsFontPicker(false);
+                        }}
+                        onClear={() => {
+                            onLyricsCustomFontChange(null);
+                            setShowLyricsFontPicker(false);
+                        }}
+                        onUpload={onLyricsCustomFontUpload}
+                        onClose={() => setShowLyricsFontPicker(false)}
                     />
                 )}
             </AnimatePresence>

@@ -59,6 +59,8 @@ export type SettingsPageContextValue = {
     };
     /** Opens the lyric animation workbench over the dialog. */
     onOpenVisPlayground: () => void;
+    /** Opens the lyric font picker over the dialog, to choose a system font or upload one. */
+    onOpenLyricsFontPicker: () => void;
     /** Opens the theme colour editor over the dialog. */
     onOpenThemePark: () => void;
     onToggleTransparentPlayerBackground: (enabled: boolean) => void;

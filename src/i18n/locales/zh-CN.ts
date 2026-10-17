@@ -2564,6 +2564,7 @@ export default {
     "dioramaMoteRadial": "径向密度",
     "customFont": "自定义字体",
     "fontFamily": "字体",
+    "lyricsFontDesc": "歌词使用的字体；选「自定义字体」可打开系统字体选择器或上传字体。",
     "fontSize": "字号",
     "fontWeight": "字重",
     "fontWeightAuto": "自动字重",

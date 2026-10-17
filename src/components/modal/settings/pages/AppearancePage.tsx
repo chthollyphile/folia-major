@@ -6,12 +6,14 @@ import { getVisualizerModeLabel } from '../../../visualizer/registry';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore';
+import { useTypographySettingsStore } from '../../../../stores/useTypographySettingsStore';
 import { useVisualizerSettingsStore } from '../../../../stores/useVisualizerSettingsStore';
 import { openAIEndpointOf } from '../../../../utils/openAIEndpoint';
 import { Button, FoldedGroup, Group, NumberField, Reveal, Row, Segmented, TextField, Toggle, Value, option, parseNumberText, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { settingsAnchorSubview } from '../navigation/settingsAnchorModel';
 import { AiConnectionTestReply, useAiConnectionTest } from './AiConnectionTest';
 import { useSettingsPage, type AiApiKeyName } from './settingsPageContext';
+import type { Theme } from '../../../../types';
 
 // src/components/modal/settings/pages/AppearancePage.tsx
 // The 外观 page: which lyric animation the player uses, light or dark, the colour theme, how a
@@ -26,6 +28,7 @@ const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.electr
 
 const O = {
     lyricsAnimation: option(LYRICS, 'lyricsAnimationAdjust', 'options.lyricsAnimationAdjust'),
+    lyricsFont: option(LYRICS, 'lyricsFont', 'options.fontFamily'),
     daylight: option(THEME, 'daylightMode', 'options.daylightMode'),
     preset: option(THEME, 'themePreset', 'options.themePresets'),
     themePark: option(THEME, 'openThemePark', 'options.openThemePark'),
@@ -69,7 +72,7 @@ const AiKeyField: React.FC<AiKeyFieldProps> = ({ value, onChange, saved, onClear
 
 const AppearancePage: React.FC = () => {
     const { t } = useTranslation();
-    const { isElectron, themeControls, onOpenVisPlayground, onOpenThemePark, viewProps } = useSettingsPage();
+    const { isElectron, themeControls, onOpenVisPlayground, onOpenLyricsFontPicker, onOpenThemePark, viewProps } = useSettingsPage();
     const { electronSettings, setElectronSettings, onSaveElectronSettings, electronSaveStatus, savedAiApiKeys, savedOpenAIKeyEndpoint, onClearAiApiKey } = viewProps.desktop.model;
     const { isDaylight, followSystemTheme, setDaylightPreference, setFollowSystemTheme } = useThemeSettingsStore(useShallow(state => ({
         isDaylight: state.isDaylight,
@@ -78,6 +81,10 @@ const AppearancePage: React.FC = () => {
         setFollowSystemTheme: state.setFollowSystemTheme,
     })));
     const visualizerMode = useVisualizerSettingsStore(state => state.visualizerMode);
+    const lyricsFontStyle = useTypographySettingsStore(state => state.lyricsFontStyle);
+    const lyricsCustomFont = useTypographySettingsStore(state => state.lyricsCustomFont);
+    const handleSetLyricsFontStyle = useTypographySettingsStore(state => state.handleSetLyricsFontStyle);
+    const handleSetLyricsCustomFont = useTypographySettingsStore(state => state.handleSetLyricsCustomFont);
     const nativeBlurEnabled = usePlayerChromeSettingsStore(state => state.enablePlayerPageNativeBlur);
 
     const usesOpenAi = electronSettings.AI_PROVIDER === 'openai';
@@ -109,8 +116,27 @@ const AppearancePage: React.FC = () => {
         <>
             <Group def={LYRICS} bare>
                 {nativeBlurEnabled && <Row notice={t('options.nativeBlurBackgroundNotice')} />}
-                <Row option={O.lyricsAnimation} hint={t('options.lyricsRendererDesc')} onClick={onOpenVisPlayground}>
+                <Row option={O.lyricsAnimation} hint={t('options.lyricsRendererDesc')} onClick={() => onOpenVisPlayground()}>
                     <Value>{getVisualizerModeLabel(visualizerMode, t)}</Value>
+                </Row>
+                <Row option={O.lyricsFont} hint={t('options.lyricsFontDesc')}>
+                    <Segmented<Theme['fontStyle'] | 'custom'>
+                        value={lyricsCustomFont ? 'custom' : lyricsFontStyle}
+                        options={[
+                            { value: 'sans', label: t('options.fontSans') },
+                            { value: 'serif', label: t('options.fontSerif') },
+                            { value: 'mono', label: t('options.fontMono') },
+                            { value: 'custom', label: lyricsCustomFont?.label ?? lyricsCustomFont?.family ?? t('options.customFont') },
+                        ]}
+                        onChange={(next) => {
+                            if (next === 'custom') {
+                                onOpenLyricsFontPicker();
+                            } else {
+                                handleSetLyricsCustomFont(null);
+                                handleSetLyricsFontStyle(next);
+                            }
+                        }}
+                    />
                 </Row>
             </Group>
 

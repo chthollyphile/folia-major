@@ -2445,6 +2445,7 @@ export default {
     "dioramaMoteRadial": "Kepadatan Radial",
     "customFont": "Font Kustom",
     "fontFamily": "Keluarga Font",
+    "lyricsFontDesc": "Font untuk lirik; pilih \"Font Kustom\" untuk membuka pemilih font sistem atau unggah satu.",
     "fontSize": "Ukuran Font",
     "fontWeight": "Ketebalan Font",
     "fontWeightAuto": "Ketebalan Font Otomatis",

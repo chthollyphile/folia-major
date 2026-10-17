@@ -2565,6 +2565,7 @@ export default {
     "dioramaMoteRadial": "Radial Density",
     "customFont": "Custom Font",
     "fontFamily": "Font Family",
+    "lyricsFontDesc": "The font used for the lyrics; choose \"Custom Font\" to open the system font picker or upload one.",
     "fontSize": "Font Size",
     "fontWeight": "Font Weight",
     "fontWeightAuto": "Auto Font Weight",
