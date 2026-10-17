@@ -40,6 +40,21 @@ const mediaIdOf = (song: SongResult | string): string => (
 
 const shareCache = new Map<string, { track: any; at: number }>();
 
+/** 应用的档位 → 汽水账号接口的档位。hires 没有对应，按 lossless 要。 */
+const sodaQualityWord = (quality: AudioQualityPreference): string => {
+    if (quality === 'standard') return 'standard';
+    if (quality === 'lossless' || quality === 'hires') return 'lossless';
+    return 'higher';
+};
+
+/** 汽水回给我们的档位 → 应用的档位。认不出就返回 null，由调用方保留原来的档位。 */
+const sodaQualityLevel = (quality?: string): AudioQualityPreference | null => {
+    if (quality === 'standard') return 'standard';
+    if (quality === 'higher' || quality === 'high') return 'high';
+    if (quality === 'lossless') return 'lossless';
+    return null;
+};
+
 const shareOf = async (trackId: string): Promise<any | null> => {
     const hit = shareCache.get(trackId);
     if (hit && Date.now() - hit.at < SHARE_TTL) return hit.track;
@@ -106,8 +121,8 @@ export const sodaProvider: OnlineMusicProvider = {
     },
 
     playback: {
-        // 汽水只有一份文件，不分明细的档位；列一档，免得音质选项里出现几个听起来一样的按钮。
-        audioQualityLevels: ['standard'] as const,
+        // 账号接口按三档要：standard / higher / lossless（hires 按 lossless 要）。
+        audioQualityLevels: ['standard', 'high', 'lossless'] as const,
 
         async getSongDetail(id) {
             const track = await shareOf(String(id));
@@ -119,15 +134,35 @@ export const sodaProvider: OnlineMusicProvider = {
             const trackId = mediaIdOf(song);
             if (!trackId) throw new OnlineProviderError('unsupported', '歌曲没有汽水 id', 'soda');
             const track = await shareOf(trackId);
-            const url = typeof track?.url === 'string' ? track.url : '';
-            if (!url) return null;
-            return {
-                url,
-                fetchedAt: Date.now(),
-                quality,
-                // 付费歌只给一段（常见 30 秒）：标成试听，播放时会提示，也不会被当成整首存进缓存。
-                ...(sodaPreview(track) ? { preview: true } : {}),
-            };
+            const shareUrl = typeof track?.url === 'string' ? track.url : '';
+            const clipped = track ? sodaPreview(track) : false;
+
+            // 免费的整首：分享页直接给明文地址，不必走账号（也就没有下载和解密）。
+            if (shareUrl && !clipped) {
+                return { url: shareUrl, fetchedAt: Date.now(), quality };
+            }
+
+            // 付费/会员歌：交给主进程用账号解析（整首下载 + 解密），拿回来的是本地 scheme 地址。
+            try {
+                const resolved = await requestSoda<{ url: string; quality?: string; preview?: boolean }>('resolve', {
+                    songId: trackId,
+                    quality: sodaQualityWord(quality),
+                });
+                if (resolved?.url) {
+                    return {
+                        url: resolved.url,
+                        fetchedAt: Date.now(),
+                        quality: sodaQualityLevel(resolved.quality) ?? quality,
+                        ...(resolved.preview ? { preview: true } : {}),
+                    };
+                }
+            } catch {
+                // 没登录、没会员或者包失败：落到分享页那一段，标成试听。
+            }
+
+            if (!shareUrl) return null;
+            // 付费歌只给一段（常见 30 秒）：标成试听，播放时会提示，也不会被当成整首存进缓存。
+            return { url: shareUrl, fetchedAt: Date.now(), quality, ...(clipped ? { preview: true } : {}) };
         },
     },
 

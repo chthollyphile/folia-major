@@ -9,7 +9,8 @@ export type SodaOperation =
     | 'search' | 'playlist_search' | 'playlist_detail' | 'share'
     | 'status' | 'login_qr_create' | 'login_qr_poll' | 'logout' | 'profile' | 'membership'
     | 'user_playlists' | 'liked_ids' | 'like'
-    | 'playlist_create' | 'playlist_append' | 'playlist_remove';
+    | 'playlist_create' | 'playlist_append' | 'playlist_remove'
+    | 'resolve';
 
 export interface SodaParams {
     query?: string;
@@ -24,6 +25,7 @@ export interface SodaParams {
     name?: string;
     description?: string;
     trackIds?: string[];
+    quality?: string;
 }
 
 export type SodaBridgeResult =

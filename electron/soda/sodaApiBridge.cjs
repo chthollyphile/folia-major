@@ -9,6 +9,9 @@
 //      扫码和 cookie；会话在这里用 safeStorage 加密存着，之后每次请求前重新装回客户端。
 // 播放地址的解析（VIP 整首要解密）留给后续的 audio.cjs，不在这里。
 
+const { mkdirSync, writeFileSync } = require('node:fs');
+const path = require('node:path');
+
 const API_HOST = 'https://api.qishui.com';
 const SHARE_HOST = 'https://music.douyin.com';
 const UA_LUNA = 'LunaPC/3.4.0(388267242)';
@@ -33,6 +36,7 @@ const OPERATIONS = [
     'status', 'login_qr_create', 'login_qr_poll', 'logout', 'profile', 'membership',
     'user_playlists', 'liked_ids', 'like',
     'playlist_create', 'playlist_append', 'playlist_remove',
+    'resolve',
 ];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
@@ -65,7 +69,7 @@ function readRouterData(html) {
     return null;
 }
 
-function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20000, sessionStore = null } = {}) {
+function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20000, sessionStore = null, audio = null, cacheDir = null } = {}) {
     // ly-music-source 是纯 ESM，主进程是 CJS：用动态 import 加载一次（和 electron/ytm 引 youtubei.js 一样）。
     let clientPromise = null;
     const musicClient = () => {
@@ -200,6 +204,33 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             const client = await musicClient();
             await client.removePlaylistTracks(String(playlistId), (trackIds ?? []).map(String));
             return { ok: true };
+        },
+        /**
+         * 一首歌的播放地址。免费的整首直接给 CDN 地址；VIP 的整首在包里头下载并解密，落盘后用
+         * folia-soda:// 交给播放器。地址只在这次运行里有效，重启后会重新 resolve。
+         */
+        async resolve({ songId, quality }) {
+            if (!songId) throw new Error('missing song id');
+            const client = await musicClient();
+            const result = await client.resolve({ ids: { qishui: String(songId) }, quality: quality || 'higher' });
+            if (result?.url) {
+                return { url: String(result.url), quality: result.quality ?? quality, preview: Boolean(result.preview) };
+            }
+            let filePath = result?.filePath ? String(result.filePath) : '';
+            const ext = String(result?.ext || 'm4a').replace(/[^a-z0-9]/gi, '') || 'm4a';
+            if (!filePath && result?.data) {
+                const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
+                if (!dir) throw new Error('no cache directory for Soda audio');
+                mkdirSync(dir, { recursive: true });
+                filePath = path.join(dir, `${songId}-${quality || 'higher'}.${ext}`);
+                writeFileSync(filePath, result.data);
+            }
+            if (!filePath || !audio) return { url: '' };
+            return {
+                url: audio.register(filePath, String(result?.mimeType || 'audio/mp4')),
+                quality: result?.quality ?? quality,
+                ext,
+            };
         },
     };
 

@@ -47,6 +47,7 @@ const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createSodaApiBridge } = require('./soda/sodaApiBridge.cjs');
 const { createSodaSessionStore } = require('./soda/session.cjs');
+const { createSodaAudio, SODA_AUDIO_SCHEME, SODA_AUDIO_PRIVILEGED_SCHEME } = require('./soda/audio.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
@@ -133,6 +134,7 @@ protocol.registerSchemesAsPrivileged([
   MOD_PROTOCOL_PRIVILEGED_SCHEME,
   YTM_AUDIO_PRIVILEGED_SCHEME,
   SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
+  SODA_AUDIO_PRIVILEGED_SCHEME,
 ]);
 
 // Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
@@ -239,7 +241,13 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
 });
 // 汽水的匿名接口只做转发；账号那部分（扫码登录、我的歌单、红心）的会话用 safeStorage 加密存在这里。
 const sodaSessionStore = createSodaSessionStore({ store, safeStorage });
-const sodaApiBridge = createSodaApiBridge({ sessionStore: sodaSessionStore });
+// VIP 整首解密后的文件放在 userData 下；地址只在这次运行里有效。
+const sodaAudio = createSodaAudio();
+const sodaApiBridge = createSodaApiBridge({
+  sessionStore: sodaSessionStore,
+  audio: sodaAudio,
+  cacheDir: () => path.join(app.getPath('userData'), 'soda-audio'),
+});
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the
@@ -5548,6 +5556,7 @@ app.whenReady().then(async () => {
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
   protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
+  protocol.handle(SODA_AUDIO_SCHEME, request => sodaAudio.handleRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
   try {
