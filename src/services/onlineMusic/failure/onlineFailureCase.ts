@@ -105,7 +105,7 @@ export const noteOnlineFailure = (error: unknown, detail: OnlineFailureDetail | 
     if (detail && typeof error === 'object' && error !== null) describedErrors.set(error, detail);
 };
 
-const LIKELY_CAUSES = new Set<NonNullable<OnlineFailureDetail['likelyCause']>>(['sign-in', 'subscription', 'region']);
+const LIKELY_CAUSES = new Set<NonNullable<OnlineFailureDetail['likelyCause']>>(['sign-in', 'subscription', 'region', 'copyright']);
 
 const withoutEmpty = <T extends object>(value: T): T => (
     Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as T

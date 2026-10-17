@@ -735,6 +735,30 @@ describe('kugouProvider', () => {
             expect(requestMock.mock.calls.map(call => call[0])).toEqual(['user_cloud_url']);
             expect(legacyPlayInfoMock).not.toHaveBeenCalled();
         });
+
+        it('says copyright may be the cause when KuGou refuses with err_code 30020', async () => {
+            requestMock.mockResolvedValue({ status: 0, error_code: 30020 });
+            legacyPlayInfoMock.mockResolvedValue({ status: 0 });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const error = await kugouProvider.playback!.getAudioSource(song, 'standard').catch(caught => caught);
+
+            expect(kugouProvider.describeFailure?.('audio', error)).toEqual({
+                case: 'no-audio', code: '30020', likelyCause: 'copyright',
+            });
+        });
+
+        it('says copyright may be the cause when KuGou marks the song small_library_song', async () => {
+            requestMock.mockResolvedValue({ status: 0, error_code: 30020, small_library_song: 1 });
+            legacyPlayInfoMock.mockResolvedValue({ status: 0 });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+
+            const error = await kugouProvider.playback!.getAudioSource(song, 'standard').catch(caught => caught);
+
+            expect(kugouProvider.describeFailure?.('audio', error)).toEqual({
+                case: 'no-audio', code: '30020', likelyCause: 'copyright',
+            });
+        });
     });
 
     it('hydrates canonical album and artist ids through hash-verified KRM metadata once', async () => {

@@ -1360,6 +1360,10 @@ export default {
     "noteRestartApp": "请重启 Folia",
     "noteRetryLater": "请稍后重试",
     "noteSignIn": "请重新登录",
+    "noteMaybeSignIn": "登录后或许可以播放",
+    "noteMaybeSubscription": "可能需要会员才能播放",
+    "noteMaybeRegion": "可能受地区限制",
+    "noteMaybeCopyright": "可能因版权受限，请切换音源重试",
     "noteUnknown": "未知错误",
     "skipCountdown": "{{seconds}} 秒后跳到下一首",
     "signIn": "登录"

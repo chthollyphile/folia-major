@@ -269,7 +269,7 @@ export interface OnlineFailureDetail {
     retryAfterMs?: number;
     // 平台没给地址、原因说不准时，它的回答透出来的「可能」的原因：登录后可能能放，可能要会员，可能限地区。
     // 只是可能，情况不变，界面只多说一句。
-    likelyCause?: 'sign-in' | 'subscription' | 'region';
+    likelyCause?: 'sign-in' | 'subscription' | 'region' | 'copyright';
     // 发出请求时这个平台没有登录的账号：要登录的失败说「登录后才能播放」，不说「登录已失效」。
     signedOut?: boolean;
 }

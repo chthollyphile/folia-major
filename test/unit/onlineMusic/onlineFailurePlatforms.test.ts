@@ -304,6 +304,11 @@ describe('KuGou', () => {
         expect(await audio(song)).toMatchObject({ id: 'no-audio', errorCode: 'not-playable', code: '20010' });
     });
 
+    it('no-audio: KuGou marks the song copyright-restricted (err_code 30020), said as a possible copyright cause', async () => {
+        desktop(vi.fn().mockResolvedValue({ status: 0, error_code: 30020, small_library_song: 1 }), { ok: true, status: 200, bodyText: '{"status":0}' });
+        expect(await audio(song)).toMatchObject({ id: 'no-audio', errorCode: 'not-playable', code: '30020', likelyCause: 'copyright' });
+    });
+
     it('unreachable: KuGouMusicApi answers 502 with no error code of KuGou\'s, at every level', async () => {
         desktop(vi.fn().mockRejectedValue(rejection('song_url', { status: 502, body: { msg: 'connect ETIMEDOUT' } })));
         expect(await audio(song)).toMatchObject({ id: 'unreachable', httpStatus: 502, errorCode: 'network' });

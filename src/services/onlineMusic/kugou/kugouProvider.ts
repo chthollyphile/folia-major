@@ -1061,7 +1061,7 @@ export const kugouProvider: OnlineMusicProvider = {
             const albumAudioId = String(sourceRef?.providerData?.albumAudioId || '');
             // What is said when no URL comes: the last /song/url answer without one (it carries KuGou's error
             // code), else the legacy endpoint's, else the first request that failed.
-            let noUrlSeen: { status?: unknown; errorCode?: unknown } | undefined;
+            let noUrlSeen: { status?: unknown; errorCode?: unknown; smallLibrarySong?: unknown } | undefined;
             let firstFailure: unknown;
             // A request that ran out of time stops the remaining /song/url qualities and variants: they would wait
             // as long. The legacy endpoint is still asked once.
@@ -1124,7 +1124,12 @@ export const kugouProvider: OnlineMusicProvider = {
                         }
                         noUrlSeen = {
                             status: valueOf(data, 'status') ?? valueOf(response, 'status'),
-                            errorCode: valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code'),
+                            // 酷狗公开接口用 err_code，KuGouMusicApi 中间层常转成 errcode / error_code，都读一遍。
+                            errorCode: valueOf(data, 'errcode', 'error_code', 'err_code') ?? valueOf(response, 'errcode', 'error_code', 'err_code'),
+                            // 酷狗对版权受限歌曲在无 play_url 的回答里带 small_library_song: 1，与 err_code 30020 一起
+                            // 透传成「可能版权受限」，不当作没有原因的静默失败。
+                            smallLibrarySong: valueOf(payload, 'small_library_song', 'small_library')
+                                ?? valueOf(response, 'small_library_song', 'small_library'),
                         };
                         console.warn('[KuGouProvider] playback:no-url', {
                             hash,

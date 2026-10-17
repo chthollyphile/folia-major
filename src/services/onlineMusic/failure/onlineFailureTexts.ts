@@ -46,6 +46,7 @@ const LIKELY_NOTES = {
     'sign-in': 'failure.noteMaybeSignIn',
     subscription: 'failure.noteMaybeSubscription',
     region: 'failure.noteMaybeRegion',
+    copyright: 'failure.noteMaybeCopyright',
 } as const;
 
 // MediaError 的码和它的名字。

@@ -60,7 +60,9 @@ export const kugouTransportFailure = (error: unknown): {
 // 酷狗答了话，却没有给地址：最后一个这样的回答的 status 和 error_code 留在 cause 上。
 // 酷狗的文档和代码里都没有说哪个码是要会员、没有版权或者限地区，所以只引不分。`signedOut`：没有登录的账号，
 // 而酷狗只是没给地址：登录后可能能放（文档没说更多，所以只是可能）。
-export const kugouNoUrlError = (answer: { status?: unknown; errorCode?: unknown } | undefined, signedOut = false): OnlineProviderError => (
+// `err_code 30020` 与 `small_library_song: 1` 是酷狗对版权受限 / 仅授权客户端可播歌曲的显式拒绝，
+// 与「没有 URL 的沉默失败」不同，透传为「可能版权受限」的原因。
+export const kugouNoUrlError = (answer: { status?: unknown; errorCode?: unknown; smallLibrarySong?: unknown } | undefined, signedOut = false): OnlineProviderError => (
     new OnlineProviderError('not-playable', 'KuGou gave no URL for this song', 'kugou', { ...answer, signedOut })
 );
 
@@ -72,10 +74,20 @@ export const describeKugouFailure = (_operation: OnlineFailureOperation, error: 
     // Web 端的请求是裸 fetch：连不上时它抛 TypeError（Failed to fetch）。别的 TypeError 是读回答时出的错，不是网络。
     if (error instanceof TypeError) return /fetch/i.test(error.message) ? { case: 'unreachable' } : null;
     if (error instanceof OnlineProviderError && error.providerId === 'kugou' && error.code === 'not-playable') {
-        const answer = error.cause as { status?: unknown; errorCode?: unknown; signedOut?: unknown } | undefined;
+        const answer = error.cause as { status?: unknown; errorCode?: unknown; smallLibrarySong?: unknown; signedOut?: unknown } | undefined;
         // errcode 0 是酷狗说没有出错：这时引的是 status。
         const code = (answer?.errorCode === 0 ? undefined : codeOf(answer?.errorCode)) ?? codeOf(answer?.status);
-        return { case: 'no-audio', ...(code ? { code } : {}), ...(answer?.signedOut === true ? { likelyCause: 'sign-in' as const } : {}) };
+        // 酷狗对版权受限 / 仅授权客户端可播的歌曲显式返回 err_code 30020 与 small_library_song: 1，
+        // 这不是「没有 URL 的沉默失败」，把它透传成「可能版权受限」，让用户知道该换音源而不是猜是不是软件坏了。
+        const isCopyrightRestricted = code === '30020' || answer?.smallLibrarySong === 1 || answer?.smallLibrarySong === true;
+        return {
+            case: 'no-audio',
+            ...(code ? { code } : {}),
+            // 版权受限是账号无关的强信号，登录了也放不了；优先于「登录后可能能放」。
+            ...(isCopyrightRestricted
+                ? { likelyCause: 'copyright' as const }
+                : answer?.signedOut === true ? { likelyCause: 'sign-in' as const } : {}),
+        };
     }
     if (isKugouApiUnloaded(error)) return { case: 'local-service-stopped' };
     return kugouTransportFailure(error);

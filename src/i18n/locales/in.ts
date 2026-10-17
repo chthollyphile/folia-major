@@ -1356,6 +1356,10 @@ export default {
     "noteRestartApp": "Mulai ulang Folia",
     "noteRetryLater": "Coba lagi nanti",
     "noteSignIn": "Masuk lagi",
+    "noteMaybeSignIn": "Masuk mungkin membuatnya dapat diputar",
+    "noteMaybeSubscription": "Langganan mungkin diperlukan",
+    "noteMaybeRegion": "Mungkin dibatasi wilayah",
+    "noteMaybeCopyright": "Mungkin dibatasi hak cipta; coba sumber lain",
     "noteUnknown": "Kesalahan tidak diketahui",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
     "signIn": "Masuk"
