@@ -367,10 +367,15 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             console.info('[Soda] user playlists:', (items || []).map((item) => item?.kind || 'unknown').join(','));
             return { items };
         },
-        async liked_ids({ limit = 500 } = {}) {
+        async liked_ids({ limit = 500, playlistId = '' } = {}) {
             const client = await musicClient();
-            const playlists = await client.listUserPlaylists({ limit: 200 });
-            const liked = playlists.find((item) => String(item?.kind ?? '') === 'liked');
+            // 渲染端已经认出「我喜欢」，直接把 id 传进来；没传就按官方 type == 1 或名字兜底。
+            const isLiked = (item) => {
+                const kind = String(item?.kind ?? '');
+                return kind === 'liked' || Number(kind) === 1 || /喜欢|收藏/.test(String(item?.name ?? item?.title ?? ''));
+            };
+            const playlists = playlistId ? [] : await client.listUserPlaylists({ limit: 200 });
+            const liked = playlistId ? { id: playlistId } : playlists.find(isLiked);
             if (!liked) return { ids: [], whole: true };
             const detail = await client.getPlaylist(String(liked.id), { limit });
             return { ids: (detail?.songs ?? []).map((song) => String(song.id)), whole: (detail?.songs ?? []).length < limit };

@@ -70,7 +70,7 @@ export const sodaLibrary: OnlineLibraryProvider = {
     async getLikedSongIds() {
         const liked = await likedPlaylistOf();
         if (!liked?.id) return { ids: [], whole: true };
-        const answer = await requestSoda<{ ids: string[]; whole: boolean }>('liked_ids', { limit: 500 });
+        const answer = await requestSoda<{ ids: string[]; whole: boolean }>('liked_ids', { limit: 500, playlistId: String(liked.id) });
         return { ids: Array.isArray(answer.ids) ? answer.ids : [], whole: answer.whole !== false };
     },
 };
