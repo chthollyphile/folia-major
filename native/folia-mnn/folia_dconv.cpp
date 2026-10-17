@@ -330,8 +330,12 @@ public:
 
 } // namespace
 
-REGISTER_PLUGIN_OP(FoliaDConv, ShapeLikeX);
-REGISTER_PLUGIN_COMPUTE_KERNEL(FoliaDConv, FoliaDConv);
+// What REGISTER_PLUGIN_OP and REGISTER_PLUGIN_COMPUTE_KERNEL expand to, spelled out: the macros mark
+// these variables __attribute__((unused)), which MSVC cannot parse, so the Windows build failed here.
+namespace {
+static const auto registerFoliaDConvShape = InferShapeKernelRegistrar<ShapeLikeX>("FoliaDConv");
+static const auto registerFoliaDConvKernel = ComputeKernelRegistrar<FoliaDConv>("FoliaDConv");
+} // namespace
 
 } // namespace plugin
 } // namespace MNN
