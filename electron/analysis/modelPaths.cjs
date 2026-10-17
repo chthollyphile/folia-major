@@ -53,6 +53,31 @@ const resolveModelFile = (dirs, name) => {
     return null;
 };
 
+/**
+ * Weights for the hand-written WebGPU runtime (src/services/automix/beatThisWgsl), by model: the
+ * fp16 export of build/beat_this_wgsl/export_weights.py, a .bin and its .json manifest. They are a
+ * different file from the .onnx, read by the renderer rather than by worker.cjs, so they are looked
+ * up on their own; the .onnx still decides whether the model counts as installed.
+ */
+const GPU_WEIGHTS = { beat_this: 'beat_this-wgsl' };
+
+/** `{ bin, manifest }` from the first of `dirs` holding BOTH files of this model's GPU export, or null. */
+const resolveGpuWeights = (dirs, name) => {
+    const base = GPU_WEIGHTS[name];
+    if (!base) return null;
+    for (const dir of dirs) {
+        if (!dir) continue;
+        const bin = path.join(dir, `${base}.bin`);
+        const manifest = path.join(dir, `${base}.json`);
+        // A pair from one directory or nothing: a manifest from one export over another's weights reads
+        // every tensor at the wrong offset, which no check downstream would notice.
+        if (fs.statSync(bin, { throwIfNoEntry: false })?.isFile() && fs.statSync(manifest, { throwIfNoEntry: false })?.isFile()) {
+            return { bin, manifest };
+        }
+    }
+    return null;
+};
+
 // The Python runtime htdemucs separation needs - an optional download that lands as a `runtime/`
 // folder beside the model files, in the same directories, best first. htdemucs is the one model not
 // run over onnxruntime-node; the reason is at the top of htdemucs_runner.py. Everything else (beat_this)
@@ -132,5 +157,6 @@ const downloadables = (manifest, platform = PLATFORM) => {
 
 module.exports = {
     MODEL_NAMES, MODEL_FILES, RUNTIME_NAME, RUNTIME_BIN, PLATFORM,
+    GPU_WEIGHTS, resolveGpuWeights,
     resolveModelFile, modelsPresent, resolveRuntime, resolveRuntimeDir, runtimePresent, downloadables,
 };

@@ -808,6 +808,11 @@ declare global {
       runBeatThis?: (
         chunks: Array<{ data: Float32Array; frames: number }>,
       ) => Promise<{ beat: Float32Array[]; downbeat: Float32Array[] } | null>;
+      /** The WebGPU export of Beat This! (fp16 .bin + manifest), read by the main process. Null when absent. */
+      getBeatThisGpuWeights?: () => Promise<{
+        weights: Uint8Array<ArrayBuffer>;
+        manifest: import('./services/automix/beatThisWgsl/runtime').BeatThisWgslManifest;
+      } | null>;
       /**
        * htdemucs separation in the main process, for one window of one track at 44.1kHz.
        * `other` is not returned - it is derived by subtraction so the stems sum to the mix exactly.

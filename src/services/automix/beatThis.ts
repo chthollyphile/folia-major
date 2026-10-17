@@ -1,3 +1,4 @@
+import { runBeatThisGpu } from './beatThisGpu';
 import { modelCanRun, noteModelFailed } from './modelAvailability';
 import { fft } from './signalAnalysis';
 import { YIELD_BUDGET_MS, yieldToUi } from './uiYield';
@@ -448,7 +449,10 @@ export const analyseBeatGrid = async (mel: MelSpectrogram): Promise<BeatGrid | n
     const chunks = splitForModel(mel);
     if (!chunks.length) return null;
 
-    const logits = await run(chunks.map(({ data, frames }) => ({ data, frames })));
+    // The renderer's own GPU first (beatThisGpu.ts); it answers null for whatever it cannot take - a
+    // short chunk, no WebGPU export on disk, no usable device - and those go over onnxruntime.
+    const request = chunks.map(({ data, frames }) => ({ data, frames }));
+    const logits = await runBeatThisGpu(request) ?? await run(request);
     if (!logits || logits.beat.length !== chunks.length) {
         // Nothing usable came back. Not remembered as a failure - the same empty answer arrives when
         // the weights were just deleted or the worker was restarted under this request - so this only

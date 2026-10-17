@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    resolveModelFile, modelsPresent, resolveRuntime, resolveRuntimeDir, RUNTIME_BIN,
+    resolveModelFile, modelsPresent, resolveRuntime, resolveRuntimeDir, RUNTIME_BIN, resolveGpuWeights,
 } = require('../../../electron/analysis/modelPaths.cjs');
 
 let root: string;
@@ -143,5 +143,30 @@ describe('finding model weights', () => {
         // existsSync says yes for a directory, so this is the one shape of wrong answer that would
         // reach onnxruntime as a native load failure rather than as "no weights".
         expect(modelsPresent([oddDir]).htdemucs).toBe(false);
+    });
+});
+
+describe('finding the WebGPU export', () => {
+    it('takes the .bin and .json from the first directory holding both', () => {
+        const dirs = ['gpu-user', 'gpu-download'].map((name) => {
+            const dir = path.join(root, name);
+            mkdirSync(dir);
+            return dir;
+        });
+        expect(resolveGpuWeights(dirs, 'beat_this')).toBeNull();
+        // Only half an export in the first directory: the pair in the second wins, never a mix.
+        writeFileSync(path.join(dirs[0], 'beat_this-wgsl.bin'), 'weights');
+        writeFileSync(path.join(dirs[1], 'beat_this-wgsl.bin'), 'weights');
+        writeFileSync(path.join(dirs[1], 'beat_this-wgsl.json'), '{}');
+        expect(resolveGpuWeights(dirs, 'beat_this')).toEqual({
+            bin: path.join(dirs[1], 'beat_this-wgsl.bin'),
+            manifest: path.join(dirs[1], 'beat_this-wgsl.json'),
+        });
+        writeFileSync(path.join(dirs[0], 'beat_this-wgsl.json'), '{}');
+        expect(resolveGpuWeights(dirs, 'beat_this')?.bin).toBe(path.join(dirs[0], 'beat_this-wgsl.bin'));
+    });
+
+    it('is null for a model without one', () => {
+        expect(resolveGpuWeights([userDir], 'htdemucs')).toBeNull();
     });
 });

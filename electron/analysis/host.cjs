@@ -1,5 +1,6 @@
-const { modelsPresent } = require('./modelPaths.cjs');
+const { modelsPresent, resolveGpuWeights } = require('./modelPaths.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
+const fs = require('fs');
 const path = require('path');
 
 // electron/analysis/host.cjs
@@ -172,6 +173,31 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, deadlines = DEADLINE_
 
     ipcMain.handle('automix-beat-this', (_event, chunks) => ask('beat-this', chunks));
     ipcMain.handle('automix-htdemucs', (_event, request) => ask('htdemucs', request));
+
+    /**
+     * The beat_this WebGPU export, for the renderer to run on its own device (beatThisGpu.ts), or null.
+     *
+     * Read here and handed over rather than run here: the GPU belongs to the renderer, and this is
+     * the only process that may read the models directory. 41MB once per renderer-side load, which
+     * that side drops again after two idle minutes, as the worker above does with its sessions.
+     */
+    ipcMain.handle('automix-beat-this-gpu-weights', async () => {
+        const found = resolveGpuWeights(modelsDirs(), 'beat_this');
+        if (!found) return null;
+        try {
+            const [weights, manifest] = await Promise.all([fs.promises.readFile(found.bin), fs.promises.readFile(found.manifest, 'utf8')]);
+            const parsed = JSON.parse(manifest);
+            // A truncated download would otherwise upload as weights with a zero tail.
+            if (parsed.bytes !== weights.byteLength) {
+                console.warn(`[beat-this-gpu] ${found.bin} is ${weights.byteLength} bytes, its manifest says ${parsed.bytes}`);
+                return null;
+            }
+            return { weights: new Uint8Array(weights.buffer, weights.byteOffset, weights.byteLength), manifest: parsed };
+        } catch (error) {
+            console.warn(`[beat-this-gpu] could not read ${found.bin}: ${error?.message || error}`);
+            return null;
+        }
+    });
 
     /**
      * Which weights are on disk, without loading anything.

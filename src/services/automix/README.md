@@ -74,7 +74,8 @@ Automix 回答一个问题：**上一首快放完了，下一首该怎么接进�
 prefetchService
   └─ ensureTrackProfile(song)          profileService.ts
        ├─ fetch(Range) → decodeAudioData
-       ├─ analyseBeatGrid(mono)        beatThis.ts   → utilityProcess → ONNX
+       ├─ analyseBeatGrid(mono)        beatThis.ts   → beatThisGpu.ts → 渲染进程 Worker（WebGPU）
+       │                                             没有 GPU 导出或设备时 → utilityProcess → ONNX
        └─ analyseTrack(pcm)            trackProfile.ts
             └─ TrackProfile { bpm, downbeatOffset, lufs, key, sections, leadOut, ... }
 

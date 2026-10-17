@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('electron', {
     // Beat This! inference. Returns null whenever the weights or the runtime are not there,
     // which is the browser build's permanent answer and any desktop install missing the model.
     runBeatThis: (chunks) => ipcRenderer.invoke('automix-beat-this', chunks),
+    // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
+    getBeatThisGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights'),
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
     // Which weights exist, answered without loading them. See the handler for why the settings page
     // is not allowed to infer this from "am I running in Electron".
