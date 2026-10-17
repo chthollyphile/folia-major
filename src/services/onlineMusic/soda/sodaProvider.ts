@@ -12,6 +12,7 @@ import { getSodaTransportAvailability, requestSoda } from './sodaTransport';
 import {
     normalizeSodaCollection,
     normalizeSodaSong,
+    describeSodaLrc,
     sodaKaraokeToEnhancedLrc,
     sodaLyricsOf,
     sodaPage,
@@ -177,6 +178,7 @@ export const sodaProvider: OnlineMusicProvider = {
                 const content = String(signed?.content ?? '').trim();
                 if (content) {
                     const enhanced = sodaKaraokeToEnhancedLrc(content);
+                    console.info('[Soda] karaoke →', enhanced ? describeSodaLrc(enhanced) : 'no lines');
                     if (enhanced) {
                         // 行级轨去掉逐字标签，逐字轨原样交给宿主。
                         const plain = enhanced.replace(/<\d{2}:\d{2}\.\d{3}>/g, '');

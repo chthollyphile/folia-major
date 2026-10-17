@@ -1626,10 +1626,10 @@ export default {
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "Versi"
   },
-  "lyricProvider": {
-    "netease": "NetEase Cloud Music",
+  "lyricProvider": {    "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
+    "soda": "Soda Music",
     "spotify": "Spotify",
     "amll": "AMLLDB"
   },

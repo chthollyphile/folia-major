@@ -1632,10 +1632,10 @@ export default {
     "ponderDescription": "了解 Folia 的基本操作与运行逻辑",
     "version": "版本"
   },
-  "lyricProvider": {
-    "netease": "网易云音乐",
+  "lyricProvider": {    "netease": "网易云音乐",
     "qq": "QQ 音乐",
     "kugou": "酷狗音乐",
+    "soda": "汽水音乐",
     "spotify": "Spotify",
     "amll": "AMLLDB",
   },

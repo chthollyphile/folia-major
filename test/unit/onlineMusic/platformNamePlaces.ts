@@ -138,7 +138,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/utils/lyrics/lyricFileDecoding.ts': { n: { kugou: 2 }, kind: 'lyric', why: 'a lyric file format (.krc) named for the platform that made it, decrypted by that platform\'s code' },
     'src/utils/lyrics/lyricMatchSources.ts': { n: { netease: 5, qq: 10, kugou: 1 }, kind: 'lyric' },
     'src/utils/lyrics/lyricSourceLabels.ts': { n: { netease: 3, qq: 1, bodian: 1, ytm: 1 }, kind: 'lyric' },
-    'src/utils/lyrics/lyricSources.ts': { n: { netease: 2, qq: 2, kugou: 1, bodian: 1, ytm: 1, spotify: 1 }, kind: 'lyric', why: 'the list of lyric sources itself' },
+    'src/utils/lyrics/lyricSources.ts': { n: { netease: 2, qq: 2, kugou: 1, bodian: 1, ytm: 1, spotify: 1, soda: 1 }, kind: 'lyric', why: 'the list of lyric sources itself' },
     'src/utils/lyrics/neteaseProcessing.ts': { n: { netease: 12 }, kind: 'lyric', why: 'the lyric payload format named for the platform that made it; the stage API takes that format from any client' },
     'src/utils/lyrics/nowPlayingSource.ts': { n: { netease: 2 }, kind: 'stored', why: 'the source names a now-playing payload carries' },
     'src/utils/lyrics/parserCore.ts': { n: { qq: 1, kugou: 6 }, kind: 'lyric', why: 'a lyric format named for the platform that made it' },

@@ -137,7 +137,13 @@ export function sodaLyricsOf(track: any): ProviderLyricsResult {
  * 转成 Folia 认的增强型 LRC；不是这个格式就返回 null。
  */
 export function sodaKaraokeToEnhancedLrc(content: string): string | null {
-    const lines = String(content || '').split(/\r?\n/);
+    // 客户端有时把歌词转义成 \u003C / &#10; 这种形式，先还原成真实的尖括号与换行。
+    const normalized = String(content || '')
+        .replace(/\\u003[cC]/g, '<')
+        .replace(/\\u003[eE]/g, '>')
+        .replace(/&#10;|&#xA;|\\n/g, '\n')
+        .replace(/<br\s*\/?>/gi, '\n');
+    const lines = normalized.split(/\r?\n/);
     const out: string[] = [];
     let matched = 0;
     for (const raw of lines) {
@@ -175,6 +181,13 @@ export function sodaKaraokeToEnhancedLrc(content: string): string | null {
     }
     if (matched === 0) return null;
     return `${out.join('\n')}\n`;
+}
+
+/** 转换结果的行数与是否带逐字，用于日志。 */
+export function describeSodaLrc(text: string): string {
+    const lines = String(text || '').trim().split('\n').filter(Boolean);
+    const wordLines = lines.filter((line) => /<\d{2}:\d{2}\.\d{3}>/.test(line));
+    return `${lines.length} lines, ${wordLines.length} word-timed`;
 }
 
 /** 分享页给的播放地址能播多久：窗口比整首短就是试听片段。 */
