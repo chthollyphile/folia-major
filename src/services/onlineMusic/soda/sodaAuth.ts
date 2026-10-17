@@ -60,15 +60,16 @@ const pollToState = (answer: QrPoll): LoginState => {
     }
 };
 
-// 这一进程里试过一次从官方 PC 客户端导入就够，失败不要每次问都重扫磁盘。
-let pcImportTried = false;
+// 从官方 PC 客户端导入的节流：客户端开着时它的 cookie 库会被锁，等它退出后下一次询问应该再试一次。
+let lastPcAttempt = 0;
+const PC_RETRY_MS = 15000;
 
 export const sodaAuth: OnlineAuthProvider = {
     async getLoginStatus() {
         const answer = await requestSoda<{ authenticated: boolean; profile: SodaProfile | null }>('status');
         if (answer.authenticated) return sodaUserOf(answer.profile);
-        if (!pcImportTried) {
-            pcImportTried = true;
+        if (Date.now() - lastPcAttempt > PC_RETRY_MS) {
+            lastPcAttempt = Date.now();
             try {
                 await requestSoda('pc_login');
                 const retry = await requestSoda<{ authenticated: boolean; profile: SodaProfile | null }>('status');

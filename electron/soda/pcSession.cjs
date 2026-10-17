@@ -1,4 +1,4 @@
-const { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } = require('node:fs');
+const { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readSync, rmSync, writeSync } = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { createDecipheriv } = require('node:crypto');
 const { tmpdir } = require('node:os');
@@ -70,25 +70,64 @@ const decryptCookieValue = (encrypted, key) => {
     }
 };
 
-/** SQLite 在客户端运行时会锁库，先拷一份到临时目录再读。 */
-const readCookieRows = (dbPath) => {
-    const { DatabaseSync } = require('node:sqlite');
-    const workspace = mkdtempSync(path.join(tmpdir(), 'folia-soda-cookies-'));
+const COOKIE_SQL = 'SELECT host_key, name, value, encrypted_value FROM cookies';
+
+const queryCookies = (DatabaseSync, file) => {
+    const db = new DatabaseSync(file, { readOnly: true });
     try {
-        const copy = path.join(workspace, 'Cookies');
-        copyFileSync(dbPath, copy);
-        for (const suffix of ['-wal', '-shm']) {
-            const side = `${dbPath}${suffix}`;
-            if (existsSync(side)) copyFileSync(side, `${copy}${suffix}`);
-        }
-        const db = new DatabaseSync(copy, { readOnly: true });
+        return db.prepare(COOKIE_SQL).all();
+    } finally {
+        db.close();
+    }
+};
+
+/**
+ * 按字节复制。客户端的库被占用时 CopyFileEx 会 EBUSY，但普通读句柄通常还允许读
+ * （SQLite 在 Windows 上是用 FILE_SHARE_READ|WRITE 打开的）。
+ */
+const copyBytes = (from, to) => {
+    const source = openSync(from, 'r');
+    try {
+        const target = openSync(to, 'w');
         try {
-            return db.prepare('SELECT host_key, name, value, encrypted_value FROM cookies').all();
+            const buffer = Buffer.allocUnsafe(1 << 16);
+            let read;
+            while ((read = readSync(source, buffer, 0, buffer.length, null)) > 0) {
+                writeSync(target, buffer, 0, read);
+            }
         } finally {
-            db.close();
+            closeSync(target);
         }
     } finally {
-        rmSync(workspace, { recursive: true, force: true });
+        closeSync(source);
+    }
+};
+
+/**
+ * 读 cookie 库。客户端开着时库是锁的：
+ *   1. 先直接只读打开（SQLite 自己处理并发，最省事）；
+ *   2. 不行就按字节拷一份到临时目录再打开（copyFileSync 会 EBUSY，这里绕开它）。
+ */
+const readCookieRows = (dbPath) => {
+    const { DatabaseSync } = require('node:sqlite');
+    try {
+        return queryCookies(DatabaseSync, dbPath);
+    } catch (directError) {
+        const workspace = mkdtempSync(path.join(tmpdir(), 'folia-soda-cookies-'));
+        try {
+            const copy = path.join(workspace, 'Cookies');
+            copyBytes(dbPath, copy);
+            for (const suffix of ['-wal', '-shm']) {
+                const side = `${dbPath}${suffix}`;
+                if (!existsSync(side)) continue;
+                try { copyBytes(side, `${copy}${suffix}`); } catch { /* 拷不到就只读主库 */ }
+            }
+            return queryCookies(DatabaseSync, copy);
+        } catch {
+            throw new Error(String(directError?.message || 'cookie db is locked'));
+        } finally {
+            rmSync(workspace, { recursive: true, force: true });
+        }
     }
 };
 
@@ -162,7 +201,7 @@ function readPcSession() {
             userDataDir,
         };
     }
-    throw new Error(`没有找到汽水客户端的登录态（${errors.join('; ') || '客户端数据目录不存在'}）`);
+    throw new Error(`没有找到汽水客户端的登录态（${errors.join('; ') || '客户端数据目录不存在'}）。汽水音乐正在运行时它的 cookie 库可能被锁，退出客户端后切一下音源会重试。`);
 }
 
 module.exports = { readPcSession, SESSION_NAMES, decryptCookieValue, domainOfInterest };
