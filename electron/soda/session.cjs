@@ -15,13 +15,26 @@ function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
         get() {
             if (loaded) return current;
             loaded = true;
+            const sealed = store.get(SESSION_KEY);
+            const hasSealed = typeof sealed === 'string' && sealed.length > 0;
+            if (!hasSealed) {
+                console.info('[SodaSession] no saved session on disk');
+                return null;
+            }
+            if (!canEncrypt()) {
+                console.info('[SodaSession] OS encryption is unavailable, cannot read the saved session');
+                return null;
+            }
             try {
-                const sealed = store.get(SESSION_KEY);
-                if (typeof sealed !== 'string' || !canEncrypt()) return null;
                 const value = JSON.parse(safeStorage.decryptString(Buffer.from(sealed, 'base64')));
-                if (value && typeof value === 'object' && value.platforms) current = value;
-            } catch {
-                warn('[SodaSession] Encrypted session could not be restored');
+                if (value && typeof value === 'object' && value.platforms) {
+                    current = value;
+                    console.info('[SodaSession] session decrypted; platforms:', Object.keys(value.platforms).join(','));
+                } else {
+                    console.info('[SodaSession] decrypted value has no platforms');
+                }
+            } catch (error) {
+                console.warn('[SodaSession] Encrypted session could not be restored:', error?.message || error);
             }
             return current;
         },
@@ -31,7 +44,9 @@ function createSodaSessionStore({ store, safeStorage, warn = console.warn }) {
             try {
                 if (!canEncrypt()) throw new Error('Encryption unavailable');
                 store.set(SESSION_KEY, safeStorage.encryptString(JSON.stringify(bundle)).toString('base64'));
-            } catch {
+                console.info('[SodaSession] session encrypted and saved');
+            } catch (error) {
+                console.warn('[SodaSession] could not save the session:', error?.message || error);
                 store.delete(SESSION_KEY);
                 warn('[SodaSession] Login is available for this run only; OS encryption is unavailable');
             }

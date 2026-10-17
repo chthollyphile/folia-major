@@ -128,13 +128,24 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         const trackPlayer = payload?.track_player ?? payload?.trackPlayer ?? {};
         const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
         const pick = (list) => (Array.isArray(list) ? list : [])
-            .map((item) => ({
-                url: item?.main_url || item?.MainPlayUrl || item?.backup_url || item?.BackupPlayUrl || '',
-                auth: item?.encrypt_info?.spade_a || item?.PlayAuth || item?.encrypt_info?.SpadeA || '',
-                bitrate: Number(item?.bitrate ?? item?.bit_rate ?? item?.Bitrate ?? item?.BitRate ?? 0),
-                keys: item && typeof item === 'object' ? Object.keys(item).join(',') : '',
-            }))
-            .filter((item) => item.url)
+            .map((item) => {
+                const meta = item?.video_meta ?? item?.videoMeta ?? {};
+                // 码率/时长/是否试听都在 video_meta 里（实测 video_list 项的键是
+                // main_url / backup_url / video_meta / encrypt_info / gear_des_key）。
+                const bitrate = Number(meta?.bitrate ?? meta?.bit_rate ?? meta?.Bitrate ?? item?.bitrate ?? 0);
+                const durationMs = Number(meta?.duration ?? meta?.duration_ms ?? meta?.Duration ?? 0);
+                const audition = Boolean(meta?.is_audition ?? meta?.isAudition ?? meta?.audition ?? false);
+                return {
+                    url: item?.main_url || item?.MainPlayUrl || item?.backup_url || item?.BackupPlayUrl || '',
+                    auth: item?.encrypt_info?.spade_a || item?.PlayAuth || item?.encrypt_info?.SpadeA || '',
+                    bitrate,
+                    durationMs,
+                    audition,
+                    keys: item && typeof item === 'object' ? Object.keys(item).join(',') : '',
+                    meta: meta && typeof meta === 'object' ? JSON.stringify(meta).slice(0, 240) : '',
+                };
+            })
+            .filter((item) => item.url && !item.audition)
             // 先取离目标码率最近的一档，同距离时取码率高的。
             .sort((a, b) => Math.abs((a.bitrate || wanted) - wanted) - Math.abs((b.bitrate || wanted) - wanted) || b.bitrate - a.bitrate);
 
@@ -158,7 +169,8 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         }
         const best = streams[0];
-        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| auth', best.auth ? 'yes' : 'no', '| keys', best.keys || '');
+        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| duration', best.durationMs || 'unknown', '| auth', best.auth ? 'yes' : 'no');
+        console.info('[Soda] stream candidates:', streams.length, '| first meta:', best.meta || '(none)');
         const playAuth = best.auth;
         const audioUrl = best.url;
         const streamAnswer = await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } });
