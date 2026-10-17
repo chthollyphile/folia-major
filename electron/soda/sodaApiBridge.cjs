@@ -10,7 +10,8 @@
 // 播放地址的解析（VIP 整首要解密）留给后续的 audio.cjs，不在这里。
 
 const { mkdirSync, writeFileSync } = require('node:fs');
-const { readPcSession } = require('./pcSession.cjs');
+const { readPcSession, findPcDeviceId } = require('./pcSession.cjs');
+const { createSodaSigner, md5Upper } = require('./sodaSigner.cjs');
 const path = require('node:path');
 
 const API_HOST = 'https://api.qishui.com';
@@ -73,6 +74,68 @@ function readRouterData(html) {
 }
 
 function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20000, sessionStore = null, audio = null, cacheDir = null } = {}) {
+    const signer = createSodaSigner();
+
+    /**
+     * 带应用签名的 VIP 取流。未签名时平台返回 HTTP 200 + 0 字节，所以这里必须先把
+     * X-Helios / X-Medusa 签上；播放地址（MainPlayUrl）拿到后下载并用 playAuth 解密。
+     */
+    const signedPlay = async (trackId, quality) => {
+        const session = sessionStore?.get();
+        const cookie = session?.platforms?.qishui?.cookie || '';
+        if (!cookie) throw new Error('签名取流需要登录 cookie');
+        const deviceId = findPcDeviceId() || String(session?.platforms?.qishui?.deviceId || '');
+        if (!deviceId) throw new Error('没有找到客户端的 device_id');
+        const body = JSON.stringify({
+            track_id: String(trackId), media_type: 'track', queue_type: 'search_one_track', scene_name: 'search',
+        });
+        const params = new URLSearchParams({
+            aid: '386088', app_name: 'luna_pc', region: 'cn', geo_region: 'cn', os_region: 'cn',
+            sim_region: '', device_id: deviceId, cdid: '', iid: '', version_name: '3.4.0', version_code: '30040000',
+            channel: 'official', build_mode: 'master', network_carrier: '', ac: 'wifi',
+            tz_name: 'Asia/Shanghai', resolution: '', device_platform: 'windows', device_type: 'Windows',
+            os_version: 'Windows 10', fp: deviceId,
+        });
+        const url = `${API_HOST}/luna/pc/track_v2?${params}`;
+        const headers = {
+            'User-Agent': UA_LUNA,
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-SS-STUB': md5Upper(body),
+            Cookie: cookie,
+            'X-Luna-Background-Type': 'foreground',
+            'X-Luna-Is-Background-Req': '0',
+            'X-Luna-Is-Local-User': '1',
+        };
+        const signature = signer.sign({ url, headers, deviceId });
+        const answer = await requestFactory(url, { method: 'POST', headers: { ...headers, ...signature }, body });
+        const text = await answer.text();
+        console.info('[Soda] signed track_v2:', answer.status, text.length, 'bytes');
+        if (!text) throw new Error(`签名请求被清空（HTTP ${answer.status}，0 字节）`);
+        const payload = JSON.parse(text);
+        const playerUrl = payload?.track_player?.url_player_info ?? payload?.track_player?.urlPlayerInfo;
+        if (!playerUrl) throw new Error('track_v2 没有给 url_player_info');
+        const player = await (await requestFactory(playerUrl, { headers: { 'User-Agent': UA_LUNA } })).json();
+        const list = player?.Result?.Data?.PlayInfoList ?? player?.Result?.Data?.PlayInfoList ?? player?.data?.play_info_list ?? [];
+        const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
+        const ranked = (Array.isArray(list) ? list : [])
+            .filter((item) => item?.MainPlayUrl || item?.BackupPlayUrl)
+            .sort((a, b) => Math.abs(Number(a?.Bitrate || 0) - wanted) - Math.abs(Number(b?.Bitrate || 0) - wanted));
+        const best = ranked[0];
+        if (!best) throw new Error('PlayInfoList 里没有可播的流');
+        const playAuth = best.PlayAuth || '';
+        const audioUrl = best.MainPlayUrl || best.BackupPlayUrl;
+        const media = Buffer.from(await (await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } })).arrayBuffer());
+        const { decryptAudio } = await import('ly-music-source/dist/providers/qishui/decrypt.js');
+        const decrypted = playAuth ? decryptAudio(media, playAuth) : media;
+        const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
+        if (!dir || !audio) throw new Error('没有缓存目录');
+        mkdirSync(dir, { recursive: true });
+        const filePath = path.join(dir, `${trackId}-${quality || 'higher'}.m4a`);
+        writeFileSync(filePath, decrypted);
+        console.info('[Soda] signed play ok:', decrypted.length, 'bytes');
+        return { url: audio.register(filePath, 'audio/mp4'), quality, ext: 'm4a' };
+    };
+
     // ly-music-source 是纯 ESM，主进程是 CJS：用动态 import 加载一次（和 electron/ytm 引 youtubei.js 一样）。
     let clientPromise = null;
     const musicClient = () => {
@@ -243,26 +306,31 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
          */
         async resolve({ songId, quality }) {
             if (!songId) throw new Error('missing song id');
-            const client = await musicClient();
-            const result = await client.resolve({ ids: { qishui: String(songId) }, quality: quality || 'higher' });
-            if (result?.url) {
-                return { url: String(result.url), quality: result.quality ?? quality, preview: Boolean(result.preview) };
+            const wanted = quality || 'higher';
+            // 先走包（免签名的路径）：能拿到地址或解密后的整首就用它。
+            try {
+                const client = await musicClient();
+                const result = await client.resolve({ ids: { qishui: String(songId) }, quality: wanted });
+                if (result?.url) {
+                    return { url: String(result.url), quality: result.quality ?? quality, preview: Boolean(result.preview) };
+                }
+                let filePath = result?.filePath ? String(result.filePath) : '';
+                const ext = String(result?.ext || 'm4a').replace(/[^a-z0-9]/gi, '') || 'm4a';
+                if (!filePath && result?.data) {
+                    const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
+                    if (!dir) throw new Error('no cache directory for Soda audio');
+                    mkdirSync(dir, { recursive: true });
+                    filePath = path.join(dir, `${songId}-${wanted}.${ext}`);
+                    writeFileSync(filePath, result.data);
+                }
+                if (filePath && audio) {
+                    return { url: audio.register(filePath, String(result?.mimeType || 'audio/mp4')), quality: result?.quality ?? quality, ext };
+                }
+            } catch (error) {
+                console.info('[Soda] package resolve failed:', error?.message || error);
             }
-            let filePath = result?.filePath ? String(result.filePath) : '';
-            const ext = String(result?.ext || 'm4a').replace(/[^a-z0-9]/gi, '') || 'm4a';
-            if (!filePath && result?.data) {
-                const dir = typeof cacheDir === 'function' ? cacheDir() : cacheDir;
-                if (!dir) throw new Error('no cache directory for Soda audio');
-                mkdirSync(dir, { recursive: true });
-                filePath = path.join(dir, `${songId}-${quality || 'higher'}.${ext}`);
-                writeFileSync(filePath, result.data);
-            }
-            if (!filePath || !audio) return { url: '' };
-            return {
-                url: audio.register(filePath, String(result?.mimeType || 'audio/mp4')),
-                quality: result?.quality ?? quality,
-                ext,
-            };
+            // 再走官方客户端的应用签名（VIP 整首只有这条路）。
+            return signedPlay(String(songId), wanted);
         },
     };
 

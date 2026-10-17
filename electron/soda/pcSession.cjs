@@ -204,4 +204,51 @@ function readPcSession() {
     throw new Error(`没有找到汽水客户端的登录态（${errors.join('; ') || '客户端数据目录不存在'}）。汽水音乐正在运行时它的 cookie 库可能被锁，退出客户端后切一下音源会重试。`);
 }
 
-module.exports = { readPcSession, SESSION_NAMES, decryptCookieValue, domainOfInterest };
+const DEVICE_KEYS = ['device_id', 'deviceId', 'deviceID', 'deviceid'];
+
+/**
+ * 客户端请求里的 device_id：VIP 签名必须和请求参数里的那个一致（bdms 绑设备）。
+ * 先看 cookie（有些桶会把 did 放进 cookie），再扫数据目录下的小 JSON。
+ */
+let cachedDeviceId = null;
+function findPcDeviceId() {
+    if (cachedDeviceId !== null) return cachedDeviceId;
+    for (const userDataDir of dirsToInspect()) {
+        try {
+            const entries = [];
+            const walk = (dir, depth) => {
+                if (depth > 3) return;
+                for (const entry of require('node:fs').readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) { walk(full, depth + 1); continue; }
+                    if (!/\.(json|txt|conf|cfg|ini)$/i.test(entry.name)) continue;
+                    try { if (require('node:fs').statSync(full).size < 512 * 1024) entries.push(full); } catch { /* skip */ }
+                }
+            };
+            walk(userDataDir, 0);
+            for (const file of entries) {
+                let text = '';
+                try { text = readFileSync(file, 'utf8'); } catch { continue; }
+                if (!/device/i.test(text)) continue;
+                let json = null;
+                try { json = JSON.parse(text); } catch { continue; }
+                const stack = [json];
+                while (stack.length) {
+                    const node = stack.pop();
+                    if (!node || typeof node !== 'object') continue;
+                    for (const [key, value] of Object.entries(node)) {
+                        if (DEVICE_KEYS.includes(key.toLowerCase()) && typeof value === 'string' && /^\d{8,24}$/.test(value)) {
+                            cachedDeviceId = value;
+                            return cachedDeviceId;
+                        }
+                        if (value && typeof value === 'object') stack.push(value);
+                    }
+                }
+            }
+        } catch { /* 目录读不了就跳过 */ }
+    }
+    cachedDeviceId = '';
+    return cachedDeviceId;
+}
+
+module.exports = { readPcSession, findPcDeviceId, SESSION_NAMES, decryptCookieValue, domainOfInterest };
