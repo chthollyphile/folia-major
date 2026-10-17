@@ -23,7 +23,8 @@ interface SodaPlaylist {
 const collectionOf = (playlist: SodaPlaylist): ProviderCollection => {
     // 账号接口给的是扁平字段（name/coverUrl），匿名接口给的是汽水原始字段（title/url_cover），两种都收。
     if (playlist?.url_cover || playlist?.title) return normalizeSodaCollection(playlist);
-    const liked = String(playlist?.kind ?? '') === 'liked';
+    const kind = String(playlist?.kind ?? '');
+    const liked = kind === 'liked';
     return {
         providerId: 'soda',
         id: String(playlist?.id ?? ''),
@@ -33,6 +34,7 @@ const collectionOf = (playlist: SodaPlaylist): ProviderCollection => {
         ...(playlist?.description ? { description: String(playlist.description) } : {}),
         ...(Number(playlist?.trackCount) > 0 ? { trackCount: Number(playlist.trackCount) } : {}),
         ...(liked ? { isLiked: true } : {}),
+        ...(kind === 'created' ? { isOwned: true } : {}),
     };
 };
 

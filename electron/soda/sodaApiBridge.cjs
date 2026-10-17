@@ -124,18 +124,41 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         console.info('[Soda] signed track_v2:', answer.status, text.length, 'bytes', '| client', versionName);
         if (!text) throw new Error(`签名请求被清空（HTTP ${answer.status}，0 字节）`);
         const payload = JSON.parse(text);
-        const playerUrl = payload?.track_player?.url_player_info ?? payload?.track_player?.urlPlayerInfo;
-        if (!playerUrl) throw new Error('track_v2 没有给 url_player_info');
-        const player = await (await requestFactory(playerUrl, { headers: { 'User-Agent': UA_LUNA } })).json();
-        const list = player?.Result?.Data?.PlayInfoList ?? player?.Result?.Data?.PlayInfoList ?? player?.data?.play_info_list ?? [];
+        const trackPlayer = payload?.track_player ?? payload?.trackPlayer ?? {};
         const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
-        const ranked = (Array.isArray(list) ? list : [])
-            .filter((item) => item?.MainPlayUrl || item?.BackupPlayUrl)
-            .sort((a, b) => Math.abs(Number(a?.Bitrate || 0) - wanted) - Math.abs(Number(b?.Bitrate || 0) - wanted));
-        const best = ranked[0];
-        if (!best) throw new Error('PlayInfoList 里没有可播的流');
-        const playAuth = best.PlayAuth || '';
-        const audioUrl = best.MainPlayUrl || best.BackupPlayUrl;
+        const pick = (list) => (Array.isArray(list) ? list : [])
+            .map((item) => ({
+                url: item?.main_url || item?.MainPlayUrl || item?.backup_url || item?.BackupPlayUrl || '',
+                auth: item?.encrypt_info?.spade_a || item?.PlayAuth || item?.encrypt_info?.SpadeA || '',
+                bitrate: Number(item?.bitrate ?? item?.Bitrate ?? 0),
+            }))
+            .filter((item) => item.url)
+            // 先取离目标码率最近的一档，同距离时取码率高的。
+            .sort((a, b) => Math.abs((a.bitrate || wanted) - wanted) - Math.abs((b.bitrate || wanted) - wanted) || b.bitrate - a.bitrate);
+
+        // 现行 LunaPC 的整曲信息在 track_player.video_model.video_list；老的 url_player_info 也留着兜底。
+        let streams = [];
+        const videoModel = trackPlayer.video_model ?? trackPlayer.videoModel;
+        if (videoModel) {
+            let parsed = videoModel;
+            if (typeof videoModel === 'string') {
+                try { parsed = JSON.parse(videoModel); } catch { parsed = null; }
+            }
+            streams = pick(parsed?.video_list ?? parsed?.VideoList ?? parsed?.data?.play_info_list ?? parsed?.PlayInfoList);
+        }
+        const playerUrl = trackPlayer.url_player_info ?? trackPlayer.urlPlayerInfo;
+        if (streams.length === 0 && playerUrl) {
+            const player = await (await requestFactory(playerUrl, { headers: { 'User-Agent': UA_LUNA } })).json();
+            streams = pick(player?.Result?.Data?.PlayInfoList ?? player?.data?.play_info_list);
+        }
+        if (streams.length === 0) {
+            console.info('[Soda] signed track_v2 shape:', Object.keys(trackPlayer).join(','));
+            throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
+        }
+        const best = streams[0];
+        console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| auth', best.auth ? 'yes' : 'no');
+        const playAuth = best.auth;
+        const audioUrl = best.url;
         const media = Buffer.from(await (await requestFactory(audioUrl, { headers: { 'User-Agent': UA_LUNA } })).arrayBuffer());
         const { decryptAudio } = await import('ly-music-source/dist/providers/qishui/decrypt.js');
         const decrypted = playAuth ? decryptAudio(media, playAuth) : media;
@@ -281,7 +304,10 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         },
         async user_playlists({ limit = 50, cursor = 0 }) {
             const client = await musicClient();
-            return { items: await client.listUserPlaylists({ limit, cursor }) };
+            const items = await client.listUserPlaylists({ limit, cursor });
+            // 只记种类，不记名字：用来确认「我喜欢」在包里叫什么。
+            console.info('[Soda] user playlists:', (items || []).map((item) => item?.kind || 'unknown').join(','));
+            return { items };
         },
         async liked_ids({ limit = 500 } = {}) {
             const client = await musicClient();
