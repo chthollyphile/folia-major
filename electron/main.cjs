@@ -45,6 +45,7 @@ const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
+const { createSodaApiBridge } = require('./soda/sodaApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
@@ -235,6 +236,8 @@ const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
     return request;
   },
 });
+// 汽水没有账号、没有可存的东西，桥只做转发，所以不传 store / safeStorage。
+const sodaApiBridge = createSodaApiBridge();
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the
@@ -6434,6 +6437,13 @@ ipcMain.handle('bodian-api-request', (event, operation, params) => {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };
   }
   return bodianApiBridge.request(operation, params);
+});
+// 汽水的请求只从主进程发：api.qishui.com 带 Origin 头答 403。内容和别的桥一样只认两个第一方窗口。
+ipcMain.handle('soda-api-request', (event, operation, params) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Soda request' } };
+  }
+  return sodaApiBridge.request(operation, params);
 });
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {

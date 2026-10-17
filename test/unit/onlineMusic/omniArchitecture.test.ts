@@ -7,7 +7,7 @@ import { PLATFORM_NAME_PLACES } from './platformNamePlaces.ts';
 // test/unit/onlineMusic/omniArchitecture.test.ts
 
 const roots = ['src/components', 'src/hooks', 'src/stores'];
-const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|qqTransport|bodianTransport|ytmTransport|spotifyTransport|onlineMusic\/netease\/netease)['"]/;
+const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|qqTransport|bodianTransport|ytmTransport|spotifyTransport|sodaTransport|onlineMusic\/netease\/netease)['"]/;
 
 const collectSourceFiles = async (path: string): Promise<string[]> => {
     const entry = await stat(path);
