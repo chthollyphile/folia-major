@@ -12,12 +12,14 @@ import { getSodaTransportAvailability, requestSoda } from './sodaTransport';
 import {
     normalizeSodaCollection,
     normalizeSodaSong,
+    sodaKaraokeToEnhancedLrc,
     sodaLyricsOf,
     sodaPage,
     sodaPreview,
     sodaTrackList,
 } from './sodaNormalize';
 import { sodaExplore } from './sodaExplore';
+import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { sodaAuth } from './sodaAuth';
 import { sodaLibrary } from './sodaLibrary';
 import { sodaMutations } from './sodaMutations';
@@ -168,10 +170,34 @@ export const sodaProvider: OnlineMusicProvider = {
 
     lyrics: {
         async getLyrics(song) {
-            const track = await shareOf(mediaIdOf(song));
+            const id = mediaIdOf(song);
+            // 登录后优先用汽水自己的词：签名接口给的那份通常带逐字，分享页那份往往只有行时间。
+            try {
+                const signed = await requestSoda<{ content: string }>('signed_lyric', { songId: id });
+                const content = String(signed?.content ?? '').trim();
+                if (content) {
+                    const enhanced = sodaKaraokeToEnhancedLrc(content);
+                    if (enhanced) {
+                        // 行级轨去掉逐字标签，逐字轨原样交给宿主。
+                        const plain = enhanced.replace(/<\d{2}:\d{2}\.\d{3}>/g, '');
+                        return {
+                            lyrics: parseLyricsByFormat('enhanced-lrc', enhanced),
+                            mainText: plain,
+                            wordByWordText: enhanced,
+                            isPureMusic: false,
+                        };
+                    }
+                    if (/^\[\d{2}:\d{2}/.test(content)) {
+                        return { lyrics: parseLyricsByFormat('lrc', content), mainText: content, isPureMusic: false };
+                    }
+                }
+            } catch (error) {
+                console.info('[Soda] signed lyric unavailable:', error instanceof Error ? error.message : String(error));
+            }
+            const track = await shareOf(id);
             if (!track) return { lyrics: null, isPureMusic: false };
             const result = sodaLyricsOf(track);
-            if (!result.lyrics) console.info('[Soda] no lyrics on the share page for', mediaIdOf(song));
+            if (!result.lyrics) console.info('[Soda] no lyrics on the share page for', id);
             return result;
         },
     },

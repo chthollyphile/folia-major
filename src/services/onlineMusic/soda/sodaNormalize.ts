@@ -131,6 +131,52 @@ export function sodaLyricsOf(track: any): ProviderLyricsResult {
     };
 }
 
+/**
+ * 汽水自己的歌词格式（社区叫 karaoke）：
+ *   [行起始ms,行时长ms]<词偏移ms,词时长ms,标志>词…
+ * 转成 Folia 认的增强型 LRC；不是这个格式就返回 null。
+ */
+export function sodaKaraokeToEnhancedLrc(content: string): string | null {
+    const lines = String(content || '').split(/\r?\n/);
+    const out: string[] = [];
+    let matched = 0;
+    for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+        const head = /^\[(\d+),(\d+)\]/.exec(line);
+        if (!head) continue;
+        matched += 1;
+        const lineStart = Number(head[1]);
+        const lineDuration = Number(head[2]);
+        const rest = line.slice(head[0].length);
+        const tokens = Array.from(rest.matchAll(/<(\d+),(\d+),(\d+)>/g));
+        if (tokens.length === 0) {
+            // 这一行没有逐字，只有行时间：照行级 LRC 写。
+            const text = rest.trim();
+            if (text) out.push(`${lineTag(lineStart)}${text}`);
+            continue;
+        }
+        const body: string[] = [];
+        // 文本属于它前面那个 token：token 在前、文本在后（`<start,dur>词`）。
+        let previousStart = lineStart;
+        let lastEnd = lineStart;
+        let cursor = 0;
+        for (const token of tokens) {
+            const text = rest.slice(cursor, token.index);
+            if (text) body.push(`${wordTag(previousStart)}${text}`);
+            previousStart = lineStart + Number(token[1]);
+            lastEnd = previousStart + Number(token[2]);
+            cursor = (token.index ?? 0) + token[0].length;
+        }
+        const tail = rest.slice(cursor);
+        if (tail.trim()) body.push(`${wordTag(previousStart)}${tail}`);
+        if (body.length === 0) continue;
+        out.push(`${lineTag(lineStart)}${body.join('')}${wordTag(lastEnd || lineStart + lineDuration)}`);
+    }
+    if (matched === 0) return null;
+    return `${out.join('\n')}\n`;
+}
+
 /** 分享页给的播放地址能播多久：窗口比整首短就是试听片段。 */
 export function sodaPreview(track: any): boolean {
     const start = Number(track?.previewStart) || 0;

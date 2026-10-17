@@ -12,7 +12,8 @@ export type SodaOperation =
     | 'playlist_create' | 'playlist_append' | 'playlist_remove'
     | 'resolve'
     | 'login_cookie_import'
-    | 'pc_login';
+    | 'pc_login'
+    | 'signed_lyric';
 
 export interface SodaParams {
     query?: string;

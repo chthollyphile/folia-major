@@ -12,6 +12,7 @@ import { sodaProvider } from '@/services/onlineMusic/soda/sodaProvider';
 import {
     normalizeSodaCollection,
     normalizeSodaSong,
+    sodaKaraokeToEnhancedLrc,
     sodaLyricsOf,
     sodaPage,
     sodaPreview,
@@ -82,6 +83,23 @@ describe('Soda lyrics', () => {
 
     it('answers no lyrics for a track without sentences', () => {
         expect(sodaLyricsOf({ lyrics: { sentences: [] } })).toMatchObject({ lyrics: null, isPureMusic: false });
+    });
+});
+
+describe('Soda karaoke lyrics', () => {
+    it('turns the platform format into word-timed LRC', () => {
+        const content = '[5134,4200]<0,800,0>故<800,900,0>事的<2100,1200,0>小黄花';
+        expect(sodaKaraokeToEnhancedLrc(content))
+            .toBe('[00:05.13]<00:05.134>故<00:05.934>事的<00:07.234>小黄花<00:08.434>\n');
+    });
+
+    it('keeps a line without word timing as a plain line', () => {
+        expect(sodaKaraokeToEnhancedLrc('[9334,3000]从出生那年就飘着')).toBe('[00:09.33]从出生那年就飘着\n');
+    });
+
+    it('answers null for anything that is not the platform format', () => {
+        expect(sodaKaraokeToEnhancedLrc('[00:12.34]普通 LRC')).toBeNull();
+        expect(sodaKaraokeToEnhancedLrc('')).toBeNull();
     });
 });
 

@@ -51,6 +51,7 @@ const OPERATIONS = [
     'resolve',
     'login_cookie_import',
     'pc_login',
+    'signed_lyric',
 ];
 
 const query = (params) => new URLSearchParams(Object.fromEntries(
@@ -90,7 +91,12 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
      * 带应用签名的 VIP 取流。未签名时平台返回 HTTP 200 + 0 字节，所以这里必须先把
      * X-Helios / X-Medusa 签上；播放地址（MainPlayUrl）拿到后下载并用 playAuth 解密。
      */
-    const signedPlay = async (trackId, quality) => {
+    // 一首歌的签名 track_v2 答复：播放要在里面找流，歌词要在里面找词，缓存几分钟省一次签名。
+    const signedTrackCache = new Map();
+    const signedTrack = async (trackId) => {
+        const key = String(trackId);
+        const hit = signedTrackCache.get(key);
+        if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.payload;
         const session = sessionStore?.get();
         const cookie = session?.platforms?.qishui?.cookie || '';
         if (!cookie) throw new Error('签名取流需要登录 cookie');
@@ -125,8 +131,14 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         console.info('[Soda] signed track_v2:', answer.status, text.length, 'bytes', '| client', versionName);
         if (!text) throw new Error(`签名请求被清空（HTTP ${answer.status}，0 字节）`);
         const payload = JSON.parse(text);
+        if (signedTrackCache.size > 40) signedTrackCache.delete(signedTrackCache.keys().next().value);
+        signedTrackCache.set(key, { payload, at: Date.now() });
+        return payload;
+    };
+
+    /** 从签名答复里挑播放流（video_model 递归展开，spade_a 与时长逐层继承）。 */
+    const pickStreams = async (payload, wanted) => {
         const trackPlayer = payload?.track_player ?? payload?.trackPlayer ?? {};
-        const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
         /**
          * 把 video_model 展开成候选流。结构与 libresoda 的 collect_video_model_entries 一致：
          * spade_a 和时长都可能是**父层**给的（时长键是 video_duration / duration），子项继承。
@@ -193,6 +205,14 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             console.info('[Soda] signed track_v2 shape:', Object.keys(trackPlayer).join(','));
             throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         }
+        return streams;
+    };
+
+    const signedPlay = async (trackId, quality) => {
+        const wanted = quality === 'standard' ? 128000 : quality === 'high' ? 320000 : 999999;
+        const payload = await signedTrack(trackId);
+        const streams = await pickStreams(payload, wanted);
+        if (streams.length === 0) throw new Error('没找到可播的流（video_model 与 url_player_info 都没有流）');
         const best = streams[0];
         console.info('[Soda] signed stream: bitrate', best.bitrate || 'unknown', '| duration', best.duration ? `${best.duration}s` : 'unknown', '| size', best.size || 'unknown', '| quality', best.quality || 'unknown', '| auth', best.auth ? 'yes' : 'no');
         console.info('[Soda] stream candidates:', streams.map((item) => `${item.duration}s/${item.bitrate}`).join(' '));
@@ -379,6 +399,24 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
             if (!liked) return { ids: [], whole: true };
             const detail = await client.getPlaylist(String(liked.id), { limit });
             return { ids: (detail?.songs ?? []).map((song) => String(song.id)), whole: (detail?.songs ?? []).length < limit };
+        },
+        /**
+         * 汽水自己的歌词。签名答复的 track.lyric.content 是 karaoke 格式：
+         *   [行起始ms,行时长ms]<词偏移ms,词时长ms,标志>词…
+         * 分享页那份往往没有逐字，所以登录后优先用这一份。
+         */
+        async signed_lyric({ songId }) {
+            if (!songId) throw new Error('missing song id');
+            const payload = await signedTrack(String(songId));
+            const track = payload?.track ?? payload?.track_info ?? {};
+            const raw = track?.lyric ?? payload?.lyric ?? null;
+            const content = typeof raw === 'string' ? raw : String(raw?.content ?? raw?.lyric ?? '');
+            if (!content) {
+                console.info('[Soda] signed lyric: none | track keys:', Object.keys(track).join(','));
+                return { content: '' };
+            }
+            console.info('[Soda] signed lyric:', content.length, 'chars |', content.slice(0, 50).replace(/\s+/g, ' '));
+            return { content };
         },
         async like({ songId, liked }) {
             if (!songId) throw new Error('missing song id');
