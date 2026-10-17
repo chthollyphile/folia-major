@@ -140,7 +140,7 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 
 ## 四、macOS 壁纸模式
 
-> 无边框 Electron 主窗口原地沉到「Finder 图标层之下、系统壁纸之上」，视觉上充当壁纸；桌面图标保持可见。交互通过 **listen-only CGEventTap 全局鼠标监听 + 桌面点过滤 + `webContents.sendInputEvent` 注入** 实现。不新建 helper 子进程、不 relaunch（与 Windows/Linux 的既有路径并列，互不干扰）；通常不重建窗口，仅当窗口曾被 Electron `setAlwaysOnTop` 碰过（见 §2 开关路径「开」）时，进入前重建一次。
+> 无边框 Electron 主窗口原地沉到「Finder 图标层之下、系统壁纸之上」，视觉上充当壁纸；桌面图标保持可见。交互通过 **worker 线程中的 active CGEventTap 拦截裸桌面按钮手势 + 主线程 listen-only tap 监听移动/滚轮 + 桌面点过滤 + `webContents.sendInputEvent` 注入** 实现。active tap 吞掉原始点击，避免 Finder / 台前调度在 Folia 处理完后又把这次点击当成桌面点击；它运行在自己的 CFRunLoop，不能挂在 Electron 主线程上（主线程启动繁忙时实测事件排队 5.2 秒并触发 tap watchdog）。壁纸窗口矩形与 Dock 几何通过 SharedArrayBuffer 同步给 worker，显示器变化后仍使用最新命中范围。不新建 helper 子进程、不 relaunch（与 Windows/Linux 的既有路径并列，互不干扰）；通常不重建窗口，仅当窗口曾被 Electron `setAlwaysOnTop` 碰过（见 §2 开关路径「开」）时，进入前重建一次。
 
 ### 1. 依赖与模块
 
@@ -149,8 +149,9 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 - 新增 `electron/wallpaper/macWallpaperController.cjs`（darwin-only、依赖注入、无 Electron 硬依赖），与 Windows 控制器同为「纯逻辑 + `main.cjs` 接线」结构；`main.cjs` 顶部无条件 require（模块自身按 darwin 门控 FFI，非 darwin 不加载原生依赖）。职责：
   - **level**：`isAvailable()/desktopLevel()/normalLevel()/setLevel(win,level)/setCollectionBehavior(win,mask)/getLevel(win)/getOcclusionState(win)`；FFI 失败一律 no-op 返回；`objc_msgSend` 按具体签名声明多个原型（arm64 要求）。collection behavior 优先走 Electron `setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})`，不用裸 `setCollectionBehavior(81)`（会丢掉 FullScreenAuxiliary 位）。
   - **presentation**：`clearAutoHidePresentationOptions()`——经 `objc_getClass('NSApplication')`/`sharedApplication` 清除 NSApp **应用级** AutoHideDock|AutoHideMenuBar 位。背景：Electron simple-FS 进入时以 `[NSApp setPresentationOptions:]` 设置这两位、退出时恢复「进入时捕获的值」；若窗口在 simple-FS 中被直接销毁（窗口关闭/透明切换重建），无退出恢复，位会残留并被下一次进入捕获为脏值，之后每次退出「恢复」的仍是脏值——表现为聚焦本应用即隐藏菜单栏/Dock（实测）。**只清 AutoHide 两位，绝不碰 FullScreen 位**（原生全屏过渡期由系统持有；旧修复连 FullScreen 一起清导致死循环，已移除）。仅在壁纸会话完全拆除后调用。
-  - **tap**：`hasPermission()/requestPermission()/start(forward)/stop()/isRunning()`；mask 覆盖 left/right down/up/dragged、mouseMoved、scroll。`CGEventType` 必须按 `uint32` 声明（tap-disabled 哨兵 0xFFFFFFFE/0xFFFFFFFF 若按 int 会变 -2/-1 而失配）；tap 被系统禁用收到哨兵后自动 `CGEventTapEnable` 重武装。权限探测抽为闭包 `listenAccessGranted()`，`start()` 与对外 `hasPermission()` 共用。
-  - **桌面点过滤** `isDesktopPoint(x,y)`：枚举 `CGWindowListCopyWindowInfo(onScreenOnly)`，只读 `kCGWindowLayer`/`kCGWindowBounds`/`kCGWindowOwnerPID`（不读 window name，避免触发屏幕录制权限）。除「任何层高于 Finder 桌面层且覆盖该点的窗口 → 非桌面」外，还排除两类会把整屏「盖住」的窗口（实测所得，否则所有点都会被判 covered）：本进程的全屏呈现窗口（simple-fullscreen 下 WindowServer 按 layer≥101 报告，尽管 NSWindow 逻辑 level 是桌面层，按 `ownerPID === process.pid && layer >= 101` 跳过）与 Dock 进程的追踪窗口（自动隐藏态 layer≈20、bounds 铺满全屏，Dock pid 用 `pgrep -x Dock` 惰性解析并缓存、失效自动刷新）。
+  - **tap**：`hasListenPermission()/hasAccessibilityPermission()/hasPermission()/requestPermission()/start(forward)/stop()/isRunning()`。active/default tap 在 `macWallpaperTapWorker.cjs` 的独立 worker 线程/CFRunLoop 中订阅 left/right down/up/dragged，只在裸桌面 + 壁纸窗口范围内返回 `NULL`，验证后的按钮事件通过 `worker_threads` 回传主进程；主线程 listen-only tap 只订阅 mouseMoved/scroll。`CGEventType` 必须按 `uint32` 声明（tap-disabled 哨兵 0xFFFFFFFE/0xFFFFFFFF 若按 int 会变 -2/-1 而失配）。listen-only tap 被系统禁用后自动重武装；active tap 只有在 Accessibility 仍有效时重武装，撤销后停止交互并提示。worker 通过 SharedArrayBuffer 停止标志退出 CFRunLoop。权限探测分别使用 `CGPreflightListenEventAccess()` 与 `AXIsProcessTrusted()`。
+  - **桌面点过滤** `isDesktopPoint(x,y)`：枚举 `CGWindowListCopyWindowInfo(onScreenOnly)`，只读 `kCGWindowLayer`/`kCGWindowBounds`/`kCGWindowOwnerPID`（不读 window name，避免触发屏幕录制权限）。除「任何层高于 Finder 桌面层且覆盖该点的窗口 → 非桌面」外，还排除两类会把整屏盖住的系统表面：本进程的全屏呈现窗口（simple-fullscreen 下 WindowServer 按 layer≥101 报告，尽管 NSWindow 逻辑 level 是桌面层，按 `ownerPID === process.pid && layer >= 101` 跳过）与 Finder/Dock 的全屏追踪表面。Dock 通过 `layer > 0 && layer <= 20` 且 bounds 铺满当前显示器识别，不在 active tap 回调里执行 `pgrep`；旧实现同步查 Dock pid 时实测单次回调可达 2.19 秒，会触发系统 tap watchdog，表现为壁纸间歇性无法点击。另在 tap 启动时读取 Dock orientation / tile size / autohide，直接保留 Dock 所在边缘条带给系统（自动隐藏时只保留 12px reveal strip）；运行中的 2 秒权限/位置看门狗异步刷新这组值，并通过 SharedArrayBuffer 同步给 worker，Dock 从左侧切到底部后不会继续吞掉左上角点击。Stage Manager 会暴露明显超出显示器尺寸的不可截图辅助表面（实测 772×1815 / 1470×956），这类异常浮层不计作有效遮挡，避免让壁纸空白区和右下角控件误判为被其他应用覆盖。
+  - **Finder 桌面内容过滤**：macOS 27 的 Finder 桌面背景、图标、标签和小组件都位于同一个全屏窗口，仅靠 `CGWindowList` 无法区分。worker 在按钮 down 时调用 `AXUIElementCopyElementAtPosition`：只有命中的是覆盖整个壁纸区域的 `AXGroup` 桌面根元素时才转发给 Folia；`AXImage` 图标、图标文字、小组件及其他 Finder 子元素都保留给 Finder。Accessibility 查询失败时 fail-open 到壁纸点击，避免临时 AX 故障让整个桌面失效。
   - **Dock 自动隐藏**：`setDockAutohide(on)/restoreDock()/restoreDockSync()/recoverStrandedDock()/configureDockRecovery()`，配合 marker 文件 `.wallpaper-dock-autohidden` 做崩溃恢复。
 - 单元测试 `test/unit/electron/macWallpaperController.test.ts`：覆盖纯逻辑（事件 kind 归一化、level 换算、test-mode 判定）与 Dock 状态机（注入 `defaults`/`killall`/fs 假件），FFI 层留真机验证。
 
@@ -173,18 +174,18 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 
 ### 3. 交互接入
 
-- **授权**：开启壁纸模式前置检查 `hasPermission()`（Input Monitoring）；未授权时调用 `requestPermission()` 弹系统授权，renderer toast + 设置页文案指引「系统设置 → 隐私与安全性 → 输入监控」，并保持模式关闭。macOS 对已勾选但未重启的进程仍可能报未授权，需完全退出重开生效。
+- **授权**：开启壁纸模式前置检查 `hasPermission()`（Input Monitoring + Accessibility）；macOS 27 的用户界面把 Accessibility 显示为「设备控制和数据访问」。未授权时分别弹出输入监控与该授权，renderer toast + 设置页文案指引两个「系统设置 → 隐私与安全性」面板，并保持模式关闭。macOS 对已勾选但未重启的进程仍可能报未授权，需完全退出重开生效。
 - **转发 `forwardMacWallpaperMouse(evt)`**：仅转发 `isDesktopPoint` 判定的裸桌面事件（点在 App/Dock/小组件上不转发）；down 记忆起点、期间 drag 持续、up 结束（含右键）；`mouseMoved` 时间节流 ~40ms；scroll 读 `ScrollWheelEventDeltaAxis1/2`。
 - **注入 `sendMacWallpaperMouseEvent(evt)`**：屏幕点换算为窗口内容点后 `webContents.sendInputEvent`；down/up → `mouseDown/mouseUp`（clickCount 500ms/8px 双击合成），drag/move → `mouseMove`（拖拽时带 `leftbuttondown` modifier 维持 buttons=1），scroll → `mouseWheel`（增量 ×16，轴向/倍率需真机校准）。drag 事件合并到最新位置后 ~16ms flush。
-- **tap 生命周期**：进壁纸默认开（`wallpaper_forward_mouse !== false`），`start/stop` 即开关；tap 启动失败计数达到阈值 → 降级为非交互壁纸并提示。
+- **tap 生命周期**：进壁纸默认开（`wallpaper_forward_mouse !== false`），`start/stop` 同时管理 worker active tap 与主线程 listen-only tap；任一无法启动则视为交互不可用。启动失败计数达到阈值 → 降级为非交互壁纸并提示。active tap 被撤销权限或系统禁用时立即停止交互，不能无条件重装；worker 的 ready/error/exit 信息都会回传主进程。
 - **键盘不转发**：与 Windows 交互边界一致，壁纸模式下键盘不可达；退出/控制走托盘等入口。
 - **Dock**：`wallpaper_mac_autohide_dock`（mac 专属，**默认开**）。位置感知：仅在 Dock 位于屏幕底部时，壁纸会话期间自动隐藏 Dock、置 `autohide-delay=0`（贴边立即唤出）；左/右侧 Dock 不动。开关是显式覆盖：关闭后即使 Dock 在底部也不隐藏。退出壁纸/退出应用恢复用户原值；marker 防崩溃残留，下次启动对账恢复。
 
 ### 4. 渲染与文案
 
-- `src/components/modal/settings/pages/DesktopPage.tsx`：`HAS_WALLPAPER_MODE` 判定放开 Wallpaper Mode 那一行；mac 下（`IS_MAC`）它下面多一行「自动隐藏 Dock 栏」开关（默认开，实际仅在 Dock 位于底部时生效），这一行下方显示输入监控指引。
+- `src/components/modal/settings/pages/DesktopPage.tsx`：`HAS_WALLPAPER_MODE` 判定放开 Wallpaper Mode 那一行；mac 下（`IS_MAC`）它下面多一行「自动隐藏 Dock 栏」开关（默认开，实际仅在 Dock 位于底部时生效），这一行下方显示输入监控 + 设备控制和数据访问指引。
 - 命令面板 `settingsCommands.ts`：`settings-wallpaper-mode` 与 `desktop-toggle-wallpaper-mode` 的 `platform` 含 `'mac'`；`browser-fullscreen`、always-on-top 等隐藏项已由 `isWallpaperMode` 门控，无需改动。
-- 三语文案（zh-CN / en / in）：`options.wallpaperModeMacPermissionHint`、`options.wallpaperMacAutohideDock(Desc)`、`notifications.macWallpaperAutohideDockOn/Off`、`notifications.macWallpaperInputMonitoringNeeded`。mac 下 toggle 与 Windows/Linux 走同一 `handleToggleWallpaperMode` 路径。
+- 三语文案（zh-CN / en / in）：`options.wallpaperModeMacPermissionHint`、`options.wallpaperMacAutohideDock(Desc)`、`notifications.macWallpaperAutohideDockOn/Off`、`notifications.macWallpaperPermissionsNeeded`。mac 下 toggle 与 Windows/Linux 走同一 `handleToggleWallpaperMode` 路径。
 - 本地存储契约快照（`storeContract.test.ts.snap`）新增 `wallpaper_mac_autohide_dock`。
 
 ### 5. 打包

@@ -168,12 +168,12 @@ export function useAppPreferences() {
     }, []);
 
     useEffect(() => {
-        // macOS wallpaper mode refused to enter because Input Monitoring is not granted: the
-        // main process surfaces the System Settings prompt, this explains what to do next.
-        return window.electron?.onWallpaperInputMonitorRequested?.(() => {
+        // macOS wallpaper mode refused to enter because one of its two event-tap permissions is
+        // missing: the main process surfaces the System Settings prompts, this explains both.
+        return window.electron?.onWallpaperPermissionsRequested?.(() => {
             setStatusMessage({
                 type: 'info',
-                text: i18n.t('notifications.macWallpaperInputMonitoringNeeded'),
+                text: i18n.t('notifications.macWallpaperPermissionsNeeded'),
             });
         });
     }, []);

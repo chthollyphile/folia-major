@@ -16,6 +16,12 @@ const {
   computeDesktopLevel,
   isTransparentDesktopSurface,
   isFullDisplaySurface,
+  isFullDisplayDesktopChrome,
+  isDockReservedPoint,
+  isOversizedAuxiliarySurface,
+  isDesktopAdjacentSystemStrip,
+  planMacInterceptGesture,
+  createMacTapMasks,
   parseDockMarker,
   createMacWallpaperController,
   isMacWallpaperTestMode,
@@ -25,6 +31,32 @@ const {
   computeDesktopLevel: (iconLevel: number) => number;
   isTransparentDesktopSurface: (layer: number, alpha: number) => boolean;
   isFullDisplaySurface: (bounds: Rect | null, displayFrame: Rect | null) => boolean;
+  isFullDisplayDesktopChrome: (layer: number, bounds: Rect | null, displayFrame: Rect | null) => boolean;
+  isDockReservedPoint: (
+    x: number,
+    y: number,
+    displayFrame: Rect | null,
+    dockChrome: {
+      orientation: 'left' | 'right' | 'bottom' | null;
+      autohide: boolean;
+      size: number;
+      rect?: Rect | null;
+    } | null,
+  ) => boolean;
+  isOversizedAuxiliarySurface: (layer: number, bounds: Rect | null, displayFrame: Rect | null) => boolean;
+  isDesktopAdjacentSystemStrip: (layer: number, bounds: Rect | null, displayFrame: Rect | null) => boolean;
+  planMacInterceptGesture: (kind: string, state?: {
+    onWallpaper?: boolean;
+    desktopPoint?: boolean;
+    leftDownDesktop?: boolean;
+    rightDownDesktop?: boolean;
+  }) => {
+    forward: boolean;
+    consume: boolean;
+    nextLeftDownDesktop: boolean;
+    nextRightDownDesktop: boolean;
+  };
+  createMacTapMasks: () => { buttonMask: bigint; activeGestureMask: bigint; passiveMask: bigint };
   parseDockMarker: (content: string) => { autohide: '0' | 'absent'; delay: string } | null;
   createMacWallpaperController: (options?: Record<string, unknown>) => Controller;
   isMacWallpaperTestMode: (env: Record<string, string>, testMode?: boolean) => boolean;
@@ -48,7 +80,11 @@ interface Controller {
   desktopLevel: () => number;
   setLevel: () => boolean;
   setCollectionBehavior: () => boolean;
+  hasListenPermission: () => boolean;
+  hasAccessibilityPermission: () => boolean;
   hasPermission: () => boolean;
+  refreshDockChrome: () => unknown;
+  updateHitRect: (rect: Rect) => boolean;
   requestPermission: () => boolean;
   isDesktopPoint: (x: number, y: number) => boolean;
   isDockAtBottom: () => boolean;
@@ -149,6 +185,69 @@ describe('classifyMacTapEventType', () => {
   });
 });
 
+describe('planMacInterceptGesture', () => {
+  it('starts and consumes a button gesture only on the bare wallpaper desktop', () => {
+    expect(planMacInterceptGesture('down', { onWallpaper: true, desktopPoint: true })).toEqual({
+      forward: true,
+      consume: true,
+      nextLeftDownDesktop: true,
+      nextRightDownDesktop: false,
+    });
+    expect(planMacInterceptGesture('rdown', { onWallpaper: true, desktopPoint: true })).toEqual({
+      forward: true,
+      consume: true,
+      nextLeftDownDesktop: false,
+      nextRightDownDesktop: true,
+    });
+  });
+
+  it('leaves clicks on icons, widgets, other windows, and other displays untouched', () => {
+    expect(planMacInterceptGesture('down', { onWallpaper: true, desktopPoint: false }).consume).toBe(false);
+    expect(planMacInterceptGesture('down', { onWallpaper: false, desktopPoint: true }).consume).toBe(false);
+  });
+
+  it('consumes the matching up even after the pointer leaves the desktop', () => {
+    expect(planMacInterceptGesture('up', { leftDownDesktop: true })).toEqual({
+      forward: true,
+      consume: true,
+      nextLeftDownDesktop: false,
+      nextRightDownDesktop: false,
+    });
+    expect(planMacInterceptGesture('rup', { rightDownDesktop: true }).consume).toBe(true);
+  });
+
+  it('forwards wallpaper drags without suppressing pointer movement', () => {
+    expect(planMacInterceptGesture('drag', { leftDownDesktop: true })).toMatchObject({
+      forward: true,
+      consume: false,
+    });
+    expect(planMacInterceptGesture('rdrag', { rightDownDesktop: true })).toMatchObject({
+      forward: true,
+      consume: false,
+    });
+  });
+
+  it('does not consume an up or drag that did not start on the wallpaper', () => {
+    expect(planMacInterceptGesture('up')).toMatchObject({ forward: false, consume: false });
+    expect(planMacInterceptGesture('drag')).toMatchObject({ forward: false, consume: false });
+    expect(planMacInterceptGesture('move')).toMatchObject({ forward: false, consume: false });
+  });
+});
+
+describe('createMacTapMasks', () => {
+  it('keeps pointer motion passive while the worker owns the full button gesture', () => {
+    const { buttonMask, activeGestureMask, passiveMask } = createMacTapMasks();
+    expect(buttonMask & passiveMask).toBe(0n);
+    expect(activeGestureMask & passiveMask).toBe(0n);
+    expect(buttonMask & (1n << 1n)).not.toBe(0n); // leftMouseDown
+    expect(buttonMask & (1n << 5n)).toBe(0n); // mouseMoved
+    expect(passiveMask & (1n << 5n)).not.toBe(0n); // mouseMoved
+    expect(activeGestureMask & (1n << 6n)).not.toBe(0n); // leftMouseDragged
+    expect(passiveMask & (1n << 6n)).toBe(0n); // leftMouseDragged
+    expect(passiveMask & (1n << 22n)).not.toBe(0n); // scrollWheel
+  });
+});
+
 describe('computeDesktopLevel', () => {
   it('sits one level below the desktop-icon layer', () => {
     expect(computeDesktopLevel(100)).toBe(99);
@@ -199,6 +298,89 @@ describe('isFullDisplaySurface', () => {
   it('fails soft when either frame is missing', () => {
     expect(isFullDisplaySurface({ x: 0, y: 0, width: 1470, height: 956 }, null)).toBe(false);
     expect(isFullDisplaySurface(null, displayFrame)).toBe(false);
+  });
+});
+
+describe('isFullDisplayDesktopChrome', () => {
+  const displayFrame: Rect = { x: 0, y: 0, width: 1470, height: 956 };
+  const fullBounds: Rect = { x: 0, y: 0, width: 1470, height: 956 };
+
+  it('passes through Finder and Dock full-display tracking surfaces', () => {
+    expect(isFullDisplayDesktopChrome(FINDER_DESKTOP_LAYER, fullBounds, displayFrame)).toBe(true);
+    expect(isFullDisplayDesktopChrome(20, fullBounds, displayFrame)).toBe(true);
+  });
+
+  it('keeps normal windows, desktop widgets/icons, and bar-sized Dock surfaces covering', () => {
+    expect(isFullDisplayDesktopChrome(0, fullBounds, displayFrame)).toBe(false);
+    expect(isFullDisplayDesktopChrome(20, { x: 0, y: 880, width: 1470, height: 76 }, displayFrame)).toBe(false);
+    expect(isFullDisplayDesktopChrome(24, { x: 0, y: 0, width: 1470, height: 33 }, displayFrame)).toBe(false);
+  });
+
+  it('fails open only for desktop chrome when display geometry is unavailable', () => {
+    expect(isFullDisplayDesktopChrome(FINDER_DESKTOP_LAYER, fullBounds, null)).toBe(true);
+    expect(isFullDisplayDesktopChrome(20, fullBounds, null)).toBe(true);
+    expect(isFullDisplayDesktopChrome(0, fullBounds, null)).toBe(false);
+  });
+});
+
+describe('isDockReservedPoint', () => {
+  const display: Rect = { x: 0, y: 0, width: 1470, height: 956 };
+
+  it('reserves the configured Dock edge in every supported orientation', () => {
+    expect(isDockReservedPoint(40, 500, display, { orientation: 'left', autohide: false, size: 88 })).toBe(true);
+    expect(isDockReservedPoint(100, 500, display, { orientation: 'left', autohide: false, size: 88 })).toBe(false);
+    expect(isDockReservedPoint(1430, 500, display, { orientation: 'right', autohide: false, size: 88 })).toBe(true);
+    expect(isDockReservedPoint(700, 920, display, { orientation: 'bottom', autohide: false, size: 88 })).toBe(true);
+  });
+
+  it('reserves only the visible Dock bar rectangle when AX geometry is available', () => {
+    const dock = {
+      orientation: 'left' as const,
+      autohide: false,
+      size: 88,
+      rect: { x: 10, y: 358, width: 61, height: 273 },
+    };
+    expect(isDockReservedPoint(40, 300, display, dock)).toBe(false);
+    expect(isDockReservedPoint(40, 400, display, dock)).toBe(true);
+    expect(isDockReservedPoint(100, 400, display, dock)).toBe(false);
+  });
+
+  it('keeps only a narrow reveal strip while the Dock is auto-hidden', () => {
+    expect(isDockReservedPoint(6, 500, display, { orientation: 'left', autohide: true, size: 88 })).toBe(true);
+    expect(isDockReservedPoint(20, 500, display, { orientation: 'left', autohide: true, size: 88 })).toBe(false);
+  });
+
+  it('fails open when Dock placement is unknown', () => {
+    expect(isDockReservedPoint(40, 500, display, null)).toBe(false);
+    expect(isDockReservedPoint(40, 500, display, { orientation: null, autohide: false, size: 88 })).toBe(false);
+  });
+});
+
+describe('isOversizedAuxiliarySurface', () => {
+  const display: Rect = { x: 0, y: 0, width: 1470, height: 956 };
+
+  it('ignores oversized Stage Manager backing surfaces', () => {
+    expect(isOversizedAuxiliarySurface(3, { x: 832, y: -289, width: 772, height: 1815 }, display)).toBe(true);
+  });
+
+  it('keeps normal windows, true full-screen overlays, and the Dock tracking layer', () => {
+    expect(isOversizedAuxiliarySurface(0, { x: 280, y: 221, width: 1015, height: 600 }, display)).toBe(false);
+    expect(isOversizedAuxiliarySurface(3, { x: 0, y: 0, width: 1470, height: 956 }, display)).toBe(false);
+    expect(isOversizedAuxiliarySurface(20, { x: 0, y: -1000, width: 1470, height: 3000 }, display)).toBe(false);
+  });
+});
+
+describe('isDesktopAdjacentSystemStrip', () => {
+  const display: Rect = { x: 0, y: 0, width: 1470, height: 956 };
+
+  it('ignores the transparent WindowServer strip immediately above Finder desktop', () => {
+    expect(isDesktopAdjacentSystemStrip(FINDER_DESKTOP_LAYER + 1, { x: 0, y: 0, width: 1470, height: 81 }, display)).toBe(true);
+  });
+
+  it('keeps the real menu bar and normal app windows covering', () => {
+    expect(isDesktopAdjacentSystemStrip(FINDER_DESKTOP_LAYER + 1, { x: 0, y: 0, width: 1470, height: 300 }, display)).toBe(false);
+    expect(isDesktopAdjacentSystemStrip(24, { x: 0, y: 0, width: 1470, height: 33 }, display)).toBe(false);
+    expect(isDesktopAdjacentSystemStrip(0, { x: 0, y: 0, width: 1470, height: 81 }, display)).toBe(false);
   });
 });
 
@@ -284,8 +466,18 @@ describe('Dock auto-hide state machine', () => {
 
   it('records the prior autohide and hides the Dock with a zero reveal delay', async () => {
     await harness.controller.setDockAutohide(true);
-    // prior autohide ('0') and autohide-delay (missing -> 'absent') are read synchronously.
-    expect(harness.execSyncCalls.map(call => call.args[2])).toEqual(['autohide', 'autohide-delay']);
+    // prior autohide/delay are read before mutation; the final reads refresh the Dock exclusion
+    // geometry after the async hide sequence lands.
+    expect(harness.execSyncCalls
+      .filter(call => call.cmd === '/usr/bin/defaults')
+      .map(call => call.args[2])).toEqual([
+      'autohide',
+      'autohide-delay',
+      'orientation',
+      'tilesize',
+      'largesize',
+      'autohide',
+    ]);
     // Then: zero the delay, hide the Dock, restart the Dock.
     expect(harness.execCalls).toEqual([
       { cmd: '/usr/bin/defaults', args: ['write', 'com.apple.dock', 'autohide-delay', '-float', '0'] },

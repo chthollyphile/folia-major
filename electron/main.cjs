@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, screen, dialog, shell, nativeImage, webContents: electronWebContents, Menu, Tray, nativeTheme, powerSaveBlocker, safeStorage, protocol, crashReporter, net: electronNet } = require('electron');
+const { app, BrowserWindow, ipcMain, session, screen, systemPreferences, dialog, shell, nativeImage, webContents: electronWebContents, Menu, Tray, nativeTheme, powerSaveBlocker, safeStorage, protocol, crashReporter, net: electronNet } = require('electron');
 // 必须先于其它模块加载：TEMP / TMP 里没展开的 %USERPROFILE% 会让 os.tmpdir() 变成相对路径（#690）。
 for (const repair of require('./tempDirEnvironment.cjs').repairTempDirEnvironment()) {
   console.warn(`[TempDir] expanded ${repair.key}: ${repair.from} -> ${repair.to}`);
@@ -912,6 +912,7 @@ let isMacWallpaperActive = false;
 let isMacWallpaperInteractionEnabled = false;
 let macWallpaperTapFailures = 0;
 let macWallpaperTapRetryTimer = null;
+let macWallpaperPermissionPollTimer = null;
 let macWallpaperSavedState = null; // { bounds, resizable, movable, maximizable, nativeBlurEnabled }
 let macWallpaperMouseDownAt = { at: 0, x: 0, y: 0 };
 let macWallpaperPendingDrag = null;
@@ -927,6 +928,7 @@ let macWallpaperSettleTimer = null;
 let macWallpaperSettleAttempts = 0;
 const MAC_WALLPAPER_TAP_RETRY_DELAY_MS = 2000;
 const MAC_WALLPAPER_TAP_FAILURE_THRESHOLD = 3;
+const MAC_WALLPAPER_PERMISSION_POLL_MS = 2000;
 const MAC_WALLPAPER_DRAG_FLUSH_MS = 16;
 const MAC_WALLPAPER_FULLSCREEN_EXIT_POLL_MS = 250;
 const MAC_WALLPAPER_FULLSCREEN_EXIT_MAX_WAIT_MS = 6000;
@@ -948,6 +950,15 @@ function getMacWallpaperController() {
       macWallpaperControllerInstance = macWallpaperModule.createMacWallpaperController({
         store,
         userDataPath: () => app.getPath('userData'),
+        onInterceptUnavailable: () => {
+          // The worker owns the inline active tap; tear down interaction once its failure has
+          // been marshalled back to the main process.
+          setImmediate(() => {
+            if (!isMacWallpaperActive) return;
+            stopMacWallpaperInteraction();
+            notifyMacWallpaperPermissionsNeeded();
+          });
+        },
       });
     } catch (error) {
       console.warn('[WallpaperMac] controller init failed:', error && error.message);
@@ -1023,6 +1034,7 @@ function applyMacWallpaperFrame() {
       // not blocked in simple full screen).
       mainWindow.setBounds(target, false);
     }
+    controller.updateHitRect?.(mainWindow.getBounds());
     return true;
   } catch (error) {
     console.warn('[WallpaperMac] apply wallpaper frame failed:', error && error.message);
@@ -1252,13 +1264,27 @@ function notifyMacWallpaperModeChanged() {
   }
 }
 
-// Input Monitoring is required to forward desktop clicks/hover into the wallpaper window. When it
-// is missing the renderer shows a toast pointing at System Settings (mirrors the Windows
-// wallpaper-transparent-refused prompt pattern).
-function notifyMacWallpaperInputMonitoringNeeded() {
+// Input Monitoring powers the hover/scroll listener; Accessibility powers the active tap that
+// suppresses desktop button gestures before Finder/Stage Manager sees them. When either grant is
+// missing the renderer explains both System Settings locations.
+function notifyMacWallpaperPermissionsNeeded() {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-input-monitor-requested', null);
+    mainWindow.webContents.send('wallpaper-permissions-requested', null);
   }
+}
+
+function requestMacWallpaperPermissions(controller) {
+  try {
+    controller.requestPermission();
+  } catch (error) {
+    // ignore
+  }
+  try {
+    systemPreferences.isTrustedAccessibilityClient(true);
+  } catch (error) {
+    // ignore
+  }
+  notifyMacWallpaperPermissionsNeeded();
 }
 
 // Dock auto-hide during a wallpaper session is position-aware: the Dock is hidden only while it
@@ -1302,12 +1328,7 @@ function enterMacWallpaperMode() {
   // Interactivity is the point of the mac wallpaper (the sunk window can only be reached through
   // the tap); refuse entry instead of leaving a dead, unclickable wallpaper behind the icons.
   if (!controller.hasPermission()) {
-    try {
-      controller.requestPermission(); // surfaces the macOS Input Monitoring prompt
-    } catch (error) {
-      // ignore
-    }
-    notifyMacWallpaperInputMonitoringNeeded();
+    requestMacWallpaperPermissions(controller);
     revertStoredWallpaperMode();
     return false;
   }
@@ -1394,6 +1415,10 @@ function exitMacWallpaperMode() {
   if (macWallpaperTapRetryTimer) {
     clearTimeout(macWallpaperTapRetryTimer);
     macWallpaperTapRetryTimer = null;
+  }
+  if (macWallpaperPermissionPollTimer) {
+    clearInterval(macWallpaperPermissionPollTimer);
+    macWallpaperPermissionPollTimer = null;
   }
   if (macWallpaperDragTimer) {
     clearTimeout(macWallpaperDragTimer);
@@ -1652,16 +1677,17 @@ function startMacWallpaperInteraction() {
     return false;
   }
   if (!controller.hasPermission()) {
-    try {
-      controller.requestPermission();
-    } catch (error) {
-      // ignore
-    }
+    requestMacWallpaperPermissions(controller);
     isMacWallpaperInteractionEnabled = false;
-    notifyMacWallpaperInputMonitoringNeeded();
     return false;
   }
-  const started = controller.start(forwardMacWallpaperMouse, macWallpaperWindowHitTest);
+  let wallpaperHitRect = null;
+  try {
+    wallpaperHitRect = mainWindow.getBounds();
+  } catch (error) {
+    // The controller falls back to rejecting hits when no rectangle is available.
+  }
+  const started = controller.start(forwardMacWallpaperMouse, macWallpaperWindowHitTest, wallpaperHitRect);
   if (!started) {
     macWallpaperTapFailures += 1;
     if (macWallpaperTapFailures >= MAC_WALLPAPER_TAP_FAILURE_THRESHOLD) {
@@ -1669,7 +1695,7 @@ function startMacWallpaperInteraction() {
       console.warn('[WallpaperMac] event tap keeps failing, wallpaper is now non-interactive');
       isMacWallpaperInteractionEnabled = false;
       controller.stop();
-      notifyMacWallpaperInputMonitoringNeeded();
+      notifyMacWallpaperPermissionsNeeded();
       return false;
     }
     if (!macWallpaperTapRetryTimer) {
@@ -1686,11 +1712,38 @@ function startMacWallpaperInteraction() {
     return false;
   }
   macWallpaperTapFailures = 0;
+  if (!macWallpaperPermissionPollTimer) {
+    macWallpaperPermissionPollTimer = setInterval(() => {
+      if (!isMacWallpaperActive || !isMacWallpaperInteractionEnabled) {
+        return;
+      }
+      const activeController = getMacWallpaperController();
+      if (activeController) {
+        void activeController.refreshDockChromeAsync();
+      }
+      if (
+        activeController
+        && activeController.hasListenPermission()
+        && activeController.hasAccessibilityPermission()
+      ) {
+        return;
+      }
+      stopMacWallpaperInteraction();
+      notifyMacWallpaperPermissionsNeeded();
+    }, MAC_WALLPAPER_PERMISSION_POLL_MS);
+    if (typeof macWallpaperPermissionPollTimer?.unref === 'function') {
+      macWallpaperPermissionPollTimer.unref();
+    }
+  }
   return true;
 }
 
 function stopMacWallpaperInteraction() {
   isMacWallpaperInteractionEnabled = false;
+  if (macWallpaperPermissionPollTimer) {
+    clearInterval(macWallpaperPermissionPollTimer);
+    macWallpaperPermissionPollTimer = null;
+  }
   const controller = getMacWallpaperController();
   if (controller) {
     try {

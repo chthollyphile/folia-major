@@ -94,6 +94,8 @@
     ],
     "asarUnpack": [
       "electron/analysis/htdemucs_runner.py",
+      "electron/wallpaper/macWallpaperController.cjs",
+      "electron/wallpaper/macWallpaperTapWorker.cjs",
       "node_modules/@koromix/koffi-*/**/*.node",
       "node_modules/@lox-audioserver/node-librespot/prebuilds/**/*.node"
     ],

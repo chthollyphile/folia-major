@@ -100,10 +100,10 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('wallpaper-entry-requested', listener);
         return () => ipcRenderer.removeListener('wallpaper-entry-requested', listener);
     },
-    onWallpaperInputMonitorRequested: (callback) => {
+    onWallpaperPermissionsRequested: (callback) => {
         const listener = () => callback();
-        ipcRenderer.on('wallpaper-input-monitor-requested', listener);
-        return () => ipcRenderer.removeListener('wallpaper-input-monitor-requested', listener);
+        ipcRenderer.on('wallpaper-permissions-requested', listener);
+        return () => ipcRenderer.removeListener('wallpaper-permissions-requested', listener);
     },
     getWallpaperDisplays: () => ipcRenderer.invoke('wallpaper-displays-get'),
     setWallpaperDisplay: (displayId) => ipcRenderer.invoke('wallpaper-display-set', displayId),
