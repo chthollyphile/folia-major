@@ -1,6 +1,8 @@
 # Automix — 两个模型的改动
 
 本目录用到两个神经网络：拍点检测 `beat_this-wgsl.bin` 与人声分离 `htdemucs-v3.mnn`。
+
+（智能动感模式用的是另一个更小的拍点模型 small0，`beat_this-small-wgsl.bin`，随应用打包、只走 GPU，与 automix 互不共用结果；见 `../analysis/README.md`。）
 两者都不进安装包，由设置页按需下载（清单见 `shared/modelManifest.json`，下载与校验在
 `electron/analysis/`）。运行它们的 MNN 编进 app（`native/folia-mnn`，`build/buildMnnRuntime.mjs`），
 不再有运行时下载。
@@ -24,7 +26,7 @@
 
 下载到的是作者 `final0` 检查点的社区 ONNX 导出，未做任何修改。
 
-**前处理全在本侧**（`beatThis.ts`）：梅尔频谱、1500 帧分块、峰值挑选、网格拟合。
+**前处理全在本侧**（`../analysis/beatThis.ts`）：梅尔频谱、1500 帧分块、峰值挑选、网格拟合。
 导出的图拒收长张量（整首歌喂入会在注意力层抛 `invalid expand shape`），故分块是必需而非优化。
 以下常量是契约而非参数——周期 Hann（长度取 `size` 而非 `size-1`）、`center=True` 反射填充、
 `/sqrt(win_length)`、Slaney 梅尔 30–11000、`log1p(1000x)`——错一个不会崩溃，只会给出一个
@@ -177,7 +179,7 @@ GroupNorm 链融合；ConvTranspose 改成多相卷积；每个 DConv 层合成�
 | automix 开着时常驻、关掉时在进程内释放 | `host.cjs` / `worker.cjs` | 换歌之间不重载 190 MB；关掉功能即还内存，不杀进程 |
 | htdemucs 4 线程 | `worker.cjs` `HTDEMUCS_THREADS` | 与上一版 Python 运行器相同，留出核给播放和渲染 |
 | `folia_mnn_prefer_fast_cores()` | `folia_mnn.cpp`，worker 启动时调用 | 上一版 `prefer_fast_cores()` 的移植：Windows 最小化后不被挪到能效核（12.7s → 28.1s 那条） |
-| beat_this 走 GPU，CPU 只给 automix | `beatThis.ts` `cpuFallback` | CPU 每块 0.4–0.7 s，GPU 约 0.06 s；只有提前几分钟分析的 automix 等得起 |
+| beat_this 走 GPU，CPU 只给 automix | `../analysis/beatThis.ts` `cpuFallback` | CPU 每块 0.4–0.7 s，GPU 约 0.06 s；只有提前几分钟分析的 automix 等得起 |
 
 以下是上一版（onnxruntime + Python）的做法，留作来历。完整诊断见
 [`docs/automix-memory-optimization.md`](../../../docs/automix-memory-optimization.md)。

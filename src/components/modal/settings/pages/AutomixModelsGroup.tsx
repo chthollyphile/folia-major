@@ -3,7 +3,7 @@ import { Download, ExternalLink, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '../../../shared/ConfirmDialog';
 import ThemedDialog from '../../../shared/ThemedDialog';
-import { refreshModelAvailability } from '../../../../services/automix/modelAvailability';
+import { refreshModelAvailability } from '../../../../services/analysis/modelAvailability';
 import { Button, CopyButton, FoldedGroup, Progress, Reveal, Row, Status, Value, option, useSettingsKitTheme, type SettingsGroupDef } from '../kit';
 import { openOutsideLink } from '../../../../utils/system/outsideLink';
 

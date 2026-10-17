@@ -8,7 +8,7 @@ import { getPlaybackSongKey, isNavidromePlaybackSong, resolveNavidromePlaybackCa
 import { nextTransitionSong } from '../../utils/playbackNeighbors';
 import { getPrefetchedData } from '../prefetchService';
 import { getTrackProfile, recordPlayedTail } from './profileService';
-import { refreshModelAvailability } from './modelAvailability';
+import { refreshModelAvailability } from '../analysis/modelAvailability';
 import { canSeparateStems, ensureStems, getStemsByKey, setWantedStems, stemWindowKey } from './stems';
 import { connectAutomixDeck, type AutomixDeckChain } from './crossfadeGraph';
 import {

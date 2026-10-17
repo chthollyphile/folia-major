@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { CROSSFADE_MAX_SEC, CROSSFADE_MIN_SEC } from '../../../../services/automix/crossfadePlanner';
-import { modelsPresent, subscribeModelAvailability } from '../../../../services/automix/modelAvailability';
+import { modelsPresent, subscribeModelAvailability } from '../../../../services/analysis/modelAvailability';
 import { transitionCapabilities } from '../../../../services/automix/stems';
 import { announceTransition, type TransitionRenderer } from '../../../../services/automix/transitionCue';
 import { canAnalyseTracks } from '../../../../services/automix/transitionStrategy';

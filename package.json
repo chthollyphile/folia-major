@@ -57,6 +57,7 @@
     "build:windowtolayer": "node packaging/linux/build-windowtolayer.mjs",
     "build:wallpaper-helper": "node packaging/windows/build-wallpaper-helper.mjs",
     "build:ffmpeg": "node packaging/ffmpeg/fetch-ffmpeg.mjs",
+    "build:beat-this-small": "node packaging/beat-this-small/fetch-beat-this-small.mjs",
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
@@ -106,6 +107,13 @@
         "to": "mnn",
         "filter": [
           "*folia_mnn.*"
+        ]
+      },
+      {
+        "from": "models",
+        "to": "models",
+        "filter": [
+          "beat_this-small-wgsl.bin"
         ]
       },
       {

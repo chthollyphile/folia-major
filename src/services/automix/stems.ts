@@ -4,10 +4,11 @@ import { onAudioCached } from '../audioCache';
 import { hasProviderKeptSongAudio } from '../onlineMusic/providerRegistry';
 import { getCachedSongAudioBlob } from '../onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
-import { getPlaybackAnalysisKey, getPlaybackRepresentation } from '../playbackRecovery/representationRegistry';
+import type { PlaybackRepresentation } from '../../types/playbackRecovery';
+import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { whyNotTheSong } from '../wholeSongCheck';
-import { canRunBeatThis } from './beatThis';
-import { modelCanRun, noteModelFailed } from './modelAvailability';
+import { canRunBeatThis } from '../analysis/beatThis';
+import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
 // The one edge back the other way is `import type`, so it is erased and this is not a cycle.
 import { envelopeOf, lastVocalMoment } from './stemGesture';
@@ -404,9 +405,11 @@ export const getStemsByKey = (key: string | null, role: StemRole): TrackStems | 
  * already in hand, or - for a local track with no URL - the file straight off its own handle
  * (`readBytes`), and gives up otherwise.
  */
-const readLocalBytes = async (request: StemRequest): Promise<ArrayBuffer | null> => {
+const readLocalBytes = async (
+    request: StemRequest,
+    representation: PlaybackRepresentation | null,
+): Promise<ArrayBuffer | null> => {
     const { song, audioUrl } = request;
-    const representation = getPlaybackRepresentation(song);
     if (representation) {
         try {
             const response = await fetch(representation.url);
@@ -523,7 +526,10 @@ const cutWindow = async (bytes: ArrayBuffer, role: StemRole) => {
  */
 export const ensureStems = async (request: StemRequest): Promise<void> => {
     if (!canSeparateStems()) return;
-    const key = keyOf(request.song, request.role);
+    // The key and the representation read for it, resolved together (see analysis/README.md), so a
+    // transcode registering mid-window cannot file one's stems under the other's key.
+    const target = getPlaybackAnalysisTarget(request.song);
+    const key = `${target.key}:${request.role}`;
     if (inFlight.has(key)) return;
     if (cache.has(key)) {
         // A hit says something, and it used to say it by staying quiet. "We already have this" and
@@ -569,7 +575,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         await profilesSettled();
 
         const started = performance.now();
-        const bytes = await readLocalBytes(request);
+        const bytes = await readLocalBytes(request, target.representation);
         if (!bytes) {
             // A local file the handle could not reach - permission not restored, moved, or deleted.
             // NOT parked: nothing fires a media-cache event for a local file, so a parked request would

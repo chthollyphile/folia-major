@@ -5,7 +5,7 @@
 // Split out of useSettingsUiStore.
 
 import { create } from 'zustand';
-import { modelsPresent } from '../services/automix/modelAvailability';
+import { modelsPresent } from '../services/analysis/modelAvailability';
 
 import { clampCrossfadeSeconds, CROSSFADE_DEFAULT_SEC } from '../services/automix/crossfadePlanner';
 import { DEFAULT_TRANSITION_SETTINGS, isTransitionMode, type TransitionMode } from '../services/automix/transitionStrategy';

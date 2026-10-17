@@ -1,8 +1,8 @@
 /// <reference types="@webgpu/types" />
-import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/automix/beatThisWgsl/runtime';
+import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/analysis/beatThisWgsl/runtime';
 import { readPackedWeights } from './packed';
-import { BEAT_THIS_SAMPLE_RATE, melSpectrogram, splitForModel } from '../../src/services/automix/beatThis';
-import { runBeatThisGpu } from '../../src/services/automix/beatThisGpu';
+import { BEAT_THIS_SAMPLE_RATE, melSpectrogram, splitForModel } from '../../src/services/analysis/beatThis';
+import { runBeatThisGpu } from '../../src/services/analysis/beatThisGpu';
 
 // dev/beat-this-wgsl/harness.ts
 // Renderer side of the test shell (see main.cjs): loads the exported weights and the mel chunks,

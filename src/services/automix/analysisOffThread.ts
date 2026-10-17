@@ -1,4 +1,4 @@
-import { melSpectrogram, type MelSpectrogram } from './beatThis';
+import { melSpectrogram, type MelSpectrogram } from '../analysis/beatThis';
 import { analyseTrack, type TrackProfile } from './trackProfile';
 
 // src/services/automix/analysisOffThread.ts

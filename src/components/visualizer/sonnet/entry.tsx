@@ -29,6 +29,8 @@ export default defineVisualizer({
         keywords: ['sonnet', '商籁', '文字 pv', 'mg pv', 'vocaloid'],
     },
     usesWordSegmentation: true,
+    // 智能动感模式: beat_this' beats drive the camera, tear and glow (sonnetBeatFx.ts).
+    drawsBeatFx: true,
     // Folium tunables read by createSonnetPixiRuntime's mod(key). Names are public API.
     foliumTunables: {
         cameraScale: SONNET_TUNABLE,

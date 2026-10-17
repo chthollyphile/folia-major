@@ -1,4 +1,4 @@
-const { modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
+const { BUNDLED_MODEL_NAMES, modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
 const { unpackWeights } = require('./packedWeights.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
 const fs = require('fs');
@@ -39,7 +39,7 @@ const CRASHED = Symbol('crashed');
  *   running. Computing it once at startup is how a freshly downloaded model stayed invisible until
  *   the next launch.
  */
-const createAnalysisHost = ({ app, ipcMain, getModelsDirs, idleMs = IDLE_MS }) => {
+const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, idleMs = IDLE_MS }) => {
     const modelsDirs = () => (getModelsDirs?.() ?? []).filter(Boolean);
 
     let child = null;
@@ -169,12 +169,20 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, idleMs = IDLE_MS }) =
      * The beat_this WebGPU export, for the renderer to run on its own device (beatThisGpu.ts), or null.
      *
      * Read here and handed over rather than run here: the GPU belongs to the renderer, and this is
-     * the only process that may read the models directory. 41MB once per renderer-side load, which
-     * that side drops again after two idle minutes. The same file is the worker's CPU fallback; its
-     * tensors and manifest are one file (packedWeights.cjs), split here.
+     * the only process that may read the models directory. Once per model per renderer-side load
+     * (41MB for final0, 4.7MB for small0), which that side drops again after two idle minutes. The
+     * final0 file is also the worker's CPU fallback; its tensors and manifest are one file
+     * (packedWeights.cjs), split here.
+     *
+     * The channel keeps its automix- name: the beat FX (智能动感模式) ask it for the bundled small0 too.
      */
-    ipcMain.handle('automix-beat-this-gpu-weights', async () => {
-        const file = resolveModelFile(modelsDirs(), 'beat_this');
+    ipcMain.handle('automix-beat-this-gpu-weights', async (_event, model) => {
+        // final0 (automix's download) unless the bundled small0 is asked for by name; nothing else is
+        // a WebGPU export, so no other name may pick a file. A bundled model is read from the
+        // installer's directory only (modelPaths.cjs BUNDLED_MODEL_NAMES).
+        const name = model === 'beat_this_small' ? 'beat_this_small' : 'beat_this';
+        const dirs = BUNDLED_MODEL_NAMES.includes(name) ? [getBundledModelsDir?.()].filter(Boolean) : modelsDirs();
+        const file = resolveModelFile(dirs, name);
         if (!file) return null;
         try {
             // A truncated download fails the trailer or the length check in unpackWeights, rather than

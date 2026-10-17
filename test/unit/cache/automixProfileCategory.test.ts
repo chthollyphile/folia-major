@@ -85,4 +85,14 @@ describe('profiles written before the prefix was registered', () => {
 
         expect((await getBrowserCacheUsageByCategory()).analysis).toBeGreaterThan(0);
     });
+
+    it('clears the stored Beat This! beats with the profiles they feed', async () => {
+        await putCacheEntry('beat_this_grid_song-42', { version: 1, beats: [1], downbeats: [1] });
+        await putCacheEntry('beat_this_small_grid_song-42', { version: 1, beats: [1], downbeats: [1] });
+        const usage = await getBrowserCacheUsageByCategory();
+        expect(usage.analysis).toBeGreaterThan(0);
+        await clearBrowserCacheByCategory('analysis');
+        expect(await readCacheEntry('beat_this_grid_song-42')).toBeNull();
+        expect(await readCacheEntry('beat_this_small_grid_song-42')).toBeNull();
+    });
 });

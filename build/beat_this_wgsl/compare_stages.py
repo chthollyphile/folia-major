@@ -18,7 +18,10 @@ for i, (c, f) in enumerate([(32, 32), (64, 16), (128, 8)]):
     shapes[f'block{i}_freq'] = (1500, f, c, 'tfc')
     shapes[f'block{i}_time'] = (f, 1500, c, 'ftc')
     shapes[f'block{i}_conv'] = (2 * c, f // 2, 1500, 'cft')
-shapes['frontend'] = (1500, 512, 1, 'x'); shapes.update({f'layer{i}': (1500, 512, 1, 'x') for i in range(6)}); shapes['logits'] = (2, 1500, 1, 'x')
+# The transformer width is the checkpoint's (512 for final0, 128 for small0); read it off chunk 0's dump.
+dim = os.path.getsize(os.path.join(run_dir, 'stage_frontend.f32')) // 4 // 1500
+layers = sum(1 for f in os.listdir(ref_dir) if f.startswith('layer') and f.endswith('.f32'))
+shapes['frontend'] = (1500, dim, 1, 'x'); shapes.update({f'layer{i}': (1500, dim, 1, 'x') for i in range(layers)}); shapes['logits'] = (2, 1500, 1, 'x')
 snr = lambda r, g: 10 * np.log10((r ** 2).sum() / ((r - g) ** 2).sum())
 for name, (a, b, c, lay) in shapes.items():
     n = a * b * c

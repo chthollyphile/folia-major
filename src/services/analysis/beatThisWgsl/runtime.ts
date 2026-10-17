@@ -3,7 +3,7 @@ import {
     ATTENTION, ATTENTION_F16, ATTENTION_F16_MATH, CONV_GELU, FLATTEN, MATMUL, MATMUL_F16, MATMUL_F16_MATH, MATMUL_F16W, MATMUL_GELU, MATMUL_NORM, MATMUL_RESIDUAL, MATMUL_ROPE, STEM_BN, SUM_HEAD,
 } from './kernels';
 
-// src/services/automix/beatThisWgsl/runtime.ts
+// src/services/analysis/beatThisWgsl/runtime.ts
 // Runs one Beat This! chunk (mel [T, 128] -> beat / downbeat logits [T], T up to 1500) on a WebGPU
 // device with the kernels in ./kernels. The graph is fixed per chunk length, so every pipeline,
 // buffer, uniform and bind group is built ahead (the full 1500-frame graph in `create`, a shorter one

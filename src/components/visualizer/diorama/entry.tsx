@@ -27,6 +27,8 @@ export default defineVisualizer({
         description: 'Switch to Diorama visualizer',
         keywords: ['diorama', '镜台', '切换到可视化：镜台', '切换到可视化镜台'],
     },
+    // 智能动感模式: beat_this' beats spawn the particle ripples and drive the breath (dioramaBeatRipples.ts).
+    drawsBeatFx: true,
     render: props => <VisualizerDiorama {...props} />,
     renderSettingsPanel: props => <DioramaSettingsPanel {...props} />,
 });

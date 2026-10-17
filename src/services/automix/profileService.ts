@@ -7,10 +7,13 @@ import { hasProviderKeptSongAudio, keepProviderSongAudio, keepsOwnSongAudio } fr
 import { getCachedSongAudioBlob, hasCachedSongAudio, saveSongAudioLevel } from '../onlineMusic/resourceCache';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
 import { isCacheableAudioResponse } from '../playbackRecovery/mediaCacheGuard';
-import { getPlaybackAnalysisKey, getPlaybackRepresentation } from '../playbackRecovery/representationRegistry';
+import type { PlaybackRepresentation } from '../../types/playbackRecovery';
+import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { mayStoreSongAudio, whyNotTheSong, whyNotTheSongPlayed, whyPreviewClip } from '../wholeSongCheck';
 import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThread';
-import { analyseBeatGrid, canRunBeatThis } from './beatThis';
+import { analyseBeatGrid, canRunBeatThis } from '../analysis/beatThis';
+import { getTrackBeatGrid } from '../analysis/beatGrid';
+import { decodeAtRate, readLocalTrackFile, toMidSide } from '../analysis/trackAudio';
 import {
     measureEdges,
     PROFILE_SAMPLE_RATE,
@@ -143,50 +146,6 @@ export const getTrackProfile = (song: SongResult | null | undefined): TrackProfi
     song ? profiles.get(getPlaybackAnalysisKey(song)) ?? null : null
 );
 
-/**
- * Splits the decode into mid and side.
- *
- * Mid - (L+R)/2 - is the mono sum every other measurement here wants. Side - (L-R)/2 - is what is left
- * when the two channels cancel: everything the mix placed off-centre. Keeping it is what makes a voice
- * findable - lead vocals are panned dead centre on essentially every commercial master, so they live
- * almost entirely in mid and almost not at all in side. Cancelling one against the other is the same
- * arithmetic karaoke machines have used to drop the lead vocal for decades.
- *
- * Null side for a mono file: no two channels to cancel, so the question cannot be asked.
- */
-const toMidSide = (buffer: AudioBuffer): { mid: Float32Array; side: Float32Array | null } => {
-    const left = buffer.getChannelData(0);
-    if (buffer.numberOfChannels < 2) return { mid: Float32Array.from(left), side: null };
-
-    const right = buffer.getChannelData(1);
-    const mid = new Float32Array(buffer.length);
-    const side = new Float32Array(buffer.length);
-    for (let index = 0; index < mid.length; index += 1) {
-        mid[index] = (left[index] + right[index]) / 2;
-        side[index] = (left[index] - right[index]) / 2;
-    }
-    return { mid, side };
-};
-
-/**
- * Decodes straight to the analysis rate.
- *
- * decodeAudioData resamples to the context's own sample rate, so a context created at 22.05kHz
- * does the downsampling in the decoder - no render pass, no resampler here, and a four-minute
- * track lands as ~10MB of floats instead of ~80MB.
- */
-const decodeAtProfileRate = async (bytes: ArrayBuffer): Promise<AudioBuffer | null> => {
-    const OfflineContext = window.OfflineAudioContext
-        || (window as Window & { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
-    if (!OfflineContext) return null;
-    try {
-        return await new OfflineContext(1, 1, PROFILE_SAMPLE_RATE).decodeAudioData(bytes);
-    } catch (error) {
-        console.warn('[Automix] could not decode a track for analysis', error);
-        return null;
-    }
-};
-
 interface ProfileRequest {
     song: SongResult;
     /**
@@ -257,10 +216,11 @@ const keepWithProvider = async (song: SongResult, audioUrl: string | null | unde
 
 const readBytes = async (
     { song, audioUrl, enableMediaCache }: ProfileRequest,
+    /** The representation `songKey` names, resolved with it (getPlaybackAnalysisTarget). */
+    representation: PlaybackRepresentation | null,
     /** A head-only profile is already stored, so there is nothing a second range request buys. */
     hasStoredPartial: boolean,
 ): Promise<BytesResult> => {
-    const representation = getPlaybackRepresentation(song);
     if (representation) {
         try {
             const response = await fetch(representation.url);
@@ -291,7 +251,13 @@ const readBytes = async (
         return { bytes: await cached.arrayBuffer(), partial: false };
     }
 
-    if (!audioUrl) return { skipped: 'not cached yet and no URL to read it from' };
+    if (!audioUrl) {
+        // A local track with no URL in hand (the next-up head: prefetch skips local files) is read
+        // off its own file handle (analysis/trackAudio.ts).
+        const file = await readLocalTrackFile(song);
+        if (file) return { bytes: file, partial: false };
+        return { skipped: 'not cached yet and no URL to read it from' };
+    }
     // Before any read: a clip its provider marked is not downloaded only to be refused.
     const previewClip = whyPreviewClip(audioUrl);
     if (previewClip) return { skipped: `its URL is ${previewClip}` };
@@ -367,7 +333,8 @@ const readBytes = async (
  * unsupported codec - must not be retried on every pass of the prefetcher.
  */
 export const ensureTrackProfile = async (request: ProfileRequest): Promise<void> => {
-    const songKey = getPlaybackAnalysisKey(request.song);
+    // Resolved together: the bytes read below must be the representation this key names.
+    const { key: songKey, representation } = getPlaybackAnalysisTarget(request.song);
     if (inFlight.has(songKey)) return;
     if (profiles.has(songKey) && !needsGrid(request, profiles.get(songKey))) {
         // Only asked, never stored from here: this runs on every track change, ahead of the
@@ -412,7 +379,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 return;
             }
 
-            const result = await readBytes(request, Boolean(usable?.partial));
+            const result = await readBytes(request, representation, Boolean(usable?.partial));
             if ('skipped' in result) {
                 if (usable) {
                     remember(songKey, usable);
@@ -433,7 +400,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // spectrogram, the beat model - is the expensive part it would be buying for nobody.
             if (!wanted.has(songKey)) return;
 
-            const buffer = await decodeAtProfileRate(result.bytes);
+            const buffer = await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE);
             const channels = buffer ? toMidSide(buffer) : null;
             // The beat grid, from a model rather than autocorrelation, when this build has one. Asked
             // for here rather than inside `analyseTrack` because it is the impure step - it crosses
@@ -446,9 +413,17 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             // answer to nobody. `runModel` records whether the model RUNS; what it then answers is
             // separate, and the profile records this one - see `TrackProfile.gridless`.
             const runModel = request.wantGrid && canRunBeatThis();
-            const grid = channels && runModel
-                // Automix analyses minutes ahead of the transition, so the CPU may stand in for the GPU.
-                ? await analyseBeatGrid(await melSpectrogramOffThread(channels.mid), { cpuFallback: true })
+            // Automix analyses minutes ahead of the transition, so the CPU may stand in for the GPU.
+            //
+            // A whole track goes through analysis/beatGrid.ts: read back if an earlier
+            // run already has it, joined if one is running it right now, kept for the next one otherwise.
+            // A head-only read neither uses nor stores one there: its profile describes the head, and so
+            // must its grid.
+            const mid = channels?.mid;
+            const grid = mid && runModel
+                ? result.partial
+                    ? await analyseBeatGrid(await melSpectrogramOffThread(mid), { cpuFallback: true })
+                    : await getTrackBeatGrid(songKey, async () => mid, { cpuFallback: true })
                 : null;
             const profile = buffer && channels
                 ? await analyseTrackOffThread(channels.mid, buffer.sampleRate, {

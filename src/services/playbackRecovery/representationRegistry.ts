@@ -31,10 +31,22 @@ export const getPlaybackRepresentationForRevision = (
     return null;
 };
 
-export const getPlaybackAnalysisKey = (song: SongResult): string => {
+export const getPlaybackAnalysisKey = (song: SongResult): string => getPlaybackAnalysisTarget(song).key;
+
+/**
+ * The analysis key and the representation it names, resolved together. A caller that reads bytes
+ * and later stores what it measured under the key must use this rather than two lookups: a transcode
+ * registering in between would file the original's measurement under the transcode's key.
+ */
+export const getPlaybackAnalysisTarget = (
+    song: SongResult,
+): { key: string; representation: PlaybackRepresentation | null } => {
     const songKey = getPlaybackSongKey(song);
     const representation = getPlaybackRepresentation(song);
-    return representation ? `${songKey}@${representation.representationId}` : songKey;
+    return {
+        key: representation ? `${songKey}@${representation.representationId}` : songKey,
+        representation,
+    };
 };
 
 export const clearPlaybackRepresentationsForTests = (): void => {

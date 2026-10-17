@@ -63,6 +63,8 @@ export type SyncedVisualSettings = {
     monetTuning?: unknown;
     pendoloTuning?: unknown;
     sonnetTuning?: unknown;
+    /** 智能动感模式; one setting for every visualizer, so outside the tuning bundle. */
+    smartBeat?: unknown;
     temperaTuning?: unknown;
     lumiereTuning?: unknown;
     urlBackgroundList?: unknown[];

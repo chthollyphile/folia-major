@@ -1,4 +1,4 @@
-// src/services/automix/beatThisWgsl/kernels.ts
+// src/services/analysis/beatThisWgsl/kernels.ts
 // WGSL sources for the hand-written Beat This! forward pass, fp32. RMSNorm and RoPE have no kernels
 // of their own: the norm's gamma is folded into the next Linear's weights at export, and the matmul
 // scales each output row by 1/||x|| from the sum of squares of the A rows it already reads; RoPE is

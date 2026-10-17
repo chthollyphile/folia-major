@@ -159,6 +159,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "visualizer_background_mode",
   "visualizer_mode",
   "visualizer_opacity",
+  "visualizer_smart_beat",
   "voice_input_pause_enabled",
   "wall_tools_queue_island_open",
   "wallpaper_mac_autohide_dock",

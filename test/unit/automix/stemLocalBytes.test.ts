@@ -25,7 +25,7 @@ vi.mock('@/services/audioCache', () => ({
     saveAudioBlob: vi.fn(),
 }));
 
-import { refreshModelAvailability } from '@/services/automix/modelAvailability';
+import { refreshModelAvailability } from '@/services/analysis/modelAvailability';
 import { ensureStems, setWantedStems, stemWindowKey } from '@/services/automix/stems';
 
 const announce = (cacheKey: string) => { listeners.forEach(listener => listener(cacheKey)); };

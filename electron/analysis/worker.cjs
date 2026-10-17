@@ -33,7 +33,7 @@ const os = require('os');
 //   - htdemucs. Loaded on first use and KEPT while automix is switched on, released in this process
 //     when the host says automix was switched off - see `release` below.
 //   - beat_this, only as the CPU fallback for automix's beat grid. The renderer runs it on its own GPU
-//     first (src/services/automix/beatThisGpu.ts); what reaches this file is what that could not take.
+//     first (src/services/analysis/beatThisGpu.ts); what reaches this file is what that could not take.
 
 /**
  * Every directory a model may live in, best first: the user's own folder, then what the app
@@ -95,7 +95,7 @@ const rssMb = () => Math.round(process.memoryUsage().rss / 1048576);
 // ---------------------------------------------------------------------------- Beat This!
 //
 // Everything that can be reasoned about without a model - the spectrogram, the chunking, the peak
-// picking - lives in src/services/automix/beatThis.ts where the unit tests can reach it. What is
+// picking - lives in src/services/analysis/beatThis.ts where the unit tests can reach it. What is
 // here is the CPU run of the same export the renderer's GPU path reads, and nothing else.
 
 /** Frames the model accepts in one call; longer is cut into chunks by the renderer. */

@@ -98,3 +98,12 @@ describe('finding model weights', () => {
         expect(modelsPresent([oddDir]).htdemucs).toBe(false);
     });
 });
+
+describe('the bundled small0 export', () => {
+    it('resolves from the installer copy, and is not one of the downloadable models', () => {
+        put(bundledDir, 'beat_this_small');
+        expect(resolveModelFile([userDir, downloadDir, bundledDir], 'beat_this_small'))
+            .toBe(path.join(bundledDir, 'beat_this-small-wgsl.bin'));
+        expect(Object.keys(modelsPresent([userDir, downloadDir, bundledDir])).sort()).toEqual(['beat_this', 'htdemucs']);
+    });
+});

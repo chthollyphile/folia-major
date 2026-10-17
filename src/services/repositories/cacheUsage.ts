@@ -1,10 +1,13 @@
 import type { StoredCacheEntry } from '../appDatabase';
 import type { CacheCategory } from './cacheRepository';
+// Pure: the analysis key prefixes, with nothing but a type import behind them.
+import { isBeatGridKey } from '../analysis/beatGridKeys';
 
 // src/services/repositories/cacheUsage.ts
-// How much of the cache each category holds, counted one row at a time. No imports at run time: the
-// cache-usage worker (src/workers/cacheUsage.worker.ts) counts with it too, and the page's copy of
-// the database must not be opened there.
+// How much of the cache each category holds, counted one row at a time. No imports at run time but
+// the pure key prefixes of analysis/beatGridKeys.ts: the cache-usage worker
+// (src/workers/cacheUsage.worker.ts) counts with it too, and the page's copy of the database must not
+// be opened there.
 
 export type CacheUsage = {
   playlist: number;
@@ -41,7 +44,10 @@ export const matchesCategory = (key: string, category: CacheCategory): boolean =
   // with it; a profile costs a full decode and a model pass to rebuild, and stays true whether or
   // not the bytes it was measured from are still on this machine. Someone reclaiming five gigabytes
   // of audio has no reason to pay for that again.
-  if (category === 'analysis') return key.startsWith('automix_profile_');
+  //
+  // A track's Beat This! beats (services/analysis/beatGrid.ts) are the same kind of thing - a model
+  // pass to rebuild, read by automix and by the beat FX - and are cleared with the profiles.
+  if (category === 'analysis') return key.startsWith('automix_profile_') || isBeatGridKey(key);
   // A track's ReplayGain describes the audio and arrives with it, so it is cleared with it. It is
   // counted here but NOT in mediaCount below, which means "songs cached" and would otherwise
   // double for every track that has both. The level the audio was fetched at (`audioLevel_`)

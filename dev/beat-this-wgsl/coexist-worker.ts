@@ -1,5 +1,5 @@
 /// <reference types="@webgpu/types" />
-import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/automix/beatThisWgsl/runtime';
+import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/analysis/beatThisWgsl/runtime';
 
 // dev/beat-this-wgsl/coexist-worker.ts
 // The inference half of the coexistence test (coexist.ts): a dedicated worker, the place the app

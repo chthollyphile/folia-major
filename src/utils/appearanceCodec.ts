@@ -7,6 +7,7 @@ import {
     DEFAULT_MONET_TUNING,
     DEFAULT_NOMAND_BACKGROUND_TUNING,
     DEFAULT_PENDOLO_TUNING,
+    DEFAULT_SMART_BEAT_SETTINGS,
     DEFAULT_SONNET_TUNING,
     DEFAULT_TEMPERA_TUNING,
     type DualTheme,
@@ -411,6 +412,18 @@ const decompressSonnet = (o: any): any => ({
     postProcessLensDispersion: o.pplx !== undefined ? o.pplx : DEFAULT_SONNET_TUNING.postProcessLensDispersion,
 });
 
+// 智能动感模式 is one setting for every visualizer, not a Sonnet tuning, so it has its own key.
+const compressSmartBeat = (t: any): any => ({
+    on: t.enabled,
+    bi: t.beatIntensity,
+    dbi: t.downbeatIntensity,
+});
+const decompressSmartBeat = (o: any): any => ({
+    enabled: o.on !== undefined ? o.on : DEFAULT_SMART_BEAT_SETTINGS.enabled,
+    beatIntensity: o.bi !== undefined ? o.bi : DEFAULT_SMART_BEAT_SETTINGS.beatIntensity,
+    downbeatIntensity: o.dbi !== undefined ? o.dbi : DEFAULT_SMART_BEAT_SETTINGS.downbeatIntensity,
+});
+
 const compressTempera = (t: any): any => ({
     ci: t.cameraIntensity,
     gm: t.glyphMotion,
@@ -548,6 +561,7 @@ export const compressConfig = (config: any): string => {
     if (config.monetTuning) minified.mt = compressMonet(config.monetTuning);
     if (config.pendoloTuning) minified.pdt = compressPendolo(config.pendoloTuning);
     if (config.sonnetTuning) minified.snt = compressSonnet(config.sonnetTuning);
+    if (config.smartBeat) minified.smb = compressSmartBeat(config.smartBeat);
     if (config.temperaTuning) minified.tmp = compressTempera(config.temperaTuning);
     if (config.lumiereTuning) minified.lmt = compressLumiere(config.lumiereTuning);
     // Folium param values are already plain JSON keyed by scope; stored as-is.
@@ -620,6 +634,7 @@ export const decompressConfig = (str: string): any => {
         || parsed.sfi !== undefined
         || parsed.pdt !== undefined
         || parsed.snt !== undefined
+        || parsed.smb !== undefined
         || parsed.fst !== undefined
         // The now playing card's three keys. Listed like the rest so a hand-written JSON that only
         // carries the card is still recognised as the minified shape rather than falling through to
@@ -688,6 +703,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.mt) decompressed.monetTuning = decompressMonet(parsed.mt);
         if (parsed.pdt) decompressed.pendoloTuning = decompressPendolo(parsed.pdt);
         if (parsed.snt) decompressed.sonnetTuning = decompressSonnet(parsed.snt);
+        if (parsed.smb) decompressed.smartBeat = decompressSmartBeat(parsed.smb);
         if (parsed.tmp) decompressed.temperaTuning = decompressTempera(parsed.tmp);
         if (parsed.lmt) decompressed.lumiereTuning = decompressLumiere(parsed.lmt);
         if (parsed.fp) decompressed.foliumParams = parsed.fp;
@@ -721,7 +737,7 @@ export const decompressConfig = (str: string): any => {
             'subtitleFontFallbackFamilies', 'visualizerTunings', 'classicTuning',
             'cadenzaTuning', 'partitaTuning', 'fumeTuning', 'claddaghTuning', 'cappellaTuning',
             'tiltTuning', 'dioramaTuning', 'monetBackgroundTuning', 'nomandBackgroundTuning', 'latentBackgroundTuning', 'soraBackgroundTuning', 'monetTuning',
-            'pendoloTuning', 'sonnetTuning', 'temperaTuning', 'lumiereTuning', 'foliumParams',
+            'pendoloTuning', 'sonnetTuning', 'smartBeat', 'temperaTuning', 'lumiereTuning', 'foliumParams',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
             'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome',

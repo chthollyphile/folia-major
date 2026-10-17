@@ -34,7 +34,7 @@ Automix 回答一个问题：**上一首快放完了，下一首该怎么接进�
 | `trackProfile.ts` | 离线分析主体：BPM（全曲 + 尾段）、小节线位置、响度（LUFS）、首尾调性、三频段占比、段落边界、前奏终点、结尾形态（收束 / 断开） |
 | `signalAnalysis.ts` | 上下层共用的数学：K 计权、自相关测速、`estimateDownbeat`、重拍相位、交叉曲线、分频段曲线、平衡修正、`fft` |
 | `profileService.ts` | `trackProfile` 的 I/O 侧：字节来源、何时允许下载、结果存储、运行时缓存 |
-| `beatThis.ts` | Beat This! 模型的**前处理契约**：梅尔频谱、分块、峰值挑选、结果折算成 `{offset, period}` 网格。**不含模型权重与推理** |
+| `../analysis/beatThis.ts` | Beat This! 模型的**前处理契约**：梅尔频谱、分块、峰值挑选、结果折算成 `{offset, period}` 网格。**不含模型权重与推理** |
 | `stems.ts` | htdemucs 分离的**窗口管理**：只分离首/尾各 30 秒，缓存四个窗口，回答"本构建能否分离" |
 | `stemGesture.ts` | 分离手法的**纯算术**：人声如何退场、鼓 / 贝斯 / 其余各在何时交接。无音频节点 |
 | `expansionGesture.ts` | 表现模式的**纯算术 + 采样渲染**：build-up 打多重、落在哪几拍、把抽拉 / 升调 / 甩盘写成样本。无音频节点（见 §6.7） |
@@ -74,7 +74,7 @@ Automix 回答一个问题：**上一首快放完了，下一首该怎么接进�
 prefetchService
   └─ ensureTrackProfile(song)          profileService.ts
        ├─ fetch(Range) → decodeAudioData
-       ├─ analyseBeatGrid(mono)        beatThis.ts   → beatThisGpu.ts → 渲染进程 Worker（WebGPU）
+       ├─ analyseBeatGrid(mono)        ../analysis/beatThis.ts → beatThisGpu.ts → 渲染进程 Worker（WebGPU）
        │                                             没有 GPU 导出或设备时 → utilityProcess → ONNX
        └─ analyseTrack(pcm)            trackProfile.ts
             └─ TrackProfile { bpm, downbeatOffset, lufs, key, sections, leadOut, ... }

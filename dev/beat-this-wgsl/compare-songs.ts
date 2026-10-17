@@ -1,4 +1,4 @@
-import { aggregateChunks, beatsFromLogits, MODEL_CHUNK_FRAMES, type ChunkPrediction } from '../../src/services/automix/beatThis';
+import { aggregateChunks, beatsFromLogits, MODEL_CHUNK_FRAMES, type ChunkPrediction } from '../../src/services/analysis/beatThis';
 
 // dev/beat-this-wgsl/compare-songs.ts
 // Second half of the whole-track check: for each track the harness wrote, stitches both logit sets

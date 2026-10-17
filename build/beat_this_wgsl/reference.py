@@ -19,7 +19,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-T = 1500  # frames per chunk; the contract in src/services/automix/beatThis.ts
+T = 1500  # frames per chunk; the contract in src/services/analysis/beatThis.ts
 HEAD_DIM = 32
 
 

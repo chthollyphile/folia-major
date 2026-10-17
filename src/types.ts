@@ -586,6 +586,25 @@ export const DEFAULT_SONNET_TUNING: SonnetTuning = {
 };
 
 /**
+ * 智能动感模式, one switch for every visualizer and background that draws beat FX: beat_this' beats
+ * drive the picture instead of the FFT bands (src/services/beatFx). Which ones do is declared on their
+ * registry entries (`drawsBeatFx`). Off leaves every picture exactly as it was.
+ */
+export interface SmartBeatSettings {
+  enabled: boolean;
+  /** 轻拍 strength, 0..2: scales every beat's envelope. 0 turns that layer off. */
+  beatIntensity: number;
+  /** 重拍 strength, 0..2: scales the downbeat's envelope. 0 turns that layer off. */
+  downbeatIntensity: number;
+}
+
+export const DEFAULT_SMART_BEAT_SETTINGS: SmartBeatSettings = {
+  enabled: false,
+  beatIntensity: 1,
+  downbeatIntensity: 1,
+};
+
+/**
  * `gradient` fills every tone shape with a four-colour ramp built from the cover art's
  * extracted colours mixed with the theme, instead of a flat tone.
  */

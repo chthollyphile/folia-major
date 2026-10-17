@@ -23,6 +23,7 @@ import {
 } from '../backgrounds/registry';
 import BackgroundPicture from '../preview/BackgroundPicture';
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
+import SmartBeatSettingsCard from '../SmartBeatSettingsCard';
 
 // src/components/visualizer/window/VisPlaygroundSettingsPanel.tsx
 // The right column of the lyric style window: four tabs with one "default" action for the open
@@ -276,6 +277,8 @@ const VisPlaygroundSettingsPanel: React.FC<VisPlaygroundSettingsPanelProps> = (p
                                     <Row notice={missingStyleNotice} />
                                 </Group>
                             )}
+                            {/* 智能动感模式: a setting of the whole picture, above whichever style's own options. */}
+                            <SmartBeatSettingsCard t={t} onSliderPointerDown={onSliderPointerDown} onSliderCommit={onSliderCommit} />
                             {/* The style's own options: kit groups, stacked as they come. */}
                             <div key={visualizerMode} className="st-page-in">
                                 {stylePanel}

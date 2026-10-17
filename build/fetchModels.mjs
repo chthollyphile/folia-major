@@ -114,3 +114,9 @@ for (const model of WANTED) {
 
     if (!written) throw new Error(`[models] could not get a good copy of ${model.file}`);
 }
+
+// The model that ships with the app rather than downloads (Sonnet's 智能动感模式, Beat This! small0):
+// a dev checkout needs it in models/ too, or the switch is on and silently inert. Pinned in its own
+// script, which the packaging step calls as well.
+const { prepareBundledBeatThisSmall } = await import('../packaging/beat-this-small/fetch-beat-this-small.mjs');
+console.log(`[models] ${await prepareBundledBeatThisSmall({ outputDir: MODELS })} verified`);

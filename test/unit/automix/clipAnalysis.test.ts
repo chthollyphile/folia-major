@@ -51,12 +51,12 @@ vi.mock('@/services/onlineMusic/providerRegistry', () => ({
     hasProviderKeptSongAudio: vi.fn(async () => false),
     keepProviderSongAudio: (...args: unknown[]) => keepProviderSongAudio(...args),
 }));
-vi.mock('@/services/automix/beatThis', () => ({ canRunBeatThis: () => false, analyseBeatGrid: vi.fn() }));
+vi.mock('@/services/analysis/beatThis', () => ({ canRunBeatThis: () => false, analyseBeatGrid: vi.fn() }));
 vi.mock('@/services/automix/analysisOffThread', () => ({ analyseTrackOffThread: vi.fn(), melSpectrogramOffThread: vi.fn() }));
 
 const { clearTrackProfileRuntime, ensureTrackProfile, getTrackProfile, recordPlayedTail, setAnalysisScope } = await import('@/services/automix/profileService');
 const { ensureStems, setWantedStems, stemWindowKey } = await import('@/services/automix/stems');
-const { refreshModelAvailability } = await import('@/services/automix/modelAvailability');
+const { refreshModelAvailability } = await import('@/services/analysis/modelAvailability');
 const { TRACK_PROFILE_VERSION } = await import('@/services/automix/trackProfile');
 
 const songOf = (id: string) => ({

@@ -1,4 +1,4 @@
-import type { BeatThisWgslManifest } from '../../src/services/automix/beatThisWgsl/runtime';
+import type { BeatThisWgslManifest } from '../../src/services/analysis/beatThisWgsl/runtime';
 
 // dev/beat-this-wgsl/packed.ts
 // The test shell's reader for the packed export (tensors, manifest JSON, b'FOLIABTW' + uint64 LE JSON

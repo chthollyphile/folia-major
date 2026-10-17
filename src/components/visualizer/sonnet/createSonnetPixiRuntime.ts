@@ -19,6 +19,7 @@ import { loadPixi } from '../pixi/loadPixi';
 import { linkPixiPrograms } from '../pixi/pixiProgramLinks';
 import { makePixiContext } from '../pixi/pixiWebGLContext';
 import { sonnetDebugState } from './sonnetDebug';
+import { createSonnetBeatFxReader } from './sonnetBeatFx';
 import { readSonnetModulation, type SonnetShotFrameContext, updateSonnetShot } from './sonnetShotFrame';
 import { findSonnetActiveShotIndex, resolveSonnetSceneTransitionFrame } from './sonnetSceneFrame';
 import { drawSonnetFrameOverlay } from './sonnetFrameOverlay';
@@ -72,6 +73,8 @@ export interface SonnetRuntimeOptions {
     program: SonnetProgram;
     theme: Theme;
     tuning: SonnetTuning;
+    /** 智能动感模式 (SmartBeatSettings.enabled); its strengths reach the frame through the beat clock. */
+    smartBeatEnabled: boolean;
     currentTime: MotionValue<number>;
     audioPower?: MotionValue<number>;
     audioBands?: AudioBands;
@@ -101,6 +104,8 @@ export class SonnetPixiRuntime {
     private readonly iconUrls = new Set<string>();
     private activeParagraphIndex = -1;
     private destroyed = false;
+    /** 智能动感模式 frame reader; yields null unless it is on and the track's beats are installed. */
+    private readonly readBeatFx = createSonnetBeatFxReader();
     /**
      * An in-flight song handover. Driven by the wall clock, unlike every other transition here:
      * those derive their progress from absolute playback time so a seek stays stable, but that
@@ -324,6 +329,7 @@ export class SonnetPixiRuntime {
             host: this.options.host,
             theme: song.theme,
             tuning: this.options.tuning,
+            smartBeatEnabled: this.options.smartBeatEnabled,
             lyricsFontScale: this.options.lyricsFontScale,
             staticMode: this.options.staticMode,
             transparentBackground: this.options.transparentBackground,
@@ -378,12 +384,16 @@ export class SonnetPixiRuntime {
             finalParagraph?.endTime ?? Number.POSITIVE_INFINITY,
         );
         const hasCredits = this.creditsContainer.children.length > 0;
+        // Read once per frame, before any shot, so every consumer sees the same envelopes.
+        const beatFx = this.options.staticMode ? null : this.readBeatFx(this.options.audioBands, this.options.smartBeatEnabled);
         const shotFrameContext: SonnetShotFrameContext = {
             tuning: this.options.tuning,
+            smartBeatEnabled: this.options.smartBeatEnabled,
             theme: this.options.theme,
             audioBands: this.options.audioBands,
             audioPower: this.options.audioPower,
             mod: this.mod,
+            beatFx,
         };
 
         this.sceneCache.forEach((scene, index) => {
@@ -441,8 +451,17 @@ export class SonnetPixiRuntime {
                 scene.transitionBlurFilter.enabled = transitionFrame.blur > 0.01;
             }
             if (scene.transitionGlitchEffect) {
-                scene.transitionGlitchEffect.update(transitionFrame.glitch * transitionGlitchScale, transitionFrame.glitchSeed);
-                scene.transitionGlitchEffect.filter.enabled = transitionFrame.glitch > 0.01;
+                const transitionGlitch = transitionFrame.glitch * transitionGlitchScale;
+                // The downbeat tear shares this filter; the stronger of the two drives it.
+                const beatTearWins = !!beatFx && beatFx.tear > transitionGlitch;
+                const glitchAmount = beatTearWins ? beatFx!.tear : transitionGlitch;
+                scene.transitionGlitchEffect.update(
+                    glitchAmount,
+                    beatTearWins ? beatFx!.tearSeed : transitionFrame.glitchSeed,
+                );
+                scene.transitionGlitchEffect.filter.enabled = beatTearWins
+                    ? glitchAmount > 0.01
+                    : transitionFrame.glitch > 0.01;
             }
 
             if (isFinalScene && hasCredits) {
@@ -634,7 +653,23 @@ export class SonnetPixiRuntime {
     setTuning(tuning: SonnetTuning) {
         if (this.destroyed || this.options.tuning === tuning) return;
         this.options.tuning = tuning;
-        // Staged against the old tuning, so it can no longer be adopted.
+        this.rebuildScenes();
+    }
+
+    /**
+     * Switches 智能动感模式. Scenes are built with or without its MG onset pop and tear filter, so they
+     * are rebuilt like a tuning change; the 轻拍 / 重拍 strengths never come here, the beat clock
+     * applies them to the signals every frame.
+     */
+    setSmartBeatEnabled(enabled: boolean) {
+        if (this.destroyed || this.options.smartBeatEnabled === enabled) return;
+        this.options.smartBeatEnabled = enabled;
+        this.rebuildScenes();
+    }
+
+    /** Rebuilds every scene against the current options on the live context. */
+    private rebuildScenes() {
+        // Staged against the old options, so it can no longer be adopted.
         if (this.songSwap?.staged) {
             this.destroyScene(this.songSwap.staged.scene);
             this.songSwap.staged = null;

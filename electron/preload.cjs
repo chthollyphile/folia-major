@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('electron', {
     // whenever the weights are not there, which is the browser build's permanent answer.
     runBeatThis: (chunks) => ipcRenderer.invoke('automix-beat-this', chunks),
     // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
-    getBeatThisGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights'),
+    // 'beat_this_small' asks for the bundled small0 the beat FX run instead.
+    getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
     // Whether automix is switched on. While it is, the analysis worker keeps htdemucs loaded; switching
     // it off releases it. See electron/analysis/host.cjs.

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 // clause and a machine with no weights re-decodes every track on every prefetch pass forever.
 
 const canRunBeatThis = vi.fn(() => true);
-vi.mock('@/services/automix/beatThis', () => ({
+vi.mock('@/services/analysis/beatThis', () => ({
     canRunBeatThis: () => canRunBeatThis(),
     analyseBeatGrid: vi.fn(),
 }));

@@ -34,6 +34,8 @@ export default defineVisualizerBackground({
         description: 'Switch background to cover-colored audio-reactive shaders',
         keywords: ['latent', 'latent background', 'shader background', '隐现', '隐现背景', '音频响应背景'],
     },
+    // 智能动感模式: the beats replace the band onset in the speed pulse (LatentBackground.tsx).
+    drawsBeatFx: true,
     // No `song`: a new song's cover colours blend in place (blendMs).
     render: ({ config, theme, coverUrl, audioPower, audioBands, staticMode, paused, blendMs }) => (
         <LatentBackground

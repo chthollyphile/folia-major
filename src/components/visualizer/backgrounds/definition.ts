@@ -128,6 +128,11 @@ export interface VisualizerBackgroundRegistryEntry {
     renderSettingsPanel?: (props: VisualizerBackgroundSettingsProps) => React.ReactNode;
     renderQuickControls?: (props: VisualizerBackgroundQuickControlsProps) => React.ReactNode;
     resetSettings?: (actions?: VisualizerBackgroundActions) => void;
+    /*
+     * True when this background draws beat FX under 智能动感模式, like the visualizer entries' flag of
+     * the same name (../definition.ts); Latent's onset pulse follows the beats.
+     */
+    drawsBeatFx?: boolean;
 }
 
 export interface VisualizerBackgroundEntryModule {

@@ -14,12 +14,12 @@ import { create } from 'zustand';
 import { getVisualizerModeLabel } from '../components/visualizer/registry';
 import type { StoredTuning, VisualizerTuningSettings } from '../components/visualizer/tuningDefinition';
 import { getBackgroundSettingsSlices, getStoredVisualizerTunings } from '../components/visualizer/tuningRegistry';
-import { type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { type SmartBeatSettings, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 import { VISUALIZER_FRAME_RATE_STORAGE_KEY, setGlobalVisualizerFrameRate } from '../utils/frameRateLimiter';
 import { GLOW_BLUR_QUANTIZE_STORAGE_KEY, readStoredGlowBlurQuantize, setGlowBlurQuantized } from '../utils/glowBlurQuantize';
 import i18n from '../i18n/config';
 import { setStatusMessage } from './useStatusMessageStore';
-import { VISUALIZER_OPACITY_STORAGE_KEY, readStoredBackgroundOpacity, readStoredTuning, readStoredVisualizerBackgroundMode, readStoredVisualizerFrameRate, readStoredVisualizerMode, readStoredVisualizerOpacity, writeStoredTuning } from './visualizerSettingsPersistence';
+import { SMART_BEAT_STORAGE_KEY, VISUALIZER_OPACITY_STORAGE_KEY, readStoredBackgroundOpacity, readStoredSmartBeatSettings, resolveSmartBeatSettings, readStoredTuning, readStoredVisualizerBackgroundMode, readStoredVisualizerFrameRate, readStoredVisualizerMode, readStoredVisualizerOpacity, writeStoredTuning } from './visualizerSettingsPersistence';
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 
 type OwnSettingsState = {
@@ -33,6 +33,8 @@ type OwnSettingsState = {
     randomVisualizerModePerSong: boolean;
     /** Snap animated glow blur radii to a bounded set. See components/visualizer/wordGlow.ts. */
     glowBlurQuantize: boolean;
+    /** 智能动感模式, shared by every visualizer and background that draws beat FX: no one style's tuning. */
+    smartBeat: SmartBeatSettings;
     handleToggleDisableVisualizerVignette: (disable: boolean) => void;
     handleToggleDisableVisualizerGeometricBackground: (disable: boolean) => void;
     handleSetBackgroundOpacity: (opacity: number) => void;
@@ -43,6 +45,7 @@ type OwnSettingsState = {
     handleSetVisualizerMode: (mode: VisualizerMode, options?: { notify?: boolean }) => void;
     handleToggleRandomVisualizerModePerSong: (enable: boolean) => void;
     handleToggleGlowBlurQuantize: (enable: boolean) => void;
+    handleSetSmartBeat: (patch: Partial<SmartBeatSettings>) => void;
 };
 
 export type VisualizerSettingsState = OwnSettingsState & VisualizerTuningSettings;
@@ -105,6 +108,12 @@ export const useVisualizerSettingsStore = create<VisualizerSettingsState>((set, 
     visualizerMode: readStoredVisualizerMode(),
     randomVisualizerModePerSong: getStoredBoolean('random_visualizer_mode_per_song', false),
     glowBlurQuantize: readStoredGlowBlurQuantize(),
+    smartBeat: readStoredSmartBeatSettings(),
+    handleSetSmartBeat: (patch) => {
+        const next = resolveSmartBeatSettings(patch, get().smartBeat);
+        if (typeof window !== 'undefined') localStorage.setItem(SMART_BEAT_STORAGE_KEY, JSON.stringify(next));
+        set({ smartBeat: next });
+    },
     handleToggleDisableVisualizerVignette: (disable) => {
         setStoredBoolean('disable_visualizer_vignette', disable);
         set({ disableVisualizerVignette: disable });
@@ -201,10 +210,12 @@ export const selectVisualizerSettingsSnapshot = (state: VisualizerSettingsState)
     handleSetVisualizerFrameRate: state.handleSetVisualizerFrameRate,
     handleSetVisualizerMode: state.handleSetVisualizerMode,
     handleSetVisualizerOpacity: state.handleSetVisualizerOpacity,
+    handleSetSmartBeat: state.handleSetSmartBeat,
     handleToggleDisableVisualizerGeometricBackground: state.handleToggleDisableVisualizerGeometricBackground,
     handleToggleDisableVisualizerVignette: state.handleToggleDisableVisualizerVignette,
     handleToggleRandomVisualizerModePerSong: state.handleToggleRandomVisualizerModePerSong,
     randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+    smartBeat: state.smartBeat,
     visualizerBackgroundMode: state.visualizerBackgroundMode,
     visualizerFrameRate: state.visualizerFrameRate,
     visualizerMode: state.visualizerMode,

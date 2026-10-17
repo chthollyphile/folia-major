@@ -14,9 +14,17 @@ import { updatePaperShaderUniforms } from '../../../../utils/paperShaderUniforms
 import { createPaperShaderReleaseRef, PAPER_SHADER_CONTEXT_ATTRIBUTES } from '../../../../utils/paperShaderContext';
 import { useFirstFrameDrawn } from '../../styleTransition/firstFrame';
 import { useBlendedColors } from '../useBlendedColors';
+import { beatImpact, downbeatImpact } from '../../../../stores/motionSignals';
+import { isBeatFxReady } from '../../../../services/beatFx/beatFxLive';
 
 // src/components/visualizer/backgrounds/latent/LatentBackground.tsx
 // Layers two cover-colored Paper shaders and drives their uniforms without React frame updates.
+//
+// 智能动感模式: once the playing track's beats are in (beatFxLive's `isBeatFxReady`, which is only
+// ever true while the switch is on), the speed pulse follows beat_this' beats instead of the band
+// onset guess - the larger of the beat and downbeat envelopes, already scaled by the 轻拍 / 重拍
+// strengths - on top of the same broadband energy. Until then, and with the switch off, the frame is
+// the original one.
 
 interface LatentBackgroundProps {
     theme: Theme;
@@ -69,6 +77,8 @@ export const resolveLatentBeatSpeedTarget = (
     broadbandEnergy: number,
     onsetPulse: number,
 ) => clampAudioAmount(broadbandEnergy * 0.42 + onsetPulse * 0.85);
+/** The beat FX onset: the larger of the two envelopes the beat clock writes, each 0..2 once scaled. */
+export const resolveLatentBeatFxPulse = (beat: number, downbeat: number) => Math.max(beat, downbeat);
 export const resolveLatentAudioSpeedTarget = (
     broadbandEnergy: number,
     onsetPulse: number,
@@ -256,6 +266,8 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                 targetMid,
                 0.13,
             );
+            // The band onset keeps tracking while the beats drive the pulse, so falling back (a track
+            // with no beats) picks up from the current state rather than from a stale one.
             latentOnsetPulse = tuning.enhancedBeatResponse
                 ? resolveLatentOnsetPulse(
                     targetBeatEnergy,
@@ -264,11 +276,18 @@ const LatentBackground: React.FC<LatentBackgroundProps> = ({
                 )
                 : 0;
             previousBeatEnergy = targetBeatEnergy;
-            const beatSpeedTarget = resolveLatentAudioSpeedTarget(
-                targetBeatEnergy,
-                latentOnsetPulse,
-                tuning.enhancedBeatResponse,
-            );
+            // The beats are the onset, whether or not the band onset was turned on: switching
+            // 智能动感模式 on is asking for the beat response.
+            const beatSpeedTarget = !isPaused && isBeatFxReady()
+                ? resolveLatentBeatSpeedTarget(
+                    targetBeatEnergy,
+                    resolveLatentBeatFxPulse(beatImpact.get(), downbeatImpact.get()),
+                )
+                : resolveLatentAudioSpeedTarget(
+                    targetBeatEnergy,
+                    latentOnsetPulse,
+                    tuning.enhancedBeatResponse,
+                );
             smoothedBeatSpeed = easeTowards(
                 smoothedBeatSpeed,
                 beatSpeedTarget,

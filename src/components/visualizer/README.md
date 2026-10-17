@@ -104,6 +104,21 @@ App / ThemePark / VisPlayground / OBS source
 
 有 `tuning.ts` 的模式各有自己的 tuning，并通过 `VisualizerRenderer` 的 `applyVisualizerTuning` 统一注入。`tuning.ts` 还写明这份 tuning 存在哪个键、怎么读、怎么合并改动（`storage`）：设置仓库（`useVisualizerSettingsStore`）按这份声明生成字段、改和恢复默认两个动作，仓库和 `src/stores/visualizerSettingsPersistence.ts` 里没有哪个模式的专门代码。背景同理：`backgrounds/<mode>/tuning.ts`；不是一整个对象的设置写在背景目录的 `settings.ts` 里（现在只有 `backgrounds/url/settings.ts`）。模式级设置面板由各自 `entry.tsx` 的 `renderSettingsPanel` 提供，歌词样式窗口给每个面板同一组 props（`tuning`、`onTuningChange`、`settings`、拖动开始和结束）；草稿、保存和「默认」都在窗口里按声明通用处理（`window/useTuningDrafts.ts`）。
 
+### 智能动感模式（beat FX）
+
+全局一个开关加轻拍 / 重拍两个强度（`SmartBeatSettings`，store 的 `smartBeat`，设置卡 `SmartBeatSettingsCard.tsx` 在「歌词动画」的模式选择下面），不属于任何一个模式的 tuning。哪些画面响应由 entry 声明：模式和背景的 entry 上 `drawsBeatFx: true`（目前商籁、镜台、隐现背景），不显示背景的模式本来就写着 `background: false`（Still）。`beatClockTargets.ts` 据此决定节拍时钟和拍点分析跑不跑。
+
+各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`，没就绪就走原来的画面，所以关着时像素不变。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，隐现 `backgrounds/latent/LatentBackground.tsx`。
+
+每拍还带「重音」（`services/analysis/beatAccents.ts`，和拍点在同一次 small0 分析里从同一份梅尔频谱算出）：强度 0–1、低 / 中 / 高三段的占比、小节位置（从 beat_this 的重拍往后数），以及整首歌的动感系数（0.45–1，只降不升）。
+
+- 时钟让每拍的峰值等于 `resolveBeatFxAccentGain`，即 (0.35 + 0.65 × 强度) × 动感系数，所以只读包络的画面（隐现）不用改代码就有强弱。
+- 要按拍区分的，用 `getBeatFxLastBeat` / `getBeatFxLastDownbeat` 取刚发射的那一拍：
+  - 商籁：偏低频的拍推近多一点，偏高频的拍横滚多一点，小节第 3 拍横滚减半（`resolveSonnetBeatFxAccent`）；
+  - 镜台：涟漪强度乘以 gain，偏低频的普通拍用大尺度涟漪（`resolveDioramaBeatRipple`）。
+- 没有节奏的小节（打击成分远低于全曲平常水平，例如只有喇叭的前奏）里，`resolveBeatFxAccentGain` 返回 0，所有画面这一段都不出拍点特效（`rhythmic`，见 `services/analysis/README.md`）。
+- 没有重音数据时（旧存档，或读不到音频），以上各项都恰好等于 1，画面和加入重音之前一致。
+
 ### Lyrics pipeline
 
 Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.lrc`、`.vtt`、`.yrc` 或 `.qrc`。

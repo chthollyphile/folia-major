@@ -57,15 +57,37 @@ export const rmsDb = (samples: Float32Array): number => {
  * and the alternative is a dependency in the bundle of a music player that already ships an FFT in
  * the browser it runs on - just not one reachable from a decoded buffer.
  */
-export const fft = (real: Float64Array, imag: Float64Array) => {
-    const n = real.length;
+/** The bit-reversal permutation per transform size: the same few sizes, thousands of frames each. */
+const bitReversal = new Map<number, Int32Array>();
+
+const bitReversalOf = (n: number): Int32Array => {
+    let table = bitReversal.get(n);
+    if (table) return table;
+    table = new Int32Array(n);
     for (let i = 1, j = 0; i < n; i += 1) {
         let bit = n >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
+        table[i] = j;
+    }
+    bitReversal.set(n, table);
+    return table;
+};
+
+export const fft = (real: Float64Array, imag: Float64Array) => {
+    const n = real.length;
+    // The permutation from a table, and swaps through a temporary rather than array destructuring;
+    // the butterflies below are untouched, so every output is bit for bit what it was.
+    const reversed = bitReversalOf(n);
+    for (let i = 1; i < n; i += 1) {
+        const j = reversed[i];
         if (i < j) {
-            [real[i], real[j]] = [real[j], real[i]];
-            [imag[i], imag[j]] = [imag[j], imag[i]];
+            let swap = real[i];
+            real[i] = real[j];
+            real[j] = swap;
+            swap = imag[i];
+            imag[i] = imag[j];
+            imag[j] = swap;
         }
     }
     for (let len = 2; len <= n; len <<= 1) {

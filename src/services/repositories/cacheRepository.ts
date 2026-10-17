@@ -1,4 +1,5 @@
 import type { Table } from 'dexie';
+import { isBeatGridKey } from '../analysis/beatGridKeys';
 import {
   appDatabase,
   LOCAL_LIBRARY_ARTIST_SPLIT_MARKER_KEY,
@@ -32,6 +33,7 @@ export const getCacheTableName = (key: string): CacheTableName => {
   if (key.startsWith('audio_') || key.startsWith('cover_')) return 'media_cache';
   if (
     key.startsWith('automix_profile_') ||
+    isBeatGridKey(key) ||
     key.startsWith('lyric_') ||
     key.startsWith('theme_') ||
     key.startsWith('replayGain_') ||

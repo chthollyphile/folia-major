@@ -189,6 +189,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setMonetBackgroundTuning: vi.fn(),
             setLatentBackgroundTuning: vi.fn(),
             toggleVideoLayer: vi.fn(),
+            toggleSmartBeat: vi.fn(),
             pickVideoLayerFile: vi.fn(async () => null),
             usesWordSegmentation: true,
             lyricSegmentation: {

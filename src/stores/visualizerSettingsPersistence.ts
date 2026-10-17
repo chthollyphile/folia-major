@@ -1,4 +1,4 @@
-import { type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
+import { DEFAULT_SMART_BEAT_SETTINGS, type SmartBeatSettings, type VisualizerBackgroundMode, type VisualizerFrameRate, type VisualizerMode } from '../types';
 // 只做字符串校验，走 types/visualizerModes 而不是 registry：后者的 eager glob 会把 13 个
 // renderer（含 three.js）拉进来，而这里读的只是一个 localStorage 字符串。
 // mod 模式在启动时本来就看不到——bootstrap.tsx 的 restoreStoredModVisualizer 在 mods 注册完
@@ -105,3 +105,31 @@ export const resolveVisualizerBackgroundMode = (
     storedMode: VisualizerBackgroundMode | null | undefined,
     _visualizerMode: VisualizerMode,
 ): VisualizerBackgroundMode => storedMode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
+
+export const SMART_BEAT_STORAGE_KEY = 'visualizer_smart_beat';
+
+/** A strength in 0..2, or `fallback` when it is not a finite number. */
+const resolveSmartBeatStrength = (value: unknown, fallback: number): number => (
+    typeof value === 'number' && Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : fallback
+);
+
+/** Clamps a partial 智能动感模式 patch onto `base`; anything missing or malformed keeps base's value. */
+export const resolveSmartBeatSettings = (
+    patch: Partial<SmartBeatSettings> | null | undefined,
+    base: SmartBeatSettings = DEFAULT_SMART_BEAT_SETTINGS,
+): SmartBeatSettings => ({
+    enabled: typeof patch?.enabled === 'boolean' ? patch.enabled : base.enabled,
+    beatIntensity: resolveSmartBeatStrength(patch?.beatIntensity, base.beatIntensity),
+    downbeatIntensity: resolveSmartBeatStrength(patch?.downbeatIntensity, base.downbeatIntensity),
+});
+
+export const readStoredSmartBeatSettings = (): SmartBeatSettings => {
+    if (typeof window === 'undefined') return DEFAULT_SMART_BEAT_SETTINGS;
+    const saved = localStorage.getItem(SMART_BEAT_STORAGE_KEY);
+    if (!saved) return DEFAULT_SMART_BEAT_SETTINGS;
+    try {
+        return resolveSmartBeatSettings(JSON.parse(saved) as Partial<SmartBeatSettings>);
+    } catch {
+        return DEFAULT_SMART_BEAT_SETTINGS;
+    }
+};
