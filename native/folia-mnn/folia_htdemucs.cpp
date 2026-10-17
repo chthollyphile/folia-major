@@ -222,10 +222,17 @@ struct Builder {
     }
     /** Eight heads of q [512, n] over k, v [512, m] (q pre-scaled): [1, 512, 1, n]. */
     static VARP attend(VARP q, VARP k, VARP v, int n, int m) {
-        VARP qh = _Transpose(_Reshape(q, {kHeads, kHeadDim, n}), {0, 2, 1});              // [8, n, 64]
-        VARP scores = _MatMul(qh, _Reshape(k, {kHeads, kHeadDim, m}));                    // [8, n, m]
-        VARP out = _MatMul(_Softmax(scores, -1), _Reshape(v, {kHeads, kHeadDim, m}), false, true);  // [8, n, 64]
-        return _Reshape(_Transpose(out, {0, 2, 1}), {1, kDim, 1, n});
+        // One head at a time: the scores of all eight at once are [8, n, m], 58MB for the frequency
+        // branch's self-attention and as much again for its softmax, where one head's are an eighth.
+        std::vector<VARP> qs = _Split(_Reshape(q, {kHeads, kHeadDim, n}), {kHeads}, 0);
+        std::vector<VARP> ks = _Split(_Reshape(k, {kHeads, kHeadDim, m}), {kHeads}, 0);
+        std::vector<VARP> vs = _Split(_Reshape(v, {kHeads, kHeadDim, m}), {kHeads}, 0);
+        std::vector<VARP> heads;
+        for (int h = 0; h < kHeads; ++h) {
+            VARP scores = _MatMul(qs[h], ks[h], true, false);                              // [1, n, m]
+            heads.push_back(_MatMul(vs[h], _Softmax(scores, -1), false, true));  // [1, 64, n]
+        }
+        return _Reshape(_Concat(heads, 0), {1, kDim, 1, n});
     }
     /** x + g1 * out-projection of the attention, then the feed-forward half and norm_out of layer p. */
     VARP finish(VARP x, VARP att, const std::string& p) {
