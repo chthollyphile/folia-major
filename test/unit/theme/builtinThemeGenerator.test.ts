@@ -132,4 +132,48 @@ describe('generateBuiltinDualTheme', () => {
             expect(getHueDistance(palette.accentHue, palette.baseHue)).toBeGreaterThan(20);
         }
     });
+
+    it('always uses the second cover colour for the accent when the cover offers one', () => {
+        const coverColors = ['#f43f5e', '#0ea5e9'];
+
+        // Every run must now land on duotone, never a synthetic complementary / triadic accent.
+        const schemes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(seed => (
+            analyzeCoverPalette(coverColors, createSequenceRandom(seed * 131)).scheme
+        ));
+
+        expect(schemes).toEqual(Array(schemes.length).fill('duotone'));
+    });
+
+    it('reads a slot from the cover swatch named by the slot preference', () => {
+        const coverColors = ['#f43f5e', '#0ea5e9'];
+
+        // Pin the accent to the FIRST cover swatch (rose) instead of the second (blue).
+        const dualTheme = generateBuiltinDualTheme({
+            coverColors,
+            random: createSequenceRandom(7),
+            slotPrefs: { accentColor: 1 },
+        });
+
+        const firstHue = hexToHsl(coverColors[0])!.h;
+        const accentHue = hexToHsl(dualTheme.dark.accentColor)!.h;
+        expect(getHueDistance(accentHue, firstHue)).toBeLessThanOrEqual(16);
+    });
+
+    it('keeps the generator hue for a slot left at automatic', () => {
+        const coverColors = ['#f43f5e', '#0ea5e9'];
+
+        const pinned = generateBuiltinDualTheme({
+            coverColors,
+            random: createSequenceRandom(7),
+            slotPrefs: { accentColor: 2 },
+        });
+        const unpinned = generateBuiltinDualTheme({
+            coverColors,
+            random: createSequenceRandom(7),
+            slotPrefs: {},
+        });
+
+        // The background is untouched by an accent-only preference.
+        expect(pinned.dark.backgroundColor).toBe(unpinned.dark.backgroundColor);
+    });
 });

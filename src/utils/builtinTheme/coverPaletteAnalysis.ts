@@ -67,8 +67,11 @@ const pickScheme = (
     supportHue: number | null,
     random: () => number,
 ): HarmonyScheme => {
-    // A real second hue on the cover is the most "from this artwork" accent available.
-    if (supportHue !== null && random() < 0.65) {
+    // A real second hue on the cover is the most "from this artwork" accent available. It is always
+    // preferred once found: a complementary / triadic accent rotated off the base hue is the whole
+    // of the "accent does not match the cover" report, so a cover that offers its own second colour
+    // never falls through to a synthetic one.
+    if (supportHue !== null) {
         return 'duotone';
     }
 

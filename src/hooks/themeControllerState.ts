@@ -168,9 +168,11 @@ export const resolveBgModeTheme = ({
 export const buildBuiltinDualTheme = ({
     coverColors = [],
     random,
+    slotPrefs,
 }: {
     coverColors?: string[];
     random?: () => number;
+    slotPrefs?: import('../utils/builtinTheme/generateBuiltinDualTheme').BuiltinThemeSlotPrefs;
 } = {}): DualTheme => applyStoredAnimationIntensityToDualTheme(
-    generateBuiltinDualTheme({ coverColors, random }),
+    generateBuiltinDualTheme({ coverColors, random, slotPrefs }),
 );

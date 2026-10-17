@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
-import { ColorPicker, ColorWells, Segmented } from '../settings/kit';
+import { ColorPicker, ColorWells, Segmented, Select } from '../settings/kit';
+import { useBuiltinThemeSlotStore } from '../../../stores/useBuiltinThemeSlotStore';
 import { COLOR_FIELDS, type EditableColorKey, type EditableMode } from './themeParkDraft';
 
 // src/components/modal/theme-park/ThemeColorParts.tsx
@@ -61,9 +62,30 @@ type ThemeColorPickerCardProps = {
     areaHeight?: number;
 };
 
+// How many of the recommended colours the "take the Nth" list offers. The cover's own palette leads
+// the list, so the first entries are the cover's dominant colours; a few are enough to reach them.
+const RECOMMENDED_PICK_COUNT = 6;
+
 export const ThemeColorPickerCard: React.FC<ThemeColorPickerCardProps> = ({ theme, activeKey, recommendedColors, onDrag, onChange, areaHeight }) => {
     const { t } = useTranslation();
     const field = COLOR_FIELDS.find(entry => entry.key === activeKey) ?? COLOR_FIELDS[0];
+    const slotPrefs = useBuiltinThemeSlotStore(state => state.slotPrefs);
+    const setSlotPref = useBuiltinThemeSlotStore(state => state.setSlotPref);
+    // The pick list writes the Nth recommended colour straight into the selected slot and remembers
+    // the choice, so a theme generated later from the cover reads the same slot from the same place.
+    // The cover's dominant colours come first, so "1" and "2" are the two the report calls most accurate.
+    const recommendedOptions: ReadonlyArray<{ value: string; label: string }> = React.useMemo(() => {
+        const offered = recommendedColors.slice(0, RECOMMENDED_PICK_COUNT);
+        return [
+            { value: '__auto__', label: t('options.themeRecommendedAuto') },
+            ...offered.map((_color, index) => ({ value: String(index + 1), label: t('options.themeRecommendedNth', { n: index + 1 }) })),
+        ];
+    }, [recommendedColors, t]);
+    // Which position the selected slot is pinned to, if any; "automatic" when it is not pinned.
+    const currentPosition = slotPrefs[activeKey];
+    const currentValue = currentPosition !== undefined && currentPosition >= 1 && currentPosition <= RECOMMENDED_PICK_COUNT
+        ? String(currentPosition)
+        : '__auto__';
 
     return (
         <div className="min-w-0 rounded-xl bg-[var(--st-card)] p-3 shadow-[0_0_0_1px_var(--st-line)]">
@@ -80,6 +102,28 @@ export const ThemeColorPickerCard: React.FC<ThemeColorPickerCardProps> = ({ them
                 label={t(field.labelKey)}
                 areaHeight={areaHeight}
             />
+            <div className="mt-3 flex items-center gap-2">
+                <span className="shrink-0 text-xs leading-[18px] text-[color:var(--st-t3)]">{t('options.themeRecommendedFrom')}</span>
+                <div className="min-w-0 flex-1">
+                    <Select
+                        value={currentValue}
+                        options={recommendedOptions}
+                        onChange={(value) => {
+                            if (value === '__auto__') {
+                                setSlotPref(activeKey, null);
+                                return;
+                            }
+                            const position = Number(value);
+                            if (Number.isInteger(position) && position >= 1 && position <= RECOMMENDED_PICK_COUNT) {
+                                setSlotPref(activeKey, position);
+                                const color = recommendedColors[position - 1];
+                                if (color) onChange(color);
+                            }
+                        }}
+                        name={t('options.themeRecommendedFrom')}
+                    />
+                </div>
+            </div>
         </div>
     );
 };

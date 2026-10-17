@@ -35,6 +35,7 @@ import {
 } from './themeControllerState';
 import { getPlaybackSongKey } from '../utils/appPlaybackGuards';
 import { setStatusMessage as setStatusMsg } from '../stores/useStatusMessageStore';
+import { useBuiltinThemeSlotStore } from '../stores/useBuiltinThemeSlotStore';
 import { useStableCallbacks } from './useStableCallbacks';
 
 type StatusSetter = Dispatch<SetStateAction<StatusMessage | null>>;
@@ -572,7 +573,10 @@ export function useThemeController({
         origin: 'chosen' | 'fallback',
     ): Promise<GenerateAIThemeResult> => {
         const coverColors = coverUrl ? await extractColors(coverUrl, 5) : [];
-        const coverTheme = applyStoredAnimationIntensityToDualTheme(buildBuiltinDualTheme({ coverColors }));
+        const coverTheme = applyStoredAnimationIntensityToDualTheme(buildBuiltinDualTheme({
+            coverColors,
+            slotPrefs: useBuiltinThemeSlotStore.getState().slotPrefs,
+        }));
 
         if (currentSong) {
             await saveToCache(`dual_theme_${getPlaybackSongKey(currentSong)}`, coverTheme);
