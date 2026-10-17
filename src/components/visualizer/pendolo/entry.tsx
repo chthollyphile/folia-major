@@ -30,6 +30,8 @@ export default defineVisualizer({
     seeksOnLineClick: true,
     // 智能动感模式: the clockwork steps on the beats and draws its beat FX (pendolo/pendoloBeatFx.ts).
     drawsBeatFx: true,
+    // ...and, once the track's drum stem is read (htdemucs_gpu), plays its drum hits instead.
+    drawsDrumHits: true,
     // The song-scoped seed resets Pendolo's lyric rail state before the next track starts.
     render: props => <VisualizerPendolo key={props.seed} {...props} />,
     renderSettingsPanel: props => <PendoloSettingsPanel {...props} />,

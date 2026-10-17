@@ -166,7 +166,8 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
     ipcMain.on('automix-enabled', (_event, enabled) => setAutomixEnabled(enabled === true));
 
     /**
-     * The beat_this WebGPU export, for the renderer to run on its own device (beatThisGpu.ts), or null.
+     * A WebGPU export - beat_this's, or htdemucs' (asked for as 'htdemucs') - for the renderer to run on
+     * its own device (beatThisGpu.ts), or null.
      *
      * Read here and handed over rather than run here: the GPU belongs to the renderer, and this is
      * the only process that may read the models directory. Once per model per renderer-side load
@@ -174,13 +175,14 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDirs, getBundledModelsDir, 
      * final0 file is also the worker's CPU fallback; its tensors and manifest are one file
      * (packedWeights.cjs), split here.
      *
-     * The channel keeps its automix- name: the beat FX (智能动感模式) ask it for the bundled small0 too.
+     * The channel keeps its automix- name: the beat FX (智能动感模式) ask it for the bundled small0 too,
+     * and for htdemucs_gpu (92MB, a download of its own), whose file is the same packed format.
      */
     ipcMain.handle('automix-beat-this-gpu-weights', async (_event, model) => {
-        // final0 (automix's download) unless the bundled small0 is asked for by name; nothing else is
-        // a WebGPU export, so no other name may pick a file. A bundled model is read from the
-        // installer's directory only (modelPaths.cjs BUNDLED_MODEL_NAMES).
-        const name = model === 'beat_this_small' ? 'beat_this_small' : 'beat_this';
+        // final0 (automix's download) unless the bundled small0 or htdemucs is asked for by name;
+        // nothing else is a WebGPU export, so no other name may pick a file. A bundled model is read
+        // from the installer's directory only (modelPaths.cjs BUNDLED_MODEL_NAMES).
+        const name = model === 'beat_this_small' ? 'beat_this_small' : model === 'htdemucs' ? 'htdemucs_gpu' : 'beat_this';
         const dirs = BUNDLED_MODEL_NAMES.includes(name) ? [getBundledModelsDir?.()].filter(Boolean) : modelsDirs();
         const file = resolveModelFile(dirs, name);
         if (!file) return null;

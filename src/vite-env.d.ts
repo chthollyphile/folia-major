@@ -663,8 +663,8 @@ declare global {
     name: string;
     file: string;
     bytes: number;
-    /** Which capability this buys: the beat grid, or the stems. */
-    enables: 'beatGrid' | 'stems';
+    /** Which capability this buys: the beat grid, the stems, or the beat FX's drum hits. */
+    enables: 'beatGrid' | 'stems' | 'drums';
     license: string;
     path: string | null;
     downloading: boolean;
@@ -808,6 +808,11 @@ declare global {
         weights: Uint8Array<ArrayBuffer>;
         manifest: import('./services/analysis/beatThisWgsl/runtime').BeatThisWgslManifest;
       } | null>;
+      /** htdemucs' WebGPU export (the htdemucs_gpu download), for the drum stem of 智能动感模式; null when not installed. */
+      getHtdemucsGpuWeights?: () => Promise<{
+        weights: Uint8Array<ArrayBuffer>;
+        manifest: import('./services/analysis/htdemucsWgsl/runtime').HtdemucsWgslManifest;
+      } | null>;
       /**
        * Automix switched on or off. While on, the analysis worker keeps htdemucs loaded across tracks;
        * off releases it in that process. One-way.
@@ -831,7 +836,7 @@ declare global {
        * Absent in the browser build, which is why every reader treats a missing function as "no
        * weights" rather than as "unknown".
        */
-      getAutomixModelsPresent?: () => Promise<{ beat_this: boolean; htdemucs: boolean }>;
+      getAutomixModelsPresent?: () => Promise<{ beat_this: boolean; htdemucs: boolean; htdemucs_gpu?: boolean }>;
       chooseModelsDirectory?: () => Promise<{ canceled: boolean }>;
       resetModelsDirectory?: () => Promise<void>;
       getAutomixModelStatus?: () => Promise<ElectronAutomixModelStatus>;

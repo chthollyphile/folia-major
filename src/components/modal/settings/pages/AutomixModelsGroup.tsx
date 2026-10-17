@@ -26,14 +26,21 @@ export const MODEL_OPTIONS = {
 const megabytes = (bytes: number) => `${Math.round(bytes / 1e6)} MB`;
 
 /** Keyed by capability: one model per feature, so `enables` names the row. */
-const titleKeyOf = (model: ElectronAutomixModelEntry) => (
-    model.enables === 'stems' ? 'options.modelEnablesStems' : 'options.modelEnablesBeatGrid'
-);
+const titleKeyOf = (model: ElectronAutomixModelEntry) => {
+    if (model.enables === 'stems') return 'options.modelEnablesStems';
+    if (model.enables === 'drums') return 'options.modelEnablesDrums';
+    return 'options.modelEnablesBeatGrid';
+};
 
-/** The features a download switches on: stems serve both, the beat grid serves Automix alone. */
-const scopeKeysOf = (model: ElectronAutomixModelEntry) => (model.enables === 'stems'
-    ? ['options.modelScopeAutomix', 'options.modelScopePerformance']
-    : ['options.modelScopeAutomix']);
+/**
+ * The features a download switches on: stems serve both, the beat grid serves Automix alone, and
+ * htdemucs' GPU export the drum hits of 智能动感模式, nothing of Automix's.
+ */
+const scopeKeysOf = (model: ElectronAutomixModelEntry) => {
+    if (model.enables === 'stems') return ['options.modelScopeAutomix', 'options.modelScopePerformance'];
+    if (model.enables === 'drums') return ['options.modelScopeSmartBeat'];
+    return ['options.modelScopeAutomix'];
+};
 
 type Outcome = { text: string; tone?: 'ok' | 'error' };
 

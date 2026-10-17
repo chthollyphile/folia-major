@@ -81,6 +81,8 @@ let lastStepAt: number | null = null;
 let holdUntil = 0;
 /** Whether the last step had a deck being heard; false while paused or stopped. */
 let hearing = false;
+/** The playing track's time the listener hears, seconds; null while nothing plays. */
+let heardAt: number | null = null;
 const intensities = { beat: 1, downbeat: 1 };
 /** Median gap between the installed track's beats, in seconds; see `getBeatFxBeatPeriod`. */
 const DEFAULT_BEAT_PERIOD = 0.5;
@@ -169,6 +171,9 @@ export const isBeatFxReady = (): boolean =>
 /** Whether a deck was being heard at the last step; continuous effects rest while it is not. */
 export const isBeatFxHearing = (): boolean => hearing;
 
+/** The installed track's key and the time in it the listener hears (null while nothing plays). */
+export const getBeatFxHeard = (): Readonly<{ key: string | null; time: number | null }> => ({ key: trackKey, time: heardAt });
+
 /** Stops the clock and zeroes both envelopes; called when the FX are switched off. */
 export const stopBeatFx = () => {
     beginBeatFxTrack(null);
@@ -213,6 +218,7 @@ export const tickBeatFx = (audioElement: HTMLMediaElement | null, context: BaseA
         if (debug) debug.latencyMs = latency * 1000;
     }
     hearing = heardTime !== null;
+    heardAt = heardTime;
 
     stepBeatFxClock(state, heardTime, dtSec);
     firedCounts.beats = state.firedBeats;

@@ -115,7 +115,7 @@ const hasOverlay = (fx: PendoloBeatFxDrawFrame) => {
 /** Floats per overlay vertex: x, y (CSS px), r, g, b, a (premultiplied), u, v (u < -1 = solid). */
 export const PENDOLO_OVERLAY_STRIDE = 8;
 /** Enough for every tick, the dial twice, every jewel and two segments per spark, six vertices per quad. */
-export const PENDOLO_OVERLAY_MAX_VERTICES = (TICK_COUNT + DIAL_SEGMENTS * 2 + 8 + PENDOLO_MAX_SPARKS * 2) * 6;
+export const PENDOLO_OVERLAY_MAX_VERTICES = (TICK_COUNT + DIAL_SEGMENTS * 4 + 8 + PENDOLO_MAX_SPARKS * 2) * 6;
 
 const pushQuad = (
     out: Float32Array,
@@ -167,6 +167,30 @@ const pushSegment = (
     return pushQuad(out, at, [ax + nx, ay + ny, bx + nx, by + ny, ax - nx, ay - ny, bx - nx, by - ny], color, alpha, false);
 };
 
+/** A dial ring lit as bright as `light`: a soft wide glow under a hot thin line. */
+const pushLitRing = (
+    out: Float32Array,
+    at: number,
+    centerX: number,
+    centerY: number,
+    dialR: number,
+    light: number,
+    color: readonly [number, number, number],
+): number => {
+    const hot = heatPendoloBeatFxColor(color, 0.3 * light);
+    for (let index = 0; index < DIAL_SEGMENTS; index += 1) {
+        const a0 = (index * Math.PI * 2) / DIAL_SEGMENTS;
+        const a1 = ((index + 1) * Math.PI * 2) / DIAL_SEGMENTS;
+        const x0 = centerX + dialR * Math.cos(a0);
+        const y0 = centerY + dialR * Math.sin(a0);
+        const x1 = centerX + dialR * Math.cos(a1);
+        const y1 = centerY + dialR * Math.sin(a1);
+        at = pushSegment(out, at, x0, y0, x1, y1, DIAL_GLOW_WIDTH, color, 0.22 * light);
+        at = pushSegment(out, at, x0, y0, x1, y1, 1.5 + 1.5 * light, hot, light);
+    }
+    return at;
+};
+
 /** Fills `out` with the overlay for this frame; answers the vertex count (0 = skip the pass). */
 export const buildPendoloBeatFxOverlay = (
     out: Float32Array,
@@ -195,21 +219,9 @@ export const buildPendoloBeatFxOverlay = (
             );
         }
     }
-    if (fx.outerDialLight > 0) {
-        const dialR = baseRadius * PENDOLO_OUTER_DIAL;
-        const light = fx.outerDialLight;
-        const hot = heatPendoloBeatFxColor(fx.color, 0.3 * light);
-        for (let index = 0; index < DIAL_SEGMENTS; index += 1) {
-            const a0 = (index * Math.PI * 2) / DIAL_SEGMENTS;
-            const a1 = ((index + 1) * Math.PI * 2) / DIAL_SEGMENTS;
-            const x0 = centerX + dialR * Math.cos(a0);
-            const y0 = centerY + dialR * Math.sin(a0);
-            const x1 = centerX + dialR * Math.cos(a1);
-            const y1 = centerY + dialR * Math.sin(a1);
-            at = pushSegment(out, at, x0, y0, x1, y1, DIAL_GLOW_WIDTH, fx.color, 0.22 * light);
-            at = pushSegment(out, at, x0, y0, x1, y1, 1.5 + 1.5 * light, hot, light);
-        }
-    }
+    // The ring the ticks stand on lights with them: the ticks alone read too faint (2026-10-17).
+    if (fx.tickDialLight > 0) at = pushLitRing(out, at, centerX, centerY, baseRadius * PENDOLO_TICK_DIAL, fx.tickDialLight, fx.color);
+    if (fx.outerDialLight > 0) at = pushLitRing(out, at, centerX, centerY, baseRadius * PENDOLO_OUTER_DIAL, fx.outerDialLight, fx.color);
     if (fx.jewelFlare > 0.01 || fx.smallJewelFlare > 0.01) {
         const hot = heatPendoloBeatFxColor(fx.color, 0.6);
         for (const jewel of resolveJewels(input)) {
@@ -274,7 +286,8 @@ export const drawPendoloWaveLens2d = (
     scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
     scratchCtx.clearRect(0, 0, scratch.width, scratch.height);
     scratchCtx.drawImage(canvas, 0, 0);
-    const { centerX: cx, centerY: cy } = input;
+    const cx = input.centerX + wave.x;
+    const cy = input.centerY + wave.y;
     for (let index = 0; index < WAVE_SLICES; index += 1) {
         const u0 = index / WAVE_SLICES;
         const u1 = (index + 1) / WAVE_SLICES;
@@ -332,9 +345,7 @@ export const drawPendoloBeatFxOverlay2d = (
             ctx.stroke();
         }
     }
-    if (fx.outerDialLight > 0) {
-        const dialR = baseRadius * PENDOLO_OUTER_DIAL;
-        const light = fx.outerDialLight;
+    const strokeLitRing = (dialR: number, light: number) => {
         ctx.strokeStyle = rgba(fx.color, 0.22 * light);
         ctx.lineWidth = DIAL_GLOW_WIDTH;
         ctx.beginPath();
@@ -345,7 +356,10 @@ export const drawPendoloBeatFxOverlay2d = (
         ctx.beginPath();
         ctx.arc(centerX, centerY, dialR, 0, Math.PI * 2);
         ctx.stroke();
-    }
+    };
+    // The ring the ticks stand on lights with them, as on the WebGL path.
+    if (fx.tickDialLight > 0) strokeLitRing(baseRadius * PENDOLO_TICK_DIAL, fx.tickDialLight);
+    if (fx.outerDialLight > 0) strokeLitRing(baseRadius * PENDOLO_OUTER_DIAL, fx.outerDialLight);
     if (fx.jewelFlare > 0.01 || fx.smallJewelFlare > 0.01) {
         const hot = heatPendoloBeatFxColor(fx.color, 0.6);
         for (const jewel of resolveJewels(input)) {

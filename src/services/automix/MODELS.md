@@ -146,6 +146,20 @@ GroupNorm 链融合；ConvTranspose 改成多相卷积；每个 DConv 层合成�
 （drums / bass / vocals），x86-64 两条路径 0.003 / 0.001 / 0.0 dB。M4 上每窗 3.2–3.8 s（上一版 3.7–4.1 s），
 物理内存峰值 511–535 MB（含 Node 基线约 60 MB；上一版 Python 进程 371–544 MB）。
 
+### 2.6 WebGPU 版（`htdemucs-wgsl.bin`，智能动感模式的鼓声）—— 本仓库所做
+
+`build/htdemucs_wgsl/export_weights.py` 从同一份旧版 `htdemucs.onnx`（sha256 099b5be7…）取权重，不经 PyTorch：
+按消费节点名取 initializer，卷积存成隐式 GEMM 矩阵，ConvTranspose 拆成 4 个相位矩阵，注意力的 1/8 并进 q，
+频率位置编码按运行时的 token 顺序重排；图里本来就是 fp16 的权重仍存 fp16（`--f16`，91838176 字节，
+sha256 27d5331a…），格式与 beat_this 的 WGSL 导出相同（`packedWeights.cjs` 直接读）。
+运行时在 `src/services/analysis/htdemucsWgsl/`，与 beat_this 共用渲染进程 Worker 和 GPU device。
+
+红线（`build/htdemucs_wgsl/red_line.py`）：6 段，对 ORT CPU，每轨电平最差差值 0.0006 dB（门槛 0.01），f32 / f16 权重相同。
+有 shader-f16 的设备上 GEMM 用 f16 计算（`htdemucsWgsl/kernels.ts` 的 `GemmMode`）：几乎无声的段过不了这条红线（0.018 dB，误差在混音以下 58–77 dB），
+按用途另验：整首有鼓的歌，鼓点 386 个里 385 个与 f32 同帧同类，强度差均值 0.0005。
+M4 单段 GPU 时间 f32 141.7 ms / f16 128.0 ms，自动切片后 186 / 170 ms，单个 dispatch 最长 4.7 ms。只取鼓轨，给时计的鼓点（`../analysis/drumHits.ts`）；
+automix 的人声分离仍走 MNN CPU。镜像上需要放这个文件（下载清单 `shared/modelManifest.json` 的 `htdemucs_gpu`）。
+
 ## 3. 手术验证
 
 坏掉的图不会崩溃，故 strict shape inference + ONNX checker 只是第一道门。真正的判据有三层：

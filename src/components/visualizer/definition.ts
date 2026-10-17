@@ -186,6 +186,12 @@ export interface VisualizerRegistryEntry {
      * them (beatClockTargets.ts).
      */
     drawsBeatFx?: boolean;
+    /*
+     * True when this mode plays the playing track's drum hits under 智能动感模式 (时计:
+     * pendolo/usePendoloBeatFx.ts), read off htdemucs' drum stem (services/analysis/drumHits.ts). The
+     * separation runs only while such a mode is on screen; it implies `drawsBeatFx`.
+     */
+    drawsDrumHits?: boolean;
 }
 
 export interface FoliumTunable {

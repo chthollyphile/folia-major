@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVisualizerSettingsStore } from '../../stores/useVisualizerSettingsStore';
 import { useSmartBeatAvailability } from '../../hooks/useSmartBeatAvailability';
+import { modelsPresent, subscribeModelAvailability } from '../../services/analysis/modelAvailability';
 import { Group, Row, type SettingsGroupDef } from '../modal/settings/kit';
 import { SliderRow, ToggleRow, times } from './panelRows';
 
@@ -8,6 +9,7 @@ import { SliderRow, ToggleRow, times } from './panelRows';
 // 智能动感模式's one switch and two strengths, at the top of the lyric style tab: it is a setting of
 // the whole picture, driving every mode and background that draws beat FX, so it sits with no one
 // mode's panel. Reads and writes the settings store itself; nothing about it is a per-mode draft.
+// While it is on and htdemucs_gpu is not installed, says what the download adds (时计's drum hits).
 
 const SMART_BEAT_GROUP: SettingsGroupDef = { id: 'vis-smart-beat', titleKey: 'options.smartBeat' };
 
@@ -25,6 +27,8 @@ const SmartBeatSettingsCard: React.FC<SmartBeatSettingsCardProps> = ({ t, onSlid
     const availability = useSmartBeatAvailability(smartBeat.enabled);
     const unavailableReason = availability === 'ready' ? null : t(`options.beatFxUnavailable_${availability}`);
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
+    const drumsPresent = React.useSyncExternalStore(subscribeModelAvailability, modelsPresent).htdemucs_gpu;
+    const showDrumsHint = smartBeat.enabled && availability === 'ready' && !drumsPresent;
 
     return (
         <Group def={SMART_BEAT_GROUP}>
@@ -35,6 +39,7 @@ const SmartBeatSettingsCard: React.FC<SmartBeatSettingsCardProps> = ({ t, onSlid
                 onChange={enabled => setSmartBeat({ enabled })}
             />
             {unavailableReason && <Row notice={unavailableReason} />}
+            {showDrumsHint && <Row notice={t('options.smartBeatDrumsHint')} />}
             {smartBeat.enabled && (
                 <>
                     <SliderRow

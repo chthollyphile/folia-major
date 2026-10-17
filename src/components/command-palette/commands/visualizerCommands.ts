@@ -82,10 +82,10 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
         execute: () => false,
     }),
+    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode', 'Turn beat_this-driven beat FX (Sonnet, Diorama particles, Latent background) on or off', ['smart beat', 'beat fx', 'beat this', 'sonnet beat', 'diorama beat', 'latent beat', '智能动感模式', '动感', '节拍', '商籁动感', '镜台涟漪', '隐现', '重拍', '轻拍'], context => context.visualizer.toggleSmartBeat()),
     ...VISUALIZER_REGISTRY.flatMap(({ mode, command }) => (
         command ? [createVisualizerCommand(mode, command.title, command.description, command.keywords)] : []
     )),
-    createToggleCommand('smart-beat-toggle', 'visualizer', 'Smart beat mode', 'Turn beat_this-driven beat FX (Sonnet, Diorama particles, Latent background) on or off', ['smart beat', 'beat fx', 'beat this', 'sonnet beat', 'diorama beat', 'latent beat', '智能动感模式', '动感', '节拍', '商籁动感', '镜台涟漪', '隐现', '重拍', '轻拍'], context => context.visualizer.toggleSmartBeat()),
     createToggleCommand('video-layer-toggle', 'visualizer', 'Video layer behind lyrics', 'Show or hide the muted video layer behind the lyrics', ['video layer', 'background video', 'video behind lyrics', '视频层', '背景视频', '歌词后方视频'], context => context.visualizer.toggleVideoLayer()),
     defineCommand({
         id: 'video-layer-pick',

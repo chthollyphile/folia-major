@@ -15,7 +15,8 @@
 // A leaf on purpose - it imports nothing from the app. beatThis.ts and stems.ts both read it, and
 // stems.ts already imports beatThis.ts, so anything shared between them has to sit below both.
 
-export type AutomixModelName = 'beat_this' | 'htdemucs';
+/** htdemucs_gpu: htdemucs' WebGPU export, the drum stem of 智能动感模式 (electron/analysis/modelPaths.cjs). */
+export type AutomixModelName = 'beat_this' | 'htdemucs' | 'htdemucs_gpu';
 
 export type AutomixModelsPresent = Readonly<Record<AutomixModelName, boolean>>;
 
@@ -27,7 +28,7 @@ export type AutomixModelsPresent = Readonly<Record<AutomixModelName, boolean>>;
  * one IPC round trip and then corrects upward; starting at true is a page promising stem separation
  * over an empty directory, which is the exact failure that let a gesture run zero times for a day.
  */
-const ABSENT: AutomixModelsPresent = Object.freeze({ beat_this: false, htdemucs: false });
+const ABSENT: AutomixModelsPresent = Object.freeze({ beat_this: false, htdemucs: false, htdemucs_gpu: false });
 
 let present: AutomixModelsPresent = ABSENT;
 
@@ -72,7 +73,7 @@ export const refreshModelAvailability = async (): Promise<AutomixModelsPresent> 
     const ask = typeof window !== 'undefined' ? window.electron?.getAutomixModelsPresent : undefined;
     if (typeof ask !== 'function') return present;
 
-    let answer: { beat_this: boolean; htdemucs: boolean } | null = null;
+    let answer: { beat_this: boolean; htdemucs: boolean; htdemucs_gpu?: boolean } | null = null;
     try {
         answer = await ask();
     } catch (error) {
@@ -84,8 +85,9 @@ export const refreshModelAvailability = async (): Promise<AutomixModelsPresent> 
     const next: AutomixModelsPresent = {
         beat_this: answer.beat_this === true,
         htdemucs: answer.htdemucs === true,
+        htdemucs_gpu: answer.htdemucs_gpu === true,
     };
-    if (next.beat_this === present.beat_this && next.htdemucs === present.htdemucs) return present;
+    if (next.beat_this === present.beat_this && next.htdemucs === present.htdemucs && next.htdemucs_gpu === present.htdemucs_gpu) return present;
 
     present = Object.freeze(next);
     for (const listener of listeners) listener();

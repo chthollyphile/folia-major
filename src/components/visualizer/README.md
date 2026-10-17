@@ -188,6 +188,8 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
   - 宝石闪光（各齿轮中心，轻拍、重拍都触发，强弱和光晕一样按重音增益的平方）：WebGL 是叠加混合的 overlay，Canvas2D 是 `lighter`。
   - 以下只在重拍上：咬合火花（同样画在 overlay 里；火花和两个齿轮转整圈同时喷出，数量、速度、大小是最早一版的）、8px 震屏。
 - 颜色：主题强调色提亮到发光（`resolvePendoloBeatFxColor`），偏灰的主题用金色。
+- 鼓点（`entry.tsx` 的 `drawsDrumHits`）：装了 `htdemucs_gpu` 时，时计在屏上就读这首歌的鼓点（`services/analysis/drumHits.ts`，GPU 分离鼓轨，一首约十几秒，存盘后不再跑；边分边给，开始后一秒左右就有）。读到后不再用拍点：底鼓、军鼓让光晕在原地按分贝曲线亮起再快速回落，宝石和两圈表盘一起亮；底鼓让整个表面鼓起，重的再震屏；军鼓打在偏离中心的位置，重的让表面朝那边倾；镲片点亮刻度和刻度所在的内圈（只亮刻度太不明显，2026-10-17 加上内圈）。没有冲击波、没有火花。读到之前、`until` 之后还没算到的地方、没装模型、没有 WebGPU，或没有鼓的歌，时计不出任何效果。
+- 上面按拍点的那套效果（冲击波、光晕、火花、按拍震屏）已于 2026-10-17 废弃：代码保留，由 `usePendoloBeatFx.ts` 的 `PENDOLO_BEAT_LIST_FX` 关掉，不再运行。
 - 关闭或未就绪时，所有 MotionValue 为 0、shader 的 wave uniform 为 0、不画 overlay，画面与原来一致。
 
 ### Sonnet

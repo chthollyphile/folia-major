@@ -37,18 +37,20 @@ describe('finding model weights', () => {
     it('is null for a model that is nowhere', () => {
         expect(resolveModelFile([userDir, downloadDir, bundledDir], 'beat_this')).toBeNull();
         expect(modelsPresent([userDir, downloadDir, bundledDir]))
-            .toEqual({ beat_this: false, htdemucs: false });
+            .toEqual({ beat_this: false, htdemucs: false, htdemucs_gpu: false });
     });
 
     it('takes each model from the first directory that has it, independently', () => {
         put(downloadDir, 'beat_this');
         put(bundledDir, 'htdemucs');
+        put(userDir, 'htdemucs_gpu');
         const dirs = [userDir, downloadDir, bundledDir];
 
         expect(resolveModelFile(dirs, 'beat_this')).toBe(path.join(downloadDir, 'beat_this-wgsl.bin'));
         expect(resolveModelFile(dirs, 'htdemucs')).toBe(path.join(bundledDir, 'htdemucs-v3.mnn'));
         // The runtime is compiled into the app, so the file being there is the feature being able to run.
-        expect(modelsPresent(dirs)).toEqual({ beat_this: true, htdemucs: true });
+        expect(resolveModelFile(dirs, 'htdemucs_gpu')).toBe(path.join(userDir, 'htdemucs-wgsl.bin'));
+        expect(modelsPresent(dirs)).toEqual({ beat_this: true, htdemucs: true, htdemucs_gpu: true });
     });
 
     // A file the listener put somewhere deliberately outranks one we fetched, which is the whole
@@ -74,7 +76,7 @@ describe('finding model weights', () => {
         mkdirSync(path.dirname(exe), { recursive: true });
         writeFileSync(exe, 'not really python');
         for (const name of ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx']) writeFileSync(path.join(old, name), 'weights');
-        expect(modelsPresent([old])).toEqual({ beat_this: false, htdemucs: false });
+        expect(modelsPresent([old])).toEqual({ beat_this: false, htdemucs: false, htdemucs_gpu: false });
         expect(legacyLeftovers([old]).sort()).toEqual(
             ['beat_this.onnx', 'htdemucs-v2.onnx', 'htdemucs.onnx', 'runtime'].map(name => path.join(old, name)).sort(),
         );
@@ -104,6 +106,6 @@ describe('the bundled small0 export', () => {
         put(bundledDir, 'beat_this_small');
         expect(resolveModelFile([userDir, downloadDir, bundledDir], 'beat_this_small'))
             .toBe(path.join(bundledDir, 'beat_this-small-wgsl.bin'));
-        expect(Object.keys(modelsPresent([userDir, downloadDir, bundledDir])).sort()).toEqual(['beat_this', 'htdemucs']);
+        expect(Object.keys(modelsPresent([userDir, downloadDir, bundledDir])).sort()).toEqual(['beat_this', 'htdemucs', 'htdemucs_gpu']);
     });
 });

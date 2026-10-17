@@ -659,7 +659,7 @@ export class PendoloClockworkRenderer {
         gl.uniform2fv(this.meshUniformOrigins, this.originTable);
         gl.uniform1fv(this.meshUniformRotations, this.rotationTable);
         const wave = resolvePendoloWaveUniform(beatFx?.wave ?? null);
-        gl.uniform2f(this.meshUniformWaveCenter, input.centerX, input.centerY);
+        gl.uniform2f(this.meshUniformWaveCenter, input.centerX + (beatFx?.wave?.x ?? 0), input.centerY + (beatFx?.wave?.y ?? 0));
         gl.uniform4f(this.meshUniformWave, wave[0], wave[1], wave[2], wave[3]);
         const tint = beatFx?.wave ? beatFx.color : null;
         gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);

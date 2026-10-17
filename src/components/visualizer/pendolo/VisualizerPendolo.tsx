@@ -470,12 +470,12 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const balanceGearY = centerY - baseRadius * 0.75;
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
-    const balanceLensInputs = [beatFx.waveRadius, beatFx.waveBand, beatFx.waveStrength];
-    const balanceIconX = useTransform(balanceLensInputs, ([radius, band, strength]: number[]) => (
-        resolvePendoloPointWave(balanceGearX - centerX, balanceGearY - centerY, radius, band, strength).x
+    const balanceLensInputs = [beatFx.waveRadius, beatFx.waveBand, beatFx.waveStrength, beatFx.waveX, beatFx.waveY];
+    const balanceIconX = useTransform(balanceLensInputs, ([radius, band, strength, x, y]: number[]) => (
+        resolvePendoloPointWave(balanceGearX - centerX - x, balanceGearY - centerY - y, radius, band, strength).x
     ));
-    const balanceIconY = useTransform(balanceLensInputs, ([radius, band, strength]: number[]) => (
-        resolvePendoloPointWave(balanceGearX - centerX, balanceGearY - centerY, radius, band, strength).y
+    const balanceIconY = useTransform(balanceLensInputs, ([radius, band, strength, x, y]: number[]) => (
+        resolvePendoloPointWave(balanceGearX - centerX - x, balanceGearY - centerY - y, radius, band, strength).y
     ));
 
     return (
@@ -500,6 +500,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             zIndex: 0,
                             background: haloBackground,
                             mixBlendMode: 'plus-lighter',
+                            x: beatFx.haloX,
+                            y: beatFx.haloY,
                             scale: beatFx.haloScale,
                             opacity: beatFx.haloOpacity,
                         }}
@@ -508,7 +510,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                 {/* 智能动感模式's shake moves the clockwork and the lyrics together; 0 while off. */}
                 <motion.div
                     className="absolute inset-0 pointer-events-none"
-                    style={{ x: beatFx.shakeX, y: beatFx.shakeY }}
+                    style={{ x: beatFx.shakeX, y: beatFx.shakeY, scale: beatFx.breath, transformOrigin: `${centerX}px ${centerY}px` }}
                 >
                 {/* Wireframe Dynamic Clockwork Canvas (Gears, Escapement & Hairspring) */}
                 <PendoloClockworkCanvas
@@ -595,6 +597,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     waveRadius={beatFx.waveRadius}
                                     waveBand={beatFx.waveBand}
                                     waveStrength={beatFx.waveStrength}
+                                    waveX={beatFx.waveX}
+                                    waveY={beatFx.waveY}
                                     fontFamily={fontFamily}
                                     fontWeight={fontWeight}
                                     canSeek={Boolean(onLyricLineSeek)}

@@ -9,12 +9,19 @@ const fs = require('fs');
 // apart the symptom was a settings page promising an engine the worker had no weights for, so they are one
 // function rather than two identical-looking ones.
 //
-// Resolved per FILE rather than per directory. The two models are separate downloads of 41MB and 190MB and
+// Resolved per FILE rather than per directory. The models are separate downloads of 41MB, 190MB and 92MB and
 // a build may still bundle one of them, so "beat_this from the user's folder, htdemucs from the installer"
 // is an ordinary state rather than a corner case.
 
-/** Every model this app knows how to run. The order is the order the settings page lists them in. */
-const MODEL_NAMES = ['beat_this', 'htdemucs'];
+/**
+ * Every model this app knows how to run. The order is the order the settings page lists them in.
+ *
+ * htdemucs_gpu is the same htdemucs as htdemucs, exported for the renderer's WebGPU runtime
+ * (build/htdemucs_wgsl/export_weights.py, src/services/analysis/htdemucsWgsl): the drum stem behind
+ * 智能动感模式, GPU only. Its own download because the CPU model is an MNN graph whose weights no
+ * other runtime can read, and the beat FX must not need automix's 190MB to get its 92MB.
+ */
+const MODEL_NAMES = ['beat_this', 'htdemucs', 'htdemucs_gpu'];
 
 /**
  * The file a model is installed under. One file per model, and the manifest's `file` - what a download
@@ -28,6 +35,7 @@ const MODEL_NAMES = ['beat_this', 'htdemucs'];
 const MODEL_FILES = {
     beat_this: 'beat_this-wgsl.bin',
     htdemucs: 'htdemucs-v3.mnn',
+    htdemucs_gpu: 'htdemucs-wgsl.bin',
     beat_this_small: 'beat_this-small-wgsl.bin',
 };
 

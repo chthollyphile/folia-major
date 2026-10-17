@@ -1,6 +1,7 @@
 import type { SongResult } from '../../types';
 import { mergeBeatFxEvents, type BeatFxEvent } from './clock';
 import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
+import { getDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
 import { BEAT_THIS_SAMPLE_RATE, canRunBeatThis } from '../analysis/beatThis';
 import { decodeAtRate, readLocalTrackBytes, toMidSide } from '../analysis/trackAudio';
 import { getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
@@ -32,6 +33,10 @@ import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 // The beats come with their accents (analysis/beatAccents.ts) when the list was stored with them. A
 // list stored before accents existed answers at once without them - the beat FX as they were - and
 // `accented` brings the same beats with accents once they are measured, for the caller to swap in.
+//
+// A track with beats also offers its drum hits (`loadDrums`, analysis/drumHits.ts: htdemucs' drum stem
+// on the GPU, with htdemucs_gpu installed), read only when the picture on screen plays them (时计), as
+// they cost the track's bytes and seconds of GPU. The beats stay the answer here either way.
 
 export type BeatFxSourceKind = 'beat_this' | 'none';
 
@@ -46,6 +51,12 @@ export interface BeatFxTrackBeats {
     trackScale: number;
     /** The same beats with accents, when these came without; null if they cannot be measured now. */
     accented?: Promise<BeatFxTrackBeats | null>;
+    /**
+     * Starts reading the track's drum hits (analysis/drumHits.ts) - from the cache, or separated now
+     * on the GPU - for a picture that plays them (`drawsDrumHits`). Settles true once `getDrumHits`
+     * answers for the key; false for none (a drumless track, no htdemucs_gpu, no bytes yet).
+     */
+    loadDrums?: () => Promise<boolean>;
 }
 
 const memory = new Map<string, Promise<BeatFxTrackBeats>>();
@@ -76,12 +87,7 @@ const resolveTrackBeats = async (
     let note = 'beat_this returned no beats (no usable GPU, or a failed run)';
     let retry = false;
     let grid: Awaited<ReturnType<typeof getTrackBeatGrid>>;
-    const readMid = async () => {
-        // Asked before the read and the decode, which are seconds of work for nobody without one.
-        if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
-            note = 'no WebGPU in this renderer';
-            return null;
-        }
+    const readBytes = async () => {
         const found = await readLocalTrackBytes(song, { representation });
         let bytes = found && 'bytes' in found ? found.bytes : null;
         // A representation's bytes are what the key names; an online track's stream is read only
@@ -92,6 +98,16 @@ const resolveTrackBeats = async (
             retry = true;
             return null;
         }
+        return bytes;
+    };
+    const readMid = async () => {
+        // Asked before the read and the decode, which are seconds of work for nobody without one.
+        if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
+            note = 'no WebGPU in this renderer';
+            return null;
+        }
+        const bytes = await readBytes();
+        if (!bytes) return null;
         const buffer = await decodeAtRate(bytes, BEAT_THIS_SAMPLE_RATE);
         if (!buffer) {
             note = 'decode failed';
@@ -108,11 +124,19 @@ const resolveTrackBeats = async (
     }
     if (grid?.beats.length) {
         const found = grid;
+        // Read once, on the first ask: a stored analysis costs a cache read, a new one the track's
+        // bytes and the GPU for some seconds. Without htdemucs_gpu only a stored one is read.
+        // The track asked for is the one a separation may run for; the caller says when it is left.
+        const loadDrums = () => {
+            setWantedDrumTrack(key);
+            return loadTrackDrumHits(key, readBytes).then(analysis => analysis !== null && getDrumHits(key) !== null);
+        };
         if (found.accents) {
             return {
                 events: mergeBeatFxEvents(found.beats, found.downbeats, found.accents),
                 source: 'beat_this',
                 trackScale: found.accents.trackScale,
+                loadDrums,
             };
         }
         // Measured on a worker after the fact; a failure only leaves the beats as they are.
@@ -125,7 +149,7 @@ const resolveTrackBeats = async (
                 }
                 : null))
             .catch(() => null);
-        return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented };
+        return { events: mergeBeatFxEvents(found.beats, found.downbeats), source: 'beat_this', trackScale: 1, accented, loadDrums };
     }
     if (!canRunBeatThis('beat_this_small')) return { events: [], source: 'none', note: 'not the desktop app', trackScale: 1 };
     return { events: [], source: 'none', note, trackScale: 1, ...(retry ? { retry } : {}) };

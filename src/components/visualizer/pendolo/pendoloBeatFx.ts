@@ -162,6 +162,9 @@ export interface PendoloBeatFxState {
     /** Seconds the current wave takes to cross the screen. */
     waveDuration: number;
     waveGain: number;
+    /** Where the current wave started, CSS px from the hub (0, 0 but under 时计's drum hits). */
+    waveX: number;
+    waveY: number;
     /** How much the current wave's halo, dial lights and jewel flares show (resolvePendoloWavePunch). */
     wavePunch: number;
     /** Which dials the current wave has passed (bit 1 the ticks', bit 2 the outermost). */
@@ -180,6 +183,8 @@ export const createPendoloBeatFxState = (): PendoloBeatFxState => ({
     waveStart: -1,
     waveDuration: PENDOLO_WAVE_SECONDS,
     waveGain: 0,
+    waveX: 0,
+    waveY: 0,
     wavePunch: 0,
     waveDials: 0,
     tickDialLight: 0,
@@ -196,6 +201,8 @@ export interface PendoloBeatFxStepContext {
     /** Where sparks start; empty draws none. */
     meshPoints: readonly PendoloMeshPoint[];
     random: () => number;
+    /** Under drum hits (usePendoloBeatFx): the wave's crossing time instead of one fitted to the beat. */
+    waveSeconds?: number;
 }
 
 const spawnSparks = (state: PendoloBeatFxState, points: readonly PendoloMeshPoint[], gain: number, random: () => number) => {
@@ -233,8 +240,11 @@ export const stepPendoloBeatFx = (
     const waveGain = triggers.downbeats > 0 ? triggers.downbeatAccentGain : triggers.beats > 0 ? triggers.beatAccentGain : 0;
     if (waveGain > 0) {
         state.waveStart = now;
-        state.waveDuration = Math.min(PENDOLO_WAVE_SECONDS, Math.max(WAVE_MIN_SECONDS, WAVE_SHARE_OF_BEAT * context.beatPeriod));
+        state.waveDuration = context.waveSeconds
+            ?? Math.min(PENDOLO_WAVE_SECONDS, Math.max(WAVE_MIN_SECONDS, WAVE_SHARE_OF_BEAT * context.beatPeriod));
         state.waveGain = Math.min(1.5, waveGain);
+        state.waveX = 0;
+        state.waveY = 0;
         state.waveDials = 0;
         // The accent and the 轻拍 / 重拍 strength apart: the strength only scales what the accent shows.
         const strength = triggers.downbeats > 0 ? triggers.downbeatGain : triggers.beatGain;
@@ -284,6 +294,9 @@ export interface PendoloWaveFrame {
     band: number;
     /** 0..1.5 how strong the lens is now (fades as it travels). */
     strength: number;
+    /** Where it travels out from, CSS px from the hub; 0, 0 but under the drum hits. */
+    x: number;
+    y: number;
 }
 
 /** Where the shockwave is, travelling from the hub to `maxRadius`; null when none is on. */
@@ -305,6 +318,8 @@ export const resolvePendoloWave = (
         radius: start + (maxRadius - start) * eased,
         band: 200 + 140 * state.waveGain,
         strength: (1 - progress) ** 0.8 * Math.min(1.3, 1.3 * state.waveGain),
+        x: state.waveX,
+        y: state.waveY,
     };
 };
 
@@ -341,7 +356,7 @@ export const resolvePendoloWavePunch = (accent: number, strength: number): numbe
 };
 
 /** Lights each dial once, the frame the wave's crest passes it, as strong as the wave's downbeat. */
-export const lightPendoloDials = (state: PendoloBeatFxState, wave: PendoloWaveFrame | null, baseRadius: number) => {
+export const lightPendoloDials = (state: PendoloBeatFxState, wave: Pick<PendoloWaveFrame, 'radius' | 'band' | 'strength'> | null, baseRadius: number) => {
     if (!wave) return;
     const light = state.wavePunch;
     if (!(state.waveDials & 1) && wave.radius >= baseRadius * PENDOLO_TICK_DIAL) {
@@ -355,7 +370,7 @@ export const lightPendoloDials = (state: PendoloBeatFxState, wave: PendoloWaveFr
 };
 
 /** The lens' bell (0 outside, 1 at the crest) at `distance` from the hub. */
-export const resolvePendoloWaveBump = (wave: PendoloWaveFrame, distance: number): number => {
+export const resolvePendoloWaveBump = (wave: Pick<PendoloWaveFrame, 'radius' | 'band' | 'strength'>, distance: number): number => {
     const u = (distance - (wave.radius - wave.band)) / wave.band;
     if (u <= 0 || u >= 1) return 0;
     const s = Math.sin(Math.PI * u);

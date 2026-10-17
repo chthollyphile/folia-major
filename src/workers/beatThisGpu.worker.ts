@@ -1,12 +1,14 @@
 /// <reference types="@webgpu/types" />
 import { BeatThisWgsl, type BeatThisWgslManifest } from '../services/analysis/beatThisWgsl/runtime';
 import { runPercussiveEnergy } from '../services/analysis/beatThisWgsl/percussive';
+import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/htdemucsWgsl/runtime';
 
 // src/workers/beatThisGpu.worker.ts
 // Beat This! on the renderer's own GPU, beside the visualizer, from a thread that does not paint.
 //
 // The worker owns its WebGPU device and the models built on it - final0 for automix, small0 for the
-// beat FX, each built the first time it is loaded - and answers three messages: 'load' (a model's
+// beat FX, htdemucs for the beat FX's drum stem, each built the first time it is loaded - and answers
+// these messages: 'separate' (one htdemucs segment, stereo in, the drum stem out), 'load' (a model's
 // weights and manifest, transferred in once), 'run' (a model's mel chunks of up to 1500 frames, logits back;
 // with `percussive`, the whole spectrogram as well, whose per-frame percussive energy - HPSS,
 // beatThisWgsl/percussive.ts, for the beat accents - comes back with them), 'percussive' (that alone, for
@@ -25,11 +27,14 @@ type ModelName = 'beat_this' | 'beat_this_small';
 
 type Request =
     | { id: number; kind: 'load'; model: ModelName; weights: Uint8Array<ArrayBuffer>; manifest: BeatThisWgslManifest }
+    | { id: number; kind: 'load'; model: 'htdemucs'; weights: Uint8Array<ArrayBuffer>; manifest: HtdemucsWgslManifest }
+    | { id: number; kind: 'separate'; left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer> }
     | { id: number; kind: 'run'; model: ModelName; chunks: Float32Array<ArrayBuffer>[]; percussive?: { mel: Float32Array<ArrayBuffer>; frames: number } }
     | { id: number; kind: 'percussive'; mel: Float32Array<ArrayBuffer>; frames: number }
     | { id: number; kind: 'dispose' };
 
 const models = new Map<ModelName, BeatThisWgsl>();
+let htdemucs: HtdemucsWgsl | null = null;
 let device: GPUDevice | null = null;
 let deviceLabel = '';
 let f16 = false;
@@ -49,6 +54,7 @@ const openDevice = async (): Promise<GPUDevice> => {
     opened.lost.then((info) => {
         lost = `device lost (${info.reason}): ${info.message}`;
         models.clear();
+        htdemucs = null;
     });
     deviceLabel = `${adapter.info.vendor} ${adapter.info.architecture}${f16 ? ' f16' : ''}`;
     device = opened;
@@ -64,6 +70,19 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                 opened = await openDevice();
             } catch (error) {
                 self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error), scope: 'device' });
+                return;
+            }
+            if (request.model === 'htdemucs') {
+                if (!htdemucs) {
+                    try {
+                        // f16 GEMMs where the device has shader-f16: ~10% faster, the same drum hits (kernels.ts GemmMode).
+                        htdemucs = await HtdemucsWgsl.create(opened, request.weights, request.manifest, { f16 });
+                    } catch (error) {
+                        self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error), scope: 'model' });
+                        return;
+                    }
+                }
+                self.postMessage({ id: request.id, result: deviceLabel });
                 return;
             }
             if (!models.has(request.model)) {
@@ -90,9 +109,22 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             self.postMessage({ id: request.id, result: energy }, { transfer: [energy.percussive.buffer, energy.total.buffer] });
             return;
         }
+        if (request.kind === 'separate') {
+            if (lost) throw new Error(lost);
+            if (!htdemucs) throw new Error('htdemucs not loaded');
+            // 'auto' as for a beat_this chunk: one stage on the GPU at a time, finer where a stage
+            // outlasts a 120 Hz frame, so a segment never holds the visualizer's frames.
+            const result = await htdemucs.run(request.left, request.right, { slice: 'auto' });
+            const left = result.left.slice();
+            const right = result.right.slice();
+            self.postMessage({ id: request.id, result: { left, right } }, { transfer: [left.buffer, right.buffer] });
+            return;
+        }
         if (request.kind === 'dispose') {
             for (const model of models.values()) model.destroy();
             models.clear();
+            htdemucs?.destroy();
+            htdemucs = null;
             device?.destroy();
             self.postMessage({ id: request.id, result: true });
             return;

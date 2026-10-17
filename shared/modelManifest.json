@@ -79,6 +79,16 @@
       "license": "MIT",
       "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
       "note": "htdemucs (Meta Research), single-file four-stem variant, built by build/htdemucs_mnn/make_model.py from the htdemucs.onnx earlier versions shipped (sha256 099b5be7...): the STFT/iSTFT as matrix products, GroupNorm chains fused, ConvTranspose as polyphase Conv, every DConv layer as one Folia::FoliaDConv operator, converted with MNNConvert from the pinned source, weights and graph packed into one file. fp32. Against the Python + onnxruntime path it replaces, on six 30 s excerpts: worst per-stem level difference 0.003 / 0.002 / 0.0 dB (drums / bass / vocals), 3.2-3.8 s per window against 3.7-4.1 s, on an M4. A new name because no earlier version can run it."
+    },
+    {
+      "name": "htdemucs_gpu",
+      "file": "htdemucs-wgsl.bin",
+      "bytes": 91838176,
+      "sha256": "27d5331a74a4e23b18172b3d59d0378e698fd79bc0d0fed3316da77e3a37d8d1",
+      "enables": "drums",
+      "license": "MIT",
+      "upstream": "https://huggingface.co/itamiArika/htdemucs-int8-memory",
+      "note": "htdemucs (Meta Research), the same htdemucs.onnx the CPU model is built from (sha256 099b5be7...), exported by build/htdemucs_wgsl/export_weights.py --f16 for the renderer's WebGPU runtime (src/services/analysis/htdemucsWgsl): the graph's own weights, fp16 where the graph stores fp16 and fp32 elsewhere, Linear weights transposed, each ConvTranspose split into its four phases, the positional and frequency embeddings and the STFT windows as the graph bakes them, the tensor manifest packed into the same file. Drives 智能动感模式's drum hits, on the GPU only. Against onnxruntime on six 3.9 s segments: the drum stem's level within 0.0006 dB, every layer 73-103 dB SNR; 135 ms per segment on an M4."
     }
   ]
 }

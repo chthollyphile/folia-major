@@ -28,3 +28,7 @@ export const visualizerWantsBeatClock = (settings: BeatClockSettings): boolean =
     const background = settings.visualizerBackgroundMode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
     return Boolean(getVisualizerBackgroundRegistryEntry(background).drawsBeatFx);
 };
+
+/** True while the beat clock runs for a mode that also plays drum hits (`drawsDrumHits`: 时计). */
+export const visualizerWantsDrumHits = (settings: BeatClockSettings): boolean =>
+    visualizerWantsBeatClock(settings) && Boolean(getVisualizerRegistryEntry(settings.visualizerMode).drawsDrumHits);
