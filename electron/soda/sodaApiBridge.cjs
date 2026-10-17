@@ -12,6 +12,7 @@
 const { mkdirSync, writeFileSync } = require('node:fs');
 const { readPcSession, findPcDeviceId } = require('./pcSession.cjs');
 const { createSodaSigner, md5Upper } = require('./sodaSigner.cjs');
+const { decryptAudio } = require('./decrypt.cjs');
 const path = require('node:path');
 
 const API_HOST = 'https://api.qishui.com';
@@ -165,10 +166,7 @@ function createSodaApiBridge({ requestFactory = globalThis.fetch, timeoutMs = 20
         if (!media.length) throw new Error(`音频流是空的（HTTP ${streamAnswer.status}）`);
         let decrypted = media;
         if (playAuth) {
-            const module = await import('ly-music-source/dist/providers/qishui/decrypt.js');
-            const decrypt = module.decryptAudio || module.default?.decryptAudio;
-            if (typeof decrypt !== 'function') throw new Error('解密模块没有导出 decryptAudio');
-            decrypted = decrypt(media, playAuth);
+            decrypted = decryptAudio(media, playAuth);
             console.info('[Soda] decrypted:', decrypted.length, 'bytes');
             if (!decrypted.length) throw new Error('解密结果是空的（playAuth 可能不匹配）');
         }
