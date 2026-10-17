@@ -306,6 +306,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
 
             {showText && (
                 <VisualizerSubtitleOverlay
+                    currentTime={currentTime}
                     showText={showText}
                     activeLine={activeLine}
                     recentCompletedLine={recentCompletedLine}

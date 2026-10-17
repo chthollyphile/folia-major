@@ -1,5 +1,5 @@
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, type MotionValue } from 'framer-motion';
 import { Line, SubtitleContentMode, Theme } from '../../types';
 import { resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../utils/fontStacks';
 import { resolveLyricSubtitleTracks, resolveSubtitleContentMode, type SubtitleTrack } from '../../utils/lyrics/alternateText';
@@ -18,12 +18,14 @@ import { usePlayerSubtitleBottomPx } from '../../hooks/usePlayerBottomBarBottomP
 // \p{L}). Applies to BOTH the translation and the upcoming-line preview, so no placeholder can ever
 // reach the shared bottom subtitle in any visualizer mode.
 const hasReadableText = (text?: string | null): boolean => !!text && /[\p{L}\p{N}]/u.test(text);
+const RECENT_SUBTITLE_HOLD_SECONDS = 1.5;
 
 export const getUpcomingLyricsClassName = (blur = true): string => (
     `truncate max-w-2xl mx-auto transition-all duration-500${blur ? ' blur-[1px]' : ''}`
 );
 
 interface VisualizerSubtitleOverlayProps {
+    currentTime: MotionValue<number>;
     showText: boolean;
     activeLine: Line | null;
     recentCompletedLine: Line | null;
@@ -70,16 +72,18 @@ export const resolveVisualizerSubtitleOverlayContent = ({
     // Flattened text of all rows; kept for callers that only care whether any subtitle text exists.
     const subtitleText = subtitleTracks.length > 0 ? subtitleTracks.map(track => track.text).join(' / ') : null;
     const previewLines = nextLines.filter((line) => hasReadableText(line.fullText));
+    const upcomingLines = subtitleText ? [] : activeLine ? previewLines : [];
 
     return {
-        shouldRenderOverlay: true,
+        shouldRenderOverlay: subtitleTracks.length > 0 || upcomingLines.length > 0,
         subtitleText,
         subtitleTracks,
-        upcomingLines: subtitleText ? [] : activeLine ? previewLines : [],
+        upcomingLines,
     };
 };
 
 const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
+    currentTime,
     showText,
     activeLine,
     recentCompletedLine,
@@ -98,6 +102,17 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
     showSubtitleTranslation = true,
     subtitleContentMode,
 }) => {
+    const subscribe = React.useCallback(
+        (onChange: () => void) => recentCompletedLine ? currentTime.on('change', onChange) : () => {},
+        [currentTime, recentCompletedLine]
+    );
+    const readRecentSubtitleVisible = () => {
+        if (!recentCompletedLine) return false;
+        const elapsed = currentTime.get() - recentCompletedLine.endTime;
+        return elapsed >= 0 && elapsed < RECENT_SUBTITLE_HOLD_SECONDS;
+    };
+    // The playback clock freezes on pause; only visibility changes trigger a render.
+    const isRecentSubtitleVisible = React.useSyncExternalStore(subscribe, readRecentSubtitleVisible, readRecentSubtitleVisible);
     // 底栏布局全部收在这个 hook 里：它自己判断当前是不是播放页那棵树，
     // 预览和 OBS 走默认值，不受播放页的偏移量和隐藏开关影响。
     const subtitleBottomPx = usePlayerSubtitleBottomPx(Boolean(isPlayerChromeHidden));
@@ -107,7 +122,7 @@ const VisualizerSubtitleOverlay: React.FC<VisualizerSubtitleOverlayProps> = ({
     const { shouldRenderOverlay, subtitleText, subtitleTracks, upcomingLines } = resolveVisualizerSubtitleOverlayContent({
         showText,
         activeLine,
-        recentCompletedLine,
+        recentCompletedLine: isRecentSubtitleVisible ? recentCompletedLine : null,
         nextLines,
         hideTranslationSubtitle,
         showSubtitleTranslation,

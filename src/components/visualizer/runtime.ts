@@ -1,5 +1,5 @@
 import { MotionValue } from 'framer-motion';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { Line } from '../../types';
 
 // Shared runtime helpers for all visualizers.
@@ -130,12 +130,18 @@ export const useVisualizerRuntime = ({
     const currentTimeValue = currentTime.get();
     const activeLine = lines[currentLineIndex] ?? null;
 
-    const recentCompletedLine = useMemo(() => getRecentCompletedLine({
+    const subscribe = useCallback(
+        (onChange: () => void) => currentLineIndex === -1 ? currentTime.on('change', onChange) : () => {},
+        [currentLineIndex, currentTime]
+    );
+    const readRecentCompletedLine = useCallback(() => getRecentCompletedLine({
         lines,
         currentLineIndex,
-        currentTime: currentTimeValue,
+        currentTime: currentTime.get(),
         getLineEndTime,
-    }), [currentLineIndex, currentTimeValue, getLineEndTime, lines]);
+    }), [currentLineIndex, currentTime, getLineEndTime, lines]);
+    // Gap-to-gap seeks can leave currentLineIndex unchanged. Only the selected line enters React.
+    const recentCompletedLine = useSyncExternalStore(subscribe, readRecentCompletedLine, readRecentCompletedLine);
 
     const upcomingLine = useMemo(
         () => getUpcomingLine(lines, currentLineIndex, currentTimeValue),

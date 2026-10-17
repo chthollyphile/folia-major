@@ -211,6 +211,7 @@ const VisualizerPartita: React.FC<VisualizerPartitaProps> = (props) => {
             </motion.div>
 
             <VisualizerSubtitleOverlay
+                currentTime={currentTime}
                 showText={showText}
                 activeLine={activeLine}
                 recentCompletedLine={recentCompletedLine}
