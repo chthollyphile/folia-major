@@ -45,6 +45,7 @@ interface ParsedTimedEntriesResult {
 
 // Minutes have two digits, or three in a track of a hundred minutes and more.
 const GLOBAL_LRC_TIME_REGEX = /\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/g;
+const LRC_TIME_TAG_REGEX = /\[\d{2,3}:\d{2}[.:]\d{2,3}\]/;
 const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2,3}):(\d{2})[.:](\d{2,3})>/g;
 const LRC_LINE_TIME_REGEX = /^\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/;
 const LEADING_LRC_TAGS_REGEX = /^((?:\[(?:\d{2,3}):(?:\d{2})[.:](?:\d{2,3})\])+)(.*)$/;
@@ -345,26 +346,32 @@ const buildPreciseLineDraft = (content: string, markers: TimestampMarker[]): Dra
     };
 };
 
-const parseSimpleTimedTextEntry = (line: string): TimedTextEntry | null => {
+// A line can carry several leading time tags (`[00:10.00][00:50.00]Chorus`), the usual
+// LRC spelling for a repeated line. Each tag becomes its own entry with the same text.
+const parseSimpleTimedTextEntries = (line: string): TimedTextEntry[] => {
     const match = line.match(LEADING_LRC_TAGS_REGEX);
     if (!match) {
-        return null;
-    }
-
-    const firstTag = match[1].match(LRC_LINE_TIME_REGEX);
-    if (!firstTag) {
-        return null;
+        return [];
     }
 
     const text = match[2].trim();
     if (!text) {
-        return null;
+        return [];
     }
 
-    return {
-        startTime: parseTimestamp(firstTag[1], firstTag[2], firstTag[3]),
+    return Array.from(match[1].matchAll(GLOBAL_LRC_TIME_REGEX), tag => ({
+        startTime: parseTimestamp(tag[1], tag[2], tag[3]),
         text
-    };
+    }));
+};
+
+const parseRepeatedTimedTextEntries = (line: string): TimedTextEntry[] => {
+    const match = line.match(LEADING_LRC_TAGS_REGEX);
+    if (!match || match[1].indexOf('[', 1) === -1 || LRC_TIME_TAG_REGEX.test(match[2])) {
+        return [];
+    }
+
+    return parseSimpleTimedTextEntries(line);
 };
 
 const parseTimedTextEntries = (content: string): ParsedTimedEntriesResult => {
@@ -382,6 +389,18 @@ const parseTimedTextEntries = (content: string): ParsedTimedEntriesResult => {
         }
 
         if (parseMetadataLine(line, metadata)) {
+            continue;
+        }
+
+        const repeatedEntries = parseRepeatedTimedTextEntries(line);
+        if (repeatedEntries.length > 0) {
+            for (const entry of repeatedEntries) {
+                if (entry.startTime < lastStartTime) {
+                    isSorted = false;
+                }
+                lastStartTime = entry.startTime;
+                entries.push(entry);
+            }
             continue;
         }
 
@@ -407,7 +426,7 @@ const parseTimedTextEntries = (content: string): ParsedTimedEntriesResult => {
                     endTime: bracketDraft.endTime,
                     text: bracketDraft.fullText
                 }
-                : parseSimpleTimedTextEntry(line);
+                : parseSimpleTimedTextEntries(line)[0];
 
         if (!entry || entry.text.length === 0) {
             continue;
@@ -438,16 +457,13 @@ export const parseLRC = (
     let lastStartTime = Number.NEGATIVE_INFINITY;
 
     for (const rawLine of lrcString.replace(/^\uFEFF/, '').split(/\r?\n/)) {
-        const entry = parseSimpleTimedTextEntry(rawLine);
-        if (!entry || entry.text.length === 0) {
-            continue;
+        for (const entry of parseSimpleTimedTextEntries(rawLine)) {
+            if (entry.startTime < lastStartTime) {
+                rawEntriesSorted = false;
+            }
+            lastStartTime = entry.startTime;
+            rawEntries.push(entry);
         }
-
-        if (entry.startTime < lastStartTime) {
-            rawEntriesSorted = false;
-        }
-        lastStartTime = entry.startTime;
-        rawEntries.push(entry);
     }
 
     const sortedRawEntries = sortByStartTimeIfNeeded(rawEntries, rawEntriesSorted);
@@ -882,7 +898,7 @@ export const parseEnhancedLRC = (
             continue;
         }
 
-        const simpleEntry = parseSimpleTimedTextEntry(line);
+        const simpleEntry = parseSimpleTimedTextEntries(line)[0];
         if (simpleEntry) {
             if (simpleEntry.startTime < lastStartTime) {
                 isSorted = false;

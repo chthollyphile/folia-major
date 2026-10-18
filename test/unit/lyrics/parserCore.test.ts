@@ -84,6 +84,22 @@ describe('parserCore', () => {
         expectNonDecreasingWordTimes(lyrics.lines[1].words);
     });
 
+    it('shows a line with several time tags at each of them', () => {
+        const lyrics = parseLRC(
+            '[00:10.00][00:50.00]Chorus line\n[00:20.00]Normal line',
+            '[00:10.00][00:50.00]副歌\n[00:20.00]普通'
+        );
+
+        const timed = lyrics.lines
+            .filter(line => line.fullText !== '......')
+            .map(line => [line.startTime, line.fullText, line.translation]);
+        expect(timed).toEqual([
+            [10, 'Chorus line', '副歌'],
+            [20, 'Normal line', '普通'],
+            [50, 'Chorus line', '副歌']
+        ]);
+    });
+
     it('parses enhanced LRC metadata and precise word timing', () => {
         const lyrics = parseEnhancedLRC(
             '[ti:Song]\n[ar:Artist]\n[00:00.000]<00:00.000>你<00:00.300>好<00:00.600>!<00:00.900>',
