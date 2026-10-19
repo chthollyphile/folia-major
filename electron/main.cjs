@@ -18,6 +18,7 @@ const {
   REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY,
   REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY,
   REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY,
+  REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY,
   readRemoteControlWindowSettings,
   shouldShowRemoteUnlockTrayItem,
   applyRemoteControlMouseIgnore,
@@ -25,6 +26,7 @@ const {
 const {
   REMOTE_CONTROL_WINDOW_WIDTH,
   REMOTE_CONTROL_WINDOW_HEIGHT,
+  REMOTE_CONTROL_CARD_INSET,
   getInitialRemoteControlWindowPosition,
   isPointOverRemoteControlStrip,
   clampRemoteControlWindowX,
@@ -2214,6 +2216,7 @@ let remoteControlSkipTaskbarEnabled = false;
 let remoteControlHideTitlebarEnabled = false;
 let remoteControlClickThroughEnabled = false;
 let remoteControlExpandCoverEnabled = true;
+let remoteControlDragBeyondEdgeEnabled = true;
 let mainWindowAlwaysOnTop = false;
 let mainWindowClickThroughEnabled = false;
 let mainWindowClickThroughUnlockHover = false;
@@ -2396,6 +2399,7 @@ function getPublicSettings() {
     [REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY, false),
     [REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY, false),
     [REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY, true),
+    [REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY]: readStoredBoolean(REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY, true),
     [MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY]: readStoredBoolean(MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY, false),
     [TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY]: readStoredBoolean(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, false),
     [DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY]: readStoredBoolean(DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY, false),
@@ -2475,6 +2479,7 @@ remoteControlSkipTaskbarEnabled = readStoredBoolean(REMOTE_CONTROL_SKIP_TASKBAR_
   remoteControlHideTitlebarEnabled = remoteWindowSettings.hideTitlebar;
   remoteControlClickThroughEnabled = remoteWindowSettings.clickThrough;
   remoteControlExpandCoverEnabled = remoteWindowSettings.expandCover;
+  remoteControlDragBeyondEdgeEnabled = remoteWindowSettings.dragBeyondEdge;
 }
 mainWindowAlwaysOnTop = readStoredBoolean(MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY, false);
 
@@ -5034,12 +5039,25 @@ function pollRemoteControlPointer() {
 
 // Dragged past the outer left edge of the screens, the idle look's cover would be cut off. On
 // Windows the move can be held there as it happens; elsewhere a move cannot be refused.
+//
+// The card in use is what the pointer is on: the idle look only opens once the pointer leaves,
+// and until then the 174 px left of the card are empty. So while the pointer is in the window this
+// holds the card's left edge rather than the window's, and the card itself may sit at the screen
+// edge. The window stays where it was dragged once the pointer leaves.
 function keepRemoteControlCoverOnScreen(win, event, newBounds) {
-  const x = clampRemoteControlWindowX(newBounds, screen.getAllDisplays().map(display => display.bounds));
+  // Asked of the cursor rather than of the 80 ms poll: a drag starts the moment the pointer is on
+  // the window, and a stale answer would hold the first few frames at the old limit.
+  const inset = remoteControlDragBeyondEdgeEnabled && isCursorInsideRemoteControlWindow()
+    ? REMOTE_CONTROL_CARD_INSET
+    : 0;
+  const x = clampRemoteControlWindowX(newBounds, screen.getAllDisplays().map(display => display.bounds), inset);
   if (x !== newBounds.x) {
     // Windows then keeps the window where this puts it, and the drag slides along the edge.
     event.preventDefault();
-    win.setPosition(x, newBounds.y);
+    // setBounds, not setPosition: on a display scaled to 150 % the latter leaves the window a
+    // pixel wider and taller every time it is called. The window's size is fixed for good, so the
+    // growing ring is invisible — but it is still window, and it swallows clicks around the card.
+    win.setBounds({ x, y: newBounds.y, width: REMOTE_CONTROL_WINDOW_WIDTH, height: REMOTE_CONTROL_WINDOW_HEIGHT });
   }
 }
 
@@ -6046,6 +6064,7 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY ||
     key === REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY ||
     key === REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY ||
+    key === REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY ||
     key === TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY ||
     key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY ||
     key === VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY ||
@@ -6230,6 +6249,10 @@ ipcMain.handle('save-settings', (event, key, value) => {
   if (key === REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY) {
     remoteControlExpandCoverEnabled = Boolean(nextValue);
     applyRemoteControlWindowPresentation(remoteControlWindow);
+  }
+
+  if (key === REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY) {
+    remoteControlDragBeyondEdgeEnabled = Boolean(nextValue);
   }
 
   if (key === STAGE_MODE_SOURCE_SETTING_KEY) {

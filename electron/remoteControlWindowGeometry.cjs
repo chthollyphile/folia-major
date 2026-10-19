@@ -9,6 +9,9 @@ const REMOTE_CONTROL_WINDOW_WIDTH = 602;
 const REMOTE_CONTROL_WINDOW_HEIGHT = 184;
 const REMOTE_CONTROL_CARD_WIDTH = 594;
 const REMOTE_CONTROL_SLEEVE_WIDTH = 174;
+/** The card in use starts this far into the window: 4 px of room plus the idle look's sleeve. */
+const REMOTE_CONTROL_CARD_INSET = Math.floor((REMOTE_CONTROL_WINDOW_WIDTH - REMOTE_CONTROL_CARD_WIDTH) / 2)
+  + REMOTE_CONTROL_SLEEVE_WIDTH;
 /** The window before it grew to the left. Electron centred it on the primary screen. */
 const LEGACY_REMOTE_CONTROL_WINDOW_WIDTH = 428;
 
@@ -41,13 +44,17 @@ const overlapArea = (a, b) => (
 );
 
 /**
- * The x the window may take, given the screens' bounds: its left edge, where the large cover sits,
- * stays on a screen. Over another screen is fine; past the outer left edge of the screen that
+ * The x the window may take, given the screens' bounds: the point `inset` px right of its left
+ * edge stays on a screen. Over another screen is fine; past the outer left edge of the screen that
  * holds most of the window it is pushed back to that edge.
+ *
+ * `inset` 0 holds the window itself — its left edge, where the idle look's large cover sits.
+ * REMOTE_CONTROL_CARD_INSET holds the card in use instead, so the empty part left of it may hang
+ * off the screen while the card still reaches the edge.
  */
-function clampRemoteControlWindowX(bounds, screenBounds) {
-  const leftEdge = { x: bounds.x, y: bounds.y + Math.floor(bounds.height / 2) };
-  if (screenBounds.some(area => containsPoint(area, leftEdge))) {
+function clampRemoteControlWindowX(bounds, screenBounds, inset = 0) {
+  const anchor = { x: bounds.x + inset, y: bounds.y + Math.floor(bounds.height / 2) };
+  if (screenBounds.some(area => containsPoint(area, anchor))) {
     return bounds.x;
   }
 
@@ -60,12 +67,13 @@ function clampRemoteControlWindowX(bounds, screenBounds) {
       homeOverlap = overlap;
     }
   }
-  return home ? Math.max(bounds.x, home.x) : bounds.x;
+  return home ? Math.max(bounds.x, home.x - inset) : bounds.x;
 }
 
 module.exports = {
   REMOTE_CONTROL_WINDOW_WIDTH,
   REMOTE_CONTROL_WINDOW_HEIGHT,
+  REMOTE_CONTROL_CARD_INSET,
   getInitialRemoteControlWindowPosition,
   isPointOverRemoteControlStrip,
   clampRemoteControlWindowX,

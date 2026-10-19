@@ -28,15 +28,22 @@ const O = {
     remoteTitlebar: option(REMOTE, 'hideRemoteControlTitlebar', 'options.hideRemoteControlTitlebar'),
     remoteClickThrough: option(REMOTE, 'remoteControlClickThrough', 'options.remoteControlClickThrough'),
     remoteExpandCover: option(REMOTE, 'remoteControlExpandCover', 'options.remoteControlExpandCover'),
+    remoteDragBeyondEdge: option(REMOTE, 'remoteControlDragBeyondEdge', 'options.remoteControlDragBeyondEdge'),
 };
 
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
 const IS_MAC = PLATFORM === 'darwin';
+const IS_WINDOWS = PLATFORM === 'win32';
 const HAS_WALLPAPER_MODE = IS_MAC || PLATFORM === 'win32' || PLATFORM === 'linux';
 const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.wallpaperDock];
+// The remote window's drag limit is registered on win32 only (kept by the window manager
+// elsewhere), so this switch means nothing on macOS or Linux and is not drawn there.
+const WINDOWS_ONLY: SettingsOptionDef[] = [O.remoteDragBeyondEdge];
 
-// The search lists the two macOS rows only on macOS.
-export const OPTIONS: SettingsOptionDef[] = Object.values(O).filter(row => IS_MAC || !MAC_ONLY.includes(row));
+// The search lists the two macOS rows only on macOS, and the drag switch only on Windows.
+export const OPTIONS: SettingsOptionDef[] = Object.values(O)
+    .filter(row => IS_MAC || !MAC_ONLY.includes(row))
+    .filter(row => IS_WINDOWS || !WINDOWS_ONLY.includes(row));
 
 const DesktopPage: React.FC = () => {
     const { t } = useTranslation();
@@ -50,6 +57,7 @@ const DesktopPage: React.FC = () => {
         remoteTitlebar: state.hideRemoteControlTitlebar,
         remoteClickThrough: state.remoteControlClickThrough,
         remoteExpandCover: state.remoteControlExpandCover,
+        remoteDragBeyondEdge: state.remoteControlDragBeyondEdge,
         setMinimizeToTray: state.handleToggleMinimizeToTray,
         setCloseToTray: state.handleToggleCloseToTray,
         setHideTaskbarIcon: state.handleToggleHideTaskbarIcon,
@@ -59,6 +67,7 @@ const DesktopPage: React.FC = () => {
         setRemoteTitlebar: state.handleToggleHideRemoteControlTitlebar,
         setRemoteClickThrough: state.handleToggleRemoteControlClickThrough,
         setRemoteExpandCover: state.handleToggleRemoteControlExpandCover,
+        setRemoteDragBeyondEdge: state.handleToggleRemoteControlDragBeyondEdge,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         hideFullscreenButton: state.hideFullscreenButton,
@@ -66,8 +75,15 @@ const DesktopPage: React.FC = () => {
         setHideFullscreenButton: state.handleToggleHideFullscreenButton,
         setNativeMacFullscreen: state.handleToggleNativeMacFullscreenButton,
     })));
-    // Counts the switches moved off their default; expand cover is on by default, so it counts when off.
-    const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover].filter(Boolean).length;
+    // Counts the switches moved off their default; expand cover and drag beyond the edge are on by
+    // default, so they count when off.
+    const remoteOnCount = [
+        desktop.remoteTaskbarIcon,
+        desktop.remoteTitlebar,
+        desktop.remoteClickThrough,
+        !desktop.remoteExpandCover,
+        IS_WINDOWS && !desktop.remoteDragBeyondEdge,
+    ].filter(Boolean).length;
 
     return (
         <>
@@ -128,6 +144,11 @@ const DesktopPage: React.FC = () => {
                 <Row option={O.remoteExpandCover} hint={t('options.remoteControlExpandCoverHint')}>
                     <Toggle checked={desktop.remoteExpandCover} onChange={desktop.setRemoteExpandCover} />
                 </Row>
+                {IS_WINDOWS && (
+                    <Row option={O.remoteDragBeyondEdge} hint={t('options.remoteControlDragBeyondEdgeHint')}>
+                        <Toggle checked={desktop.remoteDragBeyondEdge} onChange={desktop.setRemoteDragBeyondEdge} />
+                    </Row>
+                )}
             </FoldedGroup>
         </>
     );

@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
     REMOTE_CONTROL_WINDOW_WIDTH,
     REMOTE_CONTROL_WINDOW_HEIGHT,
+    REMOTE_CONTROL_CARD_INSET,
     getInitialRemoteControlWindowPosition,
     isPointOverRemoteControlStrip,
     clampRemoteControlWindowX,
@@ -69,5 +70,32 @@ describe('remote window geometry', () => {
 
     it('leaves a window that is on no screen at all alone', () => {
         expect(clampRemoteControlWindowX(windowAt(-5000, 100), [{ x: 0, y: 0, width: 1920, height: 1080 }])).toBe(-5000);
+    });
+
+    it('holds the card in use at the edge when given the card inset', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        // The card's left edge is where the window's left edge is plus the inset, so -178 puts the
+        // card at the screen edge; the window's own left edge is then off the screen.
+        expect(clampRemoteControlWindowX(windowAt(-178, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-178);
+        expect(clampRemoteControlWindowX(windowAt(-179, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-178);
+        expect(clampRemoteControlWindowX(windowAt(-400, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-178);
+        expect(clampRemoteControlWindowX(windowAt(30, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(30);
+    });
+
+    it('holds the window itself when given no inset', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        expect(clampRemoteControlWindowX(windowAt(-120, 400), screens)).toBe(0);
+        expect(clampRemoteControlWindowX(windowAt(-120, 400), screens, 0)).toBe(0);
+    });
+
+    it('lets the card reach a screen on the left too', () => {
+        const screens = [
+            { x: -1920, y: 0, width: 1920, height: 1080 },
+            { x: 0, y: 0, width: 1920, height: 1080 },
+        ];
+        expect(clampRemoteControlWindowX(windowAt(-178, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-178);
+        expect(clampRemoteControlWindowX(windowAt(-2000, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-2000);
+        // Past the far screen's edge the card is pushed back to it, inset and all.
+        expect(clampRemoteControlWindowX(windowAt(-2500, 400), screens, REMOTE_CONTROL_CARD_INSET)).toBe(-2098);
     });
 });
