@@ -1,17 +1,19 @@
 // electron/remoteControlWindowSettings.cjs
-// Pure helpers for the remote control window's "hide floating bar", "click-through" and
-// "expand cover" switches.
+// Pure helpers for the remote control window's "hide floating bar", "click-through",
+// "expand cover" and "drag past the screen edge" switches.
 
 const REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY = 'REMOTE_CONTROL_HIDE_TITLEBAR';
 const REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY = 'REMOTE_CONTROL_CLICK_THROUGH';
 const REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY = 'REMOTE_CONTROL_EXPAND_COVER';
+const REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY = 'REMOTE_CONTROL_DRAG_BEYOND_EDGE';
 
-/** Reads the switches from a settings reader; the first two default to off, expand cover to on. */
+/** Reads the switches from a settings reader; the first two default to off, the rest to on. */
 function readRemoteControlWindowSettings(readBoolean) {
   return {
     hideTitlebar: Boolean(readBoolean(REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY, false)),
     clickThrough: Boolean(readBoolean(REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY, false)),
     expandCover: Boolean(readBoolean(REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY, true)),
+    dragBeyondEdge: Boolean(readBoolean(REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY, true)),
   };
 }
 
@@ -38,6 +40,7 @@ module.exports = {
   REMOTE_CONTROL_HIDE_TITLEBAR_SETTING_KEY,
   REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY,
   REMOTE_CONTROL_EXPAND_COVER_SETTING_KEY,
+  REMOTE_CONTROL_DRAG_BEYOND_EDGE_SETTING_KEY,
   readRemoteControlWindowSettings,
   shouldShowRemoteUnlockTrayItem,
   applyRemoteControlMouseIgnore,

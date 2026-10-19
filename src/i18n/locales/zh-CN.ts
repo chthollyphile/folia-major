@@ -2202,6 +2202,8 @@ export default {
     "remoteControlClickThroughDesc": "解锁：托盘菜单中的“解锁遥控窗口”，命令面板中的“解锁远程控制”，或关闭此开关。",
     "remoteControlExpandCover": "展开封面",
     "remoteControlExpandCoverHint": "闲置时把封面展开成大图",
+  "remoteControlDragBeyondEdge": "小窗能拖到屏幕左边缘",
+  "remoteControlDragBeyondEdgeHint": "放歌时小窗左边有一截是空的，却仍然算在窗口里；打开后按看得见的卡片判定，卡片能贴到屏幕左边缘",
     "openPlayerOnLaunch": "启动后直接进入播放界面",
     "openPlayerOnLaunchDesc": "应用启动时自动进入播放界面。跟随“播放后进入的视图”：选择 Lattice 时，启动后进入队列拼贴。",
     "wallpaperMode": "壁纸模式",

@@ -2202,6 +2202,8 @@ export default {
     "remoteControlClickThroughDesc": "To unlock: \"Unlock Remote Window\" in the tray menu, \"Unlock remote control window\" in the command palette, or turn this switch off.",
     "remoteControlExpandCover": "Expand cover",
     "remoteControlExpandCoverHint": "When idle, the cover expands into a large image",
+  "remoteControlDragBeyondEdge": "Drag to the screen's left edge",
+  "remoteControlDragBeyondEdgeHint": "In use, the strip left of the card is empty but still counts as window; on, the card decides the edge and can reach the left edge of the screen",
     "openPlayerOnLaunch": "Open playback view on launch",
     "openPlayerOnLaunchDesc": "Opens the playback view when the app starts. Follows \"View opened by Play\": with Lattice selected, launch opens the queue collage.",
     "wallpaperMode": "Wallpaper mode",

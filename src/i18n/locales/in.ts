@@ -2202,6 +2202,8 @@ export default {
     "remoteControlClickThroughDesc": "Untuk membuka kunci: \"Buka Kunci Jendela Remote\" di menu tray, \"Buka kunci jendela remote control\" di palet perintah, atau matikan sakelar ini.",
     "remoteControlExpandCover": "Perluas sampul",
     "remoteControlExpandCoverHint": "Saat tidak dipakai, sampul membesar menjadi gambar besar",
+  "remoteControlDragBeyondEdge": "Geser ke tepi kiri layar",
+  "remoteControlDragBeyondEdgeHint": "Saat dipakai, bagian kiri kartu kosong tetapi tetap dihitung sebagai jendela; jika aktif, kartu yang menentukan tepi sehingga bisa mencapai tepi kiri layar",
     "openPlayerOnLaunch": "Buka tampilan pemutaran saat diluncurkan",
     "openPlayerOnLaunchDesc": "Membuka tampilan pemutaran saat aplikasi dimulai. Mengikuti \"Tampilan yang dibuka Putar\": jika Lattice dipilih, peluncuran membuka kolase antrean.",
     "wallpaperMode": "Mode wallpaper",
