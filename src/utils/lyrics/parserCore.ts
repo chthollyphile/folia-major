@@ -47,6 +47,7 @@ interface ParsedTimedEntriesResult {
 const GLOBAL_LRC_TIME_REGEX = /\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/g;
 const LRC_TIME_TAG_REGEX = /\[\d{2,3}:\d{2}[.:]\d{2,3}\]/;
 const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2,3}):(\d{2})[.:](\d{2,3})>/g;
+const ANGLE_TIME_TAG_REGEX = /<\d{2,3}:\d{2}[.:]\d{2,3}>/;
 const LRC_LINE_TIME_REGEX = /^\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/;
 const LEADING_LRC_TAGS_REGEX = /^((?:\[(?:\d{2,3}):(?:\d{2})[.:](?:\d{2,3})\])+)(.*)$/;
 const LRC_METADATA_REGEX = /^\[(ti|ar):([^\]]*)\]$/i;
@@ -367,7 +368,12 @@ const parseSimpleTimedTextEntries = (line: string): TimedTextEntry[] => {
 
 const parseRepeatedTimedTextEntries = (line: string): TimedTextEntry[] => {
     const match = line.match(LEADING_LRC_TAGS_REGEX);
-    if (!match || match[1].indexOf('[', 1) === -1 || LRC_TIME_TAG_REGEX.test(match[2])) {
+    if (
+        !match
+        || match[1].indexOf('[', 1) === -1
+        || LRC_TIME_TAG_REGEX.test(match[2])
+        || ANGLE_TIME_TAG_REGEX.test(match[2])
+    ) {
         return [];
     }
 

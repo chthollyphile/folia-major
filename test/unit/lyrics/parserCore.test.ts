@@ -100,6 +100,18 @@ describe('parserCore', () => {
         ]);
     });
 
+    it('does not copy a translation with word-level angle tags to every time tag', () => {
+        const lyrics = parseLRC(
+            '[00:10.00][00:50.00]Chorus',
+            '[00:10.00][00:50.00]<00:00.50>translated'
+        );
+
+        const translations = lyrics.lines
+            .filter(line => line.fullText === 'Chorus')
+            .map(line => line.translation ?? null);
+        expect(translations.filter(Boolean)).toHaveLength(1);
+    });
+
     it('parses enhanced LRC metadata and precise word timing', () => {
         const lyrics = parseEnhancedLRC(
             '[ti:Song]\n[ar:Artist]\n[00:00.000]<00:00.000>你<00:00.300>好<00:00.600>!<00:00.900>',
