@@ -30,6 +30,7 @@ import { stylesRegistry } from './registries/styles';
 import { addFoliumEventHandler } from './events';
 import { bindFoliumStageRegistry } from './registries/stageRegistry';
 import { createFoliumLyricsService, createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
+import { createFoliumAudioMixService } from './audioMix';
 import { createFoliumSecrets, declareFoliumSecretKeys } from './secrets';
 import { FOLIUM_THEME_HELPERS } from './sharedHelpers';
 import { FOLIUM_HOST_VERSION } from './shared';
@@ -303,6 +304,7 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
             },
         }),
         playback: createFoliumPlaybackService(mod, context),
+        audioMix: createFoliumAudioMixService(context),
         ui: createFoliumUiService(mod, context),
         net: createFoliumNetService(mod, context),
         storage: createStorage(modId, context),
