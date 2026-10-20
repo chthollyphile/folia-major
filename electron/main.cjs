@@ -35,6 +35,7 @@ const windowsWallpaperModule = require('./wallpaper/windowsWallpaperController.c
 const { createWindowsWallpaperTargetResolver } = require('./wallpaper/windowsWallpaperTarget.cjs');
 const { createWindowsWallpaperMouseInjector } = require('./wallpaper/windowsWallpaperMouse.cjs');
 const macWallpaperModule = require('./wallpaper/macWallpaperController.cjs');
+const { createKdeWallpaperPanels } = require('./wallpaper/kdeWallpaperPanels.cjs');
 const {
   WALLPAPER_DISPLAY_SETTING_KEY,
   normalizeWallpaperDisplayChoice,
@@ -346,6 +347,8 @@ function isWallpaperWrapped() {
   return wallpaperWatchdogModule.isWallpaperWrapped(process.env);
 }
 
+const kdeWallpaperPanels = createKdeWallpaperPanels({ userDataPath: () => app.getPath('userData') });
+
 // The binary ships as resources/windowtolayer (built by packaging/linux/build-windowtolayer.mjs).
 // FOLIA_WINDOWTOLAYER_PATH overrides it for non-packaged (dev) runs; the dev:electron* scripts
 // inject `build/windowtolayer` (produced by `npm run build:windowtolayer`) so wallpaper mode also
@@ -407,7 +410,10 @@ const wallpaperWatchdog = wallpaperWatchdogModule.createWallpaperWatchdog({
   execPath: () => process.execPath,
   argv: () => process.argv.slice(1),
   getPpid: () => process.ppid,
-  exit: (code) => app.exit(code),
+  exit: (code) => {
+    kdeWallpaperPanels.restore();
+    app.exit(code);
+  },
   killFn: process.kill.bind(process),
   probeIntervalMs: 2000,
 });
@@ -5393,6 +5399,9 @@ function createWindow(options = {}) {
   }
 
   mainWindow = win;
+  if (isWallpaperModeEnabled() && (isWallpaperWrapped() || useDesktopWindowType)) {
+    kdeWallpaperPanels.hide();
+  }
   ensureTray();
   setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
   // Full initializer, not just applyMainWindowMouseIgnoreState(): when click-through is on at
@@ -5437,6 +5446,7 @@ function createWindow(options = {}) {
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      kdeWallpaperPanels.restore();
       // macOS keeps the app running when its window is closed, so no `before-quit` follows: for
       // the mods' start note, closing the window is the normal way out there (see `before-quit`).
       // Not for a page that had stopped answering: that is what the note is for.
@@ -5594,6 +5604,8 @@ app.whenReady().then(async () => {
   if (startupResult === 'spawned') {
     return;
   }
+
+  kdeWallpaperPanels.recover();
 
   if (process.platform === 'win32') {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
@@ -5901,6 +5913,7 @@ app.on('before-quit', (event) => {
   transcodeService.dispose();
   videoExportFileWriter.disposeSync();
   isAppQuitting = true;
+  kdeWallpaperPanels.restore();
   clearPendingWindowPlaybackHandoffRequests();
   // A question about a window that stopped answering is taken down: the app is leaving.
   mainWindow?.__unresponsivePrompt?.abort();
