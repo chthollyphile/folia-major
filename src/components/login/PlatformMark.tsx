@@ -1,6 +1,7 @@
 import React from 'react';
 import { omni } from '../../services/onlineMusic/omni';
 import type { OnlineProviderId, ProviderUser } from '../../types/onlineMusic';
+import { getProviderAppIcon, PROVIDER_APP_ICONS } from '../../assets/providers/appIcons';
 import { onAccentColor } from '../modal/settings/kit/kitTheme';
 import { resolvePlatformMark } from './resolvePlatformMark';
 
@@ -28,13 +29,39 @@ type PlatformMarkProps = {
 
 export const PlatformMark: React.FC<PlatformMarkProps> = ({ providerId, label, size, ranOut, className }) => {
     const mark = platformMarkOf(providerId, label);
+    /*
+     * 有「应用本尊」图标的平台亮那颗图标，不画字。
+     *
+     * 登录窗口只认 provider 声明的 `mark`（一个字 + 一种颜色），从来不看 assets/providers 里那张
+     * 来源图标表 —— 于是各家在登录界面一律变成一个彩色的字，而资料库的来源角标是同一张表里取的图，
+     * 两边对不上。这里按各处同一条规矩补上：有图就用图，没图才回落字 + 颜色。
+     *
+     * 注释里不点名平台：这一层要与平台无关（loginModuleKnowsNoPlatform 那条守卫会扫本目录），
+     * 平台自己的东西由它自己的 adapter 通过 omni 声明。
+     */
+    const hasAppIcon = providerId in PROVIDER_APP_ICONS;
     return (
         <span
             aria-hidden
             className={`relative inline-grid shrink-0 place-items-center rounded-full font-bold leading-none ${className ?? ''}`}
-            style={{ width: size, height: size, background: mark.color, color: mark.onColor, fontSize: Math.round(size * 0.42) }}
+            style={{
+                width: size,
+                height: size,
+                // 有图就不套彩色圆底（图自己就是那块方的 / 圆的底），没图才需要底色配字。
+                background: hasAppIcon ? undefined : mark.color,
+                color: hasAppIcon ? undefined : mark.onColor,
+                fontSize: Math.round(size * 0.42),
+            }}
         >
-            {mark.letter}
+            {hasAppIcon ? (
+                // 图是方的（有的还自带底色），铺满再让圆角把它裁成圆。
+                <img
+                    src={getProviderAppIcon(providerId)}
+                    alt=""
+                    draggable={false}
+                    className="h-full w-full rounded-full object-cover"
+                />
+            ) : mark.letter}
             {ranOut && (
                 <i className="absolute -right-px -top-px h-2.5 w-2.5 rounded-full bg-[var(--st-warn)]" style={{ boxShadow: EDGE }} />
             )}

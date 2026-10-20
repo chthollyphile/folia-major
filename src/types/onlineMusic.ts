@@ -375,7 +375,7 @@ export interface OnlineSongMetadataProvider {
 export interface LoginMethod {
     id: string;          // 传给后端的识别值（QQ: 'qq' | 'wechat'）
     labelKey: string;    // i18n key，由 UI 层翻译
-    iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
+    iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的文件（svg / png / webp）
 }
 
 // 平台的记号：一个字和一种颜色，画在登录窗口、切换器和账号头像的角上。平台自己声明；没有声明的
