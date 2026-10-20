@@ -1769,6 +1769,22 @@ export interface FoliumLogger {
 }
 
 /** The object a client entry's `activate(folium)` receives. */
+/**
+ * The host's 10-band graph equalizer, ordered 31.5/63/125/250/500/1k/2k/4k/8k/16k Hz.
+ * Gains are dB, clamped to ±12. Writes go through the settings store, so the equalizer
+ * dialog shows them and they survive a restart.
+ */
+export interface FoliumAudioMix {
+    /** The gains the host is currently using, in dB. */
+    getEqualizer(): number[];
+    /**
+     * Applies 10 gains (dB). Missing entries keep their current value, extra entries are
+     * ignored, and processing is turned on. Pass `slot` to also save the curve into a
+     * custom slot (0 = the first one).
+     */
+    setEqualizer(gains: readonly number[], options?: { slot?: number }): void;
+}
+
 export interface FoliumClientApi {
     /** This mod's id. */
     readonly modId: string;
@@ -1784,6 +1800,8 @@ export interface FoliumClientApi {
     readonly events: FoliumEvents;
     /** Playback state and control. */
     readonly playback: FoliumPlaybackService;
+    /** The graph equalizer: read and write the 10 bands (dB). */
+    readonly audioMix: FoliumAudioMix;
     /** Toasts, panels, files, embeds, icons. */
     readonly ui: FoliumUiService;
     /** Network access through the host. */
