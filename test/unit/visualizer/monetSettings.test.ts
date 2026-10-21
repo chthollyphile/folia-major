@@ -156,6 +156,8 @@ describe('Monet tuning and lyric helpers', () => {
             showAudioVisualization: false,
             audioStyle: 'line',
             fontScale: 1.5,
+            audioPlacement: 'bottom',
+            audioGain: 1,
             portraitSource: 'custom',
             showDescription: true,
             portraitOffsetX: 0,

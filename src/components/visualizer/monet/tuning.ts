@@ -35,6 +35,10 @@ export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning> & Record<s
     showDescription: parsed.showDescription ?? DEFAULT_MONET_TUNING.showDescription,
     showAudioVisualization: parsed.showAudioVisualization ?? DEFAULT_MONET_TUNING.showAudioVisualization,
     audioStyle: parsed.audioStyle === 'line' ? 'line' : DEFAULT_MONET_TUNING.audioStyle,
+    audioPlacement: parsed.audioPlacement === 'lyrics' ? 'lyrics' : 'bottom',
+    audioGain: typeof parsed.audioGain === 'number' && Number.isFinite(parsed.audioGain)
+        ? Math.min(2, Math.max(0.5, parsed.audioGain))
+        : 1,
     fontScale: fontScale(
         parsed.fontScale ?? DEFAULT_MONET_TUNING.fontScale,
         DEFAULT_MONET_TUNING.fontScale,

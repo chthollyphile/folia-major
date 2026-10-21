@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { useVisualizerAssetStore } from '../../../stores/useVisualizerAssetStore';
-import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetPortraitSource, type MonetTuning } from '../../../types';
+import { DEFAULT_MONET_TUNING, type MonetAudioPlacement, type MonetAudioStyle, type MonetPortraitSource, type MonetTuning } from '../../../types';
 import { Button, Group, PictureGrid, Reveal, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import { type VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, times, ToggleRow } from '../panelRows';
@@ -60,6 +60,8 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps<MonetTuni
         showDescription: monetTuning.showDescription ?? DEFAULT_MONET_TUNING.showDescription,
         showAudioVisualization: monetTuning.showAudioVisualization ?? DEFAULT_MONET_TUNING.showAudioVisualization,
         audioStyle: monetTuning.audioStyle ?? DEFAULT_MONET_TUNING.audioStyle,
+        audioPlacement: monetTuning.audioPlacement ?? 'bottom',
+        audioGain: clampValue(monetTuning.audioGain ?? 1, 0.5, 2, 1),
         fontScale: clampValue(monetTuning.fontScale ?? DEFAULT_MONET_TUNING.fontScale, 0.7, 1.5, DEFAULT_MONET_TUNING.fontScale),
         portraitSource: monetTuning.portraitSource ?? DEFAULT_MONET_TUNING.portraitSource,
         portraitStyle: monetTuning.portraitStyle ?? DEFAULT_MONET_TUNING.portraitStyle ?? 'rectangular',
@@ -183,6 +185,20 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps<MonetTuni
                 <Reveal when={resolvedTuning.showAudioVisualization}>
                     <Row
                         sub
+                        label={t('options.monetAudioPlacement')}
+                        hint={t('options.monetAudioPlacementHint')}
+                    >
+                        <Segmented<MonetAudioPlacement>
+                            value={resolvedTuning.audioPlacement}
+                            options={[
+                                { value: 'bottom', label: t('options.monetAudioPlacementBottom') },
+                                { value: 'lyrics', label: t('options.monetAudioPlacementLyrics') },
+                            ]}
+                            onChange={(value) => onMonetTuningChange?.({ audioPlacement: value })}
+                        />
+                    </Row>
+                    <Row
+                        sub
                         label={t('options.monetAudioStyle')}
                         below={(
                             <PictureGrid<MonetAudioStyle>
@@ -198,6 +214,18 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps<MonetTuni
                                 onChange={(value) => onMonetTuningChange?.({ audioStyle: value })}
                             />
                         )}
+                    />
+                    <SliderRow
+                        sub
+                        label={t('options.monetAudioGain')}
+                        value={resolvedTuning.audioGain}
+                        min={0.5}
+                        max={2}
+                        step={0.05}
+                        format={times}
+                        onChange={(value) => onMonetTuningChange?.({ audioGain: value })}
+                        onDragStart={onSliderPointerDown}
+                        onDragEnd={onSliderCommit}
                     />
                 </Reveal>
             </Group>

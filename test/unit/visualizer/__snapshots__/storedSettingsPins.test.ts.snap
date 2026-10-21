@@ -4,17 +4,17 @@ exports[`what is read at start-up > from a JSON list under an older key, and bes
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"0":1,"1":2,"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"0":1,"1":2,"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -35,7 +35,7 @@ exports[`what is read at start-up > from a JSON list under every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -59,17 +59,17 @@ exports[`what is read at start-up > from a JSON number under an older key, and b
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -90,7 +90,7 @@ exports[`what is read at start-up > from a JSON number under every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -114,17 +114,17 @@ exports[`what is read at start-up > from a JSON text under an older key, and bes
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"0":"w","1":"o","2":"r","3":"d","4":"s","fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"0":"w","1":"o","2":"r","3":"d","4":"s","fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -145,7 +145,7 @@ exports[`what is read at start-up > from a JSON text under every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -180,7 +180,7 @@ exports[`what is read at start-up > from a stored object that holds one field on
   "latentBackgroundTuning": "{"displayMode":"dithering","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"balanced"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":10,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":0.8,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":0.8,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":100,"staggerMax":150}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"none","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -204,17 +204,17 @@ exports[`what is read at start-up > from an empty text under an older key, and b
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -235,7 +235,7 @@ exports[`what is read at start-up > from an empty text under every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -259,17 +259,17 @@ exports[`what is read at start-up > from text that is not JSON under an older ke
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -290,7 +290,7 @@ exports[`what is read at start-up > from text that is not JSON under every key 1
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -314,17 +314,17 @@ exports[`what is read at start-up > from the JSON null under an older key, and b
 {
   "underTheNewKeysBesideGoodOlderOnes": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysAlone": {
     "cadenza": "{"fontScale":1.12,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
   "underTheOlderKeysBesideGoodNewOnes": {
     "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
-    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
     "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
   },
 }
@@ -345,7 +345,7 @@ exports[`what is read at start-up > from the JSON null under every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -380,7 +380,7 @@ exports[`what is read at start-up > from the current shape of every key 1`] = `
   "latentBackgroundTuning": "{"displayMode":"mesh","colorSource":"cover-only","dynamicOnlyInPlayer":false,"enhancedBeatResponse":true,"ditheringSpeed":1.5,"ditheringAudioSpeed":1.2,"ditheringSize":4,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":1.2,"meshSwirl":0.6,"overlayEnabled":true,"overlayOpacity":0.4}",
   "lumiereTuning": "{"lightIntensity":1.5,"audioResponse":1,"fogDensity":0.4,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":1,"decay":1,"echo":1,"fogOctaves":3,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":true,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.7,"renderQuality":"low"}",
   "monetBackgroundTuning": "{"backgroundSource":"uploaded-global","backgroundLayout":"half-pane-gradient","backgroundBlurPx":24,"backgroundOverlayOpacity":0.3,"backgroundGrayscale":0,"backgroundSaturation":1.4,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":-12,"backgroundWashColorMode":"custom","backgroundWashCustomColor":"#aabbcc","backgroundDriftEnabled":false,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","fontScale":1.2,"portraitSource":"custom","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","audioPlacement":"lyrics","audioGain":1.5,"fontScale":1.2,"portraitSource":"custom","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"uploaded-global","effect":"halftone-dots","ditheringType":"8x8","size":6,"colorSteps":5,"originalColors":false,"inverted":true,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.5,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":-0.5,"lensDistortionDispersion":0.65,"overlayEnabled":false,"overlayOpacity":0.3}",
   "partitaTuning": "{"showGuideLines":false,"useSemanticLayout":false,"staggerMin":40,"staggerMax":150}",
   "pendoloTuning": "{"arcRadius":0.6,"arcAngleDeg":120,"wheelCenterX":0.1,"wheelCenterY":0.4,"tickSnappiness":1.5,"activeScale":1.3,"showGearDecor":"full","showCenterGradient":false,"showCoverOnWatchFace":false,"enableLineGlow":true}",
@@ -415,7 +415,7 @@ exports[`what is read at start-up > from the old shapes still on disks 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.5,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1.2,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"uploaded-global","backgroundLayout":"full-overlay","backgroundBlurPx":30,"backgroundOverlayOpacity":0.5,"backgroundGrayscale":0.2,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.1,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"uploaded-global","effect":"dithering","ditheringType":"2x2","size":4,"colorSteps":3,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":false,"useSemanticLayout":true,"staggerMin":30,"staggerMax":120}",
   "pendoloTuning": "{"arcRadius":0.5,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -450,7 +450,7 @@ exports[`what is read at start-up > from values out of range, of the wrong kind,
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":2,"ditheringAudioSpeed":1.2,"ditheringSize":0.5,"ditheringOpacity":0,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":2,"audioResponse":0,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.05,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":1,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":60,"backgroundOverlayOpacity":0,"backgroundGrayscale":1,"backgroundSaturation":2,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":-40,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#aabbcc","backgroundDriftEnabled":true,"backgroundDriftStrength":1,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.5,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":2,"fontScale":1.5,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":20,"colorSteps":5,"originalColors":false,"inverted":false,"flutedGlassSize":0.1,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":2,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":-1,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":1}",
   "partitaTuning": "{"showGuideLines":0,"useSemanticLayout":"no","staggerMin":0,"staggerMax":180}",
   "pendoloTuning": "{"arcRadius":0.8,"arcAngleDeg":100,"wheelCenterX":-0.3,"wheelCenterY":0.5,"tickSnappiness":0.5,"activeScale":1.6,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -474,7 +474,7 @@ exports[`what is read at start-up > prefers the new key where an old one is ther
 {
   "cadenza": "{"fontScale":1.2,"widthRatio":0.72,"motionAmount":1,"glowIntensity":1,"beamIntensity":0}",
   "fume": "{"hidePrintSymbols":false,"disableGeometricBackground":true,"backgroundObjectOpacity":0.5,"textHoldRatio":0.8,"cameraTrackingMode":"smooth","cameraSpeed":1,"glowIntensity":1,"heroScale":1}",
-  "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.3,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monet": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.3,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":12,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
 }
 `;
@@ -494,7 +494,7 @@ exports[`what is read at start-up > with nothing stored 1`] = `
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -983,43 +983,43 @@ exports[`what is written > by a change and by a reset of 'monet_tuning' 1`] = `
 [
   {
     "from": "nothing stored",
-    "patch": "{"fontScale":1.2}",
-    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "patch": "{"fontScale":1.2,"audioPlacement":"lyrics","audioGain":1.5}",
+    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"lyrics","audioGain":1.5,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   },
   {
     "from": "nothing stored",
-    "patch": "{"fontScale":9,"portraitOffsetX":50,"audioStyle":"bars"}",
-    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.5,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "patch": "{"fontScale":9,"portraitOffsetX":50,"audioStyle":"bars","audioGain":8}",
+    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"lyrics","audioGain":2,"fontScale":1.5,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   },
   {
     "from": "nothing stored",
     "patch": "{"portraitSource":"custom","portraitStyle":"rectangular","showDescription":false}",
-    "written": "{"keywordColoringEnabled":true,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+    "written": "{"keywordColoringEnabled":true,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"lyrics","audioGain":2,"fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   },
   {
     "from": "nothing stored",
     "reset": true,
-    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   },
   {
     "from": "the current shape",
-    "patch": "{"fontScale":1.2}",
-    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","fontScale":1.2,"portraitSource":"custom","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+    "patch": "{"fontScale":1.2,"audioPlacement":"lyrics","audioGain":1.5}",
+    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","audioPlacement":"lyrics","audioGain":1.5,"fontScale":1.2,"portraitSource":"custom","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   },
   {
     "from": "the current shape",
-    "patch": "{"fontScale":9,"portraitOffsetX":50,"audioStyle":"bars"}",
-    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+    "patch": "{"fontScale":9,"portraitOffsetX":50,"audioStyle":"bars","audioGain":8}",
+    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"lyrics","audioGain":2,"fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   },
   {
     "from": "the current shape",
     "patch": "{"portraitSource":"custom","portraitStyle":"rectangular","showDescription":false}",
-    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+    "written": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"lyrics","audioGain":2,"fontScale":1.5,"portraitSource":"custom","portraitOffsetX":0,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   },
   {
     "from": "the current shape",
     "reset": true,
-    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+    "written": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   },
 ]
 `;
@@ -1648,7 +1648,7 @@ exports[`what is written > for the chosen style, the chosen background, the opac
   "latentBackgroundTuning": "{"displayMode":"both","colorSource":"cover-theme","dynamicOnlyInPlayer":true,"enhancedBeatResponse":true,"ditheringSpeed":0.1,"ditheringAudioSpeed":1.2,"ditheringSize":2.5,"ditheringOpacity":0.55,"meshSpeed":0.3,"meshAudioSpeed":2,"meshDistortion":0.8,"meshSwirl":0.1,"overlayEnabled":true,"overlayOpacity":0.35}",
   "lumiereTuning": "{"lightIntensity":1,"audioResponse":1,"fogDensity":1,"darkField":0.75,"moteAmount":1,"bloom":1,"textBloom":1,"unlitOpacity":0.22,"windowNeighbors":2,"decay":1,"echo":1,"fogOctaves":5,"lineArt":true,"frontBokeh":true,"trails":true,"hideTrails":false,"seamlessTransitions":true,"overlayFrame":true,"textOnly":false,"keywordColors":true,"themeIcons":true,"themeColorMix":0.3,"renderQuality":"full"}",
   "monetBackgroundTuning": "{"backgroundSource":"cover-derived","backgroundLayout":"full-overlay","backgroundBlurPx":6,"backgroundOverlayOpacity":0.74,"backgroundGrayscale":0,"backgroundSaturation":1.05,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":0,"backgroundWashColorMode":"theme","backgroundWashCustomColor":"#8fb7ff","backgroundDriftEnabled":true,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
-  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
+  "monetTuning": "{"keywordColoringEnabled":true,"showDescription":true,"showAudioVisualization":true,"audioStyle":"bar","audioPlacement":"bottom","audioGain":1,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":0,"portraitStyle":"square","showPortraitDragHanger":true}",
   "nomandBackgroundTuning": "{"imageSource":"cover-derived","effect":"dithering","ditheringType":"8x8","size":3,"colorSteps":4,"originalColors":false,"inverted":false,"flutedGlassSize":0.5,"flutedGlassDistortion":0.5,"flutedGlassBlur":0.08,"paperTextureContrast":0.32,"paperTextureRoughness":0.42,"paperTextureFiber":0.3,"halftoneDotsSize":0.5,"halftoneDotsRadius":1.25,"halftoneDotsContrast":0.4,"halftoneDotsOriginalColors":false,"halftoneDotsInverted":false,"lensDistortionSpread":0.45,"lensDistortionBulge":0.3,"lensDistortionDispersion":0.65,"overlayEnabled":true,"overlayOpacity":0.35}",
   "partitaTuning": "{"showGuideLines":true,"useSemanticLayout":true,"staggerMin":20,"staggerMax":100}",
   "pendoloTuning": "{"arcRadius":0.42,"arcAngleDeg":100,"wheelCenterX":0,"wheelCenterY":0.5,"tickSnappiness":2,"activeScale":1.25,"showGearDecor":"subtle","showCenterGradient":true,"showCoverOnWatchFace":false,"enableLineGlow":false}",
@@ -1672,7 +1672,7 @@ exports[`what is written > when an uploaded picture is cleared: the setting that
 {
   "cappella": "{"showEmoMessages":false,"emojiPackSource":"builtin","avatarSource":"builtin"}",
   "cappellaAfterEmoji": "{"showEmoMessages":false,"emojiPackSource":"builtin","avatarSource":"custom"}",
-  "monet": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","fontScale":1.2,"portraitSource":"cover","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
+  "monet": "{"keywordColoringEnabled":false,"showDescription":false,"showAudioVisualization":true,"audioStyle":"line","audioPlacement":"lyrics","audioGain":1.5,"fontScale":1.2,"portraitSource":"cover","portraitOffsetX":-40,"portraitStyle":"rectangular","showPortraitDragHanger":true}",
   "monetBackground": "{"backgroundSource":"cover-derived","backgroundLayout":"half-pane-gradient","backgroundBlurPx":24,"backgroundOverlayOpacity":0.3,"backgroundGrayscale":0,"backgroundSaturation":1.4,"backgroundWash":0.34,"backgroundHalfPaneOffsetX":-12,"backgroundWashColorMode":"custom","backgroundWashCustomColor":"#aabbcc","backgroundDriftEnabled":false,"backgroundDriftStrength":0.5,"backgroundStreaksEnabled":true}",
 }
 `;

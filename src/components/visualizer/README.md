@@ -178,6 +178,8 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 `monet/VisualizerMonet.tsx` 组合 `MonetLyricsRail`（歌词栏外壳与滚动；行与扫字在 `MonetRailLine.tsx` / `MonetRailTokens.tsx`，布局在 `monetRailLayout.ts`）、`AudioOverlay`、浮动装饰和背景 pipeline；图像资源还涉及 `src/services/monetBackgroundImage.ts`、`monetPortraitImage.ts`。混音过渡时：封面在过渡开始就换成下一首，淡入跟着交接进度（`MonetPortraitImage` 的 `progress`）；文字和歌词在交接过半（声音交叉点）时换，莫奈自己画的颜色（文字、装饰）同时换成下一首的主题，用原有的换歌入场动画，之后歌词栏读下一首自己的时钟和行（`monetSongHandoff.ts`）。
 
+音频图案默认在底部；`audioPlacement: 'lyrics'` 将它移到歌词栏，保留歌曲信息和封面，并用上下对称的频谱替代该区域的歌词。位置由用户选择，不随歌词加载或间奏自动切换；关闭音频图案会恢复歌词栏。`audioGain`（0.5–2，默认 1）只调整画面响应。两项设置随 `visualizerTunings` 保存和分享。
+
 ### Diorama
 
 `diorama/VisualizerDiorama.tsx` 进入 React Three Fiber 场景；场景/粒子/相机/文字光栅化分别看 `DioramaScene.tsx`（结构推导 `dioramaSceneLayout.ts`、每帧写入 `dioramaSceneFrame.ts`、邻行栅格缓存 `dioramaLineRasterCache.ts`、当前行单元平面 `DioramaActiveUnitPlanes.tsx`）、`dioramaParticle*.ts`、`cameraPath.ts`、`dioramaTextRaster.ts`。连续场景数据不要提升到 React state。

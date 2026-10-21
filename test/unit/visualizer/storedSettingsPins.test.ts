@@ -121,7 +121,8 @@ const CURRENT: Record<string, unknown> = {
     monet_tuning: {
         ...DEFAULT_MONET_TUNING,
         keywordColoringEnabled: !DEFAULT_MONET_TUNING.keywordColoringEnabled, showDescription: !DEFAULT_MONET_TUNING.showDescription,
-        audioStyle: 'line', fontScale: 1.2, portraitSource: 'custom', portraitOffsetX: -40, portraitStyle: 'rectangular',
+        audioStyle: 'line', audioPlacement: 'lyrics', audioGain: 1.5,
+        fontScale: 1.2, portraitSource: 'custom', portraitOffsetX: -40, portraitStyle: 'rectangular',
     },
     pendolo_tuning: {
         ...DEFAULT_PENDOLO_TUNING,
@@ -286,7 +287,7 @@ describe('what is read at start-up', () => {
                 cameraSpeed: 9, motionAmount: 0, audioReactivity: -2, particleDensity: 1, particleScale: 99, particleGlowIntensity: 99,
                 glowIntensity: 0, soulIntensity: 9, gradientIntensity: -1, geometryVisibility: { mode: 'corridor', rings: false },
             }),
-            monet_tuning: json({ audioStyle: 'bars', fontScale: 4, portraitSource: 'mine', portraitOffsetX: 80, portraitStyle: 'round' }),
+            monet_tuning: json({ audioStyle: 'bars', audioPlacement: 'invalid', audioGain: 8, fontScale: 4, portraitSource: 'mine', portraitOffsetX: 80, portraitStyle: 'round' }),
             pendolo_tuning: json({
                 arcRadius: 5, arcAngleDeg: '90', wheelCenterX: -9, wheelCenterY: null, tickSnappiness: 0, activeScale: 9,
                 showGearDecor: 'huge', showCenterGradient: 'yes', showCoverOnWatchFace: 1, enableLineGlow: null,
@@ -377,7 +378,7 @@ const UNITS: Array<{ key: string; field: string; set: string; reset: string; pat
     { key: 'cappella_tuning', field: 'cappellaTuning', set: 'handleSetCappellaTuning', reset: 'handleResetCappellaTuning', patches: [{ showEmoMessages: false }, { avatarSource: 'color' }, { avatarSource: 'photo' }, { emojiPackSource: 'custom' }] },
     { key: 'tilt_tuning', field: 'tiltTuning', set: 'handleSetTiltTuning', reset: 'handleResetTiltTuning', patches: [{ splitProbability: 0.2 }, { splitProbability: 4, tiltStyleProbability: -1 }, { colorScheme: 'primaryAll' }] },
     { key: 'diorama_tuning', field: 'dioramaTuning', set: 'handleSetDioramaTuning', reset: 'handleResetDioramaTuning', patches: [{ cameraSpeed: 1.2 }, { geometryVisibility: { rings: false } }, { particleDensity: 1, particleScale: 99, glowIntensity: 0 }, { showParticles: false, soulEnabled: false }] },
-    { key: 'monet_tuning', field: 'monetTuning', set: 'handleSetMonetTuning', reset: 'handleResetMonetTuning', patches: [{ fontScale: 1.2 }, { fontScale: 9, portraitOffsetX: 50, audioStyle: 'bars' }, { portraitSource: 'custom', portraitStyle: 'rectangular', showDescription: false }] },
+    { key: 'monet_tuning', field: 'monetTuning', set: 'handleSetMonetTuning', reset: 'handleResetMonetTuning', patches: [{ fontScale: 1.2, audioPlacement: 'lyrics', audioGain: 1.5 }, { fontScale: 9, portraitOffsetX: 50, audioStyle: 'bars', audioGain: 8 }, { portraitSource: 'custom', portraitStyle: 'rectangular', showDescription: false }] },
     { key: 'pendolo_tuning', field: 'pendoloTuning', set: 'handleSetPendoloTuning', reset: 'handleResetPendoloTuning', patches: [{ arcRadius: 0.5 }, { arcRadius: 9, arcAngleDeg: 1, tickSnappiness: 0, activeScale: 9 }, { showGearDecor: 'none', enableLineGlow: true }, { showGearDecor: 'huge', wheelCenterX: '0.2' }] },
     { key: 'sonnet_tuning', field: 'sonnetTuning', set: 'handleSetSonnetTuning', reset: 'handleResetSonnetTuning', patches: [{ cameraIntensity: 1.3 }, { cameraIntensity: 9, textureResolution: 0.1, postProcessGrain: 4 }, { outerFrameMode: 'none', showOnlyText: true, showGuide: false }, { outerFrameMode: 'thick', mgDensity: '2' }] },
     { key: 'tempera_tuning', field: 'temperaTuning', set: 'handleSetTemperaTuning', reset: 'handleResetTemperaTuning', patches: [{ glyphMotion: 1.3 }, { cameraIntensity: 9, layerImageFrequency: 4, textureResolution: 99 }, { colorMode: 'duo', layerImageDepth: 'front', wholeLineLyrics: true }, { layerImages: [{ id: 'p', name: 'P', align: 'free', verticalAlign: 'bottom', scale: 9, opacity: 0.5 }, { name: 'no id' }] }, { colorMode: 'rainbow', layerImageDepth: 'middle' }] },

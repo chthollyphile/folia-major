@@ -955,6 +955,7 @@ export type NomandBackgroundEffect = 'dithering' | 'fluted-glass' | 'paper-textu
 export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
+export type MonetAudioPlacement = 'bottom' | 'lyrics';
 export type MonetPortraitSource = 'cover' | 'custom';
 export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
 export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
@@ -1037,6 +1038,9 @@ export interface MonetTuning {
   showDescription: boolean;
   showAudioVisualization: boolean;
   audioStyle: MonetAudioStyle;
+  /** The lyrics placement replaces the lyric rail with a larger, centered spectrum. */
+  audioPlacement?: MonetAudioPlacement;
+  audioGain?: number;
   fontScale: number;
   portraitSource: MonetPortraitSource;
   portraitOffsetX?: number;
@@ -1112,6 +1116,8 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   showDescription: true,
   showAudioVisualization: true,
   audioStyle: 'bar',
+  audioPlacement: 'bottom',
+  audioGain: 1,
   fontScale: 1.2,
   portraitSource: 'cover',
   portraitOffsetX: 0,

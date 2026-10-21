@@ -1,333 +1,112 @@
 import React, { useEffect, useRef } from 'react';
 import type { AudioBands, MonetAudioStyle, Theme } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { createMonetAudioPainter } from './monetAudioCanvas';
+import { MONET_AUDIO_BAR_COUNT, sampleMonetSpectrum, type MonetAudioFrame } from './monetAudioSpectrum';
 
 // src/components/visualizer/monet/AudioOverlay.tsx
-// Renders the bottom audio rail for Monet with a lightweight canvas loop in player mode and a static placeholder in preview mode.
+// Renders Monet's audio rail or lyrics-area spectrum, with a static placeholder in preview mode.
 interface AudioOverlayProps {
     audioPower: AudioBands['bass'];
     audioBands: AudioBands;
     theme: Theme;
     mode: MonetAudioStyle;
+    centered?: boolean;
+    gain?: number;
+    paused?: boolean;
     staticMode?: boolean;
     isPreviewMode?: boolean;
 }
-
-const BAR_COUNT = 72;
-const MIN_RAW_SPECTRUM_BIN = 6;
-
-const buildSpectrumAnchors = (bands: number[]) => {
-    const [bass, lowMid, mid, vocal, treble] = bands;
-    return [
-        bass * 1.08,
-        bass * 0.96,
-        bass * 0.74 + lowMid * 0.26,
-        lowMid,
-        lowMid * 0.58 + mid * 0.42,
-        mid,
-        mid * 0.42 + vocal * 0.58,
-        vocal,
-        vocal * 0.48 + treble * 0.52,
-        treble,
-        treble * 0.82,
-    ].map(value => Math.max(0, Math.min(1, value)));
-};
-
-const sampleSpectrumProfile = (bands: number[], normalizedIndex: number) => {
-    const clampedIndex = Math.max(0, Math.min(1, normalizedIndex));
-    const anchors = buildSpectrumAnchors(bands);
-    const logIndex = Math.log10(1 + clampedIndex * 9);
-    const scaledIndex = logIndex * (anchors.length - 1);
-    const lowerIndex = Math.floor(scaledIndex);
-    const upperIndex = Math.min(lowerIndex + 1, anchors.length - 1);
-    const interpolation = scaledIndex - lowerIndex;
-    const lowerValue = anchors[lowerIndex] ?? 0;
-    const upperValue = anchors[upperIndex] ?? lowerValue;
-    const interpolated = lowerValue + (upperValue - lowerValue) * interpolation;
-
-    // Add a fuller contour so the profile reads like a continuous response curve.
-    const contour =
-        0.92 +
-        Math.sin(clampedIndex * Math.PI * 3.4 - Math.PI * 0.3) * 0.08 +
-        Math.sin(clampedIndex * Math.PI * 9.2 + Math.PI * 0.2) * 0.035;
-    return Math.max(0, Math.min(1, interpolated * contour));
-};
-
-const sampleRawSpectrumProfile = (rawSpectrum: Uint8Array, normalizedIndex: number) => {
-    if (rawSpectrum.length <= MIN_RAW_SPECTRUM_BIN) {
-        return 0;
-    }
-
-    const clampedIndex = Math.max(0, Math.min(1, normalizedIndex));
-    const usableBinCount = Math.max(1, rawSpectrum.length - MIN_RAW_SPECTRUM_BIN);
-    const mappedIndex = Math.expm1(clampedIndex * Math.log(usableBinCount + 1));
-    const centerIndex = MIN_RAW_SPECTRUM_BIN + mappedIndex;
-    const edgeSoftness = 1 - Math.abs(clampedIndex - 0.5) * 2;
-    const windowRadius = Math.max(1, Math.round(5 - edgeSoftness * 3));
-    const start = Math.max(MIN_RAW_SPECTRUM_BIN, Math.floor(centerIndex - windowRadius));
-    const end = Math.min(rawSpectrum.length - 1, Math.ceil(centerIndex + windowRadius));
-
-    let weightedSum = 0;
-    let weightTotal = 0;
-    for (let index = start; index <= end; index += 1) {
-        const distance = Math.abs(index - centerIndex);
-        const weight = Math.max(0.1, 1 - distance / (windowRadius + 1));
-        weightedSum += rawSpectrum[index] * weight;
-        weightTotal += weight;
-    }
-
-    const averaged = weightTotal > 0 ? weightedSum / weightTotal : 0;
-    
-    // Dynamic noise floor based on frequency (higher noise subtraction for lower frequencies)
-    const noiseFloor = 16 + (1 - clampedIndex) * 12;
-    const normalized = Math.max(0, Math.min(1, (averaged - noiseFloor) / (255 - noiseFloor)));
-
-    // Power compression to suppress quiet/humming baseline and increase visual peaks (contrast)
-    const power = 1.8 + (1 - clampedIndex) * 0.4;
-    const processed = Math.pow(normalized, power);
-
-    const lowFrequencyCompensation = 0.52 + clampedIndex * 0.62;
-    const presenceLift = 0.92 + Math.sqrt(clampedIndex) * 0.14;
-    return Math.max(0, Math.min(1, processed * lowFrequencyCompensation * presenceLift));
-};
-
-const drawStaticBars = (context: CanvasRenderingContext2D, width: number, height: number, theme: Theme, mode: MonetAudioStyle) => {
-    context.clearRect(0, 0, width, height);
-    context.strokeStyle = colorWithAlpha(theme.primaryColor, 0.96);
-    context.fillStyle = colorWithAlpha(theme.primaryColor, 0.9);
-    context.lineWidth = 1.5;
-    context.lineCap = 'round';
-
-    if (mode === 'line') {
-        const points: { x: number; y: number }[] = [];
-        for (let index = 0; index < BAR_COUNT; index += 1) {
-            const x = (index / (BAR_COUNT - 1)) * width;
-            const spectrumIndex = index / (BAR_COUNT - 1);
-            const envelope = Math.sin(spectrumIndex * Math.PI);
-            const val = 0.12 + (Math.sin(index * 0.35) * 0.5 + 0.5) * 0.42;
-            const y = height - (height * val * envelope);
-            points.push({ x, y });
-        }
-
-        const drawCurve = (ctx: CanvasRenderingContext2D) => {
-            if (points.length === 0) return;
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 0; i < points.length - 1; i++) {
-                const xc = (points[i].x + points[i + 1].x) / 2;
-                const yc = (points[i].y + points[i + 1].y) / 2;
-                ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-            }
-            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
-        };
-
-        // Fill area under the curve
-        context.beginPath();
-        drawCurve(context);
-        context.lineTo(width, height);
-        context.lineTo(0, height);
-        context.closePath();
-        const fillGradient = context.createLinearGradient(0, 0, 0, height);
-        fillGradient.addColorStop(0, colorWithAlpha(theme.primaryColor, 0.24));
-        fillGradient.addColorStop(1, colorWithAlpha(theme.primaryColor, 0.0));
-        context.fillStyle = fillGradient;
-        context.fill();
-
-        // Stroke curve
-        context.beginPath();
-        drawCurve(context);
-        context.strokeStyle = colorWithAlpha(theme.primaryColor, 0.96);
-        context.lineWidth = 2.0;
-        context.stroke();
-        return;
-    }
-
-    const gap = width / BAR_COUNT;
-    for (let index = 0; index < BAR_COUNT; index += 1) {
-        const spectrumIndex = index / (BAR_COUNT - 1);
-        const envelope = Math.sin(spectrumIndex * Math.PI);
-        const val = 0.12 + (Math.sin(index * 0.35) * 0.5 + 0.5) * 0.42;
-        const barHeight = height * (0.02 + val * 0.8 * envelope);
-        const x = index * gap + gap * 0.14;
-        context.fillRect(x, height - barHeight, Math.max(1.35, gap * 0.34), barHeight);
-    }
-};
 
 const AudioOverlay: React.FC<AudioOverlayProps> = ({
     audioPower,
     audioBands,
     theme,
     mode,
+    centered = false,
+    gain = 1,
+    paused = false,
     staticMode = false,
     isPreviewMode = false,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const lastFrameRef = useRef<MonetAudioFrame | null>(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) {
-            return;
-        }
+        const context = canvas?.getContext('2d');
+        if (!canvas || !context) return;
 
-        const context = canvas.getContext('2d');
-        if (!context) {
-            return;
-        }
-
-        let frameId = 0;
+        let frameId: number | null = null;
+        let active = true;
         let canvasWidth = 0;
         let canvasHeight = 0;
+        let canvasDpr = 0;
+        const placeholder = staticMode || isPreviewMode;
+        const paint = createMonetAudioPainter(context, {
+            color: theme.primaryColor, mode, centered, gain, placeholder,
+        });
 
         const resizeCanvas = () => {
             const rect = canvas.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
-            const nextWidth = Math.max(1, Math.floor(rect.width * dpr));
-            const nextHeight = Math.max(1, Math.floor(rect.height * dpr));
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            if (rect.width === canvasWidth && rect.height === canvasHeight && dpr === canvasDpr) return false;
             canvasWidth = rect.width;
             canvasHeight = rect.height;
+            canvasDpr = dpr;
+            const nextWidth = Math.max(1, Math.floor(rect.width * dpr));
+            const nextHeight = Math.max(1, Math.floor(rect.height * dpr));
             if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
                 canvas.width = nextWidth;
                 canvas.height = nextHeight;
             }
             context.setTransform(dpr, 0, 0, dpr, 0, 0);
-        };
-
-        // Both gradients depend only on the canvas size and the theme colour (fixed for this effect
-        // run), so they are rebuilt when the size changes rather than on every frame.
-        let gradientSize = '';
-        let inkGradient: CanvasGradient | null = null;
-        let areaGradient: CanvasGradient | null = null;
-        const resolveGradients = (width: number, height: number) => {
-            const size = `${width}x${height}`;
-            if (size !== gradientSize || !inkGradient || !areaGradient) {
-                gradientSize = size;
-                const primaryInk = colorWithAlpha(theme.primaryColor, 0.94);
-                const softInk = colorWithAlpha(theme.primaryColor, 0.72);
-                inkGradient = context.createLinearGradient(0, 0, width, 0);
-                inkGradient.addColorStop(0, softInk);
-                inkGradient.addColorStop(0.5, primaryInk);
-                inkGradient.addColorStop(1, softInk);
-                areaGradient = context.createLinearGradient(0, 0, 0, height);
-                areaGradient.addColorStop(0, colorWithAlpha(theme.primaryColor, 0.24));
-                areaGradient.addColorStop(1, colorWithAlpha(theme.primaryColor, 0.0));
-            }
-            return { gradient: inkGradient, fillGradient: areaGradient };
+            return true;
         };
 
         const draw = () => {
-            const width = canvasWidth;
-            const height = canvasHeight;
-            if (width <= 0 || height <= 0) {
-                return;
-            }
-
-            context.clearRect(0, 0, width, height);
-            const bands = [
-                audioBands.bass.get() / 255,
-                audioBands.lowMid.get() / 255,
-                audioBands.mid.get() / 255,
-                audioBands.vocal.get() / 255,
-                audioBands.treble.get() / 255,
-            ];
-            const rawSpectrum = audioBands.spectrum?.get() ?? new Uint8Array(0);
-            const hasRawSpectrum = rawSpectrum.length > MIN_RAW_SPECTRUM_BIN;
-            const energy = Math.min(1, Math.max(0.08, audioPower.get() / 255));
-            const { gradient, fillGradient } = resolveGradients(width, height);
-            context.fillStyle = gradient;
-            context.strokeStyle = gradient;
-            context.lineWidth = 1.5;
-            context.lineCap = 'round';
-
-            if (mode === 'line') {
-                const points: { x: number; y: number }[] = [];
-                for (let index = 0; index < BAR_COUNT; index += 1) {
-                    const x = (index / (BAR_COUNT - 1)) * width;
-                    const spectrumIndex = index / (BAR_COUNT - 1);
-                    const band = hasRawSpectrum
-                        ? sampleRawSpectrumProfile(rawSpectrum, spectrumIndex)
-                        : sampleSpectrumProfile(bands, spectrumIndex);
-                    const wave =
-                        Math.sin(index * 0.24 + performance.now() * 0.004) * 0.08 +
-                        Math.sin(index * 0.68 + performance.now() * 0.0028) * 0.05;
-                    
-                    const envelope = Math.sin(spectrumIndex * Math.PI);
-                    const amplitude = energy * 0.04 + band * 0.8 + wave * 0.04;
-                    const y = height - Math.max(0, height * amplitude * envelope);
-                    points.push({ x, y });
-                }
-
-                const drawCurve = (ctx: CanvasRenderingContext2D) => {
-                    if (points.length === 0) return;
-                    ctx.moveTo(points[0].x, points[0].y);
-                    for (let i = 0; i < points.length - 1; i++) {
-                        const xc = (points[i].x + points[i + 1].x) / 2;
-                        const yc = (points[i].y + points[i + 1].y) / 2;
-                        ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-                    }
-                    ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+            if (canvasWidth <= 0 || canvasHeight <= 0) return;
+            if (!placeholder && (!paused || !lastFrameRef.current)) {
+                const frame = lastFrameRef.current ?? {
+                    spectrum: new Float32Array(MONET_AUDIO_BAR_COUNT), energy: 0, time: 0,
                 };
-
-                // Fill area under the curve
-                context.beginPath();
-                drawCurve(context);
-                context.lineTo(width, height);
-                context.lineTo(0, height);
-                context.closePath();
-                context.fillStyle = fillGradient;
-                context.fill();
-
-                // Stroke top curve
-                context.beginPath();
-                drawCurve(context);
-                context.strokeStyle = gradient;
-                context.lineWidth = 2.0;
-                context.stroke();
-            } else {
-                const gap = width / BAR_COUNT;
-                for (let index = 0; index < BAR_COUNT; index += 1) {
-                    const spectrumIndex = index / (BAR_COUNT - 1);
-                    const band = hasRawSpectrum
-                        ? sampleRawSpectrumProfile(rawSpectrum, spectrumIndex)
-                        : sampleSpectrumProfile(bands, spectrumIndex);
-                    const pulse = Math.sin(index * 0.45 + performance.now() * 0.006) * 0.5 + 0.5;
-                    
-                    const envelope = Math.sin(spectrumIndex * Math.PI);
-                    const barHeight = height * (0.02 + (energy * 0.04 + band * 0.82 + pulse * 0.02) * envelope);
-                    const x = index * gap + gap * 0.14;
-                    context.fillRect(x, height - barHeight, Math.max(1.35, gap * 0.34), barHeight);
-                }
+                sampleMonetSpectrum([
+                    audioBands.bass.get() / 255,
+                    audioBands.lowMid.get() / 255,
+                    audioBands.mid.get() / 255,
+                    audioBands.vocal.get() / 255,
+                    audioBands.treble.get() / 255,
+                ], audioBands.spectrum?.get(), frame.spectrum);
+                frame.energy = Math.min(1, Math.max(0.08, audioPower.get() / 255));
+                frame.time = performance.now();
+                lastFrameRef.current = frame;
             }
+            paint(canvasWidth, canvasHeight, lastFrameRef.current);
         };
-
         const handleResize = () => {
-            resizeCanvas();
-            if ((staticMode || isPreviewMode) && canvasWidth > 0 && canvasHeight > 0) {
-                drawStaticBars(context, canvasWidth, canvasHeight, theme, mode);
-            }
+            if (active && resizeCanvas()) draw();
         };
-
-        resizeCanvas();
-        window.addEventListener('resize', handleResize);
-
-        if (staticMode || isPreviewMode) {
-            if (canvasWidth > 0 && canvasHeight > 0) {
-                drawStaticBars(context, canvasWidth, canvasHeight, theme, mode);
-            }
-            return () => window.removeEventListener('resize', handleResize);
-        }
-
         const loop = () => {
+            if (!active) return;
             draw();
             frameId = window.requestAnimationFrame(loop);
         };
 
-        loop();
+        resizeCanvas();
+        draw();
+        const observer = new ResizeObserver(handleResize);
+        observer.observe(canvas);
+        window.addEventListener('resize', handleResize);
+        if (!placeholder && !paused) frameId = window.requestAnimationFrame(loop);
+
         return () => {
-            window.cancelAnimationFrame(frameId);
+            active = false;
+            if (frameId !== null) window.cancelAnimationFrame(frameId);
+            observer.disconnect();
             window.removeEventListener('resize', handleResize);
         };
-    }, [audioBands, audioPower, isPreviewMode, mode, staticMode, theme]);
+    }, [audioBands, audioPower, centered, gain, isPreviewMode, mode, paused, staticMode, theme.primaryColor]);
 
-    return <canvas ref={canvasRef} className="h-full w-full" />;
+    return <canvas ref={canvasRef} className="h-full w-full" aria-hidden="true" />;
 };
 
 export default AudioOverlay;

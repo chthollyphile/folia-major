@@ -87,6 +87,21 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
     // The resolved mode goes to the rail, which measures and renders the rows (romanization, translation,
     // or both stacked) from each line's own data, so the lines are passed through untouched.
     const resolvedSubtitleContentMode = resolveSubtitleContentMode(subtitleContentMode, showSubtitleTranslation);
+    // Placement is an explicit preference: a lyric fetch or an instrumental gap must not change it.
+    const audioInLyrics = monetTuning.showAudioVisualization && monetTuning.audioPlacement === 'lyrics';
+    const audioVisualization = (
+        <AudioOverlay
+            audioPower={audioPower}
+            audioBands={audioBands}
+            theme={theme}
+            mode={monetTuning.audioStyle}
+            centered={audioInLyrics}
+            gain={monetTuning.audioGain ?? 1}
+            paused={props.paused}
+            staticMode={staticMode}
+            isPreviewMode={isPreviewMode}
+        />
+    );
 
     const handleSetMonetTuning = onMonetTuningChange;
 
@@ -306,7 +321,15 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 1.2, ease: [0.25, 1, 0.5, 1], delay: 0.65 }}
                             >
-                                <MonetLyricsRail
+                                {audioInLyrics ? (
+                                    <div
+                                        className="h-[clamp(7rem,24vh,16rem)] w-full"
+                                        style={{ maxWidth: headerMaxWidth }}
+                                        data-audio-placement="lyrics"
+                                    >
+                                        {audioVisualization}
+                                    </div>
+                                ) : <MonetLyricsRail
                                     entries={visibleLineEntries}
                                     lines={lines}
                                     currentLineIndex={currentLineIndex}
@@ -326,7 +349,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     onLyricLineSeek={onLyricLineSeek}
                                     seekDisabled={isPreviewMode}
                                     layoutScale={largeScreenScale}
-                                />
+                                />}
                             </motion.div>
 
                             {monetTuning.showDescription && (
@@ -550,7 +573,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                 </div>
             </div>
 
-            {showText && monetTuning.showAudioVisualization && (
+            {showText && monetTuning.showAudioVisualization && !audioInLyrics && (
                 <motion.div
                     key={`audio-${introKey}`}
                     initial={{ opacity: 0, y: 15 }}
@@ -559,15 +582,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                     className="absolute bottom-0 left-0 z-20 h-10 overflow-hidden px-5 sm:px-8 lg:px-14"
                     style={{ width: 'min(450px, 55vw)' }}
                 >
-                    <div className="h-full w-full">
-                        <AudioOverlay
-                            audioPower={audioPower}
-                            audioBands={audioBands}
-                            theme={theme}
-                            mode={monetTuning.audioStyle}
-                            staticMode={staticMode}
-                            isPreviewMode={isPreviewMode}
-                        />
+                    <div className="h-full w-full" data-audio-placement="bottom">
+                        {audioVisualization}
                     </div>
                 </motion.div>
             )}
