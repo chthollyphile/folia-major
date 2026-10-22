@@ -6,6 +6,9 @@ import type { Theme } from '../../../types';
 import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import { useNowPlayingCardLayoutStore } from './now-playing-toast/nowPlayingCardLayoutStore';
+import { useNowPlayingCardPosition } from './now-playing-toast/useNowPlayingCardPosition';
+import { NowPlayingCardPositioner } from './now-playing-toast/NowPlayingCardPositioner';
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
@@ -87,10 +90,11 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     // 可见性状态机：never 不渲染；always 常驻；auto 换歌重新计时。
     // isNextUp（预览下一首）挂起计时，翻回 false 后（即使 trackKey 没变）重新计时。
     const [visible, setVisible] = useState(mode !== 'never');
-    const holdOpen = mode === 'always' || isNextUp || transitionCue !== null;
+    const isPositioning = useNowPlayingCardLayoutStore(state => state.isPositioning);
+    const holdOpen = isPositioning || mode === 'always' || isNextUp || transitionCue !== null;
     const hideDelayMs = Math.max(3, Math.min(60, Math.round(timeoutSec))) * 1000;
     useEffect(() => {
-        if (mode === 'never') {
+        if (mode === 'never' && !isPositioning) {
             setVisible(false);
             return;
         }
@@ -99,7 +103,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         // 上一轮的 cleanup 一定在本轮之前跑完，所以不需要额外记 timeout id
         const timer = window.setTimeout(() => setVisible(false), hideDelayMs);
         return () => window.clearTimeout(timer);
-    }, [mode, hideDelayMs, trackKey, holdOpen]);
+    }, [mode, hideDelayMs, trackKey, holdOpen, isPositioning]);
 
     // 描边要的是卡片的实际尺寸（内容撑出来的，没有固定宽高），所以量一下外层容器：
     // 它是 fixed 且没给宽度，会收缩到卡片大小，而且不会随 trackKey 重挂。
@@ -132,20 +136,24 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         return () => observer.disconnect();
     }, [visible]);
 
+    const position = useNowPlayingCardPosition(frameRef, cardSize, bottomBarBottomPx, visible, invalidateLayout);
+
     return (
+        <>
         <AnimatePresence>
             {visible && (
                 <motion.div
                     ref={setFrameRef}
                     onUpdate={invalidateLayout}
-                    initial={{ opacity: 0, x: -32 }}
+                    initial={{ opacity: 0, x: isPositioning ? 0 : -32 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -16 }}
                     transition={{ duration: 0.35, ease: 'easeOut' }}
                     // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
                     // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
-                    style={{ bottom: bottomBarBottomPx }}
-                    className="pointer-events-none fixed left-6 z-40"
+                    style={position.style}
+                    data-now-playing-card=""
+                    className={`pointer-events-none fixed w-max max-w-[calc(100vw-48px)] ${isPositioning ? 'z-[65]' : 'z-40'}`}
                 >
                     {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
                         描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。
@@ -185,16 +193,18 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         data-toast-card=""
                         type="button"
                         layout="size"
-                        onClick={onActivate}
-                        disabled={!onActivate}
-                        aria-label={onActivate ? activateLabel : undefined}
-                        initial={{ opacity: 0, x: -24 }}
+                        onClick={isPositioning ? event => event.preventDefault() : onActivate}
+                        {...(isPositioning ? position.handlers : {})}
+                        disabled={!onActivate && !isPositioning}
+                        aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
+                        style={isPositioning ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
+                        initial={{ opacity: 0, x: isPositioning ? 0 : -24 }}
                         animate={{ opacity: 1, x: 0 }}
-                        whileTap={onActivate ? { opacity: 0.85 } : undefined}
+                        whileTap={onActivate && !isPositioning ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex min-w-[240px] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                        className={`relative flex min-w-[min(240px,calc(100vw-48px))] max-w-[calc(100vw-48px)] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
-                        } ${onActivate
+                        } ${isPositioning ? 'pointer-events-auto cursor-grab select-none active:cursor-grabbing' : onActivate
                             ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
                             : ''}`}
                     >
@@ -284,6 +294,8 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                 </motion.div>
             )}
         </AnimatePresence>
+        {isPositioning && <NowPlayingCardPositioner isDaylight={isDaylight} onSave={position.save} onCancel={position.cancel} onReset={position.reset} />}
+        </>
     );
 };
 

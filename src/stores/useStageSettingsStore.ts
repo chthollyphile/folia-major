@@ -5,7 +5,8 @@
 // Split out of useSettingsUiStore.
 
 import { create } from 'zustand';
-import { getStoredBoolean, getStoredString, setStoredBoolean } from './storagePrimitives';
+import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';
+import { normalizeNowPlayingCardPosition, type NowPlayingCardPosition } from '../utils/nowPlayingCardPosition';
 import { setStatusMessage } from './useStatusMessageStore';
 import i18n from '../i18n/config';
 
@@ -39,6 +40,13 @@ const readStoredStageTrackPillTimeoutSec = (): number => {
     return Number.isFinite(saved) && saved >= 3 && saved <= 60 ? Math.round(saved) : 10;
 };
 
+const STAGE_TRACK_PILL_POSITION_KEY = 'stage_track_pill_position';
+
+const readStoredCardPosition = () => {
+    try { return normalizeNowPlayingCardPosition(JSON.parse(getStoredString(STAGE_TRACK_PILL_POSITION_KEY, 'null'))); }
+    catch { return null; }
+};
+
 export type StageSettingsState = {
     enableNowPlayingStage: boolean;
     // PlayerCap lyrics source (third stage source) config. enablePlayerCapStage is Web-only (Electron uses stageStatus.source).
@@ -54,6 +62,9 @@ export type StageSettingsState = {
     /** auto 模式下的显示时长（秒），3-60 */
     stageTrackPillTimeoutSec: number;
     stageTrackPillOnHome: boolean;
+    /** null keeps the original bottom-bar alignment; otherwise coordinates are relative to the available viewport. */
+    stageTrackPillPosition: NowPlayingCardPosition | null;
+    handleSetStageTrackPillPosition: (position: NowPlayingCardPosition | null) => void;
     /** OBS 浏览器源有客户端连接时，主窗口是否继续渲染重动画（默认 false = 主窗口切到 still） */
     obsKeepMainWindowAnimation: boolean;
     // Web stage-source tri-state mutually-exclusive selection: null disables, else one of 'now-playing' or 'playercap'. Electron uses stageStatus.source.
@@ -80,6 +91,12 @@ export const useStageSettingsStore = create<StageSettingsState>((set, get) => ({
     stageTrackPillMode: readStoredStageTrackPillMode(),
     stageTrackPillTimeoutSec: readStoredStageTrackPillTimeoutSec(),
     stageTrackPillOnHome: getStoredBoolean('stage_track_pill_on_home', false),
+    stageTrackPillPosition: readStoredCardPosition(),
+    handleSetStageTrackPillPosition: (position) => {
+        const next = normalizeNowPlayingCardPosition(position);
+        setStoredString(STAGE_TRACK_PILL_POSITION_KEY, JSON.stringify(next));
+        set({ stageTrackPillPosition: next });
+    },
     obsKeepMainWindowAnimation: getStoredBoolean('obs_keep_main_window_animation', false),
     setWebStageSource: (source) => {
         const wasEnabled = get().enableNowPlayingStage || get().enablePlayerCapStage;
@@ -157,6 +174,8 @@ export const selectStageSettingsSnapshot = (state: StageSettingsState) => ({
     stageTrackPillMode: state.stageTrackPillMode,
     stageTrackPillTimeoutSec: state.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: state.stageTrackPillOnHome,
+    stageTrackPillPosition: state.stageTrackPillPosition,
+    handleSetStageTrackPillPosition: state.handleSetStageTrackPillPosition,
     obsKeepMainWindowAnimation: state.obsKeepMainWindowAnimation,
     setWebStageSource: state.setWebStageSource,
     setPlayerCapHost: state.setPlayerCapHost,

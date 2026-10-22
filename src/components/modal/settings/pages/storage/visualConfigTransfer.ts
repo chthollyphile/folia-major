@@ -315,6 +315,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     if (has('stageTrackPillTimeoutSec') && Number.isFinite(Number(config.stageTrackPillTimeoutSec))) {
         storeStageSettings.handleSetStageTrackPillTimeoutSec(Number(config.stageTrackPillTimeoutSec));
     }
+    if (has('stageTrackPillPosition')) {
+        storeStageSettings.handleSetStageTrackPillPosition(config.stageTrackPillPosition);
+    }
     if (has('stageTrackPillOnHome')) {
         storeStageSettings.handleToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
     }

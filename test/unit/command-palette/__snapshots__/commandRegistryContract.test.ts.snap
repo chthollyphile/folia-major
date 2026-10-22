@@ -74,6 +74,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-help",
   "ponder-current-page",
   "sleep-timer",
+  "settings-now-playing-card-position",
   "settings-options",
   "settings-appearance",
   "settings-theme-presets",

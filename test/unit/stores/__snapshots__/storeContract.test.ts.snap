@@ -142,6 +142,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "sora_background_tuning",
   "stage_track_pill_mode",
   "stage_track_pill_on_home",
+  "stage_track_pill_position",
   "stage_track_pill_timeout_sec",
   "subtitle_content_mode",
   "subtitle_font_fallback_families",

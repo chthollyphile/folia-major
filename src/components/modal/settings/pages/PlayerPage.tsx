@@ -12,6 +12,7 @@ import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { usePlayerBottomBarLayoutStore } from '../../../../stores/usePlayerBottomBarLayoutStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
+import { hasNowPlayingCardSong, useNowPlayingCardLayoutStore } from '../../../app/overlays/now-playing-toast/nowPlayingCardLayoutStore';
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { useTypographySettingsStore } from '../../../../stores/useTypographySettingsStore';
 import { ensureVideoLayerFileRestored, useVideoLayerSettingsStore, VIDEO_LAYER_OPACITY_BOUNDS } from '../../../../stores/useVideoLayerSettingsStore';
@@ -45,6 +46,7 @@ const O = {
     controlSlots: option(BAR, 'playerControlSlots', 'options.playerControlSlots'),
     cardMode: option(CARD, 'stageTrackPillMode', 'options.stageTrackPillMode'),
     cardTimeout: option(CARD, 'stageTrackPillTimeout', 'options.stageTrackPillTimeout'),
+    cardPosition: option(CARD, 'stageTrackPillReposition', 'options.stageTrackPillReposition'),
     cardOnHome: option(CARD, 'stageTrackPillOnHome', 'options.stageTrackPillOnHome'),
     cardCloseButton: option(CARD, 'showOpenPanelCloseButton', 'options.showOpenPanelCloseButton'),
     videoEnabled: option(VIDEO, 'videoLayerEnabled', 'options.videoLayerEnabled'),
@@ -131,6 +133,8 @@ const PlayerPage: React.FC = () => {
     const hideSubtitle = useTypographySettingsStore(state => state.hidePlayerTranslationSubtitle);
     const setHideSubtitle = useTypographySettingsStore(state => state.handleToggleHidePlayerTranslationSubtitle);
     const hasCurrentSong = usePlaybackStore(state => Boolean(state.currentSong));
+    const canPositionCard = usePlaybackStore(hasNowPlayingCardSong);
+    const requestCardPosition = useNowPlayingCardLayoutStore(state => state.requestPositioning);
     const requestPositioning = usePlayerBottomBarLayoutStore(state => state.requestPositioning);
     const tintColorPreview = useColorPreviewThrottle(lattice.setTintColor);
 
@@ -264,6 +268,9 @@ const PlayerPage: React.FC = () => {
             </Group>
 
             <Group def={CARD}>
+                <Row option={O.cardPosition}>
+                    <Button onClick={requestCardPosition} disabled={!canPositionCard}>{t('options.stageTrackPillReposition')}</Button>
+                </Row>
                 <Row option={O.cardMode} note={t('options.stageTrackPillDesc')}>
                     <Segmented
                         value={card.mode}
