@@ -1,6 +1,7 @@
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import 'pixi.js/advanced-blend-modes';
 import type { Theme } from '../../../types';
+import { resolveGlowColorStrength } from '../colorMix';
 import { buildSonnetGlyphLayout } from './sonnetGlyphLayout';
 import { resolveSonnetSegmentDepth, resolveSonnetSegmentNormalOffset } from './sonnetMotion';
 import { hashSonnetSeed } from './sonnetRandom';
@@ -148,10 +149,14 @@ export const buildSonnetTextView = (
     const blurAmount = Math.abs(zDepth) * fontSize * 0.12;
     const isBlurry = blurAmount > 2;
 
-    const baseDropShadow = options.glowEnabled && !isDecoration ? {
+    const hasGlow = options.glowEnabled && !isDecoration;
+    const glowBlur = Math.max(12, fontSize * 0.18);
+    const glowRgb = pixi.Color.shared.setValue(glowColor);
+    const glowStrength = hasGlow ? resolveGlowColorStrength(glowRgb.red * 255, glowRgb.green * 255, glowRgb.blue * 255) : 0;
+    const baseDropShadow = glowStrength > 0 ? {
         color: glowColor,
-        alpha: 0.8,
-        blur: Math.max(12, fontSize * 0.18),
+        alpha: 0.8 * glowStrength,
+        blur: glowBlur,
         distance: 0,
     } : undefined;
 
@@ -163,7 +168,8 @@ export const buildSonnetTextView = (
         stroke: isDecoration ? { color: glowColor, width: Math.max(1, Math.min(8, fontSize * 0.006)) } : undefined,
         align: 'center',
         dropShadow: baseDropShadow,
-        padding: baseDropShadow ? Math.max(20, baseDropShadow.blur * 2.5) : 0,
+        // Keep the glyph bounds stable when only the glow color becomes dark.
+        padding: hasGlow ? Math.max(20, glowBlur * 2.5) : 0,
     });
 
     // Semi-hero echo ghosts: hollow (stroke-only) copies that split along the

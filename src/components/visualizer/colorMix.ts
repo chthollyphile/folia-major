@@ -85,6 +85,13 @@ export const parseColorChannels = (color: string): Channels | null => {
     return typeof parsed === 'string' ? null : { ...parsed };
 };
 
+/** Suppress dark, muddy halos; fade in over midtones so animated RGB (0–255) does not pop. */
+export const resolveGlowColorStrength = (r: number, g: number, b: number): number => {
+    const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+    const progress = clamp((brightness - 110) / 50, 0, 1);
+    return progress * progress * (3 - 2 * progress);
+};
+
 export const mixColors = (from: string, to: string, amount: number, alpha = 1) => {
     const normalizedAmount = clamp(amount, 0, 1);
     const fromParsed = parseColor(from).parsed;
