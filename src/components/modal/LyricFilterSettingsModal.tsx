@@ -179,6 +179,7 @@ const LyricFilterSettingsModal: React.FC<LyricFilterSettingsModalProps> = ({
                             rows={preview.rows}
                             staff={preview.staff}
                             staffPolicy={draftStaffPolicy}
+                            staffBlockRanges={preview.staffBlockRanges}
                         />
                     </div>
                 </div>

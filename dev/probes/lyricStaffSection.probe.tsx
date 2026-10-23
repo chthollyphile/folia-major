@@ -12,7 +12,7 @@ import type { ProbeDefinition } from './definition';
 // dev/probes/lyricStaffSection.probe.tsx
 
 /**
- * 开头制作人员信息的设置区块 + 它驱动的预览。
+ * 制作人员信息的设置区块 + 它驱动的预览。
  *
  * 这里要看的是判定结果会不会随着控件实时变化：策略三态、每行停留滑块和自定义正则
  * 任何一个动了，右边的判定行和左边的预览标记都得跟着改。单测只能证明纯函数算得对，
@@ -142,7 +142,7 @@ const LyricStaffSectionProbe: React.FC = () => {
                             onPatternChange={setPattern}
                         />
                         <div className="mt-4 rounded-xl bg-[var(--st-pv)] p-3" data-probe-preview={id}>
-                            <LyricFilterPreviewList isLoading={false} rows={preview.rows} staff={preview.staff} staffPolicy={policy} />
+                            <LyricFilterPreviewList isLoading={false} rows={preview.rows} staff={preview.staff} staffPolicy={policy} staffBlockRanges={preview.staffBlockRanges} />
                         </div>
                     </div>
                 );

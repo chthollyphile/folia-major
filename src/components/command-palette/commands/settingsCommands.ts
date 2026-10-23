@@ -522,9 +522,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
     {
         id: 'lyric-staff-policy-cycle',
         group: 'settings',
-        title: 'Opening credits handling',
-        description: 'Cycle how the credit block at the start of the lyrics is handled',
-        keywords: ['opening credits', 'staff credits', 'lyric credits', 'credits', '制作人员', '署名', '开头署名', '前奏署名'],
+        title: 'Credits handling',
+        description: 'Cycle how credit blocks anywhere in the lyrics are handled',
+        keywords: ['credits', 'staff credits', 'lyric credits', 'credit block', '制作人员', '署名', '开头署名', '片尾署名'],
         execute: (_input, context) => {
             context.settings.cycleLyricStaffPolicy();
             return true;

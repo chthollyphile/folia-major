@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 // test/component/lyricStaffSection.spec.ts
-// 覆盖歌词过滤面板里「开头制作人员信息」区块的接线：策略按钮和滑块是不是真的驱动了
+// 覆盖歌词过滤面板里「制作人员信息」区块的接线：策略按钮和滑块是不是真的驱动了
 // 同一份判定，预览标记是不是跟着走。判定算法本身有单测，这里只证明受控输入接对了地方，
 // 走 dev 组件探针，见 dev/probes/lyricStaffSection.probe.tsx。
 

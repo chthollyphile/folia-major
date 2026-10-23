@@ -61,7 +61,7 @@ export const createLyricsSetter = (
             cachedNeteaseChorusRanges = null;
         }
 
-        // 通用过滤是用户的显式指令，先跑；staff 策略只处理它没删掉的开头块。
+        // 通用过滤是用户的显式指令，先跑；staff 策略只处理它没删掉的署名块。
         // 歌词行整体就是“纯音乐，请欣赏”这类提示语时按无歌词处理（与 provider 判为纯音乐时一致），
         // 让 visualizer 走纯音乐路径，而不是把提示语当歌词渲染。provider 没覆盖到的来源（本地、QQ 等）靠这里兜底。
         let processed = nextLyrics && isPureMusicLyricLines(nextLyrics.lines)

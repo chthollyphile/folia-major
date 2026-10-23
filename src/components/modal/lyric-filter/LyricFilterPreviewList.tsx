@@ -6,17 +6,19 @@ import type { LyricFilterPreviewRow } from './buildLyricFilterPreviewModel';
 
 // src/components/modal/lyric-filter/LyricFilterPreviewList.tsx
 // The sample lyric of the lyric filter window: every line with its time. A removed line stays in
-// place, dimmed and struck through, with a tag that names the rule that removed it. The opening
-// credits block has a rail at its left and a head line with the verdict for this song.
+// place, dimmed and struck through, with a tag that names the rule that removed it. Every credit
+// block has its own rail at the left, and the head line carries the verdict for this song.
 
 interface LyricFilterPreviewListProps {
     isLoading: boolean;
     rows: LyricFilterPreviewRow[];
     staff: LyricStaffDecision;
     staffPolicy: LyricStaffPolicy;
+    /** 每个署名块的 [起, 止] 行下标；多块之间隔着正文，竖线必须按块各画各的。 */
+    staffBlockRanges?: Array<[number, number]>;
 }
 
-/** The rail at the left of the credits block. */
+/** The rail at the left of a credits block. */
 const RAIL_CLASS = "before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-[var(--st-line2)] before:content-['']";
 
 const formatSeconds = (seconds: number): string => (Math.round(seconds * 10) / 10).toFixed(1);
@@ -65,7 +67,13 @@ const PreviewLine: React.FC<{ row: LyricFilterPreviewRow; railed: boolean }> = (
     );
 };
 
-const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoading, rows, staff, staffPolicy }) => {
+const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({
+    isLoading,
+    rows,
+    staff,
+    staffPolicy,
+    staffBlockRanges = [],
+}) => {
     const { t } = useTranslation();
 
     if (isLoading) {
@@ -84,11 +92,10 @@ const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoadi
         );
     }
 
-    const blockStartIndex = rows.find(row => row.inStaffBlock)?.index ?? null;
-    // 逐行过滤删掉的行不算在署名块里；夹在块中间的那几行照样画竖线，竖线才不会断开。
-    const blockEndIndex = rows.reduce<number | null>((last, row) => (row.inStaffBlock ? row.index : last), null);
+    // 头部标在第一个块的起点上；竖线按块分别画（中间隔着正文的多个块不能连成一根）。
+    const blockStartIndex = staffBlockRanges.length > 0 ? staffBlockRanges[0][0] : null;
     const isRailed = (row: LyricFilterPreviewRow): boolean => (
-        blockStartIndex !== null && blockEndIndex !== null && row.index >= blockStartIndex && row.index <= blockEndIndex
+        staffBlockRanges.some(([start, end]) => row.index >= start && row.index <= end)
     );
     // 署名块只在第一条上打一次标，逐行重复会把预览变成噪音。没识别到块时标在第一行上面，不带竖线；
     // 「始终显示」不做判定，也就没有这一行。
@@ -107,19 +114,29 @@ const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoadi
                             </span>
                             {staff.verdict !== 'none' && staffPolicy === 'smart' && (
                                 // 吸收行数是额外信息：大多数歌词吸不到东西，常驻一行 0 反而是噪音。
+                                // 末尾块的窗口/需求只是报告值，不能拿它下结论，单独换一种说法。
                                 <span className="basis-full">
-                                    {staff.absorbedLineCount > 0
-                                        ? t('lyricStaff.verdictSummaryAbsorbed', {
+                                    {staff.windowKind === 'tail'
+                                        ? t(staff.absorbedLineCount > 0
+                                            ? 'lyricStaff.verdictSummaryTailAbsorbed'
+                                            : 'lyricStaff.verdictSummaryTail', {
                                             lines: staff.blockLineCount,
                                             absorbed: staff.absorbedLineCount,
-                                            window: formatSeconds(staff.windowSeconds),
-                                            required: formatSeconds(staff.requiredSeconds),
                                         })
-                                        : t('lyricStaff.verdictSummary', {
-                                            lines: staff.blockLineCount,
-                                            window: formatSeconds(staff.windowSeconds),
-                                            required: formatSeconds(staff.requiredSeconds),
-                                        })}
+                                        : staff.windowKind === 'whole-song'
+                                            ? t('lyricStaff.verdictSummaryWholeSong', { lines: staff.blockLineCount })
+                                            : staff.absorbedLineCount > 0
+                                            ? t('lyricStaff.verdictSummaryAbsorbed', {
+                                                lines: staff.blockLineCount,
+                                                absorbed: staff.absorbedLineCount,
+                                                window: formatSeconds(staff.windowSeconds),
+                                                required: formatSeconds(staff.requiredSeconds),
+                                            })
+                                            : t('lyricStaff.verdictSummary', {
+                                                lines: staff.blockLineCount,
+                                                window: formatSeconds(staff.windowSeconds),
+                                                required: formatSeconds(staff.requiredSeconds),
+                                            })}
                                 </span>
                             )}
                         </div>

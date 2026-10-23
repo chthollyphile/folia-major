@@ -128,7 +128,7 @@ export type LyricSettingsState = {
     globalLyricTimelineOffsetMs: number;
     lyricFilterPattern: string;
     lyricFilterEnabled: boolean;
-    // 开头制作人员信息的处理策略，与上面的通用逐行过滤是两套独立机制。
+    // 制作人员信息的处理策略，与上面的通用逐行过滤是两套独立机制。
     lyricStaffPolicy: LyricStaffPolicy;
     lyricStaffMinDwellSeconds: number;
     lyricStaffAbsorbMode: LyricStaffAbsorbMode;

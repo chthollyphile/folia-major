@@ -4,12 +4,18 @@ import type { StaffCreditBlock } from './staffCredits';
 import type { LyricStaffAbsorbMode } from './types';
 
 // src/utils/lyrics/staffCreditsAbsorb.ts
-// 把前奏块相邻的持续时间短的行并入块。
+// 把开头署名块相邻的持续时间短的行并入块。
 
 export interface StaffAbsorbOptions {
     mode: LyricStaffAbsorbMode;
     /** 单行耗时的上限（秒），取自「每行最少停留」。低于它才算过短。 */
     maxDuration: number;
+    /**
+     * 禁区：其它署名块占用的行下标。吸收不得跨过它们。
+     * 没有这道边界时，全曲扫描出的多个块会互相吞并 —— 前一块会把后一块开头
+     * 那几行（往往同样很短）吸进来，随后隐藏前一块时把它们一起删掉。
+     */
+    blockedIndexes?: Iterable<number>;
 }
 
 const isShortLine = (line: Line, maxDuration: number): boolean =>
@@ -24,12 +30,15 @@ const collectShortRun = (
     start: number,
     step: number,
     memberSet: Set<number>,
-    maxDuration: number
+    maxDuration: number,
+    blocked: Set<number>
 ): number[] => {
     const taken: number[] = [];
 
     for (let index = start; index >= 0 && index < lines.length; index += step) {
-        if (memberSet.has(index) || !isShortLine(lines[index], maxDuration)) {
+        // 碰到别的块就停，和碰到自己的行一样 —— 那些行不属于这个块，
+        // 吸进来就等于把另一个块的署名拆散。
+        if (memberSet.has(index) || blocked.has(index) || !isShortLine(lines[index], maxDuration)) {
             break;
         }
 
@@ -40,7 +49,7 @@ const collectShortRun = (
 };
 
 /**
- * 把前奏块相邻的行并入块：before 只向前（索引更小）扫，both 前后都扫。
+ * 把开头署名块相邻的行并入块：before 只向前（索引更小）扫，both 前后都扫。
  */
 export const absorbAdjacentLines = (
     lines: Line[],
@@ -52,10 +61,11 @@ export const absorbAdjacentLines = (
     }
 
     const memberSet = new Set(block.memberIndexes);
+    const blocked = new Set(options.blockedIndexes ?? []);
     const blockStart = block.memberIndexes[0];
     const lastMember = block.memberIndexes[block.memberIndexes.length - 1];
 
-    const absorbed = collectShortRun(lines, blockStart - 1, -1, memberSet, options.maxDuration);
+    const absorbed = collectShortRun(lines, blockStart - 1, -1, memberSet, options.maxDuration, blocked);
 
     if (options.mode === 'both') {
         // 留最后一行：把整首都吸进去之后没有「第一句歌词」可言，判定会退化成原样显示。
@@ -65,7 +75,8 @@ export const absorbAdjacentLines = (
             Math.min(lastMember + 1, lastIndex),
             1,
             memberSet,
-            options.maxDuration
+            options.maxDuration,
+            blocked
         ).filter(index => index < lastIndex);
 
         absorbed.push(...backward);
