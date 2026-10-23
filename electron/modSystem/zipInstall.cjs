@@ -24,10 +24,10 @@ const STAGING_DIRECTORY = '.staging';
  * match modDigest's, so anything installable is also verifiable.
  */
 const INSTALL_LIMITS = {
-    maxArchiveBytes: 64 * 1024 * 1024,
+    maxArchiveBytes: 128 * 1024 * 1024,
     maxEntries: 2000,
-    maxTotalBytes: 64 * 1024 * 1024,
-    maxFileBytes: 32 * 1024 * 1024,
+    maxTotalBytes: 256 * 1024 * 1024,
+    maxFileBytes: 128 * 1024 * 1024,
 };
 
 /*

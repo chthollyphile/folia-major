@@ -1,4 +1,6 @@
 import { useCallback, useEffect } from 'react';
+import { seekPlayback } from '../../../../services/playbackBackend/transport';
+import { backendPlayback, usesPlaybackBackend } from '../../../../services/playbackBackend/controller';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
 import { omni } from '../../../../services/onlineMusic/omni';
@@ -160,6 +162,11 @@ export function usePlaybackInteractionBridge({
             return;
         }
 
+        if (usesPlaybackBackend()) {
+            if (backendPlayback.getStatus().state === 'playing') pausePlayback();
+            else startPlaybackFromInteraction();
+            return;
+        }
         if (audioRef.current) {
             if (!audioRef.current.paused && !audioRef.current.ended) {
                 pausePlayback();
@@ -300,7 +307,7 @@ export function usePlaybackInteractionBridge({
                         // by the deck on screen, which is the track this key is meant to move.
                         const nextTime = Math.max(0, currentTime.get() - 5);
                         if (!seekDuringTransition?.(nextTime) && audioRef.current) {
-                            audioRef.current.currentTime = nextTime;
+                            void seekPlayback(audioRef.current, nextTime).catch(error => console.error('[PlaybackBackend] Seek failed', error));
                         }
                     }
                     break;
@@ -336,7 +343,7 @@ export function usePlaybackInteractionBridge({
                         // position against it lands past its end.
                         const nextTime = Math.min(duration || 0, currentTime.get() + 5);
                         if (!seekDuringTransition?.(nextTime) && audioRef.current) {
-                            audioRef.current.currentTime = nextTime;
+                            void seekPlayback(audioRef.current, nextTime).catch(error => console.error('[PlaybackBackend] Seek failed', error));
                         }
                     }
                     break;

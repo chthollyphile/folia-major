@@ -99,6 +99,8 @@ import { usePlayerChromeAutoHide } from './hooks/usePlayerChromeAutoHide';
 import { useMacWallpaperHitRegions } from './hooks/useMacWallpaperHitRegions';
 import { useIdleCursorHide } from './hooks/useIdleCursorHide';
 import { usePlaybackAudioBridge } from './components/app/playback/bridges/usePlaybackAudioBridge';
+import { useBackendPlayback } from './components/app/playback/bridges/useBackendPlayback';
+import { backendPlayback, usesPlaybackBackend } from './services/playbackBackend/controller';
 import { useTranscodeFallback } from './hooks/useTranscodeFallback';
 import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
 import { usePlaybackInteractionBridge } from './components/app/playback/bridges/usePlaybackInteractionBridge';
@@ -559,6 +561,11 @@ export default function App() {
 
     const syncOutputGain = useCallback((targetVolume: number, smoothing = 0.015) => {
         const clampedVolume = clampMediaVolume(targetVolume);
+
+        if (usesPlaybackBackend()) {
+            void backendPlayback.setVolume(clampedVolume).catch(error => console.warn('[PlaybackBackend] Volume failed', error));
+            return;
+        }
 
         if (gainNodeRef.current && audioContextRef.current) {
             // Volume only. ReplayGain lives on each deck now, because during a blend the two
@@ -1125,13 +1132,17 @@ export default function App() {
         return () => registerLocalTrackFileReader(null);
     }, [getLocalStemBytes]);
 
+    const backendActive = useBackendPlayback({
+        audioRef, audioContextRef, pendingResumeTimeRef, shouldAutoPlayRef: shouldAutoPlay, loopMode: effectiveLoopMode,
+        onEnded: () => { void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false }); },
+    });
     const automix = useAutomixDecks({
         audioRef,
         audioContextRef,
         currentSongKeyRef: currentSongRef,
         coverUrl,
         loopMode: effectiveLoopMode,
-        isEnabled: automixEnabled && !isNowPlayingStageActive,
+        isEnabled: automixEnabled && !isNowPlayingStageActive && !backendActive,
         transition: transitionSettings,
         onAdvanceTrack: () => {
             // Same advance the end of a track would trigger, only early enough for the outgoing
@@ -1308,13 +1319,14 @@ export default function App() {
         // currentSrc, not the src attribute: it only names a resource the element has actually
         // selected, so a deck one tick into loading something new cannot answer with the old
         // track's duration.
-        if (!audioSrc || element?.currentSrc !== audioSrc) return;
+        if (usesPlaybackBackend() || !audioSrc || element?.currentSrc !== audioSrc) return;
         if (Number.isFinite(element.duration) && element.duration > 0) {
             setDuration(element.duration);
         }
     }, [audioSrc, audioRef, setDuration]);
 
     const { setupAudioAnalyzer, cacheSongAssets, cacheSongAssetsFor, adoptActiveDeckSource } = usePlaybackAudioBridge({
+        backendActive,
         audioRef,
         localSongs,
         isLyricsLoading,
@@ -2006,6 +2018,10 @@ export default function App() {
         return true;
     };
     const seekMainAudio = useCallback((time: number) => {
+        if (usesPlaybackBackend()) {
+            void backendPlayback.seek(time).then(() => backendPlayback.play()).catch(error => console.error('[PlaybackBackend] Seek failed', error));
+            return;
+        }
         // A seek is a statement that playback should go on, same as it is on a paused track. If a
         // pause is still fading out, take it back (the audio never stopped) so the pending pause
         // cannot land after the seek.
@@ -2410,11 +2426,12 @@ export default function App() {
         <audio
             key={deck}
             ref={register}
-            src={automix.deckSrc(deck)}
+            src={backendActive ? undefined : automix.deckSrc(deck)}
             preload="auto"
             crossOrigin="anonymous"
             loop={effectiveLoopMode === 'one' && automix.activeDeck === deck}
             onLoadStart={(e) => {
+                if (usesPlaybackBackend()) return;
                 // Silent unless the invariant breaks. A deck is only ever handed the source the
                 // app is currently on, so the active deck loading anything else means the ref and
                 // audioSrc have drifted apart - the state that once had a deck "start playing"
@@ -2440,6 +2457,7 @@ export default function App() {
                 }
             }}
             onPlay={(e) => {
+                if (usesPlaybackBackend()) { e.currentTarget.pause(); return; }
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
                 // The same split onTimeUpdate, onSeeked and onLoadedMetadata all make, and the two
@@ -2449,6 +2467,7 @@ export default function App() {
                 setPlayerState(PlayerState.PLAYING);
             }}
             onPlaying={(e) => {
+                if (usesPlaybackBackend()) { e.currentTarget.pause(); return; }
                 if (!automix.isActiveDeck(e.currentTarget)) return;
                 shouldAutoPlay.current = false;
                 if (!isShowingTail) currentTime.set(e.currentTarget.currentTime);
@@ -2463,6 +2482,7 @@ export default function App() {
                 automix.handleActiveDeckPlaying();
             }}
             onPause={(e) => {
+                if (usesPlaybackBackend()) return;
                 // A pause that flushing a fade-out made, while a new song is already being set up:
                 // the transport state and play intent belong to that song now.
                 if (consumeProgrammaticPause(e.currentTarget)) return;
@@ -2481,6 +2501,7 @@ export default function App() {
                 }
             }}
             onTimeUpdate={(e) => {
+                if (usesPlaybackBackend()) return;
                 const audioElement = e.currentTarget;
                 const isActive = automix.isActiveDeck(audioElement);
                 // The clock and the transport are driven by different decks during a transition.
@@ -2527,6 +2548,7 @@ export default function App() {
                 automix.checkTransitionPoint(audioElement.currentTime);
             }}
             onSeeked={(e) => {
+                if (usesPlaybackBackend()) return;
                 // Same split as onTimeUpdate: whichever deck the bar is showing is the one a seek
                 // on it has to be reflected from.
                 const isActive = automix.isActiveDeck(e.currentTarget);
@@ -2559,6 +2581,7 @@ export default function App() {
             //     }
             // }}
             onEnded={(e) => {
+                if (usesPlaybackBackend()) return;
                 // A track finishing in the background has already handed the queue over.
                 if (!automix.isActiveDeck(e.currentTarget)) {
                     automix.handleTailEnded();
@@ -2584,6 +2607,7 @@ export default function App() {
                 }
             }}
             onLoadedMetadata={(e) => {
+                if (usesPlaybackBackend()) return;
                 const audioElement = e.currentTarget;
                 if (!automix.isActiveDeck(audioElement)) return;
                 setDuration(audioElement.duration);
@@ -2608,6 +2632,7 @@ export default function App() {
                 currentTime.set(0); // Ensure currentTime is reset when new audio loads
             }}
             onError={(e) => {
+                if (usesPlaybackBackend()) return;
                 const audioElement = e.currentTarget;
                 const isActiveDeck = automix.isActiveDeck(audioElement);
                 const reportedDuration = Number.isFinite(audioElement.duration) && audioElement.duration > 0

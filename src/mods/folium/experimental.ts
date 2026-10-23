@@ -22,6 +22,8 @@ import { addPonderText, localizePonderTarget, ponderTextNamespace, removePonderT
 import { inertFoliumHandle, type FoliumStoppedCheck } from './api';
 import { FOLIUM_EXPERIMENTAL } from './shared';
 import { createFoliumPlatformService } from './platformRaw';
+import { playbackBackendsRegistry } from './playbackBackends';
+import type { FoliumPlaybackBackendDefinition } from './contract';
 
 // src/mods/folium/experimental.ts
 // The unfrozen surfaces, each behind a manifest opt-in (`experimental`):
@@ -94,7 +96,7 @@ export const ponderTargetsRegistry = createFoliumRegistry<PonderTargetInput, Sto
 });
 
 /** Registries owned by this module, for teardown alongside the stable ones. */
-export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry, remoteActionsRegistry];
+export const EXPERIMENTAL_REGISTRIES = [omniProvidersRegistry, ponderTargetsRegistry, remoteActionsRegistry, playbackBackendsRegistry];
 
 // ---- omni.hooks: installed once, active only while some mod listens
 
@@ -131,6 +133,14 @@ export const createFoliumExperimental = (
     stopped: FoliumStoppedCheck = () => false,
     onRelease: (release: () => void) => void = () => {},
 ): Record<string, unknown> => ({
+    [FOLIUM_EXPERIMENTAL.playbackBackends]: Object.freeze({
+        register: (def: FoliumPlaybackBackendDefinition) => {
+            if (!mod.permissions.includes('playback.backend')) throw new Error('permission-denied:playback.backend');
+            return stopped('playback.backends.register')
+                ? inertFoliumHandle(mod.id, def?.id)
+                : playbackBackendsRegistry.register(mod.id, def);
+        },
+    }),
     [FOLIUM_EXPERIMENTAL.omniProviders]: Object.freeze({
         register: (def: FoliumOmniProviderDef) => (
             stopped('experimental omni.providers.register')

@@ -11,6 +11,7 @@ import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import type { OnlineRecovery, OnlineRecoveryOptions } from '../restore/createOnlineRecoveryController';
 import type { OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureToast } from '../source/onlineFailureToast';
+import { backendPlayback, usesPlaybackBackend } from '../../../../services/playbackBackend/controller';
 
 // src/components/app/playback/bridges/usePlaybackTransportController.ts
 
@@ -87,6 +88,19 @@ export function usePlaybackTransportController({
             syncStageLyricsClock(currentSyntheticTime, duration, PlayerState.PLAYING, stageLyricsClockRef.current.startTimeSec);
             currentTime.set(currentSyntheticTime);
             setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
+        if (usesPlaybackBackend()) {
+            syncOutputGain(getTargetPlaybackVolume(), 0);
+            let started = false;
+            try { started = await backendPlayback.play(); }
+            catch (error) {
+                setPlayerState(PlayerState.PAUSED);
+                setStatusMsg({ type: 'error', text: t('options.playbackBackendFailed') });
+                throw error;
+            }
+            if (started && revision === transportRevision.current && wantsPlayback.current) setPlayerState(PlayerState.PLAYING);
             return;
         }
 
@@ -199,6 +213,12 @@ export function usePlaybackTransportController({
         }
         transportRevision.current++;
         wantsPlayback.current = false;
+
+        if (usesPlaybackBackend() && activePlaybackContext !== 'stage') {
+            void backendPlayback.pause().catch(error => console.error('[PlaybackBackend] Pause failed', error));
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
 
         if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             const currentSyntheticTime = getSyntheticStageLyricsTime();
