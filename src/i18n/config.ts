@@ -8,20 +8,26 @@ import ind from './locales/in.ts';
 import { resolveMissingTranslation } from './missingTranslation';
 
 /*
- * Hardcoded Chinese fallback dictionary.
- * Flattened at build-time from zh-CN.ts so every key has a Chinese fallback
- * baked directly into the JS bundle — no dependency on i18next resource loading.
+ * Chinese fallback for keys the active locale does not contain.
+ * zh-CN is flattened when this module loads into one dotted-key map, which
+ * parseMissingKeyHandler reads through resolveMissingTranslation. A repeated
+ * path keeps the position of its first write and the value of its last write.
+ * Arrays are indexed (`items.0`); empty objects add no keys; other leaves
+ * are String(value).
  */
-function flattenLocale(obj: Record<string, any>, prefix = ''): Record<string, string> {
-  let result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (typeof value === 'object' && value !== null) {
-      result = { ...result, ...flattenLocale(value, path) };
-    } else {
-      result[path] = String(value);
+export function flattenLocale(obj: Record<string, any>, prefix = ''): Record<string, string> {
+  const result: Record<string, string> = {};
+  const visit = (node: Record<string, any>, pathPrefix: string) => {
+    for (const [key, value] of Object.entries(node)) {
+      const path = pathPrefix ? `${pathPrefix}.${key}` : key;
+      if (typeof value === 'object' && value !== null) {
+        visit(value, path);
+      } else {
+        result[path] = String(value);
+      }
     }
-  }
+  };
+  visit(obj, prefix);
   return result;
 }
 
