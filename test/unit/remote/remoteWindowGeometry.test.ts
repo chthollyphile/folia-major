@@ -8,6 +8,7 @@ const {
     getInitialRemoteControlWindowPosition,
     isPointOverRemoteControlStrip,
     clampRemoteControlWindowX,
+    resolveRemoteControlWindowPosition,
 } = require('../../../electron/remoteControlWindowGeometry.cjs') as typeof import('../../../electron/remoteControlWindowGeometry.cjs');
 
 const windowAt = (x: number, y: number) => ({ x, y, width: REMOTE_CONTROL_WINDOW_WIDTH, height: REMOTE_CONTROL_WINDOW_HEIGHT });
@@ -69,5 +70,28 @@ describe('remote window geometry', () => {
 
     it('leaves a window that is on no screen at all alone', () => {
         expect(clampRemoteControlWindowX(windowAt(-5000, 100), [{ x: 0, y: 0, width: 1920, height: 1080 }])).toBe(-5000);
+    });
+
+    it('restores a remembered position that is still on a screen', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        expect(resolveRemoteControlWindowPosition({ x: 400, y: 300 }, screens)).toEqual({ x: 400, y: 300 });
+    });
+
+    it('clamps a remembered x the same way a drag would', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        expect(resolveRemoteControlWindowPosition({ x: -120, y: 300 }, screens)).toEqual({ x: 0, y: 300 });
+    });
+
+    it('returns null when the remembered y no longer sits on a screen', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        // 1080 tall screen, window 184 tall: y = 1000 leaves 84 px of the window off the bottom.
+        expect(resolveRemoteControlWindowPosition({ x: 400, y: 1000 }, screens)).toBeNull();
+    });
+
+    it('returns null for an absent or malformed position', () => {
+        const screens = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+        expect(resolveRemoteControlWindowPosition(null, screens)).toBeNull();
+        expect(resolveRemoteControlWindowPosition({ x: 'a', y: 100 }, screens)).toBeNull();
+        expect(resolveRemoteControlWindowPosition(undefined, screens)).toBeNull();
     });
 });

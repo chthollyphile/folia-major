@@ -63,10 +63,33 @@ function clampRemoteControlWindowX(bounds, screenBounds) {
   return home ? Math.max(bounds.x, home.x) : bounds.x;
 }
 
+/**
+ * A remembered remote-control position, made safe to open at. The x is clamped the same way a drag
+ * is; the y must still sit inside some screen, or the spot no longer exists (monitor unplugged,
+ * resolution changed) and the caller falls back to the centred default. Returns null for an invalid
+ * or absent saved position.
+ */
+function resolveRemoteControlWindowPosition(saved, screenBounds) {
+  if (!saved || typeof saved !== 'object' || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) {
+    return null;
+  }
+
+  const bounds = { x: saved.x, y: saved.y, width: REMOTE_CONTROL_WINDOW_WIDTH, height: REMOTE_CONTROL_WINDOW_HEIGHT };
+  const onSomeScreen = screenBounds.some(area => (
+    bounds.y >= area.y && bounds.y + bounds.height <= area.y + area.height
+  ));
+  if (!onSomeScreen) {
+    return null;
+  }
+
+  return { x: clampRemoteControlWindowX(bounds, screenBounds), y: bounds.y };
+}
+
 module.exports = {
   REMOTE_CONTROL_WINDOW_WIDTH,
   REMOTE_CONTROL_WINDOW_HEIGHT,
   getInitialRemoteControlWindowPosition,
   isPointOverRemoteControlStrip,
   clampRemoteControlWindowX,
+  resolveRemoteControlWindowPosition,
 };

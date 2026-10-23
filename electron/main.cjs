@@ -36,6 +36,7 @@ const {
   getInitialRemoteControlWindowPosition,
   isPointOverRemoteControlStrip,
   clampRemoteControlWindowX,
+  resolveRemoteControlWindowPosition,
 } = require('./remoteControlWindowGeometry.cjs');
 const wallpaperWatchdogModule = require('./wallpaper/wallpaperWatchdog.cjs');
 const { requestWallpaperEntryConfirmation } = require('./wallpaper/wallpaperEntryRequest.cjs');
@@ -2478,6 +2479,7 @@ const CLOSE_TO_TRAY_SETTING_KEY = 'CLOSE_TO_TRAY';
 const HIDE_TASKBAR_ICON_SETTING_KEY = 'HIDE_TASKBAR_ICON';
 const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY = 'REMOTE_CONTROL_SKIP_TASKBAR';
+const REMOTE_CONTROL_WINDOW_BOUNDS_SETTING_KEY = 'REMOTE_CONTROL_WINDOW_BOUNDS';
 const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
 const VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY = 'VOICE_INPUT_PAUSE_ENABLED';
@@ -5271,6 +5273,14 @@ function ensureWallpaperLayerHeldByMainWindow() {
   }
 }
 
+// Where the remote control window last sat, read back safely. A position saved on a display that is
+// no longer there (monitor unplugged, resolution changed) falls back to the centred default; the x is
+// clamped the same way a drag is, so the large-cover edge never lands off-screen.
+function getRestoredRemoteControlWindowPosition() {
+  const saved = store.get(REMOTE_CONTROL_WINDOW_BOUNDS_SETTING_KEY);
+  return resolveRemoteControlWindowPosition(saved, screen.getAllDisplays().map(display => display.bounds));
+}
+
 function createRemoteControlWindow() {
   if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
     remoteControlWindow.setTitle(REMOTE_CONTROL_WINDOW_TITLE);
@@ -5287,7 +5297,9 @@ function createRemoteControlWindow() {
   ensureWallpaperLayerHeldByMainWindow();
 
   // Never resized after this: the idle look and the card in use are both drawn in this size.
-  const position = getInitialRemoteControlWindowPosition(screen.getPrimaryDisplay().workArea);
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const position = getRestoredRemoteControlWindowPosition()
+    ?? getInitialRemoteControlWindowPosition(workArea);
   const win = new BrowserWindow({
     modal: false,
     x: position.x,
@@ -5335,6 +5347,16 @@ function createRemoteControlWindow() {
   if (process.platform === 'win32') {
     win.on('will-move', (event, newBounds) => keepRemoteControlCoverOnScreen(win, event, newBounds));
   }
+  // Remember where the window last sat: after a drag, and again when it closes so an undragged
+  // window keeps the spot it opened on.
+  const persistRemoteControlPosition = () => {
+    if (!win.isDestroyed()) {
+      const { x, y } = win.getBounds();
+      store.set(REMOTE_CONTROL_WINDOW_BOUNDS_SETTING_KEY, { x, y });
+    }
+  };
+  win.on('moved', persistRemoteControlPosition);
+  win.on('close', persistRemoteControlPosition);
   applyRemoteControlAlwaysOnTop(win);
   syncRemoteControlMouseIgnore();
   loadAppEntry(win, { remote: '1' });
