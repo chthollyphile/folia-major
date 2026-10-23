@@ -645,6 +645,86 @@ export interface FoliumAudio {
     getSpectrum(): Uint8Array | null;
 }
 
+/** EXPERIMENTAL playback.backends: structurally mirrors the engine-independent host contract. */
+export interface FoliumPlaybackBackendSource {
+    /** Host-generated load identity; echo it in every event. */
+    sourceId: string;
+    /** HTTP(S) URL, only when the backend declares HTTP support. */
+    url?: string;
+    /** Host-staged local copy; valid until the session retires this load. */
+    filePath?: string;
+}
+
+/** Requested output is not proof of the mode the device actually accepted. */
+export interface FoliumPlaybackBackendStatus {
+    /** The identity received by open. */
+    sourceId: string;
+    /** Current transport state, not the desired play intent. */
+    state: 'loading' | 'playing' | 'paused' | 'stopped';
+    /** Source position in seconds, without a lyric offset. */
+    position: number;
+    /** Source duration in seconds; zero if unknown. */
+    duration: number;
+    /** Device telemetry, never inferred from user settings alone. */
+    output?: {
+        /** The user requested exclusive access. */
+        exclusiveRequested: boolean;
+        /** True only after device initialization confirms exclusive access; null if unconfirmed. */
+        exclusiveActive: boolean | null;
+        /** Actual output sample rate in Hz. */
+        sampleRate?: number;
+        /** Actual device sample container; not a claim about effective DAC bits. */
+        format?: string;
+        /** The backend's DSP processing is active. */
+        dspActive?: boolean;
+    };
+}
+
+/** Events must carry the sourceId from open; late events from retired sources are ignored. */
+export type FoliumPlaybackBackendEvent =
+    | { type: 'status'; status: FoliumPlaybackBackendStatus }
+    | { type: 'ended'; sourceId: string }
+    | { type: 'error'; sourceId: string; message: string };
+
+/** One engine session; open prepares paused audio, and dispose releases its device and listeners. */
+export interface FoliumPlaybackBackendSession {
+    /** Prepares a source paused; resolves only when output is ready. */
+    open(source: FoliumPlaybackBackendSource): Promise<void>;
+    /** Starts the prepared source. */
+    play(): Promise<void>;
+    /** Pauses the source; must also cancel pending play intent. */
+    pause(): Promise<void>;
+    /** Seeks to a nonnegative source position in seconds. */
+    seek(seconds: number): Promise<void>;
+    /** Sets linear host volume, including mute, in 0..1. */
+    setVolume(volume: number): Promise<void>;
+    /** Releases the device, source, child processes and event listeners. */
+    dispose(): void | Promise<void>;
+}
+
+/** Registration alone never selects an output; users select it in playback settings. */
+export interface FoliumPlaybackBackendDefinition {
+    /** Local registration name; the host namespaces it with the mod id. */
+    id: string;
+    /** Display name in playback settings. */
+    name: string;
+    /** Supported host operations and whether an HTTP URL can be opened directly. */
+    capabilities: { seek: boolean; volume: boolean; http: boolean };
+    /** Creates one transport session; report status at a bounded rate (up to 4 Hz recommended). */
+    create(report: (event: FoliumPlaybackBackendEvent) => void): FoliumPlaybackBackendSession;
+}
+
+/** EXPERIMENTAL playback.backends, main window only; requires playback.backend permission. */
+export interface FoliumPlaybackBackends {
+    /** Offers a backend without selecting it. Unregistering a selected backend stops playback, without fallback. */
+    register(definition: FoliumPlaybackBackendDefinition): FoliumRegistryHandle;
+}
+
+/** Opt-in experimental services. A name may be absent on an older or unmodified host. */
+export type FoliumExperimental = Readonly<Record<string, unknown> & {
+    readonly 'playback.backends'?: FoliumPlaybackBackends;
+}>;
+
 /**
  * The host's display settings for lyric content, named and valued
  * as builtin modes receive them. A mod that turns off `hostLayers.subtitles`
@@ -2371,7 +2451,7 @@ export interface FoliumClientApi {
      */
     onDispose(disposer: FoliumDisposer): void;
     /** Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. */
-    readonly experimental: Readonly<Record<string, unknown>>;
+    readonly experimental: FoliumExperimental;
 }
 
 /** The shape of a client entry module. */

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { pausePlaybackOutput, playbackPosition } from '../../../../services/playbackBackend/transport';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
@@ -1135,7 +1136,7 @@ export function usePlaybackQueueController({
 
         const stopAtQueueEnd = () => {
             if (audioRef.current) {
-                audioRef.current.pause();
+                void pausePlaybackOutput(audioRef.current).catch(error => console.error('[PlaybackBackend] Pause failed', error));
             }
             setPlayerState(PlayerState.IDLE);
         };
@@ -1347,7 +1348,7 @@ export function usePlaybackQueueController({
             isStageActive: isNowPlayingStageActive,
         });
         const audioElement = audioRef.current;
-        const audioCurrentTimeSec = Number.isFinite(audioElement?.currentTime) ? audioElement?.currentTime ?? 0 : currentTime.get();
+        const audioCurrentTimeSec = playbackPosition(audioElement);
         const audioDurationSec = Number.isFinite(audioElement?.duration) && (audioElement?.duration ?? 0) > 0
             ? audioElement?.duration ?? 0
             : 0;

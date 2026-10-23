@@ -13,7 +13,7 @@
 
 - **客户端入口**：[权限一览](#权限一览) · [FoliumContextKind](#foliumcontextkind) · [FoliumHostInfo](#foliumhostinfo) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLogger](#foliumlogger) · [FoliumClientApi](#foliumclientapi) · [FoliumClientModule](#foliumclientmodule)
 - **注册表与条目**：[注册表一览](#注册表一览) · [FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumProgressButtonSlot](#foliumprogressbuttonslot) · [FoliumProgressButtonDef](#foliumprogressbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
-- **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
+- **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumPlaybackBackendSource](#foliumplaybackbackendsource) · [FoliumPlaybackBackendStatus](#foliumplaybackbackendstatus) · [FoliumPlaybackBackendEvent](#foliumplaybackbackendevent) · [FoliumPlaybackBackendSession](#foliumplaybackbackendsession) · [FoliumPlaybackBackendDefinition](#foliumplaybackbackenddefinition) · [FoliumPlaybackBackends](#foliumplaybackbackends) · [FoliumExperimental](#foliumexperimental) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
 - **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerBand](#foliumequalizerband) · [FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumEqualizerRefusal](#foliumequalizerrefusal) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult) · [FoliumEqualizerService](#foliumequalizerservice)
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
@@ -38,6 +38,7 @@
 | `playback.read` | `api.runtime.getPlaybackSnapshot` |
 | `playback.control` | `folium.playback.play`、`folium.playback.pause`、`folium.playback.toggle`、`folium.playback.seek`、`folium.playback.seekToLyricTime`、`folium.playback.next`、`folium.playback.previous`、`folium.playback.playSong`、`folium.playback.enqueue`、`folium.playback.shuffleQueue`、`folium.playback.toggleLike`、`folium.playback.setVolume`、`folium.playback.setMuted`、`folium.playback.setLoopMode`、`folium.playback.playQueueItem` |
 | `playback.queue` | `folium.playback.replaceQueue` |
+| `playback.backend` | `folium.experimental.playback.backends.register` |
 | `equalizer.control` | `folium.equalizer.setMode`、`folium.equalizer.applyCurve`、`folium.equalizer.releaseCurve` |
 | `render.export` | `api.render.exportVideo` |
 | `net.fetch` | `folium.net.fetch` |
@@ -156,9 +157,9 @@ The object a client entry's `activate(folium)` receives.
 | `readonly equalizer` | `FoliumEqualizerService` | Folium 1.7: the host's graphic equalizer: read it, switch the user's sound, put a curve of your own in place. |
 | `every()` | `(ms: number, listener: () => void): FoliumDisposer` | Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops it then. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops, after the disposer `activate` returned; at once when the mod has already stopped. |
-| `readonly experimental` | `Readonly<Record<string, unknown>>` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
+| `readonly experimental` | `FoliumExperimental` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
 
-相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumDisposer](#foliumdisposer)
+相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumDisposer](#foliumdisposer) · [FoliumExperimental](#foliumexperimental)
 
 ### FoliumClientModule
 
@@ -630,6 +631,91 @@ loop. Previews feed a synthetic signal; silence (or no analyser) reads as 0.
 | `getSpectrum()` | `(): Uint8Array \| null` | Raw analyser FFT magnitudes (0–255), or null when there are none. The host reuses the array. |
 
 相关：[FoliumAudioBands](#foliumaudiobands)
+
+### FoliumPlaybackBackendSource
+
+EXPERIMENTAL playback.backends: structurally mirrors the engine-independent host contract.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `sourceId` | `string` | Host-generated load identity; echo it in every event. |
+| `url?` | `string` | HTTP(S) URL, only when the backend declares HTTP support. |
+| `filePath?` | `string` | Host-staged local copy; valid until the session retires this load. |
+
+### FoliumPlaybackBackendStatus
+
+Requested output is not proof of the mode the device actually accepted.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `sourceId` | `string` | The identity received by open. |
+| `state` | `'loading' \| 'playing' \| 'paused' \| 'stopped'` | Current transport state, not the desired play intent. |
+| `position` | `number` | Source position in seconds, without a lyric offset. |
+| `duration` | `number` | Source duration in seconds; zero if unknown. |
+| `output?` | `{ exclusiveRequested: boolean; exclusiveActive: boolean \| null; sampleRate?: number; format?: string; dspActive?: boolean; }` | Device telemetry, never inferred from user settings alone. |
+| `output.exclusiveRequested` | `boolean` | The user requested exclusive access. |
+| `output.exclusiveActive` | `boolean \| null` | True only after device initialization confirms exclusive access; null if unconfirmed. |
+| `output.sampleRate?` | `number` | Actual output sample rate in Hz. |
+| `output.format?` | `string` | Actual device sample container; not a claim about effective DAC bits. |
+| `output.dspActive?` | `boolean` | The backend's DSP processing is active. |
+
+### FoliumPlaybackBackendEvent
+
+Events must carry the sourceId from open; late events from retired sources are ignored.
+
+```ts
+type FoliumPlaybackBackendEvent = | { type: 'status'; status: FoliumPlaybackBackendStatus } | { type: 'ended'; sourceId: string } | { type: 'error'; sourceId: string; message: string }
+```
+
+相关：[FoliumPlaybackBackendStatus](#foliumplaybackbackendstatus)
+
+### FoliumPlaybackBackendSession
+
+One engine session; open prepares paused audio, and dispose releases its device and listeners.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `open()` | `(source: FoliumPlaybackBackendSource): Promise<void>` | Prepares a source paused; resolves only when output is ready. |
+| `play()` | `(): Promise<void>` | Starts the prepared source. |
+| `pause()` | `(): Promise<void>` | Pauses the source; must also cancel pending play intent. |
+| `seek()` | `(seconds: number): Promise<void>` | Seeks to a nonnegative source position in seconds. |
+| `setVolume()` | `(volume: number): Promise<void>` | Sets linear host volume, including mute, in 0..1. |
+| `dispose()` | `(): void \| Promise<void>` | Releases the device, source, child processes and event listeners. |
+
+相关：[FoliumPlaybackBackendSource](#foliumplaybackbackendsource)
+
+### FoliumPlaybackBackendDefinition
+
+Registration alone never selects an output; users select it in playback settings.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Local registration name; the host namespaces it with the mod id. |
+| `name` | `string` | Display name in playback settings. |
+| `capabilities` | `{ seek: boolean; volume: boolean; http: boolean }` | Supported host operations and whether an HTTP URL can be opened directly. |
+| `create()` | `(report: (event: FoliumPlaybackBackendEvent) => void): FoliumPlaybackBackendSession` | Creates one transport session; report status at a bounded rate (up to 4 Hz recommended). |
+
+相关：[FoliumPlaybackBackendEvent](#foliumplaybackbackendevent) · [FoliumPlaybackBackendSession](#foliumplaybackbackendsession)
+
+### FoliumPlaybackBackends
+
+EXPERIMENTAL playback.backends, main window only; requires playback.backend permission.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `register()` | `(definition: FoliumPlaybackBackendDefinition): FoliumRegistryHandle` | Offers a backend without selecting it. Unregistering a selected backend stops playback, without fallback. |
+
+相关：[FoliumPlaybackBackendDefinition](#foliumplaybackbackenddefinition) · [FoliumRegistryHandle](#foliumregistryhandle)
+
+### FoliumExperimental
+
+Opt-in experimental services. A name may be absent on an older or unmodified host.
+
+```ts
+type FoliumExperimental = Readonly<Record<string, unknown> & { readonly 'playback.backends'?: FoliumPlaybackBackends; }>
+```
+
+相关：[FoliumPlaybackBackends](#foliumplaybackbackends)
 
 ### FoliumDisplay
 

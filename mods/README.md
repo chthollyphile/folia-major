@@ -1485,7 +1485,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 - **打开模组目录**：模组面板右上角按钮，打开用户模组目录 `userData/mods`（打包版为 `%APPDATA%\Folia\mods`）。
 - **拖放 zip 安装**：把 `.zip` 拖到模组面板；`mod.json` 可以在根目录或唯一顶层文件夹里。
-  - 安全校验：拒绝路径穿越与绝对路径；压缩包 ≤ 64 MB，解压后 ≤ 64 MB，单文件 ≤ 32 MB，条目 ≤ 2000。
+  - 安全校验：拒绝路径穿越与绝对路径；为支持带原生引擎的独立模组，压缩包 ≤ 128 MiB，解压后 ≤ 256 MiB，单文件 ≤ 128 MiB，条目 ≤ 2000。
   - **原子安装**：先解压到 `userData/mods/.staging/` 校验（清单、声明的 `main` / `client` 文件必须存在），通过后才换入；
     失败则回滚，旧版本原样保留。
   - 同 id 覆盖即升级；内容指纹改变后模组保持禁用，直到重新确认。

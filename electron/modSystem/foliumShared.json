@@ -23,6 +23,7 @@
             ]
         },
         "playback.queue": { "guards": ["folium.playback.replaceQueue"] },
+        "playback.backend": { "guards": ["folium.experimental.playback.backends.register"] },
         "equalizer.control": { "guards": ["folium.equalizer.setMode", "folium.equalizer.applyCurve", "folium.equalizer.releaseCurve"] },
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
@@ -37,7 +38,8 @@
         "ponderTargets": "ponder.targets",
         "playerLayout": "player.layout",
         "remoteActions": "remote.actions",
-        "platformRaw": "platform.raw"
+        "platformRaw": "platform.raw",
+        "playbackBackends": "playback.backends"
     },
     "channels": {
         "list": "folia-mods:list",

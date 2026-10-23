@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { playbackPosition, seekPlayback } from '../../../../services/playbackBackend/transport';
 import type React from 'react';
 import type { RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
@@ -225,7 +226,7 @@ export const useElectronPlaybackBridge = ({
         // position here would show the outgoing song's title against the incoming song's clock.
         const audioElement = getDisplayAudioElement?.() ?? audioRef.current;
         const isCurrentAudioSource = isAudioElementUsingCurrentSource();
-        const currentTimeSec = audioElement?.currentTime ?? currentTime.get();
+        const currentTimeSec = playbackPosition(audioElement);
         const stagePositionSec = resolveStagePlayerPositionSec({
             activePlaybackContext,
             isExternalPlaybackSourceActive: isNowPlayingStageActive,
@@ -636,7 +637,7 @@ export const useElectronPlaybackBridge = ({
                 if (onRemoteTransitionSeek?.(nextTime)) {
                     // Handled: the re-play seeks the deck itself once it reloads.
                 } else if (audioElement) {
-                    audioElement.currentTime = nextTime;
+                    void seekPlayback(audioElement, nextTime).catch(error => console.error('[PlaybackBackend] Seek failed', error));
                 } else if (activePlaybackContext === 'stage') {
                     syncStageLyricsClock?.(nextTime, duration, taskbarPlayerStateRef.current);
                 }
@@ -708,7 +709,7 @@ export const useElectronPlaybackBridge = ({
                     if (onRemoteTransitionSeek?.(nextTime)) {
                         // Handled: that path seeks the deck it kept.
                     } else if (audioRef.current) {
-                        audioRef.current.currentTime = nextTime;
+                        void seekPlayback(audioRef.current, nextTime).catch(error => console.error('[PlaybackBackend] Seek failed', error));
                     } else if (activePlaybackContext === 'stage') {
                         syncStageLyricsClock?.(nextTime, duration, taskbarPlayerStateRef.current);
                     }

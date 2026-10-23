@@ -17,10 +17,12 @@ import { setPlayerState } from '../../../../stores/usePlaybackStore';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { resolveHeardAudioEqualizerSettings } from '../../../../utils/audioEqualizerModCurve';
+import { backendPlayback, usesPlaybackBackend } from '../../../../services/playbackBackend/controller';
 
 // src/components/app/playback/bridges/usePlaybackAudioBridge.ts
 
 type UsePlaybackAudioBridgeParams = {
+    backendActive?: boolean;
 
     audioRef: RefObject<HTMLAudioElement | null>;
     localSongs: LocalSong[];
@@ -49,6 +51,7 @@ const DEFERRED_EQUALIZER_POLL_MS = 250;
 
 // Bridges audio element setup, autoplay, replay gain, and media caching.
 export function usePlaybackAudioBridge({
+    backendActive = false,
     audioRef,
     localSongs,
     isLyricsLoading,
@@ -149,6 +152,7 @@ export function usePlaybackAudioBridge({
     }, [audioContextRef, currentSong, gainNodeRef, getActiveChain, localSongs, replayGainMode]);
 
     const setupAudioAnalyzer = useCallback(() => {
+        if (usesPlaybackBackend()) return;
         // The context is the sentinel, not the source node: a deck that failed to connect must
         // not let this run twice, because createMediaElementSource throws on a second call.
         if (!audioRef.current || audioContextRef.current) return;
@@ -266,6 +270,7 @@ export function usePlaybackAudioBridge({
 
     useEffect(() => {
         const audioElement = audioRef.current;
+        if (usesPlaybackBackend()) return;
         if (!audioElement) {
             previousAudioSrcRef.current = audioSrc;
             return;
@@ -280,6 +285,17 @@ export function usePlaybackAudioBridge({
     }, [audioRef, audioSrc]);
 
     useEffect(() => {
+        if (backendActive) {
+            if (!audioSrc || !shouldAutoPlayRef.current || isLyricsLoading) return;
+            shouldAutoPlayRef.current = false;
+            syncOutputGain(getTargetPlaybackVolume(), 0);
+            void backendPlayback.play().catch(error => {
+                console.error('[PlaybackBackend] Autoplay failed', error);
+                setPlayerState(PlayerState.PAUSED);
+                setStatusMsg({ type: 'error', text: t('options.playbackBackendFailed') });
+            });
+            return;
+        }
         if (audioSrc && audioRef.current) {
             // `audioRef` and `audioSrc` describe the same track almost always - but not while a
             // blend is being armed. Automix repoints the ref at the incoming deck the instant it
@@ -363,7 +379,7 @@ export function usePlaybackAudioBridge({
                 }
             }
         }
-    }, [audioRef, audioSrc, getTargetPlaybackVolume, isAutoplayHeld, isLyricsLoading, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldAutoPlayRef, suppressAutoplayRef, syncOutputGain, t]);
+    }, [backendActive, audioRef, audioSrc, getTargetPlaybackVolume, isAutoplayHeld, isLyricsLoading, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldAutoPlayRef, suppressAutoplayRef, syncOutputGain, t]);
 
     // Tells this bridge that the active deck ALREADY holds `src` and is sounding it, so the next time
     // `audioSrc` settles on that value the reload effect above treats it as a no-op instead of calling

@@ -145,6 +145,10 @@ contextBridge.exposeInMainWorld('electron', {
     getAudioCacheStats: () => ipcRenderer.invoke('get-audio-cache-stats'),
     clearAudioCache: () => ipcRenderer.invoke('clear-audio-cache'),
     requestTranscodeFallback: (request) => ipcRenderer.invoke('transcode-fallback-request', request),
+    playbackSources: {
+        stage: (data) => ipcRenderer.invoke('playback-source-stage', data),
+        release: (id) => ipcRenderer.invoke('playback-source-release', id),
+    },
     cancelTranscodeFallback: (requestId) => ipcRenderer.invoke('transcode-fallback-cancel', requestId),
     getCoverCache: (cacheKey) => ipcRenderer.invoke('get-cover-cache', cacheKey),
     saveCoverCache: (cacheKey, data, mimeType) => ipcRenderer.invoke('save-cover-cache', cacheKey, data, mimeType),

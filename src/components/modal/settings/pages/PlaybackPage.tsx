@@ -12,6 +12,8 @@ import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsSt
 import { runsOnWindows } from '../../../../utils/platform';
 import { Button, Chips, Group, Reveal, Row, Segmented, Slider, Status, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import AudioOutputDeviceRow from './AudioOutputDeviceRow';
+import { PlaybackBackendRow } from './PlaybackBackendRow';
+import { selectedPlaybackBackend, subscribePlaybackBackends } from '../../../../services/playbackBackend/registry';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/PlaybackPage.tsx
@@ -32,6 +34,7 @@ const O = {
     animationRing: option(TRANSITION, 'transitionAnimationRing', 'options.transitionAnimationRing'),
     animationCard: option(TRANSITION, 'transitionAnimationCard', 'options.transitionAnimationCard'),
     outputDevice: option(SOUND, 'audioOutputDevice', 'options.audioOutputDevice'),
+    backend: option(SOUND, 'playbackBackend', 'options.playbackBackend', { electronOnly: true }),
     replayGain: option(SOUND, 'replayGainSettings', 'options.replayGainMode'),
     fade: option(SOUND, 'playbackFade', 'options.playbackFade'),
     transcode: option(SOUND, 'transcodeFallback', 'options.transcodeFallback', { electronOnly: true }),
@@ -54,6 +57,7 @@ const previewCue = (renderer: TransitionRenderer) => (
 const PlaybackPage: React.FC = () => {
     const { t } = useTranslation();
     const { isElectron, viewProps } = useSettingsPage();
+    const nativeOutput = React.useSyncExternalStore(subscribePlaybackBackends, selectedPlaybackBackend) !== null;
     const { replayGainMode, onReplayGainModeChange, onAudioOutputDeviceChange } = viewProps.playback;
     const { voiceInputPause } = viewProps.lab;
     const automix = useAutomixSettingsStore(useShallow(state => ({
@@ -112,10 +116,10 @@ const PlaybackPage: React.FC = () => {
     return (
         <>
             <Group def={TRANSITION}>
-                <Row option={O.transition}>
+                <Row option={O.transition} disabled={nativeOutput}>
                     <Toggle checked={automix.enabled} onChange={automix.setEnabled} />
                 </Row>
-                <Reveal when={automix.enabled}>
+                <Reveal when={automix.enabled && !nativeOutput}>
                     <Row sub option={O.mode} hint={modeHint}>
                         {/* The mode that runs is not always the chosen one: Automix that cannot
                             measure a track runs as a crossfade, and without the models as the
@@ -189,8 +193,9 @@ const PlaybackPage: React.FC = () => {
             </Group>
 
             <Group def={SOUND}>
-                <AudioOutputDeviceRow option={O.outputDevice} onDeviceChange={onAudioOutputDeviceChange} />
-                <Row option={O.replayGain} note={t('options.replayGainModeDesc')}>
+                {isElectron && <PlaybackBackendRow option={O.backend} />}
+                {!nativeOutput && <AudioOutputDeviceRow option={O.outputDevice} onDeviceChange={onAudioOutputDeviceChange} />}
+                <Row option={O.replayGain} note={t('options.replayGainModeDesc')} disabled={nativeOutput}>
                     <Segmented
                         value={replayGainMode}
                         options={[
@@ -201,11 +206,11 @@ const PlaybackPage: React.FC = () => {
                         onChange={onReplayGainModeChange}
                     />
                 </Row>
-                <Row option={O.fade} hint={t('options.playbackFadeDesc')}>
+                <Row option={O.fade} hint={t('options.playbackFadeDesc')} disabled={nativeOutput}>
                     <Toggle checked={audio.fade} onChange={audio.setFade} />
                 </Row>
                 {window.electron?.requestTranscodeFallback && (
-                    <Row option={O.transcode} hint={t('options.transcodeFallbackDesc')}>
+                    <Row option={O.transcode} hint={t('options.transcodeFallbackDesc')} disabled={nativeOutput}>
                         <Toggle checked={audio.transcode} onChange={audio.setTranscode} />
                     </Row>
                 )}

@@ -43,6 +43,8 @@ import { createFoliumExperimental, ponderTargetsRegistry } from '@/mods/folium/e
 import { omniProvidersRegistry } from '@/mods/folium/registries/omniProviders';
 import { foliumProviderId, isFoliumProviderId } from '@/mods/folium/omni/providerIds';
 import { remoteActionsRegistry } from '@/mods/folium/registries/remoteActions';
+import { playbackBackendsRegistry } from '@/mods/folium/playbackBackends';
+import { getPlaybackBackend, selectPlaybackBackend, selectedPlaybackBackend } from '@/services/playbackBackend/registry';
 import { createFoliumClientApi } from '@/mods/folium/api';
 import { clientApiOptions } from './clientApiOptions';
 import { removeFoliumEventHandlers } from '@/mods/folium/events';
@@ -64,9 +66,36 @@ afterEach(() => {
     omniProvidersRegistry.unregisterAll('mod-a');
     ponderTargetsRegistry.unregisterAll('mod-a');
     remoteActionsRegistry.unregisterAll('mod-a');
+    selectPlaybackBackend(null);
+    playbackBackendsRegistry.unregisterAll('mod-a');
     removeFoliumEventHandlers('mod-a');
     clearFoliumOldNames('mod-a');
     vi.restoreAllMocks();
+});
+
+describe('playback.backends', () => {
+    it('requires experimental opt-in and the source/device permission independently', () => {
+        const hidden = mod({ permissions: ['playback.backend'] });
+        const api = createFoliumClientApi(hidden, clientApiOptions('main', { experimental: createFoliumExperimental(hidden) }));
+        expect(() => api.experimental['playback.backends']).toThrow('experimental-not-declared:playback.backends');
+        const denied = mod({ experimental: ['playback.backends'] });
+        const noPermission = createFoliumClientApi(denied, clientApiOptions('main', { experimental: createFoliumExperimental(denied) }));
+        expect(() => noPermission.experimental['playback.backends']!.register({ id: 'test' } as never)).toThrow('permission-denied:playback.backend');
+    });
+    it('namespaces registration and preserves a missing selection after teardown', () => {
+        const owner = mod({ permissions: ['playback.backend'], experimental: ['playback.backends'] });
+        const api = createFoliumClientApi(owner, clientApiOptions('main', { experimental: createFoliumExperimental(owner) }));
+        const handle = api.experimental['playback.backends']!.register({
+            id: 'output', name: 'Test output', capabilities: { seek: false, volume: false, http: false },
+            create: () => ({ open: async () => {}, play: async () => {}, pause: async () => {}, seek: async () => {}, setVolume: async () => {}, dispose: () => {} }),
+        });
+        expect(handle.id).toBe('mod-a:output');
+        expect(selectedPlaybackBackend()).toBeNull();
+        selectPlaybackBackend(handle.id);
+        handle.unregister();
+        expect(selectedPlaybackBackend()).toBe(handle.id);
+        expect(getPlaybackBackend()).toBeNull();
+    });
 });
 
 describe('omni.providers', () => {

@@ -517,8 +517,8 @@ describe('helpers on the folium object', () => {
         });
         // Nothing of the mod is in any registry, the experimental ones included, and no hook of it listens.
         const registries = listFoliumHostRegistries();
-        // The kinds of the table, and the three experimental registries.
-        expect(registries).toHaveLength(FOLIUM_KIND_NAMES.length + 3);
+        // The kinds of the table, and the four experimental registries (including playback.backends).
+        expect(registries).toHaveLength(FOLIUM_KIND_NAMES.length + 4);
         registries.forEach((registry) => {
             expect(registry.list().filter((entry) => entry.modId === 'helpers-closed-all')).toEqual([]);
         });

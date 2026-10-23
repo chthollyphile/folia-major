@@ -98,6 +98,7 @@ const { resolveLinuxVulkanChoice, logLinuxVulkanChoice } = require('./linuxVulka
 const { isWindowAlwaysOnTopSupported } = require('./windowAlwaysOnTopSupport.cjs');
 const { createGlobalShortcutController, usesGlobalShortcutsPortal } = require('./globalShortcuts.cjs');
 const { createTranscodeService } = require('./transcode/service.cjs');
+const { createPlaybackSourceStore } = require('./playbackBackends/sources.cjs');
 const { TRANSCODE_PROTOCOL_SCHEME } = require('./transcode/protocol.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
@@ -266,6 +267,7 @@ const transcodeService = createTranscodeService({
   net: electronNet,
   onCacheWrite: pruneMediaCache,
 });
+const playbackSourceStore = createPlaybackSourceStore(path.join(app.getPath('userData'), 'playback-sources'));
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
@@ -6141,6 +6143,7 @@ app.on('before-quit', (event) => {
   }
   isQuitHeldForAccounts = false;
   transcodeService.dispose();
+  void playbackSourceStore.dispose();
   videoExportFileWriter.disposeSync();
   isAppQuitting = true;
   clearPendingWindowPlaybackHandoffRequests();
@@ -6216,6 +6219,19 @@ app.on('before-quit', (event) => {
 });
 
 // Settings Management IPC
+ipcMain.handle('playback-source-stage', (event, data) => {
+  if (!isTrustedMainWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error('Untrusted playback source request');
+  }
+  return playbackSourceStore.stage(data);
+});
+ipcMain.handle('playback-source-release', (event, id) => {
+  if (!isTrustedMainWindowContents(event.sender) || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error('Untrusted playback source request');
+  }
+  return playbackSourceStore.release(id);
+});
+
 ipcMain.handle('window-set-native-theme', (event, themeSource) => {
   nativeTheme.themeSource = themeSource;
 });

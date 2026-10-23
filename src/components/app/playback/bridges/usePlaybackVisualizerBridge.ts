@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { backendPlayback, usesPlaybackBackend } from '../../../../services/playbackBackend/controller';
 import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { findLatestActiveLineIndex } from '../../../../utils/appPlaybackHelpers';
@@ -291,7 +292,13 @@ export function usePlaybackVisualizerBridge({
             audioBands.spectrum?.set(new Uint8Array(0));
         }
 
-        if (isActuallyPlaying && audioElement) {
+        if (usesPlaybackBackend() && activePlaybackContext !== 'stage') {
+            const time = backendPlayback.getPosition();
+            currentTime.set(time);
+            const effectiveLyricTime = time - displayOffsetMsRef.current / 1000;
+            showLyricTime(effectiveLyricTime);
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
+        } else if (isActuallyPlaying && audioElement) {
             const time = audioElement.currentTime;
             currentTime.set(time);
 
