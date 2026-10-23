@@ -850,7 +850,8 @@ export default {
       "settings-language-zh-CN": { "title": "切换为简体中文", "description": "界面使用简体中文" },
       "settings-language-zh-TW": { "title": "切換為繁體中文", "description": "介面使用繁體中文" },
       "settings-language-en": { "title": "切换为英文", "description": "界面使用 English" },
-      "settings-language-in": { "title": "切换为印尼语", "description": "界面使用 Bahasa Indonesia" }
+      "settings-language-in": { "title": "切换为印尼语", "description": "界面使用 Bahasa Indonesia" },
+      "settings-language-vi": { "title": "切换为越南语", "description": "界面使用越南语" }
     }
   },
   "ui": {
@@ -1970,6 +1971,7 @@ export default {
     "appLanguageZhTW": "繁体中文",
     "appLanguageEnUS": "English",
     "appLanguageInID": "Indonesian",
+    "appLanguageViVN": "越南语",
     "appLanguageSystemHint": "当前生效：{{language}}",
     "playbackEntryView": "播放后进入的视图",
     "playbackEntryViewDesc": "点击播放后默认打开哪个视图。",

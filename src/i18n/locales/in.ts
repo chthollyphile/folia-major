@@ -850,7 +850,8 @@ export default {
       "settings-language-zh-CN": { "title": "Ganti bahasa ke Tionghoa Sederhana", "description": "Gunakan Bahasa Tionghoa Sederhana di antarmuka" },
       "settings-language-zh-TW": { "title": "Ganti bahasa ke Tionghoa Tradisional", "description": "Gunakan Bahasa Tionghoa Tradisional di antarmuka" },
       "settings-language-en": { "title": "Ganti bahasa ke Inggris", "description": "Gunakan Bahasa Inggris di antarmuka" },
-      "settings-language-in": { "title": "Ganti bahasa ke Indonesia", "description": "Gunakan Bahasa Indonesia di antarmuka" }
+      "settings-language-in": { "title": "Ganti bahasa ke Indonesia", "description": "Gunakan Bahasa Indonesia di antarmuka" },
+      "settings-language-vi": { "title": "Ganti bahasa ke Bahasa Vietnam", "description": "Gunakan Bahasa Vietnam di antarmuka" }
     }
   },
   "ui": {
@@ -1970,6 +1971,7 @@ export default {
     "appLanguageZhTW": "Tionghoa Tradisional",
     "appLanguageEnUS": "Inggris",
     "appLanguageInID": "Indonesia",
+    "appLanguageViVN": "Bahasa Vietnam",
     "appLanguageSystemHint": "Saat ini: {{language}}",
     "playbackEntryView": "Tampilan yang dibuka Putar",
     "playbackEntryViewDesc": "Tampilan mana yang dibuka secara default setelah Anda menekan putar.",

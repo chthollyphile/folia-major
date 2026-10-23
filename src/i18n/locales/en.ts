@@ -850,7 +850,8 @@ export default {
       "settings-language-zh-CN": { "title": "Switch language to Simplified Chinese", "description": "Use Simplified Chinese in the interface" },
       "settings-language-zh-TW": { "title": "Switch language to Traditional Chinese", "description": "Use Traditional Chinese in the interface" },
       "settings-language-en": { "title": "Switch language to English", "description": "Use English in the interface" },
-      "settings-language-in": { "title": "Switch language to Indonesian", "description": "Use Bahasa Indonesia in the interface" }
+      "settings-language-in": { "title": "Switch language to Indonesian", "description": "Use Bahasa Indonesia in the interface" },
+      "settings-language-vi": { "title": "Switch language to Vietnamese", "description": "Use Vietnamese in the interface" }
     }
   },
   "ui": {
@@ -1970,6 +1971,7 @@ export default {
     "appLanguageZhTW": "Traditional Chinese",
     "appLanguageEnUS": "English",
     "appLanguageInID": "Indonesian",
+    "appLanguageViVN": "Vietnamese",
     "appLanguageSystemHint": "Current: {{language}}",
     "playbackEntryView": "View opened by Play",
     "playbackEntryViewDesc": "Which view opens by default after you press play.",

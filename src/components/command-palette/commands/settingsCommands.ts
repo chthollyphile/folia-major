@@ -723,5 +723,6 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createAppLanguageCommand('settings-language-zh-CN', 'zh-CN', 'Switch language to Simplified Chinese', 'Use Simplified Chinese in the interface', ['chinese', 'simplified chinese', '中文', '简体中文']),
     createAppLanguageCommand('settings-language-zh-TW', 'zh-TW', 'Switch language to Traditional Chinese', 'Use Traditional Chinese in the interface', ['traditional chinese', 'taiwan region', 'chinese traditional', '繁體中文', '繁体中文', '正體中文']),
     createAppLanguageCommand('settings-language-en', 'en', 'Switch language to English', 'Use English in the interface', ['english', 'interface english', '英文']),
-    createAppLanguageCommand('settings-language-in', 'in', 'Switch language to Indonesian', 'Use Bahasa Indonesia in the interface', ['indonesian', 'bahasa indonesia', 'indonesia', '印尼语', 'bhs'])
+    createAppLanguageCommand('settings-language-in', 'in', 'Switch language to Indonesian', 'Use Bahasa Indonesia in the interface', ['indonesian', 'bahasa indonesia', 'indonesia', '印尼语', 'bhs']),
+    createAppLanguageCommand('settings-language-vi', 'vi', 'Switch language to Vietnamese', 'Use Vietnamese in the interface', ['vietnamese', 'tieng viet', 'tiếng việt', 'viet nam', 'việt nam', '越南语'])
 ];
