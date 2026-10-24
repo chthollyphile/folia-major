@@ -242,6 +242,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "visualizer-cappella",
   "visualizer-diorama",
   "visualizer-still",
+  "visualizer-motes",
   "video-layer-toggle",
   "video-layer-pick",
   "visualizer-toggle-glow-blur-quantize",
