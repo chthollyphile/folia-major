@@ -32,6 +32,12 @@ services:
       context: ../..
       dockerfile: deploy/docker/images/qq-api.Dockerfile
 
+  qishui-api:
+    image: folia-local/qishui-api:check
+    build:
+      context: ../..
+      dockerfile: deploy/docker/images/qishui-api.Dockerfile
+
   sync-server:
     image: folia-local/sync-server:check
     build:
