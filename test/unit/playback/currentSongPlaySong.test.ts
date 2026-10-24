@@ -64,7 +64,7 @@ vi.mock('@/services/hostExtensionHooks', () => ({
     notifyPlaybackFailed: () => undefined,
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id } }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: () => false }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: () => false }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: async (song: { id: string }) => { env.note(`wait cover ${song.id}`); return env.coverFor.get(song.id) ?? null; },

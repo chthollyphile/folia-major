@@ -904,11 +904,13 @@ describe('a library play and the songs around it', () => {
         expect(queue.map(song => song.name)).toEqual(['N1', 'N2']);
     });
 
-    it('asks for nothing when the song is the whole queue', async () => {
+    // A song played on its own is still measured: the volume balance needs its loudness.
+    it('asks for the song itself when it is the whole queue', async () => {
         const { library } = mount();
         await library.onPlayLocalSong(localOne);
         await library.onPlayNavidromeSong(navidromeSong);
 
-        expect(prefetchNearbySongs).not.toHaveBeenCalled();
+        const calls = prefetchNearbySongs.mock.calls as unknown as [SongResult, SongResult[]][];
+        expect(calls.map(([current]) => current.name)).toEqual(['L1', 'N1']);
     });
 });

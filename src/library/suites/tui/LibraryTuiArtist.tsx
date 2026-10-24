@@ -264,6 +264,7 @@ const LibraryTuiArtist: React.FC<LibraryArtistSurfaceProps> = ({
                                     accentColor={accentColor}
                                     enqueueLabel={t('libraryTui.enqueue')}
                                     unavailableLabel={t('status.songUnavailableTag')}
+                                    videoLabel={t('status.songVideoTag')}
                                     artistLinks={resolveTrackArtistLinks(song, canResolveSongCatalogRef)}
                                     onOpenArtist={canOpenArtist ? link => openSongArtist(row, link) : undefined}
                                     onOpenAlbum={albumLink ? () => openSongAlbum(row, song) : undefined}

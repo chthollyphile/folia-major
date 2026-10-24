@@ -20,6 +20,7 @@ import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMus
 import { toPlayableAudioUrl, toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
 import { ensureTrackProfile, setAnalysisScope } from './automix/profileService';
+import { loadBalanceRecord } from './volumeBalance/balanceRecords';
 import { getNavidromeConfig, navidromeApi } from './navidromeService';
 import { onPlaybackRepresentationRegistered } from './playbackRecovery/representationRegistry';
 import { modeNeedsBeatGrid } from './automix/transitionStrategy';
@@ -73,12 +74,18 @@ const analyseForAutomix = (song: SongResult, audioUrl: string | null | undefined
     // than restated here. It was restated here once: crossfade ran the model on every prefetched
     // track and threw the answer away, because a comment in this file said crossfade did "beat
     // alignment" and nothing next to the planner could contradict it.
-    if (!settingsAutomixSettings.automixEnabled) return;
+    //
+    // The volume balance (ReplayGain 'auto') reads the profile's loudness too, so it asks for one with
+    // blending off - without the beat model, which only a blend reads.
+    const balancing = usePlaybackStore.getState().replayGainMode === 'auto';
+    // The balance's own record is read straight from the cache, not behind the analysis queue.
+    if (balancing) void loadBalanceRecord(song);
+    if (!settingsAutomixSettings.automixEnabled && !balancing) return;
     void ensureTrackProfile({
         song,
         audioUrl: audioUrl === 'CACHED_IN_DB' ? null : audioUrl ?? null,
         enableMediaCache: settingsAudioSettings.enableMediaCache,
-        wantGrid: modeNeedsBeatGrid(settingsAutomixSettings.transitionMode),
+        wantGrid: settingsAutomixSettings.automixEnabled && modeNeedsBeatGrid(settingsAutomixSettings.transitionMode),
     });
 };
 
@@ -144,6 +151,12 @@ export interface PrefetchedSongData {
 const prefetchCache = new Map<string, PrefetchedSongData>();
 
 const getPrefetchSongKey = (song: SongResult): string => getSongResourceCacheKey('audio', song);
+
+// Switched on mid-song: the playing and the next track are measured now, not from the next song change.
+usePlaybackStore.subscribe((state, previous) => {
+    if (state.replayGainMode !== 'auto' || previous.replayGainMode === 'auto') return;
+    analysisScopeSongs.forEach(song => analyseForAutomix(song, prefetchCache.get(getPrefetchSongKey(song))?.audioUrl ?? libraryAudioUrl(song)));
+});
 
 const touchPrefetchCacheEntry = (songKey: string, data: PrefetchedSongData): PrefetchedSongData => {
     prefetchCache.delete(songKey);
@@ -625,19 +638,6 @@ export const cleanupPrefetchCache = (currentQueue: SongResult[]): void => {
     }
 
     console.log(`[Prefetch] Cleanup complete, cache size: ${prefetchCache.size}`);
-};
-
-export const invalidatePrefetchedLyrics = (): void => {
-    for (const [songKey, cached] of prefetchCache.entries()) {
-        prefetchCache.set(songKey, {
-            ...cached,
-            lyrics: null,
-            lyricRaw: null,
-            lyricPreferenceSource: null,
-        });
-    }
-
-    console.log(`[Prefetch] Invalidated lyrics for ${prefetchCache.size} prefetched songs`);
 };
 
 // Aborts provider-bound work and releases every in-memory prefetch entry.

@@ -1,5 +1,5 @@
 import type { Line, LyricData } from '../../../types';
-import { compileLyricFilterPattern, getLyricFilterError } from '../../../utils/lyrics/filtering';
+import { isMidSongLine, matchLyricLines, type CompiledLyricLineRule, type LyricLineRule } from '../../../utils/lyrics/lyricLineRules';
 import { isInterludeLine } from '../../../utils/lyrics/parserCore';
 import { applyLyricStaffPolicy, buildLyricStaffPreview } from '../../../utils/lyrics/staffCreditsPolicy';
 import type { LyricStaffDecision, LyricStaffPolicyOptions } from '../../../utils/lyrics/staffCreditsPolicy';
@@ -15,6 +15,10 @@ export interface LyricFilterPreviewRow {
     line: Line;
     index: number;
     removedByFilter: boolean;
+    /** 删掉这一行的那条规则（第一条命中的）。 */
+    rule: LyricLineRule | null;
+    /** 这一行在歌曲中段（isMidSongLine）。 */
+    midSong: boolean;
     /** 在开头署名块里：署名行、署名之间的分隔符行，或吸收进来的相邻行。 */
     inStaffBlock: boolean;
     removedByStaff: boolean;
@@ -28,7 +32,6 @@ export interface LyricFilterPreviewModel {
     rows: LyricFilterPreviewRow[];
     totalCount: number;
     removedCount: number;
-    filterError: string | null;
     staff: LyricStaffDecision;
 }
 
@@ -56,14 +59,12 @@ const readRetimedStartTimes = (
 
 export const buildLyricFilterPreviewModel = (
     lyrics: LyricData | null | undefined,
-    filterPattern: string,
+    lineRules: readonly CompiledLyricLineRule[],
     staffOptions: LyricStaffPolicyOptions
 ): LyricFilterPreviewModel => {
     const baseLines = lyrics ? lyrics.lines.filter(line => !isInterludeLine(line)) : [];
-    const filterError = getLyricFilterError(filterPattern);
-    const regex = filterError ? null : compileLyricFilterPattern(filterPattern);
-
-    const removedByFilter = baseLines.map(line => Boolean(regex?.test(line.fullText)));
+    const hits = matchLyricLines(baseLines, lineRules);
+    const removedByFilter = hits.map(Boolean);
     const survivors = baseLines.filter((_, index) => !removedByFilter[index]);
     const survivorLyrics = lyrics ? { ...lyrics, lines: survivors } : null;
     const staffPreview = buildLyricStaffPreview(survivorLyrics, staffOptions);
@@ -79,6 +80,8 @@ export const buildLyricFilterPreviewModel = (
                 line,
                 index,
                 removedByFilter: true,
+                rule: hits[index]?.rule ?? null,
+                midSong: isMidSongLine(index, baseLines.length),
                 inStaffBlock: false,
                 removedByStaff: false,
                 startTime: line.startTime,
@@ -95,6 +98,8 @@ export const buildLyricFilterPreviewModel = (
             line,
             index,
             removedByFilter: false,
+            rule: null,
+            midSong: isMidSongLine(index, baseLines.length),
             inStaffBlock,
             // 摊开时块里只留署名行和吸收行，分隔符行和整块隐藏时一样被拿掉。
             removedByStaff: Boolean(staffPreview.lines[survivorIndex]?.removed)
@@ -108,7 +113,6 @@ export const buildLyricFilterPreviewModel = (
         rows,
         totalCount: rows.length,
         removedCount: rows.filter(row => row.removedByFilter || row.removedByStaff).length,
-        filterError,
         staff: staffPreview.decision,
     };
 };

@@ -1265,6 +1265,8 @@ export interface SongResult {
   /** Identity of the concrete bytes selected for playback; used to reject stale derived media. */
   playbackSourceRevision?: string;
   fee?: number;
+  // Its audio is a music video's, which may hold an intro, a scene or another mix: rows tag it MV.
+  isVideo?: boolean;
   noCopyrightRcmd?: NoCopyrightRecommendation | null;
   resourceState?: boolean;
   privilege?: SongPrivilege;
@@ -1442,7 +1444,7 @@ export interface UnifiedSong extends SongResult {
   navidromeData?: any;
 }
 
-export type ReplayGainMode = 'off' | 'track' | 'album';
+export type ReplayGainMode = 'off' | 'track' | 'album' | 'auto';
 
 // Audio Analysis Types
 import { MotionValue } from 'framer-motion';

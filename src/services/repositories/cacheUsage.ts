@@ -15,6 +15,7 @@ export type CacheUsage = {
   cover: number;
   media: number;
   analysis: number;
+  volumeBalance: number;
   mediaCount: number;
 };
 
@@ -49,6 +50,9 @@ export const matchesCategory = (key: string, category: CacheCategory): boolean =
   // pass to rebuild, read by automix and by the beat FX - and are cleared with the profiles. So are
   // its drum hits off htdemucs (services/analysis/drumHits.ts).
   if (category === 'analysis') return key.startsWith('automix_profile_') || isBeatGridKey(key) || isDrumHitsKey(key);
+  // 智能平衡's own readings of each song (services/volumeBalance/balanceRecords.ts): a feature of its own,
+  // so cleared on its own, without throwing away automix's analyses or being thrown away with them.
+  if (category === 'volumeBalance') return key.startsWith('volume_balance_');
   // A track's ReplayGain describes the audio and arrives with it, so it is cleared with it. It is
   // counted here but NOT in mediaCount below, which means "songs cached" and would otherwise
   // double for every track that has both. The level the audio was fetched at (`audioLevel_`)
@@ -56,7 +60,7 @@ export const matchesCategory = (key: string, category: CacheCategory): boolean =
   return key.startsWith('audio_') || key.startsWith('replayGain_') || key.startsWith('audioLevel_');
 };
 
-export const emptyCacheUsage = (): CacheUsage => ({ playlist: 0, lyrics: 0, cover: 0, media: 0, analysis: 0, mediaCount: 0 });
+export const emptyCacheUsage = (): CacheUsage => ({ playlist: 0, lyrics: 0, cover: 0, media: 0, analysis: 0, volumeBalance: 0, mediaCount: 0 });
 
 export const countCacheEntry = (usage: CacheUsage, entry: StoredCacheEntry): void => {
   const size = getEntrySize(entry);
@@ -64,6 +68,7 @@ export const countCacheEntry = (usage: CacheUsage, entry: StoredCacheEntry): voi
   else if (matchesCategory(entry.key, 'lyrics')) usage.lyrics += size;
   else if (matchesCategory(entry.key, 'cover')) usage.cover += size;
   else if (matchesCategory(entry.key, 'analysis')) usage.analysis += size;
+  else if (matchesCategory(entry.key, 'volumeBalance')) usage.volumeBalance += size;
   else if (matchesCategory(entry.key, 'media')) {
     usage.media += size;
     if (entry.key.startsWith('audio_')) usage.mediaCount += 1;

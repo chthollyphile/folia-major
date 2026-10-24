@@ -49,7 +49,7 @@ vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
 }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: vi.fn(() => false) }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: vi.fn(async () => null),

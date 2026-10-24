@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { SongResult } from '@/types';
-import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlaysOf, replayedSongsOf, resetRecentPlays, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
+import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
 import { whenHeard } from '@/components/app/home/explore/useRecentPlaysRecorder';
 import { readOwnExploreSections } from '@/components/app/home/explore/ownSections';
 
@@ -558,6 +558,47 @@ describe('recent plays', () => {
         resetRecentPlays();
         noteSongPlayed(song('a'), 'me');
         expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['a']);
+    });
+
+    it('sets a recorded video right to the song the platform shows it as, with its listenings, asking about each play until it is answered', async () => {
+        listen('video');
+        later(5 * MINUTE);
+        listen('other');
+        later(5 * MINUTE);
+        listen('song');
+        const watcher = vi.fn();
+        const stop = watchRecentPlays(watcher);
+        const asked: string[][] = [];
+        const shownAs = async (songs: SongResult[]) => {
+            asked.push(idsOf(songs));
+            return new Map([['video', song('song', 'ytm', { name: 'The song' })]]);
+        };
+        expect(await showRecordedSongsAs('ytm', 'me', shownAs)).toBe(1);
+        expect(asked).toEqual([['song', 'other', 'video']]);
+        // The song keeps its place, the later time and both listenings: it is one to play again now.
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        expect(stored()['ytm:me'][0].at).toBe(START + 10 * MINUTE);
+        expect(idsOf(replayedSongsOf('ytm', 'me'))).toEqual(['song']);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        // The video, still playing, goes on as the song: it is not recorded again, nor its listening counted twice.
+        noteSongListened(song('video'), 'me', SONG_MS, false);
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        // Nothing answered: nothing is stored and nobody is told.
+        const writes = storage.setItem.mock.calls.length;
+        expect(await showRecordedSongsAs('ytm', 'me', async () => new Map())).toBe(0);
+        expect(storage.setItem.mock.calls.length).toBe(writes);
+        // A song not answered about is asked about again; one answered about, as itself too, never again, after a restart too.
+        const answer = (answers: Map<string, SongResult | null>) => async (songs: SongResult[]) => {
+            asked.push(idsOf(songs));
+            return answers;
+        };
+        expect(await showRecordedSongsAs('ytm', 'me', answer(new Map([['other', null]])))).toBe(0);
+        resetRecentPlays();
+        expect(await showRecordedSongsAs('ytm', 'me', answer(new Map()))).toBe(0);
+        expect(asked).toEqual([['song', 'other', 'video'], ['other']]);
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        stop();
     });
 });
 

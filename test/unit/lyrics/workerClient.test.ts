@@ -33,14 +33,12 @@ describe('lyrics worker client', () => {
 
         await expect(parseLyricsAsync('lrc', '[00:00.00]Line', '', {
             includeInterludes: false,
-            filterPattern: '^metadata$',
             songId: 123,
             fetchChorusRanges,
         }, '[00:00.00]Roma')).resolves.toEqual({ lines: [] });
 
         expect(messages[0]?.options).toEqual({
             includeInterludes: false,
-            filterPattern: '^metadata$',
         });
         expect(messages[0]?.romanization).toBe('[00:00.00]Roma');
         expect(fetchChorusRanges).not.toHaveBeenCalled();

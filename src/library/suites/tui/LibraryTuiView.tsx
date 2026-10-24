@@ -265,6 +265,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         accentColor,
         enqueueLabel: t('libraryTui.enqueue'),
         unavailableLabel: t('status.songUnavailableTag'),
+        videoLabel: t('status.songVideoTag'),
         matchLabel: t('localMusic.manualMetadataMatch'),
         onFocusRow: focus.focusRow,
         onPlayRow: playRow,

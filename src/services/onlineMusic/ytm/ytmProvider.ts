@@ -103,11 +103,19 @@ export const ytmProvider: OnlineMusicProvider = {
         async getAudioSource(song, quality) {
             const id = requireYtmSong(song);
             const startedAt = Date.now();
-            const audio = await requestYtm<{ url: string; route: string; itag?: number; bitrate?: number; level?: 'high' }>('audio', { id, quality });
+            const audio = await requestYtm<{ url: string; route: string; itag?: number; bitrate?: number; level?: 'high'; loudnessDb?: number }>('audio', { id, quality });
             const served = audio.level ?? quality;
             const format = audio.itag ? ` (itag ${audio.itag}, ${Math.round((audio.bitrate ?? 0) / 1000)} kbit/s)` : '';
             console.log(`[Ytm] Audio for "${song.name}" (${id}) at ${quality}${served === quality ? '' : ` (served at ${served})`} is ready by the ${audio.route} route${format} after ${Date.now() - startedAt}ms`);
-            return { url: audio.url, fetchedAt: Date.now(), quality: served };
+            // YouTube turns a track down by how much louder than its playback level it is: that is its track gain.
+            // A quieter one it leaves as it is, and so does this: with no peak known, a lift could clip.
+            const replayGain = typeof audio.loudnessDb === 'number' && Number.isFinite(audio.loudnessDb) ? { trackGain: Math.min(0, -audio.loudnessDb) } : undefined;
+            return { url: audio.url, fetchedAt: Date.now(), quality: served, ...(replayGain ? { replayGain } : {}) };
+        },
+        // A music video a list showed as itself, its song not known in time, is played as that song.
+        async getPlayedSong(song) {
+            const { song: played } = await requestYtm<{ song: YtmWireSong | null }>('played_as', { id: requireYtmSong(song) });
+            return played && normalizeYtmSong(played);
         },
     },
     lyrics: {

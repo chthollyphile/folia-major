@@ -685,6 +685,18 @@ describe('YouTube Music provider', () => {
         await expect(ytmProvider.lyrics!.getLyrics(foreign)).rejects.toMatchObject({ code: 'unsupported' });
     });
 
+    it('takes YouTube\'s loudness figure as the track gain: a track louder than its level is turned down, a quieter one not lifted', async () => {
+        request.mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=one', route: 'web', loudnessDb: 4.5 })
+            .mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=quiet', route: 'web', loudnessDb: -6 })
+            .mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=two', route: 'web' });
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        const song = normalizeYtmSong(wireSong());
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).toMatchObject({ replayGain: { trackGain: -4.5 } });
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).toMatchObject({ replayGain: { trackGain: 0 } });
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).not.toHaveProperty('replayGain');
+        vi.mocked(console.log).mockRestore();
+    });
+
     it('reads its line-timed lyrics, and answers "none" when there are none or the request fails', async () => {
         const song = normalizeYtmSong(wireSong());
         const mainText = '[00:00.880]first line\n[00:04.500]second line\n[00:20.000]after a break';

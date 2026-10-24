@@ -226,8 +226,9 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
             )}
 
             <div ref={shellRef} className="relative z-10 flex h-full w-full items-center justify-center overflow-hidden">
+                {/* Not clipped: the cover's shadow reaches past the row's edge, and the shell above clips at the screen. */}
                 <div
-                    className="flex h-full w-full flex-row items-center overflow-hidden"
+                    className="flex h-full w-full flex-row items-center"
                     style={{ maxWidth: `${rowMaxWidthPx}px` }}
                 >
                     {showText && (

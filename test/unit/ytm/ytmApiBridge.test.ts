@@ -29,6 +29,7 @@ const json = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 3
 
 // An answer of the web client that is marked as given to a signed-in account.
 const asTheAccount = { responseContext: { serviceTrackingParams: [{ service: 'GFEEDBACK', params: [{ key: 'logged_in', value: '1' }] }] } };
+const asAGuest = { responseContext: { serviceTrackingParams: [{ service: 'GFEEDBACK', params: [{ key: 'logged_in', value: '0' }] }] } };
 
 const audioFormat = (itag: number, bitrate: number, extra: Record<string, unknown> = {}) => ({
     itag, bitrate, has_audio: true, has_video: false, content_length: 1000 + itag, mime_type: 'audio/webm; codecs="opus"', ...extra,
@@ -43,6 +44,7 @@ const fakeYoutube = (configure: (client: any) => void = () => {}) => {
     const created: any[] = [];
     const sabr: any[] = [];
     class PlaylistPanelVideo {}
+    class PlaylistPanelVideoWrapper {}
     class MusicTwoRowItem {}
     class MusicPlaylistShelf {}
     class SabrStream {
@@ -73,10 +75,10 @@ const fakeYoutube = (configure: (client: any) => void = () => {}) => {
         Innertube: { create },
         Constants: { CLIENT_NAME_IDS: { WEB_REMIX: '67' }, CLIENTS: { YTMUSIC: { NAME: 'WEB_REMIX', VERSION: '1.20250219' } } },
         Platform: { shim: {} as Record<string, unknown> }, Parser: { setParserErrorHandler: vi.fn(), parseResponse: vi.fn() },
-        YTNodes: { PlaylistPanelVideo, MusicTwoRowItem, MusicPlaylistShelf }, SabrStream,
+        YTNodes: { PlaylistPanelVideo, PlaylistPanelVideoWrapper, MusicTwoRowItem, MusicPlaylistShelf }, SabrStream,
         buildSabrFormat: (format: any) => ({ sabr: format.itag }), EnabledTrackTypes: { AUDIO_ONLY: 1 },
     };
-    return { clients, created, sabr, libraries, create, PlaylistPanelVideo, MusicTwoRowItem, MusicPlaylistShelf };
+    return { clients, created, sabr, libraries, create, PlaylistPanelVideo, PlaylistPanelVideoWrapper, MusicTwoRowItem, MusicPlaylistShelf };
 };
 
 // `web` is a web sign-in a run before stored, of an account without Premium.
@@ -819,6 +821,87 @@ describe('the YouTube Music account id the renderer is told', () => {
 });
 
 describe('YouTube Music mixes and public playlists', () => {
+    const MIX = 'RDEMfixturefixturefixture01';
+    // A queue entry of `kind` (OMV: an official music video, ATV: a song), as the session of `nodes` reads it.
+    const queuedAs = (nodes: any, id: string, kind: string) => Object.assign(new nodes.PlaylistPanelVideo(), {
+        video_id: id, title: `Title ${id}`, artists: [{ name: 'Artist', channel_id: 'UCartist' }], album: { id: 'MPREb_x', name: 'Album' }, duration: { seconds: 141 }, thumbnail: [],
+        endpoint: { payload: { watchEndpointMusicSupportedConfigs: { watchEndpointMusicConfig: { musicVideoType: `MUSIC_VIDEO_TYPE_${kind}` } } } },
+    });
+    const queueOf = (nodes: any, entries: Array<[string, string]>) => ({ contents_memo: { getType: (type: unknown) => (
+        type === nodes.PlaylistPanelVideo ? entries.map(([id, kind]) => queuedAs(nodes, id, kind)) : []) } });
+    // The account's watch pages: each video asked about is paired with its song in `songs`.
+    const pairing = (yt: any, songs: Record<string, string>) => yt.libraries.Parser.parseResponse.mockImplementation((data: any) => ({ contents_memo: { getType: (type: unknown) => (
+        type === yt.PlaylistPanelVideoWrapper && data.videoId
+            ? [{ primary: queuedAs(yt, data.videoId, 'OMV'), counterpart: songs[data.videoId] ? [queuedAs(yt, songs[data.videoId], 'ATV')] : [] }] : []) } }));
+
+    it('answers a list after a short wait for the songs of its music videos, asks on for the rest, and plays a video shown as itself as its song', async () => {
+        vi.useFakeTimers();
+        try {
+            const LATE = 'lateVideo01';
+            const SONG = 'UNOtbkQxECI';
+            const answers: Array<() => void> = [];
+            const { bridge, yt, log } = setup({ web: true, configure: client => {
+                if (client.kind === 'guest') client.actions.execute.mockImplementation(async () => queueOf(yt, [[LATE, 'OMV']]));
+                if (client.kind !== 'web') return;
+                client.actions.execute.mockImplementation(async (endpoint: string, body: any) => {
+                    if (endpoint !== '/next') return { data: asTheAccount };
+                    await new Promise<void>(resolve => { answers.push(resolve); });
+                    return { data: { ...asTheAccount, videoId: body.videoId } };
+                });
+            } });
+            pairing(yt, { [LATE]: SONG });
+            const read = bridge.request('mix', { id: MIX });
+            await vi.advanceTimersByTimeAsync(1500);
+            expect((await read).data.items.map((song: any) => song.id)).toEqual([LATE]);
+            expect(log).toHaveBeenCalledWith('[Ytm] 1 music video(s) in a list, 0 shown as their song; 1 not answered within 1500ms are shown as they are and asked on');
+            // The ask goes on, and its answer is the next read's.
+            answers.forEach(answer => answer());
+            await vi.advanceTimersByTimeAsync(0);
+            expect(log).toHaveBeenCalledWith('[Ytm] The 1 music video(s) a list showed as they are were asked on: 1 more have a song, shown from the next read');
+            expect((await bridge.request('mix', { id: MIX })).data.items.map((song: any) => song.id)).toEqual([SONG]);
+            expect(yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/next')).toHaveLength(1);
+            // The video the first read showed as itself is played as its song, in its place; a song as itself.
+            expect((await bridge.request('played_as', { id: LATE })).data.song.id).toBe(SONG);
+            expect((await bridge.request('played_as', { id: SONG })).data.song).toBeNull();
+            expect(yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/next')).toHaveLength(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('keeps one row of a song that pairing made stand twice, and leaves a video\'s own song out of its radio', async () => {
+        const [VIDEO_ONE, VIDEO_TWO, SONG, OTHER, NEXT] = ['videoOne001', 'videoTwo001', 'UNOtbkQxECI', 'otherSong01', 'nextSong001'];
+        const RADIO = `RDAMVM${VIDEO_ONE}`;
+        const { bridge, yt } = setup({ web: true, configure: client => {
+            if (client.kind === 'guest') client.actions.execute.mockImplementation(async (_endpoint: string, body: any) => queueOf(yt, body.playlistId === RADIO
+                ? [[VIDEO_ONE, 'OMV'], [SONG, 'ATV'], [NEXT, 'ATV']]
+                : [[VIDEO_ONE, 'OMV'], [OTHER, 'ATV'], [SONG, 'ATV'], [VIDEO_TWO, 'OMV'], [OTHER, 'ATV']]));
+            if (client.kind === 'web') client.actions.execute.mockImplementation(async (_endpoint: string, body: any) => ({ data: { ...asTheAccount, videoId: body?.videoId } }));
+        } });
+        pairing(yt, { [VIDEO_ONE]: SONG, [VIDEO_TWO]: SONG });
+        const ids = async (params: Record<string, string>) => (await bridge.request('mix', params)).data.items.map((song: any) => song.id);
+        // Both videos are the song the list holds: one row of it, where the first stood. The list's own second row of a song stays.
+        expect(await ids({ id: MIX })).toEqual([SONG, OTHER, OTHER]);
+        // A radio asked with a video lists the video as itself and not its song.
+        expect(await ids({ id: RADIO, videoId: VIDEO_ONE })).toEqual([VIDEO_ONE, NEXT]);
+    });
+
+    it('leaves a song shown for a video liked, and says so, when the video\'s like cannot be taken back', async () => {
+        const [MUSIC_VIDEO, SONG] = ['GrAchTdepsU', 'UNOtbkQxECI'];
+        const { bridge, yt } = setup({ web: true, configure: client => {
+            if (client.kind === 'guest') client.actions.execute.mockImplementation(async () => queueOf(yt, [[MUSIC_VIDEO, 'OMV']]));
+            if (client.kind !== 'web') return;
+            client.actions.execute.mockImplementation(async (endpoint: string, body: any) => (
+                // The video's like: an answer not marked as the account's, which is not taken for a change made.
+                endpoint === '/like/removelike' && body.target.videoId === MUSIC_VIDEO ? { data: {} } : { data: { ...asTheAccount, videoId: body?.videoId } }));
+        } });
+        pairing(yt, { [MUSIC_VIDEO]: SONG });
+        expect((await bridge.request('mix', { id: MIX })).data.items.map((song: any) => song.id)).toEqual([SONG]);
+        expect(await bridge.request('song_like', { id: SONG, liked: 'false' })).toMatchObject({ ok: false, error: { code: 'unavailable' } });
+        const unliked = yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/like/removelike');
+        expect(unliked.map(([, body]: [string, any]) => body.target.videoId)).toEqual([MUSIC_VIDEO]);
+    });
+
     it('reads a mix as the guest queue of its list id, with its first song where the card names one', async () => {
         const { bridge, yt, log } = setup({ web: true });
         const entry = Object.assign(new yt.PlaylistPanelVideo(), { video_id: VIDEO, title: 'Queued', artists: [{ name: 'Artist', channel_id: 'UCartist' }], album: { id: 'MPREb_x', name: 'Album' }, duration: { seconds: 61 }, thumbnail: [] });
@@ -838,6 +921,70 @@ describe('YouTube Music mixes and public playlists', () => {
         for (const params of [{}, { id: '../x' }, { id: 'RDEMfixture', videoId: 'short' }, { id: 'RDEMfixture', videoId: 7 }]) {
             expect(await bridge.request('mix', params)).toMatchObject({ ok: false, error: { code: 'invalid-response' } });
         }
+    });
+
+    it('shows an official music video as the song YouTube pairs it with for the account, and takes a like back from both', async () => {
+        const MUSIC_VIDEO = 'GrAchTdepsU';
+        const SONG = 'UNOtbkQxECI';
+        const queued = (id: string, kind: string, title: string) => Object.assign(new yt.PlaylistPanelVideo(), {
+            video_id: id, title, artists: [{ name: 'Artist', channel_id: 'UCartist' }], album: { id: 'MPREb_x', name: 'Album' }, duration: { seconds: 141 }, thumbnail: [],
+            endpoint: { payload: { watchEndpointMusicSupportedConfigs: { watchEndpointMusicConfig: { musicVideoType: `MUSIC_VIDEO_TYPE_${kind}` } } } },
+        });
+        // The guest's queue of a mix, as the session of `nodes` reads it.
+        const mixOf = (nodes: any) => ({ contents_memo: { getType: (type: unknown) => (type === nodes.PlaylistPanelVideo ? [queued(MUSIC_VIDEO, 'OMV', 'Mood (Official Video)'), queued(VIDEO, 'ATV', 'Queued')] : []) } });
+        // The account's watch page of the video holds the video and its song as a pair; its first
+        // answer is given as to a guest, which holds none.
+        let asGuest = true;
+        const { bridge, yt, log } = setup({ web: true, configure: client => {
+            if (client.kind === 'guest') client.actions.execute.mockImplementation(async () => mixOf(yt));
+            if (client.kind !== 'web') return;
+            client.actions.execute.mockImplementation(async (endpoint: string, body: any) => {
+                if (endpoint !== '/next') return { data: asTheAccount };
+                const answer = { data: asGuest ? asAGuest : { ...asTheAccount, videoId: body.videoId } };
+                asGuest = false;
+                return answer;
+            });
+        } });
+        // The song's own watch page pairs it with the video the other way round: the song has no other song.
+        const pairOf = (id: string) => (id === SONG
+            ? { primary: queued(SONG, 'ATV', 'Mood'), counterpart: [queued(MUSIC_VIDEO, 'OMV', 'Mood (Official Video)')] }
+            : { primary: queued(id, 'OMV', 'Mood (Official Video)'), counterpart: [queued(SONG, 'ATV', 'Mood')] });
+        // A page whose queue does not hold the track asked about.
+        const ELSEWHERE = 'elsewhere01';
+        yt.libraries.Parser.parseResponse.mockImplementation((data: any) => ({ contents_memo: { getType: (type: unknown) => (type === yt.PlaylistPanelVideoWrapper && data.videoId && data.videoId !== ELSEWHERE
+            ? [pairOf(data.videoId)] : []) } }));
+        const songOf = (id: string, name: string) => ({ id, name, artists: [{ id: 'UCartist', name: 'Artist' }], album: { id: 'MPREb_x', name: 'Album', coverUrl: '' }, durationMs: 141000 });
+        // Answered as to a guest, the video stays itself for that read only, said to be a video.
+        expect((await bridge.request('mix', { id: 'RDEMfixturefixturefixture01' })).data).toEqual({ items: [{ ...songOf(MUSIC_VIDEO, 'Mood (Official Video)'), video: true }, songOf(VIDEO, 'Queued')] });
+        expect((await bridge.request('mix', { id: 'RDEMfixturefixturefixture01' })).data).toEqual({ items: [songOf(SONG, 'Mood'), songOf(VIDEO, 'Queued')] });
+        expect(log).toHaveBeenCalledWith('[Ytm] 1 music video(s) in a list, 1 shown as their song');
+        // Asked once a run for each video.
+        await bridge.request('mix', { id: 'RDEMfixturefixturefixture01' });
+        expect(yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/next')).toHaveLength(2);
+        // The app's record of the songs played here asks with the tracks it holds; the pair is the one known.
+        expect((await bridge.request('song_versions', { ids: MUSIC_VIDEO })).data).toEqual({ songs: { [MUSIC_VIDEO]: songOf(SONG, 'Mood') } });
+        expect(yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/next')).toHaveLength(2);
+        expect((await bridge.request('song_versions', { ids: `${MUSIC_VIDEO},not an id` })).ok).toBe(false);
+        // The song of a pair found is a song, with no other song of its own: it is answered with null and not asked about.
+        expect((await bridge.request('song_versions', { ids: `${MUSIC_VIDEO},${SONG}` })).data).toEqual({ songs: { [MUSIC_VIDEO]: songOf(SONG, 'Mood'), [SONG]: null } });
+        expect(log).toHaveBeenCalledWith('[Ytm] 2 recorded track(s) asked about (0 of them asked of YouTube): 1 shown as their song, 0 not answered');
+        expect(yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/next')).toHaveLength(2);
+        // A track that could not be asked about is left out, and asked about again.
+        const OTHER = 'otherVideo1';
+        asGuest = true;
+        expect((await bridge.request('song_versions', { ids: OTHER })).data).toEqual({ songs: {} });
+        expect(log).toHaveBeenCalledWith('[Ytm] 1 recorded track(s) asked about (1 of them asked of YouTube): 0 shown as their song, 1 not answered');
+        expect((await bridge.request('song_versions', { ids: OTHER })).data).toEqual({ songs: { [OTHER]: songOf(SONG, 'Mood') } });
+        expect((await bridge.request('song_versions', { ids: ELSEWHERE })).data).toEqual({ songs: {} });
+
+        expect(await bridge.request('song_like', { id: SONG, liked: 'false' })).toEqual({ ok: true, data: true });
+        const unliked = yt.clients.web.actions.execute.mock.calls.filter(([endpoint]: [string]) => endpoint === '/like/removelike');
+        expect(unliked.map(([, body]: [string, any]) => body.target.videoId)).toEqual([MUSIC_VIDEO, SONG]);
+
+        // Nobody signed in: the video stays itself.
+        const guestOnly = setup({ configure: client => { if (client.kind === 'guest') client.actions.execute.mockImplementation(async () => mixOf(guestOnly.yt)); } });
+        expect((await guestOnly.bridge.request('mix', { id: 'RDEMfixturefixturefixture01' })).data).toEqual({ items: [{ ...songOf(MUSIC_VIDEO, 'Mood (Official Video)'), video: true }, songOf(VIDEO, 'Queued')] });
+        expect(Object.keys(guestOnly.yt.clients)).toEqual(['guest']);
     });
 
     it('reads a public playlist as a guest of YouTube Music, a shelf first and then the rows each further page appends', async () => {

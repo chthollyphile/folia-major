@@ -276,7 +276,7 @@ export interface LoginFailureDetail {
 // 见 services/onlineMusic/failure/onlineFailureCase.ts 的表。
 export type OnlineFailureCaseId =
     | 'unreachable' | 'local-service-stopped' | 'retry-later'
-    | 'sign-in-needed' | 'subscription-required' | 'purchase-required' | 'entitlement-required'
+    | 'sign-in-needed' | 'account-refused' | 'subscription-required' | 'purchase-required' | 'entitlement-required'
     | 'preview-only' | 'region-restricted' | 'not-configured'
     | 'taken-down' | 'no-audio' | 'audio-unplayable' | 'not-public'
     | 'refused' | 'unknown';
@@ -385,6 +385,11 @@ export interface OnlinePlaybackProvider {
     audioQualityLevels?: readonly AudioQualityPreference[];
     getAvailability?(song: SongResult): ProviderSongAvailability;
     getReplacement?(song: SongResult): Promise<ProviderSongReplacement | null>;
+    /**
+     * The song `song` is played as in its place, or null where it plays as itself: a music video
+     * that a list showed as itself, played as its song version.
+     */
+    getPlayedSong?(song: SongResult): Promise<UnifiedSong | null>;
     /**
      * For a provider that keeps its audio in a cache of its own instead of the media cache: puts the
      * file that `url` (one of its audio URLs) plays into that cache, and resolves to whether it is
@@ -753,6 +758,13 @@ export interface ProviderExploreItemsPage {
 export interface OnlineExploreProvider {
     getFeed(cursor?: string, listened?: UnifiedSong[]): Promise<ProviderExplorePage>;
     getSectionItems?(cursor: string): Promise<ProviderExploreItemsPage>;
+    /**
+     * Of the songs played here, as the app recorded them, which song the platform shows each as, by
+     * the id of each: another song (a music video as its song version), or null for the song itself.
+     * One the platform could not be asked about is left out. The app's own record of the songs
+     * played is set right with them, once a run (ownSections.ts).
+     */
+    songsShownAs?(songs: UnifiedSong[]): Promise<Map<string, UnifiedSong | null>>;
 }
 
 export interface OnlineMutationProvider {

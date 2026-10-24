@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { parseRangeHeader } = require('../transcode/protocol.cjs');
-const { SpotifyError, describeError, plainWords, spotifyError, toErrorResult } = require('./errors.cjs');
+const { SpotifyError, describeError, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { CLIENT_ID } = require('./signIn.cjs');
 
 // electron/spotify/audio.cjs
@@ -38,6 +38,14 @@ const FILE_TTL_MS = 10 * 60 * 1000;
 const QUIET_LIMIT_MS = 30 * 1000;
 // The statuses by which the CDN says an address is no longer good.
 const REFUSED = new Set([401, 403, 404, 410]);
+// Spotify refuses a track's key (the component says `audio key unavailable: ... AesKey`). Before it
+// gave this account any key in this run, it is an account Spotify gives no key to at all (common for
+// accounts made since about the end of 2024); after, it is asking to slow down. A new connection
+// helps neither. The renderer tells the two apart by these sentences
+// (src/services/onlineMusic/spotify/spotifyFailure.ts).
+const KEY_REFUSED = /audio key unavailable.*AesKey/i;
+const ACCOUNT_GETS_NO_KEY = 'Spotify gives this account no audio key';
+const KEY_REFUSED_FOR_NOW = 'Spotify refused the audio key for now';
 
 // The counter for the 16-byte block that holds byte `offset` of the file.
 function counterAt(offset) {
@@ -106,6 +114,8 @@ function createSpotifyAudio({
   let opening = null;
   // Bumped by clear(): what was asked for the previous account is not kept or handed out.
   let generation = 0;
+  // Whether Spotify has given the signed-in account a track's key in this run.
+  let keyGiven = false;
   const sessionChanged = spotifyError('auth-required', 'Spotify session changed');
 
   // A step Spotify never answers must not keep a track loading for good.
@@ -159,6 +169,14 @@ function createSpotifyAudio({
         return await within(connection.session.resolveAudioFileAsync({ uri: `spotify:track:${trackId}`, bitrate }), 'locating the file');
       } catch (error) {
         const said = String(error?.message ?? error);
+        if (KEY_REFUSED.test(said)) {
+          if (keyGiven) {
+            warn(`[Spotify] ${trackId}: Spotify refused the key after giving keys in this run; asked to try later (${plainWords(said)})`);
+            throw spotifyError('unavailable', KEY_REFUSED_FOR_NOW, said);
+          }
+          warn(`[Spotify] ${trackId}: Spotify has given this account no key in this run; the account cannot play here (${plainWords(said)})`);
+          throw spotifyError('unavailable', ACCOUNT_GETS_NO_KEY, said);
+        }
         const aboutTheTrack = /track is unavailable|no audio files available/i.test(said);
         if (aboutTheTrack || connection !== kept) {
           // A new connection that cannot load the track's entry: Spotify has no such track.
@@ -180,7 +198,10 @@ function createSpotifyAudio({
       const response = await fetch(cdnUrl, { headers: { Range: `bytes=${from}-${to}` }, signal: control.signal });
       if (response.status !== 206) {
         control.abort();
-        throw spotifyError(REFUSED.has(response.status) ? 'unavailable' : 'network', 'Spotify did not send the audio', `HTTP ${response.status}`);
+        // A 429 is Spotify asking to wait, not a network that fails.
+        throw REFUSED.has(response.status)
+          ? spotifyError('unavailable', 'Spotify did not send the audio', `HTTP ${response.status}`)
+          : statusError(response.status, 'network', 'Spotify did not send the audio', `HTTP ${response.status}`);
       }
       // Bytes of another place would be decrypted with the counter of the place asked for.
       const begins = /^bytes (\d+)-/.exec(response.headers.get('content-range') ?? '')?.[1];
@@ -223,6 +244,7 @@ function createSpotifyAudio({
       const startedAt = now();
       job = (async () => {
         const located = await locate(trackId, bitrate);
+        if (startedIn === generation) keyGiven = true;
         const shape = shapeOf(String(located?.format));
         if (!shape || !/^[0-9a-f]{32}$/i.test(String(located?.keyHex)) || typeof located.cdnUrl !== 'string') {
           throw spotifyError('not-playable', 'Spotify offered no usable audio for this track', `format ${located?.format}`);
@@ -425,6 +447,7 @@ function createSpotifyAudio({
     // The files on disk stay: they are the same for every account, and none opens without one.
     clear() {
       generation += 1;
+      keyGiven = false;
       keys.clear();
       files.clear();
       pending.clear();

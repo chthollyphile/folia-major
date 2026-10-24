@@ -27,6 +27,7 @@ export type LibraryTuiRowProps = {
     accentColor: string;
     enqueueLabel: string;
     unavailableLabel: string;
+    videoLabel: string;
     matchLabel: string;
     onFocusRow: (row: number) => void;
     onPlayRow: (row: number) => void;
@@ -56,6 +57,7 @@ const LibraryTuiRow = ({
     accentColor,
     enqueueLabel,
     unavailableLabel,
+    videoLabel,
     matchLabel,
     onFocusRow,
     onPlayRow,
@@ -70,6 +72,7 @@ const LibraryTuiRow = ({
 
     const isFocused = index === focusedRow;
     const unavailable = isSongUnavailable(track);
+    const tag = unavailable ? unavailableLabel : track.isVideo ? videoLabel : '';
     const entryKey = rowKeys[index];
     const isPending = pendingKeys.has(entryKey);
     const canMatch = Boolean(onMatchRow && (track as UnifiedSong).localRef?.songId);
@@ -98,7 +101,7 @@ const LibraryTuiRow = ({
             <span className="tabular-nums opacity-50">{String(displayIndex + 1).padStart(4, '0')}</span>
             <span className={cell}>
                 {track.name}
-                {unavailable ? <span className="opacity-70">{`  (${unavailableLabel})`}</span> : null}
+                {tag ? <span className="opacity-70">{`  (${tag})`}</span> : null}
             </span>
             <span className={`${cell} opacity-70`}>
                 {hasArtistLink ? artistLinks.map((link, linkIndex) => (

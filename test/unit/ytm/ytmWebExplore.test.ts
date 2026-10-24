@@ -53,16 +53,17 @@ describe('YouTube Music web pages', () => {
     });
 
     it('reads a video as a song with its still for a wide picture, in a row and on a card', () => {
-        // A row: no album, and the views after the artist are no artist.
+        // A row: no album, and the views after the artist are no artist. Both are official music
+        // videos, which the bridge shows as their songs where it can (asShown).
         expect(exploreItemFromEntry(entry(fixtures.explore, 3, 1))).toEqual({
             kind: 'song',
-            song: { id: '1yBjFEpG3xQ', name: '要去什麼地方', artists: [{ id: 'UCGkj4uoWx_1BA2tF9Q-9Y6w', name: 'Hebe 田馥甄' }], album: { id: '', name: '', coverUrl: still('1yBjFEpG3xQ', 'hqdefault') }, durationMs: 0 },
+            song: { id: '1yBjFEpG3xQ', name: '要去什麼地方', artists: [{ id: 'UCGkj4uoWx_1BA2tF9Q-9Y6w', name: 'Hebe 田馥甄' }], album: { id: '', name: '', coverUrl: still('1yBjFEpG3xQ', 'hqdefault') }, durationMs: 0, video: true, officialVideo: true },
             wideCoverUrl: still('1yBjFEpG3xQ', 'hqdefault'),
         });
         // A card: the larger of its two stills. Its uploader's channel is no artist's page: a name alone.
         expect(exploreItemFromEntry(entry(fixtures.explore, 4, 0))).toEqual({
             kind: 'song',
-            song: { id: '0lXbg9H42jc', name: 'No Era Para Mí | FireVolk', artists: [{ id: '', name: 'FireVolk' }], album: { id: '', name: '', coverUrl: still('0lXbg9H42jc', 'hq720') }, durationMs: 0 },
+            song: { id: '0lXbg9H42jc', name: 'No Era Para Mí | FireVolk', artists: [{ id: '', name: 'FireVolk' }], album: { id: '', name: '', coverUrl: still('0lXbg9H42jc', 'hq720') }, durationMs: 0, video: true, officialVideo: true },
             wideCoverUrl: still('0lXbg9H42jc', 'hq720'),
         });
         // Of two artists the line names, the one without a link is not read.

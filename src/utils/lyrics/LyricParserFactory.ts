@@ -1,5 +1,6 @@
 import { LyricData } from '../../types';
-import { applyLyricDisplayFilter, resolveLyricProcessingOptions } from './filtering';
+import { resolveLyricProcessingOptions } from './filtering';
+import { ensureLyricDataRenderHints } from './renderHints';
 import { RawLyricSource } from './types';
 import { EmbeddedLyricAdapter } from './adapters/EmbeddedLyricAdapter';
 import { NeteaseLyricAdapter } from './adapters/NeteaseLyricAdapter';
@@ -34,6 +35,8 @@ export class LyricParserFactory {
                 return null;
         }
 
-        return applyLyricDisplayFilter(parsed, resolvedOptions.filterPattern);
+        // The listener's line rules are not applied here: parsed lyrics are cached, and the rules
+        // run where lyrics are shown (createLyricsSetter), so a change of the rules needs no new fetch.
+        return ensureLyricDataRenderHints(parsed);
     }
 }

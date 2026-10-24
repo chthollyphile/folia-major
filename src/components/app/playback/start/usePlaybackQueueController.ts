@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
-import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
+import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getPersonalFmSelection } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
@@ -514,6 +514,24 @@ export function usePlaybackQueueController({
         if (!allowedSong || playSongCallIdRef.current !== playSongCallId || playsDroppedSoFar() !== droppedAtStart) {
             return;
         }
+        // A music video a list showed as itself (its song was not known in time) plays as its song:
+        // the song takes its place in the queue, with its own name, picture, length and lyrics, as
+        // another version of a song taken down does. Asked only where the platform has such songs;
+        // the blend's advance plays what it readied.
+        const playedAs = options.isAutomixAdvance ? null : askPlayedSong(allowedSong);
+        const playedSong = playedAs ? await playedAs : null;
+        if (playSongCallIdRef.current !== playSongCallId || playsDroppedSoFar() !== droppedAtStart) {
+            return;
+        }
+        if (playedSong) {
+            const shownQueue = queue.length > 0 ? queue : usePlaybackStore.getState().playQueue;
+            const shownKey = getPlaybackSongKey(allowedSong);
+            const playedQueue = shownQueue.length > 0
+                ? shownQueue.map(queued => (getPlaybackSongKey(queued) === shownKey ? playedSong : queued))
+                : [playedSong];
+            await latestQueueActionsRef.current.playSong(playedSong, playedQueue, isFmCall, options);
+            return;
+        }
         const song = allowedSong;
         // A pause still fading out belongs to the song being replaced. Run it now instead of
         // dropping it: the old song is still sounding and the new one can take seconds to load, so
@@ -950,10 +968,10 @@ export function usePlaybackQueueController({
         // are those around this one in the new queue.
         if (queueRewritten()) {
             const live = usePlaybackStore.getState().playQueue;
-            if (live.length > 1) {
+            if (live.length > 0) {
                 prefetchNearbySongs(resolvedSong, live, audioQuality, userId);
             }
-        } else if (newQueue.length > 1) {
+        } else if (newQueue.length > 0) {
             prefetchNearbySongs(resolvedSong, resolvedQueue, audioQuality, userId);
         }
     }, [

@@ -5,7 +5,7 @@ import type { UnifiedSong } from '../../../types';
 import type { MediaId } from '../../../types/onlineMusic';
 import { formatSongName } from '../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { getProviderSongMetadata } from '../../../services/onlineMusic/songMetadata';
 
@@ -39,7 +39,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
 }) => {
     const { t } = useTranslation();
     const isUnavailable = isSongUnavailable(track);
-    const unavailableLabel = getSongUnavailableLabel(track, t('status.songUnavailableTag'));
+    const tag = getSongTag(track, { unavailable: t('status.songUnavailableTag'), video: t('status.songVideoTag') });
     const metadata = getProviderSongMetadata(track);
     const coverUrl = getSizedCoverUrl(metadata.coverUrl, 120);
     const artists = metadata.artists;
@@ -91,9 +91,9 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
                         >
                             {formatSongName(track)}
                         </button>
-                        {isUnavailable && (
+                        {tag && (
                             <span className="shrink-0 rounded-full border border-current/10 px-2 py-0.5 text-[10px] opacity-60">
-                    {unavailableLabel}
+                    {tag}
                             </span>
                         )}
                     </div>

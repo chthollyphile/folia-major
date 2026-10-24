@@ -156,6 +156,7 @@ export const createFakeChain = (readings: FakeAnalyserReadings = {}): FakeDeckCh
             nextBeatIn: () => readings.nextBeatIn ?? null,
             reset: () => { },
         },
+        balanceMeter: { tick: () => { }, heardSec: () => 0, plays: () => 0, wraps: () => 0, liveLoudness: () => null, play: () => null },
         fadeNode,
         replayGainNode,
         trimNode,

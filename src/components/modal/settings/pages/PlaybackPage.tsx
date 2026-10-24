@@ -195,6 +195,7 @@ const PlaybackPage: React.FC = () => {
                         value={replayGainMode}
                         options={[
                             { value: 'off', label: t('localMusic.replayGainOff') },
+                            { value: 'auto', label: t('localMusic.replayGainAuto') },
                             { value: 'track', label: t('localMusic.replayGainTrack') },
                             { value: 'album', label: t('localMusic.replayGainAlbum') },
                         ]}

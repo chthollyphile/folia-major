@@ -240,10 +240,12 @@ function createYtmAudio({
       keys.set(key, { videoId, level: served, route: plan.route, contentLength: plan.contentLength, mimeType: plan.mimeType });
       while (keys.size > MAX_ISSUED_KEYS) keys.delete(keys.keys().next().value);
       // The route is for the renderer's log line.
-      // (So are the format's itag and bitrate, where the plan names them.)
+      // (So are the format's itag and bitrate, where the plan names them.) `loudnessDb` is YouTube's
+      // loudness figure for the track, the renderer's track gain.
       // `level` is there only when the track is served at another level than the one asked for.
       return {
         url: `${YTM_AUDIO_SCHEME}://audio/${videoId}/${served}?k=${key}`, route: plan.route, itag: plan.itag, bitrate: plan.bitrate,
+        ...(Number.isFinite(plan.loudnessDb) ? { loudnessDb: plan.loudnessDb } : {}),
         ...(served === level ? {} : { level: served }),
       };
     },

@@ -22,9 +22,10 @@ export const decibelsToLinearPeak = (decibels: unknown): number | undefined => {
 };
 
 // Selects the requested mode, applies album-to-track fallback, and prevents positive gain from clipping.
+// 'auto' (智能平衡) decides per song from what it knows of the song: services/volumeBalance.
 export const calculateReplayGain = (
     replayGain: ReplayGainInfo | null | undefined,
-    mode: ReplayGainMode,
+    mode: Exclude<ReplayGainMode, 'auto'>,
 ): ReplayGainCalculation => {
     if (!replayGain || mode === 'off') {
         return { gainDb: 0, effectiveGainDb: 0, linearGain: 1 };

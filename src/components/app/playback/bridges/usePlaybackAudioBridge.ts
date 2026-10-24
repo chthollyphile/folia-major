@@ -11,9 +11,13 @@ import { buildPlaybackGraph } from '../../../../services/playbackGraph';
 import { cachePlayedTrackAssets } from '../../../../services/playedTrackCache';
 import { registerPlaybackFadeGraph } from '../../../../services/playbackFade';
 import { rampGain, type AutomixDeckChain } from '../../../../services/automix/crossfadeGraph';
+import { onTrackProfile } from '../../../../services/automix/profileService';
+import { onPlayWrapped } from '../../../../services/volumeBalance/balanceMeter';
+import { createBalancePlay } from '../../../../services/volumeBalance/balancePlay';
+import { onBalanceRecord } from '../../../../services/volumeBalance/balanceRecords';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
-import { setPlayerState } from '../../../../stores/usePlaybackStore';
+import { setPlayerState, setReplayGainAppliedDb, setReplayGainEstimated } from '../../../../stores/usePlaybackStore';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { resolveHeardAudioEqualizerSettings } from '../../../../utils/audioEqualizerModCurve';
@@ -46,6 +50,8 @@ type UsePlaybackAudioBridgeParams = {
 
 /** How often a mod's equalizer change held back for a blend checks whether the blend has ended. */
 const DEFERRED_EQUALIZER_POLL_MS = 250;
+/** How often 智能平衡 looks again at a playing song: its deck's meter, a blend that ended. */
+const BALANCE_POLL_MS = 500;
 
 // Bridges audio element setup, autoplay, replay gain, and media caching.
 export function usePlaybackAudioBridge({
@@ -74,6 +80,8 @@ export function usePlaybackAudioBridge({
 
     const previousAudioSrcRef = useRef<string | null>(null);
     const replayGainLogSignatureRef = useRef<string | null>(null);
+    const balancePlayRef = useRef<ReturnType<typeof createBalancePlay> | null>(null);
+    balancePlayRef.current ??= createBalancePlay();
     const equalizerNodesRef = useRef<BiquadFilterNode[]>([]);
     const effectChainRef = useRef<AudioEffectChain | null>(null);
     const audioEqualizerSettings = useAudioSettingsStore(state => state.audioEqualizerSettings);
@@ -121,14 +129,30 @@ export function usePlaybackAudioBridge({
             replayGainInfo = currentSong.replayGain;
         }
 
-        const calculation = calculateReplayGain(replayGainInfo, replayGainMode);
-
         try {
             // Onto the deck rather than the shared output: loudness compensation is a per-track
             // value, so during a blend the two decks legitimately need different ones.
             const activeChain = getActiveChain();
+            // 智能平衡 decides per play, from what it knows of the song (services/volumeBalance).
+            if (replayGainMode === 'auto') {
+                const applied = balancePlayRef.current!.apply({
+                    song: currentSong,
+                    info: replayGainInfo,
+                    chain: activeChain,
+                    context: audioContextRef.current,
+                    transitionAudible: isTransitionAudibleRef.current?.() ?? false,
+                });
+                // With no deck to take it nothing is applied, and the last song's figure must not stay shown.
+                setReplayGainAppliedDb(applied?.gainDb ?? 0);
+                setReplayGainEstimated(applied?.estimated ?? false);
+                return;
+            }
+            balancePlayRef.current!.reset();
+            setReplayGainEstimated(false);
+            const calculation = calculateReplayGain(replayGainInfo, replayGainMode);
             if (activeChain) {
                 rampGain(audioContextRef.current, activeChain.replayGain, calculation.linearGain, 0.1);
+                setReplayGainAppliedDb(calculation.effectiveGainDb);
             }
 
             const replayGainLogSignature = JSON.stringify({
@@ -225,6 +249,23 @@ export function usePlaybackAudioBridge({
     useEffect(() => {
         applyReplayGain();
     }, [applyReplayGain]);
+
+    // 智能平衡 looks again when a reading lands - a profile, the song's own record, the deck's meter once it
+    // has heard enough - and when a blend ends; the rules decide whether a playing song may still move. A loop
+    // come round is a new play, set at once rather than at the next poll.
+    useEffect(() => {
+        if (replayGainMode !== 'auto') return undefined;
+        const offProfile = onTrackProfile(() => applyReplayGain());
+        const offRecord = onBalanceRecord(() => applyReplayGain());
+        const offWrap = onPlayWrapped(() => applyReplayGain());
+        const timer = setInterval(() => applyReplayGain(), BALANCE_POLL_MS);
+        return () => {
+            offProfile();
+            offRecord();
+            offWrap();
+            clearInterval(timer);
+        };
+    }, [applyReplayGain, replayGainMode]);
 
     /*
      * Writes what is heard into the graph. A mod's change waits while an automix blend can be heard and is

@@ -3,7 +3,7 @@ import type { VisualizerMode } from '../types';
 import { setLyricsState, usePlaybackStore } from '../stores/usePlaybackStore';
 import { getVisualizerRegistryEntry } from '../components/visualizer/registry';
 import { applyAutoWordSegmentation, loadIcuFolia } from '../utils/lyrics/icuFolia';
-import { applyLyricsTransform, untransformedLyrics } from '../services/hostExtensionHooks';
+import { reworkShownLyrics } from '../components/app/playback/createLyricsSetter';
 
 // src/hooks/useIcuFoliaSegmentation.ts
 // Loads icu-folia's engines when they would change something on screen, and bakes its split onto
@@ -38,11 +38,7 @@ export function useIcuFoliaSegmentation(visualizerMode: VisualizerMode) {
             if (cancelled || !ready) {
                 return;
             }
-            setLyricsState(previous => {
-                const source = untransformedLyrics(previous);
-                const segmented = applyAutoWordSegmentation(source);
-                return segmented === source ? previous : applyLyricsTransform(segmented);
-            });
+            setLyricsState(previous => reworkShownLyrics(previous, applyAutoWordSegmentation));
         });
 
         return () => {

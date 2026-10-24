@@ -41,7 +41,8 @@ import { neteaseApi } from '../../src/services/onlineMusic/netease/netease';
 import type { LyricData } from '../../src/types';
 import { applyDetectedChorusEffects } from '../../src/utils/lyrics/chorusEffects';
 import { detectTimedLyricFormat } from '../../src/utils/lyrics/formatDetection';
-import { applyLyricDisplayFilter, resolveLyricProcessingOptions } from '../../src/utils/lyrics/filtering';
+import { resolveLyricProcessingOptions } from '../../src/utils/lyrics/filtering';
+import { applyLyricLineRules, compileLyricLineRules } from '../../src/utils/lyrics/lyricLineRules';
 import { extractNeteaseLyricPayload } from '../../src/utils/lyrics/neteaseProcessing';
 import { parseLyricsByFormat } from '../../src/utils/lyrics/parserCore';
 import type { LyricParseFormat } from '../../src/utils/lyrics/parserCore';
@@ -141,7 +142,7 @@ const parseArgs = (args: string[]): ParsedCliArgs => {
 
 const parseNeteaseLyricsForCli = (
     source: RawNeteaseLyric,
-    options: LyricProcessingOptions
+    options: LyricProcessingOptions & { filterPattern?: string }
 ): LyricData | null => {
     const payload = extractNeteaseLyricPayload(source);
     const primaryLyrics = payload.yrcLrc || payload.mainLrc;
@@ -166,7 +167,8 @@ const parseNeteaseLyricsForCli = (
         lyrics = applyDetectedChorusEffects(lyrics, payload.mainLrc);
     }
 
-    return applyLyricDisplayFilter(lyrics, resolvedOptions.filterPattern);
+    const rules = options.filterPattern ? [{ id: 'cli', on: true, shape: 'written' as const, text: options.filterPattern }] : [];
+    return applyLyricLineRules(lyrics, compileLyricLineRules(rules));
 };
 
 const main = async () => {

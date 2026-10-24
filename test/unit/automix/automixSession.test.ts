@@ -793,6 +793,25 @@ describe('automix session, transition styles', () => {
         expect(finalTarget(harness.chains.A.trimNode)).toBeCloseTo(0.501, 3);
     });
 
+    it('compares two whole-track BS.1770 readings when both tracks have one, and the older reading otherwise', () => {
+        // Twelve decibels apart on the older reading, a wide or quiet-intro mix; the same on the gated one.
+        const arm = (to: Partial<TrackProfile>) => {
+            const harness = createHarness({ A: { loudnessDb: -8 }, B: { loudnessDb: -30 } });
+            harness.arm({
+                from: { ...BLENDABLE_FROM, profile: profile({ programLoudness: -10 }) },
+                to: { ...BLENDABLE_TO, profile: profile({ loudness: -20, programLoudness: -10, ...to }) },
+            });
+            harness.session.handleActiveDeckPlaying('local:next-song');
+            vi.advanceTimersByTime(300);
+            return harness.chains.A.trimNode;
+        };
+        expect(arm({}).events).toHaveLength(0);
+        // Only the head of the arriving track was read: neither side is compared by it.
+        expect(finalTarget(arm({ partial: true }))).toBeCloseTo(0.501, 3);
+        // Nor once its ending was heard out: the BS.1770 reading is still the head's.
+        expect(finalTarget(arm({ programFromHead: true }))).toBeCloseTo(0.501, 3);
+    });
+
     it('spaces the beat grid by the profile, which cannot land an octave out', () => {
         // The live tap heard a few seconds and called it 160; the file measured end to end is 80,
         // and 160 is exactly the double an autocorrelation has no way to rule out. Where the beats

@@ -8,7 +8,7 @@ import type { SongResult } from '@/types';
 
 const provider = vi.hoisted(() => ({ canPlay: true, marksUnavailable: false }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => provider.canPlay } }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: () => provider.marksUnavailable }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: () => provider.marksUnavailable }));
 
 const { isQueueSongPlayable, isRestoredSongPlayable } = await import('@/components/app/playback/playableSong');
 

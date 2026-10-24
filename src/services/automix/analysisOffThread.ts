@@ -1,4 +1,5 @@
 import { melSpectrogram, type MelSpectrogram } from '../analysis/beatThis';
+import { measureProgramLoudness } from './signalAnalysis';
 import { analyseTrack, type TrackProfile } from './trackProfile';
 
 // src/services/automix/analysisOffThread.ts
@@ -105,4 +106,18 @@ export const analyseTrackOffThread = async (
     const reply = await send({ kind: 'profile', mono, sampleRate, options });
     if (reply && !reply.error) return reply.result as TrackProfile | null;
     return analyseTrack(mono, sampleRate, options);
+};
+
+/**
+ * A whole track's BS.1770 loudness and peak. Identical to `measureProgramLoudness`, computed elsewhere:
+ * on a four-minute track at the analysis rate it is about 350 ms, too long for the thread that paints.
+ */
+export const measureProgramLoudnessOffThread = async (
+    mid: Float32Array,
+    side: Float32Array | null,
+    sampleRate: number,
+): Promise<{ loudness: number; peak: number } | null> => {
+    const reply = await send({ kind: 'loudness', mid, side, sampleRate });
+    if (reply && !reply.error) return reply.result as { loudness: number; peak: number } | null;
+    return measureProgramLoudness(mid, side, sampleRate);
 };

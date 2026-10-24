@@ -25,7 +25,6 @@ import { useRemoteExportChoices } from './useRemoteExportChoices';
 import { useRemoteLyricLine } from './useRemoteLyricLine';
 import { useRemoteSheet } from './useRemoteSheet';
 import { useRemoteSleeve } from './useRemoteSleeve';
-import { useRemoteTextShade } from './useRemoteTextShade';
 import { useRemoteTrackHandoff } from './useRemoteTrackHandoff';
 import './remote.css';
 
@@ -63,8 +62,6 @@ const RemoteControlApp: React.FC = () => {
     const [backgroundMode, setBackgroundMode] = useState<RemoteBackgroundMode>(readStoredBackgroundMode);
     const choices = useRemoteExportChoices();
     const cardRef = useRef<HTMLDivElement | null>(null);
-    const stageRef = useRef<HTMLDivElement | null>(null);
-    const textShadeRef = useRef<HTMLDivElement | null>(null);
 
     const isPlaying = snapshot.playerState === PlayerState.PLAYING;
     const duration = Number.isFinite(snapshot.duration) && snapshot.duration > 0 ? snapshot.duration : 0;
@@ -105,7 +102,6 @@ const RemoteControlApp: React.FC = () => {
     const isIdle = useRemoteSleeve(!isLit && !sheet.isOpen, reduceMotion, cardRef);
     // Idle puts the line where the keys were; the switch "expand cover" decides whether it also opens the sleeve.
     const isSleeve = isIdle && presentation.expandCover;
-    useRemoteTextShade(backgroundMode === 'transparent', stageRef, textShadeRef, isSleeve);
 
     useEffect(() => {
         document.body.style.backgroundColor = 'transparent';
@@ -155,14 +151,9 @@ const RemoteControlApp: React.FC = () => {
                 </div>
 
                 <div className="remote-face" style={REMOTE_DRAG_STYLE}>
-                    {backgroundMode === 'transparent' && (
-                        <>
-                            <div ref={textShadeRef} className="remote-cloud" data-empty="true" />
-                            <div className="remote-glass" />
-                        </>
-                    )}
+                    {backgroundMode === 'transparent' && <div className="remote-glass" />}
 
-                    <div ref={stageRef} className="remote-stage" aria-hidden={sheet.isOpen}>
+                    <div className="remote-stage" aria-hidden={sheet.isOpen}>
                         <RemoteSongLine mode={shownLine ? 'line' : 'card'} handoff={handoff} reduceMotion={reduceMotion} />
                         <RemoteOutgoingRecede handoff={handoff} reduceMotion={reduceMotion}>
                             <RemoteLyricBlock

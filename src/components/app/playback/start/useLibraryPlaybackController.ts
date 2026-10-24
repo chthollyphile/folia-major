@@ -36,7 +36,8 @@ import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resour
 import { getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getProviderCacheKey } from '../../../../services/onlineMusic/providerStorage';
 import { getNavidromeConfig, navidromeApi } from '../../../../services/navidromeService';
-import { notifyPlaybackFailed } from '../../../../services/hostExtensionHooks';
+import { notifyPlaybackFailed, untransformedLyrics } from '../../../../services/hostExtensionHooks';
+import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import type { LyricData, LocalPlaylist, LocalSong, OnlineLyricsState, QueueAddBehavior, SongResult, StatusMessage } from '../../../../types';
 import type { AudioQualityPreference, MediaId, ProviderCollection } from '../../../../types/onlineMusic';
@@ -542,21 +543,23 @@ export function useLibraryPlaybackController({
         if (!currentSong) {
             return null;
         }
+        // The lyrics shown, as their source gave them: the filter rules and the mod transform are laid on at display.
+        const shownSource = lyricsBeforeRules(untransformedLyrics(lyrics));
 
         if (isLocalPlaybackSong(currentSong)) {
             const localData = resolveLocalSongRecord(currentSong);
-            if (!localData) return lyrics;
+            if (!localData) return shownSource;
             const resolved = await resolveLocalSongLyrics(
                 localData,
                 useLyricSettingsStore.getState().localLyricsPriority,
             );
-            return resolved.source ? resolved.lyrics : lyrics;
+            return resolved.source ? resolved.lyrics : shownSource;
         }
 
         if (isNavidromePlaybackSong(currentSong)) {
             const navidromeSong = resolveNavidromePlaybackCarrier(currentSong);
             if (!navidromeSong) {
-                return lyrics;
+                return shownSource;
             }
 
             if ((navidromeSong as NavidromeSong & { lyricsSource?: string; matchedLyrics?: LyricData; }).lyricsSource === 'online' && (navidromeSong as NavidromeSong & { matchedLyrics?: LyricData; }).matchedLyrics) {
@@ -571,11 +574,11 @@ export function useLibraryPlaybackController({
             const resolved = await resolvePreferredNavidromeLyrics(navidromeSong);
             if (resolved) return resolved;
 
-            return lyrics;
+            return shownSource;
         }
 
         const onlineSong = currentSong;
-        const resolved = await resolveOnlineSongLyricsState(onlineSong, lyrics);
+        const resolved = await resolveOnlineSongLyricsState(onlineSong, shownSource);
         return resolved.lyrics;
     }, [currentSong, lyrics, resolveLocalSongRecord, resolveOnlineSongLyricsState]);
 
@@ -739,7 +742,7 @@ export function useLibraryPlaybackController({
         void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
         // As playSong does for an online song: this song and the one after it are analysed for the
         // blend between them, and online songs queued nearby are fetched ahead.
-        if (finalQueue.length > 1) {
+        if (finalQueue.length > 0) {
             void prefetchNearbySongs(initialMeta.unifiedSong, finalQueue, audioQuality, userId);
         }
 
@@ -1050,7 +1053,7 @@ export function useLibraryPlaybackController({
             if (landed.write) setPlayQueue(landed.write);
             void persistLastPlaybackCache(unifiedSong, finalQueue);
             // As in onPlayLocalSong.
-            if (finalQueue.length > 1) {
+            if (finalQueue.length > 0) {
                 void prefetchNearbySongs(unifiedSong, finalQueue, audioQuality, userId);
             }
 

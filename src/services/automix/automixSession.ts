@@ -42,7 +42,7 @@ import {
 } from './transitionPlanner';
 import { planForMode, type TransitionSettings } from './transitionStrategy';
 import { announceTransition, whyCueNotDrawn, type TransitionCue } from './transitionCue';
-import type { TrackProfile } from './trackProfile';
+import { programIsWholeTrack, type TrackProfile } from './trackProfile';
 
 // src/services/automix/automixSession.ts
 // The automix state machine, with every browser and React dependency behind a port so the
@@ -328,14 +328,20 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
      * current compensation is added back on - otherwise with ReplayGain switched on the comparison would
      * credit a track with an imbalance ReplayGain had already removed.
      */
+    /*
+     * When both tracks were measured whole with BS.1770 gating (`programLoudness`), both are compared
+     * by it: a quiet intro or a wide mix then does not read as a quieter master. Only both or neither,
+     * by the same rule as above.
+     */
     const referenceDb = (
         profile: TrackProfile | null,
         chain: AutomixDeckChain,
-    ): number | null => (
-        profile === null
-            ? null
-            : profile.loudness + 20 * Math.log10(Math.max(chain.replayGain.gain.value, 1e-6))
-    );
+    ): number | null => {
+        if (profile === null) return null;
+        const gated = (side: TrackProfile | null) => programIsWholeTrack(side) && typeof side.programLoudness === 'number';
+        const level = gated(plannedFrom) && gated(plannedTo) ? profile.programLoudness! : profile.loudness;
+        return level + 20 * Math.log10(Math.max(chain.replayGain.gain.value, 1e-6));
+    };
 
     /** Live for exactly one transition. Emptied by settle, which every ending goes through. */
     let stemChains: AutomixStemChain[] = [];

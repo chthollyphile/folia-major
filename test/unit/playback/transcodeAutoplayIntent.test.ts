@@ -68,6 +68,9 @@ vi.mock('../../../src/services/audioEqualizerGraph', () => ({
 vi.mock('../../../src/services/playbackGraph', () => ({ buildPlaybackGraph: vi.fn() }));
 vi.mock('../../../src/services/playedTrackCache', () => ({ cachePlayedTrackAssets: vi.fn() }));
 vi.mock('../../../src/services/automix/crossfadeGraph', () => ({ rampGain: vi.fn() }));
+vi.mock('../../../src/services/automix/profileService', () => ({ onTrackProfile: () => () => undefined }));
+vi.mock('../../../src/services/volumeBalance/balancePlay', () => ({ createBalancePlay: () => ({ apply: () => null, reset: () => undefined }) }));
+vi.mock('../../../src/services/volumeBalance/balanceRecords', () => ({ onBalanceRecord: () => () => undefined }));
 
 const { usePlaybackAudioBridge } = await import('../../../src/components/app/playback/bridges/usePlaybackAudioBridge');
 

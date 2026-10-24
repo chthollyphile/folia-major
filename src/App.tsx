@@ -468,14 +468,12 @@ export default function App() {
     } = useTypographySettingsStore(useShallow(selectTypographySettingsSnapshot));
     const {
         globalLyricTimelineOffsetMs,
-        lyricFilterPattern,
-        lyricFilterEnabled,
+        lyricLineRules,
         lyricStaffPolicy,
         lyricStaffMinDwellSeconds,
         lyricStaffAbsorbMode,
         lyricStaffPattern,
-        handleSetLyricFilterPattern,
-        handleSetLyricFilterEnabled,
+        handleSetLyricLineRules,
         handleSetLyricStaffPolicy,
         handleSetLyricStaffMinDwellSeconds,
         handleSetLyricStaffAbsorbMode,
@@ -528,13 +526,13 @@ export default function App() {
     });
 
     const setLyrics = useMemo(
-        () => createLyricsSetter(setLyricsState, lyricFilterEnabled ? lyricFilterPattern : '', currentSongFullRef, {
+        () => createLyricsSetter(setLyricsState, lyricLineRules, currentSongFullRef, {
             policy: lyricStaffPolicy,
             minDwellSeconds: lyricStaffMinDwellSeconds,
             absorbMode: lyricStaffAbsorbMode,
             pattern: lyricStaffPattern,
         }),
-        [lyricFilterEnabled, lyricFilterPattern, lyricStaffPolicy, lyricStaffMinDwellSeconds, lyricStaffAbsorbMode, lyricStaffPattern],
+        [lyricLineRules, lyricStaffPolicy, lyricStaffMinDwellSeconds, lyricStaffAbsorbMode, lyricStaffPattern],
     );
     // 保存过滤设置后要用新设置重新铺一遍当前歌词，而此时闭包里的 setLyrics 还是旧的。
     const setLyricsRef = useRef(setLyrics);
@@ -963,9 +961,7 @@ export default function App() {
         [navigateToCollection],
     );
     const handleSaveLyricFilterPattern = useMemo(() => createLyricFilterPatternSaver({
-        currentEffectivePattern: lyricFilterEnabled ? lyricFilterPattern : '',
-        handleSetLyricFilterPattern,
-        handleSetLyricFilterEnabled,
+        handleSetLyricLineRules,
         handleSetLyricStaffPolicy,
         handleSetLyricStaffMinDwellSeconds,
         handleSetLyricStaffAbsorbMode,
@@ -973,10 +969,7 @@ export default function App() {
         loadCurrentSongLyricPreview,
         setLyrics: setLyricsStable,
     }), [
-        lyricFilterPattern,
-        lyricFilterEnabled,
-        handleSetLyricFilterPattern,
-        handleSetLyricFilterEnabled,
+        handleSetLyricLineRules,
         handleSetLyricStaffPolicy,
         handleSetLyricStaffMinDwellSeconds,
         handleSetLyricStaffPattern,
@@ -1757,16 +1750,14 @@ export default function App() {
         toggleTransparentBackground: () => { void toggleTransparentModeWithHandoff(!transparentPlayerBackground); },
         toggleDaylightMode,
         cycleLyricStaffPolicy: () => handleSaveLyricFilterPattern({
-            pattern: lyricFilterPattern,
-            filterEnabled: lyricFilterEnabled,
+            rules: lyricLineRules,
             staffPolicy: nextLyricStaffPolicy(lyricStaffPolicy),
             staffMinDwellSeconds: lyricStaffMinDwellSeconds,
             staffAbsorbMode: lyricStaffAbsorbMode,
             staffPattern: lyricStaffPattern,
         }),
         cycleLyricStaffAbsorbMode: () => handleSaveLyricFilterPattern({
-            pattern: lyricFilterPattern,
-            filterEnabled: lyricFilterEnabled,
+            rules: lyricLineRules,
             staffPolicy: lyricStaffPolicy,
             staffMinDwellSeconds: lyricStaffMinDwellSeconds,
             staffAbsorbMode: nextLyricStaffAbsorbMode(lyricStaffAbsorbMode),

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyLyricDisplayFilter, buildLyricFilterPreview } from '@/utils/lyrics/filtering';
+import { buildLyricFilterPreview } from '@/utils/lyrics/filtering';
+import { applyLyricLineRules, compileLyricLineRules } from '@/utils/lyrics/lyricLineRules';
+import type { LyricData } from '@/types';
 import { parseLyricsByFormat } from '@/utils/lyrics/parserCore';
+
+// The old single expression, now one written rule: applied as it always was.
+const applyLyricDisplayFilter = (lyrics: LyricData | null, pattern: string) => (
+    applyLyricLineRules(lyrics, compileLyricLineRules([{ id: 'legacy', on: true, shape: 'written', text: pattern }]))
+);
 
 describe('lyric filtering', () => {
     it('keeps lyrics unchanged when the filter is empty', () => {

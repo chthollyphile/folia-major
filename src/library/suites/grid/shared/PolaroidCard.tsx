@@ -233,7 +233,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                             {item.rawTrack.album?.name || ''}
                                         </span>
                                         <span className="text-[9px] opacity-55 font-mono">
-                                            {formatCardDuration(item.rawTrack.durationMs)}
+                                            {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}
                                         </span>
                                     </>
                                 )}
@@ -320,7 +320,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                         {item.rawTrack.album?.name || ''}
                                     </span>
                                     <span className="text-[9px] opacity-35 font-mono">
-                                        {formatCardDuration(item.rawTrack.durationMs)}
+                                        {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}
                                     </span>
                                 </>
                             )}

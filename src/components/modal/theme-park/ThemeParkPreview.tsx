@@ -20,7 +20,7 @@ import {
 import { getVisualizerScopedSeed } from '../../visualizer/registry';
 import type { VisualizerTuningBundle } from '../../visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../../visualizer/backgrounds/definition';
-import VisPlaygroundSampleStage from '../../visualizer/window/VisPlaygroundSampleStage';
+import VisPlaygroundSampleStage, { SampleBox } from '../../visualizer/window/VisPlaygroundSampleStage';
 import { Tooltip } from '../settings/kit';
 import { SAMPLE_COLOR_MOTION_CLASS, ThemeSampleButton, ThemeSampleCard, themeSampleVars } from './ThemeSample';
 import type { EditableMode } from './themeParkDraft';
@@ -113,14 +113,15 @@ const ThemePreview: React.FC<{
         const pauseLabel = isPaused ? t('ui.playPreview') : t('ui.pausePreview');
 
         return (
-            <div
-                className="relative isolate h-full overflow-hidden rounded-xl bg-[var(--ts-bg)] shadow-[0_0_0_1px_var(--st-line)]"
+            <SampleBox
+                room="h-full"
+                className="relative isolate overflow-hidden rounded-xl bg-[var(--ts-bg)] shadow-[0_0_0_1px_var(--st-line)]"
                 style={themeSampleVars(theme)}
             >
                 {/* Styles lay out from the app's window (vw, window.innerWidth), so the style is drawn
-                    as large as the window and scaled to fit, as in the lyric style window, then zoomed
-                    in a little. The song card below is not scaled, so the subtitle keeps
-                    a set height above it (SUBTITLE_BOTTOM_PX). */}
+                    as large as the window and scaled to fit, as in the lyric style window. The song
+                    card below is not scaled, so the subtitle keeps a set height above it
+                    (SUBTITLE_BOTTOM_PX). */}
                 <VisPlaygroundSampleStage subtitleBottomPx={SUBTITLE_BOTTOM_PX}>
                     <div className="absolute inset-0">
                         <VisualizerRenderer
@@ -178,7 +179,7 @@ const ThemePreview: React.FC<{
                         {isPaused ? <Play size={14} className="translate-x-[1px]" fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
                     </button>
                 </Tooltip>
-            </div>
+            </SampleBox>
         );
     };
 

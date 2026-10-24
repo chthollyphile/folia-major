@@ -25,16 +25,18 @@ import { escapeCloses, tabTarget } from './sheetKeys';
 // topmost sheet and nothing under it. Closing gives focus back to what opened it.
 
 /**
- * s: a question or a short notice. m: a dialog with content of its own. l: a work window.
+ * s: a question or a short notice. m: a dialog with content of its own. l: a work window. xl: a work
+ * window with two wide panes.
  * side: a dialog with a column of choices beside its content (`aside`); it is at least 420 high,
  * or as high as the window lets it be: in a lower window its body scrolls, as in the other sizes.
  */
-export type SheetSize = 's' | 'm' | 'l' | 'side';
+export type SheetSize = 's' | 'm' | 'l' | 'xl' | 'side';
 
 const SIZE_CLASS: Record<SheetSize, string> = {
     s: 'w-[400px]',
     m: 'w-[600px]',
     l: 'h-[720px] w-[880px]',
+    xl: 'h-[720px] w-[1160px]',
     side: 'min-h-[min(420px,100%)] w-[772px]',
 };
 

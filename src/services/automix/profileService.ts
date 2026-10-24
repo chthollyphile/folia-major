@@ -10,7 +10,7 @@ import { isCacheableAudioResponse } from '../playbackRecovery/mediaCacheGuard';
 import type { PlaybackRepresentation } from '../../types/playbackRecovery';
 import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { mayStoreSongAudio, whyNotTheSong, whyNotTheSongPlayed, whyPreviewClip } from '../wholeSongCheck';
-import { analyseTrackOffThread, melSpectrogramOffThread } from './analysisOffThread';
+import { analyseTrackOffThread, measureProgramLoudnessOffThread, melSpectrogramOffThread } from './analysisOffThread';
 import { analyseBeatGrid, canRunBeatThis } from '../analysis/beatThis';
 import { getTrackBeatGrid } from '../analysis/beatGrid';
 import { decodeAtRate, readLocalTrackFile, toMidSide } from '../analysis/trackAudio';
@@ -157,9 +157,47 @@ export const profilesSettled = (): Promise<unknown> => queue;
 
 const storageKey = (songKey: string) => `automix_profile_${songKey}`;
 
+const profileListeners = new Set<() => void>();
+
+/** Told each time a track's profile is measured or read back; the volume balance waits on its loudness. */
+export const onTrackProfile = (listener: () => void): (() => void) => {
+    profileListeners.add(listener);
+    return () => { profileListeners.delete(listener); };
+};
+
+/** A stored profile as it is on disk, read only. The volume balance takes an old whole-track reading from it. */
+export const readStoredTrackProfile = (analysisKey: string): Promise<TrackProfile | null> => (
+    getFromCache<TrackProfile>(storageKey(analysisKey))
+);
+
+/** A whole track's BS.1770 loudness, measured ahead of the rest of its profile, and when each step ended (performance.now()). */
+export interface ProgramMeasurement {
+    /** The analysis key. */
+    key: string;
+    song: SongResult;
+    loudness: number;
+    peak: number;
+    queuedAt: number;
+    startedAt: number;
+    bytesAt: number;
+    decodedAt: number;
+    measuredAt: number;
+    /** When the full profile was done, or null when it failed. */
+    profiled: Promise<number | null>;
+}
+
+const programListeners = new Set<(measurement: ProgramMeasurement) => void>();
+
+/** Told as soon as a whole track's loudness is measured, before the beat model runs; the volume balance listens. */
+export const onProgramMeasured = (listener: (measurement: ProgramMeasurement) => void): (() => void) => {
+    programListeners.add(listener);
+    return () => { programListeners.delete(listener); };
+};
+
 const remember = (songKey: string, profile: TrackProfile | null) => {
     profiles.delete(songKey);
     profiles.set(songKey, profile);
+    profileListeners.forEach(listener => listener());
     // The answer replaces whatever an earlier request came to; left behind, it would be read back once
     // this profile is evicted, older than the measurement that superseded it.
     outcomes.delete(songKey);
@@ -442,8 +480,11 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
         return;
     }
     inFlight.add(songKey);
+    const queuedAt = performance.now();
+    let profiled: (at: number | null) => void = () => undefined;
 
     queue = queue.then(async () => {
+        const startedAt = performance.now();
         try {
             // Asked here, at the front of the queue, not when this was enqueued - see `wanted`. The
             // listener may have skipped past this track while it was waiting its turn, and the whole
@@ -482,6 +523,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
             }
 
             const result = await readBytes(request, representation, Boolean(usable?.partial));
+            const bytesAt = performance.now();
             if ('skipped' in result) {
                 if (usable) {
                     remember(songKey, usable);
@@ -538,6 +580,20 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 ? await decodeAtRate(result.bytes, PROFILE_SAMPLE_RATE)
                 : await decodeTrackAtRate(songKey, PROFILE_SAMPLE_RATE, result.bytes, decodeAtRate, 'automix profile', 'own');
             const channels = buffer ? toMidSide(buffer) : null;
+            // The volume balance's reading, ahead of the beat model: a whole track is read once, so its
+            // loudness is known seconds sooner than the profile it also goes into.
+            if (buffer && channels && !result.partial) {
+                const decodedAt = performance.now();
+                const program = await measureProgramLoudnessOffThread(channels.mid, channels.side, buffer.sampleRate);
+                if (program) {
+                    const measurement: ProgramMeasurement = {
+                        key: songKey, song: request.song, ...program, queuedAt, startedAt, bytesAt, decodedAt,
+                        measuredAt: performance.now(),
+                        profiled: new Promise<number | null>((resolve) => { profiled = resolve; }),
+                    };
+                    programListeners.forEach(listener => listener(measurement));
+                }
+            }
             // The beat grid, from a model rather than autocorrelation, when this build has one. Asked
             // for here rather than inside `analyseTrack` because it is the impure step - it crosses
             // into the main process. Null keeps `analyseTrack` on the estimator it has always used,
@@ -570,6 +626,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
                 })
                 : null;
             remember(songKey, profile);
+            profiled(profile ? performance.now() : null);
             if (profile) {
                 await saveToCache(storageKey(songKey), profile);
                 // The analysed length is printed for the partial case on purpose: "nothing found"
@@ -616,6 +673,7 @@ export const ensureTrackProfile = async (request: ProfileRequest): Promise<void>
         } catch (error) {
             console.warn('[Automix] track analysis failed', error);
             remember(songKey, null);
+            profiled(null);
         } finally {
             inFlight.delete(songKey);
         }
@@ -693,6 +751,8 @@ export const recordPlayedTail = (
         outroTone: null,
         outroKey: null,
         outroBpm: null,
+        // Nor does it give a BS.1770 reading or a peak, so those stay the head's, and say so.
+        programFromHead: true,
     };
     remember(songKey, profile);
     void saveToCache(storageKey(songKey), profile);

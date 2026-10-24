@@ -10,6 +10,7 @@ const { createYtmWebSessionRepository, createYtmWebSignIn, desktopChromeName, gu
 const webPages = require('./webPages.cjs');
 const webSaves = require('./webSaves.cjs');
 const { createWebExplore } = require('./webExplore.cjs');
+const songVersion = require('./songVersion.cjs');
 
 // electron/ytm/ytmApiBridge.cjs
 
@@ -17,7 +18,7 @@ const YTM_OPERATIONS = Object.freeze([
   'login_status', 'logout',
   'web_login_start', 'web_login_check', 'web_login_open', 'web_login_cancel',
   'search_songs', 'song_detail', 'song_detail_en', 'song_detail_zh', 'lyrics', 'album', 'artist', 'playlist', 'public_playlist', 'user_playlists', 'user_albums', 'audio',
-  'explore', 'mix', 'playlist_edit', 'list_save', 'list_saved', 'song_like',
+  'explore', 'mix', 'playlist_edit', 'list_save', 'list_saved', 'song_like', 'song_versions', 'played_as',
 ]);
 
 const REVOKE_URL = 'https://www.youtube.com/o/oauth2/revoke';
@@ -64,6 +65,19 @@ const MEMBERSHIP_RETRY_MS = 5 * 60 * 1000;
 // came at 40 KB/s; in pieces of this size, each took a third of a second), so a file is asked
 // for in pieces. Most tracks fit in one.
 const AUDIO_PIECE_BYTES = 10 * 1024 * 1024;
+// The songs of this many music videos of a list are asked for at once (asShown).
+const SONG_VERSION_REQUESTS = 6;
+// A list waits this long at most for the songs of its music videos (asShown): about two rounds of
+// those asks, each one request to the account's watch page, so a list of a dozen videos or fewer
+// comes paired. A list of more is not held for several rounds: the videos not answered by then
+// are shown as they are, and the next read of a list finds them paired. Not timed: the
+// signed-in path cannot be run from a script.
+const PAIRING_WAIT_MS = 1500;
+// A music video a list showed as itself waits this long at most for its song before it is
+// played (playedSongOf): twice what a list waits, since the listener chose this one track.
+const PLAYED_PAIR_WAIT_MS = 3000;
+// At most this many tracks are asked about with one `song_versions` (the app keeps 300 songs played).
+const MAX_SONG_VERSIONS = 300;
 
 // Both packages are ESM-only, and loading them costs a few megabytes, so they load on first use.
 const loadYtmLibraries = async () => {
@@ -99,6 +113,9 @@ const STANDARD_FLOOR_BITRATE = 40000;
 // itag 774 Opus about 257 kbit/s and itag 141 AAC about 258. The Opus one goes first.
 const ULTRA_ITAGS = Object.freeze([774, 141]);
 const bitrateOf = format => format.average_bitrate || format.bitrate || 0;
+// How much louder than YouTube's playback level the track is, in dB: YouTube turns it down by this.
+// The format's figure, else the one the player is configured with for the video.
+const loudnessOf = (format, info) => [format.loudness_db, info.player_config?.audio_config?.loudness_db].find(Number.isFinite) ?? null;
 
 // Highest-bitrate audio-only format of the original track (no dub, no loudness-compressed variant).
 // That is the level 'high' of the quality option. 'standard' takes, of the same original track,
@@ -391,7 +408,7 @@ function createYtmApiBridge({
     const format = pickAudioFormat(formats, level);
     if (!format) throw level === 'ultra' ? new NoUltraFormat() : ytmError('not-playable', 'YouTube Music offered no audio for this track');
     const file = {
-      route, level, itag: format.itag, bitrate: bitrateOf(format),
+      route, level, itag: format.itag, bitrate: bitrateOf(format), loudnessDb: loudnessOf(format, info),
       mimeType: String(format.mime_type).split(';')[0], contentLength: Number(format.content_length),
     };
 
@@ -621,7 +638,124 @@ function createYtmApiBridge({
   // A track as its public watch page names it, or null when the page does not list it.
   const songOfWatchPage = (page, id, YTNodes) => {
     const entries = page.contents_memo?.getType(YTNodes.PlaylistPanelVideo) ?? [];
-    return catalog.songFromQueueItem(entries.find(entry => entry.video_id === id)) ?? null;
+    const song = catalog.songFromQueueItem(entries.find(entry => entry.video_id === id));
+    if (!song) return null;
+    // A track asked for by its id is that track, a music video too (asShown is for lists).
+    delete song.officialVideo;
+    return song;
+  };
+
+  // An official music video in a list is shown and played as its song, where YouTube Music pairs
+  // it with one: the song's own title, picture, album and length, and its audio, which the
+  // lyrics are timed to (a video may have an intro, a scene or another mix). The pair is the one
+  // YouTube Music's player switches between, which only a signed-in account's watch page holds:
+  // a guest's lists keep their videos. Asked once a run for each video; a video without a song
+  // stays as the list has it, and so, for this read, does one whose song could not be asked for
+  // or was not answered within PAIRING_WAIT_MS. Pairs are kept for the run only, never stored.
+  // (An album page's row of a video holds the album track's length and the album's picture: kept
+  // so, it plays the video. The app's record of the songs played asks again, song_versions.)
+  const songVersions = new Map();
+  // The song of the track `videoId`, or null where it has none; a request that fails rejects and is not kept.
+  // The song of a pair is a song: it has no other song of its own, and is not asked about.
+  const songVersionOf = videoId => {
+    if (!songVersions.has(videoId)) {
+      const asked = withWeb(async web => {
+        const { Parser, YTNodes } = await library();
+        // (A page answered as to a guest holds no pair: askWeb refuses it, and it is not kept.)
+        const page = Parser.parseResponse(await askWeb(web, '/next', { videoId }));
+        const pairs = page.contents_memo?.getType(YTNodes.PlaylistPanelVideoWrapper) ?? [];
+        // (A queue that does not hold the track says nothing of its song: no answer, asked again.)
+        const holds = pairs.some(pair => pair?.primary?.video_id === videoId)
+          || (page.contents_memo?.getType(YTNodes.PlaylistPanelVideo) ?? []).some(entry => entry.video_id === videoId);
+        if (!holds) throw ytmError('invalid-response', 'The watch page does not hold the track');
+        return catalog.songFromQueueItem(songVersion.songEntryOf(pairs, videoId));
+      });
+      songVersions.set(videoId, asked);
+      asked.then(song => {
+        if (song && !songVersions.has(song.id)) songVersions.set(song.id, Promise.resolve(null));
+      }, () => { if (songVersions.get(videoId) === asked) songVersions.delete(videoId); });
+    }
+    return songVersions.get(videoId);
+  };
+  // The videos a song was shown in place of, and the video of each playlist row that was: a like
+  // taken back, or a row removed, is the video's (song_like, playlist_edit).
+  const shownFor = new Map();
+  const rowVideos = new Map();
+  // The official music videos lists held this run (playedSongOf).
+  const listedVideos = new Set();
+  // The songs of the tracks `videos`, by track (null: it has none), a few asked for at a time,
+  // put in `found` as they are answered. A track whose song could not be asked for is left out;
+  // a guest's all are, and so are those left once the listener signed out.
+  const songsOfVideos = async (videos, found = new Map()) => {
+    for (let at = 0; at < videos.length && webRepo.get(); at += SONG_VERSION_REQUESTS) {
+      const batch = videos.slice(at, at + SONG_VERSION_REQUESTS);
+      (await Promise.allSettled(batch.map(songVersionOf))).forEach((asked, index) => {
+        if (asked.status === 'fulfilled') found.set(batch[index], asked.value);
+        else warn(`[Ytm] The song of the track ${batch[index]} could not be asked for: ${describeError(asked.reason)}; it is shown as the list has it`);
+      });
+    }
+    return found;
+  };
+  const songsIn = found => [...found.values()].filter(Boolean).length;
+  // The rows of a list as shown, one for each song handed in: `song` as it is shown, and `video`,
+  // the music video it is shown in place of, where it is one. The list waits PAIRING_WAIT_MS at
+  // most for the songs of its videos; the ones still being asked for then are asked on, and their
+  // answers kept for the next read.
+  const pairedRows = async songs => {
+    const videos = [...new Set(songs.filter(song => song.officialVideo).map(song => song.id))];
+    videos.forEach(id => listedVideos.add(id));
+    const found = new Map();
+    const asking = songsOfVideos(videos, found);
+    let limit;
+    const inTime = await Promise.race([asking.then(() => true), new Promise(resolve => { limit = setTimeout(resolve, PAIRING_WAIT_MS, false); })])
+      .finally(() => clearTimeout(limit));
+    if (videos.length > 0 && webRepo.get()) {
+      const late = videos.length - found.size;
+      const shown = songsIn(found);
+      log(`[Ytm] ${videos.length} music video(s) in a list, ${shown} shown as their song${inTime ? '' : `; ${late} not answered within ${PAIRING_WAIT_MS}ms are shown as they are and asked on`}`);
+      if (!inTime) void asking.then(all => log(`[Ytm] The ${late} music video(s) a list showed as they are were asked on: ${songsIn(all) - shown} more have a song, shown from the next read`));
+    }
+    // (Read now: answers that come later are for the next read.)
+    return songs.map(({ officialVideo, ...song }) => {
+      const version = officialVideo ? found.get(song.id) : undefined;
+      if (!version) return { song };
+      shownFor.set(version.id, new Set([...(shownFor.get(version.id) ?? []), song.id]));
+      if (song.setVideoId) rowVideos.set(song.setVideoId, song.id);
+      return { song: song.setVideoId ? { ...version, setVideoId: song.setVideoId } : version, video: song };
+    });
+  };
+  // A filter that keeps one row of a song that pairing made stand twice in a list (pairedRows): a
+  // video beside its song, or two videos of one song. The first row stays, in its place. A song
+  // the list itself holds twice stays twice.
+  const oneRowEach = () => {
+    // Each song's first row: whether it was shown in place of a video.
+    const firstPaired = new Map();
+    return ({ song, video }) => {
+      const paired = firstPaired.get(song.id);
+      if (paired === undefined) firstPaired.set(song.id, Boolean(video));
+      return paired === undefined || (!paired && !video);
+    };
+  };
+  const asShown = async songs => (await pairedRows(songs)).filter(oneRowEach()).map(row => row.song);
+  // The song a music video a list showed as itself is played as, or null: it plays as itself.
+  // The renderer plays the song in the video's place (played_as), its name, picture, length and
+  // lyrics with it. Decided once a run for each video: the video played again is the same song.
+  const playedSongs = new Map();
+  const playedSongOf = videoId => {
+    if (!listedVideos.has(videoId) || !webRepo.get()) return Promise.resolve(null);
+    if (!playedSongs.has(videoId)) {
+      let limit;
+      // (undefined: not known in time; null: the video has no song.)
+      playedSongs.set(videoId, Promise.race([
+        songVersionOf(videoId),
+        new Promise(resolve => { limit = setTimeout(resolve, PLAYED_PAIR_WAIT_MS, undefined); }),
+      ]).catch(() => undefined).finally(() => clearTimeout(limit)).then(song => {
+        if (song) log(`[Ytm] ${videoId} is a music video a list showed as itself; its song ${song.id} is played in its place`);
+        else if (song === undefined) warn(`[Ytm] The song of the music video ${videoId} was not known within ${PLAYED_PAIR_WAIT_MS}ms; it is played as itself this run`);
+        return song ?? null;
+      }));
+    }
+    return playedSongs.get(videoId);
   };
 
   // A track as the page of one language names it. A session asks in one language only, so this
@@ -753,7 +887,7 @@ function createYtmApiBridge({
         const search = await guest.music.search(query, { type: 'song' });
         shelf = (search.contents ?? []).find(section => section?.type === 'MusicShelf');
       }
-      const items = (shelf?.contents ?? []).map(item => catalog.songFromListItem(item)).filter(Boolean);
+      const items = await asShown((shelf?.contents ?? []).map(item => catalog.songFromListItem(item)).filter(Boolean));
       return { items, ...(typeof shelf?.continuation === 'string' && shelf.continuation ? { continuation: shelf.continuation } : {}) };
     },
 
@@ -790,14 +924,15 @@ function createYtmApiBridge({
       const id = entityId(params.id);
       if (!id?.startsWith('MPRE')) throw ytmError('invalid-response', 'Invalid album id');
       const guest = await guestSession.get();
-      return catalog.albumFromPage(await guest.music.getAlbum(id), id);
+      const album = catalog.albumFromPage(await guest.music.getAlbum(id), id);
+      return { ...album, items: await asShown(album.items) };
     },
 
     async artist(params) {
       const id = entityId(params.id);
       if (!id?.startsWith('UC')) throw ytmError('invalid-response', 'Invalid artist id');
       const [guest, { YTNodes }] = await Promise.all([guestSession.get(), library()]);
-      const { albumShelves, ...artist } = catalog.artistFromPage(await guest.music.getArtist(id), id);
+      const { albumShelves, songs, ...artist } = catalog.artistFromPage(await guest.music.getArtist(id), id);
       const self = [{ id, name: artist.collection.name }];
       // A carousel shows the first few releases; its "more" page lists all of them.
       const shelves = await Promise.all(albumShelves.map(async shelf => {
@@ -810,7 +945,7 @@ function createYtmApiBridge({
         } catch { return shelf.items; }
       }));
       const albums = [...new Map(shelves.flat().map(album => [album.id, album])).values()];
-      return { ...artist, albums };
+      return { ...artist, songs: await asShown(songs), albums };
     },
 
     // Playlists are read as the signed-in account, which is the only way to see private ones.
@@ -826,7 +961,8 @@ function createYtmApiBridge({
         const data = await browseWeb(web, params.continuation ? { continuation: params.continuation } : { browseId: `VL${id}` });
         // The first page has the list's header, and with it the song count, where it names one.
         const trackCount = params.continuation ? undefined : webPages.playlistCountOf(data);
-        const read = playlistPageOf(Parser.parseResponse(data), Boolean(params.continuation), YTNodes, webPages.playlistRowsOf(data), trackCount);
+        const page = playlistPageOf(Parser.parseResponse(data), Boolean(params.continuation), YTNodes, webPages.playlistRowsOf(data), trackCount);
+        const read = { ...page, items: await asShown(page.items) };
         // Of a list's first page only: a long list is read in many.
         if (params.continuation) return read;
         log(`[Ytm] Playlist page: ${read.items.length} song(s), ${read.items.filter(song => song.setVideoId).length} with the id of their row`);
@@ -847,7 +983,8 @@ function createYtmApiBridge({
       const page = await guest.actions.execute('/browse', {
         ...(params.continuation ? { continuation: params.continuation } : { browseId: `VL${id}` }), client: 'YTMUSIC', parse: true,
       });
-      return playlistPageOf(page, Boolean(params.continuation), YTNodes);
+      const read = playlistPageOf(page, Boolean(params.continuation), YTNodes);
+      return { ...read, items: await asShown(read.items) };
     },
 
     user_playlists: webLibraryPage(PLAYLISTS_TAB, 'playlist'),
@@ -861,7 +998,23 @@ function createYtmApiBridge({
       if (params.continuation !== undefined && !boundedText(params.continuation, 8192)) {
         throw ytmError('invalid-response', 'Invalid page token');
       }
-      return webExplore.page(params.continuation);
+      const read = await webExplore.page(params.continuation);
+      const rows = await pairedRows(read.sections.flatMap(section => section.items.filter(item => item.kind === 'song').map(item => item.song)));
+      // A shelf is a list of its own (oneRowEach): the same song on two shelves stays on both.
+      const sections = read.sections.map(section => {
+        const isFirst = oneRowEach();
+        return {
+          ...section,
+          items: section.items.flatMap(item => {
+            if (item.kind !== 'song') return [item];
+            const row = rows.shift();
+            if (!isFirst(row)) return [];
+            // A song shown for a video has a square picture of its own, not the video's wide one.
+            return [row.song.id === item.song.id ? { ...item, song: row.song } : { kind: 'song', song: row.song }];
+          }),
+        };
+      });
+      return { ...read, sections };
     },
 
     // A mix has no page: it is the queue YouTube makes up for a list id, here as a guest of
@@ -878,7 +1031,14 @@ function createYtmApiBridge({
         playlistId: id, ...(params.videoId ? { videoId: params.videoId } : {}), client: 'YTMUSIC', parse: true,
       });
       const entries = page.contents_memo?.getType(YTNodes.PlaylistPanelVideo) ?? [];
-      const items = entries.map(entry => catalog.songFromQueueItem(entry)).filter(Boolean);
+      const rows = await pairedRows(entries.map(entry => catalog.songFromQueueItem(entry)).filter(Boolean));
+      // The track the mix was asked with stays that track, as one asked for by its id does
+      // (songOfWatchPage): a song's radio lists the song itself, which the renderer knows by its
+      // id. Its own song, where it is a music video, is not listed beside it.
+      const isSeed = row => Boolean(params.videoId) && row.video?.id === params.videoId;
+      const seedSong = rows.find(isSeed)?.song.id;
+      const items = rows.map(row => (isSeed(row) ? { song: row.video } : row))
+        .filter(row => row.song.id !== seedSong).filter(oneRowEach()).map(row => row.song);
       log(`[Ytm] Mix ${id}: ${items.length} song(s)`);
       return { items };
     },
@@ -906,7 +1066,8 @@ function createYtmApiBridge({
         : rowIds[index]
           // The row named is the one that goes: the list's other rows of the song stay. This is
           // what YouTube Music's own page sends for "remove from playlist" (as ytmusicapi does).
-          ? { action: 'ACTION_REMOVE_VIDEO', setVideoId: rowIds[index], removedVideoId: videoId }
+          // A row shown as a song in place of its video (asShown) is the video's.
+          ? { action: 'ACTION_REMOVE_VIDEO', setVideoId: rowIds[index], removedVideoId: rowVideos.get(rowIds[index]) ?? videoId }
           // A song whose row is not known goes by its id, with every row of it.
           : { action: 'ACTION_REMOVE_VIDEO_BY_VIDEO_ID', removedVideoId: videoId }));
       return withWeb(async web => {
@@ -1009,10 +1170,41 @@ function createYtmApiBridge({
       if (!id || (params.liked !== 'true' && params.liked !== 'false')) throw ytmError('invalid-response', 'Invalid song like');
       const liked = params.liked === 'true';
       return withWeb(async web => {
-        await changeWeb(web, liked ? '/like/like' : '/like/removelike', { target: { videoId: id } });
+        // A like taken back from a song shown in place of a music video (asShown) is taken back
+        // from the video too: the liked music list would still show the video, as the song.
+        // The videos go first and the song last, so that a failure leaves the song liked, as the
+        // answer says: the like is not taken back until all of it is.
+        for (const videoId of liked ? [id] : [...(shownFor.get(id) ?? []), id]) {
+          await changeWeb(web, liked ? '/like/like' : '/like/removelike', { target: { videoId } });
+        }
         log(`[Ytm] Song ${id} ${liked ? 'liked' : 'no longer liked'}`);
         return true;
       });
+    },
+
+    // The song the track `id` is played as in its place, or null (playedSongOf).
+    async played_as(params) {
+      const id = typeof params.id === 'string' && tiles.VIDEO_ID.test(params.id) ? params.id : null;
+      if (!id) throw ytmError('invalid-response', 'Invalid track id');
+      return { song: await playedSongOf(id) };
+    },
+
+    // The songs the tracks `ids` (comma-separated) are shown as in a list (asShown), by track:
+    // null for a track with no song of its own (a song, a video somebody else uploaded); a track
+    // that could not be asked about is left out. The app's own record of the songs played asks
+    // about each track it holds, once: a music video may be recorded with its song's album and
+    // length (an album page lists it so), and only YouTube Music can tell it.
+    // A track answered this run, and the song of a pair found this run, is answered without a
+    // request (songVersionOf). The renderer does not hold its page for this answer.
+    async song_versions(params) {
+      const ids = typeof params.ids === 'string' ? [...new Set(params.ids.split(','))] : [];
+      if (ids.length === 0 || ids.length > MAX_SONG_VERSIONS || !ids.every(id => tiles.VIDEO_ID.test(id))) {
+        throw ytmError('invalid-response', 'Invalid song ids');
+      }
+      const unknown = ids.filter(id => !songVersions.has(id)).length;
+      const found = await songsOfVideos(ids);
+      log(`[Ytm] ${ids.length} recorded track(s) asked about (${unknown} of them asked of YouTube): ${songsIn(found)} shown as their song, ${ids.length - found.size} not answered`);
+      return { songs: Object.fromEntries(found) };
     },
 
     // `quality` is the level of the quality option the renderer asks at: 'standard', 'ultra',

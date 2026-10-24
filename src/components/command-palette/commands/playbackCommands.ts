@@ -32,6 +32,7 @@ export const playbackCommands: CommandPaletteCommand[] = [
     createReplayGainCommand('off', 'Disable ReplayGain', 'Play audio without ReplayGain adjustment', ['replaygain off', 'audio gain off', '关闭音频增益', '关闭 replaygain', 'gbyyzy']),
     createReplayGainCommand('track', 'ReplayGain: Track mode', 'Apply per-track ReplayGain adjustment', ['replaygain track', 'track gain', 'single track gain', '单曲增益', '单曲 replaygain']),
     createReplayGainCommand('album', 'ReplayGain: Album mode', 'Apply album ReplayGain adjustment', ['replaygain album', 'album gain', '专辑增益', '专辑 replaygain']),
+    createReplayGainCommand('auto', 'ReplayGain: Smart balance', 'Measure each song’s loudness and turn the loud ones down to match', ['volume balance', 'loudness normalization', 'replaygain auto', '智能平衡', '音量平衡', '响度平衡']),
     {
         id: 'playback-equalizer',
         // It opens the controls panel tab to reach the equalizer, so it needs the player surface.

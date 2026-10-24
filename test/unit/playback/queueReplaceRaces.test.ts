@@ -99,7 +99,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         },
     },
 }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null,
     isSongUnavailable: (song: { id: unknown } | null | undefined) => Boolean(song && env.self.unavailable.has(String(song.id))),
 }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({

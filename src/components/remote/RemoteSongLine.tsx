@@ -45,15 +45,14 @@ type HandoffFadeProps = {
     follow: MotionValue<number> | undefined;
     reduceMotion: boolean;
     className: string;
-    shade?: string;
     backgroundImage?: string;
     children?: React.ReactNode;
 };
 
-const HandoffFade: React.FC<HandoffFadeProps> = ({ follow, reduceMotion, className, shade, backgroundImage, children }) => {
+const HandoffFade: React.FC<HandoffFadeProps> = ({ follow, reduceMotion, className, backgroundImage, children }) => {
     const opacity = useHandoffFade(follow, reduceMotion);
     return (
-        <motion.div className={className} data-remote-shade={shade} style={{ backgroundImage, opacity }}>
+        <motion.div className={className} style={{ backgroundImage, opacity }}>
             {children}
         </motion.div>
     );
@@ -143,8 +142,6 @@ const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMo
                 const handoffOpacity = face.mode === 'incoming'
                     ? handoff.handoffIncomingOpacity
                     : handoff.isHandoffActive ? handoff.handoffOutgoingOpacity : undefined;
-                // The soft shade of the transparent background is sized to the text that is showing.
-                const shade = form === mode && face.mode === 'current' ? '' : undefined;
                 return (
                     <motion.div
                         key={`${form}-${face.key}`}
@@ -157,12 +154,12 @@ const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMo
                             : { duration: reduceMotion ? 0 : SWITCH_SECONDS, ease: 'easeInOut' }}
                     >
                         {form === 'line' ? (
-                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__row" shade={shade}>
+                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__row">
                                 <span className="remote-song__title">{face.title}</span>
                                 {face.artist && <span className="remote-song__artist">{face.artist}</span>}
                             </HandoffFade>
                         ) : (
-                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__cardtext" shade={shade}>
+                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__cardtext">
                                 <div className="remote-song__cardtitle">{face.title}</div>
                                 {face.artist && <div className="remote-song__cardartist">{face.artist}</div>}
                             </HandoffFade>
@@ -175,7 +172,6 @@ const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMo
 
     return (
         <div className="remote-song" data-mode={mode}>
-            {/* Not under the transparent background's shade: large, it carries its own shadow. */}
             <div className="remote-cover">
                 {!handoff.currentCoverUrl && <div className="remote-cover__blank">F</div>}
                 <RemoteCoverFaces handoff={handoff} imageClassName="remote-cover__image" reduceMotion={reduceMotion} />

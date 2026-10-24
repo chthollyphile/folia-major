@@ -90,11 +90,7 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
                     return;
                 }
                 painted[index] = fill;
-                // Sung and not yet sung are plain text; only the piece in between is a gradient.
-                node.dataset.fill = fill >= 100 ? 'full' : fill <= 0 ? 'none' : 'part';
-                if (fill > 0 && fill < 100) {
-                    node.style.setProperty('--remote-fill', `${fill}%`);
-                }
+                node.style.setProperty('--remote-fill', `${fill}%`);
             });
         };
 
@@ -113,20 +109,19 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
             <div ref={measureRef} className="remote-lyric__hero remote-lyric__measure" aria-hidden>
                 {renderSegments(segments, line)}
             </div>
-            <div className="remote-lyric__hero" data-size={fit.size} data-remote-shade="">
+            <div className="remote-lyric__hero" data-size={fit.size}>
                 {renderSegments(segments, line, (index, node) => {
                     nodesRef.current[index] = node;
                 })}
             </div>
             {fit.showRomanization && texts.romanization && (
-                <div className="remote-lyric__roma" data-remote-shade="">{texts.romanization}</div>
+                <div className="remote-lyric__roma">{texts.romanization}</div>
             )}
             {texts.second && fit.secondMaxLines > 0 && (
                 <div
                     className="remote-lyric__sub"
                     data-kind={texts.second.kind}
                     data-lines={fit.secondMaxLines}
-                    data-remote-shade=""
                 >
                     {texts.second.text}
                 </div>

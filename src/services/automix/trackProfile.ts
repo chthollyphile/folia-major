@@ -5,6 +5,7 @@ import {
     estimateTempo,
     fft,
     kWeight,
+    measureProgramLoudness,
     rmsDb,
     spectralFlux,
     BEATS_PER_BAR,
@@ -23,7 +24,7 @@ import {
 // the beat grid, the key - is about the *incoming* song.
 
 /** Bumped whenever the maths changes, so stored profiles from an older build are re-measured. */
-export const TRACK_PROFILE_VERSION = 9;
+export const TRACK_PROFILE_VERSION = 10;
 
 /**
  * What the analysis runs at.
@@ -216,6 +217,20 @@ export interface TrackProfile {
     outroSlope: number | null;
     /** RMS of the sounding part, dBFS. */
     loudness: number;
+    /**
+     * Integrated loudness after BS.1770, LUFS (measureProgramLoudness): both channels, gated. What the
+     * volume balance levels by, and what a blend compares when both tracks have it in full. Over the
+     * head only on a partial profile; absent on a profile from before version 10.
+     */
+    programLoudness?: number | null;
+    /** The loudest sample of either channel, linear, read at the analysis rate: a little under the file's own. */
+    peak?: number | null;
+    /**
+     * `programLoudness` and `peak` are still the head's, though the rest of the profile was completed
+     * from the deck's playback (recordPlayedTail): the tap reads neither. A library song is never read
+     * whole, so its head reading is kept for turning it down; only nothing may lift by it.
+     */
+    programFromHead?: boolean;
     /** K-weighted level of the opening EDGE_WINDOW_SEC of sound, LUFS. */
     headDb: number;
     /** The same for the closing window. Null when only the head was read. */
@@ -282,6 +297,14 @@ export interface TrackProfile {
     introKey: KeyEstimate;
     outroKey: KeyEstimate | null;
 }
+
+/**
+ * Whether `programLoudness` and `peak` were read over the whole track. A head's peak says nothing
+ * of a louder chorus later, so a song lifted by it can clip.
+ */
+export const programIsWholeTrack = (profile: TrackProfile | null | undefined): profile is TrackProfile => (
+    !!profile && !profile.partial && !profile.programFromHead
+);
 
 /** Krumhansl-Schmuckler key profiles: how much each scale degree is used in major and minor. */
 const MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
@@ -718,6 +741,7 @@ export const analyseTrack = async (
 
     // The vocal band, as bin indices. Sums over it are the only thing the side channel is for.
     const side = options.side && options.side.length >= mono.length ? options.side : null;
+    const program = measureProgramLoudness(mono, side, sampleRate);
     const vocalLowBin = Math.max(1, Math.floor(VOCAL_LOW_HZ / binHz));
     const vocalHighBin = Math.min(bins - 1, Math.ceil(VOCAL_HIGH_HZ / binHz));
     const sideReal = new Float64Array(side ? FFT_SIZE : 0);
@@ -988,6 +1012,8 @@ export const analyseTrack = async (
         introSlope: edges.introSlope,
         outroSlope: partial ? null : edges.outroSlope,
         loudness: edges.loudness,
+        programLoudness: program?.loudness ?? null,
+        peak: program?.peak ?? null,
         headDb: edges.headDb,
         tailDb: partial ? null : edges.tailDb,
         introTone: toneOver(firstBin, firstBin + toneWindow),

@@ -110,6 +110,7 @@ const CommandPaletteQueueList: React.FC<CommandPaletteQueueListProps> = ({
             playNext: t('queue.playNext'),
             remove: t('queue.remove'),
             unavailable: t('status.songUnavailableTag'),
+            video: t('status.songVideoTag'),
             artist: t('commandPalette.queueFacetArtist'),
             album: t('commandPalette.queueFacetAlbum'),
         },

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import LyricStaffSection from '../../src/components/modal/lyric-filter/LyricStaffSection';
-import LyricFilterRuleSection from '../../src/components/modal/lyric-filter/LyricFilterRuleSection';
+import LyricRuleList, { lyricRuleLabel } from '../../src/components/modal/lyric-filter/LyricRuleList';
+import { compileLyricLineRules, type LyricLineRule } from '../../src/utils/lyrics/lyricLineRules';
+import { useTranslation } from 'react-i18next';
 import { buildLyricFilterPreviewModel } from '../../src/components/modal/lyric-filter/buildLyricFilterPreviewModel';
 import LyricFilterPreviewList from '../../src/components/modal/lyric-filter/LyricFilterPreviewList';
 import { SettingsKitThemeContext, settingsTokens } from '../../src/components/modal/settings/kit/kitTheme';
@@ -72,8 +74,8 @@ const LyricStaffSectionProbe: React.FC = () => {
     const [minDwell, setMinDwell] = useState(DEFAULT_LYRIC_STAFF_MIN_DWELL_SECONDS);
     const [absorbMode, setAbsorbMode] = useState<LyricStaffAbsorbMode>(DEFAULT_LYRIC_STAFF_ABSORB_MODE);
     const [pattern, setPattern] = useState('');
-    const [filterPattern, setFilterPattern] = useState('');
-    const [isFilterEnabled, setIsFilterEnabled] = useState(false);
+    const { t } = useTranslation();
+    const [rules, setRules] = useState<LyricLineRule[]>([]);
     const [isDaylight, setIsDaylight] = useState(false);
 
     const parsed = useMemo(() => SAMPLES.map(sample => ({
@@ -106,7 +108,7 @@ const LyricStaffSectionProbe: React.FC = () => {
             </button>
             <div className="grid gap-6 lg:grid-cols-2">
             {parsed.map(({ id, label, lyrics }) => {
-                const preview = buildLyricFilterPreviewModel(lyrics, isFilterEnabled ? filterPattern : '', {
+                const preview = buildLyricFilterPreviewModel(lyrics, compileLyricLineRules(rules), {
                     policy,
                     minDwellSeconds: minDwell,
                     absorbMode,
@@ -123,13 +125,7 @@ const LyricStaffSectionProbe: React.FC = () => {
                     >
                         <div className={`mb-3 text-xs font-semibold ${isDaylight ? 'text-zinc-500' : 'text-zinc-400'}`}>{label}</div>
                         <div className="mb-4">
-                            <LyricFilterRuleSection
-                                isEnabled={isFilterEnabled}
-                                pattern={filterPattern}
-                                error={null}
-                                onToggle={() => setIsFilterEnabled(previous => !previous)}
-                                onPatternChange={setFilterPattern}
-                            />
+                            <LyricRuleList rules={rules} songLines={[]} perRule={new Map()} hasLibrary={false} onChange={setRules} />
                         </div>
                         <LyricStaffSection
                             policy={policy}
@@ -142,7 +138,7 @@ const LyricStaffSectionProbe: React.FC = () => {
                             onPatternChange={setPattern}
                         />
                         <div className="mt-4 rounded-xl bg-[var(--st-pv)] p-3" data-probe-preview={id}>
-                            <LyricFilterPreviewList isLoading={false} rows={preview.rows} staff={preview.staff} staffPolicy={policy} />
+                            <LyricFilterPreviewList isLoading={false} rows={preview.rows} staff={preview.staff} staffPolicy={policy} ruleLabel={rule => lyricRuleLabel(t, rule)} pickedIndex={null} onPickLine={() => {}} />
                         </div>
                     </div>
                 );

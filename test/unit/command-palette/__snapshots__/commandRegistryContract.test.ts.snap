@@ -45,6 +45,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "playback-replaygain-off",
   "playback-replaygain-track",
   "playback-replaygain-album",
+  "playback-replaygain-auto",
   "playback-equalizer",
   "playback-sound-preset-flat",
   "playback-sound-preset-lofi",

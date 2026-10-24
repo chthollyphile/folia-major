@@ -247,7 +247,7 @@ describe('the automix profile', () => {
         expect(saveToCache).not.toHaveBeenCalled();
 
         recordPlayedTail(songOf('10'), heard(200), hop, 200, 'https://cdn.test/whole.mp3');
-        expect(saveToCache).toHaveBeenCalledExactlyOnceWith(profileKey(songOf('10')), expect.objectContaining({ partial: false, duration: 200 }));
+        expect(saveToCache).toHaveBeenCalledExactlyOnceWith(profileKey(songOf('10')), expect.objectContaining({ partial: false, duration: 200, programFromHead: true }));
     });
 });
 

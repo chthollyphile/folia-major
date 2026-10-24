@@ -9,7 +9,7 @@ export type YtmOperation =
     | 'login_status' | 'logout'
     | 'web_login_start' | 'web_login_check' | 'web_login_cancel' | 'web_login_open'
     | 'search_songs' | 'song_detail' | 'song_detail_en' | 'song_detail_zh' | 'lyrics' | 'album' | 'artist' | 'playlist' | 'public_playlist' | 'user_playlists' | 'user_albums' | 'audio'
-    | 'explore' | 'mix' | 'playlist_edit' | 'list_save' | 'list_saved' | 'song_like';
+    | 'explore' | 'mix' | 'playlist_edit' | 'list_save' | 'list_saved' | 'song_like' | 'song_versions' | 'played_as';
 export type YtmParams = Record<string, string | undefined>;
 // `reason`: the desktop side's own word for why a sign-in failed, where it has one.
 export type YtmBridgeResult =
@@ -25,6 +25,8 @@ export interface YtmWireSong {
     durationMs: number;
     // The id of the song's row in the playlist it was read from as the account (`playlist`).
     setVideoId?: string;
+    // The track is a video, and its audio the video's: a music video no song was shown for, or one somebody uploaded.
+    video?: boolean;
 }
 export interface YtmWireCollection {
     id: string;

@@ -1,3 +1,4 @@
+import { createBalanceMeter, type BalanceMeter } from '../volumeBalance/balanceMeter';
 import { createDeckAnalyser, type DeckAnalyser } from './deckAnalyser';
 import {
     buildBandCurves,
@@ -45,6 +46,8 @@ export interface AutomixDeckChain {
     throw: AutomixThrow;
     /** Measures this deck ahead of the fade, so it reads the track and not the blend. */
     analyser: DeckAnalyser;
+    /** The volume balance's loudness meter, tapped ahead of replayGain so it reads the song itself. */
+    balanceMeter: BalanceMeter;
     /** The shared mix point. Kept so a stem window can be wired in past this deck's own fade. */
     output: AudioNode;
 }
@@ -146,6 +149,7 @@ export const connectAutomixDeck = (
         fade,
         throw: { send, delay, feedback },
         analyser: createDeckAnalyser(context, replayGain, output),
+        balanceMeter: createBalanceMeter(context, source, output, element),
         output,
     };
 };

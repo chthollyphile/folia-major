@@ -1,4 +1,5 @@
 const { VIDEO_ID } = require('./tiles.cjs');
+const { videoFieldsOf } = require('./songVersion.cjs');
 
 // electron/ytm/catalog.cjs
 // Maps youtubei.js's parsed YouTube Music nodes (search, album, artist, watch queue) to wire shapes.
@@ -45,6 +46,8 @@ function songFromListItem(item, context = {}) {
       coverUrl: thumbnailUrl(item.thumbnail?.contents ?? item.thumbnails) || context.coverUrl || '',
     },
     durationMs: Math.max(0, Number(item.duration?.seconds) || 0) * 1000,
+    // (A row's title leads to what it plays, and says what kind of track that is.)
+    ...videoFieldsOf(item.flex_columns?.[0]?.title?.runs?.[0]?.endpoint?.payload),
   };
 }
 
@@ -57,6 +60,7 @@ function songFromQueueItem(item) {
     artists: artistsOf(item.artists),
     album: { id: str(item.album?.id), name: str(item.album?.name), coverUrl: thumbnailUrl(item.thumbnail) },
     durationMs: Math.max(0, Number(item.duration?.seconds) || 0) * 1000,
+    ...videoFieldsOf(item.endpoint?.payload),
   };
 }
 

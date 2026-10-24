@@ -2,7 +2,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import type { RowComponentProps } from 'react-window';
 import { GripVertical, ListEnd, ListPlus, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../types';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueRowShift } from './queueDragGeometry';
@@ -41,6 +41,7 @@ export type QueueIslandRowProps = {
     actions: QueueIslandRowActions;
     labels: {
         unavailable: string;
+        video: string;
         playNext: string;
         moveToEnd: string;
         remove: string;
@@ -65,6 +66,7 @@ export function WallToolsQueueRow({
     const songKey = getPlaybackSongKey(song);
     const isCurrent = songKey === currentSongKey;
     const isUnavailable = isSongUnavailable(song);
+    const tag = getSongTag(song, labels);
     const shift = drag ? queueRowShift(index, drag.from, drag.to) : 0;
     const className = [
         'lattice-tools-island-row',
@@ -110,9 +112,7 @@ export function WallToolsQueueRow({
                 <span className="lattice-tools-island-text">
                     <span className="lattice-tools-island-title">
                         <span className="lattice-tools-island-name">{song.name}</span>
-                        {isUnavailable && (
-                            <span className="lattice-tools-island-tag">{getSongUnavailableLabel(song, labels.unavailable)}</span>
-                        )}
+                        {tag && <span className="lattice-tools-island-tag">{tag}</span>}
                     </span>
                     <span className="lattice-tools-island-artist">{getSongArtistLabel(song)}</span>
                 </span>

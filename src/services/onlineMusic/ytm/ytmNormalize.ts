@@ -38,6 +38,7 @@ export const normalizeYtmSong = (raw: unknown): UnifiedSong => {
         durationMs: Math.max(0, Number(item.durationMs) || 0),
         sourceRef: { kind: 'online', providerId: 'ytm', mediaId: item.id },
         ...(item.setVideoId ? { collectionRowId: item.setVideoId } : {}),
+        ...(item.video ? { isVideo: true } : {}),
     };
 };
 

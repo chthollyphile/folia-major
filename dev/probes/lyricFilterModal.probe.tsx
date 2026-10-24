@@ -32,8 +32,7 @@ const LyricFilterModalProbe: React.FC = () => {
                 isOpen
                 isDaylight={false}
                 currentSongTitle="某首歌"
-                initialPattern=""
-                initialFilterEnabled={false}
+                initialRules={[]}
                 initialStaffPolicy="smart"
                 initialStaffMinDwellSeconds={DEFAULT_LYRIC_STAFF_MIN_DWELL_SECONDS}
                 initialStaffAbsorbMode={DEFAULT_LYRIC_STAFF_ABSORB_MODE}

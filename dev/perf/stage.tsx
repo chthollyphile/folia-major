@@ -33,8 +33,9 @@ import { useVisualizerSettingsStore } from '../../src/stores/useVisualizerSettin
 import { PlayerState, type Line, type LyricData, type SongResult } from '../../src/types';
 import { isBuiltinVisualizerBackgroundMode, isBuiltinVisualizerMode } from '../../src/types/visualizerModes';
 import { findLatestActiveLineIndex } from '../../src/utils/appPlaybackHelpers';
-import { applyLyricDisplayFilter, resolveLyricProcessingOptions } from '../../src/utils/lyrics/filtering';
+import { resolveLyricProcessingOptions } from '../../src/utils/lyrics/filtering';
 import { finalizeParsedLyricLines } from '../../src/utils/lyrics/parserCore';
+import { ensureLyricDataRenderHints } from '../../src/utils/lyrics/renderHints';
 
 // dev/perf/stage.tsx
 // The measuring page: one lyric style over one background, put together the way the app does it,
@@ -236,24 +237,24 @@ const currentSongFullRef: MutableRefObject<SongResult | null> = { current: null 
  * What the app does to the lines of a lyric file once a parser has read them, for a local song
  * (LyricParserFactory.parse without options, as resolveLocalSongLyrics calls it): every parser ends
  * in finalizeParsedLyricLines, which puts a '......' line into every gap of more than three seconds
- * and adds the render hints, and the factory then runs the display filter. Reading the text of a
+ * and adds the render hints, and the factory then ensures them (the line rules run later, in the setter). Reading the text of a
  * file is not repeated here: the test song's lines are data already. Each call gives new line
  * objects, as a parse does.
  */
 const parsedLyricsOf = (song: PerfSong): LyricData | null => {
     const options = resolveLyricProcessingOptions({});
     const lines = song.lines.map(line => ({ ...line, words: line.words.map(word => ({ ...word })) }));
-    return applyLyricDisplayFilter({ lines: finalizeParsedLyricLines(lines, options), isWordByWord: true }, options.filterPattern);
+    return ensureLyricDataRenderHints({ lines: finalizeParsedLyricLines(lines, options), isWordByWord: true });
 };
 
 /**
  * The app's lyric setter, built as App.tsx builds it, from the lyric settings store. The page
- * starts from an empty localStorage, so these are a new user's settings: no filter pattern, staff
+ * starts from an empty localStorage, so these are a new user's settings: no line rules, staff
  * credits handled by the 'smart' policy.
  */
 const createAppLyricsSetter = () => {
     const settings = useLyricSettingsStore.getState();
-    return createLyricsSetter(setLyricsState, settings.lyricFilterEnabled ? settings.lyricFilterPattern : '', currentSongFullRef, {
+    return createLyricsSetter(setLyricsState, settings.lyricLineRules, currentSongFullRef, {
         policy: settings.lyricStaffPolicy,
         minDwellSeconds: settings.lyricStaffMinDwellSeconds,
         absorbMode: settings.lyricStaffAbsorbMode,

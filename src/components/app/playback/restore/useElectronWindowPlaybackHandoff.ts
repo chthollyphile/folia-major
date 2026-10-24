@@ -23,18 +23,19 @@ import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore'
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { currentTime } from '../../../../stores/motionSignals';
 import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
+import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
 // Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
 
-// Snapshots cross IPC, so transformed lyrics arrive as a new object the new window's pipeline
-// cannot recognise and would transform again. Hand off the pre-transform lyrics instead; the
-// restore goes through setLyrics, which applies the extension transform once. Without an
-// extension transform in play this returns the snapshot unchanged.
-const withUntransformedLyrics = <Snapshot extends PlaybackSnapshot | null>(snapshot: Snapshot): Snapshot => {
+// Snapshots cross IPC, so the lyrics on screen arrive as a new object the new window's pipeline
+// cannot recognise and would transform and filter again. Hand off the lyrics as they were before
+// the extension transform and the line rules instead; the restore goes through setLyrics, which
+// applies both once.
+export const withUntransformedLyrics = <Snapshot extends PlaybackSnapshot | null>(snapshot: Snapshot): Snapshot => {
     if (!snapshot) return snapshot;
-    const lyrics = untransformedLyrics(snapshot.lyrics);
+    const lyrics = lyricsBeforeRules(untransformedLyrics(snapshot.lyrics));
     return lyrics === snapshot.lyrics ? snapshot : { ...snapshot, lyrics };
 };
 

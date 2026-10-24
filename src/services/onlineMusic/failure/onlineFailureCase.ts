@@ -36,6 +36,8 @@ const CASES: Record<OnlineFailureCaseId, { stops: boolean; retry: boolean; unpla
     'local-service-stopped': { stops: false, retry: true },
     'retry-later': { stops: false, retry: false },
     'sign-in-needed': { stops: true, retry: false },
+    // 平台不让这个账号播放（不是哪一首）：和登录一样停下，跳到下一首也一样放不了。
+    'account-refused': { stops: true, retry: false },
     'subscription-required': { stops: true, retry: false, unplayable: true },
     'purchase-required': { stops: true, retry: false, unplayable: true },
     'entitlement-required': { stops: true, retry: false, unplayable: true },

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OnlineProviderId } from '../../../types/onlineMusic';
@@ -8,6 +8,7 @@ import type { LibraryAccountController } from '../../core/account/account.contra
 import { explorePageKey, useExploreFeedStore } from '../../../stores/useExploreFeedStore';
 import { useExploreWall } from '../../../components/app/lattice/useExploreWall';
 import { listenedSongsOf, readOwnExploreSections } from '../../../components/app/home/explore/ownSections';
+import { recordSetRightTimes, watchRecentPlays } from '../../../components/app/home/explore/recentPlays';
 import { createOnlineGridViewCollection } from '../../../components/app/home/gridViewCollectionAdapters';
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeTool } from './bravaisHomeModels';
@@ -24,7 +25,8 @@ import { availableLocalTabLabel, onlineWallHint } from './bravaisEmptyWallHint';
 // - 打开：集合（歌单 / 专辑 / 歌手 / 混音）与网格的探索页一样交给宿主（onOpenGridView），bravais 照常从被点的那张推一层
 //   集合墙；歌曲点了展开聚焦卡，播放时与网格一样连同它所在 section 的歌曲一起放。
 // - 本机的两组（最近播放、再听一次，ownSections）排在平台的 section 前面，和网格的探索页一样；网格的探索墙不放它们。
-//   这两组是快照：进页签时（换平台、账户、语言就是另一页，也算进页签）与「换一批」时各读一次，之后放歌不跟着变，墙不在听歌时重排。
+//   这两组是快照：进页签时（换平台、账户、语言就是另一页，也算进页签）与「换一批」时各读一次，之后放歌不跟着变，墙不在听歌时重排；
+//   只有播放记录被纠正（旧的 MV 记录换成正式版）时再读一次。
 // - 缝：标题与面包屑是「探索」，元数据行是平台；读取中 / 读不到 / 空页的说明进状态行（墙上有本机的两组时照样说）；
 //   「⋯」里有「换一批」。
 // - 账户：与另外几个在线页签同一套（未登录、解析中时墙空着，缝里说原因；未登录时墙面上有背景说明，bravaisEmptyWallHint）。
@@ -65,8 +67,10 @@ const BravaisHomeExplore: React.FC<{
         if (isOn) useExploreFeedStore.getState().show(key, listenedSongsOf(providerId, accountId));
     }, [accountId, isOn, keptKey, key, providerId]);
     const feed = useExploreFeedStore(state => (isOn && state.key === key ? state.feed : null));
-    // 换了一页（或页签刚开）就重读快照；在渲染里换，不让墙先按上一页的快照铺一次。
-    const ownKey = isOn ? key : null;
+    // 换了一页（或页签刚开）就重读快照；在渲染里换，不让墙先按上一页的快照铺一次。播放记录被纠正（旧的 MV 记录换成正式版，
+    // 见 ownSections 的 setRightOnce）也重读：纠正要问平台，在页签打开之后才到。
+    const setRightTimes = useSyncExternalStore(watchRecentPlays, recordSetRightTimes);
+    const ownKey = isOn ? `${key}#${setRightTimes}` : null;
     const [own, setOwn] = useState(() => snapshotOwnSections(ownKey, providerId, accountId, t));
     if (own.key !== ownKey) setOwn(snapshotOwnSections(ownKey, providerId, accountId, t));
     const wall = useExploreWall({

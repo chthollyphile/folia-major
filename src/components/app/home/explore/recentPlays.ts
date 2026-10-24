@@ -35,8 +35,11 @@ const LISTENING_KEPT_DAYS = PLAYS_KEPT_MS / DAY_MS;
 
 /** A day of the listener's (see `dayOf`), and how many listenings of a song it had. */
 type DayCount = [day: number, listenings: number];
-/** A song, when it was last played, when a listening of it was last counted (0: never), and its listenings by day. */
-interface Play { song: SongResult; at: number; heardAt: number; days: DayCount[] }
+/**
+ * A song, when it was last played, when a listening of it was last counted (0: never), its
+ * listenings by day, and whether the platform was asked which song it shows it as (see `showRecordedSongsAs`).
+ */
+interface Play { song: SongResult; at: number; heardAt: number; days: DayCount[]; checked?: boolean }
 type Kept = Record<string, Play[]>;
 
 const storage = () => (typeof localStorage === 'undefined' ? null : localStorage);
@@ -88,6 +91,7 @@ const keptAs = (stored: Play, now: number): Play => ({
     at: Math.min(stored.at, now),
     heardAt: Number.isFinite(stored.heardAt) ? Math.min(stored.heardAt, now) : 0,
     days: Array.isArray(stored.days) ? stored.days.filter(isDayCount) : [],
+    ...(stored.checked === true ? { checked: true } : {}),
 });
 
 // What is stored, as far as it has the shape written here and is not too old; anything else is
@@ -138,8 +142,11 @@ const keptOf = (scope: string, now: number): Play[] | null => {
 // that were playing.
 const catalogued = ({ onlineLyricsState: _lyrics, playbackSourceRevision: _revision, ...song }: SongResult): SongResult => song;
 
-/** Forgets what was read from storage, so that the next call reads it again. */
-export const resetRecentPlays = (): void => { kept = null; };
+/** Forgets what was read from storage, so that the next call reads it again, and what was set right this run. */
+export const resetRecentPlays = (): void => {
+    kept = null;
+    setRightTo.clear();
+};
 
 /** Calls `watcher` whenever a play changes the list of an account. */
 export const watchRecentPlays = (watcher: () => void): (() => void) => {
@@ -186,6 +193,10 @@ export const replayedSongsOf = (providerId: OnlineProviderId, accountId: string)
     return known.replayed;
 };
 
+// The songs set right this run (see `showRecordedSongsAs`), by the key of what was recorded: one
+// still playing goes on being recorded as the song it was set right to, with that song's play.
+const setRightTo = new Map<string, SongResult>();
+
 // Records that `song` is playing under this account of its platform, and a listening of it
 // where one is handed in: one that may be the last one going on (see `goesOn`), or, having gone
 // straight on, one more whatever the clock says. A song of no online platform is not recorded.
@@ -193,7 +204,8 @@ const note = (song: SongResult, accountId: string, listening?: { lengthMs: numbe
     const source = getPlaybackSourceRef(song);
     if (source.kind !== 'online') return;
     const scope = scopeOf(source.providerId, accountId);
-    const songKey = getPlaybackSongKey(song);
+    const shown = setRightTo.get(getPlaybackSongKey(song)) ?? song;
+    const songKey = getPlaybackSongKey(shown);
     const now = Date.now();
     const before = recall()[scope] ?? [];
     const kept = before.filter(other => isKept(other, now));
@@ -207,14 +219,77 @@ const note = (song: SongResult, accountId: string, listening?: { lengthMs: numbe
         return;
     }
     const played: Play = {
-        song: catalogued(song),
+        song: catalogued(shown),
         at: now,
         heardAt: isCounted ? now : again?.heardAt ?? 0,
         days: isCounted ? withListening(again?.days ?? [], dayOf(now)) : again?.days ?? [],
+        ...(again?.checked ? { checked: true } : {}),
     };
     recall()[scope] = [played, ...kept.filter(other => other !== again)].slice(0, MAX_RECENT_PLAYS);
     store(recall());
     for (const watcher of watchers) watcher();
+};
+
+// One play of two that are of one song: where and as which song the first stands, the later of
+// their times, the listenings of both, and checked where either was.
+const together = (first: Play, other: Play): Play => {
+    const days = new Map<number, number>();
+    for (const [day, count] of [...first.days, ...other.days]) days.set(day, (days.get(day) ?? 0) + count);
+    return {
+        song: first.song,
+        at: Math.max(first.at, other.at),
+        heardAt: Math.max(first.heardAt, other.heardAt),
+        days: [...days].sort(([one], [two]) => two - one),
+        ...(first.checked || other.checked ? { checked: true } : {}),
+    };
+};
+
+// How many times this run a record was set right (see `showRecordedSongsAs`).
+let setRightTimes = 0;
+/** How many times this run a record of the songs played was set right: what was read of it before then is no longer so. */
+export const recordSetRightTimes = (): number => setRightTimes;
+
+/**
+ * Asks the platform which song it shows each song played under this account as, of those it was
+ * not asked about yet (`shownAs`, by id: another song, or null for the song itself; one it could
+ * not answer about is left out, and asked about the next time), and puts that song in its place:
+ * a music video recorded as played, before the platform showed videos as their songs, or from a
+ * list that names the video with its song's album and length. Its plays and listenings go to that
+ * song, and to that song's own play where it has one. Resolves to how many plays were set right.
+ */
+export const showRecordedSongsAs = async (
+    providerId: OnlineProviderId,
+    accountId: string,
+    shownAs: (songs: SongResult[]) => Promise<Map<string, SongResult | null>>,
+): Promise<number> => {
+    const scope = scopeOf(providerId, accountId);
+    const unasked = keptOf(scope, Date.now())?.filter(play => !play.checked) ?? [];
+    if (unasked.length === 0) return 0;
+    const answers = await shownAs(unasked.map(play => play.song));
+    if (answers.size === 0) return 0;
+    // (Read again: songs may have been played meanwhile.)
+    const plays: Play[] = [];
+    let changed = 0;
+    for (const play of recall()[scope] ?? []) {
+        const id = String(play.song.id);
+        const version = answers.get(id);
+        if (version) {
+            changed += 1;
+            setRightTo.set(getPlaybackSongKey(play.song), version);
+        }
+        const shown: Play = answers.has(id) ? { ...play, ...(version ? { song: catalogued(version) } : {}), checked: true } : play;
+        const key = getPlaybackSongKey(shown.song);
+        const at = plays.findIndex(other => getPlaybackSongKey(other.song) === key);
+        // (The plays are newest first: the one already in place is the later.)
+        if (at < 0) plays.push(shown);
+        else plays[at] = together(plays[at], shown);
+    }
+    recall()[scope] = plays;
+    store(recall());
+    if (changed === 0) return 0;
+    setRightTimes += 1;
+    for (const watcher of watchers) watcher();
+    return changed;
 };
 
 /**
