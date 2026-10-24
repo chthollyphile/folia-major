@@ -22,6 +22,7 @@ export const BUILTIN_VISUALIZER_MODES = [
     'hanabi',
     'lumiere',
     'monet',
+    'motes',
     'partita',
     'pendolo',
     'sonnet',

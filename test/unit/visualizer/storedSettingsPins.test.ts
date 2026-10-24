@@ -19,6 +19,7 @@ import {
     DEFAULT_TILT_TUNING,
 } from '@/types';
 import { DEFAULT_HANABI_TUNING } from '@/components/visualizer/hanabi/types';
+import { DEFAULT_MOTES_TUNING } from '@/components/visualizer/motes/types';
 
 // test/unit/visualizer/storedSettingsPins.test.ts
 // Pins what the lyric styles and the backgrounds keep in localStorage: for every one of them, what
@@ -103,6 +104,7 @@ afterEach(() => {
 // What a current version writes: every field present and in range, none at its default where a
 // different value is as easy.
 const CURRENT: Record<string, unknown> = {
+    motes_tuning: { density: 1.3, scatter: 0.7, transition: 0.3, depth: 0.4, drift: 0.8, audioResponse: 0.6 },
     classic_tuning: { enableWordRotation: false, breathingFloatMultiplier: 1.6, useLegacyLayout: true, wordSpacing: 1.2 },
     cadenza_tuning: { fontScale: 1.3, widthRatio: 0.6, motionAmount: 0.8, glowIntensity: 1.4, beamIntensity: 0 },
     partita_tuning: { showGuideLines: false, useSemanticLayout: false, staggerMin: 40, staggerMax: 150 },
@@ -176,6 +178,7 @@ const TUNING_KEYS = Object.keys(CURRENT);
 const everywhere = (text: string): Stored => Object.fromEntries(TUNING_KEYS.map(key => [key, text]));
 
 const DEFAULTS: Record<string, unknown> = {
+    motes_tuning: DEFAULT_MOTES_TUNING,
     classic_tuning: DEFAULT_CLASSIC_TUNING, cadenza_tuning: DEFAULT_CADENZA_TUNING, partita_tuning: DEFAULT_PARTITA_TUNING,
     fume_tuning: DEFAULT_FUME_TUNING, claddagh_tuning: DEFAULT_CLADDAGH_TUNING, cappella_tuning: DEFAULT_CAPPELLA_TUNING,
     tilt_tuning: DEFAULT_TILT_TUNING, diorama_tuning: DEFAULT_DIORAMA_TUNING, monet_tuning: DEFAULT_MONET_TUNING,
@@ -213,6 +216,7 @@ describe('what is read at start-up', () => {
 
     it('from a stored object that holds one field only: the rest are the defaults', async () => {
         const app = await start({
+            motes_tuning: json({ scatter: 0.4 }),
             classic_tuning: json({ wordSpacing: 1.5 }),
             cadenza_tuning: json({ glowIntensity: 0.5 }),
             partita_tuning: json({ staggerMin: 150 }),
@@ -294,6 +298,7 @@ describe('what is read at start-up', () => {
                 glowIntensity: 0, soulIntensity: 9, gradientIntensity: -1, geometryVisibility: { mode: 'corridor', rings: false },
             }),
             monet_tuning: json({ audioStyle: 'bars', fontScale: 4, portraitSource: 'mine', portraitOffsetX: 80, portraitStyle: 'round' }),
+            motes_tuning: json({ density: 9, scatter: -1, transition: 9, depth: -1, drift: 9, audioResponse: '0.7' }),
             pendolo_tuning: json({
                 arcRadius: 5, arcAngleDeg: '90', wheelCenterX: -9, wheelCenterY: null, tickSnappiness: 0, activeScale: 9,
                 showGearDecor: 'huge', showCenterGradient: 'yes', showCoverOnWatchFace: 1, enableLineGlow: null,
@@ -380,6 +385,7 @@ describe('what is read at start-up', () => {
 
 // The store's names for each key: the field that holds the tuning and the two actions.
 const UNITS: Array<{ key: string; field: string; set: string; reset: string; patches: object[] }> = [
+    { key: 'motes_tuning', field: 'motesTuning', set: 'handleSetMotesTuning', reset: 'handleResetMotesTuning', patches: [{ density: 1.3 }, { density: 9, scatter: -1, transition: 9, depth: -1, drift: 9, audioResponse: 2 }, { scatter: 0.7, transition: 0.3, depth: 0.4, drift: 0.8 }, { density: Number.NaN, transition: Number.POSITIVE_INFINITY, depth: Number.NaN, drift: Number.NEGATIVE_INFINITY }] },
     { key: 'classic_tuning', field: 'classicTuning', set: 'handleSetClassicTuning', reset: 'handleResetClassicTuning', patches: [{ wordSpacing: 1.3 }, { breathingFloatMultiplier: 9, wordSpacing: -4 }, { enableWordRotation: false, useLegacyLayout: true }, { breathingFloatMultiplier: Number.NaN }] },
     { key: 'cadenza_tuning', field: 'cadenzaTuning', set: 'handleSetCadenzaTuning', reset: 'handleResetCadenzaTuning', patches: [{ fontScale: 1.3 }, { beamIntensity: 0.7, glowIntensity: 99 }] },
     { key: 'partita_tuning', field: 'partitaTuning', set: 'handleSetPartitaTuning', reset: 'handleResetPartitaTuning', patches: [{ staggerMin: 60 }, { staggerMin: 170, staggerMax: 30 }, { staggerMax: 999, showGuideLines: false }, { staggerMin: Number.NaN }] },
@@ -424,6 +430,7 @@ describe('what is written', () => {
 
     // The notice a reset shows, by the key of what was reset. 天空 (sora) shows none.
     const RESET_NOTICES: Record<string, string | null> = {
+        motes_tuning: 'notifications.motesReset',
         classic_tuning: 'notifications.classicReset', cadenza_tuning: 'notifications.cadenzaReset', partita_tuning: 'notifications.partitaReset',
         fume_tuning: 'notifications.fumeReset', claddagh_tuning: 'notifications.claddaghReset', cappella_tuning: 'notifications.cappellaReset',
         tilt_tuning: 'notifications.tiltReset', diorama_tuning: 'notifications.dioramaReset', monet_tuning: 'notifications.monetReset',

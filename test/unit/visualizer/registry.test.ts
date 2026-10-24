@@ -33,6 +33,7 @@ describe('visualizer registry', () => {
             'cappella',
             'diorama',
             'still',
+            'motes',
         ]);
     });
 
@@ -46,6 +47,7 @@ describe('visualizer registry', () => {
         expect(hasVisualizerMode('classic')).toBe(true);
         expect(hasVisualizerMode('still')).toBe(true);
         expect(hasVisualizerMode('fume')).toBe(true);
+        expect(hasVisualizerMode('motes')).toBe(true);
         expect(hasVisualizerMode('missing-mode')).toBe(false);
         expect(DEFAULT_VISUALIZER_MODE).toBe('classic');
     });
