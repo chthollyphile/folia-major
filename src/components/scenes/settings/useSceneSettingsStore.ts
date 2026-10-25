@@ -55,6 +55,15 @@ export const sanitizeSceneOptions = (value: unknown): SceneOptionsById => {
     return result;
 };
 
+/**
+ * The options after an import: each scene the import carries takes its options (sanitized), every
+ * other scene keeps its own. The import plan and the apply both go through this.
+ */
+export const mergeImportedSceneOptions = (current: SceneOptionsById, imported: unknown): SceneOptionsById => ({
+    ...current,
+    ...sanitizeSceneOptions(imported),
+});
+
 const readStoredOptions = (): SceneOptionsById => {
     try {
         return sanitizeSceneOptions(JSON.parse(getStoredString(SCENE_OPTIONS_KEY, '{}')));
@@ -71,7 +80,7 @@ interface SceneSettingsState extends SceneConfig {
     reloadToken: number;
     setSceneId: (sceneId: string | null) => void;
     setSceneOptions: (sceneId: string, patch: Partial<SceneOptions>) => void;
-    /** Takes the parts of an imported config that are present. */
+    /** Takes the parts of an imported config that are present; options merge by scene id. */
     importSceneConfig: (config: Partial<SceneConfig>) => void;
     reloadScene: () => void;
 }
@@ -95,7 +104,7 @@ export const useSceneSettingsStore = create<SceneSettingsState>((set, get) => ({
     importSceneConfig: (config) => {
         if ('sceneId' in config) get().setSceneId(config.sceneId ?? null);
         if ('sceneOptions' in config) {
-            const sceneOptions = sanitizeSceneOptions(config.sceneOptions);
+            const sceneOptions = mergeImportedSceneOptions(get().sceneOptions, config.sceneOptions);
             saveOptions(sceneOptions);
             set({ sceneOptions });
         }

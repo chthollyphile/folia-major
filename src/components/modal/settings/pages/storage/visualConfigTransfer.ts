@@ -16,7 +16,7 @@ import { isLibraryWallSeamStyle } from '../../../../../utils/libraryWallSeamStyl
 import { isLibraryWallSeamDirection } from '../../../../../utils/libraryWallSeamDirection';
 import { extractCfgFromInput } from '../../../../../utils/obsUrl';
 import { mergeUrlBackgroundList } from '../../../../../utils/urlBackground';
-import { readSceneConfig, useSceneSettingsStore, type SceneConfig } from '../../../../scenes/settings/useSceneSettingsStore';
+import { mergeImportedSceneOptions, readSceneConfig, sanitizeSceneId, useSceneSettingsStore, type SceneConfig } from '../../../../scenes/settings/useSceneSettingsStore';
 
 // src/components/modal/settings/pages/storage/visualConfigTransfer.ts
 // The visual settings as one config: building it for a config code, working out what a pasted one
@@ -85,10 +85,14 @@ export const buildCurrentConfig = (theme: ConfigThemeControls, exportThemeType: 
 export const planConfigImport = (text: string, theme: ConfigThemeControls): { config: any; plan: ImportPlan } => {
     // Import accepts a bare shortcode/JSON or a full OBS URL (extracting its cfg param), so a look can be re-tuned from someone's link.
     const config = decompressConfig(extractCfgFromInput(text));
+    // The scene fields as the apply will take them, so the plan shows exactly what changes.
+    const currentScene = readSceneConfig();
+    if (config.sceneId !== undefined) config.sceneId = sanitizeSceneId(config.sceneId);
+    if (config.sceneOptions !== undefined) config.sceneOptions = mergeImportedSceneOptions(currentScene.sceneOptions, config.sceneOptions);
     const customFont = useTypographySettingsStore.getState().lyricsCustomFont;
     const plan = buildImportPlan({
         incoming: config,
-        current: { ...buildVisualSettingsConfig(), ...readSceneConfig(), theme: theme.customTheme ?? null },
+        current: { ...buildVisualSettingsConfig(), ...currentScene, theme: theme.customTheme ?? null },
         switches: {
             isCustomThemePreferred: theme.isCustomThemePreferred,
             songThemeAutoSwitchEnabled: theme.songThemeAutoSwitchEnabled,

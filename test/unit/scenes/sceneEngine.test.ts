@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SceneManifest } from '../../../src/components/scenes/definition';
+import { createSceneEventBus } from '../../../src/components/scenes/engine/sceneEvents';
 import { computeLyricPhase } from '../../../src/components/scenes/engine/lyricPhase';
 import {
     planSceneLayers,
@@ -117,5 +118,32 @@ describe('phase director', () => {
         expect(chooseDirectorShot('tour', 'interlude', 2)).toBe('seat');
         expect(chooseDirectorShot('tour', 'singing', 20)).toBe('seat');
         expect(chooseDirectorShot('seat', 'outro', Infinity)).toBe('tour');
+    });
+});
+
+describe('scene event bus', () => {
+    it('fails the scene on a throwing listener and calls none of its listeners after', () => {
+        const bus = createSceneEventBus(() => bus.dispose());
+        const later = vi.fn();
+        bus.on('pause', () => { throw new Error('boom'); });
+        bus.on('pause', later);
+        bus.emit('pause', {});
+        bus.emit('play', {});
+        expect(later).not.toHaveBeenCalled();
+    });
+
+    it('releases the subscriptions it tracks on dispose, once, and catches their throws into fail', () => {
+        const fail = vi.fn();
+        const bus = createSceneEventBus(fail);
+        const release = vi.fn();
+        const releaseByScene = bus.track(release);
+        bus.guard(() => { throw new Error('in onChange'); })();
+        expect(fail).toHaveBeenCalledTimes(1);
+        bus.dispose();
+        releaseByScene();
+        expect(release).toHaveBeenCalledTimes(1);
+        const afterwards = vi.fn();
+        bus.guard(afterwards)();
+        expect(afterwards).not.toHaveBeenCalled();
     });
 });

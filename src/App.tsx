@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
 import SceneHost from './components/scenes/engine/SceneHost';
+import { useChosenScene } from './components/scenes/registry';
 import CommandPalette from './components/command-palette/CommandPalette';
 import AddToPlaylistHost from './components/app/AddToPlaylistHost';
 import { useCommandPalette } from './components/command-palette/useCommandPalette';
@@ -519,9 +520,11 @@ export default function App() {
         onModeChange: showPlayerChromeVisibilityModeStatus,
     });
 
+    // Random per song does not reach into a scene: no draw while one is chosen, the setting kept for after.
+    const sceneChosen = useChosenScene() !== null;
     useRandomVisualizerMode({
         currentSong,
-        enabled: randomVisualizerModePerSong,
+        enabled: randomVisualizerModePerSong && !sceneChosen,
         modes: randomVisualizerModes,
         visualizerMode,
         setVisualizerMode: handleSetVisualizerMode,
@@ -2580,7 +2583,7 @@ export default function App() {
                 // If single loop is active, native loop handles it.
                 // If not, we handle queue logic.
                 if (effectiveLoopMode !== 'one') {
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({ allowStopOnMissing: true, playedToEnd: true, shouldNavigateToPlayer: false });
                 }
             }}
             onLoadedMetadata={(e) => {

@@ -63,6 +63,17 @@ describe('scene settings', () => {
         expect(readSceneConfig().sceneId).toBe('pkg:rooftop');
     });
 
+    it('merges imported options by scene id, keeping the scenes the import does not carry', async () => {
+        const { useSceneSettingsStore, readSceneConfig, mergeImportedSceneOptions } = await loadStore();
+        useSceneSettingsStore.getState().setSceneOptions('cinema', { quality: 'high' });
+        useSceneSettingsStore.getState().setSceneOptions('pkg:rooftop', { seat: 'S1' });
+        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { lyrics: 'style' } } });
+        expect(readSceneConfig().sceneOptions).toEqual({ cinema: { lyrics: 'style' }, 'pkg:rooftop': { seat: 'S1' } });
+        // What the plan diffs is what the apply leaves: junk gone, other scenes kept.
+        expect(mergeImportedSceneOptions(readSceneConfig().sceneOptions, { cinema: { lyrics: 'style', junk: 1 }, 'bad id': {} } as never))
+            .toEqual(readSceneConfig().sceneOptions);
+    });
+
     it('carries the scene fields through a config code', () => {
         const config = { sceneId: 'cinema', sceneOptions: { cinema: { lyrics: 'style', quality: 'medium' } } };
         expect(decompressConfig(compressConfig(config))).toMatchObject(config);

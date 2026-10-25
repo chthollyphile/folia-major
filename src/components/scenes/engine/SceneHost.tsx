@@ -4,9 +4,10 @@ import { DEFAULT_VISUALIZER_BACKGROUND_MODE } from '../../../types/visualizerMod
 import VisualizerRenderer from '../../visualizer/VisualizerRenderer';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
-import type { SceneAnchor, SceneContext, SceneDefinition, SceneEvents, SceneRuntime, ScreenQuad } from '../definition';
+import type { SceneAnchor, SceneContext, SceneDefinition, SceneRuntime, ScreenQuad } from '../definition';
 import { useChosenScene } from '../registry';
 import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
+import { createSceneEventBus } from './sceneEvents';
 import { onQueueEnd } from './queueEnd';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackPointer, type SceneSignalSnapshot } from './sceneSignals';
@@ -60,7 +61,6 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         let frameRequest = 0;
         let readyTimer = 0;
         let shown = false;
-        const listeners = new Map<keyof SceneEvents, Set<(event: never) => void>>();
         const anchors: SceneAnchor[] = [];
         const signals = createSceneSignals(() => propsRef.current);
         const pointer = trackPointer();
@@ -68,6 +68,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
 
         const stop = () => {
             disposed = true;
+            bus.dispose();
             cancelAnimationFrame(frameRequest);
             window.clearTimeout(readyTimer);
             pointer.dispose();
@@ -88,15 +89,9 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             stop();
             setStatus('failed');
         };
-        const emit = <K extends keyof SceneEvents>(type: K, event: SceneEvents[K]) => {
-            listeners.get(type)?.forEach((listener) => {
-                try {
-                    (listener as (event: SceneEvents[K]) => void)(event);
-                } catch (error) {
-                    fail(error);
-                }
-            });
-        };
+        // The scene's listeners and subscriptions: a throw in one fails the scene, and none is called after.
+        const bus = createSceneEventBus(error => fail(error));
+        const { emit } = bus;
         // Any canvas in the box: the event does not bubble, so it is caught on the way down.
         const onContextLost = () => {
             if (disposed) return;
@@ -111,9 +106,9 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         };
         box.addEventListener('webglcontextlost', onContextLost, true);
         const stopQueueEnd = onQueueEnd(() => emit('queueEnd', {}));
-        const resizeObserver = new ResizeObserver(() => {
+        const resizeObserver = new ResizeObserver(bus.guard(() => {
             runtime?.resize?.({ width: box.clientWidth, height: box.clientHeight, dpr: window.devicePixelRatio || 1 });
-        });
+        }));
         resizeObserver.observe(box);
 
         const show = () => {
@@ -141,9 +136,12 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             input: { pointer: pointer.pointer },
             settings: {
                 get: settings,
-                onChange: fn => useSceneSettingsStore.subscribe((state, previous) => {
-                    if (JSON.stringify(state.sceneOptions[id]?.values) !== JSON.stringify(previous.sceneOptions[id]?.values)) fn();
-                }),
+                onChange: (fn) => {
+                    const changed = bus.guard(fn);
+                    return bus.track(useSceneSettingsStore.subscribe((state, previous) => {
+                        if (JSON.stringify(state.sceneOptions[id]?.values) !== JSON.stringify(previous.sceneOptions[id]?.values)) changed();
+                    }));
+                },
             },
             quality: { preset, get: key => manifest.quality.presets[preset()]?.[key] },
             anchors: {
@@ -152,12 +150,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             },
             surfaces: { place: (surfaceId, quad) => { quads.current.set(surfaceId, quad); } },
             sound: silentSceneSound,
-            on: (type, fn) => {
-                const set = listeners.get(type) ?? new Set();
-                set.add(fn as (event: never) => void);
-                listeners.set(type, set);
-                return () => { set.delete(fn as (event: never) => void); };
-            },
+            on: bus.on,
             ready: show,
             log: {
                 info: (message, ...rest) => console.info(`[Scene ${id}] ${message}`, ...rest),

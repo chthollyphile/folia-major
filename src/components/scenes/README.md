@@ -16,7 +16,8 @@ src/components/scenes/
     lyricPhase.ts      歌词阶段（前奏、唱着、句间、间奏、尾奏、纯音乐）
     scenePlacement.ts  借来的歌词样式、背景放哪；选择器按清单过滤
     surfaceQuad.ts     盒子贴到四个角上的 CSS matrix3d
-    queueEnd.ts        「歌单放完」，由 usePlaybackQueueController 的 stopAtQueueEnd 发出
+    queueEnd.ts        「歌单放完」，最后一首放到结尾时由 usePlaybackQueueController 的 stopAtQueueEnd 发出
+    sceneEvents.ts     场景的监听和订阅：抛错就退回，停下时一起放掉
     sceneSound.ts      声音接上来的地方（第一期是空实现）
   kit/               可选工具箱（用 three.js 的场景才用）
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad

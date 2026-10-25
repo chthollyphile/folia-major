@@ -139,6 +139,7 @@ const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineF
 const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
+const { onQueueEnd } = await import('@/components/scenes/engine/queueEnd');
 
 const online = (id: string): SongResult => ({
     id, name: id.toUpperCase(), artists: [], album: { id: '', name: '' }, durationMs: 1000,
@@ -786,5 +787,22 @@ describe('a Stage API add', () => {
             requestId: 'r1', ok: false, error: 'The queue changed while the request was loading.',
         }));
         expect(store().playQueue).toBe(replaced);
+    });
+});
+
+describe('the end of the queue', () => {
+    it('tells a scene the queue played out only when the last track played to its end', async () => {
+        playerWith([a, b], b);
+        const heard = vi.fn();
+        const stop = onQueueEnd(heard);
+        try {
+            // A skip after a failure, or an audio error, that finds no next track stops without it.
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, fromSong: b });
+            expect(heard).not.toHaveBeenCalled();
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, playedToEnd: true });
+            expect(heard).toHaveBeenCalledTimes(1);
+        } finally {
+            stop();
+        }
     });
 });

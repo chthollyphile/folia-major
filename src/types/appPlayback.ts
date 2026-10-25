@@ -34,6 +34,12 @@ export type PlaybackNavigationOptions = {
 export type NextTrackOptions = PlaybackNavigationOptions & {
     allowStopOnMissing?: boolean;
     /**
+     * Set only by the audio element's `ended`: the step comes because the track played to its end.
+     * Only then does stopping on the last track count as the queue having played out (a scene's
+     * queueEnd); a skip after a failure or an audio error that finds no next track stops without it.
+     */
+    playedToEnd?: boolean;
+    /**
      * The track to step from, when it is deliberately NOT the one the listener can see.
      *
      * Next/previous normally step from the displayed track, because during a blend the queue has

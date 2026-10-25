@@ -1139,8 +1139,9 @@ export function usePlaybackQueueController({
                 audioRef.current.pause();
             }
             setPlayerState(PlayerState.IDLE);
-            // A scene on the player page gets its queueEnd (the hall's lights come up).
-            announceQueueEnd();
+            // A scene on the player page gets its queueEnd (the hall's lights come up), only when the
+            // last track played to its end: a failed one stopping the queue is no end of the show.
+            if (options?.playedToEnd) announceQueueEnd();
         };
 
         // An emptied queue still has to stop playback at the end of the current track; returning
