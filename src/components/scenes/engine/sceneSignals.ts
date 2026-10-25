@@ -1,0 +1,139 @@
+import { getSongAlbumLabel, getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { beatImpact, handoffProgress } from '../../../stores/motionSignals';
+import { selectCoverUrl, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import type { VisualizerSharedProps } from '../../visualizer/definition';
+import type { LyricPhase, MusicCharacter, SceneContext, SceneEvents, SceneSong } from '../definition';
+import { computeLyricPhase, type LyricPhaseState } from './lyricPhase';
+
+// src/components/scenes/engine/sceneSignals.ts
+// 信号适配层：把播放页今天已经算好的 VisualizerSharedProps 翻成场景读的信号，不新造数据来源。
+// 每帧 step() 一次（算歌词阶段），两帧之间的变化由 diffSceneSignals 变成场景的事件。
+
+/** What the host compares from one frame to the next to tell the scene's events. */
+export interface SceneSignalSnapshot {
+    seed: string | number | null;
+    blending: boolean;
+    lineIndex: number;
+    phase: LyricPhase;
+    paused: boolean;
+    /** Lyric seconds. */
+    time: number;
+}
+
+/** A jump of the lyric clock by more than this (seconds) beyond the frame's own time is a seek. */
+export const SEEK_JUMP_SEC = 1.5;
+
+/** The events between two frames, in the order the scene gets them; none on the first frame (the scene reads the current values). */
+export const diffSceneSignals = (previous: SceneSignalSnapshot | null, next: SceneSignalSnapshot, dt: number): (keyof SceneEvents)[] => {
+    if (!previous) return [];
+    const events: (keyof SceneEvents)[] = [];
+    const sameSong = previous.seed === next.seed;
+    if (!sameSong) events.push('songChange');
+    if (next.blending && !previous.blending) events.push('blendStart');
+    if (previous.paused !== next.paused) events.push(next.paused ? 'pause' : 'play');
+    if (sameSong && Math.abs(next.time - (previous.time + (previous.paused ? 0 : dt))) > SEEK_JUMP_SEC) events.push('seek');
+    if (next.lineIndex !== previous.lineIndex) events.push('lineChange');
+    if (next.phase !== previous.phase) events.push('phaseChange');
+    return events;
+};
+
+// ponytail: the main player's analyser reads 0..255 and the previews 0..1; anything above 1.5 is taken as the first.
+const unit = (value: number) => Math.min(1, Math.max(0, value > 1.5 ? value / 255 : value));
+
+// The record effects' strengths reach the scene with the room sound (phase 2); until then a clean record.
+const CLEAN_RECORD: MusicCharacter = { saturation: 0, bitcrush: 0, wobble: 0, vinylNoise: 0, filter: 0 };
+
+export type SceneSignals = Pick<SceneContext, 'song' | 'lyrics' | 'music' | 'player' | 'display'> & {
+    step: () => SceneSignalSnapshot;
+};
+
+/** The signals of SceneContext, read from the latest props each time they are asked. */
+export const createSceneSignals = (getProps: () => VisualizerSharedProps): SceneSignals => {
+    let lyric: LyricPhaseState = computeLyricPhase([], 0);
+    const songOf = (props: VisualizerSharedProps): SceneSong => ({
+        seed: props.seed ?? null,
+        title: props.songTitle ?? null,
+        artist: props.songArtist ?? null,
+        album: props.songAlbum ?? null,
+        coverUrl: props.coverUrl ?? null,
+        theme: props.theme,
+        duration: props.duration ?? 0,
+    });
+    // A blend's incoming song: the live song while a blend holds the picture on the outgoing one (as useVisualizerSongHandoff reads it).
+    const handoff = () => {
+        const state = usePlaybackStore.getState();
+        const held = state.transitionDisplay;
+        const song = state.currentSong;
+        if (!held || !song || song.id === held.song?.id) return null;
+        const props = getProps();
+        return {
+            song: {
+                seed: song.id,
+                title: song.name ?? null,
+                artist: getSongArtistLabel(song) || null,
+                album: getSongAlbumLabel(song) || null,
+                coverUrl: selectCoverUrl(state) ?? null,
+                theme: props.songHandoff?.theme ?? props.theme,
+                duration: 0,
+            },
+            progress: handoffProgress.get(),
+        };
+    };
+
+    return {
+        step: () => {
+            const props = getProps();
+            const time = props.currentTime.get();
+            lyric = computeLyricPhase(props.lines, time);
+            return { seed: props.seed ?? null, blending: handoff() !== null, lineIndex: lyric.lineIndex, phase: lyric.phase, paused: Boolean(props.paused), time };
+        },
+        song: { current: () => songOf(getProps()), handoff },
+        lyrics: {
+            lines: () => getProps().lines,
+            lineIndex: () => lyric.lineIndex,
+            phase: () => lyric.phase,
+            nextLineIn: () => lyric.nextLineIn,
+        },
+        music: {
+            power: () => unit(getProps().audioPower.get()),
+            bands: () => {
+                const bands = getProps().audioBands;
+                return { bass: unit(bands.bass.get()), lowMid: unit(bands.lowMid.get()), mid: unit(bands.mid.get()), vocal: unit(bands.vocal.get()), treble: unit(bands.treble.get()) };
+            },
+            beat: () => beatImpact.get(),
+            character: () => CLEAN_RECORD,
+        },
+        player: {
+            paused: () => Boolean(getProps().paused),
+            lyricTime: () => getProps().currentTime.get(),
+        },
+        display: {
+            isDaylight: () => Boolean(getProps().isDaylight),
+            showText: () => getProps().showText ?? true,
+            lyricsFontScale: () => getProps().lyricsFontScale ?? 1,
+        },
+    };
+};
+
+/** How long after the last move the pointer still counts as moving. */
+const POINTER_ACTIVE_MS = 1500;
+
+/** The pointer in the window (-1..1, right and up positive), for every scene alike. */
+export const trackPointer = () => {
+    let x = 0;
+    let y = 0;
+    let lastMove = -Infinity;
+    const onMove = (event: PointerEvent) => {
+        x = (event.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
+        y = 1 - (event.clientY / Math.max(1, window.innerHeight)) * 2;
+        lastMove = performance.now();
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    return {
+        pointer: () => {
+            const restMs = performance.now() - lastMove;
+            return { x, y, active: restMs < POINTER_ACTIVE_MS, restMs };
+        },
+        dispose: () => window.removeEventListener('pointermove', onMove),
+    };
+};
