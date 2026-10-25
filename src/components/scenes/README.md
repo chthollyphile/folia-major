@@ -65,7 +65,8 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 3. `rooftop/rooftopRuntime.ts`：`(ctx) => ({ frame, resize?, dispose })`。
    - 画布放进 `ctx.container`，或用 `kit/threeStage.ts` 的 `createThreeStage(ctx)`。画布要透明，才能在荧幕处露出下面的背景。
    - 发布锚点：`ctx.anchors.add({ kind: 'seat', ... })` 等。
-   - 有表面的场景每帧调 `ctx.surfaces.place('screen', stage.projectQuad(corners))`；看不到时传 `null`。
+   - 有表面的场景每帧调 `ctx.surfaces.place('screen', stage.projectQuad(corners))`；看不到时传 `null`。第三个参数 `{ opacity }` 让贴上去的东西变暗或消失（影厅：放映机遮光板关上时）。
+   - 有座位锚点（清单写 `seats: 'anchors'`）时，宿主在「场景设置」里自动给座位图；用户选的座位从 `ctx.seats.chosen()` 读，工具箱的 `seatRig` 已经在读。
    - 第一帧画好调 `ctx.ready()`。宿主在这之前显示用户原来的歌词样式，最多等 4 秒。
    - 事件用 `ctx.on('songChange' | 'blendStart' | 'lineChange' | 'phaseChange' | 'play' | 'pause' | 'seek' | 'queueEnd', fn)`。事件只报变化，第一帧没有事件：开始时直接读 `ctx.song.current()`、`ctx.lyrics.phase()` 这些。
    - 每帧的 `dt` 是秒，暂停时为 0。不要每帧写 React state。
@@ -97,11 +98,12 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 
 ## 开发
 
-- `npm run dev:probe` 打开 `dev-probe.html?probe=sceneHost`：一个 2D 场景（荧幕跟着鼠标晃，借来的歌词样式贴在上面，画布上写着歌词阶段和收到的事件）、一个加载就抛错的场景、「Lose WebGL」按钮。
+- `npm run dev:probe` 打开 `dev-probe.html?probe=sceneHost`：一个 2D 场景（荧幕跟着鼠标晃，借来的歌词样式贴在上面，画布上写着歌词阶段和收到的事件）、一个加载就抛错的场景、「Lose WebGL」按钮；「Cinema」是影厅，「Hall lyrics」切换影厅自己的字幕和借来的歌词样式，右上是座位图。
 - 命令面板的「Reload the scene」（`scene-reload`，只在开发版出现）：改了场景文件后重新加载，不用重启 app。
 
 ## 还没做的
 
 - 声音（第二期）：`engine/sceneSound.ts` 换成 `src/services/sceneSound/` 的实现；`ctx.music.character()` 现在全是 0。
-- 座位图和场景设置表单（随影厅一起做）；模组的 `registries.scenes` 和数据包加载器（第三期）。
+- 模组的 `registries.scenes` 和数据包加载器（第三期）。
+- 影厅：借你的背景时，影厅自己的字幕不显示在荧幕上；字幕的翻译总是开着；「两台放映机」现在只是交接开始时换片，光束只有一道。
 - 预览窗、OBS 不挂场景（`ctx.host.kind` 现在总是 `'player'`）。
