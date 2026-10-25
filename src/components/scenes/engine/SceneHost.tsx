@@ -1,10 +1,14 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
+import { selectDisplaySong, selectIsShowingTail, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorStore';
 import { DEFAULT_VISUALIZER_BACKGROUND_MODE } from '../../../types/visualizerModes';
 import VisualizerRenderer from '../../visualizer/VisualizerRenderer';
+import { useShownTheme } from '../../visualizer/useShownTheme';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
-import type { SceneAnchor, SceneContext, SceneDefinition, SceneRuntime, ScreenQuad } from '../definition';
+import type { SceneAnchor, SceneContext, SceneDefinition, SceneRuntime, SceneSurfaceTone, ScreenQuad } from '../definition';
 import { useChosenScene } from '../registry';
 import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
 import { createSceneEventBus } from './sceneEvents';
@@ -13,6 +17,7 @@ import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackPointer, type SceneSignalSnapshot } from './sceneSignals';
 import { silentSceneSound } from './sceneSound';
+import { songThemePair, surfaceRendererTheme, type SongThemeSource } from './sceneTheme';
 import { quadToMatrix3d } from './surfaceQuad';
 
 // src/components/scenes/engine/SceneHost.tsx
@@ -49,10 +54,20 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     const reducedMotion = useReducedMotionFor('uiMicroMotion');
     const reducedMotionRef = useRef(reducedMotion);
     const planRef = useRef(plan);
+    // The song's colour pair, not the app's mode's pick of it; held for the song on screen through a blend, as its theme is.
+    const liveThemeSource = useThemeQuickEditorStore(useShallow((state): SongThemeSource => ({ bgMode: state.bgMode, aiTheme: state.aiTheme, customTheme: state.customTheme })));
+    const shownThemeSource = useShownTheme(liveThemeSource, usePlaybackStore(selectIsShowingTail), usePlaybackStore(state => selectDisplaySong(state)?.id));
+    const songThemes = useMemo(() => ({
+        shown: songThemePair(shownThemeSource, rendererProps.theme),
+        incoming: songThemePair(liveThemeSource, rendererProps.theme),
+        shownSubtitle: rendererProps.subtitleTheme ? songThemePair(shownThemeSource, rendererProps.subtitleTheme) : undefined,
+    }), [shownThemeSource, liveThemeSource, rendererProps.theme, rendererProps.subtitleTheme]);
+    const songThemesRef = useRef(songThemes);
     useLayoutEffect(() => {
         propsRef.current = rendererProps;
         reducedMotionRef.current = reducedMotion;
         planRef.current = plan;
+        songThemesRef.current = songThemes;
     });
 
     useEffect(() => {
@@ -65,7 +80,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         let readyTimer = 0;
         let shown = false;
         const anchors: SceneAnchor[] = [];
-        const signals = createSceneSignals(() => propsRef.current);
+        const signals = createSceneSignals(() => propsRef.current, () => songThemesRef.current);
         const pointer = trackPointer();
         const written = new Map<string, string>();
 
@@ -253,8 +268,9 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         rendererProps.background?.mode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE,
         VISUALIZER_BACKGROUND_REGISTRY.map(entry => entry.mode),
     );
-    const borrowed = (lyrics: boolean, background: boolean): RendererProps => ({
+    const borrowed = (lyrics: boolean, background: boolean, tone?: SceneSurfaceTone): RendererProps => ({
         ...rendererProps,
+        ...surfaceRendererTheme(rendererProps, { theme: songThemes.shown, subtitleTheme: songThemes.shownSubtitle }, { background, tone }),
         mode: lyricMode,
         showText: lyrics ? rendererProps.showText : false,
         background: { ...rendererProps.background, mode: backgroundMode, transparent: background ? rendererProps.background?.transparent : true },
@@ -270,7 +286,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             style={{ transformOrigin: '0 0', visibility: 'hidden' }}
             data-scene-surface={surface.id}
         >
-            <VisualizerRenderer {...borrowed(surface.lyrics, surface.background)} />
+            <VisualizerRenderer {...borrowed(surface.lyrics, surface.background, manifest.surfaces?.find(entry => entry.id === surface.id)?.tone)} />
         </div>
     );
 

@@ -77,6 +77,9 @@ export const createThreeStage = (ctx: SceneContext, options: ThreeStageOptions =
         dispose: () => {
             observer.disconnect();
             renderer.dispose();
+            // The context goes now, not at garbage collection: Chromium drops the oldest past about 16,
+            // which can be another WebGL view of the app. The host has stopped listening for the loss by now.
+            renderer.forceContextLoss();
             canvas.remove();
         },
     };

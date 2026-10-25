@@ -10,7 +10,9 @@ import {
 } from '../../../src/components/scenes/engine/scenePlacement';
 import { diffSceneSignals, type SceneSignalSnapshot } from '../../../src/components/scenes/engine/sceneSignals';
 import { quadHomography, quadToMatrix3d } from '../../../src/components/scenes/engine/surfaceQuad';
-import { chooseDirectorShot } from '../../../src/components/scenes/kit/camera';
+import * as THREE from 'three';
+import { chooseDirectorShot, seatRig } from '../../../src/components/scenes/kit/camera';
+import type { SceneAnchor, SceneContext } from '../../../src/components/scenes/definition';
 import type { Line } from '../../../src/types';
 
 // test/unit/scenes/sceneEngine.test.ts
@@ -118,6 +120,30 @@ describe('phase director', () => {
         expect(chooseDirectorShot('tour', 'interlude', 2)).toBe('seat');
         expect(chooseDirectorShot('tour', 'singing', 20)).toBe('seat');
         expect(chooseDirectorShot('seat', 'outro', Infinity)).toBe('tour');
+    });
+});
+
+describe('seat rig', () => {
+    const seat = (id: string, x: number, extra: Partial<Extract<SceneAnchor, { kind: 'seat' }>> = {}): Extract<SceneAnchor, { kind: 'seat' }> => (
+        { kind: 'seat', id, ear: [x, 1, 0], eye: [x, 1.2, 0], lookAt: [x, 1.2, -10], ...extra }
+    );
+    const sitIn = (chosen: string | null) => {
+        const seats = [seat('A1', 0), seat('A2', 1, { occupied: true }), seat('A3', 2, { preferred: true })];
+        const ctx = {
+            anchors: { list: () => seats },
+            seats: { chosen: () => chosen },
+            lyrics: { phase: () => 'intro' },
+            input: { pointer: () => ({ x: 0, y: 0, active: false, restMs: Infinity }) },
+        } as unknown as SceneContext;
+        const camera = new THREE.PerspectiveCamera();
+        seatRig(ctx).update(camera, 0);
+        return camera.position.x;
+    };
+
+    it('sits in the chosen seat, and in the preferred one when the chosen seat is taken', () => {
+        expect(sitIn('A1')).toBe(0);
+        expect(sitIn('A2')).toBe(2);
+        expect(sitIn(null)).toBe(2);
     });
 });
 

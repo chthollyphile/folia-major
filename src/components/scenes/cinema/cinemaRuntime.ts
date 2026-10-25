@@ -16,15 +16,16 @@ import { createCinemaScene } from './cinemaScene';
 // the screen's corners handed to the host each frame. The hall's own captions come from lineChange; a
 // pause is an intermission (cinemaIntermission.ts) and play starts the music at once while the curtains
 // open; at the end of the queue the house lights come up; an automix blend changes reels as it starts.
-// The hall's lights are its own: the app's light or dark theme never reaches them, and what is borrowed
-// onto the screen keeps the user's theme.
+// The hall's lights are its own: the app's light or dark mode never reaches them. The hall is dark, so it
+// takes the dark one of the song's pair; the screen says it is dark film (entry.ts), so borrowed lyrics
+// alone get the dark one too, and the user's background on it is the user's page as it is.
 
 const WARM_WHITE = '#ffd6a8';
 const SURFACE = 'screen';
 
-/** The cove strips take a little of the song's accent colour (linear). */
+/** The cove strips take a little of the accent colour of the song's dark theme (linear). */
 const coveOf = (song: SceneSong) => {
-    const tinted = parseColorChannels(mixColors(WARM_WHITE, song.theme.accentColor, 0.4)) ?? { r: 255, g: 214, b: 168 };
+    const tinted = parseColorChannels(mixColors(WARM_WHITE, song.theme.dark.accentColor, 0.4)) ?? { r: 255, g: 214, b: 168 };
     return new THREE.Color().setRGB(tinted.r / 255, tinted.g / 255, tinted.b / 255, THREE.SRGBColorSpace);
 };
 
@@ -89,7 +90,7 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
         const line = index >= 0 ? lines[index] : null;
         const text = line?.fullText ?? null;
         const translation = line?.translation?.trim() || null;
-        const { theme } = ctx.song.current();
+        const theme = ctx.song.current().theme.dark;
         const key = text ? `${text}\n${translation ?? ''}\n${theme.fontStyle}|${theme.fontFamily ?? ''}` : '';
         if (key === captionKey) return;
         captionKey = key;

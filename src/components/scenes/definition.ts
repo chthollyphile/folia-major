@@ -1,5 +1,5 @@
 import type { FoliumLabel, FoliumSetting } from '../../mods/folium/contract';
-import type { Line, Theme } from '../../types';
+import type { DualTheme, Line } from '../../types';
 
 // src/components/scenes/definition.ts
 // 场景的契约：场景作者只依赖这个文件（和可选的 kit/）。一个场景 = 一份纯数据的清单 + 第一次显示时才加载的运行体。
@@ -37,6 +37,9 @@ export type ScreenQuad = readonly [ScreenPoint, ScreenPoint, ScreenPoint, Screen
 
 /** 用户选的歌词样式、背景放到哪里：不能用、整窗叠在上面（歌词）或放在后面（背景）、贴到某个表面上。 */
 export type SceneLyricPlacement = 'none' | 'overlay' | { surface: string };
+
+/** 表面上场景自己的画面是暗还是亮（和 DualTheme 的两个键同名）。 */
+export type SceneSurfaceTone = 'dark' | 'light';
 export type SceneBackgroundPlacement = 'none' | 'behind' | { surface: string };
 
 export interface SceneManifest {
@@ -52,8 +55,12 @@ export interface SceneManifest {
     /** 选择器里的图（数据包里的相对路径，或内建场景打包后的地址）。 */
     preview?: string;
     order?: number;
-    /** 宿主可以贴东西的平面。`occludable`：前面的东西会挡住它（场景要在那里留透明的洞）。 */
-    surfaces?: { id: string; aspect: number; occludable?: boolean }[];
+    /**
+     * 宿主可以贴东西的平面。`occludable`：前面的东西会挡住它（场景要在那里留透明的洞）。
+     * `tone`（1.x 新增）：这个表面上场景自己的画面是暗还是亮。只贴歌词、没贴用户背景时，宿主按它给歌词样式
+     * 歌曲主题里对应的那一个（暗画面配暗主题），不跟 app 的亮暗模式走；没写时歌词样式和播放页一样。
+     */
+    surfaces?: { id: string; aspect: number; occludable?: boolean; tone?: SceneSurfaceTone }[];
     /**
      * 歌词：`own` 场景自己会画；`style` 用户的歌词样式能不能用、放在哪；`exclude` 放上去不合适的样式 id，
      * 选了这个场景时选择器里不出现。两种都允许时宿主出一个开关。
@@ -98,7 +105,11 @@ export interface SceneSong {
     artist: string | null;
     album: string | null;
     coverUrl: string | null;
-    theme: Theme;
+    /**
+     * 歌曲的一对主题（亮、暗两个，带用户的歌词字体）。不跟 app 的亮暗模式走：场景按自己的画面挑一个
+     * （影厅是暗的，用 dark）。app 现在的模式在 ctx.display.isDaylight()。
+     */
+    theme: DualTheme;
     /** 秒；不知道时为 0。 */
     duration: number;
 }
@@ -280,6 +291,9 @@ export const checkSceneManifest = (manifest: unknown): string[] => {
     if (!m.lyrics || typeof m.lyrics.own !== 'boolean' || !isPlacement(m.lyrics.style, ['none', 'overlay'])) problems.push('lyrics is not { own, style }');
     if (!m.background || typeof m.background.own !== 'boolean' || !isPlacement(m.background.host, ['none', 'behind'])) problems.push('background is not { own, host }');
     const surfaceIds = new Set((m.surfaces ?? []).map(surface => surface.id));
+    for (const surface of m.surfaces ?? []) {
+        if (surface.tone !== undefined && surface.tone !== 'dark' && surface.tone !== 'light') problems.push(`surface "${surface.id}" tone is not 'dark' or 'light'`);
+    }
     for (const placement of [m.lyrics?.style, m.background?.host]) {
         if (typeof placement === 'object' && placement !== null && !surfaceIds.has(placement.surface)) {
             problems.push(`surface "${placement.surface}" is not in surfaces`);

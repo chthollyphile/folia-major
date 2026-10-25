@@ -1,6 +1,7 @@
 import { getSongAlbumLabel, getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { beatImpact, handoffProgress } from '../../../stores/motionSignals';
 import { selectCoverUrl, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import type { DualTheme } from '../../../types';
 import type { VisualizerSharedProps } from '../../visualizer/definition';
 import type { LyricPhase, MusicCharacter, SceneContext, SceneEvents, SceneSong } from '../definition';
 import { computeLyricPhase, type LyricPhaseState } from './lyricPhase';
@@ -47,8 +48,14 @@ export type SceneSignals = Pick<SceneContext, 'song' | 'lyrics' | 'music' | 'pla
     step: () => SceneSignalSnapshot;
 };
 
-/** The signals of SceneContext, read from the latest props each time they are asked. */
-export const createSceneSignals = (getProps: () => VisualizerSharedProps): SceneSignals => {
+/** The song's colour pair (sceneTheme.ts): the song on screen's, and a blend's incoming song's. */
+export interface SceneSongThemes {
+    shown: DualTheme;
+    incoming: DualTheme;
+}
+
+/** The signals of SceneContext, read from the latest props and song themes each time they are asked. */
+export const createSceneSignals = (getProps: () => VisualizerSharedProps, getSongThemes: () => SceneSongThemes): SceneSignals => {
     let lyric: LyricPhaseState = computeLyricPhase([], 0);
     const songOf = (props: VisualizerSharedProps): SceneSong => ({
         seed: props.seed ?? null,
@@ -56,7 +63,7 @@ export const createSceneSignals = (getProps: () => VisualizerSharedProps): Scene
         artist: props.songArtist ?? null,
         album: props.songAlbum ?? null,
         coverUrl: props.coverUrl ?? null,
-        theme: props.theme,
+        theme: getSongThemes().shown,
         duration: props.duration ?? 0,
     });
     // A blend's incoming song: the live song while a blend holds the picture on the outgoing one (as useVisualizerSongHandoff reads it).
@@ -65,7 +72,6 @@ export const createSceneSignals = (getProps: () => VisualizerSharedProps): Scene
         const held = state.transitionDisplay;
         const song = state.currentSong;
         if (!held || !song || song.id === held.song?.id) return null;
-        const props = getProps();
         return {
             song: {
                 seed: song.id,
@@ -73,7 +79,7 @@ export const createSceneSignals = (getProps: () => VisualizerSharedProps): Scene
                 artist: getSongArtistLabel(song) || null,
                 album: getSongAlbumLabel(song) || null,
                 coverUrl: selectCoverUrl(state) ?? null,
-                theme: props.songHandoff?.theme ?? props.theme,
+                theme: getSongThemes().incoming,
                 duration: 0,
             },
             progress: handoffProgress.get(),

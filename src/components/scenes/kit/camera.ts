@@ -29,7 +29,8 @@ export const seatRig = (ctx: SceneContext, options: SeatRigOptions = {}): Camera
         update: (camera, dt) => {
             const seats = ctx.anchors.list('seat');
             const wanted = (typeof options.seat === 'function' ? options.seat() : options.seat) ?? ctx.seats.chosen() ?? undefined;
-            const seat = seats.find(entry => entry.id === wanted) ?? seats.find(entry => entry.preferred) ?? seats[0];
+            // A taken seat is not sat in (as the seat map shows it): the preferred one instead.
+            const seat = seats.find(entry => entry.id === wanted && !entry.occupied) ?? seats.find(entry => entry.preferred) ?? seats[0];
             if (!seat) return;
             const singing = ctx.lyrics.phase() === 'singing' && options.singingClampDeg !== undefined;
             const limit = (singing ? options.singingClampDeg! : options.clampDeg ?? 12) * DEG;

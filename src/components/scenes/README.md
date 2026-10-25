@@ -19,6 +19,7 @@ src/components/scenes/
     queueEnd.ts        「歌单放完」，最后一首放到结尾时由 usePlaybackQueueController 的 stopAtQueueEnd 发出
     sceneEvents.ts     场景的监听和订阅：抛错就退回，停下时一起放掉
     sceneSound.ts      声音接上来的地方（第一期是空实现）
+    sceneTheme.ts      歌曲的一对亮/暗主题（不跟 app 的亮暗模式）；借到表面上的歌词样式用哪个主题
   kit/               可选工具箱（用 three.js 的场景才用）
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
     camera.ts          seatRig、pathRig、phaseDirector、chooseDirectorShot
@@ -70,6 +71,7 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
    - 第一帧画好调 `ctx.ready()`。宿主在这之前显示用户原来的歌词样式，最多等 4 秒。
    - 事件用 `ctx.on('songChange' | 'blendStart' | 'lineChange' | 'phaseChange' | 'play' | 'pause' | 'seek' | 'queueEnd', fn)`。事件只报变化，第一帧没有事件：开始时直接读 `ctx.song.current()`、`ctx.lyrics.phase()` 这些。
    - 每帧的 `dt` 是秒，暂停时为 0。不要每帧写 React state。
+   - 颜色：`ctx.song.current().theme` 是歌曲的一对主题 `{ light, dark }`，app 切亮暗模式时不变。场景按自己的画面挑一个（影厅暗，用 `dark`）；app 现在的模式在 `ctx.display.isDaylight()`，场景的灯光不该跟它走。
 4. 设置和画质只写在清单里（`settings` 用 Folium 的设置表格式，`quality` 三档），值从 `ctx.settings.get()`、`ctx.quality.get(key)` 读。
 5. 文案：三份语言文件（`en.ts`、`zh-CN.ts`、`in.ts`）的 `commandPalette.commands` 加 `scene-rooftop` 的 `title`、`description`（切换命令按名单自动生成，缺了 `commandRegistryContract.test.ts` 会失败），再更新那个测试的命令顺序快照（确认只多了 `scene-rooftop`）。场景的名字写在清单的 `name` 里，不进语言文件。
 6. 只有场景里有用户看不见的逻辑才写单元测试，放 `test/unit/scenes/`。
@@ -89,6 +91,7 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 
 - `own: true` 又允许借时，选择器里出一个开关（场景的 / 你的），存在 `useSceneSettingsStore` 的 `sceneOptions[<id>]`。
 - `exclude: ['still', ...]`：贴上去不合适的样式或背景 id，选了这个场景时选择器里不出现。之前选的样式不合适时，宿主显示第一个合适的，存着的值不改。
+- 表面的 `tone`（`'dark'` 或 `'light'`）：场景在这个表面上的画面是暗还是亮。表面只贴歌词时，借来的歌词样式拿歌曲主题里对应的那一个（和对应的 `isDaylight`），文字配得上场景的画面，不跟 app 的亮暗模式；贴着用户的背景时，就是用户的播放页原样。没写 `tone` 时和播放页一样。影厅的荧幕是 `'dark'`。
 - 表面盒子里是一个没改过的 `VisualizerRenderer`，盒子宽等于场景盒子宽，高按表面的 `aspect` 算，再用 CSS 3D 变形贴到四个角上。有背景的表面放在场景画布下面（场景在那里留透明的洞，前排人头能挡住它），只有歌词的放在上面。
 - 已知代价：只要背景、不要歌词的表面也挂一整个歌词样式（`showText` 关掉）；借来的内容不受场景灯光影响。
 
