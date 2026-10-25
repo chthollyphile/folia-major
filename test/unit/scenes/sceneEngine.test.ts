@@ -9,6 +9,7 @@ import {
 } from '../../../src/components/scenes/engine/scenePlacement';
 import { diffSceneSignals, type SceneSignalSnapshot } from '../../../src/components/scenes/engine/sceneSignals';
 import { quadHomography, quadToMatrix3d } from '../../../src/components/scenes/engine/surfaceQuad';
+import { chooseDirectorShot } from '../../../src/components/scenes/kit/camera';
 import type { Line } from '../../../src/types';
 
 // test/unit/scenes/sceneEngine.test.ts
@@ -105,5 +106,16 @@ describe('surface mapping', () => {
             expect(y).toBeCloseTo(quad[index].y, 6);
         });
         expect(quadToMatrix3d(800, 432, quad)).toMatch(/^matrix3d\((-?[\d.e-]+,){15}-?[\d.e-]+\)$/);
+    });
+});
+
+describe('phase director', () => {
+    it('tours only when the next line is far, and is back in the seat before it', () => {
+        expect(chooseDirectorShot('seat', 'interlude', 12)).toBe('tour');
+        expect(chooseDirectorShot('seat', 'between-lines', 4)).toBe('seat');
+        expect(chooseDirectorShot('tour', 'interlude', 5)).toBe('tour');
+        expect(chooseDirectorShot('tour', 'interlude', 2)).toBe('seat');
+        expect(chooseDirectorShot('tour', 'singing', 20)).toBe('seat');
+        expect(chooseDirectorShot('seat', 'outro', Infinity)).toBe('tour');
     });
 });
