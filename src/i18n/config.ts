@@ -124,9 +124,9 @@ i18n
     supportedLngs: ['en', 'zh-CN', 'zh-TW', 'in'],
     ...(initialLanguagePreference !== 'system' ? { lng: initialLanguagePreference } : {}),
     detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'],
-      lookupLocalStorage: 'i18nextLng'
+      // folia_app_language owns the preference; a detected locale must not become a saved override.
+      order: ['navigator', 'htmlTag'],
+      caches: []
     },
     interpolation: {
       escapeValue: false
@@ -159,12 +159,7 @@ export const applyAppLanguagePreference = async (
   preference: AppLanguagePreference
 ): Promise<Exclude<AppLanguagePreference, 'system'>> => {
   if (typeof window !== 'undefined') {
-    if (preference === 'system') {
-      localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, preference);
-      localStorage.removeItem('i18nextLng');
-    } else {
-      localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, preference);
-    }
+    localStorage.setItem(APP_LANGUAGE_STORAGE_KEY, preference);
   }
 
   const nextLanguage = preference === 'system' ? detectSystemLanguage() : preference;
