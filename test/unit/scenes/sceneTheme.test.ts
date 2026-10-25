@@ -1,48 +1,54 @@
 import { describe, expect, it } from 'vitest';
 import { checkSceneManifest } from '../../../src/components/scenes/definition';
 import cinema from '../../../src/components/scenes/cinema/entry';
-import { songThemePair, surfaceRendererTheme, type SongThemeSource } from '../../../src/components/scenes/engine/sceneTheme';
-import { resolveBgModeTheme } from '../../../src/hooks/themeControllerState';
+import { surfaceRendererTheme, withLyricFonts } from '../../../src/components/scenes/engine/sceneTheme';
+import { resolveControllerTheme } from '../../../src/hooks/useThemeController';
 import { DAYLIGHT_THEME, DEFAULT_THEME } from '../../../src/services/baseThemes';
-import type { DualTheme, Theme } from '../../../src/types';
+import type { DualTheme, Theme, ThemeMode } from '../../../src/types';
 
 const theme = (name: string, accentColor: string, backgroundColor: string): Theme => ({
     name, backgroundColor, primaryColor: '#111111', accentColor, secondaryColor: '#222222', fontStyle: 'sans', animationIntensity: 'normal',
 });
 const AI: DualTheme = { light: theme('ai light', '#ff0000', '#ffffff'), dark: theme('ai dark', '#00ff00', '#000000') };
 const CUSTOM: DualTheme = { light: theme('custom light', '#0000ff', '#eeeeee'), dark: theme('custom dark', '#ffff00', '#101010') };
+const LEGACY = theme('legacy', '#ff00ff', '#202020');
 const FONTS: Pick<Theme, 'fontStyle' | 'fontFamily' | 'fontWeight' | 'fontFamilyStack'> = { fontStyle: 'serif', fontFamily: 'Lyric Font', fontWeight: 600, fontFamilyStack: ['Lyric Font'] };
 
-/** The theme the app shows in a mode, as the theme controller resolves it, with the user's lyric fonts on it. */
-const appTheme = (source: SongThemeSource, isDaylight: boolean): Theme => ({
-    ...(source.bgMode === 'custom' && source.customTheme
-        ? (isDaylight ? source.customTheme.light : source.customTheme.dark)
-        : resolveBgModeTheme({ mode: source.bgMode === 'ai' ? 'ai' : 'default', aiTheme: source.aiTheme, isDaylight, defaultTheme: DEFAULT_THEME, daylightTheme: DAYLIGHT_THEME, previousTheme: DEFAULT_THEME })),
-    ...FONTS,
+type Sources = { bgMode: ThemeMode; aiTheme: DualTheme | null; legacyTheme: Theme | null; customTheme: DualTheme | null };
+const resolve = (sources: Sources, isDaylight: boolean) => resolveControllerTheme({
+    ...sources, isDaylight, defaultTheme: DEFAULT_THEME, daylightTheme: DAYLIGHT_THEME, previousTheme: DEFAULT_THEME,
 });
+/** The pair as useThemeController builds it: the theme the app shows in each mode. */
+const pairOf = (sources: Sources): DualTheme => ({ light: resolve(sources, true), dark: resolve(sources, false) });
 
-const SOURCES: [string, SongThemeSource][] = [
-    ['default', { bgMode: 'default', aiTheme: null, customTheme: null }],
-    ['default with an AI theme', { bgMode: 'default', aiTheme: AI, customTheme: null }],
-    ['ai', { bgMode: 'ai', aiTheme: AI, customTheme: null }],
-    ['custom', { bgMode: 'custom', aiTheme: AI, customTheme: CUSTOM }],
+const SOURCES: [string, Sources][] = [
+    ['default', { bgMode: 'default', aiTheme: null, legacyTheme: null, customTheme: null }],
+    ['default with an AI theme', { bgMode: 'default', aiTheme: AI, legacyTheme: null, customTheme: null }],
+    ['ai', { bgMode: 'ai', aiTheme: AI, legacyTheme: null, customTheme: null }],
+    ['ai with a legacy theme', { bgMode: 'ai', aiTheme: null, legacyTheme: LEGACY, customTheme: null }],
+    ['custom', { bgMode: 'custom', aiTheme: AI, legacyTheme: null, customTheme: CUSTOM }],
 ];
 
 describe("the scene's song colours", () => {
-    it.each(SOURCES)('are the same pair in light and dark mode (%s)', (_, source) => {
-        const inLight = songThemePair(source, appTheme(source, true));
-        const inDark = songThemePair(source, appTheme(source, false));
-        expect(inLight).toEqual(inDark);
-        expect(inDark.dark.accentColor).toBe(appTheme(source, false).accentColor);
-        expect(inDark.light.accentColor).toBe(appTheme(source, true).accentColor);
-        expect(inDark.dark.fontFamily).toBe('Lyric Font');
+    it.each(SOURCES)("are the controller's theme for each mode, with the lyric fonts (%s)", (_, sources) => {
+        const pair = withLyricFonts(pairOf(sources), { ...DEFAULT_THEME, ...FONTS });
+        expect(pair.dark.accentColor).toBe(resolve(sources, false).accentColor);
+        expect(pair.light.accentColor).toBe(resolve(sources, true).accentColor);
+        expect(pair.dark.fontFamily).toBe('Lyric Font');
+        expect(pair.light.fontWeight).toBe(600);
+    });
+
+    it('carry a legacy theme on both halves', () => {
+        const pair = pairOf(SOURCES[3][1]);
+        expect(pair.light.accentColor).toBe(LEGACY.accentColor);
+        expect(pair.dark.accentColor).toBe(LEGACY.accentColor);
     });
 });
 
 describe("a borrowed renderer's theme", () => {
-    const source = SOURCES[2][1];
-    const pageIn = (isDaylight: boolean) => ({ theme: appTheme(source, isDaylight), subtitleTheme: appTheme(source, isDaylight), isDaylight });
-    const song = { theme: songThemePair(source, appTheme(source, true)), subtitleTheme: songThemePair(source, appTheme(source, true)) };
+    const sources = SOURCES[2][1];
+    const pageIn = (isDaylight: boolean) => ({ theme: resolve(sources, isDaylight), subtitleTheme: resolve(sources, isDaylight), isDaylight });
+    const song = { theme: pairOf(sources), subtitleTheme: pairOf(sources) };
 
     it('on a dark surface with only the lyrics, does not change with the app mode', () => {
         const inLight = surfaceRendererTheme(pageIn(true), song, { background: false, tone: 'dark' });

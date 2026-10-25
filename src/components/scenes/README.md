@@ -19,7 +19,7 @@ src/components/scenes/
     queueEnd.ts        「歌单放完」，最后一首放到结尾时由 usePlaybackQueueController 的 stopAtQueueEnd 发出
     sceneEvents.ts     场景的监听和订阅：抛错就退回，停下时一起放掉
     sceneSound.ts      声音接上来的地方（第一期是空实现）
-    sceneTheme.ts      歌曲的一对亮/暗主题（不跟 app 的亮暗模式）；借到表面上的歌词样式用哪个主题
+    sceneTheme.ts      歌曲那对亮/暗主题（App 从 useThemeController 传进来）配上歌词字体；借到表面上的歌词样式用哪个主题
   kit/               可选工具箱（用 three.js 的场景才用）
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
     camera.ts          seatRig、pathRig、phaseDirector、chooseDirectorShot

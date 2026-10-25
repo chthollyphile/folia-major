@@ -48,7 +48,7 @@ export type SceneSignals = Pick<SceneContext, 'song' | 'lyrics' | 'music' | 'pla
     step: () => SceneSignalSnapshot;
 };
 
-/** The song's colour pair (sceneTheme.ts): the song on screen's, and a blend's incoming song's. */
+/** The song's colour pair (useThemeController's songThemePair): the song on screen's, and a blend's incoming song's. */
 export interface SceneSongThemes {
     shown: DualTheme;
     incoming: DualTheme;

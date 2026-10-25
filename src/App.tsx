@@ -653,6 +653,7 @@ export default function App() {
     });
     const {
         theme,
+        songThemePair,
         setTheme,
         aiTheme,
         customTheme,
@@ -2819,7 +2820,7 @@ export default function App() {
                 onClick={handleContainerClick}
             >
                 <PlayerBottomBarLayoutContext.Provider value={currentView === 'player'}>
-                    {shouldMountVisualizer && <SceneHost {...visualizerRendererModel} animateStyleSwitch />}
+                    {shouldMountVisualizer && <SceneHost {...visualizerRendererModel} songThemePair={songThemePair} animateStyleSwitch />}
                 </PlayerBottomBarLayoutContext.Provider>
             </div>
 

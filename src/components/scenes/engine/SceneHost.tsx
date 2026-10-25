@@ -1,8 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { selectDisplaySong, selectIsShowingTail, usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorStore';
+import type { DualTheme } from '../../../types';
 import { DEFAULT_VISUALIZER_BACKGROUND_MODE } from '../../../types/visualizerModes';
 import VisualizerRenderer from '../../visualizer/VisualizerRenderer';
 import { useShownTheme } from '../../visualizer/useShownTheme';
@@ -17,7 +16,7 @@ import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackPointer, type SceneSignalSnapshot } from './sceneSignals';
 import { silentSceneSound } from './sceneSound';
-import { songThemePair, surfaceRendererTheme, type SongThemeSource } from './sceneTheme';
+import { surfaceRendererTheme, withLyricFonts } from './sceneTheme';
 import { quadToMatrix3d } from './surfaceQuad';
 
 // src/components/scenes/engine/SceneHost.tsx
@@ -26,6 +25,8 @@ import { quadToMatrix3d } from './surfaceQuad';
 // 场景加载失败、运行中抛错、WebGL 丢了两次，都回到用户原来的歌词样式，播放页不会黑掉。
 
 type RendererProps = React.ComponentProps<typeof VisualizerRenderer>;
+/** `songThemePair`: the song's light and dark themes (useThemeController); without one, the shown theme is both. */
+type SceneHostProps = RendererProps & { songThemePair?: DualTheme };
 
 /** How long the host waits for the scene's ready() before showing it anyway. */
 const READY_LIMIT_MS = 4000;
@@ -37,7 +38,7 @@ type StageStatus = 'loading' | 'running' | 'failed';
 const valuesOf = (sceneId: string) => useSceneSettingsStore.getState().sceneOptions[sceneId]?.values;
 
 /** Runs one scene; the user's lyric style stands in while it loads and takes over for good when it fails. */
-const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: RendererProps }> = ({ definition, rendererProps }) => {
+const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: RendererProps; songThemePair?: DualTheme }> = ({ definition, rendererProps, songThemePair }) => {
     const { manifest } = definition;
     const [status, setStatus] = useState<StageStatus>('loading');
     // A lost WebGL context loads the scene once more; a second loss falls back.
@@ -55,13 +56,14 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     const reducedMotionRef = useRef(reducedMotion);
     const planRef = useRef(plan);
     // The song's colour pair, not the app's mode's pick of it; held for the song on screen through a blend, as its theme is.
-    const liveThemeSource = useThemeQuickEditorStore(useShallow((state): SongThemeSource => ({ bgMode: state.bgMode, aiTheme: state.aiTheme, customTheme: state.customTheme })));
-    const shownThemeSource = useShownTheme(liveThemeSource, usePlaybackStore(selectIsShowingTail), usePlaybackStore(state => selectDisplaySong(state)?.id));
+    const fallbackPair = useMemo(() => ({ light: rendererProps.theme, dark: rendererProps.theme }), [rendererProps.theme]);
+    const livePair = songThemePair ?? fallbackPair;
+    const shownPair = useShownTheme(livePair, usePlaybackStore(selectIsShowingTail), usePlaybackStore(state => selectDisplaySong(state)?.id));
     const songThemes = useMemo(() => ({
-        shown: songThemePair(shownThemeSource, rendererProps.theme),
-        incoming: songThemePair(liveThemeSource, rendererProps.theme),
-        shownSubtitle: rendererProps.subtitleTheme ? songThemePair(shownThemeSource, rendererProps.subtitleTheme) : undefined,
-    }), [shownThemeSource, liveThemeSource, rendererProps.theme, rendererProps.subtitleTheme]);
+        shown: withLyricFonts(shownPair, rendererProps.theme),
+        incoming: withLyricFonts(livePair, rendererProps.theme),
+        shownSubtitle: rendererProps.subtitleTheme ? withLyricFonts(shownPair, rendererProps.subtitleTheme) : undefined,
+    }), [shownPair, livePair, rendererProps.theme, rendererProps.subtitleTheme]);
     const songThemesRef = useRef(songThemes);
     useLayoutEffect(() => {
         propsRef.current = rendererProps;
@@ -310,13 +312,13 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
  * Where the player page mounts its visualizer. With no scene chosen (or the chosen one not registered,
  * a mod's that has not loaded), exactly the VisualizerRenderer it always was.
  */
-const SceneHost: React.FC<RendererProps> = (props) => {
+const SceneHost: React.FC<SceneHostProps> = ({ songThemePair, ...props }) => {
     const reloadToken = useSceneSettingsStore(state => state.reloadToken);
     const definition = useChosenScene();
     // A scene reads its quality preset as it starts, so a new preset loads it again.
     const quality = useSceneSettingsStore(state => (definition ? state.sceneOptions[definition.manifest.id]?.quality : undefined));
     if (!definition) return <VisualizerRenderer {...props} />;
-    return <SceneStage key={`${definition.manifest.id}:${reloadToken}:${quality ?? ''}`} definition={definition} rendererProps={props} />;
+    return <SceneStage key={`${definition.manifest.id}:${reloadToken}:${quality ?? ''}`} definition={definition} rendererProps={props} songThemePair={songThemePair} />;
 };
 
 export default SceneHost;
