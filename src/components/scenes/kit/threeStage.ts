@@ -9,6 +9,8 @@ import type { SceneContext, ScreenPoint, ScreenQuad, Vec3 } from '../definition'
 export interface ThreeStageOptions {
     /** Transparent canvas, so the host's borrowed content can show through a hole. Default true. */
     alpha?: boolean;
+    /** Multisampling on the window's buffer. Default true; a scene with its own lens passes turns it off. */
+    antialias?: boolean;
     fov?: number;
     near?: number;
     far?: number;
@@ -27,7 +29,7 @@ export interface ThreeStage {
 
 export const createThreeStage = (ctx: SceneContext, options: ThreeStageOptions = {}): ThreeStage => {
     const alpha = options.alpha ?? true;
-    const renderer = new THREE.WebGLRenderer({ alpha, antialias: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({ alpha, antialias: options.antialias ?? true, powerPreference: 'high-performance' });
     renderer.setClearColor(0x000000, alpha ? 0 : 1);
     const canvas = renderer.domElement;
     canvas.style.position = 'absolute';

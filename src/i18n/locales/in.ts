@@ -793,6 +793,7 @@ export default {
       "visualizer-picker": { "title": "Pilih visualizer", "description": "Telusuri mode animasi lirik lalu klik untuk beralih" },
       "background-picker": { "title": "Pilih latar", "description": "Telusuri tata letak latar lalu klik untuk beralih" },
       "visualizer-still": { "title": "Visualizer: Still", "description": "Alihkan ke visualizer statis yang hemat sumber daya" },
+      "scene-cinema": { "title": "Adegan: Bioskop", "description": "Ubah halaman pemutar menjadi bioskop, lirik dan sampul di layarnya" },
       "scene-exit": { "title": "Keluar dari adegan", "description": "Kembali ke gaya lirik dan latar di halaman pemutar" },
       "scene-reload": { "title": "Muat ulang adegan", "description": "Muat ulang adegan di halaman pemutar setelah berkasnya diubah" },
       "visualizer-classic": { "title": "Visualizer: Luminous", "description": "Alihkan ke visualizer classic" },

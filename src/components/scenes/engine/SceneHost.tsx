@@ -47,9 +47,11 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     );
     const reducedMotion = useReducedMotionFor('uiMicroMotion');
     const reducedMotionRef = useRef(reducedMotion);
+    const planRef = useRef(plan);
     useLayoutEffect(() => {
         propsRef.current = rendererProps;
         reducedMotionRef.current = reducedMotion;
+        planRef.current = plan;
     });
 
     useEffect(() => {
@@ -148,7 +150,14 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 add: anchor => { anchors.push(anchor); },
                 list: kind => anchors.filter(anchor => anchor.kind === kind) as never,
             },
-            surfaces: { place: (surfaceId, quad) => { quads.current.set(surfaceId, quad); } },
+            surfaces: {
+                place: (surfaceId, quad) => { quads.current.set(surfaceId, quad); },
+                uses: (surfaceId) => {
+                    const surface = planRef.current.surfaces.find(entry => entry.id === surfaceId);
+                    return { lyrics: Boolean(surface?.lyrics), background: Boolean(surface?.background) };
+                },
+            },
+            seats: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.seat ?? null },
             sound: silentSceneSound,
             on: bus.on,
             ready: show,

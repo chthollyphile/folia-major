@@ -8,7 +8,7 @@
 //   数据包  `pkg:<id>`        由数据包加载器加前缀
 // 名单初始化时核对这份清单和目录里的 entry.ts 一致（assertBuiltinSceneList），漏了就启动报错。
 
-export const BUILTIN_SCENE_IDS = [] as const satisfies readonly string[];
+export const BUILTIN_SCENE_IDS = ['cinema'] as const satisfies readonly string[];
 
 export type BuiltinSceneId = (typeof BUILTIN_SCENE_IDS)[number];
 

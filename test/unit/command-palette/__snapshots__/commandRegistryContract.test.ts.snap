@@ -256,6 +256,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "background-latent-both",
   "background-url",
   "background-sora",
+  "scene-cinema",
   "scene-exit",
   "scene-reload",
 ]

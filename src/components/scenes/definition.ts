@@ -215,8 +215,16 @@ export interface SceneContext {
     readonly settings: { get(): Record<string, unknown>; onChange(fn: () => void): Disposer };
     readonly quality: { preset(): SceneQualityPreset; get(key: string): number | boolean | undefined };
     readonly anchors: { add(anchor: SceneAnchor): void; list<K extends SceneAnchorKind>(kind: K): Extract<SceneAnchor, { kind: K }>[] };
-    /** 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去。 */
-    readonly surfaces: { place(id: string, cornersOnScreen: ScreenQuad | null): void };
+    /**
+     * 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去。
+     * uses(id)：这个表面现在贴着用户的什么（跟着用户的开关变）；贴着背景时场景要在那里留透明的洞。
+     */
+    readonly surfaces: {
+        place(id: string, cornersOnScreen: ScreenQuad | null): void;
+        uses(id: string): { lyrics: boolean; background: boolean };
+    };
+    /** 用户在座位图上选的座位锚点 id，没选时为 null（场景用自己的 preferred 座位）。 */
+    readonly seats: { chosen(): string | null };
     readonly sound: SceneSound;
     on<K extends keyof SceneEvents>(type: K, fn: (event: SceneEvents[K]) => void): Disposer;
     /** 第一帧画好了；宿主这时才把场景露出来。 */

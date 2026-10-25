@@ -12,7 +12,7 @@ export interface CameraRig {
 const DEG = Math.PI / 180;
 
 export interface SeatRigOptions {
-    /** The seat anchor's id; without one, the user's seat, else the preferred one, else the first. */
+    /** The seat anchor's id; without one, the user's seat (ctx.seats), else the preferred one, else the first. */
     seat?: string | (() => string | undefined);
     /** How far the pointer turns the head, in degrees. */
     clampDeg?: number;
@@ -28,7 +28,7 @@ export const seatRig = (ctx: SceneContext, options: SeatRigOptions = {}): Camera
     return {
         update: (camera, dt) => {
             const seats = ctx.anchors.list('seat');
-            const wanted = typeof options.seat === 'function' ? options.seat() : options.seat;
+            const wanted = (typeof options.seat === 'function' ? options.seat() : options.seat) ?? ctx.seats.chosen() ?? undefined;
             const seat = seats.find(entry => entry.id === wanted) ?? seats.find(entry => entry.preferred) ?? seats[0];
             if (!seat) return;
             const singing = ctx.lyrics.phase() === 'singing' && options.singingClampDeg !== undefined;
