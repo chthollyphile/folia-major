@@ -69,8 +69,8 @@
     "afterPack": "build/afterPack.cjs",
     "electronLanguages": [
       "en-US",
-      "zh_CN",
-      "zh_TW",
+      "zh-CN",
+      "zh-TW",
       "id"
     ],
     "generateUpdatesFilesForAllChannels": true,
@@ -151,6 +151,12 @@
       }
     ],
     "mac": {
+      "electronLanguages": [
+        "en",
+        "zh_CN",
+        "zh_TW",
+        "id"
+      ],
       "extraResources": [
         {
           "from": "build/koffi/darwin_${arch}",

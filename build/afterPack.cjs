@@ -36,14 +36,13 @@ async function pathExists(candidate) {
 }
 
 // macOS 上的本地化目录用下划线命名（zh_CN.lproj、zh_TW.lproj），而 electron-builder 是拿
-// build.electronLanguages 里的字符串去匹配这些目录名的：写成连字符（zh-CN）时一条都匹配不上，
+// build.mac.electronLanguages 里的字符串去匹配这些目录名的：写成连字符（zh-CN）时一条都匹配不上，
 // 中文目录会被当成没人要的语言删掉。删掉之后，系统是中文的机器上 app.getLocale() 只会落到
 // en-US，渲染层的「跟随系统」于是永远是英文，而应用里没有任何报错。所以打包时就检查，
 // 而不是发出去再靠人发现。
 const REQUIRED_MAC_LOCALES = ['en', 'zh_CN', 'zh_TW', 'id'];
 
 async function verifyMacLocalizations(context) {
-  if (context.electronPlatformName !== 'darwin') return;
   const appResources = context.packager.getResourcesDir(context.appOutDir);
   // 应用包里那几个 .lproj 是空目录，只用来告诉 macOS 这个应用支持哪些语言；
   // Chromium 真正拿来翻译菜单/原生弹窗的 locale.pak 在 Electron 框架里，两边都要在。
@@ -62,10 +61,35 @@ async function verifyMacLocalizations(context) {
   if (missing.length > 0) {
     throw new Error(
       `[afterPack] macOS localizations were pruned: ${missing.join(', ')} - "follow system" would resolve to English. `
-      + 'build.electronLanguages must use Electron\'s on-disk names (zh_CN, not zh-CN)',
+      + 'build.mac.electronLanguages must use Electron\'s on-disk names (zh_CN, not zh-CN)',
     );
   }
 }
+
+const REQUIRED_PAK_LOCALES = ['en-US', 'zh-CN', 'zh-TW', 'id'];
+
+// Windows/Linux 的 Chromium 语言包位于 appOutDir/locales，文件名使用连字符。
+async function verifyLocalizations(context) {
+    if (context.electronPlatformName === 'darwin') {
+        await verifyMacLocalizations(context);
+    } else if (['win32', 'linux'].includes(context.electronPlatformName)) {
+        const missing = [];
+        for (const locale of REQUIRED_PAK_LOCALES) {
+            const file = path.join('locales', `${locale}.pak`);
+            if (!(await pathExists(path.join(context.appOutDir, file)))) {
+                missing.push(file);
+            }
+        }
+        if (missing.length > 0) {
+            throw new Error(
+                `[afterPack] ${context.electronPlatformName} localizations were pruned: ${missing.join(', ')} - `
+                + 'build.electronLanguages must use Electron\'s on-disk names (zh-CN, not zh_CN)',
+            );
+        }
+    }
+}
+
+exports.verifyLocalizations = verifyLocalizations;
 
 const LIBRESPOT_PREBUILDS_RELATIVE_PATH = path.join(
   'app.asar.unpacked',
@@ -100,10 +124,10 @@ async function pruneLibrespotBinaries(context) {
 }
 
 exports.default = async (context) => {
+  await verifyLocalizations(context);
   await verifyBundledMnn(context);
   await pruneLibrespotBinaries(context);
   if (context.electronPlatformName === 'darwin') {
-    await verifyMacLocalizations(context);
     const { verifyBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await verifyBundledKoffi({
       resourcesDir: context.packager.getResourcesDir(context.appOutDir),
