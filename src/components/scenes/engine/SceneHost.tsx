@@ -5,7 +5,7 @@ import VisualizerRenderer from '../../visualizer/VisualizerRenderer';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
 import type { SceneAnchor, SceneContext, SceneDefinition, SceneEvents, SceneRuntime, ScreenQuad } from '../definition';
-import { useSceneList } from '../registry';
+import { useChosenScene } from '../registry';
 import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
 import { onQueueEnd } from './queueEnd';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
@@ -284,10 +284,8 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
  * a mod's that has not loaded), exactly the VisualizerRenderer it always was.
  */
 const SceneHost: React.FC<RendererProps> = (props) => {
-    const sceneId = useSceneSettingsStore(state => state.sceneId);
     const reloadToken = useSceneSettingsStore(state => state.reloadToken);
-    const scenes = useSceneList();
-    const definition = sceneId ? scenes.find(scene => scene.manifest.id === sceneId) ?? null : null;
+    const definition = useChosenScene();
     if (!definition) return <VisualizerRenderer {...props} />;
     return <SceneStage key={`${definition.manifest.id}:${reloadToken}`} definition={definition} rendererProps={props} />;
 };

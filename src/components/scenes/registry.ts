@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { assertBuiltinSceneList, BUILTIN_SCENE_IDS, sceneIdKind } from '../../types/sceneIds';
 import { checkSceneManifest, type SceneDefinition, type SceneEntryModule } from './definition';
+import { useSceneSettingsStore } from './settings/useSceneSettingsStore';
 
 // src/components/scenes/registry.ts
 // 场景名单：内建场景由 import.meta.glob 从 ./<id>/entry.ts 发现，模组和数据包的场景在运行时登记、撤下。
@@ -72,3 +73,10 @@ const subscribe = (listener: () => void) => {
 
 /** The live list, re-rendering when a mod adds or removes a scene. */
 export const useSceneList = (): readonly SceneDefinition[] => useSyncExternalStore(subscribe, listScenes, listScenes);
+
+/** The scene chosen in the settings, when it is registered (a mod's may not have loaded yet); null for the plain player page. */
+export const useChosenScene = (): SceneDefinition | null => {
+    const sceneId = useSceneSettingsStore(state => state.sceneId);
+    const list = useSceneList();
+    return sceneId ? list.find(scene => scene.manifest.id === sceneId) ?? null : null;
+};

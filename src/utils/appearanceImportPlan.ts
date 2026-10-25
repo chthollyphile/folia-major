@@ -70,6 +70,9 @@ export const ACTIVATE_CUSTOM_THEME_KEY = 'activateCustomTheme';
 // plan can never promise a change that will not happen.
 const FIELD_GROUPS: Record<string, ImportGroup> = {
     visualizerMode: 'visualizer',
+    // The scene on the player page and each scene's own switches, quality and values.
+    sceneId: 'visualizer',
+    sceneOptions: 'visualizer',
     randomVisualizerModePerSong: 'visualizer',
     randomVisualizerModes: 'visualizer',
     visualizerOpacity: 'visualizer',
