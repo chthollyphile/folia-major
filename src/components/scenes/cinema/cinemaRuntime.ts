@@ -122,9 +122,10 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
             director.update(camera, running ? dt : 0);
             // A line held on the film runs out between lines, without a lineChange.
             refreshCaption();
-            hall.setHole(ctx.surfaces.uses(SURFACE).background);
+            const hole = ctx.surfaces.uses(SURFACE).background;
+            hall.setHole(hole);
             renderer.getDrawingBufferSize(bufferSize);
-            hall.update({
+            const shutter = hall.update({
                 dt,
                 running,
                 power: ctx.music.power(),
@@ -136,7 +137,9 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
                 bufferSize,
             });
             hall.render(renderer, camera);
-            ctx.surfaces.place(SURFACE, stage.projectQuad(SCREEN_CORNERS));
+            // A lyric style lies over the canvas and is light from the projector: it goes as the shutter closes.
+            // Under a hole the hall's bare screen covers the borrowed picture itself.
+            ctx.surfaces.place(SURFACE, stage.projectQuad(SCREEN_CORNERS), { opacity: hole ? 1 : shutter });
             frames += 1;
             if (frames === 2) ctx.ready();
         },

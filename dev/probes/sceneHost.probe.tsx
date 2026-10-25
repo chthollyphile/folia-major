@@ -3,6 +3,8 @@ import { motionValue } from 'framer-motion';
 import SceneHost from '../../src/components/scenes/engine/SceneHost';
 import { defineScene, type SceneManifest } from '../../src/components/scenes/definition';
 import { registerScene } from '../../src/components/scenes/registry';
+import { useSceneSeats } from '../../src/components/scenes/engine/sceneSeats';
+import SeatMap from '../../src/components/scenes/settings/SeatMap';
 import { useSceneSettingsStore } from '../../src/components/scenes/settings/useSceneSettingsStore';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
 import type { Line } from '../../src/types';
@@ -13,6 +15,7 @@ import type { ProbeDefinition } from './definition';
  * 场景宿主的探针：登记两个模组场景，一个 2D 画布场景（荧幕表面跟着鼠标晃，借来的歌词样式贴在上面，
  * 画布上写着歌词阶段和收到的事件；能弄丢一次 WebGL），一个加载就抛错的场景。
  * 看三件事：没选场景时就是原来的歌词样式；选了方块场景时样式贴到斜着的荧幕上；选了坏场景时回到歌词样式（控制台有 [SceneHost] scene failed）。
+ * 影厅（内建 'cinema'）：「Hall lyrics」切换影厅自己的字幕和用户的歌词样式；右上是座位图（点一下换座位）。
  */
 
 const QUALITY: SceneManifest['quality'] = { default: 'low', presets: { low: {}, medium: {}, high: {} } };
@@ -108,8 +111,34 @@ const LINES: Line[] = [3, 7, 11, 25, 29].map((start, index) => ({
 }));
 const LOOP_SEC = 36;
 
+/** A made-up cover for the hall's reel: a gradient with a ring. */
+const probeCover = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const g = canvas.getContext('2d')!;
+    const gradient = g.createLinearGradient(0, 0, 512, 512);
+    gradient.addColorStop(0, '#3b82f6');
+    gradient.addColorStop(1, '#f43f5e');
+    g.fillStyle = gradient;
+    g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = '#fde68a';
+    g.lineWidth = 24;
+    g.beginPath();
+    g.arc(256, 256, 140, 0, Math.PI * 2);
+    g.stroke();
+    return canvas.toDataURL('image/png');
+};
+
+/** Stand-ins for the settings kit's colours, which the probe page does not have. */
+const KIT_COLORS = { '--st-accent': '#e8b04b', '--st-fill': 'rgba(255,255,255,0.12)', '--st-fill2': 'rgba(255,255,255,0.3)', '--st-t3': 'rgba(255,255,255,0.5)' } as React.CSSProperties;
+
 const SceneHostProbe: React.FC = () => {
     const sceneId = useSceneSettingsStore(state => state.sceneId);
+    const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
+    const hallOptions = useSceneSettingsStore(state => state.sceneOptions.cinema);
+    const seats = useSceneSeats('cinema');
+    const coverUrl = useMemo(probeCover, []);
     const setSceneId = useSceneSettingsStore(state => state.setSceneId);
     const [paused, setPaused] = useState(false);
     const signals = useMemo(() => ({
@@ -155,6 +184,7 @@ const SceneHostProbe: React.FC = () => {
                     audioPower={signals.audioPower}
                     audioBands={signals.audioBands}
                     seed="probe-song"
+                    coverUrl={coverUrl}
                     songTitle="Probe song"
                     paused={paused}
                     duration={LOOP_SEC}
@@ -164,9 +194,18 @@ const SceneHostProbe: React.FC = () => {
                 <button type="button" className={button} onClick={choose(null)}>No scene</button>
                 <button type="button" className={button} onClick={choose('mod:probe:boxes')}>Boxes scene</button>
                 <button type="button" className={button} onClick={choose('mod:probe:broken')}>Broken scene</button>
+                <button type="button" className={button} onClick={choose('cinema')}>Cinema</button>
+                <button type="button" className={button} onClick={() => setSceneOptions('cinema', { lyrics: hallOptions?.lyrics === 'style' ? 'scene' : 'style' })}>
+                    Hall lyrics: {hallOptions?.lyrics === 'style' ? 'style' : 'own'}
+                </button>
                 <button type="button" className={button} onClick={() => setPaused(value => !value)}>{paused ? 'Play' : 'Pause'}</button>
                 <button type="button" className={button} onClick={() => (window as unknown as { __sceneProbeLoseContext?: () => void }).__sceneProbeLoseContext?.()}>Lose WebGL</button>
             </div>
+            {sceneId === 'cinema' && seats.length > 0 && (
+                <div className="absolute right-4 top-4 z-50 w-80 rounded-xl bg-black/70 p-3" style={KIT_COLORS} data-probe-seatmap>
+                    <SeatMap seats={seats} chosen={hallOptions?.seat ?? null} onPick={seat => setSceneOptions('cinema', { seat })} />
+                </div>
+            )}
         </div>
     );
 };

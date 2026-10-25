@@ -9,6 +9,7 @@ import { useChosenScene } from '../registry';
 import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
 import { createSceneEventBus } from './sceneEvents';
 import { onQueueEnd } from './queueEnd';
+import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackPointer, type SceneSignalSnapshot } from './sceneSignals';
 import { silentSceneSound } from './sceneSound';
@@ -39,7 +40,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     const boxRef = useRef<HTMLDivElement>(null);
     const propsRef = useRef(rendererProps);
     const surfaceRefs = useRef(new Map<string, HTMLDivElement>());
-    const quads = useRef(new Map<string, ScreenQuad | null>());
+    const quads = useRef(new Map<string, { quad: ScreenQuad | null; opacity: number }>());
     const options = useSceneSettingsStore(state => state.sceneOptions[manifest.id]);
     const plan = useMemo(
         () => planSceneLayers(manifest, { lyrics: options?.lyrics, screen: options?.screen }),
@@ -83,6 +84,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 console.warn('[SceneHost] scene dispose threw', id, error);
             }
             runtime = null;
+            publishSceneSeats(id, null);
             box.replaceChildren();
         };
         const fail = (error: unknown) => {
@@ -151,7 +153,10 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 list: kind => anchors.filter(anchor => anchor.kind === kind) as never,
             },
             surfaces: {
-                place: (surfaceId, quad) => { quads.current.set(surfaceId, quad); },
+                place: (surfaceId, quad, look) => {
+                    const opacity = Math.min(1, Math.max(0, look?.opacity ?? 1));
+                    quads.current.set(surfaceId, { quad: Number.isFinite(opacity) && opacity > 0 ? quad : null, opacity: Number.isFinite(opacity) ? opacity : 1 });
+                },
                 uses: (surfaceId) => {
                     const surface = planRef.current.surfaces.find(entry => entry.id === surfaceId);
                     return { lyrics: Boolean(surface?.lyrics), background: Boolean(surface?.background) };
@@ -171,17 +176,20 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         const placeSurfaces = () => {
             const width = box.clientWidth;
             surfaceRefs.current.forEach((element, surfaceId) => {
-                const quad = quads.current.get(surfaceId) ?? null;
+                const placed = quads.current.get(surfaceId);
+                const quad = placed?.quad ?? null;
                 const aspect = manifest.surfaces?.find(surface => surface.id === surfaceId)?.aspect || 16 / 9;
                 const height = Math.round(width / aspect);
-                const style = quad ? `${width}x${height}|${quadToMatrix3d(width, height, quad)}` : 'hidden';
+                const opacity = placed?.opacity ?? 1;
+                const style = quad ? `${width}x${height}|${opacity.toFixed(3)}|${quadToMatrix3d(width, height, quad)}` : 'hidden';
                 if (written.get(surfaceId) === style) return;
                 written.set(surfaceId, style);
                 element.style.visibility = quad ? 'visible' : 'hidden';
                 if (!quad) return;
                 element.style.width = `${width}px`;
                 element.style.height = `${height}px`;
-                element.style.transform = style.slice(style.indexOf('|') + 1);
+                element.style.opacity = opacity < 1 ? opacity.toFixed(3) : '';
+                element.style.transform = quadToMatrix3d(width, height, quad);
             });
         };
 
@@ -223,6 +231,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                     return;
                 }
                 runtime = created;
+                publishSceneSeats(id, anchors.filter((anchor): anchor is SeatAnchor => anchor.kind === 'seat'));
                 runtime.resize?.({ width: box.clientWidth, height: box.clientHeight, dpr: window.devicePixelRatio || 1 });
                 console.info('[SceneHost] scene loaded', id, { attempt });
                 readyTimer = window.setTimeout(show, READY_LIMIT_MS);
@@ -288,8 +297,10 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
 const SceneHost: React.FC<RendererProps> = (props) => {
     const reloadToken = useSceneSettingsStore(state => state.reloadToken);
     const definition = useChosenScene();
+    // A scene reads its quality preset as it starts, so a new preset loads it again.
+    const quality = useSceneSettingsStore(state => (definition ? state.sceneOptions[definition.manifest.id]?.quality : undefined));
     if (!definition) return <VisualizerRenderer {...props} />;
-    return <SceneStage key={`${definition.manifest.id}:${reloadToken}`} definition={definition} rendererProps={props} />;
+    return <SceneStage key={`${definition.manifest.id}:${reloadToken}:${quality ?? ''}`} definition={definition} rendererProps={props} />;
 };
 
 export default SceneHost;

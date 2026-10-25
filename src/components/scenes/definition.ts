@@ -218,9 +218,10 @@ export interface SceneContext {
     /**
      * 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去。
      * uses(id)：这个表面现在贴着用户的什么（跟着用户的开关变）；贴着背景时场景要在那里留透明的洞。
+     * opacity（1.x 新增，默认 1）：贴上去的东西有多亮，比如放映机遮光板关上时荧幕上什么都没有。
      */
     readonly surfaces: {
-        place(id: string, cornersOnScreen: ScreenQuad | null): void;
+        place(id: string, cornersOnScreen: ScreenQuad | null, look?: { opacity?: number }): void;
         uses(id: string): { lyrics: boolean; background: boolean };
     };
     /** 用户在座位图上选的座位锚点 id，没选时为 null（场景用自己的 preferred 座位）。 */

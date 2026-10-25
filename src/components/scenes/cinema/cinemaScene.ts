@@ -57,7 +57,8 @@ export interface CinemaScene {
     setReel: (reel: CinemaReel | null, animate: boolean) => void;
     /** Puts a lyric on the film (the scene owns and frees its texture from now on); null shows the picture alone. */
     setCaption: (caption: CinemaCaption | null) => void;
-    update: (input: CinemaFrameInput) => void;
+    /** Moves the hall one frame; returns the projector's shutter, 1 open to 0 shut. */
+    update: (input: CinemaFrameInput) => number;
     /** Leaves the screen's picture area transparent (the user's background lies under the canvas there), or not. */
     setHole: (hole: boolean) => void;
     /** Draws the frame through the lens passes. */
@@ -427,6 +428,7 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uDustTime.value = dustTime;
         // Dust shows only in the beam.
         uniforms.uDustGain.value = lerp(0.35, 0.03, day) * (1 + 0.6 * power) * shutter;
+        return shutter;
     };
 
     const setHole = (hole: boolean) => {
