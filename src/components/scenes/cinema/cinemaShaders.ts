@@ -554,16 +554,10 @@ void main() {
         gl_FragColor = vec4(finishColor(vec3(0.004) + thrown * 0.0035 * exp(-out_ * 16.0)), 1.0);
         return;
     }
-    // The picture is the user's, in a box under the canvas (the host's surface), shown as it is, as on a
-    // modern laser screen: no grain, no flicker, no washed blacks. Only a falloff too slight to see in the
-    // middle (6% at the corners) and an edge a centimetre soft against the masking. Premultiplied: the
-    // darkening is coverage.
-    vec2 centred = (uv - 0.5) * vec2(SCREEN_W / SCREEN_H, 1.0);
-    vec2 inside = (0.5 - abs(uv - 0.5)) * vec2(SCREEN_W, SCREEN_H);
-    float light = (1.0 - 0.06 * dot(centred, centred) / 1.1) * smoothstep(0.0, 0.01, min(inside.x, inside.y));
-    // In an intermission the shutter shuts and the bare screen shows (pale by the house lights).
+    // The picture is the user's, in a box under the canvas (the host's surface), shown exactly as it is.
+    // In an intermission the shutter shuts and the bare screen covers it (pale by the house lights).
     float bare = 1.0 - uShutter;
-    gl_FragColor = vec4(finishColor(BARE_SCREEN * uDay) * bare, 1.0 - light * (1.0 - bare));
+    gl_FragColor = vec4(finishColor(BARE_SCREEN * uDay) * bare, bare);
 }
 `;
 
