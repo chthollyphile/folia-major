@@ -1,12 +1,13 @@
 import type { SceneAnchor, SceneContext, Vec3 } from '../definition';
+import { CINEMA_SPEAKERS } from './cinemaAcoustics';
 import { tourPathAnchor } from './cinemaCamera';
 import { isSeatTaken } from './cinemaGeometry';
 import { PROJECTOR, ROWS, SCREEN, rowFloor, rowZ, seatXs } from './cinemaLayout';
 
 // src/components/scenes/cinema/cinemaAnchors.ts
 // The hall's anchors, from the same measurements as its geometry (cinemaLayout.ts): the screen, every
-// seat (taken ones marked, the preferred one two thirds back in the middle), the speakers behind the
-// screen, the projector, the lyric place and the tour. No three.js here: the seat map reads these too.
+// seat (taken ones marked, the preferred one two thirds back in the middle), the two screen speakers (where
+// the hall's sound is computed from, cinemaAcoustics.ts), the projector, the lyric place and the tour. No three.js here: the seat map reads these too.
 
 /** The picture area of the screen, in the plane of the screen mesh: top-left, top-right, bottom-right, bottom-left. */
 const SURFACE_Z = 0.02;
@@ -52,8 +53,8 @@ export const cinemaSeats = (): SeatAnchor[] => {
 export const publishCinemaAnchors = (anchors: SceneContext['anchors']) => {
     anchors.add({ kind: 'surface', id: 'screen', corners: SCREEN_CORNERS });
     cinemaSeats().forEach(seat => anchors.add(seat));
-    anchors.add({ kind: 'speaker', id: 'L', position: [-SCREEN.width / 3, SCREEN.centerY, -0.5] });
-    anchors.add({ kind: 'speaker', id: 'R', position: [SCREEN.width / 3, SCREEN.centerY, -0.5] });
+    anchors.add({ kind: 'speaker', id: 'L', position: CINEMA_SPEAKERS.L });
+    anchors.add({ kind: 'speaker', id: 'R', position: CINEMA_SPEAKERS.R });
     anchors.add({ kind: 'emitter', id: 'projector', position: [0, PROJECTOR.y, PROJECTOR.z] });
     anchors.add({ kind: 'lyricPlace', id: 'screen', surface: 'screen', rect: { x: 1 / 6, y: 1 / 6, width: 2 / 3, height: 2 / 3 } });
     anchors.add(tourPathAnchor());

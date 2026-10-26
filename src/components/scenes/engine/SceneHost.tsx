@@ -15,7 +15,7 @@ import { onQueueEnd } from './queueEnd';
 import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackLook, type SceneSignalSnapshot } from './sceneSignals';
-import { silentSceneSound } from './sceneSound';
+import { createHostSceneSound, silentSceneSound } from './sceneSound';
 import { surfaceRendererTheme, withLyricFonts } from './sceneTheme';
 import { quadToMatrix3d } from './surfaceQuad';
 
@@ -81,6 +81,8 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         const signals = createSceneSignals(() => propsRef.current, () => songThemesRef.current);
         const look = trackLook(root);
         const written = new Map<string, string>();
+        // The hall's sound on the player page; a scene that plays no music through its speakers gets none.
+        const room = manifest.sound?.music === 'speakers' ? createHostSceneSound(id, () => anchors) : null;
 
         const stop = () => {
             disposed = true;
@@ -88,6 +90,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             cancelAnimationFrame(frameRequest);
             window.clearTimeout(readyTimer);
             look.dispose();
+            room?.dispose();
             stopQueueEnd();
             resizeObserver.disconnect();
             box.removeEventListener('webglcontextlost', onContextLost, true);
@@ -172,7 +175,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 },
             },
             seats: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.seat ?? null },
-            sound: silentSceneSound,
+            sound: room?.sound ?? silentSceneSound,
             on: bus.on,
             ready: show,
             log: {
