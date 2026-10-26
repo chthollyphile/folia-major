@@ -24,7 +24,7 @@ src/components/scenes/
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
     camera.ts          seatRig、pathRig、phaseDirector、chooseDirectorShot
   settings/
-    useSceneSettingsStore.ts  选了哪个场景、每个场景的开关 / 画质 / 座位 / 设置值（键 scene_id、scene_options）
+    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 座位 / 设置值（键 scene_id、scene_options）
     SceneRow.tsx              播放面板外观区的「场景」一行
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 ```
@@ -54,8 +54,8 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
        manifest: {
            format: 1, engine: '^1.0', id: 'rooftop', version: '1.0.0',
            name: { 'zh-CN': '天台', en: 'Rooftop' },
-           lyrics: { own: false, style: 'overlay' },
-           background: { own: true, host: 'none' },
+           lyrics: { style: 'overlay' },
+           background: { host: 'none' },
            quality: { default: 'medium', presets: { low: { dpr: 1 }, medium: { dpr: 1 }, high: { dpr: 1.5 } } },
        },
        load: () => import('./rooftopRuntime').then(module => module.createRooftopRuntime),
@@ -89,11 +89,13 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 | `'behind'`（背景） | 整窗放在场景下面，场景天空要透明 |
 | `{ surface: 'screen' }` | 贴到这个表面上；表面要写在 `surfaces` 里 |
 
-- `own: true` 又允许借时，选择器里出一个开关（场景的 / 你的），存在 `useSceneSettingsStore` 的 `sceneOptions[<id>]`。
+- 场景不自己画歌词、不带自己的背景：歌词样式和背景各是一套，永远是用户选的那个，场景只说放在哪。
+  只适合某个场景的样式或背景，照样登记在歌词样式表、背景表里。
 - `exclude: ['still', ...]`：贴上去不合适的样式或背景 id，选了这个场景时选择器里不出现。之前选的样式不合适时，宿主显示第一个合适的，存着的值不改。
 - 表面的 `tone`（`'dark'` 或 `'light'`）：场景在这个表面上的画面是暗还是亮。表面只贴歌词时，借来的歌词样式拿歌曲主题里对应的那一个（和对应的 `isDaylight`），文字配得上场景的画面，不跟 app 的亮暗模式；贴着用户的背景时，就是用户的播放页原样。没写 `tone` 时和播放页一样。影厅的荧幕是 `'dark'`。
 - 表面盒子里是一个没改过的 `VisualizerRenderer`，盒子宽等于场景盒子宽，高按表面的 `aspect` 算，再用 CSS 3D 变形贴到四个角上。有背景的表面放在场景画布下面（场景在那里留透明的洞，前排人头能挡住它），只有歌词的放在上面。
-- 已知代价：只要背景、不要歌词的表面也挂一整个歌词样式（`showText` 关掉）；借来的内容不受场景灯光影响。
+- 已知代价：只要背景、不要歌词的表面也挂一整个歌词样式（`showText` 关掉）；借来的内容不受场景灯光影响（影厅在荧幕上另叠一层投影的光：四角暗、闪烁、颗粒、白天被厅灯冲淡）。
+- 转头：按住拖动（`ctx.input.look()`，宿主统一做），左右不限，上下到正上、正下为止；不拖、只点时点击照常落到歌词上，拖过之后那一下点击被吞掉。场景自己的画布不接指针。
 
 ## 出错时
 
@@ -101,12 +103,12 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 
 ## 开发
 
-- `npm run dev:probe` 打开 `dev-probe.html?probe=sceneHost`：一个 2D 场景（荧幕跟着鼠标晃，借来的歌词样式贴在上面，画布上写着歌词阶段和收到的事件）、一个加载就抛错的场景、「Lose WebGL」按钮；「Cinema」是影厅，「Hall lyrics」切换影厅自己的字幕和借来的歌词样式，右上是座位图。
+- `npm run dev:probe` 打开 `dev-probe.html?probe=sceneHost`：一个 2D 场景（按住拖动荧幕跟着动，借来的歌词样式贴在上面，画布上写着歌词阶段和收到的事件）、一个加载就抛错的场景、「Lose WebGL」按钮；「Cinema」是影厅，右上是座位图。
 - 命令面板的「Reload the scene」（`scene-reload`，只在开发版出现）：改了场景文件后重新加载，不用重启 app。
 
 ## 还没做的
 
 - 声音（第二期）：`engine/sceneSound.ts` 换成 `src/services/sceneSound/` 的实现；`ctx.music.character()` 现在全是 0。
 - 模组的 `registries.scenes` 和数据包加载器（第三期）。
-- 影厅：借你的背景时，影厅自己的字幕不显示在荧幕上；字幕的翻译总是开着；「两台放映机」现在只是交接开始时换片，光束只有一道。
+- 影厅：「两台放映机」现在只是交接开始时换片（只换光的颜色），光束只有一道；照进厅里的光按封面的颜色估，不是荧幕上真正的画面。
 - 预览窗、OBS 不挂场景（`ctx.host.kind` 现在总是 `'player'`）。

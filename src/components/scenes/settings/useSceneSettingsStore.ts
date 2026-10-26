@@ -4,17 +4,13 @@ import { isSceneId } from '../../../types/sceneIds';
 import type { SceneQualityPreset } from '../definition';
 
 // src/components/scenes/settings/useSceneSettingsStore.ts
-// 场景的设置：现在选的是哪个场景（null = 普通播放页），以及每个场景各自的两个开关、画质档、座位和设置值。
+// 场景的设置：现在选的是哪个场景（null = 普通播放页），以及每个场景各自的画质档、座位和设置值。
 // 存储键发布后不改名：`scene_id`、`scene_options`。
 
 export const SCENE_ID_KEY = 'scene_id';
 export const SCENE_OPTIONS_KEY = 'scene_options';
 
 export interface SceneOptions {
-    /** The scene's own lyrics or the user's lyric style (for a scene that allows both). */
-    lyrics?: 'scene' | 'style';
-    /** The scene's own screen picture or the user's background (for a scene that allows both). */
-    screen?: 'scene' | 'background';
     quality?: SceneQualityPreset;
     /** The seat anchor's id. */
     seat?: string;
@@ -42,8 +38,6 @@ export const sanitizeSceneOptions = (value: unknown): SceneOptionsById => {
     for (const [id, raw] of Object.entries(value)) {
         if (!isSceneId(id) || !isRecord(raw)) continue;
         const options: SceneOptions = {};
-        if (raw.lyrics === 'scene' || raw.lyrics === 'style') options.lyrics = raw.lyrics;
-        if (raw.screen === 'scene' || raw.screen === 'background') options.screen = raw.screen;
         if (typeof raw.quality === 'string' && QUALITIES.includes(raw.quality)) options.quality = raw.quality as SceneQualityPreset;
         if (typeof raw.seat === 'string' && raw.seat !== '') options.seat = raw.seat;
         if (isRecord(raw.values)) {

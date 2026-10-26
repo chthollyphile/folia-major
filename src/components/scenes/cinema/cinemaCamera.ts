@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import type { SceneAnchor, SceneContext } from '../definition';
-import type { CameraRig } from '../kit/camera';
+import { aimCamera, type CameraRig, type Head } from '../kit/camera';
 import { rowFloor, rowZ } from './cinemaLayout';
 
 // src/components/scenes/cinema/cinemaCamera.ts
 // The hall's tour: a slow filmed walk round the hall (a push down the aisle, a dolly along a row with the
 // seat backs passing close, a crane up, a low angle by the aisle), with a little handheld weight and the
-// head turned toward the pointer (ctx.input). The route is published as a path anchor; the rig walks the
+// user's head turned by dragging (kit Head). The route is published as a path anchor; the rig walks the
 // anchor's points on a smooth curve, each stop with its own width of view.
 
 /** One stop of the tour: where the camera is, where it looks, how wide (tangent of half the horizontal view). */
@@ -43,12 +43,6 @@ const HALL_SHOTS: Shot[] = [
 ];
 
 
-/** How far the pointer turns the head, in radians. */
-const POINTER_YAW = THREE.MathUtils.degToRad(15);
-const POINTER_PITCH = THREE.MathUtils.degToRad(8);
-/** After this long without a move, the head turns back to where the tour looks. */
-const POINTER_REST_MS = 3500;
-
 export const TOUR_PATH_ID = 'tour';
 
 /** The tour as the path anchor the hall publishes. */
@@ -69,8 +63,8 @@ export const fitView = (camera: THREE.PerspectiveCamera, halfTan: number) => {
     }
 };
 
-/** Walks the tour path anchor; paused (dt 0) it holds. The head follows the pointer while the music plays. */
-export const tourRig = (ctx: SceneContext): CameraRig => {
+/** Walks the tour path anchor; paused (dt 0) it holds. The user's head turns the view on top of where the tour looks. */
+export const tourRig = (ctx: SceneContext, head: Head): CameraRig => {
     let built: { points: readonly unknown[]; positions: THREE.CatmullRomCurve3; targets: THREE.CatmullRomCurve3; seconds: number[]; total: number } | null = null;
     const curves = () => {
         const points = ctx.anchors.list('path').find(entry => entry.id === TOUR_PATH_ID)?.points ?? [];
@@ -90,7 +84,6 @@ export const tourRig = (ctx: SceneContext): CameraRig => {
     // Start a little into the first move, so the first picture is already travelling.
     let tour = HALL_SHOTS[0].seconds * 0.15;
     let clock = 0;
-    const head = { yaw: 0, pitch: 0 };
     const position = new THREE.Vector3();
     const target = new THREE.Vector3();
 
@@ -117,23 +110,9 @@ export const tourRig = (ctx: SceneContext): CameraRig => {
 
         // Handheld weight: a slow breath in the camera's height and a few slow, unrelated sways.
         position.y += Math.sin(clock * 0.43) * 0.012 + Math.sin(clock * 0.21 + 1.3) * 0.01;
-        camera.position.copy(position);
-        camera.up.set(0, 1, 0);
-        camera.lookAt(target);
-
-        if (dt > 0) {
-            const pointer = ctx.input.pointer();
-            const resting = pointer.restMs > POINTER_REST_MS;
-            const aimYaw = resting ? 0 : -pointer.x * POINTER_YAW;
-            const aimPitch = resting ? 0 : pointer.y * POINTER_PITCH;
-            // Follows the pointer like a head turning; going back to rest is slower still.
-            const rate = resting ? 0.9 : 2.4;
-            const k = 1 - Math.exp(-rate * Math.min(dt, 0.1));
-            head.yaw += (aimYaw - head.yaw) * k;
-            head.pitch += (aimPitch - head.pitch) * k;
-        }
-        camera.rotateY(head.yaw + Math.sin(clock * 0.31 + 0.7) * 0.0035 + Math.sin(clock * 0.77) * 0.0012);
-        camera.rotateX(head.pitch + Math.sin(clock * 0.37 + 2.1) * 0.0025 + Math.sin(clock * 0.93 + 0.4) * 0.001);
+        aimCamera(camera, position, target, head);
+        camera.rotateY(Math.sin(clock * 0.31 + 0.7) * 0.0035 + Math.sin(clock * 0.77) * 0.0012);
+        camera.rotateX(Math.sin(clock * 0.37 + 2.1) * 0.0025 + Math.sin(clock * 0.93 + 0.4) * 0.001);
         camera.rotateZ(Math.sin(clock * 0.19 + 0.3) * 0.0028);
         fitView(camera, halfTan);
         camera.updateMatrixWorld();

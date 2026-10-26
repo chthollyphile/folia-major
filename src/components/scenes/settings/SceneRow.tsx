@@ -30,8 +30,6 @@ const SceneRow: React.FC<SceneRowProps> = ({ open, onOpenChange, onOpenMore }) =
     const scenes = useSceneList();
     const chosen = useChosenScene();
     const setSceneId = useSceneSettingsStore(state => state.setSceneId);
-    const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
-    const options = useSceneSettingsStore(state => (chosen ? state.sceneOptions[chosen.manifest.id] : undefined));
     const settingsChipRef = useRef<HTMLButtonElement>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     if (scenes.length === 0) return null;
@@ -47,28 +45,9 @@ const SceneRow: React.FC<SceneRowProps> = ({ open, onOpenChange, onOpenMore }) =
         select(choices[(index + direction + choices.length) % choices.length].value);
     };
 
-    // A switch appears only where the scene allows both sources (its own and the user's).
     const manifest = chosen?.manifest;
-    const lyricsSwitch = manifest && manifest.lyrics.own && manifest.lyrics.style !== 'none';
-    const screenSwitch = manifest && manifest.background.own && manifest.background.host !== 'none';
-    const lyrics = options?.lyrics ?? 'scene';
-    const screen = options?.screen ?? 'scene';
     const params = manifest ? (
         <>
-            {lyricsSwitch && (
-                <QuickControlChip
-                    label={t(lyrics === 'scene' ? 'ui.sceneLyricsOwn' : 'ui.sceneLyricsStyle')}
-                    title={t('ui.sceneLyricsSource')}
-                    onClick={() => setSceneOptions(manifest.id, { lyrics: lyrics === 'scene' ? 'style' : 'scene' })}
-                />
-            )}
-            {screenSwitch && (
-                <QuickControlChip
-                    label={t(screen === 'scene' ? 'ui.sceneScreenOwn' : 'ui.sceneScreenBackground')}
-                    title={t('ui.sceneScreenSource')}
-                    onClick={() => setSceneOptions(manifest.id, { screen: screen === 'scene' ? 'background' : 'scene' })}
-                />
-            )}
             <QuickControlChip
                 buttonRef={settingsChipRef}
                 expanded={settingsOpen}

@@ -1,24 +1,22 @@
 import * as THREE from 'three';
-import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { mixColors, parseColorChannels } from '../../visualizer/colorMix';
 import type { SceneFactory, SceneSong } from '../definition';
-import { phaseDirector, seatRig, type CameraRig } from '../kit/camera';
+import { phaseDirector, seatRig, turnHead, type CameraRig, type Head } from '../kit/camera';
 import { createThreeStage } from '../kit/threeStage';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
 import { fitView, SEAT_HALF_TAN, tourRig } from './cinemaCamera';
-import { rasterCinemaCaption, shownCinemaLine } from './cinemaCaption';
 import { loadCinemaReel } from './cinemaReel';
 import { createCinemaScene } from './cinemaScene';
 
 // src/components/scenes/cinema/cinemaRuntime.ts
 // The hall as a scene runtime: the kit's transparent canvas, the hall (cinemaScene.ts) filmed from the
 // user's seat while a line is sung and on its tour when the next line is far (the kit's phaseDirector),
-// the screen's corners handed to the host each frame. The hall's own captions come from lineChange; a
-// pause is an intermission (cinemaIntermission.ts) and play starts the music at once while the curtains
+// the screen's corners handed to the host each frame, where the user's lyric style and background show
+// (the hall draws no lyrics and no picture of its own). A drag turns the head, in the seat and on the tour.
+// A pause is an intermission (cinemaIntermission.ts) and play starts the music at once while the curtains
 // open; at the end of the queue the house lights come up; an automix blend changes reels as it starts.
-// The hall's lights are its own: the app's light or dark mode never reaches them. The hall is dark, so it
-// takes the dark one of the song's pair; the screen says it is dark film (entry.ts), so borrowed lyrics
-// alone get the dark one too, and the user's background on it is the user's page as it is.
+// The hall's lights are its own: the app's light or dark mode never reaches them; the cove takes a little
+// of the dark one of the song's pair.
 
 const WARM_WHITE = '#ffd6a8';
 const SURFACE = 'screen';
@@ -39,8 +37,9 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
     const disposers: (() => void)[] = [];
     let lightsUpAtEnd = false;
 
-    // The seat: the kit's head turn (tighter while a line is sung), at a seated width of view.
-    const seat = seatRig(ctx, { clampDeg: 12, singingClampDeg: 6 });
+    // The user's head, turned by dragging: the same in the seat and on the tour.
+    const head: Head = { yaw: 0, pitch: 0 };
+    const seat = seatRig(ctx, { head });
     const seated: CameraRig = {
         update: (camera, dt) => {
             seat.update(camera, dt);
@@ -48,9 +47,9 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
             camera.updateMatrixWorld();
         },
     };
-    const director = phaseDirector(ctx, { seat: seated, tour: tourRig(ctx) });
+    const director = phaseDirector(ctx, { seat: seated, tour: tourRig(ctx, head) });
 
-    // The projector: the cover on the reel; a blend changes reels as it starts, so the screen moves on with the music.
+    // The projector's light: the cover's colours on the reel; a blend changes reels as it starts, so the hall's light moves on with the music.
     let onProjector: string | null | undefined;
     let reelToken = 0;
     const project = (url: string | null, animate: boolean) => {
@@ -81,28 +80,6 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
         project(next.coverUrl, true);
     }));
 
-    // The hall's own captions: only while the screen shows the hall's lyrics, not the user's style.
-    let captionKey = '';
-    const refreshCaption = () => {
-        const ownLyrics = !ctx.surfaces.uses(SURFACE).lyrics && ctx.display.showText();
-        const lines = ctx.lyrics.lines();
-        const index = ownLyrics ? shownCinemaLine(lines, ctx.lyrics.lineIndex(), ctx.player.lyricTime()) : -1;
-        const line = index >= 0 ? lines[index] : null;
-        const text = line?.fullText ?? null;
-        const translation = line?.translation?.trim() || null;
-        const theme = ctx.song.current().theme.dark;
-        const key = text ? `${text}\n${translation ?? ''}\n${theme.fontStyle}|${theme.fontFamily ?? ''}` : '';
-        if (key === captionKey) return;
-        captionKey = key;
-        hall.setCaption(text ? rasterCinemaCaption(text, translation, {
-            stack: resolveThemeFontStack(theme),
-            translationStack: resolveThemeTranslationFontStack(theme),
-            weight: resolveThemeFontWeight(theme, 700),
-        }) : null);
-    };
-    disposers.push(ctx.on('lineChange', refreshCaption));
-    refreshCaption();
-
     // The house lights: up by the scene's setting, and fully up once the queue has played out, until play.
     const houseLights = () => ctx.settings.get().houseLights === true;
     let lightsByHand = houseLights();
@@ -120,11 +97,8 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
             lastNow = now;
             const running = !ctx.player.paused();
             const { camera, renderer } = stage;
+            turnHead(ctx, head);
             director.update(camera, running ? dt : 0);
-            // A line held on the film runs out between lines, without a lineChange.
-            refreshCaption();
-            const hole = ctx.surfaces.uses(SURFACE).background;
-            hall.setHole(hole);
             renderer.getDrawingBufferSize(bufferSize);
             const shutter = hall.update({
                 dt,
@@ -138,9 +112,8 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
                 bufferSize,
             });
             hall.render(renderer, camera);
-            // A lyric style lies over the canvas and is light from the projector: it goes as the shutter closes.
-            // Under a hole the hall's bare screen covers the borrowed picture itself.
-            ctx.surfaces.place(SURFACE, stage.projectQuad(SCREEN_CORNERS), { opacity: hole ? 1 : shutter });
+            // The bare screen covers the picture as the shutter closes; shut, the box goes (and takes no clicks).
+            ctx.surfaces.place(SURFACE, shutter > 0 ? stage.projectQuad(SCREEN_CORNERS) : null);
             frames += 1;
             if (frames === 2) ctx.ready();
         },

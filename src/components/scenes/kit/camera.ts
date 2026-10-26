@@ -2,46 +2,65 @@ import * as THREE from 'three';
 import type { LyricPhase, SceneContext } from '../definition';
 
 // src/components/scenes/kit/camera.ts
-// 可选工具箱：机位和导演。seatRig 坐在座位上、鼠标转头；pathRig 沿 path 锚点慢慢走；
-// phaseDirector 按歌词阶段选机位：下一句还很远时去巡游，下一句前几秒回到座位。只动摄像机，听者不跟它。
+// 可选工具箱：机位和导演。seatRig 坐在座位上；pathRig 沿 path 锚点慢慢走；phaseDirector 按歌词阶段选机位：
+// 下一句还很远时去巡游，下一句前几秒回到座位。用户按住拖动转头（Head，turnHead），各机位都在自己看的方向上
+// 再转这么多。只动摄像机，听者不跟它。
 
 export interface CameraRig {
     update: (camera: THREE.PerspectiveCamera, dt: number) => void;
 }
 
 const DEG = Math.PI / 180;
+/** The head stops just short of straight up and straight down, as in a game. */
+const PITCH_LIMIT = 89 * DEG;
+
+/** How far the user has turned their head by dragging (radians, left and up positive), on top of where a rig looks. */
+export interface Head {
+    yaw: number;
+    pitch: number;
+}
+
+/** Adds this frame's drag (ctx.input.look()) to the head: once a frame, before the rigs. Round the vertical it turns without end. */
+export const turnHead = (ctx: SceneContext, head: Head) => {
+    const turned = ctx.input.look();
+    const yaw = head.yaw + turned.yaw;
+    head.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    head.pitch += turned.pitch;
+};
+
+const direction = new THREE.Vector3();
+
+/** Puts the camera at `position` looking at `target`, then turned by the head. */
+export const aimCamera = (camera: THREE.PerspectiveCamera, position: THREE.Vector3, target: THREE.Vector3, head: Head) => {
+    direction.subVectors(target, position);
+    const baseYaw = Math.atan2(-direction.x, -direction.z);
+    const basePitch = Math.atan2(direction.y, Math.hypot(direction.x, direction.z));
+    // Held here, so dragging back down answers at once after the view has stopped at straight up.
+    head.pitch = THREE.MathUtils.clamp(head.pitch, -PITCH_LIMIT - basePitch, PITCH_LIMIT - basePitch);
+    camera.position.copy(position);
+    camera.up.set(0, 1, 0);
+    camera.rotation.set(basePitch + head.pitch, baseYaw + head.yaw, 0, 'YXZ');
+};
 
 export interface SeatRigOptions {
     /** The seat anchor's id; without one, the user's seat (ctx.seats), else the preferred one, else the first. */
     seat?: string | (() => string | undefined);
-    /** How far the pointer turns the head, in degrees. */
-    clampDeg?: number;
-    /** A tighter turn while a line is sung (the hall: about 6°). */
-    singingClampDeg?: number;
-    /** How quickly the head follows (per second). */
-    follow?: number;
+    /** The user's head (turnHead); without one the rig looks straight at the seat's lookAt. */
+    head?: Head;
 }
 
 export const seatRig = (ctx: SceneContext, options: SeatRigOptions = {}): CameraRig => {
-    let yaw = 0;
-    let pitch = 0;
+    const still: Head = { yaw: 0, pitch: 0 };
+    const eye = new THREE.Vector3();
+    const target = new THREE.Vector3();
     return {
-        update: (camera, dt) => {
+        update: (camera) => {
             const seats = ctx.anchors.list('seat');
             const wanted = (typeof options.seat === 'function' ? options.seat() : options.seat) ?? ctx.seats.chosen() ?? undefined;
             // A taken seat is not sat in (as the seat map shows it): the preferred one instead.
             const seat = seats.find(entry => entry.id === wanted && !entry.occupied) ?? seats.find(entry => entry.preferred) ?? seats[0];
             if (!seat) return;
-            const singing = ctx.lyrics.phase() === 'singing' && options.singingClampDeg !== undefined;
-            const limit = (singing ? options.singingClampDeg! : options.clampDeg ?? 12) * DEG;
-            const pointer = ctx.input.pointer();
-            const k = 1 - Math.exp(-(options.follow ?? 4) * dt);
-            yaw += (-pointer.x * limit - yaw) * k;
-            pitch += (pointer.y * limit * 0.5 - pitch) * k;
-            camera.position.set(...seat.eye);
-            camera.lookAt(...seat.lookAt);
-            camera.rotateY(yaw);
-            camera.rotateX(pitch);
+            aimCamera(camera, eye.set(...seat.eye), target.set(...seat.lookAt), options.head ?? still);
         },
     };
 };

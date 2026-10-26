@@ -62,14 +62,12 @@ export interface SceneManifest {
      */
     surfaces?: { id: string; aspect: number; occludable?: boolean; tone?: SceneSurfaceTone }[];
     /**
-     * 歌词：`own` 场景自己会画；`style` 用户的歌词样式能不能用、放在哪；`exclude` 放上去不合适的样式 id，
-     * 选了这个场景时选择器里不出现。两种都允许时宿主出一个开关。
+     * 歌词永远是用户选的歌词样式，场景不自己画歌词：`style` 放在哪（'none' 这个场景不显示歌词）；
+     * `exclude` 放上去不合适的样式 id，选了这个场景时选择器里不出现。
      */
-    lyrics: { own: boolean; style: SceneLyricPlacement; exclude?: string[] };
-    /** 画面底子：`own` 场景自己有；`host` 用户的背景能不能用、放在哪；`exclude` 同上。 */
-    background: { own: boolean; host: SceneBackgroundPlacement; exclude?: string[] };
-    /** 翻译、和声字幕：用宿主的（今天的字幕层）还是场景自己画。 */
-    subtitles?: 'host' | 'own';
+    lyrics: { style: SceneLyricPlacement; exclude?: string[] };
+    /** 背景永远是用户选的背景：`host` 放在哪（'none' 这个场景不用背景，它自己就是画面）；`exclude` 同上。 */
+    background: { host: SceneBackgroundPlacement; exclude?: string[] };
     /** 场景发布了座位锚点时，宿主给一张座位图。 */
     seats?: 'anchors' | 'none';
     sound?: { acoustics: 'mesh' | 'none'; music: 'speakers' | 'off' };
@@ -220,20 +218,22 @@ export interface SceneContext {
     readonly lyrics: LyricSignals;
     readonly music: MusicSignals;
     readonly player: PlayerSignals;
-    /** 鼠标在盒子里的位置（-1..1，右、上为正）、最近是否在动、静止了多久。 */
-    readonly input: { pointer(): { x: number; y: number; active: boolean; restMs: number } };
+    /**
+     * 按住拖动转头：上次调用以来拖过的角度（弧度，向左、向上为正），拿走就清零。
+     * 按下不动就松开是点击，照常落到歌词上；拖过之后的那次点击宿主吞掉。
+     */
+    readonly input: { look(): { yaw: number; pitch: number } };
     readonly display: { isDaylight(): boolean; showText(): boolean; lyricsFontScale(): number };
     readonly settings: { get(): Record<string, unknown>; onChange(fn: () => void): Disposer };
     readonly quality: { preset(): SceneQualityPreset; get(key: string): number | boolean | undefined };
     readonly anchors: { add(anchor: SceneAnchor): void; list<K extends SceneAnchorKind>(kind: K): Extract<SceneAnchor, { kind: K }>[] };
     /**
-     * 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去。
-     * uses(id)：这个表面现在贴着用户的什么（跟着用户的开关变）；贴着背景时场景要在那里留透明的洞。
+     * 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去（清单写了贴什么；
+     * 贴着背景的表面，场景要在那里留透明的洞）。传 null 时盒子藏起来，也不接点击。
      * opacity（1.x 新增，默认 1）：贴上去的东西有多亮，比如放映机遮光板关上时荧幕上什么都没有。
      */
     readonly surfaces: {
         place(id: string, cornersOnScreen: ScreenQuad | null, look?: { opacity?: number }): void;
-        uses(id: string): { lyrics: boolean; background: boolean };
     };
     /** 用户在座位图上选的座位锚点 id，没选时为 null（场景用自己的 preferred 座位）。 */
     readonly seats: { chosen(): string | null };
@@ -288,8 +288,8 @@ export const checkSceneManifest = (manifest: unknown): string[] => {
     if (typeof m.id !== 'string' || m.id === '') problems.push('id is missing');
     if (typeof m.version !== 'string' || m.version === '') problems.push('version is missing');
     if (typeof m.name !== 'object' || m.name === null) problems.push('name is missing');
-    if (!m.lyrics || typeof m.lyrics.own !== 'boolean' || !isPlacement(m.lyrics.style, ['none', 'overlay'])) problems.push('lyrics is not { own, style }');
-    if (!m.background || typeof m.background.own !== 'boolean' || !isPlacement(m.background.host, ['none', 'behind'])) problems.push('background is not { own, host }');
+    if (!m.lyrics || !isPlacement(m.lyrics.style, ['none', 'overlay'])) problems.push('lyrics is not { style }');
+    if (!m.background || !isPlacement(m.background.host, ['none', 'behind'])) problems.push('background is not { host }');
     const surfaceIds = new Set((m.surfaces ?? []).map(surface => surface.id));
     for (const surface of m.surfaces ?? []) {
         if (surface.tone !== undefined && surface.tone !== 'dark' && surface.tone !== 'light') problems.push(`surface "${surface.id}" tone is not 'dark' or 'light'`);

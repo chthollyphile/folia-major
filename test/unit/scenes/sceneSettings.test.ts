@@ -35,7 +35,7 @@ describe('scene settings', () => {
             cinema: { lyrics: 'style', screen: 'nope', quality: 'ultra', seat: 'R7-12', values: { rain: true, colour: '#fff', bad: {} } },
             'not a scene': { lyrics: 'style' },
             'mod:demo:room': 'junk',
-        })).toEqual({ cinema: { lyrics: 'style', seat: 'R7-12', values: { rain: true, colour: '#fff' } } });
+        })).toEqual({ cinema: { seat: 'R7-12', values: { rain: true, colour: '#fff' } } });
         expect(sanitizeSceneOptions(null)).toEqual({});
     });
 
@@ -43,13 +43,13 @@ describe('scene settings', () => {
         const first = await loadStore();
         expect(first.useSceneSettingsStore.getState().sceneId).toBeNull();
         first.useSceneSettingsStore.getState().setSceneId('cinema');
-        first.useSceneSettingsStore.getState().setSceneOptions('cinema', { lyrics: 'style', quality: 'high' });
+        first.useSceneSettingsStore.getState().setSceneOptions('cinema', { seat: 'R2-3', quality: 'high' });
         first.useSceneSettingsStore.getState().setSceneId('kit');
         expect(first.useSceneSettingsStore.getState().sceneId).toBeNull();
         first.useSceneSettingsStore.getState().setSceneId('cinema');
 
         const second = await loadStore();
-        expect(second.readSceneConfig()).toEqual({ sceneId: 'cinema', sceneOptions: { cinema: { lyrics: 'style', quality: 'high' } } });
+        expect(second.readSceneConfig()).toEqual({ sceneId: 'cinema', sceneOptions: { cinema: { seat: 'R2-3', quality: 'high' } } });
 
         second.useSceneSettingsStore.getState().setSceneId(null);
         expect(localStorage.getItem(second.SCENE_ID_KEY)).toBeNull();
@@ -57,8 +57,8 @@ describe('scene settings', () => {
 
     it('takes an imported config, sanitized, and leaves out what it does not carry', async () => {
         const { useSceneSettingsStore, readSceneConfig } = await loadStore();
-        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { screen: 'background', junk: 1 } as never } });
-        expect(readSceneConfig()).toEqual({ sceneId: null, sceneOptions: { cinema: { screen: 'background' } } });
+        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { seat: 'R1-1', junk: 1 } as never } });
+        expect(readSceneConfig()).toEqual({ sceneId: null, sceneOptions: { cinema: { seat: 'R1-1' } } });
         useSceneSettingsStore.getState().importSceneConfig({ sceneId: 'pkg:rooftop' });
         expect(readSceneConfig().sceneId).toBe('pkg:rooftop');
     });
@@ -67,15 +67,15 @@ describe('scene settings', () => {
         const { useSceneSettingsStore, readSceneConfig, mergeImportedSceneOptions } = await loadStore();
         useSceneSettingsStore.getState().setSceneOptions('cinema', { quality: 'high' });
         useSceneSettingsStore.getState().setSceneOptions('pkg:rooftop', { seat: 'S1' });
-        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { lyrics: 'style' } } });
-        expect(readSceneConfig().sceneOptions).toEqual({ cinema: { lyrics: 'style' }, 'pkg:rooftop': { seat: 'S1' } });
+        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { seat: 'R3-4' } } });
+        expect(readSceneConfig().sceneOptions).toEqual({ cinema: { seat: 'R3-4' }, 'pkg:rooftop': { seat: 'S1' } });
         // What the plan diffs is what the apply leaves: junk gone, other scenes kept.
-        expect(mergeImportedSceneOptions(readSceneConfig().sceneOptions, { cinema: { lyrics: 'style', junk: 1 }, 'bad id': {} } as never))
+        expect(mergeImportedSceneOptions(readSceneConfig().sceneOptions, { cinema: { seat: 'R3-4', junk: 1 }, 'bad id': {} } as never))
             .toEqual(readSceneConfig().sceneOptions);
     });
 
     it('carries the scene fields through a config code', () => {
-        const config = { sceneId: 'cinema', sceneOptions: { cinema: { lyrics: 'style', quality: 'medium' } } };
+        const config = { sceneId: 'cinema', sceneOptions: { cinema: { seat: 'R3-4', quality: 'medium' } } };
         expect(decompressConfig(compressConfig(config))).toMatchObject(config);
         expect(decompressConfig(JSON.stringify(config))).toMatchObject(config);
     });

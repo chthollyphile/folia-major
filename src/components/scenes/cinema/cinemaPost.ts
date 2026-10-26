@@ -6,10 +6,9 @@ import * as THREE from 'three';
 // depth of field, a bright pass blurred at quarter size gives the bloom of the lamps and the screen,
 // and the last pass mixes them, adds the vignette and the film grain, and draws to the canvas.
 // How far out of focus each pixel is comes from the depth of the hall's pass and the camera's focus.
-// Alpha is coverage and goes through to the canvas: 1 for the hall, 0 where the hall leaves a hole
-// (the screen's picture area when the scene is made with a hole, see cinemaScene.ts), so whatever lies
-// under the canvas shows there. Over the hole only added light stays (bloom, the beam, dust) and the
-// vignette; the grain is the hall's own.
+// Alpha is coverage and goes through to the canvas: 1 for the hall, near 0 over the screen's picture
+// area (cinemaScene.ts), so the user's picture under the canvas shows there. Over it go added light
+// (bloom, the beam, dust), the vignette and the same grain as on the hall, so the picture is filmed too.
 // Plain 8-bit targets: the shaders tone map themselves, and a half-float multisampled target drew
 // black in Chrome on ANGLE d3d11.
 
@@ -132,11 +131,13 @@ void main() {
     q.x *= uResolution.x / uResolution.y;
     float vignette = 1.0 - uVignette * smoothstep(0.3, 1.15, length(q));
     c *= vignette;
-    // Grain on a 1.5-pixel cell, weaker in the highlights as on film.
+    // Grain on a 1.5-pixel cell, weaker in the highlights as on film. Over the picture under the canvas
+    // a light speck is added light and a dark one is coverage.
     float g = hash12(floor(gl_FragCoord.xy / 1.5) + fract(uTime * 7.13) * 917.0) - 0.5;
-    c += g * uGrain * (0.35 + 0.65 * (1.0 - c)) * cover;
-    // Premultiplied: in the hole the colour is only added light, and the vignette darkens what shows through.
-    gl_FragColor = vec4(c, cover + (1.0 - cover) * (1.0 - vignette));
+    c += g * uGrain * (0.35 + 0.65 * (1.0 - c)) * cover + max(g, 0.0) * uGrain * 0.6 * (1.0 - cover);
+    float shade = max(-g, 0.0) * uGrain * 0.6;
+    // Premultiplied: over the picture the colour is only added light, and the vignette darkens what shows through.
+    gl_FragColor = vec4(c, cover + (1.0 - cover) * (1.0 - vignette * (1.0 - shade)));
 }
 `;
 

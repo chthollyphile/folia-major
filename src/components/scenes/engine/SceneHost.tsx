@@ -14,7 +14,7 @@ import { createSceneEventBus } from './sceneEvents';
 import { onQueueEnd } from './queueEnd';
 import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
-import { createSceneSignals, diffSceneSignals, trackPointer, type SceneSignalSnapshot } from './sceneSignals';
+import { createSceneSignals, diffSceneSignals, trackLook, type SceneSignalSnapshot } from './sceneSignals';
 import { silentSceneSound } from './sceneSound';
 import { surfaceRendererTheme, withLyricFonts } from './sceneTheme';
 import { quadToMatrix3d } from './surfaceQuad';
@@ -43,18 +43,14 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     const [status, setStatus] = useState<StageStatus>('loading');
     // A lost WebGL context loads the scene once more; a second loss falls back.
     const [attempt, setAttempt] = useState(0);
+    const rootRef = useRef<HTMLDivElement>(null);
     const boxRef = useRef<HTMLDivElement>(null);
     const propsRef = useRef(rendererProps);
     const surfaceRefs = useRef(new Map<string, HTMLDivElement>());
     const quads = useRef(new Map<string, { quad: ScreenQuad | null; opacity: number }>());
-    const options = useSceneSettingsStore(state => state.sceneOptions[manifest.id]);
-    const plan = useMemo(
-        () => planSceneLayers(manifest, { lyrics: options?.lyrics, screen: options?.screen }),
-        [manifest, options?.lyrics, options?.screen],
-    );
+    const plan = useMemo(() => planSceneLayers(manifest), [manifest]);
     const reducedMotion = useReducedMotionFor('uiMicroMotion');
     const reducedMotionRef = useRef(reducedMotion);
-    const planRef = useRef(plan);
     // The song's colour pair, not the app's mode's pick of it; held for the song on screen through a blend, as its theme is.
     const fallbackPair = useMemo(() => ({ light: rendererProps.theme, dark: rendererProps.theme }), [rendererProps.theme]);
     const livePair = songThemePair ?? fallbackPair;
@@ -68,13 +64,13 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     useLayoutEffect(() => {
         propsRef.current = rendererProps;
         reducedMotionRef.current = reducedMotion;
-        planRef.current = plan;
         songThemesRef.current = songThemes;
     });
 
     useEffect(() => {
         const box = boxRef.current;
-        if (!box) return undefined;
+        const root = rootRef.current;
+        if (!box || !root) return undefined;
         const id = manifest.id;
         let disposed = false;
         let runtime: SceneRuntime | null = null;
@@ -83,7 +79,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         let shown = false;
         const anchors: SceneAnchor[] = [];
         const signals = createSceneSignals(() => propsRef.current, () => songThemesRef.current);
-        const pointer = trackPointer();
+        const look = trackLook(root);
         const written = new Map<string, string>();
 
         const stop = () => {
@@ -91,7 +87,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             bus.dispose();
             cancelAnimationFrame(frameRequest);
             window.clearTimeout(readyTimer);
-            pointer.dispose();
+            look.dispose();
             stopQueueEnd();
             resizeObserver.disconnect();
             box.removeEventListener('webglcontextlost', onContextLost, true);
@@ -154,7 +150,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             music: signals.music,
             player: signals.player,
             display: signals.display,
-            input: { pointer: pointer.pointer },
+            input: { look: look.look },
             settings: {
                 get: settings,
                 onChange: (fn) => {
@@ -173,10 +169,6 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 place: (surfaceId, quad, look) => {
                     const opacity = Math.min(1, Math.max(0, look?.opacity ?? 1));
                     quads.current.set(surfaceId, { quad: Number.isFinite(opacity) && opacity > 0 ? quad : null, opacity: Number.isFinite(opacity) ? opacity : 1 });
-                },
-                uses: (surfaceId) => {
-                    const surface = planRef.current.surfaces.find(entry => entry.id === surfaceId);
-                    return { lyrics: Boolean(surface?.lyrics), background: Boolean(surface?.background) };
                 },
             },
             seats: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.seat ?? null },
@@ -293,14 +285,20 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     );
 
     // Opaque borrowed content (a background) lies under the scene, which leaves a hole where it shows;
-    // see-through content (a lyric style alone) lies over it.
+    // see-through content (a lyric style alone) lies over it. The scene's own box takes no pointer, so a
+    // click reaches the lyrics under it; a drag anywhere turns the head (trackLook).
     return (
         <>
             {hidden && <VisualizerRenderer {...rendererProps} />}
-            <div className="absolute inset-0 overflow-hidden" style={hidden ? { visibility: 'hidden' } : undefined} data-scene={manifest.id}>
+            <div
+                ref={rootRef}
+                className="absolute inset-0 select-none overflow-hidden"
+                style={{ touchAction: 'none', visibility: hidden ? 'hidden' : undefined }}
+                data-scene={manifest.id}
+            >
                 {!hidden && plan.behindBackground && <VisualizerRenderer {...borrowed(false, true)} />}
                 {!hidden && plan.surfaces.filter(surface => surface.background).map(surfaceBox)}
-                <div ref={boxRef} className="absolute inset-0" />
+                <div ref={boxRef} className="pointer-events-none absolute inset-0" />
                 {!hidden && plan.surfaces.filter(surface => !surface.background).map(surfaceBox)}
                 {!hidden && plan.overlayLyrics && <VisualizerRenderer {...borrowed(true, false)} />}
             </div>

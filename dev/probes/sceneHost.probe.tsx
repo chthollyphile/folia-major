@@ -12,10 +12,10 @@ import type { ProbeDefinition } from './definition';
 // dev/probes/sceneHost.probe.tsx
 
 /**
- * 场景宿主的探针：登记两个模组场景，一个 2D 画布场景（荧幕表面跟着鼠标晃，借来的歌词样式贴在上面，
+ * 场景宿主的探针：登记两个模组场景，一个 2D 画布场景（按住拖动荧幕表面跟着动，借来的歌词样式贴在上面，
  * 画布上写着歌词阶段和收到的事件；能弄丢一次 WebGL），一个加载就抛错的场景。
  * 看三件事：没选场景时就是原来的歌词样式；选了方块场景时样式贴到斜着的荧幕上；选了坏场景时回到歌词样式（控制台有 [SceneHost] scene failed）。
- * 影厅（内建 'cinema'）：「Hall lyrics」切换影厅自己的字幕和用户的歌词样式；右上是座位图（点一下换座位）。
+ * 影厅（内建 'cinema'）：荧幕上是歌词样式和背景；按住拖动转头，点歌词照常有效；右上是座位图（点一下换座位）。
  */
 
 const QUALITY: SceneManifest['quality'] = { default: 'low', presets: { low: {}, medium: {}, high: {} } };
@@ -28,8 +28,8 @@ const boxes = defineScene({
         version: '1.0.0',
         name: { en: 'Probe boxes', 'zh-CN': '探针方块' },
         surfaces: [{ id: 'screen', aspect: 16 / 9 }],
-        lyrics: { own: false, style: { surface: 'screen' }, exclude: ['still'] },
-        background: { own: true, host: 'none' },
+        lyrics: { style: { surface: 'screen' }, exclude: ['still'] },
+        background: { host: 'none' },
         quality: QUALITY,
     },
     load: async () => (ctx) => {
@@ -48,16 +48,20 @@ const boxes = defineScene({
         let width = 1;
         let height = 1;
         let t = 0;
+        // A drag moves the screen surface (ctx.input.look), kept within a small reach.
+        const shift = { x: 0, y: 0 };
         let first = true;
         return {
             frame: ({ dt }) => {
                 t += dt;
-                const pointer = ctx.input.pointer();
+                const turned = ctx.input.look();
+                shift.x = Math.max(-1, Math.min(1, shift.x - turned.yaw));
+                shift.y = Math.max(-1, Math.min(1, shift.y + turned.pitch));
                 g.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
                 g.fillStyle = '#101418';
                 g.fillRect(0, 0, width, height);
-                const cx = width / 2 + pointer.x * 40;
-                const cy = height / 2 - pointer.y * 30;
+                const cx = width / 2 + shift.x * 40;
+                const cy = height / 2 - shift.y * 30;
                 const w = width * 0.55;
                 const h = w / (16 / 9);
                 const skew = Math.sin(t) * 30;
@@ -195,9 +199,6 @@ const SceneHostProbe: React.FC = () => {
                 <button type="button" className={button} onClick={choose('mod:probe:boxes')}>Boxes scene</button>
                 <button type="button" className={button} onClick={choose('mod:probe:broken')}>Broken scene</button>
                 <button type="button" className={button} onClick={choose('cinema')}>Cinema</button>
-                <button type="button" className={button} onClick={() => setSceneOptions('cinema', { lyrics: hallOptions?.lyrics === 'style' ? 'scene' : 'style' })}>
-                    Hall lyrics: {hallOptions?.lyrics === 'style' ? 'style' : 'own'}
-                </button>
                 <button type="button" className={button} onClick={() => setPaused(value => !value)}>{paused ? 'Play' : 'Pause'}</button>
                 <button type="button" className={button} onClick={() => (window as unknown as { __sceneProbeLoseContext?: () => void }).__sceneProbeLoseContext?.()}>Lose WebGL</button>
             </div>

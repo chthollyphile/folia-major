@@ -63,11 +63,6 @@ uniform sampler2D uTexB;
 uniform float uAspectA;
 uniform float uAspectB;
 uniform float uChange;
-uniform sampler2D uCapA;
-uniform sampler2D uCapB;
-uniform float uCapMix;
-uniform float uCapLevel;
-uniform float uCoverDim;
 
 const float COVER_SCALE = 0.86;
 
@@ -98,20 +93,11 @@ vec3 projectedImage(sampler2D t, float aspect, vec2 uv, float lod, bool cheap) {
     return mix(mix(vec3(grey), backdrop, 0.7) * 0.26 * shadow, sharp, inside);
 }
 
-// The lyric on the film (the cinema lyric style): light on a black frame, cut in over the old one.
-vec3 captionImage(vec2 uv, float lod) {
-    if (uCapLevel <= 0.001) return vec3(0.0);
-    vec3 a = textureLod(uCapA, uv, lod).rgb * smoothstep(0.15, 0.75, uCapMix);
-    vec3 b = uCapMix < 0.3 ? textureLod(uCapB, uv, lod).rgb * (1.0 - smoothstep(0.0, 0.3, uCapMix)) : vec3(0.0);
-    return (a + b) * uCapLevel;
-}
-
-// The reel on screen: the old one (B) gives way to the new one (A) in the middle of a change;
-// a lyric on the film dims the picture under it and shines over it.
+// The reel the beam carries: the old one (B) gives way to the new one (A) in the middle of a change.
 vec3 reelImage(vec2 uv, float lod, bool cheap) {
     vec3 a = projectedImage(uTexA, uAspectA, uv, lod, cheap);
     if (uChange < 1.0) a = mix(projectedImage(uTexB, uAspectB, uv, lod, cheap), a, smoothstep(0.42, 0.58, uChange));
-    return a * (1.0 - uCoverDim) + captionImage(uv, lod + (cheap ? 1.0 : 0.0)) * 3.0;
+    return a;
 }
 `;
 
@@ -546,68 +532,44 @@ void main() {
 
 const SCREEN_FRAGMENT = `
 ${COMMON_GLSL}
-${PROJECTION_GLSL}
-uniform float uScreenGain;
 uniform float uFlicker;
 uniform float uDay;
 uniform vec2 uMargin;
-uniform float uJolt;
-uniform float uHole;
 uniform float uShutter;
+uniform vec3 uScreenL;
+uniform vec3 uScreenC;
+uniform vec3 uScreenR;
 
 varying vec2 vUv;
+
+const vec3 BARE_SCREEN = vec3(0.5, 0.48, 0.45);
 
 void main() {
     // vUv spans the screen and a margin of masking round it; uv is the picture's own 0..1.
     vec2 uv = (vUv - 0.5) * (1.0 + 2.0 * uMargin) + 0.5;
-    // A hole in the hall over the picture area: what lies under the canvas is the picture (cinemaPost.ts).
-    // As the projector's shutter closes, the bare screen covers it (premultiplied: the hole's alpha is coverage).
-    if (uHole > 0.5 && all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)))) {
-        float shut = 1.0 - uShutter;
-        gl_FragColor = shut > 0.001 ? vec4(finishColor(vec3(0.5, 0.48, 0.45) * (1.0 - 0.6 * uCapLevel) * uDay) * shut, shut) : vec4(0.0);
-        return;
-    }
-    float frame = floor(uTime * 24.0);
-    // Gate weave; a new lyric line comes in with a small jump, as a splice through the gate.
-    vec2 weave = (vec2(hash12(vec2(frame, 1.3)), hash12(vec2(frame, 7.1))) - 0.5) * (0.0011 + 0.006 * uJolt) * uFlicker;
-    vec2 suv = uv + weave;
-    vec2 centred = (suv - 0.5) * vec2(SCREEN_W / SCREEN_H, 1.0);
-    // Projection lenses are softest at the corners.
-    float lod = 0.4 + 1.6 * dot(centred, centred);
-    vec3 picture = reelImage(clamp(suv, 0.0, 1.0), lod, false);
-
-    float change = clamp(uChange, 0.0, 1.0);
-    float dip = sin(3.14159 * change);
-    float flicker = 1.0 + (hash12(vec2(frame, 3.7)) - 0.5) * (0.035 + 0.3 * dip + 0.18 * uJolt) * uFlicker;
-    float hotspot = 1.0 - 0.38 * dot(centred, centred) / 0.85;
-    // A soft knee: bright parts of a cover are held down more than dark ones, so lyrics stay readable on top.
-    picture = picture / (1.0 + 0.8 * picture);
-    picture *= hotspot * flicker * (1.0 - 0.7 * dip);
-
-    // Cue marks: the round blips in the top right corner that tell the projectionist to change reels.
-    float cue = step(0.04, change) * step(change, 0.32) * step(0.5, fract(change * 11.0));
-    float cueDot = 1.0 - smoothstep(0.018, 0.024, length(centred - vec2(0.5 * SCREEN_W / SCREEN_H - 0.09, 0.39)));
-    picture = mix(picture, vec3(0.9, 0.86, 0.78), cue * cueDot * 0.85);
-
-    // Now and then a speck of dust on the film.
-    float speckSeed = hash12(vec2(frame, 11.0));
-    vec2 speckAt = (vec2(hash12(vec2(frame, 2.0)), hash12(vec2(frame, 5.0))) - 0.5) * vec2(SCREEN_W / SCREEN_H, 1.0) * 0.9;
-    float speck = step(0.86, speckSeed) * (1.0 - smoothstep(0.002, 0.006, length(centred - speckAt)));
-    picture *= 1.0 - 0.7 * speck * uFlicker;
-    // The projector's shutter: shut in an intermission.
-    picture *= uShutter;
-
-    // Day: the house lights wash the screen out; only a faint picture remains on the pale surface.
-    // With a lyric on the film the house lights are half down, so the words still read.
-    vec3 lit = mix(picture * uScreenGain, vec3(0.5, 0.48, 0.45) * (1.0 - 0.6 * uCapLevel) + picture * (0.55 + 0.5 * uCapLevel), uDay);
-
-    // Outside the picture: the black masking, with a faint halation of the picture's edge.
+    vec3 thrown = (uScreenL + uScreenC + uScreenR) * (1.0 - uDay);
     vec2 outside = max(abs(uv - 0.5) - 0.5, 0.0) * vec2(SCREEN_W, SCREEN_H);
     float out_ = length(outside);
-    // The halation is of the hall's own reel: with a hole the picture is another one, and it would draw a rim round it.
-    vec3 halo = reelImage(clamp(uv, 0.0, 1.0), 5.0, true) * uScreenGain * 0.1 * exp(-out_ * 16.0) * (1.0 - uDay) * (1.0 - uHole) * uShutter;
-    vec3 color = out_ > 0.0 ? vec3(0.004) + halo : lit;
-    gl_FragColor = vec4(finishColor(color), 1.0);
+    if (out_ > 0.0) {
+        // The black masking, with a faint halation of the picture's light at its edge.
+        gl_FragColor = vec4(finishColor(vec3(0.004) + thrown * 0.0035 * exp(-out_ * 16.0)), 1.0);
+        return;
+    }
+    // The picture is the user's, in a box under the canvas (the host's surface). Over it lies what a
+    // projection on a matte screen adds, premultiplied: darkening as coverage, light as added colour.
+    vec2 centred = (uv - 0.5) * vec2(SCREEN_W / SCREEN_H, 1.0);
+    // The light falls off toward the corners, flickers a little at the projector's 24 frames, and the
+    // aperture plate's edge is a little out of focus (3 cm).
+    float frame = floor(uTime * 24.0);
+    vec2 inside = (0.5 - abs(uv - 0.5)) * vec2(SCREEN_W, SCREEN_H);
+    float light = (1.0 - 0.22 * dot(centred, centred) / 0.85)
+        * (1.0 - hash12(vec2(frame, 3.7)) * 0.035 * uFlicker)
+        * smoothstep(0.0, 0.03, min(inside.x, inside.y));
+    // The house lights wash it out by day; the shutter shuts it in an intermission: the bare screen shows.
+    float bare = 1.0 - uShutter * (1.0 - 0.5 * uDay);
+    // Blacks are never black on a screen: the hall's air and the screen's own light scattered back.
+    vec3 lift = finishColor(thrown * 0.002);
+    gl_FragColor = vec4(lift * (1.0 - bare) + finishColor(BARE_SCREEN * uDay) * bare, 1.0 - light * (1.0 - bare));
 }
 `;
 

@@ -216,10 +216,11 @@ const curtainPoint = (side: number, pose: CurtainPose, u: number, v: number): [V
     const depth = (0.07 + 0.07 * gather) * (1 - 0.45 * drawn);
     const fine = 0.05 * drawn;
     const wave = folds(u, depth) + fine * Math.sin(u * 2 * Math.PI * 31 + 0.9);
-    // The top stays behind the valance.
-    // Where they overlap, the left curtain's leading edge stands a little in front of the right one's, below the valance.
-    const lip = side < 0 ? 0.1 * drawn * (1 - smooth(0.02, 0.05, u)) * (1 - smooth(7.8, 8.4, y)) : 0;
-    const z = CURTAIN_Z + wave + lip + 0.05 * gather - 0.2 * smooth(8.5, 9.0, y);
+    // Up under the valance the fabric hangs flatter and further back, between the screen and the valance,
+    // touching neither. Where they overlap, the left curtain's leading edge stays in front of the right one's all the way up.
+    const under = smooth(8.2, 8.8, y);
+    const lip = side < 0 ? 0.1 * drawn * (1 - smooth(0.02, 0.05, u)) * (1 - 0.5 * under) : 0;
+    const z = lerp(CURTAIN_Z, 0.1, under) + wave * (1 - 0.55 * under) + lip + 0.05 * gather;
     return [[side * x, y, z], 0.4 + 0.6 * smooth(-depth - fine, depth + fine, wave)];
 };
 
@@ -286,7 +287,8 @@ export const buildSideCurtains = () => {
 const addValance = (builder: MeshBuilder) => {
     const half = PW + 0.2;
     const swags = 6;
-    const z0 = 0.22;
+    // In front of the side curtains' tops (curtainPoint), behind the proscenium wall.
+    const z0 = 0.26;
     const top = PROSCENIUM.top + 0.2;
     const hem = (x: number) => {
         const s = ((x + half) / (2 * half)) * swags;

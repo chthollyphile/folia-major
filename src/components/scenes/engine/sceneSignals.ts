@@ -121,25 +121,73 @@ export const createSceneSignals = (getProps: () => VisualizerSharedProps, getSon
     };
 };
 
-/** How long after the last move the pointer still counts as moving. */
-const POINTER_ACTIVE_MS = 1500;
+/** A press that moves this far (CSS pixels) is a drag that turns the head; less, and it is a click. */
+const DRAG_START_PX = 5;
+/** How far a drag turns the head, radians per CSS pixel: across half a wide window is about half a turn. */
+const LOOK_PER_PX = (0.18 * Math.PI) / 180;
 
-/** The pointer in the window (-1..1, right and up positive), for every scene alike. */
-export const trackPointer = () => {
-    let x = 0;
-    let y = 0;
-    let lastMove = -Infinity;
-    const onMove = (event: PointerEvent) => {
-        x = (event.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
-        y = 1 - (event.clientY / Math.max(1, window.innerHeight)) * 2;
-        lastMove = performance.now();
+/**
+ * Drag to look, for every scene alike: a press on the scene that moves turns the head, as a game's mouse
+ * look while the button is held; a press that does not move is a click and reaches the lyrics as ever.
+ * The click that ends a drag is swallowed, so a drag that starts on a line does not also act on it.
+ */
+export const trackLook = (root: HTMLElement) => {
+    let yaw = 0;
+    let pitch = 0;
+    let press: { id: number; x: number; y: number; dragging: boolean } | null = null;
+    let swallowClick = false;
+    const onDown = (event: PointerEvent) => {
+        swallowClick = false;
+        if (!event.isPrimary || event.button !== 0) return;
+        press = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
     };
-    window.addEventListener('pointermove', onMove, { passive: true });
+    const onMove = (event: PointerEvent) => {
+        if (!press || event.pointerId !== press.id) return;
+        const dx = event.clientX - press.x;
+        const dy = event.clientY - press.y;
+        if (!press.dragging) {
+            if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+            press.dragging = true;
+            root.setPointerCapture(event.pointerId);
+            root.style.cursor = 'grabbing';
+        }
+        // Right looks right and up looks up, as in a game (yaw and pitch are left and up positive).
+        yaw -= dx * LOOK_PER_PX;
+        pitch -= dy * LOOK_PER_PX;
+        press.x = event.clientX;
+        press.y = event.clientY;
+    };
+    const onEnd = (event: PointerEvent) => {
+        if (!press || event.pointerId !== press.id) return;
+        swallowClick = press.dragging;
+        press = null;
+        root.style.cursor = '';
+    };
+    const onClick = (event: MouseEvent) => {
+        if (!swallowClick) return;
+        swallowClick = false;
+        event.stopPropagation();
+        event.preventDefault();
+    };
+    root.addEventListener('pointerdown', onDown, true);
+    root.addEventListener('pointermove', onMove);
+    root.addEventListener('pointerup', onEnd);
+    root.addEventListener('pointercancel', onEnd);
+    root.addEventListener('click', onClick, true);
     return {
-        pointer: () => {
-            const restMs = performance.now() - lastMove;
-            return { x, y, active: restMs < POINTER_ACTIVE_MS, restMs };
+        look: () => {
+            const turned = { yaw, pitch };
+            yaw = 0;
+            pitch = 0;
+            return turned;
         },
-        dispose: () => window.removeEventListener('pointermove', onMove),
+        dispose: () => {
+            root.removeEventListener('pointerdown', onDown, true);
+            root.removeEventListener('pointermove', onMove);
+            root.removeEventListener('pointerup', onEnd);
+            root.removeEventListener('pointercancel', onEnd);
+            root.removeEventListener('click', onClick, true);
+            root.style.cursor = '';
+        },
     };
 };

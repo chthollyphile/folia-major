@@ -65,8 +65,7 @@ describe("a borrowed renderer's theme", () => {
 });
 
 describe('surface tone in the manifest', () => {
-    it("the hall's screen is dark, and a tone other than dark or light is refused", () => {
-        expect(cinema.manifest.surfaces?.[0].tone).toBe('dark');
+    it("the hall's manifest passes, and a tone other than dark or light is refused", () => {
         expect(checkSceneManifest(cinema.manifest)).toEqual([]);
         const bad = { ...cinema.manifest, surfaces: [{ id: 'screen', aspect: 2, tone: 'grey' }] };
         expect(checkSceneManifest(bad)).toEqual([`surface "screen" tone is not 'dark' or 'light'`]);

@@ -45,28 +45,25 @@ const manifest = (patch: Partial<SceneManifest>): SceneManifest => ({
     version: '1.0.0',
     name: { en: 'Cinema' },
     surfaces: [{ id: 'screen', aspect: 1.85 }],
-    lyrics: { own: true, style: { surface: 'screen' } },
-    background: { own: true, host: { surface: 'screen' } },
+    lyrics: { style: { surface: 'screen' } },
+    background: { host: { surface: 'screen' } },
     quality: { default: 'low', presets: { low: {}, medium: {}, high: {} } },
     ...patch,
 });
 
 describe('scene placement', () => {
-    it('uses the scene\'s own lyrics and screen until the user picks theirs', () => {
-        const hall = manifest({});
-        expect(planSceneLayers(hall, {})).toEqual({ surfaces: [], overlayLyrics: false, behindBackground: false });
-        expect(planSceneLayers(hall, { lyrics: 'style' }).surfaces).toEqual([{ id: 'screen', lyrics: true, background: false }]);
-        expect(planSceneLayers(hall, { lyrics: 'style', screen: 'background' }).surfaces).toEqual([{ id: 'screen', lyrics: true, background: true }]);
+    it('puts the user\'s lyric style and background on the surface the scene names', () => {
+        expect(planSceneLayers(manifest({}))).toEqual({ surfaces: [{ id: 'screen', lyrics: true, background: true }], overlayLyrics: false, behindBackground: false });
     });
 
-    it('lays a lyric style over a scene without lyrics of its own, and a background behind', () => {
-        const field = manifest({ lyrics: { own: false, style: 'overlay' }, background: { own: false, host: 'behind' } });
-        expect(planSceneLayers(field, { lyrics: 'scene', screen: 'scene' })).toEqual({ surfaces: [], overlayLyrics: true, behindBackground: true });
-        expect(planSceneLayers(manifest({ lyrics: { own: true, style: 'none' } }), { lyrics: 'style' }).surfaces).toEqual([]);
+    it('lays a lyric style over the scene and a background behind it, or leaves them out', () => {
+        const field = manifest({ lyrics: { style: 'overlay' }, background: { host: 'behind' } });
+        expect(planSceneLayers(field)).toEqual({ surfaces: [], overlayLyrics: true, behindBackground: true });
+        expect(planSceneLayers(manifest({ lyrics: { style: 'none' }, background: { host: 'none' } }))).toEqual({ surfaces: [], overlayLyrics: false, behindBackground: false });
     });
 
     it('offers only the styles and backgrounds the scene takes', () => {
-        const hall = manifest({ lyrics: { own: true, style: { surface: 'screen' }, exclude: ['still'] }, background: { own: true, host: 'none' } });
+        const hall = manifest({ lyrics: { style: { surface: 'screen' }, exclude: ['still'] }, background: { host: 'none' } });
         expect(sceneOffersLyricStyle(null, 'still')).toBe(true);
         expect(sceneOffersLyricStyle(hall, 'still')).toBe(false);
         expect(sceneOffersLyricStyle(hall, 'classic')).toBe(true);
@@ -132,8 +129,6 @@ describe('seat rig', () => {
         const ctx = {
             anchors: { list: () => seats },
             seats: { chosen: () => chosen },
-            lyrics: { phase: () => 'intro' },
-            input: { pointer: () => ({ x: 0, y: 0, active: false, restMs: Infinity }) },
         } as unknown as SceneContext;
         const camera = new THREE.PerspectiveCamera();
         seatRig(ctx).update(camera, 0);

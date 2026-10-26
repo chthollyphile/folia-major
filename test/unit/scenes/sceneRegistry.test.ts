@@ -12,8 +12,8 @@ const manifest = (id: string, patch: Partial<SceneManifest> = {}): SceneManifest
     id,
     version: '1.0.0',
     name: { en: id },
-    lyrics: { own: false, style: 'overlay' },
-    background: { own: true, host: 'none' },
+    lyrics: { style: 'overlay' },
+    background: { host: 'none' },
     quality: { default: 'low', presets: { low: {}, medium: {}, high: {} } },
     ...patch,
 });
@@ -42,17 +42,17 @@ describe('manifest check', () => {
     it('passes a good manifest and names what is wrong with a bad one', () => {
         expect(checkSceneManifest(manifest('cinema'))).toEqual([]);
         expect(checkSceneManifest(manifest('cinema', { engine: '^2.0' }))).toHaveLength(1);
-        expect(checkSceneManifest(manifest('cinema', { lyrics: { own: true, style: { surface: 'screen' } } }))).toEqual(['surface "screen" is not in surfaces']);
+        expect(checkSceneManifest(manifest('cinema', { lyrics: { style: { surface: 'screen' } } }))).toEqual(['surface "screen" is not in surfaces']);
         expect(checkSceneManifest(manifest('cinema', {
             surfaces: [{ id: 'screen', aspect: 1.85 }],
-            lyrics: { own: true, style: { surface: 'screen' } },
+            lyrics: { style: { surface: 'screen' } },
         }))).toEqual([]);
         expect(checkSceneManifest({ ...manifest('cinema'), format: 2 })).toHaveLength(1);
         expect(checkSceneManifest(null)).toHaveLength(1);
     });
 
     it('survives a trip through JSON unchanged', () => {
-        const written = manifest('cinema', { surfaces: [{ id: 'screen', aspect: 1.85 }], lyrics: { own: true, style: { surface: 'screen' }, exclude: ['still'] } });
+        const written = manifest('cinema', { surfaces: [{ id: 'screen', aspect: 1.85 }], lyrics: { style: { surface: 'screen' }, exclude: ['still'] } });
         expect(JSON.parse(JSON.stringify(written))).toEqual(written);
     });
 });

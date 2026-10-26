@@ -19,21 +19,14 @@ import { createCinemaPost } from './cinemaPost';
 // The cinema as plain three.js objects: the room and its seats (one shader), the side curtains, the
 // people in the seats, the screen, the projector beam, the dust in it and the small lamps, filmed by the
 // camera the runtime moved (cinemaRuntime.ts) through the lens passes (cinemaPost.ts). update() moves it
-// one frame from numbers only; dispose() frees every GPU resource it made. Each lyric line goes on the
-// film with setCaption(); setHole() leaves the screen's picture area transparent for a borrowed picture.
+// one frame from numbers only; dispose() frees every GPU resource it made. The screen's picture area is
+// left see-through: the user's lyric style and background lie under the canvas there (the host's surface).
+// The reel (the cover) is never shown; it only colours the light the projector throws into the hall.
 
-/** How long a change of reels takes on screen. */
+/** How long a change of reels takes. */
 const REEL_SECONDS = 1.7;
-/** How long a lyric line takes to cut in over the last one. */
-const CAPTION_SECONDS = 0.55;
 const DUST_COUNT = 520;
 const SCREEN_MARGIN = 0.32;
-
-/** A lyric line on the film: its picture (light on black, screen-shaped) and the light it throws per screen third (linear). */
-export interface CinemaCaption {
-    texture: THREE.Texture;
-    light: [THREE.Color, THREE.Color, THREE.Color];
-}
 
 export interface CinemaFrameInput {
     /** Seconds since the last frame, paused or not: a pause stops the film and the tour, not the hall's air and grain. */
@@ -42,7 +35,7 @@ export interface CinemaFrameInput {
     /** Audio, each 0..1. */
     power: number;
     bass: number;
-    /** The house lights up by hand (a probe key, the cinema lyric style's day); the hall's own theme, never the screen's. */
+    /** The house lights up by hand (the scene's setting); the hall's own lights, never the screen's theme. */
     lightsUp: boolean;
     /** The app's static mode: no intermission, everything at once where it belongs. */
     still?: boolean;
@@ -55,12 +48,8 @@ export interface CinemaFrameInput {
 export interface CinemaScene {
     /** Shows a new reel; with animate, through a change-over, otherwise at once. Null shows the leader. */
     setReel: (reel: CinemaReel | null, animate: boolean) => void;
-    /** Puts a lyric on the film (the scene owns and frees its texture from now on); null shows the picture alone. */
-    setCaption: (caption: CinemaCaption | null) => void;
     /** Moves the hall one frame; returns the projector's shutter, 1 open to 0 shut. */
     update: (input: CinemaFrameInput) => number;
-    /** Leaves the screen's picture area transparent (the user's background lies under the canvas there), or not. */
-    setHole: (hole: boolean) => void;
     /** Draws the frame through the lens passes. */
     render: (renderer: THREE.WebGLRenderer, camera: THREE.Camera) => void;
     dispose: () => void;
@@ -135,21 +124,10 @@ const ease = (current: number, target: number, rate: number, dt: number) => curr
 
 /** The share of each screen third the cover itself fills; the rest is the dimmed backdrop. */
 const THIRD_WEIGHTS = [0.32, 1, 0.32];
-/** How much a lyric dims the picture under it. */
-const COVER_DIM = 0.7;
-/** The caption's light on the screen, as in the screen shader (reelImage). */
-const CAPTION_GAIN = 3.0;
-
-const blackTexture = () => {
-    const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
-    texture.needsUpdate = true;
-    return texture;
-};
 
 export const createCinemaScene = (): CinemaScene => {
     const leader = createLeaderReel();
     const noise = createSmokeNoise();
-    const black = blackTexture();
     const post = createCinemaPost();
     const uniforms = {
         uTime: { value: 0 },
@@ -173,15 +151,7 @@ export const createCinemaScene = (): CinemaScene => {
         uAspectA: { value: 1 },
         uAspectB: { value: 1 },
         uChange: { value: 1 },
-        uCapA: { value: black as THREE.Texture },
-        uCapB: { value: black as THREE.Texture },
-        uCapMix: { value: 1 },
-        uCapLevel: { value: 0 },
-        uCoverDim: { value: 0 },
-        uJolt: { value: 0 },
-        uHole: { value: 0 },
         uShutter: { value: 1 },
-        uScreenGain: { value: 0.34 },
         uFlicker: { value: 1 },
         uMargin: { value: new THREE.Vector2(SCREEN_MARGIN / SCREEN.width, SCREEN_MARGIN / SCREEN.height) },
         uInvViewProj: { value: new THREE.Matrix4() },
@@ -290,14 +260,6 @@ export const createCinemaScene = (): CinemaScene => {
     reelLights(leader, lightA);
     reelLights(leader, lightB);
 
-    let captionA: CinemaCaption | null = null;
-    let captionB: CinemaCaption | null = null;
-    let captionShown = false;
-    let captionMix = 1;
-    let captionLevel = 0;
-    let jolt = 0;
-    const captionLight = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
-
     const releaseReel = (reel: CinemaReel) => {
         if (reel !== leader && reel !== reelA && reel !== reelB) reel.texture.dispose();
     };
@@ -316,27 +278,6 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uAspectB.value = reelB.aspect;
         reelLights(reelA, lightA);
         reelLights(reelB, lightB);
-    };
-
-    const setCaption = (caption: CinemaCaption | null) => {
-        if (!caption) {
-            captionShown = false;
-            return;
-        }
-        if (caption === captionA) {
-            captionShown = true;
-            return;
-        }
-        captionB?.texture.dispose();
-        // Coming out of a pause in the words, the old line is not shown again on the way.
-        captionB = captionShown && captionLevel > 0.05 ? captionA : null;
-        if (!captionB) captionA?.texture.dispose();
-        captionA = caption;
-        captionMix = captionB ? 0 : 0.3;
-        captionShown = true;
-        jolt = 1;
-        uniforms.uCapA.value = caption.texture;
-        uniforms.uCapB.value = captionB?.texture ?? black;
     };
 
     const average = new THREE.Vector3();
@@ -358,14 +299,6 @@ export const createCinemaScene = (): CinemaScene => {
             Object.assign(hung.right, show.right);
         }
         change = running ? Math.min(1, change + dt / REEL_SECONDS) : 1;
-        captionMix = running ? Math.min(1, captionMix + dt / CAPTION_SECONDS) : 1;
-        captionLevel = running ? ease(captionLevel, captionShown ? 1 : 0, captionShown ? 5 : 2.2, dt) : (captionShown ? 1 : 0);
-        jolt = running ? jolt * Math.exp(-dt * 9) : 0;
-        if (captionMix >= 1 && captionB) {
-            captionB.texture.dispose();
-            captionB = null;
-            uniforms.uCapB.value = black;
-        }
         smokeTime += dt * (1 + 1.4 * power);
         dustTime += dt * (1 + 1.8 * power);
 
@@ -375,15 +308,9 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uProjScale.value = bufferSize.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
         uniforms.uResolution.value.copy(bufferSize);
 
-        const dip = Math.sin(Math.PI * change);
         const cross = smoothstep(0.42, 0.58, change);
         const breathe = 1 + 0.08 * bass;
-        const screenPower = lerp(6.5, 1.1, day) * breathe * (1 - 0.7 * dip);
-        const coverDim = COVER_DIM * captionLevel;
-        captionLight.forEach((light, index) => {
-            const color = captionA?.light[index];
-            light.set(color?.r ?? 0, color?.g ?? 0, color?.b ?? 0).multiplyScalar(CAPTION_GAIN * captionLevel * smoothstep(0.15, 0.75, captionMix));
-        });
+        const screenPower = lerp(6.5, 1.1, day) * breathe;
         const lights = [uniforms.uScreenL.value, uniforms.uScreenC.value, uniforms.uScreenR.value];
         // Drawn curtains catch the projector's light: the screen behind them is in their shadow and gives no light. Share of each third left uncovered:
         const gap = curtainGap(show.left, show.right);
@@ -393,7 +320,7 @@ export const createCinemaScene = (): CinemaScene => {
         average.set(0, 0, 0);
         projected.set(0, 0, 0);
         lights.forEach((light, index) => {
-            mixed.lerpVectors(lightB[index], lightA[index], cross).multiplyScalar(1 - coverDim).add(captionLight[index]).multiplyScalar((1 - day) * shutter);
+            mixed.lerpVectors(lightB[index], lightA[index], cross).multiplyScalar((1 - day) * shutter);
             // By day the house lights wash the screen out: it gives back a pale, even light.
             mixed.addScalar(day * 0.32);
             light.copy(mixed).multiplyScalar(screenPower);
@@ -407,10 +334,6 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uDay.value = day;
         uniforms.uShutter.value = shutter;
         uniforms.uChange.value = change;
-        uniforms.uCapMix.value = captionMix;
-        uniforms.uCapLevel.value = captionLevel;
-        uniforms.uCoverDim.value = coverDim;
-        uniforms.uJolt.value = jolt;
         uniforms.uAmbient.value.copy(average).multiplyScalar(0.012).add(new THREE.Vector3(0.0025, 0.0028, 0.0038).multiplyScalar(1 - day));
         uniforms.uHaze.value.copy(average).multiplyScalar(0.004 * (1 - day)).add(new THREE.Vector3(0.2, 0.16, 0.12).multiplyScalar(day * 0.35));
         // At night a dim show level stays on, so the rows never vanish whatever colour the screen throws.
@@ -419,20 +342,15 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uFoot.value = lerp(0.9, 0.55, day);
         uniforms.uBoxLamp.value = lerp(1, 0.6, day);
         uniforms.uCove.value.set(cove.r, cove.g, cove.b).multiplyScalar(lerp(0.32, 0.5, day));
-        uniforms.uScreenGain.value = 0.36 * (1 + 0.05 * bass);
         uniforms.uFlicker.value = running ? 1 : 0;
         // Bright covers would fill the hall with fog: the beam is held to about the same strength for every cover.
         const screenLuminance = (0.2126 * projected.x + 0.7152 * projected.y + 0.0722 * projected.z) / (3 * Math.max(screenPower, 1e-3));
-        uniforms.uBeamGain.value = lerp(0.06, 0.006, day) * (1 + 0.18 * bass) * (1 - 0.7 * dip) * Math.min(1.6, 0.16 / Math.max(screenLuminance, 0.02)) * shutter;
+        uniforms.uBeamGain.value = lerp(0.06, 0.006, day) * (1 + 0.18 * bass) * Math.min(1.6, 0.16 / Math.max(screenLuminance, 0.02)) * shutter;
         uniforms.uSmokeTime.value = smokeTime;
         uniforms.uDustTime.value = dustTime;
         // Dust shows only in the beam.
         uniforms.uDustGain.value = lerp(0.35, 0.03, day) * (1 + 0.6 * power) * shutter;
         return shutter;
-    };
-
-    const setHole = (hole: boolean) => {
-        uniforms.uHole.value = hole ? 1 : 0;
     };
 
     const postFrame = { time: 0, grain: 0, vignette: 0, bloom: 0, focus: 14, aperture: 0.1 };
@@ -454,14 +372,11 @@ export const createCinemaScene = (): CinemaScene => {
         seats.dispose();
         audience.dispose();
         noise.dispose();
-        black.dispose();
         [reelA, reelB].forEach(reel => {
             if (reel !== leader) reel.texture.dispose();
         });
         leader.texture.dispose();
-        captionA?.texture.dispose();
-        captionB?.texture.dispose();
     };
 
-    return { setReel, setCaption, update, setHole, render, dispose };
+    return { setReel, update, render, dispose };
 };
