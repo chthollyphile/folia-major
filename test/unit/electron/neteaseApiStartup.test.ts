@@ -405,6 +405,19 @@ describe('NetEase QR network retry', () => {
         await expect(withQrNetworkRetry(other, retryOptions())('/api/song/enhance/player/url/v1')).rejects.toBe(RESET);
         expect(other).toHaveBeenCalledTimes(1);
     });
+
+    // 2026-10-26：启动后第一次问「谁登录着」会撞上上游一次连接级别的超时（实测两次 ETIMEDOUT 共 42 秒，之后
+    // 同一条链路 81ms 就通）。读接口重发一次没有副作用，之前不重试的话 UI 直接看到 502、账号区停在「问不到」。
+    it.each(['/api/w/nuser/account/get', '/api/nuser/account/get'])('sends the read-only account route %s once more after a network-level failure', async (uri) => {
+        const ok = { status: 200, body: { code: 200, account: null, profile: null }, cookie: [] };
+        const request = vi.fn().mockRejectedValueOnce(RESET).mockResolvedValueOnce(ok);
+        const options = retryOptions();
+
+        await expect(withQrNetworkRetry(request, options)(uri)).resolves.toBe(ok);
+
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(options.sleep).toHaveBeenCalledWith(300);
+    });
 });
 
 describe('NetEase API sign-in check module', () => {
