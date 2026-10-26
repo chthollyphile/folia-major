@@ -70,7 +70,9 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
         const row = rowOf(lit?.providerId);
         const next = row ? { x: row.offsetLeft, y: row.offsetTop, w: row.offsetWidth, h: row.offsetHeight } : null;
         setBox(current => (current?.x === next?.x && current?.y === next?.y && current?.w === next?.w && current?.h === next?.h ? current : next));
-    });
+        // 依赖数组：只在高亮行、横竖排布、平台数量变化时才重新测量。
+        // 无数组时登录状态变化引发行重排 → 量-写-量循环 → 黑屏（复现见 chthollyphile/folia-major#185）。
+    }, [lit?.providerId, lie, shown.length, rows.length]);
 
     // 选中的行换了，把它滚进来。指针指着的行不滚：列表不在指针底下自己动，指针移开也不跳回去。
     useLayoutEffect(() => {
