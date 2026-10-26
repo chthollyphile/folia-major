@@ -793,7 +793,7 @@ export default {
       "visualizer-picker": { "title": "Pick a visualizer", "description": "Browse lyric animation modes and click one to switch" },
       "background-picker": { "title": "Pick a background", "description": "Browse background layouts and click one to switch" },
       "visualizer-still": { "title": "Visualizer: Still", "description": "Switch to the static low-resource visualizer" },
-      "scene-cinema": { "title": "Scene: Cinema", "description": "Turn the player page into the cinema hall, the lyrics and cover on its screen" },
+      "scene-cinema": { "title": "Scene: Cinema", "description": "Turn the player page into the cinema hall, your lyric style and background on its screen" },
       "scene-exit": { "title": "Leave the scene", "description": "Back to the lyric style and background on the player page" },
       "scene-reload": { "title": "Reload the scene", "description": "Load the scene on the player page again, after changing its files" },
       "visualizer-classic": { "title": "Visualizer: Luminous", "description": "Switch to classic visualizer" },

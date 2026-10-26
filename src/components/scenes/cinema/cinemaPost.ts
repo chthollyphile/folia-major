@@ -3,12 +3,12 @@ import * as THREE from 'three';
 // src/components/scenes/cinema/cinemaPost.ts
 // The camera's lens after the hall is drawn: the hall goes into a 4x multisampled target (clean edges
 // on every rail, seat row and curtain), then two blurred copies of it (half and quarter size) give the
-// depth of field, a bright pass blurred at quarter size gives the bloom of the lamps and the screen,
+// depth of field, a bright pass blurred at quarter size gives the bloom of the lamps,
 // and the last pass mixes them, adds the vignette and the film grain, and draws to the canvas.
 // How far out of focus each pixel is comes from the depth of the hall's pass and the camera's focus.
 // Alpha is coverage and goes through to the canvas: 1 for the hall, near 0 over the screen's picture
-// area (cinemaScene.ts), so the user's picture under the canvas shows there. Over it go added light
-// (bloom, the beam, dust), the vignette and the same grain as on the hall, so the picture is filmed too.
+// area (cinemaScene.ts), so the user's picture under the canvas shows there as it is: nothing of the
+// hall (bloom, the beam, dust, the vignette, the grain) is drawn over it.
 // Plain 8-bit targets: the shaders tone map themselves, and a half-float multisampled target drew
 // black in Chrome on ANGLE d3d11.
 
@@ -131,13 +131,12 @@ void main() {
     q.x *= uResolution.x / uResolution.y;
     float vignette = 1.0 - uVignette * smoothstep(0.3, 1.15, length(q));
     c *= vignette;
-    // Grain on a 1.5-pixel cell, weaker in the highlights as on film. Over the picture under the canvas
-    // a light speck is added light and a dark one is coverage.
+    // Grain on a 1.5-pixel cell, weaker in the highlights as on film.
     float g = hash12(floor(gl_FragCoord.xy / 1.5) + fract(uTime * 7.13) * 917.0) - 0.5;
-    c += g * uGrain * (0.35 + 0.65 * (1.0 - c)) * cover + max(g, 0.0) * uGrain * 0.6 * (1.0 - cover);
-    float shade = max(-g, 0.0) * uGrain * 0.6;
-    // Premultiplied: over the picture the colour is only added light, and the vignette darkens what shows through.
-    gl_FragColor = vec4(c, cover + (1.0 - cover) * (1.0 - vignette * (1.0 - shade)));
+    c += g * uGrain * (0.35 + 0.65 * (1.0 - c)) * cover;
+    // Premultiplied, and no colour beyond the coverage: the beam, the dust, the bloom and the blur add
+    // nothing over the user's picture, which shows exactly as on the player page.
+    gl_FragColor = vec4(min(c, vec3(cover)), cover);
 }
 `;
 

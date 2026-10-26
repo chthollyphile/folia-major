@@ -130,23 +130,35 @@ const LOOK_PER_PX = (0.18 * Math.PI) / 180;
  * Drag to look, for every scene alike: a press on the scene that moves turns the head, as a game's mouse
  * look while the button is held; a press that does not move is a click and reaches the lyrics as ever.
  * The click that ends a drag is swallowed, so a drag that starts on a line does not also act on it.
+ * A press the lyric style claimed (preventDefault on its pointerdown, as Monet's portrait hanger does
+ * while it is placed) is the style's own drag and turns nothing.
  */
 export const trackLook = (root: HTMLElement) => {
     let yaw = 0;
     let pitch = 0;
-    let press: { id: number; x: number; y: number; dragging: boolean } | null = null;
+    let press: { id: number; x: number; y: number; dragging: boolean; down: PointerEvent } | null = null;
     let swallowClick = false;
     const onDown = (event: PointerEvent) => {
         swallowClick = false;
         if (!event.isPrimary || event.button !== 0) return;
-        press = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false };
+        press = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, down: event };
     };
     const onMove = (event: PointerEvent) => {
         if (!press || event.pointerId !== press.id) return;
+        // The button came up where the scene did not hear it (over the player's controls, another window).
+        if ((event.buttons & 1) === 0) {
+            onEnd(event);
+            return;
+        }
         const dx = event.clientX - press.x;
         const dy = event.clientY - press.y;
         if (!press.dragging) {
             if (Math.hypot(dx, dy) < DRAG_START_PX) return;
+            // By now the press has reached the lyric style's handlers: one that claimed it drags on its own.
+            if (press.down.defaultPrevented) {
+                press = null;
+                return;
+            }
             press.dragging = true;
             root.setPointerCapture(event.pointerId);
             root.style.cursor = 'grabbing';
@@ -159,7 +171,9 @@ export const trackLook = (root: HTMLElement) => {
     };
     const onEnd = (event: PointerEvent) => {
         if (!press || event.pointerId !== press.id) return;
-        swallowClick = press.dragging;
+        // The click, if any, comes right after the pointerup; none comes after a cancel.
+        swallowClick = press.dragging && event.type === 'pointerup';
+        if (swallowClick) window.setTimeout(() => { swallowClick = false; }, 0);
         press = null;
         root.style.cursor = '';
     };

@@ -152,7 +152,6 @@ export const createCinemaScene = (): CinemaScene => {
         uAspectB: { value: 1 },
         uChange: { value: 1 },
         uShutter: { value: 1 },
-        uFlicker: { value: 1 },
         uMargin: { value: new THREE.Vector2(SCREEN_MARGIN / SCREEN.width, SCREEN_MARGIN / SCREEN.height) },
         uInvViewProj: { value: new THREE.Matrix4() },
         uBeamPlanes: { value: beamPlanes() },
@@ -342,7 +341,6 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uFoot.value = lerp(0.9, 0.55, day);
         uniforms.uBoxLamp.value = lerp(1, 0.6, day);
         uniforms.uCove.value.set(cove.r, cove.g, cove.b).multiplyScalar(lerp(0.32, 0.5, day));
-        uniforms.uFlicker.value = running ? 1 : 0;
         // Bright covers would fill the hall with fog: the beam is held to about the same strength for every cover.
         const screenLuminance = (0.2126 * projected.x + 0.7152 * projected.y + 0.0722 * projected.z) / (3 * Math.max(screenPower, 1e-3));
         uniforms.uBeamGain.value = lerp(0.06, 0.006, day) * (1 + 0.18 * bass) * Math.min(1.6, 0.16 / Math.max(screenLuminance, 0.02)) * shutter;

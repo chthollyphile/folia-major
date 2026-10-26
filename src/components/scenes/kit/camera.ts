@@ -3,8 +3,8 @@ import type { LyricPhase, SceneContext } from '../definition';
 
 // src/components/scenes/kit/camera.ts
 // 可选工具箱：机位和导演。seatRig 坐在座位上；pathRig 沿 path 锚点慢慢走；phaseDirector 按歌词阶段选机位：
-// 下一句还很远时去巡游，下一句前几秒回到座位。用户按住拖动转头（Head，turnHead），各机位都在自己看的方向上
-// 再转这么多。只动摄像机，听者不跟它。
+// 下一句还很远时去巡游，下一句前几秒回到座位。用户按住拖动转头（Head，turnHead），seatRig 和拿到 Head 的机位
+// 在自己看的方向上再转这么多。只动摄像机，听者不跟它。
 
 export interface CameraRig {
     update: (camera: THREE.PerspectiveCamera, dt: number) => void;
