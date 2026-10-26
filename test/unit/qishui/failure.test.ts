@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
 import { describeQishuiFailure } from '@/services/onlineMusic/qishui/qishuiFailure';
-import { clearQishuiPlayback } from '@/services/onlineMusic/qishui/qishuiPlayback';
+import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
 import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
@@ -45,6 +45,11 @@ describe('Qishui failure cases', () => {
         expect(shown.case).toBe('no-audio');
         expect(shown.facts.message).toBeUndefined();
     });
+    it('names a media the service will not serve as taken down, not as a missing address', async () => {
+        const error = await thrownBy(refusal('not-playable', 'Qishui did not return the track'));
+        expect(describeQishuiFailure('audio', error)).toEqual({ case: 'taken-down' });
+        expect(caseOf(error).case).toBe('taken-down');
+    });
     it('says "sign in to play" when nobody is signed in', async () => {
         const error = await thrownBy(refusal('auth-required', 'Sign in to Qishui first'));
         expect(caseOf(error)).toMatchObject({ case: 'sign-in-needed', facts: { signedOut: true } });
@@ -64,6 +69,27 @@ describe('Qishui failure cases', () => {
     });
     it('is the provider\'s describeFailure', () => {
         expect(qishuiProvider.describeFailure).toBe(describeQishuiFailure);
+    });
+});
+
+describe('Qishui playability records', () => {
+    it('reads the service\'s own record before the risk check', async () => {
+        request.mockResolvedValueOnce({ ok: true, data: { statuses: [
+            { id: '1', riskResult: 0, status: 0 },
+            { id: '2', riskResult: -2, status: 20 },
+            { id: '3', riskResult: -2, status: 10 },
+            { id: '4', riskResult: -2, status: 0 },
+        ] } });
+        const songs = await readQishuiSongs(['1', '2', '3', '4', '5'].map(id => track(id)));
+        const availability = (index: number) => qishuiProvider.playback!.getAvailability!(songs[index]);
+        expect(availability(0)).toEqual({ state: 'playable' });
+        // A media the service will not serve, though the risk check says nothing about it.
+        expect(availability(1)).toEqual({ state: 'unavailable', reason: 'taken-down' });
+        // Encrypted audio only is a restriction, not a takedown.
+        expect(availability(2)).toEqual({ state: 'unknown', reason: 'restricted' });
+        // Served, with no risk result either way, and a media the answer did not mention: both unknown.
+        expect(availability(3)).toEqual({ state: 'unknown' });
+        expect(availability(4)).toEqual({ state: 'unknown' });
     });
 });
 
