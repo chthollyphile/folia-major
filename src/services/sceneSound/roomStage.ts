@@ -1,3 +1,5 @@
+import { rampGain } from '../automix/crossfadeGraph';
+
 // src/services/sceneSound/roomStage.ts
 // The room in the playback graph: the music through a scene's IR, between the play/pause fade and the volume
 // (playbackGraph.ts). Two ConvolverNodes used in turn; a new IR goes into the idle one and is faded to only after
@@ -7,11 +9,12 @@
 //
 // The dry music is never taken out of the path: the fade stays wired to the volume, and while the room is on a
 // second branch adds the same signal times -1, which cancels it exactly. So turning on and off is only ramps,
-// never a re-wiring of what is sounding.
+// never a re-wiring of what is sounding. The on/off ramp sits after the limiter: the output is then a blend of
+// the dry music and the limited room, each under full scale, so no moment of a toggle can pass it.
 
 /** Where the room goes: the fade's output and the volume's input of the playback graph. */
 export interface RoomSlot {
-    context: BaseAudioContext;
+    context: AudioContext;
     from: AudioNode;
     to: AudioNode;
 }
@@ -75,6 +78,8 @@ interface Nodes {
     lanes: [Lane, Lane];
     wet: GainNode;
     limiter: DynamicsCompressorNode;
+    /** The room's on/off, after the limiter. */
+    level: GainNode;
     cancel: GainNode;
 }
 
@@ -86,12 +91,6 @@ export interface RoomStage {
     /** At once, for a graph that is going away. */
     dispose(): void;
 }
-
-const ramp = (param: AudioParam, value: number, now: number, seconds: number) => {
-    param.cancelScheduledValues(now);
-    param.setValueAtTime(param.value, now);
-    param.linearRampToValueAtTime(value, now + seconds);
-};
 
 export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomStageTimers = defaultTimers): RoomStage => {
     let nodes: Nodes | null = null;
@@ -116,28 +115,31 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
             return { convolver, gain, ir: null };
         };
         const wet = context.createGain();
-        wet.gain.value = 0;
+        wet.gain.value = 1 / LIMITER_MAKEUP;
         const limiter = context.createDynamicsCompressor();
         limiter.threshold.value = LIMITER.threshold;
         limiter.knee.value = LIMITER.knee;
         limiter.ratio.value = LIMITER.ratio;
         limiter.attack.value = LIMITER.attack;
         limiter.release.value = LIMITER.release;
+        const level = context.createGain();
+        level.gain.value = 0;
         const cancel = context.createGain();
         cancel.gain.value = 0;
         const lanes: [Lane, Lane] = [lane(), lane()];
         lanes.forEach(entry => entry.gain.connect(wet));
         wet.connect(limiter);
-        limiter.connect(to);
+        limiter.connect(level);
+        level.connect(to);
         from.connect(cancel);
         cancel.connect(to);
-        return { lanes, wet, limiter, cancel };
+        return { lanes, wet, limiter, level, cancel };
     };
 
     const release = () => {
         releaseTimer = null;
         if (!nodes) return;
-        const { lanes, wet, limiter, cancel } = nodes;
+        const { lanes, wet, limiter, level, cancel } = nodes;
         lanes.forEach(({ convolver, gain }) => {
             from.disconnect(convolver);
             convolver.disconnect();
@@ -148,17 +150,18 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
         cancel.disconnect();
         wet.disconnect();
         limiter.disconnect();
+        level.disconnect();
         nodes = null;
         active = -1;
         quietAt = 0;
         console.log('[RoomStage] room off, nodes released');
     };
 
-    const fadeIn = (now: number) => {
+    const fadeIn = () => {
         if (!nodes || on) return;
         on = true;
-        ramp(nodes.wet.gain, 1 / LIMITER_MAKEUP, now, ROOM_TOGGLE_SECONDS);
-        ramp(nodes.cancel.gain, -1, now, ROOM_TOGGLE_SECONDS);
+        rampGain(context, nodes.level, 1, ROOM_TOGGLE_SECONDS);
+        rampGain(context, nodes.cancel, -1, ROOM_TOGGLE_SECONDS);
         console.log('[RoomStage] room on');
     };
 
@@ -185,7 +188,7 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
             if (playing?.ir === ir) {
                 // The same IR again (the room turned back on while fading out, say): nothing to load.
                 clearSwap();
-                fadeIn(context.currentTime);
+                fadeIn();
                 return;
             }
             clearSwap();
@@ -198,11 +201,11 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
                 swapTimer = timers.set(() => {
                     swapTimer = null;
                     const now = context.currentTime;
-                    if (active >= 0) ramp(current.lanes[active].gain.gain, 0, now, ROOM_SWAP_SECONDS);
-                    ramp(lane.gain.gain, ir.gain, now, ROOM_SWAP_SECONDS);
+                    if (active >= 0) rampGain(context, current.lanes[active].gain, 0, ROOM_SWAP_SECONDS);
+                    rampGain(context, lane.gain, ir.gain, ROOM_SWAP_SECONDS);
                     quietAt = now + ROOM_SWAP_SECONDS;
                     active = target;
-                    fadeIn(now);
+                    fadeIn();
                 }, (ir.channels[0].length / ir.sampleRate) * 1000);
             };
             const wait = Math.max(0, quietAt - context.currentTime);
@@ -214,9 +217,8 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
             if (!nodes) return;
             if (on) {
                 on = false;
-                const now = context.currentTime;
-                ramp(nodes.wet.gain, 0, now, ROOM_TOGGLE_SECONDS);
-                ramp(nodes.cancel.gain, 0, now, ROOM_TOGGLE_SECONDS);
+                rampGain(context, nodes.level, 0, ROOM_TOGGLE_SECONDS);
+                rampGain(context, nodes.cancel, 0, ROOM_TOGGLE_SECONDS);
             }
             if (releaseTimer === null) releaseTimer = timers.set(release, (ROOM_TOGGLE_SECONDS + RELEASE_GRACE_SECONDS) * 1000);
         },

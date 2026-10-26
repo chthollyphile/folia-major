@@ -160,11 +160,15 @@ describe('room stage', () => {
         audio.advance(0.02);
         const gainA = laneGainOf(audio.edges, laneA);
         expect(audio.ramps.find(r => r.node === gainA)).toMatchObject({ target: 4 });
-        // Turning on: the wet branch up (by the limiter's make-up, undone) and the dry cancelled, over the toggle time.
+        // The limiter's make-up undone before it, as a fixed gain; turning on ramps the room up after the limiter
+        // (so a toggle only blends dry with limited wet) and cancels the dry, over the toggle time.
+        const limiter = audio.edges.find(([, b]) => b.kind === 'limiter')!;
+        expect((limiter[0].gain as { value: number }).value).toBeCloseTo(10 ** (-0.57 / 20), 4);
+        const level = audio.edges.find(([a]) => a.kind === 'limiter')![1];
         const toggles = audio.ramps.filter(r => r.node !== gainA);
         expect(toggles).toHaveLength(2);
         expect(toggles.map(r => r.target)).toContain(-1);
-        expect(toggles.find(r => r.target !== -1)!.target).toBeCloseTo(10 ** (-0.57 / 20), 4);
+        expect(toggles.find(r => r.target !== -1)).toMatchObject({ node: level, target: 1 });
         toggles.forEach(r => expect(r.until - r.at).toBeCloseTo(ROOM_TOGGLE_SECONDS, 6));
 
         // The next seat, once that fade is done: into the idle lane, faded to after its IR length.
@@ -278,6 +282,7 @@ describe('room sound', () => {
         expect(requests[1].listener.forward[1]).toBe(0);
         expect(requests[1].listener.forward[2]).toBeLessThan(-0.99);
         expect(played).toHaveLength(1);
+        expect(played[0].channels[0][0]).toBeCloseTo(0.2, 6); // the chosen seat's IR, not the default seat's
         expect(played[0].gain).toBeCloseTo(10, 3); // 1 / 0.1 from the default seat
         expect(sound.tier).toBe('realtime');
     });
