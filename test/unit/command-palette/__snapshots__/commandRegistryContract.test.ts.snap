@@ -258,6 +258,9 @@ exports[`command palette registry contract > keeps the registered command order 
   "background-sora",
   "scene-cinema",
   "scene-exit",
+  "scene-room-sound",
+  "scene-room-headphones",
+  "scene-room-speakers",
   "scene-reload",
 ]
 `;
