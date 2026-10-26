@@ -22,6 +22,10 @@ exports.default = async (context) => {
   // file each for every platform.
   const { prepareBundledModels } = await import("./fetchModels.mjs");
   await prepareBundledModels({ outputDir: require("path").join(context.packager.projectDir, "models") });
+  // Steam Audio, the scene engine's room sound (electron/acoustics/): every desktop platform's library,
+  // from the pinned official SDK zip; extraResources takes this target's build/steam-audio/${os}-${arch}.
+  const { prepareSteamAudio } = await import("./fetchSteamAudio.mjs");
+  await prepareSteamAudio();
   if (context.electronPlatformName === 'darwin') {
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });
