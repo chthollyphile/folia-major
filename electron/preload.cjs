@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('electron', {
     getAutomixModelsPresent: () => ipcRenderer.invoke('automix-models-present'),
     // One-way stage marks from the automix session into the runtime log. See services/automix/diag.ts.
     diagMark: (text) => ipcRenderer.send('automix-diag', text),
+    // The scene engine's room sound (Steam Audio): SceneAcousticsApi of src/services/sceneSound/acousticsTypes.ts.
+    // See electron/acoustics/host.cjs.
+    sceneAcoustics: {
+        available: () => ipcRenderer.invoke('scene-acoustics-available'),
+        computeRoom: (request) => ipcRenderer.invoke('scene-acoustics-compute', request),
+    },
     // Old automix models left in the folder an earlier version let the listener choose. See main.cjs.
     checkLegacyModels: () => ipcRenderer.invoke('legacy-models-check'),
     resolveLegacyModels: (action) => ipcRenderer.invoke('legacy-models-resolve', action),
