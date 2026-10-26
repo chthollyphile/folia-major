@@ -188,6 +188,7 @@ describe('request check', () => {
         expect(bad(r => { r.meshes[0].triangleMaterials[3] = 1; })).toThrow(/material past/);
         expect(bad(r => { (r as { output: string }).output = 'surround'; })).toThrow(/output/);
         expect(bad(r => { r.speakers.pop(); })).toThrow(/speakers/);
+        expect(bad(r => { r.listener.up = [0, 0, -2]; })).toThrow(/parallel/);
         expect(bad(r => { r.materials[0].absorption = [2, 0, 0]; })).toThrow(/material 0/);
         expect(bad(r => { (r.meshes[0] as { positions: unknown }).positions = [0, 0, 0]; })).toThrow(/positions/);
     });

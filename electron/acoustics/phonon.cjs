@@ -63,6 +63,7 @@ const validateRoomRequest = (request) => {
     if (output !== 'headphones' && output !== 'speakers') fail('output');
     if (!Array.isArray(speakers) || speakers.length !== 2 || !speakers.every(isVec3)) fail('speakers');
     if (!listener || ![listener.position, listener.forward, listener.up].every(isVec3)) fail('listener');
+    if (!(Math.hypot(...cross(listener.forward, listener.up)) > 1e-6)) fail('listener forward and up are parallel or zero');
     if (!Array.isArray(materials) || !materials.length || materials.length > 65536) fail('materials');
     materials.forEach((m, i) => {
         const ok = m && Array.isArray(m.absorption) && m.absorption.length === 3 && m.absorption.every(inUnit)
