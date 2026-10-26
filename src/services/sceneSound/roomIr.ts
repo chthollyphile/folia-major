@@ -2,78 +2,10 @@ import { kWeight } from '../automix/signalAnalysis';
 import { ROOM_FORMAT, type RoomRequest } from './acousticsTypes';
 
 // src/services/sceneSound/roomIr.ts
-// What the renderer does with a room IR before it plays it: the reflections' bass cut, the one loudness
-// gain, and the cache key a request is sent with. Pure functions; the IR is the 4-channel true-stereo
+// What the renderer does with a room IR before it plays it: the one loudness gain, and the cache key a request
+// is sent with. The reflections' bass cut is the acoustics process's (electron/acoustics/phonon.cjs
+// DEFAULTS.bassCutoffHz), where the reflections are still apart from the direct sound. Pure functions; the IR is the 4-channel true-stereo
 // layout of acousticsTypes.ts ([L->Lear, L->Rear, R->Lear, R->Rear]).
-
-/**
- * Below this frequency (Hz) the hall's reflections fade out; the direct sound keeps its full bass. Ray tracing
- * cannot get a room's bass right (the wavelengths are the size of the room), so the reflections give it up
- * gently instead (2nd-order Butterworth). The user tunes it by ear (decision of 2026-10-26 20:04, item 2);
- * 200 is the prototype's value. 0 turns the cut off.
- */
-export const REFLECTION_BASS_CUTOFF_HZ = 200;
-
-/**
- * How long after a speaker's first sound counts as its direct sound and keeps its bass: the HRTF's length.
- * The first reflection reaches a seat in this hall later than that (the floor's path is metres longer).
- */
-const DIRECT_SECONDS = 0.0025;
-/** The edge between the direct part and the rest, so the split itself adds nothing. */
-const DIRECT_TAPER_SECONDS = 0.001;
-/** A speaker's first sound: the first sample above this share of its loudest. */
-const ONSET_SHARE = 1e-3;
-
-/** In-place 2nd-order Butterworth high-pass (RBJ cookbook), as the prototype's. */
-const highPass = (x: Float32Array, hz: number, sampleRate: number) => {
-    const w = 2 * Math.PI * hz / sampleRate;
-    const alpha = Math.sin(w) / (2 * Math.SQRT1_2);
-    const cos = Math.cos(w);
-    const a0 = 1 + alpha;
-    const b0 = (1 + cos) / 2 / a0;
-    const b1 = -(1 + cos) / a0;
-    const a1 = -2 * cos / a0;
-    const a2 = (1 - alpha) / a0;
-    let x1 = 0; let x2 = 0; let y1 = 0; let y2 = 0;
-    for (let i = 0; i < x.length; i += 1) {
-        const y = b0 * x[i] + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
-        x2 = x1; x1 = x[i]; y2 = y1; y1 = y; x[i] = y;
-    }
-};
-
-/**
- * The IR with each speaker's reflections high-passed at `hz` and its direct sound left whole. Each speaker's
- * two channels share one window: full band from its first sound for DIRECT_SECONDS, then a short raised-cosine
- * hand-over to the high-passed rest. Returns new arrays.
- */
-export const cutReflectionBass = (channels: readonly Float32Array[], sampleRate: number, hz = REFLECTION_BASS_CUTOFF_HZ): Float32Array[] => {
-    if (!(hz > 0)) return channels.map(channel => Float32Array.from(channel));
-    const keep = Math.round(DIRECT_SECONDS * sampleRate);
-    const taper = Math.max(1, Math.round(DIRECT_TAPER_SECONDS * sampleRate));
-    const out: Float32Array[] = [];
-    for (let speaker = 0; speaker < channels.length; speaker += 2) {
-        const pair = channels.slice(speaker, speaker + 2);
-        let peak = 0;
-        for (const channel of pair) for (const v of channel) peak = Math.max(peak, Math.abs(v));
-        const onset = peak > 0 ? Math.min(...pair.map(channel => {
-            const at = channel.findIndex(v => Math.abs(v) > peak * ONSET_SHARE);
-            return at < 0 ? channel.length : at;
-        })) : 0;
-        // w = 1 up to the end of the direct sound, then down to 0 over the taper.
-        const direct = (i: number) => {
-            const t = i - onset - keep;
-            if (t < 0) return 1;
-            if (t >= taper) return 0;
-            return 0.5 * (1 + Math.cos(Math.PI * t / taper));
-        };
-        for (const channel of pair) {
-            const rest = Float32Array.from(channel, (v, i) => v * (1 - direct(i)));
-            highPass(rest, hz, sampleRate);
-            out.push(Float32Array.from(channel, (v, i) => v * direct(i) + rest[i]));
-        }
-    }
-    return out;
-};
 
 /** Pink (-3 dB per octave) from white: the 3-pole approximation of R. Bristow-Johnson, as in most pink-noise generators. */
 const pink = (x: Float32Array) => {

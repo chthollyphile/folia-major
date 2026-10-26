@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ACOUSTIC_MATERIALS, flattenAcoustics, GENERIC_MATERIAL } from '@/services/sceneSound/acousticMaterials';
 import type { RoomRequest, RoomResult, SceneAcousticsApi } from '@/services/sceneSound/acousticsTypes';
-import { cutReflectionBass, loudnessGain, roomRequestKey } from '@/services/sceneSound/roomIr';
+import { loudnessGain, roomRequestKey } from '@/services/sceneSound/roomIr';
 import { createRoomStage, ROOM_SWAP_SECONDS, ROOM_TOGGLE_SECONDS, type RoomIr, type RoomSlot, type RoomStage } from '@/services/sceneSound/roomStage';
 import { createRoomSound } from '@/services/sceneSound/sceneSound';
 
 // test/unit/scenes/roomSound.test.ts
-// The room sound's logic the user cannot see: the loudness gain, the reflections' bass cut, the cache key,
+// The room sound's logic the user cannot see: the loudness gain, the cache key,
 // material flattening, the swap and fade schedule of the room stage, and that with the room off the playback
 // graph has exactly the edges it had before. Fake audio nodes and a fake acoustics api; no audio is rendered.
 
@@ -30,30 +30,6 @@ describe('loudnessGain', () => {
     it('adds the inputs by energy, as independent left and right noise does', () => {
         const all = [impulse(4800), impulse(4800), impulse(4800), impulse(4800)];
         expect(loudnessGain(all, RATE)).toBeCloseTo(Math.SQRT1_2, 3);
-    });
-});
-
-describe('cutReflectionBass', () => {
-    const length = 9600;
-    // A speaker's direct sound at 100, then a long flat "reflection" (all bass) from 2000.
-    const withReflection = () => {
-        const channel = impulse(length, 100);
-        for (let i = 2000; i < 6000; i += 1) channel[i] = 0.1;
-        return channel;
-    };
-    it('leaves the direct sound whole and takes the bass out of the reflections', () => {
-        const [cut] = cutReflectionBass([withReflection(), withReflection(), impulse(length), impulse(length)], RATE, 200);
-        expect(cut[100]).toBeCloseTo(1, 6);
-        let reflection = 0;
-        for (let i = 2000; i < length; i += 1) reflection += cut[i];
-        // 400 of DC before; a high-pass leaves next to nothing of it.
-        expect(Math.abs(reflection)).toBeLessThan(1);
-    });
-    it('changes nothing at 0 Hz, nor an IR that is only direct sound', () => {
-        const ir = [withReflection(), withReflection(), withReflection(), withReflection()];
-        expect(cutReflectionBass(ir, RATE, 0)).toEqual(ir);
-        const dry = [impulse(length, 40), impulse(length, 41), impulse(length, 90), impulse(length, 91)];
-        expect(cutReflectionBass(dry, RATE, 200)).toEqual(dry);
     });
 });
 
@@ -292,7 +268,7 @@ describe('room sound', () => {
         sound.setOptions({ enabled: true, output: 'speakers' });
         sound.setListener({ seat: 'R2-7' });
         sound.setAcoustics(world);
-        await settle();
+        await vi.waitFor(() => expect(played).toHaveLength(1));
         expect(requests).toHaveLength(2);
         expect(requests[0].listener.position).toEqual([0.28, 3.5, 15]); // default seat first, for the gain
         expect(requests[1].listener.position).toEqual([0.28, 1.2, 6.6]);
@@ -309,15 +285,14 @@ describe('room sound', () => {
     it('asks once for the default seat, and plays dry when switched off', async () => {
         const { sound, requests, played, stage } = make();
         sound.setAcoustics(world);
-        await settle();
+        await vi.waitFor(() => expect(played).toHaveLength(1));
         expect(requests).toHaveLength(1);
         expect(played[0].gain).toBeCloseTo(10, 3);
         sound.setOptions({ enabled: false, output: 'headphones' });
-        await settle();
-        expect(stage.stopped).toBe(1);
+        await vi.waitFor(() => expect(stage.stopped).toBe(1));
         expect(sound.tier).toBe('off');
         sound.setOptions({ enabled: true, output: 'headphones' });
-        await settle();
+        await vi.waitFor(() => expect(played).toHaveLength(2));
         expect(requests).toHaveLength(1); // kept, not asked again
         expect(played[1]).toBe(played[0]);
     });

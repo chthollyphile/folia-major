@@ -1,6 +1,6 @@
 import { flattenAcoustics, type AcousticMeshes } from './acousticMaterials';
 import { getSceneAcousticsApi, type RoomRequest, type RoomResult, type SceneAcousticsApi, type Vec3 } from './acousticsTypes';
-import { cutReflectionBass, loudnessGain, roomRequestKey } from './roomIr';
+import { loudnessGain, roomRequestKey } from './roomIr';
 import { createRoomStage, getRoomSlot, onRoomSlot, type RoomIr, type RoomSlot, type RoomStage } from './roomStage';
 
 // src/services/sceneSound/sceneSound.ts
@@ -89,8 +89,8 @@ export const createRoomSound = ({
     let scheduled = false;
     let disposed = false;
     let available: Promise<boolean> | null = null;
-    // Shaped IRs by request key, in-flight ones included, so two updates never ask twice.
-    const irs = new Map<string, Promise<{ result: RoomResult; channels: Float32Array[] }>>();
+    // IRs by request key, in-flight ones included, so two updates never ask twice.
+    const irs = new Map<string, Promise<RoomResult>>();
     // The default seat's gain, by the default seat's request key.
     const gains = new Map<string, number>();
 
@@ -107,7 +107,7 @@ export const createRoomSound = ({
     const fetchIr = (request: RoomRequest) => {
         let entry = irs.get(request.key);
         if (!entry) {
-            entry = api!.computeRoom(request).then(result => ({ result, channels: cutReflectionBass(result.channels, result.sampleRate) }));
+            entry = api!.computeRoom(request);
             entry.catch(() => irs.delete(request.key));
             irs.set(request.key, entry);
             if (irs.size > KEPT_IRS) irs.delete(irs.keys().next().value!);
@@ -157,11 +157,11 @@ export const createRoomSound = ({
             if (gain === undefined) {
                 const reference = await fetchIr(defaultRequest);
                 if (stale()) return;
-                gain = loudnessGain(reference.channels, reference.result.sampleRate);
+                gain = loudnessGain(reference.channels, reference.sampleRate);
                 gains.set(defaultRequest.key, gain);
                 console.log(`[SceneSound] loudness gain from the default seat: ${(20 * Math.log10(gain)).toFixed(1)} dB`);
             }
-            const { result, channels } = await fetchIr(request);
+            const result = await fetchIr(request);
             if (stale()) return;
             if (result.sampleRate !== slot.context.sampleRate) {
                 console.warn('[SceneSound] IR sample rate does not match the audio context; music plays dry', result.sampleRate, slot.context.sampleRate);
@@ -173,7 +173,7 @@ export const createRoomSound = ({
                 stage = null;
             }
             stage ??= { slot, stage: createStage(slot) };
-            stage.stage.play(playable(request.key, channels, result.sampleRate, gain));
+            stage.stage.play(playable(request.key, result.channels, result.sampleRate, gain));
             tier = result.source === 'computed' ? 'realtime' : 'cached';
             console.log(`[SceneSound] room ${tier}: ${options.output}, IR ${result.source} in ${Math.round(result.ms)} ms, ready after ${Math.round(performance.now() - started)} ms`);
         } catch (error) {
@@ -185,7 +185,7 @@ export const createRoomSound = ({
 
     // The same key and gain give the same object, so the stage sees "already playing" and loads nothing.
     let last: { key: string; ir: RoomIr } | null = null;
-    const playable = (key: string, channels: Float32Array[], sampleRate: number, gain: number): RoomIr => {
+    const playable = (key: string, channels: readonly Float32Array[], sampleRate: number, gain: number): RoomIr => {
         if (last?.key === key && last.ir.gain === gain) return last.ir;
         last = { key, ir: { channels, sampleRate, gain } };
         return last.ir;

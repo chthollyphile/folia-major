@@ -28,7 +28,7 @@ src/components/scenes/
     SceneRow.tsx              播放面板外观区的「场景」一行
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约定）、acousticMaterials.ts（声学材质表）、
-                          roomIr.ts（回声低频、响度补偿、缓存键）、roomStage.ts（播放链里的两路卷积）、sceneSound.ts（ctx.sound）
+                          roomIr.ts（响度补偿、缓存键）、roomStage.ts（播放链里的两路卷积）、sceneSound.ts（ctx.sound）
 ```
 
 接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*` 和 `commandPalette.commands.scene-*`。
