@@ -17,6 +17,7 @@ export default defineScene({
         lyrics: { style: { surface: 'screen' } },
         background: { host: { surface: 'screen' } },
         seats: 'anchors',
+        sound: { acoustics: 'mesh', music: 'speakers' },
         quality: {
             default: 'medium',
             presets: {

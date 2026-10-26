@@ -18,18 +18,20 @@ src/components/scenes/
     surfaceQuad.ts     盒子贴到四个角上的 CSS matrix3d
     queueEnd.ts        「歌单放完」，最后一首放到结尾时由 usePlaybackQueueController 的 stopAtQueueEnd 发出
     sceneEvents.ts     场景的监听和订阅：抛错就退回，停下时一起放掉
-    sceneSound.ts      声音接上来的地方（第一期是空实现）
+    sceneSound.ts      声音接上来的地方：播放页上的房间声（src/services/sceneSound/），其余是空实现
     sceneTheme.ts      歌曲那对亮/暗主题（App 从 useThemeController 传进来）配上歌词字体；借到表面上的歌词样式用哪个主题
   kit/               可选工具箱（用 three.js 的场景才用）
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
     camera.ts          seatRig、pathRig、phaseDirector、chooseDirectorShot
   settings/
-    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 座位 / 设置值（键 scene_id、scene_options）
+    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 座位 / 设置值，房间声音开关和耳机/音箱（键 scene_id、scene_options、scene_room_sound、scene_room_output）
     SceneRow.tsx              播放面板外观区的「场景」一行
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
+src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约定）、acousticMaterials.ts（声学材质表）、
+                          roomIr.ts（回声低频、响度补偿、缓存键）、roomStage.ts（播放链里的两路卷积）、sceneSound.ts（ctx.sound）
 ```
 
-接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；三份语言文件的 `ui.scene*` 和 `commandPalette.commands.scene-*`。
+接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*` 和 `commandPalette.commands.scene-*`。
 
 ## 约定（定了就不改）
 
@@ -108,7 +110,7 @@ src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 
 ## 还没做的
 
-- 声音（第二期）：`engine/sceneSound.ts` 换成 `src/services/sceneSound/` 的实现；`ctx.music.character()` 现在全是 0。
+- 声音：房间声只有音乐（场景清单 `sound.music: 'speakers'`，`speaker.L/R` 锚点，`ctx.sound.setAcoustics` 交房间）；`play()` 小音效、会动的几何（`moveObject`）、跟着镜头走的听者还没做；场景声音开着时「空间」混响还没由场景接管；`ctx.music.character()` 现在全是 0。
 - 模组的 `registries.scenes` 和数据包加载器（第三期）。
 - 影厅：「两台放映机」现在只是交接开始时换片（只换光的颜色），光束只有一道；照进厅里的光按封面的颜色估，不是荧幕上真正的画面。
 - 预览窗、OBS 不挂场景（`ctx.host.kind` 现在总是 `'player'`）。

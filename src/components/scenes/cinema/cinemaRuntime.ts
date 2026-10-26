@@ -3,6 +3,7 @@ import { mixColors, parseColorChannels } from '../../visualizer/colorMix';
 import type { SceneFactory, SceneSong } from '../definition';
 import { phaseDirector, seatRig, turnHead, type CameraRig, type Head } from '../kit/camera';
 import { createThreeStage } from '../kit/threeStage';
+import { cinemaAcousticWorld } from './cinemaAcoustics';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
 import { fitView, SEAT_HALF_TAN, tourRig } from './cinemaCamera';
 import { loadCinemaReel } from './cinemaReel';
@@ -16,7 +17,8 @@ import { createCinemaScene } from './cinemaScene';
 // A pause is an intermission (cinemaIntermission.ts) and play starts the music at once while the curtains
 // open; at the end of the queue the house lights come up; an automix blend changes reels as it starts.
 // The hall's lights are its own: the app's light or dark mode never reaches them; the cove takes a little
-// of the dark one of the song's pair.
+// of the dark one of the song's pair. The hall's sound: its room (cinemaAcoustics.ts) goes to ctx.sound once;
+// the host puts the listener in the user's seat.
 
 const WARM_WHITE = '#ffd6a8';
 const SURFACE = 'screen';
@@ -33,6 +35,7 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
     stage.renderer.domElement.style.pointerEvents = 'none';
     stage.camera.position.set(0, 4, 18);
     publishCinemaAnchors(ctx.anchors);
+    ctx.sound.setAcoustics(cinemaAcousticWorld());
     const hall = createCinemaScene();
     const disposers: (() => void)[] = [];
     let lightsUpAtEnd = false;

@@ -1,14 +1,22 @@
 import { create } from 'zustand';
-import { getStoredString, removeStoredKey, setStoredString } from '../../../stores/storagePrimitives';
+import { getStoredBoolean, getStoredString, removeStoredKey, setStoredBoolean, setStoredString } from '../../../stores/storagePrimitives';
 import { isSceneId } from '../../../types/sceneIds';
 import type { SceneQualityPreset } from '../definition';
 
 // src/components/scenes/settings/useSceneSettingsStore.ts
-// 场景的设置：现在选的是哪个场景（null = 普通播放页），以及每个场景各自的画质档、座位和设置值。
-// 存储键发布后不改名：`scene_id`、`scene_options`。
+// 场景的设置：现在选的是哪个场景（null = 普通播放页），每个场景各自的画质档、座位和设置值，
+// 以及所有场景共用的两项声音设置：房间声音开不开、用耳机还是音箱听（用户自己选，不按设备猜）。
+// 存储键发布后不改名：`scene_id`、`scene_options`、`scene_room_sound`、`scene_room_output`。
 
 export const SCENE_ID_KEY = 'scene_id';
 export const SCENE_OPTIONS_KEY = 'scene_options';
+export const SCENE_ROOM_SOUND_KEY = 'scene_room_sound';
+export const SCENE_ROOM_OUTPUT_KEY = 'scene_room_output';
+
+export type SceneRoomOutput = 'headphones' | 'speakers';
+/** Headphones until the user says otherwise: the prototype's hall was made and heard on them. */
+const DEFAULT_ROOM_OUTPUT: SceneRoomOutput = 'headphones';
+const readRoomOutput = (): SceneRoomOutput => (getStoredString(SCENE_ROOM_OUTPUT_KEY, DEFAULT_ROOM_OUTPUT) === 'speakers' ? 'speakers' : 'headphones');
 
 export interface SceneOptions {
     quality?: SceneQualityPreset;
@@ -72,6 +80,11 @@ const saveOptions = (options: SceneOptionsById) => setStoredString(SCENE_OPTIONS
 interface SceneSettingsState extends SceneConfig {
     /** Bumped by the scene-reload command: the host loads the scene again. Not stored. */
     reloadToken: number;
+    /** The music sounds as in the scene's room (a scene with speakers); off, it plays as on the plain player page. */
+    roomSound: boolean;
+    roomOutput: SceneRoomOutput;
+    setRoomSound: (on: boolean) => void;
+    setRoomOutput: (output: SceneRoomOutput) => void;
     setSceneId: (sceneId: string | null) => void;
     setSceneOptions: (sceneId: string, patch: Partial<SceneOptions>) => void;
     /** Takes the parts of an imported config that are present; options merge by scene id. */
@@ -83,6 +96,16 @@ export const useSceneSettingsStore = create<SceneSettingsState>((set, get) => ({
     sceneId: sanitizeSceneId(getStoredString(SCENE_ID_KEY, '')),
     sceneOptions: readStoredOptions(),
     reloadToken: 0,
+    roomSound: getStoredBoolean(SCENE_ROOM_SOUND_KEY, true),
+    roomOutput: readRoomOutput(),
+    setRoomSound: (roomSound) => {
+        setStoredBoolean(SCENE_ROOM_SOUND_KEY, roomSound);
+        set({ roomSound });
+    },
+    setRoomOutput: (roomOutput) => {
+        setStoredString(SCENE_ROOM_OUTPUT_KEY, roomOutput);
+        set({ roomOutput });
+    },
     setSceneId: (value) => {
         const sceneId = sanitizeSceneId(value);
         saveSceneId(sceneId);
