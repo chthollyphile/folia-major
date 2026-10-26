@@ -90,6 +90,8 @@ const {
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
+const { createAcousticsHost } = require('./acoustics/host.cjs');
+const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
@@ -2731,6 +2733,15 @@ logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 
 const analysisHost = createAnalysisHost({
   app, ipcMain, getModelsDir: getBundledModelsDirectory,
+});
+
+// The scene engine's room sound (window.electron.sceneAcoustics): Steam Audio in a child process of its own,
+// rooms cached under userData. Only the main window plays scenes. See electron/acoustics/host.cjs.
+createAcousticsHost({
+  app, ipcMain,
+  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
+  libraryFile: steamAudioLibraryPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appRoot: path.join(__dirname, '..') }),
+  getCacheDir: () => path.join(app.getPath('userData'), 'scene-acoustics'),
 });
 
 function buildPlaybackSyncBridgeStatus() {
