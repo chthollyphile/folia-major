@@ -66,7 +66,6 @@ const buildAgentPrompt = (status: ControlServerStatus, token: string) => {
         '- 失败会返回 {ok:false,error:{code,message}}，退出码 1 表示控制失败、2 表示连不上。',
         '- 搜歌/播放依赖对应平台网络与登录状态；search_failed 不代表链路坏了。',
         '- 需要「某个我还没提到具体歌名」的任务时，先 search 再挑结果，不要猜测 id。',
-        `- folia_eval 默认关闭；确需逃生口时，服务端要 FOLIA_CONTROL_ALLOW_EVAL=1 且客户端加 --allow-eval。`,
         '- 不要把这个令牌贴到公开地方，它等同本机用户权限。',
         '',
         `令牌：${token}`,

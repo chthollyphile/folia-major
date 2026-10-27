@@ -38,7 +38,6 @@ Connection:
   --target <substring>       Pick a specific CDP page target by URL substring
   --timeout <ms>             Per-request timeout (default 30000)
   --json                     Print the raw tool data as JSON (success) / error JSON (failure)
-  --allow-eval               Expose folia_eval and enable the eval command
   --verbose                  Extra diagnostics on stderr (never prints the token)
 
 Commands:
@@ -69,16 +68,14 @@ Commands:
   window [status|minimize|maximize|fullscreen|close]
   window on-top [on|off] | window click-through [on|off]
   events [--since <n>] [--limit <n>] [--watch]
-  toast <text> [--type info|success|error] [--duration <ms>]
   call <tool> '<json>'       Call any catalog tool; pass "-" to read the JSON from stdin
-  eval '<expression>'        High privilege escape hatch (needs --allow-eval)
   quit --yes                 Quit the app (needs explicit confirmation)
   mcp                        Run the MCP stdio server
   doctor                     Check connectivity, token and catalog compatibility
 
 Environment:
   FOLIA_CONTROL_URL, FOLIA_CONTROL_TOKEN, FOLIA_CONTROL_TOKEN_FILE, FOLIA_CONTROL_PORT,
-  FOLIA_CONTROL_CDP, FOLIA_CONTROL_TRANSPORT, FOLIA_CONTROL_TIMEOUT, FOLIA_CONTROL_ALLOW_EVAL
+  FOLIA_CONTROL_CDP, FOLIA_CONTROL_TRANSPORT, FOLIA_CONTROL_TIMEOUT
 
 Exit codes:
   0  success
@@ -371,10 +368,10 @@ async function runDoctor(config, transport, { stdout, stderr }) {
 async function runMcp(config, { stderr }) {
     const transport = createTransport(config);
     if (config.verbose) {
-        writeError(stderr, `[MCP] stdio server ready (transport ${config.transport}, eval ${config.allowEval ? 'on' : 'off'})`);
+        writeError(stderr, `[MCP] stdio server ready (transport ${config.transport})`);
     }
     try {
-        await runStdioMcpServer({ transport, allowEval: config.allowEval });
+        await runStdioMcpServer({ transport });
     } finally {
         await transport.close();
     }
@@ -455,13 +452,6 @@ export async function main(argv = process.argv.slice(2), { stdout = process.stdo
                 return reportUsageError(new UsageError('tool arguments must be a JSON object'), { stderr });
             }
             return await runTool(transport, config, plan.tool, callArgs, { stdout, stderr });
-        }
-        if (plan.special === 'eval-stdin') {
-            const expression = (await readStdin()).trim();
-            if (!expression) {
-                return reportUsageError(new UsageError('no expression on stdin', 'echo \'1 + 1\' | folia eval --stdin --allow-eval'), { stderr });
-            }
-            return await runTool(transport, config, 'folia_eval', { expression }, { stdout, stderr });
         }
         return await runTool(transport, config, plan.tool, plan.args, { stdout, stderr });
     } catch (error) {

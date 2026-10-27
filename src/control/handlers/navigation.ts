@@ -1,12 +1,10 @@
 import { useAppViewStore } from '../../stores/useAppViewStore';
-import { setStatusMessage } from '../../stores/useStatusMessageStore';
 import type { PanelTab } from '../../components/UnifiedPanel';
 import { ControlError, requireString, optionalBoolean } from '../errors';
-import { closeCommandPaletteOverlay, isCommandPaletteOpen } from '../helpers';
 import type { ControlHandler } from '../types';
 
 // src/control/handlers/navigation.ts
-// Main view navigation, the unified side panel, the palette overlay, and the app toast.
+// Main view navigation and the unified side panel.
 
 export const navigationHandlers: Record<string, ControlHandler> = {
     folia_navigate: (args, deps) => {
@@ -40,30 +38,5 @@ export const navigationHandlers: Record<string, ControlHandler> = {
         }
         deps.context.panel.setIsPanelOpen(true);
         return { open: true, tab: tab ?? useAppViewStore.getState().panelTab };
-    },
-
-    folia_palette_ui: (args) => {
-        const action = requireString(args.action, 'action');
-        if (action === 'open') {
-            useAppViewStore.getState().requestCommandPalette('root');
-        } else if (action === 'close') {
-            closeCommandPaletteOverlay();
-        } else {
-            throw new ControlError('bad_request', `Unknown palette action "${action}"`);
-        }
-        return { action, open: isCommandPaletteOpen() };
-    },
-
-    folia_toast: (args) => {
-        const text = requireString(args.text, 'text');
-        const type = args.type === 'success' || args.type === 'error' ? args.type : 'info';
-        const durationMs = typeof args.durationMs === 'number' ? args.durationMs : undefined;
-        setStatusMessage({
-            type,
-            text,
-            ...(durationMs !== undefined ? { durationMs } : {}),
-            nonce: Date.now(),
-        });
-        return { shown: true, type, ...(durationMs !== undefined ? { durationMs } : {}) };
     },
 };

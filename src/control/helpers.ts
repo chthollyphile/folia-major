@@ -557,38 +557,6 @@ export const isCommandPaletteOpen = (): boolean => (
     typeof document !== 'undefined' && Boolean(document.querySelector('[data-testid="command-palette-panel"]'))
 );
 
-/** Closes the palette the way Escape does, which is the only close path the palette exposes. */
-export const closeCommandPaletteOverlay = (): void => {
-    if (typeof window === 'undefined' || !isCommandPaletteOpen()) {
-        return;
-    }
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-};
-
-// ---- eval ----
-
-/**
- * The escape hatch behind folia_eval. The server/CLI gate it (`--allow-eval`); the bridge only
- * evaluates an expression and returns the resolved, JSON-safe value.
- */
-export const evaluateControlExpression = async (expression: string): Promise<unknown> => {
-    let value: unknown;
-    try {
-        // Indirect eval keeps the expression in the page's global scope; it is gated server-side.
-        value = await (0, eval)(`(async () => (${expression}))()`);
-    } catch (error) {
-        throw new ControlError('internal', `Evaluation failed: ${errorMessage(error)}`);
-    }
-    if (value === undefined) {
-        return null;
-    }
-    try {
-        return JSON.parse(JSON.stringify(value)) as unknown;
-    } catch {
-        return String(value);
-    }
-};
-
 /** The active online provider id, for the status summary. */
 export const activeProviderId = (): OnlineProviderId | null => {
     const active = omni.getActiveProviderSummary();

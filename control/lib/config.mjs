@@ -51,7 +51,6 @@ const VALUE_OPTIONS = new Map([
 /** Boolean switches; every one of them is optional and defaults to false. */
 const BOOLEAN_OPTIONS = new Map([
     ['--json', 'json'],
-    ['--allow-eval', 'allowEval'],
     ['--verbose', 'verbose'],
     ['--help', 'help'],
     ['--version', 'version'],
@@ -241,7 +240,6 @@ export function loadConfig(parsed, env = process.env) {
     }
 
     const { token, tokenFile, tokenSource } = resolveToken(options, env);
-    const allowEval = options.allowEval === true || parseBooleanEnv(env.FOLIA_CONTROL_ALLOW_EVAL);
 
     return {
         command: parsed.command,
@@ -257,7 +255,6 @@ export function loadConfig(parsed, env = process.env) {
         tokenSource,
         tokenSourceText: describeTokenSource(tokenSource, tokenFile),
         json: options.json === true,
-        allowEval,
         verbose: options.verbose === true,
     };
 }

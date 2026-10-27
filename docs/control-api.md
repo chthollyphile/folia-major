@@ -134,7 +134,7 @@ renderer ControlHost
   必须在 `properties` 里。
 - `executor` 只可以是 `bridge` 或 `main`；只有确实必须主进程完成的才用 `main`。
 - 只读工具标 `readOnly:true`；会不可逆地改数据/退出应用的标 `destructive:true`
-  （`folia_eval`、`folia_queue_clear`、`folia_quit` 已标记，新增破坏性工具同样处理）。
+  （`folia_queue_clear`、`folia_quit` 已标记，新增破坏性工具同样处理）。
 
 ### 第二步：在 renderer 写 handler
 
@@ -207,7 +207,6 @@ export const handlers: Record<string, ControlHandler> = {
 | token | `FOLIA_CONTROL_TOKEN` 或 `<userData>/control-token`；生成 32 字节 hex，0600 |
 | 发现文件 | `<userData>/control-server.json`：`{port,token,pid,startedAt,url}`，0600 |
 | 鉴权头 | `Authorization: Bearer <t>` / `X-Folia-Token` / `?token=` |
-| eval 开关 | 服务端 `--allow-eval` 或 `FOLIA_CONTROL_ALLOW_EVAL=1`；否则 eval 返回 `disabled` |
 
 `<userData>` 是 `app.getPath('userData')`：macOS `~/Library/Application Support/Folia`，
 Windows `%APPDATA%\Folia`，Linux `~/.config/Folia`（以实际启动日志为准）。
@@ -235,8 +234,7 @@ HTTP 路由（详见 `PROTOCOL.md` §3.1）：
 - `initialize`：接受客户端协议版本，回复 `2025-06-18`；
   `serverInfo: {name:'folia-control', version:'1.0.0'}`。
 - `tools/list`：从 catalog 生成；`inputSchema` 原样传；附
-  `annotations: {readOnlyHint, destructiveHint}`。`folia_eval` 仅在 `--allow-eval` 时出现
-  （HTTP 端点始终列出全部 catalog 工具，调用 `folia_eval` 时由 server 返回 `disabled`）。
+  `annotations: {readOnlyHint, destructiveHint}`，catalog 里的每个工具都会出现。
 - `tools/call` 结果映射：
   - 普通：`{content:[{type:'text',text: JSON.stringify(data,null,2)}], isError:false}`
   - 错误：`{content:[{type:'text',text:'<code>: <message>'}], isError:true}`
@@ -273,7 +271,7 @@ Web 版或不想开控制 server 时，直接走 Chromium DevTools Protocol：
   `Runtime.evaluate {expression, awaitPromise:true, returnByValue:true}`。
 - 表达式：`window.__FOLIA_CONTROL__.invoke(<name>, <argsJson>)`。
 - `list/state/events` 分别调 bridge 的 `list()`/`state(args)`/`events(args)`。
-- 注意：CDP 模式绕过了 token 与 `--allow-eval` 的服务端限制，仅用于本机调试与自动化。
+- 注意：CDP 模式绕过了 token 的服务端限制，仅用于本机调试与自动化。
 
 ## 7. 测试
 
@@ -321,12 +319,10 @@ node control/test/e2e.mjs               # 真实 Electron 端到端（自起 Vit
 - **`audio.volume` 的两套单位**：`folia_settings_write` 接受 0-1 或 0-100（>1 按百分比换算），
   `folia_settings_read` 返回 store 原始值（0-1）；`folia_volume` 的写入参数 `level` 用 0-100，
   读回 `{level: 0-1, percent: 0-100, muted}`。
-- **命令面板 UI 状态**：`state.view.paletteOpen` 与 `folia_palette_ui` 的关闭动作依赖 DOM 探测
-  （没有专用 store），`palette` 关闭通过合成 Escape 实现；自动化断言以 `palette.executed` 事件或
-  后续状态为准。
-- **eval 门控分两处**：HTTP `/invoke`、`/mcp` 的执行入口在 server 侧检查
-  `FOLIA_CONTROL_ALLOW_EVAL === '1'`，否则返回 `disabled`；stdio MCP 的 `tools/list` 与 CLI 的
-  `eval` 命令还要求客户端侧 `--allow-eval`。CDP 模式直接调 bridge，绕过 server 检查。
+- **命令面板 UI 状态**：`state.view.paletteOpen` 依赖 DOM 探测（没有专用 store）；断言面板是否
+  真的执行了某条命令，用 `palette.executed` 事件或后续状态，而不是这个字段。
+- **没有 eval 逃生口**：catalog 里不存在「执行任意 JS」的工具，`/invoke` 只调度 handler 表；
+  需要新能力就加工具（catalog + handler + 测试），不要绕过。
 - **搜索/播放的失败是结构化信封**：网络或账号问题返回 `search_failed` / `playback_failed`，
   stdout 仍可能为空，CLI 把错误写到 stderr（退出码 1）；脚本判断链路是否通不能只看退出码 0。
 

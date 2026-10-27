@@ -119,22 +119,6 @@ export const CONTROL_TOOLS = [
             group: str('Only return tools of this group (e.g. playback, visualizer, settings).'),
         }),
     },
-    {
-        name: 'folia_eval',
-        title: 'Evaluate JavaScript in the renderer',
-        group: 'system',
-        executor: 'bridge',
-        destructive: true,
-        summary: 'Escape hatch: evaluate an expression in the app renderer and return the JSON result.',
-        description:
-            'Power-user escape hatch for capabilities the catalog does not cover. Requires the server/CLI to be '
-            + 'started with --allow-eval (or FOLIA_CONTROL_ALLOW_EVAL=1). Never use it when a catalog tool exists. '
-            + 'The expression runs with the page origin and can change anything in the app.',
-        inputSchema: obj({
-            expression: str('A JavaScript expression. Promises are awaited and the resolved value is returned.'),
-        }, ['expression']),
-    },
-
     // ------------------------------------------------------------------------------------
     // Command palette passthrough (covers the remaining ~125 app actions)
     // ------------------------------------------------------------------------------------
@@ -666,35 +650,6 @@ export const CONTROL_TOOLS = [
             open: bool('true opens, false closes; omit to open.'),
         }),
     },
-    {
-        name: 'folia_palette_ui',
-        title: 'Open/close the command palette UI',
-        group: 'navigation',
-        executor: 'bridge',
-        summary: 'Show or hide the command palette overlay.',
-        description:
-            'Opens the palette for the human user. Prefer folia_palette_run for agent-driven execution; this is for '
-            + 'making the UI visible.',
-        inputSchema: obj({
-            action: str('What to do with the palette overlay.', { enum: ['open', 'close'] }),
-        }, ['action']),
-    },
-    {
-        name: 'folia_toast',
-        title: 'Show a toast',
-        group: 'navigation',
-        executor: 'bridge',
-        summary: 'Show a status/toast message in the app (useful to narrate agent actions).',
-        description:
-            'Displays a toast in the app UI, exactly like the app status messages. Use it to tell the human what '
-            + 'the agent just did, especially before a longer operation such as a theme generation.',
-        inputSchema: obj({
-            text: str('Message text.'),
-            type: str('Toast type.', { enum: ['info', 'success', 'error'] }),
-            durationMs: int('How long to show it (default app value).', { minimum: 500, maximum: 60000 }),
-        }, ['text']),
-    },
-
     // ------------------------------------------------------------------------------------
     // Library
     // ------------------------------------------------------------------------------------

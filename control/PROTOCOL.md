@@ -254,7 +254,7 @@ app.on('will-quit', () => { void controlServer?.stop?.(); });
 - 实现：`initialize`、`notifications/initialized`（无响应）、`ping`、`tools/list`、`tools/call`、
   `resources/list`、`resources/read`（`folia://state`）、`logging/setLevel`（no-op）。
 - `protocolVersion` 接受客户端值，回复 `2025-06-18`；`serverInfo: { name:'folia-control', version:'1.0.0' }`。
-- `tools/list` 从 catalog 生成（`folia_eval` 仅在 `--allow-eval` 时出现），schema 原样传
+- `tools/list` 从 catalog 生成（catalog 里的每一个工具都会出现），schema 原样传
   `inputSchema`，并附 `annotations: { readOnlyHint, destructiveHint }`。
 - `tools/call` → 通过 transport 调 `/invoke`（或 CDP evaluate）→ MCP 结果：
   - 普通：`{ content:[{ type:'text', text: JSON.stringify(data, null, 2) }], isError:false }`
@@ -279,7 +279,7 @@ folia <command> [args] [options]
 连接：
   --url <http://127.0.0.1:4567>   --token <t>   --token-file <path>
   --transport http|cdp|auto（默认 auto：先 HTTP，失败后 CDP）
-  --cdp <http://127.0.0.1:9222>   --json   --timeout <ms>   --allow-eval
+  --cdp <http://127.0.0.1:9222>   --json   --timeout <ms>
 ```
 
 命令映射（全部最终调用 catalog 工具）：
@@ -300,16 +300,14 @@ folia <command> [args] [options]
 | `folia smartbeat [on|off]` `visual video [on|off]` | folia_smart_beat / folia_video_layer |
 | `folia theme` `theme day|night|system|cover|static` `theme ai` | folia_appearance |
 | `folia settings [store] [key]` / `settings set <key> <value>` / `settings open [subview]` | folia_settings_read/write/open |
-| `folia nav <home|player|lattice>` `panel <tab>` `palette` | folia_navigate / folia_panel / folia_palette_ui |
+| `folia nav <home|player|lattice>` `panel <tab>` | folia_navigate / folia_panel |
 | `folia library list|search <q>|play <id>` | folia_library |
 | `folia providers` | folia_providers |
 | `folia screenshot [--out f]` | folia_screenshot |
 | `folia window status|minimize|maximize|fullscreen|on-top [on|off]|click-through [on|off]|close` | folia_window |
 | `folia events [--watch] [--since N]` | folia_events |
-| `folia toast <text>` | folia_toast |
 | `folia palette list [--all]` / `palette run <id> [input]` | folia_palette_list / folia_palette_run |
 | `folia call <tool> '<json>'` | 任意工具 |
-| `folia eval '<expr>'` | folia_eval（需 --allow-eval） |
 | `folia quit --yes` | folia_quit |
 | `folia mcp` | stdio MCP server |
 | `folia doctor` | /health + /tools + 环境自检 |
@@ -375,8 +373,8 @@ visualizer set 回读、settings read/write、screenshot 落盘、MCP initialize
 ## 8. 安全
 
 - server 只绑 127.0.0.1；token 随机 0600；不把 token 写进 renderer 日志。
-- `folia_eval`、`folia_palette_run`、`folia_settings_write`、`folia_quit` 视为高权限；
-  `folia_eval` 必须服务端 `--allow-eval` / `FOLIA_CONTROL_ALLOW_EVAL=1` 才可用（bridge 返回 `disabled` 由 server 判定）。
+- `folia_palette_run`、`folia_settings_write`、`folia_quit` 视为高权限。
+- catalog 里没有「执行任意 JS」的工具：bridge 只跑 handler 表里的实现。
 - `folia_quit` 必须 `confirm:true`。
 - 文档明确：控制 server 等同于本机用户权限，勿在不可信机器开启。
 

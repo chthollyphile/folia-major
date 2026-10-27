@@ -42,9 +42,9 @@ function jsonRpcError(id, code, message, data) {
     return { jsonrpc: '2.0', id: id ?? null, error };
 }
 
-/** The tools exposed to an MCP client: everything in the catalog except the eval escape hatch. */
-export function exposedTools({ allowEval = false } = {}) {
-    return CONTROL_TOOLS.filter(tool => allowEval || tool.name !== 'folia_eval');
+/** The tools exposed to an MCP client: the whole catalog. */
+export function exposedTools() {
+    return CONTROL_TOOLS;
 }
 
 /** Catalog tool -> MCP tool descriptor (schema passed through unchanged). */
@@ -113,8 +113,8 @@ export function envelopeToToolResult(envelope) {
  * Build the JSON-RPC request handler. `transport` is the object from transport.mjs; tests can
  * pass a fake one. The handler never throws for protocol errors, it returns JSON-RPC errors.
  */
-export function createMcpHandler({ transport, allowEval = false } = {}) {
-    const tools = exposedTools({ allowEval });
+export function createMcpHandler({ transport } = {}) {
+    const tools = exposedTools();
     const toolByName = new Map(tools.map(tool => [tool.name, tool]));
 
     function initializeResult() {
@@ -189,10 +189,7 @@ export function createMcpHandler({ transport, allowEval = false } = {}) {
                         return jsonRpcError(id, JSON_RPC_INVALID_PARAMS, 'Invalid params: tools/call needs a tool name');
                     }
                     if (!toolByName.has(name)) {
-                        const hint = name === 'folia_eval' && !allowEval
-                            ? ' (folia_eval is only exposed when the server runs with --allow-eval)'
-                            : '';
-                        return jsonRpcError(id, JSON_RPC_INVALID_PARAMS, `Unknown tool: ${name}${hint}`, { tool: name });
+                        return jsonRpcError(id, JSON_RPC_INVALID_PARAMS, `Unknown tool: ${name}`, { tool: name });
                     }
                     const callArgs = params.arguments;
                     if (callArgs !== undefined && (callArgs === null || typeof callArgs !== 'object' || Array.isArray(callArgs))) {
@@ -248,12 +245,11 @@ export function createMcpHandler({ transport, allowEval = false } = {}) {
  */
 export async function runStdioMcpServer({
     transport,
-    allowEval = false,
     input = process.stdin,
     output = process.stdout,
     error = process.stderr,
 } = {}) {
-    const handler = createMcpHandler({ transport, allowEval });
+    const handler = createMcpHandler({ transport });
     const lines = readline.createInterface({ input, crlfDelay: Infinity });
     let queue = Promise.resolve();
     let closed = false;

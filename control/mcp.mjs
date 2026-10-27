@@ -23,7 +23,6 @@ Options:
   --cdp <url>            CDP endpoint for --transport cdp (default http://127.0.0.1:9222)
   --target <substring>   Pick a specific CDP page target
   --timeout <ms>         Per-request timeout (default 30000)
-  --allow-eval           Expose the folia_eval tool to the MCP client
   --verbose              Diagnostics on stderr (never prints the token)
   --help | --version
 
@@ -67,10 +66,10 @@ async function main(argv = process.argv.slice(2)) {
 
     const transport = createTransport(config);
     if (config.verbose) {
-        process.stderr.write(`[MCP] stdio server ready (transport ${config.transport}, eval ${config.allowEval ? 'on' : 'off'})\n`);
+        process.stderr.write(`[MCP] stdio server ready (transport ${config.transport})\n`);
     }
     try {
-        await runStdioMcpServer({ transport, allowEval: config.allowEval });
+        await runStdioMcpServer({ transport });
     } finally {
         await transport.close();
     }

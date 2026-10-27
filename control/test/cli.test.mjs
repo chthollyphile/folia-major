@@ -346,7 +346,6 @@ test('loadConfig applies the documented defaults', () => {
     assert.equal(config.token, null);
     assert.equal(config.tokenSource, 'none');
     assert.equal(config.json, false);
-    assert.equal(config.allowEval, false);
 });
 
 test('loadConfig reads the environment and a token file without echoing the token', () => {
@@ -366,14 +365,12 @@ test('loadConfig reads the environment and a token file without echoing the toke
             FOLIA_CONTROL_TOKEN: 'env-token',
             FOLIA_CONTROL_TRANSPORT: 'cdp',
             FOLIA_CONTROL_TIMEOUT: '1234',
-            FOLIA_CONTROL_ALLOW_EVAL: '1',
         });
         assert.equal(fromEnv.url, 'http://127.0.0.1:9999');
         assert.equal(fromEnv.token, 'env-token');
         assert.equal(fromEnv.tokenSource, 'env');
         assert.equal(fromEnv.transport, 'cdp');
         assert.equal(fromEnv.timeoutMs, 1234);
-        assert.equal(fromEnv.allowEval, true);
     } finally {
         fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -533,7 +530,7 @@ test('maps settings, navigation, palette, library and window commands', () => {
     assert.deepEqual(planFor(['nav', 'player']), { tool: 'folia_navigate', args: { view: 'player' } });
     assert.deepEqual(planFor(['panel', 'queue']), { tool: 'folia_panel', args: { tab: 'queue' } });
     assert.deepEqual(planFor(['panel', '--close']), { tool: 'folia_panel', args: { open: false } });
-    assert.deepEqual(planFor(['palette']), { tool: 'folia_palette_ui', args: { action: 'open' } });
+    assert.throws(() => planFor(['palette', 'open']), UsageError);
     assert.deepEqual(planFor(['palette', 'list', '--all']), {
         tool: 'folia_palette_list',
         args: { includeUnavailable: true },
@@ -564,15 +561,11 @@ test('maps settings, navigation, palette, library and window commands', () => {
     assert.deepEqual(planFor(['window', 'maximize']), { tool: 'folia_window', args: { action: 'maximize' } });
 });
 
-test('maps events, screenshot, toast, call, eval and quit escape hatches', () => {
+test('maps events, screenshot, call and quit escape hatches', () => {
     assert.deepEqual(planFor(['events', '--since', '4']), { tool: 'folia_events', args: { since: 4 } });
     assert.deepEqual(planFor(['events', '--watch']), { special: 'events-watch', args: {} });
     assert.deepEqual(planFor(['screenshot', '--out', 'shot.png']).args, { save: true, path: path.resolve('shot.png') });
     assert.deepEqual(planFor(['screenshot', '--no-save']), { tool: 'folia_screenshot', args: { save: false } });
-    assert.deepEqual(planFor(['toast', 'hello', '--type', 'success']), {
-        tool: 'folia_toast',
-        args: { text: 'hello', type: 'success' },
-    });
 
     assert.deepEqual(planFor(['call', 'folia_volume', '{"level":30}']), {
         tool: 'folia_volume',
@@ -581,13 +574,6 @@ test('maps events, screenshot, toast, call, eval and quit escape hatches', () =>
     assert.deepEqual(planFor(['call', 'folia_volume', '-']), { special: 'call-stdin', tool: 'folia_volume' });
     assert.throws(() => planFor(['call', 'folia_nope', '{}']), UsageError);
     assert.throws(() => planFor(['call', 'folia_volume', '{oops}']), UsageError);
-
-    assert.throws(() => planFor(['eval', '1 + 1']), UsageError);
-    assert.deepEqual(planFor(['eval', '1 + 1', '--allow-eval']), {
-        tool: 'folia_eval',
-        args: { expression: '1 + 1' },
-    });
-    assert.deepEqual(planFor(['eval', '--stdin', '--allow-eval']), { special: 'eval-stdin' });
 
     assert.deepEqual(planFor(['quit', '--yes']), { tool: 'folia_quit', args: { confirm: true } });
     assert.throws(() => planFor(['quit']), UsageError);
@@ -793,8 +779,8 @@ function fakeTransport(overrides = {}) {
     };
 }
 
-test('MCP initialize/tools/list hides folia_eval unless --allow-eval and adds annotations', async () => {
-    const handler = createMcpHandler({ transport: fakeTransport(), allowEval: false });
+test('MCP initialize/tools/list exposes the whole catalog and adds annotations', async () => {
+    const handler = createMcpHandler({ transport: fakeTransport() });
     const init = await handler.handleMessage({
         jsonrpc: '2.0',
         id: 1,
@@ -806,19 +792,13 @@ test('MCP initialize/tools/list hides folia_eval unless --allow-eval and adds an
     assert.equal(init.result.serverInfo.version, '1.0.0');
 
     const list = await handler.handleMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-    assert.equal(list.result.tools.length, CONTROL_TOOLS.length - 1);
-    assert.equal(list.result.tools.some(tool => tool.name === 'folia_eval'), false);
+    assert.equal(list.result.tools.length, CONTROL_TOOLS.length);
     const statusTool = list.result.tools.find(tool => tool.name === 'folia_status');
     assert.equal(statusTool.annotations.readOnlyHint, true);
     assert.equal(statusTool.annotations.destructiveHint, false);
-
-    const withEval = createMcpHandler({ transport: fakeTransport(), allowEval: true });
-    const evalList = await withEval.handleMessage({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
-    const evalTool = evalList.result.tools.find(tool => tool.name === 'folia_eval');
-    assert.ok(evalTool);
-    assert.equal(evalTool.annotations.destructiveHint, true);
-    assert.equal(evalTool.annotations.readOnlyHint, false);
-    assert.equal(exposedTools({ allowEval: false }).length, CONTROL_TOOLS.length - 1);
+    const clearTool = list.result.tools.find(tool => tool.name === 'folia_queue_clear');
+    assert.equal(clearTool.annotations.destructiveHint, true);
+    assert.equal(exposedTools().length, CONTROL_TOOLS.length);
 });
 
 test('MCP tools/call converts envelopes, screenshots and errors', async () => {
@@ -834,7 +814,7 @@ test('MCP tools/call converts envelopes, screenshots and errors', async () => {
             error: { code: 'no_song', message: 'no song is playing' },
         }),
     });
-    const handler = createMcpHandler({ transport, allowEval: false });
+    const handler = createMcpHandler({ transport });
 
     const ok = await handler.handleMessage({
         jsonrpc: '2.0',
@@ -874,21 +854,12 @@ test('MCP tools/call converts envelopes, screenshots and errors', async () => {
     });
     assert.equal(unknown.error.code, -32602);
 
-    const hiddenEval = await handler.handleMessage({
-        jsonrpc: '2.0',
-        id: 5,
-        method: 'tools/call',
-        params: { name: 'folia_eval', arguments: { expression: '1' } },
-    });
-    assert.equal(hiddenEval.error.code, -32602);
-    assert.match(hiddenEval.error.message, /allow-eval/);
-
     assert.equal(envelopeToToolResult(null).isError, true);
 });
 
 test('MCP protocol errors: unknown method, ping, notifications, resources and transport failure', async () => {
     const transport = fakeTransport();
-    const handler = createMcpHandler({ transport, allowEval: false });
+    const handler = createMcpHandler({ transport });
 
     assert.deepEqual(await handler.handleMessage({ jsonrpc: '2.0', id: 1, method: 'ping' }), {
         jsonrpc: '2.0',
@@ -929,7 +900,7 @@ test('MCP protocol errors: unknown method, ping, notifications, resources and tr
             });
         },
     };
-    const failingHandler = createMcpHandler({ transport: failingTransport, allowEval: false });
+    const failingHandler = createMcpHandler({ transport: failingTransport });
     const failedCall = await failingHandler.handleMessage({
         jsonrpc: '2.0',
         id: 6,
@@ -960,7 +931,7 @@ test('runStdioMcpServer processes one JSON-RPC message per line and survives bad
     ]);
     const output = new Collector();
     const transport = fakeTransport();
-    await runStdioMcpServer({ transport, allowEval: false, input, output });
+    await runStdioMcpServer({ transport, input, output });
     const responses = parseJsonLines(output.chunks.join(''));
     assert.equal(responses.length, 3);
     assert.equal(responses[0].id, 1);
@@ -1068,9 +1039,6 @@ test('CLI maps failures to exit codes 1 and 2 with actionable stderr', async () 
         assert.match(refused.stderr, /connection failed/);
         assert.match(refused.stderr, /FOLIA_CONTROL=1/);
 
-        const usage = await runNode(CLI, ['eval', '1 + 1']);
-        assert.equal(usage.code, 2);
-        assert.match(usage.stderr, /allow-eval/);
     } finally {
         await stub.close();
     }
@@ -1143,22 +1111,6 @@ test('MCP stdio server accepts --token-file and never echoes the token', async (
         assert.doesNotMatch(result.stderr, new RegExp(stub.token));
     } finally {
         fs.rmSync(directory, { recursive: true, force: true });
-        await stub.close();
-    }
-});
-
-test('MCP stdio server exposes folia_eval only with --allow-eval', async () => {
-    const stub = await startStubServer();
-    try {
-        const result = await runNode(
-            MCP,
-            ['--url', stub.url, '--token', stub.token, '--transport', 'http', '--allow-eval'],
-            { input: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' },
-        );
-        assert.equal(result.code, 0, result.stderr);
-        const [response] = parseJsonLines(result.stdout);
-        assert.ok(response.result.tools.some(tool => tool.name === 'folia_eval'));
-    } finally {
         await stub.close();
     }
 });

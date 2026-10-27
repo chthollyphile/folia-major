@@ -21,7 +21,6 @@ type ControlServerHandle = {
 const ORIGINAL_ENV = {
     port: process.env.FOLIA_CONTROL_PORT,
     token: process.env.FOLIA_CONTROL_TOKEN,
-    allowEval: process.env.FOLIA_CONTROL_ALLOW_EVAL,
 };
 
 const FAKE_TOOLS = [
@@ -85,9 +84,6 @@ function createFakeWindow() {
         if (code.includes('bridge.invoke(')) {
             if (code.includes('folia_volume')) {
                 return { ok: true, tool: 'folia_volume', data: { level: 35, muted: false }, durationMs: 1, ts: 1 };
-            }
-            if (code.includes('folia_eval')) {
-                return { ok: true, tool: 'folia_eval', data: { result: 42 }, durationMs: 1, ts: 1 };
             }
             return { ok: true, tool: 'some_tool', data: null, durationMs: 1, ts: 1 };
         }
@@ -166,7 +162,6 @@ describe('electron/controlServer', () => {
         dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-control-'));
         setEnv('FOLIA_CONTROL_PORT', '0');
         setEnv('FOLIA_CONTROL_TOKEN', 'test-control-token');
-        setEnv('FOLIA_CONTROL_ALLOW_EVAL', undefined);
         fakeWindow = createFakeWindow();
         bridgeWindow = fakeWindow;
         app = createFakeApp(dataDir);
@@ -177,7 +172,6 @@ describe('electron/controlServer', () => {
         await server?.stop();
         setEnv('FOLIA_CONTROL_PORT', ORIGINAL_ENV.port);
         setEnv('FOLIA_CONTROL_TOKEN', ORIGINAL_ENV.token);
-        setEnv('FOLIA_CONTROL_ALLOW_EVAL', ORIGINAL_ENV.allowEval);
         fs.rmSync(dataDir, { recursive: true, force: true });
     });
 
@@ -328,25 +322,6 @@ describe('electron/controlServer', () => {
             expect(accepted.json).toMatchObject({ ok: true, tool: 'folia_quit', data: { quitting: true } });
             await new Promise((resolve) => setTimeout(resolve, 150));
             expect(app.quit).toHaveBeenCalledTimes(1);
-        });
-
-        it('rejects folia_eval unless FOLIA_CONTROL_ALLOW_EVAL=1', async () => {
-            const disabled = await request('/invoke', {
-                method: 'POST',
-                token: server.token,
-                body: { name: 'folia_eval', args: { expression: '1 + 1' } },
-            });
-            expect(disabled.json.ok).toBe(false);
-            expect(disabled.json.error.code).toBe('disabled');
-            expect(fakeWindow.webContents.executeJavaScript).not.toHaveBeenCalled();
-
-            process.env.FOLIA_CONTROL_ALLOW_EVAL = '1';
-            const enabled = await request('/invoke', {
-                method: 'POST',
-                token: server.token,
-                body: { name: 'folia_eval', args: { expression: '1 + 1' } },
-            });
-            expect(enabled.json).toMatchObject({ ok: true, tool: 'folia_eval', data: { result: 42 } });
         });
     });
 

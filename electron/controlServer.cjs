@@ -472,9 +472,6 @@ async function executeTool(ctx, name, args) {
     if (!tool) {
         return makeErrorEnvelope(name, 'unknown_tool', CONTROL_ERROR_CODES.unknown_tool, undefined, startedAt);
     }
-    if (name === 'folia_eval' && process.env.FOLIA_CONTROL_ALLOW_EVAL !== '1') {
-        return makeErrorEnvelope(name, 'disabled', CONTROL_ERROR_CODES.disabled, undefined, startedAt);
-    }
 
     if (tool.executor === 'main') {
         return executeMainTool(ctx, tool, isPlainObject(args) ? args : {}, startedAt);
@@ -931,7 +928,6 @@ function buildControlStatus(dataDir, instance) {
         dataDir,
         controlCliPath: path.join(process.resourcesPath ?? '', 'control', 'cli.mjs'),
         controlMcpPath: path.join(process.resourcesPath ?? '', 'control', 'mcp.mjs'),
-        allowEval: process.env.FOLIA_CONTROL_ALLOW_EVAL === '1',
         error: null,
     };
 }

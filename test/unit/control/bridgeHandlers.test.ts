@@ -706,7 +706,7 @@ describe('visualizer, appearance and navigation handlers', () => {
         }
     });
 
-    it('navigates views, drives the panel and shows toasts', async () => {
+    it('navigates views and drives the panel', async () => {
         const { bridge, deps } = createBridge();
         await expect(bridge.invoke('folia_navigate', { view: 'lattice' })).resolves.toMatchObject({ ok: true });
         expect(deps.context.navigation.navigateToLattice).toHaveBeenCalledTimes(1);
@@ -717,11 +717,6 @@ describe('visualizer, appearance and navigation handlers', () => {
         });
         expect(deps.context.panel.setPanelTab).toHaveBeenCalledWith('queue');
         expect(deps.context.panel.setIsPanelOpen).toHaveBeenCalledWith(true);
-
-        await expect(bridge.invoke('folia_toast', { text: 'hello', type: 'success' })).resolves.toMatchObject({
-            ok: true,
-            data: { shown: true, type: 'success' },
-        });
     });
 });
 

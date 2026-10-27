@@ -283,7 +283,7 @@ function visualPlan(args) {
  * Resolve the parsed argv into a plan.
  * - `{ tool, args }`: call the catalog tool through the transport.
  * - `{ special, ... }`: client-side behaviour (`help`, `version`, `mcp`, `doctor`,
- *   `events-watch`, `mute-toggle`, `call-stdin`, `eval-stdin`).
+ *   `events-watch`, `mute-toggle`, `call-stdin`).
  */
 /** Validate ID playback before reading connection configuration or invoking any tool. */
 export function validateCommandUsage(parsed) {
@@ -300,7 +300,6 @@ export function resolveCommand(parsed, config = {}) {
     const command = parsed.command;
     const args = parsed.args ?? [];
     const options = parsed.options ?? {};
-    const allowEval = config.allowEval === true;
 
     if (command === null || command === 'help') {
         return special('help');
@@ -543,7 +542,10 @@ export function resolveCommand(parsed, config = {}) {
                 }
                 return plan('folia_palette_run', runArgs);
             }
-            return plan('folia_palette_ui', { action: options.close ? 'close' : 'open' });
+            throw new UsageError(
+                `unknown palette subcommand "${subcommand ?? ''}"`,
+                'use "folia palette list" or "folia palette run <command-id>"',
+            );
         }
         case 'library': {
             const subcommand = args[0] ?? 'list';
@@ -605,17 +607,6 @@ export function resolveCommand(parsed, config = {}) {
             }
             return plan('folia_screenshot', screenshotArgs);
         }
-        case 'toast': {
-            requireArgs(args, 1, 'folia toast <text>');
-            const toastArgs = { text: collectText(args) };
-            if (options.type) {
-                toastArgs.type = toEnum(options.type, ['info', 'success', 'error'], '--type');
-            }
-            if (options.duration !== undefined) {
-                toastArgs.durationMs = toInteger(options.duration, '--duration', { min: 500, max: 60000 });
-            }
-            return plan('folia_toast', toastArgs);
-        }
         case 'events': {
             const eventsArgs = {};
             if (options.since !== undefined) {
@@ -648,19 +639,6 @@ export function resolveCommand(parsed, config = {}) {
                 throw new UsageError('tool arguments must be a JSON object');
             }
             return plan(tool, callArgs);
-        }
-        case 'eval': {
-            if (!allowEval) {
-                throw new UsageError(
-                    'folia eval requires --allow-eval',
-                    're-run with --allow-eval; the app must also run with FOLIA_CONTROL_ALLOW_EVAL=1',
-                );
-            }
-            if (options.stdin) {
-                return special('eval-stdin');
-            }
-            requireArgs(args, 1, 'folia eval \'<expression>\'');
-            return plan('folia_eval', { expression: collectText(args) });
         }
         case 'quit': {
             if (!options.yes) {

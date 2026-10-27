@@ -13,7 +13,6 @@ export type ControlServerStatus = {
   dataDir: string;
   controlCliPath: string;
   controlMcpPath: string;
-  allowEval: boolean;
   error: string | null;
 };
 

@@ -6,7 +6,8 @@
 
 控制服务默认**关闭**。开启后只监听 `127.0.0.1`，所有请求都要带 token，等同于本机用户权限。
 
-- 能力清单（唯一来源）：[`shared/controlCatalog.mjs`](../shared/controlCatalog.mjs)，共 46 个工具。
+- 能力清单（唯一来源）：[`shared/controlCatalog.mjs`](../shared/controlCatalog.mjs)，共 43 个工具。
+- 为什么要这一层（命令面板给不了什么）：[`docs/control-scenarios.md`](../docs/control-scenarios.md)。
 - 协议形状与实现契约：[`control/PROTOCOL.md`](PROTOCOL.md)。
 - 二次开发（加工具、改实现）：[`docs/control-api.md`](../docs/control-api.md)。
 - 给 Agent 用的精简工作流：skill [`skills/control-folia`](../skills/control-folia/SKILL.md)。
@@ -19,7 +20,7 @@
 
 | 组 | 工具数 | 能力 |
 | --- | --- | --- |
-| `system` | 4 | 状态摘要、完整状态快照、工具目录、渲染进程求值（需显式开启） |
+| `system` | 3 | 状态摘要、完整状态快照、工具目录 |
 | `palette` | 2 | 列出并执行命令面板里的全部命令（125+ 条，最宽的能力面） |
 | `search` | 1 | 在线平台 / 本地库搜索，返回可直接播放的歌曲对象 |
 | `playback` | 10 | 播放、搜索即播、播放/暂停/上一首/下一首、跳转、音量与静音、循环、随机、喜欢、定时关闭、ReplayGain |
@@ -27,7 +28,7 @@
 | `lyrics` | 3 | 当前歌词（可含逐行）、时间轴偏移、跳到某一行 |
 | `visualizer` | 7 | 列出/切换歌词动画、切换背景、背景调参、智能节拍、视频层、日夜/跟随系统/封面取色/静态模式/AI 主题 |
 | `settings` | 3 | 读设置、写白名单设置、打开设置对话框 |
-| `navigation` | 4 | 切换主视图、开合侧栏、开合命令面板、应用内 toast |
+| `navigation` | 2 | 切换主视图、开合侧栏 |
 | `library` | 2 | 本地曲库 list/search/play、在线平台与登录态 |
 | `window` | 3 | 窗口状态与最小化/最大化/全屏/置顶/鼠标穿透/关闭、截图、退出 |
 | `events` | 1 | 轮询事件流（切歌、播放状态、队列、音量、动画、背景、主题、视图、命令执行） |
@@ -195,7 +196,6 @@ cd control && npm link    # 之后可以直接用 folia / folia-mcp
 | `--target <url子串>` | CDP 模式下按 URL 子串选目标页面 |
 | `--json` | 成功时输出原始 `data`；失败时错误仍写到 stderr（退出码 1） |
 | `--timeout <ms>` | 单次请求超时（默认 30000；env `FOLIA_CONTROL_TIMEOUT`） |
-| `--allow-eval` | 允许 CLI 的 `eval` 子命令 / MCP stdio 暴露 `folia_eval`；HTTP 转发还要 app 侧设 `FOLIA_CONTROL_ALLOW_EVAL=1` |
 | `--verbose` | 在 stderr 打诊断信息（不会打印 token） |
 
 退出码：`0` 成功；`1` 控制失败（工具返回 `ok:false`，stderr 带 `error (<code>)`）；
@@ -248,7 +248,6 @@ cd control && npm link    # 之后可以直接用 folia / folia-mcp
 | `settings open [subview]` | 打开设置对话框 | `folia_settings_open` |
 | `nav <home\|player\|lattice>` | 切换主视图 | `folia_navigate` |
 | `panel <tab>` | 打开/关闭侧栏 | `folia_panel` |
-| `palette` | 打开/关闭命令面板 UI | `folia_palette_ui` |
 | `palette list [--all]` | 列出命令面板命令 | `folia_palette_list` |
 | `palette run <id> [input]` | 执行命令面板命令 | `folia_palette_run` |
 | `library list\|search <q>\|play <id>` | 本地曲库 | `folia_library` |
@@ -256,9 +255,7 @@ cd control && npm link    # 之后可以直接用 folia / folia-mcp
 | `screenshot [--out <file>] [--no-save]` | 截图到文件（`--no-save` 不落盘，只回 base64） | `folia_screenshot` |
 | `window status\|minimize\|maximize\|fullscreen\|on-top [on\|off]\|click-through [on\|off]\|close` | 窗口控制 | `folia_window` |
 | `events [--watch] [--since N] [--limit N]` | 事件流（`--watch` 持续跟随） | `folia_events` |
-| `toast <text>` | 应用内 toast | `folia_toast` |
 | `call <tool> '<json>'` | 直接调用任意工具；`'-'` 从 stdin 读 JSON | 任意工具 |
-| `eval '<expr>'` | 渲染进程求值（CLI 需 `--allow-eval`，HTTP 需 app 侧 `FOLIA_CONTROL_ALLOW_EVAL=1`） | `folia_eval` |
 | `quit --yes` | 退出应用 | `folia_quit` |
 | `mcp` | 以 stdio MCP server 运行 | `control/mcp.mjs` |
 
@@ -287,9 +284,8 @@ CONN=(--url "$FOLIA_URL" --token-file "$FOLIA_TOKEN_FILE")
 "${CLI[@]}" events --json "${CONN[@]}"
 "${CLI[@]}" events --watch "${CONN[@]}"
 
-# 任意工具与逃生口
+# 任意工具
 "${CLI[@]}" call folia_lyrics '{"includeLines":true}' --json "${CONN[@]}"
-"${CLI[@]}" eval 'window.__FOLIA_CONTROL__.version' --allow-eval "${CONN[@]}"
 
 # 结束
 "${CLI[@]}" quit --yes "${CONN[@]}"
@@ -352,26 +348,6 @@ Claude Desktop（Windows：`%APPDATA%\Claude\claude_desktop_config.json`）：
         "--token-file", "/absolute/path/to/control-token"
       ],
       "env": {}
-    }
-  }
-}
-```
-
-需要 `folia_eval` 时，两处都要开：MCP stdio 进程加 `--allow-eval` 才会在 `tools/list` 里暴露该工具；
-真正的执行还要求拉起 Folia 时设 `FOLIA_CONTROL_ALLOW_EVAL=1`（HTTP `/mcp` 与 `/invoke` 的
-`disabled` 判断在 server 侧）。示例：
-
-```json
-{
-  "mcpServers": {
-    "folia": {
-      "command": "node",
-      "args": [
-        "/absolute/path/to/folia/control/mcp.mjs",
-        "--url", "http://127.0.0.1:4567",
-        "--token-file", "/absolute/path/to/control-token",
-        "--allow-eval"
-      ]
     }
   }
 }
@@ -447,8 +423,7 @@ curl -sS "$URL/mcp" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicat
 ## 工具参考
 
 完整 schema 以 [`shared/controlCatalog.mjs`](../shared/controlCatalog.mjs) 为准；下表的「关键参数」
-只列最常用的，省略号表示还有其它可选参数。危险工具（`folia_eval`、`folia_queue_clear`、
-`folia_quit`）需要额外谨慎。
+只列最常用的，省略号表示还有其它可选参数。危险工具（`folia_queue_clear`、`folia_quit`）需要额外谨慎。
 
 ### system
 
@@ -457,7 +432,6 @@ curl -sS "$URL/mcp" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicat
 | `folia_status` | 一行式摘要：版本、窗口、provider、正在播放、音量、视图 | — | 是 | 否 |
 | `folia_state` | 完整状态快照（播放/队列/音量/视觉/主题/provider/设置） | `includeQueue`、`includeLyrics`、`includeProviders` | 是 | 否 |
 | `folia_tools` | 列出全部工具及分组、执行器、危险标记 | `group` | 是 | 否 |
-| `folia_eval` | 在渲染进程求值任意 JS（逃生口，需显式开启） | `expression`（必填） | 否 | **是** |
 
 ### palette
 
@@ -549,8 +523,6 @@ curl -sS "$URL/mcp" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: applicat
 | --- | --- | --- | --- | --- |
 | `folia_navigate` | 切换主视图 home/player/lattice | `view`（必填） | 否 | 否 |
 | `folia_panel` | 打开/关闭统一侧栏并选 tab | `tab`、`open` | 否 | 否 |
-| `folia_palette_ui` | 显示/隐藏命令面板 | `action`（必填） | 否 | 否 |
-| `folia_toast` | 在应用里显示提示 | `text`（必填）、`type`、`durationMs` | 否 | 否 |
 
 ### library
 
@@ -650,9 +622,7 @@ folia call folia_library '{"action":"list","limit":10}' --json
   `FOLIA_CONTROL_TOKEN` 覆盖。
 - **控制 API 等同本机用户权限**：能改设置、操作队列、截图、退出应用。不要在不可信机器
   上开启，也不要把端口转发到局域网。
-- `folia_eval` 是逃生口，默认不可用，门控分两处：HTTP 执行要求拉起 Folia 时设
-  `FOLIA_CONTROL_ALLOW_EVAL=1`；CLI 的 `eval` 命令 / MCP stdio 的 `tools/list` 还需要客户端侧
-  `--allow-eval`。CDP 模式直接调 bridge，绕过 server 检查，只建议本机调试用。
+- 控制面不提供在渲染进程执行任意 JS 的能力：所有写操作都必须落在 catalog 声明的工具上。
 - `folia_palette_run`、`folia_settings_write`、`folia_queue_clear`、`folia_quit` 是高权限操作；
   Agent 应在用户明确要求时才调用，`folia_quit` 必须 `confirm:true`。
 - token 不要写进日志、提交到仓库或放进会回显的命令行；脚本里优先 `--token-file`。
@@ -669,7 +639,7 @@ folia call folia_library '{"action":"list","limit":10}' --json
 | 401 `unauthorized` | token 不对：确认 `--token-file` 指向当前实例的 `<userData>/control-token`；换过 profile、或用 `FOLIA_CONTROL_TOKEN` 启动时需要对应 token。 |
 | `/health` 正常，`/invoke` 返回 503 `not_ready` | 渲染进程 bridge 还没安装：页面还在加载或 renderer 崩溃。等界面出来再试；看应用内日志。 |
 | `unknown_tool` | 工具名拼错，或该版本 catalog 没有这个工具；用 `folia tools --json` / MCP `tools/list` 核对。 |
-| `disabled`（尤其 `folia_eval`） | 服务端未允许：拉起 Folia 时设 `FOLIA_CONTROL_ALLOW_EVAL=1`；CLI/MCP 侧再加 `--allow-eval` 才能暴露/执行 eval 命令。 |
+| `disabled` | 该工具被控制 server 配置关闭（例如服务端未启用对应开关）。 |
 | `search_failed` / `no_results` | provider 网络失败、未登录或被限流。`folia providers` 看登录态；换 provider 或稍后重试。搜索链路本身是通的。 |
 | 播放失败 `playback_failed` | 在线歌曲需要对应平台账号；在应用内登录该平台后重试。 |
 | 截图空白/黑屏 | 窗口最小化、隐藏到托盘或被锁屏；恢复窗口后重截。 |

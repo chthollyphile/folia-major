@@ -273,7 +273,6 @@ async function launchElectron() {
     // An agent/CI shell that itself runs inside Electron may export ELECTRON_RUN_AS_NODE=1;
     // inherited by the child it makes Electron behave like plain Node and Chromium switches fail.
     delete env.ELECTRON_RUN_AS_NODE;
-    delete env.FOLIA_CONTROL_ALLOW_EVAL;
     // The test window never loads untrusted content and some sandboxes deny the Chromium sandbox
     // syscalls ("sandbox initialization failed: Operation not permitted"); --no-sandbox keeps the
     // run possible there. --use-mock-keychain keeps Chromium's os_crypt off the shared macOS

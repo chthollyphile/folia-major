@@ -5,7 +5,7 @@ description: 用 CLI / MCP / HTTP 控制正在运行的 Folia（搜歌、播放�
 
 # Control Folia
 
-Folia 的控制 API 把应用能力暴露成 46 个工具（catalog 在 `shared/controlCatalog.mjs`）。三条入口：
+Folia 的控制 API 把应用能力暴露成 43 个工具（catalog 在 `shared/controlCatalog.mjs`）。三条入口：
 
 - **CLI**：`node control/cli.mjs <command>`，一次一条命令，适合 agent 分步执行。
 - **MCP**：`node control/mcp.mjs`（stdio），或 Electron 内嵌 `POST /mcp`（stateless JSON-RPC）。
@@ -67,7 +67,7 @@ node control/cli.mjs status --transport cdp --cdp http://127.0.0.1:9222
 
 ## 工具速查
 
-按组列出最常用工具；全部 46 个见 `control/README.md` 的工具参考表。
+按组列出最常用工具；全部 43 个见 `control/README.md` 的工具参考表。
 
 | 想做的事 | 工具 / CLI |
 | --- | --- |
@@ -86,7 +86,7 @@ node control/cli.mjs status --transport cdp --cdp http://127.0.0.1:9222
 | 本地库/平台 | `folia library list`、`folia library search "<q>"`、`folia providers` |
 | 窗口/截图 | `folia window fullscreen`、`folia screenshot --out /tmp/folia.png` |
 | 事件 | `folia events --json`、`folia events --watch` |
-| 任意工具/逃生口 | `folia call <tool> '<json>'`；`folia eval '<expr>' --allow-eval` |
+| 任意工具 | `folia call <tool> '<json>'` |
 | 退出 | `folia quit --yes` |
 
 命令面板是能力最宽的一层（125+ 条）：`folia palette list --json` 找 id，
@@ -182,8 +182,7 @@ tools/call，最后打印 PASS/FAIL 并清理进程。
 
 - **控制 API 等同本机用户权限**，只在可信机器开启；不要把 127.0.0.1 端口转发出去。
 - **token 不要进 shell 历史**：用 `--token-file`，不要 `--token $(cat …)` 回显。
-- `folia_eval` 默认禁用；门控分两处：HTTP 执行要求拉起 Folia 时设 `FOLIA_CONTROL_ALLOW_EVAL=1`，
-  CLI 的 `eval` / MCP stdio 还要客户端侧 `--allow-eval`。CDP 模式绕过 server 检查，只建议本机调试。
+- 没有 eval 逃生口：所有写操作都必须是 catalog 里声明过的工具。需要新能力就提工具，别绕。
 - `folia_transport stop` = 暂停；非 FM 模式还会清空队列。`folia_seek` 走页面内 audio 元素，
   暂停时会恢复播放。
 - `settings set audio.volume 40` 写入可用百分比，读回是 store 原始值 `0.4`（0-1）。

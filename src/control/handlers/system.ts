@@ -1,10 +1,8 @@
 import { buildStateSnapshot, buildStatusSnapshot, buildToolsList } from '../state';
-import { evaluateControlExpression } from '../helpers';
-import { requireString } from '../errors';
 import type { ControlHandler, ControlStateQuery } from '../types';
 
 // src/control/handlers/system.ts
-// Introspection tools: status, the full state snapshot, the tool list, and the eval escape hatch.
+// Introspection tools: status, the full state snapshot, and the tool list.
 
 export const systemHandlers: Record<string, ControlHandler> = {
     folia_status: async (_args, deps) => buildStatusSnapshot(deps.app),
@@ -21,10 +19,5 @@ export const systemHandlers: Record<string, ControlHandler> = {
     folia_tools: (args) => {
         const group = typeof args.group === 'string' ? args.group : undefined;
         return { tools: buildToolsList(group) };
-    },
-
-    folia_eval: async (args) => {
-        const expression = requireString(args.expression, 'expression');
-        return evaluateControlExpression(expression);
     },
 };

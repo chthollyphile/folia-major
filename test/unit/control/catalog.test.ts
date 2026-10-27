@@ -68,9 +68,8 @@ describe('control catalog', () => {
     });
 
     it('marks the destructive escape hatches dangerous', () => {
-        // eval and quit can leave the app or its data in a state the user did not ask for.
+        // Both can leave the app or its data in a state the user did not ask for.
         expect([...CONTROL_DANGEROUS_TOOL_NAMES].sort()).toEqual([
-            'folia_eval',
             'folia_queue_clear',
             'folia_quit',
         ]);
