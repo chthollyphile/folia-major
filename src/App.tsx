@@ -6,6 +6,7 @@ import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import CommandPalette from './components/command-palette/CommandPalette';
 import AddToPlaylistHost from './components/app/AddToPlaylistHost';
+import { ControlHost } from './control/ControlHost';
 import { useCommandPalette } from './components/command-palette/useCommandPalette';
 import { useCommandPaletteContext } from './hooks/useCommandPaletteContext';
 import { useReducedMotionFor } from './hooks/useReducedMotionFor';
@@ -2945,6 +2946,15 @@ export default function App() {
                 onExecutePinnedCommand={commandPalette.executePinnedCommand}
                 onQueryChange={commandPalette.setQuery}
                 onQueryCommit={commandPalette.commitQuery}
+            />
+
+            {/* 控制桥（MCP / CLI / HTTP 的 renderer 端）：只安装 window.__FOLIA_CONTROL__，
+                没有控制 server 时不会有任何网络入口。契约见 control/PROTOCOL.md。 */}
+            <ControlHost
+                context={commandPaletteContext}
+                localSongs={localSongs}
+                enqueue={addOnlineSongsToQueue}
+                playLocalSong={onPlayLocalSong}
             />
 
             <AppDialogs model={appDialogsModel} />

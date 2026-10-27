@@ -7,6 +7,8 @@ import { option, type SettingsGroupDef } from '../../kit';
 
 export const SERVICES: SettingsGroupDef = { id: 'services', titleKey: 'options.settingsHeadingServices' };
 export const STREAMING: SettingsGroupDef = { id: 'streaming', titleKey: 'options.settingsHeadingStreaming' };
+/** AI 控制（CLI / MCP）：与 服务 并列的一组，桌面端才有。 */
+export const AGENT: SettingsGroupDef = { id: 'agentControl', titleKey: 'options.settingsHeadingAgent', electronOnly: true };
 
 
 export const O = {
@@ -23,6 +25,7 @@ export const O = {
     obs: option(STREAMING, 'obsBrowserSource', 'options.obsBrowserSource', { electronOnly: true }),
     obsKeepAnimation: option(STREAMING, 'obsKeepMainWindowAnimation', 'options.obsKeepMainWindowAnimation', { electronOnly: true }),
     lyricApi: option(STREAMING, 'lyricApi', 'options.lyricApi', { electronOnly: true }),
+    controlServer: option(AGENT, 'controlServer', 'options.controlServer', { electronOnly: true }),
     stage: option(STREAMING, 'stageMode', 'options.stageMode'),
     stageSource: option(STREAMING, 'stageSource', 'options.stageSource'),
     playerCapAddress: option(STREAMING, 'playerCapAddress', 'options.playerCapAddress'),

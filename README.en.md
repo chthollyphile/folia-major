@@ -174,6 +174,28 @@ Deployment, environment variables, local development, the Stage API, common scri
 
 Before contributing, read the [Contributing Guide](CONTRIBUTING.en.md).
 
+## MCP / CLI control
+
+> [!NOTE]
+> The control API is off by default. When enabled it listens on `127.0.0.1` only and carries the same rights as the local user.
+
+Folia can act as a music player that other programs drive: from the command line, an MCP client (Claude Desktop, Claude Code, Cursor and the like) or plain HTTP, an agent can search, play, skip, set volume and queue, read and animate lyrics, change backgrounds and themes, adjust settings, browse the local library, move windows, take screenshots and watch events.
+
+```bash
+# Development: launch the desktop app with the control server on
+FOLIA_CONTROL=1 npm run dev:electron
+
+# In another terminal, drive it with the CLI
+node control/cli.mjs status   --url http://127.0.0.1:4567 \
+  --token-file "$HOME/Library/Application Support/Folia/control-token"
+node control/cli.mjs volume 30 --url http://127.0.0.1:4567 \
+  --token-file "$HOME/Library/Application Support/Folia/control-token"
+```
+
+**Settings → Connections → AI control** has the switch, plus one-click copies of the MCP client config and a ready-made agent prompt.
+
+The full tool list, CLI command table, MCP config JSON (stdio and HTTP) and troubleshooting live in the [control API guide](control/README.md); internals (adding tools, transport details, the MCP protocol) are in [Control API development notes](docs/control-api.md), and the agent skill is [`skills/control-folia`](skills/control-folia/SKILL.md).
+
 ## Mods (Folium v1.x)
 
 > [!NOTE]

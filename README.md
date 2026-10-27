@@ -174,6 +174,33 @@ Linux 包、Wayland / Hyprland 遥控窗和桌面端细节见 [技术与开发�
 
 部署、环境变量、本地开发、Stage API、常用脚本和技术栈见 [技术与开发说明](docs/technical.md)。
 
+## MCP / CLI 控制
+
+> [!NOTE]
+> 控制 API 默认关闭，开启后只监听本机 `127.0.0.1`，且等同于本机用户权限。
+
+Folia 可以作为一个可被外部程序控制的音乐播放器：通过命令行、MCP 客户端（Claude Desktop、
+Claude Code、Cursor 等）或直接 HTTP，让 Agent 完成搜歌、播放、传输控制、音量与队列、歌词与
+歌词动画、背景与主题、设置、本地库、窗口、截图和事件监听。
+
+```bash
+# 开发模式：同时启动带控制 server 的桌面版
+FOLIA_CONTROL=1 npm run dev:electron
+
+# 另一个终端：用 CLI 操作
+node control/cli.mjs status   --url http://127.0.0.1:4567 \
+  --token-file "$HOME/Library/Application Support/Folia/control-token"
+node control/cli.mjs volume 30 --url http://127.0.0.1:4567 \
+  --token-file "$HOME/Library/Application Support/Folia/control-token"
+```
+
+也可以在「设置 → 连接与集成 → AI 控制」里一键打开开关，复制现成的 MCP 配置或 AI 提示词。
+
+完整能力清单、CLI 命令表、MCP 配置 JSON（stdio 与 HTTP）和故障排查见
+[控制 API 使用说明](control/README.md)；二次开发（新增工具、传输细节、MCP 协议）见
+[Control API 开发说明](docs/control-api.md)，给 Agent 的操作手册见 skill
+[`skills/control-folia`](skills/control-folia/SKILL.md)。
+
 ## 模组系统（Folium v1.x）
 
 > [!NOTE]

@@ -1,0 +1,19 @@
+{
+    "name": "folia-control",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Command line and MCP stdio client for the Folia control API",
+    "type": "module",
+    "bin": {
+        "folia": "./cli.mjs",
+        "folia-mcp": "./mcp.mjs"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "scripts": {
+        "folia": "node cli.mjs",
+        "mcp": "node mcp.mjs",
+        "test": "node --test test/cli.test.mjs"
+    }
+}

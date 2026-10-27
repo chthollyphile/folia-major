@@ -305,6 +305,10 @@ contextBridge.exposeInMainWorld('electron', {
     appendVideoExportChunk: (sessionId, data) => ipcRenderer.invoke('video-export-append-chunk', sessionId, data),
     finishVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-finish-file', sessionId),
     abortVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-abort-file', sessionId),
+    // 设置 -> 连接与集成 -> AI 控制（CLI / MCP）：开关、状态（地址/令牌/路径）、换令牌。
+    getControlStatus: () => ipcRenderer.invoke('control-get-status'),
+    setControlEnabled: (enabled) => ipcRenderer.invoke('control-set-enabled', enabled),
+    regenerateControlToken: () => ipcRenderer.invoke('control-regenerate-token'),
     getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),

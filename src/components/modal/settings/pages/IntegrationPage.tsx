@@ -5,8 +5,9 @@ import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore'
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
+import ControlServerRows from './integration/ControlServerRows';
 import NavidromeRows from './integration/NavidromeRows';
-import { O, SERVICES, STREAMING } from './integration/options';
+import { AGENT, O, SERVICES, STREAMING } from './integration/options';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
 import SyncServerRows from './integration/SyncServerRows';
 import { useSettingsPage } from './settingsPageContext';
@@ -66,6 +67,12 @@ const IntegrationPage: React.FC = () => {
                     <Toggle checked={scrobbleEnabled} onChange={setScrobbleEnabled} />
                 </Row>
             </Group>
+
+            {isElectron && (
+                <Group def={AGENT}>
+                    <ControlServerRows />
+                </Group>
+            )}
 
             <Group def={STREAMING}>
                 <Row option={O.transparentBackground} hint={t('options.transparentPlayerBackgroundDesc')}>
