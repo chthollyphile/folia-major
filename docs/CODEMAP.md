@@ -35,6 +35,7 @@
 | --- | --- |
 | 1024+ | `src/types.ts` |
 | 256+ | `src/types/onlineMusic.ts` |
+| 128+ | `src/stores/usePlaybackStore.ts` |
 | 128+ | `src/types/ponder.ts` |
 | 128+ | `src/utils/appPlaybackGuards.ts` |
 | 64+ | `src/components/command-palette/types.ts` |
@@ -44,7 +45,8 @@
 | 64+ | `src/mods/folium/contract.ts` |
 | 64+ | `src/services/db.ts` |
 | 64+ | `src/services/onlineMusic/omni.ts` |
-| 64+ | `src/stores/usePlaybackStore.ts` |
+| 64+ | `src/stores/useAppViewStore.ts` |
+| 64+ | `src/stores/useAudioSettingsStore.ts` |
 | 64+ | `src/stores/useStatusMessageStore.ts` |
 | 32+ | `dev/probes/definition.ts` |
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
@@ -61,15 +63,16 @@
 | 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
 | 32+ | `src/mods/types.ts` |
 | 32+ | `src/services/baseThemes.ts` |
+| 32+ | `src/services/onlineMusic/failure/onlineFailureCase.ts` |
 | 32+ | `src/services/onlineMusic/providerRegistry.ts` |
 | 32+ | `src/services/onlineMusic/songMetadata.ts` |
 | 32+ | `src/stores/motionSignals.ts` |
-| 32+ | `src/stores/useAppViewStore.ts` |
-| 32+ | `src/stores/useAudioSettingsStore.ts` |
 | 32+ | `src/stores/useCollectionNavigationStore.ts` |
 | 32+ | `src/stores/useOnlineProviderAccountStore.ts` |
+| 32+ | `src/stores/usePlayerChromeSettingsStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
+| 32+ | `src/types/hifi.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/types/navidrome.ts` |
 | 32+ | `src/utils/coverUrl.ts` |
