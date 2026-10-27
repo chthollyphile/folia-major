@@ -169,19 +169,23 @@ const MonetWordSweep: React.FC<{
             (isLineActive && status === 'passed') || lineStatus === 'passed' ? wordColor : baseColor,
         );
 
-        const glowShadow = useTransform(glowTime, latest => {
-            if (!canRenderGlow || latest <= startTime) return 'none';
-
-            const intensity = resolveMonetGlow(latest, startTime, endTime, lineRenderEndTime);
-
-            if (intensity <= 0) return 'none';
-
+        // The glow is its own layer under the text: a halo fixed at full strength, faded by opacity.
+        // Interpolating the text-shadow itself repainted and re-rasterized every glowing word on every
+        // frame (on a 120 Hz Mac, most of this mode's raster and ~70 ms/s of GPU process); opacity on
+        // its own compositing layer is applied by the compositor. At full strength it is the old halo
+        // exactly; below it the halo keeps the word colour instead of leaning towards the base colour.
+        const glowOpacity = useTransform(glowTime, latest => {
+            if (!canRenderGlow || latest <= startTime) return 0;
+            return Math.max(0, resolveMonetGlow(latest, startTime, endTime, lineRenderEndTime));
+        });
+        // Composited only while it is lit, so idle words on the rail do not each hold a layer.
+        const glowWillChange = useTransform(glowOpacity, opacity => (opacity > 0 ? 'opacity' : 'auto'));
+        const glowHalo = useMemo(() => {
             const radiusOne = Math.round(fontPx * (isChorus ? 0.45 : 0.28));
             const radiusTwo = Math.round(fontPx * (isChorus ? 0.90 : 0.65));
-            const maxAlpha = isChorus ? 1.0 : 0.88;
-            const glowColor = mixColors(baseColor, wordColor, intensity, intensity * maxAlpha);
+            const glowColor = mixColors(baseColor, wordColor, 1, isChorus ? 1.0 : 0.88);
             return `0 0 ${radiusOne}px ${glowColor}, 0 0 ${radiusTwo}px ${glowColor}`;
-        }) as unknown as MotionValue<string>;
+        }, [baseColor, fontPx, isChorus, wordColor]);
 
         // Glyphs with deep descenders (g, j, p, y, and many CJK forms) sit below the line box
         // whenever the font's em box is taller than `line-height`, which drives half-leading
@@ -192,7 +196,17 @@ const MonetWordSweep: React.FC<{
 
         return (
             <span className="relative inline-block whitespace-pre-wrap break-words">
-                <motion.span style={{ color: resolvedBaseColor, textShadow: glowShadow }}>
+                {canRenderGlow ? (
+                    <motion.span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 block whitespace-pre-wrap break-words"
+                        style={{ color: 'transparent', textShadow: glowHalo, opacity: glowOpacity, willChange: glowWillChange }}
+                    >
+                        {text}
+                    </motion.span>
+                ) : null}
+                {/* relative so the text paints above the absolutely positioned glow, as it did above its own shadow. */}
+                <motion.span className="relative" style={{ color: resolvedBaseColor }}>
                     {text}
                 </motion.span>
                 {isLineActive ? (

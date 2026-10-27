@@ -45,7 +45,9 @@ Chromium（GPU 光栅化）按 strike 缓存字形，strike 的 key 包含字体
 - **claddagh**：逐字发光改成 filter 链 `drop-shadow(...) blur(...)`（先投影再模糊，与原来的绘制顺序一致）。单层
   取 text-shadow 半径 × 0.5；副歌三层取 × 0.4、中间层 alpha × 0.2（链式 drop-shadow 会互相叠加）。字形本身带
   alpha，drop-shadow 会再乘一次，所以阴影颜色只带 `shadowFade`。
-- **cadenza**：叠加词外层加 `will-change: transform`，提升为合成层，栅格化缩放不再逐帧变化。
+- **cadenza**：叠加词外层加 `will-change: transform`，提升为合成层，栅格化缩放不再逐帧变化。这一项后来改为所有平台
+  都开启、不再跟随开关：它不改变外观（与非合成层逐像素对比只有字形边缘抗锯齿的差别），在 120 Hz 的 Mac 上还让
+  光栅化线程从约 150 ms/s 降到约 50 ms/s。
 - **canvas 模糊半径**取整到整数像素（`quantizeShadowBlur`）。
 - **fume**：
   - 当前行的文字发光改用 `ctx.filter = drop-shadow(shadowBlur / 2)`（`setCanvasTextGlow`；canvas 的 shadowBlur
