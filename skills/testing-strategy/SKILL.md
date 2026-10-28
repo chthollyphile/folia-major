@@ -16,7 +16,7 @@ description: Use when the task involves deciding whether a change needs a new te
 
 ## Core Rule
 
-如果当前用户终端已经在运行热加载开发服务器，例如 `vercel dev`、`vite`、`npm run dev`、`npm run dev:electron`，不要再额外运行构建来“测试”问题。
+如果已经有热加载开发服务器在跑（`vercel dev`、`vite`、`npm run dev`、`npm run dev:electron`），不要再额外运行构建来“测试”问题。你看不到用户的终端：用户说了在跑，或者 `curl -s -o /dev/null -w '%{http_code}' http://localhost:3000` 有响应，才算在跑；云端会话里通常没有。
 
 优先做这些事：
 

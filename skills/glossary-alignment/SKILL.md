@@ -5,12 +5,12 @@ description: Use when the user refers to repository-specific spoken terms - home
 
 # Glossary Alignment
 
-把口头术语换成**名字**，然后用 `ts-code-map` 的 `search` / `find_symbol` 解析成当前路径。
+把口头术语换成名字，再用 rg 找到它当前的位置（同名太多分不清时才用 cli，见 `codebase-navigation`）。
 
 这里刻意不写路径。文件会改名、会移动、会拆目录，路径表撑不住；符号名和模块名稳定得多，
-而且真过期时 `search` 会直接告诉你找不到，不会像旧路径那样把你引到一个不存在的地方。
+真过期时 rg 会直接找不到，不会像旧路径那样把你引到一个不存在的地方。
 
-**用法**：查表拿到名字 → `search` 或 `find_symbol` 拿到当前位置 → 再往下读。
+用法：查表拿到名字 → `rg -n '<名字>' src` 拿到当前位置 → 再往下读。
 
 ## App / 全局状态
 
@@ -149,7 +149,7 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 3. 带“模型 / 装配 / 派生” → 找相邻的 `build*` / `create*`。
 4. 带“接口 / provider / 缓存 / 播放流程” → 先看 `services`；在线歌曲一律先看 `omni`。
 5. 带“类型 / 枚举 / 共享结构” → 先看 `types`。
-6. 以上都不中 → 直接 `search`，让它退回全文搜索。
+6. 以上都不中 → 用口头说法里的关键词直接 rg，中英文都试。
 
 ## 容易搞错的几个
 

@@ -7,7 +7,7 @@ export default {
     name: 'find_symbol',
     description:
         '按名称或模糊名称在整个 TypeScript 项目里查符号，返回 path:line 与种类。'
-        + '定位任何函数、组件、hook、store、类型时先用它，不要用 grep 扫全库。',
+        + '同名符号多、rg 分不清哪个是定义时用它；已知确切名字的普通查找用 rg 更快。',
     inputSchema: {
         type: 'object',
         properties: {

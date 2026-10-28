@@ -5,15 +5,14 @@ description: Align Folia's KuGou provider implementation with the repository API
 
 # KuGou Provider Alignment
 
-Use the documented request contract and a live response as the source of truth before changing provider code. Never invent an endpoint path or response field because a mock, an old implementation, or a familiar KuGou shape looks plausible. For the public application boundary, also follow `skills/online-song-omni-routing/SKILL.md`: ordinary online-song interaction must remain behind Omni.
+Use the documented request contract and a live response as the source of truth before changing provider code. Never invent an endpoint path or response field because a mock, an old implementation, or a familiar KuGou shape looks plausible. Ordinary online-song interaction stays behind Omni (see `AGENTS.md`, “模块边界”).
 
 ## Required workflow
 
 ### 1. Map the task to the existing provider
 
-- Read `skills/codebase-navigation/SKILL.md`, then the relevant product context in `README.md`, `src/README.md`, and `src/services/onlineMusic/README.md` before changing project files.
+- If you need product context, `src/services/onlineMusic/README.md` has the per-platform notes; read only the relevant section.
 - Inspect `src/services/onlineMusic/kugou/kugouTransport.ts` for the operation name and endpoint mapping, then inspect `src/services/onlineMusic/kugou/kugouProvider.ts` or the relevant lyrics provider for normalization and response unwrapping.
-- Keep the public data flow through `services/onlineMusic/omni.ts`; components, hooks, stores, and ordinary app services should not call a KuGou endpoint or concrete KuGou provider directly. Direct KuGou access is limited to the adapter/transport implementation and its focused tests.
 - Locate the matching heading in `docs/ku-go-api-docs.md` with `rg -n` and read that section. Confirm the documented path, method, required parameters, optional parameters, authentication notes, and cache/timestamp requirements.
 
 The documentation defines the request contract. The live response defines the response mapping. If they disagree, preserve the evidence, report the mismatch, and do not silently guess.
@@ -44,7 +43,7 @@ Preserve the exact client payload under `rawLoginRequestBody` or `rawLoginRespon
 
 ### 3. Probe the real endpoint
 
-Use the bundled probe script so the base URL and credentials are loaded consistently:
+Use a bundled probe script so the base URL and credentials are loaded consistently. There are two with the same behavior: `probe-ku-gou.ps1` for PowerShell, `probeKuGou.mjs` for anywhere Node runs (use it when `pwsh` is not installed, e.g. Linux or a cloud session).
 
 ```powershell
 pwsh -NoProfile -File skills/kugou-provider-alignment/scripts/probe-ku-gou.ps1 `
@@ -53,7 +52,13 @@ pwsh -NoProfile -File skills/kugou-provider-alignment/scripts/probe-ku-gou.ps1 `
   -OutputPath test-results/kugou-search.raw.json
 ```
 
-For a documented POST endpoint, pass `-Method POST -BodyJson '{...}'`. The script forwards credential headers, adds the normalized cookie to the query when present, and adds a timestamp by default so a cached response does not masquerade as current data. Use `-DryRun` first when checking request construction. The dry-run output redacts sensitive values.
+```bash
+node skills/kugou-provider-alignment/scripts/probeKuGou.mjs --path /search \
+  --query '{"keywords":"周杰伦","page":1,"pagesize":5}' \
+  --output test-results/kugou-search.raw.json
+```
+
+For a documented POST endpoint, pass `-Method POST -BodyJson '{...}'` (Node: `--method POST --body '{...}'`). The script forwards credential headers, adds the normalized cookie to the query when present, and adds a timestamp by default so a cached response does not masquerade as current data. Use `-DryRun` (`--dry-run`) first when checking request construction. The dry-run output redacts sensitive values.
 
 Inspect the complete response, including `status`, `errcode`/`error_code`, error text, envelope levels, arrays, pagination, and field types. Record only non-sensitive observations in code or tests. A successful HTTP status is not enough: KuGou endpoints can return an application-level error body.
 
@@ -77,4 +82,4 @@ When a live response changes or contradicts the docs, keep the raw capture under
 
 ## Probe script contract
 
-`scripts/probe-ku-gou.ps1` is the standard direct HTTP probe. It accepts `-Path`, `-Method GET|POST`, `-QueryJson`, `-BodyJson`, `-OutputPath`, `-TimeoutSec`, `-NoTimestamp`, and `-DryRun`. It reads only the repository's `.env.local` and `.dev-credentials/kugou.json`; never add credentials as command-line arguments because shell history and process listings may retain them.
+`scripts/probe-ku-gou.ps1` and `scripts/probeKuGou.mjs` are the standard direct HTTP probes; change both together. The PowerShell one accepts `-Path`, `-Method GET|POST`, `-QueryJson`, `-BodyJson`, `-OutputPath`, `-TimeoutSec`, `-NoTimestamp`, and `-DryRun`; the Node one takes the same as `--path`, `--method`, `--query`, `--body`, `--output`, `--timeout`, `--no-timestamp`, `--dry-run`. It reads only the repository's `.env.local` and `.dev-credentials/kugou.json`; never add credentials as command-line arguments because shell history and process listings may retain them.

@@ -53,7 +53,7 @@ function scanFiles(root, tokens, cap) {
 export default {
     name: 'search',
     description:
-        '不确定要找什么时的默认入口：先按符号找，没有再按文件名，最后退回全文搜索。'
+        'rg 拿不准、又不确定确切名字时用：先按符号找，没有再按文件名，最后退回全文搜索。'
         + '支持自然语言多词查询（如 "lyric font size settings"），会按命中词数排序。'
         + '已经知道确切符号名就直接用 find_symbol。',
     inputSchema: {

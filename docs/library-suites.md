@@ -436,6 +436,9 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 - 不要把筛选词、选中项、焦点存在组件 state 里。它们在会话 store 里，切换 suite 时才不会丢。
 - 布局相关的东西（滚动位置、坐标、展开状态）属于 suite 自己，不要放进 core；但要在 `layout.forget` 里能按会话键丢掉它。
 - 不要在 suite 的返回按钮里自己清会话或布局记录：调 `onDone`，由宿主统一做（Escape 调 `onBack`）。
+- suites 之外只有 `registry.ts` 引用 suite（宿主、首页外壳都经 registry 解析）；stores / services / utils / types 不 import suites 与 `app/`；不建 barrel。
+- 设置 UI（`src/components/modal/settings`）不能 import suite，所以 suite 专属的偏好放 app 层 store（例如 bravais 的透光 `useLibraryWallLookStore`），由 suite 读它。
+- wall 引擎（`src/components/wall/`）的边界连 `import type` 与动态 import 一起查（`test/unit/wall/wallBoundaries.test.ts`，codemap 的 `BOUNDARY_RULES` 同一条）。新几何写成不 import React 的纯函数放进 wall；透光 / 底板等 bravais 专属的东西不放 wall，Lattice 的队列模型、键盘焦点（`useWallKeyboardFocus`，名字带 Wall 但仍在 Lattice 目录）、播放展开也不放。wall 的 CSS 类名与变量沿用 `.lattice-*` / `--lattice-*`（测试选择器依赖它们），bravais 的 DOM 也用这些类名。
 
 ## 现有 suite 的对照
 

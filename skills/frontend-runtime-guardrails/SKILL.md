@@ -26,7 +26,7 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - 布局测量和缓存：优先使用 `useMemo`、`useRef`、`ResizeObserver`，并做缓存 key、尺寸变化和清理保护。
 - 歌词解析、分词、时序映射：优先从 `types.ts`、`utils/lyrics/parserCore.ts` 和已有 lyrics utilities 理解数据真源。
 
-## Hard Rules
+## 规则
 
 ### React State
 
@@ -38,7 +38,7 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - audio analyser / playback polling callback
 - pointer move / scroll / resize 高频事件
 
-绝对禁止用高频 `useState`、store setter 或等价 React 更新去追踪“当前精确时间”。例如不要把 `currentTime.get()`、`audio.currentTime`、RAF 时间戳或 MotionValue 的每次变化写入 state 来驱动歌词、进度、逐字强度或动画相位。连续时间必须优先参考现有方案：`MotionValue` / `useTransform` / CSS 或 Framer Motion 动画 / canvas draw loop / `useRef` 保存瞬时值；只有当前行、播放状态、可见段落这类离散变化可以进入 React state。
+“当前精确时间”不进 React state：`currentTime.get()`、`audio.currentTime`、RAF 时间戳、MotionValue 的每次变化都不写进 `useState` 或 store 来驱动歌词、进度、逐字强度或动画相位，因为那会让整棵歌词树每帧重渲染。连续时间用现有方案：`MotionValue` / `useTransform` / CSS 或 Framer Motion 动画 / canvas draw loop / `useRef` 保存瞬时值；只有当前行、播放状态、可见段落这类离散变化进 React state。
 
 如果必须在高频回调里更新 React state，必须满足至少一条：
 
@@ -64,7 +64,7 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 
 共享运行时边界是 `VisualizerRenderer.tsx` -> `runtime.ts` / `registry.tsx` / `VisualizerShell.tsx`；它同时被 App、ThemePark、VisPlayground 和 OBS source 复用（宿主清单见 `src/components/visualizer/README.md` 的 Host surfaces）。新增模式应沿 `entry.tsx` registry 接入，不要在各宿主复制渲染分支。
 
-所有 visualizer 的歌词和字幕字重都必须通过 `src/utils/fontStacks.ts` 的 `resolveThemeFontWeight(theme, modeFallback)` 获取。模式设计字重只能作为 fallback，不能用 `font-bold`、`font-medium`、固定内联 `fontWeight` 或字体规格中的硬编码数字覆盖用户设置。DOM、Canvas、pretext 和光栅化路径必须使用同一个最终字重。
+歌词和字幕的字重统一用 `resolveThemeFontWeight(theme, modeFallback)`，规则见 `reuse-project-utilities` 的 Font Stacks 一节。
 
 新增 visualizer 时，先决定：
 
@@ -72,11 +72,6 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - 它需要 React 参与渲染吗，还是可以由 CSS/Motion/canvas 自己完成？
 - 当前实现的每秒 React 更新次数大概是多少？
 - 长歌词、重复歌词、CJK grapheme、移动端和 Electron 下是否仍然可接受？
-
-### Strict Constraint: Protect Project Comments
-
-- Keep all comments prefixed with `@note` exactly as they are. These comments mark critical annotations and must not be translated, shortened, modified, or removed.
-- If refactoring significantly changes the code structure, preserve these comments as close as possible to the code they are logically associated with.
 
 ### Lyrics Timing
 
@@ -125,15 +120,9 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 
 ### Layout And Measurement
 
-测量、分词、排版和缓存应保持稳定：
-
-- 用 `useMemo` 缓存纯计算布局，依赖项必须能解释布局变化原因。
-- 用 `useRef` 保存缓存 Map、RAF id、DOM node、上一次 frame 状态。
-- `ResizeObserver` 里只在尺寸真实变化时 `setState`。
-- 长文本测量和 `Intl.Segmenter` 结果不要在 render 中反复重算，除非文本很短且路径低频。
-- cache key 必须包含影响布局的主题、字体、尺寸、tuning 和歌词内容。
-- 字体相关 cache key、memo 依赖和测量规格必须包含 `resolveThemeFontWeight` 得到的最终字重；测量与实际 DOM / Canvas / 光栅化渲染不得使用不同字重。
-- RAF / timeout / observer 必须在 effect cleanup 中释放。
+- 布局缓存的 key 要包含影响布局的主题、字体、最终字重、尺寸、tuning 和歌词内容；漏一项就会复用旧布局。
+- 长文本测量和分词结果不在 render 里反复重算。
+- 文字测量用 pretext，测量结构要和真实渲染结构一致，坑见 `reuse-project-utilities` 的 Text Layout And Measurement。
 
 ### Module Boundaries
 
@@ -162,8 +151,9 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - 单测通过是否只是放宽断言，而不是验证了目标行为？
 - 变更是否需要 UI 截图测试或手动性能观察，而不只是 unit test？
 - 新增缓存是否有失效条件，旧 DOM/canvas 节点是否会被清理？
-- 歌词和字幕是否统一使用 `resolveThemeFontWeight`，且最终字重已进入测量规格、memo 依赖和布局缓存键？
-- 是否存在会覆盖用户字重设置的 `font-bold`、`font-medium`、固定 `fontWeight` 或固定 Canvas / pretext 字体规格？
+- 歌词和字幕的字重是否走 `resolveThemeFontWeight`，没有用 `font-bold`、固定 `fontWeight` 覆盖用户设置？
+- 是否用字符串搜索推断歌词时序范围，却没处理重复文本和 offset？
+- 新功能是否让已经很大的 visualizer 文件继续膨胀，而没有拆出 layout / util / hook？
 - 新增 visualizer 是否遵守 registry、runtime、shell、subtitle overlay 的既有结构？
 
 ## Validation
@@ -173,19 +163,4 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - 纯歌词分割、时序映射、layout util：跑相关 Vitest 单测。
 - visualizer 交互、样式、截图回归：按 `testing-strategy` 判断是否跑 Playwright UI。
 - CPU、jank、逐帧动画：优先解释更新路径，并建议用浏览器 Performance 或 Electron 实测确认。
-- 不要为了 visualizer 小改默认跑完整 build；先读 `testing-strategy`。
-
-## Red Flags
-
-看到这些实现时要停下来重新设计：
-
-- `useMotionValueEvent`、RAF 或 observer 里每次回调都创建新引用并写入 state
-- 用 `useState`、store 或 reducer 每帧保存当前精确时间，再依赖 React rerender 推进动画
-- 每个字符一个 React state 或每帧重建字符强度数组
-- inactive segment 也持续写 state
-- 用字符串搜索推断歌词时序范围，却没有处理重复文本和 offset
-- render 阶段反复执行重型分词、测量、排序
-- 测试断言比需求更宽，无法约束时序、分割或性能目标
-- 新功能让已很大的 visualizer 文件继续膨胀，却没有拆 layout/util/hook
-- cache key 漏掉主题、字体、窗口尺寸或 tuning，导致旧布局复用
-- 歌词或字幕硬编码字重，或测量与实际渲染使用不同字重
+- 不要为了 visualizer 小改默认跑完整 build，见 `testing-strategy`。

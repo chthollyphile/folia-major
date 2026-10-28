@@ -5,9 +5,9 @@ description: Standardize Folia online-song data access around the Omni facade, i
 
 # Online Song Omni Routing
 
-Use this skill for every feature that exchanges data with an online music provider. For fast navigation, read `skills/codebase-navigation/SKILL.md`, then the relevant sections of `README.md`, `src/README.md`, and `src/services/onlineMusic/README.md`; treat `src/services/onlineMusic/omni.ts` and `src/types/onlineMusic.ts` as the public contract.
+Use this skill for every feature that exchanges data with an online music provider. `src/services/onlineMusic/omni.ts` and `src/types/onlineMusic.ts` are the public contract; `src/services/onlineMusic/README.md` has background when you need it.
 
-## Non-negotiable rule
+## The rule
 
 Unless the feature is explicitly cross-provider, route all online-song data interaction through `omni`.
 
@@ -126,7 +126,7 @@ One platform's rule stays with the platform. Shared code asks a capability or an
 
 ## Implementation workflow
 
-1. Read the relevant README sections and locate the actual Omni method/type, provider adapter, and transport.
+1. Locate the actual Omni method/type, provider adapter, and transport.
 2. Classify the feature using the boundary decision above. Write the cross-provider reason in the service/function name or a short comment when it is not obvious.
 3. Implement ordinary calls through Omni. If a normal capability is missing, extend the Omni contract instead of bypassing it.
 4. For provider changes, verify the raw contract with the provider-specific alignment skill and keep normalization inside the adapter.

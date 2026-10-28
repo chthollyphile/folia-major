@@ -26,7 +26,7 @@ README 是导航线索，不是代码真相。先按任务读取相关小片段�
 
 先用 `rg -n` 搜标题、脚本名、当前符号或路径，再打开命中位置附近 20-80 行。不要为了保险全文读取长 README。
 
-```powershell
+```bash
 rg -n "components/app|services/|visualizer|scripts|部署|Node|Docker" src/README.md README.md
 rg -n "VisualizerRenderer|registry|pendolo|sonnet|background" src/components/visualizer/README.md
 rg -n "Omni|provider|lyrics|playback|catalog" src/services/onlineMusic/README.md
@@ -54,5 +54,4 @@ rg -n "Node|/health|/settings|/themes|compose" sync-server/README.md deploy/dock
 
 - 只更新与当前代码/部署状态有关的段落；保持 README 可搜索、短路径明确。
 - 不要把完整源代码或大段接口响应复制进 README；给出第一入口和下一层即可。
-- 保留所有 `@note` 注释原文，不翻译、不缩短、不删除。
 - 文档任务的验证重点是路径、符号、命令、端口和配置值；不要为了 README 改动误跑完整构建。

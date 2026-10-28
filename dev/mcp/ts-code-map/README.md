@@ -1,6 +1,7 @@
 # ts-code-map
 
-把 TypeScript 的编译器能力包成 MCP 工具，替代 agent 在搜索阶段的全库 grep 和大文件通读。
+把 TypeScript 的编译器能力包成 MCP 工具，补上 rg 做不到的事：分清定义和引用、证明引用找全了、顺调用链往上追。
+日常定位先用 rg，什么时候升级到这里见 `skills/codebase-navigation/SKILL.md`。
 
 答案由编译器给出，因此**永远和代码同步**——这正是它要取代手维护路径表的原因。
 
@@ -18,9 +19,9 @@ node_modules/@typescript/typescript-<platform>-<arch>/lib/tsc --lsp -stdio
 
 | Tool | 用途 |
 | --- | --- |
-| `search` | 不确定要找什么时的默认入口：符号 → 文件名 → 全文，逐层降级。支持自然语言多词查询。 |
-| `find_symbol` | 按名称/模糊名称全库找符号，返回 `path:line`。代替 grep。 |
-| `file_outline` | 列出文件的符号结构（带行号）。代替通读大文件。 |
+| `search` | rg 拿不准、又不确定确切名字时用：符号 → 文件名 → 全文，逐层降级。支持自然语言多词查询。 |
+| `find_symbol` | 按名称/模糊名称全库找符号，返回 `path:line`。同名符号多、rg 分不清定义时用。 |
+| `file_outline` | 列出文件的符号结构（带行号）。大文件只想看提纲时用。 |
 | `inspect_symbol` | 看签名、类型、JSDoc、行范围、成员；`body=true` 才给源码。 |
 | `references` | 一个符号的**完整影响面**：语义引用（按 write/read/type/test 分组）+ 同名的其他声明 + 仅文本命中的文件。文件列表不截断。 |
 | `callers` | 谁调用了这个函数，可按 `depth` 顺调用链往上追。 |

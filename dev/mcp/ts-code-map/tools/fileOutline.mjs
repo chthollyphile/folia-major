@@ -6,7 +6,7 @@ export default {
     name: 'file_outline',
     description:
         '列出一个文件的符号结构（带行号），用来代替通读大文件。'
-        + '想知道某文件里有什么、某个东西在第几行时用它，不要直接 Read 整个文件。'
+        + '文件很大、只想知道里面有什么或某个东西在第几行时用它，比通读省得多。'
         + '默认只列顶层；要看某个符号的成员用 inspect_symbol。',
     inputSchema: {
         type: 'object',

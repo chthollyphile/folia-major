@@ -156,7 +156,7 @@ CJK 语义分组、sticky 标点、英文 contraction 已有布局工具：
 - `segmentTextWords(text)` —— 没有 `Line` 时的无覆盖版本
 - `segmentsFromBoundaries(boundaries)`、`isValidWordSegmentation(text, boundaries)`
 
-**不要再写 `new Intl.Segmenter(..., { granularity: 'word' })`。** 这里原本有三份各自为政的实现
+不要再写 `new Intl.Segmenter(..., { granularity: 'word' })`。这里原本有三份各自为政的实现
 （`cjkSemanticLayout`、`sonnetSemantic`、`temperaProgram`，后两份逐字重复），用户的精细分词
 （命令 `lyric-segmentation`）就没法一次覆盖到所有模式。`granularity: 'grapheme'` 是另一回事，
 走 `graphemeTiming.ts`，与这里无关。
@@ -204,21 +204,9 @@ visualizer 颜色混合和 alpha 已有 helper：
 
 组件颜色必须来自当前 `Theme` / `DualTheme` 流程。新增 UI 或 visualizer 颜色时，不要把只适合单一明暗背景的固定 hex / rgba 当成主色长期写死；应从 `theme.backgroundColor`、`theme.primaryColor`、`theme.accentColor`、`theme.secondaryColor` 或由 `buildBuiltinDualTheme` / `useThemeController` 选出的当前明暗主题动态派生，并确保 light / dark 两套颜色都有可读对比。临时 alpha、shadow 和 gradient 也应基于主题色再用 `colorWithAlpha` / `mixColors` 生成。
 
-### Icons
+### Icons And Animation
 
-项目使用 `lucide-react`。按钮、tab、控制项、状态动作优先从 lucide 导入图标。
-
-不要手写 SVG，除非现有 icon 库没有合适图标或需要项目专属图形。
-
-### Animation
-
-项目使用 `framer-motion`：
-
-- 普通 enter/exit：`motion`、`AnimatePresence`
-- 播放进度和时间值：`MotionValue`、`useMotionValueEvent`
-- 派生动画值：`useTransform`、`useSpring`
-
-新增动画先看相邻组件模式。涉及高频运行时，再结合 `frontend-runtime-guardrails`。
+图标只用 `lucide-react`（见 `AGENTS.md`），lucide 没有合适的、或者是项目专属图形时才手写 SVG。动画用 `framer-motion`，先看相邻组件怎么写；高频运行时的约束见 `frontend-runtime-guardrails`。
 
 ### Dialogs
 
@@ -236,23 +224,9 @@ visualizer 颜色混合和 alpha 已有 helper：
 - 抛出的错要拆成字段或者一句话（放进一个对象、一条记录、界面上的一行字）：`errorFields` / `errorMessage`（`src/utils/errorText.ts`），都是原文。打日志能直接交 Error 本身就直接交，会话日志会记下它的调用栈。
 - 「这是不是 Mac / Windows」：`src/utils/platform.ts`。
 
-### i18n
+### i18n、设置和命令
 
-UI 文案使用 `react-i18next`：
-
-```ts
-const { t } = useTranslation();
-```
-
-任何新增到 UI 上的用户可见文本都必须准备 i18n key，并同步写入 `src/i18n/locales/` 的三份：`en.ts`、`zh-CN.ts` 和 `in.ts`。不要把按钮、标题、提示、空态、设置项、tooltip、toast 或模式文案只写成硬编码字符串；短 fallback 只能作为现有 registry / 兼容模式的兜底，不能替代字典项。
-
-### Settings And Commands
-
-新增设置时先套用 `settings-feature-integration`：
-
-- 视觉相关设置必须进入 `src/components/modal/settings/pages/storage/visualConfigTransfer.ts` 的导入导出链路。
-- 功能性设置或可执行动作必须注册成命令，写在 `src/components/command-palette/commands/<group>Commands.ts`（`commandRegistry.ts` 只负责拼接和过滤）。
-- 设置状态优先复用已有 store：弹窗 UI 状态在 `src/stores/useSettingsModalStore.ts`，设置值在对应领域的 `use*SettingsStore`（`useAudioSettingsStore`、`useLyricSettingsStore`、`useThemeSettingsStore`、`useTypographySettingsStore` 等）。不要在组件里另起一套 localStorage 读写。
+界面文字走 `react-i18next` 的 `t()`，三份语言文件一起加（见 `AGENTS.md` 的“界面”）；registry 里的短 fallback 只是兼容兜底，不能代替字典项。新增设置和命令的接入点见 `settings-feature-integration`。
 
 ### Long Lists
 
@@ -278,7 +252,6 @@ const { t } = useTranslation();
 
 - 请求、缓存、接口适配一个文件，React 生命周期和用户动作编排一个 hook 或 builder，纯计算、映射、格式化一个文件，展示和交互一个组件。
 - 两个以上功能都要用的，才放进共用的 `src/services`、`src/hooks`、`src/utils`。
-- 普通在线歌曲调用必须走 `onlineMusic/omni.ts`；不要在 component/hook/store 中直接调用 provider adapter 或 transport。
 - app-level props、导航和动作组装优先查 `src/components/app/*/build*.ts` / `create*.ts`，不要在 `App.tsx` 重新复制一套映射。
 
 ## Extension Rule
@@ -301,15 +274,12 @@ const { t } = useTranslation();
 - 是否直接使用 `line.endTime`，但应该使用 `getLineRenderEndTime`？
 - 是否手写 SVG，而 lucide 已有图标？
 - 是否新建了 service 请求逻辑，但已有 service 已经封装同类 API？
-- 是否绕过 `onlineMusic/omni.ts`，或丢失 `sourceRef/providerId` 造成跨 provider 误去重？
+- 是否丢失 `sourceRef/providerId` 造成跨 provider 误去重？
 - 是否复制了本地库索引、播放身份、Stage/OBS/PlayerCap 的现有转换 helper？
 - 是否绕过 `src/services/sync/*`，直接对同步服务发 fetch，或直接读写主题同步 registry / IndexedDB？
 - 是否对大量列表使用普通 `.map()` 而不是虚拟列表？
-- 是否新增硬编码文案却没有更新 i18n 字典？
-- 是否新增设置却没有接入视觉配置导入导出或 command palette？
 - 是否新增固定颜色却没有从 `Theme` / `DualTheme` 动态派生并检查明暗两套表现？
-- 是否硬编码歌词或字幕字重，而没有使用 `resolveThemeFontWeight` 和模式 fallback？
-- DOM、Canvas、pretext、光栅化的最终字重以及布局缓存键是否一致？
+- 歌词或字幕字重是否走 `resolveThemeFontWeight`，DOM、Canvas、pretext、光栅化和布局缓存键用的是不是同一个最终字重？
 - pretext 测量的文本结构是否和实际渲染结构一致？渲染成 `inline-block` token 时要用 rich-inline 的 `break: 'never'`，DOM 上是 `whitespace-pre-wrap` 时要传 `{ whiteSpace: 'pre-wrap' }`。
 - 是否创建了相似 helper，却没有搜索已有实现或测试？
 

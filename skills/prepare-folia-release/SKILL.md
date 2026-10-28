@@ -14,8 +14,8 @@ Prepare release files and hand the user paste-ready notes. Do not commit, tag, p
 3. Treat `<base-tag>..HEAD` as the release range. Record the base tag and full HEAD SHA.
 4. Inspect both commits and actual changes:
 
-```powershell
-git log --reverse --format="%H`t%s" <base-tag>..HEAD
+```bash
+git log --reverse --format='%H%x09%s' <base-tag>..HEAD
 git diff --stat <base-tag>..HEAD
 git diff --name-only <base-tag>..HEAD
 ```
@@ -47,7 +47,7 @@ Use the desktop target version consistently:
    - write in that locale's existing language and tone. The current locales are `en.ts`, `in.ts`, and `zh-CN.ts`.
 3. Set `USER_GUIDE_AUTO_OPEN_VERSION` in `src/components/modal/userGuideContent.ts` to `A.B.C`.
 
-Keep card IDs identical across the release definition and all locales. Preserve comments, especially `@note` comments.
+Keep card IDs identical across the release definition and all locales.
 
 ## 4. Update release versions
 
@@ -70,7 +70,7 @@ The eventual release commit's complete message must be exactly `release: vA.B.C`
 3. Confirm every feature card has text in every locale and `USER_GUIDE_AUTO_OPEN_VERSION` matches the desktop version.
 4. Run:
 
-```powershell
+```bash
 git diff --check
 npm run test:unit -- test/unit/realecoReleaseMetadata.test.ts
 bash deploy/docker/scripts/validate-version.sh deploy/docker/VERSION <previous-docker-version>
