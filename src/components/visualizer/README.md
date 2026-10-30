@@ -240,7 +240,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 - `nebbiaMask.ts` + `nebbiaInk.ts`：每帧在半分辨率 2D 画布上画擦痕遮罩（按演唱时长一笔一笔写）
 - `nebbiaGlyphs.ts`：字形来源依次是 lucide 图标、AnimCJK 笔顺（`nebbiaStrokes.ts`）、主题字体的骨架追踪（`nebbiaSkeleton.ts`）。笔顺数据是 Arphic Public License，能否随应用分发未定，不进仓库：用原型的 `tools/build-strokes.mjs` 生成 `public/nebbia-strokes.json`（已 gitignore），没有时中日文也走骨架，笔顺是估的
 - `nebbiaHits.ts`：雨点打窗，每 20 ms 一格、格内随机只由歌和格号决定。智能动感模式的「疏雨轻车」（`entry.tsx` 的 `beatEffects`，`source: 'stems'`，两个分项各一条滑杆）开着、这首歌分析过时，雨点跟人声：跟 HTDemucs 分出的人声轨走（`services/analysis/vocalEnvelope.ts`，每帧按 `getBeatFxHeard().key` 取），小雨点按逐帧响度在 ±1.5 秒内的范围归一后的能量落，大雨点砸在起音上，和原型一样；雨点强度乘小雨点密度和大雨点大小（大雨点按 1 倍排好，画的时候才乘，拖滑杆不重排），拉到 0 不下雨。否则退回播放器的人声频段（`audioBands.vocal`，自适应归一），大雨点在六成的词开唱时砸
-- `nebbiaDrizzleRide.ts`：疏雨轻车每帧读的那份（开关、两条强度、人声轨包络，推着鼓点颠簸）。`nebbiaDrumBumps.ts`：疏雨轻车的鼓点颠簸。这首歌有鼓点（`getDrumHits`，同一趟分离）时车只在底鼓上颠（力度 ≥ 0.35，至少隔 0.3 秒，幅度随力度，乘这一项的强度和 tuning 的颠簸），不再随机颠；拖进度只挪游标不补颠。没鼓、没分析完时照旧随机颠
+- `nebbiaDrizzleRide.ts`：疏雨轻车每帧读的那份（开关、两条强度、人声轨包络，推着鼓点颠簸）。`nebbiaDrumBumps.ts`：疏雨轻车的鼓点颠簸。这首歌有鼓点（`getDrumHits`，同一趟分离）时车只在底鼓上颠（力度 ≥ 0.35，至少隔 0.3 秒，幅度随力度，乘这一项的强度和 tuning 的颠簸），不再随机颠；拖进度只挪游标不补颠。没鼓、没分析完时随机颠；智能动感关着时不颠
 - `nebbiaSpot.ts`：两盏聚光灯追正在唱的字（目标沿字连续移动 + 临界阻尼弹簧 + 平滑时钟，避免一抽一抽）
 - `nebbiaPalette.ts`：主题 → 窗外配色（背景压成夜色，强调色是聚光灯和霓虹）
 - 歌词字号由排版决定，通用字号设置作为倍数；不画共用背景（`background: false`）

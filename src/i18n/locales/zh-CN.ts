@@ -2683,7 +2683,7 @@ export default {
     "beatEffect_temperaInkFlash": "墨染奥行",
     "beatEffect_temperaInkFlashDesc": "给凝彩加上景深和运镜：水印和背景图片在后、略虚，前景图片在前、更虚，随镜头前后错开；每个镜头朝上下左右随机一个方向平移；字越大越近越实，越小越远越淡。并跟着 HTDemucs 分离出的鼓声：平时纸面带一层浅灰水渍，底鼓、军鼓打下时漫过一片墨渍，约半秒淡回，墨色跟随凝彩配色的强调色。",
     "beatEffect_nebbiaDrizzleRide": "疏雨轻车",
-    "beatEffect_nebbiaDrizzleRideDesc": "雾笺的雨和车跟着 HTDemucs 分离出的歌走：雨跟人声，唱得越响，砸在玻璃上的小雨点越多，每个吐字砸下一颗大雨点，躲开正在唱的那句；车跟底鼓颠，不再随机颠簸。雨点和颠簸各有一条强度，拉到 0 就不下雨或不颠。歌还没分析完时，雨点跟着混音里人声那一段频率走，车照旧随机颠。",
+    "beatEffect_nebbiaDrizzleRideDesc": "雾笺的雨和车跟着 HTDemucs 分离出的歌走：雨跟人声，唱得越响，砸在玻璃上的小雨点越多，每个吐字砸下一颗大雨点，躲开正在唱的那句；车跟底鼓颠，关掉智能动感就不颠。雨点和颠簸各有一条强度，拉到 0 就不下雨或不颠。歌还没分析完时，雨点跟着混音里人声那一段频率走，车先随机颠。",
     "beatEffectPart_nebbiaRain": "雨点强度",
     "beatEffectPart_nebbiaBump": "颠簸强度",
     "beatEffect_pendoloGearBeats": "齿轮随拍",

@@ -7,7 +7,7 @@ import { getBeatEffectStrength, getBeatFxHeard, isBeatEffectPlaying } from '../.
 
 // src/components/visualizer/nebbia/nebbiaDrizzleRide.ts
 // 智能动感模式「疏雨轻车」每帧读的那一份（从 createNebbiaRuntime.ts 拆出）：开着时车跟底鼓颠、雨跟人声轨，
-// 雨点、颠簸各一条强度；关着时两样都按 1，雨走频段、车随机颠。
+// 雨点、颠簸各一条强度；关着时雨按 1 走频段，车不颠。
 
 const DRIZZLE_RIDE = BEAT_EFFECT_IDS.nebbiaDrizzleRide;
 const DRIZZLE_RIDE_RAIN = beatEffectPartId(DRIZZLE_RIDE, 'rain');
@@ -21,14 +21,14 @@ export class NebbiaDrizzleRide {
     rain = 1;
 
     /**
-     * 开一帧的玻璃运动并读这一帧的效果：这首有鼓点就由底鼓颠（没鼓、没分析完的照旧随机颠），强度乘颠簸幅度
+     * 开一帧的玻璃运动并读这一帧的效果：开着时这首有鼓点就由底鼓颠（没鼓、没分析完的随机颠），关着不颠；强度乘颠簸幅度
      * `bump`；`env`、`rain` 随后读。
      */
     step(motion: NebbiaGlassMotion, now: number, T: number, frozen: boolean, bump: number) {
         const on = isBeatEffectPlaying(DRIZZLE_RIDE);
         const key = on ? getBeatFxHeard().key : null;
         const drums = on ? getDrumHits(key) : null;
-        motion.beginFrame(now, frozen, !drums);
+        motion.beginFrame(now, frozen, on && !drums);
         if (drums && !frozen) {
             const jolt = this.drumBumps.step(drums, key, T);
             const strength = getBeatEffectStrength(DRIZZLE_RIDE_BUMP);

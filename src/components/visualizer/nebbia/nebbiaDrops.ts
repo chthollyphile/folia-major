@@ -57,7 +57,7 @@ export class NebbiaGlassMotion {
         this.H = H;
     }
 
-    /** 每帧开头：清空实例，按时间偶尔颠一下（`randomBumps` 为 false 时颠簸跟鼓点，由外面 trigger）。paused 时不颠。 */
+    /** 每帧开头：清空实例，按时间偶尔颠一下（`randomBumps` 为 false 时不随机颠：跟鼓点时由外面 trigger，智能动感关着时不颠，nebbiaDrizzleRide.ts）。paused 时不颠。 */
     beginFrame(now: number, paused: boolean, randomBumps = true) {
         this.now = now;
         this.drops.length = 0;

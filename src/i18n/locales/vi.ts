@@ -2683,7 +2683,7 @@ export default {
     "beatEffect_temperaInkFlash": "Chiều sâu Sumizome",
     "beatEffect_temperaInkFlashDesc": "Tạo chiều sâu và camera chuyển động cho Tempera: hình chìm và ảnh nền nằm phía sau và hơi nhòe, ảnh tiền cảnh nằm phía trước và nhòe hơn, tách xa nhau khi camera di chuyển; mỗi cảnh lia lên, xuống, sang trái hoặc sang phải; chữ lớn hơn ở gần và đậm hơn, chữ nhỏ hơn ở xa và nhạt hơn. Còn theo tiếng trống do HTDemucs tách: trang giấy phủ một vệt loang xám nhạt, mỗi tiếng kick và snare lại loang một vết mực khắp màn hình rồi phai đi trong nửa giây, bằng màu nhấn trong bảng màu của Tempera.",
     "beatEffect_nebbiaDrizzleRide": "Mưa bụi xe nhẹ",
-    "beatEffect_nebbiaDrizzleRideDesc": "Mưa và chiếc xe của Nebbia đi theo bài hát do HTDemucs tách ra. Mưa theo giọng hát: hát càng to, càng nhiều giọt nhỏ đập vào kính, và mỗi âm tiết rơi xuống một giọt lớn, tránh dòng đang hát. Xe xóc theo tiếng trống kick thay vì ngẫu nhiên. Mưa và xóc mỗi thứ có cường độ riêng; ở mức 0 thì không mưa hoặc không xóc. Khi bài chưa phân tích xong, mưa đi theo dải tần giọng hát của bản phối và xe xóc ngẫu nhiên.",
+    "beatEffect_nebbiaDrizzleRideDesc": "Mưa và chiếc xe của Nebbia đi theo bài hát do HTDemucs tách ra. Mưa theo giọng hát: hát càng to, càng nhiều giọt nhỏ đập vào kính, và mỗi âm tiết rơi xuống một giọt lớn, tránh dòng đang hát. Xe xóc theo tiếng trống kick; khi tắt chế độ nhịp thông minh thì xe không xóc. Mưa và xóc mỗi thứ có cường độ riêng; ở mức 0 thì không mưa hoặc không xóc. Khi bài chưa phân tích xong, mưa đi theo dải tần giọng hát của bản phối và tạm thời xe xóc ngẫu nhiên.",
     "beatEffectPart_nebbiaRain": "Độ mạnh mưa",
     "beatEffectPart_nebbiaBump": "Độ mạnh xóc",
     "beatEffect_pendoloGearBeats": "Nhịp bánh răng",
