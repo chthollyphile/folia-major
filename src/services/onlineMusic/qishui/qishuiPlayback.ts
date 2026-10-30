@@ -3,6 +3,7 @@ import type { OnlinePlaybackProvider, ProviderAudioSource, ProviderSongAvailabil
 import { normalizeQishuiSong } from './qishuiNormalize';
 import { qishuiSongId } from './qishuiMutations';
 import { QishuiRequestError, requestQishui } from './qishuiTransport';
+import { TAKEN_DOWN_CONFIRMED, TRACK_NOT_RETURNED } from './qishuiSentences';
 
 // Qishui's playback side: one song's detail by id, its plaintext audio address, and its playability checks.
 // Explicit playability checks are short-lived account facts; playback failures never change them.
@@ -53,11 +54,20 @@ export async function readQishuiSongs(raw: unknown[]) {
     }
     return songs;
 }
-// The package's sentence when the service answered a look-up without the track (qishui-music-api@0.2.2,
-// src/catalog.cjs `track`). For song_detail it is the only not-playable there is: the other failures of
-// that operation are network, auth-required, unavailable or invalid-response. An audio request meets the
-// same sentence for a media the service will not serve, which is why qishuiFailure also reads it.
-export const TRACK_NOT_RETURNED = 'Qishui did not return the track';
+// The service's own record for one media, asked once after an audio request came back empty: only `status`
+// 20 is the service saying it will not serve this media at all (see statusAvailabilityOf above). Any other
+// answer, and a failed check, leaves the original failure as it was — an empty audio answer is never on its
+// own a takedown, and must not gain the label from a guess.
+const notServedByService = async (id: string): Promise<boolean> => {
+    try {
+        const data = await requestQishui<{ statuses: QishuiTrackCheck[] }>('check_tracks', { ids: [id] });
+        return data.statuses.some(row => String(row.id) === id && row.status === NOT_SERVED_STATUS);
+    } catch (error) {
+        // A failed optional check must not replace the failure that made the address request fail.
+        console.warn('[Qishui] Playability re-check failed', error);
+        return false;
+    }
+};
 export const qishuiPlayback: OnlinePlaybackProvider = {
     audioQualityLevels: ['standard'],
     async getSongDetail(id) {
@@ -70,7 +80,17 @@ export const qishuiPlayback: OnlinePlaybackProvider = {
         }
         return (await readQishuiSongs([raw]))[0];
     },
-    getAudioSource: (song, quality) => requestQishui<ProviderAudioSource>('audio', { id: qishuiSongId(song), quality }),
+    async getAudioSource(song, quality) {
+        const id = qishuiSongId(song);
+        try { return await requestQishui<ProviderAudioSource>('audio', { id, quality }); }
+        catch (error) {
+            // The service answered without the media: ask its own record for this one before calling it a
+            // takedown. The same sentence is also what a look-up by id means by "missing" (getSongDetail).
+            if (!(error instanceof QishuiRequestError) || error.code !== 'not-playable' || error.message !== TRACK_NOT_RETURNED) throw error;
+            if (!await notServedByService(id)) throw error;
+            throw new QishuiRequestError('not-playable', TAKEN_DOWN_CONFIRMED, null);
+        }
+    },
     getAvailability(song) {
         const check = checks.get(qishuiSongId(song));
         return check && Date.now() - check.at < 60_000 ? check.availability : { state: 'unknown' };
