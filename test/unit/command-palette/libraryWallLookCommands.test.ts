@@ -231,7 +231,7 @@ describe('bravais info strip and backdrop commands', () => {
 });
 
 describe('bravais info strip direction picker', () => {
-    it('is offered while bravais is the effective suite, lists auto / vertical / horizontal and applies the pick', async () => {
+    it('is offered while bravais is the effective suite, lists auto / auto-reverse / vertical / horizontal and applies the pick', async () => {
         const picker = command('library-wall-seam-direction-picker');
         expect(picker.surface).toBeDefined();
         expect(picker.executeShortcut).toBeUndefined();
@@ -240,7 +240,7 @@ describe('bravais info strip direction picker', () => {
 
         const { context, setLibraryWallSeamDirection } = createContext({ available: true, look: 'solid', windows: 3, seamDirection: 'auto' });
         const matches = libraryWallSeamDirectionPickerSurface.buildMatches!({ context, query: '' });
-        expect(matches.map(match => readLibraryWallPick(match.command.id))).toEqual(['auto', 'vertical', 'horizontal']);
+        expect(matches.map(match => readLibraryWallPick(match.command.id))).toEqual(['auto', 'auto-reverse', 'vertical', 'horizontal']);
         expect(matches[0].command.description).toMatch(/^In use/);
         const byLabel = libraryWallSeamDirectionPickerSurface.buildMatches!({ context, query: 'horiz' });
         expect(byLabel.map(match => readLibraryWallPick(match.command.id))).toEqual(['horizontal']);

@@ -106,6 +106,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "lyrics_staff_min_dwell",
   "lyrics_staff_pattern",
   "lyrics_staff_policy",
+  "machi_tuning",
   "minimize_to_tray",
   "mod_system_enabled",
   "monet_background_tuning",

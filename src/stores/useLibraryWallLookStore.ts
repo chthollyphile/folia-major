@@ -12,7 +12,7 @@ import { normalizeLibraryWallSeamDirection, type LibraryWallSeamDirection } from
 // windowsPerBlock（1–6，默认 3）；集合磁贴的叠页边开关 collectionStackEdges（默认开，设计稿 §7.7）；
 // 信息条（缝）的材质：始终透明 seamClear（默认开，用户定 2026-10-09）与实色模式的预设 seamStyle（默认主题纸色，透明开着时不生效）；
 // 透出的播放页画面（backdrop）要不要画歌词文字 backdropLyrics、要不要模糊 backdropBlur（都默认关，§11「墙后的画面」）；
-// 信息条的方向 seamDirection：竖向 / 横向（从块的横向缝隙裂开成横条）/ 自动（按视口宽高比，默认），见 utils/libraryWallSeamDirection。
+// 信息条的方向 seamDirection：竖向 / 横向（从块的横向缝隙裂开成横条）/ 自动（按视口宽高比，默认）/ 自动（反向），见 utils/libraryWallSeamDirection。
 // 放在 app 层而不是 suite 里，因为设置 UI（components/modal/settings）不能 import suite；bravais 的 stage 读这里。
 // 只在 bravais 是生效 suite 时才有界面入口（library/app/bravaisLibraryActive；界面设置的「Bravais」分组）。
 //

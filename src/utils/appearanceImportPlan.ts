@@ -201,7 +201,7 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'stageTrackPillMode',
     // applyImportedConfig only applies a known info strip preset, all of which are truthy strings.
     'libraryWallSeamStyle',
-    // Likewise a known info strip direction (auto / vertical / horizontal).
+    // Likewise a known info strip direction (auto / auto-reverse / vertical / horizontal).
     'libraryWallSeamDirection',
 ]);
 

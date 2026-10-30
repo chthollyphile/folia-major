@@ -297,7 +297,7 @@ export type CommandPaletteSettingsContext = {
     /** Lyrics / blur on the visualizer that shows through the bravais wall: flip the stored values. */
     toggleLibraryWallBackdropLyrics: () => void;
     toggleLibraryWallBackdropBlur: () => void;
-    /** Which way the bravais info strip opens (useLibraryWallLookStore.seamDirection: auto / vertical / horizontal); read live. */
+    /** Which way the bravais info strip opens (useLibraryWallLookStore.seamDirection: auto / auto-reverse / vertical / horizontal); read live. */
     libraryWallSeamDirection: () => LibraryWallSeamDirection;
     setLibraryWallSeamDirection: (direction: LibraryWallSeamDirection) => void;
     ponderHintVisibility: PonderHintVisibility;

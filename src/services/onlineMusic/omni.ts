@@ -979,6 +979,11 @@ export const omni = {
         return audioSourceLevels.get(audioSourceLevelKey(url))?.preview === true;
     },
 
+    // The i18n key of the notice for a preview clip of a provider's song (`OnlinePlaybackProvider.previewNoticeKey`).
+    previewNoticeKey(providerId: OmniProviderId): string {
+        return getOnlineMusicProvider(providerId)?.playback?.previewNoticeKey ?? 'status.songPreviewOnly';
+    },
+
     // Cheap invalidation for playback's small per-URL cache: a provider may reuse a URL with
     // different metadata, and the bounded registry may evict a previously remembered URL.
     audioSourceMetadataVersion(): number {

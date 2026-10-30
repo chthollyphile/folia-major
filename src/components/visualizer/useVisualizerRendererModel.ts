@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PlayerState, type Theme, type VisualizerMode } from '../../types';
 import type { VisualizerBackgroundConfig } from './backgrounds/definition';
@@ -23,6 +23,7 @@ import {
 } from '../../stores/usePlaybackStore';
 import { getSongAlbumLabel, getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getVisualizerRegistryEntry } from './registry';
+import { getVisualizerTuning } from './tuningRegistry';
 import { useVisualizerBackgroundConfig } from './useVisualizerBackgroundConfig';
 import { useVisualizerStyleAssets } from './useVisualizerStyleAssets';
 import { useVisualizerTunings } from './useVisualizerTunings';
@@ -85,6 +86,13 @@ export const useVisualizerRendererModel = ({
     const visualizerOpacity = useVisualizerSettingsStore(state => state.visualizerOpacity);
     const disableGeometricBackground = useVisualizerSettingsStore(state => state.disableVisualizerGeometricBackground);
     const onMonetTuningChange = useVisualizerSettingsStore(state => state.handleSetMonetTuning);
+    // A change the style on screen makes to its own tuning (Machi's camera dragged to a pinned view): saved through
+    // the store action its tuning.ts names (an action needs no subscription).
+    const onVisualizerTuningChange = useCallback((patch: object) => {
+        const tuning = getVisualizerTuning(visualizerMode);
+        const save = tuning && (useVisualizerSettingsStore.getState() as unknown as Record<string, unknown>)[tuning.settingsSetterKey];
+        if (typeof save === 'function') save(patch);
+    }, [visualizerMode]);
     const typography = useTypographySettingsStore(useShallow(state => ({
         lyricsFontScale: state.lyricsFontScale,
         subtitleFontScale: state.subtitleFontScale,
@@ -171,6 +179,7 @@ export const useVisualizerRendererModel = ({
         isPlayerChromeHidden,
         hideTranslationSubtitle,
         visualizerTunings,
+        onVisualizerTuningChange,
         onMonetTuningChange,
         ...assets,
         // Only a style that reads a click on a lyric line says so in its entry; the rest have no line

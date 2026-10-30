@@ -55,6 +55,9 @@ export const BEAT_EFFECT_IDS = {
     hanabiBeatBursts: 'hanabi.beatBursts',
     hanabiBeatPulse: 'hanabi.beatPulse',
     temperaInkFlash: 'tempera.inkFlash',
+    machiNeonPulse: 'machi.neonPulse',
+    machiDrumRipple: 'machi.drumRipple',
+    machiScreenFlash: 'machi.screenFlash',
     nebbiaDrizzleRide: 'nebbia.drizzleRide',
 } as const;
 
@@ -78,7 +81,12 @@ export const resolveBeatEffectSetting = (settings: SmartBeatSettings, id: string
  * The effects that read drum hits (`source: 'drums'`), on any picture. Their declarations live on the
  * registry entries, which this service may not import, so the list is spelled out here.
  */
-export const DRUM_BEAT_EFFECT_IDS: readonly string[] = [BEAT_EFFECT_IDS.pendoloDrumhead, BEAT_EFFECT_IDS.temperaInkFlash];
+export const DRUM_BEAT_EFFECT_IDS: readonly string[] = [
+    BEAT_EFFECT_IDS.pendoloDrumhead,
+    BEAT_EFFECT_IDS.temperaInkFlash,
+    BEAT_EFFECT_IDS.machiDrumRipple,
+    BEAT_EFFECT_IDS.machiScreenFlash,
+];
 
 /** Whether any drum-hit effect is switched on, whichever picture is on screen. */
 export const anyDrumBeatEffectOn = (settings: SmartBeatSettings): boolean =>

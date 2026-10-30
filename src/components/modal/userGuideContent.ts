@@ -13,7 +13,7 @@ export type UserGuideShortcut = {
 export type GuidePage = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const USER_GUIDE_PAGE_COUNT = 7;
-export const USER_GUIDE_AUTO_OPEN_VERSION: string | null = '0.7.23';
+export const USER_GUIDE_AUTO_OPEN_VERSION: string | null = '0.7.24';
 
 export type HelpTabShortcut = {
     id: string;

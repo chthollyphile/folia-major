@@ -383,6 +383,12 @@ export interface OnlinePlaybackProvider {
      * one of them than it was asked for says so in the source's `quality`.
      */
     audioQualityLevels?: readonly AudioQualityPreference[];
+    /**
+     * The i18n key of the notice shown when a preview clip of this provider's song plays
+     * (`ProviderAudioSource.preview`), for a provider whose clips mean something else than
+     * "this account may only preview it". Without it, `status.songPreviewOnly`.
+     */
+    previewNoticeKey?: string;
     getAvailability?(song: SongResult): ProviderSongAvailability;
     getReplacement?(song: SongResult): Promise<ProviderSongReplacement | null>;
     /**

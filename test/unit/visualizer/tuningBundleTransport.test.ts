@@ -55,12 +55,17 @@ describe('lyric style tunings travel in the bundle alone', () => {
         useVisualizerSettingsStore.setState(structuredClone(defaults));
     };
 
+    // A style whose fields are all named choices (no switch or number to nudge) gets a hand-picked change.
+    const CHOICE_PATCHES: Record<string, Record<string, unknown>> = {
+        machi: { weather: 'snow' },
+    };
+
     // Moves every style off its defaults through the store's own setter, so what is exported is a
     // value the store accepts. Returns the tunings the store then holds.
     const customiseEveryStyle = () => {
-        for (const { settingsKey, settingsSetterKey } of tuningFiles) {
+        for (const { mode, settingsKey, settingsSetterKey } of tuningFiles) {
             const current = readStore()[settingsKey] as Record<string, unknown>;
-            const patch: Record<string, unknown> = {};
+            const patch: Record<string, unknown> = { ...CHOICE_PATCHES[mode] };
             for (const [field, value] of Object.entries(current)) {
                 if (typeof value === 'boolean') patch[field] = !value;
                 if (typeof value === 'number') patch[field] = value * 0.9;

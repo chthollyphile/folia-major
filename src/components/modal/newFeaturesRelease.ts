@@ -1,4 +1,4 @@
-import { AudioLines, Droplets, Languages, ListFilter, Sparkles, Volume2 } from 'lucide-react';
+import { Captions, CloudRain, ListMusic, Sparkles, Store } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // src/components/modal/newFeaturesRelease.ts
@@ -17,13 +17,13 @@ type NewFeaturesRelease = {
 
 // Defines the current release's cards; their localized text lives under i18nKey in every locale.
 export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
-    i18nKey: 'releaseNotes.v0_7_23',
+    i18nKey: 'releaseNotes.v0_7_24',
+    majorUpdate: { codename: 'Rainy' },
     features: [
-        { id: 'hifi', icon: AudioLines },
-        { id: 'smartBalance', icon: Volume2 },
-        { id: 'lyricFilter', icon: ListFilter },
-        { id: 'temperaInk', icon: Droplets },
-        { id: 'vietnamese', icon: Languages },
+        { id: 'nebbia', icon: CloudRain },
+        { id: 'machi', icon: Store },
+        { id: 'subtitleRows', icon: Captions },
+        { id: 'remoteQueue', icon: ListMusic },
         { id: 'moreDetails', icon: Sparkles },
     ],
 };

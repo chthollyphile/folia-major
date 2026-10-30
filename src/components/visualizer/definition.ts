@@ -170,6 +170,8 @@ export interface VisualizerQuickControlsProps<T = any> {
     tuning: T;
     onTuningChange: (patch: Partial<T>) => void;
     settings: VisualizerTuningSettings;
+    /** Closes the player panel the controls sit in: for a control that opens something on the player page itself (Machi's viewfinder bar). */
+    onClosePanel?: () => void;
 }
 
 export interface VisualizerRegistryEntry {
