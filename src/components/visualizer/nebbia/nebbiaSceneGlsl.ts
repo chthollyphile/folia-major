@@ -59,7 +59,11 @@ vec4 building(vec2 q, float b, float t, float layer) {
   float cw = mix(0.065, 0.12, near), aa = max(b, 0.0012);
   float c0 = floor(x / cw);
   vec4 res = vec4(0.0);
+  // 每栋楼（连收分顶层、天线）都落在自己那一格里，左右邻居只在离格边不到模糊半径（再加天线宽）时才碰得到这个像素：
+  // 离得更远时邻居的覆盖度必然是 0，跳过，画面不变。清晰窗外模糊半径很小，大部分像素只用算本格一栋
+  float fx = x - c0 * cw, reach = aa + 0.0013;
   for (float k = -1.0; k <= 1.0; k++) {
+    if ((k < 0.0 && fx > reach) || (k > 0.0 && cw - fx > reach)) continue;
     float n = c0 + k + layer * 100.0;
     float w = cw * (0.72 + 0.26 * h1(n));
     float left = (c0 + k) * cw + (cw - w) * h1(n + 1.0);
