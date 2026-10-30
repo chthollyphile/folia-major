@@ -171,11 +171,14 @@ vec3 scene(vec2 q, float b) {
   // 湿路面和倒影
   float road = smoothstep(ROAD - aa, ROAD + aa, q.y);
   col = mix(col, uSky0 * 0.5, road * 0.85);
-  vec2 qr = vec2(q.x, ROAD - (q.y - ROAD) * 0.55);
-  col += lampsSigns(qr, b + 0.012, t) * road * 0.35;
-  // 霓虹倒影：纵向压得更扁，所以在湿路面上拉成竖直的光柱（雨湖的倒影做法）
-  vec2 qn = vec2(q.x, HZ - (q.y - ROAD) * 0.22);
-  col += neonLights(qn, b + 0.008, t) * road * 0.45 * uNeon;
+  // 倒影都乘 road，路面以上恰好是 0：直接跳过，画面不变，省掉屏上大半像素的两整套招牌、霓虹计算
+  if (road > 0.0) {
+    vec2 qr = vec2(q.x, ROAD - (q.y - ROAD) * 0.55);
+    col += lampsSigns(qr, b + 0.012, t) * road * 0.35;
+    // 霓虹倒影：纵向压得更扁，所以在湿路面上拉成竖直的光柱（雨湖的倒影做法）
+    vec2 qn = vec2(q.x, HZ - (q.y - ROAD) * 0.22);
+    col += neonLights(qn, b + 0.008, t) * road * 0.45 * uNeon;
+  }
   // 车灯：同向车道尾灯（红），对向车道前灯（白），快速掠过拖出长影
   for (float lane = 0.0; lane < 2.0; lane++) {
     float sp = lane < 0.5 ? 0.55 : -1.1, ly = lane < 0.5 ? 0.76 : 0.83, ww = 0.9;
