@@ -5,7 +5,7 @@ import { buildNebbiaLines, collectEmojiIcons, NEBBIA_DEFAULT_DOODLES } from './n
 import { appendNebbiaCredits } from './nebbiaCredits';
 import { NEBBIA_FIXED } from './nebbiaConstants';
 import { NebbiaGlassMotion } from './nebbiaDrops';
-import { NebbiaGl } from './nebbiaGl';
+import { fitNebbiaCanvas, NebbiaGl } from './nebbiaGl';
 import { NebbiaGlyphCache } from './nebbiaGlyphs';
 import { NebbiaHits, VocalEnergy } from './nebbiaHits';
 import { NebbiaMask } from './nebbiaMask';
@@ -27,6 +27,8 @@ import { NebbiaSceneClock } from './nebbiaSceneClock';
 
 // 改了要重排整首的 tuning 项
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
+// Chromium 给 WebGL 绘图缓冲定的面积上限：建上下文时只按边长夹，之后改尺寸才按面积夹
+const MAX_DRAWING_BUFFER_AREA = 5760 * 5760;
 // 开关组是数组，每次合并都是新的一份：按内容比
 const sameValue = (a: unknown, b: unknown) => (Array.isArray(a) && Array.isArray(b) ? a.join() === b.join() : a === b);
 
@@ -73,6 +75,10 @@ export class NebbiaRuntime {
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         input.host.appendChild(this.canvas);
+        // 建上下文之前先把画布定到宿主的尺寸：着色器提交以后第一次 resize 就不用再改画布尺寸（见 fitNebbiaCanvas）。
+        // 超过面积上限的不先定：那样建出来的绘图缓冲比之后 resize 夹出来的大得多
+        const size = this.hostSize();
+        if (size && size.W * size.H * this.dpr() ** 2 <= MAX_DRAWING_BUFFER_AREA) fitNebbiaCanvas(this.canvas, size.W, size.H, this.dpr());
         try {
             this.gl = new NebbiaGl(this.canvas);
             this.gl.onSpriteReady = () => this.requestFrame();
@@ -177,14 +183,24 @@ export class NebbiaRuntime {
         this.gl.setPalette(p.sky0, p.sky1, p.la, p.lb, p.lc);
     }
 
-    private resize() {
+    // 宿主的 CSS 尺寸（取整）；还没尺寸（隐藏、0 大小）时是 null
+    private hostSize(): { W: number; H: number } | null {
         const rect = this.input.host.getBoundingClientRect();
-        if (rect.width < 1 || rect.height < 1) return;
-        const sized = Math.round(rect.width) !== this.W || Math.round(rect.height) !== this.H;
-        this.W = Math.round(rect.width);
-        this.H = Math.round(rect.height);
-        const dpr = Math.min(2, window.devicePixelRatio || 1) * this.tuning.resolution;
-        this.gl.resize(this.W, this.H, dpr);
+        if (rect.width < 1 || rect.height < 1) return null;
+        return { W: Math.round(rect.width), H: Math.round(rect.height) };
+    }
+
+    private dpr() {
+        return Math.min(2, window.devicePixelRatio || 1) * this.tuning.resolution;
+    }
+
+    private resize() {
+        const size = this.hostSize();
+        if (!size) return;
+        const sized = size.W !== this.W || size.H !== this.H;
+        this.W = size.W;
+        this.H = size.H;
+        this.gl.resize(this.W, this.H, this.dpr());
         this.mask.resize(this.W, this.H);
         if (sized) {
             this.motion.buildField(this.W, this.H);

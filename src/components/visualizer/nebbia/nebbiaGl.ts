@@ -26,6 +26,16 @@ const locate = (gl: WebGL2RenderingContext, prog: WebGLProgram, names: string[])
     Object.fromEntries(names.map(n => [n, gl.getUniformLocation(prog, n)]))
 );
 
+/**
+ * 按 CSS 尺寸和像素比定画布尺寸，没变就不碰：建了 WebGL 上下文以后改尺寸要同步等 GPU 进程，
+ * 着色器还在编时会一直等到编完（Linux 上冷编约 0.5 秒）。运行时在建上下文之前先调一次。
+ */
+export const fitNebbiaCanvas = (canvas: HTMLCanvasElement, W: number, H: number, dpr: number) => {
+    const width = Math.max(1, Math.round(W * dpr)), height = Math.max(1, Math.round(H * dpr));
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+};
+
 export class NebbiaGl {
     private readonly gl: WebGL2RenderingContext;
     private readonly build: NebbiaProgramBuild;
@@ -159,8 +169,7 @@ export class NebbiaGl {
     resize(W: number, H: number, dpr: number) {
         const { gl } = this;
         this.W = Math.max(1, Math.round(W)); this.H = Math.max(1, Math.round(H));
-        this.canvas.width = Math.max(1, Math.round(W * dpr));
-        this.canvas.height = Math.max(1, Math.round(H * dpr));
+        fitNebbiaCanvas(this.canvas, W, H, dpr);
         this.mask.resize(W, H);
         for (const tex of [this.drop, this.field]) {
             gl.activeTexture(gl.TEXTURE0 + tex.unit);
