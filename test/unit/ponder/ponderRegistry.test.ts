@@ -194,6 +194,7 @@ describe('ponder registry', () => {
             ]),
             'sign-in': new Set(['window-open', 'window-account']),
             'lyric-match': new Set(['picked', 'local-file']),
+            scratchpad: new Set(['card-hover', 'collected', 'drawer', 'row-hover', 'canvas', 'canvas-reordered', 'canvas-selected']),
             'lyric-style': new Set([
                 'preview-style-b', 'preview-monet', 'preview-monet-bare', 'preview-background-b', 'preview-background-b-style-b', 'preview-romanization',
                 'panel-style-b', 'panel-monet', 'panel-monet-off', 'panel-background', 'panel-subtitle',

@@ -4937,7 +4937,8 @@ export default {
       "side_panel": "Cấu trúc bảng điều khiển và cách chuyển tab.",
       "theme_settings": "Bộ mẫu sẵn, nguồn bảng màu tùy chỉnh và khi nào màu tự thay đổi.",
       "sign_in": "Nút Đăng nhập trên trang chủ và biểu tượng ở góc dưới bên phải đều mở cùng một cửa sổ.",
-      "lyric_match": "Tự chọn lời bài hát thủ công: đổi nguồn, tìm kiếm, xem trước rồi lưu lại."
+      "lyric_match": "Tự chọn lời bài hát thủ công: đổi nguồn, tìm kiếm, xem trước rồi lưu lại.",
+      "scratchpad": "Sổ ghi nhanh ở mép trái: gom bài hát, xử lý theo nguồn, và chế độ bảng."
     },
     "categories": {
       "basics": "Bắt đầu",
@@ -5450,6 +5451,25 @@ export default {
         "save": "Lưu",
         "switches": "Ảnh bìa, Siêu dữ liệu, Lời bài hát",
         "noMatch": "Không sử dụng dữ liệu trực tuyến"
+      },
+      "scratchpad": {
+        "page": "Thư viện",
+        "handle": "Tay nắm sổ ghi nhanh",
+        "card": "Thẻ bài hát",
+        "collect": "Thêm vào sổ ghi nhanh",
+        "save": "Lưu vào danh sách phát",
+        "drawer": "Sổ ghi nhanh",
+        "group": "Nhóm theo nguồn",
+        "groupActions": "Thao tác cả nhóm",
+        "row": "Một bài hát",
+        "rowActions": "Nút trên dòng",
+        "footer": "Thao tác cho tất cả",
+        "expand": "Mở rộng thành bảng",
+        "canvas": "Bảng",
+        "canvasGroup": "Một nhóm trên bảng",
+        "slot": "Vị trí bám",
+        "marquee": "Chọn bằng khung",
+        "selection": "Thao tác cho mục đã chọn"
       }
     },
     "targets": {
@@ -5507,7 +5527,8 @@ export default {
       "gridPaletteHotkey": "Phím S trên lưới",
       "settingsPage": "Trang cài đặt",
       "signIn": "Đăng nhập vào nền tảng âm nhạc trực tuyến",
-      "lyricMatch": "Cửa sổ khớp lời bài hát"
+      "lyricMatch": "Cửa sổ khớp lời bài hát",
+      "scratchpad": "Sổ ghi nhanh"
     },
     "scenes": {
       "bravaisSeamLevels": "Ba kích cỡ: đầy đủ, cột hẹp, thu gọn",
@@ -5661,7 +5682,10 @@ export default {
       "signInAccount": "Sau khi đã đăng nhập",
       "lyricMatchSearch": "Đổi nguồn, tìm kiếm lại",
       "lyricMatchPick": "Chọn một mục, xem trước lời bài hát",
-      "lyricMatchLocal": "Ba công tắc bổ sung cho bài hát cục bộ"
+      "lyricMatchLocal": "Ba công tắc bổ sung cho bài hát cục bộ",
+      "scratchpadCollect": "Gom bài hát",
+      "scratchpadDrawer": "Mở sổ và các nhóm",
+      "scratchpadCanvas": "Chế độ bảng"
     },
     "captions": {
       "bravaisSeam": {
@@ -6128,6 +6152,21 @@ export default {
         "save": "Nút \"Lưu\" sẽ áp dụng hàng được chọn cho bài hát này; nút \"Hủy\" sẽ giữ nguyên không thay đổi.",
         "switches": "Đối với tệp nhạc cục bộ, dưới ảnh bìa có ba công tắc: \"Ảnh bìa\", \"Siêu dữ liệu\" và \"Lời bài hát\". Công tắc bật sẽ lấy thông tin từ hàng được chọn; công tắc tắt sẽ giữ nguyên thông tin gốc của tệp.",
         "noMatch": "Tùy chọn \"Không sử dụng dữ liệu trực tuyến\" ở góc dưới bên trái sẽ giúp bài hát chỉ sử dụng dữ liệu gốc trong tệp."
+      },
+      "scratchpad": {
+        "hover": "Rê chuột lên thẻ một bài hát, hai nút hiện ra ở góc trên bên phải; nút bên trái thêm bài vào sổ ghi nhanh. Thẻ ở Grid, ô và thẻ tiêu điểm ở Bravais, cùng mỗi dòng kết quả tìm kiếm đều có cặp nút này.",
+        "save": "Nút bên phải lưu bài vào danh sách phát. Với nguồn hỗ trợ thích, dòng đầu của cửa sổ chọn danh sách là Bài hát yêu thích; bạn cũng có thể tạo danh sách mới ngay tại đó rồi thêm bài vào.",
+        "notQueue": "Thêm vào sổ ghi nhanh không đụng đến hàng đợi phát; bài đang phát vẫn tiếp tục. Đưa chuột lên phần trên mép trái, tay nắm mở ra và cho thấy số bài bên trong; khi sổ trống, tay nắm bị ẩn.",
+        "otherWays": "Với bài đang phát, nhấn : để vào chế độ thực thi rồi nhấn S. Ở trang bộ sưu tập, “Thêm tất cả vào sổ ghi nhanh” lấy các bài của trang đó một lần, chỉ những bài đã lọc khi đang lọc: ở Grid nằm trong bảng thông tin, ở Bravais nằm trong “⋯ Thêm” của dải thông tin.",
+        "open": "Nhấn tay nắm, hoặc nhấn {{mod}} + J, để mở sổ ghi nhanh; trong chế độ thực thi là J. Nhấn lần nữa để đóng.",
+        "groups": "Bài hát được nhóm theo nguồn: mỗi nền tảng trực tuyến một nhóm, tệp cục bộ một nhóm, Navidrome một nhóm. Bài được lấy từ đâu (danh sách nào, lần tìm kiếm nào) ghi sau tên nghệ sĩ.",
+        "groupActions": "Bên phải đầu nhóm: “Thêm nhóm này vào hàng đợi” và “Thêm nhóm này vào danh sách phát…”. Một danh sách phát chỉ nhận bài từ một nguồn; vì đã nhóm theo nguồn, cả nhóm vừa vặn một danh sách.",
+        "rowActions": "Rê chuột lên một dòng để thấy: phát trong hàng đợi, thêm vào hàng đợi, thêm vào danh sách phát, và bỏ ra khỏi sổ. Bài vẫn ở lại sau khi đã vào hàng đợi hay danh sách phát; không cần nữa thì tự bỏ ra.",
+        "footer": "Hàng dưới cùng: thêm tất cả vào hàng đợi, thay hàng đợi bằng sổ ghi nhanh, và xóa sạch. Xóa sạch cần nhấn hai lần.",
+        "expand": "Ở đầu ngăn kéo, bên trái nút đóng: “Mở rộng thành bảng”.",
+        "canvas": "Khi mở rộng, mỗi bài là một thẻ, vẫn nhóm theo nguồn, và đầu nhóm có thêm “Chọn nhóm này”. Esc bỏ chọn trước, rồi quay lại danh sách.",
+        "drag": "Kéo thẻ để sắp xếp lại. Thẻ chỉ di chuyển trong nhóm của nó, và bám vào vị trí gần nhất khi thả.",
+        "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Hàng dưới khi đó thao tác trên mục đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."
       }
     }
   }

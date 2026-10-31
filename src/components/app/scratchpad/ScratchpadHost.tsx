@@ -191,7 +191,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
     return (
         <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}`}>
             {!isOpen && (
-                <div className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`}>
+                <div className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`} data-ponder="scratchpad">
                     <button
                         ref={handleRef}
                         type="button"
@@ -214,6 +214,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
                         key="scratchpad-drawer"
                         className={`scratchpad-drawer${isExpanded ? ' is-expanded' : ''}`}
                         data-testid="scratchpad-drawer"
+                        data-ponder="scratchpad"
                         aria-label={t('scratchpad.title')}
                         initial={{ x: -32, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}

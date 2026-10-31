@@ -4937,7 +4937,8 @@ export default {
       "side_panel": "How the panel is built and how to switch tabs.",
       "theme_settings": "Presets, where a custom palette comes from, and when it changes by itself.",
       "sign_in": "The home page’s Login button and the pill at the bottom right open the same window.",
-      "lyric_match": "Pick lyrics for a song by hand: change the source, search, look, then save."
+      "lyric_match": "Pick lyrics for a song by hand: change the source, search, look, then save.",
+      "scratchpad": "The scratchpad on the left edge: collecting songs, sorting them out by source, and the canvas."
     },
     "categories": {
       "basics": "Getting started",
@@ -5450,6 +5451,25 @@ export default {
         "save": "Save",
         "switches": "Cover, Metadata, Lyrics",
         "noMatch": "Don't use online metadata"
+      },
+      "scratchpad": {
+        "page": "Library",
+        "handle": "Scratchpad handle",
+        "card": "Song card",
+        "collect": "Add to scratchpad",
+        "save": "Save to playlist",
+        "drawer": "Scratchpad",
+        "group": "Source group",
+        "groupActions": "Group actions",
+        "row": "A song",
+        "rowActions": "Row buttons",
+        "footer": "Actions on everything",
+        "expand": "Expand to canvas",
+        "canvas": "Canvas",
+        "canvasGroup": "A group on the canvas",
+        "slot": "Where it snaps",
+        "marquee": "Box selection",
+        "selection": "Actions on the selection"
       }
     },
     "targets": {
@@ -5507,7 +5527,8 @@ export default {
       "gridPaletteHotkey": "S on the grids",
       "settingsPage": "Options page",
       "signIn": "Signing in to a music platform",
-      "lyricMatch": "The Match Data window"
+      "lyricMatch": "The Match Data window",
+      "scratchpad": "Scratchpad"
     },
     "scenes": {
       "bravaisSeamLevels": "Three widths: full, spine, folded",
@@ -5661,7 +5682,10 @@ export default {
       "signInAccount": "Once signed in",
       "lyricMatchSearch": "Change the source, search again",
       "lyricMatchPick": "Pick one and look at its lyrics first",
-      "lyricMatchLocal": "Three extra switches for a local song"
+      "lyricMatchLocal": "Three extra switches for a local song",
+      "scratchpadCollect": "Collecting songs",
+      "scratchpadDrawer": "Opening it, and the groups",
+      "scratchpadCanvas": "The canvas"
     },
     "captions": {
       "bravaisSeam": {
@@ -6128,6 +6152,21 @@ export default {
         "save": "“Save” applies the chosen row to this song; “Cancel” changes nothing.",
         "switches": "For a local file there are three switches under the cover: “Cover”, “Metadata” and “Lyrics”. A lit one takes that part from the chosen row; an unlit one keeps what the file has.",
         "noMatch": "“Don't use online metadata” at the bottom left makes the song use only what the file has."
+      },
+      "scratchpad": {
+        "hover": "Hover a song card and two buttons appear at its top right; the left one adds the song to the scratchpad. Grid cards, Bravais tiles and focus cards, and every search result row have this pair.",
+        "save": "The right one saves it to a playlist. For sources that take likes, the first row of the playlist picker is Liked Songs; you can also create a playlist right there and put the song in it.",
+        "notQueue": "Adding to the scratchpad leaves the play queue alone; what is playing keeps playing. Move the pointer to the upper left edge and the handle opens up, showing how many songs are inside; while the scratchpad is empty, the handle is hidden.",
+        "otherWays": "For the song that is playing, press : for execute mode and then S. On a collection page, “Add all to scratchpad” takes the songs of that page at once, only the filtered ones when a filter is on: in Grid it is in the info panel, in Bravais under “⋯ More” in the info strip.",
+        "open": "Click the handle, or press {{mod}} + J, to open the scratchpad; in execute mode it is J. Press it again to close it.",
+        "groups": "Songs are grouped by source: one group per online platform, one for local files, one for Navidrome. Where each came from (which playlist, which search) is written after its artist.",
+        "groupActions": "At the right of a group header: “Queue this group” and “Add this group to a playlist…”. A playlist takes songs from one source only; grouped by source, a whole group fits one playlist.",
+        "rowActions": "Hover a row for: play it in the queue, add to queue, add to playlist, and take out of the scratchpad. A song stays after you queue it or save it to a playlist; take it out yourself when you are done with it.",
+        "footer": "The bottom row: add all to queue, replace the queue with the scratchpad, and clear. Clearing takes two clicks.",
+        "expand": "At the top of the drawer, left of the close button: “Expand into a canvas”.",
+        "canvas": "Expanded, every song is a card, still grouped by source, and each group header gains “Select this group”. Esc first clears the selection, then goes back to the list.",
+        "drag": "Drag cards to reorder them. A card moves only within its own group, and snaps to the nearest place when you let go.",
+        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. The bottom row then acts on the selection: add to queue, add to playlist, take out. When the selection mixes sources, add to playlist is greyed out."
       }
     }
   }
