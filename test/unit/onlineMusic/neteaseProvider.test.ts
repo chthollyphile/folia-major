@@ -31,6 +31,7 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         scrobbleV1: vi.fn(),
         getLoginStatus: vi.fn(),
         getUserAccount: vi.fn(),
+        updatePlaylistTracks: vi.fn(),
     },
 }));
 
@@ -634,5 +635,25 @@ describe('neteaseProvider listening reports', () => {
 
         await expect(neteaseProvider.playbackReports!.reportPlayback(reported, { playedSeconds: 45 }))
             .rejects.toMatchObject({ code: 'unavailable' });
+    });
+
+    it('accepts a playlist change the API wraps as a success', async () => {
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ status: 200, body: { code: 200, trackIds: '[1,2]' } } as any);
+
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [
+            { id: 1 } as any, { id: 2 } as any,
+        ])).resolves.toBeUndefined();
+        expect(neteaseApi.updatePlaylistTracks).toHaveBeenCalledWith('add', 7, [1, 2]);
+    });
+
+    it('throws when NetEase refuses a playlist change behind an HTTP 200', async () => {
+        // The API passes NetEase's refusal through as the body, with status 200 (a song already in the list).
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 502, message: '歌单内歌曲重复' } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'auth-required' });
     });
 });

@@ -4,7 +4,7 @@ import type { ScratchpadEntry } from '../../../stores/useScratchpadStore';
 import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
 
 // src/components/app/scratchpad/ScratchpadRow.tsx
-// 速记簿的一行：封面、标题、来源 · 歌手 · 从哪收来的；悬停 / 聚焦时出现四个动作（播放、加入队列、加入歌单、移除）。
+// 速记簿列表的一行：封面、标题、歌手 · 从哪收来的（来源写在组头上）；悬停 / 聚焦时出现四个动作（播放、加入队列、加入歌单、移除）。
 // 点标题播放：插进当前队列播放，不换队列（宿主的 playNow）。
 
 export type ScratchpadRowActions = {
@@ -23,14 +23,13 @@ export type ScratchpadRowLabels = {
 
 type ScratchpadRowProps = {
     entry: ScratchpadEntry;
-    sourceLabel: string;
     canAddToPlaylist: boolean;
     isFresh: boolean;
     actions: ScratchpadRowActions;
     labels: ScratchpadRowLabels;
 };
 
-const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, sourceLabel, canAddToPlaylist, isFresh, actions, labels }) => {
+const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, canAddToPlaylist, isFresh, actions, labels }) => {
     const { song } = entry;
     const coverUrl = getSongCoverUrl(song);
     // 本地歌的封面是上次启动的 blob 地址，重启后就读不到了：读不到时换成占位图标。
@@ -56,10 +55,7 @@ const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, sourceLabel, canAd
                 onClick={() => actions.play(entry)}
             >
                 <span className="scratchpad-name">{song.name}</span>
-                <span className="scratchpad-meta">
-                    <span className="scratchpad-source">{sourceLabel}</span>
-                    {[artist, entry.origin?.label].filter(Boolean).join(' · ')}
-                </span>
+                <span className="scratchpad-meta">{[artist, entry.origin?.label].filter(Boolean).join(' · ')}</span>
             </button>
             <span className="scratchpad-row-actions">
                 <button

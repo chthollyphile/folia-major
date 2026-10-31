@@ -3,6 +3,7 @@ import type { CommandPaletteCommand } from '../types';
 import { createToggleCommand } from '../commandFactories';
 import { collectToScratchpad, toggleScratchpad } from '../../../stores/useScratchpadStore';
 import { isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
+import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 
 // src/components/command-palette/commands/scratchpadCommands.ts
 // 速记簿的两条命令：开合左边的抽屉，把正在播的这首记进去（不动队列）。两条都能绑全局快捷键。
@@ -23,9 +24,10 @@ export const scratchpadCommands: CommandPaletteCommand[] = [
         'Jot the current song into the scratchpad',
         'Keep this song for later without touching the queue',
         ['scratchpad', 'later', 'jot', 'save for later', '速记簿', '稍后再听', '记下', '暂存'],
-        context => {
-            const song = context.shared.currentSong;
-            if (song) collectToScratchpad([song]);
+        () => {
+            // 屏幕上的那首：自动混音过渡中 currentSong 已经是淡入的下一首，记下的应该是听得见、看得见的这首。
+            const song = selectDisplaySong(usePlaybackStore.getState());
+            if (song && !isStagePlaybackSong(song)) collectToScratchpad([song]);
         },
         {
             icon: NotebookPen,

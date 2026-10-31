@@ -27,7 +27,19 @@ export default {
     "skippedDuplicates_other": "{{count}} 首已经在里面了",
     "alreadyInOne": "这首已经在速记簿里了",
     "alreadyInAll": "这些歌都已经在速记簿里了",
-    "full": "速记簿满了（最多 {{count}} 首），先处理掉一些吧"
+    "full": "速记簿满了（最多 {{count}} 首），先处理掉一些吧",
+    "saveFailed": "速记簿没能存下来（本机存储满了），重启后这次的改动会丢",
+    "expandCanvas": "展开成画布",
+    "collapseCanvas": "收回列表",
+    "canvasHint": "拖动卡片整理顺序，松手会吸附到位；在空白处拖出框来多选。",
+    "selectGroup": "选中本组",
+    "enqueueGroup": "本组全部入队",
+    "addGroupToPlaylist": "本组加入歌单…",
+    "selectedCount_one": "已选 {{count}} 首",
+    "selectedCount_other": "已选 {{count}} 首",
+    "removeSelected": "移出速记簿",
+    "clearSelection": "取消选择",
+    "mixedSourcesHint": "选中的歌来自不同来源，一个歌单只收一个来源的歌"
   },
   "libraryBravais": {
     "suiteName": "Bravais 墙面",
@@ -424,6 +436,7 @@ export default {
     "playingSongNoSource": "这个播放队列没有对应的歌单或专辑",
     "unliked": "已取消喜欢",
     "playlistUpdated": "歌单已更新",
+    "playlistUpdateFailed": "没能加进歌单",
     "providerLikeUnavailable": "{{provider}} 暂不支持喜欢歌曲。",
     "providerPlaylistMutationUnavailable": "{{provider}} 暂不支持将歌曲添加到歌单。",
     "providerRecommendationsUnavailable": "{{provider}} 暂未提供推荐内容。",

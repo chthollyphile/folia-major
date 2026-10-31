@@ -29,6 +29,7 @@ import type { LibraryLocalCatalogSnapshot } from '../core/home/home.contract';
 import { LocalLibraryEntityPanel } from '../../components/modal/LocalLibraryEntityPanel';
 import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSongInfoPanel';
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
+import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
 import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
 import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
@@ -660,6 +661,13 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     const matchingSong = matchingSongId
         ? surfaceProps.localSongs.find(song => song.id === matchingSongId)
         : undefined;
+    // 本地实体、歌曲信息、手动匹配这几个弹窗和首页层在同一个层叠上下文里，盖不过左边的速记簿：开着时让它藏起来。
+    const isScratchpadCovered = Boolean(editingEntity || organizingFolder || matchingSong);
+    useEffect(() => {
+        useScratchpadStore.getState().setCovered(isScratchpadCovered);
+    }, [isScratchpadCovered]);
+    useEffect(() => () => useScratchpadStore.getState().setCovered(false), []);
+
     // 封面对话框列的是集合此刻的歌（导航栈里的描述可能落后于曲库，取刷新过的那一份）。
     const coverEditingTarget = coverEditingCollection && liveSelectedCollection
         && isLocalGridViewCollection(liveSelectedCollection)

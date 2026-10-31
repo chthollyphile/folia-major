@@ -27,7 +27,19 @@ export default {
     "skippedDuplicates_other": "{{count}} bài đã có sẵn",
     "alreadyInOne": "Bài này đã có trong sổ ghi nhanh",
     "alreadyInAll": "Tất cả các bài này đã có trong sổ ghi nhanh",
-    "full": "Sổ ghi nhanh đã đầy (tối đa {{count}} bài). Hãy bớt vài bài trước."
+    "full": "Sổ ghi nhanh đã đầy (tối đa {{count}} bài). Hãy bớt vài bài trước.",
+    "saveFailed": "Không lưu được sổ ghi nhanh (bộ nhớ cục bộ đã đầy); thay đổi này sẽ mất khi khởi động lại",
+    "expandCanvas": "Mở rộng thành bảng",
+    "collapseCanvas": "Trở về danh sách",
+    "canvasHint": "Kéo thẻ để sắp xếp; thả ra thẻ sẽ tự vào chỗ. Kéo khung ở chỗ trống để chọn nhiều bài.",
+    "selectGroup": "Chọn nhóm này",
+    "enqueueGroup": "Thêm nhóm này vào hàng đợi",
+    "addGroupToPlaylist": "Thêm nhóm này vào danh sách phát…",
+    "selectedCount_one": "Đã chọn {{count}} bài",
+    "selectedCount_other": "Đã chọn {{count}} bài",
+    "removeSelected": "Bỏ ra",
+    "clearSelection": "Bỏ chọn",
+    "mixedSourcesHint": "Các bài đã chọn đến từ nhiều nguồn; một danh sách phát chỉ nhận bài từ một nguồn"
   },
   "libraryBravais": {
     "suiteName": "Không gian Bravais",
@@ -424,6 +436,7 @@ export default {
     "playingSongNoSource": "Hàng đợi phát hiện tại không thuộc album hoặc danh sách phát nào",
     "unliked": "Đã bỏ thích",
     "playlistUpdated": "Danh sách phát đã cập nhật",
+    "playlistUpdateFailed": "Không thêm được vào danh sách phát",
     "providerLikeUnavailable": "{{provider}} không hỗ trợ thích bài hát.",
     "providerPlaylistMutationUnavailable": "{{provider}} không hỗ trợ thêm bài hát vào danh sách phát.",
     "providerRecommendationsUnavailable": "{{provider}} không cung cấp nội dung đề xuất.",

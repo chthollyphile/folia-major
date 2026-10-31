@@ -27,7 +27,19 @@ export default {
     "skippedDuplicates_other": "{{count}} were already there",
     "alreadyInOne": "This song is already in the scratchpad",
     "alreadyInAll": "These songs are all in the scratchpad already",
-    "full": "The scratchpad is full ({{count}} songs at most). Clear some out first."
+    "full": "The scratchpad is full ({{count}} songs at most). Clear some out first.",
+    "saveFailed": "The scratchpad couldn't be saved (local storage is full); this change will be lost on restart",
+    "expandCanvas": "Expand into a canvas",
+    "collapseCanvas": "Back to the list",
+    "canvasHint": "Drag cards to reorder; they snap into place when let go. Drag a box over empty space to select several.",
+    "selectGroup": "Select this group",
+    "enqueueGroup": "Queue this group",
+    "addGroupToPlaylist": "Add this group to a playlist…",
+    "selectedCount_one": "{{count}} selected",
+    "selectedCount_other": "{{count}} selected",
+    "removeSelected": "Take out",
+    "clearSelection": "Clear selection",
+    "mixedSourcesHint": "The selection comes from more than one source; a playlist takes songs from one source only"
   },
   "libraryBravais": {
     "suiteName": "Bravais wall",
@@ -424,6 +436,7 @@ export default {
     "playingSongNoSource": "The current queue is not that of one album or playlist",
     "unliked": "Removed from Liked",
     "playlistUpdated": "Playlist updated",
+    "playlistUpdateFailed": "Couldn't add to the playlist",
     "providerLikeUnavailable": "{{provider}} does not support liking songs.",
     "providerPlaylistMutationUnavailable": "{{provider}} does not support adding songs to playlists.",
     "providerRecommendationsUnavailable": "{{provider}} does not provide recommendation content.",

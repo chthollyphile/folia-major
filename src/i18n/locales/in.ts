@@ -27,7 +27,19 @@ export default {
     "skippedDuplicates_other": "{{count}} sudah ada di sana",
     "alreadyInOne": "Lagu ini sudah ada di buku catatan",
     "alreadyInAll": "Semua lagu ini sudah ada di buku catatan",
-    "full": "Buku catatan penuh (paling banyak {{count}} lagu). Kosongkan sebagian dulu."
+    "full": "Buku catatan penuh (paling banyak {{count}} lagu). Kosongkan sebagian dulu.",
+    "saveFailed": "Buku catatan gagal disimpan (penyimpanan lokal penuh); perubahan ini akan hilang saat dimulai ulang",
+    "expandCanvas": "Bentangkan jadi kanvas",
+    "collapseCanvas": "Kembali ke daftar",
+    "canvasHint": "Seret kartu untuk mengurutkan; kartu menempel saat dilepas. Seret kotak di ruang kosong untuk memilih beberapa.",
+    "selectGroup": "Pilih grup ini",
+    "enqueueGroup": "Antrekan grup ini",
+    "addGroupToPlaylist": "Tambahkan grup ini ke daftar putar…",
+    "selectedCount_one": "{{count}} dipilih",
+    "selectedCount_other": "{{count}} dipilih",
+    "removeSelected": "Keluarkan",
+    "clearSelection": "Batalkan pilihan",
+    "mixedSourcesHint": "Pilihan berasal dari lebih dari satu sumber; daftar putar hanya menerima lagu dari satu sumber"
   },
   "libraryBravais": {
     "suiteName": "Dinding Bravais",
@@ -424,6 +436,7 @@ export default {
     "playingSongNoSource": "Antrean saat ini bukan dari satu album atau playlist",
     "unliked": "Dihapus dari Disukai",
     "playlistUpdated": "Playlist diperbarui",
+    "playlistUpdateFailed": "Gagal menambahkan ke daftar putar",
     "providerLikeUnavailable": "{{provider}} tidak mendukung fitur menyukai lagu.",
     "providerPlaylistMutationUnavailable": "{{provider}} tidak mendukung penambahan lagu ke playlist.",
     "providerRecommendationsUnavailable": "{{provider}} tidak menyediakan rekomendasi konten.",
