@@ -46,7 +46,7 @@ import { applyQueueAddBehavior } from '../../../../utils/queueAddBehavior';
 import { moveQueueItem } from '../../../../utils/queueReorder';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../../../../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../../../../services/playbackAdapters';
-import type { SearchReturnView, SearchSource } from '../../../../stores/useSearchNavigationStore';
+import type { SearchKind, SearchReturnView, SearchSource } from '../../../../stores/useSearchNavigationStore';
 import { dispatchSearchTrackAction } from '../../search/searchTrackActions';
 import { playbackFade } from '../../../../services/playbackFade';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
@@ -78,6 +78,7 @@ type SearchDeps = {
     submitSearch: (args: {
         query: string;
         sourceTab: SearchSource;
+        kind?: SearchKind;
         deps: {
             localSongs: LocalSong[];
             localLibraryCatalog?: LocalLibraryDisplayCatalog;
@@ -1089,7 +1090,7 @@ export function usePlaybackQueueController({
         void playSong(song, nextQueue, false);
     }, [playQueue, playSong]);
 
-    const handleSearchOverlaySubmit = useCallback(async (requestedSource?: SearchSource) => {
+    const handleSearchOverlaySubmit = useCallback(async (requestedSource?: SearchSource, requestedKind?: SearchKind) => {
         const trimmedQuery = searchQuery.trim();
         if (!trimmedQuery) {
             return;
@@ -1099,6 +1100,7 @@ export function usePlaybackQueueController({
         const didSearch = await searchDeps.submitSearch({
             query: trimmedQuery,
             sourceTab,
+            kind: requestedKind,
             deps: {
                 localSongs,
                 localLibraryCatalog,

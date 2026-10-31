@@ -337,6 +337,19 @@ export const neteaseProvider: OnlineMusicProvider = {
             const total = Number(response.result?.songCount || items.length);
             return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
         },
+        // 专辑和歌单的条目与 `/album`、`/playlist/detail` 读到的同一套字段（2026-10-31 实测），按同样的规则正规化。
+        async searchAlbums(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 10);
+            const items = (response.result?.albums || []).map((raw: any) => normalizeCollection(raw, 'album'));
+            const total = Number(response.result?.albumCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
+        },
+        async searchPlaylists(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 1000);
+            const items = (response.result?.playlists || []).map((raw: any) => normalizeCollection(raw, 'playlist'));
+            const total = Number(response.result?.playlistCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
+        },
     },
     playback: {
         async getSongDetail(id) {

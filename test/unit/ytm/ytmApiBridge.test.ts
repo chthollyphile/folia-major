@@ -187,6 +187,17 @@ describe('YouTube Music desktop bridge', () => {
         expect((await bridge.request('search_songs', { continuation: 'more-songs' })).data).toEqual({ items: [expect.objectContaining({ id: 'ZRtdQ81jPUQ' })] });
         expect(guest.actions.execute).toHaveBeenLastCalledWith('/search', { continuation: 'more-songs', client: 'YTMUSIC', parse: true });
 
+        const albumRow = { type: 'MusicResponsiveListItem', item_type: 'album', id: 'MPREb_album', title: 'Album', author: { name: 'Artist', channel_id: 'UCartist' } };
+        const listRow = { type: 'MusicResponsiveListItem', item_type: 'playlist', id: 'VLPLlist', title: 'List', author: { name: 'Maker', channel_id: 'UCmaker' } };
+        guest.music.search.mockResolvedValueOnce({ contents: [{ type: 'MusicShelf', contents: [albumRow, { ...albumRow, id: 'bad' }], continuation: 'more-albums' }] });
+        expect((await bridge.request('search_albums', { query: 'artist' })).data).toEqual({
+            continuation: 'more-albums', items: [expect.objectContaining({ id: 'MPREb_album', type: 'album', artists: [{ id: 'UCartist', name: 'Artist' }] })],
+        });
+        expect(guest.music.search).toHaveBeenLastCalledWith('artist', { type: 'album' });
+        guest.music.search.mockResolvedValueOnce({ contents: [{ type: 'MusicShelf', contents: [listRow] }] });
+        expect((await bridge.request('search_playlists', { query: 'artist' })).data).toEqual({ items: [expect.objectContaining({ id: 'PLlist', type: 'playlist' })] });
+        expect(guest.music.search).toHaveBeenLastCalledWith('artist', { type: 'playlist' });
+
         const entry = Object.assign(new yt.PlaylistPanelVideo(), { video_id: VIDEO, title: 'Song', artists: [{ name: 'Artist', channel_id: 'UCartist' }], album: { id: 'MPREb_album', name: 'Album' } });
         guest.actions.execute.mockResolvedValueOnce({ contents_memo: { getType: () => [Object.assign(new yt.PlaylistPanelVideo(), { video_id: 'ZRtdQ81jPUQ' }), entry] } });
         expect((await bridge.request('song_detail', { id: VIDEO })).data).toMatchObject({ id: VIDEO, album: { id: 'MPREb_album' }, artists: [{ id: 'UCartist' }] });

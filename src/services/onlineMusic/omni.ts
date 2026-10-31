@@ -17,6 +17,7 @@ import type {
     OmniProviderId,
     OmniProviderSummary,
     OmniRequestRunner,
+    OmniSearchKind,
     OmniSongAvailability,
     OmniSongDetail,
     OmniSongReplacement,
@@ -558,6 +559,36 @@ export const omni = {
         const provider = requireOnlineMusicProvider(providerId);
         if (!providerSupports(provider, 'search') || !provider.search) return emptyPage(page.offset);
         return searchWith(provider.search, query, page, context);
+    },
+
+    // What the provider's search finds: songs wherever it searches, albums and playlists where it has
+    // a search for them and also opens them. Empty for a provider that is not there or has no search.
+    getProviderSearchKinds(providerId: OmniProviderId): OmniSearchKind[] {
+        const provider = getOnlineMusicProvider(providerId);
+        if (!provider || !providerSupports(provider, 'search') || !provider.search) return [];
+        const search = provider.search;
+        return [
+            'song' as const,
+            ...(search.searchAlbums && providerSupports(provider, 'albums') ? ['album' as const] : []),
+            ...(search.searchPlaylists && providerSupports(provider, 'playlists') ? ['playlist' as const] : []),
+        ];
+    },
+
+    // Albums or playlists found at one provider (`getProviderSearchKinds` says which it finds); an
+    // empty page where it finds none of the kind.
+    async searchProviderCollections(
+        providerId: OmniProviderId,
+        kind: Exclude<OmniSearchKind, 'song'>,
+        query: string,
+        page: PageInput,
+    ): Promise<OmniPage<OmniCollection>> {
+        if (!omni.getProviderSearchKinds(providerId).includes(kind)) return emptyPage(page.offset);
+        const search = requireOnlineMusicProvider(providerId).search!;
+        const found = kind === 'album'
+            ? await search.searchAlbums!(query, page.limit, page.offset)
+            : await search.searchPlaylists!(query, page.limit, page.offset);
+        // A provider names its own collections: one that answers with another's would open nowhere.
+        return { ...found, items: found.items.filter(collection => collection.providerId === providerId) };
     },
 
     // 平台的记号（一个字和一种颜色）。平台没有声明就回 null，界面自己从它的短名取。

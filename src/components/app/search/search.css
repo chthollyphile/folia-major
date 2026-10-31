@@ -1,0 +1,612 @@
+/* src/components/app/search/search.css
+   搜索页的至上主义平面构图：几何形（斜切色块、圆、粗横条、贯穿细线、斜线小方块、「· · ·」、竖排的碎字）压在列表底下，
+   按搜的种类（单曲 / 专辑 / 歌单）各有一套站位，换种类时移过去；页面打开时依次飞入。列表本身是平的：方角、发丝分隔线，
+   悬停时左边长出一道主题色竖条。颜色只有三种：墨色（--search-ink，主题主色）、主题强调色（--search-accent）和纸色
+   （--search-paper，页面底色）。降低动态效果（uiMicroMotion）时动画全部去掉，构图直接落在终点。 */
+
+.search-workspace {
+    --search-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --search-hairline: color-mix(in srgb, var(--search-ink) 9%, transparent);
+    --search-ink-soft: color-mix(in srgb, var(--search-ink) 55%, transparent);
+    isolation: isolate;
+}
+
+.search-workspace > :not(.search-composition) { position: relative; z-index: 1; }
+
+/* ---------- 构图 ---------- */
+
+.search-composition {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* 外层管站位（随种类过渡），内层管入场（keyframes），两者不抢同一个 transform。 */
+.search-figure {
+    position: absolute;
+    transition: transform 900ms var(--search-ease), opacity 600ms ease;
+}
+
+.search-figure > i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: search-figure-in 900ms var(--search-ease) backwards;
+    animation-delay: var(--search-figure-delay, 0ms);
+}
+
+@keyframes search-figure-in {
+    from { opacity: 0; transform: translate(var(--search-figure-from-x, 0), var(--search-figure-from-y, 0)) scale(var(--search-figure-from-scale, 1)); }
+}
+
+/* 斜切的主题色块：右上角，下缘斜切。 */
+.search-figure.is-slab {
+    top: -6vh;
+    right: -4vw;
+    width: min(40vw, 620px);
+    height: min(52vh, 520px);
+    --search-figure-from-x: 18vw;
+    --search-figure-delay: 40ms;
+}
+
+.search-figure.is-slab > i {
+    background: var(--search-accent);
+    clip-path: polygon(22% 0, 100% 0, 100% 64%, 48% 82%);
+    opacity: 0.92;
+}
+
+/* 墨色的空心圆与圆里偏心的实心小圆。 */
+.search-figure.is-disc {
+    bottom: -14vh;
+    left: -10vh;
+    width: 56vh;
+    height: 56vh;
+    --search-figure-from-scale: 0.55;
+    --search-figure-delay: 160ms;
+}
+
+.search-figure.is-disc > i {
+    border: 1.5px solid color-mix(in srgb, var(--search-ink) 22%, transparent);
+    border-radius: 50%;
+}
+
+.search-figure.is-dot {
+    bottom: 18vh;
+    left: 26vh;
+    width: 9vh;
+    height: 9vh;
+    --search-figure-from-scale: 0;
+    --search-figure-delay: 360ms;
+}
+
+.search-figure.is-dot > i {
+    border-radius: 50%;
+    background: var(--search-ink);
+    opacity: 0.85;
+}
+
+/* 一道粗的墨色横条，斜着压过色块的下缘。 */
+.search-figure.is-bar {
+    top: 34vh;
+    right: 6vw;
+    width: min(46vw, 640px);
+    height: 14px;
+    transform-origin: 100% 50%;
+    --search-figure-delay: 260ms;
+}
+
+.search-figure.is-bar > i {
+    background: var(--search-ink);
+    transform-origin: 100% 50%;
+    animation-name: search-bar-in;
+}
+
+@keyframes search-bar-in { from { transform: scaleX(0); } }
+
+/* 两条贯穿全页的发丝线。 */
+.search-figure.is-line {
+    left: -10vw;
+    width: 120vw;
+    height: 1px;
+    --search-figure-delay: 420ms;
+}
+
+.search-figure.is-line > i {
+    background: color-mix(in srgb, var(--search-ink) 14%, transparent);
+    transform-origin: 0 50%;
+    animation-name: search-bar-in;
+    animation-duration: 1400ms;
+}
+
+.search-figure.is-line.is-first { top: 28vh; transform: rotate(-9deg); }
+.search-figure.is-line.is-second { top: 72vh; transform: rotate(4deg); --search-figure-delay: 520ms; }
+
+/* 斜线小方块。 */
+.search-figure.is-hatch {
+    top: 58vh;
+    right: 4vw;
+    width: 64px;
+    height: 64px;
+    --search-figure-from-y: 40px;
+    --search-figure-delay: 480ms;
+}
+
+.search-figure.is-hatch > i {
+    background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--search-ink) 45%, transparent) 0 2px, transparent 2px 9px);
+}
+
+.search-figure.is-dots {
+    top: 64vh;
+    right: calc(4vw + 84px);
+    width: auto;
+    height: auto;
+    color: var(--search-ink);
+    font: 900 22px/1 ui-monospace, monospace;
+    letter-spacing: 0.4em;
+    opacity: 0.4;
+    --search-figure-delay: 560ms;
+}
+
+.search-figure.is-dots > i { font-style: normal; }
+
+/* 竖排的碎字：正在搜的词，极淡，贴着左边。 */
+.search-figure.is-word {
+    top: 12vh;
+    left: 1.5vw;
+    max-height: 80vh;
+    overflow: hidden;
+    color: var(--search-ink);
+    font-size: clamp(64px, 11vh, 140px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
+    opacity: 0.05;
+    --search-figure-from-y: -6vh;
+    --search-figure-delay: 200ms;
+}
+
+.search-figure.is-word > i { width: auto; height: auto; font-style: normal; }
+
+/* 专辑：色块挪到左下，圆滚到右上像一张唱片，横条竖起来。 */
+.search-composition[data-search-kind='album'] .search-figure.is-slab { transform: translate(-58vw, 62vh) rotate(180deg) scale(0.8); }
+.search-composition[data-search-kind='album'] .search-figure.is-disc { transform: translate(calc(100vw - 30vh), -64vh) scale(1.15); }
+.search-composition[data-search-kind='album'] .search-figure.is-dot { transform: translate(calc(100vw - 26vh), -54vh) scale(1.5); }
+.search-composition[data-search-kind='album'] .search-figure.is-bar { transform: translate(-2vw, -10vh) rotate(-90deg) scaleX(0.6); }
+.search-composition[data-search-kind='album'] .search-figure.is-hatch { transform: translate(0, 26vh); }
+.search-composition[data-search-kind='album'] .search-figure.is-dots { transform: translate(0, 26vh); }
+
+/* 歌单：色块变成右边一根竖条，圆缩小，横条沉到下面，像一列条目。 */
+.search-composition[data-search-kind='playlist'] .search-figure.is-slab { transform: translate(6vw, 12vh) scale(0.5, 1.5); }
+.search-composition[data-search-kind='playlist'] .search-figure.is-disc { transform: translate(4vh, -4vh) scale(0.55); }
+.search-composition[data-search-kind='playlist'] .search-figure.is-dot { transform: translate(calc(100vw - 52vh), -60vh) scale(0.7); }
+.search-composition[data-search-kind='playlist'] .search-figure.is-bar { transform: translate(-4vw, 46vh) rotate(6deg); }
+.search-composition[data-search-kind='playlist'] .search-figure.is-line.is-first { transform: rotate(0deg); }
+.search-composition[data-search-kind='playlist'] .search-figure.is-line.is-second { transform: rotate(0deg) translateY(-6vh); }
+
+/* 窄屏上构图压在列表底下：整体淡下去，别跟文字抢。 */
+@media (max-width: 1180px) {
+    .search-composition { opacity: 0.35; }
+}
+
+/* 手机上只留色块、大圆、细线和碎字：小形状没有页边可放，只会压在页签上。 */
+@media (max-width: 640px) {
+    .search-figure.is-dot,
+    .search-figure.is-bar,
+    .search-figure.is-hatch,
+    .search-figure.is-dots { display: none; }
+}
+
+/* ---------- 搜索框、来源与种类 ---------- */
+
+.search-field {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 2px solid var(--search-ink);
+}
+
+.search-field input {
+    min-width: 0;
+    flex: 1;
+    padding: 14px 0;
+    border: 0;
+    color: inherit;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    background: transparent;
+    outline: none;
+}
+
+.search-field input::placeholder { color: var(--search-ink-soft); font-weight: 600; }
+
+/* 输入框前的小方块：搜索中转成菱形并呼吸，代替转圈。 */
+.search-field-mark {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    background: var(--search-accent);
+    transition: transform 400ms var(--search-ease);
+}
+
+.search-field-mark.is-busy { animation: search-mark-busy 1100ms var(--search-ease) infinite; }
+
+@keyframes search-mark-busy {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(135deg) scale(0.7); }
+    100% { transform: rotate(180deg) scale(1); }
+}
+
+.search-close {
+    display: inline-flex;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid var(--search-ink);
+    color: inherit;
+    background: var(--search-paper);
+    transition: background-color 200ms ease, color 200ms ease;
+}
+
+.search-close:hover { color: var(--search-paper); background: var(--search-ink); }
+
+.search-sources {
+    display: flex;
+    gap: 22px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.search-source {
+    position: relative;
+    flex: none;
+    padding: 6px 0 9px;
+    border: 0;
+    color: var(--search-ink-soft);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: none;
+    transition: color 200ms ease;
+}
+
+.search-source:hover,
+.search-source.is-active { color: var(--search-ink); }
+
+.search-source-mark {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--search-accent);
+}
+
+.search-kinds {
+    display: flex;
+    align-items: flex-end;
+    gap: 28px;
+    /* 手机上英文三个页签放不下：横着滚，不被页面裁掉。 */
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.search-kind { flex: none; }
+
+.search-kind {
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 0 0 0 20px;
+    border: 0;
+    color: var(--search-ink-soft);
+    background: none;
+    transition: color 200ms ease;
+}
+
+.search-kind:hover,
+.search-kind.is-active { color: var(--search-ink); }
+
+.search-kind-number {
+    font: 700 11px/1 ui-monospace, monospace;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+}
+
+.search-kind-label {
+    font-size: clamp(22px, 3.2vw, 34px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.01em;
+}
+
+/* 选中的种类前面的实心方块；换种类时滑过去（framer 的 layoutId）。 */
+.search-kind-mark {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 11px;
+    height: 11px;
+    margin-top: -2px;
+    background: var(--search-accent);
+}
+
+@media (max-width: 640px) {
+    .search-kinds { gap: 14px; }
+    .search-kind { padding-left: 16px; }
+    .search-kind-label { font-size: 18px; }
+}
+
+/* 状态行：数量 + 一道延伸到右边的细线。 */
+.search-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--search-ink-soft);
+    font: 600 11px/1 ui-monospace, monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.search-meta::after {
+    content: '';
+    height: 1px;
+    flex: 1;
+    background: var(--search-hairline);
+}
+
+/* ---------- 列表 ---------- */
+
+/* 结果区本身也是构图里的一块：一张纸色的平面，几何形从它四周露出来，不压在文字底下。 */
+.search-plane {
+    background: color-mix(in srgb, var(--search-paper) 88%, transparent);
+}
+
+.search-row {
+    position: relative;
+    display: flex;
+    height: 100%;
+    align-items: center;
+    gap: 14px;
+    padding: 0 14px 0 18px;
+    border-bottom: 1px solid var(--search-hairline);
+    transition: background-color 200ms ease;
+}
+
+.search-row::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: 0;
+    width: 3px;
+    background: var(--search-accent);
+    transform: scaleY(0);
+    transform-origin: 50% 100%;
+    transition: transform 260ms var(--search-ease);
+}
+
+.search-row:hover,
+.search-row:focus-within { background: color-mix(in srgb, var(--search-ink) 4%, transparent); }
+
+.search-row:hover::before,
+.search-row:focus-within::before { transform: scaleY(1); }
+
+.search-row.is-unavailable { opacity: 0.5; }
+
+.search-row-index {
+    width: 28px;
+    flex: none;
+    color: var(--search-ink-soft);
+    font: 700 12px/1 ui-monospace, monospace;
+    text-align: right;
+    transition: color 200ms ease;
+}
+
+.search-row:hover .search-row-index { color: var(--search-accent); }
+
+.search-row-cover {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    flex: none;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--search-ink) 8%, transparent);
+}
+
+.search-row-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.search-row-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgb(0 0 0 / 45%);
+    opacity: 0;
+    transition: opacity 200ms ease;
+}
+
+.search-row:hover .search-row-play { opacity: 1; }
+
+/* 集合行的封面大一号；专辑封面后面藏着一张唱片，悬停时滑出来一截。 */
+.search-collection-art {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    flex: none;
+}
+
+.search-collection-art .search-row-cover {
+    position: relative;
+    z-index: 1;
+    width: 58px;
+    height: 58px;
+}
+
+.search-collection-disc {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, var(--search-accent) 0 15%, var(--search-ink) 16% 19%, transparent 20%),
+        repeating-radial-gradient(circle, color-mix(in srgb, var(--search-ink) 92%, transparent) 0 2px, color-mix(in srgb, var(--search-ink) 78%, transparent) 2px 3px);
+    transition: transform 420ms var(--search-ease);
+}
+
+.search-row:hover .search-collection-disc { transform: translateX(24px) rotate(40deg); }
+
+/* 歌单封面后面错开一层主题色的影子。 */
+.search-collection-shadow {
+    position: absolute;
+    inset: 0;
+    background: var(--search-accent);
+    transition: transform 320ms var(--search-ease);
+}
+
+.search-row:hover .search-collection-shadow { transform: translate(6px, 6px); }
+
+.search-row-arrow {
+    flex: none;
+    opacity: 0.35;
+    transition: transform 260ms var(--search-ease), opacity 200ms ease;
+}
+
+.search-row:hover .search-row-arrow { opacity: 1; transform: translate(3px, -3px); }
+
+.search-row-action {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid transparent;
+    color: inherit;
+    background: transparent;
+    opacity: 0.6;
+    transition: border-color 200ms ease, opacity 200ms ease;
+}
+
+.search-row-action:hover { border-color: currentColor; opacity: 1; }
+
+@media (min-width: 640px) {
+    .search-row-action { opacity: 0; }
+    .search-row:hover .search-row-action,
+    .search-row:focus-within .search-row-action { opacity: 0.7; }
+}
+
+/* 新的一组结果从左边依次滑进来（只在结果刚到的那一下：列表挂上 data-search-entered 之后再滚出来的行不动）。 */
+.search-list:not([data-search-entered]) .search-row {
+    animation: search-row-in 520ms var(--search-ease) backwards;
+    animation-delay: calc(min(var(--search-row-order, 0), 12) * 32ms);
+}
+
+@keyframes search-row-in {
+    from { opacity: 0; transform: translateX(-22px); clip-path: inset(0 100% 0 0); }
+    60% { clip-path: inset(0 0 0 0); }
+}
+
+/* ---------- 加载、空、错误与「加载更多」 ---------- */
+
+/* 方块、圆、横条三个形依次起落。 */
+.search-loader {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 36px;
+}
+
+.search-loader > i {
+    display: block;
+    background: var(--search-ink);
+    animation: search-loader-step 1200ms var(--search-ease) infinite;
+}
+
+.search-loader > i:nth-child(1) { width: 18px; height: 18px; background: var(--search-accent); }
+.search-loader > i:nth-child(2) { width: 18px; height: 18px; border-radius: 50%; animation-delay: 150ms; }
+.search-loader > i:nth-child(3) { width: 42px; height: 6px; animation-delay: 300ms; }
+
+@keyframes search-loader-step {
+    0%, 100% { transform: translateY(0); opacity: 0.35; }
+    40% { transform: translateY(-14px); opacity: 1; }
+}
+
+/* 空结果与搜索失败：一个空心圆被一根斜杠划过。 */
+.search-void {
+    position: relative;
+    width: 88px;
+    height: 88px;
+}
+
+.search-void::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--search-ink);
+    border-radius: 50%;
+    opacity: 0.4;
+}
+
+.search-void::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -18px;
+    width: 124px;
+    height: 6px;
+    margin-top: -3px;
+    background: var(--search-accent);
+    transform: rotate(-32deg);
+    animation: search-bar-in 700ms var(--search-ease) 120ms backwards;
+}
+
+.search-flat-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 0 20px;
+    border: 1.5px solid var(--search-ink);
+    color: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    background: transparent;
+    transition: background-color 200ms ease, color 200ms ease;
+}
+
+.search-flat-button::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: var(--search-accent);
+}
+
+.search-flat-button:hover:not(:disabled) { color: var(--search-paper); background: var(--search-ink); }
+.search-flat-button:disabled { opacity: 0.5; }
+
+:root[data-reduce-motion~='uiMicroMotion'] .search-figure,
+:root[data-reduce-motion~='uiMicroMotion'] .search-row,
+:root[data-reduce-motion~='uiMicroMotion'] .search-row::before,
+:root[data-reduce-motion~='uiMicroMotion'] .search-collection-disc,
+:root[data-reduce-motion~='uiMicroMotion'] .search-collection-shadow,
+:root[data-reduce-motion~='uiMicroMotion'] .search-row-arrow { transition: none; }
+
+:root[data-reduce-motion~='uiMicroMotion'] .search-figure > i,
+:root[data-reduce-motion~='uiMicroMotion'] .search-list .search-row,
+:root[data-reduce-motion~='uiMicroMotion'] .search-void::after,
+:root[data-reduce-motion~='uiMicroMotion'] .search-field-mark.is-busy,
+:root[data-reduce-motion~='uiMicroMotion'] .search-loader > i { animation: none; }

@@ -1364,7 +1364,17 @@ export default {
     "playTrack": "播放歌曲",
     "error": "搜索失败，请重试。",
     "retry": "重试",
-    "catalogUnavailable": "无法打开该专辑或歌手：在线平台未返回有效的目录 ID。"
+    "catalogUnavailable": "无法打开该专辑或歌手：在线平台未返回有效的目录 ID。",
+    "placeholderAlbum": "搜索专辑...",
+    "placeholderPlaylist": "搜索歌单...",
+    "sources": "搜索来源",
+    "kinds": "搜索种类",
+    "kindSong": "单曲",
+    "kindAlbum": "专辑",
+    "kindPlaylist": "歌单",
+    "resultCount": "共 {{n}} 条",
+    "trackCount": "{{n}} 首",
+    "playCount": "{{n}} 次播放"
   },
   "personalFmMode": {
     "openPicker": "切换私人 FM 模式",
