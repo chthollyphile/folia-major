@@ -57,7 +57,7 @@ import { useProgressiveItemEntrance } from '../shared/useProgressiveItemEntrance
 import { ArtistGridInfoCutInPanel } from './ArtistGridInfoCutInPanel';
 import { ArtistPicture } from './ArtistPicture';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
-
+import { useGlass } from '@/shinoinject/useGlass';
 /*
  * ArtistGridView.tsx
  *
@@ -336,6 +336,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     isInteractive = true,
     morphPlan = null,
 }) => {
+    useGlass();
     const { t } = useTranslation();
     // The artist wall renders the same cards as GridView, so it follows the same look settings.
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
@@ -1344,6 +1345,8 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     setShowSidePanel(false);
                     setShowCutInPanel(current => !current);
                 }}
+                data-glass
+        data-glass-jelly data-glass-light
                 className="group/grid-title absolute left-1/2 top-5 -translate-x-1/2 z-[70] text-center flex flex-col items-center select-none cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl backdrop-blur-md"
                 style={{
                     backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',

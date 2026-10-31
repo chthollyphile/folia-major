@@ -185,7 +185,6 @@ export default function Lattice({
         () => ({ currentSong, playerState, currentTime, playbackDuration, canTogglePlayback }),
         [canTogglePlayback, currentSong, currentTime, playbackDuration, playerState],
     );
-
     return (
         <LatticeTransportContext.Provider value={transport}>
         <LatticePlaybackProvider actions={controls} currentSong={currentSong} queue={queue} lyrics={lyrics}
@@ -212,6 +211,7 @@ export default function Lattice({
                 sections={isExplore ? explore.sections : undefined}
                 startTileId={startTileId}
                 currentSong={currentSong}
+                isDaylight={isDaylight}
                 onPlay={wall.onPlay}
                 onTogglePlayback={wall.onTogglePlayback}
                 onSeek={wall.onSeek}
@@ -227,7 +227,8 @@ export default function Lattice({
                 // are handled on .lattice-field, and reach it only while the focus is inside it. From
                 // the keyboard the button is reached and pressed as any other, and holds the focus
                 // then: so `aria-disabled` and not `disabled` (a disabled button cannot hold the focus).
-                <button type="button" className="lattice-back lattice-refresh" aria-disabled={!explore.canRefresh}
+                <button type="button" className="lattice-back lattice-refresh mx-[5px]" aria-disabled={!explore.canRefresh}
+                    data-glass data-glass-light data-glass-jelly
                     onMouseDown={event => event.preventDefault()}
                     onClick={() => { if (explore.canRefresh) explore.refresh(); }}
                     aria-label={t('home.exploreRefresh')} title={t('home.exploreRefresh')}>

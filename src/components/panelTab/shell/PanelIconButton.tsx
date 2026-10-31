@@ -41,6 +41,7 @@ export const PanelIconButton: React.FC<PanelIconButtonProps> = ({
     <Tooltip text={label} className={`inline-flex shrink-0${className ? ` ${className}` : ''}`}>
         <button
             type="button"
+            data-glass
             {...button}
             aria-label={label}
             aria-pressed={pressed}

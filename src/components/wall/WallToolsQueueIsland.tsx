@@ -249,6 +249,7 @@ export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: st
 
     return (
         <motion.section
+            data-glass
             id={id}
             role="region"
             aria-label={t('wallTools.queueIsland')}

@@ -9,6 +9,8 @@ import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout'
 import { useNowPlayingCardLayoutStore } from './now-playing-toast/nowPlayingCardLayoutStore';
 import { useNowPlayingCardPosition } from './now-playing-toast/useNowPlayingCardPosition';
 import { NowPlayingCardPositioner } from './now-playing-toast/NowPlayingCardPositioner';
+import { useGlass } from "@/shinoinject/useGlass";
+useGlass;
 
 // src/components/app/overlays/NowPlayingToast.tsx
 // 播放器与 Lattice 上的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入），默认在左下角，
@@ -24,69 +26,74 @@ import { NowPlayingCardPositioner } from './now-playing-toast/NowPlayingCardPosi
 
 // 着色器描边只有真的在混音时才用到，懒加载让 @paper-design/shaders 的 chunk 不进主包；
 // 混音开始前有几秒（arm 早于 fade）足够它加载完。
-const NowPlayingToastTransitionBorder = lazy(() => import('./now-playing-toast/NowPlayingToastTransitionBorder'));
+const NowPlayingToastTransitionBorder = lazy(
+  () => import("./now-playing-toast/NowPlayingToastTransitionBorder"),
+);
 
 /** 卡片圆角，和下面的 rounded-2xl 对齐；描边要按它算圆角 */
 const CARD_RADIUS = 16;
 
-export type StageTrackPillMode = 'auto' | 'always' | 'never';
+export type StageTrackPillMode = "auto" | "always" | "never";
 
 export interface NowPlayingToastSong {
-    title: string;
-    artist: string | null;
-    coverUrl: string | null;
+  title: string;
+  artist: string | null;
+  coverUrl: string | null;
 }
 
 type NowPlayingToastProps = {
-    song: NowPlayingToastSong;
-    trackKey: string;
-    isDaylight: boolean;
-    /** 显示模式：auto=限时，always=常驻，never=不渲染 */
-    mode?: StageTrackPillMode;
-    /** auto 模式显示时长（秒） */
-    timeoutSec?: number;
-    /** 自动切歌预览的数据（下一首）；isNextUp 时整卡展示它 */
-    nextUp?: NowPlayingToastSong | null;
-    /** 预览态：下一首内容 + 接下来播放标签 + 挂起 auto 隐藏计时 */
-    isNextUp?: boolean;
-    /** 描边取 accentColor，和全屏圆环同一个颜色 */
-    theme?: Theme;
-    /** 点卡片做什么；不给就还是个纯展示的卡片，不吃鼠标 */
-    onActivate?: () => void;
-    /** onActivate 的无障碍名字，说清楚点下去会发生什么 */
-    activateLabel?: string;
+  song: NowPlayingToastSong;
+  trackKey: string;
+  isDaylight: boolean;
+  /** 显示模式：auto=限时，always=常驻，never=不渲染 */
+  mode?: StageTrackPillMode;
+  /** auto 模式显示时长（秒） */
+  timeoutSec?: number;
+  /** 自动切歌预览的数据（下一首）；isNextUp 时整卡展示它 */
+  nextUp?: NowPlayingToastSong | null;
+  /** 预览态：下一首内容 + 接下来播放标签 + 挂起 auto 隐藏计时 */
+  isNextUp?: boolean;
+  /** 描边取 accentColor，和全屏圆环同一个颜色 */
+  theme?: Theme;
+  /** 点卡片做什么；不给就还是个纯展示的卡片，不吃鼠标 */
+  onActivate?: () => void;
+  /** onActivate 的无障碍名字，说清楚点下去会发生什么 */
+  activateLabel?: string;
 };
 
 const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
-    song,
-    trackKey,
-    isDaylight,
-    mode = 'auto',
-    timeoutSec = 10,
-    nextUp = null,
-    isNextUp = false,
-    theme,
-    onActivate,
-    activateLabel,
+  song,
+  trackKey,
+  isDaylight,
+  mode = "auto",
+  timeoutSec = 10,
+  nextUp = null,
+  isNextUp = false,
+  theme,
+  onActivate,
+  activateLabel,
 }) => {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
 
-    // 预览态内容收口：isNextUp 且给了 nextUp 时整卡展示下一首，否则常规
-    const shown = isNextUp && nextUp ? nextUp : song;
-    const label = isNextUp ? t('ui.stageTrackPillNext') : t('ui.stageTrackPillNow');
+  // 预览态内容收口：isNextUp 且给了 nextUp 时整卡展示下一首，否则常规
+  const shown = isNextUp && nextUp ? nextUp : song;
+  const label = isNextUp
+    ? t("ui.stageTrackPillNext")
+    : t("ui.stageTrackPillNow");
 
-    // The last cover URL that failed to load, so a dead one falls back to the placeholder instead
-    // of a blank square. Only the latest is remembered: a URL that comes back later gets a fresh
-    // attempt, which is what a transient network failure deserves.
-    const [brokenCoverUrl, setBrokenCoverUrl] = useState<string | null>(null);
-    const coverSrc = shown.coverUrl && shown.coverUrl !== brokenCoverUrl ? shown.coverUrl : null;
+  // The last cover URL that failed to load, so a dead one falls back to the placeholder instead
+  // of a blank square. Only the latest is remembered: a URL that comes back later gets a fresh
+  // attempt, which is what a transient network failure deserves.
+  const [brokenCoverUrl, setBrokenCoverUrl] = useState<string | null>(null);
+  const coverSrc =
+    shown.coverUrl && shown.coverUrl !== brokenCoverUrl ? shown.coverUrl : null;
 
-    // 正在进行的混音。开关是在 cue 到达的那一刻从 settings store 里读的（见 hook 里的注释），
-    // 所以拿到非空 cue 就意味着「过渡动画开着 + 模式是 automix」，不用再问一遍 prop。
-    // 它同时参与下面的 holdOpen：混音期间卡片必须留在屏幕上，否则描边跟着卡片一起卸载，
-    // 而全屏圆环已经让位了。
-    const bottomBarBottomPx = usePlayerBottomBarBottomPx();
-    const transitionCue = useTransitionBorderCue();
+  // 正在进行的混音。开关是在 cue 到达的那一刻从 settings store 里读的（见 hook 里的注释），
+  // 所以拿到非空 cue 就意味着「过渡动画开着 + 模式是 automix」，不用再问一遍 prop。
+  // 它同时参与下面的 holdOpen：混音期间卡片必须留在屏幕上，否则描边跟着卡片一起卸载，
+  // 而全屏圆环已经让位了。
+  const bottomBarBottomPx = usePlayerBottomBarBottomPx();
+  const transitionCue = useTransitionBorderCue();
 
     // 可见性状态机：never 不渲染；always 常驻；auto 换歌重新计时。
     // isNextUp（预览下一首）挂起计时，翻回 false 后（即使 trackKey 没变）重新计时。
@@ -106,36 +113,41 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         return () => window.clearTimeout(timer);
     }, [mode, hideDelayMs, trackKey, holdOpen, isPositioning]);
 
-    // 描边要的是卡片的实际尺寸（内容撑出来的，没有固定宽高），所以量一下外层容器：
-    // 它是 fixed 且没给宽度，会收缩到卡片大小，而且不会随 trackKey 重挂。
-    // 描边本身是绝对定位、外扩一圈的兄弟节点，不参与这个尺寸。
-    //
-    // 卡片在场就一直量，不看那个设置：量的是提前量，描边一到就要知道画布多大，等 ResizeObserver
-    // 回调会晚一帧。挂个条件上去就等于把「卡片描边」那个开关又读了第二遍，而它已经有一个读的
-    // 地方了（useTransitionBorderCue）——同一个开关两个读点、两个时机，正是这块出过的那个 bug。
-    const frameRef = useRef<HTMLDivElement | null>(null);
-    const { ref: layoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('now-playing-card', 'now-playing');
-    const setFrameRef = React.useCallback((element: HTMLDivElement | null) => {
-        frameRef.current = element;
-        layoutRef(element);
-    }, [layoutRef]);
-    const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
-    useEffect(() => {
-        const frame = frameRef.current;
-        if (!frame || typeof ResizeObserver === 'undefined') return;
-        const observer = new ResizeObserver(([entry]) => {
-            // contentRect 而不是 getBoundingClientRect：外层这一圈在做 x 位移动画，
-            // 后者会把 transform 算进去。
-            const { width, height } = entry.contentRect;
-            setCardSize(prev => (
-                Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5
-                    ? prev
-                    : { width, height }
-            ));
-        });
-        observer.observe(frame);
-        return () => observer.disconnect();
-    }, [visible]);
+  // 描边要的是卡片的实际尺寸（内容撑出来的，没有固定宽高），所以量一下外层容器：
+  // 它是 fixed 且没给宽度，会收缩到卡片大小，而且不会随 trackKey 重挂。
+  // 描边本身是绝对定位、外扩一圈的兄弟节点，不参与这个尺寸。
+  //
+  // 卡片在场就一直量，不看那个设置：量的是提前量，描边一到就要知道画布多大，等 ResizeObserver
+  // 回调会晚一帧。挂个条件上去就等于把「卡片描边」那个开关又读了第二遍，而它已经有一个读的
+  // 地方了（useTransitionBorderCue）——同一个开关两个读点、两个时机，正是这块出过的那个 bug。
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const { ref: layoutRef, invalidate: invalidateLayout } =
+    usePlayerOverlayObstacle("now-playing-card", "now-playing");
+  const setFrameRef = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      frameRef.current = element;
+      layoutRef(element);
+    },
+    [layoutRef],
+  );
+  const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      // contentRect 而不是 getBoundingClientRect：外层这一圈在做 x 位移动画，
+      // 后者会把 transform 算进去。
+      const { width, height } = entry.contentRect;
+      setCardSize((prev) =>
+        Math.abs(prev.width - width) < 0.5 &&
+        Math.abs(prev.height - height) < 0.5
+          ? prev
+          : { width, height },
+      );
+    });
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [visible]);
 
     const position = useNowPlayingCardPosition(frameRef, cardSize, bottomBarBottomPx, visible, invalidateLayout);
 
@@ -161,23 +173,23 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         AnimatePresence 在这儿单独开一层，混音结束时描边自己淡出，不用等卡片；
                         Suspense 套在外面而不是里面，否则 chunk 还没到时它会顶掉 AnimatePresence
                         的直接子节点，退场就丢了。 */}
-                    <Suspense fallback={null}>
-                        <AnimatePresence>
-                            {transitionCue && cardSize.width > 0 && (
-                                <NowPlayingToastTransitionBorder
-                                    key="transition-border"
-                                    cue={transitionCue.cue}
-                                    startAtMs={transitionCue.startAtMs}
-                                    cardWidth={cardSize.width}
-                                    cardHeight={cardSize.height}
-                                    cardRadius={CARD_RADIUS}
-                                    isDaylight={isDaylight}
-                                    theme={theme}
-                                />
-                            )}
-                        </AnimatePresence>
-                    </Suspense>
-                    {/* Toast 卡片（playing-toast 样式）。
+          <Suspense fallback={null}>
+            <AnimatePresence>
+              {transitionCue && cardSize.width > 0 && (
+                <NowPlayingToastTransitionBorder
+                  key="transition-border"
+                  cue={transitionCue.cue}
+                  startAtMs={transitionCue.startAtMs}
+                  cardWidth={cardSize.width}
+                  cardHeight={cardSize.height}
+                  cardRadius={CARD_RADIUS}
+                  isDaylight={isDaylight}
+                  theme={theme}
+                />
+              )}
+            </AnimatePresence>
+          </Suspense>
+          {/* Toast 卡片（playing-toast 样式）。
 
                         没有 key，所以卡片在场期间不会因为换内容重挂：正在播放 → 预告下一首 →
                         那首真的播起来，是一条连续的事，中间不该滑出再滑进来。内容就地换掉，宽度
@@ -193,12 +205,21 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         onLayoutAnimationComplete={invalidateLayout}
                         data-toast-card=""
                         type="button"
+                        data-glass
                         layout="size"
                         onClick={isPositioning ? event => event.preventDefault() : onActivate}
                         {...(isPositioning ? position.handlers : {})}
                         disabled={!onActivate && !isPositioning}
                         aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
-                        style={isPositioning ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
+                        style={{
+                            ...(isPositioning ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : {}),
+                            backgroundColor: isDaylight ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                            borderTop: isDaylight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)',
+                            borderBottom: isDaylight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.12)',
+                            outline: isPositioning ? '2px solid currentColor' : '1px solid rgba(40,40,40,0.2)',
+                            outlineOffset: isPositioning ? 3 : undefined,
+                            boxShadow: '2px 2px 8px 2px rgba(40,40,40,0.4)',
+                        }}
                         initial={{ opacity: 0, x: isPositioning ? 0 : -24 }}
                         animate={{ opacity: 1, x: 0 }}
                         whileTap={onActivate && !isPositioning ? { opacity: 0.85 } : undefined}
@@ -211,32 +232,32 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                     >
                         {/* 顶部光线（进场的横向扫光）。混音期间收掉：描边现在正压在卡片边框上，
                             再叠一条亮线就是同一条边上两层东西，读起来是好几层边框套在一起。 */}
-                        <motion.span
-                            aria-hidden
-                            data-toast-sheen=""
-                            initial={{ scaleX: 0 }}
-                            animate={{ scaleX: 1, opacity: transitionCue ? 0 : 1 }}
-                            transition={{ duration: 0.5, ease: 'easeOut' }}
-                            className={`absolute inset-x-0 top-0 h-[2px] origin-left ${
-                                isDaylight
-                                    ? 'bg-gradient-to-r from-transparent via-black/40 to-transparent'
-                                    : 'bg-gradient-to-r from-transparent via-white/50 to-transparent'
-                            }`}
-                        />
-                        {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
+            <motion.span
+              aria-hidden
+              data-toast-sheen=""
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1, opacity: transitionCue ? 0 : 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className={`absolute inset-x-0 top-0 h-[2px] origin-left ${
+                isDaylight
+                  ? "bg-gradient-to-r from-transparent via-black/40 to-transparent"
+                  : "bg-gradient-to-r from-transparent via-white/50 to-transparent"
+              }`}
+            />
+            {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
                             没有自己 layout 的子节点会被一起拉扁。带上它俩，framer 会逐层把缩放
                             反解掉，封面不变形、歌名不横向压扁。 */}
-                        <motion.div
-                            layout
-                            // Which of the two the frame settled on, so a test can tell "showed the
-                            // cover" from "fell back" - the difference used to be invisible from
-                            // the outside, which is how the blank square went unnoticed.
-                            data-toast-cover={coverSrc ? 'image' : 'placeholder'}
-                            className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
-                                isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'
-                            }`}
-                        >
-                            {/* An <img> rather than a background-image, for the two things a
+            <motion.div
+              layout
+              // Which of the two the frame settled on, so a test can tell "showed the
+              // cover" from "fell back" - the difference used to be invisible from
+              // the outside, which is how the blank square went unnoticed.
+              data-toast-cover={coverSrc ? "image" : "placeholder"}
+              className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
+                isDaylight ? "bg-zinc-200" : "bg-zinc-800"
+              }`}
+            >
+              {/* An <img> rather than a background-image, for the two things a
                                 background cannot do: it reports failure, and the browser parses the
                                 URL instead of the CSS tokenizer (an unquoted url() is voided
                                 outright by a space, a bracket or the comma in a multi-value cover
@@ -245,22 +266,27 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                 takes them back on the next track - and a dead URL used to leave a
                                 bare grey square, since the placeholder below only stood in when
                                 there was no URL at all. */}
-                            {coverSrc && (
-                                <img
-                                    key={coverSrc}
-                                    src={coverSrc}
-                                    alt=""
-                                    aria-hidden
-                                    decoding="async"
-                                    draggable={false}
-                                    onError={() => setBrokenCoverUrl(coverSrc)}
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                />
-                            )}
-                            {!coverSrc && <Music size={18} className={isDaylight ? 'text-black/35' : 'text-white/35'} />}
-                        </motion.div>
-                        <motion.div layout className="min-w-0 max-w-[200px] flex-1">
-                            {/* 正在播放 / 接下来播放：歌名上方。切歌那一刻整张卡片不重挂，所以这
+              {coverSrc && (
+                <img
+                  key={coverSrc}
+                  src={coverSrc}
+                  alt=""
+                  aria-hidden
+                  decoding="async"
+                  draggable={false}
+                  onError={() => setBrokenCoverUrl(coverSrc)}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              )}
+              {!coverSrc && (
+                <Music
+                  size={18}
+                  className={isDaylight ? "text-black/35" : "text-white/35"}
+                />
+              )}
+            </motion.div>
+            <motion.div layout className="min-w-0 max-w-[200px] flex-1">
+              {/* 正在播放 / 接下来播放：歌名上方。切歌那一刻整张卡片不重挂，所以这
                                 一行是自己淡入淡出换掉的，不跟着进场动画走。
                                 高度写死成和 leading 一样的 10px：mode="wait" 换字的中途这一行是
                                 空的，不占住高度的话歌名会往上跳一下再落回来。 */}

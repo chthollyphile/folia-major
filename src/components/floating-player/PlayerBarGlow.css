@@ -1,0 +1,36 @@
+/* src/components/floating-player/PlayerBarGlow.css
+   播放时浮动播放条底边的那层水面波形：随音乐起伏、缓慢流动。
+
+   这一层在胶囊**内部**（胶囊的 overflow-hidden 会把它裁成胶囊自己的圆角形状），
+   贴在底边往上摊：z-index: -1 让它压在内容（按钮、进度条）下面、浮在胶囊自己的底色上面，
+   所以它照亮的是胶囊的底边，不会盖住任何控件。
+
+   和 data-glass-light 的光晕层（liquidglass.ts 追加的子节点）不打架：那一层是跟着指针
+   走的白色光斑，铺在胶囊内部整片区域、z-index: 0（在内容之上）；这一层只在底边一条，
+   在内容之下。两者的亮部在底边叠加也只是更亮，不会互相冲淡。
+
+   形状是 canvas 画的（PlayerBarGlow.tsx），这里只管位置、尺寸和透明度。 */
+
+/* 强度：0..1，由 PlayerBarGlow 每帧写进来（不走 React state）。 */
+.player-bar-glow {
+    position: absolute;
+    filter: blur(2px) drop-shadow(0 0 2px var(--text-accent)) drop-shadow(0 0 4px var(--text-accent)) drop-shadow(0 0 8px var(--text-accent));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* 水面摊开的高度：跟着胶囊高度走，展开的胶囊里水面也更高。 */
+    height: 12%;
+    min-height: 10px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: -1;
+    opacity: var(--player-bar-glow-level, 0);
+    /* 强调色：主题的强调色。canvas 只认具体颜色，所以 JS 读的是这个变量的计算值。 */
+    --player-bar-glow-accent: var(--text-accent, #fd5c47);
+}
+
+.player-bar-glow-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}

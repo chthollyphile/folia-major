@@ -140,8 +140,8 @@ const RemoteSheet: React.FC<RemoteSheetProps> = ({
             {view === 'window' && (
                 <div className="remote-rows">
                     <div className="remote-row">
-                        <span className="remote-row__label">{t('remote.rowMode')}</span>
-                        <RemoteSeg
+                        {/* <span className="remote-row__label">{t('remote.rowMode')}</span> */}
+                        {/* <RemoteSeg
                             label={t('remote.rowMode')}
                             value={snapshot.transparentModeEnabled ? 'transparent' : 'standard'}
                             options={[
@@ -152,8 +152,8 @@ const RemoteSheet: React.FC<RemoteSheetProps> = ({
                                 type: 'set-transparent-mode-enabled',
                                 enabled: value === 'transparent',
                             })}
-                        />
-                        <span className="remote-row__space" />
+                        /> */}
+                        {/* <span className="remote-row__space" /> */}
                         <span className="remote-row__label remote-row__label--trailing">{t('remote.rowSize')}</span>
                         <button
                             type="button"

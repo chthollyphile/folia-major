@@ -3,6 +3,7 @@ import { importFoliumParams, snapshotFoliumParams } from '../../../../../mods/pa
 import { buildVisualSettingsConfig } from '../../../../../services/obs/visualSettingsConfig';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../../../services/themePreferences';
 import { useLibraryWallLookStore } from '../../../../../stores/useLibraryWallLookStore';
+import { useLiquidGlassSettingsStore } from '../../../../../stores/useLiquidGlassSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../../stores/usePlayerChromeSettingsStore';
 import { useStageSettingsStore } from '../../../../../stores/useStageSettingsStore';
 import { useThemeSettingsStore } from '../../../../../stores/useThemeSettingsStore';
@@ -351,5 +352,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('libraryWallSeamDirection') && isLibraryWallSeamDirection(config.libraryWallSeamDirection)) {
         storeLibraryWall.setSeamDirection(config.libraryWallSeamDirection);
+    }
+    // 流体玻璃：一组全局参数，整组套用，落库与刷新走 store 自己的 commit。
+    if (has('liquidGlass') && config.liquidGlass) {
+        useLiquidGlassSettingsStore.getState().handleSetLiquidGlassParams(config.liquidGlass);
     }
 };

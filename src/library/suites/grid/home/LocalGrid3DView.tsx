@@ -64,6 +64,8 @@ interface LocalGrid3DViewProps {
     isDaylight: boolean;
     hasFloatingPlayer?: boolean;
     isInteractive?: boolean;
+    /** 是否是当前显示的一级页签。缓存（keep-alive）时非活动层为 false：只显示、不对外注册列表句柄。 */
+    isActive?: boolean;
 }
 
 export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
@@ -90,6 +92,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     isDaylight,
     hasFloatingPlayer = false,
     isInteractive = true,
+    isActive = true,
 }) => {
     const { t } = useTranslation();
     const playlistFileInputRef = useRef<HTMLInputElement>(null);
@@ -150,7 +153,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
 
     // 首页模型交给 core 的首页 surface 句柄（探针与以后的命令面板读它，不读组件树）。
     useLibraryHomeListRegistration({
-        enabled: !isEmptyLibrary,
+        enabled: !isEmptyLibrary && isActive,
         getState: (): LibraryHomeListState => ({
             tab: 'local',
             directoryKey,

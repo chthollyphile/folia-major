@@ -1,0 +1,21 @@
+/* src/components/shared/loadingRing.css */
+/* 统一的转圈加载环：一圈带缺口的细环，靠旋转形成转圈。颜色走 currentColor，明暗主题都跟着所在处的文字颜色。 */
+.loading-ring {
+    color: currentColor;
+}
+
+.loading-ring circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2px;
+    stroke-linecap: round;
+    stroke-dasharray: 32 12;
+    transform-origin: 50% 50%;
+    animation: loading-ring-spin 1s linear infinite;
+}
+
+@keyframes loading-ring-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

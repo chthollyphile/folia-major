@@ -1,14 +1,17 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Loader2, RefreshCw } from 'lucide-react';
 import type { SongResult } from '../../../../types';
 import type { OmniCollection, OmniProviderId } from '../../../../types/onlineMusic';
 import { exploreScroll, useExploreFeedStore } from '../../../../stores/useExploreFeedStore';
+import { ExploreEdgeBlur } from './ExploreEdgeBlur';
 import { ExploreLight } from './ExploreLight';
+import { ExploreScrollbar } from './ExploreScrollbar';
 import { EXPLORE_PILL, EXPLORE_TOKENS, ExploreSections } from './ExploreSections';
 import { useExploreTilt } from './exploreTilt';
 import { OWN_SECTION_IDS, listenedSongsOf, useOwnExploreSections } from './ownSections';
+import { LoadingRing } from '../../../shared/LoadingRing';
 
 // src/components/app/home/explore/ExploreSurface.tsx
 // The explore tab of the home screen, as sections one under another. A section is the same
@@ -21,15 +24,17 @@ import { OWN_SECTION_IDS, listenedSongsOf, useOwnExploreSections } from './ownSe
 // Nothing here knows which provider it is: another one needs its own `OnlineExploreProvider`.
 // The page's own control ("refresh") is not part of the list: it stands over the list's top right
 // corner, where the first heading row leaves it room, and stays there while the list scrolls
-// under it. What passes under the list's top edge then fades out, so that a heading row's own
-// buttons are dim where they pass under the control (they are not gone: the fade is whole only
-// at the very edge).
+// under it. What passes under the list's top edge then blurs and fades out (ExploreEdgeBlur.tsx),
+// so that a heading row's own buttons are dim where they pass under the control (they are not
+// gone: the fade is whole only at the very edge).
 // Two things belong to the page as a whole and not to any entry: its light (ExploreLight.tsx),
 // which stands behind the list, and that a picture leans to the pointer over it (exploreTilt.ts).
 
 // How far down from its top edge the list fades what has scrolled up to it, in pixels.
-const TOP_FADE = 56;
-// The mark that more is being read and the offer to try again, at the list's end, are one height: the list does not move under a listener who stands there when one takes the other's place. (It does once, by this much, when the list turns out to end there.)
+const TOP_FADE = 120;
+// How far up from its bottom edge the list fades what has not been scrolled to yet, in pixels.
+const BOTTOM_FADE = 70;
+// The mark that more is being read and the offer to try again, at the list's end, are EDGE_BLURSone height: the list does not move under a listener who stands there when one takes the other's place. (It does once, by this much, when the list turns out to end there.)
 const END = 'flex h-28 items-center justify-center';
 const NO_BATCHES = {};
 
@@ -52,7 +57,18 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     const refresh = useExploreFeedStore(state => state.refresh);
     const loadMore = useExploreFeedStore(state => state.loadMore);
     const loadMoreOf = useExploreFeedStore(state => state.loadMoreOf);
+    // Entered: hold the sections back for a moment behind a loading ring. The sections carry motion
+    // transitions that are heavy enough to drop frames against the tab's own slide-in; giving that
+    // animation a clear frame first is what keeps the entry smooth. The provider's page is still
+    // read meanwhile, so it is usually there by the time the ring goes.
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        const id = window.setTimeout(() => setReady(true), 1000);
+        return () => window.clearTimeout(id);
+    }, []);
     const list = useRef<HTMLDivElement>(null);
+    // The floating scrollbar points at the list through this id; one page per surface.
+    const listId = useId();
     const end = useRef<HTMLDivElement>(null);
     const pin = useRef<HTMLDivElement>(null);
     useExploreTilt(list);
@@ -60,8 +76,13 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     // under it (nothing while the list stands at its top), and that the control now floats over
     // the list.
     const follow = useCallback(() => {
-        const top = list.current?.scrollTop ?? 0;
-        list.current?.style.setProperty('--ex-top-fade', `${Math.min(top, TOP_FADE)}px`);
+        const element = list.current;
+        if (!element) return;
+        const top = element.scrollTop;
+        // What still stands below the bottom edge: nothing at the end, so nothing to fade there.
+        const below = element.scrollHeight - element.clientHeight - top;
+        element.style.setProperty('--ex-top-fade', `${Math.min(top, TOP_FADE)}px`);
+        element.style.setProperty('--ex-bottom-fade', `${Math.min(Math.max(below, 0), BOTTOM_FADE)}px`);
         pin.current?.toggleAttribute('data-floating', top > 0);
     }, []);
     // The width of the list's scrollbar, which comes and goes with what the list holds: the
@@ -70,13 +91,18 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     useLayoutEffect(() => {
         const element = list.current;
         if (!element || typeof ResizeObserver === 'undefined') return undefined;
-        const measure = () => setBarWidth(element.offsetWidth - element.clientWidth);
+        const measure = () => {
+            setBarWidth(element.offsetWidth - element.clientWidth);
+            // Sections arriving (or the list changing height) change what stands below the
+            // bottom edge without a scroll event.
+            follow();
+        };
         const observer = new ResizeObserver(measure);
         observer.observe(element);
         if (element.firstElementChild) observer.observe(element.firstElementChild);
         measure();
         return () => observer.disconnect();
-    }, []);
+    }, [follow]);
 
     // What the listener played here, as it is when the provider's page is read: the provider may make sections out of it.
     const listened = useCallback(() => listenedSongsOf(providerId, accountId), [providerId, accountId]);
@@ -94,8 +120,9 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     useLayoutEffect(() => {
         if (hasSections && list.current) list.current.scrollTop = exploreScroll.top;
         follow();
+        // (`ready`: while the ring stands in the list holds nothing, so the place can only be put back once the sections are on the page.)
         // (`feed?.status`: the control is put over the list when the provider's page has arrived, which with sections of the app's own on screen is none of the other moments.)
-    }, [follow, hasSections, feed?.status, feed?.read]);
+    }, [follow, hasSections, feed?.status, feed?.read, ready]);
 
     // Not while another page is being read in place of this one: its end asks for nothing then.
     const awaitsMore = hasMore && !feed?.loadingMore && !feed?.moreFailed && !feed?.refreshing;
@@ -122,7 +149,7 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     const refreshLabel = t(feed?.refreshFailed ? 'home.exploreRetry' : 'home.exploreRefresh');
     return (
         <div className="relative h-full w-full self-stretch" style={EXPLORE_TOKENS}>
-            {hasRefresh && (
+            {hasRefresh && ready && (
                 // Laid out as the list's own content is, so that the control ends where the heading rows end.
                 // Before the list, so that the keyboard reaches it before the list's own buttons, as it did in its row.
                 <motion.div
@@ -156,6 +183,7 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
             <ExploreLight list={list} />
             <motion.div
                 ref={list}
+                id={listId}
                 data-explore-surface
                 // Entries that change places are followed from where they stood in this list.
                 layoutScroll
@@ -163,11 +191,17 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
                     if (hasSections) exploreScroll.top = event.currentTarget.scrollTop;
                     follow();
                 }}
-                className="h-full w-full overflow-y-auto"
-                style={{ maskImage: 'linear-gradient(to bottom, transparent, black var(--ex-top-fade, 0px))' }}
+                className="h-full w-full overflow-y-auto fixed top-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                style={{
+                    maskImage: 'linear-gradient(to bottom, transparent, black var(--ex-top-fade, 0px), black calc(100% - var(--ex-bottom-fade, 0px)), transparent)',
+                }}
             >
+                <ExploreEdgeBlur edge="top" />
                 <div className="mx-auto w-full max-w-7xl px-4 pb-12 pt-2 md:px-8">
-                    {sections.length === 0 ? (
+                    {!ready ? (
+                        // Just entered: the ring stands in until the sections are put on the page.
+                        <div className="flex justify-center py-24" aria-busy="true"><LoadingRing /></div>
+                    ) : sections.length === 0 ? (
                         // No section to show: the state of the provider's page stands alone.
                         isLoading ? (
                             <div className="flex justify-center py-24" aria-busy="true"><Loader2 size={28} className="animate-spin opacity-30" /></div>
@@ -187,7 +221,7 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
                                 onOpenCollection={onOpenCollection}
                                 onLoadMoreOf={sectionId => void loadMoreOf(sectionId)}
                                 // Room for the control that stands over this corner of the list.
-                                pageControls={hasRefresh ? <span data-explore-controls-room aria-hidden className="h-8 w-8 shrink-0" /> : undefined}
+                                pageControls={hasRefresh ? <span data-explore-controls-room aria-hidden className="h-8 w-8 shrink-0  mt-[188px]" /> : undefined}
                             />
                             {/* Under the sections, the state of the provider's page: what the app keeps itself is shown through all of it. */}
                             {isLoading ? (
@@ -202,7 +236,9 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
                         </>
                     )}
                 </div>
+                <ExploreEdgeBlur edge="bottom" />
             </motion.div>
+            <ExploreScrollbar list={list} controls={listId} />
         </div>
     );
 };

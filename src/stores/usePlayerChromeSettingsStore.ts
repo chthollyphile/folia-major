@@ -19,6 +19,7 @@ import { setStatusMessage } from './useStatusMessageStore';
 const PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY = 'player_bottom_bar_offset';
 const PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY = 'player_control_slot_primary';
 const PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY = 'player_control_slot_secondary';
+const PLAYER_BAR_PINNED_STORAGE_KEY = 'player_bar_pinned';
 
 /** Reads the persisted lower-bounded offset; the viewport-dependent upper bound is applied by consumers. */
 const readStoredPlayerBottomBarOffset = (): number => {
@@ -49,6 +50,8 @@ const readStoredPlayerControlSlot = (
 export type PlayerChromeSettingsState = {
     hidePlayerProgressBar: boolean;
     playerBottomBarOffset: number;
+    /** 底部播放条被固定：固定后它不再随鼠标离开而收缩。 */
+    playerBarPinned: boolean;
     playerControlSlotPrimary: PlayerControlSlotActionId;
     playerControlSlotSecondary: PlayerControlSlotActionId;
     hidePlayerRightPanelButton: boolean;
@@ -69,6 +72,7 @@ export type PlayerChromeSettingsState = {
     handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
     handleToggleHidePlayerProgressBar: (enable: boolean) => void;
     handleSetPlayerBottomBarOffset: (offsetPx: number) => void;
+    handleTogglePlayerBarPinned: (enable: boolean) => void;
     handleSetPlayerControlSlot: (slot: 'primary' | 'secondary', actionId: PlayerControlSlotActionId) => void;
     handleToggleHidePlayerRightPanelButton: (enable: boolean) => void;
     handleToggleAlwaysShowPlayerBackButton: (enable: boolean) => void;
@@ -88,6 +92,7 @@ export type PlayerChromeSettingsState = {
 export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((set, get) => ({
     hidePlayerProgressBar: getStoredBoolean('hide_player_progress_bar', false),
     playerBottomBarOffset: readStoredPlayerBottomBarOffset(),
+    playerBarPinned: getStoredBoolean(PLAYER_BAR_PINNED_STORAGE_KEY, false),
     playerControlSlotPrimary: readStoredPlayerControlSlot(
         PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY,
         DEFAULT_PLAYER_CONTROL_SLOT_PRIMARY,
@@ -158,6 +163,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
             localStorage.setItem(PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY, String(next));
         }
         set({ playerBottomBarOffset: next });
+    },
+    handleTogglePlayerBarPinned: (enable: boolean) => {
+        setStoredBoolean(PLAYER_BAR_PINNED_STORAGE_KEY, enable);
+        set({ playerBarPinned: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'playerBarPinned' : 'playerBarUnpinned')),
+        });
     },
     handleSetPlayerControlSlot: (slot, actionId) => {
         if (!isPlayerControlSlotActionId(actionId)) {
@@ -254,6 +267,7 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
 export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsState) => ({
     hidePlayerProgressBar: state.hidePlayerProgressBar,
     playerBottomBarOffset: state.playerBottomBarOffset,
+    playerBarPinned: state.playerBarPinned,
     playerControlSlotPrimary: state.playerControlSlotPrimary,
     playerControlSlotSecondary: state.playerControlSlotSecondary,
     hidePlayerRightPanelButton: state.hidePlayerRightPanelButton,
@@ -271,6 +285,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     showOpenPanelCloseButton: state.showOpenPanelCloseButton,
     handleToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
     handleSetPlayerBottomBarOffset: state.handleSetPlayerBottomBarOffset,
+    handleTogglePlayerBarPinned: state.handleTogglePlayerBarPinned,
     handleSetPlayerControlSlot: state.handleSetPlayerControlSlot,
     handleToggleHidePlayerRightPanelButton: state.handleToggleHidePlayerRightPanelButton,
     handleToggleAlwaysShowPlayerBackButton: state.handleToggleAlwaysShowPlayerBackButton,

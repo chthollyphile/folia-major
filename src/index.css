@@ -159,7 +159,7 @@ body:lang(vi) {
 
 /* Polaroid Card theme-adaptive styles */
 .theme-polaroid-card {
-  background-color: color-mix(in srgb, var(--bg-color) 95%, transparent) !important;
+  /* background-color: color-mix(in srgb, var(--bg-color) 95%, transparent) !important; */
   border-color: color-mix(in srgb, var(--text-primary) 5%, transparent) !important;
   color: var(--text-primary) !important;
   transition: all 0.3s ease;
@@ -171,7 +171,8 @@ body:lang(vi) {
 
 /* Glass panel (search box, sidebar) theme-adaptive styles */
 .theme-glass-panel {
-  background-color: color-mix(in srgb, var(--bg-color) 85%, transparent) !important;
+  background: linear-gradient(to bottom,color-mix(in srgb, var(--bg-color) 88%, transparent) 30%,color-mix(in srgb, var(--bg-color) 12%, transparent)) !important;
+
   border-color: color-mix(in srgb, var(--text-primary) 12%, transparent) !important;
   color: var(--text-primary) !important;
 }

@@ -67,7 +67,7 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
         alwaysShowArrows ? 'opacity-70' : 'opacity-0 group-hover/title:opacity-70',
         isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/15',
     ].join(' ');
-    const textClass = 'w-full truncate text-center text-sm font-bold';
+    const textClass = 'w-full truncate text-center text-sm';
 
     const renderArrow = (side: TrackNavSide) => {
         if (disabled || (side === 'prev' ? !canPrev : !canNext)) {

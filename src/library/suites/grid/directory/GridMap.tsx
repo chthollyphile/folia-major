@@ -117,7 +117,7 @@ const MapCard = React.memo<{
 
         return (
             <div
-                className={`rounded-xl p-3 flex flex-col items-center border backdrop-blur-md transition-all duration-300 shadow-lg theme-polaroid-card ${
+                className={`rounded-xl p-3 flex flex-col items-center border backdrop-blur-md transition-all duration-300 shadow-lg theme-polaroid-card  ${
                     isPlaylistSelectionDisabled ? 'cursor-default' : 'cursor-pointer hover:shadow-2xl'
                 } ${isBatchMode && !isBatchSelected ? 'opacity-35 grayscale' : ''}`}
                 style={{
@@ -977,6 +977,7 @@ export const GridMap: React.FC<GridMapProps> = ({
     }, [closeCutInPanel, isInteractive, isPlaylistEditMode, onBack, searchQuery, setSearchQuery, setVisibilityMode, showCutInPanel, showSidePanel]);
 
     return (
+        // 此处需要调整到最高层级
         <motion.div
             data-ponder-page-scope={ponderPageScope}
             initial={{ opacity: 0 }}
@@ -992,17 +993,28 @@ export const GridMap: React.FC<GridMapProps> = ({
             {/* Top Floating Glass Header */}
             <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-5 z-[70] bg-gradient-to-b from-black/10 to-transparent">
                 <button
+                    data-glass data-glass-light data-glass-jelly
                     onClick={onBack}
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto shadow-lg hover:scale-105 active:scale-95"
+                    className="w-12 h-12 rounded-full flex items-center justify-center transition-all pointer-events-auto shadow-lg hover:scale-105 active:scale-95"
                     style={{
-                        backgroundColor: isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
-                        backdropFilter: 'blur(8px)',
+                        backgroundColor: isDaylight
+                            ? "rgba(255,255,255,0.4)"
+                            : "rgba(0,0,0,0.4)",
+                        borderTop: isDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        borderBottom: isDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        outline: "1px solid rgba(40,40,40,0.2)",
+                        boxShadow: "2px 2px 8px 2px rgba(40,40,40,0.4)",
                     }}
                 >
                     <ChevronLeft size={20} />
                 </button>
 
                 <button
+                data-glass data-glass-light data-glass-jelly
                     type="button"
                     disabled={!hasCutInPanel}
                     onClick={() => {
@@ -1013,8 +1025,19 @@ export const GridMap: React.FC<GridMapProps> = ({
                         }
                     }}
                     className="group/grid-title text-center flex flex-col items-center select-none pointer-events-auto cursor-pointer hover:scale-[1.01] active:scale-98 transition-all px-5 py-2 rounded-2xl backdrop-blur-md disabled:cursor-default disabled:hover:scale-100"
+                    
                     style={{
-                        backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
+                        backgroundColor: isDaylight
+                            ? "rgba(255,255,255,0.4)"
+                            : "rgba(0,0,0,0.4)",
+                        borderTop: isDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        borderBottom: isDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        outline: "1px solid rgba(40,40,40,0.2)",
+                        boxShadow: "2px 2px 8px 2px rgba(40,40,40,0.4)",
                         color: 'var(--text-primary)',
                     }}
                 >

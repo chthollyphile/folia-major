@@ -7,6 +7,7 @@ import type { Theme } from '../../types';
 import { ponderTransition } from './ponderMotion';
 import { ponderLayerTokens, ponderWindowTokens } from './ponderTheme';
 import { PONDER_QUIET_CAP, PonderKeyCombo } from './PonderKeyCap';
+import { useGlass } from '@/shinoinject/useGlass';
 
 // src/components/ponder/PonderHintCapsule.tsx
 // 思索的提示胶囊：一行，画着键帽、「思索」和目标的名字。不可点击，不参与布局。
@@ -73,6 +74,7 @@ const PonderHintCapsule: React.FC<PonderHintCapsuleProps> = ({
     const ownHoldLabelRef = useRef<HTMLSpanElement | null>(null);
     const ownCellRef = useRef<HTMLSpanElement | null>(null);
     const isPresent = useIsPresent();
+    useGlass();
 
     // 换胶囊时会有两个同时在页面里：一个在退场，一个在场（新挂上的，或者退到一半又被叫回来的）。
     // 两个拿的是同一组共用 ref，所以不能把它直接挂在节点上 —— 后卸载的那个会把它清成 null，
@@ -144,6 +146,7 @@ const PonderHintCapsule: React.FC<PonderHintCapsuleProps> = ({
         >
             {/* 从指针那个角长出来；钉在底部的那个从自己的底边长出来。 */}
             <motion.div
+                data-glass
                 initial={{ scale: small }}
                 animate={{ scale: 1 }}
                 exit={{ scale: small }}

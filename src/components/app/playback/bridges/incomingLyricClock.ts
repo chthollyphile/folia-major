@@ -9,7 +9,8 @@ export const readIncomingLyricClock = (
     audioTimeSec: number,
     lyricOffsetMs: number,
     lines: LyricData['lines'] | null | undefined,
+    clipStartMs = 0,
 ): { lyricTimeSec: number; lineIndex: number } => {
-    const lyricTimeSec = audioTimeSec - lyricOffsetMs / 1000;
+    const lyricTimeSec = audioTimeSec + (clipStartMs - lyricOffsetMs) / 1000;
     return { lyricTimeSec, lineIndex: lines ? findLatestActiveLineIndex(lines, lyricTimeSec) : -1 };
 };

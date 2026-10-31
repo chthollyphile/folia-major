@@ -189,7 +189,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
             <span
                 ref={timeRef}
-                className="text-[10px] font-mono font-medium opacity-60 w-8 text-right text-[var(--folium-progress-text)]"
+                className="text-[12px] font-['Microsoft_YaHei','Microsoft_YaHei_UI',sans-serif] font-medium opacity-60 w-8 text-right text-[var(--folium-progress-text)]"
                 data-folium-part="progress.time"
             >
                 00:00
@@ -240,7 +240,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             </div>
 
             <span
-                className="text-[10px] font-mono font-medium opacity-60 w-8 text-[var(--folium-progress-text)]"
+                className="text-[12px] font-['Microsoft_YaHei','Microsoft_YaHei_UI',sans-serif] font-medium opacity-60 w-8 text-[var(--folium-progress-text)]"
                 data-folium-part="progress.duration"
             >
                 {formatTime(duration)}

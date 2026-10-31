@@ -31,7 +31,7 @@ import { useVisualizerSongHandoff } from './useVisualizerSongHandoff';
 import { useShownTheme } from './useShownTheme';
 import { NO_LYRIC_LINES } from '../../utils/lyrics/noLyricLines';
 import { selectLibraryPlayerBackdrop, useLibraryPlayerOcclusionStore } from '../../stores/useLibraryPlayerOcclusionStore';
-import { resolveVisualizerShowText } from '../app/presentation/playerVisualizerBackdrop';
+import { resolveVisualizerShowText, resolveVisualizerBackAction } from '../app/presentation/playerVisualizerBackdrop';
 import { useBackgroundLyricHoldStore } from '../app/backgroundThrottling/backgroundLyricHoldStore';
 
 // src/components/visualizer/useVisualizerRendererModel.ts
@@ -185,7 +185,10 @@ export const useVisualizerRendererModel = ({
         // Only a style that reads a click on a lyric line says so in its entry; the rest have no line
         // hit-testing at all.
         onLyricLineSeek: getVisualizerRegistryEntry(visualizerMode).seeksOnLineClick ? onLyricLineSeek : undefined,
-        onBack,
+        // The back button goes back to the player page, so it belongs to that page only. The renderer
+        // stays mounted on the home page (the picture behind the wall), and a back button there would
+        // sit in the top-left corner over the home surface.
+        onBack: resolveVisualizerBackAction(currentView, onBack),
         isPanelOpen,
         alwaysShowBackButton: alwaysShowPlayerBackButton || isPanelOpen,
         onPlayerPanelGuideHotspotChange,

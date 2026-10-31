@@ -22,6 +22,8 @@ import { iconLabel } from './iconLabel';
 
 const REPOSITORY_URL = 'https://github.com/chthollyphile/folia-major';
 const REPOSITORY_NAME = 'chthollyphile/folia-major';
+const SHINO_REPOSITORY_URL = 'https://github.com/Riru233/folia-major';
+const SHINO_REPOSITORY_NAME = 'Riru233/folia-major';
 const BUILD_KIND = getBuildKind();
 const VERSION_INFO = (__DOCKER_STACK_VERSION__
     ? `${__APP_VERSION_LABEL__} v${__APP_VERSION__} · Stack ${__DOCKER_STACK_VERSION__} · ${__COMMIT_HASH__}`
@@ -169,8 +171,12 @@ const HelpPage: React.FC<HelpPageProps> = ({ onOpenReleaseNotes, onOpenAiHelp, o
                         <button type="button" onClick={onProjectLabelClick} className="cursor-default">{t('help.madeBy')}</button>
                     )}
                 >
+                    <Button variant="quiet" onClick={() => openOutsideLink(SHINO_REPOSITORY_URL)}>
+                        {SHINO_REPOSITORY_NAME}
+                        <ExternalLink size={12} />
+                    </Button>
                     <Button variant="quiet" onClick={() => openOutsideLink(REPOSITORY_URL)}>
-                        {REPOSITORY_NAME}
+                        feat: {REPOSITORY_NAME}
                         <ExternalLink size={12} />
                     </Button>
                 </Row>

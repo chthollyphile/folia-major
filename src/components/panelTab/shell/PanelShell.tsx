@@ -7,6 +7,7 @@ import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/mot
 import { panelTokens } from './panelTheme';
 import { FOLDED_PX } from './SongHeader';
 import { useMeasuredSize } from './useMeasuredSize';
+import { useGlass } from '@/shinoinject/useGlass';
 
 // src/components/panelTab/shell/PanelShell.tsx
 // The frame of the playing page's panel: where it sits, the glass surface, and how tall it is. The
@@ -88,6 +89,7 @@ const PanelSurface: React.FC<PanelSurfaceProps> = ({ hasHandle, isCover, tabKey,
     // Where the surface comes from and goes back to: a little smaller, toward the handle.
     const away = { opacity: 0, scale: 0.92 };
 
+    useGlass();
     return (
         <motion.div
             ref={layoutRef}
@@ -95,6 +97,7 @@ const PanelSurface: React.FC<PanelSurfaceProps> = ({ hasHandle, isCover, tabKey,
             initial={away}
             animate={{ opacity: 1, scale: 1, transition: kitTransition('unfold', reduced) }}
             exit={{ ...away, transition: kitTransition('move', reduced) }}
+            data-glass data-glass-light
             data-testid="unified-panel-surface"
             data-still={isStill || undefined}
             className="st-window pointer-events-auto @container hide-scrollbar flex w-[360px] max-w-[calc(100vw-2rem)] flex-col overflow-y-auto overflow-x-hidden rounded-[20px] bg-[var(--pn-glass)] text-[color:var(--st-t1)] shadow-[var(--pn-shadow)] backdrop-blur-[40px] backdrop-saturate-[1.3] [&[data-still]_*]:transition-none"
@@ -111,7 +114,18 @@ const PanelSurface: React.FC<PanelSurfaceProps> = ({ hasHandle, isCover, tabKey,
                 padding: PADDING_PX,
                 marginBottom: underPx,
                 // The centre of the handle, at the surface's right end.
-                transformOrigin: `calc(100% - 24px) calc(100% + ${underPx - 24}px)`,
+                  transformOrigin: `calc(100% - 24px) calc(100% + ${underPx - 24}px)`,
+                  backgroundColor: isDaylight
+                    ? "rgba(255,255,255,0.4)"
+                    : "rgba(0,0,0,0.4)",
+                  borderTop: isDaylight
+                    ? "1px solid rgba(0,0,0,0.08)"
+                    : "1px solid rgba(255,255,255,0.12)",
+                  borderBottom: isDaylight
+                    ? "1px solid rgba(0,0,0,0.08)"
+                    : "1px solid rgba(255,255,255,0.12)",
+                  outline: "1px solid rgba(40,40,40,0.2)",
+                  boxShadow: "2px 2px 8px 2px rgba(40,40,40,0.4)",
             } as MotionStyle}
         >
             {header}

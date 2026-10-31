@@ -68,9 +68,9 @@ const IntegrationPage: React.FC = () => {
             </Group>
 
             <Group def={STREAMING}>
-                <Row option={O.transparentBackground} hint={t('options.transparentPlayerBackgroundDesc')}>
+                {/* <Row option={O.transparentBackground} hint={t('options.transparentPlayerBackgroundDesc')}>
                     <Toggle checked={transparentPlayerBackground} onChange={onToggleTransparentPlayerBackground} />
-                </Row>
+                </Row> */}
                 {isElectron && obs && (
                     <>
                         <Row option={O.obs} hint={t('options.obsBrowserSourceDesc')}>

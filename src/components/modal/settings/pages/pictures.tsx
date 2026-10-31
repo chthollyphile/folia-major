@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ImagePlus } from 'lucide-react';
 import { computeHexCardFrame } from '../../../../utils/hexCardFalloff';
+import type { LiquidGlassPresetId } from '../../../../shinoinject/liquidglass';
 import { SAMPLE_COVERS } from '../kit';
 
 // src/components/modal/settings/pages/pictures.tsx
@@ -145,3 +147,79 @@ export const GridCardsPreview: React.FC<GridCardsPreviewProps> = ({ minScale, mi
         </>
     );
 };
+
+/**
+ * 流体玻璃预设的效果图占位：图片存在就显示图片（object-cover 铺满 96×64 框），
+ * 不存在就画一个虚线占位框（图片+ 图标），放图即自动显示、无需改代码。
+ * 把效果图放到 public/glass-presets/<预设 id>.png：毛玻璃 frosted、通透流体 clear、
+ * 朦胧流体 hazy、节能 eco。
+ */
+export const GlassPresetPicture: React.FC<{ id: LiquidGlassPresetId }> = ({ id }) => {
+    const [loaded, setLoaded] = useState(false);
+    const [failed, setFailed] = useState(false);
+    return (
+        <span className="relative flex h-full w-full items-center justify-center">
+            {!failed && (
+                <img
+                    src={`${import.meta.env.BASE_URL}glass-presets/${id}.png`}
+                    alt=""
+                    draggable={false}
+                    onLoad={() => setLoaded(true)}
+                    onError={() => setFailed(true)}
+                    className={`h-full w-full object-cover transition-opacity ${loaded ? 'opacity-100' : 'opacity-0'}`}
+                />
+            )}
+            {!loaded && (
+                <span className="absolute inset-1 flex items-center justify-center rounded-md border border-dashed border-[var(--st-line)] text-[color:var(--st-t2)]">
+                    <ImagePlus size={16} strokeWidth={1.75} />
+                </span>
+            )}
+        </span>
+    );
+};
+
+/**
+ * 流体玻璃预设的两列预览网格（2×2）：大图铺满整行宽度（每格即半行宽），高 = 宽 − 30px，
+ * 方便看清折射与模糊；选中项套一圈强调色边环。图与占位都来自 GlassPresetPicture。
+ */
+export const GlassPresetGrid: React.FC<{
+    value: string;
+    label: string;
+    options: ReadonlyArray<{ value: string; label: string }>;
+    onChange: (value: string) => void;
+}> = ({ value, label, options, onChange }) => (
+    <div role="radiogroup" aria-label={label} className="grid w-full grid-cols-2 gap-3 py-1">
+        {options.map((option) => {
+            const selected = option.value === value;
+            return (
+                <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                        if (!selected) onChange(option.value);
+                    }}
+                    className="group flex min-w-0 flex-col items-center gap-1.5 rounded-lg"
+                >
+                    <span className="relative block w-full">
+                        {/* 高 = 宽 − 30px：padding-top 的百分比按包含块宽度算，这里正好是半行宽。 */}
+                        <span aria-hidden className="block w-full" style={{ paddingTop: 'calc(100% - 30px)' }} />
+                        <span
+                            aria-hidden
+                            className={`st-t-fast absolute inset-0 overflow-hidden rounded-lg bg-[var(--st-pv)] shadow-[inset_0_0_0_1px_var(--st-line)] transition-opacity ${selected ? '' : 'opacity-70 group-hover:opacity-100'}`}
+                        >
+                            <GlassPresetPicture id={option.value as LiquidGlassPresetId} />
+                        </span>
+                        {selected && (
+                            <span aria-hidden className="st-t-fast absolute -inset-[3px] rounded-[11px] shadow-[inset_0_0_0_2px_var(--st-accent)]" />
+                        )}
+                    </span>
+                    <span className={`st-t-fast max-w-full truncate text-center text-sm leading-5 transition-colors ${selected ? 'text-[color:var(--st-t1)]' : 'text-[color:var(--st-t2)] group-hover:text-[color:var(--st-t1)]'}`}>
+                        {option.label}
+                    </span>
+                </button>
+            );
+        })}
+    </div>
+);

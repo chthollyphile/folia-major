@@ -278,9 +278,7 @@ export const useElectronPlaybackBridge = ({
             exportState,
             isDaylight,
             isLiked,
-            lyricOffsetMs: (lyricTimelineOffsetMs ?? 0) - (activePlaybackContext === 'main'
-                ? omni.previewClipStartMsOfAudioSource(audioElement?.currentSrc ?? '')
-                : 0),
+            lyricOffsetMs: (lyricTimelineOffsetMs ?? 0) - omni.previewClipStartMsOfAudioSource(audioElement?.currentSrc ?? ''),
             mainWindowWidth: window.innerWidth,
             mainWindowHeight: window.innerHeight,
         });
@@ -403,10 +401,18 @@ export const useElectronPlaybackBridge = ({
 
         const revealThreshold = 56;
         const handleMouseMove = (event: MouseEvent) => {
+            // 鼠标按在控制按钮上（可能正在按住拖动）时不收起，松手后按指针位置重新判定。
+            if (useAppChromeStore.getState().isTitlebarHeld) {
+                setIsTitlebarRevealed(true);
+                return;
+            }
             const nextVisible = event.clientY <= revealThreshold;
             setIsTitlebarRevealed(prev => (prev === nextVisible ? prev : nextVisible));
         };
-        const handleMouseLeave = () => setIsTitlebarRevealed(false);
+        const handleMouseLeave = () => {
+            if (useAppChromeStore.getState().isTitlebarHeld) return;
+            setIsTitlebarRevealed(false);
+        };
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseleave', handleMouseLeave);

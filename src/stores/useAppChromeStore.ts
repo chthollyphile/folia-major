@@ -17,6 +17,8 @@ export const PLAYER_CHROME_HIDDEN_STORAGE_KEY = 'player_chrome_hidden';
 
 type AppChromeState = {
     isTitlebarRevealed: boolean;
+    /** 鼠标按在窗口控制按钮上（可能正在按住拖动）时为 true，期间标题栏不自动收起。 */
+    isTitlebarHeld: boolean;
     showTransparentWindowBorder: boolean;
     isMainWindowClickThroughEnabled: boolean;
     isClickThroughToggleHotspotActive: boolean;
@@ -27,6 +29,7 @@ type AppChromeState = {
     isMemoryMonitorVisible: boolean;
 
     setIsTitlebarRevealed: React.Dispatch<React.SetStateAction<boolean>>;
+    setIsTitlebarHeld: React.Dispatch<React.SetStateAction<boolean>>;
     setShowTransparentWindowBorder: React.Dispatch<React.SetStateAction<boolean>>;
     setIsMainWindowClickThroughEnabled: React.Dispatch<React.SetStateAction<boolean>>;
     setIsClickThroughToggleHotspotActive: React.Dispatch<React.SetStateAction<boolean>>;
@@ -43,6 +46,7 @@ const resolve = (next: React.SetStateAction<boolean>, previous: boolean) => (
 
 export const useAppChromeStore = create<AppChromeState>((set, get) => ({
     isTitlebarRevealed: false,
+    isTitlebarHeld: false,
     showTransparentWindowBorder: false,
     isMainWindowClickThroughEnabled: false,
     isClickThroughToggleHotspotActive: false,
@@ -52,6 +56,7 @@ export const useAppChromeStore = create<AppChromeState>((set, get) => ({
     isMemoryMonitorVisible: false,
 
     setIsTitlebarRevealed: (next) => set({ isTitlebarRevealed: resolve(next, get().isTitlebarRevealed) }),
+    setIsTitlebarHeld: (next) => set({ isTitlebarHeld: resolve(next, get().isTitlebarHeld) }),
     setShowTransparentWindowBorder: (next) => set({ showTransparentWindowBorder: resolve(next, get().showTransparentWindowBorder) }),
     setIsMainWindowClickThroughEnabled: (next) => set({ isMainWindowClickThroughEnabled: resolve(next, get().isMainWindowClickThroughEnabled) }),
     setIsClickThroughToggleHotspotActive: (next) => set({ isClickThroughToggleHotspotActive: resolve(next, get().isClickThroughToggleHotspotActive) }),

@@ -139,8 +139,8 @@ import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccount
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
 import { hasLoopedToStart } from './services/playedTrackCache';
-import { getOnlineProviderIdForSong, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
-import { writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
+import { getOnlineProviderIdForSong, getPlaybackSongKey, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
+import { readLyricOffset, writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
 import { FALLBACK_AI_DUAL_THEME } from './services/themeSanitizer';
 import { BASE_DUAL_THEME, DAYLIGHT_THEME, DEFAULT_THEME } from './services/baseThemes';
 import { initializeSyncCoordinator } from './services/sync/syncCoordinator';
@@ -190,6 +190,7 @@ import { refreshPrefetchAfterQueueEdit } from './services/prefetchService';
 import { FoliumStageLayerSlot } from './mods/folium/registries/stageLayers';
 import { errorFields } from './utils/errorText';
 import { runsOnWindows } from './utils/platform';
+import { GlassFilterDefs } from './shinoinject/useGlass.tsx';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
 const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
@@ -1665,7 +1666,7 @@ export default function App() {
         audioRef,
         getDisplayAudioElement: automix.getDisplayElement,
         stageSource,
-        coverUrl: displayCoverUrl,
+        coverUrl,
         offsetMs: effectiveLyricTimelineOffsetMs,
         theme: visualizerTheme,
         subtitleTheme: visualizerSubtitleTheme,
@@ -2749,6 +2750,9 @@ export default function App() {
                 {renderAudioDeck('B', automix.registerDeckB)}
             </>}
         >
+
+            {/* 玻璃滤镜注入容器：全应用唯一，常驻不卸载，见 src/mods/useGlass.tsx。 */}
+            <GlassFilterDefs />
 
             {/* 首页层、Lattice 与两面墙共用的右下角工具按钮（WallToolsDock：交接时按钮节点不重建）。 */}
             <WallToolsDockHost host={wallToolsHost}>

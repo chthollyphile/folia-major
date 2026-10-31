@@ -31,7 +31,7 @@ const DevLibraryRendererSwitch: React.FC<{ sessionKey: string; placement?: keyof
         <div
             data-testid="dev-library-renderer-switch"
             data-placement={placement}
-            className={`fixed ${PLACEMENT_CLASS[placement]} z-[120] flex items-center gap-1 rounded-full border border-dashed border-current/30 px-2 py-1 font-mono text-[11px] backdrop-blur-md`}
+            className={`fixed ${PLACEMENT_CLASS[placement]} z-[120] flex items-center gap-1 rounded-full border border-dashed border-current/30 px-2 py-1 font-mono text-[11px]`}
             style={{
                 backgroundColor: 'color-mix(in srgb, var(--bg-color) 80%, transparent)',
                 color: 'var(--text-primary)',

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
-import './WallBackButton.css';
+import { useEffect, useState } from "react";
+import { ChevronLeft } from "lucide-react";
+import "./WallBackButton.css";
+import { useGlass } from "@/shinoinject/useGlass";
 
 // src/components/wall/WallBackButton.tsx
 // 海报墙左上角的返回按钮（.lattice-back：40px 圆、白 8%、模糊），Lattice 与 bravais 共用。
@@ -15,44 +16,61 @@ export const WALL_BACK_HOTSPOT_PX = 120;
  * 鼠标离开窗口时收起。触屏不走这里（CSS 在没有悬停的设备上常驻显示）。
  */
 const useCornerReveal = (enabled: boolean) => {
-    const [revealed, setRevealed] = useState(false);
-    useEffect(() => {
-        if (!enabled) {
-            setRevealed(false);
-            return undefined;
-        }
-        const handleMove = (event: PointerEvent) => {
-            if (event.pointerType === 'touch') return;
-            const inside = event.clientX <= WALL_BACK_HOTSPOT_PX && event.clientY <= WALL_BACK_HOTSPOT_PX;
-            setRevealed(current => (current === inside ? current : inside));
-        };
-        const handleLeave = (event: MouseEvent) => {
-            if (!event.relatedTarget) setRevealed(false);
-        };
-        window.addEventListener('pointermove', handleMove, { passive: true });
-        document.addEventListener('mouseout', handleLeave);
-        return () => {
-            window.removeEventListener('pointermove', handleMove);
-            document.removeEventListener('mouseout', handleLeave);
-        };
-    }, [enabled]);
-    return revealed;
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    if (!enabled) {
+      setRevealed(false);
+      return undefined;
+    }
+    const handleMove = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      const inside =
+        event.clientX <= WALL_BACK_HOTSPOT_PX &&
+        event.clientY <= WALL_BACK_HOTSPOT_PX;
+      setRevealed((current) => (current === inside ? current : inside));
+    };
+    const handleLeave = (event: MouseEvent) => {
+      if (!event.relatedTarget) setRevealed(false);
+    };
+    window.addEventListener("pointermove", handleMove, { passive: true });
+    document.addEventListener("mouseout", handleLeave);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("mouseout", handleLeave);
+    };
+  }, [enabled]);
+  return revealed;
 };
 
 type WallBackButtonProps = {
-    /** 可访问名与 title。 */
-    label: string;
-    onBack: () => void;
-    /** 隐藏式（bravais）。缺省常驻显示（Lattice）。 */
-    concealed?: boolean;
+  /** 可访问名与 title。 */
+  label: string;
+  onBack: () => void;
+  /** 隐藏式（bravais）。缺省常驻显示（Lattice）。 */
+  concealed?: boolean;
 };
 
-export default function WallBackButton({ label, onBack, concealed = false }: WallBackButtonProps) {
-    const revealed = useCornerReveal(concealed);
-    const className = concealed ? `lattice-back is-concealed${revealed ? ' is-revealed' : ''}` : 'lattice-back';
-    return (
-        <button type="button" className={className} onClick={onBack} aria-label={label} title={label}>
-            <ChevronLeft size={20} />
-        </button>
-    );
+export default function WallBackButton({
+  label,
+  onBack,
+  concealed = false,
+}: WallBackButtonProps) {
+  useGlass();
+  const revealed = useCornerReveal(concealed);
+  const className = concealed
+    ? `lattice-back is-concealed ${revealed ? " is-revealed" : ""}`
+    : "lattice-back";
+  return (
+    <button
+      data-glass data-glass-light
+      data-glass-jelly
+      type="button"
+      className={className}
+      onClick={onBack}
+      aria-label={label}
+      title={label}
+    >
+      <ChevronLeft size={20} />
+    </button>
+  );
 }

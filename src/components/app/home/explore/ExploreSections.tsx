@@ -80,10 +80,10 @@ const Shelf: React.FC<ShelfProps> = ({ section, form, batch, arrival, base, leav
         <motion.section data-explore-shelf data-explore-order={arrival.order} variants={SECTION} custom={arrival} initial="away" animate="here" exit="gone">
             {/* More room after the section that opens the page than between the others. */}
             <div className={form === 'lead' ? 'pb-[72px]' : 'pb-14'}>
-                <div className="mb-5 flex items-center gap-2.5">
+                <div className="mb-2 flex items-center gap-2.5 font-['Microsoft Yahei']">
                     {/* The heading is what its title comes up from under. It is higher than the row, so that no stroke
                         of the title is cut, and takes the row's height of it: the row is as high as its buttons. */}
-                    <h2 className="-my-1 min-w-0 overflow-hidden text-[28px] font-medium leading-10 tracking-[0.01em]" style={{ fontFamily: EXPLORE_SERIF }}>
+                    <h2 className="-my-1 min-w-0 overflow-hidden text-[28px] font-medium leading-10 tracking-[0.01em]" style={{ fontFamily: EXPLORE_SERIF, textShadow: '0 0 8px #fff' }}>
                         <motion.span variants={TITLE} custom={arrival} className="block truncate">{section.title}</motion.span>
                     </h2>
                     <motion.span aria-hidden variants={RULE} custom={arrival} data-explore-rule className="ml-1 h-px min-w-6 flex-1 origin-left bg-[var(--ex-line)]" />

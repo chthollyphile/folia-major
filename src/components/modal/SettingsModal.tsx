@@ -57,6 +57,7 @@ import { selectThemeSettingsSnapshot, useThemeSettingsStore } from '../../stores
 import { selectDesktopSettingsSnapshot, useDesktopSettingsStore } from '../../stores/useDesktopSettingsStore';
 import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { setNavidromeEnabledState, useLibraryStore } from '../../stores/useLibraryStore';
+import { useGlass } from '@/shinoinject/useGlass';
 
 const DEFAULT_OPENAI_TEMPERATURE = '0.7';
 
@@ -1167,6 +1168,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
 
+    useGlass();
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -1186,7 +1188,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t('options.settingsWindowName')}
-                className="st-window relative flex h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-[var(--st-win)] text-[color:var(--st-t1)] shadow-[0_36px_90px_rgba(0,0,0,0.5),0_0_0_1px_var(--st-line2)] md:grid md:h-[86vh] md:w-[960px] md:grid-cols-[212px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
+                className="st-window backdrop-blur-[40px] relative flex h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-[var(--st-win)]/60 text-[color:var(--st-t1)] shadow-[0_36px_90px_rgba(0,0,0,0.5),0_0_0_1px_var(--st-line2)] md:grid md:h-[86vh] md:w-[960px] md:grid-cols-[212px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
                 style={{ ...settingsTokens(isDaylight, theme), ...kitMotionTokens(reducedKitMotion) }}
                 onClick={(event) => event.stopPropagation()}
             >
@@ -1203,7 +1205,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         }}
                         isWide={isWideSettingsLayout}
                     />
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--st-win)]">
                         <PageHeader
                             title={isSearching
                                 ? t('options.settingsSearchTitle')

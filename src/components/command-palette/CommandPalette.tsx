@@ -17,6 +17,7 @@ import CommandPaletteAllCommandsList from './CommandPaletteAllCommandsList';
 import { setIsCommandFilterOpen } from '../../stores/useAppViewStore';
 import { isGridFilterSyntaxAvailable, resolveGridFilterAction } from './gridFilterQuery';
 import { FILTER_VIEW_COMMAND_ID } from './commands/filterViewCommand';
+import { useGlass } from '@/shinoinject/useGlass';
 
 // src/components/command-palette/CommandPalette.tsx
 // Full-screen command input overlay with autocomplete and keyboard execution.
@@ -109,6 +110,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     onQueryChange,
     onQueryCommit,
 }) => {
+    useGlass();
     const { t, i18n } = useTranslation();
     const inputRef = useRef<HTMLInputElement | null>(null);
     // Puts the focus back into the query input a frame later: a click has put it on what was
@@ -404,29 +406,32 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             />
         );
     }
-
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
                     data-folia-keyboard-window="true"
-                    className={`fixed inset-0 z-[150] flex items-start justify-center px-4 pt-[18vh] ${hasClearBackdrop ? '' : 'backdrop-blur-md'}`}
-                    style={{
+                    className={`fixed inset-0 z-[150] flex items-start justify-center px-4 pt-[18vh]`}
+                    // 遮罩淡入改用背景色而不是元素 opacity：任何祖先 opacity < 1 都会把
+                    // backdrop-filter 的取样根截断在该祖先内，玻璃面板在动画期间拿不到背景，
+                    // 要等遮罩 opacity 落到 1 才突然出现。
+                    initial={{ backgroundColor: 'rgba(0,0,0,0)' }}
+                    animate={{
                         backgroundColor: hasClearBackdrop
-                            ? (isDaylight ? 'rgba(250,250,249,0.12)' : 'rgba(0,0,0,0.16)')
-                            : (isDaylight ? 'rgba(250,250,249,0.46)' : 'rgba(0,0,0,0.48)'),
+                            ? ('rgba(0,0,0,0.16)')
+                            : ('rgba(0,0,0,0.48)'),
                     }}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    exit={{ backgroundColor: 'rgba(0,0,0,0)' }}
                     transition={{ duration: 0.16 }}
                     onMouseDown={onClose}
                 >
                     <motion.div
                         className="w-full max-w-2xl"
-                        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                        // 外层不做 opacity：祖先 opacity < 1 会截断 backdrop-filter 的取样根，
+                        // 玻璃面板在动画期间拿不到背景，要等动画结束才突然出现。淡入淡出交给面板自身。
+                        initial={{ scale: 1.05 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 1.05 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
                         onAnimationComplete={() => {
                             // iOS Safari blocks overflow scrolling in sibling containers
@@ -438,15 +443,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
                     >
-                        <div
+                        <motion.div
                             className={`overflow-hidden rounded-3xl border shadow-2xl ${panelBg}`}
+                            data-glass
                             data-testid="command-palette-panel"
+                            // 面板自己的 opacity 不参与 backdrop-filter 的取样根判定，淡入淡出放这一层
+                            // 才能既保留过渡感、又不打断玻璃。
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.18, ease: 'easeOut' }}
                             style={{
                                 borderColor: isDaylight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)',
                                 color: 'var(--text-primary)',
                             }}
                         >
-                        <div className="flex items-center gap-3 border-b px-4 py-3" style={{ borderColor: isDaylight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.10)' }}>
+                        <div  className="flex items-center gap-3 border-b px-4 py-3" style={{ borderColor: isDaylight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.10)' }}>
                             {isExecuting ? (
                                 <Loader2 size={18} className="animate-spin opacity-60 text-zinc-400" />
                             ) : (
@@ -607,7 +619,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 })
                             )}
                         </div>
-                        </div>
+                        </motion.div>
                         <PinnedCommandRow
                             commands={pinnedCommands}
                             isDaylight={isDaylight}

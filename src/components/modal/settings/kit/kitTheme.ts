@@ -27,7 +27,7 @@ export const settingsTokens = (isDaylight: boolean, theme?: Theme): CSSPropertie
         '--st-win': isDaylight ? '#f3f3f4' : '#1a1a1d',
         '--st-side': isDaylight ? '#e9e9eb' : '#141416',
         '--st-card': isDaylight ? '#ffffff' : '#232327',
-        '--st-menu': isDaylight ? '#ffffff' : '#2b2b30',
+        '--st-menu': isDaylight ? '#ffffffaa' : '#2b2b30aa',
         '--st-raise': isDaylight ? '#ffffff' : '#45454c',
         '--st-knob': isDaylight ? '#ffffff' : '#ececee',
         '--st-pv': isDaylight ? '#ececef' : '#151517',

@@ -23,7 +23,7 @@ export const EXPLORE_TOKENS = {
 
 // What the tab's headings are set in: the serif the app already ships (index.css) for what is
 // written in Chinese, and the system's own for the rest.
-export const EXPLORE_SERIF = '"Folia Noto Serif SC", "Iowan Old Style", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif';
+export const EXPLORE_SERIF = '"Microsoft Yahei","Folia Noto Serif SC", "Iowan Old Style", Georgia, "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif';
 
 export const FOCUS_RING = 'outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--text-primary)]';
 export const EXPLORE_PILL = `rounded-full border border-[color:var(--ex-line)] text-xs font-medium text-[color:var(--ex-soft)] transition-colors hover:bg-[var(--ex-tint)] hover:text-[color:var(--text-primary)] disabled:cursor-default ${FOCUS_RING}`;

@@ -139,6 +139,9 @@ export const buildSettingsCommandContext = (
         toggleAlwaysShowPlayerBackButton: () => chrome.handleToggleAlwaysShowPlayerBackButton(
             !usePlayerChromeSettingsStore.getState().alwaysShowPlayerBackButton,
         ),
+        togglePlayerBarPinned: () => chrome.handleTogglePlayerBarPinned(
+            !usePlayerChromeSettingsStore.getState().playerBarPinned,
+        ),
         toggleGridViewFullBleedCover: () => useGridViewSettingsStore.getState().handleToggleGridViewFullBleedCover(
             !useGridViewSettingsStore.getState().gridViewFullBleedCover,
         ),

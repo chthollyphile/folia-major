@@ -33,7 +33,6 @@ import type {
 } from '../types/obsBrowserSource';
 import {
     buildLegacyObsBrowserSourceBackgroundConfig,
-    buildObsBrowserSourceClock,
     ObsBrowserSourceConfigPublicationTracker,
     downsampleObsSpectrum,
     isObsBrowserSourceBlobCoverUrl,
@@ -41,14 +40,21 @@ import {
     resolveObsBrowserSourceCoverUrl,
     resolveObsBrowserSourceImageAsset,
     resolveObsBrowserSourceImageAssets,
+    buildObsBrowserSourceClock,
 } from '../utils/obsBrowserSource';
 import type { TemperaLayerImage } from '../types';
 import { loadTemperaLayerImageBlobs } from '../services/temperaLayerImages';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 import { getSongAlbumLabel, getSongArtistLabel } from '../services/onlineMusic/songMetadata';
-import { selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore';
 import { omni } from '../services/onlineMusic/omni';
+import {
+    selectDisplayDuration,
+    selectDisplayLyrics,
+    selectDisplayPlayerState,
+    selectDisplaySong,
+    usePlaybackStore,
+} from '../stores/usePlaybackStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
 import { useTypographySettingsStore } from '../stores/useTypographySettingsStore';
@@ -421,9 +427,7 @@ export const useObsBrowserSourcePublisher = ({
                 return;
             }
 
-            // Compare media time with media time, not with the preview-adjusted lyric clock.
-            const expectedTime = resolveObsBrowserSourceClockTime(lastClock, nowMs)
-                + (lastClock.lyricOffsetMs ?? 0) / 1000;
+            const expectedTime = resolveObsBrowserSourceClockTime(lastClock, nowMs);
             if (Math.abs(nextTime - expectedTime) >= OBS_CLOCK_JUMP_THRESHOLD_SEC) {
                 publishClock();
             }

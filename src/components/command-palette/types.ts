@@ -309,6 +309,8 @@ export type CommandPaletteSettingsContext = {
     startPlayerBottomBarPositioning: () => void;
     canStartPlayerBottomBarPositioning: boolean;
     toggleAlwaysShowPlayerBackButton: () => void;
+    /** 固定底部播放条：固定后它不再随指针离开而收缩。 */
+    togglePlayerBarPinned: () => void;
     toggleGridViewFullBleedCover: () => void;
     toggleGridViewSquareCards: () => void;
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */

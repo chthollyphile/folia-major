@@ -85,6 +85,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // pages/GraphicsPage; the render GPU row only in the Windows desktop app.
     graphicsPerformance: { section: 'graphics' },
     graphicsMotion: { section: 'graphics' },
+    liquidGlass: { section: 'graphics' },
     gpuPreference: { section: 'graphics' },
     lyricRenderScale: { section: 'graphics' },
 

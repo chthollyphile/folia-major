@@ -24,7 +24,7 @@
 .lattice-chrome-actions { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 8px; }
 /* Sits above the seek input, whose tall hit area overhangs the row above it. */
 .lattice-chrome-transport { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; min-height: 44px; }
-.lattice-chrome-time { margin-left: auto; padding-left: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 180ms ease; }
+.lattice-chrome-time { margin-left: auto; padding-left: 8px; font-family: 'Microsoft YaHei', 'Microsoft YaHei UI', sans-serif; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; opacity: 0; transition: opacity 180ms ease; }
 .lattice-chrome.is-revealed .lattice-chrome-time { opacity: 0.6; }
 .lattice-chrome button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0; }
 .lattice-root .lattice-chrome button { border-radius: 12px !important; }

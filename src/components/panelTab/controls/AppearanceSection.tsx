@@ -296,10 +296,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             </div>
 
             {/* Only the switch turns it; the text names it for a screen reader. */}
-            <div className="flex min-h-11 items-center gap-3 py-1.5">
+            {/* <div className="flex min-h-11 items-center gap-3 py-1.5">
                 <span id={transparentLabelId} className="min-w-0 flex-1 text-sm leading-5">{t('options.transparentPlayerBackground')}</span>
                 <Toggle checked={transparentPlayerBackground} onChange={onToggleTransparentPlayerBackground} labelledBy={transparentLabelId} />
-            </div>
+            </div> */}
         </div>
     );
 };

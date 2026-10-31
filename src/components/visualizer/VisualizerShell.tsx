@@ -222,6 +222,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
         >
             {resolvedOnBack && (
                 <motion.button
+                    data-glass data-glass-light
                     type="button"
                     aria-label={t('ui.backToHome')}
                     initial={false}
@@ -235,8 +236,23 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
                         event.stopPropagation();
                         resolvedOnBack();
                     }}
-                    className="absolute top-6 left-6 z-30 h-10 w-10 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
-                    style={{ pointerEvents: isBackButtonVisible ? 'auto' : 'none' }}
+                    style={{
+                        backgroundColor: resolvedIsDaylight
+                            ? "rgba(255,255,255,0.4)"
+                            : "rgba(0,0,0,0.4)",
+                        color: resolvedIsDaylight
+                            ? "#333a"
+                            : "#fffa",
+                        borderTop: resolvedIsDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        borderBottom: resolvedIsDaylight
+                            ? "1px solid rgba(0,0,0,0.08)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                        outline: "1px solid rgba(40,40,40,0.2)",
+                        boxShadow: "2px 2px 8px 2px rgba(40,40,40,0.4)",
+                    }}
+                    className="absolute top-6 left-6 z-30 h-12 w-12 rounded-full flex items-center justify-center transition-colors backdrop-blur-md bg-black/20 hover:bg-white/10 text-white/60 pointer-events-auto"
                 >
                     <ChevronLeft size={20} />
                 </motion.button>

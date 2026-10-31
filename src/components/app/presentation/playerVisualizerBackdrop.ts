@@ -40,6 +40,16 @@ export const resolveVisualizerBackdropBlur = ({
     backdropBlur: boolean;
 }): boolean => shouldRevealHomeSurface && backdropBlur;
 
+/**
+ * visualizer 的返回按钮要不要给：它回的是播放页，所以只属于播放页。首页上 visualizer 仍挂着（墙后透出的画面），
+ * 给了按钮就会在首页左上角多出一颗本该回播放页的按钮——首页有自己的导航，那颗按钮在那儿没有去处。
+ * Lattice 同理（交接期间 visualizer 还挂着，但它不是播放页）。
+ */
+export const resolveVisualizerBackAction = <TAction>(
+    currentView: string,
+    onBack: TAction,
+): TAction | undefined => (currentView === 'player' ? onBack : undefined);
+
 const BLURRED: CSSProperties = Object.freeze({ filter: `blur(${LIBRARY_BACKDROP_BLUR_PX}px)`, transition: 'filter 300ms ease' });
 const SHARP: CSSProperties = Object.freeze({ transition: 'filter 300ms ease' });
 

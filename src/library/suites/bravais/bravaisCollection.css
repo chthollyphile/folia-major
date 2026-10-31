@@ -184,7 +184,6 @@
 .bravais-seam-menu {
     border-radius: 12px;
     color: var(--text-primary, #f7f4ee);
-    background: color-mix(in srgb, var(--bg-color, #070707) 92%, var(--text-primary, #f7f4ee));
     box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent), 0 12px 32px rgb(0 0 0 / 34%);
 }
 

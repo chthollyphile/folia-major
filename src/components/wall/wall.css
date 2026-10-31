@@ -5,78 +5,108 @@
    实测反馈 1 起熄灯规则移到本文件末尾，返回按钮与工具面板在同目录的 WallBackButton.css / WallToolsButton.css（两边共用）。 */
 
 .lattice-root {
-    --lattice-poster-ink: var(--text-primary, #f7f4ee);
-    --lattice-shade-rgb: 0 0 0;
-    --lattice-poster-background: color-mix(in srgb, var(--bg-color, #070707) 88%, var(--lattice-poster-ink));
-    --lattice-expanded-shadow: rgb(0 0 0 / 74%);
-    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 45%);
-    --lattice-poster-tint-intensity: 0.5;
-    --lattice-poster-tint-effective-opacity: var(--lattice-poster-tint-intensity);
-    --lattice-poster-tint-color: #161419;
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
-    color: var(--text-primary, #f7f4ee);
-    /* The two glows are the theme's own accent and secondary, so the wall reads as part of the app
+  --lattice-poster-ink: var(--text-primary, #f7f4ee);
+  --lattice-shade-rgb: 0 0 0;
+  --lattice-poster-background: color-mix(
+    in srgb,
+    var(--bg-color, #070707) 88%,
+    var(--lattice-poster-ink)
+  );
+  --lattice-expanded-shadow: rgb(0 0 0 / 74%);
+  --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 45%);
+  --lattice-poster-tint-intensity: 0.5;
+  --lattice-poster-tint-effective-opacity: var(--lattice-poster-tint-intensity);
+  --lattice-poster-tint-color: #161419;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  color: var(--text-primary, #f7f4ee);
+  /* The two glows are the theme's own accent and secondary, so the wall reads as part of the app
        rather than a surface with its own palette. --bg-color already follows the daylight switch. */
-    background:
-        radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--text-accent, #fd5c47) 16%, transparent), transparent 29%),
-        radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary, #6a48ff) 20%, transparent), transparent 32%),
-        var(--bg-color, #070707);
-    isolation: isolate;
+  background:
+    radial-gradient(
+      circle at 14% 12%,
+      color-mix(in srgb, var(--text-accent, #fd5c47) 16%, transparent),
+      transparent 29%
+    ),
+    radial-gradient(
+      circle at 86% 82%,
+      color-mix(in srgb, var(--text-secondary, #6a48ff) 20%, transparent),
+      transparent 32%
+    ),
+    var(--bg-color, #070707);
+  isolation: isolate;
 }
 
 .lattice-root.is-daylight {
-    --lattice-poster-ink: var(--text-primary, #1c1917);
-    --lattice-shade-rgb: 255 255 255;
-    --lattice-poster-background: color-mix(in srgb, var(--bg-color, #fafaf9) 94%, var(--lattice-poster-ink));
-    --lattice-expanded-shadow: rgb(0 0 0 / 25%);
-    --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 25%);
-    --lattice-poster-tint-effective-opacity: calc(var(--lattice-poster-tint-intensity) * 0.72);
+  --lattice-poster-ink: var(--text-primary, #1c1917);
+  --lattice-shade-rgb: 255 255 255;
+  --lattice-poster-background: color-mix(
+    in srgb,
+    var(--bg-color, #fafaf9) 94%,
+    var(--lattice-poster-ink)
+  );
+  --lattice-expanded-shadow: rgb(0 0 0 / 25%);
+  --lattice-focus-lift: 0 12px 32px rgb(0 0 0 / 25%);
+  --lattice-poster-tint-effective-opacity: calc(
+    var(--lattice-poster-tint-intensity) * 0.72
+  );
 }
 
 .lattice-root::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    opacity: 0.13;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
-    mix-blend-mode: soft-light;
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.13;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
 }
 
-.lattice-root.is-daylight::after { opacity: 0.07; }
+.lattice-root.is-daylight::after {
+  opacity: 0.07;
+}
 
 /* Edge falloff over the posters. Sits under the header, the hint and the panel button (z-index 4
    and 5) so chrome never dims, and stays deliberately shallow: the wall is a browsing surface, and
    a heavy vignette would fight the artwork it is there to show. */
 .lattice-root.has-vignette::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    pointer-events: none;
-    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 78%, rgba(0, 0, 0, 0.52) 100%);
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0) 78%,
+    rgba(0, 0, 0, 0.52) 100%
+  );
 }
 
 .lattice-root.is-daylight.has-vignette::before {
-    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 78%, rgba(0, 0, 0, 0.16) 100%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0) 78%,
+    rgba(0, 0, 0, 0.16) 100%
+  );
 }
 
 .lattice-field {
-    position: absolute;
-    inset: 0;
-    /* Camera transforms own the viewport; native focus scrolling must not add an offset. */
-    overflow: clip;
-    cursor: grab;
-    touch-action: none;
-    overscroll-behavior: none;
+  position: absolute;
+  inset: 0;
+  /* Camera transforms own the viewport; native focus scrolling must not add an offset. */
+  overflow: clip;
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
-.lattice-field:active { cursor: grabbing; }
+.lattice-field:active {
+  cursor: grabbing;
+}
 
 /* No `will-change: transform` here, and do NOT reintroduce it as an optimization (LatticePoster.tsx
    carries the same warning for posters). The camera always writes translate3d(...) scale(...), which
@@ -90,29 +120,31 @@
    that now comes from formatWorldTransform (wallView.ts) snapping the translation to device pixels;
    the two belong together, so do not drop the snapping either. */
 .lattice-world {
-    position: absolute;
-    inset: 0;
-    transform-origin: 0 0;
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
 }
 
 .lattice-poster {
-    position: absolute;
-    overflow: hidden;
-    padding: 0;
-    border: 0;
-    color: var(--lattice-poster-ink);
-    text-align: left;
-    background-color: var(--lattice-poster-background);
-    background-position: center;
-    background-size: cover;
-    box-shadow:
-        0 0 0 1px transparent,
-        0 0 0 4px transparent,
-        0 0 0 5px transparent,
-        var(--lattice-poster-elevation, 0 12px 32px transparent);
-    transition: box-shadow 600ms ease, filter 600ms ease;
-    cursor: pointer;
-    contain: layout paint;
+  position: absolute;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  color: var(--lattice-poster-ink);
+  text-align: left;
+  background-color: var(--lattice-poster-background);
+  background-position: center;
+  background-size: cover;
+  box-shadow:
+    0 0 0 1px transparent,
+    0 0 0 4px transparent,
+    0 0 0 5px transparent,
+    var(--lattice-poster-elevation, 0 12px 32px transparent);
+  transition:
+    box-shadow 600ms ease,
+    filter 600ms ease;
+  cursor: pointer;
+  contain: layout paint;
 }
 
 /* An overlay border stays visible above artwork without changing layout or the focus ring. The
@@ -121,22 +153,27 @@
    makes the card look lit rather than stickered. The third slot is a placeholder that keeps this
    list the same length as the focused one below, so the two interpolate. */
 .lattice-poster.is-current::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    border: 2px solid var(--text-accent, var(--text-primary, #fff));
-    box-shadow:
-        inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 52%),
-        inset 0 0 0 3px transparent,
-        inset 0 0 15px -7px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 46%, transparent);
-    pointer-events: none;
-    transition: box-shadow 300ms ease;
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border: 2px solid var(--text-accent, var(--text-primary, #fff));
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 52%),
+    inset 0 0 0 3px transparent,
+    inset 0 0 15px -7px
+      color-mix(
+        in srgb,
+        var(--text-accent, var(--text-primary, #fff)) 46%,
+        transparent
+      );
+  pointer-events: none;
+  transition: box-shadow 300ms ease;
 }
 
 .lattice-poster:hover {
-    z-index: 3;
-    filter: saturate(1.08) brightness(1.05);
+  z-index: 3;
+  filter: saturate(1.08) brightness(1.05);
 }
 
 /* Keyboard focus. The ring is drawn with box-shadow rather than outline so it follows the
@@ -145,218 +182,260 @@
    owns a stroke and a second one in another colour on top of it reads as two stacked borders. */
 .lattice-poster.is-focused,
 .lattice-poster:focus-visible {
-    z-index: 4;
-    outline: none;
-    box-shadow:
-        0 0 0 1px transparent,
-        0 0 0 4px transparent,
-        0 0 0 5px transparent,
-        var(--lattice-poster-elevation, var(--lattice-focus-lift));
+  z-index: 4;
+  outline: none;
+  box-shadow:
+    0 0 0 1px transparent,
+    0 0 0 4px transparent,
+    0 0 0 5px transparent,
+    var(--lattice-poster-elevation, var(--lattice-focus-lift));
 }
 
 /* Cards with no mark of their own get one: a hairline, the ring, then a second hairline, so the
    ring stays crisp against both the artwork inside it and the wall outside. */
 .lattice-poster.is-focused:not(.is-current),
 .lattice-poster:focus-visible:not(.is-current) {
-    box-shadow:
-        0 0 0 1px rgb(0 0 0 / 62%),
-        0 0 0 4px var(--text-primary, #fff),
-        0 0 0 5px rgb(0 0 0 / 38%),
-        var(--lattice-poster-elevation, var(--lattice-focus-lift));
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 62%),
+    0 0 0 4px var(--text-primary, #fff),
+    0 0 0 5px rgb(0 0 0 / 38%),
+    var(--lattice-poster-elevation, var(--lattice-focus-lift));
 }
 
 /* Focusing the playing card strengthens its glow without drawing a second accent stroke. */
 .lattice-poster.is-current.is-focused::before,
 .lattice-poster.is-current:focus-visible::before {
-    box-shadow:
-        inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 62%),
-        inset 0 0 0 3px transparent,
-        inset 0 0 26px -6px color-mix(in srgb, var(--text-accent, var(--text-primary, #fff)) 62%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--lattice-shade-rgb) / 62%),
+    inset 0 0 0 3px transparent,
+    inset 0 0 26px -6px
+      color-mix(
+        in srgb,
+        var(--text-accent, var(--text-primary, #fff)) 62%,
+        transparent
+      );
 }
 
 .lattice-poster::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 60%);
-    opacity: 0;
-    transition: opacity 200ms ease;
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 60%);
+  opacity: 0;
+  transition: opacity 200ms ease;
 }
 
-.lattice-poster.is-focused::after { opacity: 1; }
+.lattice-poster.is-focused::after {
+  opacity: 1;
+}
 
 .lattice-root.is-daylight .lattice-poster.is-focused:not(.is-current),
 .lattice-root.is-daylight .lattice-poster:focus-visible:not(.is-current) {
-    box-shadow:
-        0 0 0 1px rgb(255 255 255 / 78%),
-        0 0 0 4px var(--text-primary, #111),
-        0 0 0 5px rgb(255 255 255 / 45%),
-        var(--lattice-poster-elevation, var(--lattice-focus-lift));
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 78%),
+    0 0 0 4px var(--text-primary, #111),
+    0 0 0 5px rgb(255 255 255 / 45%),
+    var(--lattice-poster-elevation, var(--lattice-focus-lift));
 }
 
 .lattice-field:focus,
 .lattice-field:focus-visible {
-    outline: none;
+  outline: none;
 }
 
 .lattice-poster-shade {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, rgb(var(--lattice-shade-rgb) / 5%) 34%, rgb(var(--lattice-shade-rgb) / 24%) 56%, rgb(var(--lattice-shade-rgb) / 92%) 100%);
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--lattice-shade-rgb) / 5%) 34%,
+    rgb(var(--lattice-shade-rgb) / 24%) 56%,
+    rgb(var(--lattice-shade-rgb) / 92%) 100%
+  );
 }
 
 /* Theme-derived colour quiets the background cards without muting the playing or selected one. */
 .lattice-poster-tint {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    pointer-events: none;
-    background: linear-gradient(
-        145deg,
-        color-mix(in srgb, var(--bg-color, #070707) 78%, var(--text-accent, #fd5c47)),
-        color-mix(in srgb, var(--bg-color, #070707) 84%, var(--text-secondary, #6a48ff))
-    );
-    opacity: 0;
-    transition: opacity 260ms ease;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    145deg,
+    color-mix(
+      in srgb,
+      var(--bg-color, #070707) 78%,
+      var(--text-accent, #fd5c47)
+    ),
+    color-mix(
+      in srgb,
+      var(--bg-color, #070707) 84%,
+      var(--text-secondary, #6a48ff)
+    )
+  );
+  opacity: 0;
+  transition: opacity 260ms ease;
 }
 
 .lattice-root.has-poster-tint .lattice-poster-tint {
-    opacity: var(--lattice-poster-tint-effective-opacity);
+  opacity: var(--lattice-poster-tint-effective-opacity);
 }
 
 .lattice-root.uses-custom-poster-tint .lattice-poster-tint {
-    background: var(--lattice-poster-tint-color);
+  background: var(--lattice-poster-tint-color);
 }
 
 .lattice-poster.is-current .lattice-poster-tint,
 .lattice-poster.is-focused .lattice-poster-tint,
 .lattice-poster:hover .lattice-poster-tint,
 .lattice-poster:focus-visible .lattice-poster-tint {
-    opacity: 0;
+  opacity: 0;
 }
 
 .lattice-poster.is-expanded {
-    --lattice-poster-elevation: 0 42px 110px var(--lattice-expanded-shadow);
-    /* Hover would otherwise hand this card a filter, and the Pixi lyric canvas inside it would be
+  --lattice-poster-elevation: 0 42px 110px var(--lattice-expanded-shadow);
+  /* Hover would otherwise hand this card a filter, and the Pixi lyric canvas inside it would be
        re-composited through that pass every frame. */
-    filter: none;
+  filter: none;
 }
 
 .lattice-poster.is-expanded .lattice-poster-shade {
-    /* The bottom band is what keeps the background-less playback chrome readable. */
-    background:
-        linear-gradient(0deg, rgb(var(--lattice-shade-rgb) / 86%) 0%, rgb(var(--lattice-shade-rgb) / 62%) 14%, rgb(var(--lattice-shade-rgb) / 26%) 30%, rgb(var(--lattice-shade-rgb) / 0%) 46%),
-        linear-gradient(90deg, rgb(var(--lattice-shade-rgb) / 88%), rgb(var(--lattice-shade-rgb) / 50%) 52%, rgb(var(--lattice-shade-rgb) / 8%));
+  /* The bottom band is what keeps the background-less playback chrome readable. */
+  background:
+    linear-gradient(
+      0deg,
+      rgb(var(--lattice-shade-rgb) / 86%) 0%,
+      rgb(var(--lattice-shade-rgb) / 62%) 14%,
+      rgb(var(--lattice-shade-rgb) / 26%) 30%,
+      rgb(var(--lattice-shade-rgb) / 0%) 46%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(var(--lattice-shade-rgb) / 88%),
+      rgb(var(--lattice-shade-rgb) / 50%) 52%,
+      rgb(var(--lattice-shade-rgb) / 8%)
+    );
 }
 
 .lattice-poster.is-expanded .lattice-poster-copy strong {
-    max-width: 76%;
-    font-size: clamp(48px, 6vw, 82px);
-    line-height: 0.95;
+  max-width: 76%;
+  font-size: clamp(48px, 6vw, 82px);
+  line-height: 0.95;
 }
 
 .lattice-poster.is-expanded .lattice-poster-copy small {
-    margin-top: 7px;
-    font-size: 17px;
+  margin-top: 7px;
+  font-size: 17px;
 }
 
 .lattice-poster-badge {
-    position: absolute;
-    top: 14px;
-    left: 14px;
-    padding: 5px 8px;
-    border: 0;
-    font-size: 11px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.12em;
-    /* No backdrop-filter here: one blurred badge per card promoted every poster to its own
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 5px 8px;
+  border: 0;
+  font-size: 20px;
+  font-weight: 500;
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", sans-serif;
+  /* No backdrop-filter here: one blurred badge per card promoted every poster to its own
        compositing layer, which is the wall's single largest GPU cost. A denser shade keeps the
        number legible over bright artwork without the readback. */
-    background: rgb(var(--lattice-shade-rgb) / 62%);
+  background: rgb(var(--lattice-shade-rgb) / 62%);
 }
 
 /* The playing poster already wears the accent border; its badge only borrows the colour. */
 .lattice-poster-badge.is-current {
-    color: var(--text-accent, var(--text-primary, #fff));
-    background: rgb(var(--lattice-shade-rgb) / 78%);
+  color: var(--text-accent, var(--text-primary, #fff));
+  background: rgb(var(--lattice-shade-rgb) / 78%);
 }
 
 .lattice-poster-copy {
-    position: absolute;
-    right: 17px;
-    bottom: 17px;
-    left: 17px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+  position: absolute;
+  right: 17px;
+  bottom: 17px;
+  left: 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .lattice-poster-copy strong {
-    overflow: hidden;
-    /* Tight display line-heights otherwise crop ascenders and descenders at the clamp boundary.
+  overflow: hidden;
+  /* Tight display line-heights otherwise crop ascenders and descenders at the clamp boundary.
        Padding expands the paint area; the matching negative margin keeps the copy anchored. */
-    margin-block: -0.14em;
-    padding-block: 0.14em;
-    font-size: clamp(22px, 2vw, 36px);
-    line-height: 0.96;
-    letter-spacing: -0.045em;
-    text-wrap: balance;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
+  margin-block: -0.14em;
+  padding-block: 0.14em;
+  font-size: clamp(22px, 2vw, 36px);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .lattice-poster-copy small {
-    overflow: hidden;
-    font-size: 13px;
-    font-weight: 650;
-    opacity: 0.78;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  opacity: 0.78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 降级状态由 useMotionSettingsStore 同步到 <html data-reduce-motion>，不再直接跟随系统偏好；
    `~=` 匹配空格分隔的词，所以一个属性能同时带多个面。见 stores/useMotionSettingsStore.ts。 */
-:root[data-reduce-motion~='lattice'] .lattice-poster,
-:root[data-reduce-motion~='lattice'] .lattice-poster::after,
-:root[data-reduce-motion~='lattice'] .lattice-poster-tint { transition: none; }
+:root[data-reduce-motion~="lattice"] .lattice-poster,
+:root[data-reduce-motion~="lattice"] .lattice-poster::after,
+:root[data-reduce-motion~="lattice"] .lattice-poster-tint {
+  transition: none;
+}
 
 @media (max-width: 640px) {
-    .lattice-poster.is-expanded .lattice-poster-copy strong { font-size: 44px; }
+  .lattice-poster.is-expanded .lattice-poster-copy strong {
+    font-size: 44px;
+  }
 }
 
 /* Settled previews contain at most three lines, so no hidden fourth line can bleed into padding. */
 .lattice-poster-copy strong[data-title-settled] {
-    display: block;
-    -webkit-line-clamp: unset;
+  display: block;
+  -webkit-line-clamp: unset;
 }
 
 /* 熄灯（实测反馈 1 从 Lattice.css 搬来，Lattice 与 bravais 共用同一份灯光设置）。每张海报里一层，正在播放的那张不熄；
    熄灯时叠色归零（两层不叠加）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。 */
 .lattice-poster-lights-out {
-    position: absolute;
-    inset: 0;
-    /* Lights-out covers the complete poster, including its copy and badge. */
-    z-index: 5;
-    pointer-events: none;
-    background: #000;
-    opacity: 0;
-    transition: opacity 260ms ease;
+  position: absolute;
+  inset: 0;
+  /* Lights-out covers the complete poster, including its copy and badge. */
+  z-index: 5;
+  pointer-events: none;
+  background: #000;
+  opacity: 0;
+  transition: opacity 260ms ease;
 }
 
-.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    opacity: 0.82;
+.lattice-root.is-lights-out
+  .lattice-poster:not(.is-current)
+  .lattice-poster-lights-out {
+  opacity: 0.82;
 }
 
-.lattice-root.is-daylight.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    background: #fff;
+.lattice-root.is-daylight.is-lights-out
+  .lattice-poster:not(.is-current)
+  .lattice-poster-lights-out {
+  background: #fff;
 }
 
-.lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-tint {
-    opacity: 0;
+.lattice-root.is-lights-out
+  .lattice-poster:not(.is-current)
+  .lattice-poster-tint {
+  opacity: 0;
 }
 
 /* 降级状态的来源同 wall.css 里海报的那条规则（useMotionSettingsStore → <html data-reduce-motion>）。 */
-:root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; }
+:root[data-reduce-motion~="lattice"] .lattice-poster-lights-out {
+  transition: none;
+}

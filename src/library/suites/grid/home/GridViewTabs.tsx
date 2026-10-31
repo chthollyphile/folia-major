@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 import { motion } from 'framer-motion';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { pillChromeClassesFor as gridChromeClassesFor } from '../../../../components/shared/pillChrome';
+import { useGlass } from '@/shinoinject/useGlass';
 
 // src/library/suites/grid/home/GridViewTabs.tsx
 // The second level of the home header's view capsule: centred right under it, a smaller capsule
@@ -42,9 +43,9 @@ export const GridViewTabs: React.FC<GridViewTabsProps> = ({ tabs, isDaylight, on
     const calm = useReducedMotionFor('uiMicroMotion');
     const transition = calm ? { duration: 0 } : SPRING;
     const chrome = gridChromeClassesFor(isDaylight);
-
+    useGlass();
     return (
-        <div className={`pointer-events-auto flex h-7 items-center rounded-full p-0.5 backdrop-blur-md ${chrome.pill}`}>
+        <div data-glass  className={`pointer-events-auto flex h-7 items-center rounded-full p-0.5 ${isDaylight ? "border-y border-black/[0.08] bg-[#fff4]" : "border-y border-white/[0.12] bg-[#0004]"} outline outline-1 outline-[rgba(40,40,40,0.2)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)]`}>
             {onOpenMap && (
                 <button
                     type="button"

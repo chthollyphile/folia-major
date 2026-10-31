@@ -60,16 +60,18 @@
     gap: 2px;
     padding: 10px;
     overflow: hidden;
-    border: 1px solid rgb(255 255 255 / 8%);
+    border-top: rgb(255 255 255 / 40%) 1px solid;
+    border-bottom: rgb(255 255 255 / 40%) 1px solid;
+    outline: 1px solid rgba(40,40,40,0.2);
     border-radius: 24px;
     background: rgb(0 0 0 / 40%);
     box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
-    backdrop-filter: blur(24px);
 }
 
 .lattice-tools.is-daylight .lattice-tools-panel {
-    border-color: rgb(0 0 0 / 7%);
-    background: rgb(255 255 255 / 62%);
+    border-top: rgb(0 0 0 / 40%) 1px solid;
+    border-bottom: rgb(0 0 0 / 40%) 1px solid;
+    background: rgb(255 255 255 / 40%);
     box-shadow: 0 24px 64px rgb(42 35 27 / 18%);
 }
 

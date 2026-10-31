@@ -25,9 +25,9 @@
 /* Poster content stays square, while independent navigation and utility chrome keeps its shape. */
 /* 限定在 Lattice 自己的根（.lattice-queue-root，与 .lattice-root 挂在同一个元素上，特异度不变）：wall.css 让 bravais
    也用 .lattice-root，Lattice 的 chunk 一旦加载，这条 !important 会把 bravais 缝里的圆角按钮压成直角（B4 记下的泄漏）。 */
-.lattice-queue-root *:not(.lattice-tools *):not(.lattice-back):not(.lattice-chrome button) {
+/* .lattice-queue-root *:not(.lattice-tools *):not(.lattice-back):not(.lattice-chrome button) {
     border-radius: 0 !important;
-}
+} */
 
 /* 熄灯（.lattice-poster-lights-out 与 is-lights-out）在 components/wall/wall.css（实测反馈 1：资料库墙也跟随灯光设置）。 */
 
