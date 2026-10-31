@@ -1,6 +1,34 @@
 
 
 export default {
+  "scratchpad": {
+    "title": "Scratchpad",
+    "count_one": "{{count}} song",
+    "count_other": "{{count}} songs",
+    "hint": "Songs to hear or sort out later. Putting them here leaves the queue alone.",
+    "empty": "Nothing here yet. Choose \"Add to scratchpad\" in a song card's \"⋯\" menu, or jot down the playing song from the command palette.",
+    "open": "Open the scratchpad",
+    "close": "Close the scratchpad",
+    "play": "Play it in the queue",
+    "enqueue": "Add to queue",
+    "addToPlaylist": "Add to a playlist…",
+    "remove": "Take out of the scratchpad",
+    "enqueueAll": "Queue all",
+    "replaceQueue": "Play, replacing the queue",
+    "clear": "Clear",
+    "confirmClear": "Click again to clear",
+    "sourceLocal": "Local",
+    "collect": "Add to scratchpad",
+    "collectScope": "Add all to scratchpad",
+    "addedOne": "Jotted into the scratchpad",
+    "addedMany_one": "Jotted {{count}} song into the scratchpad",
+    "addedMany_other": "Jotted {{count}} songs into the scratchpad",
+    "skippedDuplicates_one": "{{count}} was already there",
+    "skippedDuplicates_other": "{{count}} were already there",
+    "alreadyInOne": "This song is already in the scratchpad",
+    "alreadyInAll": "These songs are all in the scratchpad already",
+    "full": "The scratchpad is full ({{count}} songs at most). Clear some out first."
+  },
   "libraryBravais": {
     "suiteName": "Bravais wall",
     "homeTitle": "Library",
@@ -798,6 +826,8 @@ export default {
       "playback-loop": { "title": "Toggle loop", "description": "Change loop mode" },
       "playback-like": { "title": "Like current song", "description": "Add the current song to your favourites, or take it back out" },
       "playback-add-to-playlist": { "title": "Add to a playlist", "description": "Put the current song in one of your playlists" },
+      "scratchpad-toggle": { "title": "Open or close the scratchpad", "description": "Slide out the scratchpad: songs to hear or sort out later" },
+      "scratchpad-collect-current": { "title": "Jot the current song into the scratchpad", "description": "Keep this song for later without touching the queue" },
       "playback-mute": { "title": "Mute", "description": "Silence playback, or bring the sound back" },
       "playback-volume-up": { "title": "Volume up", "description": "Raise the volume by 5%" },
       "playback-volume-down": { "title": "Volume down", "description": "Lower the volume by 5%" },

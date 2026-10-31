@@ -13,6 +13,8 @@ import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollec
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
+import { collectToScratchpad } from '../../../stores/useScratchpadStore';
+import { isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
 
 // src/library/suites/bravais/useBravaisCollectionSeam.ts
 // 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里标题下的描述、收藏星标、补页进度 / 续传、状态行、过滤输入位、每日推荐的日期步进、
@@ -121,6 +123,14 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
                 run: () => latest.current.forms.openPick({ kind: 'collection' }),
             });
         }
+        // 速记簿（探索中，plan/scratchpad-spec.md）：收下当前范围（过滤时只收匹配项），不动队列。还不是 core 的语义动作，
+        // 所以不按 suite 声明过滤；做成 core 动作后网格与 TUI 一起得到。
+        items.push({
+            id: 'collect-scratchpad',
+            label: t('scratchpad.collectScope'),
+            disabled: view.contextTracks.length === 0,
+            run: () => collectToScratchpad(latest.current.view.contextTracks, { label: latest.current.displayTitle }),
+        });
         if (offers('resync-folder')) items.push({ id: 'resync-folder', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncFolder()) });
         if (offers('resync-all-folders')) items.push({ id: 'resync-all-folders', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncAllFolders()) });
         if (offers('organize-song-info')) items.push({ id: 'organize-song-info', label: t('localMusic.organizeSongInfo'), run: runMutation(c => c.organizeSongInfo()) });
@@ -143,7 +153,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             });
         }
         return items;
-    }, [actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.playableTracks.length]);
+    }, [actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.contextTracks.length, view.playableTracks.length]);
 
     // 每日推荐的日期步进：‹ 更早 · 日期 · 更近 ›，今天还能「刷新今天」。换日期就是换内容：整面翻牌，不换层。
     const daily = useMemo<BravaisSeamCollection['daily']>(() => {
@@ -289,11 +299,17 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             }
             if (has('match-song') && isLocalSong(track)) entryMenu.push({ id: 'match-song', label: t('localMusic.manualMetadataMatch') });
             if (has('add-to-playlist')) entryMenu.push({ id: 'add-to-playlist', label: t('localMusic.addToPlaylist') });
+            if (!isStagePlaybackSong(track)) entryMenu.push({ id: 'collect-scratchpad', label: t('scratchpad.collect') });
             return entryMenu;
         },
         onMenuAction: (key, actionId) => {
             const { mutations: controller, trackByKey, notice: notices } = latest.current;
             const track = trackByKey.get(key);
+            // 速记簿不经变更控制器：没有控制器的集合（探索页、只读集合）也能收。
+            if (track && actionId === 'collect-scratchpad') {
+                collectToScratchpad([track], { label: latest.current.displayTitle });
+                return;
+            }
             if (!controller || !track) return;
             if (actionId === 'remove-entry') void notices.run(() => controller.removeEntry({ entryKey: key, track }), { isDailyRemoval: isDaily });
             else if (actionId === 'match-song') void notices.run(() => controller.matchSong(track));

@@ -1,6 +1,34 @@
 
 
 export default {
+  "scratchpad": {
+    "title": "Buku catatan",
+    "count_one": "{{count}} lagu",
+    "count_other": "{{count}} lagu",
+    "hint": "Lagu untuk didengar atau dirapikan nanti. Menaruhnya di sini tidak mengubah antrean.",
+    "empty": "Belum ada apa-apa. Pilih \"Tambahkan ke buku catatan\" di menu \"⋯\" kartu lagu, atau catat lagu yang sedang diputar dari palet perintah.",
+    "open": "Buka buku catatan",
+    "close": "Tutup buku catatan",
+    "play": "Putar di antrean",
+    "enqueue": "Tambahkan ke antrean",
+    "addToPlaylist": "Tambahkan ke daftar putar…",
+    "remove": "Keluarkan dari buku catatan",
+    "enqueueAll": "Antrekan semua",
+    "replaceQueue": "Putar, ganti antrean",
+    "clear": "Kosongkan",
+    "confirmClear": "Klik lagi untuk mengosongkan",
+    "sourceLocal": "Lokal",
+    "collect": "Tambahkan ke buku catatan",
+    "collectScope": "Tambahkan semua ke buku catatan",
+    "addedOne": "Dicatat ke buku catatan",
+    "addedMany_one": "{{count}} lagu dicatat ke buku catatan",
+    "addedMany_other": "{{count}} lagu dicatat ke buku catatan",
+    "skippedDuplicates_one": "{{count}} sudah ada di sana",
+    "skippedDuplicates_other": "{{count}} sudah ada di sana",
+    "alreadyInOne": "Lagu ini sudah ada di buku catatan",
+    "alreadyInAll": "Semua lagu ini sudah ada di buku catatan",
+    "full": "Buku catatan penuh (paling banyak {{count}} lagu). Kosongkan sebagian dulu."
+  },
   "libraryBravais": {
     "suiteName": "Dinding Bravais",
     "homeTitle": "Pustaka",
@@ -798,6 +826,8 @@ export default {
       "playback-loop": { "title": "Alihkan loop", "description": "Ubah mode loop" },
       "playback-like": { "title": "Sukai lagu ini", "description": "Tambahkan lagu ini ke favorit, atau keluarkan lagi" },
       "playback-add-to-playlist": { "title": "Tambahkan ke daftar putar", "description": "Masukkan lagu ini ke salah satu daftar putar Anda" },
+      "scratchpad-toggle": { "title": "Buka atau tutup buku catatan", "description": "Tarik keluar buku catatan: lagu untuk didengar atau dirapikan nanti" },
+      "scratchpad-collect-current": { "title": "Catat lagu ini ke buku catatan", "description": "Simpan lagu ini untuk nanti tanpa mengubah antrean" },
       "playback-mute": { "title": "Bisukan", "description": "Bisukan pemutaran, atau kembalikan suaranya" },
       "playback-volume-up": { "title": "Volume naik", "description": "Naikkan volume 5%" },
       "playback-volume-down": { "title": "Volume turun", "description": "Turunkan volume 5%" },

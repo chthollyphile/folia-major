@@ -6,6 +6,8 @@ import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import CommandPalette from './components/command-palette/CommandPalette';
 import AddToPlaylistHost from './components/app/AddToPlaylistHost';
+import ScratchpadHost from './components/app/scratchpad/ScratchpadHost';
+import { useScratchpadPlayback } from './components/app/scratchpad/useScratchpadPlayback';
 import { useCommandPalette } from './components/command-palette/useCommandPalette';
 import { useCommandPaletteContext } from './hooks/useCommandPaletteContext';
 import { useReducedMotionFor } from './hooks/useReducedMotionFor';
@@ -2214,6 +2216,7 @@ export default function App() {
         onPopCollectionTo: popCollectionTo,
         onBackCollection: backCollection,
     });
+    const scratchpadPlayback = useScratchpadPlayback(homeModel.surfaceProps, handleQueueAddAndPlay);
     const playerDisplayCatalogIndex = useMemo(() => buildLocalLibraryIndex(
         localLibraryCatalog.entities,
         localLibraryCatalog.assignments,
@@ -2920,6 +2923,9 @@ export default function App() {
                 onAddCurrentSongToNavidromePlaylist={addCurrentSongToNavidromePlaylist}
                 onCreateCurrentNavidromePlaylist={createCurrentNavidromePlaylist}
             />
+
+            {/* 速记簿：左缘的把手与滑出的抽屉，非模态，三个视图里都在。 */}
+            <ScratchpadHost isDaylight={isDaylight} playback={scratchpadPlayback} />
 
             <CommandPalette
                 activeIndex={commandPalette.activeIndex}

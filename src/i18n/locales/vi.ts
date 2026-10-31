@@ -1,6 +1,34 @@
 // Vietnamese (vi) interface text, laid out line for line like en.ts.
 
 export default {
+  "scratchpad": {
+    "title": "Sổ ghi nhanh",
+    "count_one": "{{count}} bài",
+    "count_other": "{{count}} bài",
+    "hint": "Những bài để nghe hoặc sắp xếp sau. Đặt vào đây không làm thay đổi hàng đợi.",
+    "empty": "Chưa có gì. Chọn \"Thêm vào sổ ghi nhanh\" trong menu \"⋯\" của thẻ bài hát, hoặc ghi bài đang phát từ bảng lệnh.",
+    "open": "Mở sổ ghi nhanh",
+    "close": "Đóng sổ ghi nhanh",
+    "play": "Phát trong hàng đợi",
+    "enqueue": "Thêm vào hàng đợi",
+    "addToPlaylist": "Thêm vào danh sách phát…",
+    "remove": "Bỏ khỏi sổ ghi nhanh",
+    "enqueueAll": "Thêm tất cả vào hàng đợi",
+    "replaceQueue": "Phát, thay hàng đợi",
+    "clear": "Xóa hết",
+    "confirmClear": "Bấm lần nữa để xóa hết",
+    "sourceLocal": "Cục bộ",
+    "collect": "Thêm vào sổ ghi nhanh",
+    "collectScope": "Thêm tất cả vào sổ ghi nhanh",
+    "addedOne": "Đã ghi vào sổ ghi nhanh",
+    "addedMany_one": "Đã ghi {{count}} bài vào sổ ghi nhanh",
+    "addedMany_other": "Đã ghi {{count}} bài vào sổ ghi nhanh",
+    "skippedDuplicates_one": "{{count}} bài đã có sẵn",
+    "skippedDuplicates_other": "{{count}} bài đã có sẵn",
+    "alreadyInOne": "Bài này đã có trong sổ ghi nhanh",
+    "alreadyInAll": "Tất cả các bài này đã có trong sổ ghi nhanh",
+    "full": "Sổ ghi nhanh đã đầy (tối đa {{count}} bài). Hãy bớt vài bài trước."
+  },
   "libraryBravais": {
     "suiteName": "Không gian Bravais",
     "homeTitle": "Thư viện",
@@ -798,6 +826,8 @@ export default {
       "playback-loop": { "title": "Chuyển chế độ lặp", "description": "Thay đổi chế độ lặp lại" },
       "playback-like": { "title": "Yêu thích bài hát", "description": "Thêm hoặc xóa bài hát hiện tại khỏi mục yêu thích" },
       "playback-add-to-playlist": { "title": "Thêm vào danh sách phát", "description": "Thêm bài hát hiện tại vào danh sách phát" },
+      "scratchpad-toggle": { "title": "Mở hoặc đóng sổ ghi nhanh", "description": "Kéo sổ ghi nhanh ra: những bài để nghe hoặc sắp xếp sau" },
+      "scratchpad-collect-current": { "title": "Ghi bài hiện tại vào sổ ghi nhanh", "description": "Giữ bài này cho lúc khác mà không đụng đến hàng đợi" },
       "playback-mute": { "title": "Tắt tiếng", "description": "Tắt tiếng hoặc bật lại âm thanh" },
       "playback-volume-up": { "title": "Tăng âm lượng", "description": "Tăng âm lượng thêm 5%" },
       "playback-volume-down": { "title": "Giảm âm lượng", "description": "Giảm âm lượng đi 5%" },

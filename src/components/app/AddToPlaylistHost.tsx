@@ -55,6 +55,12 @@ const describeSong = (song: SongResult | null, hasOnlinePlaylists: boolean) => {
     };
 };
 
+// The account's online playlists that can take this song: those of its own platform.
+const onlinePlaylistsFor = (song: SongResult | null, playlists: ProviderCollection[]): ProviderCollection[] => {
+    const source = song ? getPlaybackSourceRef(song) : null;
+    return source?.kind === 'online' ? playlists.filter(playlist => playlist.providerId === source.providerId) : [];
+};
+
 export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     isDaylight,
     localPlaylists,
@@ -70,17 +76,20 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
     // The song as the listener sees it, so a blend shows the track that is on screen. It is what
     // the star button answers for.
     const shownSong = usePlaybackStore(selectDisplaySong);
-    const { isOpen, close, setAvailability } = useAddToPlaylistStore(useShallow(state => ({
+    const { isOpen, requestedSong, close, setAvailability } = useAddToPlaylistStore(useShallow(state => ({
         isOpen: state.isOpen,
+        requestedSong: state.song,
         close: state.close,
         setAvailability: state.setAvailability,
     })));
-    // The song the picker is about: the one that was shown when it came up. The track can change
-    // under an open picker (a blend lands, the queue advances), and the picker does not say which
-    // song it is for; what it adds is the song the listener asked about.
+    // The song the picker is about: the one it was asked for (a scratchpad row), else the one that
+    // was shown when it came up. The track can change under an open picker (a blend lands, the queue
+    // advances), and the picker does not say which song it is for; what it adds is the song the
+    // listener asked about.
     const [askedSong, setAskedSong] = useState<SongResult | null>(null);
-    if (isOpen && !askedSong && shownSong) {
-        setAskedSong(shownSong);
+    const pickerSong = requestedSong ?? shownSong;
+    if (isOpen && !askedSong && pickerSong) {
+        setAskedSong(pickerSong);
     } else if (!isOpen && askedSong) {
         setAskedSong(null);
     }
@@ -90,8 +99,11 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
 
     // The dialogs are about the song they were asked for, whatever is playing by now.
     const currentSong = createFor ?? (isOpen ? askedSong : null) ?? shownSong;
-    const shown = describeSong(shownSong, onlinePlaylists.length > 0);
-    const { isNavidrome, isLocal, isOnline, canCreateOnline, isApplicable, canAdd } = describeSong(currentSong, onlinePlaylists.length > 0);
+    // Only the song's own platform's playlists take it (omni refuses the others), and the account's
+    // list is the active platform's, which need not be the song's.
+    const songPlaylists = useMemo(() => onlinePlaylistsFor(currentSong, onlinePlaylists), [currentSong, onlinePlaylists]);
+    const shown = describeSong(shownSong, onlinePlaylistsFor(shownSong, onlinePlaylists).length > 0);
+    const { isNavidrome, isLocal, isOnline, canCreateOnline, isApplicable, canAdd } = describeSong(currentSong, songPlaylists.length > 0);
     const needsNavidromePlaylists = isNavidrome || shown.isNavidrome;
 
     const refreshNavidromePlaylists = useCallback(async () => {
@@ -129,7 +141,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         }
 
         if (isOnline) {
-            return onlinePlaylists.map((playlist) => ({
+            return songPlaylists.map((playlist) => ({
                 id: String(playlist.id),
                 name: playlist.name,
                 description: `${playlist.trackCount || 0} ${t('playlist.tracks')}`,
@@ -141,7 +153,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         }
 
         return [];
-    }, [isLocal, isOnline, isNavidrome, localPlaylists, navidromePlaylists, onlinePlaylists, t]);
+    }, [isLocal, isOnline, isNavidrome, localPlaylists, navidromePlaylists, songPlaylists, t]);
 
     const disabledReason = shown.isOnline && !shown.canAddOnlineSong
         ? t('status.providerPlaylistMutationUnavailable', { provider: shown.onlineProviderLabel })
@@ -178,7 +190,7 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
                     }
 
                     if (isOnline) {
-                        const playlist = onlinePlaylists.find(item => String(item.id) === String(playlistId));
+                        const playlist = songPlaylists.find(item => String(item.id) === String(playlistId));
                         if (!playlist) throw new Error('Selected playlist is unavailable');
                         await onAddCurrentSongToOnlinePlaylist(playlist, currentSong);
                         return;

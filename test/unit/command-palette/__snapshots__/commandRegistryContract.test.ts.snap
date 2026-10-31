@@ -234,6 +234,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "panel-local",
   "panel-navi",
   "panel-onlineLyrics",
+  "scratchpad-toggle",
+  "scratchpad-collect-current",
   "mods",
   "lyric-segmentation",
   "visualizer-picker",

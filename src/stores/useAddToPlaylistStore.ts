@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { SongResult } from '../types';
 
 // src/stores/useAddToPlaylistStore.ts
 // The "add the current song to a playlist" dialog: whether it is up, and whether it could do
@@ -26,18 +27,23 @@ const UNAVAILABLE: AddToPlaylistAvailability = { isApplicable: false, canAdd: fa
 
 type AddToPlaylistState = {
     isOpen: boolean;
+    /** The song the picker was asked for, when it is not the shown one (a scratchpad entry); null means the shown song. */
+    song: SongResult | null;
     availability: AddToPlaylistAvailability;
-    open: () => void;
+    open: (song?: SongResult) => void;
     close: () => void;
     setAvailability: (availability: AddToPlaylistAvailability) => void;
 };
 
 export const useAddToPlaylistStore = create<AddToPlaylistState>((set) => ({
     isOpen: false,
+    song: null,
     availability: UNAVAILABLE,
-    open: () => set({ isOpen: true }),
-    close: () => set({ isOpen: false }),
+    open: song => set({ isOpen: true, song: song ?? null }),
+    close: () => set({ isOpen: false, song: null }),
     setAvailability: (availability) => set({ availability }),
 }));
 
 export const openAddToPlaylist = () => useAddToPlaylistStore.getState().open();
+/** The picker for a song other than the shown one (the scratchpad's rows). */
+export const openAddSongToPlaylist = (song: SongResult) => useAddToPlaylistStore.getState().open(song);

@@ -1,6 +1,34 @@
 
 
 export default {
+  "scratchpad": {
+    "title": "速记簿",
+    "count_one": "{{count}} 首",
+    "count_other": "{{count}} 首",
+    "hint": "先放着、待会再听或再整理的歌。放进来不会动播放队列。",
+    "empty": "还什么都没有。在歌曲卡的「⋯」里选「加入速记簿」，或用命令面板把正在播的这首记下来。",
+    "open": "打开速记簿",
+    "close": "收起速记簿",
+    "play": "插进队列播放",
+    "enqueue": "加入队列",
+    "addToPlaylist": "加入歌单…",
+    "remove": "移出速记簿",
+    "enqueueAll": "全部入队",
+    "replaceQueue": "替换队列播放",
+    "clear": "清空",
+    "confirmClear": "再点一次清空",
+    "sourceLocal": "本地",
+    "collect": "加入速记簿",
+    "collectScope": "全部加入速记簿",
+    "addedOne": "已记进速记簿",
+    "addedMany_one": "已把 {{count}} 首记进速记簿",
+    "addedMany_other": "已把 {{count}} 首记进速记簿",
+    "skippedDuplicates_one": "{{count}} 首已经在里面了",
+    "skippedDuplicates_other": "{{count}} 首已经在里面了",
+    "alreadyInOne": "这首已经在速记簿里了",
+    "alreadyInAll": "这些歌都已经在速记簿里了",
+    "full": "速记簿满了（最多 {{count}} 首），先处理掉一些吧"
+  },
   "libraryBravais": {
     "suiteName": "Bravais 墙面",
     "homeTitle": "书库",
@@ -798,6 +826,8 @@ export default {
       "playback-loop": { "title": "切换循环", "description": "切换循环模式" },
       "playback-like": { "title": "收藏当前歌曲", "description": "把当前歌曲加入收藏，或取消收藏" },
       "playback-add-to-playlist": { "title": "添加到歌单", "description": "把当前歌曲放进你的某个歌单" },
+      "scratchpad-toggle": { "title": "打开 / 收起速记簿", "description": "从左边拉出速记簿：先放着、待会再听或再整理的歌" },
+      "scratchpad-collect-current": { "title": "把当前歌曲记进速记簿", "description": "不动播放队列，先把这首记下来" },
       "playback-mute": { "title": "静音", "description": "静音，或恢复声音" },
       "playback-volume-up": { "title": "音量加", "description": "音量调高 5%" },
       "playback-volume-down": { "title": "音量减", "description": "音量调低 5%" },
