@@ -424,15 +424,17 @@
     padding: 6px 6px 8px;
     border: 1px solid rgb(255 255 255 / 8%);
     border-radius: 14px;
-    background: rgb(255 255 255 / 5%);
+    /* 不透明：拖着的卡片从别的卡片上面经过时，底下那张的字不能透上来和它的叠在一起。
+       颜色取的是原先半透明的白叠在画布那层玻璃上大致的样子。 */
+    background: rgb(34 34 37);
     cursor: grab;
     /* 手指在卡片上划也是滚动（拖动排序只给鼠标和笔，见 ScratchpadCanvas）。 */
     touch-action: pan-y;
 }
 
-.scratchpad-root.is-daylight .scratchpad-card { border-color: rgb(0 0 0 / 7%); background: rgb(255 255 255 / 55%); }
-.scratchpad-card:hover { background: rgb(255 255 255 / 9%); }
-.scratchpad-root.is-daylight .scratchpad-card:hover { background: rgb(255 255 255 / 80%); }
+.scratchpad-root.is-daylight .scratchpad-card { border-color: rgb(0 0 0 / 7%); background: rgb(250 249 246); }
+.scratchpad-card:hover { background: rgb(44 44 48); }
+.scratchpad-root.is-daylight .scratchpad-card:hover { background: rgb(255 255 255); }
 
 .scratchpad-card.is-selected {
     border-color: var(--text-accent, rgb(255 255 255 / 70%));
