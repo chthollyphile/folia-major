@@ -72,6 +72,30 @@
     outline-offset: 1px;
 }
 
+/* 搜索框：放大镜画在输入框里头左侧，输入框占满标题的位置。 */
+.lattice-tools-island-search {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    margin-left: -6px;
+}
+
+.lattice-tools-island-search svg {
+    position: absolute;
+    left: 8px;
+    width: 13px;
+    height: 13px;
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.lattice-tools-island-search .lattice-tools-island-input {
+    margin-left: 0;
+    padding-left: 26px;
+}
+
 .lattice-tools-island-note {
     display: grid;
     width: 28px;
@@ -214,8 +238,9 @@
     .lattice-tools-island-handle { opacity: 0.4; }
 }
 
-/* 只读（外部舞台播放）：没有手柄，主按钮往右让出同样的位置。 */
-.lattice-tools-island[data-queue-readonly] .lattice-tools-island-row { padding-left: 6px; }
+/* 只读（外部舞台播放）、搜索筛选中：没有手柄，主按钮往右让出同样的位置。 */
+.lattice-tools-island[data-queue-readonly] .lattice-tools-island-row,
+.lattice-tools-island[data-queue-filtering] .lattice-tools-island-row { padding-left: 6px; }
 
 .lattice-tools-island-song {
     display: flex;
