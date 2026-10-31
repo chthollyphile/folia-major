@@ -9,6 +9,15 @@ export type MediaSessionTrackMetadata = {
 
 type MediaSessionMetadataFactory = (init: MediaMetadataInit) => MediaMetadata;
 
+// Use a recognizable title while no matching track timeline is available.
+export const publishMediaSessionPlaceholder = (
+    mediaSession: MediaSession,
+    createMetadata: MediaSessionMetadataFactory = init => new MediaMetadata(init)
+) => {
+    mediaSession.setPositionState();
+    mediaSession.metadata = createMetadata({ title: 'Folia' });
+};
+
 const MEDIA_SESSION_ARTWORK_PROTOCOLS = new Set(['http:', 'https:', 'data:', 'blob:']);
 
 const normalizeSourceUrl = (source: string, baseUrl?: string) => {

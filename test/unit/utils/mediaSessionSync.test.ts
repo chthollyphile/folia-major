@@ -3,12 +3,31 @@ import {
     createMediaSessionPositionState,
     getSupportedMediaSessionArtworkUrl,
     isMediaSessionSourceReady,
+    publishMediaSessionPlaceholder,
     publishMediaSessionTrack,
 } from '@/utils/mediaSessionSync';
 
 // test/unit/utils/mediaSessionSync.test.ts
 
 describe('mediaSessionSync', () => {
+    it('clears the previous timeline before publishing the Folia placeholder', () => {
+        const calls: string[] = [];
+        let metadata: MediaMetadataInit | undefined;
+        const mediaSession = {
+            setPositionState: vi.fn(() => calls.push('position')),
+            set metadata(value: MediaMetadata | null) {
+                calls.push('metadata');
+                metadata = value as MediaMetadataInit;
+            },
+        } as unknown as MediaSession;
+
+        publishMediaSessionPlaceholder(mediaSession, init => init as MediaMetadata);
+
+        expect(calls).toEqual(['position', 'metadata']);
+        expect(mediaSession.setPositionState).toHaveBeenCalledWith();
+        expect(metadata).toEqual({ title: 'Folia' });
+    });
+
     it('ignores metadata events from an old or incomplete audio source', () => {
         expect(isMediaSessionSourceReady({
             currentSrc: 'https://music.example/old.mp3',

@@ -6,6 +6,7 @@ import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl } from '../servi
 import {
     getSupportedMediaSessionArtworkUrl,
     isMediaSessionSourceReady,
+    publishMediaSessionPlaceholder,
     publishMediaSessionTrack,
 } from '../utils/mediaSessionSync';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
@@ -121,8 +122,7 @@ export const useMediaSessionBridge = ({
 
         if (!currentSong) {
             try {
-                navigator.mediaSession.setPositionState();
-                navigator.mediaSession.metadata = null;
+                publishMediaSessionPlaceholder(navigator.mediaSession);
             } catch (e) {
                 console.warn('[MediaSession] Failed to clear metadata', e);
             }
@@ -134,6 +134,13 @@ export const useMediaSessionBridge = ({
         const audio = getObservedMedia(getDisplayAudioElement?.() ?? audioRef.current);
         // The shim switched to this track before the track store named it, so its source is current here.
         const expectedSource = playbackRoute === 'hifi' ? hifiMediaShim.currentSrc : audioSrc;
+        if (!audio || !expectedSource || !isMediaSessionSourceReady(audio, expectedSource, document.baseURI)) {
+            try {
+                publishMediaSessionPlaceholder(navigator.mediaSession);
+            } catch (e) {
+                console.warn('[MediaSession] Failed to update placeholder', e);
+            }
+        }
         if (!audio || !expectedSource) {
             return;
         }
