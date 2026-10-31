@@ -285,6 +285,7 @@ function LoginWindowProbe(props: ProbeProps) {
                     }}
                     onReopenBrowser={() => setSaid('reopen the browser')}
                     onRestartService={() => setSaid('restart the local service')}
+                    onFormLoggedIn={() => setSaid('form logged in')}
                     onSwitch={() => setSaid('switch')}
                     onSignOut={() => setSaid('sign out')}
                     // origin=pill: as if the window was opened from the switcher pill at the bottom right.

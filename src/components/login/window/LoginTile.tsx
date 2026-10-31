@@ -107,6 +107,9 @@ export const LoginTile: React.FC<LoginTileProps> = ({
         picture = <Disc tone="calm"><Smartphone size={34} className="text-[color:var(--st-t1)]" /></Disc>;
     } else if (scene === 'reading') {
         picture = <Disc tone="calm" arc><User size={34} className="text-[color:var(--st-t1)]" /></Disc>;
+    } else if (scene === 'form') {
+        // 表单式登录：静态的平台记号（没有码要等，也不转圈）。
+        picture = <PlatformMark providerId={providerId} label={label} size={56} />;
     } else {
         // 正在取二维码：平台的记号，外面一道转着的弧。
         picture = <span className="login-arc relative grid h-[54px] w-[54px] place-items-center"><PlatformMark providerId={providerId} label={label} size={30} /></span>;

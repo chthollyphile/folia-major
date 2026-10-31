@@ -69,6 +69,7 @@ const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
+const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
@@ -168,6 +169,7 @@ protocol.registerSchemesAsPrivileged([
   MOD_PROTOCOL_PRIVILEGED_SCHEME,
   YTM_AUDIO_PRIVILEGED_SCHEME,
   SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
+  FN_MUSIC_PRIVILEGED_SCHEME,
 ]);
 
 // Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
@@ -356,6 +358,9 @@ process.on('exit', () => hifiSession.killSync());
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
 const qishuiMediaPolicy = createQishuiMediaPolicy();
+// 飞牛音乐桥：服务器与凭据由主进程 safeStorage 加密保存（渲染进程只发操作）；播放/封面走
+// 自定义协议（协议 handler 实时转发，无需本地 HTTP 代理、无需启动时恢复）。
+const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
 const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
   onAudioSource: url => qishuiMediaPolicy.register(url),
 });
@@ -6100,6 +6105,7 @@ app.whenReady().then(async () => {
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
   protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
+  protocol.handle(FN_MUSIC_SCHEME, request => fnMusicApiBridge.handleProtocolRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
   try {
@@ -7070,6 +7076,36 @@ ipcMain.handle('qishui-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) return { ok: false, error: { code: 'unavailable', message: 'Untrusted Qishui request' } };
   return qishuiApiBridge.request(operation, params);
 });
+
+// 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；authx 签名、Cookie 认证头、
+// 自签名证书容忍都在主进程桥内完成（用受信窗口守卫）。
+ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
+  channel: 'fnmusic-api-request',
+  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
+  handler: (_event, operation, params) => {
+    const handlerByOperation = {
+      login: () => fnMusicApiBridge.login(params),
+      logout: () => fnMusicApiBridge.logout(params),
+      request: () => fnMusicApiBridge.request(params),
+      stream: () => fnMusicApiBridge.stream(params),
+      coverUrl: () => fnMusicApiBridge.coverUrl(params),
+      getStatus: () => fnMusicApiBridge.getStatus(),
+    };
+    const handler = handlerByOperation[operation];
+    if (!handler) return { ok: false, error: { code: 'unsupported', message: `Unknown FnMusic operation: ${operation}` } };
+    return handler();
+  },
+}));
+
+// 同步查询飞牛桥状态（渲染层构造封面/播放代理 URL 需要同步拿到本地代理端口）。
+ipcMain.on('fnmusic-status-sync', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    event.returnValue = { available: false, configured: false, authenticated: false, base: null, username: null };
+    return;
+  }
+  event.returnValue = fnMusicApiBridge.getStatus();
+});
+
 ipcMain.handle('bodian-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };

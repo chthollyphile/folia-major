@@ -14,7 +14,7 @@ import type { ProviderAccountSummary } from '@/types/onlineMusic';
 const seen = vi.hoisted(() => ({ done: null as null | { playing: boolean; providerId: string | null } }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { getProviderLabel: (id: string) => id },
+    omni: { getProviderLabel: (id: string) => id, getLoginForm: () => null },
 }));
 vi.mock('@/components/modal/settings/kit/motion', async original => ({ ...(await original() as object), useKitReducedMotion: () => false }));
 vi.mock('@/components/login/PlatformMark', () => ({
@@ -78,7 +78,7 @@ describe('the sign-in window, drawn', () => {
                 id: 1, providerId: 'a', phase, methods: [], selectedMethodId: null, inBrowser: false, codeImage: '', canReopenLoginPage: false,
                 failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
             },
-            onChoose: () => { }, onStart: () => { }, onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
+            onChoose: () => { }, onStart: () => { }, onFormLoggedIn: () => { }, onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
             onSwitch: () => { }, onSignOut: () => { }, buildReport: async () => '',
         } satisfies LoginScreenProps);
         draw(screen(true, 'scanned'));

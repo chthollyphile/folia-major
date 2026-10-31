@@ -174,6 +174,8 @@ contextBridge.exposeInMainWorld('electron', {
     getKugouApiStatus: () => ipcRenderer.invoke('kugou-api-status'),
     kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     qishuiRequest: (operation, params) => ipcRenderer.invoke('qishui-api-request', operation, params),
+    fnmusicRequest: (operation, params) => ipcRenderer.invoke('fnmusic-api-request', operation, params),
+    fnmusicStatusSync: () => ipcRenderer.sendSync('fnmusic-status-sync'),
     bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),

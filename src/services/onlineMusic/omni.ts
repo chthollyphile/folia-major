@@ -27,6 +27,7 @@ import type {
     OnlineSearchProvider,
     PersonalFmRequestOptions,
     ProviderCatalogEntityKind,
+    ProviderLoginForm,
     ProviderSearchContext,
     ProviderSongCatalogRefs,
     ProviderLikedSongIds,
@@ -588,6 +589,19 @@ export const omni = {
         const auth = requireOnlineMusicProvider(providerId).auth;
         if (!auth) return [];
         return auth.resolveLoginMethods?.() ?? auth.getLoginMethods?.() ?? [];
+    },
+
+    // 表单式登录：provider 声明了字段，登录窗口按声明渲染表单；没有就回 null（UI 走扫码/浏览器流程）。
+    // 宽松查询（像 getLoginTexts）：界面在选中一行时就要问，平台未注册时也要能回答“没有表单”。
+    getLoginForm(providerId: OmniProviderId): ProviderLoginForm | null {
+        return getOnlineMusicProvider(providerId)?.auth?.getLoginForm?.() ?? null;
+    },
+
+    // 提交表单式登录：字段值交给 provider 自己完成登录。
+    async submitLoginForm(providerId: OmniProviderId, values: Record<string, string>): Promise<unknown> {
+        const auth = requireOnlineMusicProvider(providerId).auth;
+        if (!auth?.submitLoginForm) return unsupported(providerId, 'form-login');
+        return runLoginStep(auth, 'form', () => auth.submitLoginForm!(values));
     },
 
     // 扫码的 provider 回二维码图片；在浏览器里确认的登录没有图片，回空串。

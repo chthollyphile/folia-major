@@ -9,6 +9,7 @@ import type {
     LibraryLoginCloseResult,
     LibraryLoginCompletion,
     LibraryLoginDiagnosticResult,
+    LibraryLoginOutcome,
     LibraryLoginPageResult,
     LibraryLoginPhase,
     LibraryLoginRequestResult,
@@ -527,6 +528,38 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         batch(() => complete(result.status === 'switched' ? 'completed' : 'activation-declined'));
     };
 
+    // ─── 表单式登录 ────────────────────────────────────────────────────
+
+    /**
+     * 表单式登录完成（FormLogin 提交成功后由登录窗口调用）：读账号，走和扫码确认一样的收尾链路——
+     * 读到了收起登录，不是当前平台时先问（activate-after-login），再报完成（登录窗口据它放动画/关窗）。
+     * 表单登录没有会话，sessionId 用 0。
+     */
+    const completeFormLogin = async (providerId: OnlineProviderId): Promise<LibraryLoginCompletion> => {
+        const complete = (outcome: LibraryLoginOutcome): LibraryLoginCompletion => {
+            const completion = { sessionId: 0, providerId, outcome };
+            batch(() => { lastLoginCompletion = completion; });
+            return completion;
+        };
+        if (disposed) return complete('activation-declined');
+        let refreshed = false;
+        try {
+            refreshed = await providerAccounts.refresh(providerId, 'sign-in');
+        } catch (error) {
+            log('warn', 'login:refresh-error', { providerId, ...describeLoginError(error) });
+        }
+        if (!refreshed) return complete('refresh-failed');
+        const needsActivation = providerId !== activeProviderId();
+        batch(() => {
+            login = null;
+            watchLocalService(null);
+        });
+        if (!needsActivation) return complete('completed');
+        const result = await openSwitchRequest(providerId, 'activate-after-login');
+        if (disposed) return complete('activation-declined');
+        return complete(result.status === 'switched' ? 'completed' : 'activation-declined');
+    };
+
     // ─── 选平台与登出 ───────────────────────────────────────────────────
 
     const selectProvider = async (providerId: OnlineProviderId): Promise<LibrarySelectProviderResult> => {
@@ -598,6 +631,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         startLogin,
         selectLoginMethod,
         retryLogin,
+        completeFormLogin,
         openLoginPage,
         closeLogin,
         restartLocalService,

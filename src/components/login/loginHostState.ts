@@ -1,6 +1,7 @@
 import type { LibraryLoginCompletion, LibraryLoginSessionSnapshot } from '../../library/core/account/account.contract';
 import { isLoginUnderWay } from '../../library/core/account/accountRules';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../types/onlineMusic';
+import { omni } from '../../services/onlineMusic/omni';
 import { rowStatus } from './platformRows';
 import { rowLeadsTo, type RowLead } from './window/loginView';
 
@@ -88,8 +89,13 @@ export const createLoginHostState = (ports: LoginHostPorts) => {
         turn += 1;
         confirmedSeen = false;
         set({ chosen: { providerId, lead }, done: false });
-        if (lead === 'sign-in') ports.startLogin(providerId);
-        else ports.closeLogin();
+        if (lead === 'sign-in') {
+            // 表单式登录平台（如账号密码类）：选中即显示表单，不自动开始登录；关掉上一个平台的扫码会话。
+            if (providerId && omni.getLoginForm(providerId)) ports.closeLogin();
+            else ports.startLogin(providerId);
+        } else {
+            ports.closeLogin();
+        }
     };
 
     /** 为选中的那个平台问一件事；答的是「成了」、而且回来时还是问它的那一轮，才做 `then`。 */

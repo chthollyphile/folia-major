@@ -298,6 +298,12 @@ export interface LibraryAccountController {
     /** 重启登录要靠的本地服务；起来了接着登录。 */
     restartLocalService(): Promise<LibraryLocalServiceRestartResult>;
     buildLoginDiagnosticReport(): Promise<LibraryLoginDiagnosticResult>;
+    /**
+     * 表单式登录完成（FormLogin 提交成功后由登录窗口调用）：读账号，走和扫码确认一样的收尾链路——
+     * 读到了收起登录，不是当前平台时先问（activate-after-login），再报完成（登录窗口据它放动画/关窗）。
+     * 表单登录没有会话，sessionId 为 0。
+     */
+    completeFormLogin(providerId: OnlineProviderId): Promise<LibraryLoginCompletion>;
     /** 只对已登录的平台；先经宿主问用的人，退的是当前平台时清空播放器，再走宿主注入的登出。 */
     logout(providerId: OnlineProviderId): Promise<LibraryLogoutResult>;
     /** 宿主卸载：关闭登录会话（keyed 取消），待确认切换按 declined / disposed 结算。 */

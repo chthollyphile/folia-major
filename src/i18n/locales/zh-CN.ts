@@ -1431,7 +1431,10 @@ export default {
     "noteDeviceLimit": "请在手机上退出不用的设备后重试",
     "noteWrongScanApp": "请用这种登录方式对应的 App 扫码，或改选别的登录方式",
     "noteCloseBrowser": "请关闭该浏览器后重试",
-    "noteUnknown": "未知错误"
+    "noteUnknown": "未知错误",
+    "submit": "提交",
+    "submitting": "提交中…",
+    "formErrorUnknown": "登录失败，请检查填写内容后重试"
   },
   "failure": {
     "unreachable": "无法连接{{provider}}",
@@ -1493,6 +1496,8 @@ export default {
     "loginNoteQishui": "请使用抖音 App 扫码并确认授权",
     "loginTitleBodian": "使用波点音乐 App 扫码",
     "loginNoteBodian": "打开波点音乐 App 扫描二维码并确认登录",
+    "loginTitleFnMusic": "登录飞牛音乐",
+    "loginNoteFnMusic": "填入你的飞牛音乐服务器地址与账号，畅听 NAS 私有音乐库",
     "loginTitleYtm": "登录 YouTube Music",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
@@ -4270,6 +4275,18 @@ export default {
     "cloudDrive": "云盘",
     "cloudDriveDesc": "网易云音乐云盘",
     "qqCloudDriveDesc": "微云音乐网盘",
+  },
+  "fnmusic": {
+    "serverUrl": "服务器地址",
+    "serverUrlPlaceholder": "例如: http://192.168.1.10:5666",
+    "username": "账号",
+    "usernamePlaceholder": "飞牛音乐账号或 NAS 账号",
+    "password": "密码",
+    "login": "登录",
+    "loginNote": "输入你的飞牛（fnOS）音乐服务器地址与账号密码",
+    "errorBadCredentials": "账号或密码错误",
+    "errorNetwork": "无法连接服务器，请检查地址与网络",
+    "errorBadResponse": "服务器返回了无法识别的响应"
   },
   "hifi": {
     "settings": {

@@ -1431,7 +1431,10 @@ export default {
     "noteDeviceLimit": "Sign out of a device you no longer use on your phone, then try again",
     "noteWrongScanApp": "Scan with the app this sign-in method is for, or choose another method",
     "noteCloseBrowser": "Close that browser, then try again",
-    "noteUnknown": "Unknown error"
+    "noteUnknown": "Unknown error",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "formErrorUnknown": "Sign-in failed. Check what you entered and try again."
   },
   "failure": {
     "unreachable": "Cannot connect to {{provider}}",
@@ -1493,6 +1496,8 @@ export default {
     "loginNoteQishui": "Scan with the Douyin app and confirm authorization",
     "loginTitleBodian": "Scan with Bodian Music",
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
+    "loginTitleFnMusic": "Sign in to fnOS Music",
+    "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
@@ -4270,6 +4275,18 @@ export default {
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive",
+  },
+  "fnmusic": {
+    "serverUrl": "Server address",
+    "serverUrlPlaceholder": "e.g. http://192.168.1.10:5666",
+    "username": "Account",
+    "usernamePlaceholder": "fnOS Music account or NAS account",
+    "password": "Password",
+    "login": "Log in",
+    "loginNote": "Enter your fnOS Music server address, account and password",
+    "errorBadCredentials": "Account or password is wrong",
+    "errorNetwork": "Cannot reach the server. Check the address and your connection.",
+    "errorBadResponse": "The server returned an unexpected response"
   },
   "hifi": {
     "settings": {

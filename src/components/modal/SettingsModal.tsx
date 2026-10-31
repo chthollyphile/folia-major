@@ -703,8 +703,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const [navidromePresetAvailable, setNavidromePresetAvailable] = useState(false);
     const [navidromeUsesPreset, setNavidromeUsesPreset] = useState(false);
     const [navidromeRestoreFailed, setNavidromeRestoreFailed] = useState(false);
-    const [navidromeRestoring, setNavidromeRestoring] = useState(false);
 
+    const [navidromeRestoring, setNavidromeRestoring] = useState(false);
     // Load Navidrome config on mount
     useEffect(() => {
         const config = getNavidromeConfig();
