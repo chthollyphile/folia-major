@@ -2,6 +2,7 @@ import React from 'react';
 import { omni } from '../../services/onlineMusic/omni';
 import type { OnlineProviderId, ProviderUser } from '../../types/onlineMusic';
 import { onAccentColor } from '../modal/settings/kit/kitTheme';
+import { platformMarkIcon } from './platformMarkIcons';
 import { resolvePlatformMark } from './resolvePlatformMark';
 
 // src/components/login/PlatformMark.tsx
@@ -11,10 +12,10 @@ import { resolvePlatformMark } from './resolvePlatformMark';
 
 const EDGE = '0 0 0 2px var(--login-edge, var(--st-card))';
 
-/** 一个平台的记号的字和颜色，连同画在这种颜色上的字的颜色。 */
+/** 一个平台的记号的颜色、画在上面的字或图标，连同这个圆上该用深色还是白色。 */
 export const platformMarkOf = (providerId: OnlineProviderId, label?: string) => {
     const mark = resolvePlatformMark(omni.getProviderMark(providerId), label ?? omni.getProviderLabel(providerId));
-    return { ...mark, onColor: onAccentColor(mark.color) };
+    return { ...mark, onColor: onAccentColor(mark.color), iconSrc: platformMarkIcon(mark.icon) };
 };
 
 type PlatformMarkProps = {
@@ -34,7 +35,11 @@ export const PlatformMark: React.FC<PlatformMarkProps> = ({ providerId, label, s
             className={`relative inline-grid shrink-0 place-items-center rounded-full font-bold leading-none ${className ?? ''}`}
             style={{ width: size, height: size, background: mark.color, color: mark.onColor, fontSize: Math.round(size * 0.42) }}
         >
-            {mark.letter}
+            {mark.iconSrc ? (
+                <img src={mark.iconSrc} alt="" draggable={false} className="pointer-events-none select-none object-contain" style={{ width: Math.round(size * 0.62), height: Math.round(size * 0.62) }} />
+            ) : (
+                mark.letter
+            )}
             {ranOut && (
                 <i className="absolute -right-px -top-px h-2.5 w-2.5 rounded-full bg-[var(--st-warn)]" style={{ boxShadow: EDGE }} />
             )}

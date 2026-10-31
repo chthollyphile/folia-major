@@ -251,6 +251,14 @@ const DonePicture: React.FC<Pick<DoneProps, 'providerId' | 'label' | 'user'> & {
         : <PlatformMark providerId={providerId} label={label} size={PICTURE} />
 );
 
+// 水印：平台有矢量图标就画图标，没有就画它声明的那一个字。
+const FloodWatermark: React.FC<Pick<DoneProps, 'providerId' | 'label'>> = ({ providerId, label }) => {
+    const mark = platformMarkOf(providerId, label);
+    return mark.iconSrc
+        ? <img src={mark.iconSrc} alt="" draggable={false} className="h-[210px] w-[210px] object-contain" />
+        : <>{mark.letter}</>;
+};
+
 type FloodProps = DoneProps & {
     surface: string;
     tickColour: string;
@@ -272,7 +280,7 @@ export const LoginDoneFlood: React.FC<FloodProps> = ({ parts, providerId, label,
                     className="login-done-watermark absolute -right-[92px] top-1/2 -mt-[170px] grid h-[340px] w-[340px] place-items-center rounded-full text-[196px] font-extrabold leading-none"
                     style={{ opacity: 0 }}
                 >
-                    {platformMarkOf(providerId, label).letter}
+                    <FloodWatermark providerId={providerId} label={label} />
                 </span>
                 <div className="absolute top-1/2 flex -translate-y-1/2 items-center gap-[22px]" style={{ left }}>
                     <span ref={keep(parts, 'picture')} className="relative flex shrink-0 rounded-full" style={{ opacity: 0, boxShadow: WHITE_RING }}>

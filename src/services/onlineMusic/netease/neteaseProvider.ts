@@ -294,8 +294,8 @@ const getLyrics = async (
 export const neteaseProvider: OnlineMusicProvider = {
     id: 'netease',
     displayName: 'NetEase Cloud Music',
-    shortName: '网易云',
-    mark: { letter: '云', color: '#dc2626' },
+    shortName: '网易云音乐',
+    mark: { letter: '云', color: '#dc2626', icon: 'netease' },
     watch: watchNeteaseLocalService,
     describeFailure: describeNeteaseFailure,
     getAvailability: () => ({ configured: true }),

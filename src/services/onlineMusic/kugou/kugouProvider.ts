@@ -1020,8 +1020,8 @@ const getKugouHistoryName = async (date: string): Promise<string> => {
 export const kugouProvider: OnlineMusicProvider = {
     id: 'kugou',
     displayName: 'KuGou Music',
-    shortName: '酷狗',
-    mark: { letter: 'K', color: '#2563eb' },
+    shortName: '酷狗音乐',
+    mark: { letter: 'K', color: '#2563eb', icon: 'kugou' },
     getAvailability: getKugouTransportAvailability,
     describeFailure: describeKugouFailure,
     capabilities: {

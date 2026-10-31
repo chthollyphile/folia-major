@@ -26,7 +26,9 @@ const BravaisProviderAvatar: React.FC<{ providerId: string; name: string; avatar
     return (
         <span className={`bravais-account-avatar is-badge${className ? ` ${className}` : ''}`} style={{ backgroundColor: mark.color, color: mark.onColor }} aria-hidden
             data-bravais-account-avatar="badge">
-            {mark.letter}
+            {mark.iconSrc
+                ? <img src={mark.iconSrc} alt="" draggable={false} className="h-[62%] w-[62%] object-contain" />
+                : mark.letter}
         </span>
     );
 };

@@ -69,7 +69,7 @@ i18n.on('languageChanged', clearSpotifyCatalogCache);
 
 export const spotifyProvider: OnlineMusicProvider = {
     id: 'spotify', displayName: 'Spotify', shortName: 'Spotify',
-    mark: { letter: 'S', color: '#22c55e' },
+    mark: { letter: 'S', color: '#000000', icon: 'spotify' },
     getAvailability: getSpotifyTransportAvailability,
     describeFailure: describeSpotifyFailure,
     // `recommendations` is the radio tab: a personal FM, daily songs and playlists, each made of
