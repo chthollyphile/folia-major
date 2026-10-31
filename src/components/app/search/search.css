@@ -502,7 +502,15 @@
 
 .search-row-action:hover { border-color: currentColor; opacity: 1; }
 
-@media (min-width: 640px) {
+/* 窄屏行尾常显三颗：序号让位，按钮与间距收一点，给歌名留地方。 */
+@media (max-width: 639px) {
+    .search-row { gap: 10px; }
+    .search-row-index { display: none; }
+    .search-row-action { width: 30px; height: 30px; }
+}
+
+/* 只在真能悬停的设备上藏起来等悬停：宽屏触屏上看不见的按钮会被点到。 */
+@media (min-width: 640px) and (hover: hover) {
     .search-row-action { opacity: 0; }
     .search-row:hover .search-row-action,
     .search-row:focus-within .search-row-action { opacity: 0.7; }

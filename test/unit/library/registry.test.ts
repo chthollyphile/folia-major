@@ -135,9 +135,13 @@ describe('library suite registry', () => {
         // B8：bravais 的歌手页自己渲染，声明全部 10 个歌手页动作（不回退 grid）。
         expect(resolveLibrarySurface('artist', 'bravais')).toMatchObject({ suiteId: 'bravais', isFallback: false });
         expect([...resolveLibrarySurfaceActions('artist', 'bravais').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
-        // 首页：两套都实现了全部首页动作（网格的焦点类动作在卡片与目录树的按钮上，TUI 的在命令面板与键盘上）。
-        expect([...resolveLibrarySurfaceActions('home', 'grid').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
-        expect([...resolveLibrarySurfaceActions('home', 'tui').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
+        // 首页：两套都实现了探索页卡片上那一对之外的全部首页动作（网格的焦点类动作在卡片与目录树的按钮上，TUI 的在命令面板
+        // 与键盘上）；探索页歌曲卡片上的加入速记簿 / 收藏到歌单只有 bravais 声明。
+        const exploreCardActions = ['explore-collect', 'explore-save-to-playlist'];
+        const homeWithoutExploreCards = LIBRARY_HOME_ACTION_IDS.filter(action => !exploreCardActions.includes(action)).sort();
+        expect([...resolveLibrarySurfaceActions('home', 'grid').actions].sort()).toEqual(homeWithoutExploreCards);
+        expect([...resolveLibrarySurfaceActions('home', 'tui').actions].sort()).toEqual(homeWithoutExploreCards);
+        expect([...resolveLibrarySurfaceActions('home', 'bravais').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
         // 账户（A5 / A6）：两套都实现全部 7 个账户动作（TUI 的诊断只复制报告，后端重启是 Enter）。
         expect(resolveLibrarySurface('account', 'grid').declaredActions).toEqual({ actions: LIBRARY_ACCOUNT_ACTION_IDS, extraActions: [] });
         expect([...resolveLibrarySurfaceActions('account', 'tui').actions].sort()).toEqual([...LIBRARY_ACCOUNT_ACTION_IDS].sort());

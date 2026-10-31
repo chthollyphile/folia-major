@@ -1,5 +1,5 @@
 import React from 'react';
-import { Disc, Play, Plus } from 'lucide-react';
+import { Disc, NotebookPen, Play, Plus, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { UnifiedSong } from '../../../types';
 import type { MediaId } from '../../../types/onlineMusic';
@@ -17,6 +17,11 @@ type SearchResultRowProps = {
     style: React.CSSProperties;
     onPlayTrack: (track: UnifiedSong) => void;
     onAddTrackToQueue: (track: UnifiedSong) => void;
+    /** 加入速记簿；不给就没有那颗。 */
+    onCollectTrack?: (track: UnifiedSong) => void;
+    /** 收藏到歌单（应用的歌单选择器，含「我喜欢」）；这首的来源既不支持歌单也不支持红心时没有那颗。 */
+    canSaveTrackToPlaylist?: (track: UnifiedSong) => boolean;
+    onSaveTrackToPlaylist?: (track: UnifiedSong) => void;
     onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
     onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
@@ -34,6 +39,9 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
     style,
     onPlayTrack,
     onAddTrackToQueue,
+    onCollectTrack,
+    canSaveTrackToPlaylist,
+    onSaveTrackToPlaylist,
     onOpenArtist,
     onOpenAlbum,
 }) => {
@@ -137,6 +145,31 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({
                 <span className="hidden shrink-0 font-mono text-xs opacity-40 sm:block">
                     {formatDuration(metadata.durationMs)}
                 </span>
+                {/* 行尾的三颗与队列那颗一样，宽屏上悬停或键盘聚焦这一行才出现（search.css 的 .search-row-action）。 */}
+                {!isUnavailable && onCollectTrack && (
+                    <button
+                        type="button"
+                        onClick={() => onCollectTrack(track)}
+                        className="search-row-action"
+                        title={t('scratchpad.collect')}
+                        aria-label={t('scratchpad.collect')}
+                        data-search-row-action="collect"
+                    >
+                        <NotebookPen size={16} />
+                    </button>
+                )}
+                {!isUnavailable && onSaveTrackToPlaylist && canSaveTrackToPlaylist?.(track) && (
+                    <button
+                        type="button"
+                        onClick={() => onSaveTrackToPlaylist(track)}
+                        className="search-row-action"
+                        title={t('playlist.saveToPlaylist')}
+                        aria-label={t('playlist.saveToPlaylist')}
+                        data-search-row-action="save-to-playlist"
+                    >
+                        <Star size={16} />
+                    </button>
+                )}
                 {!isUnavailable && (
                     <button
                         type="button"

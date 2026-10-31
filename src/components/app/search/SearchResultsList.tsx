@@ -13,6 +13,9 @@ const ROW_REVEAL_MS = 1000;
 type SongHandlers = {
     onPlayTrack: (track: UnifiedSong) => void;
     onAddTrackToQueue: (track: UnifiedSong) => void;
+    onCollectTrack?: (track: UnifiedSong) => void;
+    canSaveTrackToPlaylist?: (track: UnifiedSong) => boolean;
+    onSaveTrackToPlaylist?: (track: UnifiedSong) => void;
     onOpenArtist: (track: UnifiedSong, artistName: string, artistId?: MediaId, entityId?: string) => void;
     onOpenAlbum: (track: UnifiedSong, albumName: string, albumId?: MediaId, entityId?: string) => void;
 };
@@ -47,6 +50,9 @@ const SearchResultsList: React.FC<SearchResultsListProps> = ({
     onScrollTopChange,
     onPlayTrack,
     onAddTrackToQueue,
+    onCollectTrack,
+    canSaveTrackToPlaylist,
+    onSaveTrackToPlaylist,
     onOpenArtist,
     onOpenAlbum,
     onOpenCollection,
@@ -62,9 +68,12 @@ const SearchResultsList: React.FC<SearchResultsListProps> = ({
         tracks: tracks ?? [],
         onPlayTrack,
         onAddTrackToQueue,
+        onCollectTrack,
+        canSaveTrackToPlaylist,
+        onSaveTrackToPlaylist,
         onOpenArtist,
         onOpenAlbum,
-    }), [onAddTrackToQueue, onOpenAlbum, onOpenArtist, onPlayTrack, tracks]);
+    }), [canSaveTrackToPlaylist, onAddTrackToQueue, onCollectTrack, onOpenAlbum, onOpenArtist, onPlayTrack, onSaveTrackToPlaylist, tracks]);
     const collectionRowProps = useMemo<CollectionRowProps>(() => ({
         collections: collections ?? [],
         onOpenCollection,

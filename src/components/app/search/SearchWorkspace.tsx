@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +16,15 @@ import SearchComposition from './SearchComposition';
 import SearchTabs, { useSearchSourceLabel } from './SearchTabs';
 import { useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
+import { collectToScratchpad } from '../../../stores/useScratchpadStore';
+import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import './search.css';
 
 // src/components/app/search/SearchWorkspace.tsx
 // 搜索页：搜索框、来源（当前在线平台 / 本地 / Navidrome）、种类（单曲 / 专辑 / 歌单，在线平台搜得到几种就有几种），
 // 结果是一张列表；底下压着一幅随种类换站位的至上主义构图（SearchComposition）。
+// 单曲行尾悬停出现的「加入速记簿」「收藏到歌单」直接交给速记簿与应用的歌单选择器（与资料库卡片上的同一对），
+// 速记簿里这一组的出处是「搜索「词」」。
 
 type SearchWorkspaceProps = {
     theme: Theme;
@@ -107,6 +111,12 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const kinds = useMemo(() => getSearchKinds(searchSourceTab), [searchSourceTab]);
     const hasCollection = useCollectionNavigationStore(state => Boolean(state.snapshot?.stack.length));
     const getSourceLabel = useSearchSourceLabel();
+    const collectTrack = useCallback((track: UnifiedSong) => {
+        collectToScratchpad([track], submittedQuery.trim() ? { label: t('scratchpad.originSearch', { query: submittedQuery.trim() }) } : undefined);
+    }, [submittedQuery, t]);
+    const saveTrackToPlaylist = useCallback((track: UnifiedSong) => {
+        if (canOpenPlaylistPickerFor(track)) openAddSongsToPlaylist([track]);
+    }, []);
     const paperColor = isDaylight ? 'rgba(250,250,250,0.96)' : 'rgba(8,8,10,0.94)';
     const countLabel = resultTotal !== null && resultTotal >= resultCount
         ? String(resultTotal)
@@ -226,6 +236,9 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                                         onScrollTopChange={setSearchScrollTop}
                                         onPlayTrack={onPlayTrack}
                                         onAddTrackToQueue={onAddTrackToQueue}
+                                        onCollectTrack={collectTrack}
+                                        canSaveTrackToPlaylist={canOpenPlaylistPickerFor}
+                                        onSaveTrackToPlaylist={saveTrackToPlaylist}
                                         onOpenArtist={onOpenArtist}
                                         onOpenAlbum={onOpenAlbum}
                                         onOpenCollection={onOpenCollection}

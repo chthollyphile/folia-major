@@ -97,6 +97,8 @@ export const LIBRARY_HOME_ACTION_IDS: readonly LibraryHomeActionId[] = [
     'home-refresh-folders',
     'home-import-playlist',
     'home-refresh-navidrome',
+    'explore-collect',
+    'explore-save-to-playlist',
 ];
 
 /** 歌手页 surface 的全部动作（与 LibraryArtistActionId 一一对应，单测核对）。 */
