@@ -7,6 +7,7 @@ import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlayback
 
 // src/components/command-palette/commands/scratchpadCommands.ts
 // 速记簿的两条命令：开合左边的抽屉，把正在播的这首记进去（不动队列）。两条都能绑全局快捷键。
+// 开合抽屉是 Ctrl+J（J 取 jot / 记，设置帮助页「键盘快捷键」里列着），执行模式 `:j`；记下这首是 `:s`（收）。
 
 export const scratchpadCommands: CommandPaletteCommand[] = [
     createToggleCommand(
@@ -16,7 +17,7 @@ export const scratchpadCommands: CommandPaletteCommand[] = [
         'Slide out the scratchpad: songs to hear or sort out later',
         ['scratchpad', 'later', 'listen later', 'notebook', '速记簿', '稍后再听', '暂存', '记事本'],
         () => toggleScratchpad(),
-        { icon: NotebookPen },
+        { icon: NotebookPen, openHotkey: { key: 'j', ctrl: true }, executeShortcut: 'j' },
     ),
     createToggleCommand(
         'scratchpad-collect-current',
@@ -31,6 +32,7 @@ export const scratchpadCommands: CommandPaletteCommand[] = [
         },
         {
             icon: NotebookPen,
+            executeShortcut: 's',
             isAvailable: context => (context ? Boolean(context.shared.currentSong && !isStagePlaybackSong(context.shared.currentSong)) : true),
         },
     ),

@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ListPlus, Maximize2, Minimize2, NotebookPen, Play, Trash2, X } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, useScratchpadStore } from '../../../stores/useScratchpadStore';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { canAddScratchpadSongToPlaylist, scratchpadSourceLabel } from './scratchpadModel';
 import ScratchpadList, { type ScratchpadPanelActions } from './ScratchpadList';
@@ -160,6 +161,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
     }, []);
 
     const handleLabel = isOpen ? t('scratchpad.close') : t('scratchpad.open');
+    // 悬停提示带上开合的快捷键（命令面板的 scratchpad-toggle，Ctrl / ⌘ + J）。
+    const handleTitle = `${handleLabel} (${PRIMARY_MODIFIER_LABEL} + J)`;
     const expandLabel = isExpanded ? t('scratchpad.collapseCanvas') : t('scratchpad.expandCanvas');
 
     const footer = entries.length > 0 && (
@@ -194,7 +197,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
                         type="button"
                         className={`scratchpad-handle${pulsing ? ' is-pulsing' : ''}`}
                         data-testid="scratchpad-handle"
-                        title={handleLabel}
+                        title={handleTitle}
                         aria-label={handleLabel}
                         aria-expanded={false}
                         onClick={toggleOpen}
