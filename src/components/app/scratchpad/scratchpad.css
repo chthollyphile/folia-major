@@ -1,0 +1,537 @@
+/* src/components/app/scratchpad/scratchpad.css — 速记簿：左缘的把手与从左边滑出的抽屉（ScratchpadHost）。
+   与队列浮岛同一种玻璃；日光档在 .scratchpad-root.is-daylight 下覆盖。抽屉非模态：没有遮罩，背后照常能点。
+   次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
+
+.scratchpad-root {
+    --scratchpad-width: min(360px, calc(100vw - 48px));
+    color: rgb(255 255 255 / 92%);
+}
+
+.scratchpad-root.is-daylight { color: rgb(24 20 16 / 90%); }
+
+/* 层级：z 95 在首页层（App 里 absolute z-10 的层叠上下文，集合页的 z-110 只在里面比高低）之上，在设置、歌词时间轴
+   （z-100）之下；Sheet（z-200）与命令面板（z-150）本来就在它上面。首页层里那几个盖不过抽屉的弹窗开着时，宿主给根节点
+   加 is-covered 整个藏起来（useScratchpadStore.isCovered）。 */
+.scratchpad-root.is-covered { display: none; }
+
+/* —— 左缘：感应带与把手 ——
+   放在左缘上部（标题栏让出的 56px 之下），不放正中：Bravais 的信息条收起 / 折叠后是贴边、垂直居中的标签
+   （.bravais-seam-tab，最高占 60%，即 20%–80% 的高度），正中会和它叠在一起，感应带还会抢它的点击。 */
+
+.scratchpad-edge {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    z-index: 95;
+    display: flex;
+    width: 18px;
+    height: 96px;
+    align-items: center;
+    pointer-events: auto;
+}
+
+.scratchpad-handle {
+    display: flex;
+    width: 6px;
+    height: 56px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 16%);
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+    background: rgb(255 255 255 / 14%);
+    color: inherit;
+    opacity: 0;
+    backdrop-filter: blur(20px);
+    cursor: pointer;
+    transition: width 0.18s ease, height 0.18s ease, opacity 0.18s ease, background-color 0.18s ease;
+}
+
+.scratchpad-root.is-daylight .scratchpad-handle { border-color: rgb(0 0 0 / 12%); background: rgb(0 0 0 / 10%); }
+
+/* 非空时常驻（低调）；指针靠近或键盘聚焦时展开成带图标和条数的小舌头。 */
+.scratchpad-edge.has-entries .scratchpad-handle { opacity: 0.55; }
+
+.scratchpad-edge:hover .scratchpad-handle,
+.scratchpad-handle:focus-visible {
+    width: 30px;
+    height: 72px;
+    opacity: 1;
+}
+
+.scratchpad-handle:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+
+.scratchpad-handle svg { width: 15px; height: 15px; flex: none; }
+
+.scratchpad-handle-count {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    line-height: 1;
+}
+
+.scratchpad-handle > * { opacity: 0; transition: opacity 0.12s ease; }
+.scratchpad-edge:hover .scratchpad-handle > *,
+.scratchpad-handle:focus-visible > * { opacity: 1; }
+
+/* 新东西收进来时闪一下。 */
+.scratchpad-handle.is-pulsing { animation: scratchpad-pulse 0.9s ease-out; }
+
+@keyframes scratchpad-pulse {
+    0% { width: 6px; opacity: 0.55; }
+    25% { width: 14px; opacity: 1; background-color: var(--text-accent, rgb(255 255 255 / 60%)); }
+    100% { width: 6px; opacity: 0.55; }
+}
+
+/* —— 抽屉 —— */
+
+.scratchpad-drawer {
+    position: fixed;
+    top: 40px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 95;
+    display: flex;
+    width: var(--scratchpad-width);
+    transition: width 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 20px;
+    background: rgb(0 0 0 / 52%);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
+    backdrop-filter: blur(28px);
+    pointer-events: auto;
+}
+
+/* 展开成画布：铺满窗口（左右各留 12px），仍然不加遮罩；玻璃更实一些，背后的墙不抢卡片的眼。 */
+.scratchpad-drawer.is-expanded { width: calc(100vw - 24px); background: rgb(0 0 0 / 68%); }
+.scratchpad-root.is-daylight .scratchpad-drawer.is-expanded { background: rgb(255 255 255 / 84%); }
+.scratchpad-drawer.is-expanded .scratchpad-footer { justify-content: flex-end; }
+.scratchpad-drawer.is-expanded .scratchpad-footer .scratchpad-pill { flex: 0 1 auto; }
+
+.scratchpad-root.is-daylight .scratchpad-drawer {
+    border-color: rgb(0 0 0 / 7%);
+    background: rgb(255 255 255 / 72%);
+    box-shadow: 0 24px 64px rgb(42 35 27 / 18%);
+}
+
+.scratchpad-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 10px 10px 18px;
+}
+
+.scratchpad-title {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.scratchpad-title h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.scratchpad-title span {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.55;
+}
+
+.scratchpad-icon-button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.scratchpad-icon-button:hover { background: rgb(255 255 255 / 10%); opacity: 1; }
+.scratchpad-root.is-daylight .scratchpad-icon-button:hover { background: rgb(0 0 0 / 6%); }
+.scratchpad-icon-button:disabled { opacity: 0.25; cursor: default; background: transparent; }
+.scratchpad-icon-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+.scratchpad-icon-button svg { width: 16px; height: 16px; }
+
+.scratchpad-hint {
+    flex: none;
+    margin: 0 18px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: 0.55;
+}
+
+.scratchpad-list {
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 0 6px 6px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.scratchpad-list ul { margin: 0; padding: 0; list-style: none; }
+.scratchpad-list-group + .scratchpad-list-group { margin-top: 8px; }
+
+/* —— 组头（列表与画布共用）—— */
+
+.scratchpad-group-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    height: 34px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 4px 0 10px;
+    border-radius: 10px;
+    background: rgb(20 20 22 / 88%);
+    backdrop-filter: blur(12px);
+}
+
+.scratchpad-root.is-daylight .scratchpad-group-header { background: rgb(244 242 238 / 92%); }
+
+.scratchpad-group-label {
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-group-count {
+    flex: 1 1 auto;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.5;
+}
+
+.scratchpad-group-actions { display: flex; flex: none; gap: 2px; }
+.scratchpad-group-actions .scratchpad-icon-button { width: 28px; height: 28px; }
+.scratchpad-group-actions .scratchpad-icon-button svg { width: 15px; height: 15px; }
+
+.scratchpad-empty {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px 32px 48px;
+    text-align: center;
+}
+
+.scratchpad-empty svg { width: 28px; height: 28px; opacity: 0.35; }
+.scratchpad-empty p { margin: 0; font-size: 13px; line-height: 1.6; opacity: 0.6; }
+
+/* —— 行 —— */
+
+.scratchpad-row {
+    position: relative;
+    display: flex;
+    height: 52px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 6px 0 8px;
+    border-radius: 12px;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 52px;
+}
+
+.scratchpad-row:hover,
+.scratchpad-row:focus-within { background: rgb(255 255 255 / 7%); }
+.scratchpad-root.is-daylight .scratchpad-row:hover,
+.scratchpad-root.is-daylight .scratchpad-row:focus-within { background: rgb(0 0 0 / 5%); }
+
+.scratchpad-row.is-fresh { animation: scratchpad-row-fresh 1.4s ease-out; }
+
+@keyframes scratchpad-row-fresh {
+    0% { background-color: rgb(255 255 255 / 16%); }
+    100% { background-color: transparent; }
+}
+
+.scratchpad-cover {
+    width: 38px;
+    height: 38px;
+    flex: none;
+    overflow: hidden;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 8%);
+}
+
+.scratchpad-root.is-daylight .scratchpad-cover { background: rgb(0 0 0 / 6%); }
+.scratchpad-cover img { width: 100%; height: 100%; object-fit: cover; }
+
+.scratchpad-song {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.scratchpad-song:focus-visible { outline: none; }
+.scratchpad-row:has(.scratchpad-song:focus-visible) { box-shadow: inset 0 0 0 2px var(--text-accent, currentColor); }
+
+.scratchpad-name,
+.scratchpad-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-name { font-size: 13px; font-weight: 600; }
+.scratchpad-meta { font-size: 11.5px; opacity: 0.55; }
+
+
+/* 动作浮在行尾（不占文字的宽度），悬停 / 聚焦时才出现；左边一段渐变把底下的文字压暗。 */
+.scratchpad-row-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 6px 0 28px;
+    border-radius: 0 12px 12px 0;
+    background: linear-gradient(to right, transparent, rgb(28 28 30 / 96%) 28px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(240 238 234 / 97%) 28px); }
+
+.scratchpad-row:hover .scratchpad-row-actions,
+.scratchpad-row:focus-within .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
+
+/* 没有悬停的设备（触屏）：行上的动作常驻，否则只能点标题（插队播放）。 */
+@media (hover: none) {
+    .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
+    .scratchpad-card-play { opacity: 1; }
+}
+
+.scratchpad-row-actions .scratchpad-icon-button { width: 28px; height: 28px; }
+.scratchpad-row-actions .scratchpad-icon-button svg { width: 15px; height: 15px; }
+
+/* —— 底部 —— */
+
+.scratchpad-footer {
+    display: flex;
+    flex: none;
+    gap: 6px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.scratchpad-root.is-daylight .scratchpad-footer { border-top-color: rgb(0 0 0 / 7%); }
+
+.scratchpad-pill {
+    display: inline-flex;
+    height: 32px;
+    min-width: 0;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 6%);
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.scratchpad-pill:hover { background: rgb(255 255 255 / 12%); }
+.scratchpad-root.is-daylight .scratchpad-pill { border-color: rgb(0 0 0 / 12%); background: rgb(0 0 0 / 4%); }
+.scratchpad-root.is-daylight .scratchpad-pill:hover { background: rgb(0 0 0 / 8%); }
+.scratchpad-pill:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+.scratchpad-pill svg { width: 14px; height: 14px; flex: none; }
+.scratchpad-pill span { overflow: hidden; text-overflow: ellipsis; }
+
+.scratchpad-pill.is-confirming {
+    border-color: transparent;
+    background: var(--text-accent, rgb(255 255 255 / 85%));
+    color: rgb(0 0 0 / 85%);
+}
+
+/* —— 画布 —— */
+
+.scratchpad-canvas {
+    position: relative;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    outline: none;
+    scrollbar-width: thin;
+    user-select: none;
+    /* 手指上下划是滚动（框选与拖动排序只给鼠标和笔）。 */
+    touch-action: pan-y;
+}
+
+.scratchpad-canvas-content {
+    position: relative;
+    min-height: 100%;
+    padding: 0 16px 24px;
+}
+
+.scratchpad-canvas-hint {
+    margin: 0 2px 10px;
+    font-size: 12px;
+    opacity: 0.5;
+}
+
+.scratchpad-canvas-group + .scratchpad-canvas-group { margin-top: 14px; }
+
+.scratchpad-grid {
+    position: relative;
+    margin-top: 10px;
+}
+
+.scratchpad-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 6px 8px;
+    border: 1px solid rgb(255 255 255 / 8%);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 5%);
+    cursor: grab;
+    /* 手指在卡片上划也是滚动（拖动排序只给鼠标和笔，见 ScratchpadCanvas）。 */
+    touch-action: pan-y;
+}
+
+.scratchpad-root.is-daylight .scratchpad-card { border-color: rgb(0 0 0 / 7%); background: rgb(255 255 255 / 55%); }
+.scratchpad-card:hover { background: rgb(255 255 255 / 9%); }
+.scratchpad-root.is-daylight .scratchpad-card:hover { background: rgb(255 255 255 / 80%); }
+
+.scratchpad-card.is-selected {
+    border-color: var(--text-accent, rgb(255 255 255 / 70%));
+    box-shadow: 0 0 0 1px var(--text-accent, rgb(255 255 255 / 70%)) inset;
+}
+
+.scratchpad-root.is-daylight .scratchpad-card.is-selected {
+    border-color: rgb(24 20 16 / 70%);
+    box-shadow: 0 0 0 1px rgb(24 20 16 / 70%) inset;
+}
+
+.scratchpad-card.is-moving {
+    z-index: 10;
+    will-change: transform;
+    cursor: grabbing;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 45%);
+}
+
+.scratchpad-card.is-fresh { animation: scratchpad-row-fresh 1.4s ease-out; }
+
+.scratchpad-card-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 9px;
+    background: rgb(255 255 255 / 8%);
+}
+
+.scratchpad-root.is-daylight .scratchpad-card-cover { background: rgb(0 0 0 / 6%); }
+.scratchpad-card-cover img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+.scratchpad-card-placeholder {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    opacity: 0.4;
+}
+
+.scratchpad-card-placeholder svg { width: 28px; height: 28px; }
+
+.scratchpad-card-play {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 92%);
+    color: rgb(0 0 0 / 85%);
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.12s ease;
+}
+
+.scratchpad-card:hover .scratchpad-card-play,
+.scratchpad-card-play:focus-visible { opacity: 1; }
+.scratchpad-card.is-moving .scratchpad-card-play { opacity: 0; }
+.scratchpad-card-play svg { width: 13px; height: 13px; margin-left: 1px; }
+
+.scratchpad-card-name,
+.scratchpad-card-meta {
+    overflow: hidden;
+    padding: 0 2px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-card-name { margin-top: 3px; font-size: 12.5px; font-weight: 600; }
+.scratchpad-card-meta { font-size: 11px; opacity: 0.55; }
+
+.scratchpad-marquee {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    border: 1px solid var(--text-accent, rgb(255 255 255 / 70%));
+    border-radius: 4px;
+    background: rgb(255 255 255 / 8%);
+    pointer-events: none;
+}
+
+.scratchpad-marquee[hidden] { display: none; }
+
+/* —— 选中后的动作条 —— */
+
+.scratchpad-footer.is-selection { align-items: center; }
+.scratchpad-footer.is-selection .scratchpad-pill { flex: 0 1 auto; }
+.scratchpad-pill:disabled { opacity: 0.35; cursor: default; }
+
+.scratchpad-selection-count {
+    flex: 1 1 auto;
+    padding-left: 6px;
+    font-size: 12.5px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}

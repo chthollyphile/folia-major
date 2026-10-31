@@ -1,6 +1,6 @@
 import type { UnifiedSong } from '../../../types';
-import type { MediaId } from '../../../types/onlineMusic';
-import type { GridViewCollectionDescriptor } from '../home/gridViewCollectionAdapters';
+import type { MediaId, OmniCollection } from '../../../types/onlineMusic';
+import { createOnlineGridViewCollection, type GridViewCollectionDescriptor } from '../home/gridViewCollectionAdapters';
 import { getPlaybackSourceRef } from '../../../utils/appPlaybackGuards';
 import { resolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
@@ -109,3 +109,8 @@ export const createSearchAlbumCollection = (
         coverUrl,
     }) : null);
 };
+
+// A searched album or playlist opens as the collection it is, at the provider that found it.
+export const createSearchResultCollection = (collection: OmniCollection): GridViewCollectionDescriptor => (
+    createOnlineGridViewCollection(collection, collection.providerId)
+);

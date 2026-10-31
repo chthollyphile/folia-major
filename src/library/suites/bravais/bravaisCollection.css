@@ -376,6 +376,56 @@
 .bravais-focus-more-toggle { min-height: 36px; padding: 0 10px; }
 .bravais-focus-menu { min-width: 180px; background: rgb(0 0 0 / 55%); backdrop-filter: blur(18px); }
 
+/* ---------- 歌曲磁贴与聚焦卡右上角悬浮的两颗（BravaisTileQuickActions）：加入速记簿、收藏到歌单 ----------
+   平时看不见，指针在磁贴上或键盘聚焦到按钮时出现；没有悬停的设备（触屏）只在聚焦卡上常驻。 */
+
+.bravais-tile-quick {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+    transition: opacity 0.15s ease;
+}
+
+/* 聚焦卡：与「⋯」同一条线（top 18px），有「⋯」时排在它左边。 */
+.lattice-poster.is-expanded .bravais-tile-quick { top: 18px; right: 18px; }
+.lattice-poster.is-expanded .bravais-tile-quick[data-beside='more'] { right: 78px; }
+
+/* 悬停只在真能悬停的设备上算：触屏点按会先模拟一次悬停，不挡的话这一下就落在看不见的按钮上。 */
+@media (hover: hover) {
+    .bravais-tile:hover .bravais-tile-quick { opacity: 1; pointer-events: auto; }
+}
+
+.bravais-tile-quick:focus-within { opacity: 1; pointer-events: auto; }
+
+@media (hover: none) {
+    .lattice-poster.is-expanded .bravais-tile-quick { opacity: 1; pointer-events: auto; }
+}
+
+.bravais-tile-quick button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: inherit;
+    background: rgb(0 0 0 / 50%);
+    cursor: pointer;
+}
+
+.bravais-tile-quick button:hover { background: rgb(0 0 0 / 72%); }
+.bravais-tile-quick button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
+.bravais-tile-quick svg { width: 16px; height: 16px; }
+:root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
+
 /* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
 
 .bravais-tile > .lattice-poster.bravais-tile-face.is-linked:not(.is-focused) {

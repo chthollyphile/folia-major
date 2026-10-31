@@ -46,6 +46,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "folia_playback_fade_enabled",
   "folia_playback_source",
   "folia_ponder_seen",
+  "folia_scratchpad_entries",
   "folia_transition_animation",
   "folia_transition_animation_card",
   "folia_transition_mode",

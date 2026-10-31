@@ -17,6 +17,7 @@ import type {
     OmniProviderId,
     OmniProviderSummary,
     OmniRequestRunner,
+    OmniSearchKind,
     OmniSongAvailability,
     OmniSongDetail,
     OmniSongReplacement,
@@ -451,6 +452,9 @@ const withActiveProvider = async <T>(run: (provider: OnlineMusicProvider) => Pro
     return result;
 };
 
+/** How many songs one playlist-add request carries (omni.addSongsToPlaylist). */
+export const PLAYLIST_ADD_BATCH = 50;
+
 export const omni = {
     invalidateActiveRequests(): void {
         activeRequestGeneration += 1;
@@ -555,6 +559,36 @@ export const omni = {
         const provider = requireOnlineMusicProvider(providerId);
         if (!providerSupports(provider, 'search') || !provider.search) return emptyPage(page.offset);
         return searchWith(provider.search, query, page, context);
+    },
+
+    // What the provider's search finds: songs wherever it searches, albums and playlists where it has
+    // a search for them and also opens them. Empty for a provider that is not there or has no search.
+    getProviderSearchKinds(providerId: OmniProviderId): OmniSearchKind[] {
+        const provider = getOnlineMusicProvider(providerId);
+        if (!provider || !providerSupports(provider, 'search') || !provider.search) return [];
+        const search = provider.search;
+        return [
+            'song' as const,
+            ...(search.searchAlbums && providerSupports(provider, 'albums') ? ['album' as const] : []),
+            ...(search.searchPlaylists && providerSupports(provider, 'playlists') ? ['playlist' as const] : []),
+        ];
+    },
+
+    // Albums or playlists found at one provider (`getProviderSearchKinds` says which it finds); an
+    // empty page where it finds none of the kind.
+    async searchProviderCollections(
+        providerId: OmniProviderId,
+        kind: Exclude<OmniSearchKind, 'song'>,
+        query: string,
+        page: PageInput,
+    ): Promise<OmniPage<OmniCollection>> {
+        if (!omni.getProviderSearchKinds(providerId).includes(kind)) return emptyPage(page.offset);
+        const search = requireOnlineMusicProvider(providerId).search!;
+        const found = kind === 'album'
+            ? await search.searchAlbums!(query, page.limit, page.offset)
+            : await search.searchPlaylists!(query, page.limit, page.offset);
+        // A provider names its own collections: one that answers with another's would open nowhere.
+        return { ...found, items: found.items.filter(collection => collection.providerId === providerId) };
     },
 
     // 平台的记号（一个字和一种颜色）。平台没有声明就回 null，界面自己从它的短名取。
@@ -1118,14 +1152,20 @@ export const omni = {
 
     // Makes a playlist on the song's provider and puts the song in it.
     async createPlaylistWithSong(song: SongResult, name: string): Promise<void> {
-        const source = getPlaybackSourceRef(song);
-        const mutations = source.kind === 'online' ? getOnlineMusicProvider(source.providerId)?.mutations : undefined;
-        if (source.kind !== 'online' || !this.canCreatePlaylistForSong(song) || !mutations?.createPlaylist) {
-            throw new OnlineProviderError('unsupported', 'Song provider does not make playlists', source.kind === 'online' ? source.providerId : undefined);
+        return this.createPlaylistWithSongs([song], name);
+    },
+
+    // Makes a playlist on the songs' provider (the first song's: they are all of one) and puts them in it.
+    async createPlaylistWithSongs(songs: SongResult[], name: string): Promise<void> {
+        const [song] = songs;
+        const source = song ? getPlaybackSourceRef(song) : null;
+        const mutations = source?.kind === 'online' ? getOnlineMusicProvider(source.providerId)?.mutations : undefined;
+        if (!song || source?.kind !== 'online' || !this.canCreatePlaylistForSong(song) || !mutations?.createPlaylist) {
+            throw new OnlineProviderError('unsupported', 'Song provider does not make playlists', source?.kind === 'online' ? source.providerId : undefined);
         }
         const playlist = await mutations.createPlaylist(name);
         try {
-            await this.addSongToPlaylist(song, playlist);
+            await this.addSongsToPlaylist(songs, playlist);
         } catch (error) {
             // The playlist exists: it must show in the picker, or a second try makes a second one.
             void this.refreshProviderPlaylists(playlist.providerId).catch(() => undefined);
@@ -1134,21 +1174,44 @@ export const omni = {
     },
 
     async addSongToPlaylist(song: SongResult, playlist: OmniCollection): Promise<void> {
-        const source = getPlaybackSourceRef(song);
-        if (source.kind !== 'online') {
-            throw new OnlineProviderError('unsupported', 'Only online songs can be added to online playlists');
-        }
-        if (playlist.providerId !== source.providerId || playlist.type !== 'playlist') {
-            throw new OnlineProviderError('unsupported', 'Playlist does not belong to the song provider', source.providerId);
-        }
-        if (!this.canAddSongToPlaylist(song)) {
-            throw new OnlineProviderError('unsupported', 'Song provider does not support playlist track mutations', source.providerId);
+        return this.addSongsToPlaylist([song], playlist);
+    },
+
+    // Several songs into one playlist. Every song must be of the playlist's provider: one that is not
+    // refuses the whole call before anything is sent. Sent PLAYLIST_ADD_BATCH at a time, in order: some
+    // platforms take at most 100 a request and some put the list in the query string. A batch that
+    // fails stops the rest, and the ones before it stay added.
+    async addSongsToPlaylist(songs: SongResult[], playlist: OmniCollection): Promise<void> {
+        if (songs.length === 0) return;
+        for (const song of songs) {
+            const source = getPlaybackSourceRef(song);
+            if (source.kind !== 'online') {
+                throw new OnlineProviderError('unsupported', 'Only online songs can be added to online playlists');
+            }
+            if (playlist.providerId !== source.providerId || playlist.type !== 'playlist') {
+                throw new OnlineProviderError('unsupported', 'Playlist does not belong to the song provider', source.providerId);
+            }
+            if (!this.canAddSongToPlaylist(song)) {
+                throw new OnlineProviderError('unsupported', 'Song provider does not support playlist track mutations', source.providerId);
+            }
         }
         const provider = providerForCollection(playlist);
         if (provider.mutations?.canAddToPlaylist && !provider.mutations.canAddToPlaylist(playlist)) {
-            throw new OnlineProviderError('unsupported', 'Playlist does not accept track mutations', source.providerId);
+            throw new OnlineProviderError('unsupported', 'Playlist does not accept track mutations', playlist.providerId);
         }
-        await this.updateCollectionTracks(playlist, 'add', [song]);
+        let sent = 0;
+        try {
+            for (; sent < songs.length; sent += PLAYLIST_ADD_BATCH) {
+                await this.updateCollectionTracks(playlist, 'add', songs.slice(sent, sent + PLAYLIST_ADD_BATCH));
+            }
+        } catch (error) {
+            // The batches before this one are in the playlist: the account's list still has to hear of them.
+            if (sent > 0) {
+                console.warn('[Omni] Playlist add stopped part way', { providerId: playlist.providerId, added: sent, of: songs.length });
+                void this.refreshProviderPlaylists(playlist.providerId).catch(() => undefined);
+            }
+            throw error;
+        }
         try {
             await this.refreshProviderPlaylists(playlist.providerId);
             if (playlist.isLiked === true && providerSupports(provider, 'likes')) {

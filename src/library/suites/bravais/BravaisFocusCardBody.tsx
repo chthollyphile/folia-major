@@ -7,6 +7,7 @@ import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/useP
 import { resolvePlaybackSurface, usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewStore';
 import type { BravaisItem } from './bravaisLayer';
 import type { BravaisEntryMenuItem } from './bravaisSeamModels';
+import BravaisTileQuickActions from './BravaisTileQuickActions';
 
 // src/library/suites/bravais/BravaisFocusCardBody.tsx
 // 聚焦卡（6×6 就地展开的歌曲卡，设计稿 §7「聚焦卡」）的文字区：大标题，可点的歌手 / 专辑链接与时长，底部两个按钮
@@ -22,6 +23,11 @@ import type { BravaisEntryMenuItem } from './bravaisSeamModels';
 export type BravaisFocusCardActions = {
     play: (slotKey: string) => void;
     enqueue: (slotKey: string) => void;
+    /** 歌曲卡片上悬浮的两颗（BravaisTileQuickActions）：能不能做、做。 */
+    canCollect: (itemKey: string) => boolean;
+    collect: (slotKey: string) => void;
+    canSaveToPlaylist: (itemKey: string) => boolean;
+    saveToPlaylist: (slotKey: string) => void;
     canOpenAlbum: (itemKey: string) => boolean;
     openAlbum: (slotKey: string) => void;
     canOpenArtist: (itemKey: string, index: number) => boolean;
@@ -69,6 +75,7 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
     const enterLabel = t(entersLattice ? 'libraryBravais.enterLattice' : 'libraryBravais.enterPlayer');
     return (
         <>
+        <BravaisTileQuickActions slotKey={slotKey} item={item} actions={actions} beside={menu.length > 0 ? 'more' : undefined} />
         {menu.length > 0 && (
             <span className="bravais-focus-more">
                 <button

@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import GridViewOverlayHost from '../../library/app/GridViewOverlayHost';
 import LibraryAccountHost from '../../library/app/LibraryAccountHost';
 import { resolveLibrarySurface } from '../../library/registry';
 import { useLibrarySuiteStore } from '../../library/core/suite/useLibrarySuiteStore';
 import { useLibraryDirectoryBatchController } from '../../library/app/useLibraryDirectoryBatchController';
 import { useLibraryHomeResources } from '../../library/app/useLibraryHomeResources';
+import { createLibraryPlaybackPort } from '../../library/app/createLibraryPlaybackPort';
 import type { HomeViewModel } from './home/buildHomeModel';
 import { useFoliumHomeNavigation } from './home/useFoliumHomeNavigation';
 import { closeFoliumHomeTab } from '../../mods/folium/registries/homeTabs';
@@ -31,6 +32,8 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden, isInteractive 
     // 首页资源（在线收藏专辑、电台 feed、Navidrome 概览、文件夹树、导入与打开等首页动作）：首页一份，任何 suite 的
     // 首页都订阅同一份，换 suite 不重新请求；首页整个藏起或卸载时才作废（回来重新读）。
     const homeResources = useLibraryHomeResources(model.surfaceProps, { active: !isHomeFullyHidden });
+    // 首页的播放端口（探索页歌曲卡片上的速记簿与歌单选择器用它）。
+    const playback = useMemo(() => createLibraryPlaybackPort(model.surfaceProps), [model.surfaceProps]);
     if (isHomeFullyHidden) {
         return null;
     }
@@ -64,6 +67,7 @@ const Home: React.FC<AppHomeProps> = ({ model, isHomeFullyHidden, isInteractive 
                                 declaredActions={homeSurface.declaredActions}
                                 directoryActions={directoryActions}
                                 homeResources={homeResources}
+                                playback={playback}
                             />
                         </React.Suspense>
                     )}

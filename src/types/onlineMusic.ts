@@ -343,12 +343,25 @@ export interface ProviderSearchContext {
     session?: string;
 }
 
+/** What a search looks for: songs, albums or playlists (`omni.getProviderSearchKinds`). */
+export type ProviderSearchKind = 'song' | 'album' | 'playlist';
+
 export interface OnlineSearchProvider {
     /**
      * A provider that keeps what it read of a search between its pages keeps it apart for each
      * `context.session`; one that keeps nothing between pages ignores the context.
      */
     searchSongs(query: string, limit: number, offset: number, context?: ProviderSearchContext): Promise<ProviderPage<UnifiedSong>>;
+    /**
+     * Albums found by the query, as collections of type 'album' that `catalog.getAlbumTracks` opens.
+     * Left out where the platform has no album search: the search page then offers no album tab.
+     */
+    searchAlbums?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
+    /**
+     * Playlists found by the query, as collections of type 'playlist' that `catalog.getPlaylistTracks`
+     * opens. Left out where the platform has no playlist search.
+     */
+    searchPlaylists?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
 export interface OnlinePlaybackProvider {
@@ -900,6 +913,7 @@ export type OmniExploreItem = ProviderExploreItem;
 export type OmniExploreSection = ProviderExploreSection;
 export type OmniExplorePage = ProviderExplorePage;
 export type OmniExploreItemsPage = ProviderExploreItemsPage;
+export type OmniSearchKind = ProviderSearchKind;
 export { OnlineProviderError as OmniError };
 
 /**

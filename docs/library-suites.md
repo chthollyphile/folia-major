@@ -266,6 +266,8 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `enqueue` | 某一首加入队列 | 基础 | `.enqueueTrack` |
 | `play-scope` | 播放当前筛选范围 | 基础 | `.playScope` |
 | `enqueue-scope` | 当前筛选范围加入队列 | 基础 | `.enqueueScope` |
+| `collect` / `collect-scope` | 某一首 / 当前筛选范围收进速记簿（不动队列的暂存区，出处记集合名） | 推荐 | `.collectTrack` / `.collectScope`（`useCollectionActions` 传 `collectionName`）；能力 `capabilities.collect`（宿主播放端口给了 `collectTracks`）；命令面板的 `collect-filtered` 由 `buildCoreSurfaceParams` 的 `collectFiltered` 发布 |
+| `save-to-playlist` | 某一首收藏到歌单：打开应用的歌单选择器（按歌自己的来源列歌单，在线歌还有「我喜欢」一行）。与只管 Navidrome 的 `add-to-playlist` 不同 | 推荐 | `.saveTrackToPlaylist`，能不能由 `.canSaveTrackToPlaylist(track)` 说（宿主播放端口给了 `pickPlaylistFor` / `canPickPlaylistFor`） |
 | `filter` | 按关键词筛选 | 基础 | `useLibrarySessionQuery` + 命令面板筛选框（`useGridCommandFilter`）；自己画输入框的 suite 在注册里给 `ownInput`（见第 4 步，bravais） |
 | `reload` | 跳过缓存重新拉取在线集合 | 推荐 | `.reload`，能力 `capabilities.reload` |
 | `resume-sync` | 后台补页中断后续传 | 推荐 | `.resumeSync`；快照的 `sync.status === 'interrupted'` |
@@ -308,6 +310,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `directory-rescan-root` / `directory-remove-root` / `directory-clear-ignore` | 导入根的重扫、移除，恢复被忽略的文件夹 | 可选 | 同上 |
 | `home-import-folder` / `home-refresh-folders` / `home-import-playlist` | 导入文件夹、刷新、导入歌单文件 | 可选 | `useLibraryHomeActions` |
 | `home-refresh-navidrome` | 刷新 Navidrome 概览 | 可选 | `useLibraryHomeNavidrome().refresh` |
+| `explore-collect` / `explore-save-to-playlist` | 探索页歌曲卡片上的加入速记簿、收藏到歌单 | 可选 | 首页 props 的 `playback`（`collectTracks`、`pickPlaylistFor` / `canPickPlaylistFor`） |
 
 隐藏项的规则由 core 统一：只有「歌单类」条目能隐藏；隐藏按来源分作用域；隐藏的条目不出现在浏览、筛选和任何批量范围里，只在「管理隐藏」视图里能看到。UI 只负责显示和切换。
 
@@ -441,7 +444,7 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 
 | 页面 | grid（默认、回退） | bravais（正式新 UI） | tui（开发验证） |
 | --- | --- | --- | --- |
-| home | 全部 15 个动作；没人登录时的登录面板与右下角的切换器（都打开登录窗口） | 全部 15 个动作；六个页签各是一面墙（F6 整墙出场 / 入场），探索页签的条目照网格的探索拼贴的排法铺在墙上（`BravaisHomeExplore.tsx`，墙形 `bravaisWallShape.ts`），本地四行与 Navidrome 分区是缝里的二级切换；每个页签都有当前页过滤（墙上打字进窄缝里的输入位，目录会话的 query）；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
+| home | 探索页卡片上那两个（`explore-collect` / `explore-save-to-playlist`）之外的 15 个动作；没人登录时的登录面板与右下角的切换器（都打开登录窗口） | 全部 17 个动作；六个页签各是一面墙（F6 整墙出场 / 入场），探索页签的条目照网格的探索拼贴的排法铺在墙上（`BravaisHomeExplore.tsx`，墙形 `bravaisWallShape.ts`），歌曲卡片悬浮加入速记簿 / 收藏到歌单，本地四行与 Navidrome 分区是缝里的二级切换；每个页签都有当前页过滤（墙上打字进窄缝里的输入位，目录会话的 query）；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 探索页卡片那两个之外的全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
 | collection | 全部 23 个，另有信息面板、曲目侧栏、编辑模式三个局部动作 | 全部 23 个；三个局部动作改为外观动作（缝等级、`list`）与改名表单态 | 除 `add-to-playlist` / `create-playlist` 外全部（行上的歌手 / 专辑可打开，Alt+Enter / Alt+Shift+Enter） |
 | artist | 全部 10 个 | 全部 10 个；热门歌曲与专辑混排在一面墙上，信息在缝里 | 全部 |
 | account | 全部 7 个动作：通用确认框（portal 到 body）；登录在共用的登录窗口里 | 不声明：确认回退到 grid 的确认框；首页在线页签窄缝的账户入口打开登录窗口 | 全部 7 个动作：fixed 全屏层里的确认方框；在线页签的平台列表要登录时打开登录窗口 |

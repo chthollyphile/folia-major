@@ -337,6 +337,19 @@ export const neteaseProvider: OnlineMusicProvider = {
             const total = Number(response.result?.songCount || items.length);
             return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
         },
+        // 专辑和歌单的条目与 `/album`、`/playlist/detail` 读到的同一套字段（2026-10-31 实测），按同样的规则正规化。
+        async searchAlbums(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 10);
+            const items = (response.result?.albums || []).map((raw: any) => normalizeCollection(raw, 'album'));
+            const total = Number(response.result?.albumCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
+        },
+        async searchPlaylists(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 1000);
+            const items = (response.result?.playlists || []).map((raw: any) => normalizeCollection(raw, 'playlist'));
+            const total = Number(response.result?.playlistCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
+        },
     },
     playback: {
         async getSongDetail(id) {
@@ -720,7 +733,16 @@ export const neteaseProvider: OnlineMusicProvider = {
         async updatePlaylistTracks(operation, playlist, tracks) {
             const playlistId = typeof playlist === 'object' ? playlist.id : playlist;
             const trackIds = tracks.map(track => typeof track === 'object' ? track.id : track);
-            await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
+            const response = await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
+            // The API answers a refusal (a song already in the playlist, not the owner's list, signed out) with
+            // HTTP 200 and NetEase's own body; a success comes wrapped as { status, body: { code } }.
+            const code = Number(response?.body?.code ?? response?.code);
+            if ([301, 401, 403].includes(code)) {
+                throw new OnlineProviderError('auth-required', 'NetEase refused the playlist change: not signed in', 'netease');
+            }
+            if (code !== 200) {
+                throw new OnlineProviderError('unavailable', `NetEase refused the playlist change: code ${code}`, 'netease');
+            }
         },
         async subscribePlaylist(playlist, subscribed) {
             await neteaseApi.subscribePlaylist(toNeteaseId(typeof playlist === 'object' ? playlist.id : playlist), subscribed);

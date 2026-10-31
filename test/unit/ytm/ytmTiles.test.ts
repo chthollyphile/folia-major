@@ -29,6 +29,31 @@ describe('YouTube Music catalog nodes', () => {
         expect(catalog.songFromListItem({ ...searchRow, id: 'not-a-video-id!' })).toBeNull();
     });
 
+    // Album and playlist rows of a search (shapes measured 2026-10-31): one author, list thumbnails,
+    // and a playlist row leading to the page `VL` and the list's id.
+    it('maps album and playlist rows of a search', () => {
+        const thumbnail = { contents: [{ url: 'https://yt3.googleusercontent.com/art=w120-h120-l90-rj', width: 120, height: 120 }] };
+        expect(catalog.albumFromSearchItem({
+            type: 'MusicResponsiveListItem', item_type: 'album', id: 'MPREb_p6BGcsuOpGt', title: 'The Life of a Showgirl', year: '2025',
+            author: { name: 'Taylor Swift', channel_id: 'UCPC0L1d253x-KuMNwa05TpA' }, thumbnail,
+        })).toEqual({
+            id: 'MPREb_p6BGcsuOpGt', type: 'album', name: 'The Life of a Showgirl',
+            coverUrl: 'https://yt3.googleusercontent.com/art=w544-h544-l90-rj',
+            artists: [{ id: 'UCPC0L1d253x-KuMNwa05TpA', name: 'Taylor Swift' }], publishedAt: Date.UTC(2025, 0, 1),
+        });
+        expect(catalog.albumFromSearchItem({ item_type: 'album', id: 'VLPLnot-an-album', title: 'x' })).toBeNull();
+
+        expect(catalog.playlistFromSearchItem({
+            type: 'MusicResponsiveListItem', item_type: 'playlist', id: 'VLPLU_O2trV7TDCISxt7rHHlTKcAHyZ-DESd', title: 'Top 50',
+            author: { name: 'Batson', channel_id: 'UCXvepJ4vIFE2cVyILJMHSsg' }, thumbnail,
+        })).toEqual({
+            id: 'PLU_O2trV7TDCISxt7rHHlTKcAHyZ-DESd', type: 'playlist', name: 'Top 50',
+            coverUrl: 'https://yt3.googleusercontent.com/art=w544-h544-l90-rj',
+            artists: [{ id: 'UCXvepJ4vIFE2cVyILJMHSsg', name: 'Batson' }],
+        });
+        expect(catalog.playlistFromSearchItem({ item_type: 'playlist', id: 'MPREb_album', title: 'x' })).toBeNull();
+    });
+
     it('caps a wide banner and leaves non-square or already large art alone', () => {
         const banner = [2880, 1920, 1440, 816, 540].map(width => ({ url: `https://yt3.googleusercontent.com/banner=w${width}-h${width / 2.4}-p-l90-rj`, width, height: width / 2.4 }));
         expect(catalog.thumbnailUrl(banner, 1000)).toBe('https://yt3.googleusercontent.com/banner=w816-h340-p-l90-rj');

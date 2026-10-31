@@ -1,8 +1,8 @@
 import type { UnifiedSong } from '../../../types';
-import type { ProviderPage } from '../../../types/onlineMusic';
+import type { ProviderCollection, ProviderPage } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { searchQQSongs } from './qqLyricProvider';
-import { normalizeQqSong } from './qqNormalize';
+import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqSearch.ts
@@ -133,4 +133,55 @@ export const searchQqSongs = async (query: string, limit: number, offset: number
         }
     }
     return searchAnonymously(keyword, page, pageSize);
+};
+
+// 后端 `/search` 搜专辑（type album）与歌单（type playlist）的条目，换成 normalizeQqCollection 认的字段名。
+// 2026-10-31 不带会话实测两种都有结果：专辑给 albummid / name / pic / publish_date，歌手只有一个名字（singer）；
+// song_num 一律是 0，不当曲目数。歌单给 dissid / dissname / logo / songnum / listennum / nickname / uin，
+// 条目自带的数字 `type` 不是集合种类，不交下去；description 是「99首 某某 4.2亿次播放」这样拼出来的一句，不是简介。
+const searchedQqAlbum = (raw: any): ProviderCollection => normalizeQqCollection({
+    albummid: raw?.albummid,
+    name: raw?.name,
+    pic: raw?.pic,
+    publishDate: raw?.publish_date,
+    singerName: raw?.singer,
+}, 'album');
+
+const searchedQqPlaylist = (raw: any): ProviderCollection => normalizeQqCollection({
+    dissid: raw?.dissid,
+    dissname: raw?.dissname,
+    picUrl: raw?.logo,
+    songnum: raw?.songnum,
+    listennum: raw?.listennum,
+    ...(raw?.nickname ? { creator: { nick: raw.nickname, uin: raw?.uin } } : {}),
+}, 'playlist');
+
+/** 按 offset 翻页搜专辑或歌单，只走后端 `/search`：有会话带会话，没有时后端用匿名身份。 */
+export const searchQqCollections = async (
+    kind: 'album' | 'playlist',
+    query: string,
+    limit: number,
+    offset: number,
+): Promise<ProviderPage<ProviderCollection>> => {
+    const keyword = query.trim().slice(0, QQ_SEARCH_MAX_KEYWORD_LENGTH);
+    if (!keyword) return { items: [], hasMore: false, nextOffset: offset };
+
+    const pageSize = Math.max(1, Math.min(limit, QQ_SEARCH_MAX_PAGE_SIZE));
+    const page = Math.floor(Math.max(0, offset) / pageSize) + 1;
+    const body = await requestQq<{ items?: unknown; more?: unknown; total?: unknown }>('search', {
+        keyword, type: kind, page, limit: pageSize,
+    });
+    if (!Array.isArray(body?.items)) {
+        throw new OnlineProviderError('invalid-response', `QQMusicApi ${kind} search returned no items`, 'qq', body);
+    }
+    const items = body.items
+        .map(kind === 'album' ? searchedQqAlbum : searchedQqPlaylist)
+        .filter(collection => collection.id !== '');
+    const total = Number(body.total);
+    return {
+        items,
+        ...(Number.isSafeInteger(total) && total >= 0 ? { total } : {}),
+        hasMore: body.more === true && body.items.length > 0,
+        nextOffset: page * pageSize,
+    };
 };
