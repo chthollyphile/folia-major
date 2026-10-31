@@ -52,6 +52,7 @@
 | 64+ | `src/utils/lyrics/renderHints.ts` |
 | 32+ | `dev/probes/definition.ts` |
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
+| 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
 | 32+ | `src/components/visualizer/colorMix.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
@@ -163,6 +164,7 @@
 - `src/components/ponder/surfaces/library/gridView.surface.tsx`
 - `src/components/ponder/surfaces/library/gridViewPage.surface.tsx`
 - `src/components/ponder/surfaces/library/localLibrary.surface.tsx`
+- `src/components/ponder/surfaces/library/scratchpad.surface.tsx`
 - `src/components/ponder/surfaces/panel/audioEqualizer.surface.tsx`
 - `src/components/ponder/surfaces/panel/lyricMatch.surface.tsx`
 - `src/components/ponder/surfaces/panel/sidePanel.surface.tsx`
@@ -206,6 +208,7 @@
 - `src/components/ponder/targets/library/localMetadataMatch.target.ts`
 - `src/components/ponder/targets/library/localTrackSorting.target.ts`
 - `src/components/ponder/targets/library/onlineCollectionActions.target.ts`
+- `src/components/ponder/targets/library/scratchpad.target.ts`
 - `src/components/ponder/targets/panel/audioEqualizer.target.ts`
 - `src/components/ponder/targets/panel/lyricMatch.target.ts`
 - `src/components/ponder/targets/panel/panelAccountTab.target.ts`
