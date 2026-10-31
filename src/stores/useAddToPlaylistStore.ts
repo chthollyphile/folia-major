@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { SongResult } from '../types';
+import { omni } from '../services/onlineMusic/omni';
+import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
 
 // src/stores/useAddToPlaylistStore.ts
 // The "add the current song to a playlist" dialog: whether it is up, and whether it could do
@@ -46,5 +48,16 @@ export const useAddToPlaylistStore = create<AddToPlaylistState>((set) => ({
 }));
 
 export const openAddToPlaylist = () => useAddToPlaylistStore.getState().open();
-/** The picker for songs other than the shown one (the scratchpad's rows and groups), all of one source. */
+/** The picker for songs other than the shown one (the scratchpad's rows and groups, a card on the library wall), all of one source. */
 export const openAddSongsToPlaylist = (songs: SongResult[]) => useAddToPlaylistStore.getState().open(songs);
+
+/**
+ * Whether a song's source can take it anywhere the picker offers: local and Navidrome songs always (a playlist can
+ * be made on the spot), an online song when its platform edits playlists or takes likes ("Liked songs" is a row of
+ * its own). The picker still checks that there is something to pick once it is up.
+ */
+export const canOpenPlaylistPickerFor = (song: SongResult): boolean => {
+    const source = getPlaybackSourceRef(song);
+    if (source.kind === 'local' || source.kind === 'navidrome') return true;
+    return source.kind === 'online' && (omni.canAddSongToPlaylist(song) || omni.canLikeSong(song));
+};

@@ -1331,6 +1331,14 @@ export default {
     "locatePlaying": "Temukan lagu yang diputar di halaman ini",
     "viewCollections": "Lihat koleksi",
     "tracks": "Trek",
+    "alreadyLiked": "Sudah disukai",
+    "saveToPlaylist": "Simpan ke daftar putar",
+    "saving": "Sedang menambahkan ke daftar putar, sebentar",
+    "searchPlaylists": "Cari daftar putar",
+    "noMatchingPlaylists": "Tidak ada daftar putar yang cocok",
+    "createAndAdd": "Buat dan tambahkan",
+    "songsToSave_one": "{{count}} lagu",
+    "songsToSave_other": "{{count}} lagu",
     "plays": "Putar",
     "playAll": "Putar Semua",
     "playFilteredTracks": "Putar {{count}} lagu",
@@ -6058,7 +6066,7 @@ export default {
         "appear": "Di tab Sampul, baris di bawah judul ini selalu ada: tindakan untuk lagu ini di kiri, jalan ke beranda dan pengaturan di ujung kanan. Di tab lain baris ini disimpan dan hanya tombol suka yang tersisa, di atas.",
         "settings": "Roda gigi membuka pengaturan. Panel menutup lebih dulu, lalu jendela pengaturan muncul.",
         "home": "Rumah di ujung kanan kembali ke dinding poster di beranda; panel menutup lebih dulu. Pemutaran tidak terhenti.",
-        "addToPlaylist": "Bintang menambahkan lagu ini ke playlist. Ia hanya ada bila sumber saat ini mendukung playlist; saat lagu tidak bisa ditambahkan ia meredup, dan mengarahkan penunjuk ke sana menjelaskan alasannya.",
+        "addToPlaylist": "Bintang menyimpan lagu ini ke daftar putar; baris pertama adalah Lagu yang Disukai (hati). Ia meredup bila sumber tidak mendukung daftar putar maupun suka, dan mengarahkan penunjuk ke sana menjelaskan alasannya.",
 
         "like": "Hati menyukai lagu ini. Bila sumber saat ini tidak bisa melakukannya, tombolnya meredup, dan mengarahkan penunjuk ke sana menjelaskan alasannya.",
         "playingFrom": "Bila antrean dimulai dari sebuah playlist atau album, tombol bertuliskan namanya muncul di sini: klik untuk kembali ke halaman itu dan menemukan lagu ini di sana. Begitu antrean berisi lagu lain, tombol ini hilang."

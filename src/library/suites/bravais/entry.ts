@@ -62,9 +62,11 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'enqueue',
     'play-scope',
     'enqueue-scope',
-    // 速记簿：聚焦卡「⋯」的「加入速记簿」与缝「⋯ 更多」的「全部加入速记簿」（命令面板的 collect-filtered）。
+    // 歌曲磁贴与聚焦卡右上角悬浮的「加入速记簿」「收藏到歌单」（应用的歌单选择器，含「我喜欢」）；缝「⋯ 更多」的
+    // 「全部加入速记簿」（命令面板的 collect-filtered）。
     'collect',
     'collect-scope',
+    'save-to-playlist',
     'filter',
     'sort',
     'reload',

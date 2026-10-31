@@ -25,6 +25,13 @@ export interface LibraryPlaybackPort {
      * 集合的 collect / collect-scope 入口就不出现。和播放、入队一样是「这些歌交给应用」，所以放在播放端口上。
      */
     collectTracks?(tracks: SongResult[], origin?: LibraryCollectOrigin): void;
+    /**
+     * 打开应用的歌单选择器（按歌自己的来源列歌单，在线歌还有「我喜欢」一行），把这几首放进去；与集合变更里只管
+     * Navidrome 的 add-to-playlist 不是一回事。宿主没给时为 undefined。
+     */
+    pickPlaylistFor?(tracks: SongResult[]): void;
+    /** 这首能不能交给选择器（来源支持歌单或红心）；与 pickPlaylistFor 一起给。 */
+    canPickPlaylistFor?(track: SongResult): boolean;
 }
 
 /** 收进速记簿时记下的出处（速记簿行上的小字）。 */

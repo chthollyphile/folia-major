@@ -3,6 +3,7 @@ import type { LibraryPlaybackPort } from '../core/shared/ports.contract';
 import { resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { collectToScratchpad } from '../../stores/useScratchpadStore';
+import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../stores/useAddToPlaylistStore';
 
 // src/library/app/createLibraryPlaybackPort.ts
 // 把首页 surface 上的播放回调装配成 Library Core 的播放端口。核心层只说「播这首、以这些为队列」，
@@ -49,4 +50,9 @@ export const createLibraryPlaybackPort = (surface: PlaybackSurface): LibraryPlay
     collectTracks: (tracks, origin) => {
         collectToScratchpad(tracks, origin);
     },
+    // 卡片上的「收藏到歌单」：应用的歌单选择器（与播放页的星标同一个），按歌自己的来源列歌单，在线歌还有「我喜欢」。
+    pickPlaylistFor: tracks => {
+        if (tracks.length > 0) openAddSongsToPlaylist(tracks);
+    },
+    canPickPlaylistFor: canOpenPlaylistPickerFor,
 });

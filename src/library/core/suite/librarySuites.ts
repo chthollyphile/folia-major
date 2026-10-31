@@ -57,6 +57,7 @@ export const LIBRARY_ACTION_IDS: readonly LibraryActionId[] = [
     'enqueue-scope',
     'collect',
     'collect-scope',
+    'save-to-playlist',
     'filter',
     'sort',
     'reload',

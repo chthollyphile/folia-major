@@ -1331,6 +1331,14 @@ export default {
     "locatePlaying": "Locate the playing song on this page",
     "viewCollections": "View collections",
     "tracks": "Tracks",
+    "alreadyLiked": "Already liked",
+    "saveToPlaylist": "Save to a playlist",
+    "saving": "Adding to the playlist, one moment",
+    "searchPlaylists": "Search playlists",
+    "noMatchingPlaylists": "No matching playlists",
+    "createAndAdd": "Create and add",
+    "songsToSave_one": "{{count}} song",
+    "songsToSave_other": "{{count}} songs",
     "plays": "Plays",
     "playAll": "Play All",
     "playFilteredTracks": "Play {{count}} songs",
@@ -6058,7 +6066,7 @@ export default {
         "appear": "On the Cover tab this row under the title is always there: actions for this song on the left, the way home and the settings at the right end. On other tabs the row is put away and only the like button stays, at the top.",
         "settings": "The gear opens the settings. The panel closes first, then the settings window comes up.",
         "home": "The house at the right end goes back to the poster wall on the home page; the panel closes first. Playback does not stop.",
-        "addToPlaylist": "The star adds this song to a playlist. It is only there when the current source has playlists; when the song cannot be added it is greyed out, and hovering it says why.",
+        "addToPlaylist": "The star saves this song to a playlist; the first row is Liked Songs (the heart). It is greyed out when the source takes neither playlists nor likes, and hovering it says why.",
 
         "like": "The heart likes this song. When the current source cannot do that it is greyed out, and hovering it says why.",
         "playingFrom": "When the queue was started from a playlist or an album, a button with its name appears here: click it to go back to that page and find this song there. Once the queue holds other songs it is gone."

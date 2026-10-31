@@ -115,8 +115,9 @@ describe('library suite registry', () => {
         expect([...resolveLibrarySurfaceActions('collection', 'grid').actions].sort()).toEqual([...LIBRARY_ACTION_IDS].sort());
         expect(resolveLibrarySurfaceActions('collection', 'grid').extraActions)
             .toEqual(['toggle-info-panel', 'toggle-track-list', 'toggle-edit-mode']);
-        // TUI 实现了除 Navidrome「加入歌单 / 新建歌单」、本地集合「设置封面」与速记簿（collect / collect-scope）以外的
-        // 全部集合动作（前两个需要歌单选择器，只在网格里；设置封面与速记簿是 TUI 冻结之后才有的，不再加入口）。
+        // TUI 实现了除 Navidrome「加入歌单 / 新建歌单」、本地集合「设置封面」、速记簿（collect / collect-scope）与
+        // 「收藏到歌单」（save-to-playlist）以外的全部集合动作（前两个需要歌单选择器，只在网格里；后面几个是 TUI 冻结
+        // 之后才有的，不再加入口）。
         expect(resolveLibrarySurfaceActions('collection', 'tui')).toEqual({
             actions: [
                 'play', 'enqueue', 'play-scope', 'enqueue-scope', 'filter', 'sort', 'reload', 'resume-sync',
@@ -127,7 +128,7 @@ describe('library suite registry', () => {
             extraActions: [],
         });
         expect(LIBRARY_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('collection', 'tui').actions.includes(action)))
-            .toEqual(['collect', 'collect-scope', 'set-cover', 'add-to-playlist', 'create-playlist']);
+            .toEqual(['collect', 'collect-scope', 'save-to-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
         // 歌手页（P4.2 / P4.3）：两套都实现了全部歌手页动作（网格的播放全部只经命令面板，TUI 还有 Ctrl+Enter）。
         expect([...resolveLibrarySurfaceActions('artist', 'grid').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
         expect([...resolveLibrarySurfaceActions('artist', 'tui').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());

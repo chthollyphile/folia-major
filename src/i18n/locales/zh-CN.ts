@@ -1331,6 +1331,14 @@ export default {
     "locatePlaying": "在这一页定位正在播放的歌",
     "viewCollections": "查看合集",
     "tracks": "首歌曲",
+    "alreadyLiked": "已经喜欢了",
+    "saveToPlaylist": "收藏到歌单",
+    "saving": "正在放进歌单，稍等",
+    "searchPlaylists": "搜索歌单",
+    "noMatchingPlaylists": "没有匹配的歌单",
+    "createAndAdd": "新建并加入",
+    "songsToSave_one": "{{count}} 首歌",
+    "songsToSave_other": "{{count}} 首歌",
     "plays": "次播放",
     "playAll": "播放全部",
     "playFilteredTracks": "播放{{count}}首",
@@ -6058,7 +6066,7 @@ export default {
         "appear": "封面页上，歌名下面这一行一直在：左边是这首歌的几个动作，右端是回到首页和设置。换到别的页，这一行收起来，只在顶上留一颗喜欢。",
         "settings": "齿轮打开设置。按下去面板会先收起来，再把设置窗口铺上来。",
         "home": "右端的房子回到首页的海报墙，面板会先收起。播放不会中断。",
-        "addToPlaylist": "星形那颗把当前这首加进歌单。只有当前来源支持歌单时它才在；加不了的时候它是灰的，指针停上去会写明原因。",
+        "addToPlaylist": "星形那颗把当前这首收藏到歌单，第一行是「我喜欢」（红心）。来源既不支持歌单也不支持红心时它是灰的，指针停上去会写明原因。",
 
         "like": "心形是喜欢这首歌。当前来源做不了这件事时它是灰的，指针停上去会写明原因。",
         "playingFrom": "队列是从某张歌单或专辑开始播的，这里就多一枚写着它名字的按钮：点一下回到那一页，并找到这首歌。队列换成别的歌之后它就不在了。"

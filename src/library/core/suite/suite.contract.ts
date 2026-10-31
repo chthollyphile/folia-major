@@ -38,6 +38,7 @@ export type LibrarySuiteId = string;
  * | play / enqueue | 条目本身可播放 | —（卡片 / 行上的动作） |
  * | play-scope / enqueue-scope | useCollectionActions 的 scope | play-filtered / enqueue-filtered |
  * | collect / collect-scope | 宿主的播放端口给了 collectTracks（收进速记簿） | collect-filtered（只有 collect-scope） |
+ * | save-to-playlist | 宿主的播放端口给了 pickPlaylistFor，且 canPickPlaylistFor 说这首能进（应用的歌单选择器，含「我喜欢」） | —（卡片上的按钮） |
  * | filter | 浏览会话（总是可用） | —（命令面板的筛选框） |
  * | sort | 本地文件夹才排序 | sort-file-name / sort-modified-date / sort-album-track / sort-toggle-direction |
  * | reload | useCollectionActions 的 reload | reload-online-collection |
@@ -68,6 +69,7 @@ export type LibraryActionId =
     | 'enqueue-scope'
     | 'collect'
     | 'collect-scope'
+    | 'save-to-playlist'
     | 'filter'
     | 'sort'
     | 'reload'

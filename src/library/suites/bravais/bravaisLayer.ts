@@ -132,6 +132,14 @@ export type BravaisLayer = {
     onOpenItem?: (key: string) => void;
     onPlayItem?: (key: string) => void;
     onEnqueueItem?: (key: string) => void;
+    /**
+     * 歌曲卡片上悬浮才出现的两颗（BravaisTileQuickActions）：收进速记簿、收藏到歌单（应用的歌单选择器，含「我喜欢」）。
+     * 能不能做由 surface 判定（suite 声明 ∩ 宿主端口 ∩ 这首的来源）；不给就没有那颗。
+     */
+    canCollectItem?: (key: string) => boolean;
+    onCollectItem?: (key: string) => void;
+    canSaveItemToPlaylist?: (key: string) => boolean;
+    onSaveItemToPlaylist?: (key: string) => void;
     /** 聚焦卡上的专辑 / 歌手链接；能不能打开由 surface 判定（canOpen*）。 */
     canOpenAlbum?: (key: string) => boolean;
     onOpenAlbum?: (key: string) => void;

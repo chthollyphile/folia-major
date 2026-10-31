@@ -1331,6 +1331,14 @@ export default {
     "locatePlaying": "Định vị bài hát đang phát trên trang này",
     "viewCollections": "Xem bộ sưu tập",
     "tracks": "Bài hát",
+    "alreadyLiked": "Đã thích",
+    "saveToPlaylist": "Lưu vào danh sách phát",
+    "saving": "Đang thêm vào danh sách phát, chờ một chút",
+    "searchPlaylists": "Tìm danh sách phát",
+    "noMatchingPlaylists": "Không có danh sách phát phù hợp",
+    "createAndAdd": "Tạo và thêm",
+    "songsToSave_one": "{{count}} bài",
+    "songsToSave_other": "{{count}} bài",
     "plays": "Lượt phát",
     "playAll": "Phát tất cả",
     "playFilteredTracks": "Phát {{count}} bài",
@@ -6058,7 +6066,7 @@ export default {
         "appear": "Ảnh bìa ở trạng thái bình thường không hiển thị gì. Khi di chuột vào, bốn góc sẽ hiện bốn nút riêng biệt — bốn thao tác độc lập, không phải cùng một nhóm hành động của bài hát.",
         "settings": "Nút trên cùng bên trái mở Cài đặt. Nhấn vào sẽ thu gọn bảng trước, sau đó mở cửa sổ cài đặt phủ lên trang.",
         "home": "Nút dưới cùng bên trái quay lại trang chủ thư viện, cũng thu gọn bảng trước. Nhạc vẫn tiếp tục phát.",
-        "addToPlaylist": "Nút dưới cùng bên phải thêm bài hát hiện tại vào danh sách phát. Nút chỉ xuất hiện khi nguồn hiện tại hỗ trợ danh sách phát; nếu không thể thêm, nút sẽ mờ đi và hiển thị lý do khi rê chuột.",
+        "addToPlaylist": "Nút ngôi sao lưu bài hát này vào danh sách phát; dòng đầu tiên là Bài hát đã thích (trái tim). Nút sẽ mờ đi khi nguồn không hỗ trợ cả danh sách phát lẫn thích, và hiển thị lý do khi rê chuột.",
 
         "like": "Trái tim là thích bài hát này. Khi nguồn hiện tại không hỗ trợ, nút này sẽ mờ đi và rê chuột vào sẽ hiển thị lý do.",
         "playingFrom": "Khi hàng đợi được bắt đầu từ danh sách phát hoặc album, một nút có tên nguồn sẽ xuất hiện tại đây: nhấp vào để quay lại trang đó và tìm bài hát. Nút này sẽ biến mất khi hàng đợi chuyển sang các bài hát khác."

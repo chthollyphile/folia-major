@@ -27,6 +27,10 @@ export type CollectionActions = {
     /** 收进速记簿（不动队列），记下集合名。 */
     collectTrack: (track: SongResult) => void;
     collectScope: () => void;
+    /** 这首能不能「收藏到歌单」（宿主给了选择器、来源也允许）。 */
+    canSaveTrackToPlaylist: (track: SongResult) => boolean;
+    /** 打开应用的歌单选择器放这一首（含「我喜欢」）。 */
+    saveTrackToPlaylist: (track: SongResult) => void;
     reload: () => void;
     resumeSync: () => void;
 };
@@ -80,6 +84,14 @@ export const useCollectionActions = ({
             const { port: current, view: currentView, collectionName: name } = latest.current;
             const tracks = currentView.contextTracks;
             if (tracks.length > 0) current.collectTracks?.(tracks, name ? { label: name } : undefined);
+        },
+        canSaveTrackToPlaylist: (track: SongResult) => {
+            const current = latest.current.port;
+            return Boolean(current.pickPlaylistFor && current.canPickPlaylistFor?.(track));
+        },
+        saveTrackToPlaylist: (track: SongResult) => {
+            const current = latest.current.port;
+            if (current.canPickPlaylistFor?.(track)) current.pickPlaylistFor?.([track]);
         },
         reload: () => latest.current.resource?.reload(),
         resumeSync: () => latest.current.resource?.resumeSync(),

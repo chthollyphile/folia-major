@@ -220,6 +220,19 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
                 const track = trackOf(key);
                 if (track && declared('enqueue')) latest.current.actions.enqueueTrack(track);
             },
+            canCollectItem: (key: string) => Boolean(trackOf(key)) && declared('collect') && latest.current.actions.capabilities.collect,
+            onCollectItem: (key: string) => {
+                const track = trackOf(key);
+                if (track && declared('collect')) latest.current.actions.collectTrack(track);
+            },
+            canSaveItemToPlaylist: (key: string) => {
+                const track = trackOf(key);
+                return Boolean(track) && declared('save-to-playlist') && latest.current.actions.canSaveTrackToPlaylist(track!);
+            },
+            onSaveItemToPlaylist: (key: string) => {
+                const track = trackOf(key);
+                if (track && declared('save-to-playlist')) latest.current.actions.saveTrackToPlaylist(track);
+            },
             canOpenAlbum: (key: string) => Boolean(albumLink(key)),
             onOpenAlbum: (key: string) => {
                 const track = trackOf(key);
@@ -297,6 +310,10 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         queuedKeys,
         onPlayItem: callbacks.onPlayItem,
         onEnqueueItem: callbacks.onEnqueueItem,
+        canCollectItem: callbacks.canCollectItem,
+        onCollectItem: callbacks.onCollectItem,
+        canSaveItemToPlaylist: callbacks.canSaveItemToPlaylist,
+        onSaveItemToPlaylist: callbacks.onSaveItemToPlaylist,
         canOpenAlbum: callbacks.canOpenAlbum,
         onOpenAlbum: callbacks.onOpenAlbum,
         canOpenArtist: callbacks.canOpenArtist,

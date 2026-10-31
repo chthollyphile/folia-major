@@ -298,19 +298,11 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             }
             if (has('match-song') && isLocalSong(track)) entryMenu.push({ id: 'match-song', label: t('localMusic.manualMetadataMatch') });
             if (has('add-to-playlist')) entryMenu.push({ id: 'add-to-playlist', label: t('localMusic.addToPlaylist') });
-            if (latest.current.declares('collect') && latest.current.actions.capabilities.collect) {
-                entryMenu.push({ id: 'collect-scratchpad', label: t('scratchpad.collect') });
-            }
             return entryMenu;
         },
         onMenuAction: (key, actionId) => {
             const { mutations: controller, trackByKey, notice: notices } = latest.current;
             const track = trackByKey.get(key);
-            // 速记簿不经变更控制器：没有控制器的集合（探索页、只读集合）也能收。
-            if (track && actionId === 'collect-scratchpad') {
-                latest.current.actions.collectTrack(track);
-                return;
-            }
             if (!controller || !track) return;
             if (actionId === 'remove-entry') void notices.run(() => controller.removeEntry({ entryKey: key, track }), { isDailyRemoval: isDaily });
             else if (actionId === 'match-song') void notices.run(() => controller.matchSong(track));
