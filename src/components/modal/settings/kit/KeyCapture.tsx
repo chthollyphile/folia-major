@@ -10,10 +10,12 @@ import { useRowNaming } from './Row';
 // one: press it, then press the key. While it listens every key press is its own and no shortcut
 // of the app acts on it; modifier keys alone and a held key's repeats are waited through, Escape
 // gives up, a key the page refuses shows the reason under the field and the field keeps listening,
-// and leaving the field stops it.
+// and leaving the field stops it. A field that records a whole combination reads the modifiers with
+// the key (`control+shift+p`) and shows every part as its own cap.
 
 const CAP_CLASS = 'inline-grid h-[22px] min-w-6 place-items-center rounded-md px-1.5 font-mono text-[11px]';
 const QUIET_CAP_CLASS = `${CAP_CLASS} bg-[var(--st-fill)] text-[color:var(--st-t2)] shadow-[inset_0_0_0_1px_var(--st-line2)]`;
+const RAISED_CAP_CLASS = `${CAP_CLASS} bg-[var(--st-raise)] text-[color:var(--st-t1)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]`;
 
 const Plus: React.FC = () => <span aria-hidden className="text-[11px] text-[color:var(--st-t3)]">+</span>;
 
@@ -37,9 +39,10 @@ export const Keys: React.FC<KeysProps> = ({ keys }) => (
 );
 
 type KeyCaptureProps = {
-    /** The key that is set, or null. */
+    /** The key that is set, or null. A whole combination comes as `control+shift+p`. */
     value: string | null;
-    /** Called with the key that was pressed, in lower case, or with null when the key is cleared. */
+    /** Called with the key that was pressed, in lower case (a whole combination as `control+shift+p`), or
+     * with null when the key is cleared. */
     onChange: (key: string | null) => void;
     /** Refuses a key and says why. */
     validate?: (key: string) => string | null;
@@ -47,9 +50,11 @@ type KeyCaptureProps = {
     prefix?: ReadonlyArray<string>;
     /** Reads the key a press means; the default is the press's `key` in lower case. */
     readKey?: (event: KeyboardEvent) => string;
+    /** Writes one part of the shown value; the default is that part in upper case. */
+    formatKey?: (part: string) => string;
 };
 
-export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validate, prefix, readKey }) => {
+export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validate, prefix, readKey, formatKey }) => {
     const { t } = useTranslation();
     const { labelId, hintId } = useRowNaming();
     const keysId = useId();
@@ -57,6 +62,7 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
     // The reason stays while its line folds away; `refused` is whether the line shows.
     const [reason, setReason] = useState('');
     const [refused, setRefused] = useState(false);
+    const parts = value ? value.split('+') : [];
 
     useEffect(() => {
         if (!listening) {
@@ -129,7 +135,14 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
                                 {t(listening ? 'options.settingsKeyCaptureListening' : 'options.settingsKeyCaptureEmpty')}
                             </span>
                         ) : (
-                            <kbd className={`${CAP_CLASS} bg-[var(--st-raise)] text-[color:var(--st-t1)] shadow-[0_1px_2px_rgba(0,0,0,0.2)]`}>{value.toUpperCase()}</kbd>
+                            parts.map((part, index) => (
+                                <React.Fragment key={part}>
+                                    {index > 0 && <Plus />}
+                                    <kbd className={index === parts.length - 1 ? RAISED_CAP_CLASS : QUIET_CAP_CLASS}>
+                                        {formatKey ? formatKey(part) : part.toUpperCase()}
+                                    </kbd>
+                                </React.Fragment>
+                            ))
                         )}
                     </span>
                 </button>

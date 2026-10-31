@@ -186,7 +186,7 @@ describe('the settings rows', () => {
         expect(rowText(0)).toContain(i18n.t('options.globalShortcutModInactive'));
         // The bound command stays the shown value, named by its mod.
         expect(host!.textContent).toContain(i18n.t('options.globalShortcutModCommand', { mod: 'Row Mod', command: 'ping' }));
-        expect(useInteractionSettingsStore.getState().globalShortcutBindings[0]).toEqual({ key: 'k', commandId: 'folium:gs-row:ping' });
+        expect(useInteractionSettingsStore.getState().globalShortcutBindings[0]).toEqual({ key: 'k', modifiers: ['control', 'alt', 'shift'], commandId: 'folium:gs-row:ping' });
 
         act(() => {
             loader.starts.set('gs-row', { state: 'started', ms: 1 });

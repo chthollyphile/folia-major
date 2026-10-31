@@ -500,9 +500,9 @@ folium.registries.commands.register({
 ```
 
 标了 `globalShortcut: true` 的命令会出现在桌面版「设置 → 快捷操作 → 全局快捷键」每个槽位的命令下拉框里，排在宿主的播放命令后面，
-名字前面带模组名。键由用户选：修饰键固定为 Ctrl+Alt+Shift（macOS 为 Control+Option+Shift）加一个字母或数字，5 个槽位，
-重复键、GNOME 占用的 R、被别的程序占用的组合都按宿主的规则在设置里显示。模组看不到也选不了键，所以不需要权限，
-也不在确认窗口里申报：用户绑键这一步就是同意。
+名字前面带模组名。键由用户自己按出来：修饰键随意组合（Ctrl、Alt、Shift、Win/Command，至少一个），再加一个字母、数字、功能键、
+空格、方向键，或者退格、删除这类单键，共 5 个槽位；没有修饰键的组合、重复组合、GNOME 占用的 Ctrl+Alt+Shift+R、被别的程序占用的组合都按宿主的规则在设置里显示。
+模组看不到也选不了键，所以不需要权限，也不在确认窗口里申报：用户绑键这一步就是同意。
 
 - 只对没有 `params` 的命令有效（按一下键填不了表单）；带参数的命令宿主忽略这个标记，在控制台提醒一次。
 - 按下时执行 `run`，`values` 是空对象；结果不显示，需要反馈时自己用 `folium.ui.toast`。`run` 抛错或 reject 记进模组面板里这个模组的故障记录，不弹窗。
@@ -1468,7 +1468,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 - 登录状态：`folium.account.getState(providerId?)` 与通知事件 `account.changed`，只给状态、昵称、头像和不透明的 `accountKey`。稳定，不需要权限。见 [folium.account](#foliumaccount17)。
 - 实验接口 `platform.raw`：经 Omni 以用户的账号调用平台后端的原始接口，新权限 `platform.netease.read` / `platform.netease.write`。
   清单校验多两条：声明 `platform.*` 权限必须同时选用 `platform.raw`，声明 `write` 必须同时声明 `read`。见 [platform.raw](#platformraw实验17)。
-- 命令可以放进系统级全局快捷键：`FoliumCommandDef.globalShortcut`，只对没有参数的命令有效，键由用户在设置里选，原生 Wayland 下暂不提供。
+- 命令可以放进系统级全局快捷键：`FoliumCommandDef.globalShortcut`，只对没有参数的命令有效，键由用户在设置里按下组合键选定（至少一个修饰键），原生 Wayland 下暂不提供。
   稳定，不需要权限。见[系统级全局快捷键](#系统级全局快捷键globalshortcut17)。
 - 经 Omni 只读在线音源：`folium.omni`（`listProviders`、`searchSongs`、`resolveSongs`、`describeSong`、`getLyrics`、`getAlbum`、`getArtists`、
   `resolveCollection`、`getTracks`、`getArtistAlbums`），以用户在 Folia 登录的平台账号发请求，按模组限额。稳定，不需要权限。见 [folium.omni](#foliumomni17)。

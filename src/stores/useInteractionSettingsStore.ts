@@ -23,18 +23,38 @@ const GLOBAL_SHORTCUT_PORTAL_KEY = 'global_shortcut_portal_enabled';
 /** How many system-wide shortcuts there are. The settings rows and the registering hook use the same count. */
 export const GLOBAL_SHORTCUT_SLOTS = 5;
 
+/** The modifiers a system-wide shortcut may hold, in the order they are shown. */
+export const GLOBAL_SHORTCUT_MODIFIER_IDS = ['control', 'alt', 'shift', 'meta'] as const;
+
+export type GlobalShortcutModifier = typeof GLOBAL_SHORTCUT_MODIFIER_IDS[number];
+
+/** What a binding gets when it never had modifiers: the trio older versions could only use. */
+export const DEFAULT_GLOBAL_SHORTCUT_MODIFIERS: ReadonlyArray<GlobalShortcutModifier> = ['control', 'alt', 'shift'];
+
+const MODIFIER_IDS = new Set<string>(GLOBAL_SHORTCUT_MODIFIER_IDS);
+
+/** Kept to the known modifiers, each once, in the shown order; an empty list stays empty. */
+const normaliseModifiers = (value: unknown): GlobalShortcutModifier[] => {
+    const given = Array.isArray(value) ? new Set(value.filter((id): id is string => typeof id === 'string' && MODIFIER_IDS.has(id))) : new Set<string>();
+    return GLOBAL_SHORTCUT_MODIFIER_IDS.filter(id => given.has(id));
+};
+
 /**
- * One system-wide shortcut: the key pressed with the fixed modifiers, and the command it runs.
- * Either half may be null while the listener is still filling it in. Which values actually get
+ * One system-wide shortcut: the key and the modifiers held with it, and the command it runs. The key
+ * may be null while the listener is still filling the binding in. Which values actually get
  * registered is decided by command-palette/globalShortcuts/globalShortcutRules; this store only
  * keeps the shape.
  */
 export type GlobalShortcutBinding = {
     key: string | null;
+    modifiers: GlobalShortcutModifier[];
     commandId: string | null;
 };
 
-const EMPTY_BINDING: GlobalShortcutBinding = { key: null, commandId: null };
+const EMPTY_BINDING: GlobalShortcutBinding = { key: null, modifiers: [...DEFAULT_GLOBAL_SHORTCUT_MODIFIERS], commandId: null };
+
+/** A key id as stored: a letter, a digit, `f1`–`f24`, or one of the named keys (`space`, `backspace`, …). */
+const KEY_ID_PATTERN = /^[a-z0-9]+$/;
 
 const readSlideTarget = (): GridActionButtonSlideTarget => (
     getStoredString(SLIDE_TARGET_KEY, 'filter') === 'command-palette' ? 'command-palette' : 'filter'
@@ -56,10 +76,14 @@ const readGlobalShortcutBindings = (): GlobalShortcutBinding[] => {
     }
     const entries = Array.isArray(stored) ? stored : [];
     return Array.from({ length: GLOBAL_SHORTCUT_SLOTS }, (_, slot) => {
-        const entry = entries[slot] as { key?: unknown; commandId?: unknown } | null | undefined;
-        const key = typeof entry?.key === 'string' && /^[a-z0-9]$/.test(entry.key) ? entry.key : null;
+        const entry = entries[slot] as { key?: unknown; modifiers?: unknown; commandId?: unknown } | null | undefined;
+        const key = typeof entry?.key === 'string' && KEY_ID_PATTERN.test(entry.key) ? entry.key : null;
+        // A binding stored before the modifiers could be chosen had none written down.
+        const modifiers = Array.isArray(entry?.modifiers)
+            ? normaliseModifiers(entry?.modifiers)
+            : [...DEFAULT_GLOBAL_SHORTCUT_MODIFIERS];
         const commandId = typeof entry?.commandId === 'string' && entry.commandId ? entry.commandId : null;
-        return { key, commandId };
+        return { key, modifiers, commandId };
     });
 };
 
@@ -138,10 +162,17 @@ export const useInteractionSettingsStore = create<InteractionSettingsState>((set
         if (slot < 0 || slot >= GLOBAL_SHORTCUT_SLOTS) {
             return state;
         }
-        const key = patch.key === undefined ? undefined : (patch.key && /^[a-z0-9]$/i.test(patch.key) ? patch.key.toLowerCase() : null);
+        const key = patch.key === undefined ? undefined : (patch.key && KEY_ID_PATTERN.test(patch.key.toLowerCase()) ? patch.key.toLowerCase() : null);
+        const modifiers = patch.modifiers === undefined ? undefined : normaliseModifiers(patch.modifiers);
         const bindings = state.globalShortcutBindings.map((binding, index) => (
             index === slot
-                ? { ...EMPTY_BINDING, ...binding, ...patch, ...(key === undefined ? {} : { key }) }
+                ? {
+                    ...EMPTY_BINDING,
+                    ...binding,
+                    ...patch,
+                    ...(key === undefined ? {} : { key }),
+                    ...(modifiers === undefined ? {} : { modifiers }),
+                }
                 : binding
         ));
         writeString(GLOBAL_SHORTCUT_BINDINGS_KEY, bindings.some(binding => binding.key || binding.commandId) ? JSON.stringify(bindings) : null);

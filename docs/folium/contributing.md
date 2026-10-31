@@ -133,7 +133,7 @@ function mountHello(folium, container, ctx) {
 | 给内置模式加调参项 | `registries.tunings` | — | [FoliumTuningDef](api.md#foliumtuningdef)，`k3panel` |
 | 模组自己的设置 | `registries.settingsSections` | — | [FoliumSettingsSectionDef](api.md#foliumsettingssectiondef) |
 | 命令（模组面板与命令面板） | `registries.commands` | — | [FoliumCommandDef](api.md#foliumcommanddef) |
-| 系统级热键（Folia 在后台也能按，1.7） | 无参数的命令标 `globalShortcut: true`，用户在「设置 → 全局快捷键」里给它选键；不要在 main 入口用 Electron 的 `globalShortcut`。原生 Wayland 下暂不提供 | — | [FoliumCommandDef](api.md#foliumcommanddef)，规范里的「系统级全局快捷键」，`dev/folium/sample-account-console` |
+| 系统级热键（Folia 在后台也能按，1.7） | 无参数的命令标 `globalShortcut: true`，用户在「设置 → 全局快捷键」里按下组合键（至少一个修饰键）；不要在 main 入口用 Electron 的 `globalShortcut`。原生 Wayland 下暂不提供 | — | [FoliumCommandDef](api.md#foliumcommanddef)，规范里的「系统级全局快捷键」，`dev/folium/sample-account-console` |
 | 播放器面板里的标签页 | `registries.playerPanelTabs` | — | [FoliumPlayerPanelTabDef](api.md#foliumplayerpaneltabdef) |
 | 首页导航里的完整页面 | `registries.homeTabs`，用 `folium.ui.openHomeTab` 打开 | — | [FoliumHomeTabDef](api.md#foliumhometabdef)，[首页页面](home-tabs.md)，`dev/folium/sample-home-tab` |
 | 进度条旁的按钮、轨道上的标记 | `registries.progressButtons` / `progressLayers` | — | [FoliumProgressContext](api.md#foliumprogresscontext)，`sample-progress-bar` |
@@ -273,7 +273,7 @@ const mount = async (container, ctx) => {
 
 ### 系统级热键
 
-- 想让用户在 Folia 不在前台时也能按键触发模组的动作，就给一条没有参数的命令标上 `globalShortcut: true`（Folium 1.7）。它会出现在桌面版「设置 → 快捷操作 → 全局快捷键」的命令下拉框里，键由用户选，修饰键、保留键、重复键和被别的程序占用的提示都由宿主管。按下时 `run` 拿到空的 `values`，结果不显示，需要反馈就用 `folium.ui.toast`。
+- 想让用户在 Folia 不在前台时也能按键触发模组的动作，就给一条没有参数的命令标上 `globalShortcut: true`（Folium 1.7）。它会出现在桌面版「设置 → 快捷操作 → 全局快捷键」的命令下拉框里，键由用户按下组合键选定（至少一个修饰键），保留组合、重复组合和被别的程序占用的提示都由宿主管。按下时 `run` 拿到空的 `values`，结果不显示，需要反馈就用 `folium.ui.toast`。
 - 不要在 main 入口 `require('electron')` 拿 `globalShortcut` 自己注册，再用 `executeJavaScript` 把动作塞进窗口：那样会绕开宿主的规则，在 Windows 上独占别的程序的组合键，也可能先占走宿主自己的键，让宿主注册失败。`globalShortcut.unregisterAll()` 会把宿主的键一起清掉。
 - 媒体键（播放/暂停、上一首、下一首）由宿主经 Media Session 处理，不要抢。
 - 原生 Wayland 下暂不提供：那里的全局快捷键由桌面环境的快捷键门户接管，宿主交出去的是固定的播放命令整表。
