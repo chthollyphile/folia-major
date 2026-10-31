@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Disc, Pause, Play, Plus, X } from 'lucide-react';
+import { Disc, NotebookPen, Pause, Play, Plus, X } from 'lucide-react';
 import type { SongResult, UnifiedSong } from '../../../../types';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { canResolveSongCatalogRef } from '../../../../services/onlineMusic/catalogRefs';
@@ -176,13 +176,15 @@ export const PolaroidCardActions: React.FC<{
     isUnavailable: boolean;
     onSelect: () => void;
     onAddQueue?: () => void;
+    /** 收进速记簿（只在聚焦的卡上给）；跟入队键一样随距离淡出。 */
+    onCollect?: () => void;
     /**
      * fb3：「留在原处」时正在播放的这首：播放键画成暂停（在播）/ 继续（暂停中），onSelect 由调用方路由到播放开关
      * （useGridStayPlayback）。null / 不给时是普通的「播放」。
      */
     playbackMark?: GridPlaybackMark | null;
     t: any;
-}> = ({ mode, isEditMode, isUnavailable, onSelect, onAddQueue, playbackMark = null, t }) => (
+}> = ({ mode, isEditMode, isUnavailable, onSelect, onAddQueue, onCollect, playbackMark = null, t }) => (
     <div className="flex items-center gap-1.5 shrink-0">
         {mode === 'tracks' && !isEditMode && (
             <button
@@ -204,6 +206,21 @@ export const PolaroidCardActions: React.FC<{
                 {playbackMark === 'playing'
                     ? <Pause size={15} fill="currentColor" />
                     : <Play size={15} fill="currentColor" className="ml-0.5" />}
+            </button>
+        )}
+        {mode === 'tracks' && onCollect && !isUnavailable && !isEditMode && (
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onCollect();
+                }}
+                style={{ opacity: 'var(--queue-opacity, 1)' as any, pointerEvents: 'var(--queue-pe, auto)' as any }}
+                className="w-9 h-9 rounded-full bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 text-current flex items-center justify-center transition-colors shadow-sm pointer-events-auto"
+                title={t('scratchpad.collect')}
+                aria-label={t('scratchpad.collect')}
+                data-grid-card-collect=""
+            >
+                <NotebookPen size={14} />
             </button>
         )}
         {mode === 'tracks' && onAddQueue && !isUnavailable && !isEditMode && (

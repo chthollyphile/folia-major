@@ -18,6 +18,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "grid-toggle-edit-mode",
   "grid-reload-online-collection",
   "grid-toggle-subscribe",
+  "grid-collect-filtered",
   "directory-play-selection",
   "directory-enqueue-selection",
   "directory-create-playlist",

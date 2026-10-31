@@ -74,8 +74,12 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         supportsLocalTrackSorting ? { songsById: localSongsById, field: sortField, direction: sortDirection } : null
     ), [localSongsById, sortDirection, sortField, supportsLocalTrackSorting]);
     const view = useCollectionView({ tracks, committedQuery: filter.committedQuery, localSort });
-    const actions = useCollectionActions({ resource, snapshot, view, port: playback, collectionType: collection.type });
     const mutationSnapshot = useCollectionMutationSnapshot(mutations);
+    // 收进速记簿时记下的出处：改过名就用新名字（与缝里的标题一致）。
+    const actions = useCollectionActions({
+        resource, snapshot, view, port: playback, collectionType: collection.type,
+        collectionName: mutationSnapshot.renamedTo ?? collection.name,
+    });
 
     // 命令面板：与网格、TUI 同一个构建函数，按 entry 的声明过滤；bravais 没有网格的三个局部动作（见 entry）。
     const surfaceParams = buildCoreSurfaceParams({
@@ -88,6 +92,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         sortDirection,
         playFiltered: actions.playScope,
         enqueueFiltered: actions.enqueueScope,
+        collectFiltered: actions.capabilities.collect ? actions.collectScope : undefined,
         setSortField,
         setSortDirection,
         reloadOnlineCollection: actions.reload,

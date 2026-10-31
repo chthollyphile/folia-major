@@ -37,6 +37,8 @@ export interface PolaroidCardProps {
     onSelect: () => void;
     onCenter: () => void;
     onAddQueue?: () => void;
+    /** 收进速记簿；网格只在聚焦的那张卡上给。 */
+    onCollect?: () => void;
     mode: PolaroidCardMode;
     t: any;
     cardWidth: number;
@@ -69,6 +71,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
         onSelect,
         onCenter,
         onAddQueue,
+        onCollect,
         mode,
         t,
         cardWidth,
@@ -244,6 +247,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                 isUnavailable={isUnavailable}
                                 onSelect={onSelect}
                                 onAddQueue={onAddQueue}
+                                onCollect={onCollect}
                                 playbackMark={playbackMark}
                                 t={t}
                             />
@@ -333,6 +337,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                             isUnavailable={isUnavailable}
                             onSelect={onSelect}
                             onAddQueue={onAddQueue}
+                            onCollect={onCollect}
                             playbackMark={playbackMark}
                             t={t}
                         />
@@ -357,6 +362,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
             prev.fullBleedCover === next.fullBleedCover &&
             prev.openWhenFocusedOnCardClick === next.openWhenFocusedOnCardClick &&
             Boolean(prev.onEditLocalMetadata) === Boolean(next.onEditLocalMetadata) &&
+            Boolean(prev.onCollect) === Boolean(next.onCollect) &&
             prev.playbackMark === next.playbackMark &&
             prev.isFocused === next.isFocused
         );

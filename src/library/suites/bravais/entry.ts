@@ -62,6 +62,9 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'enqueue',
     'play-scope',
     'enqueue-scope',
+    // 速记簿：聚焦卡「⋯」的「加入速记簿」与缝「⋯ 更多」的「全部加入速记簿」（命令面板的 collect-filtered）。
+    'collect',
+    'collect-scope',
     'filter',
     'sort',
     'reload',

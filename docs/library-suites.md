@@ -266,6 +266,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `enqueue` | 某一首加入队列 | 基础 | `.enqueueTrack` |
 | `play-scope` | 播放当前筛选范围 | 基础 | `.playScope` |
 | `enqueue-scope` | 当前筛选范围加入队列 | 基础 | `.enqueueScope` |
+| `collect` / `collect-scope` | 某一首 / 当前筛选范围收进速记簿（不动队列的暂存区，出处记集合名） | 推荐 | `.collectTrack` / `.collectScope`（`useCollectionActions` 传 `collectionName`）；能力 `capabilities.collect`（宿主播放端口给了 `collectTracks`）；命令面板的 `collect-filtered` 由 `buildCoreSurfaceParams` 的 `collectFiltered` 发布 |
 | `filter` | 按关键词筛选 | 基础 | `useLibrarySessionQuery` + 命令面板筛选框（`useGridCommandFilter`）；自己画输入框的 suite 在注册里给 `ownInput`（见第 4 步，bravais） |
 | `reload` | 跳过缓存重新拉取在线集合 | 推荐 | `.reload`，能力 `capabilities.reload` |
 | `resume-sync` | 后台补页中断后续传 | 推荐 | `.resumeSync`；快照的 `sync.status === 'interrupted'` |

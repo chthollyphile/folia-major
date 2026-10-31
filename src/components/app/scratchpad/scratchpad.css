@@ -14,18 +14,19 @@
    加 is-covered 整个藏起来（useScratchpadStore.isCovered）。 */
 .scratchpad-root.is-covered { display: none; }
 
-/* —— 左缘：感应带与把手 —— */
+/* —— 左缘：感应带与把手 ——
+   放在左缘上部（标题栏让出的 56px 之下），不放正中：Bravais 的信息条收起 / 折叠后是贴边、垂直居中的标签
+   （.bravais-seam-tab，最高占 60%，即 20%–80% 的高度），正中会和它叠在一起，感应带还会抢它的点击。 */
 
 .scratchpad-edge {
     position: fixed;
-    top: 50%;
+    top: 56px;
     left: 0;
     z-index: 95;
     display: flex;
     width: 18px;
-    height: 160px;
+    height: 96px;
     align-items: center;
-    transform: translateY(-50%);
     pointer-events: auto;
 }
 

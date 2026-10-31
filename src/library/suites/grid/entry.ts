@@ -68,6 +68,9 @@ const grid: LibrarySuiteManifest = {
                 'enqueue',
                 'play-scope',
                 'enqueue-scope',
+                // 速记簿：聚焦卡片与曲目侧栏行上的「加入速记簿」，信息面板的「全部加入速记簿」。
+                'collect',
+                'collect-scope',
                 'filter',
                 'sort',
                 'reload',

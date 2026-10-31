@@ -52,6 +52,8 @@ export type CoreSurfaceParams = {
 
     playFiltered: () => void;
     enqueueFiltered: () => void;
+    /** 收进速记簿；没有时（宿主没给 collectTracks）不发布 collect-filtered。 */
+    collectFiltered?: () => void;
     setSortField: (field: LocalSongFolderSortField) => void;
     setSortDirection: (direction: LocalSongFolderSortDirection) => void;
     resyncFolder: () => void;
@@ -101,6 +103,8 @@ export type CoreSurfaceInputs = {
     canReloadOnlineCollection: boolean;
     playFiltered: () => void;
     enqueueFiltered: () => void;
+    /** 收进速记簿（useCollectionActions 的 collectScope）；宿主不支持时不给。 */
+    collectFiltered?: () => void;
     reloadOnlineCollection: () => void;
 
     /** renderer 订阅到的控制器快照（没有控制器时是 EMPTY_COLLECTION_MUTATION_SNAPSHOT：什么都不支持）。 */
@@ -161,6 +165,7 @@ export const buildCoreSurfaceParams = (
 
         playFiltered: inputs.playFiltered,
         enqueueFiltered: inputs.enqueueFiltered,
+        collectFiltered: inputs.collectFiltered,
         setSortField: inputs.setSortField,
         setSortDirection: inputs.setSortDirection,
         reloadOnlineCollection: inputs.reloadOnlineCollection,
@@ -182,6 +187,7 @@ export const buildCoreSurfaceParams = (
 export const GRID_SURFACE_ACTION_SOURCES: Readonly<Record<GridSurfaceActionId, { action: LibraryActionId } | { extra: string }>> = {
     'play-filtered': { action: 'play-scope' },
     'enqueue-filtered': { action: 'enqueue-scope' },
+    'collect-filtered': { action: 'collect-scope' },
     'sort-file-name': { action: 'sort' },
     'sort-modified-date': { action: 'sort' },
     'sort-album-track': { action: 'sort' },
@@ -218,6 +224,7 @@ export const buildGridSurfaceState = (params: GridSurfaceParams): GridSurfaceSta
     const availableActions: GridSurfaceActionId[] = [];
     if (hasTracks) {
         availableActions.push('play-filtered', 'enqueue-filtered');
+        if (params.collectFiltered) availableActions.push('collect-filtered');
     }
     if (params.supportsLocalTrackSorting) {
         availableActions.push('sort-file-name', 'sort-modified-date', 'sort-album-track', 'sort-toggle-direction');
@@ -292,6 +299,7 @@ export const runGridSurfaceAction = (action: GridSurfaceActionId, params: GridSu
     switch (action) {
         case 'play-filtered': return params.playFiltered();
         case 'enqueue-filtered': return params.enqueueFiltered();
+        case 'collect-filtered': return params.collectFiltered?.();
         case 'sort-toggle-direction': return params.setSortDirection(params.sortDirection === 'asc' ? 'desc' : 'asc');
         case 'toggle-info-panel': return params.toggleInfoPanel();
         case 'toggle-track-list': return params.toggleTrackList();
