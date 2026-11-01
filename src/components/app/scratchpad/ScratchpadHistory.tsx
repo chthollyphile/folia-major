@@ -13,9 +13,9 @@ import { useScratchpadHistory } from './useScratchpadHistory';
 import type { ScratchpadPlayback } from './ScratchpadHost';
 
 // src/components/app/scratchpad/ScratchpadHistory.tsx
-// 速记簿的第二页：播放历史。最近七天在在线平台上放过的歌（探索页「最近播放」那份记录，各平台合在一起），新的在前，
-// 按天分段；每一行写歌手 · 平台 · 几点几分，悬停出四颗：插进队列播放、加入队列、加入速记簿（已经在里面时打勾、点不了）、
-// 收藏到歌单。本地与 Navidrome 的歌不在这份记录里，页头的说明写着。
+// 速记簿的第二页：播放历史。最近七天在这台设备上放过的歌（Folia 自己的播放记录 recentPlays：在线平台、本地、
+// Navidrome 合在一起），新的在前，按天分段；每一行写歌手 · 来源 · 几点几分，悬停出四颗：插进队列播放、加入队列、
+// 加入速记簿（已经在里面时打勾、点不了）、收藏到歌单。
 
 type ScratchpadHistoryProps = {
     playback: ScratchpadPlayback;

@@ -1,8 +1,8 @@
 import type { RecentPlay } from '../home/explore/recentPlays';
 
 // src/components/app/scratchpad/historyDays.ts
-// 速记簿第二页「播放历史」的纯函数：几个平台各自的播放记录合成一条（新的在前），再按天分段。
-// 记录本身是探索页「最近播放」用的那一份（home/explore/recentPlays.ts）：只记在线平台上放过的歌，按平台与账户分开存，留七天。
+// 速记簿第二页「播放历史」的纯函数：几份播放记录（各在线平台、本地、Navidrome）合成一条（新的在前），再按天分段。
+// 记录本身是 Folia 自己的那一份（home/explore/recentPlays.ts，探索页「最近播放」也读它）：按来源与账户分开存，列最近七天。
 
 /** 几个平台的播放记录合成一条，最后一次播放晚的在前；同一首（同一个播放键）只留一次。 */
 export const mergeRecentPlays = (
