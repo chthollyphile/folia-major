@@ -241,7 +241,7 @@ const SECTION_INFO = {
     Services: {
         order: 5,
         title: '服务',
-        intro: '`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词画布渲染质量 `folium.visualizer`（读不需要权限，写需 `visualizer.renderQuality`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
+        intro: '`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
     },
     'Shared helpers': {
         order: 6,

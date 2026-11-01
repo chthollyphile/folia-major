@@ -1,6 +1,6 @@
 import type { LyricRenderOverride, LyricRenderScale } from '../../../types';
 import { LYRIC_RENDER_SCALES, normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 import {
     DEFAULT_NEBBIA_TUNING,
     NEBBIA_APPEAR_STYLES,
@@ -81,6 +81,22 @@ export const normalizeNebbiaTuning = (stored: unknown): NebbiaTuning => {
 export default defineVisualizerTuning<NebbiaTuning>({
     mode: 'nebbia',
     defaults: DEFAULT_NEBBIA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        behind: modChoice(NEBBIA_BEHIND),
+        glass: modChoice(NEBBIA_GLASS),
+        rain: modChoice(NEBBIA_RAIN),
+        credits: MOD_SWITCH,
+        ...Object.fromEntries(Object.entries(NEBBIA_LIMITS).map(([key, { min, max }]) => [key, modNumber(min, max)])),
+        // A count of jellyfish: whole ones, as the panel's slider steps.
+        jellies: modNumber(NEBBIA_LIMITS.jellies.min, NEBBIA_LIMITS.jellies.max, 1),
+    },
+    // As the panel and the command: a new window brings its own glass, unless the mod names one.
+    modPatch: (held, patch) => (
+        patch.behind !== undefined && patch.glass === undefined && patch.behind !== held.behind
+            ? { ...patch, glass: NEBBIA_GLASS_FOR[patch.behind] ?? held.glass }
+            : patch
+    ),
     settingsKey: 'nebbiaTuning',
     settingsSetterKey: 'handleSetNebbiaTuning',
     settingsResetterKey: 'handleResetNebbiaTuning',
