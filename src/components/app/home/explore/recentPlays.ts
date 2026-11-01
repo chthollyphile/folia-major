@@ -126,7 +126,7 @@ const NONE: SongResult[] = [];
 // What is read from a list of plays: the same lists for as long as the plays are the same ones.
 // (The songs played lately are fewer as time goes by: `recentCount` tells that they are. The
 // listenings that count are fewer from one day to the next: `replayedOn` is the day they were read on.)
-const listed = new WeakMap<Play[], { recentCount: number; recent: SongResult[]; replayedOn?: number; replayed?: SongResult[] }>();
+const listed = new WeakMap<Play[], { recentCount: number; recent: SongResult[]; replayedOn?: number; replayed?: SongResult[]; records?: Play[] }>();
 // The plays of a scope that are still kept.
 const keptOf = (scope: string, now: number): Play[] | null => {
     const plays = recall()[scope];
@@ -167,6 +167,28 @@ export const recentPlaysOf = (providerId: OnlineProviderId, accountId: string): 
     if (known?.recentCount === recent.length) return known.recent;
     listed.set(plays, { ...known, recentCount: recent.length, recent: recent.map(play => play.song) });
     return listed.get(plays)!.recent;
+};
+
+/** A song played lately, and when it was last played. */
+export type RecentPlay = { readonly song: SongResult; readonly at: number };
+const NO_PLAYS: readonly RecentPlay[] = [];
+
+/**
+ * The plays of the last seven days from this platform under this account, newest first, each with
+ * when it was last played: the songs of `recentPlaysOf`, for a list that shows when (the
+ * scratchpad's play history). The same list until a play changes it or its oldest one has become
+ * too old. (Playing the newest song again moves its time on in place and tells nobody: read later,
+ * the newest one's time may be later than it was.)
+ */
+export const recentPlayRecordsOf = (providerId: OnlineProviderId, accountId: string): readonly RecentPlay[] => {
+    const now = Date.now();
+    const plays = keptOf(scopeOf(providerId, accountId), now);
+    if (!plays) return NO_PLAYS;
+    const recent = plays.filter(play => isRecent(play, now));
+    const known = listed.get(plays) ?? { recentCount: -1, recent: NONE };
+    if (known.records?.length === recent.length) return known.records;
+    listed.set(plays, { ...known, records: recent });
+    return recent;
 };
 
 /**

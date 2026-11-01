@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { SongResult } from '@/types';
-import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
+import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlayRecordsOf, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
 import { whenHeard } from '@/components/app/home/explore/useRecentPlaysRecorder';
 import { readOwnExploreSections } from '@/components/app/home/explore/ownSections';
 
@@ -157,6 +157,23 @@ describe('recent plays', () => {
         stop();
         noteSongPlayed(song('c'), 'me');
         expect(watcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists the recent plays with when each was last played, the same list until a play changes it', () => {
+        noteSongPlayed(song('a'), 'me');
+        later(HOUR);
+        noteSongPlayed(song('b'), 'me');
+        const records = recentPlayRecordsOf('ytm', 'me');
+        expect(records.map(play => [String(play.song.id), play.at])).toEqual([['b', START + HOUR], ['a', START]]);
+        expect(recentPlayRecordsOf('ytm', 'me')).toBe(records);
+        expect(recentPlayRecordsOf('ytm', 'someone else')).toEqual([]);
+
+        later(HOUR);
+        noteSongPlayed(song('a'), 'me');
+        expect(recentPlayRecordsOf('ytm', 'me').map(play => String(play.song.id))).toEqual(['a', 'b']);
+        // Older than seven days: no longer listed, though still kept.
+        later(RECENT_PLAYS_KEPT_MS + 1);
+        expect(recentPlayRecordsOf('ytm', 'me')).toEqual([]);
     });
 
     it('keeps no more than its limit, dropping the oldest', () => {

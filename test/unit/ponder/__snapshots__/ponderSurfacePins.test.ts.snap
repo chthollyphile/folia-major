@@ -40,7 +40,7 @@ exports[`the stand-ins as recorded before the size table was split > every kind 
   "queue-command": "14789 686c83b948331de6",
   "queue-settings": "1433 56ebafde7ee8f8fe",
   "replay-gain-settings": "3227 91bb8c63ace1a3cf",
-  "scratchpad": "60854 dc74c150e456e725",
+  "scratchpad": "67267 532daf6d661e389d",
   "settings-page": "10816 8b59c7ff32f881ba",
   "side-panel": "90539 17ded908eef3af84",
   "sign-in": "22287 3a6d159ab6636611",
@@ -5552,11 +5552,11 @@ exports[`the stand-ins as recorded before the size table was split > every size 
       "top": 0.52,
       "width": 0.17,
     },
-    "selectionBar": {
-      "bottom": 0.02,
-      "height": 0.055,
+    "menu": {
+      "height": 0.048,
       "left": 0.02,
-      "right": 0.02,
+      "top": 0.482,
+      "width": 0.2,
     },
     "title": {
       "height": 0.04,
@@ -5637,17 +5637,23 @@ exports[`the stand-ins as recorded before the size table was split > every size 
       "right": 0.06,
       "top": 0.1,
     },
+    "historyTab": {
+      "height": 0.04,
+      "left": 0.4,
+      "top": 0.035,
+      "width": 0.2,
+    },
+    "notesTab": {
+      "height": 0.04,
+      "left": 0.06,
+      "top": 0.035,
+      "width": 0.3,
+    },
     "replaceQueue": {
       "bottom": 0.02,
       "height": 0.055,
       "left": 0.45,
       "width": 0.38,
-    },
-    "title": {
-      "height": 0.04,
-      "left": 0.06,
-      "top": 0.035,
-      "width": 0.36,
     },
   },
   "SCRATCHPAD_GEOMETRY": {

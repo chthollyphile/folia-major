@@ -6,6 +6,12 @@ export default {
     "count_one": "{{count}} bài",
     "count_other": "{{count}} bài",
     "hint": "Những bài để nghe hoặc sắp xếp sau. Đặt vào đây không làm thay đổi hàng đợi.",
+    "history": "Lịch sử phát",
+    "historyHint": "Các bài đã phát từ nền tảng trực tuyến trong 7 ngày qua, mới nhất ở trên. Bài cục bộ và Navidrome không được ghi ở đây.",
+    "historyEmpty": "Chưa phát bài nào từ nền tảng trực tuyến trong 7 ngày qua. Bài cục bộ và Navidrome không được ghi ở đây.",
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua",
+    "originHistory": "Lịch sử phát",
     "empty": "Chưa có gì. Rê chuột lên thẻ bài hát, một dòng trong danh sách bài hoặc kết quả tìm kiếm rồi chọn \"Thêm vào sổ ghi nhanh\", hoặc ghi bài đang phát từ bảng lệnh.",
     "open": "Mở sổ ghi nhanh",
     "close": "Đóng sổ ghi nhanh",
@@ -35,7 +41,7 @@ export default {
     "saveFailed": "Không lưu được sổ ghi nhanh (bộ nhớ cục bộ đã đầy); thay đổi này sẽ mất khi khởi động lại",
     "expandCanvas": "Mở rộng thành bảng",
     "collapseCanvas": "Trở về danh sách",
-    "canvasHint": "Kéo thẻ để sắp xếp; thả ra thẻ sẽ tự vào chỗ. Kéo khung ở chỗ trống để chọn nhiều bài.",
+    "canvasHint": "Kéo thẻ để sắp xếp; thả ra thẻ sẽ tự vào chỗ. Kéo khung ở chỗ trống để chọn nhiều bài. Trên màn hình cảm ứng, nhấn giữ thẻ để kéo; khi đã chọn một thẻ, chạm vào thẻ để chọn thêm, chạm lần nữa để bỏ chọn.",
     "selectGroup": "Chọn nhóm này",
     "enqueueGroup": "Thêm nhóm này vào hàng đợi",
     "addGroupToPlaylist": "Thêm nhóm này vào danh sách phát…",
@@ -5468,6 +5474,7 @@ export default {
         "row": "Một bài hát",
         "rowActions": "Nút trên dòng",
         "footer": "Thao tác cho tất cả",
+        "historyTab": "Lịch sử phát",
         "expand": "Mở rộng thành bảng",
         "canvas": "Bảng",
         "canvasGroup": "Một nhóm trên bảng",
@@ -6167,10 +6174,11 @@ export default {
         "groupActions": "Bên phải đầu nhóm: “Thêm nhóm này vào hàng đợi” và “Thêm nhóm này vào danh sách phát…”. Một danh sách phát chỉ nhận bài từ một nguồn; vì đã nhóm theo nguồn, cả nhóm vừa vặn một danh sách.",
         "rowActions": "Rê chuột lên một dòng để thấy: phát trong hàng đợi, thêm vào hàng đợi, thêm vào danh sách phát, và bỏ ra khỏi sổ. Bài vẫn ở lại sau khi đã vào hàng đợi hay danh sách phát; không cần nữa thì tự bỏ ra.",
         "footer": "Hàng dưới cùng: thêm tất cả vào hàng đợi, thay hàng đợi bằng sổ ghi nhanh, và xóa sạch. Xóa sạch cần nhấn hai lần.",
+        "history": "“Lịch sử phát” ở đầu ngăn kéo là trang thứ hai: các bài đã phát từ nền tảng trực tuyến trong 7 ngày qua, theo ngày, mới nhất ở trên. Mỗi dòng có thể phát trong hàng đợi, thêm vào hàng đợi, thêm vào sổ ghi nhanh hoặc lưu vào danh sách phát. Bài cục bộ và Navidrome không được ghi ở đây.",
         "expand": "Ở đầu ngăn kéo, bên trái nút đóng: “Mở rộng thành bảng”.",
         "canvas": "Khi mở rộng, mỗi bài là một thẻ, vẫn nhóm theo nguồn, và đầu nhóm có thêm “Chọn nhóm này”. Esc bỏ chọn trước, rồi quay lại danh sách.",
-        "drag": "Kéo thẻ để sắp xếp lại. Thẻ chỉ di chuyển trong nhóm của nó, và bám vào vị trí gần nhất khi thả.",
-        "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Hàng dưới khi đó thao tác trên mục đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."
+        "drag": "Kéo thẻ để sắp xếp lại. Thẻ chỉ di chuyển trong nhóm của nó, và bám vào vị trí gần nhất khi thả. Trên màn hình cảm ứng, nhấn giữ thẻ đến khi nó nhấc lên rồi kéo.",
+        "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Một menu nổi phía trên các thẻ đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra, bỏ chọn. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."
       }
     }
   }

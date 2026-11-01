@@ -10,6 +10,7 @@ import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { canAddScratchpadSongToPlaylist, scratchpadSourceLabel } from './scratchpadModel';
 import ScratchpadList, { type ScratchpadPanelActions } from './ScratchpadList';
 import ScratchpadCanvas from './ScratchpadCanvas';
+import ScratchpadHistory from './ScratchpadHistory';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
@@ -45,15 +46,17 @@ const DRAWER_KEYS = new Set([
 
 const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback }) => {
     const { t } = useTranslation();
-    const { entries, isOpen, isExpanded, isCovered, addNonce, setOpen, toggleOpen, setExpanded, clear } = useScratchpadStore(useShallow(state => ({
+    const { entries, isOpen, tab, isExpanded, isCovered, addNonce, setOpen, toggleOpen, setExpanded, setTab, clear } = useScratchpadStore(useShallow(state => ({
         entries: state.entries,
         isOpen: state.isOpen,
+        tab: state.tab,
         isExpanded: state.isExpanded,
         isCovered: state.isCovered,
         addNonce: state.addNonce,
         setOpen: state.setOpen,
         toggleOpen: state.toggleOpen,
         setExpanded: state.setExpanded,
+        setTab: state.setTab,
         clear: state.clear,
     })));
     const groups = useMemo(() => groupScratchpadEntries(entries), [entries]);
@@ -188,6 +191,17 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
         </footer>
     );
 
+    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上（页签是一组，Tab 键只停在开着的那个）。
+    const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        const next = event.key === 'ArrowLeft' || event.key === 'Home' ? 'notes'
+            : event.key === 'ArrowRight' || event.key === 'End' ? 'history'
+                : null;
+        if (!next) return;
+        event.preventDefault();
+        setTab(next);
+        requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
+    };
+
     return (
         <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}`}>
             {!isOpen && (
@@ -223,23 +237,51 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
                         onKeyDown={handleKeyDown}
                     >
                         <header className="scratchpad-header">
-                            <div className="scratchpad-title">
-                                <h2>{t('scratchpad.title')}</h2>
-                                <span>{t('scratchpad.count', { count: entries.length })}</span>
+                            {/* 两页：速记簿本身与播放历史。画布只属于速记簿那一页，展开钮也只在那页。 */}
+                            <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    id="scratchpad-tab-notes"
+                                    className="scratchpad-tab"
+                                    data-scratchpad-tab="notes"
+                                    aria-selected={tab === 'notes'}
+                                    aria-controls="scratchpad-panel"
+                                    tabIndex={tab === 'notes' ? 0 : -1}
+                                    onClick={() => setTab('notes')}
+                                >
+                                    <span>{t('scratchpad.title')}</span>
+                                    <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    id="scratchpad-tab-history"
+                                    className="scratchpad-tab"
+                                    data-scratchpad-tab="history"
+                                    aria-selected={tab === 'history'}
+                                    aria-controls="scratchpad-panel"
+                                    tabIndex={tab === 'history' ? 0 : -1}
+                                    onClick={() => setTab('history')}
+                                >
+                                    <span>{t('scratchpad.history')}</span>
+                                </button>
                             </div>
-                            <button
-                                ref={toggleCanvasRef}
-                                type="button"
-                                className="scratchpad-icon-button"
-                                data-scratchpad-action="toggle-canvas"
-                                disabled={entries.length === 0 && !isExpanded}
-                                title={expandLabel}
-                                aria-label={expandLabel}
-                                aria-pressed={isExpanded}
-                                onClick={() => setExpanded(!isExpanded)}
-                            >
-                                {isExpanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-                            </button>
+                            {tab === 'notes' && (
+                                <button
+                                    ref={toggleCanvasRef}
+                                    type="button"
+                                    className="scratchpad-icon-button"
+                                    data-scratchpad-action="toggle-canvas"
+                                    disabled={entries.length === 0 && !isExpanded}
+                                    title={expandLabel}
+                                    aria-label={expandLabel}
+                                    aria-pressed={isExpanded}
+                                    onClick={() => setExpanded(!isExpanded)}
+                                >
+                                    {isExpanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 className="scratchpad-icon-button"
@@ -250,27 +292,42 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
                                 <X aria-hidden="true" />
                             </button>
                         </header>
-                        {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
-
-                        {entries.length === 0 ? (
-                            <div className="scratchpad-empty">
-                                <NotebookPen aria-hidden="true" />
-                                <p>{t('scratchpad.empty')}</p>
-                            </div>
-                        ) : isExpanded ? (
-                            <ScratchpadCanvas
-                                groups={groups}
-                                freshKeys={freshKeys}
-                                actions={actions}
-                                onEscape={collapseCanvas}
-                                footer={footer}
-                            />
-                        ) : (
-                            <>
-                                <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
-                                {footer}
-                            </>
-                        )}
+                        <div
+                            className="scratchpad-panel"
+                            role="tabpanel"
+                            id="scratchpad-panel"
+                            aria-labelledby={tab === 'notes' ? 'scratchpad-tab-notes' : 'scratchpad-tab-history'}
+                        >
+                            {tab === 'history' ? (
+                                <>
+                                    <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>
+                                    <ScratchpadHistory playback={playback} />
+                                </>
+                            ) : (
+                                <>
+                                    {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
+                                    {entries.length === 0 ? (
+                                        <div className="scratchpad-empty">
+                                            <NotebookPen aria-hidden="true" />
+                                            <p>{t('scratchpad.empty')}</p>
+                                        </div>
+                                    ) : isExpanded ? (
+                                        <ScratchpadCanvas
+                                            groups={groups}
+                                            freshKeys={freshKeys}
+                                            actions={actions}
+                                            onEscape={collapseCanvas}
+                                            footer={footer}
+                                        />
+                                    ) : (
+                                        <>
+                                            <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
+                                            {footer}
+                                        </>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </motion.aside>
                 )}
             </AnimatePresence>

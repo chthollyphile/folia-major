@@ -128,22 +128,40 @@
     padding: 14px 10px 10px 18px;
 }
 
-.scratchpad-title {
+/* 两页的页签（速记簿、播放历史）：就是标题本身，没选中的那页淡一些。 */
+.scratchpad-tabs {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
     align-items: baseline;
-    gap: 8px;
+    gap: 14px;
 }
 
-.scratchpad-title h2 {
-    margin: 0;
+.scratchpad-tab {
+    display: inline-flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 6px;
+    padding: 2px 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
     font-size: 15px;
     font-weight: 700;
+    white-space: nowrap;
+    opacity: 0.42;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
 }
 
-.scratchpad-title span {
+.scratchpad-tab:hover { opacity: 0.75; }
+.scratchpad-tab[aria-selected='true'] { opacity: 1; cursor: default; }
+.scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
+
+.scratchpad-tab-count {
     font-size: 12px;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     opacity: 0.55;
 }
@@ -168,6 +186,14 @@
 .scratchpad-icon-button:disabled { opacity: 0.25; cursor: default; background: transparent; }
 .scratchpad-icon-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
 .scratchpad-icon-button svg { width: 16px; height: 16px; }
+
+/* 页签下面那一页（列表、画布或播放历史）：和抽屉本身一样是纵向的弹性盒，里面各块照旧伸缩。 */
+.scratchpad-panel {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
 
 .scratchpad-hint {
     flex: none;
@@ -391,7 +417,7 @@
     outline: none;
     scrollbar-width: thin;
     user-select: none;
-    /* 手指上下划是滚动（框选与拖动排序只给鼠标和笔）。 */
+    /* 手指上下划是滚动（框选只给鼠标和笔；触屏上按住卡片拿起来才是拖）。 */
     touch-action: pan-y;
 }
 
@@ -428,8 +454,9 @@
        颜色取的是原先半透明的白叠在画布那层玻璃上大致的样子。 */
     background: rgb(34 34 37);
     cursor: grab;
-    /* 手指在卡片上划也是滚动（拖动排序只给鼠标和笔，见 ScratchpadCanvas）。 */
+    /* 手指在卡片上划也是滚动；按住 0.4 秒拿起来才是拖（见 ScratchpadCanvas）。长按不要系统的复制 / 存图菜单。 */
     touch-action: pan-y;
+    -webkit-touch-callout: none;
 }
 
 .scratchpad-root.is-daylight .scratchpad-card { border-color: rgb(0 0 0 / 7%); background: rgb(250 249 246); }
@@ -524,16 +551,67 @@
 
 .scratchpad-marquee[hidden] { display: none; }
 
-/* —— 选中后的动作条 —— */
+/* —— 选中后的浮动菜单：浮在选中卡片的上方（放不下时下方），横向由画布按菜单宽度夹在内容里 —— */
 
-.scratchpad-footer.is-selection { align-items: center; }
-.scratchpad-footer.is-selection .scratchpad-pill { flex: 0 1 auto; }
-.scratchpad-pill:disabled { opacity: 0.35; cursor: default; }
+.scratchpad-selection-menu {
+    position: absolute;
+    left: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 14px;
+    background: rgb(28 28 31);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+    white-space: nowrap;
+    animation: scratchpad-menu-in 0.14s ease-out;
+}
+
+.scratchpad-selection-menu.is-above { transform: translateY(-100%); }
+
+@keyframes scratchpad-menu-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.scratchpad-root.is-daylight .scratchpad-selection-menu {
+    border-color: rgb(0 0 0 / 8%);
+    background: rgb(252 251 249);
+    box-shadow: 0 12px 32px rgb(42 35 27 / 18%);
+}
 
 .scratchpad-selection-count {
-    flex: 1 1 auto;
-    padding-left: 6px;
+    padding: 0 8px 0 6px;
     font-size: 12.5px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
+}
+
+.scratchpad-menu-button {
+    display: inline-flex;
+    height: 30px;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.scratchpad-menu-button svg { width: 15px; height: 15px; flex: none; }
+.scratchpad-menu-button:hover { background: rgb(255 255 255 / 10%); }
+.scratchpad-root.is-daylight .scratchpad-menu-button:hover { background: rgb(0 0 0 / 6%); }
+.scratchpad-menu-button:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.scratchpad-menu-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+
+/* 窄的画布上只留图标（悬停提示写着名字）。 */
+@media (max-width: 520px) {
+    .scratchpad-menu-button span { display: none; }
+    .scratchpad-menu-button { padding: 0 8px; }
 }

@@ -6,6 +6,12 @@ export default {
     "count_one": "{{count}} song",
     "count_other": "{{count}} songs",
     "hint": "Songs to hear or sort out later. Putting them here leaves the queue alone.",
+    "history": "Play history",
+    "historyHint": "Songs played from online platforms in the last 7 days, newest first. Local and Navidrome songs are not recorded here.",
+    "historyEmpty": "Nothing played from an online platform in the last 7 days. Local and Navidrome songs are not recorded here.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "originHistory": "Play history",
     "empty": "Nothing here yet. Hover a song card, a track list row or a search result and choose \"Add to scratchpad\", or jot down the playing song from the command palette.",
     "open": "Open the scratchpad",
     "close": "Close the scratchpad",
@@ -35,7 +41,7 @@ export default {
     "saveFailed": "The scratchpad couldn't be saved (local storage is full); this change will be lost on restart",
     "expandCanvas": "Expand into a canvas",
     "collapseCanvas": "Back to the list",
-    "canvasHint": "Drag cards to reorder; they snap into place when let go. Drag a box over empty space to select several.",
+    "canvasHint": "Drag cards to reorder; they snap into place when let go. Drag a box over empty space to select several. On a touch screen, press and hold a card to drag it; once one is selected, tapping a card adds it or, tapped again, takes it out of the selection.",
     "selectGroup": "Select this group",
     "enqueueGroup": "Queue this group",
     "addGroupToPlaylist": "Add this group to a playlist…",
@@ -5468,6 +5474,7 @@ export default {
         "row": "A song",
         "rowActions": "Row buttons",
         "footer": "Actions on everything",
+        "historyTab": "Play history",
         "expand": "Expand to canvas",
         "canvas": "Canvas",
         "canvasGroup": "A group on the canvas",
@@ -6167,10 +6174,11 @@ export default {
         "groupActions": "At the right of a group header: “Queue this group” and “Add this group to a playlist…”. A playlist takes songs from one source only; grouped by source, a whole group fits one playlist.",
         "rowActions": "Hover a row for: play it in the queue, add to queue, add to playlist, and take out of the scratchpad. A song stays after you queue it or save it to a playlist; take it out yourself when you are done with it.",
         "footer": "The bottom row: add all to queue, replace the queue with the scratchpad, and clear. Clearing takes two clicks.",
+        "history": "“Play history” at the top of the drawer is the second page: songs played from online platforms in the last 7 days, by day, newest first. Each row can be played in the queue, queued, added to the scratchpad or saved to a playlist. Local and Navidrome songs are not recorded here.",
         "expand": "At the top of the drawer, left of the close button: “Expand into a canvas”.",
         "canvas": "Expanded, every song is a card, still grouped by source, and each group header gains “Select this group”. Esc first clears the selection, then goes back to the list.",
-        "drag": "Drag cards to reorder them. A card moves only within its own group, and snaps to the nearest place when you let go.",
-        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. The bottom row then acts on the selection: add to queue, add to playlist, take out. When the selection mixes sources, add to playlist is greyed out."
+        "drag": "Drag cards to reorder them. A card moves only within its own group, and snaps to the nearest place when you let go. On a touch screen, press and hold a card until it lifts, then drag.",
+        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. A menu floats above the selected cards: add to queue, add to playlist, take out, clear selection. When the selection mixes sources, add to playlist is greyed out."
       }
     }
   }

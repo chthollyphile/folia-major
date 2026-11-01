@@ -6,6 +6,12 @@ export default {
     "count_one": "{{count}} lagu",
     "count_other": "{{count}} lagu",
     "hint": "Lagu untuk didengar atau dirapikan nanti. Menaruhnya di sini tidak mengubah antrean.",
+    "history": "Riwayat putar",
+    "historyHint": "Lagu yang diputar dari platform daring dalam 7 hari terakhir, terbaru di atas. Lagu lokal dan Navidrome tidak dicatat di sini.",
+    "historyEmpty": "Belum ada yang diputar dari platform daring dalam 7 hari terakhir. Lagu lokal dan Navidrome tidak dicatat di sini.",
+    "today": "Hari ini",
+    "yesterday": "Kemarin",
+    "originHistory": "Riwayat putar",
     "empty": "Belum ada apa-apa. Arahkan penunjuk ke kartu lagu, baris daftar lagu, atau hasil pencarian lalu pilih \"Tambahkan ke buku catatan\", atau catat lagu yang sedang diputar dari palet perintah.",
     "open": "Buka buku catatan",
     "close": "Tutup buku catatan",
@@ -35,7 +41,7 @@ export default {
     "saveFailed": "Buku catatan gagal disimpan (penyimpanan lokal penuh); perubahan ini akan hilang saat dimulai ulang",
     "expandCanvas": "Bentangkan jadi kanvas",
     "collapseCanvas": "Kembali ke daftar",
-    "canvasHint": "Seret kartu untuk mengurutkan; kartu menempel saat dilepas. Seret kotak di ruang kosong untuk memilih beberapa.",
+    "canvasHint": "Seret kartu untuk mengurutkan; kartu menempel saat dilepas. Seret kotak di ruang kosong untuk memilih beberapa. Di layar sentuh, tekan lama kartu untuk menyeretnya; setelah satu terpilih, ketuk kartu untuk menambahkannya, ketuk lagi untuk membatalkannya.",
     "selectGroup": "Pilih grup ini",
     "enqueueGroup": "Antrekan grup ini",
     "addGroupToPlaylist": "Tambahkan grup ini ke daftar putar…",
@@ -5468,6 +5474,7 @@ export default {
         "row": "Sebuah lagu",
         "rowActions": "Tombol baris",
         "footer": "Aksi untuk semua",
+        "historyTab": "Riwayat putar",
         "expand": "Bentangkan jadi kanvas",
         "canvas": "Kanvas",
         "canvasGroup": "Satu kelompok di kanvas",
@@ -6167,10 +6174,11 @@ export default {
         "groupActions": "Di kanan kepala kelompok: “Antrekan grup ini” dan “Tambahkan grup ini ke daftar putar…”. Satu daftar putar hanya menerima lagu dari satu sumber; karena dikelompokkan per sumber, satu kelompok pas untuk satu daftar putar.",
         "rowActions": "Arahkan penunjuk ke sebuah baris untuk: putar di antrean, tambahkan ke antrean, tambahkan ke daftar putar, dan keluarkan dari buku catatan. Lagu tetap ada setelah dimasukkan ke antrean atau daftar putar; keluarkan sendiri bila sudah tidak perlu.",
         "footer": "Baris paling bawah: tambahkan semua ke antrean, ganti antrean dengan buku catatan, dan kosongkan. Mengosongkan perlu dua klik.",
+        "history": "“Riwayat putar” di atas laci adalah halaman kedua: lagu yang diputar dari platform daring dalam 7 hari terakhir, per hari, terbaru di atas. Tiap baris bisa diputar di antrean, diantrekan, ditambahkan ke buku catatan, atau disimpan ke daftar putar. Lagu lokal dan Navidrome tidak dicatat di sini.",
         "expand": "Di atas laci, di kiri tombol tutup: “Bentangkan jadi kanvas”.",
         "canvas": "Setelah dibentangkan, tiap lagu menjadi kartu, tetap dikelompokkan per sumber, dan kepala kelompok mendapat “Pilih grup ini”. Esc lebih dulu membatalkan pilihan, lalu kembali ke daftar.",
-        "drag": "Seret kartu untuk mengatur urutan. Kartu hanya berpindah di dalam kelompoknya sendiri, dan menempel ke tempat terdekat saat dilepas.",
-        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Baris bawah lalu bekerja pada pilihan: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
+        "drag": "Seret kartu untuk mengatur urutan. Kartu hanya berpindah di dalam kelompoknya sendiri, dan menempel ke tempat terdekat saat dilepas. Di layar sentuh, tekan lama kartu sampai terangkat, lalu seret.",
+        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Sebuah menu mengambang di atas kartu yang dipilih: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan, batalkan pilihan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
       }
     }
   }
