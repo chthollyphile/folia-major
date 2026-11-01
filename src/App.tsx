@@ -775,7 +775,7 @@ export default function App() {
         omni.getProviderSummaries().map(({ providerId }) => [providerId, async () => await omni.readAccount(providerId, 'sync') === 'read']),
     ), []);
     // 在线账户 controller（Library v2 · A4）：登录、选平台、切换确认与登出都在 core，App 只交出退出与退出前的那一问
-    // （useProviderSignOut），以及换平台时清空播放器的端口。端口读的句柄都是稳定引用，建一次。
+    // （useProviderSignOut），以及平台换了时的播放器端口（切换退出私人 FM，退出登录移出那个平台的歌）。端口读的句柄都是稳定引用，建一次。
     const { confirmLogout, signOut, dialog: signOutDialog } = useProviderSignOut();
     const [providerSwitchCleanup] = useState(() => createLibraryAccountSwitchCleanupPort(() => ({
         audioRef,
@@ -2308,6 +2308,7 @@ export default function App() {
         handleSearchResultAlbumOpen,
         handleSearchResultCollectionOpen,
         resolveSearchResultDisplay,
+        hasLocalSongs: localSongs.length > 0,
         devDebugSnapshot,
         effectiveLoopMode,
         canToggleCurrentPlayback,

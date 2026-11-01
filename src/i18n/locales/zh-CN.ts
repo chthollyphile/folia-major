@@ -1326,7 +1326,7 @@ export default {
     "syncing": "同步中...",
     "logout": "退出登录",
     "logoutConfirmTitle": "退出 {{provider}}？",
-    "logoutClearsQueue": "播放列表会被清空。",
+    "logoutRemovesSongs": "播放列表里这个平台的歌会被移出，其他歌留着。",
     "guestMode": "游客模式",
     "loginOnHome": "去主页登录",
     "audioQuality": "默认音质",
@@ -1604,7 +1604,7 @@ export default {
     "qqLoginMethodWechat": "微信扫码",
     "qqLoginMethodQqMusic": "QQ 音乐 App 扫码",
     "switchOnlineProvider": "切换在线音乐平台",
-    "confirmOnlineProviderSwitch": "切换到 {{provider}}？当前在线播放与队列将被清空。",
+    "confirmOnlineProviderSwitch": "切换到 {{provider}}？",
     "onlineProvider": "在线音乐平台",
     "providerNotConfigured": "Web 端未配置 API",
     "providerNoAccount": "无需登录",
@@ -6151,8 +6151,8 @@ export default {
         "platforms": "左边一列是全部平台。已经登录的那一行右端有头像；灰着的行不能选，悬停会写原因。",
         "code": "选中一个平台，右边就是它的登录方式。多数是一张二维码，用那个平台的手机应用扫；有的要先选方式，有的点一下按钮去浏览器里登录。",
         "steps": "右下角这一串小图标是登录走到哪一步：二维码、手机上确认、读到账号。",
-        "account": "已经登录的平台，这里是它的账号。「退出登录」只退这一个平台。",
-        "switch": "几个平台可以同时登录着。选中的不是正在用的那一个时，多出一颗切换按钮，把它换成正在用的平台；右下角那一枚跟着换。"
+        "account": "已经登录的平台，这里是它的账号。「退出登录」只退这一个平台，播放列表里也只移出它的歌。",
+        "switch": "几个平台可以同时登录着。选中的不是正在用的那一个时，多出一颗切换按钮，把它换成正在用的平台；右下角那一枚跟着换。换平台不动播放列表，几个平台的歌可以排在一起。"
       },
       "lyricMatch": {
         "where": "面板来源页的「在线匹配」打开这个窗口。标题下面写着正在给哪一首歌找歌词。",

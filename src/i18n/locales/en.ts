@@ -1326,7 +1326,7 @@ export default {
     "syncing": "Syncing...",
     "logout": "Logout",
     "logoutConfirmTitle": "Log out of {{provider}}?",
-    "logoutClearsQueue": "The queue will be cleared.",
+    "logoutRemovesSongs": "This platform's songs leave the queue; the others stay.",
     "guestMode": "Guest Mode",
     "loginOnHome": "Login on Home",
     "audioQuality": "Default Quality",
@@ -1604,7 +1604,7 @@ export default {
     "qqLoginMethodWechat": "WeChat scan",
     "qqLoginMethodQqMusic": "QQ Music app scan",
     "switchOnlineProvider": "Switch online music provider",
-    "confirmOnlineProviderSwitch": "Switch to {{provider}}? Current online playback and queue will be cleared.",
+    "confirmOnlineProviderSwitch": "Switch to {{provider}}?",
     "onlineProvider": "Online music provider",
     "providerNotConfigured": "API is not configured for Web",
     "providerNoAccount": "No sign-in needed",
@@ -6151,8 +6151,8 @@ export default {
         "platforms": "The column on the left lists every platform. A signed-in one has its picture at the right end of the row; a greyed row cannot be chosen, and hovering says why.",
         "code": "Choose a platform and the right side shows how it signs in. Mostly that is a QR code to scan with the platform’s phone app; some ask for a method first, some open the browser at a click.",
         "steps": "The small icons at the bottom right show how far the sign-in has got: the code, the confirmation on the phone, the account.",
-        "account": "For a platform that is signed in, this is its account. “Logout” signs out of this platform only.",
-        "switch": "Several platforms can be signed in at once. When the chosen one is not the one in use, a switch button appears and makes it the platform in use; the pill at the bottom right follows."
+        "account": "For a platform that is signed in, this is its account. “Logout” signs out of this platform only, and only its songs leave the queue.",
+        "switch": "Several platforms can be signed in at once. When the chosen one is not the one in use, a switch button appears and makes it the platform in use; the pill at the bottom right follows. Switching leaves the queue alone, so songs from several platforms can sit in it together."
       },
       "lyricMatch": {
         "where": "“Match Online” on the panel’s source tab opens this window. Under the title it says which song the lyrics are for.",

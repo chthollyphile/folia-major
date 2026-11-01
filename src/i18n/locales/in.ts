@@ -1326,7 +1326,7 @@ export default {
     "syncing": "Menyinkronkan...",
     "logout": "Logout",
     "logoutConfirmTitle": "Logout dari {{provider}}?",
-    "logoutClearsQueue": "Antrean akan dikosongkan.",
+    "logoutRemovesSongs": "Lagu dari platform ini dikeluarkan dari antrean; lagu lainnya tetap.",
     "guestMode": "Mode Tamu",
     "loginOnHome": "Login di Beranda",
     "audioQuality": "Kualitas Default",
@@ -1604,7 +1604,7 @@ export default {
     "qqLoginMethodWechat": "Pindai WeChat",
     "qqLoginMethodQqMusic": "Pindai aplikasi QQ Music",
     "switchOnlineProvider": "Ganti penyedia musik online",
-    "confirmOnlineProviderSwitch": "Ganti ke {{provider}}? Pemutaran online dan antrean saat ini akan dihapus.",
+    "confirmOnlineProviderSwitch": "Ganti ke {{provider}}?",
     "onlineProvider": "Penyedia musik online",
     "providerNotConfigured": "API tidak dikonfigurasi untuk Web",
     "providerNoAccount": "Tanpa login",
@@ -6151,8 +6151,8 @@ export default {
         "platforms": "Kolom di kiri memuat semua platform. Yang sudah masuk punya gambar di ujung kanan barisnya; baris yang kelabu tidak bisa dipilih, dan menyorotnya menyebutkan alasannya.",
         "code": "Pilih satu platform dan sisi kanan menampilkan cara masuknya. Kebanyakan berupa kode QR untuk dipindai dengan aplikasi ponsel platform itu; ada yang meminta memilih cara dulu, ada yang membuka browser dengan sekali klik.",
         "steps": "Ikon-ikon kecil di kanan bawah menunjukkan sudah sampai mana proses masuk: kode, konfirmasi di ponsel, akun.",
-        "account": "Untuk platform yang sudah masuk, inilah akunnya. “Logout” hanya keluar dari platform ini.",
-        "switch": "Beberapa platform bisa masuk sekaligus. Saat yang dipilih bukan yang sedang dipakai, muncul tombol ganti yang menjadikannya platform yang dipakai; pil di kanan bawah ikut berganti."
+        "account": "Untuk platform yang sudah masuk, inilah akunnya. “Logout” hanya keluar dari platform ini, dan hanya lagunya yang dikeluarkan dari antrean.",
+        "switch": "Beberapa platform bisa masuk sekaligus. Saat yang dipilih bukan yang sedang dipakai, muncul tombol ganti yang menjadikannya platform yang dipakai; pil di kanan bawah ikut berganti. Berganti platform tidak mengubah antrean, jadi lagu dari beberapa platform bisa ada di sana bersama-sama."
       },
       "lyricMatch": {
         "where": "“Cocokkan Online” di tab sumber panel membuka jendela ini. Di bawah judul tertulis lagu mana yang sedang dicarikan lirik.",

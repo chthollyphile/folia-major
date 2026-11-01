@@ -66,7 +66,6 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/components/shared/CoverSizeAuditPanel.tsx': { n: { netease: 6 }, kind: 'question', why: 'a developer panel: a filter for the cover requests that go to one picture host' },
     'src/components/shared/qqCommunity.ts': { n: { qq: 3 }, kind: 'namesake', why: 'the number of the QQ chat app\'s community group, not QQ Music' },
     'src/hooks/useNeteaseLibrary.ts': { n: { netease: 5 }, kind: 'file', why: 'one platform\'s account for App' },
-    'src/library/app/useLibraryAccountController.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/library/core/home/useLibraryHomeSources.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/library/core/account/account.contract.ts': { n: { qq: 3 }, kind: 'doc' },
     'src/library/core/collection/mutations/collectionMutationCapabilities.ts': { n: { qq: 1 }, kind: 'doc' },

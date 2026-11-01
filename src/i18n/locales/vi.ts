@@ -1326,7 +1326,7 @@ export default {
     "syncing": "Đang đồng bộ...",
     "logout": "Đăng xuất",
     "logoutConfirmTitle": "Đăng xuất khỏi {{provider}}?",
-    "logoutClearsQueue": "Danh sách phát sẽ bị xóa sạch.",
+    "logoutRemovesSongs": "Các bài của nền tảng này sẽ bị bỏ khỏi danh sách phát; các bài khác vẫn giữ nguyên.",
     "guestMode": "Chế độ khách",
     "loginOnHome": "Đăng nhập tại Trang chủ",
     "audioQuality": "Chất lượng mặc định",
@@ -1604,7 +1604,7 @@ export default {
     "qqLoginMethodWechat": "Quét WeChat",
     "qqLoginMethodQqMusic": "Quét bằng ứng dụng QQ Music",
     "switchOnlineProvider": "Đổi nền tảng nhạc trực tuyến",
-    "confirmOnlineProviderSwitch": "Chuyển sang {{provider}}? Danh sách phát và bài đang phát trực tuyến sẽ bị xóa.",
+    "confirmOnlineProviderSwitch": "Chuyển sang {{provider}}?",
     "onlineProvider": "Nền tảng nhạc trực tuyến",
     "providerNotConfigured": "Bản Web chưa cấu hình API",
     "providerNoAccount": "Không cần đăng nhập",
@@ -6151,8 +6151,8 @@ export default {
         "platforms": "Cột bên trái liệt kê tất cả các nền tảng. Nền tảng đã đăng nhập có ảnh đại diện ở phía bên phải; hàng bị mờ là không thể chọn, rê chuột vào sẽ hiển thị lý do.",
         "code": "Chọn một nền tảng và phía bên phải sẽ hiển thị cách đăng nhập. Phần lớn là quét mã QR bằng ứng dụng điện thoại; một số yêu cầu chọn phương thức trước, một số mở trình duyệt chỉ với một cú nhấp.",
         "steps": "Dãy biểu tượng nhỏ ở góc dưới bên phải biểu thị tiến độ đăng nhập: tạo mã QR, xác nhận trên điện thoại, đọc thông tin tài khoản.",
-        "account": "Đối với nền tảng đã đăng nhập, đây là thông tin tài khoản. Nút \"Đăng xuất\" chỉ đăng xuất khỏi nền tảng này.",
-        "switch": "Có thể đăng nhập nhiều nền tảng cùng lúc. Khi nền tảng được chọn không phải là nền tảng đang dùng, nút chuyển đổi sẽ xuất hiện để đặt nó làm nền tảng hiện tại; biểu tượng góc dưới bên phải sẽ đổi theo."
+        "account": "Đối với nền tảng đã đăng nhập, đây là thông tin tài khoản. Nút \"Đăng xuất\" chỉ đăng xuất khỏi nền tảng này, và chỉ các bài của nền tảng này bị bỏ khỏi danh sách phát.",
+        "switch": "Có thể đăng nhập nhiều nền tảng cùng lúc. Khi nền tảng được chọn không phải là nền tảng đang dùng, nút chuyển đổi sẽ xuất hiện để đặt nó làm nền tảng hiện tại; biểu tượng góc dưới bên phải sẽ đổi theo. Đổi nền tảng không làm thay đổi danh sách phát, nên bài của nhiều nền tảng có thể nằm chung trong đó."
       },
       "lyricMatch": {
         "where": "Mục \"Khớp trực tuyến\" trong tab nguồn của bảng điều khiển sẽ mở cửa sổ này. Dưới tiêu đề sẽ cho biết bài hát đang được tìm lời.",

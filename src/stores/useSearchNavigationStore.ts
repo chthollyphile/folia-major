@@ -71,8 +71,11 @@ interface SearchNavigationState {
     setSearchScrollTop: (scrollTop: number) => void;
     restoreSearch: (payload: { query: string; sourceTab: SearchSource; kind?: SearchKind; returnView?: SearchReturnView; }) => void;
     hideSearchOverlay: () => void;
-    resetRuntime: (onlineProviderId?: OnlineProviderId) => void;
-    followOnlineProvider: (providerId: OnlineProviderId) => void;
+    /**
+     * 选着的来源不在 `sources` 里了（退出了那个平台的登录、mod 源被关掉、本地曲库清空）：换成 `fallback`，那个来源的
+     * 结果与在途的搜索一起作废。还在里面就什么都不动（切换当前平台不重置搜索）。
+     */
+    keepSearchSourceWithin: (sources: readonly SearchSource[], fallback: SearchSource) => boolean;
     /** `kind` 不给就沿用当前的；来源搜不到这一种时退回单曲（resolveSearchKind）。 */
     submitSearch: (payload: { query?: string; sourceTab: SearchSource; kind?: SearchKind; deps: SearchExecutorDeps; returnView?: SearchReturnView; }) => Promise<boolean>;
     loadMoreSearchResults: (payload: { deps: SearchExecutorDeps; }) => Promise<void>;
@@ -290,32 +293,25 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         };
     }),
     hideSearchOverlay: () => set({ isSearchOpen: false, searchReturnView: 'home' }),
-    resetRuntime: (onlineProviderId) => set(state => ({
-        searchQuery: '',
-        submittedQuery: '',
-        searchSourceTab: onlineProviderId ?? state.searchSourceTab,
-        searchResults: null,
-        collectionResults: null,
-        resultTotal: null,
-        searchReturnView: 'home',
-        isSearchOpen: false,
-        isSearching: false,
-        isLoadingMore: false,
-        searchError: null,
-        requestId: state.requestId + 1,
-        offset: 0,
-        hasMore: false,
-        scrollTop: 0,
-    })),
-    // The overlay's online source is the active provider. A switch moves it through resetRuntime, but
-    // the active provider also changes without one (startup, session restore, a Folium mod source going
-    // away), so this keeps it in step. Local and Navidrome are left alone, and the results stay: clearing
-    // them is the switch's job.
-    followOnlineProvider: (providerId) => set(state => (
-        state.searchSourceTab === 'local' || state.searchSourceTab === 'navidrome' || state.searchSourceTab === providerId
-            ? state
-            : { searchSourceTab: providerId }
-    )),
+    keepSearchSourceWithin: (sources, fallback) => {
+        const state = get();
+        if (sources.includes(state.searchSourceTab)) return false;
+        set({
+            searchSourceTab: fallback,
+            searchKind: resolveSearchKind(fallback, state.searchKind),
+            searchResults: null,
+            collectionResults: null,
+            resultTotal: null,
+            isSearching: false,
+            isLoadingMore: false,
+            searchError: null,
+            requestId: state.requestId + 1,
+            offset: 0,
+            hasMore: false,
+            scrollTop: 0,
+        });
+        return true;
+    },
     submitSearch: async ({ query, sourceTab, kind, deps, returnView = 'home' }) => {
         const trimmedQuery = (query ?? get().searchQuery).trim();
         if (!trimmedQuery) {
