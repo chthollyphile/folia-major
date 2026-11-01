@@ -391,9 +391,9 @@ export default function WindowControls({
         >
           {touchHoverOverlay("pin")}
           {isTitlebarPinned ? (
-            <PinOff className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
+            <PinOff className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
           ) : (
-            <Pin className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
+            <Pin className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
           )}
         </button>
         <button
@@ -408,7 +408,7 @@ export default function WindowControls({
           onClick={() => void electron.openRemoteControl?.()}
         >
           {touchHoverOverlay("remote")}
-          <Radio className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={15} />
+          <Radio className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={15} />
         </button>
         {!hideFullscreenButton && (
           <button
@@ -428,12 +428,12 @@ export default function WindowControls({
             {touchHoverOverlay("fullscreen")}
             {isFullscreen ? (
               <Minimize
-                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             ) : (
               <Maximize
-                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             )}
@@ -450,7 +450,7 @@ export default function WindowControls({
           onClick={() => electron.minimizeWindow()}
         >
           {touchHoverOverlay("minimize")}
-          <Minus className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
+          <Minus className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
         </button>
         {/* 全屏状态下不显示最大化 / 还原按钮：全屏时它只会和全屏按钮重复，
             而且「还原」在全屏里没有意义。 */}
@@ -494,23 +494,23 @@ export default function WindowControls({
             {usesNativeFullscreen ? (
               isExpanded ? (
                 <Minimize
-                  className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                  className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                   size={13}
                 />
               ) : (
                 <Maximize
-                  className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                  className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                   size={13}
                 />
               )
             ) : isExpanded ? (
               <Copy
-                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             ) : (
               <Square
-                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             )}
@@ -527,7 +527,7 @@ export default function WindowControls({
           onClick={() => electron.closeWindow()}
         >
           {touchHoverOverlay("close")}
-          <X className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
+          <X className="relative drop-shadow-[0_0_1px_#000] hover:drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
         </button>
       </div>
     </div>
