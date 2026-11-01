@@ -254,18 +254,41 @@ export interface StageMediaSession {
 
 export type StageSession = StageMediaSession;
 
+/** One song a Stage search found; `songRef` (`<provider>:<songId>`) plays or queues it. */
 export interface StageSearchResult {
-  songId: number;
+  songId: number | string;
   title: string;
   artists: string[];
   album: string;
   durationMs: number | null;
   coverUrl: string | null;
+  provider: string;
+  songRef: string;
 }
 
-export interface StageExternalPlayRequest {
+/** A song the Stage API names: the omni provider and its id there. */
+export interface StageSongRef {
+  providerId: string;
+  songId: number | string;
+}
+
+/** A search the Stage API asks the renderer to run at one omni provider. */
+export interface StagePlayerSearchRequest {
   requestId: string;
-  songId: number;
+  providerId: string;
+  query: string;
+  limit: number;
+}
+
+export interface StagePlayerSearchResult {
+  requestId: string;
+  ok: boolean;
+  error?: string | null;
+  songs?: StageSearchResult[];
+}
+
+export interface StageExternalPlayRequest extends StageSongRef {
+  requestId: string;
   appendToQueue?: boolean;
 }
 
@@ -380,8 +403,8 @@ export interface StagePlayerControlRequest {
 export interface StagePlayerQueueRequest {
   requestId: string;
   action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-  songId?: number;
-  songIds?: number[];
+  /** The songs an append or insert-next adds, in order. */
+  songs?: StageSongRef[];
   queueItemId?: string;
   fromQueueItemId?: string;
   fromIndex?: number;

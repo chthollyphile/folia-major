@@ -34,6 +34,10 @@ const env = vi.hoisted(() => {
         fmBatch: null as Promise<unknown[]> | null,
         /** Holds the Stage API's lookup of a song's details. */
         detailGate: null as Promise<unknown> | null,
+        /** Every lookup of a song's details, as [providerId, id]. */
+        detailCalls: [] as Array<[string, unknown]>,
+        /** `<providerId>:<id>` of the songs whose lookup finds nothing. */
+        missingDetail: new Set<string>(),
         /** An installed `beforePlay` hook (a mod's) that answers when this resolves, or none. */
         beforePlay: null as Promise<unknown> | null,
         effects: [] as Array<() => unknown>,
@@ -93,8 +97,10 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         getProviderLabel: (id: string) => id,
         getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
         getSongReplacement: async (song: { id: string }) => env.self.replacementFor.get(String(song.id)) ?? null,
-        getSongDetail: async (_providerId: string, id: number) => {
+        getSongDetail: async (providerId: string, id: number | string) => {
+            env.self.detailCalls.push([providerId, id]);
             await env.self.detailGate;
+            if (env.self.missingDetail.has(`${providerId}:${id}`)) return null;
             return { id: `d${id}`, name: `D${id}`, artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'bodian', mediaId: `d${id}` } };
         },
     },
@@ -194,6 +200,8 @@ beforeEach(() => {
     env.self.replacementFor.clear();
     env.self.fmBatch = null;
     env.self.detailGate = null;
+    env.self.detailCalls.length = 0;
+    env.self.missingDetail.clear();
     env.self.beforePlay = null;
     env.self.effects.length = 0;
     env.self.slots.length = 0;
@@ -905,7 +913,7 @@ describe('a Stage API add', () => {
         const details = deferred();
         env.self.detailGate = details.promise;
 
-        onRequest!({ requestId: 'r1', action: 'append', songId: 7 });
+        onRequest!({ requestId: 'r1', action: 'append', songs: [{ providerId: 'netease', songId: 7 }] });
         await settle();
         const replaced = [x, y];
         replaceWhole(replaced);
@@ -916,5 +924,46 @@ describe('a Stage API add', () => {
             requestId: 'r1', ok: false, error: 'The queue changed while the request was loading.',
         }));
         expect(store().playQueue).toBe(replaced);
+    });
+
+    it('looks each song up at its own provider and adds the songs of several', async () => {
+        playerWith([a, b], a);
+        const complete = vi.fn(async () => undefined);
+        let onRequest: ((request: unknown) => void) | null = null;
+        vi.stubGlobal('window', {
+            setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn(),
+            electron: {
+                onStagePlayerQueueRequest: (handler: (request: unknown) => void) => { onRequest = handler; return () => {}; },
+                completeStagePlayerQueueRequest: complete,
+            },
+        });
+        mount();
+        env.self.effects.find(effect => String(effect).includes('onStagePlayerQueueRequest'))?.();
+
+        onRequest!({ requestId: 'r2', action: 'append', songs: [{ providerId: 'netease', songId: 7 }, { providerId: 'qq', songId: '97773' }] });
+        await vi.waitFor(() => expect(complete).toHaveBeenCalled());
+
+        expect(complete).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'r2', ok: true }));
+        expect(env.self.detailCalls).toEqual([['netease', 7], ['qq', '97773']]);
+        expect(store().playQueue.map(song => song.id)).toEqual(['a', 'b', 'd7', 'd97773']);
+    });
+
+    it('plays a song looked up at the provider the request names, and says which one it could not find', async () => {
+        playerWith([a, b], a);
+        const complete = vi.fn(async () => undefined);
+        vi.stubGlobal('window', {
+            setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn(),
+            electron: { completeStageExternalPlayRequest: complete },
+        });
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        env.self.missingDetail.add('qq:1');
+        const { queue } = mount();
+
+        await queue.handleStageExternalPlayRequest({ requestId: 'p1', providerId: 'qq', songId: '1' });
+
+        expect(env.self.detailCalls).toEqual([['qq', '1']]);
+        expect(complete).toHaveBeenCalledWith(expect.objectContaining({
+            requestId: 'p1', ok: false, error: 'Song qq:1 was not found.',
+        }));
     });
 });
