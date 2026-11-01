@@ -8,6 +8,7 @@ import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } fro
 import { createNavidromeCollectionResource } from './navidromeCollectionResource.service';
 import { resolveNavidromeServerScope } from './navidromeCollectionTracks.service';
 import { createStaticCollectionResource } from './staticCollectionResource.service';
+import { loadPreferredDailySongs } from '../dailyRecommendationLoad.service';
 
 // src/library/core/collection/resource/createCollectionResource.service.ts
 // 资源的默认装配：在线走 omni 与在线缓存，Navidrome 走 Subsonic。单测直接构造各资源并注入依赖，
@@ -17,7 +18,8 @@ const onlineDeps: OnlineCollectionResourceDeps = {
     getCollectionTracks: (collection, page) => omni.getCollectionTracks(collection, page),
     getCollectionDetail: collection => omni.getCollectionDetail(collection),
     getPersonalFm: () => omni.getPersonalFm(),
-    getDailySongs: () => omni.getDailySongs(),
+    // 上次看的是风格推荐时直接取风格推荐（dailyRecommendationLoad.service）。
+    getDailySongs: loadPreferredDailySongs,
     readCache: readOnlineTracksCache,
     writeCache: writeOnlineTracksCache,
     beginLikedListRead: collection => omni.beginLikedListRead(collection),

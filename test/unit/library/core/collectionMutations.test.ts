@@ -592,6 +592,74 @@ describe('daily style recommendations (#938)', () => {
         expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(3);
     });
 
+    it('starts where the last visit left off and writes every switch back', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('s-loaded')]);
+        const omni = styleOmni();
+        const listeners = new Set<() => void>();
+        const remembered = { prefersStyle: true, styleSelection: null as { groupId: string; tagIds: string[] } | null };
+        const dailyMode = {
+            read: () => ({ ...remembered }),
+            setPrefersStyle: vi.fn((prefersStyle: boolean) => { remembered.prefersStyle = prefersStyle; }),
+            noteStyleSelection: vi.fn((selection: { groupId: string; tagIds: string[] } | null) => { remembered.styleSelection = selection; }),
+            subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+        };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni, removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleShown: true, dailyStyleSelection: null });
+        expect(controller.getSnapshot().capabilities.editCollection.supported).toBe(false);
+
+        // 第一个订阅者到来：取分组；资源加载完记下的风格到了就通知。
+        const listener = vi.fn();
+        controller.subscribe(listener);
+        await settle();
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(1);
+        remembered.styleSelection = { groupId: '1000', tagIds: ['10015'] };
+        listeners.forEach(notify => notify());
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual({ groupId: '1000', tagIds: ['10015'] });
+        expect(listener).toHaveBeenCalled();
+
+        expect(await controller.setDailyDate('')).toEqual({ ok: true });
+        expect(dailyMode.setPrefersStyle).toHaveBeenLastCalledWith(false);
+        expect(controller.getSnapshot().dailyStyleSelection).toBeNull();
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        expect(dailyMode.setPrefersStyle).toHaveBeenLastCalledWith(true);
+        // 换成功的风格写回，下一个控制器从它起步。
+        expect(dailyMode.noteStyleSelection).toHaveBeenLastCalledWith({ groupId: '1000', tagIds: ['10004'] });
+
+        // 自动取分组只有第一次；宿主之后的 update 不再重发。
+        controller.update({});
+        controller.update({});
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(1);
+
+        controller.dispose();
+        expect(listeners.size).toBe(0);
+    });
+
+    it('shows no styles when the answer names none, even after another pick', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const omni = styleOmni({ getDailyStyleSongs: vi.fn(async () => ({ songs: [], selection: null })) });
+        const noted: unknown[] = [];
+        const dailyMode = { read: () => ({ prefersStyle: false, styleSelection: null }), setPrefersStyle: vi.fn(), noteStyleSelection: vi.fn((s: unknown) => { noted.push(s); }), subscribe: () => () => {} };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni, removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(await controller.setDailyStyle({ groupId: '1000', tagIds: ['10004'] })).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual({ groupId: '1000', tagIds: ['10004'] });
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleSelection).toBeNull();
+        expect(noted.at(-1)).toBeNull();
+    });
+
+    it('starts on the default list where the provider has no style recommendations', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const dailyMode = { read: () => ({ prefersStyle: true, styleSelection: null }), setPrefersStyle: vi.fn(), noteStyleSelection: vi.fn(), subscribe: () => () => {} };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni: fakeOmni(), removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(controller.getSnapshot().dailyStyleShown).toBe(false);
+    });
+
     it('shares the busy lock with the date switch', async () => {
         const { resource } = await onlineResource(daily, [onlineSong('d0')]);
         const songs = deferred<{ songs: SongResult[]; selection: null }>();

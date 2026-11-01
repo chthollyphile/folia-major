@@ -74,10 +74,24 @@ export type CollectionMutationOmni = {
     getProviderCapabilities?(providerId: OmniProviderId): Pick<ProviderCapabilities, 'historyRecommendations' | 'dailyStyleRecommendations'>;
 };
 
+/**
+ * 每日推荐上次看的是哪一种（#938，core/collection/useDailyRecommendationModeStore）。资源按它加载，控制器按它定
+ * 开始时是不是风格推荐；切换成功后写回。styleSelection 是资源加载的风格推荐答复说的风格。
+ */
+export type DailyRecommendationModePort = {
+    read(): { prefersStyle: boolean; styleSelection: DailyStyleSelection | null };
+    setPrefersStyle(prefersStyle: boolean): void;
+    /** 控制器换成功的风格推荐是哪些风格（下一个控制器起步时用）。 */
+    noteStyleSelection(selection: DailyStyleSelection | null): void;
+    subscribe(listener: () => void): () => void;
+};
+
 export type CollectionMutationDeps = {
     omni: CollectionMutationOmni;
     /** 删一条应用缓存（在线歌单删歌后作废 `playlist_detail_${id}`）。 */
     removeCacheEntry: (key: string) => Promise<void>;
+    /** 单测可以不给：那时每日推荐总是从默认推荐开始，也不记。 */
+    dailyMode?: DailyRecommendationModePort;
 };
 
 export type CollectionMutationControllerOptions = CollectionMutationInputs & CollectionMutationDeps;
@@ -119,7 +133,7 @@ const sameCapabilities = (left: CollectionMutationCapabilities, right: Collectio
 export const createCollectionMutationController = (
     options: CollectionMutationControllerOptions,
 ): CollectionMutationController => {
-    const { omni, removeCacheEntry } = options;
+    const { omni, removeCacheEntry, dailyMode } = options;
     let inputs: CollectionMutationInputs = {
         descriptor: options.descriptor,
         resource: options.resource,
@@ -137,6 +151,8 @@ export const createCollectionMutationController = (
     let dailyDate = '';
     let dailyDatePending = false;
     let dailyStyleShown = false;
+    let stopWatchingDailyMode: (() => void) | null = null;
+    let dailyStyleGroupsPrefetched = false;
     let dailyStyleGroups: readonly DailyStyleGroup[] = [];
     let dailyStyleGroupsRequested = false;
     let dailyStyleGroupsFailed = false;
@@ -186,6 +202,12 @@ export const createCollectionMutationController = (
         if (!omni.getDailyStyleSongs || !omni.setDailyStyle) return false;
         return omni.getProviderCapabilities?.(descriptor.providerId)?.dailyStyleRecommendations === true;
     };
+    // 每日推荐的资源按上次看的那种加载（dailyRecommendationLoad.service），控制器从同一处起步。
+    dailyStyleShown = Boolean(dailyMode?.read().prefersStyle) && styleAvailable();
+    /** 正在看的风格：控制器自己换来的为准；开始时那份是资源加载的，风格记在 dailyMode 里。 */
+    const currentStyleSelection = () => (
+        dailyStyleSelection ?? (dailyStyleShown ? dailyMode?.read().styleSelection ?? null : null)
+    );
 
     const compute = (previous: CollectionMutationSnapshot | null): CollectionMutationSnapshot => {
         const branches = resolveBranches();
@@ -220,7 +242,7 @@ export const createCollectionMutationController = (
             dailyStyleShown,
             dailyStyleGroups,
             dailyStyleGroupsFailed,
-            dailyStyleSelection,
+            dailyStyleSelection: currentStyleSelection(),
             renamedTo: currentRename(),
             availablePlaylists: previous && sameList(previous.availablePlaylists, availablePlaylists) ? previous.availablePlaylists : availablePlaylists,
             branches: previous && sameShallow(previous.branches, branches) ? previous.branches : branches,
@@ -257,6 +279,13 @@ export const createCollectionMutationController = (
                 })
                 .catch(error => console.warn('[LibraryUi] Failed to fetch collection subscription status:', error));
         }
+        // 开始时就是风格推荐：选中的风格要分组才写得出名字；资源加载完记下的风格到了也要通知。
+        // 自动只取一次；没取到之后由选择器（打开、重试）再取，宿主每次 update 不跟着重发。
+        if (dailyStyleShown && !dailyStyleGroupsPrefetched) {
+            dailyStyleGroupsPrefetched = true;
+            loadDailyStyleGroups();
+        }
+        if (!stopWatchingDailyMode && dailyMode && styleAvailable()) stopWatchingDailyMode = dailyMode.subscribe(emit);
         if (!historyRequested && snapshot.branches.isDailyRecommendationsCollection && historyAvailable()) {
             historyRequested = true;
             omni.getRecommendationHistoryDates()
@@ -528,6 +557,7 @@ export const createCollectionMutationController = (
             if (!replaced) return fail('failed');
             dailyDate = date;
             dailyStyleShown = false;
+            dailyMode?.setPrefersStyle(false);
             return OK;
         } finally {
             dailyDatePending = false;
@@ -598,8 +628,10 @@ export const createCollectionMutationController = (
             if (!replaced) return fail('failed');
             dailyDate = '';
             dailyStyleShown = true;
+            dailyMode?.setPrefersStyle(true);
             const shownFor = answer.selection ?? saving;
-            if (shownFor) dailyStyleSelection = { groupId: shownFor.groupId, tagIds: [...shownFor.tagIds] };
+            dailyStyleSelection = shownFor ? { groupId: shownFor.groupId, tagIds: [...shownFor.tagIds] } : null;
+            dailyMode?.noteStyleSelection(dailyStyleSelection);
             return OK;
         } finally {
             dailyDatePending = false;
@@ -693,6 +725,8 @@ export const createCollectionMutationController = (
         dispose: () => {
             disposed = true;
             stopWatchingSaves();
+            stopWatchingDailyMode?.();
+            stopWatchingDailyMode = null;
             listeners.clear();
         },
     };
