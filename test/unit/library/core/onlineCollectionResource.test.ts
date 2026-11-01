@@ -481,4 +481,19 @@ describe('online collection resource: edit bridge', () => {
         expect(resource.getSnapshot()).toMatchObject({ status: 'ready' });
         expect(ids(resource.getSnapshot().tracks)).toEqual(['history-0', 'history-1']);
     });
+
+    it('drops the failure of the first read once a replacement comes in', async () => {
+        const h = harness(songs(5));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.mocked(h.deps.getCollectionTracks).mockRejectedValueOnce(new Error('offline'));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 5 }), {});
+        await settle();
+        expect(resource.getSnapshot().status).toBe('error');
+        expect(resource.getSnapshot().error).not.toBeNull();
+
+        expect(await resource.replaceAll(async () => songs(2, 'other'))).toBe(true);
+        expect(resource.getSnapshot()).toMatchObject({ status: 'ready', error: null });
+    });
 });

@@ -6,9 +6,11 @@ import type { CollectionMutationController, CollectionMutationSnapshot, LibraryM
 import type { CollectionResourceSnapshot } from '../../core/shared/resource.contract';
 import { resolveCollectionSyncCounts } from '../../core/collection/collectionProgress';
 import { resolveCollectionDescription } from '../../core/collection/collectionDescription';
+import { describeDailyStyle, sameDailyStyle } from '../../core/collection/dailyStyle';
 import type { CollectionActions } from '../../core/collection/mutations/useCollectionActions';
 import type { CollectionView } from '../../core/collection/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
+import type { DailyStyleSelection } from '../../../types/onlineMusic';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
@@ -155,24 +157,40 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     }, [actions.capabilities.collect, actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.contextTracks.length, view.playableTracks.length]);
 
     // 每日推荐的日期步进：‹ 更早 · 日期 · 更近 ›，今天还能「刷新今天」。换日期就是换内容：整面翻牌，不换层。
+    // 平台有风格推荐（#938）时上面多一行「默认推荐 / 风格推荐」；看风格推荐时步进换成选中的风格，点它翻出风格选择。
+    const dailyStyleLabel = describeDailyStyle(mutation.dailyStyleGroups, mutation.dailyStyleSelection);
     const daily = useMemo<BravaisSeamCollection['daily']>(() => {
         if (!offers('daily-date')) return undefined;
         const dates = ['', ...mutation.dailyHistoryDates];
         const index = Math.max(0, dates.indexOf(mutation.dailyDate));
-        const setDate = (date: string, afresh = false) => () => {
+        const run = (action: (controller: CollectionMutationController) => Promise<LibraryMutationResult>) => () => {
             const controller = latest.current.mutations;
-            if (controller) void latest.current.notice.run(() => controller.setDailyDate(date, { afresh }));
+            if (controller) void latest.current.notice.run(() => action(controller));
         };
+        const setDate = (date: string, afresh = false) => run(controller => controller.setDailyDate(date, { afresh }));
+        const styleShown = mutation.dailyStyleShown;
         return {
             label: mutation.dailyDate || t('home.todayRecommendations'),
             ariaLabel: t('home.recommendationDate'),
             disabled: isLoading,
-            onPrevious: index + 1 < dates.length ? setDate(dates[index + 1]) : undefined,
-            onNext: index > 0 ? setDate(dates[index - 1]) : undefined,
+            onPrevious: !styleShown && index + 1 < dates.length ? setDate(dates[index + 1]) : undefined,
+            onNext: !styleShown && index > 0 ? setDate(dates[index - 1]) : undefined,
             refreshLabel: t('home.refreshRecommendations'),
-            onRefresh: mutation.dailyDate ? undefined : setDate('', true),
+            onRefresh: mutation.dailyDate || styleShown ? undefined : setDate('', true),
+            modes: mutation.dailyStyleAvailable ? {
+                ariaLabel: t('home.dailyRecommendationMode'),
+                items: [
+                    { id: 'default', label: t('home.dailyDefaultRecommendations'), active: !styleShown, run: setDate('') },
+                    { id: 'style', label: t('home.dailyStyleRecommendations'), active: styleShown, run: run(controller => controller.showDailyStyle()) },
+                ],
+            } : undefined,
+            style: styleShown ? {
+                label: dailyStyleLabel || t('home.dailyStylePick'),
+                title: t('home.dailyStylePickerTitle'),
+                onOpen: () => latest.current.forms.openDailyStyle(),
+            } : undefined,
         };
-    }, [isLoading, mutation.dailyDate, mutation.dailyHistoryDates, offers, t]);
+    }, [dailyStyleLabel, isLoading, mutation.dailyDate, mutation.dailyHistoryDates, mutation.dailyStyleAvailable, mutation.dailyStyleShown, offers, t]);
 
     const subscribe = useMemo<BravaisSeamCollection['subscribe']>(() => {
         if (!offers('subscribe')) return undefined;
@@ -204,12 +222,44 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     // 表单态（改名、删除确认、加入歌单选择 / 新建）。
     const formState = forms.state;
     const playlists = mutation.availablePlaylists;
+    const { dailyStyleGroups, dailyStyleGroupsFailed, dailyStyleSelection } = mutation;
+    const dailyPending = mutation.capabilities.dailyDate.pending;
     const form = useMemo<BravaisSeamCollection['form']>(() => {
         if (!formState) return null;
         const cancel = t('libraryBravaisCollection.cancel');
         const base = { state: formState, pending, onSubmit: (value: string) => void forms.submit(value), onCancel: forms.cancel };
         if (formState.kind === 'rename') {
             return { ...base, labels: { title: t('libraryBravaisCollection.renameTitle'), submit: t('libraryBravaisCollection.save'), cancel, placeholder: t('libraryBravaisCollection.rename') } };
+        }
+        if (formState.kind === 'pick-daily-style') {
+            return {
+                ...base,
+                pending: pending || dailyPending,
+                labels: {
+                    title: t('home.dailyStylePickerTitle'),
+                    message: t('home.dailyStylePickerDescription'),
+                    submit: t('libraryBravaisCollection.save'),
+                    cancel,
+                    empty: t('home.dailyStyleLoading'),
+                },
+                dailyStyle: {
+                    groups: dailyStyleGroups,
+                    selection: dailyStyleSelection,
+                    failed: dailyStyleGroupsFailed,
+                    failedLabel: t('home.dailyStyleGroupsFailed'),
+                    retryLabel: t('ui.retry'),
+                    onRetry: () => latest.current.mutations?.loadDailyStyleGroups(),
+                },
+                onPickDailyStyle: (selection: DailyStyleSelection) => {
+                    const current = latest.current.mutationSnapshot;
+                    // 选的就是正在看的风格：不再存一遍，直接收起。
+                    if (current.dailyStyleShown && sameDailyStyle(current.dailyStyleSelection, selection)) {
+                        forms.cancel();
+                        return;
+                    }
+                    void forms.pickDailyStyle(selection);
+                },
+            };
         }
         if (formState.kind === 'confirm-delete') {
             const folderMessage = collection.name.replace(/\\/g, '/').includes('/') ? 'localMusic.deleteSubfolderMessage' : 'localMusic.deleteRootFolderMessage';
@@ -240,7 +290,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             },
             onStartCreate: offers('create-playlist') ? forms.startCreate : undefined,
         };
-    }, [collection.name, formState, forms, input.displayTitle, isLocalFolder, offers, pending, playlists, t]);
+    }, [collection.name, dailyPending, dailyStyleGroups, dailyStyleGroupsFailed, dailyStyleSelection, formState, forms, input.displayTitle, isLocalFolder, offers, pending, playlists, t]);
 
     // 标题下的描述：详情盖在集合描述上（与网格信息面板同一条规则），空的不给。
     const description = resolveCollectionDescription(collection, snapshot?.detail);

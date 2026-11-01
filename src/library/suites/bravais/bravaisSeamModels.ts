@@ -1,4 +1,5 @@
 import type { BravaisFormState } from './bravaisFormModel';
+import type { DailyStyleGroup, DailyStyleSelection } from '../../../types/onlineMusic';
 
 // src/library/suites/bravais/bravaisSeamModels.ts
 // B7 集合页挂在层描述上的扩展类型（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度、状态行、结果提示、过滤输入位（每面墙都有）、
@@ -43,6 +44,13 @@ export type BravaisSeamDaily = {
     onNext?: () => void;
     refreshLabel: string;
     onRefresh?: () => void;
+    /** 默认推荐 / 风格推荐的切换（#938，平台有风格推荐才给）。 */
+    modes?: {
+        ariaLabel: string;
+        items: readonly { id: 'default' | 'style'; label: string; active: boolean; run: () => void }[];
+    };
+    /** 正在看风格推荐：日期步进换成选中的风格，点它翻出风格选择。 */
+    style?: { label: string; title: string; onOpen: () => void };
 };
 
 /**
@@ -86,6 +94,19 @@ export type BravaisSeamForm = {
     };
     /** pick-playlist 的候选（可写的 Navidrome 歌单）。 */
     playlists?: readonly { id: string; name: string }[];
+    /**
+     * pick-daily-style 的风格分组与正在看的风格。分组还没取到时是空的，显示 labels.empty；没取到（failed）时显示
+     * failedLabel 和重试。
+     */
+    dailyStyle?: {
+        groups: readonly DailyStyleGroup[];
+        selection: DailyStyleSelection | null;
+        failed: boolean;
+        failedLabel: string;
+        retryLabel: string;
+        onRetry: () => void;
+    };
+    onPickDailyStyle?: (selection: DailyStyleSelection) => void;
     onSubmit: (value: string) => void;
     onPick?: (playlistId: string) => void;
     onStartCreate?: () => void;

@@ -174,6 +174,9 @@ const fakeController = (snapshot: CollectionMutationSnapshot) => {
         organizeSongInfo: vi.fn(ok),
         matchSong: vi.fn(ok),
         setDailyDate: vi.fn(ok),
+        showDailyStyle: vi.fn(ok),
+        setDailyStyle: vi.fn(ok),
+        loadDailyStyleGroups: vi.fn(),
         dispose: vi.fn(),
     } satisfies CollectionMutationController;
 };
