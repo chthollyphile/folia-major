@@ -41,7 +41,7 @@ export default {
     "saveFailed": "Buku catatan gagal disimpan (penyimpanan lokal penuh); perubahan ini akan hilang saat dimulai ulang",
     "expandCanvas": "Bentangkan jadi kanvas",
     "collapseCanvas": "Kembali ke daftar",
-    "canvasHint": "Seret kartu untuk mengurutkan; kartu menempel saat dilepas. Seret kotak di ruang kosong untuk memilih beberapa. Di layar sentuh, tekan lama kartu untuk menyeretnya; setelah satu terpilih, ketuk kartu untuk menambahkannya, ketuk lagi untuk membatalkannya.",
+    "canvasHint": "Seret kartu untuk mengurutkan; kartu menempel saat dilepas. Seret kotak di ruang kosong untuk memilih beberapa; tahan {{mod}} lalu klik kartu untuk menambah atau membatalkannya, tahan Shift lalu klik untuk memilih satu rentang. Di layar sentuh, tekan lama kartu untuk menyeretnya; setelah satu terpilih, ketuk kartu untuk menambahkannya, ketuk lagi untuk membatalkannya.",
     "selectGroup": "Pilih grup ini",
     "enqueueGroup": "Antrekan grup ini",
     "addGroupToPlaylist": "Tambahkan grup ini ke daftar putar…",

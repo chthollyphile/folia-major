@@ -41,7 +41,7 @@ export default {
     "saveFailed": "Không lưu được sổ ghi nhanh (bộ nhớ cục bộ đã đầy); thay đổi này sẽ mất khi khởi động lại",
     "expandCanvas": "Mở rộng thành bảng",
     "collapseCanvas": "Trở về danh sách",
-    "canvasHint": "Kéo thẻ để sắp xếp; thả ra thẻ sẽ tự vào chỗ. Kéo khung ở chỗ trống để chọn nhiều bài. Trên màn hình cảm ứng, nhấn giữ thẻ để kéo; khi đã chọn một thẻ, chạm vào thẻ để chọn thêm, chạm lần nữa để bỏ chọn.",
+    "canvasHint": "Kéo thẻ để sắp xếp; thả ra thẻ sẽ tự vào chỗ. Kéo khung ở chỗ trống để chọn nhiều bài; giữ {{mod}} rồi bấm vào thẻ để chọn thêm hoặc bỏ chọn, giữ Shift rồi bấm để chọn một dải. Trên màn hình cảm ứng, nhấn giữ thẻ để kéo; khi đã chọn một thẻ, chạm vào thẻ để chọn thêm, chạm lần nữa để bỏ chọn.",
     "selectGroup": "Chọn nhóm này",
     "enqueueGroup": "Thêm nhóm này vào hàng đợi",
     "addGroupToPlaylist": "Thêm nhóm này vào danh sách phát…",

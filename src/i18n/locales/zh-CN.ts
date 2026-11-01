@@ -41,7 +41,7 @@ export default {
     "saveFailed": "速记簿没能存下来（本机存储满了），重启后这次的改动会丢",
     "expandCanvas": "展开成画布",
     "collapseCanvas": "收回列表",
-    "canvasHint": "拖动卡片整理顺序，松手会吸附到位；在空白处拖出框来多选。触屏上按住卡片再拖；选了一张之后，点一张卡片就加选它，再点一下取消。",
+    "canvasHint": "拖动卡片整理顺序，松手会吸附到位。在空白处拖出框来多选；按住 {{mod}} 点卡片加选或取消，按住 Shift 点卡片选一段。触屏上按住卡片再拖；选了一张之后，点别的卡片就加选，再点一下取消。",
     "selectGroup": "选中本组",
     "enqueueGroup": "本组全部入队",
     "addGroupToPlaylist": "本组加入歌单…",

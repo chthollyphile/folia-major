@@ -41,7 +41,7 @@ export default {
     "saveFailed": "The scratchpad couldn't be saved (local storage is full); this change will be lost on restart",
     "expandCanvas": "Expand into a canvas",
     "collapseCanvas": "Back to the list",
-    "canvasHint": "Drag cards to reorder; they snap into place when let go. Drag a box over empty space to select several. On a touch screen, press and hold a card to drag it; once one is selected, tapping a card adds it or, tapped again, takes it out of the selection.",
+    "canvasHint": "Drag cards to reorder; they snap into place when let go. Drag a box over empty space to select several; {{mod}}-click a card to add it to the selection or take it out, Shift-click to select a run. On a touch screen, press and hold a card to drag it; once one is selected, tapping a card adds it or, tapped again, takes it out of the selection.",
     "selectGroup": "Select this group",
     "enqueueGroup": "Queue this group",
     "addGroupToPlaylist": "Add this group to a playlist…",
