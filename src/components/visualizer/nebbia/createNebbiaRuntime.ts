@@ -93,6 +93,8 @@ export class NebbiaRuntime {
         this.renderScale = renderScale;
         this.aquarium = input.scene === 'aquarium' ? new NebbiaAquarium() : null;
         this.condensation = input.glass === 'dew' ? new NebbiaCondensation() : null;
+        // 雪窗、凝露要知道歌词的水在哪（扫过的、写好的笔画），和玻璃上的雪、小水珠联动
+        if (input.glass !== 'rain') { this.mask.sweeps = []; this.mask.wet = []; }
         // setTuning 只在 tuning 变了才调：上下文恢复后重建的运行时要自己带上颠簸强度
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
@@ -103,7 +105,6 @@ export class NebbiaRuntime {
             this.gl.onSpriteReady = () => this.requestFrame();
             if (input.glass === 'snow') {
                 this.snow = new NebbiaSnow(input.host);
-                this.mask.sweeps = []; this.mask.wet = [];
             }
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
@@ -325,7 +326,7 @@ export class NebbiaRuntime {
         if (this.snow) {
             this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? []);
             this.snow.drawFog(this.mask.ctx, t);
-        }
+        } else if (this.condensation) this.condensation.touchInk(this.mask.sweeps ?? [], this.mask.wet ?? [], t.dewSize);
         const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize)
             : this.snow ? this.snow.instances(this.fieldInst) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
         this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field,

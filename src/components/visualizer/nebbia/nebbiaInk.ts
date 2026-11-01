@@ -14,9 +14,9 @@ export interface InkContext {
     strokeWidth: number;
     writeSpeed: number;
     busSpeed: number;
-    /** 雪窗时收这一帧扫过的几段（笔尖、往下淌的水珠头；nebbiaSnow.ts 的 PEN_FLOATS 格式）：抹雪、吸水。别的玻璃 null。 */
+    /** 雪窗、凝露时收这一帧扫过的几段（笔尖、往下淌的水珠头；nebbiaSnow.ts 的 PEN_FLOATS 格式）：抹雪、吸水。雨窗 null。 */
     sweeps: number[] | null;
-    /** 雪窗时收这一帧写好、边上还挂着水珠的笔画（同样格式）：吸走挨着的雪水。别的玻璃 null。 */
+    /** 雪窗、凝露时收这一帧写好、边上还挂着水珠的笔画（同样格式）：吸走挨着的雪水、小水珠。雨窗 null。 */
     wet: number[] | null;
 }
 
@@ -87,7 +87,7 @@ const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: n
     const speed = 1 - Math.cos(u * 6 * Math.PI);
     for (let y = 14 + (d.seed % 7) * 2; y < dist - r * 2; y += 18 + ((y * 7 + d.seed * 13) % 11)) ink.motion.put(bx + wob(y), by + y, r * (0.3 + 0.2 * (((y + d.seed) * 0.37) % 1)), beadV);
     ink.motion.put(bx + wob(dist), by + dist + r * 0.3, r, beadV, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
-    // 雪窗：还在往下淌的水珠头扫过的一段（冲掉路上的雪和水珠）
+    // 雪窗、凝露：还在往下淌的水珠头扫过的一段（冲掉路上的雪和水珠）
     if (ink.sweeps && u < 1 && dist > 1 && beadV > 0.3) {
         const ya = Math.max(0, dist - r * 3);
         ink.sweeps.push(bx + wob(ya), by + ya, bx + wob(dist), by + dist + r * 0.3, r * 2.4);

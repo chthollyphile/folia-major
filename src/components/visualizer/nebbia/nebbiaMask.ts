@@ -23,7 +23,7 @@ export class NebbiaMask {
     readonly breath = new NebbiaBreathMask();
     /** 画面高（CSS 像素）。 */
     private H = 1;
-    /** 雪窗时收这一帧扫过的几段（写字的笔尖、抹字的手指、往下淌的水珠头）和写好的笔画，交给 nebbiaSnow.ts；别的玻璃 null。 */
+    /** 雪窗、凝露时收这一帧扫过的几段（写字的笔尖、抹字的手指、往下淌的水珠头）和写好的笔画，交给 nebbiaSnow.ts / nebbiaCondensation.ts；雨窗 null。 */
     sweeps: number[] | null = null;
     wet: number[] | null = null;
 
@@ -85,7 +85,7 @@ export class NebbiaMask {
             for (let k = 1; k <= Math.min(i, n); k += 1) ctx.lineTo(pts[k][0], pts[k][1]);
             if (i < n) { const a = pts[i], b = pts[i + 1], r = f - i; ctx.lineTo(a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r); }
             ctx.stroke(st.w, vw);
-            // 雪窗：手指正扫过的一段（指尖和它身后一点）
+            // 雪窗、凝露：手指正扫过的一段（指尖和它身后一点）
             if (ink.sweeps && lp < 1) {
                 const [ax, ay] = pts[Math.max(0, i - 1)], b = pts[Math.min(n, i + 1)];
                 ink.sweeps.push(ax, ay, b[0], b[1], st.w);
