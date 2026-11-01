@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { ListPlus, Star, Trash2, X } from 'lucide-react';
 import type { ScratchpadEntry, ScratchpadGroup } from '../../../stores/useScratchpadStore';
 import ScratchpadCard, { type CardMotion } from './ScratchpadCard';
@@ -509,7 +510,7 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
                 onContextMenu={handleContextMenu}
             >
                 <div ref={contentRef} className="scratchpad-canvas-content">
-                    <p className="scratchpad-canvas-hint">{t('scratchpad.canvasHint')}</p>
+                    <p className="scratchpad-canvas-hint">{t('scratchpad.canvasHint', { mod: PRIMARY_MODIFIER_LABEL })}</p>
                     {groups.map(group => {
                         const keys = group.entries.map(entry => entry.key);
                         const preview = drag?.groupKey === group.key ? previewSlots(keys, drag.moving, drag.dropIndex) : null;

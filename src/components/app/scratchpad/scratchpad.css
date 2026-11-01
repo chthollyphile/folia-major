@@ -216,8 +216,35 @@
     flex: 1 1 auto;
     padding: 0 6px 6px;
     overflow-y: auto;
-    scrollbar-width: thin;
 }
+
+/* 列表与画布的滚动条：细、无轨道、无箭头，跟着日间 / 夜间换墨色。不写 scrollbar-width / scrollbar-color：
+   Chromium 见到它们就不用下面这些规则，换回系统自带、带上下箭头的那一根。 */
+.scratchpad-list::-webkit-scrollbar,
+.scratchpad-canvas::-webkit-scrollbar { width: 10px; }
+
+.scratchpad-list::-webkit-scrollbar-track,
+.scratchpad-canvas::-webkit-scrollbar-track { background: transparent; }
+
+.scratchpad-list::-webkit-scrollbar-button,
+.scratchpad-canvas::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+
+.scratchpad-list::-webkit-scrollbar-thumb,
+.scratchpad-canvas::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 5px;
+    background: rgb(255 255 255 / 20%);
+    background-clip: content-box;
+}
+
+.scratchpad-list::-webkit-scrollbar-thumb:hover,
+.scratchpad-canvas::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 34%); background-clip: content-box; }
+
+.scratchpad-root.is-daylight .scratchpad-list::-webkit-scrollbar-thumb,
+.scratchpad-root.is-daylight .scratchpad-canvas::-webkit-scrollbar-thumb { background: rgb(0 0 0 / 20%); background-clip: content-box; }
+
+.scratchpad-root.is-daylight .scratchpad-list::-webkit-scrollbar-thumb:hover,
+.scratchpad-root.is-daylight .scratchpad-canvas::-webkit-scrollbar-thumb:hover { background: rgb(0 0 0 / 34%); background-clip: content-box; }
 
 .scratchpad-list ul { margin: 0; padding: 0; list-style: none; }
 .scratchpad-list-group + .scratchpad-list-group { margin-top: 8px; }
@@ -423,7 +450,6 @@
     flex: 1 1 auto;
     overflow-y: auto;
     outline: none;
-    scrollbar-width: thin;
     user-select: none;
     /* 手指上下划是滚动（框选只给鼠标和笔；触屏上按住卡片拿起来才是拖）。 */
     touch-action: pan-y;

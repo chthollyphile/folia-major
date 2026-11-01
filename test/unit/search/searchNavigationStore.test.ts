@@ -439,26 +439,57 @@ describe('useSearchNavigationStore', () => {
         expect(useSearchNavigationStore.getState().hasMore).toBe(false);
     });
 
-    it('moves the online source to the active provider without clearing results', () => {
+    it('keeps the chosen source and its results while it is still offered (a platform switch resets nothing)', () => {
         const results = [{ id: 1, name: 'Kept' }] as any;
-        useSearchNavigationStore.setState({ searchSourceTab: 'netease', searchResults: results, searchQuery: 'q' });
+        useSearchNavigationStore.setState({ searchSourceTab: 'qq', searchResults: results, searchQuery: 'q', requestId: 3 });
 
-        useSearchNavigationStore.getState().followOnlineProvider('folium.mod-a.source');
+        expect(useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'qq', 'local'], 'netease')).toBe(false);
 
         expect(useSearchNavigationStore.getState()).toMatchObject({
-            searchSourceTab: 'folium.mod-a.source',
+            searchSourceTab: 'qq',
             searchResults: results,
             searchQuery: 'q',
+            requestId: 3,
         });
     });
 
-    it('leaves a local or Navidrome source alone when the active provider changes', () => {
-        useSearchNavigationStore.setState({ searchSourceTab: 'local' });
-        useSearchNavigationStore.getState().followOnlineProvider('kugou');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('local');
+    it('falls back when the chosen source is no longer offered, dropping its results and any search on its way', () => {
+        const results = [{ id: 1, name: 'Gone' }] as any;
+        useSearchNavigationStore.setState({
+            searchSourceTab: 'qq',
+            searchKind: 'album',
+            searchResults: results,
+            collectionResults: [] as any,
+            searchQuery: 'q',
+            submittedQuery: 'q',
+            isSearching: true,
+            hasMore: true,
+            offset: 30,
+            requestId: 3,
+        });
 
-        useSearchNavigationStore.setState({ searchSourceTab: 'navidrome' });
-        useSearchNavigationStore.getState().followOnlineProvider('kugou');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('navidrome');
+        expect(useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'local'], 'netease')).toBe(true);
+
+        expect(useSearchNavigationStore.getState()).toMatchObject({
+            searchSourceTab: 'netease',
+            searchResults: null,
+            collectionResults: null,
+            searchQuery: 'q',
+            submittedQuery: 'q',
+            isSearching: false,
+            hasMore: false,
+            offset: 0,
+            requestId: 4,
+        });
+    });
+
+    it('falls back from a local or Navidrome source that is no longer offered, to songs', () => {
+        useSearchNavigationStore.setState({ searchSourceTab: 'navidrome', searchKind: 'song' });
+        useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'local'], 'netease');
+        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('netease');
+
+        useSearchNavigationStore.setState({ searchSourceTab: 'local' });
+        useSearchNavigationStore.getState().keepSearchSourceWithin(['netease'], 'netease');
+        expect(useSearchNavigationStore.getState()).toMatchObject({ searchSourceTab: 'netease', searchKind: 'song' });
     });
 });

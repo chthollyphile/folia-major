@@ -1,6 +1,7 @@
 /* src/components/app/search/search.css
    搜索页的至上主义平面构图：几何形（斜切色块、圆、粗横条、贯穿细线、斜线小方块、「· · ·」、竖排的碎字）压在列表底下，
-   按搜的种类（单曲 / 专辑 / 歌单）各有一套站位，换种类时移过去；页面打开时依次飞入。列表本身是平的：方角、发丝分隔线，
+   按搜的种类（单曲 / 专辑 / 歌单）各有一套站位，换种类时移过去；页面打开时依次飞入；换来源时整幅转到那个来源的站位，
+   一道淡墨宽带和一条强调色细线扫过一次。列表本身是平的：方角、发丝分隔线，
    悬停时左边长出一道主题色竖条。颜色只有三种：墨色（--search-ink，主题主色）、主题强调色（--search-accent）和纸色
    （--search-paper，页面底色）。降低动态效果（uiMicroMotion）时动画全部去掉，构图直接落在终点。 */
 
@@ -186,6 +187,47 @@
 .search-composition[data-search-kind='playlist'] .search-figure.is-bar { transform: translate(-4vw, 46vh) rotate(6deg); }
 .search-composition[data-search-kind='playlist'] .search-figure.is-line.is-first { transform: rotate(0deg); }
 .search-composition[data-search-kind='playlist'] .search-figure.is-line.is-second { transform: rotate(0deg) translateY(-6vh); }
+
+/* 换来源：整幅构图绕页面中心转到那个来源的站位（外面这一层，不碰各个几何形自己的 transform）。 */
+.search-composition-stage {
+    position: absolute;
+    inset: 0;
+    transform: translate(var(--search-stage-x, 0), var(--search-stage-y, 0)) rotate(var(--search-stage-turn, 0deg));
+    transition: transform 1100ms var(--search-ease);
+}
+
+/* 同时扫过一次：一道很淡的墨色宽带，后面跟一条强调色细线，斜着从左到右穿过页面，扫完就停在页外。 */
+.search-sweep {
+    position: absolute;
+    inset: 0;
+}
+
+.search-sweep > i {
+    position: absolute;
+    top: -20vh;
+    left: 0;
+    height: 140vh;
+    transform: translateX(-40vw) skewX(-18deg);
+    animation: search-sweep-pass 900ms var(--search-ease) forwards;
+}
+
+.search-sweep > i.is-band {
+    width: 22vw;
+    background: color-mix(in srgb, var(--search-ink) 7%, transparent);
+}
+
+.search-sweep > i.is-rule {
+    width: 6px;
+    background: var(--search-accent);
+    opacity: 0.85;
+    animation-delay: 90ms;
+    animation-duration: 820ms;
+}
+
+@keyframes search-sweep-pass {
+    from { transform: translateX(-40vw) skewX(-18deg); }
+    to { transform: translateX(130vw) skewX(-18deg); visibility: hidden; }
+}
 
 /* 窄屏上构图压在列表底下：整体淡下去，别跟文字抢。 */
 @media (max-width: 1180px) {
@@ -607,6 +649,7 @@
 .search-flat-button:disabled { opacity: 0.5; }
 
 :root[data-reduce-motion~='uiMicroMotion'] .search-figure,
+:root[data-reduce-motion~='uiMicroMotion'] .search-composition-stage,
 :root[data-reduce-motion~='uiMicroMotion'] .search-row,
 :root[data-reduce-motion~='uiMicroMotion'] .search-row::before,
 :root[data-reduce-motion~='uiMicroMotion'] .search-collection-disc,
@@ -618,3 +661,4 @@
 :root[data-reduce-motion~='uiMicroMotion'] .search-void::after,
 :root[data-reduce-motion~='uiMicroMotion'] .search-field-mark.is-busy,
 :root[data-reduce-motion~='uiMicroMotion'] .search-loader > i { animation: none; }
+:root[data-reduce-motion~='uiMicroMotion'] .search-sweep { display: none; }

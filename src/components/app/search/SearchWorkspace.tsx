@@ -15,14 +15,15 @@ import SearchResultsList from './SearchResultsList';
 import SearchComposition from './SearchComposition';
 import SearchTabs, { useSearchSourceLabel } from './SearchTabs';
 import { useCollectionNavigationStore } from '../../../stores/useCollectionNavigationStore';
-import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
+import { useSearchSources } from './searchSources';
 import { collectToScratchpad } from '../../../stores/useScratchpadStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import './search.css';
 
 // src/components/app/search/SearchWorkspace.tsx
-// 搜索页：搜索框、来源（当前在线平台 / 本地 / Navidrome）、种类（单曲 / 专辑 / 歌单，在线平台搜得到几种就有几种），
-// 结果是一张列表；底下压着一幅随种类换站位的至上主义构图（SearchComposition）。
+// 搜索页：搜索框、来源（当前在线平台、已登录与无需登录的在线平台、有歌时的本地、配好了的 Navidrome，见 searchSources）、
+// 种类（单曲 / 专辑 / 歌单，在线平台搜得到几种就有几种），结果是一张列表；底下压着一幅随种类换站位、换来源时整幅
+// 转一下的至上主义构图（SearchComposition）。选着的来源不再可用时回落到当前平台。
 // 单曲行尾悬停出现的「加入速记簿」「收藏到歌单」直接交给速记簿与应用的歌单选择器（与资料库卡片上的同一对），
 // 速记簿里这一组的出处是「搜索「词」」。
 
@@ -44,6 +45,8 @@ type SearchWorkspaceProps = {
      * 不在这里按当前目录重算，它们会一直停在那个状态，直到重新搜索。
      */
     resolveTrackDisplay?: (track: UnifiedSong) => UnifiedSong;
+    /** 本地曲库里有没有歌：没有就不列「本地」这个来源。 */
+    hasLocalSongs: boolean;
 };
 
 const PLACEHOLDER_KEYS: Record<SearchKind, string> = {
@@ -64,6 +67,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     onOpenAlbum,
     onOpenCollection,
     resolveTrackDisplay,
+    hasLocalSongs,
 }) => {
     const { t } = useTranslation();
     const {
@@ -106,8 +110,7 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const collections = collectionResults || [];
     const isCollectionKind = searchKind !== 'song';
     const resultCount = isCollectionKind ? collections.length : results.length;
-    const activeOnlineProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
-    const sources = useMemo<SearchSource[]>(() => [activeOnlineProviderId, 'local', 'navidrome'], [activeOnlineProviderId]);
+    const { sources, activeProviderId } = useSearchSources(hasLocalSongs);
     const kinds = useMemo(() => getSearchKinds(searchSourceTab), [searchSourceTab]);
     const hasCollection = useCollectionNavigationStore(state => Boolean(state.snapshot?.stack.length));
     const getSourceLabel = useSearchSourceLabel();
@@ -121,6 +124,14 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
     const countLabel = resultTotal !== null && resultTotal >= resultCount
         ? String(resultTotal)
         : `${resultCount}${hasMore ? '+' : ''}`;
+
+    // 选着的来源不再可用（退出了它的登录、mod 源关掉、本地曲库清空）：回落到当前平台，搜过词的话在那里再搜一遍。
+    // 只在页面开着时看：启动时本地曲库还没读完，那时的「没有歌」不作数。
+    useEffect(() => {
+        if (!isSearchOpen) return;
+        const fellBack = useSearchNavigationStore.getState().keepSearchSourceWithin(sources, activeProviderId);
+        if (fellBack && submittedQuery.trim()) onSubmitSearch(activeProviderId);
+    }, [activeProviderId, isSearchOpen, onSubmitSearch, sources, submittedQuery]);
 
     useEffect(() => {
         if (!isSearchOpen || hasCollection) return;
@@ -153,7 +164,12 @@ const SearchWorkspace: React.FC<SearchWorkspaceProps> = ({
                         '--search-paper': isDaylight ? '#fafafa' : '#08080a',
                     } as React.CSSProperties}
                 >
-                    <SearchComposition kind={searchKind} query={submittedQuery} />
+                    <SearchComposition
+                        kind={searchKind}
+                        query={submittedQuery}
+                        source={searchSourceTab}
+                        sourceIndex={sources.indexOf(searchSourceTab)}
+                    />
 
                     <header className="mx-auto flex w-full max-w-5xl shrink-0 flex-col gap-5">
                         <div className="flex items-center gap-4">

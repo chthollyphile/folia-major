@@ -358,7 +358,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | --- | --- |
 | `providers` / `activeProviderId` | provider 列表 × 账户 store；当前平台已回落（存的平台不在列表里时是默认平台，`resolveActiveProviderId`） |
 | `login` | 当前登录会话，同一时间最多一个：`phase`（`resolving-methods` / `choosing-method` / `ready` / `loading`，以及 provider 轮询回的状态）、`methods` 与 `selectedMethodId`、`inBrowser`（在浏览器里确认，没有二维码）与 `codeImage`、`canReopenLoginPage`、`failure`（分好类的失败，见下）、`selfCheck`、`localService`（登录要靠的本地服务：可不可用、没起来、正在重启）、`texts`（平台自己的登录标题与说明） |
-| `pendingSwitch` | 待确认切换 `{ id, from, to, reason }`，`reason` 是 `switch` 或 `activate-after-login` |
+| `pendingSwitch` | 待确认切换 `{ id, from, to, reason }`，`reason` 是 `switch` 或 `activate-after-login`。切换不再先问（队列可以混着几个平台的歌，切换不拿走它们），眼下恒为 `null` |
 | `logout` | 登出进度，同一时间最多一个在途（含问用户的那一会儿） |
 | `lastLoginCompletion` | 最近一次登录确认的结局（`completed` / `refresh-failed` / `activation-declined`），登录窗口据它放登录成功的动画 |
 
@@ -367,19 +367,19 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | 动作 | 语义 | 结果 |
 | --- | --- | --- |
 | `selectProvider(id)` | 选平台：未配置或不在列表 → 不可用；能直接切（已登录 / 无需登录）→ `requestSwitch`；否则 `startLogin` | `unavailable` / `switch` / `login`，后两支带各自的结果 |
-| `requestSwitch(id)` | 同平台直接 `switched`（`changed: false`）；否则生成 `pendingSwitch` 等用户答复，已有的待确认请求按 `declined`（`superseded`）结算 | 用户答复后才 resolve：`switched` / `declined`（`cancelled` / `superseded` / `disposed`）/ `unavailable` |
-| `confirmSwitch(requestId)` / `cancelSwitch(requestId)` | 按请求 id 结算 | `confirmed` / `cancelled`；过期的 id 返回 `stale` |
+| `requestSwitch(id)` | 同平台直接 `switched`（`changed: false`）；否则不问，直接切 | `switched` / `declined`（`disposed`）/ `unavailable` |
+| `confirmSwitch(requestId)` / `cancelSwitch(requestId)` | 没有待确认的切换 | 一律 `stale` |
 | `startLogin(id)` | 先停掉旧会话；解析登录方式（带竞态代次），多方式停在 `choosing-method` | `started`（`step` 为 `choosing-method` / `ready` / `started`）/ `superseded` / `unavailable` |
 | `selectLoginMethod(methodId)` / `retryLogin()` | 在当前会话里重新开始，旧会话的 key 单独取消；重试保留已选的方式 | `requested` / `no-session` / `rejected`（`unknown-method` / `method-required` / `cooling-down` / `not-retryable`） |
 | `openLoginPage()` | 浏览器登录时再打开一次登录页 | `opened` / `failed` / `no-session` / `rejected`（`not-reopenable`） |
 | `closeLogin()` | 停轮询、取消会话、清快照（同步） | `closed` / `no-session` |
 | `restartLocalService()` | 只在本地服务可重启时（`canRestartLocalService`）；恢复运行且登录没有自己走下去时重新开始 | `resumed` / `still-down` / `no-session` / `rejected`（`not-restartable`） |
 | `buildLoginDiagnosticReport()` | 诊断报告文本 | `ok` / `no-session` |
-| `logout(id)` | 只对已登录的平台（`resolveLogoutEligibility`）；先经宿主端口问用户，再走 per-provider logout；退出当前平台且播放器里有歌时会清空播放器 | `logged-out` / `cancelled` / `rejected`（`unknown-provider` / `not-authenticated`）/ `busy` / `failed` |
+| `logout(id)` | 只对已登录的平台（`resolveLogoutEligibility`）；先经宿主端口问用户（播放器里有这个平台的歌时说一句它们会被移出），答应后宿主端口 `dropSongsOf(id)` 把这个平台的歌移出播放器（正在放的是它的就停下，别的歌留着），再走 per-provider logout | `logged-out` / `cancelled` / `rejected`（`unknown-provider` / `not-authenticated`）/ `busy` / `failed` |
 
-确认切换后的顺序：清掉 `pendingSwitch` → 宿主端口 `resetForProviderSwitch(next, previous)`（清 automix 尾音、audio、队列、歌词、prefetch、track profile、搜索运行态与集合导航；抛错只记日志，照样切换）→ 作废上一个平台的在途请求（默认装配是 `omni.invalidateActiveRequests()`）→ 写当前平台 → `reason` 为 `switch` 时刷新新账户。`requestSwitch` 的 Promise 在刷新之后才 resolve。
+切换的顺序：宿主端口 `leaveProvider(previous, next)`（退出私人 FM，已经排进队列的歌留着当普通队列；收起集合导航；队列、正在放的歌、搜索都不动；抛错只记日志，照样切换）→ 作废上一个平台的在途请求（默认装配是 `omni.invalidateActiveRequests()`）→ 写当前平台 → `reason` 为 `switch` 时刷新新账户。`requestSwitch` 的 Promise 在刷新之后才 resolve。
 
-登录确认后的链路：会话的确认回调只刷新账户。刷新返回 `false` 或抛错 → 会话回到 `error`，界面重新显示失败；成功且登录的不是当前平台 → 回调结束后发起 `reason: 'activate-after-login'` 的待确认切换；用户拒绝时结局是 `activation-declined`，登录本身仍成功。刷新期间登录被关掉或换了，不再发起激活确认。
+登录确认后的链路：会话的确认回调只刷新账户。刷新返回 `false` 或抛错 → 会话回到 `error`，界面重新显示失败；成功且登录的不是当前平台 → 回调结束后以 `reason: 'activate-after-login'` 直接切过去（不再刷新）。刷新期间登录被关掉或换了，不再切换。
 
 单一在途登录：新的 `startLogin` 先停掉旧会话再解析方式，旧会话不会在后台替旧平台确认登录；解析方式期间又来一次 `startLogin`，前一次返回 `superseded`。
 
@@ -391,11 +391,11 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 
 自检：会话进入失败后，provider 有自检能力（`canRunLoginSelfCheck`）就自动跑一次 `runLoginSelfCheck`，快照的 `selfCheck` 先是 running，结果回来后带上结构化结果与结论（`core/account/loginSelfCheckRules` 的 `resolveLoginSelfCheckVerdict`）；新一轮开始时晚到的结果作废。
 
-寿命：controller 与登录窗口都属于 App，换 suite 不重建，登录会话与待确认切换都在 controller 里，所以登录进行中切换 suite，窗口照常开着，新 suite 接着显示同一个待确认请求。account surface 的宿主 `app/LibraryAccountHost.tsx` 挂在首页外壳 `components/app/Home.tsx` 里，首页整个卸载时关闭登录会话、把待确认切换按取消结算。启动恢复会话时直接写当前平台，不经确认。
+寿命：controller 与登录窗口都属于 App，换 suite 不重建，登录会话在 controller 里，所以登录进行中切换 suite，窗口照常开着。account surface 的宿主 `app/LibraryAccountHost.tsx` 挂在首页外壳 `components/app/Home.tsx` 里，首页整个卸载时关闭登录会话。启动恢复会话不改当前平台：恢复的那首歌按它自己的平台播放。
 
 ### account surface
 
-登录不在 account surface 里：七个账户动作里的登录、选方式、诊断、重启本地服务都由登录窗口答复，与当前 suite 无关。account surface 要答复的只剩切换确认。确认会阻塞流程，必须有人答复，所以 account surface **整体回退**：当前 suite 没有 `account` surface 就由 grid 的 `GridAccountSurface` 答复（bravais 就是）；声明了 `account` surface 就必须列全三个基础动作，缺一个时建 suite 索引直接抛错（`core/suite/librarySuites.ts` 的 `LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS`）。
+登录不在 account surface 里：七个账户动作里的登录、选方式、诊断、重启本地服务都由登录窗口答复，与当前 suite 无关。account surface 要答复的只剩切换确认（眼下切换不再确认，它不会出现；surface 与动作留给以后需要先问一句的切换）。确认会阻塞流程，必须有人答复，所以 account surface **整体回退**：当前 suite 没有 `account` surface 就由 grid 的 `GridAccountSurface` 答复（bravais 就是）；声明了 `account` surface 就必须列全三个基础动作，缺一个时建 suite 索引直接抛错（`core/suite/librarySuites.ts` 的 `LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS`）。
 
 | 动作 | 是什么 | 分级 | 谁画 |
 | --- | --- | --- | --- |
