@@ -282,6 +282,8 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
   }
 
   return {
+    /** protocol.handle('folia-fnmusic') 处理器：/stream 与 /cover（供 main.cjs 注册自定义协议）。 */
+    handleProtocolRequest,
     /** 当前桥状态：是否已配置、是否已登录（登录态由渲染层通过 getStatus 感知）。 */
     getStatus() {
       const config = readConfig();

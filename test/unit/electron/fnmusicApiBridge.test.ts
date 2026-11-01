@@ -38,6 +38,11 @@ describe('FnMusic desktop bridge', () => {
         expect(FN_MUSIC_PRIVILEGED_SCHEME).toBeTypeOf('object');
     });
 
+    it('exposes handleProtocolRequest for protocol.handle registration', () => {
+        const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
+        expect(bridge.handleProtocolRequest).toBeTypeOf('function');
+    });
+
     it('reports unconfigured when the store holds no saved config', () => {
         const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
         expect(bridge.getStatus()).toMatchObject({ available: true, configured: false, authenticated: false, base: null });
