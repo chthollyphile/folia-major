@@ -98,6 +98,7 @@
 - `kugou-provider-alignment`：开发时按 `docs/ku-go-api-docs.md`、`.env.local` 中的真实酷狗服务和 `.dev-credentials/kugou.json` 对齐酷狗 provider 的请求与响应，不猜接口结构。
 - `prepare-folia-release`：稳定版本发布流程：汇总上个稳定版本以来用的人能感到的变化，更新新功能介绍、桌面与 Docker 版本号，并生成可手动粘贴的 Markdown release note。
 - `run-desktop`：启动并驱动 Electron 桌面版（隔离的 profile，后台驱动加单条命令的客户端：截图、点击、填表、在页面和主进程里求值、读日志），在真的桌面构建里验证主进程、preload IPC 和桌面专属设置的改动。
+- `build-desktop`：构建 Electron 桌面安装包（`npm run build:electron`）：开包前查 `node_modules` 和 Windows 目录完整性标签、各平台工具链前置、产物位置与验证，以及启动即崩这类症状的排查。
 
 四份开发者指南：
 
