@@ -9,6 +9,8 @@ import { createVisualizerRng } from '../visualizerSeedHash';
 // 新句子马上写在白气上；新句子唱完后白气再留一会儿，慢慢从薄的边上往里散，散完就是普通的雾。白气只是这一片的雾变密（着色器把它
 // 加进雾的浓度），所以写过的地方照样擦开、水珠周围照样抹开一圈。白气画在一张 1/4 分辨率的遮罩上：
 // R 通道是形状（散的时候变小，着色器按噪声取阈值，所以边往里退），G 通道是浓度（刚哈出来的头一下淡）。
+// 省 CPU：每帧先只记下要画哪几口、浓淡（取整到 0..255）和鼓开的进度，和上一帧一样就不重画（挂着的那段一直一样，慢慢散的 8 秒里
+// 也大约 4 帧才变一级），version 不变，nebbiaGl.ts 也就不重传纹理。
 // 出现方式选了「哈气后书写」的句子也用同一口气：开写前对着自己的位置哈，再写在白气上（nebbiaScene.ts 的 applyAppear）。
 // 原型在 fog-write-demo 的 index.html。
 
@@ -32,11 +34,22 @@ export const buildBreath = (line: LaidLine, idx: number): NebbiaBreath | null =>
     return { lobes, cx, cy, ry };
 };
 
+/** 这一帧要画的一口气：画哪口、形状浓度（0..255）、头上浓度（0..255）、鼓开的进度。 */
+interface Puff { b: NebbiaBreath; c0: number; g0: number; u: number }
+
+const samePuffs = (a: readonly Puff[], b: readonly Puff[]) => (
+    a.length === b.length && a.every((p, i) => p.b === b[i].b && p.c0 === b[i].c0 && p.g0 === b[i].g0 && p.u === b[i].u)
+);
+
 export class NebbiaBreathMask {
     readonly canvas = document.createElement('canvas');
     private readonly ctx: CanvasRenderingContext2D;
-    /** 这一帧画了白气（没有时不必上传、着色器也不采样）。 */
+    /** 这一帧有白气（没有时不必上传、着色器也不采样）。 */
     active = false;
+    /** 画布内容的版本：重画一次加一（nebbiaGl.ts 版本没变就不重传）。 */
+    version = 0;
+    private puffs: Puff[] = [];
+    private drawn: Puff[] = [];
 
     constructor() {
         const ctx = this.canvas.getContext('2d');
@@ -47,22 +60,17 @@ export class NebbiaBreathMask {
     resize(W: number, H: number) {
         this.canvas.width = Math.max(1, Math.round(W * BREATH_SCALE));
         this.canvas.height = Math.max(1, Math.round(H * BREATH_SCALE));
+        // 改尺寸会清空画布：下一帧照画
+        this.drawn = [];
+        this.version += 1;
     }
 
-    /** 每帧开头：上一帧画过白气才清（没画过的话画布本来就是空的）。 */
-    begin() {
-        if (!this.active) return;
-        const { ctx } = this;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.active = false;
-    }
+    /** 每帧开头：重新记这一帧的几口气。 */
+    begin() { this.puffs = []; }
 
     /**
      * 一句外框上的一口白气：`t0` 起在 breathSpread 秒里从中线鼓开（要写的那句 0.3 秒后开写），到 `until`
-     * 再用 breathFade 秒慢慢散。字照常写（nebbiaMask.ts），写过的地方在白气上擦开。
+     * 再用 breathFade 秒慢慢散。字照常写（nebbiaMask.ts），写过的地方在白气上擦开。这里只记下，end() 时才画。
      */
     drawLine(line: LaidLine, idx: number, T: number, t0: number, until: number) {
         const { breathSpread, breathFade } = NEBBIA_FIXED;
@@ -72,12 +80,31 @@ export class NebbiaBreathMask {
         if (line.breath === undefined) line.breath = buildBreath(line, idx);
         const b = line.breath;
         if (!b) return;
-        const u = clamp((T - t0) / breathSpread), e = 1 - (1 - u) ** 3;
+        this.puffs.push({ b, c0: Math.round(255 * s), g0: Math.round(255 * clamp((T - t0) / breathSpread * 4)), u: clamp((T - t0) / breathSpread) });
+    }
+
+    /** 每帧结尾：和上一帧画的一样就不动画布，不一样才清掉重画。 */
+    end() {
+        const { puffs } = this;
+        this.active = puffs.length > 0;
+        if (samePuffs(puffs, this.drawn)) return;
+        const { ctx } = this;
+        if (this.drawn.length) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        for (const p of puffs) this.paint(p);
+        this.drawn = puffs;
+        this.version += 1;
+    }
+
+    private paint({ b, c0, g0, u }: Puff) {
+        const e = 1 - (1 - u) ** 3;
         const kx = 0.7 + 0.3 * e, ky = 0.08 + 0.92 * e;
-        this.active = true;
         const { ctx } = this;
         ctx.globalCompositeOperation = 'lighten';
-        const c0 = Math.round(255 * s), g0 = Math.round(255 * clamp(u * 4));
         for (const lb of b.lobes) {
             // 每团跟着往中线压扁；按单位圆画，用变换拉成椭圆
             const x = b.cx + (lb.x - b.cx) * kx, y = b.cy + (lb.y - b.cy) * ky;
