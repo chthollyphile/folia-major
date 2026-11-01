@@ -134,28 +134,28 @@ export default function WindowControls({
 
   const remoteControlVisible = controlsVisible;
   const standardControlsVisible = controlsVisible;
-  const remoteBtnClass = `flex items-center justify-center w-9 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9] border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const remoteBtnClass = `flex items-center justify-center w-9 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     remoteControlVisible
       ? isDaylight
-        ? "pointer-events-auto translate-y-0"
-        : "pointer-events-auto translate-y-0"
+        ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9]"
+        : "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#333a_20%,transparent)] hover:bg-[#324b5a]"
       : "pointer-events-none opacity-0 -translate-y-1"
   }`;
-  const btnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[1px] bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const btnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     standardControlsVisible
       ? isDaylight
-        ? "pointer-events-auto translate-y-0"
-        : "pointer-events-auto translate-y-0"
+        ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9]"
+        : "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#333a_20%,transparent)] hover:bg-[#324b5a]"
       : "pointer-events-none opacity-0 -translate-y-1"
   }`;
   const pinBtnClass = `${remoteBtnClass} ${
     isTitlebarPinned ? "bg-[#307aa9] shadow-[inset_0_0_0_1px_#fff8]" : ""
   }`;
-  const closeBtnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[3px] bg-[linear-gradient(135deg,#a97874aa_20%,#cc361ccc)] hover:bg-[#cc361c] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const closeBtnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[3px] hover:bg-[#cc361c] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     standardControlsVisible
       ? isDaylight
-        ? "pointer-events-auto translate-y-0"
-        : "pointer-events-auto translate-y-0"
+        ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#a97874aa_20%,#cc361ccc)]"
+        : "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#a9787466_20%,#cc361c66)]"
       : "pointer-events-none opacity-0 -translate-y-1"
   }`;
 
@@ -391,9 +391,9 @@ export default function WindowControls({
         >
           {touchHoverOverlay("pin")}
           {isTitlebarPinned ? (
-            <PinOff className="relative drop-shadow-[0_0_1px_#000]" size={14} />
+            <PinOff className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
           ) : (
-            <Pin className="relative drop-shadow-[0_0_1px_#000]" size={14} />
+            <Pin className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={14} />
           )}
         </button>
         <button
@@ -408,7 +408,7 @@ export default function WindowControls({
           onClick={() => void electron.openRemoteControl?.()}
         >
           {touchHoverOverlay("remote")}
-          <Radio className="relative drop-shadow-[0_0_1px_#000]" size={15} />
+          <Radio className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={15} />
         </button>
         {!hideFullscreenButton && (
           <button
@@ -428,12 +428,12 @@ export default function WindowControls({
             {touchHoverOverlay("fullscreen")}
             {isFullscreen ? (
               <Minimize
-                className="relative drop-shadow-[0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             ) : (
               <Maximize
-                className="relative drop-shadow-[0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             )}
@@ -450,7 +450,7 @@ export default function WindowControls({
           onClick={() => electron.minimizeWindow()}
         >
           {touchHoverOverlay("minimize")}
-          <Minus className="relative drop-shadow-[0_0_1px_#000]" size={16} />
+          <Minus className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
         </button>
         {/* 全屏状态下不显示最大化 / 还原按钮：全屏时它只会和全屏按钮重复，
             而且「还原」在全屏里没有意义。 */}
@@ -494,23 +494,23 @@ export default function WindowControls({
             {usesNativeFullscreen ? (
               isExpanded ? (
                 <Minimize
-                  className="relative drop-shadow-[0_0_1px_#000]"
+                  className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                   size={13}
                 />
               ) : (
                 <Maximize
-                  className="relative drop-shadow-[0_0_1px_#000]"
+                  className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                   size={13}
                 />
               )
             ) : isExpanded ? (
               <Copy
-                className="relative drop-shadow-[0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             ) : (
               <Square
-                className="relative drop-shadow-[0_0_1px_#000]"
+                className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]"
                 size={13}
               />
             )}
@@ -527,7 +527,7 @@ export default function WindowControls({
           onClick={() => electron.closeWindow()}
         >
           {touchHoverOverlay("close")}
-          <X className="relative drop-shadow-[0_0_1px_#000]" size={16} />
+          <X className="relative drop-shadow-[0_0_1px_#000,0_0_1px_#000]" size={16} />
         </button>
       </div>
     </div>
