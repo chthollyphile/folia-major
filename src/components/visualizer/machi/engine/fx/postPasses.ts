@@ -4,7 +4,7 @@ import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
 // src/components/visualizer/machi/engine/fx/postPasses.ts
 // 町景后处理的两道自定义 pass（镜头 pass 在 lensPass.ts）与它们共用的小工具：
 // - 氛围（MachiAtmospherePass）：深度拉普拉斯墨线；由深度还原世界坐标，画贴地的薄雾（随风漂的噪声，靠近店门和路灯时
-//   被灯染暖，像光在雾里散开），雾天再按深度蒙一层灰；天空像素上画慢慢漂的云（云量随天气）和闪电。
+//   被灯染暖，像光在雾里散开），雾天再按深度蒙一层灰；天空像素上画慢慢漂的云（云量随天气）和闪电（透明模式 MACHI_CUTOUT 下天空不画）。
 // - 光条（MachiStreakPass）：亮处在四分之一分辨率上只做横向模糊，叠回去成为横向的镜头光条（变形宽银幕镜头那种）。
 // 都只用全屏四边形，额外的贴图都在低分辨率上。
 
@@ -102,6 +102,7 @@ void main() {
     vec3 rgb = mix(color.rgb, uInk, line * uInkStrength);
 
     if (sky) {
+#ifndef MACHI_CUTOUT
         // 天空：两层慢慢漂的云，闪电时从云里亮起来。
         vec2 p = vec2(vUv.x * uAspect, vUv.y) * 2.4 + vec2(uTime * 0.012, 0.0);
         float cloud = smoothstep(mix(0.62, 0.38, uCloudAmount), 0.85, pFbm(p)) * smoothstep(0.0, 0.55, vUv.y) * (0.35 + 0.65 * uCloudAmount);
@@ -109,6 +110,7 @@ void main() {
         rgb += uCloudColor * (cloud * 0.55 + wisp * 0.18);
         rgb += uLightningColor * uLightning * (0.18 + 1.1 * cloud + 0.4 * wisp);
         rgb = mix(rgb, uMistColor, uHaze * 0.7);
+#endif
     } else {
         // 还原世界坐标，画贴地的雾。
         vec4 ndc = vec4(vUv * 2.0 - 1.0, raw * 2.0 - 1.0, 1.0);
@@ -137,7 +139,8 @@ export class MachiAtmospherePass extends Pass {
     readonly material: THREE.ShaderMaterial;
     private readonly quad: FullScreenQuad;
 
-    constructor(private readonly scene: MachiSceneTarget) {
+    /** cutout：透明模式，天空像素上不画云、闪电和雾天的灰。 */
+    constructor(private readonly scene: MachiSceneTarget, cutout = false) {
         super();
         this.material = fullscreenMaterial({
             uniforms: {
@@ -169,6 +172,7 @@ export class MachiAtmospherePass extends Pass {
                 uAspect: { value: 16 / 9 },
             },
             fragmentShader: ATMOSPHERE_FRAGMENT,
+            defines: cutout ? { MACHI_CUTOUT: '' } : {},
         });
         this.quad = new FullScreenQuad(this.material);
     }
