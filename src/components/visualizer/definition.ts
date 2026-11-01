@@ -247,6 +247,12 @@ export interface VisualizerRegistryEntry {
      * screen reads it (beatClockTargets.ts).
      */
     beatEffects?: readonly BeatEffectDef[];
+    /**
+     * For a mode whose effects draw only with some tunings: whether this one of its `beatEffects` is on
+     * screen with these tunings and with the page see-through or not, so a model runs only for one
+     * that draws (beatClockTargets.ts; 雾笺's 水母随拍 only with the aquarium outside). Left out: all are.
+     */
+    beatEffectOnScreen?: (effectId: string, tunings: VisualizerTuningBundle, pageTransparent: boolean) => boolean;
     /*
      * Work started at app start when this is the saved style, behind the first-screen splash, so the
      * style's first mount does not wait for it (雾笺: nebbia/nebbiaShaderWarmup.ts compiles its shaders

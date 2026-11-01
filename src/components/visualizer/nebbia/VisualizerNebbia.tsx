@@ -19,7 +19,7 @@ import { DEFAULT_NEBBIA_TUNING, type NebbiaTuning } from './types';
 // src/components/visualizer/nebbia/VisualizerNebbia.tsx
 // 雾笺的 React 外壳：挂共享 shell / 字幕层，运行时建一次，换歌、tuning、主题、暂停都就地推给它。
 // 每帧的时间只在运行时的循环里读 currentTime，不进 React state。WebGL2 不可用或上下文丢了，就退回只显示当前这句。
-// 窗外换成共用背景（或播放页透明）时画布要带透明通道，只能新建上下文：运行时整个重建。
+// 窗外换成共用背景（或播放页透明）时画布要带透明通道，只能新建上下文；窗外在街景和水族箱之间换时着色器要按另一套编：都是运行时整个重建。
 const EMPTY_LINES: Line[] = [];
 
 type Props = VisualizerSharedProps & { nebbiaTuning?: NebbiaTuning };
@@ -45,6 +45,9 @@ const VisualizerNebbia: React.FC<Props> = (props) => {
     const renderQuality = useLyricRenderQuality(nebbiaTuning.render);
     const renderScale = isPreviewMode ? 1 : renderQuality.scale;
     const seeThrough = nebbiaSeesThrough(nebbiaTuning, props.background, props.isPreviewMode);
+    // 透出后面时（播放页透明）不画水族箱，雨打窗、颠簸照旧，和街景透出时一样
+    const scene = nebbiaTuning.behind === 'aquarium' && !seeThrough ? 'aquarium' : 'night';
+    const glass = nebbiaTuning.glass;
 
     // 真正在画的歌：切歌时滞后于 props，免得对着还没到的歌词排版（songHandover.ts）
     const committed = useVisualizerSongCommit({ seed, lines, currentTime, readyGraceMs: 3000 });
@@ -66,6 +69,8 @@ const VisualizerNebbia: React.FC<Props> = (props) => {
             runtime = new NebbiaRuntime({
                 host,
                 seeThrough,
+                scene,
+                glass,
                 currentTime,
                 vocal: audioBands.vocal,
                 onFirstFrame: () => { setDrawn(true); latest.current.firstFrameDrawn(); },
@@ -90,7 +95,7 @@ const VisualizerNebbia: React.FC<Props> = (props) => {
             runtimeRef.current = null;
             runtime.destroy();
         };
-    }, [audioBands.vocal, currentTime, generation, seeThrough]);
+    }, [audioBands.vocal, currentTime, generation, glass, scene, seeThrough]);
 
     useEffect(() => { runtimeRef.current?.setSong(song); }, [song]);
     useEffect(() => { runtimeRef.current?.setTuning(nebbiaTuning); }, [nebbiaTuning]);

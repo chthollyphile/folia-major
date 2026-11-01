@@ -1,11 +1,13 @@
 import { checkLinked, compileShader, startProgram } from './nebbiaGlUtils';
 import { NEBBIA_MASK_FS, NEBBIA_MASK_VS } from './nebbiaMaskGl';
-import { NEBBIA_BLD_FILL_FS, NEBBIA_FOG_FS, NEBBIA_NOISE_FS, NEBBIA_MAIN_FALLBACK_FS, NEBBIA_MAIN_FS, NEBBIA_SPRITE_FS, NEBBIA_SPRITE_VS, NEBBIA_VS } from './nebbiaShaders';
+import { NEBBIA_BLD_FILL_FS, NEBBIA_NOISE_FS, NEBBIA_SPRITE_FS, NEBBIA_SPRITE_VS, NEBBIA_VS, nebbiaSceneShaders } from './nebbiaShaders';
+import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaPrograms.ts
 // 雾笺的六个着色器程序（雾的预渲染、主画面、水珠精灵、擦痕遮罩、楼群缓存的补画、静态噪声纹理）在后台编：有 KHR_parallel_shader_compile 时提交了不等，
 // 每帧问一次编好没有，编好才查链接结果（查结果会一直等到编完，D3D11 上冷编要将近 1 秒）；没有这个扩展就当场等。
 // 运行时（nebbiaGl.ts）和启动时的预热（nebbiaShaderWarmup.ts）都从这里编：源码、属性位置一样，GPU 进程的程序缓存才对得上。
+// 雾的预渲染和主画面按窗外场景编（街景或水族箱）；楼群缓存的补画只有街景要。
 
 export interface NebbiaPrograms {
     /** 雾的预渲染；不能渲染到浮点纹理时没有（主画面自己算雾）。 */
@@ -14,8 +16,8 @@ export interface NebbiaPrograms {
     sprite: WebGLProgram;
     /** 擦痕遮罩（nebbiaMaskGl.ts）。 */
     mask: WebGLProgram;
-    /** 往楼群缓存里补画（nebbiaBuildingCache.ts）。 */
-    bldFill: WebGLProgram;
+    /** 往楼群缓存里补画（nebbiaBuildingCache.ts）；窗外是水族箱时没有。 */
+    bldFill: WebGLProgram | null;
     /** 算静态噪声纹理（nebbiaNoiseTex.ts）。 */
     noise: WebGLProgram;
 }
@@ -47,16 +49,17 @@ export class NebbiaProgramBuild {
     private readonly parallel: ParallelCompile | null;
     private done = false;
 
-    constructor(private readonly gl: WebGL2RenderingContext, fogToFloat: boolean) {
+    constructor(private readonly gl: WebGL2RenderingContext, fogToFloat: boolean, scene: NebbiaWindowScene = 'night', glass: NebbiaGlass = 'rain') {
         this.parallel = gl.getExtension('KHR_parallel_shader_compile') as ParallelCompile | null;
         const vs = compileShader(gl, gl.VERTEX_SHADER, NEBBIA_VS);
         const frag = (src: string) => compileShader(gl, gl.FRAGMENT_SHADER, src);
+        const shaders = nebbiaSceneShaders(scene, glass);
         this.programs = {
-            fog: fogToFloat ? startProgram(gl, vs, frag(NEBBIA_FOG_FS), { aPos: 0 }) : null,
-            main: startProgram(gl, vs, frag(fogToFloat ? NEBBIA_MAIN_FS : NEBBIA_MAIN_FALLBACK_FS), { aPos: 0 }),
+            fog: fogToFloat ? startProgram(gl, vs, frag(shaders.fog), { aPos: 0 }) : null,
+            main: startProgram(gl, vs, frag(fogToFloat ? shaders.main : shaders.mainFallback), { aPos: 0 }),
             sprite: startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_SPRITE_VS), frag(NEBBIA_SPRITE_FS), { aCorner: 0, aRect: 1, aParam: 2 }),
             mask: startProgram(gl, compileShader(gl, gl.VERTEX_SHADER, NEBBIA_MASK_VS), frag(NEBBIA_MASK_FS), { aCorner: 0, aSeg: 1, aParam: 2 }),
-            bldFill: startProgram(gl, vs, frag(NEBBIA_BLD_FILL_FS), { aPos: 0 }),
+            bldFill: scene === 'night' ? startProgram(gl, vs, frag(NEBBIA_BLD_FILL_FS), { aPos: 0 }) : null,
             noise: startProgram(gl, vs, frag(NEBBIA_NOISE_FS), { aPos: 0 }),
         };
     }

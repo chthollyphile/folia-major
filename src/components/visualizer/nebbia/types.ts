@@ -29,9 +29,25 @@ export type NebbiaSceneryPart = typeof NEBBIA_SCENERY[number];
 export const NEBBIA_RAIN = ['slant', 'straight', 'off'] as const;
 export type NebbiaRain = typeof NEBBIA_RAIN[number];
 
-/** 窗外是什么：雾笺自己画的雨夜街景，或者共用背景（雾变成一层半透明的雾、日白夜深，擦开的字透出后面；透明模式下就是桌面）。 */
-export const NEBBIA_BEHIND = ['night', 'backdrop'] as const;
+/**
+ * 窗外是什么：雾笺自己画的雨夜街景、水族箱，或者共用背景（雾变成一层半透明的雾、日白夜深，擦开的字透出后面；透明模式下就是桌面）。
+ */
+export const NEBBIA_BEHIND = ['night', 'aquarium', 'backdrop'] as const;
 export type NebbiaBehind = typeof NEBBIA_BEHIND[number];
+/**
+ * 前面的雾玻璃上挂的水，和窗外是什么分开选：雨窗（大大小小的凝结水珠、雨点打窗）、凝露（一层很密的细小冷凝水珠慢慢渗出来，
+ * nebbiaCondensation.ts）。换窗外时换成那套的默认搭配（NEBBIA_GLASS_FOR）。
+ */
+export const NEBBIA_GLASS = ['rain', 'dew'] as const;
+export type NebbiaGlass = typeof NEBBIA_GLASS[number];
+/** 窗外的默认搭配：雨夜街景配雨窗、水族箱配凝露；共用背景不换。 */
+export const NEBBIA_GLASS_FOR: Partial<Record<NebbiaBehind, NebbiaGlass>> = { night: 'rain', aquarium: 'dew' };
+/** 雾笺自己画的窗外场景（着色器按它编，nebbiaShaders.ts）：选了共用背景时水珠里折射的还是街景。 */
+export type NebbiaWindowScene = 'night' | 'aquarium';
+/** 水族箱里最多几只水母（着色器里 uniform 数组的长度）。 */
+export const NEBBIA_MAX_JELLIES = 24;
+/** 着色器里跟拍冒泡最多同时几排（nebbiaBubbleGlsl.ts 的 uBurst）。 */
+export const NEBBIA_MAX_BURSTS = 12;
 
 export interface NebbiaTuning {
     /** 分辨率与抗锯齿（#929）：默认跟随「性能与动效」里的全局挡位（utils/lyricRenderQuality.ts）。 */
@@ -42,8 +58,10 @@ export interface NebbiaTuning {
     fade: NebbiaFadeStyle[];
     /** 打开的构图，至少一种。 */
     layouts: NebbiaLayout[];
-    /** 窗外是街景还是共用背景；播放页透明时总是共用背景（那时背景卸掉，透出桌面）。 */
+    /** 窗外是街景、水族箱还是共用背景；播放页透明时总是共用背景（那时背景卸掉，透出桌面）。 */
     behind: NebbiaBehind;
+    /** 前面雾玻璃上的水：雨窗还是凝露。着色器按它编，换了要重建运行时。 */
+    glass: NebbiaGlass;
     /** 窗外打开的几样，可以一样都没有。 */
     scenery: NebbiaSceneryPart[];
     /** 窗外的雨。 */
@@ -80,6 +98,17 @@ export interface NebbiaTuning {
     rainBig: number;
     /** 颠簸强度，0 关。 */
     bump: number;
+    /** 渲染分辨率（× CSS 像素，最高 2 倍设备像素比）。 */
+    /** 水族箱里几只水母。 */
+    jellies: number;
+    /** 水母大小（× 默认）。 */
+    jellySize: number;
+    /** 水族箱的气泡多少：冒泡的泉眼和大泡的多少。 */
+    bubbles: number;
+    /** 凝露玻璃的冷凝水珠：多少（× 默认，0 没有）、大小（× 默认）、高光（× 默认）。 */
+    dew: number;
+    dewSize: number;
+    dewGlint: number;
 }
 
 /** 各个数值项的范围：设置面板的滑块和归一化共用。 */
@@ -99,6 +128,12 @@ export const NEBBIA_LIMITS = {
     rainHit: { min: 0, max: 3 },
     rainBig: { min: 0, max: 2 },
     bump: { min: 0, max: 2.5 },
+    jellies: { min: 0, max: NEBBIA_MAX_JELLIES },
+    jellySize: { min: 0.5, max: 1.8 },
+    bubbles: { min: 0, max: 1 },
+    dew: { min: 0, max: 1.5 },
+    dewSize: { min: 0.5, max: 2 },
+    dewGlint: { min: 0, max: 2 },
 } as const satisfies Partial<Record<keyof NebbiaTuning, { min: number; max: number }>>;
 
 export type NebbiaNumberKey = keyof typeof NEBBIA_LIMITS;
@@ -109,6 +144,7 @@ export const DEFAULT_NEBBIA_TUNING: NebbiaTuning = {
     fade: ['fog'],
     layouts: [...NEBBIA_LAYOUTS],
     behind: 'night',
+    glass: 'rain',
     scenery: [...NEBBIA_SCENERY],
     rain: 'slant',
     credits: true,
@@ -127,6 +163,12 @@ export const DEFAULT_NEBBIA_TUNING: NebbiaTuning = {
     rainHit: 1,
     rainBig: 1,
     bump: 1,
+    jellies: 16,
+    jellySize: 1,
+    bubbles: 0.6,
+    dew: 1,
+    dewSize: 1,
+    dewGlint: 1,
 };
 
 /** 运行时（createNebbiaRuntime.ts）的歌：歌词、随机种子，片尾写的曲名和歌手。 */
@@ -136,6 +178,10 @@ export interface NebbiaRuntimeInput {
     host: HTMLElement;
     /** 窗外不画，画布带透明通道：雾是半透明的（颜色跟主题日夜），擦开的地方全透明。建好就不变，要换得重建运行时。 */
     seeThrough: boolean;
+    /** 窗外画哪套场景（透出后面时水珠里折射的那套）。着色器按它编，建好就不变，要换得重建运行时。 */
+    scene: NebbiaWindowScene;
+    /** 前面雾玻璃上的水（tuning.glass）。着色器按它编，建好就不变，要换得重建运行时。 */
+    glass: NebbiaGlass;
     currentTime: MotionValue<number>;
     vocal: MotionValue<number>;
     onFirstFrame: () => void;
