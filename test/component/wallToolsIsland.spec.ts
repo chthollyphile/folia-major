@@ -309,8 +309,8 @@ test.describe('wall tools queue island', () => {
         await searchButton.click();
         await expect(input).toBeFocused();
         await expect(input).toHaveAttribute('placeholder', 'Search the queue (200)');
-        // 搜索时不给存歌单与清空。
-        await expect(island(page).locator('[data-queue-island-action="clear"]')).toHaveCount(0);
+        // 搜索时不给存歌单与清空：头部那一行淡出并隐藏（不在 Tab 顺序里）。
+        await expect(island(page).locator('[data-queue-island-action="clear"]')).toBeHidden();
 
         // 「199」既是第 200 首的歌名，也是第 199 首的位置号（与命令面板、遥控窗口的队列搜索同一份检索文字）。
         await input.fill('track 199');
@@ -582,5 +582,38 @@ test.describe('wall tools queue island', () => {
         await page.setViewportSize({ width: 390, height: 760 });
         await expect.poll(async () => { const [ix, iw, px, pw] = await edges(); return ix === px && iw === pw && iw === 296; }).toBe(true);
         await page.screenshot({ path: 'test-results/wall-tools-island-mobile.png' });
+    });
+});
+
+test.describe('wall tools queue island search field', () => {
+    // 2 倍像素密度：看得清搜索框的角和浮岛圆角的关系。
+    test.use({ deviceScaleFactor: 2 });
+
+    test('the search field sits evenly inside the island corner, close button included; screenshots', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await probe(page, api => api.seed({ count: 40, currentIndex: 12 }));
+        await openPanel(page);
+        await island(page).locator('[data-queue-island-action="search"]').click();
+        await island(page).locator('[data-queue-island-search]').fill('track 1');
+        await page.waitForTimeout(300);
+        // 搜索框与浮岛上、左、右三边等距；关闭按钮在框里。
+        const [outer, field, close] = await Promise.all([
+            island(page).boundingBox(),
+            island(page).locator('.lattice-tools-island-search').boundingBox(),
+            island(page).locator('[data-queue-island-action="close-search"]').boundingBox(),
+        ]);
+        const top = field!.y - outer!.y;
+        const left = field!.x - outer!.x;
+        const right = outer!.x + outer!.width - (field!.x + field!.width);
+        expect(Math.abs(top - left)).toBeLessThanOrEqual(1.5);
+        expect(Math.abs(left - right)).toBeLessThanOrEqual(0.5);
+        expect(close!.x + close!.width).toBeLessThanOrEqual(field!.x + field!.width);
+        expect(close!.y).toBeGreaterThanOrEqual(field!.y);
+
+        const clip = { x: outer!.x - 12, y: outer!.y - 12, width: outer!.width + 24, height: 140 };
+        await page.screenshot({ path: 'test-results/wall-tools-island-search-dark.png', clip, scale: 'device' });
+        await probe(page, api => api.setDaylight(true));
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: 'test-results/wall-tools-island-search-daylight.png', clip, scale: 'device' });
     });
 });
