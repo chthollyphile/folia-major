@@ -34,10 +34,17 @@ export const backgroundOnScreen = (settings: BeatClockSettings): boolean => {
     return entry.showsBackground?.(collectVisualizerTunings(settings as unknown as Record<string, unknown>)) ?? true;
 };
 
-/** The beat effects of the mode on screen and of its background, when it shows one. */
+/**
+ * The beat effects of the mode on screen, those its tunings draw (`beatEffectOnScreen`), and of its
+ * background, when it shows one.
+ */
 const effectsOnScreen = (settings: BeatClockSettings): readonly BeatEffectDef[] => {
     const entry = getVisualizerRegistryEntry(settings.visualizerMode);
-    const own = entry.beatEffects ?? [];
+    const shown = entry.beatEffectOnScreen;
+    const tunings = shown ? collectVisualizerTunings(settings as unknown as Record<string, unknown>) : null;
+    const own = shown
+        ? (entry.beatEffects ?? []).filter(effect => shown(effect.id, tunings!, Boolean(settings.pageTransparent)))
+        : entry.beatEffects ?? [];
     if (!backgroundOnScreen(settings)) return own;
     const background = settings.visualizerBackgroundMode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
     const behind = getVisualizerBackgroundRegistryEntry(background).beatEffects ?? [];

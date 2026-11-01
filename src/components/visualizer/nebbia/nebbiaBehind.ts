@@ -1,6 +1,7 @@
 import type { VisualizerBackgroundConfig } from '../backgrounds/definition';
 import type { VisualizerSharedProps } from '../definition';
 import type { VisualizerTuningBundle } from '../tuningRegistry';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import nebbiaTuning from './tuning';
 import type { NebbiaTuning } from './types';
 
@@ -27,3 +28,16 @@ export const nebbiaBackgroundConfig = (props: VisualizerSharedProps): Visualizer
 export const nebbiaShowsBackground = (tunings: VisualizerTuningBundle) => (
     nebbiaSeesThrough(nebbiaTuning.read(tunings), undefined)
 );
+
+/**
+ * entry.tsx 的 beatEffectOnScreen：「舞潮踏拍」只在窗外画水族箱时算（选了共用背景、播放页透明时窗外不画）；
+ * 「疏雨轻车」的雨打在雨窗玻璃上、车只在不画水族箱时颠：画水族箱又是凝露玻璃时两样都没有，不算（不为它分离音轨）；
+ * 播放页透明时透出后面，不画水族箱，车照旧颠。
+ */
+export const nebbiaBeatEffectOnScreen = (effectId: string, tunings: VisualizerTuningBundle, pageTransparent: boolean) => {
+    const tuning = nebbiaTuning.read(tunings);
+    const aquarium = tuning.behind === 'aquarium' && !pageTransparent;
+    if (effectId === BEAT_EFFECT_IDS.nebbiaAquaBeat) return aquarium;
+    if (effectId === BEAT_EFFECT_IDS.nebbiaDrizzleRide) return !aquarium || tuning.glass === 'rain';
+    return true;
+};

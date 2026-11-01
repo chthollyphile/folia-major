@@ -6,18 +6,23 @@ import { makeTex, type Tex } from './nebbiaGlUtils';
 // 模糊半径 0.03 那层 1/4 画布分辨率；0.09 那层糊得多（2K 屏上约 180 像素），1/8 就够。
 // 用雾的预渲染程序（nebbiaShaders.ts 的 NEBBIA_FOG_FS）画，一层画一次。不能渲染到浮点纹理时（`ok` 为假，
 // nebbiaPrograms.ts 的 canRenderFogToFloat）不分配、不画，主画面自己算雾。
+// 凝露玻璃再多一层清晰的（模糊 0.006，和主画面里水珠折射现算的一样）：细水珠折射时读它，不逐像素重算窗外。
 
 interface FogLayer { tex: Tex; fb: WebGLFramebuffer | null; div: number; b: number; w: number; h: number }
 
+/** 清晰那层的分辨率（画布的几分之一）：模糊半径 0.006 屏高在 2K 屏上约 11 像素，1/4 的一格只有 4 像素，同一帧放大对比看不出差别。 */
+const SHARP_DIV = 4;
+
 export class NebbiaFogGl {
-    /** 两层：0.03 的（主画面的 uFogBlur）、0.09 的（uFogGlow），纹理挂在 `unit`、`unit + 1`。 */
+    /** 两层：0.03 的（主画面的 uFogBlur）、0.09 的（uFogGlow），纹理挂在 `unit`、`unit + 1`；凝露玻璃再加清晰的一层（uFogSharp）挂在 `sharpUnit`。 */
     readonly layers: FogLayer[];
 
-    constructor(private readonly gl: WebGL2RenderingContext, unit: number, private readonly ok: boolean) {
+    constructor(private readonly gl: WebGL2RenderingContext, unit: number, private readonly ok: boolean, sharpUnit: number | null = null) {
         this.layers = [
             { tex: makeTex(gl, unit), fb: ok ? gl.createFramebuffer() : null, div: FOG_DIV, b: 0.03, w: 1, h: 1 },
             { tex: makeTex(gl, unit + 1), fb: ok ? gl.createFramebuffer() : null, div: FOG_DIV * 2, b: 0.09, w: 1, h: 1 },
         ];
+        if (ok && sharpUnit !== null) this.layers.push({ tex: makeTex(gl, sharpUnit), fb: gl.createFramebuffer(), div: SHARP_DIV, b: 0.006, w: 1, h: 1 });
     }
 
     /** 画布的像素尺寸。帧缓冲能不能拼起来在建上下文时已经试过，这里不再同步查状态。 */

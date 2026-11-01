@@ -7,13 +7,15 @@ import { makeTex, type NebbiaUniforms, type Tex } from './nebbiaGlUtils';
 import { NebbiaMaskGl } from './nebbiaMaskGl';
 import { canRenderFogToFloat, NebbiaProgramBuild } from './nebbiaPrograms';
 import type { NebbiaSegments } from './nebbiaSegments';
+import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaGl.ts
 // 雾笺的 WebGL2 部分：雾的预渲染和主画面两个全屏着色器，四张玻璃上的纹理（擦痕遮罩（nebbiaMaskGl.ts 每帧画）、擦痕边 / 雨点的水珠、雾上的凝结水珠、哈气的白气），
-// 两张雾的预渲染（nebbiaFogGl.ts，RGBA16F，1/4、1/8 画布分辨率；不支持浮点渲染目标时主画面自己算），
+// 两张雾的预渲染（nebbiaFogGl.ts，RGBA16F，1/4、1/8 画布分辨率；不支持浮点渲染目标时主画面自己算；凝露玻璃再加一张清晰的给细水珠折射，采样单元 1），
 // 窗外楼群的缓存（nebbiaBuildingCache.ts，采样单元 9–14，雾的预渲染和主画面从它取楼群），
 // 静态噪声纹理（nebbiaNoiseTex.ts，采样单元 15）。
 // 透明（seeThrough）时画布带透明通道，窗外不画：楼群缓存和雾的预渲染都跳过，主画面输出预乘的透明度。
+// 窗外是水族箱（scene）时程序按水族箱编，没有楼群缓存，每帧多传水母和气泡的 uniform。
 // 着色器在后台编（nebbiaPrograms.ts）：`ready` 为真之前不画。
 // 水珠精灵是 raindrop-fx 1.0.8（MIT，见 nebbiaRaindrop.LICENSE.txt）的 assets/img/raindrop.png。
 
@@ -21,8 +23,10 @@ type Locations = Record<string, WebGLUniformLocation | null>;
 
 // 街景（两个程序都有）读的 uniform；其余只在主画面
 const PALETTE_UNIFORMS = ['uSky0', 'uSky1', 'uLa', 'uLb', 'uLc'];
-const SCENE_UNIFORMS = ['uRes', 'uSceneShift', 'uTime', 'uBus', 'uNeon', ...PALETTE_UNIFORMS, 'uSpotSrc', 'uSpotSrc2', 'uSpotTgt', 'uSpotR', 'uSpotI', 'uScenery', 'uBldOn', 'uBldGeo'];
-const MAIN_UNIFORMS = [...SCENE_UNIFORMS, 'uMist', 'uEdge', 'uRefract', 'uGlint', 'uGlassShift', 'uBreathOn', 'uBreathThick', 'uNoiseOn', 'uSeeThrough', 'uMistTint'];
+// 水族箱的（uJelly 这些）在街景的程序里取不到位置，设了也没事
+const SCENE_UNIFORMS = ['uRes', 'uSceneShift', 'uTime', 'uBus', 'uNeon', ...PALETTE_UNIFORMS, 'uSpotSrc', 'uSpotSrc2', 'uSpotTgt', 'uSpotR', 'uSpotI', 'uScenery', 'uBldOn', 'uBldGeo',
+    'uJelly', 'uJellyC', 'uJellyN', 'uBubbles', 'uSway', 'uBurst', 'uBurstN', 'uBeatRows'];
+const MAIN_UNIFORMS = [...SCENE_UNIFORMS, 'uDewGlint', 'uMist', 'uEdge', 'uRefract', 'uGlint', 'uGlassShift', 'uBreathOn', 'uBreathThick', 'uNoiseOn', 'uSeeThrough', 'uMistTint'];
 
 /** uScenery 里楼群那一位（nebbiaFrameUniforms.ts 的 SCENERY_BITS），和关着时给着色器的楼群缓存状态。 */
 const SCN_BUILDINGS = 1;
@@ -42,7 +46,8 @@ export class NebbiaGl {
     private U: Locations = {};
     private F: Locations = {};
     private B: Locations = {};
-    private readonly bld: NebbiaBuildingCache;
+    /** 楼群缓存，只有雨夜街景有（水族箱没有楼群，不建这几张纹理）。 */
+    private readonly bld: NebbiaBuildingCache | null;
     private uView: WebGLUniformLocation | null = null;
     private uFogB: WebGLUniformLocation | null = null;
     private linked = false;
@@ -52,6 +57,8 @@ export class NebbiaGl {
     private readonly noise: NebbiaNoiseTex;
     private W = 1; private H = 1;
     private spriteReady = false;
+    /** 雾上水珠纹理是不是还是对的：换尺寸后、精灵贴图加载好之前画的都不算，下一帧照画。 */
+    private fieldValid = false;
     private instData = new Float32Array(0);
     /** 主题配色：编好之前先记下，编好时补上。 */
     private palette: number[][] | null = null;
@@ -60,12 +67,12 @@ export class NebbiaGl {
     /** 精灵贴图加载好时调（这之前不画水珠）。 */
     onSpriteReady: (() => void) | null = null;
 
-    constructor(private readonly canvas: HTMLCanvasElement, private readonly seeThrough = false) {
+    constructor(private readonly canvas: HTMLCanvasElement, private readonly seeThrough = false, scene: NebbiaWindowScene = 'night', glass: NebbiaGlass = 'rain') {
         const gl = canvas.getContext('webgl2', { antialias: false, alpha: seeThrough, preserveDrawingBuffer: false });
         if (!gl) throw new Error('Nebbia: WebGL2 unavailable');
         this.gl = gl;
         this.fogOK = canRenderFogToFloat(gl);
-        this.build = new NebbiaProgramBuild(gl, this.fogOK);
+        this.build = new NebbiaProgramBuild(gl, this.fogOK, scene, glass);
         this.quadVao = gl.createVertexArray()!;
         gl.bindVertexArray(this.quadVao);
         gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
@@ -77,9 +84,9 @@ export class NebbiaGl {
         this.drop = makeTex(gl, 3);
         this.field = makeTex(gl, 4);
         this.sprite = makeTex(gl, 5);
-        this.fogGl = new NebbiaFogGl(gl, 6, this.fogOK);
+        this.fogGl = new NebbiaFogGl(gl, 6, this.fogOK, glass === 'dew' && !seeThrough ? 1 : null);
         this.breath = makeTex(gl, 8);
-        this.bld = new NebbiaBuildingCache(gl, 9);
+        this.bld = scene === 'night' ? new NebbiaBuildingCache(gl, 9) : null;
         this.noise = new NebbiaNoiseTex(gl, 15);
 
         this.spriteVao = gl.createVertexArray()!;
@@ -109,18 +116,19 @@ export class NebbiaGl {
         this.mask.attach(mask);
         this.U = locate(gl, main, MAIN_UNIFORMS);
         gl.useProgram(main);
-        const [fogBlur, fogGlow] = this.fogGl.layers;
+        const [fogBlur, fogGlow, fogSharp] = this.fogGl.layers;
         const samplers: [string, Tex][] = [['uMask', this.mask.tex], ['uDrop', this.drop], ['uField', this.field], ['uFogBlur', fogBlur.tex], ['uFogGlow', fogGlow.tex], ['uBreath', this.breath], ['uNoise', this.noise.tex]];
+        if (fogSharp) samplers.push(['uFogSharp', fogSharp.tex]);
         for (const [name, tex] of samplers) gl.uniform1i(gl.getUniformLocation(main, name), tex.unit);
         gl.uniform1f(this.U.uBreathThick, NEBBIA_FIXED.breathThick);
         gl.uniform1i(this.U.uSeeThrough, this.seeThrough ? 1 : 0);
-        this.bld.bindSamplers(main);
+        this.bld?.bindSamplers(main);
         if (fog) {
             this.F = locate(gl, fog, SCENE_UNIFORMS);
             this.uFogB = gl.getUniformLocation(fog, 'uFogB');
-            this.bld.bindSamplers(fog);
+            this.bld?.bindSamplers(fog);
         }
-        this.B = locate(gl, bldFill, [...PALETTE_UNIFORMS, ...BLD_FILL_UNIFORMS]);
+        if (bldFill) this.B = locate(gl, bldFill, [...PALETTE_UNIFORMS, ...BLD_FILL_UNIFORMS]);
         gl.useProgram(sprite);
         this.uView = gl.getUniformLocation(sprite, 'uView');
         gl.uniform1i(gl.getUniformLocation(sprite, 'uSprite'), this.sprite.unit);
@@ -161,7 +169,7 @@ export class NebbiaGl {
             gl.uniform3fv(L.uLa, la); gl.uniform3fv(L.uLb, lb); gl.uniform3fv(L.uLc, lc);
         }
         // 楼群的颜色跟着配色：缓存全部重画
-        this.bld.invalidate();
+        this.bld?.invalidate();
     }
 
     /** W、H 是 CSS 像素（水珠纹理用这个分辨率），dpr 是画布的像素比。 */
@@ -171,6 +179,7 @@ export class NebbiaGl {
         this.canvas.width = Math.max(1, Math.round(W * dpr));
         this.canvas.height = Math.max(1, Math.round(H * dpr));
         this.mask.resize(W, H);
+        this.fieldValid = false;
         for (const tex of [this.drop, this.field]) {
             gl.activeTexture(gl.TEXTURE0 + tex.unit);
             gl.bindTexture(gl.TEXTURE_2D, tex.t);
@@ -182,23 +191,29 @@ export class NebbiaGl {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         this.fogGl.resize(this.canvas.width, this.canvas.height);
         this.noise.resize(this.canvas.width, this.canvas.height);
-        this.bld.resize(this.canvas.width, this.canvas.height, Math.max(1, Math.ceil(this.canvas.height / FOG_DIV)));
+        this.bld?.resize(this.canvas.width, this.canvas.height, Math.max(1, Math.ceil(this.canvas.height / FOG_DIV)));
     }
 
     // 水珠实例画进一张水珠纹理（CSS 分辨率）
-    private renderDrops(tex: Tex, inst: number[]) {
+    // inst 是 Float32Array（凝露的冷凝水珠，nebbiaCondensation.ts）时直接上传，不再拷一遍
+    private renderDrops(tex: Tex, inst: number[] | Float32Array) {
         const { gl } = this;
         gl.bindFramebuffer(gl.FRAMEBUFFER, tex.fb!);
         gl.viewport(0, 0, this.W, this.H);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         if (inst.length && this.spriteReady) {
-            if (this.instData.length < inst.length) this.instData = new Float32Array(Math.ceil(inst.length * 1.5));
-            this.instData.set(inst);
+            let data: Float32Array;
+            if (inst instanceof Float32Array) data = inst;
+            else {
+                if (this.instData.length < inst.length) this.instData = new Float32Array(Math.ceil(inst.length * 1.5));
+                this.instData.set(inst);
+                data = this.instData.subarray(0, inst.length);
+            }
             gl.useProgram(this.build.programs.sprite);
             gl.bindVertexArray(this.spriteVao);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
-            gl.bufferData(gl.ARRAY_BUFFER, this.instData.subarray(0, inst.length), gl.DYNAMIC_DRAW);
+            gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
             gl.uniform2f(this.uView, this.W, this.H);
             gl.enable(gl.BLEND);
             gl.blendFuncSeparate(gl.ONE_MINUS_DST_COLOR, gl.ONE_MINUS_SRC_COLOR, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -218,6 +233,13 @@ export class NebbiaGl {
         gl.uniform2fv(L.uSpotSrc, u.spotSrc); gl.uniform2fv(L.uSpotSrc2, u.spotSrc2); gl.uniform2fv(L.uSpotTgt, u.spotTgt);
         gl.uniform1f(L.uSpotR, u.spotR); gl.uniform1f(L.uSpotI, u.spotI);
         gl.uniform1i(L.uScenery, u.scenery);
+        gl.uniform1f(L.uDewGlint, u.dewGlint);
+        if (u.aqua) {
+            gl.uniform4fv(L.uJelly, u.aqua.jelly); gl.uniform4fv(L.uJellyC, u.aqua.jellyColor);
+            gl.uniform1i(L.uJellyN, u.aqua.count); gl.uniform1f(L.uBubbles, u.aqua.bubbles);
+            gl.uniform4fv(L.uSway, u.aqua.sway); gl.uniform4fv(L.uBurst, u.aqua.bursts); gl.uniform1i(L.uBurstN, u.aqua.burstCount);
+            gl.uniform1f(L.uBeatRows, u.aqua.beatRows);
+        }
     }
 
     // 楼群缓存的取样状态（两个程序都设）
@@ -231,7 +253,7 @@ export class NebbiaGl {
      * 画一帧（`ready` 为真之后才调）：擦痕遮罩，白气遮罩上传（只在这一帧有哈气时传，`breath` 为 null 就不传），
      * 两张水珠纹理，补画楼群缓存，静态噪声纹理（改尺寸后算一次），雾的预渲染，主画面。
      */
-    render(mask: NebbiaSegments, breath: HTMLCanvasElement | null, drops: number[], field: number[], u: NebbiaUniforms) {
+    render(mask: NebbiaSegments, breath: HTMLCanvasElement | null, drops: number[], field: number[] | Float32Array, u: NebbiaUniforms, fieldChanged = true) {
         const { gl, U } = this;
         const { main, fog, bldFill, noise } = this.build.programs;
         this.mask.draw(mask);
@@ -241,10 +263,14 @@ export class NebbiaGl {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, breath);
         }
         this.renderDrops(this.drop, drops);
-        this.renderDrops(this.field, field);
+        // 雾上水珠没变（凝露的冷凝水珠隔一阵才更新）时纹理留着上次的
+        if (fieldChanged || !this.fieldValid) {
+            this.renderDrops(this.field, field);
+            this.fieldValid = this.spriteReady;
+        }
         gl.bindVertexArray(this.quadVao);
-        // 楼群关着时不补画缓存；再打开时缓存发现位置对不上，自己整张重画
-        const buildings = u.scenery & SCN_BUILDINGS && !this.seeThrough ? this.bld.update(u.time * u.bus, bldFill, this.B) : NO_BUILDINGS;
+        // 楼群关着时不补画缓存；再打开时缓存发现位置对不上，自己整张重画。水族箱没有楼群（没有补画程序）
+        const buildings = u.scenery & SCN_BUILDINGS && !this.seeThrough && bldFill && this.bld ? this.bld.update(u.time * u.bus, bldFill, this.B) : NO_BUILDINGS;
         const noiseOn = this.noise.update(noise);
         if (fog && !this.seeThrough) {
             gl.useProgram(fog);

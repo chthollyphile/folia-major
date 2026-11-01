@@ -20,11 +20,21 @@ import type { VocalEnvelope } from '../../../services/analysis/vocalEnvelope';
 import { NebbiaDrizzleRide } from './nebbiaDrizzleRide';
 import { nebbiaFrameUniforms } from './nebbiaFrameUniforms';
 import { NebbiaSceneClock } from './nebbiaSceneClock';
+import { NebbiaCondensation } from './nebbiaCondensation';
+import { NebbiaAquarium, type NebbiaAquaBeats } from './nebbiaAquarium';
+import { BEAT_EFFECT_IDS, beatEffectPartId } from '../../../services/beatFx/beatEffects';
+import { getBeatEffectStrength, getBeatFxEvents, getBeatFxHeard, isBeatEffectPlaying, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
+
+const AQUA_BEAT = BEAT_EFFECT_IDS.nebbiaAquaBeat;
+const AQUA_JELLY = beatEffectPartId(AQUA_BEAT, 'jelly'), AQUA_WEED = beatEffectPartId(AQUA_BEAT, 'weed'), AQUA_BUBBLE = beatEffectPartId(AQUA_BEAT, 'bubble');
+const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 
 // src/components/visualizer/nebbia/createNebbiaRuntime.ts
 // 雾笺的运行时：一块画布、一个 WebGL2 上下文，自己的 rAF 循环。React 外壳把歌、tuning、主题、暂停推进来，
 // 每帧的播放时间和人声能量只在循环里读，不进 React state。暂停时不跑循环，只在需要时补画一帧；
 // 静态模式照常跟着歌词写字，窗外按车速匀速走，但不颠簸、没有小雨点。着色器在后台编（nebbiaPrograms.ts），编好之前循环空转、不画。
+// 窗外是水族箱时每帧推着水母、跟拍的水草和大泡走（nebbiaAquarium.ts），智能动感模式的「舞潮踏拍」开着就跟拍；
+// 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。
 
 // 改了要重排整首的 tuning 项
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
@@ -39,6 +49,8 @@ export class NebbiaRuntime {
     private readonly spot = new NebbiaSpot();
     private readonly energy = new VocalEnergy();
     private readonly fieldInst: number[] = [];
+    /** 玻璃是凝露时雾上的细小冷凝水珠（代替 motion 的凝结水珠）；雨窗时 null。 */
+    private readonly condensation: NebbiaCondensation | null;
     private readonly observer: ResizeObserver | null = null;
     private readonly glyphs: NebbiaGlyphCache;
     private hits = new NebbiaHits(0);
@@ -48,6 +60,10 @@ export class NebbiaRuntime {
     private vocalEnv: VocalEnvelope | null = null;
     private readonly drizzleRide = new NebbiaDrizzleRide();
     private readonly clock = new NebbiaSceneClock();
+    /** 窗外是水族箱时的水母；街景时 null。 */
+    private readonly aquarium: NebbiaAquarium | null;
+    /** aquaBeats() 每帧改写的那一份。 */
+    private readonly aquaBeatsOut: NebbiaAquaBeats = { events: [], heard: 0, jelly: 0, weed: 0, bubble: 0, spot: 0 };
     private song: NebbiaSong = { lines: [], seed: 'nebbia' };
     private theme: Theme;
     private tuning: NebbiaTuning;
@@ -72,13 +88,15 @@ export class NebbiaRuntime {
         this.theme = theme;
         this.tuning = tuning;
         this.renderScale = renderScale;
+        this.aquarium = input.scene === 'aquarium' ? new NebbiaAquarium() : null;
+        this.condensation = input.glass === 'dew' ? new NebbiaCondensation() : null;
         // setTuning 只在 tuning 变了才调：上下文恢复后重建的运行时要自己带上颠簸强度
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         input.host.appendChild(this.canvas);
         try {
-            this.gl = new NebbiaGl(this.canvas, input.seeThrough);
+            this.gl = new NebbiaGl(this.canvas, input.seeThrough, input.scene, input.glass);
             this.gl.onSpriteReady = () => this.requestFrame();
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
@@ -187,6 +205,23 @@ export class NebbiaRuntime {
     private applyTheme() {
         const p = resolveNebbiaPalette(this.theme);
         this.gl.setPalette(p.sky0, p.sky1, p.la, p.lb, p.lc);
+        this.aquarium?.setPalette(p.la, p.lb, p.lc);
+    }
+
+    /** 「舞潮踏拍」：开着、节拍表装好、不是静态模式时给的节拍表和三项强度。 */
+    private aquaBeats(): NebbiaAquaBeats | null {
+        if (this.still || !isBeatFxReady() || !isBeatEffectPlaying(AQUA_BEAT)) return null;
+        // 按听到的时刻走（扣掉输出延迟），和其他跟拍效果一样
+        const heard = getBeatFxHeard().time;
+        if (heard === null) return null;
+        const out = this.aquaBeatsOut;
+        out.events = getBeatFxEvents();
+        out.heard = heard;
+        out.jelly = getBeatEffectStrength(AQUA_JELLY);
+        out.weed = getBeatEffectStrength(AQUA_WEED);
+        out.bubble = getBeatEffectStrength(AQUA_BUBBLE);
+        out.spot = getBeatEffectStrength(AQUA_SPOT);
+        return out;
     }
 
     private resize() {
@@ -201,7 +236,8 @@ export class NebbiaRuntime {
         this.gl.resize(this.W, this.H, dpr);
         this.mask.resize(this.W, this.H);
         if (sized) {
-            this.motion.buildField(this.W, this.H);
+            if (this.condensation) this.condensation.build(this.W, this.H);
+            else this.motion.buildField(this.W, this.H);
             this.rebuild();
         }
         this.requestFrame();
@@ -260,10 +296,13 @@ export class NebbiaRuntime {
         const T = this.input.currentTime.get();
         const t = this.tuning;
         // 疏雨轻车：车跟底鼓颠；人声轨包络到了或开关变了，就按它重排整首的雨点，强度每帧乘小雨点密度和大雨点大小
+        // 车只在街景里颠（水族箱里不颠），雨只打在雨窗玻璃上（凝露没有雨打窗）
         const ride = this.drizzleRide;
-        ride.step(this.motion, now, T, frozen, t.bump);
-        const vocalStrength = ride.rain;
-        if (ride.env !== this.vocalEnv) {
+        const rainGlass = !this.condensation;
+        if (rainGlass || !this.aquarium) ride.step(this.motion, now, T, frozen, t.bump, !this.aquarium);
+        else this.motion.beginFrame(now, frozen, false);
+        const vocalStrength = rainGlass ? ride.rain : 0;
+        if (rainGlass && ride.env !== this.vocalEnv) {
             this.vocalEnv = ride.env;
             this.rebuildHits();
         }
@@ -271,8 +310,10 @@ export class NebbiaRuntime {
         this.hits.advance(T, e, this.still ? 0 : t.rainHit * vocalStrength, NebbiaHits.lifeOf(t.refog, NEBBIA_FIXED.beadHold), this.W, this.H);
         this.mask.draw(this.laid, T, now, t, this.motion, this.hits, t.rainBig * vocalStrength);
         this.spot.update(this.laid, T, dt);
-        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, this.motion.fieldInstances(this.fieldInst, t.busSpeed),
-            nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time));
+        const aqua = this.aquarium?.step(dt, this.clock.time, this.W / this.H, t, this.aquaBeats()) ?? null;
+        const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
+        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field,
+            nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua), this.condensation?.changed ?? true);
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);
     };

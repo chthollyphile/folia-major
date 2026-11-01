@@ -13,6 +13,7 @@ import {
     buildStageSearchRequest,
     buildStageSessionRequest,
     buildStageStatusRequest,
+    isValidStageSongRef,
     shouldUseStageMultipart,
     validateStageLyricsRequestInput,
     validateStagePlayRequestInput,
@@ -217,7 +218,23 @@ describe('stageClientDemo helpers', () => {
             songId: 0,
         });
 
-        expect(error).toBe('songId must be a positive integer.');
+        expect(error).toBe('songId must be a positive integer or a <provider>:<songId> reference.');
+    });
+
+    it('reads song references the way the Stage API does', () => {
+        for (const songRef of [123456, '123456', 'qq:97773', 'netease:42', 'kugou:abc123', 'folium.mod.source:x']) {
+            expect(isValidStageSongRef(songRef)).toBe(true);
+        }
+        for (const songRef of [0, -1, 1.5, '', 'qq:', ':1', 'a b:1', null, undefined]) {
+            expect(isValidStageSongRef(songRef)).toBe(false);
+        }
+    });
+
+    it('sends a search provider only when one is given', () => {
+        const base = { baseUrl: 'http://127.0.0.1:32107', token: 'demo-token', query: 'x' };
+        expect(JSON.parse(String(buildStageSearchRequest({ ...base, provider: ' qq ' }).init.body))).toEqual({ query: 'x', provider: 'qq' });
+        expect(JSON.parse(String(buildStageSearchRequest({ ...base, provider: '' }).init.body))).toEqual({ query: 'x' });
+        expect(validateStageSearchRequestInput({ ...base, provider: 'QQ Music!' })).toBe('provider must be an omni provider id.');
     });
 
     it('builds player status and time requests', () => {
