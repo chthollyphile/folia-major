@@ -134,14 +134,14 @@ export default function WindowControls({
 
   const remoteControlVisible = controlsVisible;
   const standardControlsVisible = controlsVisible;
-  const remoteBtnClass = `flex items-center justify-center w-9 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const remoteBtnClass = `flex items-center justify-center w-9 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(120,120,120,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     remoteControlVisible
       ? isDaylight
         ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9]"
         : "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#333a_20%,transparent)] hover:bg-[#324b5a]"
       : "pointer-events-none opacity-0 -translate-y-1"
   }`;
-  const btnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const btnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[1px] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(120,120,120,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     standardControlsVisible
       ? isDaylight
         ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#fffa_20%,transparent)] hover:bg-[#307aa9]"
@@ -151,7 +151,7 @@ export default function WindowControls({
   const pinBtnClass = `${remoteBtnClass} ${
     isTitlebarPinned ? "bg-[#307aa9] shadow-[inset_0_0_0_1px_#fff8]" : ""
   }`;
-  const closeBtnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[3px] hover:bg-[#cc361c] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(40,40,40,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
+  const closeBtnClass = `flex items-center justify-center w-11 h-[calc(100% - 6px)] mb-[6px] mr-[3px] hover:bg-[#cc361c] transition-all border-[1px] border-[#fff7] border-solid duration-200 text-white outline outline-1 outline-solid outline-[rgba(120,120,120,0.5)] shadow-[2px_2px_8px_2px_rgba(40,40,40,0.4)] ${
     standardControlsVisible
       ? isDaylight
         ? "pointer-events-auto translate-y-0 bg-[linear-gradient(135deg,#a97874aa_20%,#cc361ccc)]"
