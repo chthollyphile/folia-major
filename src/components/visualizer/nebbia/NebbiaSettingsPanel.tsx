@@ -85,6 +85,11 @@ const GLASS_SLIDERS: Record<NebbiaTuning['glass'], SliderSpec[]> = {
         ['dewSize', 'options.nebbiaDewSize', 0.05, times],
         ['dewGlint', 'options.nebbiaDewGlint', 0.05, times],
     ],
+    snow: [
+        ['snow', 'options.nebbiaSnow', 0.05, times],
+        ['snowSize', 'options.nebbiaSnowSize', 0.05, times],
+        ['snowMelt', 'options.nebbiaSnowMelt', 0.05, times],
+    ],
 };
 const APPEAR_GROUP: SettingsGroupDef = { id: 'vis-nebbia-appear', titleKey: 'options.nebbiaAppear' };
 const FADE_GROUP: SettingsGroupDef = { id: 'vis-nebbia-fade', titleKey: 'options.nebbiaFade' };
@@ -190,10 +195,10 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
                         onChange={next => onTuningChange({ scenery: NEBBIA_SCENERY.filter(c => (c === part ? next : resolved.scenery.includes(c))) })}
                     />
                 ))}
-                {/* 街景的雨只画在聚光灯光柱里（被照亮的雨丝），聚光灯关着或强度为 0 时这项看不出来；水族箱的细气泡不看聚光灯 */}
+                {/* 街景的雨只画在聚光灯光柱里（被照亮的雨丝），聚光灯关着或强度为 0 时这项看不出来；水族箱的细气泡不看聚光灯；雪窗时街景窗外不下雨，这项不管用 */}
                 <Row label={t(rainKey)} note={t(`${rainKey}Hint`)}>
                     <Segmented<NebbiaTuning['rain']>
-                        disabled={resolved.behind === 'backdrop' || (!aquarium && (!resolved.scenery.includes('spot') || resolved.spot <= 0))}
+                        disabled={resolved.behind === 'backdrop' || (!aquarium && (resolved.glass === 'snow' || !resolved.scenery.includes('spot') || resolved.spot <= 0))}
                         value={resolved.rain}
                         options={NEBBIA_RAIN.map(rain => ({ value: rain, label: t(`${rainKey}_${rain}`) }))}
                         onChange={rain => onTuningChange({ rain })}

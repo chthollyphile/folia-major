@@ -36,9 +36,10 @@ export const NEBBIA_BEHIND = ['night', 'aquarium', 'backdrop'] as const;
 export type NebbiaBehind = typeof NEBBIA_BEHIND[number];
 /**
  * 前面的雾玻璃上挂的水，和窗外是什么分开选：雨窗（大大小小的凝结水珠、雨点打窗）、凝露（一层很密的细小冷凝水珠慢慢渗出来，
- * nebbiaCondensation.ts）。换窗外时换成那套的默认搭配（NEBBIA_GLASS_FOR）。
+ * nebbiaCondensation.ts）、雪窗（雪花打在玻璃上粘住、慢慢化成水珠，写字的手指经过时把雪抹开，nebbiaSnow.ts；街景窗外不下雨）。
+ * 换窗外时换成那套的默认搭配（NEBBIA_GLASS_FOR）。
  */
-export const NEBBIA_GLASS = ['rain', 'dew'] as const;
+export const NEBBIA_GLASS = ['rain', 'dew', 'snow'] as const;
 export type NebbiaGlass = typeof NEBBIA_GLASS[number];
 /** 窗外的默认搭配：雨夜街景配雨窗、水族箱配凝露；共用背景不换。 */
 export const NEBBIA_GLASS_FOR: Partial<Record<NebbiaBehind, NebbiaGlass>> = { night: 'rain', aquarium: 'dew' };
@@ -109,6 +110,10 @@ export interface NebbiaTuning {
     dew: number;
     dewSize: number;
     dewGlint: number;
+    /** 雪窗：打到玻璃上的雪多少（× 默认，0 没有）、雪花大小（× 默认）、化得多快（× 默认）。 */
+    snow: number;
+    snowSize: number;
+    snowMelt: number;
 }
 
 /** 各个数值项的范围：设置面板的滑块和归一化共用。 */
@@ -134,6 +139,9 @@ export const NEBBIA_LIMITS = {
     dew: { min: 0, max: 1.5 },
     dewSize: { min: 0.5, max: 2 },
     dewGlint: { min: 0, max: 2 },
+    snow: { min: 0, max: 3 },
+    snowSize: { min: 0.5, max: 2 },
+    snowMelt: { min: 0.25, max: 3 },
 } as const satisfies Partial<Record<keyof NebbiaTuning, { min: number; max: number }>>;
 
 export type NebbiaNumberKey = keyof typeof NEBBIA_LIMITS;
@@ -169,6 +177,9 @@ export const DEFAULT_NEBBIA_TUNING: NebbiaTuning = {
     dew: 1,
     dewSize: 1,
     dewGlint: 1,
+    snow: 1,
+    snowSize: 1,
+    snowMelt: 1,
 };
 
 /** 运行时（createNebbiaRuntime.ts）的歌：歌词、随机种子，片尾写的曲名和歌手。 */

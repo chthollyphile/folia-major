@@ -14,6 +14,10 @@ export interface InkContext {
     strokeWidth: number;
     writeSpeed: number;
     busSpeed: number;
+    /** 雪窗时收这一帧扫过的几段（笔尖、往下淌的水珠头；nebbiaSnow.ts 的 PEN_FLOATS 格式）：抹雪、吸水。别的玻璃 null。 */
+    sweeps: number[] | null;
+    /** 雪窗时收这一帧写好、边上还挂着水珠的笔画（同样格式）：吸走挨着的雪水。别的玻璃 null。 */
+    wet: number[] | null;
 }
 
 
@@ -50,6 +54,26 @@ const toScreen = (c: LaidChar, u: number, v: number): [number, number] => {
     return [c.x + cs * lx - sn * ly, c.y + sn * lx + cs * ly];
 };
 
+/** 正在写的这一笔：笔尖和它身后 PEN_TAIL 像素那一段记进 sweeps（一帧笔尖能走好几像素，只记笔尖会漏掉路过的雪）。 */
+const PEN_TAIL = 24;
+const pushPen = (pens: number[], c: LaidChar, st: GlyphStroke, drawn: number, width: number) => {
+    const [ux, uy] = pointAt(st, drawn), [vx, vy] = pointAt(st, Math.max(0, drawn - PEN_TAIL / c.s));
+    const [x1, y1] = toScreen(c, ux, uy), [x0, y0] = toScreen(c, vx, vy);
+    pens.push(x0, y0, x1, y1, width * c.s);
+};
+
+/** 这一笔已经写出来的部分，按屏幕坐标一段段记进 wet（宽是笔画宽）。 */
+const pushWet = (wet: number[], c: LaidChar, st: GlyphStroke, drawn: number, width: number) => {
+    const { pts, cum } = st;
+    let [x0, y0] = toScreen(c, pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length && cum[i - 1] < drawn; i += 1) {
+        const [u, v] = cum[i] > drawn ? pointAt(st, drawn) : pts[i];
+        const [x1, y1] = toScreen(c, u, v);
+        wet.push(x0, y0, x1, y1, width * c.s);
+        x0 = x1; y0 = y1;
+    }
+};
+
 // 一颗往下淌的水珠：从笔画最低处出发，走走停停，越走越小，留下一道擦开的水痕
 const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: number, width: number, clarity: number, beadV: number) => {
     let bx = 0, by = -1e9;
@@ -63,6 +87,11 @@ const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: n
     const speed = 1 - Math.cos(u * 6 * Math.PI);
     for (let y = 14 + (d.seed % 7) * 2; y < dist - r * 2; y += 18 + ((y * 7 + d.seed * 13) % 11)) ink.motion.put(bx + wob(y), by + y, r * (0.3 + 0.2 * (((y + d.seed) * 0.37) % 1)), beadV);
     ink.motion.put(bx + wob(dist), by + dist + r * 0.3, r, beadV, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
+    // 雪窗：还在往下淌的水珠头扫过的一段（冲掉路上的雪和水珠）
+    if (ink.sweeps && u < 1 && dist > 1 && beadV > 0.3) {
+        const ya = Math.max(0, dist - r * 3);
+        ink.sweeps.push(bx + wob(ya), by + ya, bx + wob(dist), by + dist + r * 0.3, r * 2.4);
+    }
 };
 
 /**
@@ -92,6 +121,8 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         const p = dur > 0 ? clamp(local / dur) : 1;
         const drawn = (p * 0.4 + smooth(p) * 0.6) * st.len;
         if (clarity > 0.002) { partialPath(ctx, st, drawn); ctx.stroke(width, clarity); }
+        if (ink.sweeps && !fadeIn && p > 0 && p < 1) pushPen(ink.sweeps, c, st, drawn, width);
+        if (ink.wet && !fadeIn && drawn > 0 && beadV > 0.3) pushWet(ink.wet, c, st, drawn, width);
         if (!fadeIn) {
             for (const b of c.beads[si]) {
                 if (b.s > drawn) break;

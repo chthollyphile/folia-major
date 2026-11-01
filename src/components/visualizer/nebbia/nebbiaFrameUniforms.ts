@@ -24,7 +24,7 @@ export const nebbiaFrameUniforms = (
         spotSrc: [t.spotX * asp, srcY], spotSrc2: [(1 - t.spotX) * asp, srcY],
         spotTgt: [spot.x / W * asp, spot.y / H],
         spotR: Math.max(0.02, spot.r / H * 0.75) * (aqua?.spotScale ?? 1), spotI: t.scenery.includes('spot') ? spot.i * t.spot : 0,
-        scenery: t.scenery.reduce((bits, part) => bits | (SCENERY_BITS[part] ?? 0), RAIN_BITS[t.rain]),
+        scenery: t.scenery.reduce((bits, part) => bits | (SCENERY_BITS[part] ?? 0), t.glass === 'snow' && !aqua ? 0 : RAIN_BITS[t.rain]),
         dewGlint: t.dewGlint,
         aqua,
     };
