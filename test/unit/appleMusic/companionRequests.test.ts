@@ -1,0 +1,216 @@
+import { createRequire } from 'node:module';
+import { webcrypto } from 'node:crypto';
+import { runInNewContext } from 'node:vm';
+import { describe, expect, it, vi } from 'vitest';
+
+// Exercise the inherited-channel allowlist and the exact code evaluated in the isolated page.
+const require = createRequire(import.meta.url);
+const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../electron/appleMusic/companionRequests.cjs');
+
+describe('Apple Music companion requests', () => {
+    it('rejects unknown operations, dangerous IDs and invalid page sizes', () => {
+        expect(validateRequest({ id: '1', operation: 'evaluate', params: { code: 'anything' } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'lyrics', params: { songId: '../me' } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'search', params: { query: 'x', limit: 101 } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'search', params: { query: '   ' } })).toBeNull();
+    });
+
+    it('returns a pseudonymous account identity and never sends the upstream identifier', async () => {
+        const request = validateRequest({ id: '1', operation: 'accountStatus' });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [{ id: 'private-profile-id', attributes: { name: 'Example' } }] } });
+        const context = { console, window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, crypto: webcrypto, TextEncoder, Uint8Array };
+        const result = await runInNewContext(requestExpression(request), context);
+        expect(result).toMatchObject({ ok: true, data: { nickname: 'Example', storefront: 'cn' } });
+        expect(result.data.id).toMatch(/^[a-f0-9]{64}$/);
+        expect(JSON.stringify(result)).not.toContain('private-profile-id');
+    });
+
+    it('does not misidentify a missing social profile as a signed-out user', async () => {
+        const request = validateRequest({ id: '1', operation: 'accountStatus' });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [] } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } });
+        expect(result).toMatchObject({ ok: false, error: 'identity-unavailable' });
+    });
+
+    it('identifies an account with no social profile by a hash of its music user token', async () => {
+        const request = validateRequest({ id: '1', operation: 'accountStatus' });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 404, data: { data: [] } });
+        const mk = { api: { music: call }, musicUserToken: 'a-token-that-stays-in-the-page' };
+        const result = await runInNewContext(requestExpression(request), {
+            window: { MusicKit: { getInstance: () => mk } }, crypto: webcrypto, TextEncoder, Uint8Array,
+        });
+        expect(result).toMatchObject({ ok: true, data: { nickname: '', storefront: 'cn' } });
+        expect(result.data.id).toMatch(/^[a-f0-9]{64}$/);
+        expect(JSON.stringify(result)).not.toContain('a-token-that-stays-in-the-page');
+    });
+
+    it('sends search text as data and strips credentials from upstream results', async () => {
+        const request = validateRequest({ id: '1', operation: 'search', params: { query: 'x\"; globalThis.injected = true; //' } });
+        const call = vi.fn(async (path: string, _params?: Record<string, unknown>) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { results: { songs: { data: [{ id: '5', type: 'songs', attributes: { name: 'Example', token: 'secret' } }] } } } });
+        const context = { console, window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, injected: false, URL };
+        const result = await runInNewContext(requestExpression(request), context);
+        expect(context.injected).toBe(false);
+        expect(call.mock.calls[1][1]).toMatchObject({ term: 'x\"; globalThis.injected = true; //' });
+        expect(JSON.stringify(result)).not.toContain('secret');
+        expect(result).toMatchObject({ ok: true, data: { items: [{ id: '5' }], hasMore: false } });
+    });
+
+    it('distinguishes an upstream failure from an empty page', async () => {
+        const request = validateRequest({ id: '2', operation: 'playlists' });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 503, data: { errors: [{ code: 'failure' }] } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } });
+        expect(result).toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 503 });
+    });
+
+    it('accepts a valid search with no song results but rejects a missing results envelope', async () => {
+        const request = validateRequest({ id: '2', operation: 'search', params: { query: 'example' } });
+        const call = vi.fn(async (path: string): Promise<unknown> => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { results: {} } });
+        const context = { console, window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } };
+        expect(await runInNewContext(requestExpression(request), context)).toMatchObject({ ok: true, data: { items: [], hasMore: false } });
+        call.mockImplementation(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: {} });
+        expect(await runInNewContext(requestExpression(request), context)).toMatchObject({ ok: false, error: 'invalid-response' });
+    });
+
+    it('rejects pages that promise another page without making progress', async () => {
+        const request = validateRequest({ id: '3', operation: 'playlistTracks', params: { playlistId: 'p.example' } });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [], next: '/next' } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, URL });
+        expect(result).toMatchObject({ ok: false, error: 'invalid-response' });
+    });
+
+    it('uses the server pagination offset instead of guessing from the number of rows', async () => {
+        const request = validateRequest({ id: '3', operation: 'playlists', params: { limit: 5, offset: 0 } });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [{ id: 'p.1', type: 'library-playlists' }], next: '/v1/me/library/playlists?offset=5' } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, URL });
+        expect(result).toMatchObject({ ok: true, data: { nextOffset: 5, hasMore: true } });
+    });
+
+    it('rejects stale results after the page changes', async () => {
+        let generation = 0;
+        let resolve!: (value: unknown) => void;
+        const pending = new Promise(done => { resolve = done; });
+        const contents = { isDestroyed: () => false, getURL: () => 'https://music.apple.com/', executeJavaScript: () => pending };
+        const dispatch = createRequestDispatcher(() => contents, 1000, () => generation);
+        const result = dispatch({ id: '4', operation: 'accountStatus' });
+        generation++;
+        resolve({ ok: true, data: { authorized: true } });
+        expect(await result).toMatchObject({ ok: false, error: 'not-ready' });
+    });
+
+    it('uses a catalog ID to play and rejects library IDs or invalid seek values', async () => {
+        expect(validateRequest({ id: '5', operation: 'playSong', params: { catalogId: 'i.library' } })).toBeNull();
+        expect(validateRequest({ id: '5', operation: 'seek', params: { seconds: -1 } })).toBeNull();
+        const setQueue = vi.fn(async () => {});
+        const play = vi.fn(async () => {});
+        const mk = { api: { music: vi.fn() }, setQueue, play };
+        const request = validateRequest({ id: '5', operation: 'playSong', params: { catalogId: '123' } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } });
+        expect(setQueue).toHaveBeenCalledWith({ song: '123', startPlaying: false, startTime: 0 });
+        expect(play).toHaveBeenCalledOnce();
+        expect(result).toMatchObject({ ok: true });
+    });
+
+    it('accepts only a bounded start position for a song', () => {
+        expect(validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: 12.5 } }))
+            .toMatchObject({ params: { catalogId: '123', startSec: 12.5 } });
+        expect(validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: -1 } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: '3' } })).toBeNull();
+    });
+
+    it('turns Apple\'s own queue behaviour off and seeks after a start position', async () => {
+        const calls: string[] = [];
+        const mk = {
+            api: { music: vi.fn() },
+            setShuffleMode: vi.fn(() => calls.push('shuffle')),
+            setRepeatMode: vi.fn(() => calls.push('repeat')),
+            setQueue: vi.fn(async () => { calls.push('queue'); }),
+            play: vi.fn(async () => { calls.push('play'); }),
+            seekToTime: vi.fn(async () => { calls.push('seek'); }),
+        };
+        const request = validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: 30 } });
+        expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } }))
+            .toMatchObject({ ok: true });
+        expect(calls).toEqual(['shuffle', 'repeat', 'queue', 'play', 'seek']);
+        expect(mk.setQueue).toHaveBeenCalledWith({ song: '123', startPlaying: false, startTime: 30 });
+        expect(mk.seekToTime).toHaveBeenCalledWith(30);
+    });
+
+    it('reports the player state the clock and the end follow', async () => {
+        const request = validateRequest({ id: '1', operation: 'playbackStatus' });
+        const mk = {
+            api: { music: vi.fn() },
+            nowPlayingItem: { id: 'i.library', attributes: { durationInMillis: 200000, playParams: { catalogId: '123' } } },
+            currentPlaybackTime: 42.5,
+            isPlaying: false,
+            playbackState: 5,
+            queue: { length: 1 },
+        };
+        expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } })).toEqual({
+            ok: true, data: {
+                itemId: 'i.library', catalogId: '123', isPlaying: false, state: 5, queueLength: 1, queueKeys: ['length'], positionMs: 42500, durationMs: 200000,
+            },
+        });
+    });
+
+    it('tells a missing lyric from an upstream failure, and a refused session from both', async () => {
+        const lyrics = validateRequest({ id: '1', operation: 'lyrics', params: { songId: '123' } });
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 404, data: { errors: [{ code: 'not-found' }] } });
+        const result = await runInNewContext(requestExpression(lyrics), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } });
+        expect(result).toMatchObject({ ok: false, error: 'lyrics-unavailable', httpStatus: 404 });
+
+        const storefrontCall = vi.fn(async () => ({ status: 403, data: { errors: [{ code: 'forbidden' }] } }));
+        const playlists = validateRequest({ id: '2', operation: 'playlists' });
+        expect(await runInNewContext(requestExpression(playlists), { window: { MusicKit: { getInstance: () => ({ api: { music: storefrontCall } }) } } }))
+            .toMatchObject({ ok: false, error: 'auth-required' });
+
+        // A signed-in account refused on the operation itself is not signed out by it.
+        const refusedCall = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 403, data: { errors: [{ code: 'forbidden' }] } });
+        const tracks = validateRequest({ id: '3', operation: 'playlistTracks', params: { playlistId: 'p.1' } });
+        expect(await runInNewContext(requestExpression(tracks), { window: { MusicKit: { getInstance: () => ({ api: { music: refusedCall } }) } } }))
+            .toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 403 });
+    });
+
+    it('runs one playback command at a time and does not drop the later one', async () => {
+        const gates: Array<(value: unknown) => void> = [];
+        let calls = 0;
+        const contents = {
+            isDestroyed: () => false,
+            getURL: () => 'https://music.apple.com/',
+            executeJavaScript: () => new Promise(done => { calls += 1; gates.push(done); }),
+        };
+        const dispatch = createRequestDispatcher(() => contents, 1000);
+        const first = dispatch({ id: '6', operation: 'pause' });
+        const second = dispatch({ id: '7', operation: 'resume' });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        // The second waits: the first is still running, and a pause must not be lost.
+        expect(calls).toBe(1);
+        gates[0]({ ok: true, data: { first: true } });
+        expect(await first).toMatchObject({ ok: true, data: { first: true } });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(calls).toBe(2);
+        gates[1]({ ok: true, data: { second: true } });
+        expect(await second).toMatchObject({ ok: true, data: { second: true } });
+    });
+});

@@ -65,6 +65,28 @@ describe('autoMatchBestLyric', () => {
         fetchAmllDbLyricsMock.mockResolvedValue(null);
     });
 
+    it('keeps a provider\'s own word-level timing without asking any other source', async () => {
+        const appleSong = {
+            id: 'apple-song',
+            name: 'Song Title',
+            artists: [{ id: '', name: 'Artist Name' }],
+            album: { id: '', name: 'Album' },
+            durationMs: 200000,
+            sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: 'apple-song' },
+        };
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+            providerCandidate: {
+                providerId: 'appleMusic',
+                song: appleSong,
+                lyricsResult: { lyrics: createLyrics(true), isPureMusic: false },
+            },
+        });
+
+        expect(result).toMatchObject({ source: 'appleMusic', id: 'apple-song', lyrics: { isWordByWord: true } });
+        expect(searchQQLyricsMock).not.toHaveBeenCalled();
+        expect(searchKugouLyricsMock).not.toHaveBeenCalled();
+    });
+
     it('tries the default QQ preference before a prefetched NetEase word-by-word candidate', async () => {
         const neteaseSong = {
             id: 101,

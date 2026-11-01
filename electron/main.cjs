@@ -73,6 +73,8 @@ const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
+const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
+const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
@@ -390,6 +392,11 @@ const ytmApiBridge = createYtmApiBridge({ store, safeStorage,
   // The browser window of the web sign-in runs on this folder; the bridge removes it when a
   // sign-in ends.
   signInFolder: () => path.join(app.getPath('userData'), 'ytm-sign-in'),
+});
+// The separate runtime is opt-in during development until packaging and signing are verified.
+const appleMusicClient = createCompanionClient({
+  runtimePath: process.env.ELECTRON_DEV === 'true' ? (process.env.FOLIA_APPLE_MUSIC_ELECTRON || '') : '',
+  profilePath: path.join(app.getPath('userData'), 'apple-music-companion'),
 });
 let spotifyNetwork = null;
 const getSpotifyNetwork = () => {
@@ -7082,6 +7089,10 @@ ipcMain.handle('ytm-api-request', (event, operation, params) => {
   }
   return ytmApiBridge.request(operation, params);
 });
+ipcMain.handle('apple-music-request', createCompanionRequestHandler({
+  isTrusted: isTrustedMainWindowContents,
+  client: appleMusicClient,
+}));
 ipcMain.handle('spotify-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Spotify request' } };
@@ -7474,6 +7485,7 @@ ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
 });
 
 app.on('will-quit', () => {
+  appleMusicClient.close();
   globalShortcutController?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();

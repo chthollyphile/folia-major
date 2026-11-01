@@ -27,6 +27,7 @@ import type {
     OnlineSearchProvider,
     PersonalFmRequestOptions,
     ProviderCatalogEntityKind,
+    ProviderExternalPlaybackStatus,
     ProviderSearchContext,
     ProviderSongCatalogRefs,
     ProviderLikedSongIds,
@@ -48,6 +49,7 @@ import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
 import { saveSongReplayGain } from './resourceCache';
 import {
+    canPlaySongExternally,
     getOnlineMusicProvider,
     getOnlineMusicProviderForSong,
     getOnlineMusicProviderRegistryVersion,
@@ -143,6 +145,14 @@ const providerForSong = (song: SongResult) => {
     const provider = getOnlineMusicProviderForSong(song);
     if (!provider) throw new OnlineProviderError('unsupported', 'Song is not owned by an online provider');
     return provider;
+};
+
+// Favorite identities may differ from playback identities; keep all reads and presses on one key.
+const likeSourceOf = (song: SongResult) => {
+    const source = getPlaybackSourceRef(song);
+    if (source.kind !== 'online') return source;
+    const mediaId = getOnlineMusicProvider(source.providerId)?.library?.getSongLikeId?.(song) ?? source.mediaId;
+    return { ...source, mediaId };
 };
 
 const providerForCollection = (collection: OmniCollection) => requireOnlineMusicProvider(collection.providerId);
@@ -498,7 +508,7 @@ export const omni = {
     // Reads cached like state through Omni. A heart pressed and not yet settled answers with what
     // was asked for (`pressSongLike`).
     isSongLiked(song: SongResult): boolean {
-        const source = getPlaybackSourceRef(song);
+        const source = likeSourceOf(song);
         if (source.kind !== 'online') return false;
 
         const account = useOnlineProviderAccountStore.getState().accounts[source.providerId];
@@ -913,7 +923,60 @@ export const omni = {
     },
 
     canPlaySong(song: SongResult): boolean {
-        return Boolean(getOnlineMusicProviderForSong(song)?.playback);
+        const provider = getOnlineMusicProviderForSong(song);
+        return Boolean(provider?.playback) || (canPlaySongExternally(song) && provider?.externalPlayback?.canPlay?.(song) !== false);
+    },
+
+    // A provider whose audio plays in a player of its own outside this app: the app steers that
+    // player and follows its clock; no URL ever comes back.
+    canPlayExternally(song: SongResult): boolean {
+        return canPlaySongExternally(song);
+    },
+
+    async playSongExternally(song: SongResult, startSec = 0): Promise<void> {
+        const provider = providerForSong(song);
+        if (!providerSupports(provider, 'externalPlayback') || !provider.externalPlayback) {
+            return unsupported(provider.id, 'externalPlayback');
+        }
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec));
+    },
+
+    isExternalPlaybackPrepared(song: SongResult): boolean {
+        return getOnlineMusicProviderForSong(song)?.externalPlayback?.isPrepared?.(song) === true;
+    },
+
+    async prepareExternalPlaybackQueue(song: SongResult, upcoming: SongResult[]): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback?.prepareNext) return;
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.prepareNext!(song, upcoming));
+    },
+
+    async pauseExternalPlayback(song: SongResult): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.pause());
+    },
+
+    async resumeExternalPlayback(song: SongResult): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.resume());
+    },
+
+    async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
+    },
+
+    async getExternalPlaybackStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
+        return await runRequest(provider, 'audio', () => provider.externalPlayback!.getStatus(song));
+    },
+
+    isExternalPlaybackStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean {
+        return getOnlineMusicProviderForSong(song)?.externalPlayback?.isStatusForSong(song, status) === true;
     },
 
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
@@ -1031,6 +1094,12 @@ export const omni = {
     async getChorusRanges(song: SongResult): Promise<OmniChorusRange[]> {
         const provider = providerForSong(song);
         return provider.lyrics?.getChorusRanges?.(song.id) ?? [];
+    },
+
+    // Whether a provider's own word-level lyric is the timing to keep even with automatic
+    // matching on (`OnlineLyricsProvider.prefersOwnWordByWord`).
+    prefersOwnWordByWordLyrics(song: SongResult): boolean {
+        return getOnlineMusicProviderForSong(song)?.lyrics?.prefersOwnWordByWord === true;
     },
 
     // Another name the song's artist may be listed under elsewhere, when its provider knows one.
@@ -1175,7 +1244,7 @@ export const omni = {
         if (!this.canLikeSong(song) || !provider.mutations?.likeSong) return unsupported(provider.id, 'likes');
 
         // canLikeSong 已经保证了这一点，这里只是把类型收窄；真走到就说明上面的判断被绕过了。
-        const source = getPlaybackSourceRef(song);
+        const source = likeSourceOf(song);
         if (source.kind !== 'online') return unsupported(provider.id, 'likes');
 
         const press = likePressesOf(source.providerId).press(
@@ -1228,7 +1297,7 @@ export const omni = {
     endLikedListRead(read: LikedListRead, songs: SongResult[], whole: boolean): void {
         const ids: MediaId[] = [];
         for (const song of songs) {
-            const source = getPlaybackSourceRef(song);
+            const source = likeSourceOf(song);
             if (source.kind === 'online' && source.providerId === read.providerId) ids.push(source.mediaId);
         }
         if (applyLikedIdsRead(read, { ids, whole }).changed) void persistProviderLikedSongIds(read.providerId);
@@ -1252,7 +1321,7 @@ export const omni = {
     songsInPlay(songs: SongResult[]): void {
         const inPlay: SongInPlay[] = [];
         for (const song of songs) {
-            const source = getPlaybackSourceRef(song);
+            const source = likeSourceOf(song);
             if (source.kind === 'online') inPlay.push({ providerId: source.providerId, mediaId: source.mediaId });
         }
         likedChecks.songsInPlay(inPlay);

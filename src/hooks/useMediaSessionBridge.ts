@@ -10,7 +10,7 @@ import {
 } from '../utils/mediaSessionSync';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { useHifiTrackStore } from '../services/hifi/hifiPlayback';
-import { getObservedMedia, hifiMediaShim } from '../services/hifi/hifiMediaShim';
+import { getObservedMedia } from '../services/hifi/hifiMediaShim';
 
 // Bridges Folia playback state to the browser Media Session API.
 export type UseMediaSessionBridgeOptions = {
@@ -133,7 +133,8 @@ export const useMediaSessionBridge = ({
         // published beside it. Falls back to the active deck whenever no blend is holding a picture.
         const audio = getObservedMedia(getDisplayAudioElement?.() ?? audioRef.current);
         // The shim switched to this track before the track store named it, so its source is current here.
-        const expectedSource = playbackRoute === 'hifi' ? hifiMediaShim.currentSrc : audioSrc;
+        // On every non-web route (mpv, the provider's own player) that is its shim's source, not a URL.
+        const expectedSource = playbackRoute === 'web' ? audioSrc : getObservedMedia(null)?.currentSrc;
         if (!audio || !expectedSource) {
             return;
         }

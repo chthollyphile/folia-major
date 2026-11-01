@@ -132,7 +132,8 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
             return onlinePlaylists.map((playlist) => ({
                 id: String(playlist.id),
                 name: playlist.name,
-                description: `${playlist.trackCount || 0} ${t('playlist.tracks')}`,
+                description: typeof playlist.trackCount === 'number' && Number.isFinite(playlist.trackCount) && playlist.trackCount >= 0
+                    ? `${playlist.trackCount} ${t('playlist.tracks')}` : undefined,
             }));
         }
 

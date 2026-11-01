@@ -47,7 +47,7 @@ vi.mock('@/stores/useSearchNavigationStore', () => ({
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
+    omni: { canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
 }));
 vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({

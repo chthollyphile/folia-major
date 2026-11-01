@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { PlayerState } from '../../types';
+import { MAX_EXTRAPOLATION_SEC } from '../../services/hifi/hifiClock';
+import { createExternalClock } from '../../services/onlineMusic/externalClock';
 
 // src/components/remote/useRemoteClock.ts
 // The remote window's one running clock. The main window sends the playback time every 500 ms;
@@ -31,21 +33,29 @@ export interface RemoteClock {
 type UseRemoteClockParams = {
     /**
      * When the main window read `currentTime` (its Date.now()). Changes with every snapshot, so the
-     * clock re-anchors even when the time did not move.
+     * clock receives fresh snapshots even when the source time did not move.
      */
     updatedAt: number;
+    trackKey?: string | null;
+    clockRevision?: number;
     currentTime: number;
     duration: number;
     playerState: PlayerState;
 };
 
-export const useRemoteClock = ({ updatedAt, currentTime, duration, playerState }: UseRemoteClockParams): RemoteClock => {
+export const useRemoteClock = ({ updatedAt, currentTime, duration, playerState, trackKey = null, clockRevision = 0 }: UseRemoteClockParams): RemoteClock => {
+    const timelineRef = useRef<ReturnType<typeof createExternalClock> | null>(null);
+    if (!timelineRef.current) {
+        timelineRef.current = createExternalClock();
+        timelineRef.current.sync({ positionSec: currentTime, paused: playerState !== PlayerState.PLAYING, durationSec: duration });
+    }
+    const timeline = timelineRef.current;
     const isPlaying = playerState === PlayerState.PLAYING;
     const stateRef = useRef({
-        anchorTime: currentTime,
-        anchorAt: performance.now(),
+        trackKey,
+        clockRevision,
+        hasSnapshot: false,
         duration,
-        isPlaying,
         seekPreview: null as number | null,
         isDragging: false,
         seekReleasedAt: 0,
@@ -54,14 +64,7 @@ export const useRemoteClock = ({ updatedAt, currentTime, duration, playerState }
 
     const clock = useMemo<RemoteClock>(() => {
         const notify = () => listenersRef.current.forEach(listener => listener());
-        const getTime = () => {
-            const state = stateRef.current;
-            if (!state.isPlaying) {
-                return state.anchorTime;
-            }
-            const upperBound = Number.isFinite(state.duration) && state.duration > 0 ? state.duration : Number.POSITIVE_INFINITY;
-            return Math.min(upperBound, state.anchorTime + (performance.now() - state.anchorAt) / 1000);
-        };
+        const getTime = () => timeline.read();
 
         return {
             getTime,
@@ -105,16 +108,25 @@ export const useRemoteClock = ({ updatedAt, currentTime, duration, playerState }
         // While playing, the song has moved on since the main window read the time: anchoring to
         // that time as it is would run the clock back by the trip here at every snapshot that
         // arrives later than the one before. Both windows share the machine's clock.
-        const sinceReadSec = isPlaying ? Math.max(0, Date.now() - updatedAt) / 1000 : 0;
-        state.anchorTime = currentTime + sinceReadSec;
-        state.anchorAt = performance.now();
+        const changedTrack = state.trackKey !== trackKey;
+        const discontinuity = changedTrack || state.clockRevision !== clockRevision;
+        if (changedTrack) {
+            state.seekPreview = null;
+            state.isDragging = false;
+            state.seekReleasedAt = 0;
+        }
+        const sinceReadSec = isPlaying ? Math.min(Math.max(0, Date.now() - updatedAt) / 1000, MAX_EXTRAPOLATION_SEC) : 0;
+        timeline.sync({ positionSec: currentTime + sinceReadSec, samplePositionSec: currentTime, paused: !isPlaying, durationSec: duration,
+            holdBackward: state.hasSnapshot && !discontinuity && !state.isDragging && Date.now() - state.seekReleasedAt > SEEK_SETTLE_MS });
+        state.trackKey = trackKey;
+        state.clockRevision = clockRevision;
+        state.hasSnapshot = true;
         state.duration = duration;
-        state.isPlaying = isPlaying;
         if (!state.isDragging && Date.now() - state.seekReleasedAt > SEEK_SETTLE_MS) {
             state.seekPreview = null;
         }
         listenersRef.current.forEach(listener => listener());
-    }, [updatedAt, currentTime, duration, isPlaying]);
+    }, [updatedAt, currentTime, duration, isPlaying, trackKey, clockRevision, timeline]);
 
     useEffect(() => {
         if (!isPlaying) {

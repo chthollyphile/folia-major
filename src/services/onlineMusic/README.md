@@ -29,7 +29,7 @@ UI / hooks / stores / app services
 
 图里的 `<id>Provider.ts` 和 `<id>Transport.ts` 都在各平台自己的目录 `<id>/` 里（例如 `qq/qqProvider.ts`）。网易云没有单独的 transport，请求在 `netease/netease.ts`。
 
-当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify` 和 `qishui`（汽水音乐）。波点接入状态、接口与剩余验收见
+当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify`、`qishui`（汽水音乐）和 `appleMusic`（Apple Music）。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
 登录的分工：provider 把后端的回答翻成 `LoginState`。失败带着平台的原话（`message`）和事实（`failure`：码、原话、HTTP 状态、要等多久，或者直接点名的情况，比如 QQ 的登录设备超限 `device-limit`）；这一次检查在网络这一层没拿到回答、码在平台那边还有效时标 `transient`，登录接着检查。要码与生成二维码拿不到 key / 图片时直接抛错，不交出空值。情况怎么分在 `login/loginFailureCase.ts`，平台自己的码是什么意思由它的 `describeLoginFailure` 说。登录失败后由登录调用一次 `omni.runLoginSelfCheck` 主动自检（`loginSelfCheck.ts`），结果进诊断报告；`omni.getLoginDiagnostics` 的 provider 段每一行都由 `login/loginDiagnosticReport.ts` 的 `diagnosticLine` 写，放进去的文字先洗过：登录凭据、IP 和账号不进报告。
@@ -53,6 +53,32 @@ UI / hooks / stores / app services
 要地址、读集合没有成功时，情况由 `qishui/qishuiFailure.ts` 说：网页版没有桌面桥是 `not-configured`；桥本身抛错（主进程出错）是 `local-service-stopped`，不当成断网自动重试；只拿到加密音频是 `no-audio`（再要一次也一样，不给重试）；没有登录的账号时说“登录后才能播放”；`Qishui HTTP <状态>` 交出 HTTP 状态，平台的错误号交出码。按 id 查一首（`getSongDetail`）时平台答了却没给这首歌（包的 `not-playable`，“Qishui did not return the track”）回 null，omni 报 `missing`。登录诊断只记登录操作（`login_*`）的失败，登录窗口开着时后台的歌词、电台请求失败不进报告。
 
 本地 macOS Electron 开发版已验证扫码登录、登录态恢复、歌单读取、搜索、歌词、未加密音频地址及场景电台，界面经用户实际测试。0.2.0 接入后再次启动桌面版，确认加载新版包、恢复登录、读取喜欢列表并打开最近播放；用户完成本地测试后反馈未发现问题。自动回归覆盖红心、歌单增删、最近播放分页、可播性检查和试听歌词时钟，HTTP 答复使用替身。Windows、Linux 和完整安装包尚未实测，不代表上游接口始终可用。
+
+### Apple Music（桌面端，companion）
+
+`appleMusic/appleMusicProvider.ts` 接入独立 companion 里的 Apple Music 网页会话：登录（Apple 自己的窗口）、
+歌曲搜索、个人歌单及分页、歌单歌曲、账号，以及 `v1/catalog/<store>/songs/<id>/syllable-lyrics` 的 TTML。
+目录歌曲与资料库歌曲的 id 分别保留（`sourceRef.providerData.catalogId`），歌词和播放都按目录 id 请求。
+喜爱歌单通过 `extend: tags` 的 `favorited` 标记识别并分页同步；爱心写入经 companion 的
+`v1/me/favorites` POST / DELETE。`library.getSongLikeId` 将资料库/目录行统一到同一个喜爱 ID，
+Omni 的爱心读取、未决操作和写入共用这个 ID，播放 ID 不变。真实账号的双向写入尚待验收。
+「加入歌单」复用 Omni 的选择器与 `updatePlaylistTracks('add')`，只接受明确可编辑的资料库歌单，
+提交前在 companion 重新核对权限。系统喜爱歌单不作为追加目标；普通歌单删除与创建暂未开放，
+真实账号追加结果尚待验收。
+TTML 经现有 `parseTTML` 转成 `LyricData`：`isWordByWord` 和 `ttml.timingMode` 来自文件的 `itunes:timing`，
+逐行文件不会标成逐词；Apple 没有歌词时交出 `lyrics: null`，不报成错误。provider 声明
+`prefersOwnWordByWord`：自己的歌词是逐词时，自动匹配不再拿别的来源替换它。
+
+Apple 的音频受 DRM 保护，不能交出地址，所以能力是 `externalPlayback: true`、`playback: false`。播放走
+`src/services/onlineMusic/externalPlayback.ts` 的 `external` 路线（`PlaybackRoute` 的第三个值）：Folia 经
+`omni.playSongExternally` / `pauseExternalPlayback` / `resumeExternalPlayback` / `seekExternalPlayback` 驱动
+companion，`getExternalPlaybackStatus` 每 500 ms 报告一次位置和状态，`externalPlayback` 用外推时钟驱动歌词和
+进度条；换到别的音源、HiFi 或 Stage 时这条路线会停掉 companion 的播放器。播放器自己换到别的歌时暂停并提示。
+companion 读到账号后先导航到账号的 storefront（`https://music.apple.com/<storefront>/`）再回答账号请求：MusicKit 只按页面地区解析目录 id，页面地区和账号不同时会接受队列却播不出来。播放命令在 companion 里串行执行，暂停/换歌不会被并发拒绝丢掉。Apple Music 目前只在 macOS 上声明可用（`getAppleMusicTransportAvailability`），Windows/Linux 未验证前不作为已支持平台出现。companion 的窗口、协议和安全边界见 `electron/appleMusic/README.md`。
+
+未验证：companion 自身的登录、重启恢复、退出清理和完整播放；自行构建运行时的播放失败过，原因未确认。
+macOS 真实账号下的登录、搜索、个人歌单首页和 TTML 结构已在网页会话里验证，但没有经过这个进程的端到端流程；
+Windows、Linux、签名和正式打包都还没有做。逐词时间的内容、覆盖率和同步精度需要真人核验。
 
 ## 接入一个新平台
 
@@ -182,6 +208,7 @@ UI / hooks / stores / app services
   歌单里歌曲的增删和新建歌单（2026-10-08 接上；在为试验建的歌单上做过并撤回，试验歌单随后移出音乐库）：`updatePlaylistTracks` 走桥接操作 `playlist_edit {id, action: add|remove, tracks}`（一次最多 100 首），`createPlaylist` 走 `playlist_create {name}`（名字最长 100 字）。主进程每次改之前先把歌单整份读一遍（`fetchPlaylist`，一次要 500 行，按实际给的行数往下读，最多 40 次请求），一是确认 Spotify 说这个账号能改它的歌（`currentUserCapabilities.canEditItems`，否则 `unsupported`），二是因为两种改动都要用到歌单里现有的行：Spotify 的 `addToPlaylist` 会把已经在里面的歌再加一次（实测加两次得两行），所以只加歌单里没有的；`removeFromPlaylist` 按行的 `uid` 删，不按歌的 uri，所以把这首歌的每一行都删掉。只有整份读到才改：Spotify 说答复不完整（数据旁边带 `errors`）、答复里没有行、或者歌单比读取上限还长，都拒绝改动，否则会把已有的歌再加一次，或者把没删掉的歌报成已删。没有自己 `uid` 的行也算“歌单里有这首歌”。两次改动同时发给同一个歌单时不排队，各读各的（选择框自己挡住了连点）。新建分两步：`POST spclient /playlist/v2/playlist`（答 `uri`），再用 `addItemsToRootlist` 放进音乐库；第二步失败时歌单存在但不在任何人的音乐库里。新建的歌单是否公开没有量。能加歌的是带 `isOwned` 的歌单，“已点赞的歌曲”除外（`canAddToPlaylist`）。播放面板的“加入歌单”在 provider 有 `createPlaylist` 时带“新建歌单”（`omni.canCreatePlaylistForSong` / `createPlaylistWithSong`，`src/components/app/AddToPlaylistHost.tsx`），目前只有 Spotify 有。加进去的是面板上显示的那首歌，由 `AddToPlaylistHost` 交给回调（过渡期间播放状态里的当前歌已经是下一首）。新建成功但加歌失败时刷新一次歌单列表，让新歌单出现在选择框里，再试时不会建出第二个。歌已经在歌单里时没有东西发给 Spotify，界面照样提示“歌单已更新”。应用里没有删除歌单的操作。
   探索页卡片的第二行，只在 Spotify 的页面上由适配器自己写（`spotify/spotifyExplore.ts` 的 `itemOf` / `songItem`，放进条目的 `subtitle`；界面 `exploreFace.ts` 的 `faceOf` 有 `subtitle` 就用它，没有就按各平台共用的老规则：有名字写名字，没有才写类型）：先写这是什么，再写是谁的，例如“歌曲 · 歌手名”“专辑 · 歌手名”“歌单”。原因是老规则在这里分不出东西：首页和“为你打造”的 115 张歌单卡片主人全是 Spotify，每张都只写“Spotify”；主人是 Spotify 时不写名字，是别人时照写。专辑卡片按 `albumType` 写发行形式：Spotify 把一两首歌的发行也当作专辑（`SINGLE`），卡片上写“单曲专辑”，另有 EP 和合辑；首页卡片和新发行带 `albumType`（实测），不带的按普通专辑写。歌手卡片不设 `subtitle`（老规则本来就写“歌手”）。应用自己的两栏（最近播放、再听一次）各平台共用，没有动。
   日志都以 `[Spotify]` 开头：主进程记登录状态的变化、失败的请求（错误码加 Spotify 的状态码或原话，地址和长串抹掉）、套餐变化；渲染进程记探索页每次读到的栏数和条目数、自带歌词有没有、失败的请求及耗时。
+- `appleMusic/appleMusicProvider.ts`：Apple Music adapter，仅桌面端；`appleMusic/appleMusicTransport.ts` 经受限 IPC 连接 `electron/appleMusic/companionClient.cjs`。播放是 `externalPlayback` 路线，不是音频地址。
 - `netease/neteaseProvider.ts`：网易云 adapter，归一化到 Omni contract。
 - `netease/neteaseOldAccountCache.ts`：账号快照之前的版本存的网易云账号（四个缓存键：用户、歌单、喜欢的 id、云盘入口），现在没有代码再写它们。磁盘上没有快照时由 adapter 的 `auth.oldKeptAccount` 读出来，由 `account/accountRead.ts` 存成快照之后再由 `auth.forgetOldKeptAccount` 删掉（快照存不上就留着，下次启动再存），账号离开时（退出登录、登录失效）也删；清缓存不删它们。网易云的 `auth.getLoginStatus` 只在网易云明说时答“没人”：回答的码是 301、401、403，或是 200 却没有用户；别的回答（本地服务连不上网易云时的 502、网易云的 5xx、风控的 -462、没有码的 HTTP 错误）都报 `unavailable`，登录留着（2026-10-22）。
 - `netease/neteaseExplore.ts`：网易云的探索页（`createNeteaseExplore`，由 `netease/neteaseProvider.ts` 把自己的归一化函数交给它；请求都在 `src/services/onlineMusic/netease/netease.ts` 的 `// --- Explore ---` 一组里）。分三段，列表滚到哪段才向网易云要哪段。（1）第一页：网易云手机端首页的栏目（`/homepage/block/page`，带 `refresh`），标题用网易云自己的；登录后最前面加“每日推荐”（`/recommend/songs`），栏目后面加“每日推荐歌单”（`/recommend/resource`）；最后是“排行榜”（`/toplist` 的全部榜单，卡片第二行是网易云写的更新频率）。（2）首页后面的栏目，网易云给了 `cursor` 才有，最多再读 6 页。（3）应用自己做的栏，一页一页给：“与《某首歌》相似”（`/simi/song`，一页 3 栏，一次从头读最多 9 栏；拿来问的歌依次是听者在应用里听过的 `listened`、账号的每日推荐、首页栏目里的歌，没问过的先问，都问过了先问最久以前问过的）、“新歌速递”（`/top/song`）和“新碟上架”（`/album/new`）、四个官方榜的歌曲（`/playlist/track/all`，标题是榜单自己的名字）、“热门歌单”（`/top/playlist`）。首页栏目只认三种条目：歌曲、歌单、专辑；播客、视频、直播、数字专辑这些不显示，一个栏里一条能显示的都没有就整栏不要。另外去掉两种栏：排行榜（`HOMEPAGE_BLOCK_TOPLIST`，页面上已有自己读的榜单）和账号自己的收听记录（代码里含 `RECENT` / `HISTORY`，或标题以“最近”开头）。栏目 id 是 `netease-block-<blockCode>`，所以同一个栏目每次读到都是同一栏，标题变了（“猜你喜欢的「欧美」好歌”换成别的语种）也认得。“换一批”怎么换到新内容：网易云的页面在从头读的那一页上声明 `refreshReadsAnew`（`ProviderExplorePage` 的字段，见 `EXPLORE_ADAPTER.md` 规则 2），所以每次“换一批”探索页都把整页从头重读（读到之前读过的那一页为止），不走各栏的游标；每一栏一次读取只交一批，最多 12 条。原因：探索页默认只在所有栏都换不出新条目时才重读（`useExploreFeedStore.ts` 的 `exchanged`），而网易云有几种栏只有重读才换得了：首页那个每次都重新挑、连标题一起换的栏（标题只有重读时才换），相似栏（一首歌只有 5 首相似歌曲，要换只能换一首歌来问）；2026-10-09 之前“换一批”走各栏的游标、一次读取给 4 批，这几种栏就在 4 次“换一批”里有 3 次不变。现在：首页栏目和整份读回来的列表（每日推荐、每日歌单、排行榜、新歌速递）从网易云这次给的全部条目里先交这一栏还没交过的，再交最久以前交过的（`handOut`），所以内容不变的列表从头走到尾才回到开头，超过一批的不会连续两次交同一批；不超过一批、网易云又答得和上次一样的栏保持不变。翻页的列表（新碟 500 张、热门歌单 683 个、榜单歌曲）每次读取按 offset 接着上次停下的地方要一批，到头后从头再来。相似栏每次读取换一批歌来问。“更多”（栏自己的游标，`getSectionItems`）只把这一栏接着展开，不换内容，和“换一批”是两回事：列表比交出的一批长的栏才有。首页栏目和整份读回来的列表按 `handOut` 的顺序每按一次再给 12 条，给完整个列表为止，不发请求；翻页的列表从已显示的最后一条往后再要一批，到列表末尾为止。“更多”展开过的条目算这一次读取交过的：下一次“换一批”先给没展开到的，翻页的列表从展开到的地方接着要；整个列表都展开过，就从头再来。相似栏和不超过一批的栏没有“更多”。上一次读取的游标一律答空，不发请求。代价：“换一批”一次的请求数是整页读过的全部请求（读到底时约 20 个）。每次重读，每一栏记一行日志 `[Netease] Explore refresh: <栏 id> <上一次读取里没有的条数>/<这次交出的条数>`（上一次读取里“更多”展开过的也算有过）；“更多”每按一次记一行 `[Netease] Explore shelf <栏 id>: <条数> further entries from place <位置>`。各栏交过哪些条目、相似栏问过哪些歌，记在各平台共用的 `exploreReads.ts` 里（`createHandedOut`，见 `EXPLORE_ADAPTER.md` 规则 10；每栏最多记 5000 个，所以一个条目离开网易云的列表、后来又回来时仍算交过，排在没交过的后面）；翻页的列表读到哪里由 adapter 自己记。都只在内存里，只按栏和列表记；adapter 只知道有没有登录（`hasAccountSession`），一次读取发现从游客变成登录或反过来就另起一份记录；每次读取带着自己开始时的那一份，所以登录那一刻还在路上的游客读取不会写进账号的记录。两个账号之间没有以游客身份读过一次时分不出来：新账号的第一次读取会按上一个账号的记录排顺序、记日志。未登录时不请求“每日推荐”和“每日推荐歌单”（游客也会拿到 3 首歌、6 个歌单，但人人相同），其余照常。只在登录时才有的栏在网易云不给内容时（比如登录失效，答 301）不显示。第一页的几个请求只要有一个读到就出页面，全都读不到才报错。实测（2026-10-08，游客身份，每个接口一次）：首页 3 栏（12 个歌单、12 首歌、6 首新歌加 5 张新碟），没有后续页；`/simi/song` 不管 `limit` 传多少都只给 5 首。实测（2026-10-09，游客身份，同一个请求连要两次以上，共 38 个请求）：首页 12 秒内连要 6 次，“猜你喜欢”那一栏（`HOMEPAGE_BLOCK_STYLE_RCMD`）每次都是另外 12 首歌，标题 6 次里有 5 种；“推荐歌单”前 3 次相同、后 3 次是另外 12 个；“新歌新碟”6 次完全相同；`refresh` 传字符串 true、布尔 true、false 没有看出差别。`/simi/song` 带 `offset=5` 还是同样 5 首。`/top/song`、`/album/new`、`/top/playlist`、`/personalized`、`/personalized/newsong` 同一个请求连要两次，结果和顺序都相同；`/album/new` 和 `/top/playlist` 的 `limit`、`offset` 有效。量到但没有用上的：`/top/song` 的 `type` 7 和 96 各 100 首，和 `type=0` 的 100 首没有重合；`/top/playlist` 带 `cat=华语` 共 1945 个，前 48 个和不分类的前 48 个没有重合，`order=new` 一个都不给；`/top/playlist/highquality` 共 402 个，`before` 能翻页；`/personalized?limit=100` 给 100 个。没有实测的（需要登录账号核对）：登录后首页有哪些栏目和代码、`cursor` 翻页、登录后首页再要一次各栏换不换、收听记录栏的代码。每次读取的日志（`[Netease] Explore page: ...`）会列出读到的栏数、去掉的栏和原因。

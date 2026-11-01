@@ -184,6 +184,22 @@ async function matchUnderArtist(
         },
     } : undefined);
     const activeProviderChorusRanges: ChorusRange[] = providerCandidate?.lyricsResult.chorusRanges ?? [];
+    // A provider whose own word timing is kept (Apple) is the match before any search: another
+    // source may have words too, but not this song's own timing. The rule lives here so every
+    // caller - playback, prefetch, a match window - obeys it without repeating it.
+    const ownLyrics = providerCandidate?.lyricsResult.lyrics;
+    if (providerCandidate && ownLyrics?.isWordByWord
+        && getOnlineMusicProvider(providerCandidate.providerId)?.lyrics?.prefersOwnWordByWord === true) {
+        console.log(`[autoMatchBestLyric] ${providerCandidate.providerId} keeps its own word timing; no other source is asked`);
+        return {
+            lyrics: ownLyrics,
+            source: providerCandidate.providerId,
+            id: providerCandidate.song.id,
+            song: providerCandidate.song,
+            ...(providerCandidate.song.qqMid ? { qqMid: providerCandidate.song.qqMid } : {}),
+            ...(providerCandidate.song.kgHash ? { kgHash: providerCandidate.song.kgHash } : {}),
+        };
+    }
     // The chorus ranges a source that shares them (NetEase) gave in this run.
     let sharedChorusRanges: ChorusRange[] = [];
     const bestCandidates = new Map<LyricProviderSource, SongResult | null>();

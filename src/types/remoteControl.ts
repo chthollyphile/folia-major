@@ -129,6 +129,8 @@ export interface RemoteControlSnapshot {
     canLike?: boolean;
     likeUnavailableProvider?: string;
     updatedAt: number;
+    /** Changes after an intentional seek or a new media timeline, permitting small backward seeks. */
+    clockRevision?: number;
     mainWindowWidth?: number;
     mainWindowHeight?: number;
     remoteActions?: RemoteActionsSnapshot;

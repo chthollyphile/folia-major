@@ -236,6 +236,8 @@ export const resolvePrefetchAudioUrl = async (
 ): Promise<PrefetchedAudioUrl | null> => {
     const sourceRef = getPlaybackSourceRef(song);
     const providerId = sourceRef.kind === 'online' ? sourceRef.providerId : undefined;
+    // The provider's own player fetches what it plays; there is no URL for this app to prefetch.
+    if (omni.canPlayExternally(song)) return null;
     try {
         // A copy fetched at another level than the one asked for does not count: playback will
         // pass it over, so the song gets a URL here like one with no copy.
@@ -384,7 +386,10 @@ const prefetchSong = async (
   const settingsLyricSettings = useLyricSettingsStore.getState();
                 const autoUseBest = settingsLyricSettings.autoUseBestLyric;
                 const preferredSource = settingsLyricSettings.preferredAlternativeLyricSource;
-                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride;
+                // A provider's own word-level timing is not searched for another source (the
+                // matcher enforces this too; skipping the search here also avoids the requests).
+                const keepsOwnWordTiming = parsedLyrics?.isWordByWord === true && omni.prefersOwnWordByWordLyrics(song);
+                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
 
                 if (shouldAutoMatch) {
                     try {

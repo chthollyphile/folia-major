@@ -49,6 +49,7 @@ import { currentTime } from '../../../stores/motionSignals';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import type { PlaybackRoute } from '../../../types/hifi';
 import { getHifiPosition, isHifiRoute } from '../../../services/hifi/hifiPlayback';
+import { getExternalPosition, isExternalPlaybackSounding } from '../../../services/onlineMusic/externalPlayback';
 import { restorePlaybackSourceForSong } from './restore/restorePlaybackSource';
 import { findPlaybackDecks } from '../../hifi/useWebEngineYield';
 
@@ -210,7 +211,9 @@ export function useStagePlaybackController({
 
     const buildPlaybackSnapshot = useCallback((): RoutedPlaybackSnapshot => {
         // On the HiFi route mpv sounds the song and the deck sits idle: the position is mpv's.
+        // The external route is the same, with the provider's player in mpv's place.
         const onHifi = isHifiRoute();
+        const onExternal = isExternalPlaybackSounding();
         return {
             currentSong,
             lyrics,
@@ -219,10 +222,10 @@ export function useStagePlaybackController({
             playQueue,
             isFmMode,
             playerState,
-            currentTime: onHifi ? getHifiPosition() : audioRef.current?.currentTime ?? currentTime.get(),
+            currentTime: onHifi ? getHifiPosition() : onExternal ? getExternalPosition() : audioRef.current?.currentTime ?? currentTime.get(),
             duration,
             currentLineIndex,
-            route: onHifi ? 'hifi' : 'web',
+            route: onExternal ? 'external' : onHifi ? 'hifi' : 'web',
         };
     }, [audioRef, audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
 
@@ -231,16 +234,21 @@ export function useStagePlaybackController({
         // A local or Navidrome song mpv was playing has no source a deck could pick up again: entering the
         // stage stopped mpv. Neither has one whose snapshot holds no source at all. Its source is restored
         // instead, which routes it to HiFi again and starts it there at the saved position.
+        // An external player has no source this window can reload: the song comes back paused, at its
+        // position, and the play path starts it there when the listener asks.
+        const external = snapshot?.route === 'external';
         const restoresSource = Boolean(
             snapshot && song
             && (isLocalPlaybackSong(song) || isNavidromePlaybackSong(song))
             && (snapshot.route === 'hifi' || !snapshot.audioSrc),
         );
         pendingResumeTimeRef.current = snapshot ? Math.max(0, snapshot.currentTime) : null;
-        shouldAutoPlayRef.current = snapshot?.playerState === PlayerState.PLAYING;
+        shouldAutoPlayRef.current = !external && snapshot?.playerState === PlayerState.PLAYING;
         lastAudioRecoverySourceRef.current = null;
         currentOnlineAudioUrlFetchedAtRef.current = null;
-        if (restoresSource) {
+        // An external song has nothing of this snapshot to play from a deck either: the stage's
+        // media must be stopped too, not left sounding under a player Folia has not started.
+        if (restoresSource || external) {
             // Nothing of this snapshot plays from a deck, and a null audioSrc does not stop one: the
             // deck that sounded the stage's media is paused and emptied here, or it keeps sounding
             // (and its timeupdate and ended drive the main player) until the restore moves the route,
@@ -260,7 +268,7 @@ export function useStagePlaybackController({
         setIsFmMode(snapshot?.isFmMode ?? false);
         setIsLyricsLoading(false);
         // Nothing sounds until the restored source lands: the autoplay intent above starts it then.
-        setPlayerState(restoresSource && snapshot?.playerState !== PlayerState.IDLE
+        setPlayerState((external || restoresSource) && snapshot?.playerState !== PlayerState.IDLE
             ? PlayerState.PAUSED
             : snapshot?.playerState ?? PlayerState.IDLE);
         setCurrentLineIndex(snapshot?.currentLineIndex ?? -1);

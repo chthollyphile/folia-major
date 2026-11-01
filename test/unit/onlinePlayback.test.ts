@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const cachedAudioMock = vi.hoisted(() => vi.fn());
 const songCacheMock = vi.hoisted(() => vi.fn());
@@ -6,6 +6,7 @@ const sourceMock = vi.hoisted(() => vi.fn());
 const lyricsMock = vi.hoisted(() => vi.fn());
 const otherArtistNameMock = vi.hoisted(() => vi.fn());
 const autoMatchMock = vi.hoisted(() => vi.fn());
+const prefersOwnWordByWordMock = vi.hoisted(() => vi.fn(() => false));
 const loadLyricsStateMock = vi.hoisted(() => vi.fn());
 const saveLyricsStateMock = vi.hoisted(() => vi.fn());
 const isUrlValidMock = vi.hoisted(() => vi.fn(() => true));
@@ -24,8 +25,11 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         getAlternateArtistName: otherArtistNameMock,
         resolveAudioQuality: (_providerId: string, preference: string) => preference,
         isPreviewAudioSource: () => false,
+        prefersOwnWordByWordLyrics: prefersOwnWordByWordMock,
     },
 }));
+
+afterEach(() => prefersOwnWordByWordMock.mockReturnValue(false));
 
 vi.mock('@/stores/useLyricSettingsStore', () => ({
     useLyricSettingsStore: {
@@ -557,5 +561,29 @@ describe('instrumental tracks, once auto-match has settled them', () => {
         expect(merged.lyricsSource).toBe('imported');
         expect(merged.importedLyrics).toBe(imported);
         expect(merged.matchedIsPureMusic).toBe(true);
+    });
+});
+
+describe('lyrics a provider keeps as its own timing', () => {
+    const wordLevel = {
+        lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [{ text: 'line', startTime: 0, endTime: 1 }] }],
+        isWordByWord: true,
+    };
+
+    it('keeps the provider\'s word-level lyrics instead of searching other sources', async () => {
+        prefersOwnWordByWordMock.mockReturnValue(true);
+        lyricsMock.mockResolvedValue({ lyrics: wordLevel, isPureMusic: false });
+        songCacheMock.mockResolvedValue(null);
+        loadLyricsStateMock.mockResolvedValue(null);
+
+        const onLyrics = vi.fn();
+        await loadOnlineSongLyrics(song, null, null, {
+            isCurrent: () => true,
+            onLyrics,
+            onDone: vi.fn(),
+        });
+
+        expect(onLyrics).toHaveBeenCalledWith(wordLevel);
+        expect(autoMatchMock).not.toHaveBeenCalled();
     });
 });

@@ -143,6 +143,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         canPlaySong: () => env.canPlay,
+        canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getLyrics: async (song: { id: string }) => { env.note(`wait lyrics ${song.id}`); return { lyrics: null, isPureMusic: true }; },
     },

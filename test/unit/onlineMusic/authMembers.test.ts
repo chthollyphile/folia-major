@@ -36,6 +36,12 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus',
         'getLoginTexts', 'getLoginTtlMs', 'logout', 'signInRanOut', 'startLogin',
     ],
+    // Signs in inside the companion window: no code to show, and the window is gone when the
+    // attempt is cancelled, so there is no TTL of its own.
+    appleMusic: [
+        'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'logout', 'openLoginPage',
+        'opensLoginPageItself', 'signInRanOut', 'startLogin',
+    ],
 };
 
 describe('the sign-in members of each built-in platform', () => {

@@ -9,6 +9,8 @@ import { buildObsBrowserSourceClock, resolveObsBrowserSourceClockTime } from '@/
 // Exercises the real frame and handover paths without a renderer, using the same preview lookup
 // contract as the OBS publisher. Media progress and saved manual offsets remain clip-relative.
 const env = vi.hoisted(() => ({
+    externalSounding: false,
+    externalPosition: 0,
     effects: [] as Array<() => unknown>,
     cleanup: [] as Array<() => void>,
     frame: null as FrameRequestCallback | null,
@@ -27,7 +29,7 @@ vi.mock('react', async importOriginal => ({
 vi.mock('@/stores/usePlaybackStore', () => ({
     usePlaybackStore: Object.assign(
         (selector: (state: any) => unknown) => selector(env.state),
-        { subscribe: (fn: typeof env.subscriber) => { env.subscriber = fn; return () => {}; } },
+        { getState: () => env.state, subscribe: (fn: typeof env.subscriber) => { env.subscriber = fn; return () => {}; } },
     ),
     selectDisplayLyrics: (state: any) => state.transitionDisplay?.lyrics ?? state.lyrics,
     setCurrentLineIndex: vi.fn(),
@@ -38,6 +40,10 @@ vi.mock('@/services/onlineMusic/omni', () => ({ omni: {
     previewClipStartMsOfAudioSource: env.lookup,
     audioSourceMetadataVersion: () => env.version,
 } }));
+vi.mock('@/services/onlineMusic/externalPlayback', () => ({
+    isExternalPlaybackSounding: () => env.externalSounding,
+    getExternalPosition: () => env.externalPosition,
+}));
 vi.mock('@/hooks/useBeatFxTrack', () => ({ useBeatFxTrack: () => false }));
 vi.mock('@/services/beatFx/beatFxLive', () => ({ tickBeatFx: vi.fn() }));
 vi.mock('@/services/automix/transitionCue', () => ({ getTransitionHandoffProgress: () => 0.5 }));
@@ -83,6 +89,8 @@ const obs = (url: string, manualOffsetMs = 500) => buildObsBrowserSourceClock({
 }, env.starts.get(url) ?? 0);
 
 beforeEach(() => {
+    env.externalSounding = false;
+    env.externalPosition = 0;
     env.starts.clear(); env.version = 0;
     env.lookup.mockReset().mockImplementation(url => env.starts.get(url) ?? 0);
     env.effects = []; env.cleanup = []; env.subscriber = null;
@@ -110,6 +118,30 @@ describe('preview lyric clock consumers', () => {
         expect(resolveObsBrowserSourceClockTime(clock, 2000)).toBe(32.5);
         expect(resolveObsBrowserSourceClockTime(clock, 100000)).toBe(59.5);
         expect(resolveObsBrowserSourceClockTime({ ...clock, playerState: PlayerState.PAUSED }, 100000)).toBe(31.5);
+    });
+
+    it('does not rewind outgoing lyrics when an external track starts before the next render', () => {
+        env.state.playbackRoute = 'external';
+        env.externalSounding = true;
+        env.externalPosition = 50;
+        mount(audio(''));
+        frame();
+        expect(lyricCurrentTime.get()).toBe(49.5);
+        // The old frame closure still exists, but a pending play now owns a clock near zero.
+        env.externalSounding = false;
+        env.externalPosition = 0;
+        frame();
+        expect(lyricCurrentTime.get()).toBe(49.5);
+        // Announcement can happen before React replaces the outgoing lyrics callback.
+        env.state.lyrics = null;
+        env.externalSounding = true;
+        env.externalPosition = 2;
+        frame();
+        expect(lyricCurrentTime.get()).toBe(49.5);
+        mount(audio(''));
+        frame();
+        expect(lyricCurrentTime.get()).toBe(1.5);
+        env.externalSounding = false;
     });
 
     it.each(['file:///music/song.flac', 'blob:http://localhost/cached-song', 'https://navidrome.test/stream', ''])('leaves a non-preview source unchanged: %s', url => {
