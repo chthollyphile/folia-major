@@ -155,6 +155,9 @@ type UsePlaybackQueueControllerParams = {
     endHeldTransition?: () => void;
 };
 
+// The provider a bare Stage song id has always meant: what a client that predates providers sends.
+const STAGE_HOST_PROVIDER_ID = 'netease';
+
 const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
 const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
 const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
@@ -1415,9 +1418,9 @@ export function usePlaybackQueueController({
         return matchesNextQueue ? { ops } : buildReloadQueueDiffDraft();
     }, [buildReloadQueueDiffDraft]);
 
-    const handleStageExternalPlayRequest = useCallback(async (request: { requestId: string; songId: number; appendToQueue?: boolean; }) => {
+    const handleStageExternalPlayRequest = useCallback(async (request: StageExternalPlayRequest) => {
         try {
-            const song = await omni.getSongDetail('netease', request.songId);
+            const song = await omni.getSongDetail(request.providerId || STAGE_HOST_PROVIDER_ID, request.songId);
             if (!song) {
                 throw new Error(`Song ${request.songId} was not found.`);
             }
@@ -1471,6 +1474,8 @@ export function usePlaybackQueueController({
     }, []);
 
     const loadStageQueueSongs = useCallback(async (request: StagePlayerQueueRequest) => {
+        // `songs` carries each song's provider; the bare ids are what a client that predates
+        // providers sends, and they are all the host provider's.
         const singleSongId = typeof request.songId === 'number' && Number.isInteger(request.songId) && request.songId > 0
             ? request.songId
             : null;
@@ -1479,14 +1484,17 @@ export function usePlaybackQueueController({
             : singleSongId !== null
                 ? [singleSongId]
                 : [];
+        const requestedSongs = Array.isArray(request.songs) && request.songs.length > 0
+            ? request.songs
+            : songIds.map(songId => ({ providerId: STAGE_HOST_PROVIDER_ID, songId }));
 
-        if (songIds.length === 0) {
+        if (requestedSongs.length === 0) {
             throw new Error('Queue append requires songId or songIds.');
         }
 
         const songs: SongResult[] = [];
-        for (const songId of songIds) {
-            const song = await omni.getSongDetail('netease', songId);
+        for (const requestedSong of requestedSongs) {
+            const song = await omni.getSongDetail(requestedSong.providerId || STAGE_HOST_PROVIDER_ID, requestedSong.songId);
             if (song && !isSongUnavailable(song)) {
                 songs.push(song);
             }
@@ -1626,6 +1634,49 @@ export function usePlaybackQueueController({
         });
     }, [handleStagePlayerQueueRequest]);
 
+    // A Stage client searching a provider other than the host's own: the search runs here because
+    // omni and the provider sessions live in the renderer, and the answer goes back in Stage's shape
+    // so `<provider>:<id>` is what the client plays.
+    const handleStagePlayerSearchRequest = useCallback(async (request: StagePlayerSearchRequest) => {
+        try {
+            const page = await omni.searchProviderSongs(request.providerId, request.query, {
+                limit: request.limit,
+                offset: 0,
+            });
+            const songs = (page.items || []).map(song => ({
+                songId: song.id,
+                songRef: `${request.providerId}:${song.id}`,
+                title: song.name,
+                artists: (song.artists || []).map(artist => artist.name).filter(Boolean),
+                album: song.album?.name || '',
+                durationMs: Number.isFinite(song.durationMs) ? song.durationMs : null,
+                coverUrl: song.album?.coverUrl || null,
+            }));
+            await window.electron?.completeStagePlayerSearchRequest?.({
+                requestId: request.requestId,
+                ok: true,
+                songs,
+            });
+        } catch (error) {
+            console.warn('[Stage] Failed to handle player search request', error);
+            await window.electron?.completeStagePlayerSearchRequest?.({
+                requestId: request.requestId,
+                ok: false,
+                error: errorMessage(error),
+            });
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!window.electron?.onStagePlayerSearchRequest) {
+            return;
+        }
+
+        return window.electron.onStagePlayerSearchRequest((request) => {
+            void handleStagePlayerSearchRequest(request);
+        });
+    }, [handleStagePlayerSearchRequest]);
+
     const shuffleQueue = useCallback(() => {
         if (!playQueue || !canShuffleQueue(playQueue.length, isFmMode, isNowPlayingStageActive)) return;
 
@@ -1685,6 +1736,7 @@ export function usePlaybackQueueController({
         handlePrevTrack,
         skipAfterPlaybackFailure,
         handleStageExternalPlayRequest,
+        handleStagePlayerSearchRequest,
         shuffleQueue,
         clearQueue,
     });

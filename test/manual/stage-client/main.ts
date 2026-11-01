@@ -14,6 +14,7 @@ import {
     buildStageSearchRequest,
     buildStageSessionRequest,
     buildStageStatusRequest,
+    isValidStageSongRef,
     type StageRequestBuildResult,
 } from '../../../src/utils/stageClientDemo';
 import type { StageSearchResult } from '../../../src/types';
@@ -73,6 +74,7 @@ const sessionExampleJson = getElement<HTMLElement>('session-example-json');
 const sessionExampleMultipart = getElement<HTMLElement>('session-example-multipart');
 
 const searchQueryInput = getElement<HTMLInputElement>('search-query');
+const searchProviderInput = getElement<HTMLInputElement>('search-provider');
 const searchLimitInput = getElement<HTMLInputElement>('search-limit');
 const searchPreview = getElement<HTMLElement>('search-preview');
 const searchStatus = getElement<HTMLElement>('search-status');
@@ -259,21 +261,26 @@ const renderSearchResults = (songs: StageSearchResult[]) => {
         return;
     }
 
-    searchResults.innerHTML = songs.map((song) => `
-        <article class="stage-result-card" data-song-id="${song.songId}">
+    searchResults.innerHTML = songs.map((song) => {
+        // The card plays back through the same reference the Stage API returned, so a song from a
+        // provider other than the host's own keeps its `<provider>:<songId>` form.
+        const songRef = song.songRef || String(song.songId);
+        return `
+        <article class="stage-result-card" data-song-id="${songRef}">
             <div class="doc-head">
                 <div>
                     <strong>${song.title}</strong>
-                    <p class="hint">${song.artists.join(' / ') || 'Unknown artist'}${song.album ? ` · ${song.album}` : ''}</p>
+                    <p class="hint">${song.artists.join(' / ') || 'Unknown artist'}${song.album ? ` · ${song.album}` : ''}${song.provider ? ` · ${song.provider}` : ''}</p>
                 </div>
                 <div class="button-row">
-                    <button type="button" class="secondary" data-play-song="${song.songId}">Play In Folia</button>
-                    <button type="button" class="secondary" data-queue-song="${song.songId}">Add To Queue</button>
+                    <button type="button" class="secondary" data-play-song="${songRef}">Play In Folia</button>
+                    <button type="button" class="secondary" data-queue-song="${songRef}">Add To Queue</button>
                 </div>
             </div>
             <pre class="request-preview compact">${syntaxHighlightJson(formatJson(song))}</pre>
         </article>
-    `).join('');
+    `;
+    }).join('');
 };
 
 const buildLyricsRequestFromInputs = () => buildStageLyricsRequest({
@@ -304,6 +311,7 @@ const buildSearchRequestFromInputs = () => buildStageSearchRequest({
     baseUrl: baseUrlInput.value,
     token: tokenInput.value,
     query: searchQueryInput.value,
+    provider: searchProviderInput.value,
     limit: Number(searchLimitInput.value) || 10,
 });
 
@@ -318,11 +326,20 @@ const buildPlayerControlRequestFromInputs = () => buildStagePlayerControlRequest
     positionMs: Number(playerControlPositionInput.value),
 });
 
+const parseStageSongIdInput = (value: string): number | string | undefined => {
+    const normalized = value.trim();
+    if (!normalized) {
+        return undefined;
+    }
+
+    return /^\d+$/.test(normalized) ? Number(normalized) : normalized;
+};
+
 const buildPlayerQueueRequestFromInputs = () => buildStagePlayerQueueRequest({
     baseUrl: baseUrlInput.value,
     token: tokenInput.value,
     action: playerQueueActionInput.value as 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear',
-    songId: Number(playerQueueSongIdInput.value) || undefined,
+    songId: parseStageSongIdInput(playerQueueSongIdInput.value),
     queueItemId: playerQueueItemIdInput.value,
     fromQueueItemId: playerQueueFromItemIdInput.value,
     index: (playerQueueActionInput.value === 'remove' || playerQueueActionInput.value === 'select') && playerQueueIndexInput.value !== '' ? Number(playerQueueIndexInput.value) : undefined,
@@ -511,7 +528,7 @@ const runSearchRequest = async () => {
     }
 };
 
-const runPlayRequest = async (songId: number, appendToQueue = false) => {
+const runPlayRequest = async (songId: number | string, appendToQueue = false) => {
     const request = buildStagePlayRequest({
         baseUrl: baseUrlInput.value,
         token: tokenInput.value,
@@ -712,12 +729,13 @@ searchResults.addEventListener('click', (event) => {
         return;
     }
 
-    const songId = Number(target.dataset.playSong || target.dataset.queueSong);
-    if (!Number.isInteger(songId) || songId <= 0) {
+    const songRef = target.dataset.playSong || target.dataset.queueSong;
+    if (!songRef || !isValidStageSongRef(songRef)) {
         return;
     }
 
-    void runPlayRequest(songId, target.dataset.queueSong === String(songId));
+    const songId = /^\d+$/.test(songRef) ? Number(songRef) : songRef;
+    void runPlayRequest(songId, target.dataset.queueSong === songRef);
 });
 
 [
@@ -735,6 +753,7 @@ searchResults.addEventListener('click', (event) => {
     lyricsTextInput,
     lyricsFormatInput,
     searchQueryInput,
+    searchProviderInput,
     searchLimitInput,
     playerControlActionInput,
     playerControlPositionInput,

@@ -45,9 +45,12 @@ const withStageApi = async (options: {
     autoCompletePlay?: boolean;
     autoCompleteControl?: boolean;
     autoCompleteQueue?: boolean;
+    autoCompleteSearch?: boolean;
+    searchRequestSongs?: any[];
     onPlayRequest?: (payload: any) => void;
     onControlRequest?: (payload: any) => void;
     onQueueRequest?: (payload: any) => void;
+    onSearchRequest?: (payload: any) => void;
 } = {}) => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'folia-stage-api-'));
     const port = await getFreePort();
@@ -79,6 +82,9 @@ const withStageApi = async (options: {
                     if (channel === 'stage-player-queue-request') {
                         options.onQueueRequest?.(payload);
                     }
+                    if (channel === 'stage-player-search-request') {
+                        options.onSearchRequest?.(payload);
+                    }
                     if (options.autoCompletePlay && channel === 'stage-external-play-request') {
                         queueMicrotask(() => {
                             stageApi.completeStageExternalPlayRequest({
@@ -100,6 +106,15 @@ const withStageApi = async (options: {
                             stageApi.completeStagePlayerQueueRequest({
                                 requestId: payload.requestId,
                                 ok: true,
+                            });
+                        });
+                    }
+                    if (options.autoCompleteSearch && channel === 'stage-player-search-request') {
+                        queueMicrotask(() => {
+                            stageApi.completeStagePlayerSearchRequest({
+                                requestId: payload.requestId,
+                                ok: true,
+                                songs: options.searchRequestSongs ?? [],
                             });
                         });
                     }
@@ -505,6 +520,215 @@ describe('stageApi http contract', () => {
             appendToQueue: true,
         });
         expect(receivedRequests[0]).toMatchObject({ songId: 7, appendToQueue: true });
+    });
+
+    it('labels host search songs with a provider reference', async () => {
+        const context = await withStageApi({
+            searchStageSongs: async () => [{
+                songId: 42,
+                title: 'String Theocracy',
+                artists: ['Mili'],
+                album: 'Library Of Ruina',
+                durationMs: 188000,
+                coverUrl: null,
+            }],
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/search`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: 'String Theocracy' }),
+        });
+        const payload = await response.json();
+        expect(response.status).toBe(200);
+        expect(payload.provider).toBe('netease');
+        expect(payload.songs[0]).toMatchObject({
+            songId: 42,
+            provider: 'netease',
+            songRef: 'netease:42',
+        });
+    });
+
+    it('bridges a provider search to the renderer and returns its songs', async () => {
+        const receivedRequests: any[] = [];
+        const context = await withStageApi({
+            autoCompleteSearch: true,
+            onSearchRequest: payload => receivedRequests.push(payload),
+            searchRequestSongs: [{
+                songId: '0039MnYb0qxYhV',
+                songRef: 'qq:0039MnYb0qxYhV',
+                title: '晴天',
+                artists: ['周杰伦'],
+                album: '叶惠美',
+                durationMs: 269000,
+                coverUrl: null,
+            }],
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/search`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: '晴天', provider: 'qq', limit: 3 }),
+        });
+        const payload = await response.json();
+        expect(response.status).toBe(200);
+        expect(receivedRequests[0]).toMatchObject({
+            providerId: 'qq',
+            query: '晴天',
+            limit: 3,
+        });
+        expect(payload.provider).toBe('qq');
+        expect(payload.songs).toHaveLength(1);
+        expect(payload.songs[0]).toMatchObject({
+            songId: '0039MnYb0qxYhV',
+            provider: 'qq',
+            songRef: 'qq:0039MnYb0qxYhV',
+            title: '晴天',
+            artists: ['周杰伦'],
+        });
+    });
+
+    it('rejects an unusable provider id on search', async () => {
+        const context = await withStageApi();
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/search`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: '晴天', provider: 'QQ Music!' }),
+        });
+        const payload = await response.json();
+        expect(response.status).toBe(400);
+        expect(payload).toMatchObject({ code: 'INVALID_STAGE_PLAYER_SEARCH_PROVIDER' });
+    });
+
+    it('plays a provider song reference by forwarding its provider to the renderer', async () => {
+        const receivedRequests: any[] = [];
+        const context = await withStageApi({
+            autoCompletePlay: true,
+            onPlayRequest: payload => receivedRequests.push(payload),
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/play`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ songId: 'qq:0039MnYb0qxYhV' }),
+        });
+        const payload = await response.json();
+        expect(response.status).toBe(200);
+        expect(payload).toMatchObject({
+            ok: true,
+            songId: '0039MnYb0qxYhV',
+            songRef: 'qq:0039MnYb0qxYhV',
+            provider: 'qq',
+            appendToQueue: false,
+        });
+        expect(receivedRequests[0]).toMatchObject({
+            songId: '0039MnYb0qxYhV',
+            providerId: 'qq',
+            appendToQueue: false,
+        });
+    });
+
+    it('keeps a bare numeric play id on the host provider', async () => {
+        const receivedRequests: any[] = [];
+        const context = await withStageApi({
+            autoCompletePlay: true,
+            onPlayRequest: payload => receivedRequests.push(payload),
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/play`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ songId: 42 }),
+        });
+        const payload = await response.json();
+        expect(payload).toMatchObject({
+            songId: 42,
+            songRef: 'netease:42',
+            provider: 'netease',
+        });
+        expect(receivedRequests[0]).toMatchObject({ songId: 42, providerId: 'netease' });
+    });
+
+    it('rejects play and queue song references it cannot parse', async () => {
+        const context = await withStageApi({ autoCompletePlay: true });
+        activeCleanups.push(context.cleanup);
+
+        const emptyRefResponse = await fetch(`${context.baseUrl}/stage/player/play`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ songId: 'qq:' }),
+        });
+        expect(emptyRefResponse.status).toBe(400);
+        expect(await emptyRefResponse.json()).toMatchObject({
+            code: 'INVALID_STAGE_PLAYER_PLAY_SONG_ID',
+        });
+
+        const negativeResponse = await fetch(`${context.baseUrl}/stage/player/play`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ songId: -3 }),
+        });
+        expect(negativeResponse.status).toBe(400);
+        expect(await negativeResponse.json()).toMatchObject({
+            code: 'INVALID_STAGE_PLAYER_PLAY_SONG_ID',
+        });
+    });
+
+    it('forwards provider song references when adding to the queue', async () => {
+        const receivedRequests: any[] = [];
+        const context = await withStageApi({
+            autoCompleteQueue: true,
+            onQueueRequest: payload => receivedRequests.push(payload),
+        });
+        activeCleanups.push(context.cleanup);
+        publishNormalPlayerSnapshot(context.stageApi);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/queue`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'append',
+                songIds: ['qq:0039MnYb0qxYhV', 42],
+            }),
+        });
+        expect(response.status).toBe(200);
+        expect(receivedRequests[0]).toMatchObject({
+            action: 'append',
+            songs: [
+                { providerId: 'qq', songId: '0039MnYb0qxYhV' },
+                { providerId: 'netease', songId: 42 },
+            ],
+        });
     });
 
     it('returns player status with context and capabilities', async () => {

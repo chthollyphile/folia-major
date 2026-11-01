@@ -468,7 +468,7 @@ interface StageSessionMultipartFiles {
 
 ## `POST /stage/player/search`
 
-把搜索请求转交给 Folia 当前接入的搜索通道，返回可供点播接口消费的候选结果。
+把搜索请求转交给 Folia 的搜索通道，返回可供点播接口消费的候选结果。不传 `provider` 时搜本机网易云服务，行为与旧版一致；传 `provider` 时经 omni 走该平台（例如 `qq`、`kugou`）。
 
 ### 请求
 
@@ -476,6 +476,7 @@ interface StageSessionMultipartFiles {
 interface StagePlayerSearchRequest {
   query: string;
   limit?: number;
+  provider?: string;
 }
 ```
 
@@ -483,12 +484,15 @@ interface StagePlayerSearchRequest {
 | --- | --- | --- | --- |
 | `query` | `string` | 是 | 搜索关键词。空字符串不合法。 |
 | `limit` | `number` | 否 | 返回数量。服务端会归一化到 `1..50`，默认 `10`。 |
+| `provider` | `string` | 否 | 平台 id（omni 已注册，如 `qq`、`kugou`）。不传时搜本机网易云服务；不是合法 id 时返回 `400 INVALID_STAGE_PLAYER_SEARCH_PROVIDER`。 |
 
 ### 响应 `200`
 
 ```ts
 interface StageSearchResult {
-  songId: number;
+  songId: number | string;
+  songRef?: string;
+  provider?: string;
   title: string;
   artists: string[];
   album: string;
@@ -498,6 +502,7 @@ interface StageSearchResult {
 
 interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
   query: string;
+  provider: string;
   songs: StageSearchResult[];
 }
 ```
@@ -505,8 +510,11 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `query` | `string` | 标准化后的搜索关键词。 |
+| `provider` | `string` | 本次搜索实际使用的平台 id；没传 `provider` 时是本机网易云服务对应的平台。 |
 | `songs` | `StageSearchResult[]` | 搜索结果列表。 |
-| `songs[].songId` | `number` | 歌曲 ID，后续传给 `/stage/player/play` 或队列追加接口。 |
+| `songs[].songId` | `number \| string` | 歌曲在该平台的 ID。 |
+| `songs[].songRef` | `string` 可选 | 该歌曲的完整引用 `<provider>:<songId>`，直接交给 `/stage/player/play` 或队列追加接口即可。 |
+| `songs[].provider` | `string` 可选 | 该歌曲所属平台 id。 |
 | `songs[].title` | `string` | 歌名。 |
 | `songs[].artists` | `string[]` | 艺术家列表。 |
 | `songs[].album` | `string` | 专辑。 |
@@ -519,8 +527,12 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 | --- | --- | --- |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_JSON` | JSON 无法解析。 |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_QUERY` | `query` 为空。 |
-| `503` | `NETEASE_API_UNAVAILABLE` | 默认网易云本地 API 不可用。 |
-| `502` | `NETEASE_SEARCH_FAILED` | 默认网易云搜索请求失败。 |
+| `400` | `INVALID_STAGE_PLAYER_SEARCH_PROVIDER` | `provider` 不是合法平台 id。 |
+| `503` | `NETEASE_API_UNAVAILABLE` | 不传 `provider` 时，本机网易云 API 不可用。 |
+| `502` | `NETEASE_SEARCH_FAILED` | 不传 `provider` 时，本机网易云搜索请求失败。 |
+| `503` | `STAGE_PLAYER_SEARCH_UNAVAILABLE` | 传了 `provider` 时 Folia 主窗口不可用或 Stage 服务停止。 |
+| `504` | `STAGE_PLAYER_REQUEST_TIMEOUT` | 传了 `provider` 时播放器 10 秒内未完成响应。 |
+| `502` | `STAGE_SEARCH_REJECTED` | 传了 `provider` 时渲染进程拒绝搜索请求。 |
 
 ## `POST /stage/player/play`
 
@@ -530,14 +542,14 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 
 ```ts
 interface StagePlayerPlayRequest {
-  songId: number;
+  songId: number | string;
   appendToQueue?: boolean;
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `songId` | `number` | 是 | 正整数歌曲 ID，通常来自搜索结果。 |
+| `songId` | `number \| string` | 是 | 正整数歌曲 ID（按本机网易云解释），或 `<provider>:<songId>` 引用（例如 `qq:0039MnYb0qxYhV`）；两者通常都来自搜索结果。 |
 | `appendToQueue` | `boolean` | 否 | `true` 时追加到主播放器队列，不打断当前播放；默认 `false`。 |
 
 ### 响应 `200`
@@ -545,7 +557,9 @@ interface StagePlayerPlayRequest {
 ```ts
 interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
   ok: true;
-  songId: number;
+  songId: number | string;
+  songRef?: string;
+  provider?: string;
   appendToQueue: boolean;
   changed?: boolean;
   deduplicated?: boolean;
@@ -557,7 +571,9 @@ interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `ok` | `true` | 请求已被播放器接受。 |
-| `songId` | `number` | 本次请求的歌曲 ID。 |
+| `songId` | `number \| string` | 本次请求的歌曲 ID。 |
+| `songRef` | `string` 可选 | 本次请求的完整引用 `<provider>:<songId>`。 |
+| `provider` | `string` 可选 | 本次请求使用的平台 id；`songId` 是纯数字时为本机网易云对应的平台。 |
 | `appendToQueue` | `boolean` | 是否为队列追加模式。 |
 | `changed` | `boolean` 可选 | 队列追加时，队列是否发生变化。 |
 | `deduplicated` | `boolean` 可选 | 队列追加时，是否发生同源歌曲去重或移动。 |
@@ -569,7 +585,7 @@ interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
 | HTTP | `code` | 条件 |
 | --- | --- | --- |
 | `400` | `INVALID_STAGE_PLAYER_PLAY_JSON` | JSON 无法解析。 |
-| `400` | `INVALID_STAGE_PLAYER_PLAY_SONG_ID` | `songId` 不是正整数。 |
+| `400` | `INVALID_STAGE_PLAYER_PLAY_SONG_ID` | `songId` 既不是正整数，也不是合法的 `<provider>:<songId>` 引用。 |
 | `503` | `STAGE_PLAY_UNAVAILABLE` | Folia 主窗口不可用。 |
 | `503` | `STAGE_PLAY_CANCELED` | 请求被取消，例如 Stage 状态被清空。 |
 | `504` | `STAGE_PLAY_TIMEOUT` | 播放器 15 秒内未完成响应。 |
@@ -714,8 +730,8 @@ interface StagePlayerQueueGetResponse extends StagePlayerInsideOutMetadata {
 ```ts
 interface StagePlayerQueueRequest {
   action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-  songId?: number;
-  songIds?: number[];
+  songId?: number | string;
+  songIds?: Array<number | string>;
   queueItemId?: string;
   fromQueueItemId?: string;
   fromIndex?: number;
@@ -727,8 +743,8 @@ interface StagePlayerQueueRequest {
 | 字段 | 类型 | 适用 action | 说明 |
 | --- | --- | --- | --- |
 | `action` | enum | 全部 | 队列动作。 |
-| `songId` | `number` | `append`、`insert-next` | 追加或插到下一首的单个歌曲 ID。 |
-| `songIds` | `number[]` | `append`、`insert-next` | 批量追加或插到下一首的歌曲 ID。服务端会过滤非正整数。 |
+| `songId` | `number \| string` | `append`、`insert-next` | 追加或插到下一首的单个歌曲 ID：正整数（本机网易云）或 `<provider>:<songId>` 引用。 |
+| `songIds` | `Array<number \| string>` | `append`、`insert-next` | 批量追加或插到下一首的歌曲 ID。服务端会丢掉解析不了的项。 |
 | `queueItemId` | `string` | `remove`、`select` | 按队列项 ID 删除或选择。 |
 | `fromQueueItemId` | `string` | `move` | 按队列项 ID 指定移动来源。 |
 | `fromIndex` | `number` | `move` | 按下标指定移动来源。 |

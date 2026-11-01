@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModStorageUsageResult } from './mods/types';
+import type { MediaId } from './types';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -539,8 +540,33 @@ declare global {
 
   interface StageExternalPlayRequest {
     requestId: string;
-    songId: number;
+    songId: MediaId;
+    providerId?: string;
     appendToQueue?: boolean;
+  }
+
+  interface StagePlayerSearchRequest {
+    requestId: string;
+    providerId: string;
+    query: string;
+    limit: number;
+  }
+
+  interface StagePlayerSearchResultSong {
+    songId: MediaId;
+    songRef?: string;
+    title: string;
+    artists: string[];
+    album: string;
+    durationMs: number | null;
+    coverUrl: string | null;
+  }
+
+  interface StagePlayerSearchResult {
+    requestId: string;
+    ok: boolean;
+    error?: string | null;
+    songs?: StagePlayerSearchResultSong[];
   }
 
   interface StageExternalPlayResult {
@@ -656,6 +682,8 @@ declare global {
     action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
     songId?: number;
     songIds?: number[];
+    /** Songs by provider, as `<provider>:<id>` references resolve on the main side. */
+    songs?: Array<{ providerId: string; songId: MediaId }>;
     queueItemId?: string;
     fromQueueItemId?: string;
     fromIndex?: number;
@@ -1051,11 +1079,13 @@ declare global {
       publishStagePlayerSnapshot: (snapshot: StagePlayerSnapshot, options?: { forcePlaybackEvent?: boolean }) => Promise<StagePlayerSnapshot>;
       completeStagePlayerControlRequest: (result: StagePlayerRequestResult) => Promise<boolean>;
       completeStagePlayerQueueRequest: (result: StagePlayerRequestResult) => Promise<boolean>;
+    completeStagePlayerSearchRequest: (result: StagePlayerSearchResult) => Promise<boolean>;
       onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
       onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
       onStageExternalPlayRequest: (callback: (request: StageExternalPlayRequest) => void) => () => void;
       onStagePlayerControlRequest: (callback: (request: StagePlayerControlRequest) => void) => () => void;
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;
+      onStagePlayerSearchRequest: (callback: (request: StagePlayerSearchRequest) => void) => () => void;
       mods?: {
         listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[]; startSkipped?: boolean }>;
         setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;

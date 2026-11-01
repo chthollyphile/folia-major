@@ -33,13 +33,14 @@ export interface StageSearchRequestInput {
     baseUrl: string;
     token: string;
     query: string;
+    provider?: string;
     limit?: number;
 }
 
 export interface StagePlayRequestInput {
     baseUrl: string;
     token: string;
-    songId: number;
+    songId: number | string;
     appendToQueue?: boolean;
 }
 
@@ -54,8 +55,8 @@ export interface StagePlayerQueueRequestInput {
     baseUrl: string;
     token: string;
     action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-    songId?: number;
-    songIds?: number[];
+    songId?: number | string;
+    songIds?: Array<number | string>;
     queueItemId?: string;
     fromQueueItemId?: string;
     fromIndex?: number;
@@ -170,14 +171,36 @@ export const validateStageSearchRequestInput = (input: StageSearchRequestInput):
     return null;
 };
 
+const STAGE_SONG_REF_PATTERN = /^[a-z][a-z0-9-]*:\S+$/;
+
+// A song reference is either the legacy positive integer id (the host provider's) or `<provider>:<songId>`,
+// the form the Stage API gained when it learned to search providers other than its own host.
+export const isValidStageSongRef = (value?: number | string | null): boolean => {
+    if (typeof value === 'number') {
+        return Number.isInteger(value) && value > 0;
+    }
+
+    const normalized = normalizeText(value ?? '');
+
+    if (!normalized) {
+        return false;
+    }
+
+    if (/^\d+$/.test(normalized)) {
+        return Number(normalized) > 0;
+    }
+
+    return STAGE_SONG_REF_PATTERN.test(normalized);
+};
+
 export const validateStagePlayRequestInput = (input: StagePlayRequestInput): string | null => {
     const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
     if (baseAuthError) {
         return baseAuthError;
     }
 
-    if (!Number.isInteger(input.songId) || input.songId <= 0) {
-        return 'songId must be a positive integer.';
+    if (!isValidStageSongRef(input.songId)) {
+        return 'songId must be a positive integer or a "<provider>:<songId>" reference.';
     }
 
     return null;
@@ -386,6 +409,7 @@ export const buildStageSearchRequest = (input: StageSearchRequestInput): StageRe
             }),
             body: JSON.stringify({
                 query: normalizeText(input.query),
+                ...(normalizeText(input.provider) ? { provider: normalizeText(input.provider) } : {}),
                 ...(Number.isInteger(input.limit) ? { limit: input.limit } : {}),
             }),
         },

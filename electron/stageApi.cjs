@@ -208,6 +208,7 @@ function createStageApi({
   const pendingExternalPlayRequests = new Map();
   const pendingStagePlayerControlRequests = new Map();
   const pendingStagePlayerQueueRequests = new Map();
+  const pendingStagePlayerSearchRequests = new Map();
   const stagePlayerWebSockets = new Set();
   let stagePlayerWebSocketServer = null;
   let stagePlayerSnapshot = null;
@@ -1476,6 +1477,56 @@ function createStageApi({
     };
   };
 
+  // A Stage song reference names a song at one provider. A bare positive integer is the host
+  // provider's id — what every client sent before Stage knew about providers — and
+  // `<provider>:<id>` names a song at any provider omni registers. Answers null where the value
+  // names neither, so each caller rejects it with its own code.
+  const STAGE_PROVIDER_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+  // The provider a bare numeric song id has always meant: the local service Stage searched before.
+  const STAGE_HOST_PROVIDER_ID = 'netease';
+
+  const normalizeStageProviderId = (value) => {
+    const providerId = (typeof value === 'string' ? value.trim().toLowerCase() : '');
+    return STAGE_PROVIDER_ID_PATTERN.test(providerId) ? providerId : '';
+  };
+
+  const normalizeStageSongRef = (value) => {
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      return { providerId: STAGE_HOST_PROVIDER_ID, songId: value, songRef: `${STAGE_HOST_PROVIDER_ID}:${value}` };
+    }
+
+    const text = normalizeStageText(value);
+    if (!text) {
+      return null;
+    }
+
+    if (/^\d+$/.test(text)) {
+      const songId = Number(text);
+      return songId > 0 ? { providerId: STAGE_HOST_PROVIDER_ID, songId, songRef: `${STAGE_HOST_PROVIDER_ID}:${songId}` } : null;
+    }
+
+    const separatorIndex = text.indexOf(':');
+    if (separatorIndex <= 0) {
+      return null;
+    }
+
+    const providerId = normalizeStageProviderId(text.slice(0, separatorIndex));
+    const songId = text.slice(separatorIndex + 1).trim();
+    if (!providerId || !songId) {
+      return null;
+    }
+
+    return { providerId, songId, songRef: `${providerId}:${songId}` };
+  };
+
+  // Every search result names its provider and the reference to hand back to play or queue: clients
+  // that only knew `songId` keep working, and one that searched elsewhere plays what it just found.
+  const withStageSearchServerFields = (song, providerId) => ({
+    ...song,
+    provider: providerId,
+    songRef: `${providerId}:${song.songId}`,
+  });
+
   const defaultSearchStageSongs = async (query, limit) => {
     const port = typeof getNeteasePort === 'function' ? Number(getNeteasePort()) : null;
     if (!Number.isInteger(port) || port <= 0) {
@@ -1500,7 +1551,23 @@ function createStageApi({
 
     const payload = await response.json();
     const songs = Array.isArray(payload?.result?.songs) ? payload.result.songs : [];
-    return songs.map(normalizeStageSearchResult).filter((song) => Number.isFinite(song.songId) && song.songId > 0);
+    return songs
+      .map((song) => normalizeStageSearchResult(song))
+      .filter((song) => Number.isFinite(song.songId) && song.songId > 0)
+      .map((song) => withStageSearchServerFields(song, STAGE_HOST_PROVIDER_ID));
+  };
+
+  // The host provider's own search, on the injected one where a test drives it, with every result
+  // naming its provider and song reference.
+  const searchHostStageSongs = async (query, limit) => {
+    const songs = searchStageSongs
+      ? await searchStageSongs(query, limit)
+      : await defaultSearchStageSongs(query, limit);
+
+    return (Array.isArray(songs) ? songs : []).map((song) => {
+      const ref = normalizeStageSongRef(song?.songRef ?? song?.songId);
+      return ref ? withStageSearchServerFields(song, ref.providerId) : song;
+    });
   };
 
   const requestStageSongPlay = async (songId, options = {}) => {
@@ -1528,6 +1595,7 @@ function createStageApi({
       mainWindow.webContents.send('stage-external-play-request', {
         requestId,
         songId,
+        providerId: options.providerId || STAGE_HOST_PROVIDER_ID,
         appendToQueue: options.appendToQueue === true,
       });
     });
@@ -1615,6 +1683,68 @@ function createStageApi({
       'STAGE_PLAYER_QUEUE_UNAVAILABLE',
     );
 
+  // A search anywhere but the host provider goes through the renderer, which owns omni: the main
+  // process holds no provider sessions and knows none of their endpoints.
+  const requestStageProviderSearch = (payload) =>
+    requestStagePlayerRendererAction(
+      'stage-player-search-request',
+      pendingStagePlayerSearchRequests,
+      'stage-player-search',
+      payload,
+      'STAGE_PLAYER_SEARCH_UNAVAILABLE',
+    );
+
+  // The renderer answers with the provider's own songs; Stage hands its clients one shape, so both
+  // providers read alike and `songRef` is what a client plays back.
+  const normalizeStageProviderSearchResults = (songs) => (Array.isArray(songs) ? songs : [])
+    .map((song) => {
+      const ref = normalizeStageSongRef(song?.songRef ?? song?.songId);
+      if (!ref) {
+        return null;
+      }
+
+      return withStageSearchServerFields({
+        songId: ref.songId,
+        title: normalizeStageText(song?.title) || 'Unknown Song',
+        artists: Array.isArray(song?.artists)
+          ? song.artists.map((artist) => normalizeStageText(artist)).filter(Boolean)
+          : [],
+        album: normalizeStageText(song?.album) || '',
+        durationMs: Number.isFinite(song?.durationMs) ? Math.max(0, Math.floor(song.durationMs)) : null,
+        coverUrl: normalizeStageText(song?.coverUrl) || null,
+      }, ref.providerId);
+    })
+    .filter(Boolean);
+
+  const completeStagePlayerSearchRequest = ({ requestId, ok, error, songs } = {}) => {
+    const normalizedRequestId = normalizeStageText(requestId);
+    if (!normalizedRequestId) {
+      return false;
+    }
+
+    const pendingRequest = pendingStagePlayerSearchRequests.get(normalizedRequestId);
+    if (!pendingRequest) {
+      return false;
+    }
+
+    clearTimeout(pendingRequest.timer);
+    pendingStagePlayerSearchRequests.delete(normalizedRequestId);
+
+    if (ok) {
+      pendingRequest.resolve(normalizeStageProviderSearchResults(songs));
+      return true;
+    }
+
+    pendingRequest.reject(new StageApiError(normalizeStageText(error) || 'Renderer rejected the Stage search request.', {
+      statusCode: 502,
+      code: 'STAGE_SEARCH_REJECTED',
+      details: {
+        requestId: normalizedRequestId,
+      },
+    }));
+    return true;
+  };
+
   const completeStagePlayerControlRequest = (result) =>
     completeStagePlayerRendererRequest(pendingStagePlayerControlRequests, result);
 
@@ -1683,13 +1813,26 @@ function createStageApi({
       throw createStageValidationError('Stage player search query is required.', 'INVALID_STAGE_PLAYER_SEARCH_QUERY');
     }
 
-    const songs = searchStageSongs
-      ? await searchStageSongs(query, limit)
-      : await defaultSearchStageSongs(query, limit);
+    // No provider is the host provider's own search, as it always was; any other goes through omni
+    // in the renderer, so a provider the app has not registered simply answers no songs.
+    const requestedProvider = normalizeStageText(payload.provider);
+    const providerId = requestedProvider ? normalizeStageProviderId(requestedProvider) : STAGE_HOST_PROVIDER_ID;
+    if (!providerId) {
+      throw createStageValidationError(
+        'Stage player search provider must be an id omni registers.',
+        'INVALID_STAGE_PLAYER_SEARCH_PROVIDER',
+        { provider: requestedProvider },
+      );
+    }
+
+    const songs = providerId === STAGE_HOST_PROVIDER_ID
+      ? await searchHostStageSongs(query, limit)
+      : await requestStageProviderSearch({ providerId, query, limit });
 
     return withStagePlayerOutsideInMetadata({
       ...(deprecated ? { deprecated: true, replacement: '/stage/player/search' } : {}),
       query,
+      provider: providerId,
       songs,
     });
   };
@@ -1700,13 +1843,16 @@ function createStageApi({
       'Failed to parse Stage player play JSON payload.',
       'INVALID_STAGE_PLAYER_PLAY_JSON',
     );
-    const songId = Number(payload.songId);
+    const songRef = normalizeStageSongRef(payload.songId);
     const appendToQueue = payload.appendToQueue === true;
-    if (!Number.isInteger(songId) || songId <= 0) {
-      throw createStageValidationError('Stage player play payload requires a positive integer songId.', 'INVALID_STAGE_PLAYER_PLAY_SONG_ID');
+    if (!songRef) {
+      throw createStageValidationError(
+        'Stage player play payload requires a positive integer songId or a "<provider>:<songId>" reference.',
+        'INVALID_STAGE_PLAYER_PLAY_SONG_ID',
+      );
     }
 
-    const result = await requestStageSongPlay(songId, { appendToQueue });
+    const result = await requestStageSongPlay(songRef.songId, { appendToQueue, providerId: songRef.providerId });
     return withStagePlayerOutsideInMetadata({
       ...(deprecated ? { deprecated: true, replacement: '/stage/player/play' } : {}),
       ok: true,
@@ -1714,7 +1860,9 @@ function createStageApi({
       ...(result?.deduplicated !== undefined ? { deduplicated: result.deduplicated } : {}),
       ...(result?.affectedCount !== undefined ? { affectedCount: result.affectedCount } : {}),
       ...(result?.diff ? { diff: result.diff } : {}),
-      songId,
+      songId: songRef.songId,
+      songRef: songRef.songRef,
+      provider: songRef.providerId,
       appendToQueue,
     });
   };
@@ -1828,10 +1976,18 @@ function createStageApi({
     const action = normalizeStageText(payload.action);
     const status = ensureStagePlayerQueueAllowed(action);
 
+    // Queue adds name songs the same way play does: a bare host provider id, or `<provider>:<id>`.
+    const requestedSongRefs = (Array.isArray(payload.songIds) ? payload.songIds : [payload.songId])
+      .map((value) => normalizeStageSongRef(value))
+      .filter(Boolean);
+
     const result = await requestStagePlayerQueueOperation({
       action,
       songId: Number.isInteger(Number(payload.songId)) ? Number(payload.songId) : undefined,
       songIds: Array.isArray(payload.songIds) ? payload.songIds.map(Number).filter((songId) => Number.isInteger(songId) && songId > 0) : undefined,
+      songs: requestedSongRefs.length > 0
+        ? requestedSongRefs.map(({ providerId, songId }) => ({ providerId, songId }))
+        : undefined,
       queueItemId: normalizeStageText(payload.queueItemId) || undefined,
       fromQueueItemId: normalizeStageText(payload.fromQueueItemId) || undefined,
       fromIndex: Number.isInteger(Number(payload.fromIndex)) ? Number(payload.fromIndex) : undefined,
@@ -2067,6 +2223,7 @@ function createStageApi({
     clearPendingExternalPlayRequests('Stage server stopped.');
     clearPendingStagePlayerRequests(pendingStagePlayerControlRequests, 'Stage server stopped.', 'STAGE_PLAYER_CONTROL_UNAVAILABLE');
     clearPendingStagePlayerRequests(pendingStagePlayerQueueRequests, 'Stage server stopped.', 'STAGE_PLAYER_QUEUE_UNAVAILABLE');
+    clearPendingStagePlayerRequests(pendingStagePlayerSearchRequests, 'Stage server stopped.', 'STAGE_PLAYER_SEARCH_UNAVAILABLE');
     closeStagePlayerWebSockets();
 
     await new Promise((resolve) => {
@@ -2177,6 +2334,7 @@ function createStageApi({
     completeStageExternalPlayRequest,
     completeStagePlayerControlRequest,
     completeStagePlayerQueueRequest,
+    completeStagePlayerSearchRequest,
     publishStagePlayerSnapshot,
     logStage,
     regenerateStageToken,

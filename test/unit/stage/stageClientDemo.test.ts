@@ -173,6 +173,20 @@ describe('stageClientDemo helpers', () => {
         });
     });
 
+    it('builds a provider search request', () => {
+        const result = buildStageSearchRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            query: '晴天',
+            provider: ' qq ',
+        });
+
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            query: '晴天',
+            provider: 'qq',
+        });
+    });
+
     it('rejects empty search requests before sending', () => {
         const error = validateStageSearchRequestInput({
             baseUrl: 'http://127.0.0.1:32107',
@@ -217,7 +231,34 @@ describe('stageClientDemo helpers', () => {
             songId: 0,
         });
 
-        expect(error).toBe('songId must be a positive integer.');
+        expect(error).toBe('songId must be a positive integer or a "<provider>:<songId>" reference.');
+    });
+
+    it('accepts a provider song reference', () => {
+        const result = buildStagePlayRequest({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            songId: 'qq:0039MnYb0qxYhV',
+        });
+
+        expect(JSON.parse(String(result.init.body))).toEqual({
+            songId: 'qq:0039MnYb0qxYhV',
+        });
+        expect(validateStagePlayRequestInput({
+            baseUrl: 'http://127.0.0.1:32107',
+            token: 'demo-token',
+            songId: 'qq:0039MnYb0qxYhV',
+        })).toBeNull();
+    });
+
+    it('rejects a song reference without a usable provider or id', () => {
+        for (const songId of ['qq:', ':42', 'QQ Music!:1', 'qq']) {
+            expect(validateStagePlayRequestInput({
+                baseUrl: 'http://127.0.0.1:32107',
+                token: 'demo-token',
+                songId,
+            })).toBe('songId must be a positive integer or a "<provider>:<songId>" reference.');
+        }
     });
 
     it('builds player status and time requests', () => {

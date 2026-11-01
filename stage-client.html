@@ -365,7 +365,7 @@
                     </div>
                     <div class="endpoint-layout">
                         <article class="doc-card">
-                            <p class="hint">搜索网易云结果，返回歌曲列表。结果可直接触发 `/stage/player/play` 或追加到主播放器队列。</p>
+                            <p class="hint">搜索在线音乐并返回歌曲列表。不传 <code>provider</code> 时搜索本机网易云接口，传 <code>qq</code>、<code>kugou</code> 等平台 id 时改由应用内 omni 搜索该平台。结果可直接触发 <code>/stage/player/play</code> 或追加到主播放器队列。</p>
                             <div class="meta-grid">
                                 <div><span class="meta-label">Auth</span><span>Bearer token</span></div>
                                 <div><span class="meta-label">Content-Type</span><span>application/json</span></div>
@@ -373,7 +373,9 @@
                             <h4>Body fields</h4>
                             <dl class="field-list">
                                 <div><dt>query</dt><dd>必填，歌曲 / 歌手 / 专辑关键词。</dd></div>
+                                <div><dt>provider</dt><dd>可选，平台 id（<code>netease</code>/<code>qq</code>/<code>kugou</code> 等），省略时为本机网易云。</dd></div>
                                 <div><dt>limit</dt><dd>可选，结果数量上限。</dd></div>
+                                <div><dt>songs[].songRef</dt><dd>响应字段，<code>&lt;provider&gt;:&lt;songId&gt;</code>，可直接作为 <code>/stage/player/play</code> 的 <code>songId</code>。</dd></div>
                             </dl>
                             <h4>cURL example</h4>
                             <pre id="search-example" class="code-example"></pre>
@@ -384,6 +386,10 @@
                                 <label>
                                     <span>Query</span>
                                     <input id="search-query" type="text" value="Mili world.execute (me)" placeholder="Song / artist / album" />
+                                </label>
+                                <label>
+                                    <span>Provider</span>
+                                    <input id="search-provider" type="text" value="" placeholder="netease (default) / qq / kugou" />
                                 </label>
                                 <label>
                                     <span>Limit</span>
@@ -414,7 +420,7 @@
                             </div>
                             <h4>Body fields</h4>
                             <dl class="field-list">
-                                <div><dt>songId</dt><dd>必填，正整数歌曲 ID。</dd></div>
+                                <div><dt>songId</dt><dd>必填。纯正整数仍是网易云歌曲 ID；<code>&lt;provider&gt;:&lt;songId&gt;</code> 形式（如 <code>qq:0039MnYb0qxYhV</code>）播放其他平台的歌曲，通常直接取自搜索结果的 <code>songRef</code>。</dd></div>
                                 <div><dt>appendToQueue</dt><dd>可选，`true` 时只追加到主播放队列，不打断当前播放。（注：Folia 存在自动去重机制，同一歌曲不会在队列中出现两次，若已在队列中则会被移动到目标位置，并通过返回值的 `deduplicated` 字段体现。）</dd></div>
                             </dl>
                             <h4>cURL example</h4>
@@ -581,8 +587,8 @@
                                     </select>
                                 </label>
                                 <label>
-                                    <span>Song ID</span>
-                                    <input id="player-queue-song-id" type="number" min="1" value="123456" />
+                                    <span>Song ID / ref</span>
+                                    <input id="player-queue-song-id" type="text" value="123456" placeholder="123456 或 qq:0039MnYb0qxYhV" />
                                 </label>
                             </div>
                             <div class="grid two">

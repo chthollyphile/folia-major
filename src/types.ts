@@ -225,7 +225,33 @@ export interface StageMediaSession {
 export type StageSession = StageMediaSession;
 
 export interface StageSearchResult {
-  songId: number;
+  songId: number | string;
+  title: string;
+  artists: string[];
+  album: string;
+  durationMs: number | null;
+  coverUrl: string | null;
+  provider?: string;
+  songRef?: string;
+}
+
+export interface StageExternalPlayRequest {
+  requestId: string;
+  songId: MediaId;
+  providerId?: string;
+  appendToQueue?: boolean;
+}
+
+export interface StagePlayerSearchRequest {
+  requestId: string;
+  providerId: string;
+  query: string;
+  limit: number;
+}
+
+export interface StagePlayerSearchResultSong {
+  songId: number | string;
+  songRef?: string;
   title: string;
   artists: string[];
   album: string;
@@ -233,10 +259,11 @@ export interface StageSearchResult {
   coverUrl: string | null;
 }
 
-export interface StageExternalPlayRequest {
+export interface StagePlayerSearchResult {
   requestId: string;
-  songId: number;
-  appendToQueue?: boolean;
+  ok: boolean;
+  error?: string | null;
+  songs?: StagePlayerSearchResultSong[];
 }
 
 export interface StageExternalPlayResult {
@@ -350,8 +377,9 @@ export interface StagePlayerControlRequest {
 export interface StagePlayerQueueRequest {
   requestId: string;
   action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-  songId?: number;
-  songIds?: number[];
+  songId?: number | string;
+  songIds?: Array<number | string>;
+  songs?: Array<{ providerId: string; songId: MediaId }>;
   queueItemId?: string;
   fromQueueItemId?: string;
   fromIndex?: number;
