@@ -211,10 +211,10 @@ const PRESET_LABEL_KEY: Record<LiquidGlassPresetId, string> = {
 };
 
 const GraphicsPage: React.FC = () => {
-    const { t } = useTranslation();
+  const { t } = useTranslation();
   const { isDaylight } = useSettingsKitTheme();
   const { isElectron } = useSettingsPage();
-  
+
   // 1. 保留主分支的代码格式，并合并你的液态玻璃 store
   const theme = useThemeSettingsStore(
     useShallow((state) => ({
@@ -236,7 +236,7 @@ const GraphicsPage: React.FC = () => {
   const setBackgroundThrottling = useDesktopSettingsStore(
     (state) => state.handleToggleBackgroundThrottling,
   );
-  
+
   // 2. 融合 visualizer：加入主分支新增的 renderQuality 逻辑
   const visualizer = useVisualizerSettingsStore(
     useShallow((state) => ({
@@ -244,7 +244,7 @@ const GraphicsPage: React.FC = () => {
       glowFix: state.glowBlurQuantize,
       setFrameRate: state.handleSetVisualizerFrameRate,
       setGlowFix: state.handleToggleGlowBlurQuantize,
-      renderQuality: state.lyricRenderQuality,             // 新增：来自 main
+      renderQuality: state.lyricRenderQuality, // 新增：来自 main
       setRenderQuality: state.handleSetLyricRenderQuality, // 新增：来自 main
     })),
   );
@@ -280,7 +280,7 @@ const GraphicsPage: React.FC = () => {
   // Native blur can drop frames on some GPUs, so switching it on asks first.
   const [nativeBlurAsking, setNativeBlurAsking] = useState(false);
   const frameRateLimited = visualizer.frameRate !== "off";
-  
+
   // 4. 保留你的液态玻璃预设计算逻辑
   // 预设：画不了位移图的平台不列出通透/朦胧流体；按当前值高亮（那边强度与弯曲距离被钉死，只按模糊匹配）。
   const presetOptions = LIQUID_GLASS_PRESETS.filter(
@@ -302,235 +302,237 @@ const GraphicsPage: React.FC = () => {
   const applyPreset = (id: string) => {
     const preset = LIQUID_GLASS_PRESETS.find(
       (candidate) => candidate.id === id,
-    if (preset)
+    );
+    if (preset) {
       glass.setParams({
         strength: preset.strength,
         blur: preset.blur,
         bend: preset.bend,
       });
-  };
+    }
 
-  return (
-    <>
-      <Group def={PERFORMANCE}>
-        <Row option={O.staticMode} hint={t("options.enableStaticModeDesc")}>
-          <Toggle checked={theme.staticMode} onChange={theme.setStaticMode} />
-        </Row>
-        <Row
-          option={O.homeBackground}
-          hint={t("options.disableHomeDynamicBackgroundDesc")}
-        >
-          <Toggle
-            checked={theme.homeBackgroundOff}
-            onChange={theme.setHomeBackgroundOff}
-          />
-        </Row>
-        {!IS_LINUX && (
+    return (
+      <>
+        <Group def={PERFORMANCE}>
+          <Row option={O.staticMode} hint={t("options.enableStaticModeDesc")}>
+            <Toggle checked={theme.staticMode} onChange={theme.setStaticMode} />
+          </Row>
           <Row
-            option={O.nativeBlur}
-            hint={t("options.enablePlayerPageNativeBlurHint")}
-            note={t("options.enablePlayerPageNativeBlurDesc")}
+            option={O.homeBackground}
+            hint={t("options.disableHomeDynamicBackgroundDesc")}
           >
             <Toggle
-              checked={nativeBlur}
+              checked={theme.homeBackgroundOff}
+              onChange={theme.setHomeBackgroundOff}
+            />
+          </Row>
+          {!IS_LINUX && (
+            <Row
+              option={O.nativeBlur}
+              hint={t("options.enablePlayerPageNativeBlurHint")}
+              note={t("options.enablePlayerPageNativeBlurDesc")}
+            >
+              <Toggle
+                checked={nativeBlur}
+                onChange={(enabled) =>
+                  enabled ? setNativeBlurAsking(true) : setNativeBlur(false)
+                }
+              />
+            </Row>
+          )}
+          <Row option={O.frameRate} hint={t("options.visualizerFrameRateDesc")}>
+            <Toggle
+              checked={frameRateLimited}
               onChange={(enabled) =>
-                enabled ? setNativeBlurAsking(true) : setNativeBlur(false)
+                visualizer.setFrameRate(
+                  enabled ? FRAME_RATE_WHEN_SWITCHED_ON : "off",
+                )
               }
             />
           </Row>
-        )}
-        <Row option={O.frameRate} hint={t("options.visualizerFrameRateDesc")}>
-          <Toggle
-            checked={frameRateLimited}
-            onChange={(enabled) =>
-              visualizer.setFrameRate(
-                enabled ? FRAME_RATE_WHEN_SWITCHED_ON : "off",
-              )
+          <Reveal when={frameRateLimited}>
+            <Row sub option={O.frameRateValue}>
+              <Segmented
+                value={String(visualizer.frameRate)}
+                options={FRAME_RATE_CHOICES}
+                onChange={(value) => {
+                  const rate = VISUALIZER_FRAME_RATE_OPTIONS.find(
+                    (candidate) => String(candidate) === value,
+                  );
+                  if (rate) visualizer.setFrameRate(rate);
+                }}
+              />
+            </Row>
+          </Reveal>
+          {isElectron && (
+            <Row
+              option={O.backgroundThrottling}
+              hint={t("options.backgroundThrottlingHint")}
+              note={t("options.backgroundThrottlingDesc")}
+            >
+              <Toggle
+                checked={backgroundThrottling}
+                onChange={setBackgroundThrottling}
+              />
+            </Row>
+          )}
+          <Row
+            option={O.glowFix}
+            hint={
+              <>
+                {t("options.glowBlurQuantizeDesc")}{" "}
+                <Link href={CHROMIUM_FD_EXHAUSTION_DOCS_URL}>
+                  {t("options.glowBlurQuantizeDocs")}
+                </Link>
+              </>
+            }
+          >
+            <Toggle
+              checked={visualizer.glowFix}
+              onChange={visualizer.setGlowFix}
+            />
+          </Row>
+          {IS_WINDOWS_DESKTOP && <GpuPreferenceRow option={O.gpuPreference} />}
+        </Group>
+
+        <Group def={MOTION} foot={t("options.reduceMotionSectionDesc")}>
+          <Row
+            option={O.followSystem}
+            hint={t("options.reduceMotionFollowSystemDesc")}
+          >
+            <Toggle
+              checked={motion.followSystem}
+              onChange={motion.setFollowSystem}
+            />
+          </Row>
+          {/* While the system asks for reduced motion and is followed, every row below is reduced whatever its switch says. */}
+          <Reveal when={motion.followSystem && motion.systemPrefers}>
+            <Row sub notice={t("options.reduceMotionForcedNotice")} />
+          </Reveal>
+          {MOTION_SURFACE_IDS.map((surface) => (
+            <Row
+              key={surface}
+              option={SURFACE_ROWS[surface].option}
+              hint={t(SURFACE_ROWS[surface].hintKey)}
+            >
+              <Toggle
+                checked={motion.surfaces[surface]}
+                onChange={(enabled) => motion.setSurface(surface, enabled)}
+              />
+            </Row>
+          ))}
+        </Group>
+
+        <Group def={GLASS} foot={t("options.liquidGlassSectionDesc")}>
+          {GLASS_GPU_BLOCKED && (
+            <Row sub notice={t("options.liquidGlassGpuBlockedNotice")} />
+          )}
+          <Row
+            option={O.glassPreset}
+            disabled={GLASS_GPU_BLOCKED}
+            hint={t("options.liquidGlassPresetDesc")}
+            below={
+              <GlassPresetGrid
+                value={activePreset}
+                label={t("options.liquidGlassPreset")}
+                options={presetOptions}
+                onChange={applyPreset}
+              />
             }
           />
-        </Row>
-        <Reveal when={frameRateLimited}>
-          <Row sub option={O.frameRateValue}>
-            <Segmented
-              value={String(visualizer.frameRate)}
-              options={FRAME_RATE_CHOICES}
-              onChange={(value) => {
-                const rate = VISUALIZER_FRAME_RATE_OPTIONS.find(
-                  (candidate) => String(candidate) === value,
-                );
-                if (rate) visualizer.setFrameRate(rate);
-              }}
-            />
-          </Row>
-        </Reveal>
-        {isElectron && (
+          {GLASS_DISTORTION && (
+            <Row
+              option={O.glassStrength}
+              disabled={GLASS_GPU_BLOCKED}
+              hint={t("options.liquidGlassStrengthDesc")}
+            >
+              <Slider
+                value={glass.strength}
+                min={LIQUID_GLASS_PARAM_BOUNDS.strength.min}
+                max={LIQUID_GLASS_PARAM_BOUNDS.strength.max}
+                step={0.25}
+                onChange={glass.setStrength}
+                format={(value) => value.toFixed(2)}
+              />
+            </Row>
+          )}
+          {GLASS_DISTORTION && (
+            <Row
+              option={O.glassBend}
+              disabled={GLASS_GPU_BLOCKED}
+              hint={t("options.liquidGlassBendDesc")}
+            >
+              <Slider
+                value={glass.bend}
+                min={LIQUID_GLASS_PARAM_BOUNDS.bend.min}
+                max={LIQUID_GLASS_PARAM_BOUNDS.bend.max}
+                step={2}
+                onChange={glass.setBend}
+                format={(value) => `${Math.round(value)}px`}
+              />
+            </Row>
+          )}
           <Row
-            option={O.backgroundThrottling}
-            hint={t("options.backgroundThrottlingHint")}
-            note={t("options.backgroundThrottlingDesc")}
+            option={O.glassBlur}
+            disabled={GLASS_GPU_BLOCKED}
+            hint={t("options.liquidGlassBlurDesc")}
           >
-            <Toggle
-              checked={backgroundThrottling}
-              onChange={setBackgroundThrottling}
+            <Slider
+              value={glass.blur}
+              min={LIQUID_GLASS_PARAM_BOUNDS.blur.min}
+              max={LIQUID_GLASS_PARAM_BOUNDS.blur.max}
+              step={0.5}
+              onChange={glass.setBlur}
+              format={(value) => value.toFixed(1)}
             />
           </Row>
-        )}
-        <Row
-          option={O.glowFix}
-          hint={
-            <>
-              {t("options.glowBlurQuantizeDesc")}{" "}
-              <Link href={CHROMIUM_FD_EXHAUSTION_DOCS_URL}>
-                {t("options.glowBlurQuantizeDocs")}
-              </Link>
-            </>
-          }
-        >
-          <Toggle
-            checked={visualizer.glowFix}
-            onChange={visualizer.setGlowFix}
-          />
-        </Row>
-        {IS_WINDOWS_DESKTOP && <GpuPreferenceRow option={O.gpuPreference} />}
-      </Group>
-
-      <Group def={MOTION} foot={t("options.reduceMotionSectionDesc")}>
-        <Row
-          option={O.followSystem}
-          hint={t("options.reduceMotionFollowSystemDesc")}
-        >
-          <Toggle
-            checked={motion.followSystem}
-            onChange={motion.setFollowSystem}
-          />
-        </Row>
-        {/* While the system asks for reduced motion and is followed, every row below is reduced whatever its switch says. */}
-        <Reveal when={motion.followSystem && motion.systemPrefers}>
-          <Row sub notice={t("options.reduceMotionForcedNotice")} />
-        </Reveal>
-        {MOTION_SURFACE_IDS.map((surface) => (
+          {GLASS_DISTORTION && (
+            <Row
+              option={O.glassSat}
+              disabled={GLASS_GPU_BLOCKED}
+              hint={t("options.liquidGlassSatDesc")}
+            >
+              <Slider
+                value={glass.sat}
+                min={LIQUID_GLASS_PARAM_BOUNDS.sat.min}
+                max={LIQUID_GLASS_PARAM_BOUNDS.sat.max}
+                step={5}
+                onChange={glass.setSat}
+                format={(value) => `${Math.round(value)}%`}
+              />
+            </Row>
+          )}
           <Row
-            key={surface}
-            option={SURFACE_ROWS[surface].option}
-            hint={t(SURFACE_ROWS[surface].hintKey)}
+            option={O.glassLight}
+            disabled={GLASS_GPU_BLOCKED}
+            hint={t("options.liquidGlassLightDesc")}
           >
-            <Toggle
-              checked={motion.surfaces[surface]}
-              onChange={(enabled) => motion.setSurface(surface, enabled)}
-            />
+            <Toggle checked={glass.light} onChange={glass.setLight} />
           </Row>
-        ))}
-      </Group>
+          <Row
+            option={O.glassJelly}
+            disabled={GLASS_GPU_BLOCKED}
+            hint={t("options.liquidGlassJellyDesc")}
+          >
+            <Toggle checked={glass.jelly} onChange={glass.setJelly} />
+          </Row>
+        </Group>
 
-      <Group def={GLASS} foot={t("options.liquidGlassSectionDesc")}>
-        {GLASS_GPU_BLOCKED && (
-          <Row sub notice={t("options.liquidGlassGpuBlockedNotice")} />
-        )}
-        <Row
-          option={O.glassPreset}
-          disabled={GLASS_GPU_BLOCKED}
-          hint={t("options.liquidGlassPresetDesc")}
-          below={
-            <GlassPresetGrid
-              value={activePreset}
-              label={t("options.liquidGlassPreset")}
-              options={presetOptions}
-              onChange={applyPreset}
-            />
-          }
+        <ConfirmDialog
+          isOpen={nativeBlurAsking}
+          isDaylight={isDaylight}
+          title={t("options.nativeBlurConfirmTitle")}
+          description={t("options.nativeBlurConfirmDesc")}
+          confirmText={t("options.nativeBlurConfirmAction")}
+          onConfirm={() => {
+            setNativeBlur(true);
+            setNativeBlurAsking(false);
+          }}
+          onClose={() => setNativeBlurAsking(false)}
         />
-        {GLASS_DISTORTION && (
-          <Row
-            option={O.glassStrength}
-            disabled={GLASS_GPU_BLOCKED}
-            hint={t("options.liquidGlassStrengthDesc")}
-          >
-            <Slider
-              value={glass.strength}
-              min={LIQUID_GLASS_PARAM_BOUNDS.strength.min}
-              max={LIQUID_GLASS_PARAM_BOUNDS.strength.max}
-              step={0.25}
-              onChange={glass.setStrength}
-              format={(value) => value.toFixed(2)}
-            />
-          </Row>
-        )}
-        {GLASS_DISTORTION && (
-          <Row
-            option={O.glassBend}
-            disabled={GLASS_GPU_BLOCKED}
-            hint={t("options.liquidGlassBendDesc")}
-          >
-            <Slider
-              value={glass.bend}
-              min={LIQUID_GLASS_PARAM_BOUNDS.bend.min}
-              max={LIQUID_GLASS_PARAM_BOUNDS.bend.max}
-              step={2}
-              onChange={glass.setBend}
-              format={(value) => `${Math.round(value)}px`}
-            />
-          </Row>
-        )}
-        <Row
-          option={O.glassBlur}
-          disabled={GLASS_GPU_BLOCKED}
-          hint={t("options.liquidGlassBlurDesc")}
-        >
-          <Slider
-            value={glass.blur}
-            min={LIQUID_GLASS_PARAM_BOUNDS.blur.min}
-            max={LIQUID_GLASS_PARAM_BOUNDS.blur.max}
-            step={0.5}
-            onChange={glass.setBlur}
-            format={(value) => value.toFixed(1)}
-          />
-        </Row>
-        {GLASS_DISTORTION && (
-          <Row
-            option={O.glassSat}
-            disabled={GLASS_GPU_BLOCKED}
-            hint={t("options.liquidGlassSatDesc")}
-          >
-            <Slider
-              value={glass.sat}
-              min={LIQUID_GLASS_PARAM_BOUNDS.sat.min}
-              max={LIQUID_GLASS_PARAM_BOUNDS.sat.max}
-              step={5}
-              onChange={glass.setSat}
-              format={(value) => `${Math.round(value)}%`}
-            />
-          </Row>
-        )}
-        <Row
-          option={O.glassLight}
-          disabled={GLASS_GPU_BLOCKED}
-          hint={t("options.liquidGlassLightDesc")}
-        >
-          <Toggle checked={glass.light} onChange={glass.setLight} />
-        </Row>
-        <Row
-          option={O.glassJelly}
-          disabled={GLASS_GPU_BLOCKED}
-          hint={t("options.liquidGlassJellyDesc")}
-        >
-          <Toggle checked={glass.jelly} onChange={glass.setJelly} />
-        </Row>
-      </Group>
-
-      <ConfirmDialog
-        isOpen={nativeBlurAsking}
-        isDaylight={isDaylight}
-        title={t("options.nativeBlurConfirmTitle")}
-        description={t("options.nativeBlurConfirmDesc")}
-        confirmText={t("options.nativeBlurConfirmAction")}
-        onConfirm={() => {
-          setNativeBlur(true);
-          setNativeBlurAsking(false);
-        }}
-        onClose={() => setNativeBlurAsking(false)}
-      />
-    </>
-  );
+      </>
+    );
+  };
 };
 
 export default GraphicsPage;
