@@ -7440,6 +7440,14 @@ ipcMain.handle('stage-complete-player-queue', (event, result) => {
   return stageApi.completeStagePlayerQueueRequest(result);
 });
 
+ipcMain.handle('stage-complete-player-search', (event, result) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to complete a Stage player search request.');
+  }
+
+  return stageApi.completeStagePlayerSearchRequest(result);
+});
+
 // Created on first use: globalShortcut only works once the app is ready, and the renderer asks
 // only after its window has loaded.
 let globalShortcutController = null;

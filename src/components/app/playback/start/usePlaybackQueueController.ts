@@ -12,7 +12,7 @@ import { getLocalSong } from '../../../../services/db';
 import { retireBlobUrl } from '../../../../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
 import { loadOnlineLyricsState } from '../../../../utils/onlineLyricsState';
-import { PlayerState, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
+import { PlayerState, type StageExternalPlayRequest, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest } from '../../../../types/appPlayback';
@@ -1523,11 +1523,12 @@ export function usePlaybackQueueController({
         return matchesNextQueue ? { ops } : buildReloadQueueDiffDraft();
     }, [buildReloadQueueDiffDraft]);
 
-    const handleStageExternalPlayRequest = useCallback(async (request: { requestId: string; songId: number; appendToQueue?: boolean; }) => {
+    // The Stage API names the song's provider (a bare numeric id is a song of its local service).
+    const handleStageExternalPlayRequest = useCallback(async (request: StageExternalPlayRequest) => {
         try {
-            const song = await omni.getSongDetail('netease', request.songId);
+            const song = await omni.getSongDetail(request.providerId, request.songId);
             if (!song) {
-                throw new Error(`Song ${request.songId} was not found.`);
+                throw new Error(`Song ${request.providerId}:${request.songId} was not found.`);
             }
 
             let actionData: any = undefined;
@@ -1579,22 +1580,15 @@ export function usePlaybackQueueController({
     }, []);
 
     const loadStageQueueSongs = useCallback(async (request: StagePlayerQueueRequest) => {
-        const singleSongId = typeof request.songId === 'number' && Number.isInteger(request.songId) && request.songId > 0
-            ? request.songId
-            : null;
-        const songIds = Array.isArray(request.songIds) && request.songIds.length > 0
-            ? request.songIds
-            : singleSongId !== null
-                ? [singleSongId]
-                : [];
-
-        if (songIds.length === 0) {
+        const refs = Array.isArray(request.songs) ? request.songs : [];
+        if (refs.length === 0) {
             throw new Error('Queue append requires songId or songIds.');
         }
 
+        // Each song is asked of its own provider, so one request can queue songs of several.
         const songs: SongResult[] = [];
-        for (const songId of songIds) {
-            const song = await omni.getSongDetail('netease', songId);
+        for (const { providerId, songId } of refs) {
+            const song = await omni.getSongDetail(providerId, songId);
             if (song && !isSongUnavailable(song)) {
                 songs.push(song);
             }

@@ -175,6 +175,7 @@ import { useWallHandoffStore } from './stores/useWallHandoffStore';
 import { countRender } from './dev/renderCount';
 import { resolveSongLiked } from './utils/resolveSongLiked';
 import StageSessionEmptyState from './components/app/stage/StageSessionEmptyState';
+import { useStagePlayerSearchBridge } from './components/app/stage/useStagePlayerSearchBridge';
 import { useVisualizerRendererModel } from './components/visualizer/useVisualizerRendererModel';
 import { useVisualizerTunings } from './components/visualizer/useVisualizerTunings';
 import { usePlaybackRuntimeRefs } from './components/app/playback/usePlaybackRuntimeRefs';
@@ -1464,6 +1465,8 @@ export default function App() {
         pausePlayback,
         resumePlayback,
     });
+
+    useStagePlayerSearchBridge();
 
     const {
         publishStagePlayerPlaybackUpdate,
