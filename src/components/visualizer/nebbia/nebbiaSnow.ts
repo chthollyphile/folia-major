@@ -37,6 +37,7 @@ export class NebbiaSnow {
     private W = 0; private H = 0; private k = 1;
     /** 自己的时钟、上次按写好的笔画吸水的时刻（笔画段多，每 0.05 秒吸一次就够）。 */
     private clock = 0; private wetAt = -Infinity;
+    private readonly sweepBox = [0, 0, 0, 0];
 
     /** 尺寸真变了才清空玻璃上的雪和水（只换像素比、渲染倍数时不清）。 */
     resize(W: number, H: number) {
@@ -56,6 +57,7 @@ export class NebbiaSnow {
     step(dt: number, t: NebbiaTuning, sweeps: readonly number[], wet: readonly number[], wind: number) {
         this.spawnAcc += dt * t.snow * 25 * this.W * this.H / (1280 * 720);
         for (; this.spawnAcc >= 1; this.spawnAcc -= 1) this.flakes.push(this.newFlake(t, wind));
+        this.boxOf(sweeps);
         for (let i = this.flakes.length - 1; i >= 0; i -= 1) {
             const f = this.flakes[i];
             const landing = f.age < f.app;
@@ -104,10 +106,16 @@ export class NebbiaSnow {
                 return d;
             });
         } else if (f.drops) {
-            const lumps = f.kind.lumps;
+            const lumps = f.kind.lumps, drops = f.drops;
             let sw = 0;
-            f.drops.forEach((d, j) => { if (d?.dead) f.drops![j] = null; else if (d) sw += lumps[j].w; });
-            f.drops.forEach((d, j) => { if (d) { d.mass += delta * lumps[j].w / (sw || 1); this.water.wake(d); } });
+            for (let j = 0; j < drops.length; j += 1) {
+                const d = drops[j];
+                if (d?.dead) drops[j] = null; else if (d) sw += lumps[j].w;
+            }
+            for (let j = 0; j < drops.length; j += 1) {
+                const d = drops[j];
+                if (d) { d.mass += delta * lumps[j].w / (sw || 1); this.water.grew(d); }
+            }
         }
         if (f.melt < 1) return false;
         for (const d of f.drops ?? []) if (d) d.pin = null;
@@ -133,8 +141,21 @@ export class NebbiaSnow {
         return false;
     }
 
+    /** 这一帧扫过的几段合起来的外框（含线宽的一半）：框外的雪不用一段段算距离。 */
+    private boxOf(segs: readonly number[]) {
+        const b = this.sweepBox;
+        b[0] = b[1] = Infinity; b[2] = b[3] = -Infinity;
+        for (let p = 0; p < segs.length; p += PEN_FLOATS) {
+            const hw = segs[p + 4] / 2;
+            b[0] = Math.min(b[0], segs[p] - hw, segs[p + 2] - hw); b[1] = Math.min(b[1], segs[p + 1] - hw, segs[p + 3] - hw);
+            b[2] = Math.max(b[2], segs[p] + hw, segs[p + 2] + hw); b[3] = Math.max(b[3], segs[p + 1] + hw, segs[p + 3] + hw);
+        }
+    }
+
     /** 扫到这片雪：雪当帧化开，水（包括底下已经化出的水珠）当作并进了歌词的水，不在玻璃上留下。 */
     private wiped(f: Flake, sweeps: readonly number[]): boolean {
+        const b = this.sweepBox, m = f.r * 0.6;
+        if (f.x + m < b[0] || f.x - m > b[2] || f.y + m < b[1] || f.y - m > b[3]) return false;
         for (let p = 0; p < sweeps.length; p += PEN_FLOATS) {
             if (segDist(f.x, f.y, sweeps, p) > sweeps[p + 4] / 2 + f.r * 0.6) continue;
             for (const d of f.drops ?? []) if (d) this.water.kill(d);

@@ -28,6 +28,8 @@ export interface WaterDrop {
     awake: boolean;
     /** 在网格的哪一格（-1 = 不在）。 */
     cell: number;
+    /** 上次查合并时的质量（grew 用）。 */
+    wokeMass: number;
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -70,7 +72,7 @@ export class NebbiaSnowWater {
         const d: WaterDrop = {
             x, y, vx: 0, vy: 0, mass: (size * density) ** 2, density, sx: spread, sy: spread,
             resist: 0, shift: 0, nextMotion: 0, lastTx: x, lastTy: y, nextTrail: rand(20, 30) * this.k,
-            parent: null, dead: false, pin: null, wipe: null, awake: false, cell: -1,
+            parent: null, dead: false, pin: null, wipe: null, awake: false, cell: -1, wokeMass: 0,
         };
         this.drops.push(d);
         this.grid.place(d);
@@ -79,7 +81,13 @@ export class NebbiaSnowWater {
     }
 
     /** 变大了（外面加了水）或刚放下：这一帧查合并。 */
-    wake(d: WaterDrop) { if (!d.awake && !d.dead) { d.awake = true; this.woken.push(d); } }
+    wake(d: WaterDrop) { if (!d.awake && !d.dead) { d.awake = true; d.wokeMass = d.mass; this.woken.push(d); } }
+
+    /**
+     * 慢慢变大（还在化的雪往底下钉住的水珠里一点点加水）：比上次查合并时重了 5% 以上才再查。
+     * 合并距离和半径成正比，每帧长那一点点碰不上新的水珠，不用每帧都查。
+     */
+    grew(d: WaterDrop) { if (d.mass > d.wokeMass * 1.05) this.wake(d); }
 
     /** 外面直接拿走一颗（雪被抹掉时它底下的水珠）：水珠纹理立刻重画。 */
     kill(d: WaterDrop) { d.dead = true; this.urgent = true; }
@@ -92,7 +100,9 @@ export class NebbiaSnowWater {
     step(dt: number) {
         if (dt <= 0) return;
         this.time += dt;
-        for (let i = 0; i < this.drops.length; i += 1) if (!this.drops[i].dead) this.move(this.drops[i], dt);
+        // 摊开每秒收回到 1%：这一帧的倍数所有水珠一样，算一次
+        const spread = 0.01 ** dt;
+        for (let i = 0; i < this.drops.length; i += 1) if (!this.drops[i].dead) this.move(this.drops[i], dt, spread);
         this.collide();
         for (let i = this.drops.length - 1; i >= 0; i -= 1) {
             const d = this.drops[i];
@@ -105,15 +115,15 @@ export class NebbiaSnowWater {
     }
 
     // 一颗水珠走 dt 秒（库的 updateRaindrop）
-    private move(d: WaterDrop, dt: number) {
+    private move(d: WaterDrop, dt: number, spread: number) {
         const k = this.k;
         // 库里每秒蒸发固定一点；这里再按面积（和质量成正比）多蒸发一点：大水珠也会慢慢缩，雪一直下也不会越积越大、越流越多
         d.mass = Math.min(d.mass, this.massCap(d)) - (3 * k * k + d.mass / this.evapTau) * dt;
         if (d.mass <= 0) { d.dead = true; return; }
-        d.sx *= 0.01 ** dt; d.sy *= 0.01 ** dt;
+        d.sx *= spread; d.sy *= spread;
         if (d.pin) { d.x = d.pin.x; d.y = d.pin.y; d.vx = d.vy = 0; return; }
         // 停着的轻水珠挂住不动：不用算受力（雪窗玻璃上绝大多数水珠都这样）
-        if (d.vy === 0 && d.mass < this.stick * k * k) { this.endWipe(d); return; }
+        if (d.vy === 0 && d.mass < this.stick * k * k) { if (d.wipe) this.endWipe(d); return; }
         if (this.time >= d.nextMotion) {
             d.nextMotion = this.time + rand(0.1, 0.4);
             // 库里按生成尺寸 spawnSize 插值；雪窗没有库自己生成的雨，用 [30, 70]（和 demo 一样）

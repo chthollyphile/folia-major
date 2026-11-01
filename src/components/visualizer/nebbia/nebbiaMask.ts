@@ -17,6 +17,9 @@ import type { NebbiaTuning } from './types';
 const SMEAR_HOLD = 8;
 const SMEAR_REFOG = 2.5;
 
+/** 写好的笔画多久重收一次（秒）。 */
+const WET_EVERY = 0.05;
+
 export class NebbiaMask {
     /** 这一帧的擦痕线段。 */
     readonly ctx = new NebbiaSegments();
@@ -26,6 +29,8 @@ export class NebbiaMask {
     /** 雪窗、凝露时收这一帧扫过的几段（写字的笔尖、抹字的手指、往下淌的水珠头）和写好的笔画，交给 nebbiaSnow.ts / nebbiaCondensation.ts；雨窗 null。 */
     sweeps: number[] | null = null;
     wet: number[] | null = null;
+    /** 写好的笔画段多，用的地方（雪水、凝露被吸走）也只每 0.05 秒用一次：每 WET_EVERY 秒才重收一次，中间几帧沿用上次的。 */
+    private wetAt = -Infinity;
 
     resize(W: number, H: number) {
         this.H = H;
@@ -38,8 +43,9 @@ export class NebbiaMask {
         ctx.clear();
         this.breath.begin();
         if (this.sweeps) this.sweeps.length = 0;
-        if (this.wet) this.wet.length = 0;
-        const ink: InkContext = { ctx, motion, strokeWidth: tuning.strokeWidth, writeSpeed: tuning.writeSpeed, busSpeed: tuning.busSpeed, sweeps: this.sweeps, wet: this.wet };
+        const wetDue = !!this.wet && now - this.wetAt >= WET_EVERY;
+        if (wetDue) { this.wet!.length = 0; this.wetAt = now; }
+        const ink: InkContext = { ctx, motion, strokeWidth: tuning.strokeWidth, writeSpeed: tuning.writeSpeed, busSpeed: tuning.busSpeed, sweeps: this.sweeps, wet: wetDue ? this.wet : null };
         laid.forEach((line, i) => {
             if (line.breathAt < Infinity) this.breath.drawLine(line, i, T, line.breathAt, line.breathUntil);
             if (line.appearBreathAt < Infinity) this.breath.drawLine(line, i, T, line.appearBreathAt, line.appearBreathUntil);
