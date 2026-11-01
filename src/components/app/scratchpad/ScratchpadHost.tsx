@@ -6,6 +6,7 @@ import { ListPlus, Maximize2, Minimize2, NotebookPen, Play, Trash2, X } from 'lu
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, useScratchpadStore } from '../../../stores/useScratchpadStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
+import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
 import { canAddScratchpadSongToPlaylist, scratchpadSourceLabel } from './scratchpadModel';
 import ScratchpadList, { type ScratchpadPanelActions } from './ScratchpadList';
@@ -43,6 +44,11 @@ const CLEAR_CONFIRM_MS = 3000;
 const DRAWER_KEYS = new Set([
     'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Home', 'End', 'PageUp', 'PageDown', 'Delete', 'Backspace',
 ]);
+
+/** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
+const PAGE_SLIDE_PX = 28;
+const PAGE_EASE_IN = [0.22, 1, 0.36, 1] as const;
+const PAGE_EASE_OUT = [0.4, 0, 1, 1] as const;
 
 const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback }) => {
     const { t } = useTranslation();
@@ -191,6 +197,19 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
         </footer>
     );
 
+    // 换页的动画：去播放历史（右边那个页签）时方向是 1，回速记簿是 -1；两个页签，方向只看去哪一页。
+    const calm = useReducedMotionFor('uiMicroMotion');
+    const pageDirection = tab === 'history' ? 1 : -1;
+    const pageVariants = useMemo(() => ({
+        enter: (direction: number) => ({ opacity: 0, x: calm ? 0 : direction * PAGE_SLIDE_PX }),
+        center: { opacity: 1, x: 0, transition: { duration: calm ? 0.12 : 0.2, ease: PAGE_EASE_IN } },
+        exit: (direction: number) => ({
+            opacity: 0,
+            x: calm ? 0 : -direction * PAGE_SLIDE_PX,
+            transition: { duration: calm ? 0.08 : 0.12, ease: PAGE_EASE_OUT },
+        }),
+    }), [calm]);
+
     // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上（页签是一组，Tab 键只停在开着的那个）。
     const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const next = event.key === 'ArrowLeft' || event.key === 'Home' ? 'notes'
@@ -298,35 +317,49 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback })
                             id="scratchpad-panel"
                             aria-labelledby={tab === 'notes' ? 'scratchpad-tab-notes' : 'scratchpad-tab-history'}
                         >
-                            {tab === 'history' ? (
-                                <>
-                                    <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>
-                                    <ScratchpadHistory playback={playback} />
-                                </>
-                            ) : (
-                                <>
-                                    {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
-                                    {entries.length === 0 ? (
-                                        <div className="scratchpad-empty">
-                                            <NotebookPen aria-hidden="true" />
-                                            <p>{t('scratchpad.empty')}</p>
-                                        </div>
-                                    ) : isExpanded ? (
-                                        <ScratchpadCanvas
-                                            groups={groups}
-                                            freshKeys={freshKeys}
-                                            actions={actions}
-                                            onEscape={collapseCanvas}
-                                            footer={footer}
-                                        />
+                            {/* 换页：往右边的页签走，新的一页从右边滑进来、旧的往左边让开；往回走反过来。先退后进（mode wait），
+                                两页不同时在场，列表与画布各自的尺寸量得准。降级动效时只淡入淡出。 */}
+                            <AnimatePresence initial={false} mode="wait" custom={pageDirection}>
+                                <motion.div
+                                    key={tab}
+                                    className="scratchpad-panel-page"
+                                    custom={pageDirection}
+                                    variants={pageVariants}
+                                    initial="enter"
+                                    animate="center"
+                                    exit="exit"
+                                >
+                                    {tab === 'history' ? (
+                                        <>
+                                            <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>
+                                            <ScratchpadHistory playback={playback} />
+                                        </>
                                     ) : (
                                         <>
-                                            <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
-                                            {footer}
+                                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
+                                            {entries.length === 0 ? (
+                                                <div className="scratchpad-empty">
+                                                    <NotebookPen aria-hidden="true" />
+                                                    <p>{t('scratchpad.empty')}</p>
+                                                </div>
+                                            ) : isExpanded ? (
+                                                <ScratchpadCanvas
+                                                    groups={groups}
+                                                    freshKeys={freshKeys}
+                                                    actions={actions}
+                                                    onEscape={collapseCanvas}
+                                                    footer={footer}
+                                                />
+                                            ) : (
+                                                <>
+                                                    <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
+                                                    {footer}
+                                                </>
+                                            )}
                                         </>
                                     )}
-                                </>
-                            )}
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
                     </motion.aside>
                 )}

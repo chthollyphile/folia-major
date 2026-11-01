@@ -195,6 +195,14 @@
     flex-direction: column;
 }
 
+/* 页签下面的那一页本身（换页时滑动的就是它）：同样是纵向弹性盒，撑满 panel。 */
+.scratchpad-panel-page {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
 .scratchpad-hint {
     flex: none;
     margin: 0 18px 10px;
