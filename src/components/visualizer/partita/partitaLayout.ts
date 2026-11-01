@@ -57,7 +57,8 @@ export const EMPTY_PARTITA_LAYOUT: PartitaSequentialLayout = {
 };
 
 const PARTITA_LAYOUT_CACHE_LIMIT = 48;
-export const PARTITA_WORD_LAYOUT_STYLE: React.CSSProperties = { marginRight: '0.8rem' };
+// Inline-end so the gap trails each word in an RTL chunk too.
+export const PARTITA_WORD_LAYOUT_STYLE: React.CSSProperties = { marginInlineEnd: '0.8rem' };
 export const PARTITA_PREHEAT_WINDOW: VisualizerPreheatWindow = {
     minLead: 0.18,
     maxLead: 1.2,

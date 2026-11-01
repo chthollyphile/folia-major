@@ -130,7 +130,9 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
                 track.blur = track.fromBlur + (tone.blur - track.fromBlur) * blurFade;
                 if (track.leaving && fade === 1) { track.view.destroy(); tracks.delete(key); continue; }
                 moving ||= !quiet && (!sy.settled || !ss.settled || track.elapsed < 0.32);
-                track.view.container.position.set(typography.padding, track.y);
+                const { rtl, width: columnWidth } = track.view.layout;
+                track.view.container.pivot.x = rtl ? columnWidth : 0;
+                track.view.container.position.set(typography.padding + (rtl ? columnWidth : 0), track.y);
                 track.view.container.scale.set(track.scale); track.view.container.alpha = track.alpha;
                 track.view.container.zIndex = track.status === 'active' ? 4 : track.status === 'waiting' ? 2 : 1;
                 track.view.blur.strength = quiet ? 0 : track.blur;

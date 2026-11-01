@@ -3,6 +3,7 @@ import { motion, MotionValue, Variants, useMotionValueEvent } from 'framer-motio
 import { Theme, Word as WordType } from '../../../types';
 import { GlowWord } from '../GlowWord';
 import { getGlowWordActiveEndTime, type GlowWordRenderProfile } from '../glowWordTiming';
+import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
 import { PARTITA_WORD_LAYOUT_STYLE, type WordLayoutConfig, getActiveColor } from './partitaLayout';
 
 // src/components/visualizer/partita/PartitaChunk.tsx
@@ -47,6 +48,8 @@ export const PartitaChunk: React.FC<{
 
     return (
         <motion.div
+            // An RTL chunk (Uyghur, Arabic...) lays its words out from the right.
+            dir={resolveLyricTextDirection(displayWords.map(w => w.text).join(' '))}
             className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"
             style={{
                 marginBottom: config.marginBottom,
