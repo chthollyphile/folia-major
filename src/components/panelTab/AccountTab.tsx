@@ -14,6 +14,7 @@ import { GroupLine } from './shell/GroupLine';
 import { PanelButton } from './shell/PanelButton';
 import { PanelIconButton } from './shell/PanelIconButton';
 import { PanelRow } from './shell/PanelRow';
+import { shortAccountId } from '../../utils/accountIdDisplay';
 import { PlaybackSignalPathButton } from '../hifi/PlaybackSignalPathButton';
 
 // src/components/panelTab/AccountTab.tsx
@@ -106,7 +107,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                             )}
                         </div>
                         <div className="truncate text-xs leading-[18px] text-[color:var(--st-t2)]">
-                            {activeSummary?.shortName || activeSummary?.displayName || activeProviderId} · ID: {String(activeUser.id)}
+                            {activeSummary?.shortName || activeSummary?.displayName || activeProviderId} · ID: {shortAccountId(String(activeUser.id))}
                         </div>
                     </div>
                     <PanelIconButton label={t('account.logout')} disabled={!canLogout} onClick={() => void handleLogout()}>
