@@ -321,8 +321,8 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         // Folium 1.7: the host's equalizer (equalizer/service.ts; the main window installs the source,
         // runtime/equalizer/hostEqualizer.ts).
         equalizer: createFoliumEqualizerService(mod, context, stopped),
-        // Folium 1.8: the global lyric render quality (visualizer/service.ts; the main window installs the
-        // source, runtime/visualizer/hostVisualizer.ts).
+        // Folium 1.8: the global lyric render quality, the mode, the builtin modes' tuning and the beat effects
+        // (visualizer/service.ts; the main window installs the source, runtime/visualizer/hostVisualizer.ts).
         visualizer: createFoliumVisualizerService(mod, context, stopped),
         every: scope.every,
         onDispose: scope.onDispose,

@@ -1,6 +1,6 @@
 import type { LyricRenderOverride, LyricRenderScale } from '../../../types';
 import { LYRIC_RENDER_SCALES, normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 import {
     DEFAULT_NEBBIA_TUNING,
     NEBBIA_APPEAR_STYLES,
@@ -76,6 +76,13 @@ export const normalizeNebbiaTuning = (stored: unknown): NebbiaTuning => {
 export default defineVisualizerTuning<NebbiaTuning>({
     mode: 'nebbia',
     defaults: DEFAULT_NEBBIA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        behind: modChoice(NEBBIA_BEHIND),
+        rain: modChoice(NEBBIA_RAIN),
+        credits: MOD_SWITCH,
+        ...Object.fromEntries(Object.entries(NEBBIA_LIMITS).map(([key, { min, max }]) => [key, modNumber(min, max)])),
+    },
     settingsKey: 'nebbiaTuning',
     settingsSetterKey: 'handleSetNebbiaTuning',
     settingsResetterKey: 'handleResetNebbiaTuning',

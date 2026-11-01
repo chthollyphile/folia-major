@@ -1090,8 +1090,11 @@ export interface FoliumNotificationEvents {
     'lyrics.loaded': { readonly song: FoliumSong | null; readonly lines: readonly FoliumLine[] };
     /** The app switched views (e.g. `home`, `player`). */
     'app.viewChanged': { readonly view: string };
-    /** The lyric animation mode changed. */
-    'visualizer.modeChanged': { readonly mode: string };
+    /**
+     * The lyric animation mode changed, one event for each change. Folium 1.8: `origin` says who changed it
+     * (a host before 1.8 sends no `origin`).
+     */
+    'visualizer.modeChanged': { readonly mode: string; readonly origin: FoliumVisualizerChangeOrigin };
     /** The theme or daylight mode changed. */
     'theme.changed': { readonly theme: FoliumTheme };
     /** `playback.getState().liked` changed (a like or unlike, or a new song). */
@@ -1148,6 +1151,25 @@ export interface FoliumNotificationEvents {
     'visualizer.renderQualityChanged': {
         readonly quality: FoliumLyricRenderQuality;
         readonly origin: FoliumRenderQualityChangeOrigin;
+    };
+    /**
+     * Folium 1.8: the tuning of builtin mode `mode` changed (`folium.visualizer.getTuning(mode)`), whoever
+     * changed it; only the keys mods may set count. One event per mode for all the changes of one task; its
+     * origin is the last of them. Changes that end where they began fire none. Not emitted in the export window.
+     */
+    'visualizer.tuningChanged': {
+        readonly mode: string;
+        readonly tuning: FoliumVisualizerTuning;
+        readonly origin: FoliumVisualizerChangeOrigin;
+    };
+    /**
+     * Folium 1.8: a beat effect's setting or the 智能动感模式 switch changed (`folium.visualizer.getBeatEffects()`),
+     * whoever changed it. One event for all the changes of one task; its origin is the last of them. Changes
+     * that end where they began fire none. Not emitted in the export window.
+     */
+    'visualizer.beatEffectsChanged': {
+        readonly state: FoliumBeatEffectsState;
+        readonly origin: FoliumVisualizerChangeOrigin;
     };
 }
 
@@ -1986,10 +2008,12 @@ export interface FoliumLyricRenderQuality {
 }
 
 /**
- * Folium 1.8: who changed the render quality, as `visualizer.renderQualityChanged` reports it. `user`: anyone
- * but a mod (the user in Settings → Performance & motion, or the host on the user's behalf). `mod`: a mod,
- * through `folium.visualizer.setRenderQuality`; compare `modId` with your own `folium.modId`. Later minors may
- * add kinds: read one you do not know as `user`.
+ * Folium 1.8: who changed the render quality, as `visualizer.renderQualityChanged` reports it, and who changed
+ * the mode, a mode's tuning or the beat effects, as the other `visualizer.*` events report it
+ * (FoliumVisualizerChangeOrigin). `user`: anyone but a mod (the user in the settings, the player panel or the
+ * command palette, or the host on the user's behalf: a mode picked at random for the song, an imported or
+ * synced config). `mod`: a mod, through one of the `folium.visualizer.set*` methods; compare `modId` with your
+ * own `folium.modId`. Later minors may add kinds: read one you do not know as `user`.
  */
 export interface FoliumRenderQualityChangeOrigin {
     /** Who it was. */
@@ -2011,27 +2035,170 @@ export type FoliumRenderQualityWriteResult =
     | { readonly ok: true; readonly quality: FoliumLyricRenderQuality }
     | { readonly ok: false; readonly reason: FoliumRenderQualityRefusal };
 
+/** Folium 1.8: who changed the mode, a mode's tuning or the beat effects; see FoliumRenderQualityChangeOrigin. */
+export type FoliumVisualizerChangeOrigin = FoliumRenderQualityChangeOrigin;
+
 /**
- * Folium 1.8: `folium.visualizer`, the host's settings of the lyric display that mods may share. For now the
- * global lyric render quality (FoliumLyricRenderQuality). Reading needs no permission; `setRenderQuality`
- * needs `visualizer.renderQuality`. A write is the same as the user changing the level in Settings →
- * Performance & motion: the settings page and every canvas or WebGL style that follows the level change with
- * it (a style may rebuild its renderer for it), and it is kept across restarts. A style's own override stays
- * as the user set it.
+ * Folium 1.8: why the host did not take a `setMode`, `setTuning` or `setBeatEffects`, as for `setRenderQuality`
+ * (FoliumRenderQualityRefusal): `stopped` or `rate-limited`. Each of the four kinds of write has its own
+ * allowance (see FoliumVisualizerService). Treat a reason you do not know as `rate-limited`.
+ */
+export type FoliumVisualizerWriteRefusal = FoliumRenderQualityRefusal;
+
+/**
+ * Folium 1.8: one key of a builtin mode's tuning that mods may read and write, as `listModes()` describes it,
+ * with the same range or choices as the control in the mode's own settings. `number`: from `min` to `max`, a
+ * value outside is clamped; with a `step`, a value lands on the nearest whole step from `min` (a count, say),
+ * with none any value in the range is kept. `boolean`: a switch. `choice`: one of `options`. `defaultValue`:
+ * the value before the user changed anything. A value `getTuning` reads may be one the key does not offer
+ * (a choice left to the user, such as cappella's `custom` avatar, which needs a picture the user uploaded):
+ * writing back the value the key holds is always taken. Later minors may add types: leave a key whose type you
+ * do not know alone.
+ */
+export type FoliumTuningKeyInfo =
+    | { readonly type: 'number'; readonly min: number; readonly max: number; readonly step: number | null; readonly defaultValue: number }
+    | { readonly type: 'boolean'; readonly defaultValue: boolean }
+    | { readonly type: 'choice'; readonly options: readonly string[]; readonly defaultValue: string };
+
+/** Folium 1.8: a value of a mode's tuning key. */
+export type FoliumTuningValue = number | boolean | string;
+
+/** Folium 1.8: a builtin mode's tuning as mods see it: its declared keys (FoliumTuningKeyInfo) and their values now. Frozen. */
+export type FoliumVisualizerTuning = Readonly<Record<string, FoliumTuningValue>>;
+
+/**
+ * Folium 1.8: what a beat effect of 智能动感模式 plays on. `beats`: the beat list of the track (Beat This!);
+ * `drums`: the drum hits (the drum stem); `stems`: the drum hits and the vocal together. Later minors may add
+ * sources: read one you do not know as `beats`.
+ */
+export type FoliumBeatEffectSource = 'beats' | 'drums' | 'stems';
+
+/** Folium 1.8: a part of a beat effect with its own strength in place of the one (`parts`). */
+export interface FoliumBeatEffectPartInfo {
+    /** Stable: the key in FoliumBeatEffectState `parts` and FoliumBeatEffectPatch `parts`. */
+    readonly key: string;
+    /** Its name in the user's language. */
+    readonly label: string;
+}
+
+/** Folium 1.8: a beat effect a builtin mode draws under 智能动感模式, as `listModes()` describes it. */
+export interface FoliumBeatEffectInfo {
+    /** Stable, `<mode>.<name>`, e.g. `sonnet.lensTear`. */
+    readonly id: string;
+    /** The mode that draws it. */
+    readonly mode: string;
+    /** Its name in the user's language, as the mode's settings show it. */
+    readonly label: string;
+    /** What it plays on. */
+    readonly source: FoliumBeatEffectSource;
+    /** Its parts, each with its own strength; empty for an effect with one strength. */
+    readonly parts: readonly FoliumBeatEffectPartInfo[];
+}
+
+/** Folium 1.8: a lyric animation mode, as `folium.visualizer.listModes()` gives it. Frozen. */
+export interface FoliumVisualizerModeInfo {
+    /** The mode id: a builtin's (`sonnet`, `machi`) or a mod's (`mod:<modid>:<id>`). What `setMode` takes. */
+    readonly id: string;
+    /** Its name in the mode picker, in the user's language. */
+    readonly label: string;
+    /** `builtin` or `mod`. */
+    readonly kind: 'builtin' | 'mod';
+    /** The keys of its tuning mods may set with `setTuning`, by key; empty for a mode with none (every mod mode). */
+    readonly tuning: Readonly<Record<string, FoliumTuningKeyInfo>>;
+    /** The beat effects it draws under 智能动感模式; empty for a mode with none. */
+    readonly beatEffects: readonly FoliumBeatEffectInfo[];
+}
+
+/** Folium 1.8: one beat effect's own setting, as `getBeatEffects()` gives it. */
+export interface FoliumBeatEffectState {
+    /** The effect, as FoliumBeatEffectInfo `id`. */
+    readonly id: string;
+    /** The mode that draws it. */
+    readonly mode: string;
+    /** Whether it plays (while 智能动感模式 is not `off`). */
+    readonly on: boolean;
+    /** Its strength, 0..2; 1 is the look it was made for. Unused for an effect with parts. */
+    readonly strength: number;
+    /** The strength of each of its parts, 0..2, by part key; empty for an effect with none. */
+    readonly parts: Readonly<Record<string, number>>;
+}
+
+/**
+ * Folium 1.8: the user's 智能动感模式 switch. `off`: no beat effect plays. `cached`: they play on tracks
+ * already analysed, and nothing new is analysed. `on`: they play, and a track not yet analysed is analysed now
+ * on the GPU, for the effects switched on in the mode on screen: an effect on `beats` runs the beat model, one
+ * on `drums` or `stems` separates the drums, so switching such an effect on under `on` can start that work for
+ * every new track. Read only: it is the user's (see FoliumVisualizerService). Later minors may add modes: read
+ * one you do not know as `cached`.
+ */
+export type FoliumSmartBeatMode = 'off' | 'cached' | 'on';
+
+/** Folium 1.8: the beat effects of every builtin mode, as `getBeatEffects()` and `visualizer.beatEffectsChanged` give them. Frozen. */
+export interface FoliumBeatEffectsState {
+    /** The user's 智能动感模式 switch; the effects play only while it is not `off`. */
+    readonly smartBeat: FoliumSmartBeatMode;
+    /** Every effect, in the order of the mode picker. */
+    readonly effects: readonly FoliumBeatEffectState[];
+}
+
+/** Folium 1.8: a change to one beat effect: the fields given, the others as they are. */
+export interface FoliumBeatEffectPatch {
+    /** Whether it plays. */
+    readonly on?: boolean;
+    /** 0..2; a value outside is clamped. */
+    readonly strength?: number;
+    /** Strengths by part key, 0..2, each clamped; keys the effect has no part for are ignored. */
+    readonly parts?: Readonly<Record<string, number>>;
+}
+
+/** Folium 1.8: the outcome of a `setMode`; `mode` is the mode after it. */
+export type FoliumModeWriteResult =
+    | { readonly ok: true; readonly mode: string }
+    | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
+
+/**
+ * Folium 1.8: the outcome of a `setTuning`: `tuning` is the mode's tuning after it (the values as they were
+ * kept: clamped, rounded to a step, or changed with a key the mode's settings change together, as 云阶's
+ * stagger moved past the other end takes that end along); `ignored` the keys of the patch
+ * the mode does not let mods set.
+ */
+export type FoliumTuningWriteResult =
+    | { readonly ok: true; readonly tuning: FoliumVisualizerTuning; readonly ignored: readonly string[] }
+    | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
+
+/**
+ * Folium 1.8: the outcome of a `setBeatEffects`: `state` is the beat effects after it; `ignored` the effect ids
+ * of the patch no mode offers, and `<id>:<part>` for part keys the effect does not have.
+ */
+export type FoliumBeatEffectsWriteResult =
+    | { readonly ok: true; readonly state: FoliumBeatEffectsState; readonly ignored: readonly string[] }
+    | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
+
+/**
+ * Folium 1.8: `folium.visualizer`, the host's settings of the lyric display that mods may share: the global
+ * lyric render quality (FoliumLyricRenderQuality), the lyric animation mode, the tuning of the builtin modes
+ * (the keys each declares, FoliumTuningKeyInfo) and the beat effects of 智能动感模式. Reading needs no
+ * permission; each kind of write needs its own: `setRenderQuality` `visualizer.renderQuality`, `setMode`
+ * `visualizer.mode`, `setTuning` `visualizer.tuning`, `setBeatEffects` `visualizer.beatEffects`. A write is the
+ * same as the user making the change in the settings or the player panel: what shows the setting changes with
+ * it, the styles follow it (a style may rebuild its renderer for it), and it is kept across restarts. A style's
+ * own render override, its picture-cost settings (resolution, render quality) and the 智能动感模式 switch
+ * (`off` / `cached` / `on`, which decides whether tracks may be analysed on the GPU at all) stay the user's: mods
+ * read them at most, and never write them. Under `on`, though, the effects a mod switches on decide which
+ * analysis runs (FoliumSmartBeatMode): switch on only the effects you mean the picture to have.
  *
- * The level is the user's: follow `visualizer.renderQualityChanged`, and once its `origin` is the user (or
- * another mod), step back rather than setting your level again. Every write that changes something is saved
- * and can make the styles rebuild their renderers: write the level you settled on, never animate through it.
- * Currently a mod may make one such write a second and 20 a minute; past that a write is refused
- * `rate-limited`. A write that leaves the level as it is is accepted, does not count and is never refused
+ * The settings are the user's: follow the `visualizer.*Changed` events, and once an `origin` is the user (or
+ * another mod), step back rather than writing yours again. Every write that changes something is saved and
+ * can make the styles rebuild: write what you settled on, never animate through it. Each kind of write has
+ * its own allowance per mod: currently one counted write a second and 20 a minute; past that a write is
+ * refused `rate-limited`. A write that changes nothing is accepted, does not count and is never refused
  * `rate-limited`.
  *
  * Main window only: in the export window every method throws an Error whose message is
  * `visualizer-unavailable-in-export-context` (a visualizer of yours that also renders there checks
  * `folium.env.context` first). The main entry has no `visualizer`; ask the client over `rpc`. An older host
  * has no `folium.visualizer`: check `folium.host.folium.minor >= 8` first. Malformed arguments throw a
- * TypeError (`invalid-arguments: …`); a write without the permission throws
- * `permission-denied:visualizer.renderQuality`.
+ * TypeError (`invalid-arguments: …`); a write without its permission throws `permission-denied:<permission>`.
  */
 export interface FoliumVisualizerService {
     /** The global lyric render quality now. Synchronous; follow changes with `visualizer.renderQualityChanged`. */
@@ -2042,6 +2209,47 @@ export interface FoliumVisualizerService {
      * other keys are ignored, and `{}` changes nothing. Needs `visualizer.renderQuality`.
      */
     setRenderQuality(patch: Partial<FoliumLyricRenderQuality>): FoliumRenderQualityWriteResult;
+    /**
+     * The lyric animation modes there are now, builtin and from mods, in the order of the mode picker, each with
+     * the tuning keys and the beat effects it offers. Frozen; a mod mode comes and goes with its mod.
+     */
+    listModes(): readonly FoliumVisualizerModeInfo[];
+    /** The mode on screen now. Synchronous; follow changes with `visualizer.modeChanged`. */
+    getMode(): string;
+    /**
+     * Switches to the mode `id` (one of `listModes()`), as the user does in the player panel, without the
+     * "switched" notice: like the player panel it also switches off "a random mode for every song". An `id` that
+     * is not a mode now throws a TypeError. Switching to the mode on screen changes nothing, unless "a random
+     * mode for every song" is on: then it switches that off, as the player panel does. While that setting is on,
+     * the host picks a mode for each new song itself, and `visualizer.modeChanged` reports the pick as `user`.
+     * Needs `visualizer.mode`.
+     */
+    setMode(id: string): FoliumModeWriteResult;
+    /**
+     * The tuning of builtin mode `mode` now: the keys `listModes()` lists for it, frozen. A mode that is none now
+     * throws a TypeError; a mode with no such keys (every mod mode) gives `{}`. Follow changes with
+     * `visualizer.tuningChanged`.
+     */
+    getTuning(mode: string): FoliumVisualizerTuning;
+    /**
+     * Changes the tuning of builtin mode `mode`, as its settings do: the keys `patch` has, the others as they
+     * are, whether or not the mode is on screen. A key the mode does not offer is ignored (`ignored`); a value
+     * of the wrong type, a number that is not finite, a choice not listed, or a `patch` that is no object throws
+     * a TypeError, and nothing is written. A number outside its range is clamped; the value a key holds now is
+     * taken as it is, so a tuning `getTuning` read writes back unchanged. `{}` changes nothing. Needs
+     * `visualizer.tuning`.
+     */
+    setTuning(mode: string, patch: Readonly<Record<string, FoliumTuningValue>>): FoliumTuningWriteResult;
+    /** The beat effects of every builtin mode now, and the user's 智能动感模式 switch. Follow changes with `visualizer.beatEffectsChanged`. */
+    getBeatEffects(): FoliumBeatEffectsState;
+    /**
+     * Changes beat effects, as each mode's settings do: `patch` is FoliumBeatEffectPatch by effect id, the
+     * fields given, the others as they are. An id no mode offers is ignored (`ignored`), and so is a part key the
+     * effect has no part for; an `on` that is no boolean, a strength that is no finite number, or a patch that
+     * is no object throws a TypeError, and nothing is written. Never changes the 智能动感模式 switch. `{}`
+     * changes nothing. Needs `visualizer.beatEffects`.
+     */
+    setBeatEffects(patch: Readonly<Record<string, FoliumBeatEffectPatch>>): FoliumBeatEffectsWriteResult;
 }
 
 // ---------------------------------------------------------------- Experimental

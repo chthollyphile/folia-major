@@ -1,6 +1,6 @@
 import { DEFAULT_SONNET_TUNING, type SonnetTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/sonnet/tuning.ts
 // Sonnet's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -45,6 +45,28 @@ const resolve = (values: Partial<SonnetTuning>, base: SonnetTuning): SonnetTunin
 export default defineVisualizerTuning<SonnetTuning>({
     mode: 'sonnet',
     defaults: DEFAULT_SONNET_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        cameraIntensity: modNumber(0, 2),
+        typographyMotion: modNumber(0, 2),
+        mgDensity: modNumber(0, 2),
+        showOnlyText: MOD_SWITCH,
+        showGuide: MOD_SWITCH,
+        showBackgroundMg: MOD_SWITCH,
+        showFixedGeo: MOD_SWITCH,
+        showGiantDecorativeText: MOD_SWITCH,
+        showBackgroundDecor: MOD_SWITCH,
+        enableTransitions: MOD_SWITCH,
+        outerFrameMode: modChoice(['none', 'frame', 'full']),
+        postProcessEnabled: MOD_SWITCH,
+        postProcessGrain: modNumber(0, 1),
+        postProcessContrast: modNumber(0, 1),
+        postProcessRgbShift: modNumber(0, 1),
+        postProcessHalftone: modNumber(0, 1),
+        postProcessVignette: modNumber(0, 2),
+        postProcessLensDistortion: modNumber(0, 2),
+        postProcessLensDispersion: modNumber(0, 1),
+    },
     settingsKey: 'sonnetTuning',
     settingsSetterKey: 'handleSetSonnetTuning',
     settingsResetterKey: 'handleResetSonnetTuning',

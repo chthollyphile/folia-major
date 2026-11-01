@@ -1,6 +1,6 @@
 import { DEFAULT_PENDOLO_TUNING, type PendoloTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/pendolo/tuning.ts
 // Pendolo's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -37,6 +37,18 @@ const resolve = (values: Partial<PendoloTuning>, base: PendoloTuning): PendoloTu
 export default defineVisualizerTuning<PendoloTuning>({
     mode: 'pendolo',
     defaults: DEFAULT_PENDOLO_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        wheelCenterX: modNumber(-0.2, 0.4),
+        arcRadius: modNumber(0.25, 0.8),
+        arcAngleDeg: modNumber(40, 160),
+        tickSnappiness: modNumber(0.5, 2),
+        activeScale: modNumber(1, 1.6),
+        showGearDecor: modChoice(['none', 'subtle', 'full']),
+        showCenterGradient: MOD_SWITCH,
+        showCoverOnWatchFace: MOD_SWITCH,
+        enableLineGlow: MOD_SWITCH,
+    },
     settingsKey: 'pendoloTuning',
     settingsSetterKey: 'handleSetPendoloTuning',
     settingsResetterKey: 'handleResetPendoloTuning',
