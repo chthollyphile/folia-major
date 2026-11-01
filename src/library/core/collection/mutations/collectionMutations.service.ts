@@ -1,5 +1,11 @@
 import type { SongResult, UnifiedSong } from '../../../../types';
-import type { OmniCollection, OmniProviderId, ProviderCapabilities } from '../../../../types/onlineMusic';
+import type {
+    DailyStyleGroup,
+    DailyStyleSelection,
+    OmniCollection,
+    OmniProviderId,
+    ProviderCapabilities,
+} from '../../../../types/onlineMusic';
 import type {
     CollectionMutationBranches,
     CollectionMutationCapabilities,
@@ -36,7 +42,7 @@ import {
 
 // src/library/core/collection/mutations/collectionMutations.service.ts
 // 集合的变更动作层：删条目、订阅、改名、删除集合、重扫、导出、加入 / 新建 Navidrome 歌单、
-// 编辑实体、整理、匹配、每日推荐换日期。规则搬自 GridView，归属从网格实例挪到「集合会话」上：
+// 编辑实体、整理、匹配、每日推荐换日期与风格推荐。规则搬自 GridView，归属从网格实例挪到「集合会话」上：
 // - 一个集合会话一个控制器，宿主持有、renderer 订阅；换 renderer 不丢进行中的状态；
 // - 上游确认之后才改资源（权威提交，立即以 urgent 通知），动画只是 renderer 自己的事；
 // - 同一条目 / 同一动作进行中再次提交返回 busy，只发一次请求；收藏（订阅）例外：星星一按就变，请求在后台发，
@@ -57,10 +63,15 @@ export type CollectionMutationOmni = {
     getRecommendationHistoryDates(): Promise<string[]>;
     getRecommendationHistorySongs(date: string): Promise<SongResult[]>;
     getDailySongs(refresh?: boolean): Promise<SongResult[]>;
+    /** 风格推荐（#938）的三样；替身不给时没有风格推荐。 */
+    getDailyStyleGroups?(): Promise<DailyStyleGroup[]>;
+    getDailyStyleSongs?(): Promise<{ songs: SongResult[]; selection: DailyStyleSelection | null }>;
+    setDailyStyle?(selection: DailyStyleSelection): Promise<void>;
     /**
-     * 平台的能力（这里只看每日推荐有没有历史日期，historyRecommendations）。单测的替身可以不给：那时当作有。
+     * 平台的能力（这里只看每日推荐有没有历史日期 historyRecommendations、有没有风格推荐 dailyStyleRecommendations）。
+     * 单测的替身可以不给：那时历史日期当作有，风格推荐当作没有。
      */
-    getProviderCapabilities?(providerId: OmniProviderId): Pick<ProviderCapabilities, 'historyRecommendations'>;
+    getProviderCapabilities?(providerId: OmniProviderId): Pick<ProviderCapabilities, 'historyRecommendations' | 'dailyStyleRecommendations'>;
 };
 
 export type CollectionMutationDeps = {
@@ -125,6 +136,11 @@ export const createCollectionMutationController = (
     let dailyHistoryDates: readonly string[] = [];
     let dailyDate = '';
     let dailyDatePending = false;
+    let dailyStyleShown = false;
+    let dailyStyleGroups: readonly DailyStyleGroup[] = [];
+    let dailyStyleGroupsRequested = false;
+    let dailyStyleGroupsFailed = false;
+    let dailyStyleSelection: DailyStyleSelection | null = null;
     let dailyLimitReached = false;
     let sourceActionPending = false;
     /**
@@ -147,6 +163,7 @@ export const createCollectionMutationController = (
             canDislikeCollectionSongs: online ? omni.canDislikeCollectionSongs(online) : false,
             isCloudDrive: isCloudDriveCollection(descriptor),
             dailyDate,
+            dailyStyleShown,
             port,
         });
     };
@@ -161,6 +178,13 @@ export const createCollectionMutationController = (
         if (descriptor.source !== 'online' || descriptor.type !== 'daily_recommendations') return false;
         const capabilities = omni.getProviderCapabilities?.(descriptor.providerId);
         return capabilities ? capabilities.historyRecommendations === true : true;
+    };
+    /** 每日推荐有没有风格推荐：平台说了、omni 也有这几样才算。 */
+    const styleAvailable = () => {
+        const { descriptor } = inputs;
+        if (descriptor.source !== 'online' || descriptor.type !== 'daily_recommendations') return false;
+        if (!omni.getDailyStyleSongs || !omni.setDailyStyle) return false;
+        return omni.getProviderCapabilities?.(descriptor.providerId)?.dailyStyleRecommendations === true;
     };
 
     const compute = (previous: CollectionMutationSnapshot | null): CollectionMutationSnapshot => {
@@ -192,6 +216,11 @@ export const createCollectionMutationController = (
             dailyDate,
             dailyHistoryDates,
             dailyHistoryAvailable: historyAvailable(),
+            dailyStyleAvailable: styleAvailable(),
+            dailyStyleShown,
+            dailyStyleGroups,
+            dailyStyleGroupsFailed,
+            dailyStyleSelection,
             renamedTo: currentRename(),
             availablePlaylists: previous && sameList(previous.availablePlaylists, availablePlaylists) ? previous.availablePlaylists : availablePlaylists,
             branches: previous && sameShallow(previous.branches, branches) ? previous.branches : branches,
@@ -498,11 +527,91 @@ export const createCollectionMutationController = (
             ));
             if (!replaced) return fail('failed');
             dailyDate = date;
+            dailyStyleShown = false;
             return OK;
         } finally {
             dailyDatePending = false;
             emit();
         }
+    };
+
+    // ---- 风格推荐（#938） ----
+
+    /**
+     * 风格分组取到一次就不再取，不挡着换歌。没取到（失败或一组都没有）时记成失败，选择器据此给重试，
+     * 再调一次就再取。
+     */
+    const loadDailyStyleGroups = () => {
+        if (disposed || dailyStyleGroupsRequested || !omni.getDailyStyleGroups || !styleAvailable()) return;
+        dailyStyleGroupsRequested = true;
+        if (dailyStyleGroupsFailed) {
+            dailyStyleGroupsFailed = false;
+            emit();
+        }
+        omni.getDailyStyleGroups()
+            .then(groups => {
+                if (disposed) return;
+                dailyStyleGroups = groups || [];
+                if (dailyStyleGroups.length === 0) {
+                    dailyStyleGroupsRequested = false;
+                    dailyStyleGroupsFailed = true;
+                    console.warn('[LibraryUi] Daily style groups came back empty');
+                }
+                emit();
+            })
+            .catch(error => {
+                if (disposed) return;
+                dailyStyleGroupsRequested = false;
+                dailyStyleGroupsFailed = true;
+                console.warn('[LibraryUi] Failed to load daily style groups:', error);
+                emit();
+            });
+    };
+
+    /**
+     * 换成风格推荐的歌；saving 是要先存到账号上的新风格，存失败时什么都不换。选中的风格只在歌换成功之后才改：
+     * 存成功、取歌失败时界面仍是原来的风格和歌，同一组风格可以再确认一次重试。
+     */
+    const replaceWithDailyStyle = async (saving?: DailyStyleSelection): Promise<LibraryMutationResult> => {
+        if (disposed) return fail('stale');
+        const resource = inputs.resource;
+        if (!currentCapabilities().dailyDate.supported || !resource || !styleAvailable()) return fail('unsupported');
+        if (dailyDatePending) return fail('busy');
+        dailyDatePending = true;
+        emit();
+        loadDailyStyleGroups();
+        try {
+            if (saving) {
+                try {
+                    await omni.setDailyStyle?.(saving);
+                } catch (error) {
+                    console.warn('[LibraryUi] Failed to save the daily style:', error);
+                    return failed(error);
+                }
+            }
+            const answer: { selection: DailyStyleSelection | null } = { selection: null };
+            const replaced = await resource.replaceAll(async () => {
+                const result = await omni.getDailyStyleSongs?.();
+                answer.selection = result?.selection ?? null;
+                return result?.songs ?? [];
+            });
+            if (!replaced) return fail('failed');
+            dailyDate = '';
+            dailyStyleShown = true;
+            const shownFor = answer.selection ?? saving;
+            if (shownFor) dailyStyleSelection = { groupId: shownFor.groupId, tagIds: [...shownFor.tagIds] };
+            return OK;
+        } finally {
+            dailyDatePending = false;
+            emit();
+        }
+    };
+
+    const showDailyStyle = () => replaceWithDailyStyle();
+
+    const setDailyStyle = (selection: DailyStyleSelection): Promise<LibraryMutationResult> => {
+        if (!selection.groupId || selection.tagIds.length === 0) return Promise.resolve(fail('unsupported'));
+        return replaceWithDailyStyle(selection);
     };
 
     return {
@@ -578,6 +687,9 @@ export const createCollectionMutationController = (
             return runSourceAction('matchSong', () => inputs.port.local?.matchSong?.(songId), { exclusive: false });
         },
         setDailyDate,
+        showDailyStyle,
+        setDailyStyle,
+        loadDailyStyleGroups,
         dispose: () => {
             disposed = true;
             stopWatchingSaves();

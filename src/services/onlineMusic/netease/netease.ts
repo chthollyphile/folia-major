@@ -1060,6 +1060,25 @@ export const neteaseApi = {
     };
   },
 
+  // Style recommendations (#938): another 30 daily songs, for the styles the account picked. The styles
+  // come in groups (genre, mood, scene, language, theme) and a pick is some tags of one group; it is kept
+  // on the account (a guest has one too), and the songs answer names the pick in `data.tags`.
+  // (Measured 2026-11-01 as a guest: all three answer code 200, songs in the old format with their
+  // privilege inside; a pick naming a tag of another group is answered saveSuccess as well.)
+  getDailyStyleConfigs: async () => fetchWithCreds(`/recommend/category/configs?timestamp=${Date.now()}`),
+
+  getDailyStyleSongs: async () => {
+    const res = await fetchWithCreds(`/recommend/category/songs?timestamp=${Date.now()}`);
+    return {
+      ...res,
+      songs: mergeSongsWithPrivileges(res.data?.dailySongs || [], res.data?.privileges),
+    };
+  },
+
+  setDailyStyle: async (categoryId: number, tagIds: number[]) => (
+    fetchWithCreds(`/recommend/category/set?category=${categoryId}&tags=${tagIds.join(',')}&timestamp=${Date.now()}`)
+  ),
+
   getPersonalizedPlaylists: async (limit = 35) => {
     return fetchWithCreds(`/personalized?limit=${limit}`);
   },

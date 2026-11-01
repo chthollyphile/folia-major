@@ -32,6 +32,9 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         getLoginStatus: vi.fn(),
         getUserAccount: vi.fn(),
         updatePlaylistTracks: vi.fn(),
+        getDailyStyleConfigs: vi.fn(),
+        getDailyStyleSongs: vi.fn(),
+        setDailyStyle: vi.fn(),
     },
 }));
 
@@ -694,5 +697,45 @@ describe('neteaseProvider listening reports', () => {
         vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
         await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
             .rejects.toMatchObject({ code: 'auth-required' });
+    });
+
+    it('reads the daily style groups and the pick the style songs were made for (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.getDailyStyleConfigs).mockResolvedValue({
+            code: 200,
+            data: {
+                categorys: [
+                    { categoryId: 1000, categoryName: '曲风', tagVOList: [{ categoryId: 1000, tagId: 10004, tagName: '电音' }, { tagName: 'no id' }] },
+                    { categoryId: 3000, categoryName: '情绪', tagVOList: [] },
+                ],
+            },
+        } as any);
+        await expect(recommendations.getDailyStyleGroups!()).resolves.toEqual([
+            { id: '1000', name: '曲风', tags: [{ id: '10004', name: '电音' }] },
+        ]);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({
+            code: 200,
+            data: { tags: { categoryId: 1000, categoryName: '曲风', tagVOList: [{ tagId: 10004, tagName: '电音' }, { tagId: 10015, tagName: '二次元' }] } },
+            songs: [song],
+        } as any);
+        const answer = await recommendations.getDailyStyleSongs!();
+        expect(answer.selection).toEqual({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(answer.songs).toHaveLength(1);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({ code: 200, data: { tags: null }, songs: [] } as any);
+        await expect(recommendations.getDailyStyleSongs!()).resolves.toEqual({ songs: [], selection: null });
+    });
+
+    it('saves a daily style pick as numbers and throws when NetEase refuses it (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: true } } as any);
+        await recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(neteaseApi.setDailyStyle).toHaveBeenCalledWith(1000, [10004, 10015]);
+
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: false } } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toBeInstanceOf(OnlineProviderError);
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 301 } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toMatchObject({ code: 'auth-required' });
     });
 });

@@ -2,6 +2,7 @@ import type { SongResult, UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type {
     AudioQualityPreference,
+    DailyStyleGroup,
     LoginDiagnosticLine,
     MediaId,
     OnlineMusicProvider,
@@ -60,6 +61,15 @@ const mapScrobbleQuality = (quality?: AudioQualityPreference): { level: string; 
 
 /** This provider's normalized view of a song, shared by `songMetadata` and the listening report. */
 const getNeteaseSongMetadata = (song: SongResult) => createProviderSongMetadata(normalizeNeteaseSong(song));
+
+/** One group of the style recommendation's styles (`{ categoryId, categoryName, tagVOList }`); tags without an id are left out. */
+const normalizeDailyStyleGroup = (raw: any): DailyStyleGroup => ({
+    id: raw?.categoryId != null ? String(raw.categoryId) : '',
+    name: typeof raw?.categoryName === 'string' ? raw.categoryName : '',
+    tags: (Array.isArray(raw?.tagVOList) ? raw.tagVOList : [])
+        .filter((tag: any) => tag?.tagId != null)
+        .map((tag: any) => ({ id: String(tag.tagId), name: typeof tag.tagName === 'string' ? tag.tagName : String(tag.tagId) })),
+});
 
 const normalizeUser = (raw: any): ProviderUser => ({
     id: raw?.userId ?? raw?.id ?? 0,
@@ -314,6 +324,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         wordByWordLyrics: true,
         userCloud: true,
         historyRecommendations: true,
+        dailyStyleRecommendations: true,
         playlistSubscription: true,
         playlistTrackMutations: true,
         likes: true,
@@ -722,6 +733,30 @@ export const neteaseProvider: OnlineMusicProvider = {
                 replacement: response?.song ? normalizeNeteaseSong(response.song) : undefined,
                 limitReached: Number(response?.code) === 432,
             };
+        },
+        async getDailyStyleGroups() {
+            const response = await neteaseApi.getDailyStyleConfigs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style groups');
+            return (Array.isArray(response?.data?.categorys) ? response.data.categorys : [])
+                .map(normalizeDailyStyleGroup)
+                .filter((group: DailyStyleGroup) => group.id && group.tags.length > 0);
+        },
+        async getDailyStyleSongs() {
+            const response = await neteaseApi.getDailyStyleSongs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style songs');
+            const picked = normalizeDailyStyleGroup(response?.data?.tags);
+            return {
+                songs: (response?.songs || []).map(normalizeNeteaseSong),
+                selection: picked.id && picked.tags.length > 0
+                    ? { groupId: picked.id, tagIds: picked.tags.map(tag => tag.id) }
+                    : null,
+            };
+        },
+        async setDailyStyle(selection) {
+            const response = await neteaseApi.setDailyStyle(Number(selection.groupId), selection.tagIds.map(Number));
+            if (isRefusedNeteaseAnswer(response) || response?.data?.saveSuccess === false) {
+                throw neteaseAnswerError(response, 'the daily style');
+            }
         },
     },
     // The explore page is in neteaseExplore.ts, which gets this file's normalizers handed in.

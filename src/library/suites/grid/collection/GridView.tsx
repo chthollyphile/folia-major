@@ -56,10 +56,10 @@ import {
 import PlaylistSelectionDialog from '../../../../components/shared/PlaylistSelectionDialog';
 import TextInputDialog from '../../../../components/shared/TextInputDialog';
 import ConfirmDialog from '../../../../components/shared/ConfirmDialog';
+import GridDailyRecommendationControls from './GridDailyRecommendationControls';
 import { SidePanelList, TrackListItem } from '../../../../components/shared/SidePanelList';
 import { GridListSearchButton } from '../../../../components/shared/GridListSearchButton';
 import { LocalTrackSortDirectionButton, LocalTrackSortMenu } from '../../../../components/shared/LocalTrackSortMenu';
-import { CustomSelect } from '../../../../components/shared/CustomSelect';
 import { deriveProgressiveLoadingState } from '../shared/progressiveGrid';
 import { useProgressiveItemEntrance } from '../shared/useProgressiveItemEntrance';
 import { useLocalCoverPreloader } from '../../../../hooks/useLocalCoverPreloader';
@@ -683,13 +683,7 @@ export const GridView: React.FC<GridViewProps> = ({
         }
     };
 
-    // Switches the virtual playlist between today's recommendations and a supported history date.
-    const handleDailyRecommendationDateChange = useCallback(async (date: string, afresh = false) => {
-        if (!mutations || !mutationCapabilities.dailyDate.supported) return;
-        setIsEditMode(false);
-        // 整表替换经控制器交给资源（加载中状态、作废晚到结果都在那里）；失败时保持原样，日期也不切。
-        await mutations.setDailyDate(date, { afresh });
-    }, [mutationCapabilities.dailyDate.supported, mutations]);
+    const exitEditMode = useCallback(() => setIsEditMode(false), []);
 
     // 删一个条目（每日推荐是「不喜欢并换一首」）：先按住展示，控制器在上游确认后立即提交给资源；成功就给卡片
     // 打上 removing 播退出动画，动画结束再放开展示，失败立即放开。entryKey 就是卡片 id：重复序号在完整的
@@ -1943,37 +1937,15 @@ export const GridView: React.FC<GridViewProps> = ({
                                         {infoCollection?.playCount !== undefined && <span> • {infoCollection.playCount} {t('playlist.plays')}</span>}
                                     </div>
                                     {isDailyRecommendationsCollection && (
-                                        <div className="mt-3 space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                {mutationSnapshot.dailyHistoryAvailable && (
-                                                    <div className="min-w-0 flex-1">
-                                                        <CustomSelect
-                                                            value={mutationSnapshot.dailyDate}
-                                                            onChange={date => void handleDailyRecommendationDateChange(date)}
-                                                            options={[
-                                                                { value: '', label: t('home.todayRecommendations') },
-                                                                ...mutationSnapshot.dailyHistoryDates.map(date => ({ value: date, label: date })),
-                                                            ]}
-                                                            placeholder={t('home.todayRecommendations')}
-                                                            ariaLabel={t('home.recommendationDate')}
-                                                            disabled={loading}
-                                                            isDaylight={isDaylight}
-                                                            theme={theme}
-                                                        />
-                                                    </div>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleDailyRecommendationDateChange('', true)}
-                                                    disabled={loading || Boolean(mutationSnapshot.dailyDate)}
-                                                    title={t('home.refreshRecommendations')}
-                                                    aria-label={t('home.refreshRecommendations')}
-                                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10 disabled:opacity-30"
-                                                >
-                                                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <GridDailyRecommendationControls
+                                            mutations={mutations}
+                                            snapshot={mutationSnapshot}
+                                            loading={loading}
+                                            isDaylight={isDaylight}
+                                            theme={theme}
+                                            onBeforeSwitch={exitEditMode}
+                                            onStatusMessage={onStatusMessage}
+                                        />
                                     )}
                                     {isAlbumCollection && (
                                         <div className="mt-3 space-y-1.5 text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>

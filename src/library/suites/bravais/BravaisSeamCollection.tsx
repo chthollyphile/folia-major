@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star, Tags } from 'lucide-react';
 import type {
     BravaisSeamCollection as BravaisSeamCollectionModel,
     BravaisSeamStatus,
@@ -16,7 +16,8 @@ import './bravaisCollection.css';
 // src/library/suites/bravais/BravaisSeamCollection.tsx
 // 完整信息条里集合层的那几块（设计稿 §10.1 放置原则、§10.2、§10.6）：
 // （过滤输入位每面墙都有，在 BravaisSeamFilterField。）
-// - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进；
+// - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进
+//   （平台有风格推荐时上面多一行「默认推荐 / 风格推荐」，看风格推荐时步进换成选中的风格）；
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
 // - 高频动作之外的「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；fb10：「⋯ 更多」末尾是「折叠信息条」
 //   （原来面包屑行右侧的「折叠」按钮挪进来，歌手页没有集合动作时菜单里只有它）；
@@ -66,7 +67,7 @@ export const BravaisSeamStar: React.FC<{ subscribe: BravaisSeamSubscribe }> = ({
     </button>
 );
 
-/** 元数据行的补页进度、每日推荐的日期步进。 */
+/** 元数据行的补页进度、每日推荐的日期步进与风格推荐。 */
 export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollectionModel }> = ({ collection }) => {
     const { sync, daily } = collection;
     return (
@@ -82,7 +83,26 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
                     {sync.label}
                 </div>
             ))}
-            {daily && (
+            {daily?.modes && (
+                <div className="bravais-seam-daily-modes" role="group" aria-label={daily.modes.ariaLabel} data-bravais-daily-modes>
+                    {daily.modes.items.map(item => (
+                        <button key={item.id} type="button" className={`bravais-seam-daily-mode${item.active ? ' is-active' : ''}`}
+                            data-bravais-seam-action={`daily-mode-${item.id}`} aria-pressed={item.active} disabled={daily.disabled}
+                            onClick={item.active ? undefined : item.run}>
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {daily?.style && (
+                <button type="button" className="bravais-seam-daily-style" data-bravais-seam-action="daily-style" disabled={daily.disabled}
+                    title={daily.style.title} aria-label={daily.style.title} onClick={daily.style.onOpen}>
+                    <Tags aria-hidden />
+                    <BravaisSeamFlipText flipKey={daily.style.label} className="bravais-seam-daily-label">{daily.style.label}</BravaisSeamFlipText>
+                    <ChevronDown aria-hidden />
+                </button>
+            )}
+            {daily && !daily.style && (
                 <div className="bravais-seam-daily" role="group" aria-label={daily.ariaLabel} data-bravais-daily>
                     <button type="button" className="bravais-seam-icon" data-bravais-seam-action="daily-previous" disabled={daily.disabled || !daily.onPrevious}
                         onClick={daily.onPrevious} aria-label="‹">
