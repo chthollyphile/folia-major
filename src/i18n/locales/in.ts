@@ -1517,7 +1517,8 @@ export default {
     "noteUnknown": "Kesalahan tidak diketahui",
     "submit": "Kirim",
     "submitting": "Mengirim…",
-    "formErrorUnknown": "Gagal masuk. Periksa isian Anda dan coba lagi."
+    "formErrorUnknown": "Gagal masuk. Periksa isian Anda dan coba lagi.",
+    "formLoggedInRefreshFailed": "Berhasil masuk, tetapi akun tidak dapat dimuat. Coba lagi atau buka ulang jendela masuk.",
   },
   "failure": {
     "unreachable": "Tidak dapat terhubung ke {{provider}}",

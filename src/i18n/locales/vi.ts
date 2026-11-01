@@ -1517,7 +1517,8 @@ export default {
     "noteUnknown": "Lỗi không xác định",
     "submit": "Gửi",
     "submitting": "Đang gửi…",
-    "formErrorUnknown": "Đăng nhập thất bại. Kiểm tra thông tin đã nhập và thử lại."
+    "formErrorUnknown": "Đăng nhập thất bại. Kiểm tra thông tin đã nhập và thử lại.",
+    "formLoggedInRefreshFailed": "Đã đăng nhập nhưng không tải được tài khoản. Thử lại hoặc mở lại cửa sổ đăng nhập.",
   },
   "failure": {
     "unreachable": "Không thể kết nối tới {{provider}}",

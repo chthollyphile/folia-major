@@ -522,6 +522,17 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         return complete(result.status === 'switched' ? 'completed' : 'activation-declined');
     };
 
+    /**
+     * 表单式登录完整链路（FormLogin 提交时走这里，不再绕过 controller 直调 omni）：
+     * 先提交表单（provider 的 submitLoginForm，失败抛错由表单显示），成功后读账号、走和扫码确认一样的收尾链路。
+     * 读账号失败返回 refresh-failed：token 已存，登录窗口据结局显示提示（FormLogin 不静默关窗）。
+     */
+    const submitFormLogin = async (providerId: OnlineProviderId, values: Record<string, string>): Promise<LibraryLoginCompletion> => {
+        if (disposed) return { sessionId: 0, providerId, outcome: 'activation-declined' };
+        await providerAccounts.submitLoginForm(providerId, values);
+        return completeFormLogin(providerId);
+    };
+
     // ─── 选平台与登出 ───────────────────────────────────────────────────
 
     const selectProvider = async (providerId: OnlineProviderId): Promise<LibrarySelectProviderResult> => {
@@ -590,6 +601,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         selectLoginMethod,
         retryLogin,
         completeFormLogin,
+        submitFormLogin,
         openLoginPage,
         closeLogin,
         restartLocalService,

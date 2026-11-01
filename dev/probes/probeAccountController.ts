@@ -35,6 +35,7 @@ export const probeAccountController = (
         restartLocalService: async () => ({ status: 'no-session' }),
         buildLoginDiagnosticReport: async () => ({ status: 'no-session' }),
         completeFormLogin: async providerId => { said(`complete form ${providerId}`); return { sessionId: 0, providerId, outcome: 'completed' }; },
+        submitFormLogin: async providerId => { said(`submit form ${providerId}`); return { sessionId: 0, providerId, outcome: 'completed' }; },
         logout: async providerId => { said(`sign out ${providerId}`); return { status: 'cancelled', providerId }; },
         dispose: () => { },
     };

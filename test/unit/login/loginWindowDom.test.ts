@@ -78,7 +78,7 @@ describe('the sign-in window, drawn', () => {
                 id: 1, providerId: 'a', phase, methods: [], selectedMethodId: null, inBrowser: false, codeImage: '', canReopenLoginPage: false,
                 failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
             },
-            onChoose: () => { }, onStart: () => { }, onFormLoggedIn: () => { }, onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
+            onChoose: () => { }, onStart: () => { }, onSubmitForm: async () => ({ sessionId: 0, providerId: 'a', outcome: 'completed' }), onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
             onSwitch: () => { }, onSignOut: () => { }, buildReport: async () => '',
         } satisfies LoginScreenProps);
         draw(screen(true, 'scanned'));

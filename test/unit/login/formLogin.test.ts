@@ -50,7 +50,7 @@ describe('omni.getLoginForm', () => {
 });
 
 describe('omni.submitLoginForm', () => {
-    it('submits the form through the provider itself (bridge receives a login operation)', async () => {
+    it('submits the form through the provider itself (bridge receives a login operation without a device id)', async () => {
         await expect(omni.submitLoginForm('fnmusic', {
             base: 'http://192.168.1.10:5666',
             username: 'alice',
@@ -60,8 +60,9 @@ describe('omni.submitLoginForm', () => {
             base: 'http://192.168.1.10:5666',
             username: 'alice',
             password: 'secret',
-            deviceId: expect.stringMatching(/^[0-9a-f]{32}$/),
         }));
+        // deviceId 由主进程桥复用已存设备或生成，渲染层不再传（避免每次登录注册新设备）
+        expect(bridgeRequest.mock.calls[0][1]).not.toHaveProperty('deviceId');
     });
 
     it('fails with unsupported for a platform without submitLoginForm', async () => {

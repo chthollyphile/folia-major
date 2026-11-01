@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryLoginSessionSnapshot } from '../../../library/core/account/account.contract';
+import type { LibraryLoginCompletion, LibraryLoginSessionSnapshot } from '../../../library/core/account/account.contract';
 import { resolveLoginSessionReportRoute, translateLoginSelfCheck } from '../../../library/core/account/useLibraryAccount';
 import { LOGIN_REPORT_ELSEWHERE_COPY, retryOpensAt } from '../../../library/core/account/accountRules';
 import type { LoginFailure } from '../../../types/loginFailure';
@@ -39,8 +39,8 @@ export type LoginScreenProps = {
     onChoose: (providerId: OnlineProviderId) => void;
     /** 开始（浏览器登录的那一下），或者重来，保留选过的登录方式。 */
     onStart: () => void;
-    /** 表单式登录提交成功：登录已完成，直接刷新状态并关闭窗口。 */
-    onFormLoggedIn: () => void;
+    /** 表单式登录提交（走账户 controller 的完整链路：提交 → 读账号 → 报完成）；返回登录完成结局。 */
+    onSubmitForm: (providerId: OnlineProviderId, values: Record<string, string>) => Promise<LibraryLoginCompletion>;
     /** 用这种登录方式开始（任何时候都可以换）。 */
     onSelectMethod: (methodId: string) => void;
     onReopenBrowser: () => void;
@@ -76,7 +76,7 @@ const useReached = (at: number): boolean => {
 };
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
-    isOpen, onClose, rows, activeProviderId, chosen, login, onChoose, onStart, onFormLoggedIn, onSelectMethod, onReopenBrowser, onRestartService, onSwitch, onSignOut,
+    isOpen, onClose, rows, activeProviderId, chosen, login, onChoose, onStart, onSubmitForm, onSelectMethod, onReopenBrowser, onRestartService, onSwitch, onSignOut,
     buildReport, origin, done = false, onDoneLeave = nothing, onDoneEnd = nothing,
 }) => {
     const { t } = useTranslation();
@@ -232,7 +232,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 />
             )}
             message={scene === 'form' && providerId
-                ? <FormLogin providerId={providerId} onLoggedIn={onFormLoggedIn} />
+                ? <FormLogin providerId={providerId} onSubmitForm={values => onSubmitForm(providerId, values)} />
                 : (
                     <LoginMessage
                         sceneKey={sceneKey}

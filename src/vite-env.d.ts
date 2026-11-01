@@ -967,7 +967,6 @@ declare global {
         operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl',
         params?: import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeParams,
       ) => Promise<import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeResult>;
-      fnmusicStatusSync: () => import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeStatus;
       qishuiRequest: (
         operation: import('./services/onlineMusic/qishui/qishuiTransport').QishuiOperation,
         params?: import('./services/onlineMusic/qishui/qishuiTransport').QishuiParams,

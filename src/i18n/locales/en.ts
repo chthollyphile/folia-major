@@ -1517,7 +1517,8 @@ export default {
     "noteUnknown": "Unknown error",
     "submit": "Submit",
     "submitting": "Submitting…",
-    "formErrorUnknown": "Sign-in failed. Check what you entered and try again."
+    "formErrorUnknown": "Sign-in failed. Check what you entered and try again.",
+    "formLoggedInRefreshFailed": "Signed in, but couldn't load your account. Try again or reopen the login window.",
   },
   "failure": {
     "unreachable": "Cannot connect to {{provider}}",

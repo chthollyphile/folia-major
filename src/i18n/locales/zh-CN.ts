@@ -1517,7 +1517,8 @@ export default {
     "noteUnknown": "未知错误",
     "submit": "提交",
     "submitting": "提交中…",
-    "formErrorUnknown": "登录失败，请检查填写内容后重试"
+    "formErrorUnknown": "登录失败，请检查填写内容后重试",
+    "formLoggedInRefreshFailed": "登录成功，但读取账号失败。请重试或重新打开登录窗口。",
   },
   "failure": {
     "unreachable": "无法连接{{provider}}",

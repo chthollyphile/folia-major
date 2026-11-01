@@ -112,11 +112,10 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
             login={shownLogin}
             onChoose={host.choose}
             onStart={() => void account.retryLogin()}
-            // 表单式登录提交成功：走账户 controller 的完成链路（读账号 → activate-after-login → 报完成），
-            // 完成的一声由 host.completed 接到，和扫码确认一样放动画/关窗。不自己读账号、不自己关窗。
-            onFormLoggedIn={() => {
-                if (providerId) void account.completeFormLogin(providerId);
-            }}
+            // 表单式登录提交：走账户 controller 的完整链路（provider 提交 → 读账号 → activate-after-login → 报完成），
+            // 完成的一声由 host.completed 接到，和扫码确认一样放动画/关窗；读账号失败（refresh-failed）由
+            // FormLogin 显示提示（token 已存，不静默关窗）。
+            onSubmitForm={(submitProviderId, values) => account.submitFormLogin(submitProviderId, values)}
             onSelectMethod={methodId => void account.selectLoginMethod(methodId)}
             onReopenBrowser={() => void account.openLoginPage()}
             onRestartService={() => void account.restartLocalService()}

@@ -7097,14 +7097,8 @@ ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
   },
 }));
 
-// 同步查询飞牛桥状态（渲染层构造封面/播放代理 URL 需要同步拿到本地代理端口）。
-ipcMain.on('fnmusic-status-sync', (event) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    event.returnValue = { available: false, configured: false, authenticated: false, base: null, username: null };
-    return;
-  }
-  event.returnValue = fnMusicApiBridge.getStatus();
-});
+// 状态查询走异步 fnmusic-api-request('getStatus')，不再用 sendSync 同步 IPC（避免渲染主线程
+// 阻塞在 safeStorage 解密上；本地代理已删除，注释里"要同步拿本地代理端口"的前提已不存在）。
 
 ipcMain.handle('bodian-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {

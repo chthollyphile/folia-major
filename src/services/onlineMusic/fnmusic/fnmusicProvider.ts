@@ -21,7 +21,6 @@ import {
     fnMusicLogout,
     fnMusicStreamSource,
     fnmusicRequest,
-    makeFnMusicDeviceId,
 } from './fnmusicTransport';
 
 // src/services/onlineMusic/fnmusic/fnmusicProvider.ts
@@ -33,6 +32,7 @@ import {
 //  搜索: GET /music/api/v1/search/track?q=&page=&size= → { total, list }
 //  歌词: GET /music/api/v1/lyric/list?trackGUID= → { list, preferred }
 //  播放: GET /music/api/v1/track/stream?trackGUID= → 播放源（hls:// 经 /api/stream/unified 转 m3u8）
+//        （渲染层 trackId 即接口的 trackGUID；播放/封面走主进程桥与 folia-fnmusic:// 协议）
 
 type FnMusicRecord = Record<string, any>;
 const record = (value: unknown): FnMusicRecord => (
@@ -124,11 +124,6 @@ const songIdOf = (song: SongResult): string => {
     }
     return text(source.mediaId);
 };
-
-/** 统一错误文案（日志用）。 */
-const errorMessageOf = (error: unknown): string => (
-    error instanceof Error ? error.message : String(error)
-);
 
 /** 歌词项取文本字段（LRC 文本）。接口字段名做了多候选兼容。 */
 const lyricTextOf = (raw: unknown): string => {
@@ -232,7 +227,8 @@ export const fnMusicLibrary = {
                 if (total > 0 && ids.length >= total) { complete = true; break; }
             }
         } catch (error) {
-            console.warn('[FnMusic] favorite-track/list failed:', errorMessageOf(error));
+            // 日志交错误本体（栈/字段都在），不只 message。
+            console.warn('[FnMusic] favorite-track/list failed:', error);
         }
         return { ids, whole: complete };
     },
@@ -409,15 +405,16 @@ export const fnmusicProvider: OnlineMusicProvider = {
             },
         }),
         async submitLoginForm(values) {
+            // 不传 deviceId：主进程桥复用已保存的值（首次登录才生成），
+            // 避免每次重新登录都在 NAS 设备列表里新增一台 Folia。
             await fnMusicLogin({
                 base: text(values.base),
                 username: text(values.username),
                 password: text(values.password),
-                deviceId: makeFnMusicDeviceId(),
             });
         },
         async getLoginStatus(): Promise<ProviderUser | null> {
-            const status = fnMusicBridgeStatus();
+            const status = await fnMusicBridgeStatus();
             if (!status?.authenticated) return null;
             return {
                 id: status.username || 'fnmusic-user',
@@ -436,7 +433,7 @@ export const fnmusicProvider: OnlineMusicProvider = {
             );
         },
         async checkLogin(): Promise<LoginState> {
-            const status = fnMusicBridgeStatus();
+            const status = await fnMusicBridgeStatus();
             return status?.authenticated ? { state: 'confirmed' } : { state: 'error', message: '登录未完成' };
         },
         describeLoginFailure: (_step, error): LoginFailureDetail | null => ({

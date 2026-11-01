@@ -9,14 +9,10 @@
 //
 // 协议（提取自飞牛音乐网页 JS bundle，见 docs/fnmusic-protocol.md）：
 //  - 基础路径 {origin}/music/api/v1{path}
-//  - 每个请求带 authx 头：nonce={6位随机}&timestamp={Date.now()}&sign={md5}
-//    sign = md5("NDzZTVxnRKP8Z0jXg1VAMonaG8akvh" + "_" + pathname + "_" + nonce + "_" + timestamp + "_" + bodyHash + "_" + apiKey)
-//    bodyHash(GET) = md5(decodeURIComponent(排序后的 query string))
-//    bodyHash(POST) = md5(JSON.stringify(body))
-//    apiKey = "6D5602D4-A342-4799-A0F0-BB795E7167D0"（bundle 内 XOR 混淆，已还原）
-//  - 认证：登录返回 {userToken, user}；后续请求带 Cookie: music-token={userToken}
-//  - 响应信封：{ code, msg, data }，code ∈ {0, 200} 视为成功
-//  - 播放流：GET /music/api/v1/track/stream 返回播放源；若 url 为 hls://{fileId}?quality=，
+//  - 认证：POST /music/api/v1/user/password-login {username, password: sha256(password)} →
+//    {userToken, user}；后续请求带 Cookie: music-token={userToken}（不再使用 authx 签名头）
+//  - 响应信封：{ code, msg, data }，code ∈ {0, 200} 视为成功；code 120001 = 账号或密码错误
+//  - 播放流：GET /music/api/v1/track/stream?trackGUID= 返回播放源；若 url 为 hls://{fileId}?quality=，
 //    则继续 GET {origin}/api/stream/unified?fileId=...&quality=...（此接口不签名）取 m3u8
 //
 // 安全约定（与桌面端其他平台的主进程桥一致）：
@@ -94,7 +90,7 @@ const requestOnce = (url, { method, headers, body }) => new Promise((resolve, re
     headers,
     // 只对私网地址（局域网自签名 NAS）放行证书校验；公网 FN Connect 中继等必须严格校验，
     // 防止中间人拿到密码摘要与 userToken。
-    rejectUnauthorized: parsed.protocol !== 'https:' || isPrivateHost(parsed.hostname),
+    rejectUnauthorized: parsed.protocol !== 'https:' || !isPrivateHost(parsed.hostname),
     timeout: 12000, // 12s 无响应即失败：NAS 关机/断网时快速返回错误，界面不永久转圈
   }, res => {
     const chunks = [];
@@ -188,7 +184,8 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (!canEncrypt()) return null;
       return JSON.parse(safeStorage.decryptString(Buffer.from(String(encoded), 'base64')));
     } catch (error) {
-      warn('无法解密已保存的飞牛配置（可能换了机器密钥）:', error instanceof Error ? error.message : String(error));
+      // 日志交错误本体（栈/字段都在），不只 message。
+      warn('无法解密已保存的飞牛配置（可能换了机器密钥）:', error);
       return null;
     }
   };
@@ -223,7 +220,9 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
     const upstream = transport.request(targetUrl, {
       method: 'GET',
       headers,
-      rejectUnauthorized: targetUrl.protocol !== 'https:' || isPrivateHost(targetUrl.hostname),
+      // 只对私网地址（局域网自签名 NAS）放行证书校验；公网必须严格校验，防止中间人窃取 token。
+      rejectUnauthorized: targetUrl.protocol !== 'https:' || !isPrivateHost(targetUrl.hostname),
+      timeout: 12000, // 12s 无响应即失败：NAS 关机/断网时快速返回错误，不挂死播放/封面请求
     }, (up) => {
       const out = {
         'Content-Type': up.headers['content-type'] || 'application/octet-stream',
@@ -232,16 +231,11 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (up.headers['content-length']) out['Content-Length'] = up.headers['content-length'];
       if (up.headers['accept-ranges']) out['Accept-Ranges'] = up.headers['accept-ranges'];
       if (up.headers['content-range']) out['Content-Range'] = up.headers['content-range'];
-      // 渲染层取消请求（拖进度条/切歌）时销毁上游连接，不留下暂停着的请求。
-      const web = Readable.toWeb(up);
-      const originalCancel = web.cancel?.bind(web);
-      if (originalCancel) {
-        web.cancel = (reason) => {
-          upstream.destroy();
-          return originalCancel(reason);
-        };
-      }
-      resolve(new Response(web, { status: up.statusCode || 200, headers: out }));
+      // Readable.toWeb 在 cancel 时本身会销毁源流（渲染层拖进度条/切歌即可断开上游），无需覆盖。
+      resolve(new Response(Readable.toWeb(up), { status: up.statusCode || 200, headers: out }));
+    });
+    upstream.on('timeout', () => {
+      upstream.destroy(new Error(`上游请求超时（12s）: ${targetUrl}`));
     });
     upstream.on('error', (error) => {
       warn('上游请求失败:', error instanceof Error ? error : new Error(String(error)));

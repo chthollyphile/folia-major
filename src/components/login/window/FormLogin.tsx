@@ -2,23 +2,26 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { OnlineProviderId } from '../../../types/onlineMusic';
+import type { LibraryLoginCompletion } from '../../../library/core/account/account.contract';
 import { omni } from '../../../services/onlineMusic/omni';
 import { Button } from '../../modal/settings/kit/Button';
 import { TextField } from '../../modal/settings/kit/TextField';
 
 // src/components/login/window/FormLogin.tsx
-// 通用表单式登录：按 provider 声明的 ProviderLoginForm（omni.getLoginForm）渲染字段并提交。
-// 提交成功后通知 host（LoginHost 走账户 controller 的完成链路：读账号 → activate-after-login → 动画/关窗），
-// 这里不自己读账号、不自己关窗。
-// 提交是异步的：提交期间用户换了平台/关了窗，组件卸载，成功回调不再执行（mounted 检查）。
+// 通用表单式登录：按 provider 声明的 ProviderLoginForm（omni.getLoginForm）渲染字段，
+// 提交走账户 controller 的完整链路（submitFormLogin：provider 提交 → 读账号 → activate-after-login → 报完成）。
+// 提交是异步的：提交期间用户换了平台/关了窗，组件卸载，晚到的回调不再执行（mounted 检查）。
 // 错误按 OnlineProviderError.code 走 i18n（form.errorKeys），provider 的中文错误信息只进日志。
-export const FormLogin: React.FC<{ providerId: OnlineProviderId; onLoggedIn: () => void }> = ({ providerId, onLoggedIn }) => {
+export const FormLogin: React.FC<{
+    providerId: OnlineProviderId;
+    onSubmitForm: (values: Record<string, string>) => Promise<LibraryLoginCompletion>;
+}> = ({ providerId, onSubmitForm }) => {
     const { t } = useTranslation();
     const form = omni.getLoginForm(providerId);
     const [values, setValues] = useState<Record<string, string>>({});
     const [busy, setBusy] = useState(false);
     const [errorKey, setErrorKey] = useState<string | null>(null);
-    // 提交是异步的：提交期间换了平台、关了窗，组件卸载，成功回调不再执行（否则会关掉别人的窗口）。
+    // 提交是异步的：提交期间换了平台、关了窗，组件卸载，晚到的回调不再执行（否则会关掉别人的窗口）。
     const mounted = useRef(true);
     useEffect(() => () => { mounted.current = false; }, []);
 
@@ -31,15 +34,20 @@ export const FormLogin: React.FC<{ providerId: OnlineProviderId; onLoggedIn: () 
         setBusy(true);
         setErrorKey(null);
         try {
-            await omni.submitLoginForm(providerId, values);
-            if (!mounted.current) return; // 提交期间用户换走了：不再通知关窗。
-            onLoggedIn();
+            const completion = await onSubmitForm(values);
+            if (!mounted.current) return; // 提交期间用户换走了：不再动界面。
+            // 登录成功但读账号失败（token 已存、账号没读到）：窗口留着，显示提示，不静默。
+            if (completion.outcome === 'refresh-failed') {
+                setErrorKey('login.formLoggedInRefreshFailed');
+                return;
+            }
+            // completed / activation-declined：controller 已报完成，登录窗口按结局放动画/关窗。
         } catch (caught) {
             console.warn('[FormLogin] login failed:', caught);
             if (!mounted.current) return;
-            // 界面按错误 code 走 i18n；没有对应项的 code 显示通用失败文案。
+            // 界面按错误 code 走 i18n；没有对应项的 code 显示通用失败文案（兜底，不静默）。
             const code = caught instanceof OnlineProviderError ? caught.code : null;
-            setErrorKey(code ? form.errorKeys?.[code] ?? null : null);
+            setErrorKey(code ? form.errorKeys?.[code] ?? 'login.formErrorUnknown' : 'login.formErrorUnknown');
         } finally {
             if (mounted.current) setBusy(false);
         }

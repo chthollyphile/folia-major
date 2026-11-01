@@ -42,15 +42,15 @@ describe('fnMusicCoverUrl', () => {
 });
 
 describe('fnMusicLogin', () => {
-    it('sends the login operation with device id and no plaintext beyond the form values', async () => {
+    it('sends the login operation without a device id (main process reuses or generates it) and no plaintext beyond the form values', async () => {
         bridgeRequest.mockResolvedValue({ ok: true, data: { user: { guid: 'u1', name: 'Tester' } } });
-        const result = await fnMusicLogin({ base: 'http://192.168.1.10:5666', username: 'alice', password: 'secret', deviceId: 'ab'.repeat(16) });
+        const result = await fnMusicLogin({ base: 'http://192.168.1.10:5666', username: 'alice', password: 'secret' });
         expect(bridgeRequest).toHaveBeenCalledWith('login', expect.objectContaining({
             base: 'http://192.168.1.10:5666',
             username: 'alice',
             password: 'secret',
-            deviceId: 'ab'.repeat(16),
         }));
+        expect(bridgeRequest.mock.calls[0][1]).not.toHaveProperty('deviceId');
         expect(result.user).toEqual({ guid: 'u1', name: 'Tester' });
         // 登录答复不把 token 带回渲染进程
         expect(bridgeRequest.mock.calls[0][1]).not.toHaveProperty('token');
