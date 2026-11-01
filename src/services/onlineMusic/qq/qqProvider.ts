@@ -25,7 +25,7 @@ import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticR
 import { collectQqLoginDiagnostics } from './qqLoginDiagnostics';
 import { getQqSongDetailById, getQqSongDetails, QQ_SONG_DETAILS_PER_REQUEST, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
-import { resetQqSearchFallbackMemory, searchQqSongs } from './qqSearch';
+import { resetQqSearchFallbackMemory, searchQqCollections, searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
 import { describeQqFailure } from './qqFailure';
@@ -1075,7 +1075,11 @@ export const qqProvider: OnlineMusicProvider = {
         const songmid = String(song.qqMid || sourceRef?.providerData?.songMid || '').trim();
         return songmid ? `https://y.qq.com/n/ryqq/songDetail/${encodeURIComponent(songmid)}` : null;
     },
-    search: { searchSongs: searchQqSongs },
+    search: {
+        searchSongs: searchQqSongs,
+        searchAlbums: (query, limit, offset) => searchQqCollections('album', query, limit, offset),
+        searchPlaylists: (query, limit, offset) => searchQqCollections('playlist', query, limit, offset),
+    },
     playback: { getSongDetail: getQqSongDetailById, getSongDetails: getQqSongDetails, songDetailsPerRequest: QQ_SONG_DETAILS_PER_REQUEST, getAudioSource },
     lyrics: { getLyrics },
     auth: {

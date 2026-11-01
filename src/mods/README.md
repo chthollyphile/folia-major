@@ -6,7 +6,7 @@ Folium 模组系统在窗口里的一半：契约（`folium/contract.ts` 是 cli
 
 应用和 `src/mods` 只在下面这些地方相连，各自写了用的是什么、为什么。加一个接入点时写进来；去掉模组系统时，要改的就是这些地方。
 
-`src/mods/folium/` 反过来引用应用自己的模块（例如把模组的歌词动画放进 `@/components/visualizer/registry`，把模组的命令放进命令面板），那是适配层的本分，不列在这里。`runtime/` 里只在主窗口装的宿主层也一样：`hostEvents.ts` 读播放、视图等 store 发通知，`hostAccount.ts` 经 omni 读账号 store，是 `folium.account` 与 `account.changed` 的来源（Folium 1.7）；`runtime/omni/` 经 omni 读在线音源，是 `folium.omni` 的来源（Folium 1.7）；`runtime/queue/` 读写播放 store，是 `folium.playback.replaceQueue`、队列版本与撤销的来源（Folium 1.7）；`runtime/equalizer/` 读写音频设置 store，是 `folium.equalizer` 与 `equalizer.changed` 的来源，并按模组列表的启用状态暂停/恢复模组曲线（Folium 1.7），它读的模组列表（`runtime/clientLoader.ts` 的 `getFoliumModList` / `onFoliumModListChanged`）在模组系统内部，也不算接入点。这里也不放一个把各个注册表一起导出的总入口文件：每个注册表模块一加载就建好自己的注册表，总入口会让每个引用它的地方都带上全部注册表，还可能把它们挪进更早加载的代码块。
+`src/mods/folium/` 反过来引用应用自己的模块（例如把模组的歌词动画放进 `@/components/visualizer/registry`，把模组的命令放进命令面板），那是适配层的本分，不列在这里。`runtime/` 里只在主窗口装的宿主层也一样：`hostEvents.ts` 读播放、视图等 store 发通知，`hostAccount.ts` 经 omni 读账号 store，是 `folium.account` 与 `account.changed` 的来源（Folium 1.7）；`runtime/omni/` 经 omni 读在线音源，是 `folium.omni` 的来源（Folium 1.7）；`runtime/queue/` 读写播放 store，是 `folium.playback.replaceQueue`、队列版本与撤销的来源（Folium 1.7）；`runtime/equalizer/` 读写音频设置 store，是 `folium.equalizer` 与 `equalizer.changed` 的来源，并按模组列表的启用状态暂停/恢复模组曲线（Folium 1.7），它读的模组列表（`runtime/clientLoader.ts` 的 `getFoliumModList` / `onFoliumModListChanged`）在模组系统内部，也不算接入点；`runtime/visualizer/` 读写歌词动画设置 store，是 `folium.visualizer` 与 `visualizer.*` 事件（`modeChanged`、`renderQualityChanged`、`tuningChanged`、`beatEffectsChanged`）的来源（Folium 1.8）；它读各样式 tuning.ts 声明的 `modKeys` 和各模式 entry 的 `beatEffects`。这里也不放一个把各个注册表一起导出的总入口文件：每个注册表模块一加载就建好自己的注册表，总入口会让每个引用它的地方都带上全部注册表，还可能把它们挪进更早加载的代码块。
 
 ### 有意留的接入点
 

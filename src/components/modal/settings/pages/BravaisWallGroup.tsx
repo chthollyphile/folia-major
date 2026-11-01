@@ -22,7 +22,7 @@ import { Group, PictureChoice, Reveal, Row, Segmented, Toggle, option, type Sett
 // The Bravais 墙面 group of the 主页与歌单 page: every setting only the bravais library UI has. How
 // much of the wall lets the visualizer through (and, when partly, how many windows a block has),
 // the collections' stack edges, which way the seam opens (vertical, horizontal, or by the screen's
-// shape), the seam's material (always clear, or one of eight solid
+// shape, either way round), the seam's material (always clear, or one of eight solid
 // presets; the two exclude each other), and whether the picture behind the wall has lyrics and
 // blur. The group is drawn only while bravais is the library UI in effect, the same test the
 // command palette asks (isBravaisLibraryActive): under any other UI these settings do nothing.

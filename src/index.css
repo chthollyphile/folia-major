@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tailwind 自动扫描整个仓库找类名，而且在 dev 服务器的主线程上同步扫。dev/prototypes 里是独立的原型页面，
+   不用 Tailwind，却可能放着几 MB 的单行数据文件（fog-write/strokes.js 一行 4.4 MB），类名提取器碰上
+   这种文件要扫好几分钟，期间 dev 服务器一个请求都不回，页面和 Electron 窗口就一直停在开屏。 */
+@source not "../dev/prototypes";
+
 /* Folium mod stylesheets (registries.styles) live in this layer. Declaring it
    after Tailwind's layers makes mod rules win over host utilities without
    !important, independent of when a mod's <style> is injected. */

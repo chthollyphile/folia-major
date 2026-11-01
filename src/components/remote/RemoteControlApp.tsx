@@ -8,6 +8,7 @@ import { isRemoteExportBusy } from './RemoteExportTab';
 import RemoteKeyRow from './RemoteKeyRow';
 import RemoteLyricBlock from './RemoteLyricBlock';
 import RemoteProgressLine from './RemoteProgressLine';
+import RemoteQueue from './RemoteQueue';
 import RemoteSheet from './RemoteSheet';
 import RemoteSongLine, { RemoteCoverFaces, RemoteOutgoingRecede } from './RemoteSongLine';
 import RemoteWindowTools, { type RemoteBackgroundMode } from './RemoteWindowTools';
@@ -23,6 +24,7 @@ import { useRemoteClock } from './useRemoteClock';
 import { useRemoteCoverArt } from './useRemoteCoverArt';
 import { useRemoteExportChoices } from './useRemoteExportChoices';
 import { useRemoteLyricLine } from './useRemoteLyricLine';
+import { useRemoteQueue } from './useRemoteQueue';
 import { useRemoteSheet } from './useRemoteSheet';
 import { useRemoteSleeve } from './useRemoteSleeve';
 import { useRemoteTextShade } from './useRemoteTextShade';
@@ -35,7 +37,8 @@ import './remote.css';
 // divider and the progress bar, and a row of keys. With the pointer in, it lights up what already
 // has a place; a moment after the pointer leaves, the keys go and the line takes their place, and
 // (with the switch "expand cover" on) the card turns into a sleeve: the cover large on the left,
-// the song and the line on the right. This file holds the window's state and puts the parts together.
+// the song and the line on the right. The queue key grows the window down or up, wherever the
+// screen has room, to show the play queue. This file holds the window's state and puts the parts together.
 
 const REMOTE_CONTROL_DOCUMENT_TITLE = 'Folia Remote';
 const REMOTE_BACKGROUND_MODE_STORAGE_KEY = 'remote_background_mode';
@@ -101,8 +104,15 @@ const RemoteControlApp: React.FC = () => {
         pointerInside,
         isDisplayOnly,
     });
+    const queue = useRemoteQueue({
+        queueLength: snapshot.queue?.length ?? 0,
+        pointerInside,
+        isDisplayOnly,
+        isSheetOpen: sheet.isOpen,
+    });
     // An open sheet is the card in use too: it stands where the sleeve's song and line would be.
-    const isIdle = useRemoteSleeve(!isLit && !sheet.isOpen, reduceMotion, cardRef);
+    // So is an open queue: it hangs off the card in use.
+    const isIdle = useRemoteSleeve(!isLit && !sheet.isOpen && !queue.isOpen, reduceMotion, cardRef);
     // Idle puts the line where the keys were; the switch "expand cover" decides whether it also opens the sleeve.
     const isSleeve = isIdle && presentation.expandCover;
     // The switch "text shade", off by default: without it the idle type stands on what is behind the window with only its thin shadow.
@@ -120,12 +130,12 @@ const RemoteControlApp: React.FC = () => {
         window.localStorage.setItem(REMOTE_BACKGROUND_MODE_STORAGE_KEY, backgroundMode);
     }, [backgroundMode]);
 
-    // A focused control that leaves with the sheet sends no blur; without this the window would stay lit.
+    // A focused control that leaves with the sheet or the queue sends no blur; without this the window would stay lit.
     useEffect(() => {
-        if (!sheet.isOpen && !document.activeElement?.matches(':focus-visible')) {
+        if ((!sheet.isOpen || !queue.isShown) && !document.activeElement?.matches(':focus-visible')) {
             setHasKeyboardFocus(false);
         }
-    }, [sheet.isOpen]);
+    }, [sheet.isOpen, queue.isShown]);
 
     const navigateTrack = (direction: 'prev' | 'next') => {
         handoff.recordNavIntent(direction);
@@ -143,6 +153,8 @@ const RemoteControlApp: React.FC = () => {
             data-paused={snapshot.hasTrack && !isPlaying}
             data-sheet={sheet.isOpen}
             data-notitle={presentation.hideTitlebar || isDisplayOnly}
+            data-queue={queue.direction ?? undefined}
+            data-shifting={queue.isShifting}
             onFocus={event => setHasKeyboardFocus(event.target.matches(':focus-visible'))}
             onBlur={() => setHasKeyboardFocus(false)}
         >
@@ -215,8 +227,10 @@ const RemoteControlApp: React.FC = () => {
                             clock={clock}
                             primaryDisabled={primaryDisabled}
                             isSheetOpen={sheet.isOpen}
+                            isQueueOpen={queue.isOpen}
                             isExportBusy={exportBusy}
                             onToggleSheet={sheet.toggle}
+                            onToggleQueue={queue.toggle}
                             onNavigate={navigateTrack}
                         />
                     )}
@@ -224,6 +238,24 @@ const RemoteControlApp: React.FC = () => {
 
                 <div className="remote-ring" />
             </div>
+
+            <AnimatePresence>
+                {queue.isShown && queue.direction && (
+                    <RemoteQueue
+                        key="queue"
+                        direction={queue.direction}
+                        height={queue.panelHeight}
+                        items={snapshot.queue ?? []}
+                        currentKey={snapshot.trackKey}
+                        playingKey={snapshot.queuePlayingKey ?? null}
+                        readOnly={Boolean(snapshot.queueReadOnly)}
+                        disabled={snapshot.controlsDisabled}
+                        query={queue.query}
+                        onQueryChange={queue.setQuery}
+                        reduceMotion={reduceMotion}
+                    />
+                )}
+            </AnimatePresence>
         </main>
     );
 };

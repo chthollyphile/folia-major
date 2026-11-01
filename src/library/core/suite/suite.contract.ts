@@ -37,6 +37,8 @@ export type LibrarySuiteId = string;
  * | --- | --- | --- |
  * | play / enqueue | 条目本身可播放 | —（卡片 / 行上的动作） |
  * | play-scope / enqueue-scope | useCollectionActions 的 scope | play-filtered / enqueue-filtered |
+ * | collect / collect-scope | 宿主的播放端口给了 collectTracks（收进速记簿） | collect-filtered（只有 collect-scope） |
+ * | save-to-playlist | 宿主的播放端口给了 pickPlaylistFor，且 canPickPlaylistFor 说这首能进（应用的歌单选择器，含「我喜欢」） | —（卡片上的按钮） |
  * | filter | 浏览会话（总是可用） | —（命令面板的筛选框） |
  * | sort | 本地文件夹才排序 | sort-file-name / sort-modified-date / sort-album-track / sort-toggle-direction |
  * | reload | useCollectionActions 的 reload | reload-online-collection |
@@ -65,6 +67,9 @@ export type LibraryActionId =
     | 'enqueue'
     | 'play-scope'
     | 'enqueue-scope'
+    | 'collect'
+    | 'collect-scope'
+    | 'save-to-playlist'
     | 'filter'
     | 'sort'
     | 'reload'
@@ -102,6 +107,7 @@ export type LibraryActionId =
  * | directory-manage-hidden / directory-toggle-hidden | manage-hidden / toggle-hidden |
  * | home-import-folder / home-refresh-folders / home-import-playlist | 本地列表的 import-folder / refresh-folders / import-playlist |
  * | home-refresh-navidrome | Navidrome 列表的 refresh |
+ * | explore-collect / explore-save-to-playlist | 探索页歌曲卡片上的加入速记簿 / 收藏到歌单（宿主的播放端口给了 collectTracks / pickPlaylistFor，与集合页的 collect / save-to-playlist 同一对） |
  */
 export type LibraryHomeActionId =
     | 'directory-filter'
@@ -118,7 +124,9 @@ export type LibraryHomeActionId =
     | 'home-import-folder'
     | 'home-refresh-folders'
     | 'home-import-playlist'
-    | 'home-refresh-navidrome';
+    | 'home-refresh-navidrome'
+    | 'explore-collect'
+    | 'explore-save-to-playlist';
 
 /**
  * 歌手页 surface 的语义动作（P4.2）。能力由 core/artist/artistSurface 从歌手资源的快照判定（纯规则），
@@ -259,6 +267,11 @@ export type LibraryHomeSurfaceProps = LibrarySurfaceBaseProps & LibraryHomeData 
      */
     account: LibraryAccountController;
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
+    /**
+     * 播放端口（宿主按首页模型装配，与集合页的同形）。首页自己的播放仍走 onPlaySong 那几个回调；
+     * 用到它的是探索页歌曲卡片上的「加入速记簿」「收藏到歌单」（explore-collect / explore-save-to-playlist）。
+     */
+    playback: LibraryPlaybackPort;
     /** 本地目录的批量动作控制器（宿主装配端口后创建，见 library/app/useLibraryDirectoryBatchController）。 */
     directoryActions?: LibraryDirectoryBatchController;
     /** 首页的资源与控制器（宿主创建，见 library/app/useLibraryHomeResources）；suite 只订阅。 */

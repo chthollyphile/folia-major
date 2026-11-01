@@ -1,4 +1,5 @@
 // Copyright (c) 2026 chthollyphile
+import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
 import { snapResolutionToTexturePool } from '../pixi/pixiTextureBudget';
 import { numberWithin } from '../tuningDefinition';
 import { DEFAULT_HANABI_TUNING, type HanabiRenderQuality, type HanabiTuning } from './types';
@@ -8,6 +9,12 @@ import { DEFAULT_HANABI_TUNING, type HanabiRenderQuality, type HanabiTuning } fr
 // 运行时按 HANABI_LIVE_KEYS 区分「每帧现读、改了立刻生效」与「烘焙进场景、改了要重建」的字段。
 // 画质档的数值也在这里（纯函数，运行时与单测共用）。
 
+/** 屏幕密度最多按 2 倍算：烟花是成千上万的小精灵，3 倍屏上满分辨率只换来更贵的填充。 */
+const MAX_BASE_RESOLUTION = 2;
+
+/** 花火自己的像素密度（分辨率倍数为 1 时就是它，和没有这个设置时一样）；字形图集按渲染倍率除以它算出超采样倍数。 */
+export const resolveHanabiBaseResolution = (devicePixelRatio: number) => Math.min(MAX_BASE_RESOLUTION, Math.max(1, devicePixelRatio || 1));
+
 const COLOR_MODES: HanabiTuning['colorMode'][] = ['theme', 'vivid', 'mixed'];
 const RENDER_QUALITIES: HanabiRenderQuality[] = ['full', 'balanced', 'low'];
 
@@ -16,6 +23,7 @@ export const normalizeHanabiTuning = (raw: unknown): HanabiTuning => {
     const input = { ...DEFAULT_HANABI_TUNING, ...(raw && typeof raw === 'object' ? raw as Partial<HanabiTuning> : {}) };
     const d = DEFAULT_HANABI_TUNING;
     return {
+        render: normalizeLyricRenderOverride(input.render),
         colorMode: COLOR_MODES.includes(input.colorMode) ? input.colorMode : d.colorMode,
         sparkAmount: numberWithin(input.sparkAmount, d.sparkAmount, 0, 2),
         ornamentAmount: numberWithin(input.ornamentAmount, d.ornamentAmount, 0, 2),
@@ -36,8 +44,11 @@ export const normalizeHanabiTuning = (raw: unknown): HanabiTuning => {
     };
 };
 
-/** 每帧现读、改了不用重建场景的字段（夜空、全屏辉光）；画框另由 HANABI_OVERLAY_KEYS 决定是否重画。 */
-const HANABI_LIVE_KEYS: ReadonlyArray<keyof HanabiTuning> = ['sky', 'overlayFrame', 'bloom', 'chorusBloom'];
+/**
+ * 每帧现读、改了不用重建场景的字段（夜空、全屏辉光）；画框另由 HANABI_OVERLAY_KEYS 决定是否重画。
+ * render（分辨率 / 抗锯齿）不经 setTuning：外壳把合出来的倍数和抗锯齿另外推给运行时，而且每次归一化都是新对象，按引用比会次次重建。
+ */
+const HANABI_LIVE_KEYS: ReadonlyArray<keyof HanabiTuning> = ['render', 'sky', 'overlayFrame', 'bloom', 'chorusBloom'];
 /** 改了要重画画框的字段。 */
 export const HANABI_OVERLAY_KEYS: ReadonlyArray<keyof HanabiTuning> = ['overlayFrame', 'colorMode', 'textOnly'];
 

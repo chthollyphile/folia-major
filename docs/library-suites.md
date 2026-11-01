@@ -266,6 +266,8 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `enqueue` | 某一首加入队列 | 基础 | `.enqueueTrack` |
 | `play-scope` | 播放当前筛选范围 | 基础 | `.playScope` |
 | `enqueue-scope` | 当前筛选范围加入队列 | 基础 | `.enqueueScope` |
+| `collect` / `collect-scope` | 某一首 / 当前筛选范围收进速记簿（不动队列的暂存区，出处记集合名） | 推荐 | `.collectTrack` / `.collectScope`（`useCollectionActions` 传 `collectionName`）；能力 `capabilities.collect`（宿主播放端口给了 `collectTracks`）；命令面板的 `collect-filtered` 由 `buildCoreSurfaceParams` 的 `collectFiltered` 发布 |
+| `save-to-playlist` | 某一首收藏到歌单：打开应用的歌单选择器（按歌自己的来源列歌单，在线歌还有「我喜欢」一行）。与只管 Navidrome 的 `add-to-playlist` 不同 | 推荐 | `.saveTrackToPlaylist`，能不能由 `.canSaveTrackToPlaylist(track)` 说（宿主播放端口给了 `pickPlaylistFor` / `canPickPlaylistFor`） |
 | `filter` | 按关键词筛选 | 基础 | `useLibrarySessionQuery` + 命令面板筛选框（`useGridCommandFilter`）；自己画输入框的 suite 在注册里给 `ownInput`（见第 4 步，bravais） |
 | `reload` | 跳过缓存重新拉取在线集合 | 推荐 | `.reload`，能力 `capabilities.reload` |
 | `resume-sync` | 后台补页中断后续传 | 推荐 | `.resumeSync`；快照的 `sync.status === 'interrupted'` |
@@ -308,6 +310,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `directory-rescan-root` / `directory-remove-root` / `directory-clear-ignore` | 导入根的重扫、移除，恢复被忽略的文件夹 | 可选 | 同上 |
 | `home-import-folder` / `home-refresh-folders` / `home-import-playlist` | 导入文件夹、刷新、导入歌单文件 | 可选 | `useLibraryHomeActions` |
 | `home-refresh-navidrome` | 刷新 Navidrome 概览 | 可选 | `useLibraryHomeNavidrome().refresh` |
+| `explore-collect` / `explore-save-to-playlist` | 探索页歌曲卡片上的加入速记簿、收藏到歌单 | 可选 | 首页 props 的 `playback`（`collectTracks`、`pickPlaylistFor` / `canPickPlaylistFor`） |
 
 隐藏项的规则由 core 统一：只有「歌单类」条目能隐藏；隐藏按来源分作用域；隐藏的条目不出现在浏览、筛选和任何批量范围里，只在「管理隐藏」视图里能看到。UI 只负责显示和切换。
 
@@ -355,7 +358,7 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | --- | --- |
 | `providers` / `activeProviderId` | provider 列表 × 账户 store；当前平台已回落（存的平台不在列表里时是默认平台，`resolveActiveProviderId`） |
 | `login` | 当前登录会话，同一时间最多一个：`phase`（`resolving-methods` / `choosing-method` / `ready` / `loading`，以及 provider 轮询回的状态）、`methods` 与 `selectedMethodId`、`inBrowser`（在浏览器里确认，没有二维码）与 `codeImage`、`canReopenLoginPage`、`failure`（分好类的失败，见下）、`selfCheck`、`localService`（登录要靠的本地服务：可不可用、没起来、正在重启）、`texts`（平台自己的登录标题与说明） |
-| `pendingSwitch` | 待确认切换 `{ id, from, to, reason }`，`reason` 是 `switch` 或 `activate-after-login` |
+| `pendingSwitch` | 待确认切换 `{ id, from, to, reason }`，`reason` 是 `switch` 或 `activate-after-login`。切换不再先问（队列可以混着几个平台的歌，切换不拿走它们），眼下恒为 `null` |
 | `logout` | 登出进度，同一时间最多一个在途（含问用户的那一会儿） |
 | `lastLoginCompletion` | 最近一次登录确认的结局（`completed` / `refresh-failed` / `activation-declined`），登录窗口据它放登录成功的动画 |
 
@@ -364,19 +367,19 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 | 动作 | 语义 | 结果 |
 | --- | --- | --- |
 | `selectProvider(id)` | 选平台：未配置或不在列表 → 不可用；能直接切（已登录 / 无需登录）→ `requestSwitch`；否则 `startLogin` | `unavailable` / `switch` / `login`，后两支带各自的结果 |
-| `requestSwitch(id)` | 同平台直接 `switched`（`changed: false`）；否则生成 `pendingSwitch` 等用户答复，已有的待确认请求按 `declined`（`superseded`）结算 | 用户答复后才 resolve：`switched` / `declined`（`cancelled` / `superseded` / `disposed`）/ `unavailable` |
-| `confirmSwitch(requestId)` / `cancelSwitch(requestId)` | 按请求 id 结算 | `confirmed` / `cancelled`；过期的 id 返回 `stale` |
+| `requestSwitch(id)` | 同平台直接 `switched`（`changed: false`）；否则不问，直接切 | `switched` / `declined`（`disposed`）/ `unavailable` |
+| `confirmSwitch(requestId)` / `cancelSwitch(requestId)` | 没有待确认的切换 | 一律 `stale` |
 | `startLogin(id)` | 先停掉旧会话；解析登录方式（带竞态代次），多方式停在 `choosing-method` | `started`（`step` 为 `choosing-method` / `ready` / `started`）/ `superseded` / `unavailable` |
 | `selectLoginMethod(methodId)` / `retryLogin()` | 在当前会话里重新开始，旧会话的 key 单独取消；重试保留已选的方式 | `requested` / `no-session` / `rejected`（`unknown-method` / `method-required` / `cooling-down` / `not-retryable`） |
 | `openLoginPage()` | 浏览器登录时再打开一次登录页 | `opened` / `failed` / `no-session` / `rejected`（`not-reopenable`） |
 | `closeLogin()` | 停轮询、取消会话、清快照（同步） | `closed` / `no-session` |
 | `restartLocalService()` | 只在本地服务可重启时（`canRestartLocalService`）；恢复运行且登录没有自己走下去时重新开始 | `resumed` / `still-down` / `no-session` / `rejected`（`not-restartable`） |
 | `buildLoginDiagnosticReport()` | 诊断报告文本 | `ok` / `no-session` |
-| `logout(id)` | 只对已登录的平台（`resolveLogoutEligibility`）；先经宿主端口问用户，再走 per-provider logout；退出当前平台且播放器里有歌时会清空播放器 | `logged-out` / `cancelled` / `rejected`（`unknown-provider` / `not-authenticated`）/ `busy` / `failed` |
+| `logout(id)` | 只对已登录的平台（`resolveLogoutEligibility`）；先经宿主端口问用户（播放器里有这个平台的歌时说一句它们会被移出），答应后宿主端口 `dropSongsOf(id)` 把这个平台的歌移出播放器（正在放的是它的就停下，别的歌留着），再走 per-provider logout | `logged-out` / `cancelled` / `rejected`（`unknown-provider` / `not-authenticated`）/ `busy` / `failed` |
 
-确认切换后的顺序：清掉 `pendingSwitch` → 宿主端口 `resetForProviderSwitch(next, previous)`（清 automix 尾音、audio、队列、歌词、prefetch、track profile、搜索运行态与集合导航；抛错只记日志，照样切换）→ 作废上一个平台的在途请求（默认装配是 `omni.invalidateActiveRequests()`）→ 写当前平台 → `reason` 为 `switch` 时刷新新账户。`requestSwitch` 的 Promise 在刷新之后才 resolve。
+切换的顺序：宿主端口 `leaveProvider(previous, next)`（退出私人 FM，已经排进队列的歌留着当普通队列；收起集合导航；队列、正在放的歌、搜索都不动；抛错只记日志，照样切换）→ 作废上一个平台的在途请求（默认装配是 `omni.invalidateActiveRequests()`）→ 写当前平台 → `reason` 为 `switch` 时刷新新账户。`requestSwitch` 的 Promise 在刷新之后才 resolve。
 
-登录确认后的链路：会话的确认回调只刷新账户。刷新返回 `false` 或抛错 → 会话回到 `error`，界面重新显示失败；成功且登录的不是当前平台 → 回调结束后发起 `reason: 'activate-after-login'` 的待确认切换；用户拒绝时结局是 `activation-declined`，登录本身仍成功。刷新期间登录被关掉或换了，不再发起激活确认。
+登录确认后的链路：会话的确认回调只刷新账户。刷新返回 `false` 或抛错 → 会话回到 `error`，界面重新显示失败；成功且登录的不是当前平台 → 回调结束后以 `reason: 'activate-after-login'` 直接切过去（不再刷新）。刷新期间登录被关掉或换了，不再切换。
 
 单一在途登录：新的 `startLogin` 先停掉旧会话再解析方式，旧会话不会在后台替旧平台确认登录；解析方式期间又来一次 `startLogin`，前一次返回 `superseded`。
 
@@ -388,11 +391,11 @@ App 创建一个 controller（`app/useLibraryAccountController.ts`，App 卸载�
 
 自检：会话进入失败后，provider 有自检能力（`canRunLoginSelfCheck`）就自动跑一次 `runLoginSelfCheck`，快照的 `selfCheck` 先是 running，结果回来后带上结构化结果与结论（`core/account/loginSelfCheckRules` 的 `resolveLoginSelfCheckVerdict`）；新一轮开始时晚到的结果作废。
 
-寿命：controller 与登录窗口都属于 App，换 suite 不重建，登录会话与待确认切换都在 controller 里，所以登录进行中切换 suite，窗口照常开着，新 suite 接着显示同一个待确认请求。account surface 的宿主 `app/LibraryAccountHost.tsx` 挂在首页外壳 `components/app/Home.tsx` 里，首页整个卸载时关闭登录会话、把待确认切换按取消结算。启动恢复会话时直接写当前平台，不经确认。
+寿命：controller 与登录窗口都属于 App，换 suite 不重建，登录会话在 controller 里，所以登录进行中切换 suite，窗口照常开着。account surface 的宿主 `app/LibraryAccountHost.tsx` 挂在首页外壳 `components/app/Home.tsx` 里，首页整个卸载时关闭登录会话。启动恢复会话不改当前平台：恢复的那首歌按它自己的平台播放。
 
 ### account surface
 
-登录不在 account surface 里：七个账户动作里的登录、选方式、诊断、重启本地服务都由登录窗口答复，与当前 suite 无关。account surface 要答复的只剩切换确认。确认会阻塞流程，必须有人答复，所以 account surface **整体回退**：当前 suite 没有 `account` surface 就由 grid 的 `GridAccountSurface` 答复（bravais 就是）；声明了 `account` surface 就必须列全三个基础动作，缺一个时建 suite 索引直接抛错（`core/suite/librarySuites.ts` 的 `LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS`）。
+登录不在 account surface 里：七个账户动作里的登录、选方式、诊断、重启本地服务都由登录窗口答复，与当前 suite 无关。account surface 要答复的只剩切换确认（眼下切换不再确认，它不会出现；surface 与动作留给以后需要先问一句的切换）。确认会阻塞流程，必须有人答复，所以 account surface **整体回退**：当前 suite 没有 `account` surface 就由 grid 的 `GridAccountSurface` 答复（bravais 就是）；声明了 `account` surface 就必须列全三个基础动作，缺一个时建 suite 索引直接抛错（`core/suite/librarySuites.ts` 的 `LIBRARY_ACCOUNT_REQUIRED_ACTION_IDS`）。
 
 | 动作 | 是什么 | 分级 | 谁画 |
 | --- | --- | --- | --- |
@@ -441,7 +444,7 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 
 | 页面 | grid（默认、回退） | bravais（正式新 UI） | tui（开发验证） |
 | --- | --- | --- | --- |
-| home | 全部 15 个动作；没人登录时的登录面板与右下角的切换器（都打开登录窗口） | 全部 15 个动作；六个页签各是一面墙（F6 整墙出场 / 入场），探索页签的条目照网格的探索拼贴的排法铺在墙上（`BravaisHomeExplore.tsx`，墙形 `bravaisWallShape.ts`），本地四行与 Navidrome 分区是缝里的二级切换；每个页签都有当前页过滤（墙上打字进窄缝里的输入位，目录会话的 query）；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
+| home | 探索页卡片上那两个（`explore-collect` / `explore-save-to-playlist`）之外的 15 个动作；没人登录时的登录面板与右下角的切换器（都打开登录窗口） | 全部 17 个动作；六个页签各是一面墙（F6 整墙出场 / 入场），探索页签的条目照网格的探索拼贴的排法铺在墙上（`BravaisHomeExplore.tsx`，墙形 `bravaisWallShape.ts`），歌曲卡片悬浮加入速记簿 / 收藏到歌单，本地四行与 Navidrome 分区是缝里的二级切换；每个页签都有当前页过滤（墙上打字进窄缝里的输入位，目录会话的 query）；目录树面板（= 批量模式）、管理隐藏视图、导入 / 刷新与 app 入口在首页窄缝里 | 探索页卡片那两个之外的全部；在线页签是可操作的平台列表（未登录时即页签内容，已登录时 F2 打开） |
 | collection | 全部 23 个，另有信息面板、曲目侧栏、编辑模式三个局部动作 | 全部 23 个；三个局部动作改为外观动作（缝等级、`list`）与改名表单态 | 除 `add-to-playlist` / `create-playlist` 外全部（行上的歌手 / 专辑可打开，Alt+Enter / Alt+Shift+Enter） |
 | artist | 全部 10 个 | 全部 10 个；热门歌曲与专辑混排在一面墙上，信息在缝里 | 全部 |
 | account | 全部 7 个动作：通用确认框（portal 到 body）；登录在共用的登录窗口里 | 不声明：确认回退到 grid 的确认框；首页在线页签窄缝的账户入口打开登录窗口 | 全部 7 个动作：fixed 全屏层里的确认方框；在线页签的平台列表要登录时打开登录窗口 |
@@ -456,7 +459,7 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 
 **stage 与 surface 的分工**
 
-- `BravaisStage`（manifest 的 `stage`）拥有画面：墙（虚拟化的磁贴，最多约 400 张）、相机、缝（信息条 / 书脊 / 折叠三级开口，只开在 12×8 块的边界上；设置「信息条方向」为横向、或自动且屏幕竖着时开在块行之间）、翻牌、聚焦卡、键盘焦点、列表 / 目录树面板、表单态，以及外观动作的注册。
+- `BravaisStage`（manifest 的 `stage`）拥有画面：墙（虚拟化的磁贴，最多约 400 张）、相机、缝（信息条 / 书脊 / 折叠三级开口，只开在 12×8 块的边界上；设置「信息条方向」为横向、自动且屏幕竖着、或自动（反向）且屏幕横着时开在块行之间）、翻牌、聚焦卡、键盘焦点、列表 / 目录树面板、表单态，以及外观动作的注册。
 - `BravaisHome` / `BravaisCollection` / `BravaisArtist` 订阅 core 的 binding，把数据投影成**层描述**（`BravaisLayer`：已投影的展示数据 + 身份稳定的回调，不放资源对象），经 `useBravaisLayerRegistration` 推进 suite 内的 `bravaisStageStore`（首页一个位、顶层一个位）；照常注册命令面板；自己只渲染不接指针的锚点（`data-ponder-page-scope="bravais-wall"`）。
 - bravais 不声明 account surface：切换确认回退到 grid 的确认框，登录在共用的登录窗口里。首页在线页签窄缝的账户入口（`BravaisSeamAccountSwitcher`）是一个按钮，点了打开登录窗口（已登录时开在当前平台上）。
 - stage 按导航快照的 `depth` 与上次显示时记下的深度决定换层种类：变深 = push（被点的磁贴成为起点，排序从它向外展开）、变浅 = back（按布局记忆恢复相机、缝的锚点、起点与焦点）、同深度换层 = replace（首页换页签，整墙出场 / 入场）、`origin` 为 search / player 时 0 ↔ ≥1 是整墙 enter / exit。栈里有重复的集合时，「同键不同深度且正是栈顶」也算换层。stage 根节点的 `data-bravais-shift` / `-seq` 记下每次换层。
@@ -496,7 +499,7 @@ account surface 只在 `pendingSwitch` 非空时渲染内容。它不是一页�
 **透光与遮挡播放页**
 
 - 三档：实色（默认；2026-10-08 起，此前默认部分透明，已存的选择不迁移）/ 部分透明（每块 12 个 slot 里固定 k 个是透明的「窗」，k = 1–6，默认 3）/ 全透明（墙上的磁贴只画标题，聚焦卡照常画封面）。窗是 wall 引擎的保留位（`blockReservedSlots`），rank→slot 跳过它们，不可聚焦、不可点。
-- 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「Bravais 墙面」分组（`BravaisSettingsSection`，紧跟「资料库界面」，只在生效 suite 是 bravais 时显示；bravais 独有的设置都放这里）里的 `LibraryWallLookSettings`，命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。同一 store 的集合叠页边开关 `collectionStackEdges`（`library_wall_stack_edges`）没有这个例外，进导入导出（`libraryWallStackEdges` / 短码 `lwse`）；命令 `library-wall-stack-edges-toggle`，分组锚点命令 `settings-bravais`。信息条的材质与墙后的画面（2026-10-09）同样没有例外、同样进导入导出：`seamClear`（信息条始终透明，`library_wall_seam_clear`，`libraryWallSeamClear` / `lwsc`）、`seamStyle`（实色模式的 8 个预设，`library_wall_seam_style`，`libraryWallSeamStyle` / `lwss`，材质定义在 `utils/libraryWallSeamStyle.ts`）、`backdropLyrics` / `backdropBlur`（`library_wall_backdrop_lyrics` / `_blur`，`lwbl` / `lwbb`）；命令 `library-wall-seam-clear-toggle`、`library-wall-seam-style-picker`（透明开着时不可用）、`library-wall-backdrop-lyrics-toggle`、`library-wall-backdrop-blur-toggle`。信息条方向 `seamDirection`（自动 / 竖向 / 横向，默认自动；`library_wall_seam_direction`，`libraryWallSeamDirection` / `lwsd`，命令 `library-wall-seam-direction-picker`，规则在 `utils/libraryWallSeamDirection.ts`）同样进导入导出。自动只看视口形状：高至少是宽的 1.1 倍时算竖屏、用横向，转屏时缝合上再换方向张开。横向时首页窄缝 / 书脊、集合与歌手页的信息条 / 书脊和首页搜索框从块行之间的横向缝隙裂开（锚点是块行边界的世界 y，墙上下分开，`bravaisAnchor`、`BravaisSeamRow` / `BravaisSeamHomeRow`、`bravaisSeamRow.css`）；列表 / 目录面板、表单与歌手 / 专辑海报仍是竖的，换方向时缝先合上再在另一个方向张开（`useBravaisSeam`）。折叠标签仍在左右侧边。
+- 偏好是 app 层的 `src/stores/useLibraryWallLookStore.ts`（`look`、`windowsPerBlock`，localStorage `library_wall_look` / `library_wall_windows_per_block`）——设置 UI 不能 import suite，所以不放在 suite 里。设置在界面设置「Bravais 墙面」分组（`BravaisSettingsSection`，紧跟「资料库界面」，只在生效 suite 是 bravais 时显示；bravais 独有的设置都放这里）里的 `LibraryWallLookSettings`，命令面板有 `library-wall-look-picker` 与 `library-wall-windows-picker`（窗数只在部分透明时可用），外观动作 `wall-look` / `more-windows` / `fewer-windows` 写同一个 store。**不进外观配置的导入导出**（用户决定，是 `skills/settings-feature-integration` 视觉设置规则的明确例外，store 的 `@note` 写明）。同一 store 的集合叠页边开关 `collectionStackEdges`（`library_wall_stack_edges`）没有这个例外，进导入导出（`libraryWallStackEdges` / 短码 `lwse`）；命令 `library-wall-stack-edges-toggle`，分组锚点命令 `settings-bravais`。信息条的材质与墙后的画面（2026-10-09）同样没有例外、同样进导入导出：`seamClear`（信息条始终透明，`library_wall_seam_clear`，`libraryWallSeamClear` / `lwsc`）、`seamStyle`（实色模式的 8 个预设，`library_wall_seam_style`，`libraryWallSeamStyle` / `lwss`，材质定义在 `utils/libraryWallSeamStyle.ts`）、`backdropLyrics` / `backdropBlur`（`library_wall_backdrop_lyrics` / `_blur`，`lwbl` / `lwbb`）；命令 `library-wall-seam-clear-toggle`、`library-wall-seam-style-picker`（透明开着时不可用）、`library-wall-backdrop-lyrics-toggle`、`library-wall-backdrop-blur-toggle`。信息条方向 `seamDirection`（自动 / 自动（反向）/ 竖向 / 横向，默认自动；`library_wall_seam_direction`，`libraryWallSeamDirection` / `lwsd`，命令 `library-wall-seam-direction-picker`，规则在 `utils/libraryWallSeamDirection.ts`）同样进导入导出。自动只看视口形状：高至少是宽的 1.1 倍时算竖屏、用横向；自动（反向）同一个判断、结果反过来（竖屏用竖向，横屏用横向）；转屏时缝合上再换方向张开。横向时首页窄缝 / 书脊、集合与歌手页的信息条 / 书脊和首页搜索框从块行之间的横向缝隙裂开（锚点是块行边界的世界 y，墙上下分开，`bravaisAnchor`、`BravaisSeamRow` / `BravaisSeamHomeRow`、`bravaisSeamRow.css`）；列表 / 目录面板、表单与歌手 / 专辑海报仍是竖的，换方向时缝先合上再在另一个方向张开（`useBravaisSeam`）。折叠标签仍在左右侧边。
 - 叠色与熄灯（`useLatticeSettingsStore`，与 Lattice 共用）也作用到缝与集合的叠页边（设计稿 §7.5「缝（信息条）也受叠色与熄灯影响」、§7.7），样式在 `bravaisAppearance.css` / `bravaisTileKinds.css`，共享的 `wall.css` 不动。
 - 两个透明档下，墙面由按块的实色底板铺（每个已挂载的 12×8 块一张内联 SVG，只在窗位挖洞，随相机平移；聚焦卡让位时只逐帧重画那一块），详见设计稿 §11。
 - 实色档、且信息条不是「始终透明」时 stage `reportPlayerOcclusion(true)`，首页停稳后 visualizer 卸载（与 Lattice 一致）；其余情况（透光档，或透明的缝）报 `false`，visualizer 照常在墙下渲染。墙后画面的歌词 / 模糊经 `reportPlayerBackdrop` 报给宿主（只在透着时为真）。

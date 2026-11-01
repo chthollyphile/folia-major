@@ -137,3 +137,61 @@ describe('remote window geometry', () => {
         expect(clampRemoteControlWindowX({ x: -278, y: 100, width: 702, height: 184 }, screens, false)).toBe(-228);
     });
 });
+
+describe('remote window queue expansion', () => {
+    const {
+        getRemoteControlQueueExpansion,
+        getRemoteControlWindowBounds,
+        getRemoteControlCardPosition,
+    } = require('../../../electron/remoteControlWindowGeometry.cjs') as typeof import('../../../electron/remoteControlWindowGeometry.cjs');
+    const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
+
+    it('grows down when there is room below', () => {
+        expect(getRemoteControlQueueExpansion(windowAt(600, 300), workArea, 340)).toEqual({ direction: 'down', height: 340 });
+    });
+
+    it('grows up when only above has room', () => {
+        // 1040 - (800 + 184) = 56 below, 800 above.
+        expect(getRemoteControlQueueExpansion(windowAt(600, 800), workArea, 340)).toEqual({ direction: 'up', height: 340 });
+    });
+
+    it('cuts the queue to the larger room when neither side fits', () => {
+        const short = { x: 0, y: 0, width: 1920, height: 500 };
+        // 200 above, 500 - 384 = 116 below.
+        expect(getRemoteControlQueueExpansion(windowAt(600, 200), short, 340)).toEqual({ direction: 'up', height: 200 });
+    });
+
+    it('keeps the search field and three rows on a very short screen', () => {
+        const tiny = { x: 0, y: 0, width: 1920, height: 300 };
+        expect(getRemoteControlQueueExpansion(windowAt(600, 40), tiny, 340)).toEqual({ direction: 'down', height: 160 });
+        // A queue that wants less than that minimum is not grown past what it wants.
+        expect(getRemoteControlQueueExpansion(windowAt(600, 40), tiny, 124)).toEqual({ direction: 'down', height: 124 });
+    });
+
+    it('keeps the side a shown queue grew to, only changing its height', () => {
+        expect(getRemoteControlQueueExpansion(windowAt(600, 300), workArea, 200, 'up')).toEqual({ direction: 'up', height: 200 });
+        expect(getRemoteControlQueueExpansion(windowAt(600, 250), workArea, 340, 'up')).toEqual({ direction: 'up', height: 250 });
+    });
+
+    it('leaves the anchored side when it no longer holds the search field and three rows', () => {
+        // 100 below, 756 above: a short queue went down, then the queue got long.
+        expect(getRemoteControlQueueExpansion(windowAt(600, 756), workArea, 88)).toEqual({ direction: 'down', height: 88 });
+        expect(getRemoteControlQueueExpansion(windowAt(600, 756), workArea, 340, 'down')).toEqual({ direction: 'up', height: 340 });
+    });
+
+    it('grows down, uncut, without a work area (Wayland)', () => {
+        expect(getRemoteControlQueueExpansion(windowAt(0, 0), null, 340)).toEqual({ direction: 'down', height: 340 });
+    });
+
+    it('moves the window up by the queue only when it grows up, and finds the card back', () => {
+        const card = { x: 600, y: 800 };
+        const up = { direction: 'up' as const, height: 340 };
+        const down = { direction: 'down' as const, height: 340 };
+        expect(getRemoteControlWindowBounds(card, up)).toEqual({ x: 600, y: 460, width: 602, height: 524 });
+        expect(getRemoteControlWindowBounds(card, down)).toEqual({ x: 600, y: 800, width: 602, height: 524 });
+        expect(getRemoteControlWindowBounds(card, null)).toEqual(windowAt(600, 800));
+        expect(getRemoteControlCardPosition({ x: 600, y: 460 }, up)).toEqual(card);
+        expect(getRemoteControlCardPosition({ x: 600, y: 800 }, down)).toEqual(card);
+        expect(getRemoteControlCardPosition({ x: 600, y: 800 }, null)).toEqual(card);
+    });
+});

@@ -446,6 +446,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         },
     },
     createSettingsCommand('settings-graphics', 'Graphics settings', 'Open static mode, frame rate cap, Linux glow fix and reduced motion', ['graphics', 'performance', 'frame rate', 'fps', 'rendering', '图形', '图形设置', '性能', '帧率', '渲染'], 'options', 'graphics'),
+    createSettingsAnchorCommand('settings-lyric-render-quality', 'Lyric canvas resolution and anti-aliasing', 'Jump to the resolution and anti-aliasing every canvas / WebGL lyric style follows by default', ['render quality', 'resolution', 'supersampling', 'anti-aliasing', 'msaa', 'dpr', 'pixel ratio', '分辨率', '超采样', '抗锯齿', '渲染倍率', '画质'], 'lyricRenderScale'),
     createSettingsAnchorCommand('settings-gpu-preference', 'Render GPU settings', 'Jump to the choice of graphics card the app renders on', ['render gpu', 'graphics card', 'discrete gpu', 'integrated gpu', 'dual gpu', '渲染显卡', '显卡', '独显', '核显', '双显卡'], 'gpuPreference', { platform: ['win'] }),
     gpuPreferenceCommand('auto', 'Render GPU: Auto', 'Let Windows choose the graphics card; applies after a restart', ['render gpu auto', 'default gpu', '渲染显卡自动', '显卡自动']),
     gpuPreferenceCommand('high-performance', 'Render GPU: High performance', 'Render on the discrete GPU; applies after a restart', ['render gpu high performance', 'discrete gpu', 'dedicated gpu', 'dgpu', 'nvidia', '渲染显卡高性能', '独显', '独立显卡']),

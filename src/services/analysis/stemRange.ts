@@ -225,8 +225,13 @@ export const forgetStemRange = (key: string, from: number, to: number, total: nu
     }
 };
 
-/** Who is separating: what it keeps for the others differs (see the header). */
-export type StemSeparator = 'drums' | 'stems';
+/**
+ * Who is separating: what it keeps for the others differs (see the header). 'drums' and 'pass' are a
+ * track's stem pass (stemPass.ts) - reading the drums alone, which a segment kept as its drums will
+ * do for, or more than the drums - and keep nothing for the drum hits (they are the drum hits, or
+ * carry them); 'stems' is automix.
+ */
+export type StemSeparator = 'drums' | 'pass' | 'stems';
 
 /**
  * One segment of `key` (a track of `total` samples): from the cache, or separated now on the GPU

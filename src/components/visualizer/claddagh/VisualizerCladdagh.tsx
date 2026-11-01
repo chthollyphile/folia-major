@@ -30,8 +30,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         subtitleOverlayBackground,
         subtitleUpcomingLyricsBlur,
         hideTranslationSubtitle,
-        showSubtitleTranslation,
-        subtitleContentMode,
+        subtitleOverlayLayout,
         audioPower,
         audioBands,
         claddaghTuning = DEFAULT_CLADDAGH_TUNING,
@@ -319,8 +318,7 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                     subtitleUpcomingLyricsBlur={subtitleUpcomingLyricsBlur}
                     subtitleFontScale={subtitleFontScale}
                     hideTranslationSubtitle={hideTranslationSubtitle}
-                    showSubtitleTranslation={showSubtitleTranslation}
-                    subtitleContentMode={subtitleContentMode}
+                    subtitleOverlayLayout={subtitleOverlayLayout}
                 />
             )}
         </VisualizerShell>

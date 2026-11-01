@@ -1,5 +1,6 @@
 // Copyright (c) 2026 chthollyphile
 import type { Container, Texture } from 'pixi.js';
+import type { LyricRenderOverride } from '../../../types';
 import type { Line, Theme } from '../../../types';
 import type { Mood } from './hanabiKernel';
 
@@ -378,6 +379,8 @@ export interface HanabiProfile {
 // ─── tuning ────────────────────────────────────────────────────────────
 
 export interface HanabiTuning {
+    /** 分辨率与抗锯齿（#929）：默认跟随「性能与动效」里的全局挡位（utils/lyricRenderQuality.ts）。 */
+    render: LyricRenderOverride;
     /** 配色：跟随主题 / 预设自带的鲜艳配色 / 两者混合。 */
     colorMode: 'theme' | 'vivid' | 'mixed';
     /** 烟花粒子数量倍率 0..2。 */
@@ -417,6 +420,7 @@ export interface HanabiTuning {
 export type HanabiRenderQuality = 'full' | 'balanced' | 'low';
 
 export const DEFAULT_HANABI_TUNING: HanabiTuning = {
+    render: { scale: 'global', antialias: 'global' },
     colorMode: 'mixed',
     sparkAmount: 1,
     ornamentAmount: 1,

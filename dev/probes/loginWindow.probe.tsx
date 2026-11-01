@@ -21,11 +21,12 @@ import { probeAccountController } from './probeAccountController';
  * state of the sign-in is made up here and handed to the window's screen. Nothing is requested;
  * the code is a pattern drawn in this file, the accounts are samples.
  *
- * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6|12&lang=zh|en
+ * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en
  * state: none, preparing, code, scanned, reading, expired, methods, methods-code, browser-ready,
  * browser-opening, browser, account, account-other, account-nameless (signed in, no profile),
  * account-gone (the sign-in ran out while the account was shown), accountless, off, or fail-<case id>.
- * count=12 adds stand-in platforms (the search field shows from 12 up). A test passes the same as props.
+ * count=7–12 fills the column up to that many platforms with stand-ins (the search field shows from 12 up).
+ * A test passes the same as props.
  *
  * state=play walks through a sign-in by itself, at the mock-up's pace: the code, scanned after
  * 0.3 s, confirmed 1.3 s after the scan, the account read 2.1 s after it; then the animation, the
@@ -231,7 +232,7 @@ function LoginWindowProbe(props: ProbeProps) {
         : played && step === 3
             ? PLATFORMS.map(entry => (entry.providerId === played ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
             : PLATFORMS;
-    const rows = orderRows(count > 6 ? [...platforms, ...STAND_INS] : platforms, played ?? activeProviderId);
+    const rows = orderRows([...platforms, ...STAND_INS.slice(0, Math.max(0, count - platforms.length))], played ?? activeProviderId);
     const view: Shown = played
         ? {
             chosen: chosen(played, 'sign-in'),

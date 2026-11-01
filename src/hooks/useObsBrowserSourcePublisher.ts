@@ -162,6 +162,7 @@ export const useObsBrowserSourcePublisher = ({
     const harmonySubtitleBackground = useTypographySettingsStore(state => state.harmonySubtitleBackground);
     const showSubtitleTranslation = useTypographySettingsStore(state => state.showSubtitleTranslation);
     const subtitleContentMode = useTypographySettingsStore(state => state.subtitleContentMode);
+    const subtitleOverlayLayout = useTypographySettingsStore(state => state.subtitleOverlayLayout);
     const cappellaCustomEmojiImages = useVisualizerAssetStore(state => state.cappellaCustomEmojiImages);
     const cappellaCustomAvatarImages = useVisualizerAssetStore(state => state.cappellaCustomAvatarImages);
     const monetPortraitImage = useVisualizerAssetStore(state => state.monetPortraitImage);
@@ -291,6 +292,7 @@ export const useObsBrowserSourcePublisher = ({
             hideTranslationSubtitle,
             showSubtitleTranslation,
             subtitleContentMode,
+            subtitleOverlayLayout,
             seed,
             cappellaCustomEmojiImages: obsCustomImages.cappellaEmoji,
             cappellaCustomAvatarImages: obsCustomImages.cappellaAvatar,
@@ -305,6 +307,7 @@ export const useObsBrowserSourcePublisher = ({
         hideTranslationSubtitle,
         showSubtitleTranslation,
         subtitleContentMode,
+        subtitleOverlayLayout,
         isDaylight,
         lyrics,
         lyricsFontScale,

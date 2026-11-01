@@ -36,6 +36,34 @@ export interface RemoteTrackTransition {
     crossover: number;
 }
 
+/** One row of the play queue as the remote window shows it. Built by the main window. */
+export interface RemoteQueueItem {
+    /** getPlaybackSongKey: the remote names a row by it, so a queue that moved meanwhile still finds it. */
+    readonly key: string;
+    readonly title: string;
+    readonly artist: string;
+    /** Already translated ("Unavailable", "Video"), or empty. */
+    readonly tag: string;
+    /** Normalized: position, title, artists, album, aliases, translated names. */
+    readonly searchText: string;
+}
+
+export type RemoteQueueCommandType = 'queue-play' | 'queue-play-next' | 'queue-move-to-end' | 'queue-remove';
+
+/** A row of the queue acted on from the remote: its key, and where it was in the queue the remote saw. */
+export interface RemoteQueueCommand {
+    type: RemoteQueueCommandType;
+    key: string;
+    index: number;
+}
+
+/** Where the remote window grew to show the queue, and by how much. */
+export interface RemoteQueueExpansion {
+    direction: 'down' | 'up';
+    /** Pixels added to the window's height. */
+    height: number;
+}
+
 export type RemoteControlCommand =
     | { type: 'play-pause' }
     | { type: 'play' }
@@ -57,6 +85,7 @@ export type RemoteControlCommand =
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
     | { type: 'toggle-like' }
+    | RemoteQueueCommand
     | RemoteActionActivation;
 
 export interface RemoteControlSnapshot {
@@ -103,4 +132,13 @@ export interface RemoteControlSnapshot {
     mainWindowWidth?: number;
     mainWindowHeight?: number;
     remoteActions?: RemoteActionsSnapshot;
+    /**
+     * The play queue. Like `lyrics`, only sent when it changed (and on the first publish after the
+     * remote opens); the main process and the remote keep the last one sent.
+     */
+    queue?: readonly RemoteQueueItem[];
+    /** Key of the song the player holds (during an AutoMix blend the incoming one; `trackKey` is the audible one). */
+    queuePlayingKey?: string | null;
+    /** An external stage is playing: the queue can only be played from, not edited. */
+    queueReadOnly?: boolean;
 }

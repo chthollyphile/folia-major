@@ -121,6 +121,15 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
                 run: () => latest.current.forms.openPick({ kind: 'collection' }),
             });
         }
+        // 收进速记簿（core 的 collect-scope）：当前范围，过滤时只收匹配项，不动队列。
+        if (declares('collect-scope') && actions.capabilities.collect) {
+            items.push({
+                id: 'collect-scratchpad',
+                label: t('scratchpad.collectScope'),
+                disabled: view.contextTracks.length === 0,
+                run: () => latest.current.actions.collectScope(),
+            });
+        }
         if (offers('resync-folder')) items.push({ id: 'resync-folder', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncFolder()) });
         if (offers('resync-all-folders')) items.push({ id: 'resync-all-folders', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncAllFolders()) });
         if (offers('organize-song-info')) items.push({ id: 'organize-song-info', label: t('localMusic.organizeSongInfo'), run: runMutation(c => c.organizeSongInfo()) });
@@ -143,7 +152,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             });
         }
         return items;
-    }, [actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.playableTracks.length]);
+    }, [actions.capabilities.collect, actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.contextTracks.length, view.playableTracks.length]);
 
     // 每日推荐的日期步进：‹ 更早 · 日期 · 更近 ›，今天还能「刷新今天」。换日期就是换内容：整面翻牌，不换层。
     const daily = useMemo<BravaisSeamCollection['daily']>(() => {

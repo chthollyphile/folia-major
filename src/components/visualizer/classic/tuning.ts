@@ -1,5 +1,5 @@
 import { DEFAULT_CLASSIC_TUNING, type ClassicTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/classic/tuning.ts
 // Classic's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -17,6 +17,13 @@ const DEFAULT_WORD_SPACING = DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7;
 export default defineVisualizerTuning<ClassicTuning>({
     mode: 'classic',
     defaults: DEFAULT_CLASSIC_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        enableWordRotation: MOD_SWITCH,
+        useLegacyLayout: MOD_SWITCH,
+        breathingFloatMultiplier: modNumber(0, 2),
+        wordSpacing: modNumber(0, 2),
+    },
     settingsKey: 'classicTuning',
     settingsSetterKey: 'handleSetClassicTuning',
     settingsResetterKey: 'handleResetClassicTuning',

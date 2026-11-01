@@ -34,6 +34,10 @@ describe('new features release', () => {
         if (!NEW_FEATURES_RELEASE.majorUpdate) return;
         const label = lookup(LOCALES[locale], 'help.majorUpdateLabel');
         expect(label).toEqual(expect.stringContaining('{{codename}}'));
+        if (!NEW_FEATURES_RELEASE.majorUpdate.servicePack) return;
+        const servicePackLabel = lookup(LOCALES[locale], 'help.servicePackLabel');
+        expect(servicePackLabel).toEqual(expect.stringContaining('{{codename}}'));
+        expect(servicePackLabel).toEqual(expect.stringContaining('{{servicePack}}'));
     });
 
     it('uses card ids once each and the release key that matches the auto-open version', () => {

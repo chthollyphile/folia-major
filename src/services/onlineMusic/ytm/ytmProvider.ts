@@ -1,11 +1,11 @@
 import type { UnifiedSong } from '../../../types';
-import type { OnlineMusicProvider, ProviderUser } from '../../../types/onlineMusic';
+import type { OnlineMusicProvider, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../../utils/songMetadata';
 import { isMacPlatform } from '../../../utils/platform';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { noteYtmAccount, ytmHasPremium } from './ytmAccount';
 import { getYtmTransportAvailability, requestYtm } from './ytmTransport';
-import type { YtmWirePage, YtmWireSong, YtmWireWebLoginState } from './ytmTransport';
+import type { YtmWireCollection, YtmWirePage, YtmWireSong, YtmWireWebLoginState } from './ytmTransport';
 import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, normalizeYtmUser, requireYtmSong } from './ytmNormalize';
 import { clearYtmCatalogCache, ytmCatalog } from './ytmCatalog';
 import { clearYtmLibraryCache, ytmLibrary } from './ytmLibrary';
@@ -32,6 +32,19 @@ const searchPager = createYtmPager<UnifiedSong>();
 // that such a search never starts the listener's search over, and the walks it keeps (the pager
 // holds as many as `searchPager`) only ever make room among themselves.
 const sessionSearchPager = createYtmPager<UnifiedSong>();
+// Album and playlist searches, walked by kind and text as songs are.
+const collectionSearchPager = createYtmPager<ProviderCollection>();
+const searchYtmCollections = (kind: 'album' | 'playlist', query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>> => {
+    const text = query.trim();
+    if (!text) return Promise.resolve({ items: [], total: 0, nextOffset: offset, hasMore: false });
+    return collectionSearchPager.page(`${kind}:${text}`, offset, limit, async continuation => {
+        const page = await requestYtm<YtmWirePage<YtmWireCollection>>(
+            kind === 'album' ? 'search_albums' : 'search_playlists',
+            continuation ? { continuation } : { query: text },
+        );
+        return { items: page.items.map(item => normalizeYtmCollection(item, kind)), continuation: page.continuation };
+    });
+};
 // A letter of any script but Latin.
 const NON_LATIN_LETTER = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
 // The key of the sign-in in progress.
@@ -44,6 +57,7 @@ let loginStarts = 0;
 const forgetPages = (): void => {
     searchPager.clear();
     sessionSearchPager.clear();
+    collectionSearchPager.clear();
     clearYtmCatalogCache();
     clearYtmLibraryCache();
     forgetYtmMusicPage();
@@ -81,6 +95,8 @@ export const ytmProvider: OnlineMusicProvider = {
                 return { items: page.items.map(normalizeYtmSong), continuation: page.continuation };
             });
         },
+        searchAlbums: (query, limit, offset) => searchYtmCollections('album', query, limit, offset),
+        searchPlaylists: (query, limit, offset) => searchYtmCollections('playlist', query, limit, offset),
     },
     playback: {
         async getSongDetail(id) {

@@ -26,8 +26,10 @@ export type AccountCallOp =
     | 'host-logout'
     /** 宿主注入给平台的 per-provider 账户刷新（App 的 onlineProviderRefreshers）。 */
     | 'refresh'
-    /** 切换确认后的宿主清理（账户 controller 的切换清理端口，即应用的 createLibraryAccountSwitchCleanupPort）。 */
+    /** 切换时离开旧平台（账户 controller 的平台端口 leaveProvider，即应用的 createLibraryAccountSwitchCleanupPort）。 */
     | 'switch-cleanup'
+    /** 退出登录时移出那个平台的歌（同一个端口的 dropSongsOf）。 */
+    | 'drop-songs'
     /** 网易本地后端的重启动作（useNeteaseApiStatusStore.restart）。 */
     | 'backend-restart'
     /** 登录失败后的主动自检（provider.runQrLoginSelfCheck）。 */

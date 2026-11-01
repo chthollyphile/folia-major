@@ -15,6 +15,7 @@ import { resolveTileTransition, type BravaisEntrance, type BravaisFlipStep } fro
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
+import BravaisTileQuickActions, { BRAVAIS_QUICK_ACTIONS_MIN_WIDTH } from './BravaisTileQuickActions';
 import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
 import { useBravaisArtistTone } from './bravaisArtistTone';
 import { noteCoverFlightSource } from './bravaisCoverFlight';
@@ -414,6 +415,10 @@ function BravaisTile({
                                 actions={handlers}
                             />
                         ) : (
+                            <>
+                            {rect.width >= BRAVAIS_QUICK_ACTIONS_MIN_WIDTH && (
+                                <BravaisTileQuickActions slotKey={slotKey} item={display} actions={handlers} />
+                            )}
                             <span className="lattice-poster-copy">
                                 <WallTitle
                                     title={display.title}
@@ -423,6 +428,7 @@ function BravaisTile({
                                 />
                                 {display.subtitle && <small>{display.subtitle}</small>}
                             </span>
+                            </>
                         )}
                     </>
                 )}

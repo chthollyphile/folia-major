@@ -83,7 +83,7 @@ import './bravaisSeamLooks.css';
 // 回来时会话结束才算落定；fb3 的正在播放那首在缝开始张开时就展开（2026-10-10）。工具按钮在离开途中仍认领 dock，
 // Lattice 后认领、盖在上面。
 // 空墙说明（BravaisWallHint）：首页的来源因为还没连在线平台、还没导入本地文件夹而空着时，墙面上画一段背景字（wall.hint）。
-// 信息条方向（useLibraryWallLookStore 的 seamDirection；自动时按视口是不是竖着的，转屏时缝合上再换方向张开）：横向时
+// 信息条方向（useLibraryWallLookStore 的 seamDirection；两种自动都按视口是不是竖着的，转屏时缝合上再换方向张开）：横向时
 // 首页窄缝 / 书脊、信息条 / 书脊与搜索框从块的横向缝隙裂开
 // （resolveSeamAxis），墙上下分开；面板、表单与海报仍是竖的。根节点与缝挂 data-bravais-seam-axis（此刻画着的内容的方向）。
 

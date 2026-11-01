@@ -8,7 +8,7 @@ import type { ProviderErrorCode } from '../../../types/onlineMusic';
 export type YtmOperation =
     | 'login_status' | 'logout'
     | 'web_login_start' | 'web_login_check' | 'web_login_cancel' | 'web_login_open'
-    | 'search_songs' | 'song_detail' | 'song_detail_en' | 'song_detail_zh' | 'lyrics' | 'album' | 'artist' | 'playlist' | 'public_playlist' | 'user_playlists' | 'user_albums' | 'audio'
+    | 'search_songs' | 'search_albums' | 'search_playlists' | 'song_detail' | 'song_detail_en' | 'song_detail_zh' | 'lyrics' | 'album' | 'artist' | 'playlist' | 'public_playlist' | 'user_playlists' | 'user_albums' | 'audio'
     | 'explore' | 'mix' | 'playlist_edit' | 'list_save' | 'list_saved' | 'song_like' | 'song_versions' | 'played_as';
 export type YtmParams = Record<string, string | undefined>;
 // `reason`: the desktop side's own word for why a sign-in failed, where it has one.

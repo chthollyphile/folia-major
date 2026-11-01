@@ -39,6 +39,9 @@ const {
   isPointOverRemoteControlStrip,
   clampRemoteControlWindowX,
   resolveRemoteControlWindowPosition,
+  getRemoteControlQueueExpansion,
+  getRemoteControlWindowBounds,
+  getRemoteControlCardPosition,
 } = require('./remoteControlWindowGeometry.cjs');
 const wallpaperWatchdogModule = require('./wallpaper/wallpaperWatchdog.cjs');
 const { requestWallpaperEntryConfirmation } = require('./wallpaper/wallpaperEntryRequest.cjs');
@@ -5165,6 +5168,12 @@ function clearPendingWindowPlaybackHandoffRequests() {
   }
 }
 
+/** The snapshot without its queue, for sends that do not change it (the remote keeps the last one). */
+function withoutRemoteControlQueue(snapshot) {
+  const { queue: _queue, ...rest } = snapshot;
+  return rest;
+}
+
 function patchRemoteControlSnapshot(patch) {
   if (!latestRemoteControlSnapshot) {
     return;
@@ -5175,7 +5184,7 @@ function patchRemoteControlSnapshot(patch) {
     ...latestRemoteControlSnapshot,
     ...patch,
   };
-  sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+  sendRemoteControlSnapshot(withoutRemoteControlQueue(latestRemoteControlSnapshot));
 }
 
 function publishMainWindowClickThroughState() {
@@ -5378,10 +5387,11 @@ function keepRemoteControlCoverOnScreen(win, event, newBounds) {
   if (x !== newBounds.x) {
     // Windows then keeps the window where this puts it, and the drag slides along the edge.
     event.preventDefault();
-    // setBounds rather than setPosition: this window's size is fixed for good (resizable: false,
-    // min === max === REMOTE_CONTROL_WINDOW_WIDTH/HEIGHT). Stating it on every move keeps the
-    // window the size the page is laid out to, instead of leaving the platform to re-derive it.
-    win.setBounds({ x, y: newBounds.y, width: REMOTE_CONTROL_WINDOW_WIDTH, height: REMOTE_CONTROL_WINDOW_HEIGHT });
+    // setBounds rather than setPosition: this window's size is fixed (resizable: false, min ===
+    // max; only showing the queue changes it). Stating it on every move keeps the window the size
+    // the page is laid out to, instead of leaving the platform to re-derive it.
+    const { width, height } = getRemoteControlWindowBounds(newBounds, remoteControlQueueExpansion);
+    win.setBounds({ x, y: newBounds.y, width, height });
   }
 }
 
@@ -5395,8 +5405,60 @@ function bringRemoteControlCoverOnScreen(win) {
   const bounds = win.getBounds();
   const x = clampRemoteControlWindowX(bounds, screen.getAllDisplays().map(display => display.bounds), true);
   if (x !== bounds.x) {
-    win.setBounds({ x, y: bounds.y, width: REMOTE_CONTROL_WINDOW_WIDTH, height: REMOTE_CONTROL_WINDOW_HEIGHT });
+    const { width, height } = getRemoteControlWindowBounds(bounds, remoteControlQueueExpansion);
+    win.setBounds({ x, y: bounds.y, width, height });
   }
+}
+
+// The play queue opens below or above the card, wherever the screen has room
+// (getRemoteControlQueueExpansion), so the window grows that way and the card stays where it is.
+// While shown it keeps that side; a queue that gets longer or shorter only changes the height.
+// What is remembered as the window's spot is always the card's (getRemoteControlCardPosition).
+let remoteControlQueueExpansion = null;
+
+function resizeRemoteControlWindow(win, bounds) {
+  const current = win.getBounds();
+  // min === max: open the limit on the side the window moves to first, or the platform clamps it.
+  if (bounds.height >= current.height) {
+    win.setMaximumSize(bounds.width, bounds.height);
+    win.setMinimumSize(bounds.width, bounds.height);
+  } else {
+    win.setMinimumSize(bounds.width, bounds.height);
+    win.setMaximumSize(bounds.width, bounds.height);
+  }
+  win.setBounds(bounds);
+}
+
+/**
+ * Shows the queue `wantedHeight` px tall (null hides it); returns where it went, or null. With
+ * `preview` it only says where it would go: the page anchors the card on that side first, so the
+ * window can then grow without the card moving. `direction` is the side the page anchored for; it
+ * is kept while it has room, as is the side of a queue already shown.
+ */
+function setRemoteControlQueueExpansion(win, wantedHeight, { preview = false, direction = null } = {}) {
+  if (!win || win.isDestroyed()) {
+    return null;
+  }
+
+  const card = getRemoteControlCardPosition(win.getBounds(), remoteControlQueueExpansion);
+  const cardBounds = getRemoteControlWindowBounds(card, null);
+  const next = Number.isFinite(wantedHeight) && wantedHeight > 0
+    ? getRemoteControlQueueExpansion(
+      cardBounds,
+      onWayland ? null : screen.getDisplayMatching(cardBounds).workArea,
+      wantedHeight,
+      remoteControlQueueExpansion?.direction ?? direction,
+    )
+    : null;
+  if (preview) {
+    return next;
+  }
+  if (next?.direction !== remoteControlQueueExpansion?.direction || next?.height !== remoteControlQueueExpansion?.height) {
+    console.info('[RemoteControl] Queue', next ? `shown ${next.direction}, ${next.height} px` : 'hidden');
+  }
+  remoteControlQueueExpansion = next;
+  resizeRemoteControlWindow(win, getRemoteControlWindowBounds(card, next));
+  return next;
 }
 
 // Wallpaper mode (Wayland): windowtolayer turns the first window it sees into the layer
@@ -5441,7 +5503,7 @@ function createRemoteControlWindow() {
 
   ensureWallpaperLayerHeldByMainWindow();
 
-  // Never resized after this: the idle look and the card in use are both drawn in this size.
+  // Only resized to show the play queue: the idle look and the card in use are both drawn in this size.
   const workArea = screen.getPrimaryDisplay().workArea;
   const position = getRestoredRemoteControlWindowPosition()
     ?? getInitialRemoteControlWindowPosition(workArea);
@@ -5478,6 +5540,7 @@ function createRemoteControlWindow() {
   });
 
   remoteControlWindow = win;
+  remoteControlQueueExpansion = null;
   remoteControlPointerInside = false;
   remoteControlMouseIgnored = false;
   clearInterval(remoteControlPointerTimer);
@@ -5505,7 +5568,7 @@ function createRemoteControlWindow() {
   const persistRemoteControlPosition = () => {
     clearRemoteControlPositionSaveTimer();
     if (!win.isDestroyed()) {
-      const { x, y } = win.getBounds();
+      const { x, y } = getRemoteControlCardPosition(win.getBounds(), remoteControlQueueExpansion);
       store.set(REMOTE_CONTROL_WINDOW_POSITION_SETTING_KEY, { x, y });
     }
   };
@@ -5531,6 +5594,7 @@ function createRemoteControlWindow() {
     clearRemoteControlPositionSaveTimer();
     if (remoteControlWindow === win) {
       remoteControlWindow = null;
+      remoteControlQueueExpansion = null;
       clearInterval(remoteControlPointerTimer);
       remoteControlPointerTimer = null;
     }
@@ -7412,6 +7476,14 @@ ipcMain.handle('stage-complete-player-queue', (event, result) => {
   return stageApi.completeStagePlayerQueueRequest(result);
 });
 
+ipcMain.handle('stage-complete-player-search', (event, result) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to complete a Stage player search request.');
+  }
+
+  return stageApi.completeStagePlayerSearchRequest(result);
+});
+
 // Created on first use: globalShortcut only works once the app is ready, and the renderer asks
 // only after its window has loaded.
 let globalShortcutController = null;
@@ -7556,6 +7628,21 @@ ipcMain.handle('remote-control-get-pointer-inside', (event) => {
   return remoteControlPointerInside;
 });
 
+ipcMain.handle('remote-control-set-queue-expansion', (event, wantedHeight, options) => {
+  if (!isTrustedRemoteControlContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to resize the remote control window.');
+  }
+
+  return setRemoteControlQueueExpansion(
+    remoteControlWindow,
+    typeof wantedHeight === 'number' ? wantedHeight : null,
+    {
+      preview: options?.preview === true,
+      direction: options?.direction === 'up' || options?.direction === 'down' ? options.direction : null,
+    },
+  );
+});
+
 ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to publish remote control state.');
@@ -7566,13 +7653,20 @@ ipcMain.handle('remote-control-publish-snapshot', (event, snapshot) => {
       ...(latestRemoteControlSnapshot && !Object.prototype.hasOwnProperty.call(snapshot, 'lyrics')
         ? { lyrics: latestRemoteControlSnapshot.lyrics }
         : {}),
+      // The queue, like the lyrics, is only sent when it changed.
+      ...(latestRemoteControlSnapshot && !Object.prototype.hasOwnProperty.call(snapshot, 'queue')
+        ? { queue: latestRemoteControlSnapshot.queue }
+        : {}),
       ...snapshot,
       mainWindowClickThroughEnabled,
       mainWindowAlwaysOnTop,
     }
     : null;
   if (latestRemoteControlSnapshot) {
-    sendRemoteControlSnapshot(latestRemoteControlSnapshot);
+    // The remote keeps the queue it was last sent: forward it only when this publish carried it.
+    sendRemoteControlSnapshot(Object.prototype.hasOwnProperty.call(snapshot, 'queue')
+      ? latestRemoteControlSnapshot
+      : withoutRemoteControlQueue(latestRemoteControlSnapshot));
   }
   return true;
 });

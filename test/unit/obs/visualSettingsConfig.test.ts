@@ -161,7 +161,9 @@ describe('buildVisualSettingsConfig', () => {
 
         expect(buildVisualSettingsConfig()).toMatchObject({ sonnetTuning });
         const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(buildVisualSettingsConfig()))));
-        expect(restored.sonnetTuning).toEqual(sonnetTuning);
+        // 旧的单独短码字段不带 render（分辨率与抗锯齿的覆盖随 visualizerTunings 那一包走），导入时本机的保留。
+        const { render: _render, ...carried } = sonnetTuning;
+        expect(restored.sonnetTuning).toEqual(carried);
     });
 
     it('carries the theme generation source through compress and decompress', () => {

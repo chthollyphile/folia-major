@@ -55,7 +55,7 @@ const EMPTY_REMOTE_SNAPSHOT: RemoteControlSnapshot = {
     updatedAt: 0,
 };
 
-/** The latest snapshot. The 500 ms publishes leave the lyrics out, so the last lyrics sent are kept. */
+/** The latest snapshot. The 500 ms publishes leave the lyrics and the queue out, so the last ones sent are kept. */
 export const useRemoteSnapshot = (): RemoteControlSnapshot => {
     const [snapshot, setSnapshot] = useState<RemoteControlSnapshot>(EMPTY_REMOTE_SNAPSHOT);
 
@@ -76,6 +76,9 @@ export const useRemoteSnapshot = (): RemoteControlSnapshot => {
                 lyrics: Object.prototype.hasOwnProperty.call(nextSnapshot, 'lyrics')
                     ? nextSnapshot.lyrics ?? null
                     : previous.lyrics ?? null,
+                queue: Object.prototype.hasOwnProperty.call(nextSnapshot, 'queue')
+                    ? nextSnapshot.queue
+                    : previous.queue,
             }));
         });
 

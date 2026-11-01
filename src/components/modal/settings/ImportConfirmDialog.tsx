@@ -54,6 +54,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     hidePlayerTranslationSubtitle: 'options.hidePlayerTranslationSubtitle',
     showSubtitleTranslation: 'options.showSubtitleTranslation',
     subtitleContentMode: 'options.subtitleContentMode',
+    subtitleOverlayLayout: 'options.subtitleOverlayRows',
     subtitleOverlayBackground: 'options.subtitleOverlayBackground',
     subtitleOverlayOpacity: 'options.subtitleOverlayOpacity',
     showHarmonySubtitle: 'options.showHarmonySubtitle',

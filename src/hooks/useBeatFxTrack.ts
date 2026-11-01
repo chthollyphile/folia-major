@@ -2,8 +2,9 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
-import { liveBeatEffects, liveBeatEffectStrength, visualizerWantsBeats, visualizerWantsDrumHits } from '../components/visualizer/beatClockTargets';
-import { anyDrumBeatEffectOn, resolveBeatEffectSetting, smartBeatMayAnalyse } from '../services/beatFx/beatEffects';
+import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
+import { liveBeatEffects, liveBeatEffectStrength, visualizerWantsBeats, visualizerWantsDrumHits, visualizerWantsStems } from '../components/visualizer/beatClockTargets';
+import { anyDrumBeatEffectOn, beatEffectPartId, resolveBeatEffectPartStrength, resolveBeatEffectSetting, smartBeatMayAnalyse } from '../services/beatFx/beatEffects';
 import { beginBeatFxTrack, getBeatFxHeard, setBeatFxEvents, setBeatFxIntensities, setBeatFxLiveEffects, stopBeatFx } from '../services/beatFx/beatFxLive';
 import { loadBeatFxTrackBeats, loadBeatFxTrackDrums } from '../services/beatFx/beatFxSource';
 import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../services/playbackRecovery/representationRegistry';
@@ -19,7 +20,8 @@ import { setStemDrumsWanted } from '../services/analysis/stemRange';
 // and every live effect's strength. Only the track identity, those answers and the strengths enter
 // React; the per-frame clock lives in services/beatFx/beatFxLive. While a live effect on screen plays
 // drum hits (时计's 仿真鼓面), the track's drum hits are read, on their own: a picture with no live
-// beat-list effect never runs beat_this, and the clock then only carries the track and its time.
+// beat-list effect never runs beat_this, and the clock then only carries the track and its time. A live
+// effect that reads the vocal envelope too (雾笺's 疏雨轻车) asks the same separation for the vocal stem.
 // A drum separation started for the track stops (at its next segment) when the picture, the track or
 // the switch changes, and keeps where it was to carry on from when 时计 is back (see the note at the
 // end; until the analysis service's 2b it ran on behind another picture).
@@ -36,18 +38,28 @@ const RETRY_DELAY_MS = 3000;
 /** Whether the beat clock should be stepped; the caller's frame loop reads it. */
 export function useBeatFxTrack(): boolean {
     const staticMode = useThemeSettingsStore(state => state.staticMode);
-    const beatsWanted = useVisualizerSettingsStore(state => visualizerWantsBeats(state)) && !staticMode;
-    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits(state)) && !staticMode;
-    const wanted = beatsWanted || drumsWanted;
+    // A see-through player page draws no background, so the background's effects do not count (beatClockTargets.ts).
+    const pageTransparent = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground || state.enablePlayerPageNativeBlur);
+    const beatsWanted = useVisualizerSettingsStore(state => visualizerWantsBeats({ ...state, pageTransparent })) && !staticMode;
+    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits({ ...state, pageTransparent })) && !staticMode;
+    // 雾笺's 疏雨轻车 reads the drum hits and the vocal envelope, which the same separation reads (analysis/vocalEnvelope.ts).
+    const vocalsWanted = useVisualizerSettingsStore(state => visualizerWantsStems({ ...state, pageTransparent })) && !staticMode;
+    const separationWanted = drumsWanted || vocalsWanted;
+    const wanted = beatsWanted || separationWanted;
     // `cached`: read what is stored, never run a model (SmartBeatMode).
     const storedOnly = !useVisualizerSettingsStore(state => smartBeatMayAnalyse(state.smartBeat));
     // Read by the drum hits' retries, which must not restart (and so cancel a separation) when it changes.
     const beatsWantedRef = useRef(beatsWanted);
     beatsWantedRef.current = beatsWanted;
-    const beatStrength = useVisualizerSettingsStore(state => liveBeatEffectStrength(state, 'beats'));
-    // The live effects and their strengths as one string, so the store's other changes do not re-render.
-    const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects(state)
-        .map(effect => `${effect.id}=${resolveBeatEffectSetting(state.smartBeat, effect.id).strength}`)
+    const beatStrength = useVisualizerSettingsStore(state => liveBeatEffectStrength({ ...state, pageTransparent }, 'beats'));
+    // The live effects and their strengths as one string, so the store's other changes do not re-render;
+    // an effect's parts each under their own id (beatEffectPartId) beside it.
+    const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects({ ...state, pageTransparent })
+        .flatMap((effect) => {
+            const setting = resolveBeatEffectSetting(state.smartBeat, effect.id);
+            return [`${effect.id}=${setting.strength}`, ...(effect.parts ?? [])
+                .map(part => `${beatEffectPartId(effect.id, part.key)}=${resolveBeatEffectPartStrength(setting, part.key)}`)];
+        })
         .join(','));
     // Asked again when htdemucs_gpu's answer arrives (the startup check; the file ships with the app).
     const drumModel = useSyncExternalStore(subscribeModelAvailability, modelsPresent).htdemucs_gpu;
@@ -138,12 +150,12 @@ export function useBeatFxTrack(): boolean {
     }, [identity, wanted, beatsWanted, storedOnly]);
 
     useEffect(() => {
-        if (!drumsWanted || !identity || !song) return undefined;
+        if (!separationWanted || !identity || !song) return undefined;
         let left = false;
         let retryTimer: ReturnType<typeof setTimeout> | null = null;
         // The hits are read off getDrumHits by the frame loop once in; a track with none plays nothing.
         const load = (attempt: number) => {
-            const { key, drums } = loadBeatFxTrackDrums(song, { storedOnly });
+            const { key, drums } = loadBeatFxTrackDrums(song, { storedOnly, vocals: vocalsWanted });
             // A retry may resolve another key (a transcode registered meanwhile); with no beats to
             // follow it, the clock follows the drum hits' key, which they are looked up under.
             if (!beatsWantedRef.current && key !== getBeatFxHeard().key) beginBeatFxTrack(key);
@@ -164,7 +176,7 @@ export function useBeatFxTrack(): boolean {
         };
         // Keyed like the lookup above.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [identity, drumsWanted, drumModel, storedOnly]);
+    }, [identity, separationWanted, vocalsWanted, drumModel, storedOnly]);
 
     // Until the analysis service's 2b: a separation still running stopped (at its next segment) when the
     // track changed, or 智能动感模式 or static mode was switched off - not when the picture did. Stopped

@@ -4,9 +4,11 @@ import { DEFAULT_LUMIERE_TUNING, type LumiereRenderQuality, type LumiereTuning }
 import { Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 
 // src/components/visualizer/lumiere/LumiereSettingsPanel.tsx
-// 绘光的参数面板：光、氛围、文字、主题、性能五组，每组是设置套件的一个 Group；滑块遵循 VisPlayground 的草稿 / 松手提交语义。
+// 绘光的参数面板：光、氛围、文字、主题、性能、渲染（分辨率 / 抗锯齿，#929）几组，每组是设置套件的一个 Group；
+// 滑块遵循 VisPlayground 的草稿 / 松手提交语义。性能组的画质档只降图形组，渲染组的分辨率倍数乘在整张画布上，两者相乘。
 
 type NumberKey = { [K in keyof LumiereTuning]: LumiereTuning[K] extends number ? K : never }[keyof LumiereTuning];
 type BooleanKey = { [K in keyof LumiereTuning]: LumiereTuning[K] extends boolean ? K : never }[keyof LumiereTuning];
@@ -25,6 +27,7 @@ const ATMOSPHERE_GROUP: SettingsGroupDef = { id: 'vis-lumiere-atmosphere', title
 const TEXT_GROUP: SettingsGroupDef = { id: 'vis-lumiere-text', titleKey: 'options.lumiereTextSection' };
 const THEME_GROUP: SettingsGroupDef = { id: 'vis-lumiere-theme', titleKey: 'options.lumiereThemeSection' };
 const PERFORMANCE_GROUP: SettingsGroupDef = { id: 'vis-lumiere-performance', titleKey: 'options.lumierePerformanceSection' };
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-lumiere-render', titleKey: 'options.lyricRenderSection' };
 
 const LIGHT_CONTROLS: ControlSpec[] = [
     slider('lightIntensity', 'options.lumiereLightIntensity', 0.3, 2),
@@ -138,6 +141,13 @@ const LumiereSettingsPanel: React.FC<VisualizerSettingsPanelProps<LumiereTuning>
                         onChange={renderQuality => onLumiereTuningChange?.({ renderQuality })}
                     />
                 </Row>
+            </Group>
+
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={lumiereTuning.render}
+                    onChange={patch => onLumiereTuningChange?.({ render: { ...lumiereTuning.render, ...patch } })}
+                />
             </Group>
         </>
     );

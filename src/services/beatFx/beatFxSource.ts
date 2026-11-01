@@ -2,6 +2,9 @@ import type { SongResult } from '../../types';
 import { mergeBeatFxEvents, type BeatFxEvent } from './clock';
 import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
 import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
+import { getVocalEnvelope, loadStoredVocalEnvelope } from '../analysis/vocalEnvelope';
+import { loadTrackVocalEnvelope, releaseTrackVocals } from '../analysis/vocalStemRun';
+import { getBeatFxLastHeard } from './beatFxLive';
 import { BEAT_THIS_SAMPLE_RATE, canRunBeatThis } from '../analysis/beatThis';
 import { decodeAtRate, readLocalTrackBytes, toMidSide } from '../analysis/trackAudio';
 import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../analysis/trackBytes';
@@ -224,11 +227,16 @@ export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
  * (Since the analysis service's 2b, a picture switch too: the separation stops and keeps where it was,
  * DrumResume in drumHits.ts; from the PR #750 review.)
  * `storedOnly` (智能动感模式's `cached`): the cache alone, 'hits' or 'none', and no track is wanted.
+ * `vocals`: the vocal envelope is read too (analysis/vocalStemRun.ts, a task on the same stem run as
+ * the drum hits), and 'hits' once either is in (`getVocalEnvelope` answers for the key). Without it, a
+ * voice still being read for the track is let go there (雾笺 back to 时计): the drums carry on.
  */
-export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false } = {}): { key: string; drums: Promise<BeatFxTrackDrums> } => {
+export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false, vocals = false } = {}): { key: string; drums: Promise<BeatFxTrackDrums> } => {
     const { key, representation } = getPlaybackAnalysisTarget(song);
+    const found = () => Boolean(getDrumHits(key) || (vocals && getVocalEnvelope(key)));
     if (storedOnly) {
-        const drums = loadStoredDrumHits(key).then((analysis): BeatFxTrackDrums => (analysis && getDrumHits(key) ? 'hits' : 'none'));
+        const drums = Promise.all([loadStoredDrumHits(key), vocals ? loadStoredVocalEnvelope(key) : null])
+            .then((): BeatFxTrackDrums => (found() ? 'hits' : 'none'));
         return { key, drums };
     }
     setWantedDrumTrack(key);
@@ -238,7 +246,13 @@ export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false } = 
         if (!read.bytes) missing = true;
         return read.bytes;
     };
-    const drums = loadTrackDrumHits(key, readBytes)
-        .then((analysis): BeatFxTrackDrums => (analysis && getDrumHits(key) ? 'hits' : missing ? 'retry' : 'none'));
+    // The voice from where the track was heard when it was asked for (analysis/vocalStemRun.ts), or
+    // from earlier if it was sought back before the separation started: what follows the switch is
+    // what was asked for, and a run starts seconds later (a stop, a decode).
+    const askedAt = getBeatFxLastHeard(key);
+    if (!vocals) releaseTrackVocals(key);
+    const voice = vocals ? loadTrackVocalEnvelope(key, readBytes, { at: () => Math.min(askedAt, getBeatFxLastHeard(key)), seconds: (song.durationMs || 0) / 1000 }) : null;
+    const drums = Promise.all([loadTrackDrumHits(key, readBytes), voice])
+        .then(([analysis, envelope]): BeatFxTrackDrums => ((analysis || envelope) && found() ? 'hits' : missing ? 'retry' : 'none'));
     return { key, drums };
 };

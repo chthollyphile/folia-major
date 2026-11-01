@@ -663,6 +663,36 @@ const normalizeKugouSearchSongs = (rawItems: any[]): UnifiedSong[] => {
         });
 };
 
+// 搜专辑（`/search?type=album`）和歌单（`type=special`）。2026-10-31 实测两种不带账号也有结果，条目在 data.lists：
+// 专辑给 albumid / albumname / singers / img / publish_time / songcount，歌单给 specialid / specialname / gid /
+// nickname / img / song_count / total_play_count。歌单按 gid（global_collection_id）读歌（`/playlist/track/all`），
+// specialid 读不出来，所以把 gid 当成 global_collection_id 交给 normalizeCollection。
+const searchKugouCollections = async (
+    kind: 'album' | 'playlist',
+    query: string,
+    limit: number,
+    offset: number,
+): Promise<ProviderPage<ProviderCollection>> => {
+    if (!query.trim()) return { items: [], hasMore: false, nextOffset: offset };
+    const page = Math.floor(offset / limit) + 1;
+    const response = await requestKugou('search', {
+        keywords: query, keyword: query, type: kind === 'album' ? 'album' : 'special', page, pagesize: limit,
+    });
+    const rawItems = listOf(response);
+    const items = rawItems.flatMap((raw: any): ProviderCollection[] => {
+        const collection = kind === 'album'
+            ? normalizeCollection({ ...raw, album_id: raw?.albumid, album_name: raw?.albumname, song_count: raw?.songcount }, 'album')
+            : normalizeCollection({ ...raw, global_collection_id: raw?.gid, play_count: raw?.total_play_count ?? raw?.play_count }, 'playlist');
+        if (collection.id === '') return [];
+        // 歌单的创建者只有一个昵称（nickname / suid），normalizeCollection 不读它。
+        const nickname = kind === 'playlist' && typeof raw?.nickname === 'string' ? raw.nickname.trim() : '';
+        return [nickname ? { ...collection, creator: { id: raw?.suid ?? '', nickname } } : collection];
+    });
+    const paged = pageOfWithRawItemCount(items, response, limit, offset, rawItems.length);
+    // 按页码翻：一页不满 limit 条时，offset + 条数会让下一次又落回这一页。
+    return { ...paged, hasMore: paged.hasMore && rawItems.length > 0, nextOffset: rawItems.length > 0 ? page * limit : offset };
+};
+
 // 首页带凭据搜索空、匿名有结果后，后续页仍会走带凭据搜索；记住关键词，别让列表断在第一页。
 // 首页带凭据搜索重新有结果时再忘掉它；上限只防长期运行累积，登出（含会话失效）时整组清掉。
 // 换号不另清：记录只在翻后续页时查，换号后新搜一个词的第一页照样先走带凭据搜索，记录跟着更新。
@@ -1109,6 +1139,8 @@ export const kugouProvider: OnlineMusicProvider = {
                 rawItems.length,
             );
         },
+        searchAlbums: (query, limit, offset) => searchKugouCollections('album', query, limit, offset),
+        searchPlaylists: (query, limit, offset) => searchKugouCollections('playlist', query, limit, offset),
     },
     playback: {
         async getSongDetail(id) {

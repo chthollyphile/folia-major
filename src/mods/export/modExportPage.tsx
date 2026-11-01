@@ -6,6 +6,8 @@ import './modExportPage.css';
 import { DEFAULT_THEME } from '@/services/baseThemes';
 import { getVisualizerRegistryEntry, hasVisualizerMode } from '@/components/visualizer/registry';
 import { applyVisualizerTuning, type VisualizerTuningBundle } from '@/components/visualizer/tuningRegistry';
+import { LyricRenderQualityPinContext } from '@/components/visualizer/renderQuality/lyricRenderQualityPin';
+import { DEFAULT_LYRIC_RENDER_QUALITY } from '@/utils/lyricRenderQuality';
 import { reconcileFoliumClients } from '../runtime/clientLoader';
 import { waitForExportMode } from './exportStart';
 import { hydrateFoliumParamsForExport } from '../params/paramStore';
@@ -191,7 +193,10 @@ const ModExportPage: React.FC = () => {
             style={{ backgroundColor: containerBackground }}
         >
             {config ? (
-                <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
+                <LyricRenderQualityPinContext.Provider value={DEFAULT_LYRIC_RENDER_QUALITY}>
+                    {/* 导出固定按 1×、各样式默认的抗锯齿画：不跟「性能与动效」的挡位和样式自己的覆盖。 */}
+                    <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
+                </LyricRenderQualityPinContext.Provider>
             ) : (
                 <div />
             )}

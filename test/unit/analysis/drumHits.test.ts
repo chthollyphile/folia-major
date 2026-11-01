@@ -87,7 +87,6 @@ describe('drum stem', () => {
         const reached = 12 + 16;
         const resumed = startDrumStem(50);
         resumed.drums.set(progress.drums.slice(tailStart, reached), tailStart);
-        resumed.weight.set(progress.weight.slice(tailStart, reached), tailStart);
         resumed.next = progress.next;
         resumed.divided = progress.divided;
         const carried = await separateDrumStem(left, right, undefined, undefined, resumed);

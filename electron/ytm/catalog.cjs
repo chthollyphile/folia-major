@@ -75,6 +75,24 @@ function albumFromCard(item, artists = []) {
   };
 }
 
+// An album or playlist row of a search (`music.search` with type 'album' or 'playlist'). Its one
+// artist or maker is the row's `author`; its art is a list thumbnail. A playlist's row leads to the
+// page `VL` and the list's id (measured 2026-10-31), and goes by the list's id as the explore page's do.
+function albumFromSearchItem(item) {
+  return albumFromCard({ ...item, thumbnail: item?.thumbnail?.contents ?? item?.thumbnails, artists: item?.artists ?? (item?.author ? [item.author] : []) });
+}
+
+function playlistFromSearchItem(item) {
+  const browseId = str(item?.id);
+  const id = browseId.startsWith('VL') ? browseId.slice(2) : '';
+  if (!id) return null;
+  const maker = artistsOf(item.author ? [item.author] : []);
+  return {
+    id, type: 'playlist', name: str(item.title), coverUrl: thumbnailUrl(item.thumbnail?.contents ?? item.thumbnails),
+    ...(maker.length > 0 ? { artists: maker } : {}),
+  };
+}
+
 // The list id in a YouTube Music address (`…/playlist?list=OLAK5uy_…`), or '' when it names none.
 const listIdOf = url => {
   try { return new URL(str(url)).searchParams.get('list') ?? ''; } catch { return ''; }
@@ -168,6 +186,6 @@ function lrcFromLyricsPage(page) {
 }
 
 module.exports = {
-  albumFromCard, albumFromPage, artistFromPage, lrcFromLyricsPage, lyricsBrowseId, songFromListItem, songFromQueueItem,
+  albumFromCard, albumFromPage, albumFromSearchItem, playlistFromSearchItem, artistFromPage, lrcFromLyricsPage, lyricsBrowseId, songFromListItem, songFromQueueItem,
   thumbnailUrl,
 };

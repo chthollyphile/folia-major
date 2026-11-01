@@ -11,6 +11,7 @@ import { useVisualizerAssetStore } from '../../../../../stores/useVisualizerAsse
 import { useVisualizerSettingsStore } from '../../../../../stores/useVisualizerSettingsStore';
 import type { DualTheme, ThemeMode, UrlBackgroundItem } from '../../../../../types';
 import { decompressConfig, readSavedCustomTheme } from '../../../../../utils/appearanceCodec';
+import { parseSubtitleOverlayLayout } from '../../../../../utils/lyrics/subtitleOverlayLayout';
 import { ACTIVATE_CUSTOM_THEME_KEY, buildImportPlan, THEME_DARK_KEY, THEME_LIGHT_KEY, type ImportPlan } from '../../../../../utils/appearanceImportPlan';
 import { isFontFamilyAvailable } from '../../../../../utils/fontAvailability';
 import { isLibraryWallSeamStyle } from '../../../../../utils/libraryWallSeamStyle';
@@ -152,6 +153,10 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
             || config.subtitleContentMode === 'both'
             || config.subtitleContentMode === 'none')) {
         storeTypographySettings.handleSetSubtitleContentMode(config.subtitleContentMode);
+    }
+    const subtitleOverlayLayout = has('subtitleOverlayLayout') ? parseSubtitleOverlayLayout(config.subtitleOverlayLayout) : null;
+    if (subtitleOverlayLayout) {
+        storeTypographySettings.handleSetSubtitleOverlayLayout(subtitleOverlayLayout);
     }
     if (has('subtitleOverlayBackground')) {
         storeTypographySettings.handleToggleSubtitleOverlayBackground(Boolean(config.subtitleOverlayBackground));

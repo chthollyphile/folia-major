@@ -259,6 +259,7 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
                 hideTranslationSubtitle={appearance.hideTranslationSubtitle}
                 showSubtitleTranslation={appearance.showSubtitleTranslation}
                 subtitleContentMode={appearance.subtitleContentMode}
+                subtitleOverlayLayout={appearance.subtitleOverlayLayout}
                 isPlayerChromeHidden={true}
             />
         </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Disc, Pause, Play, Plus, X } from 'lucide-react';
+import { Disc, NotebookPen, Pause, Play, Plus, Star, X } from 'lucide-react';
 import type { SongResult, UnifiedSong } from '../../../../types';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { canResolveSongCatalogRef } from '../../../../services/onlineMusic/catalogRefs';
@@ -221,3 +221,43 @@ export const PolaroidCardActions: React.FC<{
         )}
     </div>
 );
+
+/**
+ * 封面右上角的两颗悬浮按钮：加入速记簿、收藏到歌单（应用的歌单选择器，含「我喜欢」）。平时看不见也点不到，指针移到卡片上
+ * （卡片根节点的 group/card）或键盘聚焦到它们时才出现；只是 CSS 显隐，不为悬停多一次 React 渲染。编辑模式里不出。
+ * 没有悬停的设备（触屏）只在聚焦的那张上常驻，免得点卡片右上角时误触看不见的按钮。
+ */
+export const PolaroidCardQuickActions: React.FC<{
+    onCollect?: () => void;
+    onSaveToPlaylist?: () => void;
+    isFocused: boolean;
+    t: any;
+}> = ({ onCollect, onSaveToPlaylist, isFocused, t }) => {
+    if (!onCollect && !onSaveToPlaylist) return null;
+    const buttons = [
+        ...(onCollect ? [{ id: 'collect', label: t('scratchpad.collect'), icon: NotebookPen, run: onCollect }] : []),
+        ...(onSaveToPlaylist ? [{ id: 'save-to-playlist', label: t('playlist.saveToPlaylist'), icon: Star, run: onSaveToPlaylist }] : []),
+    ];
+    return (
+        <div className={`absolute right-2 top-2 z-20 flex gap-1.5 opacity-0 pointer-events-none transition-opacity duration-150 group-hover/card:opacity-100 group-hover/card:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto${isFocused ? ' [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto' : ''}`}>
+            {buttons.map(({ id, label, icon: Icon, run }) => (
+                <button
+                    key={id}
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // 鼠标点的：焦点别留在按钮上（否则网格的方向键被它挡住、按钮一直亮着）。
+                        if (e.detail > 0) e.currentTarget.blur();
+                        run();
+                    }}
+                    className="w-8 h-8 rounded-full bg-black/55 text-white hover:bg-black/75 flex items-center justify-center shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                    title={label}
+                    aria-label={label}
+                    data-grid-card-quick={id}
+                >
+                    <Icon size={14} />
+                </button>
+            ))}
+        </div>
+    );
+};

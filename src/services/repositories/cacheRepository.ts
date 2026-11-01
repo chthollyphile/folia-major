@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import { isBeatGridKey, isDrumHitsKey } from '../analysis/beatGridKeys';
+import { isBeatGridKey, isDrumHitsKey, isVocalEnvelopeKey } from '../analysis/beatGridKeys';
 import {
   appDatabase,
   LOCAL_LIBRARY_ARTIST_SPLIT_MARKER_KEY,
@@ -36,6 +36,7 @@ export const getCacheTableName = (key: string): CacheTableName => {
     key.startsWith('volume_balance_') ||
     isBeatGridKey(key) ||
     isDrumHitsKey(key) ||
+    isVocalEnvelopeKey(key) ||
     key.startsWith('lyric_') ||
     key.startsWith('theme_') ||
     key.startsWith('replayGain_') ||

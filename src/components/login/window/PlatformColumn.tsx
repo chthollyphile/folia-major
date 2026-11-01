@@ -22,6 +22,32 @@ const SEARCH_FROM = 12;
  */
 const ROW_SIZE = 'min-h-[46px] max-h-[68px] flex-[1_1_0]';
 
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * 一行在列表内容里的位置和大小，带小数。不用 offset*：它们取整，各行平分列高时最后一行取整后的底边
+ * 可能比列表多 1px，高亮块就把列表撑出滚动条；滚动条让行变窄、溢出消失，再量又变回去，
+ * 来回不停到 React 报更新层数超限（#913）。getBoundingClientRect 带着祖先的缩放（窗口打开时的动画），
+ * 所以用行的布局高度把缩放除掉。行没排版（display: none、jsdom）时布局高度是 auto，就不除。
+ */
+const measureRow = (list: HTMLElement, row: HTMLElement): Box => {
+    const listRect = list.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const height = parseFloat(getComputedStyle(row).height);
+    const scale = height > 0 && rowRect.height > 0 ? rowRect.height / height : 1;
+    return {
+        x: (rowRect.left - listRect.left) / scale - list.clientLeft + list.scrollLeft,
+        y: (rowRect.top - listRect.top) / scale - list.clientTop + list.scrollTop,
+        w: rowRect.width / scale,
+        h: rowRect.height / scale,
+    };
+};
+
+/** 量出来的数差不到 0.01px 算没变：除掉缩放的那一下有浮点误差。 */
+const sameBox = (a: Box | null, b: Box | null): boolean => (
+    a === b || (a !== null && b !== null && [a.x - b.x, a.y - b.y, a.w - b.w, a.h - b.h].every(d => Math.abs(d) < 0.01))
+);
+
 /** 竖着的一行名字下面那一句：登录着的是谁，或者这个平台此刻的状态。 */
 const RowNote: React.FC<{ row: ProviderAccountSummary; status: RowStatus }> = ({ row, status }) => {
     const { t } = useTranslation();
@@ -58,7 +84,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
     const [pointed, setPointed] = useState<OnlineProviderId | null>(null);
     const lit = shown.find(row => row.providerId === pointed) ?? shown.find(row => row.providerId === chosenId) ?? null;
     const listRef = useRef<HTMLDivElement>(null);
-    const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [box, setBox] = useState<Box | null>(null);
     // 列表的哪一头后面还有行：那一头淡出。
     const [more, setMore] = useState({ before: false, after: false });
     const rowOf = (providerId: OnlineProviderId | null | undefined) => (
@@ -67,9 +93,10 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
 
     // 高亮那一块的位置和大小，每次画完从它所在的行量一遍（行的宽度跟着名字、头像和语言变）；数没变就不动。
     useLayoutEffect(() => {
+        const list = listRef.current;
         const row = rowOf(lit?.providerId);
-        const next = row ? { x: row.offsetLeft, y: row.offsetTop, w: row.offsetWidth, h: row.offsetHeight } : null;
-        setBox(current => (current?.x === next?.x && current?.y === next?.y && current?.w === next?.w && current?.h === next?.h ? current : next));
+        const next = list && row ? measureRow(list, row) : null;
+        setBox(current => (sameBox(current, next) ? current : next));
     });
 
     // 选中的行换了，把它滚进来。指针指着的行不滚：列表不在指针底下自己动，指针移开也不跳回去。

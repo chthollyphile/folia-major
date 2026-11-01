@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useSpring, useTransform } from 'framer-motion';
 import { Star, type LucideIcon } from 'lucide-react';
 import { DEFAULT_PENDOLO_TUNING } from '../../../types';
+import { resolveLyricAntialias } from '../../../utils/lyricRenderQuality';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import { colorWithAlpha } from '../colorMix';
 import { useLucideIcons } from '../../../hooks/useLucideIcons';
 import { resolveLucideIcon } from '../../../services/lucideIconResolver';
@@ -70,7 +72,13 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         subtitleFontScale,
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
+        isPreviewMode = false,
     } = props;
+
+    // 分辨率与抗锯齿（#929）：齿轮画布原来按 devicePixelRatio、WebGL 开 MSAA；预览的小图保持原样
+    const renderQuality = useLyricRenderQuality(pendoloTuning.render);
+    const clockworkRenderScale = isPreviewMode ? 1 : renderQuality.scale;
+    const clockworkAntialias = isPreviewMode ? true : resolveLyricAntialias(renderQuality.antialias, true);
 
     const [viewportSize, setViewportSize] = useState({
         width: typeof window !== 'undefined' ? window.innerWidth : 1920,
@@ -539,6 +547,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     paused={props.paused}
                     motionProfile={motionProfile}
                     beatFxRef={beatFx.shared}
+                    renderScale={clockworkRenderScale}
+                    antialias={clockworkAntialias}
                 />
                 {pendoloTuning.showGearDecor !== 'none' && (
                     <div

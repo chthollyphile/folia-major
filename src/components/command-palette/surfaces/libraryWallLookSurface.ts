@@ -11,7 +11,7 @@ import { LIBRARY_WALL_SEAM_DIRECTIONS, type LibraryWallSeamDirection } from '../
 
 // src/components/command-palette/surfaces/libraryWallLookSurface.ts
 // bravais 墙面的四个 picker：透光档位（实色 / 部分透明 / 全透明）、部分透明时的每块窗数（1–6）、信息条实色模式的预设
-// （主题纸色 / 印刷 / 磨砂 / 图案）、信息条的方向（自动 / 竖向 / 横向）。输入框筛选，方向键移动，
+// （主题纸色 / 印刷 / 磨砂 / 图案）、信息条的方向（自动 / 自动（反向）/ 竖向 / 横向）。输入框筛选，方向键移动，
 // Enter 或点击生效。当前值与 setter 都来自 settings 命名空间（useLibraryWallLookStore 经 context 透出），
 // 这里不 import store 或 registry，命令注册表保持纯 TS。两个 picker 共用一个列表视图。
 
@@ -76,6 +76,10 @@ const SEAM_DIRECTION_TEXT: Record<LibraryWallSeamDirection, { label: [string, st
     auto: {
         label: ['options.bravaisSeamDirectionAuto', 'Automatic'],
         description: ['options.bravaisSeamDirectionAutoDesc', 'A row on tall screens, a column on wide ones.'],
+    },
+    'auto-reverse': {
+        label: ['options.bravaisSeamDirectionAutoReverse', 'Automatic (reversed)'],
+        description: ['options.bravaisSeamDirectionAutoReverseDesc', 'A column on tall screens, a row on wide ones.'],
     },
     vertical: {
         label: ['options.bravaisSeamDirectionVertical', 'Vertical'],

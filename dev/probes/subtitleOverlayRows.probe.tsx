@@ -2,15 +2,16 @@ import React from 'react';
 import VisualizerSubtitleOverlay from '../../src/components/visualizer/VisualizerSubtitleOverlay';
 import { resolveSubtitleFontSizes } from '../../src/components/visualizer/subtitleFontSizes';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
-import type { Line, SubtitleContentMode } from '../../src/types';
+import type { Line, SubtitleOverlayLayout } from '../../src/types';
 import type { ProbeDefinition } from './definition';
-// dev/probes/subtitleDualRow.probe.tsx
+// dev/probes/subtitleOverlayRows.probe.tsx
 
 /**
- * 共用底部副字幕的双行样式（issue #425）：罗马音在上、翻译在下。
+ * 共用底部字幕的单行 / 双行 / 三行布局（SubtitleOverlayLayout）。
  *
- * 挂的是真实的 VisualizerSubtitleOverlay，只把歌词行和内容模式交给按钮切换。
- * 要看的是：两种都有时两行叠放且罗马音在上；只有一种时只剩一行、不留空行；两种都没有时不渲染字幕行。
+ * 挂的是真实的 VisualizerSubtitleOverlay，只把歌词行和行布局交给按钮切换。
+ * 要看的是：行按布局从上到下排、第一行之后的行小一档；这一句缺哪种数据就少哪一行、不留空行；
+ * 「下一句」依次取接下来的两句；单行布局这一句什么都没有时，照旧改为预览接下来的歌词。
  */
 
 const LINES: Record<string, Line> = {
@@ -20,22 +21,35 @@ const LINES: Record<string, Line> = {
     neither: { startTime: 1, endTime: 2, fullText: 'おはよう', words: [] },
 };
 
-const MODES: SubtitleContentMode[] = ['translation', 'romanization', 'both', 'none'];
+const NEXT_LINES: Line[] = [
+    { startTime: 2, endTime: 3, fullText: 'こんにちは', translation: '午安', words: [] },
+    { startTime: 3, endTime: 4, fullText: 'こんばんは', translation: '晚上好', words: [] },
+];
 
-const SubtitleDualRowProbe: React.FC = () => {
-    const [mode, setMode] = React.useState<SubtitleContentMode>('both');
+const LAYOUTS: SubtitleOverlayLayout[] = [
+    'translation',
+    'romanization',
+    'current',
+    'current+next',
+    'current+translation',
+    'current+romanization+translation',
+    'current+next+next',
+];
+
+const SubtitleOverlayRowsProbe: React.FC = () => {
+    const [layout, setLayout] = React.useState<SubtitleOverlayLayout>('current+romanization+translation');
     const [lineKey, setLineKey] = React.useState<keyof typeof LINES>('both');
 
     return (
         <div className="min-h-screen p-8 text-zinc-200" style={{ background: DEFAULT_THEME.backgroundColor }}>
             <div className="flex flex-wrap gap-2 text-xs">
-                {MODES.map(value => (
+                {LAYOUTS.map(value => (
                     <button
                         key={value}
                         type="button"
-                        data-probe-mode={value}
+                        data-probe-layout={value}
                         className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5"
-                        onClick={() => setMode(value)}
+                        onClick={() => setLayout(value)}
                     >
                         {value}
                     </button>
@@ -57,10 +71,10 @@ const SubtitleDualRowProbe: React.FC = () => {
                     showText
                     activeLine={LINES[lineKey]}
                     recentCompletedLine={null}
-                    nextLines={[]}
+                    nextLines={NEXT_LINES}
                     theme={DEFAULT_THEME}
                     {...resolveSubtitleFontSizes(1)}
-                    subtitleContentMode={mode}
+                    subtitleOverlayLayout={layout}
                 />
             </div>
         </div>
@@ -68,10 +82,10 @@ const SubtitleDualRowProbe: React.FC = () => {
 };
 
 const definition: ProbeDefinition = {
-    id: 'subtitleDualRow',
-    title: '副字幕双行（罗马音 + 翻译）',
-    description: '「罗马音 + 翻译」模式下两行叠放、罗马音在上；只有一种数据时只显示一行，不留空行。',
-    Component: SubtitleDualRowProbe,
+    id: 'subtitleOverlayRows',
+    title: '底部字幕单行 / 双行 / 三行',
+    description: '各种行布局从上到下排、第一行之后小一档；缺数据的行省略不留空；「下一句」依次取接下来的两句。',
+    Component: SubtitleOverlayRowsProbe,
 };
 
 export default definition;

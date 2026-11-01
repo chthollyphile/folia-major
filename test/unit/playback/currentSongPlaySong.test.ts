@@ -111,7 +111,7 @@ const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
-const { emptyPlayerForProviderChange } = await import('@/library/app/createLibraryAccountPort');
+const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { removeFromCache } = await import('@/services/db');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
@@ -290,8 +290,8 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBe(keyB);
     });
 
-    // What a provider switch, or a sign-out of the active provider, does to the player.
-    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => emptyPlayerForProviderChange({
+    // What signing out of the songs' provider does to the player: its songs leave, plays on their way give up.
+    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => dropProviderSongs({
         automixRef: { current: null },
         audioRef: refs.audioRef,
         shouldAutoPlay: refs.shouldAutoPlay,
@@ -354,8 +354,9 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBeNull();
     });
 
-    it('forgets the saved song and queue, so the next launch brings nothing back', () => {
+    it('forgets the saved song and queue when nothing is left, so the next launch brings nothing back', () => {
         const { refs } = mount();
+        usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB] });
         vi.mocked(removeFromCache).mockClear();
         emptyThePlayer(refs);
         expect(vi.mocked(removeFromCache).mock.calls.map(([key]) => key).sort()).toEqual(['last_queue', 'last_song']);

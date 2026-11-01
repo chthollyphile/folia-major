@@ -222,6 +222,7 @@ const ObsBrowserSourceApp: React.FC = () => {
                 hideTranslationSubtitle={config.hideTranslationSubtitle}
                 showSubtitleTranslation={config.showSubtitleTranslation ?? true}
                 subtitleContentMode={config.subtitleContentMode}
+                subtitleOverlayLayout={config.subtitleOverlayLayout}
                 cappellaCustomEmojiImages={config.cappellaCustomEmojiImages}
                 cappellaCustomAvatarImages={config.cappellaCustomAvatarImages}
                 monetPortraitImage={config.monetPortraitImage}

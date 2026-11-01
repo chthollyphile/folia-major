@@ -191,11 +191,11 @@ describe('themeControllerState', () => {
         expect(model.editableSource).toBe('custom');
     });
 
-    it('preserves visual tokens while using AI foreground in daylight default background mode', () => {
+    it('returns the daylight preset untouched in default mode while an AI theme is loaded', () => {
         const previousTheme: Theme = {
-            ...dualTheme.dark,
-            wordColors: [{ word: 'keep-me', color: '#00ff00' }],
-            lyricsIcons: ['keep-icon']
+            ...dualTheme.light,
+            wordColors: [{ word: 'drop-me', color: '#00ff00' }],
+            lyricsIcons: ['drop-icon']
         };
 
         const nextTheme = resolveBgModeTheme({
@@ -207,10 +207,7 @@ describe('themeControllerState', () => {
             previousTheme
         });
 
-        expect(nextTheme.name).toBe('AI Light');
-        expect(nextTheme.backgroundColor).toBe(daylightTheme.backgroundColor);
-        expect(nextTheme.wordColors).toEqual(previousTheme.wordColors);
-        expect(nextTheme.lyricsIcons).toEqual(previousTheme.lyricsIcons);
+        expect(nextTheme).toBe(daylightTheme);
     });
 
     it('applies the default AI theme when AI background mode is requested without generated AI theme', () => {
@@ -236,11 +233,12 @@ describe('themeControllerState', () => {
         expect(nextTheme.lyricsIcons).toEqual(previousTheme.lyricsIcons);
     });
 
-    it('switches bg mode back to default while retaining AI foreground tokens', () => {
+    // #947: switching back to the default source after generating an AI theme must restore the preset.
+    it('switches back to the midnight preset in default mode while an AI theme is loaded', () => {
         const previousTheme: Theme = {
             ...dualTheme.dark,
-            wordColors: [{ word: 'persist', color: '#123456' }],
-            lyricsIcons: ['persist-icon']
+            wordColors: [{ word: 'drop-me', color: '#123456' }],
+            lyricsIcons: ['drop-icon']
         };
 
         const nextTheme = resolveBgModeTheme({
@@ -252,10 +250,7 @@ describe('themeControllerState', () => {
             previousTheme
         });
 
-        expect(nextTheme.name).toBe('AI Dark');
-        expect(nextTheme.backgroundColor).toBe(defaultTheme.backgroundColor);
-        expect(nextTheme.wordColors).toEqual(previousTheme.wordColors);
-        expect(nextTheme.lyricsIcons).toEqual(previousTheme.lyricsIcons);
+        expect(nextTheme).toBe(defaultTheme);
     });
 
     it('applies AI background mode while keeping existing visual tokens', () => {

@@ -27,6 +27,15 @@
   line-height: normal;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  transition: opacity 140ms ease-out;
+}
+
+/* The window's top edge is moving to show or hide the queue above the card (useRemoteQueue): the
+   compositor would show the last frame at the new spot, so nothing is drawn until the page has
+   laid itself out at the new size. */
+.remote-window[data-shifting='true'] {
+  opacity: 0;
+  transition: opacity 90ms ease-out;
 }
 
 .remote-window[data-theme='light'] {
@@ -80,6 +89,19 @@
   height: 176px;
   margin: -88px 0 0 -297px;
   color: rgb(var(--remote-ink));
+}
+
+/* Grown to show the queue (RemoteQueue.css): the card keeps to the edge away from it. At the
+   window's own height that is where it already is, so the side is set before the window grows. */
+.remote-window[data-queue='down'] .remote-card {
+  top: 4px;
+  margin-top: 0;
+}
+
+.remote-window[data-queue='up'] .remote-card {
+  top: auto;
+  bottom: 4px;
+  margin-top: 0;
 }
 
 /* Everything of the card in use, at the place and size it has always had. */

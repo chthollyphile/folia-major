@@ -48,7 +48,7 @@ const KINDS = [
     'desktop-features', 'queue-command', 'transition-settings', 'library-watch-settings', 'queue-settings',
     'lyrics-source-settings', 'grid-hotkey-settings', 'custom-shortcut-settings', 'pinned-commands-settings',
     'replay-gain-settings', 'import-export-settings', 'audio-equalizer', 'vis-playground', 'theme-park',
-    'lyric-style', 'lyric-export', 'sign-in', 'lyric-match',
+    'lyric-style', 'lyric-export', 'sign-in', 'lyric-match', 'scratchpad',
 ] as const satisfies readonly PonderSurfaceKind[];
 
 const drawingOf = (kind: PonderSurfaceKind | undefined) => {

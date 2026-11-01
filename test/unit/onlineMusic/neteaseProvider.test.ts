@@ -31,6 +31,7 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         scrobbleV1: vi.fn(),
         getLoginStatus: vi.fn(),
         getUserAccount: vi.fn(),
+        updatePlaylistTracks: vi.fn(),
     },
 }));
 
@@ -114,6 +115,45 @@ describe('neteaseProvider', () => {
         const page = await neteaseProvider.search!.searchSongs('song', 1, 0);
         expect(page.items[0].sourceRef).toEqual({ kind: 'online', providerId: 'netease', mediaId: '42' });
         expect(page).toMatchObject({ total: 2, hasMore: true, nextOffset: 1 });
+    });
+
+    // 字段取自 2026-10-31 cloudsearch type 10 / 1000 的实测回答（裁剪过）。
+    it('searches albums and playlists through cloudsearch and normalizes them as collections', async () => {
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                albums: [{
+                    id: 18909, name: 'Partners 拍档', type: '专辑', size: 13, publishTime: 1019750400000,
+                    picUrl: 'https://p4.music.126.net/cover.jpg', company: '北京亚歆',
+                    artists: [{ id: 6452, name: '周杰伦' }, { id: 12203406, name: '方文山' }],
+                }],
+                albumCount: 592,
+            },
+        } as any);
+        const albums = await neteaseProvider.search!.searchAlbums!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 10);
+        expect(albums).toMatchObject({ total: 592, hasMore: true, nextOffset: 1 });
+        expect(albums.items[0]).toMatchObject({
+            providerId: 'netease', id: 18909, type: 'album', name: 'Partners 拍档', trackCount: 13,
+            coverUrl: 'https://p4.music.126.net/cover.jpg', publishedAt: 1019750400000,
+            artists: [{ name: '周杰伦' }, { name: '方文山' }],
+        });
+
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                playlists: [{
+                    id: 6792103822, name: '周杰伦-Jay', coverImgUrl: 'http://p1.music.126.net/list.jpg', trackCount: 144,
+                    playCount: 34324836, creator: { nickname: 'Buradarrr', userId: 361038766 },
+                }],
+                playlistCount: 1,
+            },
+        } as any);
+        const playlists = await neteaseProvider.search!.searchPlaylists!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 1000);
+        expect(playlists).toMatchObject({ total: 1, hasMore: false, nextOffset: 1 });
+        expect(playlists.items[0]).toMatchObject({
+            providerId: 'netease', id: 6792103822, type: 'playlist', trackCount: 144, playCount: 34324836,
+            creator: { nickname: 'Buradarrr' },
+        });
     });
 
     // `/song/detail` takes many ids: songs looked up together go 50 to a request, one request after another.
@@ -634,5 +674,25 @@ describe('neteaseProvider listening reports', () => {
 
         await expect(neteaseProvider.playbackReports!.reportPlayback(reported, { playedSeconds: 45 }))
             .rejects.toMatchObject({ code: 'unavailable' });
+    });
+
+    it('accepts a playlist change the API wraps as a success', async () => {
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ status: 200, body: { code: 200, trackIds: '[1,2]' } } as any);
+
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [
+            { id: 1 } as any, { id: 2 } as any,
+        ])).resolves.toBeUndefined();
+        expect(neteaseApi.updatePlaylistTracks).toHaveBeenCalledWith('add', 7, [1, 2]);
+    });
+
+    it('throws when NetEase refuses a playlist change behind an HTTP 200', async () => {
+        // The API passes NetEase's refusal through as the body, with status 200 (a song already in the list).
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 502, message: '歌单内歌曲重复' } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'auth-required' });
     });
 });
