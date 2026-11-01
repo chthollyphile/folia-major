@@ -719,6 +719,8 @@ export default {
       "video-layer-pick": { "title": "Video layer: pick a local video", "description": "Choose a local video to play behind the lyrics" },
       "visualizer-toggle-random-per-song": { "title": "Random visualizer for every song", "description": "Toggle a random lyric animation mode whenever the song changes" },
       "visualizer-machi-camera-bar": { "title": "Machi: Viewfinder", "description": "Show or hide Machi's viewfinder bar on the player page to set the view, focus, aperture and drift" },
+      "visualizer-nebbia-behind-cycle": { "title": "Nebbia: Switch window scene", "description": "Switch what is outside Nebbia's window: night street, Dream Sea Glow or the background; the front glass changes to the scene's usual pair" },
+      "visualizer-nebbia-glass-cycle": { "title": "Nebbia: Switch front glass", "description": "Switch the glass in front of Nebbia's window between rain and dew" },
       "visualizer-toggle-glow-blur-quantize": { "title": "Fix lyric animation freeze on Linux", "description": "Change how some lyric animations draw their glow, fixing occasional freezes after long playback on Linux" },
       "settings-visualizer": { "title": "Visualizer settings", "description": "Open lyrics animation workbench" },
       "settings-theme-park": { "title": "Color", "description": "Open theme editor" },

@@ -719,6 +719,8 @@ export default {
       "video-layer-pick": { "title": "视频层：选择本地视频", "description": "选择在歌词后方播放的本地视频" },
       "visualizer-toggle-random-per-song": { "title": "每首歌随机歌词动画", "description": "歌曲切换时随机使用一种歌词动画模式" },
       "visualizer-machi-camera-bar": { "title": "町景：取景", "description": "在播放页显示或收起町景的取景控制条，调视角、对焦、光圈和运镜" },
+      "visualizer-nebbia-behind-cycle": { "title": "雾笺：切换窗外", "description": "在雨夜街景、梦海流萤和背景之间切换雾笺的窗外，前面的玻璃换成那套的默认搭配" },
+      "visualizer-nebbia-glass-cycle": { "title": "雾笺：切换玻璃", "description": "在雨窗和凝露之间切换雾笺前面的玻璃" },
       "visualizer-toggle-glow-blur-quantize": { "title": "修复 Linux 歌词动画卡死", "description": "改变部分歌词动画的发光绘制方式，修复 Linux 下长时间播放后偶发的卡死问题" },
       "settings-visualizer": { "title": "歌词动画样式设置", "description": "打开歌词动画实验台" },
       "settings-theme-park": { "title": "配色", "description": "打开主题编辑器" },

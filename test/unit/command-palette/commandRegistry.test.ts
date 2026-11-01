@@ -215,6 +215,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setVisualizerBackgroundMode: vi.fn(),
             setMonetBackgroundTuning: vi.fn(),
             setLatentBackgroundTuning: vi.fn(),
+            cycleNebbiaBehind: vi.fn(() => 'aquarium' as const),
+            cycleNebbiaGlass: vi.fn(() => 'dew' as const),
             toggleVideoLayer: vi.fn(),
             setSmartBeatMode: vi.fn(),
             toggleSmartBeat: vi.fn(),
@@ -508,6 +510,24 @@ describe('command palette registry', () => {
 
         expect(getCommandPaletteMatches('清空队列', createContext())
             .some(entry => entry.command.id === 'playback-clear-queue')).toBe(false);
+    });
+
+    it('switches Nebbia\'s window scene and front glass, only while Nebbia is on screen', () => {
+        const context = createContext({ visualizer: { visualizerMode: 'nebbia' } });
+
+        const [scene] = getCommandPaletteMatches('切换窗外', context);
+        expect(scene.command.id).toBe('visualizer-nebbia-behind-cycle');
+        expect(scene.command.execute(scene.input, context)).toBe(true);
+        expect(context.visualizer.cycleNebbiaBehind).toHaveBeenCalled();
+        expect(context.shared.setStatusMsg).toHaveBeenCalledWith({ type: 'success', text: 'Outside the window: aquarium' });
+
+        const [glass] = getCommandPaletteMatches('glass style', context);
+        expect(glass.command.id).toBe('visualizer-nebbia-glass-cycle');
+        expect(glass.command.execute(glass.input, context)).toBe(true);
+        expect(context.visualizer.cycleNebbiaGlass).toHaveBeenCalled();
+
+        expect(getCommandPaletteMatches('切换玻璃', createContext())
+            .some(entry => entry.command.id === 'visualizer-nebbia-glass-cycle')).toBe(false);
     });
 
     it('matches commands by Chinese keyword and pinyin', () => {

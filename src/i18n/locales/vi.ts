@@ -719,6 +719,8 @@ export default {
       "video-layer-pick": { "title": "Lớp video: Chọn video nội bộ", "description": "Chọn video nội bộ phát phía sau lời bài hát" },
       "visualizer-toggle-random-per-song": { "title": "Hiệu ứng thị giác ngẫu nhiên theo bài", "description": "Bật/tắt hiệu ứng lời bài hát ngẫu nhiên mỗi khi đổi bài" },
       "visualizer-machi-camera-bar": { "title": "Machi: Khung ngắm", "description": "Hiện hoặc ẩn thanh khung ngắm của Machi trên trang phát để chỉnh góc nhìn, lấy nét, khẩu độ và chuyển động máy quay" },
+      "visualizer-nebbia-behind-cycle": { "title": "Nebbia: Đổi cảnh ngoài cửa sổ", "description": "Đổi cảnh ngoài cửa sổ của Nebbia: phố đêm, Biển mơ đom đóm hoặc hình nền; kính phía trước đổi theo cặp mặc định của cảnh" },
+      "visualizer-nebbia-glass-cycle": { "title": "Nebbia: Đổi kính phía trước", "description": "Đổi kính phía trước cửa sổ của Nebbia giữa kính mưa và sương đọng" },
       "visualizer-toggle-glow-blur-quantize": { "title": "Sửa lỗi đơ hiệu ứng lời bài hát trên Linux", "description": "Đổi cách hiển thị phát sáng của hoạt ảnh lời bài hát, khắc phục lỗi treo khi phát lâu trên Linux" },
       "settings-visualizer": { "title": "Cài đặt hiệu ứng thị giác", "description": "Mở khu vực tùy biến hoạt ảnh lời bài hát" },
       "settings-theme-park": { "title": "Màu sắc", "description": "Mở trình chỉnh sửa chủ đề" },
