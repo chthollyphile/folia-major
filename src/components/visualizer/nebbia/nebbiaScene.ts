@@ -186,7 +186,7 @@ export const buildNebbiaScene = (
         let by = -1;
         for (let j = i + 1; j < laid.length && laid[j].t < gone; j += 1) {
             const a = rects[i], b = rects[j];
-            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = laid[j].t; by = j; break; }
+            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
         }
         line.fogAt = Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
         // 给片尾让位的不哈气：前面已经在散了，按让位快速起雾就好
@@ -198,8 +198,20 @@ export const buildNebbiaScene = (
     return laid;
 };
 
+/** 让位前多少秒开始收（快速起雾从让位前 0.6 秒起，哈气从 breathSpread + 0.3 秒起），和写完后至少留着看清的秒数。 */
+const YIELD_LEAD = 0.6, YIELD_READ = 0.3;
+/**
+ * 这句最早什么时候让位：后面那句开写的时刻，但不早于这句最后一个字写完（慢慢显现的显出一半）再留 YIELD_READ 秒。
+ * 不然唱得快、屏上又挤时，后面那句一压上来，这句写到一半就被哈气盖掉了（比如一句只唱一秒多，后半句没写就没了）。
+ */
+export const yieldMoment = (nextT: number, line: Pick<LaidLine, 'chars' | 't'>) => {
+    let done = line.t;
+    for (const c of line.chars) if (c.glyph) done = Math.max(done, c.wd > 0 ? c.wt + c.wd : c.t + Math.min(c.appearDur, 0.5));
+    return Math.max(nextT, done + YIELD_READ + YIELD_LEAD);
+};
+
 /** 让位的句子在后面那句开写前 0.6 秒起用 1 秒快速起雾；屏上满了要哈气盖掉的，在白气鼓开的这一下里没了。 */
 export const yieldFactor = (line: LaidLine, T: number) => (line.breathAt < Infinity
     // 哈气盖掉的：白气鼓开的这一下里没了
     ? 1 - smooth(clamp((T - line.breathAt) / NEBBIA_FIXED.breathSpread))
-    : 1 - smooth(clamp((T - line.yieldAt + 0.6) / 1)));
+    : 1 - smooth(clamp((T - line.yieldAt + YIELD_LEAD) / 1)));

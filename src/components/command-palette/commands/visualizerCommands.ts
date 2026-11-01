@@ -111,6 +111,37 @@ export const visualizerCommands: CommandPaletteCommand[] = [
             return true;
         },
     }),
+    // 雾笺的窗外和前面的玻璃：只在正在画雾笺时有，换完在状态栏报一声换成了哪个
+    defineCommand({
+        id: 'visualizer-nebbia-behind-cycle',
+        group: 'visualizer',
+        title: 'Nebbia: Switch window scene',
+        description: "Switch what is outside Nebbia's window: night street, Dream Sea Glow or the background; the front glass changes to the scene's usual pair",
+        keywords: ['nebbia scene', 'window scene', 'outside the window', 'aquarium', 'night street', 'dream sea glow', '雾笺', '窗外', '切换窗外', '背景样式', '梦海流萤', '雨夜街景', '水族箱'],
+        icon: Wallpaper,
+        isAvailable: context => (context ? context.visualizer.visualizerMode === 'nebbia' : false),
+        execute: (_input, context) => {
+            const { t } = context.shared;
+            const behind = context.visualizer.cycleNebbiaBehind();
+            context.shared.setStatusMsg({ type: 'success', text: `${t('options.nebbiaBehind', 'Outside the window')}: ${t(`options.nebbiaBehind_${behind}`, behind)}` });
+            return true;
+        },
+    }),
+    defineCommand({
+        id: 'visualizer-nebbia-glass-cycle',
+        group: 'visualizer',
+        title: 'Nebbia: Switch front glass',
+        description: "Switch the glass in front of Nebbia's window between rain and dew",
+        keywords: ['nebbia glass', 'front glass', 'glass style', 'rain glass', 'dew', 'condensation', '雾笺', '玻璃', '切换玻璃', '玻璃样式', '雨窗', '凝露'],
+        icon: Wallpaper,
+        isAvailable: context => (context ? context.visualizer.visualizerMode === 'nebbia' : false),
+        execute: (_input, context) => {
+            const { t } = context.shared;
+            const glass = context.visualizer.cycleNebbiaGlass();
+            context.shared.setStatusMsg({ type: 'success', text: `${t('options.nebbiaGlass', 'Front glass')}: ${t(`options.nebbiaGlass_${glass}`, glass)}` });
+            return true;
+        },
+    }),
     createToggleCommand('video-layer-toggle', 'visualizer', 'Video layer behind lyrics', 'Show or hide the muted video layer behind the lyrics', ['video layer', 'background video', 'video behind lyrics', '视频层', '背景视频', '歌词后方视频'], context => context.visualizer.toggleVideoLayer()),
     defineCommand({
         id: 'video-layer-pick',

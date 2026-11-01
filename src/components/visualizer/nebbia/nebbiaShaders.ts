@@ -1,9 +1,12 @@
+import { NEBBIA_AQUA_GLSL } from './nebbiaAquaGlsl';
 import { NEBBIA_SCENE_GLSL } from './nebbiaSceneGlsl';
+import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaShaders.ts
 // 雾笺的着色器：雾的预渲染（两层模糊的窗外各画一次，写进 1/4、1/8 分辨率的两张浮点纹理）、主画面（雾、擦痕、水珠折射合成，
 // 照搬 raindrop-fx 的 compose.glsl；不支持浮点渲染目标时用自己算雾的那一版）、往楼群缓存里补画（nebbiaBuildingCache.ts）、
 // 算静态噪声纹理（nebbiaNoiseTex.ts），和画水珠精灵的实例化着色器。
+// 窗外选了水族箱时，雾的预渲染和主画面换成水族箱的场景（nebbiaAquaGlsl.ts）编，见 nebbiaSceneShaders；街景的源码不变。
 // 预渲染和主画面分成两个程序、各只有一个输出：合在一个程序里（带回退分支、两个输出）时，D3D11 上链接要 3 秒、
 // 第一次画进两张纹理时还要再编 3 秒多；分开后链接不到 1 秒，第一次画不再重编（nebbiaPrograms.ts 在后台编）。
 
@@ -11,8 +14,8 @@ export const NEBBIA_VS = /* glsl */ `#version 300 es
 in vec2 aPos; out vec2 vUv;
 void main() { vUv = aPos * 0.5 + 0.5; vUv.y = 1.0 - vUv.y; gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
-// 街景（nebbiaSceneGlsl.ts）读的 uniform，几个程序共用
-const SCENE_UNIFORMS = /* glsl */ `precision highp float;
+// 窗外场景（nebbiaSceneGlsl.ts 或 nebbiaAquaGlsl.ts）读的 uniform，几个程序共用
+const sceneUniforms = (sceneGlsl: string) => /* glsl */ `precision highp float;
 uniform vec2 uRes, uSceneShift; uniform float uTime, uBus, uNeon;
 uniform vec3 uSky0, uSky1, uLa, uLb, uLc;
 // 聚光灯：光源（远处楼底）、照到玻璃上的点、光斑半径，都在 scene 坐标；uSpotI 强度
@@ -22,19 +25,22 @@ uniform int uScenery;
 // 楼群缓存（nebbiaBuildingCache.ts）：三档模糊 × 远近两层，预乘颜色；uBldOn 每档画好了没有，uBldGeo 每档 (y0, y1, 横向周期)
 uniform bvec3 uBldOn; uniform sampler2D uBld0, uBld1, uBld2, uBld3, uBld4, uBld5; uniform vec3 uBldGeo[3];
 in vec2 vUv; layout(location = 0) out vec4 outColor;
-${NEBBIA_SCENE_GLSL}`;
+${sceneGlsl}`;
+const SCENE_UNIFORMS = sceneUniforms(NEBBIA_SCENE_GLSL);
+const AQUA_UNIFORMS = sceneUniforms(NEBBIA_AQUA_GLSL);
 
 /**
  * 雾的预渲染：雾里的两层窗外（模糊半径 uFogB = 0.03、0.09 屏高）本来就很糊，在 1/4、1/8 分辨率下算好、主画面放大采样，
  * 结果几乎一样，却省掉每个像素两次完整的场景计算（2880×1800 下约 8 毫秒）。一层画一次（nebbiaFogGl.ts）。
  */
-export const NEBBIA_FOG_FS = /* glsl */ `#version 300 es
-${SCENE_UNIFORMS}
+const fogFs = (uniforms: string) => /* glsl */ `#version 300 es
+${uniforms}
 uniform float uFogB;
 void main() {
   vec2 s0 = vUv + uSceneShift, q0 = vec2(s0.x * uRes.x / uRes.y, s0.y);
   outColor = vec4(scene(q0, uFogB), 1.0);
 }`;
+export const NEBBIA_FOG_FS = fogFs(SCENE_UNIFORMS);
 
 /**
  * 往楼群缓存里补画一段：缓存的一格像素对应的世界横坐标，取落在 [uFillX0, uFillX0 + 周期) 里的那一个。
@@ -60,10 +66,15 @@ ${SCENE_UNIFORMS}
 ${STATIC_NOISE}
 void main() { outColor = vec4(staticNoise(gl_FragCoord.xy), 1.0); }`;
 
-const MAIN_FS = (fogTex: boolean) => /* glsl */ `#version 300 es
+const MAIN_FS = (fogTex: boolean, uniforms = SCENE_UNIFORMS, dew = false) => /* glsl */ `#version 300 es
 #define NEBBIA_FOG_TEX ${fogTex ? 1 : 0}
-${SCENE_UNIFORMS}
+${dew ? '#define NEBBIA_DEW 1\n' : ''}${uniforms}
 uniform sampler2D uMask, uDrop, uField;
+#ifdef NEBBIA_DEW
+// 凝露玻璃上冷凝水珠的高光（tuning.dewGlint）；细水珠折射的窗外（nebbiaFogGl.ts 预渲染的清晰的那层）
+uniform float uDewGlint;
+uniform sampler2D uFogSharp;
+#endif
 // 哈气的白气遮罩（R 形状、G 浓度，nebbiaBreath.ts）；屏上没有哈气时 uBreathOn 为假，不采样
 uniform sampler2D uBreath; uniform bool uBreathOn; uniform float uBreathThick;
 uniform vec2 uGlassShift; uniform float uMist, uEdge, uRefract, uGlint;
@@ -150,7 +161,14 @@ void main() {
     vec2 nn = comp.rg - 0.5;
     vec2 ruv = sv + vec2(-nn.x, nn.y) * (comp.b * 0.6 + 0.4) * uRefract;
     // 雾笺 demo 用的是轻度模糊的背景、漫反射 0.2–0.5、高光指数 48
-    vec3 lens = scene(vec2(ruv.x * aspect, ruv.y), 0.006);
+    vec3 lens;
+#if defined(NEBBIA_DEW) && NEBBIA_FOG_TEX
+    // 凝露的细水珠又密又小，每个像素重算一遍窗外太贵：读预渲染好的同样模糊（0.006）的窗外，低分辨率下放大看不出差别。
+    // 擦痕边的水珠（rd 占上风）照旧现算
+    if (!uSeeThrough && fd.a > rd.a) lens = texture(uFogSharp, vec2(ruv.x - uSceneShift.x, 1.0 - ruv.y + uSceneShift.y)).rgb;
+    else
+#endif
+    lens = scene(vec2(ruv.x * aspect, ruv.y), 0.006);
     vec3 normal = normalize(vec3(nn * 2.0, 1.0));
     vec3 lightDir = normalize(vec3(-1.0, 1.0, 2.0));
     float lambert = clamp(dot(lightDir, normal), 0.0, 1.0);
@@ -168,6 +186,12 @@ void main() {
     } else {
       // 车厢里的灯照在水珠表面：比纯透过去的窗外亮一点，不会在灰白的雾上显成黑点
       lens = max(lens, fog * 0.55) + haze * 0.08 * dens;
+#ifdef NEBBIA_DEW
+      // 凝露玻璃上的细小冷凝水珠（nebbiaCondensation.ts）：后面暗（水族箱的水、夜里的街）时照常画会像一粒粒脏点；
+      // 按挂在玻璃上的水珠画，比雾亮一点、带一点高光。擦痕边的水珠（rd 占上风的地方）照旧
+      float fine = step(rd.a, fd.a);
+      lens = mix(lens, max(lens * 1.15, fog * (1.0 + 0.051 * uDewGlint)) + (spec * 0.544 + lambert * 0.068) * dens * uDewGlint, fine);
+#endif
     }
     col = mix(col, lens, dmask);
   }
@@ -178,6 +202,17 @@ void main() {
 export const NEBBIA_MAIN_FS = MAIN_FS(true);
 /** 主画面：雾自己算（不支持浮点渲染目标时）。 */
 export const NEBBIA_MAIN_FALLBACK_FS = MAIN_FS(false);
+
+/**
+ * 窗外场景和玻璃用的雾的预渲染和主画面（自己算雾的那一版也在）：街景配雨窗就是上面几个，水族箱换场景 GLSL 另拼一份；
+ * 凝露玻璃的主画面多编一段冷凝水珠的画法（NEBBIA_DEW），雾的预渲染不看玻璃。
+ */
+export const nebbiaSceneShaders = (scene: NebbiaWindowScene, glass: NebbiaGlass = 'rain') => {
+    const dew = glass === 'dew';
+    if (scene === 'aquarium') return { fog: fogFs(AQUA_UNIFORMS), main: MAIN_FS(true, AQUA_UNIFORMS, dew), mainFallback: MAIN_FS(false, AQUA_UNIFORMS, dew) };
+    if (dew) return { fog: NEBBIA_FOG_FS, main: MAIN_FS(true, SCENE_UNIFORMS, true), mainFallback: MAIN_FS(false, SCENE_UNIFORMS, true) };
+    return { fog: NEBBIA_FOG_FS, main: NEBBIA_MAIN_FS, mainFallback: NEBBIA_MAIN_FALLBACK_FS };
+};
 
 // 水珠精灵：实例化四边形画进水珠纹理，混合方式同 raindrop-fx 的 "smoother"
 export const NEBBIA_SPRITE_VS = /* glsl */ `#version 300 es

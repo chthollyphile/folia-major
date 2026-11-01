@@ -270,6 +270,22 @@ describe('when the beat clock runs', () => {
         expect(visualizerWantsStems(settings({ visualizerMode: 'pendolo' }))).toBe(false);
     });
 
+    it('runs beat_this for 雾笺\'s 舞潮踏拍 only while the aquarium is on screen, and htdemucs for 疏雨轻车 only while it is not', () => {
+        const aquarium = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'aquarium' as const, glass: 'dew' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(true);
+        expect(liveBeatEffectStrength(settings({ visualizerMode: 'nebbia', ...aquarium }), 'beats')).toBe(1);
+        // 水族箱配凝露玻璃：没有雨打窗、车也不颠，不为疏雨轻车分离音轨；换成雨窗玻璃时雨照旧跟人声
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
+        const rainyTank = { nebbiaTuning: { ...aquarium.nebbiaTuning, glass: 'rain' as const } };
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...rainyTank }))).toBe(true);
+        // 透明时透出后面，不画水族箱；雨夜街景和共用背景都没有水族箱
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(false);
+        const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(false);
+        const smartBeat: SmartBeatSettings = { mode: 'on', effects: { [BEAT_EFFECT_IDS.nebbiaAquaBeat]: { on: false, strength: 1 } } };
+        expect(visualizerWantsBeats(settings({ smartBeat, visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
+    });
+
     it('not for an effect switched off, and at each effect\'s own strength', () => {
         const smartBeat: SmartBeatSettings = { mode: 'on', effects: { 'pendolo.drumhead': { on: false, strength: 1 }, 'diorama.ripple': { on: true, strength: 0.4 } } };
         expect(visualizerWantsBeatClock(settings({ smartBeat, visualizerMode: 'pendolo' }))).toBe(false);

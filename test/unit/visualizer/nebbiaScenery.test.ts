@@ -56,4 +56,36 @@ describe('nebbia scenery toggles', () => {
         expect(nebbiaSeesThrough(night, { transparent: true }, true)).toBe(false);
         expect(nebbiaSeesThrough(backdrop, { transparent: true }, true)).toBe(true);
     });
+
+    it('keeps the aquarium as a scene of its own, lit from above the water', () => {
+        expect(normalizeNebbiaTuning({ behind: 'aquarium' }).behind).toBe('aquarium');
+        const aquarium = { ...DEFAULT_NEBBIA_TUNING, behind: 'aquarium' as const };
+        expect(nebbiaSeesThrough(aquarium, undefined)).toBe(false);
+        expect(nebbiaSeesThrough(aquarium, { transparent: true })).toBe(true);
+        const aqua = { jelly: new Float32Array(96), jellyColor: new Float32Array(96), count: 0, bubbles: 0.6, sway: new Float32Array(4), bursts: new Float32Array(48), burstCount: 0, beatRows: 0, spotScale: 1 };
+        const street = nebbiaFrameUniforms(DEFAULT_NEBBIA_TUNING, [0, 0], spot, 800, 600, 0);
+        const tank = nebbiaFrameUniforms(aquarium, [0, 0], spot, 800, 600, 0, aqua);
+        expect(street.aqua).toBeNull();
+        expect(tank.aqua).toBe(aqua);
+        expect(tank.spotSrc[1]).toBeLessThan(0);
+        expect(street.spotSrc[1]).toBeGreaterThan(0.5);
+    });
+
+    it('reads the aquarium sliders within their limits', () => {
+        expect(normalizeNebbiaTuning({}).jellies).toBe(DEFAULT_NEBBIA_TUNING.jellies);
+        expect(normalizeNebbiaTuning({ jellies: 99, jellySize: 0.1, bubbles: 2 })).toMatchObject({ jellies: 24, jellySize: 0.5, bubbles: 1 });
+        expect(normalizeNebbiaTuning({ dew: 9, dewSize: 0, dewGlint: -1 })).toMatchObject({ dew: 1.5, dewSize: 0.5, dewGlint: 0 });
+    });
+
+    it('keeps the glass apart from the view outside, pairing it by default', () => {
+        expect(normalizeNebbiaTuning({}).glass).toBe('rain');
+        // 没存过玻璃的旧 tuning 按窗外的默认搭配
+        expect(normalizeNebbiaTuning({ behind: 'aquarium' }).glass).toBe('dew');
+        expect(normalizeNebbiaTuning({ behind: 'backdrop' }).glass).toBe('rain');
+        // 存过的照存的，可以混搭
+        expect(normalizeNebbiaTuning({ behind: 'aquarium', glass: 'rain' }).glass).toBe('rain');
+        expect(normalizeNebbiaTuning({ behind: 'night', glass: 'dew' }).glass).toBe('dew');
+        expect(normalizeNebbiaTuning({ glass: 'mist' }).glass).toBe('rain');
+        expect(nebbiaFrameUniforms({ ...DEFAULT_NEBBIA_TUNING, dewGlint: 1.4 }, [0, 0], spot, 800, 600, 0).dewGlint).toBe(1.4);
+    });
 });
