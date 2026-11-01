@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { type Line } from '../../../types';
 import { buildLineGraphemeTimeline, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
 import {
     DIORAMA_CAMERA_LIFT,
     DIORAMA_HERO_DISTANCE,
@@ -205,6 +206,8 @@ const CameraRig: React.FC<CameraRigProps> = ({
     // resolved line (or the weave scale) changes, never per frame.
     const line = resolved?.line ?? null;
     const timeline = useMemo(() => (line ? buildLineGraphemeTimeline(line) : []), [line]);
+    // An RTL line is laid out first word rightmost (layoutDioramaActiveUnits), so the truck follows it leftward.
+    const rtl = useMemo(() => (line ? resolveLyricTextDirection(line.fullText) === 'rtl' : false), [line]);
     const shotKind: DioramaShotKind = useMemo(
         () => (resolved ? getDioramaShot(resolved.localIndex, resolved.segment.lines, resolved.segment.seed, motion.subMode) : 'hold'),
         [resolved, motion.subMode]
@@ -247,7 +250,7 @@ const CameraRig: React.FC<CameraRigProps> = ({
 
         // Read-head = the line's ACTUAL text position (path anchor + placement offsets) + the lateral
         // truck that follows the sung word.
-        const truck = resolveReadHeadTruck(wordProgress, activeLineWidthRef.current, visibleHalf) * settle;
+        const truck = resolveReadHeadTruck(rtl ? 1 - wordProgress : wordProgress, activeLineWidthRef.current, visibleHalf) * settle;
         const headR = placement.offsetR + truck;
         const headU = placement.offsetU;
         const baseX = frame.position.x + R.x * headR + U.x * headU;
