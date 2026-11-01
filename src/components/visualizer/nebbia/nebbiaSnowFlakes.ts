@@ -1,8 +1,9 @@
 // src/components/visualizer/nebbia/nebbiaSnowFlakes.ts
-// 雪窗的雪花贴图（nebbiaSnow.ts 用）。落在玻璃上的雪多半不是一片干净的六角星：六成是几个小晶体黏成的不规则一团，
-// 四成是枝晶（六根枝长短略有差别、侧枝各不一样），都撒着霜粒。先把一片雪画成一张「密度图」（团、霜粒厚，枝梢薄），
+// 雪窗的雪花贴图（nebbiaSnow.ts 用）。落在玻璃上的雪多半不是一片干净的六角星：六成是几个小晶体黏成的不规则一团（clump），
+// 四成是枝晶（star，六根枝长短略有差别、侧枝各不一样，一半缺一两个角），都撒着霜粒。先把一片雪画成一张「密度图」（团、霜粒厚，枝梢薄），
 // 再按融化程度出 STAGES 张阶段贴图：密度低于阈值的地方（细枝、薄边）先没，剩下的越来越湿、越透、偏灰蓝，边上一圈薄水边；
 // 外面一圈很淡的暗晕，看着是贴在玻璃上。每种还记下最厚的两三处「疙瘩」，化的时候水从那里渗出来。
+// 全部阶段贴图拼成一张图集（每种一行、每个阶段一格），WebGL 里画（nebbiaSnowGl.ts）。
 
 export const FLAKE_SPRITE = 64;
 /** 贴图里雪占的半径（贴图边长的比例 × 边长）。 */
@@ -11,9 +12,14 @@ export const FLAKE_STAGES = 16;
 /** 雪的直径占贴图边长的比例：画的时候按它缩放到雪花半径。 */
 export const FLAKE_FILL = 0.84;
 
+export type FlakeType = 'clump' | 'star';
+
 export interface FlakeKind {
+    type: FlakeType;
+    /** 图集里第几行。 */
+    row: number;
     /** 从刚落下（0）到化没（STAGES - 1）的阶段贴图。 */
-    stages: HTMLCanvasElement[];
+    stages: ImageData[];
     /** 水先渗出来的几处：贴图里的位置（单位是 FLAKE_R）、分到的水的比例。 */
     lumps: { x: number; y: number; w: number }[];
 }
@@ -26,8 +32,8 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const smooth = (a: number, b: number, v: number) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 const canvas = () => { const c = document.createElement('canvas'); c.width = c.height = FLAKE_SPRITE; return c; };
 
-/** 随机一片雪的形状：团是小晶体一个黏一个随机游走黏成的；枝晶不做断枝。 */
-const shape = () => {
+/** 随机一片雪的形状：团是小晶体一个黏一个随机游走黏成的；枝晶有的缺一两个角（不做伸出去的碎断枝）。 */
+const shape = (type: FlakeType) => {
     const arms: Arm[] = [], discs: Disc[] = [], specks: { x: number; y: number; r: number }[] = [];
     const armWidth = rand(0.13, 0.18);
     const branchesFor = (len: number) => {
@@ -38,7 +44,7 @@ const shape = () => {
         }
         return out;
     };
-    if (Math.random() < 0.6) {
+    if (type === 'clump') {
         let px = 0, py = 0, pa = Math.random() * TAU;
         for (let i = 0, n = 7 + Math.floor(Math.random() * 10); i < n; i += 1) {
             discs.push({ x: px, y: py, r: rand(0.1, 0.22), a: rand(0.6, 0.95) });
@@ -50,8 +56,13 @@ const shape = () => {
     } else {
         discs.push({ x: 0, y: 0, r: rand(0.1, 0.22), a: 0.9 });
         const base = rand(0.7, 1);
+        // 缺角：一半的枝晶有一根枝短一截（四成干脆没了），少数再缺一根；断口是圆的，不留碎枝
+        const chipped = new Set<number>();
+        if (Math.random() < 0.5) chipped.add(Math.floor(Math.random() * 6));
+        if (chipped.size && Math.random() < 0.3) chipped.add(Math.floor(Math.random() * 6));
         for (let i = 0; i < 6; i += 1) {
-            const len = base * rand(0.86, 1);
+            if (chipped.has(i) && Math.random() < 0.4) continue;
+            const len = base * rand(0.86, 1) * (chipped.has(i) ? rand(0.3, 0.6) : 1);
             arms.push({ ang: i * TAU / 6 + rand(-0.05, 0.05), len, w: armWidth * rand(0.9, 1.1), branches: branchesFor(len) });
         }
         if (Math.random() < 0.5) discs.push({ x: rand(-0.2, 0.2), y: rand(-0.2, 0.2), r: rand(0.12, 0.25), a: 0.6 });
@@ -105,14 +116,14 @@ const density = (sh: ReturnType<typeof shape>, blur: number): Uint8ClampedArray 
 };
 
 /** 一种雪花的全部阶段贴图：刚落的雪白、霜粒更亮、外圈淡暗晕；化的时候薄的先没，剩下的更透、偏灰蓝，边上一圈薄水边。 */
-export const buildFlakeKind = (): FlakeKind => {
-    const sh = shape();
+export const buildFlakeKind = (type: FlakeType, row: number): FlakeKind => {
+    const sh = shape(type);
     const D = density(sh, 0.35), S = density(sh, 2);
     const snow = [228, 236, 250], wetCol = [196, 212, 236], dark = [16, 20, 30];
-    const stages: HTMLCanvasElement[] = [];
+    const stages: ImageData[] = [];
     for (let s = 0; s < FLAKE_STAGES; s += 1) {
         const m = s / (FLAKE_STAGES - 1), t = m * 0.85;
-        const c = canvas(), x = c.getContext('2d')!, img = x.createImageData(FLAKE_SPRITE, FLAKE_SPRITE), o = img.data;
+        const img = new ImageData(FLAKE_SPRITE, FLAKE_SPRITE), o = img.data;
         for (let i = 0; i < D.length; i += 1) {
             const d = D[i] / 255, ds = S[i] / 255;
             const keep = smooth(t, t + 0.3, d), ice = keep * (0.88 - 0.45 * m);
@@ -128,8 +139,15 @@ export const buildFlakeKind = (): FlakeKind => {
             }
             o[i * 4 + 3] = a * 255;
         }
-        x.putImageData(img, 0, 0);
-        stages.push(c);
+        stages.push(img);
     }
-    return { stages, lumps: sh.lumps };
+    return { type, row, stages, lumps: sh.lumps };
+};
+
+/** 全部种类拼成一张图集：第 k 行是第 k 种，第 s 列是第 s 个阶段。 */
+export const buildFlakeAtlas = (kinds: readonly FlakeKind[]): HTMLCanvasElement => {
+    const c = document.createElement('canvas'), x = c.getContext('2d')!;
+    c.width = FLAKE_SPRITE * FLAKE_STAGES; c.height = FLAKE_SPRITE * kinds.length;
+    kinds.forEach((k, row) => k.stages.forEach((img, col) => x.putImageData(img, col * FLAKE_SPRITE, row * FLAKE_SPRITE)));
+    return c;
 };

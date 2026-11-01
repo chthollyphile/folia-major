@@ -104,7 +104,8 @@ export class NebbiaRuntime {
             this.gl = new NebbiaGl(this.canvas, input.seeThrough, input.scene, input.glass);
             this.gl.onSpriteReady = () => this.requestFrame();
             if (input.glass === 'snow') {
-                this.snow = new NebbiaSnow(input.host);
+                this.snow = new NebbiaSnow();
+                this.gl.setFlakeAtlas(...this.snow.atlas());
             }
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
@@ -116,7 +117,6 @@ export class NebbiaRuntime {
             // 着色器编不过之类：画布、上下文、监听都收回，外壳退回只显示当前这句
             this.dead = true;
             this.observer?.disconnect();
-            this.snow?.destroy();
             this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
             this.canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext();
@@ -186,7 +186,6 @@ export class NebbiaRuntime {
         this.canvas.removeEventListener('webglcontextrestored', this.handleContextRestored);
         this.gl.destroy();
         this.canvas.remove();
-        this.snow?.destroy();
     }
 
     private handleContextLost = (event: Event) => {
@@ -245,7 +244,7 @@ export class NebbiaRuntime {
         const dpr = resolveLyricPixelRatio(Math.min(2, window.devicePixelRatio || 1), this.renderScale);
         this.gl.resize(this.W, this.H, dpr);
         this.mask.resize(this.W, this.H);
-        this.snow?.resize(this.W, this.H, dpr);
+        this.snow?.resize(this.W, this.H);
         if (sized) {
             // 雪窗没有雨窗那些凝结水珠（颠簸也就震不落什么）
             if (this.condensation) this.condensation.build(this.W, this.H);
@@ -324,14 +323,15 @@ export class NebbiaRuntime {
         this.spot.update(this.laid, T, dt);
         const aqua = this.aquarium?.step(dt, this.clock.time, this.W / this.H, t, this.aquaBeats()) ?? null;
         if (this.snow) {
-            this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? []);
+            // 车速带的风只在雨夜街景里吹雪（水族箱里没有车在开）
+            this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? [], this.aquarium ? 0 : t.busSpeed);
             this.snow.drawFog(this.mask.ctx, t);
         } else if (this.condensation) this.condensation.touchInk(this.mask.sweeps ?? [], this.mask.wet ?? [], t.dewSize);
         const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize)
             : this.snow ? this.snow.instances(this.fieldInst) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
-        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field,
-            nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua), this.condensation?.changed ?? true);
-        this.snow?.draw();
+        const u = nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua);
+        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field, u, this.condensation?.changed ?? this.snow?.changed ?? true);
+        if (this.snow) this.gl.drawFlakes(...this.snow.flakeInstances(), u.glassShift);
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);
     };
