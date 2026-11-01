@@ -423,6 +423,17 @@ describe('getTuning / setTuning', () => {
         expect(() => rqMod().setTuning('cappella', { avatarSource: 'custom' })).toThrow(/^invalid-arguments: /);
     });
 
+    it('brings a new window\'s glass along, as the panel does, unless the mod names one', () => {
+        vi.useFakeTimers();
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'aquarium' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass: 'dew' } });
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'night', glass: 'dew' })).toMatchObject({ ok: true, tuning: { behind: 'night', glass: 'dew' } });
+        later();
+        // A count lands on whole ones.
+        expect(rqMod().setTuning('nebbia', { jellies: 5.6 })).toMatchObject({ ok: true, tuning: { jellies: 6 } });
+    });
+
     it('writes a mode that is not on screen', () => {
         expect(settings().visualizerMode).not.toBe('machi');
         expect(rqMod().setTuning('machi', { weather: 'snow', motion: true })).toMatchObject({ ok: true, tuning: { weather: 'snow', motion: true } });

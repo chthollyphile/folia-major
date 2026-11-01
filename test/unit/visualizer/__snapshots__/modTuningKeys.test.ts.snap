@@ -460,9 +460,15 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "behind": {
       "options": [
         "night",
+        "aquarium",
         "backdrop",
       ],
       "type": "choice",
+    },
+    "bubbles": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
     },
     "bump": {
       "max": 2.5,
@@ -477,14 +483,47 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "credits": {
       "type": "boolean",
     },
+    "dew": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "dewGlint": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "dewSize": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
+    },
     "doodle": {
       "max": 1,
       "min": 0,
       "type": "number",
     },
+    "glass": {
+      "options": [
+        "rain",
+        "dew",
+      ],
+      "type": "choice",
+    },
     "hold": {
       "max": 6,
       "min": 0,
+      "type": "number",
+    },
+    "jellies": {
+      "max": 24,
+      "min": 0,
+      "step": 1,
+      "type": "number",
+    },
+    "jellySize": {
+      "max": 1.8,
+      "min": 0.5,
       "type": "number",
     },
     "jitter": {
