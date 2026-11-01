@@ -42,7 +42,7 @@ import {
     resolvePlaybackNeighbors,
 } from '../../../../utils/playbackNeighbors';
 import { freshFmSongs } from '../../../../utils/fmQueue';
-import { applyQueueAddBehavior } from '../../../../utils/queueAddBehavior';
+import { applyQueueAddBehavior, queueForPlayingNow } from '../../../../utils/queueAddBehavior';
 import { moveQueueItem } from '../../../../utils/queueReorder';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../../../../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../../../../services/playbackAdapters';
@@ -1079,14 +1079,15 @@ export function usePlaybackQueueController({
         void playSong(firstPlayableSong, retainedSongs, false);
     }, [getPlayableOnlineQueue, playSong, setStatusMsg, t]);
 
+    // 「插进队列播放」（速记簿的行、搜索结果的播放）：已在队列里的直接播，位置不动；不在的照设置里「加入播放队列」
+    // 的位置（下一首 / 末尾）放进去再播，和别的加入队列的入口一致。
     const handleQueueAddAndPlay = useCallback((song: SongResult) => {
-        const existingIndex = queueIndexOf(playQueue, song);
-        const nextQueue = [...playQueue];
-
-        if (existingIndex === -1) {
-            nextQueue.push(song);
-        }
-
+        const nextQueue = queueForPlayingNow({
+            queue: playQueue,
+            song,
+            currentSong: usePlaybackStore.getState().currentSong,
+            behavior: useAudioSettingsStore.getState().queueAddBehavior,
+        });
         void playSong(song, nextQueue, false);
     }, [playQueue, playSong]);
 
