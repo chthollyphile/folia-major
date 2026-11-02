@@ -104,7 +104,14 @@ export default defineVisualizerTuning<NebbiaTuning>({
         key: 'nebbia_tuning',
         read: normalizeNebbiaTuning,
         // 先合并再归一化：设置面板、导入、同步走同一套校验。
-        merge: (held, patch) => normalizeNebbiaTuning({ ...held, ...patch }),
+        // 导入或同步来的旧配置只有 resolution、没有 render：先迁成 render，不然 held 里已有的 render 会把它盖掉。
+        merge: (held, patch) => {
+            const legacyResolution = (patch as { resolution?: unknown }).resolution;
+            const migrated = patch.render === undefined && legacyResolution !== undefined
+                ? { ...patch, render: readRender(undefined, legacyResolution) }
+                : patch;
+            return normalizeNebbiaTuning({ ...held, ...migrated });
+        },
         resetNotice: 'notifications.nebbiaReset',
     },
 });
