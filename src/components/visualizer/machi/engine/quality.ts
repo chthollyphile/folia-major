@@ -5,7 +5,7 @@ import type { MachiAntialias, MachiDetailLevel, MachiQuality } from '../types';
 // src/components/visualizer/machi/engine/quality.ts
 // 画质设置 → 实际用的渲染参数（纯函数，运行时与单测共用）。
 // 分辨率、抗锯齿可以「跟随全局」（「性能与动效」里歌词画布的挡位）：全局倍数照用（大于 1 就是超采样），全局抗锯齿开是 SMAA、关是关。
-// 自动降级：帧时长期偏高时（门槛按屏幕的刷新间隔算，resolveMachiDegradeThreshold），运行时把“降了几格”加一，这里在用户那套
+// 自动降级：帧时长期偏高时（门槛按屏幕的刷新间隔算，stepMachiDegrade），运行时把“降了几格”加一，这里在用户那套
 // 设置上按固定顺序一格格往下压（超采样 → 几何边缘的 MSAA → 辉光 → 倒影 → 景深离焦层 → 分辨率 → 后期抗锯齿 → 阴影，一轮压完
 // 再来一轮），已经压不动的跳过；所以只会比用户选的低，不会高。
 // 按实测省得多少排（2026-11 在视网膜屏上量）：超采样是两倍的像素；MSAA 在 WebGL 里解析要单独整屏读一遍样本，4 倍时每帧约
@@ -102,16 +102,39 @@ const DEGRADE_MAX_FRAME_MS = 21;
  * 不动它；60Hz 上算出来比 21 毫秒高，仍按 21 毫秒，和原来一样。
  */
 const DEGRADE_SLACK = 1.33;
+/** 连着这么多次检查都超过门槛才降一格（偶尔一下卡顿不算）。 */
+const DEGRADE_SLOW_CHECKS = 2;
+
+/** 自动降级在两次检查之间记着的东西。 */
+export interface MachiDegradeState {
+    /** 一帧应有的间隔（毫秒；0 是还没见过帧）。 */
+    refresh: number;
+    /** 连着几次超过门槛。 */
+    slowChecks: number;
+}
+
+/** 换到别的屏上（刷新率可能不一样）时也从这里重新来。 */
+export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0 });
+
+/** 帧时门槛（毫秒）：一帧应有的间隔乘 DEGRADE_SLACK，不超过原来的 21 毫秒。 */
+export const resolveMachiDegradeThreshold = (refresh: number) => (refresh > 0 ? Math.min(DEGRADE_MAX_FRAME_MS, refresh * DEGRADE_SLACK) : DEGRADE_MAX_FRAME_MS);
 
 /**
- * 自动降级的帧时门槛（毫秒）：一帧应有的间隔取这段时间里较快那一成的帧间隔（屏幕的刷新间隔，开了帧率上限就是上限的间隔；
- * 偶尔慢的帧不算），乘上 DEGRADE_SLACK，不超过原来的 21 毫秒。高刷屏上从头到尾每帧都赶不上刷新时看不出来，和原来一样不降。
+ * 自动降级的一次检查（纯函数）：intervals 是这段时间的帧间隔。
+ * 一帧应有的间隔（屏幕的刷新间隔，开了帧率上限就是实际跑出来的间隔）取这段里较快那一成的帧间隔，和以前检查见过的取小的：
+ * 不能只看这一段——高刷屏上几乎每帧都赶不上刷新时（120Hz 上稳定 55fps），这一段较快的帧也是两个刷新间隔，门槛跟着翻倍，
+ * 反而不降。窗口挪到别的屏上时以前见过的就不对了，由外面换一份新的状态（createMachiDegradeState）。
  */
-export const resolveMachiDegradeThreshold = (intervals: readonly number[]) => {
-    if (intervals.length === 0) return DEGRADE_MAX_FRAME_MS;
+export const stepMachiDegrade = (state: MachiDegradeState, intervals: readonly number[]) => {
     const sorted = [...intervals].sort((a, b) => a - b);
-    const expected = sorted[Math.floor(sorted.length * 0.1)]!;
-    return Math.min(DEGRADE_MAX_FRAME_MS, expected * DEGRADE_SLACK);
+    const fast = sorted[Math.floor(sorted.length * 0.1)] ?? 0;
+    const average = intervals.reduce((sum, value) => sum + value, 0) / Math.max(1, intervals.length);
+    const refresh = state.refresh > 0 ? Math.min(state.refresh, fast) : fast;
+    const threshold = resolveMachiDegradeThreshold(refresh);
+    if (average <= threshold) return { state: { refresh, slowChecks: 0 }, degrade: false, average, threshold };
+    const slowChecks = state.slowChecks + 1;
+    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks }, degrade: false, average, threshold };
+    return { state: { refresh, slowChecks: 0 }, degrade: true, average, threshold };
 };
 
 /** 把「跟随全局」换成全局挡位里的具体值。 */

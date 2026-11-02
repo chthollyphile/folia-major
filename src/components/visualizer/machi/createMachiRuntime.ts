@@ -51,7 +51,7 @@ import {
 import { MachiGround } from './engine/fx/ground';
 import { MachiPost, type MachiAtmosphereFrame } from './engine/fx/post';
 import { resolveMachiLens } from './engine/lens';
-import { resolveMachiDegradeThreshold, resolveMachiRenderQuality, type MachiRenderQuality } from './engine/quality';
+import { createMachiDegradeState, resolveMachiRenderQuality, stepMachiDegrade, type MachiRenderQuality } from './engine/quality';
 import { MachiReflection } from './engine/fx/reflection';
 import { compileInto, reportBrokenPrograms, waitForPrograms, yieldToMain } from './engine/programWarmup';
 import { MachiWeather } from './engine/fx/weather';
@@ -63,6 +63,7 @@ import { createMachiSnowUniforms, setMachiSnowRoofs } from './engine/snow';
 import { resolveMachiSceneId } from './machiTuning';
 import { MACHI_SCENES } from './scenes';
 import type { MachiScene, MachiSceneContent, MachiSceneContext } from './scenes/types';
+import { isGpuAnalysisActive } from '../../../services/analysis/gpuActivity';
 import { reportMachiDegrade, withdrawMachiDegrade } from './degradeStatus';
 import { reportMachiShownScene, withdrawMachiShownScene } from './shownScene';
 import type { MachiCameraView, MachiQuality, MachiSceneId, MachiTuning } from './types';
@@ -131,9 +132,10 @@ const INTENSITY_SCALE: Record<Theme['animationIntensity'], number> = { calm: 0.7
 /** 每个窗口有车开过的概率，按主题的动效强度。 */
 const TRAFFIC_CHANCE: Record<Theme['animationIntensity'], number> = { calm: 0.4, normal: 0.6, chaotic: 0.78 };
 
-/** 自动降级至少隔这么久才看一次，连着这么多次都超过门槛才降一格（门槛见 engine/quality.ts 的 resolveMachiDegradeThreshold）。 */
+/** 自动降级至少隔这么久才看一次（怎么判见 engine/quality.ts 的 stepMachiDegrade）。 */
 const DEGRADE_WINDOW_MS = 2500;
-const DEGRADE_SLOW_CHECKS = 2;
+/** 刚起来、刚换了画质的这么久不算：着色器、贴图还在热身（新装的版本缓存是冷的），头几秒帧时偏高，不是跟不上。 */
+const DEGRADE_SETTLE_MS = 10000;
 
 /** 换主题时重画招牌的防抖（调色时主题一直在变）。 */
 const SIGN_REPAINT_DEBOUNCE_MS = 150;
@@ -220,8 +222,14 @@ export class MachiRuntime {
     private degrade = 0;
     private renderQuality: MachiRenderQuality;
     private qualityCheckedAt = 0;
-    /** 连着几次检查帧时都超过门槛（偶尔一下卡顿不算）。 */
-    private slowChecks = 0;
+    /** 自动降级在两次检查之间记着的（刷新间隔、连着几次慢）。 */
+    private degradeState = createMachiDegradeState();
+    /** 窗口所在的屏（尺寸、像素比、在桌面上的位置）：变了就是挪到了别的屏上，刷新间隔重新推。 */
+    private degradeScreen = '';
+    /** 这之前的帧不算进自动降级（NaN：还没开始渲染，第一次检查时从那一刻起算）。 */
+    private settleUntil = Number.NaN;
+    /** 最近一次看到 GPU 分析任务（拍点、鼓点分离）在跑的时刻：这段时间的帧不算进自动降级。 */
+    private analysisSeenAt = Number.NEGATIVE_INFINITY;
     private size = { width: 1, height: 1 };
     private readonly audio = new MachiAudioFollower();
     private boardTarget: MachiBoardTarget | null = null;
@@ -586,25 +594,35 @@ export class MachiRuntime {
         this.post.setQuality(quality);
         this.resize(this.size.width, this.size.height);
         this.frameTimes.length = 0;
-        this.slowChecks = 0;
+        this.degradeState = { ...this.degradeState, slowChecks: 0 };
+        this.settleUntil = performance.now() + DEGRADE_SETTLE_MS;
         this.reportDegrade();
         this.wake();
     }
 
     /** 帧时一直偏高就在用户那套画质之下再压一格（engine/quality.ts 的顺序），只降不升；自动降级关着时不管。 */
     private adaptQuality(now: number) {
-        if (this.options.previewMode || !this.tuning.quality.adaptive || this.clock.paused || document.visibilityState !== 'visible') return;
-        if (now - this.qualityCheckedAt < DEGRADE_WINDOW_MS || this.frameTimes.length < 60) return;
-        this.qualityCheckedAt = now;
-        const average = this.frameTimes.reduce((sum, value) => sum + value, 0) / this.frameTimes.length;
-        const threshold = resolveMachiDegradeThreshold(this.frameTimes);
-        if (average <= threshold) {
-            this.slowChecks = 0;
+        if (this.options.previewMode || !this.tuning.quality.adaptive) return;
+        // 刚起来或刚换画质（热身）、暂停、窗口在后台、GPU 分析任务（换歌时的拍点、鼓点分离）占着 GPU：这段的帧不算，攒的也清掉，回来重新攒。
+        if (isGpuAnalysisActive(now)) this.analysisSeenAt = now;
+        if (Number.isNaN(this.settleUntil)) this.settleUntil = now + DEGRADE_SETTLE_MS;
+        if (now < this.settleUntil || this.clock.paused || document.visibilityState !== 'visible' || now - this.analysisSeenAt < DEGRADE_WINDOW_MS) {
+            this.frameTimes.length = 0;
+            this.degradeState = { ...this.degradeState, slowChecks: 0 };
+            this.qualityCheckedAt = now;
             return;
         }
-        this.slowChecks += 1;
-        if (this.slowChecks < DEGRADE_SLOW_CHECKS) return;
-        this.slowChecks = 0;
+        if (now - this.qualityCheckedAt < DEGRADE_WINDOW_MS || this.frameTimes.length < 60) return;
+        this.qualityCheckedAt = now;
+        const { screen } = window;
+        const screenKey = `${screen.width}x${screen.height}@${window.devicePixelRatio}:${(screen as Screen & { availLeft?: number }).availLeft ?? 0},${(screen as Screen & { availTop?: number }).availTop ?? 0}`;
+        if (screenKey !== this.degradeScreen) {
+            this.degradeScreen = screenKey;
+            this.degradeState = createMachiDegradeState();
+        }
+        const { state, degrade, average, threshold } = stepMachiDegrade(this.degradeState, this.frameTimes);
+        this.degradeState = state;
+        if (!degrade) return;
         // 已经压到底：再要一格也压不下去了。
         if (this.resolveQuality(this.degrade + 1).degrade <= this.renderQuality.degrade) return;
         this.degrade += 1;

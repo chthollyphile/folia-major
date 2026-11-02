@@ -48,7 +48,7 @@ export interface MachiSceneTarget {
 }
 
 /**
- * 氛围之后的画面加上光晕：machiBloomed 加 bloom（一半分辨率，双线性放大，已乘强度），machiGlowed 再加横向光条。
+ * 氛围之后的画面加上光晕：machiBloomed 加 bloom（post.ts 的 BLOOM_SCALE 分之一分辨率，双线性放大，已乘强度），machiGlowed 再加横向光条。
  * 用它的材质要有 tDiffuse（氛围画好的画面）和 MachiGlowUniforms 那几项。
  */
 export const GLOW_GLSL = /* glsl */ `

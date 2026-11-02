@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMachiDegradeThreshold, resolveMachiRenderQuality } from '@/components/visualizer/machi/engine/quality';
+import { createMachiDegradeState, resolveMachiDegradeThreshold, resolveMachiRenderQuality, stepMachiDegrade } from '@/components/visualizer/machi/engine/quality';
 import { DEFAULT_MACHI_QUALITY, MACHI_QUALITY_PRESETS, type MachiQuality } from '@/components/visualizer/machi/types';
 import type { LyricRenderQuality } from '@/types';
 import { DEFAULT_LYRIC_RENDER_QUALITY } from '@/utils/lyricRenderQuality';
@@ -120,15 +120,35 @@ describe('resolveMachiRenderQuality', () => {
     });
 
     it('sets the degrade threshold from the display refresh, never above the old 21 ms', () => {
+        expect(resolveMachiDegradeThreshold(8.33)).toBeCloseTo(11.08, 1);
+        expect(resolveMachiDegradeThreshold(16.67)).toBe(21);
+        expect(resolveMachiDegradeThreshold(25)).toBe(21);
+        expect(resolveMachiDegradeThreshold(0)).toBe(21);
+    });
+
+    it('degrades after two slow checks, keeping the fastest refresh seen so far', () => {
         const frames = (fast: number, slow: number, slowEvery: number) => Array.from({ length: 120 }, (_, i) => (i % slowEvery === 0 ? slow : fast));
-        // 120Hz：门槛约 11.1 毫秒（90fps）；每十帧掉一帧（约 109fps，平均 9.2 毫秒）远不到。
-        const at120 = frames(8.33, 16.67, 10);
-        expect(resolveMachiDegradeThreshold(at120)).toBeCloseTo(11.08, 1);
-        expect(at120.reduce((sum, value) => sum + value, 0) / at120.length).toBeLessThan(resolveMachiDegradeThreshold(at120));
-        // 60Hz、帧率上限 60：和原来一样 21 毫秒。
-        expect(resolveMachiDegradeThreshold(frames(16.67, 33.3, 5))).toBe(21);
-        // 更慢的屏也不高过原来的 21 毫秒；还没有帧时照原来的。
-        expect(resolveMachiDegradeThreshold(frames(25, 50, 5))).toBe(21);
-        expect(resolveMachiDegradeThreshold([])).toBe(21);
+        // 120Hz、每十帧掉一帧（约 109fps）：不降。
+        let step = stepMachiDegrade(createMachiDegradeState(), frames(8.33, 16.67, 10));
+        expect(step).toMatchObject({ degrade: false, state: { slowChecks: 0 } });
+        expect(step.state.refresh).toBeCloseTo(8.33);
+        // 之后每帧都赶不上（稳定 60fps，这一段较快的帧也是 16.67）：门槛仍按 120Hz 算，连着两次就降。
+        const at60 = Array.from({ length: 120 }, () => 16.67);
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: false, state: { slowChecks: 1 } });
+        expect(step.threshold).toBeCloseTo(11.08, 1);
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: true, state: { slowChecks: 0 } });
+        // 降了一格还是赶不上刷新（帧间隔仍是两个刷新间隔）：门槛不跟着松，接着降。
+        step = stepMachiDegrade(step.state, at60);
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: true });
+        expect(step.threshold).toBeCloseTo(11.08, 1);
+    });
+
+    it('keeps the 21 ms threshold at 60 Hz and before any frame', () => {
+        const step = stepMachiDegrade(createMachiDegradeState(), Array.from({ length: 120 }, (_, i) => (i % 5 === 0 ? 33.3 : 16.67)));
+        expect(step).toMatchObject({ degrade: false, threshold: 21 });
+        expect(stepMachiDegrade(createMachiDegradeState(), [])).toMatchObject({ degrade: false, threshold: 21 });
     });
 });

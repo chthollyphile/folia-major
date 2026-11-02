@@ -92,7 +92,7 @@ export class MachiPost {
         lit.setSize(size.x, size.y);
         this.scene = { target: createSceneTarget(size.x, size.y, quality.samples), lit };
         // 合成器那两张缓冲只装镜头 pass 画好的显示用颜色（给抗锯齿读）：8 位，比默认的半精度浮点省一半带宽。
-        this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.UnsignedByteType }));
+        this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.UnsignedByteType, depthBuffer: false }));
         this.black.needsUpdate = true;
         this.atmosphere = new MachiAtmospherePass(this.scene, cutout);
         this.composer.addPass(this.atmosphere);
