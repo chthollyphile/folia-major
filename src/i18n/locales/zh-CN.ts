@@ -2668,6 +2668,8 @@ export default {
     "partitaSemanticLayout": "语义排列",
     "partitaStaggerMin": "错位最小值",
     "partitaStaggerMax": "错位最大值",
+    "avoidOverlap": "防止文字重叠",
+    "avoidOverlapHint": "按字放大、旋转后的大小留出间距",
     "fumeSettings": "浮名参数",
     "fumeHidePrintSymbols": "隐藏打印方块",
     "fumeGeometricBackground": "通用几何图形",

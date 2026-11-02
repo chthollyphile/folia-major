@@ -89,7 +89,39 @@ export const resolvePartitaTuning = (tuning?: PartitaTuning): PartitaTuning => {
         useSemanticLayout: tuning?.useSemanticLayout ?? DEFAULT_PARTITA_TUNING.useSemanticLayout,
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
+        avoidOverlap: tuning?.avoidOverlap ?? DEFAULT_PARTITA_TUNING.avoidOverlap,
     };
+};
+
+/** Each display word's own small random offset, turn and drift inside its chunk (the chunk's position is on its container). */
+export const buildPartitaWordConfigs = (
+    displayWords: WordType[],
+    rowConfig: WordLayoutConfig,
+    intensity: Theme['animationIntensity'],
+): WordLayoutConfig[] => {
+    const isCalm = intensity === 'calm';
+    const isChaotic = intensity === 'chaotic';
+    const baseSpread = isChaotic ? 15 : isCalm ? 0 : 6;
+    const baseRotate = isChaotic ? 8 : isCalm ? 0 : 3;
+
+    return displayWords.map((_, idx) => {
+        const wordSeed = displayWords[0].startTime + idx * 7.13;
+        const random = (offset: number) => {
+            const x = Math.sin(wordSeed + offset) * 10000;
+            return x - Math.floor(x);
+        };
+
+        return {
+            id: `${rowConfig.id}-w${idx}`,
+            x: (random(1) - 0.5) * baseSpread * 2,
+            y: (random(2) - 0.5) * baseSpread * 2,
+            rotate: (random(3) - 0.5) * baseRotate * 2,
+            scale: rowConfig.scale,
+            marginBottom: '0',
+            alignSelf: 'auto',
+            passedRotate: (random(8) - 0.5) * 20,
+        };
+    });
 };
 
 export const getActiveColor = (wordText: string, theme: Theme) => {

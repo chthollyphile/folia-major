@@ -41,6 +41,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
   },
   "classic": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
     "breathingFloatMultiplier": {
       "max": 2,
       "min": 0,
@@ -591,6 +594,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
   },
   "partita": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
     "showGuideLines": {
       "type": "boolean",
     },
