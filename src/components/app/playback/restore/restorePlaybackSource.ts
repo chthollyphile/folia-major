@@ -35,7 +35,7 @@ import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
 import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
-import { askedSongKeyRef, replaceShownSong } from '../currentSong';
+import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
@@ -169,11 +169,14 @@ const restoreSourceForSong = async (
 ): Promise<RestorePlaybackSourceOutcome> => {
     let restoredSongKey = getPlaybackSongKey(song);
     const overtaken = () => !stillWanted() || askedSongKeyRef.current !== restoredSongKey;
+    // A sign-out of another platform while this restore waits takes that platform's songs out of the queue it
+    // writes and saves as well (as a play does, see keepSongsOfProvidersStanding): the store's queue lost them already.
+    const providerDropsAtStart = providerDropsSoFar();
     // The queue to write (`write`, null for nothing) and to save once the restored song is in it: `own`,
     // or after a whole-queue write since the caller started, the store's queue of now (see queueWritesAtStart).
     const queueAfterRestore = (restoredSong: SongResult, own: () => SongResult[]): { write: SongResult[] | null; save: SongResult[] } => {
         if (queueWritesAtStart === undefined || wholeQueueWritesSoFar() === queueWritesAtStart) {
-            const given = own();
+            const given = keepSongsOfProvidersStanding(own(), providerDropsAtStart);
             return { write: given, save: given };
         }
         const live = usePlaybackStore.getState().playQueue;

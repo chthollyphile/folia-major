@@ -141,6 +141,7 @@ const { makeSongCurrent } = await import('@/components/app/playback/currentSong'
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const { notePersonalFmEnded } = await import('@/components/app/playback/personalFmEndings');
 const { dropPlaysOfProvider } = await import('@/components/app/playback/currentSong');
+const { leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
 const { getPlaybackSongKey } = await import('@/utils/appPlaybackGuards');
 const { resetPlaybackStore } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
@@ -493,6 +494,25 @@ describe('Personal FM ended by a platform switch while a play was on its way', (
         await settle();
 
         expect(store().currentSong).toMatchObject({ id: 'f3' });
+        expect(store().isFmMode).toBe(false);
+    });
+});
+
+describe('a platform switch while a play that turns Personal FM on was on its way', () => {
+    it('that play lands as a plain play: FM stays off, as the switch left it', async () => {
+        playerWith([a, b], a, false);
+        const { queue } = mount();
+        const hook = deferred();
+        env.self.beforePlay = hook.promise;
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        // The switch itself (library/app/createLibraryAccountPort): FM was not on yet, there was nothing to write off.
+        leaveProviderForSwitch('bodian', 'qq');
+        hook.resolve();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
         expect(store().isFmMode).toBe(false);
     });
 });
