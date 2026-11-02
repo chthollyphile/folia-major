@@ -45,14 +45,13 @@ export interface WaterDrop {
 
 /**
  * 结冰的参数（原型的滑块面板改）：停多久开始冻、多久冻透（秒）；往下挪多快（画面高 1000 时每秒像素）；多大的水珠才冻（看得见的半径，画面高 1000 时）；
- * 冻的时候外面挂霜、长大到几倍（看得见的半径，冻透时）；看得见的半径大于 spinR（画面高 1000 时）的冰珠滑的时候左右来回转，最多转 spin 弧度。
+ * 冻透时看得见的半径是原来的几倍（grow，水的透镜收成更小更实的冰珠，小于 1）；看得见的半径大于 spinR（画面高 1000 时）的冰珠滑的时候左右来回转，最多转 spin 弧度。
  */
-export const iceParams = { freezeAfter: 1.5, freezeDur: 3, slide: 3, minR: 2.5, grow: 2, spinR: 7.5, spin: 0.35, maxIce: 200, off: false, spawnBig: 0 };
+export const iceParams = { freezeAfter: 1.5, freezeDur: 3, slide: 3, minR: 2.5, grow: 0.75, spinR: 7.5, spin: 0.35, maxIce: 200, off: false, spawnBig: 0 };
 /** 原型看数用：玻璃上几颗水珠、几颗在冻、几颗在往下挪、最大的看得见的半径。 */
 export const iceStats = { drops: 0, freezing: 0, sliding: 0, maxR: 0, list: [] as number[][] };
-/** 冻到多少开始往下挪（写字留下的水珠也用，nebbiaInkIce.ts）。 */
-export const ICE_SLIDE_AT = 0.3;
-const SLIDE_AT = ICE_SLIDE_AT;
+/** 冻到多少开始往下挪。 */
+const SLIDE_AT = 0.3;
 /** 开始冻、冻透的时间按水珠大小（取对数）放长：看得见的半径刚到 minR 的照面板上的秒数，大一倍的约 1.7 倍、大三倍的约 2.4 倍（大水珠难冻一些）。r 是看得见的半径，k 是画面高 / 1000。 */
 export const iceSizeScale = (r: number, k: number) => 1 + Math.log(Math.max(1, r / (Math.max(0.5, iceParams.minR) * k)));
 /** 窗上最多留多少颗小冰点（冰珠上限 iceParams.maxIce 的几倍）：冻住的蒸发得慢，一颗能挂二十来秒，不封顶会攒到几千颗。到顶了滑的就先不留，旧的化掉再留。 */
@@ -210,8 +209,8 @@ export class NebbiaSnowWater {
             this.frozen += 1;
             d.ice = 1e-3; d.iceV = rand(0.65, 1.35); d.iceDur = Math.max(1, p.freezeDur * scale);
         }
-        // 冻的时候外面一直挂上霜（水汽直接冻上去），冻透时看着大到 grow 倍（质量 grow² 倍）
-        if (d.ice < 1) d.mass = Math.min(this.massCap(d), d.mass * (1 + 2 * Math.log(Math.max(1, p.grow)) * dt / d.iceDur));
+        // 冻的时候水的透镜慢慢收成冰珠，冻透时看着是原来的 grow 倍（质量 grow² 倍）
+        if (d.ice < 1) d.mass = Math.min(this.massCap(d), d.mass * Math.max(0.25, p.grow) ** (2 * dt / d.iceDur));
         d.ice = Math.min(1, d.ice + dt / d.iceDur);
         if (d.ice < SLIDE_AT) { d.vx = d.vy = 0; return true; }
         // 往下挪：开头慢慢起步，左右轻轻晃
