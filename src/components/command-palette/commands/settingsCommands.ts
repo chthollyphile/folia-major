@@ -8,7 +8,7 @@ import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, c
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
 import { lyricExportCommands } from './lyricExportCommands';
-import { Gauge, Images, Layers3, Library } from 'lucide-react';
+import { Gauge, Images, Languages, Layers3, Library } from 'lucide-react';
 import { latticePosterTintSurface } from '../surfaces/latticePosterTintSurface';
 import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
@@ -730,7 +730,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
             '罗马字',
             '双行字幕',
             '副字幕',
-        ], context => context.settings.cycleSubtitleContentMode()),
+        ], context => context.settings.cycleSubtitleContentMode(), { icon: Languages, capsuleAction: true }),
     createToggleCommand('settings-toggle-subtitle-background', 'settings', 'Toggle subtitle background', 'Show or hide the readability background behind visualizer subtitles', [
             'subtitle background',
             'subtitle readability background',

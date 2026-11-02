@@ -11,6 +11,7 @@ import PlayerControlSlotButton from './floating-player/PlayerControlSlotButton';
 import PlayerBottomBarPositioner from './floating-player/PlayerBottomBarPositioner';
 import PlayerControlSlotPicker from './floating-player/PlayerControlSlotPicker';
 import PlayerControlSlotSuggestion from './floating-player/PlayerControlSlotSuggestion';
+import CapsuleQuickActions, { useCapsuleQuickActionsDwell } from './floating-player/CapsuleQuickActions';
 import { usePlayerControlSlotCustomization } from './floating-player/usePlayerControlSlotCustomization';
 import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
 import { playerBottomBarLiveOffset } from '../stores/motionSignals';
@@ -20,6 +21,7 @@ import { openSettings } from '../stores/useSettingsModalStore';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, clampPlayerBottomBarOffset, resolvePlayerBottomBarMaxOffset } from '../utils/playerBottomBarLayout';
 import type { PlayerControlSlotActionId, PlayerControlSlotContext } from './floating-player/playerControlSlotActions';
 import { usePlayerOverlayObstacle } from '../hooks/usePlayerOverlayLayout';
+import { useSupportsFinePointer } from '../hooks/useSupportsFinePointer';
 import { resolveLyricSeekMediaTime } from '../utils/lyrics/lyricSeekTime';
 import { HifiProgressRow } from './hifi/HifiBadge';
 import { useIsHifiRoute } from './hifi/useHifiSignalPath';
@@ -145,6 +147,11 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     const iconBtnClass = isDaylight ? 'hover:bg-black/5 text-black/60' : 'hover:bg-white/10 opacity-40 hover:opacity-100';
 
     const [isHovered, setIsHovered] = useState(false);
+    // 最近一次进入悬停区的是不是手指。只在进入和按下时写、值不变就不更新，不跟指针移动。
+    const [isTouchHover, setIsTouchHover] = useState(false);
+    const noteHoverPointer = useCallback((event: React.PointerEvent) => {
+        setIsTouchHover(event.pointerType === 'touch');
+    }, []);
     const [isTimelineOpen, setIsTimelineOpen] = useState(false);
     const expandTimeoutRef = useRef<number | null>(null);
     const collapseTimeoutRef = useRef<number | null>(null);
@@ -163,6 +170,13 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
 
     const canAutoExpand = canTogglePlay && duration > 0;
     const showSlotSuggestion = slotSuggestion !== null && !isHidden && !isPositioning && slotPicker === null;
+    // 浮动命令和提议占同一块地方，提议优先；换按钮的浮层开着时也让开。
+    // 只给能悬停的指针：触屏点一下也会补发 mouseenter，不拦的话点胶囊去播放页后这排会一直挂着。
+    // 主指针是触屏的设备整个不出；带触屏的笔记本主指针是鼠标，再按这一次进来的是不是手指拦。
+    const supportsFinePointer = useSupportsFinePointer();
+    const hasDwelled = useCapsuleQuickActionsDwell(isHovered && !isTouchHover);
+    const showQuickActions = supportsFinePointer && hasDwelled && !showSlotSuggestion && slotPicker === null
+        && !isHidden && !isPositioning && !controlsDisabled;
     // 定位模式强制展开：用户要看到的是最终形态的胶囊，而不是一条细进度条。
     // 更换浮层和提议开着时也展开：两者说的都是槽位按钮，按钮得看得见；提议条贴在胶囊上沿，
     // 要是悬停才展开，指针移上提议条那一下胶囊长高、提议条被顶走，会在展开和收起之间来回抖。
@@ -377,6 +391,8 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                     className="pointer-events-auto relative w-full flex justify-center"
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
+                    onPointerEnter={noteHoverPointer}
+                    onPointerDown={noteHoverPointer}
                     style={{
                         // 这块向下的命中区补丁只在胶囊贴底时才有意义；抬高之后按当前偏移量收敛，
                         // 否则胶囊下方会留一条既不可点也挡不住东西的死区。
@@ -395,6 +411,19 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     slotSecondary={slotSecondary}
                                     onReplace={slotCustomization.acceptSuggestion}
                                     onDismiss={slotCustomization.dismissSuggestion}
+                                    isDaylight={isDaylight}
+                                />
+                            )}
+                        </AnimatePresence>
+                    </div>
+                    <div className="pointer-events-none absolute bottom-full left-0 right-0 flex justify-center">
+                        <AnimatePresence>
+                            {showQuickActions && (
+                                <CapsuleQuickActions
+                                    key="quick-actions"
+                                    slotPrimary={slotPrimary}
+                                    slotSecondary={slotSecondary}
+                                    context={resolvedSlotContext}
                                     isDaylight={isDaylight}
                                 />
                             )}

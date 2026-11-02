@@ -68,6 +68,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         description: 'Browse lyric animation modes and click one to switch',
         keywords: ['visualizer picker', 'pick visualizer', 'browse visualizers', '可视化选择器', '选择可视化', '歌词动画选择'],
         icon: LayoutGrid,
+        capsuleAction: true,
         requiresInput: true,
         surface: visualizerPickerSurface,
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),

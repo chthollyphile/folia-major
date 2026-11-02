@@ -4144,7 +4144,8 @@ export default {
     "slotSuggestion": "Sering pakai {{action}}? Taruh di bilah kontrol",
     "slotSuggestionReplace": "Ganti",
     "slotSuggestionReplacePrimary": "Ganti tombol kiri ({{action}})",
-    "slotSuggestionReplaceSecondary": "Ganti tombol kanan ({{action}})"
+    "slotSuggestionReplaceSecondary": "Ganti tombol kanan ({{action}})",
+    "capsuleQuickActions": "Aksi cepat"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folder",
