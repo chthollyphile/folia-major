@@ -14,6 +14,8 @@ type PinnedCommandRowProps = {
     isExecuting: boolean;
     theme: Theme;
     onExecute: (command: CommandPaletteCommand) => void;
+    /** Under the panel in the overlay; above it when the panel grows up out of the player bar. */
+    placement?: 'below' | 'above';
 };
 
 const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
@@ -22,6 +24,7 @@ const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
     isExecuting,
     theme,
     onExecute,
+    placement = 'below',
 }) => {
     const { t } = useTranslation();
 
@@ -31,7 +34,7 @@ const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
 
     return (
         <div
-            className="mt-4 grid grid-cols-3 gap-3 px-2 sm:px-5"
+            className={`${placement === 'above' ? 'mb-3' : 'mt-4'} grid grid-cols-3 gap-3 px-2 sm:px-5`}
             data-testid="command-palette-pinned-row"
         >
             {commands.slice(0, 3).map((command, index) => {

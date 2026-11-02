@@ -4146,6 +4146,7 @@ export default {
     "slotSuggestionReplacePrimary": "Thay nút bên trái ({{action}})",
     "slotSuggestionReplaceSecondary": "Thay nút bên phải ({{action}})",
     "capsuleQuickActions": "Thao tác nhanh",
+    "capsuleOpensPalette": "Nhấp để mở bảng lệnh",
   },
   "localMusic": {
     "foldersAndPlaylists": "Thư mục",

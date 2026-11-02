@@ -4146,6 +4146,7 @@ export default {
     "slotSuggestionReplacePrimary": "换掉左侧按钮「{{action}}」",
     "slotSuggestionReplaceSecondary": "换掉右侧按钮「{{action}}」",
     "capsuleQuickActions": "快捷操作",
+    "capsuleOpensPalette": "点一下打开命令面板",
   },
   "localMusic": {
     "foldersAndPlaylists": "文件夹",
