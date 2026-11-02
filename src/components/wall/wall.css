@@ -283,6 +283,12 @@
     background: rgb(var(--lattice-shade-rgb) / 78%);
 }
 
+/* "Number only the playing song" (#930, useLatticeSettingsStore.latticeBadgeCurrentOnly): a song's
+   number (.is-index) stays only on the playing card; the kind labels of other cards are untouched. */
+.lattice-root.has-badge-current-only .lattice-poster-badge.is-index:not(.is-current) {
+    display: none;
+}
+
 .lattice-poster-copy {
     position: absolute;
     right: 17px;

@@ -64,6 +64,7 @@ describe('collection tracks', () => {
             title: 'One',
             subtitle: 'Singer A, Singer B',
             badge: '01',
+            badgeIsIndex: true,
             playbackKey: 'key:One',
             album: 'Album',
             artists: ['Singer A', 'Singer B'],

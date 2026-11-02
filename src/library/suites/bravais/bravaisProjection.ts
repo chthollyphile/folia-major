@@ -103,6 +103,7 @@ export const projectCollectionTracks = (
             subtitle: description.artists.join(', ') || description.album || unknownArtist,
             coverUrl: description.coverUrl,
             badge: formatEntryBadge(index, tracks.length),
+            badgeIsIndex: true,
             playbackKey: description.playbackKey,
             album: description.album || undefined,
             artists: description.artists,

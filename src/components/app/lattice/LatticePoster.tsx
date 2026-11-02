@@ -5,7 +5,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from 'react';
 import type { ReflowTile } from '../../wall/layout';
-import type { LatticeTile } from './latticeModel';
+import { latticeBadgeIsIndex, type LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
 import { useLatticeExpansionSettled } from './useLatticeExpansionSettled';
@@ -313,7 +313,9 @@ function LatticePoster({
             <span className="lattice-poster-shade" {...(isFlightEnd ? { [MORPH_SHADE_ATTR]: '' } : {})} />
             <span className="lattice-poster-lights-out" />
             <span className="lattice-poster-tint" />
-            <span className={`lattice-poster-badge ${isCurrent ? 'is-current' : ''}`}>
+            {/* A queue tile's number is is-index: the wall root's has-badge-current-only hides it
+                on all but the playing poster (#930, wall.css). */}
+            <span className={`lattice-poster-badge ${latticeBadgeIsIndex(tile) ? 'is-index' : ''} ${isCurrent ? 'is-current' : ''}`}>
                 {isCurrent && <>{t('home.latticeBadgeNow')} · </>}
                 {/* An entry of the explore page says what it is where a queue tile has its number;
                     a collection, grown, also the heading it stands under on the page. */}

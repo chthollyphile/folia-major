@@ -47,6 +47,9 @@ export type LatticeCollectionTile = LatticeTileBase & {
 
 export type LatticeTile = LatticeSongTile | LatticeCollectionTile;
 
+/** Whether the tile's badge is its number in the queue rather than an explore entry's kind: the one "number only the playing song" (#930) hides. */
+export const latticeBadgeIsIndex = (tile: LatticeTile): boolean => tile.label === undefined;
+
 // Marks each entry relative to the playhead; the queue is already de-duplicated by the queue controller.
 export const buildLatticeTiles = ({
     queue,
