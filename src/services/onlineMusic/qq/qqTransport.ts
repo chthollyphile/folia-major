@@ -12,7 +12,7 @@ export const QQ_OPERATIONS = [
     'login_channels', 'login_refresh',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
-    'user_personal_fm',
+    'user_personal_fm', 'user_daily_history_dates', 'user_daily_history',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -58,6 +58,9 @@ const ENDPOINTS: Record<QqOperation, string> = {
     user_daily_songs: '/user/daily-songs',
     // 3.3.6 的私人 FM（`page` 1–100，后端不记批次位置）。旧后端回 404，调用方回落到猜你喜欢。
     user_personal_fm: '/user/personal-fm',
+    // 3.3.6 的每日 30 首历史：日期列表与某一天的歌，只读本人。旧后端回 404。
+    user_daily_history_dates: '/user/daily-songs/history/dates',
+    user_daily_history: '/user/daily-songs/history',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',

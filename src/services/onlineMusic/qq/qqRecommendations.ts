@@ -1,11 +1,11 @@
 import type { UnifiedSong } from '../../../types';
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { OnlineRecommendationProvider, ProviderCollection, ProviderHistoryEntry } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
-// QQ 音乐的推荐：私人 FM、每日 30 首、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM 是 3.3.6，
+// QQ 音乐的推荐：私人 FM、每日 30 首与它的历史、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM 与历史日推是 3.3.6，
 // 出错时用状态码加固定的 errorKey 说明原因：422 是「上游成功但没有数据」，不是网络错误；旧后端没有这些路由，回 404。
 
 // 422（resource.not-found）是确实没有数据；404 是这个后端还没有这条路由。两者都当成空结果，不算失败。
@@ -61,6 +61,30 @@ const getPersonalFm = async (): Promise<UnifiedSong[]> => {
 // 后端没有 refresh 参数，同一天拿到的是同一批，所以忽略「换一批」。
 const getDailySongs = (): Promise<UnifiedSong[]> => loadRecommendedSongs('user_daily_songs');
 
+/** 每日 30 首有历史的日期（`YYYY-MM-DD`），照后端的顺序；可能不连续，不在这里补日子。 */
+const getHistoryDates = async (): Promise<string[]> => {
+    if (!hasUsableQqSession()) return [];
+    try {
+        const response = await requestQq<any>('user_daily_history_dates');
+        const dates: unknown[] = Array.isArray(response?.dates) ? response.dates : [];
+        return dates.filter((date): date is string => typeof date === 'string' && date !== '');
+    } catch (error) {
+        if (isEmptyAnswer(error)) return [];
+        throw error;
+    }
+};
+
+// 某一天的每日 30 首；后端给几首就是几首，不补到 30。
+const getHistorySongs = async (entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]> => {
+    if (!hasUsableQqSession()) return [];
+    try {
+        return songsOf(await requestQq<any>('user_daily_history', { date: typeof entry === 'string' ? entry : entry.id }));
+    } catch (error) {
+        if (isEmptyAnswer(error)) return [];
+        throw error;
+    }
+};
+
 // `/recommend/playlists` 的 limit 默认 25、最多 60；有会话就带凭证读，没有就匿名读。
 const RECOMMEND_PLAYLISTS_MAX = 60;
 
@@ -84,4 +108,6 @@ export const qqRecommendations: OnlineRecommendationProvider = {
     getPersonalFm,
     getDailySongs,
     getRecommendedCollections,
+    getHistoryDates,
+    getHistorySongs,
 };

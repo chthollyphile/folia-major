@@ -1052,6 +1052,8 @@ export const qqProvider: OnlineMusicProvider = {
         artists: true,
         // 推荐、歌单增删与收藏歌单是 qq-music-api 3.3.0 的路由，红心与收藏专辑是 3.3.1 的。
         recommendations: true,
+        // 每日 30 首的历史日期是 qq-music-api 3.3.6 的路由；旧后端 404，看到的只是没有日期。
+        historyRecommendations: true,
         mutations: true,
         playlistTrackMutations: true,
         playlistSubscription: true,

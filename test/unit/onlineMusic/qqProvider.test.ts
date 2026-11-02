@@ -183,8 +183,8 @@ describe('qqProvider', () => {
         resetQqProviderRuntimeCache();
     });
 
-    // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑；不喜欢与历史日推后端还没有，不能冒出来。
-    it('declares the 3.3.1 recommendations and mutations without the ones the backend lacks', () => {
+    // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑，3.3.6 补上历史日推；不喜欢后端还没有，不能冒出来。
+    it('declares the recommendations and mutations the backend has, without the ones it lacks', () => {
         expect(qqProvider.capabilities).toMatchObject({
             userLibrary: true,
             playlists: true,
@@ -196,8 +196,10 @@ describe('qqProvider', () => {
             playlistSubscription: true,
         });
         expect(qqProvider.capabilities.personalFmModes).toBeFalsy();
-        expect(qqProvider.capabilities.historyRecommendations).toBeFalsy();
-        expect(Object.keys(qqProvider.recommendations ?? {}).sort()).toEqual(['getDailySongs', 'getPersonalFm', 'getRecommendedCollections']);
+        expect(qqProvider.capabilities.historyRecommendations).toBe(true);
+        expect(Object.keys(qqProvider.recommendations ?? {}).sort()).toEqual([
+            'getDailySongs', 'getHistoryDates', 'getHistorySongs', 'getPersonalFm', 'getRecommendedCollections',
+        ]);
         expect(Object.keys(qqProvider.mutations ?? {}).sort()).toEqual([
             'canAddToPlaylist', 'canEditPlaylistTracks', 'canSubscribe', 'createPlaylist', 'likeSong', 'subscribeAlbum', 'subscribePlaylist',
             'updatePlaylistTracks',

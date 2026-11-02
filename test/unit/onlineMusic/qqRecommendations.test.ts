@@ -120,6 +120,58 @@ describe('QQ recommendations', () => {
         });
     });
 
+    describe('daily songs history', () => {
+        // 日期照后端给的顺序，可能不连续；不在这里按日历补日子。
+        it('reads the dates the backend lists, in its order', async () => {
+            requestMock.mockResolvedValueOnce({ code: 200, dates: ['2026-11-01', '2026-10-27', 20261020, ''] });
+
+            await expect(qqRecommendations.getHistoryDates!()).resolves.toEqual(['2026-11-01', '2026-10-27']);
+            expect(requestMock).toHaveBeenCalledWith('user_daily_history_dates');
+        });
+
+        it('reads the songs of a date, given as text or as an entry', async () => {
+            requestMock
+                .mockResolvedValueOnce({ code: 200, date: '2026-10-27', songs: [song('h-a', 201), song('h-b', 202)] })
+                .mockResolvedValueOnce({ code: 200, date: '2026-11-01', songs: [song('h-c', 203)] });
+
+            const byText = await qqRecommendations.getHistorySongs!('2026-10-27');
+            const byEntry = await qqRecommendations.getHistorySongs!({ id: '2026-11-01', label: '2026-11-01' });
+
+            expect(byText.map(item => [item.qqMid, item.id])).toEqual([['h-a', 201], ['h-b', 202]]);
+            expect(byEntry.map(item => item.qqMid)).toEqual(['h-c']);
+            expect(requestMock.mock.calls).toEqual([
+                ['user_daily_history', { date: '2026-10-27' }],
+                ['user_daily_history', { date: '2026-11-01' }],
+            ]);
+        });
+
+        it('asks nothing without a session', async () => {
+            transportState.hasSession = false;
+            await expect(qqRecommendations.getHistoryDates!()).resolves.toEqual([]);
+            await expect(qqRecommendations.getHistorySongs!('2026-10-27')).resolves.toEqual([]);
+            expect(requestMock).not.toHaveBeenCalled();
+        });
+
+        // 422 是没有日期或这天没有歌；旧后端没有这两条路由回 404。都当空，不算失败。
+        it('treats 422 and a backend without the routes as nothing to show', async () => {
+            requestMock
+                .mockRejectedValueOnce(emptyAnswer())
+                .mockRejectedValueOnce(missingRoute())
+                .mockRejectedValueOnce(emptyAnswer())
+                .mockRejectedValueOnce(missingRoute());
+            await expect(qqRecommendations.getHistoryDates!()).resolves.toEqual([]);
+            await expect(qqRecommendations.getHistoryDates!()).resolves.toEqual([]);
+            await expect(qqRecommendations.getHistorySongs!('2026-10-27')).resolves.toEqual([]);
+            await expect(qqRecommendations.getHistorySongs!('2026-10-27')).resolves.toEqual([]);
+        });
+
+        it('surfaces a real failure', async () => {
+            requestMock.mockRejectedValueOnce(upstreamFailure()).mockRejectedValueOnce(upstreamFailure());
+            await expect(qqRecommendations.getHistoryDates!()).rejects.toMatchObject({ httpStatus: 502 });
+            await expect(qqRecommendations.getHistorySongs!('2026-10-27')).rejects.toMatchObject({ httpStatus: 502 });
+        });
+    });
+
     describe('recommended playlists', () => {
         const PLAYLIST = {
             tid: 90001,
