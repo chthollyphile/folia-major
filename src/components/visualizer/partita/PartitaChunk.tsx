@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, MotionValue, Variants, useMotionValueEvent } from 'framer-motion';
 import { Theme, Word as WordType } from '../../../types';
 import { GlowWord } from '../GlowWord';
 import { getGlowWordActiveEndTime, type GlowWordRenderProfile } from '../glowWordTiming';
 import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
-import { PARTITA_WORD_LAYOUT_STYLE, type WordLayoutConfig, getActiveColor } from './partitaLayout';
+import { PARTITA_WORD_LAYOUT_STYLE, type WordLayoutConfig, buildPartitaWordConfigs, getActiveColor } from './partitaLayout';
+import { type PartitaRowSpacing } from './partitaOverlap';
+import { OVERLAP_FIT_ROW_ATTRIBUTE } from '../useOverlapFit';
 
 // src/components/visualizer/partita/PartitaChunk.tsx
 // 一列中的一个 chunk：组合 GlowWord 与引导线，chunk 自身只订阅粗粒度状态。
@@ -26,8 +28,10 @@ export const PartitaChunk: React.FC<{
     renderProfile: GlowWordRenderProfile;
     isChorus?: boolean;
     showGuideLines: boolean;
+    /** With avoidOverlap: the gaps this row's words and the row itself keep (partitaOverlap.ts). */
+    overlapSpacing?: PartitaRowSpacing;
     fontSize: string;
-}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, baseColor, renderProfile, isChorus, showGuideLines, fontSize }) => {
+}> = ({ chunkWords, displayWords, config, guideIndex, currentTime, theme, layoutVariants, bodyVariants, baseColor, renderProfile, isChorus, showGuideLines, overlapSpacing, fontSize }) => {
     const [chunkStatus, setChunkStatus] = useState<'waiting' | 'active' | 'passed'>('waiting');
 
     const chunkStartTime = chunkWords[0].startTime;
@@ -45,14 +49,24 @@ export const PartitaChunk: React.FC<{
 
     const activeColor = getActiveColor(displayWords.map(w => w.text).join(' '), theme);
     const guidePosition = guideIndex % 2 === 0 ? 'left' : 'right';
+    const direction = resolveLyricTextDirection(displayWords.map(w => w.text).join(' '));
+
+    // Per-word random offset only (chunk position is on the container).
+    const wordConfigs = useMemo(
+        () => buildPartitaWordConfigs(displayWords, config, theme.animationIntensity),
+        [displayWords, config, theme.animationIntensity],
+    );
 
     return (
         <motion.div
             // An RTL chunk (Uyghur, Arabic...) lays its words out from the right.
-            dir={resolveLyricTextDirection(displayWords.map(w => w.text).join(' '))}
+            dir={direction}
+            {...(overlapSpacing ? { [OVERLAP_FIT_ROW_ATTRIBUTE]: '' } : null)}
             className="inline-flex origin-center relative whitespace-nowrap items-center justify-center flex-row"
             style={{
-                marginBottom: config.marginBottom,
+                // With avoidOverlap the row's margins are in em of the lyric size, so the row takes it on.
+                ...(overlapSpacing ? { fontSize, marginTop: overlapSpacing.marginTop } : null),
+                marginBottom: overlapSpacing?.marginBottom ?? config.marginBottom,
                 alignSelf: config.alignSelf,
                 lineHeight: 1,
                 minWidth: 'auto',
@@ -168,29 +182,7 @@ export const PartitaChunk: React.FC<{
             )}
 
             {displayWords.map((w, idx) => {
-                // Per-word random offset only (chunk position is on the container)
-                const wordSeed = displayWords[0].startTime + idx * 7.13;
-                const random = (offset: number) => {
-                    const x = Math.sin(wordSeed + offset) * 10000;
-                    return x - Math.floor(x);
-                };
-
-                const intensity = theme.animationIntensity;
-                const isCalm = intensity === 'calm';
-                const isChaotic = intensity === 'chaotic';
-                const baseSpread = isChaotic ? 15 : isCalm ? 0 : 6;
-                const baseRotate = isChaotic ? 8 : isCalm ? 0 : 3;
-
-                const wordConfig: WordLayoutConfig = {
-                    id: `${config.id}-w${idx}`,
-                    x: (random(1) - 0.5) * baseSpread * 2,
-                    y: (random(2) - 0.5) * baseSpread * 2,
-                    rotate: (random(3) - 0.5) * baseRotate * 2,
-                    scale: config.scale,
-                    marginBottom: '0',
-                    alignSelf: 'auto',
-                    passedRotate: (random(8) - 0.5) * 20,
-                };
+                const wordConfig = wordConfigs[idx];
 
                 return (
                     <GlowWord
@@ -206,7 +198,7 @@ export const PartitaChunk: React.FC<{
                         renderProfile={renderProfile}
                         isChorus={isChorus}
                         fontSize={fontSize}
-                        layoutStyle={PARTITA_WORD_LAYOUT_STYLE}
+                        layoutStyle={overlapSpacing?.words[idx] ?? PARTITA_WORD_LAYOUT_STYLE}
                     />
                 );
             })}

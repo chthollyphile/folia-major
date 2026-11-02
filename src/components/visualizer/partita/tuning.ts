@@ -22,6 +22,7 @@ const resolve = (values: Partial<PartitaTuning>, base: PartitaTuning): PartitaTu
         useSemanticLayout: values.useSemanticLayout ?? base.useSemanticLayout,
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
+        avoidOverlap: values.avoidOverlap ?? base.avoidOverlap,
     };
 };
 
@@ -34,6 +35,7 @@ export default defineVisualizerTuning<PartitaTuning>({
         useSemanticLayout: MOD_SWITCH,
         staggerMin: modNumber(0, 180),
         staggerMax: modNumber(0, 180),
+        avoidOverlap: MOD_SWITCH,
     },
     // As the panel's sliders (settingsPanels.tsx): one end moved past the other takes it along, rather than
     // the merge swapping the two. Both ends given are put in order by the merge.

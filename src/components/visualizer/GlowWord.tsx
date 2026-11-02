@@ -5,6 +5,7 @@ import { buildWordGraphemeTimings } from '../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontWeight } from '../../utils/fontStacks';
 import { wordGlowVariants } from './wordGlow';
 import { getGlowWordActiveEndTime, getGlowWordDisplayDuration, type GlowWordRenderProfile } from './glowWordTiming';
+import { GLOW_WORD_LINE_HEIGHT } from './glowWordOverlap';
 
 // src/components/visualizer/GlowWord.tsx
 // classic / partita 共用的单词组件：每个词只持有 waiting / active / passed 三态，状态变化才 setState；
@@ -77,7 +78,7 @@ export const GlowWord = <TConfig extends { id: string }>({
             style={{
                 fontSize,
                 fontWeight: resolveThemeFontWeight(theme, 700),
-                lineHeight: 1.22,
+                lineHeight: GLOW_WORD_LINE_HEIGHT,
                 ...layoutStyle,
             }}
         >

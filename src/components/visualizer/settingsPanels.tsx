@@ -50,6 +50,7 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps<Classic
         wordSpacing: clampClassicWordSpacing(
             classicTuning.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7
         ),
+        avoidOverlap: classicTuning.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap ?? false,
     };
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
@@ -92,6 +93,12 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps<Classic
                     format={times}
                     onChange={(value) => onClassicTuningChange?.({ wordSpacing: value })}
                 />
+                <Row label={t('options.avoidOverlap')} hint={t('options.avoidOverlapHint')}>
+                    <Toggle
+                        checked={resolvedClassicTuning.avoidOverlap}
+                        onChange={(enabled) => onClassicTuningChange?.({ avoidOverlap: enabled })}
+                    />
+                </Row>
             </Reveal>
         </Group>
     );
@@ -110,6 +117,7 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps<Partita
         useSemanticLayout: partitaTuning.useSemanticLayout ?? DEFAULT_PARTITA_TUNING.useSemanticLayout,
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
+        avoidOverlap: partitaTuning.avoidOverlap ?? DEFAULT_PARTITA_TUNING.avoidOverlap,
     };
     // A slider moved past the other end takes that end along: both ends are sent. Sent alone, the
     // moved end would be put in order by the tuning's merge (partita/tuning.ts), which swaps the
@@ -143,6 +151,12 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps<Partita
                 <Toggle
                     checked={resolvedPartitaTuning.useSemanticLayout}
                     onChange={(enabled) => onPartitaTuningChange?.({ useSemanticLayout: enabled })}
+                />
+            </Row>
+            <Row label={t('options.avoidOverlap')} hint={t('options.avoidOverlapHint')}>
+                <Toggle
+                    checked={Boolean(resolvedPartitaTuning.avoidOverlap)}
+                    onChange={(enabled) => onPartitaTuningChange?.({ avoidOverlap: enabled })}
                 />
             </Row>
             <SliderRow

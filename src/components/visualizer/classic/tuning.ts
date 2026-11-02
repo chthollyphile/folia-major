@@ -23,6 +23,7 @@ export default defineVisualizerTuning<ClassicTuning>({
         useLegacyLayout: MOD_SWITCH,
         breathingFloatMultiplier: modNumber(0, 2),
         wordSpacing: modNumber(0, 2),
+        avoidOverlap: MOD_SWITCH,
     },
     settingsKey: 'classicTuning',
     settingsSetterKey: 'handleSetClassicTuning',
@@ -37,6 +38,7 @@ export default defineVisualizerTuning<ClassicTuning>({
             ),
             useLegacyLayout: stored.useLegacyLayout ?? DEFAULT_CLASSIC_TUNING.useLegacyLayout,
             wordSpacing: zeroToTwo(stored.wordSpacing ?? DEFAULT_WORD_SPACING, DEFAULT_WORD_SPACING),
+            avoidOverlap: stored.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap,
         }),
         merge: (held, patch) => ({
             enableWordRotation: patch.enableWordRotation ?? held.enableWordRotation,
@@ -49,6 +51,7 @@ export default defineVisualizerTuning<ClassicTuning>({
                 patch.wordSpacing ?? held.wordSpacing ?? DEFAULT_WORD_SPACING,
                 held.wordSpacing ?? DEFAULT_WORD_SPACING,
             ),
+            avoidOverlap: patch.avoidOverlap ?? held.avoidOverlap,
         }),
         resetNotice: 'notifications.classicReset',
     },

@@ -2668,6 +2668,8 @@ export default {
     "partitaSemanticLayout": "Bố cục ngữ nghĩa CJK",
     "partitaStaggerMin": "Độ so le tối thiểu",
     "partitaStaggerMax": "Độ so le tối đa",
+    "avoidOverlap": "Tránh chồng chữ",
+    "avoidOverlapHint": "Giãn cách chữ theo kích thước khi phóng to và xoay",
     "fumeSettings": "Tinh chỉnh Fume",
     "fumeHidePrintSymbols": "Ẩn khối in ký tự",
     "fumeGeometricBackground": "Hình khối nền",
