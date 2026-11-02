@@ -4,18 +4,20 @@ import { makeTex, type Tex } from './nebbiaGlUtils';
 // src/components/visualizer/nebbia/nebbiaSnowGl.ts
 // 雪窗的雪花在 WebGL 里画（nebbiaGl.ts 在主画面之后调）：全部阶段贴图拼成一张图集（nebbiaSnowFlakes.ts），每片雪一个实例，预乘透明度叠上去。
 // 雪被身后窗外的光照着：取主画面已经预渲染好的那层大范围糊的窗外（雾的光晕层，uFogGlow），暖橙的灯下泛一点暖黄、蓝的地方带一点冷蓝、
-// 暗的地方暗下去；逆光时像冰一样被照透，透过它看到身后折过来的窗外（雪自己不往外发光，玻璃上的光晕归雾那一层）。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
+// 暗的地方暗下去；逆光时像冰一样被照透，透过它看到身后折过来的窗外，冰棱偶尔闪一下彩色的火彩；靠近亮光的雪外面再散一圈很淡、不大的柔光。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
 // 雪跟玻璃一起颠（和水珠纹理一样按 glassShift 挪）。
 
 /** 一片雪的实例：x、y、半径（CSS 像素）、转角；融化阶段（0..STAGES-1）、图集里第几行、透明度、清楚的程度（1 = 贴上了、对上焦；飘过来时、窗外的雪小于 1，越小越糊）；横、竖压扁。 */
 export const FLAKE_FLOATS = 10;
+/** 火彩把贴图分成几乘几格（每格各自闪）。 */
+const GLINT_GRID = '9.0';
 /** 实例方块的半边长是雪花半径的几倍（要盖住整张贴图和飘过来时的糊光）。 */
 const EXT = 2.6;
 
 export const NEBBIA_FLAKE_VS = /* glsl */ `#version 300 es
 in vec2 aCorner; in vec4 aA; in vec4 aB; in vec2 aC;
 uniform vec2 uView, uShift;
-out vec2 vLocal; out vec2 vHalo; out vec2 vFu; flat out vec4 vB; flat out float vR;
+out vec2 vLocal; out vec2 vHalo; out vec2 vFu; flat out vec4 vB; flat out float vR; flat out float vSeed;
 void main() {
   vec2 c = (aCorner * 2.0 - 1.0) * ${EXT.toFixed(2)};
   float cs = cos(aA.w), sn = sin(aA.w);
@@ -23,6 +25,8 @@ void main() {
   vec2 p = aA.xy + vec2(off.x * cs - off.y * sn, off.x * sn + off.y * cs) + uShift;
   // vLocal：贴图里的坐标（单位是雪花半径，压扁之前）；vHalo：糊光、柔光用的（不压扁）
   vLocal = c / aC; vHalo = c; vB = aB; vR = aA.z;
+  // 每片雪自己的随机数（闪光用）：贴上以后转角、种类都不再变
+  vSeed = fract(sin(aA.w * 12.9898 + aB.y * 78.233) * 43758.5453);
   // 雾的预渲染纹理第 0 行是屏幕底部
   vFu = vec2(p.x / uView.x, 1.0 - p.y / uView.y);
   gl_Position = vec4(p.x / uView.x * 2.0 - 1.0, 1.0 - p.y / uView.y * 2.0, 0.0, 1.0);
@@ -31,8 +35,8 @@ void main() {
 export const NEBBIA_FLAKE_FS = /* glsl */ `#version 300 es
 precision mediump float;
 uniform sampler2D uAtlas, uGlow, uBehind;
-uniform bool uLit; uniform vec2 uGrid; uniform highp vec2 uView;
-in vec2 vLocal; in vec2 vHalo; in vec2 vFu; flat in vec4 vB; flat in float vR;
+uniform bool uLit; uniform vec2 uGrid; uniform highp vec2 uView; uniform highp float uTime;
+in vec2 vLocal; in vec2 vHalo; in vec2 vFu; flat in vec4 vB; flat in float vR; flat in float vSeed;
 out vec4 o;
 vec4 tile(float col, vec2 t, float bias) { return texture(uAtlas, (vec2(col, vB.y) + t) / uGrid, bias); }
 void main() {
@@ -54,16 +58,29 @@ void main() {
   float back = float(uLit) * smoothstep(0.08, 0.45, lum) * p * (1.0 - 0.7 * vB.x / ${(FLAKE_STAGES - 1).toFixed(1)});
   float a0 = c.a / max(vB.z, 0.001);
   vec2 n = vec2(dFdx(a0), dFdy(a0)) * vR;
-  vec3 through = texture(uBehind, vFu - n * vR * 0.7 / uView).rgb;
   float edge = clamp(length(n) * 0.5, 0.0, 1.0);
-  vec3 ice = (through * (1.25 + 0.6 * edge) + min(L, vec3(1.2)) * edge * 0.5) * c.a + c.rgb * lit * 0.15;
+  // 色散（比真冰放大了不少，要看得出）：红、绿、蓝折得不一样多，棱上再沿斜的方向分开一点，透过来的窗外在边上错出彩边、颜色加浓；
+  vec2 bend = n * vR * 0.7 / uView, split = n / max(length(n), 0.001) * vR * 0.35 * edge / uView;
+  vec3 through = vec3(texture(uBehind, vFu - bend * 0.8 - split).r, texture(uBehind, vFu - bend).g, texture(uBehind, vFu - bend * 1.25 + split).b);
+  vec3 gray = vec3(dot(through, vec3(0.3333)));
+  through = gray + (through - gray) * (1.0 + 1.5 * edge);
+  vec3 ice = (through * (1.1 + 0.3 * edge) + min(L, vec3(1.2)) * edge * 0.3) * c.a + c.rgb * lit * 0.15;
   rgb = mix(rgb, ice, back * 0.85);
   float d = length(vHalo);
   // 还没飘到焦点上：外面套一圈糊的
   float ha = 0.35 * (1.0 - p) * max(0.0, 1.0 - d / (1.6 - 0.6 * p));
   rgb = vec3(0.92, 0.95, 1.0) * lit * ha + rgb * (1.0 - ha);
   float a = ha + c.a * (1.0 - ha);
-  o = vec4(rgb, a);
+  // 靠近亮光：外面散一圈很淡的柔光（只加颜色，比雪花大不了多少），化得越多越淡；没有光照（透明）时不加
+  float soft = float(uLit) * smoothstep(0.12, 0.6, lum) * 0.45 * exp(-d * d * 2.4) * vB.z * (1.0 - vB.x / ${(FLAKE_STAGES - 1).toFixed(1)});
+  // 火彩（色散）：冰棱偶尔把身后的光分成一种纯色闪一下，像钻石。贴图按格子分，每格有自己的节奏和颜色，
+  // 只有冰棱上（斜面）的格子会闪，一闪很短；只加光，亮度按身后光的亮度给，不跟灯的颜色走
+  vec2 g = tc * ${GLINT_GRID}, gc = floor(g), gf = fract(g) - 0.5;
+  float h = fract(sin(dot(gc, vec2(12.9898, 78.233)) + vSeed * 91.7) * 43758.5453);
+  float flash = pow(max(0.0, sin(uTime * (0.8 + 1.6 * h) + h * 60.0)), 80.0);
+  vec3 gHue = clamp(abs(fract(fract(h * 7.31) + vec3(0.0, 0.667, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
+  float glint = back * flash * exp(-dot(gf, gf) * 18.0) * edge * (0.6 + 2.0 * lum) * vB.z;
+  o = vec4(rgb + min(L, vec3(1.2)) * soft + gHue * glint * 2.2, a);
 }`;
 
 export class NebbiaSnowGl {
@@ -74,6 +91,7 @@ export class NebbiaSnowGl {
     private uView: WebGLUniformLocation | null = null;
     private uShift: WebGLUniformLocation | null = null;
     private uGrid: WebGLUniformLocation | null = null;
+    private uTime: WebGLUniformLocation | null = null;
     private rows = 0;
 
     constructor(private readonly gl: WebGL2RenderingContext, unit: number) {
@@ -101,6 +119,7 @@ export class NebbiaSnowGl {
         this.uView = gl.getUniformLocation(prog, 'uView');
         this.uShift = gl.getUniformLocation(prog, 'uShift');
         this.uGrid = gl.getUniformLocation(prog, 'uGrid');
+        this.uTime = gl.getUniformLocation(prog, 'uTime');
         gl.uniform1i(gl.getUniformLocation(prog, 'uAtlas'), this.atlas.unit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uGlow'), glowUnit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uBehind'), behindUnit);
@@ -133,6 +152,8 @@ export class NebbiaSnowGl {
         gl.uniform2f(this.uView, W, H);
         gl.uniform2f(this.uShift, shift[0], shift[1]);
         gl.uniform2f(this.uGrid, FLAKE_STAGES, this.rows);
+        // 火彩的节奏：取个不大的秒数（float 精度）
+        gl.uniform1f(this.uTime, (performance.now() / 1000) % 3600);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
