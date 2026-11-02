@@ -7,6 +7,7 @@ import { readCommandFrequencyState } from '../command-palette/commandFrequency';
 import { getCommandTitle } from '../command-palette/commandText';
 import type { CommandPaletteCommand } from '../command-palette/types';
 import { capsuleGlassClass, capsuleGlassStyle } from './capsuleGlass';
+import { openCommandPalette } from '../../stores/useAppViewStore';
 import { resolveCapsuleQuickActions } from './capsuleQuickActionSelection';
 import {
     playerControlSlotActionForCommand,
@@ -17,9 +18,10 @@ import {
 
 // src/components/floating-player/CapsuleQuickActions.tsx
 // 胶囊上方浮出的一排命令：指针在胶囊上停一会儿才出现，挑哪几条见 capsuleQuickActionSelection。
+// 最右边固定一个打开命令面板的按钮，不受名单、上限和频次影响。
 
 /** 胶囊悬停展开后再停这么久才浮出：路过的指针不该每次都带出一排按钮。 */
-const DWELL_MS = 400;
+const DWELL_MS = 250;
 
 /**
  * 指针在胶囊上停够了没有。只看悬停：暂停时胶囊自己展开不算停留。
@@ -84,10 +86,6 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
         counts,
     }), [context, counts, slotPrimary, slotSecondary]);
 
-    if (commands.length === 0) {
-        return null;
-    }
-
     return (
         <motion.div
             // 下边距画在自己身上而不是外层：指针从胶囊往上挪到这排按钮时一直在悬停区里，胶囊不会中途收起。
@@ -127,6 +125,20 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                         </button>
                     );
                 })}
+                {commands.length > 0 && (
+                    <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-current opacity-15" />
+                )}
+                {/* 固定在最右：不管上面挑出了几条，总有一条路通到完整的命令面板，从进度条原地长出来。 */}
+                <button
+                    type="button"
+                    data-capsule-action="open-command-palette"
+                    onClick={() => openCommandPalette()}
+                    className="rounded-full p-2 opacity-70 transition-colors hover:bg-current/10 hover:opacity-100"
+                    title={t('help.openCommandPalette')}
+                    aria-label={t('help.openCommandPalette')}
+                >
+                    <Command size={16} />
+                </button>
             </div>
         </motion.div>
     );
