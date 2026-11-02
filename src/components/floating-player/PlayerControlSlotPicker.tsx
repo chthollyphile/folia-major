@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Settings2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { panelEdgeColor } from '../panelTab/shell/panelTheme';
 import { PLAYER_CONTROL_SLOT_OPTIONS, type PlayerControlSlotActionId } from './playerControlSlotActions';
 
 // src/components/floating-player/PlayerControlSlotPicker.tsx
@@ -24,6 +25,7 @@ interface PlayerControlSlotPickerProps {
     onSelect: (actionId: PlayerControlSlotActionId) => void;
     onOpenSettings: () => void;
     onClose: () => void;
+    isDaylight?: boolean;
 }
 
 const PlayerControlSlotPicker: React.FC<PlayerControlSlotPickerProps> = ({
@@ -34,6 +36,7 @@ const PlayerControlSlotPicker: React.FC<PlayerControlSlotPickerProps> = ({
     onSelect,
     onOpenSettings,
     onClose,
+    isDaylight = false,
 }) => {
     const { t } = useTranslation();
     const panelRef = useRef<HTMLDivElement | null>(null);
@@ -86,8 +89,9 @@ const PlayerControlSlotPicker: React.FC<PlayerControlSlotPickerProps> = ({
             role="dialog"
             aria-label={t(side === 'primary' ? 'options.playerControlSlotPrimary' : 'options.playerControlSlotSecondary')}
             data-testid="player-control-slot-picker"
-            className="fixed z-[140] rounded-3xl border p-2 shadow-2xl backdrop-blur-2xl theme-glass-panel"
-            style={{ left, bottom, width }}
+            className="fixed z-[140] rounded-3xl p-2 backdrop-blur-2xl theme-glass-panel"
+            // 边沿和旁边的播放页面板同一条 1px 线（画在阴影里，不是 border）。
+            style={{ left, bottom, width, boxShadow: `0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px ${panelEdgeColor(isDaylight)}` }}
             initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
