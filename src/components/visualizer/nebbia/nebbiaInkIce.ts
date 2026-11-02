@@ -1,10 +1,10 @@
 import type { InkContext } from './nebbiaInk';
-import { iceParams, ICE_SLIDE_AT } from './nebbiaSnowWater';
+import { iceParams, iceSizeScale, ICE_SLIDE_AT } from './nebbiaSnowWater';
 
 // src/components/visualizer/nebbia/nebbiaInkIce.ts
 // 雪窗上写字留下的水珠（擦痕边的小水珠、收笔水珠、淌下来停住的那颗）也会结冰（原型）：和雪化成的水珠同一套参数（nebbiaSnowWater.ts 的 iceParams），
 // 但写字的水珠每帧按时刻重算、不留状态，所以冻了多少、滑了多远都按「这颗水珠留下多久了」（age）直接算出来：
-// 留够 freezeAfter 秒（每颗按种子早晚不同）开始从中间往外冻，冻的时候挂霜长大，冻到 ICE_SLIDE_AT 起步慢慢往下挪、左右轻轻晃，
+// 留够 freezeAfter 秒（按大小放长，iceSizeScale；每颗再按种子早晚不同）开始从中间往外冻，冻的时候挂霜长大，冻到 ICE_SLIDE_AT 起步慢慢往下挪、左右轻轻晃，
 // 大的边滑边左右来回转，身后每隔一段留一颗冻住的小冰点。还是跟着字一起起雾、淡没（透明度照写字的水珠）。
 // 冰芯记进 ink.ice（ICE_FLOATS 个数一颗），nebbiaSnow.ts 排成 bead 贴图的雪花实例画。
 
@@ -26,9 +26,10 @@ export const putInkBead = (ink: InkContext, x: number, y: number, r: number, alp
     const ice = ink.ice, p = iceParams;
     if (!ice || p.off || age < 0 || r < p.minR * ice.k) { ink.motion.put(x, y, r, alpha, sx, sy); return; }
     const h = hash(seed), h2 = hash(seed + 17.3), k = ice.k;
-    const t = age - p.freezeAfter * (0.7 + 0.6 * h);
+    const scale = iceSizeScale(r, k);
+    const t = age - p.freezeAfter * scale * (0.7 + 0.6 * h);
     if (t <= 0) { ink.motion.put(x, y, r, alpha, sx, sy); return; }
-    const dur = Math.max(1, p.freezeDur), frozen = Math.min(1, t / dur);
+    const dur = Math.max(1, p.freezeDur * scale), frozen = Math.min(1, t / dur);
     const R = r * Math.max(1, p.grow) ** frozen;
     // 往下挪：冻到 ICE_SLIDE_AT 起步，用 0.15 × freezeDur 秒加速到匀速
     const v = p.slide * k * (0.65 + 0.7 * h2), ramp = 0.15 * dur, tau = t - ICE_SLIDE_AT * dur;

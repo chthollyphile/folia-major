@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { iceParams, NebbiaSnowWater } from '@/components/visualizer/nebbia/nebbiaSnowWater';
+import { iceParams, iceSizeScale, NebbiaSnowWater } from '@/components/visualizer/nebbia/nebbiaSnowWater';
 import { NebbiaSegments } from '@/components/visualizer/nebbia/nebbiaSegments';
 
 // test/unit/visualizer/nebbiaSnowWater.test.ts
@@ -46,7 +46,9 @@ describe('nebbia snow water', () => {
         water.resize(W, H);
         water.slip = 1;
         const d = water.spawn(300, 200, 30);
-        run(water, iceParams.freezeAfter + iceParams.freezeDur + 2);
+        // 开始冻、冻透的时间按大小放长
+        const scale = iceSizeScale(water.sizeX(d) / 4, H / 1000);
+        run(water, (iceParams.freezeAfter + iceParams.freezeDur) * scale + 2);
         expect(d.ice).toBeGreaterThan(0.3);
         expect(d.y).toBeGreaterThan(200);
     });

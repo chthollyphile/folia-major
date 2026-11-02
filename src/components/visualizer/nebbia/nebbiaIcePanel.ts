@@ -5,13 +5,14 @@ import { iceParams, iceStats } from './nebbiaSnowWater';
 
 type NumKey = Exclude<keyof typeof iceParams, 'off' | 'spawnBig'>;
 const SLIDERS: [NumKey, string, number, number, number][] = [
-    ['freezeAfter', '停多久开始冻（秒）', 1, 60, 0.5],
-    ['freezeDur', '多久冻透（秒）', 2, 90, 1],
+    ['freezeAfter', '最小的水珠停多久开始冻（秒，大的按大小放长）', 1, 60, 0.5],
+    ['freezeDur', '最小的水珠多久冻透（秒，大的按大小放长）', 2, 90, 1],
     ['slide', '往下挪的速度', 1, 60, 0.5],
     ['minR', '多大的水珠才冻', 1, 12, 0.5],
     ['grow', '冻的时候挂霜长大（倍）', 1, 4, 0.1],
     ['spinR', '多大的冰珠滑时转', 2, 20, 0.5],
     ['spin', '转的幅度（弧度）', 0, 1.2, 0.05],
+    ['maxIce', '窗上最多几颗冰珠', 20, 1000, 10],
 ];
 
 /** 挂上面板，返回卸掉它的函数。 */

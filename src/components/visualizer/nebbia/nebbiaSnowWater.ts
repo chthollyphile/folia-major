@@ -33,8 +33,12 @@ export interface WaterDrop {
     cell: number;
     /** 上次查合并时的质量（grew 用）。 */
     wokeMass: number;
+    /** 上次查合并时在哪（滑着的冰珠走过 1 像素再查，wake 记）。 */
+    wokeX: number; wokeY: number;
     /** 停着不动了多少秒；冻了多少（0..1）；冻住后往下挪的速度倍数（每颗不同）；冰芯的转角；是不是滑过留下的小冰点（不滑）。 */
     still: number; ice: number; iceV: number; rot: number; speck: boolean;
+    /** 这颗冻透要几秒（开始冻时按大小定，iceSizeScale）。 */
+    iceDur: number;
     /** 往下滑过的路程；大冰珠滑的时候左右来回转的角度（加在 rot 上）。 */
     slid: number; tilt: number;
 }
@@ -43,12 +47,16 @@ export interface WaterDrop {
  * 结冰的参数（原型的滑块面板改）：停多久开始冻、多久冻透（秒）；往下挪多快（画面高 1000 时每秒像素）；多大的水珠才冻（看得见的半径，画面高 1000 时）；
  * 冻的时候外面挂霜、长大到几倍（看得见的半径，冻透时）；看得见的半径大于 spinR（画面高 1000 时）的冰珠滑的时候左右来回转，最多转 spin 弧度。
  */
-export const iceParams = { freezeAfter: 1.5, freezeDur: 3, slide: 9, minR: 2.5, grow: 2, spinR: 7.5, spin: 0.35, off: false, spawnBig: 0 };
+export const iceParams = { freezeAfter: 1.5, freezeDur: 3, slide: 3, minR: 2.5, grow: 2, spinR: 7.5, spin: 0.35, maxIce: 200, off: false, spawnBig: 0 };
 /** 原型看数用：玻璃上几颗水珠、几颗在冻、几颗在往下挪、最大的看得见的半径。 */
 export const iceStats = { drops: 0, freezing: 0, sliding: 0, maxR: 0, list: [] as number[][] };
 /** 冻到多少开始往下挪（写字留下的水珠也用，nebbiaInkIce.ts）。 */
 export const ICE_SLIDE_AT = 0.3;
 const SLIDE_AT = ICE_SLIDE_AT;
+/** 开始冻、冻透的时间按水珠大小（取对数）放长：看得见的半径刚到 minR 的照面板上的秒数，大一倍的约 1.7 倍、大三倍的约 2.4 倍（大水珠难冻一些）。r 是看得见的半径，k 是画面高 / 1000。 */
+export const iceSizeScale = (r: number, k: number) => 1 + Math.log(Math.max(1, r / (Math.max(0.5, iceParams.minR) * k)));
+/** 窗上最多留多少颗小冰点（冰珠上限 iceParams.maxIce 的几倍）：冻住的蒸发得慢，一颗能挂二十来秒，不封顶会攒到几千颗。到顶了滑的就先不留，旧的化掉再留。 */
+const SPECKS_PER_ICE = 1.5;
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 /** 没有水珠在走时，水珠纹理多久重画一次（秒）。 */
@@ -68,6 +76,10 @@ export class NebbiaSnowWater {
     private time = 0;
     /** 原型测试：面板上「放一颗大冰珠」点了几次（spawnBig），这边放过几颗。 */
     private bigSeen = 0;
+    /** 上一帧窗上的小冰点数（MAX_SPECKS 用）。 */
+    private specks = 0;
+    /** 上一帧在冻、在滑的冰珠数（不算小冰点）：到 iceParams.maxIce 了新的先不冻。冰珠蒸发得慢、滑得慢，不封顶会攒到上千颗，又碍眼又费 CPU。 */
+    private frozen = 0;
     /** 打滑程度（库的 slipRate，0..1）。雪窗用 0：挂得最牢，化出的水多半留在原地，要并得很大才往下滑。 */
     slip = 0;
     /** 能滑的最小质量（画面高 1000 时）：库里没有这个门槛，小水珠也会随机滑一小段，雪窗水珠多，满屏都是一道道水痕。 */
@@ -97,8 +109,8 @@ export class NebbiaSnowWater {
         const d: WaterDrop = {
             x, y, vx: 0, vy: 0, mass: (size * density) ** 2, density, sx: spread, sy: spread,
             resist: 0, shift: 0, nextMotion: 0, lastTx: x, lastTy: y, nextTrail: rand(20, 30) * this.k,
-            parent: null, dead: false, pin: null, wipe: null, awake: false, cell: -1, wokeMass: 0,
-            still: 0, ice: 0, iceV: 1, rot: Math.random() * Math.PI * 2, speck: false, slid: 0, tilt: 0,
+            parent: null, dead: false, pin: null, wipe: null, awake: false, cell: -1, wokeMass: 0, wokeX: 0, wokeY: 0,
+            still: 0, ice: 0, iceV: 1, iceDur: 1, rot: Math.random() * Math.PI * 2, speck: false, slid: 0, tilt: 0,
         };
         this.drops.push(d);
         this.grid.place(d);
@@ -107,7 +119,7 @@ export class NebbiaSnowWater {
     }
 
     /** 变大了（外面加了水）或刚放下：这一帧查合并。 */
-    wake(d: WaterDrop) { if (!d.awake && !d.dead) { d.awake = true; d.wokeMass = d.mass; this.woken.push(d); } }
+    wake(d: WaterDrop) { if (!d.awake && !d.dead) { d.awake = true; d.wokeMass = d.mass; d.wokeX = d.x; d.wokeY = d.y; this.woken.push(d); } }
 
     /**
      * 慢慢变大（还在化的雪往底下钉住的水珠里一点点加水）：比上次查合并时重了 5% 以上才再查。
@@ -127,7 +139,7 @@ export class NebbiaSnowWater {
         // 原型测试：在画面上部放一颗大水珠，当场开始冻（看得见的半径 14，画面高 1000 时）
         for (; this.bigSeen < iceParams.spawnBig; this.bigSeen += 1) {
             const d = this.spawn(this.W * rand(0.3, 0.7), this.H * rand(0.15, 0.3), 56 * this.k, 1, 0);
-            d.ice = 1e-3; d.iceV = rand(0.65, 1.35);
+            d.ice = 1e-3; d.iceV = rand(0.65, 1.35); d.iceDur = Math.max(1, iceParams.freezeDur * iceSizeScale(this.sizeX(d) / 4, this.k));
         }
         if (dt <= 0) return;
         this.time += dt;
@@ -136,10 +148,13 @@ export class NebbiaSnowWater {
         for (let i = 0; i < this.drops.length; i += 1) if (!this.drops[i].dead) this.move(this.drops[i], dt, spread);
         this.collide();
         iceStats.drops = this.drops.length; iceStats.list = []; iceStats.freezing = 0; iceStats.sliding = 0; iceStats.maxR = 0;
+        this.specks = 0;
         for (const d of this.drops) {
+            if (d.speck) this.specks += 1;
             if (d.ice > 0 && !d.speck) { if (d.ice < SLIDE_AT) iceStats.freezing += 1; else iceStats.sliding += 1; iceStats.list.push([d.x, d.y, this.sizeX(d) / 4, d.ice]); }
             iceStats.maxR = Math.max(iceStats.maxR, this.sizeX(d) / 4 / this.k);
         }
+        this.frozen = iceStats.freezing + iceStats.sliding;
         for (let i = this.drops.length - 1; i >= 0; i -= 1) {
             const d = this.drops[i];
             if (!d.dead) continue;
@@ -190,12 +205,14 @@ export class NebbiaSnowWater {
         if (d.ice === 0) {
             if (p.off || d.vy > 0 || this.sizeX(d) / 4 < p.minR * k) { d.still = 0; return false; }
             d.still += dt;
-            if (d.still < p.freezeAfter) return false;
-            d.ice = 1e-3; d.iceV = rand(0.65, 1.35);
+            const scale = iceSizeScale(this.sizeX(d) / 4, k);
+            if (d.still < p.freezeAfter * scale || this.frozen >= p.maxIce) return false;
+            this.frozen += 1;
+            d.ice = 1e-3; d.iceV = rand(0.65, 1.35); d.iceDur = Math.max(1, p.freezeDur * scale);
         }
         // 冻的时候外面一直挂上霜（水汽直接冻上去），冻透时看着大到 grow 倍（质量 grow² 倍）
-        if (d.ice < 1) d.mass = Math.min(this.massCap(d), d.mass * (1 + 2 * Math.log(Math.max(1, p.grow)) * dt / Math.max(1, p.freezeDur)));
-        d.ice = Math.min(1, d.ice + dt / Math.max(1, p.freezeDur));
+        if (d.ice < 1) d.mass = Math.min(this.massCap(d), d.mass * (1 + 2 * Math.log(Math.max(1, p.grow)) * dt / d.iceDur));
+        d.ice = Math.min(1, d.ice + dt / d.iceDur);
         if (d.ice < SLIDE_AT) { d.vx = d.vy = 0; return true; }
         // 往下挪：开头慢慢起步，左右轻轻晃
         const v = p.slide * k * d.iceV * Math.min(1, (d.ice - SLIDE_AT) / 0.15);
@@ -209,15 +226,18 @@ export class NebbiaSnowWater {
         const amp = over > 0 ? p.spin * Math.min(1, over / 6) : 0;
         d.tilt += (amp * Math.sin(d.slid / (14 * k) + d.rot * 3) - d.tilt) * Math.min(1, dt * 3);
         this.grid.place(d);
-        this.wake(d);
-        this.urgent = true;
+        // 冰珠滑得慢（每帧零点几像素）：走过 1 像素或者长大 5% 才再查合并；
+        // 慢的不催水珠纹理每帧重画，照常每 FIELD_EVERY 秒一次（落后不到 0.25 像素），快的才催
+        if (Math.abs(d.x - d.wokeX) + Math.abs(d.y - d.wokeY) > k) this.wake(d); else this.grew(d);
+        if (d.vy * FIELD_EVERY > 0.25 * k) this.urgent = true;
         // 身后每隔一段留一颗冻住的小冰点
-        if (Math.hypot(d.x - d.lastTx, d.y - d.lastTy) > d.nextTrail && d.mass > 300 * k * k) {
+        if (Math.hypot(d.x - d.lastTx, d.y - d.lastTy) > d.nextTrail && d.mass > 300 * k * k && this.specks < p.maxIce * SPECKS_PER_ICE) {
             const t = this.spawn(d.x + rand(-1.5, 1.5) * k, d.y - this.sizeX(d) / 4, this.sizeX(d) * rand(0.18, 0.3), 1, 0);
             t.speck = true; t.ice = 1; t.parent = d;
             d.mass -= t.mass;
             d.lastTx = d.x; d.lastTy = d.y;
             d.nextTrail = rand(10, 18) * k;
+            this.specks += 1;
         }
         return true;
     }
