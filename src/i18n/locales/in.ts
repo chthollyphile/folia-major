@@ -1838,6 +1838,15 @@ export default {
     "spotify": "Spotify",
     "amll": "AMLLDB"
   },
+  "onlineProviderName": {
+    "netease": "NetEase",
+    "kugou": "Kugou",
+    "qq": "QQ Music",
+    "bodian": "Bodian",
+    "ytm": "YT Music",
+    "spotify": "Spotify",
+    "qishui": "Qishui",
+  },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
     "subtitle": "Kompensasi latensi audio/visual dari headphone Bluetooth atau perangkat output lain",

@@ -1037,7 +1037,8 @@ export const qqProvider: OnlineMusicProvider = {
     id: 'qq',
     displayName: 'QQ Music',
     shortName: 'QQ音乐',
-    mark: { letter: 'Q', color: '#16a34a' },
+    shortNameKey: 'onlineProviderName.qq',
+    mark: { letter: 'Q', color: '#16a34a', logoKey: 'qq-music' },
     getAvailability,
     describeFailure: describeQqFailure,
     capabilities: {

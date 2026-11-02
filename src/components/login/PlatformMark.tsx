@@ -2,16 +2,17 @@ import React from 'react';
 import { omni } from '../../services/onlineMusic/omni';
 import type { OnlineProviderId, ProviderUser } from '../../types/onlineMusic';
 import { onAccentColor } from '../modal/settings/kit/kitTheme';
+import { platformLogo } from './platformLogo';
 import { resolvePlatformMark } from './resolvePlatformMark';
 
 // src/components/login/PlatformMark.tsx
 // 平台的记号和账号的头像，登录窗口、主页的登录按钮、切换器和控制面板的账号页都画这两样。
-// 记号上的黄点是「这个平台的登录失效了」。角上的小记号和黄点外面那一圈，颜色取所在表面的
+// 记号是平台声明的图标（logoKey），没有图标的画它的字。记号上的黄点是「这个平台的登录失效了」。角上的小记号和黄点外面那一圈，颜色取所在表面的
 // `--login-edge`（没有设就是卡片的颜色）。
 
 const EDGE = '0 0 0 2px var(--login-edge, var(--st-card))';
 
-/** 一个平台的记号的字和颜色，连同画在这种颜色上的字的颜色。 */
+/** 一个平台的记号的图标、字和颜色，连同画在这种颜色上的字的颜色。 */
 export const platformMarkOf = (providerId: OnlineProviderId, label?: string) => {
     const mark = resolvePlatformMark(omni.getProviderMark(providerId), label ?? omni.getProviderLabel(providerId));
     return { ...mark, onColor: onAccentColor(mark.color) };
@@ -28,13 +29,16 @@ type PlatformMarkProps = {
 
 export const PlatformMark: React.FC<PlatformMarkProps> = ({ providerId, label, size, ranOut, className }) => {
     const mark = platformMarkOf(providerId, label);
+    const logo = mark.logoKey ? platformLogo(mark.logoKey) : '';
     return (
         <span
             aria-hidden
             className={`relative inline-grid shrink-0 place-items-center rounded-full font-bold leading-none ${className ?? ''}`}
             style={{ width: size, height: size, background: mark.color, color: mark.onColor, fontSize: Math.round(size * 0.42) }}
         >
-            {mark.letter}
+            {logo
+                ? <img src={logo} alt="" draggable={false} className="h-full w-full rounded-full object-cover" />
+                : mark.letter}
             {ranOut && (
                 <i className="absolute -right-px -top-px h-2.5 w-2.5 rounded-full bg-[var(--st-warn)]" style={{ boxShadow: EDGE }} />
             )}
