@@ -1,11 +1,13 @@
 import { segDist, type NebbiaSegments } from './nebbiaSegments';
 import { packFlakes, type Flake } from './nebbiaSnowDraw';
+import { NebbiaSnowFall, slantOf } from './nebbiaSnowFall';
 import { buildFlakeAtlas, buildFlakeKind, FLAKE_FILL, FLAKE_R, FLAKE_SPRITE, type FlakeKind, type FlakeType } from './nebbiaSnowFlakes';
 import { NebbiaSnowWater } from './nebbiaSnowWater';
 import type { NebbiaTuning } from './types';
 
 // src/components/visualizer/nebbia/nebbiaSnow.ts
-// 雪窗（tuning.glass = 'snow'）：雪花很轻，被风吹着从四面八方飘过来（方向、弯度、飘晃各片不同，车速只带一点往后偏），越近越慢，轻轻贴上玻璃粘住；粘一会儿开始化，细枝、薄边先没，
+// 雪窗（tuning.glass = 'snow'）：窗外一直在下雪（远、中两层，nebbiaSnowFall.ts，水族箱里不下）；贴上玻璃的雪从中层里出：跟着往下落、被风往后斜，
+// 最后一小段被风带向玻璃，越近越大、越清楚、越慢，轻轻贴上玻璃粘住；粘一会儿开始化，细枝、薄边先没，
 // 化出来的水从最厚的几处渗出来，在原地长成几颗钉住的水珠（nebbiaSnowWater.ts），化完放开，照 raindrop-fx 的物理走。
 // 和歌词的水联动：写字的笔尖、抹字的手指、从笔画往下淌的水珠扫过时，雪当帧化开、连同那里的水珠一起被吸走（当作并进了歌词的水，水量不另算）；
 // 写好的笔画边上不另积雪水（挨着的雪水被笔画吸走）。落在水上的雪（雪化的水珠、还挂着水珠的笔画、往下淌的水珠、笔尖）
@@ -32,6 +34,7 @@ export class NebbiaSnow {
     private readonly byType = new Map<FlakeType, FlakeKind[]>(TYPE_ODDS.map(([type]) => [type, this.kinds.filter(k => k.type === type)]));
     private inst: Float32Array = new Float32Array(0);
     private readonly water = new NebbiaSnowWater();
+    private readonly fall = new NebbiaSnowFall(KIND_TYPES.length);
     private flakes: Flake[] = [];
     private spawnAcc = 0;
     private W = 0; private H = 0; private k = 1;
@@ -44,6 +47,7 @@ export class NebbiaSnow {
         if (W === this.W && H === this.H) return;
         this.W = W; this.H = H; this.k = H / 1000;
         this.water.resize(W, H);
+        this.fall.resize(W, H);
         this.flakes = [];
     }
 
@@ -52,9 +56,10 @@ export class NebbiaSnow {
 
     /**
      * 走 dt 秒（暂停、静止时 0）：落新雪、化雪、长水；sweeps 是这一帧扫过的几段（抹雪、吸水），wet 是写好的笔画（只吸水），暂停时也照样算。
-     * wind 是车速带的风（雨夜街景里是 tuning.busSpeed，水族箱里 0）。
+     * wind 是车速带的风（雨夜街景里是 tuning.busSpeed，水族箱里 0）；outside 为假（水族箱）时窗外不下雪，只有贴上玻璃的。
      */
-    step(dt: number, t: NebbiaTuning, sweeps: readonly number[], wet: readonly number[], wind: number) {
+    step(dt: number, t: NebbiaTuning, sweeps: readonly number[], wet: readonly number[], wind: number, outside = true) {
+        this.fall.step(dt, outside ? t.snow : 0, wind);
         this.spawnAcc += dt * t.snow * 25 * this.W * this.H / (1280 * 720);
         for (; this.spawnAcc >= 1; this.spawnAcc -= 1) this.flakes.push(this.newFlake(t, wind));
         this.boxOf(sweeps);
@@ -81,15 +86,14 @@ export class NebbiaSnow {
         const { k } = this;
         const u = Math.random(), type = TYPE_ODDS.find(([, p]) => u < p)![0], pool = this.byType.get(type)!;
         const r = (Math.random() < 0.3 ? rand(4.5, 6) : rand(2.5, 4.5)) * k * t.snowSize;
-        // 从哪边来都有：随机方向、远近；多数从稍高处往下飘。车速带的风（wind，默认车速 1 时就是原来的样子）：
-        // 出发点往前（车头方向）偏，越快偏得越远（比车速涨得快），飘过来就是被风往后卷；越快飞得越快、路线越直、飘晃越小、转得越快
-        const a = Math.random() * TAU, D = rand(50, 170) * k;
-        const gust = wind * (1 + 0.5 * (wind - 1)), calm = 1 / (0.6 + 0.4 * wind);
+        // 从远处飘过来（nebbiaSnowDraw.ts 按透视变大）：一路和窗外远层的雪一样速度往下落，出发点在落点上方，按风的斜度往前（车头方向）偏，越快偏得越远；越快落得越快、路线越直、晃得越小；
+        // 只往一侧轻轻弯一点（最后一小段被风带向玻璃），慢慢转
+        const app = rand(2, 3.2) / (0.75 + 0.25 * wind), fall = rand(45, 75) * k * app, calm = 1 / (0.6 + 0.4 * wind);
         return {
-            x: Math.random() * this.W, y: Math.random() * this.H, r, rot: Math.random() * TAU, spin: rand(-4, 4) * (0.7 + 0.3 * wind),
+            x: Math.random() * this.W, y: Math.random() * this.H, r, rot: Math.random() * TAU, spin: rand(-1.33, 1.33) * (0.7 + 0.3 * wind),
             kind: pool[Math.floor(Math.random() * pool.length)],
-            app: rand(0.5, 1.2) / (0.75 + 0.25 * wind), ox: Math.cos(a) * D + Math.max(0, gust) * rand(30, 90) * k, oy: Math.sin(a) * D - rand(0, 50) * k,
-            curl: rand(-0.6, 0.6) * calm, ff: rand(5, 11), fa: rand(2, 7) * k * calm, fp: Math.random() * TAU,
+            app, ox: rand(-15, 15) * k - slantOf(wind) * fall, oy: -fall,
+            curl: rand(-0.2, 0.2) * calm, ff: rand(1.5, 3.5), fa: rand(1, 4) * k * calm, fp: Math.random() * TAU,
             age: 0, hold: 0.3 + Math.random() ** 2.5 * 7, dur: rand(2.5, 4.5) + r / k * 0.18, melt: 0, water: 0, drops: null, quick: false,
         };
     }
@@ -172,10 +176,12 @@ export class NebbiaSnow {
     /** 上一次 instances() 改没改水珠（没改时水珠纹理不用重画）。 */
     get changed() { return this.water.changed; }
 
-    /** 这一帧的雪花实例（nebbiaSnowDraw.ts 排、nebbiaSnowGl.ts 画）：数据和片数。 */
+    /** 这一帧的雪花实例（nebbiaSnowDraw.ts 排、nebbiaSnowGl.ts 画）：窗外的雪在前（画在底下），再是贴玻璃的；数据和片数。 */
     flakeInstances(): [Float32Array, number] {
-        this.inst = packFlakes(this.flakes, this.inst);
-        return [this.inst, this.flakes.length];
+        const n = this.fall.count;
+        this.inst = packFlakes(this.flakes, this.inst, n);
+        this.fall.pack(this.inst, this.clock);
+        return [this.inst, n + this.flakes.length];
     }
 }
 

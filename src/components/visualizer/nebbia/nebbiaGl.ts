@@ -132,7 +132,7 @@ export class NebbiaGl {
             this.bld?.bindSamplers(fog);
         }
         if (bldFill) this.B = locate(gl, bldFill, [...PALETTE_UNIFORMS, ...BLD_FILL_UNIFORMS]);
-        if (flake) this.snow?.attach(flake, fogGlow.tex.unit, this.fogOK && !this.seeThrough);
+        if (flake) this.snow?.attach(flake, fogGlow.tex.unit, fogBlur.tex.unit, this.fogOK && !this.seeThrough);
         gl.useProgram(sprite);
         this.uView = gl.getUniformLocation(sprite, 'uView');
         gl.uniform1i(gl.getUniformLocation(sprite, 'uSprite'), this.sprite.unit);

@@ -324,7 +324,7 @@ export class NebbiaRuntime {
         const aqua = this.aquarium?.step(dt, this.clock.time, this.W / this.H, t, this.aquaBeats()) ?? null;
         if (this.snow) {
             // 车速带的风只在雨夜街景里吹雪（水族箱里没有车在开）
-            this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? [], this.aquarium ? 0 : t.busSpeed);
+            this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? [], this.aquarium ? 0 : t.busSpeed, !this.aquarium);
             this.snow.drawFog(this.mask.ctx, t);
         } else if (this.condensation) this.condensation.touchInk(this.mask.sweeps ?? [], this.mask.wet ?? [], t.dewSize);
         const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize)

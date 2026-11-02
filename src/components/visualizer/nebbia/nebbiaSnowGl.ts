@@ -4,25 +4,25 @@ import { makeTex, type Tex } from './nebbiaGlUtils';
 // src/components/visualizer/nebbia/nebbiaSnowGl.ts
 // 雪窗的雪花在 WebGL 里画（nebbiaGl.ts 在主画面之后调）：全部阶段贴图拼成一张图集（nebbiaSnowFlakes.ts），每片雪一个实例，预乘透明度叠上去。
 // 雪被身后窗外的光照着：取主画面已经预渲染好的那层大范围糊的窗外（雾的光晕层，uFogGlow），暖橙的灯下泛一点暖黄、蓝的地方带一点冷蓝、
-// 暗的地方暗下去；靠近亮光的雪外面再散一圈很淡的柔光。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
+// 暗的地方暗下去；逆光时像冰一样被照透，透过它看到身后折过来的窗外（雪自己不往外发光，玻璃上的光晕归雾那一层）。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
 // 雪跟玻璃一起颠（和水珠纹理一样按 glassShift 挪）。
 
-/** 一片雪的实例：x、y、半径（CSS 像素）、转角；融化阶段（0..STAGES-1）、图集里第几行、透明度、飘过来的进度（1 = 贴上了）；横、竖压扁。 */
+/** 一片雪的实例：x、y、半径（CSS 像素）、转角；融化阶段（0..STAGES-1）、图集里第几行、透明度、清楚的程度（1 = 贴上了、对上焦；飘过来时、窗外的雪小于 1，越小越糊）；横、竖压扁。 */
 export const FLAKE_FLOATS = 10;
-/** 实例方块的半边长是雪花半径的几倍（要盖住飘过来时的糊光和灯下的柔光）。 */
+/** 实例方块的半边长是雪花半径的几倍（要盖住整张贴图和飘过来时的糊光）。 */
 const EXT = 2.6;
 
 export const NEBBIA_FLAKE_VS = /* glsl */ `#version 300 es
 in vec2 aCorner; in vec4 aA; in vec4 aB; in vec2 aC;
 uniform vec2 uView, uShift;
-out vec2 vLocal; out vec2 vHalo; out vec2 vFu; flat out vec4 vB;
+out vec2 vLocal; out vec2 vHalo; out vec2 vFu; flat out vec4 vB; flat out float vR;
 void main() {
   vec2 c = (aCorner * 2.0 - 1.0) * ${EXT.toFixed(2)};
   float cs = cos(aA.w), sn = sin(aA.w);
   vec2 off = c * aA.z;
   vec2 p = aA.xy + vec2(off.x * cs - off.y * sn, off.x * sn + off.y * cs) + uShift;
   // vLocal：贴图里的坐标（单位是雪花半径，压扁之前）；vHalo：糊光、柔光用的（不压扁）
-  vLocal = c / aC; vHalo = c; vB = aB;
+  vLocal = c / aC; vHalo = c; vB = aB; vR = aA.z;
   // 雾的预渲染纹理第 0 行是屏幕底部
   vFu = vec2(p.x / uView.x, 1.0 - p.y / uView.y);
   gl_Position = vec4(p.x / uView.x * 2.0 - 1.0, 1.0 - p.y / uView.y * 2.0, 0.0, 1.0);
@@ -30,9 +30,9 @@ void main() {
 
 export const NEBBIA_FLAKE_FS = /* glsl */ `#version 300 es
 precision mediump float;
-uniform sampler2D uAtlas, uGlow;
-uniform bool uLit; uniform vec2 uGrid;
-in vec2 vLocal; in vec2 vHalo; in vec2 vFu; flat in vec4 vB;
+uniform sampler2D uAtlas, uGlow, uBehind;
+uniform bool uLit; uniform vec2 uGrid; uniform highp vec2 uView;
+in vec2 vLocal; in vec2 vHalo; in vec2 vFu; flat in vec4 vB; flat in float vR;
 out vec4 o;
 vec4 tile(float col, vec2 t, float bias) { return texture(uAtlas, (vec2(col, vB.y) + t) / uGrid, bias); }
 void main() {
@@ -49,14 +49,21 @@ void main() {
   vec3 hue = clamp(mix(vec3(1.0), L / max(lum, 0.02), 0.8), 0.0, 2.2);
   vec3 lit = hue * clamp(0.22 + 2.5 * lum, 0.0, 1.4);
   vec3 rgb = c.rgb * lit;
+  // 逆光（身后有亮光）：雪像冰一样被照透。冰晶的厚薄（贴图的不透明度）当成表面的起伏，斜的地方把身后的窗外往里折（取主画面那层稍糊的窗外，uBehind），
+  // 透过来的光比四周亮一点；薄的边、斜面上再亮一道。暗处照旧是白雪。只在对上焦（贴上玻璃）后，化得越多越弱（化成水交给水珠去折射）
+  float back = float(uLit) * smoothstep(0.08, 0.45, lum) * p * (1.0 - 0.7 * vB.x / ${(FLAKE_STAGES - 1).toFixed(1)});
+  float a0 = c.a / max(vB.z, 0.001);
+  vec2 n = vec2(dFdx(a0), dFdy(a0)) * vR;
+  vec3 through = texture(uBehind, vFu - n * vR * 0.7 / uView).rgb;
+  float edge = clamp(length(n) * 0.5, 0.0, 1.0);
+  vec3 ice = (through * (1.25 + 0.6 * edge) + min(L, vec3(1.2)) * edge * 0.5) * c.a + c.rgb * lit * 0.15;
+  rgb = mix(rgb, ice, back * 0.85);
   float d = length(vHalo);
   // 还没飘到焦点上：外面套一圈糊的
   float ha = 0.35 * (1.0 - p) * max(0.0, 1.0 - d / (1.6 - 0.6 * p));
   rgb = vec3(0.92, 0.95, 1.0) * lit * ha + rgb * (1.0 - ha);
   float a = ha + c.a * (1.0 - ha);
-  // 靠近亮光：散一圈很淡的柔光（只加颜色），化得越多越淡；没有光照（透明）时不加
-  float soft = float(uLit) * smoothstep(0.12, 0.6, lum) * 0.45 * exp(-d * d * 0.3) * vB.z * (1.0 - vB.x / ${(FLAKE_STAGES - 1).toFixed(1)});
-  o = vec4(rgb + min(L, vec3(1.2)) * soft, a);
+  o = vec4(rgb, a);
 }`;
 
 export class NebbiaSnowGl {
@@ -86,8 +93,8 @@ export class NebbiaSnowGl {
         gl.bindVertexArray(null);
     }
 
-    /** 程序编好时调：取 uniform 位置、指好图集和雾的光晕层（glowUnit；lit 为假时不取光）。 */
-    attach(prog: WebGLProgram, glowUnit: number, lit: boolean) {
+    /** 程序编好时调：取 uniform 位置、指好图集、雾的光晕层（glowUnit）和稍糊的窗外（behindUnit，冰折射用）；lit 为假时不取光。 */
+    attach(prog: WebGLProgram, glowUnit: number, behindUnit: number, lit: boolean) {
         const { gl } = this;
         this.prog = prog;
         gl.useProgram(prog);
@@ -96,6 +103,7 @@ export class NebbiaSnowGl {
         this.uGrid = gl.getUniformLocation(prog, 'uGrid');
         gl.uniform1i(gl.getUniformLocation(prog, 'uAtlas'), this.atlas.unit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uGlow'), glowUnit);
+        gl.uniform1i(gl.getUniformLocation(prog, 'uBehind'), behindUnit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uLit'), lit ? 1 : 0);
     }
 
