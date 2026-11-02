@@ -5,7 +5,7 @@ import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
-// QQ 音乐的推荐：猜你喜欢（私人 FM）、每日 30 首、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，
+// QQ 音乐的推荐：私人 FM、每日 30 首、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM 是 3.3.6，
 // 出错时用状态码加固定的 errorKey 说明原因：422 是「上游成功但没有数据」，不是网络错误；旧后端没有这些路由，回 404。
 
 // 422（resource.not-found）是确实没有数据；404 是这个后端还没有这条路由。两者都当成空结果，不算失败。
@@ -14,13 +14,15 @@ const isEmptyAnswer = (error: unknown): boolean => error instanceof OnlineProvid
     || (error.code === 'network' && error.httpStatus === 422)
 );
 
+const songsOf = (response: any): UnifiedSong[] => (Array.isArray(response?.songs) ? response.songs : [])
+    .map(normalizeQqSong)
+    .filter((song: UnifiedSong) => Boolean(song.qqMid));
+
 /** 读一条回 `{ songs }` 的推荐路由。这几条都要登录：没有会话、或会话这次停用（不带）时不发请求，免得白收一个 401。 */
 const loadRecommendedSongs = async (operation: QqOperation): Promise<UnifiedSong[]> => {
     if (!hasUsableQqSession()) return [];
     try {
-        const response = await requestQq<any>(operation);
-        const songs = Array.isArray(response?.songs) ? response.songs : [];
-        return songs.map(normalizeQqSong).filter((song: UnifiedSong) => Boolean(song.qqMid));
+        return songsOf(await requestQq<any>(operation));
     } catch (error) {
         if (isEmptyAnswer(error)) return [];
         throw error;
@@ -28,13 +30,27 @@ const loadRecommendedSongs = async (operation: QqOperation): Promise<UnifiedSong
 };
 
 /**
- * 私人 FM 一批（猜你喜欢，每批几首）。批内去重；跨批的重复交给续歌的地方按队列去掉（utils/fmQueue）——
- * 这里分不清这一批是进了播放队列，还是只给首页电台卡当封面。
+ * 私人 FM 的一批。每次都要第 1 页：这里分不清这一批是进了播放队列，还是只给首页电台卡当封面，
+ * 不记页码去推进，免得一张封面就吃掉一批。旧后端没有这条路由（404）时照旧读猜你喜欢。
+ */
+const loadPersonalFmBatch = async (): Promise<UnifiedSong[]> => {
+    if (!hasUsableQqSession()) return [];
+    try {
+        return songsOf(await requestQq<any>('user_personal_fm', { page: 1 }));
+    } catch (error) {
+        if (error instanceof OnlineProviderError && error.code === 'unsupported') return loadRecommendedSongs('user_guess_you_like');
+        if (isEmptyAnswer(error)) return [];
+        throw error;
+    }
+};
+
+/**
+ * 私人 FM 一批（每批几首）。批内去重；跨批的重复交给续歌的地方按队列去掉（utils/fmQueue）。
  * 失败只记日志、回空：FM 续歌和首页电台卡都按「这次没有歌」处理，不让一次上游拒绝（22006）拖垮整页。
  */
 const getPersonalFm = async (): Promise<UnifiedSong[]> => {
     try {
-        const batch = await loadRecommendedSongs('user_guess_you_like');
+        const batch = await loadPersonalFmBatch();
         return batch.filter((song, index) => batch.findIndex(other => other.qqMid === song.qqMid) === index);
     } catch (error) {
         console.warn('[QQProvider] personal-fm:failed', error);

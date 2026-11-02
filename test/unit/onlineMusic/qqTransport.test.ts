@@ -183,6 +183,33 @@ describe('QQ Music Web transport', () => {
         expect(describeQqFailure('audio', error)).toEqual({ case: 'not-configured', httpStatus: 501, message: 'QQ login is not configured' });
     });
 
+    it.each([
+        ['3.3.3', '/user/personal-fm is not implemented by the serverless runtime. See /login/channels for what this deployment serves.'],
+        ['3.3.5', '/user/personal-fm is not implemented by the serverless runtime. See /login/channels for what this deployment serves.'],
+        ['the short form', '/user/personal-fm is not implemented by the serverless runtime.'],
+    ])('falls back to guess-you-like for a missing serverless route in %s', async (_version, message) => {
+        storage.set('online_provider:qq:cookie', CONFIRMED_COOKIE);
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce(Response.json({ code: 501, message }, { status: 501 }))
+            .mockResolvedValueOnce(Response.json({ code: 200, songs: [{ id: 1, mid: 'fallback-mid', name: 'Fallback' }] }));
+        vi.stubGlobal('fetch', fetchMock);
+        const { qqRecommendations } = await import('@/services/onlineMusic/qq/qqRecommendations');
+
+        const songs = await qqRecommendations.getPersonalFm!();
+        expect(songs.map(song => song.qqMid)).toEqual(['fallback-mid']);
+        expect(fetchMock.mock.calls.map(call => new URL(String(call[0])).pathname)).toEqual(['/user/personal-fm', '/user/guess-you-like']);
+    });
+
+    it.each([
+        'QQ login is not configured',
+        'Experimental feature is disabled',
+        '/user/personal-fm is not implemented by the serverless runtime. extra detail',
+    ])('keeps an unrelated 501 as a network failure: %s', async (message) => {
+        vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 501, message }, { status: 501 })));
+        const { requestQq } = await import('@/services/onlineMusic/qq/qqTransport');
+        await expect(requestQq('user_personal_fm', { page: 1 })).rejects.toMatchObject({ code: 'network', httpStatus: 501, cause: { message } });
+    });
+
     it('builds the documented endpoint URL with params and a cache-busting timestamp', async () => {
         const fetchMock = vi.fn().mockResolvedValue(Response.json({
             code: 200,

@@ -69,19 +69,47 @@ describe('QQ recommendations', () => {
         });
     });
 
-    describe('personal FM (guess you like)', () => {
+    describe('personal FM', () => {
         // 批内去重；跨批的重复由续歌的地方按队列去掉（utils/fmQueue），这里不记跨批的状态。
+        // 每批都要第 1 页：分不清这批是续歌还是首页电台卡的封面，不在这里记页码去推进。
         it('hands out a batch without repeats inside it, and keeps no memory across batches', async () => {
             requestMock
-                .mockResolvedValueOnce({ code: 200, songs: [song('a', 1), song('b', 2), song('a', 1)] })
-                .mockResolvedValueOnce({ code: 200, songs: [song('b', 2), song('c', 3)] });
+                .mockResolvedValueOnce({ code: 200, station: 'personal-fm', page: 1, songs: [song('a', 1), song('b', 2), song('a', 1)], more: true, nextPage: 2 })
+                .mockResolvedValueOnce({ code: 200, station: 'personal-fm', page: 1, songs: [song('b', 2), song('c', 3)], more: true, nextPage: 2 });
 
             const first = await qqRecommendations.getPersonalFm!();
             const second = await qqRecommendations.getPersonalFm!();
 
             expect(first.map(item => item.qqMid)).toEqual(['a', 'b']);
             expect(second.map(item => item.qqMid)).toEqual(['b', 'c']);
-            expect(requestMock).toHaveBeenCalledWith('user_guess_you_like');
+            expect(requestMock.mock.calls).toEqual([
+                ['user_personal_fm', { page: 1 }],
+                ['user_personal_fm', { page: 1 }],
+            ]);
+        });
+
+        it('asks nothing without a session', async () => {
+            transportState.hasSession = false;
+            await expect(qqRecommendations.getPersonalFm!()).resolves.toEqual([]);
+            expect(requestMock).not.toHaveBeenCalled();
+        });
+
+        it('treats 422 (an empty batch) as no songs without asking again', async () => {
+            requestMock.mockRejectedValueOnce(emptyAnswer());
+            await expect(qqRecommendations.getPersonalFm!()).resolves.toEqual([]);
+            expect(requestMock).toHaveBeenCalledTimes(1);
+        });
+
+        // 3.3.6 之前的后端没有私人 FM 路由（404）：照旧读猜你喜欢，FM 不因换了后端就断。
+        it('falls back to guess-you-like on a backend without the personal FM route', async () => {
+            requestMock
+                .mockRejectedValueOnce(missingRoute())
+                .mockResolvedValueOnce({ code: 200, songs: [song('d', 4)] });
+
+            const songs = await qqRecommendations.getPersonalFm!();
+
+            expect(songs.map(item => item.qqMid)).toEqual(['d']);
+            expect(requestMock.mock.calls).toEqual([['user_personal_fm', { page: 1 }], ['user_guess_you_like']]);
         });
 
         // 与波点的 FM 一样：上游拒绝（22006）只是这次没有歌，不让首页电台整块失败。

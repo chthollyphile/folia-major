@@ -12,6 +12,7 @@ export const QQ_OPERATIONS = [
     'login_channels', 'login_refresh',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
+    'user_personal_fm',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -55,6 +56,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     // 旧后端一律 404，transport 照例报成 `unsupported`，由调用方决定回落还是报错。
     user_guess_you_like: '/user/guess-you-like',
     user_daily_songs: '/user/daily-songs',
+    // 3.3.6 的私人 FM（`page` 1–100，后端不记批次位置）。旧后端回 404，调用方回落到猜你喜欢。
+    user_personal_fm: '/user/personal-fm',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',
@@ -454,10 +457,12 @@ export const requestQq = async <T = unknown>(
             if (operation !== 'login_status' && cookie) checkSessionAfterRefusal(cookie);
             throw new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq', body, response.status);
         }
-        // 404 是「这个后端没有这条路由」，不是网络故障 —— 用户可以自行部署任意版本的后端，
-        // 新路由在旧后端上必然 404。报成 `unsupported`，调用方才能据此回落到旧路径，
-        // 而不必去解析错误文案里的状态码。
-        if (response.status === 404) {
+        // 旧后端缺路由会回 404；旧版 Serverless 则回带固定文案的 501。其他 501 仍是配置错误。
+        const missingServerlessRoute = response.status === 501 && typeof body?.message === 'string' && (
+            body.message.endsWith(' is not implemented by the serverless runtime.')
+            || body.message.endsWith(' is not implemented by the serverless runtime. See /login/channels for what this deployment serves.')
+        );
+        if (response.status === 404 || missingServerlessRoute) {
             throw new OnlineProviderError(
                 'unsupported',
                 `QQMusicApi has no ${operation} route`,

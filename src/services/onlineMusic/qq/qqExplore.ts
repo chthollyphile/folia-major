@@ -25,7 +25,7 @@ import { hasUsableQqSession, requestQq } from './qqTransport';
 //  3. 排行榜：全部榜的卡片（`/recommend/toplists`，点开读那个榜的歌，见 qqLists.ts），和热歌榜的歌。
 //  4. 歌单分类：每次读取轮到 3 个分类，各一栏（`/recommend/categories`、`/recommend/category-playlists`）。
 //  5. 电台（要登录）：每次读取轮到 2 组，各一栏电台卡片，点开现给一批歌（`/radio/list`、`/radio/tracks`）。
-//     「猜你喜欢」（电台 99）就是电台页签的私人 FM，「最近」是账号自己的收听记录，都不放。
+//     「猜你喜欢」（电台 99）和账号的收听记录「最近」都不放。
 // 每日 30 首和推荐歌单在电台页签，这里不重复。
 // 「换一批」：大部分栏只有重读才换得了（分类、电台、相似歌曲的栏每次换一组），所以在第一页声明
 // `refreshReadsAnew`，每次换一批都从头重读；每栏一次读取交一批，交过什么记在 exploreReads.ts 的共用记忆里，
@@ -41,7 +41,7 @@ const CATEGORIES_A_READ = 3;
 const RADIO_GROUPS_A_READ = 2;
 // 热歌榜按名字认；认不出就用清单里的第一个榜。
 const HOT_CHART_TITLE = '热歌榜';
-// 电台 99 是「猜你喜欢」，和电台页签的私人 FM 同一个来源。
+// 电台 99 是「猜你喜欢」；私人 FM 读 `/user/personal-fm`，只有旧后端才退回猜你喜欢。
 const GUESS_YOU_LIKE_RADIO = 99;
 // 账号自己的收听记录（客户端电台页的「最近」）不属于探索页（EXPLORE_ADAPTER.md 规则 4）。
 const isListeningRecord = (title: string) => title.startsWith('最近');
