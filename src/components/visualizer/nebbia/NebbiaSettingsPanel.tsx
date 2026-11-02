@@ -9,7 +9,6 @@ import {
     NEBBIA_BEHIND,
     NEBBIA_FADE_STYLES,
     NEBBIA_GLASS,
-    NEBBIA_GLASS_FOR,
     NEBBIA_LAYOUTS,
     NEBBIA_LIMITS,
     NEBBIA_RAIN,
@@ -181,7 +180,7 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
                     <Segmented<NebbiaTuning['behind']>
                         value={resolved.behind}
                         options={NEBBIA_BEHIND.map(behind => ({ value: behind, label: t(`options.nebbiaBehind_${behind}`) }))}
-                        onChange={behind => onTuningChange({ behind, glass: NEBBIA_GLASS_FOR[behind] ?? resolved.glass })}
+                        onChange={behind => onTuningChange({ behind })}
                     />
                 </Row>
                 {aquarium && sliders(AQUA_SLIDERS)}

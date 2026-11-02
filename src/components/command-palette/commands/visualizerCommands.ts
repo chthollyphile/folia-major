@@ -116,7 +116,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         id: 'visualizer-nebbia-behind-cycle',
         group: 'visualizer',
         title: 'Nebbia: Switch window scene',
-        description: "Switch what is outside Nebbia's window: night street, Dream Sea Glow or the background; the front glass changes to the scene's usual pair",
+        description: "Switch what is outside Nebbia's window: night street, Dream Sea Glow or the background; the front glass stays as it is",
         keywords: ['nebbia scene', 'window scene', 'outside the window', 'aquarium', 'night street', 'dream sea glow', '雾笺', '窗外', '切换窗外', '背景样式', '梦海流萤', '雨夜街景', '水族箱'],
         icon: Wallpaper,
         isAvailable: context => (context ? context.visualizer.visualizerMode === 'nebbia' : false),

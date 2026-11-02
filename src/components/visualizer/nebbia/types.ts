@@ -37,11 +37,11 @@ export type NebbiaBehind = typeof NEBBIA_BEHIND[number];
 /**
  * 前面的雾玻璃上挂的水，和窗外是什么分开选：雨窗（大大小小的凝结水珠、雨点打窗）、凝露（一层很密的细小冷凝水珠慢慢渗出来，
  * nebbiaCondensation.ts）、雪窗（雪花打在玻璃上粘住、慢慢化成水珠，写字的手指经过时把雪抹开，nebbiaSnow.ts；街景窗外不下雨）。
- * 换窗外时换成那套的默认搭配（NEBBIA_GLASS_FOR）。
+ * 换窗外不动玻璃；没存过玻璃的旧 tuning 读时按窗外搭配（NEBBIA_GLASS_FOR）。
  */
 export const NEBBIA_GLASS = ['rain', 'dew', 'snow'] as const;
 export type NebbiaGlass = typeof NEBBIA_GLASS[number];
-/** 窗外的默认搭配：雨夜街景配雨窗、水族箱配凝露；共用背景不换。 */
+/** 窗外的默认搭配（只给没存过玻璃的旧 tuning 用）：雨夜街景配雨窗、水族箱配凝露；共用背景不换。 */
 export const NEBBIA_GLASS_FOR: Partial<Record<NebbiaBehind, NebbiaGlass>> = { night: 'rain', aquarium: 'dew' };
 /** 雾笺自己画的窗外场景（着色器按它编，nebbiaShaders.ts）：选了共用背景时水珠里折射的还是街景。 */
 export type NebbiaWindowScene = 'night' | 'aquarium';
