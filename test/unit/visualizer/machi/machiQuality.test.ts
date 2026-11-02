@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMachiRenderQuality } from '@/components/visualizer/machi/engine/quality';
+import { resolveMachiDegradeThreshold, resolveMachiRenderQuality } from '@/components/visualizer/machi/engine/quality';
 import { DEFAULT_MACHI_QUALITY, MACHI_QUALITY_PRESETS, type MachiQuality } from '@/components/visualizer/machi/types';
 import type { LyricRenderQuality } from '@/types';
 import { DEFAULT_LYRIC_RENDER_QUALITY } from '@/utils/lyricRenderQuality';
@@ -62,10 +62,10 @@ describe('resolveMachiRenderQuality', () => {
         const picked = steps.map(step => [step.dof, step.samples, step.reflectionScale, step.bloom, step.pixelRatio, step.antialias, step.shadowMapSize, step.degrade]);
         expect(picked.slice(0, 8)).toEqual([
             [true, 4, 0.5, true, 1, 'smaa', 2048, 0],
-            [false, 4, 0.5, true, 1, 'smaa', 2048, 1],
-            // 没有超采样可退：下一格是几何边缘的 MSAA（后期 SMAA 留着）。
-            [false, 0, 0.5, true, 1, 'smaa', 2048, 2],
-            [false, 0, 0.3, true, 1, 'smaa', 2048, 3],
+            // 没有超采样可退：第一格是几何边缘的 MSAA（后期 SMAA 留着）。
+            [true, 0, 0.5, true, 1, 'smaa', 2048, 1],
+            [true, 0, 0.5, false, 1, 'smaa', 2048, 2],
+            [true, 0, 0.3, false, 1, 'smaa', 2048, 3],
             [false, 0, 0.3, false, 1, 'smaa', 2048, 4],
             [false, 0, 0.3, false, 0.75, 'smaa', 2048, 5],
             [false, 0, 0.3, false, 0.75, 'fxaa', 2048, 6],
@@ -86,15 +86,15 @@ describe('resolveMachiRenderQuality', () => {
         });
     });
 
-    it('drops supersampling right after the depth-of-field layer', () => {
+    it('drops supersampling first, then the geometry MSAA', () => {
         const ssaa = { ...DEFAULT_MACHI_QUALITY, antialias: 'ssaa' as const };
         const ratios = Array.from({ length: 8 }, (_, degrade) => [at(ssaa, degrade).pixelRatio, at(ssaa, degrade).antialias, at(ssaa, degrade).samples]);
         expect(ratios).toEqual([
-            [2, 'ssaa', 0], [2, 'ssaa', 0], [1, 'smaa', 4], [1, 'smaa', 0], [1, 'smaa', 0], [1, 'smaa', 0], [0.75, 'smaa', 0], [0.75, 'fxaa', 0],
+            [2, 'ssaa', 0], [1, 'smaa', 4], [1, 'smaa', 0], [1, 'smaa', 0], [1, 'smaa', 0], [1, 'smaa', 0], [0.75, 'smaa', 0], [0.75, 'fxaa', 0],
         ]);
         // 全局倍数的超采样也是一格退回 1 倍。
         const global = { scale: 2, antialias: 'auto' } as const;
-        expect([0, 1, 2].map(degrade => at(DEFAULT_MACHI_QUALITY, degrade, 1, false, global).pixelRatio)).toEqual([2, 2, 1]);
+        expect([0, 1, 2].map(degrade => at(DEFAULT_MACHI_QUALITY, degrade, 1, false, global).pixelRatio)).toEqual([2, 1, 1]);
     });
 
     it('skips notches that are already at the bottom', () => {
@@ -117,5 +117,18 @@ describe('resolveMachiRenderQuality', () => {
         expect(at(DEFAULT_MACHI_QUALITY, 0, 2, true)).toMatchObject({ pixelRatio: 1, samples: 0, postAA: 'smaa' });
         expect(at(DEFAULT_MACHI_QUALITY, 0, 2, true, { scale: 2, antialias: 'on' })).toMatchObject({ pixelRatio: 1, inkScale: 1 });
         expect(at(DEFAULT_MACHI_QUALITY, 0, 1, true, { scale: 1, antialias: 'off' })).toMatchObject({ postAA: 'smaa', antialias: 'smaa' });
+    });
+
+    it('sets the degrade threshold from the display refresh, never above the old 21 ms', () => {
+        const frames = (fast: number, slow: number, slowEvery: number) => Array.from({ length: 120 }, (_, i) => (i % slowEvery === 0 ? slow : fast));
+        // 120Hz：门槛约 11.1 毫秒（90fps）；每十帧掉一帧（约 109fps，平均 9.2 毫秒）远不到。
+        const at120 = frames(8.33, 16.67, 10);
+        expect(resolveMachiDegradeThreshold(at120)).toBeCloseTo(11.08, 1);
+        expect(at120.reduce((sum, value) => sum + value, 0) / at120.length).toBeLessThan(resolveMachiDegradeThreshold(at120));
+        // 60Hz、帧率上限 60：和原来一样 21 毫秒。
+        expect(resolveMachiDegradeThreshold(frames(16.67, 33.3, 5))).toBe(21);
+        // 更慢的屏也不高过原来的 21 毫秒；还没有帧时照原来的。
+        expect(resolveMachiDegradeThreshold(frames(25, 50, 5))).toBe(21);
+        expect(resolveMachiDegradeThreshold([])).toBe(21);
     });
 });

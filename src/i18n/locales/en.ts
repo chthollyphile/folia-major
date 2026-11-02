@@ -3099,7 +3099,7 @@ export default {
     "machiGlow": "Glow and streaks",
     "machiGlowHint": "The halo around lights and signs at night, and the horizontal lens streaks.",
     "machiAdaptive": "Auto-degrade",
-    "machiAdaptiveHint": "When the frame rate stays low, steps down below these settings (depth-of-field blur first, then supersampling and edge MSAA, then reflections, glow, resolution and post anti-aliasing, shadows last), never above what you chose. Changing a setting starts over from the new one.",
+    "machiAdaptiveHint": "When the frame rate stays low, steps down below these settings (supersampling and edge MSAA first, then glow, reflections, depth-of-field blur, resolution and post anti-aliasing, shadows last), never above what you chose. Changing a setting starts over from the new one.",
     "machiAdaptiveActive": "Currently {{count}} step(s) down.",
     "hanabiFireworksSection": "Fireworks",
     "hanabiStageSection": "Stage",

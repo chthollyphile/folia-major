@@ -3099,7 +3099,7 @@ export default {
     "machiGlow": "Pendar dan kilau lensa",
     "machiGlowHint": "Pendar di sekitar lampu dan papan nama pada malam hari, serta kilau lensa mendatar.",
     "machiAdaptive": "Turunkan otomatis",
-    "machiAdaptiveHint": "Jika frame rate terus rendah, kualitas diturunkan bertahap di bawah pengaturan ini (blur kedalaman bidang dulu, lalu supersampling dan MSAA tepi, kemudian pantulan, pendar, resolusi, dan anti-aliasing akhir, bayangan paling akhir), tidak pernah melebihi pilihanmu. Mengubah pengaturan memulai lagi dari yang baru.",
+    "machiAdaptiveHint": "Jika frame rate terus rendah, kualitas diturunkan bertahap di bawah pengaturan ini (supersampling dan MSAA tepi dulu, kemudian pendar, pantulan, blur kedalaman bidang, resolusi, dan anti-aliasing akhir, bayangan paling akhir), tidak pernah melebihi pilihanmu. Mengubah pengaturan memulai lagi dari yang baru.",
     "machiAdaptiveActive": "Saat ini turun {{count}} tingkat.",
     "hanabiFireworksSection": "Kembang api",
     "hanabiStageSection": "Panggung",

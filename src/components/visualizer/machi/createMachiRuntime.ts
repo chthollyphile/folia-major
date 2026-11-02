@@ -51,7 +51,7 @@ import {
 import { MachiGround } from './engine/fx/ground';
 import { MachiPost, type MachiAtmosphereFrame } from './engine/fx/post';
 import { resolveMachiLens } from './engine/lens';
-import { resolveMachiRenderQuality, type MachiRenderQuality } from './engine/quality';
+import { resolveMachiDegradeThreshold, resolveMachiRenderQuality, type MachiRenderQuality } from './engine/quality';
 import { MachiReflection } from './engine/fx/reflection';
 import { compileInto, reportBrokenPrograms, waitForPrograms, yieldToMain } from './engine/programWarmup';
 import { MachiWeather } from './engine/fx/weather';
@@ -131,9 +131,9 @@ const INTENSITY_SCALE: Record<Theme['animationIntensity'], number> = { calm: 0.7
 /** 每个窗口有车开过的概率，按主题的动效强度。 */
 const TRAFFIC_CHANCE: Record<Theme['animationIntensity'], number> = { calm: 0.4, normal: 0.6, chaotic: 0.78 };
 
-/** 平均帧时超过它（约 48fps 以下）就降一档；至少隔这么久才看一次。 */
-const DEGRADE_FRAME_MS = 21;
+/** 自动降级至少隔这么久才看一次，连着这么多次都超过门槛才降一格（门槛见 engine/quality.ts 的 resolveMachiDegradeThreshold）。 */
 const DEGRADE_WINDOW_MS = 2500;
+const DEGRADE_SLOW_CHECKS = 2;
 
 /** 换主题时重画招牌的防抖（调色时主题一直在变）。 */
 const SIGN_REPAINT_DEBOUNCE_MS = 150;
@@ -220,6 +220,8 @@ export class MachiRuntime {
     private degrade = 0;
     private renderQuality: MachiRenderQuality;
     private qualityCheckedAt = 0;
+    /** 连着几次检查帧时都超过门槛（偶尔一下卡顿不算）。 */
+    private slowChecks = 0;
     private size = { width: 1, height: 1 };
     private readonly audio = new MachiAudioFollower();
     private boardTarget: MachiBoardTarget | null = null;
@@ -584,6 +586,7 @@ export class MachiRuntime {
         this.post.setQuality(quality);
         this.resize(this.size.width, this.size.height);
         this.frameTimes.length = 0;
+        this.slowChecks = 0;
         this.reportDegrade();
         this.wake();
     }
@@ -594,12 +597,19 @@ export class MachiRuntime {
         if (now - this.qualityCheckedAt < DEGRADE_WINDOW_MS || this.frameTimes.length < 60) return;
         this.qualityCheckedAt = now;
         const average = this.frameTimes.reduce((sum, value) => sum + value, 0) / this.frameTimes.length;
-        if (average <= DEGRADE_FRAME_MS) return;
+        const threshold = resolveMachiDegradeThreshold(this.frameTimes);
+        if (average <= threshold) {
+            this.slowChecks = 0;
+            return;
+        }
+        this.slowChecks += 1;
+        if (this.slowChecks < DEGRADE_SLOW_CHECKS) return;
+        this.slowChecks = 0;
         // 已经压到底：再要一格也压不下去了。
         if (this.resolveQuality(this.degrade + 1).degrade <= this.renderQuality.degrade) return;
         this.degrade += 1;
         this.applyQuality();
-        console.info(`[Machi] frame time ${average.toFixed(1)} ms, degraded ${this.degrade} step(s)`);
+        console.info(`[Machi] frame time ${average.toFixed(1)} ms (threshold ${threshold.toFixed(1)} ms), degraded ${this.degrade} step(s)`);
     }
 
     /**

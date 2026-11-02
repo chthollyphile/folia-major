@@ -5,10 +5,12 @@ import type { MachiAntialias, MachiDetailLevel, MachiQuality } from '../types';
 // src/components/visualizer/machi/engine/quality.ts
 // 画质设置 → 实际用的渲染参数（纯函数，运行时与单测共用）。
 // 分辨率、抗锯齿可以「跟随全局」（「性能与动效」里歌词画布的挡位）：全局倍数照用（大于 1 就是超采样），全局抗锯齿开是 SMAA、关是关。
-// 自动降级：帧时长期偏高时，运行时把“降了几格”加一，这里在用户那套设置上按固定顺序一格格往下压（景深离焦层 → 超采样 →
-// 几何边缘的 MSAA → 倒影 → 辉光 → 分辨率 → 后期抗锯齿 → 阴影，一轮压完再来一轮），已经压不动的跳过；所以只会比用户选的低，不会高。
-// 省得多的先退：超采样和 MSAA 吃的是整帧的填充率和带宽；阴影图是静态的（只在光变了时重画），平时几乎不花什么，关掉反而要重编
-// 全部材质的着色器，放到最后。
+// 自动降级：帧时长期偏高时（门槛按屏幕的刷新间隔算，resolveMachiDegradeThreshold），运行时把“降了几格”加一，这里在用户那套
+// 设置上按固定顺序一格格往下压（超采样 → 几何边缘的 MSAA → 辉光 → 倒影 → 景深离焦层 → 分辨率 → 后期抗锯齿 → 阴影，一轮压完
+// 再来一轮），已经压不动的跳过；所以只会比用户选的低，不会高。
+// 按实测省得多少排（2026-11 在视网膜屏上量）：超采样是两倍的像素；MSAA 在 WebGL 里解析要单独整屏读一遍样本，4 倍时每帧约
+// 2–3 毫秒，是剩下各项里最贵的；辉光、倒影、景深离焦层都在零点几毫秒；阴影图是静态的（只在光变了时重画），平时几乎不花什么，
+// 关掉反而要重编全部材质的着色器，放到最后。
 // 抗锯齿：SMAA 是几何边缘的 MSAA 加最后一道 SMAA（墨线与雨丝是后期描的，MSAA 管不到）；FXAA 只有最后一道；
 // 超采样按 2 倍分辨率画（总像素比封顶 3），浏览器缩回屏幕尺寸时自然平均，墨线按屏幕像素取样，不变细。
 // 预览（样式小图）：分辨率固定 1，不做超采样和 MSAA，阴影最多 1024，不开辉光，不自动降级，也不跟全局挡位。
@@ -74,14 +76,14 @@ interface Settled {
 
 /** 降级的一格：把一项往下压一档；已经最低时返回 null（这格跳过）。 */
 const DEGRADE_STEPS: ((settled: Settled) => Settled | null)[] = [
-    s => (s.dof ? { ...s, dof: false } : null),
     s => {
         if (s.antialias === 'ssaa') return { ...s, antialias: 'smaa', msaa: true };
         return s.renderScale > 1 ? { ...s, renderScale: 1 } : null;
     },
     s => (s.antialias === 'smaa' && s.msaa ? { ...s, msaa: false } : null),
-    s => (s.reflections !== 'off' ? { ...s, reflections: LEVEL_DOWN[s.reflections] } : null),
     s => (s.glow ? { ...s, glow: false } : null),
+    s => (s.reflections !== 'off' ? { ...s, reflections: LEVEL_DOWN[s.reflections] } : null),
+    s => (s.dof ? { ...s, dof: false } : null),
     s => {
         const lower = SCALE_DOWN[s.renderScale];
         return lower ? { ...s, renderScale: lower } : null;
@@ -92,6 +94,25 @@ const DEGRADE_STEPS: ((settled: Settled) => Settled | null)[] = [
     },
     s => (s.shadows !== 'off' ? { ...s, shadows: LEVEL_DOWN[s.shadows] } : null),
 ];
+
+/** 原来的门槛（60Hz 上约 48fps 以下）：按刷新间隔算出来的门槛不比它高。 */
+const DEGRADE_MAX_FRAME_MS = 21;
+/**
+ * 平均帧时超过一帧应有的间隔这么多倍就算跟不上：120Hz 上约 11.1 毫秒（90fps 以下），视网膜屏上 4 倍 MSAA 的町景平时约 105fps，
+ * 不动它；60Hz 上算出来比 21 毫秒高，仍按 21 毫秒，和原来一样。
+ */
+const DEGRADE_SLACK = 1.33;
+
+/**
+ * 自动降级的帧时门槛（毫秒）：一帧应有的间隔取这段时间里较快那一成的帧间隔（屏幕的刷新间隔，开了帧率上限就是上限的间隔；
+ * 偶尔慢的帧不算），乘上 DEGRADE_SLACK，不超过原来的 21 毫秒。高刷屏上从头到尾每帧都赶不上刷新时看不出来，和原来一样不降。
+ */
+export const resolveMachiDegradeThreshold = (intervals: readonly number[]) => {
+    if (intervals.length === 0) return DEGRADE_MAX_FRAME_MS;
+    const sorted = [...intervals].sort((a, b) => a - b);
+    const expected = sorted[Math.floor(sorted.length * 0.1)]!;
+    return Math.min(DEGRADE_MAX_FRAME_MS, expected * DEGRADE_SLACK);
+};
 
 /** 把「跟随全局」换成全局挡位里的具体值。 */
 const settle = (quality: MachiQuality, global: LyricRenderQuality): Settled => ({
