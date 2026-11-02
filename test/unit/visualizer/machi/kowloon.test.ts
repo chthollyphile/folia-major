@@ -146,6 +146,8 @@ describe('kowloon facades', () => {
         });
     });
 
+    // Every piece of laundry against every other, for each seed: close to 5 s on a CI runner, so it
+    // gets its own timeout rather than failing whichever PR happens to run on a slow machine.
     it('hangs the laundry side by side and keeps the poles, air conditioners and window cages apart', () => {
         const unit = new THREE.Box3(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
         const matrix = new THREE.Matrix4();
@@ -165,5 +167,5 @@ describe('kowloon facades', () => {
             pieces.forEach(piece => [...units, ...cages].forEach(other => expect(overlap(piece, other), seed).toBe(false)));
             units.forEach(unit => cages.forEach(cage => expect(overlap(unit, cage), seed).toBe(false)));
         });
-    });
+    }, 30_000);
 });
