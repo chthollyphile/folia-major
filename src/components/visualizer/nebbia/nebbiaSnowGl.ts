@@ -1,15 +1,16 @@
 import { FLAKE_FILL, FLAKE_STAGES } from './nebbiaSnowFlakes';
 import { makeTex, type Tex } from './nebbiaGlUtils';
+import { NEBBIA_FIRE_GLSL } from './nebbiaFireGlsl';
 
 // src/components/visualizer/nebbia/nebbiaSnowGl.ts
 // 雪窗的雪花在 WebGL 里画（nebbiaGl.ts 在主画面之后调）：全部阶段贴图拼成一张图集（nebbiaSnowFlakes.ts），每片雪一个实例，预乘透明度叠上去。
 // 雪被身后窗外的光照着：取主画面已经预渲染好的那层大范围糊的窗外（雾的光晕层，uFogGlow），暖橙的灯下泛一点暖黄、蓝的地方带一点冷蓝、
-// 暗的地方暗下去；逆光时像冰一样被照透，透过它看到身后折过来的窗外，冰棱偶尔闪一下彩色的火彩；靠近亮光的雪外面再散一圈很淡、不大的柔光。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
+// 暗的地方暗下去；逆光时像冰一样被照透，透过它看到身后折过来的窗外，冰棱和身后的光成固定角度时闪出色散的火彩（nebbiaFireGlsl.ts）；靠近亮光的雪外面再散一圈很淡、不大的柔光。透明、或不能预渲染雾时没有这层，雪按中等亮度、不上色画。
 // 雪跟玻璃一起颠（和水珠纹理一样按 glassShift 挪）。
 
 /** 一片雪的实例：x、y、半径（CSS 像素）、转角；融化阶段（0..STAGES-1）、图集里第几行、透明度、清楚的程度（1 = 贴上了、对上焦；飘过来时、窗外的雪小于 1，越小越糊）；横、竖压扁。 */
 export const FLAKE_FLOATS = 10;
-/** 火彩把贴图分成几乘几格（每格各自闪）。 */
+/** 火彩把贴图分成几乘几格（每格一块冰面，各有自己的折射角）。 */
 const GLINT_GRID = '9.0';
 /** 实例方块的半边长是雪花半径的几倍（要盖住整张贴图和飘过来时的糊光）。 */
 const EXT = 2.6;
@@ -35,9 +36,10 @@ void main() {
 export const NEBBIA_FLAKE_FS = /* glsl */ `#version 300 es
 precision mediump float;
 uniform sampler2D uAtlas, uGlow, uBehind;
-uniform bool uLit; uniform vec2 uGrid; uniform highp vec2 uView; uniform highp float uTime;
+uniform bool uLit; uniform vec2 uGrid; uniform highp vec2 uView;
 in vec2 vLocal; in vec2 vHalo; in vec2 vFu; flat in vec4 vB; flat in float vR; flat in float vSeed;
 out vec4 o;
+${NEBBIA_FIRE_GLSL}
 vec4 tile(float col, vec2 t, float bias) { return texture(uAtlas, (vec2(col, vB.y) + t) / uGrid, bias); }
 void main() {
   float p = vB.w;
@@ -73,14 +75,13 @@ void main() {
   float a = ha + c.a * (1.0 - ha);
   // 靠近亮光：外面散一圈很淡的柔光（只加颜色，比雪花大不了多少），化得越多越淡；没有光照（透明）时不加
   float soft = float(uLit) * smoothstep(0.12, 0.6, lum) * 0.45 * exp(-d * d * 2.4) * vB.z * (1.0 - vB.x / ${(FLAKE_STAGES - 1).toFixed(1)});
-  // 火彩（色散）：冰棱偶尔把身后的光分成一种纯色闪一下，像钻石。贴图按格子分，每格有自己的节奏和颜色，
-  // 只有冰棱上（斜面）的格子会闪，一闪很短；只加光，亮度按身后光的亮度给，不跟灯的颜色走
+  // 火彩（色散）：贴图按格子分，每格一块冰面、有自己固定的折射角，只有冰棱上（斜面）的格子会出；颜色由斜面和光的方向定（nebbiaFireGlsl.ts），
+  // 只加光，亮度按身后光的亮度给，不跟灯的颜色走；约四成格子有朝得对的冰面
   vec2 g = tc * ${GLINT_GRID}, gc = floor(g), gf = fract(g) - 0.5;
   float h = fract(sin(dot(gc, vec2(12.9898, 78.233)) + vSeed * 91.7) * 43758.5453);
-  float flash = pow(max(0.0, sin(uTime * (0.8 + 1.6 * h) + h * 60.0)), 80.0);
-  vec3 gHue = clamp(abs(fract(fract(h * 7.31) + vec3(0.0, 0.667, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0);
-  float glint = back * flash * exp(-dot(gf, gf) * 18.0) * edge * (0.6 + 2.0 * lum) * vB.z;
-  o = vec4(rgb + min(L, vec3(1.2)) * soft + gHue * glint * 2.2, a);
+  vec3 fire = fixedFire(uGlow, vFu, n, fract(h * 7.31)) * step(h, 0.4);
+  float glint = back * exp(-dot(gf, gf) * 18.0) * edge * (0.6 + 2.0 * lum) * vB.z;
+  o = vec4(rgb + min(L, vec3(1.2)) * soft + fire * glint * 2.2, a);
 }`;
 
 export class NebbiaSnowGl {
@@ -91,7 +92,6 @@ export class NebbiaSnowGl {
     private uView: WebGLUniformLocation | null = null;
     private uShift: WebGLUniformLocation | null = null;
     private uGrid: WebGLUniformLocation | null = null;
-    private uTime: WebGLUniformLocation | null = null;
     private rows = 0;
 
     constructor(private readonly gl: WebGL2RenderingContext, unit: number) {
@@ -119,7 +119,6 @@ export class NebbiaSnowGl {
         this.uView = gl.getUniformLocation(prog, 'uView');
         this.uShift = gl.getUniformLocation(prog, 'uShift');
         this.uGrid = gl.getUniformLocation(prog, 'uGrid');
-        this.uTime = gl.getUniformLocation(prog, 'uTime');
         gl.uniform1i(gl.getUniformLocation(prog, 'uAtlas'), this.atlas.unit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uGlow'), glowUnit);
         gl.uniform1i(gl.getUniformLocation(prog, 'uBehind'), behindUnit);
@@ -152,8 +151,6 @@ export class NebbiaSnowGl {
         gl.uniform2f(this.uView, W, H);
         gl.uniform2f(this.uShift, shift[0], shift[1]);
         gl.uniform2f(this.uGrid, FLAKE_STAGES, this.rows);
-        // 火彩的节奏：取个不大的秒数（float 精度）
-        gl.uniform1f(this.uTime, (performance.now() / 1000) % 3600);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);

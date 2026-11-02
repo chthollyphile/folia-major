@@ -3,6 +3,7 @@ import { windDrift, type NebbiaGlassMotion } from './nebbiaDrops';
 import { type Drip, type LaidChar } from './nebbiaScene';
 import { pointAt, type GlyphStroke } from './nebbiaGlyphs';
 import type { NebbiaSegments } from './nebbiaSegments';
+import { putInkBead } from './nebbiaInkIce';
 
 // src/components/visualizer/nebbia/nebbiaInk.ts
 // 在擦痕遮罩（半分辨率，亮 = 擦开；线段先收进 nebbiaSegments.ts，再由 nebbiaMaskGl.ts 在 GPU 上画）上画手指写的字：按演唱时长一笔一笔写，笔尖前推着一颗收笔水珠，
@@ -18,6 +19,8 @@ export interface InkContext {
     sweeps: number[] | null;
     /** 雪窗、凝露时收这一帧写好、边上还挂着水珠的笔画（同样格式）：吸走挨着的雪水、小水珠。雨窗 null。 */
     wet: number[] | null;
+    /** 雪窗时收这一帧写字留下的水珠结的冰芯（nebbiaInkIce.ts）：out 是冰芯数据，k 是画面高 / 1000，H 是画面高；别的玻璃 null。 */
+    ice: { out: number[]; k: number; H: number } | null;
 }
 
 
@@ -86,7 +89,8 @@ const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: n
     // 走的时候被拉长，停下来变回圆一点；身后零星留下小水珠
     const speed = 1 - Math.cos(u * 6 * Math.PI);
     for (let y = 14 + (d.seed % 7) * 2; y < dist - r * 2; y += 18 + ((y * 7 + d.seed * 13) % 11)) ink.motion.put(bx + wob(y), by + y, r * (0.3 + 0.2 * (((y + d.seed) * 0.37) % 1)), beadV);
-    ink.motion.put(bx + wob(dist), by + dist + r * 0.3, r, beadV, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
+    // 淌完停住的那颗：停下以后算结冰（nebbiaInkIce.ts）
+    putInkBead(ink, bx + wob(dist), by + dist + r * 0.3, r, beadV, u < 1 ? -1 : age - d.dur, d.seed + 0.5, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
     // 雪窗、凝露：还在往下淌的水珠头扫过的一段（冲掉路上的雪和水珠）
     if (ink.sweeps && u < 1 && dist > 1 && beadV > 0.3) {
         const ya = Math.max(0, dist - r * 3);
@@ -129,7 +133,8 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
                 const off = width / 2 + (b.r * 0.7 + b.j * 1.5) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
                 const bv = alive ? beadV * alive(x, y) : beadV;
-                motion.put(x, y, b.r * (0.55 + 0.45 * bv), bv, 1 + b.j * 0.25, 1 + (1 - b.j) * 0.3);
+                // 这一笔写完以后算结冰（nebbiaInkIce.ts）
+                putInkBead(ink, x, y, b.r * (0.55 + 0.45 * bv), bv, p >= 1 ? local - dur : -1, b.x * 131.7 + b.y * 71.3 + si, 1 + b.j * 0.25, 1 + (1 - b.j) * 0.3);
             }
             // 收笔水珠：笔尖推着走的水越堆越多，写到哪跟到哪；大小跟字号走，字太小就不留
             if (NEBBIA_FIXED.endBead > 0 && drawn > 0 && c.s >= NEBBIA_FIXED.endBeadMin) {
@@ -141,7 +146,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
                 const r = c.s * (0.031 + 0.018 * e.h) * NEBBIA_FIXED.endBead * (0.5 + 0.5 * smooth(p));
                 const [x, y] = toScreen(c, ux + (dx * r * 0.35) / c.s, uy + (dy * r * 0.35 + r * 0.15) / c.s);
                 const ev = alive ? beadV * alive(x, y) : beadV;
-                motion.put(x, y, r * (0.6 + 0.4 * ev), ev, 1, 1.12 + e.j * 0.12);
+                putInkBead(ink, x, y, r * (0.6 + 0.4 * ev), ev, p >= 1 ? local - dur : -1, c.x * 3.1 + c.y * 5.7 + si * 11, 1, 1.12 + e.j * 0.12);
             }
             const d = c.drips[si];
             if (d && p >= 1 && local - dur > d.delay) drips.push([st, d, local - dur - d.delay]);

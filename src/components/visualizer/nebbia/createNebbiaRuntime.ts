@@ -22,6 +22,7 @@ import { nebbiaFrameUniforms } from './nebbiaFrameUniforms';
 import { NebbiaSceneClock } from './nebbiaSceneClock';
 import { NebbiaCondensation } from './nebbiaCondensation';
 import { NebbiaSnow } from './nebbiaSnow';
+import { mountIcePanel } from './nebbiaIcePanel';
 import { NebbiaAquarium, type NebbiaAquaBeats } from './nebbiaAquarium';
 import { BEAT_EFFECT_IDS, beatEffectPartId } from '../../../services/beatFx/beatEffects';
 import { getBeatEffectStrength, getBeatFxEvents, getBeatFxHeard, isBeatEffectPlaying, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
@@ -54,6 +55,8 @@ export class NebbiaRuntime {
     private readonly condensation: NebbiaCondensation | null;
     /** 玻璃是雪窗时玻璃上的雪和雪化成的水（代替 motion 的凝结水珠）；别的玻璃 null。 */
     private readonly snow: NebbiaSnow | null = null;
+    /** 水珠结冰原型的滑块面板。 */
+    private unmountIcePanel: (() => void) | null = null;
     private readonly observer: ResizeObserver | null = null;
     private readonly glyphs: NebbiaGlyphCache;
     private hits = new NebbiaHits(0);
@@ -95,6 +98,8 @@ export class NebbiaRuntime {
         this.condensation = input.glass === 'dew' ? new NebbiaCondensation() : null;
         // 雪窗、凝露要知道歌词的水在哪（扫过的、写好的笔画），和玻璃上的雪、小水珠联动
         if (input.glass !== 'rain') { this.mask.sweeps = []; this.mask.wet = []; }
+        // 雪窗：写字留下的水珠也会结冰（nebbiaInkIce.ts）
+        if (input.glass === 'snow') this.mask.ice = [];
         // setTuning 只在 tuning 变了才调：上下文恢复后重建的运行时要自己带上颠簸强度
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
@@ -106,6 +111,7 @@ export class NebbiaRuntime {
             if (input.glass === 'snow') {
                 this.snow = new NebbiaSnow();
                 this.gl.setFlakeAtlas(...this.snow.atlas());
+                this.unmountIcePanel = mountIcePanel();
             }
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
@@ -180,6 +186,7 @@ export class NebbiaRuntime {
     destroy() {
         this.dead = true;
         cancelAnimationFrame(this.raf);
+        this.unmountIcePanel?.();
         this.observer?.disconnect();
         document.fonts?.removeEventListener('loadingdone', this.handleFontsLoaded);
         this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);
@@ -331,7 +338,7 @@ export class NebbiaRuntime {
             : this.snow ? this.snow.instances(this.fieldInst) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
         const u = nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua);
         this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field, u, this.condensation?.changed ?? this.snow?.changed ?? true);
-        if (this.snow) this.gl.drawFlakes(...this.snow.flakeInstances(), u.glassShift);
+        if (this.snow) this.gl.drawFlakes(...this.snow.flakeInstances(this.mask.ice ?? []), u.glassShift);
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);
     };

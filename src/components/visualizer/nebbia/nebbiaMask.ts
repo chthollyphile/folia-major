@@ -29,6 +29,8 @@ export class NebbiaMask {
     /** 雪窗、凝露时收这一帧扫过的几段（写字的笔尖、抹字的手指、往下淌的水珠头）和写好的笔画，交给 nebbiaSnow.ts / nebbiaCondensation.ts；雨窗 null。 */
     sweeps: number[] | null = null;
     wet: number[] | null = null;
+    /** 雪窗时收这一帧写字留下的水珠结的冰芯（nebbiaInkIce.ts），交给 nebbiaSnow.ts 画；别的玻璃 null。 */
+    ice: number[] | null = null;
     /** 写好的笔画段多，用的地方（雪水、凝露被吸走）也只每 0.05 秒用一次：每 WET_EVERY 秒才重收一次，中间几帧沿用上次的。 */
     private wetAt = -Infinity;
 
@@ -43,9 +45,11 @@ export class NebbiaMask {
         ctx.clear();
         this.breath.begin();
         if (this.sweeps) this.sweeps.length = 0;
+        if (this.ice) this.ice.length = 0;
         const wetDue = !!this.wet && now - this.wetAt >= WET_EVERY;
         if (wetDue) { this.wet!.length = 0; this.wetAt = now; }
-        const ink: InkContext = { ctx, motion, strokeWidth: tuning.strokeWidth, writeSpeed: tuning.writeSpeed, busSpeed: tuning.busSpeed, sweeps: this.sweeps, wet: wetDue ? this.wet : null };
+        const ink: InkContext = { ctx, motion, strokeWidth: tuning.strokeWidth, writeSpeed: tuning.writeSpeed, busSpeed: tuning.busSpeed, sweeps: this.sweeps, wet: wetDue ? this.wet : null,
+            ice: this.ice ? { out: this.ice, k: this.H / 1000, H: this.H } : null };
         laid.forEach((line, i) => {
             if (line.breathAt < Infinity) this.breath.drawLine(line, i, T, line.breathAt, line.breathUntil);
             if (line.appearBreathAt < Infinity) this.breath.drawLine(line, i, T, line.appearBreathAt, line.appearBreathUntil);

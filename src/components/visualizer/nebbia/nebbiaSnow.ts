@@ -1,5 +1,5 @@
 import { segDist, type NebbiaSegments } from './nebbiaSegments';
-import { packFlakes, type Flake } from './nebbiaSnowDraw';
+import { packFlakes, packIce, packInkIce, type Flake } from './nebbiaSnowDraw';
 import { NebbiaSnowFall, slantOf } from './nebbiaSnowFall';
 import { buildFlakeAtlas, buildFlakeKind, FLAKE_FILL, FLAKE_R, FLAKE_SPRITE, type FlakeKind, type FlakeType } from './nebbiaSnowFlakes';
 import { NebbiaSnowWater } from './nebbiaSnowWater';
@@ -31,6 +31,8 @@ const waterOf = (r: number, k: number) => (4 * 4.5 * Math.log(1 + r / k / 2.5) *
 const TAU = Math.PI * 2;
 export class NebbiaSnow {
     private readonly kinds: FlakeKind[] = KIND_TYPES.map(buildFlakeKind);
+    /** 冻住的水珠的冰芯（图集里排在雪花后面）。 */
+    private readonly beads: FlakeKind[] = [0, 1, 2].map(i => buildFlakeKind('bead', KIND_TYPES.length + i));
     private readonly byType = new Map<FlakeType, FlakeKind[]>(TYPE_ODDS.map(([type]) => [type, this.kinds.filter(k => k.type === type)]));
     private inst: Float32Array = new Float32Array(0);
     private readonly water = new NebbiaSnowWater();
@@ -52,7 +54,7 @@ export class NebbiaSnow {
     }
 
     /** 全部贴图拼成的图集（nebbiaSnowFlakes.ts），和有几行。 */
-    atlas(): [HTMLCanvasElement, number] { return [buildFlakeAtlas(this.kinds), this.kinds.length]; }
+    atlas(): [HTMLCanvasElement, number] { const all = [...this.kinds, ...this.beads]; return [buildFlakeAtlas(all), all.length]; }
 
     /**
      * 走 dt 秒（暂停、静止时 0）：落新雪、化雪、长水；sweeps 是这一帧扫过的几段（抹雪、吸水），wet 是写好的笔画（只吸水），暂停时也照样算。
@@ -176,12 +178,19 @@ export class NebbiaSnow {
     /** 上一次 instances() 改没改水珠（没改时水珠纹理不用重画）。 */
     get changed() { return this.water.changed; }
 
-    /** 这一帧的雪花实例（nebbiaSnowDraw.ts 排、nebbiaSnowGl.ts 画）：窗外的雪在前（画在底下），再是贴玻璃的；数据和片数。 */
-    flakeInstances(): [Float32Array, number] {
+    /**
+     * 这一帧的雪花实例（nebbiaSnowDraw.ts 排、nebbiaSnowGl.ts 画）：窗外的雪在前（画在底下），再是贴玻璃的，最后是结了冰的水珠的冰芯
+     * （雪化成的水珠，和写字留下的水珠：inkIce 是 nebbiaInkIce.ts 收的冰芯数据）；数据和片数。
+     */
+    flakeInstances(inkIce: readonly number[] = []): [Float32Array, number] {
         const n = this.fall.count;
         this.inst = packFlakes(this.flakes, this.inst, n);
         this.fall.pack(this.inst, this.clock);
-        return [this.inst, n + this.flakes.length];
+        let count = n + this.flakes.length, more: number;
+        [this.inst, more] = packIce(this.water.drops, d => this.water.sizeX(d) / 4, this.beads, this.inst, count);
+        count += more;
+        [this.inst, more] = packInkIce(inkIce, this.beads, this.inst, count);
+        return [this.inst, count + more];
     }
 }
 

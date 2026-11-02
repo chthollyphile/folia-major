@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NebbiaSnowWater } from '@/components/visualizer/nebbia/nebbiaSnowWater';
+import { iceParams, NebbiaSnowWater } from '@/components/visualizer/nebbia/nebbiaSnowWater';
 import { NebbiaSegments } from '@/components/visualizer/nebbia/nebbiaSegments';
 
 // test/unit/visualizer/nebbiaSnowWater.test.ts
@@ -35,8 +35,20 @@ describe('nebbia snow water', () => {
         water.resize(W, H);
         water.slip = 1;
         const d = water.spawn(300, 200, 30);
-        run(water, 3);
+        // 不算结冰：结了冰的会自己往下挪（下一条测）
+        iceParams.off = true;
+        try { run(water, 3); } finally { iceParams.off = false; }
         expect(d.y).toBe(200);
+    });
+
+    it('freezes a drop that stays still long enough and lets it slide down', () => {
+        const water = new NebbiaSnowWater();
+        water.resize(W, H);
+        water.slip = 1;
+        const d = water.spawn(300, 200, 30);
+        run(water, iceParams.freezeAfter + iceParams.freezeDur + 2);
+        expect(d.ice).toBeGreaterThan(0.3);
+        expect(d.y).toBeGreaterThan(200);
     });
 
     it('lets a heavy drop slide down, leaving smaller drops behind and a wiped trail in the fog', () => {

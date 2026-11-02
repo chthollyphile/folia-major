@@ -1,6 +1,7 @@
 import { FLAKE_STAGES, type FlakeKind } from './nebbiaSnowFlakes';
 import { FLAKE_FLOATS } from './nebbiaSnowGl';
 import type { WaterDrop } from './nebbiaSnowWater';
+import { ICE_FLOATS } from './nebbiaInkIce';
 
 // src/components/visualizer/nebbia/nebbiaSnowDraw.ts
 // 雪窗的雪花怎么摆（nebbiaSnow.ts 用）：每片雪算出这一帧的位置、大小、压扁、透明度、融化阶段，排成实例交给 WebGL 画（nebbiaSnowGl.ts）。
@@ -52,4 +53,50 @@ export const packFlakes = (flakes: readonly Flake[], buf: Float32Array, start = 
     if (buf.length < n * FLAKE_FLOATS) buf = new Float32Array(Math.ceil(n * 1.5) * FLAKE_FLOATS);
     for (let i = 0; i < flakes.length; i += 1) packFlake(flakes[i], buf, (start + i) * FLAKE_FLOATS);
     return buf;
+};
+
+/**
+ * 结了冰的水珠的冰芯（nebbiaSnowWater.ts 的 ice > 0）排在 buf 的第 start 片起：冰芯和看得见的水珠差不多大、放在水滴下面圆的那团（重心）上，冻得越透阶段越靠前
+ * （bead 贴图的阶段倒过来用，冰芯从中间往外长），跟着水珠被拉长的样子压扁；返回用到的 buf 和排了几颗。
+ */
+export const packIce = (drops: readonly WaterDrop[], radius: (d: WaterDrop) => number, beads: readonly FlakeKind[], buf: Float32Array, start: number): [Float32Array, number] => {
+    let n = 0;
+    for (const d of drops) if (d.ice > 0 && !d.dead) n += 1;
+    if (buf.length < (start + n) * FLAKE_FLOATS) {
+        const next = new Float32Array(Math.ceil((start + n) * 1.5) * FLAKE_FLOATS);
+        next.set(buf.subarray(0, start * FLAKE_FLOATS));
+        buf = next;
+    }
+    let o = start * FLAKE_FLOATS;
+    for (const d of drops) {
+        if (!(d.ice > 0) || d.dead) continue;
+        const kind = beads[Math.floor(d.rot * 10) % beads.length];
+        // 水珠精灵是水滴形（上面尖、下面圆），重心在圆的那团里，比水珠的位置偏下；被拉长时更靠下
+        const r = radius(d);
+        buf[o] = d.x; buf[o + 1] = d.y + r * (0.42 + 0.2 * d.sy); buf[o + 2] = r * 1.05; buf[o + 3] = d.rot + d.tilt;
+        buf[o + 4] = Math.min((1 - d.ice) * (FLAKE_STAGES - 1), FLAKE_STAGES - 1.001); buf[o + 5] = kind.row;
+        buf[o + 6] = 0.9 * Math.min(1, d.ice * 5); buf[o + 7] = 1;
+        buf[o + 8] = 1 + d.sx * 0.5; buf[o + 9] = 1 + d.sy * 0.5;
+        o += FLAKE_FLOATS;
+    }
+    return [buf, n];
+};
+
+/** 写字留下的水珠结的冰芯（nebbiaInkIce.ts 收的，ICE_FLOATS 个数一颗，位置已经放好）排在 buf 的第 start 片起；返回用到的 buf 和排了几颗。 */
+export const packInkIce = (ice: readonly number[], beads: readonly FlakeKind[], buf: Float32Array, start: number): [Float32Array, number] => {
+    const n = ice.length / ICE_FLOATS;
+    if (buf.length < (start + n) * FLAKE_FLOATS) {
+        const next = new Float32Array(Math.ceil((start + n) * 1.5) * FLAKE_FLOATS);
+        next.set(buf.subarray(0, start * FLAKE_FLOATS));
+        buf = next;
+    }
+    for (let i = 0; i < n; i += 1) {
+        const q = i * ICE_FLOATS, o = (start + i) * FLAKE_FLOATS, frozen = ice[q + 3]!;
+        buf[o] = ice[q]!; buf[o + 1] = ice[q + 1]!; buf[o + 2] = ice[q + 2]!; buf[o + 3] = ice[q + 4]!;
+        buf[o + 4] = Math.min((1 - frozen) * (FLAKE_STAGES - 1), FLAKE_STAGES - 1.001);
+        buf[o + 5] = beads[Math.floor(Math.abs(ice[q + 4]!) * 10) % beads.length]!.row;
+        buf[o + 6] = 0.9 * Math.min(1, frozen * 5) * ice[q + 5]!; buf[o + 7] = 1;
+        buf[o + 8] = 1; buf[o + 9] = 1;
+    }
+    return [buf, n];
 };

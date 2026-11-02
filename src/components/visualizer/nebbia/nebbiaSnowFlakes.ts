@@ -3,6 +3,8 @@
 // 四成是枝晶（star，六根枝长短略有差别、侧枝各不一样，一半缺一两个角），都撒着霜粒。先把一片雪画成一张「密度图」（团、霜粒厚，枝梢薄），
 // 再按融化程度出 STAGES 张阶段贴图：密度低于阈值的地方（细枝、薄边）先没，剩下的越来越湿、越透、偏灰蓝，边上一圈薄水边；
 // 外面一圈很淡的暗晕，看着是贴在玻璃上。每种还记下最厚的两三处「疙瘩」，化的时候水从那里渗出来。
+// 另有冻住的水珠（bead，nebbiaSnowWater.ts 里停久了结冰的水珠）：中间一团发白的冰芯、几道放射的冰纹，边上是清的冰；
+// 它的阶段倒过来用：冻得越透阶段越靠前（冰芯从最厚的中间往外长）。
 // 全部阶段贴图拼成一张图集（每种一行、每个阶段一格），WebGL 里画（nebbiaSnowGl.ts）。
 
 export const FLAKE_SPRITE = 64;
@@ -12,7 +14,7 @@ export const FLAKE_STAGES = 16;
 /** 雪的直径占贴图边长的比例：画的时候按它缩放到雪花半径。 */
 export const FLAKE_FILL = 0.84;
 
-export type FlakeType = 'clump' | 'star';
+export type FlakeType = 'clump' | 'star' | 'bead';
 
 export interface FlakeKind {
     type: FlakeType;
@@ -44,7 +46,17 @@ const shape = (type: FlakeType) => {
         }
         return out;
     };
-    if (type === 'clump') {
+    if (type === 'bead') {
+        // 冻住的水珠：中间一团（冻的时候挤出来的气泡发白），周围几小团不规则，几道放射的细冰纹
+        discs.push({ x: rand(-0.05, 0.05), y: rand(-0.05, 0.05), r: rand(0.45, 0.55), a: 0.95 });
+        for (let i = 0, n = 4 + Math.floor(Math.random() * 3); i < n; i += 1) {
+            const a = Math.random() * TAU, dd = rand(0.15, 0.32);
+            discs.push({ x: Math.cos(a) * dd, y: Math.sin(a) * dd, r: rand(0.18, 0.3), a: rand(0.55, 0.8) });
+        }
+        for (let i = 0, n = 5 + Math.floor(Math.random() * 3); i < n; i += 1) {
+            arms.push({ ang: Math.random() * TAU, len: rand(0.45, 0.75), w: rand(0.04, 0.07), branches: [] });
+        }
+    } else if (type === 'clump') {
         let px = 0, py = 0, pa = Math.random() * TAU;
         for (let i = 0, n = 7 + Math.floor(Math.random() * 10); i < n; i += 1) {
             discs.push({ x: px, y: py, r: rand(0.1, 0.22), a: rand(0.6, 0.95) });
