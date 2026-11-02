@@ -5,7 +5,7 @@ import { resolvePlayerControlSlot, type PlayerControlSlotActionId, type PlayerCo
 // src/components/floating-player/PlayerControlSlotButton.tsx
 // 进度条胶囊右侧的一个可自定义槽位。样式沿用原来写死的循环 / 歌词时间轴按钮。
 
-/** 触屏按住这么久算长按，打开原地更换浮层。 */
+/** 按住这么久算长按，打开原地更换浮层。 */
 const LONG_PRESS_MS = 500;
 /** 手指挪动超过这个距离就当是在滑动，不再算长按。 */
 const LONG_PRESS_SLOP_PX = 10;
@@ -89,7 +89,8 @@ const PlayerControlSlotButton: React.FC<PlayerControlSlotButtonProps> = ({
             }}
             onPointerDown={(e) => {
                 suppressClickRef.current = false;
-                if (!canCustomize || e.pointerType === 'mouse') {
+                // 鼠标、触屏、笔都能长按；鼠标只认主键按住，右键已经由 contextmenu 处理了。
+                if (!canCustomize || (e.pointerType === 'mouse' && e.button !== 0)) {
                     return;
                 }
                 cancelLongPress();

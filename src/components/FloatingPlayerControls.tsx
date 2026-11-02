@@ -156,6 +156,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         wasMorphedRef.current = isMorphedIntoPalette;
     }, [isMorphedIntoPalette]);
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
+    // 胶囊自己的描边和投影；换按钮的浮层、上方的浮动命令照这个底色做成 capsuleGlass，边沿另用面板那条线。
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
     const glassBgCollapsed = isDaylight ? 'bg-white/40 border border-white/20 shadow-lg hover:bg-white/50' : 'bg-black/20 border border-white/5 hover:bg-black/30';
     const trackColor = isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)';

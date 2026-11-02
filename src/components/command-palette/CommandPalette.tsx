@@ -305,6 +305,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     const panelBg = hasClearBackdrop
         ? (isDaylight ? 'bg-white/95 text-zinc-950' : 'bg-zinc-950/95 text-white')
         : (isDaylight ? 'bg-white/70 text-zinc-950' : 'bg-zinc-950/70 text-white');
+    const panelBorderColor = isDaylight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)';
     const itemActiveBg = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const itemIdleBg = isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/5';
 
@@ -629,6 +630,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             isExecuting={isExecuting}
             theme={theme}
             placement={capsuleFrame ? 'above' : 'below'}
+            surfaceClassName={panelBg}
+            borderColor={panelBorderColor}
             onExecute={(command) => {
                 void onExecutePinnedCommand(command).then(refocusInput);
             }}
@@ -645,7 +648,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             className={`overflow-hidden rounded-3xl border shadow-2xl ${panelBg}`}
             data-testid="command-palette-panel"
             style={{
-                borderColor: isDaylight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)',
+                borderColor: panelBorderColor,
                 color: 'var(--text-primary)',
             }}
         >

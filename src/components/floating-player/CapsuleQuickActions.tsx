@@ -6,7 +6,7 @@ import { COMMAND_PALETTE_COMMANDS } from '../command-palette/commandRegistry';
 import { readCommandFrequencyState } from '../command-palette/commandFrequency';
 import { getCommandTitle } from '../command-palette/commandText';
 import type { CommandPaletteCommand } from '../command-palette/types';
-import { panelEdgeColor } from '../panelTab/shell/panelTheme';
+import { capsuleGlassClass, capsuleGlassStyle } from './capsuleGlass';
 import { resolveCapsuleQuickActions } from './capsuleQuickActionSelection';
 import {
     playerControlSlotActionForCommand,
@@ -102,9 +102,9 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
             <div
                 role="group"
                 aria-label={t('player.capsuleQuickActions')}
-                className="flex items-center gap-0.5 rounded-full p-1 backdrop-blur-2xl theme-glass-panel"
-                // 边沿和更换浮层、播放页面板同一条 1px 线。
-                style={{ boxShadow: `0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${panelEdgeColor(isDaylight)}` }}
+                className={`flex items-center gap-0.5 rounded-full p-1 ${capsuleGlassClass(isDaylight)}`}
+                // 和进度条胶囊同一层玻璃。
+                style={capsuleGlassStyle(isDaylight)}
             >
                 {commands.map(command => {
                     const button = resolveButton(command, context);

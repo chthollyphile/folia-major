@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { panelEdgeColor } from '../panelTab/shell/panelTheme';
+import { capsuleGlassClass, capsuleGlassStyle } from './capsuleGlass';
 import { PLAYER_CONTROL_SLOT_OPTIONS, type PlayerControlSlotActionId } from './playerControlSlotActions';
 import type { PlayerControlSlotSide } from './PlayerControlSlotPicker';
 import { usePlayerControlSlotSuggestionStore } from './playerControlSlotSuggestionStore';
@@ -82,13 +82,13 @@ const PlayerControlSlotSuggestion: React.FC<PlayerControlSlotSuggestionProps> = 
             data-testid="player-control-slot-suggestion"
             role="status"
             // 窄屏上一行放不下问句和三个按钮：问句独占第一行、可换行，按钮挪到第二行；sm 起才并成一条胶囊。
-            className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1.5 rounded-3xl px-3 py-2 backdrop-blur-2xl theme-glass-panel sm:flex-nowrap sm:rounded-full sm:py-1.5 sm:pl-3 sm:pr-1.5"
+            className={`pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1.5 rounded-3xl px-3 py-2 ${capsuleGlassClass(isDaylight)} sm:flex-nowrap sm:rounded-full sm:py-1.5 sm:pl-3 sm:pr-1.5`}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            // 边沿和更换浮层、播放页面板同一条 1px 线。
-            style={{ boxShadow: `0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 0 0 1px ${panelEdgeColor(isDaylight)}` }}
+            // 和进度条胶囊同一层玻璃。
+            style={capsuleGlassStyle(isDaylight)}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={event => event.stopPropagation()}
