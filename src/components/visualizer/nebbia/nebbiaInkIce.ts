@@ -35,8 +35,9 @@ export const putInkBead = (ink: InkContext, x: number, y: number, r: number, alp
     const v = p.slide * k * (0.65 + 0.7 * h2), ramp = 0.15 * dur, tau = t - ICE_SLIDE_AT * dur;
     const dist = tau <= 0 ? 0 : tau < ramp ? v * tau * tau / (2 * ramp) : v * (tau - ramp / 2);
     const wob = (d: number) => (d > 0 ? 1.5 * k * Math.sin(d / (20 * k) + h * 6) : 0);
-    // 身后的小冰点（不滑）
-    for (let s = 12 * k; s < dist - R; s += 14 * k * (0.8 + 0.4 * hash(s + seed))) {
+    // 身后的小冰点（不滑）：只留到画面底下；这一帧的冰芯攒到 2.5 × maxIce 颗就不再留（几百颗一起滑时不封顶会上千）
+    const end = Math.min(dist - R, ice.H + 100 - y), budget = p.maxIce * 2.5 * ICE_FLOATS;
+    for (let s = 12 * k; s < end && ice.out.length < budget; s += 14 * k * (0.8 + 0.4 * hash(s + seed))) {
         const rr = R * 0.22;
         ink.motion.put(x + wob(s), y + s, rr, alpha);
         pushCore(ice.out, x + wob(s), y + s, rr, 1, h * 7 + s, alpha);

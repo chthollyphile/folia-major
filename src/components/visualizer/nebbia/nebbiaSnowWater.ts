@@ -75,7 +75,7 @@ export class NebbiaSnowWater {
     private k = 1;
     private time = 0;
     /** 原型测试：面板上「放一颗大冰珠」点了几次（spawnBig），这边放过几颗。 */
-    private bigSeen = 0;
+    private bigSeen = iceParams.spawnBig;
     /** 上一帧窗上的小冰点数（MAX_SPECKS 用）。 */
     private specks = 0;
     /** 上一帧在冻、在滑的冰珠数（不算小冰点）：到 iceParams.maxIce 了新的先不冻。冰珠蒸发得慢、滑得慢，不封顶会攒到上千颗，又碍眼又费 CPU。 */
@@ -280,8 +280,9 @@ export class NebbiaSnowWater {
                     // 密度按质量平均：拖尾留下的小珠（密度 0.2）并进来一颗比它还轻的水珠时，不会一下子显得大 5 倍
                     big.density = (big.density * big.mass + small.density * small.mass) / m;
                     big.mass = Math.min(m, this.massCap(big));
-                    // 冰按质量平均（大的水珠吃掉冰珠就化掉一些）；小冰点并进别的就不再是小冰点
-                    big.ice = (big.ice * (m - small.mass) + small.ice * small.mass) / m;
+                    // 冰按质量平均（大的冰珠吃掉水珠就化掉一些）；没冻的水珠吃掉冰珠、小冰点，冰就化进水里，要冻照常停够了再冻（不绕过上限和时间）。
+                    // 小冰点并进别的就不再是小冰点
+                    big.ice = big.ice > 0 ? (big.ice * (m - small.mass) + small.ice * small.mass) / m : 0;
                     if (big.ice < 1e-3) big.ice = 0;
                     big.speck = big.speck && small.speck;
                     small.dead = true;
