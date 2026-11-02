@@ -38,6 +38,7 @@ describe('buildVisualSettingsConfig', () => {
         generationSourceMock.mockReset().mockReturnValue('ai');
         generateMock.mockReset().mockReturnValue(false);
         useThemeSettingsStore.setState({ followSystemTheme: false, isDaylight: false });
+        useLatticeSettingsStore.setState({ latticeBadgeCurrentOnly: false });
     });
 
     it('carries the system theme preference and keeps manual daylight changes authoritative', () => {
@@ -277,7 +278,6 @@ describe('buildVisualSettingsConfig', () => {
         expect(restored.latticeBadgeCurrentOnly).toBe(true);
         expect(decompressConfig(JSON.stringify({ lbco: false }))).toMatchObject({ latticeBadgeCurrentOnly: false });
         expect(decompressConfig(JSON.stringify({ latticeBadgeCurrentOnly: true }))).toMatchObject({ latticeBadgeCurrentOnly: true });
-        useLatticeSettingsStore.setState({ latticeBadgeCurrentOnly: false });
     });
 
     // Which way the info strip opens (auto / vertical / horizontal) travels with the look (short code lwsd).

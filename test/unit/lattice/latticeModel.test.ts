@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '../../../src/types';
-import { buildLatticeTiles } from '../../../src/components/app/lattice/latticeModel';
+import { buildLatticeTiles, latticeBadgeIsIndex } from '../../../src/components/app/lattice/latticeModel';
 
 // Verifies the wall mirrors the play queue exactly, including its order.
 
@@ -76,5 +76,16 @@ describe('buildLatticeTiles', () => {
 
     it('returns nothing for an empty queue', () => {
         expect(buildLatticeTiles({ queue: [], currentSong: null })).toEqual([]);
+    });
+});
+
+// "Number only the playing song" (#930) hides the badges that are queue numbers; an explore entry's kind label is not one.
+describe('latticeBadgeIsIndex', () => {
+    it('counts every queue tile, playing or not, and no tile with a kind label', () => {
+        const queue = [online('one'), online('two')];
+        const tiles = buildLatticeTiles({ queue, currentSong: queue[0] });
+
+        expect(tiles.map(latticeBadgeIsIndex)).toEqual([true, true]);
+        expect(latticeBadgeIsIndex({ ...tiles[1], label: 'Song' })).toBe(false);
     });
 });

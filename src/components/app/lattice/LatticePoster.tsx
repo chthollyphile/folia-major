@@ -5,7 +5,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useRef, type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent } from 'react';
 import type { ReflowTile } from '../../wall/layout';
-import type { LatticeTile } from './latticeModel';
+import { latticeBadgeIsIndex, type LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
 import { useLatticeExpansionSettled } from './useLatticeExpansionSettled';
@@ -24,7 +24,6 @@ import { WALL_REFLOW_CONTROLS_REVEAL, WALL_REFLOW_SPRING } from '../../wall/wall
 import { LATTICE_TILE_ATTR, MORPH_SHADE_ATTR } from '../../collectionFlight';
 import { ENTRANCE_LIFT, LEAVING } from './tileMotion';
 import { useFlightBackTo } from './wallFlight';
-import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 
 // Renders one poster and its expanded Player Chrome controls. A poster of the explore page that
 // is a collection (album, playlist, artist, mix) has one button there instead, which opens its page.
@@ -167,9 +166,6 @@ function LatticePoster({
     const popScaleX = popped && rect.width > 0 ? (rect.width + gap * 2) / rect.width : 1;
     const popScaleY = popped && rect.height > 0 ? (rect.height + gap * 2) / rect.height : 1;
     const isCurrent = tile.section === 'now';
-    // 「只显示正在播放的序号」（#930）：不是正在播放的队列海报不画序号角标；探索页带种类标签的照旧。
-    const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
-    const showsBadge = isCurrent || tile.label !== undefined || !badgeCurrentOnly;
     // Where a cover's flight to this tile's page starts, and where the flight back lands.
     const isFlightEnd = expanded && tile.kind === 'collection';
     // Asked here, in the render: the commit that first draws the poster on a wall come back to
@@ -317,14 +313,16 @@ function LatticePoster({
             <span className="lattice-poster-shade" {...(isFlightEnd ? { [MORPH_SHADE_ATTR]: '' } : {})} />
             <span className="lattice-poster-lights-out" />
             <span className="lattice-poster-tint" />
-            {showsBadge && <span className={`lattice-poster-badge ${isCurrent ? 'is-current' : ''}`}>
+            {/* A queue tile's number is is-index: the wall root's has-badge-current-only hides it
+                on all but the playing poster (#930, wall.css). */}
+            <span className={`lattice-poster-badge ${latticeBadgeIsIndex(tile) ? 'is-index' : ''} ${isCurrent ? 'is-current' : ''}`}>
                 {isCurrent && <>{t('home.latticeBadgeNow')} · </>}
                 {/* An entry of the explore page says what it is where a queue tile has its number;
                     a collection, grown, also the heading it stands under on the page. */}
                 {tile.label === undefined
                     ? String(tile.queueIndex + 1).padStart(2, '0')
                     : tile.kind === 'collection' && expanded && tile.heading ? `${tile.label} · ${tile.heading}` : tile.label}
-            </span>}
+            </span>
             {expanded && expansionSettled && isCurrent ? (
                 <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
                     <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />

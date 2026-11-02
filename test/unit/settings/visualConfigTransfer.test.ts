@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { applyImportedConfig, buildCurrentConfig, type ConfigThemeControls } from '@/components/modal/settings/pages/storage/visualConfigTransfer';
 import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
 import { useLatticeSettingsStore } from '@/stores/useLatticeSettingsStore';
@@ -75,6 +75,7 @@ describe('applyImportedConfig', () => {
     });
 
     it('writes numbering only the playing song to the tile wall store, and only when picked', () => {
+        onTestFinished(() => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(false));
         applyImportedConfig({ latticeBadgeCurrentOnly: true }, ['latticeBadgeCurrentOnly'], controls());
         expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(true);
 
