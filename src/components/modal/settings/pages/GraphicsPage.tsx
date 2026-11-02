@@ -310,8 +310,9 @@ const GraphicsPage: React.FC = () => {
         bend: preset.bend,
       });
     }
+  };
 
-    return (
+  return (
       <>
         <Group def={PERFORMANCE}>
           <Row option={O.staticMode} hint={t("options.enableStaticModeDesc")}>
@@ -532,7 +533,6 @@ const GraphicsPage: React.FC = () => {
         />
       </>
     );
-  };
 };
 
 export default GraphicsPage;
