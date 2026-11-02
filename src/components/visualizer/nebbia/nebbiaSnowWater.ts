@@ -55,6 +55,11 @@ export class NebbiaSnowWater {
     /** 按面积蒸发的时间常数（秒）。 */
     evapTau = 150;
     /**
+     * 沿边蒸发（每秒质量，乘 k·√质量，画面高 1000 时）：水从边上蒸发，小水珠相对边长多、干得快。
+     * 一片常见的雪化出的水十来秒干，雪一直下时玻璃上的水二十来秒就稳住（库里每秒固定蒸发一点，小水珠要挂四五十秒，满屏越攒越多）。
+     */
+    evapEdge = 2.6;
+    /**
      * 一颗水珠最多多大（画面高 1000 时，看得见的半径 18；按 size 算，质量上限是 (这个 × 密度)²）：滑下去的水珠一路并掉别的会越滚越大，滑得越宽并得越多，
      * 到这么大以后多出来的当作摊成一层薄水膜流走，不再长（不然雪大、水多时能滚出半径近百像素的水珠、擦出一道道宽痕）。
      */
@@ -117,8 +122,9 @@ export class NebbiaSnowWater {
     // 一颗水珠走 dt 秒（库的 updateRaindrop）
     private move(d: WaterDrop, dt: number, spread: number) {
         const k = this.k;
-        // 库里每秒蒸发固定一点；这里再按面积（和质量成正比）多蒸发一点：大水珠也会慢慢缩，雪一直下也不会越积越大、越流越多
-        d.mass = Math.min(d.mass, this.massCap(d)) - (3 * k * k + d.mass / this.evapTau) * dt;
+        // 库里每秒蒸发固定一点；这里改成沿边蒸发（小水珠干得快），再按面积（和质量成正比）多蒸发一点：大水珠也会慢慢缩，雪一直下也不会越积越大、越流越多
+        d.mass = Math.min(d.mass, this.massCap(d));
+        d.mass -= (this.evapEdge * k * Math.sqrt(Math.max(0, d.mass)) + d.mass / this.evapTau) * dt;
         if (d.mass <= 0) { d.dead = true; return; }
         d.sx *= spread; d.sy *= spread;
         if (d.pin) { d.x = d.pin.x; d.y = d.pin.y; d.vx = d.vy = 0; return; }
