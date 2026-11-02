@@ -4136,7 +4136,15 @@ export default {
     "loopAll": "Ulangi Semua",
     "loopOne": "Ulangi Satu",
     "unknownArtist": "Artis Tidak Dikenal",
-    "unknownAlbum": "Album Tidak Dikenal"
+    "unknownAlbum": "Album Tidak Dikenal",
+    "slotCustomizeHint": "Klik kanan atau tekan lama untuk mengganti",
+    "slotPickerMoreSettings": "Pengaturan lainnya…",
+    "slotPickerInOtherSlot": "Sisi lain",
+    "slotPickerSwapHint": "{{action}} (bertukar dengan tombol lainnya)",
+    "slotSuggestion": "Sering pakai {{action}}? Taruh di bilah kontrol",
+    "slotSuggestionReplace": "Ganti",
+    "slotSuggestionReplacePrimary": "Ganti tombol kiri ({{action}})",
+    "slotSuggestionReplaceSecondary": "Ganti tombol kanan ({{action}})"
   },
   "localMusic": {
     "foldersAndPlaylists": "Folder",

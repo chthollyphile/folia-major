@@ -69,6 +69,29 @@ export const PLAYER_CONTROL_SLOT_OPTIONS: readonly { id: PlayerControlSlotAction
 ];
 
 /**
+ * 槽位动作和命令面板里做同一件事的那条命令。歌词时间轴没有对应命令，不在表里。
+ * 用来判断「面板里常用的这条命令能不能放进槽位」。
+ */
+export const PLAYER_CONTROL_SLOT_COMMAND_IDS: Readonly<Record<Exclude<PlayerControlSlotActionId, 'lyrics-timeline'>, string>> = {
+    loop: 'playback-loop',
+    prev: 'playback-prev',
+    next: 'playback-next',
+    shuffle: 'playback-shuffle',
+    like: 'playback-like',
+    volume: 'playback-volume',
+    queue: 'queue',
+    'song-wall': 'navigate-lattice',
+    'sleep-timer': 'sleep-timer',
+    locate: 'locate-playing-song',
+};
+
+/** 命令 id 反查槽位动作；不是任何槽位动作的命令返回 null。 */
+export const playerControlSlotActionForCommand = (commandId: string): PlayerControlSlotActionId | null => {
+    const entry = Object.entries(PLAYER_CONTROL_SLOT_COMMAND_IDS).find(([, id]) => id === commandId);
+    return entry ? entry[0] as PlayerControlSlotActionId : null;
+};
+
+/**
  * 把一个槽位 id 和当前播放上下文解析成可直接渲染的按钮描述。
  * 打开界面的四个动作统一转成 openCommandById，复用命令面板已经做好的 surface。
  */
@@ -132,8 +155,8 @@ export const resolvePlayerControlSlot = (
                 icon: Volume2,
                 filled: false,
                 active: false,
-                disabled: !context.canInvokeCommandById('playback-volume'),
-                onActivate: () => context.invokeCommandById('playback-volume'),
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.volume),
+                onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.volume),
                 labelKey: 'options.playerControlSlotAction_volume',
             };
         case 'queue':
@@ -141,8 +164,8 @@ export const resolvePlayerControlSlot = (
                 icon: ListMusic,
                 filled: false,
                 active: false,
-                disabled: !context.canInvokeCommandById('queue'),
-                onActivate: () => context.invokeCommandById('queue'),
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.queue),
+                onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.queue),
                 labelKey: 'options.playerControlSlotAction_queue',
             };
         case 'song-wall':
@@ -152,8 +175,8 @@ export const resolvePlayerControlSlot = (
                 active: false,
                 // The command hides itself on the wall, so the slot greys out there instead of
                 // offering a trip to the surface the user is already looking at.
-                disabled: !context.canInvokeCommandById('navigate-lattice'),
-                onActivate: () => context.invokeCommandById('navigate-lattice'),
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS['song-wall']),
+                onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS['song-wall']),
                 labelKey: 'options.playerControlSlotAction_songWall',
             };
         case 'sleep-timer':
@@ -161,8 +184,8 @@ export const resolvePlayerControlSlot = (
                 icon: Timer,
                 filled: false,
                 active: false,
-                disabled: !context.canInvokeCommandById('sleep-timer'),
-                onActivate: () => context.invokeCommandById('sleep-timer'),
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS['sleep-timer']),
+                onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS['sleep-timer']),
                 labelKey: 'options.playerControlSlotAction_sleepTimer',
             };
         case 'locate':
@@ -170,8 +193,8 @@ export const resolvePlayerControlSlot = (
                 icon: Crosshair,
                 filled: false,
                 active: false,
-                disabled: !context.canInvokeCommandById('locate-playing-song'),
-                onActivate: () => context.invokeCommandById('locate-playing-song'),
+                disabled: !context.canInvokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.locate),
+                onActivate: () => context.invokeCommandById(PLAYER_CONTROL_SLOT_COMMAND_IDS.locate),
                 labelKey: 'options.playerControlSlotAction_locate',
             };
         case 'lyrics-timeline':

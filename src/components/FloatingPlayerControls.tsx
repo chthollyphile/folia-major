@@ -9,10 +9,14 @@ import LyricsTimelineModal from './modal/LyricsTimelineModal';
 import TrackTitleNavigator from './floating-player/TrackTitleNavigator';
 import PlayerControlSlotButton from './floating-player/PlayerControlSlotButton';
 import PlayerBottomBarPositioner from './floating-player/PlayerBottomBarPositioner';
+import PlayerControlSlotPicker from './floating-player/PlayerControlSlotPicker';
+import PlayerControlSlotSuggestion from './floating-player/PlayerControlSlotSuggestion';
+import { usePlayerControlSlotCustomization } from './floating-player/usePlayerControlSlotCustomization';
 import { usePlayerBottomBarBottomPx } from '../hooks/usePlayerBottomBarBottomPx';
 import { playerBottomBarLiveOffset } from '../stores/motionSignals';
 import { usePlayerBottomBarLayoutStore } from '../stores/usePlayerBottomBarLayoutStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
+import { openSettings } from '../stores/useSettingsModalStore';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, clampPlayerBottomBarOffset, resolvePlayerBottomBarMaxOffset } from '../utils/playerBottomBarLayout';
 import type { PlayerControlSlotActionId, PlayerControlSlotContext } from './floating-player/playerControlSlotActions';
 import { usePlayerOverlayObstacle } from '../hooks/usePlayerOverlayLayout';
@@ -114,7 +118,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     secondaryColor = 'var(--text-secondary)',
     theme,
     isDaylight,
-    isHidden = false,
+    isHidden: isChromeHidden = false,
     hideControlBar = false,
     controlsDisabled = false,
     trackNavigation = null,
@@ -124,6 +128,10 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     onCommitBottomBarOffset,
 }) => {
     const { t } = useTranslation();
+    const slotCustomization = usePlayerControlSlotCustomization(slotPrimary, slotSecondary);
+    const { slotPicker, closeSlotPicker, slotSuggestion } = slotCustomization;
+    // 自动隐藏播放页控件只看鼠标移动：盯着更换浮层看选项时不动鼠标，浮层不能跟着整条控制条一起淡出。
+    const isHidden = isChromeHidden && slotPicker === null;
     const { ref: layoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('player-controls', 'playback', !isHidden);
     // const isDaylight = theme?.name === 'Daylight Default'; // Deprecated, passed as prop
     const glassBgExpanded = isDaylight ? 'bg-white/60 border border-white/20 shadow-xl' : 'bg-black/40 border border-white/5';
@@ -154,8 +162,12 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     ));
 
     const canAutoExpand = canTogglePlay && duration > 0;
+    const showSlotSuggestion = slotSuggestion !== null && !isHidden && !isPositioning && slotPicker === null;
     // 定位模式强制展开：用户要看到的是最终形态的胶囊，而不是一条细进度条。
-    const showExpanded = isPositioning || isHovered || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
+    // 更换浮层和提议开着时也展开：两者说的都是槽位按钮，按钮得看得见；提议条贴在胶囊上沿，
+    // 要是悬停才展开，指针移上提议条那一下胶囊长高、提议条被顶走，会在展开和收起之间来回抖。
+    // 刚换完按钮也再展开一会儿，让人看见换上去的结果。
+    const showExpanded = isPositioning || isHovered || slotPicker !== null || showSlotSuggestion || slotCustomization.isShowingChange || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
 
     // 上限依赖视口高度，窗口变矮时要跟着收，否则虚线框会画到屏幕外。
     useEffect(() => {
@@ -217,6 +229,13 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
             usePlayerBottomBarLayoutStore.getState().cancelPositioning();
         }
     }, []);
+
+    // 进入定位模式或整排失效时，浮层指着的那个按钮已经不能用了。
+    useEffect(() => {
+        if (slotPicker && (isPositioning || controlsDisabled)) {
+            closeSlotPicker();
+        }
+    }, [closeSlotPicker, controlsDisabled, isPositioning, slotPicker]);
 
     const handleCommitPositioning = useCallback(() => {
         onCommitBottomBarOffset(commitPositioning());
@@ -355,7 +374,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
-                    className="pointer-events-auto w-full flex justify-center"
+                    className="pointer-events-auto relative w-full flex justify-center"
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                     style={{
@@ -365,6 +384,21 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         marginBottom: `${-hoverHitboxBufferPx}px`,
                     }}
                 >
+                    {/* 定位层和动画层分开，理由同上：提示条的 y 动画不能盖掉居中用的布局。 */}
+                    <div className="pointer-events-none absolute bottom-full left-0 right-0 mb-3 flex justify-center">
+                        <AnimatePresence>
+                            {showSlotSuggestion && slotSuggestion && (
+                                <PlayerControlSlotSuggestion
+                                    key={slotSuggestion}
+                                    actionId={slotSuggestion}
+                                    slotPrimary={slotPrimary}
+                                    slotSecondary={slotSecondary}
+                                    onReplace={slotCustomization.acceptSuggestion}
+                                    onDismiss={slotCustomization.dismissSuggestion}
+                                />
+                            )}
+                        </AnimatePresence>
+                    </div>
                     <motion.div
                         ref={layoutRef}
                         onUpdate={invalidateLayout}
@@ -411,6 +445,8 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                                     slotPrimary={slotPrimary}
                                     slotSecondary={slotSecondary}
                                     slotContext={resolvedSlotContext}
+                                    onCustomizePrimary={slotCustomization.openPrimaryPicker}
+                                    onCustomizeSecondary={slotCustomization.openSecondaryPicker}
                                 />
                             ) : (
                                 <CollapsedView
@@ -428,6 +464,24 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                 </div>
             </motion.div>
             </motion.div>
+
+            {slotPicker && (
+                <PlayerControlSlotPicker
+                    anchorRect={slotPicker.anchorRect}
+                    side={slotPicker.side}
+                    current={slotPicker.side === 'primary' ? slotPrimary : slotSecondary}
+                    other={slotPicker.side === 'primary' ? slotSecondary : slotPrimary}
+                    onSelect={(actionId) => {
+                        slotCustomization.assignSlot(slotPicker.side, actionId);
+                        closeSlotPicker();
+                    }}
+                    onOpenSettings={() => {
+                        closeSlotPicker();
+                        openSettings('options', 'player', null, 'bottomUiSettings', 'playerControlSlots');
+                    }}
+                    onClose={closeSlotPicker}
+                />
+            )}
 
             <AnimatePresence>
                 {isPositioning && (
@@ -490,6 +544,8 @@ interface ExpandedViewProps {
     slotPrimary: PlayerControlSlotActionId;
     slotSecondary: PlayerControlSlotActionId;
     slotContext: PlayerControlSlotContext;
+    onCustomizePrimary: (anchorRect: DOMRect) => void;
+    onCustomizeSecondary: (anchorRect: DOMRect) => void;
 }
 
 const ExpandedView: React.FC<ExpandedViewProps> = ({
@@ -511,6 +567,8 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
     slotPrimary,
     slotSecondary,
     slotContext,
+    onCustomizePrimary,
+    onCustomizeSecondary,
 }) => {
     const isHifiRoute = useIsHifiRoute();
     const progressBar = (
@@ -583,6 +641,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     isDaylight={isDaylight}
                     controlsDisabled={controlsDisabled}
                     className="col-start-1 row-start-2 justify-self-end sm:justify-self-auto"
+                    onCustomize={onCustomizePrimary}
                 />
 
                 <PlayerControlSlotButton
@@ -592,6 +651,7 @@ const ExpandedView: React.FC<ExpandedViewProps> = ({
                     isDaylight={isDaylight}
                     controlsDisabled={controlsDisabled}
                     className="col-start-3 row-start-2 justify-self-start sm:justify-self-auto"
+                    onCustomize={onCustomizeSecondary}
                 />
             </div>
 
