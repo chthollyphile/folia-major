@@ -3,6 +3,7 @@ import { Check, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisItem } from './bravaisLayer';
 import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
+import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 
 // src/library/suites/bravais/BravaisTileMarks.tsx
 // 首页磁贴右上角的两种记号（B9，设计稿 §10.5）：
@@ -10,13 +11,18 @@ import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
 //   is-managing-hidden）；点它切换隐藏（directory-toggle-hidden），不冒泡到磁贴的点击。
 // - 勾：批量模式里选中的卡片（未选中的由磁贴本身灰度 + 半透明）。
 // 左上角的类型标签也在这里（BravaisTileBadge）：特殊集合的标签是强调色底 + 小图标。
+// 「只显示正在播放的序号」开着时（useLatticeSettingsStore.latticeBadgeCurrentOnly，#930），不是正在播放的歌曲卡片不画纯序号角标。
 
 /**
  * 左上角的类型标签（Lattice 的 .lattice-poster-badge）。特殊集合（item.special：我喜欢的音乐、私人 FM、全部歌曲…）的标签
  * 换一身：强调色底、底色字，前面一个小图标（与缝里直达入口同一个，bravaisSpecialIcons），挂 is-special 与
  * data-bravais-special；文字仍是种类（歌单 / 电台 / 文件夹），读屏不念图标。普通卡片原样。
+ * 「只显示正在播放的序号」开着时，纯数字的序号角标（集合页、歌手页的歌曲）只留正在播放的那张；带文字的类型标签（首页卡片、
+ * 探索页）照旧。
  */
 export const BravaisTileBadge: React.FC<{ item: BravaisItem; current: boolean }> = ({ item, current }) => {
+    const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
+    if (badgeCurrentOnly && !current && /^\d+$/.test(item.badge)) return null;
     const Icon = item.special ? BRAVAIS_SPECIAL_ICONS[item.special] : null;
     return (
         <span

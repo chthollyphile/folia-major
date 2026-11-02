@@ -315,6 +315,8 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
+    toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
     toggleReduceLatticeMotion: () => void;
     /** Whether the OS animation setting is allowed to reduce motion in the app at all. */

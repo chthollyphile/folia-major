@@ -73,6 +73,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "last_home_view_tab",
   "latent_background_tuning",
   "lattice_auto_focus_on_song_change",
+  "lattice_badge_current_only",
   "lattice_lights_on",
   "lattice_poster_tint_color",
   "lattice_poster_tint_enabled",

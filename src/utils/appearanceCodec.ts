@@ -602,6 +602,7 @@ export const compressConfig = (config: any): string => {
     if (config.libraryWallBackdropLyrics !== undefined) minified.lwbl = config.libraryWallBackdropLyrics;
     if (config.libraryWallBackdropBlur !== undefined) minified.lwbb = config.libraryWallBackdropBlur;
     if (config.libraryWallSeamDirection !== undefined) minified.lwsd = config.libraryWallSeamDirection;
+    if (config.latticeBadgeCurrentOnly !== undefined) minified.lbco = config.latticeBadgeCurrentOnly;
     if (config.playerHeaderBlur !== undefined) minified.phb = config.playerHeaderBlur;
 
     const jsonStr = JSON.stringify(minified);
@@ -674,6 +675,8 @@ export const decompressConfig = (str: string): any => {
         || parsed.lwbl !== undefined
         || parsed.lwbb !== undefined
         || parsed.lwsd !== undefined
+        // Numbering only the playing song on both tile walls (#930), for the same reason.
+        || parsed.lbco !== undefined
         || parsed.phb !== undefined;
     if (isMinified) {
         const decompressed: any = {};
@@ -752,6 +755,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.lwbl !== undefined) decompressed.libraryWallBackdropLyrics = parsed.lwbl;
         if (parsed.lwbb !== undefined) decompressed.libraryWallBackdropBlur = parsed.lwbb;
         if (parsed.lwsd !== undefined) decompressed.libraryWallSeamDirection = parsed.lwsd;
+        if (parsed.lbco !== undefined) decompressed.latticeBadgeCurrentOnly = parsed.lbco;
         if (parsed.phb !== undefined) decompressed.playerHeaderBlur = parsed.phb;
 
         return decompressed;
@@ -776,6 +780,7 @@ export const decompressConfig = (str: string): any => {
             'libraryWallStackEdges',
             'libraryWallSeamClear', 'libraryWallSeamStyle', 'libraryWallBackdropLyrics', 'libraryWallBackdropBlur',
             'libraryWallSeamDirection',
+            'latticeBadgeCurrentOnly',
             'playerHeaderBlur',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);

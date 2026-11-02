@@ -149,6 +149,9 @@ export const buildSettingsCommandContext = (
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
+        toggleLatticeBadgeCurrentOnly: () => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(
+            !useLatticeSettingsStore.getState().latticeBadgeCurrentOnly,
+        ),
         toggleReduceLatticeMotion: () => {
             const motion = useMotionSettingsStore.getState();
             motion.handleToggleReducedMotionSurface('lattice', !motion.reducedMotionSurfaces.lattice);
