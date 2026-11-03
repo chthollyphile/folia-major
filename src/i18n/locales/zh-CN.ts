@@ -191,7 +191,7 @@ export default {
       "localTitle": "还没有导入本地音乐",
       "localBody": "在信息条的「⋯」里选「{{action}}」，文件夹、专辑和歌手会铺满这面墙。"
     },
-    "special": {"liked": "我喜欢的音乐", "cloud": "云盘", "personal-fm": "私人FM", "daily": "每日推荐", "all-songs": "全部歌曲", "local-favorites": "我喜欢", "navidrome-random": "随机音乐", "navidrome-favorites": "收藏"}
+    "special": {"liked": "我喜欢的音乐", "cloud": "云盘", "personal-fm": "私人FM", "fm-station": "电台", "daily": "每日推荐", "all-songs": "全部歌曲", "local-favorites": "我喜欢", "navidrome-random": "随机音乐", "navidrome-favorites": "收藏"}
   },
   "libraryTui": {
     "back": "返回",

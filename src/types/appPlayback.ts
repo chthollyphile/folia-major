@@ -135,6 +135,8 @@ export type WindowPlaybackHandoff = {
     activePlaybackContext: 'main' | 'stage';
     mainPlayback: PlaybackSnapshot | null;
     activePlayback: PlaybackSnapshot | null;
+    /** Provider id → the extra radio on air in it, while FM plays: which radio the queue came from. Its mode choice is not carried. */
+    fmStations?: Record<string, string>;
     stage: WindowPlaybackHandoffStageState;
     nowPlaying: WindowPlaybackHandoffNowPlayingState;
     ui: WindowPlaybackHandoffUiState;

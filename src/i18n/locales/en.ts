@@ -191,7 +191,7 @@ export default {
       "localTitle": "No local music imported yet",
       "localBody": "Choose “{{action}}” under “⋯” in the info strip, and your folders, albums and artists will fill this wall."
     },
-    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
+    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "fm-station": "Radio", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {
     "back": "Back",

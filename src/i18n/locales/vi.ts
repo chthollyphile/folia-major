@@ -191,7 +191,7 @@ export default {
       "localTitle": "Chưa nhập nhạc cục bộ",
       "localBody": "Chọn “{{action}}” dưới mục “⋯” trên thanh thông tin; thư mục, album và nghệ sĩ của bạn sẽ lấp đầy bức tường này."
     },
-    "special": {"liked": "Bài hát yêu thích", "cloud": "Ổ đám mây", "personal-fm": "FM cá nhân", "daily": "Gợi ý hàng ngày", "all-songs": "Tất cả bài hát", "local-favorites": "Yêu thích", "navidrome-random": "Ngẫu nhiên", "navidrome-favorites": "Đã gắn sao"}
+    "special": {"liked": "Bài hát yêu thích", "cloud": "Ổ đám mây", "personal-fm": "FM cá nhân", "fm-station": "Radio", "daily": "Gợi ý hàng ngày", "all-songs": "Tất cả bài hát", "local-favorites": "Yêu thích", "navidrome-random": "Ngẫu nhiên", "navidrome-favorites": "Đã gắn sao"}
   },
   "libraryTui": {
     "back": "Quay lại",

@@ -1,4 +1,4 @@
-import type { PersonalFmCatalog, PersonalFmSelection } from './personalFm';
+import type { PersonalFmCatalog, PersonalFmLaunch } from './personalFm';
 import type { LyricData, ReplayGainInfo, SongResult, UnifiedSong } from '../types';
 
 // src/types/onlineMusic.ts
@@ -227,7 +227,7 @@ export type ListeningRankRange = 'week' | 'all';
 
 export interface ProviderCollection {
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
-    personalFm?: PersonalFmSelection;
+    personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
     listeningRank?: ListeningRankRange;
     providerId: OnlineProviderId;
@@ -813,6 +813,8 @@ export interface OnlineCatalogProvider {
 export interface PersonalFmRequestOptions {
     mode?: string;
     submode?: string | null;
+    /** One of the provider's extra radios; absent for its Personal FM. A provider without stations ignores it. */
+    station?: string | null;
 }
 
 /**
@@ -896,7 +898,8 @@ export interface RecommendationPreferencesSaveResult {
 export type RecommendationPreferenceEntry = 'explore' | 'personal-fm' | 'daily';
 
 export interface OnlineRecommendationProvider {
-    getPersonalFmCatalog?(): Promise<PersonalFmCatalog>;
+    /** The mode choices of the Personal FM, or of the extra radio `station` when one is asked for. */
+    getPersonalFmCatalog?(station?: string): Promise<PersonalFmCatalog>;
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
     getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;

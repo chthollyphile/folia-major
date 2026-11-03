@@ -43,6 +43,20 @@ describe('home special cards', () => {
         expect(resolveLibraryHomeSpecial({ id: 'al', type: 'album', raw: { isLiked: true } }, 'online')).toBeNull();
     });
 
+    it('online: an extra provider radio is its own kind, the Personal FM and plain scenes stay as they were', () => {
+        const radio = buildOnlineRadioCards({
+            dailyCoverUrl: '',
+            dailyCount: 3,
+            recommended: [
+                collection({ id: 'scene-1', type: 'radio', personalFm: { mode: 'SCENE_RCMD', scene: '1' } }),
+                collection({ id: 'station-1', type: 'radio', personalFm: { mode: 'DEFAULT', scene: null, station: 'radio' } }),
+            ],
+        }, { t });
+        expect(radio.map(card => resolveLibraryHomeSpecial(card, 'online'))).toEqual(['personal-fm', 'daily', 'personal-fm', 'fm-station']);
+        // Only the online source has radios; the same field means nothing for another one.
+        expect(resolveLibraryHomeSpecial(radio[3], 'local')).toBeNull();
+    });
+
     it('local: All Songs and the favourite playlist; the unknown album / artist buckets are not special', () => {
         const songs = [song('s1', 'F1'), song('s2', 'F2')];
         const playlists: LocalPlaylist[] = [

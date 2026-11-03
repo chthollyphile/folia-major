@@ -127,9 +127,10 @@ export const isDefaultPersonalFmSelection = (selection: PersonalFmSelection) => 
     isSamePersonalFmSelection(selection, DEFAULT_PERSONAL_FM_SELECTION)
 );
 
-export const toPersonalFmRequestOptions = (selection: PersonalFmSelection): PersonalFmRequestOptions => ({
+export const toPersonalFmRequestOptions = (selection: PersonalFmSelection, station?: string | null): PersonalFmRequestOptions => ({
     mode: selection.mode,
     submode: selection.scene,
+    ...(station ? { station } : {}),
 });
 
 /** "Scene · Sleep" for SCENE_RCMD, the plain mode name otherwise. */

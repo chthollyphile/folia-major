@@ -14,6 +14,14 @@ export type PersonalFmSelection = {
     /** Only meaningful for SCENE_RCMD; every other mode rejects a submode. */
     scene: string | null;
 };
+/**
+ * What a radio card starts: the selection of a provider's Personal FM, or of one of its extra radios
+ * (a "station"). Only the selection is ever stored; the station is held in memory while it is on air.
+ */
+export type PersonalFmLaunch = PersonalFmSelection & {
+    /** The provider's id for an extra radio; absent or null for the Personal FM itself. */
+    station?: string | null;
+};
 export type PersonalFmCatalog = {
     modes: PersonalFmModeEntry[];
     scenes: PersonalFmSceneEntry[];

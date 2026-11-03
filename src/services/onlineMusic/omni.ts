@@ -1,4 +1,5 @@
 import { DEFAULT_PERSONAL_FM_CATALOG } from './fmModes';
+import type { PersonalFmCatalog } from '../../types/personalFm';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
@@ -917,6 +918,11 @@ export const omni = {
 
     async getPersonalFmCatalog(providerId: OmniProviderId) {
         return requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.() ?? DEFAULT_PERSONAL_FM_CATALOG;
+    },
+
+    /** The mode choices of one of the provider's extra radios; null where the provider has no such radio. */
+    async getPersonalFmStationCatalog(providerId: OmniProviderId, station: string): Promise<PersonalFmCatalog | null> {
+        return (await requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.(station)) ?? null;
     },
 
     async getPersonalFm(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]> {

@@ -1,10 +1,12 @@
+import { registerPersonalFmLanding, takePersonalFmLanding } from './personalFmLanding';
+import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
 import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
-import { getPersonalFmSelection } from '../../../../stores/usePersonalFmModeStore';
+import { getPersonalFmSelection, getStationRequestOptions } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { announceExternalPlayback, beginExternalPlayback, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
@@ -500,6 +502,7 @@ export function usePlaybackQueueController({
         // The hook is async, so a later playSong may finish its hook first; this call then drops
         // out instead of replacing the song the user picked last.
         // An automix advance skips the hook (see `isAutomixAdvance`).
+        const onFmLanding = takePersonalFmLanding(queue);
         const playSongCallId = ++playSongCallIdRef.current;
         // A route that empties the player while this play waits drops it too (`dropPlaysInFlight`), and so
         // does a sign-out of the requested song's platform (`dropPlaysOfProvider`).
@@ -557,6 +560,7 @@ export function usePlaybackQueueController({
             const playedQueue = shownQueue.length > 0
                 ? shownQueue.map(queued => (getPlaybackSongKey(queued) === shownKey ? playedSong : queued))
                 : [playedSong];
+            if (onFmLanding) registerPersonalFmLanding(playedQueue, onFmLanding);
             await latestQueueActionsRef.current.playSong(playedSong, playedQueue, asFm(), options);
             return;
         }
@@ -714,6 +718,7 @@ export function usePlaybackQueueController({
                     // A queue given here and not yet in the store is the one kept; else the queue of now,
                     // so that edits made meanwhile are not undone.
                     const targetQueue = readClickTimeQueue() ?? newQueue;
+                    if (onFmLanding && asFm() && playSongCallIdRef.current === playSongCallId) registerPersonalFmLanding(targetQueue, onFmLanding);
                     void latestQueueActionsRef.current.playSong(getNextPlayableQueueSong(targetQueue, song, asFm()) ?? nextSong, targetQueue, asFm(), {
                         ...deferredPlayOptions,
                         unavailableSkipCount: skipCount + 1,
@@ -736,6 +741,7 @@ export function usePlaybackQueueController({
                         // Where no queue was given, none is given again: the store's queue is not rewritten.
                         const retryQueue = queue.length > 0 && (queueFollowsStore || rewritten) ? readLiveQueue() ?? [] : queue;
                         const retryFm = rewritten ? usePlaybackStore.getState().isFmMode : asFm();
+                        if (onFmLanding && !rewritten && retryFm && isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) registerPersonalFmLanding(retryQueue, onFmLanding);
                         void latestQueueActionsRef.current.playSong(song, retryQueue, retryFm, { ...deferredPlayOptions, unavailableSkipCount: 0 });
                     },
                 } : said);
@@ -992,6 +998,11 @@ export function usePlaybackQueueController({
             landedQueue = swapped ?? live;
         } else if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(landedQueue);
+        }
+
+        if (isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) {
+            if (usePlaybackStore.getState().isFmMode && !queueRewritten()) onFmLanding?.();
+            else if (fmModeToRestore && !usePlaybackStore.getState().isFmMode) usePersonalFmModeStore.getState().resetStationSelections();
         }
 
         void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, landedQueue);
@@ -1300,13 +1311,16 @@ export function usePlaybackQueueController({
             const stepFrom = heldSong ?? options?.fromSong ?? currentSong;
             const providerId = stepFrom ? getOnlineProviderIdForSong(stepFrom) : undefined;
             const selection = getPersonalFmSelection(providerId || undefined);
+            // The extra radio on air, if there is one (undefined on every platform without a station): its next
+            // batch is asked for by its options, and dropped when they changed while it came.
+            const station = providerId ? getStationRequestOptions(providerId) : undefined;
             // The main player's plays start in playSong and take a new call id there, before any wait of their
             // own (a mode switch, a home card, a next pressed meanwhile, a search result): one that came while
             // the batch did has the say over what plays next, even before it shows its song. The stage takes
             // over without playSong, and ends FM as it does.
             const playCallAtStart = playSongCallIdRef.current;
             try {
-                batch = await omni.getPersonalFm();
+                batch = await omni.getPersonalFm(station);
             } catch (error) {
                 console.error('Failed to fetch FM tracks', error);
             }
@@ -1342,6 +1356,8 @@ export function usePlaybackQueueController({
                 return;
             }
             if (selection.mode !== selectedNow.mode || selection.scene !== selectedNow.scene) return;
+            const stationNow = providerId ? getStationRequestOptions(providerId) : undefined;
+            if (station?.station !== stationNow?.station || station?.mode !== stationNow?.mode || station?.submode !== stationNow?.submode) return;
             // The queue as the store holds it now, with whatever was added or edited during the wait: this
             // render's may already be an older copy of it.
             const base = live.playQueue;

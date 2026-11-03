@@ -162,6 +162,7 @@ const { useSessionRestoreController } = await import('@/components/app/playback/
 const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { askedSongKeyRef, askForSong, dropPlaysInFlight, makeSongCurrent, startRestore } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
@@ -1138,6 +1139,15 @@ describe('a whole-queue write while the last session is read', () => {
         expect(usePlaybackStore.getState().currentSong).toMatchObject({ name: 'L' });
         expect(persistLastPlaybackCache.mock.calls.length).toBeGreaterThan(0);
         expect(persistLastPlaybackCache.mock.calls.every(([, queue]) => queue === modQueue)).toBe(true);
+    });
+
+    it('restores the FM queue at the default station mode after a mod replacement is undone', () => {
+        replacePlayQueue([onlineSong, otherSong], true);
+        usePersonalFmModeStore.setState({ stations: { bodian: { id: 'radio', selection: { mode: 'FAMILIAR', scene: null } } } });
+        replaceAsAMod([otherSong], []);
+        expect(undoFoliumQueueReplace()).toBe(true);
+        expect(usePlaybackStore.getState().isFmMode).toBe(true);
+        expect(usePersonalFmModeStore.getState().stations.bodian).toEqual({ id: 'radio', selection: { mode: 'DEFAULT', scene: null } });
     });
 
     it('the undo of the replacement puts back the remembered queue, not the empty one of launch, and saves it', async () => {
