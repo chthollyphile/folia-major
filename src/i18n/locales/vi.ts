@@ -696,6 +696,7 @@ export default {
       "queue": { "title": "Hàng đợi", "description": "Tìm trong hàng đợi; dùng @ cho siêu dữ liệu và -- cho thao tác hàng loạt" },
       "playback-volume": { "title": "Âm lượng", "description": "Điều chỉnh âm lượng phát" },
       "playback-fm-mode": { "title": "Chế độ FM cá nhân", "description": "Chuyển chế độ hoặc ngữ cảnh FM cá nhân" },
+      "playback-station-mode": { "title": "Chế độ đài", "description": "Chuyển chế độ hoặc ngữ cảnh của đài đang phát" },
       "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
@@ -1432,6 +1433,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Chuyển chế độ FM cá nhân",
+    "openPickerOf": "Chuyển chế độ {{name}}",
     "category": {
       "mode": "Chế độ",
       "mood": "Tâm trạng",

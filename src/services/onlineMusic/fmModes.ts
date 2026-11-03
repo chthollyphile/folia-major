@@ -152,9 +152,17 @@ export const getPersonalFmSelectionLabel = (
  */
 export const getPersonalFmPickerTitle = (catalog?: PersonalFmCatalog): string => (
     catalog?.name
-        ? i18n.t('commandPalette.fmModeTitleOf', {
-            name: catalog.name.labelKey ? i18n.t(catalog.name.labelKey, { defaultValue: catalog.name.labelFallback }) : catalog.name.labelFallback,
-            defaultValue: '{{name}} mode',
-        })
+        ? i18n.t('commandPalette.fmModeTitleOf', { name: catalogName(catalog.name), defaultValue: '{{name}} mode' })
         : i18n.t('commandPalette.fmModeTitle', { defaultValue: 'Personal FM mode' })
 );
+
+/** The hint on the button that opens the picker, naming the same thing the picker's title does. */
+export const getPersonalFmOpenPickerLabel = (catalog?: PersonalFmCatalog): string => (
+    catalog?.name
+        ? i18n.t('personalFmMode.openPickerOf', { name: catalogName(catalog.name), defaultValue: 'Switch the {{name}} mode' })
+        : i18n.t('personalFmMode.openPicker', { defaultValue: 'Switch the Personal FM mode' })
+);
+
+function catalogName(name: NonNullable<PersonalFmCatalog['name']>): string {
+    return name.labelKey ? i18n.t(name.labelKey, { defaultValue: name.labelFallback }) : name.labelFallback;
+}

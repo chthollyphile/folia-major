@@ -177,7 +177,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 平台除私人 FM 之外还有别的电台流（独立的取歌端）时，用 station 区分，不另建第二套模式机制：
 
 - 电台卡片在 `getRecommendedCollections` 返回的集合上写 `personalFm: { mode, scene, station }`；`station` 是平台自己的电台 id。没有 `station` 的卡片（私人 FM、场景卡）行为不变。
-- `getPersonalFmCatalog(station?)`：不传是私人 FM 的模式目录；传 `station` 是这个电台自己的目录，经 `omni.getPersonalFmStationCatalog(providerId, station)` 读取，平台没有该电台时是 `null`。电台的模式沿用 `PersonalFmCatalog` 的 modes／scenes／categories，不加新的模式 id；目录可以带 `name`（电台自己的名字），电台播着时模式选择器的标题和命令面板的标签都写成「某某模式」，没有就照旧是「私人 FM 模式」。
+- `getPersonalFmCatalog(station?)`：不传是私人 FM 的模式目录；传 `station` 是这个电台自己的目录，经 `omni.getPersonalFmStationCatalog(providerId, station)` 读取，平台没有该电台时是 `null`。电台的模式沿用 `PersonalFmCatalog` 的 modes／scenes／categories，不加新的模式 id；目录可以带 `name`（电台自己的名字），电台播着时模式选择器的标题和命令面板的标签都写成「某某模式」，没有就照旧是「私人 FM 模式」。命令面板里电台和私人 FM 各有一个命令（「电台模式」`playback-station-mode`、「私人 FM 模式」`playback-fm-mode`），共用同一个选择器，同一时间只出现一个：电台播着时是前者，否则是后者；FM 面板的按钮打开当下那一个，提示文字也跟着电台的名字走。
 - `getPersonalFm(options)` 的 `PersonalFmRequestOptions.station` 带着当前电台；不带就是私人 FM。点电台卡片、在电台里切模式、电台的续歌补批会带；首页 feed、集合页读私人 FM 时不带。
 - 正在播的电台和它的模式选择只放内存（`usePersonalFmModeStore` 的 `stations`），不写存储：换电台、FM 结束、重开都回到电台卡片带的默认。私人 FM 原有的本机记忆（`folia.personalFm.selection`、`folia.personalFm.providerSelections`）不变。
 - 点电台卡片、拿到歌之后才算该电台开播；点私人 FM 卡片（或它的场景卡）拿到歌就让电台下线。FM 没开时电台状态不起作用。

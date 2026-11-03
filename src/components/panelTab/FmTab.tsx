@@ -3,6 +3,9 @@ import { ChevronDown, Pause, Play, Radio, SkipBack, SkipForward, Trash2 } from '
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../types';
 import { omni } from '../../services/onlineMusic/omni';
+import { getPersonalFmOpenPickerLabel } from '../../services/onlineMusic/fmModes';
+import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { selectActiveStation, selectStationCatalog, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { Tooltip } from '../modal/settings/kit';
@@ -54,6 +57,14 @@ const FmTab: React.FC<FmTabProps> = ({
     const hasLike = usePlaybackStore(state => !state.currentSong
         || getPlaybackSourceRef(state.currentSong).kind !== 'online'
         || omni.canLikeSong(state.currentSong));
+    // The button opens the picker of what FM plays, so its hint names the same thing: the extra radio on air
+    // by its own name, the Personal FM otherwise.
+    const providerId = useOnlineProviderAccountStore(state => state.activeProviderId);
+    const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const stationCatalog = usePersonalFmModeStore(state => {
+        const station = isFmMode ? selectActiveStation(state, providerId) : null;
+        return station ? selectStationCatalog(state, providerId, station.id) : undefined;
+    });
     const isPlaying = playerState === PlayerState.PLAYING;
     const playLabel = isPlaying ? t('player.pause') : t('player.play');
 
@@ -64,7 +75,7 @@ const FmTab: React.FC<FmTabProps> = ({
             {/* Opens the command palette's FM mode picker: the same surface the palette offers, so
                 the mode lives in one place instead of being reimplemented inside the panel. */}
             {onOpenModePicker && (
-                <Tooltip text={t('personalFmMode.openPicker', 'Switch the Personal FM mode')} className="inline-flex max-w-full">
+                <Tooltip text={getPersonalFmOpenPickerLabel(stationCatalog)} className="inline-flex max-w-full">
                     <PanelButton icon={Radio} onClick={onOpenModePicker}>
                         {modeLabel}
                         <ChevronDown size={13} className="text-[color:var(--st-t2)]" />

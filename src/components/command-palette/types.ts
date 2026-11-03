@@ -188,6 +188,8 @@ export type CommandPalettePlaybackContext = {
     personalFmCatalog?: PersonalFmCatalog;
     /** Only the providers that actually implement FM modes offer the picker. */
     isPersonalFmModeSupported: boolean;
+    /** The extra radio FM plays, if any: its modes come under a command of their own. */
+    personalFmStation?: string | null;
     setPersonalFmSelection: (selection: PersonalFmSelection) => Promise<void> | void;
     isRecommendationPreferencesOffered: () => boolean;
     toggleMute: () => void;

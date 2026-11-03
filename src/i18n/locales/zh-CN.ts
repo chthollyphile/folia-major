@@ -696,6 +696,7 @@ export default {
       "queue": { "title": "队列", "description": "搜索队列；使用 @ 筛选元数据，使用 -- 批量操作" },
       "playback-volume": { "title": "音量条", "description": "调整播放音量" },
       "playback-fm-mode": { "title": "私人 FM 模式", "description": "切换私人 FM 的模式或场景" },
+      "playback-station-mode": { "title": "电台模式", "description": "切换正在播的电台的模式或场景" },
       "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
@@ -1432,6 +1433,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "切换私人 FM 模式",
+    "openPickerOf": "切换{{name}}模式",
     "category": {
       "mode": "模式",
       "mood": "情绪",

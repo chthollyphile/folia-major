@@ -121,7 +121,7 @@ import { useTranscodeFallback } from './hooks/useTranscodeFallback';
 import { useAutomixDecks, type AutomixDeckId } from './services/automix/useAutomixDecks';
 import { usePlaybackInteractionBridge } from './components/app/playback/bridges/usePlaybackInteractionBridge';
 import { usePersonalFmModeController } from './hooks/usePersonalFmModeController';
-import { PERSONAL_FM_MODE_COMMAND_ID } from './components/command-palette/commands/fmModeCommand';
+import { fmModeCommandIdNow } from './components/app/command-palette-context/personalFmPicker';
 import { usePlaybackUiEffects } from './components/app/playback/bridges/usePlaybackUiEffects';
 import { useLibraryPlaybackController } from './components/app/playback/start/useLibraryPlaybackController';
 import { useNavidromeScrobbleReporter } from './hooks/useNavidromeScrobbleReporter';
@@ -1831,14 +1831,14 @@ export default function App() {
             || Boolean(pendingUnavailableReplacement),
         context: commandPaletteContext,
     });
-    // The FM tab reuses the palette's picker instead of carrying its own copy of the mode list.
+    // The FM tab reuses the palette's picker, through the mode command that fits what FM plays.
     // Read through a ref rather than depended on: openCommandById tracks the palette's isExecuting
     // flag, so depending on it would rebuild the player panel model on unrelated renders. The
     // picker only ever runs from a click, so the latest one is the right one.
     const openCommandByIdRef = useRef(commandPalette.openCommandById);
     openCommandByIdRef.current = commandPalette.openCommandById;
     const handleOpenFmModePicker = useMemo(() => (
-        isPersonalFmModeSupported ? () => openCommandByIdRef.current(PERSONAL_FM_MODE_COMMAND_ID) : undefined
+        isPersonalFmModeSupported ? () => openCommandByIdRef.current(fmModeCommandIdNow()) : undefined
     ), [isPersonalFmModeSupported]);
     const nowPlayingDebugSnapshot = useMemo(() => (
         stageSource === 'now-playing'

@@ -696,6 +696,7 @@ export default {
       "queue": { "title": "Queue", "description": "Search the queue; use @ for metadata and -- for batch actions" },
       "playback-volume": { "title": "Volume", "description": "Adjust playback volume" },
       "playback-fm-mode": { "title": "Personal FM mode", "description": "Switch the Personal FM mode or scene" },
+      "playback-station-mode": { "title": "Radio mode", "description": "Switch the mode or scene of the radio on air" },
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
@@ -1432,6 +1433,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Switch the Personal FM mode",
+    "openPickerOf": "Switch the {{name}} mode",
     "category": {
       "mode": "Mode",
       "mood": "Mood",

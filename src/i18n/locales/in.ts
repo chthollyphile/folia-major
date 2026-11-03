@@ -696,6 +696,7 @@ export default {
       "queue": { "title": "Antrean", "description": "Cari antrean; gunakan @ untuk metadata dan -- untuk aksi massal" },
       "playback-volume": { "title": "Volume", "description": "Atur volume pemutaran" },
       "playback-fm-mode": { "title": "Mode FM Pribadi", "description": "Ganti mode atau suasana FM Pribadi" },
+      "playback-station-mode": { "title": "Mode radio", "description": "Ganti mode atau suasana radio yang sedang diputar" },
       "playback-recommendation-preferences": { "title": "Preferensi", "description": "Atur preferensi di akun Anda yang memengaruhi rekomendasi" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
@@ -1432,6 +1433,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Ganti mode FM Pribadi",
+    "openPickerOf": "Ganti mode {{name}}",
     "category": {
       "mode": "Mode",
       "mood": "Suasana Hati",

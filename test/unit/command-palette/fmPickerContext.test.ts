@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { personalFmPickerContext } from '../../../src/components/app/command-palette-context/personalFmPicker';
+import { fmModeCommandIdNow, personalFmPickerContext } from '../../../src/components/app/command-palette-context/personalFmPicker';
 import { usePersonalFmModeStore } from '../../../src/stores/usePersonalFmModeStore';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
 import { usePlaybackStore } from '../../../src/stores/usePlaybackStore';
@@ -26,14 +26,18 @@ beforeEach(() => {
 
 describe('personalFmPickerContext', () => {
     it('follows the radio on air', () => {
-        expect(personalFmPickerContext()).toEqual({ personalFmSelection: { mode: 'DEFAULT', scene: null }, personalFmCatalog: stationCatalog });
+        expect(personalFmPickerContext()).toEqual({ personalFmSelection: { mode: 'DEFAULT', scene: null }, personalFmCatalog: stationCatalog, personalFmStation: 'radio' });
+        // The FM tab's button opens the radio's own command.
+        expect(fmModeCommandIdNow()).toBe('playback-station-mode');
     });
 
     it('goes back to the Personal FM when FM is not on air or no radio is', () => {
         usePlaybackStore.setState({ isFmMode: false });
-        expect(personalFmPickerContext()).toEqual({ personalFmSelection: { mode: 'EXPLORE', scene: null }, personalFmCatalog: providerCatalog });
+        expect(personalFmPickerContext()).toEqual({ personalFmSelection: { mode: 'EXPLORE', scene: null }, personalFmCatalog: providerCatalog, personalFmStation: null });
+        expect(fmModeCommandIdNow()).toBe('playback-fm-mode');
         usePlaybackStore.setState({ isFmMode: true });
         usePersonalFmModeStore.setState({ stations: {} });
         expect(personalFmPickerContext().personalFmCatalog).toBe(providerCatalog);
+        expect(fmModeCommandIdNow()).toBe('playback-fm-mode');
     });
 });
