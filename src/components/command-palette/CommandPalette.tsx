@@ -54,6 +54,12 @@ type CommandPaletteProps = {
 // React.lazy identities must be stable across renders, so each surface descriptor keeps one.
 const surfaceComponentCache = new WeakMap<CommandPaletteSurface, React.ComponentType<any>>();
 
+/**
+ * A touch screen, where the overlay and the capsule open with the query input unfocused: focusing it
+ * would raise the on-screen keyboard, and iOS Safari will not scroll the list while it is focused.
+ */
+const isTouchInput = () => 'ontouchstart' in window;
+
 const resolveSurfaceComponent = (surface: CommandPaletteSurface) => {
     if (!surface.load) {
         return null;
@@ -317,6 +323,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     useEffect(() => {
         if (!isOpen) {
             setIsShowingAllCommands(false);
+            return;
+        }
+        // On a touch screen the overlay and the capsule stay unfocused (isTouchInput): taking the focus
+        // here only to drop it when the entrance ends (blurInputOnTouch) made the keyboard flash up and
+        // away. The inline filter box is opened to type into, so it still takes the focus.
+        if (!isInlineFrame && isTouchInput()) {
             return;
         }
 
@@ -679,7 +691,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         // iOS Safari blocks overflow scrolling in sibling containers
         // when an input is focused inside a fixed + backdrop-blur panel.
         // Blur proactively so the first touch-scroll works immediately.
-        if ('ontouchstart' in window) {
+        if (isTouchInput()) {
             inputRef.current?.blur();
         }
     };
