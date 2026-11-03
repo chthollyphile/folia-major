@@ -57,6 +57,8 @@ export class NebbiaGl {
     private readonly noise: NebbiaNoiseTex;
     private W = 1; private H = 1;
     private spriteReady = false;
+    /** 白气纹理里是哪一版画布、多大（版本没变不重传）。 */
+    private breathVersion = -1; private breathW = 0; private breathH = 0;
     /** 雾上水珠纹理是不是还是对的：换尺寸后、精灵贴图加载好之前画的都不算，下一帧照画。 */
     private fieldValid = false;
     private instData = new Float32Array(0);
@@ -250,17 +252,21 @@ export class NebbiaGl {
     }
 
     /**
-     * 画一帧（`ready` 为真之后才调）：擦痕遮罩，白气遮罩上传（只在这一帧有哈气时传，`breath` 为 null 就不传），
+     * 画一帧（`ready` 为真之后才调）：擦痕遮罩，白气遮罩上传（这一帧有哈气、且画布重画过才传，`breath` 为 null 就不传），
      * 两张水珠纹理，补画楼群缓存，静态噪声纹理（改尺寸后算一次），雾的预渲染，主画面。
      */
-    render(mask: NebbiaSegments, breath: HTMLCanvasElement | null, drops: number[], field: number[] | Float32Array, u: NebbiaUniforms, fieldChanged = true) {
+    render(mask: NebbiaSegments, breath: { canvas: HTMLCanvasElement; version: number } | null, drops: number[], field: number[] | Float32Array, u: NebbiaUniforms, fieldChanged = true) {
         const { gl, U } = this;
         const { main, fog, bldFill, noise } = this.build.programs;
         this.mask.draw(mask);
-        if (breath) {
+        // 白气画布重画过才重传；尺寸没变时只覆盖内容，不重新分配纹理
+        if (breath && breath.version !== this.breathVersion) {
+            const { canvas: c } = breath;
             gl.activeTexture(gl.TEXTURE0 + this.breath.unit);
             gl.bindTexture(gl.TEXTURE_2D, this.breath.t);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, breath);
+            if (c.width === this.breathW && c.height === this.breathH) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, c);
+            else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+            this.breathVersion = breath.version; this.breathW = c.width; this.breathH = c.height;
         }
         this.renderDrops(this.drop, drops);
         // 雾上水珠没变（凝露的冷凝水珠隔一阵才更新）时纹理留着上次的

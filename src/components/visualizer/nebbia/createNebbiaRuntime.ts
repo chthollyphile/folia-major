@@ -312,7 +312,7 @@ export class NebbiaRuntime {
         this.spot.update(this.laid, T, dt);
         const aqua = this.aquarium?.step(dt, this.clock.time, this.W / this.H, t, this.aquaBeats()) ?? null;
         const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
-        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, field,
+        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath : null, this.motion.drops, field,
             nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua), this.condensation?.changed ?? true);
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);

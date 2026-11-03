@@ -40,6 +40,7 @@ export class NebbiaMask {
             if (line.appearBreathAt < Infinity) this.breath.drawLine(line, i, T, line.appearBreathAt, line.appearBreathUntil);
             if (T >= line.t - 0.5) this.drawLine(ink, line, i, T, tuning);
         });
+        this.breath.end();
         hits.draw(ctx, motion, T, tuning.refog, NEBBIA_FIXED.beadHold, rainSize);
         this.drawTrails(motion, now, tuning);
     }
