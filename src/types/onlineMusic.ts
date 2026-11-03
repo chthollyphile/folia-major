@@ -464,13 +464,11 @@ export interface LoginMethod {
     iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
 }
 
-// 平台的记号：一个图标、一个字和一种颜色，画在登录窗口、切换器和账号头像的角上。平台自己声明；没有声明的
+// 平台的记号：一个字和一种颜色，画在登录窗口、切换器和账号头像的角上。平台自己声明；没有声明的
 // （mod 加进来的平台）由界面从它的短名取第一个字、配一个中性的颜色。
 export interface ProviderMark {
     letter: string;
     color: string;
-    // 图标的名字：UI 层按它取 src/assets/folia-login-icon/ 里同名的 .svg；没有这个文件就画字。
-    logoKey?: string;
 }
 
 // 登录窗口里这个平台自己的文字，都是 i18n key，由 UI 层翻译。
