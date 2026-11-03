@@ -32,7 +32,7 @@ describe('the sign-in window names no platform', () => {
 });
 
 describe('what each platform declares for the sign-in window', () => {
-    it('its mark: one letter and one colour', () => {
+    it('its mark: one letter, one colour and an optional logo', () => {
         const marks = Object.fromEntries(listOnlineMusicProviders().map(provider => [provider.id, omni.getProviderMark(provider.id)]));
         expect(marks).toEqual({
             netease: { letter: '云', color: '#dc2626', logoKey: 'netease' },

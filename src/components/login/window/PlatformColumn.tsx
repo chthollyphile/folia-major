@@ -80,7 +80,7 @@ type PlatformColumnProps = {
 export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, onChoose, lie }) => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
-    const shown = rows.length >= SEARCH_FROM ? filterRows(rows, query) : rows;
+    const shown = rows.length >= SEARCH_FROM ? filterRows(rows, query, row => providerDisplayName(t, row)) : rows;
     // 高亮在哪一行：指针或方向键指着的；都没有指着就是选中的那一行。
     const [pointed, setPointed] = useState<OnlineProviderId | null>(null);
     const lit = shown.find(row => row.providerId === pointed) ?? shown.find(row => row.providerId === chosenId) ?? null;
