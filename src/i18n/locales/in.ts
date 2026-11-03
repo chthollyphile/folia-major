@@ -606,6 +606,7 @@ export default {
     "sleepTimerInputPlaceholder": "Masukkan menit, --on, atau --off",
     "latticePosterTintPlaceholder": "Sesuaikan kontrol di bawah",
     "subtitleSettingsPlaceholder": "Atur subtitel di bawah",
+    "subtitleSettingsMore": "Opsi lainnya",
     "gridViewCardsPlaceholder": "Sesuaikan kontrol di bawah",
     "reduceMotionPlaceholder": "Sesuaikan kontrol di bawah",
     "lyricExportPlaceholder": "Pilih yang ingin diekspor di bawah",

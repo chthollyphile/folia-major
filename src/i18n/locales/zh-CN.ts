@@ -606,6 +606,7 @@ export default {
     "sleepTimerInputPlaceholder": "输入分钟数、--on 或 --off",
     "latticePosterTintPlaceholder": "使用下方控件调整叠层",
     "subtitleSettingsPlaceholder": "在下方调节字幕",
+    "subtitleSettingsMore": "更多选项",
     "gridViewCardsPlaceholder": "使用下方控件调整网格卡片",
     "reduceMotionPlaceholder": "使用下方控件调整动态效果",
     "lyricExportPlaceholder": "在下方选择要导出的内容",

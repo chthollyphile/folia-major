@@ -606,6 +606,7 @@ export default {
     "sleepTimerInputPlaceholder": "Enter minutes, --on, or --off",
     "latticePosterTintPlaceholder": "Adjust the controls below",
     "subtitleSettingsPlaceholder": "Adjust the subtitles below",
+    "subtitleSettingsMore": "More options",
     "gridViewCardsPlaceholder": "Adjust the controls below",
     "reduceMotionPlaceholder": "Adjust the controls below",
     "lyricExportPlaceholder": "Choose what to export below",

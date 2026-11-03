@@ -606,6 +606,7 @@ export default {
     "sleepTimerInputPlaceholder": "Nhập số phút, --on hoặc --off",
     "latticePosterTintPlaceholder": "Điều chỉnh bằng bộ điều khiển bên dưới",
     "subtitleSettingsPlaceholder": "Chỉnh phụ đề bên dưới",
+    "subtitleSettingsMore": "Tùy chọn khác",
     "gridViewCardsPlaceholder": "Điều chỉnh bằng bộ điều khiển bên dưới",
     "reduceMotionPlaceholder": "Điều chỉnh bằng bộ điều khiển bên dưới",
     "lyricExportPlaceholder": "Chọn nội dung cần xuất bên dưới",
