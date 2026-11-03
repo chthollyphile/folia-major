@@ -4994,7 +4994,7 @@ export default {
       "panel_slide": "Tombol itu juga bisa digeser ke kiri, dan itu membuka jendela perintah.",
       "panel_source_tab": "Tab yang mengikuti sumber: sumber lirik, offset lini masa, penguatan audio.",
       "lyric_export": "Mengemas lirik yang tersimpan di perangkat ini menjadi satu zip berisi berkas .fia dan LRC enhanced.",
-      "player_bar": "Apa yang ada di kapsul, dan dua slot yang kamu pilih sendiri.",
+      "player_bar": "Apa yang ada di kapsul, cara mengganti dua slotnya di tempat, dan aksi cepat yang muncul saat kamu berhenti di sana.",
       "player_page": "Apa yang ada di halaman pemutar, letak tiap bagian, dan cara mengacak.",
       "ponder_basics": "Petunjuk hover, tahan G, Ctrl+G seluruh halaman, dan cara mematikannya.",
       "settings_page": "Bagaimana pengaturan dikelompokkan, dan melompat ke sana dari jendela perintah.",
@@ -5455,9 +5455,12 @@ export default {
         "bar": "Bilah kontrol bawah",
         "slots": "Dua slot",
         "bottomUiSettings": "Pengaturan \u00b7 Bilah kontrol",
-        "picker": "Pemilih di pengaturan",
+        "picker": "Pemilih tombol",
         "queue": "Antrean putar",
-        "volumeSurface": "Panel volume"
+        "volumeSurface": "Panel volume",
+        "quickActions": "Aksi cepat",
+        "paletteButton": "Buka jendela perintah",
+        "capsulePalette": "Jendela perintah"
       },
       "panelSlide": {
         "toggle": "Tombol panel",
@@ -5736,7 +5739,7 @@ export default {
       "settingsPageDirectNavigation": "Lompat langsung dari perintah",
       "playerBarBasics": "Isi kapsul kontrol",
       "playerBarHeight": "Tingginya bisa diubah",
-      "playerBarSlots": "Dua slot kanan bisa diganti",
+      "playerBarSlots": "Dua slot kanan bisa diganti di tempat",
       "playerBarShuffle": "Acak hanya sekali kocok",
       "playerBarVolume": "Volume ada di command palette",
       "panelSlideToPalette": "Geser untuk membuka command palette",
@@ -5750,7 +5753,8 @@ export default {
       "lyricMatchLocal": "Tiga sakelar tambahan untuk lagu lokal",
       "scratchpadCollect": "Mengumpulkan lagu",
       "scratchpadDrawer": "Membuka dan kelompok",
-      "scratchpadCanvas": "Kanvas"
+      "scratchpadCanvas": "Kanvas",
+      "playerBarQuickActions": "Berhenti sejenak untuk aksi cepat"
     },
     "captions": {
       "bravaisSeam": {
@@ -5929,8 +5933,8 @@ export default {
         "playerToggleWhere": "Pegangan samping menempel di tepi kanan layar, dasarnya sejajar dengan bilah kontrol. Bentuknya bulat; tekan sekali dan panel kontrol kanan terbuka.",
         "playerPanelWhere": "Panel terbuka di atas pegangan, menempel di tepi kanan. Ia terbuka di tab Sampul lagu ini, dan baris paling bawah memuat tab: Sampul, Kontrol, Playlist, Kualitas, dan lainnya.",
         "playerPaletteSlide": "Ada juga rel yang tersembunyi di belakang pegangan. Tahan pegangan, seret ke kiri melewati garis pemicu, lalu lepaskan: itu membuka jendela perintah, bukan panel.",
-        "playerPaletteOpened": "Jendela perintah turun dari atas layar, rata tengah. Semua urusan \u201cmencari fitur\u201d ada di sini.",
-        "playerPaletteOtherWays": "Tidak perlu menyeret: {{mod}} + K membuka jendela yang sama dari mana saja, dan di halaman pemutar tombol S polos melakukan hal yang sama selama fokus tidak berada di kotak teks. Di layar sentuh, ketuk dekat tepi kanan untuk memunculkan pegangannya lebih dulu.",
+        "playerPaletteOpened": "Jendela perintah tumbuh dari bilah kontrol di bawah: kotak input ada di bawah, dengan hasil terbaik tepat di atasnya. Kalau bilah tidak terlihat, jendela turun dari atas layar. Semua urusan “mencari fitur” ada di sini.",
+        "playerPaletteOtherWays": "Tidak perlu menyeret: {{mod}} + K membuka jendela yang sama dari mana saja, dan di halaman pemutar tombol S polos melakukan hal yang sama selama fokus tidak berada di kotak teks — begitu juga klik di bagian kosong bilah kontrol, kecuali pemutaran diatur dibuka di Lattice. Di layar sentuh, ketuk dekat tepi kanan untuk memunculkan pegangannya lebih dulu.",
         "playerCommandFilter": "Begitu jendela terbuka, langsung ketik. Ia menyaring berdasarkan nama, alias dan kata kunci sekaligus. \u2191\u2193 memilih, Enter menjalankan \u2014 kamu tidak perlu tahu perintah itu masuk kategori apa.",
         "playerCommandArgument": "Perintah yang butuh argumen tidak langsung jalan. Ketik namanya, tekan spasi, dan ia melipat jadi satu label di baris masukan sementara kursor menunggu di belakangnya. Isi argumennya, lalu Enter.",
         "playerExecuteCloseFirst": "Mode eksekusi dimasuki saat jendela perintah tertutup. Tekan Esc untuk menutupnya dulu: saat jendela terbuka, titik dua hanya masuk ke baris masukan.",
@@ -5960,18 +5964,23 @@ export default {
         "basicsIntro": "Kontrol pemutaran Folia hanya kapsul ini. Deretan tombol permanen yang dipasang pemutar lain di bawah — sebelumnya, berikutnya, acak, ulang, volume — tidak punya tempat tetap di sini.",
         "basicsPlay": "Satu-satunya tombol yang selalu ada adalah putar / jeda. Pada jendela lebar ia di paling kiri; saat barisnya terlalu sempit untuk satu baris, ia pindah ke tengah baris kedua, dengan dua slot di kedua sisinya.",
         "basicsTitle": "Ganti lagu lewat judul, bukan tombol. Arahkan penunjuk ke judul, panah muncul di kedua sisi dan mempratinjau nama lagu sebelumnya dan berikutnya — kamu memilih sambil membaca, bukan menekan buta.",
-        "basicsProgress": "Seret atau klik bilah kemajuan untuk melompat. Mengklik bagian kapsul yang lain bukan jeda: itu membuka halaman pemutar, atau di Lattice menarik tampilan kembali ke lagu saat ini.",
-        "basicsSlots": "Sisanya ditaruh di dua posisi kanan ini. Kamu memilih dua dari sepuluh aksi; selebihnya tidak ada di bilah — itulah sebabnya di sini tidak ada deretan tombol tetap.",
+        "basicsProgress": "Seret atau klik bilah kemajuan untuk melompat. Mengklik bagian kapsul yang lain bukan jeda: biasanya itu membuka halaman pemutar, atau Lattice bila pemutaran diatur dibuka di sana (FM Pribadi tetap ke halaman pemutar); kalau kamu sudah di halaman pemutar dan klik itu tidak menuju Lattice, ia membuka jendela perintah; di Lattice itu menarik tampilan kembali ke lagu saat ini.",
+        "basicsSlots": "Sisanya ditaruh di dua posisi kanan ini. Kamu yang memilih isinya, dan klik kanan atau tekan lama untuk menggantinya di tempat; selebihnya tidak ada di bilah, dan beberapa yang sering dipakai muncul di atas kapsul saat penunjuk berhenti di sana.",
         "basicsCollapsed": "Jauhkan penunjuk dan kapsul melipat kembali jadi satu bilah kemajuan. Bentuk inilah yang biasa kamu lihat; dekati dan ia mengembang lagi.",
         "heightIntro": "Jarak bilah ini dari tepi bawah layar bisa diubah, dan kartu lagu serta panel samping di setiap halaman ikut bergeser.",
         "heightSettings": "Pintunya di Pengaturan \u2192 Halaman pemutar, di bawah Bilah kontrol: satu penggeser untuk angkanya, dan \u201cAtur posisi di halaman pemutar\u201d di sebelahnya mengubah kapsul jadi sesuatu yang bisa diseret. Mencari perintah yang sama di command palette sama saja. Tombol di bawah membawamu ke sana.",
         "heightDrag": "Setelah mode atur posisi aktif, tahan kapsul di mana saja lalu seret ke atas atau bawah. Lepaskan untuk menerapkan, dan pengaturannya diingat.",
         "slotsIntro": "Dua tombol di kanan bilah progres ini tidak tetap, dan tiap slot berdiri sendiri.",
-        "slotsWhere": "Pilih di pengaturan: ulang, acak, suka, antrean, volume, pengatur waktu tidur, dan empat lainnya; langsung berlaku.",
         "shuffleIntro": "Acak di sini tidak seperti di tempat lain - ia bukan mode yang terus menyala.",
         "shuffleOnce": "Tekan dan Folia mengacak antrean saat ini di tempat, sekali; urutan itulah yang berlaku. Ingin lain? Tekan lagi.",
         "volumeIntro": "Bilah kontrol bawah tidak punya penggeser volume permanen.",
-        "volumeOpens": "Menekan di sini membuka panel volume di dalam command palette, bukan penggeser kecil di tempat."
+        "volumeOpens": "Menekan di sini membuka panel volume di dalam command palette, bukan penggeser kecil di tempat.",
+        "slotsHold": "Tekan lama sebuah tombol sampai lingkaran di sekelilingnya penuh, atau langsung klik kanan.",
+        "slotsPick": "Aksi yang bisa ditaruh muncul tepat di atasnya; klik salah satu untuk menggantinya. Memilih aksi yang ada di slot lain akan menukar keduanya. Pilihan yang sama ada di pengaturan — tombol di bawah langsung ke sana.",
+        "slotsSuggest": "Kalau kamu sering menjalankan salah satu aksi ini dari jendela perintah, bilah akan menanyakan sekali apakah mau menaruhnya di sini.",
+        "quickIntro": "Biarkan penunjuk berhenti di kapsul, dan sederet aksi untuk lagu ini muncul di atasnya: volume, suka, tambah ke daftar putar, acak, subtitel, dan gaya lirik. Yang sudah ada di dua slotmu tidak ditampilkan lagi. Di layar sentuh deretan ini tidak ada.",
+        "quickPalette": "Yang paling kanan membuka jendela perintah. Jendela itu tumbuh dari kapsul itu sendiri: kotak input mendarat di tempat kapsul, dengan hasil terbaik tepat di sebelahnya.",
+        "quickOther": "Mengklik bagian kosong kapsul di halaman pemutar membukanya dengan cara yang sama, kecuali pemutaran diatur dibuka di Lattice — maka klik itu menuju Lattice. {{mod}} + K juga menumbuhkannya dari kapsul selama kapsul terlihat. Saat ditutup, ia menyusut kembali ke kapsul."
       },
       "commandPalette": {
         "type": "Perintah dicari, bukan ditelusuri. Ketik begitu jendela terbuka dan ia menyaring nama, alias dan kata kunci sekaligus; separuh nama biasanya sudah cukup.",

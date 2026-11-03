@@ -175,12 +175,13 @@ const PonderLatticePageSurface: React.FC<PonderLatticePageSurfaceProps> = ({
 
         <PonderSurfaceStateLayer state="command-open" registerStateNode={registerStateNode}>
             <div className="rounded-[5%] border bg-zinc-950/95 p-[5%]" style={{ ...relativeRectStyle(G.command), borderColor: outline }}>
-                <div className="flex h-[18%] items-center gap-[4%] border-b" style={{ borderColor: outline }}>
-                    <Command className="h-[48%] w-auto opacity-55" />
-                    <span className="h-2 w-[68%] rounded-full" style={{ backgroundColor: line }} />
-                </div>
+                {/* 从控制条长出来的样子：结果在上，搜索行在底。 */}
                 <div className="flex h-[82%] flex-col justify-evenly">
                     {[70, 86, 58, 76].map(width => <span key={width} className="h-2 rounded-full" style={{ width: `${width}%`, backgroundColor: line }} />)}
+                </div>
+                <div className="flex h-[18%] items-center gap-[4%] border-t" style={{ borderColor: outline }}>
+                    <Command className="h-[48%] w-auto opacity-55" />
+                    <span className="h-2 w-[68%] rounded-full" style={{ backgroundColor: line }} />
                 </div>
             </div>
         </PonderSurfaceStateLayer>

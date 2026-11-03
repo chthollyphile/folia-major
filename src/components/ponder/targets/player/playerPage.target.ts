@@ -107,7 +107,7 @@ const openPalette: PonderSceneScript = {
             to: { anchor: 'track', x: 0.12 },
             durationMs: 820, keyframe: true,
         },
-        { kind: 'surfaceState', id: 'paletteOpens', anchor: 'page', state: 'palette-open', transition: 'zoom', durationMs: 520 },
+        { kind: 'surfaceState', id: 'paletteOpens', anchor: 'page', state: 'palette-open', transition: 'slide-up', durationMs: 520 },
         {
             kind: 'caption', id: 'opened',
             textKey: 'ponder.captions.pages.playerPaletteOpened',
@@ -115,7 +115,7 @@ const openPalette: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readOpened' },
 
-        { kind: 'keypress', id: 'keys', keys: ['Mod K'], at: { anchor: 'palette', y: 1, offset: { y: 16 } }, durationMs: 1000, keyframe: true },
+        { kind: 'keypress', id: 'keys', keys: ['Mod K'], at: { anchor: 'palette', y: 0, offset: { y: -18 } }, durationMs: 1000, keyframe: true },
         {
             kind: 'caption', id: 'otherWays',
             textKey: 'ponder.captions.pages.playerPaletteOtherWays',
@@ -136,7 +136,7 @@ const runCommands: PonderSceneScript = {
     titleKey: 'ponder.scenes.playerPageRunCommands',
     anchors: PLAYER_PAGE_ANCHORS,
     steps: [
-        { kind: 'surfaceState', id: 'paletteOpens', anchor: 'page', state: 'palette-open', transition: 'zoom', durationMs: 460, keyframe: true },
+        { kind: 'surfaceState', id: 'paletteOpens', anchor: 'page', state: 'palette-open', transition: 'slide-up', durationMs: 460, keyframe: true },
         {
             kind: 'caption', id: 'typeToFilter',
             textKey: 'ponder.captions.pages.playerCommandFilter',
@@ -144,7 +144,7 @@ const runCommands: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readFilter' },
 
-        { kind: 'keypress', id: 'argKeys', keys: ['空格', '参数', 'Enter'], at: { anchor: 'palette', y: 1, offset: { y: 16 } }, durationMs: 1300, keyframe: true },
+        { kind: 'keypress', id: 'argKeys', keys: ['空格', '参数', 'Enter'], at: { anchor: 'palette', y: 0, offset: { y: -18 } }, durationMs: 1300, keyframe: true },
         {
             kind: 'caption', id: 'argument',
             textKey: 'ponder.captions.pages.playerCommandArgument',
@@ -152,7 +152,7 @@ const runCommands: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readArgument' },
 
-        { kind: 'keypress', id: 'escClose', keys: ['Esc'], at: { anchor: 'palette', y: 1, offset: { y: 16 } }, durationMs: 900, keyframe: true },
+        { kind: 'keypress', id: 'escClose', keys: ['Esc'], at: { anchor: 'palette', y: 0, offset: { y: -18 } }, durationMs: 900, keyframe: true },
         { kind: 'surfaceState', id: 'paletteCloses', anchor: 'page', state: 'palette-closed', durationMs: 420 },
         {
             kind: 'caption', id: 'closeFirst',

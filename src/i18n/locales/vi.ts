@@ -4994,7 +4994,7 @@ export default {
       "panel_slide": "Nút này cũng có thể trượt sang trái để mở cửa sổ lệnh.",
       "panel_source_tab": "Ô theo nguồn: cân bằng âm lượng, nguồn lời bài hát, độ lệch mốc thời gian.",
       "lyric_export": "Đóng gói lời bài hát lưu tạm trên thiết bị thành tệp zip chứa .fia và LRC nâng cao.",
-      "player_bar": "Chi tiết trên thanh điều khiển và hai vị trí bạn tự tùy chọn.",
+      "player_bar": "Chi tiết trên thanh điều khiển, cách đổi hai vị trí ngay tại chỗ, và các thao tác nhanh hiện lên khi bạn dừng lại.",
       "player_page": "Chi tiết trên trang phát, vị trí từng mục và cách phát xáo trộn.",
       "ponder_basics": "Gợi ý khi rê chuột, giữ G, Ctrl+G toàn trang và cách tắt gợi ý.",
       "settings_page": "Cách phân nhóm cài đặt và cách chuyển nhanh tới đó từ cửa sổ lệnh.",
@@ -5455,9 +5455,12 @@ export default {
         "bar": "Thanh điều khiển dưới",
         "slots": "Hai ô",
         "bottomUiSettings": "Cài đặt · Giao diện dưới",
-        "picker": "Bộ chọn trong cài đặt",
+        "picker": "Bảng chọn nút",
         "queue": "Hàng đợi phát",
-        "volumeSurface": "Bảng âm lượng"
+        "volumeSurface": "Bảng âm lượng",
+        "quickActions": "Thao tác nhanh",
+        "paletteButton": "Mở cửa sổ lệnh",
+        "capsulePalette": "Cửa sổ lệnh"
       },
       "panelSlide": {
         "toggle": "Nút bật tắt bảng",
@@ -5736,7 +5739,7 @@ export default {
       "settingsPageDirectNavigation": "Chuyển nhanh từ lệnh",
       "playerBarBasics": "Thành phần trên thanh điều khiển (Capsule)",
       "playerBarHeight": "Có thể đổi chiều cao",
-      "playerBarSlots": "Có thể hoán đổi hai vị trí",
+      "playerBarSlots": "Đổi hai vị trí ngay tại chỗ",
       "playerBarShuffle": "Xáo trộn chia bài một lần",
       "playerBarVolume": "Âm lượng nằm trong bảng lệnh",
       "panelSlideToPalette": "Trượt để mở bảng lệnh",
@@ -5750,7 +5753,8 @@ export default {
       "lyricMatchLocal": "Ba công tắc bổ sung cho bài hát cục bộ",
       "scratchpadCollect": "Gom bài hát",
       "scratchpadDrawer": "Mở sổ và các nhóm",
-      "scratchpadCanvas": "Chế độ bảng"
+      "scratchpadCanvas": "Chế độ bảng",
+      "playerBarQuickActions": "Dừng lại để hiện thao tác nhanh"
     },
     "captions": {
       "bravaisSeam": {
@@ -5929,8 +5933,8 @@ export default {
         "playerToggleWhere": "Tay nắm cạnh bên nằm sát mép phải màn hình, cạnh dưới thẳng hàng với thanh điều khiển. Đây là nút tròn; nhấn vào để mở bảng điều khiển bên.",
         "playerPanelWhere": "Bảng mở rộng lên trên từ tay nắm với chiều rộng cố định sát mép phải. Phía trên là ảnh bìa vuông, kế tiếp là hàng tab: ảnh bìa, điều khiển, hàng đợi, tài khoản. Tiêu đề và nghệ sĩ nằm trong tab ảnh bìa chứ không thuộc bảng chính.",
         "playerPaletteSlide": "Phía sau tay nắm còn có một rãnh trượt. Giữ tay nắm, kéo sang trái qua vạch kích hoạt rồi thả: thao tác này mở cửa sổ lệnh thay vì bảng điều khiển.",
-        "playerPaletteOpened": "Cửa sổ lệnh trượt xuống từ cạnh trên, căn giữa chiều ngang. Mọi thao tác tìm kiếm tính năng đều nằm tại đây.",
-        "playerPaletteOtherWays": "Không cần kéo: {{mod}} + K mở cửa sổ này ở bất cứ đâu, và trên trang phát chỉ cần phím S khi con trỏ không ở trong ô nhập liệu. Trên màn hình cảm ứng, chạm gần mép phải để hiện tay nắm trước.",
+        "playerPaletteOpened": "Cửa sổ lệnh mọc lên từ thanh điều khiển ở dưới: ô nhập nằm dưới cùng, kết quả khớp nhất ngay phía trên. Khi không thấy thanh, nó trượt xuống từ cạnh trên. Mọi thao tác tìm kiếm tính năng đều nằm tại đây.",
+        "playerPaletteOtherWays": "Không cần kéo: {{mod}} + K mở cửa sổ này ở bất cứ đâu, và trên trang phát chỉ cần phím S khi con trỏ không ở trong ô nhập liệu — nhấp vào chỗ trống của thanh điều khiển cũng vậy, trừ khi nơi mở khi phát là Lattice. Trên màn hình cảm ứng, chạm gần mép phải để hiện tay nắm trước.",
         "playerCommandFilter": "Khi cửa sổ đang mở, chỉ cần gõ phím. Bộ lọc tìm đồng thời tên, tên phụ và từ khóa. Phím ↑↓ để di chuyển, Enter để chạy — không cần bận tâm lệnh thuộc danh mục nào.",
         "playerCommandArgument": "Lệnh cần tham số sẽ không chạy ngay. Gõ tên lệnh, nhấn dấu cách để thu thành một thẻ nhỏ trên dòng nhập liệu với con trỏ đợi phía sau. Nhập tham số rồi nhấn Enter.",
         "playerExecuteCloseFirst": "Chế độ thực thi chỉ kích hoạt khi cửa sổ lệnh đã đóng. Nhấn Esc để đóng trước: khi cửa sổ đang mở, dấu hai chấm chỉ được nhập vào dòng lệnh.",
@@ -5960,18 +5964,23 @@ export default {
         "basicsIntro": "Cụm điều khiển của Folia gói gọn trong thanh điều khiển (Capsule) này. Hàng nút cố định ở đáy như trình phát khác — bài trước, bài sau, xáo trộn, lặp lại, âm lượng — hoàn toàn không có chỗ cố định tại đây.",
         "basicsPlay": "Nút duy nhất luôn xuất hiện là phát / tạm dừng. Ở cửa sổ rộng, nút nằm ngoài cùng bên trái; khi chiều rộng không đủ một dòng, nút chuyển vào giữa dòng thứ hai với hai ô ở hai bên.",
         "basicsTitle": "Chuyển bài qua tiêu đề chứ không bằng nút bấm. Rê chuột vào tiêu đề sẽ hiện mũi tên hai bên xem trước bài trước và bài sau — bạn chọn bài bằng cách đọc tên chứ không bấm mò.",
-        "basicsProgress": "Kéo hoặc nhấp thanh tiến trình để tua. Nhấp vào bất kỳ điểm nào khác trên thanh điều khiển (Capsule) không làm tạm dừng: thao tác này mở trang phát, hoặc trong Lattice sẽ đưa góc nhìn về bài đang phát.",
-        "basicsSlots": "Các tính năng còn lại nằm ở hai vị trí bên phải. Bạn chọn 2 trong 10 tác vụ để đặt vào; phần còn lại sẽ ẩn khỏi thanh — đó là lý do không có hàng nút cố định.",
+        "basicsProgress": "Kéo hoặc nhấp thanh tiến trình để tua. Nhấp vào chỗ khác trên thanh điều khiển (Capsule) không làm tạm dừng: thông thường nó mở trang phát, hoặc Lattice nếu nơi mở khi phát được đặt là Lattice (FM cá nhân vẫn về trang phát); khi bạn đã ở trang phát và cú nhấp đó không dẫn tới Lattice, nó mở cửa sổ lệnh; còn trong Lattice sẽ đưa góc nhìn về bài đang phát.",
+        "basicsSlots": "Các tính năng còn lại nằm ở hai vị trí bên phải. Bạn tự chọn nội dung, nhấp chuột phải hoặc nhấn giữ để thay ngay tại chỗ; phần còn lại không nằm trên thanh, và vài thao tác hay dùng sẽ hiện lên phía trên khi con trỏ dừng lại.",
         "basicsCollapsed": "Rê chuột ra xa, thanh điều khiển thu gọn thành một thanh tiến trình đơn. Đó là hình dáng hiển thị thông thường; di chuột lại gần để mở rộng.",
         "heightIntro": "Khoảng cách từ thanh này đến đáy màn hình có thể tùy chỉnh, các thẻ bài hát và bảng bên sẽ tự động dịch chuyển theo trên mọi trang.",
         "heightSettings": "Mục này nằm ở Cài đặt → Giao diện đáy: thanh trượt chỉnh độ cao trực tiếp, và “Kéo chỉnh vị trí trên trang phát” cạnh bên cho phép kéo thanh điều khiển. Tìm lệnh này trong bảng lệnh cũng cho kết quả tương tự. Nút bên dưới sẽ đưa bạn đến thẳng đó.",
         "heightDrag": "Khi đã bật chỉnh vị trí, nhấn giữ bất kỳ đâu trên thanh rồi kéo lên hoặc xuống. Thả tay để áp dụng và vị trí sẽ được ghi nhớ.",
         "slotsIntro": "Hai nút bên phải thanh tiến trình không cố định, và mỗi ô tùy chọn hoàn toàn độc lập.",
-        "slotsWhere": "Tùy chọn trong cài đặt: lặp lại, xáo trộn, yêu thích, hàng đợi, âm lượng, hẹn giờ ngủ cùng 4 tác vụ khác, áp dụng ngay khi chọn.",
         "shuffleIntro": "Tính năng xáo trộn này khác với nơi khác — đây không phải chế độ duy trì liên tục.",
         "shuffleOnce": "Nhấn một lần, Folia sẽ xáo trộn hàng đợi hiện tại ngay tại chỗ; thứ tự mới sẽ được giữ nguyên. Muốn xáo trộn tiếp? Nhấn lại lần nữa.",
         "volumeIntro": "Thanh điều khiển đáy không có thanh trượt âm lượng cố định.",
-        "volumeOpens": "Nhấn vào đây sẽ mở bảng âm lượng trong bảng lệnh, thay vì hiện thanh trượt nhỏ tại chỗ."
+        "volumeOpens": "Nhấn vào đây sẽ mở bảng âm lượng trong bảng lệnh, thay vì hiện thanh trượt nhỏ tại chỗ.",
+        "slotsHold": "Nhấn giữ một nút cho đến khi vòng quanh nó đầy, hoặc nhấp chuột phải.",
+        "slotsPick": "Các tác vụ có thể đặt vào hiện ngay phía trên nút; nhấp một tác vụ để thay. Chọn tác vụ đang ở ô bên kia sẽ đổi chỗ hai ô. Lựa chọn này cũng có trong cài đặt — nút bên dưới dẫn thẳng tới đó.",
+        "slotsSuggest": "Nếu bạn thường chạy một trong các tác vụ này từ cửa sổ lệnh, thanh sẽ hỏi bạn một lần có muốn đặt nó vào đây không.",
+        "quickIntro": "Dừng con trỏ trên thanh điều khiển, một hàng thao tác cho bài này sẽ hiện lên phía trên: âm lượng, yêu thích, thêm vào danh sách phát, xáo trộn, phụ đề và kiểu lời bài hát. Những gì đã có trong hai ô sẽ không lặp lại. Trên màn hình cảm ứng không có hàng này.",
+        "quickPalette": "Nút ngoài cùng bên phải mở cửa sổ lệnh. Cửa sổ mọc lên từ chính thanh điều khiển: ô nhập nằm đúng chỗ của thanh, kết quả khớp nhất ở ngay cạnh.",
+        "quickOther": "Nhấp vào chỗ trống của thanh trên trang phát cũng mở như vậy, trừ khi nơi mở khi phát là Lattice — lúc đó cú nhấp sẽ tới Lattice. {{mod}} + K cũng làm nó mọc lên từ thanh, miễn là thanh đang hiển thị. Khi đóng, nó thu lại vào thanh."
       },
       "commandPalette": {
         "type": "Lệnh được tìm kiếm chứ không duyệt thủ công. Gõ phím ngay khi cửa sổ mở, hệ thống sẽ lọc theo tên, tên gọi khác và từ khóa; chỉ cần nhớ một nửa tên là đủ.",
