@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from './appleMusicNormalize';
@@ -141,7 +141,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // word-level TTML; the parsed lyric says which timing it got (`LyricData.isWordByWord`).
         capabilities: {
             search: true, playback: false, externalPlayback: true, lyrics: true, wordByWordLyrics: true, auth: true,
-            userLibrary: true, userAlbums: true, playlists: true, albums: false, artists: false, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
+            userLibrary: true, userAlbums: true, playlists: true, albums: true, artists: true, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
         },
         normalizeSong: normalizeAppleMusicSong,
         normalizeCollection: normalizeAppleMusicPlaylist,
@@ -161,7 +161,35 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             getUserPlaylists: (_userId, limit, offset) => getAppleMusicPlaylists(limit, offset),
         },
         catalog: {
-            getAlbumTracks: (id, limit = 100, offset = 0) => getAppleMusicLibraryAlbumTracks(String(id), limit, offset),
+            canResolveSongCatalogRefs: song => { try { appleMusicCatalogSongId(song); return true; } catch { return false; } },
+            async resolveSongCatalogRefs(song) {
+                const page = await getAppleMusicCatalogPage('catalogSong', appleMusicCatalogSongId(song), 1, 0);
+                const resolved = page.items[0] as typeof song | undefined;
+                if (!resolved) return song;
+                // Apple often returns only artist IDs; resolve each name rather than assigning a combined name to the wrong artist.
+                const ids = resolved.sourceRef?.kind === 'online' ? resolved.sourceRef.providerData?.catalogArtistIds : undefined;
+                let artists = resolved.artists;
+                if (Array.isArray(ids) && ids.length && !artists.some(artist => artist.catalogRef)) {
+                    const named: typeof song.artists = [];
+                    for (const id of ids) {
+                        if (typeof id !== 'string') return song;
+                        const detail = (await getAppleMusicCatalogPage('catalogArtist', id, 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined;
+                        if (!detail?.name) return song;
+                        named.push({ id, name: detail.name, catalogRef: { providerId: 'appleMusic', kind: 'artist', id } });
+                    }
+                    artists = named;
+                }
+                return { ...song, album: resolved.album.catalogRef ? resolved.album : song.album,
+                    artists: artists.some(artist => artist.catalogRef) ? artists : song.artists };
+            },
+            getAlbumTracks: async (id, limit = 100, offset = 0) => String(id).startsWith('l.')
+                ? getAppleMusicLibraryAlbumTracks(String(id), limit, offset)
+                : await getAppleMusicCatalogPage('catalogAlbumTracks', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
+            getAlbumDetail: async (id, collection) => String(id).startsWith('l.') ? collection ?? null
+                : (await getAppleMusicCatalogPage('catalogAlbum', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
+            getArtistDetail: async id => (await getAppleMusicCatalogPage('catalogArtist', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
+            getArtistSongs: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistSongs', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
+            getArtistAlbums: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistAlbums', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types/onlineMusic').ProviderCollection>,
             getPlaylistTracks: (id, limit, offset) => String(id).startsWith('ra.')
                 ? getAppleMusicLiveStationTracks(String(id), offset) : getAppleMusicPlaylistTracks(String(id), limit, offset),
         },

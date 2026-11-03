@@ -10,7 +10,7 @@ const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const RESOURCE_ID = /^[a-zA-Z0-9._-]{1,200}$/;
 // Folia chooses the order; the companion may prepare a bounded tail but cannot invent next tracks.
 const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'prepareNext']);
-const OPERATIONS = new Set(['libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
+const OPERATIONS = new Set(['catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums', 'libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
 
 function validateRequest(message) {
     if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
@@ -65,6 +65,10 @@ function validateRequest(message) {
     if (operation === 'search') {
         if (typeof params.query !== 'string' || !params.query.trim() || params.query.length > 200) return null;
         return { id, operation, params: { query: params.query.trim(), offset, limit } };
+    }
+    if (['catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums'].includes(operation)) {
+        if (typeof params.catalogId !== 'string' || !/^\d{1,40}$/.test(params.catalogId)) return null;
+        return { id, operation, params: { catalogId: params.catalogId, offset, limit } };
     }
     if (operation === 'libraryAlbumTracks') {
         if (typeof params.albumId !== 'string' || !/^l\.[a-zA-Z0-9._-]{1,198}$/.test(params.albumId)) return null;
@@ -247,6 +251,13 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         } else if (request.operation === 'search') {
             path = base + '/search';
             options = { term: p.query, types: 'songs', limit: p.limit, offset: p.offset };
+        } else if (['catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums'].includes(request.operation)) {
+            const paths = { catalogSong: '/songs/', catalogAlbum: '/albums/', catalogAlbumTracks: '/albums/',
+                catalogArtist: '/artists/', catalogArtistSongs: '/artists/', catalogArtistAlbums: '/artists/' };
+            const suffixes = { catalogAlbumTracks: '/tracks', catalogArtistSongs: '/view/top-songs', catalogArtistAlbums: '/albums' };
+            path = base + paths[request.operation] + encodeURIComponent(p.catalogId) + (suffixes[request.operation] || '');
+            options = ['catalogSong', 'catalogAlbum', 'catalogArtist'].includes(request.operation)
+                ? {} : { limit: p.limit, offset: p.offset };
         } else if (request.operation === 'libraryAlbums') {
             path = 'v1/me/library/albums';
             options = { limit: p.limit, offset: p.offset };
@@ -303,6 +314,8 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                     durationInMillis: Number.isFinite(a.durationInMillis) ? a.durationInMillis : 0,
                     trackCount: Number.isSafeInteger(a.trackCount) && a.trackCount >= 0 ? a.trackCount : null,
                     artwork: { url: string(a.artwork?.url) }, isrc: string(a.isrc),
+                    catalogAlbums: (Array.isArray(item?.relationships?.albums?.data) ? item.relationships.albums.data : []).slice(0, 10).map(x => ({ id: string(x?.id), name: string(x?.attributes?.name) })),
+                    catalogArtists: (Array.isArray(item?.relationships?.artists?.data) ? item.relationships.artists.data : []).slice(0, 10).map(x => ({ id: string(x?.id), name: string(x?.attributes?.name) })),
                     playParams: { id: string(p.id), kind: string(p.kind), catalogId: string(p.catalogId || item?.relationships?.catalog?.data?.[0]?.id), isLibrary: p.isLibrary === true },
                 },
             };

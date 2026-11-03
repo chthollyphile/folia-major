@@ -1,7 +1,7 @@
 import type { SongResult, UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../types/onlineMusic';
-import { normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
+import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
 import { requestAppleMusic } from './appleMusicTransport';
 import type { AppleMusicOperation, AppleMusicParams } from './appleMusicTransport';
 
@@ -113,6 +113,16 @@ export async function searchAppleMusic(query: string, limit: number, offset: num
 export async function getAppleMusicPersonalFm(): Promise<UnifiedSong[]> {
     const data = await requestAppleMusic('personalFm');
     return pageOf(data, 0, normalizeAppleMusicSong, isSongResource).items.filter(isAppleMusicSongPlayable);
+}
+
+// Catalog lookups remain bounded and return only the resource types Folia can open.
+export async function getAppleMusicCatalogPage(operation: 'catalogSong' | 'catalogAlbum' | 'catalogAlbumTracks' | 'catalogArtist' | 'catalogArtistSongs' | 'catalogArtistAlbums', catalogId: string, limit: number, offset: number) {
+    const page = pageInputs(limit, offset);
+    const song = operation === 'catalogSong' || operation === 'catalogAlbumTracks' || operation === 'catalogArtistSongs';
+    return song
+        ? readPage(operation, { catalogId }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource)
+        : readPage(operation, { catalogId }, page.limit, page.offset, normalizeAppleMusicCatalogCollection,
+            item => ['albums', 'artists'].includes(String((item as { type?: unknown } | null)?.type)));
 }
 
 // Read library albums and their tracks using the same validated pagination as playlists.

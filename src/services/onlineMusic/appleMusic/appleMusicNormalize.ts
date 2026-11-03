@@ -41,9 +41,13 @@ export const normalizeAppleMusicSong = (value: unknown): UnifiedSong => {
     const attributes = record(resource.attributes);
     const params = record(attributes.playParams);
     const artistName = text(attributes.artistName);
+    const catalogAlbums = Array.isArray(attributes.catalogAlbums) ? attributes.catalogAlbums.map(record).filter(item => /^\d{1,40}$/.test(text(item.id))) : [];
+    const catalogArtists = Array.isArray(attributes.catalogArtists) ? attributes.catalogArtists.map(record).filter(item => /^\d{1,40}$/.test(text(item.id))) : [];
+    const albumId = text(catalogAlbums[0]?.id);
     const duration = attributes.durationInMillis;
     const providerData: Record<string, JsonValue> = {
         resourceType: type,
+        ...(catalogArtists.length ? { catalogArtistIds: catalogArtists.map(item => text(item.id)) } : {}),
         ...(typeof attributes.playbackAvailable === 'boolean' ? { playbackAvailable: attributes.playbackAvailable } : {}),
         ...(text(params.id) ? { playbackId: text(params.id) } : {}),
         ...(text(params.kind) ? { playbackKind: text(params.kind) } : {}),
@@ -54,8 +58,10 @@ export const normalizeAppleMusicSong = (value: unknown): UnifiedSong => {
     return {
         id,
         name: text(attributes.name),
-        artists: artistName ? [{ id: '', name: artistName }] : [],
-        album: { id: '', name: text(attributes.albumName), coverUrl: artworkUrl(attributes.artwork) },
+        artists: catalogArtists.length && catalogArtists.every(item => text(item.name)) ? catalogArtists.map(item => ({ id: text(item.id), name: text(item.name),
+            catalogRef: { providerId: PROVIDER_ID, kind: 'artist' as const, id: text(item.id) } })) : artistName ? [{ id: '', name: artistName }] : [],
+        album: { id: albumId, name: text(attributes.albumName), coverUrl: artworkUrl(attributes.artwork),
+            ...(albumId ? { catalogRef: { providerId: PROVIDER_ID, kind: 'album' as const, id: albumId } } : {}) },
         durationMs: typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : 0,
         sourceRef: { kind: 'online', providerId: PROVIDER_ID, mediaId: id, providerData },
     };
@@ -96,4 +102,16 @@ export const normalizeAppleMusicLibraryAlbum = (value: unknown): ProviderCollect
         coverUrl: artworkUrl(attributes.artwork),
         ...(typeof attributes.trackCount === 'number' && Number.isSafeInteger(attributes.trackCount) && attributes.trackCount >= 0 ? { trackCount: attributes.trackCount } : {}),
         providerData: { resourceType: 'library-albums' } };
+};
+
+// Catalog albums and artists use numeric Apple IDs, distinct from local library albums.
+export const normalizeAppleMusicCatalogCollection = (value: unknown): ProviderCollection => {
+    const resource = record(value);
+    const id = text(resource.id);
+    if (!/^\d{1,40}$/.test(id) || (resource.type !== 'albums' && resource.type !== 'artists')) {
+        throw new OnlineProviderError('invalid-response', 'Apple Music catalog identity is invalid', PROVIDER_ID);
+    }
+    const attributes = record(resource.attributes);
+    return { providerId: PROVIDER_ID, id, type: resource.type === 'albums' ? 'album' : 'artist',
+        name: text(attributes.name), coverUrl: artworkUrl(attributes.artwork), providerData: { resourceType: resource.type } };
 };

@@ -66,6 +66,10 @@ Linux 登录行显示「Linux 暂未支援」。构建和验证范围见 `electr
 `appleMusic/appleMusicProvider.ts` 接入独立 companion 里的 Apple Music 网页会话：登录（Apple 自己的窗口）、
 歌曲搜索、个人歌单及分页、歌单歌曲、账号，以及 `v1/catalog/<store>/songs/<id>/syllable-lyrics` 的 TTML。
 目录歌曲与资料库歌曲的 id 分别保留（`sourceRef.providerData.catalogId`），歌词和播放都按目录 id 请求。
+Apple Music 已提供资料库专辑页签及专辑歌曲分页；账号社交资料有头像时显示头像，没有时仍显示字母。
+歌曲的专辑与歌手使用目录关系按需解析：资料库曲目先使用其目录映射，多艺人的关系只有 ID 时逐个取名字，
+再经 Omni 打开目录专辑、歌手热门歌曲和歌手专辑。真实 macOS 账号已核验资料库专辑、其曲目的目录映射、
+目录专辑及歌手端点；首页呈现、头像及点击导航仍需真人验收。
 喜爱歌单通过 `extend: tags` 的 `favorited` 标记识别并分页同步；爱心写入经 companion 的
 `v1/me/favorites` POST / DELETE。`library.getSongLikeId` 将资料库/目录行统一到同一个喜爱 ID，
 Omni 的爱心读取、未决操作和写入共用这个 ID，播放 ID 不变。真实账号的双向写入尚待验收。
