@@ -222,7 +222,13 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             const bytes = new TextEncoder().encode('folia-apple-music:' + identity);
             const digest = await crypto.subtle.digest('SHA-256', bytes);
             const id = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
-            return { ok: true, data: { id, nickname, storefront: store } };
+            // Only forward an HTTPS artwork URL; profile data and credentials stay in the page.
+            const artwork = item?.attributes?.artwork?.url;
+            let avatarUrl = '';
+            if (typeof artwork === 'string' && artwork.length <= 2048) {
+                try { const url = new URL(artwork); if (url.protocol === 'https:' && !url.username && !url.password) avatarUrl = artwork; } catch { /* Missing artwork is normal. */ }
+            }
+            return { ok: true, data: { id, nickname, storefront: store, avatarUrl } };
         }
         const p = request.params;
         const base = 'v1/catalog/' + encodeURIComponent(store);

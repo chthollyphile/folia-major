@@ -22,7 +22,8 @@ export const normalizeAppleMusicUser = (value: unknown): ProviderUser => {
     if (!/^[a-f0-9]{64}$/.test(id)) {
         throw new OnlineProviderError('invalid-response', 'Apple Music account identity is unavailable', PROVIDER_ID);
     }
-    return { id, nickname: text(user.nickname) || 'Apple Music' };
+    const avatarUrl = text(user.avatarUrl).replaceAll('{w}', '128').replaceAll('{h}', '128');
+    return { id, nickname: text(user.nickname) || 'Apple Music', ...(avatarUrl ? { avatarUrl } : {}) };
 };
 
 // Keep the library identity and catalog identity separately: both can be needed for playback and lyrics.

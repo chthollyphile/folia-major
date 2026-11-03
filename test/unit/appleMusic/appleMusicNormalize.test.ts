@@ -46,6 +46,11 @@ describe('Apple Music resource normalization', () => {
         expect(normalizeAppleMusicSong({ id: '1', type: 'songs', attributes: { durationInMillis: -1 } }).durationMs).toBe(0);
     });
 
+    it('expands a social profile avatar and leaves missing artwork unset', () => {
+        expect(normalizeAppleMusicUser({ id: 'a'.repeat(64), avatarUrl: 'https://example.test/{w}x{h}.jpg' }).avatarUrl).toBe('https://example.test/128x128.jpg');
+        expect(normalizeAppleMusicUser({ id: 'a'.repeat(64) }).avatarUrl).toBeUndefined();
+    });
+
     it('requires an account-specific pseudonym before accepting a snapshot', () => {
         expect(normalizeAppleMusicUser({ id: 'a'.repeat(64), nickname: 'Example' })).toMatchObject({ id: 'a'.repeat(64) });
         expect(() => normalizeAppleMusicUser({ id: 'me' })).toThrow();
