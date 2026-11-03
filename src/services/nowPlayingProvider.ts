@@ -1,6 +1,6 @@
 import type { NowPlayingConnectionStatus, NowPlayingLyricPayload, NowPlayingTrackSnapshot } from '../types';
 
-export const NOW_PLAYING_WS_URL = 'ws://localhost:9863/api/ws/lyric';
+export const NOW_PLAYING_WS_URL = 'ws://127.0.0.1:9863/api/ws/lyric';
 const NOW_PLAYING_RECONNECT_DELAY_MS = 2000;
 
 // Build the now-playing lyric WS URL from a host (e.g. 'localhost:9863'); lets the OBS web page pick the endpoint via a URL param.
@@ -365,9 +365,8 @@ export class NowPlayingProvider {
                     ...this.snapshot,
                     track,
                 };
-                if (track) {
-                    this.callbacks.onTrack?.(track);
-                }
+                // A null Track means the player went away; consumers must clear the old song too.
+                this.callbacks.onTrack?.(track);
                 break;
             }
             case 'Lyric': {

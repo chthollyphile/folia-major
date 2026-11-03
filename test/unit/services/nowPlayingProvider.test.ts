@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeNowPlayingLyricPayload, normalizeNowPlayingTrack } from '@/services/nowPlayingProvider';
+import { NowPlayingProvider, normalizeNowPlayingLyricPayload, normalizeNowPlayingTrack } from '@/services/nowPlayingProvider';
 
 describe('nowPlayingProvider', () => {
     it('normalizes track payloads', () => {
@@ -20,6 +20,17 @@ describe('nowPlayingProvider', () => {
             coverUrl: 'http://cover.test/a.jpg',
             durationMs: 210000,
         });
+    });
+
+    it('reports a null Track so the surface can clear a vanished player', () => {
+        const tracks: unknown[] = [];
+        const provider = new NowPlayingProvider({ onTrack: track => tracks.push(track) });
+        const handle = (provider as unknown as { handleMessage: (raw: string) => void }).handleMessage.bind(provider);
+        handle(JSON.stringify({ event: 'Track', data: { title: 'Song', author: 'Artist' } }));
+        handle(JSON.stringify({ event: 'Track', data: null }));
+        expect(tracks).toHaveLength(2);
+        expect(tracks[1]).toBeNull();
+        provider.stop();
     });
 
     it('normalizes lyric payloads and preserves karaoke source fields', () => {
