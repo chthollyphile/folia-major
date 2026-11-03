@@ -8,7 +8,7 @@
 
 let endings = 0;
 
-/** Counts one ending; called with the store write that ends FM. */
+/** Counts one ending; called with the store write that ends FM, or where FM ends though it shows off for now. */
 export const notePersonalFmEnded = (): void => {
     endings += 1;
 };
