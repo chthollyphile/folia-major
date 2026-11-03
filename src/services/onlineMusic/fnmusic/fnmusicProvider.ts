@@ -319,6 +319,7 @@ export const fnmusicProvider: OnlineMusicProvider = {
     id: 'fnmusic',
     displayName: '飞牛音乐',
     shortName: '飞牛',
+    shortNameKey: 'onlineProviderName.fnmusic',
     mark: { letter: '飞', color: '#0891b2' },
     // 仅桌面端（Electron 主进程桥）可用：网页/Docker 下浏览器丢 Cookie 受限头且受 CORS 限制。
     getAvailability: () => {

@@ -1866,6 +1866,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",

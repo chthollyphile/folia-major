@@ -1866,6 +1866,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "汽水",
+    "fnmusic": "飞牛",
   },
   "globalLyricOffset": {
     "title": "全局时间偏移",
