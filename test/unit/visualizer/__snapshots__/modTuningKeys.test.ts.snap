@@ -41,6 +41,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
   },
   "classic": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
     "breathingFloatMultiplier": {
       "max": 2,
       "min": 0,
@@ -507,6 +510,7 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "options": [
         "rain",
         "dew",
+        "snow",
       ],
       "type": "choice",
     },
@@ -564,6 +568,21 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "min": 0.5,
       "type": "number",
     },
+    "snow": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
+    "snowMelt": {
+      "max": 3,
+      "min": 0.25,
+      "type": "number",
+    },
+    "snowSize": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
+    },
     "spot": {
       "max": 2,
       "min": 0,
@@ -591,6 +610,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
   },
   "partita": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
     "showGuideLines": {
       "type": "boolean",
     },

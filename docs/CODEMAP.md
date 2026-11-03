@@ -24,7 +24,7 @@
 | 其他 | 64+ |
 | stores | 32+ |
 | types | 16+ |
-| i18n | 4+ |
+| i18n | 8+ |
 | workers | 4+ |
 
 ## 枢纽模块
@@ -51,8 +51,10 @@
 | 64+ | `src/stores/useStatusMessageStore.ts` |
 | 64+ | `src/utils/lyrics/renderHints.ts` |
 | 32+ | `dev/probes/definition.ts` |
+| 32+ | `src/components/command-palette/commandRegistry.ts` |
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
 | 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
+| 32+ | `src/components/ponder/surfaces/surfaceDeclarations.ts` |
 | 32+ | `src/components/visualizer/colorMix.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
@@ -75,6 +77,7 @@
 | 32+ | `src/stores/useCollectionNavigationStore.ts` |
 | 32+ | `src/stores/useOnlineProviderAccountStore.ts` |
 | 32+ | `src/stores/usePlayerChromeSettingsStore.ts` |
+| 32+ | `src/stores/useSettingsModalStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
 | 32+ | `src/types/hifi.ts` |
@@ -170,6 +173,7 @@
 - `src/components/ponder/surfaces/panel/lyricMatch.surface.tsx`
 - `src/components/ponder/surfaces/panel/sidePanel.surface.tsx`
 - `src/components/ponder/surfaces/plain.surface.tsx`
+- `src/components/ponder/surfaces/player/capsule.surface.tsx`
 - `src/components/ponder/surfaces/player/latticeChrome.surface.tsx`
 - `src/components/ponder/surfaces/player/latticePage.surface.tsx`
 - `src/components/ponder/surfaces/player/playerBar.surface.tsx`

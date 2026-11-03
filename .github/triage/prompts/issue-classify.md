@@ -15,6 +15,14 @@
   - 使用咨询、配置求助选 `support`；广告、无意义内容选 `spam`。
 - `module`：从下列模块 id 中选一个最主要的；都不明显匹配时选 `general`。
 {{modules}}
+  - 容易混淆时按问题实际发生的位置判断：
+    - 歌词样式、歌词动效、字幕的显示问题选 `visualizer`，不要因为发生在播放页就选 `playback`；`playback` 只管能不能播、播哪首、声音从哪出。
+    - `visualizer` 管歌词「怎么画」，`lyrics` 管歌词「是什么」：只在某一个样式里出问题（重叠、错位、卡顿、动效不对）选 `visualizer`；换任何样式都一样错（时间轴不准、翻译或注音缺失、分词不对、文字顺序或字体不对）选 `lyrics`。
+    - 在线平台拿不到歌词选 `omni`；歌词拿到了但内容或时间轴不对选 `lyrics`。
+    - 某个在线平台登录不了、VIP 只能试听、拿不到推荐或歌单内容选 `omni`；内容拿到了但页面排版、入口、排序不对选 `library-ui`。
+    - 壁纸模式、遥控小窗、窗口行为、卡顿占用、启动崩溃选 `desktop`；装不上、构建失败、某个系统或发行版跑不起来、自部署选 `packaging`。
+    - 请求 Folia 运行在 Android、iOS、TV、鸿蒙等新设备上选 `packaging`。
+    - 需求是给模组开放接口时选 `folium`，即使接口涉及歌词或播放。
 - `duplicate_of`：如果与 `candidates` 中某条 issue 描述的是同一个问题或同一个需求，填它的编号 `n`；否则填 null。只能填 `candidates` 里出现过的编号。
 - `duplicate_confidence`：0 到 1。0.9 以上表示「维护者看了也会同意这是重复」。
 - `close_suggestion`：none / invalid / out_of_scope。

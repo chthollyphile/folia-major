@@ -123,8 +123,11 @@ const [songA, songB]: UnifiedSong[] = ['1', '2'].map(id => ({
     id, name: id === '1' ? 'A' : 'B', artists: [], album: { id: '', name: '' }, durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'bodian', mediaId: id },
 }));
+// A song of another platform than A and B.
+const songQ: UnifiedSong = { id: '3', name: 'Q', artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'qq', mediaId: '3' } };
 const keyA = 'online:bodian:1';
 const keyB = 'online:bodian:2';
+const keyQ = 'online:qq:3';
 
 beforeEach(() => {
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
@@ -352,6 +355,27 @@ describe('playSong and the current song (online)', () => {
         expect(watch.take()).toEqual([]);
         expect(usePlaybackStore.getState().currentSong).toBeNull();
         expect(refs.currentSongRef.current).toBeNull();
+    });
+
+    it('a sign-out of the platform of the song that plays leaves a play of another platform, still waiting for its lyrics state, to land', async () => {
+        const { refs, watch, queue } = mount();
+        await queue.playSong(songA, [songA]);
+        const stateQ = deferred<OnlineLyricsState | null>();
+        env.lyricsStateFor.set('3', stateQ.promise);
+
+        const play = queue.playSong(songQ, [songA, songQ]);
+        await vi.waitFor(() => expect(watch.log.at(-1)).toContain('wait lyrics state 3'));
+        emptyThePlayer(refs);
+        // The ask for the other platform's song stands: only the song shown is taken away.
+        expect(refs.currentSongRef.current).toBe(keyQ);
+        expect(usePlaybackStore.getState().currentSong).toBeNull();
+
+        stateQ.resolve(null);
+        await play;
+
+        expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '3' });
+        expect(usePlaybackStore.getState().audioSrc).toBe('https://audio.test/3');
+        expect(refs.currentSongRef.current).toBe(keyQ);
     });
 
     it('forgets the saved song and queue when nothing is left, so the next launch brings nothing back', () => {

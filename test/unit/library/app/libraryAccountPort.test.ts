@@ -104,6 +104,16 @@ describe('provider switch: the player stays', () => {
         // Counted, so that a play started before the switch does not turn FM back on.
         expect(personalFmEndingsSoFar()).toBe(endingsBefore + 1);
     });
+
+    it('counts the FM ending with FM still off: a play that turns FM on and has not landed yet must not land as FM', () => {
+        usePlaybackStore.setState({ isFmMode: false });
+        const endingsBefore = personalFmEndingsSoFar();
+
+        createLibraryAccountSwitchCleanupPort(() => makeHost()).leaveProvider('netease', 'qq');
+
+        expect(personalFmEndingsSoFar()).toBe(endingsBefore + 1);
+        expect(usePlaybackStore.getState().isFmMode).toBe(false);
+    });
 });
 
 describe('provider sign-out: only its own songs leave', () => {

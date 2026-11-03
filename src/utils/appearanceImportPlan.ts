@@ -142,6 +142,7 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     stageTrackPillTimeoutSec: 'trackCard',
     stageTrackPillOnHome: 'trackCard',
     stageTrackPillPosition: 'trackCard',
+    stageTrackPillInObs: 'trackCard',
 
     // The bravais wall's collection stack edges. Its own group: it styles the library wall, not the
     // picture or the card, and someone taking a look for its colours has a reason to leave it alone.
@@ -152,6 +153,9 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     libraryWallBackdropLyrics: 'libraryWall',
     libraryWallBackdropBlur: 'libraryWall',
     libraryWallSeamDirection: 'libraryWall',
+    // Numbering only the playing song styles the tiles of both walls (queue collage and bravais): the
+    // library wall group is where the other tile looks are.
+    latticeBadgeCurrentOnly: 'libraryWall',
 
     // The frosted bar behind the player page's titlebar. Under visualizer with the other player-page
     // switch that travels (hidePlayerTranslationSubtitle): it is part of how the playing screen looks.

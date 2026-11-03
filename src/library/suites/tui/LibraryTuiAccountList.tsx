@@ -6,6 +6,7 @@ import { useLibraryAccountProviders, useLibraryAccountSelector } from '../../cor
 import { canLogoutProvider, resolveProviderSelectLabel } from '../../core/account/accountRules';
 import { canSwitchToProviderDirectly } from '../../core/account/onlineProviderAccountView';
 import { translateHomeMessage } from '../../core/home/homeSources';
+import { providerDisplayName } from '../../../i18n/providerName';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
 import { openLoginWindow } from '../../../components/login/loginWindowStore';
 import { useLibraryTuiAccountListKeys } from './useLibraryTuiHomeKeyboard';
@@ -112,7 +113,7 @@ const LibraryTuiAccountList: React.FC<LibraryTuiAccountListProps> = ({ account, 
                         >
                             <span style={active ? { color: accentColor } : undefined}>{active ? '*' : ' '}</span>
                             <span className={`truncate ${active ? 'font-bold' : ''}`} style={active ? { color: accentColor } : undefined}>
-                                {provider.shortName || provider.displayName}
+                                {providerDisplayName(t, provider)}
                             </span>
                             <span className="truncate opacity-70" data-tui-account-status>{statusOf(provider, t)}</span>
                             <span className="truncate text-[12px] opacity-50">{actionLabel}</span>

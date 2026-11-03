@@ -61,7 +61,7 @@ export default defineVisualizer({
         description: 'Switch to the Machi town dioramas',
         keywords: ['machi', 'konbini', 'convenience store', 'town', 'street corner', 'diorama 3d', 'rain', '町景', '便利店', '街角', '雨夜'],
     },
-    // The scene draws its own sky: no shared background under it.
+    // The scene draws its own sky: no shared background under it. On a see-through player page it leaves the sky out.
     background: false,
     // 智能动感模式 (engine/beatFx.ts): the neon and the lights swell on the beats; each kick rings a ripple out over
     // the wet ground and each snare flashes the lyric screen (htdemucs_gpu drum hits).

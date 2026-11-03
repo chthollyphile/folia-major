@@ -203,6 +203,16 @@ describe('form states', () => {
         expect(reduceBravaisForm(reduceBravaisForm(null, { type: 'open-delete' }), { type: 'cancel' })).toBeNull();
         expect(reduceBravaisForm(null, { type: 'start-create' })).toBeNull();
     });
+
+    it('opens the daily style picker, keeps it on a failed save, ignores start-create, and closes on success or cancel (#938)', () => {
+        let state: BravaisFormState | null = reduceBravaisForm(null, { type: 'open-daily-style' });
+        expect(state).toEqual({ kind: 'pick-daily-style', error: null });
+        expect(reduceBravaisForm(state, { type: 'start-create' })).toBe(state);
+        state = reduceBravaisForm(state, { type: 'result', result: { ok: false, reason: 'failed' }, errorText: 'Failed' });
+        expect(state).toEqual({ kind: 'pick-daily-style', error: 'Failed' });
+        expect(reduceBravaisForm(state, { type: 'result', result: { ok: true } })).toBeNull();
+        expect(reduceBravaisForm(state, { type: 'cancel' })).toBeNull();
+    });
 });
 
 describe('status projection', () => {

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
+import { providerDisplayName } from '../../../i18n/providerName';
 import { Tooltip } from '../../modal/settings/kit';
 import { AccountPicture, PlatformMark, platformMarkOf } from '../PlatformMark';
 import { rowStatus, type RowStatus } from '../platformRows';
@@ -79,7 +80,7 @@ type PlatformColumnProps = {
 export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, onChoose, lie }) => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
-    const shown = rows.length >= SEARCH_FROM ? filterRows(rows, query) : rows;
+    const shown = rows.length >= SEARCH_FROM ? filterRows(rows, query, row => providerDisplayName(t, row)) : rows;
     // 高亮在哪一行：指针或方向键指着的；都没有指着就是选中的那一行。
     const [pointed, setPointed] = useState<OnlineProviderId | null>(null);
     const lit = shown.find(row => row.providerId === pointed) ?? shown.find(row => row.providerId === chosenId) ?? null;
@@ -200,7 +201,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                 {shown.map(row => {
                     const status = rowStatus(row);
                     const state = stateText(status);
-                    const name = row.shortName || row.displayName;
+                    const name = providerDisplayName(t, row);
                     const chosen = row.providerId === chosenId;
                     const bright = chosen || row.providerId === lit?.providerId;
                     const tall = lie === 'column';
@@ -222,10 +223,10 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                                 <i
                                     aria-hidden
                                     className={`st-t-fast absolute left-0 top-1/2 h-[38%] w-[3px] -translate-y-1/2 rounded-full transition-opacity ${chosen ? 'opacity-100' : 'opacity-0'}`}
-                                    style={{ background: platformMarkOf(row.providerId, row.shortName).color }}
+                                    style={{ background: platformMarkOf(row.providerId, name).color }}
                                 />
                             )}
-                            <PlatformMark providerId={row.providerId} label={row.shortName} size={tall ? 30 : 22} ranOut={status === 'ran-out'} />
+                            <PlatformMark providerId={row.providerId} label={name} size={tall ? 30 : 22} ranOut={status === 'ran-out'} />
                             {tall ? (
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                                     <span className="truncate text-[13px] font-medium leading-[18px]">{name}</span>

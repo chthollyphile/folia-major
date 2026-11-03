@@ -2,6 +2,8 @@ import type { SongResult, UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type {
     AudioQualityPreference,
+    DailyStyleGroup,
+    ListeningRankRange,
     LoginDiagnosticLine,
     MediaId,
     OnlineMusicProvider,
@@ -27,6 +29,7 @@ import { describeNeteaseFailure, isRefusedNeteaseAnswer, neteaseAnswerError, net
 import { neteaseLocalService, watchNeteaseLocalService } from './neteaseLocalService';
 import { createNeteaseExplore } from './neteaseExplore';
 import { neteaseRaw } from './neteaseRaw';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
 
@@ -60,6 +63,15 @@ const mapScrobbleQuality = (quality?: AudioQualityPreference): { level: string; 
 
 /** This provider's normalized view of a song, shared by `songMetadata` and the listening report. */
 const getNeteaseSongMetadata = (song: SongResult) => createProviderSongMetadata(normalizeNeteaseSong(song));
+
+/** One group of the style recommendation's styles (`{ categoryId, categoryName, tagVOList }`); tags without an id are left out. */
+const normalizeDailyStyleGroup = (raw: any): DailyStyleGroup => ({
+    id: raw?.categoryId != null ? String(raw.categoryId) : '',
+    name: typeof raw?.categoryName === 'string' ? raw.categoryName : '',
+    tags: (Array.isArray(raw?.tagVOList) ? raw.tagVOList : [])
+        .filter((tag: any) => tag?.tagId != null)
+        .map((tag: any) => ({ id: String(tag.tagId), name: typeof tag.tagName === 'string' ? tag.tagName : String(tag.tagId) })),
+});
 
 const normalizeUser = (raw: any): ProviderUser => ({
     id: raw?.userId ?? raw?.id ?? 0,
@@ -134,6 +146,30 @@ const normalizeCollection = (raw: any, type = 'playlist'): ProviderCollection =>
         ...(Number.isFinite(tracksUpdatedAt) && tracksUpdatedAt > 0 ? { tracksUpdatedAt } : {}),
         ...(raw?.specialType === 'liked' || raw?.isLiked === true ? { isLiked: true } : {}),
     };
+};
+
+// `/user/record`'s type and the field its rows come in, a span each.
+const NETEASE_LISTENING_RANK: Record<ListeningRankRange, { type: 0 | 1; rows: 'weekData' | 'allData' }> = {
+    week: { type: 1, rows: 'weekData' },
+    all: { type: 0, rows: 'allData' },
+};
+/**
+ * A user's listening ranking over a span, in NetEase's order. Only the signed-in account's own is
+ * read: NetEase answers -2 (无权限访问) where the asker may not see it, which for one's own ranking
+ * is a request that came without the sign-in (an anonymous one is answered so). It fails like any
+ * other refusal, rather than reading as a ranking with no songs.
+ */
+const readNeteaseListeningRank = async (userId: MediaId, range: ListeningRankRange): Promise<UnifiedSong[]> => {
+    const { type, rows } = NETEASE_LISTENING_RANK[range];
+    const response = await neteaseApi.getUserRecord(toNeteaseId(userId), type);
+    if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the listening ranking');
+    const list = response?.[rows];
+    if (!Array.isArray(list)) {
+        throw new OnlineProviderError('invalid-response', `NetEase returned no listening ranking (${rows})`, 'netease');
+    }
+    return list
+        .filter((row: any) => row?.song && typeof row.song === 'object')
+        .map((row: any) => withListenCount(normalizeNeteaseSong(row.song), row.playCount));
 };
 
 // The cookie this page keeps is the sign-in. It goes at once, and with it what an older build kept
@@ -295,6 +331,7 @@ export const neteaseProvider: OnlineMusicProvider = {
     id: 'netease',
     displayName: 'NetEase Cloud Music',
     shortName: '网易云',
+    shortNameKey: 'onlineProviderName.netease',
     mark: { letter: '云', color: '#dc2626' },
     watch: watchNeteaseLocalService,
     describeFailure: describeNeteaseFailure,
@@ -313,7 +350,9 @@ export const neteaseProvider: OnlineMusicProvider = {
         personalFmModes: true,
         wordByWordLyrics: true,
         userCloud: true,
+        listeningRank: true,
         historyRecommendations: true,
+        dailyStyleRecommendations: true,
         playlistSubscription: true,
         playlistTrackMutations: true,
         likes: true,
@@ -606,6 +645,14 @@ export const neteaseProvider: OnlineMusicProvider = {
                 creator: user,
             }, 'cloud');
         },
+        async getListeningRankCollections(user) {
+            const ranked = await Promise.all(LISTENING_RANK_RANGES.map(async range => ({ range, songs: await readNeteaseListeningRank(user.id, range) })));
+            const entries = ranked
+                .filter(({ songs }) => songs.length > 0)
+                .map(({ range, songs }) => listeningRankCollection('netease', user, range, songs));
+            console.info('[NeteaseProvider] Listening ranking read', { entries: entries.map(entry => `${entry.listeningRank}:${entry.trackCount}`) });
+            return entries;
+        },
     },
     catalog: {
         async getPlaylistTracks(id, limit, offset) {
@@ -621,6 +668,13 @@ export const neteaseProvider: OnlineMusicProvider = {
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } } as UnifiedSong;
             });
             return { items, total: response?.count, hasMore: Boolean(response?.hasMore), nextOffset: offset + items.length };
+        },
+        async getListeningRankTracks(range, limit, offset, collection) {
+            const userId = collection?.creator?.id;
+            if (userId === undefined || userId === null) {
+                throw new OnlineProviderError('invalid-response', 'The listening ranking entry names no user', 'netease');
+            }
+            return listeningRankPage(await readNeteaseListeningRank(userId, range), limit, offset);
         },
         async getAlbumDetail(id, existingCollection) {
             const response = await neteaseApi.getAlbum(toNeteaseId(id));
@@ -722,6 +776,30 @@ export const neteaseProvider: OnlineMusicProvider = {
                 replacement: response?.song ? normalizeNeteaseSong(response.song) : undefined,
                 limitReached: Number(response?.code) === 432,
             };
+        },
+        async getDailyStyleGroups() {
+            const response = await neteaseApi.getDailyStyleConfigs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style groups');
+            return (Array.isArray(response?.data?.categorys) ? response.data.categorys : [])
+                .map(normalizeDailyStyleGroup)
+                .filter((group: DailyStyleGroup) => group.id && group.tags.length > 0);
+        },
+        async getDailyStyleSongs() {
+            const response = await neteaseApi.getDailyStyleSongs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style songs');
+            const picked = normalizeDailyStyleGroup(response?.data?.tags);
+            return {
+                songs: (response?.songs || []).map(normalizeNeteaseSong),
+                selection: picked.id && picked.tags.length > 0
+                    ? { groupId: picked.id, tagIds: picked.tags.map(tag => tag.id) }
+                    : null,
+            };
+        },
+        async setDailyStyle(selection) {
+            const response = await neteaseApi.setDailyStyle(Number(selection.groupId), selection.tagIds.map(Number));
+            if (isRefusedNeteaseAnswer(response) || response?.data?.saveSuccess === false) {
+                throw neteaseAnswerError(response, 'the daily style');
+            }
         },
     },
     // The explore page is in neteaseExplore.ts, which gets this file's normalizers handed in.

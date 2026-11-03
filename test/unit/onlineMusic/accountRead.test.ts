@@ -167,6 +167,21 @@ describe('app start, where the kept account waits for the platform to name the u
 describe('app start, where the kept account shows at once', () => {
     beforeEach(() => { showsKeptAccountAtStart = true; });
 
+    it("shows a kept listening ranking entry as it was kept: it is not in the platform's shape", async () => {
+        const rank: ProviderCollection = {
+            providerId, id: 'listening-rank-week-abc', type: 'listening_rank', listeningRank: 'week', name: 'Week', creator: user,
+        };
+        keep({ user, collections: [list('kept'), rank] });
+        const status = held<ProviderUser | null>();
+        platform({ auth: { getLoginStatus: vi.fn(() => status.promise) }, normalizes: true });
+
+        const read = omni.readAccount(providerId, 'start');
+        await vi.waitFor(() => expect(account()?.user).toBeTruthy());
+        expect(account().collections).toEqual([{ ...list('kept'), description: 'as the adapter reads it' }, rank]);
+        status.refuse(new Error('offline'));
+        await read;
+    });
+
     it('shows the kept account, as the adapter reads it, while the platform is asked, and keeps it shown when the platform cannot be asked', async () => {
         keep({ user, collections: [list('kept')], likedSongIds: ['kept-like'] });
         const status = held<ProviderUser | null>();
@@ -407,6 +422,39 @@ describe.each([
             await expect(omni.readAccount(providerId, 'sync')).resolves.toBe('read');
             expect(account().collections.map(collection => collection.id)).toEqual(['one', 'cloud']);
             expect(warn).toHaveBeenCalledWith(`[Account] ${providerId}: sync: the cloud entry could not be read, the one held stays: offline`);
+        });
+    });
+
+    describe('the listening ranking entries', () => {
+        const rank = (range: 'week' | 'all'): ProviderCollection => ({
+            providerId: 'x', id: `listening-rank-${range}-abc`, type: 'listening_rank', listeningRank: range, name: range,
+        });
+
+        it('stand right after the first playlist, before the rest, and a refresh of the playlists alone keeps them there', async () => {
+            const getListeningRankCollections = vi.fn<NonNullable<OnlineLibraryProvider['getListeningRankCollections']>>()
+                .mockResolvedValue([rank('week'), rank('all')]);
+            platform({ library: { getListeningRankCollections, getUserPlaylists: vi.fn(async () => onePage('liked', 'two')) } });
+
+            await expect(omni.readAccount(providerId, 'sync')).resolves.toBe('read');
+            expect(getListeningRankCollections).toHaveBeenCalledWith(user);
+            const order = ['liked', 'listening-rank-week-abc', 'listening-rank-all-abc', 'two'];
+            expect(account().collections.map(collection => collection.id)).toEqual(order);
+            expect(JSON.parse(stored.get(snapshotKey())!).collections.map((collection: ProviderCollection) => collection.id))
+                .toEqual(['liked', 'two', 'listening-rank-week-abc', 'listening-rank-all-abc']);
+
+            await omni.refreshProviderPlaylists(providerId);
+            expect(account().collections.map(collection => collection.id)).toEqual(order);
+        });
+
+        it('stay as they are held when the ranking cannot be read', async () => {
+            const getListeningRankCollections = vi.fn<NonNullable<OnlineLibraryProvider['getListeningRankCollections']>>()
+                .mockResolvedValueOnce([rank('week')]).mockRejectedValue(new Error('offline'));
+            platform({ library: { getListeningRankCollections } });
+            await omni.readAccount(providerId, 'sync');
+
+            await expect(omni.readAccount(providerId, 'sync')).resolves.toBe('read');
+            expect(account().collections.map(collection => collection.id)).toEqual(['one', 'listening-rank-week-abc']);
+            expect(warn).toHaveBeenCalledWith(`[Account] ${providerId}: sync: the listening ranking could not be read, the entries held stay: offline`, expect.objectContaining({ message: 'offline' }));
         });
     });
 

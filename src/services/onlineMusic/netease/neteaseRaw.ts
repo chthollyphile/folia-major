@@ -77,6 +77,8 @@ export const NETEASE_RAW_ENDPOINTS: Readonly<Record<string, Row>> = Object.freez
     personal_fm: read({ omni: 'getPersonalFm' }),
     history_recommend_songs: read({ omni: 'getRecommendationHistoryDates' }),
     history_recommend_songs_detail: read({ omni: 'getRecommendationHistorySongs' }),
+    recommend_category_configs: read({ omni: 'getDailyStyleGroups' }),
+    recommend_category_songs: read({ omni: 'getDailyStyleSongs' }),
     // Changes to the account.
     like: write({ omni: 'toggleSongLike' }),
     playlist_tracks: write({ omni: 'updateCollectionTracks' }),
@@ -90,6 +92,7 @@ export const NETEASE_RAW_ENDPOINTS: Readonly<Record<string, Row>> = Object.freez
     follow: write({ pathParams: ['id'] }),
     scrobble: write({ omni: 'reportPlayback' }),
     recommend_songs_dislike: write({ omni: 'dislikeSong' }),
+    recommend_category_set: write({ omni: 'setDailyStyle' }),
     fm_trash: write(),
     daily_signin: write(),
     // Never.

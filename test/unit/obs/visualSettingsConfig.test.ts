@@ -21,6 +21,7 @@ import { useTypographySettingsStore } from '@/stores/useTypographySettingsStore'
 import { useThemeSettingsStore } from '@/stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
 import { useLibraryWallLookStore } from '@/stores/useLibraryWallLookStore';
+import { useLatticeSettingsStore } from '@/stores/useLatticeSettingsStore';
 import { usePlayerChromeSettingsStore } from '@/stores/usePlayerChromeSettingsStore';
 
 const switchMock = vi.mocked(readStoredThemeAutoSwitchEnabled);
@@ -37,6 +38,7 @@ describe('buildVisualSettingsConfig', () => {
         generationSourceMock.mockReset().mockReturnValue('ai');
         generateMock.mockReset().mockReturnValue(false);
         useThemeSettingsStore.setState({ followSystemTheme: false, isDaylight: false });
+        useLatticeSettingsStore.setState({ latticeBadgeCurrentOnly: false });
     });
 
     it('carries the system theme preference and keeps manual daylight changes authoritative', () => {
@@ -206,6 +208,14 @@ describe('buildVisualSettingsConfig', () => {
         expect(restored.stageTrackPillOnHome).toBe(false);
     });
 
+    it('carries whether the card is drawn in the browser source', () => {
+        useStageSettingsStore.setState({ stageTrackPillInObs: true });
+        const config = buildVisualSettingsConfig();
+        expect(config.stageTrackPillInObs).toBe(true);
+        expect(decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(config)))).stageTrackPillInObs).toBe(true);
+        expect(decompressConfig(JSON.stringify({ stpo: false }))).toMatchObject({ stageTrackPillInObs: false });
+    });
+
     // A hand-written JSON carrying only the card has to be recognised as the minified shape; the
     // long-name branch would reject all three as invalid keys.
     it('decodes a minified config that carries only the card', () => {
@@ -263,6 +273,19 @@ describe('buildVisualSettingsConfig', () => {
         });
         expect(decompressConfig(JSON.stringify({ libraryWallSeamStyle: 'hatch' }))).toMatchObject({ libraryWallSeamStyle: 'hatch' });
         useLibraryWallLookStore.setState({ seamClear: false, seamStyle: 'paper', backdropLyrics: false, backdropBlur: false });
+    });
+
+    // Numbering only the playing song on both tile walls (#930) travels with the look (short code lbco); false is a real value.
+    it('carries numbering only the playing song', () => {
+        useLatticeSettingsStore.setState({ latticeBadgeCurrentOnly: true });
+
+        const config = buildVisualSettingsConfig();
+        expect(config.latticeBadgeCurrentOnly).toBe(true);
+
+        const restored = decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(config))));
+        expect(restored.latticeBadgeCurrentOnly).toBe(true);
+        expect(decompressConfig(JSON.stringify({ lbco: false }))).toMatchObject({ latticeBadgeCurrentOnly: false });
+        expect(decompressConfig(JSON.stringify({ latticeBadgeCurrentOnly: true }))).toMatchObject({ latticeBadgeCurrentOnly: true });
     });
 
     // Which way the info strip opens (auto / vertical / horizontal) travels with the look (short code lwsd).

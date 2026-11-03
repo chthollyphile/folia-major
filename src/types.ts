@@ -451,6 +451,8 @@ export interface ClassicTuning {
   breathingFloatMultiplier: number;
   useLegacyLayout?: boolean;
   wordSpacing?: number;
+  /** Space the words by how far they are drawn when scaled, turned and offset, so none overlaps another. */
+  avoidOverlap?: boolean;
 }
 
 export const DEFAULT_CLASSIC_TUNING: ClassicTuning = {
@@ -458,6 +460,7 @@ export const DEFAULT_CLASSIC_TUNING: ClassicTuning = {
   breathingFloatMultiplier: 1,
   useLegacyLayout: false,
   wordSpacing: 0.7,
+  avoidOverlap: false,
 };
 
 export interface CadenzaTuning {
@@ -484,6 +487,8 @@ export interface PartitaTuning {
   useSemanticLayout: boolean;
   staggerMin: number;
   staggerMax: number;
+  /** Space the words and rows by how far they are drawn when scaled, so none overlaps another. */
+  avoidOverlap?: boolean;
 }
 
 export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
@@ -491,6 +496,7 @@ export const DEFAULT_PARTITA_TUNING: PartitaTuning = {
   useSemanticLayout: true,
   staggerMin: 20,
   staggerMax: 100,
+  avoidOverlap: false,
 };
 
 export interface FumeTuning {
@@ -1529,6 +1535,9 @@ export interface UnifiedSong extends SongResult {
   // The row this song was read from, where its collection names its rows: a YouTube Music
   // playlist may hold a song twice, and a removal names the row. It says nothing of the song.
   collectionRowId?: string;
+  // How many times the account played it, as its platform's listening ranking counts, where the song
+  // was read from that ranking. Like collectionRowId it belongs to the row, not to the song.
+  listenCount?: number;
   isLocal?: boolean;
   localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;

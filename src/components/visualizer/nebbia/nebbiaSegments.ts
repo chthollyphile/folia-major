@@ -7,6 +7,13 @@
 /** 每段 6 个数：x0, y0, x1, y1, 线宽（遮罩像素）, 亮度 0..1。 */
 export const SEGMENT_FLOATS = 6;
 
+/** 点 (x, y) 到第 p 段（segs[p..p+3] 是两头；雪窗、凝露和歌词的水联动时用）的距离。 */
+export const segDist = (x: number, y: number, segs: readonly number[], p: number): number => {
+    const ax = segs[p], ay = segs[p + 1], dx = segs[p + 2] - ax, dy = segs[p + 3] - ay, l2 = dx * dx + dy * dy;
+    const u = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+    return Math.hypot(x - ax - dx * u, y - ay - dy * u);
+};
+
 export class NebbiaSegments {
     data = new Float32Array(SEGMENT_FLOATS * 4096);
     /** 这一帧收了几段。 */

@@ -367,6 +367,35 @@ describe('setMode', () => {
             { mode: 'classic', origin: { kind: 'user', modId: null } },
         ]);
     });
+
+    it('counts a write before it lands, so a setMode made from the modeChanged callback is rate-limited, not recursed', () => {
+        vi.useFakeTimers();
+        later();
+        const inner: unknown[] = [];
+        addFoliumEventHandler('listener-mod', 'visualizer.modeChanged', () => {
+            if (inner.length) return;
+            inner.push(rqMod().setMode('fume'));
+        });
+        expect(rqMod().setMode('tempera')).toEqual({ ok: true, mode: 'tempera' });
+        expect(inner).toEqual([{ ok: false, reason: 'rate-limited' }]);
+        expect(settings().visualizerMode).toBe('tempera');
+    });
+
+    it('gives back the count of a write that changes nothing once it has landed', () => {
+        vi.useFakeTimers();
+        later();
+        // A source whose write lands nothing, as the real one answers when the store did not change.
+        const sourceSetMode = vi.fn(() => false);
+        registerFoliumVisualizerSource({ ...FOLIUM_HOST_VISUALIZER_SOURCE, setMode: sourceSetMode });
+        try {
+            expect(rqMod().setMode('tempera')).toEqual({ ok: true, mode: initialSettings.visualizerMode });
+            expect(sourceSetMode).toHaveBeenCalledTimes(1);
+        } finally {
+            registerFoliumVisualizerSource(FOLIUM_HOST_VISUALIZER_SOURCE);
+        }
+        vi.setSystemTime(Date.now() + 100);
+        expect(rqMod().setMode('fume')).toEqual({ ok: true, mode: 'fume' });
+    });
 });
 
 describe('getTuning / setTuning', () => {
@@ -423,10 +452,15 @@ describe('getTuning / setTuning', () => {
         expect(() => rqMod().setTuning('cappella', { avatarSource: 'custom' })).toThrow(/^invalid-arguments: /);
     });
 
-    it('brings a new window\'s glass along, as the panel does, unless the mod names one', () => {
+    it('keeps the glass when only the window changes, as the panel and the command do, and takes a glass the mod names', () => {
         vi.useFakeTimers();
         later();
-        expect(rqMod().setTuning('nebbia', { behind: 'aquarium' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass: 'dew' } });
+        const { glass } = rqMod().getTuning('nebbia');
+        expect(rqMod().setTuning('nebbia', { behind: 'aquarium' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass } });
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'night' })).toMatchObject({ ok: true, tuning: { behind: 'night', glass } });
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'aquarium', glass: 'snow' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass: 'snow' } });
         later();
         expect(rqMod().setTuning('nebbia', { behind: 'night', glass: 'dew' })).toMatchObject({ ok: true, tuning: { behind: 'night', glass: 'dew' } });
         later();

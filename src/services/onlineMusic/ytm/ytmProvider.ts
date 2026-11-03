@@ -67,7 +67,7 @@ const forgetPages = (): void => {
 i18n.on('languageChanged', forgetPages);
 
 export const ytmProvider: OnlineMusicProvider = {
-    id: 'ytm', displayName: 'YouTube Music', shortName: 'YT Music',
+    id: 'ytm', displayName: 'YouTube Music', shortName: 'YT Music', shortNameKey: 'onlineProviderName.ytm',
     mark: { letter: 'Y', color: '#e11d48' },
     getAvailability: getYtmTransportAvailability,
     describeFailure: describeYtmFailure,

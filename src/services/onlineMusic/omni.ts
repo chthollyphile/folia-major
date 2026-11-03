@@ -2,6 +2,9 @@ import { DEFAULT_PERSONAL_FM_CATALOG } from './fmModes';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
+    DailyStyleGroup,
+    DailyStyleSelection,
+    DailyStyleSongs,
     LoginStep,
     MediaId,
     OmniAudioSource,
@@ -482,6 +485,7 @@ export const omni = {
                 providerId: provider.id,
                 displayName: provider.displayName,
                 shortName: provider.shortName || provider.displayName,
+                shortNameKey: provider.shortNameKey,
                 availability: provider.getAvailability?.() ?? { configured: true },
                 requiresAccount: provider.capabilities.auth,
                 status: account?.status || 'unknown',
@@ -774,7 +778,8 @@ export const omni = {
 
     canEditCollectionTracks(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
-        if (!providerSupports(provider, 'mutations')) return false;
+        // The listening ranking is the platform's count of plays: nobody edits it.
+        if (collection.type === 'listening_rank' || !providerSupports(provider, 'mutations')) return false;
         if (collection.isLiked === true) {
             return providerSupports(provider, 'likes') && Boolean(provider?.mutations?.likeSong);
         }
@@ -801,7 +806,8 @@ export const omni = {
     canSubscribeCollection(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
         if (
-            !providerSupports(provider, 'mutations')
+            collection.type === 'listening_rank'
+            || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistSubscription')
             || provider?.mutations?.canSubscribe?.(collection) === false
         ) {
@@ -888,6 +894,26 @@ export const omni = {
 
     async getRecommendationHistorySongs(entry: OmniHistoryEntry | string): Promise<UnifiedSong[]> {
         return withActiveProvider(async provider => provider.recommendations?.getHistorySongs?.(entry) ?? []);
+    },
+
+    // Style recommendations (capability `dailyStyleRecommendations`): the style groups, the daily songs
+    // of the picked styles, and saving a pick.
+    async getDailyStyleGroups(): Promise<DailyStyleGroup[]> {
+        return withActiveProvider(async provider => provider.recommendations?.getDailyStyleGroups?.() ?? []);
+    },
+
+    async getDailyStyleSongs(): Promise<DailyStyleSongs> {
+        return withActiveProvider(async provider => (
+            provider.recommendations?.getDailyStyleSongs?.() ?? { songs: [], selection: null }
+        ));
+    },
+
+    async setDailyStyle(selection: DailyStyleSelection): Promise<void> {
+        return withActiveProvider(async provider => {
+            const setStyle = provider.recommendations?.setDailyStyle;
+            if (!setStyle) throw new OnlineProviderError('unsupported', `Daily styles are not supported by ${provider.id}`, provider.id);
+            await setStyle.call(provider.recommendations, selection);
+        });
     },
 
     supportsExplore(providerId: OmniProviderId): boolean {
@@ -1105,6 +1131,11 @@ export const omni = {
             }
             if (collection.type === 'cloud') {
                 return await (provider.catalog?.getCloudTracks?.(page.limit, page.offset, collection) ?? emptyPage(page.offset));
+            }
+            if (collection.type === 'listening_rank') {
+                // An entry that names no span is not one this build made: there is nothing to read for it.
+                if (!collection.listeningRank) return emptyPage(page.offset);
+                return await (provider.catalog?.getListeningRankTracks?.(collection.listeningRank, page.limit, page.offset, collection) ?? emptyPage(page.offset));
             }
             return await (provider.catalog?.getPlaylistTracks?.(collection.id, page.limit, page.offset, collection) ?? emptyPage(page.offset));
         });

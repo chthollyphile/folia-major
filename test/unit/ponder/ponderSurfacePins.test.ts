@@ -41,7 +41,8 @@ const sortByKey = <T,>(record: Record<string, T>): Record<string, T> => (
 
 const KINDS = [
     'plain', 'palette', 'picker', 'queue', 'volume', 'grid-page', 'grid-view-page', 'local-grid-map',
-    'player-page', 'lattice-page', 'settings-page', 'player-bar', 'ponder-onboarding', 'bottom-ui-settings',
+    'player-page', 'lattice-page', 'settings-page', 'player-bar', 'capsule-quick-actions', 'capsule-palette',
+    'slot-picker', 'ponder-onboarding', 'bottom-ui-settings',
     'side-panel', 'lattice-chrome', 'lyrics-animation-settings', 'theme-settings', 'grid3d-card-style',
     'grid-view-card-settings', 'lattice-style-settings', 'grid-action-button', 'grid-view-cards',
     'local-folder-actions', 'local-track-list', 'local-grid-controls', 'online-collection-actions',

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeNebbiaTuning } from '@/components/visualizer/nebbia/tuning';
+import nebbiaTuning, { normalizeNebbiaTuning } from '@/components/visualizer/nebbia/tuning';
 import { DEFAULT_NEBBIA_TUNING } from '@/components/visualizer/nebbia/types';
 
 // test/unit/visualizer/nebbiaTuning.test.ts
 // 雾笺 tuning 的分辨率一项（#929）：旧存档的 resolution 滑块值换成共用的分辨率倍数，新存档的 render 原样读回。
 
-const GLOBAL = { scale: 'global', antialias: 'global' };
+const GLOBAL = { scale: 'global', antialias: 'global' } as const;
 
 describe('nebbia render override', () => {
     it('follows the global level when nothing about resolution is stored', () => {
@@ -47,5 +47,19 @@ describe('nebbia render override', () => {
 
     it('does not keep the old resolution field in what it reads', () => {
         expect(normalizeNebbiaTuning({ resolution: 1.5 })).not.toHaveProperty('resolution');
+    });
+
+    it('migrates an old resolution laid onto a held render by an import or a sync', () => {
+        const held = normalizeNebbiaTuning({});
+        const merge = nebbiaTuning.storage!.merge;
+        // 旧版导出的配置：只有 resolution，没有 render
+        expect(merge(held, { resolution: 2 } as Partial<typeof held>).render).toEqual({ scale: 2, antialias: 'global' });
+        expect(merge(held, { resolution: 1 } as Partial<typeof held>).render).toEqual(GLOBAL);
+        // 新版导出的 render 照旧盖过 held 的
+        expect(merge({ ...held, render: { scale: 0.5, antialias: 'global' } }, { render: GLOBAL }).render).toEqual(GLOBAL);
+        // 带 render 的 patch 不理旁边的旧 resolution
+        expect(merge(held, { render: GLOBAL, resolution: 2 } as Partial<typeof held>).render).toEqual(GLOBAL);
+        // 没提分辨率的 patch 不动 held 的 render
+        expect(merge({ ...held, render: { scale: 1.5, antialias: 'global' } }, { mist: 0.5 } as Partial<typeof held>).render).toEqual({ scale: 1.5, antialias: 'global' });
     });
 });

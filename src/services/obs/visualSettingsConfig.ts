@@ -8,6 +8,7 @@ import { useTypographySettingsStore } from '../../stores/useTypographySettingsSt
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
 import { useLibraryWallLookStore } from '../../stores/useLibraryWallLookStore';
+import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 
 // src/services/obs/visualSettingsConfig.ts
@@ -104,6 +105,9 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     stageTrackPillTimeoutSec: storeStageSettings.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: storeStageSettings.stageTrackPillOnHome,
     stageTrackPillPosition: storeStageSettings.stageTrackPillPosition,
+    // Whether the web link's overlay draws the card at all: without it the three legs above travel
+    // but the overlay has no word on whether the streamer wanted the card in the source.
+    stageTrackPillInObs: storeStageSettings.stageTrackPillInObs,
     // The bravais wall's collection stack edges (a tile look, so it travels with a shared look by the
     // settings rule). The wall's transparency and windows per block deliberately stay out — the user
     // decided so; see useLibraryWallLookStore.
@@ -118,6 +122,9 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     // Which way the info strip opens (a column split, a row split across the wall, or by the screen's
     // shape): part of the wall's look, no user exception.
     libraryWallSeamDirection: useLibraryWallLookStore.getState().seamDirection,
+    // Numbering only the playing song on both tile walls (the queue collage and the bravais wall): a tile
+    // look with no user exception, so it travels too (#930).
+    latticeBadgeCurrentOnly: useLatticeSettingsStore.getState().latticeBadgeCurrentOnly,
     // The frosted bar behind the player page's titlebar: a look of the player page, no user exception.
     // The OBS overlay draws no titlebar and ignores it; it rides along so a copied look keeps it.
     playerHeaderBlur: usePlayerChromeSettingsStore.getState().playerHeaderBlur,

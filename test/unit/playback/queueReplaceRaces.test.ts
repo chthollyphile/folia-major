@@ -132,6 +132,11 @@ vi.mock('@/services/onlinePlayback', () => ({
     loadOnlineSongLyrics: async () => {},
 }));
 vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: async () => null }));
+// The sign-out saves the queue left for the next launch; there is no database here.
+vi.mock('@/components/app/playback/persistPlaybackCache', () => ({
+    persistPlaybackCache: async () => undefined,
+    forgetPlaybackCache: async () => undefined,
+}));
 
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
@@ -141,6 +146,8 @@ const { makeSongCurrent } = await import('@/components/app/playback/currentSong'
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const { notePersonalFmEnded } = await import('@/components/app/playback/personalFmEndings');
 const { dropPlaysOfProvider } = await import('@/components/app/playback/currentSong');
+const { dropProviderSongs, leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
+const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
 const { getPlaybackSongKey } = await import('@/utils/appPlaybackGuards');
 const { resetPlaybackStore } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
@@ -497,6 +504,25 @@ describe('Personal FM ended by a platform switch while a play was on its way', (
     });
 });
 
+describe('a platform switch while a play that turns Personal FM on was on its way', () => {
+    it('that play lands as a plain play: FM stays off, as the switch left it', async () => {
+        playerWith([a, b], a, false);
+        const { queue } = mount();
+        const hook = deferred();
+        env.self.beforePlay = hook.promise;
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        // The switch itself (library/app/createLibraryAccountPort): FM was not on yet, there was nothing to write off.
+        leaveProviderForSwitch('bodian', 'qq');
+        hook.resolve();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().isFmMode).toBe(false);
+    });
+});
+
 describe('a sign-out of another platform while a play was on its way', () => {
     // A song of another platform than the one that plays on.
     const signedOut = { ...online('q1'), sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'q1' } } as SongResult;
@@ -534,6 +560,41 @@ describe('a sign-out of another platform while a play was on its way', () => {
 
         expect(store().currentSong).toMatchObject({ id: 'a' });
         expect(keys(store().playQueue)).toEqual(keys([a, b]));
+    });
+});
+
+describe('a sign-out of the Personal FM platform while a plain play of another platform was on its way', () => {
+    // A song of another platform; the play of it turned FM off for now and would put it back if it fails.
+    const other = { ...online('q1'), sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'q1' } } as SongResult;
+    const host = {
+        automixRef: { current: null }, audioRef: { current: null }, shouldAutoPlay: { current: false },
+        setLyrics: () => {}, setIsLyricsLoading: () => {},
+    } as unknown as Parameters<typeof dropProviderSongs>[0];
+    let activeBefore: ReturnType<typeof useOnlineProviderAccountStore.getState>['activeProviderId'];
+
+    beforeEach(() => {
+        activeBefore = useOnlineProviderAccountStore.getState().activeProviderId;
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+    });
+    afterEach(() => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: activeBefore });
+    });
+
+    it('FM stays off when that play then fails', async () => {
+        playerWith([f1, f2, f3], f1, true);
+        const { queue } = mount();
+        env.self.audioResultFor.set('q1', unavailable('sign-in-needed'));
+        const release = holdAddress(other);
+        const play = queue.playSong(other, [other]);
+        await settle();
+        expect(store().isFmMode).toBe(false);
+
+        dropProviderSongs(host, 'bodian');
+        release();
+        await play;
+
+        expect(store().isFmMode).toBe(false);
+        expect(store().playQueue).toEqual([]);
     });
 });
 

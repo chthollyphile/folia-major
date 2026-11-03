@@ -41,6 +41,7 @@ const O = {
     tintCustomColor: option(VIEW, 'latticePosterTintCustomColor', 'options.latticePosterTintCustomColor'),
     tintColor: option(VIEW, 'latticePosterTintColor', 'options.latticePosterTintColor'),
     tintIntensity: option(VIEW, 'latticePosterTintIntensity', 'options.latticePosterTintIntensity'),
+    badgeCurrentOnly: option(VIEW, 'latticeBadgeCurrentOnly', 'options.latticeBadgeCurrentOnly'),
     autoHide: option(BAR, 'autoHidePlayerChrome', 'options.autoHidePlayerChrome'),
     autoHideCursor: option(BAR, 'autoHideCursorWithPlayerChrome', 'options.autoHideCursorWithPlayerChrome'),
     idleCursorHide: option(BAR, 'hideCursorWhenIdle', 'options.hideCursorWhenIdle'),
@@ -51,6 +52,7 @@ const O = {
     cardTimeout: option(CARD, 'stageTrackPillTimeout', 'options.stageTrackPillTimeout'),
     cardPosition: option(CARD, 'stageTrackPillReposition', 'options.stageTrackPillReposition'),
     cardOnHome: option(CARD, 'stageTrackPillOnHome', 'options.stageTrackPillOnHome', { available: () => !isWallLibrarySuite(getActiveLibrarySuiteId()) }),
+    cardInObs: option(CARD, 'stageTrackPillInObs', 'options.stageTrackPillInObs'),
     cardCloseButton: option(CARD, 'showOpenPanelCloseButton', 'options.showOpenPanelCloseButton'),
     videoEnabled: option(VIDEO, 'videoLayerEnabled', 'options.videoLayerEnabled'),
     videoFile: option(VIDEO, 'videoLayerLocalFile', 'options.videoLayerLocalFile'),
@@ -83,11 +85,13 @@ const PlayerPage: React.FC = () => {
         tintUseCustomColor: state.latticePosterTintUseCustomColor,
         tintColor: state.latticePosterTintColor,
         tintIntensity: state.latticePosterTintIntensity,
+        badgeCurrentOnly: state.latticeBadgeCurrentOnly,
         setVignette: state.handleToggleLatticeVignette,
         setTintEnabled: state.handleToggleLatticePosterTint,
         setTintUseCustomColor: state.handleToggleLatticePosterTintCustomColor,
         setTintColor: state.handleSetLatticePosterTintColor,
         setTintIntensity: state.handleSetLatticePosterTintIntensity,
+        setBadgeCurrentOnly: state.handleToggleLatticeBadgeCurrentOnly,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         autoHide: state.autoHidePlayerChrome,
@@ -118,9 +122,11 @@ const PlayerPage: React.FC = () => {
         mode: state.stageTrackPillMode,
         timeoutSec: state.stageTrackPillTimeoutSec,
         onHome: state.stageTrackPillOnHome,
+        inObs: state.stageTrackPillInObs,
         setMode: state.handleSetStageTrackPillMode,
         setTimeoutSec: state.handleSetStageTrackPillTimeoutSec,
         setOnHome: state.handleToggleStageTrackPillOnHome,
+        setInObs: state.handleToggleStageTrackPillInObs,
     })));
     const video = useVideoLayerSettingsStore(useShallow(state => ({
         enabled: state.videoLayerEnabled,
@@ -226,6 +232,9 @@ const PlayerPage: React.FC = () => {
                         <Slider value={lattice.tintIntensity} min={0} max={1} step={0.01} onChange={lattice.setTintIntensity} format={percent} />
                     </Row>
                 </Reveal>
+                <Row option={O.badgeCurrentOnly} note={t('options.latticeBadgeCurrentOnlyDesc')}>
+                    <Toggle checked={lattice.badgeCurrentOnly} onChange={lattice.setBadgeCurrentOnly} />
+                </Row>
             </Group>
 
             <Group def={BAR}>
@@ -307,6 +316,11 @@ const PlayerPage: React.FC = () => {
                         </Row>
                     </Reveal>
                 )}
+                <Reveal when={card.mode !== 'never'}>
+                    <Row option={O.cardInObs} note={t('options.stageTrackPillInObsDesc')}>
+                        <Toggle checked={card.inObs} onChange={card.setInObs} />
+                    </Row>
+                </Reveal>
                 <Row option={O.cardCloseButton} hint={t('options.showOpenPanelCloseButtonDesc')}>
                     <Toggle checked={chrome.cardCloseButton} onChange={chrome.setCardCloseButton} />
                 </Row>

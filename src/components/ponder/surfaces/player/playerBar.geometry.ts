@@ -19,3 +19,16 @@ export const PLAYER_BAR_GEOMETRY = {
     primarySlot: { left: 0.856, top: 0.30, width: 0.046, square: true },
     secondarySlot: { left: 0.914, top: 0.30, width: 0.046, square: true },
 } satisfies Record<string, PonderRelativeRect>;
+
+/**
+ * 胶囊上方那一排快捷操作，坐标系是这一排自己。
+ *
+ * 六个操作等分在左边，最右那颗是打开命令窗口，前面隔一条细线 —— 和真实那排的顺序一样。
+ * 教程要让光标点的正是这一颗，所以它单独记一条。
+ */
+export const CAPSULE_QUICK_ACTIONS_GEOMETRY = {
+    actions: { left: 0.04, top: 0.14, width: 0.76, height: 0.72 },
+    /** 打开命令窗口那颗前面的细分隔线。 */
+    divider: { left: 0.825, top: 0.25, width: 0.004, height: 0.5 },
+    paletteButton: { left: 0.855, top: 0.14, width: 0.105, height: 0.72 },
+} satisfies Record<string, PonderRelativeRect>;

@@ -4,7 +4,7 @@ import { useHifiSettingsStore } from '../../../stores/useHifiSettingsStore';
 
 // src/components/command-palette/surfaces/volumeSurface.ts
 // Declares the volume command's inline slider: a numeric input plus a panel body that previews
-// while dragging and commits on release.
+// while dragging and commits on release; its icon toggles mute.
 
 /**
  * On HiFi without software volume mpv plays at 100% and the DAC or amplifier sets the loudness, so the
@@ -48,5 +48,7 @@ export const volumeSurface: CommandPaletteSurface = {
         onVolumePreview: (volume: number) => {
             if (!isHifiVolumeFixed(context)) context.playback.previewVolume(volume);
         },
+        // Mute reaches mpv on its own, so the icon toggles it on fixed-volume HiFi too.
+        onToggleMute: () => context.playback.toggleMute(),
     }),
 };

@@ -8,7 +8,7 @@ import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAcc
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 import { clearPrefetchRuntime, refreshPrefetchAfterQueueEdit } from '../../services/prefetchService';
 import { getOnlineProviderIdForSong } from '../../utils/appPlaybackGuards';
-import { dropPlaysOfProvider, makeSongCurrent } from '../../components/app/playback/currentSong';
+import { dropPlaysOfProvider, replaceShownSong } from '../../components/app/playback/currentSong';
 import { notePersonalFmEnded } from '../../components/app/playback/personalFmEndings';
 import { forgetPlaybackCache, persistPlaybackCache } from '../../components/app/playback/persistPlaybackCache';
 import { leaveHifiRoute } from '../../services/hifi/hifiPlayback';
@@ -47,17 +47,16 @@ export const playerHoldsSongsOf = (providerId: OnlineProviderId): boolean => {
 export const leaveProviderForSwitch = (previousProviderId: OnlineProviderId, nextProviderId: OnlineProviderId): void => {
     const playback = usePlaybackStore.getState();
     const endedFm = playback.isFmMode;
-    if (endedFm) {
-        // Counted, so that a play started before the switch does not turn FM back on (personalFmEndings.ts).
-        notePersonalFmEnded();
-        playback.setIsFmMode(false);
-    }
+    // Counted whether FM is on or not: a play started before the switch (the old platform's radio, FM not written
+    // yet) must not turn FM on under the new platform (personalFmEndings.ts). The count only grows, so one more costs nothing.
+    notePersonalFmEnded();
+    if (endedFm) playback.setIsFmMode(false);
     useCollectionNavigationStore.getState().clear();
     console.info(`[ProviderChange] ${previousProviderId} -> ${nextProviderId}: the queue stays${endedFm ? ', Personal FM ended' : ''}`);
 };
 
-/** 停掉正在放的那首：声音、歌、歌词、封面都清掉，播放器回到空闲。队列不在这里动。 */
-const stopCurrentSong = (host: LibraryAccountSwitchHost): void => {
+/** 停掉正在放的那首（shown）：声音、歌、歌词、封面都清掉，播放器回到空闲。队列不在这里动。 */
+const stopCurrentSong = (host: LibraryAccountSwitchHost, shown: SongResult): void => {
     const playback = usePlaybackStore.getState();
     // Stops any deck still fading out in the background: this path clears the active deck
     // only, and a tail left running would have no control pointing at it any more.
@@ -71,7 +70,9 @@ const stopCurrentSong = (host: LibraryAccountSwitchHost): void => {
     leaveHifiRoute('provider sign-out');
     if (playback.audioSrc?.startsWith('blob:')) URL.revokeObjectURL(playback.audioSrc);
     playback.setAudioSrc(null);
-    makeSongCurrent(null);
+    // Only the song shown goes: a play of another platform that asked for its song and is still waiting keeps
+    // its ask and lands after this (its own platform's plays were dropped by dropPlaysOfProvider).
+    replaceShownSong(shown, null);
     host.setLyrics(null);
     playback.setCachedCoverUrl(null);
     // A load that this cuts short never clears these two itself.
@@ -88,17 +89,21 @@ const stopCurrentSong = (host: LibraryAccountSwitchHost): void => {
 export const dropProviderSongs = (host: LibraryAccountSwitchHost, providerId: OnlineProviderId): void => {
     const playback = usePlaybackStore.getState();
     const ofProvider = belongsTo(providerId);
-    const stopsCurrent = ofProvider(playback.currentSong);
+    // The song that plays on when it is this platform's, for stopCurrentSong.
+    const stopped = ofProvider(playback.currentSong) ? playback.currentSong : null;
+    const stopsCurrent = stopped !== null;
     const previousQueue = playback.playQueue;
     const remaining = previousQueue.filter(song => !ofProvider(song));
     const removed = previousQueue.length - remaining.length;
     // A play of this platform still on its way would show its song and write its queue back.
     dropPlaysOfProvider(providerId);
-    if (stopsCurrent) stopCurrentSong(host);
+    if (stopped) stopCurrentSong(host, stopped);
     if (removed > 0) playback.setPlayQueue(remaining);
-    if (playback.isFmMode && providerId === useOnlineProviderAccountStore.getState().activeProviderId) {
+    // Counted also when FM shows off: a play of another platform on its way may have turned it off for now,
+    // and would put it back on when it fails, asking the signed-out platform for its radio.
+    if (providerId === useOnlineProviderAccountStore.getState().activeProviderId) {
         notePersonalFmEnded();
-        playback.setIsFmMode(false);
+        if (playback.isFmMode) playback.setIsFmMode(false);
     }
     if (stopsCurrent || removed > 0) {
         const current = usePlaybackStore.getState().currentSong;

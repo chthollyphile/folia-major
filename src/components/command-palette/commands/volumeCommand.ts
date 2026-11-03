@@ -24,6 +24,8 @@ export const volumeCommand: CommandPaletteCommand = defineCommand({
     description: 'Adjust playback volume',
     keywords: ['volume slider', '音量', '音量条'],
     icon: Volume2,
+    // A phone has volume keys of its own, so the row a finger opens leaves this out.
+    capsuleAction: 'mouse-only',
     surface: volumeSurface,
     placeholder: context => context.shared.t('commandPalette.volumeInputPlaceholder', 'Enter a volume from 0 to 100'),
     requiresInput: true,

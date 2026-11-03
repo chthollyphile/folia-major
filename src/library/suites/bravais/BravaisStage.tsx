@@ -148,6 +148,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const tintCustom = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const tintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+    const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
     const stackEdges = useLibraryWallLookStore(state => state.collectionStackEdges);
     const seamDirection = useLibraryWallLookStore(state => state.seamDirection);
     const portrait = useMediaQuery(LIBRARY_WALL_PORTRAIT_QUERY);
@@ -525,6 +526,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         lightsOn ? '' : 'is-lights-out',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
+        // 「只显示正在播放的序号」（#930）：歌曲序号（.is-index）只留正在播放那张，wall.css。
+        badgeCurrentOnly ? 'has-badge-current-only' : '',
         stackEdges ? 'has-stack-edges' : '',
         layer?.wall?.loading ? 'is-loading' : '',
         seeThrough ? 'is-see-through' : '',

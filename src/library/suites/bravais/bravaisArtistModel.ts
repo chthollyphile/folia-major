@@ -49,6 +49,7 @@ export const projectArtistItems = ({
             subtitle: description.artists.join(', ') || description.album || unknownArtist,
             coverUrl: description.coverUrl,
             badge: formatEntryBadge(index, topSongs.length),
+            badgeIsIndex: true,
             playbackKey: description.playbackKey,
             album: description.album || undefined,
             artists: description.artists,

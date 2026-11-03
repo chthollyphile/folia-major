@@ -11,10 +11,16 @@ import { LOGIN_CASE_TEXTS } from './loginCaseTexts';
 // 等待再试等到什么时候在账户 controller 的快照和 library/core/account/accountRules 里。
 // 一行的状态和那一列的顺序在 ../platformRows.ts：主页的按钮和切换器也用它们。
 
-/** 搜索框里的字筛出的行：名字或短名里有它，不分大小写。 */
-export const filterRows = (rows: readonly ProviderAccountSummary[], query: string): ProviderAccountSummary[] => {
+/** 搜索框里的字筛出的行：名字、短名或界面上显示的名字（可能是翻译过的）里有它，不分大小写。 */
+export const filterRows = (
+    rows: readonly ProviderAccountSummary[],
+    query: string,
+    shownName?: (row: ProviderAccountSummary) => string,
+): ProviderAccountSummary[] => {
     const wanted = query.trim().toLowerCase();
-    return wanted ? rows.filter(row => `${row.shortName}\n${row.displayName}`.toLowerCase().includes(wanted)) : [...rows];
+    return wanted
+        ? rows.filter(row => `${row.shortName}\n${row.displayName}\n${shownName?.(row) ?? ''}`.toLowerCase().includes(wanted))
+        : [...rows];
 };
 
 /**

@@ -116,6 +116,13 @@ const countWrite = (key: string, now: number) => {
     countedWrites.set(key, [...(countedWrites.get(key) ?? []), now]);
 };
 
+/* Takes back the write `countWrite` counted at `now`, when it turned out to change nothing. */
+const uncountWrite = (key: string, now: number) => {
+    const counted = countedWrites.get(key) ?? [];
+    const at = counted.lastIndexOf(now);
+    if (at !== -1) counted.splice(at, 1);
+};
+
 /** Forgets every mod's counted writes; for tests (call it in afterEach). */
 export const resetFoliumVisualizerWriteLimitsForTest = () => {
     countedWrites.clear();
@@ -264,7 +271,7 @@ export const createFoliumVisualizerService = (
 
     /*
      * The end every write shares, once its arguments are checked: a stopped mod, a write that changes nothing
-     * (accepted, uncounted), the allowance of its kind; then the write, counted when it changed something.
+     * (accepted, uncounted), the allowance of its kind; then the write, counted unless it changed nothing.
      */
     const write = <Ok>(
         kind: WriteKind,
@@ -278,7 +285,10 @@ export const createFoliumVisualizerService = (
         const now = Date.now();
         const key = `${mod.id}\n${kind}`;
         if (!withinAllowance(key, now)) return Object.freeze({ ok: false as const, reason: 'rate-limited' as const });
-        if (apply()) countWrite(key, now);
+        // Counted before it lands: the host tells the mods of a change synchronously, so a write a mod makes
+        // from that callback must find this one counted already, or it slips past the allowance (#1000).
+        countWrite(key, now);
+        if (!apply()) uncountWrite(key, now);
         return done();
     };
 

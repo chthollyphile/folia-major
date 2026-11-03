@@ -58,6 +58,9 @@ import { useVisualizerTunings } from '../components/visualizer/useVisualizerTuni
 import { useVisualizerBackgroundConfig } from '../components/visualizer/useVisualizerBackgroundConfig';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { getObservedMedia } from '../services/hifi/hifiMediaShim';
+import { useStageSettingsStore } from '../stores/useStageSettingsStore';
+import { resolveObsNowPlayingCard } from '../utils/obsNowPlayingCard';
+import { useTranslation } from 'react-i18next';
 
 // src/hooks/useObsBrowserSourcePublisher.ts
 // Publishes the single playback surface to the local OBS browser source.
@@ -166,6 +169,18 @@ export const useObsBrowserSourcePublisher = ({
     const cappellaCustomEmojiImages = useVisualizerAssetStore(state => state.cappellaCustomEmojiImages);
     const cappellaCustomAvatarImages = useVisualizerAssetStore(state => state.cappellaCustomAvatarImages);
     const monetPortraitImage = useVisualizerAssetStore(state => state.monetPortraitImage);
+    const { i18n } = useTranslation();
+    const language = i18n.resolvedLanguage ?? i18n.language;
+    const stageTrackPillInObs = useStageSettingsStore(state => state.stageTrackPillInObs);
+    const stageTrackPillMode = useStageSettingsStore(state => state.stageTrackPillMode);
+    const stageTrackPillTimeoutSec = useStageSettingsStore(state => state.stageTrackPillTimeoutSec);
+    const stageTrackPillPosition = useStageSettingsStore(state => state.stageTrackPillPosition);
+    const nowPlayingCard = useMemo(() => resolveObsNowPlayingCard({
+        inObs: stageTrackPillInObs,
+        mode: stageTrackPillMode,
+        timeoutSec: stageTrackPillTimeoutSec,
+        position: stageTrackPillPosition,
+    }), [stageTrackPillInObs, stageTrackPillMode, stageTrackPillTimeoutSec, stageTrackPillPosition]);
 
     // The pool rides in the tuning bundle that is already published; only the files are missing
     // on the overlay side, and those are resolved below.
@@ -298,10 +313,14 @@ export const useObsBrowserSourcePublisher = ({
             cappellaCustomAvatarImages: obsCustomImages.cappellaAvatar,
             monetPortraitImage: obsCustomImages.monetPortrait,
             temperaLayerImageAssets: obsCustomImages.temperaLayer,
+            nowPlayingCard,
+            language,
             updatedAt: Date.now(),
         };
     }, [
         activePlaybackContext,
+        nowPlayingCard,
+        language,
         background,
         currentSong,
         hideTranslationSubtitle,

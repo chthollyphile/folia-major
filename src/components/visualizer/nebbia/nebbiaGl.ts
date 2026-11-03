@@ -7,13 +7,14 @@ import { makeTex, type NebbiaUniforms, type Tex } from './nebbiaGlUtils';
 import { NebbiaMaskGl } from './nebbiaMaskGl';
 import { canRenderFogToFloat, NebbiaProgramBuild } from './nebbiaPrograms';
 import type { NebbiaSegments } from './nebbiaSegments';
+import { NebbiaSnowGl } from './nebbiaSnowGl';
 import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaGl.ts
 // 雾笺的 WebGL2 部分：雾的预渲染和主画面两个全屏着色器，四张玻璃上的纹理（擦痕遮罩（nebbiaMaskGl.ts 每帧画）、擦痕边 / 雨点的水珠、雾上的凝结水珠、哈气的白气），
 // 两张雾的预渲染（nebbiaFogGl.ts，RGBA16F，1/4、1/8 画布分辨率；不支持浮点渲染目标时主画面自己算；凝露玻璃再加一张清晰的给细水珠折射，采样单元 1），
 // 窗外楼群的缓存（nebbiaBuildingCache.ts，采样单元 9–14，雾的预渲染和主画面从它取楼群），
-// 静态噪声纹理（nebbiaNoiseTex.ts，采样单元 15）。
+// 静态噪声纹理（nebbiaNoiseTex.ts，采样单元 15）；雪窗的雪花在主画面之后叠上去（nebbiaSnowGl.ts，图集在采样单元 1，凝露才用的那个）。
 // 透明（seeThrough）时画布带透明通道，窗外不画：楼群缓存和雾的预渲染都跳过，主画面输出预乘的透明度。
 // 窗外是水族箱（scene）时程序按水族箱编，没有楼群缓存，每帧多传水母和气泡的 uniform。
 // 着色器在后台编（nebbiaPrograms.ts）：`ready` 为真之前不画。
@@ -55,8 +56,11 @@ export class NebbiaGl {
     private readonly fogGl: NebbiaFogGl;
     private readonly fogOK: boolean;
     private readonly noise: NebbiaNoiseTex;
+    private readonly snow: NebbiaSnowGl | null;
     private W = 1; private H = 1;
     private spriteReady = false;
+    /** 白气纹理里是哪一版画布、多大（版本没变不重传）。 */
+    private breathVersion = -1; private breathW = 0; private breathH = 0;
     /** 雾上水珠纹理是不是还是对的：换尺寸后、精灵贴图加载好之前画的都不算，下一帧照画。 */
     private fieldValid = false;
     private instData = new Float32Array(0);
@@ -88,6 +92,7 @@ export class NebbiaGl {
         this.breath = makeTex(gl, 8);
         this.bld = scene === 'night' ? new NebbiaBuildingCache(gl, 9) : null;
         this.noise = new NebbiaNoiseTex(gl, 15);
+        this.snow = glass === 'snow' ? new NebbiaSnowGl(gl, 1) : null;
 
         this.spriteVao = gl.createVertexArray()!;
         gl.bindVertexArray(this.spriteVao);
@@ -112,7 +117,7 @@ export class NebbiaGl {
         if (this.linked) return true;
         if (!this.build.poll()) return false;
         const { gl } = this;
-        const { main, fog, sprite, mask, bldFill } = this.build.programs;
+        const { main, fog, sprite, mask, bldFill, flake } = this.build.programs;
         this.mask.attach(mask);
         this.U = locate(gl, main, MAIN_UNIFORMS);
         gl.useProgram(main);
@@ -129,6 +134,7 @@ export class NebbiaGl {
             this.bld?.bindSamplers(fog);
         }
         if (bldFill) this.B = locate(gl, bldFill, [...PALETTE_UNIFORMS, ...BLD_FILL_UNIFORMS]);
+        if (flake) this.snow?.attach(flake, fogGlow.tex.unit, fogBlur.tex.unit, this.fogOK && !this.seeThrough);
         gl.useProgram(sprite);
         this.uView = gl.getUniformLocation(sprite, 'uView');
         gl.uniform1i(gl.getUniformLocation(sprite, 'uSprite'), this.sprite.unit);
@@ -250,17 +256,21 @@ export class NebbiaGl {
     }
 
     /**
-     * 画一帧（`ready` 为真之后才调）：擦痕遮罩，白气遮罩上传（只在这一帧有哈气时传，`breath` 为 null 就不传），
+     * 画一帧（`ready` 为真之后才调）：擦痕遮罩，白气遮罩上传（这一帧有哈气、且画布重画过才传，`breath` 为 null 就不传），
      * 两张水珠纹理，补画楼群缓存，静态噪声纹理（改尺寸后算一次），雾的预渲染，主画面。
      */
-    render(mask: NebbiaSegments, breath: HTMLCanvasElement | null, drops: number[], field: number[] | Float32Array, u: NebbiaUniforms, fieldChanged = true) {
+    render(mask: NebbiaSegments, breath: { canvas: HTMLCanvasElement; version: number } | null, drops: number[], field: number[] | Float32Array, u: NebbiaUniforms, fieldChanged = true) {
         const { gl, U } = this;
         const { main, fog, bldFill, noise } = this.build.programs;
         this.mask.draw(mask);
-        if (breath) {
+        // 白气画布重画过才重传；尺寸没变时只覆盖内容，不重新分配纹理
+        if (breath && breath.version !== this.breathVersion) {
+            const { canvas: c } = breath;
             gl.activeTexture(gl.TEXTURE0 + this.breath.unit);
             gl.bindTexture(gl.TEXTURE_2D, this.breath.t);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, breath);
+            if (c.width === this.breathW && c.height === this.breathH) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, c);
+            else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+            this.breathVersion = breath.version; this.breathW = c.width; this.breathH = c.height;
         }
         this.renderDrops(this.drop, drops);
         // 雾上水珠没变（凝露的冷凝水珠隔一阵才更新）时纹理留着上次的
@@ -290,6 +300,14 @@ export class NebbiaGl {
         gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
+    }
+
+    /** 雪花图集（雪窗才有）。 */
+    setFlakeAtlas(canvas: HTMLCanvasElement, rows: number) { this.snow?.setAtlas(canvas, rows); }
+
+    /** render 之后叠上雪花：count 片，shift 是这一帧的玻璃颠簸（uniform 里的 glassShift）。 */
+    drawFlakes(data: Float32Array, count: number, shift: [number, number]) {
+        this.snow?.draw(data, count, this.W, this.H, [-shift[0] * this.W, -shift[1] * this.H]);
     }
 
     destroy() {

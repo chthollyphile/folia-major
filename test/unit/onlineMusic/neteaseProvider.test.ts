@@ -25,6 +25,7 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         getPersonalizedPlaylists: vi.fn(),
         getLikedSongs: vi.fn(),
         getUserPlaylists: vi.fn(),
+        getUserRecord: vi.fn(),
         checkQr: vi.fn(),
         getQrKey: vi.fn(),
         createQr: vi.fn(),
@@ -32,6 +33,9 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         getLoginStatus: vi.fn(),
         getUserAccount: vi.fn(),
         updatePlaylistTracks: vi.fn(),
+        getDailyStyleConfigs: vi.fn(),
+        getDailyStyleSongs: vi.fn(),
+        setDailyStyle: vi.fn(),
     },
 }));
 
@@ -694,5 +698,102 @@ describe('neteaseProvider listening reports', () => {
         vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
         await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
             .rejects.toMatchObject({ code: 'auth-required' });
+    });
+
+    it('reads the daily style groups and the pick the style songs were made for (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.getDailyStyleConfigs).mockResolvedValue({
+            code: 200,
+            data: {
+                categorys: [
+                    { categoryId: 1000, categoryName: '曲风', tagVOList: [{ categoryId: 1000, tagId: 10004, tagName: '电音' }, { tagName: 'no id' }] },
+                    { categoryId: 3000, categoryName: '情绪', tagVOList: [] },
+                ],
+            },
+        } as any);
+        await expect(recommendations.getDailyStyleGroups!()).resolves.toEqual([
+            { id: '1000', name: '曲风', tags: [{ id: '10004', name: '电音' }] },
+        ]);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({
+            code: 200,
+            data: { tags: { categoryId: 1000, categoryName: '曲风', tagVOList: [{ tagId: 10004, tagName: '电音' }, { tagId: 10015, tagName: '二次元' }] } },
+            songs: [song],
+        } as any);
+        const answer = await recommendations.getDailyStyleSongs!();
+        expect(answer.selection).toEqual({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(answer.songs).toHaveLength(1);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({ code: 200, data: { tags: null }, songs: [] } as any);
+        await expect(recommendations.getDailyStyleSongs!()).resolves.toEqual({ songs: [], selection: null });
+    });
+
+    it('saves a daily style pick as numbers and throws when NetEase refuses it (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: true } } as any);
+        await recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(neteaseApi.setDailyStyle).toHaveBeenCalledWith(1000, [10004, 10015]);
+
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: false } } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toBeInstanceOf(OnlineProviderError);
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 301 } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toMatchObject({ code: 'auth-required' });
+    });
+});
+
+describe('neteaseProvider listening ranking', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    const listener = { id: 7, nickname: 'Listener', avatarUrl: 'https://img.test/avatar.jpg' };
+    // `/user/record`'s rows, as the upstream module names them: { playCount, score, song }.
+    const row = (id: number, playCount: unknown, cover?: string) => ({
+        playCount, score: 100,
+        song: { id, name: `Song ${id}`, ar: [], album: { id: 1, name: 'Album', ...(cover ? { coverUrl: cover } : {}) }, dt: 1000 },
+    });
+
+    it('asks type 1 for the last week and 0 for all time, and makes an entry a span that has songs', async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockImplementation(async (_uid: number, type: 0 | 1) => (type === 1
+            ? { code: 200, weekData: [row(1, 12, 'https://img.test/1.jpg'), row(2, 3)] }
+            : { code: 200, allData: [] }) as any);
+
+        const entries = await neteaseProvider.library!.getListeningRankCollections!(listener);
+
+        expect(vi.mocked(neteaseApi.getUserRecord).mock.calls).toEqual([[7, 1], [7, 0]]);
+        expect(entries).toEqual([expect.objectContaining({
+            providerId: 'netease', id: 'listening-rank-week-7', type: 'listening_rank', listeningRank: 'week',
+            trackCount: 2, coverUrl: 'https://img.test/1.jpg', isOwned: false, creator: listener,
+        })]);
+    });
+
+    it('fails where NetEase refuses, -2 (无权限访问, as an anonymous request is answered) too, rather than reading no songs', async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: -2, msg: '无权限访问' } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'unavailable', cause: { code: -2 } });
+        await expect(neteaseProvider.catalog!.getListeningRankTracks!('week', 10, 0, {
+            providerId: 'netease', id: 'listening-rank-week-7', type: 'listening_rank', name: 'Week', listeningRank: 'week', creator: listener,
+        })).rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'auth-required' });
+
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 200 } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+
+    it("reads the entry's user's songs in NetEase's order, each with its play count, a page a slice", async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 200, allData: [row(5, 40), row(6, '9'), row(7, null)] } as any);
+        const entry = { providerId: 'netease', id: 'listening-rank-all-7', type: 'listening_rank', name: 'All', listeningRank: 'all' as const, creator: listener };
+
+        const first = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 0, entry);
+        expect(neteaseApi.getUserRecord).toHaveBeenCalledWith(7, 0);
+        expect(first.items.map(item => [item.id, item.listenCount])).toEqual([[5, 40], [6, 9]]);
+        expect(first).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
+
+        const rest = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 2, entry);
+        expect(rest.items.map(item => item.id)).toEqual([7]);
+        expect(rest.items[0]).not.toHaveProperty('listenCount');
+        expect(rest).toMatchObject({ hasMore: false, nextOffset: 3 });
+
+        await expect(neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 0, { ...entry, creator: undefined }))
+            .rejects.toMatchObject({ code: 'invalid-response' });
     });
 });
