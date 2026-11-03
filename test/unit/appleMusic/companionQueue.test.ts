@@ -101,7 +101,9 @@ describe('Apple Music prepared queue', () => {
         await call('prepareNext', { catalogId: '123', nextIds: ['456'] });
         mk.changeToMediaAtIndex.mockRejectedValueOnce(new Error('switch rejected'));
         mk.play.mockRejectedValueOnce(new Error('play rejected'));
-        await expect(call('playSong', { catalogId: '456' })).resolves.toMatchObject({ ok: false, error: 'playback-failed', playbackStage: 'play' });
+        await expect(call('playSong', { catalogId: '456' })).resolves.toMatchObject({ ok: true });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        await expect(call('playbackStatus', {})).resolves.toMatchObject({ ok: false, error: 'playback-failed' });
         expect(mk.setQueue).toHaveBeenCalledOnce();
         expect(mk.play).toHaveBeenCalledOnce();
     });

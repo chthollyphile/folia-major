@@ -25,7 +25,7 @@ describe('Apple Music playlist counts', () => {
             : params.playlistId === 'p.c' ? { ok: false, error: 'request-failed' }
                 : { ok: true, data: { total: params.playlistId === 'p.a' ? 63 : 0 } });
         vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
-        const result = await getAppleMusicPlaylists(100, 0);
+        const result = await getAppleMusicPlaylists(100, 0, true);
         expect(result.items.map(item => item.trackCount)).toEqual([63, 0, undefined]);
         expect(result.hasMore).toBe(false);
         vi.restoreAllMocks();
@@ -42,7 +42,7 @@ describe('Apple Music playlist counts', () => {
             return { ok: true, data: { total: 12 } };
         });
         vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
-        const result = await getAppleMusicPlaylists(100, 0);
+        const result = await getAppleMusicPlaylists(100, 0, true);
         expect(maximum).toBe(2);
         expect(result.items.map(item => item.trackCount)).toEqual([12, 12, 12, 12, 12]);
     });

@@ -115,7 +115,7 @@ export async function getAppleMusicPersonalFm(): Promise<UnifiedSong[]> {
     return pageOf(data, 0, normalizeAppleMusicSong, isSongResource).items.filter(isAppleMusicSongPlayable);
 }
 
-export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = true): Promise<ProviderPage<ProviderCollection>> {
+export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = false): Promise<ProviderPage<ProviderCollection>> {
     const page = pageInputs(limit, offset);
     const result = await readPage('playlists', {}, page.limit, page.offset, normalizeAppleMusicPlaylist, isPlaylistResource);
     if (!includeCounts) return result;

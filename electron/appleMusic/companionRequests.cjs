@@ -90,6 +90,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         if (request.operation === 'likeSong') return await updateFavorite(call, request.params);
         if (request.operation === 'prepareNext') return await controlQueue(mk, request.operation, request.params);
         if (request.operation === 'playbackStatus') {
+            if (window.__foliaStart?.failed) return { ok: false, error: 'playback-failed', playbackStage: 'play' };
             const item = mk.nowPlayingItem;
             const params = item?.attributes?.playParams || {};
             const liveStation = typeof window.__foliaLiveStation === 'string' ? window.__foliaLiveStation : '';
@@ -115,6 +116,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             } };
         }
         if (request.operation === 'playStation') {
+            window.__foliaStart = null;
             if (typeof mk.setQueue !== 'function' || typeof mk.play !== 'function') return { ok: false, error: 'unsupported' };
             try {
                 // Programme metadata changes do not replace the queue; an explicit page queue selection does.
@@ -137,6 +139,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         const methods = { pause: 'pause', resume: 'play', seek: 'seekToTime' };
         if (request.operation === 'playSong') {
             if (typeof mk.setQueue !== 'function' || typeof mk.play !== 'function') return { ok: false, error: 'unsupported' };
+            window.__foliaStart = null;
             let playbackStage = 'prepared-queue';
             try {
                 const reused = await controlQueue(mk, request.operation, request.params);
@@ -152,13 +155,17 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 await mk.setQueue({ song: request.params.catalogId, startPlaying: false, startTime: request.params.startSec });
                 playbackStage = 'play';
                 console.info('[AppleMusic] Playback stage: play');
-                await mk.play();
-                if (request.params.startSec > 0
-                    && typeof mk.seekToTime === 'function'
-                    && !(Number(mk.currentPlaybackTime) >= request.params.startSec - 1)) {
-                    playbackStage = 'seek';
-                    await mk.seekToTime(request.params.startSec);
-                }
+                const attempt = { failed: false, cancelled: false, sought: false };
+                window.__foliaStart = attempt;
+                // Buffering may take longer than the IPC budget. Observe completion without holding the control queue.
+                Promise.resolve(mk.play()).then(async () => {
+                    if (window.__foliaStart !== attempt) return;
+                    if (attempt.cancelled) { await mk.pause(); return; }
+                    if (!attempt.sought && request.params.startSec > 0 && typeof mk.seekToTime === 'function'
+                        && !(Number(mk.currentPlaybackTime) >= request.params.startSec - 1)) await mk.seekToTime(request.params.startSec);
+                }).catch(() => {
+                    if (window.__foliaStart === attempt && !attempt.cancelled) attempt.failed = true;
+                });
             } catch {
                 console.warn('[AppleMusic] Playback command rejected', { operation: request.operation });
                 return { ok: false, error: 'playback-failed', playbackStage };
@@ -175,6 +182,10 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         if (Object.prototype.hasOwnProperty.call(methods, request.operation)) {
             const method = mk[methods[request.operation]];
             if (typeof method !== 'function') return { ok: false, error: 'unsupported' };
+            if (request.operation === 'seek' && window.__foliaStart) window.__foliaStart.sought = true;
+            if (request.operation === 'pause' && window.__foliaStart) window.__foliaStart.cancelled = true;
+            // A resumed play owns its own result; discard callbacks from the interrupted start.
+            if (request.operation === 'resume') window.__foliaStart = null;
             try {
                 await method.call(mk, ...(request.operation === 'seek' ? [request.params.seconds] : []));
             } catch {
@@ -183,7 +194,12 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             }
             return { ok: true, data: {} };
         }
-        const account = await call('v1/me/storefront');
+        let account = window.__foliaStorefront;
+        if (!account || request.operation === 'accountStatus') {
+            account = await call('v1/me/storefront');
+            const id = account?.data?.data?.[0]?.id;
+            window.__foliaStorefront = typeof id === 'string' && /^[a-z]{2}$/.test(id) ? account : null;
+        }
         const store = account?.data?.data?.[0]?.id;
         if (typeof store !== 'string' || !/^[a-z]{2}$/.test(store)) {
             const status = Number(account?.status);

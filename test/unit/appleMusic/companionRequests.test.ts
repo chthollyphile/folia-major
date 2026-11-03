@@ -148,6 +148,7 @@ describe('Apple Music companion requests', () => {
         const request = validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: 30 } });
         expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } }))
             .toMatchObject({ ok: true });
+        await new Promise(resolve => setTimeout(resolve, 0));
         expect(calls).toEqual(['shuffle', 'repeat', 'queue', 'play', 'seek']);
         expect(mk.setQueue).toHaveBeenCalledWith({ song: '123', startPlaying: false, startTime: 30 });
         expect(mk.seekToTime).toHaveBeenCalledWith(30);
