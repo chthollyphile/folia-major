@@ -353,6 +353,44 @@ describe('gridViewCollectionAdapters', () => {
         });
     });
 
+    it('orders a multi-disc album entity by disc then track instead of file name', () => {
+        const songs: LocalSong[] = [
+            { ...buildLocalSong('d3-01', 'Intro -HAJIMALI-'), fileName: '01 Intro -HAJIMALI-.flac', discNumber: 3, trackNumber: 1 },
+            { ...buildLocalSong('d1-01', 'Intro Are You Ready'), fileName: '01 Intro Are You Ready.flac', discNumber: 1, trackNumber: 1 },
+            { ...buildLocalSong('d2-01', 'Intro Blue Sky'), fileName: '01 Intro Blue Sky.flac', discNumber: 2, trackNumber: 1 },
+            { ...buildLocalSong('d1-02', 'SEVENTH HAVEN'), fileName: '02 SEVENTH HAVEN.flac', discNumber: 1, trackNumber: 2 },
+            { ...buildLocalSong('d2-02', 'Bokura'), fileName: '02 Bokura.flac', discNumber: 2, trackNumber: 2 },
+        ];
+        const entities: LocalLibraryEntity[] = [{
+            id: 'album-1',
+            kind: 'album',
+            displayName: 'Album',
+            aliases: ['Album'],
+            normalizedAliases: ['album'],
+            createdAt: 1,
+            updatedAt: 1,
+        }];
+        const assignments: LocalLibraryAssignment[] = songs.map(song => ({
+            songId: song.id,
+            artistEntityIds: [],
+            artistOrigin: 'import',
+            albumEntityId: 'album-1',
+            albumOrigin: 'import',
+            updatedAt: 1,
+        }));
+        // Opened from search: the descriptor carries only the one song that was clicked.
+        const descriptor = createLocalGridViewCollection({
+            id: 'album-1',
+            entityId: 'album-1',
+            name: 'Album',
+            type: 'album',
+            songs: [songs[0]],
+        });
+
+        expect(refreshLocalGridViewCollection(descriptor, songs, { entities, assignments }).songIds)
+            .toEqual(['d1-01', 'd1-02', 'd2-01', 'd2-02', 'd3-01']);
+    });
+
     it('keeps local album artist information when rebuilding an album descriptor', () => {
         const songs = [buildLocalSong('song-a', 'A'), buildLocalSong('song-b', 'B')];
         const entities: LocalLibraryEntity[] = [
