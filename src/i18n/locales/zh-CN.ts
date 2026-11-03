@@ -3118,7 +3118,7 @@ export default {
     "machiGlow": "辉光与光条",
     "machiGlowHint": "夜里灯和招牌晕开的光，以及横向的镜头光条。",
     "machiAdaptive": "自动降级",
-    "machiAdaptiveHint": "帧率长期偏低时，在这套设置之下逐步降低（先关景深的虚化，再退超采样和几何边缘的 MSAA，然后是倒影、辉光、分辨率、后期抗锯齿，阴影最后），不会高过你选的。改了设置会从新的这套重新开始。",
+    "machiAdaptiveHint": "帧率长期偏低时，在这套设置之下逐步降低（先退超采样和几何边缘的 MSAA，然后是辉光、倒影、景深的虚化、分辨率、后期抗锯齿，阴影最后），不会高过你选的。改了设置会从新的这套重新开始。",
     "machiAdaptiveActive": "现在已经降了 {{count}} 档。",
     "hanabiFireworksSection": "烟花",
     "hanabiStageSection": "画面",

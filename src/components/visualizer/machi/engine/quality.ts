@@ -5,10 +5,12 @@ import type { MachiAntialias, MachiDetailLevel, MachiQuality } from '../types';
 // src/components/visualizer/machi/engine/quality.ts
 // 画质设置 → 实际用的渲染参数（纯函数，运行时与单测共用）。
 // 分辨率、抗锯齿可以「跟随全局」（「性能与动效」里歌词画布的挡位）：全局倍数照用（大于 1 就是超采样），全局抗锯齿开是 SMAA、关是关。
-// 自动降级：帧时长期偏高时，运行时把“降了几格”加一，这里在用户那套设置上按固定顺序一格格往下压（景深离焦层 → 超采样 →
-// 几何边缘的 MSAA → 倒影 → 辉光 → 分辨率 → 后期抗锯齿 → 阴影，一轮压完再来一轮），已经压不动的跳过；所以只会比用户选的低，不会高。
-// 省得多的先退：超采样和 MSAA 吃的是整帧的填充率和带宽；阴影图是静态的（只在光变了时重画），平时几乎不花什么，关掉反而要重编
-// 全部材质的着色器，放到最后。
+// 自动降级：帧时长期偏高时（门槛按屏幕的刷新间隔算，stepMachiDegrade），运行时把“降了几格”加一，这里在用户那套
+// 设置上按固定顺序一格格往下压（超采样 → 几何边缘的 MSAA → 辉光 → 倒影 → 景深离焦层 → 分辨率 → 后期抗锯齿 → 阴影，一轮压完
+// 再来一轮），已经压不动的跳过；所以只会比用户选的低，不会高。
+// 按实测省得多少排（2026-11 在视网膜屏上量）：超采样是两倍的像素；MSAA 在 WebGL 里解析要单独整屏读一遍样本，4 倍时每帧约
+// 2–3 毫秒，是剩下各项里最贵的；辉光、倒影、景深离焦层都在零点几毫秒；阴影图是静态的（只在光变了时重画），平时几乎不花什么，
+// 关掉反而要重编全部材质的着色器，放到最后。
 // 抗锯齿：SMAA 是几何边缘的 MSAA 加最后一道 SMAA（墨线与雨丝是后期描的，MSAA 管不到）；FXAA 只有最后一道；
 // 超采样按 2 倍分辨率画（总像素比封顶 3），浏览器缩回屏幕尺寸时自然平均，墨线按屏幕像素取样，不变细。
 // 预览（样式小图）：分辨率固定 1，不做超采样和 MSAA，阴影最多 1024，不开辉光，不自动降级，也不跟全局挡位。
@@ -74,14 +76,14 @@ interface Settled {
 
 /** 降级的一格：把一项往下压一档；已经最低时返回 null（这格跳过）。 */
 const DEGRADE_STEPS: ((settled: Settled) => Settled | null)[] = [
-    s => (s.dof ? { ...s, dof: false } : null),
     s => {
         if (s.antialias === 'ssaa') return { ...s, antialias: 'smaa', msaa: true };
         return s.renderScale > 1 ? { ...s, renderScale: 1 } : null;
     },
     s => (s.antialias === 'smaa' && s.msaa ? { ...s, msaa: false } : null),
-    s => (s.reflections !== 'off' ? { ...s, reflections: LEVEL_DOWN[s.reflections] } : null),
     s => (s.glow ? { ...s, glow: false } : null),
+    s => (s.reflections !== 'off' ? { ...s, reflections: LEVEL_DOWN[s.reflections] } : null),
+    s => (s.dof ? { ...s, dof: false } : null),
     s => {
         const lower = SCALE_DOWN[s.renderScale];
         return lower ? { ...s, renderScale: lower } : null;
@@ -92,6 +94,75 @@ const DEGRADE_STEPS: ((settled: Settled) => Settled | null)[] = [
     },
     s => (s.shadows !== 'off' ? { ...s, shadows: LEVEL_DOWN[s.shadows] } : null),
 ];
+
+/** 原来的门槛（60Hz 上约 48fps 以下）：按刷新间隔算出来的门槛不比它高。 */
+const DEGRADE_MAX_FRAME_MS = 21;
+/**
+ * 门槛最低到这里（90fps）：144、165、240Hz 的屏按刷新间隔乘 DEGRADE_SLACK 算只有 9.2、8.1、5.5 毫秒，100 多 fps 也要降，
+ * 一路压到底；刷新率再高也只要求 90fps。
+ */
+const DEGRADE_MIN_FRAME_MS = 1000 / 90;
+/**
+ * 平均帧时超过一帧应有的间隔这么多倍就算跟不上：120Hz 上约 11.1 毫秒（90fps 以下），视网膜屏上 4 倍 MSAA 的町景平时约 105fps，
+ * 不动它；60Hz 上算出来比 21 毫秒高，仍按 21 毫秒，和原来一样。
+ */
+const DEGRADE_SLACK = 1.33;
+/** 连着这么多次检查都超过门槛才降一格（偶尔一下卡顿不算）。 */
+const DEGRADE_SLOW_CHECKS = 2;
+/** 降了一格之后平均帧时低于降级那次的这么多倍，才算降级让画面变快了。 */
+const DEGRADE_RELIEF = 0.95;
+/**
+ * 较慢那一成的帧间隔不超过较快那一成的这么多倍，才算帧间隔挤在一起：屏幕卡着刷新时几乎每帧一样长，
+ * GPU 不够时快慢混着（120Hz 上 16.7 和 25 交替）。
+ */
+const DEGRADE_STEADY = 1.2;
+
+/** 自动降级在两次检查之间记着的东西。 */
+export interface MachiDegradeState {
+    /** 一帧应有的间隔（毫秒；0 是还没见过帧）。 */
+    refresh: number;
+    /** 连着几次超过门槛。 */
+    slowChecks: number;
+    /** 刚降过一格时，降级那次的平均帧时（毫秒；0 是没有），降级后的第一次检查拿它比一次。 */
+    degradedAverage: number;
+    /** 认定是屏幕卡着刷新时的那个间隔（毫秒；0 是没有）：之后一帧应有的间隔不再比它短，换屏、改帧率上限时随整份状态清掉。 */
+    displayFloor: number;
+}
+
+/** 换到别的屏上（刷新率可能不一样）、改了帧率上限时也从这里重新来。 */
+export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0, degradedAverage: 0, displayFloor: 0 });
+
+/** 帧时门槛（毫秒）：一帧应有的间隔乘 DEGRADE_SLACK，不低于 90fps 的帧时，不超过原来的 21 毫秒。 */
+export const resolveMachiDegradeThreshold = (refresh: number) => (
+    refresh > 0 ? Math.min(DEGRADE_MAX_FRAME_MS, Math.max(DEGRADE_MIN_FRAME_MS, refresh * DEGRADE_SLACK)) : DEGRADE_MAX_FRAME_MS
+);
+
+/**
+ * 自动降级的一次检查（纯函数）：intervals 是这段时间的帧间隔。
+ * 一帧应有的间隔（屏幕的刷新间隔，开了帧率上限就是实际跑出来的间隔）取这段里较快那一成的帧间隔，和以前检查见过的取小的：
+ * 不能只看这一段——高刷屏上几乎每帧都赶不上刷新时（120Hz 上稳定 55fps），这一段较快的帧也是两个刷新间隔，门槛跟着翻倍，
+ * 反而不降。窗口挪到别的屏上时以前见过的就不对了，由外面换一份新的状态（createMachiDegradeState）。
+ * 屏幕自己降了刷新率（Windows 的动态刷新率、macOS 的低电量模式）从帧间隔上看和赶不上一样，取小的就一直按原来的刷新算、一路降到底：
+ * 所以刚降过一格之后的第一次检查，平均帧时要是没比降级那次明显变快、帧间隔又挤在一起，卡住的就不是渲染而是屏幕的刷新，
+ * 一帧应有的间隔改成这一段较快那一成的帧间隔，并且记成下限（displayFloor）：动态刷新率偶尔升回去一下，较快的帧也不会把它拉回来、
+ * 再白降一格。只比这一次，下一次检查不再拿降级那次的平均比。帧间隔稳定在两个刷新间隔的 GPU 不够从帧间隔上分不出来，
+ * 也按屏幕卡着算，不再往下降（和原来固定 21 毫秒的门槛一样）。
+ */
+export const stepMachiDegrade = (state: MachiDegradeState, intervals: readonly number[]) => {
+    const sorted = [...intervals].sort((a, b) => a - b);
+    const fast = sorted[Math.floor(sorted.length * 0.1)] ?? 0;
+    const slow = sorted[Math.floor(sorted.length * 0.9)] ?? 0;
+    const average = intervals.reduce((sum, value) => sum + value, 0) / Math.max(1, intervals.length);
+    const displayLimited = state.degradedAverage > 0 && average >= state.degradedAverage * DEGRADE_RELIEF && slow <= fast * DEGRADE_STEADY;
+    const displayFloor = displayLimited ? fast : state.displayFloor;
+    const learned = state.refresh > 0 && !displayLimited ? Math.min(state.refresh, fast) : fast;
+    const refresh = Math.max(learned, displayFloor);
+    const threshold = resolveMachiDegradeThreshold(refresh);
+    if (average <= threshold) return { state: { refresh, slowChecks: 0, degradedAverage: 0, displayFloor }, degrade: false, average, threshold };
+    const slowChecks = state.slowChecks + 1;
+    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks, degradedAverage: 0, displayFloor }, degrade: false, average, threshold };
+    return { state: { refresh, slowChecks: 0, degradedAverage: average, displayFloor }, degrade: true, average, threshold };
+};
 
 /** 把「跟随全局」换成全局挡位里的具体值。 */
 const settle = (quality: MachiQuality, global: LyricRenderQuality): Settled => ({

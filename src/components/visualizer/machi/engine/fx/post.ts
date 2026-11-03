@@ -1,21 +1,25 @@
 import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { FXAAPass } from 'three/examples/jsm/postprocessing/FXAAPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js';
 import { compileInto } from '../programWarmup';
 import type { MachiRenderQuality } from '../quality';
+import { MachiBloomPass } from './bloomPass';
 import { MachiLensPass, type MachiLensSettings } from './lensPass';
-import { MachiAtmospherePass, MachiStreakPass, type MachiSceneTarget } from './postPasses';
+import { createGlowUniforms, halfFloatTarget, MachiAtmospherePass, MachiStreakPass, type MachiSceneTarget } from './postPasses';
 
 // src/components/visualizer/machi/engine/fx/post.ts
 // 町景的后处理链：场景画进单独一张带深度贴图的 HDR 目标（MSAA，不参与合成器的来回交换）→ 氛围（墨线、贴地薄雾与灯的散射、云和闪电）
-// → bloom（柔和、宽，让招牌和灯在雨夜里晕开）→ 横向镜头光条 → 镜头（散景景深、色差、暗角、颗粒）→ 色调映射输出
+// → bloom（柔和、宽，让招牌和灯在雨夜里晕开）→ 横向镜头光条 → 镜头（叠上 bloom 与光条，散景景深、色差、暗角、颗粒，色调映射输出）
 // → 抗锯齿（FXAA 或 SMAA，在输出之后的 sRGB 上做，边缘检测才准；墨线是氛围 pass 描的，场景目标的 MSAA 管不到它）。
 // 透明模式（cutout）：场景不画天空，氛围 pass 不在天空上画云，镜头 pass 写出 alpha（天空透明），输出和抗锯齿都带着 alpha 走。
+// 全分辨率的读写只有氛围和镜头两道（再加抗锯齿）：bloom、光条只画自己的低分辨率贴图，镜头 pass 取样时现加，
+// 色调映射也在镜头 pass 里做（原来各自整屏叠一遍、再单独一道输出，视网膜屏上每道都是几百万像素的 HDR 读写）。
 // 画质（engine/quality.ts）决定场景目标的 MSAA、墨线的取样步长、开不开 bloom / 光条 / 景深离焦层、最后用哪种抗锯齿。
+
+/** bloom 那条链从画面的几分之一分辨率起（bloomPass.ts）：四分之一，模糊核跟着减半，光晕在屏幕上一样大。 */
+const BLOOM_SCALE = 4;
 
 /** 一道 pass 自己持有的材质（字段里的材质和材质数组；bloom 的几道模糊在一个数组里）。 */
 const passMaterials = (pass: Pass) => {
@@ -61,12 +65,14 @@ export class MachiPost {
     private readonly composer: EffectComposer;
     private readonly scene: MachiSceneTarget;
     private readonly atmosphere: MachiAtmospherePass;
-    private readonly bloom: UnrealBloomPass;
+    private readonly bloom: MachiBloomPass;
     private readonly streaks: MachiStreakPass;
     private readonly lens: MachiLensPass;
     private readonly fxaa: FXAAPass;
     private readonly smaa: SMAAPass;
-    private readonly output: OutputPass;
+    /** bloom、光条的取样（光条、镜头 pass 共用）；关着的那项指向这张黑贴图。 */
+    private readonly glow = createGlowUniforms();
+    private readonly black = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
     private readonly bufferSize = new THREE.Vector2();
     private bloomAllowed = true;
     private streaksAllowed = true;
@@ -81,22 +87,32 @@ export class MachiPost {
         cutout = false,
     ) {
         const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-        this.scene = { target: createSceneTarget(size.x, size.y, quality.samples) };
-        this.composer = new EffectComposer(renderer);
+        const lit = halfFloatTarget();
+        lit.texture.name = 'machi:lit';
+        lit.setSize(size.x, size.y);
+        this.scene = { target: createSceneTarget(size.x, size.y, quality.samples), lit };
+        // 合成器那两张缓冲只装镜头 pass 画好的显示用颜色（给抗锯齿读）：8 位，比默认的半精度浮点省一半带宽。
+        this.composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.UnsignedByteType, depthBuffer: false }));
+        this.black.needsUpdate = true;
         this.atmosphere = new MachiAtmospherePass(this.scene, cutout);
         this.composer.addPass(this.atmosphere);
-        this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.5, 0.62, 0.86);
+        this.bloom = new MachiBloomPass(this.scene, BLOOM_SCALE, 0.5, 0.62, 0.86);
         this.composer.addPass(this.bloom);
-        this.streaks = new MachiStreakPass();
+        this.streaks = new MachiStreakPass(this.scene, this.glow);
         this.composer.addPass(this.streaks);
-        this.lens = new MachiLensPass(this.scene, cutout);
+        // 色调映射按渲染器的设置（和 OutputPass 第一次画时写 defines 的规则一样）。
+        this.lens = new MachiLensPass(this.scene, this.glow, {
+            neutralToneMapping: renderer.toneMapping === THREE.NeutralToneMapping,
+            srgb: THREE.ColorManagement.getTransfer(renderer.outputColorSpace) === THREE.SRGBTransfer,
+        }, cutout);
         this.composer.addPass(this.lens);
-        this.output = new OutputPass();
-        this.composer.addPass(this.output);
-        // 合成器把最后一道开着的 pass 画到屏幕上：两种抗锯齿都关着时，输出那道直接上屏。
+        // 合成器把最后一道开着的 pass 画到屏幕上：两种抗锯齿都关着时，镜头那道直接上屏。
         this.fxaa = new FXAAPass();
         this.composer.addPass(this.fxaa);
         this.smaa = new SMAAPass();
+        // SMAA 的边缘、权重两张中间图：值都在 0..1，SMAA 原版就是 8 位（three 给的是半精度浮点）。还没分配显存，改类型就行。
+        const smaaTargets = this.smaa as unknown as Record<string, THREE.WebGLRenderTarget | undefined>;
+        [smaaTargets._edgesRT, smaaTargets._weightsRT].forEach(target => { if (target) target.texture.type = THREE.UnsignedByteType; });
         this.composer.addPass(this.smaa);
         this.setQuality(quality);
     }
@@ -116,6 +132,7 @@ export class MachiPost {
         this.composer.setPixelRatio(1);
         this.composer.setSize(width, height);
         this.scene.target.setSize(width, height);
+        this.scene.lit.setSize(width, height);
     }
 
     /** 换画质：MSAA 采样数变了就换一张场景目标（氛围、镜头 pass 读的是同一个 MachiSceneTarget，自动跟上）。 */
@@ -137,13 +154,9 @@ export class MachiPost {
 
     /**
      * 预编后处理的着色器（programWarmup.ts）：每道 pass 的材质按它画进的目标编，中间的都画进合成器的 HDR 缓冲，
-     * 最后一道开着的（SMAA、FXAA 或输出）上屏。bloom、光条也编：它们随夜色开关，开的那一刻不该卡。没选的抗锯齿不编。
+     * 最后一道开着的（SMAA、FXAA 或镜头）上屏。bloom、光条也编：它们随夜色开关，开的那一刻不该卡。没选的抗锯齿不编。
      */
     compile() {
-        // 输出 pass 第一次画时才按渲染器的色彩空间和色调映射写 defines：先按同样的规则写好，编出来的才是它要用的那个。
-        if (THREE.ColorManagement.getTransfer(this.renderer.outputColorSpace) === THREE.SRGBTransfer) this.output.material.defines.SRGB_TRANSFER = '';
-        if (this.renderer.toneMapping === THREE.NeutralToneMapping) this.output.material.defines.NEUTRAL_TONE_MAPPING = '';
-        this.output.material.needsUpdate = true;
         const passes = this.composer.passes.filter(pass => (pass !== this.fxaa && pass !== this.smaa) || pass.enabled);
         const last = passes[passes.length - 1];
         // 和合成器的全屏三角形一样只有 position 和 uv：多了法线（PlaneGeometry）就是另一套变体。
@@ -175,8 +188,11 @@ export class MachiPost {
     private applyGlow() {
         this.bloom.strength = this.bloomStrength;
         this.bloom.enabled = this.bloomAllowed && this.bloomStrength > 0.005;
-        this.streaks.strength = this.streakStrength;
         this.streaks.enabled = this.streaksAllowed && this.streakStrength > 0.005;
+        // 没画的那项取黑贴图：镜头 pass 照样加，加的是 0。
+        this.glow.tBloom.value = this.bloom.enabled ? this.bloom.texture : this.black;
+        this.glow.tStreak.value = this.streaks.enabled ? this.streaks.texture : this.black;
+        this.glow.uStreakStrength.value = this.streakStrength;
     }
 
     /**
@@ -217,11 +233,12 @@ export class MachiPost {
         this.bloom.dispose();
         this.streaks.dispose();
         this.lens.dispose();
-        this.output.dispose();
+        this.black.dispose();
         this.fxaa.dispose();
         this.smaa.dispose();
         this.composer.dispose();
         this.scene.target.depthTexture?.dispose();
         this.scene.target.dispose();
+        this.scene.lit.dispose();
     }
 }

@@ -5,8 +5,9 @@ import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
 // 町景后处理的两道自定义 pass（镜头 pass 在 lensPass.ts）与它们共用的小工具：
 // - 氛围（MachiAtmospherePass）：深度拉普拉斯墨线；由深度还原世界坐标，画贴地的薄雾（随风漂的噪声，靠近店门和路灯时
 //   被灯染暖，像光在雾里散开），雾天再按深度蒙一层灰；天空像素上画慢慢漂的云（云量随天气）和闪电（透明模式 MACHI_CUTOUT 下天空不画）。
-// - 光条（MachiStreakPass）：亮处在四分之一分辨率上只做横向模糊，叠回去成为横向的镜头光条（变形宽银幕镜头那种）。
-// 都只用全屏四边形，额外的贴图都在低分辨率上。
+// - 光条（MachiStreakPass）：亮处在四分之一分辨率上只做横向模糊，成为横向的镜头光条（变形宽银幕镜头那种）。
+// 都只用全屏四边形，额外的贴图都在低分辨率上。bloom（bloomPass.ts）和光条都不整屏叠回去：结果留在各自的低分辨率贴图上，
+// 后面的 pass 取样时用 GLOW_GLSL 现加（镜头 pass 最后一次画出加好的画面），少两道全分辨率的读写。
 
 const FULLSCREEN_VERTEX = /* glsl */ `
 varying vec2 vUv;
@@ -38,11 +39,41 @@ float pFbm(vec2 p) {
 
 /**
  * 场景画进的目标：在合成器自己来回交换的两张缓冲之外单独一张（带 MSAA 和深度贴图），后面的 pass 随时取它的深度，
- * 不会碰上“正在写的帧缓冲上挂着的贴图又被采样”的反馈环。
+ * 不会碰上“正在写的帧缓冲上挂着的贴图又被采样”的反馈环。lit 是氛围 pass 画好的 HDR 画面（bloom、光条、镜头都读它）：
+ * 也在合成器的缓冲之外，合成器那两张只装色调映射之后的颜色，用 8 位就够。
  */
 export interface MachiSceneTarget {
     target: THREE.WebGLRenderTarget;
+    lit: THREE.WebGLRenderTarget;
 }
+
+/**
+ * 氛围之后的画面加上光晕：machiBloomed 加 bloom（post.ts 的 BLOOM_SCALE 分之一分辨率，双线性放大，已乘强度），machiGlowed 再加横向光条。
+ * 用它的材质要有 tDiffuse（氛围画好的画面）和 MachiGlowUniforms 那几项。
+ */
+export const GLOW_GLSL = /* glsl */ `
+uniform sampler2D tBloom;
+uniform sampler2D tStreak;
+uniform vec3 uStreakTint;
+uniform float uStreakStrength;
+vec3 machiBloomed(vec2 uv) { return texture2D(tDiffuse, uv).rgb + texture2D(tBloom, uv).rgb; }
+vec3 machiGlowed(vec2 uv) { return machiBloomed(uv) + texture2D(tStreak, uv).rgb * uStreakTint * uStreakStrength; }
+`;
+
+/** GLOW_GLSL 的 uniform：光条、镜头 pass 共用同一份，MachiPost 每帧按 bloom、光条开没开填（关着的是一张黑贴图）。 */
+export interface MachiGlowUniforms {
+    tBloom: THREE.IUniform<THREE.Texture | null>;
+    tStreak: THREE.IUniform<THREE.Texture | null>;
+    uStreakTint: THREE.IUniform<THREE.Color>;
+    uStreakStrength: THREE.IUniform<number>;
+}
+
+export const createGlowUniforms = (): MachiGlowUniforms => ({
+    tBloom: { value: null },
+    tStreak: { value: null },
+    uStreakTint: { value: new THREE.Color(0.62, 0.74, 1.0) },
+    uStreakStrength: { value: 0 },
+});
 
 /** 全屏 pass 的材质：不做深度测试、不写深度。 */
 export const fullscreenMaterial = (parameters: THREE.ShaderMaterialParameters) => new THREE.ShaderMaterial({
@@ -142,6 +173,7 @@ export class MachiAtmospherePass extends Pass {
     /** cutout：透明模式，天空像素上不画云、闪电和雾天的灰。 */
     constructor(private readonly scene: MachiSceneTarget, cutout = false) {
         super();
+        this.needsSwap = false;
         this.material = fullscreenMaterial({
             uniforms: {
                 tDiffuse: { value: null },
@@ -182,11 +214,11 @@ export class MachiAtmospherePass extends Pass {
         this.material.uniforms.uAspect!.value = width / Math.max(1, height);
     }
 
-    /** 读的是单独的场景目标，不是合成器的读缓冲（场景没有画进那里）。 */
-    render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget) {
+    /** 读的是单独的场景目标，画进 scene.lit（都不是合成器的缓冲）。 */
+    render(renderer: THREE.WebGLRenderer) {
         this.material.uniforms.tDiffuse!.value = this.scene.target.texture;
         this.material.uniforms.tDepth!.value = this.scene.target.depthTexture;
-        renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+        renderer.setRenderTarget(this.scene.lit);
         this.quad.render(renderer);
     }
 
@@ -201,11 +233,12 @@ uniform sampler2D tDiffuse;
 uniform vec2 uTexel;
 uniform float uThreshold;
 varying vec2 vUv;
+${GLOW_GLSL}
 void main() {
-    vec3 c = texture2D(tDiffuse, vUv + uTexel * vec2(-1.0, -1.0)).rgb
-        + texture2D(tDiffuse, vUv + uTexel * vec2(1.0, -1.0)).rgb
-        + texture2D(tDiffuse, vUv + uTexel * vec2(-1.0, 1.0)).rgb
-        + texture2D(tDiffuse, vUv + uTexel * vec2(1.0, 1.0)).rgb;
+    vec3 c = machiBloomed(vUv + uTexel * vec2(-1.0, -1.0))
+        + machiBloomed(vUv + uTexel * vec2(1.0, -1.0))
+        + machiBloomed(vUv + uTexel * vec2(-1.0, 1.0))
+        + machiBloomed(vUv + uTexel * vec2(1.0, 1.0));
     c *= 0.25;
     float luminance = dot(c, vec3(0.2126, 0.7152, 0.0722));
     gl_FragColor = vec4(c * smoothstep(uThreshold, uThreshold + 0.5, luminance), 1.0);
@@ -228,45 +261,34 @@ void main() {
 }
 `;
 
-const ADD_FRAGMENT = /* glsl */ `
-uniform sampler2D tDiffuse;
-uniform sampler2D tAdd;
-uniform vec3 uTint;
-uniform float uStrength;
-varying vec2 vUv;
-void main() {
-    vec4 base = texture2D(tDiffuse, vUv);
-    gl_FragColor = vec4(base.rgb + texture2D(tAdd, vUv).rgb * uTint * uStrength, base.a);
-}
-`;
-
 /** 低分辨率的 HDR 中间贴图（尺寸由用它的 pass 定）。 */
 export const halfFloatTarget = () => new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
 
-/** 横向镜头光条：亮处降到四分之一分辨率，横向越扩越宽地模糊三次，再叠回去。 */
+/**
+ * 横向镜头光条：亮处（氛围的画面加上 bloom）降到四分之一分辨率，横向越扩越宽地模糊三次，结果留在 texture 上
+ * （镜头 pass 叠，强度、色调在 MachiGlowUniforms 里）。
+ */
 export class MachiStreakPass extends Pass {
     private readonly targets = [halfFloatTarget(), halfFloatTarget()];
     private readonly bright: THREE.ShaderMaterial;
     private readonly blur: THREE.ShaderMaterial;
-    private readonly add: THREE.ShaderMaterial;
     private readonly quad = new FullScreenQuad();
     private width = 1;
-    strength = 0.55;
+    /** 模糊完的光条（最后一次模糊画进 targets 里的哪张：三次来回，落在第二张）。 */
+    readonly texture: THREE.Texture;
 
-    constructor() {
+    constructor(private readonly scene: MachiSceneTarget, glow: MachiGlowUniforms) {
         super();
+        this.needsSwap = false;
         this.bright = fullscreenMaterial({
-            uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 1.1 } },
+            uniforms: { ...glow, tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 1.1 } },
             fragmentShader: BRIGHT_FRAGMENT,
         });
         this.blur = fullscreenMaterial({
             uniforms: { tDiffuse: { value: null }, uStep: { value: new THREE.Vector2() } },
             fragmentShader: STREAK_BLUR_FRAGMENT,
         });
-        this.add = fullscreenMaterial({
-            uniforms: { tDiffuse: { value: null }, tAdd: { value: null }, uTint: { value: new THREE.Color(0.62, 0.74, 1.0) }, uStrength: { value: 0.55 } },
-            fragmentShader: ADD_FRAGMENT,
-        });
+        this.texture = this.targets[1]!.texture;
     }
 
     setSize(width: number, height: number) {
@@ -276,9 +298,9 @@ export class MachiStreakPass extends Pass {
         (this.bright.uniforms.uTexel!.value as THREE.Vector2).set(1 / Math.max(1, width), 1 / Math.max(1, height));
     }
 
-    render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
+    render(renderer: THREE.WebGLRenderer) {
         const [a, b] = this.targets as [THREE.WebGLRenderTarget, THREE.WebGLRenderTarget];
-        this.bright.uniforms.tDiffuse!.value = readBuffer.texture;
+        this.bright.uniforms.tDiffuse!.value = this.scene.lit.texture;
         this.quad.material = this.bright;
         renderer.setRenderTarget(a);
         this.quad.render(renderer);
@@ -292,19 +314,12 @@ export class MachiStreakPass extends Pass {
             this.quad.render(renderer);
             [source, target] = [target, source];
         });
-        this.add.uniforms.tDiffuse!.value = readBuffer.texture;
-        this.add.uniforms.tAdd!.value = source.texture;
-        this.add.uniforms.uStrength!.value = this.strength;
-        this.quad.material = this.add;
-        renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
-        this.quad.render(renderer);
     }
 
     dispose() {
         this.targets.forEach(target => target.dispose());
         this.bright.dispose();
         this.blur.dispose();
-        this.add.dispose();
         this.quad.dispose();
     }
 }

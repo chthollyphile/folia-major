@@ -3118,7 +3118,7 @@ export default {
     "machiGlow": "Quầng sáng và vệt sáng",
     "machiGlowHint": "Quầng sáng quanh đèn và biển hiệu vào ban đêm, cùng các vệt sáng ống kính nằm ngang.",
     "machiAdaptive": "Tự giảm chất lượng",
-    "machiAdaptiveHint": "Khi tốc độ khung hình thấp kéo dài, giảm dần dưới các thiết lập này (làm mờ độ sâu trường ảnh trước, rồi siêu lấy mẫu và MSAA ở cạnh, sau đó phản chiếu, quầng sáng, độ phân giải và khử răng cưa hậu kỳ, bóng đổ sau cùng), không bao giờ cao hơn lựa chọn của bạn. Đổi thiết lập sẽ bắt đầu lại từ thiết lập mới.",
+    "machiAdaptiveHint": "Khi tốc độ khung hình thấp kéo dài, giảm dần dưới các thiết lập này (siêu lấy mẫu và MSAA ở cạnh trước, sau đó quầng sáng, phản chiếu, làm mờ độ sâu trường ảnh, độ phân giải và khử răng cưa hậu kỳ, bóng đổ sau cùng), không bao giờ cao hơn lựa chọn của bạn. Đổi thiết lập sẽ bắt đầu lại từ thiết lập mới.",
     "machiAdaptiveActive": "Hiện đã giảm {{count}} bậc.",
     "hanabiFireworksSection": "Pháo hoa",
     "hanabiStageSection": "Sân khấu & Khung cảnh",
