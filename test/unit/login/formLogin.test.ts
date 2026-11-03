@@ -7,12 +7,10 @@ import { omni } from '@/services/onlineMusic/omni';
 // provider 声明了 getLoginForm 就进表单，否则走扫码/浏览器流程；提交走 provider 自己。
 
 const bridgeRequest = vi.fn();
-const statusSync = vi.fn();
 
 beforeEach(() => {
     bridgeRequest.mockReset().mockResolvedValue({ ok: true, data: { user: { guid: 'u1', name: 'Tester' } } });
-    statusSync.mockReset().mockReturnValue({ available: true, configured: true, authenticated: false, base: null, username: '' });
-    vi.stubGlobal('window', { electron: { fnmusicRequest: bridgeRequest, fnmusicStatusSync: statusSync } });
+    vi.stubGlobal('window', { electron: { fnmusicRequest: bridgeRequest } });
 });
 afterEach(() => {
     vi.unstubAllGlobals();

@@ -4428,7 +4428,8 @@ export default {
     "loginNote": "输入你的飞牛（fnOS）音乐服务器地址与账号密码",
     "errorBadCredentials": "账号或密码错误",
     "errorNetwork": "无法连接服务器，请检查地址与网络",
-    "errorBadResponse": "服务器返回了无法识别的响应"
+    "errorBadResponse": "服务器返回了无法识别的响应",
+    "errorBadServerUrl": "服务器地址无效，例如：http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

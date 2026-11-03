@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fnMusicCoverUrl, fnMusicLogin, makeFnMusicDeviceId } from '@/services/onlineMusic/fnmusic/fnmusicTransport';
+import { fnMusicCoverUrl, fnMusicLogin } from '@/services/onlineMusic/fnmusic/fnmusicTransport';
 import { fnmusicProvider, normalizeFnMusicSong } from '@/services/onlineMusic/fnmusic/fnmusicProvider';
 
 // test/unit/fnmusic/fnmusicProvider.test.ts
@@ -7,23 +7,14 @@ import { fnmusicProvider, normalizeFnMusicSong } from '@/services/onlineMusic/fn
 // 封面与播放走 folia-fnmusic:// 自定义协议，地址稳定、不带 base / token / 明文凭据。
 
 const bridgeRequest = vi.fn();
-const statusSync = vi.fn();
 
 beforeEach(() => {
     bridgeRequest.mockReset().mockResolvedValue({ ok: true, data: null });
-    statusSync.mockReset().mockReturnValue({ available: true, configured: true, authenticated: false, base: null, username: '' });
-    vi.stubGlobal('window', { electron: { fnmusicRequest: bridgeRequest, fnmusicStatusSync: statusSync } });
+    vi.stubGlobal('window', { electron: { fnmusicRequest: bridgeRequest } });
 });
 afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-});
-
-describe('makeFnMusicDeviceId', () => {
-    it('returns a 32-digit hex device id', () => {
-        const id = makeFnMusicDeviceId();
-        expect(id).toMatch(/^[0-9a-f]{32}$/);
-    });
 });
 
 describe('fnMusicCoverUrl', () => {
@@ -54,6 +45,43 @@ describe('fnMusicLogin', () => {
         expect(result.user).toEqual({ guid: 'u1', name: 'Tester' });
         // 登录答复不把 token 带回渲染进程
         expect(bridgeRequest.mock.calls[0][1]).not.toHaveProperty('token');
+    });
+});
+
+describe('fnmusicProvider account', () => {
+    const status = (extra: Record<string, unknown>) => ({
+        ok: true,
+        data: { available: true, configured: true, authenticated: true, base: 'http://192.168.1.10:5666', username: 'admin', userId: null, nickname: null, ...extra },
+    });
+
+    it('reads the account as the NAS user guid and nickname saved at sign-in', async () => {
+        bridgeRequest.mockResolvedValue(status({ userId: 'user-guid-1', nickname: 'Alice' }));
+        await expect(fnmusicProvider.auth!.getLoginStatus!()).resolves.toEqual({ id: 'user-guid-1', nickname: 'Alice' });
+        expect(bridgeRequest).toHaveBeenCalledWith('getStatus', {});
+    });
+
+    it('without a guid, the same sign-in name on two servers is two accounts', async () => {
+        bridgeRequest.mockResolvedValueOnce(status({}));
+        const first = await fnmusicProvider.auth!.getLoginStatus!();
+        bridgeRequest.mockResolvedValueOnce(status({ base: 'https://nas.example.com:5667' }));
+        const second = await fnmusicProvider.auth!.getLoginStatus!();
+        expect(first).toEqual({ id: 'admin@192.168.1.10:5666', nickname: 'admin' });
+        expect(second?.id).toBe('admin@nas.example.com:5667');
+    });
+
+    it('is signed out when the bridge holds no token', async () => {
+        bridgeRequest.mockResolvedValue(status({ authenticated: false }));
+        await expect(fnmusicProvider.auth!.getLoginStatus!()).resolves.toBeNull();
+    });
+});
+
+describe('fnmusicProvider playback', () => {
+    it('lists one quality level and asks the bridge for the original file without a quality', async () => {
+        expect(fnmusicProvider.playback!.audioQualityLevels).toEqual(['standard']);
+        bridgeRequest.mockResolvedValue({ ok: true, data: { url: 'folia-fnmusic://stream?guid=track-1' } });
+        const source = await fnmusicProvider.playback!.getAudioSource(normalizeFnMusicSong({ guid: 'track-1' }), 'standard');
+        expect(source?.url).toBe('folia-fnmusic://stream?guid=track-1');
+        expect(bridgeRequest).toHaveBeenCalledWith('stream', { trackId: 'track-1' });
     });
 });
 

@@ -4428,7 +4428,8 @@ export default {
     "loginNote": "Nhập địa chỉ máy chủ, tài khoản và mật khẩu fnOS Music",
     "errorBadCredentials": "Sai tài khoản hoặc mật khẩu",
     "errorNetwork": "Không thể kết nối máy chủ. Kiểm tra địa chỉ và kết nối của bạn.",
-    "errorBadResponse": "Máy chủ trả về phản hồi không nhận dạng được"
+    "errorBadResponse": "Máy chủ trả về phản hồi không nhận dạng được",
+    "errorBadServerUrl": "Địa chỉ máy chủ không hợp lệ, ví dụ: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

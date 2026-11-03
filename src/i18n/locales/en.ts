@@ -4428,7 +4428,8 @@ export default {
     "loginNote": "Enter your fnOS Music server address, account and password",
     "errorBadCredentials": "Account or password is wrong",
     "errorNetwork": "Cannot reach the server. Check the address and your connection.",
-    "errorBadResponse": "The server returned an unexpected response"
+    "errorBadResponse": "The server returned an unexpected response",
+    "errorBadServerUrl": "The server address is not valid, e.g. http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

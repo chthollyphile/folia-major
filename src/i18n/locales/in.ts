@@ -4428,7 +4428,8 @@ export default {
     "loginNote": "Masukkan alamat server, akun, dan kata sandi fnOS Music",
     "errorBadCredentials": "Akun atau kata sandi salah",
     "errorNetwork": "Tidak dapat menghubungi server. Periksa alamat dan koneksi Anda.",
-    "errorBadResponse": "Server mengembalikan respons yang tidak dikenali"
+    "errorBadResponse": "Server mengembalikan respons yang tidak dikenali",
+    "errorBadServerUrl": "Alamat server tidak valid, contoh: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

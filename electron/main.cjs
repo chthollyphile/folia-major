@@ -7077,7 +7077,7 @@ ipcMain.handle('qishui-api-request', (event, operation, params) => {
   return qishuiApiBridge.request(operation, params);
 });
 
-// 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；authx 签名、Cookie 认证头、
+// 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；Cookie 认证头、
 // 自签名证书容忍都在主进程桥内完成（用受信窗口守卫）。
 ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
   channel: 'fnmusic-api-request',

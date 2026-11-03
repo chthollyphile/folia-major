@@ -352,13 +352,15 @@ export const fnmusicProvider: OnlineMusicProvider = {
         },
     },
     playback: {
+        // track/stream 只回 NAS 上的原始文件，没有可选的音质：只列一档，音质选项不给不起作用的档位。
+        audioQualityLevels: ['standard'],
         async getSongDetail(id) {
             const raw = await fnmusicRequest<unknown>('/music/api/v1/track/metadata', { trackGUID: id });
             const item = record(raw);
             return normalizeFnMusicSong(item.track ?? item.song ?? raw);
         },
         async getAudioSource(song, quality: AudioQualityPreference) {
-            const url = await fnMusicStreamSource(songIdOf(song), quality);
+            const url = await fnMusicStreamSource(songIdOf(song));
             return { url, fetchedAt: Date.now(), quality } as ProviderAudioSource;
         },
     },
@@ -402,6 +404,7 @@ export const fnmusicProvider: OnlineMusicProvider = {
                 'auth-required': 'fnmusic.errorBadCredentials',
                 network: 'fnmusic.errorNetwork',
                 'invalid-response': 'fnmusic.errorBadResponse',
+                unavailable: 'fnmusic.errorBadServerUrl',
             },
         }),
         async submitLoginForm(values) {
@@ -416,9 +419,12 @@ export const fnmusicProvider: OnlineMusicProvider = {
         async getLoginStatus(): Promise<ProviderUser | null> {
             const status = await fnMusicBridgeStatus();
             if (!status?.authenticated) return null;
+            // 账号 id 用 NAS 上的用户 guid；没有时用「登录名@服务器」，两台 NAS 上同名的账号不会被当成一个。
+            const host = status.base ? (() => { try { return new URL(status.base).host; } catch { return status.base; } })() : '';
+            const username = status.username || 'fnmusic-user';
             return {
-                id: status.username || 'fnmusic-user',
-                nickname: status.username || 'fnmusic-user',
+                id: status.userId || (host ? `${username}@${host}` : username),
+                nickname: status.nickname || username,
             };
         },
         async logout() {

@@ -1,5 +1,7 @@
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 // test/unit/electron/fnmusicApiBridge.test.ts — host persistence, parameter validation
 // and protocol URL shaping for the fnOS (飞牛) music bridge.
@@ -74,7 +76,7 @@ describe('FnMusic desktop bridge', () => {
         expect(await bridge.coverUrl({ coverId: 'abc' })).toMatchObject({ ok: false, error: { code: 'unconfigured' } });
     });
 
-    it('shapes stream URLs with the custom protocol and keeps trackId/quality', async () => {
+    it('shapes stream URLs with the custom protocol and the track only (the server sends the original file)', async () => {
         const bridge = createFnmusicApiBridge({ store: seededStore(), safeStorage: cipher() });
         const result = await bridge.stream({ trackId: 'track-42', quality: 'lossless' });
         expect(result.ok).toBe(true);
@@ -82,7 +84,7 @@ describe('FnMusic desktop bridge', () => {
         expect(url.protocol).toBe('folia-fnmusic:');
         expect(url.hostname).toBe('stream');
         expect(url.searchParams.get('guid')).toBe('track-42');
-        expect(url.searchParams.get('quality')).toBe('lossless');
+        expect(url.searchParams.has('quality')).toBe(false);
     });
 
     it('shapes cover URLs with coverId and size', async () => {
@@ -108,5 +110,61 @@ describe('FnMusic desktop bridge', () => {
         await bridge.logout();
         expect(store.get(CONFIG_STORE_KEY)).toBeUndefined();
         expect(bridge.getStatus()).toMatchObject({ configured: false, authenticated: false });
+    });
+
+    describe('signing in against a server', () => {
+        let server: Server | null = null;
+        const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
+        afterEach(async () => {
+            seen.length = 0;
+            await new Promise<void>(done => (server ? server.close(() => done()) : done()));
+            server = null;
+        });
+        // A stand-in fnOS music server: every sign-in succeeds, every logout too.
+        const serve = async (): Promise<string> => {
+            server = createServer((request: IncomingMessage, response) => {
+                let raw = '';
+                request.on('data', chunk => { raw += chunk; });
+                request.on('end', () => {
+                    seen.push({ url: request.url ?? '', body: raw ? JSON.parse(raw) : {} });
+                    response.setHeader('Content-Type', 'application/json');
+                    response.end(JSON.stringify(request.url?.endsWith('/password-login')
+                        ? { code: 0, msg: '', data: { userToken: 'fixture-token', user: { guid: 'user-guid-1', name: 'Alice' } } }
+                        : { code: 0, msg: '', data: null }));
+                });
+            });
+            await new Promise<void>(done => server!.listen(0, '127.0.0.1', () => done()));
+            return `127.0.0.1:${(server!.address() as AddressInfo).port}`;
+        };
+
+        it('takes an address without a scheme as http, and saves the NAS user guid and nickname', async () => {
+            const host = await serve();
+            const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+            const result = await bridge.login({ base: ` ${host}/ `, username: 'admin', password: 'secret' });
+            expect(result.ok).toBe(true);
+            expect(seen[0].url).toBe('/music/api/v1/user/password-login');
+            expect(bridge.getStatus()).toMatchObject({ base: `http://${host}`, username: 'admin', userId: 'user-guid-1', nickname: 'Alice', authenticated: true });
+        });
+
+        it('refuses an address that is not an http(s) server before any request', async () => {
+            const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+            for (const base of ['ftp://192.168.1.10', 'http://']) {
+                expect(await bridge.login({ base, username: 'admin', password: 'secret' })).toMatchObject({ ok: false, error: { code: 'invalid-base' } });
+            }
+        });
+
+        it('signs in again after a logout as the same device', async () => {
+            const host = await serve();
+            const store = createStore();
+            const bridge = createFnmusicApiBridge({ store, safeStorage: cipher() });
+            await bridge.login({ base: host, username: 'admin', password: 'secret' });
+            await bridge.logout();
+            expect(store.get(CONFIG_STORE_KEY)).toBeUndefined();
+            await bridge.login({ base: host, username: 'admin', password: 'secret' });
+            const logins = seen.filter(entry => entry.url.endsWith('/password-login'));
+            expect(logins).toHaveLength(2);
+            expect(logins[0].body.deviceId).toMatch(/^[0-9a-f]{32}$/);
+            expect(logins[1].body.deviceId).toBe(logins[0].body.deviceId);
+        });
     });
 });

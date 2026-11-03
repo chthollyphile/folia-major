@@ -18,7 +18,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 export type FnMusicBridgeParams =
     | { base: string; username: string; password: string }              // login（deviceId 由主进程复用已存值）
     | { path: string; method: 'GET' | 'POST'; params?: Record<string, string | number | boolean | undefined>; body?: Record<string, unknown> } // request
-    | { trackId: string; quality?: string }                                    // stream
+    | { trackId: string }                                                      // stream
     | { coverId: string; size?: number }                                       // coverUrl
     | {};                                                                      // logout / getStatus
 
@@ -32,6 +32,9 @@ export interface FnMusicBridgeStatus {
     authenticated: boolean;
     base: string | null;
     username: string | null;
+    /** 登录答复里 user 的 guid 和昵称（登录时存下）。 */
+    userId: string | null;
+    nickname: string | null;
 }
 
 const text = (value: unknown): string => (value == null ? '' : String(value));
@@ -64,6 +67,10 @@ const bridgeError = (result: FnMusicBridgeResult & { ok: false }, operation: str
         return new OnlineProviderError('auth-required', `账号或密码错误（HTTP ${result.status}）。飞牛支持 NAS 账号与音乐独立账号两种，确认用对了账号类型`, 'fnmusic');
     }
     if (code === 'network') return new OnlineProviderError('network', msg, 'fnmusic');
+    // 填的服务器地址不成形（主进程规范化之后仍不是 http/https 地址）：登录表单据此提示改地址。
+    if (code === 'invalid-base') return new OnlineProviderError('unavailable', msg, 'fnmusic');
+    // 主进程没有保存的服务器与 token：没有登录（或系统加密不可用、重启后丢了），要重新登录。
+    if (code === 'unconfigured') return new OnlineProviderError('auth-required', msg, 'fnmusic');
     if (code && !Number.isNaN(Number(code))) {
         return new OnlineProviderError('invalid-response', `飞牛音乐 ${operation} 业务错误(code=${code}, HTTP ${result.status}): ${msg}`, 'fnmusic');
     }
@@ -89,12 +96,12 @@ export async function fnmusicRequest<T = unknown>(
     return result.data as T;
 }
 
-/** 播放地址：主进程返回 folia-fnmusic:// 协议 URL（协议 handler 实时转发，URL 不带凭据）。 */
-export async function fnMusicStreamSource(trackId: string, quality = 'original'): Promise<string> {
+/** 播放地址：主进程返回 folia-fnmusic:// 协议 URL（协议 handler 实时转发，URL 不带凭据）。回的是原始文件，不分音质。 */
+export async function fnMusicStreamSource(trackId: string): Promise<string> {
     if (!hasElectronBridge()) {
         throw new OnlineProviderError('unavailable', '飞牛音乐仅支持桌面端（需主进程桥）', 'fnmusic');
     }
-    const result = await (window as any).electron.fnmusicRequest('stream', { trackId, quality } as FnMusicBridgeParams) as FnMusicBridgeResult;
+    const result = await (window as any).electron.fnmusicRequest('stream', { trackId } as FnMusicBridgeParams) as FnMusicBridgeResult;
     if (!result.ok) throw bridgeError(result, 'track/stream');
     const data = result.data as { url?: string } | null;
     const url = text(data?.url);
@@ -111,16 +118,6 @@ export function fnMusicCoverUrl(coverId: string, size = 600): string {
     const q = new URLSearchParams({ coverId, size: String(size) });
     return `folia-fnmusic://cover?${q.toString()}`;
 }
-
-/** 生成 32 位十六进制 deviceId（随机，不补位凑数）。 */
-export const makeFnMusicDeviceId = (): string => {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-        const bytes = new Uint8Array(16);
-        crypto.getRandomValues(bytes);
-        return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-    return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-};
 
 /**
  * 登录：POST /music/api/v1/user/password-login（密码 SHA-256 由主进程完成）。
