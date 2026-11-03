@@ -9,6 +9,14 @@ import { kitMotionTokens } from '../../modal/settings/kit/motion';
 // three the kit does not hold: the glass, its shadow and the colour of a liked heart. The text is
 // the song theme's, as it was before the panel used the kit.
 
+/**
+ * The 1px edge the glass carries inside its shadow. Exported so the player bar's small popovers
+ * draw the same line as the panel they sit next to.
+ */
+export const panelEdgeColor = (isDaylight: boolean) => (
+    isDaylight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.09)'
+);
+
 /** The variables, for the `style` of the panel's surface. */
 export const panelTokens = (isDaylight: boolean, theme: Theme, reduced: boolean): CSSProperties => ({
     '--text-primary': theme.primaryColor,
@@ -20,7 +28,7 @@ export const panelTokens = (isDaylight: boolean, theme: Theme, reduced: boolean)
     ...(isDaylight ? null : { '--st-raise': 'rgba(255, 255, 255, 0.18)' }),
     '--pn-glass': isDaylight ? 'rgba(244, 244, 245, 0.8)' : 'rgba(28, 28, 31, 0.8)',
     '--pn-shadow': isDaylight
-        ? '0 30px 80px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(0, 0, 0, 0.06)'
-        : '0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09)',
+        ? `0 30px 80px rgba(0, 0, 0, 0.24), 0 0 0 1px ${panelEdgeColor(true)}`
+        : `0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px ${panelEdgeColor(false)}`,
     '--pn-like': isDaylight ? '#e0354f' : '#f2607a',
 } as CSSProperties);

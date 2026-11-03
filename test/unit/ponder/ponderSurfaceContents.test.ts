@@ -155,12 +155,35 @@ describe('PonderSurfaceContents', () => {
         ['play', 'title', 'progress'].forEach(part => {
             expect(markup).toContain(`data-ponder-bar-${part}`);
         });
-        // 槽位层、随机层、音量层各画一对，所以是 6 个；同一时刻只有一层是可见的。
-        expect(markup.match(/data-ponder-bar-slot=/g)).toHaveLength(6);
+        // 槽位层、随机层、音量层、按住层各画一对，所以是 8 个；同一时刻只有一层是可见的。
+        expect(markup.match(/data-ponder-bar-slot=/g)).toHaveLength(8);
         // 随机和音量不按槽位里此刻放着什么筛，两层都必须预渲染在场。
-        ['title-hovered', 'slots-shuffle', 'slots-volume', 'collapsed'].forEach(state => {
+        ['title-hovered', 'slots-shuffle', 'slots-volume', 'slots-holding', 'collapsed'].forEach(state => {
             expect(markup).toContain(`data-ponder-surface-state="${state}"`);
         });
+        // 按住层的外圈只画在第一个槽位上：讲的是「按住这一颗」。
+        expect(markup.match(/data-ponder-bar-slot-hold/g)).toHaveLength(1);
+    });
+
+    it('胶囊上方那排快捷操作是六个操作加最右一颗命令窗口', () => {
+        const markup = renderSurface('capsule-quick-actions');
+        expect(markup).toContain('data-ponder-capsule-quick-actions');
+        expect(markup.match(/data-ponder-quick-action(?=[\s>=])/g)).toHaveLength(6);
+        expect(markup).toContain('data-ponder-quick-palette');
+    });
+
+    it('从胶囊长出来的命令窗口，输入行在结果下面', () => {
+        const markup = renderSurface('capsule-palette');
+        expect(markup).toContain('data-ponder-capsule-palette');
+        expect(markup.match(/data-ponder-capsule-palette-row/g)).toHaveLength(3);
+        expect(markup.indexOf('data-ponder-capsule-palette-input'))
+            .toBeGreaterThan(markup.lastIndexOf('data-ponder-capsule-palette-row'));
+    });
+
+    it('换按钮的浮层一格一个可放的动作', () => {
+        const markup = renderSurface('slot-picker');
+        expect(markup).toContain('data-ponder-slot-picker');
+        expect(markup.match(/data-ponder-slot-picker-option/g)).toHaveLength(11);
     });
 
     it('自定义快捷键画的是两颗键帽加一个下拉，Alt 那颗是印死的', () => {

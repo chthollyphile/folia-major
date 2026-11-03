@@ -52,5 +52,6 @@ export const LATTICE_GEOMETRY = {
     chrome: { left: 0.06, right: 0.06, bottom: 0.06, height: 0.26 },
     /** 开在定位按钮和工具按钮这一列的上方；两行：队列命令、灯光。 */
     toolsPanel: { right: 0.04, bottom: 0.39, width: 0.38, height: 0.22 },
-    command: { left: 0.18, right: 0.18, top: 0.14, bottom: 0.20 },
+    /** 有歌时控制条在底部，命令窗口从那里原地往上长，输入行在底。 */
+    command: { left: 0.18, right: 0.18, bottom: 0.06, height: 0.66 },
 } satisfies Record<string, PonderRelativeRect>;
