@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createFoliumRegistry } from '@/mods/folium/registry';
+import { createFoliumRegistry } from '@/mods/runtime/registry';
 
 // test/unit/mod-system/foliumRegistry.test.ts
 // The one registry implementation behind every folium.registries.*: ids are

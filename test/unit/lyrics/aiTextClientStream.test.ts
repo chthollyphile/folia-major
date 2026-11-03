@@ -1,5 +1,7 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
+import { buildCompatibleBody } from '../../../shared/ai/compatibleBody.mjs';
+import { customAdapter } from '../../../shared/ai/custom.mjs';
 
 // test/unit/lyrics/aiTextClientStream.test.ts
 // Some OpenAI-compatible relays only accept `stream: true`. The answer is still structured JSON, so
@@ -159,13 +161,18 @@ describe('streamed requests', () => {
         systemPrompt: 'sys',
         sourcePrompt: 'src',
         customFetch: fetchImpl,
-        maxTokens: 1024,
+        task: 'theme',
+        answerTokens: 1024,
     });
 
     it('adds stream:true only when the setting is on, and nothing else stream-related', () => {
-        const on = client.buildOpenAICompatibleRequestBody('m', 'generic', 's', 'u', 0.7, null, null, 100, {}, true);
-        const off = client.buildOpenAICompatibleRequestBody('m', 'generic', 's', 'u', 0.7, null, null, 100, {}, false);
-        const unset = client.buildOpenAICompatibleRequestBody('m', 'generic', 's', 'u', 0.7, null, null, 100, {});
+        const body = (stream?: boolean) => buildCompatibleBody(customAdapter, {
+            task: 'theme', model: 'm', attempt: customAdapter.attempts('theme', 'm')[0],
+            systemPrompt: 's', sourcePrompt: 'u', temperature: 0.7, budget: 100, stream,
+        }) as Record<string, unknown>;
+        const on = body(true);
+        const off = body(false);
+        const unset = body();
         expect(on.stream).toBe(true);
         expect(on.stream_options).toBeUndefined();
         expect('stream' in off).toBe(false);

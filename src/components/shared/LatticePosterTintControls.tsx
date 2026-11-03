@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
 import FastColorPicker from './FastColorPicker';
+import { useColorPreviewThrottle } from './useColorPreviewThrottle';
 
 // Shared controls for the settings card and the command-palette surface.
 
@@ -32,26 +33,7 @@ const LatticePosterTintControls: React.FC<LatticePosterTintControlsProps> = ({
 }) => {
     const { t } = useTranslation();
     const offBackground = isDaylight ? 'bg-black/10' : 'bg-white/10';
-    const pendingColorRef = useRef<string | null>(null);
-    const colorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const colorHandlerRef = useRef(onColorChange);
-    colorHandlerRef.current = onColorChange;
-
-    // Color dragging is continuous; keep the picker fluid while limiting store persistence and
-    // Lattice rerenders to a modest preview cadence, then flush the final sampled colour.
-    const flushColor = () => {
-        if (colorTimerRef.current !== null) clearTimeout(colorTimerRef.current);
-        colorTimerRef.current = null;
-        const pending = pendingColorRef.current;
-        pendingColorRef.current = null;
-        if (pending) colorHandlerRef.current(pending);
-    };
-    const previewColor = (nextColor: string) => {
-        pendingColorRef.current = nextColor;
-        if (colorTimerRef.current !== null) return;
-        colorTimerRef.current = setTimeout(flushColor, 60);
-    };
-    useEffect(() => () => flushColor(), []);
+    const { previewColor, flushColor } = useColorPreviewThrottle(onColorChange);
     const renderToggle = (active: boolean, label: string, onChange: (enabled: boolean) => void) => (
         <button
             type="button"

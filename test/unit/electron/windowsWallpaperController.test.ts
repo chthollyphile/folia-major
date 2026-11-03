@@ -15,7 +15,7 @@ const {
   WALLPAPER_WINDOWS_FAILURE_COUNT_KEY,
   parseHelperEventLine,
   createWindowsWallpaperController,
-} = require('../../../electron/windowsWallpaperController.cjs') as {
+} = require('../../../electron/wallpaper/windowsWallpaperController.cjs') as {
   WALLPAPER_MODE_SETTING_KEY: string;
   WALLPAPER_WINDOWS_FAILURE_COUNT_KEY: string;
   parseHelperEventLine: (line: unknown) => HelperEvent | null;

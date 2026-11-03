@@ -4,7 +4,7 @@ import { getBlockCapacity } from './blockReservedSlots';
 import { SLOTS_PER_BLOCK } from './blockTemplates';
 import { getLatticeGeometry, type Bounds, type WallMetrics } from './layout';
 import { indexRanks, rankSlots, type WallPoint } from './rankSlots';
-import { getSeamCameraSpan } from './seamPlan';
+import { getSeamCameraSpan, getSeamCameraSpanY, type SeamAxis } from './seamPlan';
 import { getViewLineX, getViewWorldBounds, type WallView, type WallViewCenter } from './wallView';
 import { collectBlockRangeSlots, getBlockSize, type BlockRange, type WallSlot } from './wallSlots';
 
@@ -113,12 +113,14 @@ export const FINITE_CAMERA_PAD = 60;
  * Clamp for a finite layer's view centre: the content rect (plus a small pad) minus the screen on
  * either side of the split, locked onto the anchor when the content fits; then widened so the anchor
  * itself may sit anywhere the whole opening fits, and so the anchor point is always reachable.
+ * A row split (`seamAxis: 'y'`) takes its opening out of the screen's height instead.
  */
 export const getFiniteCameraRange = ({
     contentBounds,
     anchor,
     view,
     seamWidth,
+    seamAxis = 'x',
     pad = FINITE_CAMERA_PAD,
 }: {
     contentBounds: Bounds | null;
@@ -126,13 +128,16 @@ export const getFiniteCameraRange = ({
     view: WallView;
     /** The layer's target opening (not the animated one). */
     seamWidth: number;
+    seamAxis?: SeamAxis;
     pad?: number;
 }): WallCameraRange => {
     const { scale } = view;
     const lineX = getViewLineX(view);
-    const leftSpan = (lineX - seamWidth / 2) / scale;
-    const rightSpan = (view.width - lineX - seamWidth / 2) / scale;
-    const halfHeight = view.height / 2 / scale;
+    const across = seamAxis === 'x' ? seamWidth : 0;
+    const down = seamAxis === 'y' ? seamWidth : 0;
+    const leftSpan = (lineX - across / 2) / scale;
+    const rightSpan = (view.width - lineX - across / 2) / scale;
+    const halfHeight = (view.height / 2 - down / 2) / scale;
     const content = contentBounds ?? { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
 
     let minX = content.left + leftSpan - pad;
@@ -144,12 +149,13 @@ export const getFiniteCameraRange = ({
     if (lockedX) minX = maxX = anchor.x;
     if (lockedY) minY = maxY = anchor.y;
 
-    const seam = getSeamCameraSpan({ anchorX: anchor.x, openWidth: seamWidth, view });
+    const spanX = seamAxis === 'x' ? getSeamCameraSpan({ anchorX: anchor.x, openWidth: seamWidth, view }) : { min: anchor.x, max: anchor.x };
+    const spanY = seamAxis === 'y' ? getSeamCameraSpanY({ anchorY: anchor.y, openWidth: seamWidth, view }) : { min: anchor.y, max: anchor.y };
     return {
-        minX: Math.min(minX, seam.min),
-        maxX: Math.max(maxX, seam.max),
-        minY: Math.min(minY, anchor.y),
-        maxY: Math.max(maxY, anchor.y),
+        minX: Math.min(minX, spanX.min),
+        maxX: Math.max(maxX, spanX.max),
+        minY: Math.min(minY, spanY.min),
+        maxY: Math.max(maxY, spanY.max),
         lockedX,
         lockedY,
     };

@@ -7,7 +7,7 @@ export const TYPOGRAPHY = ['font-family', 'font-size', 'font-weight', 'font-styl
     'font-variation-settings', 'line-height', 'letter-spacing', 'word-spacing', 'text-transform',
     'text-wrap', 'word-break', 'overflow-wrap', 'white-space'] as const;
 
-/** Lines a preview may occupy. The clamp in the stylesheet has to agree with this. */
+/** Lines a preview may occupy, unless its metrics say otherwise (`maxLines`). The clamp in the stylesheet has to agree with this. */
 export const TITLE_MAX_LINES = 3;
 const ELLIPSIS = '…';
 /** Sub-pixel slack for a line count derived from a measured height. */
@@ -22,6 +22,8 @@ export type TitleMetrics = {
     fontSize: number;
     /** Layout width the title will occupy, which is not always the width it has right now. */
     width: number;
+    /** Lines the preview may occupy where that is not TITLE_MAX_LINES (a heading of the explore wall: two). */
+    maxLines?: number;
 };
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -49,9 +51,10 @@ export function readTitleMetrics(node: HTMLElement, targetWidth: number | null):
 }
 
 /**
- * The longest prefix of `text` that still renders in three lines, with an ellipsis when anything
- * was dropped. Pure arithmetic over font metrics: no element has to exist, let alone be laid out,
- * so an expanding card can be fitted against the width it is springing toward.
+ * The longest prefix of `text` that still renders in three lines (in `metrics.maxLines`, where
+ * the metrics name a limit), with an ellipsis when anything was dropped. Pure arithmetic over
+ * font metrics: no element has to exist, let alone be laid out, so an expanding card can be
+ * fitted against the width it is springing toward.
  *
  * Two rules here are what keep the result usable, both taken from `seniorious-text`'s layout:
  * the mark's own width comes out of the last line's budget, and the cut is walked by grapheme
@@ -59,10 +62,11 @@ export function readTitleMetrics(node: HTMLElement, targetWidth: number | null):
  */
 export function fitTitleToWidth(text: string, metrics: TitleMetrics): string {
     const { font, letterSpacing, lineHeight, width } = metrics;
+    const maxLines = metrics.maxLines ?? TITLE_MAX_LINES;
     const countLines = (value: string) => layoutWithLines(
         prepareWithSegments(value, font, { letterSpacing }), width, lineHeight).lineCount;
     const laid = layoutWithLines(prepareWithSegments(text, font, { letterSpacing }), width, lineHeight);
-    if (laid.lineCount <= TITLE_MAX_LINES) return text;
+    if (laid.lineCount <= maxLines) return text;
 
     const graphemes = graphemesOf(text);
     const candidate = (count: number) => `${graphemes.slice(0, count).join('').trimEnd()}${ELLIPSIS}`;
@@ -72,9 +76,9 @@ export function fitTitleToWidth(text: string, metrics: TitleMetrics): string {
     // leaves a clamped line half empty. Line count only grows with length, so walking out until it
     // no longer fits and then back in lands on the boundary.
     let count = Math.min(graphemes.length,
-        graphemesOf(laid.lines.slice(0, TITLE_MAX_LINES).map(line => line.text).join('')).length);
-    while (count < graphemes.length && countLines(candidate(count + 1)) <= TITLE_MAX_LINES) count += 1;
-    while (count > 0 && countLines(candidate(count)) > TITLE_MAX_LINES) count -= 1;
+        graphemesOf(laid.lines.slice(0, maxLines).map(line => line.text).join('')).length);
+    while (count < graphemes.length && countLines(candidate(count + 1)) <= maxLines) count += 1;
+    while (count > 0 && countLines(candidate(count)) > maxLines) count -= 1;
     return candidate(count);
 }
 
@@ -133,11 +137,11 @@ const renderedLines = (node: HTMLElement, style: CSSStyleDeclaration) => {
  *
  * Must be called while the settled rule is in force, or the CSS clamp caps the height being read.
  */
-export function titleFitNeedsCorrection(node: HTMLElement, text: string, fitted: string): boolean {
+export function titleFitNeedsCorrection(node: HTMLElement, text: string, fitted: string, maxLines = TITLE_MAX_LINES): boolean {
     const lines = renderedLines(node, getComputedStyle(node));
     if (lines === null) return false;
-    if (lines > TITLE_MAX_LINES + LINE_EPSILON) return true;
-    return fitted !== text && lines < TITLE_MAX_LINES - LINE_EPSILON;
+    if (lines > maxLines + LINE_EPSILON) return true;
+    return fitted !== text && lines < maxLines - LINE_EPSILON;
 }
 
 /**
@@ -148,7 +152,7 @@ export function titleFitNeedsCorrection(node: HTMLElement, text: string, fitted:
  * may differ: the three-line limit comes from the line height, which here is set by the viewport
  * rather than by the container.
  */
-export function fitTitle(node: HTMLElement, text: string, options?: { width?: string; onRead?: () => void }) {
+export function fitTitle(node: HTMLElement, text: string, options?: { width?: string; maxLines?: number; onRead?: () => void }) {
     const style = getComputedStyle(node);
     const probe = document.createElement('div');
     for (const property of TYPOGRAPHY) probe.style.setProperty(property, style.getPropertyValue(property));
@@ -157,7 +161,7 @@ export function fitTitle(node: HTMLElement, text: string, options?: { width?: st
         width: options?.width ?? style.width, padding: '0', margin: '0', border: '0', boxSizing: 'border-box',
     });
     document.body.append(probe);
-    const limit = parseFloat(style.lineHeight) * TITLE_MAX_LINES + 1;
+    const limit = parseFloat(style.lineHeight) * (options?.maxLines ?? TITLE_MAX_LINES) + 1;
     const fits = (value: string) => {
         probe.textContent = value;
         options?.onRead?.();

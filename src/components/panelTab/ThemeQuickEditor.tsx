@@ -1,57 +1,78 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Moon, Palette, RotateCcw, Sun, X, Copy, ArrowLeft, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { DualTheme, SongResult } from '../../types';
+import type { DualTheme, SongResult, Theme } from '../../types';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
 import { FALLBACK_AI_DUAL_THEME, sanitizeDualTheme } from '../../services/themeSanitizer';
 import { BASE_DUAL_THEME } from '../../services/baseThemes';
-import { extractColors } from '../../utils/colorExtractor';
-import { THEME_GENERATION_PROMPT_PREFIX, buildThemeSourcePrompt, parseAiThemeJsonInput } from '../../utils/aiThemePrompts';
 import { useThemeQuickEditorStore, type ThemeQuickEditorKind } from '../../stores/useThemeQuickEditorStore';
-import { buildRecommendedColors } from '../../utils/themeEditorPalette';
-import FastColorPicker from '../shared/FastColorPicker';
+import { Button, CopyButton } from '../modal/settings/kit';
+import { ThemeColorPickerCard, ThemeColorWells, ThemeModeSwitch } from '../modal/theme-park/ThemeColorParts';
+import ThemeNameField from '../modal/theme-park/ThemeNameField';
+import { SAMPLE_COLOR_MOTION_CLASS, ThemeSampleButton, ThemeSampleCard, themeSampleVars } from '../modal/theme-park/ThemeSample';
+import { AiThemeJsonBox, buildAiThemePrompt, useAiThemeImport, type AiThemePromptSource } from '../modal/theme-park/aiThemeTransfer';
+import { isThemeNameValid, type EditableColorKey, type EditableMode } from '../modal/theme-park/themeParkDraft';
+import { useThemeRecommendedColors } from '../modal/theme-park/useThemeRecommendedColors';
+import { Sheet, SheetButton } from '../shared/Sheet';
+import { useColorPreviewThrottle } from '../shared/useColorPreviewThrottle';
+import { VIS_PLAYGROUND_PREVIEW_LINES } from '../visualizer/PreviewPlaceholder';
 
 // src/components/panelTab/ThemeQuickEditor.tsx
-// Lightweight theme color editor launched from the player controls tab.
+// The quick theme editor, opened from the control panel's theme row: a dialog with a sample strip,
+// the light and dark sides, the four colours and one picker, and the name of the side being edited.
+// It is the colour tab of Theme Park made small, built from the same parts. For an AI theme it can
+// also take a theme as JSON: that step comes in inside the same dialog.
 
-type EditableColorKey = 'backgroundColor' | 'primaryColor' | 'accentColor' | 'secondaryColor';
-type EditableMode = 'light' | 'dark';
+/** The line the sample strip shows: the lyric sample's line in Latin letters, with its translation. */
+const SAMPLE_LINE = VIS_PLAYGROUND_PREVIEW_LINES[1];
+/** How many of its words are drawn as sung already; the next one is the word being sung. */
+const SAMPLE_SUNG_WORDS = 2;
 
-type ColorField = {
-    key: EditableColorKey;
-    labelKey: string;
-    fallbackLabel: string;
-};
-
-const COLOR_FIELDS: ColorField[] = [
-    { key: 'backgroundColor', labelKey: 'options.aiThemeQuickEditBackground', fallbackLabel: 'Background' },
-    { key: 'primaryColor', labelKey: 'options.aiThemeQuickEditPrimary', fallbackLabel: 'Primary' },
-    { key: 'accentColor', labelKey: 'options.aiThemeQuickEditAccent', fallbackLabel: 'Accent' },
-    { key: 'secondaryColor', labelKey: 'options.aiThemeQuickEditSecondary', fallbackLabel: 'Secondary' },
-];
+/** The theme at work, small: a lyric line, a now-playing card and a button. */
+const ThemeQuickSample: React.FC<{ theme: Theme }> = ({ theme }) => (
+    <div
+        aria-hidden
+        className={`${SAMPLE_COLOR_MOTION_CLASS} relative flex h-[104px] items-center gap-4 overflow-hidden rounded-xl bg-[var(--ts-bg)] px-5 shadow-[0_0_0_1px_var(--st-line)]`}
+        style={themeSampleVars(theme)}
+    >
+        {/* A glow of the secondary colour behind the line, as the lyric backgrounds have. */}
+        <span className={`${SAMPLE_COLOR_MOTION_CLASS} pointer-events-none absolute inset-0 bg-[var(--ts-muted)] opacity-[0.28] [mask-image:radial-gradient(60%_75%_at_50%_46%,#000,transparent)]`} />
+        <div className="relative min-w-0 flex-1">
+            <p className={`${SAMPLE_COLOR_MOTION_CLASS} truncate text-xl font-semibold leading-7 text-[color:var(--ts-fg)]`}>
+                {(SAMPLE_LINE.words ?? []).map((word, index) => (
+                    <span
+                        key={index}
+                        className={index < SAMPLE_SUNG_WORDS ? 'opacity-[0.42]' : index === SAMPLE_SUNG_WORDS ? `${SAMPLE_COLOR_MOTION_CLASS} text-[color:var(--ts-accent)]` : undefined}
+                    >
+                        {word.text}{' '}
+                    </span>
+                ))}
+            </p>
+            <p className={`${SAMPLE_COLOR_MOTION_CLASS} mt-1 truncate text-xs leading-[18px] text-[color:var(--ts-muted)]`}>{SAMPLE_LINE.translation}</p>
+        </div>
+        <ThemeSampleCard />
+        <ThemeSampleButton />
+    </div>
+);
 
 type ThemeQuickEditorProps = {
+    isOpen: boolean;
     kind: ThemeQuickEditorKind;
     initialTheme: DualTheme;
     coverUrl: string | null;
     isDaylight: boolean;
-    promptSourceText: string | null;
-    isPureMusic: boolean;
-    songTitle: string | undefined;
+    promptSource: AiThemePromptSource;
     onClose: () => void;
     onSave: (theme: DualTheme) => void;
 };
 
 const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
+    isOpen,
     kind,
     initialTheme,
     coverUrl,
     isDaylight,
-    promptSourceText,
-    isPureMusic,
-    songTitle,
+    promptSource,
     onClose,
     onSave,
 }) => {
@@ -60,34 +81,14 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
     const [draftTheme, setDraftTheme] = useState<DualTheme>(() => normalizedInitialTheme);
     const [mode, setMode] = useState<EditableMode>(() => (isDaylight ? 'light' : 'dark'));
     const [activeKey, setActiveKey] = useState<EditableColorKey>('accentColor');
-    const [coverColors, setCoverColors] = useState<string[]>([]);
     const [themeNames, setThemeNames] = useState(() => ({
         light: normalizedInitialTheme.light.name || '',
         dark: normalizedInitialTheme.dark.name || '',
     }));
-    const [isDragging, setIsDragging] = useState(false);
-    const [isImportPanelOpen, setIsImportPanelOpen] = useState(false);
-    const [importJsonText, setImportJsonText] = useState('');
-    const [importError, setImportError] = useState<string | null>(null);
-    const [isCopied, setIsCopied] = useState(false);
-    const [isJsonCopied, setIsJsonCopied] = useState(false);
-    const isMouseDownOnOverlayRef = useRef(false);
-
-    useEffect(() => {
-        const handlePointerUp = () => setIsDragging(false);
-        window.addEventListener('pointerup', handlePointerUp);
-        return () => window.removeEventListener('pointerup', handlePointerUp);
-    }, []);
-
-    const handleOverlayMouseDown = (event: React.MouseEvent) => {
-        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
-    };
-
-    const handleOverlayClick = (event: React.MouseEvent) => {
-        if (event.target === event.currentTarget && isMouseDownOnOverlayRef.current) {
-            onClose();
-        }
-    };
+    const [view, setView] = useState<'main' | 'import'>('main');
+    // Whether the view has changed since the dialog opened: the first view is there with the dialog,
+    // a later one comes in.
+    const viewChangedRef = useRef(false);
 
     useEffect(() => {
         setDraftTheme(normalizedInitialTheme);
@@ -99,63 +100,11 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
         setActiveKey('accentColor');
     }, [isDaylight, normalizedInitialTheme]);
 
-    useEffect(() => {
-        let cancelled = false;
-        if (!coverUrl) {
-            setCoverColors([]);
-            return undefined;
-        }
-
-        extractColors(coverUrl, 8)
-            .then(colors => {
-                if (!cancelled) {
-                    setCoverColors(colors);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) {
-                    setCoverColors([]);
-                }
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [coverUrl]);
-
     // 组件内调色板产生的必定是合法 Hex，直接跳过 sanitizeDualTheme 以节约性能
     const activeTheme = draftTheme[mode];
-    const activeColor = activeTheme[activeKey];
-    const recommendedColors = useMemo(
-        () => buildRecommendedColors(normalizedInitialTheme, coverColors),
-        [coverColors, normalizedInitialTheme],
-    );
+    const recommendedColors = useThemeRecommendedColors(normalizedInitialTheme, coverUrl);
 
-    const throttleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const latestColorRef = useRef<string>(activeColor);
-
-    const updateColorThrottled = (color: string) => {
-        latestColorRef.current = color;
-        if (!throttleTimeoutRef.current) {
-            throttleTimeoutRef.current = setTimeout(() => {
-                throttleTimeoutRef.current = null;
-                setDraftTheme(previous => ({
-                    ...previous,
-                    [mode]: {
-                        ...previous[mode],
-                        [activeKey]: latestColorRef.current,
-                    },
-                }));
-            }, 33); // ~30fps 刷新率
-        }
-    };
-
-    // 当用户直接点击推荐颜色等需要立即响应时，清除节流并直接更新
-    const updateColorInstant = (color: string) => {
-        if (throttleTimeoutRef.current) {
-            clearTimeout(throttleTimeoutRef.current);
-            throttleTimeoutRef.current = null;
-        }
+    const writeColor = (color: string) => {
         setDraftTheme(previous => ({
             ...previous,
             [mode]: {
@@ -164,74 +113,37 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
             },
         }));
     };
-
-    // Flushes any pending color-picker update and returns a safe, named dual theme for saving or copying.
-    const buildFinalTheme = () => {
-        const finalLightName = themeNames.light.trim();
-        const finalDarkName = themeNames.dark.trim();
-        const updatedDraft = {
-            ...draftTheme,
-            light: { ...draftTheme.light, name: finalLightName },
-            dark: { ...draftTheme.dark, name: finalDarkName },
-        };
-
-        if (throttleTimeoutRef.current) {
-            clearTimeout(throttleTimeoutRef.current);
-            throttleTimeoutRef.current = null;
-            updatedDraft[mode] = {
-                ...updatedDraft[mode],
-                [activeKey]: latestColorRef.current,
-            };
-        }
-
-        return sanitizeDualTheme(updatedDraft, normalizedInitialTheme);
+    // A drag writes at the pace of the app's colour previews; a choice writes at once, after what
+    // the drag still held back.
+    const { previewColor, flushColor } = useColorPreviewThrottle(writeColor);
+    const chooseColor = (color: string) => {
+        flushColor();
+        writeColor(color);
     };
+
+    // Returns a safe, named dual theme for saving or copying.
+    const buildFinalTheme = () => sanitizeDualTheme({
+        ...draftTheme,
+        light: { ...draftTheme.light, name: themeNames.light.trim() },
+        dark: { ...draftTheme.dark, name: themeNames.dark.trim() },
+    }, normalizedInitialTheme);
+
+    const isNameValid = isThemeNameValid(themeNames.light) && isThemeNameValid(themeNames.dark);
 
     const handleSave = () => {
         if (!isNameValid) return;
         onSave(buildFinalTheme());
     };
 
-    const handleCopyThemeJson = async () => {
-        try {
-            await navigator.clipboard.writeText(JSON.stringify(buildFinalTheme(), null, 2));
-            setIsJsonCopied(true);
-            window.setTimeout(() => setIsJsonCopied(false), 2000);
-        } catch (error) {
-            console.error('Failed to copy theme JSON:', error);
-        }
-    };
+    // An imported theme is saved as it is read, as before.
+    const importer = useAiThemeImport(normalizedInitialTheme, onSave);
 
-    const handleCopyPrompt = async () => {
-        try {
-            const finalPrompt = THEME_GENERATION_PROMPT_PREFIX + '\n\n' + buildThemeSourcePrompt(promptSourceText || '', isPureMusic, songTitle);
-            await navigator.clipboard.writeText(finalPrompt);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000);
-        } catch (error) {
-            console.error('Failed to copy prompt:', error);
-        }
-    };
-
-    const handleImportApply = () => {
-        setImportError(null);
-        if (!importJsonText.trim()) return;
-        try {
-            const parsed = parseAiThemeJsonInput(importJsonText);
-            const importedTheme = sanitizeDualTheme(parsed as DualTheme, normalizedInitialTheme);
-            onSave(importedTheme);
-            setIsImportPanelOpen(false);
-            setImportJsonText('');
-        } catch (error) {
-            setImportError(t('options.invalidJsonFormat') || 'Invalid JSON format');
-        }
+    const showView = (next: 'main' | 'import') => {
+        viewChangedRef.current = true;
+        setView(next);
     };
 
     const handleReset = () => {
-        if (throttleTimeoutRef.current) {
-            clearTimeout(throttleTimeoutRef.current);
-            throttleTimeoutRef.current = null;
-        }
         if (kind === 'custom') {
             setDraftTheme(previous => ({
                 ...previous,
@@ -259,355 +171,89 @@ const ThemeQuickEditor: React.FC<ThemeQuickEditorProps> = ({
         });
     };
 
-    const isThemeNameValid = (name: string) => name.trim().length > 0 && name.trim().length <= 32;
-    const isNameValid = isThemeNameValid(themeNames.light) && isThemeNameValid(themeNames.dark);
-
-    // Use activeTheme for real-time preview of the edited dual theme
-    const panelBg = activeTheme.backgroundColor;
-    const textColor = activeTheme.primaryColor;
-    const mutedTextColor = activeTheme.secondaryColor;
-    const accentColor = activeTheme.accentColor;
-
-    // Use hex alpha for backgrounds and borders based on primary text color for contrast
-    const softBg = `${textColor}12`; // ~7% opacity
-    const hoverBg = `${textColor}1a`; // ~10% opacity
-    const borderColor = `${textColor}26`; // ~15% opacity
-    const overlayBg = mode === 'light' ? 'rgba(24,24,27,0.35)' : 'rgba(0,0,0,0.65)';
-
-    const themeTransitionClass = isDragging ? '' : 'transition-colors duration-500';
-    const allTransitionClass = isDragging ? '' : 'transition-all duration-300';
-    const title = kind === 'custom'
-        ? (t('options.customThemeQuickEditTitle') || 'Quick Edit Custom Theme')
-        : (t('options.aiThemeQuickEditTitle') || 'Quick Edit AI Theme');
-    const description = kind === 'custom'
-        ? (t('options.customThemeQuickEditDesc') || 'Tune your custom theme colors.')
-        : (t('options.aiThemeQuickEditDesc') || 'Tune the current song AI theme colors.');
-    const saveLabel = kind === 'custom'
-        ? (t('options.customThemeQuickEditSave') || 'Save Custom Theme')
-        : (t('options.aiThemeQuickEditSave') || 'Save AI Theme');
+    // Both views lie in one place, so the dialog keeps its size; the one that is not shown is out of
+    // sight and out of reach.
+    const viewClass = (shown: boolean) => `col-start-1 row-start-1 min-w-0 ${shown ? (viewChangedRef.current ? 'st-page-in' : '') : 'invisible'}`;
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            // 添加 transform-gpu 强制硬件加速隔离模糊计算
-            className={`fixed inset-0 z-[142] flex items-center justify-center p-4 backdrop-blur-sm transform-gpu ${themeTransitionClass}`}
-            style={{ backgroundColor: overlayBg, willChange: 'opacity' }}
-            onMouseDown={handleOverlayMouseDown}
-            onClick={handleOverlayClick}
-        >
-            <motion.div
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.985 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                // 添加 transform-gpu 隔离阴影重绘
-                className={`relative w-full max-w-[36rem] overflow-hidden rounded-[1.5rem] border shadow-[0_24px_80px_rgba(0,0,0,0.4)] transform-gpu ${themeTransitionClass}`}
-                style={{ backgroundColor: panelBg, borderColor, color: textColor, willChange: 'transform' }}
-                onClick={(event) => event.stopPropagation()}
-            >
-                {/* Background glow effects for real-time preview */}
-                <div
-                    className={`absolute -top-32 -right-32 h-64 w-64 rounded-full blur-[90px] opacity-40 pointer-events-none transform-gpu ${themeTransitionClass}`}
-                    style={{ backgroundColor: accentColor, willChange: 'background-color' }}
-                />
-                <div
-                    className={`absolute -bottom-32 -left-32 h-64 w-64 rounded-full blur-[90px] opacity-30 pointer-events-none transform-gpu ${themeTransitionClass}`}
-                    style={{ backgroundColor: mutedTextColor, willChange: 'background-color' }}
-                />
-
-                <div className="relative z-10 transform-gpu">
-                    <div className={`flex items-center justify-between gap-3 border-b px-5 py-4 ${themeTransitionClass}`} style={{ borderColor }}>
-                        <div className="flex min-w-0 items-center gap-4">
-                            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${themeTransitionClass}`} style={{ backgroundColor: softBg, color: accentColor }}>
-                                <Palette size={18} />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="truncate text-sm font-bold tracking-tight">
-                                    {title}
-                                </div>
-                                <div className={`mt-0.5 truncate text-xs ${themeTransitionClass}`} style={{ color: mutedTextColor }}>
-                                    {description}
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                            <button
-                                type="button"
-                                onClick={handleReset}
-                                className="flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-[11px] font-bold transition-colors duration-300"
-                                style={{ backgroundColor: 'transparent', color: mutedTextColor }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; e.currentTarget.style.color = textColor; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = mutedTextColor; }}
-                                title={t('ui.resetToDefaultTheme') || 'Reset'}
-                            >
-                                <RotateCcw size={14} />
-                                <span className="hidden sm:inline">{t('ui.resetToDefaultTheme') || 'Reset'}</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-300"
-                                style={{ backgroundColor: 'transparent', color: mutedTextColor }}
-                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = hoverBg; e.currentTarget.style.color = textColor; }}
-                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = mutedTextColor; }}
-                                aria-label={t('ui.close') || 'Close'}
-                            >
-                                <X size={17} />
-                            </button>
-                        </div>
+        <Sheet
+            isOpen={isOpen}
+            onClose={onClose}
+            size="m"
+            title={view === 'import'
+                ? t('options.manualImportAiTheme')
+                : t(kind === 'custom' ? 'options.customThemeQuickEditTitle' : 'options.aiThemeQuickEditTitle')}
+            headerActions={view === 'main' ? (
+                <Button variant="quiet" onClick={handleReset}>{t('ui.resetToDefaultTheme')}</Button>
+            ) : undefined}
+            footer={view === 'main' ? (
+                <>
+                    <div className="mr-auto flex flex-wrap gap-2">
+                        {kind === 'ai' && (
+                            <SheetButton onClick={() => showView('import')}>{t('options.manualImportAiTheme')}</SheetButton>
+                        )}
+                        <CopyButton text={() => JSON.stringify(buildFinalTheme(), null, 2)} disabled={!isNameValid}>
+                            {t('options.copyThemeJson')}
+                        </CopyButton>
                     </div>
-
-                    {isImportPanelOpen ? (
-                        <div className="flex flex-col gap-6 p-6">
-                            <div className="space-y-4">
-                                <div className={`text-sm font-bold ${themeTransitionClass}`} style={{ color: textColor }}>
-                                    {t('aiHelp.copyPromptTitle') || '1. Copy AI Prompt'}
-                                </div>
-                                <div className={`text-xs ${themeTransitionClass}`} style={{ color: mutedTextColor }}>
-                                    {t('aiHelp.copyPromptDesc') || 'Copy the prompt and paste it into any AI model to generate your theme.'}
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={handleCopyPrompt}
-                                    className={`flex w-full min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
-                                    style={{ borderColor, backgroundColor: softBg, color: textColor }}
-                                >
-                                    {isCopied ? <Check size={15} className="text-green-500" /> : <Copy size={15} />}
-                                    <span>{isCopied ? (t('status.copied') || 'Copied!') : (t('aiHelp.copyPrompt') || 'Copy Prompt')}</span>
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className={`text-sm font-bold ${themeTransitionClass}`} style={{ color: textColor }}>
-                                    {t('aiHelp.importJsonTitle') || '2. Paste JSON Result'}
-                                </div>
-                                <textarea
-                                    value={importJsonText}
-                                    onChange={(e) => setImportJsonText(e.target.value)}
-                                    placeholder={t('options.pasteJsonHere') || 'Paste JSON here...'}
-                                    className={`w-full h-32 rounded-xl border bg-transparent p-3 text-xs outline-none resize-none font-mono ${allTransitionClass}`}
-                                    style={{ borderColor, color: textColor }}
-                                    onFocus={(e) => {
-                                        e.currentTarget.style.borderColor = accentColor;
-                                        e.currentTarget.style.boxShadow = `0 0 0 1px ${accentColor}`;
-                                    }}
-                                    onBlur={(e) => {
-                                        e.currentTarget.style.borderColor = borderColor;
-                                        e.currentTarget.style.boxShadow = 'none';
-                                    }}
-                                    spellCheck={false}
+                    <SheetButton variant="primary" disabled={!isNameValid} onClick={handleSave}>
+                        {t(kind === 'custom' ? 'options.customThemeQuickEditSave' : 'options.aiThemeQuickEditSave')}
+                    </SheetButton>
+                </>
+            ) : (
+                <>
+                    <SheetButton
+                        onClick={() => {
+                            importer.clear();
+                            showView('main');
+                        }}
+                    >
+                        {t('ui.cancel')}
+                    </SheetButton>
+                    <SheetButton variant="primary" disabled={!importer.canApply} onClick={importer.apply}>
+                        {t('ui.apply')}
+                    </SheetButton>
+                </>
+            )}
+        >
+            <div className="grid">
+                <div inert={view !== 'main'} className={viewClass(view === 'main')}>
+                    <ThemeQuickSample theme={activeTheme} />
+                    <div className="mt-4 grid gap-5 sm:grid-cols-[220px_minmax(0,1fr)]">
+                        <div className="flex min-w-0 flex-col gap-3">
+                            <ThemeModeSwitch mode={mode} onChange={setMode} />
+                            <ThemeColorWells theme={activeTheme} activeKey={activeKey} onChange={setActiveKey} stacked />
+                            <label className="block">
+                                <span className="mb-1.5 ml-0.5 block text-xs leading-[18px] text-[color:var(--st-t2)]">{t('options.themeName')}</span>
+                                <ThemeNameField
+                                    value={themeNames[mode]}
+                                    onChange={name => setThemeNames(previous => ({ ...previous, [mode]: name }))}
                                 />
-                                {importError && (
-                                    <div className="text-xs text-red-500 font-bold">{importError}</div>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsImportPanelOpen(false);
-                                        setImportJsonText('');
-                                        setImportError(null);
-                                    }}
-                                    className={`flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
-                                    style={{ borderColor, backgroundColor: softBg, color: textColor }}
-                                >
-                                    <ArrowLeft size={15} />
-                                    <span>{t('ui.cancel') || 'Cancel'}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleImportApply}
-                                    disabled={!importJsonText.trim()}
-                                    className={`flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${allTransitionClass}`}
-                                    style={{ backgroundColor: accentColor, color: panelBg }}
-                                >
-                                    <Download size={16} strokeWidth={2.5} />
-                                    <span>{t('ui.apply') || 'Apply'}</span>
-                                </button>
-                            </div>
+                            </label>
                         </div>
-                    ) : (
-                        <div className="grid gap-5 p-5 sm:grid-cols-[1fr_14rem]">
-                            <div className="space-y-5">
-                                {/* Mode Switcher */}
-                                <div className={`flex gap-2 rounded-2xl p-1.5 ${themeTransitionClass}`} style={{ backgroundColor: softBg }}>
-                                    {(['light', 'dark'] as EditableMode[]).map(nextMode => {
-                                        const selected = mode === nextMode;
-                                        return (
-                                            <button
-                                                key={nextMode}
-                                                type="button"
-                                                onClick={() => setMode(nextMode)}
-                                                className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold ${allTransitionClass}`}
-                                                style={{
-                                                    backgroundColor: selected ? accentColor : 'transparent',
-                                                    color: selected ? panelBg : textColor,
-                                                    boxShadow: selected ? `0 4px 12px ${accentColor}40` : 'none',
-                                                }}
-                                            >
-                                                {nextMode === 'light' ? <Sun size={15} /> : <Moon size={15} />}
-                                                <span>{nextMode === 'light' ? (t('options.lightTheme') || 'Light Theme') : (t('options.darkTheme') || 'Dark Theme')}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Color Fields */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    {COLOR_FIELDS.map(field => {
-                                        const color = draftTheme[mode][field.key];
-                                        const selected = activeKey === field.key;
-                                        return (
-                                            <button
-                                                key={field.key}
-                                                type="button"
-                                                onClick={() => setActiveKey(field.key)}
-                                                className={`min-w-0 rounded-2xl border p-3.5 text-left ${allTransitionClass}`}
-                                                style={{
-                                                    borderColor: selected ? accentColor : borderColor,
-                                                    backgroundColor: selected ? `${accentColor}1a` : softBg,
-                                                    boxShadow: selected ? `0 0 0 1px ${accentColor}` : 'none',
-                                                }}
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <span className={`h-6 w-6 shrink-0 rounded-full border shadow-inner ${themeTransitionClass}`} style={{ backgroundColor: color, borderColor: `${textColor}26` }} />
-                                                    <span className="min-w-0 truncate text-xs font-bold">
-                                                        {t(field.labelKey) || field.fallbackLabel}
-                                                    </span>
-                                                </div>
-                                                <div className={`mt-2.5 truncate font-mono text-[10px] uppercase tracking-wider ${themeTransitionClass}`} style={{ color: mutedTextColor }}>
-                                                    {color}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Color Picker */}
-                                <div
-                                    className={`rounded-3xl border p-4 transform-gpu ${themeTransitionClass}`}
-                                    style={{ borderColor, backgroundColor: softBg }}
-                                >
-                                    <FastColorPicker
-                                        color={activeColor}
-                                        onChange={updateColorThrottled}
-                                        onPointerDown={() => setIsDragging(true)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex min-w-0 flex-col gap-4">
-                                {/* Recommended Colors */}
-                                <div className={`rounded-3xl border p-4 ${themeTransitionClass}`} style={{ borderColor, backgroundColor: softBg }}>
-                                    <div className={`text-xs font-bold mb-3 ${themeTransitionClass}`} style={{ color: textColor }}>
-                                        {t('options.aiThemeQuickEditRecommendedColors') || 'Recommended Colors'}
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-2.5">
-                                        {recommendedColors.map(color => (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                onClick={() => updateColorInstant(color)}
-                                                className="aspect-square rounded-xl border shadow-sm transition-transform hover:scale-110 active:scale-95"
-                                                style={{ backgroundColor: color, borderColor: `${textColor}26` }}
-                                                title={color.toUpperCase()}
-                                                aria-label={color.toUpperCase()}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Theme Rename */}
-                                <div className={`rounded-3xl border p-4 ${themeTransitionClass}`} style={{ borderColor, backgroundColor: softBg }}>
-                                    <div className={`text-xs font-bold mb-3 ${themeTransitionClass}`} style={{ color: textColor }}>
-                                        {t('options.themeName') || 'Theme Name'}
-                                    </div>
-                                    <label className="block">
-                                        <span className={`mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase ${themeTransitionClass}`} style={{ color: mutedTextColor }}>
-                                            {mode === 'light' ? <Sun size={12} /> : <Moon size={12} />}
-                                            {mode === 'light'
-                                                ? (t('options.lightTheme') || 'Light Theme')
-                                                : (t('options.darkTheme') || 'Dark Theme')}
-                                        </span>
-                                        <input
-                                            type="text"
-                                            value={themeNames[mode]}
-                                            maxLength={32}
-                                            onChange={(e) => setThemeNames(previous => ({
-                                                ...previous,
-                                                [mode]: e.target.value,
-                                            }))}
-                                            className={`w-full rounded-xl border bg-transparent px-4 py-2.5 text-xs font-bold outline-none ${allTransitionClass}`}
-                                            style={{ borderColor, color: textColor }}
-                                            onFocus={(e) => {
-                                                e.currentTarget.style.borderColor = accentColor;
-                                                e.currentTarget.style.boxShadow = `0 0 0 1px ${accentColor}`;
-                                            }}
-                                            onBlur={(e) => {
-                                                e.currentTarget.style.borderColor = borderColor;
-                                                e.currentTarget.style.boxShadow = 'none';
-                                            }}
-                                            placeholder={t('ui.enterThemeName')}
-                                            spellCheck={false}
-                                        />
-                                    </label>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="flex flex-col gap-2 mt-auto pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={handleSave}
-                                        disabled={!isNameValid}
-                                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${allTransitionClass}`}
-                                        style={{
-                                            backgroundColor: accentColor,
-                                            color: panelBg,
-                                            opacity: isNameValid ? 1 : 0.5,
-                                        }}
-                                    >
-                                        <Check size={16} strokeWidth={2.5} />
-                                        <span>{saveLabel}</span>
-                                    </button>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleCopyThemeJson()}
-                                            disabled={!isNameValid}
-                                            className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl text-[11px] font-bold hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${allTransitionClass}`}
-                                            style={{ backgroundColor: 'transparent', color: mutedTextColor }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            {isJsonCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-                                            <span>{isJsonCopied ? (t('status.copied') || 'Copied!') : (t('options.copyThemeJson') || 'Copy JSON')}</span>
-                                        </button>
-                                        {kind === 'ai' && (
-                                            <button
-                                            type="button"
-                                            onClick={() => setIsImportPanelOpen(true)}
-                                            className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-xl text-[11px] font-bold hover:brightness-110 active:scale-95 ${allTransitionClass}`}
-                                            style={{ backgroundColor: 'transparent', color: mutedTextColor }}
-                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = hoverBg}
-                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                        >
-                                            <Download size={13} />
-                                            <span>{t('options.manualImportAiTheme') || 'Manual Import'}</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                        <ThemeColorPickerCard
+                            theme={activeTheme}
+                            activeKey={activeKey}
+                            recommendedColors={recommendedColors}
+                            onDrag={previewColor}
+                            onChange={chooseColor}
+                            areaHeight={150}
+                        />
+                    </div>
                 </div>
-            </motion.div>
-        </motion.div>
+
+                {kind === 'ai' && (
+                    <div inert={view !== 'import'} className={`${viewClass(view === 'import')} flex flex-col`}>
+                        <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-sm leading-5">{t('aiHelp.copyPromptTitle')}</h3>
+                            <CopyButton text={() => buildAiThemePrompt(promptSource)}>{t('aiHelp.copyPrompt')}</CopyButton>
+                        </div>
+                        <h3 className="mb-3 mt-5 text-sm leading-5">{t('aiHelp.importJsonTitle')}</h3>
+                        <AiThemeJsonBox importer={importer} className="min-h-[132px] flex-1" />
+                    </div>
+                )}
+            </div>
+        </Sheet>
     );
 };
 
@@ -632,30 +278,43 @@ const ThemeQuickEditorHost: React.FC<ThemeQuickEditorHostProps> = ({ onSaveAiThe
         closeEditor: state.closeEditor,
     })));
     const initialTheme = editorKind === 'custom' ? customTheme : (aiTheme ?? FALLBACK_AI_DUAL_THEME);
+    const open = isOpen && editorKind && initialTheme ? { kind: editorKind, initialTheme } : null;
+
+    // The dialog keeps what it shows while it leaves, and every opening starts a new editor: the
+    // last opened editor is held here, under a key that counts the openings. It stays mounted while
+    // closed, with the cover it had: a closed editor does not read the next songs' covers.
+    const heldRef = useRef<{ kind: ThemeQuickEditorKind; initialTheme: DualTheme; coverUrl: typeof coverUrl } | null>(null);
+    const openingsRef = useRef(0);
+    const wasOpenRef = useRef(false);
+    if (open) {
+        if (!wasOpenRef.current) openingsRef.current += 1;
+        heldRef.current = { ...open, coverUrl };
+    }
+    wasOpenRef.current = Boolean(open);
+    const held = heldRef.current;
+    if (!held) {
+        return null;
+    }
 
     return (
-        <AnimatePresence>
-            {isOpen && editorKind && initialTheme && (
-                <ThemeQuickEditor
-                    kind={editorKind}
-                    initialTheme={initialTheme}
-                    coverUrl={coverUrl}
-                    isDaylight={isDaylight}
-                    promptSourceText={promptSourceText}
-                    isPureMusic={isPureMusic}
-                    songTitle={songTitle}
-                    onClose={closeEditor}
-                    onSave={(theme) => {
-                        if (editorKind === 'custom') {
-                            onSaveCustomTheme(theme);
-                        } else {
-                            onSaveAiTheme(theme, song, songKey);
-                        }
-                        closeEditor();
-                    }}
-                />
-            )}
-        </AnimatePresence>
+        <ThemeQuickEditor
+            key={openingsRef.current}
+            isOpen={Boolean(open)}
+            kind={held.kind}
+            initialTheme={held.initialTheme}
+            coverUrl={held.coverUrl}
+            isDaylight={isDaylight}
+            promptSource={{ promptSourceText, isPureMusic, songTitle }}
+            onClose={closeEditor}
+            onSave={(theme) => {
+                if (held.kind === 'custom') {
+                    onSaveCustomTheme(theme);
+                } else {
+                    onSaveAiTheme(theme, song, songKey);
+                }
+                closeEditor();
+            }}
+        />
     );
 };
 

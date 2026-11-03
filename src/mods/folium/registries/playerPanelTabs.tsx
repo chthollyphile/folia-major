@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
 import type { FoliumPlayerPanelTabDef } from '../contract';
 import { toFoliumTheme } from '../dto';
-import { resolveFoliumLabel } from '../params';
-import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../registry';
-import { FoliumMountHost } from '../FoliumMountHost';
+import { resolveFoliumLabel } from '../../params/params';
+import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../../runtime/registry';
+import { FoliumMountHost } from '../../runtime/FoliumMountHost';
+import { foliumMountName } from '../kinds';
 import { useFoliumPanelContext } from './useFoliumPanelContext';
 
 // src/mods/folium/registries/playerPanelTabs.tsx
@@ -14,6 +15,8 @@ import { useFoliumPanelContext } from './useFoliumPanelContext';
 // content in an isolated container when that tab is open.
 
 export const FOLIUM_PANEL_TAB_PREFIX = 'folium:';
+
+const PANEL_TAB = foliumMountName('playerPanelTabs', 'panelTab');
 
 export const playerPanelTabsRegistry = createFoliumRegistry<FoliumPlayerPanelTabDef>('playerPanelTabs', {
     validate: (def) => {
@@ -50,7 +53,7 @@ const FoliumPanelTabContent: React.FC<{
         <FoliumMountHost
             modId={entry.modId}
             where={`panel tab ${entry.id}`}
-            entryKind="panel-tab"
+            entryKind={PANEL_TAB}
             entryId={entry.id}
             mount={entry.def.mount}
             ctx={ctx}

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { assertLibrarySuiteChromeActions, libraryChromeCommandId } from '@/library/core/model/suiteChrome';
-import { buildLibrarySuiteIndex, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/model/librarySuites';
-import type { LibrarySuiteManifest } from '@/library/core/contracts/suite';
-import type { LibrarySuiteChromeActionMeta } from '@/library/core/contracts/suiteChrome';
+import { assertLibrarySuiteChromeActions, libraryChromeCommandId } from '@/library/core/suite/suiteChrome';
+import { buildLibrarySuiteIndex, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import type { LibrarySuiteManifest } from '@/library/core/suite/suite.contract';
+import type { LibrarySuiteChromeActionMeta } from '@/library/core/suite/suiteChrome.contract';
 
 // test/unit/library/core/suiteChrome.test.ts
 // suite 外观动作（B2）的纯规则：命令 id 的拼法与 manifest 声明的自检（建索引时抛错）。用假清单，不经过 glob。

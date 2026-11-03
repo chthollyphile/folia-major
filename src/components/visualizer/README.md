@@ -7,14 +7,18 @@ Visualizer 是一个由共享 shell/runtime/registry 组合多个歌词渲染模
 ```text
 App / ThemePark / VisPlayground / OBS source
   -> VisualizerRenderer.tsx
-       -> applyVisualizerTuning()
-       -> backgrounds/registry.tsx（默认背景与背景 entry）
+       -> useDeferredValue(mode)（新样式的代码到了才换，之前旧样式留在屏幕上）
        -> registry.tsx（按 VisualizerMode 找到 <mode>/entry.tsx）
-       -> mode renderer
+       -> backgrounds/registry.tsx（默认背景）
+       -> applyVisualizerTuning()
+       -> VisualizerBackdrop.tsx（背景、视频层、整体透明度；换样式时留着不动）
+            -> mode renderer
        -> VisualizerHarmonyOverlay
 ```
 
-共享外壳在 `VisualizerShell.tsx`：透明容器、背景 renderer、字体栈/字重、返回按钮和 player-panel hotspot。底部/翻译字幕通常由 `VisualizerSubtitleOverlay.tsx` 或模式自身按既有契约处理。共享契约在 `definition.ts`，不要在模式组件里重新声明一套歌词 props。
+背景、视频层和整体透明度由 `VisualizerBackdrop.tsx` 在样式外面画一次，所有样式共用，换样式时不重来。样式要的背景写在 entry 的 `background` 字段上（见下面“加一个歌词动画样式”）。
+
+共享外壳在 `VisualizerShell.tsx`：透明容器、字体栈/字重、返回按钮和 player-panel hotspot。外壳在 `VisualizerBackdrop` 里面时不画背景、视频层和透明度；没有 `VisualizerRenderer` 包着时（选择器的小图、mod 导出页、开发探针）才自己画。底部/翻译字幕通常由 `VisualizerSubtitleOverlay.tsx` 或模式自身按既有契约处理。共享契约在 `definition.ts`，不要在模式组件里重新声明一套歌词 props。
 
 两组字幕字号（译文 / 下一句预览）只有一处来源：`subtitleFontSizes.ts` 的 `resolveSubtitleFontSizes(lyricsFontScale)`。模式间切换时它们不能跳字号，所以别在模式里再抄一份 clamp。
 
@@ -30,39 +34,74 @@ App / ThemePark / VisPlayground / OBS source
 
 ## Current mode registry
 
-每个模式通过 `src/components/visualizer/<mode>/entry.tsx` 注册，registry 使用 Vite `import.meta.glob('./*/entry.tsx', { eager: true })` 自动发现。当前模式：
+每个模式通过 `src/components/visualizer/<mode>/entry.tsx` 注册，registry 使用 Vite `import.meta.glob('./*/entry.tsx', { eager: true })` 自动发现。
 
-| mode | 显示名 | 主要 renderer / 辅助文件 |
-| --- | --- | --- |
-| `still` | 静止 | `still/VisualizerStill.tsx`（不挂载共享背景层） |
-| `classic` | Luminous | `classic/Visualizer.tsx`、共用 `GlowWord.tsx` / `glowWordTiming.ts` / `glowWordVariants.ts`、`classic/tuning.ts` |
-| `cadenza` | Mindscape | `cadenza/VisualizerCadenza.tsx`（RAF 渲染）、`cadenzaPreparedState.ts` / `cadenzaFragments.ts` / `cadenzaPlacements.ts`（测量与落点）、`cadenzaEnvelopes.ts`（时序包络）、`cadenza/tuning.ts` |
-| `partita` | 云阶 | `partita/VisualizerPartita.tsx`、`partitaLayout.ts`（分栏布局与缓存）、`PartitaChunk.tsx`、共用 `GlowWord.tsx`、`partita/tuning.ts` |
-| `fume` | Fume | `fume/VisualizerFume.tsx`、`fume/tuning.ts` |
-| `cappella` | Cappella | `cappella/VisualizerCappella.tsx`、`CappellaMessageRow.tsx` / `CappellaBubbleParts.tsx`（消息行与气泡）、`cappellaMessages.ts`（消息编排）、`cappellaReveal.ts` / `cappellaBubbleMetrics.ts`（逐字时序与测量）、`avatarImages.ts`、`emoImages.ts` |
-| `tilt` | Tilt | `tilt/VisualizerTilt.tsx`、`tilt/tuning.ts` |
-| `claddagh` | Claddagh | `claddagh/VisualizerCladdagh.tsx`、`CladdaghRingLine.tsx`（环上一行）、`claddaghTimeline.ts` / `claddaghLayout.ts` / `claddaghGlow.ts`、`claddagh/tuning.ts` |
-| `monet` | Monet | `monet/VisualizerMonet.tsx`、`MonetLyricsRail.tsx`（歌词栏外壳与滚动）、`MonetRailLine.tsx` / `MonetRailTokens.tsx`（行与扫字）、`monetRailLayout.ts`、`monet/monetLyricsModel.ts`、`monet/tuning.ts` |
-| `diorama` | 镜台 | `diorama/VisualizerDiorama.tsx`、`diorama/DioramaScene.tsx`、`diorama/dioramaTextRaster.ts` |
-| `pendolo` | Pendolo | `pendolo/VisualizerPendolo.tsx`、`pendolo/pendoloTextLayout.ts`、`pendolo/pendoloTimeline.ts` |
-| `sonnet` | 商籁 | `sonnet/VisualizerSonnet.tsx`、`sonnet/createSonnetPixiRuntime.ts`、`sonnet/*` |
-| `tempera` | 凝彩 | `tempera/VisualizerTempera.tsx`、`tempera/createTemperaPixiRuntime.ts`、`tempera/*` |
-| `lumiere` | 绘光 | `lumiere/VisualizerLumiere.tsx`、`lumiere/createLumierePixiRuntime.ts`、`lumiere/*` |
+模式清单就是本目录下带 `entry.tsx` 的子目录，这里不抄一张表：显示名、排序和 renderer 写在各自的 `entry.tsx` 里，有设置的模式旁边还有 `tuning.ts`。各模式的辅助文件见下面的 Mode-specific navigation。
 
-`registry.tsx` 的默认模式是 `classic`。模式枚举/共享 tuning map 见 `src/types.ts`、`definition.ts`、`tuningRegistry.ts`。
+内建模式的 id 清单是 `src/types/visualizerModes.ts` 的 `BUILTIN_VISUALIZER_MODES`（背景是同一文件的 `BUILTIN_VISUALIZER_BACKGROUND_MODES`）。store、同步、OBS 短码只需要判断一个字符串是不是合法模式时用它，不 import registry；registry 启动时核对它和目录里的 `entry.tsx` 一致，对不上就抛错。`src/types.ts` 里的 `BuiltinVisualizerMode` 只列了五个名字，是旧的类型，不是清单。
+
+`registry.tsx` 的默认模式是 `classic`。共享 props 和 tuning 表见 `definition.ts`、`tuningRegistry.ts`；一个模式的 `tuning.ts` 该写什么见 `tuningDefinition.ts`。加一个模式按下面的“加一个歌词动画样式”做。
+
+## 加一个歌词动画样式
+
+下面用 `foo` 代表新样式的 id，`Foo` 代表它在文案键里的写法。这个样式的文件都放进 `foo/`：entry、tuning、类型和默认值、设置面板、渲染器、只给它用的 layout 和纯函数（一个功能的代码放在一起，见 `skills/file-modularization/SKILL.md`）。`foo/` 之外只改下面列出的几处。
+
+### 必须做的
+
+1. `foo/entry.tsx`：默认导出 `defineVisualizer({...})`（`definition.ts`）。必填 `mode: 'foo'`、`order`（在选择器里的先后）、`labelKey: 'ui.visualizerFoo'`、`labelFallback`、`previewSeed`、`previewStartOffset`、`render`。renderer 用 `React.lazy` 包起来：registry 用 eager glob 读所有 entry，静态 import 会让碰到 visualizer 设置的模块都拉进全部 renderer。可以照 `still/entry.tsx`（没有设置）或 `lumiere/entry.tsx`（设置面板在自己目录里）写。
+2. 把 `'foo'` 加进 `src/types/visualizerModes.ts` 的 `BUILTIN_VISUALIZER_MODES`。漏了的话：启动时 `registry.tsx` 抛错；`src/stores/visualizerSettingsPersistence.ts` 把存着的 `foo` 读回成 `classic`；OBS 链接里写的 `foo` 被忽略（`src/utils/obsWebAppearance.ts`）。
+3. 切到这个样式的命令和小图标：写在 `entry.tsx` 的 `command`（title、description、keywords）和 `glyph` 里，命令清单按 registry 生成，命令 id 是 `visualizer-foo`。
+4. 文案，三份语言文件 `src/i18n/locales/en.ts`、`zh-CN.ts`、`in.ts` 都加：`ui.visualizerFoo`，和 `commandPalette.commands.visualizer-foo` 的 `title`、`description`。缺一份 `test/unit/command-palette/commandRegistryContract.test.ts` 就失败；关键词写英文和中文，不要手写拼音（同一个测试会拦）。这个测试的命令顺序快照会多一条，确认只多了 `visualizer-foo` 后更新快照。
+5. 性能测量：`dev/perf/scenarios.mjs` 的 `STYLES` 加一行 `[id, 显示名, 怎么画]`，就有了测量场景 `style-foo` 和换歌的比对图 `songchange-foo`（见 `dev/perf/README.md` 的 Adding a scenario）。
+
+### 启动慢时
+
+要编很久的着色器之类：在 `entry.tsx` 写 `prewarm`，保存的样式是它时主窗口一启动就调（`prewarmVisualizers.ts`），趁首屏加载遮罩还在先准备。再写 `prewarmWhenIdle: true`，不是保存的样式时也在首屏出来、页面空闲后准备一次，第一次切过去就不用现等；这一项每次启动都要花一点，只给第一次切换会明显卡的样式。`prewarm` 不能长时间占主线程，代码用动态 import 拉（entry 在启动时全部加载），照 `nebbia/entry.tsx`。第一次挂上时的等待用 `styleTransition/firstFrame.ts` 的 `useFirstFrameDrawn()` 告诉换样式的过渡。
+
+### 背景和默认的不一样时
+
+样式默认画在用户选的背景上，`entry.tsx` 什么都不用写。背景由 `VisualizerBackdrop` 画，要改它写在 entry 的 `background` 字段上（`definition.ts`）：
+
+- 不要背景：`background: false`（照 `still/entry.tsx`）。
+- 改背景的设置：写一个函数，拿样式的 props，返回要用的背景设置（照 `fume/backgroundConfig.ts`，浮名默认关掉几何图形）。
+
+只在样式自己的 `VisualizerShell` 上改（`renderBackground={false}`、传别的 `background`）不够：在 `VisualizerRenderer` 里外壳不画背景，这些只在外壳单独用时（小图、mod 导出页）起作用。两处要一致时，像浮名那样让 entry 和渲染器用同一个函数。
+
+### 起步慢的样式
+
+样式第一次画出来要很久时（编译着色器、把整首歌排一遍），换到它的过渡会在半路卡住。这样的样式在画好第一帧时说一声：调 `styleTransition/firstFrame.ts` 的 `useFirstFrameDrawn()`，画好第一帧（或者失败、改画别的）时调它返回的函数。换样式会等这一声再放过渡，最多等 `FIRST_FRAME_LIMIT_MS`。用 `pixi/pixiRuntimeHost.ts` 的样式已经由它说了；照 `fume/VisualizerFume.tsx`（排好、画完时）、`diorama/VisualizerDiorama.tsx`（three.js 第一次画完时）写。起步不慢的样式什么都不用写，挂上就算画好。
+
+### 有设置的样式
+
+1. `foo/tuning.ts`：默认导出 `defineVisualizerTuning({...})`（`tuningDefinition.ts`），写 `mode`、`defaults`、store 里的三个字段名（`settingsKey`、`settingsSetterKey`、`settingsResetterKey`）和 `storage`（存储键 `key`、`read`、`merge`，可选 `resetNotice`）。再用 `declare module '../tuningDefinition'` 把三个字段的类型加进 `VisualizerTuningSettings`（照 `tilt/tuning.ts` 开头那几行）。存储键发布后不能改名。
+2. tuning 的类型和默认值放在 `foo/` 里（例如 `foo/types.ts`）。现有样式的写在 `src/types.ts`（`TiltTuning`、`DEFAULT_TILT_TUNING`），那是按功能放之前的放法。
+3. 渲染器拿 tuning：在 `entry.tsx` 里用 `tuning.ts` 默认导出的 `read(props.visualizerTunings)` 取，这样不用给 `definition.ts` 加 prop，`apply` 也不用写。现有样式用 `apply` 把 tuning 放到一个具名 prop 上，那要在 `VisualizerSharedProps` 里加字段。
+4. 设置面板：`foo/FooSettingsPanel.tsx`，用设置窗口的共用控件（`src/components/modal/settings/kit`）画，在 `entry.tsx` 的 `renderSettingsPanel` 挂上（照 `pendolo/PendoloSettingsPanel.tsx`、`lumiere/LumiereSettingsPanel.tsx`）。新样式的面板不要再加进 `settingsPanels.tsx`。面板里每组的标题键（`SettingsGroupDef` 的 `titleKey`，现有的放在 `options.` 下，例如 `options.tiltSettings`）和 `resetNotice` 的键（现有的叫 `notifications.<样式>Reset`）三份语言文件都要写。
+5. 播放面板的快捷参数（可选）：在 `entry.tsx` 的 `renderQuickControls` 挂上常调的几项，它拿到的是已保存的 tuning 和立刻保存的 `onTuningChange`。开关用 `src/components/shared/QuickControlChip.tsx` 的 `QuickControlToggle`（图标），几项里轮换用 `QuickControlChip`（写当前值），标签沿用设置面板里的键。面板把它们放在歌词样式那一行下面；没有就不出这一行。
+6. 测试里钉住已存数据的两处要跟着改：`test/unit/visualizer/storedSettingsPins.test.ts`（把新键加进它的 `CURRENT` 和 `DEFAULTS`，钉住读写结果；它的快照会多出新样式的 tuning）和 `test/unit/stores/storeContract.test.ts`（存储键快照会多一个键）。确认多出来的只有新样式的东西后再更新快照。
+
+### 不用改的
+
+- 发现和挂载：`registry.tsx` 按 `foo/entry.tsx` 找到它，`tuningRegistry.ts` 按 `foo/tuning.ts` 找到 tuning。
+- 背景、视频层和整体透明度：`VisualizerBackdrop.tsx` 画，换样式时留着；渲染器不用画它们。
+- 选择器、命令面板的样式命令、小图标、预览图：都从 registry 读。预览图由 `preview/LyricStylePicture.tsx` 用真的样式现画，不用准备图片。
+- 设置仓库：`useVisualizerSettingsStore` 和 `visualizerSettingsPersistence.ts` 按 `tuning.ts` 的声明生成字段和改、恢复默认两个动作。歌词样式窗口的草稿、保存和「默认」也是通用的（`window/useTuningDrafts.ts`）。
+- 导出、导入、同步、OBS：tuning 随 `visualizerTunings` 这一个字段走，不要加新字段（`test/unit/visualizer/tuningBundleTransport.test.ts` 按目录找 `tuning.ts`，新样式不用改它）。
+- `test/unit/visualizer/builtinModeLists.test.ts`：做了第 2 步就会通过。
+
+### 由 mod 提供样式
+
+不改内建代码、由 mod 加一个歌词动画样式的做法，见 [`docs/folium/api.md`](../../../docs/folium/api.md) 和 [`docs/folium/contributing.md`](../../../docs/folium/contributing.md)。mod 的样式 id 是 `mod:<mod id>:<样式 id>`，不进 `BUILTIN_VISUALIZER_MODES`。mod 样式要不要宿主画背景写在 `hostLayers.background`，`src/mods/folium/registries/visualizers.tsx` 按它填 entry 的 `background`。
 
 ## Background registry
 
-背景 entry 位于 `backgrounds/<name>/entry.tsx`，由 `backgrounds/registry.tsx` 发现；当前实现为：
+背景 entry 位于 `backgrounds/<name>/entry.tsx`，由 `backgrounds/registry.tsx` 发现；背景清单就是 `backgrounds/` 下带 `entry.tsx` 的子目录，渲染层和设置卡在各自目录里。
 
-- `common`：`FluidBackground.tsx`、`GeometricBackground.tsx`，带 `CommonBackgroundSettingsCard.tsx`
-- `latent`：`LatentBackground.tsx`、设置卡
-- `monet`：`MonetBackgroundLayer.tsx`、设置卡
-- `nomand`：`NomandBackgroundLayer.tsx`、设置卡
-- `sora`：`SoraBackground.tsx`
-- `url`：`UrlBackgroundLayer.tsx`、设置卡
+共享背景 props 与默认值在 `backgrounds/definition.ts`；实际渲染在 `backgrounds/VisualizerBackgroundRenderer.tsx`，由 `VisualizerBackdrop.tsx` 的 `VisualizerBackdropLayers` 挂上（外壳单独用时也是它）。新增背景不要在每个 visualizer 中内联。
 
-共享背景 props 与默认值在 `backgrounds/definition.ts`；实际渲染在 `backgrounds/VisualizerBackgroundRenderer.tsx`。新增背景不要在每个 visualizer 中内联。
+背景画的东西跟着歌变时（封面、种子），在 entry 写 `song`，返回它画的那几样（照 `common/entry.tsx`、`monet/entry.tsx`）：这几样变了，换歌时背景整个换成新的一份，在放过渡的宿主里用柔焦换，别处直接换。新的那一份要先读东西（解码封面、做图）时，用 `styleTransition/firstFrame.ts` 的 `useFirstFrameDrawn()`，读好时调它返回的函数（照 `common/FluidBackground.tsx`）；不调的挂上就算好了。主题颜色不写进 `song`：调色时颜色一直在变，主题也常在换歌之后才到，写进去每一步都会挂一份新的。换走的那一份留着它自己的封面、种子和主题颜色：混音时下一首的主题先到，也不会画到上一首的背景上。再挂一份很贵的背景（隐现、空：每份都要重新编译着色器）不写 `song`，在原来那一份里把颜色慢慢换过去：用 `backgrounds/useBlendedColors.ts`，时长是渲染 props 的 `blendMs`（放过渡的宿主里是柔焦的长度，别处是 0，直接换）。
+
+混音过渡里画交接的样式（entry 写 `followsSongHandoff`，现在只有莫奈）：过渡一开始，`VisualizerRenderer` 就把下一首的封面、种子和主题交给背景，背景照上面的换歌过渡换，只是这个过渡跟着交接进度走（`styleTransition/layerTransition.ts` 的 `alongProgress`；隐现、空的换色跟着渲染 props 的 `blendProgress`），长度就是过渡的长度。过渡结束时背景已经是下一首，不再换；中途取消时按平常换歌换回去。静态模式和减少动效时没有交接，过渡结束时才换歌。主题跟着画面上的歌：混音一开始实时主题就换成下一首的，但样式拿到的 `theme` 在整个过渡里都是上一首的，取消回到上一首时也是（`useShownTheme.ts`）；下一首的主题放在 `songHandoff.theme` 里。
 
 ## Shared contracts and helpers
 
@@ -70,7 +109,27 @@ App / ThemePark / VisPlayground / OBS source
 
 `VisualizerSharedProps` 是模式共同输入，包含 `MotionValue currentTime`、当前行/全部歌词、主题与字幕主题、音频分析值、背景/透明度、字幕显示开关、播放状态、seek/back/panel callbacks、资源和模式 tuning。完整字段以代码为准；本 README 只保留定位信息。
 
-当前 tuning 覆盖 13 个模式，并通过 `VisualizerRenderer` 的 `applyVisualizerTuning` 统一注入。模式级设置面板和 reset 由各自 `entry.tsx` / `tuning.ts` 提供，再由 `settingsPanels.tsx` 和 `VisPlaygroundSettingsPanel.tsx` 复用。
+有 `tuning.ts` 的模式各有自己的 tuning，并通过 `VisualizerRenderer` 的 `applyVisualizerTuning` 统一注入。`tuning.ts` 还写明这份 tuning 存在哪个键、怎么读、怎么合并改动（`storage`）：设置仓库（`useVisualizerSettingsStore`）按这份声明生成字段、改和恢复默认两个动作，仓库和 `src/stores/visualizerSettingsPersistence.ts` 里没有哪个模式的专门代码。背景同理：`backgrounds/<mode>/tuning.ts`；不是一整个对象的设置写在背景目录的 `settings.ts` 里（现在只有 `backgrounds/url/settings.ts`）。模式级设置面板由各自 `entry.tsx` 的 `renderSettingsPanel` 提供，歌词样式窗口给每个面板同一组 props（`tuning`、`onTuningChange`、`settings`、拖动开始和结束）；草稿、保存和「默认」都在窗口里按声明通用处理（`window/useTuningDrafts.ts`）。
+
+### 智能动感模式（beat FX）
+
+全局一个三档总设置，加每个「动感效果」自己的开关和强度（`SmartBeatSettings`，store 的 `smartBeat`：`mode` 和按效果 id 存的 `effects`），不属于任何一个模式的 tuning。三档是 `off` 关闭、`cached` 只用已分析（只读存盘的拍点和鼓点，包括 automix 存的拍点，从不启动推理；没分析过的歌保持原画面）、`on` 开启（没分析过的歌当场在 GPU 上分析）；判断一律走 `smartBeatActive` / `smartBeatMayAnalyse`（`services/beatFx/beatEffects.ts`）。存盘、同步和导出时另带一个 `enabled`（只有 `on` 为 true），给没有三档的旧版本读。总设置单独在可视化设置窗口的「全局」页（`SmartBeatSettingsCard.tsx`）；效果在「歌词动画」页各模式自己的设置里，样式选项上面（`BeatEffectsGroup.tsx`），总设置关着时那里的提示带一颗直达「全局」页的按钮：每个效果一行，四字名、说明、开关，开着时下面一条强度滑杆，0–2×，1× 是调好的样子，在滑杆正中间，没动过的效果按 1×。
+
+效果登记在模式和背景的 entry 上（`beatEffects`，类型和 id 在 `services/beatFx/beatEffects.ts`）：每个效果有 id（`<模式>.<名字>`，存盘和导出都用它）、名字和说明的 i18n key、读哪路数据（`source`：`'beats'` 是 beat_this 的拍点，`'drums'` 是 htdemucs 分出的鼓点）。一个模式以后可以有好几个效果，加一条就行，设置界面和模型调度自动跟上。现在的效果：商籁「推镜裂光」（beats）、镜台「水镜涟漪」（beats）、时计「仿真鼓面」（drums）、花火「随拍开花」与「随拍推镜」（都是 beats）、凝彩「墨染奥行」（drums，同一个开关还带上景深和运镜，见 [`tempera/README.md`](tempera/README.md) 的「墨染奥行」）、町景「霓虹随拍」（beats）、「鼓点涟漪」与「大屏闪拍」（drums）。`retired: true` 的效果代码和登记都在，但不跑也不出现在设置里：时计的「齿轮随拍」和隐现背景的「潮汐脉动」（2026-10-17 用户先搁置）。
+
+`beatClockTargets.ts` 按屏上的模式和背景、哪些效果开着，算出要不要 beat_this（`visualizerWantsBeats`）、要不要 htdemucs（`visualizerWantsDrumHits`）：只有读它的效果开着才跑那个模型。时计只开仿真鼓面时 beat_this 完全不跑，节拍时钟只带曲目 key 和听到的时间（`useBeatFxTrack.ts`）。每帧的效果按自己的 id 问 `beatFxLive` 的 `getBeatEffectStrength`（不播时为 0）；读 `beatImpact` / `downbeatImpact` 的拍点效果，强度已由时钟乘好（轻拍、重拍都取屏上那个拍点效果的强度）。旧的全局轻拍 / 重拍两个强度在读存盘和导入时折成商籁、镜台效果的强度（两者平均，默认 1 / 1 仍是 1）。不显示背景的模式本来就写着 `background: false`（Still）；只在某些 tuning 下才显示背景的模式另写 `showsBackground`（雾笺窗外选了共用背景才算），播放页透明时哪个模式都不画背景，背景的效果都不算（`backgroundOnScreen`）。模式自己的效果若只在某些 tuning 下画得出来，另写 `beatEffectOnScreen`（雾笺的舞潮踏拍只在窗外是水族箱、播放页不透明时算，疏雨轻车在画水族箱又是凝露玻璃时不算）。
+
+各自的读法：从 `motionSignals` 的 `beatImpact` / `downbeatImpact`（时钟已经乘好强度）读包络，要离散触发的（镜台每拍一个涟漪）读 `beatFxLive` 的 `getBeatFxFiredCounts`；一律先看 `isBeatFxReady()`（鼓点效果看自己的 `getBeatEffectStrength` 和 `getDrumHits`），没就绪就走原来的画面，所以关着时像素不变。要提前排在拍上的（花火让升空尾迹正好在小节第一拍到达开花）读整张节拍表 `getBeatFxEvents()`，画面仍只由时间决定，拖进度也对。一个画面上有两个读拍点的效果时，时钟的包络乘的是排在前面那个的强度，另一个按 `getBeatFxIntensities()` 换算回自己的（花火的 `rescaleBeatEnvelope`）。商籁 `sonnet/sonnetBeatFx.ts`，镜台 `diorama/dioramaBeatRipples.ts`，花火 `hanabi/hanabiBeatFx.ts`，时计 `pendolo/pendoloBeatFx.ts`（不读重音，只看节奏过滤，见 Pendolo 一节），隐现 `backgrounds/latent/LatentBackground.tsx`，町景 `machi/engine/beatFx.ts`（见 Machi 一节）。
+
+每拍还带「重音」（`services/analysis/beatAccents.ts`，和拍点在同一次 final0 分析里从同一份梅尔频谱算出）：强度 0–1、低 / 中 / 高三段的占比、小节位置（从 beat_this 的重拍往后数），以及整首歌的动感系数（0.45–1，只降不升）。
+
+- 时钟让每拍的峰值等于 `resolveBeatFxAccentGain`，即 (0.35 + 0.65 × 强度) × 动感系数，所以只读包络的画面（隐现）不用改代码就有强弱。
+- 要按拍区分的，用 `getBeatFxLastBeat` / `getBeatFxLastDownbeat` 取刚发射的那一拍：
+  - 商籁：偏低频的拍推近多一点，偏高频的拍横滚多一点，小节第 3 拍横滚减半（`resolveSonnetBeatFxAccent`）；
+  - 镜台：涟漪强度乘以 gain，偏低频的普通拍用大尺度涟漪（`resolveDioramaBeatRipple`）。拍点涟漪本身比频段起音的涟漪强得多（普通拍 1.6、重拍 2.2，起音约 0.3–1），整体呼吸每拍 +20%、重拍 +28%，比关着时夸张；正在唱的那个字随拍跳起（拍点发射时正在唱的单元，落在字与字之间时取最近开始的那个），普通拍 1/4 行高、重拍 2/5 行高，随包络回落，换字也不打断（`resolveDioramaLyricHop`；每个单元的三层平面在 `DioramaActiveUnitPlanes` 里同一个 group 下）；只走拍点那条路，关着时不变。
+- 复合拍子（6/8、9/8、12/8）里 Beat This! 数的是八分音符，比听感密三倍，慢歌也可能被数成双倍速，慢华尔兹按小节感受；重音里 `pulse` 为 0 的拍（只按重音位置认定，见 `services/analysis/README.md`）在 `mergeBeatFxEvents` 里就去掉了，所有画面只按附点四分音符的脉冲触发，小节位置也按留下的拍计。
+- 没有节奏的小节（打击成分远低于全曲平常水平，例如只有喇叭的前奏）里，`resolveBeatFxAccentGain` 返回 0，所有画面这一段都不出拍点特效（`rhythmic`，见 `services/analysis/README.md`）。
+- 没有重音数据时（旧存档，或读不到音频），以上各项都恰好等于 1，画面和加入重音之前一致。
 
 ### Lyrics pipeline
 
@@ -88,15 +147,23 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ## Mode-specific navigation
 
+### Still
+
+`still/VisualizerStill.tsx`：静止的低占用模式，不挂载共享背景层（`still/entry.tsx` 的 `background: false`）。
+
+### Classic
+
+`classic/Visualizer.tsx`；逐词发光和它的时序与 Partita 共用：`GlowWord.tsx`、`glowWordTiming.ts`、`glowWordVariants.ts`。
+
 ### Cadenza / Fume
 
-两者都属于测量和布局敏感模式：实现见 `cadenza/VisualizerCadenza.tsx` 与 `fume/VisualizerFume.tsx`。代码使用 `@chenglou/pretext` 做文字准备/测量；Fume 还维护 article-level layout 与 cache。先查 `src/utils/lyrics/renderHints.ts` 和 `fontStacks.ts`，再改布局。
+两者都属于测量和布局敏感模式：实现见 `cadenza/VisualizerCadenza.tsx`（RAF 渲染；测量与落点在 `cadenzaPreparedState.ts` / `cadenzaFragments.ts` / `cadenzaPlacements.ts`，时序包络在 `cadenzaEnvelopes.ts`）与 `fume/VisualizerFume.tsx`。代码使用 `@chenglou/pretext` 做文字准备/测量；Fume 还维护 article-level layout 与 cache。先查 `src/utils/lyrics/renderHints.ts` 和 `fontStacks.ts`，再改布局。
 
 ### Partita
 
 完整的数据流说明见 [`partita/README.md`](partita/README.md)。快速定位：
 
-- `VisualizerPartita.tsx`：sequential layout、缓存、预热、chunk/word 渲染
+- `VisualizerPartita.tsx`：sequential layout、缓存、预热、chunk/word 渲染；分栏布局与缓存在 `partitaLayout.ts`，chunk 组件在 `PartitaChunk.tsx`，逐词发光共用 `GlowWord.tsx`
 - `src/utils/lyrics/cjkSemanticLayout.ts`：`buildPostLyricLayoutUnits`、`buildDisplayWordsFromLayoutUnits`
 - `src/utils/lyrics/renderHints.ts`：行 transition / word reveal profile
 - `PartitaChunk` / `PartitaWord`：行级与 display word 级动画
@@ -105,15 +172,15 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 
 ### Cappella
 
-`cappella/VisualizerCappella.tsx` 负责群唱头像、聊天表情和歌词呈现。内置资源通过 `avatarImages.ts` / `emoImages.ts` 的 glob 载入；用户资源分别由 `src/services/cappellaAvatarPack.ts` 与 `cappellaEmojiPack.ts` 存入 IndexedDB。资源目录说明见 `cappella/avatar/README.md`、`cappella/emo/README.md`。
+`cappella/VisualizerCappella.tsx` 负责群唱头像、聊天表情和歌词呈现：消息行与气泡在 `CappellaMessageRow.tsx` / `CappellaBubbleParts.tsx`，消息编排在 `cappellaMessages.ts`，逐字时序与测量在 `cappellaReveal.ts` / `cappellaBubbleMetrics.ts`。内置资源通过 `avatarImages.ts` / `emoImages.ts` 的 glob 载入；用户资源分别由 `src/services/cappellaAvatarPack.ts` 与 `cappellaEmojiPack.ts` 存入 IndexedDB。资源目录说明见 `cappella/avatar/README.md`、`cappella/emo/README.md`。
 
 ### Claddagh
 
-`claddagh/VisualizerCladdagh.tsx` 使用 `buildLineGraphemeTimeline`、`pretext` 和有限 ring lines；音频响应/RAF 与 DOM 样式更新必须有界并在 cleanup 中释放。
+`claddagh/VisualizerCladdagh.tsx` 使用 `buildLineGraphemeTimeline`、`pretext` 和有限 ring lines（环上一行是 `CladdaghRingLine.tsx`，时间线、布局与发光在 `claddaghTimeline.ts` / `claddaghLayout.ts` / `claddaghGlow.ts`）；音频响应/RAF 与 DOM 样式更新必须有界并在 cleanup 中释放。
 
 ### Monet
 
-`monet/VisualizerMonet.tsx` 组合 `MonetLyricsRail`、`AudioOverlay`、浮动装饰和背景 pipeline；图像资源还涉及 `src/services/monetBackgroundImage.ts`、`monetPortraitImage.ts`。
+`monet/VisualizerMonet.tsx` 组合 `MonetLyricsRail`（歌词栏外壳与滚动；行与扫字在 `MonetRailLine.tsx` / `MonetRailTokens.tsx`，布局在 `monetRailLayout.ts`）、`AudioOverlay`、浮动装饰和背景 pipeline；图像资源还涉及 `src/services/monetBackgroundImage.ts`、`monetPortraitImage.ts`。混音过渡时：封面在过渡开始就换成下一首，淡入跟着交接进度（`MonetPortraitImage` 的 `progress`）；文字和歌词在交接过半（声音交叉点）时换，莫奈自己画的颜色（文字、装饰）同时换成下一首的主题，用原有的换歌入场动画，之后歌词栏读下一首自己的时钟和行（`monetSongHandoff.ts`）。
 
 ### Diorama
 
@@ -122,6 +189,20 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 ### Pendolo
 
 `pendolo/VisualizerPendolo.tsx` 是 React 外壳；`PendoloClockworkCanvas.tsx` 负责时钟机械 canvas（优先 WebGL2：`pendoloClockworkWebGL.ts` 绘制、`pendoloClockworkMeshes.ts` 缓存齿轮几何、`pendoloClockworkMotion.ts` 推进摆动；不支持时退回 `pendoloClockworkDraw2d.ts` 的 Canvas2D；`pendoloClockworkScene.ts` 放共用的帧输入、配色与画布包围盒），`pendoloTextLayout.ts`、`pendoloTimeline.ts`、`pendoloGeometry.ts` 负责有界布局与时间线，`PendoloSettingsPanel.tsx` 负责调参。
+
+智能动感模式下（`entry.tsx` 的 `beatEffects`：「仿真鼓面」读鼓点；「齿轮随拍」已搁置）：
+- 用的拍子：beat_this 的拍点经「无节奏关」过滤（beat_this + HPSS，`rhythmic`），被关掉的拍什么都不触发。齿轮、火花、震屏不读重音，每拍满强度，只乘轻拍 / 重拍强度；冲击波（连同光晕、刻度和表盘点亮）和宝石闪光按重音强度（`resolveBeatFxAccentGain`，已含轻拍 / 重拍强度）。原来每拍扫一圈、点亮刻度的扫光已去掉。
+- 机芯：大主齿轮和歌词照旧只跟歌词换行走，拍点不碰它们。主轮下方并排的传动齿轮和秒齿轮对着转：轻拍各走一齿，重拍各转一整圈，用略欠阻尼的弹簧，到位时冲过头不到一成再回弹（顿挫）。摆轮每拍换向。都在 `stepPendoloClockworkMotion` 的可选 `beat` 参数里，不传时与原来逐值一致（golden 单测锁定）；传动齿轮多转的角度是 `transBeatAngle`，关着时为 0。
+- 特效：状态和触发在 `pendoloBeatFx.ts`（纯函数），每帧推进在 `usePendoloBeatFx.ts`，画法在 `pendoloBeatFxDraw.ts`。
+  - 冲击波（轻拍、重拍都触发，强度跟重音）：透明的透镜，从轴心推到屏幕最远角，越往外越快（外角处约是出轴心时的五倍），一次走完用一拍的 85%，但在 0.3–0.5 秒之间（慢歌不会跟着变慢，只有快歌会更快），赶在下一拍的波从轴心重新出发前就出了表盘，推开（推出到轴心距离的 20% × 强度）、点亮并朝特效色染色经过的东西，不画任何环或线。齿轮上是 mesh shader 的 `u_wave` 位移、提亮和染色（Canvas2D 用 14 层切片重画），歌词行在 `PendoloRotatingLine` 里按到轴心的距离推开、提亮。摆轮上的主题图标（五角星）是 DOM，用 `resolvePendoloPointWave` 按 shader 同样的公式跟着摆轮移动。透镜本身不影响背景；同时 `VisualizerPendolo` 里有一层柔光晕（径向渐变，只有前沿一条软光带，后面是空的、扫过的地方立刻干净，边缘淡到 0，没有线；叠加混合），跟着冲击波从轴心长到屏幕最远角，扩散途中保持亮度，快到终点才淡出（`resolvePendoloHaloOpacity`）。强弱按分贝换算重音增益（`resolvePendoloWavePunch`：弱拍下限 0.35 比最强拍低 30 dB，亮度按指数变化，人眼看亮度近似对数，平方时中强拍看起来差不多；轻拍 / 重拍强度另外相乘）：弱拍的光晕淡、强拍满亮，都用同样的时间走到屏幕外角；表盘点亮的亮度也一样，放在震屏之外、齿轮和歌词之下。
+    - 波峰经过刻度那圈表盘（1.15 倍轮半径）时 60 个刻度一起亮，经过最外圈表盘（1.4 倍）时整圈亮起，都随后淡出（`lightPendoloDials`，overlay 里画）。
+  - 宝石闪光（各齿轮中心，轻拍、重拍都触发，强弱和光晕一样按重音增益的平方）：WebGL 是叠加混合的 overlay，Canvas2D 是 `lighter`。
+  - 以下只在重拍上：咬合火花（同样画在 overlay 里；火花和两个齿轮转整圈同时喷出，数量、速度、大小是最早一版的）、8px 震屏。
+- 颜色：主题强调色提亮到发光（`resolvePendoloBeatFxColor`），偏灰的主题用金色。
+- 鼓点（效果「仿真鼓面」，`pendolo.drumhead`）：装了 `htdemucs_gpu` 时，时计在屏上就读这首歌的鼓点（`services/analysis/drumHits.ts`，GPU 分离鼓轨，一首约十几秒，存盘后不再跑；边分边给，开始后一秒左右就有）。读到后不再用拍点：底鼓、军鼓让光晕在原地按分贝曲线亮起再快速回落，宝石和两圈表盘一起亮；底鼓让整个表面鼓起，重的再震屏；军鼓打在偏离中心的位置，重的让表面朝那边倾；镲片点亮刻度和刻度所在的内圈（只亮刻度太不明显，2026-10-17 加上内圈）。没有冲击波、没有火花。读到之前、`until` 之后还没算到的地方、没装模型、没有 WebGPU，或没有鼓的歌，时计不出任何效果。强度滑杆乘在光晕、鼓起、倾斜、震屏和镲片点亮上（倾斜、震屏的门槛仍按原始鼓点强度判断），1× 与调好的样子逐值一致。
+- 上面按拍点的那套效果（冲击波、光晕、火花、按拍震屏）已于 2026-10-17 废弃：代码保留，由 `usePendoloBeatFx.ts` 的 `PENDOLO_BEAT_LIST_FX` 关掉，不再运行。
+- 机芯随拍（上面「机芯」一条，效果「齿轮随拍」，`pendolo.gearBeats`）同日搁置：登记为 `retired`，`PendoloClockworkCanvas.tsx` 只在它的强度大于 0 时把拍点交给齿轮，所以齿轮照原来的样子走，时计也不再为它跑 beat_this。
+- 关闭或未就绪时，所有 MotionValue 为 0、shader 的 wave uniform 为 0、不画 overlay，画面与原来一致。
 
 ### Sonnet
 
@@ -135,7 +216,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 - `temperaProgram.ts` + `types.ts`：段落 / shot / slice 编译，121 种 shot kind
 - `temperaLayout.ts` + `temperaMotion.ts`：拼贴排版与逐字入场求解
 - `temperaDifferenceFilter.ts`：文字对背景逐像素反色，改动前务必先读那份说明里的约束
-- Tempera 渲染层不消费音频（`audioPower`/`audioBands` 只传给共享背景层）。
+- Tempera 渲染层不消费音频（`audioPower`/`audioBands` 只传给共享背景层）；智能动感模式的「墨染奥行」读的是鼓点（`temperaInkFlash.ts`），景深与运镜在 `temperaDepth.ts`。
 
 ### Lumiere
 
@@ -151,24 +232,100 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 - `lumiereDarkField.ts`：暗场底（tuning `darkField`，浅色主题保底 0.94）是运行时铺在所有场景与片尾卡之下的一整块底，不随段落转场变化；光场着色器的 `uDark` 在 folia 里恒为 0
 - 歌词字号由光位的文字区决定，通用字号设置只影响底部字幕
 
+### Nebbia
+
+雾笺：下雨天公交车起雾的车窗上，手指一笔一笔写歌词，写过的地方透出窗外的雨夜街景，过一会儿重新起雾。原型在 `feat/fog-write-prototype` 分支的 `dev/prototypes/fog-write/`（独立 HTML，参数可调），这里是接入版。快速定位：
+
+- `nebbia/VisualizerNebbia.tsx`：React shell / subtitle；`createNebbiaRuntime.ts`：运行时（WebGL2，建一次，换歌、tuning、主题就地推进去；暂停时停循环、拖进度补一帧；静态模式照常写字，窗外匀速走，不颠簸、没有小雨点）；`nebbiaSceneClock.ts`：窗外时钟（float32 精度：走过 1000 秒后换歌时归零，一首连放满 3600 秒才硬回绕）；`nebbiaFrameUniforms.ts`：主着色器每帧的 uniform
+- `nebbiaGl.ts`（`nebbiaGlUtils.ts`：编译链接、建纹理）+ `nebbiaShaders.ts` + `nebbiaSceneGlsl.ts`（`nebbiaSpotGlsl.ts`：聚光灯光柱）：雾的预渲染和主画面两个全屏着色器程序。窗外夜景（楼群、霓虹、路灯、倒影、车灯、雨）两层模糊版本先由雾的预渲染程序在 1/4、1/8 分辨率的 RGBA16F 上各画一次（`nebbiaFogGl.ts`；没有 `EXT_color_buffer_float` 或那个 FBO 拼不完整时不编它，改编主画面自己算雾的那一版），主画面合成雾、擦痕、水珠折射；擦痕边、起雾大块和闪点的静态噪声改尺寸时算进一张纹理（`nebbiaNoiseTex.ts`，自己的小程序）；水珠是 raindrop-fx（MIT）的法线精灵，实例化画进两张水珠纹理。两个程序各只有一个输出：合成一个程序时 D3D11 上冷编要 6 秒多
+- `nebbiaBuildingCache.ts`：窗外楼群的缓存（远近两层 × 三档模糊各一张横向环形纹理，采样单元 9–14），车往前开时每帧只用补画程序补新露出来的几列；开始、改尺寸、换配色、车速突变时整张重画（一帧一档），没画好的那档和水珠透镜照旧现算
+- `nebbiaPrograms.ts`：六个程序（雾的预渲染、主画面、水珠精灵、擦痕遮罩、楼群缓存的补画、静态噪声纹理）在后台编（`KHR_parallel_shader_compile`，每帧问一次，编好前不画）；`nebbiaShaderWarmup.ts`：按同样的编法先编一遍（`entry.tsx` 的 `prewarm`；保存的样式是雾笺时启动就编，否则首屏出来后空闲时编），GPU 进程的程序缓存命中，挂上时不再等冷编
+- `nebbiaChars.ts`：`Line` → 逐字 `{ ch, t, d }`（`buildLineGraphemeTimeline`），emoji 换成 lucide 图标，词分组走 `segmentLyricWords`（所以 `usesWordSegmentation`）；句尾随手画的图标取主题 `lyricsIcons`
+- `nebbiaBlocks.ts` + `nebbiaCompositions.ts` + `nebbiaLayout.ts`：照商籁的主词 / 副主词 / 虚词和横条、十字、竖柱、刊头等构图排整首，避开这句出现时还没消失的句子；用户字号是排版字号的倍数
+- `nebbiaScene.ts`：每个字的位置、手写变形、水珠，出现方式（快的句子慢慢显现），让位（后一句要写到这句位置时这句提前起雾）；`nebbiaWipe.ts`：手指抹掉
+- `nebbiaMask.ts` + `nebbiaInk.ts`：每帧在半分辨率 2D 画布上画擦痕遮罩（按演唱时长一笔一笔写）
+- `nebbiaGlyphs.ts`：字形来源依次是 lucide 图标、AnimCJK 笔顺（`nebbiaStrokes.ts`）、主题字体的骨架追踪（`nebbiaSkeleton.ts`）。笔顺数据是 Arphic Public License（AnimCJK 的 graphics 文本文件只给了 APL），不进仓库：构建时 `dev/nebbia/nebbiaStrokesPlugin.mjs` 从钉死 commit 的 AnimCJK 下载，生成产物根目录的 `nebbia-strokes.json`，授权文本放 `licenses/nebbia-strokes/`；开发服务器第一次请求时才生成，缓存在 `node_modules/.cache/folia-nebbia-strokes/`。下载失败（或设 `FOLIA_NEBBIA_STROKES=off`）时没有这个文件，中日文也走骨架，笔顺是估的
+- `nebbiaHits.ts`：雨点打窗，每 20 ms 一格、格内随机只由歌和格号决定。智能动感模式的「疏雨轻车」（`entry.tsx` 的 `beatEffects`，`source: 'stems'`，两个分项各一条滑杆）开着、这首歌分析过时，雨点跟人声：跟 HTDemucs 分出的人声轨走（`services/analysis/vocalEnvelope.ts`，每帧按 `getBeatFxHeard().key` 取），小雨点按逐帧响度在 ±1.5 秒内的范围归一后的能量落，大雨点砸在起音上，和原型一样；雨点强度乘小雨点密度和大雨点大小（大雨点按 1 倍排好，画的时候才乘，拖滑杆不重排），拉到 0 不下雨。否则退回播放器的人声频段（`audioBands.vocal`，自适应归一），大雨点在六成的词开唱时砸
+- `nebbiaDrizzleRide.ts`：疏雨轻车每帧读的那份（开关、两条强度、人声轨包络，推着鼓点颠簸）。`nebbiaDrumBumps.ts`：疏雨轻车的鼓点颠簸。这首歌有鼓点（`getDrumHits`，同一趟分离）时车只在底鼓上颠（力度 ≥ 0.35，至少隔 0.3 秒，幅度随力度，乘这一项的强度和 tuning 的颠簸），不再随机颠；拖进度只挪游标不补颠。没鼓、没分析完时照旧随机颠
+- 前面雾玻璃上的水和窗外分开选（tuning `glass`，着色器变体，换了重建运行时）：雨窗（`nebbiaDrops.ts` 的大大小小凝结水珠，雨点打窗、小雨点密度和大雨点大小两条滑杆）或凝露（`nebbiaCondensation.ts`：照 raindrop-fx 的 droplets 一层很密的细小冷凝水珠、没有大水珠，一颗颗慢慢凝出、挂一阵再缩没、在别处再凝出；实例照旧画进 `uField`，主着色器的 `NEBBIA_DEW` 变体把它们画得比雾亮一点、带高光，细水珠折射的窗外读 `nebbiaFogGl.ts` 多预渲染的一层清晰的（1/4 分辨率，模糊 0.006 和现算的一样；读雾那层 0.03 的会糊成水垢），擦痕边的水珠照旧现算；每颗固定一格实例，每 50 毫秒才更新正在凝出、缩没的那些格，没变时水珠纹理不重画；多少、大小、高光三条滑杆）或融雪（`nebbiaSnow.ts`：窗外一直在下雪（`nebbiaSnowFall.ts`，远、中两层往下落，跟着车速往后斜、轻轻晃、慢慢转；水族箱里不下），贴上玻璃的雪从远处飘过来：按透视从远层那么小、淡、糊变大变清楚，跟着窗外的雪往下落（车速越快越斜、越快；水族箱里无风），快到时慢下来，轻轻贴上玻璃粘住；六成小团、四成枝晶（一半缺一两个角），16 张阶段贴图交叉淡入淡出地化，化出的水从最厚的几处渗成钉住的水珠（水量和雪花大小是对数关系，雪调大也不会满屏大水），化完放开、照 raindrop-fx 的物理走（`nebbiaSnowWater.ts`：分珠、合并（密度按质量平均），沿边蒸发（小水珠十来秒干，雪一直下玻璃上的水也很快稳住），另加一道门槛，并得够大的才滑，小的挂着不动，单颗水珠有大小上限，不会越滚越大），滑过的地方把雾擦薄一半；水珠停久了从中间往外冻，收成更小的冰珠，冻到一定程度贴着玻璃往下滑，身后留冻住的小冰点（冰芯排成雪花实例画）；写字留下的水珠同样结冰，但冻在原地不滑，按留下的时长直接算、跟着字一起淡没（`nebbiaInkIce.ts`）；雪花在主画面之后用 WebGL 实例画（`nebbiaSnowGl.ts`，全部阶段贴图拼成一张图集），被身后的光照着：取雾的光晕层，暖灯下泛暖黄、蓝处带冷蓝、暗处暗下去；逆光时像冰一样被照透，按冰晶厚薄折射身后稍糊的窗外（`uFogBlur`），斜面带一道亮边，冰棱在斜面方向和身后光照的方向成固定角度的地方闪出色散的火彩（`nebbiaFireGlsl.ts`，光不动颜色就不变，窗外的灯移过去才沿冰棱扫过），靠近亮光的雪外面散一圈很淡、不大的柔光；水珠实例照旧画进 `uField`、不建雨窗的凝结水珠；和歌词的水联动：写字的笔尖、抹字的手指、从笔画往下淌的水珠扫过时雪当帧化开，连同那里的水珠一起被吸走（当作并进了歌词的水，水量不另算），写好、边上还挂着水珠的笔画吸走挨着的雪水；落在水上的雪（雪化的水珠、还挂着水珠的笔画、往下淌的水珠、笔尖）一沾水 0.25 秒就化没，水并进那里的水，慢慢显现的字不碰雪；街景窗外不下雨（雨的设置在融雪下不可选）；多少、大小、化得多快三条滑杆）。换窗外（设置面板、命令面板）不动玻璃；没存过玻璃的旧 tuning 读时按窗外搭配（`NEBBIA_GLASS_FOR`：街景配雨窗、水族箱配凝露）。疏雨轻车的雨只打在雨窗玻璃上，车只在不画水族箱时颠。
+- 窗外第二套场景水族箱「梦海流萤」（tuning `behind: 'aquarium'`，和街景一样是着色器变体：`nebbiaShaders.ts` 的 `nebbiaSceneShaders(scene)` 按场景拼着色器，切换时重建运行时；水族箱不编楼群缓存的补画程序）。`nebbiaSceneCommonGlsl.ts`：两套共用的噪声、发光点和开关位；`nebbiaAquaGlsl.ts`：水（跟主题天色和强调色）、水面光束、沙底焦散、礁石水草和水草上一串串荧光粒子，窗外开关换个说法沿用（楼群 = 礁石水草，光斑 = 水草上的荧光粒子，车灯 = 大泡，马路 = 沙底，雨 = 细泡）；`nebbiaJellyGlsl.ts`：水母（雾后面只画伞盖和拖尾光）；`nebbiaBubbleGlsl.ts`：温泉似的细泡和偶尔的大泡。`nebbiaAquarium.ts`：窗外是水族箱时每帧调，推着水母（`nebbiaJellies.ts`：位置、大小、收缩、颜色）和跟拍的水草、大泡走，都写进一份 uniform 交给着色器；设置里水母数量、水母大小、气泡多少三条滑杆只在水族箱时显示，颠簸不显示。智能动感模式的「舞潮踏拍」（`source: 'beats'`，水母、水草、气泡、聚光灯四个分项各一条滑杆）：每拍水母全部收一下（普通拍轻、小节第一拍重），水草左右交替推一下（`nebbiaWeedSway.ts`：欠阻尼弹簧，梢比根晚到），沙底冒出一排大泡（开着时不冒随机大泡），聚光灯光斑放大一下；走过的拍由 `nebbiaBeatCursor.ts` 按听到的时刻（扣掉输出延迟）给，拖进度只挪游标不补拍。它只在水族箱真画在屏上时才算，「疏雨轻车」反过来在画水族箱时不算（播放页透明时透出后面、不画水族箱，雨照旧）（`entry.beatEffectOnScreen`，见上面 `beatClockTargets.ts`）：水族箱里没有雨打窗、车也不颠，不为它分离音轨
+- `nebbiaSpot.ts`：两盏聚光灯追正在写的字（按书写时刻 `wt`，慢慢显现的按演唱时刻）（目标沿字连续移动 + 临界阻尼弹簧 + 平滑时钟，避免一抽一抽）
+- `nebbiaPalette.ts`：主题 → 窗外配色（背景压成夜色，强调色是聚光灯和霓虹）
+- 歌词字号由排版决定，通用字号设置作为倍数；不画共用背景（`background: false`）
+
+### Hanabi
+
+花火：日式歌词 PV——色块字、烟花 MG，镜头之间整个世界持续上升。移植自 lumisynth 的 `src/packs/hanabi`（设计说明在 lumisynth 的 `docs/HANABI.md`）。快速定位：
+
+- `hanabi/VisualizerHanabi.tsx`：React shell / subtitle；`createHanabiPixiRuntime.ts`：Pixi runtime（WebGL only，建一次、换歌就地交接，scene cache ±1，一帧最多做一件贵的事；空闲的帧里 `scene.prepare` 提前 1.5 秒备好马上要出场的镜头：画字形图集、建烟花池 / 装饰件 / 拼贴，建场景时只排版不光栅化）
+- 性能约定：每帧有显隐、换混合模式或 Graphics 重画的层各自是渲染组（`isRenderGroup`：烟花池、环境层、每行字的色块层与字层、每个装饰件），Pixi 只重排那一组的绘制指令；叠加的闪光单独一个池画在上面，精灵不来回换混合模式。画质档（tuning `renderQuality`，`hanabiTuning.ts`）：均衡 / 省电只降烟花辉光的分辨率（少降对应的级数，辉光宽度不变），省电再少画环境粒子；字与全屏辉光始终满分辨率
+- `hanabiProgram.ts` + `program.ts`：整首编译（段落首尾相接铺满时间轴；第一句晚于 3 秒时前面单独一个间奏段；段后空隙 ≥ 3 秒时最后一句唱完 0.6 秒收住、剩下的给间奏镜头；长于 10 秒的间奏切成约 7 秒的几段；纯音乐只有间奏镜头）。分段规则与绘光共用 `../paragraphStructure.ts`
+- `scene.ts` + `timeline.ts`：一个段落一个场景，世界上升与旋转在场景内部（tuning `spin`：世界绕画面中心贯穿整个单元一直在转，镜头内约 11°/秒慢转、镜头边界跟着上升再甩过 34°–80°（`timeline.planSpin` 排角度）。`timeline.spin` 按角速度设计：上升窗口里世界与上升一起按 `easeSwing` 甩过去（速度是 (1 − u²)⁴ 的圆顶鼓包，两头缓、中间快，`SWING_SHARPNESS` 调缓急），慢转的速度用七次 smootherstep（`easeSeptic`）换过去，位置、角速度、角加速度都连续，慢转与快转之间不会一下顿住；上升与镜头内运镜在窗口里也用 `easeSwing` 过渡。每段从整首歌的方向起转，边界两成换向、之后一半概率转回，单元最后一个镜头一定转回原方向，段落之间接上的总是同一个方向。每个镜头的 holder 绕「定格时的画面中心」反向转回自己的角度，镜头中点时构图正好是原样）；运行时只在外面套段落转场帧（`hanabiSceneFrames.ts` + `hanabiTransitions.ts`：上升 ascend / 闪白 flash / 开花 bloom，出场帧 + 边界后的交叉渐变，上升的旧画面过了边界按原速继续滑走、转走，三种都带一点旋转，乘 `spin`）
+- `hanabiSky.ts`：夜空底，运行时铺在所有场景之下（tuning `sky`）；`sky` ≥ 0.5 时配色换成深底的调色板（`color.ts`）
+- `hanabiCreditsLayer.ts` + `credits.ts`：片尾卡；`overlay.ts`：画框装饰
+- `text/`（文字引擎：排版、色块、逐字入场 / 强调 / 退场）与 `mg/`（烟花、升空尾迹、装饰件、环境粒子）同 lumisynth；`catalog.ts` 是 50 个镜头预设
+- `collage/`：folia 加的日系可爱 PV 拼贴（tuning `collage`，0 关掉）。`collagePlan.ts` 是纯数据：每个镜头按族挑一种配方（scrapbook / strips / echo / window / stickerbomb / quiet，间奏 bridge，歌曲以前奏开头时第一个间奏是 opening 标题卡），算出不带字的装饰带（电影胶片、剪刀剪出的剪切线、蕾丝花边）、关键词重复空心字、白边贴纸、胶带、格子纸片、小窗口、编号标签、开花时蹦出的主题图标贴纸（主题 `lyricsIcons` 里的 lucide 图标，没有时用 Flower；外壳在建运行时与换歌 / 换主题前先加载，`collagePainters.ts` 经 `resolveLucideIconNode` 用 Path2D 画成白边贴纸）、跟着升空尾迹转着上去的小图标、间奏往上飘的贴纸气球，都摆在字组外面或字后面；`collagePainters.ts` 用 Canvas 画纹理、按 key 缓存在场景单元里；`collageViews.ts` 全用精灵 / 平铺精灵，不用 Graphics 和遮罩；`unitCollage.ts` 是整段一份的网点底纹和左缘竖着的电影胶片，跟着世界上升走。片尾卡也挂一份（蕾丝花边 + 胶片）。曲名、艺人烘焙进了开场标题卡，变了会防抖重建场景
+- 配色加了糖果色角色 `kawaii`（`color.ts`），画框与片尾卡用它；色块上的深色字是深梅紫 `0x2b1f3d`，与拼贴件同色
+- bloom 与绘光共用 `../pixi/bloomFilter.ts`
+- `hanabiScreenBloom.ts`：全屏辉光。运行时在整个场景层（所有段落场景，不含夜空底与片尾卡）上挂一个共享 bloom（`pixi/bloomFilter.ts`，滤镜区域固定为整个画面、分辨率 `inherit`），强度 = 整体辉光（tuning `bloom`，默认 0.8）+ 副歌辉光（tuning `chorusBloom`，默认 1.3）× 副歌权重；副歌时段由编译时按歌词行的 `isChorus` 并出来（`program.chorus`，相邻副歌行合并，空隙 < 1.5 秒也合并），前后平滑亮起、收回；强度为 0 时摘掉 filter。两项都是每帧现读的字段，拖滑块不重建场景
+- `hanabiBeatFx.ts`：智能动感模式的两个效果。「随拍开花」按节拍表在夜空上半部每拍开一朵小烟花，小节第一拍提前升空、正好在拍上开大的，重音越强开得越大、没有节奏的小节不开；运行时把节拍表交给在画的场景，场景按拍的时刻把烟花放进那时所在的镜头（跟着上升、旋转）。「随拍推镜」把拍的包络套在整个场景层上（以画面中心推近、左右轻摆）。静态模式、仅显示歌词文字时都不放
+- 歌词字号由每个预设的文字区决定，通用字号设置只影响底部字幕
+
+### Machi
+
+町景（实验）：three.js 程序化生成的街角微缩模型（约 12m×12m 底座，正交斜俯视），歌词是场景里的招牌、屏幕。底座与路面薄板共用 `engine/geometry/plinth.ts`。设置里选场景（便利店街角、加油站停车场、城寨酒吧）、时间、天气，三项都可以“自动”。不挂共享背景（`background: false`），天空自己画。快速定位：
+
+- `machi/VisualizerMachi.tsx`：React 外壳 / 字幕；运行时用 `pixi/pixiRuntimeHost.ts` 的 `useVisualizerPixiHost` 托管（与渲染器无关），建一次，换歌、换主题、换设置、暂停、静态模式就地推给它；WebGL 上下文丢了换一个 epoch 重建
+- `machi/tuning.ts` + `types.ts` + `machiTuning.ts` + `MachiSettingsPanel.tsx`：tuning（`machi_tuning`：场景 / 时间 / 天气，都可以 `auto`，“自动”场景按 seed 选，`resolveMachiSceneId`；镜头 `camera`：默认视角或自定义视角，`views` 每个场景存一份相对它默认构图的转角、俯仰、缩放倍数、沿地面的平移（以前共用的一份 `view` 读进来时分给每个场景）；运镜 `motion` 与快慢 `motionSpeed`（倍数）；景深：光圈 `aperture`（f 值，f/1.4–f/16，面板按档走，f/8 是原来的微缩感）、`dof` / `dofRange` / `tiltShift` 与对焦 `focus`（画面中心 / 歌词屏 / 手动加 `focusOffset`）；画质 `quality`：分辨率（屏幕像素的几成）、抗锯齿（关 / FXAA / SMAA / 超采样）、阴影、倒影、辉光与光条、自动降级开关，面板上的高 / 平衡 / 低是几套细项（`MACHI_QUALITY_PRESETS`），不单独存，由 `resolveMachiQualityPreset` 从细项推出来，对不上就是自定义；帧率上限是全局设置，不在这里），设置面板（场景用线稿小图，不放实时预览；自定义视角有五个滑块与“回到默认构图”，调的是正在画的那个场景的一份，场景“自动”时多一排可以挑场景；正在画哪个场景由 `shownScene.ts` 从运行时报上来，有几个运行时时以后出现的那个为准）与快捷控件的四个轮换胶囊（场景、时间、天气、视角）加运镜开关和摄影机按钮。镜头与景深那几项的文案、读数格式、光圈的档放在 `cameraControls.ts`，设置面板和取景控制条共用。自定义视角下在播放页拖动，停稳后经 `onVisualizerTuningChange` 存回 tuning 里那个场景的一份（主窗口由 `useVisualizerRendererModel` 交给当前样式的 store action，样式窗口进草稿）。
+- `machi/MachiCameraBar.tsx` + `cameraBar.ts`：播放页上的取景控制条（像游戏的拍照模式）。控制面板的摄影机按钮（打开时经 `onClosePanel` 收起面板，`VisualizerQuickControlsProps` 上的可选回调）或命令 `visualizer-machi-camera-bar` 打开；`cameraBar.ts` 记着开没开。只在播放页、不是预览、宿主存得下改动时显示（`VisualizerMachi`），离开播放页或换了歌词样式就收起。画面上叠取景框四角、三分线和画面中心的准星；底部一条深色玻璃横条分三页：视角（默认 / 自定义，正在画的场景的五个滑块，一动就固定成自定义视角，场景由运行时的 `onSceneShown` 报上来）、对焦与光圈、运镜，右端是这一页的复位和收起，焦点在横条里时 Esc 收起。控件用设置窗口的 kit，配色固定成深色玻璃上的浅色字（`settingsTokens` 加改写的 `--text-primary`）。开着时底部字幕让开
+- `machi/createMachiRuntime.ts`：引擎。WebGLRenderer、自己的 RAF 循环（暂停时只在镜头动、颜色插值、换牌动画时出帧）、就地换场景（先淡到黑，在黑场里拆旧场景、建新场景，重建那一下的卡顿藏在黑里，再淡入；上下文和后处理留着；预览与调试钩子直接换）、画质（`engine/quality.ts` 的纯函数把设置和自动降级的格数换算成 DPR、MSAA 采样数、最后一道抗锯齿、墨线取样步长、阴影图、倒影分辨率、bloom / 光条、景深离焦层；改设置、自动降级都由 `applyQuality` 就地换，MSAA 变了才换一张场景目标，关阴影会重编一次着色器）、自动降级（只在设置里开着时：平均帧时连着两次检查（各隔 2.5 秒）都超过刷新间隔的 1.33 倍（按最近帧里较快那一成推算刷新间隔，不低于 90fps 的 11.1 毫秒（120Hz 及更高刷新率的屏都是约 90fps 以下才降），不超过原来的 21 毫秒，`resolveMachiDegradeThreshold`；换屏或改了全局帧率上限时重新推，刚降一格后平均帧时没明显变快、帧间隔又挤在一起就当是屏幕自己降了刷新率，按这一段重新认并记成下限，`stepMachiDegrade`）就在用户那套设置之下按 超采样退成 SMAA → 几何边缘的 MSAA → 辉光 → 倒影 → 景深离焦层 → 分辨率 → 后期抗锯齿 → 阴影 一格格压，一轮压完再来一轮，只降不升，改了画质设置从头开始；预览不降。顺序按实测开销：WebGL 里 MSAA 解析单独整屏读一遍样本，视网膜屏 4 倍时每帧 2–3 毫秒）、DEV 调试钩子 `window.__machiDebug`（`setView(方位角, 俯角, 缩放)`、`renderAt(歌曲秒, 氛围秒)`、`nextCar(氛围秒)`、`setTuning({ scene, timeOfDay, weather })`、`stats()`）
+- `machi/engine/`：三个场景共用的部分
+  - `palette.ts`：主题 → 调色板（纯函数）。夜的底子固定，主题色进品牌三色条、屏幕字、LED、霓虹、贩卖机和商品，天空 / 暖光只偏一点色相；偏灰主题按 seed 选经典配色；背景亮的主题换白底屏幕。场景自己的颜色由场景的 `resolveArt` 给，放进 `art`。`materials.ts` 的 `MachiColorBlend` 换主题时插值过去；`MachiMaterials` 引擎一份、每个场景一份（场景拆掉时一起销毁），自发光件的规格由场景 `defineGlows` 登记
+  - `lyricScreen.ts`：逐字点亮当前行的 LED 屏（字的时间来自 `buildLineGraphemeTimeline`，关键词按字符范围着色；像素格与子像素条（格子太小时淡掉防摩尔纹）、点亮边界对齐像素格、慢刷新带、面板玻璃反光，换行时信号切换——横带错位、色散、雪花点；最亮的通道压到 bloom 门槛附近，字不被晕开）。`ledStrip.ts`：LED 点阵跑马灯。`signRaster.ts` + `boardLayout.ts`：字体、图标（经 `../lucidePath2d.ts` 画成 Path2D，与花火拼贴共用）、缩字折行、字面排版
+  - `environment.ts`：时间与天气（纯函数）。设置 → 目标（白天程度：自动按本地时钟，05:00–06:30 天亮、16:30–18:30 经黄昏入夜；天气：自动按 seed 加权 雨 35% / 晴 30% / 雾 20% / 雪 15%），运行时按真实时间阻尼追过去（暂停时也走完），路面湿度和积雪比降水慢（雨停约 20 秒才干，雪约 8 秒积起、12 秒化掉）；再推出日光强度、人造光、路灯、bloom / 光条、云量、星星、雾气。天空、天光、月光 / 太阳的颜色在调色板的夜、黄昏（`*Dusk`）、白天（`*Day`）三套之间插值，阴天往灰里拉，结果经 `MachiColorBlend.setDerived` 盖在同名键上
+  - `snow.ts`：积雪注入卡通材质（朝上的面 × 噪声，光照之前改底色），场景给的屋顶下面不积；地面同一段着色，积雪盖住水洼
+  - `sheen.ts`：高光注入卡通材质（每盏灯的光照里多算一块，不多画东西）：光泽按颜色键分车漆 / 玻璃 / 金属 / 路面 / 其余，干湿两档，下雨时整个场景变“滑”，屋顶下面不算湿；点光、聚光给硬边亮斑加柔光，平行光只给柔光（正交镜头下平面对平行光处处同角，硬边会整片一起亮）；必须在 `snow.ts` 之后注入
+  - `director.ts`：牌面在行与曲名卡之间切、跑马灯写什么、副歌权重、副歌开头的闪电（只在雨天）、招牌闪烁日程、音频包络（纯函数）
+  - `clock.ts`：统一可暂停的氛围时钟（雨、涟漪、滴水、闪烁、车、旗、白气）；歌词、副歌与闪电读歌曲时间
+  - `lens.ts`：把光圈、强度、清晰范围、移轴和此刻的缩放换成镜头 pass 要的对焦带与离焦圆（`resolveMachiLens`）：光圈每大一档清晰的那一层薄到 1/√2、离焦圆大到 √2 倍，从清晰到最虚的过渡只按光圈的平方根收窄（大光圈下是一路渐渐虚上去，不是离开一两米就虚到头）。
+  - `camera.ts`：缩放 1 框住场景给的构图点，默认构图拉近到场景给的缩放，目标点上移保住画面上沿的招牌，裁掉的是下沿离镜头最近的底座角；OrbitControls，方位角限默认视角 ±75°、俯角 20°–70°，右键 / 双指沿地面平移（不出 ±5m）；默认视角下松手 8 秒缓回默认构图，自定义视角是镜头的静止位置，拖动停稳后报出新视角（`onCommit`），从默认切到自定义时刚拖过的视角直接固定下来；拖动会叫醒暂停时睡着的渲染循环；预览里不接拖拽（滑块照样生效）；运镜（`resolveMachiDrift`，几道周期互不成倍数的慢正弦：转角 ±20°、俯仰 ±4°、缩放 ±8%、平移半米以内）叠在静止位置上，按氛围时间走、随歌曲暂停，幅度用真实时间缓起缓停，一拖就归零，回到静止位置后再走起来，预览里也走；快慢按 `motionSpeed` 乘在运镜自己的时钟上，改快慢不跳
+  - `skyLights.ts`（半球光 + 投影的平行光：夜里月光、黄昏低低的橙色太阳从左前方照、白天高处的太阳；太阳转过一点才重画阴影图）、`sky.ts`（竖向渐变天空）
+  - `fx/`：`weather.ts`（雨丝、水花、滴水、雪花，各一个 draw call，没有的天气整组藏起来；屋顶、滴水点、受光点由场景给）、`ground.ts`（湿路面：水洼、涟漪、倒影取样，干的时候没有水洼，也不画倒影那一遍；湿的时候整片路面都映灯，倒影沿竖向拉成光带、横向只糊一点，水洼里短一点清楚一点；灯底下有雨点闪光）、`reflection.ts`（镜像正交镜头只画倒影图层到半分辨率贴图，带 mipmap，路面按粗糙度取糊一点的那级）、`lightCones.ts`（场景给的光柱，一个 draw call）、`steam.ts`（白气）、`post.ts` + `postPasses.ts` + `bloomPass.ts` + `lensPass.ts`（场景画进单独的 MSAA + 深度目标 → 氛围 pass：墨线（深度的二阶差分，取样步长按屏幕像素，超采样时线宽不变）、贴地薄雾与雾里的两处灯、云（云量随天气）与闪电、雾天按深度的灰，画进单独一张 HDR 图 → 柔和 bloom（`bloomPass.ts`：UnrealBloomPass 的提亮、五级模糊、合成，整条链从四分之一分辨率起，模糊核减半，光晕在屏幕上一样大；同分辨率的模糊成对取样）→ 横向镜头光条（两者夜里明显、白天几乎关掉；都只画自己的低分辨率贴图，不整屏叠回去）→ 镜头 pass（`lensPass.ts`，取样时现加 bloom 与光条，`postPasses.ts` 的 `GLOW_GLSL`）：按深度的散景景深（离焦圆的半径按深度算，对焦面前为负、后为正，移轴按上下另算；降到一半分辨率，离焦大时再一层层降，让最大的圆在那一层不超过 8 像素，按黄金角螺旋在圆盘里取样，后景只收不比中心清楚的样、前景记下盖住的比例，再按每个像素自己的离焦与前景比例和清楚的原图混合；在 HDR 上做，灯和霓虹虚成圆形亮斑；景深与移轴都为 0 时不做离焦层）、边缘色差、暗角、颗粒、晴夜的星星（画在景深之后），最后色调映射和 sRGB 编码（原来的输出 pass）→ FXAA 或 SMAA（在 8 位的 sRGB 上做，SMAA 的边缘、权重图也是 8 位；全分辨率的读写只剩氛围、镜头和抗锯齿；墨线是后期描的，场景目标的 MSAA 管不到它））
+  - `actors/`：`schedules.ts`（纯函数：车按氛围时间窗口出现、同时最多一辆，车速 6.5 m/s，车道由场景给）、`traffic.ts`（轻型车 / 出租车，前灯光斑，车灯进倒影；材质带底座边缘的裁切面，从底座边上“开出来”）、`nobori.ts`（のぼり旗，摆在哪、写什么由场景给，顶点着色器里随风飘）
+  - `beatFx.ts`：智能动感模式的三个效果（纯函数），运行时每帧算出 `MachiBeatFrame` 随场景帧交给场景（`beat`），常态值（`createMachiBeatFrame` / `resetMachiBeatFrame`）就是关掉时的画面。「霓虹随拍」读整张节拍表 `getBeatFxEvents()`（不读时钟的包络，那一拍只亮 0.16 秒）：招牌霓虹分成三组（`neonGroups`，场景用 `machiNeonGroup` / `machiLightboxGroup` 按招牌取），按拍在表里的序号轮到第几组，那组约 0.4 秒慢慢亮起、1.5 秒暗下，别的组同时按与平均的差暗一点，此起彼伏、整条街的亮度不一跳一跳（城寨稳定的招牌占了大半，按顺序轮流分进三组，见 `kowloonSigns.ts` 的 `ATLAS_SLOTS`）；照到四周的霓虹光、雾里的灯晕跟三组的平均（`neon`）。店里的灯、亮窗只在小节第一拍慢慢涨落一点（`warm`）；偏中高频的拍多亮霓虹、偏低频的小节第一拍多亮暖色的灯；近白的灯箱（店招、价格立柱）只跟一小份，不然冲成白块。「鼓点涟漪」读听到的这首歌的底鼓：最近几下够响、相隔够远的底鼓（最多四圈，相隔 × 四圈排满寿命，鼓点再密也没有哪圈半路被挤掉）交给 `fx/ground.ts`，从歌词屏脚下（`focusPoint` 的 xz）在湿地面上荡开，弯倒影、亮一道环；地面干时改成光斑跟着跳一下（`thump`）。「大屏闪拍」读军鼓：每下够响的军鼓在 `lyricScreen.ts` 的一处（`swellAt`，按鼓点序号黄金分割步进，先后几下左右错开）约 0.25 秒慢慢亮起、1.15 秒暗下，最多四处，叠起来按 1 − e^−x 收住，军鼓再密也只是柔和地起伏、不频闪（亮着时放过一点 bloom 门槛）。哪几下鼓点算数按规则从头挑一次、按份缓存（`pickedDrumHits`），与画哪一帧无关，窗口滑动时不会有一下忽然冒出来或消失。拍点、鼓点都按听到的时间取（分离到一半的歌只用 `until` 之前的），画面只由时间决定；探针里没有分离，调试钩子 `setDrumHits` 给一份假的鼓点
+  - `geometry/shapes.ts`：圆角盒、管线、命名 Group；`bakeStatic` 建完后按材质合批（保留顶点色），重复物用 InstancedMesh
+- `machi/scenes/`：`types.ts` 是场景与引擎的约定（`MachiSceneDefinition` 的 `resolveArt` / `create`，`MachiScene` 每帧 `direct(frame)`，`focusPoint` 是歌词屏的中心，景深对焦在歌词上时用），`index.ts` 是场景表
+  - `konbini/`：便利店街角。`layout.ts` 尺寸表、`base.ts` 底座与路、`store.ts` 店身与三面广告屏、`interior.ts` 店内、`props.ts` 街边道具与按歌变的 `SongProps`、`konbiniSigns.ts` + `konbiniSignPaint.ts` 招牌、`konbiniLights.ts` 店内光 / 路灯 / 地面光斑、`konbiniDoor.ts` 段落开头开自动门（`../paragraphStructure.ts`）、`konbiniSeed.ts` 按 seed 变自行车、伞、风向、水洼、`konbiniScene.ts` 把它们装起来。场景里不放人物
+  - `station/`：加油站停车场（默认镜头从正前偏右 25° 看，高的罩棚和货车放后排，前排只有车和细高的立牌，挡不到货车屏幕）。`layout.ts` 尺寸表、`structures.ts` 底座与路、罩棚（朝下的聚光——卡通渐变最暗一阶不是 0，点光会从下面把罩棚顶“照亮”）、加油岛、价格立柱、汽车旅馆高立牌（箭头一圈走马灯泡）、场地灯、`vehicles.ts` 停着的车（轿车、出租车顶灯、轻卡）与アドトラック（货厢侧面是 `engine/lyricScreen.ts` 的屏幕，逐字点亮当前行）、`stationSigns.ts` + `stationSignPaint.ts` 招牌（出租车顶灯滚下一句与曲名、罩棚店招写歌手、价格立柱的七段数码管是播放进度 / 总时长 / 第几句、旅馆立牌写曲名，副歌时 NO VACANCY）、`stationLights.ts`、`stationSeed.ts`（车位停什么、车色、出租车配色、谁打双闪）；车位按 seed 建，换了 seed 不同的歌整个场景重建（`rebuildsForSeed`）
+  - `kowloon/`：城寨酒吧（香港九龙城寨，赛博朋克；默认镜头从前右 30° 看，高楼都在左边与后排，前右只有矮的大排档与电线杆，挡不到酒吧和大屏）。`layout.ts` 尺寸表（楼是一栋栋窄楼，进深与高低错开；离镜头最远的后左角投到画面里最高，所以那里不比别处高）、`blocks.ts` 城寨楼（只在露在外面的楼面铺窗，避开歌词屏与招牌；铁窗笼、冷气机（下雨时滴水、墙上一道水渍）、晾衫竹、加建小间、楼板线上几段霓虹灯带；水管走在两列窗之间，不压歌词屏与招牌，楼脚有铺面、杂物、酒吧门面就只落到一楼楼板；伸出墙外的东西与水管各占一块地方，后放的让开先放的（楼上冷气机不插进楼下竹竿，楼角两面的竹竿不交叉），晾的衫一件挨一件不叠（叠着的在同一平面上会闪）；亮窗、暗窗、晾的衫各一个 InstancedMesh；楼顶水箱、鱼骨天线、锅盖、天台小屋）、`bar.ts` 酒吧（B1 一楼掏空：玻璃门面、吧台下一道霓虹、高脚凳、背光酒架与瓶子、吊灯、随音乐明暗的点唱机）、`street.ts` 巷子（湿地面、明渠、各家铺面、伸出楼面的招牌箱与拉杆、楼顶广告架、大排档、电线杆与街灯、电线、贩卖机、电单车、全息投影机）、`kowloonSigns.ts` + `kowloonSignPaint.ts` 招牌（楼面上的歌词大屏是 `engine/lyricScreen.ts`，逐字点亮当前行；屏幕下沿的 `engine/ledStrip.ts` 跑马灯滚译文或曲名；门头霓虹写曲名、一块竖灯箱写歌手，其余店招按 seed 挑店名与写法，都画进一张图集，按稳定 / 两组会坏的灯管分三种材质）、`hologram.ts` 巷子里的全息投影（下一句：加色、扫描线、换字时横带错位；着色器里的平方都写成相乘——负数的 `pow` 在 D3D 上是 NaN，会被 bloom 晕满全屏）、`kowloonLights.ts`（店里、屏幕前、招牌一角粉青两盏、全息、档口、街灯，夜里一层霓虹色的底光）；换了 seed 不同的歌整个场景重建（`rebuildsForSeed`）
+- 歌词字号由场景里的屏幕决定，通用字号设置只影响底部字幕
+
 ## Host surfaces
 
 不要只在主播放器里验证 visualizer。统一 renderer 当前被这些宿主复用：
 
 - `src/App.tsx`
-- `src/components/modal/ThemePark.tsx`
-- `src/components/visualizer/VisPlayground.tsx`
+- `src/components/modal/theme-park/ThemeParkPreview.tsx`（主题乐园 `src/components/modal/ThemePark.tsx` 的预览）
+- `src/components/visualizer/window/VisPlayground.tsx`
 - `src/components/obs/ObsBrowserSourceApp.tsx`
 - `src/components/obs/ObsWebSourceApp.tsx`
 
+这几处不经过 `VisualizerRenderer`，直接用 registry 的 `render` 画样式本身，要画背景时由样式自己的外壳画：
+
+- 选择器里的小预览图（`preview/LyricStylePicture.tsx`）：不画背景和字幕。
+- `src/mods/export/modExportPage.tsx`（mod 导出页）：自己做 `applyVisualizerTuning`；导出设置的 `backgroundMode` 是 `theme` 时画默认背景，是 `none` 时背景透明。
+- 开发探针 `dev/probes/*.probe.tsx`。
+
 宿主可以提供不同的 `staticMode`、背景、面板和字幕 props，但模式契约仍来自 `definition.ts`。
+
+换样式的过渡（`styleTransition/`）只在用的人亲手换样式的宿主里放：`App.tsx` 和 `VisPlayground.tsx` 给 `VisualizerRenderer` 传 `animateStyleSwitch`，其余宿主直接换。过渡动的是背景里面的样式那一层，视频层和模组舞台图层（都在 `VisualizerBackdrop.tsx`）不动；静态模式和降低「界面微动效」时也直接换。过渡是柔焦（`styleTransition/softFocus.ts`）：旧样式放大一点、虚化退下，新样式从同样的虚化里落定。背景换了也放同一个过渡（`styleTransition/VisualizerBackgroundTransition.tsx`）：换背景种类、新样式画在另一种背景上（Still 不画背景）、播放页设成透明，都算换；同一种背景里的设置不算，背景原地重画。换歌也算，只要背景画的东西跟着歌变（背景 entry 的 `song`，见上面的背景一节）：新歌的那一份马上挂上但先不露面，退下的那一份照旧画旧歌的封面和种子。换样式和换背景在同一次渲染里开始，一起换时是一个过渡。两者共用 `styleTransition/layerTransition.ts`：同时最多挂两个，退下的那个等不到动画结束也会在稍后卸下。换样式时新样式马上挂上但先不露面，旧样式原样留着，等新样式画好第一帧（`styleTransition/firstFrame.ts`，见上面的“起步慢的样式”）再一起放过渡，最多等 `FIRST_FRAME_LIMIT_MS`；跟着这次换样式一起换的背景也等着；背景自己也等新的那一份准备好（同样用 `useFirstFrameDrawn`），最多等 `BACKGROUND_READY_LIMIT_MS`。等着和放过渡的时候，选择器的小图不开始做图也不开始动（`preview/pictureTurns.ts` 的 `holdTurns`）。
 
 ## Runtime guardrails
 
 - 连续播放时间优先使用 MotionValue、ref、CSS/Motion、canvas 或 Pixi draw loop；不要每帧写 React state/store。
 - React state 只保存当前行、播放状态、可见段落等离散变化；高频 `requestAnimationFrame`、`useMotionValueEvent`、`ResizeObserver` 必须有相等保护和 cleanup。
 - 布局 cache key 要包含歌词内容、主题、最终字重、窗口尺寸和 mode tuning；字体测量和最终渲染必须使用同一 `resolveThemeFontWeight` 结果。
-- 新模式应复用 `runtime.ts`、`registry.tsx`、`VisualizerShell.tsx`、共享 subtitle/harmony overlay 和 `entry.tsx` settings contract。
+- 新模式应复用 `runtime.ts`、`registry.tsx`、`VisualizerShell.tsx`、共享 subtitle/harmony overlay 和 `entry.tsx` settings contract；接入步骤见上面的“加一个歌词动画样式”。
 - 新功能若让单个模式文件继续明显膨胀，加载 `file-modularization` skill，把 layout、canvas/Pixi、tuning 和纯计算拆到同目录文件。
 
 ## Fast lookup

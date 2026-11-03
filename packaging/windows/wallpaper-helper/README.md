@@ -1,6 +1,6 @@
 # folia-wallpaper-helper
 
-Windows 桌面壁纸模式的辅助进程。由 Electron 主进程（`electron/windowsWallpaperController.cjs`）
+Windows 桌面壁纸模式的辅助进程。由 Electron 主进程（`electron/wallpaper/windowsWallpaperController.cjs`）
 spawn，负责把 Folia 主窗口挂入桌面图标层之下的 WorkerW 层、转发桌面鼠标输入，并在 explorer
 重启 / WorkerW 重建时自行重挂。
 

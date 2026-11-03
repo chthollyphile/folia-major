@@ -10,7 +10,8 @@ const createBackend = (providerId: string) => ({
     getPort: vi.fn(() => (providerId === 'netease' ? 4100 : null)),
     getStatus: vi.fn(() => ({ status: providerId === 'netease' ? 'running' : 'error', port: null, error: null, updatedAt: 1 })),
     start: vi.fn(async () => ({ status: 'running', port: 4100, error: null, updatedAt: 2 })),
-    getDiagnostics: vi.fn(() => ({ backend: { status: 'running' }, startup: [], connections: [] })),
+    // 网易的要问工作线程（异步），QQ 的当场给（同步）。
+    getDiagnostics: vi.fn<() => object | Promise<object>>(() => ({ backend: { status: 'running' }, startup: [], connections: [] })),
     selfCheckHosts: [`${providerId}.example`],
 });
 
@@ -43,13 +44,16 @@ describe('login backend IPC', () => {
         ]);
         expect(invoke('get-netease-port')).toBe(4100);
         expect(invoke('get-qq-port')).toBeNull();
-        await expect(invoke('restart-netease-api')).resolves.toMatchObject({ status: 'running' });
-        expect(netease.start).toHaveBeenCalledOnce();
+        await expect(invoke('restart-netease-api', 'needed')).resolves.toMatchObject({ status: 'running' });
+        expect(netease.start).toHaveBeenCalledExactlyOnceWith('needed');
     });
 
-    it('builds the diagnostics snapshot from the app environment and that backend', () => {
-        const { invoke } = setup();
-        const snapshot = invoke('get-login-diagnostics', 'qq') as any;
+    it('builds the diagnostics snapshot from the app environment and that backend', async () => {
+        const { invoke, netease } = setup();
+        // 网易的诊断要问工作线程，是异步的。
+        netease.getDiagnostics.mockImplementation(async () => ({ backend: { status: 'running' }, startup: [], connections: [] }));
+        await expect(invoke('get-login-diagnostics', 'netease')).resolves.toMatchObject({ providerId: 'netease', backend: { status: 'running' } });
+        const snapshot = await invoke('get-login-diagnostics', 'qq') as any;
         expect(snapshot).toMatchObject({
             providerId: 'qq',
             app: {
@@ -61,8 +65,8 @@ describe('login backend IPC', () => {
             },
             backend: { status: 'running' },
         });
-        expect(invoke('get-login-diagnostics', 'kugou')).toBeNull();
-        expect(invoke('get-login-diagnostics', 'constructor')).toBeNull();
+        await expect(invoke('get-login-diagnostics', 'kugou')).resolves.toBeNull();
+        await expect(invoke('get-login-diagnostics', 'constructor')).resolves.toBeNull();
     });
 
     it('runs the self-check against that backend with the system proxy resolver', async () => {

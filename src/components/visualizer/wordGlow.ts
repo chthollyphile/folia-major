@@ -57,16 +57,26 @@ const dropShadowAt = (color: string, inner: number, outer: number) => (
     + `drop-shadow(0 0 ${outer * DROP_SHADOW_RADIUS_SCALE}px ${color})`
 );
 
+/** text-shadow halo radii per reveal mode: [inner, outer]. */
+const glowRadii = (wordRevealMode?: string | null): [number, number] => (
+    wordRevealMode === 'instant' ? [14, 24] : wordRevealMode === 'fast' ? [18, 32] : [20, 40]
+);
+
 /**
  * One glow ramp as framer keyframes: from nothing to the halo (or back), with `peaks[i]` in 0..1.
- * text-shadow: `none` <-> halo, exactly the old animation. drop-shadow: the same radii ramp on the
- * filter, while opacity carries the alpha ramp `none` used to give the shadow colour.
+ * text-shadow: the halo stays at its peak radii and opacity carries the ramp. text-shadow is a paint
+ * property, so the old `none` <-> halo sweep re-rastered every glowing glyph on every frame (classic,
+ * 120 Hz Mac: the raster worker spent 160-220 ms a second on it); opacity is applied by the compositor.
+ * The halo is set in `waiting` already, so the string never changes and framer never animates it.
+ * At the peak it is pixel-identical; on the way up the halo is full size and faint rather than small
+ * and bright. drop-shadow: the same radii ramp on the filter, opacity again carrying the alpha.
  */
 const glowKeyframes = (color: string, inner: number, outer: number, peaks: number[]) => {
     if (!isGlowBlurQuantized()) {
         return {
             color: 'transparent',
-            textShadow: peaks.map(peak => (peak > 0 ? textShadowAt(color, inner, outer) : 'none')),
+            textShadow: textShadowAt(color, inner, outer),
+            opacity: peaks,
         };
     }
     return {
@@ -82,14 +92,15 @@ const glowKeyframes = (color: string, inner: number, outer: number, peaks: numbe
  * form is resolved each time a word turns active, so flipping the switch applies from the next word on.
  */
 export const wordGlowVariants: Variants = {
-    waiting: () => (isGlowBlurQuantized()
+    waiting: ({ activeColor = '', wordRevealMode }: WordGlowCustom) => (isGlowBlurQuantized()
         ? { color: 'transparent', opacity: 0, filter: 'none', transition: { duration: 0 } }
-        // opacity / filter reset too, for words left over from before the switch was turned off.
-        : { color: 'transparent', textShadow: 'none', opacity: 1, filter: 'none' }),
+        // The halo is already in place at full size, hidden by opacity, so turning active animates
+        // opacity only. filter resets too, for words left over from before the switch was turned off.
+        : { color: 'transparent', textShadow: textShadowAt(activeColor, ...glowRadii(wordRevealMode)), opacity: 0, filter: 'none', transition: { duration: 0 } }),
     active: ({ activeColor = '', duration, index, total, charStartTime, charEndTime, wordStartTime, wordRevealMode }: WordGlowCustom) => {
         if (wordRevealMode === 'instant') {
             return {
-                ...glowKeyframes(activeColor, 14, 24, [0, 1, 0]),
+                ...glowKeyframes(activeColor, ...glowRadii(wordRevealMode), [0, 1, 0]),
                 transition: {
                     duration: Math.min(duration || 0.08, 0.12),
                     times: [0, 0.35, 1],
@@ -100,7 +111,7 @@ export const wordGlowVariants: Variants = {
 
         if (wordRevealMode === 'fast') {
             return {
-                ...glowKeyframes(activeColor, 18, 32, [0, 1, 0]),
+                ...glowKeyframes(activeColor, ...glowRadii(wordRevealMode), [0, 1, 0]),
                 transition: {
                     duration: Math.min(Math.max(duration || 0.12, 0.12), 0.2),
                     times: [0, 0.4, 1],
@@ -122,7 +133,7 @@ export const wordGlowVariants: Variants = {
                 ? Math.max(0, charStartTime - wordStartTime)
                 : singleDuration * (index ?? 0);
             return {
-                ...glowKeyframes(activeColor, 20, 40, [0, 1, 0]),
+                ...glowKeyframes(activeColor, ...glowRadii(wordRevealMode), [0, 1, 0]),
                 transition: {
                     duration: charDuration * 6, // stretch the fade over a few letters
                     times: [0, 0.3, 1], // peak early, then fade
@@ -134,7 +145,7 @@ export const wordGlowVariants: Variants = {
 
         // Single char / CJK: sustained glow
         return {
-            ...glowKeyframes(activeColor, 20, 40, [0, 1, 1]),
+            ...glowKeyframes(activeColor, ...glowRadii(wordRevealMode), [0, 1, 1]),
             transition: {
                 duration: (duration || 0.1), // stretch the fade over the word duration
                 times: [0, 0.9, 1], // peak early, then fade
@@ -145,7 +156,8 @@ export const wordGlowVariants: Variants = {
     passed: ({ activeColor = '', wordRevealMode }: WordGlowCustom) => {
         const transition = { duration: wordRevealMode === 'instant' ? 0.12 : wordRevealMode === 'fast' ? 0.22 : 0.9, ease: 'easeOut' as const };
         if (!isGlowBlurQuantized()) {
-            return { color: 'transparent', textShadow: 'none', transition };
+            // Fade the halo out by opacity; the shadow string stays as it was so nothing re-rasters.
+            return { color: 'transparent', textShadow: textShadowAt(activeColor, ...glowRadii(wordRevealMode)), opacity: 0, transition };
         }
         // Fade out from wherever the ramp is, shrinking the halo with it the way `none` used to. The
         // colour must be restated: framer resets a key the new variant leaves out to its `initial`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { LibraryDirectoryNode } from '@/library/core/contracts/directory';
-import type { LibraryHomeCard } from '@/library/core/contracts/homeModel';
+import type { LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
+import type { LibraryHomeCard } from '@/library/core/home/homeModel.contract';
 import { getWallSlot } from '@/components/wall/wallSlots';
 import {
     createHomeItemCache,

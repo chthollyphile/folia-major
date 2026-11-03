@@ -15,7 +15,7 @@ import { normalizeFoliumLyricsTrack, parseFoliumLyricsTrack } from './lyricsSour
 // FoliumLine / FoliumTheme mirror the host Line / Theme, so every helper here
 // is the host function itself behind a type boundary, not a second copy.
 // Nothing here holds state, and both the main and the export window get it.
-// `parse` (1.4) is the one asynchronous helper: it runs the local lyric file
+// `parse` is the one asynchronous helper: it runs the local lyric file
 // pipeline, whose parsers live in a worker.
 
 // FoliumLine carries every Line field the helpers read, under the same names.

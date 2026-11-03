@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryCollectionDescriptor } from '../../core/contracts/collection';
-import type { LibraryArtistCapabilities, LibraryArtistSnapshot } from '../../core/contracts/artist';
+import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
+import type { LibraryArtistCapabilities, LibraryArtistSnapshot } from '../../core/artist/artist.contract';
 
 // src/library/suites/tui/LibraryTuiArtistHeader.tsx
 // TUI 歌手页的状态栏：返回、歌手名（与别名）、来源、热门歌曲与专辑数、加载状态（加载中 / 专辑分页中 / 分页失败可续 /

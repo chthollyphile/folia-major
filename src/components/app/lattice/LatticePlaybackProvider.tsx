@@ -5,7 +5,8 @@ import type { LyricData, SongResult } from '../../../types';
 import type { CommandPalettePlaybackContext } from '../../command-palette/types';
 import type { PlayerControlSlotContext } from '../../floating-player/playerControlSlotActions';
 import { resolveLikeAvailability } from '../../../utils/playerLikeAvailability';
-import { resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
+import { canShuffleQueue, resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
+import { resolveLyricSeekMediaTime } from '../../../utils/lyrics/lyricSeekTime';
 
 // src/components/app/lattice/LatticePlaybackProvider.tsx
 // Reuses the main bar's playback actions and keeps its timeline outside transformed cards.
@@ -31,14 +32,25 @@ type Props = {
     queue: SongResult[];
     lyrics: LyricData | null;
     currentTime: MotionValue<number>;
+    /** The lyric clock (media time + preview clip start - manual offset): what the timeline's lines are timed on. */
+    lyricCurrentTime: MotionValue<number>;
     duration: number;
+    /** Seeks the media, in media time. */
     onSeek: (time: number) => void;
     isDaylight: boolean;
     children: ReactNode;
 };
 
-export default function LatticePlaybackProvider({ actions, currentSong, queue, lyrics, currentTime, duration, onSeek, isDaylight, children }: Props) {
+export default function LatticePlaybackProvider({ actions, currentSong, queue, lyrics, currentTime, lyricCurrentTime, duration, onSeek, isDaylight, children }: Props) {
     const [timelineOpen, setTimelineOpen] = useState(false);
+    // The timeline highlights and seeks on the lyric clock; a click is turned back into media time
+    // here (see resolveLyricSeekMediaTime for a line outside a preview clip).
+    const seekLyricTime = (lyricTimeSec: number) => {
+        const target = resolveLyricSeekMediaTime(lyricTimeSec, {
+            mediaTimeSec: currentTime.get(), lyricTimeSec: lyricCurrentTime.get(), durationSec: duration,
+        });
+        if (target !== null) onSeek(target);
+    };
     const context = useMemo<PlayerControlSlotContext>(() => {
         const neighbors = resolvePlaybackNeighbors({ playQueue: queue, currentSong, loopMode: actions.loopMode,
             isFmMode: actions.playback.isFmMode, isStageActive: Boolean(actions.isStageActive) });
@@ -50,7 +62,7 @@ export default function LatticePlaybackProvider({ actions, currentSong, queue, l
             canPrev: neighbors.prev.canGo && !actions.disabled,
             canNext: neighbors.next.canGo && !actions.disabled,
             onShuffle: actions.playback.shuffleQueue,
-            canShuffle: queue.length > 1 && !actions.playback.isFmMode && !actions.isStageActive,
+            canShuffle: canShuffleQueue(queue.length, actions.playback.isFmMode, Boolean(actions.isStageActive)),
             onLike: () => { void actions.playback.toggleSongLike(); },
             isLiked: actions.playback.isSongLiked,
             likeDisabled: resolveLikeAvailability(currentSong, Boolean(actions.disabled), Boolean(actions.isStageActive)).disabled,
@@ -64,7 +76,7 @@ export default function LatticePlaybackProvider({ actions, currentSong, queue, l
         {children}
         {timelineOpen && createPortal(<Suspense fallback={null}>
             <LyricsTimelineModal isOpen onClose={() => setTimelineOpen(false)} lyrics={lyrics}
-                currentTime={currentTime} duration={duration} onSeek={onSeek} isDaylight={isDaylight} disabled={actions.disabled} />
+                currentTime={lyricCurrentTime} duration={duration} onSeek={seekLyricTime} isDaylight={isDaylight} disabled={actions.disabled} />
         </Suspense>, document.body)}
     </PlaybackContext.Provider>;
 }

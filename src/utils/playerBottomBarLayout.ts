@@ -60,3 +60,18 @@ export const resolvePlayerSubtitleBottomFromPresence = (
         (offsetPx - PLAYER_BOTTOM_BAR_BASE_OFFSET_PX) + PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX
     )
 );
+
+/** 控制条在场时字幕离底边的距离：基线 32 加净空 80，即原来的 112。 */
+export const PLAYER_SUBTITLE_BOTTOM_PX = PLAYER_BOTTOM_BAR_BASE_OFFSET_PX + PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX;
+
+/**
+ * 缩放舞台上要给字幕层的底栏偏移量，让控制条在场时字幕离框底的距离是 distancePx（框内像素）。
+ * 预览把整页按 scale 缩小画进框里，而盖在上面的底栏（Theme Park 的歌曲卡）不缩小：
+ * 舞台上的 112 缩到框里只剩 112 × scale，字幕就落到底栏后面，所以那里由预览自己给出框内的距离。
+ * 没有底栏的预览（歌词样式窗口）取 112 × 放大前的缩放比例，字幕停在不放大时的位置。
+ * belowBoxPx 是舞台底边被裁在框底之下的那一截（框内像素），放大裁切时字幕要多抬这么多。
+ */
+export const resolveUnscaledSubtitleBarOffset = (scale: number, belowBoxPx = 0, distancePx = PLAYER_SUBTITLE_BOTTOM_PX): number => (
+    (distancePx + belowBoxPx) / scale
+    - PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX
+);

@@ -1,14 +1,12 @@
-import React from 'react';
+import React, { useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
-import LyricMatchModal from '../../modal/LyricMatchModal';
-import NaviLyricMatchModal from '../../modal/NaviLyricMatchModal';
-import OnlineLyricMatchModal from '../../modal/OnlineLyricMatchModal';
+import { AnimatePresence } from 'framer-motion';
+import LyricMatchDialog from '../../modal/lyric-match/LyricMatchDialog';
 import UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
 import SettingsModal from '../../modal/SettingsModal';
 import ConfirmDialog from '../../shared/ConfirmDialog';
 import type { AppDialogsModel } from './buildAppDialogsModel';
+import { StatusToast } from './StatusToast';
 import { countRender } from '../../../dev/renderCount';
 
 // Centralized app-level dialog and toast renderer for the player shell.
@@ -18,58 +16,29 @@ type AppDialogsProps = {
 
 const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
     countRender('AppDialogs');
-    const { statusToast, lyricMatchDialog, naviLyricMatchDialog, onlineLyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog } = model;
+    const { statusToast, lyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog } = model;
+    // The settings window is the largest tree the app mounts at a click. Read deferred, it is
+    // rendered in slices between frames rather than in the click's own task, which held every frame
+    // (the panel closing, the picture) until all of it was built. Closing is not deferred: the
+    // window leaves with the click.
+    const isSettingsShown = useDeferredValue(settingsDialog != null);
 
     return (
         <>
             {createPortal(
-                <AnimatePresence>
-                    {statusToast && (
-                        <motion.div
-                            key={statusToast.toastKey}
-                            initial={{ opacity: 0, y: -20, x: '-50%' }}
-                            animate={{ opacity: 1, y: 30, x: '-50%' }}
-                            exit={{ opacity: 0, y: -20, x: '-50%' }}
-                            className={`fixed top-0 left-1/2 z-[210] px-6 py-3 backdrop-blur-md rounded-full font-medium text-sm shadow-xl flex items-center gap-3 ${statusToast.onAction || statusToast.onCancel ? 'pointer-events-auto' : 'pointer-events-none'} ${statusToast.isDaylight ? 'bg-white/70 text-zinc-800 border border-black/5' : 'bg-white/10 text-white'}`}
-                        >
-                            {statusToast.type === 'error'
-                                ? <AlertCircle size={18} className={statusToast.isDaylight ? 'text-red-500' : 'text-red-400'} />
-                                : statusToast.type === 'success'
-                                    ? <CheckCircle2 size={18} className={statusToast.isDaylight ? 'text-green-600' : 'text-green-400'} />
-                                    : <Sparkles size={18} className={statusToast.isDaylight ? 'text-blue-600' : 'text-blue-400'} />}
-                            <span>{statusToast.text}</span>
-                            {statusToast.onCancel && statusToast.cancelLabel && (
-                                <button
-                                    type="button"
-                                    onClick={statusToast.onCancel}
-                                    className={`px-2.5 py-1 rounded-full text-xs transition-colors ${statusToast.isDaylight ? 'text-zinc-500 hover:bg-black/5 hover:text-zinc-800' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
-                                >
-                                    {statusToast.cancelLabel}
-                                </button>
-                            )}
-                            {statusToast.onAction && statusToast.actionLabel && (
-                                <button
-                                    type="button"
-                                    onClick={statusToast.onAction}
-                                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors flex items-center gap-1.5 ${statusToast.isDaylight ? 'bg-zinc-900 text-white hover:bg-zinc-700' : 'bg-white text-zinc-950 hover:bg-white/85'}`}
-                                >
-                                    {statusToast.actionIcon && <statusToast.actionIcon size={14} className={statusToast.isDaylight ? 'text-amber-300' : 'text-amber-500'} />}
-                                    {statusToast.actionLabel}
-                                </button>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>,
+                <div className="pointer-events-none fixed inset-x-0 top-[30px] z-[210] grid justify-items-center px-4">
+                    <AnimatePresence>
+                        {statusToast && <StatusToast key={statusToast.toastKey} toast={statusToast} />}
+                    </AnimatePresence>
+                </div>,
                 document.body,
             )}
 
-            {lyricMatchDialog && <LyricMatchModal {...lyricMatchDialog} />}
-            {naviLyricMatchDialog && <NaviLyricMatchModal {...naviLyricMatchDialog} />}
-            {onlineLyricMatchDialog && <OnlineLyricMatchModal {...onlineLyricMatchDialog} />}
+            {lyricMatchDialog && <LyricMatchDialog {...lyricMatchDialog} />}
             {unavailableReplacementDialog && <UnavailableReplacementDialog {...unavailableReplacementDialog} />}
             {wallpaperEntryConfirmDialog && <ConfirmDialog {...wallpaperEntryConfirmDialog} />}
             <AnimatePresence>
-                {settingsDialog && <SettingsModal {...settingsDialog} />}
+                {isSettingsShown && settingsDialog && <SettingsModal {...settingsDialog} />}
             </AnimatePresence>
         </>
     );

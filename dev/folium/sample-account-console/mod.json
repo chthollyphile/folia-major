@@ -1,0 +1,12 @@
+{
+  "folium": 1,
+  "id": "sample-account-console",
+  "name": "账号与消息（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "Folium 1.7 示范：设置里的密钥字段（folium.secrets / api.secrets），main 入口向 client 推消息（api.rpc.send / folium.rpc.on），登录状态（folium.account 与 account.changed），用实验接口 platform.raw 读取听歌排行，以及一条可以绑到系统级全局快捷键的命令（globalShortcut）。",
+  "main": "index.cjs",
+  "client": "client.mjs",
+  "permissions": ["platform.netease.read"],
+  "experimental": ["platform.raw"]
+}

@@ -40,11 +40,14 @@ export type HomeLayoutSettingsState = {
     showHomeTabRadio: boolean;
     showHomeTabAlbums: boolean;
     showHomeTabLocal: boolean;
+    /** Shown only where the active platform has an explore page; this hides it there too. */
+    showHomeTabExplore: boolean;
     handleSetHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
     handleToggleHomeTabPlaylist: (show: boolean) => void;
     handleToggleHomeTabRadio: (show: boolean) => void;
     handleToggleHomeTabAlbums: (show: boolean) => void;
     handleToggleHomeTabLocal: (show: boolean) => void;
+    handleToggleHomeTabExplore: (show: boolean) => void;
 };
 
 export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, get) => ({
@@ -68,6 +71,7 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
     showHomeTabRadio: getStoredBoolean('show_home_tab_radio', true),
     showHomeTabAlbums: getStoredBoolean('show_home_tab_albums', true),
     showHomeTabLocal: getStoredBoolean('show_home_tab_local', true),
+    showHomeTabExplore: getStoredBoolean('show_home_tab_explore', true),
     handleSetHomeLayoutStyle: () => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('home_layout_style', 'grid');
@@ -94,6 +98,10 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
         set({ showHomeTabLocal: show });
         if (typeof window !== 'undefined') localStorage.setItem('show_home_tab_local', show.toString());
     },
+    handleToggleHomeTabExplore: (show) => {
+        set({ showHomeTabExplore: show });
+        if (typeof window !== 'undefined') localStorage.setItem('show_home_tab_explore', show.toString());
+    },
 }));
 
 /**
@@ -110,9 +118,11 @@ export const selectHomeLayoutSettingsSnapshot = (state: HomeLayoutSettingsState)
     showHomeTabRadio: state.showHomeTabRadio,
     showHomeTabAlbums: state.showHomeTabAlbums,
     showHomeTabLocal: state.showHomeTabLocal,
+    showHomeTabExplore: state.showHomeTabExplore,
     handleSetHomeLayoutStyle: state.handleSetHomeLayoutStyle,
     handleToggleHomeTabPlaylist: state.handleToggleHomeTabPlaylist,
     handleToggleHomeTabRadio: state.handleToggleHomeTabRadio,
     handleToggleHomeTabAlbums: state.handleToggleHomeTabAlbums,
     handleToggleHomeTabLocal: state.handleToggleHomeTabLocal,
+    handleToggleHomeTabExplore: state.handleToggleHomeTabExplore,
 });

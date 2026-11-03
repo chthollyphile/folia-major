@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getUpcomingLyricsClassName, resolveVisualizerSubtitleOverlayContent } from '@/components/visualizer/VisualizerSubtitleOverlay';
-import type { Line } from '@/types';
+import type { Line, SubtitleOverlayLayout } from '@/types';
 
 // test/unit/visualizer/subtitleOverlay.test.ts
-// Locks the split between hiding the whole subtitle overlay and hiding only translation text.
+// Locks how the shared bottom subtitle lays a line out in its rows, and the split between hiding the
+// whole overlay and a layout that has nothing to show for a line.
 
 describe('VisualizerSubtitleOverlay content resolution', () => {
     it('keeps upcoming lyric blur enabled by default and allows disabling it', () => {
@@ -25,155 +26,104 @@ describe('VisualizerSubtitleOverlay content resolution', () => {
         fullText: 'World',
         words: [],
     };
+    const lineAfterNext: Line = {
+        startTime: 3,
+        endTime: 4,
+        fullText: 'Again',
+        words: [],
+    };
 
-    it('hides the entire overlay when the legacy hide setting is enabled', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
+    const resolve = (layout: SubtitleOverlayLayout | undefined, overrides: Partial<Parameters<typeof resolveVisualizerSubtitleOverlayContent>[0]> = {}) =>
+        resolveVisualizerSubtitleOverlayContent({
             showText: true,
             activeLine,
             recentCompletedLine: null,
-            nextLines: [nextLine],
-            hideTranslationSubtitle: true,
-            showSubtitleTranslation: true,
+            nextLines: [nextLine, lineAfterNext],
+            subtitleOverlayLayout: layout,
+            ...overrides,
         });
+    const texts = (layout: SubtitleOverlayLayout | undefined, overrides?: Parameters<typeof resolve>[1]) =>
+        resolve(layout, overrides).rows.map(row => row.text);
+
+    it('hides the entire overlay when the hide setting is enabled', () => {
+        const content = resolve('current+romanization+translation', { hideTranslationSubtitle: true });
 
         expect(content.shouldRenderOverlay).toBe(false);
-        expect(content.subtitleText).toBeNull();
+        expect(content.rows).toEqual([]);
         expect(content.upcomingLines).toEqual([]);
     });
 
-    it('keeps upcoming-line hints when only translation text is hidden', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine,
-            recentCompletedLine: null,
-            nextLines: [nextLine],
-            hideTranslationSubtitle: false,
-            showSubtitleTranslation: false,
-        });
-
-        expect(content.shouldRenderOverlay).toBe(true);
-        expect(content.subtitleText).toBeNull();
-        expect(content.upcomingLines).toEqual([nextLine]);
+    it('shows the translation alone by default, as before', () => {
+        expect(texts(undefined)).toEqual(['你好']);
     });
 
-    it('selects romanization without falling back to translation', () => {
-        const romanized = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine,
-            recentCompletedLine: null,
-            nextLines: [nextLine],
-            hideTranslationSubtitle: false,
-            showSubtitleTranslation: true,
-            subtitleContentMode: 'romanization',
-        });
-        const missingRomanization = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine: { ...activeLine, romanization: undefined },
-            recentCompletedLine: null,
-            nextLines: [nextLine],
-            hideTranslationSubtitle: false,
-            showSubtitleTranslation: true,
-            subtitleContentMode: 'romanization',
-        });
+    it('shows one row of the chosen content in a single-row layout', () => {
+        expect(texts('current')).toEqual(['Hello']);
+        expect(texts('translation')).toEqual(['你好']);
+        expect(texts('romanization')).toEqual(['Harō']);
+    });
 
-        expect(romanized.subtitleText).toBe('Harō');
-        expect(romanized.upcomingLines).toEqual([]);
-        expect(missingRomanization.subtitleText).toBeNull();
-        expect(missingRomanization.upcomingLines).toEqual([nextLine]);
+    it('opens a two-row layout with the current line', () => {
+        expect(resolve('current+translation').rows).toEqual([
+            { key: 'current', source: 'current', text: 'Hello' },
+            { key: 'translation', source: 'translation', text: '你好' },
+        ]);
+        expect(texts('current+romanization')).toEqual(['Hello', 'Harō']);
+        expect(texts('current+next')).toEqual(['Hello', 'World']);
+    });
+
+    it('stacks three rows in order, taking the upcoming lines one after another', () => {
+        expect(texts('current+romanization+translation')).toEqual(['Hello', 'Harō', '你好']);
+        expect(texts('current+translation+next')).toEqual(['Hello', '你好', 'World']);
+        expect(texts('current+next+next')).toEqual(['Hello', 'World', 'Again']);
+        expect(resolve('current+next+next').rows.map(row => row.key)).toEqual(['current', 'next-1', 'next-2']);
+    });
+
+    it('leaves out a row the line has nothing for, never an empty placeholder', () => {
+        expect(texts('current+romanization+translation', { activeLine: { ...activeLine, romanization: undefined } }))
+            .toEqual(['Hello', '你好']);
+        expect(texts('current+next+next', { nextLines: [nextLine] })).toEqual(['Hello', 'World']);
+        expect(texts('current+translation', { nextLines: [], activeLine: { ...activeLine, translation: '//' } }))
+            .toEqual(['Hello']);
+    });
+
+    it('shows a translation or romanization that repeats a row above it once', () => {
+        const sameAsLine = { ...activeLine, translation: 'Hello', romanization: '你好' };
+        expect(texts('current+translation', { activeLine: sameAsLine })).toEqual(['Hello']);
+        expect(texts('current+romanization+translation', { activeLine: { ...activeLine, romanization: '你好' } }))
+            .toEqual(['Hello', '你好']);
+        expect(texts('current+translation+translation')).toEqual(['Hello', '你好']);
     });
 
     it('resolves romanization from alternate texts when the direct field is absent', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
+        expect(texts('romanization', {
             activeLine: {
                 ...activeLine,
                 romanization: undefined,
                 alternateTexts: [{ role: 'romanization', text: 'Hello' }],
             },
-            recentCompletedLine: null,
-            nextLines: [],
-            hideTranslationSubtitle: false,
-            showSubtitleTranslation: true,
-            subtitleContentMode: 'romanization',
-        });
-
-        expect(content.subtitleText).toBe('Hello');
+        })).toEqual(['Hello']);
     });
 
-    it('stacks romanization above translation in both mode', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine,
-            recentCompletedLine: null,
-            nextLines: [nextLine],
-            subtitleContentMode: 'both',
-        });
+    it('previews the upcoming lines when a single row has nothing for the line', () => {
+        const content = resolve('romanization', { activeLine: { ...activeLine, romanization: undefined } });
 
         expect(content.shouldRenderOverlay).toBe(true);
-        expect(content.subtitleTracks).toEqual([
-            { role: 'romanization', text: 'Harō' },
-            { role: 'translation', text: '你好' },
-        ]);
+        expect(content.rows).toEqual([]);
+        expect(content.upcomingLines).toEqual([nextLine, lineAfterNext]);
+    });
+
+    it('keeps the line just sung up in a gap, with the lines that follow it', () => {
+        const content = resolve('current+next', { activeLine: null, recentCompletedLine: activeLine, nextLines: [nextLine] });
+
+        expect(content.rows.map(row => row.text)).toEqual(['Hello', 'World']);
         expect(content.upcomingLines).toEqual([]);
     });
 
-    it('shows a single row without an empty placeholder when only one track exists in both mode', () => {
-        const onlyRomanization = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine: { ...activeLine, translation: undefined },
-            recentCompletedLine: null,
-            nextLines: [],
-            subtitleContentMode: 'both',
-        });
-        const onlyTranslation = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine: { ...activeLine, romanization: undefined },
-            recentCompletedLine: null,
-            nextLines: [],
-            subtitleContentMode: 'both',
-        });
+    it('shows nothing before the first line', () => {
+        const content = resolve('current+next', { activeLine: null });
 
-        expect(onlyRomanization.subtitleTracks).toEqual([{ role: 'romanization', text: 'Harō' }]);
-        expect(onlyTranslation.subtitleTracks).toEqual([{ role: 'translation', text: '你好' }]);
-    });
-
-    it('behaves like today when a both-mode line has neither track', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine: { ...activeLine, translation: undefined, romanization: undefined },
-            recentCompletedLine: null,
-            nextLines: [nextLine],
-            subtitleContentMode: 'both',
-        });
-
-        expect(content.subtitleTracks).toEqual([]);
-        expect(content.subtitleText).toBeNull();
-        expect(content.upcomingLines).toEqual([nextLine]);
-    });
-
-    it('falls through to the recently completed line when the active line has no readable track', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine: { ...activeLine, translation: '//', romanization: undefined },
-            recentCompletedLine: activeLine,
-            nextLines: [],
-            subtitleContentMode: 'both',
-        });
-
-        expect(content.subtitleTracks.map(track => track.role)).toEqual(['romanization', 'translation']);
-    });
-
-    it('still hides everything when the bottom subtitle is hidden in both mode', () => {
-        const content = resolveVisualizerSubtitleOverlayContent({
-            showText: true,
-            activeLine,
-            recentCompletedLine: null,
-            nextLines: [],
-            hideTranslationSubtitle: true,
-            subtitleContentMode: 'both',
-        });
-
-        expect(content.shouldRenderOverlay).toBe(false);
-        expect(content.subtitleTracks).toEqual([]);
+        expect(content.rows).toEqual([]);
+        expect(content.upcomingLines).toEqual([]);
     });
 });

@@ -1,4 +1,5 @@
 import { AmllDbPlatform, LyricData, LyricProviderSource, ReplayGainInfo, SongResult } from '../types';
+import type { MediaId } from './onlineMusic';
 
 // Navidrome/Subsonic API Configuration
 export interface NavidromeConfig {
@@ -68,6 +69,10 @@ export interface SubsonicSong {
     suffix: string;
     duration: number; // seconds
     bitRate?: number;
+    // OpenSubsonic fields Navidrome sends; absent on older servers.
+    bitDepth?: number;
+    samplingRate?: number;
+    channelCount?: number;
     path: string;
     playCount?: number;
     discNumber?: number;
@@ -330,6 +335,11 @@ export interface NavidromeSong extends SongResult {
         path: string;
         bitRate?: number;
         suffix: string;
+        // The original file's format, for the HiFi signal path (services/hifi/sourceSpec.ts).
+        contentType?: string;
+        bitDepth?: number;
+        samplingRate?: number;
+        channelCount?: number;
         starred?: string;
         replayGain?: SubsonicSong['replayGain'];
     };
@@ -347,6 +357,31 @@ export interface NavidromeSong extends SongResult {
     cachedStructuredLyrics?: StructuredLyric | StructuredLyric[] | StructuredLyricLine[];
     cachedPlainLyrics?: string;
 }
+
+/**
+ * What is stored for a Navidrome song's lyric match, one entry a song in the cache: by playback
+ * when it matches a song by itself, and by the lyric match window when a person does.
+ */
+export interface NavidromeMatchData {
+    matchedSongId?: MediaId;
+    matchedLyrics?: LyricData;
+    matchedIsPureMusic?: boolean;
+    matchedCoverUrl?: string;
+    matchedArtists?: string;
+    matchedAlbumId?: MediaId;
+    matchedAlbumName?: string;
+    useOnlineLyrics?: boolean; // Legacy, kept for backward compatibility
+    lyricsSource?: 'navi' | 'online';
+    useOnlineCover?: boolean;
+    useOnlineMetadata?: boolean;
+    noAutoMatch?: boolean;
+    hasManualLyricSelection?: boolean;
+    matchedLyricsSource?: LyricProviderSource;
+    matchedLyricsProviderPlatform?: AmllDbPlatform;
+}
+
+/** The cache key a Navidrome song's match is stored under. */
+export const getNavidromeMatchCacheKey = (song: NavidromeSong): string => `navidrome_match_${song.navidromeData.id}`;
 
 // Type guard for NavidromeSong
 export function isNavidromeSong(song: SongResult): song is NavidromeSong {

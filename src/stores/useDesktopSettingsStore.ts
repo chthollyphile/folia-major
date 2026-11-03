@@ -1,11 +1,12 @@
 // src/stores/useDesktopSettingsStore.ts
 // Desktop-shell behaviour: tray and taskbar, wallpaper mode, display-sleep and voice-input
-// interlocks, launch target, and the experimental mod system switch.
+// interlocks, launch target, the experimental mod system switch, the Windows render GPU, and the
+// opt-in background throttling.
 //
 // Split out of useSettingsUiStore.
 
 import { create } from 'zustand';
-import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
+import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 import i18n from '../i18n/config';
 
@@ -28,13 +29,36 @@ export const REMOTE_CONTROL_HIDE_TITLEBAR_STORAGE_KEY = 'remote_control_hide_tit
 
 export const REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY = 'remote_control_click_through';
 
+export const REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY = 'remote_control_expand_cover';
+
+export const REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY = 'remote_control_text_shade';
+
 export const WALLPAPER_MODE_STORAGE_KEY = 'wallpaper_mode';
+
+export const WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY = 'wallpaper_entry_confirmed';
 
 // macOS-only: auto-hide the Dock while a wallpaper session is active. On by default (a bottom Dock
 // is hidden automatically; the switch is the explicit override the main process honours).
 export const WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY = 'wallpaper_mac_autohide_dock';
 
 export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
+
+// Mirrored from the main process's GPU_PREFERENCE (electron/gpuPreference.cjs), which reads it
+// before the GPU process starts. Windows only; a change takes effect on the next launch.
+export const GPU_PREFERENCE_STORAGE_KEY = 'gpu_preference';
+
+// Mirrored from the main process's BACKGROUND_THROTTLING (electron/backgroundThrottling.cjs), which
+// applies it to the main window. Off by default: some streamers capture the window while it is covered.
+export const BACKGROUND_THROTTLING_STORAGE_KEY = 'background_throttling';
+
+/** Which GPU Chromium renders on: its own choice, the high-performance one, or the power-saving one. */
+export type GpuPreference = 'auto' | 'high-performance' | 'low-power';
+
+export const GPU_PREFERENCES: readonly GpuPreference[] = ['auto', 'high-performance', 'low-power'];
+
+const readGpuPreference = (value: unknown): GpuPreference | null => (
+    GPU_PREFERENCES.includes(value as GpuPreference) ? value as GpuPreference : null
+);
 
 export type DesktopSettingsState = {
     minimizeToTray: boolean;
@@ -54,14 +78,30 @@ export type DesktopSettingsState = {
     hideRemoteControlTitlebar: boolean;
     /** Remote control window ignores the mouse (main process owns it; unlock from tray / palette). */
     remoteControlClickThrough: boolean;
+    /** Remote control window: when idle, the cover opens into the large sleeve. On by default. */
+    remoteControlExpandCover: boolean;
+    /** Remote control window, transparent background: the idle type sits on a soft dark shade. Off by default. */
+    remoteControlTextShade: boolean;
     wallpaperMode: boolean;
+    /** Persisted: the one-time entry explanation has been accepted, so later entries go straight in. */
+    wallpaperEntryConfirmed: boolean;
     /** Transient (never persisted): the "enter wallpaper mode?" confirmation is on screen. */
     wallpaperEntryConfirmOpen: boolean;
     /** macOS-only: auto-hide the Dock while wallpaper mode is active. On by default — a bottom Dock
      *  is hidden automatically; switching it off overrides the automatic rule. */
     wallpaperMacAutohideDock: boolean;
     openPlayerOnLaunch: boolean;
-    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; wallpaper_mode?: unknown; wallpaper_mac_autohide_dock?: unknown; }) => void;
+    /** Windows only: the saved GPU choice, which the next launch starts with. */
+    gpuPreference: GpuPreference;
+    /**
+     * 后台节流: let Chromium throttle the window and hold the lyric animation while it is minimised or
+     * hidden. The main process owns the value and stands it down where the window has to stay live
+     * even out of sight (wallpaper, video export, OBS browser source).
+     */
+    backgroundThrottling: boolean;
+    /** Transient (never persisted), from the main process: false on native Wayland, where always-on-top is silently ignored. */
+    windowAlwaysOnTopSupported: boolean;
+    setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; REMOTE_CONTROL_EXPAND_COVER?: unknown; REMOTE_CONTROL_TEXT_SHADE?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; GPU_PREFERENCE?: unknown; BACKGROUND_THROTTLING?: unknown; wallpaper_mode?: unknown; wallpaper_entry_confirmed?: unknown; wallpaper_mac_autohide_dock?: unknown; window_always_on_top_supported?: unknown; }) => void;
     handleToggleMinimizeToTray: (enable: boolean) => void;
     handleToggleCloseToTray: (enable: boolean) => void;
     handleToggleVoiceInputPause: (enable: boolean) => void;
@@ -71,9 +111,12 @@ export type DesktopSettingsState = {
     handleToggleHideRemoteControlTaskbarIcon: (enable: boolean) => void;
     handleToggleHideRemoteControlTitlebar: (enable: boolean) => void;
     handleToggleRemoteControlClickThrough: (enable: boolean) => void;
+    handleToggleRemoteControlExpandCover: (enable: boolean) => void;
+    handleToggleRemoteControlTextShade: (enable: boolean) => void;
     /**
      * The user-facing wallpaper switch (settings card, command palette, tray request). Leaving
-     * applies at once; entering only opens the confirmation and waits for confirmWallpaperEntry.
+     * applies at once; the first-ever entry opens the confirmation and waits for
+     * confirmWallpaperEntry, later entries apply directly.
      */
     handleToggleWallpaperMode: (enable: boolean) => void;
     /** Unconfirmed apply. Only the confirmation and programmatic callers may use it. */
@@ -82,6 +125,8 @@ export type DesktopSettingsState = {
     cancelWallpaperEntry: () => void;
     handleToggleWallpaperMacAutohideDock: (enable: boolean) => void;
     handleToggleOpenPlayerOnLaunch: (enable: boolean) => void;
+    handleSetGpuPreference: (preference: GpuPreference) => void;
+    handleToggleBackgroundThrottling: (enable: boolean) => void;
 };
 
 export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) => ({
@@ -94,10 +139,16 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     hideRemoteControlTaskbarIcon: getStoredBoolean(REMOTE_CONTROL_SKIP_TASKBAR_STORAGE_KEY, false),
     hideRemoteControlTitlebar: getStoredBoolean(REMOTE_CONTROL_HIDE_TITLEBAR_STORAGE_KEY, false),
     remoteControlClickThrough: getStoredBoolean(REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY, false),
+    remoteControlExpandCover: getStoredBoolean(REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY, true),
+    remoteControlTextShade: getStoredBoolean(REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY, false),
     wallpaperMode: getStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, false),
+    wallpaperEntryConfirmed: getStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, false),
     wallpaperEntryConfirmOpen: false,
     wallpaperMacAutohideDock: getStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, true),
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
+    gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',
+    backgroundThrottling: getStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, false),
+    windowAlwaysOnTopSupported: true,
     setDesktopPreferenceSnapshot: (settings) => {
         const patch: Partial<DesktopSettingsState> = {};
         if (typeof settings.MINIMIZE_TO_TRAY === 'boolean') {
@@ -136,13 +187,38 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             patch.remoteControlClickThrough = settings.REMOTE_CONTROL_CLICK_THROUGH;
             setStoredBoolean(REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY, settings.REMOTE_CONTROL_CLICK_THROUGH);
         }
+        if (typeof settings.REMOTE_CONTROL_EXPAND_COVER === 'boolean') {
+            patch.remoteControlExpandCover = settings.REMOTE_CONTROL_EXPAND_COVER;
+            setStoredBoolean(REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY, settings.REMOTE_CONTROL_EXPAND_COVER);
+        }
+        if (typeof settings.REMOTE_CONTROL_TEXT_SHADE === 'boolean') {
+            patch.remoteControlTextShade = settings.REMOTE_CONTROL_TEXT_SHADE;
+            setStoredBoolean(REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY, settings.REMOTE_CONTROL_TEXT_SHADE);
+        }
         if (typeof settings.wallpaper_mode === 'boolean') {
             patch.wallpaperMode = settings.wallpaper_mode;
             setStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, settings.wallpaper_mode);
         }
+        if (typeof settings.wallpaper_entry_confirmed === 'boolean') {
+            const confirmed = get().wallpaperEntryConfirmed || settings.wallpaper_entry_confirmed;
+            patch.wallpaperEntryConfirmed = confirmed;
+            setStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, confirmed);
+        }
         if (typeof settings.wallpaper_mac_autohide_dock === 'boolean') {
             patch.wallpaperMacAutohideDock = settings.wallpaper_mac_autohide_dock;
             setStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, settings.wallpaper_mac_autohide_dock);
+        }
+        const gpuPreference = readGpuPreference(settings.GPU_PREFERENCE);
+        if (gpuPreference) {
+            patch.gpuPreference = gpuPreference;
+            setStoredString(GPU_PREFERENCE_STORAGE_KEY, gpuPreference);
+        }
+        if (typeof settings.BACKGROUND_THROTTLING === 'boolean') {
+            patch.backgroundThrottling = settings.BACKGROUND_THROTTLING;
+            setStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, settings.BACKGROUND_THROTTLING);
+        }
+        if (typeof settings.window_always_on_top_supported === 'boolean') {
+            patch.windowAlwaysOnTopSupported = settings.window_always_on_top_supported;
         }
         set(patch);
     },
@@ -231,10 +307,25 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             void window.electron.saveSettings('REMOTE_CONTROL_CLICK_THROUGH', enable);
         }
     },
+    handleToggleRemoteControlExpandCover: (enable) => {
+        setStoredBoolean(REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY, enable);
+        set({ remoteControlExpandCover: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('REMOTE_CONTROL_EXPAND_COVER', enable);
+        }
+    },
+    handleToggleRemoteControlTextShade: (enable) => {
+        setStoredBoolean(REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY, enable);
+        set({ remoteControlTextShade: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('REMOTE_CONTROL_TEXT_SHADE', enable);
+        }
+    },
     handleToggleWallpaperMode: (enable) => {
-        // Entering sinks the window under the desktop and takes the keyboard away, so it asks
-        // first. Startup restore never lands here: it arrives through setDesktopPreferenceSnapshot.
-        if (enable && !get().wallpaperMode) {
+        // Entering sinks the window under the desktop and takes the keyboard away, so the first
+        // entry asks first. Startup restore never lands here: it arrives through
+        // setDesktopPreferenceSnapshot. Cancelling does not consume the warning.
+        if (enable && !get().wallpaperMode && !get().wallpaperEntryConfirmed) {
             set({ wallpaperEntryConfirmOpen: true });
             return;
         }
@@ -255,6 +346,13 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     applyWallpaperMode: (enable) => {
         setStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, enable);
         set({ wallpaperMode: enable });
+        if (enable) {
+            setStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, true);
+            set({ wallpaperEntryConfirmed: true });
+            if (window.electron?.saveSettings) {
+                void window.electron.saveSettings('wallpaper_entry_confirmed', true);
+            }
+        }
         if (window.electron?.saveSettings) {
             // The main process schedules a full relaunch after this IPC returns.
             void window.electron.saveSettings('wallpaper_mode', enable);
@@ -285,6 +383,33 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             text: i18n.t('notifications.' + (enable ? 'openPlayerOnLaunch' : 'openHomeOnLaunch')),
         });
     },
+    // The main process owns the value: it adds the Chromium switch before the next launch's GPU process starts.
+    handleSetGpuPreference: (preference) => {
+        if (preference === get().gpuPreference) {
+            return;
+        }
+        setStoredString(GPU_PREFERENCE_STORAGE_KEY, preference);
+        set({ gpuPreference: preference });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('GPU_PREFERENCE', preference);
+        }
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.gpuPreferenceChanged'),
+        });
+    },
+    // The main process owns the value: it switches the window's throttling and tells the renderer.
+    handleToggleBackgroundThrottling: (enable) => {
+        setStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, enable);
+        set({ backgroundThrottling: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('BACKGROUND_THROTTLING', enable);
+        }
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'backgroundThrottlingOn' : 'backgroundThrottlingOff')),
+        });
+    },
 }));
 
 /**
@@ -301,6 +426,8 @@ export const selectDesktopSettingsSnapshot = (state: DesktopSettingsState) => ({
     hideRemoteControlTaskbarIcon: state.hideRemoteControlTaskbarIcon,
     hideRemoteControlTitlebar: state.hideRemoteControlTitlebar,
     remoteControlClickThrough: state.remoteControlClickThrough,
+    remoteControlExpandCover: state.remoteControlExpandCover,
+    remoteControlTextShade: state.remoteControlTextShade,
     wallpaperMode: state.wallpaperMode,
     wallpaperMacAutohideDock: state.wallpaperMacAutohideDock,
     openPlayerOnLaunch: state.openPlayerOnLaunch,
@@ -313,6 +440,8 @@ export const selectDesktopSettingsSnapshot = (state: DesktopSettingsState) => ({
     handleToggleHideRemoteControlTaskbarIcon: state.handleToggleHideRemoteControlTaskbarIcon,
     handleToggleHideRemoteControlTitlebar: state.handleToggleHideRemoteControlTitlebar,
     handleToggleRemoteControlClickThrough: state.handleToggleRemoteControlClickThrough,
+    handleToggleRemoteControlExpandCover: state.handleToggleRemoteControlExpandCover,
+    handleToggleRemoteControlTextShade: state.handleToggleRemoteControlTextShade,
     handleToggleWallpaperMode: state.handleToggleWallpaperMode,
     handleToggleWallpaperMacAutohideDock: state.handleToggleWallpaperMacAutohideDock,
     handleToggleOpenPlayerOnLaunch: state.handleToggleOpenPlayerOnLaunch,

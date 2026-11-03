@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     createLocalGridViewCollection,
     createNavidromeGridViewCollection,
@@ -7,9 +7,10 @@ import {
     resolveLocalGridViewCoverSource,
     resolveLocalGridViewTracks,
 } from '../../../src/components/app/home/gridViewCollectionAdapters';
-import { buildLocalHomeGroups } from '../../../src/library/core/model/localHomeModel';
+import { resolveNavidromeGridViewTracks } from '../../../src/library/core/collection/resource/navidromeCollectionTracks.service';
+import { buildLocalHomeGroups } from '../../../src/library/core/home/localHomeModel';
 import { getLocalCoverAssetUrl } from '../../../src/services/localCoverAssetUrl';
-import { getProviderCollectionArtistLabel } from '../../../src/library/core/model/homeCards';
+import { getProviderCollectionArtistLabel } from '../../../src/library/core/home/homeCards';
 import type { LocalLibraryGroup, LocalSong } from '../../../src/types';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../src/types/localLibrary';
 import { applyLocalLibraryEntityDisplay, applyLocalSongCoverDisplay } from '../../../src/services/playbackAdapters';
@@ -491,5 +492,88 @@ describe('gridViewCollectionAdapters', () => {
         expect(createNavidromeGridViewCollection(baseItem, 'artist').type).toBe('artist');
         expect(createNavidromeGridViewCollection(baseItem, 'random').type).toBe('random');
         expect(createNavidromeGridViewCollection(baseItem, 'favorites').type).toBe('favorites');
+    });
+});
+
+// A Navidrome page is given its tracks by this read. The page has to know when the read failed:
+// an empty list, or a short one, is then not the whole collection.
+describe('resolveNavidromeGridViewTracks', () => {
+    const config = { serverUrl: 'https://navidrome.test', username: 'folio', passwordHash: 'secret' };
+    const song = (id: string) => ({ id, title: `Song ${id}`, artist: 'Artist', album: 'Album', duration: 180 });
+    const ok = (payload: Record<string, unknown>) => ({ ok: true, json: async () => ({ 'subsonic-response': { status: 'ok', ...payload } }) });
+    const refused = { ok: false, status: 500, json: async () => ({}) };
+    // What the server answers: by endpoint, or by endpoint and the id asked for; anything else is refused.
+    const serve = (answers: Record<string, unknown>, stored: string | null = JSON.stringify(config)) => {
+        vi.stubGlobal('localStorage', { getItem: (key: string) => (key === 'navidrome_config' ? stored : null), setItem: () => {}, removeItem: () => {} });
+        vi.stubGlobal('fetch', vi.fn(async (rawUrl: string) => {
+            const url = new URL(rawUrl);
+            const endpoint = url.pathname.replace('/rest/', '');
+            return answers[`${endpoint}:${url.searchParams.get('id')}`] ?? answers[endpoint] ?? refused;
+        }));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+    };
+    const read = (type: Parameters<typeof createNavidromeGridViewCollection>[1]) => (
+        resolveNavidromeGridViewTracks(createNavidromeGridViewCollection({ id: 'one', name: 'Navi' }, type))
+    );
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+
+    it('gives the tracks of a collection that was read, and says that nothing failed', async () => {
+        serve({ getPlaylist: ok({ playlist: { id: 'one', name: 'Playlist', entry: [song('a'), song('b')] } }) });
+        const playlist = await read('playlist');
+        expect(playlist.failed).toBe(false);
+        expect(playlist.tracks).toHaveLength(2);
+    });
+
+    it('takes a list the server says is empty for a whole one', async () => {
+        serve({
+            getStarred2: ok({ starred2: {} }),
+            getRandomSongs: ok({ randomSongs: { song: [] } }),
+            getPlaylist: ok({ playlist: { id: 'one', name: 'Playlist' } }),
+        });
+        for (const type of ['favorites', 'random', 'playlist'] as const) {
+            expect(await read(type), type).toEqual({ tracks: [], failed: false });
+        }
+    });
+
+    it('says the read failed for every kind of collection whose read the server refuses', async () => {
+        serve({});
+        for (const type of ['album', 'playlist', 'artist', 'random', 'favorites'] as const) {
+            expect(await read(type), type).toEqual({ tracks: [], failed: true });
+        }
+    });
+
+    it('says the read failed when the server answers that it did', async () => {
+        const failed = { ok: true, json: async () => ({ 'subsonic-response': { status: 'failed', error: { code: 70, message: 'not found' } } }) };
+        serve({ getAlbum: failed, getPlaylist: failed, getArtist: failed, getRandomSongs: failed, getStarred2: failed });
+        for (const type of ['album', 'playlist', 'artist', 'random', 'favorites'] as const) {
+            expect(await read(type), type).toEqual({ tracks: [], failed: true });
+        }
+    });
+
+    it('keeps the albums of an artist that were read, and says the list is not whole when one was not', async () => {
+        const artist = ok({ artist: { id: 'one', name: 'Artist', album: [{ id: 'first' }, { id: 'second' }] } });
+        serve({ getArtist: artist, 'getAlbum:first': ok({ album: { id: 'first', song: [song('a')] } }) });
+        const short = await read('artist');
+        expect(short.failed).toBe(true);
+        expect(short.tracks).toHaveLength(1);
+
+        vi.restoreAllMocks();
+        serve({
+            getArtist: artist,
+            'getAlbum:first': ok({ album: { id: 'first', song: [song('a')] } }),
+            'getAlbum:second': ok({ album: { id: 'second', song: [song('b')] } }),
+        });
+        const whole = await read('artist');
+        expect(whole.failed).toBe(false);
+        expect(whole.tracks).toHaveLength(2);
+    });
+
+    it('says the read failed when no server is set up', async () => {
+        serve({ getAlbum: ok({ album: { id: 'one', song: [song('a')] } }) }, null);
+        expect(await read('album')).toEqual({ tracks: [], failed: true });
     });
 });

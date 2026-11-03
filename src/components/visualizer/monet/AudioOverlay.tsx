@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import type { AudioBands, MonetAudioStyle, Theme } from '../../../types';
+import type { AudioBands, LyricRenderScale, MonetAudioStyle, Theme } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { colorWithAlpha } from '../colorMix';
 
 // src/components/visualizer/monet/AudioOverlay.tsx
@@ -11,6 +12,8 @@ interface AudioOverlayProps {
     mode: MonetAudioStyle;
     staticMode?: boolean;
     isPreviewMode?: boolean;
+    /** 分辨率倍数（#929），乘在设备像素比上；预览由外壳传 1。 */
+    renderScale?: LyricRenderScale;
 }
 
 const BAR_COUNT = 72;
@@ -159,6 +162,7 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
     mode,
     staticMode = false,
     isPreviewMode = false,
+    renderScale = 1,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -179,7 +183,7 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
 
         const resizeCanvas = () => {
             const rect = canvas.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
+            const dpr = resolveLyricPixelRatio(window.devicePixelRatio || 1, renderScale);
             const nextWidth = Math.max(1, Math.floor(rect.width * dpr));
             const nextHeight = Math.max(1, Math.floor(rect.height * dpr));
             canvasWidth = rect.width;
@@ -325,7 +329,7 @@ const AudioOverlay: React.FC<AudioOverlayProps> = ({
             window.cancelAnimationFrame(frameId);
             window.removeEventListener('resize', handleResize);
         };
-    }, [audioBands, audioPower, isPreviewMode, mode, staticMode, theme]);
+    }, [audioBands, audioPower, isPreviewMode, mode, renderScale, staticMode, theme]);
 
     return <canvas ref={canvasRef} className="h-full w-full" />;
 };

@@ -2,4 +2,4 @@ export {
     destroyPixiContainerChildren as destroySonnetContainerChildren,
     destroyPixiDisplayTree as destroySonnetDisplayTree,
     unloadPixiDisplayTree as unloadSonnetDisplayTree,
-} from '../pixiDisplayResources';
+} from '../pixi/pixiDisplayResources';

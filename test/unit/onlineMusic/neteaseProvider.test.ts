@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { neteaseApi } from '@/services/netease';
-import { neteaseProvider } from '@/services/onlineMusic/neteaseProvider';
+import { NeteaseLoginHttpError, neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { describeNeteaseFailure } from '@/services/onlineMusic/netease/neteaseFailure';
+import { NETEASE_SONG_DETAIL_BATCH, neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
 import type { UnifiedSong } from '@/types';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
 
 // test/unit/onlineMusic/neteaseProvider.test.ts
 
-vi.mock('@/services/netease', () => ({
+vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
+    ...await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>(),
     isSongMarkedUnavailable: (candidate: UnifiedSong) => candidate.privilege?.st === -200,
     getNeteaseRemoteApiBase: () => null,
     neteaseApi: {
@@ -16,6 +18,7 @@ vi.mock('@/services/netease', () => ({
         getLyric: vi.fn(),
         getUnavailableSongReplacement: vi.fn(),
         cloudSearch: vi.fn(),
+        getSongDetail: vi.fn(),
         getAlbum: vi.fn(),
         getArtistDetail: vi.fn(),
         getArtistAlbums: vi.fn(),
@@ -26,6 +29,12 @@ vi.mock('@/services/netease', () => ({
         getQrKey: vi.fn(),
         createQr: vi.fn(),
         scrobbleV1: vi.fn(),
+        getLoginStatus: vi.fn(),
+        getUserAccount: vi.fn(),
+        updatePlaylistTracks: vi.fn(),
+        getDailyStyleConfigs: vi.fn(),
+        getDailyStyleSongs: vi.fn(),
+        setDailyStyle: vi.fn(),
     },
 }));
 
@@ -111,6 +120,105 @@ describe('neteaseProvider', () => {
         expect(page).toMatchObject({ total: 2, hasMore: true, nextOffset: 1 });
     });
 
+    // 字段取自 2026-10-31 cloudsearch type 10 / 1000 的实测回答（裁剪过）。
+    it('searches albums and playlists through cloudsearch and normalizes them as collections', async () => {
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                albums: [{
+                    id: 18909, name: 'Partners 拍档', type: '专辑', size: 13, publishTime: 1019750400000,
+                    picUrl: 'https://p4.music.126.net/cover.jpg', company: '北京亚歆',
+                    artists: [{ id: 6452, name: '周杰伦' }, { id: 12203406, name: '方文山' }],
+                }],
+                albumCount: 592,
+            },
+        } as any);
+        const albums = await neteaseProvider.search!.searchAlbums!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 10);
+        expect(albums).toMatchObject({ total: 592, hasMore: true, nextOffset: 1 });
+        expect(albums.items[0]).toMatchObject({
+            providerId: 'netease', id: 18909, type: 'album', name: 'Partners 拍档', trackCount: 13,
+            coverUrl: 'https://p4.music.126.net/cover.jpg', publishedAt: 1019750400000,
+            artists: [{ name: '周杰伦' }, { name: '方文山' }],
+        });
+
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                playlists: [{
+                    id: 6792103822, name: '周杰伦-Jay', coverImgUrl: 'http://p1.music.126.net/list.jpg', trackCount: 144,
+                    playCount: 34324836, creator: { nickname: 'Buradarrr', userId: 361038766 },
+                }],
+                playlistCount: 1,
+            },
+        } as any);
+        const playlists = await neteaseProvider.search!.searchPlaylists!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 1000);
+        expect(playlists).toMatchObject({ total: 1, hasMore: false, nextOffset: 1 });
+        expect(playlists.items[0]).toMatchObject({
+            providerId: 'netease', id: 6792103822, type: 'playlist', trackCount: 144, playCount: 34324836,
+            creator: { nickname: 'Buradarrr' },
+        });
+    });
+
+    // `/song/detail` takes many ids: songs looked up together go 50 to a request, one request after another.
+    it('looks many songs up 50 to a request, in the order of the ids, null for one NetEase does not have', async () => {
+        const detail = (id: number) => ({ ...song, id, name: `Song ${id}`, sourceRef: undefined });
+        let running = 0;
+        let most = 0;
+        vi.mocked(neteaseApi.getSongDetail).mockImplementation(async (ids: number[] | number) => {
+            running += 1;
+            most = Math.max(most, running);
+            await new Promise(resolve => setTimeout(resolve, 1));
+            running -= 1;
+            // NetEase leaves out an id it has no song by, and need not answer in the order asked.
+            const asked = (Array.isArray(ids) ? ids : [ids]).filter(id => id !== 404);
+            return { songs: asked.reverse().map(detail) } as any;
+        });
+        const ids = [...Array.from({ length: 119 }, (_, index) => index + 1), 404];
+        ids.splice(3, 0, 2);
+
+        const songs = await neteaseProvider.playback!.getSongDetails!([...ids.map(String), 'not-a-number']);
+
+        expect(vi.mocked(neteaseApi.getSongDetail).mock.calls.map(([asked]) => (asked as number[]).length)).toEqual([50, 50, 20]);
+        expect(most).toBe(1);
+        expect(songs).toHaveLength(ids.length + 1);
+        expect(songs[0]).toMatchObject({ id: 1, name: 'Song 1', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
+        expect(songs[3]?.name).toBe('Song 2');
+        expect(songs[ids.length - 2]?.name).toBe('Song 119');
+        expect(songs.slice(-2)).toEqual([null, null]);
+    });
+
+    // A refusing answer says nothing of which songs NetEase has: the call fails, it does not answer
+    // "none of these" (a lookup would take every id for gone). `/song/detail` still leaves `songs`
+    // on it, empty (netease.ts's getSongDetail).
+    it.each([
+        ['the local service cannot reach NetEase', { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }, 'unavailable'],
+        ['NetEase refuses the request', { code: -462, message: '绑定手机号后才能继续操作' }, 'unavailable'],
+        ['the session is signed out', { code: 301 }, 'auth-required'],
+    ])('rejects a batch when %s, instead of answering null for every id', async (_label, response, errorCode) => {
+        vi.mocked(neteaseApi.getSongDetail).mockResolvedValue({ ...response, songs: [] } as any);
+        await expect(neteaseProvider.playback!.getSongDetails!(['1', '2'])).rejects.toMatchObject({
+            code: errorCode,
+            providerId: 'netease',
+            cause: { code: response.code },
+        });
+    });
+
+    it('rejects when a later batch is refused, though an earlier one was answered', async () => {
+        vi.mocked(neteaseApi.getSongDetail)
+            .mockResolvedValueOnce({ code: 200, songs: [{ ...song, id: 1, sourceRef: undefined }] } as any)
+            .mockResolvedValueOnce({ code: 502, songs: [] } as any);
+        const ids = Array.from({ length: 51 }, (_, index) => String(index + 1));
+
+        await expect(neteaseProvider.playback!.getSongDetails!(ids)).rejects.toMatchObject({ code: 'unavailable' });
+        expect(neteaseApi.getSongDetail).toHaveBeenCalledTimes(2);
+    });
+
+    // omni.getSongDetails hands it groups of this many, each its own request through the caller's runner.
+    it('says how many ids one song detail request carries', () => {
+        expect(neteaseProvider.playback?.songDetailsPerRequest).toBe(NETEASE_SONG_DETAIL_BATCH);
+        expect(NETEASE_SONG_DETAIL_BATCH).toBe(50);
+    });
+
     it('normalizes album collection metadata into provider fields', async () => {
         vi.mocked(neteaseApi.getArtistAlbums).mockResolvedValue({
             hotAlbums: [{
@@ -134,6 +242,52 @@ describe('neteaseProvider', () => {
             publishedAt: 1704067200000,
             publisher: 'Publisher',
         });
+    });
+
+    it('reads an album as an album whatever release type NetEase gives it', async () => {
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue({
+            album: { id: 7, name: 'Album', type: '专辑', subType: '录音室版', size: 10 },
+            songs: [],
+        } as any);
+        vi.mocked(neteaseApi.getArtistAlbums).mockResolvedValue({
+            hotAlbums: [{ id: 8, name: 'Single', type: 'EP/Single' }, { id: 9, name: 'LP', type: '专辑' }],
+            more: false,
+        } as any);
+
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7)).resolves.toMatchObject({ id: 7, type: 'album' });
+        const page = await neteaseProvider.catalog!.getArtistAlbums!(3, 10, 0);
+        expect(page.items.map((album) => album.type)).toEqual(['album', 'album']);
+    });
+
+    // As for the song details: a refusal says nothing of whether the album or the artist is there. It
+    // used to come back as the collection asked with (an album) or null (an artist), which a caller that
+    // asks with an id alone reads as "no such album / artist".
+    it.each([
+        ['the local service cannot reach NetEase', { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }, 'unavailable'],
+        ['NetEase refuses the request', { code: -462, message: '绑定手机号后才能继续操作' }, 'unavailable'],
+        ['the session is signed out', { code: 301 }, 'auth-required'],
+    ])('rejects an album or artist detail when %s, instead of answering none', async (_label, response, errorCode) => {
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue(response as any);
+        vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue(response as any);
+        const asked = { providerId: 'netease', id: 7, type: 'album' as const, name: '' };
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).rejects.toMatchObject({
+            code: errorCode,
+            providerId: 'netease',
+            cause: { code: response.code },
+        });
+        await expect(neteaseProvider.catalog!.getArtistDetail!(9)).rejects.toMatchObject({
+            code: errorCode,
+            providerId: 'netease',
+            cause: { code: response.code },
+        });
+    });
+
+    it('still answers none for an album or artist NetEase answers without one', async () => {
+        const asked = { providerId: 'netease', id: 7, type: 'album' as const, name: 'Kept' };
+        vi.mocked(neteaseApi.getAlbum).mockResolvedValue({ code: 200, songs: [] } as any);
+        vi.mocked(neteaseApi.getArtistDetail).mockResolvedValue({ code: 200, data: {} } as any);
+        await expect(neteaseProvider.catalog!.getAlbumDetail!(7, asked)).resolves.toBe(asked);
+        await expect(neteaseProvider.catalog!.getArtistDetail!(9)).resolves.toBeNull();
     });
 
     it('normalizes artist and full album biographies into the unified description field', async () => {
@@ -186,50 +340,36 @@ describe('neteaseProvider', () => {
         });
     });
 
-    it('rejects with a network OmniError when the song URL request never reached the API', async () => {
+    // What NetEase's answer means is said in neteaseFailure.ts; the provider throws, and asks once: no
+    // lower level on the client's side.
+    it('throws what the song URL request threw where it never reached the API, or got no JSON back', async () => {
         const tagged = Object.assign(
             new Error('NetEase API request /song/url/v1 failed: fetch failed', { cause: new TypeError('fetch failed') }),
             { networkFailure: true },
         );
         vi.mocked(neteaseApi.getSongUrl).mockRejectedValue(tagged);
+        const unreached = await neteaseProvider.playback!.getAudioSource(song, 'high').catch((thrown: unknown) => thrown);
+        expect(unreached).toBe(tagged);
+        expect(describeNeteaseFailure('audio', unreached)).toEqual({ case: 'unreachable' });
 
-        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
-            name: 'OnlineProviderError',
-            code: 'network',
-            providerId: 'netease',
-            message: 'NetEase API request /song/url/v1 failed: fetch failed',
-            cause: tagged,
-            details: { stage: 'song-url' },
-        });
-    });
-
-    it('rejects a non-JSON 5xx body as service-unavailable with the HTTP status', async () => {
-        vi.mocked(neteaseApi.getSongUrl).mockRejectedValue(
-            Object.assign(new Error('NetEase API /song/url/v1 returned HTTP 503 without a JSON body: (empty)'), { httpStatus: 503 }),
-        );
-
-        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
-            code: 'service-unavailable',
-            httpStatus: 503,
-        });
+        const unread = Object.assign(new Error('NetEase API /song/url/v1 returned HTTP 503 without a JSON body: (empty)'), { httpStatus: 503 });
+        vi.mocked(neteaseApi.getSongUrl).mockRejectedValue(unread);
+        const error = await neteaseProvider.playback!.getAudioSource(song, 'high').catch((thrown: unknown) => thrown);
+        expect(describeNeteaseFailure('audio', error)).toEqual({ case: 'unknown', httpStatus: 503 });
     });
 
     it.each([
-        [{ code: 200, data: [{ url: null, code: -110, fee: 1 }] }, 'membership-required'],
-        [{ code: 200, data: [{ url: null, code: -110, fee: 4 }] }, 'purchase-required'],
-        [{ code: 200, data: [{ url: 'http://music.test/clip.mp3', freeTrialInfo: { start: 0, end: 30 } }] }, 'preview-only'],
-        [{ code: 200, data: [{ url: null, code: 404 }] }, 'not-playable'],
-        [{ code: 502, msg: 'read ECONNRESET' }, 'network'],
-        [{ code: 301, msg: '需要登录' }, 'auth-required'],
-        [{ code: 200, data: [] }, 'invalid-response'],
-    ])('rejects an unplayable song URL response %j as %s instead of returning null', async (response, code) => {
+        [{ code: 200, data: [{ url: null, code: -110, fee: 1 }] }, { case: 'subscription-required', code: '-110' }],
+        [{ code: 200, data: [{ url: null, code: -110, fee: 4 }] }, { case: 'purchase-required', code: '-110' }],
+        [{ code: 200, data: [{ url: null, code: -110, fee: 8 }] }, { case: 'entitlement-required', code: '-110' }],
+        [{ code: 200, data: [{ url: null, code: 404 }] }, { case: 'no-audio', code: '404' }],
+        [{ code: 200, data: [] }, { case: 'no-audio' }],
+        [{ code: 301, msg: '需要登录' }, { code: '301', message: '需要登录' }],
+    ])('throws for the song URL answer %j, which reads as %j', async (response, detail) => {
         vi.mocked(neteaseApi.getSongUrl).mockResolvedValue(response as any);
-
-        await expect(neteaseProvider.playback!.getAudioSource(song, 'high')).rejects.toMatchObject({
-            code,
-            providerId: 'netease',
-        });
-        // 只请求一次：不做客户端音质回退。
+        const error = await neteaseProvider.playback!.getAudioSource(song, 'high').catch((thrown: unknown) => thrown);
+        expect(error).toBeInstanceOf(OnlineProviderError);
+        expect(describeNeteaseFailure('audio', error)).toEqual(detail);
         expect(neteaseApi.getSongUrl).toHaveBeenCalledTimes(1);
     });
 
@@ -255,21 +395,12 @@ describe('neteaseProvider', () => {
         expect(neteaseProvider.playback!.getAvailability!(song)).toEqual({ state: 'playable' });
     });
 
-    it('wraps a failed replacement lookup into an OmniError', async () => {
+    // omni.getSongReplacement says what a failed lookup means (runRequest): the provider hands the error on.
+    it('throws a failed replacement lookup as it was thrown', async () => {
         const unavailableSong = { ...song, privilege: { st: -200 } };
-        vi.mocked(neteaseApi.getUnavailableSongReplacement).mockRejectedValueOnce(
-            Object.assign(new Error('NetEase API request /song/copyright/rcmd failed: fetch failed'), { networkFailure: true }),
-        );
-        await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).rejects.toMatchObject({
-            name: 'OnlineProviderError',
-            code: 'network',
-            providerId: 'netease',
-            details: { stage: 'replacement' },
-        });
-
-        const omniError = new OnlineProviderError('timeout', 'NetEase upstream request failed', 'netease');
-        vi.mocked(neteaseApi.getUnavailableSongReplacement).mockRejectedValueOnce(omniError);
-        await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).rejects.toBe(omniError);
+        const tagged = Object.assign(new Error('NetEase API request /song/copyright/rcmd failed: fetch failed'), { networkFailure: true });
+        vi.mocked(neteaseApi.getUnavailableSongReplacement).mockRejectedValueOnce(tagged);
+        await expect(neteaseProvider.playback!.getReplacement!(unavailableSong)).rejects.toBe(tagged);
     });
 
     it('owns unavailable status and replacement normalization inside the provider', async () => {
@@ -296,67 +427,117 @@ describe('neteaseProvider', () => {
         [800, 'expired'],
     ])('maps QR code %s to %s', async (code, state) => {
         vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code } as any);
-        await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toMatchObject({ state });
+        await expect(neteaseProvider.auth!.checkLogin!('key')).resolves.toMatchObject({ state });
     });
 
-    it('keeps the backend code and message on an unmapped QR response', async () => {
-        vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 8821, message: '需要行为验证码验证' } as any);
-        await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({
+    // NetEase's own 502, which its docs say can follow a scan: the local backend hands it on with HTTP 200
+    // (util/request.js lets 502 through as an answer), so it reaches checkLogin as an answer, not a throw.
+    it('keeps NetEase\'s code and words on an unmapped QR response', async () => {
+        vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 502, message: 'NetEase said 502' } as any);
+        await expect(neteaseProvider.auth!.checkLogin!('key')).resolves.toEqual({
             state: 'error',
-            message: 'code 8821: 需要行为验证码验证',
-            detail: { code: 8821, message: '需要行为验证码验证' },
+            message: 'code 502: NetEase said 502',
+            failure: { code: '502', message: 'NetEase said 502' },
         });
     });
 
-    it.each(['read ECONNRESET', 'socket hang up', 'Client network socket disconnected before secure TLS connection was established'])(
-        'marks a QR poll the upstream reset (%s) as a transient connection-reset',
+    // The local backend could not reach NetEase (a reset connection, a refused proxy): it answers HTTP 502,
+    // and the code is still good at NetEase, so the window checks again.
+    it.each(['read ECONNRESET', 'socket hang up', 'connect ECONNREFUSED 127.0.0.1:7890'])(
+        'reads a check the local backend answered 502 (%s) as a passing error, with the backend\'s words',
         async msg => {
-            vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 502, msg } as any);
-            await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({
-                state: 'error', message: `code 502: ${msg}`, reason: 'connection-reset', transient: true, detail: { code: 502, message: msg },
+            vi.mocked(neteaseApi.checkQr).mockRejectedValue(new NeteaseLoginHttpError(502, { code: 502, msg }));
+            await expect(neteaseProvider.auth!.checkLogin!('key')).resolves.toEqual({
+                state: 'error',
+                message: `HTTP 502: code 502: ${msg}`,
+                failure: { httpStatus: 502, code: '502', message: msg },
+                transient: true,
             });
         },
     );
 
-    it('marks other network failures as transient and keeps their text as written', async () => {
-        vi.mocked(neteaseApi.checkQr).mockResolvedValue({ code: 502, msg: 'connect ECONNREFUSED 127.0.0.1:7890' } as any);
-        await expect(neteaseProvider.auth!.checkQr!('key')).resolves.toEqual({
-            state: 'error',
-            message: 'code 502: connect ECONNREFUSED 127.0.0.1:7890',
-            transient: true,
-            detail: { code: 502, message: 'connect ECONNREFUSED 127.0.0.1:7890' },
-        });
-    });
-
-    it('throws instead of handing out an empty QR key, carrying the backend response', async () => {
+    it('throws instead of handing out an empty QR key or image, carrying the backend response', async () => {
         vi.mocked(neteaseApi.getQrKey).mockResolvedValue({ code: 200, data: { unikey: 'k1' } } as any);
-        await expect(neteaseProvider.auth!.getQrKey!()).resolves.toBe('k1');
-
-        const reset = { code: 502, msg: 'read ECONNRESET' };
-        vi.mocked(neteaseApi.getQrKey).mockResolvedValue(reset as any);
-        await expect(neteaseProvider.auth!.getQrKey!()).rejects.toMatchObject({
+        await expect(neteaseProvider.auth!.startLogin!()).resolves.toBe('k1');
+        const refused = { code: 400, msg: 'no key' };
+        vi.mocked(neteaseApi.getQrKey).mockResolvedValue(refused as any);
+        await expect(neteaseProvider.auth!.startLogin!()).rejects.toMatchObject({
             code: 'invalid-response',
-            message: 'NetEase QR key request failed: code 502: read ECONNRESET',
-            qrLoginReason: 'connection-reset',
-            transient: true,
-            cause: reset,
+            message: 'NetEase gave no QR key: code 400: no key',
+            cause: refused,
         });
 
-        vi.mocked(neteaseApi.getQrKey).mockResolvedValue({ code: 502, msg: 'connect ETIMEDOUT 59.111.181.35:443' } as any);
-        const error = await neteaseProvider.auth!.getQrKey!().catch((caught: unknown) => caught);
-        expect(error).toMatchObject({ code: 'invalid-response', message: 'NetEase QR key request failed: code 502: connect ETIMEDOUT 59.111.181.35:443' });
-        expect(error).not.toHaveProperty('qrLoginReason');
-    });
-
-    it('fails instead of handing out an empty QR image', async () => {
         vi.mocked(neteaseApi.createQr).mockResolvedValue({ code: 200, data: { qrimg: 'data:image/png;base64,AAAA' } } as any);
         await expect(neteaseProvider.auth!.createQr!('k1')).resolves.toBe('data:image/png;base64,AAAA');
-
         vi.mocked(neteaseApi.createQr).mockResolvedValue({ code: 400, msg: 'key is required' } as any);
         await expect(neteaseProvider.auth!.createQr!('k1')).rejects.toMatchObject({
             code: 'invalid-response',
             message: 'NetEase QR image request failed: code 400: key is required',
         });
+    });
+});
+
+// 谁登录着：null 只在网易云自己说没有登录时给（accountRead.ts 据此删掉保存的登录）。没问到的回答抛错，登录留着。
+describe('neteaseProvider login status', () => {
+    const profile = { userId: 7, nickname: 'Listener' };
+    const signedIn = { data: { code: 200, account: { id: 7 }, profile } };
+    const account = { code: 200, account: { id: 7 }, profile };
+
+    beforeEach(() => vi.clearAllMocks());
+
+    it('names the user where both checks name the same one', async () => {
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
+        vi.mocked(neteaseApi.getUserAccount).mockResolvedValue(account as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toMatchObject({ id: 7, nickname: 'Listener' });
+    });
+
+    // What the local backend answers where it cannot reach NetEase (HTTP 502), and what NetEase refuses with.
+    it.each([
+        ['the local service cannot reach NetEase', { code: 502, msg: 'connect ECONNREFUSED 127.0.0.1:7890' }],
+        ['NetEase answers a server error', { code: 503, msg: 'Request failed with status code 503' }],
+        ['NetEase refuses the request', { code: -462, message: '绑定手机号后才能继续操作' }],
+        ['NetEase answers another code', { code: 400 }],
+    ])('rejects, instead of answering nobody, where %s', async (_label, response) => {
+        const refusal = { code: 'unavailable', providerId: 'netease', cause: { code: response.code } };
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(response as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).rejects.toMatchObject(refusal);
+        expect(neteaseApi.getUserAccount).not.toHaveBeenCalled();
+
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
+        vi.mocked(neteaseApi.getUserAccount).mockResolvedValue(response as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).rejects.toMatchObject(refusal);
+    });
+
+    it.each([301, 401, 403])('answers nobody where NetEase says code %s', async code => {
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue({ code } as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toBeNull();
+
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
+        vi.mocked(neteaseApi.getUserAccount).mockResolvedValue({ code } as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toBeNull();
+    });
+
+    it('answers nobody where NetEase answers without a profile', async () => {
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue({ data: { code: 200, account: null, profile: null } } as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toBeNull();
+
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
+        vi.mocked(neteaseApi.getUserAccount).mockResolvedValue({ code: 200, account: null, profile: null } as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).resolves.toBeNull();
+    });
+
+    // A remote API's gateway answering on its own, or an empty answer: NetEase said nothing, so it is not nobody.
+    it.each([
+        ['an answer without a code', {}],
+        ['a gateway error of its own', { error: { message: 'Bad Gateway' } }],
+    ])('rejects, instead of answering nobody, where the answer is %s', async (_label, response) => {
+        const refusal = { code: 'unavailable', providerId: 'netease' };
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(response as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).rejects.toMatchObject(refusal);
+
+        vi.mocked(neteaseApi.getLoginStatus).mockResolvedValue(signedIn as any);
+        vi.mocked(neteaseApi.getUserAccount).mockResolvedValue(response as any);
+        await expect(neteaseProvider.auth!.getLoginStatus()).rejects.toMatchObject(refusal);
     });
 });
 
@@ -389,13 +570,13 @@ describe('neteaseProvider liked song ids', () => {
 
     it('returns the ids of a successful response', async () => {
         vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue({ code: 200, ids: [1, 2, 3] } as any);
-        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual([1, 2, 3]);
+        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual({ ids: [1, 2, 3], whole: true });
         expect(neteaseApi.getLikedSongs).toHaveBeenCalledWith(7);
     });
 
     it('keeps an empty list when the account really likes nothing', async () => {
         vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue({ code: 200, ids: [] } as any);
-        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual([]);
+        await expect(neteaseProvider.library!.getLikedSongIds!(7)).resolves.toEqual({ ids: [], whole: true });
     });
 
     // An error body must not read as "likes nothing": the caller would clear every heart.
@@ -408,6 +589,16 @@ describe('neteaseProvider liked song ids', () => {
         vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue(response as any);
         await expect(neteaseProvider.library!.getLikedSongIds!(7)).rejects.toMatchObject({ code: errorCode });
     });
+
+    it('counts the liked list by the list itself, in one request, and fails where the list cannot be read', async () => {
+        vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue({ code: 200, ids: [1, 2, 3] } as any);
+        await expect(neteaseProvider.library!.getLikedSongCount!(7)).resolves.toBe(3);
+        expect(neteaseApi.getLikedSongs).toHaveBeenCalledTimes(1);
+
+        // An error body is not a list of no songs.
+        vi.mocked(neteaseApi.getLikedSongs).mockResolvedValue({ code: 502 } as any);
+        await expect(neteaseProvider.library!.getLikedSongCount!(7)).rejects.toMatchObject({ code: 'unavailable' });
+    });
 });
 
 describe('neteaseProvider listening reports', () => {
@@ -418,6 +609,18 @@ describe('neteaseProvider listening reports', () => {
     };
 
     beforeEach(() => vi.clearAllMocks());
+
+    // The id must name a track of the catalogue: a play of anything else is a play of no song.
+    it.each([
+        ['a catalogue track', { kind: 'online', providerId: 'netease', mediaId: '186016' }, true],
+        ['a song stored without a source', undefined, true],
+        ['a cloud-disk upload', { kind: 'online', providerId: 'netease', mediaId: '186016', variant: 'cloud' }, false],
+        ['an id that is not a number', { kind: 'online', providerId: 'netease', mediaId: 'abc' }, false],
+        ['the id zero', { kind: 'online', providerId: 'netease', mediaId: '0' }, false],
+    ])('takes a report of %s: %s', (_label, sourceRef, expected) => {
+        const canReport = neteaseProvider.playbackReports!.canReport!;
+        expect(canReport({ ...reported, sourceRef } as UnifiedSong)).toBe(expected);
+    });
 
     it('sends the played seconds and never a source id', async () => {
         vi.mocked(neteaseApi.scrobbleV1).mockResolvedValue({ code: 200 } as any);
@@ -474,5 +677,65 @@ describe('neteaseProvider listening reports', () => {
 
         await expect(neteaseProvider.playbackReports!.reportPlayback(reported, { playedSeconds: 45 }))
             .rejects.toMatchObject({ code: 'unavailable' });
+    });
+
+    it('accepts a playlist change the API wraps as a success', async () => {
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ status: 200, body: { code: 200, trackIds: '[1,2]' } } as any);
+
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [
+            { id: 1 } as any, { id: 2 } as any,
+        ])).resolves.toBeUndefined();
+        expect(neteaseApi.updatePlaylistTracks).toHaveBeenCalledWith('add', 7, [1, 2]);
+    });
+
+    it('throws when NetEase refuses a playlist change behind an HTTP 200', async () => {
+        // The API passes NetEase's refusal through as the body, with status 200 (a song already in the list).
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 502, message: '歌单内歌曲重复' } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'auth-required' });
+    });
+
+    it('reads the daily style groups and the pick the style songs were made for (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.getDailyStyleConfigs).mockResolvedValue({
+            code: 200,
+            data: {
+                categorys: [
+                    { categoryId: 1000, categoryName: '曲风', tagVOList: [{ categoryId: 1000, tagId: 10004, tagName: '电音' }, { tagName: 'no id' }] },
+                    { categoryId: 3000, categoryName: '情绪', tagVOList: [] },
+                ],
+            },
+        } as any);
+        await expect(recommendations.getDailyStyleGroups!()).resolves.toEqual([
+            { id: '1000', name: '曲风', tags: [{ id: '10004', name: '电音' }] },
+        ]);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({
+            code: 200,
+            data: { tags: { categoryId: 1000, categoryName: '曲风', tagVOList: [{ tagId: 10004, tagName: '电音' }, { tagId: 10015, tagName: '二次元' }] } },
+            songs: [song],
+        } as any);
+        const answer = await recommendations.getDailyStyleSongs!();
+        expect(answer.selection).toEqual({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(answer.songs).toHaveLength(1);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({ code: 200, data: { tags: null }, songs: [] } as any);
+        await expect(recommendations.getDailyStyleSongs!()).resolves.toEqual({ songs: [], selection: null });
+    });
+
+    it('saves a daily style pick as numbers and throws when NetEase refuses it (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: true } } as any);
+        await recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(neteaseApi.setDailyStyle).toHaveBeenCalledWith(1000, [10004, 10015]);
+
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: false } } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toBeInstanceOf(OnlineProviderError);
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 301 } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toMatchObject({ code: 'auth-required' });
     });
 });

@@ -1,54 +1,43 @@
 import React from 'react';
-import { getNomandEffectPanelColors, SliderRow, type NomandBackgroundEffectPanelProps, percent } from './NomandBackgroundEffectPanel';
+import { percent, SliderRow } from '../../panelRows';
+import type { NomandBackgroundEffectPanelProps } from './NomandBackgroundEffectPanel';
 
 // src/components/visualizer/backgrounds/nomand/NomandPaperTextureSettings.tsx
-// Renders the compact Paper Texture tuning panel.
+// Renders the Paper Texture tuning rows.
 
 const NomandPaperTextureSettings: React.FC<NomandBackgroundEffectPanelProps> = ({
     t,
-    isDaylight,
-    theme,
-    rangeInputClass,
     tuning,
     onTuningChange,
     onSliderPointerDown,
     onSliderCommit,
 }) => {
-    const { borderColor } = getNomandEffectPanelColors(theme, isDaylight);
-    const sliderProps = {
-        rangeInputClass,
-        theme,
-        onPointerDown: onSliderPointerDown,
-        onPointerUp: onSliderCommit,
-    };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div className="space-y-4 rounded-2xl border p-3" style={{ borderColor }}>
-            <div className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: theme.secondaryColor }}>
-                {t('options.nomandBackgroundEffectPaperTexture')}
-            </div>
+        <>
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundPaperTextureContrast')}
                 value={tuning.paperTextureContrast}
                 min={0}
                 max={1}
-                step={0.05}
+                step={0.01}
                 format={percent}
                 onChange={paperTextureContrast => onTuningChange?.({ paperTextureContrast })}
             />
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundPaperTextureRoughness')}
                 value={tuning.paperTextureRoughness}
                 min={0}
                 max={1}
-                step={0.05}
+                step={0.01}
                 format={percent}
                 onChange={paperTextureRoughness => onTuningChange?.({ paperTextureRoughness })}
             />
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundPaperTextureFiber')}
                 value={tuning.paperTextureFiber}
                 min={0}
@@ -57,7 +46,7 @@ const NomandPaperTextureSettings: React.FC<NomandBackgroundEffectPanelProps> = (
                 format={percent}
                 onChange={paperTextureFiber => onTuningChange?.({ paperTextureFiber })}
             />
-        </div>
+        </>
     );
 };
 

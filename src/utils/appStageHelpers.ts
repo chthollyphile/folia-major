@@ -1,4 +1,4 @@
-import type { LyricData, StageLoopMode, StageLyricsSession, StageMediaSession, StageStatus } from '../types';
+import type { LyricData, StageLyricsSession, StageMediaSession, StageStatus } from '../types';
 
 // Stage-mode helpers extracted from the app entry module.
 export const getStageLyricsTimelineBounds = (lyricData: LyricData | null) => {
@@ -17,18 +17,6 @@ export const getStageLyricsTimelineBounds = (lyricData: LyricData | null) => {
         startTimeSec,
         endTimeSec: Math.max(startTimeSec, endTimeSec),
     };
-};
-
-export const getNextLoopMode = (currentLoopMode: StageLoopMode): StageLoopMode => {
-    if (currentLoopMode === 'off') {
-        return 'all';
-    }
-
-    if (currentLoopMode === 'all') {
-        return 'one';
-    }
-
-    return 'off';
 };
 
 export const buildStageEntryKey = (

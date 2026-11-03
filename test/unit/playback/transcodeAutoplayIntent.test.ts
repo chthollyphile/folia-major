@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { StatusMessage } from '../../../src/types';
 
 // test/unit/playback/transcodeAutoplayIntent.test.ts
 // 仓库的 vitest 跑在 node 环境，没有 jsdom，也没有 testing-library：按 usePersonalFmModeController
 // 的做法就地复刻 useRef/useEffect/useCallback，直接驱动 usePlaybackAudioBridge 的真实实现，
 // 只断言自动播放 effect 对「这一路 source 已经失败、转码正在进行中」的处理。
-// 另断言起播成功时收起残留的「重试 / 跳过」失败提示（transport 刷新后的音源由这里起播）。
 
 const reactHooks = vi.hoisted(() => {
     const refs: { current: unknown }[] = [];
@@ -49,6 +47,8 @@ vi.mock('../../../src/stores/useAudioSettingsStore', () => ({
     useAudioSettingsStore: (selector: (state: Record<string, unknown>) => unknown) => selector({
         enableMediaCache: false,
         audioEqualizerSettings: { enabled: false, effects: {}, bands: [] },
+        // No mod's curve: what is heard is the settings above (utils/audioEqualizerModCurve.ts).
+        audioEqualizerModCurve: null,
     }),
 }));
 vi.mock('../../../src/stores/useAppViewStore', () => ({
@@ -61,14 +61,18 @@ vi.mock('../../../src/stores/useStatusMessageStore', () => ({ setStatusMessage: 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('../../../src/utils/appPlaybackGuards', () => ({ resolveNavidromePlaybackCarrier: () => null }));
 vi.mock('../../../src/utils/replayGain', () => ({ calculateReplayGain: () => ({ linearGain: 1 }) }));
-vi.mock('../../../src/services/audioEqualizerGraph', () => ({ applyAudioEqualizerSettings: vi.fn() }));
+vi.mock('../../../src/services/audioEqualizerGraph', () => ({
+    applyAudioEqualizerSettings: vi.fn(),
+    planAudioEqualizerApply: () => ({ defer: false, timeConstant: 0.015 }),
+}));
 vi.mock('../../../src/services/playbackGraph', () => ({ buildPlaybackGraph: vi.fn() }));
 vi.mock('../../../src/services/playedTrackCache', () => ({ cachePlayedTrackAssets: vi.fn() }));
 vi.mock('../../../src/services/automix/crossfadeGraph', () => ({ rampGain: vi.fn() }));
+vi.mock('../../../src/services/automix/profileService', () => ({ onTrackProfile: () => () => undefined }));
+vi.mock('../../../src/services/volumeBalance/balancePlay', () => ({ createBalancePlay: () => ({ apply: () => null, reset: () => undefined }) }));
+vi.mock('../../../src/services/volumeBalance/balanceRecords', () => ({ onBalanceRecord: () => () => undefined }));
 
-const { usePlaybackAudioBridge } = await import('../../../src/hooks/usePlaybackAudioBridge');
-const { setStatusMessage } = await import('../../../src/stores/useStatusMessageStore');
-const { buildPlaybackFailureStatus, resolvePlaybackFailurePolicy } = await import('../../../src/services/playbackRecovery/playbackFailurePolicy');
+const { usePlaybackAudioBridge } = await import('../../../src/components/app/playback/bridges/usePlaybackAudioBridge');
 
 const FAILED_SRC = 'blob:folia/undecodable-track';
 
@@ -100,7 +104,6 @@ const renderBridge = (deck: ReturnType<typeof createDeck>, shouldAutoPlayRef: { 
         syncOutputGain: vi.fn(),
         getTargetPlaybackVolume: () => 1,
         getCoverUrl: () => null,
-        updateCacheSize: vi.fn(),
     } as never);
     reactHooks.flush();
 };
@@ -133,41 +136,5 @@ describe('autoplay intent while a failed source is being transcoded', () => {
 
         expect(deck.play).toHaveBeenCalledTimes(1);
         expect(shouldAutoPlayRef.current).toBe(false);
-    });
-});
-
-describe('a leftover playback-failure toast when autoplay starts a deck', () => {
-    beforeEach(() => {
-        reactHooks.refs.length = 0;
-        vi.mocked(setStatusMessage).mockClear();
-        globalThis.localStorage = { setItem: () => {}, getItem: () => null } as never;
-    });
-
-    // transport 的 TTL 刷新、play() 失败后的恢复都把新音源交给这里起播：播放真正开始了，没有关闭按钮的失败提示要收起。
-    it('clears the retry / skip toast once play() resolves and leaves every other message alone', async () => {
-        const deck = createDeck(null);
-        renderBridge(deck, { current: true });
-        await vi.waitFor(() => expect(setStatusMessage).toHaveBeenCalled());
-
-        const update = vi.mocked(setStatusMessage).mock.calls.at(-1)![0] as (prev: StatusMessage | null) => StatusMessage | null;
-        const t = (key: string) => key;
-        const failureToast = buildPlaybackFailureStatus(
-            resolvePlaybackFailurePolicy({ reason: 'unknown', stage: 'resolve-url' }, 'play'),
-            t,
-            { retry: vi.fn(), skip: vi.fn(), dismiss: vi.fn() },
-        );
-        const countdown: StatusMessage = { type: 'error', text: 'status.songUnavailablePrompt', persistent: true };
-        expect(update(failureToast)).toBeNull();
-        expect(update(countdown)).toBe(countdown);
-        expect(update(null)).toBeNull();
-    });
-
-    it('leaves the toast when play() is rejected', async () => {
-        const deck = createDeck(null);
-        deck.play.mockImplementationOnce(() => Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' })));
-        renderBridge(deck, { current: true });
-        await vi.waitFor(() => expect(setStatusMessage).toHaveBeenCalled());
-
-        expect(vi.mocked(setStatusMessage).mock.calls.every(([next]) => typeof next !== 'function')).toBe(true);
     });
 });

@@ -1,73 +1,101 @@
 import { COMMAND_PALETTE_COMMANDS, matchCommandsExactly } from '../../../command-palette/commandRegistry';
 import { normalizeSearchText } from '../../../command-palette/search/normalize';
-import type { SettingsAnchorId } from './settingsAnchorModel';
+import { isDrawnHere, type SettingsOptionDef } from '../kit/options';
 import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 
 // src/components/modal/settings/navigation/settingsNavSearch.ts
-// Filters the wide settings sidebar down to what a query names. Besides the sidebar's own text
-// (section titles, descriptions and anchor labels) it asks the command palette's index about every
-// command that opens a settings section: those carry the hand-written synonyms and generated pinyin
-// that let "fps" or "zhenlv" find the frame-rate cap, which no sidebar label spells out.
+// The settings search: what it can find and how a query is matched. An entry is a category, a group
+// on its page, or a single option; a hit names where to land. Besides the entries' own text it asks
+// the command palette's index about every command that opens a place in the settings: those carry
+// the hand-written synonyms and generated pinyin that let "fps" or "tuxing" find the graphics page,
+// which no label spells out.
 
-/** Commands that land somewhere in the options tab. A module constant so the search index caches. */
+/** Commands that land somewhere in the settings. A module constant so the search index caches. */
 const SETTINGS_TARGET_COMMANDS = COMMAND_PALETTE_COMMANDS.filter(command => command.settingsTarget);
 
-export type SettingsNavSearchHit = {
+const MAX_HITS = 40;
+
+export type SettingsSearchEntry = {
     sectionId: SettingsSectionId;
-    anchorId: SettingsAnchorId | null;
+    /** The group or row the hit lands on; null opens the category at its top. */
+    targetId: string | null;
+    /** The group a row is in, where the hit lands while the row itself is not shown. */
+    groupId?: string;
+    label: string;
+    /** Where the entry is: the category, then the group. Empty for a category. */
+    path: string;
 };
 
-export type SettingsNavSearchResult = {
-    groups: SettingsNavGroup[];
-    /** Where Enter in the search box goes: the first visible entry, an anchor over its section. */
-    firstHit: SettingsNavSearchHit | null;
-};
+type Translate = (key: string) => string;
 
 /**
- * Keeps the sections and anchors the query matches, in sidebar order. An anchor hit keeps only the
- * matching anchors of its section; a hit on the section itself keeps all of them, so the listener
- * still sees what that page holds.
+ * Lists everything the search can find, in side-list order: each category, then what is on its
+ * page: the options the page declares and their groups, those it draws on this machine. A place
+ * other code names (settingsAnchorModel) is found as the group or the row that carries its id.
  */
-export const searchSettingsNav = (
+export const buildSettingsSearchEntries = (
     groups: SettingsNavGroup[],
+    pageOptions: Partial<Record<SettingsSectionId, readonly SettingsOptionDef[]>>,
+    t: Translate,
+    availability: { isElectron: boolean },
+): SettingsSearchEntry[] => groups.flatMap(navGroup => navGroup.items.flatMap((section) => {
+    // A category is also found by the name of the side-list group it is in.
+    const entries: SettingsSearchEntry[] = [{ sectionId: section.id, targetId: null, label: section.label, path: navGroup.label }];
+    const listedGroups = new Set<string>();
+
+    for (const option of pageOptions[section.id] ?? []) {
+        if (!isDrawnHere(option.group, availability) || !isDrawnHere(option, availability)) {
+            continue;
+        }
+        const groupTitle = t(option.group.titleKey);
+        if (!listedGroups.has(option.group.id)) {
+            listedGroups.add(option.group.id);
+            entries.push({ sectionId: section.id, targetId: option.group.id, label: groupTitle, path: section.label });
+        }
+        entries.push({
+            sectionId: section.id,
+            targetId: option.id,
+            groupId: option.group.id,
+            label: t(option.labelKey),
+            path: `${section.label} › ${groupTitle}`,
+        });
+    }
+
+    return entries;
+}));
+
+/** The entries a query names: those whose own label matches first, then the rest, each in list order. */
+export const searchSettings = (
+    entries: SettingsSearchEntry[],
     query: string,
     locale: string,
-): SettingsNavSearchResult => {
+): SettingsSearchEntry[] => {
     const normalizedQuery = normalizeSearchText(query);
     if (!normalizedQuery) {
-        return { groups, firstHit: null };
+        return [];
     }
 
     const contains = (text: string) => normalizeSearchText(text).includes(normalizedQuery);
     const sectionHits = new Set<string>();
-    const anchorHits = new Set<string>();
+    const targetHits = new Set<string>();
     matchCommandsExactly(query, SETTINGS_TARGET_COMMANDS, locale).forEach(command => {
         const target = command.settingsTarget!;
         if (target.anchorId) {
-            anchorHits.add(target.anchorId);
+            targetHits.add(target.anchorId);
         } else {
             sectionHits.add(target.subview);
         }
     });
 
-    let firstHit: SettingsNavSearchHit | null = null;
-    const filtered = groups
-        .map(group => ({
-            ...group,
-            items: group.items.flatMap(section => {
-                const matchedAnchors = section.anchors.filter(anchor => anchorHits.has(anchor.id) || contains(anchor.label));
-                const sectionMatched = contains(group.label)
-                    || sectionHits.has(section.id)
-                    || contains(section.label)
-                    || contains(section.description);
-                if (!sectionMatched && matchedAnchors.length === 0) {
-                    return [];
-                }
-                firstHit ??= { sectionId: section.id, anchorId: matchedAnchors[0]?.id ?? null };
-                return [{ ...section, anchors: matchedAnchors.length > 0 ? matchedAnchors : section.anchors }];
-            }),
-        }))
-        .filter(group => group.items.length > 0);
+    const byLabel: SettingsSearchEntry[] = [];
+    const byOther: SettingsSearchEntry[] = [];
+    for (const entry of entries) {
+        if (contains(entry.label)) {
+            byLabel.push(entry);
+        } else if (contains(entry.path) || (entry.targetId ? targetHits.has(entry.targetId) : sectionHits.has(entry.sectionId))) {
+            byOther.push(entry);
+        }
+    }
 
-    return { groups: filtered, firstHit };
+    return [...byLabel, ...byOther].slice(0, MAX_HITS);
 };

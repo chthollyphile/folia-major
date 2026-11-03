@@ -1,6 +1,6 @@
 // test/manual/wallpaper-watchdog-child.cjs
 // Stand-in for the wrapped Folia process used by wallpaper-watchdog-sim.ts. Plain Node, no
-// Electron: it wires the real electron/wallpaperWatchdog.cjs module with stubbed side effects and
+// Electron: it wires the real electron/wallpaper/wallpaperWatchdog.cjs module with stubbed side effects and
 // reports its own lifecycle to a status file, so the simulation proves the watchdog's parent
 // liveness probe actually recovers after the fake windowtolayer dies.
 //
@@ -10,7 +10,7 @@
 'use strict';
 
 const fs = require('fs');
-const { createWallpaperWatchdog } = require('../../electron/wallpaperWatchdog.cjs');
+const { createWallpaperWatchdog } = require('../../electron/wallpaper/wallpaperWatchdog.cjs');
 
 const statusFile = process.env.WATCHDOG_SIM_STATUS;
 const parentPid = Number(process.env.WATCHDOG_SIM_PARENT_PID);

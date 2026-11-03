@@ -1,43 +1,33 @@
 import React from 'react';
-import { getNomandEffectPanelColors, SliderRow, type NomandBackgroundEffectPanelProps, percent } from './NomandBackgroundEffectPanel';
+import { percent, SliderRow } from '../../panelRows';
+import { twoDecimals, type NomandBackgroundEffectPanelProps } from './NomandBackgroundEffectPanel';
 
 // src/components/visualizer/backgrounds/nomand/NomandFlutedGlassSettings.tsx
-// Renders the compact Fluted Glass tuning panel.
+// Renders the Fluted Glass tuning rows.
 
 const NomandFlutedGlassSettings: React.FC<NomandBackgroundEffectPanelProps> = ({
     t,
-    isDaylight,
-    theme,
-    rangeInputClass,
     tuning,
     onTuningChange,
     onSliderPointerDown,
     onSliderCommit,
 }) => {
-    const { borderColor } = getNomandEffectPanelColors(theme, isDaylight);
-    const sliderProps = {
-        rangeInputClass,
-        theme,
-        onPointerDown: onSliderPointerDown,
-        onPointerUp: onSliderCommit,
-    };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div className="space-y-4 rounded-2xl border p-3" style={{ borderColor }}>
-            <div className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: theme.secondaryColor }}>
-                {t('options.nomandBackgroundEffectFlutedGlass')}
-            </div>
+        <>
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundFlutedGlassSize')}
                 value={tuning.flutedGlassSize}
                 min={0.1}
                 max={1}
                 step={0.05}
+                format={twoDecimals}
                 onChange={flutedGlassSize => onTuningChange?.({ flutedGlassSize })}
             />
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundFlutedGlassDistortion')}
                 value={tuning.flutedGlassDistortion}
                 min={0}
@@ -47,16 +37,16 @@ const NomandFlutedGlassSettings: React.FC<NomandBackgroundEffectPanelProps> = ({
                 onChange={flutedGlassDistortion => onTuningChange?.({ flutedGlassDistortion })}
             />
             <SliderRow
-                {...sliderProps}
+                {...drag}
                 label={t('options.nomandBackgroundFlutedGlassBlur')}
                 value={tuning.flutedGlassBlur}
                 min={0}
                 max={1}
-                step={0.05}
+                step={0.01}
                 format={percent}
                 onChange={flutedGlassBlur => onTuningChange?.({ flutedGlassBlur })}
             />
-        </div>
+        </>
     );
 };
 

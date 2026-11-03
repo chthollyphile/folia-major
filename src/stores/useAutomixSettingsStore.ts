@@ -5,39 +5,10 @@
 // Split out of useSettingsUiStore.
 
 import { create } from 'zustand';
-import { modelsPresent } from '../services/automix/modelAvailability';
 
 import { clampCrossfadeSeconds, CROSSFADE_DEFAULT_SEC } from '../services/automix/crossfadePlanner';
 import { DEFAULT_TRANSITION_SETTINGS, isTransitionMode, type TransitionMode } from '../services/automix/transitionStrategy';
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
-
-/** Set only by the reminder's own "don't remind me" button. Absent = still worth asking. */
-export const AUTOMIX_MODEL_REMINDER_MUTED_KEY = 'folia_automix_model_reminder_muted';
-
-/**
- * Whether switching transitions on is worth interrupting for.
- *
- * Three ways to answer no, and they are three different reasons rather than one condition:
- *
- * - Not a desktop build. The browser cannot run either model no matter what it downloads, so a
- *   prompt there is an errand that does not exist - which is the same distinction the engine badge
- *   already draws between "a limit" and "something you can go and fix".
- * - The weights are already here. Asked of `modelsPresent()`, which the automix hook refreshes at
- *   startup, so a fresh launch with both files installed answers correctly without opening
- *   Settings first.
- * - The listener said not to ask again. That one is remembered rather than re-derived, because it
- *   is a preference and not a fact about the machine.
- *
- * Either model missing counts: the beat grid is what the crossfade mode reads for its alignment
- * too, so "I only use crossfade" is not a reason to be missing beat_this.
- */
-export const shouldRemindAboutModels = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    if (typeof window.electron?.separateStems !== 'function') return false;
-    if (getStoredBoolean(AUTOMIX_MODEL_REMINDER_MUTED_KEY, false)) return false;
-    const present = modelsPresent();
-    return !present.beat_this || !present.htdemucs;
-};
 
 const AUTOMIX_ENABLED_KEY = 'folia_automix_enabled';
 
@@ -91,8 +62,6 @@ const readStoredCrossfadeMaxSec = (): number => {
 
 export type AutomixSettingsState = {
     automixEnabled: boolean;
-    /** Whether the "you have no weights yet" prompt is showing. See `handleToggleAutomix`. */
-    isAutomixModelReminderOpen: boolean;
     /** Which strategy plans a song change once blending is on. */
     transitionMode: TransitionMode;
     /** Seconds. The crossfade mode's ceiling; automix computes its own and ignores this. */
@@ -114,8 +83,6 @@ export type AutomixSettingsState = {
      */
     transitionAnimationCard: boolean;
     handleToggleAutomix: (enable: boolean) => void;
-    /** Closes the model prompt. `mute` is the listener choosing never to see it again. */
-    dismissAutomixModelReminder: (mute: boolean) => void;
     handleSetTransitionMode: (mode: TransitionMode) => void;
     handleSetCrossfadeMaxSec: (seconds: number) => void;
     handleToggleTransitionPerformance: (enable: boolean) => void;
@@ -125,7 +92,6 @@ export type AutomixSettingsState = {
 
 export const useAutomixSettingsStore = create<AutomixSettingsState>((set, get) => ({
     automixEnabled: getStoredBoolean(AUTOMIX_ENABLED_KEY, false),
-    isAutomixModelReminderOpen: false,
     transitionMode: readStoredTransitionMode(),
     crossfadeMaxSec: readStoredCrossfadeMaxSec(),
     transitionPerformance: getStoredBoolean(
@@ -137,14 +103,9 @@ export const useAutomixSettingsStore = create<AutomixSettingsState>((set, get) =
     transitionAnimationCard: readTransitionAnimationCard(),
     handleToggleAutomix: (enable) => {
         setStoredBoolean(AUTOMIX_ENABLED_KEY, enable);
-        // Asked here rather than in the settings section because there are two switches - the
-        // options page and the volume row - and a prompt wired to one of them is missing from the
-        // one people actually reach mid-song.
-        set({ automixEnabled: enable, isAutomixModelReminderOpen: enable && shouldRemindAboutModels() });
-    },
-    dismissAutomixModelReminder: (mute) => {
-        if (mute) setStoredBoolean(AUTOMIX_MODEL_REMINDER_MUTED_KEY, true);
-        set({ isAutomixModelReminderOpen: false });
+        // The models ship with the app, so there is nothing to prompt for (the "download the
+        // models" reminder that opened here is gone with the downloads).
+        set({ automixEnabled: enable });
     },
     handleSetTransitionMode: (mode) => {
         if (!isTransitionMode(mode)) return;
@@ -180,14 +141,12 @@ export const useAutomixSettingsStore = create<AutomixSettingsState>((set, get) =
  */
 export const selectAutomixSettingsSnapshot = (state: AutomixSettingsState) => ({
     automixEnabled: state.automixEnabled,
-    isAutomixModelReminderOpen: state.isAutomixModelReminderOpen,
     transitionMode: state.transitionMode,
     crossfadeMaxSec: state.crossfadeMaxSec,
     transitionPerformance: state.transitionPerformance,
     transitionAnimation: state.transitionAnimation,
     transitionAnimationCard: state.transitionAnimationCard,
     handleToggleAutomix: state.handleToggleAutomix,
-    dismissAutomixModelReminder: state.dismissAutomixModelReminder,
     handleSetTransitionMode: state.handleSetTransitionMode,
     handleSetCrossfadeMaxSec: state.handleSetCrossfadeMaxSec,
     handleToggleTransitionPerformance: state.handleToggleTransitionPerformance,

@@ -12,8 +12,8 @@ import { useGridViewSettingsStore } from '../../../stores/useGridViewSettingsSto
 
 // src/components/modal/settings/GridViewSettingsSection.tsx
 // Look of the folia card grid: full-bleed covers plus the two floors of the distance falloff.
-// Reads the store directly, the way LatticeSettingsSection does, so AppearanceSettingsSubview does
-// not grow another six props. Deliberately outside the appearance import/export payload.
+// Reads the store directly. Deliberately outside the appearance import/export payload. The command
+// palette hosts this on a surface; the settings dialog draws the same options in pages/HomePage.
 
 type GridViewSettingsSectionProps = {
     settingsCardClass: string;

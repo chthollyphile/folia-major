@@ -1,11 +1,14 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     clearConsoleLog,
     formatConsoleLog,
     getConsoleLogEntries,
     installConsoleLogCapture,
     isConsoleCaptureEnabled,
+    recordMainProcessLines,
     setConsoleCaptureEnabled,
+    setConsoleLogSink,
+    subscribeToConsoleLog,
 } from '../../../src/utils/consoleLogBuffer';
 
 // The suite runs on the node environment. Capture also listens for uncaught errors on `window`,
@@ -56,6 +59,16 @@ describe('consoleLogBuffer scopes', () => {
         expect(text).toContain('[A] third');
         expect(text).not.toContain('second');
     });
+
+    it('writes an error inside a logged object by its name and message, not as {}', () => {
+        const error = new Error('Requested device not found');
+        error.name = 'NotFoundError';
+        console.warn('[App] Failed to apply audio output device', { error, sinkTarget: 'audio-context' });
+
+        expect(getConsoleLogEntries()[0].text).toBe(
+            '[App] Failed to apply audio output device {"error":"NotFoundError: Requested device not found","sinkTarget":"audio-context"}',
+        );
+    });
 });
 
 describe('console capture switch', () => {
@@ -86,5 +99,49 @@ describe('console capture switch', () => {
         console.log('[A] kept');
 
         expect(getConsoleLogEntries().map(entry => entry.text)).toEqual(['[A] kept']);
+    });
+});
+
+describe('lines from the main process', () => {
+    beforeEach(() => {
+        setConsoleCaptureEnabled(true);
+        clearConsoleLog();
+    });
+
+    it('joins the buffer in the order the lines were written, with the module read off each', () => {
+        console.log('[Page] now');
+        const own = getConsoleLogEntries()[0];
+        recordMainProcessLines([
+            { at: own.at - 20, level: 'log', text: '[Ytm] before the window existed' },
+            { at: own.at + 5, level: 'warn', text: 'no prefix' },
+        ]);
+        expect(getConsoleLogEntries().map(entry => [entry.text, entry.scope, entry.level])).toEqual([
+            ['[Ytm] before the window existed', 'Ytm', 'log'],
+            ['[Page] now', 'Page', 'log'],
+            ['no prefix', null, 'warn'],
+        ]);
+        expect(new Set(getConsoleLogEntries().map(entry => entry.id)).size).toBe(3);
+    });
+
+    it('is not sent back to the file the main process already wrote it to, and tells the panel once per batch', () => {
+        const sink = vi.fn();
+        const listener = vi.fn();
+        setConsoleLogSink(sink);
+        const stop = subscribeToConsoleLog(listener);
+        recordMainProcessLines([{ at: 1, level: 'log', text: '[Ytm] a' }, { at: 2, level: 'log', text: '[Ytm] b' }]);
+        recordMainProcessLines([]);
+        stop();
+        setConsoleLogSink(null);
+        expect(sink).not.toHaveBeenCalled();
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the newest lines when the buffer is full, and nothing while recording is off', () => {
+        recordMainProcessLines(Array.from({ length: 1001 }, (_item, index) => ({ at: index, level: 'log' as const, text: `line ${index}` })));
+        expect(getConsoleLogEntries()).toHaveLength(1000);
+        expect(getConsoleLogEntries()[0].text).toBe('line 1');
+        setConsoleCaptureEnabled(false);
+        recordMainProcessLines([{ at: 5000, level: 'log', text: 'ignored' }]);
+        expect(getConsoleLogEntries()).toHaveLength(0);
     });
 });

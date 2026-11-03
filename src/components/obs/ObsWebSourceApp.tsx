@@ -12,7 +12,7 @@ import { readObsCustomCssAssets, type ObsCustomCssAssets } from '../../services/
 import type { WebLyricSource } from '../../types/webLyricSource';
 import type { ObsWebAppearance } from '../../utils/obsWebAppearance';
 import { useObsAiTheme } from '../../hooks/useObsAiTheme';
-import type { ObsAiConfig } from '../../services/gemini';
+import type { ObsAiConfig } from '../../services/aiText';
 
 // src/components/obs/ObsWebSourceApp.tsx
 // Source-neutral browser OBS overlay shell: consumes an injected WebLyricSource
@@ -229,6 +229,7 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
                 mode={appearance.mode}
                 visualizerTunings={appearance.visualizerTunings}
                 currentTime={currentTime}
+                duration={state.clock.durationSec}
                 currentLineIndex={currentLineIndex}
                 lines={state.lyrics?.lines ?? NO_LYRIC_LINES}
                 theme={visualizerTheme}
@@ -258,6 +259,7 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
                 hideTranslationSubtitle={appearance.hideTranslationSubtitle}
                 showSubtitleTranslation={appearance.showSubtitleTranslation}
                 subtitleContentMode={appearance.subtitleContentMode}
+                subtitleOverlayLayout={appearance.subtitleOverlayLayout}
                 isPlayerChromeHidden={true}
             />
         </div>

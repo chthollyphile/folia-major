@@ -6,20 +6,20 @@ import { LocalPlaylist, LocalSong, Theme } from '../../../../types';
 import type { GridViewCollectionDescriptor } from '../../../../components/app/home/gridViewCollectionAdapters';
 import { useDebouncedFocusSync } from '../../../../hooks/useDebouncedFocusSync';
 import type { GridMapBatchConfig } from '../directory/GridMap';
-import type { LibraryDirectoryBatchController } from '../../../core/contracts/directory';
-import type { LibraryLocalCatalogSnapshot } from '../../../core/contracts/home';
-import type { LibraryHomeActionsController, LibraryHomeListState, LibraryLocalDirectoryTreesResource } from '../../../core/contracts/homeModel';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
-import type { LocalHomeRow, LocalHomeSectionKey } from '../../../core/model/localHomeModel';
-import { resolveLocalHomeActions } from '../../../core/model/localHomeModel';
-import { useLibraryHomeLocal, useLocalDirectoryTrees, useLocalHomeBatchConfig } from '../../../core/bindings/useLibraryHomeLocal';
-import { useLibraryHomeActions } from '../../../core/bindings/useLibraryHomeActions';
-import { useLibraryHomeListRegistration } from '../../../core/bindings/useLibraryHomeSurfaceRegistration';
+import type { LibraryDirectoryBatchController } from '../../../core/directory/directory.contract';
+import type { LibraryLocalCatalogSnapshot } from '../../../core/home/home.contract';
+import type { LibraryHomeActionsController, LibraryHomeListState, LibraryLocalDirectoryTreesResource } from '../../../core/home/homeModel.contract';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import type { LocalHomeRow, LocalHomeSectionKey } from '../../../core/home/localHomeModel';
+import { resolveLocalHomeActions } from '../../../core/home/localHomeModel';
+import { useLibraryHomeLocal, useLocalDirectoryTrees, useLocalHomeBatchConfig } from '../../../core/home/useLibraryHomeLocal';
+import { useLibraryHomeActions } from '../../../core/home/useLibraryHomeActions';
+import { useLibraryHomeListRegistration } from '../../../core/home/useLibraryHomeSurfaceRegistration';
 
 // src/library/suites/grid/home/LocalGrid3DView.tsx
 // Desktop-only local music Grid3D overview that opens GridView instead of legacy carousel details.
-// 分组、section、卡片、导入动作与文件夹树都来自 Library Core 的首页模型（core/model/localHomeModel、
-// core/bindings/useLibraryHomeLocal、首页动作控制器）；这里只剩网格的展示：图标、焦点记忆、文件选择框。
+// 分组、section、卡片、导入动作与文件夹树都来自 Library Core 的首页模型（core/home/localHomeModel、
+// core/home/useLibraryHomeLocal、首页动作控制器）；这里只剩网格的展示：图标、焦点记忆、文件选择框。
 
 const SECTION_ICONS: Record<LocalHomeSectionKey, React.ReactNode> = {
     folders: <FolderOpen size={13} />,
@@ -53,12 +53,12 @@ interface LocalGrid3DViewProps {
     homeActions: LibraryHomeActionsController;
     /** 本地文件夹树（首页宿主持有，见 homeResources.localDirectoryTrees；换 suite 不重读）。 */
     directoryTreesResource: LibraryLocalDirectoryTreesResource;
-    /** 首页模型算好的目录会话 key（core/model/homeSources 的 resolveHomeDirectoryKey）。 */
+    /** 首页模型算好的目录会话 key（core/home/homeSources 的 resolveHomeDirectoryKey）。 */
     directoryKey: string;
     /** 网格 suite 声明的首页动作（交给 GridMap 的目录 surface 取交集）。 */
     declaredHomeActions?: LibraryDeclaredActions;
     onOpenGridView?: (collection: GridViewCollectionDescriptor) => void;
-    /** 批量动作控制器（宿主创建；规则在 core/services/localDirectoryActions）。没有时 GridMap 不提供批量。 */
+    /** 批量动作控制器（宿主创建；规则在 core/directory/localDirectoryActions.service）。没有时 GridMap 不提供批量。 */
     directoryActions?: LibraryDirectoryBatchController;
     theme: Theme;
     isDaylight: boolean;
@@ -112,7 +112,7 @@ export const LocalGrid3DView: React.FC<LocalGrid3DViewProps> = ({
     const [activeFocusedIndex, setActiveFocusedIndex] = focus[activeSection.key];
 
     // 批量配置只装配 section 与目录树；动作的规则（路径规则、刷新顺序、pending 与重复提交）在 core 的控制器里。
-    // 删除与恢复忽略目录之后重读目录树（core/bindings 的 useLocalHomeBatchConfig，TUI 的目录列表用同一个）。
+    // 删除与恢复忽略目录之后重读目录树（core 的 useLocalHomeBatchConfig，TUI 的目录列表用同一个）。
     const { trees } = directoryTrees;
     const localBatchConfig: GridMapBatchConfig | undefined = useLocalHomeBatchConfig({
         controller: directoryActions,

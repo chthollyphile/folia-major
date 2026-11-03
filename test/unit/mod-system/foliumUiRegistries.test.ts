@@ -19,14 +19,15 @@ vi.hoisted(() => {
 });
 import type { ModRuntimeInfo } from '@/mods/types';
 import { createFoliumClientApi, listFoliumHostRegistries } from '@/mods/folium/api';
+import { clientApiOptions } from './clientApiOptions';
 import { stylesRegistry } from '@/mods/folium/registries/styles';
 import { stageLayersRegistry } from '@/mods/folium/registries/stageLayers';
-import { controlButtonsRegistry, progressLayersRegistry } from '@/mods/folium/registries/progress';
+import { progressButtonsRegistry, progressLayersRegistry } from '@/mods/folium/registries/progress';
 import { backgroundsRegistry } from '@/mods/folium/registries/backgrounds';
 import { hasVisualizerBackgroundMode, VISUALIZER_BACKGROUND_REGISTRY } from '@/components/visualizer/backgrounds/registry';
 import { commandsRegistry } from '@/mods/folium/registries/commands';
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
-import { installFoliumCommandPaletteSync } from '@/mods/folium/commandPaletteSync';
+import { installFoliumCommandPaletteSync } from '@/mods/folium/registries/commandPaletteSync';
 
 // test/unit/mod-system/foliumUiRegistries.test.ts
 // The UI registries a client reaches through `folium.registries`: validation of
@@ -78,7 +79,7 @@ describe('slot validation', () => {
     it('only accepts declared stage and control slots', () => {
         expect(() => stageLayersRegistry.register('mod-a', { id: 'l', slot: 'player.nowhere' as never, mount: noopMount }))
             .toThrow('slot must be one of');
-        expect(() => controlButtonsRegistry.register('mod-a', { id: 'b', slot: 'transport.left' as never, mount: noopMount }))
+        expect(() => progressButtonsRegistry.register('mod-a', { id: 'b', slot: 'transport.left' as never, mount: noopMount }))
             .toThrow('slot must be one of');
         expect(() => progressLayersRegistry.register('mod-a', { id: 'p', mount: 'nope' as never })).toThrow('mount');
         expect(stageLayersRegistry.register('mod-a', { id: 'ok', slot: 'app.overlay', mount: noopMount }).id).toBe('mod-a:ok');
@@ -97,7 +98,7 @@ describe('backgrounds registry', () => {
 
 describe('client api bindings', () => {
     it('makes UI registries inert in the export context but keeps content ones live', () => {
-        const api = createFoliumClientApi(mod(), { context: 'export', internals: null });
+        const api = createFoliumClientApi(mod(), clientApiOptions('export'));
         api.registries.styles.register({ id: 's', css: 'a{}' });
         expect(stylesRegistry.list()).toHaveLength(0);
         api.registries.backgrounds.register({ id: 'b', label: {}, mount: noopMount });
@@ -105,26 +106,23 @@ describe('client api bindings', () => {
     });
 
     it('returns settings section handles that carry the values', () => {
-        const api = createFoliumClientApi(mod(), { context: 'main', internals: null });
+        const api = createFoliumClientApi(mod(), clientApiOptions('main'));
         const handle = api.registries.settingsSections.register({
             id: 'prefs',
             label: { en: 'Prefs' },
             settings: [{ key: 'url', type: 'text', label: {}, defaultValue: 'https://example.com' }],
         });
         expect(handle.id).toBe('mod-a:prefs');
-        expect(handle.params.get()).toEqual({ url: 'https://example.com' });
+        expect(handle.settings.get()).toEqual({ url: 'https://example.com' });
     });
 
-    it('gates internals behind the folia range and experimental behind opt-ins', () => {
-        const plain = createFoliumClientApi(mod(), { context: 'main', internals: { secret: 1 } });
-        expect(() => plain.internals.secret).toThrow('internals-require-folia-range');
-        const pinned = createFoliumClientApi(mod({ folia: '>=0.7.0 <0.8.0' }), { context: 'main', internals: { secret: 1 } });
-        expect(pinned.internals.secret).toBe(1);
+    it('gates experimental behind opt-ins', () => {
+        const plain = createFoliumClientApi(mod(), clientApiOptions('main'));
         expect(() => plain.experimental.anything).toThrow('experimental-not-declared:anything');
     });
 
     it('rejects rpc and storage outside the main window', async () => {
-        const api = createFoliumClientApi(mod(), { context: 'export', internals: null });
+        const api = createFoliumClientApi(mod(), clientApiOptions('export'));
         await expect(api.rpc.call('x')).rejects.toThrow('rpc-unavailable-in-export-context');
         await expect(api.storage.get('k')).rejects.toThrow('storage-unavailable-in-export-context');
     });

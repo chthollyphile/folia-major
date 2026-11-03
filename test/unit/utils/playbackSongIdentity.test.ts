@@ -5,6 +5,8 @@ import {
     hasMixedPlaybackSources,
     isSamePlaybackSong,
     replacePlaybackSongInQueue,
+    replacePlaybackSongWhereQueued,
+    samePlaybackKeySequence,
 } from '@/utils/appPlaybackGuards';
 
 // test/unit/utils/playbackSongIdentity.test.ts
@@ -81,5 +83,41 @@ describe('playback song identity', () => {
         ]);
         expect(nextQueue[1].name).toBe('After');
         expect(hasMixedPlaybackSources(nextQueue)).toBe(true);
+    });
+});
+
+// The two that a whole-queue write (a mod's replaceQueue) leans on: a refresh of an entry that does not put
+// the song back, and "the same queue" read by keys rather than by array.
+describe('queue entries by playback key', () => {
+    it('replaces every entry with the key of the song and leaves the others', () => {
+        const twice = localSong('local-1', -1, 'Before');
+        const queue = [twice, neteaseSong(1), { ...twice }];
+        const replacement = localSong('local-1', -99, 'After');
+
+        const nextQueue = replacePlaybackSongWhereQueued(queue, replacement);
+
+        expect(nextQueue).not.toBe(queue);
+        expect(nextQueue?.[0]).toBe(replacement);
+        expect(nextQueue?.[1]).toBe(queue[1]);
+        expect(nextQueue?.[2]).toBe(replacement);
+    });
+
+    it('answers null for a song the queue does not hold, and puts nothing in front', () => {
+        const queue = [neteaseSong(1), neteaseSong(2)];
+
+        expect(replacePlaybackSongWhereQueued(queue, neteaseSong(3))).toBeNull();
+        expect(replacePlaybackSongWhereQueued([], neteaseSong(3))).toBeNull();
+        expect(queue.map(getPlaybackSongKey)).toEqual(['online:netease:1', 'online:netease:2']);
+    });
+
+    it('tells the same songs in the same order, whatever the arrays', () => {
+        const queue = [neteaseSong(1), localSong('local-1'), navidromeSong('navi-1')];
+
+        expect(samePlaybackKeySequence(queue, queue)).toBe(true);
+        // An equal copy: new array, new entry objects, the same keys.
+        expect(samePlaybackKeySequence(queue, queue.map(song => ({ ...song, name: `${song.name} (copy)` })))).toBe(true);
+        expect(samePlaybackKeySequence(queue, queue.slice(0, 2))).toBe(false);
+        expect(samePlaybackKeySequence(queue, [queue[1], queue[0], queue[2]])).toBe(false);
+        expect(samePlaybackKeySequence([], [])).toBe(true);
     });
 });

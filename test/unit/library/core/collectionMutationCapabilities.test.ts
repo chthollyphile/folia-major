@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaId } from '@/types/onlineMusic';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
-import type { CollectionResourceKind } from '@/library/core/contracts/resource';
-import type { LibraryMutationPort } from '@/library/core/contracts/ports';
-import { isCloudDriveCollection } from '@/library/core/model/collectionIdentity';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import type { CollectionResourceKind } from '@/library/core/shared/resource.contract';
+import type { LibraryMutationPort } from '@/library/core/shared/ports.contract';
+import { isCloudDriveCollection } from '@/library/core/collection/collectionIdentity';
 import {
     EMPTY_COLLECTION_MUTATION_SNAPSHOT,
     resolveCollectionMutationBranches,
     resolveCollectionMutationCapabilities,
     resolveEntryRemovalKind,
     type CollectionMutationCapabilityState,
-} from '@/library/core/model/collectionMutationCapabilities';
+} from '@/library/core/collection/mutations/collectionMutationCapabilities';
 
 // test/unit/library/core/collectionMutationCapabilities.test.ts
 // 变更能力的规则与 GridView 原先的分支布尔逐项对照：下面的 gridViewReference 是 GridView.tsx 里
@@ -352,11 +352,11 @@ describe('collection mutation capabilities: state', () => {
         expect(resolveFor(localAlbum, { state }).capabilities.editEntity).toEqual({ supported: true, enabled: true, pending: false });
     });
 
-    it('reports a running subscription toggle as pending', () => {
+    it('keeps the subscription toggle pressable while its request runs (the star shows a press at once)', () => {
         const album = DESCRIPTORS.find(d => d.source === 'online' && d.providerId === 'editable' && d.type === 'album')!;
         expect(resolveFor(album).capabilities.subscribe).toEqual({ supported: true, enabled: true, pending: false });
         expect(resolveFor(album, { state: { ...IDLE, subscribing: true } }).capabilities.subscribe)
-            .toEqual({ supported: true, enabled: false, pending: true, reason: 'pending' });
+            .toEqual({ supported: true, enabled: true, pending: false });
     });
 
     it('serializes daily and Navidrome removals, lets song-keyed removals run side by side', () => {

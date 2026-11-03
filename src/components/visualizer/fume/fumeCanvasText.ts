@@ -1,7 +1,7 @@
 import { Theme } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { colorWithAlpha, mixColors } from '../colorMix';
-import { clearCanvasTextGlow, fillGlowText, quantizeShadowBlur, setCanvasTextGlow } from '../../../utils/glowBlurQuantize';
+import { clearCanvasTextGlow, fillGlowText, setCanvasTextGlow } from '../../../utils/glowBlurQuantize';
 import type { FumeBlock, RenderLineSlice, RenderSegmentSlice } from './fumeTypes';
 import type { FumeBlockTiming } from './fumeBlockFrame';
 import { clamp, easeInOutCubic, easeOutCubic, isCJK, mix, resolveDelayedGlowEnvelope } from './fumeMath';
@@ -22,6 +22,11 @@ export const buildTextStyleKey = (
     shadowBlur: number,
     shadowColor: string,
 ) => `${fillStyle}|${shadowColor}|${shadowBlur.toFixed(3)}`;
+
+// The live line's shadow blur in whole pixels, whatever the Linux switch (this is quantizeShadowBlur's
+// switched-on branch). A radius that changes every frame makes Chromium build the shadowed glyphs
+// again every frame, which was most of fume's frame on the main thread; whole pixels let it reuse them.
+const roundShadowBlur = (px: number) => (Number.isFinite(px) ? Math.max(0, Math.round(px)) : 0);
 
 export const drawRenderTextRun = (
     context: CanvasRenderingContext2D,
@@ -64,12 +69,13 @@ export const createStaticBlockSnapshot = (
     fillStyle: string,
     shadowBlur = 0,
     shadowColor = 'transparent',
+    // 快照的光栅密度（每个世界单位几个像素）：舞台传进来的已经乘上了分辨率倍数（#929）；没传就是原来的默认。
+    rasterScale = clamp(window.devicePixelRatio || 1, 1, 2),
 ) => {
     if (typeof document === 'undefined') {
         return null;
     }
 
-    const rasterScale = clamp(window.devicePixelRatio || 1, 1, 2);
     const padding = Math.ceil(Math.max(block.fontPx * 0.32, shadowBlur + block.fontPx * 0.08, 4));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.ceil((block.width + padding * 2) * rasterScale));
@@ -161,7 +167,7 @@ export const drawFumeLiveBlock = (
         context.fillStyle = lineGlowColor;
         setCanvasTextGlow(
             context,
-            quantizeShadowBlur(lineGlowBlur),
+            roundShadowBlur(lineGlowBlur),
             colorWithAlpha(theme.accentColor, lineGlowAlpha * 1.35),
         );
 
@@ -375,11 +381,10 @@ export const drawFumeLiveBlock = (
                     continue;
                 }
 
-                // Whole pixels while Lab > Fix lyric animation freeze on Linux is on: a
-                // blur radius that changes every frame leaks shared memory in Chromium's
-                // glyph cache.
-                // See utils/glowBlurQuantize.ts.
-                shadowBlur = quantizeShadowBlur(shadowBlur);
+                // Whole pixels: a blur radius that changes every frame leaks shared memory in
+                // Chromium's glyph cache (Lab > Fix lyric animation freeze on Linux) and redraws
+                // the shadowed glyphs every frame. See utils/glowBlurQuantize.ts.
+                shadowBlur = roundShadowBlur(shadowBlur);
                 const styleKey = buildTextStyleKey(fillStyle, shadowBlur, shadowColor);
                 if (runStart < 0) {
                     runStart = globalOffset;

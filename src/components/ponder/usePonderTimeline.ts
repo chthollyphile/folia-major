@@ -1,10 +1,13 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { createTimeline, type Timeline } from 'animejs';
+import { createTimeline, cubicBezier, type Timeline } from 'animejs';
 import { readReducedMotion } from '../../stores/useMotionSettingsStore';
 import { anchorPointToPx } from '../../utils/ponder/resolvePonderAnchors';
+import { captionWindows, focusBeats, focusFrameBox } from '../../utils/ponder/ponderFocus';
 import { keyframeIndexAt, keyframeSettleAt, nextKeyframeAt, prevKeyframeAt } from '../../utils/ponder/ponderKeyframes';
 import { PONDER_HIGHLIGHT_MAX_OPACITY, type PonderRect, type PonderTimelinePlan } from '../../types/ponder';
+import { PONDER_EASE, PONDER_MOTION, PONDER_RISE_PX, ponderMs, type PonderDuration } from './ponderMotion';
 import { PONDER_SURFACE_BASE_STATE } from './surfaces/PonderSurfaceStateLayer';
+import { seekPonderTimeline } from './ponderTimelineSeek';
 import type { PonderStageNodes, PonderSurfaceStateNode } from './ponderStageNodes';
 
 // src/components/ponder/usePonderTimeline.ts
@@ -14,13 +17,20 @@ import type { PonderStageNodes, PonderSurfaceStateNode } from './ponderStageNode
 // 约 38KB gz，不能进 bootstrap chunk（同 App.tsx:20-22 对 AutomixTransitionAnimation 的处理）。
 //
 // 进度条和当前关键帧都由 onUpdate 直接写 DOM，不经过 React：它们是每帧值。
+//
+// 时长和缓动只有两个来源：界面自己的那些（字幕换字、聚焦框、按键胶片出入）读 ponderMotion
+// 的词汇；一个步骤要演多久（durationMs）是课程自己的，原样用。
 
 type UsePonderTimelineParams = {
     plan: PonderTimelinePlan;
     rects: Record<string, PonderRect>;
     nodesRef: RefObject<PonderStageNodes>;
-    /** 一段跑完时通知外面把「下一章」卡片放出来。 */
+    /** 建时间线的那一刻用户是不是停着的。停着的就不自己播起来（窗口变了会重建时间线）。 */
+    readPaused: () => boolean;
+    /** 一段跑完时通知外面把「下一章」放出来。 */
     onComplete: () => void;
+    /** 时间线回到了前面（重建、重播、跳关键帧、播完后再按播放）：这一章不再是「播完了」。 */
+    onRewind: () => void;
 };
 
 export type PonderTimelineControls = {
@@ -44,7 +54,9 @@ export const usePonderTimeline = ({
     plan,
     rects,
     nodesRef,
+    readPaused,
     onComplete,
+    onRewind,
 }: UsePonderTimelineParams): RefObject<PonderTimelineControls | null> => {
     const controlsRef = useRef<PonderTimelineControls | null>(null);
 
@@ -55,11 +67,15 @@ export const usePonderTimeline = ({
         }
 
         const calm = readReducedMotion('uiMicroMotion');
+        const ms = (duration: PonderDuration) => ponderMs(duration, calm);
+        const arrive = calm ? 'linear' : cubicBezier(...PONDER_EASE.arrive);
+        const travel = calm ? 'linear' : cubicBezier(...PONDER_EASE.travel);
+        const startsPaused = readPaused();
         // 刻意不循环。无限循环既看不出「这一章讲完了」，也就无从提示还有下一章；
         // 跑完停在末帧，由 PonderStage 放出下一章卡片。
         const timeline: Timeline = createTimeline({
-            defaults: { ease: calm ? 'linear' : 'outQuad' },
-            autoplay: true,
+            defaults: { ease: arrive },
+            autoplay: !startsPaused,
         });
 
         // 光标先摆到第一个 cursor/drag 步骤的起点，免得第一帧从左上角窜出来。
@@ -74,11 +90,56 @@ export const usePonderTimeline = ({
             }
         }
 
-        // 每段字幕的起点，升序。下一段一开口，上一段就得收声。
-        const captionStarts = plan.entries
-            .filter(entry => entry.step.kind === 'caption')
-            .map(entry => entry.atMs)
-            .sort((a, b) => a - b);
+        // 每段字幕在场的那段时间：最迟在下一段开口时收声，本章最后一段留到章末。
+        // 字幕都画在同一处，两段并存就是两行字叠在一起，谁也读不出来。
+        const windows = captionWindows(plan);
+        for (const { id, atMs, endMs, stays } of windows) {
+            const node = nodes.captions.get(id);
+            if (!node) continue;
+            timeline.add(node, calm
+                ? { opacity: [0, 1], duration: ms('enter') }
+                : { opacity: [0, 1], y: [PONDER_RISE_PX, 0], duration: ms('enter') }, atMs);
+            if (!stays) {
+                timeline.add(node, calm
+                    ? { opacity: 0, duration: ms('quick') }
+                    : { opacity: 0, y: -4, duration: ms('quick') }, Math.max(atMs, endMs - ms('quick')));
+            }
+        }
+
+        // 聚焦框：字幕在讲谁，框就落在谁身上。每一站的起止值都写全；往回跳时这些值能不能写到
+        // DOM 上，靠的是 seekPonderTimeline 从头拨一遍。
+        const frame = nodes.frame;
+        if (frame) {
+            for (const beat of focusBeats(windows, anchor => Boolean(rects[anchor]), ms('base'))) {
+                const to = focusFrameBox(rects[beat.anchor]);
+                const from = beat.from ? focusFrameBox(rects[beat.from]) : to;
+                const shape = {
+                    x: [from.left, to.left],
+                    y: [from.top, to.top],
+                    width: [`${from.width}px`, `${to.width}px`],
+                    height: [`${from.height}px`, `${to.height}px`],
+                    borderRadius: [`${from.radius}px`, `${to.radius}px`],
+                };
+                const tag = beat.from === beat.anchor ? undefined : nodes.frameTags.get(beat.anchor);
+                if (beat.from === null) {
+                    // 第一次出现：就地淡入，从略大一点收到位。
+                    timeline.add(frame, calm
+                        ? { ...shape, opacity: [0, 1], duration: ms('enter') }
+                        : { ...shape, opacity: [0, 1], scale: [1.04, 1], duration: ms('enter') }, beat.atMs);
+                } else if (beat.from !== beat.anchor) {
+                    // 从上一个目标走过来，位置、大小、圆角一起变。
+                    timeline.add(frame, { ...shape, duration: calm ? 1 : ms('move'), ease: travel }, beat.atMs);
+                    const leftTag = nodes.frameTags.get(beat.from);
+                    if (leftTag) timeline.add(leftTag, { opacity: [1, 0], duration: ms('quick') }, beat.atMs);
+                }
+                if (tag) timeline.add(tag, { opacity: [0, 1], duration: ms('base') }, beat.atMs);
+                if (beat.hideAtMs !== null) {
+                    timeline.add(frame, { opacity: [1, 0], duration: ms('base') }, beat.hideAtMs);
+                    const shownTag = nodes.frameTags.get(beat.anchor);
+                    if (shownTag) timeline.add(shownTag, { opacity: [1, 0], duration: ms('base') }, beat.hideAtMs);
+                }
+            }
+        }
 
         // 每个「锚点 + 被替换的层」槽位上，当前露在最上面的是谁。叠加层（工具面板、命令面板）
         // 不进这张表，因为它们不该把底下那屏带走。
@@ -86,32 +147,8 @@ export const usePonderTimeline = ({
 
         for (const { step, atMs, durationMs } of plan.entries) {
             if (step.kind === 'caption') {
-                const node = nodes.captions.get(step.id);
-                if (!node) continue;
-                // 一段字幕最迟在下一段开口时收声。字幕都画在同一条底边上，两段并存就是
-                // 两行字叠在一起，谁也读不出来 —— 这比截掉尾巴那点阅读时间糟得多。
-                const nextCaptionAtMs = captionStarts.find(start => start > atMs);
-                const endMs = Math.min(atMs + durationMs, nextCaptionAtMs ?? Infinity);
-                const fadeOutAtMs = Math.max(atMs, endMs - 200);
-
-                timeline.add(node, calm
-                    ? { opacity: [0, 1], duration: 240 }
-                    : { opacity: [0, 1], y: [8, 0], duration: 240 }, atMs);
-                timeline.add(node, { opacity: 0, duration: 200 }, fadeOutAtMs);
-
-                // 指向线挂在同一段时间上：文字在讲谁，线就指着谁，两者不能错开。
-                const pointer = nodes.pointers.get(step.id);
-                if (pointer) {
-                    timeline.add(pointer, { opacity: [0, 1], duration: 300 }, atMs);
-                    timeline.add(pointer, { opacity: 0, duration: 200 }, fadeOutAtMs);
-                }
-
-                // 被指着的那个区域，这段时间里把名字标出来；讲完就收，不留在后面的浮层上。
-                const label = step.pointTo ? nodes.labels.get(step.pointTo.anchor) : undefined;
-                if (label) {
-                    timeline.add(label, { opacity: [0, 1], duration: 300 }, atMs);
-                    timeline.add(label, { opacity: 0, duration: 200 }, fadeOutAtMs);
-                }
+                // 字幕和聚焦框在上面按「在场时间」排好了。
+                continue;
             } else if (step.kind === 'cursor' || step.kind === 'drag') {
                 if (!nodes.cursor) continue;
                 const to = pointOrCenter(step.to, rects);
@@ -122,23 +159,24 @@ export const usePonderTimeline = ({
                     x: from ? [from.x, to.x] : to.x,
                     y: from ? [from.y, to.y] : to.y,
                     duration: calm ? 1 : durationMs,
-                    ease: step.ease ?? (calm ? 'linear' : 'outCubic'),
+                    ease: step.ease ?? travel,
                 }, atMs);
 
                 if (step.kind === 'cursor' && step.press && nodes.cursorRing) {
+                    // 扩散圈说的是「这里按了一下」，关了微动效也照常演。
                     timeline.add(nodes.cursorRing, {
                         scale: [0.7, 1.6],
                         opacity: [0.9, 0],
-                        duration: 420,
+                        duration: PONDER_MOTION.move,
                     }, atMs);
                 }
             } else if (step.kind === 'keypress') {
                 const node = nodes.keyChips.get(step.id);
                 if (!node) continue;
                 timeline.add(node, calm
-                    ? { opacity: [0, 1], duration: 180 }
-                    : { opacity: [0, 1], scale: [0.82, 1], duration: 180 }, atMs);
-                timeline.add(node, { opacity: 0, duration: 160 }, atMs + Math.max(durationMs - 160, 0));
+                    ? { opacity: [0, 1], duration: ms('base') }
+                    : { opacity: [0, 1], scale: [0.82, 1], duration: ms('base') }, atMs);
+                timeline.add(node, { opacity: 0, duration: ms('quick') }, atMs + Math.max(durationMs - ms('quick'), 0));
             } else if (step.kind === 'highlight') {
                 const node = nodes.highlights.get(step.anchor);
                 if (!node) continue;
@@ -149,14 +187,10 @@ export const usePonderTimeline = ({
                     duration: durationMs,
                 }, atMs);
             } else if (step.kind === 'reveal') {
-                // 这个框此前根本不在场。名字和框一起出现 —— 先有名字后有框读起来是错的。
+                // 这个框此前根本不在场。
                 const box = nodes.boxes.get(step.anchor);
                 if (!box) continue;
-                const animation = {
-                    opacity: [0, 1],
-                    duration: calm ? 1 : durationMs,
-                    ease: calm ? 'linear' : 'outCubic',
-                };
+                const animation = { opacity: [0, 1], duration: calm ? 1 : durationMs };
                 if (step.transition === 'slide-up') {
                     timeline.add(box, { ...animation, y: [14, 0] }, atMs);
                 } else if (step.transition === 'zoom' || step.transition === undefined) {
@@ -164,20 +198,11 @@ export const usePonderTimeline = ({
                 } else {
                     timeline.add(box, animation, atMs);
                 }
-
-                const label = nodes.labels.get(step.anchor);
-                if (label) {
-                    timeline.add(label, { opacity: [0, 1], duration: calm ? 1 : durationMs }, atMs);
-                }
             } else if (step.kind === 'surfaceState') {
                 const layers = nodes.surfaceStates.get(step.anchor);
                 const entry = layers?.get(step.state);
                 if (!layers || !entry) continue;
-                const animation = {
-                    opacity: [0, 1],
-                    duration: calm ? 1 : durationMs,
-                    ease: calm ? 'linear' : 'outCubic',
-                };
+                const animation = { opacity: [0, 1], duration: calm ? 1 : durationMs };
                 if (step.transition === 'slide-up') {
                     timeline.add(entry.node, { ...animation, y: [18, 0] }, atMs);
                 } else if (step.transition === 'zoom') {
@@ -196,11 +221,7 @@ export const usePonderTimeline = ({
                     const slot = `${step.anchor}:${replacedState}`;
                     const covered = visibleLayers.get(slot) ?? layers.get(replacedState);
                     if (covered && covered.node !== entry.node) {
-                        timeline.add(covered.node, {
-                            opacity: [1, 0],
-                            duration: calm ? 1 : durationMs,
-                            ease: calm ? 'linear' : 'outCubic',
-                        }, atMs);
+                        timeline.add(covered.node, { opacity: [1, 0], duration: calm ? 1 : durationMs }, atMs);
                     }
                     visibleLayers.set(slot, entry);
                 }
@@ -210,9 +231,15 @@ export const usePonderTimeline = ({
             }
         }
 
-        // 进度条与当前关键帧：每帧直接写 DOM。keyframeIndexRef 也是 ←/→ 读的那个值，
-        // 所以「现在在第几帧」从头到尾不需要是 React 状态。
-        const keyframeIndexRef = { current: -1 };
+        // 时间线和 plan 一样长。章末那段字幕不收声，它的阅读时间在动画库眼里就不存在：不占住的话，
+        // 最后一个动作做完时间线就报章末，下一章的读条在字幕刚出来时就开始走，进度条的填充也比
+        // 按 plan.totalMs 摆的刻度跑得快。
+        timeline.add({ duration: plan.totalMs }, 0);
+
+        // 时间线的填充与关键帧的点：每帧直接写 DOM，所以「现在在第几帧」从头到尾不需要是 React 状态。
+        // 走过的点标上 data-done，画成实心。null 是还没画过，头一次必写：
+        // 重建的时间线才不会留着上一条标过的点。
+        const keyframeIndexRef: { current: number | null } = { current: null };
 
         /**
          * 把当前进度刷到 DOM 上。
@@ -231,7 +258,7 @@ export const usePonderTimeline = ({
             if (index !== keyframeIndexRef.current) {
                 keyframeIndexRef.current = index;
                 nodes.ticks.forEach((tick, i) => {
-                    if (tick) tick.toggleAttribute('data-active', i === index);
+                    if (tick) tick.toggleAttribute('data-done', i <= index);
                 });
             }
         };
@@ -243,9 +270,13 @@ export const usePonderTimeline = ({
             if (settleAtMs !== null && timeline.iterationCurrentTime >= settleAtMs) {
                 const stopAtMs = settleAtMs;
                 settleAtMs = null;
-                timeline.pause();
-                // 按帧检测会多走一点，拉回到准确的停点，免得把下一个动作的第一帧露出来。
-                timeline.seek(stopAtMs, true);
+                // 停点就是章末时不拦：后面没有动作要挡，时间线自己走完、自己报章末。在这里拨过去
+                // 是不触发回调的，时间线会先被标成播完，章末就没人报了。
+                if (stopAtMs < timeline.duration) {
+                    timeline.pause();
+                    // 按帧检测会多走一点，拉回到准确的停点，免得把下一个动作的第一帧露出来。
+                    seekPonderTimeline(timeline, stopAtMs);
+                }
             }
             paintProgress();
         };
@@ -262,17 +293,31 @@ export const usePonderTimeline = ({
          */
         const seekKeyframe = (atMs: number) => {
             timeline.pause();
-            timeline.seek(atMs, true);
-            const stopAtMs = keyframeSettleAt(plan, atMs);
+            seekPonderTimeline(timeline, atMs);
+            // 一段字幕算「到位」，要等它淡入、也等它的聚焦框走到。
+            const stopAtMs = keyframeSettleAt(plan, atMs, Math.max(ms('enter'), ms('move')));
             settleAtMs = stopAtMs > atMs ? stopAtMs : null;
             if (settleAtMs !== null) {
                 timeline.play();
             }
             paintProgress();
+            onRewind();
+        };
+
+        const restart = () => {
+            settleAtMs = null;
+            timeline.restart();
+            paintProgress();
+            onRewind();
         };
 
         controlsRef.current = {
             toggle: () => {
+                // 播完了再按播放，是从头再看一遍这一章。
+                if (timeline.completed) {
+                    restart();
+                    return false;
+                }
                 // 正在把一拍播完时，外面显示的是暂停态；这时按播放就是「接着播」，不是再暂停一次。
                 if (settleAtMs !== null) {
                     settleAtMs = null;
@@ -286,11 +331,7 @@ export const usePonderTimeline = ({
                 paintProgress();
                 return true;
             },
-            restart: () => {
-                settleAtMs = null;
-                timeline.restart();
-                paintProgress();
-            },
+            restart,
             isCompleted: () => timeline.completed,
             seekPrevKeyframe: () => seekKeyframe(prevKeyframeAt(plan, timeline.iterationCurrentTime)),
             seekNextKeyframe: () => seekKeyframe(nextKeyframeAt(plan, timeline.iterationCurrentTime)),
@@ -301,12 +342,22 @@ export const usePonderTimeline = ({
             },
         };
 
+        // 新的时间线在开头：这一章不算播完。停着建的那一条不会自己走第一帧，开头的样子和进度在这里画。
+        if (startsPaused) {
+            timeline.seek(0, true);
+            paintProgress();
+        }
+        onRewind();
+
         // 无限循环开着就一直有 rAF，切到后台必须停 —— 否则在别的窗口里持续烧 CPU。
+        // 回来时只接着播切走那一刻正在播的：用户停下的、已经播完的（否则会把「下一章」卡片顶掉）都不动。
+        let resumeWhenVisible = false;
         const handleVisibility = () => {
             if (document.hidden) {
+                resumeWhenVisible = !timeline.paused;
                 timeline.pause();
-            } else if (!timeline.completed) {
-                // 已经播完的不要复活 —— 否则从后台切回来会把「下一章」卡片顶掉。
+            } else if (resumeWhenVisible) {
+                resumeWhenVisible = false;
                 timeline.play();
             }
         };
@@ -317,7 +368,7 @@ export const usePonderTimeline = ({
             timeline.revert();
             controlsRef.current = null;
         };
-    }, [plan, rects, nodesRef, onComplete]);
+    }, [plan, rects, nodesRef, readPaused, onComplete, onRewind]);
 
     return controlsRef;
 };

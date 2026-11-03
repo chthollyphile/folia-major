@@ -5,16 +5,16 @@ import DesktopGrid3DSurface, { DesktopGrid3DAction } from './DesktopGrid3DSurfac
 import { Theme } from '../../../../types';
 import type { GridViewCollectionDescriptor } from '../../../../components/app/home/gridViewCollectionAdapters';
 import { useDebouncedFocusSync } from '../../../../hooks/useDebouncedFocusSync';
-import type { LibraryHomeActionsController, LibraryHomeCard, LibraryHomeListState, LibraryNavidromeHomeResource } from '../../../core/contracts/homeModel';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
-import { isNavidromeHomeSection, resolveNavidromeCollectionType, type NavidromeHomeSection } from '../../../core/model/navidromeHomeModel';
-import { useLibraryHomeNavidrome } from '../../../core/bindings/useLibraryHomeNavidrome';
-import { useLibraryHomeListRegistration } from '../../../core/bindings/useLibraryHomeSurfaceRegistration';
+import type { LibraryHomeActionsController, LibraryHomeCard, LibraryHomeListState, LibraryNavidromeHomeResource } from '../../../core/home/homeModel.contract';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import { isNavidromeHomeSection, resolveNavidromeCollectionType, type NavidromeHomeSection } from '../../../core/home/navidrome/navidromeHomeModel';
+import { useLibraryHomeNavidrome } from '../../../core/home/navidrome/useLibraryHomeNavidrome';
+import { useLibraryHomeListRegistration } from '../../../core/home/useLibraryHomeSurfaceRegistration';
 
 // src/library/suites/grid/home/NavidromeGrid3DView.tsx
 // Desktop-only Navidrome Grid3D overview that opens GridView instead of legacy collection views.
 // 概览请求、section 记忆、卡片（含带 isVirtual 的「随机」「收藏」）与打开时的集合类型都来自 Library Core
-// （core/bindings/useLibraryHomeNavidrome、core/model/navidromeHomeModel）；这里只剩图标与各 section 的焦点。
+// （core/home/navidrome/useLibraryHomeNavidrome、core/home/navidrome/navidromeHomeModel）；这里只剩图标与各 section 的焦点。
 
 const SECTION_ICONS: Record<NavidromeHomeSection, React.ReactNode> = {
     albums: <Disc3 size={13} />,
@@ -33,7 +33,7 @@ interface NavidromeGrid3DViewProps {
     homeActions: LibraryHomeActionsController;
     /** Navidrome 概览（首页宿主持有，见 homeResources.navidromeOverview；换 suite 不重新请求）。 */
     overview: LibraryNavidromeHomeResource;
-    /** 首页模型算好的目录会话 key（core/model/homeSources 的 resolveHomeDirectoryKey）。 */
+    /** 首页模型算好的目录会话 key（core/home/homeSources 的 resolveHomeDirectoryKey）。 */
     directoryKey: string;
     /** 网格 suite 声明的首页动作（交给 GridMap 的目录 surface 取交集）。 */
     declaredHomeActions?: LibraryDeclaredActions;

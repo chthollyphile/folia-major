@@ -7,27 +7,27 @@ import type {
     LibraryDirectoryFocusedTarget,
     LibraryDirectoryNode,
     LibraryHiddenScope,
-} from '../../core/contracts/directory';
-import type { LibraryHomeCard } from '../../core/contracts/homeModel';
-import type { LibraryDeclaredActions } from '../../core/contracts/suite';
-import { homeCardToDirectoryItem } from '../../core/model/directoryItems';
-import { resolveDirectoryRows, type LibraryDirectoryRow } from '../../core/model/directoryTree';
+} from '../../core/directory/directory.contract';
+import type { LibraryHomeCard } from '../../core/home/homeModel.contract';
+import type { LibraryDeclaredActions } from '../../core/suite/suite.contract';
+import { homeCardToDirectoryItem } from '../../core/directory/directoryItems';
+import { resolveDirectoryRows, type LibraryDirectoryRow } from '../../core/directory/directoryTree';
 import {
     resolveDirectoryBatchContext,
     resolveDirectoryNodeSelection,
     runDirectoryBatchAction,
-} from '../../core/model/directoryBatch';
-import { isHideableDirectoryItem } from '../../core/model/directoryVisibility';
-import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../core/model/directorySurface';
-import { useLibraryDirectorySessionStore } from '../../core/state/useLibraryDirectorySessionStore';
-import { useLibraryDirectoryQuery } from '../../core/bindings/useLibraryDirectoryQuery';
-import { useLibraryDirectorySelection } from '../../core/bindings/useLibraryDirectorySelection';
-import { useLibraryDirectoryVisibility } from '../../core/bindings/useLibraryDirectoryVisibility';
-import { useLibraryDirectoryScope } from '../../core/bindings/useLibraryDirectoryScope';
-import { useLibraryDirectoryActions } from '../../core/bindings/useLibraryDirectoryActions';
-import { useLibraryDirectorySurfaceRegistration } from '../../core/bindings/useLibraryDirectorySurfaceRegistration';
-import { useHiddenCollections } from '../../core/bindings/useHiddenCollections';
-import { useCommittedQuery } from '../../core/bindings/useCommittedQuery';
+} from '../../core/directory/directoryBatch';
+import { isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
+import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../core/directory/directorySurface';
+import { useLibraryDirectorySessionStore } from '../../core/directory/useLibraryDirectorySessionStore';
+import { useLibraryDirectoryQuery } from '../../core/directory/useLibraryDirectoryQuery';
+import { useLibraryDirectorySelection } from '../../core/directory/useLibraryDirectorySelection';
+import { useLibraryDirectoryVisibility } from '../../core/directory/useLibraryDirectoryVisibility';
+import { useLibraryDirectoryScope } from '../../core/directory/useLibraryDirectoryScope';
+import { useLibraryDirectoryActions } from '../../core/directory/useLibraryDirectoryActions';
+import { useLibraryDirectorySurfaceRegistration } from '../../core/directory/useLibraryDirectorySurfaceRegistration';
+import { useHiddenCollections } from '../../core/collection/useHiddenCollections';
+import { useCommittedQuery } from '../../core/shared/useCommittedQuery';
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
 import LibraryTuiHomeRow, {
@@ -42,21 +42,21 @@ import { useLibraryTuiDirectoryKeys } from './useLibraryTuiHomeKeyboard';
 // src/library/suites/tui/LibraryTuiDirectory.tsx
 // TUI 首页的目录列表（网格的 GridMap 在 TUI 里的对应物）：当前页签 / section 的条目排成等宽列表，本地文件夹排成
 // 可展开的目录树。数据与行为全部来自 Library Core：
-// - 筛选词、批选、隐藏视图是目录会话（core/state/useLibraryDirectorySessionStore，按目录 key），与 GridMap 读写
+// - 筛选词、批选、隐藏视图是目录会话（core/directory/useLibraryDirectorySessionStore，按目录 key），与 GridMap 读写
 //   同一份——网格里筛选、选中后切到 TUI，看到的是同一个范围；筛选经命令面板（与 GridMap 同一个 useGridCommandFilter）。
 // - 「目录打开 / 关闭」：TUI 的目录视图一直开着，显示哪个目录就 openDirectory 哪个（已经打开着就接着用它的会话）；
 //   Esc 先清筛选词，再按一次是关闭目录（closeDirectory：丢掉选择与管理隐藏视图，然后重新打开一个空会话）。
 //   与网格里关掉 GridMap 丢掉会话是同一条规则。
 // - 范围 = 可见（去隐藏）→ 筛选 → 选中（useLibraryDirectoryScope）；批量动作经批量控制器（useLibraryDirectoryActions /
 //   runDirectoryBatchAction），pending 与重复提交保护在控制器里；命令面板的目录 surface 与键盘同源。
-// - 条目与 GridMap 同一个映射（core/model/directoryItems），行由 core/model/directoryTree 排出来。
+// - 条目与 GridMap 同一个映射（core/directory/directoryItems），行由 core/directory/directoryTree 排出来。
 // 这里不引用网格的任何实现。
 
 /** 每个目录最后的焦点（行 key），切 section、打开集合再回来、换 suite 再回来都落在原来那一项上。 */
 const focusMemory = new Map<string, string>();
 
 type LibraryTuiDirectoryProps = {
-    /** 目录会话 key（core/model/homeSources 的 resolveHomeDirectoryKey）。 */
+    /** 目录会话 key（core/home/homeSources 的 resolveHomeDirectoryKey）。 */
     directoryKey: string;
     hiddenScope: LibraryHiddenScope;
     /** 当前页签 / section 的全部卡片（隐藏的也在）。 */

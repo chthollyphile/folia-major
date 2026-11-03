@@ -4,7 +4,7 @@ import { createFoliumAudio, type FoliumAudioSource } from '@/mods/folium/audio';
 import type { AudioBands } from '@/types';
 
 // test/unit/mod-system/foliumAudio.test.ts
-// ctx.audio (Folium 1.2) gives mods one 0..1 scale although the host feeds two:
+// ctx.audio gives mods one 0..1 scale although the host feeds two:
 // the live analyser writes 0..255, previews a synthetic 0..1 signal.
 
 const makeBands = (value: number, spectrum = new Uint8Array(0)): AudioBands => ({

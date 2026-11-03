@@ -25,6 +25,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const pausedRef = useRef(paused);
     pausedRef.current = paused;
+    const alignRef = useRef<() => void>(() => {});
     const { enabled, url, opacity, fit, localFileUrl } = useVideoLayerSettingsStore(useShallow(state => ({
         enabled: state.videoLayerEnabled,
         url: state.videoLayerUrl,
@@ -44,6 +45,9 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
         if (!active || !video) return;
 
         const align = () => {
+            // Held still while music plays (the shell's pause): the clock runs on, so following it would
+            // only seek a stopped video over and over. It is aligned when the pause lifts.
+            if (pausedRef.current && selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING) return;
             if (!Number.isFinite(video.duration) || video.duration <= 0 || video.seeking) return;
             const target = currentTime.get() % video.duration;
             if (Math.abs(video.currentTime - target) > DRIFT_TOLERANCE_SEC) video.currentTime = target;
@@ -57,6 +61,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
             align();
             followState();
         };
+        alignRef.current = align;
 
         video.addEventListener('loadedmetadata', onMetadata);
         if (video.readyState >= HTMLMediaElement.HAVE_METADATA) onMetadata();
@@ -88,6 +93,7 @@ const VideoLayer: React.FC<VideoLayerProps> = ({ paused }) => {
         if (paused) {
             video.pause();
         } else if (selectDisplayPlayerState(usePlaybackStore.getState()) === PlayerState.PLAYING) {
+            alignRef.current();
             void video.play().catch(() => {});
         }
     }, [active, paused]);

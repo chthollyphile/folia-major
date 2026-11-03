@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import type React from 'react';
 import type { MotionValue } from 'framer-motion';
 import type SettingsModal from '../../modal/SettingsModal';
@@ -11,11 +10,10 @@ import type {
     StageStatus,
 } from '../../../types';
 import type { useThemeController } from '../../../hooks/useThemeController';
-import { type SettingsModalState, useSettingsModalStore } from '../../../stores/useSettingsModalStore';
+import type { SettingsModalState } from '../../../stores/useSettingsModalStore';
 import type { ObsBrowserSourceStatus } from '../../../types/obsBrowserSource';
 import type { PlayerCapConnectionStatus } from '../../../types/playerCap';
 import type { LyricApiStatus } from '../../../types/lyricApi';
-import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { closeSettings } from '../../../stores/useSettingsModalStore';
 
 // src/components/app/dialogs/buildSettingsDialogModel.ts
@@ -178,21 +176,6 @@ export const buildSettingsDialogModel = ({
                 if (activePlaybackContext === 'stage') {
                     await loadStageSessionIntoPlayback(null);
                 }
-            }
-        },
-        onClearStageState: async () => {
-            const nextStatus = await window.electron?.clearStageState();
-            if (nextStatus) {
-                setStageStatus(nextStatus);
-                if (activePlaybackContext === 'stage') {
-                    await loadStageSessionIntoPlayback(null);
-                }
-            }
-        },
-        onToggleNowPlayingStage: async (enabled) => {
-            useStageSettingsStore.getState().handleToggleNowPlayingStage(enabled);
-            if (!enabled && activePlaybackContext === 'stage') {
-                leaveStagePlayback();
             }
         },
         aiTheme: themeController.aiTheme,

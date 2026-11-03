@@ -11,7 +11,7 @@ for (const suite of ['grid', 'bravais'] as const) {
         await mockNeteaseApi(page, 'guest');
         await openApp(page);
         await page.evaluate(async value => {
-            const suitePath = '/src/library/core/state/useLibrarySuiteStore.ts';
+            const suitePath = '/src/library/core/suite/useLibrarySuiteStore.ts';
             const registryPath = '/src/mods/folium/registries/homeTabs.ts';
             const { useLibrarySuiteStore } = await import(suitePath);
             const { homeTabsRegistry } = await import(registryPath);
@@ -57,7 +57,7 @@ for (const suite of ['grid', 'bravais'] as const) {
         await mockNeteaseApi(page, 'guest');
         await openApp(page);
         await page.evaluate(async value => {
-            const suitePath = '/src/library/core/state/useLibrarySuiteStore.ts';
+            const suitePath = '/src/library/core/suite/useLibrarySuiteStore.ts';
             const desktopPath = '/src/stores/useDesktopSettingsStore.ts';
             const homeTabsPath = '/src/mods/folium/registries/homeTabs.ts';
             const commandsPath = '/src/mods/folium/registries/commands.ts';

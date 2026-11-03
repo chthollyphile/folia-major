@@ -163,6 +163,16 @@ export const buildLegacyObsBrowserSourceBackgroundConfig = (
     urlBackgroundSelectedId: background.url?.selectedId,
 });
 
+// The wire clock stays in media time so its duration clamp still ends at the clip's end. The
+// effective lyric offset is only a published value; the listener's saved manual offset is untouched.
+export const buildObsBrowserSourceClock = (
+    clock: ObsBrowserSourceClock,
+    clipStartMs: number,
+): ObsBrowserSourceClock => ({
+    ...clock,
+    lyricOffsetMs: (clock.lyricOffsetMs ?? 0) - clipStartMs,
+});
+
 export const resolveObsBrowserSourceClockTime = (
     clock: ObsBrowserSourceClock | null,
     nowMs = Date.now(),

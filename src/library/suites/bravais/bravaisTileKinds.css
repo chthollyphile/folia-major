@@ -145,3 +145,18 @@
 :root[data-reduce-motion~='lattice'] .bravais-tile-face.is-stack {
     transition: none;
 }
+
+/* ---------- 探索：section 标题（bravaisWallShape 的探索形状） ---------- */
+
+/* 与网格探索墙的标题磁贴（LatticeSections.css 的 .lattice-heading）同一个样子：没有图，海报底色上一行序号、标题与这一段的
+   种类；不是条目，悬停不抬起、指针是默认的。 */
+.lattice-poster.bravais-tile-face.is-heading {
+    cursor: default;
+    color: var(--lattice-poster-ink);
+    background: var(--lattice-poster-background);
+}
+
+.bravais-tile:hover > .bravais-tile-face.is-heading,
+.bravais-tile.is-focused > .bravais-tile-face.is-heading {
+    transform: none;
+}

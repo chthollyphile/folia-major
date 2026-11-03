@@ -5,13 +5,13 @@ import GridMap, { type GridMapBatchConfig } from '../directory/GridMap';
 import { Theme } from '../../../../types';
 import { Grid3DSlider, Grid3DSliderItem } from './Grid3DSlider';
 import { GridViewTabs, gridChromeClassesFor } from './GridViewTabs';
-import { filterDirectoryByVisibility, resolveSourceDirectoryIndex, resolveVisibleDirectoryIndex } from '../../../core/model/directoryVisibility';
-import type { LibraryHiddenScope } from '../../../core/contracts/directory';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
-import { useHiddenCollections } from '../../../core/bindings/useHiddenCollections';
-import { DEFAULT_DIRECTORY_SESSION_ID, hasDirectorySessionState } from '../../../core/model/directorySession';
-import { homeCardToDirectoryItem } from '../../../core/model/directoryItems';
-import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '../../../core/state/useLibraryDirectorySessionStore';
+import { filterDirectoryByVisibility, resolveSourceDirectoryIndex, resolveVisibleDirectoryIndex } from '../../../core/directory/directoryVisibility';
+import type { LibraryHiddenScope } from '../../../core/directory/directory.contract';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import { useHiddenCollections } from '../../../core/collection/useHiddenCollections';
+import { DEFAULT_DIRECTORY_SESSION_ID, hasDirectorySessionState } from '../../../core/directory/directorySession';
+import { homeCardToDirectoryItem } from '../../../core/directory/directoryItems';
+import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '../../../core/directory/useLibraryDirectorySessionStore';
 import { useHomeCardPosition } from '../../../../hooks/useHomeCardPosition';
 
 // src/library/suites/grid/home/DesktopGrid3DSurface.tsx
@@ -45,7 +45,7 @@ interface DesktopGrid3DSurfaceProps {
     hasFloatingPlayer?: boolean;
     /** 隐藏项的作用域（隐藏表与规则在 core：useHiddenCollectionsStore / directoryVisibility）。 */
     playlistVisibilityScope?: LibraryHiddenScope;
-    /** 这个列表的目录会话 key（core/model/directorySession 的 directoryKey）：GridMap 的筛选与批选存在这里。 */
+    /** 这个列表的目录会话 key（core/directory/directorySession 的 directoryKey）：GridMap 的筛选与批选存在这里。 */
     directoryKey?: string;
     /** 网格 suite 声明的首页动作（交给 GridMap 的目录 surface 取交集）。 */
     declaredHomeActions?: LibraryDeclaredActions;
@@ -208,7 +208,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                         // 文件夹卡的描述是它的名称（路径）——虚拟的「全部歌曲」也一样，标题下一行照旧是
                         // 「All Songs / 全部歌曲」。path 只给真实文件夹（契约：虚拟条目没有路径）；GridMap 的卡片
                         // 按 resolveGridMapFolderLabel 把虚拟文件夹的名称放在路径的位置（含「本目录 N 首」）。
-                        // 规则在 core/model/directoryItems，TUI 的目录列表用同一条。
+                        // 规则在 core/directory/directoryItems，TUI 的目录列表用同一条。
                         items={items.map(item => ({
                             ...homeCardToDirectoryItem({
                                 ...item,

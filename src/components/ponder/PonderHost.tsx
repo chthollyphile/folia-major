@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { countRender } from '../../dev/renderCount';
 import { usePonderStore } from '../../stores/usePonderStore';
 import { usePonderHoverProbe } from '../../hooks/usePonderHoverProbe';
-import { usePonderHoldToEnter } from '../../hooks/usePonderHoldToEnter';
-import { usePagePonderShortcut } from '../../hooks/usePagePonderShortcut';
+import { usePonderHoldToEnter } from './hold/usePonderHoldToEnter';
+import { usePagePonderShortcut } from './hold/usePagePonderShortcut';
 import { findPonderTarget } from './ponderRegistry';
 import PonderHintCapsule from './PonderHintCapsule';
 import PagePonderTouchButton from './PagePonderTouchButton';
@@ -32,17 +32,21 @@ const PonderHost: React.FC<PonderHostProps> = ({ theme, isDaylight }) => {
     const hoveredTargetId = usePonderStore(state => state.hoveredTargetId);
     const hasSession = usePonderStore(state => state.session !== null);
 
+    // 长按进度往这四个节点上写。节点由胶囊自己交上来（见 PonderHintCapsule）：换胶囊时页面里
+    // 会有两个，这里指着的是在场的那一个的，退场的那个卸载时不会把它清掉。
     const wipeRef = useRef<HTMLDivElement | null>(null);
     const labelRef = useRef<HTMLSpanElement | null>(null);
     const holdLabelRef = useRef<HTMLSpanElement | null>(null);
+    const cellRef = useRef<HTMLSpanElement | null>(null);
 
     const hoveredElementRef = usePonderHoverProbe();
-    usePonderHoldToEnter({ hoveredElementRef, wipeRef, labelRef, holdLabelRef });
+    // 焦点在输入框里时 G 是打字，按住不会打开什么：这时不出悬停的胶囊，焦点离开再出。
+    const canHoldG = usePonderHoldToEnter({ hoveredElementRef, wipeRef, labelRef, holdLabelRef, cellRef });
     // 页面级 Ctrl+G 也是长按，共用下面这一个胶囊和同一组擦除动画。
-    const { isHolding: isPageHolding, targetId: pageTargetId } = usePagePonderShortcut({ wipeRef, labelRef, holdLabelRef });
+    const { isHolding: isPageHolding, targetId: pageTargetId } = usePagePonderShortcut({ wipeRef, labelRef, holdLabelRef, cellRef });
 
-    const target = hoveredTargetId ? findPonderTarget(hoveredTargetId) : null;
-    // 胶囊第二行写的是「松手会讲哪一个」。屏幕上常常同时压着好几个目标
+    const target = hoveredTargetId && canHoldG ? findPonderTarget(hoveredTargetId) : null;
+    // 胶囊上写着「按满了会讲哪一个」。屏幕上常常同时压着好几个目标
     // （封面在面板里、标签页在标签排里），不写出来就只能靠猜。
     const namedTarget = isPageHolding
         ? (pageTargetId ? findPonderTarget(pageTargetId) : null)
@@ -56,7 +60,7 @@ const PonderHost: React.FC<PonderHostProps> = ({ theme, isDaylight }) => {
                 {(isPageHolding || target) && !hasSession && (
                     <PonderHintCapsule
                         key={isPageHolding ? 'page' : target!.id}
-                        label={isPageHolding ? t('ponder.hintCapsulePage') : t('ponder.hintCapsule')}
+                        label={isPageHolding ? t('ponder.hintCapsulePage') : t('ponder.title')}
                         targetName={namedTarget ? t(namedTarget.titleKey) : undefined}
                         placement={isPageHolding ? 'page' : 'cursor'}
                         theme={theme}
@@ -64,16 +68,14 @@ const PonderHost: React.FC<PonderHostProps> = ({ theme, isDaylight }) => {
                         wipeRef={wipeRef}
                         labelRef={labelRef}
                         holdLabelRef={holdLabelRef}
+                        cellRef={cellRef}
                     />
                 )}
             </AnimatePresence>
 
             <PonderNavigationPage theme={theme} isDaylight={isDaylight} />
 
-            <PagePonderTouchButton
-                accent={theme?.accentColor || (isDaylight ? '#27272a' : '#fafafa')}
-                isDaylight={isDaylight}
-            />
+            <PagePonderTouchButton theme={theme} isDaylight={isDaylight} />
 
             {/* 教程层自己带进出场，AnimatePresence 负责在 session 清掉之后留住它把退场播完。 */}
             <AnimatePresence>

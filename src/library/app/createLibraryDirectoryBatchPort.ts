@@ -1,4 +1,4 @@
-import type { LibraryDirectoryBatchPort } from '../core/contracts/directory';
+import type { LibraryDirectoryBatchPort } from '../core/directory/directory.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { buildLocalQueue } from '../../services/playbackAdapters';
 import { createLocalPlaylist } from '../../services/localPlaylistService';

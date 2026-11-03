@@ -6,12 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qqTransport', () => ({
+vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
+    hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import { qqRecommendations } from '@/services/onlineMusic/qqRecommendations';
+import { qqRecommendations } from '@/services/onlineMusic/qq/qqRecommendations';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 const song = (mid: string, id: number) => ({

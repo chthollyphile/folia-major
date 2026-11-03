@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { getI18n } from 'react-i18next';
-import { useFoliumRegistryEntries } from '../../../mods/folium/registry';
+import { useFoliumRegistryEntries } from '../../../mods/runtime/registry';
 import { closeFoliumHomeTab, homeTabsRegistry, selectFoliumHomeTab, useFoliumHomeTabStore } from '../../../mods/folium/registries/homeTabs';
-import { resolveFoliumLabel } from '../../../mods/folium/params';
-import type { LibraryHomeExtraTab } from '../../../library/core/contracts/suite';
-import type { LibraryHomeTabKey } from '../../../library/core/contracts/homeModel';
-import { useLibraryHomeSurfaceStore } from '../../../library/core/state/useLibraryHomeSurfaceStore';
+import { resolveFoliumLabel } from '../../../mods/params/params';
+import type { LibraryHomeExtraTab } from '../../../library/core/suite/suite.contract';
+import type { LibraryHomeTabKey } from '../../../library/core/home/homeModel.contract';
+import { useLibraryHomeSurfaceStore } from '../../../library/core/home/useLibraryHomeSurfaceStore';
 import { useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';
 
 // src/components/app/home/useFoliumHomeNavigation.ts

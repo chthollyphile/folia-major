@@ -1,9 +1,9 @@
 import type { FlipOrigin, FlipPlan, FlipSlotChange } from '../../../components/wall/flipPlan';
 import { getBlockReservedMask } from '../../../components/wall/blockReservedSlots';
 import { getInfiniteSlotItem, getStartWrapOffset } from '../../../components/wall/startTile';
-import { layoutFocusedBlock, parseWallSlotKey, wallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
+import { parseWallSlotKey, wallSlotKey, type WallSlot } from '../../../components/wall/wallSlots';
 import type { LibraryWallLook } from '../../../utils/libraryWallLook';
-import { BRAVAIS_METRICS } from './bravaisConstants';
+import { BRAVAIS_BLOCK_SHAPE, exploreStartKey, resolveLayerShape, type BravaisWallShape } from './bravaisWallShape';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
 import type { WallWavePlan } from './bravaisWallWave';
 import type { BravaisShiftKind } from './bravaisShift';
@@ -42,6 +42,8 @@ export type BravaisEntrance = {
     startedAt: number;
     until: number;
     reduced: boolean;
+    /** 只有之后挂载的磁贴落回，已经在墙上的不动（探索页的 section 补到时原地重排，见 isGrownExploreShape）。 */
+    mountsOnly?: boolean;
 };
 
 /** 墙上最近一次换层（B11）：种类与序号，stage 根节点据此标记（探针数「返回只翻一次」）。first 是 stage 挂载时直接画出。 */
@@ -49,6 +51,8 @@ export type BravaisShift = { kind: BravaisShiftKind | 'first'; seq: number };
 
 export type BravaisDisplay = {
     layer: BravaisLayer;
+    /** 墙的形状（bravaisWallShape）：slot 在哪、显示第几项。按层的 shape 与起点 slot 定。 */
+    shape: BravaisWallShape;
     /** 无限拼贴的起点 slot（显示第 1 项）；没有就以 0 为偏移。 */
     startSlotKey: string | null;
     wrapOffset: number;
@@ -97,12 +101,15 @@ export const createBravaisDisplay = (
     flip?: { token: number; plan: FlipPlan },
     wallLook: BravaisWallLook = SOLID_WALL_LOOK,
 ): BravaisDisplay => {
-    const reservedPerBlock = resolveReservedPerBlock(wallLook);
-    const start = resolveStartSlotKey(startSlotKey, reservedPerBlock);
+    const shape = resolveLayerShape(layer.shape, startSlotKey);
+    // 结构窗只开在块上（探索形状的地按 section 切座位，没有窗位）。
+    const reservedPerBlock = shape === BRAVAIS_BLOCK_SHAPE ? resolveReservedPerBlock(wallLook) : 0;
+    const start = shape === BRAVAIS_BLOCK_SHAPE ? resolveStartSlotKey(startSlotKey, reservedPerBlock) : exploreStartKey(shape, startSlotKey);
     return {
         layer,
+        shape,
         startSlotKey: start,
-        wrapOffset: resolveWrapOffset(start, layerPeriodCount(layer), reservedPerBlock),
+        wrapOffset: shape === BRAVAIS_BLOCK_SHAPE ? resolveWrapOffset(start, layerPeriodCount(layer), reservedPerBlock) : 0,
         flips: flip ? toFlipSteps(flip.token, flip.plan) : NO_FLIPS,
         flipToken: flip?.token ?? 0,
         look: wallLook.look,
@@ -112,7 +119,8 @@ export const createBravaisDisplay = (
 
 /** 显示用的透光偏好是不是已经是这一份（换档 / 换窗数走同一层的数据更新）。 */
 export const isDisplayedWallLook = (display: BravaisDisplay, wallLook: BravaisWallLook) => (
-    display.look === wallLook.look && display.reservedPerBlock === resolveReservedPerBlock(wallLook)
+    display.look === wallLook.look
+    && display.reservedPerBlock === (display.shape === BRAVAIS_BLOCK_SHAPE ? resolveReservedPerBlock(wallLook) : 0)
 );
 
 /** 一个 slot 显示的条目；墙面（空画框）为 null。 */
@@ -122,9 +130,12 @@ export const resolveSlotItem = (display: BravaisDisplay | null, slot: Pick<WallS
     if (items.length === 0) return null;
     // B7：有限拼贴按 rank 取（rank ≥ 条目数是墙面）；无限拼贴的周期可能大于条目数（补页中），超出的位置是墙面。
     // B6b③：两种拼贴都跳过部分透明的结构窗（有限拼贴的 rank 顺序本身就不含窗位；无限拼贴的窗位是 null）。
+    // 探索形状：slot 显示第几项由它所在的地与座位定（bravaisWallShape）。
     const index = display.finite
         ? resolveFiniteRank(display.finite, { key: wallSlotKeyOf(slot) })
-        : getInfiniteSlotItem(slot, layerPeriodCount(display.layer), display.wrapOffset, display.reservedPerBlock);
+        : display.shape.entryAt
+            ? display.shape.entryAt(slot)
+            : getInfiniteSlotItem(slot, layerPeriodCount(display.layer), display.wrapOffset, display.reservedPerBlock);
     const item = index === null ? null : items[index] ?? null;
     return item && display.hiddenKeys?.has(item.key) ? null : item;
 };
@@ -136,6 +147,12 @@ export const resolveSlotFace = (
     display: BravaisDisplay | null,
     slot: Pick<WallSlot, 'column' | 'row' | 'slotIndex'>,
 ): { item: BravaisItem | null; kind: BravaisTileKind } => {
+    // 探索形状的 section 标题：一张只有字的磁贴（不是条目，点它、键盘走位都不落在它上面）。
+    const section = display ? display.shape.headingAt(slot) : null;
+    if (section !== null) {
+        const heading = display?.layer.shape?.headings[section] ?? null;
+        return heading ? { item: heading, kind: 'heading' } : { item: null, kind: 'wall' };
+    }
     const item = resolveSlotItem(display, slot);
     if (item) return { item, kind: 'content' };
     if (!display) return { item: null, kind: 'wall' };
@@ -214,17 +231,17 @@ export const resolveTileTransition = (
 
 /**
  * 离一个世界点最近、显示着某一项的 slot（无限拼贴上同一项有好几份）：只在周围 `radius` 圈块里找（原型的 locateNowPlaying），
- * 找不到就是 null（那一项不在这一层，或离得太远）。
+ * 找不到就是 null（那一项不在这一层，或离得太远）。块按显示的形状取。
  */
 export const findItemSlotNear = (
     display: BravaisDisplay | null,
     itemKey: string,
     point: { x: number; y: number },
-    blockSize: { width: number; height: number },
-    collectBlock: (column: number, row: number) => readonly WallSlot[],
     radius = 4,
 ): WallSlot | null => {
     if (!display) return null;
+    const blockSize = display.shape.blockSize;
+    const collectBlock = display.shape.blockSlots;
     const column = Math.floor(point.x / blockSize.width);
     const row = Math.floor(point.y / blockSize.height);
     const candidates: WallSlot[] = [];
@@ -240,10 +257,10 @@ export const findItemSlotNear = (
 
 const NO_REFLOW: ReadonlyMap<string, WallSlot> = new Map();
 
-/** 聚焦卡展开时它所在块的 12 个新矩形（slot key → 矩形）。 */
-export const resolveFocusReflow = (expandedSlotKey: string | null): ReadonlyMap<string, WallSlot> => {
+/** 聚焦卡展开时它所在块的新矩形（slot key → 矩形；块是 12 个，探索形状的地是它的座位与标题）。 */
+export const resolveFocusReflow = (expandedSlotKey: string | null, shape: BravaisWallShape = BRAVAIS_BLOCK_SHAPE): ReadonlyMap<string, WallSlot> => {
     const address = expandedSlotKey ? parseWallSlotKey(expandedSlotKey) : null;
     if (!address) return NO_REFLOW;
-    const slots = layoutFocusedBlock(address.column, address.row, address.slotIndex, BRAVAIS_METRICS);
+    const slots = shape.grownBlock(address.column, address.row, address.slotIndex);
     return slots ? new Map(slots.map(slot => [slot.key, slot])) : NO_REFLOW;
 };

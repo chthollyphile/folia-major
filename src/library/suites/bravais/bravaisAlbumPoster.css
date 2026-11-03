@@ -299,6 +299,23 @@
     background-image: none !important;
 }
 
+/* 拼贴的磁贴底部只留一层淡的压暗（墙上通用的那层到底边有 92%，每格底下一道暗带，把拼起来的封面切成一条条）：
+ * 只压最下面一截，标题靠文字阴影托住。碎片照旧用通用的那层（双色调对比强，标题要它垫着）。 */
+.bravais-root.has-album-wall .bravais-tile-face[data-bravais-art="mosaic"] .lattice-poster-shade {
+    background: linear-gradient(
+        180deg,
+        transparent 55%,
+        rgb(var(--lattice-shade-rgb) / 12%) 74%,
+        rgb(var(--lattice-shade-rgb) / 40%) 100%
+    );
+}
+
+.bravais-root.has-album-wall .bravais-tile-face[data-bravais-art="mosaic"] .lattice-poster-copy {
+    text-shadow:
+        0 1px 2px rgb(var(--lattice-shade-rgb) / 60%),
+        0 0 14px rgb(var(--lattice-shade-rgb) / 45%);
+}
+
 .bravais-root.has-album-wall .bravais-tile-art {
     position: absolute;
     inset: 0;

@@ -1,7 +1,6 @@
-import type { LibraryDirectoryVisibilityMode } from '../../core/contracts/directory';
+import type { LibraryDirectoryVisibilityMode } from '../../core/directory/directory.contract';
 import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
-import type { BravaisAccountRow } from './bravaisAccountModel';
-import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
+import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
 // B9 首页挂在层描述上的扩展类型（设计稿 §10.5、§5「面板」的目录树）：首页窄缝里的二级切换、工具按钮（搜索、目录、
@@ -40,6 +39,7 @@ export type BravaisHomeToolId =
     | 'directory'
     | 'manage-hidden'
     | 'refresh-navidrome'
+    | 'refresh-explore'
     | 'queue'
     | 'player'
     | 'stage'
@@ -89,9 +89,9 @@ export type BravaisHomeSearch = {
 };
 
 /**
- * 给 B10 账户留的位置：首页在线页签（歌单 / 电台 / 专辑）窄缝里的平台切换。B9 只渲染一个空容器
- * （BravaisSeamAccountSlot，`data-bravais-account-slot=<providerId>`），本地 / Navidrome 页签不给。
- * B10 在这里补平台列表、当前平台、登出与登录入口（account-select / account-logout），登录态与确认态是缝的表单态。
+ * 给 B10 账户留的位置：首页在线页签（歌单 / 电台 / 专辑）窄缝里的平台切换。容器是
+ * BravaisSeamAccountSlot（`data-bravais-account-slot=<providerId>`），本地 / Navidrome 页签不给。
+ * 入口打开共用的登录窗口：换平台、登录、退出都在窗口里。
  */
 export type BravaisHomeAccount = {
     providerId: string;
@@ -105,21 +105,16 @@ export type BravaisHomeAccount = {
     nickname: string | null;
     avatarUrl: string | null;
     /**
-     * B10：当前平台未登录（墙空着）。fb3：窄缝里只显示一个「连接在线平台」入口（connectLabel），点了才展开平台列表；
-     * 已登录时是当前平台 + 账户状态的开合按钮。
+     * B10：当前平台未登录（墙空着）。窄缝里只显示一个「连接在线平台」入口（connectLabel）；
+     * 已登录时是头像 + 昵称的按钮。两种都打开登录窗口。
      */
     guest: boolean;
     /** fb3：未登录时的入口按钮文案（「连接在线平台」）。 */
     connectLabel: string;
-    /** B10：列表的读屏名（「在线音乐平台」）与开合按钮的标题（「切换在线音乐平台」）。 */
-    title: string;
+    /** 入口按钮的标题（「切换在线音乐平台」）。 */
     toggleLabel: string;
-    /** B10：provider 列表（bravaisAccountModel 的 projectAccountSwitcherRows）。 */
-    rows: readonly BravaisAccountRow[];
-    /** B10：选一个平台（account.selectProvider：能直接切的问确认，要登录的翻成登录态）。 */
-    onSelect: (providerId: string) => void;
-    /** B10：登出（只对能登出、且没有登出在途的那一行）。 */
-    onLogout: (providerId: string) => void;
+    /** 打开共用的登录窗口，从按下去的那个按钮那一边出来（已登录时开在正在用的平台上）。 */
+    onOpen: (pressed: Element | null) => void;
 };
 
 /** 首页层在缝里的那一部分（BravaisSeamModel.home）。 */
@@ -146,7 +141,7 @@ export type BravaisHomeSeam = {
 
 /** 目录树面板里的一行（本地文件夹是树；专辑 / 歌手是平铺的条目）。 */
 export type BravaisDirectoryRow = {
-    /** 行 key（core/model/directoryTree：条目是 `item:<id>`，树节点是 `node:<id>`）。 */
+    /** 行 key（core/directory/directoryTree：条目是 `item:<id>`，树节点是 `node:<id>`）。 */
     key: string;
     label: string;
     detail: string;

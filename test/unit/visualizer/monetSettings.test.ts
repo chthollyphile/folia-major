@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LATENT_BACKGROUND_TUNING, DEFAULT_MONET_BACKGROUND_TUNING, DEFAULT_MONET_TUNING, DEFAULT_NOMAND_BACKGROUND_TUNING, type Line, type Theme } from '@/types';
-import { getMonetBackgroundCacheKey, resolveWashColor, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, checkCanvasFilterSupport } from '@/components/visualizer/monet/monetBackgroundPipeline';
+import { resolveWashColor } from '@/components/visualizer/monet/monetBackgroundPaint';
 import {
     resolveLatentAudioSpeedTarget,
     resolveLatentBeatSpeedTarget,
@@ -14,7 +15,11 @@ import { buildMonetDisplayTokens, resolveMonetLyricContext } from '@/components/
 import { buildMonetVisibleLineEntries, measureMonetLineLayout, resolveMonetSweepEdgeSoftness, resolveMonetSweepEnd } from '@/components/visualizer/monet/monetLyricsModel';
 import { colorWithAlpha, mixColors, parseColorChannels } from '@/components/visualizer/colorMix';
 import { buildWordColorRanges, prepareWordColorMatchers, resolveTokenColorMap } from '@/components/visualizer/wordColoring';
-import { resolveStoredLatentBackgroundTuning, resolveStoredMonetBackgroundTuning, resolveStoredMonetTuning, resolveStoredNomandBackgroundTuning, resolveVisualizerBackgroundMode } from '@/stores/visualizerSettingsPersistence';
+import { resolveStoredMonetBackgroundTuning } from '@/components/visualizer/backgrounds/monet/tuning';
+import { resolveStoredMonetTuning } from '@/components/visualizer/monet/tuning';
+import { resolveStoredNomandBackgroundTuning } from '@/components/visualizer/backgrounds/nomand/tuning';
+import { resolveStoredLatentBackgroundTuning } from '@/components/visualizer/backgrounds/latent/tuning';
+import { resolveVisualizerBackgroundMode } from '@/stores/visualizerSettingsPersistence';
 
 // test/unit/visualizer/monetSettings.test.ts
 // Locks Monet tuning normalization, background cache keys, and lyric helper contracts.
@@ -147,6 +152,7 @@ describe('Monet tuning and lyric helpers', () => {
             fontScale: 3,
             portraitSource: 'custom',
         })).toEqual({
+            render: { scale: 'global', antialias: 'global' },
             keywordColoringEnabled: false,
             showAudioVisualization: false,
             audioStyle: 'line',

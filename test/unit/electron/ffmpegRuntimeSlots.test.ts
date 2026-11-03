@@ -17,7 +17,7 @@ const {
     TRANSCODE_RUNTIME_DIR,
     RUNTIME_SLOTS,
     FFMPEG_BINARY_NAME,
-} = require('../../../electron/modSystem/ffmpeg.cjs') as {
+} = require('../../../electron/ffmpeg.cjs') as {
     resolveFfmpeg: (options: { appGetAppPath: () => string; packagedDirName?: string; }) => Promise<{ candidates: string[]; }>;
     MODS_RUNTIME_DIR: string;
     TRANSCODE_RUNTIME_DIR: string;

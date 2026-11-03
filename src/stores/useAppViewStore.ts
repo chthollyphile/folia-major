@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type React from 'react';
 import type { PanelTab } from '../components/UnifiedPanel';
-import type { LibraryQueryPort } from '../library/core/contracts/session';
+import type { LibraryQueryPort } from '../library/core/shared/session.contract';
 
 // src/stores/useAppViewStore.ts
 // Which surface the app is showing, and the unified panel's own open/tab state.
@@ -15,6 +15,9 @@ import type { LibraryQueryPort } from '../library/core/contracts/session';
 // them. This store is the readable truth about where the app is, not a second way to navigate.
 
 export type AppView = 'home' | 'player' | 'lattice';
+
+/** What the wall (the 'lattice' view) shows: the play queue, or the entries of the explore page. */
+export type LatticeSource = 'queue' | 'explore';
 
 /**
  * A surface that reads typed characters as filter input — today the three home grids. It hands the
@@ -69,6 +72,23 @@ export type CommandFilterHandle = LibraryQueryPort & CommandFilterAnchor;
 
 type AppViewState = {
     view: AppView;
+    /**
+     * What the wall shows. It belongs to the wall's entry in the history, which carries it: Back
+     * to a wall shows what that wall showed. Not kept across a restart.
+     */
+    latticeSource: LatticeSource;
+    /**
+     * The tile whose collection page the wall was left for. The wall is taken down while that
+     * page is shown; come back to, it opens on this tile again. Null for any other opening.
+     */
+    latticeReturnTileId: string | null;
+    /**
+     * Whether the wall is being left for a collection's page: from the press of its tile's Open
+     * button until that page has made its entrance (wallLayer.ts), and for no longer than the
+     * app stays in the page's view. `latticeReturnTileId` does not say this: it is kept for as
+     * long as no wall is put up.
+     */
+    isLatticeLeftForPage: boolean;
     isPanelOpen: boolean;
     panelTab: PanelTab;
     /** The home surface has finished animating out, so it can stop rendering entirely. */
@@ -87,6 +107,10 @@ type AppViewState = {
 
     /** Written only by useAppNavigation, which owns the history transitions. */
     setView: (view: AppView) => void;
+    /** Written only by useAppNavigation, with the view. */
+    setLatticeSource: (source: LatticeSource) => void;
+    setLatticeReturnTileId: (tileId: string | null) => void;
+    setIsLatticeLeftForPage: (isLeft: boolean) => void;
     setIsPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
     setPanelTab: React.Dispatch<React.SetStateAction<PanelTab>>;
     setIsHomeFullyHidden: React.Dispatch<React.SetStateAction<boolean>>;
@@ -103,6 +127,9 @@ const resolve = <T,>(next: React.SetStateAction<T>, previous: T): T => (
 
 export const useAppViewStore = create<AppViewState>((set, get) => ({
     view: 'home',
+    latticeSource: 'queue',
+    latticeReturnTileId: null,
+    isLatticeLeftForPage: false,
     isPanelOpen: false,
     panelTab: 'cover',
     isHomeFullyHidden: false,
@@ -110,7 +137,11 @@ export const useAppViewStore = create<AppViewState>((set, get) => ({
     isCommandFilterOpen: false,
     commandPaletteRequest: { seq: 0, kind: 'filter' },
 
-    setView: (view) => set({ view }),
+    // A page is in the home view. In the player, or with a wall up, no wall is being left for one.
+    setView: (view) => set(view === 'home' ? { view } : { view, isLatticeLeftForPage: false }),
+    setLatticeSource: (source) => set({ latticeSource: source }),
+    setLatticeReturnTileId: (tileId) => set({ latticeReturnTileId: tileId }),
+    setIsLatticeLeftForPage: (isLeft) => set({ isLatticeLeftForPage: isLeft }),
     setIsPanelOpen: (next) => set({ isPanelOpen: resolve(next, get().isPanelOpen) }),
     setPanelTab: (next) => set({ panelTab: resolve(next, get().panelTab) }),
     setIsHomeFullyHidden: (next) => set({ isHomeFullyHidden: resolve(next, get().isHomeFullyHidden) }),

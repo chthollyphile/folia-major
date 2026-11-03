@@ -1,16 +1,19 @@
 import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
 import type { SongResult } from '../../../types';
 import { useAppViewStore } from '../../../stores/useAppViewStore';
-import { focusLatticeCurrentSong, useLatticeControlsStore } from '../../../stores/useLatticeControlsStore';
+import { locatePlayingSong } from '../playing-song-locator/playingSongLocator';
+import { locatePlayingSongOnWall } from '../lattice/wallLocate';
 import type { CommandPaletteContext } from '../../command-palette/types';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
-import { usePersonalFmModeStore } from '../../../stores/usePersonalFmModeStore';
+import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
+import { getPersonalFmSelection, usePersonalFmModeStore } from '../../../stores/usePersonalFmModeStore';
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
 import { openAddToPlaylist, useAddToPlaylistStore } from '../../../stores/useAddToPlaylistStore';
 import { useInteractionSettingsStore } from '../../../stores/useInteractionSettingsStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { isLocalPlaybackSong } from '../../../utils/appPlaybackGuards';
+import { openHifiSignalPath } from '../../hifi/hifiPanelStore';
 
 // src/components/app/command-palette-context/buildAppOwnedCommandContext.ts
 // The four namespaces whose state genuinely still lives in App.tsx: shared, playback, navigation
@@ -70,13 +73,33 @@ export const buildPlaybackCommandContext = (
         volume: audio.volume,
         isMuted: audio.isMuted,
         setVolume: audio.handleSetVolume,
+        // Read from the store at the press, not from this snapshot: a held key repeats faster
+        // than the context is rebuilt, and each step has to start where the last one ended. Turning
+        // it up also unmutes, like a keyboard's volume key: otherwise the number rises in silence.
+        stepVolume: (delta) => {
+            const live = useAudioSettingsStore.getState();
+            if (delta > 0 && live.isMuted) {
+                live.handleSetMuted(false);
+            }
+            const next = Math.round(Math.min(1, Math.max(0, live.volume + delta)) * 100) / 100;
+            live.handleSetVolume(next);
+        },
         toggleMute: audio.handleToggleMute,
         openAddToPlaylist,
         canAddCurrentSongToPlaylist: useAddToPlaylistStore.getState().availability.canAdd,
         canToggleCurrentSongPureMusicMark: isLocalPlaybackSong(usePlaybackStore.getState().currentSong),
-        personalFmSelection: usePersonalFmModeStore.getState().selection,
+        personalFmSelection: getPersonalFmSelection(useOnlineProviderAccountStore.getState().activeProviderId),
+        personalFmCatalog: usePersonalFmModeStore.getState().catalogs[useOnlineProviderAccountStore.getState().activeProviderId],
         openAudioEqualizer: audio.openAudioEqualizer,
         applyAudioSoundPreset: audio.handleApplyAudioSoundPreset,
+        // Read at the press: a mod's curve comes and goes without this context being rebuilt.
+        hasModEqualizerCurve: () => useAudioSettingsStore.getState().audioEqualizerModCurve !== null,
+        releaseModEqualizerCurve: () => {
+            useAudioSettingsStore.getState().handleReleaseModEqualizerCurve({ kind: 'command' });
+        },
+        // Read at the press: each new song picks its route without this context being rebuilt.
+        isHifiRoute: () => usePlaybackStore.getState().playbackRoute === 'hifi',
+        openHifiSignalPath,
     };
 };
 
@@ -84,9 +107,10 @@ export const buildNavigationCommandContext = (
     deps: NavigationCommandContextDeps,
 ): CommandPaletteContext['navigation'] => ({
     ...deps,
-    focusLatticeCurrentSong,
-    canFocusLatticeCurrentSong: Boolean(useLatticeControlsStore.getState().focusCurrentSong),
+    locatePlayingSongOnWall,
+    locatePlayingSong,
     isWallpaperMode: useDesktopSettingsStore.getState().wallpaperMode,
+    isWindowAlwaysOnTopSupported: useDesktopSettingsStore.getState().windowAlwaysOnTopSupported,
 });
 
 export const buildPanelCommandContext = (

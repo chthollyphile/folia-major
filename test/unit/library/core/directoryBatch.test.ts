@@ -11,8 +11,8 @@ import {
     resolveDirectoryNodeSelection,
     resolveNextDirectoryNodeSelectionTarget,
     runDirectoryBatchAction,
-} from '@/library/core/model/directoryBatch';
-import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchController, LibraryDirectoryItem, LibraryDirectoryNode } from '@/library/core/contracts/directory';
+} from '@/library/core/directory/directoryBatch';
+import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchController, LibraryDirectoryItem, LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
 
 // test/unit/library/core/directoryBatch.test.ts
 // 目录批量的纯规则：范围 = 可见（去隐藏）→ 筛选 → 选中（按稳定 id，不是排除集合）；选中的条目按卡片顺序、

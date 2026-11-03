@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { SheetButton } from './Sheet';
 import ThemedDialog from './ThemedDialog';
 
 // src/components/shared/ConfirmDialog.tsx
@@ -30,18 +31,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
     const { t } = useTranslation();
 
-    const cancelClass = isDaylight
-        ? 'bg-zinc-100/80 hover:bg-zinc-200 border-zinc-200 text-zinc-700'
-        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white';
-
-    const confirmClass = confirmVariant === 'danger'
-        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'
-        : isDaylight
-            ? 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-lg shadow-zinc-900/20'
-            : 'bg-white hover:bg-zinc-100 text-zinc-900 shadow-lg shadow-white/20';
-
     const defaultConfirmLabel = t('status.confirm') !== 'status.confirm' ? t('status.confirm') : t('ui.confirm');
     const defaultCancelLabel = t('status.cancel') !== 'status.cancel' ? t('status.cancel') : t('ui.cancel');
+    // Focus starts on the answer, so that Enter gives it; on the way out when the answer destroys something.
+    const focusOnCancel = confirmVariant === 'danger';
 
     return (
         <ThemedDialog
@@ -52,22 +45,12 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             description={typeof description === 'string' ? description : undefined}
             footer={(
                 <>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className={`rounded-full border px-5 py-2.5 text-sm font-medium transition-colors ${cancelClass}`}
-                    >
+                    <SheetButton data-autofocus={focusOnCancel || undefined} onClick={onClose}>
                         {cancelText || defaultCancelLabel}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            onConfirm();
-                        }}
-                        className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors ${confirmClass}`}
-                    >
+                    </SheetButton>
+                    <SheetButton data-autofocus={!focusOnCancel || undefined} variant={confirmVariant} onClick={() => onConfirm()}>
                         {confirmText || defaultConfirmLabel}
-                    </button>
+                    </SheetButton>
                 </>
             )}
         >

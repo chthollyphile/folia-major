@@ -3,10 +3,10 @@ import type { ChorusRange, ProviderLyricsResult } from '@/types/onlineMusic';
 import { LocalFileLyricAdapter } from '@/utils/lyrics/adapters/LocalFileLyricAdapter';
 import { resolveLyricProcessingOptions } from '@/utils/lyrics/filtering';
 import { parseLRC } from '@/utils/lyrics/parserCore';
-import type { FoliumLyricFormat, FoliumLyricsTrack } from './contract';
+import type { FoliumLegacyLyricsResult, FoliumLyricFormat, FoliumLyricsTrack } from './contract';
 
 // src/mods/folium/lyricsSource.ts
-// Folium 1.4 lyrics: a mod hands raw lyric text plus its format, and the host parses it exactly like a
+// Lyrics from a mod: it hands raw lyric text plus its format, and the host parses it exactly like a
 // local lyric file (LocalFileLyricAdapter: .fia documents, awlrc containers, combined-timeline splitting,
 // the parser worker). Shared by the `omni.providers` adapter and `folium.lyrics.parse`.
 //
@@ -88,8 +88,18 @@ const normalizeChorusRanges = (value: unknown): ChorusRange[] => {
 
 const NO_LYRICS: ProviderLyricsResult = { lyrics: null, isPureMusic: false };
 
-/** The Folium 1.3 answer, `{ lrc, translationLrc }`, handled exactly as 1.3 did. */
-const resolveLegacyLyricsResult = (raw: { lrc: string; translationLrc?: unknown }): ProviderLyricsResult => {
+/**
+ * Whether a `getLyrics` answer is the deprecated Folium 1.3 shape, `{ lrc, translationLrc }`: an `lrc`
+ * string and neither track. registries/omniProviders.ts says it to the mod with the same test.
+ */
+export const isFoliumLegacyLyricsResult = (raw: unknown): raw is FoliumLegacyLyricsResult => {
+    if (!raw || typeof raw !== 'object') return false;
+    const result = raw as Record<string, unknown>;
+    return result.main === undefined && result.wordByWord === undefined && typeof result.lrc === 'string';
+};
+
+/** The Folium 1.3 answer, read as plain LRC with its translation. Folium 2 drops it. */
+const resolveLegacyLyricsResult = (raw: FoliumLegacyLyricsResult): ProviderLyricsResult => {
     if (!raw.lrc.trim()) return NO_LYRICS;
     const translationLrc = typeof raw.translationLrc === 'string' ? raw.translationLrc : undefined;
     return {
@@ -118,10 +128,8 @@ const tryParseTrack = async (track: FoliumLyricsTrack, label: string, key: strin
  */
 export const resolveFoliumLyricsResult = async (raw: unknown, label: string): Promise<ProviderLyricsResult> => {
     if (!raw || typeof raw !== 'object') return NO_LYRICS;
+    if (isFoliumLegacyLyricsResult(raw)) return resolveLegacyLyricsResult(raw);
     const result = raw as Record<string, unknown>;
-    if (result.main === undefined && result.wordByWord === undefined && typeof result.lrc === 'string') {
-        return resolveLegacyLyricsResult(result as { lrc: string; translationLrc?: unknown });
-    }
     if (result.isPureMusic === true) return { lyrics: null, isPureMusic: true };
 
     const checkTrack = (key: 'main' | 'wordByWord'): FoliumLyricsTrack | null => {

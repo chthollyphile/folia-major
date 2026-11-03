@@ -18,6 +18,7 @@
   - Debian / Ubuntu：下载 `folia-major-<version>-linux-amd64.deb`
   - Fedora / openSUSE：下载 `folia-major-<version>-linux-x86_64.rpm`
   - 其他发行版：下载 `folia-major-<version>-linux-x64.tar.gz`
+  - ARM64（树莓派等 aarch64 设备）：按发行版下载 `folia-major-<version>-linux-arm64.deb` / `folia-major-<version>-linux-aarch64.rpm` / `folia-major-<version>-linux-arm64.tar.gz`
 
 ## 预发布元数据
 

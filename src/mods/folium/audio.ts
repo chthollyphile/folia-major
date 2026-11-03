@@ -3,7 +3,7 @@ import type { AudioBands } from '@/types';
 import type { FoliumAudio, FoliumAudioBands } from './contract';
 
 // src/mods/folium/audio.ts
-// Projects the host's analyser MotionValues into the public FoliumAudio (1.2).
+// Projects the host's analyser MotionValues into the public FoliumAudio.
 // The host carries two scales: the live analyser writes 0..255, while previews
 // and the theme editor feed a synthetic 0..1 signal. Mods get one scale, 0..1.
 

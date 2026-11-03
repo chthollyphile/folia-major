@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "sample-rickroll",
   "modVersion": "1.0.1",
-  "digest": "sha256:31285c45822ff937bc4f1e326a7d6b589d106f5e1167dcc595a1ecbfc4b5873e",
+  "digest": "sha256:eb02c6751efdbbf4085d9cbffe2f8e7382d201b9ed24a430da4d779aba1fac38",
   "keyId": "folium-2026-1",
-  "signedAt": "2026-09-24T19:10:07.804Z",
-  "signature": "Q18JsYoM6hShQcNXM1VcsPyLytyc6NdmbWZjwqD/0Vulth3btn/P4MnUfbGmIJaX1RBBGKIKYMngK7psMI0oDw=="
+  "signedAt": "2026-10-17T07:54:59.481Z",
+  "signature": "28y/6/SvTa0F2b989pPn4Av/kjMarFw6g8+FYxBb8ECDB7i63XsE0sUvL/7ekZzEssDusRqzsHH53bzAQMqhDw=="
 }

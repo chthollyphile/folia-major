@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildPlaybackCommandContext, type PlaybackCommandContextDeps } from '../../../src/components/app/command-palette-context/buildAppOwnedCommandContext';
 import { useAppViewStore } from '../../../src/stores/useAppViewStore';
-import { focusLatticeCurrentSong, useLatticeControlsStore } from '../../../src/stores/useLatticeControlsStore';
 import { getQueueSongMatches } from '../../../src/components/command-palette/queueSongMatches';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 import type { SongResult } from '../../../src/types';
@@ -15,7 +14,6 @@ const song: SongResult = {
 };
 afterEach(() => {
     useAppViewStore.getState().setView('home');
-    useLatticeControlsStore.setState({ focusCurrentSong: null });
 });
 
 describe('lattice command integration', () => {
@@ -30,17 +28,5 @@ describe('lattice command integration', () => {
             await match.command.execute('', context);
             expect(playSong).toHaveBeenLastCalledWith(song, [song], false, { shouldNavigateToPlayer: view !== 'lattice' });
         }
-    });
-    it('unregisters the wall capability without erasing a newer wall registration', () => {
-        const first = vi.fn();
-        const second = vi.fn();
-        const removeFirst = useLatticeControlsStore.getState().registerFocus(first);
-        expect(focusLatticeCurrentSong()).toBe(true);
-        const removeSecond = useLatticeControlsStore.getState().registerFocus(second);
-        removeFirst();
-        expect(focusLatticeCurrentSong()).toBe(true);
-        expect(second).toHaveBeenCalledOnce();
-        removeSecond();
-        expect(focusLatticeCurrentSong()).toBe(false);
     });
 });

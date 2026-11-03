@@ -1,7 +1,6 @@
 import i18n from '../../../i18n/config';
-import { clearCacheByCategory } from '../../../services/db';
-import { invalidatePrefetchedLyrics } from '../../../services/prefetchService';
 import type { LyricData, StatusMessage } from '../../../types';
+import type { LyricLineRule } from '../../../utils/lyrics/lyricLineRules';
 import type { LyricStaffAbsorbMode, LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy';
 import { setStatusMessage as setStatusMsg } from '../../../stores/useStatusMessageStore';
 import { setCurrentLineIndex } from '../../../stores/usePlaybackStore';
@@ -9,8 +8,7 @@ import { setCurrentLineIndex } from '../../../stores/usePlaybackStore';
 // src/components/app/home/createLyricFilterPatternSaver.ts
 
 export interface LyricFilterSaveDraft {
-    pattern: string;
-    filterEnabled: boolean;
+    rules: LyricLineRule[];
     staffPolicy: LyricStaffPolicy;
     staffMinDwellSeconds: number;
     staffAbsorbMode: LyricStaffAbsorbMode;
@@ -18,10 +16,7 @@ export interface LyricFilterSaveDraft {
 }
 
 type CreateLyricFilterPatternSaverParams = {
-    /** 保存前的逐行过滤正则，用来判断要不要动缓存。 */
-    currentEffectivePattern: string;
-    handleSetLyricFilterPattern: (pattern: string) => void;
-    handleSetLyricFilterEnabled: (enabled: boolean) => void;
+    handleSetLyricLineRules: (rules: LyricLineRule[]) => void;
     handleSetLyricStaffPolicy: (policy: LyricStaffPolicy) => void;
     handleSetLyricStaffMinDwellSeconds: (seconds: number) => void;
     handleSetLyricStaffAbsorbMode: (mode: LyricStaffAbsorbMode) => void;
@@ -32,9 +27,7 @@ type CreateLyricFilterPatternSaverParams = {
 
 // Creates the Home-facing lyric filter save action without keeping the implementation in App.tsx.
 export const createLyricFilterPatternSaver = ({
-    currentEffectivePattern,
-    handleSetLyricFilterPattern,
-    handleSetLyricFilterEnabled,
+    handleSetLyricLineRules,
     handleSetLyricStaffPolicy,
     handleSetLyricStaffMinDwellSeconds,
     handleSetLyricStaffAbsorbMode,
@@ -43,22 +36,14 @@ export const createLyricFilterPatternSaver = ({
     setLyrics,
 }: CreateLyricFilterPatternSaverParams) => {
     return async (draft: LyricFilterSaveDraft) => {
-        handleSetLyricFilterPattern(draft.pattern);
-        handleSetLyricFilterEnabled(draft.filterEnabled);
+        handleSetLyricLineRules(draft.rules);
         handleSetLyricStaffPolicy(draft.staffPolicy);
         handleSetLyricStaffMinDwellSeconds(draft.staffMinDwellSeconds);
         handleSetLyricStaffAbsorbMode(draft.staffAbsorbMode);
         handleSetLyricStaffPattern(draft.staffPattern);
 
-        // 逐行过滤会在解析阶段生效并写进缓存，改了就必须重新取。
-        // staff 策略只是显示层变换，缓存里的原始歌词依然有效——清掉反而会让离线时
-        // 连当前这首都恢复不出来。
-        const nextEffectivePattern = draft.filterEnabled ? draft.pattern : '';
-        if (nextEffectivePattern !== currentEffectivePattern) {
-            await clearCacheByCategory('lyrics');
-            invalidatePrefetchedLyrics();
-        }
-
+        // Both the line rules and the staff policy are applied where lyrics are shown, never in the
+        // lyric cache, so the cache stays: the current song is only laid out again with the new rules.
         const previewLyrics = await loadCurrentSongLyricPreview();
         setLyrics(previewLyrics);
         setCurrentLineIndex(-1);

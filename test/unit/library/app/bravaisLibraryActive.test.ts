@@ -5,9 +5,9 @@ import {
     isBravaisLibraryActive,
     isBravaisLibrarySuite,
 } from '@/library/app/bravaisLibraryActive';
-import { useLibrarySuiteStore } from '@/library/core/state/useLibrarySuiteStore';
-import { buildLibrarySuiteIndex, isLibrarySuiteChoiceAvailable, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/model/librarySuites';
-import type { LibrarySuiteManifest } from '@/library/core/contracts/suite';
+import { useLibrarySuiteStore } from '@/library/core/suite/useLibrarySuiteStore';
+import { buildLibrarySuiteIndex, isLibrarySuiteChoiceAvailable, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import type { LibrarySuiteManifest } from '@/library/core/suite/suite.contract';
 
 // test/unit/library/app/bravaisLibraryActive.test.ts
 // 「当前是 bravais」的共享谓词（B6b②）：透光设置分区与两条命令都用它。比较的是生效 suite，不是 store 原值——
@@ -59,7 +59,7 @@ describe('isBravaisLibraryActive once bravais is available', () => {
             };
         });
         const { isBravaisLibraryActive: isActive } = await import('@/library/app/bravaisLibraryActive');
-        const { useLibrarySuiteStore: store } = await import('@/library/core/state/useLibrarySuiteStore');
+        const { useLibrarySuiteStore: store } = await import('@/library/core/suite/useLibrarySuiteStore');
 
         store.setState({ suite: 'bravais' });
         expect(isActive()).toBe(true);

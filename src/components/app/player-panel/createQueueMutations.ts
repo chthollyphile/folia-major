@@ -3,7 +3,7 @@ import { buildNavidromeQueue } from '../../../services/playbackAdapters';
 import { applyQueueAddBehavior } from '../../../utils/queueAddBehavior';
 import type { NavidromeSong } from '../../../types/navidrome';
 import type { QueueAddBehavior, SongResult, StatusMessage } from '../../../types';
-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import { queueIndexOf } from '../../../utils/playbackNeighbors';
 import { applyQueueBatchOperation as transformQueueBatch } from '../../../utils/queueBatchOperations';
 import { moveQueueItem, moveQueueItemToNext } from '../../../utils/queueReorder';
 import { refreshPrefetchAfterQueueEdit } from '../../../services/prefetchService';
@@ -83,11 +83,7 @@ export const createQueueMutations = ({
     };
 
     const moveQueueSongToNext = (index: number) => {
-        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-        const currentIndex = currentSongKey
-            ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
-            : -1;
-        const nextQueue = moveQueueItemToNext(playQueue, index, currentIndex);
+        const nextQueue = moveQueueItemToNext(playQueue, index, queueIndexOf(playQueue, currentSong));
         if (nextQueue === playQueue) return;
         updateQueueOrder(nextQueue);
     };

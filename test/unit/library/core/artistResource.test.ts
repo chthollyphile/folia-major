@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { LocalSong, SongResult } from '@/types';
 import type { ProviderCollection, ProviderPage } from '@/types/onlineMusic';
 import type { SubsonicAlbum, SubsonicSong } from '@/types/navidrome';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
-import type { LibraryArtistLocalLibrary } from '@/library/core/contracts/artist';
-import { createArtistResource, type ArtistResourceDeps, type NavidromeArtistSource } from '@/library/core/services/artistResource';
-import { createArtistResourceRegistry } from '@/library/core/services/artistResourceRegistry';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import type { LibraryArtistLocalLibrary } from '@/library/core/artist/artist.contract';
+import { createArtistResource, type ArtistResourceDeps, type NavidromeArtistSource } from '@/library/core/artist/artistResource.service';
+import { createArtistResourceRegistry } from '@/library/core/artist/artistResourceRegistry.service';
 
 // test/unit/library/core/artistResource.test.ts
 // 歌手资源（原 ArtistGridView 的加载）：generation 丢弃被取代的应答、专辑分页与失败续页、暂停与复用、

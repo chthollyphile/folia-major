@@ -2,8 +2,11 @@ import type {
     ModClearCacheResult,
     ModFfmpegStatus,
     ModLogEntry,
+    ModMainCallStats,
+    ModRpcMessage,
     ModRuntimeInfo,
     ModRuntimeSnapshot,
+    ModSecretChange,
     ModSetEnabledResult,
     ModStorageUsageResult,
     ModsListPayload,
@@ -23,6 +26,7 @@ const EMPTY_PAYLOAD: ModsListPayload = {
     mods: [],
     ffmpeg: { available: false, path: null, version: null, candidates: [] },
     directories: [],
+    startSkipped: false,
 };
 
 export const listMods = async (): Promise<ModsListPayload> => {
@@ -36,9 +40,45 @@ export const listMods = async (): Promise<ModsListPayload> => {
             mods: Array.isArray(payload?.mods) ? payload.mods : [],
             ffmpeg: payload?.ffmpeg ?? EMPTY_PAYLOAD.ffmpeg,
             directories: Array.isArray(payload?.directories) ? payload.directories : [],
+            startSkipped: payload?.startSkipped === true,
         };
     } catch {
         return EMPTY_PAYLOAD;
+    }
+};
+
+/** What the main-process gate counted for each mod's Node entry, by mod id; empty without the bridge. */
+export const getModCallStats = async (): Promise<Record<string, ModMainCallStats>> => {
+    try {
+        const response = await bridge()?.getModCallStats?.();
+        return response?.stats ?? {};
+    } catch {
+        return {};
+    }
+};
+
+/**
+ * Tells the main process that this window's start has ended: every client's start has returned
+ * and the first screen is up. The start note is taken up on it (electron/modSystem/safeStart.cjs).
+ */
+export const reportModsStartSettled = async (): Promise<void> => {
+    try {
+        await bridge()?.reportModsStartSettled?.();
+    } catch {
+        // The note then stays, and the next start asks once: the safe side.
+    }
+};
+
+/**
+ * Tells the main process that this window's page is answering while its start is under way. If
+ * the app is left the normal way before the start has ended, the start note is taken up only when
+ * this was heard a moment before: a page stuck on a mod cannot say it.
+ */
+export const reportModsStartAlive = async (): Promise<void> => {
+    try {
+        await bridge()?.reportModsStartAlive?.();
+    } catch {
+        // Nothing to do here: the main process goes by what it heard last.
     }
 };
 
@@ -84,6 +124,19 @@ export const invokeModStorage = async (
     value?: unknown,
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
     bridge()?.invokeModStorage(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
+
+/**
+ * Folium 1.7: a mod's `secret` settings values, kept in the main process (electron/modSystem/modSecrets.cjs).
+ * `declare` passes the `secret` keys of a settings section the mod registered (`key` is the list);
+ * `state` answers a ModSecretsState.
+ */
+export const invokeModSecrets = async (
+    modId: string,
+    operation: 'get' | 'has' | 'set' | 'declare' | 'state',
+    key?: string | readonly string[],
+    value?: string | null,
+): Promise<{ ok: boolean; result?: unknown; error?: string }> =>
+    bridge()?.invokeModSecrets(modId, operation, key, value) ?? { ok: false, error: 'no-electron-bridge' };
 
 /** folium.net.fetch: runs in the main process (permission `net.fetch`). */
 export const invokeModNetFetch = async (
@@ -170,3 +223,10 @@ export const subscribeExportProgress = (callback: (progress: ModExportProgress) 
 export const subscribeModLogs = (callback: (entry: ModLogEntry) => void): (() => void) =>
     bridge()?.onModLog(callback) ?? (() => {});
 
+/** Messages main entries push with `api.rpc.send`; folium/rpcMessages.ts hands each to its own mod. */
+export const subscribeModRpcMessages = (callback: (message: ModRpcMessage) => void): (() => void) =>
+    bridge()?.onModRpcMessage?.(callback) ?? (() => {});
+
+/** Folium 1.7: a mod's `secret` value was saved or cleared, by anyone; the key only. */
+export const subscribeModSecretChanges = (callback: (change: ModSecretChange) => void): (() => void) =>
+    bridge()?.onModSecretChanged?.(callback) ?? (() => {});

@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSong } from '@/types';
 import type { ProviderCollection, ProviderPage } from '@/types/onlineMusic';
-import type { LibraryHomeActionsController, LibraryHomeResources } from '@/library/core/contracts/homeModel';
-import { createFavoriteAlbumsFeed, createRadioFeed } from '@/library/core/services/onlineHomeFeeds';
-import { createNavidromeHomeLibrary, type NavidromeHomeLibraryDeps } from '@/library/core/services/navidromeHomeLibrary';
-import { createLocalDirectoryTrees } from '@/library/core/services/localDirectoryTrees';
-import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '@/library/core/services/libraryHomeLifetime';
-import { attachOnlineHomeFeeds } from '@/library/core/bindings/useLibraryHomeOnlineFeeds';
+import type { LibraryHomeActionsController, LibraryHomeResources } from '@/library/core/home/homeModel.contract';
+import { createFavoriteAlbumsFeed, createRadioFeed } from '@/library/core/home/online/onlineHomeFeeds.service';
+import { createNavidromeHomeLibrary, type NavidromeHomeLibraryDeps } from '@/library/core/home/navidrome/navidromeHomeLibrary.service';
+import { createLocalDirectoryTrees } from '@/library/core/directory/localDirectoryTrees.service';
+import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '@/library/core/home/libraryHomeLifetime.service';
+import { attachOnlineHomeFeeds } from '@/library/core/home/online/useLibraryHomeOnlineFeeds';
 import {
     closeOpenLibraryDirectory,
     getLibraryDirectorySession,
     useLibraryDirectorySessionStore,
-} from '@/library/core/state/useLibraryDirectorySessionStore';
-import { hasDirectorySessionState } from '@/library/core/model/directorySession';
+} from '@/library/core/directory/useLibraryDirectorySessionStore';
+import { hasDirectorySessionState } from '@/library/core/directory/directorySession';
 
 // test/unit/library/core/homeLifetime.test.ts
 // 首页数据与目录会话的寿命跟着语义（P3.4）：换 suite 时旧的首页 surface 卸载、新的挂载，同一份首页资源被新 surface

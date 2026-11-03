@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { COVER_SIZE_STEPS, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '../../utils/coverUrl';
 
 // src/components/wall/useWallPosterArtwork.ts
-// Picks which variant of a cover one poster paints. The wall draws the same queue at four gears and
-// repeats it across the plane, so handing every card the provider's original meant a full-size
-// decode per instance; a card asks for the step its own box needs instead.
+// Picks which variant of a cover one poster paints. The wall draws the same list (the play queue,
+// or the explore page's entries) at four gears and repeats it across the plane, so handing every
+// card the provider's original meant a full-size decode per instance; a card asks for the step its
+// own box needs instead.
 
 /**
  * Variants known to have decoded. A poster that pans back in, or one of the other instances of the

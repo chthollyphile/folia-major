@@ -1,4 +1,4 @@
-import type { LibrarySuiteChromeActionMeta } from '../../../library/core/contracts/suiteChrome';
+import type { LibrarySuiteChromeActionMeta } from '../../../library/core/suite/suiteChrome.contract';
 import { createSuiteChromeCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 

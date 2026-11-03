@@ -1,5 +1,5 @@
-import type { LibraryBackdropSnapshot, LibrarySuiteBackdrop } from '../../../core/contracts/suite';
-import { NEUTRAL_LIBRARY_BACKDROP } from '../../../core/model/libraryBackdrop';
+import type { LibraryBackdropSnapshot, LibrarySuiteBackdrop } from '../../../core/suite/suite.contract';
+import { NEUTRAL_LIBRARY_BACKDROP } from '../../../core/suite/libraryBackdrop';
 import { readReducedMotion, resolveReducedMotion, useMotionSettingsStore } from '../../../../stores/useMotionSettingsStore';
 
 // src/library/suites/grid/transitions/gridBackdrop.ts

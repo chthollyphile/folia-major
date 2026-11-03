@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { FoliumSettingsCard } from '../../src/mods/folium/FoliumSettingsCard';
-import { createFoliumParamAccess } from '../../src/mods/folium/paramStore';
-import type { FoliumParam } from '../../src/mods/folium/contract';
+import { FoliumSettingsCard } from '../../src/mods/params/FoliumSettingsCard';
+import { createFoliumParamAccess } from '../../src/mods/params/paramStore';
+import type { FoliumSetting } from '../../src/mods/folium/contract';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
 import type { ProbeDefinition } from './definition';
 // dev/probes/foliumSelectField.probe.tsx
 
-const SCHEMA: FoliumParam[] = [
+const SCHEMA: FoliumSetting[] = [
     { key: 'fileName', type: 'text', label: { en: 'File name' }, defaultValue: 'folia-export' },
     {
         key: 'codec',

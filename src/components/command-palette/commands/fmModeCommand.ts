@@ -24,6 +24,6 @@ export const fmModeCommand: CommandPaletteCommand = defineCommand({
     requiresInput: true,
     isAvailable: context => context?.playback.isPersonalFmModeSupported ?? false,
     placeholder: context => context.shared.t('commandPalette.fmModeFilterPlaceholder', 'Type to filter modes and scenes'),
-    getPreview: (_input, context) => getPersonalFmSelectionLabel(context.playback.personalFmSelection, context.shared.t),
+    getPreview: (_input, context) => getPersonalFmSelectionLabel(context.playback.personalFmSelection, context.shared.t, context.playback.personalFmCatalog),
     execute: () => false,
 });

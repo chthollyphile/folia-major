@@ -563,7 +563,7 @@ async function selectSuite(page: Page, suite: 'grid' | 'tui' | 'bravais') {
         switchLibrarySuite('home', id);
     }, suite);
     await expect.poll(() => page.evaluate(async () => {
-        const modulePath = '/src/library/core/state/useLibrarySuiteStore.ts';
+        const modulePath = '/src/library/core/suite/useLibrarySuiteStore.ts';
         const { useLibrarySuiteStore } = await import(/* @vite-ignore */ modulePath);
         return useLibrarySuiteStore.getState().suite as string;
     })).toBe(suite);

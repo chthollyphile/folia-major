@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryMutationResult } from '../../core/contracts/mutations';
+import type { LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
 import { describeMutationResult, type MutationNoticeLabels } from './bravaisCollectionStatus';
 import type { BravaisSeamNotice } from './bravaisSeamModels';
 

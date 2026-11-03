@@ -1,4 +1,5 @@
 import { useVisualizerSettingsStore, type VisualizerSettingsState } from '../../stores/useVisualizerSettingsStore';
+import { toStoredSmartBeat } from '../../stores/visualizerSettingsPersistence';
 import { useTypographySettingsStore, type TypographySettingsState } from '../../stores/useTypographySettingsStore';
 import { useLyricSettingsStore, type LyricSettingsState } from '../../stores/useLyricSettingsStore';
 import { useHomeLayoutSettingsStore, type HomeLayoutSettingsState } from '../../stores/useHomeLayoutSettingsStore';
@@ -33,12 +34,14 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     followSystemTheme: state.followSystemTheme,
     visualizerMode: state.visualizerMode,
     randomVisualizerModePerSong: state.randomVisualizerModePerSong,
+    randomVisualizerModes: state.randomVisualizerModes,
     visualizerBackgroundMode: state.visualizerBackgroundMode,
     backgroundOpacity: state.backgroundOpacity,
     visualizerOpacity: state.visualizerOpacity,
     hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: state.showSubtitleTranslation,
     subtitleContentMode: state.subtitleContentMode,
+    subtitleOverlayLayout: state.subtitleOverlayLayout,
     subtitleOverlayBackground: state.subtitleOverlayBackground,
     subtitleUpcomingLyricsBlur: state.subtitleUpcomingLyricsBlur,
     lyricsFontStyle: state.lyricsFontStyle,
@@ -51,6 +54,8 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     subtitleFontFamily: state.subtitleFontFamily,
     subtitleFontFallbackFamilies: state.subtitleFontFallbackFamilies,
     visualizerTunings: collectVisualizerTunings(state as unknown as Record<string, unknown>),
+    // Frozen: the 13 lyric-style tunings below predate the visualizerTunings bundle, which carries any
+    // new style. Do not add a lyric style here.
     classicTuning: state.classicTuning,
     cadenzaTuning: state.cadenzaTuning,
     partitaTuning: state.partitaTuning,
@@ -66,6 +71,8 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     monetTuning: state.monetTuning,
     pendoloTuning: state.pendoloTuning,
     sonnetTuning: state.sonnetTuning,
+    // With the one switch an older build reads (toStoredSmartBeat).
+    smartBeat: toStoredSmartBeat(state.smartBeat),
     temperaTuning: state.temperaTuning,
     lumiereTuning: state.lumiereTuning,
     urlBackgroundList: state.urlBackgroundList,
@@ -92,7 +99,8 @@ export const applySyncedVisualSettings = (
     settings: SyncedVisualSettings,
 ) => {
     if (settings.followSystemTheme !== undefined) state.setFollowSystemTheme(Boolean(settings.followSystemTheme));
-    if (settings.visualizerMode !== undefined) state.handleSetVisualizerMode(settings.visualizerMode);
+    if (settings.visualizerMode !== undefined) state.handleSetVisualizerMode(settings.visualizerMode, { preserveRandom: true });
+    if (settings.randomVisualizerModes !== undefined) state.handleSetRandomVisualizerModes(settings.randomVisualizerModes);
     if (settings.randomVisualizerModePerSong !== undefined) state.handleToggleRandomVisualizerModePerSong(Boolean(settings.randomVisualizerModePerSong));
     if (settings.visualizerBackgroundMode === null) {
         state.handleResetVisualizerBackgroundMode();
@@ -104,6 +112,7 @@ export const applySyncedVisualSettings = (
     if (settings.hidePlayerTranslationSubtitle !== undefined) state.handleToggleHidePlayerTranslationSubtitle(Boolean(settings.hidePlayerTranslationSubtitle));
     if (settings.showSubtitleTranslation !== undefined) state.handleToggleShowSubtitleTranslation(Boolean(settings.showSubtitleTranslation));
     if (settings.subtitleContentMode !== undefined) state.handleSetSubtitleContentMode(settings.subtitleContentMode);
+    if (settings.subtitleOverlayLayout !== undefined) state.handleSetSubtitleOverlayLayout(settings.subtitleOverlayLayout);
     if (settings.subtitleOverlayBackground !== undefined) state.handleToggleSubtitleOverlayBackground(Boolean(settings.subtitleOverlayBackground));
     if (settings.subtitleUpcomingLyricsBlur !== undefined) state.handleToggleSubtitleUpcomingLyricsBlur(Boolean(settings.subtitleUpcomingLyricsBlur));
     if (settings.lyricsFontStyle !== undefined) state.handleSetLyricsFontStyle(settings.lyricsFontStyle);
@@ -118,6 +127,8 @@ export const applySyncedVisualSettings = (
     if (settings.visualizerTunings !== undefined) {
         applyVisualizerTuningsToSettings(state as unknown as Record<string, unknown>, settings.visualizerTunings);
     }
+    // Frozen: the 13 lyric-style tunings below predate the visualizerTunings bundle, which carries any
+    // new style. Do not add a lyric style here.
     if (settings.visualizerTunings === undefined && settings.classicTuning !== undefined) state.handleSetClassicTuning(settings.classicTuning as Parameters<SyncableSettingsState['handleSetClassicTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.cadenzaTuning !== undefined) state.handleSetCadenzaTuning(settings.cadenzaTuning as Parameters<SyncableSettingsState['handleSetCadenzaTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.partitaTuning !== undefined) state.handleSetPartitaTuning(settings.partitaTuning as Parameters<SyncableSettingsState['handleSetPartitaTuning']>[0]);
@@ -133,6 +144,7 @@ export const applySyncedVisualSettings = (
     if (settings.visualizerTunings === undefined && settings.monetTuning !== undefined) state.handleSetMonetTuning(settings.monetTuning as Parameters<SyncableSettingsState['handleSetMonetTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.pendoloTuning !== undefined) state.handleSetPendoloTuning(settings.pendoloTuning as Parameters<SyncableSettingsState['handleSetPendoloTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.sonnetTuning !== undefined) state.handleSetSonnetTuning(settings.sonnetTuning as Parameters<SyncableSettingsState['handleSetSonnetTuning']>[0]);
+    if (settings.smartBeat !== undefined) state.handleSetSmartBeat(settings.smartBeat as Parameters<SyncableSettingsState['handleSetSmartBeat']>[0]);
     if (settings.visualizerTunings === undefined && settings.temperaTuning !== undefined) state.handleSetTemperaTuning(settings.temperaTuning as Parameters<SyncableSettingsState['handleSetTemperaTuning']>[0]);
     if (settings.visualizerTunings === undefined && settings.lumiereTuning !== undefined) state.handleSetLumiereTuning(settings.lumiereTuning as Parameters<SyncableSettingsState['handleSetLumiereTuning']>[0]);
     if (settings.urlBackgroundList !== undefined) state.handleSetUrlBackgroundList(settings.urlBackgroundList as Parameters<SyncableSettingsState['handleSetUrlBackgroundList']>[0]);

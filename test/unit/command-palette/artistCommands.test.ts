@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LibraryArtistSurfaceHandle, LibraryArtistSurfaceState } from '../../../src/library/core/contracts/artist';
+import type { LibraryArtistSurfaceHandle, LibraryArtistSurfaceState } from '../../../src/library/core/artist/artist.contract';
 import { COMMAND_PALETTE_COMMANDS, isCommandPaletteCommandEnabled } from '../../../src/components/command-palette/commandRegistry';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 

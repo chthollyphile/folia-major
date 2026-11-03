@@ -68,6 +68,7 @@ type LyricResponse = LyricData | null;
 
 interface LyricData {
   offset: number;
+  clipStartMs: number;
   lines: LyricLine[];
   wordByWord: boolean;
   title?: string;
@@ -100,13 +101,14 @@ interface BackgroundVocal {
 }
 ```
 
-歌词行、逐字和背景人声的 `startTime` / `endTime` 单位均为秒；顶层 `offset` 单位为毫秒。
+歌词行、逐字和背景人声的 `startTime` / `endTime` 单位均为秒；顶层 `offset` 和 `clipStartMs` 单位为毫秒。
 
 ### 顶层字段
 
 | 字段 | 类型 | 必需 | 说明 |
 | --- | --- | --- | --- |
 | `offset` | `number` | 是 | 用户在歌词面板中为当前歌曲设置的歌词时间偏移，单位为毫秒。正值表示歌词延后，负值表示歌词提前，未调整时为 `0`。 |
+| `clipStartMs` | `number` | 是 | 正在播放的试听片段在整首歌里的起点，单位为毫秒。歌词按整首计时，而播放器给出的进度和时长是片段自己的；整首播放、片段从歌头开始或平台没有给出起点时为 `0`。v1 后来新增的字段，见“版本兼容性”。 |
 | `lines` | `LyricLine[]` | 是 | 按时间顺序排列的歌词行。 |
 | `wordByWord` | `boolean` | 是 | 表示时间轴来源：`true` 为数据源提供的原生逐字时间，`false` 为 Folia 根据逐行时间合成的逐字时间。两种情况下歌词行都会提供 `words`。 |
 | `title` | `string` | 否 | 歌词数据附带的歌曲标题；为空时不会返回。 |
@@ -143,6 +145,7 @@ interface BackgroundVocal {
 ```json
 {
   "offset": -250,
+  "clipStartMs": 0,
   "lines": [
     {
       "text": "Hello world",
@@ -177,6 +180,7 @@ interface BackgroundVocal {
 ```json
 {
   "offset": 0,
+  "clipStartMs": 0,
   "lines": [
     {
       "text": "这是一行歌词",
@@ -235,6 +239,7 @@ null
 | Folia 内部字段 | 公开字段或处理方式 |
 | --- | --- |
 | 当前歌曲的手动歌词时间偏移 | 输出为顶层 `offset`，单位为毫秒 |
+| 当前播放地址是试听片段时，片段在整首歌里的起点 | 输出为顶层 `clipStartMs`，单位为毫秒；不是试听片段时为 `0` |
 | `fullText` | 改名为 `text` |
 | `isWordByWord` | 改名为 `wordByWord`；表示原生或合成逐字时间，不表示 `words` 是否存在 |
 | 行和逐字的 `startTime` / `endTime` | 保留，单位为秒 |
@@ -291,6 +296,7 @@ if (lyrics === null) {
   console.log('当前没有歌词');
 } else {
   console.log(`歌词偏移：${lyrics.offset} ms`);
+  console.log(`试听片段起点：${lyrics.clipStartMs ?? 0} ms`);
   console.log(lyrics.lines);
 }
 ```
@@ -311,15 +317,17 @@ if lyrics is None:
     print("当前没有歌词")
 else:
     print(f"歌词偏移：{lyrics['offset']} ms")
+    print(f"试听片段起点：{lyrics.get('clipStartMs', 0)} ms")
     print(lyrics["lines"])
 ```
 
 ## 使用注意事项
 
 - 接口返回的是歌词数据快照，不包含当前播放时间、当前歌词行索引、播放状态或播放控制能力。
-- `offset` 是用户为当前歌曲手动设置的歌词时间偏移，单位为毫秒；客户端若自行按播放时间匹配歌词，应使用 `播放时间（秒） - offset / 1000` 作为歌词时间。
+- `offset` 是用户为当前歌曲手动设置的歌词时间偏移，单位为毫秒；客户端若自行按播放时间匹配歌词，应使用 `播放时间（秒） + clipStartMs / 1000 - offset / 1000` 作为歌词时间。
+- `clipStartMs` 只在播放从整首中间开始的试听片段时不为 `0`。例如片段从整首的 64.3 秒处开始（`clipStartMs` 为 `64300`），播放器显示片段的第 9 秒时，对应的是整首第 73.3 秒的歌词。播放进度和时长仍是片段自己的，不要用 `clipStartMs` 去改它们。
 - Folia 会把逐行歌词归一化为逐字时间轴；`wordByWord: false` 表示逐字时间由行时间估算生成，外部程序不应把它当作原生精确逐字时间。
-- 歌词对象通常只会在切歌、歌词加载完成、歌词来源发生变化或用户调整歌词时间偏移时更新，不会随播放进度持续变化。
+- 歌词对象通常只会在切歌、歌词加载完成、歌词来源发生变化、播放地址变化（例如同一首歌从试听片段换成整首）或用户调整歌词时间偏移时更新，不会随播放进度持续变化。
 - 需要感知切歌的客户端可以低频轮询，例如每 `500–1000 ms` 请求一次，并比较响应内容。
 - 客户端必须正确处理 `200 OK` 加 JSON `null` 的情况。
 - 这是无鉴权本地接口。不要通过端口转发、反向代理或防火墙规则将它暴露到不可信网络。
@@ -327,3 +335,5 @@ else:
 ## 版本兼容性
 
 `v1` 路径表示当前公开数据合同。兼容性更新会尽量保持现有字段语义；如果未来需要不兼容的结构调整，应通过新的版本路径提供，而不是直接改变 `v1`。
+
+`clipStartMs` 是 `v1` 后来新增的字段，现有字段的含义没有改变。不认识它的旧客户端仍按 `播放时间 - offset / 1000` 计算，只有在播放从整首中间开始的试听片段时会和歌词错开。

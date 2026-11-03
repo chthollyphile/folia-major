@@ -1,4 +1,4 @@
-import { useLibrarySessionQuery } from '../../core/bindings/useLibrarySessionQuery';
+import { useLibrarySessionQuery } from '../../core/shared/useLibrarySessionQuery';
 import { useBravaisSeamFilter } from './useBravaisSeamFilter';
 
 // src/library/suites/bravais/useBravaisCollectionFilter.ts

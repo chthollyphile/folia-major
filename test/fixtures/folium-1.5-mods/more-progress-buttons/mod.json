@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "more-progress-buttons",
+  "name": "更多进度条按钮",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "在进度条左侧加「打乱队列」，右侧加「音量」「喜爱」，三个按钮可分别关闭；默认把悬浮胶囊加宽，补回按钮占掉的进度条长度。需要 Folium 1.3。",
+  "client": "client.mjs",
+  "preview": "preview.jpg",
+  "permissions": ["playback.control"]
+}

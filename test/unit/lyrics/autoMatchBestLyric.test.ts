@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
-import { neteaseApi } from '@/services/netease';
+import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
-import { searchQQLyrics, fetchQQLyrics } from '@/utils/lyrics/providers/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from '@/utils/lyrics/providers/kugouLyricProvider';
+import { searchQQLyrics, fetchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { searchKugouLyrics, fetchKugouLyrics } from '@/services/onlineMusic/kugou/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
+import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 
 // test/unit/lyrics/autoMatchBestLyric.test.ts
 // Unit tests for the best lyric auto-matcher.
 
-vi.mock('@/services/netease', () => ({
+vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),
@@ -24,12 +25,12 @@ vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
     processNeteaseLyrics: vi.fn()
 }));
 
-vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
+vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     searchQQLyrics: vi.fn(),
     fetchQQLyrics: vi.fn()
 }));
 
-vi.mock('@/utils/lyrics/providers/kugouLyricProvider', () => ({
+vi.mock('@/services/onlineMusic/kugou/kugouLyricProvider', () => ({
     searchKugouLyrics: vi.fn(),
     fetchKugouLyrics: vi.fn()
 }));
@@ -751,5 +752,130 @@ describe('autoMatchBestLyric', () => {
 
         const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
         expect(result).toBeNull();
+    });
+
+    describe('with Spotify as a source', () => {
+        const spotifySong = {
+            id: 'track1', name: 'Song Title', durationMs: 200000,
+            artists: [{ id: 'artist1', name: 'Artist Name' }], album: { id: 'album1', name: '' },
+            sourceRef: { kind: 'online' as const, providerId: 'spotify', mediaId: 'track1' },
+        };
+        const qqSong = { id: 201, name: 'Song Title', durationMs: 200000, artists: [{ id: 1, name: 'Artist Name' }], album: { id: 0, name: '' }, qqMid: 'mid123' };
+        const spotify = () => getOnlineMusicProvider('spotify')!;
+        const spySpotify = () => ({
+            search: vi.spyOn(spotify().search!, 'searchSongs').mockResolvedValue({ items: [spotifySong], hasMore: false, nextOffset: 1 }),
+            lyrics: vi.spyOn(spotify().lyrics!, 'getLyrics').mockResolvedValue({ lyrics: createLyrics(false), isPureMusic: false }),
+        });
+        const signIn = () => useOnlineProviderAccountStore.getState().updateAccount('spotify', { user: { id: 'me', nickname: 'me' } });
+
+        beforeEach(() => {
+            useOnlineProviderAccountStore.setState({ accounts: {} });
+            cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
+            searchQQLyricsMock.mockResolvedValue([]);
+            searchKugouLyricsMock.mockResolvedValue([]);
+        });
+
+        it('is not asked while no Spotify account is signed in', async () => {
+            const spies = spySpotify();
+
+            expect(await autoMatchBestLyric('Song Title', 'Artist Name', 200000)).toBeNull();
+            expect(spies.search).not.toHaveBeenCalled();
+        });
+
+        it('gives its lines when no other source has any', async () => {
+            const spies = spySpotify();
+            signIn();
+
+            const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000);
+
+            expect(result).toMatchObject({ source: 'spotify', id: 'track1' });
+            expect(spies.search).toHaveBeenCalledTimes(1);
+            expect(spies.lyrics).toHaveBeenCalledTimes(1);
+        });
+
+        it('is not asked once another source has given lines', async () => {
+            const spies = spySpotify();
+            signIn();
+            searchQQLyricsMock.mockResolvedValue([qqSong]);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(false));
+
+            expect(await autoMatchBestLyric('Song Title', 'Artist Name', 200000)).toMatchObject({ source: 'qq' });
+            expect(spies.search).not.toHaveBeenCalled();
+        });
+
+        it('counts as no preference while no Spotify account is signed in', async () => {
+            cloudSearchMock.mockResolvedValue({ result: { songs: [{ id: 101, name: 'Song Title', dt: 200000, ar: [{ name: 'Artist Name' }] }] } });
+            getLyricMock.mockResolvedValue({ lyric: '[00:00.00]line lyric' });
+            processNeteaseLyricsMock.mockResolvedValue({ lyrics: createLyrics(false), mainLrc: 'line lyric', yrcLrc: null, transLrc: '', isPureMusic: false, chorusRanges: [] });
+            searchQQLyricsMock.mockResolvedValue([qqSong]);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(false));
+
+            // The default first choice is QQ; with Spotify merely skipped NetEase would come first.
+            expect(await autoMatchBestLyric('Song Title', 'Artist Name', 200000, { preferredSource: 'spotify' })).toMatchObject({ source: 'qq' });
+        });
+
+        // The lyrics of a Spotify song are in hand already: no request.
+        it('keeps a Spotify song\'s own lines over another source\'s lines when Spotify is preferred', async () => {
+            const spies = spySpotify();
+            signIn();
+            const own = createLyrics(false);
+            searchQQLyricsMock.mockResolvedValue([qqSong]);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(false));
+            const options = {
+                preferredSource: 'spotify' as const,
+                providerCandidate: { providerId: 'spotify' as const, song: spotifySong, lyricsResult: { lyrics: own, isPureMusic: false } },
+            };
+
+            const kept = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, options);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
+            const upgraded = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, options);
+
+            expect(kept).toMatchObject({ source: 'spotify', id: 'track1' });
+            expect(upgraded).toMatchObject({ source: 'qq' });
+            expect(spies.search).not.toHaveBeenCalled();
+            expect(spies.lyrics).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('with another name for the artist', () => {
+        const qqSong = (name: string, artist: string, durationMs: number) => (
+            { id: 201, name, durationMs, artists: [{ id: 1, name: artist }], album: { id: 0, name: '' }, qqMid: 'mid123' }
+        );
+        beforeEach(() => {
+            cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
+            searchQQLyricsMock.mockResolvedValue([]);
+            searchKugouLyricsMock.mockResolvedValue([]);
+        });
+
+        it('searches once more under the other name when the given one finds nothing', async () => {
+            // The source lists the act under its own name, not the one the song came with.
+            searchQQLyricsMock.mockResolvedValue([qqSong('Wonderwall', 'Oasis', 259000)]);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
+            const alternateArtist = vi.fn(async () => 'Oasis');
+
+            const result = await autoMatchBestLyric('Wonderwall', '绿洲合唱团', 259000, { alternateArtist });
+            expect(result).toMatchObject({ source: 'qq', id: 201 });
+            expect(alternateArtist).toHaveBeenCalledTimes(1);
+            expect(searchQQLyricsMock.mock.calls.map(call => call[0])).toEqual(['Wonderwall - 绿洲合唱团', 'Wonderwall - Oasis']);
+        });
+
+        it('does not ask for the other name when the given one finds the lyrics', async () => {
+            searchQQLyricsMock.mockResolvedValue([qqSong('Song Title', 'Artist Name', 200000)]);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
+            const alternateArtist = vi.fn(async () => 'Other Name');
+
+            expect(await autoMatchBestLyric('Song Title', 'Artist Name', 200000, { alternateArtist })).toMatchObject({ source: 'qq' });
+            expect(alternateArtist).not.toHaveBeenCalled();
+            expect(searchQQLyricsMock).toHaveBeenCalledTimes(1);
+        });
+
+        it.each([
+            ['there is none', async () => null],
+            ['it is the same name', async () => 'Artist Name'],
+            ['it cannot be read', async () => { throw new Error('offline'); }],
+        ])('searches only once when %s', async (_case, alternateArtist) => {
+            expect(await autoMatchBestLyric('Song Title', 'Artist Name', 200000, { alternateArtist })).toBeNull();
+            expect(searchQQLyricsMock).toHaveBeenCalledTimes(1);
+        });
     });
 });

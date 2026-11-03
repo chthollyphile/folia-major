@@ -10,7 +10,7 @@ import path from 'path';
 
 const { createMemoryMonitor } = require('../../../electron/debug/memoryMonitor.cjs');
 const { createDebugLogWriter } = require('../../../electron/debug/debugLogWriter.cjs');
-const { migrateMemoryLogEnabled, readFdCounts } = require('../../../electron/debug/debugHost.cjs');
+const { consoleText, createDebugHost, createPanelFeed, migrateMemoryLogEnabled, readFdCounts } = require('../../../electron/debug/debugHost.cjs');
 
 /** A metrics row shaped like Electron's, sizes in KB. */
 const metric = (pid: number, type: string, workingSetMB: number, peakMB = workingSetMB, privateMB: number | null = null) => ({
@@ -260,6 +260,88 @@ describe('the debug log writer', () => {
     });
 });
 
+describe('the runtime log file and the session-log switch', () => {
+    let root: string;
+
+    beforeEach(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-debug-'));
+    });
+
+    afterEach(() => {
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it('is written only while both switches are on, and the main process remembers the session-log switch', () => {
+        // The host takes over console for good; the spy underneath keeps the test output clean.
+        const silent = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const stored: Record<string, unknown> = { debug_runtime_log_enabled: true };
+        const handlers: Record<string, (event: unknown, payload?: unknown) => any> = {};
+        const host = createDebugHost({
+            app: { getPath: () => root, on: () => {}, getAppMetrics: () => [] },
+            ipcMain: { handle: (channel: string, run: any) => { handlers[channel] = run; }, on: (channel: string, run: any) => { handlers[channel] = run; } },
+            store: { get: (key: string) => stored[key], set: (key: string, value: unknown) => { stored[key] = value; } },
+            BrowserWindow: { getAllWindows: () => [] },
+        });
+        const fromPage = (text: string) => handlers['debug-runtime-lines']({}, [{ at: Date.now(), level: 'log', tag: 'Page', text }]);
+        const backlog = () => {
+            let lines: Array<{ text: string }> = [];
+            handlers['debug-main-lines-ready']({ sender: { isDestroyed: () => false, isCrashed: () => false, send: (_channel: string, sent: typeof lines) => { lines = sent; } } });
+            return lines.map(line => line.text);
+        };
+
+        expect(host.describe().runtimeFile).not.toBeNull();
+        console.log('[Main] one');
+        fromPage('[Page] one');
+
+        expect(handlers['debug-set-state']({}, { consoleCaptureEnabled: false })).toMatchObject({ consoleCaptureEnabled: false, runtimeLogEnabled: true, runtimeFile: null });
+        expect(stored.debug_console_capture_enabled).toBe(false);
+        console.log('[Main] two, while it is off');
+        fromPage('[Page] two, while it is off');
+        host.runtimeLine('automix', 'a stage mark, while it is off');
+        expect(backlog()).toEqual([]);
+        // The file switch flipped meanwhile opens nothing.
+        handlers['debug-set-state']({}, { runtimeLogEnabled: false });
+        expect(handlers['debug-set-state']({}, { runtimeLogEnabled: true }).runtimeFile).toBeNull();
+
+        expect(handlers['debug-set-state']({}, { consoleCaptureEnabled: true }).runtimeFile).not.toBeNull();
+        console.log('[Main] three');
+        expect(backlog()).toEqual(['[Main] three']);
+        host.stop();
+        silent.mockRestore();
+
+        const written = fs.readdirSync(path.join(root, 'logs', 'runtime')).map(name => fs.readFileSync(path.join(root, 'logs', 'runtime', name), 'utf-8')).join('');
+        expect(written).toContain('[Main] one');
+        expect(written).toContain('[Page] one');
+        expect(written).toContain('[Main] three');
+        expect(written).not.toContain('while it is off');
+    });
+
+    it('keeps credential values out of the file and the panel, from main and from the page', () => {
+        const silent = vi.spyOn(console, 'info').mockImplementation(() => {});
+        const stored: Record<string, unknown> = { debug_runtime_log_enabled: true };
+        const handlers: Record<string, (event: unknown, payload?: unknown) => any> = {};
+        const host = createDebugHost({
+            app: { getPath: () => root, on: () => {}, getAppMetrics: () => [] },
+            ipcMain: { handle: (channel: string, run: any) => { handlers[channel] = run; }, on: (channel: string, run: any) => { handlers[channel] = run; } },
+            store: { get: (key: string) => stored[key], set: (key: string, value: unknown) => { stored[key] = value; } },
+            BrowserWindow: { getAllWindows: () => [] },
+        });
+        // The line the NetEase API package writes for every request, with the cookie the page put in the address.
+        console.info('[INFO]', 'Request Success: [eapi] /song/url/v1?id=1&cookie=MUSIC_U=secret-u; __csrf=secret-csrf; os=pc&level=lossless');
+        handlers['debug-runtime-lines']({}, [{ at: Date.now(), level: 'log', tag: 'Page', text: 'qq search {"cookie":"qqmusic_key=secret-q"}' }]);
+        let panel: Array<{ text: string }> = [];
+        handlers['debug-main-lines-ready']({ sender: { isDestroyed: () => false, isCrashed: () => false, send: (_channel: string, sent: typeof panel) => { panel = sent; } } });
+        host.stop();
+        silent.mockRestore();
+
+        const written = fs.readdirSync(path.join(root, 'logs', 'runtime')).map(name => fs.readFileSync(path.join(root, 'logs', 'runtime', name), 'utf-8')).join('');
+        expect(written).toContain('/song/url/v1?id=1&cookie=<redacted>&level=lossless');
+        expect(written).toContain('qq search {"cookie":"<redacted>"}');
+        expect(written).not.toMatch(/secret/);
+        expect(panel.map(line => line.text).join('\n')).not.toMatch(/secret/);
+    });
+});
+
 describe('the split memory log switch', () => {
     it('inherits an enabled old monitor once, preserving disk recording after an upgrade', () => {
         const store = { set: vi.fn() };
@@ -309,5 +391,152 @@ describe('the fd counter', () => {
         const readdirSync = vi.fn();
         expect(readFdCounts([{ pid: 7 }], { platform: 'win32', readdirSync }).size).toBe(0);
         expect(readdirSync).not.toHaveBeenCalled();
+    });
+});
+
+describe('the main-process lines for the log panel', () => {
+    const fakeWindow = () => {
+        const received: Array<Array<{ at: number; level: string; text: string }>> = [];
+        const backlogFlags: boolean[] = [];
+        const target = {
+            gone: false,
+            crashed: false,
+            isDestroyed: () => target.gone,
+            isCrashed: () => target.crashed,
+            send: (channel: string, lines: typeof received[number], isBacklog: boolean) => {
+                expect(channel).toBe('debug-main-lines');
+                received.push(lines);
+                backlogFlags.push(isBacklog);
+            },
+        };
+        return { target, received, backlogFlags, texts: () => received.map(lines => lines.map(line => line.text)) };
+    };
+    const feed = (limit?: number) => {
+        const deferred: Array<() => void> = [];
+        return { ...createPanelFeed({ limit, defer: (run: () => void) => deferred.push(run) }), deferred, runDeferred: () => deferred.splice(0).forEach(run => run()) };
+    };
+
+    it('gives a window what was said before it asked, then each burst as one message', () => {
+        const panel = feed();
+        panel.add(1, 'log', 'early');
+        expect(panel.deferred).toHaveLength(0);
+        const first = fakeWindow();
+        panel.subscribe(first.target);
+        expect(first.received).toEqual([[{ at: 1, level: 'log', text: 'early' }]]);
+        panel.add(2, 'warn', 'a');
+        panel.add(3, 'log', 'b');
+        expect(panel.deferred).toHaveLength(1);
+        panel.runDeferred();
+        expect(first.texts()).toEqual([['early'], ['a', 'b']]);
+        // The page tells the two kinds of message apart: nothing counts for it until the backlog.
+        expect(first.backlogFlags).toEqual([true, false]);
+        // What the window was first given does not change under it.
+        expect(first.received[0]).toHaveLength(1);
+    });
+
+    it('gives a reloaded page the lines of a burst once', () => {
+        const panel = feed();
+        const other = fakeWindow();
+        const reloaded = fakeWindow();
+        panel.subscribe(other.target);
+        panel.subscribe(reloaded.target);
+        panel.add(1, 'log', 'a');
+        panel.subscribe(reloaded.target);
+        panel.runDeferred();
+        expect(reloaded.texts()).toEqual([[], ['a']]);
+        expect(reloaded.backlogFlags).toEqual([true, true]);
+        expect(other.texts()).toEqual([[], ['a']]);
+    });
+
+    it('does not take in what Electron says about a send that failed', () => {
+        const panel = feed();
+        const healthy = fakeWindow();
+        // Electron's own send catches the failure and reports it through console.error, which is
+        // the patched console, which is this feed.
+        const failing = { isDestroyed: () => false, isCrashed: () => false, send: () => panel.add(9, 'error', 'Error sending from webFrameMain') };
+        panel.subscribe(healthy.target);
+        panel.subscribe(failing);
+        panel.add(1, 'log', 'a');
+        panel.runDeferred();
+        expect(panel.deferred).toHaveLength(0);
+        expect(healthy.texts()).toEqual([[], ['a']]);
+        const late = fakeWindow();
+        panel.subscribe(late.target);
+        expect(late.texts()).toEqual([['a']]);
+        // And the feed takes lines again once the send is over.
+        panel.add(2, 'log', 'b');
+        panel.runDeferred();
+        expect(healthy.texts()).toEqual([[], ['a'], ['b']]);
+    });
+
+    it('does not give a line twice when a second window asks in the middle of a burst', () => {
+        const panel = feed();
+        const first = fakeWindow();
+        const second = fakeWindow();
+        panel.subscribe(first.target);
+        panel.add(1, 'log', 'a');
+        panel.subscribe(second.target);
+        panel.add(2, 'log', 'b');
+        panel.runDeferred();
+        expect(first.texts()).toEqual([[], ['a'], ['b']]);
+        expect(second.texts()).toEqual([['a'], ['b']]);
+    });
+
+    it('keeps only the newest lines for a window that asks late', () => {
+        const panel = feed(2);
+        for (const text of ['a', 'b', 'c']) panel.add(0, 'log', text);
+        const late = fakeWindow();
+        panel.subscribe(late.target);
+        expect(late.texts()).toEqual([['b', 'c']]);
+    });
+
+    it('sends nothing to a closed or crashed window, and a send that throws stays inside', () => {
+        const panel = feed();
+        const closed = fakeWindow();
+        const crashed = fakeWindow();
+        const broken = { isDestroyed: () => false, isCrashed: () => false, send: () => { throw new Error('closing'); } };
+        const open = fakeWindow();
+        panel.subscribe(closed.target);
+        panel.subscribe(crashed.target);
+        panel.subscribe(broken);
+        panel.subscribe(open.target);
+        closed.target.gone = true;
+        crashed.target.crashed = true;
+        panel.add(1, 'log', 'a');
+        expect(() => panel.runDeferred()).not.toThrow();
+        expect(closed.texts()).toEqual([[]]);
+        expect(crashed.texts()).toEqual([[]]);
+        expect(open.texts()).toEqual([[], ['a']]);
+        // The crashed window's page is loaded again and asks: it gets what it missed.
+        crashed.target.crashed = false;
+        panel.subscribe(crashed.target);
+        expect(crashed.texts()).toEqual([[], ['a']]);
+    });
+
+    it('drops what it was holding when the session log is switched off', () => {
+        const panel = feed();
+        const open = fakeWindow();
+        panel.subscribe(open.target);
+        panel.add(1, 'log', 'a');
+        panel.clear();
+        panel.runDeferred();
+        expect(open.texts()).toEqual([[]]);
+        const late = fakeWindow();
+        panel.subscribe(late.target);
+        expect(late.texts()).toEqual([[]]);
+        // Switched back on, it takes lines as before.
+        panel.add(2, 'log', 'b');
+        panel.runDeferred();
+        expect(open.texts()).toEqual([[], ['b']]);
+    });
+
+    it('writes a console call as one line, whatever was passed to it', () => {
+        const circular: Record<string, unknown> = { name: 'loop' };
+        circular.self = circular;
+        expect(consoleText(['[Ytm] plan', { route: 'web' }, 12])).toBe('[Ytm] plan {"route":"web"} 12');
+        expect(consoleText(['[Ytm] kept', circular, 10n])).toBe('[Ytm] kept [object Object] 10');
+        expect(consoleText([new Error('broke')])).toMatch(/^Error: broke\n\s+at /);
+        // An error inside an object: JSON.stringify alone writes it as {}.
+        expect(consoleText(['[App] failed', { error: new TypeError('no sink') }])).toBe('[App] failed {"error":"TypeError: no sink"}');
     });
 });

@@ -1,0 +1,127 @@
+/* src/components/login/login.css
+   The sign-in window's own motion. What changes once takes its time from the kit's variables
+   (--st-dur-*, --st-ease-*), which are zero when the app's reduce-motion setting is on. The loops
+   keep their own periods and stand still under [data-login-still]. --login-pc is the colour of
+   the platform in focus. */
+
+@keyframes login-pop { from { opacity: 0; transform: scale(0.94); } }
+@keyframes login-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes login-fade { from { opacity: 0; } }
+@keyframes login-spin { to { transform: rotate(360deg); } }
+@keyframes login-slide { from { transform: translateX(-110%); } to { transform: translateX(290%); } }
+@keyframes login-ping { from { transform: scale(1); opacity: 0.7; } to { transform: scale(1.75); opacity: 0; } }
+@keyframes login-rip {
+    0% { transform: scale(1); opacity: 0; }
+    10% { opacity: var(--login-rip, 0.5); }
+    100% { transform: scale(4.5); opacity: 0; }
+}
+@keyframes login-reveal { from { -webkit-mask-position: 100% 100%; mask-position: 100% 100%; } }
+
+/* The home screen with nobody signed in arrives: headline, prompt and button, one after another. */
+@keyframes login-rise { from { opacity: 0; transform: translateY(8px); } }
+.login-rise { animation: login-rise var(--st-dur-unfold) var(--st-ease-out) backwards; }
+
+/* The tile's picture and the headline, each time the state changes. */
+.login-pop { animation: login-pop var(--st-dur-move) var(--st-ease-out); }
+.login-in { animation: login-in var(--st-dur-move) var(--st-ease-out); }
+.login-fade { animation: login-fade var(--st-dur-unfold) var(--st-ease-standard); }
+
+/* The code arrives: uncovered from its top left corner. */
+.login-code {
+    -webkit-mask: linear-gradient(135deg, #000 45%, transparent 55%) 0 0 / 300% 300%;
+    mask: linear-gradient(135deg, #000 45%, transparent 55%) 0 0 / 300% 300%;
+    animation: login-pop var(--st-dur-move) var(--st-ease-out), login-reveal var(--st-dur-show) var(--st-ease-out);
+}
+
+/* Preparing: one arc turning round the platform's mark. */
+.login-arc::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--st-line);
+    border-top-color: var(--login-pc);
+    animation: login-spin 1s linear infinite;
+}
+
+/* The drawing of a browser window: three dots, a line under the title strip, and the bar that slides while waiting. */
+.login-browser::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 20px;
+    height: 1.5px;
+    background: var(--st-line2);
+}
+.login-browser::after {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 8px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--st-t3);
+    box-shadow: 8px 0 0 var(--st-t3), 16px 0 0 var(--st-t3);
+}
+.login-browser-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 34%;
+    border-radius: 1px;
+    background: var(--st-t1);
+    animation: login-slide 1.6s var(--st-ease-standard) infinite;
+}
+
+/* Waiting: thin rings in the platform's colour leave the tile. */
+.login-rings circle {
+    fill: none;
+    stroke: var(--login-pc);
+    stroke-width: 1.25;
+    vector-effect: non-scaling-stroke;
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0;
+    animation: login-rip 4.2s cubic-bezier(0.25, 0.5, 0.5, 1) infinite;
+}
+.login-rings circle:nth-child(2) { animation-delay: -1.4s; }
+.login-rings circle:nth-child(3) { animation-delay: -2.8s; }
+
+/* The current step mark pings. */
+.login-step-current::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px var(--login-pc);
+    opacity: 0;
+    animation: login-ping 1.8s var(--st-ease-out) infinite;
+}
+
+/* After a sign-in the platform's colour fills the window (done/LoginDone.tsx draws it frame by frame):
+   the platform's letter stands on it as a large quiet watermark, in a ring with a second ring round it. */
+.login-done-watermark {
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--login-on-pc) 13%, transparent);
+    color: color-mix(in srgb, var(--login-on-pc) 10%, transparent);
+}
+.login-done-watermark::before {
+    content: '';
+    position: absolute;
+    inset: -54px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--login-on-pc) 7%, transparent);
+}
+
+/* Motion off: the loops stand still. */
+[data-login-still] .login-arc::after,
+[data-login-still] .login-browser-bar::after,
+[data-login-still] .login-step-current::after { animation: none; }
+[data-login-still] .login-rings circle { animation: none; transform: scale(1.9); opacity: 0.2; }
+[data-login-still] .login-rings circle:nth-child(2) { transform: scale(2.8); opacity: 0.12; }
+[data-login-still] .login-rings circle:nth-child(3) { transform: scale(3.7); opacity: 0.06; }
+
+/* The platform column scrolls sideways without a bar where it lies across the top. */
+.login-row-scroll { scrollbar-width: none; }
+.login-row-scroll::-webkit-scrollbar { display: none; }

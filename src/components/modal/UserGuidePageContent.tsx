@@ -59,10 +59,7 @@ export const UserGuidePageContent: React.FC<UserGuidePageContentProps> = ({
     if (page === 1) {
         return (
             <>
-                <NewFeaturesIntro 
-                    isDaylight={isDaylight} 
-                    classes={{ textPrimary, textSecondary, tipCardBg, iconTileBg, cardBg }} 
-                />
+                <NewFeaturesIntro />
             </>
         );
     }

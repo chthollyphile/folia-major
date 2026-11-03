@@ -82,11 +82,13 @@ describe('fitRectsToStage', () => {
         expect(centerOf(out.right)).toBeGreaterThan(viewport.width / 2);
     });
 
-    it('极端高的内容也不会缩到看不见', () => {
+    it('极端高的内容也缩到装得下为止，缩多少没有下限', () => {
         const rects = { tall: { left: 0, top: 0, width: 400, height: 4000 } };
         const out = fit(rects);
 
-        expect(out.tall.height / 4000).toBeGreaterThanOrEqual(0.45);
+        expect(out.tall.top).toBeGreaterThanOrEqual(AVAILABLE_TOP - 0.5);
+        expect(out.tall.top + out.tall.height).toBeLessThanOrEqual(AVAILABLE_BOTTOM + 0.5);
+        expect(out.tall.width / out.tall.height).toBeCloseTo(400 / 4000, 5);
     });
 
     it('空集不炸', () => {

@@ -8,23 +8,24 @@ import { clearPrefetchRuntime, getPrefetchWindowKey, getPrefetchedData, resolveP
 const mocks = vi.hoisted(() => ({
     getAudioSource: vi.fn(),
     hasCachedSongAudio: vi.fn(),
-    getProviderPlaybackCooldown: vi.fn(),
-    noteProviderFailure: vi.fn(),
+    onlineRequestCooldown: vi.fn(),
+    noteOnlineRequestCooldown: vi.fn(),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         getAudioSource: (...args: unknown[]) => mocks.getAudioSource(...args),
         canPlaySong: () => true,
+        resolveAudioQuality: (_providerId: string, quality: string) => quality,
     },
 }));
 vi.mock('@/services/onlineMusic/resourceCache', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/resourceCache')>(),
     hasCachedSongAudio: (...args: unknown[]) => mocks.hasCachedSongAudio(...args),
 }));
-vi.mock('@/services/playbackRecovery/providerPlaybackCooldown', () => ({
-    getProviderPlaybackCooldown: (...args: unknown[]) => mocks.getProviderPlaybackCooldown(...args),
-    noteProviderFailure: (...args: unknown[]) => mocks.noteProviderFailure(...args),
+vi.mock('@/services/onlineMusic/failure/onlineRequestCooldown', () => ({
+    onlineRequestCooldown: (...args: unknown[]) => mocks.onlineRequestCooldown(...args),
+    noteOnlineRequestCooldown: (...args: unknown[]) => mocks.noteOnlineRequestCooldown(...args),
 }));
 
 const song: SongResult = {
@@ -128,7 +129,7 @@ describe('resolvePrefetchAudioUrl', () => {
         clearPrefetchRuntime();
         vi.clearAllMocks();
         mocks.hasCachedSongAudio.mockResolvedValue(false);
-        mocks.getProviderPlaybackCooldown.mockReturnValue(null);
+        mocks.onlineRequestCooldown.mockReturnValue(null);
         mocks.getAudioSource.mockResolvedValue({
             url: 'https://audio.test/song.flac',
             fetchedAt: 0,
@@ -176,26 +177,25 @@ describe('resolvePrefetchAudioUrl', () => {
     });
 
     it('does not ask the provider while it is cooling down', async () => {
-        mocks.getProviderPlaybackCooldown.mockReturnValue({ remainingMs: 12_000 });
+        mocks.onlineRequestCooldown.mockReturnValue({ remainingMs: 12_000 });
 
         await expect(resolvePrefetchAudioUrl(song, 'high', signal())).resolves.toBeNull();
-        expect(mocks.getProviderPlaybackCooldown).toHaveBeenCalledWith('netease', 'prefetch');
+        expect(mocks.onlineRequestCooldown).toHaveBeenCalledWith('netease', 'prefetch');
         expect(mocks.getAudioSource).not.toHaveBeenCalled();
     });
 
-    it('notes a rate-limited failure against the provider', async () => {
+    it('hands a failure that asks to wait to the cooldown, for the provider', async () => {
         mocks.getAudioSource.mockRejectedValueOnce(
-            new OnlineProviderError('rate-limited', 'slow down', 'netease', undefined, 429, 30_000),
+            new OnlineProviderError('network', 'slow down', 'netease', undefined, 429, 30_000),
         );
 
         await expect(resolvePrefetchAudioUrl(song, 'high', signal())).resolves.toBeNull();
-        expect(mocks.noteProviderFailure).toHaveBeenCalledTimes(1);
-        expect(mocks.noteProviderFailure).toHaveBeenCalledWith(expect.objectContaining({
-            reason: 'rate-limited',
-            stage: 'prefetch',
+        expect(mocks.noteOnlineRequestCooldown).toHaveBeenCalledTimes(1);
+        expect(mocks.noteOnlineRequestCooldown).toHaveBeenCalledWith(expect.objectContaining({
+            case: 'retry-later',
+            operation: 'audio',
             providerId: 'netease',
-            httpStatus: 429,
-            retryAfterMs: 30_000,
+            facts: expect.objectContaining({ httpStatus: 429, retryAfterMs: 30_000 }),
         }));
     });
 

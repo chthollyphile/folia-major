@@ -6,12 +6,10 @@ import { getCustomCappellaAvatar } from '../services/cappellaAvatarPack';
 import { getMonetBackgroundImage } from '../services/monetBackgroundImage';
 import { getMonetPortraitImage } from '../services/monetPortraitImage';
 import { restoreUploadedLyricsFont } from '../services/customLyricsFont';
-import {
-    resolveStoredCappellaTuning,
-    resolveStoredMonetBackgroundTuning,
-    resolveStoredMonetTuning,
-    resolveVisualizerBackgroundMode,
-} from '../stores/visualizerSettingsPersistence';
+import { resolveStoredCappellaTuning } from '../components/visualizer/cappella/tuning';
+import { resolveStoredMonetBackgroundTuning } from '../components/visualizer/backgrounds/monet/tuning';
+import { resolveStoredMonetTuning } from '../components/visualizer/monet/tuning';
+import { resolveVisualizerBackgroundMode } from '../stores/visualizerSettingsPersistence';
 import i18n from '../i18n/config';
 import { setStatusMessage } from '../stores/useStatusMessageStore';
 import { createSafeObjectUrl } from '../utils/blobGuards';
@@ -176,6 +174,17 @@ export function useAppPreferences() {
             setStatusMessage({
                 type: 'info',
                 text: i18n.t('notifications.macWallpaperInputMonitoringNeeded'),
+            });
+        });
+    }, []);
+
+    useEffect(() => {
+        // macOS wallpaper mode with Stage Manager on and the desktop icons shown: without the
+        // Accessibility grant a click on the wallpaper still sends the stage aside (issue #698).
+        return window.electron?.onWallpaperAccessibilitySuggested?.(() => {
+            setStatusMessage({
+                type: 'info',
+                text: i18n.t('notifications.macWallpaperAccessibilitySuggested'),
             });
         });
     }, []);

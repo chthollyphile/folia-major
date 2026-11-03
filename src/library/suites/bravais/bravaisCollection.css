@@ -139,6 +139,43 @@
 .bravais-seam-daily-label { min-width: 0; flex: 1 1 auto; text-align: center; }
 .bravais-seam-daily .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
 
+/* 每日推荐的「默认推荐 / 风格推荐」（#938）与选中的风格。 */
+.bravais-seam-daily-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, currentColor 8%, transparent); }
+.bravais-seam .bravais-seam-daily-mode {
+    min-height: 26px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--bravais-seam-ink-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    background: none;
+    cursor: pointer;
+}
+.bravais-seam .bravais-seam-daily-mode.is-active { color: inherit; background: color-mix(in srgb, currentColor 16%, transparent); cursor: default; }
+.bravais-seam .bravais-seam-daily-mode:hover:not(.is-active):not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.bravais-seam .bravais-seam-daily-mode:disabled { opacity: 0.4; cursor: default; }
+.bravais-seam .bravais-seam-daily-style {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+.bravais-seam-daily-style svg { width: 13px; height: 13px; flex: none; opacity: 0.6; }
+.bravais-seam-daily-style .bravais-seam-daily-label { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-seam .bravais-seam-daily-style:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.bravais-seam .bravais-seam-daily-style:disabled { opacity: 0.4; cursor: default; }
+
 /* ---------- 状态行：图标与文案按语气区分（错误与空不能混在一起） ---------- */
 
 .bravais-seam-status-line {
@@ -294,6 +331,51 @@
 .bravais-form-row:hover:not(:disabled) { background: color-mix(in srgb, currentColor 12%, transparent); }
 .bravais-form-row.is-create { color: var(--text-accent, currentColor); }
 
+/* 风格选择（#938）：上面一排分组，下面是这一组的风格，可以选几个。 */
+.bravais-form-style-groups { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.bravais-seam .bravais-form-style-group {
+    padding: 4px 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--bravais-seam-ink-soft);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    background: none;
+    cursor: pointer;
+}
+.bravais-seam .bravais-form-style-group.is-active { color: inherit; border-bottom-color: var(--text-accent, currentColor); }
+.bravais-form-style-group.has-picks::after { content: ' ·'; color: var(--text-accent, currentColor); }
+.bravais-form-style-tags { display: flex; min-height: 0; flex: 0 1 auto; flex-wrap: wrap; align-content: flex-start; gap: 8px 6px; overflow-y: auto; }
+/* 胶囊：没选的只有一圈细线，选中的反色填满、前面一个对勾（不靠强调色：有的主题里它和正文同色）。 */
+.bravais-seam .bravais-form-style-tag {
+    display: inline-flex;
+    height: 28px;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+    color: var(--bravais-seam-ink-soft);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    background: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent);
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+.bravais-seam .bravais-form-style-tag:hover:not(:disabled) { color: inherit; background: color-mix(in srgb, var(--text-primary, #f7f4ee) 8%, transparent); }
+.bravais-seam .bravais-form-style-tag.is-on,
+.bravais-seam .bravais-form-style-tag.is-on:hover:not(:disabled) {
+    padding-left: 9px;
+    color: var(--bg-color, #070707);
+    background: var(--text-primary, #f7f4ee);
+    box-shadow: none;
+}
+.bravais-form-style-tag svg { width: 13px; height: 13px; flex: none; }
+.bravais-form-message svg { width: 13px; height: 13px; vertical-align: -2px; }
+
 /* ---------- 列表面板 ---------- */
 
 .bravais-seam-panel {
@@ -375,6 +457,56 @@
 
 .bravais-focus-more-toggle { min-height: 36px; padding: 0 10px; }
 .bravais-focus-menu { min-width: 180px; background: rgb(0 0 0 / 55%); backdrop-filter: blur(18px); }
+
+/* ---------- 歌曲磁贴与聚焦卡右上角悬浮的两颗（BravaisTileQuickActions）：加入速记簿、收藏到歌单 ----------
+   平时看不见，指针在磁贴上或键盘聚焦到按钮时出现；没有悬停的设备（触屏）只在聚焦卡上常驻。 */
+
+.bravais-tile-quick {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+    transition: opacity 0.15s ease;
+}
+
+/* 聚焦卡：与「⋯」同一条线（top 18px），有「⋯」时排在它左边。 */
+.lattice-poster.is-expanded .bravais-tile-quick { top: 18px; right: 18px; }
+.lattice-poster.is-expanded .bravais-tile-quick[data-beside='more'] { right: 78px; }
+
+/* 悬停只在真能悬停的设备上算：触屏点按会先模拟一次悬停，不挡的话这一下就落在看不见的按钮上。 */
+@media (hover: hover) {
+    .bravais-tile:hover .bravais-tile-quick { opacity: 1; pointer-events: auto; }
+}
+
+.bravais-tile-quick:focus-within { opacity: 1; pointer-events: auto; }
+
+@media (hover: none) {
+    .lattice-poster.is-expanded .bravais-tile-quick { opacity: 1; pointer-events: auto; }
+}
+
+.bravais-tile-quick button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: inherit;
+    background: rgb(0 0 0 / 50%);
+    cursor: pointer;
+}
+
+.bravais-tile-quick button:hover { background: rgb(0 0 0 / 72%); }
+.bravais-tile-quick button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
+.bravais-tile-quick svg { width: 16px; height: 16px; }
+:root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
 
 /* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
 

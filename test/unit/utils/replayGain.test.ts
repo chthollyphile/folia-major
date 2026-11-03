@@ -32,4 +32,5 @@ describe('replay gain calculations', () => {
             linearGain: 1,
         });
     });
+
 });

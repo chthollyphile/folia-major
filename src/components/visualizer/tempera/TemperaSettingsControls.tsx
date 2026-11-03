@@ -1,24 +1,7 @@
 import React from 'react';
 
 // src/components/visualizer/tempera/TemperaSettingsControls.tsx
-// Provides compact section and slider primitives for the Tempera settings panel.
-interface TemperaSettingsSectionProps {
-    title: string;
-    children: React.ReactNode;
-}
-
-export const TemperaSettingsSection: React.FC<TemperaSettingsSectionProps> = ({ title, children }) => (
-    <section className="space-y-4 border-t border-white/10 pt-4">
-        <h3
-            className="text-xs font-medium uppercase tracking-[0.24em] opacity-45"
-            style={{ color: 'var(--text-secondary)' }}
-        >
-            {title}
-        </h3>
-        {children}
-    </section>
-);
-
+// Provides the compact slider primitive of the Tempera image dialog.
 interface TemperaRangeControlProps {
     label: string;
     value: number;

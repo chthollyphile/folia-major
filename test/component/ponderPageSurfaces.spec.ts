@@ -40,7 +40,7 @@ test('Lattice 是不规则海报墙，并演示海报展开后的播放控制', 
  * 锚点框和合成界面里那个真实元素必须严丝合缝。
  *
  * 两边各写一份百分比时它们会差上几个百分点 —— 高亮落在元素旁边、指向线指偏，
- * 正是「骨架和真实元素错位」。ponderSurfaceGeometry 是这条约束的唯一来源。
+ * 正是「骨架和真实元素错位」。每张合成界面旁边的 *.geometry.ts 是这条约束的唯一来源。
  */
 /**
  * 进场期间整层带着缩放、每个框还各自错开落位，这时量到的两个盒子缩放进度不同，差值没有意义。
@@ -132,7 +132,7 @@ test('Bravais 墙：锚点和合成界面里的真实元素严丝合缝', async 
     await settled(stage);
     await expectAligned(stage, 'toolsPanel', '[data-ponder-bravais-tools-panel="solid"]');
     await expectAligned(stage, 'toolsLook', '[data-ponder-bravais-look-row="solid"]');
-    await expectAligned(stage, 'toolsLattice', '[data-ponder-bravais-tools-panel="solid"] [data-ponder-bravais-quick="4"]');
+    await expectAligned(stage, 'toolsLattice', '[data-ponder-bravais-tools-panel="solid"] [data-ponder-bravais-quick="3"]');
     await expectAligned(stage, 'window', '[data-ponder-bravais-window="left:0:0:1"]');
 });
 
@@ -226,7 +226,7 @@ test('动作的结果等到那一步才出现，不是一进场就摆在屏幕�
     const stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage).toBeVisible();
 
-    // 「设置 · 底部界面」是这一章要讲的那次操作的结果，开场时不该在场。
+    // 「设置 · 控制栏」是这一章要讲的那次操作的结果，开场时不该在场。
     const settings = stage.locator('[data-ponder-anchor="settings"]');
     await expect(settings).toHaveAttribute('data-ponder-anchor-hidden', 'true');
     await expect(settings).toHaveCSS('opacity', '0');
@@ -238,7 +238,7 @@ test('动作的结果等到那一步才出现，不是一进场就摆在屏幕�
     await expect(stage.locator('[data-ponder-bottom-ui-offset-track]')).toBeVisible();
     await expect(stage.locator('[data-ponder-bottom-ui-reposition]')).toBeVisible();
     // 章节底下那个快速入口按钮去的正是同一处设置。
-    await expect(stage.getByRole('button', { name: /bottom ui settings/i })).toBeVisible();
+    await expect(stage.getByRole('button', { name: /control bar settings/i })).toBeVisible();
 });
 
 test('骨架框逐个落位，而不是整幅图一次性出现', async ({ page }) => {
@@ -297,40 +297,10 @@ test('快捷键图例是一排键帽，不是挤成一行的文字', async ({ pa
     await expect(stage).toBeVisible();
 
     const caps = stage.locator('[data-ponder-key-cap]');
-    // ← → [ ] Space Esc 六个键帽，各自带说明。
+    // ← → [ ] Space Esc 六个键帽，各自带说明。Esc 那一个画在退出按钮上，其余五个在底下那行图例里。
     await expect(caps).toHaveCount(6);
-    await expect(caps.first()).toHaveText('←');
+    await expect(stage.locator('[data-ponder-legend] [data-ponder-key-cap]').first()).toHaveText('←');
     await expect(stage.locator('[data-ponder-key-combo]')).toHaveCount(4);
-});
-
-test('字幕会避开「本页可单独思索的组件」那张浮层卡', async ({ page }) => {
-    // 卡是浮在骨架之上的，不在 rects 里；不显式交给摆位算法，字幕会被它盖掉半句。
-    for (const probe of ['lattice-poster', 'player-page-layout']) {
-        await page.locator(`[data-probe-open="${probe}"]`).click();
-        const stage = page.locator('[data-testid="ponder-stage"]');
-        await expect(stage).toBeVisible();
-        await expect(stage.getByTestId('ponder-related-targets')).toBeVisible();
-
-        for (let tick = 0; tick < 4; tick += 1) {
-            await page.waitForTimeout(2200);
-            const worst = await page.evaluate(() => {
-                const card = document.querySelector('[data-testid="ponder-related-targets"]')?.getBoundingClientRect();
-                if (!card) return 0;
-                return Array.from(document.querySelectorAll('[data-testid="ponder-stage"] div'))
-                    .filter(node => Number(getComputedStyle(node).opacity) > 0.4
-                        && (node as HTMLElement).className.includes('rounded-lg px-3.5'))
-                    .reduce((max, node) => {
-                        const box = node.getBoundingClientRect();
-                        const x = Math.max(0, Math.min(box.right, card.right) - Math.max(box.left, card.left));
-                        const y = Math.max(0, Math.min(box.bottom, card.bottom) - Math.max(box.top, card.top));
-                        return Math.max(max, x * y);
-                    }, 0);
-            });
-            expect(worst, `${probe} 的字幕压到了浮层卡上`).toBe(0);
-        }
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(500);
-    }
 });
 
 test('Lattice 展开卡片的控制条：中间两个就是底栏那两个槽位', async ({ page }) => {
@@ -366,19 +336,20 @@ test('右侧面板：Tab 循环换页，四页各是一个独立目标', async (
     const stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage).toBeVisible();
 
-    // Tab 往后一格：高亮从封面挪到控制。
-    await expect(stage.locator('[data-ponder-surface-state="controls-tab"]')).toHaveCSS('opacity', '1', { timeout: 8000 });
-    const activeIndex = await stage.locator('[data-ponder-surface-state="controls-tab"] [data-ponder-panel-tab]')
+    // Tab 往后一格：高亮从封面挪到它后面的来源那一格（画的是有来源的那一排，五格）。
+    await expect(stage.locator('[data-ponder-surface-state="source-tab"]')).toHaveCSS('opacity', '1', { timeout: 8000 });
+    const activeIndex = await stage.locator('[data-ponder-surface-state="source-tab"] [data-ponder-panel-tab]')
         .evaluateAll(nodes => nodes.findIndex(node => node.hasAttribute('data-active')));
     expect(activeIndex).toBe(1);
+    await expect(stage.locator('[data-ponder-surface-state="source-tab"] [data-ponder-panel-tab]')).toHaveCount(5);
 
     // 四页各自预渲染在场。
-    for (const state of ['cover-actions', 'cover-tab', 'source-tab', 'controls-tab', 'queue-tab', 'account-tab']) {
+    for (const state of ['cover-tab', 'source-tab', 'controls-tab', 'queue-tab', 'account-tab']) {
         await expect(stage.locator(`[data-ponder-surface-state="${state}"]`)).toHaveCount(1);
     }
 
     // 四页不再是 side-panel 的章节，而是四个能单独悬停进入的目标 —— 整块面板的教程
-    // 把它们连同封面四颗按钮和侧边开关一起列在「本页可单独思索的组件」里。
+    // 把它们连同封面下面那一行按钮和侧边开关一起列在「本页可单独思索的组件」里。
     // 断言条数而不是文案：探针跑在英文下，写死中文名会把这条测试绑死在某一份 locale 上。
     await expect(stage.getByTestId('ponder-related-targets').locator('button')).toHaveCount(7);
 });
@@ -436,26 +407,28 @@ test('读条期间按任意键就取消，画面停在这一章', async ({ page 
     await expect(stage.getByText('1 / 2').first()).toBeVisible();
 });
 
-test('封面四角那四颗按钮各有自己的一段说明', async ({ page }) => {
+test('封面下面那一行按钮各有自己的一段说明', async ({ page }) => {
     await page.locator('[data-probe-open="panel-cover-actions"]').click();
     const stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage).toBeVisible();
+    await settled(stage);
 
-    // 悬停结果层里四个角各画一颗，且都落在封面框内。
-    await expect(stage.locator('[data-ponder-surface-state="cover-actions"]')).toHaveCSS('opacity', '1', { timeout: 8000 });
-    for (const marker of ['settings', 'transparent', 'home', 'playlist']) {
-        await expect(stage.locator(`[data-ponder-panel-cover-${marker}]`)).toHaveCount(1);
-    }
+    // 这一行一直在封面页上，不用悬停：五件各画一颗，锚点正好压在它身上。
+    const base = '[data-ponder-surface-state="panel-body"]';
+    await expectAligned(stage, 'coverLike', `${base} [data-ponder-panel-cover-like]`);
+    await expectAligned(stage, 'coverPlaylist', `${base} [data-ponder-panel-cover-playlist]`);
+    await expectAligned(stage, 'coverSource', `${base} [data-ponder-panel-cover-source]`);
+    await expectAligned(stage, 'coverHome', `${base} [data-ponder-panel-cover-home]`);
+    await expectAligned(stage, 'coverSettings', `${base} [data-ponder-panel-cover-settings]`);
 });
 
-test('设置里的歌词动画与配色两组各自能单独思索', async ({ page }) => {
+test('设置里的歌词动画与主题两组各自能单独思索', async ({ page }) => {
     await page.locator('[data-probe-open="lyrics-animation"]').click();
     let stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage).toBeVisible();
     await settled(stage);
     await expectAligned(stage, 'entry', '[data-ponder-lyrics-animation-entry]');
-    await expectAligned(stage, 'autoHide', '[data-ponder-lyrics-auto-hide]');
-    // 点那一条打开的是调参台，不是又一屏设置。
+    // 点那一条打开的是歌词样式窗口，不是又一屏设置。
     await expect(stage.locator('[data-ponder-lyrics-playground]')).toHaveCount(1);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
@@ -570,7 +543,7 @@ test('对话框与两块整屏编辑器：锚点落在合成界面的真实元�
     await settled(stage);
     await expectAligned(stage, 'targetToggle', '[data-ponder-park-target]');
     await expectAligned(stage, 'save', '[data-ponder-park-save]');
-    await expectAligned(stage, 'colorRows', '[data-ponder-park-colors]');
+    await expectAligned(stage, 'colorWells', '[data-ponder-park-colors]');
     await expectAligned(stage, 'modeToggle', '[data-ponder-park-mode]');
 });
 
@@ -624,60 +597,11 @@ test('控制面板那两章：模式列表压下来，FM 下这一格换成电�
     await page.locator('[data-probe-open="panel-queue-radio"]').click();
     stage = page.locator('[data-testid="ponder-stage"]');
     await expect(stage.locator('[data-ponder-surface-state="fm-tab"]')).toHaveCSS('opacity', '1', { timeout: 12000 });
-    // 换的是同一格标签，所以高亮仍然落在第三格上。
+    // 换的是同一格标签，所以高亮仍然落在队列那一格上：五格里的第四格。
     const activeIndex = await stage.locator('[data-ponder-surface-state="fm-tab"] [data-ponder-panel-tab]')
         .evaluateAll(nodes => nodes.findIndex(node => node.hasAttribute('data-active')));
-    expect(activeIndex).toBe(2);
+    expect(activeIndex).toBe(3);
     await expect(stage.locator('[data-ponder-panel-fm-mode]')).toBeVisible();
-});
-
-test('字幕底色不透明，且压在外框和浮层卡之上', async ({ page }) => {
-    await page.locator('[data-probe-open="lattice-chrome-slots"]').click();
-    const stage = page.locator('[data-testid="ponder-stage"]');
-    await expect(stage).toBeVisible();
-
-    const caption = stage.locator('div.rounded-lg.px-3\\.5').first();
-    await expect(caption).toBeAttached();
-    const look = await caption.evaluate(node => {
-        const style = getComputedStyle(node);
-        const layer = node.closest('[aria-hidden="true"]') as HTMLElement;
-        return { background: style.backgroundColor, layerZ: layer ? getComputedStyle(layer).zIndex : null };
-    });
-    // 半透明会让压在底下的标题栏文字透上来，两段字叠成一团。
-    expect(look.background).not.toMatch(/rgba\([^)]*,\s*0?\.\d+\s*\)/);
-    // 外框和浮层卡都在它下面；字幕层自己 pointer-events-none，不挡点击。
-    expect(Number(look.layerZ)).toBeGreaterThan(20);
-    await expect(stage.getByTestId('ponder-related-targets')).toHaveCSS('z-index', '20');
-});
-
-test('字幕不落在上下两条外框上', async ({ page }) => {
-    // 摆位算法把外框算成 reserved，但那是加权评分不是硬禁止 —— 权重给小了，
-    // 「少盖住一点骨架」就会把字幕留在标题栏上，正是这条要挡住的。
-    for (const probe of ['lattice-chrome-slots', 'player-page-layout', 'panel-queue-tab']) {
-        await page.locator(`[data-probe-open="${probe}"]`).click();
-        const stage = page.locator('[data-testid="ponder-stage"]');
-        await expect(stage).toBeVisible();
-
-        for (let tick = 0; tick < 3; tick += 1) {
-            await page.waitForTimeout(2200);
-            const clashes = await page.evaluate(() => {
-                const out: string[] = [];
-                document.querySelectorAll('[data-testid="ponder-stage"] div').forEach(node => {
-                    const el = node as HTMLElement;
-                    if (!el.className.includes('rounded-lg') || !el.className.includes('px-3.5')) return;
-                    if (Number(getComputedStyle(el).opacity) < 0.4) return;
-                    const box = el.getBoundingClientRect();
-                    const onTop = Math.max(0, Math.min(box.bottom, 84) - box.top);
-                    const onBottom = Math.max(0, box.bottom - Math.max(box.top, innerHeight - 156));
-                    if (onTop > 0 || onBottom > 0) out.push(el.innerText.slice(0, 16));
-                });
-                return out;
-            });
-            expect(clashes, `${probe} 的字幕压到了外框上`).toEqual([]);
-        }
-        await page.keyboard.press('Escape');
-        await page.waitForTimeout(400);
-    }
 });
 
 test('歌词样式：骨架锚点落在合成界面的真实元素上', async ({ page }) => {

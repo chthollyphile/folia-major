@@ -25,7 +25,8 @@ export const SOLID_WALL_LOOK: BravaisWallLook = Object.freeze({ look: 'solid', w
  * - wall：实色空画框（实色档，或透明档里无限墙的「还没有内容」）；
  * - window：窗——部分透明的结构位，或透明档里有限墙剩下的空 slot。没有内容，不可聚焦、不可点。
  */
-export type BravaisTileKind = 'content' | 'wall' | 'window';
+/** heading：探索形状里 section 的标题磁贴（只有字）。 */
+export type BravaisTileKind = 'content' | 'wall' | 'window' | 'heading';
 
 /** 内容要跳过的保留位数：只有部分透明档有结构窗。 */
 export const resolveReservedPerBlock = (wallLook: BravaisWallLook): number => (
@@ -40,7 +41,7 @@ export const resolveEmptySlotKind = (
     look: LibraryWallLook,
     reserved: boolean,
     layerMode: 'infinite' | 'finite',
-): Exclude<BravaisTileKind, 'content'> => {
+): 'wall' | 'window' => {
     if (reserved) return 'window';
     return look !== 'solid' && layerMode === 'finite' ? 'window' : 'wall';
 };

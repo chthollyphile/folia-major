@@ -37,6 +37,8 @@ export default defineConfig({
   snapshotPathTemplate: '{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-snapshotSuffix}{ext}',
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    // 没钉 folia_app_language 的用例按「跟随系统」走浏览器语言；固定成英文，中文开发机上也是同一套文案。
+    locale: 'en-US',
     viewport: {
       width: 1440,
       height: 1100,

@@ -46,7 +46,7 @@ describe('netease daily recommendations', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const result = await neteaseApi.getDailyRecommendedSongs(true);
 
         expect(result.songs[0]).toMatchObject({
@@ -64,7 +64,7 @@ describe('netease daily recommendations', () => {
             data: createSong(11, 'Replacement Song'),
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const result = await neteaseApi.dislikeDailyRecommendedSong(10);
 
         expect(result.song).toMatchObject({ id: 11, name: 'Replacement Song' });
@@ -77,7 +77,7 @@ describe('netease daily recommendations', () => {
             message: '今日暂无更多推荐',
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const result = await neteaseApi.dislikeDailyRecommendedSong(10);
 
         expect(result).toMatchObject({
@@ -95,7 +95,7 @@ describe('netease daily recommendations', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const result = await neteaseApi.getDailyRecommendationHistoryDates();
 
         expect(result.dates).toEqual(['2026-07-12', '2026-07-11']);
@@ -108,7 +108,7 @@ describe('netease daily recommendations', () => {
             data: { songs: [createSong(12, 'History Song')] },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const result = await neteaseApi.getDailyRecommendationHistoryDetail('2026-07-12');
 
         expect(result.songs[0]).toMatchObject({ id: 12, name: 'History Song' });

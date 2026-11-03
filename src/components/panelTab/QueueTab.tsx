@@ -1,15 +1,32 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { ListEnd, ListPlus, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
+import { ListEnd, ListMusic, ListPlus, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { Button } from '../modal/settings/kit';
+import { useKitReducedMotion } from '../modal/settings/kit/motion';
+import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { queueIndexOfKey } from '../../utils/playbackNeighbors';
+import { EmptyState } from './shell/EmptyState';
+import { PanelIconButton } from './shell/PanelIconButton';
 
 // src/components/panelTab/QueueTab.tsx
+// The panel's queue tab: a line with the number of songs and the queue's own buttons, then the
+// queue as a list that scrolls inside itself. The list is as tall as its rows, seven and a half
+// of them at most, and lower where the window leaves less (--pn-tab-room, from the panel's frame);
+// while more rows follow it fades at the bottom. A row plays its song; its three actions show
+// under the pointer and when the keyboard reaches them.
+
+const ROW_PX = 48;
+/** The line above the list. */
+const HEAD_PX = 36;
+/** Seven and a half rows: the half row says that more follow. */
+const LIST_MAX_PX = 7.5 * ROW_PX;
+/** The list fades over this much of its bottom while more rows follow. */
+const FADE = 'linear-gradient(#000 calc(100% - 32px), transparent)';
 
 interface QueueTabProps {
     playQueue: SongResult[];
@@ -35,9 +52,9 @@ type QueueRowProps = {
     onMoveSongToNext: QueueTabProps['onMoveSongToNext'];
     onMoveSongToEnd: QueueTabProps['onMoveSongToEnd'];
     onRemoveSong: QueueTabProps['onRemoveSong'];
-    isDaylight: boolean;
     labels: {
         unavailable: string;
+        video: string;
         playNext: string;
         moveToEnd: string;
         remove: string;
@@ -55,16 +72,12 @@ const QueueRow = ({
     onMoveSongToNext,
     onMoveSongToEnd,
     onRemoveSong,
-    isDaylight,
     labels,
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
     const song = playQueue[index];
     const isActive = currentSongKey === getPlaybackSongKey(song);
     const isUnavailable = isSongUnavailable(song);
-    const unavailableTagText = getSongUnavailableLabel(song, labels.unavailable);
-    const activeRowClass = isDaylight ? 'bg-black/[0.08]' : 'bg-white/20';
-    const activeMarkerClass = isDaylight ? 'bg-zinc-700' : 'bg-white';
-    const hoverRowClass = isDaylight ? 'hover:bg-black/[0.04]' : 'hover:bg-white/5';
+    const tag = getSongTag(song, labels);
 
     return (
         <div
@@ -72,32 +85,31 @@ const QueueRow = ({
             onClick={() => onPlaySong(song, playQueue)}
             data-active={isActive}
             {...ariaAttributes}
-            className={`group flex items-center gap-3 px-2 py-1 rounded-lg cursor-pointer transition-colors
-                ${isActive ? activeRowClass : hoverRowClass} ${isUnavailable ? 'opacity-55' : ''}`}
+            className={`st-t-fast group flex cursor-pointer items-center rounded-lg pl-3 pr-1.5 transition-colors ${isActive ? 'bg-[var(--st-fill)]' : 'hover:bg-[var(--st-fill)] focus-within:bg-[var(--st-fill)]'}`}
         >
-            <div className={`w-1 h-6 rounded-full ${isActive ? activeMarkerClass : 'bg-transparent'}`} />
-            <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium truncate">
-                    {song.name}
-                    {isUnavailable && (
-                        <span className={`ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium align-middle ${isDaylight ? 'border-black/8 bg-black/[0.04] text-zinc-600' : 'border-white/10 bg-white/[0.05] text-zinc-300'}`}>
-                            {unavailableTagText}
+            {isActive && <span aria-hidden className="absolute inset-y-3.5 left-0 w-[3px] rounded-r-sm bg-[var(--st-accent)]" />}
+            <div className={`min-w-0 flex-1 ${isUnavailable ? 'opacity-55' : ''}`}>
+                <div className="flex items-center gap-2 text-[13px] leading-[19px]">
+                    <span className={`truncate ${isActive ? 'font-semibold' : ''}`}>{song.name}</span>
+                    {tag && (
+                        <span className="shrink-0 rounded bg-[var(--st-fill2)] px-[5px] py-px text-[11px] leading-[15px] text-[color:var(--st-t2)]">
+                            {tag}
                         </span>
                     )}
                 </div>
-                <div className="text-[10px] opacity-40 truncate">{getSongArtistLabel(song)}</div>
+                <div className="truncate text-xs leading-[17px] text-[color:var(--st-t3)]">{getSongArtistLabel(song)}</div>
             </div>
-            <div className="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto">
+            {/* No width until the pointer or the keyboard is on the row, so a long name has the whole row. Tab changes the panel's tab, so the keyboard does not walk into a row: the actions are the pointer's, as before. */}
+            <div className="st-t-fast flex w-0 shrink-0 items-center gap-0.5 overflow-hidden opacity-0 transition-opacity group-focus-within:ml-2 group-focus-within:w-auto group-focus-within:opacity-100 group-hover:ml-2 group-hover:w-auto group-hover:opacity-100">
                 {[
                     { label: labels.playNext, icon: ListPlus, action: onMoveSongToNext },
                     { label: labels.moveToEnd, icon: ListEnd, action: onMoveSongToEnd },
                     { label: labels.remove, icon: Trash2, action: onRemoveSong },
                 ].map(({ label, icon: Icon, action }) => (
-                    <button
+                    <PanelIconButton
                         key={label}
-                        type="button"
-                        title={label}
-                        aria-label={label}
+                        size="s"
+                        label={label}
                         onClick={(event) => {
                             event.stopPropagation();
                             if (event.detail > 0) {
@@ -105,10 +117,9 @@ const QueueRow = ({
                             }
                             action(index);
                         }}
-                        className={`rounded-md p-1.5 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
                     >
-                        <Icon size={13} />
-                    </button>
+                        <Icon size={15} />
+                    </PanelIconButton>
                 ))}
             </div>
         </div>
@@ -131,27 +142,19 @@ const QueueTab: React.FC<QueueTabProps> = ({
     isDaylight = false,
 }) => {
     const { t } = useTranslation();
-    const ITEM_HEIGHT = 50;
+    const reduced = useKitReducedMotion();
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-    // Adjust container height calculation if needed, or rely on flex
-    // previously CONTAINER_HEIGHT = 200 was passed to List. 
-    // We should make List take available space.
-    // However, react-window List needs explicit height.
-    // The parent has max-h-[300px]. 
-    // If we add a header, we need to subtract its height from the List height or use AutoSizer.
-    // For simplicity given the constraints, let's try to fit it.
-    // The parent is flex-col. 
-    // Let's reduce List height slightly to accommodate header? 
-    // Or better, use Autoizer? No, let's stick to simple fixed height for now but slightly reduced: 300 - 32 (header) = 268?
-    // User asked for "about 5 songs height". 5 * 50 = 250.
-    // Let's set CONTAINER_HEIGHT to 250.
-    const CONTAINER_HEIGHT = 250;
+    // As tall as its rows up to the most it shows; never under two rows, so in a very low window
+    // the tab scrolls instead.
+    const rowsPx = Math.min(playQueue.length * ROW_PX, LIST_MAX_PX);
+    const listHeight = `clamp(${Math.min(rowsPx, 2 * ROW_PX)}px, calc(var(--pn-tab-room, 100vh) - ${HEAD_PX}px), ${rowsPx}px)`;
 
     const listRef = useListRef(null);
     const isInitialMountRef = React.useRef(true);
     const lastScrolledIndexRef = React.useRef<number>(-1);
     const wasOpenRef = React.useRef(false);
     const [isSaveDialogOpen, setIsSaveDialogOpen] = React.useState(false);
+    const [hasMoreBelow, setHasMoreBelow] = React.useState(false);
     const rowProps = React.useMemo<QueueRowProps>(() => ({
         playQueue,
         currentSongKey,
@@ -159,16 +162,15 @@ const QueueTab: React.FC<QueueTabProps> = ({
         onMoveSongToNext,
         onMoveSongToEnd,
         onRemoveSong,
-        isDaylight,
         labels: {
             unavailable: t('status.songUnavailableTag'),
+            video: t('status.songVideoTag'),
             playNext: t('queue.playNext'),
             moveToEnd: t('queue.moveToEnd'),
             remove: t('queue.remove'),
         },
     }), [
         currentSongKey,
-        isDaylight,
         onMoveSongToEnd,
         onMoveSongToNext,
         onPlaySong,
@@ -176,6 +178,17 @@ const QueueTab: React.FC<QueueTabProps> = ({
         playQueue,
         t,
     ]);
+
+    // Whether rows follow under what the list shows: read before the first frame is drawn, and
+    // when the list scrolls, changes size or length. On the first frame the list's handle has no
+    // element yet; the list is the one child of the element around it.
+    const readHasMoreBelow = React.useCallback(() => {
+        const list = listRef.current?.element ?? queueScrollRef.current?.firstElementChild;
+        if (list) {
+            setHasMoreBelow(list.scrollHeight - list.scrollTop - list.clientHeight > 4);
+        }
+    }, [listRef, queueScrollRef]);
+    React.useLayoutEffect(readHasMoreBelow, [playQueue.length, readHasMoreBelow]);
 
     // Reset initial mount state when panel is opened
     React.useEffect(() => {
@@ -190,19 +203,21 @@ const QueueTab: React.FC<QueueTabProps> = ({
     // Auto-scroll to current song
     React.useEffect(() => {
         if (shouldScrollToCurrent && currentSongKey && listRef.current) {
-            const currentIndex = playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
+            const currentIndex = queueIndexOfKey(playQueue, currentSongKey);
             if (currentIndex >= 0) {
                 const isInitialMount = isInitialMountRef.current;
                 const songChanged = lastScrolledIndexRef.current !== currentIndex && lastScrolledIndexRef.current !== -1;
 
-                const behavior = (isInitialMount || !songChanged) ? 'instant' : 'smooth';
+                const behavior = (isInitialMount || !songChanged || reduced) ? 'instant' : 'smooth';
                 const delay = isInitialMount ? 0 : 50;
 
                 setTimeout(() => {
                     if (listRef.current) {
+                        // The row before the playing one goes to the top: the rows line up with
+                        // the list's top edge, and what was just played stays in view.
                         listRef.current.scrollToRow({
-                            index: currentIndex,
-                            align: 'center',
+                            index: Math.max(0, currentIndex - 1),
+                            align: 'start',
                             behavior: behavior as 'instant' | 'smooth'
                         });
                         lastScrolledIndexRef.current = currentIndex;
@@ -211,7 +226,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                 }, delay);
             }
         }
-    }, [shouldScrollToCurrent, currentSongKey, playQueue, listRef]);
+    }, [shouldScrollToCurrent, currentSongKey, playQueue, listRef, reduced]);
 
     const handleSavePlaylist = async () => {
         if (!onSaveCurrentQueueAsPlaylist) {
@@ -221,77 +236,57 @@ const QueueTab: React.FC<QueueTabProps> = ({
     };
 
     if (playQueue.length === 0) {
-        return (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px] select-none">
-                <div className="flex items-center justify-center h-full text-xs opacity-40">
-                    {t('queue.empty')}
-                </div>
-            </motion.div>
-        );
+        return <EmptyState icon={<ListMusic size={28} />}>{t('queue.empty')}</EmptyState>;
     }
 
     return (
         <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col h-full max-h-[300px] select-none">
-                <div className="flex items-center justify-between px-2 pb-2 shrink-0">
-                    <span className="text-xs font-medium opacity-60">
-                        {t('queue.title')} ({playQueue.length})
+            <div className="select-none">
+                <div className="flex items-center gap-0.5 pb-1 pl-1" style={{ height: HEAD_PX }}>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-5 text-[color:var(--st-t2)]">
+                        {t('queue.title')}
+                        <span className="ml-1.5 font-normal text-[color:var(--st-t3)]">{playQueue.length}</span>
                     </span>
-                    <div className="flex items-center gap-1">
-                        {onOpenLattice && (
-                            <button
-                                onClick={onOpenLattice}
-                                className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
-                                title={t('home.lattice')}
-                                aria-label={t('home.lattice')}
-                            >
-                                <PanelsTopLeft size={14} />
-                            </button>
-                        )}
-                        {canSaveLocalPlaylist && (
-                            <button
-                                onClick={handleSavePlaylist}
-                                className="px-2 py-1 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100 text-[10px] font-medium"
-                                title={t('localMusic.saveQueueAsPlaylist')}
-                            >
-                                {t('localMusic.saveQueueAsPlaylist')}
-                            </button>
-                        )}
-                        {onShuffle && (
-                            <button
-                                onClick={onShuffle}
-                                className="p-1.5 rounded-md hover:bg-white/10 transition-colors opacity-60 hover:opacity-100"
-                                title={t('queue.shuffle')}
-                            >
-                                <Shuffle size={14} />
-                            </button>
-                        )}
-                    </div>
+                    {canSaveLocalPlaylist && (
+                        <Button variant="quiet" onClick={handleSavePlaylist}>
+                            {t('localMusic.saveQueueAsPlaylist')}
+                        </Button>
+                    )}
+                    {onOpenLattice && (
+                        <PanelIconButton size="s" label={t('home.lattice')} onClick={onOpenLattice}>
+                            <PanelsTopLeft size={15} />
+                        </PanelIconButton>
+                    )}
+                    {onShuffle && (
+                        <PanelIconButton size="s" label={t('queue.shuffle')} onClick={onShuffle}>
+                            <Shuffle size={15} />
+                        </PanelIconButton>
+                    )}
                 </div>
 
-                <div
-                    ref={queueScrollRef}
-                    className="flex-1 -mx-2 px-2 overflow-hidden"
-                >
+                <div ref={queueScrollRef}>
                     <List
                         listRef={listRef}
                         rowCount={playQueue.length}
-                        rowHeight={ITEM_HEIGHT}
+                        rowHeight={ROW_PX}
+                        // The list measures itself after its first frame; until then it takes this height, so that frame has all its rows.
+                        defaultHeight={rowsPx}
                         rowComponent={QueueRow}
                         rowProps={rowProps}
                         overscanCount={5}
-                        className="custom-scrollbar"
-                        style={{ height: CONTAINER_HEIGHT, width: '100%' }}
+                        onScroll={readHasMoreBelow}
+                        onResize={readHasMoreBelow}
+                        className="st-scroll"
+                        style={{ height: listHeight, width: '100%', maskImage: hasMoreBelow ? FADE : undefined }}
                     />
                 </div>
-            </motion.div>
+            </div>
 
             <TextInputDialog
                 isOpen={isSaveDialogOpen}
                 onClose={() => setIsSaveDialogOpen(false)}
                 isDaylight={isDaylight}
                 title={t('localMusic.saveQueueAsPlaylist')}
-                description={t('localMusic.enterPlaylistName')}
                 placeholder={t('localMusic.enterPlaylistName')}
                 confirmLabel={t('localMusic.save')}
                 onConfirm={async (playlistName) => {

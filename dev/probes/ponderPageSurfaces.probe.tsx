@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import '../../src/i18n/config';
 import PonderHost from '../../src/components/ponder/PonderHost';
 import { usePonderStore } from '../../src/stores/usePonderStore';
@@ -7,6 +7,8 @@ import type { PonderTargetId } from '../../src/types/ponder';
 import type { ProbeDefinition } from './definition';
 
 // dev/probes/ponderPageSurfaces.probe.tsx
+// One button per lesson scene the component spec opens. For pictures: ?open=<target id>&scene=<n>
+// opens any lesson directly, and ?light=1 shows the stage in the light theme.
 
 const PROBE_THEME = { accentColor: '#f43f5e' } as Theme;
 
@@ -70,11 +72,10 @@ const ENTRIES: Array<{ id: string; target: PonderTargetId; scene: number }> = [
     { id: 'theme-settings', target: 'theme-settings', scene: 0 },
     { id: 'theme-settings-park', target: 'theme-settings', scene: 1 },
     { id: 'theme-settings-auto', target: 'theme-settings', scene: 2 },
-    { id: 'lyrics-animation-toggles', target: 'lyrics-animation-settings', scene: 1 },
     { id: 'player-bar-basics', target: 'player-bar', scene: 0 },
-    { id: 'player-bar-height', target: 'player-bar', scene: 1 },
-    { id: 'player-bar-shuffle', target: 'player-bar', scene: 3 },
-    { id: 'player-bar-volume', target: 'player-bar', scene: 4 },
+    { id: 'player-bar-height', target: 'player-bar', scene: 2 },
+    { id: 'player-bar-shuffle', target: 'player-bar', scene: 4 },
+    { id: 'player-bar-volume', target: 'player-bar', scene: 5 },
     { id: 'custom-shortcut-key', target: 'custom-shortcut-settings', scene: 0 },
     { id: 'custom-shortcut-command', target: 'custom-shortcut-settings', scene: 1 },
     { id: 'pinned-commands-slots', target: 'pinned-commands', scene: 0 },
@@ -100,24 +101,37 @@ const ENTRIES: Array<{ id: string; target: PonderTargetId; scene: number }> = [
     { id: 'panel-queue-radio', target: 'panel-queue-tab', scene: 1 },
 ];
 
-const ProbeBody: React.FC = () => (
-    <div className="min-h-screen bg-zinc-950 p-6 text-zinc-100">
-        <div className="flex flex-wrap gap-2">
-            {ENTRIES.map(entry => (
-                <button
-                    key={entry.id}
-                    type="button"
-                    data-probe-open={entry.id}
-                    onClick={() => usePonderStore.getState().openPonder(entry.target, entry.scene)}
-                    className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs"
-                >
-                    {entry.id}
-                </button>
-            ))}
+const ProbeBody: React.FC = () => {
+    const query = new URLSearchParams(window.location.search);
+    const isLight = query.get('light') === '1';
+    const openTarget = query.get('open') as PonderTargetId | null;
+    const openScene = Number(query.get('scene') ?? 0);
+
+    useEffect(() => {
+        if (openTarget) {
+            usePonderStore.getState().openPonder(openTarget, openScene);
+        }
+    }, [openTarget, openScene]);
+
+    return (
+        <div className={`min-h-screen p-6 ${isLight ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-950 text-zinc-100'}`}>
+            <div className="flex flex-wrap gap-2">
+                {ENTRIES.map(entry => (
+                    <button
+                        key={entry.id}
+                        type="button"
+                        data-probe-open={entry.id}
+                        onClick={() => usePonderStore.getState().openPonder(entry.target, entry.scene)}
+                        className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs"
+                    >
+                        {entry.id}
+                    </button>
+                ))}
+            </div>
+            <PonderHost theme={PROBE_THEME} isDaylight={isLight} />
         </div>
-        <PonderHost theme={PROBE_THEME} isDaylight={false} />
-    </div>
-);
+    );
+};
 
 const probe: ProbeDefinition = {
     id: 'ponderPageSurfaces',

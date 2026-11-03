@@ -1,19 +1,28 @@
 import React from 'react';
+import type { BeatEffectDef } from '../../../services/beatFx/beatEffects';
 import type { MotionValue } from 'framer-motion';
 import type {
     AudioBands,
-    LatentBackgroundTuning,
     MonetBackgroundImage,
-    MonetBackgroundTuning,
-    NomandBackgroundTuning,
-    SoraBackgroundTuning,
     Theme,
     UrlBackgroundItem,
     VisualizerBackgroundMode,
 } from '../../../types';
+import type { VisualizerModeCommand } from '../definition';
 
 // src/components/visualizer/backgrounds/definition.ts
 // Shared contracts for discoverable visualizer background modes.
+
+/** A background's tuning as the background config carries it, under the background's id. */
+export interface BackgroundTuningSlot<T> {
+    tuning?: T;
+}
+
+/** The actions of a background's tuning as the background actions carry them, under the background's id. */
+export interface BackgroundTuningActionSlot<T> {
+    onTuningChange?: (patch: Partial<T>) => void;
+    onResetTuning?: () => void;
+}
 
 export interface VisualizerBackgroundConfig {
     mode?: VisualizerBackgroundMode | null;
@@ -25,18 +34,8 @@ export interface VisualizerBackgroundConfig {
         disableVignette?: boolean;
     };
     customImage?: MonetBackgroundImage | null;
-    monet?: {
-        tuning?: MonetBackgroundTuning;
-    };
-    nomand?: {
-        tuning?: NomandBackgroundTuning;
-    };
-    latent?: {
-        tuning?: LatentBackgroundTuning;
-    };
-    sora?: {
-        tuning?: SoraBackgroundTuning;
-    };
+    // A background's tuning lies here under the background's id, as a BackgroundTuningSlot: its
+    // tuning.ts adds that member (declare module), so this file lists no background's tuning.
     url?: {
         items?: UrlBackgroundItem[];
         selectedId?: string | null;
@@ -56,22 +55,8 @@ export interface VisualizerBackgroundActions {
         onClear?: () => Promise<void> | void;
         isLoading?: boolean;
     };
-    monet?: {
-        onTuningChange?: (patch: Partial<MonetBackgroundTuning>) => void;
-        onResetTuning?: () => void;
-    };
-    nomand?: {
-        onTuningChange?: (patch: Partial<NomandBackgroundTuning>) => void;
-        onResetTuning?: () => void;
-    };
-    latent?: {
-        onTuningChange?: (patch: Partial<LatentBackgroundTuning>) => void;
-        onResetTuning?: () => void;
-    };
-    sora?: {
-        onTuningChange?: (patch: Partial<SoraBackgroundTuning>) => void;
-        onResetTuning?: () => void;
-    };
+    // The actions of a background's tuning lie here under the background's id, as a
+    // BackgroundTuningActionSlot: its tuning.ts adds that member.
     url?: {
         onAdd?: (item: UrlBackgroundItem) => void;
         onUpdate?: (id: string, patch: Partial<Omit<UrlBackgroundItem, 'id'>>) => void;
@@ -90,6 +75,14 @@ export interface VisualizerBackgroundRenderProps {
     seed?: string | number;
     staticMode: boolean;
     paused: boolean;
+    /*
+     * For a background that changes its colours in place (no `song` in its entry): how long it takes
+     * to blend to new ones (useBlendedColors), the soft focus's length where the host plays transitions,
+     * 0 or left out where it changes at once.
+     */
+    blendMs?: number;
+    /** Where given, that blend plays along this (0..1, a blend's song hand-off) instead of over blendMs. */
+    blendProgress?: MotionValue<number>;
 }
 
 export interface VisualizerBackgroundSettingsProps {
@@ -118,10 +111,31 @@ export interface VisualizerBackgroundRegistryEntry {
     order: number;
     labelKey: string;
     labelFallback: string;
+    /*
+     * The small line icon shown beside the background's name: the children of the 24x24 stroked
+     * <svg> that modeGlyphs.tsx draws. A background without one (a mod's, say) gets the generic icon.
+     */
+    glyph?: React.ReactNode;
+    /** The command that switches to this background (id `background-<mode>`). A background without one has no plain switch command. */
+    command?: VisualizerModeCommand;
+    /*
+     * What the background draws of the song playing (its cover, its seed). Where these change, the
+     * background changes as a whole: a new copy is mounted for the new song and, where the host plays
+     * transitions, comes in with the soft focus while the old copy leaves drawing the old song
+     * (styleTransition/VisualizerBackgroundTransition). A copy that loads something first (a cover to
+     * decode, a picture to make) says when it is ready with useFirstFrameDrawn (styleTransition/firstFrame.ts).
+     * Left out, the background does not change with the song, or changes what it draws in place.
+     */
+    song?: (props: VisualizerBackgroundRenderProps) => readonly unknown[];
     render: (props: VisualizerBackgroundRenderProps) => React.ReactNode;
     renderSettingsPanel?: (props: VisualizerBackgroundSettingsProps) => React.ReactNode;
     renderQuickControls?: (props: VisualizerBackgroundQuickControlsProps) => React.ReactNode;
     resetSettings?: (actions?: VisualizerBackgroundActions) => void;
+    /*
+     * The beat effects this background draws under 智能动感模式, like the visualizer entries' list of
+     * the same name (../definition.ts); Latent's onset pulse following the beats is one (retired).
+     */
+    beatEffects?: readonly BeatEffectDef[];
 }
 
 export interface VisualizerBackgroundEntryModule {

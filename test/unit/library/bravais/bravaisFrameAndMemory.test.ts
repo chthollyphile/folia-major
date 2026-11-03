@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getSeamSplitOffsets } from '@/components/wall/seamPlan';
 import bravais, { BRAVAIS_LAYOUT_STORAGE_PREFIX } from '@/library/suites/bravais/entry';
 import { computeBravaisFrame } from '@/library/suites/bravais/bravaisFrame';
+import { getBlockSize } from '@/components/wall/wallSlots';
+import { BRAVAIS_BLOCK_SHAPE, EXPLORE_BLOCK_SIZE, createExploreShape, nearestShapeBoundaryX } from '@/library/suites/bravais/bravaisWallShape';
 import {
+    fitBravaisLayoutToShape,
     parseBravaisLayoutRecord,
     readBravaisLayout,
     writeBravaisLayout,
@@ -21,7 +24,7 @@ describe('computeBravaisFrame', () => {
         const offsets = getSeamSplitOffsets(300, view.scale, metrics);
         expect(frame.left).toEqual({ x: 600 + offsets.left, y: 400 });
         expect(frame.right).toEqual({ x: 600 + offsets.right, y: 400 });
-        expect(frame.seam).toEqual({ x: 600, width: 300, visible: true });
+        expect(frame.seam).toEqual({ axis: 'x', x: 600, y: 400, width: 300, visible: true });
         expect(frame.contentOpacity).toBe(1);
         expect(frame.tab.visible).toBe(false);
     });
@@ -80,6 +83,26 @@ describe('layout memory', () => {
         bravais.layout!.forget('online:a:playlist:1');
         expect(readBravaisLayout('online:a:playlist:1')).toBeNull();
         expect(readBravaisLayout('home')).toEqual(record);
+    });
+
+    it('moves a remembered anchor and start onto the shape it is used with', () => {
+        const explore = createExploreShape([{ key: 'a', heading: 'A', entries: [{ index: 0, kind: 'album' }] }], { column: 0, row: 0 });
+        const blockWidth = getBlockSize(metrics).width;
+        // 探索形状记下的（街中线上的锚点、第 2 块地的起点与焦点）拿到块墙上用。
+        const fromExplore = { center: { x: 1, y: 2 }, anchorX: 2 * EXPLORE_BLOCK_SIZE.width - 36, startSlotKey: '1,0,4', focusSlotKey: '1,0,4', shapeKind: 'explore' as const };
+        const onBlocks = fitBravaisLayoutToShape(fromExplore, BRAVAIS_BLOCK_SHAPE);
+        expect(onBlocks.anchorX).toBe(nearestShapeBoundaryX(BRAVAIS_BLOCK_SHAPE, fromExplore.anchorX));
+        expect((onBlocks.anchorX! + metrics.gap / 2) % blockWidth).toBe(0);
+        const start = BRAVAIS_BLOCK_SHAPE.slotAt(...(onBlocks.startSlotKey!.split(',').map(Number) as [number, number, number]))!;
+        expect(Math.floor(start.centerX / EXPLORE_BLOCK_SIZE.width)).toBe(1);
+        expect(onBlocks).toMatchObject({ center: fromExplore.center, focusSlotKey: null, shapeKind: 'blocks' });
+        // 块墙记下的（没有种类的旧记录也算块）拿到探索形状上：起点是它块中心所在那块地的第一个座位。
+        const onExplore = fitBravaisLayoutToShape(record, explore);
+        expect(onExplore.anchorX).toBe(nearestShapeBoundaryX(explore, record.anchorX));
+        expect(onExplore.startSlotKey).toBe('1,0,0');
+        expect(onExplore.focusSlotKey).toBeNull();
+        // 同一种形状：照用，只把锚点落到边界上。
+        expect(fitBravaisLayoutToShape(record, BRAVAIS_BLOCK_SHAPE)).toEqual({ ...record, anchorX: -metrics.gap / 2, shapeKind: 'blocks' });
     });
 
     it('drops broken fields instead of trusting them', () => {

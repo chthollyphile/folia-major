@@ -18,7 +18,9 @@
 // electron-as-wallpaper swallows RI_MOUSE_HWHEEL) — the wheel reporting here is Folia's own.
 // This file is distributed with Folia under AGPL-3.0.
 
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU64, Ordering};
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use windows::core::s;
 use windows::Win32::Devices::HumanInterfaceDevice::{
@@ -30,15 +32,21 @@ use windows::Win32::UI::Input::{
     RIDEV_INPUTSINK, RID_INPUT, RIM_TYPEMOUSE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    FindWindowExA, GetCursorPos, GetForegroundWindow, GetSystemMetrics, RI_MOUSE_BUTTON_1_DOWN,
-    RI_MOUSE_BUTTON_1_UP, RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP, RI_MOUSE_HWHEEL,
-    RI_MOUSE_WHEEL, SM_SWAPBUTTON,
+    FindWindowExA, GetAncestor, GetCursorPos, GetForegroundWindow, GetSystemMetrics,
+    WindowFromPoint, GA_ROOT, RI_MOUSE_BUTTON_1_DOWN, RI_MOUSE_BUTTON_1_UP,
+    RI_MOUSE_BUTTON_2_DOWN, RI_MOUSE_BUTTON_2_UP, RI_MOUSE_HWHEEL, RI_MOUSE_WHEEL, SM_SWAPBUTTON,
 };
 
 use crate::events::Event;
 
-// Coalescing cadence for move reports: one position per frame is enough for hover/drag
-// feedback, and it keeps the JSONL/IPC volume bounded even with 1000 Hz gaming mice.
+// Moves are reported straight from WM_INPUT, at the rate raw input reaches the helper (measured on
+// Windows 11: 125 Hz for a background RIDEV_INPUTSINK listener, whatever the mouse polls at). The
+// minimum spacing only caps unthrottled 1000+ Hz gaming mice (~250 reports a second) to keep the
+// JSONL/IPC volume bounded. A fixed WM_TIMER cadence cannot do this job: the system tick quantizes
+// a 16 ms timer to ~31 ms, which left drags at ~26 updates a second.
+const MOUSE_MOVE_MIN_INTERVAL_US: u64 = 4_000;
+// Trailing flush for positions held back by the spacing or the foreground filter, so the last
+// position of a gesture (or the one waiting for the desktop to come back) still goes out.
 const MOUSE_MOVE_TIMER_MS: u32 = 16;
 // Sentinel meaning "nothing emitted yet" for the last-reported position.
 const POSITION_UNKNOWN: i32 = i32::MIN;
@@ -53,29 +61,64 @@ const POSITION_UNKNOWN: i32 = i32::MIN;
 // stay under Progman, so Progman is the accepted foreground there.
 static WORKERW_HWND: AtomicIsize = AtomicIsize::new(0);
 static ICON_WORKERW_HWND: AtomicIsize = AtomicIsize::new(0);
-// Latest raw cursor position and whether it changed since the last timer tick.
+// Latest raw cursor position and whether it changed since the last report.
 static LATEST_X: AtomicI32 = AtomicI32::new(POSITION_UNKNOWN);
 static LATEST_Y: AtomicI32 = AtomicI32::new(POSITION_UNKNOWN);
 static POSITION_DIRTY: AtomicBool = AtomicBool::new(false);
-// Last position actually reported to the main process (dedupes identical reports).
+// Last position actually reported to the main process (dedupes identical reports), and when.
 static LAST_SENT_X: AtomicI32 = AtomicI32::new(POSITION_UNKNOWN);
 static LAST_SENT_Y: AtomicI32 = AtomicI32::new(POSITION_UNKNOWN);
-// Whether the primary button is currently tracked as held. While held, moves and the final
-// button-up are reported regardless of the foreground filter — a drag that leaves the desktop
-// (or an alt-tab mid-drag) must not leave the renderer stuck in a pressed state.
+static LAST_MOVE_SENT_US: AtomicU64 = AtomicU64::new(0);
+// Whether the primary button is currently tracked as held. While held, the final button-up is
+// reported regardless of the foreground filter — a drag that leaves the desktop (or an alt-tab
+// mid-drag) must not leave the renderer stuck in a pressed state. Moves are not exempt: they
+// always need the desktop in the foreground, so a drag inside another app never pans the wall.
 static PRIMARY_DOWN: AtomicBool = AtomicBool::new(false);
 
-unsafe fn is_desktop_foreground() -> bool {
-    let foreground = GetForegroundWindow();
-    if foreground.0.is_null() {
+static CLOCK_ORIGIN: OnceLock<Instant> = OnceLock::new();
+
+// Monotonic microseconds since the first call (QueryPerformanceCounter under std's Instant; the
+// tick-based GetTickCount64 is as coarse as the timer this spacing replaces).
+fn now_us() -> u64 {
+    CLOCK_ORIGIN.get_or_init(Instant::now).elapsed().as_micros() as u64
+}
+
+/// Whether a move arriving at `now_us` may be reported right away, given when the previous
+/// move report went out.
+fn move_report_due(now_us: u64, last_sent_us: u64) -> bool {
+    now_us.saturating_sub(last_sent_us) >= MOUSE_MOVE_MIN_INTERVAL_US
+}
+
+// Whether `hwnd` is one of the desktop's own top-level windows (wallpaper WorkerW, icon WorkerW
+// or Progman).
+unsafe fn is_desktop_window(hwnd: HWND) -> bool {
+    if hwnd.0.is_null() {
         return false;
     }
     let worker_w = WORKERW_HWND.load(Ordering::Relaxed);
     let icon_worker_w = ICON_WORKERW_HWND.load(Ordering::Relaxed);
-    let progman = find_progman_hwnd();
-    foreground.0 as isize == worker_w
-        || (icon_worker_w != 0 && foreground.0 as isize == icon_worker_w)
-        || Some(foreground) == progman
+    hwnd.0 as isize == worker_w
+        || (icon_worker_w != 0 && hwnd.0 as isize == icon_worker_w)
+        || Some(hwnd) == find_progman_hwnd()
+}
+
+unsafe fn is_desktop_foreground() -> bool {
+    is_desktop_window(GetForegroundWindow())
+}
+
+// Whether a click or wheel at `point` lands on the desktop. Raw input reaches the helper before
+// the click activates its target window, so a click from the desktop into an app window still
+// sees the desktop as foreground; and wheel input scrolls the window under the cursor even when
+// it is inactive. The top-level window under the cursor is what the input actually hits.
+unsafe fn is_desktop_under(point: POINT) -> bool {
+    let hit = WindowFromPoint(point);
+    !hit.0.is_null() && is_desktop_window(GetAncestor(hit, GA_ROOT))
+}
+
+// Current cursor position (physical pixels: the thread is per-monitor DPI aware).
+unsafe fn cursor_pos() -> Option<POINT> {
+    let mut point = POINT::default();
+    GetCursorPos(&mut point).ok().map(|_| point)
 }
 
 // The WorkerW hosting SHELLDLL_DefView (the clickable desktop icon layer). None on the raised
@@ -101,9 +144,11 @@ unsafe fn find_progman_hwnd() -> Option<HWND> {
 }
 
 /// Registers raw input on the message window (RIDEV_INPUTSINK keeps the helper background
-/// while receiving WM_INPUT) and starts the move-coalescing timer (~60 Hz).
+/// while receiving WM_INPUT) and starts the trailing-flush timer for moves.
 pub unsafe fn register(worker_w: HWND) -> Result<(), String> {
     super::attach::ensure_thread_dpi_awareness();
+    // Start the spacing clock now, so the very first move is not held back as "too recent".
+    CLOCK_ORIGIN.get_or_init(Instant::now);
     WORKERW_HWND.store(worker_w.0 as isize, Ordering::Relaxed);
     ICON_WORKERW_HWND.store(
         find_icon_worker_w().map_or(0, |hwnd| hwnd.0 as isize),
@@ -169,58 +214,71 @@ pub unsafe fn handle_raw_input(l_param: LPARAM) {
         button_flags & RI_MOUSE_BUTTON_1_UP != 0
     };
 
-    if primary_down && is_desktop_foreground() && !PRIMARY_DOWN.swap(true, Ordering::SeqCst) {
-        report_button(true);
-        return;
+    // A press counts only when it lands on the desktop while the desktop is foreground. One packet
+    // can carry both transitions (a fast click), so the down is handled first and the up is not
+    // skipped — skipping it would leave the press tracked as held for good.
+    if primary_down && !PRIMARY_DOWN.load(Ordering::SeqCst) && is_desktop_foreground() {
+        if let Some(point) = cursor_pos() {
+            if is_desktop_under(point) {
+                PRIMARY_DOWN.store(true, Ordering::SeqCst);
+                super::events::emit(&Event::MouseButtonDown { x: point.x, y: point.y });
+            }
+        }
     }
     if primary_up {
         // Only swallow the up if we never reported the down; always clear our tracking.
         if PRIMARY_DOWN.swap(false, Ordering::SeqCst) {
-            report_button(false);
+            if let Some(point) = cursor_pos() {
+                super::events::emit(&Event::MouseButtonUp { x: point.x, y: point.y });
+            }
         }
+    }
+    if primary_down || primary_up {
         return;
     }
 
     // Wheel packets carry their delta in usButtonData as multiples of WHEEL_DELTA (semantics
     // documented on Event::MouseWheel). They are discrete, low-rate events — reported
-    // immediately instead of being coalesced, gated by the foreground filter (no drag
-    // exemption).
+    // immediately instead of being spaced out, gated like a press: the desktop must be
+    // foreground and under the cursor (no drag exemption).
     let wheel_delta = mouse.Anonymous.Anonymous.usButtonData as i16;
     if button_flags & RI_MOUSE_WHEEL != 0 {
-        if is_desktop_foreground() {
-            report_wheel(0, wheel_delta);
-        }
+        report_wheel(0, wheel_delta);
         return;
     }
     if button_flags & RI_MOUSE_HWHEEL != 0 {
-        if is_desktop_foreground() {
-            report_wheel(wheel_delta, 0);
-        }
+        report_wheel(wheel_delta, 0);
         return;
     }
 
     // Any other button flags (right / middle / side) are intentionally dropped; plain
-    // move events (no flags) just refresh the coalesced position for the timer tick.
+    // move events (no flags) refresh the position and report it unless the last report was
+    // too recent — the trailing timer picks up what the spacing held back.
     if button_flags == 0 {
-        let mut point = POINT::default();
-        if GetCursorPos(&mut point).is_ok() {
+        if let Some(point) = cursor_pos() {
             LATEST_X.store(point.x, Ordering::Relaxed);
             LATEST_Y.store(point.y, Ordering::Relaxed);
             POSITION_DIRTY.store(true, Ordering::Relaxed);
+            if move_report_due(now_us(), LAST_MOVE_SENT_US.load(Ordering::Relaxed)) {
+                flush_move();
+            }
         }
     }
 }
 
-/// WM_TIMER tick for the move coalescer: reports the latest position once per frame when it
-/// changed. The foreground filter runs here (not in the WM_INPUT handler) so a quick poke
-/// into another app and back does not lose the trailing position.
+/// WM_TIMER tick: reports a position the minimum spacing or the foreground filter held back.
 pub unsafe fn on_move_timer() {
-    if !POSITION_DIRTY.swap(false, Ordering::Relaxed) {
+    flush_move();
+}
+
+// Reports the latest position when it changed and the desktop is foreground. A position held back
+// by the foreground filter stays pending, so a quick poke into another app and back does not lose
+// the trailing position: it goes out on the first tick with the desktop in front again.
+unsafe fn flush_move() {
+    if !POSITION_DIRTY.load(Ordering::Relaxed) || !is_desktop_foreground() {
         return;
     }
-    if !PRIMARY_DOWN.load(Ordering::SeqCst) && !is_desktop_foreground() {
-        return;
-    }
+    POSITION_DIRTY.store(false, Ordering::Relaxed);
     let x = LATEST_X.load(Ordering::Relaxed);
     let y = LATEST_Y.load(Ordering::Relaxed);
     if x == POSITION_UNKNOWN
@@ -230,26 +288,16 @@ pub unsafe fn on_move_timer() {
     }
     LAST_SENT_X.store(x, Ordering::Relaxed);
     LAST_SENT_Y.store(y, Ordering::Relaxed);
+    LAST_MOVE_SENT_US.store(now_us(), Ordering::Relaxed);
     super::events::emit(&Event::MouseMove { x, y });
 }
 
-unsafe fn report_button(is_down: bool) {
-    let mut point = POINT::default();
-    if GetCursorPos(&mut point).is_err() {
-        return;
-    }
-    let event = if is_down {
-        Event::MouseButtonDown { x: point.x, y: point.y }
-    } else {
-        Event::MouseButtonUp { x: point.x, y: point.y }
-    };
-    super::events::emit(&event);
-}
-
-/// Reports one wheel packet at the current cursor position.
+/// Reports one wheel packet at the current cursor position when it lands on the desktop.
 unsafe fn report_wheel(delta_x: i16, delta_y: i16) {
-    let mut point = POINT::default();
-    if GetCursorPos(&mut point).is_err() {
+    let Some(point) = cursor_pos() else {
+        return;
+    };
+    if !is_desktop_foreground() || !is_desktop_under(point) {
         return;
     }
     super::events::emit(&Event::MouseWheel {
@@ -258,4 +306,29 @@ unsafe fn report_wheel(delta_x: i16, delta_y: i16) {
         delta_x,
         delta_y,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_move_after_a_quiet_spell_goes_out_immediately() {
+        assert!(move_report_due(2_000_000, 1_000_000));
+    }
+
+    #[test]
+    fn moves_closer_than_the_spacing_wait_for_the_trailing_flush() {
+        // A 1000 Hz mouse: packets 1 ms apart go out every 4th packet.
+        let sent = 10_000;
+        assert!(!move_report_due(sent + 1_000, sent));
+        assert!(!move_report_due(sent + 3_999, sent));
+        assert!(move_report_due(sent + 4_000, sent));
+    }
+
+    #[test]
+    fn a_125_hz_mouse_is_never_held_back() {
+        let sent = 10_000;
+        assert!(move_report_due(sent + 8_000, sent));
+    }
 }

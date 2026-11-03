@@ -19,10 +19,11 @@ vi.mock('@/stores/usePlaybackStore', () => ({
 import {
     createOnlineRecoveryController,
     getOnlineRecoveryKey,
-} from '@/components/app/playback/createOnlineRecoveryController';
-import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
+    type OnlineRecovery,
+} from '@/components/app/playback/restore/createOnlineRecoveryController';
+import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
+import { askForSong } from '@/components/app/playback/currentSong';
 import type { SongResult } from '@/types';
-import type { OnlineRecoveryResult } from '@/types/playbackFailure';
 
 // test/unit/playback/onlineRecoveryController.test.ts
 
@@ -54,15 +55,11 @@ const streamUrl = (vkey: string) =>
 
 const createController = (audioSrc: string, {
     currentSong = song,
-    currentSongRef = ref<string | number | null>(getPlaybackSongKey(currentSong)),
-    playbackGenerationRef = ref(0),
-    recoveryRef = ref(new Map<string, Promise<OnlineRecoveryResult>>()),
+    recoveryRef = ref(new Map<string, Promise<OnlineRecovery>>()),
     blobUrlRef = ref<string | null>(null),
 }: {
     currentSong?: SongResult;
-    currentSongRef?: { current: string | number | null };
-    playbackGenerationRef?: { current: number };
-    recoveryRef?: { current: Map<string, Promise<OnlineRecoveryResult>> };
+    recoveryRef?: { current: Map<string, Promise<OnlineRecovery>> };
     blobUrlRef?: { current: string | null };
 } = {}) => {
     const lastAudioRecoverySourceRef = ref<string | null>(null);
@@ -71,13 +68,13 @@ const createController = (audioSrc: string, {
     const pendingResumeTimeRef = ref<number | null>(null);
     const persistLastPlaybackCache = vi.fn(async () => undefined);
 
+    // The recovery works for the song the player was last asked for.
+    askForSong(currentSong);
     const controller = createOnlineRecoveryController({
         audioQuality: 'high',
         currentSong,
         audioSrc,
         audioRef,
-        currentSongRef,
-        playbackGenerationRef,
         blobUrlRef,
         shouldAutoPlayRef,
         pendingResumeTimeRef,
@@ -85,18 +82,19 @@ const createController = (audioSrc: string, {
         lastAudioRecoverySourceRef,
         currentOnlineAudioUrlFetchedAtRef: ref<number | null>(null),
         persistLastPlaybackCache,
-        playQueue: [currentSong],
         onlineAudioUrlTtlMs: 60_000,
         onlineAudioUrlRefreshBufferMs: 5_000,
     });
 
     return {
-        controller, lastAudioRecoverySourceRef, shouldAutoPlayRef, currentSongRef, playbackGenerationRef, recoveryRef,
+        controller, lastAudioRecoverySourceRef, shouldAutoPlayRef, recoveryRef,
         blobUrlRef, pendingResumeTimeRef, persistLastPlaybackCache,
     };
 };
 
-type LoaderResult = { kind: 'ok'; audioSrc: string; blobUrl?: string; replayGain?: unknown } | { kind: 'failed'; failure: unknown };
+type LoaderResult = { kind: 'ok'; audioSrc: string; blobUrl?: string; replayGain?: unknown } | { kind: 'unavailable'; failure: unknown };
+// What the loader answers where the platform could not be reached.
+const unreachable = () => onlineFailureOf({ operation: 'audio', providerId: 'qq' }, { detail: { case: 'unreachable' } });
 const pendingLoad = () => {
     let finish!: (result: LoaderResult) => void;
     const promise = new Promise<LoaderResult>(resolve => { finish = resolve; });
@@ -113,6 +111,11 @@ describe('online playback recovery bounds', () => {
         expect(getOnlineRecoveryKey(streamUrl('one'))).toBe(getOnlineRecoveryKey(streamUrl('two')));
         expect(getOnlineRecoveryKey(streamUrl('one')))
             .toBe('http://isure.stream.qqmusic.qq.com/M800004Th6td4LaoZs004Th6td4LaoZs.mp3');
+        // YouTube Music 的地址每次请求都换一把 key：同一首歌必须落在同一个重试 key 上。
+        expect(getOnlineRecoveryKey('folia-ytm://audio/m9SMT5ipbxk?k=one'))
+            .toBe(getOnlineRecoveryKey('folia-ytm://audio/m9SMT5ipbxk?k=two'));
+        expect(getOnlineRecoveryKey('folia-ytm://audio/m9SMT5ipbxk?k=one'))
+            .not.toBe(getOnlineRecoveryKey('folia-ytm://audio/ZRtdQ81jPUQ?k=one'));
         expect(getOnlineRecoveryKey('blob:folia/abc')).toBe('blob:folia/abc');
         expect(getOnlineRecoveryKey(null)).toBeNull();
     });
@@ -123,11 +126,11 @@ describe('online playback recovery bounds', () => {
         loadAudioSourceMock.mockResolvedValue({ kind: 'ok', audioSrc: streamUrl('two') });
 
         await expect(controller.recoverOnlinePlaybackSource({ failedSrc: firstUrl, autoplay: true }))
-            .resolves.toEqual({ status: 'recovered' });
+            .resolves.toEqual({ recovered: true });
         // The refreshed URL fails too. Before this guard the differing vkey made it look brand new,
         // so the error -> refresh -> error cycle never reached skipAfterPlaybackFailure().
         await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('two'), autoplay: true }))
-            .resolves.toEqual({ status: 'not-attempted' });
+            .resolves.toEqual({ recovered: false });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(1);
     });
 
@@ -138,7 +141,7 @@ describe('online playback recovery bounds', () => {
 
         await controller.recoverOnlinePlaybackSource({ failedSrc: firstUrl, autoplay: true });
         await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('two'), autoplay: true, force: true }))
-            .resolves.toEqual({ status: 'recovered' });
+            .resolves.toEqual({ recovered: true });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(2);
     });
 
@@ -152,7 +155,7 @@ describe('online playback recovery bounds', () => {
         lastAudioRecoverySourceRef.current = null;
 
         await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('two'), autoplay: true }))
-            .resolves.toEqual({ status: 'recovered' });
+            .resolves.toEqual({ recovered: true });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(2);
     });
 
@@ -166,7 +169,7 @@ describe('online playback recovery bounds', () => {
         });
         wantsPlayback = false;
         load.finish({ kind: 'ok', audioSrc: streamUrl('two') });
-        await expect(recovery).resolves.toEqual({ status: 'recovered' });
+        await expect(recovery).resolves.toEqual({ recovered: true });
         expect(setAudioSrcMock).toHaveBeenCalledWith(streamUrl('two'));
         expect(shouldAutoPlayRef.current).toBe(false);
     });
@@ -182,7 +185,7 @@ describe('online playback recovery bounds', () => {
         wantsPlayback = false;
         wantsPlayback = true;
         load.finish({ kind: 'ok', audioSrc: streamUrl('two') });
-        await expect(recovery).resolves.toEqual({ status: 'recovered' });
+        await expect(recovery).resolves.toEqual({ recovered: true });
         expect(setAudioSrcMock).toHaveBeenCalledWith(streamUrl('two'));
         expect(shouldAutoPlayRef.current).toBe(true);
     });
@@ -199,66 +202,62 @@ describe('online playback recovery results', () => {
         loadAudioSourceMock.mockResolvedValue({ kind: 'ok', audioSrc: streamUrl('two') });
 
         await controller.recoverOnlinePlaybackSource({ failedSrc: 'blob:folia/cached', autoplay: true, bypassMediaCache: true });
-        expect(loadAudioSourceMock).toHaveBeenCalledWith(song, 'high', null, { stage: 'refresh', bypassMediaCache: true });
+        expect(loadAudioSourceMock).toHaveBeenCalledWith(song, 'high', null, { bypassMediaCache: true });
     });
 
-    it('reports a loader failure with its reason and the refresh stage, touching neither queue nor cache', async () => {
+    it('hands on a loader failure as it was, touching neither queue nor cache', async () => {
         const { controller, persistLastPlaybackCache } = createController(streamUrl('one'));
-        loadAudioSourceMock.mockResolvedValue({
-            kind: 'failed',
-            failure: { reason: 'session-expired', stage: 'resolve-url', providerId: 'qq' },
-        });
+        const failure = onlineFailureOf({ operation: 'audio', providerId: 'qq' }, { detail: { case: 'sign-in-needed' } });
+        loadAudioSourceMock.mockResolvedValue({ kind: 'unavailable', failure });
 
         const result = await controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true });
-        expect(result).toEqual({
-            status: 'failed',
-            failure: { reason: 'session-expired', stage: 'refresh', providerId: 'qq' },
-        });
+        expect(result).toEqual({ recovered: false, failure });
         expect(setAudioSrcMock).not.toHaveBeenCalled();
         expect(setPlayQueueMock).not.toHaveBeenCalled();
         expect(persistLastPlaybackCache).not.toHaveBeenCalled();
     });
 
-    it('classifies a thrown loader error instead of reporting a bare failure', async () => {
+    // The loader answers a failure instead of throwing (onlinePlayback.ts): a throw is not a platform's, so nothing says more.
+    it('sorts a thrown loader error instead of reporting a bare failure', async () => {
         const { controller } = createController(streamUrl('one'));
         loadAudioSourceMock.mockRejectedValue(new TypeError('Failed to fetch'));
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
         const result = await controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true });
-        expect(result).toMatchObject({ status: 'failed', failure: { reason: 'network', stage: 'refresh', providerId: 'qq' } });
+        expect(result).toMatchObject({ recovered: false, failure: { case: 'unknown', operation: 'audio', providerId: 'qq' } });
         expect(setPlayQueueMock).not.toHaveBeenCalled();
     });
 
     it('reports stale when the song changes while the refresh is in flight', async () => {
-        const { controller, currentSongRef } = createController(streamUrl('one'));
+        const { controller } = createController(streamUrl('one'));
         const load = pendingLoad();
         loadAudioSourceMock.mockImplementation(() => load.promise);
 
         const recovery = controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true });
-        currentSongRef.current = getPlaybackSongKey(otherSong);
+        askForSong(otherSong);
         load.finish({ kind: 'ok', audioSrc: streamUrl('two') });
 
-        await expect(recovery).resolves.toEqual({ status: 'stale' });
+        await expect(recovery).resolves.toEqual({ recovered: false, stale: true });
         expect(setAudioSrcMock).not.toHaveBeenCalled();
     });
 
     // 同一首歌重新点播落地：key 不变、代次变了。旧刷新的结果不能暂停新播放，也不能把它的音源和进度换回出错时的样子。
     it.each([
-        ['fails', { kind: 'failed', failure: { reason: 'network', stage: 'resolve-url', providerId: 'qq' } }],
+        ['fails', { kind: 'unavailable', failure: unreachable() }],
         ['succeeds', { kind: 'ok', audioSrc: 'blob:folia/old-refresh', blobUrl: 'blob:folia/old-refresh' }],
     ] as const)('reports stale when the same song is played again while its refresh %s', async (_outcome, loaded) => {
         const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-        const { controller, playbackGenerationRef, blobUrlRef, pendingResumeTimeRef } = createController(streamUrl('one'), {
+        const { controller, blobUrlRef, pendingResumeTimeRef } = createController(streamUrl('one'), {
             blobUrlRef: ref<string | null>('blob:folia/replay'),
         });
         const load = pendingLoad();
         loadAudioSourceMock.mockImplementation(() => load.promise);
 
         const recovery = controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), resumeAt: 95, autoplay: true });
-        playbackGenerationRef.current += 1; // playSong landed the same song again
+        askForSong(song); // playSong asked for the same song again
         load.finish(loaded);
 
-        await expect(recovery).resolves.toEqual({ status: 'stale' });
+        await expect(recovery).resolves.toEqual({ recovered: false, stale: true });
         expect(setAudioSrcMock).not.toHaveBeenCalled();
         expect(pendingResumeTimeRef.current).toBeNull();
         expect(blobUrlRef.current).toBe('blob:folia/replay');
@@ -268,47 +267,45 @@ describe('online playback recovery results', () => {
     });
 
     it('starts a replay its own refresh instead of joining the one left from the earlier playback', async () => {
-        const { controller, playbackGenerationRef, recoveryRef } = createController(streamUrl('one'));
+        const { controller, recoveryRef } = createController(streamUrl('one'));
         const oldLoad = pendingLoad();
         const newLoad = pendingLoad();
         loadAudioSourceMock.mockImplementationOnce(() => oldLoad.promise).mockImplementationOnce(() => newLoad.promise);
 
         const oldRecovery = controller.recoverOnlinePlaybackSource({ autoplay: true, force: true });
-        playbackGenerationRef.current += 1;
+        askForSong(song);
         const newRecovery = controller.recoverOnlinePlaybackSource({ autoplay: true, force: true });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(2);
 
         // The old task settles first; its cleanup must leave the replay's in-flight entry alone.
-        oldLoad.finish({ kind: 'failed', failure: { reason: 'network', stage: 'resolve-url' } });
-        await expect(oldRecovery).resolves.toEqual({ status: 'stale' });
+        oldLoad.finish({ kind: 'unavailable', failure: unreachable() });
+        await expect(oldRecovery).resolves.toEqual({ recovered: false, stale: true });
         expect(recoveryRef.current.size).toBe(1);
         const joined = controller.recoverOnlinePlaybackSource({ autoplay: true, force: true });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(2);
 
         newLoad.finish({ kind: 'ok', audioSrc: streamUrl('two') });
-        await expect(newRecovery).resolves.toEqual({ status: 'recovered' });
-        await expect(joined).resolves.toEqual({ status: 'recovered' });
+        await expect(newRecovery).resolves.toEqual({ recovered: true });
+        await expect(joined).resolves.toEqual({ recovered: true });
         expect(setAudioSrcMock).toHaveBeenCalledWith(streamUrl('two'));
         expect(recoveryRef.current.size).toBe(0);
     });
 
     it('gives a second song its own recovery while the first one is still in flight', async () => {
-        const recoveryRef = ref(new Map<string, Promise<OnlineRecoveryResult>>());
-        const currentSongRef = ref<string | number | null>(getPlaybackSongKey(song));
-        const first = createController(streamUrl('one'), { recoveryRef, currentSongRef });
+        const recoveryRef = ref(new Map<string, Promise<OnlineRecovery>>());
+        const first = createController(streamUrl('one'), { recoveryRef });
         const firstLoad = pendingLoad();
         loadAudioSourceMock.mockImplementationOnce(() => firstLoad.promise);
         const firstRecovery = first.controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true });
 
-        // The listener moves on; App rebuilds the controller for the new song over the same refs.
-        currentSongRef.current = getPlaybackSongKey(otherSong);
-        const second = createController('https://cdn.example/other.mp3', { currentSong: otherSong, recoveryRef, currentSongRef });
+        // The listener moves on (the helper asks for the new song); App rebuilds the controller for it over the same refs.
+        const second = createController('https://cdn.example/other.mp3', { currentSong: otherSong, recoveryRef });
         loadAudioSourceMock.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/other-fresh.mp3' });
         const secondRecovery = second.controller.recoverOnlinePlaybackSource({ failedSrc: 'https://cdn.example/other.mp3', autoplay: true });
 
-        await expect(secondRecovery).resolves.toEqual({ status: 'recovered' });
+        await expect(secondRecovery).resolves.toEqual({ recovered: true });
         firstLoad.finish({ kind: 'ok', audioSrc: streamUrl('two') });
-        await expect(firstRecovery).resolves.toEqual({ status: 'stale' });
+        await expect(firstRecovery).resolves.toEqual({ recovered: false, stale: true });
 
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(2);
         expect(setAudioSrcMock).toHaveBeenCalledTimes(1);
@@ -325,8 +322,8 @@ describe('online playback recovery results', () => {
         const second = controller.recoverOnlinePlaybackSource({ autoplay: true, force: true });
         load.finish({ kind: 'ok', audioSrc: streamUrl('two') });
 
-        await expect(first).resolves.toEqual({ status: 'recovered' });
-        await expect(second).resolves.toEqual({ status: 'recovered' });
+        await expect(first).resolves.toEqual({ recovered: true });
+        await expect(second).resolves.toEqual({ recovered: true });
         expect(loadAudioSourceMock).toHaveBeenCalledTimes(1);
     });
 
@@ -339,17 +336,45 @@ describe('online playback recovery results', () => {
         loadAudioSourceMock.mockResolvedValue({ kind: 'ok', audioSrc: streamUrl('two'), replayGain });
 
         await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true, force: true }))
-            .resolves.toEqual({ status: 'recovered' });
+            .resolves.toEqual({ recovered: true });
         const expectedQueue = [otherSong, { ...song, replayGain }];
         expect(setPlayQueueMock).toHaveBeenCalledWith(expectedQueue);
         expect(persistLastPlaybackCache).toHaveBeenCalledWith({ ...song, replayGain }, expectedQueue);
+    });
+
+    // Only the entry is refreshed: a song the queue no longer holds (removed by the user, or a mod replaced
+    // the queue whole) is not put back in front of it.
+    it('writes no queue when the song is no longer in it, and saves the queue as it is now', async () => {
+        const { controller, persistLastPlaybackCache } = createController(streamUrl('one'));
+        const editedQueue = [otherSong];
+        playbackState.playQueue = editedQueue;
+        const replayGain = { trackGain: -6 };
+        loadAudioSourceMock.mockResolvedValue({ kind: 'ok', audioSrc: streamUrl('two'), replayGain });
+
+        await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('one'), autoplay: true, force: true }))
+            .resolves.toEqual({ recovered: true });
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        expect(persistLastPlaybackCache).toHaveBeenCalledWith({ ...song, replayGain }, editedQueue);
     });
 
     it('does not attempt a recovery for a non-online song', async () => {
         const localSong = { ...song, id: 'local-1', sourceRef: undefined, isLocal: true, localRef: { songId: 'local-1' } } as unknown as SongResult;
         const { controller } = createController('blob:folia/local', { currentSong: localSong });
 
-        await expect(controller.recoverOnlinePlaybackSource({ autoplay: true })).resolves.toEqual({ status: 'not-attempted' });
+        await expect(controller.recoverOnlinePlaybackSource({ autoplay: true })).resolves.toEqual({ recovered: false });
         expect(loadAudioSourceMock).not.toHaveBeenCalled();
+    });
+
+    // The media error alone says only that the file did not play; the address asked for anew says why.
+    it('hands on why a new address could not be had, and nothing where none was asked for', async () => {
+        const firstUrl = streamUrl('one');
+        const { controller } = createController(firstUrl);
+        const failure = onlineFailureOf({ operation: 'audio', providerId: 'qq' }, { detail: { case: 'local-service-stopped' } });
+        loadAudioSourceMock.mockResolvedValue({ kind: 'unavailable', failure });
+
+        await expect(controller.recoverOnlinePlaybackSource({ failedSrc: firstUrl, autoplay: true }))
+            .resolves.toEqual({ recovered: false, failure });
+        await expect(controller.recoverOnlinePlaybackSource({ failedSrc: streamUrl('two'), autoplay: true }))
+            .resolves.toEqual({ recovered: false });
     });
 });

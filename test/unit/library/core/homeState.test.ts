@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSong } from '@/types';
-import type { LibraryDirectoryNode } from '@/library/core/contracts/directory';
-import type { LibraryHomeListHandle } from '@/library/core/contracts/homeModel';
-import { createLocalDirectoryTrees } from '@/library/core/services/localDirectoryTrees';
-import { resolveHomeDirectoryKey, resolveHomeHiddenScope } from '@/library/core/model/homeSources';
+import type { LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
+import type { LibraryHomeListHandle } from '@/library/core/home/homeModel.contract';
+import { createLocalDirectoryTrees } from '@/library/core/directory/localDirectoryTrees.service';
+import { resolveHomeDirectoryKey, resolveHomeHiddenScope } from '@/library/core/home/homeSources';
 
 // test/unit/library/core/homeState.test.ts
 // 首页的几处状态：目录会话 key 与隐藏作用域（原先三个视图各自在 JSX 里算）、本地文件夹树资源、
@@ -85,7 +85,7 @@ describe('useNavidromeHomeSectionStore', () => {
             setItem: (key: string, value: string) => storage.set(key, value),
         });
         vi.resetModules();
-        const { useNavidromeHomeSectionStore } = await import('@/library/core/state/useNavidromeHomeSectionStore');
+        const { useNavidromeHomeSectionStore } = await import('@/library/core/home/navidrome/useNavidromeHomeSectionStore');
         return { useNavidromeHomeSectionStore, storage };
     };
     afterEach(() => vi.unstubAllGlobals());
@@ -124,7 +124,7 @@ describe('useLibraryHomeSurfaceStore', () => {
     });
 
     it('a new registration takes over; the old one unregistering late leaves it in place', async () => {
-        const { useLibraryHomeSurfaceStore } = await import('@/library/core/state/useLibraryHomeSurfaceStore');
+        const { useLibraryHomeSurfaceStore } = await import('@/library/core/home/useLibraryHomeSurfaceStore');
         const local = listHandle('local');
         const navidrome = listHandle('navidrome');
         const releaseLocal = useLibraryHomeSurfaceStore.getState().registerList(local);
@@ -136,7 +136,7 @@ describe('useLibraryHomeSurfaceStore', () => {
     });
 
     it('tabs register the same way', async () => {
-        const { useLibraryHomeSurfaceStore } = await import('@/library/core/state/useLibraryHomeSurfaceStore');
+        const { useLibraryHomeSurfaceStore } = await import('@/library/core/home/useLibraryHomeSurfaceStore');
         const handle = { getState: () => ({ active: 'local' as const, tabs: [] }), setTab: () => true };
         const release = useLibraryHomeSurfaceStore.getState().registerTabs(handle);
         expect(useLibraryHomeSurfaceStore.getState().tabs).toBe(handle);

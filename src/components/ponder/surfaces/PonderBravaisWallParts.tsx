@@ -4,7 +4,6 @@ import {
     Blinds,
     Check,
     ChevronLeft,
-    Crosshair,
     Disc3,
     FoldHorizontal,
     Heart,
@@ -26,7 +25,7 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { relativeRectStyle } from './ponderSurfaceGeometry';
+import { relativeRectStyle } from './relativeRectStyle';
 import {
     BRAVAIS_SEAM_TABS,
     BRAVAIS_TOOLS_QUICK,
@@ -311,7 +310,7 @@ export type BravaisLook = keyof typeof LOOK_VALUE_KEYS;
 /** 工具面板：顶上六格纯图标一次性动作、音量、「墙面外观」下的透光 / 叠色、开关灯。 */
 export const BravaisToolsPanel: React.FC<{ accent: string; look: BravaisLook }> = ({ accent, look }) => {
     const { t } = useTranslation();
-    const quick: LucideIcon[] = [Crosshair, Shuffle, Sparkles, ListMusic, PanelsTopLeft, Disc3];
+    const quick: LucideIcon[] = [Shuffle, Sparkles, ListMusic, PanelsTopLeft, Disc3, Settings];
     return (
         <div
             data-ponder-bravais-tools-panel={look}

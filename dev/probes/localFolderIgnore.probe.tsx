@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import '../../src/i18n/config';
 import GridMapBatchPanel from '../../src/library/suites/grid/directory/GridMapBatchPanel';
-import { createLocalDirectoryActions } from '../../src/library/core/services/localDirectoryActions';
+import { createLocalDirectoryActions } from '../../src/library/core/directory/localDirectoryActions.service';
 import type { ProbeDefinition } from './definition';
 
 // dev/probes/localFolderIgnore.probe.tsx

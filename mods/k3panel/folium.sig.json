@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "k3panel",
   "modVersion": "1.0.1",
-  "digest": "sha256:1e3e3d904cabd0c93c77a7fa0c82462377c610cb27e35f6f56ba904d6af57f8e",
+  "digest": "sha256:19e5bf92dab9c81e7cda30de3f14698b8a12f6a3716a75cb0069f035cab70f2c",
   "keyId": "folium-2026-1",
-  "signedAt": "2026-09-24T19:10:07.800Z",
-  "signature": "2vEJqUxXAPOpAo51k9kpfXLtweGMzX8p0nLJejzRTNX1XTfA/8AshiKa/Hh9NEUuFztkaAGgghLfdraZ94VIBQ=="
+  "signedAt": "2026-10-17T07:54:59.469Z",
+  "signature": "8flx5LG2CVgomA5CbKtZUC/3WKX7mttQOO3Q229g339RlalrJbvJ0CIsIhksf98idkNknncAKpH15E2FVp40DA=="
 }

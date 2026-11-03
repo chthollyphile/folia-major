@@ -114,6 +114,32 @@ export const replacePlaybackSongInQueue = (
     return replaced ? nextQueue : [replacement, ...nextQueue];
 };
 
+// Like replacePlaybackSongInQueue, but a song the queue does not hold is not put in front of it: null then.
+// For the writes that only refresh an entry (its replay gain, a reloaded copy), where adding the song back
+// would undo its removal from the queue.
+export const replacePlaybackSongWhereQueued = (
+    queue: SongResult[],
+    replacement: SongResult,
+): SongResult[] | null => {
+    const replacementKey = getPlaybackSongKey(replacement);
+    let replaced = false;
+    const nextQueue = queue.map(song => {
+        if (getPlaybackSongKey(song) !== replacementKey) return song;
+        replaced = true;
+        return replacement;
+    });
+    return replaced ? nextQueue : null;
+};
+
+// The same songs in the same order, by playback key (equal copies of the entries count as the same).
+export const samePlaybackKeySequence = (
+    first: readonly SongResult[],
+    second: readonly SongResult[],
+): boolean => first === second || (
+    first.length === second.length
+    && first.every((song, index) => getPlaybackSongKey(song) === getPlaybackSongKey(second[index]))
+);
+
 export const hasMixedPlaybackSources = (queue: SongResult[]): boolean => (
     new Set(queue.map(getPlaybackSongSource)).size > 1
 );

@@ -44,8 +44,8 @@ const onDisk = (beat_this: boolean, htdemucs: boolean) => {
 
 const freshModules = async () => {
     vi.resetModules();
-    const availability = await import('@/services/automix/modelAvailability');
-    const beatThis = await import('@/services/automix/beatThis');
+    const availability = await import('@/services/analysis/modelAvailability');
+    const beatThis = await import('@/services/analysis/beatThis');
     const stems = await import('@/services/automix/stems');
     // The module asks once as it loads; wait for that answer rather than racing it.
     await availability.refreshModelAvailability();

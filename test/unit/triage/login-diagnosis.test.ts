@@ -1,10 +1,11 @@
+import type { LoginDiagnosticLine } from '@/types/onlineMusic';
 import { describe, expect, it, vi } from 'vitest';
 import { loadPrompts } from '../../../.github/scripts/triage/io/context.mjs';
 import { runIssueTriage } from '../../../.github/scripts/triage/io/run-issue.mjs';
 import { renderMarker } from '../../../.github/scripts/triage/lib/comments.mjs';
 import { extractQrReport, matchPlaybook, mergeDiagnosis, reportForLlm } from '../../../.github/scripts/triage/lib/login-diagnosis.mjs';
 import { validateDiagnosis } from '../../../.github/scripts/triage/lib/schema.mjs';
-import { formatQrLoginDiagnosticReport } from '@/utils/qrLoginDiagnosticReport';
+import { formatLoginDiagnosticReport as formatQrLoginDiagnosticReport } from '@/services/onlineMusic/login/loginDiagnosticReport';
 import { config, makeIssue, NOW, templateLines } from './helpers';
 
 // test/unit/triage/login-diagnosis.test.ts
@@ -14,7 +15,7 @@ const playbook = config.loginPlaybook;
 
 // 用应用里真实的格式化函数拼一份报告；providerLines 模拟主进程排好的 details 行。
 const report = (providerId: 'qq' | 'netease' | 'kugou', { appVersion = '0.7.17', userAgent = 'Mozilla/5.0 Folia/0.7.17 Electron/43.7.5', timeline = [] as { at: number; event: string; detail: Record<string, unknown> }[], providerLines = [] as string[] } = {}) => formatQrLoginDiagnosticReport({
-    generatedAt: NOW, appVersion, userAgent, providerId, methodId: providerId, failure: 'check-error', timeline, providerLines,
+    generatedAt: NOW, appVersion, userAgent, providerId, methodId: providerId, failure: 'check-error', timeline, providerLines: providerLines as unknown as LoginDiagnosticLine[],
 });
 
 const deviceLimitReport = report('qq', {
@@ -42,7 +43,7 @@ const webFetchFailedReport = (userAgent: string) => report('kugou', {
 const loopbackWebViewReport = report('netease', {
     userAgent: 'Mozilla/5.0 (Linux; Android 16; 24117RK2CC Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/153.0.8010.39 Mobile Safari/537.36',
     timeline: [{ at: NOW, event: 'state', detail: { state: 'error', message: 'code 404: Not Found' } }],
-    providerLines: ['runtime: web (remote API http://localhost:3000)', 'session: login cookie=no, anonymous cookie=no'],
+    providerLines: ['runtime: web (remote API http local)', 'session: login cookie=no, anonymous cookie=no'],
 });
 
 const networkResetReport = report('netease', {
@@ -188,7 +189,7 @@ describe('login diagnosis in issue triage', () => {
         const localDev = formatQrLoginDiagnosticReport({
             generatedAt: NOW, appVersion: '0.7.18', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/150 Safari/537.36',
             origin: 'http://localhost:5173', providerId: 'netease', methodId: null, failure: 'check-error', timeline: [],
-            providerLines: ['runtime: web (remote API http://localhost:3000)'],
+            providerLines: ['runtime: web (remote API http local)'] as unknown as LoginDiagnosticLine[],
         });
         expect(matchPlaybook(localDev, 'netease', playbook)).not.toContain('web-api-loopback');
         // 桌面版内置后端也在 127.0.0.1，不能误伤。

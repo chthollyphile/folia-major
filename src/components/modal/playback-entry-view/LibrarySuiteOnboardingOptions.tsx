@@ -7,7 +7,7 @@ import {
     listOnboardingLibrarySuiteIds,
     useActiveLibrarySuiteId,
 } from '../../../library/app/librarySuiteChoice';
-import type { LibrarySuiteId } from '../../../library/core/contracts/suite';
+import type { LibrarySuiteId } from '../../../library/core/suite/suite.contract';
 
 // src/components/modal/playback-entry-view/LibrarySuiteOnboardingOptions.tsx
 // 首启引导第一页：资料库用哪套界面（网格 / bravais）。卡片与第二页「播放后进入的视图」同一份 OnboardingChoiceCards。

@@ -1,5 +1,8 @@
 ## 下载说明
 
+> [!TIP]
+> 如果国内网络从 GitHub Releases 下载较慢，可以使用 [夸克网盘](https://pan.quark.cn/s/6e4c6fa3bc6f) 或 [百度云](https://pan.baidu.com/s/1f0x3g-8PMcNCO-TJ5z1rPw?pwd=flia) 下载。网盘链接仅提供 Windows 与 Apple silicon 的正式版安装包
+
 - Windows：下载 `Folia-Setup-<version>.exe`
 - macOS：
   - Apple Silicon：下载 `Folia-<version>-arm64.dmg`
@@ -13,6 +16,7 @@
   - Debian / Ubuntu：下载 `folia-major-<version>-linux-amd64.deb`
   - Fedora / openSUSE：下载 `folia-major-<version>-linux-x86_64.rpm`
   - 其他发行版：下载 `folia-major-<version>-linux-x64.tar.gz`
+  - ARM64（树莓派等 aarch64 设备）：按发行版下载 `folia-major-<version>-linux-arm64.deb` / `folia-major-<version>-linux-aarch64.rpm` / `folia-major-<version>-linux-arm64.tar.gz`
 
 ## 更新说明
 

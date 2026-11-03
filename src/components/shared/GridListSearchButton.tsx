@@ -21,6 +21,8 @@ interface GridListSearchButtonProps {
     /** What the slide is called when it opens this surface's filter, which is the default. */
     searchTitle: string;
     onOpenList: () => void;
+    /** A smaller control of the same surface, stood above the button (a grid's "locate"). */
+    above?: React.ReactNode;
 }
 
 export const GridListSearchButton: React.FC<GridListSearchButtonProps> = ({
@@ -29,6 +31,7 @@ export const GridListSearchButton: React.FC<GridListSearchButtonProps> = ({
     listTitle,
     searchTitle,
     onOpenList,
+    above,
 }) => {
     const { t } = useTranslation();
     const slideTarget = useInteractionSettingsStore(state => state.gridActionButtonSlideTarget);
@@ -51,8 +54,9 @@ export const GridListSearchButton: React.FC<GridListSearchButtonProps> = ({
             transition={{ duration: 0.24, ease: 'easeOut' }}
             data-testid="grid-list-search-button"
             style={{ bottom: bottomBarBottomPx }}
-            className="pointer-events-auto fixed right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end"
+            className="pointer-events-auto fixed right-0 z-[60] pr-4 md:pr-8 group w-20 flex flex-col items-end gap-3"
         >
+            {above}
             <SlideActionButton
                 icon={List}
                 title={listTitle}

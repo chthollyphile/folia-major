@@ -1,34 +1,11 @@
 import type { PersonalFmRequestOptions } from '../../types/onlineMusic';
+import type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
+export type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
 
 // src/services/onlineMusic/fmModes.ts
 // Personal FM mode catalogue, shared by the command palette surface and the request layer so a
-// mode looks and behaves the same wherever it is offered. Ids mirror NetEase's `/personal/fm/mode`
-// parameters verbatim; only NetEase implements them, other providers ignore the selection.
-
-export type PersonalFmModeId = 'DEFAULT' | 'FAMILIAR' | 'EXPLORE' | 'SCENE_RCMD' | 'PUZZLE_MODE_RCMD';
-export type PersonalFmSceneCategory = 'mood' | 'activity' | 'genre' | 'language';
-
-export type PersonalFmModeEntry = {
-    id: PersonalFmModeId;
-    labelKey: string;
-    labelFallback: string;
-    /** Pinyin, full and initials, so the picker answers to a keyboard that types no Chinese. */
-    keywords: string[];
-};
-
-export type PersonalFmSceneEntry = {
-    id: string;
-    category: PersonalFmSceneCategory;
-    labelKey: string;
-    labelFallback: string;
-    keywords: string[];
-};
-
-export type PersonalFmSelection = {
-    mode: PersonalFmModeId;
-    /** Only meaningful for SCENE_RCMD; every other mode rejects a submode. */
-    scene: string | null;
-};
+// mode looks and behaves the same wherever it is offered. Default ids mirror NetEase's `/personal/fm/mode`
+// parameters verbatim; a provider can supply its own scene catalogue through Omni.
 
 export const DEFAULT_PERSONAL_FM_SELECTION: PersonalFmSelection = { mode: 'DEFAULT', scene: null };
 
@@ -117,23 +94,27 @@ export const PERSONAL_FM_SCENES: PersonalFmSceneEntry[] = [
     scene('GLOBAL', 'language', 'Global', 'quanqiu', 'qq'),
 ];
 
-const MODE_IDS = new Set<string>(PERSONAL_FM_MODES.map(entry => entry.id));
-const SCENE_IDS = new Set<string>(PERSONAL_FM_SCENES.map(entry => entry.id));
+export const DEFAULT_PERSONAL_FM_CATALOG: PersonalFmCatalog = {
+    modes: PERSONAL_FM_MODES, scenes: PERSONAL_FM_SCENES, categories: PERSONAL_FM_SCENE_CATEGORIES,
+};
+export const personalFmEntryLabel = (entry: { labelKey: string; labelFallback: string }, t: (key: string, fallback?: string) => string): string => (
+    entry.labelKey ? t(entry.labelKey, entry.labelFallback) : entry.labelFallback
+);
 
-export const getPersonalFmSceneEntry = (id: string | null | undefined): PersonalFmSceneEntry | null => (
-    PERSONAL_FM_SCENES.find(entry => entry.id === id) ?? null
+export const getPersonalFmSceneEntry = (id: string | null | undefined, catalog = DEFAULT_PERSONAL_FM_CATALOG): PersonalFmSceneEntry | null => (
+    catalog.scenes.find(entry => entry.id === id) ?? null
 );
 
 /** Drops a scene that no longer exists, and a scene attached to a mode that cannot carry one. */
-export const normalizePersonalFmSelection = (raw: unknown): PersonalFmSelection => {
+export const normalizePersonalFmSelection = (raw: unknown, catalog = DEFAULT_PERSONAL_FM_CATALOG): PersonalFmSelection => {
     const candidate = raw as Partial<PersonalFmSelection> | null | undefined;
-    const modeId = typeof candidate?.mode === 'string' && MODE_IDS.has(candidate.mode)
+    const modeId = typeof candidate?.mode === 'string' && catalog.modes.some(entry => entry.id === candidate.mode)
         ? candidate.mode as PersonalFmModeId
         : DEFAULT_PERSONAL_FM_SELECTION.mode;
     if (modeId !== 'SCENE_RCMD') {
         return { mode: modeId, scene: null };
     }
-    const sceneId = typeof candidate?.scene === 'string' && SCENE_IDS.has(candidate.scene) ? candidate.scene : null;
+    const sceneId = typeof candidate?.scene === 'string' && catalog.scenes.some(entry => entry.id === candidate.scene) ? candidate.scene : null;
     // SCENE_RCMD without a submode is rejected by the API, so it degrades to the default mode.
     return sceneId ? { mode: 'SCENE_RCMD', scene: sceneId } : DEFAULT_PERSONAL_FM_SELECTION;
 };
@@ -155,9 +136,10 @@ export const toPersonalFmRequestOptions = (selection: PersonalFmSelection): Pers
 export const getPersonalFmSelectionLabel = (
     selection: PersonalFmSelection,
     t: (key: string, fallback?: string) => string,
+    catalog = DEFAULT_PERSONAL_FM_CATALOG,
 ): string => {
-    const modeEntry = PERSONAL_FM_MODES.find(entry => entry.id === selection.mode) ?? PERSONAL_FM_MODES[0];
-    const modeLabel = t(modeEntry.labelKey, modeEntry.labelFallback);
-    const sceneEntry = getPersonalFmSceneEntry(selection.scene);
-    return sceneEntry ? `${modeLabel} · ${t(sceneEntry.labelKey, sceneEntry.labelFallback)}` : modeLabel;
+    const modeEntry = catalog.modes.find(entry => entry.id === selection.mode) ?? PERSONAL_FM_MODES[0];
+    const modeLabel = personalFmEntryLabel(modeEntry, t);
+    const sceneEntry = getPersonalFmSceneEntry(selection.scene, catalog);
+    return sceneEntry ? `${modeLabel} · ${personalFmEntryLabel(sceneEntry, t)}` : modeLabel;
 };

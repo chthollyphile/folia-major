@@ -143,8 +143,6 @@ export const BRAVAIS_HOME_SEAM_GEOMETRY = {
     filter: { left: 0.07, right: 0.07, top: 0.728, height: 0.045 },
     /** 过滤中，直达入口被输入位往上顶。 */
     shortcutsFiltering: { left: 0.22, right: 0.22, top: 0.612, height: 0.1 },
-    /** 平台列表：从账户入口往上弹出，两侧比入口宽一点，仍在缝里。 */
-    accountPopup: { left: 0.035, right: 0.035, top: 0.462, height: 0.31 },
     /** 「⋯」菜单：从工具格上方弹出。 */
     menuPopup: { left: 0.035, right: 0.035, top: 0.6, height: 0.255 },
 } satisfies Record<string, PonderRelativeRect | PonderRelativeRect[]>;

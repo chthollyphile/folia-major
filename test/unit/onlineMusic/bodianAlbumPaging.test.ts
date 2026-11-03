@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
-import { bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodianLibrary';
+import { bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodian/bodianLibrary';
 
 // test/unit/onlineMusic/bodianAlbumPaging.test.ts — real package and Folia adapters over mixed collection pages.
 

@@ -21,11 +21,27 @@ store 中平台共享的持久化键：
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `wallpaper_mode` | — | 壁纸模式开关；renderer 据此隐藏自绘标题栏等 |
+| `wallpaper_entry_confirmed` | 关 | 第一次进入前确认是否已确认过。首次进入或托盘直进的首次记录后不再提示；renderer 与主进程各存一份，主进程据它决定托盘是否还要请求渲染端弹窗 |
 | `wallpaper_forward_mouse` | 开 | 是否转发桌面鼠标输入（无 UI，变更即时生效） |
+| `wallpaper_display` | `null` | 壁纸用哪一块显示器：`null`（或没有这个键）是自动，否则是 `{ id, bounds: { x, y, width, height }, label }`。Wayland 不读它 |
 
-平台专属键见各自章节。启动开关入口三平台一致：托盘「Wallpaper Mode」、设置卡片（`src/components/modal/settings/DesktopSettingsSubview.tsx`）与命令面板 `settings-wallpaper-mode` / `desktop-toggle-wallpaper-mode`，统一由 `isWallpaperModeSupportedPlatform()` 门控（darwin / win32 / linux）。
+平台专属键见各自章节。启动开关入口三平台一致：托盘「Wallpaper Mode」、设置里「桌面」页的那一行（`src/components/modal/settings/pages/DesktopPage.tsx`）与命令面板 `settings-wallpaper-mode` / `desktop-toggle-wallpaper-mode`，统一由 `isWallpaperModeSupportedPlatform()` 门控（darwin / win32 / linux）。
 
-**进入前确认**：用户主动的进入（设置卡片、命令面板、托盘）都会先弹一次确认（`useDesktopSettingsStore.handleToggleWallpaperMode` → `wallpaperEntryConfirmOpen` → `AppDialogs` 里的 `ConfirmDialog`），文案写明进入后的限制与托盘退出方式；托盘在主进程里，经 `wallpaper-entry-requested`（`electron/wallpaperEntryRequest.cjs`）请求渲染端弹同一个对话框，渲染端不可用时才直接进入。退出不确认。启动恢复、崩溃重载、降级等程序性路径不经过确认（渲染端走 `setDesktopPreferenceSnapshot`，主进程直接读 `wallpaper_mode`）。
+**进入前确认（仅首次）**：用户第一次进入壁纸模式时（设置卡片、命令面板、托盘）先弹一次确认（`useDesktopSettingsStore.handleToggleWallpaperMode` → `wallpaperEntryConfirmOpen` → `AppDialogs` 里的 `ConfirmDialog`），文案写明进入后的限制与托盘退出方式。确认进入（或托盘在渲染端不可用时直接进入）会写下 `wallpaper_entry_confirmed`，之后的进入直接生效、不再弹窗；托盘在主进程里读同一个键，已确认后不再经 `wallpaper-entry-requested`（`electron/wallpaper/wallpaperEntryRequest.cjs`）请求渲染端，也不为一次不会出现的对话框把窗口提到前面。取消不进入、不记已确认，下次仍会提示。退出不确认。启动恢复、崩溃重载、降级等程序性路径不经过确认（渲染端走 `setDesktopPreferenceSnapshot`，主进程直接读 `wallpaper_mode`）。
+
+**选显示器**（Windows、macOS、Linux X11；规则在 `electron/wallpaper/wallpaperDisplay.cjs`，纯函数，不引 Electron）：
+
+- 存的是 `wallpaper_display`。找这块屏：先按 Electron 的 display id，id 找不到（或 id 不可用）再按 bounds 完全相同；找不到就当没选，各平台回到没有这个设置时的规则（「自动」）：Windows 跟主窗口所在的屏（见 Windows 节），macOS 和 X11 用主屏。
+- 设置里「桌面」页壁纸模式开关下面那一行（`src/components/modal/settings/pages/desktop/`）：接了不止一块屏、且不是 Wayland 时才画。画的是各块屏的实际排布（编号按从左到右、从上到下，不是系统设置里的编号），外加「自动」。壁纸模式关着时也能选，下次进入时用。
+- 页面和主进程之间三样（`preload.cjs` 里是 `getWallpaperDisplays` / `setWallpaperDisplay` / `onWallpaperDisplaysChanged`）：
+  - `wallpaper-displays-get`（invoke）→ `{ displays: [{ id, label, bounds, scaleFactor, primary }], choice, chosenId, activeId }`。`chosenId` 是选中的那块在已接显示器里的 id（没选或没接着是 `null`），`activeId` 是壁纸现在在的那块、或者现在进入会去的那块。
+  - `wallpaper-display-set`（invoke，参数是一个 display id 或 `null`）：主进程只认 id，bounds 和 label 取自己手里那块已接的屏；id 不在已接的屏里就什么都不改。存好之后立刻应用，返回同上的状态。
+  - `wallpaper-displays-changed`（主进程 → 页面，内容同上）：显示器接上、拔掉、改了分辨率或排布，或者选的那一块变了。
+- 壁纸模式开着时什么时候搬屏（`applyWallpaperDisplayChoice`）：
+  - 设置里换了选择：按「现在进入壁纸模式会去哪块屏」算，和壁纸现在所在的屏不同就搬。选了一块屏就去那块；选「自动」：macOS 和 X11 回到主屏；Windows 的自动规则是跟主窗口，壁纸开着时没有主窗口可跟，壁纸留在原地，下次进入时再按主窗口所在的屏定。
+  - 显示器接上、拔掉、改了：只有选了屏、而且选的那块被拔掉（壁纸正在它上面）或者接回来时才搬（`shouldMoveWallpaper`）。没有选屏时显示器变化不搬窗口，各平台和原来一样。
+  - 怎么搬：Windows 走重建窗口那条路（`recreateMainWindowWithTransparencyMode`，新窗口先建在目标屏上，helper attach 时铺满窗口所在的屏；helper 没有改）；X11 走已有的 relaunch；macOS 重跑铺满那一步（`applyMacWallpaperFrame`）。
+- Windows 和 X11 上搬一次屏，页面会重载一次（播放经 `requestWindowPlaybackHandoff` 交接），和开关壁纸模式一样。所以选的那块屏每断开一次、每接回一次，页面各重载一次。
 
 ### 3. 渲染端与命令门控
 
@@ -52,8 +68,8 @@ store 中平台共享的持久化键：
 ### 1. 架构
 
 ```
-Electron 主进程 (main.cjs)
-  ├─ windowsWallpaperTarget.cjs          目标显示器判定（主窗口所在屏）
+Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
+  ├─ windowsWallpaperTarget.cjs          目标显示器判定（设置里选的屏，没选就是主窗口所在屏）
   ├─ windowsWallpaperMouse.cjs           helper 物理坐标 → Chromium DIP → sendInputEvent
   └─ windowsWallpaperController.cjs      spawn/心跳看门狗/重挂调度/crash-loop breaker
        └─ folia-wallpaper-helper.exe     Rust 常驻进程（packaging/windows/wallpaper-helper/）
@@ -67,32 +83,32 @@ Electron 主进程 (main.cjs)
 ### 2. helper 协议（`packaging/windows/wallpaper-helper/`）
 
 - CLI：`attach --hwnd <n> [--forward-mouse] [--zguard]`（常驻）、`move --hwnd <n>`、`detach --hwnd <n>`、`refresh`（一次性，重应用当前壁纸）。stdin 收到 `detach`（或 EOF，防孤儿壁纸）先还原窗口再退出。未知选项直接报错退出，避免主进程拼错参数被静默忽略。
-- stdout JSONL 事件（主进程 `parseHelperEventLine` 解析）：`attached{mode:"classic"|"raised"}` / `heartbeat`(5s) / `workerw-destroyed` / `explorer-restarted` / `reasserted` / `moved` / `detached` / `error{message, kind?}`。`kind:"window-destroyed"` 是结构化契约（Folia 窗口随 WorkerW 一并销毁、主进程必须重建），`message` 只给人读、主进程不得解析其文本。鼠标事件坐标为**物理屏幕像素**（helper 进程级 per-monitor DPI 感知，无坐标虚拟化）：`mousemove{x,y}`（16ms 合并 ~60Hz）/ `mousedown` / `mouseup` / `mousewheel{x,y,deltaX,deltaY}`。
+- stdout JSONL 事件（主进程 `parseHelperEventLine` 解析）：`attached{mode:"classic"|"raised"}` / `heartbeat`(5s) / `workerw-destroyed` / `explorer-restarted` / `reasserted` / `moved` / `detached` / `error{message, kind?}`。`kind:"window-destroyed"` 是结构化契约（Folia 窗口随 WorkerW 一并销毁、主进程必须重建），`message` 只给人读、主进程不得解析其文本。鼠标事件坐标为**物理屏幕像素**（helper 进程级 per-monitor DPI 感知，无坐标虚拟化）：`mousemove{x,y}`（WM_INPUT 直发，两条至少隔 4ms，被间隔或前台过滤压下的末位置由 16ms 定时器补发；Win11 上后台 RIDEV_INPUTSINK 收到的 Raw Input 实测被限在 125Hz，这就是壁纸模式 move 的上限）/ `mousedown` / `mouseup` / `mousewheel{x,y,deltaX,deltaY}`。
 - 实现约束（来自上游踩坑）：
   - **`EnumWindows` 的 windows-rs `Result` 语义是反的**——回调返回 0 提前停止枚举会让 raw API 返回 FALSE、映射为 `Err`；探测结果必须以回调写入的指针为准，不得用 `is_ok()` 判定成败。Win10 classic 路径曾因此永远探测失败，且每次失败多发一次 0x052C，在桌面上堆积废弃 WorkerW。
   - **0x052C 只在 WorkerW 缺失时发送**——对已存在的 raised WorkerW 重发会让 Explorer 重建整个层级并连带销毁已挂入窗口（Seelen UI 陷阱修复）。classic 重探带 10×100ms 重试：WorkerW 创建在 Explorer 侧是异步的，单次立即重探在全新桌面上会竞态失败。
-  - **鼠标注入必须走主进程 `sendInputEvent`**（见「交互边界」）；前台过滤（Lively `IsDesktop()`）：仅当 `GetForegroundWindow()` 是 Progman、持有 `SHELLDLL_DefView` 的图标层 WorkerW（classic 桌面点击落点）或壁纸 WorkerW 才上报；按住左键拖拽期间（含补发的 mouseup）豁免，避免渲染端卡在按下状态。
+  - **鼠标注入必须走主进程 `sendInputEvent`**（见「交互边界」）；前台过滤（Lively `IsDesktop()`）：仅当 `GetForegroundWindow()` 是 Progman、持有 `SHELLDLL_DefView` 的图标层 WorkerW（classic 桌面点击落点）或壁纸 WorkerW 才上报；mousedown 与滚轮另要求光标下的顶层窗口是桌面（`WindowFromPoint` → `GA_ROOT`）——Raw Input 先于点击激活到达，从桌面点进别的窗口时前台仍是桌面，只看前台会把这次点击漏给壁纸。move 一律受前台过滤（别的窗口里拖拽不再平移壁纸）；只有补发的 mouseup 豁免，避免渲染端卡在按下状态。
   - **`SetParent` 不改变子窗口的父客户区坐标**——重挂后窗口的屏幕位置会平移到宿主 WorkerW 的原点，所以「窗口现在在哪块屏」在重挂后失去意义。目标屏必须在 `SetParent` 之前取，宿主也按该屏挑选（见主进程接入节）；这是多屏下壁纸只铺一块屏的根因。
   - **explorer 重启** = `TaskbarCreated` 广播 + `Shell_TrayWnd` PID 变化（DPI 变化也广播该消息，只有 PID 变化才算重启）。
   - **z 序守卫**：WinEvent `EVENT_OBJECT_REORDER` + 10s 低频重申，可关。
   - **滚轮转发为 Folia 自研**——上游三家均未实现（Lively 该路径被注释、electron-as-wallpaper 吞掉 HWHEEL）。delta ±120/notch，垂直轴直传。
 - 许可：AGPL-3.0（Seelen UI 部分）、GPL-3.0（Lively 译码部分）、MIT（electron-as-wallpaper 骨架）；模块级归属见各文件头与 helper README。
 
-### 3. 主进程接入（`electron/main.cjs` + `electron/windowsWallpaperController.cjs`）
+### 3. 主进程接入（`electron/main.cjs` + `electron/wallpaper/windowsWallpaperController.cjs`）
 
 - `resolveWallpaperHelperPath()`：`FOLIA_WALLPAPER_HELPER_PATH` 覆盖 → `resources/folia-wallpaper-helper.exe`；缺失时禁用壁纸模式并通知渲染端。
 - 控制器状态机：spawn → 心跳看门狗（5s/15s 超时）→ 异常退出重挂（2s 退避）→ 连续 3 次失败降级（清 `wallpaper_mode`、原位还原普通窗口，不重启进程）。要点：**主动 detach 后的 helper 退出不得触发重挂**（否则关闭模式后新窗口被僵尸重挂拖回 WorkerW 层）；迟到 exit 事件以 `helperProcess === child` 判定归属（否则 kill+attach 竞态会在同一 hwnd 上挂两个 helper、鼠标双份注入）；`attach()` 在 `wallpaper_mode=false` 时拒绝启动；**从未 attached 的早夭/心跳挂死会话同样计入降级**（否则损坏的 helper 秒退会无限 2s respawn）；失败计数持久化 `wallpaper_windows_failure_count`，健康 60s 清零。
 - `error.kind === "window-destroyed"` → 走窗口重建而非普通重挂；renderer 崩溃 → 原地 reload；窗口随 WorkerW 连带销毁时 `window-all-closed` 同样触发重建（`isAppQuitting` 区分）。helper 的鼠标转发注册失败是致命契约（发 error 后立即退出——其下方图标层使壁纸页收不到任何真实系统输入，无鼠标的壁纸页不可交互），反复失败由降级闩锁关闭壁纸模式。
 - `display-metrics-changed` 按平台（win32）注册、回调内判模式——不能挂在启动时的 `isWindowsWallpaperMode()` 分支：Windows 开关模式不重启进程，运行时开启后监听必须仍在。
-- **目标显示器（多屏）**：壁纸窗口铺在**主窗口所在的那块屏**上，不再固定主屏。判定顺序（`electron/windowsWallpaperTarget.cjs`，全会话粘性）：① 仍在的普通主窗口所在屏（最权威，且覆盖「窗口最大化在副屏」——最大化不更新 `WINDOW_BOUNDS`）→ ② 本会话已解析的目标屏 → ③ `WINDOW_BOUNDS`（壁纸几何从不写入它，见 `saveWindowState`，即「上次普通窗口位置」）→ ④ 主屏（无可用原点，或窗口几何与任何屏都不相交）。关闭壁纸模式时清空会话目标，下次开启重新按当时主窗口位置推导；目标屏被拔除时会话目标失效，回落主屏并把窗口搬过去。无需新增 store 键：`WINDOW_BOUNDS` 本身就是记忆。
+- **目标显示器（多屏）**：设置里选了一块屏、而且它接着，壁纸窗口就铺在那块屏上；没有选（自动）时铺在**主窗口所在的那块屏**上。判定顺序（`electron/wallpaper/windowsWallpaperTarget.cjs`）：① 设置里选的屏（`wallpaper_display`，接着才算；见一、2「选显示器」）→ ② 仍在的普通主窗口所在屏（覆盖「窗口最大化在副屏」——最大化不更新 `WINDOW_BOUNDS`）→ ③ 本会话已解析的目标屏（会话内粘性）→ ④ `WINDOW_BOUNDS`（壁纸几何从不写入它，见 `saveWindowState`，即「上次普通窗口位置」）→ ⑤ 主屏（无可用原点，或窗口几何与任何屏都不相交）。关闭壁纸模式时清空会话目标，下次开启重新推导。壁纸所在的屏被拔掉时分两种：选了屏的，主进程在显示器变化时重跑判定，把窗口重建到回落的那块屏上（壁纸窗口不算普通窗口，所以落在 ④ 或 ⑤），选的屏接回来再重建回去；没有选屏的，显示器变化只让 helper `move`（helper 铺满窗口此刻所在的、或离它最近的那块屏），会话目标要到下一次重建窗口时才重新推导。自动规则本身不需要 store 键：`WINDOW_BOUNDS` 就是记忆。
 - **helper 选宿主 WorkerW（多屏关键）**：`SetParent` **保留子窗口的父客户区坐标**，所以窗口一旦被塞进某块屏的 WorkerW，就会视觉跳到那块屏上——之后任何「窗口在哪块屏」的查询都只会回答宿主屏，壁纸于是永远只铺那一块屏（初版单主屏时正好蒙对；24H2+ raised 桌面每块屏一个 WorkerW，选错宿主必然铺错屏）。因此 `attach_window` 在 `SetParent` **之前**取窗口所在显示器作为目标，并优先选择**覆盖该显示器的那个 WorkerW**（`EnumWindows` + Progman 子窗口枚举，排除承载 `SHELLDLL_DefView` 的图标层，按矩形覆盖率 ≥80% 匹配）；找不到匹配候选（例如 classic 桌面只有一个跨虚拟屏的 WorkerW）就回退原有的「classic sibling → raised Progman child」探测，此时一个宿主服务所有屏，几何换算照旧。几何重申一律以该目标屏的 `rcMonitor` 为准（`ScreenToClient(实际父窗口)` 换算）。
-- 几何重申（`move` / attach 后）用 `GetAncestor(GA_PARENT)` 取父窗口（WorkerW）做 `ScreenToClient` 换算 monitor 原点——对 Folia 窗口自身换算只在「窗口位于父客户区 (0,0)」时碰巧正确，多屏虚拟屏原点非 (0,0) 时会挂错显示器。**因此已挂载窗口的几何只由 helper 负责**：显示器变化只 spawn `move`，主进程不再 `setBounds`（对 WorkerW 的子窗口 setBounds 会被 Windows 按父客户区解释，等于把壁纸搬到宿主屏）。
-- 开关路径：`scheduleWallpaperModeRelaunch`（300ms 合并）→ win32 分支**重建窗口**（含 handoff）；显示器变化 → 按目标屏 DIP 重设 + helper `move` 重设物理几何（带同一显示器提示）。
+- 几何重申（`move` / attach 后）用 `GetAncestor(GA_PARENT)` 取父窗口（WorkerW）做 `ScreenToClient` 换算 monitor 原点——对 Folia 窗口自身换算只在「窗口位于父客户区 (0,0)」时碰巧正确，多屏虚拟屏原点非 (0,0) 时会挂错显示器。**因此已挂载窗口的几何只由 helper 负责**：显示器变化时主进程不 `setBounds`（对 WorkerW 的子窗口 setBounds 会被 Windows 按父客户区解释，等于把壁纸搬到宿主屏），只 spawn `move`；壁纸要换一块屏时（设置里换了选择，或者选的屏被拔掉、接回）不是挪窗口，而是整个重建窗口再 attach，让 helper 重新挑宿主。
+- 开关路径：`scheduleWallpaperModeRelaunch`（300ms 合并）→ win32 分支**重建窗口**（含 handoff）；显示器变化（200ms 合并）→ 选的屏被拔掉或接回时重建窗口并重新 attach（含 handoff），其余只 spawn helper `move` 重设物理几何（`move` 不带显示器参数，helper 按窗口所在的屏铺）。
 - 壁纸窗口创建约束：目标屏 bounds（全屏，含任务栏区域）、`thickFrame:false`、`resizable:false`、不可 click-through。
 - 设置键：`wallpaper_mode`、`wallpaper_forward_mouse`（默认开）、`wallpaper_zguard`（默认开）。后两者无 UI，变更会 kill + 重 attach helper（窗口全程不脱层）。
 - **透明背景 × 壁纸模式**：透明窗口（`WS_EX_LAYERED`）只有在 raised（Win11 24H2+）桌面能活过 `SetParent` 持续呈现；classic（Win10/早期 Win11）下重挂即黑屏。主进程持久化 `attached.mode`（`wallpaper_windows_attach_mode`，classic 为默认）：classic 下壁纸窗口一律按不透明构建、`setMainWindowTransparentMode(true)` 直接拒绝（`wallpaper-transparent-refused` 事件 + 渲染端 toast）。
 - **退出清理**：`before-quit` 与窗口重建路径对 helper 走 `detach()` 而非 `killHelper()`——挂载状态下销毁窗口会在桌面残留最后一帧。helper detach 时 `InvalidateRect` WorkerW 兜底，最后一步 `refresh_desktop_wallpaper` 重刷壁纸：classic 的 0x052C WorkerW 层在窗口离开后不再绘制壁纸、只剩灰色空表面，必须显式触发 Explorer 重绘（个别 MSIX 环境可能让 Explorer 重建层级，此时已无挂载窗口、重建无害，故放清理顺序最后）。退出壁纸模式路径等 helper 的 `detached` 事件（500ms 兜底超时）再销毁旧 hwnd。降级闩锁等无优雅 detach 可走的路径由主进程 best-effort spawn 一次性 `refresh` 子命令兜底。
-- 鼠标注入（`electron/windowsWallpaperMouse.cjs`）：helper 坐标是物理屏幕像素，主进程先用 `screen.screenToDipPoint` 转成 Chromium 的 DIP 空间再减窗口内容原点——两端都出自 Chromium 自己的映射，混合 DPI 下不再依赖「helper 虚拟化空间 == Electron DIP 空间」这个在异缩放多屏下不成立的假设。move/wheel 越界丢弃；mousedown 同样越界丢弃（壁纸只覆盖一块屏，点其它屏的桌面不该注入点击），mouseup 一律放行以免按住态卡死；clickCount 由主进程按 DIP 合成；拖拽期间为 move 附加 `leftbuttondown` modifier；滚轮 ~100px/notch，垂直轴直传。DPI：壁纸窗口必须 `thickFrame:false`（WS_THICKFRAME 会把客户区内缩一个边框宽）；helper 进程级 PMv2（`main.rs`），`reassert_geometry` 另有一次线程级重申。
+- 鼠标注入（`electron/wallpaper/windowsWallpaperMouse.cjs`）：helper 坐标是物理屏幕像素，主进程先用 `screen.screenToDipPoint` 转成 Chromium 的 DIP 空间再减窗口内容原点——两端都出自 Chromium 自己的映射，混合 DPI 下不再依赖「helper 虚拟化空间 == Electron DIP 空间」这个在异缩放多屏下不成立的假设。move/wheel 越界丢弃；mousedown 同样越界丢弃（壁纸只覆盖一块屏，点其它屏的桌面不该注入点击），mouseup 一律放行以免按住态卡死；clickCount 由主进程按 DIP 合成；拖拽期间为 move 附加 `leftbuttondown` modifier；滚轮 ~100px/notch，垂直轴直传。DPI：壁纸窗口必须 `thickFrame:false`（WS_THICKFRAME 会把客户区内缩一个边框宽）；helper 进程级 PMv2（`main.rs`），`reassert_geometry` 另有一次线程级重申。
 
 ### 4. 渲染端 / 构建
 
@@ -105,7 +121,7 @@ Electron 主进程 (main.cjs)
 1. 键盘/IME、右/中/侧键不转发。
 2. z 序只能「最后调整者在上」，与 WE 的竞争靠低频守卫兜底。
 3. 只创建一块壁纸窗口：壁纸只铺在目标屏上，其它显示器保持系统壁纸，点它们的桌面不转发给 Folia（属预期）。
-4. 目标屏只在**进入壁纸模式时**确定（壁纸窗口 `movable:false`，不可拖动，也没有运行时迁移入口）：要换屏需先退出壁纸模式、把窗口拖到目标屏再重新开启。设置卡有一行文案说明该行为。
+4. 换屏在设置「桌面」页里选（见一、2「选显示器」），壁纸模式开着也能换，换的时候窗口重建一次。选「自动」时目标屏仍只在**进入壁纸模式时**确定（壁纸窗口 `movable:false`，不可拖动）：要换屏需先退出壁纸模式、把窗口拖到目标屏再重新开启。
 5. 目标屏判定依赖 Electron 的显示器几何，落地依赖 helper 选中该屏的 WorkerW 宿主；宿主匹配失败时回退到「唯一的 WorkerW + 窗口所在屏」，多屏异缩放布局下可能落到相邻屏（壁纸与窗口实际所在屏一致，属可接受偏差）。
 6. 安全桌面/RDP 会话切换期间壁纸不可见属预期。
 
@@ -117,10 +133,11 @@ Electron 主进程 (main.cjs)
 
 ## 三、Linux 壁纸模式
 
-- **显示层**：Wayland 经 `windowtolayer` 进程把 Electron 窗口放到 `wlr-layer-shell` bottom 层；X11 用 `_NET_WM_WINDOW_TYPE_DESKTOP` 桌面窗口覆盖主显示器。Folia 本身只负责渲染内容与处理设置；两套共享壁纸模式设置，窗口创建/尺寸/交互限制各自适配。
+- **显示层**：Wayland 经 `windowtolayer` 进程把 Electron 窗口放到 `wlr-layer-shell` bottom 层；X11 用 `_NET_WM_WINDOW_TYPE_DESKTOP` 桌面窗口覆盖一块显示器：设置里选的那块，没选或者它没接着就是主显示器。Wayland 不读 `wallpaper_display`，放在哪块屏由 `windowtolayer` 和合成器决定，设置页也不画选显示器那一行。Folia 本身只负责渲染内容与处理设置；两套共享壁纸模式设置，窗口创建/尺寸/交互限制各自适配。
 - **启动与切换**：启动先读壁纸模式与会话类型再决定是否起包装进程；跳板进程只在包装进程成功创建后才退出。包装缺失或启动失败时清除壁纸模式、以普通窗口启动。运行中切换写入持久化配置、短暂合并连续操作，等渲染端返回播放快照后 relaunch（环境标记 + 清理一次性 Wayland socket 与包装标记）；快照以短 TTL 临时持久化，重启后恢复歌曲、队列、进度与播放状态。
-- **故障恢复**（`electron/wallpaperWatchdog.cjs`）：包装状态下监视父进程存活，同时处理窗口创建失败与 renderer 崩溃；以固定父进程身份 + 存在性检查识别包装退出，恢复幂等、避免多故障事件重复拉起。连续启动失败达阈值自动关闭壁纸模式；正常启动或稳定运行后清计数。Wayland 进程模型：跳板 spawn `windowtolayer`（wtl），wtl 再 spawn 真正的包装 Folia（`WAYLAND_SOCKET=<fd>`）；包装子进程的父进程是 wtl，wtl 一死 socketpair EOF、Chromium 通常毫秒级崩溃、watchdog 来不及响应——watchdog 的价值在于 wtl 非致命退出时的恢复与崩溃循环 breaker。计数键 `wallpaper_wrapped_crash_count`。
-- **X11 特殊处理**：桌面窗口取主显示器完整 bounds 且在首次映射前完成尺寸设置（防显示缩放导致的工作区裁剪）；不参与普通窗口尺寸记忆（防止退出壁纸模式后把全屏桌面尺寸带回普通窗口）；无背景合成层、透明区域显示为黑；不用 watchdog，异常靠下次启动自愈。
+- **故障恢复**（`electron/wallpaper/wallpaperWatchdog.cjs`）：包装状态下监视父进程存活，同时处理窗口创建失败与 renderer 崩溃；以固定父进程身份 + 存在性检查识别包装退出，恢复幂等、避免多故障事件重复拉起。连续启动失败达阈值自动关闭壁纸模式；正常启动或稳定运行后清计数。Wayland 进程模型：跳板 spawn `windowtolayer`（wtl），wtl 再 spawn 真正的包装 Folia（`WAYLAND_SOCKET=<fd>`）；包装子进程的父进程是 wtl，wtl 一死 socketpair EOF、Chromium 通常毫秒级崩溃、watchdog 来不及响应——watchdog 的价值在于 wtl 非致命退出时的恢复与崩溃循环 breaker。计数键 `wallpaper_wrapped_crash_count`。
+- **X11 特殊处理**：桌面窗口取目标显示器（设置里选的，否则主显示器）完整 bounds 且在首次映射前完成尺寸设置（防显示缩放导致的工作区裁剪）；设置里换了选择，或者选的那块屏被拔掉、接回来时，走和开关壁纸模式一样的 relaunch；没有选屏时显示器变化不处理（和原来一样）；不参与普通窗口尺寸记忆（防止退出壁纸模式后把全屏桌面尺寸带回普通窗口）；无背景合成层、透明区域显示为黑；不用 watchdog，异常靠下次启动自愈。
+- **KDE 面板**：Plasma 的「避让窗口」只看任务列表里的窗口，layer-shell 壁纸和 X11 桌面窗口都不在其中，所以避让面板会照常显示在壁纸上，和系统壁纸一样。Folia 不改用户的面板设置（#802 的方案未合入：要改全局 Plasma 配置，崩溃后还得自己恢复）。不想让面板挡住歌词，请把面板设为「自动隐藏」。
 - **打包**：`windowtolayer` 用固定上游提交 + 仓库补丁构建（`packaging/linux/build-windowtolayer.mjs` + `packaging/linux/patches/`），补丁无法应用直接失败；产物及许可证随 Linux 包放 `resources`。联调：`npm run build:windowtolayer` → `build/windowtolayer`（或 `npm run dev:electron:wallpaper`，`dev:electron*` 注入 `FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer`）；二进制缺失时开关自动回退关闭。
 
 ## 四、macOS 壁纸模式
@@ -131,7 +148,7 @@ Electron 主进程 (main.cjs)
 
 - 设计对照 Mineradio-macOS 上游（`macupstream/main`）`desktop/` 三文件：`mac-window-level.js`（`CGWindowLevelForKey(kCGDesktopIconWindowLevelKey) - 1` 沉/浮 level、`setCollectionBehavior`、occlusion、全程 fail-soft）、`mac-event-tap.js`（listen-only session tap、`isDesktopPoint()`、move 节流、tap-disabled 重武装、Input Monitoring 权限流）、`main.js`（Dock 自动隐藏/恢复、simple-fullscreen 满幅、交互默认开启等语义来源）。
 - `package.json` 新增 `koffi`（^3.2.0，仅 darwin 运行时使用；N-API 预编译，无需 electron-rebuild）。原生 `.node` 经 OS 门控可选包 `@koromix/koffi-<platform>-<arch>` 分发，`build.asarUnpack` 已含 `node_modules/@koromix/koffi-*/**/*.node`。
-- 新增 `electron/macWallpaperController.cjs`（darwin-only、依赖注入、无 Electron 硬依赖），与 Windows 控制器同为「纯逻辑 + `main.cjs` 接线」结构；`main.cjs` 顶部无条件 require（模块自身按 darwin 门控 FFI，非 darwin 不加载原生依赖）。职责：
+- 新增 `electron/wallpaper/macWallpaperController.cjs`（darwin-only、依赖注入、无 Electron 硬依赖），与 Windows 控制器同为「纯逻辑 + `main.cjs` 接线」结构；`main.cjs` 顶部无条件 require（模块自身按 darwin 门控 FFI，非 darwin 不加载原生依赖）。职责：
   - **level**：`isAvailable()/desktopLevel()/normalLevel()/setLevel(win,level)/setCollectionBehavior(win,mask)/getLevel(win)/getOcclusionState(win)`；FFI 失败一律 no-op 返回；`objc_msgSend` 按具体签名声明多个原型（arm64 要求）。collection behavior 优先走 Electron `setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})`，不用裸 `setCollectionBehavior(81)`（会丢掉 FullScreenAuxiliary 位）。
   - **presentation**：`clearAutoHidePresentationOptions()`——经 `objc_getClass('NSApplication')`/`sharedApplication` 清除 NSApp **应用级** AutoHideDock|AutoHideMenuBar 位。背景：Electron simple-FS 进入时以 `[NSApp setPresentationOptions:]` 设置这两位、退出时恢复「进入时捕获的值」；若窗口在 simple-FS 中被直接销毁（窗口关闭/透明切换重建），无退出恢复，位会残留并被下一次进入捕获为脏值，之后每次退出「恢复」的仍是脏值——表现为聚焦本应用即隐藏菜单栏/Dock（实测）。**只清 AutoHide 两位，绝不碰 FullScreen 位**（原生全屏过渡期由系统持有；旧修复连 FullScreen 一起清导致死循环，已移除）。仅在壁纸会话完全拆除后调用。
   - **tap**：`hasPermission()/requestPermission()/start(forward)/stop()/isRunning()`；mask 覆盖 left/right down/up/dragged、mouseMoved、scroll。`CGEventType` 必须按 `uint32` 声明（tap-disabled 哨兵 0xFFFFFFFE/0xFFFFFFFF 若按 int 会变 -2/-1 而失配）；tap 被系统禁用收到哨兵后自动 `CGEventTapEnable` 重武装。权限探测抽为闭包 `listenAccessGranted()`，`start()` 与对外 `hasPermission()` 共用。
@@ -147,13 +164,13 @@ Electron 主进程 (main.cjs)
     - 记录 bounds/resizable/movable/maximizable/native-blur → `isMacWallpaperActive = true`、click-through 复位、always-on-top 只翻存储状态位（**不调** Electron `setAlwaysOnTop`——它会毒化本窗口后续的 simple-FS 呈现，实测内容被呈现为下移菜单栏高度、顶部空条露出系统壁纸，且对窗口生命周期粘性）；
     - 若窗口带 `__macAlwaysOnTopElectronTouched` 标记（曾被 Electron `setAlwaysOnTop` 碰过，含托盘开启路径的历史调用）→ 先重建窗口（`windowPlaybackHandoff` 保音频）再进入，保证壁纸永远跑在「从未被毒化」的新窗口上（启动路径天然满足）；
     - 若在原生/simple 全屏中：**推迟整个姿态**到退出动画落地（`leave-full-screen` 一次性触发 + 有界轮询兜底，超时回滚模式而非强行下沉；旧实现「边退边铺 + 事后重断言」会在竞态下把窗口卡在 visibleFrame，顶部菜单栏条外露）；
-    - 铺满：**先** `setSimpleFullScreen(true)`（Electron 一步动画到全屏 frame）→ **后** ambient（`setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})` → `setLevel(desktopLevel)` → `setIgnoreMouseEvents(true,{forward:true})`）。**不再**先 `setBounds(display.bounds)`——macOS 会把它钳制到 workArea（y=菜单栏高、高度不变、底部出屏），随后的上移 origin 动画会让内容视图残留 33pt 偏移；ambient 后置同理（aux/全空间位在 simple-FS 中生效会触发同样的内容下移）。铺完做有界 settle 校验（帧不符幂等重铺，定时器驱动、绝不挂 resize 事件——曾因此死循环）；
+    - 铺满：**先** `setSimpleFullScreen(true)`（Electron 一步动画到全屏 frame）→ **后** ambient（`setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})` → `setLevel(desktopLevel)` → `setIgnoreMouseEvents(true,{forward:true})`）。**不再**先 `setBounds(display.bounds)`——macOS 会把它钳制到 workArea（y=菜单栏高、高度不变、底部出屏），随后的上移 origin 动画会让内容视图残留 33pt 偏移；ambient 后置同理（aux/全空间位在 simple-FS 中生效会触发同样的内容下移）。铺完做有界 settle 校验（帧不符幂等重铺，定时器驱动、绝不挂 resize 事件——曾因此死循环）。铺到哪一块屏：`applyMacWallpaperFrame` 和 settle 校验用同一个目标帧，`getChosenOrPrimaryWallpaperDisplay().bounds`——设置里选的屏接着就是它，否则主屏（没有这个设置时一直是主屏）。窗口不在目标屏上时，靠进了 simple-FS 之后那一步 `setBounds(target)` 把它搬过去（进入前的帧和目标帧不同就会跑这一步；窗口在副屏上进入、要回主屏时走的也是它）。选了副屏的情形只读过代码，没有在 Mac 上跑过；
     - 按开关隐藏 Dock → 默认开启交互（tap）→ `store.set('wallpaper_mode', true)` → 推送 `wallpaper-mode-changed`。
   - 关（`exitMacWallpaperMode`）：恢复帧在退出 simple-FS **之前**先 `setBounds` 到目标帧（Electron 的退出动画飞向「进入时记录的帧」——钳制帧而非用户窗口帧，事后 setBounds 会输给动画）→ `setSimpleFullScreen(false)` → 逆序还原 level/几何/ignoreMouseEvents/all-workspaces、恢复 resizable/movable/maximizable 与 vibrancy → 收尾 `clearMacWallpaperAutoHideLeftovers()`（窗口已销毁/非活跃早退/正常恢复三路都清，见 §1 presentation）。
 - **会话生命周期**：renderer crash 原地 reload（mac 的 level/几何在 BrowserWindow 上，不会随页面崩溃丢失，无需重挂 tap）；窗口被销毁时 `closed` 处理退出会话（停 tap、还原 Dock、清 `wallpaper_mode`）；`activate`/启动重建窗口后按需重进。
 - **残留清理**：启动时 `wallpaper_mode=true` 且本次无法进入 mac 壁纸会话（FFI 不可用/权限未生效）→ 清掉该标志，避免 renderer 误关自绘标题栏、窗口控制 IPC 全被拒。
 - **退出清理**：`before-quit` 同步停 tap、`restoreDockSync()`（Dock/图标属系统状态，进程可能在异步链中途退出）。
-- **显示屏热插拔/分辨率变化**：mac 分支监听 display 事件，壁纸会话存活时延迟重断言满幅 frame 与 level。
+- **显示屏热插拔/分辨率变化**：mac 分支监听 display 事件，壁纸会话存活时延迟重断言满幅 frame 与 level。目标帧每次现算，所以选的屏被拔掉时这一步把窗口搬到主屏，接回来时再搬回去；设置里换了选择时跑的也是这两步（不重建窗口，页面不重载）。
 - **设置热更**：mac 会话中改 `wallpaper_forward_mouse` 即时 start/stop tap；改 `wallpaper_mac_autohide_dock` 即时隐藏/还原 Dock。
 
 ### 3. 交互接入
@@ -162,12 +179,20 @@ Electron 主进程 (main.cjs)
 - **转发 `forwardMacWallpaperMouse(evt)`**：仅转发 `isDesktopPoint` 判定的裸桌面事件（点在 App/Dock/小组件上不转发）；down 记忆起点、期间 drag 持续、up 结束（含右键）；`mouseMoved` 时间节流 ~40ms；scroll 读 `ScrollWheelEventDeltaAxis1/2`。
 - **注入 `sendMacWallpaperMouseEvent(evt)`**：屏幕点换算为窗口内容点后 `webContents.sendInputEvent`；down/up → `mouseDown/mouseUp`（clickCount 500ms/8px 双击合成），drag/move → `mouseMove`（拖拽时带 `leftbuttondown` modifier 维持 buttons=1），scroll → `mouseWheel`（增量 ×16，轴向/倍率需真机校准）。drag 事件合并到最新位置后 ~16ms flush。
 - **tap 生命周期**：进壁纸默认开（`wallpaper_forward_mouse !== false`），`start/stop` 即开关；tap 启动失败计数达到阈值 → 降级为非交互壁纸并提示。
+- **台前调度与接点面板（#698）**：listen-only tap 只是旁听，点击照样落到 Finder 的桌面窗口；开着台前调度时，系统把这当成「点了桌面」，把别的程序窗口弹到前面。所以控件显示在屏幕上时，主进程在每个控件上方各放一个**完全透明、无边框、不激活应用的 NSPanel**（`electron/wallpaper/macWallpaperHitPanels.cjs`，koffi 直接建 AppKit 窗口，不开渲染进程）。它的层级比 Finder 图标高一层、低于所有普通窗口。点击落在 Folia 自己的面板上，不会激活 Folia，Finder 收不到，台前调度也就不会反应（macOS 15.3 开着台前调度实测）；tap 照样看到这次点击，`isDesktopPoint` 把 Folia 自己在负层级的窗口当桌面放行，所以转发不变。不吞点击，也不需要辅助功能权限（对比 PR #709）。
+  - 盖哪里：渲染端 `src/hooks/useMacWallpaperHitRegions.ts` 订阅现成的播放页浮层布局（`services/playerOverlayLayout.ts`，控件自己登记、80ms 去抖），取 `kind === 'control'` 的矩形，有变化才经 `wallpaper-hit-regions` 发给主进程；主进程按窗口原点与页面缩放换成屏幕点（`toScreenHitRects`），最多 `MAX_HIT_PANELS` 个。
+  - 盖得到的：底部胶囊、右下角面板开关和展开的面板、播放提示卡片。盖不到的：只有播放页登记了这份布局，主页没有；左上角返回按钮；monet / pendolo 点歌词行跳转。点这些地方仍然转发，只是台前调度照常反应。
+  - 台前调度开着时，只盖控件不够：歌词、空白处、控件设成始终隐藏时的整张壁纸，点下去都还是点在 Finder 桌面上。按台前调度的设置（`com.apple.WindowManager` 的 `GloballyEnabled` / `HideDesktop`，`readStageManagerDesktop` 经 CFPreferences 读，不起子进程）分两种：
+    - **台前调度中隐藏桌面项目**：桌面上没有图标可点，一个面板盖住整张壁纸，不需要任何权限。代价：点壁纸不再是「显示桌面」，右键也不再出 Finder 的桌面菜单。
+    - **显示桌面图标**：加载 `libfolia_click_guard.dylib`（`packaging/macos/desktop-click-guard/ClickGuard.swift`，由 `electron/wallpaper/macDesktopClickGuard.cjs` 通过 koffi 载入 Folia 主进程）。它在自己的原生线程上挂一个排在会话最后的 active tap：左键手势（按下、拖动、抬起一起）从壁纸范围内的裸桌面开始时吞掉，Finder 收不到，台前调度不反应（macOS 15.3 实测：吞掉的点击不收走窗口，没吞的照常收走）。点在桌面图标或图标名字上（访达辅助功能树里的 `AXImage`，后台每 12 秒刷新，按下时缓存没命中再即时问一次）、任何窗口上、壁纸外、右键和 Ctrl+点击（触控板的辅助点按，桌面菜单照常弹出），都放行。程序坞在窗口列表里任何状态下都是一整块铺满屏幕的层，分不出图标栏在哪，所以判成裸桌面后再问一次程序坞自己的辅助功能树，点在程序坞上就放行（实测：不问时点程序坞图标会被吞）；Folia 自己全屏展示时的壁纸窗口不算遮挡（与控制器的 `isDesktopPoint` 同一规则）。Folia 自己的 listen-only tap 排在它前面，照样看到并转发这次点击。判断全在原生代码里，点击路径上没有 JavaScript；查不到或超时一律放行；读访达数据只做检查过的类型转换，不会在 Folia 进程里崩溃。为什么不用单独进程：macOS 按子进程自己的身份判断辅助功能权限，Folia 已授权、它派生的 helper 仍然不被信任（实测）；载入主进程后用的就是 Folia 自己那一项。需要「辅助功能」权限；没有时只盖控件，提示一次并弹系统授权框（问过一次就记进设置，之后不再弹），不关壁纸模式；运行中刚授权时 macOS 可能要等 Folia 重启才放行 tap，提示里写了重启。已知：拖桌面图标时，Folia 的 listen-only tap 仍会把这次拖动转发进壁纸（新版 macOS 的图标不是独立窗口，转发判断分不出图标和空白），与本修复无关，暂不处理。代价：在裸桌面上拉框多选会被吞掉。对比 PR #709：那版在 koffi worker 里挂 tap 并回调 JavaScript 判断，所有 Mac 用户都要授权，只吞按下抬起不吞拖动，退出不关 tap。
+    - 设置和权限在壁纸接收输入期间每 3 秒重读一次，改了不用重启。桌面小组件没有实测。
+  - 什么时候在：只在 tap 运行时存在（面板把点击从 Finder 那里拿走，只有 tap 会把它交给壁纸；没有 tap 时面板会让控件点不动）。控件自动隐藏后面板跟着撤掉，下面的桌面图标照常能点；控件显示期间，被盖住的图标点不到。退出壁纸模式时收起，退出应用时释放。
 - **键盘不转发**：与 Windows 交互边界一致，壁纸模式下键盘不可达；退出/控制走托盘等入口。
 - **Dock**：`wallpaper_mac_autohide_dock`（mac 专属，**默认开**）。位置感知：仅在 Dock 位于屏幕底部时，壁纸会话期间自动隐藏 Dock、置 `autohide-delay=0`（贴边立即唤出）；左/右侧 Dock 不动。开关是显式覆盖：关闭后即使 Dock 在底部也不隐藏。退出壁纸/退出应用恢复用户原值；marker 防崩溃残留，下次启动对账恢复。
 
 ### 4. 渲染与文案
 
-- `src/components/modal/settings/DesktopSettingsSubview.tsx`：`isMac` 判定放开 Wallpaper Mode 卡片；mac 下卡片内多一行「自动隐藏 Dock 栏」开关（默认开，实际仅在 Dock 位于底部时生效），卡片下方显示输入监控指引。
+- `src/components/modal/settings/pages/DesktopPage.tsx`：`HAS_WALLPAPER_MODE` 判定放开 Wallpaper Mode 那一行；mac 下（`IS_MAC`）它下面多一行「自动隐藏 Dock 栏」开关（默认开，实际仅在 Dock 位于底部时生效），这一行下方显示输入监控指引。
 - 命令面板 `settingsCommands.ts`：`settings-wallpaper-mode` 与 `desktop-toggle-wallpaper-mode` 的 `platform` 含 `'mac'`；`browser-fullscreen`、always-on-top 等隐藏项已由 `isWallpaperMode` 门控，无需改动。
 - 三语文案（zh-CN / en / in）：`options.wallpaperModeMacPermissionHint`、`options.wallpaperMacAutohideDock(Desc)`、`notifications.macWallpaperAutohideDockOn/Off`、`notifications.macWallpaperInputMonitoringNeeded`。mac 下 toggle 与 Windows/Linux 走同一 `handleToggleWallpaperMode` 路径。
 - 本地存储契约快照（`storeContract.test.ts.snap`）新增 `wallpaper_mac_autohide_dock`。

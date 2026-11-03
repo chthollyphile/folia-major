@@ -4,10 +4,11 @@
 //
 // The spec only carries output choices. The host renders the song on screen
 // with its live mode, tuning, lyrics, theme and Folium settings — the mod never
-// hands host data back in, so it needs no runtime.playback permission.
+// hands host data back in, so it needs no playback.read permission.
 
 'use strict';
 
+/** @param {import('../folium').FoliumMainApi} api */
 module.exports = function activate(api) {
     api.log.info(`transparent-mov-export ${api.manifest.version} loaded (folium ${api.host.folium.major}.${api.host.folium.minor})`);
 

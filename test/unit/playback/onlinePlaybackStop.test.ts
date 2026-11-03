@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { PlayerState, type StatusMessage, type UnifiedSong } from '@/types';
-import { OnlineProviderError } from '@/types/onlineMusic';
-import type { OnlineAudioSourceResult, PlaybackFailureReason } from '@/types/playbackFailure';
+import { OnlineProviderError, type OnlineFailureCaseId } from '@/types/onlineMusic';
 
 // test/unit/playback/onlinePlaybackStop.test.ts — exercise the queue's error branch without a browser or network.
 
@@ -46,12 +45,11 @@ vi.mock('@/stores/useAudioSettingsStore', () => ({
 vi.mock('@/stores/useSearchNavigationStore', () => ({
     useSearchNavigationStore: (selector: (state: unknown) => unknown) => selector({}),
 }));
-vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, notifyPlaybackFailed: vi.fn() }));
-vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => true } }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({
-    isSongUnavailable: vi.fn(() => false),
-    getSongReplacement: vi.fn(async () => null),
+vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
+vi.mock('@/services/onlineMusic/omni', () => ({
+    omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
 }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: vi.fn(async () => null),
@@ -70,27 +68,37 @@ vi.mock('@/services/onlinePlayback', () => ({
 vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: vi.fn(async () => null) }));
 
 const { useEffect } = await import('react');
-const { usePlaybackQueueController } = await import('@/hooks/usePlaybackQueueController');
+const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { loadOnlineSongAudioSource } = await import('@/services/onlinePlayback');
-const { getSongReplacement, isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
+const { isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
+const { omni } = await import('@/services/onlineMusic/omni');
 const { loadOnlineLyricsState } = await import('@/utils/onlineLyricsState');
 const { getCachedSongCoverUrl } = await import('@/services/onlineMusic/resourceCache');
 const { getPlaybackSongKey } = await import('@/utils/appPlaybackGuards');
 const { notifyPlaybackFailed } = await import('@/services/hostExtensionHooks');
+const { askForSong, askedSongKeyRef, dropPlaysInFlight, startOfAskedSong } = await import('@/components/app/playback/currentSong');
+const { mediaFailureOf, onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
+const { useLoginWindowStore } = await import('@/components/login/loginWindowStore');
+const { neteaseAnswerError } = await import('@/services/onlineMusic/netease/neteaseFailure');
+const { hifiTransport } = await import('@/services/hifi/hifiPlayback');
 const notified = vi.mocked(notifyPlaybackFailed);
+const getSongReplacement = vi.mocked(omni.getSongReplacement);
 
+// What the loader answers where the song cannot be had: Bodian's, with a code of its own quoted.
+const failureOf = (caseId: OnlineFailureCaseId) => onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId, code: '20018' } });
+const unavailable = (caseId: OnlineFailureCaseId) => ({ kind: 'unavailable' as const, failure: failureOf(caseId) });
+type LoaderResult = Awaited<ReturnType<typeof loadOnlineSongAudioSource>>;
 const makeSong = (id: string): UnifiedSong => ({
     id, name: `Song ${id}`, artists: [], album: { id: '', name: '' }, durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'bodian', mediaId: id },
 });
 const songs: UnifiedSong[] = ['1', '2', '3'].map(makeSong);
 const loader = vi.mocked(loadOnlineSongAudioSource);
-const failed = (reason: PlaybackFailureReason): OnlineAudioSourceResult => ({ kind: 'failed', failure: { reason, stage: 'resolve-url' } });
 const message = () => useStatusMessageStore.getState().message as StatusMessage | null;
-// App 持有的播放代次在多次“渲染”之间是同一个 ref。
-const playbackGenerationRef = { current: 0 };
+// The countdown's skip, as the timer would call it when the time is over.
+const countdownSkip = () => (vi.mocked(window.setTimeout).mock.calls.at(-1)![0] as () => void)();
 // react 被 mock 成不跑 effect：需要 Stage 接管订阅的用例显式执行这次登记的 effect；清理函数在 afterEach 里调用，订阅不漏到下一个用例。
 const effectCleanups: Array<() => void> = [];
 const runEffects = () => {
@@ -113,14 +121,15 @@ beforeEach(() => {
     hookStates.list.length = 0;
     loader.mockReset();
     vi.mocked(isSongUnavailable).mockReset().mockImplementation(() => false);
-    vi.mocked(getSongReplacement).mockReset().mockImplementation(async () => null);
+    getSongReplacement.mockReset().mockImplementation(async () => null);
     vi.mocked(loadOnlineLyricsState).mockReset().mockImplementation(async () => null);
     vi.mocked(getCachedSongCoverUrl).mockReset().mockImplementation(async () => null);
-    playbackGenerationRef.current = 0;
     audioSettings.autoSkipUnplayable = false;
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[0], playQueue: songs,
         playerState: PlayerState.PLAYING, isFmMode: false, audioSrc: 'https://cdn.example/1.mp3' });
+    // The song that plays is the one the player was last asked for (currentSong.ts), as App leaves it.
+    askForSong(songs[0]);
     useStatusMessageStore.setState({ message: null });
 });
 afterEach(() => {
@@ -129,7 +138,8 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-function controller({ mainPlaybackSnapshotRef = { current: null }, onPlayNavidromeSong }: {
+function controller({ skipsSoFar = 0, mainPlaybackSnapshotRef = { current: null }, onPlayNavidromeSong }: {
+    skipsSoFar?: number;
     mainPlaybackSnapshotRef?: { current: unknown };
     onPlayNavidromeSong?: (...args: unknown[]) => Promise<void>;
 } = {}) {
@@ -137,14 +147,13 @@ function controller({ mainPlaybackSnapshotRef = { current: null }, onPlayNavidro
     hookStates.index = 0;
     const pause = vi.fn();
     const shouldAutoPlayRef = { current: true };
-    const currentSongRef = { current: getPlaybackSongKey(songs[0]) as string | number | null };
-    const playbackAutoSkipCountRef = { current: 0 };
+    const playbackAutoSkipCountRef = { current: skipsSoFar };
     const blobUrlRef = { current: null as string | null };
     const persistLastPlaybackCache = vi.fn(async () => undefined);
     const setLyrics = vi.fn();
     const result = usePlaybackQueueController({
         localSongs: [], localLibraryCatalog: {}, isNowPlayingStageActive: false, shouldNavigateToPlayerOnTrackChange: true,
-        audioRef: { current: { pause } }, shouldAutoPlayRef, currentSongRef, playbackGenerationRef, playbackAutoSkipCountRef,
+        audioRef: { current: { pause } }, shouldAutoPlayRef, playbackAutoSkipCountRef,
         blobUrlRef, pendingResumeTimeRef: { current: null },
         lastAudioRecoverySourceRef: { current: null }, currentOnlineAudioUrlFetchedAtRef: { current: null },
         mainPlaybackSnapshotRef,
@@ -155,101 +164,131 @@ function controller({ mainPlaybackSnapshotRef = { current: null }, onPlayNavidro
     } as never);
     const setPendingUnavailableReplacement = stateSetters.at(-1)!;
     return {
-        ...result, pause, shouldAutoPlayRef, currentSongRef, playbackAutoSkipCountRef, blobUrlRef,
+        ...result, pause, shouldAutoPlayRef, playbackAutoSkipCountRef, blobUrlRef,
         persistLastPlaybackCache, setLyrics, setPendingUnavailableReplacement,
     };
 }
 
 describe('online playback stop conditions', () => {
     it.each([
-        ['not-signed-in', 'status.songLoginRequired'],
-        ['session-expired', 'status.loginExpired'],
-        ['membership-required', 'status.songMembershipRequired'],
+        ['region-restricted', 'status.songRegionRestricted'],
+        ['sign-in-needed', 'failure.signInNeeded'],
+        ['preview-only', 'status.songPreviewOnly'],
+        ['subscription-required', 'status.songSubscriptionRequired'],
         ['purchase-required', 'status.songPurchaseRequired'],
         ['entitlement-required', 'status.songEntitlementRequired'],
-        ['preview-only', 'status.songPreviewOnly'],
-        ['region-restricted', 'status.songRegionRestricted'],
-        ['network', 'status.songNetworkFailed'],
-        ['timeout', 'status.songRequestTimedOut'],
-        ['service-unavailable', 'status.songServiceUnavailable'],
-        ['rate-limited', 'status.songRateLimitedNoWait'],
-        ['invalid-response', 'status.songTemporarilyUnavailable'],
-        ['unknown', 'status.songTemporarilyUnavailable'],
-    ] as const)('pauses and never schedules queue skipping for %s', async (reason, text) => {
-        loader.mockResolvedValue(failed(reason));
+        ['not-configured', 'status.songServiceNotConfigured'],
+    ] as const)('pauses and never schedules queue skipping for %s', async (caseId, text) => {
+        loader.mockResolvedValue(unavailable(caseId));
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(queue.shouldAutoPlayRef.current).toBe(false);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
-        expect(message()).toMatchObject({ type: 'error', text, persistent: true });
+        expect(message()).toMatchObject({ type: 'error', text });
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(loader).toHaveBeenCalledOnce();
         expect(getSongReplacement).not.toHaveBeenCalled();
     });
 
-    it('offers a retry instead of a scheduled skip when the cause is unknown', async () => {
-        loader.mockResolvedValue(failed('unknown'));
+    // It used to come back as an empty address, and the song was skipped as taken down.
+    it('stops with the sign-in message when NetEase answers 301 for the address', async () => {
+        const error = neteaseAnswerError({ code: 301, msg: '需要登录' }, 'the song URL');
+        loader.mockResolvedValue({ kind: 'unavailable', failure: onlineFailureOf({ operation: 'audio', providerId: 'netease' }, { error }) });
         const queue = controller();
-        await queue.playSong(songs[1], songs);
+        await queue.playSong(songs[0], songs);
+        expect(queue.pause).toHaveBeenCalledOnce();
         expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(message()?.onAction).toBeTypeOf('function');
-        expect(message()).toMatchObject({ actionLabel: 'ui.retry', cancelLabel: 'status.skipUnavailableAction' });
+        expect(message()).toMatchObject({ text: 'failure.signInNeeded', actionLabel: 'failure.signIn', providerId: 'netease' });
     });
 
-    it('keeps the queue and the current song untouched after a network failure', async () => {
+    it('offers to sign in again when the sign-in has ended', async () => {
+        loader.mockResolvedValue(unavailable('sign-in-needed'));
+        await controller().playSong(songs[0], songs);
+        const shown = message();
+        expect(shown).toMatchObject({ note: 'failure.noteSignIn', providerId: 'bodian', actionLabel: 'failure.signIn', durationMs: 6000 });
+        shown?.onAction?.();
+        expect(useLoginWindowStore.getState()).toMatchObject({ isOpen: true, providerId: 'bodian' });
+        expect(message()).toBeNull();
+    });
+
+    it.each(['no-audio', 'unreachable', 'local-service-stopped', 'retry-later', 'refused', 'unknown'] as const)(
+        'counts down to the next song for %s, with what happened above the countdown',
+        async caseId => {
+            loader.mockResolvedValue(unavailable(caseId));
+            const queue = controller();
+            await queue.playSong(songs[0], songs);
+            expect(window.setTimeout).toHaveBeenCalledOnce();
+            expect(queue.pause).not.toHaveBeenCalled();
+            const shown = message();
+            expect(shown).toMatchObject({ persistent: true, countdown: { text: 'failure.skipCountdown' }, quote: { text: '20018' }, providerId: 'bodian' });
+            expect(shown?.text).not.toBe('status.songUnavailable');
+        },
+    );
+
+    it('offers a retry when there is nothing to skip to and asking again may help', async () => {
+        loader.mockResolvedValue(unavailable('unreachable'));
+        await controller().playSong(songs[0], songs, false, { unavailableSkipCount: 2 });
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        const shown = message();
+        expect(shown).toMatchObject({ text: 'failure.unreachable', note: 'failure.noteCheckNetwork', actionLabel: 'ui.retry', durationMs: 6000 });
+        expect(shown?.persistent).toBeUndefined();
+        shown?.onAction?.();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[0]);
+    });
+
+    it('offers nothing when there is nothing to skip to and asking again would not help', async () => {
+        loader.mockResolvedValue(unavailable('no-audio'));
+        await controller().playSong(songs[0], songs, false, { unavailableSkipCount: 2 });
+        const shown = message();
+        expect(shown).toMatchObject({ text: 'failure.noAudio', quote: { text: '20018' } });
+        expect(shown?.onAction).toBeUndefined();
+    });
+
+    it('keeps the queue and the current song untouched after a failure', async () => {
         const before = structuredClone(songs);
-        loader.mockResolvedValue(failed('network'));
+        loader.mockResolvedValue(unavailable('unreachable'));
         const queue = controller();
         await queue.playSong(songs[1], songs);
-        expect(message()).toMatchObject({ persistent: true, actionLabel: 'ui.retry', cancelLabel: 'status.skipUnavailableAction' });
         expect(usePlaybackStore.getState().playQueue).toBe(songs);
         expect(usePlaybackStore.getState().currentSong).toBe(songs[0]);
         expect(songs).toEqual(before);
         expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
-        expect(queue.currentSongRef.current).toBe(getPlaybackSongKey(songs[0]));
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(songs[0]));
     });
 
-    it('asks the loader to retry while the request is current and shows the retrying notice', async () => {
+    it('asks the loader to ask again while the request is current, and says so', async () => {
         let retrying: StatusMessage | null = null;
         loader.mockImplementation(async (_song, _quality, _prefetched, options) => {
             expect(options?.retry?.isCurrent()).toBe(true);
-            options?.retry?.onRetrying?.({ reason: 'network', stage: 'resolve-url' }, 1);
+            options?.retry?.onRetrying?.(failureOf('unreachable'), 1);
             retrying = message();
-            return failed('network');
+            return unavailable('unreachable');
         });
         const queue = controller();
         await queue.playSong(songs[1], songs);
-        expect(retrying).toMatchObject({ type: 'info', text: 'status.songRetrying' });
-    });
-
-    it('retries the same song when the retry action is pressed', async () => {
-        loader.mockResolvedValue(failed('network'));
-        const queue = controller();
-        await queue.playSong(songs[1], songs);
-        message()?.onAction?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
-        expect(loader.mock.calls[1][0]).toBe(songs[1]);
+        expect(retrying).toMatchObject({ type: 'info', text: 'status.songRetrying', providerId: 'bodian' });
     });
 
     it('skips to the next song in the latest queue when the request used the store queue', async () => {
         const extra = makeSong('9');
-        loader.mockResolvedValue(failed('network'));
+        loader.mockResolvedValueOnce(unavailable('unreachable')).mockReturnValueOnce(new Promise(() => undefined));
         const queue = controller();
         await queue.playSong(songs[1]);
         usePlaybackStore.setState({ playQueue: [songs[0], songs[1], extra] });
-        message()?.onCancel?.();
+        countdownSkip();
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(extra);
-        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
     });
 
     it('retries against the queue as it is when the button is pressed, keeping edits made meanwhile', async () => {
         const extra = makeSong('9');
-        loader.mockResolvedValueOnce(failed('network')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/2.mp3' });
+        loader.mockResolvedValueOnce(unavailable('unreachable')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/2.mp3' });
         const queue = controller();
         // The store's own queue, the way handleNextTrack and Folium's playQueueItem pass it.
-        await queue.playSong(songs[1], usePlaybackStore.getState().playQueue);
+        await queue.playSong(songs[1], usePlaybackStore.getState().playQueue, false, { unavailableSkipCount: 2 });
         const shown = message()!;
         const edited = [songs[0], songs[1], extra];
         usePlaybackStore.setState({ playQueue: edited });
@@ -265,39 +304,41 @@ describe('online playback stop conditions', () => {
 
     it('skips along the edited queue when the request passed the store queue', async () => {
         const extra = makeSong('9');
-        loader.mockResolvedValueOnce(failed('network')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/9.mp3' });
+        loader.mockResolvedValueOnce(unavailable('unreachable')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/9.mp3' });
         const queue = controller();
         await queue.playSong(songs[1], usePlaybackStore.getState().playQueue);
-        const shown = message()!;
         usePlaybackStore.setState({ playQueue: [songs[0], songs[1], extra] }); // song 3 removed, 9 added
         const rerendered = controller();
 
-        shown.onCancel?.();
+        countdownSkip();
         await vi.waitFor(() => expect(rerendered.persistLastPlaybackCache).toHaveBeenCalledOnce());
         expect(loader.mock.calls[1][0]).toBe(extra);
         expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['1', '2', '9']);
+        expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
     });
 
     it('keeps the snapshot of an explicit queue that never reached the store', async () => {
         const playlist = [songs[1], makeSong('8')];
-        loader.mockResolvedValueOnce(failed('network')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/8.mp3' });
+        loader.mockResolvedValueOnce(unavailable('unreachable')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/8.mp3' });
         const queue = controller();
         await queue.playSong(songs[1], playlist);
-        const shown = message()!;
         usePlaybackStore.setState({ playQueue: [songs[0], makeSong('9')] });
-        controller();
+        const rerendered = controller();
 
-        shown.onCancel?.();
+        countdownSkip();
         await vi.waitFor(() => expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '8' }));
         expect(loader.mock.calls[1][0]).toBe(playlist[1]);
         expect(usePlaybackStore.getState().playQueue).toEqual(playlist);
+        // The skip is the newest playSong's (the rerendered hook's), and counted there.
+        expect(rerendered.playbackAutoSkipCountRef.current).toBe(1);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
     });
 
     it('puts the FM state back when an FM play does not land, and sets it again on retry', async () => {
         const fm = [makeSong('f1'), makeSong('f2')];
-        loader.mockResolvedValueOnce(failed('network')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/f1.mp3' });
+        loader.mockResolvedValueOnce(unavailable('unreachable')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/f1.mp3' });
         const queue = controller();
-        await queue.playSong(fm[0], fm, true);
+        await queue.playSong(fm[0], fm, true, { unavailableSkipCount: 2 });
         expect(usePlaybackStore.getState()).toMatchObject({ isFmMode: false, currentSong: songs[0], playQueue: songs });
 
         message()?.onAction?.();
@@ -308,7 +349,7 @@ describe('online playback stop conditions', () => {
     it('stays in FM mode when a playlist song picked during FM fails', async () => {
         const fm = [makeSong('f1'), makeSong('f2')];
         usePlaybackStore.setState({ currentSong: fm[0], playQueue: fm, isFmMode: true });
-        loader.mockResolvedValue(failed('unknown'));
+        loader.mockResolvedValue(unavailable('unknown'));
         const queue = controller();
         await queue.playSong(songs[1], songs, false);
         expect(usePlaybackStore.getState().isFmMode).toBe(true);
@@ -316,61 +357,61 @@ describe('online playback stop conditions', () => {
 
     it('restores the FM state from before the first of two requests that both fail', async () => {
         const fm = [makeSong('f1'), makeSong('f2')];
-        const first = deferred<OnlineAudioSourceResult>();
-        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(failed('unknown'));
+        const first = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(unavailable('unknown'));
         const queue = controller();
         const a = queue.playSong(fm[0], fm, true);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         await queue.playSong(songs[2], songs, false);
         expect(usePlaybackStore.getState().isFmMode).toBe(false);
-        first.resolve(failed('network'));
+        first.resolve(unavailable('unreachable'));
         await a;
         expect(usePlaybackStore.getState().isFmMode).toBe(false);
 
         // The reverse: FM was on, an FM-off request and then an FM request both fail.
         usePlaybackStore.setState({ isFmMode: true });
         loader.mockReset();
-        const second = deferred<OnlineAudioSourceResult>();
-        loader.mockReturnValueOnce(second.promise).mockResolvedValueOnce(failed('unknown'));
+        const second = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(second.promise).mockResolvedValueOnce(unavailable('unknown'));
         const b = queue.playSong(songs[1], songs, false);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         await queue.playSong(fm[0], fm, true);
         expect(usePlaybackStore.getState().isFmMode).toBe(true);
-        second.resolve(failed('network'));
+        second.resolve(unavailable('unreachable'));
         await b;
         expect(usePlaybackStore.getState().isFmMode).toBe(true);
     });
 
-    it('turns a thrown loader error into a classified failure', async () => {
+    // The loader answers a failure instead of throwing: a throw is no platform's, and still says something.
+    it('still says the song could not be played when the loader throws', async () => {
         loader.mockRejectedValue(new TypeError('Failed to fetch'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const queue = controller();
         await queue.playSong(songs[1], songs);
-        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', actionLabel: 'ui.retry' });
-        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(message()).toMatchObject({ type: 'error', text: 'status.playbackFailed', countdown: { text: 'failure.skipCountdown' } });
     });
 });
 
 describe('taken-down songs', () => {
-    it('looks up a replacement and then counts down without pausing at runtime', async () => {
-        loader.mockResolvedValueOnce(failed('taken-down')).mockResolvedValueOnce(failed('unknown'));
+    it('looks up another version and then counts down without pausing', async () => {
+        loader.mockResolvedValueOnce(unavailable('taken-down')).mockReturnValueOnce(new Promise(() => undefined));
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(getSongReplacement).toHaveBeenCalledWith(songs[1]);
         expect(window.setTimeout).toHaveBeenCalledOnce();
         expect(queue.pause).not.toHaveBeenCalled();
-        expect(message()).toMatchObject({ text: 'status.songUnavailablePrompt', persistent: true });
+        expect(message()).toMatchObject({ text: 'status.songUnavailable', persistent: true, countdown: { text: 'failure.skipCountdown' } });
 
-        const countdownSkip = vi.mocked(window.setTimeout).mock.calls[0][0] as () => void;
         countdownSkip();
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(songs[2]);
         expect(queue.playbackAutoSkipCountRef.current).toBe(1);
     });
 
-    it('opens the replacement dialog instead of counting down when one exists', async () => {
+    it('opens the dialog of another version instead of counting down when one exists', async () => {
         const replacement = makeSong('7');
-        loader.mockResolvedValue(failed('taken-down'));
-        vi.mocked(getSongReplacement).mockResolvedValue({ song: replacement, label: 'Live' });
+        loader.mockResolvedValue(unavailable('taken-down'));
+        getSongReplacement.mockResolvedValue({ song: replacement, label: 'Live' });
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(queue.setPendingUnavailableReplacement).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -380,120 +421,101 @@ describe('taken-down songs', () => {
         expect(message()).toBeNull();
     });
 
-    it('counts down for a statically taken-down song without asking the loader', async () => {
+    it('counts down for a song its record says is taken down, without asking the loader', async () => {
         vi.mocked(isSongUnavailable).mockImplementation(song => song === songs[1]);
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(loader).not.toHaveBeenCalled();
         expect(window.setTimeout).toHaveBeenCalledOnce();
-        expect(message()).toMatchObject({ text: 'status.songUnavailablePrompt' });
+        expect(message()).toMatchObject({ text: 'status.songUnavailable' });
     });
 
-    it('reports a failed replacement lookup as a connection problem without counting down', async () => {
+    it('tells a lookup of another version that could not reach the platform as that, not as taken down', async () => {
         vi.mocked(isSongUnavailable).mockImplementation(song => song === songs[1]);
-        vi.mocked(getSongReplacement).mockRejectedValue(new OnlineProviderError('network', 'offline', 'bodian'));
+        getSongReplacement.mockRejectedValue(new OnlineProviderError('network', 'offline', 'bodian'));
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const queue = controller();
-        await queue.playSong(songs[1], songs);
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', actionLabel: 'ui.retry' });
+        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 2 });
+        expect(message()).toMatchObject({ text: 'failure.unreachable', actionLabel: 'ui.retry' });
     });
 
     it('stops counting down once the automatic skips are used up', async () => {
-        loader.mockResolvedValue(failed('taken-down'));
+        loader.mockResolvedValue(unavailable('taken-down'));
         const queue = controller();
         await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 2 });
         expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(message()).toEqual({ type: 'error', text: 'status.songUnavailable' });
+        expect(message()).toMatchObject({ type: 'error', text: 'status.songUnavailable' });
+        expect(message()?.onAction).toBeUndefined();
     });
 });
 
 describe('skip unplayable songs setting', () => {
-    const extraSongs = ['4', '5'].map(makeSong);
-    const longQueue = [...songs, ...extraSongs];
+    const longQueue = [...songs, ...['4', '5'].map(makeSong)];
 
-    it('counts a restricted song down to the next one and counts the skip', async () => {
+    it('counts a refused song down to the next one and counts the skip', async () => {
         audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
+        loader.mockResolvedValueOnce(unavailable('subscription-required')).mockReturnValueOnce(new Promise(() => undefined));
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(queue.pause).not.toHaveBeenCalled();
-        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', persistent: true });
+        expect(message()).toMatchObject({ text: 'status.songSubscriptionRequired', persistent: true, countdown: { text: 'failure.skipCountdown' } });
         expect(getSongReplacement).not.toHaveBeenCalled();
 
-        const countdownSkip = vi.mocked(window.setTimeout).mock.calls[0][0] as () => void;
         countdownSkip();
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(songs[2]);
         expect(queue.playbackAutoSkipCountRef.current).toBe(1);
     });
 
-    it('stops skipping restricted songs once the automatic skips are used up', async () => {
+    it('never counts down past a sign-in that has ended', async () => {
         audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValue(failed('region-restricted'));
+        loader.mockResolvedValue(unavailable('sign-in-needed'));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(queue.pause).toHaveBeenCalledOnce();
+    });
+
+    it('stops at a refused song once the automatic skips are used up', async () => {
+        audioSettings.autoSkipUnplayable = true;
+        loader.mockResolvedValue(unavailable('region-restricted'));
         usePlaybackStore.setState({ playQueue: longQueue });
         const queue = controller();
         await queue.playSong(longQueue[0], longQueue);
 
-        // 两次倒计时跳过（计数 1、2），第三首失败时次数已用尽：不再倒计时，退回该原因原本的停播消息与按钮。
+        // 两次倒计时跳过（计数 1、2），第三首失败时次数已用尽：不再倒计时，照这个原因停下。
         for (let skipped = 1; skipped <= 2; skipped += 1) {
-            const countdownSkip = vi.mocked(window.setTimeout).mock.calls.at(-1)![0] as () => void;
             countdownSkip();
             await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(skipped + 1));
             await vi.waitFor(() => expect(queue.playbackAutoSkipCountRef.current).toBe(skipped));
         }
-        await vi.waitFor(() => expect(message()).toMatchObject({ text: 'status.songRegionRestricted', persistent: true }));
+        await vi.waitFor(() => expect(message()).toMatchObject({ text: 'status.songRegionRestricted' }));
+        expect(message()?.countdown).toBeUndefined();
         expect(window.setTimeout).toHaveBeenCalledTimes(2);
         expect(loader.mock.calls.map(([song]) => song)).toEqual([longQueue[0], longQueue[1], longQueue[2]]);
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
     });
 
-    it('does not count a skip past a network failure even with the setting on', async () => {
+    // 取消倒计时 = 这次不跳：和设置关闭时一样，照这个原因停下。
+    it('stops with the refusal when a play countdown is cancelled', async () => {
         audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValueOnce(failed('network')).mockReturnValueOnce(new Promise(() => undefined));
+        loader.mockResolvedValue(unavailable('purchase-required'));
         const queue = controller();
-        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 1 });
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', cancelLabel: 'status.skipUnavailableAction' });
-
+        await queue.playSong(songs[1], songs);
         message()?.onCancel?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
-        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+        expect(message()).toMatchObject({ text: 'status.songPurchaseRequired' });
+        expect(message()?.countdown).toBeUndefined();
+        expect(notified).toHaveBeenCalledOnce();
     });
 
-    it('does not count a manual skip past a restricted song while the setting is off', async () => {
-        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
-        const queue = controller();
-        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 1 });
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        message()?.onAction?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
-        expect(queue.playbackAutoSkipCountRef.current).toBe(0);
-    });
-
-    // 设置打开、次数已用尽：不再倒计时，退回常驻消息；用户手动点「跳过」仍算一次连跳，下一首受限时也不会重新开始倒计时。
-    it('counts a manual skip past a restricted song while the setting is on', async () => {
+    it('stops where it is when a mid-playback countdown past a refusal is cancelled', () => {
         audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
         const queue = controller();
-        await queue.playSong(songs[1], songs, false, { unavailableSkipCount: 2 });
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(message()).toMatchObject({ text: 'status.songMembershipRequired', actionLabel: 'status.skipUnavailableAction' });
-        message()?.onAction?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
-        expect(loader.mock.calls[1][0]).toBe(songs[2]);
-        expect(queue.playbackAutoSkipCountRef.current).toBe(3);
-    });
-
-    // 取消倒计时 = 这次不跳：和设置关闭时一样停播并给出重试 / 跳过。否则 transport 停在 PLAYING（出错 deck 的 pause 事件被忽略），
-    // 强制刷新的「重试」也没了。
-    it('pauses and offers the forced retry when a mid-playback countdown is cancelled', () => {
-        audioSettings.autoSkipUnplayable = true;
-        const retry = vi.fn();
-        const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]), retry });
-        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', cancelLabel: 'status.cancel' });
+        queue.skipAfterPlaybackFailure(failureOf('preview-only'), { failedSongKey: getPlaybackSongKey(songs[0]) });
+        expect(message()).toMatchObject({ text: 'status.songPreviewOnly', cancelLabel: 'status.cancel', countdown: { text: 'failure.skipCountdown' } });
         expect(queue.pause).not.toHaveBeenCalled();
 
         message()?.onCancel?.();
@@ -501,41 +523,19 @@ describe('skip unplayable songs setting', () => {
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(queue.shouldAutoPlayRef.current).toBe(false);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
-        expect(message()).toMatchObject({
-            text: 'status.songTemporarilyUnavailable', persistent: true,
-            actionLabel: 'ui.retry', cancelLabel: 'status.skipUnavailableAction',
-        });
-        message()?.onAction?.();
-        expect(retry).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({ text: 'status.songPreviewOnly' });
         expect(notified).toHaveBeenCalledOnce();
-        expect(notified).toHaveBeenCalledWith(expect.objectContaining({ reason: 'unknown', phase: 'mid-playback', willAutoSkip: true }));
+        expect(notified).toHaveBeenCalledWith(expect.objectContaining({ reason: 'preview-only', phase: 'mid-playback', willAutoSkip: true }));
     });
 
-    it('stops with the restricted message when a play countdown is cancelled', async () => {
-        audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValueOnce(failed('membership-required')).mockReturnValueOnce(new Promise(() => undefined));
-        const queue = controller();
-        await queue.playSong(songs[1], songs);
-        message()?.onCancel?.();
-        expect(queue.pause).toHaveBeenCalledOnce();
-        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
-        expect(message()).toMatchObject({ text: 'status.songMembershipRequired', actionLabel: 'status.skipUnavailableAction' });
-
-        message()?.onAction?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
-        expect(loader.mock.calls[1][0]).toBe(songs[2]);
-        expect(notified).toHaveBeenCalledOnce();
-    });
-
-    it('counts down on a mid-playback restricted failure and counts the skip', async () => {
+    it('counts down on a mid-playback refusal and counts the skip', async () => {
         audioSettings.autoSkipUnplayable = true;
         loader.mockReturnValue(new Promise(() => undefined));
         const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'preview-only', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]) });
-        expect(message()).toMatchObject({ text: 'status.songUnplayableSkipPrompt', persistent: true });
+        queue.skipAfterPlaybackFailure(failureOf('preview-only'), { failedSongKey: getPlaybackSongKey(songs[0]) });
+        expect(message()).toMatchObject({ persistent: true, countdown: { text: 'failure.skipCountdown' } });
         expect(queue.pause).not.toHaveBeenCalled();
 
-        const countdownSkip = vi.mocked(window.setTimeout).mock.calls[0][0] as () => void;
         countdownSkip();
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         expect(loader.mock.calls[0][0]).toBe(songs[1]);
@@ -545,28 +545,27 @@ describe('skip unplayable songs setting', () => {
 
 describe('stale requests', () => {
     it('drops a superseded failure so the newer request keeps its message', async () => {
-        const first = deferred<OnlineAudioSourceResult>();
-        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(failed('unknown'));
+        const first = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(unavailable('no-audio'));
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         await queue.playSong(songs[2], songs);
         const latest = message();
-        first.resolve(failed('network'));
+        first.resolve(unavailable('sign-in-needed'));
         await a;
         expect(message()).toBe(latest);
-        expect(message()).toMatchObject({ text: 'status.songTemporarilyUnavailable' });
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(window.setTimeout).toHaveBeenCalledOnce();
+        expect(queue.pause).not.toHaveBeenCalled();
     });
 
     it('ignores the retry notice of a superseded request', async () => {
-        const first = deferred<OnlineAudioSourceResult>();
+        const first = deferred<LoaderResult>();
         let onRetrying: (() => void) | undefined;
         loader.mockImplementationOnce((_song, _quality, _prefetched, options) => {
-            onRetrying = () => options?.retry?.onRetrying?.({ reason: 'network', stage: 'resolve-url' }, 1);
+            onRetrying = () => options?.retry?.onRetrying?.(failureOf('unreachable'), 1);
             return first.promise;
-        }).mockResolvedValueOnce(failed('unknown'));
+        }).mockResolvedValueOnce(unavailable('unknown'));
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
@@ -574,15 +573,15 @@ describe('stale requests', () => {
         const latest = message();
         onRetrying?.();
         expect(message()).toBe(latest);
-        first.resolve(failed('network'));
+        first.resolve(unavailable('unreachable'));
         await a;
     });
 
-    it('does not open a replacement dialog for a superseded lookup', async () => {
+    it('does not open the dialog of another version for a superseded lookup', async () => {
         const lookup = deferred<{ song: UnifiedSong; label: string } | null>();
         vi.mocked(isSongUnavailable).mockImplementation(song => song === songs[1]);
-        vi.mocked(getSongReplacement).mockReturnValueOnce(lookup.promise);
-        loader.mockResolvedValue(failed('unknown'));
+        getSongReplacement.mockReturnValueOnce(lookup.promise as never);
+        loader.mockResolvedValue(unavailable('unknown'));
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(getSongReplacement).toHaveBeenCalledOnce());
@@ -592,12 +591,12 @@ describe('stale requests', () => {
         await a;
         expect(queue.setPendingUnavailableReplacement).not.toHaveBeenCalledWith(expect.objectContaining({ originalSong: songs[1] }));
         expect(message()).toBe(latest);
-        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(window.setTimeout).toHaveBeenCalledOnce();
     });
 
     it('writes nothing from a superseded loader error', async () => {
-        const first = deferred<OnlineAudioSourceResult>();
-        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(failed('unknown'));
+        const first = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(unavailable('unknown'));
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
@@ -607,7 +606,6 @@ describe('stale requests', () => {
         first.reject(new TypeError('Failed to fetch'));
         await a;
         expect(message()).toBe(latest);
-        expect(queue.pause).toHaveBeenCalledOnce();
         expect(errorSpy).not.toHaveBeenCalled();
     });
 
@@ -615,7 +613,7 @@ describe('stale requests', () => {
         const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
         const lyricsState = deferred<null>();
         vi.mocked(loadOnlineLyricsState).mockReturnValueOnce(lyricsState.promise);
-        loader.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'blob:a', blobUrl: 'blob:a' }).mockResolvedValueOnce(failed('unknown'));
+        loader.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'blob:a', blobUrl: 'blob:a' }).mockResolvedValueOnce(unavailable('unknown'));
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loadOnlineLyricsState).toHaveBeenCalledOnce());
@@ -623,9 +621,8 @@ describe('stale requests', () => {
         lyricsState.resolve(null);
         await a;
         expect(revoke).toHaveBeenCalledWith('blob:a');
-        expect(queue.currentSongRef.current).toBe(getPlaybackSongKey(songs[0]));
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(songs[0]));
         expect(usePlaybackStore.getState().currentSong).toBe(songs[0]);
-        expect(queue.shouldAutoPlayRef.current).toBe(false);
         expect(queue.setLyrics).not.toHaveBeenCalled();
         expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
     });
@@ -633,7 +630,7 @@ describe('stale requests', () => {
     // 落地之后等封面期间又点了一首：新请求只是开始、还没落地，这首歌仍要接上音源，否则新请求失败时会停在没有音源的半落地状态。
     it('still gives a landed song its source when a newer request has only started', async () => {
         const cover = deferred<string | null>();
-        const pendingNext = deferred<OnlineAudioSourceResult>();
+        const pendingNext = deferred<LoaderResult>();
         vi.mocked(getCachedSongCoverUrl).mockReturnValueOnce(cover.promise);
         loader.mockResolvedValueOnce({ kind: 'ok', audioSrc: 'blob:b', blobUrl: 'blob:b' }).mockReturnValueOnce(pendingNext.promise);
         const queue = controller();
@@ -647,7 +644,7 @@ describe('stale requests', () => {
         expect(usePlaybackStore.getState().audioSrc).toBe('blob:b');
         expect(queue.blobUrlRef.current).toBe('blob:b');
 
-        pendingNext.resolve(failed('network'));
+        pendingNext.resolve(unavailable('unreachable'));
         await next;
         expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '2' });
         expect(usePlaybackStore.getState().audioSrc).toBe('blob:b');
@@ -675,13 +672,15 @@ describe('stale requests', () => {
         expect(queue.blobUrlRef.current).toBeNull();
     });
 
-    it('counts every landed play as a new playback, the same song again included', async () => {
+    it('counts every landed play as a new start, the same song again included', async () => {
         loader.mockResolvedValue({ kind: 'ok', audioSrc: 'https://cdn.example/1.mp3' });
         const queue = controller();
+        const before = startOfAskedSong();
         await queue.playSong(songs[0], songs);
-        expect(playbackGenerationRef.current).toBe(1);
+        const first = startOfAskedSong();
+        expect(first).not.toBe(before);
         await queue.playSong(songs[0], songs);
-        expect(playbackGenerationRef.current).toBe(2);
+        expect(startOfAskedSong()).not.toBe(first);
     });
 
     it('still plays a successful request end to end', async () => {
@@ -690,16 +689,21 @@ describe('stale requests', () => {
         await queue.playSong(songs[1], songs);
         expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '2' });
         expect(usePlaybackStore.getState().audioSrc).toBe('https://cdn.example/2.mp3');
-        expect(queue.currentSongRef.current).toBe(getPlaybackSongKey(songs[1]));
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(songs[1]));
         expect(queue.shouldAutoPlayRef.current).toBe(true);
         expect(queue.persistLastPlaybackCache).toHaveBeenCalledOnce();
     });
 });
 
 describe('Stage takeover', () => {
-    // Stage 接管同一个 audio 元素后，还在加载的主播放请求作废：失败不暂停 Stage、不弹窗，成功不落进 Stage 上下文。
-    it('stops the loader retrying and drops a late failure of a request Stage took over', async () => {
-        const load = deferred<OnlineAudioSourceResult>();
+    // Stage 接管同一个 audio 元素时丢下还在加载的主播放请求（dropPlaysInFlight）：失败不暂停 Stage、不弹窗，成功不落进 Stage 上下文。
+    const takeOver = () => {
+        dropPlaysInFlight();
+        usePlaybackStore.setState({ activePlaybackContext: 'stage', audioSrc: 'https://stage.example/a.mp3' });
+    };
+
+    it('stops the loader asking again and drops a late failure of a request Stage took over', async () => {
+        const load = deferred<LoaderResult>();
         loader.mockReturnValueOnce(load.promise);
         const queue = controller();
         runEffects();
@@ -708,12 +712,12 @@ describe('Stage takeover', () => {
         const retry = loader.mock.calls[0][3]?.retry;
         expect(retry?.isCurrent()).toBe(true);
 
-        usePlaybackStore.setState({ activePlaybackContext: 'stage', audioSrc: 'https://stage.example/a.mp3' });
+        takeOver();
         expect(retry?.isCurrent()).toBe(false);
-        retry?.onRetrying?.({ reason: 'network', stage: 'resolve-url' }, 1);
+        retry?.onRetrying?.(failureOf('unreachable'), 1);
         expect(message()?.text).not.toBe('status.songRetrying');
 
-        load.resolve(failed('network'));
+        load.resolve(unavailable('sign-in-needed'));
         await pending;
         expect(queue.pause).not.toHaveBeenCalled();
         expect(queue.shouldAutoPlayRef.current).toBe(true);
@@ -723,27 +727,28 @@ describe('Stage takeover', () => {
 
     it('does not land a late success into the Stage context', async () => {
         const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-        const load = deferred<OnlineAudioSourceResult>();
+        const load = deferred<LoaderResult>();
         loader.mockReturnValueOnce(load.promise);
         const queue = controller();
         runEffects();
         const pending = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        const start = startOfAskedSong();
 
-        usePlaybackStore.setState({ activePlaybackContext: 'stage', audioSrc: 'https://stage.example/a.mp3' });
+        takeOver();
         load.resolve({ kind: 'ok', audioSrc: 'blob:late', blobUrl: 'blob:late' });
         await pending;
         expect(revoke).toHaveBeenCalledWith('blob:late');
         expect(usePlaybackStore.getState().audioSrc).toBe('https://stage.example/a.mp3');
         expect(usePlaybackStore.getState().currentSong).toBe(songs[0]);
-        expect(queue.currentSongRef.current).toBe(getPlaybackSongKey(songs[0]));
-        expect(playbackGenerationRef.current).toBe(0);
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(songs[0]));
+        expect(startOfAskedSong()).toBe(start);
     });
 
     it('hands the main snapshot back the FM state from before a request Stage took over', async () => {
         const fm = [makeSong('f1'), makeSong('f2')];
         usePlaybackStore.setState({ currentSong: fm[0], playQueue: fm, isFmMode: true });
-        const load = deferred<OnlineAudioSourceResult>();
+        const load = deferred<LoaderResult>();
         loader.mockReturnValueOnce(load.promise);
         const mainPlaybackSnapshotRef = { current: null as Record<string, unknown> | null };
         const queue = controller({ mainPlaybackSnapshotRef });
@@ -752,76 +757,90 @@ describe('Stage takeover', () => {
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         expect(usePlaybackStore.getState().isFmMode).toBe(false);
 
-        // openStagePlayer: snapshot the main picture (carrying the pending request's FM flag), then switch; Stage turns FM off.
+        // openStagePlayer: snapshot the main picture (carrying the pending request's FM flag), drop the plays
+        // in flight, then switch; Stage turns FM off.
         mainPlaybackSnapshotRef.current = {
             currentSong: fm[0], lyrics: null, cachedCoverUrl: null, audioSrc: 'https://cdn.example/f1.mp3', playQueue: fm,
             isFmMode: false, playerState: PlayerState.PLAYING, currentTime: 12, duration: 200, currentLineIndex: -1,
         };
+        dropPlaysInFlight();
         usePlaybackStore.setState({ activePlaybackContext: 'stage', isFmMode: false });
         expect(mainPlaybackSnapshotRef.current).toMatchObject({ isFmMode: true, currentSong: fm[0] });
 
-        load.resolve(failed('network'));
+        load.resolve(unavailable('unreachable'));
         await pending;
-        // The superseded request no longer puts its FM state back into the live (Stage) store.
+        // The dropped request no longer puts its FM state back into the live (Stage) store.
         expect(usePlaybackStore.getState().isFmMode).toBe(false);
         expect(queue.pause).not.toHaveBeenCalled();
     });
 });
 
 describe('skipAfterPlaybackFailure', () => {
-    it('shows a retry for a mid-playback network failure instead of counting down', () => {
-        const retry = vi.fn();
-        const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'media-element' }, {
-            failedSongKey: getPlaybackSongKey(songs[0]), retry,
+    it('after a media error, says why an online song could not play while it counts down', () => {
+        controller().skipAfterPlaybackFailure(mediaFailureOf({ code: 3 }, 'bodian'));
+        expect(window.setTimeout).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({
+            text: 'failure.audioUnplayable', quote: { text: 'MEDIA_ERR_DECODE', code: '3' }, countdown: { text: 'failure.skipCountdown' }, providerId: 'bodian',
         });
-        expect(window.setTimeout).not.toHaveBeenCalled();
-        expect(queue.pause).toHaveBeenCalledOnce();
-        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
-        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', actionLabel: 'ui.retry', persistent: true });
-        message()?.onAction?.();
-        expect(retry).toHaveBeenCalledOnce();
-        expect(message()).toBeNull();
     });
 
-    it('replays the current song when no retry is supplied', async () => {
-        loader.mockResolvedValue(failed('unknown'));
-        const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'media-element' });
-        message()?.onAction?.();
-        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
-        expect(loader.mock.calls[0][0]).toBe(songs[0]);
+    it('counts the five seconds in one toast that knows the whole time, and skips when they are over', async () => {
+        loader.mockResolvedValue(unavailable('no-audio'));
+        await controller().playSong(songs[0], songs);
+        const first = message();
+        expect(first?.countdown).toEqual({ text: 'failure.skipCountdown', seconds: 5, totalMs: 5000 });
+        const [atEnd, after] = vi.mocked(window.setTimeout).mock.calls[0] as unknown as [() => void, number];
+        expect(after).toBe(5000);
+
+        (vi.mocked(window.setInterval).mock.calls[0][0] as () => void)();
+        const ticked = message();
+        expect(ticked?.countdown).toEqual({ text: 'failure.skipCountdown', seconds: 4, totalMs: 5000 });
+        expect(ticked?.nonce).toBe(first?.nonce);
+
+        // The next song that cannot be had either counts in a toast of its own, though it says the same.
+        atEnd();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        await vi.waitFor(() => expect(message()?.countdown?.seconds).toBe(5));
+        expect(message()?.nonce).not.toBe(first?.nonce);
     });
 
-    it('skips along the queue as it is when the button is pressed, not as it was when the failure showed', async () => {
+    it('counts down after a media error without a failure, and says so instead of going quiet once there are no more skips', () => {
+        controller().skipAfterPlaybackFailure();
+        expect(window.setTimeout).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({ type: 'error', text: 'status.playbackError', persistent: true, countdown: { text: 'failure.skipCountdown' } });
+
+        controller({ skipsSoFar: 2 }).skipAfterPlaybackFailure();
+        expect(window.setTimeout).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+        expect(message()).toMatchObject({ type: 'error', text: 'status.playbackError' });
+        expect(message()?.countdown).toBeUndefined();
+    });
+
+    it('skips along the queue as it is when the skip comes, not as it was when the failure showed', async () => {
         const extra = makeSong('9');
-        loader.mockResolvedValue(failed('unknown'));
+        loader.mockReturnValue(new Promise(() => undefined));
         const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'media-element' }, {
-            failedSongKey: getPlaybackSongKey(songs[0]),
-        });
-        const shown = message()!;
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[0]) });
         const edited = [songs[0], extra, songs[1], songs[2]];
         usePlaybackStore.setState({ playQueue: edited });
         controller(); // the store change re-renders the hook
 
-        shown.onCancel?.();
+        countdownSkip();
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         expect(loader.mock.calls[0][0]).toBe(extra);
         expect(usePlaybackStore.getState().playQueue).toBe(edited);
     });
 
-    it('replays the failed song against the latest queue so queue edits survive the retry', async () => {
+    it('replays the failed song against the latest queue when no retry is supplied, so queue edits survive', async () => {
         const extra = makeSong('9');
         loader.mockResolvedValue({ kind: 'ok', audioSrc: 'https://cdn.example/1-fresh.mp3' });
-        const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'media-element' }, {
-            failedSongKey: getPlaybackSongKey(songs[0]),
-        });
+        const queue = controller({ skipsSoFar: 2 });
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[0]) });
         const shown = message()!;
+        expect(shown).toMatchObject({ actionLabel: 'ui.retry' });
         const edited = [songs[0], extra];
         usePlaybackStore.setState({ playQueue: edited });
-        const rerendered = controller();
+        const rerendered = controller({ skipsSoFar: 2 });
 
         shown.onAction?.();
         await vi.waitFor(() => expect(rerendered.persistLastPlaybackCache).toHaveBeenCalledOnce());
@@ -831,107 +850,107 @@ describe('skipAfterPlaybackFailure', () => {
         expect(queue.persistLastPlaybackCache).not.toHaveBeenCalled();
     });
 
-    it('clears a failure toast the previous song raised while the new one was still loading', async () => {
-        const load = deferred<OnlineAudioSourceResult>();
+    it('asks the caller\'s retry where it has one', () => {
+        const retry = vi.fn();
+        controller({ skipsSoFar: 2 }).skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[0]), retry });
+        message()?.onAction?.();
+        expect(retry).toHaveBeenCalledOnce();
+        expect(message()).toBeNull();
+    });
+
+    it('clears a countdown the previous song raised while the new one was still loading', async () => {
+        const load = deferred<LoaderResult>();
         loader.mockReturnValueOnce(load.promise);
         const queue = controller();
         const pending = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
 
-        // Song 1 still owns the deck until song 2 commits, so its late failure is shown.
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]) });
-        expect(message()).toMatchObject({ text: 'status.songNetworkFailed', persistent: true });
+        // Song 1 still owns the deck until song 2 lands, so its late failure is shown.
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[0]) });
+        expect(message()).toMatchObject({ persistent: true, countdown: { text: 'failure.skipCountdown' } });
 
         load.resolve({ kind: 'ok', audioSrc: 'https://cdn.example/2.mp3' });
         await pending;
-        expect(queue.currentSongRef.current).toBe(getPlaybackSongKey(songs[1]));
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(songs[1]));
         expect(message()?.persistent).toBeFalsy();
+        expect(window.clearTimeout).toHaveBeenCalled();
         expect(queue.shouldAutoPlayRef.current).toBe(true);
     });
 
     it('does nothing when the failed song is no longer current', () => {
         const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[1]) });
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[1]) });
         expect(message()).toBeNull();
         expect(queue.pause).not.toHaveBeenCalled();
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
     });
 
-    // 同一首歌重新点播落地后 key 没变、代次变了：旧失败既不暂停新播放，也不弹窗。
-    it('does nothing for a failure from an earlier playback of the song that is playing again', () => {
+    // 同一首歌重新点播后 key 没变、开始换了：旧失败既不暂停新播放，也不弹窗。
+    it('does nothing for a failure from an earlier start of the song that is playing again', () => {
         const queue = controller();
-        playbackGenerationRef.current = 4;
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'refresh' }, {
-            failedSongKey: getPlaybackSongKey(songs[0]), failedGeneration: 3,
-        });
+        const failedStart = startOfAskedSong();
+        askForSong(songs[0]);
+        queue.skipAfterPlaybackFailure(failureOf('sign-in-needed'), { failedSongKey: getPlaybackSongKey(songs[0]), failedStart });
         expect(message()).toBeNull();
         expect(queue.pause).not.toHaveBeenCalled();
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
     });
 
-    it('turns the buttons of a failure into a plain dismiss once the song has been played again', () => {
+    it('turns the retry of a failure into a plain dismiss once the song has been started again', () => {
         const retry = vi.fn();
-        const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'media-element' }, {
-            failedSongKey: getPlaybackSongKey(songs[0]), failedGeneration: 0, retry,
+        const queue = controller({ skipsSoFar: 2 });
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), {
+            failedSongKey: getPlaybackSongKey(songs[0]), failedStart: startOfAskedSong(), retry,
         });
         const shown = message()!;
-        expect(shown).toMatchObject({ actionLabel: 'ui.retry', persistent: true });
+        expect(shown).toMatchObject({ actionLabel: 'ui.retry' });
 
-        playbackGenerationRef.current += 1;
+        askForSong(songs[0]);
         shown.onAction?.();
         expect(retry).not.toHaveBeenCalled();
         expect(message()).toBeNull();
-    });
-
-    it('keeps the playbackErrorPrompt countdown when called without a failure', () => {
-        const queue = controller();
-        queue.skipAfterPlaybackFailure();
-        expect(window.setTimeout).toHaveBeenCalledOnce();
-        expect(message()).toMatchObject({ text: 'status.playbackErrorPrompt', persistent: true });
-        expect(queue.pause).not.toHaveBeenCalled();
     });
 });
 
 // 用户看得到的每次失败报告一次（Folium playback.failed 经 hostExtensionHooks.notifyPlaybackFailed）。
 describe('reporting playback failures', () => {
-    it('reports a failed pick once, for the requested song, after the loader gave up retrying', async () => {
+    it('reports a failed pick once, for the requested song, after the loader gave up asking again', async () => {
         loader.mockImplementation(async (_song, _quality, _prefetched, options) => {
-            options?.retry?.onRetrying?.({ reason: 'network', stage: 'resolve-url' }, 1);
+            options?.retry?.onRetrying?.(failureOf('unreachable'), 1);
             expect(notified).not.toHaveBeenCalled();
-            return failed('network');
+            return unavailable('unreachable');
         });
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(notified).toHaveBeenCalledOnce();
-        expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'network', phase: 'play', willAutoSkip: false });
+        expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'unreachable', phase: 'play', willAutoSkip: true });
     });
 
     it('does not report a superseded request', async () => {
-        const first = deferred<OnlineAudioSourceResult>();
-        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(failed('unknown'));
+        const first = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(first.promise).mockResolvedValueOnce(unavailable('unknown'));
         const queue = controller();
         const a = queue.playSong(songs[1], songs);
         await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
         await queue.playSong(songs[2], songs);
-        first.resolve(failed('network'));
+        first.resolve(unavailable('unreachable'));
         await a;
         expect(notified).toHaveBeenCalledOnce();
         expect(notified).toHaveBeenCalledWith(expect.objectContaining({ song: songs[2], reason: 'unknown' }));
     });
 
     it('reports a taken-down countdown as an automatic skip', async () => {
-        loader.mockResolvedValue(failed('taken-down'));
+        loader.mockResolvedValue(unavailable('taken-down'));
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(notified).toHaveBeenCalledOnce();
         expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'taken-down', phase: 'play', willAutoSkip: true });
     });
 
-    it('reports a song whose replacement dialog opened as taken-down, without a skip', async () => {
-        loader.mockResolvedValue(failed('taken-down'));
-        vi.mocked(getSongReplacement).mockResolvedValue({ song: makeSong('7'), label: 'Live' });
+    it('reports a song whose dialog of another version opened as taken-down, without a skip', async () => {
+        loader.mockResolvedValue(unavailable('taken-down'));
+        getSongReplacement.mockResolvedValue({ song: makeSong('7'), label: 'Live' });
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(queue.setPendingUnavailableReplacement).toHaveBeenLastCalledWith(expect.objectContaining({ originalSong: songs[1] }));
@@ -939,11 +958,11 @@ describe('reporting playback failures', () => {
         expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'taken-down', phase: 'play', willAutoSkip: false });
     });
 
-    // 确认替代版本后 playSong 抛出没被它接住的异常（这里是歌词状态读取）：界面提示「播放出错」，替代版本同样报告一次。
-    it('reports a confirmed replacement whose load throws', async () => {
+    // 确认另一个版本后 playSong 抛出没被它接住的异常（这里是歌词状态读取）：界面提示「播放出错」，另一个版本同样报告一次。
+    it('reports a confirmed other version whose load throws', async () => {
         const replacement = makeSong('7');
-        loader.mockResolvedValueOnce(failed('taken-down')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/7.mp3' });
-        vi.mocked(getSongReplacement).mockResolvedValue({ song: replacement, label: 'Live' });
+        loader.mockResolvedValueOnce(unavailable('taken-down')).mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/7.mp3' });
+        getSongReplacement.mockResolvedValue({ song: replacement, label: 'Live' });
         vi.spyOn(console, 'error').mockImplementation(() => undefined);
         await controller().playSong(songs[1], songs);
         notified.mockClear();
@@ -956,13 +975,13 @@ describe('reporting playback failures', () => {
         expect(notified).toHaveBeenCalledWith({ song: replacement, reason: null, phase: 'play', willAutoSkip: false });
     });
 
-    it('drops the error of a confirmed replacement a newer pick has taken over', async () => {
+    it('drops the error of a confirmed other version a newer pick has taken over', async () => {
         const replacement = makeSong('7');
         const lyricsState = deferred<null>();
-        loader.mockResolvedValueOnce(failed('taken-down'))
+        loader.mockResolvedValueOnce(unavailable('taken-down'))
             .mockResolvedValueOnce({ kind: 'ok', audioSrc: 'https://cdn.example/7.mp3' })
-            .mockResolvedValueOnce(failed('network'));
-        vi.mocked(getSongReplacement).mockResolvedValue({ song: replacement, label: 'Live' });
+            .mockResolvedValueOnce(unavailable('unreachable'));
+        getSongReplacement.mockResolvedValue({ song: replacement, label: 'Live' });
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
         await controller().playSong(songs[1], songs);
         notified.mockClear();
@@ -978,30 +997,15 @@ describe('reporting playback failures', () => {
         expect(message()).toBe(latest);
         expect(errorSpy).not.toHaveBeenCalled();
         expect(notified).toHaveBeenCalledOnce();
-        expect(notified).toHaveBeenCalledWith(expect.objectContaining({ song: songs[2], reason: 'network' }));
+        expect(notified).toHaveBeenCalledWith(expect.objectContaining({ song: songs[2], reason: 'unreachable' }));
     });
 
-    it('reports a restricted song the setting counts down as an automatic skip', async () => {
+    it('reports a refused song the setting counts down as an automatic skip', async () => {
         audioSettings.autoSkipUnplayable = true;
-        loader.mockResolvedValue(failed('purchase-required'));
+        loader.mockResolvedValue(unavailable('purchase-required'));
         const queue = controller();
         await queue.playSong(songs[1], songs);
         expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'purchase-required', phase: 'play', willAutoSkip: true });
-    });
-
-    // 本地 / Navidrome 的失败在 useLibraryPlaybackController 里提示和报告：playSong 把「这次点歌是否仍是最新请求」交给它，
-    // 被更新的点歌取代后那边就不提示也不报告。
-    it('tells a library play when a newer pick has replaced it', async () => {
-        const onPlayNavidromeSong = vi.fn(async (..._args: unknown[]) => undefined);
-        const navi = { ...makeSong('n1'), sourceRef: undefined, isNavidrome: true, navidromeData: { id: 'n1' } } as unknown as UnifiedSong;
-        loader.mockReturnValue(new Promise(() => undefined));
-        const queue = controller({ onPlayNavidromeSong });
-        await queue.playSong(navi, [navi]);
-        const options = onPlayNavidromeSong.mock.calls[0][2] as { isCurrent?: () => boolean };
-        expect(options.isCurrent?.()).toBe(true);
-
-        void queue.playSong(songs[1], songs);
-        expect(options.isCurrent?.()).toBe(false);
     });
 
     it('reports a Navidrome song that has no stream carrier', async () => {
@@ -1014,14 +1018,14 @@ describe('reporting playback failures', () => {
 
     it('reports a mid-playback failure for the song that was playing', () => {
         const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'session-expired', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[0]) });
+        queue.skipAfterPlaybackFailure(failureOf('sign-in-needed'), { failedSongKey: getPlaybackSongKey(songs[0]) });
         expect(notified).toHaveBeenCalledOnce();
-        expect(notified).toHaveBeenCalledWith({ song: songs[0], reason: 'session-expired', phase: 'mid-playback', willAutoSkip: false });
+        expect(notified).toHaveBeenCalledWith({ song: songs[0], reason: 'sign-in-needed', phase: 'mid-playback', willAutoSkip: false });
     });
 
     it('does not report a mid-playback failure of a song no longer current', () => {
         const queue = controller();
-        queue.skipAfterPlaybackFailure({ reason: 'network', stage: 'refresh' }, { failedSongKey: getPlaybackSongKey(songs[1]) });
+        queue.skipAfterPlaybackFailure(failureOf('unreachable'), { failedSongKey: getPlaybackSongKey(songs[1]) });
         expect(notified).not.toHaveBeenCalled();
     });
 
@@ -1056,15 +1060,70 @@ describe('reporting playback failures', () => {
         // 重新「渲染」：点的歌已落地，<audio> 第一次加载就出错。
         const queue = controller();
         const failedSongKey = getPlaybackSongKey(songs[1]);
-        queue.currentSongRef.current = failedSongKey;
         // 在线源：刷新一次仍失败后带着媒体元素的原因进来（handleOnlineMediaFailure）。
-        queue.skipAfterPlaybackFailure({ reason: 'unknown', stage: 'media-element', mediaErrorCode: 4 },
-            { failedSongKey, failedGeneration: playbackGenerationRef.current });
-        expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: 'unknown', phase: 'mid-playback', willAutoSkip: false });
+        queue.skipAfterPlaybackFailure(mediaFailureOf({ code: 4 }, 'bodian'), { failedSongKey, failedStart: startOfAskedSong() });
+        expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: 'audio-unplayable', phase: 'mid-playback', willAutoSkip: true });
         // 本地、Navidrome、转码失败：不带原因的那条路径。
         queue.skipAfterPlaybackFailure();
         expect(notified).toHaveBeenLastCalledWith({ song: landed, reason: null, phase: 'mid-playback', willAutoSkip: true });
         expect(notified).toHaveBeenCalledTimes(2);
         expect(notified).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'play' }));
+    });
+});
+
+// On the HiFi route mpv sounds the song and the deck has no source: a stop that only paused the deck left
+// the previous HiFi song playing under a stopped player (findings #3, #12).
+describe('stops on the HiFi route', () => {
+    let hifiPause: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+        hifiPause = vi.spyOn(hifiTransport, 'pause').mockImplementation(async () => undefined);
+        usePlaybackStore.setState({ playbackRoute: 'hifi', audioSrc: null });
+    });
+    afterEach(() => {
+        usePlaybackStore.setState({ playbackRoute: 'web' });
+    });
+
+    it.each(['sign-in-needed', 'subscription-required', 'region-restricted', 'not-configured'] as const)(
+        'pauses mpv as well as the deck when a new online song is refused with %s',
+        async (caseId) => {
+            loader.mockResolvedValue(unavailable(caseId));
+            const queue = controller();
+            await queue.playSong(songs[1], songs);
+            expect(queue.pause).toHaveBeenCalledOnce();
+            expect(hifiPause).toHaveBeenCalledOnce();
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+        },
+    );
+
+    it('pauses mpv when a refusal mid-playback stops the song where it is', () => {
+        const queue = controller();
+        queue.skipAfterPlaybackFailure(failureOf('preview-only'), { failedSongKey: getPlaybackSongKey(songs[0]) });
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(hifiPause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
+    it('pauses mpv when the queue ends', async () => {
+        usePlaybackStore.setState({ playQueue: [] });
+        const queue = controller();
+        await queue.handleNextTrack({ allowStopOnMissing: true });
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(hifiPause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+    });
+
+    it('leaves mpv alone on the web route', async () => {
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: 'https://cdn.example/1.mp3' });
+        loader.mockResolvedValue(unavailable('sign-in-needed'));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(hifiPause).not.toHaveBeenCalled();
+    });
+
+    it('countdown failures do not pause anything', async () => {
+        loader.mockResolvedValue(unavailable('unreachable'));
+        await controller().playSong(songs[1], songs);
+        expect(hifiPause).not.toHaveBeenCalled();
     });
 });

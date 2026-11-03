@@ -21,20 +21,23 @@ import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
 import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
-import { resolveFoliumSongRef, toFoliumSong } from '@/mods/folium/dto';
-import { useFoliumHostActions, type FoliumAppActions } from '@/mods/folium/hostActions';
-import { createFoliumPlaybackService } from '@/mods/folium/services';
+import { FOLIUM_SONG_REF_POOL_SIZE, resolveFoliumSongRef, toFoliumSong } from '@/mods/folium/dto';
+import { useFoliumHostActions, type FoliumAppActions } from '@/mods/runtime/hostActions';
+import { createFoliumLyricsService, createFoliumPlaybackService } from '@/mods/folium/services';
+import { installFoliumHostEvents } from '@/mods/runtime/hostEvents';
+import { buildLineRenderHints } from '@/utils/lyrics/renderHints';
 import type { ModRuntimeInfo } from '@/mods/types';
 
 // test/unit/mod-system/foliumHostActions.test.ts
-// The App side of folium.playback's Folium 1.3 additions: shuffle and like
+// The App side of folium.playback's shuffle and like: they
 // follow the same availability rules as the player bar's slots, and
 // playback.likeChanged follows the liked value getState() reports.
-// Folium 1.5: volume, mute and repeat mode go through the audio settings
+// Volume, mute and repeat mode go through the audio settings
 // store's own setters; getQueue pages the store queue around the displayed
 // song, and a page's refs stay valid when the ref pool is full; playQueueItem
 // plays an entry with the store's own queue array, so a failed play's retry
-// and skip follow the live queue.
+// and skip follow the live queue. And folium.lyrics.refresh: nothing while the
+// lyrics load, the empty lines again after a load that found none.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -52,7 +55,8 @@ const appActions = (overrides: Partial<FoliumAppActions> = {}): FoliumAppActions
     next: vi.fn(), previous: vi.fn(), playSong: vi.fn(), playQueueSong: vi.fn(), enqueue: vi.fn(),
     navigateToPlayer: vi.fn(), navigateToHome: vi.fn(),
     shuffleQueue: vi.fn(), toggleLike: vi.fn(), openVolume: vi.fn(),
-    isLiked: false, controlsDisabled: false,
+    isLiked: false, controlsDisabled: false, isLyricsLoading: false,
+    persistQueue: vi.fn(async () => undefined), refreshQueuePrefetch: vi.fn(),
     ...overrides,
 });
 
@@ -126,6 +130,78 @@ describe('folium host actions', () => {
         render(appActions({ isLiked: true }));
         expect(handler).toHaveBeenCalledTimes(1);
     });
+
+    it('refreshes nothing while the lyrics load, and supplies a song left without lyrics once the load ended', () => {
+        installFoliumHostEvents();
+        const given: number[] = [];
+        const handler = vi.fn((event: { lines: readonly unknown[] }) => {
+            given.push(event.lines.length);
+            event.lines = [{ fullText: 'from the mod', startTime: 1, endTime: 2, words: [], renderHints: buildLineRenderHints(1, 2) }];
+        });
+        addFoliumEventHandler('mod-a', 'lyrics.transform', handler as never);
+        const lyrics = createFoliumLyricsService('main');
+
+        render(appActions({ isLyricsLoading: true }));
+        lyrics.refresh();
+        expect(handler).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().lyrics).toBeNull();
+        expect(lyrics.getLines()).toEqual([]);
+
+        render(appActions({ isLyricsLoading: false }));
+        lyrics.refresh();
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(given).toEqual([0]);
+        expect(lyrics.getLines().map((line) => line.fullText)).toEqual(['from the mod']);
+    });
+
+    /*
+     * A lyrics.transform that rewrites every line, and a lyrics.loaded handler that refreshes (`handle` says
+     * how). Then lyrics come in. Returns the two handlers and the lyrics service.
+     */
+    const refreshOnLoaded = (handle: (refresh: () => void) => void | Promise<void>) => {
+        installFoliumHostEvents();
+        const transform = vi.fn((event: { lines: readonly { fullText: string }[] }) => {
+            event.lines = event.lines.map((line) => ({ ...line, fullText: `${line.fullText}!` }));
+        });
+        addFoliumEventHandler('mod-a', 'lyrics.transform', transform as never);
+        const lyrics = createFoliumLyricsService('main');
+        const loaded = vi.fn(() => handle(() => lyrics.refresh()));
+        addFoliumEventHandler('mod-a', 'lyrics.loaded', loaded);
+        render(appActions());
+        usePlaybackStore.setState({
+            lyrics: { lines: [{ fullText: 'line', startTime: 1, endTime: 2, words: [], renderHints: buildLineRenderHints(1, 2) }] } as never,
+        });
+        return { transform, loaded, lyrics };
+    };
+
+    it('does not announce what a refresh shows, so a lyrics.loaded handler that refreshes at once runs it once', () => {
+        const { transform, loaded, lyrics } = refreshOnLoaded((refresh) => refresh());
+        expect(loaded).toHaveBeenCalledTimes(1);
+        expect(transform).toHaveBeenCalledTimes(1);
+        expect(lyrics.getLines().map((line) => line.fullText)).toEqual(['line!']);
+        // Asked for again, a refresh runs again, from the untransformed lines, and is not announced either.
+        lyrics.refresh();
+        expect(transform).toHaveBeenCalledTimes(2);
+        expect(loaded).toHaveBeenCalledTimes(1);
+        expect(lyrics.getLines().map((line) => line.fullText)).toEqual(['line!']);
+    });
+
+    it('runs it once too when the handler refreshes later, after an await', async () => {
+        const { transform, loaded } = refreshOnLoaded(async (refresh) => {
+            await Promise.resolve();
+            refresh();
+        });
+        for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
+        expect(loaded).toHaveBeenCalledTimes(1);
+        expect(transform).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the lyrics calls out of the export window', () => {
+        const lyrics = createFoliumLyricsService('export');
+        expect(() => lyrics.refresh()).toThrow('lyrics-unavailable-in-export-context');
+        expect(() => lyrics.getLines()).toThrow('lyrics-unavailable-in-export-context');
+        expect(lyrics.segmentWords({ fullText: 'a b' }).length).toBeGreaterThan(0);
+    });
 });
 
 describe('folium volume, mute and repeat mode', () => {
@@ -192,7 +268,7 @@ describe('folium play queue', () => {
 
         usePlaybackStore.setState({ playQueue: queue, currentSong: { ...queue[600] } as SongResult });
         let page = playback.getQueue();
-        expect(page).toMatchObject({ length: 1000, currentIndex: 600, kind: 'queue' });
+        expect(page).toMatchObject({ length: 1000, currentIndex: 600, kind: 'queue', version: expect.any(String) });
         expect(page.items).toHaveLength(500);
         expect(page.items[0].index).toBe(350);
         expect(page.items[499].index).toBe(849);
@@ -242,11 +318,11 @@ describe('folium play queue', () => {
         const mintFillers = (count: number, from: number) => {
             for (let filler = 0; filler < count; filler += 1) toFoliumSong(song(from + filler));
         };
-        // The first entry's ref is the oldest in a full pool (2,000) and the second has none yet: minting
-        // the second must not evict the ref the same page has just handed out for the first.
+        // The first entry's ref is the oldest in a full pool (FOLIUM_SONG_REF_POOL_SIZE) and the second has
+        // none yet: minting the second must not evict the ref the same page has just handed out for the first.
         const [first, second] = [song(1), song(2)];
         const firstRef = toFoliumSong(first)!.ref;
-        mintFillers(1999, 10_000);
+        mintFillers(FOLIUM_SONG_REF_POOL_SIZE - 1, 10_000);
         usePlaybackStore.setState({ playQueue: [first, second] });
         const { items } = playback.getQueue({ offset: 0, limit: 2 });
         expect(items[0].song.ref).toBe(firstRef);
@@ -254,8 +330,9 @@ describe('folium play queue', () => {
         await expect(playback.playQueueItem(0, items[0].song.ref!)).resolves.toBe(true);
         expect((actions.playQueueSong as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(first);
 
-        // Still bounded: reading the page counts as use, so the ref outlives 1,998 newer ones, not 2,000.
-        mintFillers(1998, 20_000);
+        // Still bounded: reading the page counts as use, so the ref outlives FOLIUM_SONG_REF_POOL_SIZE - 2
+        // newer fillers (the page's second entry is newer than it too), not a whole pool's worth.
+        mintFillers(FOLIUM_SONG_REF_POOL_SIZE - 2, 20_000);
         expect(resolveFoliumSongRef(firstRef)).toBe(first);
         mintFillers(1, 30_000);
         expect(resolveFoliumSongRef(firstRef)).toBeNull();

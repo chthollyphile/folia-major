@@ -17,7 +17,7 @@ vi.hoisted(() => {
     });
 });
 
-// Folium 1.4 lyrics parse in the lyrics worker; run the same parser inline.
+// Lyrics from a mod parse in the lyrics worker; run the same parser inline.
 vi.mock('@/utils/lyrics/workerClient', async () => {
     const { parseLyricsByFormat } = await import('@/utils/lyrics/parserCore');
     return {
@@ -33,6 +33,7 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
 
 import type { SongResult } from '@/types';
 import type { ModRuntimeInfo } from '@/mods/types';
+import type { FoliumRemoteActionsDef, FoliumRemoteActionsHandle } from '@/mods/folium/contract';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { omni } from '@/services/onlineMusic/omni';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '@/services/hostExtensionHooks';
@@ -40,8 +41,13 @@ import { findPonderTarget } from '@/components/ponder/ponderRegistry';
 import i18n from '@/i18n/config';
 import { createFoliumExperimental, ponderTargetsRegistry } from '@/mods/folium/experimental';
 import { omniProvidersRegistry } from '@/mods/folium/registries/omniProviders';
+import { foliumProviderId, isFoliumProviderId } from '@/mods/folium/omni/providerIds';
+import { remoteActionsRegistry } from '@/mods/folium/registries/remoteActions';
 import { createFoliumClientApi } from '@/mods/folium/api';
+import { clientApiOptions } from './clientApiOptions';
 import { removeFoliumEventHandlers } from '@/mods/folium/events';
+import { clearFoliumIssues, getFoliumIssues } from '@/mods/runtime/status';
+import { clearFoliumOldNames, useFoliumOldNameStore } from '@/mods/folium/deprecated/warnings';
 
 // test/unit/mod-system/foliumExperimental.test.ts
 // The opt-in surfaces: a mod Omni provider adapted to the host contract, the
@@ -57,7 +63,10 @@ const mod = (overrides: Partial<ModRuntimeInfo> = {}): ModRuntimeInfo => ({
 afterEach(() => {
     omniProvidersRegistry.unregisterAll('mod-a');
     ponderTargetsRegistry.unregisterAll('mod-a');
+    remoteActionsRegistry.unregisterAll('mod-a');
     removeFoliumEventHandlers('mod-a');
+    clearFoliumOldNames('mod-a');
+    vi.restoreAllMocks();
 });
 
 describe('omni.providers', () => {
@@ -67,7 +76,7 @@ describe('omni.providers', () => {
             displayName: 'Mod Radio',
             search: async (query) => ({ items: [{ id: 's1', title: `${query}!`, artists: ['X', 'Y'] }], hasMore: false }),
             getAudioUrl: async (song) => ({ url: `https://cdn.example/${song.id}.mp3` }),
-            getLyrics: async () => ({ lrc: '[00:01.00]hello\n[00:03.00]world' }),
+            getLyrics: async () => ({ main: { format: 'lrc', text: '[00:01.00]hello\n[00:03.00]world' } }),
         });
         const provider = getOnlineMusicProvider('folium.mod-a.radio');
         expect(provider?.capabilities).toMatchObject({ search: true, playback: true, lyrics: true, auth: false });
@@ -88,7 +97,48 @@ describe('omni.providers', () => {
         expect(getOnlineMusicProvider('folium.mod-a.radio')).toBeNull();
     });
 
-    it('passes Folium 1.4 word-timed lyrics and chorus ranges through Omni', async () => {
+    // Folium 1.6 only: the Folium 1.3 answer `{ lrc, translationLrc }` still reads, and is said once in the mod's row.
+    const OLD_LYRICS_LINE = "getLyrics answering { lrc, translationLrc }: removed in Folium 2, use { main: { format: 'lrc', text, translationText } }";
+    const song = { id: 's1', name: 'Song', artists: [], album: { id: 'a', name: '' }, durationMs: 0 } as unknown as SongResult;
+
+    it('reads the Folium 1.3 lyrics answer { lrc } and says the old name once', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        omniProvidersRegistry.register('mod-a', { id: 'old', displayName: 'Old', getLyrics: async () => ({ lrc: '[00:01.00]a' }) });
+        const provider = getOnlineMusicProvider('folium.mod-a.old')!;
+        for (let time = 0; time < 2; time += 1) {
+            const answer = await provider.lyrics!.getLyrics(song);
+            expect(answer.lyrics?.lines.map((line) => line.fullText)).toEqual(['a']);
+            expect(answer.mainText).toBe('[00:01.00]a');
+        }
+        expect(useFoliumOldNameStore.getState().byMod['mod-a']).toEqual([OLD_LYRICS_LINE]);
+        expect(console.warn).toHaveBeenCalledWith(`[Folium:mod-a] ${OLD_LYRICS_LINE}`);
+        expect(vi.mocked(console.warn).mock.calls.filter(([text]) => String(text).includes('getLyrics answering'))).toHaveLength(1);
+    });
+
+    it('keeps a class-made provider whole, #private fields included, and reads its old lyrics answer', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        class OldSource {
+            id = 'cls';
+            displayName = 'Class source';
+            #lastQuery = '';
+            async search(query: string) {
+                this.#lastQuery = query;
+                return { items: [{ id: 's1', title: query, artists: [] }], hasMore: false };
+            }
+            async getLyrics() {
+                return { lrc: `[00:01.00]${this.#lastQuery}` };
+            }
+        }
+        omniProvidersRegistry.register('mod-a', new OldSource());
+        const provider = getOnlineMusicProvider('folium.mod-a.cls')!;
+        expect(provider.capabilities).toMatchObject({ search: true, lyrics: true });
+        const [found] = (await provider.search!.searchSongs('b', 10, 0)).items;
+        expect(found.name).toBe('b');
+        expect((await provider.lyrics!.getLyrics(found)).lyrics?.lines.map((line) => line.fullText)).toEqual(['b']);
+        expect(useFoliumOldNameStore.getState().byMod['mod-a']).toEqual([OLD_LYRICS_LINE]);
+    });
+
+    it('passes word-timed lyrics and chorus ranges through Omni', async () => {
         omniProvidersRegistry.register('mod-a', {
             id: 'wbw',
             displayName: 'Word by word',
@@ -117,6 +167,42 @@ describe('omni.providers', () => {
 
     it('refuses a provider with no capability', () => {
         expect(() => omniProvidersRegistry.register('mod-a', { id: 'empty', displayName: 'x' })).toThrow('at least one');
+    });
+
+    // `songDetail` tells a source that can look songs up by id (`getSong`) from one that cannot,
+    // before anything is asked; what `getSongDetail` answers stays as it was.
+    it('says whether songs can be looked up by id, and looks them up as before', async () => {
+        const getSong = vi.fn(async (id: string) => ({ id, title: `Song ${id}`, artists: ['X'] }));
+        const audio = async (song: { id: string }) => ({ url: `https://cdn.example/${song.id}.mp3` });
+        omniProvidersRegistry.register('mod-a', { id: 'full', displayName: 'Full', getSong, getAudioUrl: audio });
+        omniProvidersRegistry.register('mod-a', { id: 'noget', displayName: 'No getSong', getAudioUrl: audio });
+        omniProvidersRegistry.register('mod-a', { id: 'noaudio', displayName: 'No audio', getSong, getLyrics: async () => ({ main: { format: 'lrc', text: '' } }) });
+
+        const full = getOnlineMusicProvider('folium.mod-a.full')!;
+        expect(full.capabilities).toMatchObject({ playback: true, songDetail: true });
+        const found = await omni.getSongDetail('folium.mod-a.full', 's7');
+        expect(found).toMatchObject({ id: 's7', name: 'Song s7', sourceRef: { kind: 'online', providerId: 'folium.mod-a.full', mediaId: 's7' } });
+        expect(getSong).toHaveBeenCalledWith('s7');
+
+        expect(getOnlineMusicProvider('folium.mod-a.noget')!.capabilities).toMatchObject({ playback: true, songDetail: false });
+        await expect(omni.getSongDetail('folium.mod-a.noget', 's7')).resolves.toBeNull();
+
+        // A source without audio has no playback, and no lookup by id however it declares getSong.
+        getSong.mockClear();
+        const noAudio = getOnlineMusicProvider('folium.mod-a.noaudio')!;
+        expect(noAudio.capabilities).toMatchObject({ playback: false, songDetail: true });
+        expect(noAudio.playback).toBeUndefined();
+        await expect(omni.getSongDetail('folium.mod-a.noaudio', 's7')).resolves.toBeNull();
+        expect(getSong).not.toHaveBeenCalled();
+    });
+
+    it('names a mod\'s source by the id omni/providerIds.ts makes, which tells it from a built-in one', () => {
+        expect(foliumProviderId('mod-a:radio')).toBe('folium.mod-a.radio');
+        omniProvidersRegistry.register('mod-a', { id: 'radio', displayName: 'Radio', search: async () => ({ items: [], hasMore: false }) });
+        expect(getOnlineMusicProvider(foliumProviderId('mod-a:radio'))?.displayName).toBe('Radio');
+        expect(isFoliumProviderId('folium.mod-a.radio')).toBe(true);
+        expect(isFoliumProviderId('netease')).toBe(false);
+        expect(isFoliumProviderId('local')).toBe(false);
     });
 });
 
@@ -154,7 +240,7 @@ describe('ponder.targets', () => {
             box: { kind: 'synthetic', rect: { left: 0.2, top: 0.2, width: 0.1, height: 0.1 } },
         },
         steps: [
-            { kind: 'caption', textKey: { 'zh-CN': '按 {{mod}} + K 打开', en: 'Press {{mod}} + K to open' }, at: 'bottom', durationMs: 1000 },
+            { kind: 'caption', textKey: { 'zh-CN': '按 {{mod}} + K 打开', en: 'Press {{mod}} + K to open' }, durationMs: 1000 },
             { kind: 'pause', dwellMs: 200 },
         ],
     };
@@ -214,24 +300,85 @@ describe('ponder.targets', () => {
             titleKey: 'Fine',
             category: 'playback',
             hoverSelector: null,
-            scenes: [{ ...scene, steps: [{ kind: 'caption', textKey: 42, at: 'bottom', durationMs: 1 }] }],
+            scenes: [{ ...scene, steps: [{ kind: 'caption', textKey: 42, durationMs: 1 }] }],
         })).toThrow(/scenes\[0\]\.steps\[0\]\.textKey/);
         expect(findPonderTarget('mod-a:bad' as never)).toBeNull();
+    });
+
+    it('reads a throwing isAvailable as "applies" and reports it under its mod', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        ponderTargetsRegistry.register('mod-a', {
+            id: 'moody',
+            titleKey: 'Moody',
+            category: 'playback',
+            hoverSelector: null,
+            isAvailable: () => { throw new Error('target boom'); },
+            scenes: [
+                { ...scene, isAvailable: () => { throw new Error('scene boom'); } },
+                { ...scene, id: 'off', isAvailable: () => false },
+            ],
+        });
+        const target = findPonderTarget('mod-a:moody' as never)!;
+        // The host's own tests are `=== false`, `!== false` and `?? candidate` (PonderRelatedTargets.tsx):
+        // undefined reads as "applies" in all three.
+        expect(target.isAvailable!()).toBeUndefined();
+        expect(target.scenes[0].isAvailable!()).toBeUndefined();
+        expect(target.scenes[1].isAvailable!()).toBe(false);
+        expect(getFoliumIssues('mod-a')).toMatchObject([
+            { where: 'ponder target mod-a:moody isAvailable', message: 'target boom' },
+            { where: 'ponder target mod-a:moody scene intro isAvailable', message: 'scene boom' },
+        ]);
+        clearFoliumIssues('mod-a');
+        warn.mockRestore();
     });
 });
 
 describe('experimental gate', () => {
     it('keeps undeclared surfaces and omni events out of reach', () => {
-        const api = createFoliumClientApi(mod(), {
-            context: 'main',
-            internals: null,
-            experimental: createFoliumExperimental(mod()),
-        });
+        const api = createFoliumClientApi(mod(), clientApiOptions('main', { experimental: createFoliumExperimental(mod()) }));
         expect(() => api.experimental['omni.providers']).toThrow('experimental-not-declared:omni.providers');
+        expect(() => api.experimental['remote.actions']).toThrow('experimental-not-declared:remote.actions');
         expect(() => api.events.on('omni.audioSourceResolved', () => {})).toThrow('experimental-not-declared:omni.hooks');
+        // A name the events table does not have is refused by name, not left to never fire.
+        expect(() => api.events.on('lyrics.transfrom' as never, () => {})).toThrow('unknown-event:lyrics.transfrom');
+        expect(() => api.events.on('toString' as never, () => {})).toThrow('unknown-event:toString');
+
+        const hooked = mod({ experimental: ['omni.hooks'] });
+        const listening = createFoliumClientApi(hooked, clientApiOptions('main'));
+        const off = listening.events.on('omni.audioSourceResolved', () => {});
+        expect(off).toEqual(expect.any(Function));
+        off();
 
         const optedIn = mod({ experimental: ['omni.providers'] });
-        const allowed = createFoliumClientApi(optedIn, { context: 'main', internals: null, experimental: createFoliumExperimental(optedIn) });
+        const allowed = createFoliumClientApi(optedIn, clientApiOptions('main', { experimental: createFoliumExperimental(optedIn) }));
         expect(allowed.experimental['omni.providers']).toHaveProperty('register');
+    });
+
+    it('exposes only an owned action registration through remote.actions opt-in', () => {
+        const owner = mod({ experimental: ['remote.actions'] });
+        const api = createFoliumClientApi(owner, clientApiOptions('main', { experimental: createFoliumExperimental(owner) }));
+        const remote = api.experimental['remote.actions'] as { register: (def: FoliumRemoteActionsDef) => FoliumRemoteActionsHandle };
+        const handle = remote.register({ id: 'room', actions: () => [] });
+        expect(handle.id).toBe('mod-a:room');
+        expect(handle.invalidate).toBeTypeOf('function');
+        expect(remoteActionsRegistry.list()).toHaveLength(1);
+        handle.unregister();
+        expect(remoteActionsRegistry.list()).toHaveLength(0);
+    });
+});
+
+
+describe('player.layout declaration without a standalone experimental service', () => {
+    it('keeps layout access on the stage context and leaves the stable Folium version as it is', () => {
+        for (const experimental of [[], ['player.layout']]) {
+            const descriptor = mod({ experimental });
+            const api = createFoliumClientApi(descriptor, clientApiOptions('main', { experimental: createFoliumExperimental(descriptor) }));
+            expect(api.host.folium).toEqual({ major: 1, minor: 8 });
+            expect(() => api.experimental['player.layout']).toThrow(
+                experimental.length ? 'experimental-unknown:player.layout' : 'experimental-not-declared:player.layout',
+            );
+        }
+        const exported = createFoliumClientApi(mod({ experimental: ['player.layout'] }), clientApiOptions('export'));
+        expect(() => exported.experimental['player.layout']).toThrow('experimental-unknown:player.layout');
     });
 });

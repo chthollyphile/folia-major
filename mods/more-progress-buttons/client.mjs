@@ -1,5 +1,5 @@
 // mods/more-progress-buttons/client.mjs
-// More buttons beside the host progress bar (Folium 1.3):
+// More buttons beside the host progress bar:
 //
 //   - left (`progress.leading`): shuffle the play queue;
 //   - right (`progress.trailing`): open the volume panel, like the displayed song.
@@ -36,12 +36,8 @@ const extraWidth = (visible) => {
 
 export default function activate(folium) {
   if (folium.env.context !== 'main') return undefined;
-  if ((folium.host.folium.minor ?? 0) < 3) {
-    folium.log.warn('more-progress-buttons needs Folium 1.3 or later');
-    return undefined;
-  }
 
-  const settings = folium.registries.settingsSections.register({
+  const section = folium.registries.settingsSections.register({
     id: 'buttons',
     label: { 'zh-CN': '更多进度条按钮', en: 'More progress bar buttons' },
     description: { 'zh-CN': '选择显示哪些按钮。', en: 'Choose which buttons to show.' },
@@ -106,14 +102,14 @@ export default function activate(folium) {
     button.addEventListener('click', () => actions[def.id]());
     container.appendChild(button);
 
-    const offColors = ctx.subscribe(paint);
+    // The host stops this one when the button is removed; the event handlers belong to the mod.
+    ctx.onChange(paint);
     const offEvents = def.id === 'like'
       ? ['playback.likeChanged', 'playback.songChanged', 'playback.stateChanged'].map((type) => folium.events.on(type, paint))
       : [];
     paint();
     return () => {
       disposed = true;
-      offColors();
       offEvents.forEach((off) => off());
       button.remove();
     };
@@ -123,12 +119,12 @@ export default function activate(folium) {
   const handles = new Map();
   let widthHandle = null;
   const sync = () => {
-    const params = settings.params.get();
-    const visible = BUTTONS.filter((def) => params[def.setting] !== false);
+    const values = section.settings.get();
+    const visible = BUTTONS.filter((def) => values[def.setting] !== false);
     BUTTONS.forEach((def) => {
       const want = visible.includes(def);
       if (want && !handles.has(def.id)) {
-        handles.set(def.id, folium.registries.controlButtons.register({
+        handles.set(def.id, folium.registries.progressButtons.register({
           id: def.id,
           slot: def.slot,
           order: def.order,
@@ -142,13 +138,14 @@ export default function activate(folium) {
 
     widthHandle?.unregister();
     widthHandle = null;
-    const extra = params.stretchBar !== false ? extraWidth(visible) : 0;
+    const extra = values.stretchBar !== false ? extraWidth(visible) : 0;
     if (extra > 0) {
       widthHandle = folium.registries.styles.register({ id: 'stretch', css: `:root { --folium-player-bar-extra: ${extra}px; }` });
     }
   };
 
-  const offSettings = settings.params.subscribe(sync);
+  // The host drops this listener when the mod stops.
+  section.settings.onChange(sync);
   sync();
-  return () => offSettings();
+  return undefined;
 }

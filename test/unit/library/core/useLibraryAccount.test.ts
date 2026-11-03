@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/library/core/useLibraryAccount.test.ts
-// 账户绑定（A3）：订阅 controller 快照、把登录与切换确认的 i18n key 翻译好；细粒度 selector 只在自己那一块变化时重渲染。
+// 账户绑定（A3）：订阅 controller 快照，登录会话原样交出（登录窗口自己定画什么），切换确认与失败后的自检翻译好；
+// 细粒度 selector 只在自己那一块变化时重渲染。
 // controller 用一个只有 getSnapshot / subscribe 的假实现驱动（动作由 controller 自己的单测覆盖）。
 
 // 翻译函数身份稳定（真实 i18n 在语言不变时也是），带插值时把参数拼进结果，便于断言。
@@ -16,17 +17,18 @@ vi.mock('react-i18next', () => ({
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
+    translateLoginSelfCheck,
     useLibraryAccount,
     useLibraryAccountLogin,
     useLibraryAccountPendingSwitch,
     useLibraryAccountProviders,
     type LibraryAccountView,
-} from '@/library/core/bindings/useLibraryAccount';
+} from '@/library/core/account/useLibraryAccount';
 import type {
     LibraryAccountController,
     LibraryAccountSnapshot,
     LibraryLoginSessionSnapshot,
-} from '@/library/core/contracts/account';
+} from '@/library/core/account/account.contract';
 import type { ProviderAccountSummary } from '@/types/onlineMusic';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -52,12 +54,13 @@ const quillLogin: LibraryLoginSessionSnapshot = {
         { id: 'wechat', labelKey: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
     ],
     selectedMethodId: 'wechat',
-    qrImageUrl: 'qr.png',
-    failure: 'expired-after-scan',
-    retryCooldownSeconds: null,
+    inBrowser: false,
+    codeImage: 'qr.png',
+    canReopenLoginPage: true,
+    failure: null,
     selfCheck: null,
-    backend: { failed: false, detail: null, restarting: false, canRestart: false },
-    copy: { title: { key: 'home.loginTitle' }, note: { key: 'home.loginNote' }, status: { key: 'home.qrExpired' } },
+    localService: { available: false, failed: false, error: null, restarting: false },
+    texts: null,
 };
 
 const createFakeController = (initial: LibraryAccountSnapshot) => {
@@ -104,59 +107,43 @@ afterEach(() => {
 });
 
 describe('useLibraryAccount', () => {
-    it('translates the login session and the pending switch, and follows controller updates', () => {
+    it('hands over the sign-in as it is, translates the pending switch, and follows controller updates', () => {
         const fake = createFakeController(baseSnapshot());
         let view: LibraryAccountView | null = null;
+        let login: LibraryLoginSessionSnapshot | null = null;
         const Probe = () => {
             view = useLibraryAccount(fake.controller);
+            login = useLibraryAccountLogin(fake.controller);
             return null;
         };
         mount(React.createElement(Probe));
 
-        expect(view!.login).toBeNull();
+        expect(login).toBeNull();
         expect(view!.pendingSwitch).toBeNull();
 
         fake.set({ login: quillLogin, pendingSwitch: { id: 7, from: 'netease', to: 'quill', reason: 'activate-after-login' } });
 
         expect(view!.snapshot.login).toBe(quillLogin);
-        expect(view!.login).toMatchObject({
-            session: quillLogin,
-            visible: true,
-            canRetry: true,
-            canShowDiagnostics: true,
-            title: 'home.loginTitle',
-            note: 'home.loginNote',
-            status: 'home.qrExpired',
-            diagnosticsPrompt: 'home.qrDiagnosticsPromptScanned',
-            backendFailure: null,
-            retryLabel: 'home.retryQr',
-            closeLabel: 'home.closeLogin',
-        });
-        expect(view!.login!.methodStep).toEqual({
-            title: 'home.qqLoginMethodTitle',
-            hint: 'home.qqLoginMethodHint',
-            pending: 'home.qqLoginMethodPending',
-            current: 'home.qqLoginMethodCurrent{"method":"home.qqLoginMethodWechat"}',
-            options: [
-                { id: 'qq', label: 'home.qqLoginMethodQq', iconKey: 'qq' },
-                { id: 'wechat', label: 'home.qqLoginMethodWechat', iconKey: 'wechat' },
-            ],
-        });
+        expect(login).toBe(quillLogin);
         // 确认框里的平台名与 omni.getProviderLabel 同一取法（shortName 优先）。
         expect(view!.pendingSwitch).toEqual({
             request: { id: 7, from: 'netease', to: 'quill', reason: 'activate-after-login' },
             title: 'home.switchOnlineProvider',
             description: 'home.confirmOnlineProviderSwitch{"provider":"Quill"}',
         });
+    });
 
-        // 后端故障时重试不可用，但诊断照样给：报告里有拉起的每一步与错误原文。
-        fake.set({ login: { ...quillLogin, backend: { failed: true, detail: 'down', restarting: false, canRestart: true } } });
-        expect(view!.login).toMatchObject({
-            canRetry: false,
-            canShowDiagnostics: true,
-            diagnosticsPrompt: 'home.qrDiagnosticsPromptScanned',
-            backendFailure: { title: 'home.loginBackendDown', restartLabel: 'home.restartBackend', restartingLabel: 'home.restartingBackend' },
-        });
+    it('translates the self-check: still running, failed, or its verdict with the layers it checked', () => {
+        expect(translateLoginSelfCheck(translate as never, null, 'Quill')).toBeNull();
+        expect(translateLoginSelfCheck(translate as never, { status: 'running' }, 'Quill')).toMatchObject({ running: true, verdict: null, items: [] });
+        expect(translateLoginSelfCheck(translate as never, { status: 'failed', message: 'IPC closed' }, 'Quill')).toMatchObject({ running: false, verdict: null });
+        const done = translateLoginSelfCheck(translate as never, {
+            status: 'done',
+            result: { providerId: 'quill', runtime: 'electron', startedAt: 0, durationMs: 9, backend: null, proxy: null, hosts: [] },
+            verdict: { kind: 'network-ok', detail: null, proxy: null },
+        }, 'Quill');
+        expect(done).toMatchObject({ running: false, error: null });
+        expect(done!.verdict).toEqual(expect.any(String));
     });
 
     it('re-renders a fine-grained subscriber only when its own slice changes', () => {

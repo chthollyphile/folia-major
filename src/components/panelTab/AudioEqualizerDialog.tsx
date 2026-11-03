@@ -1,43 +1,60 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Power, RotateCcw } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Theme } from '../../types';
-import { colorWithAlpha } from '../visualizer/colorMix';
 import {
     AUDIO_EQUALIZER_CUSTOM_SLOT_IDS,
+    areAudioEqualizerSettingsEqual,
     getAudioEqualizerCustomSlotIndex,
     isAudioEqualizerCustomSlotId,
+    resolveAudioEqualizerSettings,
     type AudioEqualizerCustomSlotId,
     type AudioEqualizerModeId,
     type AudioEqualizerSettings,
 } from '../../utils/audioEqualizer';
 import { AUDIO_SOUND_PRESETS, AUDIO_SOUND_PRESET_IDS } from '../../utils/audioPresets';
 import { createNeutralAudioEffects, type AudioEffectId, type AudioEffectSettings } from '../../utils/audioEffects';
-import ThemedDialog from '../shared/ThemedDialog';
+import { resolveHeardAudioEqualizerSettings } from '../../utils/audioEqualizerModCurve';
+import Sheet from '../shared/Sheet';
+import { Toggle } from '../modal/settings/kit';
 import AudioEffectGrid from './equalizer/AudioEffectGrid';
 import EqualizerBandGrid from './equalizer/EqualizerBandGrid';
-import { buildEqualizerStyles } from './equalizer/equalizerStyles';
+import PresetChips from './equalizer/PresetChips';
+import ModCurveNotice from './equalizer/ModCurveNotice';
+import HifiBypassNotice from '../hifi/HifiBypassNotice';
+import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 
 // src/components/panelTab/AudioEqualizerDialog.tsx
-// Provides the compact audio processing editor (ten EQ bands plus the effect chain) opened from the controls tab.
+// The audio effect window opened from the controls tab, on the app's sheet: the processing switch
+// in the header, then the presets, the ten EQ bands and the effect chain. It owns the draft that
+// the parts edit and writes it to the store when an edit is let go.
 
 type AudioEqualizerDialogProps = {
     isDaylight: boolean;
-    theme: Theme;
 };
 
 const PRESET_IDS: AudioEqualizerModeId[] = [...AUDIO_SOUND_PRESET_IDS, ...AUDIO_EQUALIZER_CUSTOM_SLOT_IDS];
 
-const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight, theme }) => {
+const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight }) => {
     const { t } = useTranslation();
-    const settings = useAudioSettingsStore(state => state.audioEqualizerSettings);
+    const ownSettings = useAudioSettingsStore(state => state.audioEqualizerSettings);
+    const modCurve = useAudioSettingsStore(state => state.audioEqualizerModCurve);
+    const modCurveSuspended = useAudioSettingsStore(state => state.audioEqualizerModCurveSuspended);
     const isOpen = useAudioSettingsStore(state => state.isAudioEqualizerOpen);
     const close = useAudioSettingsStore(state => state.closeAudioEqualizer);
     const commitSettings = useAudioSettingsStore(state => state.handleSetAudioEqualizerSettings);
+    const commitEnabled = useAudioSettingsStore(state => state.handleSetAudioEqualizerEnabled);
+    // What is heard: the listener's own settings, with a mod's curve over the gains while it plays (Folium 1.7).
+    const settings = useMemo(
+        () => resolveHeardAudioEqualizerSettings(ownSettings, modCurve, modCurveSuspended),
+        [ownSettings, modCurve, modCurveSuspended],
+    );
+    const curveHeard = Boolean(modCurve) && !modCurveSuspended;
+    // On the HiFi route mpv plays the song and none of this is heard: the window only shows the settings, kept for the web engine.
+    const isHifiRoute = useIsHifiRoute();
+    const readOnly = curveHeard || isHifiRoute;
     const [draft, setDraft] = useState<AudioEqualizerSettings>(settings);
     const draftRef = useRef(draft);
+    const mountedRef = useRef(false);
 
     const updateDraft = (next: AudioEqualizerSettings) => {
         draftRef.current = next;
@@ -56,19 +73,22 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight,
         }
     }, [isOpen, settings]);
 
+    /*
+     * The window is drawn only while the controls tab is up, and the tab can be switched away under it (a
+     * Personal FM start, the now-playing card, a mod opening another tab), which leaves the open flag up and
+     * every mod write refused `panel-open`. So going away closes it. A microtask later, and only if it did
+     * not come back: development's StrictMode unmounts and remounts at once, and the "Audio effects" command
+     * raises the flag before the window mounts.
+     */
     useEffect(() => {
-        if (!isOpen) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key !== 'Escape') return;
-            event.preventDefault();
-            event.stopPropagation();
-            close();
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            queueMicrotask(() => {
+                if (!mountedRef.current) close();
+            });
         };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [close, isOpen]);
+    }, [close]);
 
     // Edits are always written into a custom slot: the active one, or the first while a built-in plays.
     const writeCustomDraft = (gains: number[], effects: AudioEffectSettings) => {
@@ -133,90 +153,70 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight,
         commitSettings(next);
     };
 
-    const styles = buildEqualizerStyles(isDaylight, theme);
-    const commitDraft = () => commitSettings(draftRef.current);
-    const canResetCustomSlot = isAudioEqualizerCustomSlotId(draft.preset);
+    // The switch stops the processing and keeps every value.
+    const setEnabled = (enabled: boolean) => {
+        updateDraft({ ...draftRef.current, enabled });
+        // Only the switch: a mod's curve stays, and nothing else in the draft is written by it.
+        commitEnabled(enabled);
+    };
 
-    if (typeof document === 'undefined') {
-        return null;
-    }
+    // While a mod's curve plays the bands and effects are read-only; this keeps a stray commit from writing it into a slot.
+    // A let-go with nothing edited (a key, focus passing through, a press on a thumb) writes nothing either: any
+    // write ends a curve on hold, and only an edit of the listener's own sound is meant to.
+    const commitDraft = () => {
+        if (readOnly) return;
+        if (areAudioEqualizerSettingsEqual(resolveAudioEqualizerSettings(draftRef.current), ownSettings)) return;
+        commitSettings(draftRef.current);
+    };
 
-    return createPortal((
-        <ThemedDialog
+    const presetChips = (
+        <PresetChips
+            presetIds={PRESET_IDS}
+            chosen={curveHeard ? null : draft.preset}
+            onChoose={applyPreset}
+            canReset={!curveHeard && isAudioEqualizerCustomSlotId(draft.preset)}
+            onReset={resetActiveCustomSlot}
+        />
+    );
+
+    return (
+        <Sheet
             isOpen={isOpen}
             onClose={close}
             isDaylight={isDaylight}
+            size="l"
             title={t('ui.equalizerTitle')}
-            description={t('ui.equalizerDescription')}
-            maxWidthClass="max-w-2xl"
+            subtitle={t('ui.equalizerDescription')}
+            headerActions={(
+                // The switch takes its name from the label it sits in. A narrow window has no room for the words: they stay for a screen reader.
+                <label className="flex cursor-pointer items-center gap-3">
+                    <span className="whitespace-nowrap text-xs text-[color:var(--st-t2)] max-sm:sr-only">
+                        {t(draft.enabled ? 'ui.equalizerEnabled' : 'ui.equalizerDisabled')}
+                    </span>
+                    <Toggle checked={draft.enabled} onChange={setEnabled} disabled={isHifiRoute} />
+                </label>
+            )}
         >
-            {/* display:contents，布局一如从前；在的意义只是让这扇对话框自己也能被思索命中。 */}
-            <div data-ponder="audio-equalizer" className="contents">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                <button
-                    type="button"
-                    onClick={() => {
-                        const next = { ...draftRef.current, enabled: !draftRef.current.enabled };
-                        updateDraft(next);
-                        commitSettings(next);
-                    }}
-                    aria-pressed={draft.enabled}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition-colors ${styles.buttonClass}`}
-                    style={draft.enabled ? {
-                        color: styles.selectedAccentColor,
-                        borderColor: colorWithAlpha(styles.selectedAccentColor, 0.5),
-                        backgroundColor: colorWithAlpha(styles.selectedAccentColor, 0.1),
-                    } : undefined}
+            {/* 这一层排窗口里的内容（至少和窗口一样高，多出的高度给推子），也让这扇对话框自己能被思索命中。 */}
+            <div data-ponder="audio-equalizer" className="flex min-h-full flex-col">
+                <HifiBypassNotice />
+                <ModCurveNotice />
+                {isHifiRoute ? (
+                    // Out of reach on HiFi as well: a preset would write a sound that is not heard.
+                    <div inert className="opacity-40">{presetChips}</div>
+                ) : presetChips}
+                {/* Dimmed while processing is off, and still in reach: an edit turns processing on. */}
+                {/* While a mod's curve plays they are read-only: keep it as a custom slot first. */}
+                {/* The grids take the faders and sliders out of reach themselves: a narrow window must still scroll the bands sideways to show them all. */}
+                <div
+                    className={`st-t-move flex flex-1 flex-col transition-opacity${draft.enabled && !readOnly ? '' : ' opacity-40'}`}
                 >
-                    <Power size={14} />
-                    {t(draft.enabled ? 'ui.equalizerEnabled' : 'ui.equalizerDisabled')}
-                </button>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                    {PRESET_IDS.map(presetId => (
-                        <button
-                            key={presetId}
-                            type="button"
-                            onClick={() => applyPreset(presetId)}
-                            aria-pressed={draft.preset === presetId}
-                            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors ${styles.buttonClass}`}
-                            style={draft.preset === presetId ? {
-                                color: styles.selectedAccentColor,
-                                borderColor: colorWithAlpha(styles.selectedAccentColor, 0.55),
-                                backgroundColor: colorWithAlpha(styles.selectedAccentColor, 0.12),
-                            } : undefined}
-                        >
-                            {t(`ui.equalizerPreset.${presetId}`)}
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        onClick={resetActiveCustomSlot}
-                        disabled={!canResetCustomSlot}
-                        title={t('ui.equalizerReset')}
-                        aria-label={t('ui.equalizerReset')}
-                        className={`rounded-full border p-2 transition-colors ${styles.buttonClass} ${canResetCustomSlot ? '' : 'pointer-events-none opacity-35'}`}
-                    >
-                        <RotateCcw size={14} />
-                    </button>
+                    <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={readOnly} />
+                    <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={readOnly} />
                 </div>
             </div>
-
-            <EqualizerBandGrid
-                gains={draft.gains}
-                styles={styles}
-                onBandChange={updateBandDraft}
-                onCommit={commitDraft}
-            />
-            <AudioEffectGrid
-                effects={draft.effects}
-                styles={styles}
-                onEffectChange={updateEffectDraft}
-                onCommit={commitDraft}
-            />
-            </div>
-        </ThemedDialog>
-    ), document.body);
+        </Sheet>
+    );
 };
 
 export default AudioEqualizerDialog;

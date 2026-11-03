@@ -20,6 +20,8 @@
 // announcement as the fact draws nothing in every one of those cases; one that asks `active` draws
 // correctly in all of them without knowing which case it is in.
 
+import { mapTrackHandoffProgress } from './handoffProgress';
+
 export interface TransitionCue {
     /** Wall-clock seconds from the announcement until the blend is over. */
     seconds: number;
@@ -94,6 +96,18 @@ export const getActiveTransitionCue = (): ActiveTransitionCue | null => {
 };
 
 /**
+ * How far the song hand-off on screen has come, 0..1 on the shared curve (handoffProgress.ts): 0
+ * before a blend is announced, after it is called off and for a settings preview, and 1 once the
+ * blend's own clock has run out - held there until the settle, unlike `getActiveTransitionCue`,
+ * because a picture that has handed over must not hand back while the settle is on its way.
+ */
+export const getTransitionHandoffProgress = (nowMs = performance.now()): number => {
+    if (!active || active.cue.preview) return 0;
+    if (!(active.cue.seconds > 0)) return 1;
+    return mapTrackHandoffProgress((nowMs - active.startedAt) / (active.cue.seconds * 1000), active.cue.crossover);
+};
+
+/**
  * The shortest blend worth drawing.
  *
  * Below this a renderer spends most of its life entering and leaving and the listener gets a flash
@@ -122,10 +136,20 @@ export const shouldDrawCue = (
     renderer: TransitionRenderer,
 ): boolean => (
     switchedOn
-    && !cue.plain
-    && cue.seconds >= MIN_DRAWN_SECONDS
+    && whyCueNotDrawn(cue) === null
     && (!cue.preview || cue.preview === renderer)
 );
+
+/**
+ * Why neither animation draws this transition, from the transition alone - or null when it is one to
+ * draw. The two parts of `shouldDrawCue` that are properties of the transition, in words, so the log
+ * can say it: a refusal that prints nothing looks like the animations being broken.
+ */
+export const whyCueNotDrawn = (cue: TransitionCue): string | null => {
+    if (cue.plain) return 'a plain fade, not a mix';
+    if (!(cue.seconds >= MIN_DRAWN_SECONDS)) return `${cue.seconds.toFixed(2)}s, under the ${MIN_DRAWN_SECONDS}s worth drawing`;
+    return null;
+};
 
 export const subscribeToTransitionCue = (listener: TransitionCueListener): (() => void) => {
     listeners.add(listener);

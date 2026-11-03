@@ -1,4 +1,4 @@
-import { layoutWithLines, prepareWithSegments, type PreparedTextWithSegments, type LayoutCursor, type PrepareOptions } from '@chenglou/pretext';
+import { measureNaturalWidth, prepareWithSegments, walkLineRanges, type PreparedTextWithSegments, type LayoutCursor, type PrepareOptions } from '@chenglou/pretext';
 import { Theme } from '../../../types';
 import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { RenderLineSlice, RenderSegmentSlice, SegmentMeta, WordRange } from './fumeTypes';
@@ -237,23 +237,168 @@ export const countRenderableGraphemes = (text: string) => (
     splitGraphemes(text).filter(value => value.trim().length > 0).length
 );
 
-export const buildPreparedSingleLine = (
+/**
+ * What one article layout has measured of one text in one variant (the variants differ in weight).
+ * The layout tries every line at dozens of font sizes and widths, and measuring the text at a new
+ * size is what costs: canvas measureText for every segment, slower still the first time a size is
+ * used. Where a text that fits on one line at a size also fits at every smaller one (see
+ * sizeRegime), a try at a size between two measured ones is answered by them without measuring,
+ * and the answer is the one measuring would give.
+ */
+export interface FumeLineMeasures {
+    text: string;
+    variant: 'body' | 'hero';
+    fontFamily: string;
+    theme: Pick<Theme, 'fontWeight'>;
+    preparedByFontPx: Map<number, PreparedTextWithSegments>;
+    /** By regime and width. */
+    fits: Map<string, FumeLineFit>;
+    /** The size measured last at 24 px or more, and how wide the text is there on one line. */
+    lastMeasured: { fontPx: number; naturalWidth: number } | null;
+}
+
+/** In one regime, at one width: the largest size measured to fit on one line, its line count, the smallest size measured not to fit. */
+interface FumeLineFit {
+    regime: string;
+    width: number;
+    fits: number;
+    lineCount: number;
+    overflows: number;
+    guessed: boolean;
+}
+
+/**
+ * How far either side of the size guessed to just fit a width it is measured. Widths grow with the
+ * size to within 0.06% from 24 px; where they do not, the two sizes miss and the tries are
+ * measured where they fall.
+ */
+const FIT_GUESS_MARGIN = 0.001;
+
+/**
+ * From this size up, every font measured grows wider with the size, without exception. Below it
+ * some do not: a CJK font with bitmaps for small sizes (Windows has them up to 22 px), drawn bold
+ * for a weight it lacks, is narrower just past each half pixel and at some whole pixels (seen up
+ * to 23 px, by up to 2.3%). Measured in the app with the five built-in font stacks at 640 and 780,
+ * from 9 to 26 px; above that it is taken to hold, as the bitmaps it comes from stop at 22 px.
+ */
+const LINEAR_FROM_PX = 24;
+/**
+ * Below LINEAR_FROM_PX, how near a half or whole pixel a size is measured whatever was measured
+ * around it. Wider than the 0.01 px the browser's font cache rounds sizes to (two sizes that close
+ * share one font, the first one asked for).
+ */
+const PIXEL_EDGE_PX = 0.02;
+
+/**
+ * The sizes a measured size answers tries for: every size from LINEAR_FROM_PX up; below it, the
+ * sizes in the same half pixel, away from its edges, where widths were seen to grow with the size
+ * in every font. Null: a size near an edge, answered only by measuring it.
+ */
+const sizeRegime = (fontPx: number): string | null => {
+    if (fontPx >= LINEAR_FROM_PX) return 'linear';
+    const halves = fontPx * 2;
+    return Math.abs(halves - Math.round(halves)) < PIXEL_EDGE_PX * 2 ? null : `half ${Math.floor(halves)}`;
+};
+
+/** The measures of `text` in `variant` for one layout, made the first time they are asked for. */
+export const lineMeasuresFor = (
+    all: Map<string, FumeLineMeasures>,
     text: string,
-    fontFamily: string,
-    width: number,
     variant: 'body' | 'hero',
+    fontFamily: string,
+    theme: Pick<Theme, 'fontWeight'>,
+) => {
+    const key = `${variant}:${text}`;
+    let measures = all.get(key);
+    if (!measures) {
+        measures = { text, variant, fontFamily, theme, preparedByFontPx: new Map(), fits: new Map(), lastMeasured: null };
+        all.set(key, measures);
+    }
+    return measures;
+};
+
+const countLines = (prepared: PreparedTextWithSegments, width: number) => walkLineRanges(prepared, width, () => {});
+
+const noteFit = (fit: FumeLineFit, fontPx: number, prepared: PreparedTextWithSegments) => {
+    const lineCount = countLines(prepared, fit.width);
+    if (lineCount <= 1) {
+        if (fontPx > fit.fits) {
+            fit.fits = fontPx;
+            fit.lineCount = lineCount;
+        }
+    } else if (fontPx < fit.overflows) {
+        fit.overflows = fontPx;
+    }
+};
+
+/** The text prepared at `fontPx`, measured once per layout. */
+export const prepareLineAt = (measures: FumeLineMeasures, fontPx: number) => {
+    let prepared = measures.preparedByFontPx.get(fontPx);
+    if (!prepared) {
+        const fontSpec = buildFontSpec(fontPx, measures.variant, measures.fontFamily, measures.theme);
+        prepared = prepareWithSegments(measures.text, fontSpec, FUME_PRETEXT_OPTIONS);
+        measures.preparedByFontPx.set(fontPx, prepared);
+        const regime = sizeRegime(fontPx);
+        if (regime === 'linear') measures.lastMeasured = { fontPx, naturalWidth: measureNaturalWidth(prepared) };
+        for (const fit of measures.fits.values()) {
+            if (fit.regime === regime) noteFit(fit, fontPx, prepared);
+        }
+    }
+    return prepared;
+};
+
+const fitIn = (measures: FumeLineMeasures, regime: string, width: number) => {
+    const key = `${regime}|${width}`;
+    let fit = measures.fits.get(key);
+    if (!fit) {
+        fit = { regime, width, fits: Number.NEGATIVE_INFINITY, lineCount: 1, overflows: Number.POSITIVE_INFINITY, guessed: false };
+        for (const [measuredPx, prepared] of measures.preparedByFontPx) {
+            if (sizeRegime(measuredPx) === regime) noteFit(fit, measuredPx, prepared);
+        }
+        measures.fits.set(key, fit);
+    }
+    return fit;
+};
+
+const fitsOnOneLine = (measures: FumeLineMeasures, fontPx: number, width: number) => {
+    const regime = sizeRegime(fontPx);
+    if (regime === null) return countLines(prepareLineAt(measures, fontPx), width) <= 1;
+    const fit = fitIn(measures, regime, width);
+    if (fontPx <= fit.fits) return true;
+    if (fontPx >= fit.overflows) return false;
+    // The first try from 24 px up at this width that cannot be answered: measure just below and
+    // just above the size where the text should stop fitting (widths grow with the size), so that
+    // the tries of the later attempts at this width fall outside the two and need no measuring.
+    const last = measures.lastMeasured;
+    if (regime === 'linear' && !fit.guessed && last && last.naturalWidth > 0) {
+        fit.guessed = true;
+        const guess = last.fontPx * width / last.naturalWidth;
+        for (const at of [guess * (1 - FIT_GUESS_MARGIN), guess * (1 + FIT_GUESS_MARGIN)]) {
+            if (at > fit.fits && at < fit.overflows && at >= LINEAR_FROM_PX) prepareLineAt(measures, at);
+        }
+        if (fontPx <= fit.fits) return true;
+        if (fontPx >= fit.overflows) return false;
+    }
+    prepareLineAt(measures, fontPx);
+    return fontPx <= fit.fits;
+};
+
+/**
+ * The font size a block's text is set in, and how many lines it takes at `width`. Text that fits
+ * takes the same number of lines at every size it fits, so a size answered without measuring
+ * takes the count of the size that answered it.
+ */
+export const chooseSingleLineFontPx = (
+    measures: FumeLineMeasures,
+    width: number,
     lyricsFontScale: number,
     densityScale: number,
     heroScale: number,
-    theme: Pick<Theme, 'fontWeight'>,
 ) => {
+    const { variant } = measures;
     let low = variant === 'hero' ? 18 : 10;
     let high = variant === 'hero' ? 58 : 30;
-    let best: {
-        fontPx: number;
-        prepared: PreparedTextWithSegments;
-        layout: ReturnType<typeof layoutWithLines>;
-    } | null = null;
+    let best: number | null = null;
 
     // Fume really wants most blocks to stay single-line when possible.
     // So do a tiny binary search for a font size that still fits before falling back.
@@ -262,37 +407,25 @@ export const buildPreparedSingleLine = (
             * lyricsFontScale
             * densityScale
             * (variant === 'hero' ? heroScale : 1);
-        const fontSpec = buildFontSpec(candidateFontPx, variant, fontFamily, theme);
-        const prepared = prepareWithSegments(text, fontSpec, FUME_PRETEXT_OPTIONS);
-        const layout = layoutWithLines(prepared, width, Math.round(candidateFontPx * (variant === 'hero' ? 1.02 : 1.06)));
 
-        if (layout.lineCount <= 1) {
-            best = {
-                fontPx: candidateFontPx,
-                prepared,
-                layout,
-            };
+        if (fitsOnOneLine(measures, candidateFontPx, width)) {
+            best = candidateFontPx;
             low = (low + high) / 2;
         } else {
             high = (low + high) / 2;
         }
     }
 
-    if (best) {
-        return best;
+    if (best !== null) {
+        const prepared = measures.preparedByFontPx.get(best);
+        return { fontPx: best, lineCount: prepared ? countLines(prepared, width) : fitIn(measures, sizeRegime(best)!, width).lineCount };
     }
 
     const fallbackFontPx = (variant === 'hero' ? 18 : 10)
         * lyricsFontScale
         * densityScale
         * (variant === 'hero' ? heroScale : 1);
-    const fontSpec = buildFontSpec(fallbackFontPx, variant, fontFamily, theme);
-    const prepared = prepareWithSegments(text, fontSpec, FUME_PRETEXT_OPTIONS);
-    return {
-        fontPx: fallbackFontPx,
-        prepared,
-        layout: layoutWithLines(prepared, width, Math.round(fallbackFontPx * (variant === 'hero' ? 1.02 : 1.06))),
-    };
+    return { fontPx: fallbackFontPx, lineCount: countLines(prepareLineAt(measures, fallbackFontPx), width) };
 };
 
 export const resolveRenderLineOffset = (

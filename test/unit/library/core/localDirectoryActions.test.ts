@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LocalSong } from '@/types';
-import type { LibraryDirectoryBatchContext, LibraryDirectoryBatchPort, LibraryDirectoryItem } from '@/library/core/contracts/directory';
+import type { LibraryDirectoryBatchContext, LibraryDirectoryBatchPort, LibraryDirectoryItem } from '@/library/core/directory/directory.contract';
 import {
     createLocalDirectoryActions,
     resolveDirectoryBatchSongs,
     resolveFolderRemovalPaths,
-} from '@/library/core/services/localDirectoryActions';
-import { resolveDirectoryBatchContext } from '@/library/core/model/directoryBatch';
+} from '@/library/core/directory/localDirectoryActions.service';
+import { resolveDirectoryBatchContext } from '@/library/core/directory/directoryBatch';
 
 // test/unit/library/core/localDirectoryActions.test.ts
 // 本地目录批量动作（原 LocalGrid3DView 的批量配置）：用假端口记下每次服务调用，锁住文件夹删除的路径规则与

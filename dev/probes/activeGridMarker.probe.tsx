@@ -9,17 +9,13 @@ import type { ProbeDefinition } from './definition';
  * 出栈的旧网格在退出动画期间还留在 DOM 里、卡片属性一模一样，不限范围就会量到旧网格的
  * 卡片，飞行目标就飞到上一页去了。
  *
- * 这里挂的是真实机制：AnimatePresence + useIsPresent + 命令式写属性，只不过网格是假的两块
- * 方块。要看的是「两层同时在 DOM 里时，属性只在一个元素上，而且是新的那层」。
- *
- * 探针自己的 collectionMorph 探针是手写这个属性的，所以那条用例盖不到标记组件本身。
+ * 这里挂的是真实机制：AnimatePresence + useIsPresent + 标记元素，只不过网格是假的两块
+ * 方块。要看的是「两层同时在 DOM 里时，标记只在一层里，而且是新的那层」。
  */
 
 const FakeGrid: React.FC<{ label: string; color: string }> = ({ label, color }) => {
-    const ref = React.useRef<HTMLDivElement | null>(null);
     return (
         <motion.div
-            ref={ref}
             data-probe-grid={label}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -36,7 +32,7 @@ const FakeGrid: React.FC<{ label: string; color: string }> = ({ label, color }) 
                 padding: 16,
             }}
         >
-            <ActiveGridMarker target={ref} />
+            <ActiveGridMarker />
             {label}
         </motion.div>
     );

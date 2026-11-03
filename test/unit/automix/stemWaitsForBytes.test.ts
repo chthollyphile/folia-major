@@ -19,12 +19,12 @@ import type { SongResult } from '@/types';
 // of. The suite runs on node, so `window` is stood up by hand as the other automix tests do it.
 
 const { listeners, getCachedAudioBlob } = vi.hoisted(() => ({
-    listeners: new Set<(cacheKey: string) => void>(),
+    listeners: new Set<(cacheKey: string, keptUrl?: string) => void>(),
     getCachedAudioBlob: vi.fn(),
 }));
 
 vi.mock('@/services/audioCache', () => ({
-    onAudioCached: (listener: (cacheKey: string) => void) => {
+    onAudioCached: (listener: (cacheKey: string, keptUrl?: string) => void) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
     },
@@ -33,12 +33,12 @@ vi.mock('@/services/audioCache', () => ({
     saveAudioBlob: vi.fn(),
 }));
 
-import { refreshModelAvailability } from '@/services/automix/modelAvailability';
+import { refreshModelAvailability } from '@/services/analysis/modelAvailability';
 import { ensureStems, setWantedStems, stemWindowKey } from '@/services/automix/stems';
 
 /** What `saveAudioBlob` would announce for this song. */
 const cacheKeyOf = (song: SongResult) => `audio_online:kugou:${song.id}`;
-const announce = (cacheKey: string) => { listeners.forEach(listener => listener(cacheKey)); };
+const announce = (cacheKey: string, keptUrl?: string) => { listeners.forEach(listener => listener(cacheKey, keptUrl)); };
 
 // kugou rather than netease on purpose: netease carries legacy cache keys, so one lookup would read
 // the cache twice and every count below would have to explain itself.
@@ -122,5 +122,50 @@ describe('a window whose bytes are not cached yet', () => {
 
         await new Promise(resolve => { setTimeout(resolve, 10); });
         expect(getCachedAudioBlob).toHaveBeenCalledTimes(1);
+    });
+
+    // Spotify's files never enter the media cache: the desktop side keeps them, encrypted, and
+    // reading the song's URL reads the kept file. Until one is kept the URL is a download like any
+    // other online URL, and separation does not make it.
+    it('reads the URL of a song its provider keeps on this machine, and only once the file is kept', async () => {
+        const song = { id: '4cOdK2wGLETKBW3PvgPWqT', name: 'kept track',
+            sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '4cOdK2wGLETKBW3PvgPWqT' } } as unknown as SongResult;
+        const audioUrl = 'folia-spotify://audio/4cOdK2wGLETKBW3PvgPWqT?k=1';
+        let kept = false;
+        (globalThis as unknown as { window: { electron: Record<string, unknown> } }).window.electron.spotifyRequest
+            = async (operation: string) => ({ ok: true, data: operation === 'audio_kept' && kept });
+        const read = vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+        vi.stubGlobal('fetch', read);
+        setWantedStems([stemWindowKey(song, 'tail')]);
+
+        await ensureStems({ ...request(song), audioUrl });
+        expect(read).not.toHaveBeenCalled();
+
+        // What analysis, or the end of a full play, announces after the provider kept the file.
+        kept = true;
+        announce(`audio_online:spotify:${song.id}`);
+        await vi.waitFor(() => expect(read).toHaveBeenCalledWith(audioUrl));
+        vi.unstubAllGlobals();
+    });
+
+    // The next song is asked for as soon as the current one starts, often before it has a URL.
+    // Nothing of such a song is in the media cache, so a wake without the URL finds nothing to
+    // read and parks again: the file sat on disk and the blend ran without stems.
+    it('reads a provider-kept song by the URL the announcement brings, when it was asked before the song had one', async () => {
+        const song = { id: '1111111111111111111111', name: 'next track',
+            sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '1111111111111111111111' } } as unknown as SongResult;
+        const audioUrl = 'folia-spotify://audio/1111111111111111111111?k=2';
+        (globalThis as unknown as { window: { electron: Record<string, unknown> } }).window.electron.spotifyRequest
+            = async (operation: string) => ({ ok: true, data: operation === 'audio_kept' });
+        const read = vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }));
+        vi.stubGlobal('fetch', read);
+        setWantedStems([stemWindowKey(song, 'head')]);
+
+        await ensureStems({ ...request(song), role: 'head', audioUrl: null });
+        expect(read).not.toHaveBeenCalled();
+
+        announce(`audio_online:spotify:${song.id}`, audioUrl);
+        await vi.waitFor(() => expect(read).toHaveBeenCalledWith(audioUrl));
+        vi.unstubAllGlobals();
     });
 });

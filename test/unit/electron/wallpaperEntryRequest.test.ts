@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const {
   WALLPAPER_ENTRY_REQUEST_CHANNEL,
   requestWallpaperEntryConfirmation,
-} = require('../../../electron/wallpaperEntryRequest.cjs') as {
+} = require('../../../electron/wallpaper/wallpaperEntryRequest.cjs') as {
   WALLPAPER_ENTRY_REQUEST_CHANNEL: string;
   requestWallpaperEntryConfirmation: (deps: {
     mainWindow: unknown;

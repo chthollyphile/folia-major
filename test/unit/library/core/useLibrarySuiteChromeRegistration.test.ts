@@ -2,9 +2,9 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useLibrarySuiteChromeRegistration } from '@/library/core/bindings/useLibrarySuiteChromeRegistration';
-import { useLibrarySuiteChromeStore } from '@/library/core/state/useLibrarySuiteChromeStore';
-import type { LibrarySuiteChromeHandle, LibrarySuiteChromeHandlers } from '@/library/core/contracts/suiteChrome';
+import { useLibrarySuiteChromeRegistration } from '@/library/core/suite/useLibrarySuiteChromeRegistration';
+import { useLibrarySuiteChromeStore } from '@/library/core/suite/useLibrarySuiteChromeStore';
+import type { LibrarySuiteChromeHandle, LibrarySuiteChromeHandlers } from '@/library/core/suite/suiteChrome.contract';
 
 // test/unit/library/core/useLibrarySuiteChromeRegistration.test.ts
 // suite 外观动作的注册（B2）：随 isInteractive 注册 / 注销，组件卸载（换 suite）自动注销且不误伤接手的新实例，

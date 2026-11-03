@@ -19,6 +19,8 @@ export interface PendoloMotionSample {
     phase: number;
     bassOscillation: number;
     secondGearAngle: number;
+    /** Added to the transmission gear's turn (智能动感模式); absent or 0 otherwise. */
+    transBeatAngle?: number;
 }
 
 export interface PendoloCachedPart {
@@ -516,7 +518,7 @@ export const buildPendoloClockworkCachedScene = (
                 parseRgba(i % 2 === 0 ? palette.primaryAlpha10 : palette.genevaAlt),
             );
         }
-    }, transOrigin, (motion) => -motion.escapementAngle * 1.4);
+    }, transOrigin, (motion) => -motion.escapementAngle * 1.4 + (motion.transBeatAngle ?? 0));
     pushPart(
         'trans-jewel',
         () => appendJewelLocal(mesh, 3.5, 1.8, palette.jewelStrokeColor, palette.jewelFillColor, 1, 0.7),

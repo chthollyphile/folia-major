@@ -51,8 +51,11 @@ export const usePlayerChromeAutoHide = ({
     const isSynchronizingPreferenceRef = useRef(false);
     const hasInitializedPreferenceSyncRef = useRef(false);
 
-    const cyclePlayerChromeVisibilityMode = useCallback(() => {
-        const nextMode = getNextPlayerChromeVisibilityMode(playerChromeVisibilityModeRef.current);
+    // One path for the cycle button and for a mode picked directly (the remote window's three-way choice).
+    const setPlayerChromeVisibilityModeTo = useCallback((nextMode: PlayerChromeVisibilityMode) => {
+        if (!isPlayerChromeVisibilityMode(nextMode) || nextMode === playerChromeVisibilityModeRef.current) {
+            return;
+        }
         const shouldAutoHide = nextMode === 'auto-hide';
         playerChromeVisibilityModeRef.current = nextMode;
         setPlayerChromeVisibilityMode(nextMode);
@@ -62,6 +65,10 @@ export const usePlayerChromeAutoHide = ({
         }
         onModeChange?.(nextMode);
     }, [autoHidePlayerChrome, onModeChange, setAutoHidePlayerChromePreference]);
+
+    const cyclePlayerChromeVisibilityMode = useCallback(() => {
+        setPlayerChromeVisibilityModeTo(getNextPlayerChromeVisibilityMode(playerChromeVisibilityModeRef.current));
+    }, [setPlayerChromeVisibilityModeTo]);
 
     useEffect(() => {
         localStorage.setItem(PLAYER_CHROME_VISIBILITY_MODE_STORAGE_KEY, playerChromeVisibilityMode);
@@ -189,5 +196,5 @@ export const usePlayerChromeAutoHide = ({
         };
     }, [playerChromeVisibilityMode, suppressPointerReveal, setIsPlayerChromeHidden]);
 
-    return { playerChromeVisibilityMode, cyclePlayerChromeVisibilityMode };
+    return { playerChromeVisibilityMode, cyclePlayerChromeVisibilityMode, setPlayerChromeVisibilityModeTo };
 };

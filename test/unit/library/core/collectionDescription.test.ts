@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCollectionDescription } from '@/library/core/model/collectionDescription';
+import { resolveCollectionDescription } from '@/library/core/collection/collectionDescription';
 
 // test/unit/library/core/collectionDescription.test.ts
 // 集合页描述的取法：详情盖在集合描述上（与网格信息面板的合并规则一致），只去首尾空白。

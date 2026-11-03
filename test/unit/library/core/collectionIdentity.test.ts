@@ -3,7 +3,7 @@ import {
     collectionHashPath,
     collectionKey,
     collectionRevision,
-} from '@/library/core/model/collectionIdentity';
+} from '@/library/core/collection/collectionIdentity';
 import { collectionKey as adapterCollectionKey } from '@/components/app/home/gridViewCollectionAdapters';
 
 // test/unit/library/core/collectionIdentity.test.ts

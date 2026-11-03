@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    planForOpening,
     reportMorphCapture,
     useCollectionMorphStore,
 } from '@/library/suites/grid/transitions/collectionMorphStore';
@@ -7,9 +8,10 @@ import type { CollectionMorphCapture } from '@/library/suites/grid/transitions/m
 import {
     COLLECTION_MORPH_OBSERVATION_WINDOW_MS,
     COLLECTION_MORPH_PLAN_TTL_MS,
-    type CollectionMorphHeroMeasured,
+    type CollectionMorphCard,
     type CollectionMorphPending,
     type CollectionMorphRect,
+    type CollectionMorphTitle,
 } from '@/library/suites/grid/transitions/morphGeometry';
 import { useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import type { GridViewCollectionDescriptor } from '@/components/app/home/gridViewCollectionAdapters';
@@ -20,31 +22,35 @@ import type { GridViewCollectionDescriptor } from '@/components/app/home/gridVie
 
 const rect = (x: number, y: number, width = 200, height = 200): CollectionMorphRect => ({ x, y, width, height });
 
+const titled = (text: string, at: CollectionMorphRect): CollectionMorphTitle => ({
+    rect: at, text, width: at.width, height: at.height, fontSize: 14, style: {},
+});
+
 const capture = (sourceKey: string | null = 'grid3d:2'): CollectionMorphCapture => ({
-    frame: rect(100, 100),
-    cover: rect(110, 110, 180, 180),
-    coverUrl: 'cover.jpg',
-    title: rect(110, 290, 180, 20),
-    titleText: 'Playlist',
+    rect: rect(110, 110, 180, 180),
+    radius: 12,
+    url: 'cover.jpg',
+    proportions: 1,
+    frame: null,
+    title: titled('Card Title', rect(110, 300, 180, 20)),
     sourceKey,
 });
 
-const hero = (round = false): CollectionMorphHeroMeasured => ({
-    frame: rect(600, 400),
-    cover: rect(610, 410, 280, 280),
-    coverUrl: 'song.jpg',
-    title: rect(620, 700, 200, 24),
-    titleText: 'Song',
-    key: 'a-1',
-    coverReady: true,
-    round,
+/** The card at the middle of the page being left. */
+const hero = (): CollectionMorphCard => ({
+    rect: rect(610, 410, 280, 280),
+    radius: 8,
+    url: 'song.jpg',
+    proportions: 1,
+    frame: null,
+    title: titled('Song Title', rect(610, 700, 280, 20)),
 });
 
 const emptyState = {
     pending: null,
     plan: null,
-    hero: null,
     lastHome: null,
+    lastHomeRoot: '',
     lastSource: null,
     lastSourceDepth: 0,
     lastSourceNavigation: null,
@@ -103,7 +109,7 @@ describe('collection morph store', () => {
 
         it('keeps a launched plan alive: ackPending cancels the discard window', () => {
             reportMorphCapture(capture());
-            useCollectionMorphStore.getState().commitPlan({ kind: 'morph' });
+            useCollectionMorphStore.getState().commitPlan({ kind: 'morph' }, 1);
             useCollectionMorphStore.getState().ackPending();
 
             // 观察窗口已经过去（discard 会调 consume 清掉 plan），但还没到 plan 自己的 TTL。
@@ -112,9 +118,24 @@ describe('collection morph store', () => {
         });
     });
 
+    describe('whose plan it is', () => {
+        const planFor = (depth: number) => {
+            const { plan, planDepth } = useCollectionMorphStore.getState();
+            return planDepth === depth ? plan : null;
+        };
+
+        it('is the plan of the page at the depth it was committed for, and of no other', () => {
+            // An album is opened from the page at depth 1: the plan is the album page's.
+            useCollectionMorphStore.getState().commitPlan({ kind: 'morph', coverUrl: 'album.jpg' }, 2);
+            expect(planFor(2)).toEqual({ kind: 'morph', coverUrl: 'album.jpg' });
+            // Gone back through the history while it lasts, the page at depth 1 mounts again.
+            expect(planFor(1)).toBeNull();
+        });
+    });
+
     describe('plan lifetime', () => {
         it('expires on its TTL so a stale plan cannot re-trigger a later mount', () => {
-            useCollectionMorphStore.getState().commitPlan({ kind: 'cascade' });
+            useCollectionMorphStore.getState().commitPlan({ kind: 'cascade' }, 1);
             vi.advanceTimersByTime(COLLECTION_MORPH_PLAN_TTL_MS - 1);
             expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'cascade' });
 
@@ -123,9 +144,9 @@ describe('collection morph store', () => {
         });
 
         it('restarts the TTL on a fresh plan', () => {
-            useCollectionMorphStore.getState().commitPlan({ kind: 'cascade' });
+            useCollectionMorphStore.getState().commitPlan({ kind: 'cascade' }, 1);
             vi.advanceTimersByTime(COLLECTION_MORPH_PLAN_TTL_MS - 100);
-            useCollectionMorphStore.getState().commitPlan({ kind: 'morph' });
+            useCollectionMorphStore.getState().commitPlan({ kind: 'morph' }, 1);
             vi.advanceTimersByTime(COLLECTION_MORPH_PLAN_TTL_MS - 100);
             expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'morph' });
         });
@@ -133,37 +154,67 @@ describe('collection morph store', () => {
 
     describe('armExit', () => {
         it('does nothing without a remembered home card', () => {
-            useCollectionMorphStore.getState().armExit(hero(), []);
+            useCollectionMorphStore.getState().armExit(hero());
             expect(useCollectionMorphStore.getState().exit).toBeNull();
         });
 
-        it('keeps the click-time rectangles when the home card cannot be re-measured', () => {
+        it('names the home card to land on and how deep the navigation was, and the plan gives way', () => {
             const home = { ...capture(), navAtGestureStart: { wasOpen: false, depth: 0 }, capturedAt: 1 } as CollectionMorphPending;
-            useCollectionMorphStore.setState({ lastHome: home, plan: { kind: 'morph' } });
+            openAtDepth(1);
+            useCollectionMorphStore.getState().setLastHome(home);
+            useCollectionMorphStore.setState({ plan: { kind: 'morph' } });
 
-            useCollectionMorphStore.getState().armExit(hero(), []);
+            useCollectionMorphStore.getState().armExit(hero());
 
             const exit = useCollectionMorphStore.getState().exit;
-            expect(exit?.to?.frame).toEqual(home.frame);
-            expect(exit?.nested).toBe(false);
+            expect(exit).toMatchObject({ from: hero(), sourceKey: 'grid3d:2', nested: false, armedDepth: 1 });
             // 退出时 plan 必须让位，否则网格会一直等着一个不会发生的入场。
             expect(useCollectionMorphStore.getState().plan).toBeNull();
-            expect(useCollectionMorphStore.getState().hero).toBeNull();
         });
     });
 
+    describe('armExit after a collection was opened without a card', () => {
+        const home = { ...capture(), navAtGestureStart: { wasOpen: false, depth: 0 }, capturedAt: 1 } as CollectionMorphPending;
+        const another = { source: 'online', type: 'album', id: 'opened-without-a-card', name: 'Another' } as unknown as GridViewCollectionDescriptor;
+
+        it('does not fly onto the card of the collection a click opened before it', () => {
+            openAtDepth(1);
+            useCollectionMorphStore.getState().setLastHome(home);
+            // 那一次看完退出；之后从没有卡片的地方（探索页、“定位正在播放的歌”）打开了另一个集合。
+            useCollectionNavigationStore.getState().openRoot(another, 'home');
+
+            useCollectionMorphStore.getState().armExit(hero());
+
+            expect(useCollectionMorphStore.getState().exit).toBeNull();
+        });
+
+        it('still flies home from a level pushed inside the collection the card opened', () => {
+            openAtDepth(1);
+            useCollectionMorphStore.getState().setLastHome(home);
+            useCollectionNavigationStore.getState().push(another);
+            useCollectionNavigationStore.getState().restore({ origin: 'home', stack: useCollectionNavigationStore.getState().snapshot!.stack.slice(0, 1).map(root => ({ ...root })) });
+
+            useCollectionMorphStore.getState().armExit(hero());
+
+            expect(useCollectionMorphStore.getState().exit?.sourceKey).toBe(home.sourceKey);
+        });
+    });
+
+    // A nested back lands on the stand-in of the page before; what the store decides is the
+    // picture that stand-in shows: the card that was clicked for this level, where one is known
+    // (the page comes back centred on it), else the picture that flies back.
     describe('armNestedExit', () => {
-        it('lands on the source card captured for the current nesting level', () => {
+        it('has the page before show the card captured for the current nesting level', () => {
             openAtDepth(2);
             useCollectionMorphStore.getState().setLastSource(
                 { ...capture('item:7'), navAtGestureStart: { wasOpen: true, depth: 1 }, capturedAt: 1 } as CollectionMorphPending,
                 2,
             );
 
-            useCollectionMorphStore.getState().armNestedExit(hero(), []);
+            useCollectionMorphStore.getState().armNestedExit(hero());
 
-            expect(useCollectionMorphStore.getState().exit?.sourceKey).toBe('item:7');
-            expect(useCollectionMorphStore.getState().exit?.nested).toBe(true);
+            expect(useCollectionMorphStore.getState().exit).toMatchObject({ from: hero(), sourceKey: null, nested: true, armedDepth: 2 });
+            expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'morph', coverUrl: 'cover.jpg', title: 'Card Title' });
         });
 
         it.each([false, true])('rejects a later push at the same depth (same collection: %s)', (sameCollection) => {
@@ -184,9 +235,9 @@ describe('collection morph store', () => {
                 sameCollection ? previous.stack[1] : { ...previous.stack[1], id: 'other' },
             );
 
-            store.armNestedExit(hero(), []);
+            store.armNestedExit(hero());
 
-            expect(useCollectionMorphStore.getState().exit?.sourceKey).toBeNull();
+            expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'morph', coverUrl: 'song.jpg', title: 'Song Title' });
         });
 
         it('releases the source after a nested exit finishes', () => {
@@ -197,8 +248,8 @@ describe('collection morph store', () => {
                 2,
             );
             store.consume();
-            store.armNestedExit(hero(), []);
-            expect(useCollectionMorphStore.getState().exit?.sourceKey).toBe('item:7');
+            store.armNestedExit(hero());
+            expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'morph', coverUrl: 'cover.jpg', title: 'Card Title' });
 
             store.consume();
 
@@ -214,10 +265,20 @@ describe('collection morph store', () => {
                 1,
             );
 
-            useCollectionMorphStore.getState().armNestedExit(hero(), []);
+            useCollectionMorphStore.getState().armNestedExit(hero());
 
-            // null = 原地收缩，而不是飞向一张对不上的卡片。
-            expect(useCollectionMorphStore.getState().exit?.sourceKey).toBeNull();
+            // 对不上的卡片不拿来用：上一页的替身卡画飞回去的那张图。
+            expect(useCollectionMorphStore.getState().plan).toEqual({ kind: 'morph', coverUrl: 'song.jpg', title: 'Song Title' });
+        });
+    });
+
+    describe('planForOpening', () => {
+        it('is a morph with the clicked card\'s picture and title while a capture is pending, a cascade without one', () => {
+            expect(planForOpening()).toEqual({ kind: 'cascade' });
+            reportMorphCapture(capture());
+            expect(planForOpening()).toEqual({ kind: 'morph', coverUrl: 'cover.jpg', title: 'Card Title' });
+            vi.advanceTimersByTime(COLLECTION_MORPH_OBSERVATION_WINDOW_MS);
+            expect(planForOpening()).toEqual({ kind: 'cascade' });
         });
     });
 
@@ -235,7 +296,7 @@ describe('collection morph store', () => {
             const late = { ...capture(), navAtGestureStart: { wasOpen: false, depth: 0 }, capturedAt: 200 } as CollectionMorphPending;
             useCollectionMorphStore.setState({
                 pending: late,
-                exit: { from: hero(), to: null, squad: [], nested: false, sourceKey: null, armedAt: 100 },
+                exit: { from: hero(), nested: false, sourceKey: null, armedDepth: 1, armedAt: 100 },
             });
 
             useCollectionMorphStore.getState().consume();
@@ -248,7 +309,7 @@ describe('collection morph store', () => {
             const stale = { ...capture(), navAtGestureStart: { wasOpen: false, depth: 0 }, capturedAt: 50 } as CollectionMorphPending;
             useCollectionMorphStore.setState({
                 pending: stale,
-                exit: { from: hero(), to: null, squad: [], nested: false, sourceKey: null, armedAt: 100 },
+                exit: { from: hero(), nested: false, sourceKey: null, armedDepth: 1, armedAt: 100 },
             });
 
             useCollectionMorphStore.getState().consume();
@@ -262,15 +323,66 @@ describe('collection morph store', () => {
         useCollectionMorphStore.setState({
             pending: home,
             plan: { kind: 'morph' },
-            hero: hero(),
             lastHome: home,
             lastSource: home,
             lastSourceDepth: 1,
-            exit: { from: hero(), to: null, squad: [], nested: false, sourceKey: null, armedAt: 1 },
+            exit: { from: hero(), nested: false, sourceKey: null, armedDepth: 1, armedAt: 1 },
         });
 
         useCollectionMorphStore.getState().clear();
 
         expect(useCollectionMorphStore.getState()).toMatchObject(emptyState);
+    });
+
+    // The poster wall's grown tile is a card like the others: the page opened from it remembers
+    // it under its own kind of key, and the flight back is armed to land on it.
+    describe('a page opened from the poster wall', () => {
+        it('arms the flight back onto the wall\'s tile', () => {
+            reportMorphCapture(capture('lattice:album-7'));
+            expect(planForOpening()).toEqual({ kind: 'morph', coverUrl: 'cover.jpg', title: 'Card Title' });
+            openAtDepth(1);
+            // What the overlay does when it starts the flight to the page.
+            useCollectionMorphStore.getState().setLastHome(useCollectionMorphStore.getState().pending!);
+            useCollectionMorphStore.getState().ackPending();
+
+            useCollectionMorphStore.getState().armExit(hero());
+
+            expect(useCollectionMorphStore.getState().exit).toMatchObject({ sourceKey: 'lattice:album-7', nested: false, armedDepth: 1 });
+        });
+    });
+
+    // The overlay runs an armed exit and draws the carrier. It is inside the home screen, which
+    // is taken down for the poster wall and for the player: what it had under way must not be
+    // found by its next mount.
+    describe('overlayTakenDown', () => {
+        afterEach(() => {
+            useCollectionMorphStore.setState({ carrier: null });
+        });
+
+        it('leaves no armed exit and no carrier behind', () => {
+            const home = { ...capture(), navAtGestureStart: { wasOpen: false, depth: 0 }, capturedAt: 1 } as CollectionMorphPending;
+            openAtDepth(1);
+            useCollectionMorphStore.getState().setLastHome(home);
+            useCollectionMorphStore.getState().armExit(hero());
+            useCollectionMorphStore.getState().setCarrier('flies');
+            expect(useCollectionMorphStore.getState().exit).not.toBeNull();
+
+            useCollectionMorphStore.getState().overlayTakenDown();
+
+            expect(useCollectionMorphStore.getState()).toMatchObject({ exit: null, carrier: null });
+            // The card the page was opened from is kept, as at the end of any flight.
+            expect(useCollectionMorphStore.getState().lastHome).toBe(home);
+        });
+
+        it('leaves a capture and its plan alone where no exit is armed', () => {
+            reportMorphCapture(capture('lattice:album-7'));
+            useCollectionMorphStore.getState().commitPlan(planForOpening(), 1);
+            const { pending, plan } = useCollectionMorphStore.getState();
+
+            useCollectionMorphStore.getState().overlayTakenDown();
+
+            expect(useCollectionMorphStore.getState().pending).toBe(pending);
+            expect(useCollectionMorphStore.getState().plan).toBe(plan);
+        });
     });
 });

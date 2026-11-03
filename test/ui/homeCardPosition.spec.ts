@@ -106,7 +106,7 @@ test('the interface setting persists and disabling restores the original reset b
     await page.evaluate(async () => {
         const path = '/src/stores/useSettingsModalStore.ts';
         const { useSettingsModalStore } = await import(path);
-        useSettingsModalStore.getState().openSettings('options', 'general');
+        useSettingsModalStore.getState().openSettings('options', 'home');
     });
     const toggle = page.getByRole('switch', { name: 'Remember home card position', exact: true });
     await expect(toggle).toBeChecked();

@@ -13,13 +13,13 @@ import {
     navidromeSectionLabelKey,
     resolveNavidromeCollectionType,
     resolveNavidromeHomeActions,
-} from '@/library/core/model/navidromeHomeModel';
+} from '@/library/core/home/navidrome/navidromeHomeModel';
 import {
     createNavidromeHomeLibrary,
     loadAllNavidromeAlbums,
     NAVIDROME_ALBUM_PAGE_SIZE,
     type NavidromeHomeLibraryDeps,
-} from '@/library/core/services/navidromeHomeLibrary';
+} from '@/library/core/home/navidrome/navidromeHomeLibrary.service';
 
 // test/unit/library/core/navidromeHome.test.ts
 // Navidrome 页签（原 NavidromeGrid3DView 与 useNavidromeGridLibrary）：section、卡片（虚拟「随机」「收藏」带

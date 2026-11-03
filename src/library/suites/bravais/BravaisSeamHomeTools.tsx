@@ -16,7 +16,7 @@ import type { BravaisHomeSeam, BravaisHomeShortcut, BravaisHomeTool, BravaisHome
 import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
 import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
-import { bravaisPopMotion } from './bravaisSeamMotion';
+import { bravaisPopMotion, seamPopAnchorFor } from './bravaisSeamMotion';
 
 // src/library/suites/bravais/BravaisSeamHomeTools.tsx
 // 首页窄缝底部的工具格。
@@ -31,7 +31,7 @@ import { bravaisPopMotion } from './bravaisSeamMotion';
 // 用户实测（菜单透明、与账户入口叠字）：根因不是弹出动画——framer 的 motion.div 保留了 is-home 的不透明底——而是 fb4 给
 // 账户位加了 position: relative + z-index: 3，工具格（dock）没有层级，菜单的 z-index: 2 只在窄缝这一层里比，于是被账户
 // 入口盖在上面。修法：dock 的层级抬到账户位之上（bravaisHome.css）；菜单两侧比工具格各宽一些、项不折行。
-// 菜单与账户的平台列表互斥：开着哪个记在 bravaisHomeUiStore 的 popover，开一个就收另一个。
+// 菜单开没开记在 bravaisHomeUiStore 的 popover。
 // 直达入口（特殊集合）在窄缝中段放不下时挪进菜单（menuShortcuts）：排在最前，图标 + 全名，与后面的项隔一道分隔线。
 // fb11（用户要求）：舞台模式开着时（宿主给了 onOpenStagePlayer 且 stageEnabled，即有 stage 这个工具）舞台入口不再在「⋯」
 // 的 app 组里，而是单独占工具格最上面一整行（窄缝里是图标 + 短名「舞台」的一条，宽同两格；书脊上是一列最上面的一个图标），
@@ -48,6 +48,7 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
     directory: FolderTree,
     'manage-hidden': EyeOff,
     'refresh-navidrome': RefreshCw,
+    'refresh-explore': RefreshCw,
     // 进 Lattice（播放队列）：与 grid 首页 Grid3D 的 Lattice 入口同一个图标（home-lattice-pill）。
     queue: PanelsTopLeft,
     player: Disc3,
@@ -85,7 +86,8 @@ const BravaisSeamHomeTools: React.FC<{
     const jumps = menuShortcuts ?? [];
     const hasMenu = jumps.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
-    const pop = bravaisPopMotion('above', useBravaisReducedTransitions());
+    // 横的信息条在视口上半时菜单往下弹（工具格一直挂着，dockRef 在打开菜单的那次渲染里已经有值）。
+    const pop = bravaisPopMotion(seamPopAnchorFor(dockRef.current), useBravaisReducedTransitions());
 
     // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
     useEffect(() => {

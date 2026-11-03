@@ -6,7 +6,9 @@ import {
     resolvePlayerBottomBarMaxOffset,
     resolvePlayerBottomComponentBottomPx,
     resolvePlayerSubtitleBottomFromPresence,
+    resolveUnscaledSubtitleBarOffset,
 } from '../../../src/utils/playerBottomBarLayout';
+import { frameStage, stageBelowBox } from '../../../src/components/visualizer/preview/previewScale';
 
 // test/unit/utils/playerBottomBarLayout.test.ts
 
@@ -86,5 +88,58 @@ describe('resolvePlayerSubtitleBottomFromPresence', () => {
 
     it('stays pinned to the baseline while the bar is absent, whatever the offset', () => {
         expect(resolvePlayerSubtitleBottomFromPresence(300, 0)).toBe(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX);
+    });
+});
+
+describe('resolveUnscaledSubtitleBarOffset', () => {
+    it('keeps the subtitle 112 box pixels up once the stage is scaled', () => {
+        for (const scale of [1, 0.63, 0.4]) {
+            const stageBottom = resolvePlayerSubtitleBottomFromPresence(resolveUnscaledSubtitleBarOffset(scale), 1);
+            expect(stageBottom * scale).toBeCloseTo(112);
+        }
+    });
+
+    it('keeps the subtitle 112 box pixels up on a zoomed stage cut below the box', () => {
+        const box = { width: 1158, height: 1038 };
+        for (const zoom of [1, 1.15, 1.3]) {
+            const framed = frameStage({ width: 1840, height: 1160 }, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box));
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(112);
+        }
+    });
+
+    it('keeps the subtitle the distance asked for above the box\'s bottom', () => {
+        const box = { width: 1158, height: 1038 };
+        for (const zoom of [1.15, 1.3]) {
+            const framed = frameStage({ width: 1840, height: 1160 }, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box), 90);
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(90);
+        }
+    });
+
+    it('keeps the lyric window\'s subtitle where the unzoomed stage put it, inside a wide box', () => {
+        const windowSize = { width: 1840, height: 1160 };
+        const box = { width: 1158, height: 655 };
+        const unzoomedScale = frameStage(windowSize, box, 1, true)!.place.scale;
+        for (const zoom of [1.15, 1.3]) {
+            const framed = frameStage(windowSize, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box), 112 * (scale / zoom));
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            // The zoom crops the stage below the box; the subtitle still sits 112 x the unzoomed scale up.
+            expect(stageBelowBox(framed, box)).toBeGreaterThan(2);
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(112 * unzoomedScale);
+        }
+    });
+
+    it('is the baseline on an unscaled stage', () => {
+        expect(resolveUnscaledSubtitleBarOffset(1)).toBe(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX);
     });
 });

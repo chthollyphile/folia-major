@@ -1,8 +1,12 @@
 import { create } from 'zustand';
+import type { SeamAxis } from '../../../components/wall/seamPlan';
 import {
     BRAVAIS_NARROW_VIEWPORT_PX,
     BRAVAIS_SEAM_FULL_WIDTH,
     BRAVAIS_SEAM_HOME_WIDTH,
+    BRAVAIS_SEAM_ROW_FULL_HEIGHT,
+    BRAVAIS_SEAM_ROW_HOME_HEIGHT,
+    BRAVAIS_SEAM_ROW_SPINE_HEIGHT,
     BRAVAIS_SEAM_SPINE_WIDTH,
 } from './bravaisConstants';
 import type { BravaisLayerSurface } from './bravaisLayer';
@@ -12,6 +16,7 @@ import type { BravaisLayerSurface } from './bravaisLayer';
 // full = 完整信息条（首页是窄缝），spine = 书脊，hidden = 折叠到屏幕侧边只剩悬浮按钮。
 // 默认：宽屏 full、窄屏（< 900px）spine；跨过阈值时非 hidden 的等级回到新宽度下的默认值。
 // 折叠时记下折叠前的等级，悬浮按钮恢复到它。纯规则 + 一个模块级的小 store（stage 卸载后等级不丢）。
+// 信息条横向时（轴 'y'）开口量的是横条的高度，等级与内容不变（bravaisSeamTarget 决定哪几套内容走横向）。
 
 export type BravaisSeamLevel = 'full' | 'spine' | 'hidden';
 
@@ -53,10 +58,11 @@ export const resolveSeamLevelOnResize = (
     return state.level === 'hidden' ? { level: 'hidden', restoreLevel: fallback } : { level: fallback, restoreLevel: fallback };
 };
 
-/** 某一层在某个等级下的开口宽度（屏幕 px）。 */
-export const resolveSeamOpenWidth = (surface: BravaisLayerSurface, level: BravaisSeamLevel): number => {
+/** 某一层在某个等级下的开口宽度（屏幕 px；横向的缝是横条的高度）。 */
+export const resolveSeamOpenWidth = (surface: BravaisLayerSurface, level: BravaisSeamLevel, axis: SeamAxis = 'x'): number => {
     if (level === 'hidden') return 0;
-    if (level === 'spine') return BRAVAIS_SEAM_SPINE_WIDTH;
+    if (level === 'spine') return axis === 'y' ? BRAVAIS_SEAM_ROW_SPINE_HEIGHT : BRAVAIS_SEAM_SPINE_WIDTH;
+    if (axis === 'y') return surface === 'home' ? BRAVAIS_SEAM_ROW_HOME_HEIGHT : BRAVAIS_SEAM_ROW_FULL_HEIGHT;
     return surface === 'home' ? BRAVAIS_SEAM_HOME_WIDTH : BRAVAIS_SEAM_FULL_WIDTH;
 };
 
@@ -66,13 +72,16 @@ export const resolveSeamVariant = (surface: BravaisLayerSurface, level: BravaisS
     return level === 'spine' ? 'spine' : 'full';
 };
 
-/** 一套内容排版用的宽度：翻转时旧内容保持旧宽度排版，转到 90° 才换成新宽度（设计稿 §5「切换时的翻转不能重排」）。 */
-export const seamVariantWidth = (variant: BravaisSeamVariant): number => {
+/**
+ * 一套内容排版用的宽度：翻转时旧内容保持旧宽度排版，转到 90° 才换成新宽度（设计稿 §5「切换时的翻转不能重排」）。
+ * 横向的缝（轴 'y'）给的是横条的排版高度。
+ */
+export const seamVariantWidth = (variant: BravaisSeamVariant, axis: SeamAxis = 'x'): number => {
     switch (variant) {
-        case 'home': return BRAVAIS_SEAM_HOME_WIDTH;
-        case 'full': return BRAVAIS_SEAM_FULL_WIDTH;
+        case 'home': return axis === 'y' ? BRAVAIS_SEAM_ROW_HOME_HEIGHT : BRAVAIS_SEAM_HOME_WIDTH;
+        case 'full': return axis === 'y' ? BRAVAIS_SEAM_ROW_FULL_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH;
         case 'home-spine':
-        case 'spine': return BRAVAIS_SEAM_SPINE_WIDTH;
+        case 'spine': return axis === 'y' ? BRAVAIS_SEAM_ROW_SPINE_HEIGHT : BRAVAIS_SEAM_SPINE_WIDTH;
         default: return 0;
     }
 };

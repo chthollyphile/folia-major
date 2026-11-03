@@ -37,7 +37,7 @@ vi.mock('@/services/db', () => ({
 
 import React, { act, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useLibraryPlaybackController } from '@/hooks/useLibraryPlaybackController';
+import { useLibraryPlaybackController } from '@/components/app/playback/start/useLibraryPlaybackController';
 import { usePlayerPanelModel } from '@/components/app/player-panel/usePlayerPanelModel';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import type { LocalSong, SongResult } from '@/types';
@@ -67,7 +67,6 @@ const playingDuplicate = {
     artists: [],
 } as unknown as SongResult;
 
-const emptyLikedSongIds = new Set<string>();
 const emptyLocalLibraryCatalog = { entities: [], assignments: [] };
 
 describe('local favorite heart', () => {
@@ -84,17 +83,14 @@ describe('local favorite heart', () => {
         const Probe: React.FC = () => {
             const anyRef = useRef<unknown>(null);
             const controller = useLibraryPlaybackController({
-                likedSongIds: emptyLikedSongIds,
                 setLyrics: () => {},
                 setIsLyricsLoading: () => {},
-                setLikedSongIds: () => {},
                 navigateToPlaybackView: () => {},
                 persistLastPlaybackCache: async () => {},
                 restoreCachedThemeForSong: async () => {},
                 interruptStagePlaybackForMainTransition: () => null,
                 blobUrlRef: anyRef,
                 shouldAutoPlayRef: anyRef,
-                currentSongRef: anyRef,
                 currentOnlineAudioUrlFetchedAtRef: anyRef,
             } as never) as {
                 handleLike: () => Promise<void>;
@@ -105,7 +101,6 @@ describe('local favorite heart', () => {
             loadLocalSongs = controller.loadLocalSongs;
             const model = usePlayerPanelModel({
                 isLocalSongLiked: controller.isLocalSongLiked,
-                likedSongIds: emptyLikedSongIds,
                 shouldHidePlayerRightPanelButton: false,
                 localSongs: [],
                 localLibraryCatalog: emptyLocalLibraryCatalog,

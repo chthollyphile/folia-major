@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../src/types';
-import type { LibraryHomeCard } from '../../../src/library/core/contracts/homeModel';
+import type { LibraryHomeCard } from '../../../src/library/core/home/homeModel.contract';
 import type { BravaisItem } from '../../../src/library/suites/bravais/bravaisLayer';
 import {
     projectCollectionTracks,

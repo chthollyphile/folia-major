@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Boxes, Cpu, Database, Monitor, Settings2, Sparkles } from 'lucide-react';
+import { PageHeader } from '../../src/components/modal/settings/kit';
+import { settingsTokens } from '../../src/components/modal/settings/kit/kitTheme';
 import { SettingsAnchor, SettingsAnchorProvider, useSettingsAnchorList, useSettingsAnchorStore } from '../../src/components/modal/settings/navigation/SettingsAnchorContext';
 import SettingsSectionHeading from '../../src/components/modal/settings/navigation/SettingsSectionHeading';
-import SettingsSidebarChips from '../../src/components/modal/settings/navigation/SettingsSidebarChips';
-import SettingsSidebarWide from '../../src/components/modal/settings/navigation/SettingsSidebarWide';
+import SettingsSideList from '../../src/components/modal/settings/navigation/SettingsSideList';
 import type { SettingsAnchorId } from '../../src/components/modal/settings/navigation/settingsAnchorModel';
 import { buildSettingsNavGroups, type SettingsSectionId } from '../../src/components/modal/settings/navigation/settingsNavModel';
 import { useMediaQuery } from '../../src/hooks/useMediaQuery';
@@ -13,11 +14,11 @@ import type { ProbeDefinition } from './definition';
 // dev/probes/settingsNavigation.probe.tsx
 
 /**
- * 设置弹窗的导航层：分组侧栏、二级锚点目录和 scrollspy。
+ * 设置弹窗的导航层：只列类别的侧栏、页眉里的本页目录和 scrollspy。
  *
  * 只挂导航层，不挂真的 SettingsModal（它有近百个 props）。假内容列里的小节高度刻意拉开差距，
  * 并且有一个小节延迟三帧才出现，用来复刻 Integration 里那些等异步状态才渲染的区块。
- * 展开的目录来自静态导航模型，实际锚点注册表仍负责 scrollspy 和目标滚动；探针页开着
+ * 页眉的目录来自实际的锚点注册表，它同时负责 scrollspy 和目标滚动；探针页开着
  * StrictMode，正好压 register/unregister/register 这条最容易翻车的路径。
  */
 const SECTIONS = [
@@ -32,10 +33,10 @@ const SECTIONS = [
 const LATE_SECTION = { id: 'importExportTitle', label: 'Bravo Late Section', icon: Settings2, height: 300 } as const;
 
 const LABELS: Record<string, string> = {
-    'options.settingsGroupAppearance': 'Appearance',
-    'options.settingsGroupControls': 'Controls',
-    'options.settingsGroupConnections': 'Connections & Data',
-    'options.settingsGroupSystem': 'System',
+    'options.settingsGroupInterface': 'Interface',
+    'options.settingsGroupMusic': 'Music',
+    'options.settingsGroupApp': 'App',
+    'options.settingsGroupAdvanced': 'Advanced',
 };
 
 /** Stands in for i18n so the probe reads the same as the shipped English copy. */
@@ -70,23 +71,11 @@ const ProbeBody: React.FC = () => {
     const isWide = useMediaQuery('(min-width: 768px)');
     const showLate = useDelayedMount(4);
 
-    const groups = useMemo(() => buildSettingsNavGroups(fakeTranslate, { isElectron: true }).map(group => ({
-        ...group,
-        items: group.items.map(section => section.id === 'appearance'
-            ? {
-                ...section,
-                anchors: [
-                    ...SECTIONS.slice(0, 2).map(({ id, label }) => ({ id, label })),
-                    { id: LATE_SECTION.id, label: LATE_SECTION.label },
-                    ...SECTIONS.slice(2).map(({ id, label }) => ({ id, label })),
-                ],
-            }
-            : section),
-    })), []);
+    const groups = useMemo(() => buildSettingsNavGroups(fakeTranslate, { isElectron: true }), []);
     const { activeAnchorId, scrollToAnchor } = useSettingsScrollSpy({
         containerRef: contentRef,
         anchors,
-        enabled: isWide,
+        enabled: true,
         reducedMotion: false,
     });
 
@@ -105,53 +94,52 @@ const ProbeBody: React.FC = () => {
                     '--text-secondary': DEFAULT_THEME.secondaryColor,
                 } as React.CSSProperties}
             >
-                <div className="flex h-full flex-col gap-4 md:flex-row md:gap-6">
-                    {isWide ? (
-                        <SettingsSidebarWide
-                            groups={groups}
-                            activeSectionId={activeSection}
-                            onSelectSection={setActiveSection}
-                            activeAnchorId={activeAnchorId}
-                            onSelectAnchor={(sectionId, anchorId) => {
-                                if (sectionId === activeSection) {
-                                    scrollToAnchor(anchorId);
-                                } else {
-                                    setActiveSection(sectionId);
-                                }
-                            }}
-                            isDaylight={false}
-                            theme={DEFAULT_THEME}
+                <div
+                    className="flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--st-win)] md:grid md:grid-cols-[212px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
+                    style={settingsTokens(false, DEFAULT_THEME)}
+                >
+                    <SettingsSideList
+                        groups={groups}
+                        activeId={activeSection}
+                        onSelectSection={setActiveSection}
+                        onSelectHelp={() => {}}
+                        query=""
+                        onQueryChange={() => {}}
+                        onSubmitQuery={() => {}}
+                        isWide={isWide}
+                    />
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <PageHeader
+                            title={fakeTranslate(`options.${activeSection}`)}
+                            contents={anchors}
+                            activeId={activeAnchorId}
+                            onSelect={scrollToAnchor}
+                            closeLabel="Close"
+                            onClose={() => {}}
                         />
-                    ) : (
-                        <SettingsSidebarChips
-                            groups={groups}
-                            activeSectionId={activeSection}
-                            onSelectSection={setActiveSection}
-                            isDaylight={false}
-                        />
-                    )}
-                    <div ref={contentRef} data-probe-content className="relative flex-1 overflow-y-auto pb-4 pl-2 pr-4">
-                        <div className="space-y-8">
-                            {SECTIONS.map(section => (
-                                <React.Fragment key={section.id}>
-                                    <SettingsAnchor anchorId={section.id} label={section.label}>
-                                        <SettingsSectionHeading icon={section.icon} label={section.label} />
-                                        <div
-                                            className="rounded-xl border border-white/10 bg-white/5"
-                                            style={{ height: section.height }}
-                                        />
-                                    </SettingsAnchor>
-                                    {section.id === 'themePresets' && showLate && (
-                                        <SettingsAnchor anchorId={LATE_SECTION.id} label={LATE_SECTION.label}>
-                                            <SettingsSectionHeading icon={LATE_SECTION.icon} label={LATE_SECTION.label} />
+                        <div ref={contentRef} data-probe-content className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-8">
+                            <div className="space-y-8">
+                                {SECTIONS.map(section => (
+                                    <React.Fragment key={section.id}>
+                                        <SettingsAnchor anchorId={section.id} label={section.label}>
+                                            <SettingsSectionHeading icon={section.icon} label={section.label} />
                                             <div
                                                 className="rounded-xl border border-white/10 bg-white/5"
-                                                style={{ height: LATE_SECTION.height }}
+                                                style={{ height: section.height }}
                                             />
                                         </SettingsAnchor>
-                                    )}
-                                </React.Fragment>
-                            ))}
+                                        {section.id === 'themePresets' && showLate && (
+                                            <SettingsAnchor anchorId={LATE_SECTION.id} label={LATE_SECTION.label}>
+                                                <SettingsSectionHeading icon={LATE_SECTION.icon} label={LATE_SECTION.label} />
+                                                <div
+                                                    className="rounded-xl border border-white/10 bg-white/5"
+                                                    style={{ height: LATE_SECTION.height }}
+                                                />
+                                            </SettingsAnchor>
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -162,8 +150,8 @@ const ProbeBody: React.FC = () => {
 
 const probe: ProbeDefinition = {
     id: 'settingsNavigation',
-    title: '设置导航·分组侧栏与二级目录',
-    description: '分组副标题、二级锚点目录、scrollspy，以及窄屏 chip 条不被分组结构影响',
+    title: '设置导航·类别侧栏与页眉目录',
+    description: '分组副标题、只列类别的侧栏、页眉里的本页目录和 scrollspy，以及窄屏的横向类别条',
     Component: ProbeBody,
 };
 

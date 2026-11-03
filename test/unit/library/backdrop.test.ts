@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useLibraryBackdrop } from '@/library/app/useLibraryBackdrop';
-import { NEUTRAL_LIBRARY_BACKDROP } from '@/library/core/model/libraryBackdrop';
+import { NEUTRAL_LIBRARY_BACKDROP } from '@/library/core/suite/libraryBackdrop';
 import { getLibrarySuite, resolveLibrarySurface } from '@/library/registry';
 import { useMotionSettingsStore } from '@/stores/useMotionSettingsStore';
 

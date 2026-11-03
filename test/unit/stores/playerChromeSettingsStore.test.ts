@@ -37,4 +37,29 @@ describe('player chrome settings store', () => {
         usePlayerChromeSettingsStore.getState().handleToggleNativeMacFullscreenButton(false);
         expect(localStorage.getItem('use_native_mac_fullscreen_button')).toBe('false');
     });
+
+    it('keeps the idle cursor hide off by default', async () => {
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+
+        expect(usePlayerChromeSettingsStore.getState().hideCursorWhenIdle).toBe(false);
+    });
+
+    it('persists the idle cursor hide toggle', async () => {
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+
+        usePlayerChromeSettingsStore.getState().handleToggleHideCursorWhenIdle(true);
+        expect(usePlayerChromeSettingsStore.getState().hideCursorWhenIdle).toBe(true);
+        expect(localStorage.getItem('hide_cursor_when_idle')).toBe('true');
+
+        usePlayerChromeSettingsStore.getState().handleToggleHideCursorWhenIdle(false);
+        expect(usePlayerChromeSettingsStore.getState().hideCursorWhenIdle).toBe(false);
+        expect(localStorage.getItem('hide_cursor_when_idle')).toBe('false');
+    });
+
+    it('restores the persisted idle cursor hide choice', async () => {
+        values.set('hide_cursor_when_idle', 'true');
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+
+        expect(usePlayerChromeSettingsStore.getState().hideCursorWhenIdle).toBe(true);
+    });
 });

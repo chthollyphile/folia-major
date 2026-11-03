@@ -16,10 +16,10 @@ import './WallToolsButton.css';
 // src/components/wall/WallToolsButton.tsx
 // 海报墙右下角的工具按钮（Lattice 与 bravais 共用）：点按打开锚定的玻璃面板，向左滑打开命令面板。
 // 面板从上到下：一排纯图标快捷格 → 音量 → 墙自己的条目 → 海报叠色 → 开灯 / 关灯与帮助。
-// 两面墙结构一致，只有和场景有关的部分由使用方传入：快捷排里的 locate（定位正在播放 / 聚焦当前歌曲）与 destination
-// （bravais 前往 Lattice、Lattice 回到首页）两格、自己的条目（bravais 的「墙面外观」与透光、Lattice 的「墙面」与切歌自动聚焦）
-// 和帮助内容。洗牌、主题、队列、播放器四格与音量滑条是公共部分，由 useWallToolsCommonActions 从宿主（wallToolsHost）组装；
-// 快捷格的固定顺序是 locate-playing / shuffle-queue / generate-theme / queue / destination / open-player，缺的跳过。
+// 两面墙结构一致，只有和场景有关的部分由使用方传入：按钮上方的定位按钮（above）、快捷排里的 destination
+// （bravais 前往 Lattice、Lattice 回到首页）、自己的条目（bravais 的「墙面外观」与透光、Lattice 的「墙面」与切歌自动聚焦）
+// 和帮助内容。洗牌、主题、队列、播放器、设置五格与音量滑条是公共部分，由 useWallToolsCommonActions 从宿主（wallToolsHost）组装；
+// 快捷格的固定顺序是 shuffle-queue / generate-theme / queue / destination / open-player / open-settings，缺的跳过。
 // 面板与队列浮岛（WallToolsQueueIsland，由快捷排的「队列」格开合、偏好记在 useLatticeSettingsStore）都放在
 // .lattice-tools-stack 里、都在 rootRef 之内：点外部关闭天然把浮岛算作「里面」。stack 是 column-reverse：DOM 里面板在前、
 // 浮岛在后（Tab 顺序面板 → 浮岛 → 按钮），视觉上浮岛在面板上方。浮岛只在面板打开、偏好展开、有宿主且不在私人 FM 时显示；
@@ -41,14 +41,17 @@ export type WallToolsButtonProps = {
     /** 按钮的 title 与面板的可访问名。 */
     label: string;
     isDaylight: boolean;
-    /** 快捷排第一格：定位正在播放 / 聚焦当前歌曲（id 用 locate-playing）。 */
-    locate?: WallToolsQuickSlot;
-    /** 快捷排倒数第二格：这面墙的去处（bravais 是 open-lattice，Lattice 是 go-home）；不给时没有这一格。 */
+    /** 快捷排第四格（播放器、设置之前）：这面墙的去处（bravais 是 open-lattice，Lattice 是 go-home）；不给时没有这一格。 */
     destination?: WallToolsQuickSlot;
     /** 音量下面那几行（墙自己的条目）；给函数时只在面板打开着渲染时求值（条目的可用性随时变）。 */
     entries: readonly WallToolsEntry[] | (() => readonly WallToolsEntry[]);
     /** 帮助列表的内容（若干 `<li>`）。 */
     help: ReactNode;
+    /**
+     * 按钮正上方、面板之下的一样东西（Lattice 的定位按钮，与集合页的同一个）：与按钮排成一列，面板与浮岛整体上移让开。
+     * Lattice 与 bravais 都给（有歌在放时）。
+     */
+    above?: ReactNode;
     /**
      * 在 dock 里时要不要认领（缺省要）：墙此刻不显示（首页层被盖住、当前层不归这面墙）时不认领，dock 里就没有它这一份。
      * 不在 dock 里（就地渲染）时不看它。
@@ -69,7 +72,7 @@ const resolveSlot = (slot: WallToolsQuickSlot | undefined): WallToolsQuickAction
 );
 
 /** 按钮与面板本身（dock 里与就地渲染都画这一份）。 */
-export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destination, entries, help }: WallToolsButtonProps) {
+export function WallToolsSurface({ idPrefix, label, isDaylight, destination, entries, help, above }: WallToolsButtonProps) {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
@@ -138,9 +141,9 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
     const common = useWallToolsCommonActions({ queueIslandId });
     const showQueueIsland = isOpen && common.queueIslandShown && host !== null;
     const rows = isOpen ? (typeof entries === 'function' ? entries() : entries) : [];
-    // 快捷排的固定顺序：定位、洗牌、主题、队列、去处、播放器；缺的跳过。
+    // 快捷排的固定顺序：洗牌、主题、队列、去处、播放器、设置；缺的跳过。
     const quick: WallToolsQuickAction[] = isOpen
-        ? [resolveSlot(locate), common.shuffle, common.theme, common.queue, resolveSlot(destination), common.openPlayer]
+        ? [common.shuffle, common.theme, common.queue, resolveSlot(destination), common.openPlayer, common.settings]
             .filter((action): action is WallToolsQuickAction => action !== null)
         : [];
     // 叠色开关两边都有（颜色与强度的细调仍在设置页与命令面板）。
@@ -157,7 +160,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
         <motion.div
             ref={rootRef}
             style={{ bottom: bottomPx, '--wall-tools-bottom': bottomVar } as unknown as MotionStyle}
-            className={`lattice-tools group ${isDaylight ? 'is-daylight' : ''}`}
+            className={`lattice-tools group ${above ? 'has-above' : ''} ${isDaylight ? 'is-daylight' : ''}`}
         >
             {/* 面板与队列浮岛叠在按钮上方的一列里（column-reverse：面板在下、浮岛在上）：定位在 stack 上，面板自己不再 absolute。 */}
             <div className={showQueueIsland ? 'lattice-tools-stack has-queue-island' : 'lattice-tools-stack'}>
@@ -226,6 +229,7 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, locate, destinat
                 </AnimatePresence>
             </div>
 
+            {above}
             <SlideActionButton
                 icon={isOpen ? X : Settings2}
                 title={label}

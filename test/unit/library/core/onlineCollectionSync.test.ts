@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { syncRemainingCollectionPages, type CollectionSyncPage } from '../../../../src/library/core/services/onlineCollectionSync';
+import { syncRemainingCollectionPages, type CollectionSyncPage } from '../../../../src/library/core/collection/resource/onlineCollectionSync.service';
 
 // test/unit/library/core/onlineCollectionSync.test.ts
 // 在线大歌单后台补齐：按上游 offset 收敛、单页失败重试、中断点可续传、作废后不再回调。
@@ -144,5 +144,37 @@ describe('syncRemainingCollectionPages', () => {
 
         expect(result.status).toBe('complete');
         expect(fetchPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('says the list was read whole only when the last page read said it ends there', async () => {
+        const ids = Array.from({ length: 250 }, (_, index) => `s${index}`);
+        const firstPage = ids.slice(0, 100).map(id => ({ id }));
+
+        const toTheEnd = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: firstPage,
+            startOffset: 100,
+            fetchPage: upstream(ids, 100),
+        });
+        expect(toTheEnd).toMatchObject({ status: 'complete', offset: 250, whole: true });
+
+        // Stopped by a count that is short of the list, while the provider said more would come.
+        const cutShortByTheCount = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: firstPage,
+            startOffset: 100,
+            total: 200,
+            fetchPage: upstream(ids, 100),
+        });
+        expect(cutShortByTheCount).toMatchObject({ status: 'complete', offset: 200, whole: false });
+
+        // Stopped because the pages no longer bring anything new.
+        const goingInCircles = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: [{ id: 'a' }, { id: 'b' }],
+            startOffset: 2,
+            fetchPage: offset => Promise.resolve({ items: [{ id: 'a' }, { id: 'b' }], hasMore: true, nextOffset: offset + 2 }),
+        });
+        expect(goingInCircles).toMatchObject({ status: 'complete', whole: false });
     });
 });

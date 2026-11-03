@@ -35,6 +35,8 @@
 .lattice-chrome button:hover, .lattice-chrome button.is-active { opacity: 1; background: color-mix(in srgb, currentColor 16%, transparent); }
 .lattice-chrome button:disabled { opacity: 0.25; cursor: default; border-color: transparent; background: transparent; }
 .lattice-chrome button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+/* The one control of a grown collection card (explore wall): a word beside the glyph, so it is as wide as the word needs. */
+.lattice-chrome button.lattice-open-collection { display: flex; align-items: center; gap: 8px; width: auto; padding: 0 16px 0 12px; font-size: 14px; font-weight: 650; letter-spacing: 0.04em; white-space: nowrap; }
 /* The readouts live in the transport row, so the bar spans the chrome width, minus the padding
    that centres the arrow glyph inside its 44px button - that glyph is what the bar ends against. */
 .lattice-progress { min-width: 0; margin-right: 12px; }
@@ -56,4 +58,6 @@
     .lattice-progress input[type=range] { height: 86px; }
     .lattice-chrome-time { font-size: 20px; }
     .lattice-root .lattice-poster.is-expanded .lattice-poster-copy { bottom: 220px; }
+    .lattice-chrome button.lattice-open-collection { padding: 0 28px 0 22px; font-size: 22px; }
+    .lattice-root .lattice-poster.is-collection.is-expanded .lattice-poster-copy { bottom: 142px; }
 }

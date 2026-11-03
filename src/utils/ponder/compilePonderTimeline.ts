@@ -1,6 +1,5 @@
 import {
     PONDER_DEFAULT_DWELL_MS,
-    type PonderAnchorPoint,
     type PonderKeyframe,
     type PonderSceneScript,
     type PonderStep,
@@ -60,35 +59,4 @@ export const compilePonderScene = (scene: PonderSceneScript): PonderTimelinePlan
     }
 
     return { totalMs: endMs, entries, keyframes: deduped };
-};
-
-/**
- * 本章真正点到名的锚点。
- *
- * anchors 是整个目标共用的一张表，一章只用得上其中两三个 —— 骨架层拿它来决定标哪些名字，
- * 不筛就会把全表的标签一次性糊在同一屏上、互相压着。
- */
-export const sceneAnchorNames = (scene: PonderSceneScript): Set<string> => {
-    const names = new Set<string>();
-    const addPoint = (point: PonderAnchorPoint | 'bottom' | undefined) => {
-        if (point && point !== 'bottom') names.add(point.anchor);
-    };
-
-    for (const step of scene.steps) {
-        if (step.kind === 'highlight' || step.kind === 'surfaceState' || step.kind === 'reveal') {
-            names.add(step.anchor);
-        } else if (step.kind === 'caption') {
-            addPoint(step.at);
-            addPoint(step.pointTo);
-        } else if (step.kind === 'cursor') {
-            addPoint(step.to);
-            addPoint(step.from);
-        } else if (step.kind === 'drag') {
-            addPoint(step.from);
-            addPoint(step.to);
-        } else if (step.kind === 'keypress') {
-            addPoint(step.at);
-        }
-    }
-    return names;
 };

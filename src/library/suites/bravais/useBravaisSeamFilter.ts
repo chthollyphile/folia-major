@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { LibraryQueryPort } from '../../core/contracts/session';
-import { useCommittedQuery } from '../../core/bindings/useCommittedQuery';
+import type { LibraryQueryPort } from '../../core/shared/session.contract';
+import { useCommittedQuery } from '../../core/shared/useCommittedQuery';
 import { registerCommandFilter } from '../../../stores/useAppViewStore';
 import { hasBlockingWindow } from '../../../utils/keyboardTargets';
 import { resolveBravaisTypingKey } from './bravaisKeyboardModel';

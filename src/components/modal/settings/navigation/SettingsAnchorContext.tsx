@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { createSettingsAnchorStore, type SettingsAnchor as SettingsAnchorEntry, type SettingsAnchorStore } from './settingsAnchorStore';
+import { SETTINGS_ANCHOR_SECTION, type SettingsAnchorId } from './settingsAnchorModel';
+import type { SettingsSectionId } from './settingsNavModel';
 // src/components/modal/settings/navigation/SettingsAnchorContext.tsx
-// Lets a settings subview declare its sections where they render, so the sidebar table of contents
-// follows conditional and late-arriving sections without a second hand-maintained list.
+// Lets a settings page declare its groups where they render, so the page header's tabs follow
+// conditional and late-arriving groups without a second hand-maintained list.
 
 const SettingsAnchorContext = createContext<SettingsAnchorStore | null>(null);
+
+/** The category whose page is on screen; null outside the settings dialog. */
+const SettingsAnchorSectionContext = createContext<SettingsSectionId | null>(null);
 
 const EMPTY_ANCHORS: SettingsAnchorEntry[] = [];
 const NOOP_SUBSCRIBE = () => () => {};
@@ -18,8 +23,15 @@ const EMPTY_SNAPSHOT = () => EMPTY_ANCHORS;
  */
 export const useSettingsAnchorStore = (): SettingsAnchorStore => useMemo(() => createSettingsAnchorStore(), []);
 
-export const SettingsAnchorProvider: React.FC<{ store: SettingsAnchorStore; children: React.ReactNode }> = ({ store, children }) => (
-    <SettingsAnchorContext.Provider value={store}>{children}</SettingsAnchorContext.Provider>
+export const SettingsAnchorProvider: React.FC<{
+    store: SettingsAnchorStore;
+    /** The category on screen. Given, an anchor that belongs to another category does not render. */
+    section?: SettingsSectionId;
+    children: React.ReactNode;
+}> = ({ store, section = null, children }) => (
+    <SettingsAnchorContext.Provider value={store}>
+        <SettingsAnchorSectionContext.Provider value={section}>{children}</SettingsAnchorSectionContext.Provider>
+    </SettingsAnchorContext.Provider>
 );
 
 /** Sections registered in `store`, in document order. */
@@ -34,22 +46,28 @@ export const useSettingsAnchors = (): SettingsAnchorEntry[] => useSettingsAnchor
 
 type SettingsAnchorProps = {
     anchorId: string;
-    /** Shown in the sidebar table of contents. */
+    /** The text of the group's tab in the page header. */
     label: string;
     className?: string;
     children: React.ReactNode;
 };
 
 /**
- * A settings section that publishes itself to the sidebar table of contents.
+ * A group of settings that publishes itself to the page header's tabs.
  *
  * Renders the same `<section>` the subviews used before, so swapping one in is not a visual change.
  * Registration is keyed on the element rather than the id, because StrictMode replays the mount as
  * register/unregister/register and an id-keyed teardown would drop the surviving registration.
+ *
+ * An anchor settingsAnchorModel places in another category than the one on screen renders nothing:
+ * a group the table names shows only on the page the table gives it.
  */
 export const SettingsAnchor: React.FC<SettingsAnchorProps> = ({ anchorId, label, className, children }) => {
     const nodeRef = useRef<HTMLElement | null>(null);
     const store = useContext(SettingsAnchorContext);
+    const pageSection = useContext(SettingsAnchorSectionContext);
+    const ownSection = SETTINGS_ANCHOR_SECTION[anchorId as SettingsAnchorId];
+    const belongsElsewhere = pageSection !== null && ownSection !== undefined && ownSection !== pageSection;
 
     useLayoutEffect(() => {
         const node = nodeRef.current;
@@ -58,7 +76,11 @@ export const SettingsAnchor: React.FC<SettingsAnchorProps> = ({ anchorId, label,
         }
 
         return store.register({ id: anchorId, label, node });
-    }, [store, anchorId, label]);
+    }, [store, anchorId, label, belongsElsewhere]);
+
+    if (belongsElsewhere) {
+        return null;
+    }
 
     return (
         <section ref={nodeRef} id={`settings-${anchorId}`} data-settings-anchor={anchorId} className={className}>

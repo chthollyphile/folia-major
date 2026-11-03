@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDown } from 'lucide-react';
 import type { SongResult } from '../../types';
+import { SheetButton } from '../shared/Sheet';
 import ThemedDialog from '../shared/ThemedDialog';
 import { formatSongName } from '../../utils/songNameFormatter';
 import { getProviderSongMetadata } from '../../services/onlineMusic/songMetadata';
@@ -33,13 +34,6 @@ const UnavailableReplacementDialog: React.FC<UnavailableReplacementDialogProps> 
             setIsSubmitting(false);
         }
     }, [isOpen]);
-
-    const cancelClass = isDaylight
-        ? 'bg-zinc-100/80 hover:bg-zinc-200 border-zinc-200 text-zinc-700'
-        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white';
-    const confirmClass = isDaylight
-        ? 'bg-zinc-900 text-white hover:bg-zinc-700'
-        : 'bg-white text-zinc-950 hover:bg-zinc-200';
 
     const handleConfirm = async () => {
         try {
@@ -98,22 +92,12 @@ const UnavailableReplacementDialog: React.FC<UnavailableReplacementDialogProps> 
             })}
             footer={(
                 <>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        className={`rounded-full border px-5 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${cancelClass}`}
-                    >
+                    <SheetButton onClick={onClose} disabled={isSubmitting}>
                         {t('status.cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void handleConfirm()}
-                        disabled={isSubmitting}
-                        className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${confirmClass}`}
-                    >
+                    </SheetButton>
+                    <SheetButton variant="primary" onClick={() => void handleConfirm()} disabled={isSubmitting}>
                         {t('status.playAlternativeVersion')}
-                    </button>
+                    </SheetButton>
                 </>
             )}
         >

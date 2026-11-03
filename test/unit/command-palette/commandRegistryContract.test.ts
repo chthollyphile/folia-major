@@ -5,7 +5,9 @@ import { PINYIN_BY_PHRASE } from 'virtual:folia-command-pinyin';
 import { assertExecuteShortcutsArePrefixFree } from '../../../src/components/command-palette/executeShortcuts';
 import en from '../../../src/i18n/locales/en';
 import zhCN from '../../../src/i18n/locales/zh-CN';
+import zhTW from 'virtual:folia-locale-zh-TW';
 import id from '../../../src/i18n/locales/in';
+import vi from '../../../src/i18n/locales/vi';
 import { buildSuiteChromeCommands } from '../../../src/components/command-palette/commands/suiteChromeCommands';
 import { listLibrarySuites } from '../../../src/library/registry';
 import { findKeywordOffenders, findUntranslatedCommands, listStaticCommands } from './commandContractChecks';
@@ -18,7 +20,7 @@ import { findKeywordOffenders, findUntranslatedCommands, listStaticCommands } fr
 // them itself from the registry. No shipped suite declares any yet; the same checks run over a fixture
 // suite in suiteChromeCommands.test.ts.
 
-const LOCALES = { en, 'zh-CN': zhCN, in: id } as const;
+const LOCALES = { en, 'zh-CN': zhCN, 'zh-TW': zhTW, in: id, vi } as const;
 
 // The chrome commands every available suite declares, built the way the app installs them
 // (library/app/installLibrarySuiteChromeCommands), checked alongside the static list.
@@ -34,6 +36,15 @@ const CONTRACT_COMMANDS = [
 const staticCommands = listStaticCommands(CONTRACT_COMMANDS);
 
 describe('command palette registry contract', () => {
+    it('opens the desktop AI provider flow at its existing appearance anchor', async () => {
+        const command = COMMAND_PALETTE_COMMANDS.find(item => item.id === 'settings-ai-provider')!;
+        expect(command.platform).toEqual(['electron']);
+        expect(command.settingsTarget).toEqual({ subview: 'appearance', anchorId: 'electronSettings' });
+        const opened: unknown[][] = [];
+        await command.execute('', { settings: { openSettings: (...args: unknown[]) => opened.push(args) } } as unknown as Parameters<typeof command.execute>[1]);
+        expect(opened).toEqual([['options', 'appearance', null, 'electronSettings']]);
+    });
+
     it('keeps command ids unique', () => {
         const seen = new Map<string, number>();
         CONTRACT_COMMANDS.forEach(command => {

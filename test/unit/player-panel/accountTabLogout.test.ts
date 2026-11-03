@@ -31,7 +31,7 @@ vi.mock('react-i18next', async importOriginal => ({
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import AccountTab from '@/components/panelTab/AccountTab';
-import type { LibraryAccountController, LibraryAccountSnapshot } from '@/library/core/contracts/account';
+import type { LibraryAccountController, LibraryAccountSnapshot } from '@/library/core/account/account.contract';
 import type { ProviderAccountSummary, ProviderUser } from '@/types/onlineMusic';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -87,53 +87,50 @@ afterEach(() => {
     document.body.replaceChildren();
 });
 
-const renderAccountTab = (controller: LibraryAccountController, user: ProviderUser | null) => {
+const renderAccountTab = (controller: LibraryAccountController) => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
     act(() => root!.render(React.createElement(AccountTab, {
-        user,
         accountController: controller,
         audioQuality: 'high',
         onAudioQualityChange: () => {},
-        cacheSize: '0 B',
-        onClearCache: () => {},
         onSyncData: () => {},
         isSyncing: false,
         onNavigateHome: () => {},
     })));
-    const logoutButton = () => host.querySelector<HTMLButtonElement>('button[title="account.logout"]');
+    const logoutButton = () => host.querySelector<HTMLButtonElement>('button[aria-label="account.logout"]');
     return { host, logoutButton };
 };
 
 describe('account tab logout', () => {
     it('shows the cached NetEase user but keeps logout unavailable until the controller would accept it', () => {
-        // 水合窗口：store 里网易还是 unknown（没有 user），App 的 user 已经是缓存的那个。
-        const fake = createFakeController(snapshotWith(netease('unknown', null)));
-        const { host, logoutButton } = renderAccountTab(fake.controller, cachedUser);
+        // 刷新落定之前：快照里网易还是 unknown，账号已经是缓存的那个。
+        const fake = createFakeController(snapshotWith(netease('unknown', cachedUser)));
+        const { host, logoutButton } = renderAccountTab(fake.controller);
 
         expect(host.textContent).toContain('Cached Netease User');
         expect(logoutButton()).not.toBeNull();
-        expect(logoutButton()!.disabled).toBe(true);
+        expect(logoutButton()!.getAttribute('aria-disabled') === 'true').toBe(true);
         act(() => logoutButton()!.click());
         expect(fake.logout).not.toHaveBeenCalled();
 
         // 刷新落定、controller 判定可登出：按钮可用，点了走 controller 的登出。
         fake.update({ providers: [netease('authenticated', cachedUser)] });
-        expect(logoutButton()!.disabled).toBe(false);
+        expect(logoutButton()!.getAttribute('aria-disabled') === 'true').toBe(false);
         act(() => logoutButton()!.click());
         expect(fake.logout).toHaveBeenCalledWith('netease');
     });
 
     it('disables logout while a logout is in flight', () => {
         const fake = createFakeController(snapshotWith(netease('authenticated', cachedUser)));
-        const { logoutButton } = renderAccountTab(fake.controller, cachedUser);
-        expect(logoutButton()!.disabled).toBe(false);
+        const { logoutButton } = renderAccountTab(fake.controller);
+        expect(logoutButton()!.getAttribute('aria-disabled') === 'true').toBe(false);
 
         fake.update({ logout: { providerId: 'netease', status: 'pending' } });
-        expect(logoutButton()!.disabled).toBe(true);
+        expect(logoutButton()!.getAttribute('aria-disabled') === 'true').toBe(true);
 
         fake.update({ logout: { providerId: null, status: 'idle' } });
-        expect(logoutButton()!.disabled).toBe(false);
+        expect(logoutButton()!.getAttribute('aria-disabled') === 'true').toBe(false);
     });
 });

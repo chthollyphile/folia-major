@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalSong, SongResult } from '@/types';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
-import type { LibraryArtistLocalLibrary } from '@/library/core/contracts/artist';
+import type { LibraryArtistLocalLibrary } from '@/library/core/artist/artist.contract';
 import {
     appendArtistAlbums,
     artistAlbumCoverUrl,
@@ -13,14 +13,14 @@ import {
     mapOnlineArtistDetail,
     toHttpsCoverUrl,
     UNKNOWN_LOCAL_ALBUM_KEY,
-} from '@/library/core/model/artistModel';
+} from '@/library/core/artist/artistModel';
 import {
     resolveLocalCatalogEntity,
     resolveLocalCatalogLink,
     resolveLocalEntitySongIds,
     resolveLocalSongEntityId,
     buildLocalCatalogIndex,
-} from '@/library/core/model/localCatalogLinks';
+} from '@/library/core/shared/localCatalogLinks';
 
 // test/unit/library/core/artistModel.test.ts
 // 歌手页的纯变换（原 ArtistGridView 的加载分支与 useMemo）以及三处共用的本地专辑 / 歌手解析

@@ -28,7 +28,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Theme } from '@/types';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
-import { useFoliumHostBridge } from '@/mods/folium/hostBridge';
+import { useFoliumHostBridge } from '@/mods/runtime/hostBridge';
 import type { ModRuntimeSnapshot } from '@/mods/types';
 
 // test/unit/mod-system/foliumRuntimeSnapshot.test.ts

@@ -1,0 +1,272 @@
+import { beatImpact, downbeatImpact } from '../../stores/motionSignals';
+import { createBeatFxClockState, stepBeatFxClock, type BeatFxEvent } from './clock';
+import type { BeatFxSourceKind } from './beatFxSource';
+
+// src/services/beatFx/beatFxLive.ts
+// The one live beat clock: fed the current track's beat list, stepped once per frame from the
+// existing playback RAF loop, and written into the `beatImpact` / `downbeatImpact` MotionValues.
+// No React state anywhere on this path.
+//
+// The MotionValues carry the envelopes already scaled by 智能动感模式's 轻拍 / 重拍 strengths
+// (`setBeatFxIntensities`: both the strength of the beat-list effect on screen, since effects have
+// their own), so every visualizer reading them gets the user's strengths without reading settings
+// itself. An effect not driven by these signals asks `getBeatEffectStrength` for its own. Discrete
+// effects (a ripple per beat) count `getBeatFxFiredCounts` instead
+// and scale by `getBeatFxIntensities`.
+//
+// With accents (analysis/beatAccents.ts) the envelopes already peak lower on a weak beat and on a
+// track whose beats barely stand out; a discrete effect reads the beat it fires for with
+// `getBeatFxLastBeat` / `getBeatFxLastDownbeat` and scales by `resolveBeatFxAccentGain`.
+//
+// Diagnostics (`window.__foliaBeatFx`: beats fired, source, latency, the two envelopes) exist in a
+// dev build, or in any build with localStorage['folia.dev.beatFxDebug'] = '1' at startup.
+
+interface BeatFxDebug {
+    beats: number;
+    downbeats: number;
+    lastT: number | null;
+    heardT: number | null;
+    source: BeatFxSourceKind | 'loading';
+    note: string | null;
+    trackKey: string | null;
+    eventCount: number;
+    latencyMs: number;
+    beatImpact: number;
+    downbeatImpact: number;
+}
+
+declare global {
+    interface Window {
+        __foliaBeatFx?: BeatFxDebug;
+    }
+}
+
+/**
+ * How long a track change keeps the previous track's "ready" while the new one's beats load.
+ *
+ * Without it every change - a skip, an automix handover, exactly the moments meant to be seamless -
+ * dropped the visualizer to its original frame for the few frames a stored list takes to read, and
+ * jumped back. Held, the frame stays a beat FX frame whose envelopes simply decay to rest; only a
+ * track that really has no beats after this long drops back, once.
+ */
+const READY_HOLD_MS = 1500;
+
+const readDebugFlag = (): boolean => {
+    try {
+        return typeof localStorage !== 'undefined' && localStorage.getItem('folia.dev.beatFxDebug') === '1';
+    } catch {
+        return false;
+    }
+};
+
+const debug: BeatFxDebug | null = (import.meta.env.DEV || readDebugFlag())
+    ? {
+        beats: 0,
+        downbeats: 0,
+        lastT: null,
+        heardT: null,
+        source: 'none',
+        note: null,
+        trackKey: null,
+        eventCount: 0,
+        latencyMs: 0,
+        beatImpact: 0,
+        downbeatImpact: 0,
+    }
+    : null;
+if (debug && typeof window !== 'undefined') window.__foliaBeatFx = debug;
+
+const state = createBeatFxClockState();
+let trackKey: string | null = null;
+let lastStepAt: number | null = null;
+/** `performance.now()` until which a track change counts as ready; see READY_HOLD_MS. */
+let holdUntil = 0;
+/** Whether the last step had a deck being heard; false while paused or stopped. */
+let hearing = false;
+/** The playing track's time the listener hears, seconds; null while nothing plays. */
+let heardAt: number | null = null;
+/** The last time heard while playing, and its track: what a pause or a picture switch leaves. */
+let lastHeard: { key: string | null; time: number } = { key: null, time: 0 };
+const intensities = { beat: 1, downbeat: 1 };
+/** Median gap between the installed track's beats, in seconds; see `getBeatFxBeatPeriod`. */
+const DEFAULT_BEAT_PERIOD = 0.5;
+let beatPeriod = DEFAULT_BEAT_PERIOD;
+
+/** Median gap between consecutive events, or the default for fewer than two. */
+export const resolveBeatFxBeatPeriod = (events: readonly BeatFxEvent[]): number => {
+    if (events.length < 2) return DEFAULT_BEAT_PERIOD;
+    const gaps: number[] = [];
+    for (let index = 1; index < events.length; index += 1) gaps.push(events[index].t - events[index - 1].t);
+    gaps.sort((a, b) => a - b);
+    const median = gaps[gaps.length >> 1];
+    return median > 0 ? median : DEFAULT_BEAT_PERIOD;
+};
+const firedCounts = { beats: 0, downbeats: 0 };
+
+/** The 轻拍 / 重拍 strengths (0..2) the envelopes are scaled by from the next step on. */
+export const setBeatFxIntensities = (beat: number, downbeat: number) => {
+    intensities.beat = beat;
+    intensities.downbeat = downbeat;
+};
+
+/** The current 轻拍 / 重拍 strengths; one shared object, read it rather than keep it. */
+export const getBeatFxIntensities = (): Readonly<{ beat: number; downbeat: number }> => intensities;
+
+/** The live effects on screen and their strengths (beatClockTargets.ts `liveBeatEffects`). */
+let liveEffects: Readonly<Record<string, number>> = {};
+
+/**
+ * Sets which beat effects play now and how strongly (services/beatFx/beatEffects.ts), from the
+ * settings and the picture on screen; a frame loop asks `getBeatEffectStrength` for its own.
+ */
+export const setBeatFxLiveEffects = (strengths: Readonly<Record<string, number>>) => {
+    liveEffects = strengths;
+};
+
+/** The strength an effect plays at now, 0..2; 0 while it does not play (off, retired, not on screen). */
+export const getBeatEffectStrength = (id: string): number => liveEffects[id] ?? 0;
+
+/** Whether an effect plays now, its strength turned down to 0 included (雾笺: 0 is no rain, not the fallback). */
+export const isBeatEffectPlaying = (id: string): boolean => id in liveEffects;
+
+/**
+ * How many beats and downbeats the clock has fired since the app started - only ever growing, across
+ * tracks and seeks - so a frame loop that remembers last frame's counts sees exactly the ones fired
+ * since. One shared object, read it rather than keep it.
+ */
+export const getBeatFxFiredCounts = (): Readonly<{ beats: number; downbeats: number }> => firedCounts;
+
+/** Switches the clock to a new track; events arrive later via `setBeatFxEvents`. */
+export const beginBeatFxTrack = (key: string | null) => {
+    // Held only from a track that was ready: its beats in, or itself still inside a hold. Keyed on the
+    // events alone, a run of quick skips dropped the frame at the second one.
+    const wasReady = isBeatFxReady();
+    holdUntil = key && wasReady ? Math.max(holdUntil, performance.now() + READY_HOLD_MS) : 0;
+    // Another track: where the last one was heard is not where this one is.
+    if (key !== trackKey) lastHeard = { key: null, time: 0 };
+    trackKey = key;
+    state.events = [];
+    state.cursor = 0;
+    state.lastTime = null;
+    state.lastBeat = null;
+    state.lastDownbeat = null;
+    if (debug) {
+        debug.trackKey = key;
+        debug.source = key ? 'loading' : 'none';
+        debug.note = null;
+        debug.eventCount = 0;
+    }
+};
+
+/**
+ * Installs the beat list for `key`, with its dynamics scale; ignored if the track changed while it was
+ * loading. Called again for the same track when its accents arrive.
+ */
+export const setBeatFxEvents = (
+    key: string,
+    events: BeatFxEvent[],
+    source: BeatFxSourceKind,
+    note?: string,
+    trackScale = 1,
+) => {
+    if (key !== trackKey) return;
+    state.events = events;
+    state.trackScale = trackScale;
+    beatPeriod = resolveBeatFxBeatPeriod(events);
+    holdUntil = 0;
+    // Resync on the next step rather than firing everything before the current position.
+    state.lastTime = null;
+    if (debug) {
+        debug.source = source;
+        debug.note = note ?? null;
+        debug.eventCount = events.length;
+    }
+};
+
+/**
+ * Whether the playing track's beat list is installed - or a track change is still inside its hold.
+ * Until then (analysing, not cached, no model, a GPU that could not take it) a visualizer draws its
+ * original frame rather than a beat FX frame with nothing driving it.
+ */
+export const isBeatFxReady = (): boolean =>
+    trackKey !== null && (state.events.length > 0 || (holdUntil > 0 && performance.now() < holdUntil));
+
+/** Whether a deck was being heard at the last step; continuous effects rest while it is not. */
+export const isBeatFxHearing = (): boolean => hearing;
+
+/** The installed track's key and the time in it the listener hears (null while nothing plays). */
+export const getBeatFxHeard = (): Readonly<{ key: string | null; time: number | null }> => ({ key: trackKey, time: heardAt });
+
+/** Where `key` was last heard playing (s), 0 if it has not been: the playhead 雾笺's vocals start from. */
+export const getBeatFxLastHeard = (key: string): number => (lastHeard.key === key ? lastHeard.time : 0);
+
+/** Stops the clock and zeroes both envelopes; called when the FX are switched off. */
+export const stopBeatFx = () => {
+    beginBeatFxTrack(null);
+    state.beatImpact = 0;
+    state.downbeatImpact = 0;
+    beatImpact.set(0);
+    downbeatImpact.set(0);
+    lastStepAt = null;
+    hearing = false;
+};
+
+/** The last fired plain beat (not a downbeat) of this track, or null. */
+export const getBeatFxLastBeat = (): BeatFxEvent | null => state.lastBeat;
+
+/** The last fired downbeat of this track, or null. */
+export const getBeatFxLastDownbeat = (): BeatFxEvent | null => state.lastDownbeat;
+
+/**
+ * The installed track's whole beat list, sorted by time (empty until it is in). For a picture that
+ * schedules ahead of the beat rather than reacting to it - hanabi launches a shell so it bursts on the
+ * downbeat - and draws purely from the playback time. Read it rather than keep it: a new track or its
+ * accents replace the list.
+ */
+export const getBeatFxEvents = (): readonly BeatFxEvent[] => state.events;
+
+/** The playing track's typical beat length in seconds (median gap), for effects timed in beats. */
+export const getBeatFxBeatPeriod = (): number => beatPeriod;
+
+/** The playing track's dynamics scale (0.45..1); 1 without accents. */
+export const getBeatFxTrackScale = (): number => state.trackScale;
+
+/** Alternating ±1 for the camera tilt; flips on every fired beat. */
+export const getBeatFxRotationSign = (): number => state.rotationSign;
+
+/**
+ * One frame of the beat clock. `audioElement` is the deck being heard, or null when nothing is
+ * playing; `context` is the AudioContext it is routed through, used for output latency.
+ */
+export const tickBeatFx = (audioElement: HTMLMediaElement | null, context: BaseAudioContext | null | undefined) => {
+    const now = performance.now();
+    const dtSec = lastStepAt === null ? 0 : Math.min(0.1, (now - lastStepAt) / 1000);
+    lastStepAt = now;
+
+    let heardTime: number | null = null;
+    if (audioElement && !audioElement.paused && !audioElement.ended) {
+        const live = context as (BaseAudioContext & { outputLatency?: number; baseLatency?: number }) | null | undefined;
+        const latency = (Number(live?.outputLatency) || 0) + (Number(live?.baseLatency) || 0);
+        // What the listener hears lags what the element has decoded by the output latency.
+        heardTime = audioElement.currentTime - latency;
+        if (debug) debug.latencyMs = latency * 1000;
+    }
+    hearing = heardTime !== null;
+    heardAt = heardTime;
+    if (heardTime !== null) lastHeard = { key: trackKey, time: heardTime };
+
+    stepBeatFxClock(state, heardTime, dtSec);
+    firedCounts.beats = state.firedBeats;
+    firedCounts.downbeats = state.firedDownbeats;
+    beatImpact.set(state.beatImpact * intensities.beat);
+    downbeatImpact.set(state.downbeatImpact * intensities.downbeat);
+
+    if (debug) {
+        debug.beats = state.firedBeats;
+        debug.downbeats = state.firedDownbeats;
+        debug.lastT = state.lastFiredT;
+        debug.heardT = heardTime;
+        debug.beatImpact = state.beatImpact;
+        debug.downbeatImpact = state.downbeatImpact;
+    }
+};

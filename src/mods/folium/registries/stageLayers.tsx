@@ -1,7 +1,7 @@
 import React, { Suspense } from 'react';
 import type { Theme } from '@/types';
 import type { FoliumStageLayerDef, FoliumStageSlot } from '../contract';
-import { createFoliumRegistry, useFoliumRegistryEntries } from '../registry';
+import { createFoliumRegistry, useFoliumRegistryEntries } from '../../runtime/registry';
 
 // src/mods/folium/registries/stageLayers.tsx
 // `folium.registries.stageLayers`: mod layers on the player page. The host
@@ -12,9 +12,10 @@ import { createFoliumRegistry, useFoliumRegistryEntries } from '../registry';
 // song, the lyric clock, and the current line.
 //
 // The part that reads those stores lives in ./stageLayerView and is loaded
-// lazily, only once some layer exists: VisualizerShell renders a slot in every
-// window (export page and OBS included), and a static import would drag the
-// playback store and its dependency graph into those bundles.
+// lazily, only once some layer exists: VisualizerBackdrop and VisualizerShell
+// render a slot in every window (export page and OBS included), and a static
+// import would drag the playback store and its dependency graph into those
+// bundles.
 
 const STAGE_SLOTS: readonly FoliumStageSlot[] = ['player.stage.back', 'player.stage.front', 'app.overlay'];
 

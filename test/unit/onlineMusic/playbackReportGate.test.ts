@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../../src/types';
+import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
 
 // test/unit/onlineMusic/playbackReportGate.test.ts
 // The gate is the second half of the risk-control story: even a tracker that somehow produced a
@@ -7,16 +8,28 @@ import type { SongResult } from '../../../src/types';
 
 const reportPlayback = vi.fn(async () => {});
 
+// The providers of this build as the gate sees them: 'reports' takes listening reports, 'plain'
+// does not, 'unconfigured' would but is not configured.
+const providers = vi.hoisted(() => ({
+    list: [
+        { providerId: 'plain', availability: { configured: true }, reports: false },
+        { providerId: 'reports', availability: { configured: true }, reports: true },
+        { providerId: 'unconfigured', availability: { configured: false }, reports: true },
+    ],
+}));
+
 vi.mock('../../../src/services/onlineMusic/omni', () => ({
     omni: {
         reportPlayback: (...args: unknown[]) => reportPlayback(...(args as [])),
         canReportPlayback: () => true,
-        getProviderCapabilities: () => ({ playbackReports: true }),
-        getProviderAvailability: () => ({ configured: true }),
+        getProviderSummaries: () => providers.list,
+        getProviderCapabilities: (providerId: string) => ({
+            playbackReports: providers.list.find(provider => provider.providerId === providerId)!.reports,
+        }),
     },
 }));
 
-const { MAX_REPORTS_PER_HOUR, MIN_REPORT_GAP_MS, resetPlaybackReportGate, sendPlaybackReport } = await import(
+const { MAX_REPORTS_PER_HOUR, MIN_REPORT_GAP_MS, isPlaybackReportReady, resetPlaybackReportGate, sendPlaybackReport } = await import(
     '../../../src/services/onlineMusic/playbackReportGate'
 );
 
@@ -27,6 +40,31 @@ const song = {
 } as unknown as SongResult;
 
 const report = { playedSeconds: 45, totalSeconds: 240 };
+
+describe('whether listening reports can be turned on', () => {
+    const signIn = (...providerIds: string[]) => useOnlineProviderAccountStore.setState({
+        accounts: Object.fromEntries(providerIds.map(providerId => [providerId, { status: 'authenticated' }])) as never,
+    });
+    const songOf = (providerId: string) => ({ id: 1, sourceRef: { kind: 'online', providerId, mediaId: '1' } }) as unknown as SongResult;
+
+    it('is yes only while the account of a provider that takes reports is signed in', () => {
+        signIn();
+        expect(isPlaybackReportReady()).toBe(false);
+        signIn('plain', 'unconfigured');
+        expect(isPlaybackReportReady()).toBe(false);
+        signIn('reports');
+        expect(isPlaybackReportReady()).toBe(true);
+    });
+
+    it('answers for the provider a song belongs to when given one', () => {
+        signIn('plain', 'reports');
+        expect(isPlaybackReportReady(songOf('reports'))).toBe(true);
+        expect(isPlaybackReportReady(songOf('plain'))).toBe(false);
+        expect(isPlaybackReportReady({ id: 1, sourceRef: { kind: 'local', mediaId: 'a' } } as unknown as SongResult)).toBe(false);
+        signIn('plain');
+        expect(isPlaybackReportReady(songOf('reports'))).toBe(false);
+    });
+});
 
 describe('playback report gate', () => {
     beforeEach(() => {

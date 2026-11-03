@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { CollectionNavigationSnapshot, GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { CollectionNavigationSnapshot, GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import {
     isSameCollectionPath,
     isSameCollectionVisit,
     projectNavigationTrail,
     resolveCollectionPopTo,
     resolveCollectionPush,
-} from '@/library/core/model/collectionNavigation';
+} from '@/library/core/collection/collectionNavigation';
 
 // test/unit/library/core/collectionNavigation.test.ts
 // N1 的纯规则：进入集合时只折叠紧邻往返（栈顶相同 → noop，倒数第二层相同 → back，其余 → push，栈里可以有重复）；

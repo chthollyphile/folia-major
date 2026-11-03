@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qqNormalize';
+import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { canDislikeCurrentSong } from '@/utils/playerLikeAvailability';
 import type { UnifiedSong } from '@/types';
 
 // test/unit/onlineMusic/qqOmniGates.test.ts
-// QQ 是第一个「能收藏歌单、能加删歌，却不能红心、不能不喜欢」的 provider：通用界面的门控按真 provider 走一遍。
+// QQ 能收藏歌单与专辑、能加删歌、能红心，却不能不喜欢：通用界面的门控按真 provider 走一遍。
 
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAccountSnapshot: vi.fn() }));
 
@@ -25,20 +25,25 @@ const favourite = normalizeQqCollection({ tid: 80001, dirId: 36, name: '收藏�
 const recommended = normalizeQqCollection({ tid: 90001, title: '推荐歌单', creator: { encrypt_uin: 'enc', nick: '别人' } });
 
 describe('QQ collection gates', () => {
-    // 「我喜欢」编辑不了（没有红心），以前会因此落到收藏分支，一点就是去收藏自己的 201 目录。
+    // 「我喜欢」以前编辑不了（没有红心），会因此落到收藏分支，一点就是去收藏自己的 201 目录。
     it('never offers to subscribe the account\'s own playlists, liked one included', () => {
         expect(omni.canSubscribeCollection(liked)).toBe(false);
         expect(omni.canSubscribeCollection(owned)).toBe(false);
         expect(omni.canSubscribeCollection(favourite)).toBe(true);
         expect(omni.canSubscribeCollection(recommended)).toBe(true);
-        // 收藏专辑后端还没开放。
-        expect(omni.canSubscribeCollection({ ...recommended, type: 'album' })).toBe(false);
+        // 3.3.1 起能收藏专辑。
+        expect(omni.canSubscribeCollection({ ...recommended, type: 'album' })).toBe(true);
     });
 
     it('edits only the ordinary playlists the backend accepts writes for', () => {
         expect(omni.canEditCollectionTracks(owned)).toBe(true);
         expect(omni.canEditCollectionTracks(ownedSystemDir)).toBe(false);
-        expect(omni.canEditCollectionTracks(liked)).toBe(false);
+        // 「我喜欢」走红心：删歌就是取消红心。
+        expect(omni.canEditCollectionTracks(liked)).toBe(true);
+    });
+
+    it('offers the like button on a QQ song', () => {
+        expect(omni.canLikeSong(normalizeQqSong({ mid: 'mid-a', id: 1, name: 'a', singer: [], album: {} }))).toBe(true);
     });
 });
 

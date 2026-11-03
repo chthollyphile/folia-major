@@ -15,6 +15,7 @@ import type {
     SongResult,
     StageSource,
     SubtitleContentMode,
+    SubtitleOverlayLayout,
     Theme,
     UrlBackgroundItem,
     VisualizerBackgroundMode,
@@ -87,6 +88,7 @@ export interface ObsBrowserSourceConfig {
     hideTranslationSubtitle: boolean;
     showSubtitleTranslation?: boolean;
     subtitleContentMode?: SubtitleContentMode;
+    subtitleOverlayLayout?: SubtitleOverlayLayout;
     seed: string | number;
     cappellaCustomEmojiImages?: CappellaEmojiImage[];
     cappellaCustomAvatarImages?: CappellaAvatarImage[];

@@ -5,7 +5,7 @@
 export const detectChorusLines = (lrcString: string): Set<string> => {
     const lines = lrcString.split('\n');
     const lineCounts = new Map<string, number>();
-    const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
+    const timeRegex = /\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/g;
 
     // 1. Count frequencies of normalized lines
     lines.forEach(line => {

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import libraryBehavior from './libraryBehavior.probe';
 import homeBehavior from './homeBehavior.probe';
-import { usePagePonderShortcut } from '../../src/hooks/usePagePonderShortcut';
+import { usePagePonderShortcut } from '../../src/components/ponder/hold/usePagePonderShortcut';
 import { openCurrentPagePonder, readCurrentPagePonderTarget } from '../../src/services/ponder/pagePonderTarget';
 import { usePonderStore } from '../../src/stores/usePonderStore';
-import { useLibrarySuiteStore } from '../../src/library/core/state/useLibrarySuiteStore';
+import { useLibrarySuiteStore } from '../../src/library/core/suite/useLibrarySuiteStore';
 import type { ProbeDefinition } from './definition';
 
 // dev/probes/pagePonder.probe.tsx：首页/集合/歌手真实 suite 页面上的教程解析与长按入口探针。

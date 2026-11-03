@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveLibraryLayerPresentation } from '@/library/core/model/libraryStage';
+import { resolveLibraryLayerPresentation } from '@/library/core/suite/libraryStage';
 
 // test/unit/library/core/libraryStage.test.ts
 // 集合宿主的分层呈现（B1）：当前层由带 stage 的 suite 渲染时不垫背景板、不藏首页；其余情况与没有 stage 时一样。

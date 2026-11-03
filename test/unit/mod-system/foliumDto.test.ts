@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Line, SongResult, Theme } from '@/types';
 import { fromFoliumLines, toFoliumLines, toFoliumPlaybackFailureReason, toFoliumSong, toFoliumTheme } from '@/mods/folium/dto';
-import type { PlaybackFailureReason } from '@/types/playbackFailure';
+import type { OnlineFailureCaseId } from '@/types/onlineMusic';
 import { FOLIUM_LYRICS_HELPERS, FOLIUM_THEME_HELPERS } from '@/mods/folium/sharedHelpers';
 import { buildLineRenderHints, getLineRenderEndTime, getLineRenderHints } from '@/utils/lyrics/renderHints';
 import { resolveThemeFontStack } from '@/utils/fontStacks';
@@ -202,40 +202,43 @@ describe('toFoliumSong', () => {
 describe('toFoliumPlaybackFailureReason', () => {
     // Every host reason, with the coarse class mods see. A Record so a reason added to the host type
     // without a row here fails the type check, and the length check below catches a dropped row.
-    const CLASSES: Record<PlaybackFailureReason, string> = {
-        'not-signed-in': 'auth',
-        'session-expired': 'auth',
-        'membership-required': 'restricted',
+    const CLASSES: Record<OnlineFailureCaseId, string> = {
+        'sign-in-needed': 'auth',
+        'account-refused': 'restricted',
+        'subscription-required': 'restricted',
         'purchase-required': 'restricted',
         'entitlement-required': 'restricted',
         'preview-only': 'restricted',
         'region-restricted': 'restricted',
+        'not-public': 'restricted',
         'taken-down': 'taken-down',
-        network: 'network',
-        timeout: 'network',
-        'service-unavailable': 'network',
-        'rate-limited': 'network',
-        'invalid-response': 'unknown',
+        unreachable: 'network',
+        'local-service-stopped': 'network',
+        'retry-later': 'network',
+        'not-configured': 'unknown',
+        'no-audio': 'unknown',
+        'audio-unplayable': 'unknown',
+        refused: 'unknown',
         unknown: 'unknown',
     };
 
-    it('classes all fourteen host reasons', () => {
-        expect(Object.keys(CLASSES)).toHaveLength(14);
+    it('classes all seventeen host reasons', () => {
+        expect(Object.keys(CLASSES)).toHaveLength(17);
         for (const [reason, expected] of Object.entries(CLASSES)) {
-            expect(toFoliumPlaybackFailureReason(reason as PlaybackFailureReason), reason).toBe(expected);
+            expect(toFoliumPlaybackFailureReason(reason as OnlineFailureCaseId), reason).toBe(expected);
         }
     });
 
     it('only ever answers one of the five contract classes', () => {
         const allowed = new Set(['auth', 'restricted', 'taken-down', 'network', 'unknown']);
         for (const reason of Object.keys(CLASSES)) {
-            expect(allowed.has(toFoliumPlaybackFailureReason(reason as PlaybackFailureReason))).toBe(true);
+            expect(allowed.has(toFoliumPlaybackFailureReason(reason as OnlineFailureCaseId))).toBe(true);
         }
     });
 
     it('treats a path without a reason, or a reason it does not know, as unknown', () => {
         expect(toFoliumPlaybackFailureReason(null)).toBe('unknown');
         expect(toFoliumPlaybackFailureReason(undefined)).toBe('unknown');
-        expect(toFoliumPlaybackFailureReason('brand-new-reason' as PlaybackFailureReason)).toBe('unknown');
+        expect(toFoliumPlaybackFailureReason('brand-new-reason' as OnlineFailureCaseId)).toBe('unknown');
     });
 });

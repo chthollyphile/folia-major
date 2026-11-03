@@ -1,4 +1,4 @@
-import type { LibraryCollectionDescriptor } from '../../core/contracts/collection';
+import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
 import type { ProviderCollection } from '../../../types/onlineMusic';
 import type { BravaisSeamAlbum } from './bravaisSeamModels';
 

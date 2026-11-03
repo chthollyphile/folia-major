@@ -14,7 +14,7 @@ import {
     resolveOnlineTabUnavailableReason,
     translateHomeMessage,
     translateHomeTabs,
-} from '@/library/core/model/homeSources';
+} from '@/library/core/home/homeSources';
 
 // test/unit/library/core/homeSources.test.ts
 // 首页来源与页签（原 Grid3D 的派生与写在 JSX 里的页签列表）：账户 / 歌单的回退、能力 → 页签可用性与原因、
@@ -102,7 +102,7 @@ describe('home tabs', () => {
 
     it('lists playlist, radio, albums, local and navidrome in that order', () => {
         const tabs = resolveHomeTabs({
-            visibility: { playlist: true, radio: true, albums: true, local: true },
+            visibility: { playlist: true, radio: true, explore: false, albums: true, local: true },
             navidromeEnabled: true,
             online,
             localAvailability: supported,
@@ -114,7 +114,7 @@ describe('home tabs', () => {
 
     it('hides the tabs the layout settings turn off and Navidrome when it is disabled', () => {
         const tabs = resolveHomeTabs({
-            visibility: { playlist: true, radio: false, albums: true, local: false },
+            visibility: { playlist: true, radio: false, explore: false, albums: true, local: false },
             navidromeEnabled: false,
             online,
             localAvailability: supported,
@@ -122,9 +122,23 @@ describe('home tabs', () => {
         expect(tabs.map(tab => tab.key)).toEqual(['playlist', 'albums']);
     });
 
+    it('shows explore after radio only when the provider has a page of its own and the setting is on', () => {
+        const visibility = { playlist: true, radio: true, explore: true, albums: true, local: false };
+        const withPage = source({ capabilities: { ...ALL, explore: true } });
+        const keysOf = (online: ReturnType<typeof source>, shown = visibility) => resolveHomeTabs({
+            visibility: shown,
+            navidromeEnabled: false,
+            online,
+            localAvailability: supported,
+        }).map(tab => tab.key);
+        expect(keysOf(withPage)).toEqual(['playlist', 'radio', 'explore', 'albums']);
+        expect(keysOf(source())).toEqual(['playlist', 'radio', 'albums']);
+        expect(keysOf(withPage, { ...visibility, explore: false })).toEqual(['playlist', 'radio', 'albums']);
+    });
+
     it('gives each unavailable tab its reason, naming the provider', () => {
         const tabs = translateHomeTabs(resolveHomeTabs({
-            visibility: { playlist: true, radio: true, albums: true, local: true },
+            visibility: { playlist: true, radio: true, explore: false, albums: true, local: true },
             navidromeEnabled: false,
             online: source({ capabilities: NONE }),
             localAvailability: { supported: false, reason: 'insecure-http' },
@@ -148,10 +162,11 @@ describe('home tabs', () => {
     });
 
     it('knows the online tabs and their titles', () => {
-        expect(['playlist', 'radio', 'albums', 'local', 'navidrome'].map(tab => isOnlineHomeTab(tab as never))).toEqual([true, true, true, false, false]);
+        expect(['playlist', 'radio', 'albums', 'explore', 'local', 'navidrome'].map(tab => isOnlineHomeTab(tab as never))).toEqual([true, true, true, true, false, false]);
         expect(onlineHomeTitleKey('playlist')).toBe('home.playlists');
         expect(onlineHomeTitleKey('albums')).toBe('home.albums');
         expect(onlineHomeTitleKey('radio')).toBe('home.radio');
+        expect(onlineHomeTitleKey('explore')).toBe('home.explore');
         expect(resolveOnlineTabUnavailableReason(online, 'radio')).toBeUndefined();
     });
 });

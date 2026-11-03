@@ -1,6 +1,6 @@
 # 首页页面
 
-Folium 1.5 提供 `folium.registries.homeTabs` 与 `folium.ui.openHomeTab(localId)`。入口追加到 Grid 与 Bravais 的首页导航；宿主提供完整页面容器和返回原生首页的导航。模组页面在自己的 ShadowRoot 中渲染，不需要访问宿主 DOM。
+Folium 提供 `folium.registries.homeTabs` 与 `folium.ui.openHomeTab(localId)`。入口追加到 Grid 与 Bravais 的首页导航；宿主提供完整页面容器和返回原生首页的导航。模组页面在自己的 ShadowRoot 中渲染，不需要访问宿主 DOM。
 
 ```js
 const page = folium.registries.homeTabs.register({
@@ -20,7 +20,7 @@ folium.ui.openHomeTab('messages');
 
 ## 页面容器
 
-容器有确定宽高；页面内容应使用 `min-width: 0` / `min-height: 0` 和适当的内部滚动布局。宿主为容器提供 `--folium-*` 主题变量，`ctx.getTheme()` / `ctx.subscribe()` 与播放器面板页签相同。语言变化会以新 `ctx.locale` 重新挂载。
+容器有确定宽高；页面内容应使用 `min-width: 0` / `min-height: 0` 和适当的内部滚动布局。宿主为容器提供 `--folium-*` 主题变量，`ctx.getTheme()` / `ctx.onChange()` 与播放器面板页签相同。语言变化会以新 `ctx.locale` 重新挂载。
 
 页面顶部是宿主的页头：返回按钮、原生页签和各模组页面的页签。页面整体下移 32px，让出自绘标题栏的拖拽区，页头整块都可以点。页头里点原生页签与在首页里点它效果相同（例如 Bravais 会收起缝里的搜索框）；该页签不可用时什么都不做，页面留着。
 
@@ -44,6 +44,6 @@ folium.ui.openHomeTab('messages');
 ## 样例
 
 - [sample-home-tab](../../dev/folium/sample-home-tab/README.md)：离线验证页面容器、输入隔离、挂载清理和注销入口，不需要真实账号。
-- [sample-playback-console](../../dev/folium/sample-playback-console/README.md)：在页面里调音量、循环模式并分页点播播放队列，演示 Folium 1.5 的播放控制接口。
+- [sample-playback-console](../../dev/folium/sample-playback-console/README.md)：在页面里调音量、循环模式并分页点播播放队列，演示播放控制接口。
 
 两个样例都没有签名，也不在开发版自动扫描的 `mods/` 目录里，安装方法见各自的 README。

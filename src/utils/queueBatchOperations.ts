@@ -1,5 +1,5 @@
 import type { SongResult } from '../types';
-import { getPlaybackSongKey } from './appPlaybackGuards';
+import { queueIndexOf } from './playbackNeighbors';
 import type { QueueBatchAction } from '../components/command-palette/queueQuery';
 
 // src/utils/queueBatchOperations.ts
@@ -12,12 +12,14 @@ type ApplyQueueBatchOperationParams = {
     action: QueueBatchAction;
 };
 
+// The entry that is the very object playing, else the first entry of the same song (queueIndexOf).
+// With one song queued twice as two objects this answers the later entry when that object is the
+// one playing; queueIndexOf alone answers the earlier one, as the track handlers do.
 const findCurrentQueueIndex = (queue: SongResult[], currentSong: SongResult | null) => {
     if (!currentSong) return -1;
     const exactIndex = queue.findIndex(song => song === currentSong);
     if (exactIndex >= 0) return exactIndex;
-    const currentSongKey = getPlaybackSongKey(currentSong);
-    return queue.findIndex(song => getPlaybackSongKey(song) === currentSongKey);
+    return queueIndexOf(queue, currentSong);
 };
 
 export const applyQueueBatchOperation = ({

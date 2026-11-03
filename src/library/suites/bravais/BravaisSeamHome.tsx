@@ -74,13 +74,13 @@ import './bravaisHome.css';
 
 /**
  * B10 账户位：首页在线页签窄缝里的平台切换（account-select / account-logout）放在这里。B9 只给一个空容器，挂着
- * `data-bravais-account-slot=<providerId>`；B10 按 BravaisHomeAccount（扩展它）在里面渲染平台列表与登出。
- * B10：容器里是 BravaisSeamAccountSwitcher（书脊上是一个展开缝的图标按钮）。
+ * `data-bravais-account-slot=<providerId>`；里面是账户入口，点了打开共用的登录窗口。
+ * 容器里是 BravaisSeamAccountSwitcher（书脊上是一个图标按钮）。
  * fb4：容器是首页窄缝的直接子级，排在工具格正上方。
  */
-export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; compact: boolean; onExpand: () => void }> = ({ account, compact, onExpand }) => (
+export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; compact: boolean }> = ({ account, compact }) => (
     <div className="bravais-seam-account" data-bravais-account-slot={account.providerId} aria-label={account.providerLabel}>
-        <BravaisSeamAccountSwitcher account={account} compact={compact} onExpand={onExpand} />
+        <BravaisSeamAccountSwitcher account={account} compact={compact} />
     </div>
 );
 
@@ -103,13 +103,15 @@ const SectionIcon: React.FC<{ section: BravaisHomeSection }> = ({ section }) => 
  * 二级切换（fb3）：纵向一项一行，激活项是图标 + 竖排文字（short 时文字缩成一个字），其余只有图标；全名在
  * aria-label / title。`measure` 是全名测量副本（span，不可聚焦、不进无障碍树）。
  */
-const HomeSeamSections: React.FC<{
+export const HomeSeamSections: React.FC<{
     sections: readonly BravaisHomeSection[];
     label?: string;
     short: boolean;
     onSelect?: (key: string) => void;
     measure?: boolean;
-}> = ({ sections, label, short, onSelect, measure = false }) => {
+    /** 横的缝（BravaisSeamHomeRow）里排成一行。 */
+    orientation?: 'vertical' | 'horizontal';
+}> = ({ sections, label, short, onSelect, measure = false, orientation = 'vertical' }) => {
     const reduced = useBravaisReducedTransitions();
     const activeKey = sections.find(section => section.active)?.key ?? '';
     const labelText = (section: BravaisHomeSection) => (short ? abbreviateSeamTabLabel(section.label) : section.label);
@@ -127,7 +129,7 @@ const HomeSeamSections: React.FC<{
         );
     }
     return (
-        <div className={`bravais-seam-sections${short ? ' is-short' : ''}`} role="tablist" aria-label={label} aria-orientation="vertical">
+        <div className={`bravais-seam-sections${short ? ' is-short' : ''}`} role="tablist" aria-label={label} aria-orientation={orientation}>
             {sections.map(section => (
                 // 换激活项：文字从旧的一行挪到新的一行，各行滑到新位置（只在激活项变了时量，layoutDependency），新的文字像
                 // 翻牌一样转进来；降低动效时不滑、文字淡入。
@@ -170,7 +172,7 @@ const HomeSeamSections: React.FC<{
  * 直达入口（特殊集合，fb11）：并排的几列竖排文字按钮，显示种类的短名（`names`），全名在 aria-label / title；`rule` 时上面
  * 一道分隔线（与二级切换隔开）。`measure` 是测量副本（span，不可聚焦、不进无障碍树）。
  */
-const HomeSeamShortcuts: React.FC<{
+export const HomeSeamShortcuts: React.FC<{
     shortcuts: readonly BravaisHomeShortcut[];
     label?: string;
     rule: boolean;
@@ -382,7 +384,7 @@ const BravaisSeamHome: React.FC<{
                 </button>
             )}
             {/* fb4：账户入口贴在工具格正上方（不在中段），平台列表从它往上弹出、盖在导航区上。 */}
-            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} onExpand={expand} />}
+            {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} />}
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
                     menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut} />

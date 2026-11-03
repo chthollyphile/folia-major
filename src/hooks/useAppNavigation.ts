@@ -11,9 +11,9 @@ import {
     notifyCollectionPop,
     useCollectionNavigationStore,
 } from '../stores/useCollectionNavigationStore';
-import type { GridViewCollectionDescriptor } from '../library/core/contracts/collection';
-import { collectionHashPath } from '../library/core/model/collectionIdentity';
-import { resolveCollectionPopTo } from '../library/core/model/collectionNavigation';
+import type { GridViewCollectionDescriptor } from '../library/core/collection/collection.contract';
+import { collectionHashPath } from '../library/core/collection/collectionIdentity';
+import { resolveCollectionPopTo } from '../library/core/collection/collectionNavigation';
 import {
     APP_HISTORY_SESSION,
     createNavigationHistoryJournal,
@@ -22,7 +22,7 @@ import {
     type NavigationHistoryState,
 } from './navigationHistoryJournal';
 import { useAppViewStore } from '../stores/useAppViewStore';
-import type { AppView } from '../stores/useAppViewStore';
+import type { AppView, LatticeSource } from '../stores/useAppViewStore';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { resolvePlaybackSurface, usePlaybackEntryViewStore, type PlaybackEntryView } from '../stores/usePlaybackEntryViewStore';
 import { setStatusMessage } from '../stores/useStatusMessageStore';
@@ -89,8 +89,10 @@ const getSearchHistorySnapshot = (): NavigationHistoryState['search'] => {
     const searchState = useSearchNavigationStore.getState();
     return searchState.isSearchOpen
         ? {
-            query: searchState.searchQuery,
+            // 记下的是搜出当前结果的词：恢复时按它查缓存，输入框里没提交的字查不到。
+            query: searchState.submittedQuery,
             sourceTab: searchState.searchSourceTab,
+            kind: searchState.searchKind,
             returnView: searchState.searchReturnView,
         }
         : null;
@@ -210,6 +212,8 @@ export function useAppNavigation() {
 
     const restoreHistoryState = useCallback((state: NavigationHistoryState) => {
         localStorage.setItem(LAST_APP_VIEW_KEY, state.view);
+        // Before the view: the wall reads what it shows when it is put up.
+        if (state.view === 'lattice') useAppViewStore.getState().setLatticeSource(state.latticeSource ?? 'queue');
         setCurrentView(state.view);
         useCollectionNavigationStore.getState().restore(state.collection ?? null);
         if (state.search) {
@@ -225,20 +229,25 @@ export function useAppNavigation() {
         hash,
         search = null,
         collection = null,
+        latticeSource,
     }: {
         view: ViewState;
         replace?: boolean;
         hash?: string;
         search?: NavigationHistoryState['search'];
         collection?: NavigationHistoryState['collection'];
+        latticeSource?: LatticeSource;
     }) => {
         const currentHistoryIndex = getAppHistoryIndex(window.history.state);
-        const nextState = buildHistoryState(
-            view,
-            search,
-            collection,
-            replace ? currentHistoryIndex : currentHistoryIndex + 1,
-        );
+        const nextState: NavigationHistoryState = {
+            ...buildHistoryState(
+                view,
+                search,
+                collection,
+                replace ? currentHistoryIndex : currentHistoryIndex + 1,
+            ),
+            ...(latticeSource === 'explore' ? { latticeSource } : {}),
+        };
         const method = replace ? window.history.replaceState.bind(window.history) : window.history.pushState.bind(window.history);
         // 当前记录可能是别处直接 pushState 写的（例如 suite 自己的面板记录），压栈前先把它同步进日志。
         if (!replace) historyJournal.observe(window.history.state);
@@ -353,6 +362,8 @@ export function useAppNavigation() {
 
     useEffect(() => {
         if (!isFmMode || currentView !== 'lattice') return;
+        // A wall of the explore page's entries shows no queue, so FM has nothing to take it down for.
+        if (useAppViewStore.getState().latticeSource === 'explore') return;
         const collection = useCollectionNavigationStore.getState().snapshot;
         const search = getSearchHistorySnapshot();
         // FM owns and extends its queue dynamically, so replace a stale Lattice entry instead of
@@ -376,13 +387,22 @@ export function useAppNavigation() {
         });
     }, [pushNavigationState]);
 
-    const navigateToLattice = useCallback(() => {
-        if (blockLatticeNavigationInFm()) return;
+    // `source`: the home header's pill, pressed on the explore tab, asks for the explore page's
+    // entries. Every other way in shows the play queue. (Several callers are click handlers and
+    // hand over the event: whatever is not 'explore' is the queue.)
+    const navigateToLattice = useCallback((source?: LatticeSource) => {
+        const latticeSource: LatticeSource = source === 'explore' ? 'explore' : 'queue';
+        // FM owns its queue and extends it as it plays, so the wall cannot show it. The explore
+        // page's entries are no queue: that wall opens in FM too.
+        if (latticeSource === 'queue' && blockLatticeNavigationInFm()) return;
         if (useAppViewStore.getState().view === 'lattice') return;
         useSearchNavigationStore.getState().hideSearchOverlay();
+        // A wall opened anew starts where an opening starts, not on the tile an earlier one was left on.
+        useAppViewStore.getState().setLatticeReturnTileId(null);
         pushNavigationState({
             view: 'lattice',
             hash: '#lattice',
+            latticeSource,
         });
     }, [pushNavigationState]);
 
@@ -468,7 +488,8 @@ export function useAppNavigation() {
         returnView?: SearchReturnView;
     }) => {
         useCollectionNavigationStore.getState().clear();
-        const search = { query, sourceTab, returnView };
+        // 搜索先提交、再压历史：种类按提交时定下的记（来源搜不到的种类已退回单曲）。
+        const search = { query, sourceTab, kind: useSearchNavigationStore.getState().searchKind, returnView };
         pushNavigationState({
             view: 'home',
             replace,

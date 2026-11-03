@@ -10,7 +10,7 @@ import type {
     NavidromeGridViewCollectionDescriptor,
     NavidromeGridViewCollectionType,
     OnlineGridViewCollectionDescriptor,
-} from '../../../library/core/contracts/collection';
+} from '../../../library/core/collection/collection.contract';
 import { buildLocalLibraryIndex, followEntityRedirect } from '../../../utils/localLibraryIndex';
 import { getLocalCoverAssetUrl } from '../../../services/localCoverAssetUrl';
 
@@ -25,9 +25,9 @@ export type {
     NavidromeGridViewCollectionDescriptor,
     NavidromeGridViewCollectionType,
     OnlineGridViewCollectionDescriptor,
-} from '../../../library/core/contracts/collection';
-// 集合身份搬到了 library/core/model/collectionIdentity：store 与组件共用一份，在线集合带上 provider。
-export { collectionKey } from '../../../library/core/model/collectionIdentity';
+} from '../../../library/core/collection/collection.contract';
+// 集合身份搬到了 library/core/collection/collectionIdentity：store 与组件共用一份，在线集合带上 provider。
+export { collectionKey } from '../../../library/core/collection/collectionIdentity';
 
 const getDisplayName = (name: React.ReactNode) => (
     typeof name === 'string' || typeof name === 'number'
@@ -231,7 +231,7 @@ export const resolveLocalGridViewCoverSource = (
     return getLocalGridViewCoverSource(orderedSongs);
 };
 
-// Navidrome 曲目的加载搬到了 library/core/services/navidromeCollectionTracks；资源直接使用它，这里只适配集合描述与本地数据。
+// Navidrome 曲目的加载搬到了 library/core/collection/resource/navidromeCollectionTracks.service；资源直接使用它，这里只适配集合描述与本地数据。
 
 export const isLocalGridViewCollection = (
     collection: GridViewCollectionDescriptor

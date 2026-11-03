@@ -1,15 +1,16 @@
-import { Blinds, Captions, Droplets, GalleryVerticalEnd, Grid2x2, Palette, SquareDashed } from 'lucide-react';
+import { Blinds, Captions, Droplets, GalleryVerticalEnd, Grid2x2, Palette, Rows3, SquareDashed } from 'lucide-react';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
 import { createSettingsAnchorCommand, createToggleCommand, defineCommand } from '../commandFactories';
 import {
     libraryWallLookPickerSurface,
+    libraryWallSeamDirectionPickerSurface,
     libraryWallSeamStylePickerSurface,
     libraryWallWindowsPickerSurface,
 } from '../surfaces/libraryWallLookSurface';
 
 // src/components/command-palette/commands/libraryWallLookCommands.ts
-// bravais 独有设置的命令（settings 组）：透光档位 picker、每块窗数 picker、集合叠页边开关、信息条始终透明开关、
-// 信息条样式 picker、墙后画面的歌词 / 模糊开关，以及跳到界面设置「Bravais 墙面」分组的锚点命令（settings-bravais）。
+// bravais 独有设置的命令（settings 组）：透光档位 picker、每块窗数 picker、集合叠页边开关、信息条方向 picker（自动 / 自动（反向）/
+// 竖向 / 横向）、信息条始终透明开关、信息条样式 picker、墙后画面的歌词 / 模糊开关，以及跳到界面设置「Bravais 墙面」分组的锚点命令（settings-bravais）。
 // 可用性与设置分区（LibraryWallLookSettings）同一个谓词：生效 suite 是 bravais（isBravaisLibraryActive，经 context 透出，
 // 这里不 import registry）；窗数命令另要求当前档位是部分透明——别的档位没有「窗数」可调，设置分区里也不显示那一行；
 // 信息条样式 picker 另要求信息条不是「始终透明」——透明开着时预设不生效，设置分区里那一组也是禁用的。
@@ -71,6 +72,19 @@ export const libraryWallLookCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleLibraryWallStackEdges(),
         { icon: GalleryVerticalEnd, isAvailable: isLibraryWallLookCommandAvailable },
     ),
+    defineCommand({
+        id: 'library-wall-seam-direction-picker',
+        group: 'settings',
+        title: 'Pick info strip direction',
+        description: 'Open the info strip as a column, a row across the wall, or by the screen shape',
+        keywords: ['strip direction', 'horizontal strip', 'vertical strip', 'portrait', 'reversed', 'bravais', '信息条方向', '横向', '竖向', '自动', '反向', '横条'],
+        icon: Rows3,
+        isAvailable: isLibraryWallLookCommandAvailable,
+        requiresInput: true,
+        surface: libraryWallSeamDirectionPickerSurface,
+        placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
+        execute: () => false,
+    }),
     createToggleCommand(
         'library-wall-seam-clear-toggle',
         'settings',

@@ -1,31 +1,23 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { listFiles } from '../files.mjs';
+import { scanModuleSpecifiers } from './specifiers.mjs';
 // dev/mcp/ts-code-map/graph/modules.mjs
 
 /**
  * 模块依赖图。
  *
- * 每次调用都整个重建，不做缓存也不落盘：全仓 851 个文件扫一遍 import 只要 ~22ms，
+ * 每次调用都整个重建，不做缓存也不落盘：全仓约 3500 个文件按词扫一遍 import 约 0.3s（冷启动约 0.4s），
  * 比任何失效策略都便宜，而且**结构上不可能过期** —— 摆脱手维护索引正是这个 server 的目的。
  */
 
 const SOURCE_EXT = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 const RESOLVE_ORDER = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '/index.ts', '/index.tsx', '/index.js'];
 /**
- * import 与 re-export 的模块说明符，含动态 import()。第一组留着判断是不是纯类型导入，
- * 第三组只在动态 import() 命中时有值——两者在依赖上都成立，但只有静态那条是**急切**的：
- * 动态的那条由 bundler 切成独立 chunk，不进首屏。区分它才能回答「这个模块开机要拉多少」。
- */
-const SPECIFIER = /(?:^|\n)(\s*(?:import|export)[^;\n]*?)from\s*['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]/g;
-/**
  * Vite 的 `import.meta.glob('./x/*.ts')`。visualizer 模式、background、dev probe 全靠它自动注册，
  * 不展开的话依赖图会在 registry 这里整个断掉——而这正是最需要看清依赖的地方。
  */
 const GLOB_CALL = /import\.meta\.glob(?:<[^>]*>)?\(\s*(\[[^\]]*\]|['"][^'"]+['"])/g;
-
-/** `import type { X } from` 只在编译期存在，运行时没有这条依赖，不该和值导入混为一谈。 */
-const TYPE_ONLY = /^\s*(?:import|export)\s+type\b/;
 
 /**
  * UI 层的种子。值导入了这些包就是 UI 模块，由此沿依赖边向上传染。
@@ -125,13 +117,13 @@ export function buildModuleGraph(root) {
         } catch {
             continue;
         }
-        SPECIFIER.lastIndex = 0;
-        let match;
-        while ((match = SPECIFIER.exec(text)) !== null) {
-            const spec = match[2] ?? match[3];
-            if (!spec) continue;
-            const isDynamic = match[3] !== undefined;
-            const isTypeImport = Boolean(match[1] && TYPE_ONLY.test(match[1]));
+        // `import type { X } from` 只在编译期存在，运行时没有这条依赖，不该和值导入混为一谈。
+        // 动态 import() 在依赖上同样成立，但只有静态那条是**急切**的：动态的那条由 bundler 切成独立 chunk，
+        // 不进首屏。区分它才能回答「这个模块开机要拉多少」。
+        // 一对文件之间全是 `import type`（类型位置的 import() 也算）才算仅类型：同一个模块既 `import type`
+        // 又值导入（含动态 import()、glob）很常见，那条边在运行时照样成立，标成仅类型的话分层检查和 UI 传染都会跳过它。
+        const valueTargets = new Set();
+        for (const { specifier: spec, typeOnly: isTypeImport, dynamic: isDynamic } of scanModuleSpecifiers(text, file)) {
             if (UI_PACKAGES.test(spec) && !isTypeImport) uiSeeds.add(file);
             const target = resolveSpecifier(spec, file, fileSet);
             if (!target) {
@@ -142,6 +134,7 @@ export function buildModuleGraph(root) {
             addEdge(forward, file, target);
             addEdge(reverse, target, file);
             if (isTypeImport) typeOnly.add(edgeKey(file, target));
+            else valueTargets.add(target);
             if (isDynamic) dynamic.add(edgeKey(file, target));
         }
 
@@ -149,7 +142,9 @@ export function buildModuleGraph(root) {
             addEdge(forward, file, target);
             addEdge(reverse, target, file);
             globEdges.add(edgeKey(file, target));
+            valueTargets.add(target);
         }
+        for (const target of valueTargets) typeOnly.delete(edgeKey(file, target));
     }
 
     return { files: tracked, fileSet, forward, reverse, typeOnly, dynamic, globEdges, uiSeeds, unresolved };

@@ -29,7 +29,10 @@ import type { TrackProfile } from './trackProfile';
 export interface TransitionTrack {
     /** Seconds. Non-finite (live/unknown streams) leaves nothing to schedule against. */
     duration: number;
-    /** Timed lyric lines when available; null for instrumentals or missing lyric files. */
+    /**
+     * Timed lyric lines when available; null for instrumentals or missing lyric files. On the media's
+     * own clock, like everything else here: a preview clip's lines go through `linesOnClipClock` first.
+     */
     lines: Line[] | null;
     /** Offline measurement of the file, when it has been analysed. */
     profile?: TrackProfile | null;
@@ -283,6 +286,28 @@ const nearestWithin = (
  * '......' line at 0.5s to every track whose singing starts after 0:03. Blank lines go for the same
  * reason - some sources use those as the placeholder instead.
  */
+/**
+ * Lyric lines moved onto a preview clip's own clock. A lyric file is timed on the whole song, while a
+ * clip that starts inside it plays from 0 and ends at its own duration, and the planner sets that
+ * duration against the last sung line: unmoved, a clip cut from 64 s would read the song's last line,
+ * minutes past the clip's end, as singing to the very end of the clip. The lines and their words are
+ * moved; syllables and background vocals keep the song's timing, since nothing here reads them.
+ * The same array when there is nothing to move.
+ */
+export const linesOnClipClock = (lines: Line[] | null, clipStartSec: number): Line[] | null => {
+    if (!lines || !Number.isFinite(clipStartSec) || clipStartSec <= 0) return lines;
+    return lines.map(line => ({
+        ...line,
+        startTime: line.startTime - clipStartSec,
+        endTime: line.endTime - clipStartSec,
+        words: line.words.map(word => ({
+            ...word,
+            startTime: word.startTime - clipStartSec,
+            endTime: word.endTime - clipStartSec,
+        })),
+    }));
+};
+
 const lastSungMoment = (lines: Line[] | null | undefined): number | null => {
     const sung = lines?.filter(line => line.fullText.trim().length > 0 && !isInterludeLine(line));
     return sung?.length ? sung[sung.length - 1].endTime : null;

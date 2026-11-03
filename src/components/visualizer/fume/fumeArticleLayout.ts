@@ -1,10 +1,11 @@
+import { layoutWithLines } from '@chenglou/pretext';
 import { FumeTuning, Line, Theme } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import type { FumeArticleLayout, FumeArticleLayoutMetrics, FumeBlock, FumeLayoutAttemptOptions, FumeLayoutAttemptTiming, ViewportSize } from './fumeTypes';
 import { clamp, hashString, seeded, splitGraphemes } from './fumeMath';
 import { buildWordRangesFromWords } from './fumeReveal';
-import { buildFontSpec, buildGlyphOffsets, buildPreparedSingleLine, buildRenderSegments, buildSegmentMetas, buildWordRangeIndexByOffset, countRenderableGraphemes, cursorToGlobalOffset } from './fumeTextMeasure';
+import { buildFontSpec, buildGlyphOffsets, buildRenderSegments, buildSegmentMetas, buildWordRangeIndexByOffset, chooseSingleLineFontPx, countRenderableGraphemes, cursorToGlobalOffset, lineMeasuresFor, prepareLineAt, type FumeLineMeasures } from './fumeTextMeasure';
 
 // src/components/visualizer/fume/fumeArticleLayout.ts
 // Builds the fume article: picks block variants and font sizes and lays every lyric line out on the page.
@@ -23,6 +24,37 @@ const createFumeLayoutTiming = (): FumeLayoutAttemptTiming => ({
 });
 
 const roundMs = (value: number) => Number(value.toFixed(2));
+
+/** Longest a slice of the layout holds the main thread: half a frame at 60 Hz. */
+const LAYOUT_SLICE_MS = 8;
+
+/**
+ * Runs a layout a slice at a time, each slice a task of its own, so the page keeps drawing frames
+ * while a song is laid out (most of a second of work on a slow machine). `done` gets the article;
+ * the returned function stops the run.
+ */
+export const runLayoutInSlices = (
+    steps: Generator<void, FumeArticleLayout | null>,
+    done: (article: FumeArticleLayout | null) => void,
+) => {
+    // The next slice is a message to itself: a task of its own, without setTimeout's 4 ms floor.
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+        const deadline = nowMs() + LAYOUT_SLICE_MS;
+        for (;;) {
+            const step = steps.next();
+            if (step.done) {
+                channel.port1.close();
+                done(step.value);
+                return;
+            }
+            if (nowMs() >= deadline) break;
+        }
+        channel.port2.postMessage(null);
+    };
+    channel.port2.postMessage(null);
+    return () => channel.port1.close();
+};
 
 const chooseNaturalBlockVariant = (line: Line, index: number, total: number) => {
     const graphemeCount = countRenderableGraphemes(line.fullText);
@@ -166,6 +198,7 @@ export const buildLayoutCacheKey = (
     ].join('|');
 };
 
+// An attempt yields after each block, so the whole layout can be run a slice at a time.
 function buildArticleLayoutAttempt(
     lines: Line[],
     viewport: ViewportSize,
@@ -173,7 +206,8 @@ function buildArticleLayoutAttempt(
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
     options: FumeLayoutAttemptOptions & { mode: 'measure' },
-): FumeArticleLayoutMetrics | null;
+    lineMeasures: Map<string, FumeLineMeasures>,
+): Generator<void, FumeArticleLayoutMetrics | null>;
 function buildArticleLayoutAttempt(
     lines: Line[],
     viewport: ViewportSize,
@@ -181,15 +215,17 @@ function buildArticleLayoutAttempt(
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
     options: FumeLayoutAttemptOptions & { mode?: 'render' },
-): FumeArticleLayout | null;
-function buildArticleLayoutAttempt(
+    lineMeasures: Map<string, FumeLineMeasures>,
+): Generator<void, FumeArticleLayout | null>;
+function* buildArticleLayoutAttempt(
     lines: Line[],
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily' | 'fontFamilyStack' | 'fontWeight'>,
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
     options: FumeLayoutAttemptOptions,
-): FumeArticleLayout | FumeArticleLayoutMetrics | null {
+    lineMeasures: Map<string, FumeLineMeasures>,
+): Generator<void, FumeArticleLayout | FumeArticleLayoutMetrics | null> {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
         return null;
     }
@@ -226,7 +262,8 @@ function buildArticleLayoutAttempt(
     let heroPlacementTieCursor = 0;
     const forcedHeroIndex = chooseFallbackHeroBlockIndex(filteredLines);
 
-    filteredLines.forEach(({ line, index }, blockIndex) => {
+    for (const [blockIndex, { line, index }] of filteredLines.entries()) {
+        if (blockIndex > 0) yield;
         timing && (timing.lines += 1);
         const variant = chooseBlockVariant(line, blockIndex, filteredLines.length, forcedHeroIndex);
         // Hero blocks are allowed to claim more visual territory.
@@ -248,26 +285,22 @@ function buildArticleLayoutAttempt(
         const paddingY = 0;
         const innerWidth = Math.max(blockWidth - paddingX * 2, 120);
         const prepareLayoutStart = timing ? nowMs() : 0;
-        const preparedSingleLine = buildPreparedSingleLine(
-            line.fullText,
-            fontFamily,
+        const measures = lineMeasuresFor(lineMeasures, line.fullText, variant, fontFamily, layoutTheme);
+        const { fontPx, lineCount } = chooseSingleLineFontPx(
+            measures,
             innerWidth,
-            variant,
             lyricsFontScale,
             densityScale,
             fumeTuning.heroScale,
-            layoutTheme,
         );
         if (timing) {
             timing.prepareLayoutMs += nowMs() - prepareLayoutStart;
         }
-        const fontPx = preparedSingleLine.fontPx;
         const lineHeight = Math.round(fontPx * (variant === 'hero' ? 1.02 : 1.06));
-        const layout = preparedSingleLine.layout;
         const blockGap = variant === 'hero'
             ? Math.max(Math.round(lineHeight * 0.2), 6)
             : Math.max(Math.round(lineHeight * 0.08), 2);
-        const blockHeight = paddingY * 2 + layout.lines.length * lineHeight;
+        const blockHeight = paddingY * 2 + lineCount * lineHeight;
         let x = 0;
         let y = 0;
         const placementStart = timing ? nowMs() : 0;
@@ -341,7 +374,8 @@ function buildArticleLayoutAttempt(
             // Measure-only passes stop before this point.
             // Render passes continue and build every structure needed for glyph printing and per-line focus.
             const renderDetailsStart = timing ? nowMs() : 0;
-            const prepared = preparedSingleLine.prepared;
+            const prepared = prepareLineAt(measures, fontPx);
+            const layout = layoutWithLines(prepared, innerWidth, lineHeight);
             const fontSpec = buildFontSpec(fontPx, variant, fontFamily, layoutTheme);
             const { graphemes, segmentMetas } = buildSegmentMetas(prepared);
             const wordRanges = buildWordRangesFromWords(line, graphemes);
@@ -404,7 +438,7 @@ function buildArticleLayoutAttempt(
                 timing.renderDetailsMs += nowMs() - renderDetailsStart;
             }
         }
-    });
+    }
 
     const articleHeight = Math.max(0, ...columnHeights) + verticalMargin;
 
@@ -446,13 +480,18 @@ function buildArticleLayoutAttempt(
     };
 }
 
-export const buildArticleLayout = (
+/**
+ * Lays the whole article out. A generator: it yields after each block of each attempt (dozens of
+ * attempts, each over every line), so a caller can run it a slice at a time; the article is its
+ * return value.
+ */
+export function* buildArticleLayout(
     lines: Line[],
     viewport: ViewportSize,
     layoutTheme: Pick<Theme, 'name' | 'fontStyle' | 'fontFamily' | 'fontFamilyStack' | 'fontWeight'>,
     lyricsFontScale: number,
     fumeTuning: FumeTuning,
-): FumeArticleLayout | null => {
+): Generator<void, FumeArticleLayout | null> {
     if (viewport.width <= 0 || viewport.height <= 0 || lines.length === 0) {
         return null;
     }
@@ -471,6 +510,8 @@ export const buildArticleLayout = (
     const renderTiming = createFumeLayoutTiming();
     const measureColumnTimings = new Map<number, FumeLayoutAttemptTiming>();
     let measureAttemptCount = 0;
+    // Each line's text as measured so far, shared by every attempt and by repeated lines.
+    const lineMeasures = new Map<string, FumeLineMeasures>();
 
     // Try a few column counts and density scales, then keep the article that lands closest to the target height.
     // This is why the mode feels "composed" instead of hardcoding one layout recipe for every song.
@@ -494,7 +535,7 @@ export const buildArticleLayout = (
                 mode: 'measure',
                 timing: columnTiming,
             };
-            const layout = buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, attemptOptions);
+            const layout = yield* buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, attemptOptions, lineMeasures);
 
             if (!layout) {
                 continue;
@@ -534,8 +575,9 @@ export const buildArticleLayout = (
 
     const renderStart = nowMs();
     const article = bestOptions
-        ? buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, bestOptions)
+        ? yield* buildArticleLayoutAttempt(lines, viewport, layoutTheme, lyricsFontScale, fumeTuning, bestOptions, lineMeasures)
         : null;
+    // Wall-clock: with the layout run in slices, these two include the frames between the slices.
     const renderMs = nowMs() - renderStart;
     const totalMs = nowMs() - totalStart;
 
@@ -578,4 +620,4 @@ export const buildArticleLayout = (
     }
 
     return article;
-};
+}

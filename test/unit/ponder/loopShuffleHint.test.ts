@@ -54,7 +54,7 @@ describe('noteLoopButtonPress（按真实按钮的调用顺序：切循环 → �
         const { resolvePlayerControlSlot } = await import('@/components/floating-player/playerControlSlotActions');
 
         // 浮动播放器的循环槽位：真实的 handleToggleLoopMode 先弹模式 toast，再记一下。
-        // SongActionRow 的 onClick 是同一个顺序（onToggleLoop(event) 之后 noteLoopButtonPress()）。
+        // SoundTiles 的循环那一块的 onClick 是同一个顺序（onToggleLoop(event) 之后 noteLoopButtonPress()）。
         const slot = resolvePlayerControlSlot('loop', {
             loopMode: 'off',
             onToggleLoop: () => useAudioSettingsStore.getState().handleToggleLoopMode(),

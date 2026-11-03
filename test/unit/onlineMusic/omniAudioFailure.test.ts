@@ -62,7 +62,7 @@ describe('omni.getAudioSource when the provider refuses', () => {
     });
 
     it('returns the source an audio hook supplies instead', async () => {
-        const refusal = new OnlineProviderError('entitlement-required', 'No rights', providerId);
+        const refusal = new OnlineProviderError('not-playable', 'No rights', providerId);
         const rescued = { url: 'https://hook.example/song.mp3', fetchedAt: 1, quality: 'high' as const };
         getAudioSource.mockRejectedValueOnce(refusal);
         mocks.applyOmniAudioHook.mockResolvedValueOnce(rescued);
@@ -73,7 +73,7 @@ describe('omni.getAudioSource when the provider refuses', () => {
     });
 
     it('rethrows the very same error instance when the hook has nothing', async () => {
-        const refusal = new OnlineProviderError('network', 'offline', providerId, undefined, undefined, undefined, { stage: 'song-url' });
+        const refusal = new OnlineProviderError('network', 'offline', providerId);
         getAudioSource.mockRejectedValueOnce(refusal);
         mocks.applyOmniAudioHook.mockResolvedValueOnce(null);
 

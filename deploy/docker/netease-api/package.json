@@ -3,6 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@neteasecloudmusicapienhanced/api": "4.40.1"
+    "@neteasecloudmusicapienhanced/api": "4.41.1"
   }
 }

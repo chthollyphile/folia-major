@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CollectionNavigationSnapshot, GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { CollectionNavigationSnapshot, GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import {
     createNavigationHistoryJournal,
     findCollectionTraversal,

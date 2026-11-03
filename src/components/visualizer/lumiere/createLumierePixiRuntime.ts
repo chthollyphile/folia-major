@@ -1,15 +1,17 @@
 // Copyright (c) 2026 chthollyphile
 import type { MotionValue } from 'framer-motion';
 import type { Filter } from 'pixi.js';
-import type { AudioBands, LumiereTuning, Theme } from '../../../types';
-import { loadPixi } from '../loadPixi';
+import type { AudioBands, LumiereTuning, LyricRenderScale, Theme } from '../../../types';
 import { PixiSceneCache } from '../pixiSceneCache';
+import { loadPixi } from '../pixi/loadPixi';
+import { linkPixiPrograms } from '../pixi/pixiProgramLinks';
+import { makePixiContext } from '../pixi/pixiWebGLContext';
 import { createLumiereAudioSampler, type LumiereAudioSampler } from './lumiereAudio';
 import { findLumiereParagraphIndexAtTime, type LumiereProgram } from './lumiereProgram';
 import {
     resolveLumiereBloomLevelDrop,
     resolveLumiereGraphicsResolution,
-    resolveLumiereRenderResolution,
+    resolveLumiereScaledRenderResolution,
     requiresLumiereSceneRebuild,
     toLumiereSceneTuning,
 } from './lumiereRuntimeTuning';
@@ -34,6 +36,8 @@ import type { LumiereSceneTuning } from './types';
 // 按 lumiereSceneFrames 决定画哪几个段落场景，场景缓存当前段 ±1（同 tempera），一帧最多做一件贵的事
 // （建一个场景 / 建片尾卡 / 销毁一个被换下的场景）。帧率跟随全局限帧（Pixi ticker 走被 frameRateLimiter
 // 接管的 requestAnimationFrame）。只支持 WebGL：光场、bloom 都是 GLSL。
+// 分辨率与抗锯齿（#929）：外壳把合出来的倍数与抗锯齿传进来；倍数就地改（同窗口缩放：渲染器立刻跟上，场景防抖重建），
+// 抗锯齿只能建上下文时定，变了由外壳重建运行时。
 type PixiModule = typeof import('pixi.js');
 
 export interface LumiereSongMetadata {
@@ -61,6 +65,10 @@ export interface LumiereRuntimeOptions {
     showText: boolean;
     paused: boolean;
     metadata: LumiereSongMetadata;
+    /** 分辨率倍数（乘在 resolveLumiereRenderResolution 上，画质档再从乘过的分辨率降图形组）；预览传 1。 */
+    renderScale: LyricRenderScale;
+    /** MSAA：建上下文时定，原来写死关着。 */
+    antialias: boolean;
     signal?: AbortSignal;
 }
 
@@ -121,23 +129,30 @@ export class LumierePixiRuntime {
 
     static async create(options: LumiereRuntimeOptions) {
         const pixi = await loadPixi();
-        const app = new pixi.Application();
-        const width = Math.max(options.host.clientWidth, MIN_WIDTH);
-        const height = Math.max(options.host.clientHeight, MIN_HEIGHT);
-        const resolution = resolveLumiereRenderResolution(window.devicePixelRatio);
-        await app.init({
-            width,
-            height,
+        // WebGL 上下文按这几项先建好，再交给 Pixi（makePixiContext）。
+        const contextOptions = {
             // 画布透明：folia 的共享背景层要透出来，由运行时的暗场层按暗场强度压暗。
             backgroundAlpha: 0,
             // 大头（图形组）画进 filter 纹理，MSAA 管不到；只剩画框细线，不值得整屏多重采样的解析开销。
-            antialias: false,
+            // 所以默认关；用户在「抗锯齿」里选了开才开。
+            antialias: options.antialias,
+            powerPreference: 'high-performance',
+        } as const;
+        const context = await makePixiContext(pixi, contextOptions, options.signal);
+        const app = new pixi.Application();
+        const width = Math.max(options.host.clientWidth, MIN_WIDTH);
+        const height = Math.max(options.host.clientHeight, MIN_HEIGHT);
+        const resolution = resolveLumiereScaledRenderResolution(window.devicePixelRatio, options.renderScale);
+        await app.init({
+            width,
+            height,
+            ...contextOptions,
+            ...context,
             autoDensity: true,
             resolution,
             autoStart: false,
             sharedTicker: false,
             preference: 'webgl',
-            powerPreference: 'high-performance',
         });
         if (app.renderer.type !== pixi.RendererType.WEBGL) {
             app.destroy({ removeView: true });
@@ -160,21 +175,34 @@ export class LumierePixiRuntime {
             runtime.destroy();
             throw new DOMException('Lumiere runtime creation was cancelled', 'AbortError');
         }
-        options.host.appendChild(app.canvas);
-        app.canvas.style.cssText = 'width:100%;height:100%;display:block';
-        runtime.install();
+        await runtime.install();
+        if (options.signal?.aborted) {
+            runtime.destroy();
+            throw new DOMException('Lumiere runtime creation was cancelled', 'AbortError');
+        }
         return runtime;
     }
 
-    private install() {
+    /**
+     * 第一帧分几步做，步与步之间页面照常跑：建 WebGL 上下文之后另起一个任务建第一个场景，它的着色器程序
+     * 在页面照常跑时链接（linkPixiPrograms），之后画布才放上页面、画出来。中途取消就提前返回。
+     */
+    private async install() {
+        await new Promise((resolve) => { window.setTimeout(resolve); });
+        if (this.options.signal?.aborted) return;
         this.resizeToHost(true);
+        this.renderFrame();
+        await linkPixiPrograms(this.pixi, this.app.renderer, this.app.stage, 'Lumiere', this.options.signal);
+        if (this.options.signal?.aborted) return;
+        this.options.host.appendChild(this.app.canvas);
+        this.app.canvas.style.cssText = 'width:100%;height:100%;display:block';
         this.app.ticker.add(this.renderFrame);
         this.resizeObserver = new ResizeObserver(() => {
             if (this.destroyed || !this.resizeToHost(false)) return;
             if (this.options.paused) this.renderOnce();
         });
         this.resizeObserver.observe(this.options.host);
-        this.renderOnce();
+        this.app.renderer.render(this.app.stage);
         if (!this.options.paused) this.app.start();
     }
 
@@ -183,7 +211,7 @@ export class LumierePixiRuntime {
         if (this.destroyed) return false;
         const width = Math.max(this.options.host.clientWidth, MIN_WIDTH);
         const height = Math.max(this.options.host.clientHeight, MIN_HEIGHT);
-        const resolution = resolveLumiereRenderResolution(window.devicePixelRatio);
+        const resolution = resolveLumiereScaledRenderResolution(window.devicePixelRatio, this.options.renderScale);
         if (width === this.width && height === this.height && resolution === this.renderResolution) return false;
         this.width = width;
         this.height = height;
@@ -398,6 +426,15 @@ export class LumierePixiRuntime {
             || previousTuning.themeColorMix !== tuning.themeColorMix
         ) this.drawOverlay();
         if (this.options.paused) this.renderOnce();
+    }
+
+    /** 就地换分辨率倍数：同窗口缩放，渲染器立刻跟上，图形组画质随之重算，场景（字按分辨率光栅化）防抖重建。 */
+    setRenderScale(scale: LyricRenderScale) {
+        if (this.destroyed || scale === this.options.renderScale) return;
+        this.options.renderScale = scale;
+        // 还没装好（第一帧前）时 install 里的 resizeToHost 会按新倍数来。
+        if (this.width === 0) return;
+        if (this.resizeToHost(false) && this.options.paused) this.renderOnce();
     }
 
     setShowText(showText: boolean) {

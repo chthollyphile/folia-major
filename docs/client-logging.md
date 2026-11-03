@@ -1,6 +1,7 @@
 # Client logging
 
-Everything the renderer logs is kept in memory for the session and readable from inside the app.
+Everything the app logs, in the renderer and in the desktop main process, is kept in memory for the
+session and readable from inside the app.
 This exists because the packaged desktop build has no console: DevTools only open under
 `ELECTRON_DEV`, and the window is frameless, so there is no menu to reach them from. A user's
 paste of the log is often the only evidence a bug ever produces.
@@ -27,6 +28,20 @@ Rules that make the prefix useful:
 - **Name the subsystem, not the file.** Readers mute `[Prefetch]`, not `prefetchService.ts:212`.
 - **Be consistent.** Two spellings are two modules in the panel, and muting one leaves the other.
 - **Only at the start.** `finished [after] a while` is prose and is treated as untagged.
+
+## Lines from the desktop main process
+
+Code under `electron/` logs the same way, with the same prefix, and its lines reach the same panel.
+`electron/debug/debugHost.cjs` takes over the main process's `console` and hands each line to every
+window that asks for them, along with the last 300 written before the window existed. The panel
+places them by the time they were written, so the `[Ytm]` lines of both processes read in order.
+
+Two limits:
+
+- A line written before `createDebugHost` runs in `electron/main.cjs` is not seen.
+- A module that kept its own reference to `console.log` from before that point writes past the
+  takeover. Call `console.log(...)` at the moment of writing; for an injectable default, write
+  `log = (...args) => console.log(...args)`, not `log = console.log`.
 
 ## What to log, and what not to
 
@@ -55,6 +70,11 @@ The switch governs both. Off means off at both doors: the overlay drops its Cons
 rather than opening on an empty one, and the settings page keeps the panel — directly under the
 switch — saying nothing is being kept. Neither door can imply the recorder is running when it is not.
 
+The same switch governs the runtime log file (`logs/runtime/`, "Save to file" under it). The file
+switch only decides whether what is kept is also written to disk: with the session log off nothing
+is written, from either process, whatever the file switch says. The renderer owns the switch and
+tells the main process, which remembers it for the lines it writes before a window exists.
+
 In the panel:
 
 | | |
@@ -73,9 +93,10 @@ app later shows up on its own rather than being silently filtered out by an old 
 | File | Role |
 |---|---|
 | `src/utils/consoleLogBuffer.ts` | Patches `console`, parses the `[Module]` prefix, keeps the last 1000 lines, formats them for the clipboard. Also catches `window` `error` and `unhandledrejection`, which never go through `console`. |
+| `electron/debug/debugHost.cjs` | Patches the main process's `console` and feeds its lines to the windows (`createPanelFeed`). Also owns the runtime log file. |
 | `src/utils/consoleLogFilters.ts` | Persists muted modules and levels. |
 | `src/components/shared/ConsoleLogPanel.tsx` | The panel — list, filters, selection, copy, and the off state. Take this if you need a log surface somewhere else; do not build a second list. |
-| `src/components/modal/settings/DeveloperSettingsSubview.tsx` | Settings page host. |
+| `src/components/modal/settings/pages/DeveloperPage.tsx` | Settings page host. |
 | `src/components/DevDebugOverlay.tsx` | Player overlay host. |
 
 `installConsoleLogCapture()` is called once from `src/index.tsx`, as early as possible — anything

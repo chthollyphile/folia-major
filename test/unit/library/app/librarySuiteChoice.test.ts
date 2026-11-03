@@ -12,12 +12,12 @@ import {
 } from '@/library/app/librarySuiteChoice';
 import { switchLibrarySuite } from '@/library/app/switchLibrarySuite';
 import { hasLibrarySuiteChoice, resolveActiveLibrarySuiteId } from '@/library/registry';
-import { useLibrarySuiteStore } from '@/library/core/state/useLibrarySuiteStore';
-import { registerLibrarySessionFlush } from '@/library/core/state/useLibraryBrowseSessionStore';
+import { useLibrarySuiteStore } from '@/library/core/suite/useLibrarySuiteStore';
+import { registerLibrarySessionFlush } from '@/library/core/shared/useLibraryBrowseSessionStore';
 import { useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
 import type { CommandPaletteContext } from '@/components/command-palette/types';
-import type { GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 
 // test/unit/library/app/librarySuiteChoice.test.ts
 // 正式 suite 选项（B0）的 app 层：store 里的选择可能不可用（开发阶段的初始选择 bravais 还没合入、旧记录），

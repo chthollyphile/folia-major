@@ -5,7 +5,7 @@ import type { Word } from '../../src/types';
 (globalThis as any).window = { electron: true };
 
 async function main() {
-  const { searchKugouLyrics, fetchKugouLyrics } = await import('../../src/utils/lyrics/providers/kugouLyricProvider');
+  const { searchKugouLyrics, fetchKugouLyrics } = await import('../../src/services/onlineMusic/kugou/kugouLyricProvider');
 
   const keyword = '米津玄师 Lemon';
   console.log(`Searching Kugou for "${keyword}"...`);

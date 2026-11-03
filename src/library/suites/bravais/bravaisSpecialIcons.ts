@@ -1,5 +1,5 @@
 import { CalendarDays, Cloud, Heart, ListMusic, Radio, Shuffle, Star, type LucideIcon } from 'lucide-react';
-import type { LibraryHomeSpecialKind } from '../../core/model/homeSpecialCards';
+import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 
 // src/library/suites/bravais/bravaisSpecialIcons.ts
 // 特殊集合的小图标：墙上磁贴的类型标签（强调色底 + 图标）与直达入口挪进「⋯」菜单时的那一行用同一个，看得出是同一张。

@@ -1,24 +1,34 @@
-import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import net from 'node:net';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/neteaseApiStartup.test.ts
 
 const {
+    OFFLINE_RETRY_GAP_MS,
     createLoginQrCheck,
+    installLoginQrCheck,
     refreshAnonymousToken,
     resolveXeapiPublicKey,
+    startsAgainWhenNeeded,
+    waitUntilListening,
     withQrNetworkRetry,
     withoutImplicitClientIp,
-} = require('../../../electron/neteaseApiStartup.cjs') as {
-    withQrNetworkRetry: (
-        request: (uri: string, data: any, options: any) => Promise<unknown>,
-        options?: Record<string, unknown>,
-    ) => (uri: string, data?: any, options?: any) => Promise<unknown>;
+} = require('../../../electron/netease/neteaseApiStartup.cjs') as {
+    OFFLINE_RETRY_GAP_MS: number;
     createLoginQrCheck: (
         createOption: (query: Record<string, unknown>) => Record<string, unknown>,
     ) => (
         query: Record<string, unknown>,
         request: (uri: string, data: unknown, options: Record<string, unknown>) => Promise<any>,
     ) => Promise<unknown>;
+    installLoginQrCheck: () => void;
+    startsAgainWhenNeeded: (status: Record<string, unknown>, now: number) => boolean;
+    waitUntilListening: (server: net.Server, timeoutMs?: number) => Promise<net.Server>;
+    withQrNetworkRetry: (
+        request: (uri: string, data: any, options: any) => Promise<unknown>,
+        options?: Record<string, unknown>,
+    ) => (uri: string, data?: any, options?: any) => Promise<unknown>;
     withoutImplicitClientIp: (
         request: (uri: string, data: unknown, options: Record<string, unknown>) => unknown,
     ) => (uri: string, data: unknown, options?: Record<string, unknown>) => unknown;
@@ -93,6 +103,32 @@ describe('NetEase API startup recovery', () => {
             retryOptions: immediateRetryOptions(),
         })).rejects.toThrow('offline');
         expect(getXeapiPublicKey).toHaveBeenCalledTimes(3);
+    });
+
+    // First start with no stored key: only the network's failure is marked, and only it starts again
+    // when a request needs it, no sooner than the gap after the failure.
+    it('marks a start as offline only where the request did not get through, and lets startsAgainWhenNeeded allow a start after the gap', async () => {
+        const failedWith = (error: unknown) => resolveXeapiPublicKey({
+            currentPublicKey: {}, deviceId: 'device-id', logger: quietLogger, retryOptions: immediateRetryOptions(),
+            getXeapiPublicKey: vi.fn().mockRejectedValue(error),
+        }).catch((thrown: unknown) => thrown);
+        // What axios 1.20.0 rejects with, as measured under Node: a name that does not resolve, and its own timeout.
+        const axiosError = (code: string, extra: Record<string, unknown> = {}) => Object.assign(new Error(code), { isAxiosError: true, code, ...extra });
+        expect(await failedWith(axiosError('ENOTFOUND'))).toMatchObject({ offline: true });
+        expect(await failedWith(axiosError('ECONNABORTED'))).toMatchObject({ offline: true });
+        // NetEase answered, with an error; a request cancelled; an answer that could not be used: not the network.
+        expect(await failedWith(axiosError('ERR_BAD_RESPONSE', { response: { status: 500 } }))).not.toHaveProperty('offline');
+        // An answer came back before the line broke: the request did get through.
+        expect(await failedWith(axiosError('ECONNRESET', { response: { status: 200 } }))).not.toHaveProperty('offline');
+        expect(await failedWith(axiosError('ERR_CANCELED'))).not.toHaveProperty('offline');
+        expect(await failedWith(new Error('xeapi public key response signature mismatch'))).not.toHaveProperty('offline');
+
+        const failedAt = 1_000_000;
+        const down = { status: 'error', port: null, error: 'getaddrinfo ENOTFOUND interface.music.163.com', offline: true, updatedAt: failedAt };
+        expect(startsAgainWhenNeeded(down, failedAt + OFFLINE_RETRY_GAP_MS - 1)).toBe(false);
+        expect(startsAgainWhenNeeded(down, failedAt + OFFLINE_RETRY_GAP_MS)).toBe(true);
+        expect(startsAgainWhenNeeded({ ...down, offline: false }, failedAt + 10 * OFFLINE_RETRY_GAP_MS)).toBe(false);
+        expect(startsAgainWhenNeeded({ ...down, status: 'starting' }, failedAt + 10 * OFFLINE_RETRY_GAP_MS)).toBe(false);
     });
 
     it('retries anonymous registration and persists a valid token', async () => {
@@ -215,6 +251,60 @@ describe('NetEase API startup recovery', () => {
     });
 });
 
+describe('NetEase API listen wait', () => {
+    const servers: net.Server[] = [];
+    // A real server on this machine's loopback address; closed after the test.
+    const createServer = () => {
+        const server = net.createServer();
+        servers.push(server);
+        return server;
+    };
+
+    afterEach(async () => {
+        await Promise.all(servers.splice(0).map((server) => new Promise((resolve) => {
+            if (server.listening) server.close(resolve);
+            else resolve(undefined);
+        })));
+    });
+
+    it('resolves once a server on a free port listens, and leaves no listener behind', async () => {
+        const server = createServer();
+        server.listen(0, '127.0.0.1');
+        expect(server.listening).toBe(false);
+
+        await expect(waitUntilListening(server)).resolves.toBe(server);
+        expect(server.listening).toBe(true);
+        expect(server.listenerCount('error') + server.listenerCount('listening')).toBe(0);
+    });
+
+    it('rejects with EADDRINUSE when another server holds the port', async () => {
+        const holder = createServer();
+        holder.listen(0, '127.0.0.1');
+        await waitUntilListening(holder);
+        const { port } = holder.address() as net.AddressInfo;
+
+        const server = createServer();
+        server.listen(port, '127.0.0.1');
+
+        await expect(waitUntilListening(server)).rejects.toMatchObject({ code: 'EADDRINUSE' });
+        expect(server.listening).toBe(false);
+    });
+
+    it('resolves at once for a server that already listens', async () => {
+        const server = createServer();
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+        await expect(waitUntilListening(server)).resolves.toBe(server);
+    });
+
+    it('fails instead of waiting for ever when the server never says how the listen went', async () => {
+        // Never told to listen: neither event comes.
+        const server = createServer();
+
+        await expect(waitUntilListening(server, 5)).rejects.toThrow('timed out after 5ms');
+    });
+});
+
 describe('NetEase API client IP policy', () => {
     it('drops the implicit client IP so NetEase sees the real egress address', () => {
         const request = vi.fn();
@@ -240,7 +330,7 @@ describe('NetEase QR check module', () => {
         query: Record<string, unknown>,
     ) => Record<string, unknown>;
 
-    // 上游一旦修好这个 bug，这条会失败：届时删掉 main.cjs 里的替换和 createLoginQrCheck。
+    // 上游一旦修好这个 bug，这条会失败：届时删掉 installLoginQrCheck 和 createLoginQrCheck。
     it('is still needed: the upstream module throws a ReferenceError on a rejected poll', async () => {
         const request = vi.fn().mockRejectedValue({ status: 502, body: { code: 502, msg: 'read ECONNRESET' }, cookie: [] });
         await expect(upstreamLoginQrCheck({ key: 'k' }, request)).rejects.toBeInstanceOf(ReferenceError);
@@ -314,5 +404,24 @@ describe('NetEase QR network retry', () => {
         const other = vi.fn().mockRejectedValue(RESET);
         await expect(withQrNetworkRetry(other, retryOptions())('/api/song/enhance/player/url/v1')).rejects.toBe(RESET);
         expect(other).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('NetEase API sign-in check module', () => {
+    it('is the app\'s own once installed, and the worker installs it before the package\'s main and server load', async () => {
+        installLoginQrCheck();
+        // The path server.js requires when it reads its module folder.
+        const check = require('@neteasecloudmusicapienhanced/api/module/login_qr_check.js') as (
+            query: Record<string, unknown>, request: () => Promise<unknown>,
+        ) => Promise<unknown>;
+        // util/request.js's answer when NetEase is not reached. The package's own module throws a ReferenceError here.
+        const notThrough = { status: 502, body: { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }, cookie: [] };
+        await expect(check({ key: 'qr-key', cookie: {} }, () => Promise.reject(notThrough))).rejects.toBe(notThrough);
+
+        const worker = readFileSync(new URL('../../../electron/netease/neteaseApiWorker.cjs', import.meta.url), 'utf8');
+        const installedAt = worker.indexOf('installLoginQrCheck();');
+        expect(installedAt).toBeGreaterThan(-1);
+        expect(installedAt).toBeLessThan(worker.indexOf('require(`${NCM_PACKAGE}/main`)'));
+        expect(installedAt).toBeLessThan(worker.indexOf('require(`${NCM_PACKAGE}/server`)'));
     });
 });

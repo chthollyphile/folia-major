@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { locateNearestInstance, type LatticeGeometry, type WallMetrics } from '../../wall/layout';
+import type { WallLayout } from './wallLayout';
 import type { LatticeTile } from './latticeModel';
 import type { ActiveLatticePoster } from './useLatticePlaybackFocus';
 
 // src/components/app/lattice/useLatticePosterSelection.ts
-// Preserve a selected song across queue edits, before a stale slot can reach the DOM.
+// Preserve a selected tile across changes of the wall's list (a queue edit, other entries of the
+// explore page), before a stale slot can reach the DOM.
 
-export function useLatticePosterSelection(tiles: LatticeTile[], geometry: LatticeGeometry, metrics: WallMetrics) {
+export function useLatticePosterSelection(tiles: LatticeTile[], layout: WallLayout) {
     const [previousTiles, setPreviousTiles] = useState(tiles);
     const [selection, setSelection] = useState<ActiveLatticePoster | null>(null);
     let resolved = selection;
@@ -14,10 +15,10 @@ export function useLatticePosterSelection(tiles: LatticeTile[], geometry: Lattic
         if (selection) {
             const queueIndex = tiles.findIndex(tile => tile.id === selection.tile.id);
             const old = selection.instance;
-            const instance = locateNearestInstance(geometry, tiles.length, queueIndex, {
+            const instance = layout.nearest(queueIndex, {
                 x: old.x + old.width / 2,
                 y: old.y + old.height / 2,
-            }, metrics);
+            });
             resolved = instance ? { instance, tile: tiles[queueIndex] } : null;
         }
         // This guarded render adjustment avoids showing the new song at the old queue index

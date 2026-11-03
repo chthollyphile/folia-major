@@ -1,31 +1,27 @@
-import { Boxes, Command, Database, FlaskConical, Gauge, Keyboard, Languages, PlayCircle, Server, Sparkles, Terminal, type LucideIcon } from 'lucide-react';
-import { SETTINGS_ANCHOR_DEFINITIONS, type SettingsAnchorId } from './settingsAnchorModel';
+import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PlayCircle, SlidersHorizontal, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
 // src/components/modal/settings/navigation/settingsNavModel.ts
-// Single source of truth for the options-tab sections: sidebar order, grouping, titles and descriptions.
+// Single source of truth for the settings categories: their order in the side list, their grouping,
+// icons and names. A category is cut by what the listener is looking at or doing, so each page holds
+// one subject; which page an option is on is settingsAnchorModel's and the page files' to say.
 
 export type SettingsSectionId =
     | 'appearance'
-    | 'general'
+    | 'player'
+    | 'home'
     | 'playback'
+    | 'lyrics'
+    | 'general'
     | 'interaction'
     | 'integration'
     | 'storage'
     | 'desktop'
     | 'graphics'
     | 'mods'
-    | 'lab'
     | 'developer';
 
 export interface SettingsNavItem {
     id: SettingsSectionId;
     icon: LucideIcon;
-    label: string;
-    description: string;
-    anchors: SettingsNavAnchor[];
-}
-
-export interface SettingsNavAnchor {
-    id: SettingsAnchorId;
     label: string;
 }
 
@@ -41,7 +37,6 @@ interface SectionSpec {
     id: SettingsSectionId;
     icon: LucideIcon;
     labelKey: string;
-    descriptionKey: string;
     /** Sections that only exist on the desktop build. */
     electronOnly?: boolean;
 }
@@ -52,61 +47,49 @@ interface GroupSpec {
     sections: SectionSpec[];
 }
 
-/**
- * Sidebar grouping. Section order matches the flat list this replaced, so the desktop grouping is
- * purely additive and the narrow chip strip keeps its existing sequence.
- */
 export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
     {
-        id: 'appearance',
-        labelKey: 'options.settingsGroupAppearance',
+        id: 'interface',
+        labelKey: 'options.settingsGroupInterface',
         sections: [
-            { id: 'appearance', icon: Sparkles, labelKey: 'options.visualSettings', descriptionKey: 'options.visualSettingsPanelDesc' },
-            { id: 'general', icon: Languages, labelKey: 'options.generalSettings', descriptionKey: 'options.generalSettingsDesc' },
+            { id: 'appearance', icon: Contrast, labelKey: 'options.settingsPageAppearance' },
+            { id: 'player', icon: MonitorPlay, labelKey: 'options.settingsPagePlayer' },
+            { id: 'home', icon: LayoutGrid, labelKey: 'options.settingsPageHome' },
         ],
     },
     {
-        // Named for what the group is about rather than for its first section: it now holds how the
-        // listener drives the app as well as how the app plays.
-        id: 'controls',
-        labelKey: 'options.settingsGroupControls',
+        id: 'music',
+        labelKey: 'options.settingsGroupMusic',
         sections: [
-            { id: 'playback', icon: PlayCircle, labelKey: 'options.playbackSettings', descriptionKey: 'options.playbackSettingsPanelDesc' },
-            { id: 'interaction', icon: Keyboard, labelKey: 'options.interactionSettings', descriptionKey: 'options.interactionSettingsPanelDesc' },
+            { id: 'playback', icon: PlayCircle, labelKey: 'options.settingsPagePlayback' },
+            { id: 'lyrics', icon: TextAlignStart, labelKey: 'options.settingsPageLyrics' },
         ],
     },
     {
-        id: 'connections',
-        labelKey: 'options.settingsGroupConnections',
+        id: 'app',
+        labelKey: 'options.settingsGroupApp',
         sections: [
-            { id: 'integration', icon: Server, labelKey: 'options.integrationSettings', descriptionKey: 'options.integrationSettingsDesc' },
-            { id: 'storage', icon: Database, labelKey: 'options.storageSettings', descriptionKey: 'options.storageSettingsPanelDesc' },
+            { id: 'general', icon: SlidersHorizontal, labelKey: 'options.settingsPageGeneral' },
+            { id: 'interaction', icon: Keyboard, labelKey: 'options.settingsPageInteraction' },
+            { id: 'integration', icon: Link2, labelKey: 'options.settingsPageIntegration' },
+            { id: 'storage', icon: Database, labelKey: 'options.settingsPageStorage' },
+            { id: 'desktop', icon: Monitor, labelKey: 'options.settingsPageDesktop', electronOnly: true },
+            { id: 'graphics', icon: Gauge, labelKey: 'options.settingsPageGraphics' },
         ],
     },
     {
-        id: 'system',
-        labelKey: 'options.settingsGroupSystem',
+        id: 'advanced',
+        labelKey: 'options.settingsGroupAdvanced',
         sections: [
-            { id: 'desktop', icon: Command, labelKey: 'options.desktopSettings', descriptionKey: 'options.desktopSettingsPanelDesc', electronOnly: true },
-            { id: 'graphics', icon: Gauge, labelKey: 'options.graphicsSettings', descriptionKey: 'options.graphicsSettingsDesc' },
             // The loader only exists in the desktop main process; on web there is nothing to switch on.
-            { id: 'mods', icon: Boxes, labelKey: 'options.modSettings', descriptionKey: 'options.modSettingsDesc', electronOnly: true },
-            { id: 'lab', icon: FlaskConical, labelKey: 'options.labSettings', descriptionKey: 'options.labSettingsDesc' },
-            { id: 'developer', icon: Terminal, labelKey: 'options.developerSettings', descriptionKey: 'options.developerSettingsDesc' },
+            { id: 'mods', icon: Boxes, labelKey: 'options.settingsPageMods', electronOnly: true },
+            { id: 'developer', icon: Terminal, labelKey: 'options.settingsPageDeveloper' },
         ],
     },
 ];
 
-/**
- * Resolves the grouping into translated nav items, dropping desktop-only sections (and groups left empty) on web.
- * An anchor that marks itself `requiresLibrarySuiteChoice` is listed only when `hasLibrarySuiteChoice` is set,
- * because its section renders nothing while a single library suite is available. Likewise `requiresBravaisSuite`
- * is listed only while the active library suite is bravais (`isBravaisSuiteActive`).
- */
-export const buildSettingsNavGroups = (
-    t: Translate,
-    options: { isElectron: boolean; hasLibrarySuiteChoice?: boolean; isBravaisSuiteActive?: boolean },
-): SettingsNavGroup[] => (
+/** Resolves the grouping into translated nav items, dropping desktop-only sections (and groups left empty) on web. */
+export const buildSettingsNavGroups = (t: Translate, options: { isElectron: boolean }): SettingsNavGroup[] => (
     SETTINGS_NAV_GROUP_SPECS
         .map(group => ({
             id: group.id,
@@ -117,15 +100,6 @@ export const buildSettingsNavGroups = (
                     id: section.id,
                     icon: section.icon,
                     label: t(section.labelKey),
-                    description: t(section.descriptionKey),
-                    anchors: (Object.entries(SETTINGS_ANCHOR_DEFINITIONS) as [SettingsAnchorId, typeof SETTINGS_ANCHOR_DEFINITIONS[SettingsAnchorId]][])
-                        .filter(([, definition]) => (
-                            definition.section === section.id
-                            && (!('electronOnly' in definition) || !definition.electronOnly || options.isElectron)
-                            && (!('requiresLibrarySuiteChoice' in definition) || !definition.requiresLibrarySuiteChoice || Boolean(options.hasLibrarySuiteChoice))
-                            && (!('requiresBravaisSuite' in definition) || !definition.requiresBravaisSuite || Boolean(options.isBravaisSuiteActive))
-                        ))
-                        .map(([id, definition]) => ({ id, label: t(definition.labelKey) })),
                 })),
         }))
         .filter(group => group.items.length > 0)

@@ -6,6 +6,18 @@
     --lattice-chrome-shadow: rgb(0 0 0 / 55%);
 }
 
+/* Come back to from a collection's page whose cover flies back to the wall's tile, the wall is
+   put up as it was left and fades in over that page, which stays under it for the flight. The
+   visualizer stays under it too, for as long as this fade and a little more (wallLayer.ts,
+   WALL_COVERS_PAGE_MS): a longer fade needs a longer stay. */
+.lattice-queue-root.is-returning {
+    animation: lattice-return 200ms ease-out;
+}
+
+@keyframes lattice-return {
+    from { opacity: 0; }
+}
+
 .lattice-root.is-daylight {
     --lattice-chrome-shadow: rgb(255 255 255 / 55%);
 }
@@ -19,10 +31,126 @@
 
 /* 熄灯（.lattice-poster-lights-out 与 is-lights-out）在 components/wall/wall.css（实测反馈 1：资料库墙也跟随灯光设置）。 */
 
+/* The grown collection's cover as an element (LatticePoster): over the card's background, which
+   is the same picture, and under the rest of the card. It takes no pointer, so a drag that starts
+   on it pans the wall as one on any card does. */
+.lattice-poster-cover {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+}
+
+/* The grown collection while a cover is flying back to it from its page (LatticePoster): not
+   shown, from the commit that first draws it until the cover has landed on it. `!important`,
+   because the card's opacity is Framer Motion's, set inline. Opacity and not visibility: the wall
+   gives the focus to its focused card (useWallKeyboardFocus), and a card that is not visible
+   cannot take it. */
+.lattice-poster.is-awaiting-flight {
+    opacity: 0 !important;
+}
+
+/* What a tile of the explore wall is, at a glance: a mark on its cover by kind (the class is
+   LatticePoster's). A song has none, and a queue tile no class. Each mark is the tile's ::before,
+   which a collection never needs for the stroke of the playing song, and stands under the shade,
+   the tint and the lights-out cover. A grown tile is the full poster: no mark. */
+
+/* An album: the edge of a dark record inside the tile's right edge. The box is a square of the
+   tile's height, or as wide as the tile lets it be (a tall tile); the record is the circle that
+   fits the box, pushed out to the right until a fifth of it is left showing. */
+.lattice-poster.is-kind-album:not(.is-expanded)::before {
+    content: '';
+    position: absolute;
+    top: 7%;
+    right: 0;
+    height: 86%;
+    aspect-ratio: 1;
+    max-width: 86%;
+    translate: 79% 0;
+    pointer-events: none;
+    background: radial-gradient(circle closest-side,
+        #0b0b0c 0 58%, #252527 59% 60%, #0f0f10 61% 71%, #252527 72% 73%, #0f0f10 74% 84%, #252527 85% 86%,
+        #0d0d0e 87% 95.5%, rgb(255 255 255 / 34%) 96% 97%, rgb(0 0 0 / 38%) 97.5%, transparent 100%);
+}
+
+/* A playlist or a mix: two thin strips over the cover's top edge, each shorter than what lies
+   under it, like sheets behind the cover. The cover leaves them its top 16 units, through which
+   the wall shows, and is drawn under them. */
+.lattice-poster.is-kind-playlist:not(.is-expanded),
+.lattice-poster.is-kind-mix:not(.is-expanded) {
+    box-sizing: border-box;
+    padding-top: 16px;
+    background-clip: content-box;
+    background-origin: content-box;
+}
+
+.lattice-poster.is-kind-playlist:not(.is-expanded)::before,
+.lattice-poster.is-kind-mix:not(.is-expanded)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 16px;
+    pointer-events: none;
+    background:
+        linear-gradient(color-mix(in srgb, var(--lattice-poster-ink) 34%, var(--lattice-poster-background)) 0 0) 50% 0 / 76% 5px no-repeat,
+        linear-gradient(color-mix(in srgb, var(--lattice-poster-ink) 58%, var(--lattice-poster-background)) 0 0) 50% 8px / 88% 5px no-repeat;
+    transition: opacity 260ms ease;
+}
+
+/* The layers that lie over a poster begin at the cover's top here, or they would fill the 16
+   units the wall shows through. The strips are quieted with their card instead: by the tint,
+   as long as the card has it, and with the lights out. */
+.lattice-poster:is(.is-kind-playlist, .is-kind-mix):not(.is-expanded) :is(.lattice-poster-shade, .lattice-poster-lights-out, .lattice-poster-tint),
+.lattice-poster:is(.is-kind-playlist, .is-kind-mix):not(.is-expanded)::after {
+    top: 16px;
+}
+
+.lattice-root.has-poster-tint .lattice-poster:is(.is-kind-playlist, .is-kind-mix):not(.is-expanded, .is-focused, :hover, :focus-visible)::before {
+    opacity: calc(1 - var(--lattice-poster-tint-effective-opacity));
+}
+
+.lattice-root.is-lights-out .lattice-poster:is(.is-kind-playlist, .is-kind-mix):not(.is-expanded)::before {
+    opacity: 0.18;
+}
+
+/* An artist: the picture drawn round on the plain ground of the tile. The tile does not draw
+   its own picture (a picture of no size is none); ::before takes it over and cuts out the circle
+   that fits its box, a square of 62% of the tile's height, or narrower on a tall tile. */
+.lattice-poster.is-kind-artist:not(.is-expanded) {
+    background-repeat: no-repeat;
+    background-size: 0 0;
+}
+
+.lattice-poster.is-kind-artist:not(.is-expanded)::before {
+    content: '';
+    position: absolute;
+    top: 9%;
+    left: 50%;
+    height: 62%;
+    aspect-ratio: 1;
+    max-width: 84%;
+    translate: -50% 0;
+    pointer-events: none;
+    background-image: inherit;
+    background-position: center;
+    background-size: cover;
+    clip-path: circle(closest-side);
+}
+
 .lattice-poster.is-expanded .lattice-poster-copy {
     right: 32px;
     bottom: 152px;
     left: 32px;
+}
+
+/* A grown collection (explore wall) has one button under its copy, where a song has the
+   transport and the seek bar: the copy comes down to it. */
+.lattice-poster.is-collection.is-expanded .lattice-poster-copy {
+    bottom: 100px;
 }
 
 .lattice-poster-controls {
@@ -34,6 +162,14 @@
 }
 
 /* .lattice-back（左上角返回）在 components/wall/WallBackButton.css（实测反馈 1：bravais 也用同一个按钮）。 */
+
+/* The explore wall's "refresh" stands beside the way back and has its shape. */
+.lattice-refresh { left: 72px; }
+.lattice-refresh[aria-disabled='true'] { opacity: 0.5; transform: none; cursor: default; }
+
+/* An explore tile's label is a word where a queue tile has its number (the badge's own rules are
+   in components/wall/wall.css). */
+.lattice-queue-root .lattice-poster-badge { text-transform: uppercase; }
 
 .lattice-empty {
     position: absolute;
@@ -48,6 +184,14 @@
 
 .lattice-empty strong { font-size: 17px; letter-spacing: 0.16em; }
 .lattice-empty span { font-size: 12px; opacity: 0.5; }
+
+/* The marks of the explore wall's tiles are drawn on ::before (above); with motion reduced for the
+   wall they change at once, as the rest of a poster does (components/wall/wall.css). */
+:root[data-reduce-motion~='lattice'] .lattice-poster::before { transition: none; }
+
+@media (max-width: 640px) {
+    .lattice-refresh { left: 64px; }
+}
 
 /* ---------- 翻牌交接（资料库墙 ↔ Lattice，设计稿 §7「进入队列」；属性由 Lattice.tsx 按 useWallHandoffStore 挂） ----------
    一律限定在 Lattice 自己的根类（.lattice-queue-root）：bravais 的根节点同样是 .lattice-root，也挂 data-wall-handoff。 */

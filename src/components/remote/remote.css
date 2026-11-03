@@ -1,0 +1,1021 @@
+/* src/components/remote/remote.css
+   The remote window: a block of type, a line, a row of keys. 602 x 184: the card in use, 420 x 176,
+   on the right, and 174 px left of it for the sleeve, the look of the window when not in use
+   (with the switch "expand cover" on). Every colour is the ink (--remote-ink) at some strength; the
+   theme and the background mode only change the ink and the card under it. What the pointer
+   lights up hangs on [data-lit]; the keys making way for the line when not in use, and the
+   transparent background's bare look, on [data-idle]; the opened card and the large cover on
+   [data-sleeve]. A rule on a look carries the transition into that look: into the sleeve is slow
+   and calm (0.62 s), back into use is quick (0.32 s). */
+
+.remote-window {
+  --remote-ink: 255, 255, 255;
+  --remote-paper: #111114;
+  --remote-sung: rgb(var(--remote-ink));
+  --remote-unsung: rgba(var(--remote-ink), 0.4);
+  --remote-second: rgba(var(--remote-ink), 0.64);
+  --remote-next: rgba(var(--remote-ink), 0.3);
+  --transition-glow-color: rgba(var(--remote-ink), 0.8);
+  --remote-settle: cubic-bezier(0.32, 0.72, 0, 1);
+  --remote-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: normal;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  transition: opacity 140ms ease-out;
+}
+
+/* The window's top edge is moving to show or hide the queue above the card (useRemoteQueue): the
+   compositor would show the last frame at the new spot, so nothing is drawn until the page has
+   laid itself out at the new size. */
+.remote-window[data-shifting='true'] {
+  opacity: 0;
+  transition: opacity 90ms ease-out;
+}
+
+.remote-window[data-theme='light'] {
+  --remote-ink: 17, 17, 22;
+  --remote-paper: #fff;
+  --transition-glow-color: rgba(var(--remote-ink), 0.45);
+}
+
+/* Over a cover or over nothing the type is white whatever the theme. */
+.remote-window[data-bg='cover'],
+.remote-window[data-bg='transparent'] {
+  --remote-ink: 255, 255, 255;
+  --remote-paper: #111114;
+  --transition-glow-color: rgba(var(--remote-ink), 0.8);
+}
+
+.remote-window[data-paused='true'] {
+  --remote-sung: rgba(var(--remote-ink), 0.62);
+  --remote-unsung: rgba(var(--remote-ink), 0.3);
+}
+
+/* :where keeps these below every class rule in this file; the bare button reset is Tailwind's. */
+:where(.remote-window) button {
+  cursor: pointer;
+}
+
+:where(.remote-window) button:disabled {
+  cursor: default;
+}
+
+:where(.remote-window) :focus {
+  outline: none;
+}
+
+:where(.remote-window) :focus-visible {
+  outline: 1.5px solid rgba(var(--remote-ink), 0.7);
+  outline-offset: 1px;
+}
+
+/* ---- the card and what is under the type ---- */
+
+/* 594 x 176, centred: 4 px from each edge of the 602 x 184 window. A fixed size, so a window
+   manager that gives the window another size leaves the layout alone. The card in use is its
+   right 420 (.remote-face); the left 174 is the sleeve's cover, and is empty in use. A
+   click-through window is a display and always shows the look of not in use. */
+.remote-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 594px;
+  height: 176px;
+  margin: -88px 0 0 -297px;
+  color: rgb(var(--remote-ink));
+}
+
+/* Grown to show the queue (RemoteQueue.css): the card keeps to the edge away from it. At the
+   window's own height that is where it already is, so the side is set before the window grows. */
+.remote-window[data-queue='down'] .remote-card {
+  top: 4px;
+  margin-top: 0;
+}
+
+.remote-window[data-queue='up'] .remote-card {
+  top: auto;
+  bottom: 4px;
+  margin-top: 0;
+}
+
+/* Everything of the card in use, at the place and size it has always had. */
+.remote-face {
+  position: absolute;
+  left: 174px;
+  top: 0;
+  width: 420px;
+  height: 176px;
+}
+
+/* What the card is made of: cut to the face in use, opened to the left in the sleeve. */
+.remote-paper {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 174px round 18px);
+  transition: clip-path 300ms var(--remote-snap);
+}
+
+.remote-window[data-sleeve='true'] .remote-paper {
+  clip-path: inset(0 round 18px);
+  transition: clip-path 560ms var(--remote-settle) 60ms;
+}
+
+.remote-window[data-bg='default'] .remote-paper {
+  background: linear-gradient(180deg, #18181c 0%, #0f0f12 100%);
+}
+
+.remote-window[data-bg='default'][data-theme='light'] .remote-paper {
+  background: linear-gradient(180deg, #fbfaf8 0%, #f3f2ee 100%);
+}
+
+.remote-window[data-bg='cover'] .remote-paper {
+  background: #0d0d10;
+}
+
+/* The card's edge and its shadow, which the paper's cut would clip; it opens with the paper. */
+.remote-ring {
+  position: absolute;
+  left: 174px;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  border-radius: 18px;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(var(--remote-ink), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: left 300ms var(--remote-snap);
+}
+
+.remote-window[data-sleeve='true'] .remote-ring {
+  left: 0;
+  transition: left 560ms var(--remote-settle) 60ms;
+}
+
+.remote-window[data-bg='default'][data-theme='light'] .remote-ring {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(17, 17, 22, 0.09);
+}
+
+.remote-window[data-bg='transparent'] .remote-ring {
+  display: none;
+}
+
+/* The cover, enlarged and blurred until only its colours are left. Stretched to the card's shape
+   rather than cropped, so the colours of the whole cover reach the card, not a band of it.
+   40 % past each edge of the face (168 and 70 px); left of the face the sleeve's cover lies on it. */
+.remote-wash {
+  position: absolute;
+  inset: -70.4px -168px -70.4px 6px;
+  background-size: 100% 100%;
+  filter: blur(38px) saturate(1.2);
+}
+
+.remote-wash-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(9, 9, 13, 0.46) 0%, rgba(9, 9, 13, 0.7) 100%);
+}
+
+/* Transparent: no card. The idle type (in the sleeve or not) stands on what is behind the window
+   with only its own thin shadow, and a dark base comes up for the card in use. */
+
+/* The settings switch "text shade" (off by default). A page in a transparent window cannot blur
+   what is behind the window, so with it on the idle type sits on a soft dark shade. */
+.remote-cloud {
+  position: absolute;
+  border-radius: 26px;
+  background: rgba(0, 0, 0, 0.6);
+  filter: blur(12px);
+  pointer-events: none;
+  transition: opacity 320ms ease, left 200ms ease, top 200ms ease, width 200ms ease, height 200ms ease;
+}
+
+.remote-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  opacity: 0;
+  background: rgba(13, 13, 17, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  transition: opacity 320ms ease;
+}
+
+.remote-window[data-idle='false'] .remote-glass {
+  opacity: 1;
+  transition: opacity 140ms ease-out;
+}
+
+.remote-cloud[data-empty='true'] {
+  opacity: 0;
+}
+
+.remote-window[data-idle='false'] .remote-cloud {
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] {
+  --remote-unsung: rgba(255, 255, 255, 0.62);
+  --remote-second: rgba(255, 255, 255, 0.9);
+  --remote-next: rgba(255, 255, 255, 0.62);
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'][data-paused='true'] {
+  --remote-sung: rgba(255, 255, 255, 0.78);
+  --remote-unsung: rgba(255, 255, 255, 0.5);
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] :is(
+  .remote-song,
+  .remote-lyric__hero,
+  .remote-lyric__roma,
+  .remote-lyric__sub,
+  .remote-transport
+) {
+  filter: drop-shadow(0 0 0.6px rgba(0, 0, 0, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+/* ---- what only shows with the pointer in the window ---- */
+
+.remote-lit {
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.remote-window[data-lit='true'] .remote-lit {
+  opacity: 1;
+  transition: opacity 220ms var(--remote-snap) 80ms;
+}
+
+.remote-window[data-idle='true'] .remote-lit {
+  transition: opacity 180ms ease-out;
+}
+
+/* ---- the stage: everything above the line when the sheet is closed ---- */
+
+.remote-stage {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 124px;
+  z-index: 1;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.remote-window[data-sheet='true'] .remote-stage {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
+/* ---- the song: one line with a 22 px cover, or the title card with a 56 px cover ---- */
+
+.remote-song {
+  position: absolute;
+  inset: 0;
+}
+
+/* One element, 176 x 176 at the card's left edge. In use it is scaled down onto the small
+   cover's place, 22 px at x 22 y 11 (or 56 px at y 35 for the title card); in the sleeve it is
+   itself. Its corners and its edge are divided by the scale, so they look the same at any size. */
+.remote-cover {
+  position: absolute;
+  left: -174px;
+  top: 0;
+  width: 176px;
+  height: 176px;
+  transform-origin: 0 0;
+  transform: translate(196px, 11px) scale(0.125);
+  border-radius: 48px;
+  overflow: hidden;
+  background: rgba(var(--remote-ink), 0.1);
+  transition: transform 300ms var(--remote-snap), border-radius 300ms var(--remote-snap),
+    box-shadow 300ms var(--remote-snap);
+}
+
+.remote-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.14);
+  transition: box-shadow 300ms var(--remote-snap);
+}
+
+.remote-song[data-mode='card'] .remote-cover {
+  transform: translate(196px, 35px) scale(0.318182);
+  border-radius: 34.57px;
+}
+
+.remote-song[data-mode='card'] .remote-cover::after {
+  box-shadow: inset 0 0 0 1.57px rgba(255, 255, 255, 0.14);
+}
+
+.remote-window[data-sleeve='true'] .remote-cover {
+  transform: none;
+  border-radius: 18px 0 0 18px;
+  transition: transform 560ms var(--remote-settle) 60ms, border-radius 560ms var(--remote-settle) 60ms,
+    box-shadow 560ms var(--remote-settle) 60ms;
+}
+
+.remote-window[data-sleeve='true'] .remote-cover::after {
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  transition: box-shadow 560ms var(--remote-settle) 60ms;
+}
+
+/* No card around it: lifted off what is behind the window. */
+.remote-window[data-bg='transparent'] .remote-cover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+/* In the sleeve rounded all round. The window leaves it 4 px, which would cut that shadow square,
+   so it keeps only the type's thin shadow (on .remote-song). */
+.remote-window[data-bg='transparent'][data-sleeve='true'] .remote-cover {
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.remote-cover__face,
+.remote-cover__image {
+  position: absolute;
+  inset: 0;
+}
+
+.remote-cover__image {
+  background-position: center;
+  background-size: cover;
+  transition: filter 320ms ease;
+}
+
+/* With the keys away, paused shows in the type (dimmed, as in use) and in a darker cover. */
+.remote-window[data-idle='true'][data-paused='true'] .remote-cover__image {
+  filter: brightness(0.78) saturate(0.75);
+}
+
+.remote-cover__blank {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* 11 px at the small cover's scale; 24 px on the title card. */
+  font-size: 88px;
+  font-weight: 700;
+  color: rgba(var(--remote-ink), 0.35);
+  transition: font-size 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.remote-song[data-mode='card'] .remote-cover__blank,
+.remote-window[data-sleeve='true'] .remote-cover__blank {
+  font-size: 76px;
+}
+
+/* The two texts travel towards each other's place over 420 ms (the cover in use takes 300). The
+   one that leaves is gone in the first 140 ms and the one that arrives starts after that, so the
+   title is never on screen twice. */
+.remote-song__line,
+.remote-song__card {
+  position: absolute;
+  transform-origin: 0 0;
+  transition: opacity 220ms ease 140ms, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.remote-song__line {
+  left: 53px;
+  top: 11px;
+  width: 257px;
+  height: 22px;
+}
+
+.remote-window[data-notitle='true'] .remote-song__line {
+  width: 345px;
+}
+
+.remote-song__card {
+  left: 94px;
+  right: 22px;
+  top: 35px;
+  height: 56px;
+}
+
+.remote-song[data-mode='card'] .remote-song__line {
+  opacity: 0;
+  transform: translate(41px, 30px) scale(1.5);
+  transition: opacity 140ms ease, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.remote-song[data-mode='line'] .remote-song__card {
+  opacity: 0;
+  transform: translate(-41px, -30px) scale(0.6);
+  transition: opacity 140ms ease, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.remote-song__face {
+  position: absolute;
+  inset: 0;
+}
+
+/* In the sleeve the small cover is gone, and the song takes its place: x 22. */
+.remote-song__row,
+.remote-song__cardtext {
+  transition: translate 300ms var(--remote-snap);
+}
+
+.remote-window[data-sleeve='true'] :is(.remote-song__row, .remote-song__cardtext) {
+  transition: translate 560ms var(--remote-settle) 60ms;
+}
+
+.remote-window[data-sleeve='true'] .remote-song__row {
+  translate: -31px 0;
+}
+
+.remote-window[data-sleeve='true'] .remote-song__cardtext {
+  translate: -72px 0;
+}
+
+.remote-song__row {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 22px;
+  font-size: 11.5px;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.remote-song__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: rgba(var(--remote-ink), 0.84);
+}
+
+.remote-song__artist {
+  flex: none;
+  max-width: 110px;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: rgba(var(--remote-ink), 0.46);
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-song__title {
+  color: #fff;
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-song__artist {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.remote-song__cardtext {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  height: 100%;
+}
+
+.remote-song__cardtitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: rgb(var(--remote-ink));
+  overflow-wrap: anywhere;
+}
+
+.remote-song__cardartist {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 19px;
+  color: rgba(var(--remote-ink), 0.58);
+}
+
+/* ---- the lyric: the line being sung and one quiet line under it, from y 40 ---- */
+
+/* Holds the lyric while an audio hand-off fades it with the outgoing song: the stage's own box, so
+   the lyric sits where it did, and nothing in it takes the pointer. */
+.remote-recede {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.remote-lyric {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 40px;
+  /* Comes in once the title card's text has left the same place. */
+  transition: opacity 260ms ease 140ms;
+}
+
+.remote-lyric[data-shown='false'] {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.remote-lyric__pair {
+  position: relative;
+  width: 100%;
+}
+
+/* A gap inside the song: the last line stays, dimmed. */
+.remote-lyric__pair[data-dim='true'] {
+  --remote-sung: rgba(var(--remote-ink), 0.62);
+  --remote-unsung: rgba(var(--remote-ink), 0.3);
+}
+
+/* With no card behind it the dimmed line needs the paused line's strength to stay readable. */
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-lyric__pair[data-dim='true'] {
+  --remote-sung: rgba(255, 255, 255, 0.78);
+  --remote-unsung: rgba(255, 255, 255, 0.5);
+}
+
+.remote-lyric__hero {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--remote-unsung);
+  overflow-wrap: anywhere;
+}
+
+.remote-lyric__hero[data-size='small'] {
+  font-size: 17px;
+  line-height: 22px;
+}
+
+/* The same text without the two-line cut, to count how many lines it takes at the large size. */
+.remote-lyric__measure {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 100%;
+  max-width: none;
+  overflow: visible;
+  -webkit-line-clamp: none;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* A timed piece is an inline box, so the browser's own rules say where the line may break: not
+   inside a word cut into syllables, not before a comma or a closing bracket, not after an opening
+   one. A piece that does wrap (a Chinese word of two characters) is filled as one strip cut in
+   two, not as two strips. */
+.remote-lyric__word {
+  -webkit-box-decoration-break: slice;
+  box-decoration-break: slice;
+  /* Takes no room in the line. Under the drop shadow of the transparent background a piece is
+     painted only inside its own box, and without this the lowest row of a "g" or a "y" is cut. */
+  padding-bottom: 2px;
+}
+
+/* Every piece is painted the same way, sung, unsung or in between: text drawn as a clip of its
+   background is smoothed otherwise than text drawn in a colour, so a piece that changed between the
+   two at the start and the end of its fill looked a little different there. */
+.remote-lyric__word,
+.remote-lyric__gap {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--remote-sung) calc(var(--remote-fill, 0%) * 1.16 - 16%),
+    var(--remote-unsung) calc(var(--remote-fill, 0%) * 1.16)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.remote-lyric__whole {
+  color: var(--remote-sung);
+}
+
+.remote-lyric__roma {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  color: rgba(var(--remote-ink), 0.44);
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-lyric__roma {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.remote-lyric__sub {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 400;
+  color: var(--remote-second);
+  overflow-wrap: anywhere;
+}
+
+.remote-lyric__sub[data-lines='1'] {
+  display: block;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-lyric__sub[data-kind='next'] {
+  color: var(--remote-next);
+}
+
+/* ---- window tools, top right ---- */
+
+.remote-tools {
+  position: absolute;
+  right: 16px;
+  top: 10px;
+  z-index: 4;
+  display: flex;
+  gap: 2px;
+}
+
+.remote-window[data-notitle='true'] .remote-tools {
+  display: none;
+}
+
+.remote-tool {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: rgba(var(--remote-ink), 0.46);
+  transition: background-color 140ms ease-out, color 140ms ease-out;
+}
+
+.remote-tool:hover:not(:disabled) {
+  background: rgba(var(--remote-ink), 0.12);
+  color: rgb(var(--remote-ink));
+}
+
+.remote-tool:disabled {
+  opacity: 0.45;
+}
+
+/* ---- the line: divider and progress in one, y 125..127 ---- */
+
+.remote-line {
+  --remote-progress: 0%;
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 118px;
+  height: 16px;
+  z-index: 3;
+  transition: transform 240ms var(--remote-snap);
+}
+
+/* When idle the line lies along the bottom edge, where the keys were. */
+.remote-window[data-idle='true'] .remote-line {
+  transform: translateY(34px);
+  transition: transform 440ms var(--remote-settle) 120ms;
+}
+
+.remote-line__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(var(--remote-ink), 0.11);
+  transition: top 320ms ease, height 320ms ease, background-color 320ms ease;
+}
+
+.remote-line__fill {
+  width: var(--remote-progress);
+  height: 100%;
+  border-radius: 2px;
+  background: rgba(var(--remote-ink), 0.58);
+  transition: background-color 320ms ease;
+}
+
+.remote-line__glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--remote-progress);
+  height: 100%;
+  border-radius: 2px;
+  background: rgb(var(--remote-ink));
+  pointer-events: none;
+}
+
+.remote-line__knob {
+  position: absolute;
+  left: var(--remote-progress);
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: rgb(var(--remote-ink));
+}
+
+.remote-line__track,
+.remote-line__knob {
+  pointer-events: none;
+}
+
+.remote-line__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+  background: transparent;
+}
+
+.remote-line__input:disabled {
+  cursor: default;
+}
+
+/* Nothing to seek: no knob to take hold of. */
+.remote-line__input:disabled ~ .remote-line__knob {
+  display: none;
+}
+
+.remote-line__input:focus-visible ~ .remote-line__track {
+  outline: 1.5px solid rgba(var(--remote-ink), 0.7);
+  outline-offset: 2px;
+}
+
+.remote-window[data-lit='true'] .remote-line__track {
+  top: 6.5px;
+  height: 3px;
+  background: rgba(var(--remote-ink), 0.16);
+  transition: top 140ms ease-out, height 140ms ease-out, background-color 140ms ease-out;
+}
+
+.remote-window[data-lit='true'] .remote-line__fill {
+  background: rgb(var(--remote-ink));
+  transition: background-color 140ms ease-out;
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-line__track {
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.38), 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+.remote-window[data-bg='transparent'][data-idle='true'] .remote-line__fill {
+  background: #fff;
+}
+
+/* ---- the key row: centre line y 151 ---- */
+
+.remote-deck {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 127px;
+  height: 49px;
+  z-index: 2;
+  transition: opacity 220ms var(--remote-snap) 80ms, transform 220ms var(--remote-snap) 80ms;
+}
+
+.remote-window[data-idle='true'] .remote-deck {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+
+.remote-transport {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transform: translate(-50%, -50%);
+  color: rgb(var(--remote-ink));
+}
+
+.remote-key {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  transition: background-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out, transform 120ms ease-out;
+}
+
+.remote-key:hover:not(:disabled) {
+  background: rgba(var(--remote-ink), 0.12);
+  color: rgb(var(--remote-ink));
+}
+
+.remote-key:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.remote-key:disabled {
+  opacity: 0.3;
+}
+
+.remote-key--play {
+  width: 36px;
+  height: 36px;
+}
+
+.remote-key--skip {
+  width: 32px;
+  height: 32px;
+}
+
+.remote-transport .remote-key svg {
+  opacity: 0.72;
+  transition: opacity 320ms ease;
+}
+
+.remote-window:is([data-lit='true'], [data-paused='true']) .remote-transport .remote-key svg {
+  opacity: 0.95;
+  transition: opacity 140ms ease-out;
+}
+
+.remote-window[data-bg='transparent'] .remote-transport .remote-key svg,
+.remote-window .remote-transport .remote-key:hover:not(:disabled) svg {
+  opacity: 1;
+}
+
+.remote-key--small {
+  width: 28px;
+  height: 28px;
+  color: rgba(var(--remote-ink), 0.56);
+}
+
+.remote-key--small[data-on='true'] {
+  color: rgba(var(--remote-ink), 0.96);
+}
+
+.remote-key--small[data-liked='true'],
+.remote-key--small[data-liked='true']:hover:not(:disabled) {
+  color: #ff5d73;
+}
+
+/* Around the heart: where the pointer rests to read why it cannot be used. A disabled button
+   takes no pointer events of its own, so it lets them through to this wrapper. */
+.remote-key-rest {
+  display: flex;
+}
+
+.remote-key-rest > :disabled {
+  pointer-events: none;
+}
+
+.remote-key__dot {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.remote-key__dot--live {
+  background: #ff4d5e;
+}
+
+.remote-deck__slot {
+  position: absolute;
+  top: 24px;
+  transform: translateY(-50%);
+  transition: opacity 160ms ease;
+}
+
+.remote-deck__slot[data-covered='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.remote-deck__slot--time {
+  left: 22px;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgba(var(--remote-ink), 0.78);
+}
+
+.remote-deck__slot--time i {
+  font-style: normal;
+  color: rgba(var(--remote-ink), 0.38);
+}
+
+.remote-deck__slot--keys {
+  right: 16px;
+  display: flex;
+  gap: 2px;
+}
+
+.remote-preview {
+  position: absolute;
+  top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 118px;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: rgba(var(--remote-ink), 0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.remote-preview[data-shown='true'] {
+  opacity: 1;
+}
+
+.remote-preview--prev {
+  left: 22px;
+}
+
+.remote-preview--next {
+  right: 22px;
+}
+
+/* Why the heart cannot be used, in the time's own type and in its place; up to three lines. */
+.remote-preview--note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 500;
+  white-space: normal;
+  text-wrap: balance;
+  color: rgba(var(--remote-ink), 0.78);
+}
+
+.remote-preview__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.remote-preview__cover {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background-color: rgba(var(--remote-ink), 0.1);
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+}
+
+/* 降低动态效果：位置和大小不再过渡，只留下立即到位的状态。读 <html data-reduce-motion>，
+   和这个窗口进度辉光用的是同一个面（uiMicroMotion）。 */
+:root[data-reduce-motion~='uiMicroMotion'] .remote-window,
+:root[data-reduce-motion~='uiMicroMotion'] .remote-window *,
+:root[data-reduce-motion~='uiMicroMotion'] .remote-window *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}

@@ -46,7 +46,8 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_API_URL: ${OPENAI_API_URL:-https://api.openai.com/v1}
-      OPENAI_API_MODEL: ${OPENAI_API_MODEL:-gpt-5.6-luna}
+      # 留空时用接口地址对应供应商的默认模型（OpenAI 和未识别的地址是 gpt-5.6-luna）。
+      OPENAI_API_MODEL: ${OPENAI_API_MODEL:-}
       OPENAI_API_TEMPERATURE: ${OPENAI_API_TEMPERATURE:-0.7}
       NAVIDROME_URL: ${NAVIDROME_URL:-}
       NAVIDROME_USERNAME: ${NAVIDROME_USERNAME:-}

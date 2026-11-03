@@ -29,7 +29,7 @@ export default function activate(folium) {
     id: 'sonnet-deep-tuning',
     target: 'sonnet',
     label: { 'zh-CN': '商籁深度精调（K3Panel）', en: 'Sonnet deep tuning (K3Panel)' },
-    params: KNOBS.map((knob) => ({
+    settings: KNOBS.map((knob) => ({
       key: knob.key,
       type: 'number',
       label: { 'zh-CN': knob.zh, en: knob.en },

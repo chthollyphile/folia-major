@@ -1,9 +1,10 @@
 import type { MotionValue } from 'framer-motion';
-import type { AudioBands, SonnetTuning, Theme } from '../../../types';
+import type { AudioBands, LyricRenderScale, SonnetTuning, Theme } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import type { SonnetProgram } from './types';
 import { findSonnetParagraphIndexAtTime } from './sonnetProgram';
 import { buildSonnetScene, type SceneView } from './sonnetSceneBuilder';
-import { snapResolutionToTexturePool } from '../pixiTextureBudget';
+import { snapResolutionToTexturePool } from '../pixi/pixiTextureBudget';
 import {
     destroySonnetContainerChildren,
     destroySonnetDisplayTree,
@@ -14,9 +15,12 @@ import {
     hasSonnetCreditsMetadata,
     resolveSonnetCreditsFrame,
 } from './sonnetCredits';
-import { loadPixi } from '../loadPixi';
 import { PixiSceneCache } from '../pixiSceneCache';
+import { loadPixi } from '../pixi/loadPixi';
+import { linkPixiPrograms } from '../pixi/pixiProgramLinks';
+import { makePixiContext } from '../pixi/pixiWebGLContext';
 import { sonnetDebugState } from './sonnetDebug';
+import { createSonnetBeatFxReader } from './sonnetBeatFx';
 import { readSonnetModulation, type SonnetShotFrameContext, updateSonnetShot } from './sonnetShotFrame';
 import { findSonnetActiveShotIndex, resolveSonnetSceneTransitionFrame } from './sonnetSceneFrame';
 import { drawSonnetFrameOverlay } from './sonnetFrameOverlay';
@@ -70,6 +74,15 @@ export interface SonnetRuntimeOptions {
     program: SonnetProgram;
     theme: Theme;
     tuning: SonnetTuning;
+    /**
+     * 分辨率倍数（#929，全局挡位叠上样式覆盖）：乘在 `textureResolution` 上再做纹理池吸附。
+     * 就地改，见 setRenderScale。
+     */
+    renderScale: LyricRenderScale;
+    /** 画布开不开 MSAA（#929）：「自动」时就是原来的 `!postProcessEnabled`。只在建上下文时定，变了由外壳重建。 */
+    antialias: boolean;
+    /** 智能动感模式 (`smartBeatActive`: on or cached); its strengths reach the frame through the beat clock. */
+    smartBeatEnabled: boolean;
     currentTime: MotionValue<number>;
     audioPower?: MotionValue<number>;
     audioBands?: AudioBands;
@@ -85,6 +98,22 @@ export interface SonnetRuntimeOptions {
     modulation?: Record<string, number>;
 }
 
+/**
+ * 渲染器实际用的 resolution：`textureResolution` 是样式原来的像素密度（base），乘上分辨率倍数（#929）
+ * 后再吸附到纹理池档位。吸附随视口变，所以 resize 和倍数变化时都要重算。
+ */
+const resolveSonnetRenderResolution = (
+    width: number,
+    height: number,
+    tuning: SonnetTuning,
+    renderScale: LyricRenderScale,
+) => snapResolutionToTexturePool(width, height, resolveLyricPixelRatio(tuning.textureResolution, renderScale));
+
+/** 两份 tuning 除了 render 一项之外全都一样（其余字段都是原始值）。 */
+const onlyRenderChanged = (previous: SonnetTuning, next: SonnetTuning) => (
+    (Object.keys(next) as Array<keyof SonnetTuning>).every(key => key === 'render' || previous[key] === next[key])
+);
+
 export class SonnetPixiRuntime {
     private readonly sceneCache = new PixiSceneCache<SceneView>({
         count: () => this.options.program.paragraphs.length,
@@ -99,6 +128,8 @@ export class SonnetPixiRuntime {
     private readonly iconUrls = new Set<string>();
     private activeParagraphIndex = -1;
     private destroyed = false;
+    /** 智能动感模式 frame reader; yields null unless it is on and the track's beats are installed. */
+    private readonly readBeatFx = createSonnetBeatFxReader();
     /**
      * An in-flight song handover. Driven by the wall clock, unlike every other transition here:
      * those derive their progress from absolute playback time so a seek stays stable, but that
@@ -134,20 +165,31 @@ export class SonnetPixiRuntime {
 
     static async create(options: SonnetRuntimeOptions) {
         const pixi = await loadPixi();
+        // The options the WebGL context is made with, ahead of Pixi (makePixiContext).
+        const contextOptions = {
+            backgroundAlpha: 0,
+            // With post-processing the scene is drawn into the filter's own multisampled target and
+            // the canvas only gets the filtered picture and the frame marks: its 4-sample buffers
+            // would cost about 190 MB of video memory for those. The marks' edges are then not
+            // smoothed. That is the default; the 抗锯齿 setting (#929) can force it either way, and
+            // the resolved value is part of the host's rebuild key, so a change applies.
+            antialias: options.antialias,
+            powerPreference: 'high-performance',
+        } as const;
+        const context = await makePixiContext(pixi, contextOptions, options.signal);
         const app = new pixi.Application();
         const width = Math.max(options.host.clientWidth, 320);
         const height = Math.max(options.host.clientHeight, 240);
         await app.init({
             width,
             height,
-            backgroundAlpha: 0,
-            antialias: true,
+            ...contextOptions,
+            ...context,
             autoDensity: true,
-            resolution: snapResolutionToTexturePool(width, height, options.tuning.textureResolution),
+            resolution: resolveSonnetRenderResolution(width, height, options.tuning, options.renderScale),
             autoStart: false,
             sharedTicker: false,
             preference: 'webgl',
-            powerPreference: 'high-performance',
         });
         const runtime = new SonnetPixiRuntime(pixi, options, app);
         runtime.sceneContainer = new pixi.Container();
@@ -160,26 +202,40 @@ export class SonnetPixiRuntime {
             runtime.destroy();
             throw new DOMException('Sonnet runtime creation was cancelled', 'AbortError');
         }
-        options.host.appendChild(app.canvas);
-        app.canvas.style.cssText = 'width:100%;height:100%;display:block';
         await runtime.preloadIcons();
         if (options.signal?.aborted) {
             runtime.destroy();
             throw new DOMException('Sonnet runtime creation was cancelled', 'AbortError');
         }
-        runtime.install();
+        await runtime.install();
+        if (options.signal?.aborted) {
+            runtime.destroy();
+            throw new DOMException('Sonnet runtime creation was cancelled', 'AbortError');
+        }
         return runtime;
     }
 
-    private install() {
+    /**
+     * The first frame, in steps the page runs between: the first scene is built in a task of its own,
+     * its shader programs are linked while the page goes on (linkPixiPrograms), and only then does the
+     * canvas go on the page, drawn. Returns early when the creation is cancelled meanwhile.
+     */
+    private async install() {
+        await new Promise((resolve) => { window.setTimeout(resolve); });
+        if (this.options.signal?.aborted) return;
         this.resizeToHost();
+        this.renderFrame();
+        await linkPixiPrograms(this.pixi, this.app.renderer, this.app.stage, 'Sonnet', this.options.signal);
+        if (this.options.signal?.aborted) return;
+        this.options.host.appendChild(this.app.canvas);
+        this.app.canvas.style.cssText = 'width:100%;height:100%;display:block';
         this.app.ticker.add(this.renderFrame);
         this.resizeObserver = new ResizeObserver(() => {
             if (this.destroyed || !this.resizeToHost()) return;
             if (this.options.paused) this.renderOnce();
         });
         this.resizeObserver.observe(this.options.host);
-        this.renderOnce();
+        this.app.renderer.render(this.app.stage);
         if (!this.options.paused) this.app.start();
     }
 
@@ -196,7 +252,7 @@ export class SonnetPixiRuntime {
         this.app.renderer.resize(
             width,
             height,
-            snapResolutionToTexturePool(width, height, this.options.tuning.textureResolution),
+            resolveSonnetRenderResolution(width, height, this.options.tuning, this.options.renderScale),
         );
         // Staged against the old viewport, so its layout no longer fits.
         if (this.songSwap?.staged) {
@@ -298,6 +354,7 @@ export class SonnetPixiRuntime {
             host: this.options.host,
             theme: song.theme,
             tuning: this.options.tuning,
+            smartBeatEnabled: this.options.smartBeatEnabled,
             lyricsFontScale: this.options.lyricsFontScale,
             staticMode: this.options.staticMode,
             transparentBackground: this.options.transparentBackground,
@@ -352,12 +409,16 @@ export class SonnetPixiRuntime {
             finalParagraph?.endTime ?? Number.POSITIVE_INFINITY,
         );
         const hasCredits = this.creditsContainer.children.length > 0;
+        // Read once per frame, before any shot, so every consumer sees the same envelopes.
+        const beatFx = this.options.staticMode ? null : this.readBeatFx(this.options.audioBands, this.options.smartBeatEnabled);
         const shotFrameContext: SonnetShotFrameContext = {
             tuning: this.options.tuning,
+            smartBeatEnabled: this.options.smartBeatEnabled,
             theme: this.options.theme,
             audioBands: this.options.audioBands,
             audioPower: this.options.audioPower,
             mod: this.mod,
+            beatFx,
         };
 
         this.sceneCache.forEach((scene, index) => {
@@ -415,8 +476,17 @@ export class SonnetPixiRuntime {
                 scene.transitionBlurFilter.enabled = transitionFrame.blur > 0.01;
             }
             if (scene.transitionGlitchEffect) {
-                scene.transitionGlitchEffect.update(transitionFrame.glitch * transitionGlitchScale, transitionFrame.glitchSeed);
-                scene.transitionGlitchEffect.filter.enabled = transitionFrame.glitch > 0.01;
+                const transitionGlitch = transitionFrame.glitch * transitionGlitchScale;
+                // The downbeat tear shares this filter; the stronger of the two drives it.
+                const beatTearWins = !!beatFx && beatFx.tear > transitionGlitch;
+                const glitchAmount = beatTearWins ? beatFx!.tear : transitionGlitch;
+                scene.transitionGlitchEffect.update(
+                    glitchAmount,
+                    beatTearWins ? beatFx!.tearSeed : transitionFrame.glitchSeed,
+                );
+                scene.transitionGlitchEffect.filter.enabled = beatTearWins
+                    ? glitchAmount > 0.01
+                    : transitionFrame.glitch > 0.01;
             }
 
             if (isFinalScene && hasCredits) {
@@ -601,13 +671,48 @@ export class SonnetPixiRuntime {
     /**
      * Applies a settings change to the live runtime. Every scene is rebuilt against the new
      * tuning, but the WebGL context, the canvas and the icon textures stay; the settings that
-     * shape those (`textureResolution`, `showOnlyText`, `showBackgroundDecor`) are part of the
+     * shape those (`textureResolution`, `showOnlyText`, `showBackgroundDecor`, and the resolved
+     * antialiasing, which follows `postProcessEnabled` by default) are part of the
      * host's rebuild key instead.
      */
     setTuning(tuning: SonnetTuning) {
         if (this.destroyed || this.options.tuning === tuning) return;
+        const previous = this.options.tuning;
         this.options.tuning = tuning;
-        // Staged against the old tuning, so it can no longer be adopted.
+        // 只动了 render（分辨率 / 抗锯齿覆盖）时场景不用重建：外壳把合出来的倍数经 setRenderScale 推来，
+        // 抗锯齿则在重建键里。
+        if (onlyRenderChanged(previous, tuning)) return;
+        this.rebuildScenes();
+    }
+
+    /**
+     * 换分辨率倍数（#929）：就地改渲染器的 resolution，不重建 WebGL 上下文；场景按新 surface 重建一遍
+     * （文字纹理跟着新密度）。首次 resize 之前只记下来，install 的那次 resize 会用上。
+     */
+    setRenderScale(renderScale: LyricRenderScale) {
+        if (this.destroyed || this.options.renderScale === renderScale) return;
+        this.options.renderScale = renderScale;
+        if (this.lastWidth <= 0 || this.lastHeight <= 0) return;
+        const resolution = resolveSonnetRenderResolution(this.lastWidth, this.lastHeight, this.options.tuning, renderScale);
+        if (resolution === this.app.renderer.resolution) return;
+        this.app.renderer.resize(this.lastWidth, this.lastHeight, resolution);
+        this.rebuildScenes();
+    }
+
+    /**
+     * Switches 智能动感模式. Scenes are built with or without its MG onset pop and tear filter, so they
+     * are rebuilt like a tuning change; the 轻拍 / 重拍 strengths never come here, the beat clock
+     * applies them to the signals every frame.
+     */
+    setSmartBeatEnabled(enabled: boolean) {
+        if (this.destroyed || this.options.smartBeatEnabled === enabled) return;
+        this.options.smartBeatEnabled = enabled;
+        this.rebuildScenes();
+    }
+
+    /** Rebuilds every scene against the current options on the live context. */
+    private rebuildScenes() {
+        // Staged against the old options, so it can no longer be adopted.
         if (this.songSwap?.staged) {
             this.destroyScene(this.songSwap.staged.scene);
             this.songSwap.staged = null;

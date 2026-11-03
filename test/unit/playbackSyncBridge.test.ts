@@ -8,6 +8,7 @@ import {
     buildTaskbarControlsFromPlaybackSyncBridge,
 } from '../../src/utils/playbackSyncBridge';
 import { getPlaybackSongKey } from '../../src/utils/appPlaybackGuards';
+import { resolvePlaybackNeighbors } from '../../src/utils/playbackNeighbors';
 
 // test/unit/playbackSyncBridge.test.ts
 // Verifies shared playback publishing model adapters stay aligned.
@@ -68,6 +69,7 @@ describe('playbackSyncBridge', () => {
         const trackTransition = { startedAtMs: 10_000, durationSec: 12, crossover: 0.65 };
         expect(buildRemoteControlSnapshotFromPlaybackSyncBridge(model, {
             playerChromeVisibilityMode: 'auto-hide',
+            subtitleContentMode: 'both',
             trackTransition,
         })).toMatchObject({
             title: 'Current Song',
@@ -88,6 +90,7 @@ describe('playbackSyncBridge', () => {
             nextTrackCoverUrl: 'https://example.com/3.jpg',
             trackTransition,
             playerChromeVisibilityMode: 'auto-hide',
+            subtitleContentMode: 'both',
             updatedAt: 1234,
         });
         expect(buildStagePlayerSnapshotFromPlaybackSyncBridge(model)).toMatchObject({
@@ -143,7 +146,7 @@ describe('playbackSyncBridge', () => {
         });
 
         expect(model.hasTrack).toBe(false);
-        expect(buildRemoteControlSnapshotFromPlaybackSyncBridge(model, { playerChromeVisibilityMode: 'always-hidden' })).toMatchObject({
+        expect(buildRemoteControlSnapshotFromPlaybackSyncBridge(model, { playerChromeVisibilityMode: 'always-hidden', subtitleContentMode: 'none' })).toMatchObject({
             hasTrack: false,
             controlsDisabled: true,
             isStageActive: true,
@@ -158,6 +161,7 @@ describe('playbackSyncBridge', () => {
             nextTrackCoverUrl: null,
             trackTransition: null,
             playerChromeVisibilityMode: 'always-hidden',
+            subtitleContentMode: 'none',
         });
         expect(buildTaskbarControlsFromPlaybackSyncBridge(model)).toEqual({
             hasActiveTrack: false,
@@ -211,5 +215,100 @@ describe('playbackSyncBridge', () => {
 
         expect(model.currentIndex).toBe(1);
         expect(model.canGoPrevious).toBe(true);
+    });
+});
+
+// The remote window, the taskbar and the stage snapshot enable Previous / Next exactly when the
+// main window's arrows do, which is when the press does something.
+describe('playbackSyncBridge previous / next availability', () => {
+    const [first, second, third] = [makeSong(1, 'First'), makeSong(2, 'Second'), makeSong(3, 'Third')];
+    const outsider = makeSong(99, 'Outsider');
+
+    const modelFor = (overrides: Partial<Parameters<typeof buildPlaybackSyncBridgeModel>[0]>) => (
+        buildPlaybackSyncBridgeModel({
+            activePlaybackContext: 'main',
+            currentSong: second,
+            playQueue: [first, second, third],
+            currentTimeSec: 0,
+            durationSec: 180,
+            playerState: PlayerState.PLAYING,
+            coverUrl: null,
+            effectiveLoopMode: 'off',
+            isFmMode: false,
+            isStageActive: false,
+            controlsDisabled: false,
+            transparentModeEnabled: false,
+            mainWindowClickThroughEnabled: false,
+            mainWindowBorderVisible: false,
+            playerChromeHidden: false,
+            exportState,
+            isDaylight: false,
+            isLiked: false,
+            mainWindowWidth: 800,
+            mainWindowHeight: 600,
+            ...overrides,
+        })
+    );
+    const flags = (overrides: Parameters<typeof modelFor>[0]) => {
+        const model = modelFor(overrides);
+        return { previous: model.canGoPrevious, next: model.canGoNext };
+    };
+
+    it('enables both on a one-track queue in repeat-all, where the press replays the track', () => {
+        expect(flags({ playQueue: [first], currentSong: first, effectiveLoopMode: 'all' }))
+            .toEqual({ previous: true, next: true });
+        expect(flags({ playQueue: [first], currentSong: first, effectiveLoopMode: 'off' }))
+            .toEqual({ previous: false, next: false });
+    });
+
+    it('enables next for a current song that is not in the queue, where the press plays the first track', () => {
+        expect(flags({ currentSong: outsider, effectiveLoopMode: 'off' })).toEqual({ previous: false, next: true });
+        expect(flags({ currentSong: outsider, effectiveLoopMode: 'all' })).toEqual({ previous: true, next: true });
+    });
+
+    it('disables next in Personal FM with an empty queue, where the press does nothing', () => {
+        expect(flags({ playQueue: [], isFmMode: true })).toEqual({ previous: false, next: false });
+    });
+
+    it('keeps the answers inside a queue, at its ends and on the last Personal FM track', () => {
+        expect(flags({})).toEqual({ previous: true, next: true });
+        expect(flags({ currentSong: first })).toEqual({ previous: false, next: true });
+        expect(flags({ currentSong: third })).toEqual({ previous: true, next: false });
+        expect(flags({ currentSong: third, effectiveLoopMode: 'one' })).toEqual({ previous: true, next: false });
+        expect(flags({ currentSong: first, effectiveLoopMode: 'all' })).toEqual({ previous: true, next: true });
+        expect(flags({ currentSong: third, effectiveLoopMode: 'all' })).toEqual({ previous: true, next: true });
+        expect(flags({ currentSong: third, isFmMode: true })).toEqual({ previous: true, next: true });
+        expect(flags({ currentSong: null })).toEqual({ previous: false, next: false });
+    });
+
+    it('gives every publisher the main window arrows\' answer on every input', () => {
+        const tracks = [first, second, third];
+        for (let length = 0; length <= tracks.length; length += 1) {
+            const playQueue = tracks.slice(0, length);
+            for (const currentSong of [null, outsider, ...playQueue]) {
+                for (const effectiveLoopMode of ['off', 'all', 'one'] as const) {
+                    for (const isFmMode of [false, true]) {
+                        for (const isStageActive of [false, true]) {
+                            const label = `${length} tracks, on ${currentSong?.name ?? 'nothing'}, ${effectiveLoopMode}, fm ${isFmMode}, stage ${isStageActive}`;
+                            const arrows = resolvePlaybackNeighbors({
+                                playQueue,
+                                currentSong,
+                                loopMode: effectiveLoopMode,
+                                isFmMode,
+                                isStageActive,
+                            });
+                            const expected = { canGoPrevious: arrows.prev.canGo, canGoNext: arrows.next.canGo };
+                            const model = modelFor({ playQueue, currentSong, effectiveLoopMode, isFmMode, isStageActive });
+
+                            expect(buildRemoteControlSnapshotFromPlaybackSyncBridge(model, { playerChromeVisibilityMode: 'auto-hide', subtitleContentMode: 'translation' }), label)
+                                .toMatchObject(expected);
+                            expect(buildTaskbarControlsFromPlaybackSyncBridge(model), label).toMatchObject(expected);
+                            expect(buildStagePlayerSnapshotFromPlaybackSyncBridge(model).controlCapabilities, label)
+                                .toMatchObject({ previous: expected.canGoPrevious, next: expected.canGoNext });
+                        }
+                    }
+                }
+            }
+        }
     });
 });

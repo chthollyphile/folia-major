@@ -68,12 +68,15 @@ describe('prevKeyframeAt', () => {
 });
 
 describe('keyframeSettleAt', () => {
+    // 一段字幕从开口到到位的时长，由画的人交进来；这里取一个比两个动作都短的数。
+    const CAPTION_SETTLE_MS = 300;
+
     // 动作 420ms + 并行字幕 → pause → 第二个动作 360ms，其并行结果层 520ms 比它长。
     const scenePlan = compilePonderScene({
         id: 'settle', titleKey: 'x', anchors: {},
         steps: [
             { kind: 'highlight', id: 'a', anchor: 'p', durationMs: 420, keyframe: true },
-            { kind: 'caption', id: 'ca', at: 'bottom', textKey: 'x', durationMs: 6000, withPrevious: true },
+            { kind: 'caption', id: 'ca', textKey: 'x', durationMs: 6000, withPrevious: true },
             { kind: 'pause', id: 'readA' },
             { kind: 'highlight', id: 'b', anchor: 'p', durationMs: 360, keyframe: true },
             { kind: 'surfaceState', id: 'bState', anchor: 'p', state: 's', durationMs: 520, withPrevious: true },
@@ -82,31 +85,31 @@ describe('keyframeSettleAt', () => {
     });
 
     it('动作类关键帧播到动作做完再停，不停在一帧空白上', () => {
-        expect(keyframeSettleAt(scenePlan, 0)).toBe(420);
+        expect(keyframeSettleAt(scenePlan, 0, CAPTION_SETTLE_MS)).toBe(420);
     });
 
     it('等并行结果层做完，哪怕它比顺序步长', () => {
-        expect(keyframeSettleAt(scenePlan, 1820)).toBe(1820 + 520);
+        expect(keyframeSettleAt(scenePlan, 1820, CAPTION_SETTLE_MS)).toBe(1820 + 520);
     });
 
     it('pause 类关键帧原地停', () => {
-        expect(keyframeSettleAt(scenePlan, 420)).toBe(420);
+        expect(keyframeSettleAt(scenePlan, 420, CAPTION_SETTLE_MS)).toBe(420);
     });
 
     it('pause 类关键帧落点时并行结果层还没做完，等它做完', () => {
         // readB 在 1820 + 360，而 bState 的淡入要到 1820 + 520 才完。
-        expect(keyframeSettleAt(scenePlan, 1820 + 360)).toBe(1820 + 520);
+        expect(keyframeSettleAt(scenePlan, 1820 + 360, CAPTION_SETTLE_MS)).toBe(1820 + 520);
     });
 
     it('只有字幕的一拍等字幕淡入就停，不等它读完', () => {
         const captionOnly = compilePonderScene({
             id: 'caption', titleKey: 'x', anchors: {},
             steps: [
-                { kind: 'caption', id: 'c', at: 'bottom', textKey: 'x', durationMs: 6000, keyframe: true },
+                { kind: 'caption', id: 'c', textKey: 'x', durationMs: 6000, keyframe: true },
                 { kind: 'pause', id: 'readC' },
             ],
         });
-        expect(keyframeSettleAt(captionOnly, 0)).toBe(300);
+        expect(keyframeSettleAt(captionOnly, 0, CAPTION_SETTLE_MS)).toBe(300);
     });
 
     it('不越过下一个动作的开头', () => {
@@ -118,6 +121,6 @@ describe('keyframeSettleAt', () => {
                 { kind: 'highlight', id: 'b', anchor: 'p', durationMs: 200, keyframe: true },
             ],
         });
-        expect(keyframeSettleAt(tight, 0)).toBe(200);
+        expect(keyframeSettleAt(tight, 0, CAPTION_SETTLE_MS)).toBe(200);
     });
 });

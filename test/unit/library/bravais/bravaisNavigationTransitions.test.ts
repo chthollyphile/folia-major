@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import bravais from '@/library/suites/bravais/entry';
-import type { LibraryNavigationCrumb } from '@/library/core/contracts/suite';
+import type { LibraryNavigationCrumb } from '@/library/core/suite/suite.contract';
 import type { BravaisLayer } from '@/library/suites/bravais/bravaisLayer';
 import { buildBravaisCrumbs, type BravaisCrumbsInput } from '@/library/suites/bravais/bravaisCrumbs';
 import { isSourceOrigin, layerMatchesNavigation, resolveShiftKind } from '@/library/suites/bravais/bravaisShift';

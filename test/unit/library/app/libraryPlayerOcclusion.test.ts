@@ -4,8 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import LibrarySuiteStageSlot from '@/library/app/LibrarySuiteStageSlot';
 import type { ResolvedLibraryStage } from '@/library/registry';
-import { buildLibrarySuiteIndex, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/model/librarySuites';
-import type { LibraryNavigationContext, LibrarySuiteManifest, LibrarySuiteStageProps } from '@/library/core/contracts/suite';
+import { buildLibrarySuiteIndex, LIBRARY_ACCOUNT_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import type { LibraryNavigationContext, LibrarySuiteManifest, LibrarySuiteStageProps } from '@/library/core/suite/suite.contract';
 import {
     NO_LIBRARY_PLAYER_BACKDROP,
     selectLibraryOccludesPlayer,

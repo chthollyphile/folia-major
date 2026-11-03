@@ -1,7 +1,7 @@
 import type { GridSurfaceActionId, GridSurfaceState } from '../../../src/types/gridCommandSurface';
-import type { LibraryDeclaredActions, LibrarySuiteId, LibrarySurfaceId } from '../../../src/library/core/contracts/suite';
-import type { CollectionNavigationOrigin } from '../../../src/library/core/contracts/collection';
-import type { LibraryArtistSurfaceActionId, LibraryArtistSurfaceState } from '../../../src/library/core/contracts/artist';
+import type { LibraryDeclaredActions, LibrarySuiteId, LibrarySurfaceId } from '../../../src/library/core/suite/suite.contract';
+import type { CollectionNavigationOrigin } from '../../../src/library/core/collection/collection.contract';
+import type { LibraryArtistSurfaceActionId, LibraryArtistSurfaceState } from '../../../src/library/core/artist/artist.contract';
 import type { ArtistFixtureId, OnlineArtistFixtureId, OnlineFixtureId, ProbeFixtureId } from './fixtureRules';
 import type { ProbeFault } from './fakeProviders';
 import type { ProbeRefreshKind } from './probeGates';

@@ -14,6 +14,11 @@ type PinnedCommandRowProps = {
     isExecuting: boolean;
     theme: Theme;
     onExecute: (command: CommandPaletteCommand) => void;
+    /** Under the panel in the overlay; above it when the panel grows up out of the player bar. */
+    placement?: 'below' | 'above';
+    /** The panel's own fill and edge, so the three buttons read as pieces of the same glass. */
+    surfaceClassName: string;
+    borderColor: string;
 };
 
 const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
@@ -22,6 +27,9 @@ const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
     isExecuting,
     theme,
     onExecute,
+    placement = 'below',
+    surfaceClassName,
+    borderColor,
 }) => {
     const { t } = useTranslation();
 
@@ -31,7 +39,7 @@ const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
 
     return (
         <div
-            className="mt-4 grid grid-cols-3 gap-3 px-2 sm:px-5"
+            className={`${placement === 'above' ? 'mb-3' : 'mt-4'} grid grid-cols-3 gap-3 px-2 sm:px-5`}
             data-testid="command-palette-pinned-row"
         >
             {commands.slice(0, 3).map((command, index) => {
@@ -47,11 +55,11 @@ const PinnedCommandRow: React.FC<PinnedCommandRowProps> = ({
                         type="button"
                         disabled={isExecuting}
                         onClick={() => onExecute(command)}
-                        className={`flex min-w-0 items-center justify-center gap-2 rounded-full border bg-transparent px-3 py-2 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-45 ${
-                            isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/8'
+                        className={`flex min-w-0 items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-2xl transition-[filter] disabled:pointer-events-none disabled:opacity-45 ${surfaceClassName} ${
+                            isDaylight ? 'hover:brightness-95' : 'hover:brightness-125'
                         }`}
                         style={{
-                            borderColor: theme.accentColor,
+                            borderColor,
                             color: 'var(--text-primary)',
                         }}
                         aria-label={t('commandPalette.runPinnedCommand', { command: title })}

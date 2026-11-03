@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { areaOf } from './format.mjs';
 import { buildModuleGraph, edgeKey } from './graph/modules.mjs';
+import { LIBRARY_CORE, libraryLayerOf } from './libraryLayers.mjs';
 // dev/mcp/ts-code-map/codemap.mjs
 
 /**
@@ -70,12 +71,13 @@ const BOUNDARY_RULES = [
         why: 'wall 引擎不应依赖 Lattice（components/app）或资料库',
     },
     {
-        from: /^src\/(components|hooks|stores|library\/(core\/(state|bindings)|suites|app))\//,
+        from: /^src\/(components|hooks|stores|library\/(core|suites|app))\//,
         to: /^src\/services\/onlineMusic\/.*(Provider|Transport)\.ts$/,
+        when: from => !from.startsWith(LIBRARY_CORE) || ['state', 'binding'].includes(libraryLayerOf(from)),
         why: '普通调用应经过 omni，不应直连 provider adapter/transport',
     },
-    // src/library：headless core 与 UI suites 分开。core 的子层与老目录一一对应——
-    // contracts≈types、model≈utils、services≈services、state≈stores、bindings≈hooks；
+    // src/library：headless core 与 UI suites 分开。core 按功能分文件夹，层由文件名说（libraryLayers.mjs），
+    // 与老目录一一对应——contract≈types、model≈utils、service≈services、state≈stores、binding≈hooks；
     // suites/*、app 与 registry 是 UI，地位等同 components（见 UI_DIRS）。
     {
         from: /^src\/library\/core\//,
@@ -83,19 +85,23 @@ const BOUNDARY_RULES = [
         why: 'library core 不应依赖 UI（suites、app、registry、components）',
     },
     {
-        from: /^src\/library\/core\/contracts\//,
-        to: /^src\/(?!types|library\/core\/contracts\/)/,
-        why: 'core/contracts 只引用别的契约与 src/types 的数据类型',
+        from: /^src\/library\/core\//,
+        to: /^src\/(?!types)/,
+        when: (from, to) => libraryLayerOf(from) === 'contract' && libraryLayerOf(to) !== 'contract',
+        why: 'core 的契约（*.contract）只引用别的契约与 src/types 的数据类型',
     },
     {
-        from: /^src\/library\/core\/model\//,
-        to: /^src\/(components|hooks|stores|services|library\/core\/(services|state|bindings))\//,
-        why: 'core/model 是叶子：不读状态、不调 service、不碰绑定',
+        from: /^src\/library\/core\//,
+        to: /^src\/(components|hooks|stores|services|library\/core)\//,
+        when: (from, to) => libraryLayerOf(from) === 'model'
+            && (!to.startsWith(LIBRARY_CORE) || ['service', 'state', 'binding'].includes(libraryLayerOf(to))),
+        why: 'core 的纯变换（model）是叶子：不读状态、不调 service、不碰绑定',
     },
     {
-        from: /^src\/library\/core\/(services|state)\//,
-        to: /^src\/(hooks|library\/core\/bindings)\//,
-        why: 'core/services 与 core/state 不应依赖 React 绑定',
+        from: /^src\/library\/core\//,
+        to: /^src\/(hooks|library\/core)\//,
+        when: (from, to) => ['service', 'state'].includes(libraryLayerOf(from)) && (to.startsWith('src/hooks/') || libraryLayerOf(to) === 'binding'),
+        why: 'core 的 service 与 state 不应依赖 React 绑定',
     },
     {
         from: /^src\/library\/suites\//,
@@ -105,8 +111,9 @@ const BOUNDARY_RULES = [
     },
     {
         from: /^src\/library\/suites\//,
-        to: /^src\/library\/core\/services\//,
-        why: 'suite 不直接用 core/services：资源与控制器由宿主（app）创建后传入',
+        to: /^src\/library\/core\//,
+        when: (_from, to) => libraryLayerOf(to) === 'service',
+        why: 'suite 不直接用 core 的 service：资源与控制器由宿主（app）创建后传入',
     },
     {
         from: /^src\/(?!library\/(suites\/|registry\.))/,
@@ -120,7 +127,7 @@ const suiteOf = file => /^src\/library\/suites\/([^/]+)\//.exec(file)?.[1] ?? nu
 
 /**
  * 按目录算作 UI 的地方。命中规则、目标却不含 UI 的边记为「目录归属存疑」：依赖方向没问题，
- * 是纯模块住进了 UI 目录（修法是把它挪进 core/model 或 utils，不是改依赖）。
+ * 是纯模块住进了 UI 目录（修法是把它挪进 core 对应的功能文件夹或 utils，不是改依赖）。
  */
 const UI_DIRS = /^src\/(components\/|library\/(suites\/|app\/|registry\.))/;
 

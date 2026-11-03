@@ -1,6 +1,6 @@
-import { collectionKey } from '../core/model/collectionIdentity';
-import { useLibrarySuiteStore } from '../core/state/useLibrarySuiteStore';
-import type { LibrarySuiteId } from '../core/contracts/suite';
+import { collectionKey } from '../core/collection/collectionIdentity';
+import { useLibrarySuiteStore } from '../core/suite/useLibrarySuiteStore';
+import type { LibrarySuiteId } from '../core/suite/suite.contract';
 import { getActiveGridViewCollection, useCollectionNavigationStore } from '../../stores/useCollectionNavigationStore';
 import { listLibrarySuites, resolveActiveLibrarySuiteId } from '../registry';
 import { switchLibrarySuite } from './switchLibrarySuite';

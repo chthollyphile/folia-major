@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
-import type { LibraryArtistSnapshot } from '@/library/core/contracts/artist';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { LibraryArtistSnapshot } from '@/library/core/artist/artist.contract';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import {
     ARTIST_SURFACE_ACTION_SOURCES,
     artistAlbumEntryKey,
@@ -11,10 +11,10 @@ import {
     resolveArtistCapabilities,
     resolveArtistSurfaceActions,
     resolveOfferedArtistActions,
-} from '@/library/core/model/artistSurface';
-import { LIBRARY_ARTIST_ACTION_IDS } from '@/library/core/model/librarySuites';
-import { useLibraryArtistSurfaceStore } from '@/library/core/state/useLibraryArtistSurfaceStore';
-import type { LibraryArtistSurfaceHandle } from '@/library/core/contracts/artist';
+} from '@/library/core/artist/artistSurface';
+import { LIBRARY_ARTIST_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import { useLibraryArtistSurfaceStore } from '@/library/core/artist/useLibraryArtistSurfaceStore';
+import type { LibraryArtistSurfaceHandle } from '@/library/core/artist/artist.contract';
 
 // test/unit/library/core/artistSurface.test.ts
 // 歌手页的纯规则（P4.2）：会话键与条目键、能力（只看快照与描述）、命令面板发布「能力 ∩ 声明」，

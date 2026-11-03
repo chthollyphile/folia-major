@@ -5,8 +5,8 @@ import type { CommandPaletteCommand } from '../types';
 // src/components/command-palette/commands/artistCommands.ts
 // 歌手页的动作，从键盘也能到（P4.2）。
 //
-// 只在歌手页正在交互时出现（它注册 artist surface，见 core/state/useLibraryArtistSurfaceStore），能不能做来自
-// core 的歌手能力（core/model/artistSurface）再与渲染它的 suite 的声明取交集——与页面上的按钮、键位同一个来源。
+// 只在歌手页正在交互时出现（它注册 artist surface，见 core/artist/useLibraryArtistSurfaceStore），能不能做来自
+// core 的歌手能力（core/artist/artistSurface）再与渲染它的 suite 的声明取交集——与页面上的按钮、键位同一个来源。
 // 单曲的播放 / 入队、打开专辑 / 歌手作用于某一张卡或某一行，不在这里（与集合页一致）；筛选是命令面板自己的筛选框。
 // 都不带 executeShortcut：它们只在歌手页上有意义，不值得占一个全局前缀。
 

@@ -4,6 +4,7 @@ import {
     getActiveTransitionCue,
     shouldDrawCue,
     subscribeToTransitionCue,
+    whyCueNotDrawn,
 } from '@/services/automix/transitionCue';
 
 // test/unit/automix/transitionCue.test.ts
@@ -147,5 +148,24 @@ describe('演示不盖真交接', () => {
         now.mockReturnValue(10_000);
         announceTransition(PREVIEW);
         expect(getActiveTransitionCue()?.cue).toBe(PREVIEW);
+    });
+});
+
+// 两个画法不画时什么都不说，「从没见过动画」的报告在任何日志里都找不到原因；会话把这句话写进日志。
+describe('whyCueNotDrawn', () => {
+    it('能画的混音没有理由', () => {
+        expect(whyCueNotDrawn(CUE)).toBeNull();
+        expect(whyCueNotDrawn({ ...CUE, seconds: 5 })).toBeNull();
+    });
+
+    it('说出普通淡入淡出和太短这两种不画', () => {
+        expect(whyCueNotDrawn({ ...CUE, plain: true })).toBe('a plain fade, not a mix');
+        expect(whyCueNotDrawn({ ...CUE, seconds: 3.2 })).toBe('3.20s, under the 5s worth drawing');
+    });
+
+    it('和 shouldDrawCue 的判断一致', () => {
+        for (const cue of [CUE, { ...CUE, plain: true as const }, { ...CUE, seconds: 2 }]) {
+            expect(shouldDrawCue(cue, true, 'ring')).toBe(whyCueNotDrawn(cue) === null);
+        }
     });
 });

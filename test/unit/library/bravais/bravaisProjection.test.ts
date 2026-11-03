@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
-import type { LibraryHomeCard } from '@/library/core/contracts/homeModel';
+import type { LibraryHomeCard } from '@/library/core/home/homeModel.contract';
 import {
     collectQueuedKeys,
     findNowPlayingKey,
@@ -64,6 +64,7 @@ describe('collection tracks', () => {
             title: 'One',
             subtitle: 'Singer A, Singer B',
             badge: '01',
+            badgeIsIndex: true,
             playbackKey: 'key:One',
             album: 'Album',
             artists: ['Singer A', 'Singer B'],

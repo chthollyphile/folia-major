@@ -5,6 +5,7 @@ import type {
 } from '../../../types';
 import { clamp01, easeTemperaEnter, easeTemperaInOut } from './temperaMotion';
 import { temperaHash01 } from './temperaRandom';
+import type { TemperaBakedBlur, TemperaBlurBaker } from './temperaDepth';
 
 // src/components/visualizer/tempera/temperaImageLayer.ts
 // The user's image pool on the canvas. Each shot picks one picture and places it itself, so an
@@ -108,6 +109,8 @@ export interface TemperaImageLayerOptions {
     seed: number;
     flowAngle: number;
     previousId: string | null;
+    /** Bakes the picture's depth blur once per placement (temperaDepth.ts); null leaves it sharp. */
+    blur: { baker: TemperaBlurBaker; back: number; front: number };
 }
 
 export const buildTemperaImageLayer = (
@@ -141,21 +144,46 @@ export const buildTemperaImageLayer = (
     let baseAlpha = 1;
 
     // Height drives the scale so a cut-out keeps its proportions on any viewport.
+    // Writes everything but the scale, which depends on whether the picture is baked; returns it.
     const place = (image: TemperaLayerImage) => {
         const placement = resolveTemperaImagePlacement(image, options.seed);
         const uniform = texture.height > 0 ? (options.height * placement.scale) / texture.height : 1;
-        sprite.scale.set(uniform * (placement.flip ? -1 : 1), uniform);
         sprite.rotation = placement.rotation;
         baseX = placement.x * options.width;
         baseY = placement.y * options.height;
         baseAlpha = placement.opacity;
+        return { uniform, flip: placement.flip };
     };
-    place(chosen);
+    // The depth blur is baked at the placed size, so a new size bakes again; the sprite then shows
+    // the baked picture at scale 1 (the flip is baked in too).
+    const blurRadius = options.depth === 'front' ? options.blur.front : options.blur.back;
+    let baked: TemperaBakedBlur | null = null;
+    // What the bake holds: the placed scale, the flip and the radius. setTuning re-applies the pool
+    // on every slider move, so anything else (opacity, a rotation, the spot) keeps the baked picture.
+    let bakedKey = '';
+    const placeAndBake = (image: TemperaLayerImage) => {
+        const baker = options.blur.baker;
+        const { uniform, flip } = place(image);
+        const key = `${uniform}|${flip}|${blurRadius}`;
+        if (baker && baked && key === bakedKey) return;
+        sprite.texture = texture;
+        sprite.anchor.set(0.5);
+        sprite.scale.set(uniform * (flip ? -1 : 1), uniform);
+        if (!baker) return;
+        const previous = baked;
+        baked = baker.bake(sprite, blurRadius);
+        bakedKey = key;
+        sprite.texture = baked.texture;
+        sprite.anchor.set(baked.anchorX, baked.anchorY);
+        sprite.scale.set(1, 1);
+        if (previous) baker.release(previous);
+    };
+    placeAndBake(chosen);
     sprite.position.set(baseX, baseY);
 
     const applyPool = (pool: TemperaLayerImage[]) => {
         const next = pool.find(image => image.id === chosen.id);
-        if (next) place(next);
+        if (next) placeAndBake(next);
     };
 
     const updateTime = (time: number, shotStart: number, shotEnd: number, lyricEnd?: number) => {

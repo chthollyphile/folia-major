@@ -10,6 +10,8 @@ export interface LocalLibraryCatalogSnapshot {
   entities: LocalLibraryEntity[];
   assignments: LocalLibraryAssignment[];
   ready: boolean;
+  /** The catalog could not be read, and there is none from before: `ready` does not come by waiting. */
+  failed: boolean;
   reload: () => Promise<void>;
 }
 
@@ -18,6 +20,7 @@ export const useLocalLibraryCatalog = (refreshKey: unknown): LocalLibraryCatalog
     entities: [],
     assignments: [],
     ready: false,
+    failed: false,
   });
 
   const reload = useCallback(async () => {
@@ -26,7 +29,7 @@ export const useLocalLibraryCatalog = (refreshKey: unknown): LocalLibraryCatalog
       getLocalLibraryEntities(),
       getLocalLibraryAssignments(),
     ]);
-    setCatalog({ entities, assignments, ready: true });
+    setCatalog({ entities, assignments, ready: true, failed: false });
   }, []);
 
   useEffect(() => {
@@ -37,8 +40,12 @@ export const useLocalLibraryCatalog = (refreshKey: unknown): LocalLibraryCatalog
         getLocalLibraryEntities(),
         getLocalLibraryAssignments(),
       ]);
-      if (!cancelled) setCatalog({ entities, assignments, ready: true });
-    })().catch(error => console.error('[LocalLibrary] Failed to load entity catalog', error));
+      if (!cancelled) setCatalog({ entities, assignments, ready: true, failed: false });
+    })().catch(error => {
+      console.error('[LocalLibrary] Failed to load entity catalog', error);
+      // A catalog read before stays the one in use.
+      if (!cancelled) setCatalog(current => (current.ready ? current : { ...current, failed: true }));
+    });
     return () => {
       cancelled = true;
     };

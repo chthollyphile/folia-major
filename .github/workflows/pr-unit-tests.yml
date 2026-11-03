@@ -26,7 +26,7 @@ concurrency:
 jobs:
   test-unit:
     name: Run unit tests
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -63,7 +63,7 @@ jobs:
 
   typecheck-sync-server:
     name: Typecheck sync-server
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # 与 test-unit 并行。sync-server 只有 46 个包，却量到过一次 5 分钟的 npm ci，串在根依赖
     # 后面等于把这份抖动直接加进关键路径。它和根依赖没有任何关系，分开跑就只取两者的较大值。
     runs-on: ubuntu-latest

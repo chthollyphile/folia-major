@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { FoliumHomeTabDef } from '../contract';
-import { createFoliumRegistry } from '../registry';
+import { createFoliumRegistry } from '../../runtime/registry';
 
 // src/mods/folium/registries/homeTabs.ts
 // Owned full-page home entries. Selection is separate from native music-source tabs.

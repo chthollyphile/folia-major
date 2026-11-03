@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 // src/components/modal/settings/GlobalLyricOffsetRuler.tsx
 // 全局时间偏移的刻度尺：中线固定高亮，刻度带跟着指针走，像收音机调谐盘 / 音游延迟校准那样
@@ -24,7 +24,6 @@ type Tick = {
 type GlobalLyricOffsetRulerProps = {
     valueMs: number;
     limitMs: number;
-    isDaylight: boolean;
     ariaLabel: string;
     onChange: (nextMs: number) => void;
 };
@@ -46,12 +45,13 @@ const resolveTickKind = (ms: number): TickKind => {
 const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
     valueMs,
     limitMs,
-    isDaylight,
     ariaLabel,
     onChange,
 }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{ pointerId: number; startX: number; startValueMs: number; } | null>(null);
+    // 拖动时刻度带直接跟手；其余时候（步进按钮、键盘、滚轮）滑到新位置。
+    const [isDragging, setIsDragging] = useState(false);
     // wheel/键盘的连续调整要基于最新值，但回调本身不该让 effect 反复重绑
     const valueRef = useRef(valueMs);
     const onChangeRef = useRef(onChange);
@@ -100,6 +100,7 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
 
         dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startValueMs: valueMs };
         event.currentTarget.setPointerCapture(event.pointerId);
+        setIsDragging(true);
         trackRef.current?.focus();
     };
 
@@ -119,6 +120,7 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
         }
 
         dragRef.current = null;
+        setIsDragging(false);
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
@@ -145,15 +147,13 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
         onChange(clamp(next));
     };
 
-    const accentColor = 'var(--text-accent, #60a5fa)';
+    // 颜色都取设置外框给的变量：零点最重，整百次之，小刻度最淡。
     const tickColor = (kind: TickKind, ms: number) => {
-        const base = isDaylight ? '0, 0, 0' : '255, 255, 255';
         if (ms === 0) {
-            return `rgba(${base}, ${isDaylight ? 0.55 : 0.6})`;
+            return 'var(--st-t2)';
         }
 
-        const alpha = kind === 'minor' ? 0.16 : kind === 'major' ? 0.3 : 0.42;
-        return `rgba(${base}, ${alpha})`;
+        return kind === 'minor' ? 'var(--st-line2)' : 'var(--st-t3)';
     };
 
     return (
@@ -171,15 +171,8 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
             onKeyDown={handleKeyDown}
-            className="relative h-[68px] w-full cursor-ew-resize touch-none select-none outline-none"
+            className="relative h-[68px] w-full cursor-ew-resize touch-none select-none rounded-lg"
         >
-            {/* 中线两侧的高亮底：让「对准中线」这个动作有落点感。
-                accentColor 在默认主题下就是正文色，所以这里只能给很低的透明度，否则会糊成一团 */}
-            <div
-                className="pointer-events-none absolute left-1/2 top-0 h-10 w-24 -translate-x-1/2 opacity-15"
-                style={{ background: `linear-gradient(to right, transparent, ${accentColor}, transparent)` }}
-            />
-
             <div
                 className="absolute inset-0 overflow-hidden"
                 style={{ maskImage: EDGE_FADE, WebkitMaskImage: EDGE_FADE }}
@@ -190,7 +183,7 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
                     style={{ backgroundColor: tickColor('minor', 1) }}
                 />
                 <div
-                    className="absolute inset-x-0 top-3"
+                    className={`absolute inset-x-0 top-3${isDragging ? '' : ' st-t-fast transition-transform'}`}
                     style={{ transform: `translate3d(${-valueMs * PX_PER_MS}px, 0, 0)` }}
                 >
                     {ticks.map(({ ms, kind }) => (
@@ -223,14 +216,7 @@ const GlobalLyricOffsetRuler: React.FC<GlobalLyricOffsetRulerProps> = ({
 
             {/* 固定不动的读数中线。刻意只覆盖刻度区、不压到标签行，否则中线正下方的数字永远被挡住 */}
             <div className="pointer-events-none absolute left-1/2 top-0 flex h-10 -translate-x-1/2 flex-col items-center">
-                <div
-                    className="h-0 w-0 border-x-[5px] border-t-[6px] border-x-transparent"
-                    style={{ borderTopColor: accentColor }}
-                />
-                <div
-                    className="w-[2px] flex-1 rounded-full"
-                    style={{ backgroundColor: accentColor, boxShadow: `0 0 12px ${accentColor}` }}
-                />
+                <div className="w-[2px] flex-1 rounded-full bg-[var(--st-accent)]" />
             </div>
         </div>
     );

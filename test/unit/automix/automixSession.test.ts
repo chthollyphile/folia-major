@@ -58,6 +58,8 @@ const createHarness = (readings: Partial<Record<AutomixDeckId, FakeAnalyserReadi
 
     const activeDeckChanges: AutomixDeckId[] = [];
     const tailSrcChanges: (string | null)[] = [];
+    /** How each release said the transition ended. */
+    const tailEnds: (string | undefined)[] = [];
     const autoplayHolds: boolean[] = [];
     const advanceTrack = vi.fn();
 
@@ -69,7 +71,10 @@ const createHarness = (readings: Partial<Record<AutomixDeckId, FakeAnalyserReadi
         getElement: deck => asElement(elements[deck]),
         getChain: deck => chains[deck],
         onActiveDeckChange: deck => { activeDeckChanges.push(deck); },
-        onTailSrcChange: src => { tailSrcChanges.push(src); },
+        onTailSrcChange: (src, opts) => {
+            tailSrcChanges.push(src);
+            if (src === null) tailEnds.push(opts?.end);
+        },
         onAutoplayHoldChange: held => { autoplayHolds.push(held); },
         advanceTrack,
         // Always empty, so every other test here keeps taking the master crossfade it was written
@@ -101,7 +106,7 @@ const createHarness = (readings: Partial<Record<AutomixDeckId, FakeAnalyserReadi
 
     return {
         session, elements, chains, context, stemAsks,
-        activeDeckChanges, tailSrcChanges, autoplayHolds, advanceTrack, arm,
+        activeDeckChanges, tailSrcChanges, tailEnds, autoplayHolds, advanceTrack, arm,
     };
 };
 
@@ -616,6 +621,34 @@ describe('automix session', () => {
         expect(finalTarget(harness.chains.B.fadeNode)).toBe(1);
     });
 
+    // The screen continues the incoming track's lyric clock only across a hand-over. Told it was one
+    // after a skip, it carries the skipped-to track's clock over from the track it replaced.
+    it('says which way each transition ended', () => {
+        const finished = createHarness();
+        finished.arm();
+        finished.session.handleActiveDeckPlaying('local:next-song');
+        vi.advanceTimersByTime(5_200);
+        expect(finished.tailEnds).toEqual(['handedOver']);
+
+        const cancelled = createHarness();
+        cancelled.arm();
+        cancelled.session.handleActiveDeckPlaying('local:next-song');
+        cancelled.session.abort(true);
+        expect(cancelled.tailEnds).toEqual(['cancelled']);
+
+        const skipped = createHarness();
+        skipped.arm();
+        skipped.session.handleActiveDeckPlaying('local:next-song');
+        skipped.session.handleSongChanged('local:something-else');
+        expect(skipped.tailEnds).toEqual(['dropped']);
+
+        const refused = createHarness();
+        refused.arm();
+        refused.session.handleActiveDeckPlaying('local:some-other-song');
+        vi.advanceTimersByTime(1_000);
+        expect(refused.tailEnds).toEqual(['dropped']);
+    });
+
     it('leaves the blend alone for the two songs the blend is between', () => {
         const harness = createHarness();
         harness.arm();
@@ -758,6 +791,25 @@ describe('automix session, transition styles', () => {
 
         // A track that lives at -20 against one still at -8: the ceiling, and this time it means it.
         expect(finalTarget(harness.chains.A.trimNode)).toBeCloseTo(0.501, 3);
+    });
+
+    it('compares two whole-track BS.1770 readings when both tracks have one, and the older reading otherwise', () => {
+        // Twelve decibels apart on the older reading, a wide or quiet-intro mix; the same on the gated one.
+        const arm = (to: Partial<TrackProfile>) => {
+            const harness = createHarness({ A: { loudnessDb: -8 }, B: { loudnessDb: -30 } });
+            harness.arm({
+                from: { ...BLENDABLE_FROM, profile: profile({ programLoudness: -10 }) },
+                to: { ...BLENDABLE_TO, profile: profile({ loudness: -20, programLoudness: -10, ...to }) },
+            });
+            harness.session.handleActiveDeckPlaying('local:next-song');
+            vi.advanceTimersByTime(300);
+            return harness.chains.A.trimNode;
+        };
+        expect(arm({}).events).toHaveLength(0);
+        // Only the head of the arriving track was read: neither side is compared by it.
+        expect(finalTarget(arm({ partial: true }))).toBeCloseTo(0.501, 3);
+        // Nor once its ending was heard out: the BS.1770 reading is still the head's.
+        expect(finalTarget(arm({ programFromHead: true }))).toBeCloseTo(0.501, 3);
     });
 
     it('spaces the beat grid by the profile, which cannot land an octave out', () => {

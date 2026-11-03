@@ -13,9 +13,13 @@ import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { useAppViewStore } from '../../stores/useAppViewStore';
 import { useInteractionSettingsStore } from '../../stores/useInteractionSettingsStore';
 import { resolveCustomShortcutCommand } from './customShortcut';
+import { useGlobalShortcuts } from './globalShortcuts/useGlobalShortcuts';
+import { runGlobalShortcutCommand } from './globalShortcuts/runGlobalShortcutCommand';
+import { usePlayerControlSlotSuggestionStore } from '../floating-player/playerControlSlotSuggestionStore';
+import { createSlotSuggestionCandidateTracker, type PaletteSessionSource } from '../floating-player/slotSuggestionCandidateTracker';
 
 // src/components/command-palette/useCommandPalette.ts
-import { effectiveKeyCode, isCommandPaletteShortcut, isTextEntryTarget } from '../../utils/keyboardTargets';
+import { effectiveKeyCode, hasOpenSheet, isCommandPaletteShortcut, isTextEntryTarget } from '../../utils/keyboardTargets';
 
 // Manages palette state, keyboard opening, and selected autocomplete item.
 
@@ -73,7 +77,10 @@ export const useCommandPalette = ({
     const [recentCommandIds, setRecentCommandIds] = useState<string[]>(() => readRecentCommandIds());
     // 使用频次，独立于上面那份 MRU 列表。只在命令执行成功后写一次，读取只发生在挂载时。
     const [frequencyState, setFrequencyState] = useState<CommandFrequencyState>(() => readCommandFrequencyState());
+    // 哪一次使用算「在面板里常用」，好拿去问要不要放上进度条；规则见 slotSuggestionCandidateTracker。
+    const [slotSuggestionTracker] = useState(createSlotSuggestionCandidateTracker);
     const close = useCallback(() => {
+        slotSuggestionTracker.closeSession();
         setIsOpen(false);
         setQuery('');
         setMatchQuery('');
@@ -81,7 +88,7 @@ export const useCommandPalette = ({
         setActiveIndex(0);
         setActiveCommand(null);
         setIsExecuting(false);
-    }, []);
+    }, [slotSuggestionTracker]);
     const pinnedCommandIds = useSettingsModalStore(state => state.pinnedCommandIds);
     /**
      * The available set, with a stable identity.
@@ -198,16 +205,25 @@ export const useCommandPalette = ({
         if (isBlocked) {
             return;
         }
+        slotSuggestionTracker.openSession('user');
         setIsOpen(true);
         setActiveIndex(0);
-    }, [isBlocked]);
+    }, [isBlocked, slotSuggestionTracker]);
 
     const recordRecentCommand = useCallback((command: CommandPaletteCommand) => {
         if (isRecordableRecentCommand(command, COMMAND_PALETTE_COMMANDS)) {
             setRecentCommandIds(currentCommandIds => recordRecentCommandId(command.id, currentCommandIds));
             setFrequencyState(currentState => recordCommandUse(command.id, currentState));
+            slotSuggestionTracker.recordUse(command.id);
         }
-    }, []);
+    }, [slotSuggestionTracker]);
+
+    useEffect(() => {
+        const commandId = slotSuggestionTracker.takeCandidate(isOpen);
+        if (commandId) {
+            usePlayerControlSlotSuggestionStore.getState().noteCommandUse(commandId, frequencyState.counts[commandId] ?? 0);
+        }
+    }, [frequencyState, isOpen, slotSuggestionTracker]);
 
     const activateInputCommand = useCallback((command: CommandPaletteCommand) => {
         const initialInput = command.getInitialInput?.(contextRef.current) ?? '';
@@ -219,22 +235,24 @@ export const useCommandPalette = ({
     }, [recordRecentCommand]);
 
     // Opens the palette straight into one command, used by the per-command openHotkey entries.
-    const openCommand = useCallback((command: CommandPaletteCommand) => {
+    // `source` says who asked: a button outside the palette opening its surface is 'external'.
+    const openCommand = useCallback((command: CommandPaletteCommand, source: PaletteSessionSource = 'user') => {
         if (isBlocked || isExecuting) {
             return;
         }
 
+        slotSuggestionTracker.openSession(source);
         setIsOpen(true);
         setIsComposing(false);
         activateInputCommand(command);
-    }, [activateInputCommand, isBlocked, isExecuting]);
+    }, [activateInputCommand, isBlocked, isExecuting, slotSuggestionTracker]);
 
     // Lets a UI surface outside the palette jump straight into one command, without having to
     // import the registry or know how a command is activated.
     const openCommandById = useCallback((commandId: string) => {
         const command = COMMAND_PALETTE_COMMANDS.find(entry => entry.id === commandId);
         if (command) {
-            openCommand(command);
+            openCommand(command, 'external');
         }
     }, [openCommand]);
 
@@ -258,13 +276,22 @@ export const useCommandPalette = ({
         }
 
         if (command.surface) {
-            openCommand(command);
+            openCommand(command, 'external');
             return;
         }
 
         recordRecentCommand(command);
         void command.execute('', liveContext);
     }, [openCommand, recordRecentCommand]);
+
+    // The desktop app's system-wide playback shortcuts. Asked against the live context like a pinned
+    // command, but not recorded: volume and next track pressed dozens of times a day would push
+    // everything else out of the palette's recent list and its ranking.
+    // Mod commands bound there run through their palette entry like the host's (runGlobalShortcutCommand).
+    const runGlobalShortcut = useCallback((commandId: string) => {
+        runGlobalShortcutCommand(commandId, contextRef.current);
+    }, []);
+    useGlobalShortcuts(runGlobalShortcut);
 
     const executeMatch = useCallback(async (index: number) => {
         if (isExecuting) {
@@ -484,6 +511,12 @@ export const useCommandPalette = ({
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // A dialog is drawn over the palette and has the keyboard: under it no key opens the
+            // palette or runs a command.
+            if (hasOpenSheet()) {
+                return;
+            }
+
             // Ordered by who has the stronger claim on the keystroke, not by how the palette is
             // built. A modifier shortcut can never be mistaken for input, so it goes first; a
             // surface that reads bare characters outranks every modifier-free palette key, or the

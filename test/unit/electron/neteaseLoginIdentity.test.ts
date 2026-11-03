@@ -13,7 +13,7 @@ type Identity = {
     pendingRotation: boolean;
 };
 
-const { createNeteaseLoginIdentity } = require('../../../electron/neteaseLoginIdentity.cjs') as {
+const { createNeteaseLoginIdentity } = require('../../../electron/netease/neteaseLoginIdentity.cjs') as {
     createNeteaseLoginIdentity: (options: Record<string, unknown>) => {
         wrapRequest: (request: Request) => (uri: string, data: unknown, options?: Record<string, unknown>) => Promise<unknown>;
         describe: () => Identity;

@@ -8,7 +8,7 @@ import { buildSuiteChromeCommands, type SuiteChromeDeclaration } from '../../../
 import { assertExecuteShortcutsArePrefixFree, buildExecuteShortcutIndex, resolveExecuteShortcut } from '../../../src/components/command-palette/executeShortcuts';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../../../src/components/command-palette/types';
 import type { AppView } from '../../../src/stores/useAppViewStore';
-import type { LibrarySuiteChromeHandle } from '../../../src/library/core/contracts/suiteChrome';
+import type { LibrarySuiteChromeHandle } from '../../../src/library/core/suite/suiteChrome.contract';
 import { installLibrarySuiteChromeCommands } from '../../../src/library/app/installLibrarySuiteChromeCommands';
 import en from '../../../src/i18n/locales/en';
 import zhCN from '../../../src/i18n/locales/zh-CN';
@@ -52,10 +52,10 @@ const handle = (suiteId: string, available: Record<string, boolean>): LibrarySui
     run: vi.fn((actionId: string) => available[actionId] ?? false),
 });
 
-// isAvailable / execute 只读 scope（以及 lattice 命令读的 navigation），其余命名空间用不到。
+// isAvailable / execute 只读 scope（以及 lattice 定位命令读的 shared.currentSong：有歌在放它才在），其余命名空间用不到。
 const contextWith = (chrome: LibrarySuiteChromeHandle | null, view: AppView = 'home') => ({
     scope: { view, filter: null, grid: null, directory: null, artist: null, chrome },
-    navigation: { canFocusLatticeCurrentSong: true },
+    shared: { currentSong: { id: 1 } },
 }) as unknown as CommandPaletteContext;
 
 const commandOf = (commands: CommandPaletteCommand[], commandId: string) => commands.find(command => command.id === commandId)!;

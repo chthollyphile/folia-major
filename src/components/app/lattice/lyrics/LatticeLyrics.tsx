@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useFontsEpoch } from '../../../../hooks/useFontsEpoch';
 import { useLatticeLyrics } from './LatticeLyricsProvider';
 import { useLatticeLyricCanvas } from './useLatticeLyricCanvas';
+import VisualizerHarmonyOverlay, { HarmonyTopContext } from '../../../visualizer/VisualizerHarmonyOverlay';
 import type { LatticeTile } from '../latticeModel';
 import './LatticeLyrics.css';
 
@@ -30,6 +31,24 @@ export default function LatticeLyrics({ tile, reducedMotion }: { tile: LatticeTi
         </AnimatePresence>
         <div className={`lattice-lyrics ${ready ? 'is-ready' : ''}`}>
             <div ref={host} className="lattice-lyrics-canvas" aria-hidden="true" />
+            {/* The player's harmony layer, at the top of the lyric box: under the song's title, over the
+                lines sung before. The card draws lyrics at its own size, so no global subtitle scale. */}
+            {ready && input && (
+                <HarmonyTopContext.Provider value={0}>
+                    <VisualizerHarmonyOverlay
+                        currentTime={input.currentTime}
+                        lines={input.lines}
+                        showText
+                        theme={input.theme}
+                        subtitleTheme={input.subtitleTheme}
+                        hideTranslationSubtitle={input.hideTranslationSubtitle}
+                        showSubtitleTranslation={input.showSubtitleTranslation}
+                        subtitleContentMode={input.subtitleContentMode}
+                        showHarmonySubtitle={input.showHarmonySubtitle}
+                        harmonySubtitleBackground={input.harmonySubtitleBackground}
+                    />
+                </HarmonyTopContext.Provider>
+            )}
             {ready && <span className="sr-only">{line?.fullText}</span>}
         </div>
     </>;

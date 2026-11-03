@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 // the window are injected, so no Electron host is needed.
 
 const require = createRequire(import.meta.url);
-const { createWindowsWallpaperMouseInjector } = require('../../../electron/windowsWallpaperMouse.cjs') as {
+const { createWindowsWallpaperMouseInjector } = require('../../../electron/wallpaper/windowsWallpaperMouse.cjs') as {
   createWindowsWallpaperMouseInjector: (options: InjectorOptions) => Injector;
 };
 

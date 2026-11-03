@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/ipcSecurity.test.ts
 //
@@ -29,6 +30,20 @@ const { resolveExternalUrl, createExternalUrlOpener } = require(
     path.join(rootDir, 'electron/externalUrlPolicy.cjs'),
 );
 const { createSenderGuardedHandler } = require(path.join(rootDir, 'electron/ipcAccessGuard.cjs'));
+const { createApprovedMpvPathStore, isReservedHifiSettingKey, LEGACY_MANUAL_PATH_SETTING_KEY } = require(
+    path.join(rootDir, 'electron/hifi/approvedMpvPath.cjs'),
+) as {
+    createApprovedMpvPathStore: (options: { getUserDataPath: () => string }) => {
+        get: () => string | null;
+        set: (value: string | null) => void;
+        filePath: () => string;
+    };
+    isReservedHifiSettingKey: (key: unknown) => boolean;
+    LEGACY_MANUAL_PATH_SETTING_KEY: string;
+};
+const { registerHifiIpc } = require(path.join(rootDir, 'electron/hifi/hifiIpc.cjs')) as {
+    registerHifiIpc: (options: Record<string, unknown>) => unknown;
+};
 
 describe('resolveExternalUrl', () => {
     it('accepts http(s) and returns the parsed, normalised form', () => {
@@ -162,6 +177,103 @@ describe('createSenderGuardedHandler', () => {
     });
 });
 
+// The approved manual mpv path is the one value that lets main run a program of the renderer's
+// choosing, so it must not be writable through the generic save-settings channel. save-settings
+// writes key/value pairs into the shared electron-store (config.json in userData); the approval
+// lives in a file of its own next to it. These tests write that config.json the way save-settings
+// would and run the real hifiIpc over the real approval store.
+describe('HiFi: the approved manual mpv path is out of save-settings\' reach', () => {
+    const userDataDirs: string[] = [];
+    afterEach(() => {
+        for (const dir of userDataDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+    });
+
+    const makeUserData = () => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'folia-hifi-approval-'));
+        userDataDirs.push(dir);
+        return dir;
+    };
+
+    // What save-settings(key, value) does to the shared store, were the key let through.
+    const writeSharedSetting = (userData: string, key: string, value: unknown) => {
+        const file = path.join(userData, 'config.json');
+        const current = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+        writeFileSync(file, JSON.stringify({ ...current, [key]: value }));
+    };
+
+    // main's start: the approval store over userData, and hifiIpc reading it at registration.
+    const startMain = (userData: string) => {
+        const approved = createApprovedMpvPathStore({ getUserDataPath: () => userData });
+        const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+        const detect = vi.fn(async ({ manualPath }: { manualPath: string | null }) => ({
+            available: true, source: manualPath ? 'manual' : 'path', path: manualPath ?? '/usr/bin/mpv', version: '0.41.0',
+        }));
+        registerHifiIpc({
+            ipcMain: { handle: (channel: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(channel, handler) },
+            isTrustedSender: () => true,
+            session: { configure: vi.fn(async () => {}) },
+            runtime: { detect, getCachedStatus: () => null },
+            installer: {},
+            dialog: { showOpenDialog: vi.fn(async () => ({ canceled: false, filePaths: ['/opt/mpv/bin/mpv'] })) },
+            getMainWindow: () => null,
+            webContentsFromId: () => null,
+            getApprovedMpvPath: () => approved.get(),
+            setApprovedMpvPath: (value: string | null) => approved.set(value),
+            platform: 'linux',
+            logInfo: () => {},
+            logWarn: () => {},
+        });
+        const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)?.({ sender: { id: 1 } }, ...args);
+        return { approved, detect, invoke };
+    };
+
+    it('save-settings(\'hifi_mpv_manual_path\', …) neither approves a path nor gets it probed', async () => {
+        expect(LEGACY_MANUAL_PATH_SETTING_KEY).toBe('hifi_mpv_manual_path');
+        // The handler refuses the key before it reaches the store.
+        expect(isReservedHifiSettingKey('hifi_mpv_manual_path')).toBe(true);
+        expect(isReservedHifiSettingKey('hifi_mpv_manual_path_x')).toBe(false);
+
+        // Even a value already in the shared store (written before the refusal existed) is not read.
+        const userData = makeUserData();
+        writeSharedSetting(userData, 'hifi_mpv_manual_path', '/tmp/evil');
+        const main = startMain(userData);
+        expect(main.approved.get()).toBeNull();
+        await main.invoke('hifi:get-runtime-status');
+        expect(main.detect).toHaveBeenCalledWith({ manualPath: null });
+        expect(main.detect.mock.calls.every(([options]) => options.manualPath === null)).toBe(true);
+    });
+
+    it('only the file dialog approves; the approval survives a restart and a save-settings write cannot change it', async () => {
+        const userData = makeUserData();
+        const first = startMain(userData);
+        await expect(first.invoke('hifi:pick-runtime-path')).resolves.toBe('/opt/mpv/bin/mpv');
+        expect(first.approved.filePath()).toBe(path.join(userData, 'hifi-runtime', 'approved-mpv-path.json'));
+
+        writeSharedSetting(userData, 'hifi_mpv_manual_path', '/tmp/evil');
+        const restarted = startMain(userData);
+        expect(restarted.approved.get()).toBe('/opt/mpv/bin/mpv');
+        await restarted.invoke('hifi:get-runtime-status');
+        expect(restarted.detect).toHaveBeenLastCalledWith({ manualPath: '/opt/mpv/bin/mpv' });
+
+        // Clearing it through configure removes the file.
+        await restarted.invoke('hifi:configure', {
+            mpvPath: null, audioDevice: 'auto', exclusive: false, dsdMode: 'pcm', softwareVolume: false, volume: 100, muted: false,
+        });
+        expect(restarted.approved.get()).toBeNull();
+        expect(existsSync(restarted.approved.filePath())).toBe(false);
+    });
+
+    it('a broken approval file counts as no approval', async () => {
+        const userData = makeUserData();
+        const main = startMain(userData);
+        await main.invoke('hifi:pick-runtime-path');
+        writeFileSync(main.approved.filePath(), '{"path": "/opt/mp');
+        const restarted = startMain(userData);
+        await restarted.invoke('hifi:get-runtime-status');
+        expect(restarted.detect).toHaveBeenLastCalledWith({ manualPath: null });
+    });
+});
+
 describe('main.cjs wiring', () => {
     const mainCjs = readFileSync(path.join(rootDir, 'electron/main.cjs'), 'utf8');
 
@@ -177,5 +289,32 @@ describe('main.cjs wiring', () => {
             expect(site, `no handler site for ${channel}`).not.toBeNull();
             expect(site?.[0], channel).toContain('createSenderGuardedHandler({');
         }
+    });
+
+    it('registers the HiFi channels with the main-window check', () => {
+        // 通道逐个的守卫和校验由 hifiIpc.test.ts 对产品代码测；这里只钉 main.cjs 交进去的是主窗口的判定。
+        const hifiIpc = readFileSync(path.join(rootDir, 'electron/hifi/hifiIpc.cjs'), 'utf8');
+        expect(mainCjs).toContain("require('./hifi/hifiIpc.cjs')");
+        const site = mainCjs.match(/registerHifiIpc\(\{[\s\S]{0,400}/);
+        expect(site, 'no registerHifiIpc call').not.toBeNull();
+        expect(site?.[0]).toContain('isTrustedSender: event => isTrustedMainWindowContents(event.sender)');
+        expect(hifiIpc).toContain("require('../ipcAccessGuard.cjs')");
+        expect(hifiIpc).toContain('createSenderGuardedHandler({');
+    });
+
+    it('keeps the approved manual mpv path in a file of main\'s own, which save-settings refuses to write', () => {
+        // 渲染端经 configure 只能选用或清掉主进程从文件框拿到的路径；批准不在 save-settings 写的共享 electron-store 里。
+        // 行为由上面那组测试对产品代码测；这里只钉 main.cjs 交进去的是那个单独的文件，save-settings 拒写旧键。
+        expect(mainCjs).toContain("require('./hifi/approvedMpvPath.cjs')");
+        expect(mainCjs).toContain('const hifiApprovedMpvPath = createApprovedMpvPathStore({ getUserDataPath: getHifiUserDataPath });');
+        const site = mainCjs.match(/registerHifiIpc\(\{[\s\S]{0,900}?\}\);/);
+        expect(site, 'no registerHifiIpc call').not.toBeNull();
+        expect(site?.[0]).toContain('getApprovedMpvPath: () => hifiApprovedMpvPath.get()');
+        expect(site?.[0]).toContain('setApprovedMpvPath: value => hifiApprovedMpvPath.set(value)');
+        expect(site?.[0]).not.toMatch(/\bstore\.(get|set|delete)\(/);
+
+        const saveSettings = mainCjs.match(/ipcMain\.handle\('save-settings'[\s\S]*?store\.set\(key, nextValue\);/)?.[0] ?? '';
+        expect(saveSettings, 'no save-settings handler').not.toBe('');
+        expect(saveSettings).toMatch(/\|\| isReservedHifiSettingKey\(key\)\) \{\n\s*return getPublicSettings\(\);/);
     });
 });

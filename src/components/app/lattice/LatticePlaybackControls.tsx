@@ -5,7 +5,7 @@ import ProgressBar from '../../ProgressBar';
 import { PlayerState } from '../../../types';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { useLatticeTransport } from './LatticeTransportContext';
-import type { LatticeTile } from './latticeModel';
+import type { LatticeSongTile } from './latticeModel';
 import LatticeChromeTime from './LatticeChromeTime';
 import LatticeExtraControls from './LatticeExtraControls';
 import './LatticeChrome.css';
@@ -14,8 +14,8 @@ import './LatticeChrome.css';
 
 type LatticePlaybackControlsProps = {
     revealed: boolean;
-    tile: LatticeTile;
-    onPlay: (tile: LatticeTile) => void;
+    tile: LatticeSongTile;
+    onPlay: (tile: LatticeSongTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;

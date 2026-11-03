@@ -18,8 +18,8 @@ vi.mock('react-i18next', async importOriginal => ({
 
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { FoliumParam } from '@/mods/folium/contract';
-import { FoliumParamFields, type FoliumParamFieldToken } from '@/mods/folium/FoliumParamFields';
+import type { FoliumSetting } from '@/mods/folium/contract';
+import { FoliumParamFields, type FoliumParamFieldToken } from '@/mods/params/FoliumParamFields';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -34,7 +34,7 @@ const TOKEN: FoliumParamFieldToken = {
     dotOff: '',
 };
 
-const codec: FoliumParam = {
+const codec: FoliumSetting = {
     key: 'codec',
     type: 'select',
     label: { en: 'Codec', 'zh-CN': '编码' },
@@ -57,7 +57,7 @@ afterEach(() => {
     i18nState.language = 'en';
 });
 
-const renderFields = (props: { params?: FoliumParam[]; values?: Record<string, unknown>; disabled?: boolean } = {}) => {
+const renderFields = (props: { params?: FoliumSetting[]; values?: Record<string, unknown>; disabled?: boolean } = {}) => {
     const onChange = vi.fn();
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -179,7 +179,7 @@ describe('Folium select field', () => {
         root = null;
         document.body.replaceChildren();
 
-        const unlistedDefault: FoliumParam = { ...codec, defaultValue: 'vp9' };
+        const unlistedDefault: FoliumSetting = { ...codec, defaultValue: 'vp9' };
         const fallback = renderFields({ params: [unlistedDefault], values: { codec: undefined } });
         expect(fallback.trigger().textContent).toBe('H.264 (compatible)');
         expect(fallback.onChange).not.toHaveBeenCalled();

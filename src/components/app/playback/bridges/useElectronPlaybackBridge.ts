@@ -1,0 +1,792 @@
+import { useEffect, useRef, useState } from 'react';
+import type React from 'react';
+import type { RefObject } from 'react';
+import type { MotionValue } from 'framer-motion';
+import { PlayerState } from '../../../../types';
+import type { SongResult, LyricData } from '../../../../types';
+import type {
+    PlayerChromeVisibilityMode,
+    RemoteControlCommand,
+    RemoteControlSnapshot,
+} from '../../../../types/remoteControl';
+import type { VideoExportState } from '../../../../types/videoExport';
+import {
+    buildDiscordPresenceSnapshotFromPlaybackSyncBridge,
+    buildPlaybackSyncBridgeModel,
+    buildRemoteControlSnapshotFromPlaybackSyncBridge,
+    buildStagePlayerSnapshotFromPlaybackSyncBridge,
+    buildTaskbarControlsFromPlaybackSyncBridge,
+} from '../../../../utils/playbackSyncBridge';
+import { resolveStagePlayerPositionSec } from '../../../../utils/stagePlayerSnapshot';
+import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appPlaybackGuards';
+import { omni } from '../../../../services/onlineMusic/omni';
+import { createRemoteTrackTransitionFeed, type RemoteTrackTransitionFeed } from './remoteTrackTransitionFeed';
+import { buildRemoteQueueItems, isRemoteQueueCommand } from './remoteQueueFeed';
+import i18n from '../../../../i18n/config';
+import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
+import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { useAppChromeStore } from '../../../../stores/useAppChromeStore';
+import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore';
+import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
+import { useTypographySettingsStore } from '../../../../stores/useTypographySettingsStore';
+import { currentTime } from '../../../../stores/motionSignals';
+import { useRemoteControlActions } from '../../../../hooks/useRemoteControlActions';
+import { subscribeRemoteActions } from '../../../../mods/folium/registries/remoteActions';
+import { errorMessage } from '../../../../utils/errorText';
+import { getObservedMedia, hifiMediaShim } from '../../../../services/hifi/hifiMediaShim';
+import { seekHifiRoute } from '../../../hifi/hifiRouteTransport';
+
+// Bridges Electron-specific shell features without coupling to UI components.
+const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
+
+type UseElectronPlaybackBridgeOptions = {
+
+    isElectronWindow: boolean;
+    playerChromeVisibilityMode: PlayerChromeVisibilityMode;
+    onRemotePlayerChromeVisibilityModeCycle?: () => void;
+    onRemotePlayerChromeVisibilityModeSet?: (mode: PlayerChromeVisibilityMode) => void;
+    isStagePlayerSnapshotEnabled: boolean;
+    isNowPlayingControlDisabledRef: RefObject<boolean>;
+    audioRef: RefObject<HTMLAudioElement | null>;
+    /**
+     * The deck whose clock the now-playing picture belongs to, or null when the picture is live.
+     *
+     * During an automix blend `audioRef` already names the INCOMING deck - the track arriving,
+     * seconds before the listener hears it - while everything the panels should show still belongs
+     * to the outgoing track. `currentSong`/`duration`/`coverUrl` are passed as the held picture by
+     * the caller; this is the matching clock, so the remote's progress bar reads the outgoing deck
+     * rather than snapping to zero the moment a blend arms. Mirrors what the media-session bridge
+     * already does with the displayed track.
+     */
+    getDisplayAudioElement?: () => HTMLAudioElement | null;
+    effectiveLoopMode: 'off' | 'all' | 'one';
+    isNowPlayingStageActive: boolean;
+    mediaSessionPlayRef: RefObject<() => Promise<void>>;
+    mediaSessionPauseRef: RefObject<() => void>;
+    mediaSessionPrevRef: RefObject<() => void>;
+    mediaSessionNextRef: RefObject<() => Promise<void> | void>;
+    getSyntheticStageLyricsTime?: () => number;
+    syncStageLyricsClock?: (timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec?: number) => void;
+    taskbarHasTrackRef: RefObject<boolean>;
+    taskbarPlayerStateRef: RefObject<PlayerState>;
+    exportState: VideoExportState;
+    lyricTimelineOffsetMs?: number;
+    onRemoteExportCommand?: (command: RemoteControlCommand) => boolean;
+    onExternalPlayRequest?: (request: any) => Promise<void>;
+    onRemoteCycleLoopMode?: () => void;
+    /**
+     * Handles a remote seek that lands during an automix blend, returning true when it did.
+     *
+     * The remote's bar, like the window's, shows the OUTGOING track mid-blend while `audioRef`
+     * names the incoming deck, so a plain `currentTime =` would move a track nobody can see. This
+     * routes such a seek through the same cancel-and-resume the window's bar uses. Returns false
+     * (and the ordinary seek runs) when no blend is in flight.
+     */
+    onRemoteTransitionSeek?: (time: number) => boolean;
+    /** Publishes the audible transition cue for either AutoMix or Crossfade mode. */
+    publishTrackTransition: boolean;
+    /** Filters out settings previews and cues emitted outside a live deck transition. */
+    isTrackTransitionAudible: () => boolean;
+    isLiked: boolean;
+    onLike?: () => void;
+};
+
+const emptyPlaybackSyncBridgeStatus = (): ElectronPlaybackSyncBridgeStatus => ({
+    remoteControlOpen: false,
+    discordPresenceEnabled: false,
+});
+
+export const useElectronPlaybackBridge = ({
+    isElectronWindow,
+    playerChromeVisibilityMode,
+    onRemotePlayerChromeVisibilityModeCycle,
+    onRemotePlayerChromeVisibilityModeSet,
+    isStagePlayerSnapshotEnabled,
+    isNowPlayingControlDisabledRef,
+    audioRef,
+    getDisplayAudioElement,
+    effectiveLoopMode,
+    isNowPlayingStageActive,
+    mediaSessionPlayRef,
+    mediaSessionPauseRef,
+    mediaSessionPrevRef,
+    mediaSessionNextRef,
+    getSyntheticStageLyricsTime,
+    syncStageLyricsClock,
+    taskbarHasTrackRef,
+    taskbarPlayerStateRef,
+    exportState,
+    lyricTimelineOffsetMs,
+    onRemoteExportCommand,
+    onExternalPlayRequest,
+    onRemoteCycleLoopMode,
+    onRemoteTransitionSeek,
+    publishTrackTransition,
+    isTrackTransitionAudible,
+    isLiked,
+    onLike,
+}: UseElectronPlaybackBridgeOptions) => {
+    // Read here rather than passed in: all store fields or a module-level motion signal.
+    const setIsTitlebarRevealed = useAppChromeStore(state => state.setIsTitlebarRevealed);
+    const isPlayerChromeHidden = useAppChromeStore(state => state.isPlayerChromeHidden);
+    const setIsPlayerChromeHidden = useAppChromeStore(state => state.setIsPlayerChromeHidden);
+    const showTransparentWindowBorder = useAppChromeStore(state => state.showTransparentWindowBorder);
+    const setShowTransparentWindowBorder = useAppChromeStore(state => state.setShowTransparentWindowBorder);
+    const mainWindowClickThroughEnabled = useAppChromeStore(state => state.isMainWindowClickThroughEnabled);
+    const transparentPlayerBackground = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground);
+    const isDaylight = useThemeSettingsStore(state => state.isDaylight);
+    const subtitleContentMode = useTypographySettingsStore(state => state.subtitleContentMode);
+    const activePlaybackContext = usePlaybackStore(state => state.activePlaybackContext);
+    const audioSrc = usePlaybackStore(state => state.audioSrc);
+    // On the HiFi route the clock and source below are read off the HiFi media shim instead of a deck.
+    const playbackRoute = usePlaybackStore(state => state.playbackRoute);
+    const cachedCoverUrl = usePlaybackStore(state => state.cachedCoverUrl);
+    const playQueue = usePlaybackStore(state => state.playQueue);
+    const isFmMode = usePlaybackStore(state => state.isFmMode);
+    // The HELD picture and its clock, so the remote, Discord and the taskbar switch song when a
+    // blend settles rather than when it arms - the same thing useMediaSessionBridge publishes.
+    // The raw transport reads IDLE for the length of a blend's lead, which drew a stopped player
+    // on the remote over a track the listener could still hear, offering a play button.
+    const currentSong = usePlaybackStore(selectDisplaySong);
+    const lyrics = usePlaybackStore(selectDisplayLyrics);
+    const coverUrl = usePlaybackStore(selectDisplayCoverUrl);
+    const duration = usePlaybackStore(selectDisplayDuration);
+    const playerState = usePlaybackStore(selectDisplayPlayerState);
+    const remoteActions = useRemoteControlActions(isElectronWindow);
+
+    const [playbackSyncBridgeStatus, setPlaybackSyncBridgeStatus] = useState<ElectronPlaybackSyncBridgeStatus>(() => emptyPlaybackSyncBridgeStatus());
+    const pausedByVoiceInputRef = useRef(false);
+    const remoteTrackTransitionFeedRef = useRef<RemoteTrackTransitionFeed | null>(null);
+    /**
+     * The queue the remote was last sent, and in which language its tags were; null until the remote
+     * opens, so the first publish carries it.
+     */
+    const remoteQueueSentRef = useRef<{ queue: SongResult[]; language: string } | null>(null);
+    const publishTrackTransitionRef = useRef(publishTrackTransition);
+    const isTrackTransitionAudibleRef = useRef(isTrackTransitionAudible);
+    // 渲染期改 ref 会让被丢弃的那次渲染也留下痕迹；这两个只在事件与定时发布里读，放进 effect 即可。
+    useEffect(() => {
+        publishTrackTransitionRef.current = publishTrackTransition;
+        isTrackTransitionAudibleRef.current = isTrackTransitionAudible;
+    }, [publishTrackTransition, isTrackTransitionAudible]);
+    const currentSongSource = currentSong ? getPlaybackSourceRef(currentSong) : null;
+    const canLikeCurrentSong = Boolean(
+        currentSong
+        && !isNowPlayingStageActive
+        && (
+            currentSongSource?.kind === 'local'
+            || currentSongSource?.kind === 'navidrome'
+            || (currentSongSource?.kind === 'online' && omni.canLikeSong(currentSong))
+        ),
+    );
+    const likeUnavailableProvider = currentSongSource?.kind === 'online' && !canLikeCurrentSong
+        ? omni.getProviderLabel(currentSongSource.providerId)
+        : undefined;
+
+    // The cue is event-shaped in the main renderer. Keep only the current low-frequency snapshot
+    // so the Remote's existing 500ms publisher can carry it without a React render loop.
+    useEffect(() => {
+        const feed = createRemoteTrackTransitionFeed(
+            () => publishTrackTransitionRef.current && isTrackTransitionAudibleRef.current(),
+        );
+        remoteTrackTransitionFeedRef.current = feed;
+        return () => {
+            feed.dispose();
+            remoteTrackTransitionFeedRef.current = null;
+        };
+    }, []);
+    const stageSnapshotCacheRef = useRef<{
+        playQueue: SongResult[];
+        currentSong: SongResult | null;
+        activePlaybackContext: 'main' | 'stage';
+        isStageActive: boolean;
+        canGoPrevious: boolean;
+        canGoNext: boolean;
+        coverUrl: string | null;
+        snapshot: ReturnType<typeof buildStagePlayerSnapshotFromPlaybackSyncBridge>;
+    } | null>(null);
+
+    const resolveAudioSourceHref = (source: string | null | undefined) => {
+        if (!source) {
+            return '';
+        }
+
+        try {
+            return new URL(source, window.location.href).href;
+        } catch {
+            return source;
+        }
+    };
+
+    const isAudioElementUsingCurrentSource = () => {
+        // mpv's song has no URL here; the shim names the track it is sounding, or nothing between tracks.
+        // Read live, as getObservedMedia below does, so the two never disagree about the route.
+        if (usePlaybackStore.getState().playbackRoute === 'hifi') {
+            return Boolean(hifiMediaShim.currentSrc);
+        }
+        const audioElement = audioRef.current;
+        if (!audioElement || !audioSrc) {
+            return false;
+        }
+
+        const expectedSource = resolveAudioSourceHref(audioSrc);
+        const currentSource = resolveAudioSourceHref(audioElement.currentSrc || audioElement.src);
+        return Boolean(expectedSource && currentSource && expectedSource === currentSource);
+    };
+
+    const buildPlaybackSyncBridgeModelFromCurrentState = () => {
+        // The clock the picture belongs to: the outgoing deck during a blend, the active deck the
+        // rest of the time. The metadata below is already the held picture (the caller passes
+        // `currentSong`/`duration`/`coverUrl` as the displayed track), so reading the active deck's
+        // position here would show the outgoing song's title against the incoming song's clock.
+        const audioElement = getObservedMedia(getDisplayAudioElement?.() ?? audioRef.current);
+        const isCurrentAudioSource = isAudioElementUsingCurrentSource();
+        const currentTimeSec = audioElement?.currentTime ?? currentTime.get();
+        const stagePositionSec = resolveStagePlayerPositionSec({
+            activePlaybackContext,
+            isExternalPlaybackSourceActive: isNowPlayingStageActive,
+            audioCurrentTimeSec: isCurrentAudioSource ? audioElement?.currentTime : undefined,
+            motionCurrentTimeSec: currentTime.get(),
+            syntheticStageLyricsTimeSec: getSyntheticStageLyricsTime?.(),
+        });
+        const audioDurationSec = isCurrentAudioSource && Number.isFinite(audioElement?.duration) && (audioElement?.duration ?? 0) > 0
+            ? audioElement?.duration ?? 0
+            : 0;
+        const stageDurationSec = audioDurationSec > 0 || activePlaybackContext === 'main'
+            ? audioDurationSec
+            : duration;
+
+        return buildPlaybackSyncBridgeModel({
+            activePlaybackContext,
+            currentSong,
+            playQueue,
+            currentTimeSec,
+            stagePositionSec,
+            durationSec: duration,
+            stageDurationSec,
+            playerState,
+            coverUrl,
+            cachedCoverUrl,
+            effectiveLoopMode,
+            isFmMode,
+            isStageActive: isNowPlayingStageActive,
+            controlsDisabled: isNowPlayingControlDisabledRef.current,
+            transparentModeEnabled: transparentPlayerBackground,
+            mainWindowClickThroughEnabled,
+            mainWindowBorderVisible: showTransparentWindowBorder,
+            playerChromeHidden: isPlayerChromeHidden,
+            exportState,
+            isDaylight,
+            isLiked,
+            lyricOffsetMs: (lyricTimelineOffsetMs ?? 0) - (activePlaybackContext === 'main'
+                ? omni.previewClipStartMsOfAudioSource(audioElement?.currentSrc ?? '')
+                : 0),
+            mainWindowWidth: window.innerWidth,
+            mainWindowHeight: window.innerHeight,
+        });
+    };
+
+    const buildRemoteSnapshot = (options: { includeLyrics?: boolean; includeQueue?: boolean } = {}): RemoteControlSnapshot => {
+        const snapshot = buildRemoteControlSnapshotFromPlaybackSyncBridge(
+            buildPlaybackSyncBridgeModelFromCurrentState(),
+            {
+                includeLyrics: options.includeLyrics,
+                lyrics,
+                playerChromeVisibilityMode,
+                subtitleContentMode,
+                trackTransition: remoteTrackTransitionFeedRef.current?.read() ?? null,
+            },
+        );
+        const actions = remoteActions.read();
+        const displayedTrackKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+        const heldSong = usePlaybackStore.getState().currentSong;
+        return {
+            ...snapshot,
+            ...(options.includeQueue
+                ? {
+                    queue: buildRemoteQueueItems(playQueue, {
+                        unavailable: i18n.t('status.songUnavailableTag'),
+                        video: i18n.t('status.songVideoTag'),
+                    }),
+                }
+                : {}),
+            queuePlayingKey: heldSong ? getPlaybackSongKey(heldSong) : null,
+            queueReadOnly: activePlaybackContext === 'stage',
+            canLike: canLikeCurrentSong,
+            likeUnavailableProvider,
+            // Store updates may precede this render's displayed song. Never publish new-song
+            // action tickets underneath the previous song's title during that brief interval.
+            // Use displayed identity: native transport has a null key for now-playing stages.
+            remoteActions: actions?.trackKey === displayedTrackKey ? actions : undefined,
+        };
+    };
+
+    const buildDiscordPresenceSnapshot = () => {
+        return buildDiscordPresenceSnapshotFromPlaybackSyncBridge(buildPlaybackSyncBridgeModelFromCurrentState());
+    };
+
+    const buildCurrentStagePlayerSnapshot = () => {
+        const model = buildPlaybackSyncBridgeModelFromCurrentState();
+        const cache = stageSnapshotCacheRef.current;
+        if (
+            cache &&
+            cache.playQueue === model.playQueue &&
+            cache.currentSong === model.currentSong &&
+            cache.activePlaybackContext === model.activePlaybackContext &&
+            cache.isStageActive === model.isStageActive &&
+            cache.canGoPrevious === model.canGoPrevious &&
+            cache.canGoNext === model.canGoNext &&
+            cache.coverUrl === model.coverUrl
+        ) {
+            const now = Date.now();
+            const positionMs = Math.max(0, Math.floor(model.stagePositionSec * 1000));
+            const durationMs = Math.max(0, Math.floor(model.stageDurationSec * 1000));
+            const snapshot = {
+                ...cache.snapshot,
+                playerState: model.playerState,
+                positionMs,
+                durationMs,
+                sampledAtMs: now,
+                updatedAt: now,
+                current: cache.snapshot.current
+                    ? { ...cache.snapshot.current, durationMs, coverUrl: model.coverUrl || cache.snapshot.current.coverUrl }
+                    : null,
+            };
+            stageSnapshotCacheRef.current = { ...cache, snapshot };
+            return snapshot;
+        }
+
+        const snapshot = buildStagePlayerSnapshotFromPlaybackSyncBridge(model);
+        stageSnapshotCacheRef.current = {
+            playQueue: model.playQueue,
+            currentSong: model.currentSong,
+            activePlaybackContext: model.activePlaybackContext,
+            isStageActive: model.isStageActive,
+            canGoPrevious: model.canGoPrevious,
+            canGoNext: model.canGoNext,
+            coverUrl: model.coverUrl,
+            snapshot,
+        };
+        return snapshot;
+    };
+
+    const publishDiscordPresenceSnapshot = () => {
+        if (!window.electron?.publishDiscordPresenceSnapshot) {
+            return;
+        }
+
+        void window.electron.publishDiscordPresenceSnapshot(buildDiscordPresenceSnapshot()).catch((error) => {
+            console.warn('[Discord] Failed to publish presence snapshot', error);
+        });
+    };
+
+    const publishStagePlayerPlaybackUpdate = () => {
+        if (!isStagePlayerSnapshotEnabled) {
+            return Promise.resolve(null);
+        }
+
+        const publishStageSnapshot = window.electron?.publishStagePlayerSnapshot;
+        if (!publishStageSnapshot) {
+            return Promise.resolve(null);
+        }
+
+        return publishStageSnapshot(buildCurrentStagePlayerSnapshot(), { forcePlaybackEvent: true });
+    };
+
+    useEffect(() => {
+        // Click-through keeps forwarding mouse-move into the renderer, so the titlebar would keep
+        // revealing itself on a window the cursor cannot actually reach. Stop tracking while it is on.
+        if (!isElectronWindow || mainWindowClickThroughEnabled) {
+            setIsTitlebarRevealed(false);
+            return;
+        }
+
+        const revealThreshold = 56;
+        const handleMouseMove = (event: MouseEvent) => {
+            const nextVisible = event.clientY <= revealThreshold;
+            setIsTitlebarRevealed(prev => (prev === nextVisible ? prev : nextVisible));
+        };
+        const handleMouseLeave = () => setIsTitlebarRevealed(false);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseleave', handleMouseLeave);
+        };
+    }, [isElectronWindow, mainWindowClickThroughEnabled, setIsTitlebarRevealed]);
+
+    useEffect(() => {
+        if (!window.electron?.onTaskbarControl) {
+            return;
+        }
+
+        return window.electron.onTaskbarControl((action) => {
+            if (isNowPlayingControlDisabledRef.current || !audioRef.current || !taskbarHasTrackRef.current) {
+                return;
+            }
+
+            if (action === 'previous') {
+                mediaSessionPrevRef.current();
+                return;
+            }
+
+            if (action === 'next') {
+                void mediaSessionNextRef.current();
+                return;
+            }
+
+            if (taskbarPlayerStateRef.current === PlayerState.PLAYING) {
+                mediaSessionPauseRef.current();
+            } else {
+                void mediaSessionPlayRef.current();
+            }
+        });
+    }, [audioRef, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, taskbarHasTrackRef, taskbarPlayerStateRef]);
+
+    useEffect(() => {
+        if (!window.electron?.updateTaskbarControls) {
+            return;
+        }
+
+        void window.electron.updateTaskbarControls(
+            buildTaskbarControlsFromPlaybackSyncBridge(buildPlaybackSyncBridgeModelFromCurrentState())
+        ).catch((error) => {
+            console.warn('[Electron] Failed to update Windows taskbar controls', error);
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playbackRoute, playerState]);
+
+    // System/IME voice input pauses playback and resumes it afterwards. Resume only
+    // fires when this bridge caused the pause and the track is still paused, so a
+    // manual user pause during dictation is never overridden.
+    useEffect(() => {
+        if (!isElectronWindow || !window.electron?.onVoiceInputStateChanged) {
+            return;
+        }
+
+        return window.electron.onVoiceInputStateChanged((state) => {
+            if (state?.active) {
+                pausedByVoiceInputRef.current = false;
+                if (
+                    taskbarPlayerStateRef.current === PlayerState.PLAYING
+                    && taskbarHasTrackRef.current
+                    && !isNowPlayingControlDisabledRef.current
+                ) {
+                    pausedByVoiceInputRef.current = true;
+                    mediaSessionPauseRef.current();
+                }
+                return;
+            }
+
+            if (!pausedByVoiceInputRef.current) {
+                return;
+            }
+
+            pausedByVoiceInputRef.current = false;
+            if (taskbarPlayerStateRef.current === PlayerState.PAUSED && !isNowPlayingControlDisabledRef.current) {
+                void mediaSessionPlayRef.current();
+            }
+        });
+    }, [isElectronWindow, isNowPlayingControlDisabledRef, mediaSessionPauseRef, mediaSessionPlayRef, taskbarHasTrackRef, taskbarPlayerStateRef]);
+
+    useEffect(() => {
+        if (!isElectronWindow) {
+            setPlaybackSyncBridgeStatus(emptyPlaybackSyncBridgeStatus());
+            return;
+        }
+
+        void window.electron?.getPlaybackSyncBridgeStatus?.().then(status => {
+            setPlaybackSyncBridgeStatus(status);
+        }).catch((error) => {
+            console.warn('[Electron] Failed to read playback sync bridge status', error);
+        });
+
+        return window.electron?.onPlaybackSyncBridgeStatusChanged?.(status => {
+            setPlaybackSyncBridgeStatus(status);
+        });
+    }, [isElectronWindow]);
+
+    useEffect(() => {
+        if (!playbackSyncBridgeStatus.remoteControlOpen) {
+            remoteQueueSentRef.current = null;
+            return;
+        }
+
+        if (!window.electron?.publishRemoteControlSnapshot) {
+            return;
+        }
+
+        const publish = (options: { includeLyrics?: boolean } = {}) => {
+            // The queue rides along only when it changed: a long queue is too much for every 500 ms.
+            const sent = remoteQueueSentRef.current;
+            const includeQueue = sent?.queue !== playQueue || sent.language !== i18n.language;
+            if (includeQueue) {
+                remoteQueueSentRef.current = { queue: playQueue, language: i18n.language };
+            }
+            void window.electron?.publishRemoteControlSnapshot(buildRemoteSnapshot({ ...options, includeQueue })).catch((error) => {
+                if (includeQueue) {
+                    remoteQueueSentRef.current = null;
+                }
+                console.warn('[Electron] Failed to publish remote control snapshot', error);
+            });
+        };
+
+        publish({ includeLyrics: true });
+        const intervalId = window.setInterval(() => publish(), 500);
+        const unsubscribeActions = subscribeRemoteActions(() => publish());
+
+        let lastReportedDpr = window.devicePixelRatio || 1;
+        const handleResize = () => {
+            publish();
+            // Only report DPR when it actually changes (avoids unnecessary IPC round-trips).
+            const currentDpr = window.devicePixelRatio || 1;
+            if (currentDpr !== lastReportedDpr) {
+                lastReportedDpr = currentDpr;
+                window.electron?.reportDevicePixelRatio(currentDpr);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        // Report once on mount in case the window is never resized before exporting.
+        window.electron?.reportDevicePixelRatio(lastReportedDpr);
+
+        return () => {
+            window.clearInterval(intervalId);
+            unsubscribeActions();
+            window.removeEventListener('resize', handleResize);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, exportState, isDaylight, isFmMode, isNowPlayingStageActive, isPlayerChromeHidden, playerChromeVisibilityMode, lyrics, lyricTimelineOffsetMs, mainWindowClickThroughEnabled, playbackRoute, playbackSyncBridgeStatus, playQueue, playerState, showTransparentWindowBorder, subtitleContentMode, transparentPlayerBackground, isLiked]);
+
+    useEffect(() => {
+        if (!playbackSyncBridgeStatus.discordPresenceEnabled || !window.electron?.publishDiscordPresenceSnapshot) {
+            return;
+        }
+
+        publishDiscordPresenceSnapshot();
+        const intervalId = window.setInterval(publishDiscordPresenceSnapshot, DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS);
+        return () => window.clearInterval(intervalId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cachedCoverUrl, coverUrl, currentSong, duration, isNowPlayingStageActive, playbackRoute, playbackSyncBridgeStatus.discordPresenceEnabled, playerState]);
+
+    useEffect(() => {
+        if (!isStagePlayerSnapshotEnabled || !window.electron?.publishStagePlayerSnapshot) {
+            return;
+        }
+
+        const publish = () => {
+            void window.electron?.publishStagePlayerSnapshot(buildCurrentStagePlayerSnapshot()).catch((error) => {
+                console.warn('[Stage] Failed to publish player snapshot', error);
+            });
+        };
+
+        publish();
+        const intervalId = window.setInterval(publish, 1000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activePlaybackContext, audioSrc, cachedCoverUrl, coverUrl, currentSong, duration, effectiveLoopMode, getSyntheticStageLyricsTime, isFmMode, isNowPlayingStageActive, isStagePlayerSnapshotEnabled, playbackRoute, playQueue, playerState]);
+
+    useEffect(() => {
+        if (!window.electron?.onRemoteControlCommand) {
+            return;
+        }
+
+        const runCommand = (command: RemoteControlCommand) => {
+            if (command.type === 'remote-action') {
+                void remoteActions.activate(command);
+                return;
+            }
+            // The queue's rows are handled by useRemoteQueueCommands.
+            if (isRemoteQueueCommand(command)) {
+                return;
+            }
+            if (onRemoteExportCommand?.(command)) {
+                return;
+            }
+
+            if (command.type === 'set-main-window-border-visible') {
+                setShowTransparentWindowBorder(command.visible);
+                return;
+            }
+
+            if (command.type === 'cycle-player-chrome-visibility-mode') {
+                onRemotePlayerChromeVisibilityModeCycle?.();
+                return;
+            }
+
+            if (command.type === 'set-player-chrome-visibility-mode') {
+                onRemotePlayerChromeVisibilityModeSet?.(command.mode);
+                return;
+            }
+
+            if (command.type === 'open-export') {
+                return;
+            }
+
+            if (command.type === 'toggle-like') {
+                if (canLikeCurrentSong && !isNowPlayingControlDisabledRef.current) onLike?.();
+                return;
+            }
+
+            if (command.type === 'cycle-loop-mode') {
+                if (!isNowPlayingControlDisabledRef.current) onRemoteCycleLoopMode?.();
+                return;
+            }
+
+            if (isNowPlayingControlDisabledRef.current || !taskbarHasTrackRef.current) {
+                return;
+            }
+
+            if (command.type === 'previous') {
+                mediaSessionPrevRef.current();
+                return;
+            }
+
+            if (command.type === 'next') {
+                void mediaSessionNextRef.current();
+                return;
+            }
+
+            if (command.type === 'pause') {
+                mediaSessionPauseRef.current();
+                return;
+            }
+
+            if (command.type === 'play') {
+                void mediaSessionPlayRef.current();
+                return;
+            }
+
+            if (command.type === 'seek') {
+                const audioElement = audioRef.current;
+                if (!Number.isFinite(command.time)) {
+                    return;
+                }
+
+                const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : getObservedMedia(audioElement)?.duration;
+                const upperBound = typeof safeDuration === 'number' && Number.isFinite(safeDuration) && safeDuration > 0
+                    ? safeDuration
+                    : command.time;
+                const nextTime = Math.max(0, Math.min(command.time, upperBound));
+                // During a blend the visible track is the outgoing one; route through the same
+                // cancel-and-resume the window's bar uses instead of moving the hidden incoming deck.
+                // mpv seeks on the HiFi route; like the deck's seek below, it leaves a paused track paused.
+                if (seekHifiRoute(nextTime)) {
+                    // Handled: mpv has the song, the deck has no source.
+                } else if (onRemoteTransitionSeek?.(nextTime)) {
+                    // Handled: the re-play seeks the deck itself once it reloads.
+                } else if (audioElement) {
+                    audioElement.currentTime = nextTime;
+                } else if (activePlaybackContext === 'stage') {
+                    syncStageLyricsClock?.(nextTime, duration, taskbarPlayerStateRef.current);
+                }
+                currentTime.set(nextTime);
+                void window.electron?.publishRemoteControlSnapshot(buildRemoteSnapshot());
+                publishDiscordPresenceSnapshot();
+                void publishStagePlayerPlaybackUpdate();
+                return;
+            }
+
+            if (taskbarPlayerStateRef.current === PlayerState.PLAYING) {
+                mediaSessionPauseRef.current();
+            } else {
+                void mediaSessionPlayRef.current();
+            }
+        };
+
+        return window.electron.onRemoteControlCommand(runCommand);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activePlaybackContext, audioRef, canLikeCurrentSong, currentTime, duration, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, onRemoteCycleLoopMode, onRemoteExportCommand, onRemotePlayerChromeVisibilityModeCycle, onRemotePlayerChromeVisibilityModeSet, onRemoteTransitionSeek, setShowTransparentWindowBorder, syncStageLyricsClock, taskbarHasTrackRef, taskbarPlayerStateRef, onLike]);
+
+    useEffect(() => {
+        if (!window.electron?.onStagePlayerControlRequest) {
+            return;
+        }
+
+        const complete = (requestId: string, ok: boolean, error?: unknown) => {
+            void window.electron?.completeStagePlayerControlRequest?.({
+                requestId,
+                ok,
+                error: ok ? null : errorMessage(error),
+            });
+        };
+
+        return window.electron.onStagePlayerControlRequest((request) => {
+            try {
+                if (isNowPlayingControlDisabledRef.current || !taskbarHasTrackRef.current) {
+                    throw new Error('Player controls are disabled in the current context.');
+                }
+
+                if (request.action === 'prev') {
+                    mediaSessionPrevRef.current();
+                    complete(request.requestId, true);
+                    return;
+                }
+
+                if (request.action === 'next') {
+                    void Promise.resolve(mediaSessionNextRef.current()).then(() => complete(request.requestId, true)).catch(error => complete(request.requestId, false, error));
+                    return;
+                }
+
+                if (request.action === 'pause') {
+                    mediaSessionPauseRef.current();
+                    complete(request.requestId, true);
+                    return;
+                }
+
+                if (request.action === 'resume') {
+                    void mediaSessionPlayRef.current().then(() => complete(request.requestId, true)).catch(error => complete(request.requestId, false, error));
+                    return;
+                }
+
+                if (request.action === 'seek') {
+                    const nextTime = Math.max(0, (request.positionMs ?? 0) / 1000);
+                    // Same order as the remote's own seek above: mid-blend `audioRef` names the
+                    // INCOMING deck, silent and holding a different track, so moving it moves
+                    // nothing the listener can hear. The transition-aware path cancels the blend
+                    // back onto the track on screen and seeks that instead.
+                    if (seekHifiRoute(nextTime)) {
+                        // Handled: mpv has the song on the HiFi route.
+                    } else if (onRemoteTransitionSeek?.(nextTime)) {
+                        // Handled: that path seeks the deck it kept.
+                    } else if (audioRef.current) {
+                        audioRef.current.currentTime = nextTime;
+                    } else if (activePlaybackContext === 'stage') {
+                        syncStageLyricsClock?.(nextTime, duration, taskbarPlayerStateRef.current);
+                    }
+                    currentTime.set(nextTime);
+                    void publishStagePlayerPlaybackUpdate()
+                        .then(() => complete(request.requestId, true))
+                        .catch(error => complete(request.requestId, false, error));
+                    return;
+                }
+
+                throw new Error(`Unsupported Stage player control action: ${request.action}`);
+            } catch (error) {
+                complete(request.requestId, false, error);
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activePlaybackContext, audioRef, currentTime, duration, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, onRemoteTransitionSeek, syncStageLyricsClock, taskbarHasTrackRef, taskbarPlayerStateRef]);
+
+    useEffect(() => {
+        if (!window.electron?.onStageExternalPlayRequest || !onExternalPlayRequest) {
+            return;
+        }
+
+        return window.electron.onStageExternalPlayRequest((request) => {
+            void onExternalPlayRequest(request);
+        });
+    }, [onExternalPlayRequest]);
+
+    // Wrapped so the callbacks this hook hands back keep one identity for the app's lifetime. They
+    // are all invoked from events or effects, and their churn was what kept every build*Model memo
+    // in App.tsx from ever holding - see useStableCallbacks.ts.
+    return useStableActionSurface({
+        publishStagePlayerPlaybackUpdate,
+    });
+};

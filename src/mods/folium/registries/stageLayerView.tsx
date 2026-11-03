@@ -4,6 +4,7 @@ import type { Theme } from '@/types';
 import {
     usePlaybackStore,
     selectDisplayCoverUrl,
+    selectDisplayDuration,
     selectDisplayLyrics,
     selectDisplaySong,
 } from '@/stores/usePlaybackStore';
@@ -15,11 +16,12 @@ import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore'
 import { audioBands, audioPower, lyricCurrentTime } from '@/stores/motionSignals';
 import { NO_LYRIC_LINES } from '@/utils/lyrics/noLyricLines';
 import type { FoliumStageLayerDef, FoliumStageSlot, FoliumSurface } from '../contract';
-import { useFoliumRegistryEntries, type FoliumRegistryEntry } from '../registry';
-import { useFoliumStageContext, type FoliumStageInputs } from '../stageContext';
-import { FoliumMountHost, foliumThemeVars } from '../FoliumMountHost';
+import { useFoliumRegistryEntries, type FoliumRegistryEntry } from '../../runtime/registry';
+import { useFoliumStageContext, type FoliumStageInputs } from './stageContext';
+import { FoliumMountHost, foliumThemeVars } from '../../runtime/FoliumMountHost';
 import { toFoliumTheme } from '../dto';
 import { stageLayersRegistry } from './stageLayers';
+import { foliumMountName } from '../kinds';
 
 // src/mods/folium/registries/stageLayerView.tsx
 // The store-reading half of the stage layer slot (see stageLayers.tsx for why
@@ -31,6 +33,8 @@ const byOrder = (left: FoliumRegistryEntry<FoliumStageLayerDef>, right: FoliumRe
 );
 
 const STAGE_SURFACE: FoliumSurface = Object.freeze({ transparent: false, hostBackground: true });
+
+const STAGE_LAYER = foliumMountName('stageLayers', 'stageLayer');
 // Stage layers only exist on the live player page, so they read the app's own analyser signals.
 const STAGE_AUDIO = Object.freeze({ audioPower, audioBands });
 
@@ -77,10 +81,12 @@ const FoliumStageLayer: React.FC<{
     const song = usePlaybackStore(selectDisplaySong);
     const currentLineIndex = usePlaybackStore((state) => state.currentLineIndex);
     const coverUrl = usePlaybackStore(selectDisplayCoverUrl);
+    const duration = usePlaybackStore(selectDisplayDuration);
     const display = useStageLayerDisplay();
     const ctx = useFoliumStageContext({
         lines: lyrics?.lines ?? NO_LYRIC_LINES,
         currentTime: lyricCurrentTime,
+        duration: Number.isFinite(duration) ? duration : 0,
         currentLineIndex,
         paused,
         theme,
@@ -104,7 +110,7 @@ const FoliumStageLayer: React.FC<{
         <FoliumMountHost
             modId={entry.modId}
             where={`stage layer ${entry.id}`}
-            entryKind="stage-layer"
+            entryKind={STAGE_LAYER}
             entryId={entry.id}
             mount={entry.def.mount}
             ctx={ctx}

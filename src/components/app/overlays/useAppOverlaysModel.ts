@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { useNowPlayingCardPositioningEntry } from './now-playing-toast/useNowPlayingCardPositioningEntry';
+import { useNowPlayingCardLayoutStore } from './now-playing-toast/nowPlayingCardLayoutStore';
 import { currentTime, lyricCurrentTime } from '../../../stores/motionSignals';
 import { useAppViewStore } from '../../../stores/useAppViewStore';
 import { useAppChromeStore } from '../../../stores/useAppChromeStore';
@@ -16,6 +18,7 @@ import {
     usePlaybackStore,
 } from '../../../stores/usePlaybackStore';
 import { resolveLikeAvailability } from '../../../utils/playerLikeAvailability';
+import { canShuffleQueue } from '../../../utils/playbackNeighbors';
 import { buildAppOverlaysModel, type AppOverlaysDeps, type AppOverlaysModel } from './buildAppOverlaysModel';
 
 // src/components/app/overlays/useAppOverlaysModel.ts
@@ -32,6 +35,8 @@ const MEMORY_MONITOR_SHORTCUT_LABEL = 'Alt+Shift+M';
  */
 export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => {
     const { t } = useTranslation();
+    useNowPlayingCardPositioningEntry(deps.navigateToPlayer);
+    const cardPositioning = useNowPlayingCardLayoutStore(state => state.isPositioning);
     const currentView = useAppViewStore(state => state.view);
     const isPlayerChromeHidden = useAppChromeStore(state => state.isPlayerChromeHidden);
     const isDevDebugOverlayVisible = useAppChromeStore(state => state.isDevDebugOverlayVisible);
@@ -56,7 +61,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
     const displayPlayerState = usePlaybackStore(selectDisplayPlayerState);
     const playerControlSlotContext = useMemo(() => ({
         onShuffle: deps.shuffleQueue,
-        canShuffle: !isFmMode && playQueue.length > 1,
+        canShuffle: canShuffleQueue(playQueue.length, isFmMode, deps.isNowPlayingStageActive),
         onLike: deps.handleLike,
         isLiked: deps.isDisplaySongLiked,
         likeDisabled: resolveLikeAvailability(
@@ -73,6 +78,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         deps.invokeCommandById,
         deps.isDisplaySongLiked,
         deps.isNowPlayingControlDisabled,
+        deps.isNowPlayingStageActive,
         deps.shuffleQueue,
         displaySong,
         isFmMode,
@@ -99,14 +105,15 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         playQueue,
         isFmMode,
         coverUrl: displayCoverUrl,
-        stageTrackPillMode,
+        stageTrackPillMode: cardPositioning ? 'always' : stageTrackPillMode,
+        stageTrackPillOnScreen: deps.stageTrackPillOnScreen || (cardPositioning && currentView === 'player'),
         stageTrackPillTimeoutSec,
         noTrackText: t('ui.noTrack'),
         prevTrackLabel: t('ui.previousTrack'),
         nextTrackLabel: t('ui.nextTrack'),
         stageTrackPillOpenPlayerLabel: t('ui.stageTrackPillOpenPlayer'),
         stageTrackPillOpenSongCardLabel: t('ui.stageTrackPillOpenSongCard'),
-        stageTrackPillFocusLatticeLabel: t('home.latticeFocusCurrent'),
+        stageTrackPillFocusLatticeLabel: t('playlist.locatePlaying'),
         playerControlSlotPrimary,
         playerControlSlotSecondary,
         playerControlSlotContext,
@@ -117,6 +124,7 @@ export const useAppOverlaysModel = (deps: AppOverlaysDeps): AppOverlaysModel => 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [
         ...Object.values(deps),
+        cardPositioning,
         currentView,
         isSearchOpen,
         isDaylight,

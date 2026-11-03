@@ -74,7 +74,7 @@ describe('bravais-seam target', () => {
             expect(markup, marker).toContain(`data-ponder-bravais-${marker}`);
         }
         // 结果层也预先画好：二级切换、平台列表、「⋯」菜单、舞台那一行、过滤位、搜索态、工具面板。
-        for (const marker of ['sections', 'account-popup', 'menu', 'stage-row', 'filter', 'search-seam', 'tools-panel']) {
+        for (const marker of ['sections', 'menu', 'stage-row', 'filter', 'search-seam', 'tools-panel']) {
             expect(markup, marker).toContain(`data-ponder-bravais-${marker}`);
         }
     });

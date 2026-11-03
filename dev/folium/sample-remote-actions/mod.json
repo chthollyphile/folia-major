@@ -1,0 +1,9 @@
+{
+  "id": "sample-remote-actions",
+  "name": "遥控附加按钮示例",
+  "version": "2.0.0",
+  "folium": 1,
+  "client": "client.mjs",
+  "experimental": ["remote.actions"],
+  "permissions": []
+}

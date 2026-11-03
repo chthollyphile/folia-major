@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/neteaseLoginDiagnostics.test.ts
 
 const require = createRequire(import.meta.url);
-const { createNeteaseLoginDiagnostics } = require('../../../electron/neteaseLoginDiagnostics.cjs') as {
+const { createNeteaseLoginDiagnostics } = require('../../../electron/netease/neteaseLoginDiagnostics.cjs') as {
     createNeteaseLoginDiagnostics: (options?: Record<string, unknown>) => {
         wrapRequest: (request: (...args: any[]) => Promise<unknown>) => (uri: string, data: unknown, options?: Record<string, unknown>) => Promise<unknown>;
         noteStartup: (patch: Record<string, unknown>) => void;
         snapshot: () => any;
     };
 };
-const { withoutImplicitClientIp } = require('../../../electron/neteaseApiStartup.cjs') as {
+const { withoutImplicitClientIp } = require('../../../electron/netease/neteaseApiStartup.cjs') as {
     withoutImplicitClientIp: (request: (...args: any[]) => unknown) => (uri: string, data: unknown, options?: Record<string, unknown>) => Promise<unknown>;
 };
 

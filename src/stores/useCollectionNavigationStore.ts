@@ -3,9 +3,9 @@ import type {
     CollectionNavigationOrigin,
     CollectionNavigationSnapshot,
     GridViewCollectionDescriptor,
-} from '../library/core/contracts/collection';
-import { collectionKey } from '../library/core/model/collectionIdentity';
-import { resolveCollectionPush, type CollectionPushDecision } from '../library/core/model/collectionNavigation';
+} from '../library/core/collection/collection.contract';
+import { collectionKey } from '../library/core/collection/collectionIdentity';
+import { resolveCollectionPush, type CollectionPushDecision } from '../library/core/collection/collectionNavigation';
 
 // src/stores/useCollectionNavigationStore.ts
 // 集合的导航栈（根集合从哪里打开、压了几层）。弹栈有两条路：应用内返回（宿主先让 suite 安排转场，再走历史后退）
@@ -20,7 +20,7 @@ type CollectionNavigationState = {
     snapshot: CollectionNavigationSnapshot | null;
     openRoot: (collection: GridViewCollectionDescriptor, origin: CollectionNavigationOrigin) => CollectionNavigationSnapshot;
     /**
-     * 进入一个集合（N1，规则在 core/model/collectionNavigation 的 resolveCollectionPush）：只有 push 分支改 store；
+     * 进入一个集合（N1，规则在 core/collection/collectionNavigation 的 resolveCollectionPush）：只有 push 分支改 store；
      * back 分支（要进入的正好是上一层）不改 store，由导航层走应用内返回的路径（见 hooks/useAppNavigation）；
      * noop 什么都不做。
      */

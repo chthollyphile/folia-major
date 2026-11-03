@@ -22,6 +22,7 @@ vi.mock('@/services/audioCache', () => ({
     getCachedAudioBlob: mocks.getCachedAudioBlob,
     hasCachedAudio: vi.fn(),
     saveAudioBlob: vi.fn(),
+    onAudioCached: () => () => { },
 }));
 vi.mock('@/services/coverCache', () => ({ getCachedCoverUrl: vi.fn(), saveCoverBlob: vi.fn() }));
 

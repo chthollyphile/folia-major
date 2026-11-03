@@ -377,20 +377,26 @@ test('playback follow uses the expanded card position after reflow', async ({ mo
     await expectExpandedCentered(wall);
 });
 
-test('the wall tool panel focuses the current song', async ({ mount, page }) => {
+test('the locate button of the wall goes to the playing song', async ({ mount, page }) => {
     const wall = await mount('lattice');
     await settle(page);
     await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 600, deltaY: 400 });
-    const toolsButton = wall.getByRole('button', { name: 'Lattice tools', exact: true });
-    const focusButton = wall.getByRole('menuitem', { name: 'Focus current song', exact: true });
-    await toolsButton.click();
+    // The button a collection's page has, above the wall's tools button: lit, for the song has a tile here.
+    const locate = wall.locator('[data-grid-locate]');
+    await expect(locate).toHaveAttribute('data-grid-locate', 'here');
     await wall.screenshot({ path: 'test-results/lattice-focus-button.png' });
-    await focusButton.click();
+    await locate.click();
     await expectExpandedCentered(wall);
     await expect(wall.locator('.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
+    await expect(locate).toHaveAttribute('data-grid-locate-seeking', 'no');
+    // The tools button under it keeps its menu, without the two entries the locate button replaced.
+    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
+    await expect(wall.getByRole('menu', { name: 'Lattice tools', exact: true })).toBeVisible();
+    await expect(wall.getByRole('menuitem', { name: 'Focus current song', exact: true })).toHaveCount(0);
+    await expect(wall.getByRole('menuitemcheckbox', { name: 'Auto-focus on track change', exact: true })).toHaveCount(0);
+    // While no song plays there is nothing to locate, and no button.
     await wall.getByRole('button', { name: 'Clear queue', exact: true }).click();
-    await toolsButton.click();
-    await expect(focusButton).toBeDisabled();
+    await expect(locate).toHaveCount(0);
 });
 
 test('the wall tool panel shares the six-cell layout and its home cell always goes home', async ({ mount, page }) => {
@@ -399,12 +405,13 @@ test('the wall tool panel shares the six-cell layout and its home cell always go
     const root = wall.locator('[data-homes]');
     await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
     const menu = wall.getByRole('menu', { name: 'Lattice tools', exact: true });
-    // 探针没有墙面工具宿主：洗牌、主题、播放器三格跳过，队列格在但禁用；去处是「主页」。
+    // 探针没有墙面工具宿主：洗牌、主题、播放器三格跳过，队列格在但禁用；去处是「主页」。定位不是一格：它是按钮上方的定位按钮
+    // （集合页的那一个），「切歌时自动聚焦」也不在面板里（开关在命令面板），所以没有「墙面」那一组。
     expect(await menu.locator('[data-wall-tools-quick]').evaluateAll(nodes => nodes.map(node => (node as HTMLElement).dataset.wallToolsQuick)))
-        .toEqual(['locate-playing', 'queue', 'go-home']);
+        .toEqual(['queue', 'go-home']);
     await expect(menu.locator('[data-wall-tools-quick="queue"]')).toBeDisabled();
     await expect(menu.getByRole('slider', { name: 'Volume', exact: true })).toBeVisible();
-    await expect(menu.getByRole('separator', { name: 'Wall', exact: true })).toBeAttached();
+    await expect(menu.getByRole('separator', { name: 'Wall', exact: true })).toHaveCount(0);
     await expect(menu.getByRole('menuitem', { name: 'Open queue command', exact: true })).toHaveCount(0);
     const home = menu.getByRole('menuitem', { name: 'Go to Home', exact: true });
     await expect(home).toHaveAttribute('data-wall-tools-quick', 'go-home');
@@ -418,13 +425,10 @@ test('auto-focus toggle leaves browsing position alone until the next enabled tr
     const wall = await mount('lattice');
     await settle(page);
     const field = wall.locator('.lattice-field');
-    const toolsButton = wall.getByRole('button', { name: 'Lattice tools', exact: true });
-    const autoFocusToggle = wall.getByRole('menuitemcheckbox', { name: 'Auto-focus on track change', exact: true });
+    // The setting is on at first. Its switch is a command of the palette; the probe has a button for it.
+    const autoFocusToggle = wall.getByRole('button', { name: 'Toggle auto-focus', exact: true });
 
-    await toolsButton.click();
-    await expect(autoFocusToggle).toBeChecked();
     await autoFocusToggle.click();
-    await expect(autoFocusToggle).not.toBeChecked();
     await field.dispatchEvent('wheel', { deltaX: 600, deltaY: 400 });
     const browsingX = await cameraX(wall);
 
@@ -433,7 +437,6 @@ test('auto-focus toggle leaves browsing position alone until the next enabled tr
     expect(await cameraX(wall)).toBeCloseTo(browsingX, 1);
     await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 0 · Artist');
 
-    await toolsButton.click();
     await autoFocusToggle.click();
     await wall.getByRole('button', { name: 'Next track', exact: true }).click();
     await expect(wall.locator('.lattice-poster.is-expanded')).toHaveAttribute('aria-label', 'Poster 2 · Artist');
@@ -449,8 +452,7 @@ test('publishes when the current playing card leaves and re-enters the viewport'
     await wall.locator('.lattice-field').dispatchEvent('wheel', { deltaX: 1200, deltaY: 900 });
     await expect(visibility).toHaveAttribute('data-current-song-poster-visible', 'false');
     await expect(wall.locator('.z-60')).toBeVisible();
-    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
-    await wall.getByRole('menuitem', { name: 'Focus current song', exact: true }).click();
+    await wall.locator('[data-grid-locate]').click();
     await expect(visibility).toHaveAttribute('data-current-song-poster-visible', 'true');
     await expect(wall.locator('.z-60')).toHaveCount(0);
 });
@@ -512,8 +514,7 @@ test('the player shortcut remains reachable on a narrow touch screen', async ({ 
     await page.setViewportSize({ width: 390, height: 844 });
     const wall = await mount('lattice');
     await settle(page);
-    await wall.getByRole('button', { name: 'Lattice tools', exact: true }).click();
-    await wall.getByRole('menuitem', { name: 'Focus current song', exact: true }).click();
+    await wall.locator('[data-grid-locate]').click();
     await expectExpandedCentered(wall);
     await expect(wall.locator('.lattice-secondary-action')).toBeVisible();
     const shortcutBox = (await wall.locator('.lattice-secondary-action').boundingBox())!;

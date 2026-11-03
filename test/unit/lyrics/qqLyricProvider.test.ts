@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
-import { qrcDecrypt } from '@/utils/lyrics/providers/qrcDecrypt';
-import { fetchQQLyrics, searchQQLyrics } from '@/utils/lyrics/providers/qqLyricProvider';
+import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
+import { fetchQQLyrics, searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
 
 // test/unit/lyrics/qqLyricProvider.test.ts
 // Verifies QQ's anonymous lyric request parses the optional romanization track.
 
-vi.mock('@/utils/lyrics/providers/qrcDecrypt', () => ({
+vi.mock('@/services/onlineMusic/qq/qrcDecrypt', () => ({
     qrcDecrypt: vi.fn(),
 }));
 
@@ -64,6 +64,8 @@ describe('QQ lyric provider', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         const searchRequestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
         expect(searchRequestBody.request.method).toBe('DoSearchForQQMusicLite');
+        // search_type 0 is answered 2001 with no items for every query; 7 is the one QQ still answers (#695).
+        expect(searchRequestBody.request.param.search_type).toBe(7);
     });
 
     it('normalizes QQ search covers and duration for metadata matching', async () => {

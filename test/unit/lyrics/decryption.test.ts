@@ -1,9 +1,9 @@
 // test/unit/lyrics/decryption.test.ts
 
 import { describe, expect, it } from 'vitest';
-import { krcDecrypt } from '@/utils/lyrics/providers/krcDecrypt';
-import { decodeKugouDownloadedLyric } from '@/utils/lyrics/providers/kugouLyricProvider';
-import { qrcDecrypt } from '@/utils/lyrics/providers/qrcDecrypt';
+import { krcDecrypt } from '@/services/onlineMusic/kugou/krcDecrypt';
+import { decodeKugouDownloadedLyric } from '@/services/onlineMusic/kugou/kugouLyricProvider';
+import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
 
 // Helper to compress text using CompressionStream
 async function compressDeflate(text: string): Promise<Uint8Array> {

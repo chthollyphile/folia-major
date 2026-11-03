@@ -1,39 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
-import { ChevronLeft, Disc, ListPlus, Loader2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ListPlus, RefreshCw } from 'lucide-react';
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../../../../types';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
-import type { LibraryArtistResource } from '../../../core/contracts/artist';
-import type { LibraryPlaybackPort } from '../../../core/contracts/ports';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
-import { useArtistResourceState } from '../../../core/bindings/useArtistResourceState';
-import { useArtistView } from '../../../core/bindings/useArtistView';
-import { useLibraryArtistSurfaceRegistration } from '../../../core/bindings/useLibraryArtistSurfaceRegistration';
+import type { LibraryArtistResource } from '../../../core/artist/artist.contract';
+import type { LibraryPlaybackPort } from '../../../core/shared/ports.contract';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import { useArtistResourceState } from '../../../core/artist/useArtistResourceState';
+import { useArtistView } from '../../../core/artist/useArtistView';
+import { useLibraryArtistSurfaceRegistration } from '../../../core/artist/useLibraryArtistSurfaceRegistration';
 import {
     getLibraryBrowseSession,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '../../../core/state/useLibraryBrowseSessionStore';
+} from '../../../core/shared/useLibraryBrowseSessionStore';
 import {
     artistAlbumCoverUrl,
     artistAlbumLink,
     toHttpsCoverUrl,
-} from '../../../core/model/artistModel';
-import { artistAlbumEntryKey, artistSongEntryKey } from '../../../core/model/artistSurface';
+} from '../../../core/artist/artistModel';
+import { artistAlbumEntryKey, artistSongEntryKey } from '../../../core/artist/artistSurface';
 import { PolaroidCard } from '../shared/PolaroidCard';
 import { useGridStayPlayback } from '../shared/useGridStayPlayback';
 import { HEX_CARD_CENTER_SCALE } from '../shared/hexCardTransform';
 import { squareGridCardBox } from '../shared/gridCardLayout';
 import {
-    ARTIST_AVATAR_ATTR,
-    ARTIST_BIO_TITLE_ATTR,
     ARTIST_INTRO_ATTR,
     ARTIST_INTRO_VALUE_AVATAR,
     ARTIST_INTRO_VALUE_BIO,
     GRID_CARD_ITEM_ID_ATTR,
+    MORPH_TARGET_ATTR,
 } from '../transitions/gridMorphContract';
 import ActiveGridMarker from '../shared/ActiveGridMarker';
 import { shouldApplyInitialGridFocus } from '../shared/gridViewRestore';
@@ -43,17 +42,20 @@ import {
     collectionMorphSeed,
     type CollectionMorphPlan,
 } from '../transitions/morphGeometry';
+import { useCollectionMorphStore, useMorphPageExit } from '../transitions/collectionMorphStore';
 import { useGridViewSettingsStore } from '../../../../stores/useGridViewSettingsStore';
 import { HexGridCoord, CubeCoord, getHexCubicSpiral } from '../shared/hexViewport';
 import { useFoliaHexViewport } from '../shared/useFoliaHexViewport';
 import { CollectionListItem, SidePanelList } from '../../../../components/shared/SidePanelList';
 import { GridListSearchButton } from '../../../../components/shared/GridListSearchButton';
 import { useGridCommandFilter } from '../../../../hooks/useGridCommandFilter';
+import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { hasBlockingWindow } from '../../../../utils/keyboardTargets';
 import { closeCommandFilter } from '../../../../stores/useAppViewStore';
 import { deriveProgressiveLoadingState } from '../shared/progressiveGrid';
 import { useProgressiveItemEntrance } from '../shared/useProgressiveItemEntrance';
 import { ArtistGridInfoCutInPanel } from './ArtistGridInfoCutInPanel';
+import { ArtistPicture } from './ArtistPicture';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 
 /*
@@ -64,10 +66,10 @@ import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
  * Specifically, the artist avatar and editorial newspaper biography card are placed at custom central grid coordinates,
  * while popular tracks and albums are automatically distributed in the nearest and outer hexagonal cells.
  *
- * P4.1 起数据来自宿主持有的歌手资源（core/services/artistResource，经 useArtistResourceState 订阅）：
+ * P4.1 起数据来自宿主持有的歌手资源（core/artist/artistResource.service，经 useArtistResourceState 订阅）：
  * 详情、热门歌曲、专辑与专辑的后台分页、失败与重试都在资源里；这里只负责展示与交互。
  *
- * P4.2 起筛选词与「看到哪一项」（条目键：song:… / album:…）在浏览会话里（core/bindings/useArtistView），
+ * P4.2 起筛选词与「看到哪一项」（条目键：song:… / album:…）在浏览会话里（core/artist/useArtistView），
  * 换 suite 不丢；这里另存的 sessionStorage 记录只放网格自己的布局（相机位置与焦点卡的下标），键带版本与完整的
  * collectionKey（folia_artist_grid_state:v2:<key>），旧版只按来源与 id 存的记录不再读取。
  * 动作的能力来自 core（声明 ∩ 能力），并作为 artist surface 发布到命令面板。
@@ -91,12 +93,12 @@ interface ArtistGridViewProps {
     onEditEntity?: (entityId: string) => void;
     isInteractive?: boolean;
     /**
-     * Optional「移形换影」plan handed in by the overlay host: every song/album
-     * card flies in from outside the viewport in a distance-staggered cascade,
-     * and `kind: 'morph'` additionally means the overlay's composite currently
-     * covers the avatar + bio, so they stay hidden until it fades (a plain
-     * 'cascade' has nothing covering them and must leave them visible). Absent
-     * for every existing caller, so behavior is unchanged.
+     * Optional「移形换影」plan (the grid's surface reads it, useGridMorphPlan): every song/album
+     * card settles in from a short push in a distance-staggered cascade, and
+     * `kind: 'morph'` additionally means a cover is flying to the round
+     * picture, so the bio card beside it fades in meanwhile (with a plain
+     * 'cascade' it is simply there). Absent for every other caller, so
+     * behavior is unchanged.
      */
     morphPlan?: CollectionMorphPlan | null;
 }
@@ -144,6 +146,15 @@ const readStoredArtistGridState = (storageKey: string): StoredArtistGridNavigati
         return null;
     }
 };
+
+/**
+ * What is put on the page within this long of `loading` ending comes in with the page (the cards
+ * settle in, as a cover that flew here lands). What comes later (more albums, cards dragged into
+ * view) is put there as it always was.
+ */
+const COMES_UP_FOR_MS = 600;
+/** The round picture alone: what is drawn before the viewport has said which cards to draw. */
+const PICTURE_ONLY = [0];
 
 /** 网格项在浏览会话里的条目键（头像与简介卡没有）。 */
 const gridItemEntryKey = (item: GridItem | undefined): string | null => {
@@ -336,13 +347,16 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
     // Viewport Size Observer
     const containerRef = useRef<HTMLDivElement>(null);
-    const [containerSize, setContainerSize] = useState({ width: 1024, height: 768 });
+    // The page fills the window, so until the canvas has been measured its size is the window's:
+    // the round picture stands at its place from the first render, and that place follows the size.
+    const [containerSize, setContainerSize] = useState(() => ({
+        width: Math.max(100, window.innerWidth),
+        height: Math.max(100, window.innerHeight),
+    }));
+    const pageExit = useMorphPageExit();
     // 退场动画期间旧歌手页仍挂着：只有在场的那一个接筛选框与命令面板。
     const isPresent = useIsPresent();
     const isActive = isInteractive && isPresent;
-    // Coordinate motion values mapping grid drags
-    const dragX = useMotionValue(0);
-    const dragY = useMotionValue(0);
     const dragControls = useDragControls();
     const isDraggingRef = useRef(false);
 
@@ -404,6 +418,19 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         return squareCards ? squareGridCardBox(box) : box;
     }, [containerSize.width, squareCards]);
 
+    // Coordinate motion values mapping grid drags. The camera is where the page's first render
+    // needs it: where it was left when an album was opened from the page, else on the biography
+    // card's place. Moved there after the cards are drawn, the round picture is seen in one place
+    // and then another, and a cover that flies to it is sent to the first.
+    const [cameraAtOpen] = useState(() => {
+        const left = initialRestoreTarget?.stored;
+        if (left && Number.isFinite(left.dragX) && Number.isFinite(left.dragY)) return { x: left.dragX, y: left.dragY };
+        const [, biography] = buildArtistGridCoords(0, 0, layoutConfig.spacingX, layoutConfig.spacingY);
+        return { x: -biography.baseX, y: -biography.baseY };
+    });
+    const dragX = useMotionValue(cameraAtOpen.x);
+    const dragY = useMotionValue(cameraAtOpen.y);
+
     // Dynamically calculate visible clipping radius centered on (0,0) viewport coordinates
     const clipRadius = useMemo(() => {
         const { width, height } = containerSize;
@@ -454,7 +481,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         || (albumSync?.state === 'interrupted' && albumSync.reason === 'paused');
     const backgroundLoadFailed = albumSync?.state === 'interrupted' && albumSync.reason === 'failed';
     const loadError = status === 'error' ? snapshot?.error ?? 'load-failed' : null;
-    const wheelTargetRef = useRef({ x: 0, y: 0 });
+    const wheelTargetRef = useRef({ x: cameraAtOpen.x, y: cameraAtOpen.y });
     const focusedIndexRef = useRef(0);
     const [focusedIndex, setFocusedIndex] = useState(0);
     const lastUpdateRef = useRef(0);
@@ -493,6 +520,20 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [isInteractive, onBack, searchQuery, showCutInPanel, showSidePanel]);
 
+    // The page is coming up from its first render until a little after `loading` has ended. For
+    // an online artist that is when the artist and the top songs are in (the albums still come in
+    // pages); for a Navidrome or a local artist it is the end of the whole read.
+    const [isComingUp, setIsComingUp] = useState(true);
+    useEffect(() => {
+        if (loading || !isComingUp) return;
+        const timer = setTimeout(() => setIsComingUp(false), COMES_UP_FOR_MS);
+        return () => clearTimeout(timer);
+    }, [loading, isComingUp]);
+    // Until the artist has been read nothing but the round picture is on the page, and the wheel
+    // and the arrow keys do not move the camera from under it: a cover may be flying to where it
+    // stands.
+    const hasArtist = Boolean(artistInfo);
+
     const filteredAlbums = artistView.shownAlbums;
 
     // 专辑卡带着打开专辑时交给宿主的链接提示（来源与 provider 取自歌手页，见 artistAlbumLink）。
@@ -510,16 +551,20 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     // Index 2..11: Songs
     // Index 12..: Albums
     const gridItems = useMemo<GridItem[]>(() => {
-        if (!artistInfo) return [];
+        // A read that has ended without an artist leaves the page empty.
+        if (!artistInfo && !loading) return [];
 
         const itemsList: GridItem[] = [];
 
-        // 1. Avatar Item (No text info, pure image display)
+        // 1. Avatar Item (No text info, pure image display). On the page from its first render,
+        // before the artist has been read: a cover that flies to the page lands on it, and where
+        // it lands is measured in the commit that mounts the page. The rest comes with the artist.
         itemsList.push({
             id: '__artist_avatar__',
             name: '',
-            coverUrl: artistInfo.coverUrl,
+            coverUrl: artistInfo?.coverUrl,
         });
+        if (!artistInfo) return itemsList;
 
         // 2. Bio Card
         itemsList.push({
@@ -547,7 +592,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         itemsList.push(...albumGridItems);
 
         return itemsList;
-    }, [albumGridItems, artistInfo, topSongs]);
+    }, [albumGridItems, artistInfo, loading, topSongs]);
     // Queue context for track selection: unavailable tracks are excluded so playback matches the playlist/album
     // surfaces (useArtistView's playSong uses the playable top songs as the queue).
     const canPlaySong = offers('play');
@@ -656,7 +701,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     useEffect(() => {
         if (hasRestoredNavigationRef.current) return;
         const pending = pendingRestoreStateRef.current;
-        if (!pending || gridItems.length === 0 || baseCoords.length === 0) return;
+        // The camera is where it was left from the first render; the card it was left on is looked
+        // for once the artist's cards are there.
+        if (!pending || !artistInfo || baseCoords.length === 0) return;
 
         // 会话里的条目键优先（另一个 suite 可能改过它），找不到再用布局记录里的下标。
         const entryIndex = pending.entryKey
@@ -678,7 +725,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         updateRenderedIndexesForViewport(restoredX, restoredY, true);
         hasRestoredNavigationRef.current = true;
         pendingRestoreStateRef.current = null;
-    }, [baseCoords, dragX, dragY, gridItems, updateRenderedIndexesForViewport]);
+    }, [artistInfo, baseCoords, dragX, dragY, gridItems, updateRenderedIndexesForViewport]);
 
     useEffect(() => {
         const syncWheelTarget = () => {
@@ -693,7 +740,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     }, [dragX, dragY]);
 
     const handleViewportWheel = useCallback((event: WheelEvent) => {
-        if (gridItems.length === 0 || event.ctrlKey) return;
+        if (!hasArtist || event.ctrlKey) return;
 
         event.preventDefault();
         const deltaScale = (event.deltaMode === 1
@@ -710,7 +757,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
         animate(dragX, clampedX, { type: 'spring', stiffness: 560, damping: 48, mass: 0.65 });
         animate(dragY, clampedY, { type: 'spring', stiffness: 560, damping: 48, mass: 0.65 });
-    }, [containerSize.height, dragX, dragY, gridItems.length, dragBounds]);
+    }, [containerSize.height, dragX, dragY, hasArtist, dragBounds]);
 
     useEffect(() => {
         const element = containerRef.current;
@@ -822,6 +869,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             });
         };
 
+        // The cards of a list that has just changed (the artist's, then each page of albums) are
+        // asked for now, not at the next frame.
+        updateRenderedIndexesForViewport(dragX.get(), dragY.get());
         update();
 
         const unsubX = dragX.on('change', update);
@@ -866,7 +916,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
 
             if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                 e.preventDefault();
-                if (gridItems.length === 0) return;
+                if (!hasArtist) return;
 
                 const curr = baseCoords[focusedIndex];
                 let bestNextIdx = focusedIndex;
@@ -905,6 +955,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         baseCoords,
         focusedIndex,
         gridItems,
+        hasArtist,
         isInteractive,
         onSelectAlbum,
         artistActions,
@@ -925,21 +976,46 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         sessionKey,
     ]);
 
-    // 「移形换影」artist-page entrance: with a morph plan the avatar + bio stay
-    // hidden ONLY while the overlay's composite actually covers them
-    // (kind 'morph'), revealed as it fades out; every song/album card flies in
-    // from outside the viewport along its radial from the avatar — the same
-    // distance-staggered cascade as GridView's morph entrance, so a nested back
-    // into the artist page reads as scatter-out → cascade-in. A plain 'cascade'
-    // plan (a push with nothing covering the page) must leave the intro visible:
-    // hiding it there is a 340ms empty slot with no composite to justify it.
-    const morphCoversIntro = morphPlan?.kind === 'morph';
+    // 「移形换影」artist-page entrance: the round picture stands at its place
+    // from the page's first render, before the artist has been read (a cover
+    // flying to the page lands on it; the overlay hides and shows it). The bio
+    // card fades in beside it when the artist has been read; every song/album
+    // card settles in along its radial from the picture — the same
+    // distance-staggered cascade as GridView's.
+    //
+    // The plan lasts as long as the flight, and the artist may be read after
+    // the cover has landed: the entrance is the plan there is now, else, for as
+    // long as the page is coming up, the plan the page was opened with.
+    const [openedWith] = useState(morphPlan);
+    const entrance = morphPlan ?? (isComingUp ? openedWith : null);
+    // With reduced motion there is no plan, and the biography card and the picture do not
+    // come in either (the cards' own short fade is as it was).
+    const reducedMotion = useReducedMotionFor('collectionMorph');
+    // A page mounted while a flight back is armed is one that is come back to (an album opened
+    // from it is left). It is not where that flight lands: the cover that flies back is the
+    // album's, and it goes where it is. The round picture of such a page is a landing place once
+    // its artist has been read, as it was before the picture stood on the page from the first
+    // render. A back that armed no flight (through the history) is not known by this; such a
+    // page is given no plan (the plan there may be is the album's), so its picture is the
+    // entry's until its artist has been read.
+    const [isComeBackTo] = useState(() => useCollectionMorphStore.getState().exit !== null);
+    const isLandingPlace = !isComeBackTo || hasArtist;
     const morphFlyInReach = useMemo(() => (
-        morphPlan ? collectionMorphEntranceTravel(containerSize) : 0
-    ), [morphPlan, containerSize]);
+        entrance ? collectionMorphEntranceTravel(containerSize) : 0
+    ), [entrance, containerSize]);
+    // What the round picture shows. Once the artist has been read: the artist's own picture, else
+    // the one the entry that opened the page came with. Until then: the cover that flew here,
+    // else (none flew, or the page is come back to) the entry's.
+    const entryPicture = collection.coverUrl ? getSizedCoverUrl(collection.coverUrl, 512) : null;
+    const artistPicture = artistInfo
+        ? (artistInfo.coverUrl ? getSizedCoverUrl(artistInfo.coverUrl, 512) : entryPicture)
+        : ((!isComeBackTo && openedWith?.kind === 'morph' && openedWith.coverUrl) || entryPicture);
+    // The viewport says which cards to draw from an effect, a render or two after the page's
+    // first. The round picture is drawn from the first.
+    const drawnIndexes = renderedIndexes.length > 0 ? renderedIndexes : PICTURE_ONLY;
 
     const renderedCards = useMemo(() => {
-        return renderedIndexes.map((idx) => {
+        return drawnIndexes.map((idx) => {
             const item = gridItems[idx];
             const coord = baseCoords[idx];
             if (!item || !coord) return null;
@@ -960,7 +1036,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     <div
                         key={`avatar-${idx}`}
                         ref={(el) => { cardWrapperRefs.current[idx] = el; }}
-                        {...{ [ARTIST_AVATAR_ATTR]: '', [ARTIST_INTRO_ATTR]: ARTIST_INTRO_VALUE_AVATAR }}
+                        {...{ [ARTIST_INTRO_ATTR]: ARTIST_INTRO_VALUE_AVATAR }}
                         className="absolute select-none pointer-events-auto"
                         style={{
                             transformOrigin: 'center center',
@@ -971,35 +1047,21 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             zIndex: initialZ,
                         }}
                     >
-                        {/* Morph target of the song-card flight: hidden while the
-                            overlay morphs onto it, revealed as the overlay fades. */}
-                        <motion.div
-                            initial={morphCoversIntro ? { opacity: 0, scale: 0.985 } : false}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{
-                                opacity: { delay: 0.12, duration: 0.3, ease: 'easeOut' },
-                                // 尺度收势走 Apple 惯用的那条 ease，比透明度稍长一点，
-                                // 落定时才「稳」下来。
-                                scale: { delay: 0.12, duration: 0.42, ease: [0.32, 0.72, 0, 1] },
+                        {/* Where the cover of the clicked card lands. It stands at its
+                            place and size from the page's first render (no entrance of
+                            its own): the overlay measures it then, and hides it until the
+                            cover has landed on it. */}
+                        <div
+                            {...(isLandingPlace ? { [MORPH_TARGET_ATTR]: '' } : {})}
+                            className="rounded-full overflow-hidden shadow-2xl border-4 border-white/10 relative shrink-0"
+                            style={{
+                                width: layoutConfig.avatarSize || 240,
+                                height: layoutConfig.avatarSize || 240,
+                                backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
                             }}
                         >
-                            <div
-                                className="rounded-full overflow-hidden shadow-2xl border-4 border-white/10 relative flex items-center justify-center shrink-0"
-                                style={{
-                                    width: layoutConfig.avatarSize || 240,
-                                    height: layoutConfig.avatarSize || 240,
-                                    backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
-                                }}
-                            >
-                                {item.coverUrl ? (
-                                    <img src={getSizedCoverUrl(item.coverUrl, 512)} alt="avatar" draggable={false} loading="lazy" decoding="async" className="w-full h-full object-cover select-none" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-white/5">
-                                        <Disc size={48} className="opacity-20 animate-spin" style={{ animationDuration: '4s' }} />
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
+                            <ArtistPicture url={artistPicture} instant={reducedMotion} />
+                        </div>
                     </div>
                 );
             }
@@ -1029,10 +1091,9 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             zIndex: initialZ + 5,
                         }}
                     >
-                        {/* Hidden while the overlay's title flight morphs onto
-                            the h1, revealed as the overlay fades. */}
+                        {/* Fades in beside the picture, which was there before it. */}
                         <motion.div
-                            initial={morphCoversIntro ? { opacity: 0, scale: 0.985 } : false}
+                            initial={isComingUp && !reducedMotion ? { opacity: 0, scale: 0.985 } : false}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{
                                 opacity: { delay: 0.12, duration: 0.3, ease: 'easeOut' },
@@ -1058,7 +1119,6 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                             >
                                 <div className="space-y-2 min-w-0">
                                     <h1
-                                        {...{ [ARTIST_BIO_TITLE_ATTR]: '' }}
                                         className="text-3xl font-extrabold tracking-tight truncate"
                                         style={{ color: 'var(--text-primary)' }}
                                     >
@@ -1096,7 +1156,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             // an ease-out distance curve plus a deterministic jitter.
             // 屏外的卡不参与入场：渲染环带缓冲，那些卡看不见，却要各付一次动画。
             const cardOnScreen = initialDist <= clipRadius;
-            const isMorphFlyIn = Boolean(morphPlan && idx >= 2 && cardOnScreen);
+            const isMorphFlyIn = Boolean(entrance && idx >= 2 && cardOnScreen);
             const morphFlyIn = isMorphFlyIn
                 ? collectionMorphFlyIn(
                     { x: coord.baseX, y: coord.baseY },
@@ -1182,7 +1242,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             );
         });
     }, [
-        renderedIndexes,
+        drawnIndexes,
         gridItems,
         baseCoords,
         isDaylight,
@@ -1207,7 +1267,11 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         handleSelectAlbumLink,
         persistNavigationState,
         shouldAnimateItemEntrance,
-        morphPlan,
+        entrance,
+        isComingUp,
+        reducedMotion,
+        artistPicture,
+        isLandingPlace,
         morphFlyInReach,
     ]);
 
@@ -1225,13 +1289,13 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             data-library-surface="artist"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={pageExit}
             className="fixed inset-0 z-50 flex flex-col font-sans select-none overflow-hidden"
             style={{ color: 'var(--text-primary)', backgroundColor: 'var(--bg-color)' }}
         >
-            {/* 把「我是当前这层网格」写在根节点上：移形换影的测量只在这个子树里找落点，
+            {/* 「我是当前这层网格」的标记，放在根节点里：移形换影的测量只在这个子树里找落点，
                 否则正在退出的上一层网格会被当成目标。订阅关在子组件里，见 ActiveGridMarker。 */}
-            <ActiveGridMarker target={rootRef} />
+            <ActiveGridMarker />
 
             {backgroundCoverUrl && (
                 <div
@@ -1342,12 +1406,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                 className="w-full flex-1 relative z-10 flex items-center justify-center cursor-grab active:cursor-grabbing overflow-hidden"
                 style={{ touchAction: 'none' }}
             >
-                {progressiveLoading.initialLoading ? (
-                    <div className="flex flex-col items-center gap-4 opacity-50">
-                        <Loader2 className="animate-spin" size={32} />
-                        <span className="text-sm font-semibold">{t('playlist.loading') || 'Loading...'}</span>
-                    </div>
-                ) : loadError && gridItems.length === 0 ? (
+                {loadError && gridItems.length === 0 ? (
                     // 失败用集合页同一句文案（「加载失败：…」），重试在右上角的按钮上。
                     <div className="opacity-40 text-sm">
                         {t('playlist.loadFailed', {

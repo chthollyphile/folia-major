@@ -1,12 +1,11 @@
-import { useLatticeControlsStore } from '../stores/useLatticeControlsStore';
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { selectDisplayLyrics, selectDisplayPlayerState, usePlaybackStore } from '../stores/usePlaybackStore';
 import { setIsPanelOpen, setPanelTab, useAppViewStore } from '../stores/useAppViewStore';
 import { useGridSurfaceStore } from '../stores/useGridSurfaceStore';
-import { useLibraryDirectorySurfaceStore } from '../library/core/state/useLibraryDirectorySurfaceStore';
-import { useLibraryArtistSurfaceStore } from '../library/core/state/useLibraryArtistSurfaceStore';
-import { useLibrarySuiteChromeStore } from '../library/core/state/useLibrarySuiteChromeStore';
+import { useLibraryDirectorySurfaceStore } from '../library/core/directory/useLibraryDirectorySurfaceStore';
+import { useLibraryArtistSurfaceStore } from '../library/core/artist/useLibraryArtistSurfaceStore';
+import { useLibrarySuiteChromeStore } from '../library/core/suite/useLibrarySuiteChromeStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { CommandPaletteContext } from '../components/command-palette/types';
 import {
@@ -28,6 +27,7 @@ import { useAutomixSettingsStore } from '../stores/useAutomixSettingsStore';
 import { useDesktopSettingsStore } from '../stores/useDesktopSettingsStore';
 import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
+import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { useSleepTimerStore } from '../stores/useSleepTimerStore';
 import { useTypographySettingsStore } from '../stores/useTypographySettingsStore';
@@ -144,8 +144,10 @@ export const useCommandPaletteContext = (
     const lyricStaffPolicy = useLyricSettingsStore(state => state.lyricStaffPolicy);
     const lyricStaffAbsorbMode = useLyricSettingsStore(state => state.lyricStaffAbsorbMode);
     const personalFmSelection = usePersonalFmModeStore(state => state.selection);
+    const personalFmCatalogs = usePersonalFmModeStore(state => state.catalogs);
+    const providerFmSelections = usePersonalFmModeStore(state => state.providerSelections);
+    const activeProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
     // Which surface the palette is opening over; commands that only apply to one of them gate on it.
-    const latticeFocusAction = useLatticeControlsStore(state => state.focusCurrentSong);
     const view = useAppViewStore(state => state.view);
     // Whoever currently reads typed characters. Identity only changes when a grid takes or gives up
     // the keyboard, so it does not rebuild the context per keystroke — the query itself never
@@ -210,7 +212,7 @@ export const useCommandPaletteContext = (
         queuePaletteKeepOpen,
         settingsSignals, chromeSignals, desktopSignals, automixSignals,
         sleepTimerSignals, latticeSignals, audioSignals, visualizerSignals,
-        lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
-        lyricSegmentationRecord, lyricSegmentationActions, latticeFocusAction,
+        lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, personalFmCatalogs, providerFmSelections, activeProviderId, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
+        lyricSegmentationRecord, lyricSegmentationActions,
     ]);
 };

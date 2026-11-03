@@ -4,7 +4,13 @@ import {
     AUDIO_EQUALIZER_BANDS,
     AUDIO_EQUALIZER_PRESETS,
     DEFAULT_AUDIO_EQUALIZER_SETTINGS,
+    areAudioEqualizerSettingsEqual,
+    audioEqualizerBandShape,
+    normalizeAudioEqualizerGains,
+    planAudioSoundPreset,
     resolveAudioEqualizerSettings,
+    type AudioEqualizerModeId,
+    type AudioEqualizerSettings,
 } from '@/utils/audioEqualizer';
 import { createNeutralAudioEffects, normalizeAudioEffects } from '@/utils/audioEffects';
 import { AUDIO_SOUND_PRESETS } from '@/utils/audioPresets';
@@ -207,5 +213,76 @@ describe('audio equalizer graph', () => {
             expect(node.gain.cancelScheduledValues).toHaveBeenCalledWith(2);
             expect(node.gain.setTargetAtTime).toHaveBeenCalledWith(0, 2, 0.015);
         });
+    });
+});
+
+describe('the equalizer helpers Folium 1.7 shares', () => {
+    const settingsOf = (overrides: Partial<AudioEqualizerSettings> = {}): AudioEqualizerSettings => (
+        resolveAudioEqualizerSettings({
+            enabled: true,
+            preset: 'custom1',
+            gains: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+            effects: createNeutralAudioEffects(),
+            customSlots: [
+                { gains: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], effects: createNeutralAudioEffects() },
+                { gains: Array(10).fill(-3), effects: normalizeAudioEffects({ space: 0.4 }) },
+            ],
+            ...overrides,
+        })
+    );
+
+    it('normalizes gains as the persisted settings always did', () => {
+        // resolveAudioEqualizerSettings reads its gains through the very function, renamed and exported.
+        for (const raw of [undefined, null, 'x', [], [20, -20, '4', Number.NaN], Array(14).fill(3), [1.25, -0.5]]) {
+            expect(normalizeAudioEqualizerGains(raw), JSON.stringify(raw)).toEqual(resolveAudioEqualizerSettings({ gains: raw }).gains);
+        }
+        expect(normalizeAudioEqualizerGains([20, -20, '4'])).toEqual([12, -12, 4, 0, 0, 0, 0, 0, 0, 0]);
+    });
+
+    it('shapes the first band as a low shelf, the last as a high shelf and the others as peaking', () => {
+        expect(AUDIO_EQUALIZER_BANDS.map((_, index) => audioEqualizerBandShape(index))).toEqual([
+            'lowshelf', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'peaking', 'highshelf',
+        ]);
+    });
+
+    it('plans a sound with processing turned on, or with the switch left as it is', () => {
+        const off = settingsOf({ enabled: false });
+        const turnedOn = planAudioSoundPreset(off, 'bass');
+        expect(turnedOn).toMatchObject({ enabled: true, preset: 'bass', gains: [...AUDIO_SOUND_PRESETS.bass.gains], effects: AUDIO_SOUND_PRESETS.bass.effects });
+        expect(planAudioSoundPreset(off, 'bass', { keepEnabled: true })).toMatchObject({ enabled: false, preset: 'bass' });
+        expect(planAudioSoundPreset(settingsOf(), 'bass', { keepEnabled: true })?.enabled).toBe(true);
+        // A custom slot plays what it holds; neither slot is written.
+        const second = planAudioSoundPreset(off, 'custom2', { keepEnabled: true });
+        expect(second).toMatchObject({ enabled: false, preset: 'custom2', gains: Array(10).fill(-3), effects: off.customSlots[1].effects });
+        expect(second?.customSlots).toEqual(off.customSlots);
+        expect(turnedOn?.customSlots).toEqual(off.customSlots);
+    });
+
+    it('plans nothing for a sound there is not', () => {
+        expect(planAudioSoundPreset(settingsOf(), 'jazz' as AudioEqualizerModeId)).toBeNull();
+        expect(planAudioSoundPreset(settingsOf(), 'constructor' as AudioEqualizerModeId)).toBeNull();
+        expect(planAudioSoundPreset({ ...settingsOf(), customSlots: [] }, 'custom2')).toBeNull();
+    });
+
+    it('tells two settings apart by any one field, down to one gain or one effect of a custom slot', () => {
+        const base = settingsOf();
+        expect(areAudioEqualizerSettingsEqual(base, settingsOf())).toBe(true);
+        const slotGain = settingsOf();
+        slotGain.customSlots[1].gains[4] = 2;
+        const slotEffect = settingsOf();
+        slotEffect.customSlots[0].effects = { ...slotEffect.customSlots[0].effects, drive: 0.5 };
+        const changed: Array<[string, AudioEqualizerSettings]> = [
+            ['enabled', { ...base, enabled: false }],
+            ['preset', { ...base, preset: 'custom2' }],
+            ['gains', { ...base, gains: base.gains.map((gain, index) => (index === 9 ? gain - 1 : gain)) }],
+            ['effects', { ...base, effects: { ...base.effects, width: 1.5 } }],
+            ['a custom slot gain', slotGain],
+            ['a custom slot effect', slotEffect],
+            ['the number of custom slots', { ...base, customSlots: base.customSlots.slice(0, 1) }],
+        ];
+        for (const [what, other] of changed) {
+            expect(areAudioEqualizerSettingsEqual(base, other), what).toBe(false);
+            expect(areAudioEqualizerSettingsEqual(other, base), what).toBe(false);
+        }
     });
 });

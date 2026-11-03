@@ -1,8 +1,8 @@
 import { useEffect, useState, type MutableRefObject } from 'react';
 import { animate, useMotionValue, useTransform, type MotionValue } from 'framer-motion';
 import type { RemoteTrackTransition } from '../../types/remoteControl';
+import { mapTrackHandoffProgress } from '../../services/automix/handoffProgress';
 import {
-    mapTrackHandoffProgress,
     resolveStoppedTrackHandoffProgress,
     resolveTransitionClock,
     type RemoteTrackHandoffPair,
@@ -17,6 +17,9 @@ import {
  * 这段时间继续按完成态挂住交接，超出则认为推进没来，放手回到常规渲染。
  */
 const HANDOFF_PROMOTION_GRACE_MS = 1500;
+
+/** 交接停下（提前结束、被取消、暂停）时回到端点的最长时间，按离端点的远近缩短。 */
+export const HANDOFF_RETURN_SECONDS = 0.5;
 
 type UseRemoteHandoffClockParams = {
     transition: RemoteTrackTransition | null;
@@ -83,7 +86,12 @@ export const useRemoteHandoffClock = ({
         ) {
             const nowMs = Date.now();
             const pair = pairRef.current;
-            timeProgress.set(resolveStoppedTrackHandoffProgress(pair, trackIdentity, nowMs));
+            // 从停下的位置缓回端点，不一下跳过去：退场中的那张面还跟着这条时间轴，跳过去它就一下没了。
+            const stoppedAt = resolveStoppedTrackHandoffProgress(pair, trackIdentity, nowMs);
+            playback = animate(timeProgress, stoppedAt, {
+                duration: HANDOFF_RETURN_SECONDS * Math.abs(stoppedAt - timeProgress.get()),
+                ease: 'easeOut',
+            });
             setIsGlowActive(false);
 
             // 整段 cue 都走完了、当前曲目却还停在交接的上一首：这是 settle 与 React 提交
@@ -105,6 +113,7 @@ export const useRemoteHandoffClock = ({
             }
 
             return () => {
+                playback?.stop();
                 if (promotionTimer !== null) window.clearTimeout(promotionTimer);
             };
         }

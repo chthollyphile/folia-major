@@ -4,7 +4,7 @@ import { createRng } from './lumiereRandom';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { CreditsFrame, SongMetadata } from './lumiereKernel';
 import { hexOf, type Rgb } from './color';
-import { createBloomFilter } from './light/bloomFilter';
+import { createBloomFilter } from '../pixi/bloomFilter';
 import { createLightField } from './light/lightFieldShader';
 import { createMotes } from './light/motes';
 import { resolveBeams, type LightRig } from './light/rig';

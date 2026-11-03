@@ -35,6 +35,14 @@ describe('resolveRevealCenter', () => {
         expect(screenY(rect.y + rect.height, next.y)).toBeCloseTo(view.height - 120);
     });
 
+    it('centres a rect that already shows when asked to: across, and between the top margin and the player bar', () => {
+        const center = { x: 0, y: 0 };
+        const rect = { x: 300, y: 100, width: 200, height: 200 };
+        const next = resolveRevealCenter({ rect, center, view, metrics, anchorX: null, seamWidth: 0, pad: 24, bottomInset: 120, centered: true });
+        expect(screenX(rect.x + rect.width / 2, next.x)).toBeCloseTo(view.width / 2);
+        expect(screenY(rect.y + rect.height / 2, next.y)).toBeCloseTo((24 + view.height - 120) / 2);
+    });
+
     it('keeps an open seam on screen when the rect allows it', () => {
         const center = { x: 0, y: 0 };
         const anchorX = 0;

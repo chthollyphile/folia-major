@@ -2,15 +2,15 @@ import { ArtistGridInfoCutInPanel } from '../../../src/library/suites/grid/artis
 import { SidePanelList } from '../../../src/components/shared/SidePanelList';
 import { GridListSearchButton } from '../../../src/components/shared/GridListSearchButton';
 import { listLibrarySuites, resolveLibrarySurface } from '../../../src/library/registry';
-import { getLibraryBrowseSession } from '../../../src/library/core/state/useLibraryBrowseSessionStore';
-import { artistAlbumEntryKey, artistSessionKey, artistSongEntryKey } from '../../../src/library/core/model/artistSurface';
+import { getLibraryBrowseSession } from '../../../src/library/core/shared/useLibraryBrowseSessionStore';
+import { artistAlbumEntryKey, artistSessionKey, artistSongEntryKey } from '../../../src/library/core/artist/artistSurface';
 import { PolaroidCard } from '../../../src/library/suites/grid/shared/PolaroidCard';
 import type { SongResult } from '../../../src/types';
 import { getPlaybackSongKey } from '../../../src/utils/appPlaybackGuards';
 import { isSongUnavailable } from '../../../src/services/onlineMusic/songAvailability';
-import type { LibraryArtistResource, LibraryArtistSnapshot } from '../../../src/library/core/contracts/artist';
-import type { LibraryCollectionDescriptor } from '../../../src/library/core/contracts/collection';
-import { artistAlbumLink, filterArtistAlbums } from '../../../src/library/core/model/artistModel';
+import type { LibraryArtistResource, LibraryArtistSnapshot } from '../../../src/library/core/artist/artist.contract';
+import type { LibraryCollectionDescriptor } from '../../../src/library/core/collection/collection.contract';
+import { artistAlbumLink, filterArtistAlbums } from '../../../src/library/core/artist/artistModel';
 import { findPresentComponent, findPresentComponents, firstHostElement, propsOf, type ProbeFiber } from '../homeBehavior/reactFiberProbe';
 import type { ProbeArtistAlbum, ProbeArtistView } from './probeApi';
 

@@ -8,54 +8,53 @@ import type {
     VisualizerBackgroundRenderProps,
 } from '@/components/visualizer/backgrounds/definition';
 import type { Theme, VisualizerBackgroundMode } from '@/types';
-import type { FoliumBackgroundContext, FoliumBackgroundDef, FoliumParam, FoliumParamAccess, FoliumParamValues } from '../contract';
+import type { FoliumBackgroundContext, FoliumBackgroundDef, FoliumSetting, FoliumSettingAccess, FoliumSettingValues } from '../contract';
 import { toFoliumTheme } from '../dto';
 import { createFoliumAudio } from '../audio';
-import { sanitizeFoliumParams } from '../params';
-import { createFoliumParamAccess } from '../paramStore';
-import { createFoliumRegistry } from '../registry';
-import { FoliumMountHost } from '../FoliumMountHost';
-import { FoliumSettingsCard } from '../FoliumSettingsCard';
+import { sanitizeFoliumParams } from '../../params/params';
+import { createFoliumParamAccess } from '../../params/paramStore';
+import { createFoliumRegistry } from '../../runtime/registry';
+import { FoliumMountHost } from '../../runtime/FoliumMountHost';
+import type { FoliumHostContext } from '../helpers';
+import { useFoliumListeners, useFoliumNotifyOnChange } from '../../runtime/listeners';
+import { FoliumSettingsCard } from '../../params/FoliumSettingsCard';
+import { foliumMountName } from '../kinds';
 
 // src/mods/folium/registries/backgrounds.tsx
 // `folium.registries.backgrounds`: mod background types. Each becomes a
 // VisualizerBackgroundRegistryEntry, so it shows up in the background picker
 // and renders under every visualizer mode (previews and exports included). A
 // background has no lyrics or clock; its context is theme, cover, pause, the
-// audio analyser (1.2) and its own settings.
+// audio analyser and its own settings.
 
 export interface StoredFoliumBackground {
     def: FoliumBackgroundDef;
     mode: VisualizerBackgroundMode;
-    settings: FoliumParam[];
-    settingsAccess: FoliumParamAccess | null;
+    settings: FoliumSetting[];
+    settingsAccess: FoliumSettingAccess | null;
 }
 
-const EMPTY_SETTINGS: FoliumParamValues = Object.freeze({});
+const EMPTY_SETTINGS: FoliumSettingValues = Object.freeze({});
+
+const BACKGROUND = foliumMountName('backgrounds', 'background');
+const BACKGROUND_SETTINGS = foliumMountName('backgrounds', 'settings');
 
 const resolveLabelFallback = (label: Record<string, string | undefined>, id: string): string =>
     label['zh-CN'] ?? label.en ?? id;
 
 /*
  * Background context: fixed per mount on staticMode only; theme, cover, pause
- * and settings are getters, and subscribe() fires when any of them changes.
+ * and settings are getters, and onChange fires when any of them changes.
  */
 const useBackgroundContext = (
     props: VisualizerBackgroundRenderProps,
-    settings: FoliumParamAccess | null,
-): FoliumBackgroundContext => {
+    settings: FoliumSettingAccess | null,
+): FoliumHostContext<FoliumBackgroundContext> => {
     const propsRef = useRef(props);
     propsRef.current = props;
-    const listenersRef = useRef(new Set<() => void>());
-    const notify = () => listenersRef.current.forEach((listener) => {
-        try {
-            listener();
-        } catch (error) {
-            console.warn('[Folium] background subscriber failed', error);
-        }
-    });
+    const listeners = useFoliumListeners('background subscriber');
 
-    const ctx = useMemo<FoliumBackgroundContext>(() => {
+    const ctx = useMemo<FoliumHostContext<FoliumBackgroundContext>>(() => {
         const themeCache = { source: null as Theme | null, daylight: false, value: toFoliumTheme(null, false) };
         return Object.freeze({
             staticMode: props.staticMode,
@@ -71,23 +70,13 @@ const useBackgroundContext = (
             },
             getSettings: () => settings?.get() ?? EMPTY_SETTINGS,
             getCoverUrl: () => propsRef.current.coverUrl ?? null,
-            subscribe: (listener: () => void) => {
-                listenersRef.current.add(listener);
-                return () => listenersRef.current.delete(listener);
-            },
+            subscribe: listeners.subscribe,
             audio: createFoliumAudio(() => propsRef.current),
         });
     }, [props.staticMode, settings]);
 
-    const primedRef = useRef(false);
-    useEffect(() => {
-        if (!primedRef.current) {
-            primedRef.current = true;
-            return;
-        }
-        notify();
-    }, [props.paused, props.theme, props.isDaylight, props.coverUrl]);
-    useEffect(() => settings?.subscribe(notify), [settings]);
+    useFoliumNotifyOnChange(listeners, [props.paused, props.theme, props.isDaylight, props.coverUrl]);
+    useEffect(() => settings?.onChange(listeners.notify), [settings]);
     return ctx;
 };
 
@@ -104,7 +93,7 @@ const FoliumBackgroundStage: React.FC<{
         <FoliumMountHost
             modId={modId}
             where={`background ${id}`}
-            entryKind="background"
+            entryKind={BACKGROUND}
             entryId={id}
             mount={stored.def.mount}
             ctx={ctx}
@@ -128,7 +117,7 @@ const buildRegistryEntry = (id: string, modId: string, stored: StoredFoliumBackg
                 <FoliumSettingsCard
                     modId={modId}
                     where={`background ${id} settings`}
-                    entryKind="background-settings"
+                    entryKind={BACKGROUND_SETTINGS}
                     entryId={id}
                     title={stored.def.label}
                     fallbackTitle={labelFallback}
@@ -148,11 +137,11 @@ const buildRegistryEntry = (id: string, modId: string, stored: StoredFoliumBackg
 export const foliumBackgroundMode = (id: string): VisualizerBackgroundMode => `mod:${id}`;
 
 export const backgroundsRegistry = createFoliumRegistry<FoliumBackgroundDef, StoredFoliumBackground>('backgrounds', {
-    validate: (def, { id }) => {
+    validate: (def, { id, modId }) => {
         if (typeof def.mount !== 'function') {
             throw new Error('backgrounds.register: mount must be a function');
         }
-        const settings = sanitizeFoliumParams(def.settings);
+        const settings = sanitizeFoliumParams(def.settings, modId);
         if (def.settingsPanel && settings.length === 0) {
             throw new Error('backgrounds.register: settingsPanel needs a settings schema');
         }

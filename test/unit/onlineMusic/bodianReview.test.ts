@@ -47,31 +47,37 @@ function prepareLikedAddition(providerId: string) {
 }
 
 describe('liked playlist refresh', () => {
-    it('does not request the cached Netease liked list', async () => {
-        const { song, playlist, readLikes } = prepareLikedAddition('netease');
-        await omni.addSongToPlaylist(song, playlist);
-        expect(readLikes).not.toHaveBeenCalled();
-    });
-
-    it.each(['bodian', 'kugou'])('does not delay %s mutation success while fetching the liked list', async providerId => {
+    // NetEase among them: its liked list is asked for past the API server's cache (netease.ts).
+    it.each(['netease', 'bodian', 'kugou'])('does not delay %s mutation success while fetching the liked list', async providerId => {
         const { song, playlist, readLikes } = prepareLikedAddition(providerId);
-        let finish!: (ids: string[]) => void;
+        let finish!: (liked: { ids: string[]; whole: boolean }) => void;
         readLikes.mockReturnValue(new Promise(resolve => { finish = resolve; }));
         await omni.addSongToPlaylist(song, playlist);
         expect(readLikes).toHaveBeenCalledWith(providerId, 'user');
-        finish(['existing', '1']);
+        finish({ ids: ['existing', '1'], whole: true });
         await vi.waitFor(() => expect(useOnlineProviderAccountStore.getState().accounts[providerId].likedSongIds).toEqual(['existing', '1']));
     });
 
-    it.each(['logout', 'newer-like'])('ignores a late liked list after %s', async action => {
+    it('ignores a late liked list after logout', async () => {
         const { song, playlist, readLikes } = prepareLikedAddition('bodian');
-        let finish!: (ids: string[]) => void;
+        let finish!: (liked: { ids: string[]; whole: boolean }) => void;
         readLikes.mockReturnValue(new Promise(resolve => { finish = resolve; }));
         await omni.addSongToPlaylist(song, playlist);
-        if (action === 'logout') useOnlineProviderAccountStore.getState().clearAccount('bodian');
-        else useOnlineProviderAccountStore.getState().updateAccount('bodian', { likedSongIds: ['newer'] });
-        finish(['stale']);
+        useOnlineProviderAccountStore.getState().clearAccount('bodian');
+        finish({ ids: ['stale'], whole: true });
         await Promise.resolve();
-        expect(useOnlineProviderAccountStore.getState().accounts.bodian.likedSongIds).toEqual(action === 'logout' ? [] : ['newer']);
+        expect(useOnlineProviderAccountStore.getState().accounts.bodian.likedSongIds).toEqual([]);
+    });
+
+    it('keeps a like made while the liked list was being fetched, and takes the list for the other songs', async () => {
+        const { song, playlist, readLikes } = prepareLikedAddition('bodian');
+        vi.spyOn(getOnlineMusicProvider('bodian')!.mutations!, 'likeSong').mockResolvedValue(undefined);
+        let finish!: (liked: { ids: string[]; whole: boolean }) => void;
+        readLikes.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+        await omni.addSongToPlaylist(song, playlist);
+        await omni.likeSong({ ...song, id: 'newer', sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'newer' } }, true);
+        // The list as it was before that like.
+        finish({ ids: ['of-the-list'], whole: true });
+        await vi.waitFor(() => expect(useOnlineProviderAccountStore.getState().accounts.bodian.likedSongIds).toEqual(['of-the-list', 'newer']));
     });
 });

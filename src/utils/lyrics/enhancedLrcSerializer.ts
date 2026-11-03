@@ -1,5 +1,6 @@
 import type { Line, LyricData, Word } from '../../types';
 import { isInterludeLine } from './parserCore';
+import { formatLrcTimestamp } from './lrcTimestamp';
 
 // src/utils/lyrics/enhancedLrcSerializer.ts
 // 把 LyricData 写成增强型 LRC（A2 扩展）：`[mm:ss.xx]<mm:ss.xxx>词<mm:ss.xxx>词…<行尾>`。
@@ -29,8 +30,12 @@ export interface EnhancedLrcSerializeOptions {
 
 const MAX_TIMESTAMP_MS = (99 * 60 + 59) * 1000 + 999;
 
+const clampTimestampMs = (seconds: number): number => (
+    Math.min(Math.max(Math.round(seconds * 1000), 0), MAX_TIMESTAMP_MS)
+);
+
 const splitTimestamp = (seconds: number) => {
-    const totalMs = Math.min(Math.max(Math.round(seconds * 1000), 0), MAX_TIMESTAMP_MS);
+    const totalMs = clampTimestampMs(seconds);
     return {
         minutes: Math.floor(totalMs / 60000),
         seconds: Math.floor((totalMs % 60000) / 1000),
@@ -41,10 +46,7 @@ const splitTimestamp = (seconds: number) => {
 const pad2 = (value: number) => `${value}`.padStart(2, '0');
 
 /** 行首标签 `[mm:ss.xx]`：两位小数，兼容面最广。 */
-export const formatLrcLineTimestamp = (seconds: number): string => {
-    const { minutes, seconds: secs, millis } = splitTimestamp(seconds);
-    return `[${pad2(minutes)}:${pad2(secs)}.${pad2(Math.floor(millis / 10))}]`;
-};
+export const formatLrcLineTimestamp = (seconds: number): string => formatLrcTimestamp(clampTimestampMs(seconds));
 
 /** 逐字标签 `<mm:ss.xxx>`：三位小数，逐字时轴对 10ms 的误差敏感。 */
 export const formatLrcWordTimestamp = (seconds: number): string => {

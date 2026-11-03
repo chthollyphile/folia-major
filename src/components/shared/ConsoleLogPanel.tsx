@@ -10,6 +10,7 @@ import {
     type ConsoleLogEntry,
 } from '../../utils/consoleLogBuffer';
 import { readConsoleLogFilters, writeConsoleLogFilters } from '../../utils/consoleLogFilters';
+import { copyText } from '../../utils/system/clipboard';
 
 // src/components/shared/ConsoleLogPanel.tsx
 // The session log, narrowed down to the part worth reading. Shared by the player's debug overlay
@@ -108,7 +109,14 @@ const FilterMenu: React.FC<{
     useEffect(() => {
         if (!at) return;
         const close = () => setAt(null);
-        const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+        // Escape closes the menu and goes no further: the window the panel sits in (the settings
+        // window, the debug overlay) listens for the same key and would close with it.
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            close();
+        };
         // A module list runs past its own height, so the menu scrolls too - and it is listening in
         // CAPTURE, which means its own wheel arrives here before the list has moved a pixel. Only a
         // scroll of something BEHIND the menu can take the button out from under it.
@@ -119,11 +127,12 @@ const FilterMenu: React.FC<{
         // Capture, so a scroll inside the modal body counts as well as one on the window.
         window.addEventListener('scroll', onScroll, true);
         window.addEventListener('resize', close);
-        window.addEventListener('keydown', onKey);
+        // Capture, so the key is taken before any host hears it.
+        window.addEventListener('keydown', onKey, true);
         return () => {
             window.removeEventListener('scroll', onScroll, true);
             window.removeEventListener('resize', close);
-            window.removeEventListener('keydown', onKey);
+            window.removeEventListener('keydown', onKey, true);
         };
     }, [at]);
 
@@ -140,6 +149,7 @@ const FilterMenu: React.FC<{
                 ref={buttonRef}
                 type="button"
                 onClick={() => (at ? setAt(null) : place())}
+                aria-haspopup="menu"
                 aria-expanded={at !== null}
                 className={`flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1 text-[10px] uppercase tracking-[0.14em] transition-colors ${frameClass}`}
             >
@@ -263,7 +273,7 @@ export const ConsoleLogPanel: React.FC<ConsoleLogPanelProps> = ({
 
     const handleCopy = async () => {
         try {
-            await navigator.clipboard.writeText(formatConsoleLog(copyTarget));
+            await copyText(formatConsoleLog(copyTarget));
             setCopyState('copied');
         } catch {
             setCopyState('failed');

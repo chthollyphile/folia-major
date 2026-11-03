@@ -2,7 +2,7 @@ import dynamicIconImports from 'lucide-react/dynamicIconImports';
 import type { FoliumIconOptions } from './contract';
 
 // src/mods/folium/icons.ts
-// `folium.ui.icon` (Folium 1.2): the host's lucide icon set, handed to mods as plain SVG elements.
+// `folium.ui.icon`: the host's lucide icon set, handed to mods as plain SVG elements.
 // Mods have no React, so they get the icon's node data drawn into a fresh <svg> instead of the
 // lucide-react component. Every call returns a new element built from immutable data, so there is
 // no shared state for a mod to change. Each icon's module loads on first use (one small chunk per

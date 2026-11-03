@@ -1,7 +1,7 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { PonderRelativeRect } from '../../../types/ponder';
-import { relativeRectStyle } from './ponderSurfaceGeometry';
+import { relativeRectStyle } from './relativeRectStyle';
 import {
     BRAVAIS_WALL_LEFT,
     BRAVAIS_WALL_RIGHT,

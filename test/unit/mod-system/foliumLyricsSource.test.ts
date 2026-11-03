@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LyricData } from '@/types';
-import { isInterludeLine, parseLRC } from '@/utils/lyrics/parserCore';
+import { isInterludeLine } from '@/utils/lyrics/parserCore';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
 import {
     FOLIUM_CHORUS_RANGE_LIMIT,
@@ -11,9 +11,9 @@ import {
 import { FOLIUM_LYRICS_HELPERS } from '@/mods/folium/sharedHelpers';
 
 // test/unit/mod-system/foliumLyricsSource.test.ts
-// Folium 1.4 lyrics: raw text plus a format, parsed by the local lyric file pipeline. Covers track
-// validation, the wordByWord -> main fallback, what reaches the host provider result, the untouched
-// Folium 1.3 shape, and folium.lyrics.parse.
+// Lyrics from a mod: raw text plus a format, parsed by the local lyric file pipeline. Covers track
+// validation, the wordByWord -> main fallback, what reaches the host provider result, and
+// folium.lyrics.parse.
 
 // The local pipeline parses in a worker; run the same parser inline.
 vi.mock('@/utils/lyrics/workerClient', async () => {
@@ -122,7 +122,7 @@ describe('resolveFoliumLyricsResult', () => {
         }, 'p');
 
         expect(textLines(result.lyrics).map((line) => line.fullText)).toEqual(['你好', '世界']);
-        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to parse'), expect.any(Error));
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('failed to parse'), expect.objectContaining({ name: 'Error', message: 'worker crashed' }));
     });
 
     it('ignores a malformed track with a warning naming the provider', async () => {
@@ -209,29 +209,6 @@ describe('resolveFoliumLyricsResult', () => {
             .toEqual({ lyrics: null, isPureMusic: false });
         expect(await resolveFoliumLyricsResult({}, 'p')).toEqual({ lyrics: null, isPureMusic: false });
         expect(await resolveFoliumLyricsResult(null, 'p')).toEqual({ lyrics: null, isPureMusic: false });
-    });
-
-    describe('the Folium 1.3 shape', () => {
-        it('parses plain LRC on the spot, exactly as 1.3 did', async () => {
-            const result = await resolveFoliumLyricsResult({ lrc: LRC, translationLrc: TRANSLATION }, 'p');
-
-            expect(result).toEqual({
-                lyrics: parseLRC(LRC, TRANSLATION),
-                mainText: LRC,
-                translationText: TRANSLATION,
-                isPureMusic: false,
-            });
-            expect(parseLyricsAsync).not.toHaveBeenCalled();
-        });
-
-        it('answers no lyrics for blank LRC', async () => {
-            expect(await resolveFoliumLyricsResult({ lrc: '   ' }, 'p')).toEqual({ lyrics: null, isPureMusic: false });
-        });
-
-        it('yields to the 1.4 shape when both are present', async () => {
-            const result = await resolveFoliumLyricsResult({ lrc: '[00:01.00]old', main: { format: 'lrc', text: LRC } }, 'p');
-            expect(textLines(result.lyrics).map((line) => line.fullText)).toEqual(['你好', '世界']);
-        });
     });
 });
 

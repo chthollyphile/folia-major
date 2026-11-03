@@ -1,6 +1,6 @@
 // packaging/windows/wallpaper-helper/src/events.rs
 // JSONL event protocol spoken on stdout between the helper and the Electron main process
-// (parsed by electron/windowsWallpaperController.cjs). Pure string building — no Win32 —
+// (parsed by electron/wallpaper/windowsWallpaperController.cjs). Pure string building — no Win32 —
 // so the snapshot-style unit tests below run on any host OS.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,19 +24,19 @@ pub enum Event {
     Refreshed,
     /// Desktop mouse position update in *physical* screen pixels (the helper is per-monitor DPI
     /// aware, so no Windows coordinate virtualization is involved; the main process converts them
-    /// into Chromium's DIP space with screen.screenToDipPoint), coalesced to ~60 Hz and gated by
-    /// the desktop-foreground filter (see mouse_forward.rs for why injection happens in the main
-    /// process rather than via posted messages).
+    /// into Chromium's DIP space with screen.screenToDipPoint), at the rate raw input arrives capped
+    /// to one report per 4 ms and gated by the desktop-foreground filter (see mouse_forward.rs for
+    /// why injection happens in the main process rather than via posted messages).
     MouseMove { x: i32, y: i32 },
-    /// Primary (left) button press at the given position (physical screen pixels). Sent
-    /// immediately, not coalesced.
+    /// Primary (left) button press at the given position (physical screen pixels), only when it
+    /// lands on the desktop while the desktop is foreground. Sent immediately, not spaced out.
     MouseButtonDown { x: i32, y: i32 },
     /// Primary button release (physical screen pixels). Sent even when the desktop is no longer
     /// foreground while the button is tracked as held, so the renderer can never keep a stuck
     /// pressed state.
     MouseButtonUp { x: i32, y: i32 },
     /// Wheel rotation at the given position (physical screen pixels) while the desktop is the
-    /// foreground window.
+    /// foreground window and under the cursor.
     /// Deltas are raw-input notches in multiples of WHEEL_DELTA (120; hi-res wheels send
     /// smaller per-packet increments) — positive vertical means rolled up/away from the user,
     /// positive horizontal means rolled right. Exactly one axis is non-zero per packet.

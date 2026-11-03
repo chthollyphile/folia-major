@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import type { LibraryPlayerBackdrop } from '../../core/contracts/suite';
+import type { LibraryPlayerBackdrop } from '../../core/suite/suite.contract';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import type { LibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
 import { backdropReportFor, occludesPlayerFor, type BravaisWallLook } from './bravaisLook';

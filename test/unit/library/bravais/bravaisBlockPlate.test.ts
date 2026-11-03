@@ -16,6 +16,7 @@ import {
     isSamePlateBlock,
     PLATE_BLEED,
 } from '@/library/suites/bravais/bravaisBlockPlate';
+import { BRAVAIS_BLOCK_SHAPE, EXPLORE_BLOCK_SIZE } from '@/library/suites/bravais/bravaisWallShape';
 
 // test/unit/library/bravais/bravaisBlockPlate.test.ts
 // 透光的实色底板按块画（B12b，设计稿 §11）：每块的洞（窗、全透明的内容、让位后的矩形）、外框只向左 / 上多盖 2px
@@ -119,15 +120,18 @@ describe('plate frame', () => {
         expect(getPlateFrame(0, 0, anchorX).x).toBe(getBlockRect(0, 0).x - PLATE_BLEED);
     });
 
-    it('leaves the open seam clear and closes up to both of its edges', () => {
-        const anchorX = getSeamBoundaryX(1, metrics);
+    it.each([
+        ['blocks', BRAVAIS_BLOCK_SHAPE.blockSize],
+        ['explore lots', EXPLORE_BLOCK_SIZE],
+    ])('leaves the open seam clear and closes up to both of its edges (%s)', (_, size) => {
+        const anchorX = getSeamBoundaryX(1, metrics, size.width);
         const view = { width: 1600, height: 900, scale: 0.76 };
         for (const openWidth of [300, 74, 16]) {
             const frame = computeBravaisFrame({ center: { x: anchorX, y: 0 }, view, anchorX, openWidth, contentWidth: openWidth, hidden: false });
             const seamLeft = frame.seam.x - frame.seam.width / 2;
             const seamRight = frame.seam.x + frame.seam.width / 2;
-            const left = getPlateFrame(0, 0, anchorX);
-            const right = getPlateFrame(1, 0, anchorX);
+            const left = getPlateFrame(0, 0, anchorX, size);
+            const right = getPlateFrame(1, 0, anchorX, size);
             const leftEdge = frame.left.x + (left.x + left.width) * frame.scale;
             const rightEdge = frame.right.x + right.x * frame.scale;
             expect(leftEdge).toBeCloseTo(seamLeft, 6);

@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LibraryHomeResources } from '../core/contracts/homeModel';
+import type { LibraryHomeResources } from '../core/home/homeModel.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
-import { createFavoriteAlbumsFeed, createRadioFeed } from '../core/services/onlineHomeFeeds';
-import { onlineHomeFeedDeps } from '../core/services/onlineHomeFeedDeps';
-import { createLibraryHomeActions } from '../core/services/libraryHomeActions';
-import { createNavidromeHomeLibrary } from '../core/services/navidromeHomeLibrary';
-import { navidromeHomeLibraryDeps } from '../core/services/navidromeHomeLibraryDeps';
-import { createLocalDirectoryTrees } from '../core/services/localDirectoryTrees';
-import { localDirectoryTreesDeps } from '../core/services/localDirectoryTreesDeps';
-import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '../core/services/libraryHomeLifetime';
-import { closeOpenLibraryDirectory } from '../core/state/useLibraryDirectorySessionStore';
+import { createFavoriteAlbumsFeed, createRadioFeed } from '../core/home/online/onlineHomeFeeds.service';
+import { onlineHomeFeedDeps } from '../core/home/online/onlineHomeFeedDeps.service';
+import { createLibraryHomeActions } from '../core/home/libraryHomeActions.service';
+import { createNavidromeHomeLibrary } from '../core/home/navidrome/navidromeHomeLibrary.service';
+import { navidromeHomeLibraryDeps } from '../core/home/navidrome/navidromeHomeLibraryDeps.service';
+import { createLocalDirectoryTrees } from '../core/directory/localDirectoryTrees.service';
+import { localDirectoryTreesDeps } from '../core/directory/localDirectoryTreesDeps.service';
+import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '../core/home/libraryHomeLifetime.service';
+import { closeOpenLibraryDirectory } from '../core/directory/useLibraryDirectorySessionStore';
 import { useSearchNavigationStore } from '../../stores/useSearchNavigationStore';
 import { createLibraryHomePort } from './createLibraryHomePort';
 
@@ -17,7 +17,7 @@ import { createLibraryHomePort } from './createLibraryHomePort';
 // 首页外壳持有的首页资源（与 useLibraryDirectoryBatchController 同一个做法）：一个首页一份，生命周期跟着首页，
 // 不随渲染重建——任何 suite 的首页都订阅同一份。数据的归属由正在显示的首页 surface 经绑定设置、读取经绑定 ensure；
 // 换 suite 时新 surface 认领的是同一份数据，不重新请求。数据什么时候作废由这里按「首页真的离开」决定
-// （core/services/libraryHomeLifetime）：首页整个藏起（active=false，切到播放页之后）或宿主卸载时放掉在线数据的归属、
+// （core/home/libraryHomeLifetime.service）：首页整个藏起（active=false，切到播放页之后）或宿主卸载时放掉在线数据的归属、
 // 让 Navidrome 概览与文件夹树作废，并关掉打开着的目录（目录会话随之丢掉）；离开 Navidrome / 本地页签时让那个页签的
 // 数据作废。首页动作的端口经 ref 现读最新的 surface。
 //

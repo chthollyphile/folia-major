@@ -8,7 +8,7 @@
     "email": "chthollyphile@users.noreply.github.com"
   },
   "private": true,
-  "version": "0.7.19",
+  "version": "0.7.25",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -24,6 +24,9 @@
     "typecheck": "tsc --noEmit",
     "codemap": "node dev/mcp/ts-code-map/codemap.mjs",
     "folium:api": "node dev/folium/api-docs.mjs",
+    "folium:types": "node dev/folium/types.mjs",
+    "folium:new": "node dev/folium/new.mjs",
+    "folium:check": "node dev/folium/check.mjs",
     "codemap:check": "node dev/mcp/ts-code-map/codemap.mjs --check",
     "test": "vitest run -c vitest.config.ts",
     "test:unit": "vitest run -c vitest.config.ts",
@@ -67,7 +70,9 @@
     "electronLanguages": [
       "en-US",
       "zh-CN",
-      "id"
+      "zh-TW",
+      "id",
+      "vi"
     ],
     "generateUpdatesFilesForAllChannels": true,
     "directories": {
@@ -84,6 +89,7 @@
       "dist/**/*",
       "electron/**/*",
       "shared/**/*",
+      "!**/node_modules/youtubei.js/bundle/**",
       "package.json",
       "build/miao.png",
       "build/thumbar/*.png"
@@ -91,12 +97,28 @@
     "asarUnpack": [
       "electron/analysis/htdemucs_runner.py",
       "electron/macosMusicNowPlaying/*.applescript",
-      "node_modules/@koromix/koffi-*/**/*.node"
+      "node_modules/@koromix/koffi-*/**/*.node",
+      "node_modules/@lox-audioserver/node-librespot/prebuilds/**/*.node"
     ],
     "extraResources": [
       {
         "from": "build/ffmpeg/${os}-${arch}",
         "to": "ffmpeg-audio"
+      },
+      {
+        "from": "build/mnn/${os}-${arch}",
+        "to": "mnn",
+        "filter": [
+          "*folia_mnn.*"
+        ]
+      },
+      {
+        "from": "models",
+        "to": "models",
+        "filter": [
+          "beat_this-wgsl.bin",
+          "htdemucs-wgsl.bin"
+        ]
       },
       {
         "from": "build/icon.png",
@@ -132,10 +154,21 @@
       }
     ],
     "mac": {
+      "electronLanguages": [
+        "en",
+        "zh_CN",
+        "zh_TW",
+        "id",
+        "vi"
+      ],
       "extraResources": [
         {
           "from": "build/koffi/darwin_${arch}",
           "to": "koffi/darwin_${arch}"
+        },
+        {
+          "from": "build/mac-helper/darwin-${arch}",
+          "to": "."
         }
       ],
       "target": [
@@ -179,9 +212,16 @@
       "installerLanguages": [
         "en_US",
         "zh_CN",
-        "id"
+        "id",
+        "vi_VN"
       ],
       "include": "build/installer.nsh"
+    },
+    "rpm": {
+      "fpm": [
+        "--rpm-rpmbuild-define",
+        "_build_id_links none"
+      ]
     },
     "linux": {
       "artifactName": "${name}-${version}-linux-${arch}.${ext}",
@@ -207,21 +247,24 @@
   },
   "dependencies": {
     "@google/genai": "^2.24.0",
-    "@neteasecloudmusicapienhanced/api": "^4.41.1",
+    "@neteasecloudmusicapienhanced/api": "4.41.1",
     "@xhayper/discord-rpc": "^1.5.1",
-    "@yakult-green-tea/qq-music-api": "3.3.0",
+    "@yakult-green-tea/qq-music-api": "3.3.3",
     "axios": "^1.20.0",
+    "bgutils-js": "4.0.3",
     "bodian-music-api": "0.1.2",
     "busboy": "^1.6.0",
     "electron-store": "^11.0.2",
     "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
     "file-type": "^21.3.4",
+    "googlevideo": "4.1.1",
     "koffi": "^3.3.1",
     "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz",
     "music-metadata": "^11.16.1",
-    "onnxruntime-node": "^1.30.0",
-    "ws": "^8.21.3"
+    "qishui-music-api": "0.2.2",
+    "ws": "^8.21.3",
+    "youtubei.js": "18.1.0"
   },
   "devDependencies": {
     "@applemusic-like-lyrics/ttml": "^1.0.1",
@@ -241,6 +284,7 @@
     "@types/three": "^0.185.4",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.1.1",
+    "@webgpu/types": "0.1.74",
     "@xmldom/xmldom": "^0.9.12",
     "animejs": "^4.5.0",
     "autoprefixer": "^10.6.1",
@@ -256,7 +300,6 @@
     "fake-indexeddb": "^6.2.5",
     "framer-motion": "^13.4.3",
     "i18next": "^26.4.2",
-    "i18next-browser-languagedetector": "^8.2.1",
     "lucide-react": "^1.48.0",
     "opencc-js": "^1.4.2",
     "pinyin-pro": "3.29.3",
@@ -290,5 +333,8 @@
     "three-stdlib": {
       "fflate": "$fflate"
     }
+  },
+  "optionalDependencies": {
+    "@lox-audioserver/node-librespot": "0.5.1"
   }
 }

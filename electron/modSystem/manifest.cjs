@@ -4,43 +4,53 @@
 
 'use strict';
 
+// The version and the names below are written once, in foliumShared.json, which
+// the window side reads too (src/mods/folium/shared.ts).
+const shared = require('./foliumShared.json');
+const { readOldManifest } = require('./deprecated.cjs');
+
 /*
  * Folium platform version. `major` is what a manifest declares (`"folium": 1`);
- * `minor` grows with every additive change inside 1.x and is exposed to mods at
- * runtime (`api.host.folium`, `folium.host.folium`) for feature detection.
+ * `minor` grows with every additive change inside 1.x and is shown to mods at
+ * runtime (`api.host.folium`, `folium.host.folium`).
  */
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 5 });
+const FOLIUM_VERSION = Object.freeze({ major: shared.version.major, minor: shared.version.minor });
 
-// Folium 1 permission set. Anything else is rejected at validation time so a
-// mod can never claim a capability the loader does not implement (fail closed).
-// Permissions are a declaration shown in the trust dialog, not a sandbox.
-const KNOWN_PERMISSIONS = new Set([
-    'filesystem.data',
-    'render.export',
-    'runtime.playback',
-    'playback.control',
-    'net.fetch',
-    'net.embed',
-    'ui.stage',
-]);
-
-// Unfrozen surfaces a mod must opt into explicitly; they may change in any minor.
-const KNOWN_EXPERIMENTAL = new Set([
-    'omni.providers',
-    'omni.hooks',
-    'ponder.targets',
-]);
+// The permission ids a mod can declare (the keys of foliumShared.json's
+// permissions, each with the members it guards). Anything else is rejected at
+// validation time so a mod can never claim a capability the loader does not
+// implement (fail closed). Permissions are a declaration shown in the trust
+// dialog, not a sandbox.
+const KNOWN_PERMISSIONS = new Set(Object.keys(shared.permissions));
 
 /*
- * Manifest fields that belonged to the pre-Folium draft. They are rejected with
- * a pointed message instead of being ignored, so an old mod fails loudly rather
- * than loading half-configured.
+ * The permission a gate checks for one member, e.g. permissionGuarding('api.storage') is
+ * 'filesystem.data': the permission whose `guards` in foliumShared.json list that member. Throws when
+ * the gate's file loads if none does, so the gate and the list cannot disagree.
  */
-const REMOVED_FIELDS = {
-    apiVersion: 'apiVersion-replaced-by-folium: declare "folium": 1 instead of "apiVersion"',
-    entry: 'entry-replaced-by-main: the Node entry is now "main" (and the renderer entry "client")',
-    visualizers: 'visualizers-moved-to-client: register visualizers from the client entry (folium.registries.visualizers)',
+const permissionGuarding = (member) => {
+    const id = Object.keys(shared.permissions).find((key) => shared.permissions[key].guards.includes(member));
+    if (id === undefined) {
+        throw new Error(`no Folium permission guards "${member}" in foliumShared.json`);
+    }
+    return id;
 };
+
+// embedOrigins are only for folium.ui.embed, which this permission unlocks.
+const NET_EMBED_PERMISSION = permissionGuarding('folium.ui.embed');
+
+// Unfrozen surfaces a mod must opt into explicitly; they may change in any minor.
+const KNOWN_EXPERIMENTAL = new Set(Object.values(shared.experimental));
+
+/*
+ * Folium 1.7: the permissions of the experimental platform.raw, `platform.<id>.read` and
+ * `platform.<id>.write` (one pair per platform that can be called through it, listed in
+ * foliumShared.json). They unlock nothing without the opt-in, and writing goes with reading: a manifest
+ * that declares one without the other is refused, so the trust dialog never shows a grant that does
+ * not work.
+ */
+const PLATFORM_RAW_EXPERIMENTAL = shared.experimental.platformRaw;
+const PLATFORM_PERMISSION = /^platform\.([^.]+)\.(read|write)$/;
 
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
@@ -52,8 +62,8 @@ const isNonEmptyString = (value) => typeof value === 'string' && value.trim().le
 
 /*
  * Dependency strings in `depends` are either a bare mod id ("base-mod") or
- * "id@^1.2.3". Only the caret range and the wildcard are supported in apiVersion 1;
- * unsupported operators are reported as validation errors instead of being guessed.
+ * "id@^1.2.3". Only the caret range and the wildcard are supported; unsupported
+ * operators are reported as validation errors instead of being guessed.
  */
 const parseDependency = (raw) => {
     if (typeof raw !== 'string' || raw.trim().length === 0) {
@@ -185,12 +195,7 @@ const validateManifest = (raw) => {
     }
 
     const errors = [];
-    Object.entries(REMOVED_FIELDS).forEach(([field, message]) => {
-        if (raw[field] !== undefined) {
-            errors.push(message);
-        }
-    });
-
+    // The fields read here are all that mod.json can have.
     const manifest = {
         folium: raw.folium,
         id: raw.id,
@@ -207,6 +212,16 @@ const validateManifest = (raw) => {
         folia: raw.folia ?? null,
         preview: raw.preview ?? null,
     };
+    // Folium 1.6 only (deprecated.cjs): an old permission id is read as its new one, and a field
+    // mod.json does not have is a warning, not the error below.
+    raw = readOldManifest(raw, manifest);
+    // Any other field is an error naming it, so a misspelt one ("premissions") fails
+    // loudly instead of being ignored.
+    Object.keys(raw).forEach((field) => {
+        if (!Object.hasOwn(manifest, field) && raw[field] !== undefined) {
+            errors.push(`unknown field "${field}"; mod.json can have: ${Object.keys(manifest).join(', ')}`);
+        }
+    });
 
     if (manifest.folium !== FOLIUM_VERSION.major) {
         errors.push(`unsupported folium version ${JSON.stringify(manifest.folium)}; this host implements folium ${FOLIUM_VERSION.major}`);
@@ -268,12 +283,23 @@ const validateManifest = (raw) => {
         }
     });
 
+    permissionIds.forEach((permission) => {
+        const platform = PLATFORM_PERMISSION.exec(permission);
+        if (!platform) return;
+        if (!manifest.experimental.includes(PLATFORM_RAW_EXPERIMENTAL)) {
+            errors.push(`permission ${permission} needs "${PLATFORM_RAW_EXPERIMENTAL}" under experimental`);
+        }
+        if (platform[2] === 'write' && !permissionIds.has(`platform.${platform[1]}.read`)) {
+            errors.push(`permission ${permission} needs platform.${platform[1]}.read as well`);
+        }
+    });
+
     manifest.embedOrigins.forEach((origin) => {
         if (!isHttpsOrigin(origin)) {
             errors.push(`embedOrigins entry ${JSON.stringify(origin)} must be a bare https origin like "https://example.com"`);
         }
     });
-    if (manifest.embedOrigins.length > 0 && !permissionIds.has('net.embed')) {
+    if (manifest.embedOrigins.length > 0 && !permissionIds.has(NET_EMBED_PERMISSION)) {
         errors.push('embedOrigins requires the net.embed permission');
     }
 
@@ -403,6 +429,7 @@ const resolveLoadOrder = (manifests, { source = 'unknown' } = {}) => {
 module.exports = {
     FOLIUM_VERSION,
     KNOWN_PERMISSIONS,
+    permissionGuarding,
     KNOWN_EXPERIMENTAL,
     MOD_ID_PATTERN,
     parseDependency,

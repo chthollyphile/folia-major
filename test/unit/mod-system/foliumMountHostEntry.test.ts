@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { FoliumMountHost } from '@/mods/folium/FoliumMountHost';
+import { FoliumMountHost } from '@/mods/runtime/FoliumMountHost';
 
 // test/unit/mod-system/foliumMountHostEntry.test.ts
 // A mod's markup can sit in a ShadowRoot, out of reach of a Ponder selector; its host container
@@ -29,7 +29,7 @@ describe('FoliumMountHost', () => {
             entryKind: 'panel-tab',
             entryId: 'mod-a:notes',
             mount: () => undefined,
-            ctx: {},
+            ctx: { subscribe: () => () => {} },
             shadow: true,
         })));
         const container = document.querySelector('[data-folium-entry="mod-a:notes"]');

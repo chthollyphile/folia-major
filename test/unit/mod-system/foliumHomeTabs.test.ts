@@ -4,6 +4,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { closeFoliumHomeTab, homeTabsRegistry, selectFoliumHomeTab, useFoliumHomeTabStore } from '@/mods/folium/registries/homeTabs';
 import { createFoliumClientApi, listFoliumHostRegistries } from '@/mods/folium/api';
+import { clientApiOptions } from './clientApiOptions';
 import { createFoliumUiService, registerFoliumHostActions, type FoliumHostActions } from '@/mods/folium/services';
 import type { ModRuntimeInfo } from '@/mods/types';
 import { selectNativeHomeTabFromPage, useFoliumHomeNavigation } from '@/components/app/home/useFoliumHomeNavigation';
@@ -17,9 +18,9 @@ import {
 import { installFoliumHomePageDismissal, selectNativeHomeTabWithoutSurface } from '@/components/app/home/foliumHomePageDismissal';
 import { createHomeTabCommand } from '@/components/command-palette/commandFactories';
 import type { CommandPaletteContext } from '@/components/command-palette/types';
-import { useLibraryHomeSurfaceStore } from '@/library/core/state/useLibraryHomeSurfaceStore';
-import { useLibraryHomeTabsRegistration } from '@/library/core/bindings/useLibraryHomeSurfaceRegistration';
-import type { GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import { useLibraryHomeSurfaceStore } from '@/library/core/home/useLibraryHomeSurfaceStore';
+import { useLibraryHomeTabsRegistration } from '@/library/core/home/useLibraryHomeSurfaceRegistration';
+import type { GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import { useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import { useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
 
@@ -99,10 +100,10 @@ describe('owned home tabs', () => {
     });
 
     it('exposes the registry in the main API and makes it inert in an export context', () => {
-        const exported = createFoliumClientApi(mod, { context: 'export', internals: null });
+        const exported = createFoliumClientApi(mod, clientApiOptions('export'));
         exported.registries.homeTabs.register(definition);
         expect(homeTabsRegistry.list()).toHaveLength(0);
-        const client = createFoliumClientApi(mod, { context: 'main', internals: null });
+        const client = createFoliumClientApi(mod, clientApiOptions('main'));
         expect(client.registries.homeTabs.register(definition).id).toBe('home-test:messages');
     });
 

@@ -1,6 +1,4 @@
 // Copyright (c) 2026 chthollyphile
-import type { Line } from '../../../types';
-
 // src/components/visualizer/lumiere/lumiereKernel.ts
 // 绘光原本依赖的 lumisynth 内核 / 编译器类型的最小子集：mood、段落性质、运镜变换、片尾卡帧、歌曲信息、音频帧。
 // folia 里没有内核，这些只是绘光自己的场景、编译与片尾卡之间的约定；运行时（VisualizerLumiere）按这里的含义去用。
@@ -8,18 +6,8 @@ import type { Line } from '../../../types';
 /** 光位的情绪：quiet / neutral / loud。 */
 export type Mood = 'quiet' | 'neutral' | 'loud';
 
-/** 段落性质（与 tempera / sonnet 的分段分类相同）。 */
-export type ParagraphKind = 'breath' | 'verse' | 'lift' | 'chorus' | 'break' | 'outro';
-
-/** 段落从哪里切开：歌曲开头、时间空隙、歌词元数据（blockIndex / songPart）变化、超出时长或行数上限；intro / instrumental 为绘光自己补的间奏段。 */
-export type ParagraphBoundary = 'song-start' | 'time-gap' | 'metadata' | 'duration-cap' | 'line-cap' | 'intro' | 'instrumental';
-
-/** 编译时的一行：全曲行序号、行本身、视觉结束时间（不越过下一行开始）。 */
-export interface StructureLine {
-    sourceIndex: number;
-    line: Line;
-    renderEndTime: number;
-}
+/** 段落性质、段落边界与编译用的行：分段规则与花火共用，见 paragraphStructure.ts。 */
+export type { ParagraphBoundary, ParagraphKind, StructureLine } from '../paragraphStructure';
 
 /** 音频特征（0..1）：低频推光束亮度、高频推浮尘闪烁、整体响度推烟雾浓度。 */
 export interface LumiereAudioFrame {

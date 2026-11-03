@@ -8,7 +8,7 @@ import {
     FAVORITE_ALBUMS_PAGE_SIZE,
     HOME_FEED_RECOMMENDATION_LIMIT,
     loadAllFavoriteAlbums,
-} from '@/library/core/services/onlineHomeFeeds';
+} from '@/library/core/home/online/onlineHomeFeeds.service';
 
 // test/unit/library/core/onlineHomeFeeds.test.ts
 // 在线首页资源（原 Grid3D 的收藏专辑 / 电台加载）：分页读完、换归属清空并作废进行中的读取、晚到的应答
@@ -244,6 +244,7 @@ describe('online home feeds', () => {
         expect(getHomeFeed).toHaveBeenCalledWith(HOME_FEED_RECOMMENDATION_LIMIT);
         expect(feed.getSnapshot().data).toEqual({
             personalFmCoverUrl: 'a:fm-0',
+            hasPersonalFm: true,
             dailyCoverUrl: 'a:daily-0',
             dailyCount: 4,
             supportsDailySongs: true,
@@ -258,7 +259,7 @@ describe('online home feeds', () => {
         });
         feed.setOwner({ providerId: 'a', userId: 1 });
         await feed.ensure();
-        expect(feed.getSnapshot().data).toEqual({ personalFmCoverUrl: undefined, dailyCoverUrl: '', dailyCount: 0, recommended: [], supportsDailySongs: true });
+        expect(feed.getSnapshot().data).toEqual({ personalFmCoverUrl: undefined, hasPersonalFm: false, dailyCoverUrl: '', dailyCount: 0, recommended: [], supportsDailySongs: true });
     });
 
     // 一块没读到时照常显示读到的部分，但不记成读过：下次进电台页再读，偶发的失败不会在整个会话里留下一张空卡。

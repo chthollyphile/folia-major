@@ -1,18 +1,31 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
 import { DEFAULT_CAPPELLA_TUNING, DEFAULT_CLASSIC_TUNING, DEFAULT_CLADDAGH_TUNING, DEFAULT_DIORAMA_TUNING, DEFAULT_FUME_TUNING, DEFAULT_PARTITA_TUNING, DEFAULT_TILT_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type CappellaTuning, type ClassicTuning, type CladdaghTuning, type DioramaTuning, type FumeTuning, type PartitaTuning, type TiltColorScheme, type TiltTuning } from '../../types';
-import { colorWithAlpha } from './colorMix';
+import { Button, Group, PictureGrid, Reveal, Row, Segmented, Status, Toggle, Tooltip, type SettingsGroupDef } from '../modal/settings/kit';
 import { type VisualizerSettingsPanelProps } from './definition';
 import { DioramaGeometrySettings } from './diorama/DioramaGeometrySettings';
 import { DioramaBackgroundParticleSettings } from './diorama/DioramaBackgroundParticleSettings';
 import { DioramaEffectSettings } from './diorama/DioramaEffectSettings';
-import { DioramaSettingsToggle } from './diorama/DioramaSettingsToggle';
 import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from './diorama/dioramaMoteField';
-import VisualizerPresetGroup, { type VisualizerPresetOption } from './VisualizerPresetGroup';
+import { percent, SliderRow, times } from './panelRows';
+import LyricRenderQualityRows from './renderQuality/LyricRenderQualityRows';
+import { DEFAULT_LYRIC_RENDER_OVERRIDE } from '../../utils/lyricRenderQuality';
 
 // src/components/visualizer/settingsPanels.tsx
-// Mode-owned preview settings panels used by discoverable visualizer entries.
-type PresetOption<T> = VisualizerPresetOption<T>;
-const PresetGroup = VisualizerPresetGroup;
+// Mode-owned preview settings panels used by discoverable visualizer entries. Each returns groups
+// of the settings kit and nothing around them; the window stacks what a panel returns.
+const CLASSIC_GROUP: SettingsGroupDef = { id: 'vis-classic', titleKey: 'options.classicSettings' };
+const PARTITA_GROUP: SettingsGroupDef = { id: 'vis-partita', titleKey: 'options.partitaSettings' };
+const FUME_GROUP: SettingsGroupDef = { id: 'vis-fume', titleKey: 'options.fumeSettings' };
+// 浮名是 canvas 2D 舞台：「渲染」组只有分辨率一行（#929）。
+const FUME_RENDER_GROUP: SettingsGroupDef = { id: 'vis-fume-render', titleKey: 'options.lyricRenderSection' };
+const CAPPELLA_GROUP: SettingsGroupDef = { id: 'vis-cappella', titleKey: 'options.cappellaSettings' };
+const TILT_GROUP: SettingsGroupDef = { id: 'vis-tilt', titleKey: 'options.tiltSettings' };
+const DIORAMA_GROUP: SettingsGroupDef = { id: 'vis-diorama', titleKey: 'options.dioramaSettings' };
+// 镜台是 react-three-fiber：「渲染」组有分辨率与抗锯齿两行（#929）。
+const DIORAMA_RENDER_GROUP: SettingsGroupDef = { id: 'vis-diorama-render', titleKey: 'options.lyricRenderSection' };
+const CLADDAGH_GROUP: SettingsGroupDef = { id: 'vis-claddagh', titleKey: 'options.claddaghSettings' };
 
 const clampPartitaStagger = (value: number) => Math.min(180, Math.max(0, value));
 const clampClassicBreathingFloatMultiplier = (value: number) => Math.min(2, Math.max(0, value));
@@ -21,16 +34,12 @@ const clampCladdaghFocusScaleRatio = (val: number) => Math.min(1.5, Math.max(0.0
 const clampCladdaghRadiusScale = (val: number) => Math.min(1.5, Math.max(0.5, val));
 const clampCladdaghEllipseTiltDeg = (val: number) => Math.min(60, Math.max(0, val));
 
-export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps<ClassicTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    classicTuning = DEFAULT_CLASSIC_TUNING,
-    onClassicTuningChange,
+    tuning: classicTuning = DEFAULT_CLASSIC_TUNING,
+    onTuningChange: onClassicTuningChange,
 }) => {
     const resolvedClassicTuning: Required<ClassicTuning> = {
         enableWordRotation: classicTuning.enableWordRotation ?? DEFAULT_CLASSIC_TUNING.enableWordRotation,
@@ -41,102 +50,65 @@ export const ClassicSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         wordSpacing: clampClassicWordSpacing(
             classicTuning.wordSpacing ?? DEFAULT_CLASSIC_TUNING.wordSpacing ?? 0.7
         ),
+        avoidOverlap: classicTuning.avoidOverlap ?? DEFAULT_CLASSIC_TUNING.avoidOverlap ?? false,
     };
-    const wordRotationOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.classicWordRotationOn')  },
-        { value: false, label: t('options.classicWordRotationOff')  },
-    ]), [t]);
-    const legacyLayoutOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: false, label: t('options.classicLegacyLayoutOff')  },
-        { value: true, label: t('options.classicLegacyLayoutOn')  },
-    ]), [t]);
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.classicSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.classicSettingsDesc')}
-                </div>
-            </div>
-
-            <PresetGroup
-                label={t('options.classicWordRotation') }
-                value={resolvedClassicTuning.enableWordRotation}
-                options={wordRotationOptions}
-                onChange={(enabled) => onClassicTuningChange?.({ enableWordRotation: enabled })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <PresetGroup
-                label={t('options.classicLegacyLayout') }
-                value={resolvedClassicTuning.useLegacyLayout || false}
-                options={legacyLayoutOptions}
-                onChange={(enabled) => onClassicTuningChange?.({ useLegacyLayout: enabled })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.classicBreathingFloatMultiplier') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedClassicTuning.breathingFloatMultiplier.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="2"
-                    step="0.05"
-                    value={resolvedClassicTuning.breathingFloatMultiplier}
-                    onChange={(event) => onClassicTuningChange?.({ breathingFloatMultiplier: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+        <Group def={CLASSIC_GROUP}>
+            <Row label={t('options.classicWordRotation')}>
+                <Toggle
+                    checked={resolvedClassicTuning.enableWordRotation}
+                    onChange={(enabled) => onClassicTuningChange?.({ enableWordRotation: enabled })}
                 />
-            </div>
-
-            {!resolvedClassicTuning.useLegacyLayout && (
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                        <span>{t('options.classicWordSpacing') }</span>
-                        <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                            {resolvedClassicTuning.wordSpacing.toFixed(2)}x
-                        </span>
-                    </div>
-                    <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.05"
-                        value={resolvedClassicTuning.wordSpacing}
-                        onChange={(event) => onClassicTuningChange?.({ wordSpacing: parseFloat(event.target.value) })}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
-                        className={rangeInputClass}
+            </Row>
+            <Row label={t('options.classicLegacyLayout')}>
+                <Segmented
+                    value={resolvedClassicTuning.useLegacyLayout ? 'legacy' : 'adaptive'}
+                    options={[
+                        { value: 'adaptive', label: t('options.classicLegacyLayoutOff') },
+                        { value: 'legacy', label: t('options.classicLegacyLayoutOn') },
+                    ]}
+                    onChange={(next) => onClassicTuningChange?.({ useLegacyLayout: next === 'legacy' })}
+                />
+            </Row>
+            <SliderRow
+                {...drag}
+                label={t('options.classicBreathingFloatMultiplier')}
+                value={resolvedClassicTuning.breathingFloatMultiplier}
+                min={0}
+                max={2}
+                step={0.05}
+                format={times}
+                onChange={(value) => onClassicTuningChange?.({ breathingFloatMultiplier: value })}
+            />
+            <Reveal when={!resolvedClassicTuning.useLegacyLayout}>
+                <SliderRow
+                    {...drag}
+                    label={t('options.classicWordSpacing')}
+                    value={resolvedClassicTuning.wordSpacing}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => onClassicTuningChange?.({ wordSpacing: value })}
+                />
+                <Row label={t('options.avoidOverlap')} hint={t('options.avoidOverlapHint')}>
+                    <Toggle
+                        checked={resolvedClassicTuning.avoidOverlap}
+                        onChange={(enabled) => onClassicTuningChange?.({ avoidOverlap: enabled })}
                     />
-                </div>
-            )}
-        </div>
+                </Row>
+            </Reveal>
+        </Group>
     );
 };
-export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps<PartitaTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    partitaTuning = DEFAULT_PARTITA_TUNING,
-    onPartitaTuningChange,
+    tuning: partitaTuning = DEFAULT_PARTITA_TUNING,
+    onTuningChange: onPartitaTuningChange,
 }) => {
     const rawMin = clampPartitaStagger(partitaTuning.staggerMin ?? DEFAULT_PARTITA_TUNING.staggerMin);
     const rawMax = clampPartitaStagger(partitaTuning.staggerMax ?? DEFAULT_PARTITA_TUNING.staggerMax);
@@ -145,15 +117,11 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         useSemanticLayout: partitaTuning.useSemanticLayout ?? DEFAULT_PARTITA_TUNING.useSemanticLayout,
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
+        avoidOverlap: partitaTuning.avoidOverlap ?? DEFAULT_PARTITA_TUNING.avoidOverlap,
     };
-    const guideLineOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn')  },
-        { value: false, label: t('options.partitaGuideLinesOff')  },
-    ]), [t]);
-    const semanticLayoutOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaSemanticLayoutOn')  },
-        { value: false, label: t('options.partitaSemanticLayoutOff')  },
-    ]), [t]);
+    // A slider moved past the other end takes that end along: both ends are sent. Sent alone, the
+    // moved end would be put in order by the tuning's merge (partita/tuning.ts), which swaps the
+    // two: the thumb that is held would stop there and the other slider's would move in its place.
     const handlePartitaMinChange = (next: number) => {
         const clampedNext = clampPartitaStagger(next);
         onPartitaTuningChange?.({
@@ -168,79 +136,50 @@ export const PartitaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
             staggerMax: clampedNext,
         });
     };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
+    const pixels = (value: number) => `${value}px`;
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.partitaSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.partitaSettingsDesc')}
-                </div>
-            </div>
-
-            <PresetGroup
-                label={t('options.partitaGuideLines') }
-                value={resolvedPartitaTuning.showGuideLines}
-                options={guideLineOptions}
-                onChange={(enabled) => onPartitaTuningChange?.({ showGuideLines: enabled })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <PresetGroup
-                label={t('options.partitaSemanticLayout') }
-                value={resolvedPartitaTuning.useSemanticLayout}
-                options={semanticLayoutOptions}
-                onChange={(enabled) => onPartitaTuningChange?.({ useSemanticLayout: enabled })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.partitaStaggerMin') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedPartitaTuning.staggerMin}px
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="180"
-                    step="5"
-                    value={resolvedPartitaTuning.staggerMin}
-                    onChange={(event) => handlePartitaMinChange(parseFloat(event.target.value))}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+        <Group def={PARTITA_GROUP}>
+            <Row label={t('options.partitaGuideLines')}>
+                <Toggle
+                    checked={resolvedPartitaTuning.showGuideLines}
+                    onChange={(enabled) => onPartitaTuningChange?.({ showGuideLines: enabled })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.partitaStaggerMax') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedPartitaTuning.staggerMax}px
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="180"
-                    step="5"
-                    value={resolvedPartitaTuning.staggerMax}
-                    onChange={(event) => handlePartitaMaxChange(parseFloat(event.target.value))}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+            </Row>
+            <Row label={t('options.partitaSemanticLayout')}>
+                <Toggle
+                    checked={resolvedPartitaTuning.useSemanticLayout}
+                    onChange={(enabled) => onPartitaTuningChange?.({ useSemanticLayout: enabled })}
                 />
-            </div>
-        </div>
+            </Row>
+            <Row label={t('options.avoidOverlap')} hint={t('options.avoidOverlapHint')}>
+                <Toggle
+                    checked={Boolean(resolvedPartitaTuning.avoidOverlap)}
+                    onChange={(enabled) => onPartitaTuningChange?.({ avoidOverlap: enabled })}
+                />
+            </Row>
+            <SliderRow
+                {...drag}
+                label={t('options.partitaStaggerMin')}
+                value={resolvedPartitaTuning.staggerMin}
+                min={0}
+                max={180}
+                step={5}
+                format={pixels}
+                onChange={handlePartitaMinChange}
+            />
+            <SliderRow
+                {...drag}
+                label={t('options.partitaStaggerMax')}
+                value={resolvedPartitaTuning.staggerMax}
+                min={0}
+                max={180}
+                step={5}
+                format={pixels}
+                onChange={handlePartitaMaxChange}
+            />
+        </Group>
     );
 };
 const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined): FumeTuning['cameraTrackingMode'] => (
@@ -249,18 +188,15 @@ const resolveFumeCameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] |
         : DEFAULT_FUME_TUNING.cameraTrackingMode
 );
 
-export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps<FumeTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    fumeTuning = DEFAULT_FUME_TUNING,
-    onFumeTuningChange,
+    tuning: fumeTuning = DEFAULT_FUME_TUNING,
+    onTuningChange: onFumeTuningChange,
 }) => {
     const resolvedFumeTuning: FumeTuning = {
+        render: fumeTuning.render ?? DEFAULT_LYRIC_RENDER_OVERRIDE,
         hidePrintSymbols: fumeTuning.hidePrintSymbols,
         disableGeometricBackground: fumeTuning.disableGeometricBackground,
         backgroundObjectOpacity: Math.min(1, Math.max(0, fumeTuning.backgroundObjectOpacity ?? DEFAULT_FUME_TUNING.backgroundObjectOpacity)),
@@ -270,159 +206,96 @@ export const FumeSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         glowIntensity: Math.min(1.8, Math.max(0, fumeTuning.glowIntensity)),
         heroScale: Math.min(1.32, Math.max(0.82, fumeTuning.heroScale)),
     };
-    const visibilityOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: false, label: t('options.partitaGuideLinesOn')  },
-        { value: true, label: t('options.partitaGuideLinesOff')  },
-    ]), [t]);
-    const fumeCameraTrackingOptions: PresetOption<FumeTuning['cameraTrackingMode']>[] = useMemo(() => ([
-        { value: 'stepped', label: t('options.fumeCameraTrackingStepped')  },
-        { value: 'smooth', label: t('options.fumeCameraTrackingSmooth')  },
-    ]), [t]);
     const handleFumeTuningChange = (patch: Partial<FumeTuning>) => {
         onFumeTuningChange?.(patch);
     };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.fumeSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.fumeSettingsDesc')}
-                </div>
-            </div>
-
-            <PresetGroup
-                label={t('options.fumeHidePrintSymbols') }
-                value={resolvedFumeTuning.hidePrintSymbols}
-                options={visibilityOptions}
-                onChange={(next) => handleFumeTuningChange({ hidePrintSymbols: next })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <PresetGroup
-                label={t('options.fumeGeometricBackground') }
-                value={resolvedFumeTuning.disableGeometricBackground}
-                options={visibilityOptions}
-                onChange={(next) => handleFumeTuningChange({ disableGeometricBackground: next })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeBackgroundObjectOpacity') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedFumeTuning.backgroundObjectOpacity * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
+        <>
+            <Group def={FUME_GROUP}>
+                <Row label={t('options.fumeHidePrintSymbols')}>
+                    <Toggle
+                        checked={resolvedFumeTuning.hidePrintSymbols}
+                        onChange={(next) => handleFumeTuningChange({ hidePrintSymbols: next })}
+                    />
+                </Row>
+                {/* The switch shows the shapes; the stored value says whether they are off. */}
+                <Row label={t('options.fumeGeometricBackground')}>
+                    <Toggle
+                        checked={!resolvedFumeTuning.disableGeometricBackground}
+                        onChange={(shown) => handleFumeTuningChange({ disableGeometricBackground: !shown })}
+                    />
+                </Row>
+                <SliderRow
+                    {...drag}
+                    label={t('options.fumeBackgroundObjectOpacity')}
                     value={resolvedFumeTuning.backgroundObjectOpacity}
-                    onChange={(event) => handleFumeTuningChange({ backgroundObjectOpacity: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={percent}
+                    onChange={(value) => handleFumeTuningChange({ backgroundObjectOpacity: value })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeTextHoldRatio') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedFumeTuning.textHoldRatio * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
+                <SliderRow
+                    {...drag}
+                    label={t('options.fumeTextHoldRatio')}
                     value={resolvedFumeTuning.textHoldRatio}
-                    onChange={(event) => handleFumeTuningChange({ textHoldRatio: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    format={percent}
+                    onChange={(value) => handleFumeTuningChange({ textHoldRatio: value })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeCameraSpeed') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedFumeTuning.cameraSpeed.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.55"
-                    max="1.85"
-                    step="0.05"
+                <SliderRow
+                    {...drag}
+                    label={t('options.fumeCameraSpeed')}
                     value={resolvedFumeTuning.cameraSpeed}
-                    onChange={(event) => handleFumeTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0.55}
+                    max={1.85}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => handleFumeTuningChange({ cameraSpeed: value })}
                 />
-            </div>
-
-            <PresetGroup
-                label={t('options.fumeCameraTrackingMode') }
-                value={resolvedFumeTuning.cameraTrackingMode}
-                options={fumeCameraTrackingOptions}
-                onChange={(next) => handleFumeTuningChange({ cameraTrackingMode: next })}
-                isDaylight={isDaylight}
-                theme={theme}
-            />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeGlowIntensity') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedFumeTuning.glowIntensity.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1.8"
-                    step="0.05"
+                <Row label={t('options.fumeCameraTrackingMode')}>
+                    <Segmented
+                        value={resolvedFumeTuning.cameraTrackingMode}
+                        options={[
+                            { value: 'stepped', label: t('options.fumeCameraTrackingStepped') },
+                            { value: 'smooth', label: t('options.fumeCameraTrackingSmooth') },
+                        ]}
+                        onChange={(next) => handleFumeTuningChange({ cameraTrackingMode: next })}
+                    />
+                </Row>
+                <SliderRow
+                    {...drag}
+                    label={t('options.fumeGlowIntensity')}
                     value={resolvedFumeTuning.glowIntensity}
-                    onChange={(event) => handleFumeTuningChange({ glowIntensity: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0}
+                    max={1.8}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => handleFumeTuningChange({ glowIntensity: value })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.fumeHeroScale') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedFumeTuning.heroScale.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.82"
-                    max="1.32"
-                    step="0.02"
+                <SliderRow
+                    {...drag}
+                    label={t('options.fumeHeroScale')}
                     value={resolvedFumeTuning.heroScale}
-                    onChange={(event) => handleFumeTuningChange({ heroScale: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0.82}
+                    max={1.32}
+                    step={0.02}
+                    format={times}
+                    onChange={(value) => handleFumeTuningChange({ heroScale: value })}
                 />
-            </div>
-        </div>
+            </Group>
+            <Group def={FUME_RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={resolvedFumeTuning.render}
+                    onChange={(patch) => handleFumeTuningChange({ render: { ...resolvedFumeTuning.render, ...patch } })}
+                    antialias={false}
+                />
+            </Group>
+        </>
     );
 };
 const resolveCappellaTuning = (
@@ -438,41 +311,63 @@ const resolveCappellaTuning = (
         : DEFAULT_CAPPELLA_TUNING.avatarSource,
 });
 
-export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+/** The uploaded pictures of a pack, five to a line; an empty pack shows five numbered places. */
+const CappellaImageSlots: React.FC<{
+    images: ReadonlyArray<{ id: string; name: string; url: string }>;
+    emptyName: string;
+    round?: boolean;
+}> = ({ images, emptyName, round }) => {
+    const slots = images.length > 0 ? images : Array.from({ length: 5 }, () => null);
+
+    return (
+        <div className="grid grid-cols-5 gap-2">
+            {slots.map((image, index) => (
+                <Tooltip
+                    key={image?.id ?? `empty-${index}`}
+                    text={image?.name ?? emptyName}
+                    className={`grid aspect-square place-items-center overflow-hidden bg-[var(--st-fill)] text-[11px] text-[color:var(--st-t3)] ${round ? 'rounded-full' : 'rounded-lg'}`}
+                >
+                    {image ? (
+                        <img src={image.url} alt={image.name} className={`h-full w-full ${round ? 'object-cover' : 'object-contain'}`} />
+                    ) : index + 1}
+                </Tooltip>
+            ))}
+        </div>
+    );
+};
+
+export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps<CappellaTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    cappellaTuning,
-    cappellaCustomEmojiImages = [],
-    onCappellaTuningChange,
-    cappellaCustomEmojiCount = 0,
-    hasCappellaCustomEmojiPack = false,
-    isCappellaCustomEmojiPackLoading = false,
-    onImportCappellaCustomEmojiPack,
-    onClearCappellaCustomEmojiPack,
-    cappellaCustomAvatarImages = [],
-    onImportCappellaCustomAvatar,
-    onClearCappellaCustomAvatar,
-    hasCappellaCustomAvatar = false,
-    isCappellaCustomAvatarLoading = false,
+    tuning: cappellaTuning,
+    onTuningChange: onCappellaTuningChange,
+    settings: {
+        handleImportCustomCappellaEmojiPack: onImportCappellaCustomEmojiPack,
+        handleClearCustomCappellaEmojiPack: onClearCappellaCustomEmojiPack,
+        handleImportCustomCappellaAvatar: onImportCappellaCustomAvatar,
+        handleClearCustomCappellaAvatar: onClearCappellaCustomAvatar,
+    },
 }) => {
+    // The listener's own pictures and whether they are still being read back: the style's own, so the panel takes them itself.
+    const {
+        cappellaCustomEmojiImages,
+        isLoadingCappellaCustomEmojiPack: isCappellaCustomEmojiPackLoading,
+        cappellaCustomAvatarImages,
+        isLoadingCappellaCustomAvatarPack: isCappellaCustomAvatarLoading,
+    } = useVisualizerAssetStore(useShallow(state => ({
+        cappellaCustomEmojiImages: state.cappellaCustomEmojiImages,
+        isLoadingCappellaCustomEmojiPack: state.isLoadingCappellaCustomEmojiPack,
+        cappellaCustomAvatarImages: state.cappellaCustomAvatarImages,
+        isLoadingCappellaCustomAvatarPack: state.isLoadingCappellaCustomAvatarPack,
+    })));
+    const cappellaCustomEmojiCount = cappellaCustomEmojiImages.length;
+    const hasCappellaCustomEmojiPack = cappellaCustomEmojiCount > 0;
+    const hasCappellaCustomAvatar = cappellaCustomAvatarImages.length > 0;
     const emojiFileInputRef = useRef<HTMLInputElement | null>(null);
     const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
     const [isImportingAvatar, setIsImportingAvatar] = useState(false);
     const resolvedTuning = resolveCappellaTuning(cappellaTuning, hasCappellaCustomEmojiPack);
-    const emojiSourceOptions: PresetOption<CappellaTuning['emojiPackSource']>[] = useMemo(() => ([
-        { value: 'builtin', label: t('options.cappellaEmojiSourceBuiltin')  },
-        { value: 'custom', label: t('options.cappellaEmojiSourceCustom')  },
-    ]), [t]);
-    const avatarSourceOptions: PresetOption<CappellaTuning['avatarSource']>[] = useMemo(() => ([
-        { value: 'cover', label: t('options.cappellaAvatarSourceCover')  },
-        { value: 'builtin', label: t('options.cappellaAvatarSourceBuiltin')  },
-        { value: 'color', label: t('options.cappellaAvatarSourceColor')  },
-        { value: 'custom', label: t('options.cappellaAvatarSourceCustom')  },
-    ]), [t]);
 
     const handleImportClick = () => {
         setFeedback(null);
@@ -546,136 +441,40 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         setFeedback(t('options.cappellaAvatarCleared'));
     };
 
-    const avatarPreviewSlots = cappellaCustomAvatarImages.length > 0
-        ? cappellaCustomAvatarImages
-        : Array.from({ length: 5 }, (_, index) => cappellaCustomAvatarImages[index] ?? null);
-    const previewSlots = cappellaCustomEmojiImages.length > 0
-        ? cappellaCustomEmojiImages
-        : Array.from({ length: 5 }, (_, index) => cappellaCustomEmojiImages[index] ?? null);
-
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.cappellaSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaSettingsDesc')}
-                </div>
-            </div>
-
-            <PresetGroup
-                label={t('options.cappellaShowEmoMessages') }
-                value={resolvedTuning.showEmoMessages}
-                options={[
-                    { value: true, label: t('options.partitaGuideLinesOn')  },
-                    { value: false, label: t('options.partitaGuideLinesOff')  },
-                ]}
-                onChange={(next) => onCappellaTuningChange?.({ showEmoMessages: next })}
-                isDaylight={isDaylight}
-                theme={theme}
+        <Group def={CAPPELLA_GROUP}>
+            <Row
+                label={t('options.cappellaAvatarSource')}
+                below={(
+                    <Segmented
+                        fill
+                        value={resolvedTuning.avatarSource}
+                        options={[
+                            { value: 'cover', label: t('options.cappellaAvatarSourceCover') },
+                            { value: 'builtin', label: t('options.cappellaAvatarSourceBuiltin') },
+                            { value: 'color', label: t('options.cappellaAvatarSourceColor') },
+                            { value: 'custom', label: t('options.cappellaAvatarSourceCustom'), disabled: !hasCappellaCustomAvatar },
+                        ]}
+                        onChange={(next) => onCappellaTuningChange?.({ avatarSource: next })}
+                    />
+                )}
             />
-
-            <div className="space-y-2.5">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-                    {t('options.cappellaAvatarSource') }
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {avatarSourceOptions.map(option => {
-                        const isActive = option.value === resolvedTuning.avatarSource;
-                        const isDisabled = option.value === 'custom' && !hasCappellaCustomAvatar;
-
-                        return (
-                            <button
-                                key={option.value}
-                                type="button"
-                                disabled={isDisabled}
-                                onClick={() => onCappellaTuningChange?.({ avatarSource: option.value })}
-                                className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-45"
-                                style={{
-                                    color: theme.primaryColor,
-                                    borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                    backgroundColor: isActive
-                                        ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
-                                        : colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                                    boxShadow: isActive ? `inset 0 0 0 1px ${theme.accentColor}` : 'none',
-                                }}
-                            >
-                                {option.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <div className="space-y-2.5">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaAvatarPreview') }
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                    {avatarPreviewSlots.map((image, index) => (
-                        <div
-                            key={image?.id ?? `empty-${index}`}
-                            className="aspect-square rounded-full border overflow-hidden flex items-center justify-center text-[11px] text-center"
-                            style={{
-                                borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                                backgroundColor: isDaylight ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.04)',
-                                color: 'var(--text-secondary)',
-                            }}
-                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') )}
-                        >
-                            {image ? (
-                                <img
-                                    src={image.url}
-                                    alt={image.name}
-                                    className="h-full w-full rounded-full object-cover"
-                                />
-                            ) : (
-                                <span className="opacity-45">{index + 1}</span>
-                            )}
-                        </div>
-                    ))}
-                </div>
-                <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                    {hasCappellaCustomAvatar
-                        ? `${t('options.cappellaEmojiCount') } ${cappellaCustomAvatarImages.length}`
-                        : t('options.cappellaAvatarUploadHint')}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={handleAvatarImportClick}
-                        disabled={isImportingAvatar || isCappellaCustomAvatarLoading}
-                        className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-50"
-                        style={{
-                            color: 'var(--text-primary)',
-                            borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                            backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
-                        }}
-                    >
-                        {isImportingAvatar
-                            ? t('options.cappellaAvatarUploading')
-                            : (t('options.cappellaAvatarUpload') )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void handleClearCustomAvatar()}
-                        disabled={!hasCappellaCustomAvatar || isImportingAvatar || isCappellaCustomAvatarLoading}
-                        className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-50"
-                        style={{
-                            color: 'var(--text-primary)',
-                            borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                            backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
-                        }}
-                    >
-                        {t('options.cappellaAvatarClear') }
-                    </button>
-                </div>
-
+            <Row
+                label={t('options.cappellaAvatarPreview')}
+                hint={hasCappellaCustomAvatar
+                    ? `${t('options.cappellaEmojiCount')} ${cappellaCustomAvatarImages.length}`
+                    : t('options.cappellaAvatarUploadHint')}
+                below={<CappellaImageSlots round images={cappellaCustomAvatarImages} emptyName={t('options.cappellaEmojiEmptySlot')} />}
+            >
+                <Button onClick={handleAvatarImportClick} disabled={isImportingAvatar || isCappellaCustomAvatarLoading}>
+                    {isImportingAvatar ? t('options.cappellaAvatarUploading') : t('options.cappellaAvatarUpload')}
+                </Button>
+                <Button
+                    onClick={() => void handleClearCustomAvatar()}
+                    disabled={!hasCappellaCustomAvatar || isImportingAvatar || isCappellaCustomAvatarLoading}
+                >
+                    {t('options.cappellaAvatarClear')}
+                </Button>
                 <input
                     ref={avatarFileInputRef}
                     type="file"
@@ -684,134 +483,71 @@ export const CappellaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     className="hidden"
                     onChange={(event) => void handleAvatarFileChange(event)}
                 />
-            </div>
-
-            <div className="space-y-2.5">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaEmojiSource') }
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {emojiSourceOptions.map(option => {
-                        const isActive = option.value === resolvedTuning.emojiPackSource;
-                        const isDisabled = option.value === 'custom' && !hasCappellaCustomEmojiPack;
-
-                        return (
-                            <button
-                                key={option.value}
-                                type="button"
-                                disabled={isDisabled}
-                                onClick={() => onCappellaTuningChange?.({ emojiPackSource: option.value })}
-                                className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-45"
-                                style={{
-                                    color: 'var(--text-primary)',
-                                    borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                    backgroundColor: isActive
-                                        ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
-                                        : colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                                    boxShadow: isActive ? `inset 0 0 0 1px ${theme.accentColor}` : 'none',
-                                }}
-                            >
-                                {option.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <div className="space-y-2.5">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.cappellaEmojiPreview') }
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                    {previewSlots.map((image, index) => (
-                        <div
-                            key={image?.id ?? `empty-${index}`}
-                            className="aspect-square rounded-2xl border overflow-hidden flex items-center justify-center text-[11px] text-center px-1"
-                            style={{
-                                borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                                backgroundColor: isDaylight ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.04)',
-                                color: 'var(--text-secondary)',
-                            }}
-                            title={image?.name ?? (t('options.cappellaEmojiEmptySlot') )}
-                        >
-                            {image ? (
-                                <img
-                                    src={image.url}
-                                    alt={image.name}
-                                    className="h-full w-full object-contain"
-                                />
-                            ) : (
-                                <span className="opacity-45">{index + 1}</span>
-                            )}
-                        </div>
-                    ))}
-                </div>
-                <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                    {hasCappellaCustomEmojiPack
-                        ? `${t('options.cappellaEmojiCount') } ${cappellaCustomEmojiCount}`
+            </Row>
+            <Row label={t('options.cappellaShowEmoMessages')}>
+                <Toggle
+                    checked={resolvedTuning.showEmoMessages}
+                    onChange={(next) => onCappellaTuningChange?.({ showEmoMessages: next })}
+                />
+            </Row>
+            <Reveal when={resolvedTuning.showEmoMessages}>
+                <Row sub label={t('options.cappellaEmojiSource')}>
+                    <Segmented
+                        value={resolvedTuning.emojiPackSource}
+                        options={[
+                            { value: 'builtin', label: t('options.cappellaEmojiSourceBuiltin') },
+                            { value: 'custom', label: t('options.cappellaEmojiSourceCustom'), disabled: !hasCappellaCustomEmojiPack },
+                        ]}
+                        onChange={(next) => onCappellaTuningChange?.({ emojiPackSource: next })}
+                    />
+                </Row>
+                <Row
+                    sub
+                    label={t('options.cappellaEmojiPreview')}
+                    hint={hasCappellaCustomEmojiPack
+                        ? `${t('options.cappellaEmojiCount')} ${cappellaCustomEmojiCount}`
                         : t('options.cappellaEmojiUploadHint')}
-                </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-                <button
-                    type="button"
-                    onClick={handleImportClick}
-                    disabled={isImporting || isCappellaCustomEmojiPackLoading}
-                    className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                        color: 'var(--text-primary)',
-                        borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                        backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
-                    }}
+                    below={<CappellaImageSlots images={cappellaCustomEmojiImages} emptyName={t('options.cappellaEmojiEmptySlot')} />}
                 >
-                    {isImporting
-                        ? t('options.cappellaEmojiUploading')
-                        : (t('options.cappellaEmojiUpload') )}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => void handleClearCustomPack()}
-                    disabled={!hasCappellaCustomEmojiPack || isImporting || isCappellaCustomEmojiPackLoading}
-                    className="px-3 py-2 rounded-full text-sm transition-all border disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                        color: 'var(--text-primary)',
-                        borderColor: isDaylight ? 'rgba(24,24,27,0.08)' : 'rgba(255,255,255,0.08)',
-                        backgroundColor: isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)',
-                    }}
-                >
-                    {t('options.cappellaEmojiClear') }
-                </button>
-            </div>
-
-            <input
-                ref={emojiFileInputRef}
-                type="file"
-                accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
-                multiple
-                className="hidden"
-                onChange={(event) => void handleFileChange(event)}
-            />
-
-            {feedback && (
-                <div className="text-xs leading-5 opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                    {feedback}
-                </div>
-            )}
-        </div>
+                    <Button onClick={handleImportClick} disabled={isImporting || isCappellaCustomEmojiPackLoading}>
+                        {isImporting ? t('options.cappellaEmojiUploading') : t('options.cappellaEmojiUpload')}
+                    </Button>
+                    <Button
+                        onClick={() => void handleClearCustomPack()}
+                        disabled={!hasCappellaCustomEmojiPack || isImporting || isCappellaCustomEmojiPackLoading}
+                    >
+                        {t('options.cappellaEmojiClear')}
+                    </Button>
+                    <input
+                        ref={emojiFileInputRef}
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(event) => void handleFileChange(event)}
+                    />
+                </Row>
+            </Reveal>
+            {feedback && <Row label={<Status>{feedback}</Status>} />}
+        </Group>
     );
 };
 
-export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+const TILT_COLOR_SCHEMES: TiltColorScheme[] = ['default', 'swap', 'accentAll', 'primaryAll'];
+const TILT_COLOR_SCHEME_LABEL_KEYS: Record<TiltColorScheme, string> = {
+    default: 'options.tiltColorSchemeDefault',
+    swap: 'options.tiltColorSchemeSwap',
+    accentAll: 'options.tiltColorSchemeAccentAll',
+    primaryAll: 'options.tiltColorSchemePrimaryAll',
+};
+
+export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps<TiltTuning>> = ({
     t,
-    isDaylight,
     theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    tiltTuning = DEFAULT_TILT_TUNING,
-    onTiltTuningChange,
+    tuning: tiltTuning = DEFAULT_TILT_TUNING,
+    onTuningChange: onTiltTuningChange,
 }) => {
     const resolvedTuning: Required<TiltTuning> = {
         splitProbability: Math.min(1, Math.max(0, tiltTuning.splitProbability ?? DEFAULT_TILT_TUNING.splitProbability)),
@@ -819,80 +555,62 @@ export const TiltSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         colorScheme: tiltTuning?.colorScheme ?? DEFAULT_TILT_TUNING.colorScheme ?? 'default',
     };
 
-    const colorSchemeOptions: PresetOption<TiltColorScheme>[] = useMemo(() => ([
-        { label: t('options.tiltColorSchemeDefault') , value: 'default' },
-        { label: t('options.tiltColorSchemeSwap') , value: 'swap' },
-        { label: t('options.tiltColorSchemeAccentAll') , value: 'accentAll' },
-        { label: t('options.tiltColorSchemePrimaryAll') , value: 'primaryAll' },
-    ]), [t]);
-
     const handleTiltTuningChange = (patch: Partial<TiltTuning>) => {
         onTiltTuningChange?.(patch);
     };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
+
+    // A scheme as the renderer colours it: an upright word and a slanted one, on the theme's background.
+    const { primaryColor, accentColor, backgroundColor } = theme;
+    const schemePicture = useCallback((scheme: TiltColorScheme) => {
+        const accent = accentColor || primaryColor;
+        const upright = scheme === 'swap' || scheme === 'accentAll' ? accent : primaryColor;
+        const slanted = scheme === 'default' || scheme === 'accentAll' ? accent : primaryColor;
+        return (
+            <span className="absolute inset-0 flex items-center justify-center gap-1.5" style={{ backgroundColor }}>
+                <span className="h-2 w-[26%] rounded-sm" style={{ backgroundColor: upright }} />
+                <span className="h-2 w-[26%] -skew-x-[24deg] rounded-sm" style={{ backgroundColor: slanted }} />
+            </span>
+        );
+    }, [primaryColor, accentColor, backgroundColor]);
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.tiltSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.tiltSettingsDesc')}
-                </div>
-            </div>
-
-            <PresetGroup<TiltColorScheme>
-                label={t('options.tiltColorScheme') }
-                value={resolvedTuning.colorScheme}
-                options={colorSchemeOptions}
-                onChange={(next) => handleTiltTuningChange({ colorScheme: next })}
-                isDaylight={isDaylight}
-                theme={theme}
+        <Group def={TILT_GROUP}>
+            <Row
+                label={t('options.tiltColorScheme')}
+                below={(
+                    <PictureGrid
+                        className="-mx-4"
+                        columns={4}
+                        label={t('options.tiltColorScheme')}
+                        value={resolvedTuning.colorScheme}
+                        options={TILT_COLOR_SCHEMES.map(value => ({ value, label: t(TILT_COLOR_SCHEME_LABEL_KEYS[value]) }))}
+                        picture={schemePicture}
+                        onChange={(next) => handleTiltTuningChange({ colorScheme: next })}
+                    />
+                )}
             />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.tiltSplitProbability') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.splitProbability * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={resolvedTuning.splitProbability}
-                    onChange={(event) => handleTiltTuningChange({ splitProbability: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.tiltStyleProbability') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.tiltStyleProbability * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={resolvedTuning.tiltStyleProbability}
-                    onChange={(event) => handleTiltTuningChange({ tiltStyleProbability: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-        </div>
+            <SliderRow
+                {...drag}
+                label={t('options.tiltSplitProbability')}
+                value={resolvedTuning.splitProbability}
+                min={0}
+                max={1}
+                step={0.05}
+                format={percent}
+                onChange={(value) => handleTiltTuningChange({ splitProbability: value })}
+            />
+            <SliderRow
+                {...drag}
+                label={t('options.tiltStyleProbability')}
+                value={resolvedTuning.tiltStyleProbability}
+                min={0}
+                max={1}
+                step={0.05}
+                format={percent}
+                onChange={(value) => handleTiltTuningChange({ tiltStyleProbability: value })}
+            />
+        </Group>
     );
 };
 
@@ -900,18 +618,15 @@ const clampDioramaCameraSpeed = (value: number) => Math.min(1.85, Math.max(0.55,
 const clampDioramaMotionAmount = (value: number) => Math.min(1.6, Math.max(0.4, value));
 const clampDioramaAudioReactivity = (value: number) => Math.min(1.5, Math.max(0, value));
 
-export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps<DioramaTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    dioramaTuning = DEFAULT_DIORAMA_TUNING,
-    onDioramaTuningChange,
+    tuning: dioramaTuning = DEFAULT_DIORAMA_TUNING,
+    onTuningChange: onDioramaTuningChange,
 }) => {
     const resolvedTuning: DioramaTuning = {
+        render: dioramaTuning.render ?? DEFAULT_LYRIC_RENDER_OVERRIDE,
         cameraSpeed: clampDioramaCameraSpeed(dioramaTuning.cameraSpeed ?? DEFAULT_DIORAMA_TUNING.cameraSpeed),
         motionAmount: clampDioramaMotionAmount(dioramaTuning.motionAmount ?? DEFAULT_DIORAMA_TUNING.motionAmount),
         audioReactivity: clampDioramaAudioReactivity(dioramaTuning.audioReactivity ?? DEFAULT_DIORAMA_TUNING.audioReactivity),
@@ -955,200 +670,140 @@ export const DioramaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     const handleDioramaTuningChange = (patch: Partial<DioramaTuning>) => {
         onDioramaTuningChange?.(patch);
     };
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div>
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.dioramaSettings')}
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.dioramaCameraSpeed')}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.cameraSpeed.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.55"
-                    max="1.85"
-                    step="0.05"
+        <>
+            <Group def={DIORAMA_GROUP}>
+                <SliderRow
+                    {...drag}
+                    label={t('options.dioramaCameraSpeed')}
                     value={resolvedTuning.cameraSpeed}
-                    onChange={(event) => handleDioramaTuningChange({ cameraSpeed: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0.55}
+                    max={1.85}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => handleDioramaTuningChange({ cameraSpeed: value })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.dioramaMotionAmount')}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.motionAmount.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.4"
-                    max="1.6"
-                    step="0.05"
+                <SliderRow
+                    {...drag}
+                    label={t('options.dioramaMotionAmount')}
                     value={resolvedTuning.motionAmount}
-                    onChange={(event) => handleDioramaTuningChange({ motionAmount: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0.4}
+                    max={1.6}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => handleDioramaTuningChange({ motionAmount: value })}
                 />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.dioramaAudioReactivity')}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {Math.round(resolvedTuning.audioReactivity * 100)}%
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="1.5"
-                    step="0.05"
+                <SliderRow
+                    {...drag}
+                    label={t('options.dioramaAudioReactivity')}
                     value={resolvedTuning.audioReactivity}
-                    onChange={(event) => handleDioramaTuningChange({ audioReactivity: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    format={percent}
+                    onChange={(value) => handleDioramaTuningChange({ audioReactivity: value })}
                 />
-            </div>
 
-            {/* Three independent, stackable follow-sing effects - each an on/off toggle plus strength
-                tiers (slider only under 自定义). Their rendering paths are fully separate in
-                DioramaScene, so enabling one never stands in for another. */}
-            <DioramaEffectSettings
-                label={t('options.dioramaGlowEffect')}
-                enabled={resolvedTuning.glowEnabled}
-                intensity={resolvedTuning.glowIntensity}
-                onEnabledChange={(next) => handleDioramaTuningChange({ glowEnabled: next })}
-                onIntensityChange={(next) => handleDioramaTuningChange({ glowIntensity: next })}
-                t={t}
-                isDaylight={isDaylight}
-                theme={theme}
-                rangeInputClass={rangeInputClass}
-                onSliderPointerDown={onSliderPointerDown}
-                onSliderCommit={onSliderCommit}
-            />
-            {/* 灵魂出窍跟唱, with 当前字漂移 as its nested child (same underlying effect, scoped to the word
-                being sung) rendered inside its expanded panel - not a standalone effect in the list. */}
-            <DioramaEffectSettings
-                label={t('options.dioramaSoulEffect')}
-                enabled={resolvedTuning.soulEnabled}
-                intensity={resolvedTuning.soulIntensity}
-                onEnabledChange={(next) => handleDioramaTuningChange({ soulEnabled: next })}
-                onIntensityChange={(next) => handleDioramaTuningChange({ soulIntensity: next })}
-                subEffect={{
-                    label: t('options.dioramaSoulActiveEffect'),
-                    enabled: resolvedTuning.soulActiveEnabled,
-                    onEnabledChange: (next) => handleDioramaTuningChange({ soulActiveEnabled: next }),
-                }}
-                t={t}
-                isDaylight={isDaylight}
-                theme={theme}
-                rangeInputClass={rangeInputClass}
-                onSliderPointerDown={onSliderPointerDown}
-                onSliderCommit={onSliderCommit}
-            />
-            <DioramaEffectSettings
-                label={t('options.dioramaGradientEffect')}
-                enabled={resolvedTuning.gradientEnabled}
-                intensity={resolvedTuning.gradientIntensity}
-                onEnabledChange={(next) => handleDioramaTuningChange({ gradientEnabled: next })}
-                onIntensityChange={(next) => handleDioramaTuningChange({ gradientIntensity: next })}
-                t={t}
-                isDaylight={isDaylight}
-                theme={theme}
-                rangeInputClass={rangeInputClass}
-                onSliderPointerDown={onSliderPointerDown}
-                onSliderCommit={onSliderCommit}
-            />
-
-            {/* 关键字着色: a plain on/off - the colours themselves are the theme's 关键词 list, not a
-                strength. Independent of the follow-sing effects above: it sets the colour a unit RESTS
-                at, and they dye away from it and settle back onto it. */}
-            <div
-                className="flex items-center justify-between gap-3 rounded-2xl border px-3.5 py-3"
-                style={{
-                    borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.17 : 0.14),
-                    backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                }}
-            >
-                <span className="min-w-0 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.dioramaKeywordColoring')}
-                </span>
-                <DioramaSettingsToggle
-                    checked={resolvedTuning.keywordColoringEnabled}
-                    label={t('options.dioramaKeywordColoring')}
-                    onChange={(next) => handleDioramaTuningChange({ keywordColoringEnabled: next })}
-                    theme={theme}
-                    isDaylight={isDaylight}
+                {/* Three independent, stackable follow-sing effects - each a switch with its strength
+                    folded under it. Their rendering paths are fully separate in DioramaScene, so enabling one
+                    never stands in for another. */}
+                <DioramaEffectSettings
+                    label={t('options.dioramaGlowEffect')}
+                    enabled={resolvedTuning.glowEnabled}
+                    intensity={resolvedTuning.glowIntensity}
+                    onEnabledChange={(next) => handleDioramaTuningChange({ glowEnabled: next })}
+                    onIntensityChange={(next) => handleDioramaTuningChange({ glowIntensity: next })}
+                    t={t}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
                 />
-            </div>
+                {/* 灵魂出窍跟唱, with 当前字漂移 as its nested child (same underlying effect, scoped to the word
+                    being sung) shown under it - not a standalone effect in the list. */}
+                <DioramaEffectSettings
+                    label={t('options.dioramaSoulEffect')}
+                    enabled={resolvedTuning.soulEnabled}
+                    intensity={resolvedTuning.soulIntensity}
+                    onEnabledChange={(next) => handleDioramaTuningChange({ soulEnabled: next })}
+                    onIntensityChange={(next) => handleDioramaTuningChange({ soulIntensity: next })}
+                    subEffect={{
+                        label: t('options.dioramaSoulActiveEffect'),
+                        enabled: resolvedTuning.soulActiveEnabled,
+                        onEnabledChange: (next) => handleDioramaTuningChange({ soulActiveEnabled: next }),
+                    }}
+                    t={t}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+                <DioramaEffectSettings
+                    label={t('options.dioramaGradientEffect')}
+                    enabled={resolvedTuning.gradientEnabled}
+                    intensity={resolvedTuning.gradientIntensity}
+                    onEnabledChange={(next) => handleDioramaTuningChange({ gradientEnabled: next })}
+                    onIntensityChange={(next) => handleDioramaTuningChange({ gradientIntensity: next })}
+                    t={t}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
 
-            <DioramaGeometrySettings
-                t={t}
-                theme={theme}
-                isDaylight={isDaylight}
-                value={resolvedTuning.geometryVisibility}
-                onChange={(geometryVisibility) => handleDioramaTuningChange({ geometryVisibility })}
-                density={resolvedTuning.particleDensity}
-                onDensityChange={(particleDensity) => handleDioramaTuningChange({ particleDensity })}
-                particleScale={resolvedTuning.particleScale}
-                onParticleScaleChange={(particleScale) => handleDioramaTuningChange({ particleScale })}
-                glowEnabled={resolvedTuning.particleGlowEnabled}
-                onGlowEnabledChange={(particleGlowEnabled) => handleDioramaTuningChange({ particleGlowEnabled })}
-                glowIntensity={resolvedTuning.particleGlowIntensity}
-                onGlowIntensityChange={(particleGlowIntensity) => handleDioramaTuningChange({ particleGlowIntensity })}
-                rangeInputClass={rangeInputClass}
-                onSliderPointerDown={onSliderPointerDown}
-                onSliderCommit={onSliderCommit}
-            />
+                {/* 关键字着色: a plain on/off - the colours themselves are the theme's 关键词 list, not a
+                    strength. Independent of the follow-sing effects above: it sets the colour a unit RESTS
+                    at, and they dye away from it and settle back onto it. */}
+                <Row label={t('options.dioramaKeywordColoring')}>
+                    <Toggle
+                        checked={resolvedTuning.keywordColoringEnabled}
+                        onChange={(next) => handleDioramaTuningChange({ keywordColoringEnabled: next })}
+                    />
+                </Row>
 
-            <DioramaBackgroundParticleSettings
-                label={t('options.dioramaShowParticles')}
-                enabled={resolvedTuning.showParticles}
-                circumference={resolvedTuning.backgroundParticleCircumference}
-                radial={resolvedTuning.backgroundParticleRadial}
-                onEnabledChange={(next) => handleDioramaTuningChange({ showParticles: next })}
-                onCircumferenceChange={(backgroundParticleCircumference) => handleDioramaTuningChange({ backgroundParticleCircumference })}
-                onRadialChange={(backgroundParticleRadial) => handleDioramaTuningChange({ backgroundParticleRadial })}
-                t={t}
-                isDaylight={isDaylight}
-                theme={theme}
-                rangeInputClass={rangeInputClass}
-                onSliderPointerDown={onSliderPointerDown}
-                onSliderCommit={onSliderCommit}
-            />
-        </div>
+                <DioramaGeometrySettings
+                    t={t}
+                    value={resolvedTuning.geometryVisibility}
+                    onChange={(geometryVisibility) => handleDioramaTuningChange({ geometryVisibility })}
+                    density={resolvedTuning.particleDensity}
+                    onDensityChange={(particleDensity) => handleDioramaTuningChange({ particleDensity })}
+                    particleScale={resolvedTuning.particleScale}
+                    onParticleScaleChange={(particleScale) => handleDioramaTuningChange({ particleScale })}
+                    glowEnabled={resolvedTuning.particleGlowEnabled}
+                    onGlowEnabledChange={(particleGlowEnabled) => handleDioramaTuningChange({ particleGlowEnabled })}
+                    glowIntensity={resolvedTuning.particleGlowIntensity}
+                    onGlowIntensityChange={(particleGlowIntensity) => handleDioramaTuningChange({ particleGlowIntensity })}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+
+                <DioramaBackgroundParticleSettings
+                    label={t('options.dioramaShowParticles')}
+                    enabled={resolvedTuning.showParticles}
+                    circumference={resolvedTuning.backgroundParticleCircumference}
+                    radial={resolvedTuning.backgroundParticleRadial}
+                    onEnabledChange={(next) => handleDioramaTuningChange({ showParticles: next })}
+                    onCircumferenceChange={(backgroundParticleCircumference) => handleDioramaTuningChange({ backgroundParticleCircumference })}
+                    onRadialChange={(backgroundParticleRadial) => handleDioramaTuningChange({ backgroundParticleRadial })}
+                    t={t}
+                    onSliderPointerDown={onSliderPointerDown}
+                    onSliderCommit={onSliderCommit}
+                />
+            </Group>
+            <Group def={DIORAMA_RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={resolvedTuning.render}
+                    onChange={(patch) => handleDioramaTuningChange({ render: { ...resolvedTuning.render, ...patch } })}
+                />
+            </Group>
+        </>
     );
 };
 
 const clampCladdaghLetterSpacingOffset = (val: number) => Math.min(20, Math.max(-5, val));
 
-export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps<CladdaghTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     onSliderPointerDown,
     onSliderCommit,
-    claddaghTuning = DEFAULT_CLADDAGH_TUNING,
-    onCladdaghTuningChange,
+    tuning: claddaghTuning = DEFAULT_CLADDAGH_TUNING,
+    onTuningChange: onCladdaghTuningChange,
 }) => {
     const resolvedTuning: CladdaghTuning = {
         focusScaleRatio: clampCladdaghFocusScaleRatio(claddaghTuning.focusScaleRatio ?? DEFAULT_CLADDAGH_TUNING.focusScaleRatio),
@@ -1157,114 +812,56 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         showAxisLine: claddaghTuning.showAxisLine ?? DEFAULT_CLADDAGH_TUNING.showAxisLine,
         letterSpacingOffset: clampCladdaghLetterSpacingOffset(claddaghTuning.letterSpacingOffset ?? DEFAULT_CLADDAGH_TUNING.letterSpacingOffset),
     };
-
-    const axisLineOptions: PresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn') },
-        { value: false, label: t('options.partitaGuideLinesOff') },
-    ]), [t]);
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.claddaghSettings') }
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.claddaghSettingsDesc')}
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghFocusScaleRatio') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {(resolvedTuning.focusScaleRatio + 1.0).toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.0"
-                    max="1.5"
-                    step="0.05"
-                    value={resolvedTuning.focusScaleRatio}
-                    onChange={(event) => onCladdaghTuningChange?.({ focusScaleRatio: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghRadiusScale') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.radiusScale.toFixed(2)}x
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0.5"
-                    max="1.5"
-                    step="0.05"
-                    value={resolvedTuning.radiusScale}
-                    onChange={(event) => onCladdaghTuningChange?.({ radiusScale: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghEllipseTiltDeg') }</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.ellipseTiltDeg}°
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="60"
-                    step="1"
-                    value={resolvedTuning.ellipseTiltDeg}
-                    onChange={(event) => onCladdaghTuningChange?.({ ellipseTiltDeg: parseInt(event.target.value, 10) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
-                />
-            </div>
-
-            <PresetGroup
-                label={t('options.claddaghShowAxisLine')}
-                value={resolvedTuning.showAxisLine}
-                options={axisLineOptions}
-                onChange={(next) => onCladdaghTuningChange?.({ showAxisLine: next })}
-                isDaylight={isDaylight}
-                theme={theme}
+        <Group def={CLADDAGH_GROUP}>
+            <SliderRow
+                {...drag}
+                label={t('options.claddaghFocusScaleRatio')}
+                value={resolvedTuning.focusScaleRatio}
+                min={0}
+                max={1.5}
+                step={0.05}
+                format={(value) => times(value + 1.0)}
+                onChange={(value) => onCladdaghTuningChange?.({ focusScaleRatio: value })}
             />
-
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <span>{t('options.claddaghLetterSpacingOffset')}</span>
-                    <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                        {resolvedTuning.letterSpacingOffset > 0 ? '+' : ''}{resolvedTuning.letterSpacingOffset.toFixed(1)}px
-                    </span>
-                </div>
-                <input
-                    type="range"
-                    min="-5"
-                    max="20"
-                    step="0.5"
-                    value={resolvedTuning.letterSpacingOffset}
-                    onChange={(event) => onCladdaghTuningChange?.({ letterSpacingOffset: parseFloat(event.target.value) })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
-                    className={rangeInputClass}
+            <SliderRow
+                {...drag}
+                label={t('options.claddaghRadiusScale')}
+                value={resolvedTuning.radiusScale}
+                min={0.5}
+                max={1.5}
+                step={0.05}
+                format={times}
+                onChange={(value) => onCladdaghTuningChange?.({ radiusScale: value })}
+            />
+            <SliderRow
+                {...drag}
+                label={t('options.claddaghEllipseTiltDeg')}
+                value={resolvedTuning.ellipseTiltDeg}
+                min={0}
+                max={60}
+                step={1}
+                format={(value) => `${value}°`}
+                onChange={(value) => onCladdaghTuningChange?.({ ellipseTiltDeg: value })}
+            />
+            <Row label={t('options.claddaghShowAxisLine')}>
+                <Toggle
+                    checked={resolvedTuning.showAxisLine}
+                    onChange={(next) => onCladdaghTuningChange?.({ showAxisLine: next })}
                 />
-            </div>
-        </div>
+            </Row>
+            <SliderRow
+                {...drag}
+                label={t('options.claddaghLetterSpacingOffset')}
+                value={resolvedTuning.letterSpacingOffset}
+                min={-5}
+                max={20}
+                step={0.5}
+                format={(value) => `${value > 0 ? '+' : ''}${value.toFixed(1)}px`}
+                onChange={(value) => onCladdaghTuningChange?.({ letterSpacingOffset: value })}
+            />
+        </Group>
     );
 };

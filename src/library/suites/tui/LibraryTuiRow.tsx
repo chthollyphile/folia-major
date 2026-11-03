@@ -5,12 +5,12 @@ import { isSongUnavailable } from '../../../services/onlineMusic/songAvailabilit
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { formatTime } from '../../../utils/appPlaybackHelpers';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
-import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/model/trackLinks';
+import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/shared/trackLinks';
 
 // src/library/suites/tui/LibraryTuiRow.tsx
 // TUI 的一行：序号、歌名、歌手、专辑、时长，等宽排列。单击移动焦点，双击播放，[+] 入队；
 // 本地歌在集合支持时多一个 [i]（手动匹配在线信息，打开宿主挂载的对话框）。删除请求还没回来的行标 `~` 并变淡。
-// 歌手名与专辑名在能解析出目录引用时是按钮（P4.4，规则与网格卡片同一份：core/model/trackLinks），点了打开嵌套的
+// 歌手名与专辑名在能解析出目录引用时是按钮（P4.4，规则与网格卡片同一份：core/shared/trackLinks），点了打开嵌套的
 // 歌手页 / 专辑；样式与歌手页歌曲行上的链接一致（data-tui-link）。
 
 export const LIBRARY_TUI_ROW_HEIGHT = 28;
@@ -27,6 +27,7 @@ export type LibraryTuiRowProps = {
     accentColor: string;
     enqueueLabel: string;
     unavailableLabel: string;
+    videoLabel: string;
     matchLabel: string;
     onFocusRow: (row: number) => void;
     onPlayRow: (row: number) => void;
@@ -56,6 +57,7 @@ const LibraryTuiRow = ({
     accentColor,
     enqueueLabel,
     unavailableLabel,
+    videoLabel,
     matchLabel,
     onFocusRow,
     onPlayRow,
@@ -70,6 +72,7 @@ const LibraryTuiRow = ({
 
     const isFocused = index === focusedRow;
     const unavailable = isSongUnavailable(track);
+    const tag = unavailable ? unavailableLabel : track.isVideo ? videoLabel : '';
     const entryKey = rowKeys[index];
     const isPending = pendingKeys.has(entryKey);
     const canMatch = Boolean(onMatchRow && (track as UnifiedSong).localRef?.songId);
@@ -98,7 +101,7 @@ const LibraryTuiRow = ({
             <span className="tabular-nums opacity-50">{String(displayIndex + 1).padStart(4, '0')}</span>
             <span className={cell}>
                 {track.name}
-                {unavailable ? <span className="opacity-70">{`  (${unavailableLabel})`}</span> : null}
+                {tag ? <span className="opacity-70">{`  (${tag})`}</span> : null}
             </span>
             <span className={`${cell} opacity-70`}>
                 {hasArtistLink ? artistLinks.map((link, linkIndex) => (

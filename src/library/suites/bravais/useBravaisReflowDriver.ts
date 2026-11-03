@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, type MutableRefObject, type RefObject } from 'react';
-import { getBlockSlots, parseWallSlotKey } from '../../../components/wall/wallSlots';
 import { buildPlatePath, type PlateBlock, type PlateBlockSet, type PlateRect } from './bravaisBlockPlate';
-import { BRAVAIS_METRICS } from './bravaisConstants';
+import { BRAVAIS_BLOCK_SHAPE, shapeSlotFromKey, type BravaisWallShape } from './bravaisWallShape';
 import { BRAVAIS_REFLOW_MS, bravaisReflowEase } from './bravaisReflowMotion';
 
 // src/library/suites/bravais/useBravaisReflowDriver.ts
@@ -15,20 +14,24 @@ import { BRAVAIS_REFLOW_MS, bravaisReflowEase } from './bravaisReflowMotion';
 //   样式是同一个字符串），摘掉标记。
 // - 动着的磁贴挂 data-bravais-reflowing，正在逐帧重画的底板挂 data-bravais-plate-live（用例据此等落定）。
 // - 降低动态效果时不动：直接是 React 渲染的落定矩形。
+// - 轨迹记着排它时墙的形状。墙换了形状（探索页签与别的页签互换、探索页换形状）时，旧形状上还没放完的轨迹作废，
+//   磁贴写回 React 此刻渲染的矩形：同一个 slot 键在新形状上是另一块矩形，磁贴也已按新形状重新挂载，接着写会把旧形状
+//   的矩形写进新磁贴，React 之后不会改回来。收起的归位（约 650ms）与换形状的整墙出场（约 660ms）几乎一样长，晚一帧
+//   就写坏（2026-10-18 用户实测：探索页展开一首歌再换页签，那一块的磁贴叠在一起）。
 
 export const BRAVAIS_REFLOWING_ATTRIBUTE = 'data-bravais-reflowing';
 const PLATE_LIVE_ATTRIBUTE = 'data-bravais-plate-live';
 
 export type BravaisReflowRects = ReadonlyMap<string, PlateRect>;
-export type ReflowTrack = { from: PlateRect; to: PlateRect; start: number };
+/** shapeId：排这条轨迹时墙的形状（BravaisWallShape.id）。 */
+export type ReflowTrack = { from: PlateRect; to: PlateRect; start: number; shapeId: string };
 
 const rectOf = ({ x, y, width, height }: PlateRect): PlateRect => ({ x, y, width, height });
 const isSameRect = (a: PlateRect, b: PlateRect) => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
-/** slot 不在任何让位表里时画在哪（块模板里的原位）。 */
-const restingRect = (slotKey: string): PlateRect | null => {
-    const address = parseWallSlotKey(slotKey);
-    const slot = address ? getBlockSlots(address.column, address.row, BRAVAIS_METRICS)[address.slotIndex] : undefined;
+/** slot 不在任何让位表里时画在哪（墙此刻形状里的原位）。 */
+const restingRect = (slotKey: string, shape: BravaisWallShape): PlateRect | null => {
+    const slot = shapeSlotFromKey(shape, slotKey);
     return slot ? rectOf(slot) : null;
 };
 
@@ -52,21 +55,22 @@ export const sampleReflowTrack = (track: ReflowTrack, now: number): PlateRect =>
 
 /**
  * 让位表从 `previous` 换成 `next`（`now` 时刻）：两张表里出现过的 slot 各起一条新轨迹，从此刻画着的矩形（还在动就是
- * 它的实时矩形，否则是上一张表 / 原位）到新的落定矩形；起止相同的不动。别的还没放完的轨迹（例如另一块的归位）照旧。
- * 纯函数。
+ * 它的实时矩形，否则是上一张表 / 原位）到新的落定矩形；起止相同的不动。别的还没放完的轨迹（例如另一块的归位）照旧；
+ * 别的形状上排的不算在动（见 splitStaleTracks）。纯函数。
  */
 export const planReflowTracks = (
     tracks: ReadonlyMap<string, ReflowTrack>,
     previous: BravaisReflowRects,
     next: BravaisReflowRects,
     now: number,
+    shape: BravaisWallShape = BRAVAIS_BLOCK_SHAPE,
 ): Map<string, ReflowTrack> => {
     const out = new Map<string, ReflowTrack>();
     for (const [key, track] of tracks) {
-        if (!isTrackDone(track, now)) out.set(key, track);
+        if (!isTrackDone(track, now) && track.shapeId === shape.id) out.set(key, track);
     }
     for (const key of new Set([...previous.keys(), ...next.keys()])) {
-        const resting = restingRect(key);
+        const resting = restingRect(key, shape);
         const running = out.get(key);
         const from = running ? sampleReflowTrack(running, now) : previous.get(key) ?? resting;
         const to = next.get(key) ?? resting;
@@ -74,9 +78,31 @@ export const planReflowTracks = (
             out.delete(key);
             continue;
         }
-        out.set(key, { from: rectOf(from), to: rectOf(to), start: now });
+        out.set(key, { from: rectOf(from), to: rectOf(to), start: now, shapeId: shape.id });
     }
     return out;
+};
+
+/**
+ * 墙换成了 `shape`：别的形状上排的轨迹作废，给出这些 slot 此刻该画的矩形（React 渲染的那份：让位表里的，否则是
+ * 这个形状里的原位；这个形状里没有这个 slot 时为 null）。同一形状的轨迹照旧。纯函数。
+ */
+export const splitStaleTracks = (
+    tracks: ReadonlyMap<string, ReflowTrack>,
+    reflow: BravaisReflowRects,
+    shape: BravaisWallShape,
+): { live: Map<string, ReflowTrack>; settled: Map<string, PlateRect | null> } => {
+    const live = new Map<string, ReflowTrack>();
+    const settled = new Map<string, PlateRect | null>();
+    for (const [key, track] of tracks) {
+        if (track.shapeId === shape.id) {
+            live.set(key, track);
+            continue;
+        }
+        const rect = reflow.get(key);
+        settled.set(key, rect ? rectOf(rect) : restingRect(key, shape));
+    }
+    return { live, settled };
 };
 
 const writeTileRect = (tile: HTMLElement, rect: PlateRect) => {
@@ -94,6 +120,7 @@ export const useBravaisReflowDriver = ({
     enabled,
     fieldRef,
     platesRef,
+    getShape,
 }: {
     /** 聚焦卡所在块的让位矩形（slot key → 落定矩形）；空表示没有聚焦卡。 */
     reflow: BravaisReflowRects;
@@ -102,6 +129,8 @@ export const useBravaisReflowDriver = ({
     fieldRef: RefObject<HTMLElement | null>;
     /** 此刻渲染的块底板（每次渲染更新）；实色档为空。 */
     platesRef: MutableRefObject<PlateBlockSet>;
+    /** 墙此刻的形状（不在让位表里的 slot 回到它的原位）。 */
+    getShape: () => BravaisWallShape;
 }) => {
     const previousRef = useRef(reflow);
     const tracksRef = useRef<Map<string, ReflowTrack>>(new Map());
@@ -109,10 +138,25 @@ export const useBravaisReflowDriver = ({
     const liveBlocksRef = useRef<Set<string>>(new Set());
     const rafRef = useRef(0);
 
+    /** 墙换了形状：旧形状上的轨迹作废，还在的磁贴写回 React 此刻渲染的矩形、摘掉标记（底板由 draw 写回落定路径）。 */
+    const dropStaleTracks = (field: HTMLElement) => {
+        // previousRef 在 effect 一开头就换成了这次的让位表，所以此刻就是 React 渲染的那一份。
+        const { live, settled } = splitStaleTracks(tracksRef.current, previousRef.current, getShape());
+        if (settled.size === 0) return;
+        tracksRef.current = live;
+        for (const [key, rect] of settled) {
+            const tile = field.querySelector<HTMLElement>(`[data-bravais-slot="${key}"]`);
+            if (!tile) continue;
+            if (rect) writeTileRect(tile, rect);
+            tile.removeAttribute(BRAVAIS_REFLOWING_ATTRIBUTE);
+        }
+    };
+
     const draw = (now: number) => {
         const field = fieldRef.current;
-        const tracks = tracksRef.current;
         if (!field) return;
+        dropStaleTracks(field);
+        const tracks = tracksRef.current;
         const live = new Map<string, Map<string, PlateRect>>();
         const touched = new Set(liveBlocksRef.current);
         for (const [key, track] of [...tracks]) {
@@ -167,7 +211,9 @@ export const useBravaisReflowDriver = ({
             draw(now);
             return;
         }
-        tracksRef.current = planReflowTracks(tracksRef.current, previous, reflow, now);
+        // 换了形状时旧形状上还在动的先作废，不并进这次的规划。
+        if (fieldRef.current) dropStaleTracks(fieldRef.current);
+        tracksRef.current = planReflowTracks(tracksRef.current, previous, reflow, now, getShape());
         // React 刚把外框写成终点：绘制前拉回起点。
         draw(now);
         if (tracksRef.current.size > 0 && rafRef.current === 0) rafRef.current = requestAnimationFrame(tick);

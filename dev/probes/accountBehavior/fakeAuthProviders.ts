@@ -1,6 +1,7 @@
 import type { UnifiedSong } from '../../../src/types';
 import type { LoginSelfCheckResult, OnlineMusicProvider } from '../../../src/types/onlineMusic';
-import { useNeteaseApiStatusStore } from '../../../src/stores/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../src/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { diagnosticLine } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { ACCOUNT_CANCEL_COOLDOWN_MS, ACCOUNT_NETEASE, accountUser, qrKeyOf, type AccountProviderRule } from './accountFixtureRules';
 import type { AccountCall, AccountQrState, AccountSelfCheckScript } from './probeApi';
 
@@ -133,13 +134,13 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
                 recordAccountCall({ op: 'auth-logout', providerId });
             },
             ...(methods ? {
-                getQrLoginMethods: () => methods,
-                resolveQrLoginMethods: async () => {
+                getLoginMethods: () => methods,
+                resolveLoginMethods: async () => {
                     recordAccountCall({ op: 'resolve-methods', providerId });
                     return methods;
                 },
             } : {}),
-            getQrKey: async (methodId?: string) => {
+            startLogin: async (methodId?: string) => {
                 qrSerial += 1;
                 const key = qrKeyOf(providerId, methodId, qrSerial);
                 recordAccountCall({ op: 'create', providerId, key, methodId: methodId ?? null });
@@ -152,7 +153,7 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
                 return key;
             },
             createQr: async (key: string) => qrImageOf(key),
-            checkQr: async (key: string) => {
+            checkLogin: async (key: string) => {
                 recordAccountCall({ op: 'check', providerId, key });
                 const queue = qrQueues.get(providerId) ?? [];
                 const state = queue.shift() ?? 'waiting';
@@ -167,13 +168,13 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
                 }
                 return state === 'error' ? { state, message: 'probe: check error' } : { state };
             },
-            cancelQr: async (key: string) => {
+            cancelLogin: async (key: string) => {
                 recordAccountCall({ op: 'cancel', providerId, key });
             },
-            getQrTtlMs: () => qrTtls.get(providerId) ?? 0,
-            getQrLoginDiagnostics: async () => [`probe: ${providerId} diagnostics`],
-            canRunQrLoginSelfCheck: () => selfChecks.has(providerId),
-            runQrLoginSelfCheck: async () => {
+            getLoginTtlMs: () => qrTtls.get(providerId) ?? 0,
+            getLoginDiagnostics: async () => [diagnosticLine`probe: ${providerId} diagnostics`],
+            canRunLoginSelfCheck: () => selfChecks.has(providerId),
+            runLoginSelfCheck: async () => {
                 recordAccountCall({ op: 'self-check', providerId });
                 const script = selfChecks.get(providerId);
                 if (!script) return null;

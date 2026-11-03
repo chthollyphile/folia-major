@@ -1,0 +1,185 @@
+/* src/components/ponder/ponder.css
+   What Ponder's own interface draws with plain CSS. Every duration and easing is a variable of
+   ponderMotion.ts, set on the root of a Ponder layer (ponderTheme.ts). The stand-ins' entrance
+   and the chapter countdown are older and still live in src/index.css. */
+
+/* ---- transitions of the vocabulary, beside a Tailwind transition-* class that names the properties */
+.pd-t-quick {
+    transition-duration: var(--pd-dur-quick);
+    transition-timing-function: var(--pd-ease-arrive);
+}
+
+.pd-t-base {
+    transition-duration: var(--pd-dur-base);
+    transition-timing-function: var(--pd-ease-arrive);
+}
+
+.pd-t-enter {
+    transition-duration: var(--pd-dur-enter);
+    transition-timing-function: var(--pd-ease-arrive);
+}
+
+/* ---- something coming in: a block of the stage with its layer, a small thing by itself, the
+   offer of the next chapter from the right */
+@keyframes pd-rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(var(--pd-rise));
+    }
+}
+
+.pd-rise-in {
+    animation: pd-rise-in var(--pd-dur-enter) var(--pd-ease-arrive) backwards;
+}
+
+@keyframes pd-fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+.pd-fade-in {
+    animation: pd-fade-in var(--pd-dur-enter) var(--pd-ease-arrive) backwards;
+}
+
+@keyframes pd-cue-in {
+    from {
+        opacity: 0;
+        transform: translateX(var(--pd-rise));
+    }
+}
+
+.pd-cue-in {
+    animation: pd-cue-in var(--pd-dur-enter) var(--pd-ease-arrive) backwards;
+}
+
+/* ---- the chapter timeline: one bar cut into chapters; the chapter on screen is the wide segment */
+.pd-timeline {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+    height: 20px;
+}
+
+.pd-seg {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 28px;
+    transition: flex-grow var(--pd-dur-move) var(--pd-ease-travel);
+}
+
+.pd-seg[data-current] {
+    flex-grow: 9;
+}
+
+.pd-seg-hit {
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.pd-seg-track {
+    position: absolute;
+    top: 8px;
+    right: 0;
+    left: 0;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--st-track);
+    pointer-events: none;
+    transition: background-color var(--pd-dur-quick) var(--pd-ease-arrive);
+}
+
+.pd-seg:not([data-current]):hover .pd-seg-track {
+    background: color-mix(in srgb, var(--st-t1) 30%, transparent);
+}
+
+/* The fill of the chapter on screen is written by the lesson timeline. The chapters before it are
+   full and the ones after it empty, whatever was last written on them. */
+.pd-seg-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--st-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+}
+
+.pd-seg:not([data-current]) .pd-seg-fill {
+    transform: scaleX(0) !important;
+    transition: transform var(--pd-dur-enter) var(--pd-ease-arrive);
+}
+
+.pd-seg[data-past] .pd-seg-fill {
+    transform: scaleX(1) !important;
+}
+
+/* The chapter's name, over its segment while the pointer or the keyboard is on it. */
+.pd-seg-tip {
+    position: absolute;
+    bottom: 24px;
+    left: 0;
+    z-index: 6;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--st-menu);
+    box-shadow: 0 0 0 1px var(--st-line2), 0 6px 16px rgba(0, 0, 0, 0.25);
+    color: var(--st-t1);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(calc(var(--pd-rise) * 0.6));
+    transition:
+        opacity var(--pd-dur-quick) var(--pd-ease-arrive),
+        transform var(--pd-dur-quick) var(--pd-ease-arrive);
+}
+
+.pd-seg:hover .pd-seg-tip,
+.pd-seg:has(.pd-seg-hit:focus-visible) .pd-seg-tip {
+    opacity: 1;
+    transform: none;
+}
+
+/* Towards the right end the name hangs from the segment's right edge, so it stays over the bar. */
+.pd-seg:nth-last-child(-n + 2):not(:first-child) .pd-seg-tip {
+    right: 0;
+    left: auto;
+}
+
+/* A keyframe of the chapter on screen: a dot on the bar, filled once the chapter has passed it. */
+.pd-tick {
+    position: absolute;
+    top: 2px;
+    width: 16px;
+    height: 16px;
+    margin-left: -8px;
+    border-radius: 50%;
+    cursor: pointer;
+    animation: pd-fade-in var(--pd-dur-base) var(--pd-ease-arrive) backwards;
+}
+
+.pd-tick::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    margin: 5px;
+    border-radius: 50%;
+    background: var(--st-pv);
+    box-shadow: 0 0 0 1.5px var(--st-t1);
+    transition:
+        background-color var(--pd-dur-quick) var(--pd-ease-arrive),
+        transform var(--pd-dur-quick) var(--pd-ease-arrive);
+}
+
+.pd-tick:hover::before {
+    transform: scale(1.3);
+}
+
+.pd-tick[data-done]::before {
+    background: var(--st-t1);
+}

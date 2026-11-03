@@ -668,4 +668,27 @@ describe('buildImportPlan', () => {
         expect(p.groups).toEqual(['libraryWall']);
         expect(keys(plan({ libraryWallSeamStyle: '' }, { libraryWallSeamStyle: 'dots' }, unpinned))).toEqual([]);
     });
+
+    // The info strip direction joins the same group; an empty value is "the exporter had none".
+    it('plans the info strip direction under the library wall group', () => {
+        const p = plan({ libraryWallSeamDirection: 'horizontal' }, { libraryWallSeamDirection: 'auto' }, unpinned);
+        expect(keys(p)).toEqual(['libraryWallSeamDirection']);
+        expect(p.groups).toEqual(['libraryWall']);
+        expect(keys(plan({ libraryWallSeamDirection: '' }, { libraryWallSeamDirection: 'auto' }, unpinned))).toEqual([]);
+    });
+
+    // Numbering only the playing song styles the tiles of both walls: offered under the library wall group; false is a real value.
+    it('plans numbering only the playing song under the library wall group', () => {
+        const p = plan({ latticeBadgeCurrentOnly: true }, { latticeBadgeCurrentOnly: false }, unpinned);
+        expect(keys(p)).toEqual(['latticeBadgeCurrentOnly']);
+        expect(p.groups).toEqual(['libraryWall']);
+        expect(keys(plan({ latticeBadgeCurrentOnly: false }, { latticeBadgeCurrentOnly: true }, unpinned))).toEqual(['latticeBadgeCurrentOnly']);
+    });
+
+    // The blurred player header is a player-page look, offered under visualizer; false is a real value.
+    it('plans the blurred player header under the visualizer group', () => {
+        const p = plan({ playerHeaderBlur: false }, { playerHeaderBlur: true }, unpinned);
+        expect(keys(p)).toEqual(['playerHeaderBlur']);
+        expect(p.groups).toEqual(['visualizer']);
+    });
 });

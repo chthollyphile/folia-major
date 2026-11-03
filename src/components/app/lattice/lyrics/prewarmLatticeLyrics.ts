@@ -1,4 +1,4 @@
-import { loadPixi } from '../../../visualizer/loadPixi';
+import { loadPixi } from '../../../visualizer/pixi/loadPixi';
 
 // src/components/app/lattice/lyrics/prewarmLatticeLyrics.ts
 let started = false;

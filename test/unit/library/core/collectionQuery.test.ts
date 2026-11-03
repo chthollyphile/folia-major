@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTrackSearchText, matchTrackIndexes } from '@/library/core/model/collectionQuery';
+import { getTrackSearchText, matchTrackIndexes } from '@/library/core/collection/collectionQuery';
 import { shapeGridItem } from '@/library/suites/grid/collection/lazyGridItems';
 import type { SongResult } from '@/types';
 

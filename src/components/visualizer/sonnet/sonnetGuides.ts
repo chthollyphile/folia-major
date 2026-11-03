@@ -151,21 +151,14 @@ export const createSonnetGuide = (
 
     const cue = resolveSonnetGuideCue(segment, textStartTime);
 
-    let graphicsEmpty = true;
     const update = (progress: number) => {
         // Curve draws in quickly from 0 to 0.35, then fades out from 0.4 to 0.7
         const drawProgress = Math.min(1, Math.max(0, progress / 0.35));
         const fadeOut = 1 - Math.min(1, Math.max(0, (progress - 0.4) / 0.3));
 
-        // Past the fade the curve layer stays empty; clearing an empty Graphics still dirties
-        // its context and re-batches, so it is only cleared on the way out.
-        if (fadeOut > 0) {
-            graphics.clear();
-            graphicsEmpty = false;
-        } else if (!graphicsEmpty) {
-            graphics.clear();
-            graphicsEmpty = true;
-        }
+        // Empty already (the guide has faded out, or has not begun): clearing an empty Graphics
+        // still dirties its context and re-batches.
+        if (graphics.context.instructions.length > 0) graphics.clear();
         if (drawProgress > 0 && fadeOut > 0) {
             const steps = 20;
             let prevP = p0;

@@ -5,6 +5,9 @@ import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import { resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { NavidromeScrobbleSessionTracker } from '../utils/navidromeScrobble';
 import { getProviderSongMetadata } from '../services/onlineMusic/songMetadata';
+import { errorFields } from '../utils/errorText';
+import { usePlaybackStore } from '../stores/usePlaybackStore';
+import { getObservedMedia } from '../services/hifi/hifiMediaShim';
 
 // src/hooks/useNavidromeScrobbleReporter.ts
 // Bridges audio playback events to Navidrome scrobble/now-playing reports.
@@ -23,6 +26,8 @@ export const useNavidromeScrobbleReporter = ({
 }: UseNavidromeScrobbleReporterParams): void => {
     const currentSongRef = useRef<SongResult | null>(currentSong);
     const trackerRef = useRef<NavidromeScrobbleSessionTracker | null>(null);
+    // A Navidrome song on the HiFi route plays through mpv: the listeners go on the HiFi media shim then.
+    const playbackRoute = usePlaybackStore(state => state.playbackRoute);
 
     currentSongRef.current = currentSong;
 
@@ -41,7 +46,7 @@ export const useNavidromeScrobbleReporter = ({
                     console.warn('[Navidrome] scrobble report was rejected', { kind, songId });
                 }
             }).catch((error) => {
-                console.warn('[Navidrome] scrobble report failed', { kind, songId, error });
+                console.warn('[Navidrome] scrobble report failed', { kind, songId, ...errorFields(error) });
             });
         });
     }
@@ -63,7 +68,7 @@ export const useNavidromeScrobbleReporter = ({
     }, [currentSong]);
 
     useEffect(() => {
-        const audioElement = audioRef.current;
+        const audioElement = getObservedMedia(audioRef.current);
         const tracker = trackerRef.current;
         if (!audioElement || !tracker) {
             return;
@@ -129,5 +134,7 @@ export const useNavidromeScrobbleReporter = ({
         // (min(60s, duration/2)) is reached well before arm on any normal track, so the scrobble is
         // already committed by then. If that threshold rule ever changes, this becomes a silent
         // under-report and needs the exit track driven from the settle path instead of the active deck.
-    }, [audioRef, activeDeck]);
+        //
+        // `playbackRoute` rebinds them between a deck and the HiFi media shim, which no deck swap signals.
+    }, [audioRef, activeDeck, playbackRoute]);
 };

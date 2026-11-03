@@ -1,4 +1,4 @@
-import { PERSONAL_FM_SCENE_CATEGORIES, getPersonalFmSceneEntry } from '../../../services/onlineMusic/fmModes';
+import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmSceneEntry, type PersonalFmCatalog } from '../../../services/onlineMusic/fmModes';
 import { buildPersonalFmMatches, readPersonalFmOption } from '../commands/fmModeOptions';
 import type { CommandPaletteMatch } from '../types';
 import type { CommandPaletteSurface, CommandSurfaceArgs } from './types';
@@ -17,27 +17,27 @@ export type PersonalFmSection = {
     indices: number[];
 };
 
-const SECTION_ORDER = [
+const sectionOrder = (catalog: PersonalFmCatalog) => [
     { key: 'mode', labelKey: 'personalFmMode.category.mode', labelFallback: 'Mode' },
-    ...PERSONAL_FM_SCENE_CATEGORIES.map(category => ({
+    ...catalog.categories.map(category => ({
         key: category.id as string,
         labelKey: category.labelKey,
         labelFallback: category.labelFallback,
     })),
 ];
 
-const sectionKeyOf = (match: CommandPaletteMatch): string | null => {
+const sectionKeyOf = (match: CommandPaletteMatch, catalog: PersonalFmCatalog): string | null => {
     const option = readPersonalFmOption(match.command.id);
     if (!option) return null;
     if (option.kind === 'mode') return 'mode';
-    return getPersonalFmSceneEntry(option.id)?.category ?? null;
+    return getPersonalFmSceneEntry(option.id, catalog)?.category ?? null;
 };
 
 /** Only sections with surviving matches are kept, so a filtered list has no empty headers. */
-export const buildPersonalFmSections = (matches: CommandPaletteMatch[]): PersonalFmSection[] => {
+export const buildPersonalFmSections = (matches: CommandPaletteMatch[], catalog = DEFAULT_PERSONAL_FM_CATALOG): PersonalFmSection[] => {
     const byKey = new Map<string, number[]>();
     matches.forEach((match, index) => {
-        const key = sectionKeyOf(match);
+        const key = sectionKeyOf(match, catalog);
         if (!key) return;
         const existing = byKey.get(key);
         if (existing) {
@@ -46,7 +46,7 @@ export const buildPersonalFmSections = (matches: CommandPaletteMatch[]): Persona
             byKey.set(key, [index]);
         }
     });
-    return SECTION_ORDER
+    return sectionOrder(catalog)
         .map(section => ({ ...section, indices: byKey.get(section.key) ?? [] }))
         .filter(section => section.indices.length > 0);
 };
@@ -96,8 +96,8 @@ const readVisualRows = (matches: CommandPaletteMatch[]): PillRow[] | null => {
 };
 
 /** Section hop, used only when the rows cannot be measured. */
-const navigateSections = (step: number, { matches, activeIndex, setActiveIndex }: CommandSurfaceArgs) => {
-    const sections = buildPersonalFmSections(matches);
+const navigateSections = (step: number, { matches, activeIndex, setActiveIndex, context }: CommandSurfaceArgs) => {
+    const sections = buildPersonalFmSections(matches, context.playback.personalFmCatalog);
     const currentSection = sections.findIndex(section => section.indices.includes(activeIndex));
     if (currentSection < 0) {
         setActiveIndex(0);
@@ -176,5 +176,6 @@ export const fmModeSurface: CommandPaletteSurface = {
         isExecuting,
         theme,
         selection: context.playback.personalFmSelection,
+        catalog: context.playback.personalFmCatalog,
     }),
 };

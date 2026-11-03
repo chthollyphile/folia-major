@@ -1,11 +1,17 @@
-import { colorWithAlpha, parseColorChannels } from '../colorMix';
 import type { MonetBackgroundImage, MonetBackgroundTuning, Theme } from '../../../types';
+import type { MonetBackgroundPaintReply, MonetBackgroundPaintRequest } from './monetBackground.worker';
 
 // src/components/visualizer/monet/monetBackgroundPipeline.ts
 // Builds and caches the static Monet poster background so the visualizer only recomputes when inputs change.
-const MONET_BACKGROUND_WIDTH = 1920;
-const MONET_BACKGROUND_HEIGHT = 1080;
-const monetBackgroundCache = new Map<string, Promise<string | null>>();
+// The picture is painted in a worker (monetBackground.worker.ts); this thread only loads the image
+// and hands it over.
+interface PictureEntry {
+    url: Promise<string | null>;
+    /** Layers that still want the picture: one no one wants by its turn in the worker is not made. */
+    holders: number;
+}
+
+const monetBackgroundCache = new Map<string, PictureEntry>();
 
 interface BuildMonetBackgroundOptions {
     coverUrl?: string | null;
@@ -14,30 +20,7 @@ interface BuildMonetBackgroundOptions {
     tuning: MonetBackgroundTuning;
 }
 
-interface RgbChannels {
-    r: number;
-    g: number;
-    b: number;
-}
-
-const FALLBACK_DARK: RgbChannels = { r: 10, g: 10, b: 12 };
-const FALLBACK_LIGHT: RgbChannels = { r: 245, g: 245, b: 245 };
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
-const luminanceOf = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
-
-export const resolveWashEndpoints = (
-    background: RgbChannels,
-    primary: RgbChannels,
-) => {
-    const backgroundLuminance = luminanceOf(background.r, background.g, background.b);
-    const primaryLuminance = luminanceOf(primary.r, primary.g, primary.b);
-
-    return backgroundLuminance <= primaryLuminance
-        ? { shadow: background, highlight: primary }
-        : { shadow: primary, highlight: background };
-};
 
 const resolveSourceUrl = ({
     coverUrl,
@@ -72,171 +55,6 @@ const loadImage = async (src: string): Promise<HTMLImageElement> => {
     }
     
     return image;
-};
-
-const resolveCanvasImageDimension = (
-    image: CanvasImageSource,
-    dimension: 'width' | 'height',
-    fallback: number,
-) => {
-    const dimensions = image as CanvasImageSource & Partial<Record<'width' | 'height', unknown>>;
-    const value = dimensions[dimension];
-    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-};
-
-const drawCoverCropped = (
-    context: CanvasRenderingContext2D,
-    image: CanvasImageSource,
-    width: number,
-    height: number,
-) => {
-    const imageWidth = resolveCanvasImageDimension(image, 'width', width);
-    const imageHeight = resolveCanvasImageDimension(image, 'height', height);
-    if (!imageWidth || !imageHeight) {
-        return;
-    }
-
-    const scale = Math.max(width / imageWidth, height / imageHeight);
-    const drawWidth = imageWidth * scale;
-    const drawHeight = imageHeight * scale;
-    const offsetX = (width - drawWidth) / 2;
-    const offsetY = (height - drawHeight) / 2;
-    context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-};
-
-const resolveThemeChannel = (color: string, fallback: RgbChannels): RgbChannels => {
-    const parsed = parseColorChannels(color);
-    return parsed
-        ? {
-            r: clamp(parsed.r, 0, 255),
-            g: clamp(parsed.g, 0, 255),
-            b: clamp(parsed.b, 0, 255),
-        }
-        : fallback;
-};
-
-export const resolveWashColor = (
-    normalizedLuminance: number,
-    background: RgbChannels,
-    accent: RgbChannels,
-    primary: RgbChannels,
-): RgbChannels => {
-    const { shadow, highlight } = resolveWashEndpoints(background, primary);
-    if (normalizedLuminance <= 0.55) {
-        const amount = normalizedLuminance / 0.55;
-        return {
-            r: mix(shadow.r, accent.r, amount),
-            g: mix(shadow.g, accent.g, amount),
-            b: mix(shadow.b, accent.b, amount),
-        };
-    }
-
-    const amount = (normalizedLuminance - 0.55) / 0.45;
-    return {
-        r: mix(accent.r, highlight.r, amount),
-        g: mix(accent.g, highlight.g, amount),
-        b: mix(accent.b, highlight.b, amount),
-    };
-};
-
-// Applies the stable canvas-only color treatment so Safari never needs CSS filters for Monet backgrounds.
-const applyBackgroundPostProcessing = (
-    context: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    theme: Theme,
-    tuning: MonetBackgroundTuning,
-) => {
-    const grayscale = clamp(tuning.backgroundGrayscale, 0, 1);
-    const saturation = clamp(tuning.backgroundSaturation, 0, 2);
-    const wash = clamp(tuning.backgroundWash, 0, 1);
-    if (grayscale <= 0 && Math.abs(saturation - 1) < 0.001 && wash <= 0) {
-        return;
-    }
-
-    const imageData = context.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    const background = resolveThemeChannel(theme.backgroundColor, FALLBACK_DARK);
-    const accent = resolveThemeChannel(theme.accentColor, background);
-    const primary = resolveThemeChannel(theme.primaryColor, FALLBACK_LIGHT);
-    const customWash = resolveThemeChannel(tuning.backgroundWashCustomColor, accent);
-    const washAccent = tuning.backgroundWashColorMode === 'custom' ? customWash : accent;
-
-    for (let index = 0; index < data.length; index += 4) {
-        let r = data[index];
-        let g = data[index + 1];
-        let b = data[index + 2];
-        const alpha = data[index + 3];
-        if (alpha === 0) {
-            continue;
-        }
-
-        const luminance = luminanceOf(r, g, b);
-        if (grayscale > 0) {
-            r = mix(r, luminance, grayscale);
-            g = mix(g, luminance, grayscale);
-            b = mix(b, luminance, grayscale);
-        }
-
-        if (Math.abs(saturation - 1) >= 0.001) {
-            const saturatedLuminance = luminanceOf(r, g, b);
-            r = saturatedLuminance + (r - saturatedLuminance) * saturation;
-            g = saturatedLuminance + (g - saturatedLuminance) * saturation;
-            b = saturatedLuminance + (b - saturatedLuminance) * saturation;
-        }
-
-        if (wash > 0) {
-            const washColor = resolveWashColor(clamp(luminance / 255, 0, 1), background, washAccent, primary);
-            r = mix(r, washColor.r, wash);
-            g = mix(g, washColor.g, wash);
-            b = mix(b, washColor.b, wash);
-        }
-
-        data[index] = Math.round(clamp(r, 0, 255));
-        data[index + 1] = Math.round(clamp(g, 0, 255));
-        data[index + 2] = Math.round(clamp(b, 0, 255));
-    }
-
-    context.putImageData(imageData, 0, 0);
-};
-
-const paintMonetOverlay = (
-    context: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    theme: Theme,
-    tuning: MonetBackgroundTuning,
-) => {
-    const overlay = clamp(tuning.backgroundOverlayOpacity, 0, 1);
-    const overlayGradient = context.createLinearGradient(0, 0, width, height);
-    overlayGradient.addColorStop(0, colorWithAlpha(theme.accentColor, 0.08 + overlay * 0.62));
-    overlayGradient.addColorStop(0.44, colorWithAlpha(theme.backgroundColor, 0.16 + overlay * 0.58));
-    overlayGradient.addColorStop(1, colorWithAlpha(theme.primaryColor, 0.06 + overlay * 0.36));
-    context.fillStyle = overlayGradient;
-    context.fillRect(0, 0, width, height);
-
-    const leftBloom = context.createRadialGradient(width * 0.18, height * 0.34, 0, width * 0.18, height * 0.34, width * 0.55);
-    leftBloom.addColorStop(0, colorWithAlpha(theme.accentColor, overlay * 0.42));
-    leftBloom.addColorStop(1, colorWithAlpha(theme.backgroundColor, 0));
-    context.fillStyle = leftBloom;
-    context.fillRect(0, 0, width, height);
-
-    const rightVeil = context.createLinearGradient(width * 0.45, 0, width, 0);
-    rightVeil.addColorStop(0, colorWithAlpha(theme.backgroundColor, 0));
-    rightVeil.addColorStop(1, colorWithAlpha(theme.backgroundColor, 0.18 + overlay * 0.38));
-    context.fillStyle = rightVeil;
-    context.fillRect(0, 0, width, height);
-
-    if (tuning.backgroundStreaksEnabled === false) {
-        return;
-    }
-
-    context.fillStyle = colorWithAlpha(theme.backgroundColor, 0.1 + overlay * 0.08);
-    for (let index = 0; index < 18; index += 1) {
-        const x = (index * 127) % width;
-        const y = ((index * 211) % height) - 40;
-        context.fillRect(x, y, 1, height * 0.28);
-    }
 };
 
 export const getMonetBackgroundCacheKey = ({
@@ -312,50 +130,149 @@ export const checkCanvasFilterSupport = (): boolean => {
     }
 };
 
-export const buildMonetBackgroundDataUrl = async ({
+interface PaintJob {
+    request: Omit<MonetBackgroundPaintRequest, 'id'>;
+    /** Whether a layer still wants the picture, asked when its turn comes. */
+    wanted: () => boolean;
+    /** The picture, null where it could not be made, undefined where no one wanted it any more. */
+    settle: (picture: Blob | null | undefined) => void;
+}
+
+let painter: Worker | null = null;
+let lastRequestId = 0;
+let painting: (PaintJob & { id: number }) | null = null;
+// One picture at a time in the worker, the others wait here. A picture no layer wants any more by
+// its turn (a song skipped, a theme replaced within the settle time) is dropped unpainted: in the
+// worker's own queue it would be painted, 150-250 ms on slow cores, ahead of the one to be shown.
+const queuedPaints: PaintJob[] = [];
+
+const paintNext = () => {
+    while (!painting && queuedPaints.length > 0) {
+        const job = queuedPaints.shift()!;
+        if (!job.wanted()) {
+            job.request.image.close();
+            job.settle(undefined);
+            continue;
+        }
+        const id = (lastRequestId += 1);
+        painting = { ...job, id };
+        try {
+            ensurePainter().postMessage({ ...job.request, id } satisfies MonetBackgroundPaintRequest, { transfer: [job.request.image] });
+        } catch {
+            painting = null;
+            job.request.image.close();
+            job.settle(null);
+        }
+    }
+};
+
+const finishPainting = (picture: Blob | null) => {
+    const job = painting;
+    painting = null;
+    job?.settle(picture);
+    paintNext();
+};
+
+/** The worker that paints the pictures, started with the first one. */
+const ensurePainter = (): Worker => {
+    if (painter) {
+        return painter;
+    }
+    const worker = new Worker(new URL('./monetBackground.worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (event: MessageEvent<MonetBackgroundPaintReply>) => {
+        if (event.data.id === painting?.id) {
+            finishPainting('picture' in event.data ? event.data.picture : null);
+        }
+    };
+    // The worker failed (it could not start, or broke on a picture): that picture is not made, and
+    // the next one starts another worker.
+    worker.onerror = () => {
+        worker.terminate();
+        painter = null;
+        finishPainting(null);
+    };
+    painter = worker;
+    return worker;
+};
+
+const paintOffThread = (request: PaintJob['request'], wanted: PaintJob['wanted']) => new Promise<Blob | null | undefined>((settle) => {
+    queuedPaints.push({ request, wanted, settle });
+    paintNext();
+});
+
+/** The picture's blob URL; null where it could not be made, undefined where no one wanted it by its turn. */
+const buildMonetBackgroundUrl = async ({
     coverUrl,
     monetBackgroundImage,
     theme,
     tuning,
-}: BuildMonetBackgroundOptions): Promise<string | null> => {
+}: BuildMonetBackgroundOptions, wanted: PaintJob['wanted']): Promise<string | null | undefined> => {
     const sourceUrl = resolveSourceUrl({ coverUrl, monetBackgroundImage, tuning });
     if (!sourceUrl) {
         return null;
     }
 
-    const image = await loadImage(sourceUrl);
-    const canvas = document.createElement('canvas');
-    canvas.width = MONET_BACKGROUND_WIDTH;
-    canvas.height = MONET_BACKGROUND_HEIGHT;
-    const context = canvas.getContext('2d');
-    if (!context) {
-        return null;
+    const image = await createImageBitmap(await loadImage(sourceUrl));
+    const picture = await paintOffThread({
+        image,
+        colors: {
+            backgroundColor: theme.backgroundColor,
+            primaryColor: theme.primaryColor,
+            accentColor: theme.accentColor,
+        },
+        tuning,
+        blurPx: checkCanvasFilterSupport() ? clamp(tuning.backgroundBlurPx, 0, 60) : null,
+    }, wanted);
+    if (!picture) {
+        return picture;
     }
 
-    context.fillStyle = theme.backgroundColor;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    context.save();
-    if (checkCanvasFilterSupport()) {
-        context.filter = `blur(${clamp(tuning.backgroundBlurPx, 0, 60)}px)`;
+    const url = URL.createObjectURL(picture);
+    // Decoded (off this thread) before it is handed over: the background says it is ready only once
+    // its picture can be drawn.
+    const decoded = new Image();
+    decoded.src = url;
+    try {
+        await decoded.decode();
+    } catch (error) {
+        URL.revokeObjectURL(url);
+        throw error;
     }
-    drawCoverCropped(context, image, canvas.width, canvas.height);
-    context.restore();
-
-    applyBackgroundPostProcessing(context, canvas.width, canvas.height, theme, tuning);
-    paintMonetOverlay(context, canvas.width, canvas.height, theme, tuning);
-
-    return canvas.toDataURL('image/jpeg', 0.92);
+    return url;
 };
 
-export const resolveMonetBackgroundDataUrl = (options: BuildMonetBackgroundOptions) => {
+/**
+ * The picture for these inputs, made once and kept. The caller releases it once it no longer wants
+ * it: a picture no one wants by its turn in the worker is not made, and is made if asked for again.
+ */
+export const wantMonetBackgroundUrl = (options: BuildMonetBackgroundOptions): { url: Promise<string | null>; release: () => void } => {
     const cacheKey = getMonetBackgroundCacheKey(options);
-    const cached = monetBackgroundCache.get(cacheKey);
-    if (cached) {
-        return cached;
+    let entry = monetBackgroundCache.get(cacheKey);
+    if (!entry) {
+        const made: PictureEntry = { url: Promise.resolve(null), holders: 0 };
+        const wanted = () => {
+            if (made.holders > 0) {
+                return true;
+            }
+            if (monetBackgroundCache.get(cacheKey) === made) {
+                monetBackgroundCache.delete(cacheKey);
+            }
+            return false;
+        };
+        made.url = buildMonetBackgroundUrl(options, wanted).then(url => url ?? null, () => null);
+        monetBackgroundCache.set(cacheKey, made);
+        entry = made;
     }
-
-    const next = buildMonetBackgroundDataUrl(options).catch(() => null);
-    monetBackgroundCache.set(cacheKey, next);
-    return next;
+    const held = entry;
+    held.holders += 1;
+    let released = false;
+    return {
+        url: held.url,
+        release: () => {
+            if (!released) {
+                released = true;
+                held.holders -= 1;
+            }
+        },
+    };
 };

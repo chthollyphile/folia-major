@@ -43,6 +43,8 @@ test('导航页上点一张卡，直接进那一条的教程', async ({ page }) 
 test('导航页上悬停一张卡，长按 G 进的是那一条', async ({ page }) => {
     await page.getByTestId('help-page-ponder').click();
     const card = page.locator('[data-ponder-nav-target="player-bar"]');
+    // 教程是一列行，这一条在第一屏之外：先滚到看得见，指针才落得到它身上。
+    await card.scrollIntoViewIfNeeded();
     const box = (await card.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
@@ -137,11 +139,13 @@ test('新版本功能页面有进出场过渡，不是直接出现和直接消�
     await page.getByTestId('help-release-notes').click();
     const dialog = page.getByTestId('release-notes-dialog');
     await expect(dialog).toBeAttached();
+    // 外框是共用的 Sheet：淡入淡出在它的面板（role=dialog）上，这个 id 在面板里面的内容上。
+    const panel = page.getByRole('dialog').filter({ has: dialog });
     // 入场：第一帧还没到终态。
-    const enteringOpacity = await dialog.evaluate(node => Number(getComputedStyle(node).opacity));
+    const enteringOpacity = await panel.evaluate(node => Number(getComputedStyle(node).opacity));
     expect(enteringOpacity).toBeLessThan(1);
 
-    await expect(dialog).toHaveCSS('opacity', '1', { timeout: 2000 });
+    await expect(panel).toHaveCSS('opacity', '1', { timeout: 2000 });
     await expectAnimatedExit(page, 'release-notes-dialog', { click: '[data-testid="release-notes-close"]' });
 });
 

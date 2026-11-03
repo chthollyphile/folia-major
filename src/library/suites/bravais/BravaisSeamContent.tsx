@@ -17,10 +17,11 @@ import BravaisDirectoryPanel from './BravaisDirectoryPanel';
 import BravaisSeamArtist from './BravaisSeamArtist';
 import BravaisSeamAbout from './BravaisSeamAbout';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
-import BravaisSeamAccount from './BravaisSeamAccount';
 import BravaisSeamPoster from './BravaisSeamPoster';
 import BravaisSeamAlbumPoster from './BravaisSeamAlbumPoster';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
+import { BravaisSeamFullRow, BravaisSeamSpineRow } from './BravaisSeamRow';
+import BravaisSeamHomeRow from './BravaisSeamHomeRow';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -30,13 +31,14 @@ import { BravaisSeamFlipText } from './BravaisSeamFlip';
 // 展开，两边一致），「折叠」挪进「⋯ 更多」的末尾；收藏星标在播放全部 / 加入队列那一行的末尾。
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
-// B10：账户的登录态 / 确认态（login / confirm）不属于任何一层，内容来自 bravaisAccountStore（BravaisSeamAccount）。
 // 集合页的描述在标题下方（元数据行之后），与歌手页的「关于艺术家」共用 BravaisSeamAbout（同一套正文样式、
 // 截断 + 展开，都不加小节标题），书脊上没有。歌手页的统计是那一节的附注，元数据行与它相同时不再重复。
 // 换层 / 换形态由外层整条翻（useBravaisSeam）；同一层里元数据（计数、匹配数）与状态文字变了，新的一行翻进来（BravaisSeamFlipText）。
 // 当前页过滤（设计稿 §7.6）：完整信息条的面包屑行下面是缝自己的过滤输入位（BravaisSeamFilterField）；书脊放不下输入框，
 // 过滤中只留一个过滤图标（点它或在墙上打字，缝临时展开成完整信息条）。
 // 歌手页、专辑页的完整等级画成海报（BravaisSeamPoster / BravaisSeamAlbumPoster，相机把它带到视口最左边）；过滤、面板、表单时回到上面这几套。
+// 信息条横向（row）：首页窄缝 / 书脊与完整信息条 / 书脊换成横条的排法（BravaisSeamHomeRow、BravaisSeamRow），搜索框同一个
+// 组件、横条样式（bravaisSeamRow.css）；面板、表单、海报总是竖的（bravaisSeamTarget 的 resolveSeamAxis）。
 
 export type BravaisSeamActions = {
     setLevel: (level: BravaisSeamLevel) => void;
@@ -51,6 +53,8 @@ export type BravaisSeamActions = {
 
 type BravaisSeamContentProps = {
     variant: BravaisSeamContentVariant;
+    /** 这套内容画在横的缝里。 */
+    row?: boolean;
     layer: BravaisLayer | null;
     /** 导航栈深度：面包屑在首页与当前层之间折叠中间层。 */
     depth: number;
@@ -164,8 +168,17 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
     );
 };
 
-const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer, depth, actions }) => {
+const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, row = false, layer, depth, actions }) => {
     if (!layer) return null;
+    if (row) {
+        switch (variant) {
+            case 'home': return <BravaisSeamHomeRow layer={layer} compact={false} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
+            case 'home-spine': return <BravaisSeamHomeRow layer={layer} compact setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
+            case 'full': return <BravaisSeamFullRow layer={layer} actions={actions} />;
+            case 'spine': return <BravaisSeamSpineRow layer={layer} actions={actions} />;
+            default: break;
+        }
+    }
     switch (variant) {
         case 'home': return <BravaisSeamHome layer={layer} compact={false} setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
         case 'home-spine': return <BravaisSeamHome layer={layer} compact setLevel={actions.setLevel} openShortcut={actions.openShortcut} />;
@@ -181,8 +194,6 @@ const BravaisSeamContent: React.FC<BravaisSeamContentProps> = ({ variant, layer,
                 ? <BravaisDirectoryPanel layer={layer} actions={actions.panel} />
                 : <BravaisListPanel layer={layer} depth={depth} actions={actions.panel} />;
         case 'form': return layer.seam.collection?.form ? <BravaisSeamFormView form={layer.seam.collection.form} /> : null;
-        case 'login':
-        case 'confirm': return <BravaisSeamAccount variant={variant} />;
         default: return null;
     }
 };

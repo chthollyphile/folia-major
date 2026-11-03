@@ -1,6 +1,6 @@
 # QQ 音乐 API 服务（`qq-api`）
 
-`qq-api` 是 Web 堆栈里的 QQ 音乐后端，提供搜索、歌词、专辑、歌手、微信扫码和 QQ 扫码登录，以及登录后的账号歌单、我喜欢、收藏的专辑、播放链接、推荐（每日 30 首、猜你喜欢、推荐歌单）、往自建歌单加歌删歌与收藏歌单。
+`qq-api` 是 Web 堆栈里的 QQ 音乐后端，提供搜索、歌词、专辑、歌手、排行榜和新碟，微信扫码、手机 QQ 扫码和 QQ 音乐 App 扫码三种登录，以及登录后的账号歌单、我喜欢、收藏的专辑、音乐云盘、播放链接、推荐（每日 30 首、猜你喜欢、推荐歌单、刷歌模式、相似歌曲）、往自建歌单加歌删歌与收藏歌单。
 
 本文只说明 Docker 镜像、常驻 Node 服务、卷和状态文件。Vercel、Cloudflare、Durable Object 与面向普通用户的完整步骤见 [QQ 音乐部署指南](../../../docs/qq-music-deployment.md)。
 
@@ -9,14 +9,14 @@
 | 项 | 内容 |
 | --- | --- |
 | npm 包 | [`@yakult-green-tea/qq-music-api`](https://www.npmjs.com/package/@yakult-green-tea/qq-music-api) |
-| 版本 | `3.3.0`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
+| 版本 | `3.3.3`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
 | 原始上游 | [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api)，作者 Rain120 |
 | 许可证 | MIT；全文随包安装在 `node_modules/@yakult-green-tea/qq-music-api/LICENSE` |
 | 镜像定义 | [`images/qq-api.Dockerfile`](../images/qq-api.Dockerfile) |
 | 启动入口 | `dist/src/app.js`（包的 `main`），Koa 服务 |
 | Node 要求 | `>=20`；镜像用 `node:24-alpine` |
 
-该包是上游的 fork，相对上游增加了微信扫码和 QQ 扫码登录、二维码会话的取消与抢占、账号歌单 / 我喜欢 / 收藏的专辑等接口，并把编译产物发布成可直接 `require()` 的 npm 包。完整差异见包自带 README 的「关于本 fork」一节。
+该包是上游的 fork，相对上游增加了微信扫码、手机 QQ 扫码和 QQ 音乐 App 扫码登录、二维码会话的取消与抢占、账号歌单 / 我喜欢 / 收藏的专辑等接口，并把编译产物发布成可直接 `require()` 的 npm 包。完整差异见包自带 README 的「关于本 fork」一节。
 
 后端改动应先在 `qq-music-api` 仓库完成并发布新版本，再回到本目录升级版本号并重新生成 lockfile。
 
@@ -70,7 +70,7 @@ PORT=3200 \
   node node_modules/@yakult-green-tea/qq-music-api/dist/src/app.js
 ```
 
-该包在被 `require()` 时就会 `app.listen()`，并导出 http server 句柄 `server`。嵌入到其他 Node 进程时应等 `listening` 事件确认端口绑定成功、挂 `error` 监听避免绑定失败变成未处理异常，退出时主动 `close()`；因为 `require` 有模块缓存，同一进程内只应该 `require()` 一次。Electron 版走的正是这条路径（见 [`electron/qqApiStartup.cjs`](../../../electron/qqApiStartup.cjs)），端口动态分配，装置状态写在 `userData/qq-auth-state/qq-device.json`。
+该包在被 `require()` 时就会 `app.listen()`，并导出 http server 句柄 `server`。嵌入到其他 Node 进程时应等 `listening` 事件确认端口绑定成功、挂 `error` 监听避免绑定失败变成未处理异常，退出时主动 `close()`；因为 `require` 有模块缓存，同一进程内只应该 `require()` 一次。Electron 版走的正是这条路径（见 [`electron/qq/qqApiStartup.cjs`](../../../electron/qq/qqApiStartup.cjs)），端口动态分配，装置状态写在 `userData/qq-auth-state/qq-device.json`。
 
 ### Web 版接法
 
@@ -140,9 +140,9 @@ docker compose up -d --wait
 
 两个变量都是服务端密钥，**不加 `VITE_` 前缀**——加了会被编进前端资产。改动其中任何一个都要重新部署才生效。
 
-### QQ 扫码登录（Cloudflare，可选）
+### QQ 音乐 App 扫码（Cloudflare，可选）
 
-默认的 serverless 部署只有微信扫码登录方式。QQ 扫码走 MQTT over WebSocket，CONNECT 请求的是 clean session、订阅是 unicast，断连期间上游既不保留也不补送，一次 request-scoped 的调用握不住这条连接。
+默认的 serverless 部署有微信扫码和手机 QQ 扫码：3.3.3 起手机 QQ 扫码走 QQ 互联的网页登录，全是普通的 HTTP 请求。QQ 音乐 App 扫码走 MQTT over WebSocket，CONNECT 请求的是 clean session、订阅是 unicast，断连期间上游既不保留也不补送，一次 request-scoped 的调用握不住这条连接。
 
 Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那条连接。**这是可选的，要自己加绑定**：仓库里的 `wrangler.jsonc` 刻意不带它，因为那个文件是 README 上「Deploy to Cloudflare」按钮消费的，DO migration 一旦入库就会套用到每一个点按钮的人，而且 migration 有黏性（日后想去掉还得再写一条 delete migration）。
 
@@ -155,7 +155,7 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["QqQrChannel"] }]
 ```
 
-绑定名必须是 `QQ_QR_CHANNEL`，类名必须是 `QqQrChannel`（`worker/index.ts` 导出的就是它）。加完之后 `GET /login/channels` 会宣告 `["qq", "wechat"]`，前端自动显示通道选择器；没加就还是只有微信——**这是能力声明，不是错误**，两种情况都不会报错。
+绑定名必须是 `QQ_QR_CHANNEL`，类名必须是 `QqQrChannel`（`worker/index.ts` 导出的就是它）。加完之后 `GET /login/channels` 会宣告 `["qq", "wechat", "qqmusic"]`，手机 QQ 扫码也改走这条长连接；没加就是微信扫码和网页登录的手机 QQ 扫码——**这是能力声明，不是错误**，两种情况都不会报错，前端照这份声明显示登录方式。
 
 几件需要知道的事：
 
@@ -168,9 +168,10 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 
 | | 常驻 Node / Docker / Electron | Serverless |
 | --- | --- | --- |
-| 登录方式 | QQ 扫码、微信扫码 | 微信扫码；Cloudflare 绑定 DO 后增加 QQ 扫码 |
+| 登录方式 | 手机 QQ 扫码、微信扫码、QQ 音乐 App 扫码 | 微信扫码、手机 QQ 扫码（3.3.3 起走网页登录）；Cloudflare 绑定 DO 后多 QQ 音乐 App 扫码 |
 | 登录态 | 服务端进程内持有，token 只是查找键 | 加密封装在 token 里，服务端不存 |
 | 登出 | 服务端真正删除会话 | 只能由客户端丢弃 token，旧 token 在到期前仍有效 |
+| 续期 | 进程在凭证到期前自己续，token 不变 | 3.3.2 起调 `POST /login/refresh` 换新 token，从第一次扫码算起最多 30 天 |
 | 未登录播放 | 回退到匿名链接 | `/getMusicPlay` 直接回 `401` |
 | 未设 secret | 不影响 | 登录路由回 `501`，曲库路由照常 |
 
@@ -204,6 +205,26 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 - 扫码失败可能带 `upstreamErrorKey`、`failureHint` 和（手机 QQ 通道的）`primaryFailure`。登录设备超限（`20279`）因此在网页版也认得出来。
 - 常驻服务（本镜像、裸 Node、Electron）会在凭证到期前 6 小时内自动续期，`qqmusic_session` 不变；serverless 部署还没有这个能力。
 - 扫码失败后的冷却固定为 15 秒，上游明确说操作频繁时为 30 秒。
+
+3.3.1 起：
+
+- 新增 `POST /user/song/like` 与 `POST /user/album/subscribe`，Folia 用它们给 QQ 的歌红心、收藏专辑；「我喜欢」里删歌就是取消红心。两条都是写一次、读回确认后才回成功，结果不明时回 `502`，不自动重送。
+- `POST /user/playlist/tracks` 回 `changed: false` 时多一个读回结果 `verification.status`。加歌时歌已经都在、删歌时歌已经都不在，Folia 按成功处理；其余照旧提示失败。
+
+3.3.2 起：
+
+- 多了 QQ 音乐 App 扫码（`qqmusic` 通道）：用 QQ 音乐 App 扫一扫就能登录，App 登的是 QQ 还是微信账号都行。`/login/channels` 的 `channels` 多了 `qqmusic`。
+- 新增 `/user/cloud`（音乐云盘，要登录）；`/user/playlist-detail?playCount=1` 多给歌单的播放数。
+- 新增 `POST /login/refresh`。本镜像这类常驻服务本来就会自己续期，调它 token 也不变；这条主要是给 serverless 部署用的。
+- 微信扫码的 `/login/qr/check` 每次最多等 15 秒才回（以前约 1.5 秒），网络慢时不会再一直停在「请扫描」。想等短一点可以设环境变量 `QQ_WECHAT_POLL_BUDGET_MS`（毫秒）。
+- 旧的 `/getSearchByKey` 移除了，改用 `/search`；Folia 没用它。
+
+3.3.3 起：
+
+- 新增刷歌模式 `/recommend/radar`、排行榜 `/recommend/toplists` 与 `/recommend/toplist`、新碟 `/recommend/new-albums`，以及要登录的相似歌曲 `/song/similar` 和包含这首歌的歌单 `/song/related-playlists`；另外还有歌手、评论、MV、热搜和搜索建议、歌曲标签一批新接口。
+- 不登录也能用 `/search` 搜歌了。
+- `QQ_WECHAT_POLL_BUDGET_MS` 的上限从 20000 改成 15000 毫秒（Folia 等一个登录请求 20 秒就当没回应），设在 15001–20000 之间的会改用默认的 15 秒。
+- 3.3.4 打算移除一批旧路由（`/getHotkey`、`/getSingerList` 等，都已经有新路由接手）；Folia 在用的路由不受影响。
 
 排查时先看容器日志：
 

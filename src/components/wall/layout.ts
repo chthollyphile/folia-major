@@ -1,5 +1,7 @@
 // Pure geometry for the poster wall: an infinite lattice of repeated cells, plus the
 // anchored expansion reflow that pushes neighbours aside.
+// That lattice is the queue wall's. Lattice's explore wall is laid out by section
+// (app/lattice/exploreLayout.ts); what Lattice asks of either is `WallLayout` (app/lattice/wallLayout.ts).
 
 import {
     BLOCK_COLS,
@@ -33,6 +35,8 @@ export type ReflowTile = {
  * One drawn poster. The queue is de-duplicated at the data layer, but the wall repeats, so a
  * song owns many instances: `cellSlot` is its seat inside one lattice cell and `repeatX/Y`
  * says which copy of the cell this is.
+ * On the explore wall (exploreLayout.ts) `cellSlot` is the poster's seat in its lot, and
+ * `repeatX/Y` the column and the row the lot stands at.
  */
 export type QueueInstance = {
     instanceId: string;
@@ -278,3 +282,26 @@ export const layoutExpandedBlock = (
 
     return result;
 };
+
+/** Every poster of the block `from` sits in and of the eight blocks around it: where a directional step may land. */
+export const locateStepCandidates = (
+    geometry: LatticeGeometry,
+    totalEntries: number,
+    from: QueueInstance,
+    metrics: WallMetrics,
+): QueueInstance[] => {
+    const origin = getInstanceBlock(geometry, from);
+    const candidates: QueueInstance[] = [];
+    for (let row = origin.row - 1; row <= origin.row + 1; row += 1) {
+        for (let column = origin.column - 1; column <= origin.column + 1; column += 1) {
+            for (let slotIndex = 0; slotIndex < SLOTS_PER_BLOCK; slotIndex += 1) {
+                const candidate = locateInstanceAt(geometry, totalEntries, column, row, slotIndex, metrics);
+                if (candidate) candidates.push(candidate);
+            }
+        }
+    }
+    return candidates;
+};
+
+/** A rectangle of the wall, in world units. */
+export type WallRect = { x: number; y: number; width: number; height: number };

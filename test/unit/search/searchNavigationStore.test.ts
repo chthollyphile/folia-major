@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
-import { neteaseApi } from '@/services/netease';
+import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
 
-vi.mock('@/services/netease', () => ({
+vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         normalizeSongResult: vi.fn((raw: unknown) => raw),
@@ -39,7 +39,10 @@ describe('useSearchNavigationStore', () => {
             homeViewTab: 'playlist',
             searchQuery: '',
             searchSourceTab: 'netease',
+            searchKind: 'song',
             searchResults: null,
+            collectionResults: null,
+            resultTotal: null,
             searchReturnView: 'home',
             isSearchOpen: false,
             isSearching: false,
@@ -63,6 +66,88 @@ describe('useSearchNavigationStore', () => {
             durationMs: 1,
         }, 'netease', 'kugou')).toBe('kugou');
         expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('kugou');
+    });
+
+    it('searches albums through omni, keeps the kind and caches the page apart from the songs', async () => {
+        cloudSearchMock.mockResolvedValueOnce({
+            result: { albums: [{ id: 18909, name: 'Partners', size: 13, artists: [{ id: 6452, name: 'Jay' }] }], albumCount: 40 },
+        } as any);
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', kind: 'album', deps });
+
+        let state = useSearchNavigationStore.getState();
+        expect(cloudSearchMock).toHaveBeenLastCalledWith('jay', 30, 0, 10);
+        expect(state.searchKind).toBe('album');
+        expect(state.searchResults).toEqual([]);
+        expect(state.collectionResults).toEqual([expect.objectContaining({ providerId: 'netease', id: 18909, type: 'album' })]);
+        expect(state).toMatchObject({ resultTotal: 40, hasMore: true, offset: 1 });
+
+        // Songs of the same query are another search; going back to the albums restores them from the cache.
+        cloudSearchMock.mockResolvedValueOnce({ result: { songs: [], songCount: 0 } } as any);
+        await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', kind: 'song', deps });
+        expect(useSearchNavigationStore.getState().collectionResults).toEqual([]);
+
+        useSearchNavigationStore.getState().restoreSearch({ query: 'jay', sourceTab: 'netease', kind: 'album' });
+        state = useSearchNavigationStore.getState();
+        expect(state.searchKind).toBe('album');
+        expect(state.collectionResults).toEqual([expect.objectContaining({ id: 18909 })]);
+        expect(state.resultTotal).toBe(40);
+    });
+
+    it('starts the results of a new search at the top, whatever the list before wrote back while it unmounted', async () => {
+        cloudSearchMock.mockImplementationOnce(async () => {
+            // The list of the previous results unmounts once the search starts, and writes its scroll position back.
+            useSearchNavigationStore.getState().setSearchScrollTop(2000);
+            return { result: { albums: [], albumCount: 0 } } as any;
+        });
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', kind: 'album', deps });
+
+        expect(useSearchNavigationStore.getState().scrollTop).toBe(0);
+        expect(useSearchNavigationStore.getState().submittedQuery).toBe('jay');
+    });
+
+    it('loads more of the results on screen by the query that found them, not the one still being typed', async () => {
+        cloudSearchMock
+            .mockResolvedValueOnce({ result: { songs: [{ id: 1, name: 'A', artists: [], album: { id: 1, name: '' }, durationMs: 1 }], songCount: 2 } } as any)
+            .mockResolvedValueOnce({ result: { songs: [{ id: 2, name: 'B', artists: [], album: { id: 2, name: '' }, durationMs: 1 }], songCount: 2 } } as any);
+        await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', kind: 'song', deps });
+
+        useSearchNavigationStore.getState().setSearchQuery('jay cho');
+        await useSearchNavigationStore.getState().loadMoreSearchResults({ deps });
+        useSearchNavigationStore.getState().setSearchScrollTop(120);
+
+        const state = useSearchNavigationStore.getState();
+        expect(cloudSearchMock).toHaveBeenLastCalledWith('jay', 30, 1);
+        expect(state.searchResults).toHaveLength(2);
+        expect(state.searchQuery).toBe('jay cho');
+        expect(state.searchCache['netease:song:jay']).toMatchObject({ offset: 2, scrollTop: 120 });
+        expect(state.searchCache['netease:song:jay cho']).toBeUndefined();
+    });
+
+    it('drops a search answer that arrives after another search was restored from history', async () => {
+        let answer: (value: unknown) => void = () => undefined;
+        cloudSearchMock.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }) as any);
+        const pending = useSearchNavigationStore.getState().submitSearch({ query: 'late', sourceTab: 'netease', kind: 'song', deps });
+
+        useSearchNavigationStore.getState().restoreSearch({ query: 'earlier', sourceTab: 'netease', kind: 'song' });
+        answer({ result: { songs: [{ id: 9, name: 'Late', artists: [], album: { id: 9, name: '' }, durationMs: 1 }], songCount: 1 } });
+        // The caller must not push the dropped search onto the history: that would bring back a search page without results.
+        await expect(pending).resolves.toBe(false);
+
+        const state = useSearchNavigationStore.getState();
+        expect(state.submittedQuery).toBe('earlier');
+        expect(state.searchResults).toBeNull();
+        expect(state.isSearching).toBe(false);
+    });
+
+    it('searches songs where the source has no album or playlist search', async () => {
+        useSearchNavigationStore.setState({ searchKind: 'playlist' });
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'world', sourceTab: 'local', deps });
+
+        expect(useSearchNavigationStore.getState().searchKind).toBe('song');
+        expect(cloudSearchMock).not.toHaveBeenCalled();
     });
 
     it('submits a local search and opens the overlay', async () => {
@@ -354,26 +439,57 @@ describe('useSearchNavigationStore', () => {
         expect(useSearchNavigationStore.getState().hasMore).toBe(false);
     });
 
-    it('moves the online source to the active provider without clearing results', () => {
+    it('keeps the chosen source and its results while it is still offered (a platform switch resets nothing)', () => {
         const results = [{ id: 1, name: 'Kept' }] as any;
-        useSearchNavigationStore.setState({ searchSourceTab: 'netease', searchResults: results, searchQuery: 'q' });
+        useSearchNavigationStore.setState({ searchSourceTab: 'qq', searchResults: results, searchQuery: 'q', requestId: 3 });
 
-        useSearchNavigationStore.getState().followOnlineProvider('folium.mod-a.source');
+        expect(useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'qq', 'local'], 'netease')).toBe(false);
 
         expect(useSearchNavigationStore.getState()).toMatchObject({
-            searchSourceTab: 'folium.mod-a.source',
+            searchSourceTab: 'qq',
             searchResults: results,
             searchQuery: 'q',
+            requestId: 3,
         });
     });
 
-    it('leaves a local or Navidrome source alone when the active provider changes', () => {
-        useSearchNavigationStore.setState({ searchSourceTab: 'local' });
-        useSearchNavigationStore.getState().followOnlineProvider('kugou');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('local');
+    it('falls back when the chosen source is no longer offered, dropping its results and any search on its way', () => {
+        const results = [{ id: 1, name: 'Gone' }] as any;
+        useSearchNavigationStore.setState({
+            searchSourceTab: 'qq',
+            searchKind: 'album',
+            searchResults: results,
+            collectionResults: [] as any,
+            searchQuery: 'q',
+            submittedQuery: 'q',
+            isSearching: true,
+            hasMore: true,
+            offset: 30,
+            requestId: 3,
+        });
 
-        useSearchNavigationStore.setState({ searchSourceTab: 'navidrome' });
-        useSearchNavigationStore.getState().followOnlineProvider('kugou');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('navidrome');
+        expect(useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'local'], 'netease')).toBe(true);
+
+        expect(useSearchNavigationStore.getState()).toMatchObject({
+            searchSourceTab: 'netease',
+            searchResults: null,
+            collectionResults: null,
+            searchQuery: 'q',
+            submittedQuery: 'q',
+            isSearching: false,
+            hasMore: false,
+            offset: 0,
+            requestId: 4,
+        });
+    });
+
+    it('falls back from a local or Navidrome source that is no longer offered, to songs', () => {
+        useSearchNavigationStore.setState({ searchSourceTab: 'navidrome', searchKind: 'song' });
+        useSearchNavigationStore.getState().keepSearchSourceWithin(['netease', 'local'], 'netease');
+        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('netease');
+
+        useSearchNavigationStore.setState({ searchSourceTab: 'local' });
+        useSearchNavigationStore.getState().keepSearchSourceWithin(['netease'], 'netease');
+        expect(useSearchNavigationStore.getState()).toMatchObject({ searchSourceTab: 'netease', searchKind: 'song' });
     });
 });

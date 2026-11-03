@@ -9,8 +9,8 @@ import {
     resolveLoginSelfCheckVerdict,
     resolveLoginSelfCheckVerdictMessage,
     summarizeLoginSelfCheck,
-} from '@/library/core/model/loginSelfCheckRules';
-import type { LoginSelfCheckVerdictKind } from '@/library/core/contracts/account';
+} from '@/library/core/account/loginSelfCheckRules';
+import type { LoginSelfCheckVerdictKind } from '@/library/core/account/account.contract';
 import type { LoginSelfCheckHost, LoginSelfCheckResult } from '@/types/onlineMusic';
 
 // test/unit/library/core/loginSelfCheckRules.test.ts
@@ -60,9 +60,9 @@ describe('login self-check verdict', () => {
     });
 
     it('points QQ users at the keyring when the session cannot be stored encrypted', () => {
-        expect(resolveLoginSelfCheckVerdict(result({ providerId: 'qq', credentialStore: { encryptionAvailable: true, backend: 'basic_text' } })))
+        expect(resolveLoginSelfCheckVerdict(result({ providerId: 'qq', keepsSignInEncrypted: true, credentialStore: { encryptionAvailable: true, backend: 'basic_text' } })))
             .toMatchObject({ kind: 'credential-store', detail: 'basic_text' });
-        expect(resolveLoginSelfCheckVerdict(result({ providerId: 'qq', credentialStore: { encryptionAvailable: false, backend: null } })))
+        expect(resolveLoginSelfCheckVerdict(result({ providerId: 'qq', keepsSignInEncrypted: true, credentialStore: { encryptionAvailable: false, backend: null } })))
             .toMatchObject({ kind: 'credential-store', detail: 'encryption unavailable' });
         // 网易不用这个凭据仓库。
         expect(resolveLoginSelfCheckVerdict(result({ credentialStore: { encryptionAvailable: true, backend: 'basic_text' } })).kind).toBe('network-ok');
@@ -130,6 +130,7 @@ describe('login self-check items and copy', () => {
     it('lists each layer, skipping what was not checked', () => {
         const items = summarizeLoginSelfCheck(result({
             providerId: 'qq',
+            keepsSignInEncrypted: true,
             proxy: { env: {}, system: 'PROXY 127.0.0.1:7890' },
             hosts: [host('u.y.qq.com', {
                 connections: [

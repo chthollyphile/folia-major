@@ -10,22 +10,21 @@ import type { LyricExportFormat } from '../../services/lyricExport/types';
 import { hasExportableLyrics } from '../../utils/lyrics/exportableLyrics';
 import { LYRIC_EXPORT_COMMAND_ID } from '../command-palette/commands/lyricExportCommands';
 import LyricFileDialog from './LyricFileDialog';
+import { PanelButton } from './shell/PanelButton';
 
 // src/components/panelTab/LyricFileButton.tsx
-// The one lyric-file button in the lyrics row of the player panel's source tab (local, Navidrome
-// and online share it). Import and export used to be two icons next to online matching, which
-// crowded the row; both now open one dialog (LyricFileDialog). This component owns the dialog's
-// state and runs its actions.
+// The one lyric-file button of the player panel's source tab (local, Navidrome and online share
+// it), beside online matching. Import and export open one dialog (LyricFileDialog). This component
+// owns the dialog's state and runs its actions: it reads the file chosen for import and hands its
+// text on, and it exports.
 
 type LyricFileButtonProps = {
-    /** Each tab styles its row icons differently; the trigger matches its neighbours. */
-    buttonClassName: string;
     isDaylight: boolean;
-    /** The tab's existing file-input handler. Left out where the source cannot take an imported file. */
-    onImportChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    /** Takes the text of the chosen file. Left out where the source cannot take an imported file. */
+    onImportLyrics?: (content: string, fileName: string) => void;
 };
 
-const LyricFileButton: React.FC<LyricFileButtonProps> = ({ buttonClassName, isDaylight, onImportChange }) => {
+const LyricFileButton: React.FC<LyricFileButtonProps> = ({ isDaylight, onImportLyrics }) => {
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
@@ -36,8 +35,20 @@ const LyricFileButton: React.FC<LyricFileButtonProps> = ({ buttonClassName, isDa
     const close = useCallback(() => setIsOpen(false), []);
 
     const handleImportChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        onImportChange?.(event);
+        const file = event.target.files?.[0];
+        // Emptied, so that choosing the same file again is a change too.
+        event.target.value = '';
         close();
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const content = reader.result as string | null;
+            if (content) {
+                onImportLyrics?.(content, file.name);
+            }
+        };
+        reader.readAsText(file);
     };
 
     const exportCurrent = async (format: LyricExportFormat) => {
@@ -75,22 +86,20 @@ const LyricFileButton: React.FC<LyricFileButtonProps> = ({ buttonClassName, isDa
 
     return (
         <>
-            <button
-                type="button"
+            <PanelButton
+                grow
+                icon={ArrowDownUp}
                 data-ponder-panel-source-lyrics-file
                 onClick={() => setIsOpen(true)}
-                className={buttonClassName}
-                title={t('lyricFile.button')}
-                aria-label={t('lyricFile.button')}
                 aria-haspopup="dialog"
             >
-                <ArrowDownUp size={14} />
-            </button>
+                {t('lyricFile.button')}
+            </PanelButton>
             <LyricFileDialog
                 isOpen={isOpen}
                 onClose={close}
                 isDaylight={isDaylight}
-                onImportChange={onImportChange ? handleImportChange : undefined}
+                onImportChange={onImportLyrics ? handleImportChange : undefined}
                 canExportCurrent={canExportCurrent}
                 isExporting={isExporting}
                 onExportCurrent={format => void exportCurrent(format)}

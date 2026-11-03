@@ -8,7 +8,7 @@ import {
     localHomeSectionOfRow,
     LOCAL_HOME_SECTIONS,
     resolveLocalHomeActions,
-} from '@/library/core/model/localHomeModel';
+} from '@/library/core/home/localHomeModel';
 
 // test/unit/library/core/localHomeModel.test.ts
 // 本地页签的模型（原 localGrid3DModel 与 LocalGrid3DView 里的 section / 卡片 / 动作）：注入的封面解析、

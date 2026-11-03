@@ -4,7 +4,7 @@
 // spreading outward like a tree ring that records how loud that beat was.
 // A song without lyrics grows its rings from random piths instead.
 //
-// Everything is keyed to the song clock (ctx.currentTime), not the wall clock:
+// Everything is keyed to the lyric clock (ctx.lyricTime), not the wall clock:
 // pausing freezes the rings, seeking back clears the record, and the export
 // window, which steps the clock itself, renders the same picture.
 
@@ -150,7 +150,7 @@ export const mount52Hz = (folium, container, ctx) => {
     const settings = () => ctx.getSettings();
     // The user's lyric size scales on top of the mod's own size setting, as in builtin modes.
     const fontScale = () => Number(settings().fontScale ?? 1) * ctx.getDisplay().lyricsFontScale;
-    // Resolved the way builtin modes resolve the theme font (Folium 1.3).
+    // Resolved the way builtin modes resolve the theme font.
     const lyricFont = () => {
       const theme = ctx.getTheme();
       return { family: folium.theme.resolveFontStack(theme), weight: folium.theme.resolveFontWeight(theme, 500) };
@@ -345,12 +345,10 @@ export const mount52Hz = (folium, container, ctx) => {
     };
 
     let dirty = true;
-    let frame = 0;
     let renderedTime = null;
 
     const tick = () => {
-      frame = requestAnimationFrame(tick);
-      const time = ctx.currentTime.get();
+      const time = ctx.lyricTime.get();
       if (!ctx.staticMode) {
         const wall = performance.now();
         recordAudio(time, wall);
@@ -384,7 +382,8 @@ export const mount52Hz = (folium, container, ctx) => {
       return `${font.family}|${font.weight}|${theme.primaryColor}|${theme.accentColor}|${fontScale()}`;
     };
     let lastGlyphKey = glyphKey();
-    const offChanges = ctx.subscribe(() => {
+    // The host stops these three when the mount ends.
+    ctx.onChange(() => {
       const key = glyphKey();
       if (key !== lastGlyphKey) {
         lastGlyphKey = key;
@@ -393,19 +392,15 @@ export const mount52Hz = (folium, container, ctx) => {
       applyLook();
       dirty = true;
     });
-    const resizeObserver = new ResizeObserver(() => {
+    ctx.onResize(() => {
       if (host.clientWidth !== width || host.clientHeight !== height) {
         rebuildGeometry();
         applyLook();
       }
     });
-    resizeObserver.observe(host);
-    frame = requestAnimationFrame(tick);
+    ctx.onFrame(tick);
 
     cleanup = () => {
-      cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-      offChanges();
       text.destroy();
       fieldSources.forEach((source) => source.destroy());
       historySource.destroy();

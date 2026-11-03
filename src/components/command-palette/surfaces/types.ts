@@ -53,6 +53,16 @@ export type CommandPaletteSurface = {
      */
     backdrop?: 'blur' | 'clear';
     /**
+     * Opens the palette in its top overlay even while the player bar is on screen, instead of growing
+     * it out of the bar. For a surface that edits what sits just above the bar — the bottom subtitle —
+     * which the bar-grown panel would cover exactly where the change is meant to be seen.
+     *
+     * Only read when the palette opens straight into this surface (a button or shortcut that names
+     * the command). A palette already grown out of the bar keeps that shell when the surface is picked
+     * from its list: switching shells midway remounts the input and cannot animate either shell out.
+     */
+    keepsClearOfPlayerBar?: boolean;
+    /**
      * Lazily imported so the registry stays a pure-TS module: pulling react-window,
      * react-i18next or the eager visualizer glob into the module graph would break the
      * node-environment registry tests.

@@ -28,6 +28,10 @@ const sanitizeFileName = (value) => String(value ?? 'folia-export')
     .trim()
     .slice(0, 80) || 'folia-export';
 
+// How long the wait for the export window to be ready to draw may last before the user is told
+// which mod it waits for. A mod that starts as usual answers well within it.
+const WAIT_NOTICE_MS = 1000;
+
 const isElectronDevRuntime = () => process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development';
 
 /*
@@ -225,10 +229,16 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
         let exportWindow = null;
         let cancelled = false;
         let keepOutput = false;
+        // Resolves when the export is cancelled: for the one wait below that has no end of its own.
+        let noteCancelled = () => {};
+        const cancelRequested = new Promise((resolve) => { noteCancelled = resolve; });
 
         const session = {
             get cancelled() { return cancelled; },
-            cancel: () => { cancelled = true; },
+            cancel: () => {
+                cancelled = true;
+                noteCancelled();
+            },
         };
         activeSession = session;
 
@@ -298,6 +308,7 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
             // activates the clients in its 'export' context, which is what
             // makes a mod visualizerMode resolve here at all, and renders
             // with the same settings/tunings the user sees.
+            const modClients = safeModClients();
             const injected = JSON.stringify({
                 lyricData: renderSpec.lyricData,
                 visualizerMode: renderSpec.visualizerMode,
@@ -307,16 +318,45 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
                 startSec: renderSpec.startSec,
                 backgroundMode: renderSpec.backgroundMode,
                 transparent: renderSpec.transparent,
-                modClients: safeModClients(),
+                modClients,
                 foliumParams: renderSpec.foliumParams,
             });
             // configure() returns a promise (it imports the mod visualizer
             // modules); executeJavaScript resolves it, so the first frame is
             // only rendered once the requested mode is actually registered.
-            await exportWindow.webContents.executeJavaScript(
+            // The page answers { ok: false, error } when it cannot draw what was
+            // asked for (the style's mod did not start there): the export stops
+            // instead of rendering a builtin style in its place.
+            // A style whose mod is slow to start is waited for until that start
+            // ends, which may be never: cancelling ends the wait. Once the wait
+            // has lasted a moment the user is told which mod it is for (a
+            // 'waiting' progress with the mod's name), so the cancel is in reach.
+            // A style of Folia's own waits for nothing that has no end.
+            const styleModId = renderSpec.visualizerMode.startsWith('mod:') ? renderSpec.visualizerMode.split(':')[1] : null;
+            const styleMod = styleModId ? modClients.find((mod) => mod && mod.id === styleModId) : null;
+            const configuring = exportWindow.webContents.executeJavaScript(
                 `window.__foliaModExport.configure(${injected})`,
                 true
             );
+            // Left pending by a cancel, it fails when the window is closed: nobody waits for it then.
+            configuring.catch(() => {});
+            const waitNotice = styleMod ? setTimeout(() => {
+                if (!cancelled) {
+                    onProgress({ phase: 'waiting', frame: 0, totalFrames, percent: 0, waitingFor: styleMod.name || styleMod.id });
+                }
+            }, WAIT_NOTICE_MS) : null;
+            let configured;
+            try {
+                configured = await Promise.race([configuring, cancelRequested]);
+            } finally {
+                clearTimeout(waitNotice);
+            }
+            if (cancelled) {
+                throw new Error('cancelled');
+            }
+            if (configured && configured.ok === false) {
+                throw new Error(configured.error || 'export-failed');
+            }
 
             let lastPercent = -1;
             let alphaProbeDone = false;
@@ -519,4 +559,4 @@ const createExportService = ({ app, BrowserWindow, resolveFfmpeg, getModClients 
     return { runExport, cancelActiveExport, isExportRunning };
 };
 
-module.exports = { createExportService, EXPORT_LIMITS };
+module.exports = { createExportService, EXPORT_LIMITS, WAIT_NOTICE_MS };

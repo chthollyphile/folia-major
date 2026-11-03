@@ -1,0 +1,11 @@
+{
+  "folium": 1,
+  "id": "player-layout-demo",
+  "name": "播放器布局避让示例",
+  "version": "2.1.0",
+  "author": "Development example",
+  "description": "用公开布局信息显示左下示例聊天和右上示例对话，不读取宿主 DOM。",
+  "client": "client.mjs",
+  "permissions": ["ui.stage"],
+  "experimental": ["player.layout"]
+}

@@ -132,7 +132,11 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
     const glyphLayer = new pixi.Container();
     const stars = new pixi.Container();
     const spots = new pixi.Container();
-    view.addChild(spots, trackLayer, halos, glyphLayer, stars);
+    // 径迹层几乎每帧重画。Pixi 8 里重画过的 Graphics 会让它所在的渲染组把绘制指令整组重排，原来就是整个舞台；
+    // 给它一个自己的渲染组，重排的只有这一层。画的先后不变（还在 spots 与 halos 之间）。
+    const trackHolder = new pixi.Container({ isRenderGroup: true });
+    trackHolder.addChild(trackLayer);
+    view.addChild(spots, trackHolder, halos, glyphLayer, stars);
     const lineCount = options.lines.length;
     const nextAlpha = options.neighbors >= 2 ? 0.95 : 0;
     // 长度上限：横排用画框内的整个宽度（纵横交错留一成给四周的行），竖排用画框内的整个高度（避开底部字幕）。
@@ -283,19 +287,23 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
 
                 // bloom 已经很强，光晕与闪点只做「局部更亮」的那一点，不能叠成一团白。
                 const haloAlpha = glyphAlpha * lit * (0.03 + 0.14 * illumination + 0.08 * flash) * (tints ? KEYWORD_HALO_GAIN : 1);
-                glyph.halo.visible = haloAlpha > 0.003;
-                if (glyph.halo.visible) {
+                // 光晕与闪点在一行里此起彼伏地亮灭。用 visible 藏的话，每亮灭一次 Pixi 都要把整个渲染组的绘制指令重排一遍；
+                // 所以行可见时它们一直留在绘制指令里，不亮的缩成零大小：零面积的四边形不出任何像素，画面与藏起来一样。
+                glyph.halo.visible = true;
+                if (haloAlpha > 0.003) {
                     glyph.halo.position.set(gx, gy);
                     const size = fontPx * (2.2 + 0.8 * illumination);
                     glyph.halo.width = size;
                     glyph.halo.height = size * 0.9;
                     glyph.halo.alpha = haloAlpha;
                     glyph.halo.tint = tints ? tints.halo : litHex;
+                } else {
+                    glyph.halo.scale.set(0);
                 }
 
                 const starAlpha = lineAlpha * flash * 0.55 * shield;
-                glyph.star.visible = starAlpha > 0.003;
-                if (glyph.star.visible) {
+                glyph.star.visible = true;
+                if (starAlpha > 0.003) {
                     // 亮点避开笔画中心，按种子上下错落；闪的过程中略微转动。
                     const star = glyph.starShape;
                     glyph.star.position.set(gx + fontPx * star.dx, gy + fontPx * star.dy);
@@ -305,6 +313,8 @@ export const createLyricWindow = (pixi: PixiModule, options: LyricWindowOptions)
                     glyph.star.height = size;
                     glyph.star.alpha = starAlpha;
                     glyph.star.tint = tints ? tints.star : starHex;
+                } else {
+                    glyph.star.scale.set(0);
                 }
             }
 

@@ -27,6 +27,17 @@ describe('seam boundaries', () => {
         expect(isSeamBoundaryX(-BLOCK_W - 4, METRICS)).toBe(true);
         expect(isSeamBoundaryX(100, METRICS)).toBe(false);
     });
+
+    it('rounds to the nearest midline of a wider gap (a street between blocks)', () => {
+        const width = BLOCK_W + 64;
+        const midline = (column: number) => getSeamBoundaryX(column, METRICS, width);
+        expect(midline(1)).toBe(width - 36);
+        // Just short of halfway between two midlines still belongs to the nearer one.
+        const halfway = (midline(1) + midline(2)) / 2;
+        expect(nearestSeamBoundaryX(halfway - 1, METRICS, width)).toBe(midline(1));
+        expect(nearestSeamBoundaryX(halfway + 1, METRICS, width)).toBe(midline(2));
+        expect(nearestSeamBoundaryX(midline(-3) + 5, METRICS, width)).toBe(midline(-3));
+    });
 });
 
 describe('block seam plan', () => {

@@ -558,3 +558,61 @@
     background: var(--bravais-window-glow);
 }
 
+
+/* 空墙上的说明（BravaisWallHint）：两半墙之上、缝之下的一段淡色大字，当作墙的背景，不接指针。
+   left / width 每帧由 useBravaisFrame 写（缝两侧较宽的那一边）；上下留出左上角返回与底部播放胶囊、工具按钮的位置。 */
+.bravais-wall-hint {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 72px clamp(20px, 4vw, 64px) 112px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.32s ease;
+}
+
+.bravais-wall-hint[data-bravais-wall-hint="shown"] { opacity: 1; }
+
+/* 交接（进 / 出 Lattice）时两面墙叠着换内容：说明先藏起来。 */
+.bravais-root[data-wall-handoff] .bravais-wall-hint { opacity: 0; }
+
+.bravais-wall-hint-text {
+    max-width: 28em;
+    text-align: center;
+    animation: bravais-wall-hint-in 0.5s ease both;
+}
+
+.bravais-wall-hint-title {
+    margin: 0;
+    font-size: clamp(24px, 3.2vw, 48px);
+    font-weight: 700;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    color: color-mix(in srgb, var(--text-primary, #fff) 22%, transparent);
+    text-wrap: balance;
+}
+
+.bravais-wall-hint-body {
+    margin: 0.9em auto 0;
+    max-width: 30em;
+    font-size: clamp(13px, 1.1vw, 16px);
+    line-height: 1.65;
+    color: color-mix(in srgb, var(--text-primary, #fff) 36%, transparent);
+    text-wrap: pretty;
+}
+
+@keyframes bravais-wall-hint-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bravais-wall-hint { transition: none; }
+    .bravais-wall-hint-text { animation: none; }
+}

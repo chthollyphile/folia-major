@@ -1,40 +1,23 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetPortraitSource } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { useVisualizerAssetStore } from '../../../stores/useVisualizerAssetStore';
+import { DEFAULT_MONET_TUNING, type MonetAudioStyle, type MonetPortraitSource, type MonetTuning } from '../../../types';
+import { DEFAULT_LYRIC_RENDER_OVERRIDE } from '../../../utils/lyricRenderQuality';
+import { Button, Group, PictureGrid, Reveal, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import { type VisualizerSettingsPanelProps } from '../definition';
+import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 
 // src/components/visualizer/monet/MonetSettingsPanel.tsx
-// Monet-specific lyric, audio, and portrait controls. Background controls live in the shared background panel.
-type MonetSettingsTheme = VisualizerSettingsPanelProps['theme'];
+// Monet-specific lyric, audio, portrait and render controls, as four groups of the settings kit.
+// Background controls live in the shared background panel.
+const LYRICS_GROUP: SettingsGroupDef = { id: 'vis-monet-lyrics', titleKey: 'options.lyricsStyleSettings' };
+const PORTRAIT_GROUP: SettingsGroupDef = { id: 'vis-monet-portrait', titleKey: 'options.cappellaAvatarSource' };
+const AUDIO_GROUP: SettingsGroupDef = { id: 'vis-monet-audio', titleKey: 'options.monetAudioStyle' };
+// 只有底部音频条是 canvas 2D：只给分辨率一行（#929）。
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-monet-render', titleKey: 'options.lyricRenderSection' };
 
-interface PresetOption<T> {
-    label: string;
-    value: T;
-    disabled?: boolean;
-}
-
-interface PresetGroupProps<T> {
-    label: string;
-    value: T;
-    options: PresetOption<T>[];
-    onChange: (value: T) => void;
-    isDaylight: boolean;
-    theme: MonetSettingsTheme;
-}
-
-interface SliderControlProps {
-    label: string;
-    valueLabel: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    onChange: (value: number) => void;
-    rangeInputClass: string;
-    onSliderPointerDown?: () => void;
-    onSliderCommit?: () => void;
-}
+type MonetPortraitStyle = 'rectangular' | 'square';
 
 const clampValue = (value: number, min: number, max: number, fallback: number) => (
     Number.isFinite(value)
@@ -42,103 +25,38 @@ const clampValue = (value: number, min: number, max: number, fallback: number) =
         : fallback
 );
 
-const SectionLabel: React.FC<{ children: React.ReactNode; theme: MonetSettingsTheme; }> = ({ children, theme }) => (
-    <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-        {children}
-    </div>
+/** The portrait's frame: tall, or square. */
+const portraitStylePicture = (style: MonetPortraitStyle) => (
+    <span className="absolute inset-0 grid place-items-center">
+        <span className={`rounded-sm bg-[var(--st-t2)] ${style === 'square' ? 'aspect-square h-[56%]' : 'aspect-[3/4] h-[76%]'}`} />
+    </span>
 );
 
-const PresetGroup = <T,>({
-    label,
-    value,
-    options,
-    onChange,
-    isDaylight,
-    theme,
-}: PresetGroupProps<T>) => (
-    <div className="space-y-2.5">
-        <SectionLabel theme={theme}>{label}</SectionLabel>
-        <div className="flex flex-wrap gap-2">
-            {options.map(option => {
-                const isActive = option.value === value;
-                return (
-                    <button
-                        key={String(option.value)}
-                        type="button"
-                        onClick={() => {
-                            if (!option.disabled) {
-                                onChange(option.value);
-                            }
-                        }}
-                        disabled={option.disabled}
-                        className="rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                        style={{
-                            color: option.disabled ? colorWithAlpha(theme.secondaryColor, 0.72) : theme.primaryColor,
-                            borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                            backgroundColor: isActive
-                                ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
-                                : colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            boxShadow: isActive ? `inset 0 0 0 1px ${theme.accentColor}` : 'none',
-                        }}
-                    >
-                        {option.label}
-                    </button>
-                );
-            })}
-        </div>
-    </div>
+/** The spectrum at the bottom: bars, or one line. */
+const audioStylePicture = (style: MonetAudioStyle) => (
+    <svg viewBox="0 0 64 40" className="absolute inset-0 h-full w-full text-[color:var(--st-t2)]" fill="none" stroke="currentColor" strokeLinecap="round">
+        {style === 'bar' ? (
+            <path strokeWidth="3" d="M14 30V22M22 30V14M30 30V19M38 30V10M46 30V17M54 30V24" />
+        ) : (
+            <path strokeWidth="2" strokeLinejoin="round" d="M10 26L18 21L26 24L34 12L42 19L50 15L56 23" />
+        )}
+    </svg>
 );
 
-const SliderControl: React.FC<SliderControlProps> = ({
-    label,
-    valueLabel,
-    value,
-    min,
-    max,
-    step,
-    onChange,
-    rangeInputClass,
-    onSliderPointerDown,
-    onSliderCommit,
-}) => (
-    <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3 text-sm" style={{ color: 'var(--text-primary)' }}>
-            <span>{label}</span>
-            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                {valueLabel}
-            </span>
-        </div>
-        <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(event) => onChange(parseFloat(event.target.value))}
-            onPointerDown={onSliderPointerDown}
-            onPointerUp={onSliderCommit}
-            onPointerCancel={onSliderCommit}
-            onBlur={onSliderCommit}
-            className={rangeInputClass}
-        />
-    </div>
-);
-
-export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps<MonetTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
-    monetTuning = DEFAULT_MONET_TUNING,
-    onMonetTuningChange,
-    monetPortraitImage,
-    onUploadMonetPortraitImage,
-    onClearMonetPortraitImage,
-    isLoadingMonetPortraitImage = false,
+    tuning: monetTuning = DEFAULT_MONET_TUNING,
+    onTuningChange: onMonetTuningChange,
+    settings: {
+        handleUploadMonetPortraitImage: onUploadMonetPortraitImage,
+        handleClearMonetPortraitImage: onClearMonetPortraitImage,
+    },
     onSliderPointerDown,
     onSliderCommit,
 }) => {
+    // The listener's own portrait and whether it is still being read back: the style's own, so the panel takes them itself.
+    const monetPortraitImage = useVisualizerAssetStore(state => state.monetPortraitImage);
+    const isLoadingMonetPortraitImage = useVisualizerAssetStore(state => state.isLoadingMonetPortraitImage);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [feedback, setFeedback] = useState<string | null>(null);
     const resolvedTuning = {
@@ -151,39 +69,6 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
         portraitStyle: monetTuning.portraitStyle ?? DEFAULT_MONET_TUNING.portraitStyle ?? 'rectangular',
         showPortraitDragHanger: monetTuning.showPortraitDragHanger ?? DEFAULT_MONET_TUNING.showPortraitDragHanger,
     };
-
-    const keywordColoringOptions = useMemo<PresetOption<boolean>[]>(() => ([
-        { value: true, label: t('options.monetKeywordColoringOn') },
-        { value: false, label: t('options.monetKeywordColoringOff') },
-    ]), [t]);
-    const showDescriptionOptions = useMemo<PresetOption<boolean>[]>(() => ([
-        { value: true, label: t('options.partitaGuideLinesOn') },
-        { value: false, label: t('options.partitaGuideLinesOff') },
-    ]), [t]);
-    const portraitSourceOptions = useMemo<PresetOption<MonetPortraitSource>[]>(() => ([
-        { value: 'cover', label: t('options.monetPortraitSourceCover') },
-        {
-            value: 'custom',
-            label: t('options.monetPortraitSourceCustom'),
-            disabled: !monetPortraitImage && !isLoadingMonetPortraitImage,
-        },
-    ]), [isLoadingMonetPortraitImage, monetPortraitImage, t]);
-    const audioStyleOptions = useMemo<PresetOption<MonetAudioStyle>[]>(() => ([
-        { value: 'bar', label: t('options.monetAudioStyleBar') },
-        { value: 'line', label: t('options.monetAudioStyleLine') },
-    ]), [t]);
-    const showAudioVisualizationOptions = useMemo<PresetOption<boolean>[]>(() => ([
-        { value: true, label: t('options.monetAudioVisualizationShow') },
-        { value: false, label: t('options.monetAudioVisualizationHide') },
-    ]), [t]);
-    const portraitStyleOptions = useMemo<PresetOption<'rectangular' | 'square'>[]>(() => ([
-        { value: 'rectangular', label: t('options.monetPortraitStyleRectangular') },
-        { value: 'square', label: t('options.monetPortraitStyleSquare') },
-    ]), [t]);
-    const showPortraitDragHangerOptions = useMemo<PresetOption<boolean>[]>(() => ([
-        { value: true, label: t('options.monetPortraitDragHangerShow') },
-        { value: false, label: t('options.monetPortraitDragHangerHide') },
-    ]), [t]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(event.target.files ?? []);
@@ -203,159 +88,131 @@ export const MonetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
     };
 
     return (
-        <div
-            className="space-y-4 rounded-[24px] border border-white/10 p-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.monetSettings')}
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.monetSettingsDesc')}
-                </div>
-            </div>
-
-            {/* Section 1: Lyrics & Typography */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.lyricsStyleSettings')}
-                </div>
-                
-                <SliderControl
+        <>
+            <Group def={LYRICS_GROUP}>
+                <SliderRow
                     label={t('options.monetFontScale')}
-                    valueLabel={`${resolvedTuning.fontScale.toFixed(2)}x`}
+                    value={resolvedTuning.fontScale}
                     min={0.7}
                     max={1.5}
                     step={0.05}
-                    value={resolvedTuning.fontScale}
+                    format={times}
                     onChange={(value) => onMonetTuningChange?.({ fontScale: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
+                    onDragStart={onSliderPointerDown}
+                    onDragEnd={onSliderCommit}
                 />
-
-                <PresetGroup
+                <ToggleRow
                     label={t('options.monetKeywordColoring')}
-                    value={resolvedTuning.keywordColoringEnabled}
-                    options={keywordColoringOptions}
+                    checked={resolvedTuning.keywordColoringEnabled}
                     onChange={(value) => onMonetTuningChange?.({ keywordColoringEnabled: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
-
-                <PresetGroup
+                <ToggleRow
                     label={t('options.monetShowDescription')}
-                    value={resolvedTuning.showDescription}
-                    options={showDescriptionOptions}
+                    checked={resolvedTuning.showDescription}
                     onChange={(value) => onMonetTuningChange?.({ showDescription: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
-            </div>
+            </Group>
 
-            {/* Section 2: Portrait Character */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.cappellaAvatarSource')}
-                </div>
-
-                <PresetGroup
-                    label={t('options.monetPortraitSource')}
-                    value={resolvedTuning.portraitSource}
-                    options={portraitSourceOptions}
-                    onChange={(value) => onMonetTuningChange?.({ portraitSource: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-
-                <PresetGroup
+            <Group def={PORTRAIT_GROUP}>
+                <Row label={t('options.monetPortraitSource')}>
+                    <Segmented<MonetPortraitSource>
+                        value={resolvedTuning.portraitSource}
+                        options={[
+                            { value: 'cover', label: t('options.monetPortraitSourceCover') },
+                            {
+                                value: 'custom',
+                                label: t('options.monetPortraitSourceCustom'),
+                                disabled: !monetPortraitImage && !isLoadingMonetPortraitImage,
+                            },
+                        ]}
+                        onChange={(value) => onMonetTuningChange?.({ portraitSource: value })}
+                    />
+                </Row>
+                <Row
+                    label={t('options.monetUploadPortrait')}
+                    hint={feedback || monetPortraitImage?.name || '-'}
+                >
+                    <Button
+                        icon={ImagePlus}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoadingMonetPortraitImage || !onUploadMonetPortraitImage}
+                    >
+                        {t('options.monetUploadPortrait')}
+                    </Button>
+                    <Button
+                        icon={Trash2}
+                        onClick={() => void onClearMonetPortraitImage?.()}
+                        disabled={!monetPortraitImage || !onClearMonetPortraitImage}
+                    >
+                        {t('options.monetClearPortrait')}
+                    </Button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
+                        className="hidden"
+                        onChange={(event) => void handleFileChange(event)}
+                    />
+                </Row>
+                <Row
                     label={t('options.monetPortraitStyle')}
-                    value={resolvedTuning.portraitStyle}
-                    options={portraitStyleOptions}
-                    onChange={(value) => onMonetTuningChange?.({ portraitStyle: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
+                    below={(
+                        <PictureGrid<MonetPortraitStyle>
+                            className="-mx-4"
+                            columns={4}
+                            label={t('options.monetPortraitStyle')}
+                            value={resolvedTuning.portraitStyle}
+                            options={[
+                                { value: 'rectangular', label: t('options.monetPortraitStyleRectangular') },
+                                { value: 'square', label: t('options.monetPortraitStyleSquare') },
+                            ]}
+                            picture={portraitStylePicture}
+                            onChange={(value) => onMonetTuningChange?.({ portraitStyle: value })}
+                        />
+                    )}
                 />
-
-                <PresetGroup
+                <ToggleRow
                     label={t('options.monetPortraitDragHanger')}
-                    value={resolvedTuning.showPortraitDragHanger}
-                    options={showPortraitDragHangerOptions}
+                    checked={resolvedTuning.showPortraitDragHanger ?? true}
                     onChange={(value) => onMonetTuningChange?.({ showPortraitDragHanger: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
+            </Group>
 
-                <div className="space-y-2.5">
-                    <SectionLabel theme={theme}>{t('options.monetUploadPortrait')}</SectionLabel>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isLoadingMonetPortraitImage || !onUploadMonetPortraitImage}
-                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                            style={{
-                                color: theme.primaryColor,
-                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            }}
-                        >
-                            <ImagePlus size={15} />
-                            <span>{t('options.monetUploadPortrait')}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void onClearMonetPortraitImage?.()}
-                            disabled={!monetPortraitImage || !onClearMonetPortraitImage}
-                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                            style={{
-                                color: theme.primaryColor,
-                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            }}
-                        >
-                            <Trash2 size={15} />
-                            <span>{t('options.monetClearPortrait')}</span>
-                        </button>
-                    </div>
-                    <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                        {feedback || monetPortraitImage?.name || '-'}
-                    </div>
-                </div>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".png,.jpg,.jpeg,.gif,.webp,.svg,image/*"
-                    className="hidden"
-                    onChange={(event) => void handleFileChange(event)}
-                />
-            </div>
-
-            {/* Section 3: Audio Spectrum */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetAudioStyle')}
-                </div>
-
-                <PresetGroup
+            <Group def={AUDIO_GROUP}>
+                <ToggleRow
                     label={t('options.monetShowAudioVisualization')}
-                    value={resolvedTuning.showAudioVisualization}
-                    options={showAudioVisualizationOptions}
+                    checked={resolvedTuning.showAudioVisualization}
                     onChange={(value) => onMonetTuningChange?.({ showAudioVisualization: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
+                <Reveal when={resolvedTuning.showAudioVisualization}>
+                    <Row
+                        sub
+                        label={t('options.monetAudioStyle')}
+                        below={(
+                            <PictureGrid<MonetAudioStyle>
+                                className="-mx-4"
+                                columns={4}
+                                label={t('options.monetAudioStyle')}
+                                value={resolvedTuning.audioStyle}
+                                options={[
+                                    { value: 'bar', label: t('options.monetAudioStyleBar') },
+                                    { value: 'line', label: t('options.monetAudioStyleLine') },
+                                ]}
+                                picture={audioStylePicture}
+                                onChange={(value) => onMonetTuningChange?.({ audioStyle: value })}
+                            />
+                        )}
+                    />
+                </Reveal>
+            </Group>
 
-                <PresetGroup
-                    label={t('options.monetAudioStyle')}
-                    value={resolvedTuning.audioStyle}
-                    options={audioStyleOptions}
-                    onChange={(value) => onMonetTuningChange?.({ audioStyle: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={monetTuning.render ?? DEFAULT_LYRIC_RENDER_OVERRIDE}
+                    onChange={(patch) => onMonetTuningChange?.({ render: { ...(monetTuning.render ?? DEFAULT_LYRIC_RENDER_OVERRIDE), ...patch } })}
+                    antialias={false}
                 />
-            </div>
-        </div>
+            </Group>
+        </>
     );
 };

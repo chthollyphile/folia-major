@@ -15,6 +15,7 @@ import {
     segmentLyricsWithAi,
     type SegmentationProgress,
 } from '../../../services/lyricSegmentationAi';
+import { copyText } from '../../../utils/system/clipboard';
 import LyricSegmentationActionBar from './LyricSegmentationActionBar';
 import { registerLyricSegmentationHandle } from './lyricSegmentationSurface';
 import type { LyricSegmentationAction } from '../lyricSegmentationQuery';
@@ -96,7 +97,7 @@ const LyricSegmentationSurfaceView: React.FC<LyricSegmentationSurfaceViewProps> 
 
     const copy = async (text: string, successKey: string, fallback: string) => {
         try {
-            await navigator.clipboard.writeText(text);
+            await copyText(text);
             setStatusMsg({ type: 'success', text: t(successKey, fallback) });
         } catch {
             setError(t('lyricSegmentation.copyFailed', 'Could not write to the clipboard'));

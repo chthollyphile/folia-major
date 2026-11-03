@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-equalizer-console",
+  "name": "音效控制台（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "Folium 1.7 示范：经 folium.equalizer 读宿主的均衡器，并会改写你的音效设置：切到低音增强、换上它自己的均衡器曲线，打开「按歌自动施加」时每首歌换一条曲线。不会改写你的自定义音效，也不会打开总开关；你一改音效，自动施加就停下，在音频效果器里随时可以换回。读不需要权限，写需要 equalizer.control。",
+  "client": "client.mjs",
+  "permissions": ["equalizer.control"]
+}

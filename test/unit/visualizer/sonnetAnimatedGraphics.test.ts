@@ -4,7 +4,9 @@ import { AnimatedGraphics } from '@/components/visualizer/sonnet/sonnetAnimatedG
 
 // test/unit/visualizer/sonnetAnimatedGraphics.test.ts
 // Locks the pending-command skip: commands still waiting for their stagger window emit nothing,
-// unless the shared path state carries them into a neighbour (arc-led strokes).
+// unless the shared path state carries them into a neighbour (arc-led strokes). And an
+// AnimatedGraphics is not redrawn for the progress it was last drawn for: lock when it must be,
+// another progress, and another recorded command at the same progress.
 const instructions = (graphics: AnimatedGraphics) => graphics.display.context.instructions;
 
 describe('Sonnet AnimatedGraphics pending commands', () => {
@@ -38,5 +40,43 @@ describe('Sonnet AnimatedGraphics pending commands', () => {
         expect(emitted.map(instruction => instruction.action)).toEqual(['fill', 'stroke']);
         const pathOf = (index: number) => (emitted[index].data as { path: pixi.GraphicsPath }).path;
         expect(pathOf(1)).toBe(pathOf(0));
+    });
+});
+
+const createPixi = () => {
+    const counts = { clears: 0, strokes: 0 };
+    class Graphics {
+        clear() { counts.clears += 1; return this; }
+        moveTo() { return this; }
+        lineTo() { return this; }
+        stroke() { counts.strokes += 1; return this; }
+    }
+    return { pixi: { Graphics } as unknown as typeof import('pixi.js'), counts };
+};
+
+describe('sonnet AnimatedGraphics.update', () => {
+    it('redraws for a new progress and not for the same one', () => {
+        const { pixi: fakePixi, counts } = createPixi();
+        const graphics = new AnimatedGraphics(fakePixi);
+        graphics.moveTo(0, 0).lineTo(10, 0).stroke({ width: 1 });
+
+        graphics.update(0.5);
+        graphics.update(0.5);
+        expect(counts).toEqual({ clears: 1, strokes: 1 });
+
+        graphics.update(1);
+        graphics.update(1);
+        graphics.update(1);
+        expect(counts).toEqual({ clears: 2, strokes: 2 });
+    });
+
+    it('redraws when a command was recorded since', () => {
+        const { pixi: fakePixi, counts } = createPixi();
+        const graphics = new AnimatedGraphics(fakePixi);
+        graphics.moveTo(0, 0).lineTo(10, 0).stroke({ width: 1 });
+        graphics.update(1);
+        graphics.moveTo(0, 5).lineTo(10, 5).stroke({ width: 1 });
+        graphics.update(1);
+        expect(counts).toEqual({ clears: 2, strokes: 3 });
     });
 });

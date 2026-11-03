@@ -31,6 +31,9 @@ export const splitPonderKeys = (combo: string): string[] => (
         .map(key => (key === PONDER_MODIFIER_TOKEN ? ponderModifierLabel : key))
 );
 
+/** 安静的键帽：图例、退出按钮、提示胶囊和教程索引里的键都用这一组颜色，不抢画面。 */
+export const PONDER_QUIET_CAP = { accent: 'var(--st-line2)', surface: 'var(--st-fill)', text: 'var(--st-t2)' };
+
 type PonderKeyCapProps = {
     label: string;
     accent: string;

@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "transparent-mov-export",
   "modVersion": "1.0.1",
-  "digest": "sha256:390bf9089896b6ffae42294681eb17b8df3c3e90f9af04396070a952ce44cb78",
+  "digest": "sha256:29e37ac988a835166d1c10df577b3025752853fa5e4596457e442b5251bf7ad0",
   "keyId": "folium-2026-1",
-  "signedAt": "2026-09-24T19:10:07.805Z",
-  "signature": "MGhzkS8G1UPV2MM4goabJt+EsCQs545u2+c/1LZKS+WEiW/8Qu6vkqFiiLaBwZqiwomJ6xdCXQQ90ifL0zCVAw=="
+  "signedAt": "2026-10-17T07:54:59.483Z",
+  "signature": "NXeXtsIy6jgggvyMzcvySOm7r8jMraBSA+tjlGeezdVWejWyKYGs9GKY5r20TcC6aXCDuH8QY1nhmI8FExgNCA=="
 }

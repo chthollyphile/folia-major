@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { openCommandFilter, registerCommandFilter, useAppViewStore } from '../stores/useAppViewStore';
-import type { LibraryQueryPort } from '../library/core/contracts/session';
+import type { LibraryQueryPort } from '../library/core/shared/session.contract';
 
 // src/hooks/useGridCommandFilter.ts
 // Hands one grid's filter box over to the command palette.

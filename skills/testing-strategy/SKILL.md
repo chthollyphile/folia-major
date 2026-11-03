@@ -1,11 +1,18 @@
 ---
 name: testing-strategy
-description: Use when the task involves choosing how to validate a change in this repository, deciding whether to inspect a running dev server, run unit tests, run Playwright UI screenshot tests, or avoid unnecessary builds.
+description: Use when the task involves deciding whether a change needs a new test, choosing how to validate a change in this repository, deciding whether to inspect a running dev server, run unit tests, run Playwright UI screenshot tests, or avoid unnecessary builds, or when a test fails and you need to tell whether your change broke it.
 ---
 
 # Testing Strategy
 
-这个 skill 用于判断当前任务应该采用哪一种验证方式。
+这个 skill 用于判断当前任务该不该写新测试，以及应该采用哪一种验证方式。
+
+## 什么时候写新测试
+
+- 用的人用应用时看不出来的逻辑（分支规则、换算、存下来的数据）：加一个跑得快的逻辑测试（Vitest，毫秒级）。
+- 修好的毛病，复发时没人会马上看到的：加一个能抓住它的逻辑测试。
+- 靠看来判断的（布局、动效、时间感）：不加新的浏览器测试，也不加按真实时间计时的测试，除非维护者要求。这类改动交给维护者看。
+- 一个测试失败，先当作是你的改动弄坏的。在你改动之前的那个提交上跑一次：那里也失败，才说明不是你弄的，在交接里写一句。
 
 ## Core Rule
 
@@ -21,7 +28,7 @@ description: Use when the task involves choosing how to validate a change in thi
 
 ### 1. 前端页面样式、交互、回归截图
 
-优先使用 Playwright UI 测试：
+跑已有的 Playwright UI 测试（新的截图测试只在维护者要求时加，见上面“什么时候写新测试”）：
 
 - 命令：`npm run test:ui`
 - 更新基线：`npm run test:ui:update`
@@ -61,7 +68,7 @@ description: Use when the task involves choosing how to validate a change in thi
 
 有些问题只在真实浏览器里暴露，单测和整应用 UI 测试都盖不住：层叠与命中测试、
 Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 props 到达前的中间态。
-这类情况写 Playwright component test，不要为此启动整个应用流程。
+这类情况写 Playwright component test，不要为此启动整个应用流程。它用来抓只有真实浏览器才复现的毛病，不用来判断看起来对不对。
 
 用的是 `@playwright/test` 内置的 `mount` fixture（1.62 起随包提供，不需要装
 `@playwright/experimental-ct-react`）。`dev-probe.html` 同时是它要求的 gallery 页。

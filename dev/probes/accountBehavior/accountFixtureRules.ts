@@ -10,7 +10,7 @@
 // - quill：未登录、两种登录方式（QQ 那样的两步式）。
 // - modo：没有账户（capabilities.auth = false，requiresAccount = false），等同 Folium mod 源。
 // - qq：顶替真实 QQ 注册的假 provider，未登录、单步流程；名字用 Tencent，免得按文字找菜单项时与 Quill 撞上。
-//   用来验证 QQ 的失败与别的平台走同一套规则（诊断入口、自检，见 core/model/accountRules 的 canShowLoginDiagnostics）。
+//   用来验证 QQ 的失败与别的平台走同一套规则（诊断入口、自检，见 core/account/accountRules 的 canShowLoginDiagnostics）。
 
 export const ACCOUNT_NETEASE = 'netease';
 export const ACCOUNT_ALPHA = 'acct-alpha';

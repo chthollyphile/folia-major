@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { deriveProgressiveLoadingState } from '../../../src/library/suites/grid/shared/progressiveGrid';
-import { appendUniqueByKey } from '../../../src/library/core/model/collectionPaging';
+import { appendUniqueByKey } from '../../../src/library/core/collection/collectionPaging';
 import { buildArtistGridCoords } from '../../../src/library/suites/grid/artist/ArtistGridView';
-import { artistAlbumCoverUrl as getArtistGridAlbumCoverUrl } from '../../../src/library/core/model/artistModel';
+import { artistAlbumCoverUrl as getArtistGridAlbumCoverUrl } from '../../../src/library/core/artist/artistModel';
 
 // Unit coverage for progressive loading state and stable ArtistGrid album placement.
 

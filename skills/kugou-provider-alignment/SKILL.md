@@ -12,7 +12,7 @@ Use the documented request contract and a live response as the source of truth b
 ### 1. Map the task to the existing provider
 
 - Read `skills/codebase-navigation/SKILL.md`, then the relevant product context in `README.md`, `src/README.md`, and `src/services/onlineMusic/README.md` before changing project files.
-- Inspect `src/services/onlineMusic/kugouTransport.ts` for the operation name and endpoint mapping, then inspect `src/services/onlineMusic/kugouProvider.ts` or the relevant lyrics provider for normalization and response unwrapping.
+- Inspect `src/services/onlineMusic/kugou/kugouTransport.ts` for the operation name and endpoint mapping, then inspect `src/services/onlineMusic/kugou/kugouProvider.ts` or the relevant lyrics provider for normalization and response unwrapping.
 - Keep the public data flow through `services/onlineMusic/omni.ts`; components, hooks, stores, and ordinary app services should not call a KuGou endpoint or concrete KuGou provider directly. Direct KuGou access is limited to the adapter/transport implementation and its focused tests.
 - Locate the matching heading in `docs/ku-go-api-docs.md` with `rg -n` and read that section. Confirm the documented path, method, required parameters, optional parameters, authentication notes, and cache/timestamp requirements.
 

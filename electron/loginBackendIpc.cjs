@@ -58,19 +58,22 @@ function registerLoginBackendIpc({
   // null 直到服务真正在监听：渲染进程据此等待或报故障，而不是去连一个不存在的端口。
   ipcMain.handle('get-netease-port', () => neteaseBackend.getPort());
   ipcMain.handle('get-netease-api-status', () => neteaseBackend.getStatus());
-  ipcMain.handle('restart-netease-api', () => neteaseBackend.start());
+  // reason 'needed'：页面上一个请求要用它、它却因为断网没起来；规则在后端的 start 里。
+  ipcMain.handle('restart-netease-api', (_event, reason) => neteaseBackend.start(reason));
   ipcMain.handle('get-qq-port', () => qqBackend.getPort());
   ipcMain.handle('get-qq-api-status', () => qqBackend.getStatus());
 
   // 扫码登录失败后渲染进程用它生成可以直接贴进 issue 的诊断报告。没有内嵌后端的 provider 回 null。
-  ipcMain.handle('get-login-diagnostics', (_event, providerId) => {
+  // 有的后端的 getDiagnostics 要问工作线程，是异步的；await 同步、异步都接得住。
+  ipcMain.handle('get-login-diagnostics', async (_event, providerId) => {
     const backend = backendOf(providerId);
     if (!backend) return null;
+    const capturedAt = Date.now();
     return {
       providerId,
-      capturedAt: Date.now(),
+      capturedAt,
       app: describeApp({ app, safeStorage }),
-      ...backend.getDiagnostics(),
+      ...(await backend.getDiagnostics()),
     };
   });
 

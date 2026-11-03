@@ -1,3 +1,4 @@
+import { getSeamBoundaryX, getSeamBoundaryY } from '../../../components/wall/seamPlan';
 import { getBlockSize, getBlockSlots, type WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 import { resolveSlotFace, type BravaisDisplay } from './bravaisDisplay';
@@ -43,23 +44,41 @@ export const EMPTY_PLATE_BLOCKS: PlateBlockSet = Object.freeze({ left: [], right
 
 export const blockKeyOf = (slot: Pick<WallSlot, 'column' | 'row'>) => `${slot.column},${slot.row}`;
 
-/** 一个块的世界矩形（块宽含它尾部的缝隙）。 */
-export const getBlockRect = (column: number, row: number): PlateRect => {
-    const size = getBlockSize(BRAVAIS_METRICS);
+/** 一个块的世界矩形（块宽含它尾部的缝隙；探索形状的块含街）。 */
+export const getBlockRect = (column: number, row: number, size = getBlockSize(BRAVAIS_METRICS)): PlateRect => {
     return { x: column * size.width, y: row * size.height, width: size.width, height: size.height };
 };
 
 /** 块在缝锚点左边（进左半世界层）：与 BravaisWall 分 slot 同一条规则（缝开在块边界上，块不会跨过锚点）。 */
-export const isLeftOfAnchor = (column: number, anchorX: number | null) => (
-    anchorX !== null && getBlockRect(column, 0).x < anchorX
+export const isLeftOfAnchor = (column: number, anchorX: number | null, size = getBlockSize(BRAVAIS_METRICS)) => (
+    anchorX !== null && getBlockRect(column, 0, size).x < anchorX
 );
 
-/** 底板 SVG 的外框：向左 / 上多盖 PLATE_BLEED；缝右侧第一列向左多盖一整个 GAP。 */
-export const getPlateFrame = (column: number, row: number, anchorX: number | null): PlateRect => {
-    const block = getBlockRect(column, row);
-    const seamEdge = anchorX !== null && Math.abs(block.x - BRAVAIS_METRICS.gap / 2 - anchorX) < 1e-6;
-    const left = seamEdge ? BRAVAIS_METRICS.gap : PLATE_BLEED;
-    return { x: block.x - left, y: block.y - PLATE_BLEED, width: block.width + left, height: block.height + PLATE_BLEED };
+/** 块在横的缝上面（进上半，即 left 那个世界层）：与 BravaisWall 分 slot 同一条规则。 */
+export const isAboveAnchor = (row: number, anchorY: number | null, size = getBlockSize(BRAVAIS_METRICS)) => (
+    anchorY !== null && getBlockRect(0, row, size).y < anchorY
+);
+
+/**
+ * 底板 SVG 的外框：向左 / 上多盖 PLATE_BLEED；缝右侧第一列向左铺到缝的右边沿（块是一整个 GAP，探索形状还含半条街），
+ * 缝左侧那一列止于缝的左边沿（块正好是块尾；探索形状的街有一半在锚点右边，不伸进开口）。横的缝（anchorY）同理：
+ * 缝下面第一行向上铺到缝的下边沿，缝上面那一行止于缝的上边沿。
+ */
+export const getPlateFrame = (
+    column: number,
+    row: number,
+    anchorX: number | null,
+    size = getBlockSize(BRAVAIS_METRICS),
+    anchorY: number | null = null,
+): PlateRect => {
+    const block = getBlockRect(column, row, size);
+    const isAnchor = (boundary: number) => anchorX !== null && Math.abs(getSeamBoundaryX(boundary, BRAVAIS_METRICS, size.width) - anchorX) < 1e-6;
+    const isRowAnchor = (boundary: number) => anchorY !== null && Math.abs(getSeamBoundaryY(boundary, BRAVAIS_METRICS, size.height) - anchorY) < 1e-6;
+    const x = isAnchor(column) ? anchorX! - BRAVAIS_METRICS.gap / 2 : block.x - PLATE_BLEED;
+    const right = isAnchor(column + 1) ? anchorX! + BRAVAIS_METRICS.gap / 2 : block.x + block.width;
+    const y = isRowAnchor(row) ? anchorY! - BRAVAIS_METRICS.gap / 2 : block.y - PLATE_BLEED;
+    const bottom = isRowAnchor(row + 1) ? anchorY! + BRAVAIS_METRICS.gap / 2 : block.y + block.height;
+    return { x, y, width: right - x, height: bottom - y };
 };
 
 /** 已挂载的块（slot 列表里出现过的），按首次出现的顺序。 */
@@ -81,7 +100,7 @@ export const collectBlockHoles = (
     reflow: ReadonlyMap<string, PlateRect>,
 ) => {
     const holes: { key: string; rect: PlateRect }[] = [];
-    for (const slot of getBlockSlots(column, row, BRAVAIS_METRICS)) {
+    for (const slot of display.shape.blockSlots(column, row)) {
         const { kind } = resolveSlotFace(display, slot);
         if (!isPlateHole(kind, isSeeThroughFace(display.look, kind, slot.key === expandedSlotKey))) continue;
         const rect = reflow.get(slot.key) ?? slot;
@@ -169,8 +188,9 @@ export const buildPlateBlock = (
     expandedSlotKey: string | null,
     reflow: ReadonlyMap<string, PlateRect>,
     anchorX: number | null,
+    anchorY: number | null = null,
 ): PlateBlock => {
-    const frame = getPlateFrame(column, row, anchorX);
+    const frame = getPlateFrame(column, row, anchorX, display.shape.blockSize, anchorY);
     const holes = collectBlockHoles(column, row, display, expandedSlotKey, reflow);
     return {
         key: `${column},${row}`,

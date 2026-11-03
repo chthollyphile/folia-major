@@ -3,7 +3,7 @@ import {
     destroySonnetContainerChildren,
     unloadSonnetDisplayTree,
 } from '@/components/visualizer/sonnet/sonnetPixiResources';
-import { setPixiDisplayTreeVisibility } from '@/components/visualizer/pixiDisplayResources';
+import { setPixiDisplayTreeVisibility } from '@/components/visualizer/pixi/pixiDisplayResources';
 
 describe('Sonnet Pixi resource lifecycle', () => {
     it('unloads every renderable in a retained shot tree', () => {

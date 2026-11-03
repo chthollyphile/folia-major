@@ -7,11 +7,11 @@ import {
     resolveTrackAlbumTargetId,
     resolveTrackArtistLinks,
     resolveTrackArtistTargetId,
-} from '../../../../src/library/core/model/trackLinks';
+} from '../../../../src/library/core/shared/trackLinks';
 
 // test/unit/library/core/trackLinks.test.ts
 // Locks track links (grid cards, TUI rows) to source identities instead of display-only metadata IDs.
-// P4.3 起规则在 core/model/trackLinks（原 suites/grid/shared/gridTrackNavigation），网格卡片与 TUI 行共用。
+// P4.3 起规则在 core/shared/trackLinks（原 suites/grid/shared/gridTrackNavigation），网格卡片与 TUI 行共用。
 
 describe('track link targets', () => {
     it('uses Navidrome service IDs from the nested GridView queue carrier', () => {

@@ -14,9 +14,10 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/mods/useModsStore', () => ({
     useModsStore: { getState: () => store },
+    modSettingsRowId: (modId: string) => `mod:${modId}`,
 }));
 
-vi.mock('@/mods/ModSurfaceRenderer', () => ({
+vi.mock('@/mods/manager/ModSurfaceRenderer', () => ({
     ModSurfaceRenderer: () => null,
 }));
 
@@ -223,13 +224,13 @@ describe('mod row storage section', () => {
         expect(store.getModStorageUsage).not.toHaveBeenCalled();
     });
 
-    it('appears in the expanded row of a mod that declares filesystem.data', async () => {
+    it('appears in the expanded row of a mod that declares storage', async () => {
         await renderRow(modInfo(), true);
         expect(host.querySelector('[data-mod-storage="mod-b"]')).not.toBeNull();
         expect(store.getModStorageUsage).toHaveBeenCalledWith('mod-b');
     });
 
-    it('stays away from a mod without filesystem.data', async () => {
+    it('stays away from a mod without storage', async () => {
         await renderRow(modInfo({ permissions: ['net.fetch'] }), true);
         expect(host.querySelector('[data-mod-storage]')).toBeNull();
         expect(store.getModStorageUsage).not.toHaveBeenCalled();

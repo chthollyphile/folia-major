@@ -5,7 +5,7 @@ import type { CommandPaletteCommand } from '../types';
 // src/components/command-palette/commands/directoryCommands.ts
 // 首页目录（GridMap）的批选与隐藏动作，从键盘也能到。
 //
-// 只在 GridMap 正在交互时出现（它注册 directory surface，见 core/state/useLibraryDirectorySurfaceStore），
+// 只在 GridMap 正在交互时出现（它注册 directory surface，见 core/directory/useLibraryDirectorySurfaceStore），
 // 能不能做来自 core 的批量能力——与批量面板的按钮同一个来源，面板不可点的时候命令也不出现。
 // 都不带 executeShortcut：删除要确认，其余是只在地图上才有意义的上下文动作。
 // 后四条作用于目录里的焦点那一项（隐藏焦点歌单、重扫 / 移除焦点导入根、恢复焦点忽略目录），只有有焦点概念的目录

@@ -2,12 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DEFAULT_MONET_BACKGROUND_TUNING, type MonetBackgroundImage, type MonetBackgroundTuning, type Theme } from '../../../../types';
 import { colorWithAlpha } from '../../colorMix';
-import { getMonetBackgroundCacheKey, resolveMonetBackgroundDataUrl, checkCanvasFilterSupport } from '../../monet/monetBackgroundPipeline';
+import { getMonetBackgroundCacheKey, wantMonetBackgroundUrl, checkCanvasFilterSupport } from '../../monet/monetBackgroundPipeline';
 import { buildMonetDriftTrack } from './monetBackgroundDrift';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
+import { ARRIVING_MARK } from '../../preview/frozenPicture';
+import { useFirstFrameDrawn } from '../../styleTransition/firstFrame';
 
 // src/components/visualizer/backgrounds/monet/MonetBackgroundLayer.tsx
-// Shared shell-level Monet image background with debounced bitmap post-processing.
+// Shared shell-level Monet image background. Its picture is made in a worker; a new theme or setting
+// for the image on screen waits PIPELINE_DEBOUNCE_MS before its picture is asked for.
 interface MonetBackgroundLayerProps {
     coverUrl?: string | null;
     monetBackgroundImage?: MonetBackgroundImage | null;
@@ -52,7 +55,8 @@ const useMonetBackgroundDrift = (
     }, [enabled, ref, strength, reducedMotion]);
 };
 
-const resolveSourceUrl = (
+/** The image the picture is made from: the cover, or the uploaded image where that comes first. */
+export const resolveMonetSourceUrl = (
     coverUrl: string | null | undefined,
     monetBackgroundImage: MonetBackgroundImage | null | undefined,
     tuning: MonetBackgroundTuning,
@@ -72,7 +76,17 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
     staticMode = false,
 }) => {
     const [pipelineUrl, setPipelineUrl] = useState<string | null>(null);
-    const sourceUrl = resolveSourceUrl(coverUrl, monetBackgroundImage, tuning);
+    // The processed picture of what is shown now is still being made: the root says that a part is
+    // still to come, so that a small picture of this background is not taken with the raw cover.
+    const [isPipelinePending, setIsPipelinePending] = useState(false);
+    const sourceUrl = resolveMonetSourceUrl(coverUrl, monetBackgroundImage, tuning);
+    // A copy for a new song (or a new type) is ready once its first picture is made, and shows that
+    // picture at once rather than crossfading it in from the raw cover: the background layer around
+    // it plays the change. Later pictures (another theme, a setting) crossfade in place, as they did.
+    const pictureDrawn = useFirstFrameDrawn();
+    const [firstPicture, setFirstPicture] = useState<string | null>(null);
+    // The image the picture on screen was made from.
+    const shownSource = useRef<string | null>(null);
 
     const fallbackGradient = useMemo(
         () => `linear-gradient(135deg, ${colorWithAlpha(theme.accentColor, 0.22)}, ${colorWithAlpha(theme.backgroundColor, 0.96)} 50%, ${colorWithAlpha(theme.primaryColor, 0.18)})`,
@@ -98,20 +112,35 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
 
         if (!sourceUrl || transparentBackground) {
             setPipelineUrl(null);
+            setIsPipelinePending(false);
+            pictureDrawn();
             return () => {
                 cancelled = true;
             };
         }
 
+        setIsPipelinePending(true);
+        const options = { coverUrl, monetBackgroundImage, theme, tuning };
+        // A picture of an image not shown yet (a new copy, a new song) is started at once, in a
+        // worker. The wait below still decides which picture is shown, so a theme that arrives
+        // within it is not missed; the picture is then taken from the cache, made or half made.
+        // A new theme or setting for the image on screen waits, so a slider does not start a
+        // picture per step. Both are released when the inputs change again: a picture not begun by
+        // then is not made.
+        const early = sourceUrl !== shownSource.current ? wantMonetBackgroundUrl(options) : null;
+        let timed: ReturnType<typeof wantMonetBackgroundUrl> | null = null;
         timeoutId = window.setTimeout(() => {
-            void resolveMonetBackgroundDataUrl({
-                coverUrl,
-                monetBackgroundImage,
-                theme,
-                tuning,
-            }).then(url => {
+            timed = wantMonetBackgroundUrl(options);
+            void timed.url.then(url => {
                 if (!cancelled) {
                     setPipelineUrl(current => (current === url ? current : url));
+                    setIsPipelinePending(false);
+                    // Where the picture failed too: the raw cover then shown is this image's.
+                    shownSource.current = sourceUrl;
+                    if (url) {
+                        setFirstPicture(current => current ?? url);
+                    }
+                    pictureDrawn();
                 }
             });
         }, PIPELINE_DEBOUNCE_MS);
@@ -121,8 +150,10 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
             if (timeoutId !== undefined) {
                 window.clearTimeout(timeoutId);
             }
+            early?.release();
+            timed?.release();
         };
-    }, [backgroundCacheKey, sourceUrl, transparentBackground]);
+    }, [backgroundCacheKey, sourceUrl, transparentBackground, pictureDrawn]);
 
     const driftRef = useRef<HTMLDivElement | null>(null);
     const driftStrength = clamp(tuning.backgroundDriftStrength ?? 0, 0, 1);
@@ -157,14 +188,18 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
             ? `linear-gradient(135deg, ${colorWithAlpha(theme.accentColor, 0.2)}, ${colorWithAlpha(theme.backgroundColor, 0.78)}), url(${sourceUrl})`
             : fallbackGradient;
 
+    const arriving = isPipelinePending ? { [ARRIVING_MARK]: '' } : {};
+    const pictureKey = pipelineUrl || sourceUrl || 'fallback';
+    const comesFrom = pictureKey === firstPicture ? false : { opacity: 0 };
+
     if (tuning.backgroundLayout === 'full-overlay') {
         return (
-            <div className="absolute inset-0 z-0 overflow-hidden">
+            <div className="absolute inset-0 z-0 overflow-hidden" {...arriving}>
                 <div ref={driftRef} className="absolute inset-0" style={driftStyle}>
                     <AnimatePresence initial={false}>
                         <motion.div
-                            key={pipelineUrl || sourceUrl || 'fallback'}
-                            initial={{ opacity: 0 }}
+                            key={pictureKey}
+                            initial={comesFrom}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.8, ease: 'easeInOut' }}
@@ -192,7 +227,7 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
     const imagePositionX = clamp(50 + tuning.backgroundHalfPaneOffsetX, 10, 90);
 
     return (
-        <div className="absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute inset-0 z-0 overflow-hidden" {...arriving}>
             <div
                 className="absolute inset-0"
                 style={{
@@ -211,8 +246,8 @@ const MonetBackgroundLayer: React.FC<MonetBackgroundLayerProps> = ({
                     >
                         <div ref={driftRef} className="absolute inset-0" style={driftStyle}>
                             <motion.div
-                                key={pipelineUrl || sourceUrl || 'fallback'}
-                                initial={{ opacity: 0 }}
+                                key={pictureKey}
+                                initial={comesFrom}
                                 animate={{ opacity: imageOpacity }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.8, ease: 'easeInOut' }}

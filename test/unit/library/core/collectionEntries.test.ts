@@ -5,7 +5,7 @@ import {
     findEntryIndex,
     formatEntryKey,
     resolveRowAfterRemoval,
-} from '@/library/core/model/collectionEntries';
+} from '@/library/core/collection/collectionEntries';
 import { createLazyGridItems } from '@/library/suites/grid/collection/lazyGridItems';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import type { SongResult } from '@/types';

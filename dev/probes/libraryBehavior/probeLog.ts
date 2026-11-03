@@ -40,8 +40,9 @@ export type ProbeCallKind =
     | 'shuffleQueue'
     | 'generateTheme'
     | 'previewVolume'
-    // 墙面工具宿主的其余动作：前往播放页与队列编辑（队列浮岛用；ids 是歌的 playback key，detail 是下标 / 歌单名）。
+    // 墙面工具宿主的其余动作：前往播放页、打开设置与队列编辑（队列浮岛用；ids 是歌的 playback key，detail 是下标 / 歌单名）。
     | 'openPlayer'
+    | 'openSettings'
     | 'playQueueSong'
     | 'playQueueSongNext'
     | 'moveQueueSongToEnd'

@@ -1,12 +1,18 @@
 import type { SongResult } from '../../types';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { onAudioCached } from '../audioCache';
-import { getCachedSongAudioBlob } from '../onlineMusic/resourceCache';
+import { hasProviderKeptSongAudio } from '../onlineMusic/providerRegistry';
 import { getSongResourceCacheKey } from '../onlineMusic/resourceKeys';
-import { getPlaybackAnalysisKey, getPlaybackRepresentation } from '../playbackRecovery/representationRegistry';
-import { canRunBeatThis } from './beatThis';
-import { modelCanRun, noteModelFailed } from './modelAvailability';
+import type { PlaybackRepresentation } from '../../types/playbackRecovery';
+import { getPlaybackAnalysisKey, getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
+import { decodeAtRate, readLocalTrackBytes } from '../analysis/trackAudio';
+import { decodeTrackAtRate, loadTrackBytes, type TrackBytesSource } from '../analysis/trackBytes';
+import { canRunBeatThis } from '../analysis/beatThis';
+import { modelCanRun, noteModelFailed } from '../analysis/modelAvailability';
 import { profilesSettled } from './profileService';
+import { estimateGpuFinish, gpuStemsUsable } from '../analysis/beatThisGpu';
+import { chooseCpuThreads, chooseExecutor, cpuThreads, EWMA, type Executor } from '../analysis/scheduler';
+import { forgetStemRange, segmentsOver, separateStemRange, stemRangeSpan, wantStemRange } from '../analysis/stemRange';
 // The one edge back the other way is `import type`, so it is erased and this is not a cycle.
 import { envelopeOf, lastVocalMoment } from './stemGesture';
 
@@ -28,6 +34,14 @@ import { envelopeOf, lastVocalMoment } from './stemGesture';
 // Only a WINDOW is separated, never a whole track, kept at sixteen bits with the peak scaled out. A
 // four-minute track is a minute of CPU and a third of a gigabyte of stems; the last thirty seconds is
 // about ten seconds and 21MB - see STEM_WINDOW_SEC.
+//
+// @note Since the analysis service's phase 3 (docs/analysis-service-plan.md) a window is separated on
+// the GPU by default, through the analysis scheduler (analysis/stemRange.ts: the segment grid the drum
+// hits share, so a tail 智能动感模式 already separated is taken rather than run again, and the drums
+// of a head separated here are the drum hits' when that track plays), and on the CPU (the analysis
+// worker's MNN) only without a usable GPU, or when the GPU would be late for a deadline and the CPU
+// would not (scheduler.ts chooseExecutor). On the CPU the threads are the scheduler's level: quiet, or
+// hurry for a deadline the quiet level would miss. This file only asks: which window, and what to keep.
 
 export type StemName = 'drums' | 'bass' | 'other' | 'vocals';
 export const STEM_NAMES: readonly StemName[] = ['drums', 'bass', 'other', 'vocals'];
@@ -189,10 +203,23 @@ const view = (window: StemWindow): TrackStems => {
  * than 166MB of every installer. Whether the model itself is runnable - weights present - is
  * modelAvailability's to answer.
  */
-export const canSeparateStems = (): boolean =>
+export const canSeparateStems = (): boolean => canSeparateStemsOnCpu() || canSeparateStemsOnGpu();
+
+/** The analysis worker's MNN htdemucs. */
+const canSeparateStemsOnCpu = (): boolean =>
     typeof window !== 'undefined'
     && typeof window.electron?.separateStems === 'function'
     && modelCanRun('htdemucs');
+
+/** The renderer's WebGPU htdemucs (analysis/beatThisGpu.ts), the drum hits' (analysis/drumHits.ts canRunDrumStem). */
+// Also false once this machine's GPU turned out unusable (found by review): otherwise every window
+// went to a dead GPU first, and with the CPU model failed too, automix decoded and asked forever.
+const canSeparateStemsOnGpu = (): boolean =>
+    gpuStemsUsable()
+    && typeof window !== 'undefined'
+    && typeof window.electron?.getHtdemucsGpuWeights === 'function'
+    && typeof navigator !== 'undefined' && 'gpu' in navigator
+    && modelCanRun('htdemucs_gpu');
 
 const cache = new Map<string, StemWindow>();
 const inFlight = new Set<string>();
@@ -260,7 +287,7 @@ const parked = new Map<string, StemRequest>();
 
 // Subscribed at module scope. The listener has to be in place before the first request can park,
 // and the first request parks inside the first call to `ensureStems` - there is no earlier hook.
-onAudioCached((cacheKey) => {
+onAudioCached((cacheKey, keptUrl) => {
     for (const [key, request] of [...parked]) {
         if (getSongResourceCacheKey('audio', request.song) !== cacheKey) continue;
         parked.delete(key);
@@ -268,7 +295,9 @@ onAudioCached((cacheKey) => {
         // was parked. The check in there sits after the decode, which is tens of megabytes spent to
         // learn something already known at this line.
         if (request.stillWanted && !request.stillWanted()) continue;
-        void ensureStems(request);
+        // A song its provider keeps is read by its URL, and the request may have parked before
+        // the song had one (the next song is asked for as soon as the current one starts).
+        void ensureStems(keptUrl ? { ...request, audioUrl: keptUrl } : request);
     }
 });
 
@@ -397,45 +426,36 @@ export const getStemsByKey = (key: string | null, role: StemRole): TrackStems | 
  *
  * Deliberately narrower than profileService's version, which is allowed to move a download earlier.
  * Separation is not worth a byte of anyone's bandwidth, so this reads the media cache, a local URL
- * already in hand, or - for a local track with no URL - the file straight off its own handle
- * (`readBytes`), and gives up otherwise.
+ * already in hand, a file its provider keeps, or - for a local track with no URL - the file straight
+ * off its own handle (`readBytes`), and gives up otherwise: the shared local ladder
+ * (analysis/trackAudio.ts), through analysis/trackBytes.ts, so bytes another analyser already read -
+ * automix's profile download, 智能动感模式's stream read - are handed over instead of waited for.
  */
-const readLocalBytes = async (request: StemRequest): Promise<ArrayBuffer | null> => {
+const readLocalBytes = async (
+    request: StemRequest,
+    key: string,
+    representation: PlaybackRepresentation | null,
+): Promise<{ bytes: ArrayBuffer | null; source: TrackBytesSource }> => {
     const { song, audioUrl } = request;
-    const representation = getPlaybackRepresentation(song);
-    if (representation) {
-        try {
-            const response = await fetch(representation.url);
-            // An evicted transcode answers 404 with a text body, which must never reach the decoder.
-            if (!response.ok) throw new Error(`representation responded ${response.status}`);
-            return await response.arrayBuffer();
-        } catch {
-            return null;
+    return loadTrackBytes(key, async () => {
+        const found = await readLocalTrackBytes(song, {
+            representation,
+            audioUrl,
+            // No reader of its own: the registered one is asked for a local track, as before.
+            ...(request.readBytes ? { readLocalFile: request.readBytes } : {}),
+            // An online URL is left alone - separation never downloads - unless its provider keeps
+            // the file on this machine itself: reading that URL is then a read of the kept file.
+            mayReadOnlineUrl: url => hasProviderKeptSongAudio(song, url),
+        });
+        if (found && 'bytes' in found) return found.bytes;
+        // A copy under half the song (a clip a version before wholeSongCheck.ts kept) is not
+        // separated: its window is not the song's. The request waits as for no copy, and the song's
+        // own file wakes it when it is stored.
+        if (found && found.skipped.startsWith('the copy in the media cache is')) {
+            explainOnce(`${keyOf(song, request.role)}:not-the-song`, `[Automix] not separating the ${request.role} of "${song.name}": ${found.skipped}`);
         }
-    }
-    const cached = await getCachedSongAudioBlob(song);
-    if (cached) return cached.arrayBuffer();
-
-    // A local URL already in hand: the outgoing track plays from a blob: URL, so its tail reads
-    // straight off that. An online URL is left alone - separation never downloads.
-    if (audioUrl) {
-        const isLocalUrl = audioUrl.startsWith('blob:') || audioUrl.startsWith('file:')
-            || getPlaybackSourceRef(song).kind !== 'online';
-        if (!isLocalUrl) return null;
-        try {
-            return await (await fetch(audioUrl)).arrayBuffer();
-        } catch {
-            return null;
-        }
-    }
-
-    // No cached bytes and no URL. The incoming head of a local track has neither - prefetchSong skips
-    // local files, so it never gets a prefetch URL, and no media-cache event will ever wake a parked
-    // request for a file that was always on disk. `readBytes` reads it from its own handle instead;
-    // this is the entry local-to-local transitions were missing, the whole of the "waiting... not in
-    // the media cache yet" loop that never resolved.
-    if (request.readBytes) return request.readBytes();
-    return null;
+        return null;
+    });
 };
 
 export interface StemRequest {
@@ -460,6 +480,11 @@ export interface StemRequest {
      * after they left it.
      */
     stillWanted?: () => boolean;
+    /**
+     * When the window must be separated by (performance.now() ms): the transition it is for. With it
+     * the scheduler may take the CPU, or hurry it, when the GPU would be late; without it the GPU it is.
+     */
+    deadline?: number;
 }
 
 /**
@@ -475,25 +500,177 @@ export interface StemRequest {
  * Decoded at the model's rate rather than the context's, because the model's rate is not negotiable
  * and resampling twice to land back where we started would only add error.
  */
-const cutWindow = async (bytes: ArrayBuffer, role: StemRole) => {
-    const OfflineContext = window.OfflineAudioContext;
-    if (!OfflineContext) return null;
-    let decoded: AudioBuffer;
-    try {
-        decoded = await new OfflineContext(1, 1, STEM_SAMPLE_RATE).decodeAudioData(bytes);
-    } catch (error) {
-        console.warn('[Automix] could not decode a track for separation', error);
-        return null;
-    }
+const cutWindow = async (key: string, bytes: ArrayBuffer, source: TrackBytesSource, role: StemRole) => {
+    // The same decode as the drum hits' (analysis/trackAudio.ts decodeAtRate, at the model's rate),
+    // joined with it when both ask at once (analysis/trackBytes.ts); shared, so only read here.
+    const decoded = await decodeTrackAtRate(key, STEM_SAMPLE_RATE, bytes, decodeAtRate, `stems ${role}`, source);
+    if (!decoded) return null;
 
     const total = decoded.length;
     const windowLength = Math.min(total, Math.round(STEM_WINDOW_SEC * STEM_SAMPLE_RATE));
     const start = role === 'tail' ? total - windowLength : 0;
-    const left = decoded.getChannelData(0).slice(start, start + windowLength);
-    const right = decoded.numberOfChannels > 1
-        ? decoded.getChannelData(1).slice(start, start + windowLength)
-        : left.slice();
-    return { left, right, start };
+    // Since phase 3: the samples of every grid segment that reaches into the window (a segment's
+    // worth more at most), for the GPU path; the window itself is a view of them.
+    const span = stemRangeSpan(total, start, start + windowLength);
+    const spanLeft = decoded.getChannelData(0).slice(span.start, span.end);
+    const spanRight = decoded.numberOfChannels > 1
+        ? decoded.getChannelData(1).slice(span.start, span.end)
+        : spanLeft.slice();
+    const left = spanLeft.subarray(start - span.start, start - span.start + windowLength);
+    const right = spanRight.subarray(start - span.start, start - span.start + windowLength);
+    return { left, right, start, total, spanLeft, spanRight, spanStart: span.start };
+};
+
+type StemParts = Record<'drums' | 'bass' | 'vocals', { left: Float32Array; right: Float32Array }>;
+
+/**
+ * CPU seconds per second of window at four threads: a 30 s window in 3.2-3.6 s on an M4 with MNN
+ * (electron/analysis/worker.cjs). Was 0.35, the onnxruntime figure STEM_WINDOW_SEC still quotes;
+ * found by review, three times too slow, which made the hurry level look needed when it was not.
+ * (Measured after PR #750, 2026-10-19: was 0.12, half what a Ryzen 7 9700X takes - its worker ran a
+ * 30 s window at four threads in 6.9-7.3 s in one session and 7.9-9.1 s (median 8.7) in another the
+ * same evening, and the stems take another 0.3 s to cross from the worker - so some 3.5 s of a window
+ * went unestimated, in the late direction. One figure cannot hold for every machine, nor for one
+ * machine at every moment, so this is now only the guess before this one has measured a window
+ * (cpuSecondsPerSecond): the slower session's 9.0 s for 30, because a guess too fast is a transition
+ * without its stems.)
+ */
+const CPU_SECONDS_PER_SECOND = 0.3;
+/**
+ * A second of window at `threads` against one at four, as the threads are granted: the square root of
+ * 4/threads. (Measured after PR #750, 2026-10-19, on the Ryzen 7 9700X: a 30 s window in a worker of
+ * its own at each count, medians of six runs - 16.0 s at one thread, 12.2 at two, 10.0 at three, 8.7
+ * at four, 7.2 at six, 6.4 at eight: 1.85, 1.41, 1.16, 0.83 and 0.73 times four's, where the square
+ * root says 2, 1.41, 1.15, 0.82 and 0.71. Was 4/threads below four and no faster above - twice four's
+ * time at two threads; single model runs had made eight look barely faster than four.)
+ */
+const threadCost = (threads: number) => Math.sqrt(4 / threads);
+/**
+ * CPU seconds per second of window as this machine measured them, by the thread count asked for: a
+ * moving average of each CPU window's wait less the model's build (the worker's `buildMs`, which
+ * CPU_REBUILD_MS stands for), weighted as the scheduler's GPU units are, the first measurement
+ * replacing the guess outright. The wait rather than the worker's run, because the stems crossing two
+ * processes each way are part of it: 0.3 s for a 30 s window between the main process and the worker
+ * alone (measured with the curve above). By the count asked for rather than the count run: a worker
+ * that built for fewer threads first runs a later build on that many (electron/analysis/worker.cjs
+ * poolThreads), and what the estimate needs is what asking for a count gets. Forgotten at a restart,
+ * as the GPU's averages are.
+ * (Measured after PR #750, 2026-10-19, later the same evening: the two are one count now - the host
+ * sends a build for another count to a worker of its own (electron/analysis/host.cjs, threads.cjs
+ * poolFits) - and a hurried window after a quiet one measures the hurry level: 6.6 s for 30 s at eight
+ * threads on the Ryzen 7 9700X, where the shared pool gave it four's 8.6.)
+ */
+const measuredCpuSeconds = new Map<number, number>();
+/** CPU seconds per second of window at `threads`: as measured there, else as at the nearest count measured, else the guess. */
+const cpuSecondsPerSecond = (threads: number): number => {
+    const measured = measuredCpuSeconds.get(threads);
+    if (measured !== undefined) return measured;
+    let nearest: number | null = null;
+    for (const count of measuredCpuSeconds.keys()) {
+        if (nearest === null || Math.abs(count - threads) < Math.abs(nearest - threads)) nearest = count;
+    }
+    return nearest === null
+        ? CPU_SECONDS_PER_SECOND * threadCost(threads)
+        : measuredCpuSeconds.get(nearest)! * (threadCost(threads) / threadCost(nearest));
+};
+/** Notes `ms` of a CPU window's wait, the build left out, over `seconds` of window at `threads`. */
+const noteCpuRun = (threads: number, seconds: number, ms: number) => {
+    if (!(ms > 0) || !(seconds > 0)) return;
+    const sample = ms / 1000 / seconds;
+    const previous = measuredCpuSeconds.get(threads);
+    measuredCpuSeconds.set(threads, previous === undefined ? sample : previous + EWMA * (sample - previous));
+};
+/**
+ * Building htdemucs on the CPU for another thread count (MNN fixes it per build): a 92 MB read and the network.
+ * (From the PR #750 re-review, 2026-10-19: also charged for the reload after the worker's idle
+ * release, which now follows every run on every machine.)
+ * (Measured after PR #750, 2026-10-19: was 1500, about three times what it takes. Charged after every
+ * idle release, the excess sent windows to the hurry level, or to the GPU, that the quiet CPU would have
+ * finished in time. End to end through host.cjs and worker.cjs on a Ryzen 7 9700X, over the same window
+ * with the model loaded: 0.42-0.57 s (median 0.50, one 1.75 s round aside, the machine slow then) with
+ * the worker running and only the model released, and 0.48-0.66 s (median 0.57) once the host has
+ * stopped the worker - the new utilityProcess reaches its first line in about 50 ms, and koffi binds
+ * folia_mnn in 6. The two are 0.1 s apart against a 5 s margin (DEADLINE_MARGIN_MS), so one number
+ * covers both: the second, rounded up.)
+ * (Measured later the same evening: another count is the second case now - the host starts a worker
+ * of its own for it (electron/analysis/host.cjs) - and costs about the same. Over 30 s windows on the
+ * same machine, six of each: the new worker built htdemucs in 498-543 ms (median 530), where
+ * rebuilding for another count in the old one had taken 532-663 ms (median 630), the old model's
+ * release included; the request that started the new worker took 265-707 ms longer than the next one
+ * at its count, whose runs themselves differed by up to 0.5 s.)
+ */
+const CPU_REBUILD_MS = 600;
+/** The thread count the CPU htdemucs was last asked for: another one rebuilds it. */
+let lastCpuThreads: number | null = null;
+/**
+ * When the last CPU run ended, and whether it was kept loaded (`resident`): a fallback model on a GPU
+ * machine is released FALLBACK_IDLE_MS after its run (electron/analysis/worker.cjs), so then the same
+ * thread count rebuilds too (from the PR #750 review: the estimate left that out).
+ * (From the PR #750 re-review, 2026-10-19: no run is kept loaded now - the worker releases htdemucs
+ * a minute after every run, on a machine without a GPU too - so only the time since the last run
+ * says whether it is still built. The host stops an idle worker after two minutes, later than that.)
+ */
+let lastCpuEndedAt = -Infinity;
+/** The worker's FALLBACK_IDLE_MS. (From the PR #750 re-review, 2026-10-19: STEMS_IDLE_MS there now.) */
+const CPU_STEMS_IDLE_MS = 60_000;
+/**
+ * Whether the CPU htdemucs is built for `threads` still, as far as this side can tell.
+ * (Measured after PR #750, 2026-10-19: what it cannot tell is a beat_this run on the CPU between two
+ * windows that asks for another thread count - a quarter of the cores, against htdemucs' four at the
+ * quiet level from 20 cores up, or its hurry level from 8 - which the host runs in a worker of its own,
+ * so the next window builds htdemucs again: CPU_REBUILD_MS left out, inside DEADLINE_MARGIN_MS.)
+ */
+const cpuBuiltFor = (threads: number, now: number) => threads === lastCpuThreads
+    && now - lastCpuEndedAt < CPU_STEMS_IDLE_MS;
+/**
+ * Each window's deadline as it stands, by window key: a later `ensureStems` for a window in flight
+ * moves it (the duration arrives after the track does; a resume after a pause), and a pause clears
+ * them (`clearStemDeadlines`). Read at the executor choice and at every GPU segment.
+ */
+const deadlines = new Map<string, number>();
+
+/** No window is due while nothing plays: a paused transition is not coming (useAutomixDecks). */
+export const clearStemDeadlines = (): void => {
+    deadlines.clear();
+    // A parked request's too: woken by the media cache while paused, it would bring its deadline back.
+    for (const [key, request] of [...parked]) {
+        if (request.deadline !== undefined) parked.set(key, { ...request, deadline: undefined });
+    }
+};
+
+/** Test-only: forgets the CPU's last thread count, what its runs measured, and every deadline. */
+export const resetStemExecutorForTests = (): void => {
+    lastCpuThreads = null;
+    lastCpuEndedAt = -Infinity;
+    measuredCpuSeconds.clear();
+    deadlines.clear();
+};
+
+/**
+ * Where a window is separated and how hard (see the header): the GPU unless it is missing or late,
+ * and on the CPU the quiet threads unless they would be late. With the CPU's estimate (ms), for the log.
+ */
+const chooseStemExecutor = (deadline: number | undefined, total: number, start: number, length: number): { executor: Executor; threads: number; cpuMs: number } => {
+    const gpuAvailable = canSeparateStemsOnGpu();
+    const cpuAvailable = canSeparateStemsOnCpu();
+    const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency > 0 ? navigator.hardwareConcurrency : 4;
+    const quietThreads = cpuThreads(cores, 'quiet', 'htdemucs');
+    // Fewer threads than four, proportionally longer; another count than the last, a rebuild first.
+    // (From the PR #750 re-review, 2026-10-19: and the same count too once a minute has passed since
+    // the last CPU run - the worker has let the model go by then; see cpuBuiltFor.)
+    // (Measured after PR #750, 2026-10-19: a second of window at a count is what this machine's runs
+    // at that count took - see cpuSecondsPerSecond.)
+    const now = performance.now();
+    const cpuMs = (threads: number) => (length / STEM_SAMPLE_RATE) * cpuSecondsPerSecond(threads) * 1000
+        + (cpuBuiltFor(threads, now) ? 0 : CPU_REBUILD_MS);
+    const units = segmentsOver(total, start, start + length).length;
+    const gpuFinish = gpuAvailable ? estimateGpuFinish('htdemucs', units, 'background', deadline) : Infinity;
+    // The level first, so the CPU is judged on time at the level it would run at.
+    const hurryThreads = cpuThreads(cores, 'hurry', 'htdemucs');
+    const level = chooseCpuThreads({ deadline, quietFinish: now + cpuMs(quietThreads), hurryFinish: now + cpuMs(hurryThreads) });
+    const threads = cpuThreads(cores, level, 'htdemucs');
+    const executor = !cpuAvailable ? 'gpu' : chooseExecutor({ gpuAvailable, deadline, gpuFinish, cpuFinish: now + cpuMs(threads) });
+    return { executor, threads, cpuMs: cpuMs(threads) };
 };
 
 /**
@@ -505,8 +682,15 @@ const cutWindow = async (bytes: ArrayBuffer, role: StemRole) => {
  */
 export const ensureStems = async (request: StemRequest): Promise<void> => {
     if (!canSeparateStems()) return;
-    const key = keyOf(request.song, request.role);
-    if (inFlight.has(key)) return;
+    // The key and the representation read for it, resolved together (see analysis/README.md), so a
+    // transcode registering mid-window cannot file one's stems under the other's key.
+    const target = getPlaybackAnalysisTarget(request.song);
+    const key = `${target.key}:${request.role}`;
+    if (inFlight.has(key)) {
+        // Under way: only its deadline moves.
+        if (request.deadline !== undefined) deadlines.set(key, request.deadline);
+        return;
+    }
     if (cache.has(key)) {
         // A hit says something, and it used to say it by staying quiet. "We already have this" and
         // "nothing ever asked for this" then read identically - and the second is a dead subsystem,
@@ -523,6 +707,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         return;
     }
     inFlight.add(key);
+    if (request.deadline !== undefined) deadlines.set(key, request.deadline);
     // After the cache and in-flight guards, so this is once per window rather than once per render.
     //
     // "Asked for" and "asked for and gave up" look identical without it, and only one is a bug in this
@@ -551,7 +736,7 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
         await profilesSettled();
 
         const started = performance.now();
-        const bytes = await readLocalBytes(request);
+        const { bytes, source } = await readLocalBytes(request, target.key, target.representation);
         if (!bytes) {
             // A local file the handle could not reach - permission not restored, moved, or deleted.
             // NOT parked: nothing fires a media-cache event for a local file, so a parked request would
@@ -567,17 +752,17 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             // next is either `separating` again or nothing, and both say more than repeating this.
             explainOnce(key, `[Automix] waiting to separate the ${request.role} of "${request.song.name}":`
                 + ' the file is not in the media cache yet');
-            parked.set(key, request);
+            // With the deadline as it stands, not as first asked: a pause may have cleared it since, and
+            // a request woken from here would write the stale one back (from the PR #750 review).
+            parked.set(key, { ...request, deadline: deadlines.get(key) });
             return;
         }
 
-        const cut = await cutWindow(bytes, request.role);
+        const cut = await cutWindow(target.key, bytes, source, request.role);
         if (!cut) return;
         const { left, right, start } = cut;
         const windowLength = left.length;
 
-        const separate = window.electron?.separateStems;
-        if (!separate) return;
         // Last check before the expensive part: the wait above and the decode below it are long
         // enough for the listener to have moved on twice. Returning here leaves nothing cached and
         // clears `inFlight`, so coming back to this track asks again rather than finding a hole.
@@ -587,8 +772,85 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
             return;
         }
         const modelStarted = performance.now();
-        const parts = await separate({ left, right });
+        const { executor, threads, cpuMs } = chooseStemExecutor(deadlines.get(key), cut.total, start, windowLength);
+        let parts: StemParts | null = null;
+        // On the GPU the time includes the scheduler's queue (the picture's segments, its frames), so
+        // it is not the model's alone: said so, rather than read as what the machine can do.
+        // On the CPU beside what it was estimated at, so a paste of the log shows how far the estimate is.
+        const cpuEstimate = `${(cpuMs / 1000).toFixed(1)}s estimated`;
+        let ranOn = executor === 'gpu' ? 'the GPU, queue included' : `the CPU (${threads} threads, ${cpuEstimate})`;
+        if (executor === 'gpu') {
+            // Said before it runs, so a segment the drum hits separate meanwhile is kept for it.
+            wantStemRange(target.key, start, start + windowLength, cut.total);
+            try {
+                const stems = await separateStemRange({
+                    key: target.key,
+                    left: cut.spanLeft,
+                    right: cut.spanRight,
+                    offset: cut.spanStart,
+                    total: cut.total,
+                    from: start,
+                    to: start + windowLength,
+                    // Not `stillWanted`: asked once, above, as before phase 3 - a window under way is
+                    // finished and kept (stemLateResult.test.ts). Its own log key: `raiseGpuUrgency` of
+                    // the playing track's beats must not raise automix's units with them.
+                    options: { urgency: 'background', key: `stems ${target.key}` },
+                    deadlineOf: () => deadlines.get(key),
+                });
+                // htdemucs' order: drums, bass, other, vocals. `other` is derived below, as on the CPU.
+                if (stems) parts = { drums: stems[0], bass: stems[1], vocals: stems[3] };
+            } finally {
+                forgetStemRange(target.key, start, start + windowLength, cut.total);
+            }
+            if (!parts && request.stillWanted && !request.stillWanted()) {
+                console.log(`[Automix] dropped the ${request.role} of "${request.song.name}":`
+                    + ' no longer the pair a transition is coming for');
+                return;
+            }
+            // The GPU could not (no device, a failed run): the CPU, as before phase 3, when it can.
+            if (!parts && canSeparateStemsOnCpu()) {
+                console.log(`[Automix] the GPU could not separate the ${request.role} of "${request.song.name}", trying the CPU`);
+                ranOn = `the CPU (${threads} threads, after the GPU, ${cpuEstimate})`;
+            }
+        }
+        let triedCpu = false;
+        // Why the CPU model declined, when it says (the worker's reason, e53569f5).
+        let declined: string | null = null;
+        if (!parts && canSeparateStemsOnCpu() && (executor === 'cpu' || ranOn.includes('after the GPU'))) {
+            const separate = window.electron?.separateStems;
+            if (!separate) return;
+            triedCpu = true;
+            // Copies of the window alone: a view would carry its whole span across the IPC.
+            // Kept loaded only where the CPU is the separator; a GPU machine's fallback goes after a minute.
+            // (From the PR #750 re-review, 2026-10-19: kept nowhere now - every run's model goes a
+            // minute after it, where the CPU is the separator too - so no `resident` is sent.)
+            lastCpuThreads = threads;
+            let answer: Awaited<ReturnType<typeof separate>>;
+            const asked = performance.now();
+            try {
+                answer = await separate({ left: left.slice(), right: right.slice(), threads });
+            } finally {
+                lastCpuEndedAt = performance.now();
+            }
+            if (answer && 'declined' in answer) declined = answer.declined;
+            else if (answer) {
+                parts = answer;
+                // The wait less the model's build (CPU_REBUILD_MS's part): what the CPU estimate learns from.
+                if (typeof answer.buildMs === 'number') noteCpuRun(threads, windowLength / STEM_SAMPLE_RATE, lastCpuEndedAt - asked - answer.buildMs);
+            }
+        }
         if (!parts) {
+            // The GPU's own failures are its runtime's to note (analysis/beatThisGpu.ts); only the
+            // CPU model's answer is written down here.
+            if (!triedCpu) {
+                console.log(`[Automix] could not separate the ${request.role} of "${request.song.name}" on the GPU`);
+                return;
+            }
+            // Said here, in the console the listener reads. The worker's own line goes to the main
+            // process's stdout only, so a library that would not load once looked like a separation
+            // that never finished: "separating" and then nothing, track after track.
+            console.warn(`[Automix] could not separate the ${request.role} of "${request.song.name}":`
+                + ` ${declined ?? 'the analysis worker answered nothing'}`);
             // Nothing came back. The window this can happen in is the widest in the app - separation
             // is asked for the instant a track starts and runs for tens of seconds - so weights
             // disappearing under one, or the worker restarting under it on a folder switch, is
@@ -664,11 +926,12 @@ export const ensureStems = async (request: StemRequest): Promise<void> => {
                 : `, still singing at ${(start / STEM_SAMPLE_RATE + vocalEnd).toFixed(2)}s`;
         console.log(`[Automix] separated the ${request.role} of "${request.song.name}"`
             + ` (${(windowLength / STEM_SAMPLE_RATE).toFixed(1)}s from ${(start / STEM_SAMPLE_RATE).toFixed(1)}s)`
-            + ` - ${modelSec.toFixed(1)}s in the model, ${totalSec.toFixed(1)}s with the decode${sung}`);
+            + ` - ${modelSec.toFixed(1)}s in the model on ${ranOn}, ${totalSec.toFixed(1)}s with the decode${sung}`);
     } catch (error) {
         console.warn('[Automix] separation failed', error);
     } finally {
         inFlight.delete(key);
+        deadlines.delete(key);
         // Unconditionally, including after a throw: a slot never handed back stalls every window
         // for the rest of the session, and the failure mode is the subsystem going quiet forever.
         release();

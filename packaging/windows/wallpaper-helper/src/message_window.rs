@@ -19,7 +19,7 @@ static MESSAGE_HWND: AtomicIsize = AtomicIsize::new(0);
 static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
 
 // Timer ids dispatched to their owners in window_proc. 1 = heartbeat (monitor.rs), 2 = the
-// mouse-move coalescer (mouse_forward.rs).
+// trailing flush for held-back mouse moves (mouse_forward.rs).
 pub const HEARTBEAT_TIMER_ID: usize = 1;
 pub const MOUSE_MOVE_TIMER_ID: usize = 2;
 

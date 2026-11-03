@@ -53,7 +53,7 @@ const anchors = {
 
 const caption = (key: string) => `ponder.captions.bravaisWall.${key}`;
 
-/** 这一章讲的外观设置（叠页边、透光档、窗数）都在「界面设置 → Bravais 墙面」里。 */
+/** 这一章讲的外观设置（叠页边、透光档、窗数）都在「主页与歌单 → Bravais 墙面」里。 */
 const openBravaisSettings = {
     kind: 'openSettings',
     anchorId: 'bravaisSettings',
@@ -67,19 +67,19 @@ const structure: PonderSceneScript = {
     anchors,
     steps: [
         { kind: 'highlight', id: 'markWall', anchor: 'wall', intensity: [0, 0.3], durationMs: 480, keyframe: true },
-        { kind: 'caption', id: 'intro', at: 'bottom', textKey: caption('intro'), pointTo: { anchor: 'wall', x: 0.22, y: 0.42 }, durationMs: 5600, withPrevious: true },
+        { kind: 'caption', id: 'intro', textKey: caption('intro'), pointTo: { anchor: 'wall' }, durationMs: 5600, withPrevious: true },
         { kind: 'pause', id: 'readIntro', dwellMs: 5100 },
 
         { kind: 'highlight', id: 'dimWall', anchor: 'wall', intensity: [0.3, 0], durationMs: 360, keyframe: true },
         { kind: 'highlight', id: 'markSeam', anchor: 'seam', intensity: [0, 0.8], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'seam', at: 'bottom', textKey: caption('seam'), pointTo: { anchor: 'seam', y: 0.3 }, durationMs: 4400, withPrevious: true },
+        { kind: 'caption', id: 'seam', textKey: caption('seam'), pointTo: { anchor: 'seam' }, durationMs: 4400, withPrevious: true },
         { kind: 'pause', id: 'readSeam', dwellMs: 4000 },
 
         { kind: 'highlight', id: 'dimSeam', anchor: 'seam', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'pickTab', to: { anchor: 'seamTab' }, press: 'tap', durationMs: 760, withPrevious: true },
         { kind: 'surfaceState', id: 'wallOut', anchor: 'page', state: 'tab-out', durationMs: 340 },
         { kind: 'surfaceState', id: 'seamTab', anchor: 'page', state: 'tab-seam', durationMs: 340, withPrevious: true },
-        { kind: 'caption', id: 'entrance', at: 'bottom', textKey: caption('entrance'), pointTo: { anchor: 'wall', x: 0.12, y: 0.2 }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'entrance', textKey: caption('entrance'), pointTo: { anchor: 'wall' }, durationMs: 5800, withPrevious: true },
         { kind: 'surfaceState', id: 'waveOne', anchor: 'page', state: 'tab-in-0', transition: 'zoom', durationMs: 380 },
         { kind: 'surfaceState', id: 'waveTwo', anchor: 'page', state: 'tab-in-1', transition: 'zoom', durationMs: 380 },
         { kind: 'surfaceState', id: 'waveThree', anchor: 'page', state: 'tab-in-2', transition: 'zoom', durationMs: 380 },
@@ -95,17 +95,17 @@ const pan: PonderSceneScript = {
     steps: [
         { kind: 'drag', id: 'dragWall', from: { anchor: 'wall', x: 0.74, y: 0.66 }, to: { anchor: 'wall', x: 0.69, y: 0.46 }, durationMs: 1000, keyframe: true },
         { kind: 'surfaceState', id: 'panned', anchor: 'page', state: 'wall-panned', durationMs: 900, withPrevious: true },
-        { kind: 'caption', id: 'pan', at: 'bottom', textKey: caption('pan'), pointTo: { anchor: 'wall', x: 0.3, y: 0.36 }, durationMs: 6600, withPrevious: true },
+        { kind: 'caption', id: 'pan', textKey: caption('pan'), pointTo: { anchor: 'wall' }, durationMs: 6600, withPrevious: true },
         { kind: 'pause', id: 'readPan', dwellMs: 5600 },
 
         { kind: 'cursor', id: 'toWheel', to: { anchor: 'wall', x: 0.31, y: 0.5 }, durationMs: 620, keyframe: true },
         { kind: 'surfaceState', id: 'scrolled', anchor: 'page', state: 'wall-scrolled', durationMs: 900 },
-        { kind: 'caption', id: 'wheel', at: 'bottom', textKey: caption('wheel'), pointTo: { anchor: 'wall', x: 0.31, y: 0.5 }, durationMs: 6400, withPrevious: true },
+        { kind: 'caption', id: 'wheel', textKey: caption('wheel'), pointTo: { anchor: 'wall' }, durationMs: 6400, withPrevious: true },
         { kind: 'pause', id: 'readWheel', dwellMs: 5500 },
 
         // 拖过、滚过之后缝已经跟着墙往左挪了一截，指它挪过去的位置。
         { kind: 'highlight', id: 'markSeam', anchor: 'pannedSeam', intensity: [0, 0.7], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'finite', at: 'bottom', textKey: caption('finite'), pointTo: { anchor: 'pannedSeam', y: 0.4 }, durationMs: 6000, withPrevious: true },
+        { kind: 'caption', id: 'finite', textKey: caption('finite'), pointTo: { anchor: 'pannedSeam' }, durationMs: 6000, withPrevious: true },
         { kind: 'pause', id: 'readFinite', dwellMs: 5600 },
     ],
 };
@@ -118,28 +118,28 @@ const tiles: PonderSceneScript = {
     anchors,
     steps: [
         { kind: 'highlight', id: 'markSong', anchor: 'song', intensity: [0, 0.9], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'song', at: 'bottom', textKey: caption('song'), pointTo: { anchor: 'song' }, durationMs: 3800, withPrevious: true },
+        { kind: 'caption', id: 'song', textKey: caption('song'), pointTo: { anchor: 'song' }, durationMs: 3800, withPrevious: true },
         { kind: 'pause', id: 'readSong', dwellMs: 3400 },
 
         { kind: 'highlight', id: 'dimSong', anchor: 'song', intensity: [0.9, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markCollection', anchor: 'collection', intensity: [0, 0.6], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'collection', at: 'bottom', textKey: caption('collection'), pointTo: { anchor: 'collection', x: 0.95, y: 0.95 }, durationMs: 6600, withPrevious: true },
+        { kind: 'caption', id: 'collection', textKey: caption('collection'), pointTo: { anchor: 'collection' }, durationMs: 6600, withPrevious: true },
         { kind: 'pause', id: 'readCollection', dwellMs: 6200 },
 
         { kind: 'highlight', id: 'dimCollection', anchor: 'collection', intensity: [0.6, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markArtist', anchor: 'artist', intensity: [0, 0.8], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'artist', at: 'bottom', textKey: caption('artist'), pointTo: { anchor: 'artist' }, durationMs: 3800, withPrevious: true },
+        { kind: 'caption', id: 'artist', textKey: caption('artist'), pointTo: { anchor: 'artist' }, durationMs: 3800, withPrevious: true },
         { kind: 'pause', id: 'readArtist', dwellMs: 3400 },
 
         { kind: 'highlight', id: 'dimArtist', anchor: 'artist', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'hoverArtist', to: { anchor: 'artist', x: 0.6, y: 0.5 }, durationMs: 700, withPrevious: true },
         { kind: 'surfaceState', id: 'artistColor', anchor: 'page', state: 'artist-color', durationMs: 420 },
-        { kind: 'caption', id: 'artistHover', at: 'bottom', textKey: caption('artistHover'), pointTo: { anchor: 'artist' }, durationMs: 4400, withPrevious: true },
+        { kind: 'caption', id: 'artistHover', textKey: caption('artistHover'), pointTo: { anchor: 'artist' }, durationMs: 4400, withPrevious: true },
         { kind: 'pause', id: 'readArtistHover', dwellMs: 4000 },
 
         { kind: 'highlight', id: 'markSpecial', anchor: 'special', intensity: [0, 0.6], durationMs: 400, keyframe: true },
         { kind: 'highlight', id: 'markFm', anchor: 'fm', intensity: [0, 0.6], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'special', at: 'bottom', textKey: caption('special'), pointTo: { anchor: 'special', x: 0.12, y: 0.06 }, durationMs: 7000, withPrevious: true },
+        { kind: 'caption', id: 'special', textKey: caption('special'), pointTo: { anchor: 'special' }, durationMs: 7000, withPrevious: true },
         { kind: 'pause', id: 'readSpecial', dwellMs: 6600 },
     ],
 };
@@ -152,7 +152,7 @@ const open: PonderSceneScript = {
     steps: [
         { kind: 'cursor', id: 'openOrigin', to: { anchor: 'origin', x: 0.45, y: 0.5 }, press: 'tap', durationMs: 720, keyframe: true },
         { kind: 'surfaceState', id: 'ringZero', anchor: 'page', state: 'open-ring-0', durationMs: 360 },
-        { kind: 'caption', id: 'open', at: 'bottom', textKey: caption('open'), pointTo: { anchor: 'origin', x: 0.2, y: 0.12 }, durationMs: 7200, withPrevious: true },
+        { kind: 'caption', id: 'open', textKey: caption('open'), pointTo: { anchor: 'origin' }, durationMs: 7200, withPrevious: true },
         { kind: 'surfaceState', id: 'ringOne', anchor: 'page', state: 'open-ring-1', durationMs: 320 },
         { kind: 'surfaceState', id: 'seamFlip', anchor: 'page', state: 'open-seam', durationMs: 320, withPrevious: true },
         { kind: 'surfaceState', id: 'ringTwo', anchor: 'page', state: 'open-ring-2', durationMs: 320 },
@@ -160,14 +160,14 @@ const open: PonderSceneScript = {
         { kind: 'pause', id: 'readOpen', dwellMs: 5900 },
 
         { kind: 'highlight', id: 'markSeam', anchor: 'seam', intensity: [0, 0.6], durationMs: 360, keyframe: true },
-        { kind: 'caption', id: 'openSeam', at: 'bottom', textKey: caption('openSeam'), pointTo: { anchor: 'seam', y: 0.45 }, durationMs: 3400, withPrevious: true },
+        { kind: 'caption', id: 'openSeam', textKey: caption('openSeam'), pointTo: { anchor: 'seam' }, durationMs: 3400, withPrevious: true },
         { kind: 'pause', id: 'readOpenSeam', dwellMs: 3000 },
 
         { kind: 'highlight', id: 'dimSeam', anchor: 'seam', intensity: [0.6, 0], durationMs: 300, keyframe: true },
         { kind: 'keypress', id: 'escape', keys: ['Esc'], at: { anchor: 'wall', x: 0.5, y: 0.08 }, durationMs: 900, withPrevious: true },
         { kind: 'surfaceState', id: 'seamBack', anchor: 'page', state: 'back-seam', durationMs: 340 },
         { kind: 'surfaceState', id: 'backOne', anchor: 'page', state: 'back-ring-0', durationMs: 340, withPrevious: true },
-        { kind: 'caption', id: 'back', at: 'bottom', textKey: caption('back'), pointTo: { anchor: 'origin' }, durationMs: 6400, withPrevious: true },
+        { kind: 'caption', id: 'back', textKey: caption('back'), pointTo: { anchor: 'origin' }, durationMs: 6400, withPrevious: true },
         { kind: 'surfaceState', id: 'backTwo', anchor: 'page', state: 'back-ring-1', durationMs: 320 },
         { kind: 'surfaceState', id: 'backThree', anchor: 'page', state: 'back-ring-2', durationMs: 320 },
         { kind: 'pause', id: 'readBack', dwellMs: 5500 },
@@ -183,30 +183,30 @@ const focus: PonderSceneScript = {
         { kind: 'cursor', id: 'pickSong', to: { anchor: 'focusSong', x: 0.4, y: 0.4 }, press: 'tap', durationMs: 720, keyframe: true },
         { kind: 'surfaceState', id: 'expanded', anchor: 'page', state: 'focus-expanded', durationMs: 650 },
         { kind: 'highlight', id: 'markBlock', anchor: 'block', intensity: [0, 0.3], durationMs: 650, withPrevious: true },
-        { kind: 'caption', id: 'expand', at: 'bottom', textKey: caption('expand'), pointTo: { anchor: 'focusCard', x: 0.3, y: 0.3 }, durationMs: 6400, withPrevious: true },
+        { kind: 'caption', id: 'expand', textKey: caption('expand'), pointTo: { anchor: 'focusCard' }, durationMs: 6400, withPrevious: true },
         { kind: 'pause', id: 'readExpand', dwellMs: 5800 },
 
         { kind: 'highlight', id: 'dimBlock', anchor: 'block', intensity: [0.3, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'pressQueue', to: { anchor: 'focusQueue' }, press: 'tap', durationMs: 700, withPrevious: true },
         { kind: 'surfaceState', id: 'queued', anchor: 'page', state: 'focus-queued', durationMs: 360 },
-        { kind: 'caption', id: 'queue', at: 'bottom', textKey: caption('queue'), pointTo: { anchor: 'focusQueue' }, durationMs: 4200, withPrevious: true },
+        { kind: 'caption', id: 'queue', textKey: caption('queue'), pointTo: { anchor: 'focusQueue' }, durationMs: 4200, withPrevious: true },
         { kind: 'pause', id: 'readQueue', dwellMs: 3800 },
 
         { kind: 'cursor', id: 'pressPlay', to: { anchor: 'focusPlay' }, press: 'tap', durationMs: 700, keyframe: true },
         { kind: 'surfaceState', id: 'playing', anchor: 'page', state: 'focus-playing', durationMs: 420 },
-        { kind: 'caption', id: 'play', at: 'bottom', textKey: caption('play'), pointTo: { anchor: 'focusPlay' }, durationMs: 6400, withPrevious: true },
+        { kind: 'caption', id: 'play', textKey: caption('play'), pointTo: { anchor: 'focusPlay' }, durationMs: 6400, withPrevious: true },
         { kind: 'pause', id: 'readPlay', dwellMs: 6000 },
 
         { kind: 'highlight', id: 'markEnter', anchor: 'focusEnter', intensity: [0, 0.9], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'current', at: 'bottom', textKey: caption('current'), pointTo: { anchor: 'focusEnter' }, durationMs: 5400, withPrevious: true },
+        { kind: 'caption', id: 'current', textKey: caption('current'), pointTo: { anchor: 'focusEnter' }, durationMs: 5400, withPrevious: true },
         { kind: 'pause', id: 'readCurrent', dwellMs: 5000 },
 
         { kind: 'highlight', id: 'dimEnter', anchor: 'focusEnter', intensity: [0.9, 0], durationMs: 300, keyframe: true },
-        { kind: 'caption', id: 'keep', at: 'bottom', textKey: caption('keep'), pointTo: { anchor: 'focusCard', x: 0.5, y: 0.35 }, durationMs: 6200, withPrevious: true },
+        { kind: 'caption', id: 'keep', textKey: caption('keep'), pointTo: { anchor: 'focusCard' }, durationMs: 6200, withPrevious: true },
         { kind: 'pause', id: 'readKeep', dwellMs: 5900 },
 
         { kind: 'keypress', id: 'keys', keys: ['←', '↑', '↓', '→', 'Enter', 'Esc'], at: { anchor: 'focusCard', y: 0.2 }, durationMs: 1400, keyframe: true },
-        { kind: 'caption', id: 'keyboard', at: 'bottom', textKey: caption('keyboard'), pointTo: { anchor: 'focusCard', y: 0.2 }, durationMs: 6000, withPrevious: true },
+        { kind: 'caption', id: 'keyboard', textKey: caption('keyboard'), pointTo: { anchor: 'focusCard' }, durationMs: 6000, withPrevious: true },
         { kind: 'pause', id: 'readKeyboard', dwellMs: 4600 },
     ],
 };
@@ -220,27 +220,27 @@ const look: PonderSceneScript = {
     steps: [
         { kind: 'cursor', id: 'openTools', to: { anchor: 'tools' }, press: 'tap', durationMs: 720, keyframe: true },
         { kind: 'surfaceState', id: 'toolsOpen', anchor: 'page', state: 'tools-open', durationMs: 420 },
-        { kind: 'caption', id: 'tools', at: 'bottom', textKey: caption('tools'), pointTo: { anchor: 'toolsPanel', x: 0.3, y: 0.2 }, durationMs: 5000, withPrevious: true },
+        { kind: 'caption', id: 'tools', textKey: caption('tools'), pointTo: { anchor: 'toolsPanel' }, durationMs: 5000, withPrevious: true },
         { kind: 'pause', id: 'readTools', dwellMs: 4600 },
 
         { kind: 'cursor', id: 'lookPartial', to: { anchor: 'toolsLook', x: 0.7 }, press: 'tap', durationMs: 640, keyframe: true },
         { kind: 'surfaceState', id: 'windowsLook', anchor: 'page', state: 'look-windows', durationMs: 600 },
-        { kind: 'caption', id: 'windows', at: 'bottom', textKey: caption('windows'), pointTo: { anchor: 'window' }, durationMs: 7000, withPrevious: true },
+        { kind: 'caption', id: 'windows', textKey: caption('windows'), pointTo: { anchor: 'window' }, durationMs: 7000, withPrevious: true },
         { kind: 'pause', id: 'readWindows', dwellMs: 6400 },
 
         { kind: 'cursor', id: 'lookClear', to: { anchor: 'toolsLook', x: 0.72 }, press: 'tap', durationMs: 520, keyframe: true },
         { kind: 'surfaceState', id: 'clearLook', anchor: 'page', state: 'look-clear', durationMs: 600 },
-        { kind: 'caption', id: 'clear', at: 'bottom', textKey: caption('clear'), pointTo: { anchor: 'wall', x: 0.22, y: 0.42 }, durationMs: 4600, withPrevious: true },
+        { kind: 'caption', id: 'clear', textKey: caption('clear'), pointTo: { anchor: 'wall' }, durationMs: 4600, withPrevious: true },
         { kind: 'pause', id: 'readClear', dwellMs: 4000 },
 
         { kind: 'cursor', id: 'lookSolid', to: { anchor: 'toolsLook', x: 0.7 }, press: 'tap', durationMs: 520, keyframe: true },
         { kind: 'surfaceState', id: 'solidLook', anchor: 'page', state: 'look-solid', durationMs: 600 },
-        { kind: 'caption', id: 'solid', at: 'bottom', textKey: caption('solid'), pointTo: { anchor: 'wall', x: 0.22, y: 0.42 }, durationMs: 5200, withPrevious: true },
+        { kind: 'caption', id: 'solid', textKey: caption('solid'), pointTo: { anchor: 'wall' }, durationMs: 5200, withPrevious: true },
         { kind: 'pause', id: 'readSolid', dwellMs: 4600 },
 
         { kind: 'cursor', id: 'toLattice', to: { anchor: 'toolsLattice' }, press: 'tap', durationMs: 640, keyframe: true },
         { kind: 'surfaceState', id: 'handoff', anchor: 'page', state: 'lattice-handoff', durationMs: 760 },
-        { kind: 'caption', id: 'lattice', at: 'bottom', textKey: caption('lattice'), pointTo: { anchor: 'wall', x: 0.5, y: 0.4 }, durationMs: 7600, withPrevious: true },
+        { kind: 'caption', id: 'lattice', textKey: caption('lattice'), pointTo: { anchor: 'wall' }, durationMs: 7600, withPrevious: true },
         { kind: 'pause', id: 'readLattice', dwellMs: 6900 },
     ],
 };

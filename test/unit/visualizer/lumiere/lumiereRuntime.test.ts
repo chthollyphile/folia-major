@@ -9,6 +9,7 @@ import {
     resolveLumiereBloomLevelDrop,
     resolveLumiereGraphicsResolution,
     resolveLumiereRenderResolution,
+    resolveLumiereScaledRenderResolution,
     toLumiereSceneTuning,
 } from '@/components/visualizer/lumiere/lumiereRuntimeTuning';
 import { resolveLumiereSceneFrames } from '@/components/visualizer/lumiere/lumiereSceneFrames';
@@ -77,6 +78,20 @@ describe('绘光画质档的分辨率', () => {
         expect(resolveLumiereRenderResolution(0.5)).toBe(1);
         expect(resolveLumiereRenderResolution(1.25)).toBe(1.25);
         expect(resolveLumiereRenderResolution(3)).toBe(2);
+    });
+
+    it('分辨率倍数乘在 base 上：1 倍与原来一样，超采样封顶 3，缩小照样生效；画质档再从乘过的分辨率往下降', () => {
+        for (const ratio of [undefined, 1, 1.25, 2, 3]) {
+            expect(resolveLumiereScaledRenderResolution(ratio, 1)).toBe(resolveLumiereRenderResolution(ratio));
+        }
+        expect(resolveLumiereScaledRenderResolution(1, 2)).toBe(2);
+        expect(resolveLumiereScaledRenderResolution(1.25, 1.5)).toBeCloseTo(1.875);
+        expect(resolveLumiereScaledRenderResolution(2, 2)).toBe(3);
+        expect(resolveLumiereScaledRenderResolution(3, 1.5)).toBe(3);
+        expect(resolveLumiereScaledRenderResolution(2, 0.5)).toBe(1);
+        const scaled = resolveLumiereScaledRenderResolution(2, 1.5);
+        expect(resolveLumiereGraphicsResolution(1600, 900, scaled, 'full')).toBe(scaled);
+        expect(resolveLumiereGraphicsResolution(1600, 900, scaled, 'low')).toBeLessThanOrEqual(scaled * LUMIERE_QUALITY_PROFILES.low.graphicsScale);
     });
 
     it('满画质图形组与屏幕同分辨率；降档后更低，且不超过倍率', () => {

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { LocalPlaylist, LocalSong } from '@/types';
 import type { ProviderCollection } from '@/types/onlineMusic';
-import { buildOnlinePlaylistCards, buildOnlineRadioCards } from '@/library/core/model/homeCards';
-import { buildLocalHomeCards, buildLocalHomeGroups } from '@/library/core/model/localHomeModel';
-import { buildNavidromeSectionCards, EMPTY_NAVIDROME_HOME_DATA } from '@/library/core/model/navidromeHomeModel';
-import { resolveLibraryHomeSpecial } from '@/library/core/model/homeSpecialCards';
+import { buildOnlinePlaylistCards, buildOnlineRadioCards } from '@/library/core/home/homeCards';
+import { buildLocalHomeCards, buildLocalHomeGroups } from '@/library/core/home/localHomeModel';
+import { buildNavidromeSectionCards, EMPTY_NAVIDROME_HOME_DATA } from '@/library/core/home/navidrome/navidromeHomeModel';
+import { resolveLibraryHomeSpecial } from '@/library/core/home/homeSpecialCards';
 
 // test/unit/library/core/homeSpecialCards.test.ts
 // 首页特殊集合的判定：只看身份字段（id、type、isVirtual、来源对象的 isLiked），不看显示名；来源不同时同样的字段含义不同。

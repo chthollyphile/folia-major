@@ -6,7 +6,7 @@ import type { LocalLibraryCatalogSnapshot } from '@/hooks/useLocalLibraryCatalog
 import { createPlayerPanelCollectionEntries } from '@/components/app/player-panel/createPlayerPanelCollectionEntries';
 
 // test/unit/player-panel/playerPanelCollectionEntries.test.ts
-// 播放器面板「打开正在播放的专辑 / 歌手」的本地入口：解析规则与宿主的嵌套打开同一份（core/model/localCatalogLinks），
+// 播放器面板「打开正在播放的专辑 / 歌手」的本地入口：解析规则与宿主的嵌套打开同一份（core/shared/localCatalogLinks），
 // 跟随合并重定向，没有歌时不打开。
 
 const t = ((key: string) => key) as unknown as TFunction;
@@ -18,6 +18,7 @@ const assignment = (songId: string, artistEntityIds: string[], albumEntityId?: s
 });
 const catalog: LocalLibraryCatalogSnapshot = {
     ready: true,
+    failed: false,
     reload: async () => {},
     entities: [entity('ar1', 'artist', 'Artist'), entity('ar-old', 'artist', 'Old', 'ar1'), entity('al1', 'album', 'Album'), entity('al-empty', 'album', 'Empty')],
     assignments: [assignment('s1', ['ar-old'], 'al1'), assignment('s2', ['ar1'], 'al1'), assignment('s3', ['ar1'], 'al-empty')],

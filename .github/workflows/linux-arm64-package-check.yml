@@ -1,0 +1,102 @@
+name: Linux arm64 Package Check
+
+# 发布 workflow 只在发版时跑，Linux arm64 包要是被打包脚本、原生依赖或 extraResources 的改动
+# 弄坏，平时没人会知道，要等到下一次发版那一跑才炸。这里在 PR 碰到打包路径时，原样走一遍
+# 发布 workflow 的 Linux 打包步骤（不发布），并逐个确认包里的原生二进制确实是 aarch64。
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - build/**
+      - packaging/**
+      - electron/**
+      - .github/workflows/linux-arm64-package-check.yml
+      - .github/workflows/electron-release.yml
+      - .github/workflows/release-candidate.yml
+      - .github/workflows/canary-pre-release.yml
+      - .github/workflows/nightly-pre-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-arm64-package-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Package Linux arm64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .windowtolayer-src
+
+      - name: Build windowtolayer from upstream + patch
+        run: node packaging/linux/build-windowtolayer.mjs
+
+      - name: Build web app for Electron
+        env:
+          ELECTRON: 'true'
+        run: npm run build
+
+      - name: Package Electron app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --linux --publish never
+
+      - name: Verify packaged artifacts are arm64
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la release
+          version="$(node -p "require('./package.json').version")"
+          for artifact in \
+            "release/folia-major-${version}-linux-arm64.tar.gz" \
+            "release/folia-major-${version}-linux-arm64.deb" \
+            "release/folia-major-${version}-linux-aarch64.rpm"; do
+            test -s "${artifact}" || { echo "missing ${artifact}"; exit 1; }
+          done
+
+          app=release/linux-arm64-unpacked
+          check_arm64() {
+            local description
+            description="$(file -L "$1")"
+            echo "${description}"
+            [[ "${description}" == *"ARM aarch64"* ]] || { echo "::error::$1 is not an aarch64 binary"; exit 1; }
+          }
+          check_arm64 "${app}/folia-major"
+          check_arm64 "${app}/resources/windowtolayer"
+          check_arm64 "${app}/resources/ffmpeg-audio/ffmpeg"
+          koffi="$(find "${app}/resources/app.asar.unpacked" -path '*koffi-linux-arm64*' -name '*.node' | head -n 1)"
+          test -n "${koffi}" || { echo "::error::koffi linux-arm64 binary is not unpacked"; exit 1; }
+          check_arm64 "${koffi}"
+          # 分析模型的运行库：原先是 onnxruntime-node（检查它的 arm64 原生库、x64 已被 afterPack 删掉），
+          # 现在换成 beforePack 编出的 MNN（build/buildMnnRuntime.mjs），只有目标架构这一份。
+          check_arm64 "${app}/resources/mnn/libfolia_mnn.so"
+          # 两个模型随安装包分发（build/fetchModels.mjs）。
+          for model in beat_this-wgsl.bin htdemucs-wgsl.bin; do
+            test -s "${app}/resources/models/${model}" || { echo "::error::model ${model} is not packaged"; exit 1; }
+          done

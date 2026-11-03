@@ -13,6 +13,8 @@ const record = (type: string, ...relativePathComponents: string[]) => ({ type, r
 describe('isRelevantLocalLibraryChange', () => {
     it('keeps audio, lyric and cover files', () => {
         expect(isRelevantLocalLibraryChange(record('appeared', 'Album', 'track.mp3'))).toBe(true);
+        expect(isRelevantLocalLibraryChange(record('appeared', 'Album', 'track.dsf'))).toBe(true);
+        expect(isRelevantLocalLibraryChange(record('appeared', 'Album', 'track.dff'))).toBe(true);
         expect(isRelevantLocalLibraryChange(record('modified', 'Album', 'track.lrc'))).toBe(true);
         expect(isRelevantLocalLibraryChange(record('disappeared', 'Album', 'cover.jpg'))).toBe(true);
     });

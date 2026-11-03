@@ -1,3 +1,5 @@
+import type { PlaybackRoute } from '../../../types/hifi';
+
 // src/components/app/presentation/buildPlayerViewFlags.ts
 
 // Builds top-level player-view booleans used by the shell, overlays, and floating controls.
@@ -12,6 +14,8 @@ export const buildPlayerViewFlags = ({
     stageActiveEntryKind,
     audioSrc,
     duration,
+    playbackRoute,
+    hasHifiTrack,
 }: {
     currentView: string;
     disableHomeDynamicBackground: boolean;
@@ -23,6 +27,10 @@ export const buildPlayerViewFlags = ({
     stageActiveEntryKind: string | null;
     audioSrc: string | null;
     duration: number;
+    /** Which engine sounds the current song. On 'hifi' audioSrc is always null: mpv plays it. */
+    playbackRoute: PlaybackRoute;
+    /** useHifiTrackStore has a current track (loading, ready, or the one mpv still holds). */
+    hasHifiTrack: boolean;
 }) => {
     const isPlayerView = currentView === 'player';
     return {
@@ -32,7 +40,9 @@ export const buildPlayerViewFlags = ({
         shouldHidePlayerTranslationSubtitle: isPlayerView && hidePlayerTranslationSubtitle,
         shouldHidePlayerRightPanelButton: isPlayerView && hidePlayerRightPanelButton,
         canToggleCurrentPlayback: !isNowPlayingControlDisabled && Boolean(
-            audioSrc || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
+            audioSrc
+            || (playbackRoute === 'hifi' && hasHifiTrack)
+            || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
         ),
     };
 };

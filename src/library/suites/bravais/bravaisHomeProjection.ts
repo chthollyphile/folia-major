@@ -3,20 +3,20 @@ import type {
     LibraryDirectoryNode,
     LibraryDirectoryNodeSelection,
     LibraryDirectoryVisibilityMode,
-} from '../../core/contracts/directory';
-import type { LibraryHomeCard, LibraryHomeTabView } from '../../core/contracts/homeModel';
-import { homeCardToDirectoryItem } from '../../core/model/directoryItems';
-import { isDirectoryItemHidden, isHideableDirectoryItem } from '../../core/model/directoryVisibility';
+} from '../../core/directory/directory.contract';
+import type { LibraryHomeCard, LibraryHomeTabView } from '../../core/home/homeModel.contract';
+import { homeCardToDirectoryItem } from '../../core/directory/directoryItems';
+import { isDirectoryItemHidden, isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
 import {
     LIBRARY_HOME_SPECIAL_ORDER,
     resolveLibraryHomeSpecial,
     type LibraryHomeCardSource,
     type LibraryHomeSpecialKind,
-} from '../../core/model/homeSpecialCards';
-import { resolveDirectoryRows } from '../../core/model/directoryTree';
-import { cycleIndex } from '../../core/model/homeSources';
-import { resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../core/model/directoryBatch';
-import type { LibraryHomeExtraTab } from '../../core/contracts/suite';
+} from '../../core/home/homeSpecialCards';
+import { resolveDirectoryRows } from '../../core/directory/directoryTree';
+import { cycleIndex } from '../../core/home/homeSources';
+import { resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../core/directory/directoryBatch';
+import type { LibraryHomeExtraTab } from '../../core/suite/suite.contract';
 import type { BravaisItem, BravaisSeamTab } from './bravaisLayer';
 import type { BravaisDirectoryRow } from './bravaisHomeModels';
 import { homeCardItemKey, projectHomeCardItem, type HomeCardLabels } from './bravaisProjection';

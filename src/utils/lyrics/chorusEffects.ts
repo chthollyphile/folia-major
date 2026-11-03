@@ -37,15 +37,15 @@ export const applyDetectedChorusEffects = (
     };
 };
 
-export type NeteaseChorusRange = ChorusRange;
+export type { ChorusRange };
 
 /**
- * Apply chorus effects to lyrics using precise timestamp ranges from Netease API.
+ * Apply chorus effects to lyrics using precise timestamp ranges a lyric source gave.
  * Any lyric line overlapping with a chorus range will be decorated with chorus status and a visual effect.
  */
-export const applyNeteaseChorusByTime = (
+export const applyChorusRangesByTime = (
     lyrics: LyricData,
-    chorusRanges: NeteaseChorusRange[],
+    chorusRanges: ChorusRange[],
     random: () => number = Math.random
 ): LyricData => {
     if (!chorusRanges || chorusRanges.length === 0) {

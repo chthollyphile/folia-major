@@ -5,6 +5,7 @@ import {
     AUTOMIX_DEFAULT_OVERLAP_SEC,
     AUTOMIX_MAX_OVERLAP_SEC,
     AUTOMIX_MIN_OVERLAP_SEC,
+    linesOnClipClock,
     planTransition,
     resolveOverlap,
     type TransitionTrack,
@@ -583,5 +584,39 @@ describe('a separated pair is still bound by where the voices are', () => {
         expect(narrow.overlap).toBeLessThan(roomy.overlap);
         expect(narrow.overlap).toBeLessThanOrEqual(8.5);
         expect(narrow.reason).toContain('both voices held by the gesture');
+    });
+});
+
+describe('linesOnClipClock', () => {
+    it("leaves a whole song's lines alone", () => {
+        const lines = [line(10, 94)];
+        expect(linesOnClipClock(lines, 0)).toBe(lines);
+        expect(linesOnClipClock(lines, Number.NaN)).toBe(lines);
+        expect(linesOnClipClock(null, 64)).toBeNull();
+    });
+
+    it("moves the lines and their words onto the clip's clock", () => {
+        const sung: Line = { ...line(70, 74, 'ab'), words: [
+            { text: 'a', startTime: 70, endTime: 72 },
+            { text: 'b', startTime: 72, endTime: 74 },
+        ] };
+        const [moved] = linesOnClipClock([sung], 64)!;
+        expect([moved.startTime, moved.endTime]).toEqual([6, 10]);
+        expect(moved.words.map(word => [word.startTime, word.endTime])).toEqual([[6, 8], [8, 10]]);
+        expect(moved.fullText).toBe('ab');
+        expect(sung.startTime).toBe(70);
+    });
+
+    it("lets a preview clip that holds the song's ending blend into its own outro", () => {
+        // A 30 s clip cut from 64 s of a song whose singing stops at 88 s: 6 s of outro in the clip.
+        const lyrics = [line(10, 60), line(66, 88)];
+        const unmoved = planTransition(track(30, lyrics), track(100, null, 4));
+        const moved = planTransition(track(30, linesOnClipClock(lyrics, 64)), track(100, null, 4));
+        // Read on the song's clock the clip sings to its very end, and the outro is not there.
+        expect(unmoved.reason).not.toContain('outro 6s');
+        expect(moved.reason).toContain('outro 6s');
+        expect(moved.kind).toBe('fade');
+        expect(moved.overlap).toBeGreaterThan(4);
+        expect(moved.overlap).toBeLessThanOrEqual(6);
     });
 });

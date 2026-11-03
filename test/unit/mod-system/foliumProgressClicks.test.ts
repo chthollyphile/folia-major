@@ -3,9 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { FoliumProgressContext } from '@/mods/folium/contract';
+import type { FoliumHostContext } from '@/mods/folium/helpers';
 import {
-    controlButtonsRegistry,
-    FoliumControlButtonSlot,
+    progressButtonsRegistry,
+    FoliumProgressButtons,
     FoliumProgressLayers,
     progressLayersRegistry,
 } from '@/mods/folium/registries/progress';
@@ -18,7 +19,7 @@ import {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const ctx = {} as FoliumProgressContext;
+const ctx = {} as FoliumHostContext<FoliumProgressContext>;
 
 /* A mount that draws one clickable button and does not stop propagation. */
 const buttonMount = (container: HTMLElement) => {
@@ -33,7 +34,7 @@ let root: Root | null = null;
 afterEach(() => {
     act(() => root?.unmount());
     root = null;
-    controlButtonsRegistry.unregisterAll('mod-a');
+    progressButtonsRegistry.unregisterAll('mod-a');
     progressLayersRegistry.unregisterAll('mod-a');
     document.body.replaceChildren();
 });
@@ -54,9 +55,9 @@ const clickModButton = (child: React.ReactElement) => {
 };
 
 describe('clicks inside progress bar extensions', () => {
-    it('do not reach the surface around a control button slot', () => {
-        controlButtonsRegistry.register('mod-a', { id: 'plain', slot: 'progress.trailing', mount: buttonMount });
-        const onSurfaceClick = clickModButton(React.createElement(FoliumControlButtonSlot, { slot: 'progress.trailing', ctx }));
+    it('do not reach the surface around a progress button slot', () => {
+        progressButtonsRegistry.register('mod-a', { id: 'plain', slot: 'progress.trailing', mount: buttonMount });
+        const onSurfaceClick = clickModButton(React.createElement(FoliumProgressButtons, { slot: 'progress.trailing', ctx }));
         expect(onSurfaceClick).not.toHaveBeenCalled();
     });
 
@@ -73,7 +74,7 @@ describe('hideWhenCollapsed', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
         root = createRoot(host);
-        act(() => root!.render(React.createElement(FoliumControlButtonSlot, { slot: 'progress.trailing', ctx, collapsed })));
+        act(() => root!.render(React.createElement(FoliumProgressButtons, { slot: 'progress.trailing', ctx, collapsed })));
         const ids = Array.from(document.querySelectorAll('[data-folium-entry]')).map((container) => container.getAttribute('data-folium-entry'));
         act(() => root!.unmount());
         root = null;
@@ -82,14 +83,14 @@ describe('hideWhenCollapsed', () => {
     };
 
     it('leaves the button out of a collapsed bar only', () => {
-        controlButtonsRegistry.register('mod-a', { id: 'wide', slot: 'progress.trailing', hideWhenCollapsed: true, mount: buttonMount });
-        controlButtonsRegistry.register('mod-a', { id: 'always', slot: 'progress.trailing', mount: buttonMount });
+        progressButtonsRegistry.register('mod-a', { id: 'wide', slot: 'progress.trailing', hideWhenCollapsed: true, mount: buttonMount });
+        progressButtonsRegistry.register('mod-a', { id: 'always', slot: 'progress.trailing', mount: buttonMount });
         expect(mountedIds(false)).toEqual(['mod-a:always', 'mod-a:wide']);
         expect(mountedIds(true)).toEqual(['mod-a:always']);
     });
 
     it('rejects a non-boolean value', () => {
-        expect(() => controlButtonsRegistry.register('mod-a', { id: 'bad', slot: 'progress.trailing', hideWhenCollapsed: 'yes' as never, mount: buttonMount }))
+        expect(() => progressButtonsRegistry.register('mod-a', { id: 'bad', slot: 'progress.trailing', hideWhenCollapsed: 'yes' as never, mount: buttonMount }))
             .toThrow(/hideWhenCollapsed/);
     });
 });

@@ -1,39 +1,46 @@
 import i18n from '../../i18n/config';
 import type { AmllDbPlatform, LyricProviderSource, SongResult } from '../../types';
+import { getLyricSource, getPlatformLyricSource, isLyricProviderSource } from './lyricSources';
 
 // src/utils/lyrics/lyricSourceLabels.ts
 
-export const getBaseLyricProviderLabel = (source: Exclude<LyricProviderSource, 'amll'>): string => {
-    if (source === 'qq') return i18n.t('lyricProvider.qq');
-    if (source === 'kugou') return i18n.t('lyricProvider.kugou');
-    return i18n.t('lyricProvider.netease');
-};
+// A lyric choice stored before sources had names is NetEase's. A stored name that no source has
+// is shown the same way.
+const UNNAMED_CHOICE_SOURCE: LyricProviderSource = 'netease';
 
-export const getAmllDbPlatformLabel = (platform?: AmllDbPlatform | null): string => {
-    if (platform === 'qq') return i18n.t('lyricProvider.qq');
-    return i18n.t('lyricProvider.netease');
-};
+const getSourceName = (source: LyricProviderSource | undefined): string => (
+    i18n.t(getLyricSource(isLyricProviderSource(source) ? source : UNNAMED_CHOICE_SOURCE).labelKey)
+);
+
+export const getAmllDbPlatformLabel = (platform?: AmllDbPlatform | null): string => (
+    getSourceName(platform === 'qq' ? 'qq' : 'netease')
+);
 
 export const getLyricProviderLabel = (
     source: LyricProviderSource | undefined,
     platform?: AmllDbPlatform | null,
 ): string => {
-    if (source === 'amll') {
-        return platform ? `${i18n.t('lyricProvider.amll')} · ${getAmllDbPlatformLabel(platform)}` : i18n.t('lyricProvider.amll');
+    if (source === 'amll' && platform) {
+        return `${getSourceName(source)} · ${getAmllDbPlatformLabel(platform)}`;
     }
-    return getBaseLyricProviderLabel(source ?? 'netease');
+    return getSourceName(source);
 };
 
-export const getLyricProviderPreferenceLabel = (source: LyricProviderSource): string => (
-    source === 'amll' ? i18n.t('lyricProvider.amll') : getBaseLyricProviderLabel(source)
-);
+export const getLyricProviderPreferenceLabel = (source: LyricProviderSource): string => getSourceName(source);
 
 export const getSongNativeLyricProviderSource = (
     song?: Pick<SongResult, 'sourceRef'> | null,
-): LyricProviderSource | undefined => {
-    const providerId = song?.sourceRef?.kind === 'online' ? song.sourceRef.providerId : undefined;
-    if (providerId === 'netease') return 'netease';
-    if (providerId === 'qq') return 'qq';
-    if (providerId === 'kugou') return 'kugou';
-    return undefined;
+): LyricProviderSource | undefined => (
+    getPlatformLyricSource(song?.sourceRef?.kind === 'online' ? song.sourceRef.providerId : undefined)?.id
+);
+
+// 在线歌曲「在线」歌词的来源名：存了匹配就是匹配到的来源；没有匹配时就是歌曲所在平台自己的歌词，
+// 平台不在歌词来源列表里（波点、YouTube Music）则用调用方给的平台名。
+export const getOnlineLyricSourceLabel = (
+    song: Pick<SongResult, 'sourceRef'> | null | undefined,
+    matched: { matchedLyricsSource?: LyricProviderSource; matchedLyricsProviderPlatform?: AmllDbPlatform | null } | null | undefined,
+    providerLabel: string,
+): string => {
+    const source = matched?.matchedLyricsSource ?? getSongNativeLyricProviderSource(song);
+    return source ? getLyricProviderLabel(source, matched?.matchedLyricsProviderPlatform) : providerLabel;
 };

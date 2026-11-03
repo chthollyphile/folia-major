@@ -30,6 +30,8 @@ import {
 } from './sonnetFixedGeoVariants';
 import { SONNET_THEMED_GEO_VARIANT_START } from './sonnetThemedShotMg';
 import { resolveSonnetShotMgBleed } from './sonnetShotMgViewport';
+import { resolveSonnetIconOnsetPop, resolveSonnetIconPopScale } from './sonnetBeatFx';
+import { isBeatFxReady } from '../../../services/beatFx/beatFxLive';
 
 // src/components/visualizer/sonnet/sonnetShotMg.ts
 // Builds PV style high-density semantic decorative elements (HUD, Geometric Chaos, Particles)
@@ -46,6 +48,8 @@ export const buildSonnetShotMg = (
     height: number,
     seed: number,
     iconTextures: Map<string, import('pixi.js').Texture>,
+    /** 智能动感模式: icons pop on lyric onsets, once the track's beats are installed. */
+    smartBeatEnabled = false,
 ) => {
     const { Container } = pixi;
     const container = new Container();
@@ -779,14 +783,21 @@ export const buildSonnetShotMg = (
             for (const part of c.fixedGeoParts as AnimatedGraphics[]) part.update(rawProgress);
         }
 
-        const audioEnergy = normalizeAudioLevel(audioBass) * 0.34
-            + normalizeAudioLevel(audioVocal) * 0.52
-            + normalizeAudioLevel(audioPower) * 0.14;
-        // Ignore the idle breathing signal, then expand the audible range so medium peaks remain visible.
-        const gatedEnergy = Math.max(0, (audioEnergy - 0.08) / 0.92);
-        const targetIconAudio = Math.min(1, Math.pow(gatedEnergy, 0.68) * 1.35);
-        const smoothing = targetIconAudio > smoothedIconAudio ? 0.34 : 0.16;
-        smoothedIconAudio += (targetIconAudio - smoothedIconAudio) * smoothing;
+        // 智能动感模式, once the beats are in: icons pop on lyric segment onsets instead of breathing
+        // with the bands. Replaces the band mix below rather than stacking on it.
+        const onsetPop = smartBeatEnabled && isBeatFxReady();
+        const onsetK = onsetPop ? resolveSonnetIconOnsetPop(time, cues) : 0;
+        const onsetScale = onsetPop ? resolveSonnetIconPopScale(onsetK) : 1;
+        if (!onsetPop) {
+            const audioEnergy = normalizeAudioLevel(audioBass) * 0.34
+                + normalizeAudioLevel(audioVocal) * 0.52
+                + normalizeAudioLevel(audioPower) * 0.14;
+            // Ignore the idle breathing signal, then expand the audible range so medium peaks remain visible.
+            const gatedEnergy = Math.max(0, (audioEnergy - 0.08) / 0.92);
+            const targetIconAudio = Math.min(1, Math.pow(gatedEnergy, 0.68) * 1.35);
+            const smoothing = targetIconAudio > smoothedIconAudio ? 0.34 : 0.16;
+            smoothedIconAudio += (targetIconAudio - smoothedIconAudio) * smoothing;
+        }
         const sceneDuration = Math.max(0.01, endTime - startTime);
         iconAnimations.forEach(icon => {
             const entryDuration = resolveSonnetIconEntryDuration(sceneDuration, icon.preferredDuration);
@@ -797,12 +808,13 @@ export const buildSonnetShotMg = (
             );
             const entryEased = 1 - Math.pow(1 - entryProgress, 3);
             const loopPulse = (Math.sin((time - startTime) * Math.PI * 0.7 + icon.phase) + 1) * 0.5;
-            const audioScale = 1 + smoothedIconAudio * 0.42;
+            const audioScale = onsetPop ? onsetScale : 1 + smoothedIconAudio * 0.42;
             const loopScale = 1 + loopPulse * 0.025;
+            const alphaLift = onsetPop ? 0.86 + onsetK * 0.24 : 0.72 + smoothedIconAudio * 0.38;
 
             icon.node.alpha = Math.min(
                 1,
-                icon.baseAlpha * entryEased * (0.72 + smoothedIconAudio * 0.38 + loopPulse * 0.03),
+                icon.baseAlpha * entryEased * (alphaLift + loopPulse * 0.03),
             );
             icon.node.scale.set(
                 icon.baseScale * (0.72 + entryEased * 0.28) * audioScale * loopScale,

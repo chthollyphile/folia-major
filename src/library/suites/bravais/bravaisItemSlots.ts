@@ -106,6 +106,8 @@ export const findDisplayItemSlot = (
         const slot = display.finite.order[index];
         return slot ?? null;
     }
+    // 探索形状：按网格探索墙的反查（离 near 最近的那块地上的那个座位）。
+    if (display.shape.nearestEntry) return display.shape.nearestEntry(index, near);
     return findInfiniteItemSlot({
         index,
         periodCount: layerPeriodCount(display.layer),

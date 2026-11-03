@@ -115,7 +115,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
 
     steps:
       - name: Check out Git repository
@@ -176,7 +176,7 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
           RELEASE_TAG: ${{ needs.validate-release.outputs.tag }}
-          MACOS_UNSIGNED_HELP_URL: https://github.com/${{ github.repository }}/blob/${{ github.sha }}/docs/desktop/macos-app-damaged.md
+          MACOS_UNSIGNED_HELP_URL: https://github.com/${{ github.repository }}/blob/main/docs/desktop/macos-app-damaged.md
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -197,6 +197,17 @@ jobs:
           APP_VERSION_LABEL: Realeco
           APP_RELEASE_CHANNEL: realeco
         run: npm run build
+
+      # The analysis models' runtime is built from the pinned MNN source in build/beforePack.cjs
+      # (build/buildMnnRuntime.mjs; cmake and the platform's C++ compiler are on every hosted image).
+      # Cached because MNN is minutes of compile; the key covers everything the build reads.
+      - name: Cache MNN runtime build
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/.mnn-src
+            build/mnn
+          key: mnn-${{ runner.os }}-${{ hashFiles('build/buildMnnRuntime.mjs', 'native/folia-mnn/**') }}
 
       - name: Package Electron app
         env:

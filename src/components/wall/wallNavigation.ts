@@ -1,16 +1,18 @@
 // src/components/wall/wallNavigation.ts
 
-import { SLOTS_PER_BLOCK } from './blockTemplates';
 import {
-    getInstanceBlock,
-    locateInstanceAt,
+    locateStepCandidates,
     type LatticeGeometry,
     type QueueInstance,
     type WallMetrics,
+    type WallRect,
 } from './layout';
 
 // Directional focus movement. The lattice has no edge, so a step always lands somewhere; the
 // search runs on geometry rather than the rendered set, and freely crosses into the next cell.
+// Where a step may land is the layout's answer (on Lattice `stepCandidates` of WallLayout in
+// app/lattice/wallLayout.ts, `locateStepCandidates` in layout.ts for the queue wall's lattice);
+// which of those it lands on is decided here.
 
 export type WallDirection = 'up' | 'down' | 'left' | 'right';
 
@@ -29,8 +31,8 @@ const AXES: Record<WallDirection, Axis> = {
     up: { along: 'y', cross: 'x', alongSize: 'height', crossSize: 'width', sign: -1 },
 };
 
-/** Anything with a drawn rect: Lattice instances and bravais slots both qualify. */
-export type WallRect = { x: number; y: number; width: number; height: number };
+/** Anything with a drawn rect: Lattice instances and bravais slots both qualify (defined in layout.ts). */
+export type { WallRect };
 
 const centerOf = (rect: WallRect, axis: 'x' | 'y', size: 'width' | 'height') => (
     rect[axis] + rect[size] / 2
@@ -91,10 +93,34 @@ export const pickAdjacentRect = <T>(
 };
 
 /**
- * Picks the poster a directional key should move to, scanning the blocks around the current one.
- * A candidate has to sit wholly ahead on the travel axis; the score then prefers a short step and
- * penalises both sideways drift and failing to share a band with the poster being left, so arrows
- * walk a row instead of cutting corners.
+ * Picks, among `candidates`, the poster a directional key should move to, scored by
+ * pickAdjacentRect (so arrows walk a row instead of cutting corners; ties go to the earlier
+ * candidate).
+ */
+export const pickAdjacentInstance = (
+    from: QueueInstance,
+    direction: WallDirection,
+    candidates: QueueInstance[],
+    metrics: WallMetrics,
+    rendered?: Map<string, { x: number; y: number; width: number; height: number }>,
+): QueueInstance | null => {
+    // Inside the block holding an expanded card every poster has been re-geared, so navigate by
+    // where things are actually drawn; otherwise the ring lands somewhere the arrow did not point.
+    const drawn = (instance: QueueInstance): QueueInstance => {
+        const override = rendered?.get(instance.instanceId);
+        return override ? { ...instance, ...override } : instance;
+    };
+
+    const scored = candidates
+        .filter(base => base.instanceId !== from.instanceId)
+        .map(base => ({ value: base, rect: drawn(base) }));
+    return pickAdjacentRect(drawn(from), scored, direction, metrics);
+};
+
+/**
+ * Picks the poster a directional key should move to on the queue wall's lattice, scanning the
+ * blocks around the current one. (The wall itself steps through its layout: `pickAdjacentInstance`
+ * over the layout's `stepCandidates`, which for the queue wall are these same blocks.)
  */
 export const findAdjacentInstance = (
     from: QueueInstance,
@@ -105,31 +131,7 @@ export const findAdjacentInstance = (
     rendered?: Map<string, { x: number; y: number; width: number; height: number }>,
 ): QueueInstance | null => {
     if (totalEntries <= 0) return null;
-
-    // Inside the block holding an expanded card every poster has been re-geared, so navigate by
-    // where things are actually drawn; otherwise the ring lands somewhere the arrow did not point.
-    const drawn = (instance: QueueInstance): QueueInstance => {
-        const override = rendered?.get(instance.instanceId);
-        return override ? { ...instance, ...override } : instance;
-    };
-
-    const source = drawn(from);
-    const origin = getInstanceBlock(geometry, from);
-
-    // Row, column, slot order: the same order the scan always used, so ties resolve as before.
-    function* candidates() {
-        for (let row = origin.row - 1; row <= origin.row + 1; row += 1) {
-            for (let column = origin.column - 1; column <= origin.column + 1; column += 1) {
-                for (let slotIndex = 0; slotIndex < SLOTS_PER_BLOCK; slotIndex += 1) {
-                    const base = locateInstanceAt(geometry, totalEntries, column, row, slotIndex, metrics);
-                    if (!base || base.instanceId === from.instanceId) continue;
-                    yield { value: base, rect: drawn(base) };
-                }
-            }
-        }
-    }
-
-    return pickAdjacentRect(source, candidates(), direction, metrics);
+    return pickAdjacentInstance(from, direction, locateStepCandidates(geometry, totalEntries, from, metrics), metrics, rendered);
 };
 
 // Seeds keyboard focus from whatever is already on screen when nothing is focused yet.

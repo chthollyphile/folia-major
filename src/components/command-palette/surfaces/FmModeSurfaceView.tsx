@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Radio } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
-import { getPersonalFmSelectionLabel, type PersonalFmSelection } from '../../../services/onlineMusic/fmModes';
+import { getPersonalFmSelectionLabel, DEFAULT_PERSONAL_FM_CATALOG, type PersonalFmCatalog, type PersonalFmSelection } from '../../../services/onlineMusic/fmModes';
 import { readPersonalFmOption } from '../commands/fmModeOptions';
 import { buildPersonalFmSections } from './fmModeSurface';
 import type { CommandPaletteMatch } from '../types';
@@ -21,6 +21,7 @@ type FmModeSurfaceViewProps = {
     isExecuting: boolean;
     theme: Theme;
     selection: PersonalFmSelection;
+    catalog?: PersonalFmCatalog;
 };
 
 const isSelectedOption = (commandId: string, selection: PersonalFmSelection) => {
@@ -38,11 +39,12 @@ const FmModeSurfaceView: React.FC<FmModeSurfaceViewProps> = ({
     isExecuting,
     theme,
     selection,
+    catalog = DEFAULT_PERSONAL_FM_CATALOG,
 }) => {
     const { t } = useTranslation();
     const translate = (key: string, fallback?: string) => t(key, { defaultValue: fallback ?? key });
     const activePillRef = useRef<HTMLButtonElement | null>(null);
-    const sections = useMemo(() => buildPersonalFmSections(matches), [matches]);
+    const sections = useMemo(() => buildPersonalFmSections(matches, catalog), [matches, catalog]);
 
     // Arrow keys move activeIndex through the shared match pipeline, so the view only has to keep
     // the highlighted pill in sight.
@@ -77,7 +79,7 @@ const FmModeSurfaceView: React.FC<FmModeSurfaceViewProps> = ({
                         </div>
                     </div>
                     <div className="truncate text-base font-semibold" style={{ color: theme.primaryColor }}>
-                        {getPersonalFmSelectionLabel(selection, translate)}
+                        {getPersonalFmSelectionLabel(selection, translate, catalog)}
                     </div>
                 </div>
 
@@ -85,7 +87,7 @@ const FmModeSurfaceView: React.FC<FmModeSurfaceViewProps> = ({
                     {sections.map(section => (
                         <div key={section.key} className="flex items-start gap-3">
                             <span className={`w-12 shrink-0 pt-1.5 text-[10px] leading-none ${mutedText}`}>
-                                {t(section.labelKey, section.labelFallback)}
+                                {section.labelKey ? t(section.labelKey, section.labelFallback) : section.labelFallback}
                             </span>
                             <div className="flex flex-1 flex-wrap gap-1.5">
                                 {section.indices.map(index => {

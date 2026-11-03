@@ -26,7 +26,7 @@ import {
     useCollectionNavigationStore,
 } from '@/stores/useCollectionNavigationStore';
 import { useAppViewStore } from '@/stores/useAppViewStore';
-import type { GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 
 // test/unit/navigation/collectionNavigationHistory.test.ts
 // N1 在导航层的落地（真实的 useAppNavigation + jsdom 的 history）：要进入的正好是上一层时折成一次应用内返回

@@ -9,17 +9,17 @@ import { SidePanelList, CollectionListItem } from '../../../../components/shared
 import { GridListSearchButton } from '../../../../components/shared/GridListSearchButton';
 import { useGridCommandFilter } from '../../../../hooks/useGridCommandFilter';
 import GridMapBatchPanel from './GridMapBatchPanel';
-import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchContext, LibraryDirectoryItem } from '../../../core/contracts/directory';
-import { DEFAULT_DIRECTORY_SESSION_ID } from '../../../core/model/directorySession';
-import { getLibraryDirectorySession } from '../../../core/state/useLibraryDirectorySessionStore';
-import { useLibraryDirectoryQuery } from '../../../core/bindings/useLibraryDirectoryQuery';
-import { useLibraryDirectorySelection } from '../../../core/bindings/useLibraryDirectorySelection';
-import { useLibraryDirectoryVisibility } from '../../../core/bindings/useLibraryDirectoryVisibility';
-import { useLibraryDirectoryScope } from '../../../core/bindings/useLibraryDirectoryScope';
-import { useLibraryDirectoryActions } from '../../../core/bindings/useLibraryDirectoryActions';
-import { useLibraryDirectorySurfaceRegistration } from '../../../core/bindings/useLibraryDirectorySurfaceRegistration';
-import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../../core/model/directorySurface';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
+import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchContext, LibraryDirectoryItem } from '../../../core/directory/directory.contract';
+import { DEFAULT_DIRECTORY_SESSION_ID } from '../../../core/directory/directorySession';
+import { getLibraryDirectorySession } from '../../../core/directory/useLibraryDirectorySessionStore';
+import { useLibraryDirectoryQuery } from '../../../core/directory/useLibraryDirectoryQuery';
+import { useLibraryDirectorySelection } from '../../../core/directory/useLibraryDirectorySelection';
+import { useLibraryDirectoryVisibility } from '../../../core/directory/useLibraryDirectoryVisibility';
+import { useLibraryDirectoryScope } from '../../../core/directory/useLibraryDirectoryScope';
+import { useLibraryDirectoryActions } from '../../../core/directory/useLibraryDirectoryActions';
+import { useLibraryDirectorySurfaceRegistration } from '../../../core/directory/useLibraryDirectorySurfaceRegistration';
+import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../../core/directory/directorySurface';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
 import {
     resolveGridMapDisplayIndex,
     resolveGridMapEscapeAction,
@@ -28,7 +28,7 @@ import {
 } from './gridMapNavigation';
 import { resolveGridMapCardTitle, resolveGridMapFolderLabel } from './gridMapCardText';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
-import { isHideableDirectoryItem } from '../../../core/model/directoryVisibility';
+import { isHideableDirectoryItem } from '../../../core/directory/directoryVisibility';
 import { useSidePanelBottomPx } from '../../../../hooks/usePlayerBottomBarBottomPx';
 import { hasBlockingWindow, isTextEntryTarget } from '../../../../utils/keyboardTargets';
 
@@ -37,19 +37,19 @@ import { hasBlockingWindow, isTextEntryTarget } from '../../../../utils/keyboard
 // Click on any collection card to select it and jump/center to it in Grid3D view.
 
 /**
- * GridMap 的一张卡：目录条目的契约（core/contracts/directory）加上网格自己随卡带回的原对象。
+ * GridMap 的一张卡：目录条目的契约（core/directory/directory.contract）加上网格自己随卡带回的原对象。
  * rawCollection 只在网格内部流转（点卡时原样交回 onSelectCollection），core 不认识它。
  */
 export interface GridMapItem extends LibraryDirectoryItem {
     rawCollection?: unknown;
 }
 
-/** 旧名：批量配置与批量范围的契约在 core/contracts/directory。 */
+/** 旧名：批量配置与批量范围的契约在 core/directory/directory.contract。 */
 export type GridMapBatchConfig = LibraryDirectoryBatchConfig;
 export type GridMapBatchContext = LibraryDirectoryBatchContext<GridMapItem>;
 
 interface GridMapProps {
-    /** 目录会话 key（core/model/directorySession 的 directoryKey）：筛选词、批选、隐藏视图都存在会话里。 */
+    /** 目录会话 key（core/directory/directorySession 的 directoryKey）：筛选词、批选、隐藏视图都存在会话里。 */
     directoryKey?: string;
     /**
      * 网格 suite 在 entry 里声明的首页动作。目录 surface 发布的命令 = core 判定 ∩ 声明（与 TUI 的目录相同）；
@@ -327,7 +327,7 @@ export const GridMap: React.FC<GridMapProps> = ({
         (onActivateCollection || onSelectCollection)(item.rawCollection || item, sourceIndex);
     }, [items, onActivateCollection, onSelectCollection]);
 
-    // 范围 = 可见（隐藏视图）→ 筛选 → 选中；选中的按卡片顺序排（core/model/directoryBatch）。
+    // 范围 = 可见（隐藏视图）→ 筛选 → 选中；选中的按卡片顺序排（core/directory/directoryBatch）。
     const { displayItems, context: batchContext } = useLibraryDirectoryScope({
         items,
         hiddenIds,

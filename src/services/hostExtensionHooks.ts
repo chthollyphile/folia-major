@@ -1,6 +1,6 @@
 import type { LyricData, SongResult } from '../types';
-import type { ProviderAudioSource, ProviderLyricsResult } from '../types/onlineMusic';
-import type { PlaybackFailureContext, PlaybackFailureReason } from '../types/playbackFailure';
+import type { OnlineFailureCaseId, ProviderAudioSource, ProviderLyricsResult } from '../types/onlineMusic';
+import { ensureLyricDataRenderHints } from '../utils/lyrics/renderHints';
 
 // src/services/hostExtensionHooks.ts
 // Interception points the host exposes to extension layers (Folium mods today).
@@ -62,6 +62,39 @@ export const applyLyricsTransform = (lyrics: LyricData | null): LyricData | null
         console.warn('[HostHooks] lyrics transform failed; using the original lyrics', error);
         return source;
     }
+};
+
+// The empty bases lyricsForNoLyrics handed to the transform, so a re-run starts from the same kind of base.
+const emptyBases = new WeakSet<LyricData>();
+
+/*
+ * What to show for a song whose lyric load ended with nothing (no lyrics, an
+ * instrumental, a failed fetch): the installed transform runs on an empty
+ * base, and its answer counts only when it has lines. Otherwise the song stays
+ * without lyrics (null), so with no transform, or with one that only rewrites
+ * the lines it is given, nothing changes. Called where a load ends for the
+ * song still current, never by the lyric setter: setting null is also how the
+ * app clears lyrics (song start, platform switch, stage reset).
+ */
+export const lyricsForNoLyrics = (base?: LyricData): LyricData | null => {
+    if (!lyricsTransformHook) return null;
+    const empty = base ?? ensureLyricDataRenderHints<LyricData>({ lines: [] })!;
+    emptyBases.add(empty);
+    const next = applyLyricsTransform(empty);
+    return next && next !== empty && next.lines.length > 0 ? next : null;
+};
+
+/*
+ * Runs the transform again on what `current` was made from (an extension asked
+ * for it): the untransformed lyrics; or, when the song had none (`current` is
+ * null after a finished load, or lyrics the transform supplied on an empty
+ * base), an empty base again, whose answer again counts only with lines.
+ */
+export const rerunLyricsTransform = (current: LyricData | null): LyricData | null => {
+    const source = untransformedLyrics(current);
+    if (source === null) return lyricsForNoLyrics();
+    if (emptyBases.has(source)) return lyricsForNoLyrics(source);
+    return applyLyricsTransform(source);
 };
 
 /*
@@ -131,9 +164,9 @@ export interface PlaybackFailedNotice {
     /** The song that failed: the requested one when picked, the current one otherwise. */
     song: SongResult | null;
     /** The classified reason, or null when the path has none (local, Navidrome, a bare media error). */
-    reason: PlaybackFailureReason | null;
+    reason: OnlineFailureCaseId | null;
     /** No source for a pick ('play') or a restore ('restore'); any media error is 'mid-playback', even before the first sound. */
-    phase: PlaybackFailureContext;
+    phase: 'play' | 'restore' | 'mid-playback';
     /** The host is counting down to skip it. */
     willAutoSkip: boolean;
 }

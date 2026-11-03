@@ -3,7 +3,7 @@
 // layer below the desktop icons, forwards desktop mouse input (move + left button) via Raw
 // Input, and keeps the session alive across explorer restarts. Protocol: JSONL events on
 // stdout, one-line commands on stdin (`detach`), consumed by
-// electron/windowsWallpaperController.cjs. Implementation provenance per module is noted in
+// electron/wallpaper/windowsWallpaperController.cjs. Implementation provenance per module is noted in
 // each file header; overall licensing is AGPL-3.0 (same as Folia).
 
 mod cli;

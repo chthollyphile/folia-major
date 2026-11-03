@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import { formatAlbumDuration, projectBravaisSeamAlbum } from '@/library/suites/bravais/bravaisAlbumModel';
 import { resolveAlbumComposition } from '@/library/suites/bravais/bravaisPosterComposition';
 import { albumPaletteVars, resolveBravaisAlbumPalette } from '@/library/suites/bravais/bravaisPosterPalette';

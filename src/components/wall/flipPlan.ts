@@ -16,11 +16,13 @@ export const FLIP_MAX_TILES = MAX_RENDERED_INSTANCES;
 
 /**
  * Where the wave starts: a point (the clicked start tile, or the split for back), or both edges of
- * the split (filter results), where distance is measured horizontally from the split line.
+ * the split (filter results), where distance is measured horizontally from the split line - or
+ * vertically from it, for a split between two block rows (`y`).
  */
 export type FlipOrigin =
     | { kind: 'point'; x: number; y: number }
-    | { kind: 'seam-edges'; x: number };
+    | { kind: 'seam-edges'; x: number }
+    | { kind: 'seam-edges'; y: number };
 
 /** Content key a slot shows before and after; null is bare wall (or a reserved slot). */
 export type FlipSlotChange = { slot: WallSlot; from: string | null; to: string | null };
@@ -42,10 +44,14 @@ export type FlipPlan = {
     durationMs: number;
 };
 
-const distanceFromOrigin = (slot: WallSlot, origin: FlipOrigin) => (
-    origin.kind === 'point'
-        ? Math.hypot(slot.centerX - origin.x, slot.centerY - origin.y)
-        : Math.abs(slot.centerX - origin.x)
+const distanceFromOrigin = (slot: WallSlot, origin: FlipOrigin) => {
+    if (origin.kind === 'point') return Math.hypot(slot.centerX - origin.x, slot.centerY - origin.y);
+    return 'x' in origin ? Math.abs(slot.centerX - origin.x) : Math.abs(slot.centerY - origin.y);
+};
+
+/** Tiles turn about their vertical axis, away from the origin's x; a row split has no x, so all turn one way. */
+const directionFromOrigin = (slot: WallSlot, origin: FlipOrigin): -1 | 1 => (
+    'x' in origin && slot.centerX < origin.x ? -1 : 1
 );
 
 export const getFlipDelay = (distance: number, metrics: WallMetrics) => (
@@ -95,7 +101,7 @@ export const planFlip = ({
         }
         const delay = getFlipDelay(distance, metrics);
         maxDelay = Math.max(maxDelay, delay);
-        flips.push({ key: change.slot.key, to: change.to, delay, direction: change.slot.centerX < origin.x ? -1 : 1 });
+        flips.push({ key: change.slot.key, to: change.to, delay, direction: directionFromOrigin(change.slot, origin) });
     });
 
     return { flips, swaps, unchanged, durationMs: flips.length ? maxDelay + FLIP_DURATION_MS : 0 };

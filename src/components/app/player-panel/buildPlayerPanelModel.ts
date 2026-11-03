@@ -21,7 +21,6 @@ export type PlayerPanelViewModel = {
 type PlayerPanelAmbient = {
 
     isPanelOpen: boolean;
-    panelTab: UnifiedPanelProps['playback']['currentTab'];
     coverUrl: string | null;
     isLiked: boolean;
     hasLyrics: boolean;
@@ -66,7 +65,6 @@ export type PlayerPanelDeps = {
     canGenerateAITheme: boolean;
     theme: UnifiedPanelProps['playback']['theme'];
     setTheme: UnifiedPanelProps['playback']['onThemeChange'];
-    bgMode: UnifiedPanelProps['playback']['bgMode'];
     handleBgModeChange: UnifiedPanelProps['playback']['onBgModeChange'];
     hasCustomTheme: UnifiedPanelProps['playback']['hasCustomTheme'];
     themeSourceModel: UnifiedPanelProps['playback']['themeSourceModel'];
@@ -99,10 +97,7 @@ export type PlayerPanelDeps = {
     moveQueueSongToEnd: UnifiedPanelProps['queue']['onMoveSongToEnd'];
     moveQueueSongToNext: UnifiedPanelProps['queue']['onMoveSongToNext'];
     saveCurrentQueueAsLocalPlaylist: UnifiedPanelProps['library']['onSaveCurrentQueueAsPlaylist'];
-    user: UnifiedPanelProps['account']['user'];
     accountController: UnifiedPanelProps['account']['accountController'];
-    cacheSize: UnifiedPanelProps['account']['cacheSize'];
-    handleClearCache: UnifiedPanelProps['account']['onClearCache'];
     handleSyncData: UnifiedPanelProps['account']['onSyncData'];
     isSyncing: UnifiedPanelProps['account']['isSyncing'];
     handleToggleDaylight: () => void;
@@ -113,7 +108,6 @@ type BuildPlayerPanelModelParams = PlayerPanelAmbient & PlayerPanelDeps;
 // Builds the player panel model from raw app state and actions so App.tsx no longer assembles nested props inline.
 export const buildPlayerPanelModel = ({
     isPanelOpen,
-    panelTab,
     navigateToHome,
     navigateToLattice,
     handleDirectHomeFromPanel,
@@ -131,7 +125,6 @@ export const buildPlayerPanelModel = ({
     canGenerateAITheme,
     theme,
     setTheme,
-    bgMode,
     handleBgModeChange,
     hasCustomTheme,
     themeSourceModel,
@@ -184,11 +177,8 @@ export const buildPlayerPanelModel = ({
     openCurrentNavidromeAlbum,
     openCurrentNavidromeArtist,
     handleCopySongInfoSuccess,
-    user,
     accountController,
     audioQuality,
-    cacheSize,
-    handleClearCache,
     handleSyncData,
     isSyncing,
     useCoverColorBg,
@@ -198,7 +188,6 @@ export const buildPlayerPanelModel = ({
     panelProps: {
         playback: {
             isOpen: isPanelOpen,
-            currentTab: panelTab,
             onTabChange: setPanelTab,
             onToggle: () => setIsPanelOpen(!isPanelOpen),
             onNavigateHome: navigateToHome,
@@ -217,7 +206,6 @@ export const buildPlayerPanelModel = ({
             canGenerateAITheme,
             theme,
             onThemeChange: setTheme,
-            bgMode,
             onBgModeChange: handleBgModeChange,
             hasCustomTheme,
             themeSourceModel,
@@ -283,12 +271,9 @@ export const buildPlayerPanelModel = ({
             onCopySongInfoSuccess: handleCopySongInfoSuccess,
         },
         account: {
-            user,
             accountController,
             audioQuality,
             onAudioQualityChange: setAudioQuality,
-            cacheSize,
-            onClearCache: handleClearCache,
             onSyncData: handleSyncData,
             isSyncing,
             useCoverColorBg,

@@ -1,8 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import LyricStaffSection from '../../src/components/modal/lyric-filter/LyricStaffSection';
-import LyricFilterRuleSection from '../../src/components/modal/lyric-filter/LyricFilterRuleSection';
+import LyricRuleList, { lyricRuleLabel } from '../../src/components/modal/lyric-filter/LyricRuleList';
+import { compileLyricLineRules, type LyricLineRule } from '../../src/utils/lyrics/lyricLineRules';
+import { useTranslation } from 'react-i18next';
 import { buildLyricFilterPreviewModel } from '../../src/components/modal/lyric-filter/buildLyricFilterPreviewModel';
 import LyricFilterPreviewList from '../../src/components/modal/lyric-filter/LyricFilterPreviewList';
+import { SettingsKitThemeContext, settingsTokens } from '../../src/components/modal/settings/kit/kitTheme';
+import { kitMotionTokens } from '../../src/components/modal/settings/kit/motion';
 import { parseLyricsByFormat } from '../../src/utils/lyrics/parserCore';
 import { DEFAULT_LYRIC_STAFF_ABSORB_MODE, DEFAULT_LYRIC_STAFF_MIN_DWELL_SECONDS, type LyricStaffAbsorbMode, type LyricStaffPolicy } from '../../src/utils/lyrics/staffCreditsPolicy';
 import { DAYLIGHT_THEME, DEFAULT_THEME } from '../../src/services/baseThemes';
@@ -70,16 +74,19 @@ const LyricStaffSectionProbe: React.FC = () => {
     const [minDwell, setMinDwell] = useState(DEFAULT_LYRIC_STAFF_MIN_DWELL_SECONDS);
     const [absorbMode, setAbsorbMode] = useState<LyricStaffAbsorbMode>(DEFAULT_LYRIC_STAFF_ABSORB_MODE);
     const [pattern, setPattern] = useState('');
-    const [filterPattern, setFilterPattern] = useState('');
-    const [isFilterEnabled, setIsFilterEnabled] = useState(false);
+    const { t } = useTranslation();
+    const [rules, setRules] = useState<LyricLineRule[]>([]);
     const [isDaylight, setIsDaylight] = useState(false);
 
     const parsed = useMemo(() => SAMPLES.map(sample => ({
         ...sample,
         lyrics: parseLyricsByFormat('lrc', sample.lrc),
     })), []);
+    const theme = isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME;
+    const kitTheme = useMemo(() => ({ isDaylight, theme }), [isDaylight, theme]);
 
     return (
+        <SettingsKitThemeContext.Provider value={kitTheme}>
         <div
             data-probe-daylight={String(isDaylight)}
             className={`min-h-screen p-8 ${isDaylight ? 'bg-zinc-100' : 'bg-zinc-950'}`}
@@ -101,7 +108,7 @@ const LyricStaffSectionProbe: React.FC = () => {
             </button>
             <div className="grid gap-6 lg:grid-cols-2">
             {parsed.map(({ id, label, lyrics }) => {
-                const preview = buildLyricFilterPreviewModel(lyrics, isFilterEnabled ? filterPattern : '', {
+                const preview = buildLyricFilterPreviewModel(lyrics, compileLyricLineRules(rules), {
                     policy,
                     minDwellSeconds: minDwell,
                     absorbMode,
@@ -112,39 +119,33 @@ const LyricStaffSectionProbe: React.FC = () => {
                     <div
                         key={id}
                         data-probe-sample={id}
-                        className={`rounded-2xl p-4 ${isDaylight ? 'bg-white' : 'bg-zinc-900'}`}
+                        // 这几块是用设置窗口的共用控件画的，颜色和动效变量平时由弹窗外框给，探针里自己给。
+                        className="st-window rounded-2xl bg-[var(--st-win)] p-4 text-[color:var(--st-t1)]"
+                        style={{ ...settingsTokens(isDaylight, theme), ...kitMotionTokens(false) }}
                     >
                         <div className={`mb-3 text-xs font-semibold ${isDaylight ? 'text-zinc-500' : 'text-zinc-400'}`}>{label}</div>
                         <div className="mb-4">
-                            <LyricFilterRuleSection
-                                isDaylight={isDaylight}
-                                isEnabled={isFilterEnabled}
-                                pattern={filterPattern}
-                                error={null}
-                                onToggle={() => setIsFilterEnabled(previous => !previous)}
-                                onPatternChange={setFilterPattern}
-                            />
+                            <LyricRuleList rules={rules} songLines={[]} perRule={new Map()} hasLibrary={false} onChange={setRules} />
                         </div>
                         <LyricStaffSection
-                            isDaylight={isDaylight}
                             policy={policy}
                             minDwellSeconds={minDwell}
                             absorbMode={absorbMode}
                             pattern={pattern}
-                            decision={preview.staff}
                             onPolicyChange={setPolicy}
                             onMinDwellChange={setMinDwell}
                             onAbsorbModeChange={setAbsorbMode}
                             onPatternChange={setPattern}
                         />
-                        <div className="mt-4 rounded-2xl border border-white/10 p-3" data-probe-preview={id}>
-                            <LyricFilterPreviewList isDaylight={isDaylight} isLoading={false} rows={preview.rows} />
+                        <div className="mt-4 rounded-xl bg-[var(--st-pv)] p-3" data-probe-preview={id}>
+                            <LyricFilterPreviewList isLoading={false} rows={preview.rows} staff={preview.staff} staffPolicy={policy} ruleLabel={rule => lyricRuleLabel(t, rule)} pickedIndex={null} onPickLine={() => {}} />
                         </div>
                     </div>
                 );
             })}
             </div>
         </div>
+        </SettingsKitThemeContext.Provider>
     );
 };
 

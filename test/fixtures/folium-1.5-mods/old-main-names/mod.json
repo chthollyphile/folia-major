@@ -1,0 +1,9 @@
+{
+  "folium": 1,
+  "id": "old-main-names",
+  "name": "Old main names",
+  "version": "1.0.0",
+  "homepage": "https://example.com",
+  "main": "index.cjs",
+  "permissions": ["filesystem.data", "runtime.playback"]
+}

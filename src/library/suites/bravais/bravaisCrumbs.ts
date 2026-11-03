@@ -1,4 +1,4 @@
-import type { LibraryNavigationCrumb } from '../../core/contracts/suite';
+import type { LibraryNavigationCrumb } from '../../core/suite/suite.contract';
 
 // src/library/suites/bravais/bravaisCrumbs.ts
 // 缝里的面包屑（设计稿 §5，B11）：「书库 › 中间层… › 当前层（› 列表）」。纯计算，组件在 BravaisSeamCrumbs。

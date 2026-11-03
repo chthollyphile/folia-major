@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // Covers unavailable-song replacement resolution and legacy Web API fallback behavior.
 
 // fetchWithCreds 读正文文本再解析（不是 JSON 时要报出状态码与正文开头），所以桩要有 text()。
-const mockJsonResponse = (payload: unknown) => ({
-    status: 200,
+const mockJsonResponse = (payload: unknown, status = 200) => ({
+    ok: status >= 200 && status < 300,
+    status,
     json: vi.fn().mockResolvedValue(payload),
     text: vi.fn().mockResolvedValue(JSON.stringify(payload)),
 });
@@ -57,7 +58,7 @@ describe('netease unavailable song replacement', () => {
             privileges: [{ id: 411500779, st: 0, pl: 320000, dl: 320000 }],
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any);
@@ -84,7 +85,7 @@ describe('netease unavailable song replacement', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any);
@@ -116,7 +117,7 @@ describe('netease unavailable song replacement', () => {
                 },
             }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any);
@@ -141,7 +142,7 @@ describe('netease unavailable song replacement', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any);
@@ -158,7 +159,7 @@ describe('netease unavailable song replacement', () => {
             msg: 'Not Found',
         }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -179,7 +180,7 @@ describe('netease unavailable song replacement', () => {
             text: vi.fn().mockResolvedValue('<!DOCTYPE html><html><body><pre>Cannot GET /song/copyright/rcmd</pre></body></html>'),
         } as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -198,7 +199,7 @@ describe('netease unavailable song replacement', () => {
         });
         fetchMock.mockResolvedValueOnce(serverError() as any).mockResolvedValueOnce(serverError() as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -220,8 +221,8 @@ describe('netease unavailable song replacement', () => {
                 },
             }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
-        const { toNeteaseRequestError } = await import('@/services/onlineMusic/neteasePlaybackFailure');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { describeNeteaseFailure } = await import('@/services/onlineMusic/netease/neteaseFailure');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -231,7 +232,7 @@ describe('netease unavailable song replacement', () => {
             message: 'NetEase API request /song/copyright/rcmd failed: fetch failed',
             networkFailure: true,
         });
-        expect(toNeteaseRequestError(failure, 'replacement')).toMatchObject({ name: 'OnlineProviderError', code: 'network' });
+        expect(describeNeteaseFailure('audio', failure)).toEqual({ case: 'unreachable' });
 
         const replacement = await neteaseApi.getUnavailableSongReplacement(song);
         expect(replacement?.replacementSongId).toBe(1859082445);
@@ -239,27 +240,23 @@ describe('netease unavailable song replacement', () => {
         expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/song/copyright/rcmd?songid=27946878');
     });
 
-    it('keeps querying the new endpoint after an upstream 502 network text and rejects as network', async () => {
+    it('keeps querying the new endpoint after the local backend answers 502 and rejects as NetEase not reached', async () => {
         const fetchMock = vi.mocked(fetch);
         fetchMock
-            .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'read ECONNRESET' }) as any)
-            .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'connect ETIMEDOUT 1.2.3.4:443' }) as any);
+            .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'read ECONNRESET' }, 502) as any)
+            .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'connect ETIMEDOUT 1.2.3.4:443' }, 502) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { describeNeteaseFailure } = await import('@/services/onlineMusic/netease/neteaseFailure');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
 
-        await expect(neteaseApi.getUnavailableSongReplacement(song)).rejects.toMatchObject({
-            name: 'OnlineProviderError',
-            code: 'network',
-            providerId: 'netease',
-            details: { stage: 'replacement' },
-        });
-        await expect(neteaseApi.getUnavailableSongReplacement(song)).rejects.toMatchObject({
-            code: 'timeout',
-            details: { stage: 'replacement', upstreamCode: 502 },
-        });
+        for (const said of ['read ECONNRESET', 'connect ETIMEDOUT 1.2.3.4:443']) {
+            const failure = await neteaseApi.getUnavailableSongReplacement(song).catch((error: unknown) => error);
+            expect(failure).toMatchObject({ name: 'OnlineProviderError', code: 'network', providerId: 'netease' });
+            expect(describeNeteaseFailure('audio', failure)).toEqual({ code: '502', message: said, httpStatus: 502 });
+        }
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/song/copyright/rcmd?songid=27946878');
     });
@@ -273,7 +270,7 @@ describe('netease unavailable song replacement', () => {
             .mockResolvedValueOnce(mockJsonResponse(payload) as any)
             .mockResolvedValueOnce(mockJsonResponse(payload) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -289,7 +286,7 @@ describe('netease unavailable song replacement', () => {
             .mockRejectedValueOnce(new TypeError('detail fetch failed'))
             .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'read ECONNRESET' }) as any);
 
-        const { neteaseApi } = await import('@/services/netease');
+        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
         const failure = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any).catch((error: unknown) => error);
@@ -302,7 +299,7 @@ describe('netease unavailable song replacement', () => {
     });
 
     it('prefers the unavailable type description for list tags when present', async () => {
-        const { getSongUnavailableTagText } = await import('@/services/netease');
+        const { getSongUnavailableTagText } = await import('@/services/onlineMusic/netease/netease');
 
         expect(getSongUnavailableTagText(createUnavailableSong({
             noCopyrightRcmd: { typeDesc: '其它版本可播' },
@@ -328,7 +325,7 @@ describe('netease unavailable song replacement', () => {
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/netease');
+            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -344,7 +341,7 @@ describe('netease unavailable song replacement', () => {
             // Second mock resolve: the actual api request
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/netease');
+            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -358,7 +355,7 @@ describe('netease unavailable song replacement', () => {
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/netease');
+            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -370,7 +367,7 @@ describe('netease unavailable song replacement', () => {
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/netease');
+            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
             await neteaseApi.getLoginStatus();
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -383,7 +380,7 @@ describe('netease unavailable song replacement', () => {
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 301 }) as any);
 
-            const { neteaseApi } = await import('@/services/netease');
+            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);

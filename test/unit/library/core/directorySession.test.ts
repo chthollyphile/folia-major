@@ -7,8 +7,8 @@ import {
     toggleDirectorySelection,
     toggleHiddenOnlyMode,
     toggleManageHiddenMode,
-} from '@/library/core/model/directorySession';
-import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '@/library/core/state/useLibraryDirectorySessionStore';
+} from '@/library/core/directory/directorySession';
+import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '@/library/core/directory/useLibraryDirectorySessionStore';
 
 // test/unit/library/core/directorySession.test.ts
 // 目录会话：key 的格式、按稳定 id 的批选变换、隐藏视图的切换，以及 store 按 key 分开、没变化不通知、

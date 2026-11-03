@@ -3,12 +3,16 @@ import { useTranslation } from 'react-i18next';
 import {
     LYRIC_STAFF_MIN_DWELL_RANGE,
     type LyricStaffAbsorbMode,
-    type LyricStaffDecision,
     type LyricStaffPolicy,
 } from '../../../utils/lyrics/staffCreditsPolicy';
 import { LYRIC_STAFF_PATTERN_EXAMPLE, getLyricStaffPatternError } from '../../../utils/lyrics/staffCredits';
+import { Group, PictureChoice, Reveal, Row, Segmented, Slider, type SettingsGroupDef } from '../settings/kit';
+import LyricFilterPatternField from './LyricFilterPatternField';
+import { StaffPolicyPicture } from './staffPolicyPictures';
 
 // src/components/modal/lyric-filter/LyricStaffSection.tsx
+
+const STAFF_GROUP: SettingsGroupDef = { id: 'lyricFilterStaff', titleKey: 'lyricStaff.title' };
 
 const POLICY_ORDER: LyricStaffPolicy[] = ['keep', 'smart', 'hide'];
 
@@ -26,15 +30,11 @@ const ABSORB_LABEL_KEYS: Record<LyricStaffAbsorbMode, { label: string; descripti
     both: { label: 'lyricStaff.absorbBoth', description: 'lyricStaff.absorbBothDesc' },
 };
 
-const formatSeconds = (seconds: number): string => (Math.round(seconds * 10) / 10).toFixed(1);
-
 interface LyricStaffSectionProps {
-    isDaylight: boolean;
     policy: LyricStaffPolicy;
     minDwellSeconds: number;
     absorbMode: LyricStaffAbsorbMode;
     pattern: string;
-    decision: LyricStaffDecision;
     onPolicyChange: (policy: LyricStaffPolicy) => void;
     onMinDwellChange: (seconds: number) => void;
     onAbsorbModeChange: (mode: LyricStaffAbsorbMode) => void;
@@ -42,167 +42,74 @@ interface LyricStaffSectionProps {
 }
 
 const LyricStaffSection: React.FC<LyricStaffSectionProps> = ({
-    isDaylight,
     policy,
     minDwellSeconds,
     absorbMode,
     pattern,
-    decision,
     onPolicyChange,
     onMinDwellChange,
     onAbsorbModeChange,
     onPatternChange,
 }) => {
     const { t } = useTranslation();
-    const cardBg = isDaylight ? 'bg-black/[0.03]' : 'bg-white/[0.04]';
-    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
-    const inputBg = isDaylight ? 'bg-black/5 border-black/10' : 'bg-white/5 border-white/10';
-    const trackBg = isDaylight ? 'bg-black/[0.05]' : 'bg-black/15';
-    const mutedText = isDaylight ? 'text-zinc-500' : 'text-white/50';
-    const dangerText = isDaylight ? 'text-red-600' : 'text-red-300';
     const patternError = getLyricStaffPatternError(pattern);
 
-    const verdictLabel = t(`lyricStaff.verdict${decision.verdict.charAt(0).toUpperCase()}${decision.verdict.slice(1)}`);
-
     return (
-        <div className={`rounded-[24px] border p-4 ${cardBg} ${borderColor}`}>
-            <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                {t('lyricStaff.title')}
-            </div>
-            <div className={`mt-1 text-xs ${mutedText}`}>{t('lyricStaff.description')}</div>
+        <Group def={STAFF_GROUP}>
+            <Row label={t('lyricStaff.policy')} hint={t(POLICY_LABEL_KEYS[policy].description)}>
+                {/* 两组选项结构完全一致，靠 data-staff-*-group 区分，测试才能只挑其中一组断言。 */}
+                <div data-staff-policy-group="" className="contents">
+                    <PictureChoice
+                        value={policy}
+                        options={POLICY_ORDER.map(option => ({
+                            value: option,
+                            label: t(POLICY_LABEL_KEYS[option].label),
+                            picture: <StaffPolicyPicture policy={option} />,
+                        }))}
+                        onChange={onPolicyChange}
+                    />
+                </div>
+            </Row>
 
-            {/* 选中态沿用设置页分段控件的做法：白天用实心白药丸 + 深色字，夜间用高亮层，
-                未选中一律压透明度。早先两种状态都是 white/x 叠加，在亮色背景上分不出来。
-                两排分段控件结构完全一致，靠 data-staff-*-group 区分，测试才能只挑其中一排断言。 */}
-            <div
-                data-staff-policy-group=""
-                className={`mt-4 grid grid-cols-3 gap-1 rounded-2xl border p-1 ${borderColor} ${trackBg}`}
-            >
-                {POLICY_ORDER.map((option) => {
-                    const isSelected = policy === option;
-
-                    return (
-                        <button
-                            key={option}
-                            type="button"
-                            aria-pressed={isSelected}
-                            onClick={() => onPolicyChange(option)}
-                            className={`rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
-                                isSelected
-                                    ? (isDaylight ? 'bg-white text-zinc-900 shadow-sm' : 'bg-white/10 shadow-sm')
-                                    : 'opacity-50 hover:opacity-100'
-                            }`}
-                            style={{ color: isSelected && isDaylight ? undefined : 'var(--text-primary)' }}
-                        >
-                            {t(POLICY_LABEL_KEYS[option].label)}
-                        </button>
-                    );
-                })}
-            </div>
-            <div className={`mt-2 px-1 text-xs ${mutedText}`}>{t(POLICY_LABEL_KEYS[policy].description)}</div>
-
-            {policy === 'smart' && (
-                <div className="mt-4">
-                    <div className="flex items-center justify-between text-xs" style={{ color: 'var(--text-primary)' }}>
-                        <span>{t('lyricStaff.minDwell')}</span>
-                        <span>{t('lyricStaff.minDwellValue', { seconds: formatSeconds(minDwellSeconds) })}</span>
-                    </div>
-                    <input
-                        type="range"
+            <Reveal when={policy === 'smart'}>
+                <Row sub label={t('lyricStaff.minDwell')} note={t('lyricStaff.minDwellDesc')}>
+                    <Slider
+                        value={minDwellSeconds}
                         min={LYRIC_STAFF_MIN_DWELL_RANGE.min}
                         max={LYRIC_STAFF_MIN_DWELL_RANGE.max}
                         step={0.1}
-                        value={minDwellSeconds}
-                        onChange={(event) => onMinDwellChange(Number.parseFloat(event.target.value))}
-                        className={`mt-2 w-full accent-current ${isDaylight ? 'text-zinc-900' : 'text-white'}`}
-                        aria-label={t('lyricStaff.minDwell')}
+                        onChange={onMinDwellChange}
+                        format={seconds => t('lyricStaff.minDwellValue', { seconds: seconds.toFixed(1) })}
                     />
-                    <div className={`mt-1 text-xs ${mutedText}`}>{t('lyricStaff.minDwellDesc')}</div>
-                </div>
-            )}
-            {/* 只在 smart 下露出：吸收的边界面就是上面那个滑块的阈值，而 hide 压根不做吸收。 */}
-            {policy === 'smart' && (
-                <div className="mt-4">
-                    <div className="text-xs" style={{ color: 'var(--text-primary)' }}>
-                        <span>{t('lyricStaff.absorb')}</span>
+                </Row>
+                {/* 只在 smart 下露出：吸收的边界面就是上面那个滑块的阈值，而 hide 压根不做吸收。 */}
+                <Row sub label={t('lyricStaff.absorb')} note={t(ABSORB_LABEL_KEYS[absorbMode].description)}>
+                    <div data-staff-absorb-group="" className="contents">
+                        <Segmented
+                            value={absorbMode}
+                            options={ABSORB_ORDER.map(option => ({ value: option, label: t(ABSORB_LABEL_KEYS[option].label) }))}
+                            onChange={onAbsorbModeChange}
+                        />
                     </div>
-                    <div
-                        data-staff-absorb-group=""
-                        className={`mt-2 grid grid-cols-3 gap-1 rounded-2xl border p-1 ${borderColor} ${trackBg}`}
-                    >
-                        {ABSORB_ORDER.map((option) => {
-                            const isSelected = absorbMode === option;
+                </Row>
+            </Reveal>
 
-                            return (
-                                <button
-                                    key={option}
-                                    type="button"
-                                    aria-pressed={isSelected}
-                                    onClick={() => onAbsorbModeChange(option)}
-                                    className={`rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
-                                        isSelected
-                                            ? (isDaylight ? 'bg-white text-zinc-900 shadow-sm' : 'bg-white/10 shadow-sm')
-                                            : 'opacity-50 hover:opacity-100'
-                                    }`}
-                                    style={{ color: isSelected && isDaylight ? undefined : 'var(--text-primary)' }}
-                                >
-                                    {t(ABSORB_LABEL_KEYS[option].label)}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className={`mt-2 px-1 text-xs ${mutedText}`}>{t(ABSORB_LABEL_KEYS[absorbMode].description)}</div>
-                </div>
-            )}
-
-            {policy !== 'keep' && (
-                <>
-                    <div className="mt-5 text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                        {t('lyricStaff.customPattern')}
-                    </div>
-                    <div className={`mt-1 text-xs ${mutedText}`}>{t('lyricStaff.customPatternDesc')}</div>
-                    <textarea
-                        value={pattern}
-                        onChange={(event) => onPatternChange(event.target.value)}
-                        placeholder={t('lyricStaff.customPatternPlaceholder')}
-                        rows={3}
-                        className={`mt-3 w-full resize-none rounded-2xl border px-4 py-3 text-sm outline-none transition-colors ${inputBg}`}
-                        style={{ color: 'var(--text-primary)' }}
-                    />
-                    <div className="mt-2 px-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        {t('lyricFilter.example')} <code>{LYRIC_STAFF_PATTERN_EXAMPLE}</code>
-                    </div>
-                    {patternError && (
-                        <div className={`mt-2 text-xs ${dangerText}`}>
-                            {t('lyricFilter.invalidRegex', { error: patternError })}
-                        </div>
+            <Reveal when={policy !== 'keep'}>
+                <Row
+                    label={t('lyricStaff.customPattern')}
+                    note={t('lyricStaff.customPatternDesc')}
+                    below={(
+                        <LyricFilterPatternField
+                            value={pattern}
+                            onChange={onPatternChange}
+                            placeholder={t('lyricStaff.customPatternPlaceholder')}
+                            example={LYRIC_STAFF_PATTERN_EXAMPLE}
+                            error={patternError}
+                        />
                     )}
-
-                    <div className={`mt-5 rounded-2xl border px-3 py-3 ${borderColor} ${inputBg}`}>
-                        <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                            {t('lyricStaff.verdict')}：{verdictLabel}
-                        </div>
-                        {decision.verdict !== 'none' && policy === 'smart' && (
-                            // 吸收行数是额外信息：大多数歌词吸不到东西，常驻一行 0 反而是噪音。
-                            <div className={`mt-1 text-xs ${mutedText}`}>
-                                {decision.absorbedLineCount > 0
-                                    ? t('lyricStaff.verdictSummaryAbsorbed', {
-                                        lines: decision.blockLineCount,
-                                        absorbed: decision.absorbedLineCount,
-                                        window: formatSeconds(decision.windowSeconds),
-                                        required: formatSeconds(decision.requiredSeconds),
-                                    })
-                                    : t('lyricStaff.verdictSummary', {
-                                        lines: decision.blockLineCount,
-                                        window: formatSeconds(decision.windowSeconds),
-                                        required: formatSeconds(decision.requiredSeconds),
-                                    })}
-                            </div>
-                        )}
-                    </div>
-                </>
-            )}
-        </div>
+                />
+            </Reveal>
+        </Group>
     );
 };
 

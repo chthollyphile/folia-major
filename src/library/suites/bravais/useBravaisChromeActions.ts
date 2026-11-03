@@ -1,13 +1,15 @@
 import { useMemo, type MutableRefObject } from 'react';
-import { useLibrarySuiteChromeRegistration } from '../../core/bindings/useLibrarySuiteChromeRegistration';
-import { getBlockSize, getBlockSlots, type WallSlot } from '../../../components/wall/wallSlots';
-import { BRAVAIS_METRICS } from './bravaisConstants';
-import { findItemSlotNear, type BravaisDisplay } from './bravaisDisplay';
+import { useLibrarySuiteChromeRegistration } from '../../core/suite/useLibrarySuiteChromeRegistration';
+import type { WallSlot } from '../../../components/wall/wallSlots';
+import { locatePlayingSongOnPage } from '../../../components/app/playing-song-locator/playingSongLocator';
+import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import type { BravaisDisplay } from './bravaisDisplay';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { nextWallLook, stepWindowsPerBlock } from './bravaisLook';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { useBravaisUiStore } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { findItemSlotNearSeam } from './useBravaisLocate';
 
 // src/library/suites/bravais/useBravaisChromeActions.ts
 // bravais 的外观动作（B2 的 suite-chrome）：缝的三级开口（展开 / 收起成书脊 / 折叠）、在这里裂开缝、定位正在播放。
@@ -40,7 +42,7 @@ export const useBravaisChromeActions = ({
     frameRef,
     isCollapsed,
     reopenHere,
-    focusSlot,
+    showSlot,
     openList,
 }: {
     active: boolean;
@@ -49,7 +51,8 @@ export const useBravaisChromeActions = ({
     /** 缝本该张开却被挤到屏外收起了。 */
     isCollapsed: () => boolean;
     reopenHere: () => void;
-    focusSlot: (slot: WallSlot, options: { reveal?: boolean }) => void;
+    /** 定位到墙上的一份（stage 的 showSlot：歌曲展开聚焦卡）。 */
+    showSlot: (slot: WallSlot) => void;
     /** B7：打开列表面板。 */
     openList?: () => void;
 }) => {
@@ -61,16 +64,10 @@ export const useBravaisChromeActions = ({
         const nowPlayingSlot = () => {
             const display = displayRef.current;
             const key = display?.layer.nowPlayingKey;
-            if (!display || !key) return null;
-            const { anchorX, center } = frameRef.current;
-            return findItemSlotNear(
-                display,
-                key,
-                { x: anchorX ?? center.x, y: center.y },
-                getBlockSize(BRAVAIS_METRICS),
-                (column, row) => getBlockSlots(column, row, BRAVAIS_METRICS),
-            );
+            return display && key ? findItemSlotNearSeam(display, key, frameRef.current) : null;
         };
+        /** 这一层被「定位正在播放」问时用的页键（集合层才有；首页层没有，照旧自己在墙上找）。 */
+        const locatePageKey = () => displayRef.current?.layer.locate?.pageKey ?? null;
         return {
             'seam-full': { isAvailable: () => hasLayer() && level() !== 'full', run: () => setLevel('full') },
             'seam-spine': { isAvailable: () => hasLayer() && level() !== 'spine', run: () => setLevel('spine') },
@@ -92,19 +89,26 @@ export const useBravaisChromeActions = ({
                 },
                 run: () => openList?.(),
             },
+            // 集合层与网格的集合页一样问定位器（有歌在放就能按，不在墙上时状态行说「这里没有」，useBravaisLocate 回答）；
+            // 首页层不参与，歌在墙上才可用。工具按钮上方的定位按钮（BravaisStageChrome）按下也走这里。
             'locate-playing': {
-                isAvailable: () => nowPlayingSlot() !== null,
+                isAvailable: () => (locatePageKey() !== null ? usePlaybackStore.getState().currentSong !== null : nowPlayingSlot() !== null),
                 run: () => {
+                    const pageKey = locatePageKey();
+                    if (pageKey !== null) {
+                        locatePlayingSongOnPage(pageKey);
+                        return;
+                    }
                     const slot = nowPlayingSlot();
-                    if (slot) focusSlot(slot, { reveal: true });
+                    if (slot) showSlot(slot);
                 },
             },
             // 透光（B6b③）：写 app 层偏好，stage 读它换档（同一层的数据更新，只翻开窗 / 关窗与内容挪了的 slot）。
             ...wallLookHandlers(hasLayer),
         };
-    }, [displayRef, focusSlot, frameRef, isCollapsed, openList, reopenHere]);
+    }, [displayRef, frameRef, isCollapsed, openList, reopenHere, showSlot]);
 
     useLibrarySuiteChromeRegistration({ suiteId: BRAVAIS_SUITE_ID, isInteractive: active, handlers });
-    // 实测反馈 1：右下角工具面板（BravaisStageChrome）直接用同一份实现（定位正在播放），不另写一遍。
+    // 实测反馈 1：右下角的定位按钮（BravaisStageChrome）直接用同一份实现（定位正在播放），不另写一遍。
     return handlers;
 };

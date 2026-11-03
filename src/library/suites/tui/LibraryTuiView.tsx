@@ -2,22 +2,22 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useIsPresent } from 'framer-motion';
 import { List, useListRef } from 'react-window';
 import { useTranslation } from 'react-i18next';
-import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/contracts/suite';
-import type { LibraryMutationResult } from '../../core/contracts/mutations';
-import { resolveDeclaredMutationActions } from '../../core/model/librarySuites';
-import { collectionKey } from '../../core/model/collectionIdentity';
-import { buildCoreSurfaceParams, buildGridSurfaceState, runGridSurfaceAction } from '../../core/model/collectionSurface';
-import { useCollectionResourceState } from '../../core/bindings/useCollectionResourceState';
-import { useCollectionView } from '../../core/bindings/useCollectionView';
-import { useCollectionActions } from '../../core/bindings/useCollectionActions';
-import { useCommittedQuery } from '../../core/bindings/useCommittedQuery';
-import { useLibrarySessionQuery } from '../../core/bindings/useLibrarySessionQuery';
-import { useCollectionMutationSnapshot } from '../../core/bindings/useCollectionMutations';
-import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/model/trackLinks';
+import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/suite/suite.contract';
+import type { LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
+import { resolveDeclaredMutationActions } from '../../core/suite/librarySuites';
+import { collectionKey } from '../../core/collection/collectionIdentity';
+import { buildCoreSurfaceParams, buildGridSurfaceState, runGridSurfaceAction } from '../../core/collection/collectionSurface';
+import { useCollectionResourceState } from '../../core/collection/resource/useCollectionResourceState';
+import { useCollectionView } from '../../core/collection/useCollectionView';
+import { useCollectionActions } from '../../core/collection/mutations/useCollectionActions';
+import { useCommittedQuery } from '../../core/shared/useCommittedQuery';
+import { useLibrarySessionQuery } from '../../core/shared/useLibrarySessionQuery';
+import { useCollectionMutationSnapshot } from '../../core/collection/mutations/useCollectionMutations';
+import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/shared/trackLinks';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistration';
-import { useLocalTrackSortStore } from '../../core/state/useLocalTrackSortStore';
+import { useLocalTrackSortStore } from '../../core/directory/useLocalTrackSortStore';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
 import LibraryTuiHeader from './LibraryTuiHeader';
 import LibraryTuiRow, { LIBRARY_TUI_COLUMNS, LIBRARY_TUI_ROW_HEIGHT, type LibraryTuiRowProps } from './LibraryTuiRow';
@@ -31,7 +31,7 @@ import { useLibraryTuiKeyboard } from './useLibraryTuiKeyboard';
 // useCollectionActions），并向命令面板注册同一个 surface，只是没有信息面板、侧栏与编辑模式。
 // 这里不引用网格、六边形视口或转场的任何实现。
 
-// 宿主交给任何 suite 的集合 surface 输入（core/contracts/suite）。变更（删条目 / 不喜欢、订阅、改名、删除集合、
+// 宿主交给任何 suite 的集合 surface 输入（core/suite/suite.contract）。变更（删条目 / 不喜欢、订阅、改名、删除集合、
 // 每日推荐日期、手动匹配）都经宿主传来的变更控制器，与网格是同一个实例、同一份快照；TUI 只是换了入口：
 // Delete 键、状态栏上的 [★] / [改名] / [删除]、行上的 [i]，以及命令面板（core 动作与网格同源，
 // 发布哪些由 entry.ts 的声明决定）。按钮只在「声明 ∩ 控制器能力」时出现。
@@ -192,7 +192,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         if (isMountedRef.current && result.ok) onBack();
     };
 
-    // 行上的专辑 / 歌手：suite 声明了 open-album / open-artist、且这一行能解析出目录引用（core/model/trackLinks，
+    // 行上的专辑 / 歌手：suite 声明了 open-album / open-artist、且这一行能解析出目录引用（core/shared/trackLinks，
     // 与网格卡片上的链接同一条规则）才能打开。压入下一层之前把焦点写回会话：返回时焦点回到这一行。
     const canOpenAlbum = declaredActions.actions.includes('open-album');
     const canOpenArtist = declaredActions.actions.includes('open-artist');
@@ -265,6 +265,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         accentColor,
         enqueueLabel: t('libraryTui.enqueue'),
         unavailableLabel: t('status.songUnavailableTag'),
+        videoLabel: t('status.songVideoTag'),
         matchLabel: t('localMusic.manualMetadataMatch'),
         onFocusRow: focus.focusRow,
         onPlayRow: playRow,

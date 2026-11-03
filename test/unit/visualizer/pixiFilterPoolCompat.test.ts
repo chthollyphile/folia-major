@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import * as pixi from 'pixi.js';
-import { installPixiFilterPoolCompat } from '@/components/visualizer/pixiFilterPoolCompat';
+import { installPixiFilterPoolCompat } from '@/components/visualizer/pixi/pixiFilterPoolCompat';
 
 // test/unit/visualizer/pixiFilterPoolCompat.test.ts
 // Exercise real Pixi pools and bind groups without needing a WebGL context.

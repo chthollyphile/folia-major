@@ -23,8 +23,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { useAppNavigation, type NavigationHistoryState } from '@/hooks/useAppNavigation';
 import { subscribeCollectionPop, useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import { useAppViewStore } from '@/stores/useAppViewStore';
-import type { GridViewCollectionDescriptor } from '@/library/core/contracts/collection';
-import { collectionKey } from '@/library/core/model/collectionIdentity';
+import type { GridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import { collectionKey } from '@/library/core/collection/collectionIdentity';
 import {
     closeBravaisPanel,
     openBravaisPanel,

@@ -16,6 +16,7 @@ import {
 } from '../../services/onlineMetadataSearchService';
 import { DurationMatchBadge } from './DurationMatchBadge';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
+import { useConfirmDialog } from '../shared/useConfirmDialog';
 
 // src/components/modal/LocalSongMetadataMatchDialog.tsx
 // Lets the user search one provider and independently choose its metadata bundle and cover.
@@ -42,6 +43,7 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
     const [useOnlineCover, setUseOnlineCover] = useState(song.useOnlineCover ?? !song.localCoverAssetId);
     const localCoverUrl = getLocalCoverAssetUrl(song.localCoverAssetId, 512);
     const requestIdRef = useRef(0);
+    const { ask: askConfirm, dialog: confirmDialog } = useConfirmDialog(isDaylight);
     const target = useMemo(() => buildLocalSongMetadataSearchTarget(song), [song]);
     const currentTitle = song.title;
     const currentArtist = (song.titleOrigin !== 'import'
@@ -80,7 +82,12 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
         const replacesProtectedArtist = selected.artists.length > 0 && ['manual', 'split'].includes(assignment?.artistOrigin || '');
         const replacesProtectedAlbum = Boolean(selected.album) && ['manual', 'split'].includes(assignment?.albumOrigin || '');
         if (useOnlineMetadata && (replacesProtectedArtist || replacesProtectedAlbum)
-            && !window.confirm(t('localMusic.replaceProtectedEntityConfirm'))) return;
+            && !await askConfirm({
+                title: t('localMusic.applyMetadataMatch'),
+                description: t('localMusic.replaceProtectedEntityConfirm'),
+                confirmText: t('localMusic.applyMetadataMatch'),
+                confirmVariant: 'danger',
+            })) return;
         setApplying(true);
         try {
             const applied = await applyOnlineMetadataCandidate(song, selected, {
@@ -90,7 +97,7 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
             });
             await onChanged();
             if (applied.coverAttempted && !applied.coverCached) {
-                window.alert(t('localMusic.coverCacheFailed'));
+                setStatusMessage({ type: 'error', text: t('localMusic.coverCacheFailed') });
             }
             onClose();
         } catch (error) {
@@ -261,6 +268,7 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
                     </div>
                 </div>
             </div>
+            {confirmDialog}
         </div>
     );
 };

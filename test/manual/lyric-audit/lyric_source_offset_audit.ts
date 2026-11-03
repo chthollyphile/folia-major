@@ -613,17 +613,17 @@ const parseNeteaseLyricsSynchronously = async ({
     extractNeteaseLyricPayload,
     resolveLyricProcessingOptions,
     applyDetectedChorusEffects,
-    applyNeteaseChorusByTime,
+    applyChorusRangesByTime,
     source,
     songId,
 }: {
-    neteaseApi: Awaited<typeof import('../../../src/services/netease')>['neteaseApi'];
+    neteaseApi: Awaited<typeof import('../../../src/services/onlineMusic/netease/netease')>['neteaseApi'];
     detectTimedLyricFormat: Awaited<typeof import('../../../src/utils/lyrics/formatDetection')>['detectTimedLyricFormat'];
     parseLyricsByFormat: Awaited<typeof import('../../../src/utils/lyrics/parserCore')>['parseLyricsByFormat'];
     extractNeteaseLyricPayload: Awaited<typeof import('../../../src/utils/lyrics/neteaseProcessing')>['extractNeteaseLyricPayload'];
     resolveLyricProcessingOptions: Awaited<typeof import('../../../src/utils/lyrics/filtering')>['resolveLyricProcessingOptions'];
     applyDetectedChorusEffects: Awaited<typeof import('../../../src/utils/lyrics/chorusEffects')>['applyDetectedChorusEffects'];
-    applyNeteaseChorusByTime: Awaited<typeof import('../../../src/utils/lyrics/chorusEffects')>['applyNeteaseChorusByTime'];
+    applyChorusRangesByTime: Awaited<typeof import('../../../src/utils/lyrics/chorusEffects')>['applyChorusRangesByTime'];
     source: RawNeteaseLyric;
     songId: number;
 }) => {
@@ -659,7 +659,7 @@ const parseNeteaseLyricsSynchronously = async ({
                     startTime: (range.startTime ?? 0) / 1000,
                     endTime: (range.endTime ?? 0) / 1000,
                 }));
-                lyrics = applyNeteaseChorusByTime(lyrics, chorusRanges);
+                lyrics = applyChorusRangesByTime(lyrics, chorusRanges);
             }
         }
 
@@ -697,11 +697,11 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
         { parseLyricsByFormat },
         { extractNeteaseLyricPayload },
         { resolveLyricProcessingOptions },
-        { applyDetectedChorusEffects, applyNeteaseChorusByTime },
+        { applyDetectedChorusEffects, applyChorusRangesByTime },
     ] = await Promise.all([
-        import('../../../src/services/netease'),
-        import('../../../src/utils/lyrics/providers/qqLyricProvider'),
-        import('../../../src/utils/lyrics/providers/kugouLyricProvider'),
+        import('../../../src/services/onlineMusic/netease/netease'),
+        import('../../../src/services/onlineMusic/qq/qqLyricProvider'),
+        import('../../../src/services/onlineMusic/kugou/kugouLyricProvider'),
         import('../../../src/utils/lyrics/searchQuery'),
         import('../../../src/utils/lyrics/matchScore'),
         import('../../../src/utils/lyrics/formatDetection'),
@@ -731,7 +731,7 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
         extractNeteaseLyricPayload,
         resolveLyricProcessingOptions,
         applyDetectedChorusEffects,
-        applyNeteaseChorusByTime,
+        applyChorusRangesByTime,
         source: neteaseApi.getProcessedLyricPayload(neteaseRaw),
         songId: options.songId,
     });

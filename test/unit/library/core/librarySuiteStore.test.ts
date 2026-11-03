@@ -22,7 +22,7 @@ const loadStore = async (initial?: string, options: { throwOnGet?: boolean; thro
         setItem,
     });
     vi.resetModules();
-    const { useLibrarySuiteStore } = await import('@/library/core/state/useLibrarySuiteStore');
+    const { useLibrarySuiteStore } = await import('@/library/core/suite/useLibrarySuiteStore');
     return { useLibrarySuiteStore, storage, setItem };
 };
 

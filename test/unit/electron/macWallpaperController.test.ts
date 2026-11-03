@@ -20,7 +20,7 @@ const {
   createMacWallpaperController,
   isMacWallpaperTestMode,
   FINDER_DESKTOP_LAYER,
-} = require('../../../electron/macWallpaperController.cjs') as {
+} = require('../../../electron/wallpaper/macWallpaperController.cjs') as {
   classifyMacTapEventType: (type: number) => string | null;
   computeDesktopLevel: (iconLevel: number) => number;
   isTransparentDesktopSurface: (layer: number, alpha: number) => boolean;

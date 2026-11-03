@@ -22,7 +22,7 @@ const {
     resolveOnlineTracksCacheSuffix,
     resolveOnlineTracksTargetTime,
     writeOnlineTracksCache,
-} = await import('@/library/core/services/onlineCollectionCache');
+} = await import('@/library/core/collection/resource/onlineCollectionCache.service');
 
 const track = (id: string) => ({ id, name: id, artists: [], album: { id: 0, name: '' }, durationMs: 1 } as SongResult);
 

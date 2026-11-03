@@ -84,7 +84,7 @@ test.describe('切歌交接', () => {
         await stamp(page);
 
         // 正在播放 → 预告下一首 → 那首真的播起来，全程同一个 DOM 节点。
-        // 文案取英文：components project 的 fixtures 把 i18nextLng 钉成 en，这条用例以前没有
+        // 文案取英文：components project 的 fixtures 把 folia_app_language 钉成 en，这条用例以前没有
         // 种子、读的是浏览器默认语言，钉住之后才是确定的。
         await page.locator('[data-probe-action="next-up"]').click();
         await expect(card).toContainText('Next playing');

@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import type { GridSurfaceActionId } from '../../src/types/gridCommandSurface';
-import { GRID_SURFACE_ACTION_SOURCES } from '../../src/library/core/model/collectionSurface';
+import { GRID_SURFACE_ACTION_SOURCES } from '../../src/library/core/collection/collectionSurface';
 import type { ProbeCallKind } from '../../dev/probes/libraryBehavior/probeLog';
 import type { ProbeFixtureId } from '../../dev/probes/libraryBehavior/fixtureRules';
 import {
@@ -1043,7 +1043,7 @@ test.describe('navigation', () => {
     });
 });
 
-// P4.4：集合里曲目上的专辑 / 歌手链接（网格：卡片上的名字；TUI：行上的按钮）。core 的规则同一份（core/model/trackLinks），
+// P4.4：集合里曲目上的专辑 / 歌手链接（网格：卡片上的名字；TUI：行上的按钮）。core 的规则同一份（core/shared/trackLinks），
 // 打开时压入的描述由宿主解析；压栈之前两套都把焦点写回会话，返回之后焦点回到那一项。
 for (const renderer of RENDERERS) {
 test.describe(`[${renderer}] nested opens from collection entries`, () => {

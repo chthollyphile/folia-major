@@ -2,412 +2,619 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 // test/component/collectionMorph.spec.ts
-// 「移形换影」的浏览器级回归。为什么要组件测试而不是单测：这段转场的失败方式是层叠、
-// 命中测试和时序，不是纯逻辑 —— 封锁层盖住了谁、测量量到了哪个网格、生命周期会不会自己
-// 结束，都只有真的挂进 DOM 才看得出来。
+// 「移形换影」的浏览器级回归：被点的封面飞到打开的那一页，返回时再飞回去。
 //
-// 注意：合成层是 portal 到 document.body 的，所以它们只能在 page 上查，不在 mount() 返回的
-// #root 里。探针自己的 UI（按钮、状态读数）才从 #root 查。
+// 为什么要组件测试而不是单测：这段转场的失败方式是位置、层叠和时序 —— 第一帧在不在卡片上、
+// 量到的是哪一页的落点、落地时底下那张图露没露出来、生命周期会不会自己结束，都只有真的挂进
+// DOM 才看得出来。
+//
+// 飞行只活几百毫秒，比测试进程的一次往返还短，所以读数由页内的记录器逐帧累积，测试事后读一次。
+// 飞的那一层 portal 在 document.body 上，只能在 page 上查；探针自己的界面从 #root 查。
+//
+// 基线（重写之前的实现，同一台机器、同一张探针页，2026-10-08）：第一帧带 blur(6px) 和旋转；
+// 途中宽度比两端都宽 41.6px、高度高 69.6px（先飞向一个猜的位置）；最长一帧 50.9ms；
+// 位置和大小由脚本每帧改 left/top/width/height，Web Animations 只管 filter 和 opacity。
 
-const MORPH_LAYER = '[data-folia-collection-morph]';
-const FRAME = '[data-folia-collection-morph="frame"]';
-const COVER = '[data-folia-collection-morph="cover"]';
-const BLOCKER = '[data-folia-collection-morph="input-blocker"]';
+// The carrier's picture (what the figures of a flight are read off), and the whole carrier.
+const CARRIER = '[data-folia-collection-morph="cover"]';
+const CARRIER_ROOT = '[data-folia-collection-morph="carrier"]';
+const STAND_IN = '[data-probe-stand-in]';
+const STAND_IN_COVER = '[data-probe-stand-in-cover]';
+const HOME_CARD = '[data-probe-home-card]';
+const HOME_COVER = '[data-probe-home-card] img';
+// How long a carrier flies before it lands (it then dissolves over the card it landed on).
+const FLIGHT_MS = 460;
 
-/**
- * 采样某个元素在接下来一段时间里的 transform 矩阵。形变层现在动画的是**盒子**，
- * 所以 transform 里只应该有等比变换（旋转、均匀缩放）；一旦出现 a ≠ d 的非等比缩放，
- * object-cover 的图片内容就会被拉变形 —— 那正是「封面比例被压窄」的成因。
- */
-const sampleTransforms = (locator: Locator, samples: number, gapMs: number) => (
-    locator.evaluate(async (el, [count, gap]) => {
-        const readings: Array<{ a: number; d: number }> = [];
-        for (let i = 0; i < count; i += 1) {
-            const matrix = new DOMMatrix(getComputedStyle(el).transform);
-            readings.push({ a: matrix.a, d: matrix.d });
-            await new Promise(resolve => setTimeout(resolve, gap));
-        }
-        return readings;
-    }, [samples, gapMs] as const)
-);
-
-/**
- * 形变层在飞行期间的状态快照，由页内观察器累积。
- */
-type FlightRecord = {
-    /** 每一层在飞行期间出现过的最大数量（出现即记，之后消失也不回退）。 */
-    frame: number;
-    cover: number;
-    title: number;
-    blocker: number;
-    layer: number;
-    /**
-     * 合成层里出现过的所有封面 src（去重累积）。不能只记「第一眼看到的」：源封面先挂上，
-     * 交叉淡化的目标封面晚一拍才挂，只看第一眼拿到的是首页那张图。
-     */
-    coverSources: string[];
-    /** 合成层里出现过的所有标题文本（去重累积），同理：先是源标题，后面接上目标标题。 */
-    titleTexts: string[];
-    /** 飞行期间出现过的计划种类。 */
-    plans: string[];
+type Box = { x: number; y: number; width: number; height: number };
+type Line = Box & { text: string; opacity: number; even: boolean };
+type Reading = Box & {
+    at: number; filter: string; rotated: boolean; pictureShape: number | null;
+    /** The opacity of the card the carrier lands on, and of the one it left. */
+    coveredOpacity: string | null;
+    sourceOpacity: string | null;
+    /** The carrier's frame, and its titles (`even`: scaled by one factor both ways). */
+    frame: (Box & { opacity: number }) | null;
+    /** The frame's edge: where it is, and how strongly it is lit. */
+    edge: (Box & { opacity: number }) | null;
+    titles: Line[];
+};
+type Flight = {
+    readings: Reading[];
+    /** Milliseconds from the start of the recording to the first frame with the carrier, and to the first without. */
+    appeared: number | null;
+    gone: number | null;
+    /** How many carriers were put on the page. */
+    carriers: number;
+    direction: string | null;
+    /** The carrier's box at the first and the last keyframe of its flight, on the screen. */
+    firstKeyframe: Box | null;
+    lastKeyframe: Box | null;
+    /** The corners at the first and the last keyframe, as written. */
+    corners: [string, string] | null;
+    /** The properties each Web Animation on the carrier animates. */
+    animated: string[][];
+    /** Those of the animations on the frame's edge alone, and the shadow the edge is drawn as. */
+    edgeAnimated: string[][];
+    edgeShadow: string | null;
 };
 
 /**
- * 把记录器装进页面，**必须在点击之前**调用。
- *
- * 三件套与封锁层只活几百毫秒，而这个进程里一次往返（尤其 CI 上同时跑几个 worker 时）就可能
- * 上百毫秒 —— 用 `expect(locator).toHaveCount(1)` 逐个确认必然漏窗口：查封锁层时它已经收掉了
- * （真实发生过）。更糟的是漏掉之后 `locator.evaluate` 会开始等这个元素重新出现，于是超时。
- * 观察器在页内按突变实时记录，测试事后读一次快照，就不依赖往返速度了。
+ * Starts the recorder; call BEFORE what starts the flight. `covered` is the card the carrier lands
+ * on and `source` the one it leaves: their opacity is read every frame the carrier is there.
  */
-const recordFlight = async (page: Page): Promise<void> => {
-    await page.evaluate(() => {
-        const count = (selector: string) => document.querySelectorAll(selector).length;
-        const push = (list: string[], values: string[]) => {
-            for (const value of values) {
-                if (value && !list.includes(value)) list.push(value);
+const record = (page: Page, covered: string | null = null, limitMs = 6000, source: string | null = null) => (
+    page.evaluate(([carrierAt, rootAt, coveredAt, limit, sourceAt]) => {
+        const boxOf = (element: Element): Box => {
+            const rect = element.getBoundingClientRect();
+            return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+        };
+        const flight: Flight = {
+            readings: [], appeared: null, gone: null, carriers: 0, direction: null, firstKeyframe: null, lastKeyframe: null, corners: null,
+            animated: [], edgeAnimated: [], edgeShadow: null,
+        };
+        const observer = new MutationObserver((changes) => {
+            for (const change of changes) {
+                for (const node of change.addedNodes) {
+                    if (node instanceof Element && node.matches(rootAt)) flight.carriers += 1;
+                }
             }
-        };
-        const record = {
-            frame: 0, cover: 0, title: 0, blocker: 0, layer: 0,
-            coverSources: [] as string[], titleTexts: [] as string[], plans: [] as string[],
-        };
-        const capture = () => {
-            record.frame = Math.max(record.frame, count('[data-folia-collection-morph="frame"]'));
-            record.cover = Math.max(record.cover, count('[data-folia-collection-morph="cover"]'));
-            record.title = Math.max(record.title, count('[data-folia-collection-morph="title"]'));
-            record.blocker = Math.max(record.blocker, count('[data-folia-collection-morph="input-blocker"]'));
-            record.layer = Math.max(record.layer, count('[data-folia-collection-morph]'));
-            push(record.coverSources, Array.from(document.querySelectorAll<HTMLImageElement>('[data-folia-collection-morph="cover"] img'))
-                .map(image => image.getAttribute('src') ?? ''));
-            push(record.titleTexts, [document.querySelector('[data-folia-collection-morph="title"]')?.textContent?.trim() ?? '']);
-            const plan = document.querySelector('[data-probe-plan]')?.textContent?.trim() ?? '';
-            if (plan && plan !== 'none') push(record.plans, [plan]);
-        };
-        capture();
-        const observer = new MutationObserver(capture);
-        observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['src'] });
-        (window as unknown as { __flightRecord?: typeof record }).__flightRecord = record;
-    });
-};
-
-const readFlightRecord = (page: Page) => (
-    page.evaluate(() => (window as unknown as { __flightRecord: FlightRecord }).__flightRecord)
-);
-
-type RadiusReading = { isPercent: boolean; value: number; width: number; height: number };
-type CircleLandingSample = { frame: RadiusReading; cover: RadiusReading | null };
-
-/**
- * 页内 rAF 采样：形变层落到歌手头像那个槽位上的每一帧，记下形变层与封面层的圆角。
- *
- * 同样不能在测试进程里读一次 —— 读完第一处、再去读第二处的时候层可能已经卸载。
- * 判据：落点必须和头像一样是 240×240，且两层的 border-radius 都是**百分比**、数值约等于
- * 半个盒子（弹簧收势会落在 50.2%，浏览器对超过半个盒子的半径一律裁成正圆，观感不受影响）。
- * 写成 px（min(w,h)/2）时，这个方形落点会被非等比缩放拉成圆角方框 —— 那正是回归点。
- */
-const measureCircleLanding = async (page: Page, timeoutMs = 6000) => (
-    page.evaluate(async (limit: number) => {
-        const read = (selector: string): RadiusReading | null => {
-            const element = document.querySelector(selector);
-            if (!element) return null;
-            const raw = getComputedStyle(element).borderTopLeftRadius;
-            const box = element.getBoundingClientRect();
-            return {
-                isPercent: raw.trim().endsWith('%'),
-                value: Number.parseFloat(raw),
-                width: box.width,
-                height: box.height,
+        });
+        observer.observe(document.body, { childList: true });
+        const numbersOf = (text: string) => (text.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+        (window as unknown as { __morphFlight?: Promise<Flight> }).__morphFlight = new Promise<Flight>((resolve) => {
+            const started = performance.now();
+            const step = () => {
+                const now = performance.now();
+                const layer = document.querySelector<HTMLElement>(carrierAt);
+                if (layer) {
+                    flight.appeared ??= now - started;
+                    flight.direction = layer.getAttribute('data-folia-collection-morph-direction');
+                    const style = getComputedStyle(layer);
+                    const matrix = new DOMMatrix(style.transform);
+                    const picture = layer.querySelector('img')?.getBoundingClientRect();
+                    const opacityAt = (selector: string | null) => {
+                        const element = selector ? document.querySelector(selector) : null;
+                        return element ? getComputedStyle(element).opacity : null;
+                    };
+                    const frame = layer.parentElement!.querySelector('[data-folia-collection-morph="frame"]');
+                    const edge = layer.parentElement!.querySelector('[data-folia-collection-morph="edge"]');
+                    if (edge) flight.edgeShadow ??= getComputedStyle(edge).boxShadow;
+                    flight.readings.push({
+                        ...boxOf(layer), at: now - started, filter: style.filter,
+                        rotated: Math.abs(matrix.b) > 0.001 || Math.abs(matrix.c) > 0.001,
+                        pictureShape: picture && picture.height > 0 ? picture.width / picture.height : null,
+                        coveredOpacity: opacityAt(coveredAt),
+                        sourceOpacity: opacityAt(sourceAt),
+                        frame: frame ? { ...boxOf(frame), opacity: Number(getComputedStyle(frame).opacity) } : null,
+                        edge: edge ? { ...boxOf(edge), opacity: Number(getComputedStyle(edge).opacity) } : null,
+                        titles: [...layer.parentElement!.querySelectorAll('[data-folia-collection-morph="title"]')].map((line) => {
+                            const lineStyle = getComputedStyle(line);
+                            const lineMatrix = new DOMMatrix(lineStyle.transform);
+                            return { ...boxOf(line), text: line.textContent ?? '', opacity: Number(lineStyle.opacity), even: Math.abs(lineMatrix.a - lineMatrix.d) < 0.0005 };
+                        }),
+                    });
+                    // The picture's animations, and the edge's (it lies over the picture, not in it).
+                    for (const animation of [...layer.getAnimations({ subtree: true }), ...(edge?.getAnimations() ?? [])]) {
+                        const effect = animation.effect as KeyframeEffect;
+                        const frames = effect.getKeyframes();
+                        const properties = [...new Set(frames.flatMap(frame => Object.keys(frame)))]
+                            .filter(name => !['offset', 'easing', 'composite', 'computedOffset'].includes(name)).sort();
+                        if (!flight.animated.some(known => known.join() === properties.join())) flight.animated.push(properties);
+                        if (effect.target === edge && !flight.edgeAnimated.some(known => known.join() === properties.join())) flight.edgeAnimated.push(properties);
+                        if (effect.target === layer && properties.includes('transform') && !flight.firstKeyframe) {
+                            const laidOut = { x: Number.parseFloat(layer.style.left), y: Number.parseFloat(layer.style.top), width: Number.parseFloat(layer.style.width), height: Number.parseFloat(layer.style.height) };
+                            const at = (frame: ComputedKeyframe): Box => {
+                                const [x, y, scaleX, scaleY] = numbersOf(String(frame.transform));
+                                return { x: laidOut.x + x, y: laidOut.y + y, width: laidOut.width * scaleX, height: laidOut.height * scaleY };
+                            };
+                            flight.firstKeyframe = at(frames[0]);
+                            flight.lastKeyframe = at(frames[frames.length - 1]);
+                        }
+                        if (effect.target === layer && properties.includes('borderRadius') && !flight.corners) {
+                            flight.corners = [String(frames[0].borderRadius), String(frames[frames.length - 1].borderRadius)];
+                        }
+                    }
+                } else if (flight.appeared !== null) {
+                    flight.gone = now - started;
+                    observer.disconnect();
+                    resolve(flight);
+                    return;
+                }
+                if (now - started > limit) { observer.disconnect(); resolve(flight); return; }
+                requestAnimationFrame(step);
             };
-        };
-        const target = { width: 0, height: 0, known: false };
-        const samples: CircleLandingSample[] = [];
-        const start = performance.now();
-        let sawLayer = false;
-        while (performance.now() - start < limit) {
-            // 头像在点击之后才挂载，所以落点尺寸得在循环里补认，不能一开始就查。
-            if (!target.known) {
-                const avatar = document.querySelector('[data-probe-artist-avatar]')?.getBoundingClientRect();
-                if (avatar) {
-                    target.width = avatar.width;
-                    target.height = avatar.height;
-                    target.known = true;
-                }
-            }
-            const frame = read('[data-folia-collection-morph="frame"]');
-            if (frame) {
-                sawLayer = true;
-                if (target.known
-                    && Math.abs(frame.width - target.width) <= 2
-                    && Math.abs(frame.height - target.height) <= 2) {
-                    samples.push({ frame, cover: read('[data-folia-collection-morph="cover"]') });
-                }
-            } else if (sawLayer) {
-                break;
-            }
-            await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
-        }
-        return samples;
-    }, timeoutMs)
+            requestAnimationFrame(step);
+        });
+    }, [CARRIER, CARRIER_ROOT, covered, limitMs, source] as const)
 );
+
+/** The readings of the flight itself: from the carrier's first frame until shortly before it lands. */
+const inTheAir = (flight: Flight) => flight.readings.filter(reading => reading.at - flight.appeared! < FLIGHT_MS - 40);
+
+const read = (page: Page) => page.evaluate(() => (window as unknown as { __morphFlight: Promise<Flight> }).__morphFlight);
+
+const boxOf = (locator: Locator) => locator.evaluate((element): Box => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+});
+const apart = (left: Box, right: Box) => Math.max(
+    Math.abs(left.x - right.x), Math.abs(left.y - right.y), Math.abs(left.width - right.width), Math.abs(left.height - right.height),
+);
+const centreOf = (box: Box) => ({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+
+/** The figures a flight between two boxes is judged by. */
+const figuresOf = (flight: Flight, source: Box, target: Box) => {
+    const { readings } = flight;
+    let path = 0;
+    for (let index = 1; index < readings.length; index += 1) {
+        const from = centreOf(readings[index - 1]);
+        const to = centreOf(readings[index]);
+        path += Math.hypot(to.x - from.x, to.y - from.y);
+    }
+    const straight = Math.hypot(centreOf(target).x - centreOf(readings[0]).x, centreOf(target).y - centreOf(readings[0]).y);
+    const gaps = readings.slice(1).map((reading, index) => reading.at - readings[index].at);
+    return {
+        frames: readings.length,
+        flightMs: Math.round((flight.gone ?? Number.NaN) - (flight.appeared ?? Number.NaN)),
+        firstKeyframeOffSourcePx: Number(apart(flight.firstKeyframe!, source).toFixed(2)),
+        lastKeyframeOffTargetPx: Number(apart(flight.lastKeyframe!, target).toFixed(2)),
+        lastFrameOffTargetPx: Number(apart(readings[readings.length - 1], target).toFixed(2)),
+        pathOverStraight: Number((path / straight).toFixed(3)),
+        widthBeyondBothEndsPx: Number(Math.max(0, Math.max(...readings.map(reading => reading.width)) - Math.max(source.width, target.width)).toFixed(1)),
+        heightBeyondBothEndsPx: Number(Math.max(0, Math.max(...readings.map(reading => reading.height)) - Math.max(source.height, target.height)).toFixed(1)),
+        longestFrameMs: Number(Math.max(0, ...gaps).toFixed(1)),
+        filters: [...new Set(readings.map(reading => reading.filter))],
+        rotated: readings.some(reading => reading.rotated),
+        animated: flight.animated.map(properties => properties.join('+')),
+    };
+};
+
+/** A flight is what the compositor can carry: nothing but transform and opacity moves it. */
+const expectCompositorOnly = (flight: Flight) => {
+    const moving = flight.animated.filter(properties => !properties.every(name => name.startsWith('border')));
+    expect(moving.length).toBeGreaterThan(0);
+    for (const properties of moving) {
+        expect(properties.every(name => name === 'transform' || name === 'opacity')).toBe(true);
+    }
+};
 
 /**
- * 从点击那一刻起在页面里采样 DOM，返回四个里程碑（毫秒，相对采样开始）：
- * 三件套首次移动 / 三件套落到 hero / 输入封锁层消失 / 所有合成层消失。
- *
- * 「首次打开」的真实代价就在这里：hero 的封面是冷的，而打开动画的时长不该由一张网络图片
- * 决定。用页面内的 performance.now() 采样，避免 Playwright 往返把测量值撑大。
+ * The frame's edge over a flight recorded with the card it lands on: not lit at either end, lit
+ * in the air, on the frame all the way, and moved by nothing the compositor cannot carry.
  */
-const measureOpenMilestones = async (page: Page, timeoutMs = 6000) => (
-    page.evaluate(async (limit: number) => {
-        const start = performance.now();
-        const readBox = () => {
-            const el = document.querySelector('[data-folia-collection-morph="frame"]');
-            if (!el) return null;
-            const r = el.getBoundingClientRect();
-            return { x: r.x, y: r.y, w: r.width, h: r.height };
+const expectEdgeLit = (flight: Flight) => {
+    const { readings } = flight;
+    expect(readings.length).toBeGreaterThan(10);
+    for (const reading of readings) expect(apart(reading.edge!, reading.frame!)).toBeLessThan(1);
+    // In the air: until the card it lands on is shown again beneath it.
+    const flying = readings.filter(reading => reading.coveredOpacity === '0');
+    const lit = flying.map(reading => reading.edge!.opacity);
+    expect(lit[0]).toBeLessThanOrEqual(0.05);
+    expect(Math.max(...lit)).toBeGreaterThanOrEqual(0.85);
+    expect(lit[lit.length - 1]).toBeLessThanOrEqual(0.1);
+    // Landed: the carrier is the card it lies on, and no more.
+    expect(readings.length).toBeGreaterThan(flying.length);
+    for (const reading of readings.slice(flying.length)) expect(reading.edge!.opacity).toBe(0);
+    // The line is the theme's text colour, which the probe sets apart from the colour its text is drawn in.
+    expect(flight.edgeShadow).toContain('rgb(250, 250, 250)');
+    expect(flight.edgeShadow).toContain('inset');
+    expect(flight.edgeAnimated.map(properties => properties.join('+')).sort()).toEqual(['borderRadius', 'opacity', 'transform']);
+    expectCompositorOnly(flight);
+    return { first: lit[0], max: Math.max(...lit), last: lit[lit.length - 1], frames: lit.length };
+};
+
+const openFromHomeCard = async (root: Locator, page: Page) => {
+    await root.locator('[data-probe-home-card]').click();
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '1');
+    await expect(page.locator(CARRIER)).toHaveCount(0, { timeout: 4000 });
+};
+
+test('the cover flies from the clicked card straight onto the stand-in, by transform alone', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    const source = await boxOf(root.locator(HOME_COVER));
+    await record(page, STAND_IN, 6000, HOME_CARD);
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    const target = { x: 620, y: 420, width: 200, height: 200 };
+    const figures = figuresOf(flight, source, target);
+    // eslint-disable-next-line no-console
+    console.log('FLIGHT open', JSON.stringify(figures));
+
+    expect(flight.carriers).toBe(1);
+    expect(flight.direction).toBe('in');
+    // It starts on the card and ends on the stand-in, to the pixel.
+    expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);
+    expect(figures.lastKeyframeOffTargetPx).toBeLessThan(0.6);
+    expect(figures.lastFrameOffTargetPx).toBeLessThan(1.5);
+    // One straight way, with no stop at a guessed place: no detour, and never larger than both ends.
+    expect(figures.pathOverStraight).toBeLessThan(1.02);
+    expect(figures.widthBeyondBothEndsPx).toBeLessThan(2.5);
+    expect(figures.heightBeyondBothEndsPx).toBeLessThan(2.5);
+    // The card as it is: not blurred, not turned.
+    expect(figures.filters).toEqual(['none']);
+    expect(figures.rotated).toBe(false);
+    expectCompositorOnly(flight);
+    // It ends by itself, soon.
+    expect(flight.gone).not.toBeNull();
+    expect(figures.flightMs).toBeLessThan(900);
+
+    // The cards at its two ends are not shown while the carrier is in the air.
+    expect(new Set(inTheAir(flight).map(reading => reading.coveredOpacity))).toEqual(new Set(['0']));
+    expect(new Set(inTheAir(flight).map(reading => reading.sourceOpacity))).toEqual(new Set(['0']));
+    await expect(root.locator(STAND_IN_COVER).or(root.locator('[data-probe-detail-cover]')).first()).toBeVisible();
+    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
+});
+
+test('the frame and the title fly with the cover, from the card\'s to the stand-in\'s', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    const homeFrame = await boxOf(root.locator('[data-probe-home-frame]'));
+    const homeTitle = await boxOf(root.locator('[data-probe-home-title]'));
+    await record(page, STAND_IN);
+    await root.locator(HOME_CARD).click();
+    const flight = await read(page);
+    const first = flight.readings[0];
+    const landed = flight.readings[flight.readings.length - 1];
+    // The stand-in's frame is at 608 / 408, 224 wide; its title line 208 under the top of its cover.
+    const standInFrame = { x: 608, y: 408, width: 224, height: 252 };
+
+    // The first frame is the card (it has moved a frame's worth by the time it is read), the
+    // last is the stand-in.
+    expect(apart(first.frame!, homeFrame)).toBeLessThan(45);
+    expect(apart(first.frame!, homeFrame)).toBeLessThan(apart(first.frame!, standInFrame));
+    expect(apart(landed.frame!, standInFrame)).toBeLessThan(1.5);
+    // Both cards draw a frame: it is there all the way.
+    expect(new Set(flight.readings.map(reading => reading.frame!.opacity))).toEqual(new Set([1]));
+
+    // Two lines, the card's and the stand-in's, at one place: the first is the card's own at
+    // the start, the second the stand-in's own at the end, and one turns into the other.
+    expect(first.titles.map(line => line.text)).toEqual(['Home Playlist', 'Home Playlist']);
+    expect(Math.hypot(first.titles[0].x - homeTitle.x, first.titles[0].y - homeTitle.y)).toBeLessThan(45);
+    expect(first.titles[0].opacity).toBe(1);
+    expect(first.titles[1].opacity).toBe(0);
+    expect(Math.hypot(landed.titles[1].x - 620, landed.titles[1].y - 628)).toBeLessThan(1.5);
+    expect(landed.titles[1].opacity).toBe(1);
+    expect(landed.titles[0].opacity).toBe(0);
+    // Its letters are 16 high on the card and 14 on the stand-in: scaled, and by one factor both ways.
+    expect(flight.readings.every(reading => reading.titles.every(line => line.even))).toBe(true);
+    expect(first.titles[0].height).toBeGreaterThan(landed.titles[0].height);
+    expectCompositorOnly(flight);
+});
+
+test('the frame\'s edge lights while the card is in the air, on the way in and on the way back', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await record(page, STAND_IN);
+    await root.locator(HOME_CARD).click();
+    const inward = await read(page);
+    expect(inward.direction).toBe('in');
+    // eslint-disable-next-line no-console
+    console.log('EDGE open', JSON.stringify(expectEdgeLit(inward)));
+
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1);
+    await expect(root.locator(STAND_IN)).toHaveCount(0);
+    await record(page, HOME_CARD);
+    await root.locator('[data-probe-action="back"]').click();
+    const outward = await read(page);
+    expect(outward.direction).toBe('out');
+    // eslint-disable-next-line no-console
+    console.log('EDGE back', JSON.stringify(expectEdgeLit(outward)));
+});
+
+test('a wide cover lands on a square one without being stretched on the way', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    const source = await boxOf(root.locator('[data-probe-wide-card] img'));
+    await record(page);
+    await root.locator('[data-probe-wide-card]').click();
+    const flight = await read(page);
+    const figures = figuresOf(flight, source, { x: 620, y: 420, width: 200, height: 200 });
+    // eslint-disable-next-line no-console
+    console.log('FLIGHT wide', JSON.stringify(figures));
+
+    expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);
+    expect(figures.lastKeyframeOffTargetPx).toBeLessThan(0.6);
+    // The box goes from 16:9 to square; the picture in it keeps its own 16:9 on every frame.
+    const shapes = flight.readings.map(reading => reading.pictureShape!);
+    expect(Math.min(...shapes)).toBeGreaterThan(16 / 9 - 0.02);
+    expect(Math.max(...shapes)).toBeLessThan(16 / 9 + 0.02);
+    // The corners go from the card's radius to the stand-in's, drawn round at both ends.
+    expect(flight.corners).not.toBeNull();
+    const [first, last] = flight.corners!.map(corner => (corner.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number));
+    expect(first[0] * (source.width / 200)).toBeCloseTo(16, 0);
+    expect(first[1] * (source.height / 200)).toBeCloseTo(16, 0);
+    expect(last[0]).toBeCloseTo(8, 1);
+    expectCompositorOnly(flight);
+    // This card draws no frame of its own: the stand-in's comes in on the way.
+    expect(flight.readings[0].frame!.opacity).toBeLessThan(0.3);
+    expect(flight.readings[flight.readings.length - 1].frame!.opacity).toBe(1);
+});
+
+test('tracks that come late: the stand-in stays as the loading card and the cover flies once', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await root.locator('[data-probe-action="slow-tracks"]').click();
+    await record(page, STAND_IN, 2600);
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    expect(flight.gone).not.toBeNull();
+    expect(flight.gone!).toBeLessThan(1200);
+    // Not shown while the carrier flew to it; shown again beneath the carrier when it had landed,
+    // which then went over it.
+    expect(new Set(inTheAir(flight).map(reading => reading.coveredOpacity))).toEqual(new Set(['0']));
+    expect(flight.readings[flight.readings.length - 1].coveredOpacity).toBe('1');
+    expect(await root.locator(STAND_IN).evaluate(element => getComputedStyle(element).opacity)).toBe('1');
+    await expect(root.locator('[data-probe-stand-in-title]')).toHaveText('Home Playlist');
+
+    // Landed, no card yet: the stand-in shows the picture that flew.
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(0);
+    await expect(root.locator(STAND_IN_COVER)).toBeVisible();
+    await expect(root.locator(STAND_IN_COVER)).toHaveAttribute('src', /home/);
+    // The card comes, the stand-in goes, and no second carrier was put up meanwhile.
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1, { timeout: 4000 });
+    await expect(root.locator('[data-probe-stand-in]')).toHaveCount(0);
+    expect(await page.locator(CARRIER).count()).toBe(0);
+    expect(flight.carriers).toBe(1);
+});
+
+test('back: the cover at the middle flies back onto the card it was opened from', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    const home = await boxOf(root.locator(HOME_COVER));
+    await openFromHomeCard(root, page);
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1);
+    await expect(root.locator('[data-probe-stand-in]')).toHaveCount(0);
+    const centred = await boxOf(root.locator('[data-probe-detail-cover]'));
+
+    await record(page, HOME_CARD);
+    await root.locator('[data-probe-action="back"]').click();
+    const flight = await read(page);
+    const figures = figuresOf(flight, centred, home);
+    // eslint-disable-next-line no-console
+    console.log('FLIGHT back', JSON.stringify(figures));
+
+    expect(flight.carriers).toBe(1);
+    expect(flight.direction).toBe('out');
+    expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);
+    expect(figures.lastKeyframeOffTargetPx).toBeLessThan(0.6);
+    expect(figures.pathOverStraight).toBeLessThan(1.02);
+    expectCompositorOnly(flight);
+    // The carrier turns into the card's own picture and title on the way, and the card is not
+    // shown until it has landed.
+    expect(new Set(inTheAir(flight).map(reading => reading.coveredOpacity))).toEqual(new Set(['0']));
+    const landed = flight.readings[flight.readings.length - 1];
+    expect(landed.titles.map(line => line.text)).toEqual(['Detail Song', 'Home Playlist']);
+    expect(landed.titles.map(line => line.opacity)).toEqual([0, 1]);
+    await expect(root.locator(HOME_COVER)).toBeVisible();
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '0');
+});
+
+test('back: the page\'s other cards are pushed out from the one that flies, which is not shown beside its carrier', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await openFromHomeCard(root, page);
+    await expect(root.locator('[data-probe-other-card]')).toHaveCount(4);
+    await expect(root.locator(STAND_IN)).toHaveCount(0);
+
+    // Read in the page, frame by frame, for as long as the page that is left is still there.
+    await page.evaluate(() => {
+        const centreOf = (element: Element) => {
+            const rect = element.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
         };
-        const marker = document.querySelector('[data-probe-detail-card]');
-        const targetRect = marker ? marker.getBoundingClientRect() : null;
-
-        let startBox: { x: number; y: number; w: number; h: number } | null = null;
-        let firstMove: number | null = null;
-        let landed: number | null = null;
-        let blockerGone: number | null = null;
-        let layersGone: number | null = null;
-        let heroCoverReady: number | null = null;
-
-        while (performance.now() - start < limit) {
-            const box = readBox();
-            if (box && !startBox) startBox = box;
-            const elapsed = performance.now() - start;
-            if (box && startBox && firstMove === null
-                && Math.hypot(box.x - startBox.x, box.y - startBox.y) > 5) {
-                firstMove = elapsed;
-            }
-            if (box && targetRect && landed === null
-                && Math.hypot(box.x - targetRect.x, box.y - targetRect.y) < 8
-                && Math.abs(box.w - targetRect.width) < 8
-                && Math.abs(box.h - targetRect.height) < 8) {
-                landed = elapsed;
-            }
-            // 封锁层可能在采样开始前就挂上了，所以要求合成层先出现过再消失。
-            if (blockerGone === null && startBox
-                && !document.querySelector('[data-folia-collection-morph="input-blocker"]')) {
-                blockerGone = elapsed;
-            }
-            if (layersGone === null && startBox && !document.querySelector('[data-folia-collection-morph]')) {
-                layersGone = elapsed;
-            }
-            const heroCover = document.querySelector<HTMLImageElement>('[data-probe-detail-cover]');
-            if (heroCoverReady === null && heroCover?.complete && heroCover.naturalWidth > 0) {
-                heroCoverReady = elapsed;
-            }
-            if (layersGone !== null) break;
-            await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
-        }
-        return { firstMove, landed, blockerGone, layersGone, heroCoverReady };
-    }, timeoutMs)
-);
-
-/**
- * 页内 rAF 采样：嵌套返回时，形变外框从出现到「位置和比例都落到卡片外框上」用了多少毫秒。
- * 落点就是探针里那张卡的外框：(620,420) 尺寸 200×260，中心 (720,550)。
- *
- * 不能在测试进程里用 expect.poll 读 boundingBox：外框落定之后只停留约 400ms 就随整层卸载，
- * 而 expect.poll 的默认间隔是 100/250/500/1000ms，1.2s 里只有四次采样 —— 第三次（约 350ms）
- * 常常还在落定之前，第四次（约 850ms）时层已经卸载，boundingBox 会一直等元素重新出现直到超时。
- * 那样量到的是「采样碰巧有没有踩进那个窗口」，不是落点本身。
- */
-const measureNestedLanding = async (page: Page, timeoutMs = 6000) => (
-    page.evaluate(async (limit: number) => {
-        const start = performance.now();
-        let appearedAt: number | null = null;
-        let landedAt: number | null = null;
-        let maxFrames = 0;
-        while (performance.now() - start < limit) {
-            const frames = document.querySelectorAll('[data-folia-collection-morph="frame"]');
-            maxFrames = Math.max(maxFrames, frames.length);
-            const element = frames[0];
-            const now = performance.now();
-            if (element) {
-                if (appearedAt === null) appearedAt = now;
-                const box = element.getBoundingClientRect();
-                const centerDistance = Math.hypot(box.x + box.width / 2 - 720, box.y + box.height / 2 - 550);
-                if (centerDistance < 8 && Math.abs(box.width / box.height - 200 / 260) < 0.03) {
-                    landedAt = now;
-                    break;
+        const centred = document.querySelector('[data-probe-detail-card]')!;
+        const origin = centreOf(centred.querySelector('img')!);
+        const others = [...document.querySelectorAll('[data-probe-other-card]')];
+        const awayOf = (card: Element) => Math.hypot(centreOf(card).x - origin.x, centreOf(card).y - origin.y);
+        const before = others.map(awayOf);
+        const seen = { pushed: others.map(() => 0), centredOpacity: [] as string[], frames: 0, turned: false, leftFor: 0 };
+        (window as unknown as { __scatter?: Promise<typeof seen> }).__scatter = new Promise((resolve) => {
+            const began = performance.now();
+            let leavingSince: number | null = null;
+            const step = () => {
+                // The page that leaves says so itself, from the commit that takes it off the navigation.
+                if (centred.isConnected && document.querySelector('[data-probe-detail-grid] > [data-folia-leaving-grid]')) {
+                    leavingSince ??= performance.now();
+                    seen.leftFor = performance.now() - leavingSince;
+                    seen.frames += 1;
+                    seen.centredOpacity.push(getComputedStyle(centred).opacity);
+                    others.forEach((card, index) => {
+                        seen.pushed[index] = Math.max(seen.pushed[index], awayOf(card) - before[index]);
+                        if (getComputedStyle(card).rotate !== 'none') seen.turned = true;
+                    });
                 }
-            } else if (appearedAt !== null) {
-                // 没落定就卸载了：整层收掉之前一直没到卡片外框上。
-                break;
-            }
-            await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
-        }
-        return {
-            appeared: appearedAt !== null,
-            maxFrames,
-            landedAfterMs: appearedAt !== null && landedAt !== null ? landedAt - appearedAt : null,
-        };
-    }, timeoutMs)
-);
-
-test('a cold hero cover must not stretch the open animation', async ({ mount, page }) => {
-    // hero 封面延迟 1.2s 才到达 —— 就是「首次打开」时那张还没解码的封面。
-    await page.route('**/slow-cover.png', async (route) => {
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        await route.fulfill({
-            status: 200,
-            contentType: 'image/svg+xml',
-            body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#2f9e44"/></svg>',
+                if (performance.now() - began > 900) { resolve(seen); return; }
+                requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
         });
     });
-
-    const root = await mount('collectionMorph');
-    await root.locator('[data-probe-action="cold-cover"]').click();
-    await expect(root.locator('[data-probe-detail-cover]')).toHaveCount(0);
-    await root.locator('[data-probe-home-card]').click();
-
-    const milestones = await measureOpenMilestones(page);
+    await root.locator('[data-probe-action="back"]').click();
+    const seen = await page.evaluate(() => (window as unknown as { __scatter: Promise<{ pushed: number[]; centredOpacity: string[]; frames: number; turned: boolean; leftFor: number }> }).__scatter);
     // eslint-disable-next-line no-console
-    console.log('MILESTONES cold', JSON.stringify(milestones));
+    console.log('SCATTER', JSON.stringify({ ...seen, centredOpacity: [...new Set(seen.centredOpacity)] }));
 
-    expect(milestones.firstMove).not.toBeNull();
-    expect(milestones.landed).not.toBeNull();
-    // 预算，不是精确期望：这台机器上量到 455 / 273 / 1381ms，旧实现是 2086 / 2086 —— 余量
-    // 留够慢机器，同时仍然能抓到「生命周期在等封面」这种回归。
-    expect(milestones.landed!).toBeLessThan(1200);
-    // 交互必须在「封面还在路上」的时候就恢复：封锁层挡的是交互，而飞行本身不需要等图片。
-    expect(milestones.blockerGone).not.toBeNull();
-    expect(milestones.blockerGone!).toBeLessThan(1000);
-    expect(milestones.blockerGone!).toBeLessThan(milestones.heroCoverReady ?? Number.POSITIVE_INFINITY);
-    // 整层的尾巴也要有界：封面层顶多等到封面到达（或兜底上限）就交还给 hero 卡片。
-    expect(milestones.layersGone).not.toBeNull();
-    expect(milestones.layersGone!).toBeLessThan(2600);
+    expect(seen.frames).toBeGreaterThan(5);
+    // The page stays for as long as its cards are pushed (0.4 s), not for its usual 0.3 s.
+    expect(seen.leftFor).toBeGreaterThan(360);
+    // Every other card went outward, a good way, turned a little.
+    for (const pushed of seen.pushed) expect(pushed).toBeGreaterThan(60);
+    expect(seen.turned).toBe(true);
+    expect(new Set(seen.centredOpacity)).toEqual(new Set(['0']));
 });
 
-test('a warm open (cover already decoded) finishes inside half a second', async ({ mount, page }) => {
-    const root = await mount('collectionMorph');
-    await root.locator('[data-probe-home-card]').click();
-
-    const milestones = await measureOpenMilestones(page);
-    // eslint-disable-next-line no-console
-    console.log('MILESTONES warm', JSON.stringify(milestones));
-
-    // 热封面（这台机器上 238 / 251 / 681ms）：旧实现到这里也还有 ~780ms 的封锁与尾巴。
-    expect(milestones.landed!).toBeLessThan(800);
-    expect(milestones.blockerGone!).toBeLessThan(700);
-    expect(milestones.layersGone!).toBeLessThan(1400);
-});
-
-test('the clicked card morphs onto the active grid hero and the flight ends by itself', async ({ mount, page }) => {
-    const root = await mount('collectionMorph');
-    await expect(root.locator('[data-probe-enabled]')).toHaveAttribute('data-probe-enabled', 'true');
-    await recordFlight(page);
-
-    await root.locator('[data-probe-home-card]').click();
-    await expect(root.locator('[data-probe-open]')).toHaveAttribute('data-probe-open', 'true');
-
-    // 生命周期自己结束：不能等用户操作才收掉封锁层（封锁层消失、合成层消失、计划归还）。
-    await expect(page.locator(BLOCKER)).toHaveCount(0, { timeout: 8000 });
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0);
-    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
-
-    // 飞过的那一段从页内记录器核对：三件套 + 封锁层同在过，计划是 'morph'（有合成层盖着 hero）。
-    const record = await readFlightRecord(page);
-    expect(record.frame).toBeGreaterThanOrEqual(1);
-    expect(record.cover).toBeGreaterThanOrEqual(1);
-    expect(record.title).toBeGreaterThanOrEqual(1);
-    expect(record.blocker).toBeGreaterThanOrEqual(1);
-    expect(record.layer).toBeGreaterThanOrEqual(4);
-    expect(record.plans).toEqual(['morph']);
-
-    // 飞行目标必须是**活动**网格那张卡：同一个位置上还压着「正在退出的旧网格」的卡片，
-    // 而且它排在前面（距离相同时 probeHeroTargets 取文档顺序里的第一个）。
-    // 合成层里出现过目标封面/目标标题，且从没出现过旧网格那张卡的封面/标题。
-    expect(record.coverSources.some(src => src.includes('detail'))).toBe(true);
-    expect(record.coverSources.some(src => src.includes('stale'))).toBe(false);
-    expect(record.titleTexts.some(text => text.includes('Detail Song'))).toBe(true);
-    expect(record.titleTexts.some(text => text.includes('Stale Song'))).toBe(false);
-});
-
-test('a click on the blockade skips the flight instead of being swallowed', async ({ mount, page }) => {
-    const root = await mount('collectionMorph');
-    await root.locator('[data-probe-home-card]').click();
-    await expect(page.locator(BLOCKER)).toHaveCount(1);
-
-    // 用户的第一反应是点一下跳过。不接 pointerdown 时这一下会被无声吞掉。
-    await page.mouse.move(1200, 900);
-    await page.mouse.down();
-    await page.mouse.up();
-
-    await expect(page.locator(BLOCKER)).toHaveCount(0, { timeout: 3000 });
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0);
-    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
-});
-
-test('an artist landing ends as a real circle, not a rounded square', async ({ mount, page }) => {
+test('an artist page: the cover lands on the round picture, and its corners end round', async ({ mount, page }) => {
     const root = await mount('collectionMorph');
     await root.locator('[data-probe-action="destination"]').click();
     await expect(root.locator('[data-probe-destination]')).toHaveAttribute('data-probe-destination', 'artist');
-
-    // 起点是 200×260 的首页卡片，落点是 240×240 的歌手头像 —— 两个方向缩放不同。
-    // 采样先起，再点卡片：飞行只有几百毫秒，等点完再开始采样就已经错过了。
-    const landing = measureCircleLanding(page);
+    const source = await boxOf(root.locator(HOME_COVER));
+    await record(page, '[data-probe-artist-avatar]');
     await root.locator('[data-probe-home-card]').click();
-    const samples = await landing;
+    const flight = await read(page);
+    // The picture inside its 4px ring: 232 across, at 604 / 434.
+    const figures = figuresOf(flight, source, { x: 604, y: 434, width: 232, height: 232 });
+    // eslint-disable-next-line no-console
+    console.log('FLIGHT artist', JSON.stringify(figures));
 
-    // 至少采到落点：盒子真的落在了头像那个方形槽位上。
-    expect(samples.length).toBeGreaterThan(0);
-    for (const sample of samples) {
-        expect(sample.cover).not.toBeNull();
-        for (const reading of [sample.frame, sample.cover!]) {
-            expect(reading.isPercent).toBe(true);
-            expect(reading.value).toBeGreaterThan(49);
-            expect(reading.value).toBeLessThan(51);
-        }
-    }
+    expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);
+    expect(figures.lastKeyframeOffTargetPx).toBeLessThan(0.6);
+    const [first, last] = flight.corners!.map(corner => (corner.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number));
+    // From the card's 12px corners (as drawn: the box is laid out at 232 and scaled to 200) to a circle.
+    expect(first[0] * (200 / 232)).toBeCloseTo(12, 0);
+    expect(last[0]).toBeCloseTo(116, 0);
+    expectCompositorOnly(flight);
+    await expect(root.locator('[data-probe-artist-avatar] img')).toBeVisible();
 });
 
-test('the artist flight never squeezes the cover through a non-uniform scale', async ({ mount, page }) => {
+test('a landing place that comes late: the cover waits where it was clicked, then flies', async ({ mount, page }) => {
     const root = await mount('collectionMorph');
     await root.locator('[data-probe-action="destination"]').click();
+    const source = await boxOf(root.locator(HOME_COVER));
+    await record(page);
     await root.locator('[data-probe-home-card]').click();
-    await expect(page.locator(COVER)).toHaveCount(1);
-
-    // 起点是 200×260 的封面、落点是 232×232 的圆形头像：只要用 scaleX/scaleY 做形变，
-    // 这两个方向的比例就会不同（1.16 / 0.89），封面内容被拉扁。动画盒子则不会有任何非等比变换。
-    const readings = await sampleTransforms(page.locator(COVER), 12, 60);
-    expect(readings.length).toBeGreaterThan(8);
-    for (const { a, d } of readings) {
-        expect(Math.abs(a - d)).toBeLessThan(0.02);
-    }
+    const flight = await read(page);
+    // The probe's artist page puts its picture up 150 ms after it opens. Until then the cover
+    // stands on the card, unmoved; then one flight takes it to the picture.
+    const waiting = flight.readings.filter(reading => apart(reading, source) < 0.6);
+    expect(waiting.length).toBeGreaterThan(3);
+    expect(waiting[waiting.length - 1].at - waiting[0].at).toBeGreaterThan(80);
+    expect(flight.carriers).toBe(2);
+    expect(apart(flight.lastKeyframe!, { x: 604, y: 434, width: 232, height: 232 })).toBeLessThan(0.6);
 });
 
-test('a nested back flies onto the card while the card is still flying in', async ({ mount, page }) => {
+test('a landing place that never comes: the cover fades where it is, and nothing is left behind', async ({ mount, page }) => {
     const root = await mount('collectionMorph');
+    await root.locator('[data-probe-action="destination"]').click();
+    await root.locator('[data-probe-action="slow-tracks"]').click();
+    const source = await boxOf(root.locator(HOME_COVER));
+    await record(page, null, 4000);
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    expect(flight.gone).not.toBeNull();
+    // Waited its time out, then shrank about its own middle.
+    expect(flight.gone! - flight.appeared!).toBeGreaterThan(1200);
+    expect(flight.gone! - flight.appeared!).toBeLessThan(2400);
+    const last = flight.readings[flight.readings.length - 1];
+    expect(centreOf(last).x).toBeCloseTo(centreOf(source).x, 0);
+    expect(centreOf(last).y).toBeCloseTo(centreOf(source).y, 0);
+    expect(last.width).toBeLessThan(source.width - 10);
+    // A card that waits, and one with nowhere to land, is not in the air: its edge is never lit.
+    expect(new Set(flight.readings.map(reading => reading.edge!.opacity))).toEqual(new Set([0]));
+    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
+});
 
-    // 采样先起，再点按钮：外框落定后只停留约 400ms 就随整层卸载，必须在页内逐帧看（见
-    // measureNestedLanding）。
-    const landing = measureNestedLanding(page);
-    await root.locator('[data-probe-action="nested-back"]').click();
-    const result = await landing;
+test('a nested back lands on the stand-in of the page before, which shows the card that was clicked', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await openFromHomeCard(root, page);
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1);
+    await expect(root.locator('[data-probe-stand-in]')).toHaveCount(0);
 
-    // 落点卡片的外框在 (620,420) 尺寸 200×260（中心 720,550），它自己还在做 1.4s 的飞入；
-    // hero 起点是 (500,300) 的 232×232 圆形头像。旧实现要等内层封面落定才肯起飞，hero 会僵在
-    // 原地直到 1.8s 的放弃线 —— 也就是「歌手页退出动画严重滞后」。现在靠外框（挂载即在最终
-    // 槽位）判定，两拍就起飞，位置和比例都在 1.2s 内落到卡片的外框上。
-    expect(result.appeared).toBe(true);
-    // 原来的 toHaveCount(1) 顺带保证同一时刻只有一个外框，这里保留这层检查。
-    expect(result.maxFrames).toBe(1);
-    expect(result.landedAfterMs).not.toBeNull();
-    expect(result.landedAfterMs!).toBeLessThan(1200);
+    // The song card opens the artist's page: its cover flies to the round picture.
+    await record(page);
+    await root.locator('[data-probe-detail-card]').click();
+    const inward = await read(page);
+    expect(inward.direction).toBe('in');
+    expect(apart(inward.lastKeyframe!, { x: 604, y: 434, width: 232, height: 232 })).toBeLessThan(0.6);
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '2');
+
+    await record(page);
+    await root.locator('[data-probe-action="back"]').click();
+    const outward = await read(page);
+    expect(outward.direction).toBe('out');
+    expect(apart(outward.firstKeyframe!, { x: 604, y: 434, width: 232, height: 232 })).toBeLessThan(0.6);
+    expect(apart(outward.lastKeyframe!, { x: 620, y: 420, width: 200, height: 200 })).toBeLessThan(0.6);
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '1');
+    // The page before is back with its card; while it waited, its stand-in showed that card's picture.
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1, { timeout: 4000 });
+});
+
+test('the landing place is the active page\'s, though a page that is leaving has one too', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await record(page, '[data-probe-stale-target]');
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    expect(apart(flight.lastKeyframe!, { x: 620, y: 420, width: 200, height: 200 })).toBeLessThan(0.6);
+    // The leaving page's picture was never taken for what the carrier lands on.
+    expect(new Set(flight.readings.map(reading => reading.coveredOpacity))).toEqual(new Set(['1']));
+});
+
+test('reduced motion starts nothing: no carrier, no plan, no stand-in', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await root.locator('[data-probe-action="reduce"]').click();
+    await expect(root.locator('[data-probe-enabled]')).toHaveAttribute('data-probe-enabled', 'false');
+    await record(page, null, 900);
+    await root.locator('[data-probe-home-card]').click();
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '1');
+    const flight = await read(page);
+    expect(flight.carriers).toBe(0);
+    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
+    await expect(root.locator('[data-probe-stand-in]')).toHaveCount(0);
+    await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1);
+});
+
+test('switched off in mid-flight: the carrier goes at once and what it covered is shown', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await root.locator('[data-probe-action="slow-tracks"]').click();
+    await page.evaluate(() => {
+        // The flight lasts under half a second; it is switched off from inside the page, the
+        // moment the carrier is put up.
+        const observer = new MutationObserver(() => {
+            if (!document.querySelector('[data-folia-collection-morph="cover"]')) return;
+            observer.disconnect();
+            document.querySelector<HTMLElement>('[data-probe-action="reduce"]')!.click();
+        });
+        observer.observe(document.body, { childList: true });
+    });
+    await record(page, null, 1500);
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    expect(flight.carriers).toBe(1);
+    // Gone long before a whole flight would have ended, and the card it was flying to is shown with
+    // that (read at once: left hidden, it would be shown some half a second later by the flight's own timer).
+    expect(flight.gone! - flight.appeared!).toBeLessThan(200);
+    expect(await root.locator(STAND_IN).evaluate(element => getComputedStyle(element).opacity)).toBe('1');
+    await expect(root.locator('[data-probe-enabled]')).toHaveAttribute('data-probe-enabled', 'false');
+    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
+});
+
+test('the page closed in mid-flight, not through the host: the carrier goes at once', async ({ mount, page }) => {
+    const root = await mount('collectionMorph');
+    await page.evaluate(() => {
+        const observer = new MutationObserver(() => {
+            if (!document.querySelector('[data-folia-collection-morph="cover"]')) return;
+            observer.disconnect();
+            document.querySelector<HTMLElement>('[data-probe-action="close-navigation"]')!.click();
+        });
+        observer.observe(document.body, { childList: true });
+    });
+    await record(page, HOME_COVER, 1500);
+    await root.locator('[data-probe-home-card]').click();
+    const flight = await read(page);
+    expect(flight.carriers).toBe(1);
+    expect(flight.gone! - flight.appeared!).toBeLessThan(200);
+    await expect(root.locator('[data-probe-depth]')).toHaveAttribute('data-probe-depth', '0');
+    await expect(root.locator(HOME_COVER)).toBeVisible();
+    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
 });
 
 test('only the incoming grid carries the active mark while two grids overlap', async ({ mount, page }) => {
-    // 这条盖的是标记组件本身：collectionMorph 探针是手写属性的，测不到 useIsPresent 的翻转。
+    // 这条盖的是标记组件本身在 AnimatePresence 里的翻转：带标记的那一层就是标记元素的父元素。
     const root = await mount('activeGridMarker');
-    const active = page.locator('[data-folia-active-grid]');
+    const active = page.locator('[data-probe-grid]:has(> [data-folia-active-grid])');
 
     await expect(active).toHaveCount(1);
     await expect(active).toHaveAttribute('data-probe-grid', 'grid-0');
@@ -423,49 +630,4 @@ test('only the incoming grid carries the active mark while two grids overlap', a
 
     await expect(page.locator('[data-probe-grid]')).toHaveCount(1);
     await expect(active).toHaveAttribute('data-probe-grid', 'grid-1');
-});
-
-test('reduced motion never starts the transition', async ({ mount, page }) => {
-    // store 在模块 import 时读 localStorage，所以种子必须写在页面脚本之前。
-    await page.addInitScript(() => localStorage.setItem('reduce_motion_collectionMorph', 'true'));
-    const root = await mount('collectionMorph');
-    await expect(root.locator('[data-probe-enabled]')).toHaveAttribute('data-probe-enabled', 'false');
-
-    await root.locator('[data-probe-home-card]').click();
-    // 导航照常发生，只是没有任何合成层。
-    await expect(root.locator('[data-probe-open]')).toHaveAttribute('data-probe-open', 'true');
-    await expect(root.locator('[data-probe-detail-card]')).toBeVisible();
-
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0);
-    await page.waitForTimeout(900);
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0);
-    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
-});
-
-test('turning the surface off mid-flight finishes the lifecycle instead of stranding the composite', async ({ mount, page }) => {
-    const root = await mount('collectionMorph');
-    await root.locator('[data-probe-home-card]').click();
-    await expect(page.locator(FRAME)).toHaveCount(1);
-
-    // 等同于用户在飞行途中关掉了这一面动效。按钮此刻在封锁层下面，所以直接触发它的 click，
-    // 绕过命中测试 —— 走的是设置面板同一条 store setter。
-    await root.locator('[data-probe-action="reduce"]').evaluate((node) => (node as HTMLButtonElement).click());
-
-    await expect(root.locator('[data-probe-enabled]')).toHaveAttribute('data-probe-enabled', 'false');
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0, { timeout: 4000 });
-    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
-});
-
-
-test('closing navigation mid-flight removes the composite and input blockade immediately', async ({ mount, page }) => {
-    const root = await mount('collectionMorph');
-    await root.locator('[data-probe-home-card]').click();
-    await expect(page.locator(FRAME)).toHaveCount(1);
-
-    // 历史返回不经过宿主的 armExit，也不会主动清空 morph store。
-    await root.locator('[data-probe-action="close-navigation"]').evaluate((node) => (node as HTMLButtonElement).click());
-
-    await expect(root.locator('[data-probe-open]')).toHaveAttribute('data-probe-open', 'false');
-    await expect(page.locator(MORPH_LAYER)).toHaveCount(0, { timeout: 100 });
-    await expect(root.locator('[data-probe-plan]')).toHaveAttribute('data-probe-plan', 'none');
 });
