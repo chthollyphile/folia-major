@@ -65,7 +65,8 @@ export class NebbiaMask {
         const { refog } = tuning, beadHold = NEBBIA_FIXED.beadHold;
         const { fogAt } = line;
         const yf = yieldFactor(line, T), ym = yieldMask(line, T);
-        if (line.mode === 'fog') {
+        // 被哈气盖掉的手指句不搓（不然先搓开、又哈上白气，两个效果打架）：和起雾的一样慢慢淡进雾里
+        if (line.mode === 'fog' || line.breathAt < Infinity) {
             const v = (1 - smooth(clamp((T - fogAt) / refog))) * ym;
             // 擦痕边的水珠：擦痕开始起雾后再挂 beadHold 秒，再用 refog × 3 慢慢缩小消失
             const vb = (1 - smooth(clamp((T - fogAt - beadHold) / (refog * 3)))) * yf;

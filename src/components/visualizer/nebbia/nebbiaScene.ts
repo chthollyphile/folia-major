@@ -198,6 +198,9 @@ export const buildNebbiaScene = (
             line.breathAt = from;
             line.breathDur = Math.max(0.3, line.yieldAt - 0.3 - from);
             line.breathUntil = laid[by].end + breathHold;
+        } else if (by >= 0 && line.mode === 'fingers') {
+            // 按手指搓掉的：搓开的地方后面那句不再先哈气（不然刚搓开又哈上白气，两个效果打架），直接写
+            laid[by].appearBreathAt = Infinity;
         }
     });
     return laid;
