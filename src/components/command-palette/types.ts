@@ -385,6 +385,8 @@ export type CommandPaletteSettingsContext = {
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
     toggleObsKeepMainWindowAnimation: () => void;
+    /** The now playing card in the OBS browser source (local source and the web link alike). */
+    toggleTrackCardInObs: () => void;
     /** macOS-only: the wallpaper-mode Dock auto-hide override (on by default). */
     toggleWallpaperMacAutohideDock: () => void;
     /** Windows-only: the saved render GPU choice, read when asked (it can change while the palette is open). */

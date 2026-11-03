@@ -595,6 +595,7 @@ export const compressConfig = (config: any): string => {
     if (config.stageTrackPillMode !== undefined) minified.stp = config.stageTrackPillMode;
     if (config.stageTrackPillTimeoutSec !== undefined) minified.stpt = config.stageTrackPillTimeoutSec;
     if (config.stageTrackPillOnHome !== undefined) minified.stph = config.stageTrackPillOnHome;
+    if (config.stageTrackPillInObs !== undefined) minified.stpo = config.stageTrackPillInObs;
     if (config.stageTrackPillPosition !== undefined) minified.stpp = normalizeNowPlayingCardPosition(config.stageTrackPillPosition);
     if (config.libraryWallStackEdges !== undefined) minified.lwse = config.libraryWallStackEdges;
     if (config.libraryWallSeamClear !== undefined) minified.lwsc = config.libraryWallSeamClear;
@@ -668,6 +669,7 @@ export const decompressConfig = (str: string): any => {
         || parsed.stpt !== undefined
         || parsed.stph !== undefined
         || parsed.stpp !== undefined
+        || parsed.stpo !== undefined
         // The bravais wall's collection stack edges, info strip and backdrop, for the same reason.
         || parsed.lwse !== undefined
         || parsed.lwsc !== undefined
@@ -748,6 +750,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.stp !== undefined) decompressed.stageTrackPillMode = parsed.stp;
         if (parsed.stpt !== undefined) decompressed.stageTrackPillTimeoutSec = parsed.stpt;
         if (parsed.stph !== undefined) decompressed.stageTrackPillOnHome = parsed.stph;
+        if (parsed.stpo !== undefined) decompressed.stageTrackPillInObs = parsed.stpo;
         if (parsed.stpp !== undefined) decompressed.stageTrackPillPosition = normalizeNowPlayingCardPosition(parsed.stpp);
         if (parsed.lwse !== undefined) decompressed.libraryWallStackEdges = parsed.lwse;
         if (parsed.lwsc !== undefined) decompressed.libraryWallSeamClear = parsed.lwsc;
@@ -777,6 +780,7 @@ export const decompressConfig = (str: string): any => {
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
             'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome', 'stageTrackPillPosition',
+            'stageTrackPillInObs',
             'libraryWallStackEdges',
             'libraryWallSeamClear', 'libraryWallSeamStyle', 'libraryWallBackdropLyrics', 'libraryWallBackdropBlur',
             'libraryWallSeamDirection',

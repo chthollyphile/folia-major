@@ -208,6 +208,14 @@ describe('buildVisualSettingsConfig', () => {
         expect(restored.stageTrackPillOnHome).toBe(false);
     });
 
+    it('carries whether the card is drawn in the browser source', () => {
+        useStageSettingsStore.setState({ stageTrackPillInObs: true });
+        const config = buildVisualSettingsConfig();
+        expect(config.stageTrackPillInObs).toBe(true);
+        expect(decompressConfig(extractCfgFromInput(asObsUrl(compressConfig(config)))).stageTrackPillInObs).toBe(true);
+        expect(decompressConfig(JSON.stringify({ stpo: false }))).toMatchObject({ stageTrackPillInObs: false });
+    });
+
     // A hand-written JSON carrying only the card has to be recognised as the minified shape; the
     // long-name branch would reject all three as invalid keys.
     it('decodes a minified config that carries only the card', () => {

@@ -41,6 +41,7 @@ const readStoredStageTrackPillTimeoutSec = (): number => {
 };
 
 const STAGE_TRACK_PILL_POSITION_KEY = 'stage_track_pill_position';
+const STAGE_TRACK_PILL_IN_OBS_KEY = 'stage_track_pill_in_obs';
 
 const readStoredCardPosition = () => {
     try { return normalizeNowPlayingCardPosition(JSON.parse(getStoredString(STAGE_TRACK_PILL_POSITION_KEY, 'null'))); }
@@ -62,6 +63,8 @@ export type StageSettingsState = {
     /** auto 模式下的显示时长（秒），3-60 */
     stageTrackPillTimeoutSec: number;
     stageTrackPillOnHome: boolean;
+    /** 卡片是否也画进 OBS 浏览器源（本地源与网页版链接都算），按上面的模式、时长和位置；默认关 */
+    stageTrackPillInObs: boolean;
     /** null keeps the original bottom-bar alignment; otherwise coordinates are relative to the available viewport. */
     stageTrackPillPosition: NowPlayingCardPosition | null;
     handleSetStageTrackPillPosition: (position: NowPlayingCardPosition | null) => void;
@@ -77,6 +80,7 @@ export type StageSettingsState = {
     handleSetStageTrackPillMode: (mode: StageTrackPillMode) => void;
     handleSetStageTrackPillTimeoutSec: (sec: number) => void;
     handleToggleStageTrackPillOnHome: (enable: boolean) => void;
+    handleToggleStageTrackPillInObs: (enable: boolean) => void;
     handleToggleObsKeepMainWindowAnimation: (enable: boolean) => void;
 };
 
@@ -91,6 +95,7 @@ export const useStageSettingsStore = create<StageSettingsState>((set, get) => ({
     stageTrackPillMode: readStoredStageTrackPillMode(),
     stageTrackPillTimeoutSec: readStoredStageTrackPillTimeoutSec(),
     stageTrackPillOnHome: getStoredBoolean('stage_track_pill_on_home', false),
+    stageTrackPillInObs: getStoredBoolean(STAGE_TRACK_PILL_IN_OBS_KEY, false),
     stageTrackPillPosition: readStoredCardPosition(),
     handleSetStageTrackPillPosition: (position) => {
         const next = normalizeNowPlayingCardPosition(position);
@@ -153,6 +158,10 @@ export const useStageSettingsStore = create<StageSettingsState>((set, get) => ({
         }
         set({ stageTrackPillOnHome: enable });
     },
+    handleToggleStageTrackPillInObs: (enable) => {
+        setStoredBoolean(STAGE_TRACK_PILL_IN_OBS_KEY, enable);
+        set({ stageTrackPillInObs: enable });
+    },
     handleToggleObsKeepMainWindowAnimation: (enable) => {
         setStoredBoolean('obs_keep_main_window_animation', enable);
         set({ obsKeepMainWindowAnimation: enable });
@@ -174,6 +183,7 @@ export const selectStageSettingsSnapshot = (state: StageSettingsState) => ({
     stageTrackPillMode: state.stageTrackPillMode,
     stageTrackPillTimeoutSec: state.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: state.stageTrackPillOnHome,
+    stageTrackPillInObs: state.stageTrackPillInObs,
     stageTrackPillPosition: state.stageTrackPillPosition,
     handleSetStageTrackPillPosition: state.handleSetStageTrackPillPosition,
     obsKeepMainWindowAnimation: state.obsKeepMainWindowAnimation,
@@ -186,5 +196,6 @@ export const selectStageSettingsSnapshot = (state: StageSettingsState) => ({
     handleSetStageTrackPillMode: state.handleSetStageTrackPillMode,
     handleSetStageTrackPillTimeoutSec: state.handleSetStageTrackPillTimeoutSec,
     handleToggleStageTrackPillOnHome: state.handleToggleStageTrackPillOnHome,
+    handleToggleStageTrackPillInObs: state.handleToggleStageTrackPillInObs,
     handleToggleObsKeepMainWindowAnimation: state.handleToggleObsKeepMainWindowAnimation,
 });

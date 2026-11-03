@@ -240,6 +240,9 @@ export const buildSettingsCommandContext = (
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
         ),
+        toggleTrackCardInObs: () => useStageSettingsStore.getState().handleToggleStageTrackPillInObs(
+            !useStageSettingsStore.getState().stageTrackPillInObs,
+        ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,
         ),
