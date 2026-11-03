@@ -105,6 +105,8 @@ node skills/run-desktop/driver.mjs quit
 - **全新 profile 有两道首启门槛**：思索模式引导、「资料库用哪种界面？」选择弹窗。后者会盖在设置面板上。
   驱动启动时写入 `folia_last_seen_ponder_onboarding_version` 和 `library_suite_prompt_seen`
   （与 `test/component/fixtures.ts` 相同）后 reload；直接 `eval` 改这些键要再 `reload` 才生效。
+- **要一首能放的歌**：`eval "window.__foliaDev.playMockSong().then(s => s.filePath)"`，导入并播放开发用的 mock 歌
+  （合成音频 + 逐字歌词 + 封面，不用网络和登录）。细节见 `testing-strategy` 的“开发服务器已经在跑”。
 - **主窗口地址写死 `http://localhost:3000`**（`electron/main.cjs` 的 `loadAppEntry`），Vite 必须就在 3000。
   驱动自己起的 Vite 带 `--strictPort`，3000 被别的程序占着时宁可启动失败也不换端口。
 - **开发模式会多开一个 DevTools 窗口**，`app.windows()` 第一个往往是 `devtools://`。
