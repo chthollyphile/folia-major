@@ -6001,9 +6001,9 @@ export default {
         "slotsHold": "Tekan lama sebuah tombol sampai lingkaran di sekelilingnya penuh, atau langsung klik kanan.",
         "slotsPick": "Aksi yang bisa ditaruh muncul tepat di atasnya; klik salah satu untuk menggantinya. Memilih aksi yang ada di slot lain akan menukar keduanya. Pilihan yang sama ada di pengaturan — tombol di bawah langsung ke sana.",
         "slotsSuggest": "Kalau kamu sering menjalankan salah satu aksi ini dari jendela perintah, bilah akan menanyakan sekali apakah mau menaruhnya di sini.",
-        "quickIntro": "Biarkan penunjuk berhenti di kapsul, dan sederet aksi untuk lagu ini muncul di atasnya: volume, suka, tambah ke daftar putar, acak, subtitel, dan gaya lirik. Yang sudah ada di dua slotmu tidak ditampilkan lagi. Di layar sentuh deretan ini tidak ada.",
+        "quickIntro": "Biarkan penunjuk berhenti di kapsul, dan sederet aksi untuk lagu ini muncul di atasnya: volume, suka, tambah ke daftar putar, acak, subtitel, dan gaya lirik. Yang sudah ada di dua slotmu tidak ditampilkan lagi. Di layar sentuh deretan ini langsung muncul saat kamu mengetuk kapsul hingga terbuka atau menjeda, tanpa volume, dan hilang lagi setelah 4 detik tidak disentuh.",
         "quickPalette": "Yang paling kanan membuka jendela perintah. Jendela itu tumbuh dari kapsul itu sendiri: kotak input mendarat di tempat kapsul, dengan hasil terbaik tepat di sebelahnya.",
-        "quickOther": "Mengklik bagian kosong kapsul di halaman pemutar membukanya dengan cara yang sama, kecuali pemutaran diatur dibuka di Lattice — maka klik itu menuju Lattice. {{mod}} + K juga menumbuhkannya dari kapsul selama kapsul terlihat. Saat ditutup, ia menyusut kembali ke kapsul."
+        "quickOther": "Mengklik bagian kosong kapsul di halaman pemutar membukanya dengan cara yang sama (di layar sentuh, ketuk lagi saat deretan itu muncul), kecuali pemutaran diatur dibuka di Lattice — maka klik itu menuju Lattice. {{mod}} + K juga menumbuhkannya dari kapsul selama kapsul terlihat. Saat ditutup, ia menyusut kembali ke kapsul."
       },
       "commandPalette": {
         "type": "Perintah dicari, bukan ditelusuri. Ketik begitu jendela terbuka dan ia menyaring nama, alias dan kata kunci sekaligus; separuh nama biasanya sudah cukup.",

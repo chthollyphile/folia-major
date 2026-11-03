@@ -6001,9 +6001,9 @@ export default {
         "slotsHold": "Press and hold a button until the ring around it fills, or just right-click it.",
         "slotsPick": "The actions you can put there pop up right above it; click one to swap it in. Picking the one in the other slot swaps the two. The same choice is in settings — the button below goes there.",
         "slotsSuggest": "If you keep running one of these actions from the command window, the bar asks you once whether to put it here.",
-        "quickIntro": "Rest the pointer on the capsule and a row of things to do with this song floats up above it: volume, like, add to a playlist, shuffle, subtitles and lyric style. Whatever already sits in your two slots is left out. There is no such row on a touch screen.",
+        "quickIntro": "Rest the pointer on the capsule and a row of things to do with this song floats up above it: volume, like, add to a playlist, shuffle, subtitles and lyric style. Whatever already sits in your two slots is left out. On a touch screen the row floats up as soon as you tap the capsule open or pause, without volume, and goes again after 4 seconds untouched.",
         "quickPalette": "The last one opens the command window. It grows out of the capsule itself: the input lands where the capsule was, with the best match right next to it.",
-        "quickOther": "Clicking an empty part of the capsule on the player page opens it the same way, unless playback is set to open on Lattice — then that click goes to Lattice. {{mod}} + K grows it out of the capsule too, whenever the capsule is on screen. When it closes it shrinks back into the capsule."
+        "quickOther": "Clicking an empty part of the capsule on the player page opens it the same way (on a touch screen, tap it again while that row is up), unless playback is set to open on Lattice — then that click goes to Lattice. {{mod}} + K grows it out of the capsule too, whenever the capsule is on screen. When it closes it shrinks back into the capsule."
       },
       "commandPalette": {
         "type": "Commands are searched for, not browsed to. Type as soon as the window opens and it filters on names, aliases and keywords together; half a name is usually enough.",

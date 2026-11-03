@@ -102,8 +102,9 @@ export type CommandPaletteCommand = {
      * Offered in the row that floats above the player bar. Only for things done to what is playing
      * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
      * not the palette's frequent list. The command declares it itself, so there is no list to keep.
+     * 'mouse-only' leaves it out of the row a finger opens (volume: a phone has its own volume keys).
      */
-    capsuleAction?: boolean;
+    capsuleAction?: boolean | 'mouse-only';
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 

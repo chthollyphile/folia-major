@@ -6001,9 +6001,9 @@ export default {
         "slotsHold": "Nhấn giữ một nút cho đến khi vòng quanh nó đầy, hoặc nhấp chuột phải.",
         "slotsPick": "Các tác vụ có thể đặt vào hiện ngay phía trên nút; nhấp một tác vụ để thay. Chọn tác vụ đang ở ô bên kia sẽ đổi chỗ hai ô. Lựa chọn này cũng có trong cài đặt — nút bên dưới dẫn thẳng tới đó.",
         "slotsSuggest": "Nếu bạn thường chạy một trong các tác vụ này từ cửa sổ lệnh, thanh sẽ hỏi bạn một lần có muốn đặt nó vào đây không.",
-        "quickIntro": "Dừng con trỏ trên thanh điều khiển, một hàng thao tác cho bài này sẽ hiện lên phía trên: âm lượng, yêu thích, thêm vào danh sách phát, xáo trộn, phụ đề và kiểu lời bài hát. Những gì đã có trong hai ô sẽ không lặp lại. Trên màn hình cảm ứng không có hàng này.",
+        "quickIntro": "Dừng con trỏ trên thanh điều khiển, một hàng thao tác cho bài này sẽ hiện lên phía trên: âm lượng, yêu thích, thêm vào danh sách phát, xáo trộn, phụ đề và kiểu lời bài hát. Những gì đã có trong hai ô sẽ không lặp lại. Trên màn hình cảm ứng, hàng này hiện lên ngay khi bạn chạm mở thanh hoặc tạm dừng, không có âm lượng, và ẩn đi sau 4 giây không chạm.",
         "quickPalette": "Nút ngoài cùng bên phải mở cửa sổ lệnh. Cửa sổ mọc lên từ chính thanh điều khiển: ô nhập nằm đúng chỗ của thanh, kết quả khớp nhất ở ngay cạnh.",
-        "quickOther": "Nhấp vào chỗ trống của thanh trên trang phát cũng mở như vậy, trừ khi nơi mở khi phát là Lattice — lúc đó cú nhấp sẽ tới Lattice. {{mod}} + K cũng làm nó mọc lên từ thanh, miễn là thanh đang hiển thị. Khi đóng, nó thu lại vào thanh."
+        "quickOther": "Nhấp vào chỗ trống của thanh trên trang phát cũng mở như vậy (trên màn hình cảm ứng, chạm thêm lần nữa khi hàng đó đang hiện), trừ khi nơi mở khi phát là Lattice — lúc đó cú nhấp sẽ tới Lattice. {{mod}} + K cũng làm nó mọc lên từ thanh, miễn là thanh đang hiển thị. Khi đóng, nó thu lại vào thanh."
       },
       "commandPalette": {
         "type": "Lệnh được tìm kiếm chứ không duyệt thủ công. Gõ phím ngay khi cửa sổ mở, hệ thống sẽ lọc theo tên, tên gọi khác và từ khóa; chỉ cần nhớ một nửa tên là đủ.",
