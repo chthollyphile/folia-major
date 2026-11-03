@@ -2986,6 +2986,7 @@ export default {
     "nebbiaRain_off": "不下",
     "nebbiaBehind": "窗外",
     "nebbiaBehindHint": "雨夜街景、梦海流萤（水族箱），或者用共用背景。用背景时雾变成一层半透明的雾（日间主题是白雾、夜间主题是深色的雾），擦开的字透出后面的背景；播放页透明时总是这样，透出的是桌面。",
+    "nebbiaBehindTransparentHint": "当前开着播放页透明，窗外固定透出后面，改这里只会改透出的部分。",
     "nebbiaBehind_night": "雨夜街景",
     "nebbiaBehind_backdrop": "背景",
     "nebbiaBehind_aquarium": "梦海流萤",

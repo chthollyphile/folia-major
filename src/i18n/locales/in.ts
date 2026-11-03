@@ -2935,6 +2935,7 @@ export default {
     "nebbiaRain_off": "Mati",
     "nebbiaBehind": "Di luar jendela",
     "nebbiaBehindHint": "Jalanan malam berhujan, Laut Mimpi Berpendar (akuarium), atau latar bersama. Dengan latar, kabut menjadi lapisan tembus pandang (putih dengan tema siang, gelap dengan tema malam) dan goresan yang diusap memperlihatkan latar di belakangnya; halaman pemutar transparan selalu begini dan memperlihatkan desktop.",
+    "nebbiaBehindTransparentHint": "Halaman pemutar transparan sedang aktif, jadi di luar jendela selalu memperlihatkan yang di belakang; mengubah ini hanya mengubah bagian yang terlihat tembus.",
     "nebbiaBehind_night": "Jalanan malam",
     "nebbiaBehind_backdrop": "Latar",
     "nebbiaBehind_aquarium": "Laut Mimpi Berpendar",
