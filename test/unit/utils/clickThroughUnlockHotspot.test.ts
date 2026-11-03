@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+    CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET,
+    CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON,
+    CLICK_THROUGH_MEDIA_CONTROLS_WIDTH,
     CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET,
     CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON,
     CLICK_THROUGH_UNLOCK_BUTTON_WIDTH,
@@ -28,6 +31,29 @@ describe('click-through unlock hotspot', () => {
         for (const x of [buttonLeft, buttonLeft + 1, (buttonLeft + buttonRight) / 2, buttonRight - 1, buttonRight]) {
             expect(isWithinClickThroughUnlockHotspot(x, BUTTON_CENTER_Y, VIEWPORT_WIDTH)).toBe(true);
         }
+    });
+
+    it.each([
+        ['without the fullscreen button', CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET, CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET],
+        ['with the fullscreen button', CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON, CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON],
+    ])('covers the media buttons and the gap to the unlock button %s (#471)', (_label, rightOffset, unlockRightOffset) => {
+        const groupRight = VIEWPORT_WIDTH - rightOffset;
+        const groupLeft = groupRight - CLICK_THROUGH_MEDIA_CONTROLS_WIDTH;
+        const unlockRight = VIEWPORT_WIDTH - unlockRightOffset;
+        const unlockLeft = unlockRight - CLICK_THROUGH_UNLOCK_BUTTON_WIDTH;
+
+        // The group sits clear of the unlock button, to its left; the cursor crosses the gap
+        // between them, so the whole run from the group's left edge to the lock's right edge counts.
+        expect(groupRight).toBeLessThan(unlockLeft);
+        for (let x = groupLeft; x <= unlockRight; x += 1) {
+            expect(isWithinClickThroughUnlockHotspot(x, BUTTON_CENTER_Y, VIEWPORT_WIDTH)).toBe(true);
+        }
+    });
+
+    it('keeps clear of the caption buttons of a maximized window underneath', () => {
+        // Windows draws minimize / maximize / close 46px wide each, so they reach 138px in.
+        expect(isWithinClickThroughUnlockHotspot(VIEWPORT_WIDTH - 138, BUTTON_CENTER_Y, VIEWPORT_WIDTH)).toBe(false);
+        expect(CLICK_THROUGH_UNLOCK_HOTSPOT.rightInset).toBeGreaterThanOrEqual(CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET - 4);
     });
 
     it('stays inactive away from the button and outside the vertical band', () => {

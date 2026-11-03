@@ -22,6 +22,7 @@ import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appP
 import { omni } from '../../../../services/onlineMusic/omni';
 import { createRemoteTrackTransitionFeed, type RemoteTrackTransitionFeed } from './remoteTrackTransitionFeed';
 import { buildRemoteQueueItems, isRemoteQueueCommand } from './remoteQueueFeed';
+import { runTransportButtonAction } from './useTransportCommandRefs';
 import i18n from '../../../../i18n/config';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
@@ -423,25 +424,16 @@ export const useElectronPlaybackBridge = ({
         }
 
         return window.electron.onTaskbarControl((action) => {
-            if (isNowPlayingControlDisabledRef.current || !audioRef.current || !taskbarHasTrackRef.current) {
-                return;
-            }
-
-            if (action === 'previous') {
-                mediaSessionPrevRef.current();
-                return;
-            }
-
-            if (action === 'next') {
-                void mediaSessionNextRef.current();
-                return;
-            }
-
-            if (taskbarPlayerStateRef.current === PlayerState.PLAYING) {
-                mediaSessionPauseRef.current();
-            } else {
-                void mediaSessionPlayRef.current();
-            }
+            runTransportButtonAction({
+                mediaSessionPlayRef,
+                mediaSessionPauseRef,
+                mediaSessionPrevRef,
+                mediaSessionNextRef,
+                taskbarHasTrackRef,
+                taskbarPlayerStateRef,
+                isNowPlayingControlDisabledRef,
+                audioRef,
+            }, action);
         });
     }, [audioRef, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, taskbarHasTrackRef, taskbarPlayerStateRef]);
 
