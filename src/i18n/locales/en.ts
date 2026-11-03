@@ -2986,7 +2986,7 @@ export default {
     "nebbiaRain_off": "Off",
     "nebbiaBehind": "Outside the window",
     "nebbiaBehindHint": "The street at night, Dream Sea Glow (an aquarium), or the shared background behind the fog. With the background the fog turns into a translucent mist (white with a daylight theme, dark with a night theme) and the wiped strokes show what is behind; a transparent player page always works this way and shows the desktop.",
-    "nebbiaBehindTransparentHint": "The transparent player page is on, so the view outside always shows what is behind; changing this only changes the part that shows through.",
+    "nebbiaBehindTransparentHint": "While the player page is transparent the view outside always shows what is behind, and the drops always refract the street; this choice only changes the preview and how it looks once transparency is off.",
     "nebbiaBehind_night": "Night street",
     "nebbiaBehind_backdrop": "Background",
     "nebbiaBehind_aquarium": "Dream Sea Glow",
