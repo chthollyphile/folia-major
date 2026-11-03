@@ -109,6 +109,12 @@ export async function searchAppleMusic(query: string, limit: number, offset: num
     return readPage('search', { query }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
+// Apple's personal station supplies each new batch; never replace it with another provider's radio.
+export async function getAppleMusicPersonalFm(): Promise<UnifiedSong[]> {
+    const data = await requestAppleMusic('personalFm');
+    return pageOf(data, 0, normalizeAppleMusicSong, isSongResource).items.filter(isAppleMusicSongPlayable);
+}
+
 export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = true): Promise<ProviderPage<ProviderCollection>> {
     const page = pageInputs(limit, offset);
     const result = await readPage('playlists', {}, page.limit, page.offset, normalizeAppleMusicPlaylist, isPlaylistResource);

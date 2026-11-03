@@ -43,3 +43,17 @@ Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时�
 网页不能调用本地控制接口或文件操作；导航仅允许 Apple 音乐与登录主机。退出登录先销毁旧页面再清空宿主会话。
 原生 named store 与旧浏览器资料分开，不复制或删除用户旧凭据。
 收藏/歌单写入参数兼容已修正，真实写入仍由用户手动验收；单测替身通过不代表上游接口始终可用。
+
+## 搜寻与电台
+
+搜寻使用当前选取的平台；播放 Apple Music 歌曲不会改变目前的搜寻来源。
+选择 Apple Music 后，搜寻经 Omni → Apple Music provider → companion → Apple 目录搜寻。
+
+Apple Music 的电台页提供个人 FM 与当前地区可用的直播电台卡片。个人 FM 读取账号自己的 personal station，
+通过 Apple MusicKit 使用的固定 `stations/next-tracks` POST 取得每批两首，沿用 Folia 补歌与歌曲队列；
+读取推荐不会调用 setQueue 或中断当前播放。直播卡片先进入只有一个直播项目的集合，播放时使用 MusicKit station 参数，
+持续跟随该台，不将节目歌曲变化当成 Folia 换歌。直播无歌曲长度、逐词歌词与拖动时间轴，暂停/继续仍走原生播放器。
+
+2026-11-03：真实 macOS 中国大陆会话验证 Apple Music 搜寻返回 3 项、个人 FM 返回 2 首，
+实际播放首首后 isPlaying=true、位置推进到 2 秒，再暂停。该地区 featured live radio 返回空数组，
+因此直播的真实出声、节目切换与地区覆盖仍须在 Apple 提供直播电台的账号地区验收；不硬编码或切换地区绕过结果。

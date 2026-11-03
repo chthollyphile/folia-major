@@ -86,6 +86,10 @@ companion 读到账号后先导航到账号的 storefront（`https://music.apple
 仍未完成的验收包括：正式安装包、Windows 编译与 DRM 实机测试、退出清理与异常恢复全流程、
 长时间和曲末行为，以及逐词时间的覆盖率和同步精度。收藏/歌单写入适配已修正，真实写入由用户手动验收。
 
+Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补歌）与地区可用的直播电台。
+直播作为单个外部播放项目，无歌曲进度和拖动；卡片与曲目读取都经 Omni。真实中国大陆会话中，个人 FM
+取歌与播放时间推进已通过，直播列表为空，直播出声尚未实测。详细范围见 `electron/appleMusic/README.md`。
+
 ## 接入一个新平台
 
 下面用 `foo` 代表新平台的 id。`OnlineProviderId` 是开放的字符串，不用改类型。

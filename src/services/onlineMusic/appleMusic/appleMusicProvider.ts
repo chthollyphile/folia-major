@@ -6,8 +6,9 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
+import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from './appleMusicNormalize';
 import { getAppleMusicTransportAvailability, requestAppleMusic } from './appleMusicTransport';
 
@@ -19,7 +20,7 @@ const isEndedState = (state: number | null): boolean => state === 5 || state ===
 function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
     const status = value as {
         itemId?: unknown; catalogId?: unknown; isPlaying?: unknown;
-        positionMs?: unknown; durationMs?: unknown; state?: unknown;
+        positionMs?: unknown; durationMs?: unknown; state?: unknown; live?: unknown;
     } | null;
     const mediaId = typeof status?.catalogId === 'string' && status.catalogId
         ? status.catalogId
@@ -46,7 +47,8 @@ function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
         isPlaying: mediaId ? status.isPlaying : false,
         positionMs: mediaId ? status.positionMs : 0,
         durationMs: mediaId ? status.durationMs : 0,
-        ended: mediaId ? isEndedState(state) : false,
+        ended: status.live === true ? false : mediaId ? isEndedState(state) : false,
+        ...(status.live === true ? { live: true } : {}),
         ...(state === 6 ? { seeking: true } : {}),
     };
 }
@@ -56,6 +58,7 @@ function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
 // separate route (the companion plays; Folia steers it) and is not part of `getAudioSource`.
 export function createAppleMusicProvider(getAvailability: () => ProviderAvailability): OnlineMusicProvider {
     let generation = 0;
+    let liveStationId: string | null = null;
     let handoffId: string | null = null;
     let playSequence = 0;
     const playNonce = Math.random().toString(36).slice(2);
@@ -98,6 +101,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
 
     // A song Apple has no timed lyric for answers with no TTML: that is an empty result, not a failure.
     async function readLyrics(song: Parameters<NonNullable<OnlineMusicProvider['lyrics']>['getLyrics']>[0]): Promise<ProviderLyricsResult> {
+        if (appleMusicLiveStationId(song)) return { lyrics: null, isPureMusic: false };
         const ttml = await getAppleMusicTtml(song);
         if (ttml === null) return { lyrics: null, isPureMusic: false };
         const lyrics = parseLyricsByFormat('ttml', ttml);
@@ -137,12 +141,13 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // word-level TTML; the parsed lyric says which timing it got (`LyricData.isWordByWord`).
         capabilities: {
             search: true, playback: false, externalPlayback: true, lyrics: true, wordByWordLyrics: true, auth: true,
-            userLibrary: true, playlists: true, albums: false, artists: false, recommendations: false, mutations: true, playlistTrackMutations: true, likes: true,
+            userLibrary: true, playlists: true, albums: false, artists: false, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
         },
         normalizeSong: normalizeAppleMusicSong,
         normalizeCollection: normalizeAppleMusicPlaylist,
         normalizeUser: normalizeAppleMusicUser,
         search: { searchSongs: (query, limit, offset) => searchAppleMusic(query, limit, offset) },
+        recommendations: { getPersonalFm: getAppleMusicPersonalFm, getRecommendedCollections: getAppleMusicLiveStations },
         mutations: {
             likeSong: setAppleMusicSongLiked,
             canAddToPlaylist: canAddToAppleMusicPlaylist,
@@ -155,7 +160,8 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             getUserPlaylists: (_userId, limit, offset) => getAppleMusicPlaylists(limit, offset),
         },
         catalog: {
-            getPlaylistTracks: (id, limit, offset) => getAppleMusicPlaylistTracks(String(id), limit, offset),
+            getPlaylistTracks: (id, limit, offset) => String(id).startsWith('ra.')
+                ? getAppleMusicLiveStationTracks(String(id), offset) : getAppleMusicPlaylistTracks(String(id), limit, offset),
         },
         // Apple's TTML carries the song's own word timing (and its translations and voices): where
         // it is word-level, the automatic pick must not replace it with another source's.
@@ -163,7 +169,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // Apple's audio never leaves its page: these calls steer the companion's MusicKit player.
         // A library song is played by its catalog id, which the companion puts in the queue.
         externalPlayback: {
-            canPlay: isAppleMusicSongPlayable,
+            canPlay: song => Boolean(appleMusicLiveStationId(song)) || isAppleMusicSongPlayable(song),
             isPrepared(song) {
                 try {
                     const id = appleMusicCatalogSongId(song);
@@ -171,6 +177,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 } catch { return false; }
             },
             async prepareNext(song, upcoming) {
+                if (appleMusicLiveStationId(song)) return;
                 const attempt = playback;
                 if (!attempt || attempt.catalogId !== appleMusicCatalogSongId(song)) return;
                 const ids: string[] = [];
@@ -197,6 +204,16 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 }
             },
             async play(song, startSec) {
+                const stationId = appleMusicLiveStationId(song);
+                if (stationId) {
+                    playback = null;
+                    handoffId = null;
+                    await requestAppleMusic('playStation', { stationId });
+                    liveStationId = stationId;
+                    console.info('[AppleMusic] Live station started');
+                    return;
+                }
+                liveStationId = null;
                 if (!isAppleMusicSongPlayable(song)) {
                     throw new OnlineProviderError('not-playable', 'Apple Music cannot stream this song in the current route', 'appleMusic', 'playback-unavailable');
                 }
@@ -225,6 +242,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 await requestAppleMusic('resume');
             },
             async seek(seconds) {
+                if (liveStationId) return;
                 if (!Number.isFinite(seconds) || seconds < 0) {
                     throw new OnlineProviderError('invalid-response', 'Apple Music seek position is invalid', 'appleMusic');
                 }
@@ -234,7 +252,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 const attempt = playback;
                 const data = await requestAppleMusic<unknown>('playbackStatus');
                 let status = externalStatus(data);
-                if (attempt && playback === attempt && attempt.catalogId === appleMusicCatalogSongId(song)) {
+                if (attempt && playback === attempt && attempt.catalogId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song))) {
                     if (status.mediaId === attempt.catalogId) {
                         attempt.hasPlayed ||= status.isPlaying;
                         if (status.durationMs > 0) attempt.durationMs = status.durationMs;
@@ -270,7 +288,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             // The companion reports the catalog id it was given, so a library song matches too.
             isStatusForSong(song, status) {
                 try {
-                    return status.mediaId === appleMusicCatalogSongId(song);
+                    return status.mediaId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song));
                 } catch {
                     return false;
                 }

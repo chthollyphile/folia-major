@@ -45,6 +45,7 @@ type ExternalSession = {
     /** The app has shown this song: only then may the player drive the transport and the shim. */
     announced: boolean;
     playing: boolean;
+    live: boolean;
     ended: boolean;
     /** Set when the player moved to a track this app did not ask for. */
     foreign: boolean;
@@ -146,6 +147,7 @@ const refreshPreparedQueue = () => {
 
 const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean) => {
     if (!session) return;
+    paused ||= session.live;
     const ageSec = paused ? 0 : Math.min(Math.max(0, (performance.now() - sampledAtMs) / 1000), MAX_SAMPLE_AGE_SEC);
     session.clock.sync({ positionSec: positionSec + ageSec, samplePositionSec: positionSec, paused, nowMs: performance.now(), holdBackward });
 };
@@ -201,7 +203,8 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         }
         return;
     }
-    const durationSec = validDurationSec(status.durationMs);
+    current.live = status.live === true;
+    const durationSec = current.live ? null : validDurationSec(status.durationMs);
     if (durationSec !== null && durationSec !== current.durationSec) {
         current.durationSec = durationSec;
         current.clock.setDuration(durationSec);
@@ -214,7 +217,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // Before the app has shown the song, the player's answers only fill in the session: the
     // transport, the shim and the media observers belong to the song on screen until then.
     if (!current.announced) {
-        current.clock.sync({ positionSec, paused: !status.isPlaying, holdBackward: false });
+        current.clock.sync({ positionSec, paused: current.live || !status.isPlaying, holdBackward: false });
         current.playing = status.isPlaying;
         if (status.ended || (status.isPlaying === false && atEnd)) current.ended = true;
         return;
@@ -232,7 +235,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     }
     current.foreign = false;
     if (status.seeking || current.seeking) {
-        current.clock.sync({ positionSec, paused: !status.isPlaying, holdBackward: false });
+        current.clock.sync({ positionSec, paused: current.live || !status.isPlaying, holdBackward: false });
         if ((status.seeking === true) !== current.seeking) externalMediaShim.markSeeked();
     }
     current.seeking = status.seeking === true;
@@ -300,7 +303,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -342,8 +345,9 @@ export function announceExternalPlayback(): void {
     current.announced = true;
     refreshPreparedQueue();
     externalMediaShim.setDuration(current.durationSec ?? 0);
-    if (current.durationSec !== null && usePlaybackStore.getState().duration !== current.durationSec) {
-        setDuration(current.durationSec);
+    const displayedDuration = current.live ? 0 : current.durationSec;
+    if (displayedDuration !== null && usePlaybackStore.getState().duration !== displayedDuration) {
+        setDuration(displayedDuration);
     }
     if (current.ended) {
         // A completed sample before announcement still has to notify the queue exactly once.
@@ -409,7 +413,7 @@ export const resumeExternalPlayback = (): boolean => {
 export const seekExternalPlayback = (timeSec: number, { resume = false }: { resume?: boolean } = {}): boolean => {
     const current = session;
     if (!current) return false;
-    if (!Number.isFinite(timeSec)) return true;
+    if (current.live || !Number.isFinite(timeSec)) return true;
     const target = Math.max(0, current.durationSec === null ? timeSec : Math.min(timeSec, current.durationSec));
     current.ended = false;
     const revision = ++current.positionRevision;

@@ -64,6 +64,20 @@ describe('external playback route', () => {
         vi.useRealTimers();
     });
 
+    it('keeps live broadcasts untimed while playing and ignores timeline seeks', async () => {
+        usePlaybackStore.setState({ duration: 200 });
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ live: true, positionMs: 0, durationMs: 0 }));
+        await engine.beginExternalPlayback({ ...song, durationMs: 0 }, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(1250);
+        expect(engine.getExternalPosition()).toBe(0);
+        expect(usePlaybackStore.getState().duration).toBe(0);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        engine.seekExternalPlayback(30);
+        expect(omniMock.seekExternalPlayback).not.toHaveBeenCalled();
+        expect(engine.getExternalPosition()).toBe(0);
+    });
+
     it('starts the song in the player and shows it only once the app has announced it', async () => {
         const playing = engine.beginExternalPlayback(song, 12);
         await flush();

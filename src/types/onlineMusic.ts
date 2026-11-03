@@ -442,6 +442,8 @@ export interface OnlinePlaybackReportProvider {
  * `isStatusForSong` tells whether it is a given song.
  */
 export interface ProviderExternalPlaybackStatus {
+    /** Live broadcasts have no seekable song timeline or natural track ending. */
+    live?: boolean;
     mediaId: string;
     isPlaying: boolean;
     positionMs: number;
