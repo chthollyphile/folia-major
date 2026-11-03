@@ -1,0 +1,881 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible change 1`] = `
+{
+  "cappella": {
+    "avatarSource": {
+      "options": [
+        "cover",
+        "builtin",
+        "color",
+      ],
+      "type": "choice",
+    },
+    "showEmoMessages": {
+      "type": "boolean",
+    },
+  },
+  "claddagh": {
+    "ellipseTiltDeg": {
+      "max": 60,
+      "min": 0,
+      "type": "number",
+    },
+    "focusScaleRatio": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "letterSpacingOffset": {
+      "max": 20,
+      "min": -5,
+      "type": "number",
+    },
+    "radiusScale": {
+      "max": 1.5,
+      "min": 0.5,
+      "type": "number",
+    },
+    "showAxisLine": {
+      "type": "boolean",
+    },
+  },
+  "classic": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
+    "breathingFloatMultiplier": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "enableWordRotation": {
+      "type": "boolean",
+    },
+    "useLegacyLayout": {
+      "type": "boolean",
+    },
+    "wordSpacing": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+  },
+  "diorama": {
+    "audioReactivity": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "backgroundParticleCircumference": {
+      "max": 48,
+      "min": 4,
+      "step": 2,
+      "type": "number",
+    },
+    "backgroundParticleRadial": {
+      "max": 4,
+      "min": 1,
+      "step": 1,
+      "type": "number",
+    },
+    "cameraSpeed": {
+      "max": 1.85,
+      "min": 0.55,
+      "type": "number",
+    },
+    "glowEnabled": {
+      "type": "boolean",
+    },
+    "glowIntensity": {
+      "max": 1.5,
+      "min": 0.1,
+      "type": "number",
+    },
+    "gradientEnabled": {
+      "type": "boolean",
+    },
+    "gradientIntensity": {
+      "max": 1.5,
+      "min": 0.1,
+      "type": "number",
+    },
+    "keywordColoringEnabled": {
+      "type": "boolean",
+    },
+    "motionAmount": {
+      "max": 1.6,
+      "min": 0.4,
+      "type": "number",
+    },
+    "particleDensity": {
+      "max": 1536,
+      "min": 96,
+      "step": 24,
+      "type": "number",
+    },
+    "particleGlowEnabled": {
+      "type": "boolean",
+    },
+    "particleGlowIntensity": {
+      "max": 1.5,
+      "min": 0.1,
+      "type": "number",
+    },
+    "particleScale": {
+      "max": 1.6,
+      "min": 0.65,
+      "type": "number",
+    },
+    "showParticles": {
+      "type": "boolean",
+    },
+    "soulActiveEnabled": {
+      "type": "boolean",
+    },
+    "soulEnabled": {
+      "type": "boolean",
+    },
+    "soulIntensity": {
+      "max": 1.5,
+      "min": 0.1,
+      "type": "number",
+    },
+  },
+  "fume": {
+    "backgroundObjectOpacity": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "cameraSpeed": {
+      "max": 1.85,
+      "min": 0.55,
+      "type": "number",
+    },
+    "cameraTrackingMode": {
+      "options": [
+        "stepped",
+        "smooth",
+      ],
+      "type": "choice",
+    },
+    "disableGeometricBackground": {
+      "type": "boolean",
+    },
+    "glowIntensity": {
+      "max": 1.8,
+      "min": 0,
+      "type": "number",
+    },
+    "heroScale": {
+      "max": 1.32,
+      "min": 0.82,
+      "type": "number",
+    },
+    "hidePrintSymbols": {
+      "type": "boolean",
+    },
+    "textHoldRatio": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+  },
+  "hanabi": {
+    "ambient": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "blockOpacity": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "bloom": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "chorusBloom": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "collage": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "colorMode": {
+      "options": [
+        "theme",
+        "vivid",
+        "mixed",
+      ],
+      "type": "choice",
+    },
+    "glow": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "launches": {
+      "type": "boolean",
+    },
+    "ornamentAmount": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "overlayFrame": {
+      "type": "boolean",
+    },
+    "riseSpeed": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "sky": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "sparkAmount": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "spin": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "textMotion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "textOnly": {
+      "type": "boolean",
+    },
+  },
+  "lumiere": {
+    "audioResponse": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "bloom": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "darkField": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "decay": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "echo": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "fogDensity": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "frontBokeh": {
+      "type": "boolean",
+    },
+    "hideTrails": {
+      "type": "boolean",
+    },
+    "keywordColors": {
+      "type": "boolean",
+    },
+    "lightIntensity": {
+      "max": 2,
+      "min": 0.3,
+      "type": "number",
+    },
+    "lineArt": {
+      "type": "boolean",
+    },
+    "moteAmount": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "overlayFrame": {
+      "type": "boolean",
+    },
+    "seamlessTransitions": {
+      "type": "boolean",
+    },
+    "textBloom": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "textOnly": {
+      "type": "boolean",
+    },
+    "themeColorMix": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "themeIcons": {
+      "type": "boolean",
+    },
+    "trails": {
+      "type": "boolean",
+    },
+    "unlitOpacity": {
+      "max": 0.6,
+      "min": 0.05,
+      "type": "number",
+    },
+    "windowNeighbors": {
+      "max": 2,
+      "min": 1,
+      "step": 1,
+      "type": "number",
+    },
+  },
+  "machi": {
+    "aperture": {
+      "max": 16,
+      "min": 1.4,
+      "type": "number",
+    },
+    "camera": {
+      "options": [
+        "default",
+        "custom",
+      ],
+      "type": "choice",
+    },
+    "dof": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "dofRange": {
+      "max": 3,
+      "min": 0.3,
+      "type": "number",
+    },
+    "focus": {
+      "options": [
+        "center",
+        "lyrics",
+        "manual",
+      ],
+      "type": "choice",
+    },
+    "focusOffset": {
+      "max": 10,
+      "min": -10,
+      "type": "number",
+    },
+    "motion": {
+      "type": "boolean",
+    },
+    "motionSpeed": {
+      "max": 3,
+      "min": 0.25,
+      "type": "number",
+    },
+    "scene": {
+      "options": [
+        "auto",
+        "konbini",
+        "station",
+        "kowloon",
+      ],
+      "type": "choice",
+    },
+    "tiltShift": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "timeOfDay": {
+      "options": [
+        "auto",
+        "day",
+        "dusk",
+        "night",
+      ],
+      "type": "choice",
+    },
+    "weather": {
+      "options": [
+        "auto",
+        "clear",
+        "rain",
+        "snow",
+        "fog",
+      ],
+      "type": "choice",
+    },
+  },
+  "monet": {
+    "audioStyle": {
+      "options": [
+        "bar",
+        "line",
+      ],
+      "type": "choice",
+    },
+    "fontScale": {
+      "max": 1.5,
+      "min": 0.7,
+      "type": "number",
+    },
+    "keywordColoringEnabled": {
+      "type": "boolean",
+    },
+    "portraitStyle": {
+      "options": [
+        "square",
+        "rectangular",
+      ],
+      "type": "choice",
+    },
+    "showAudioVisualization": {
+      "type": "boolean",
+    },
+    "showDescription": {
+      "type": "boolean",
+    },
+  },
+  "nebbia": {
+    "behind": {
+      "options": [
+        "night",
+        "aquarium",
+        "backdrop",
+      ],
+      "type": "choice",
+    },
+    "bubbles": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "bump": {
+      "max": 2.5,
+      "min": 0,
+      "type": "number",
+    },
+    "busSpeed": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
+    "credits": {
+      "type": "boolean",
+    },
+    "dew": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "dewGlint": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "dewSize": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
+    },
+    "doodle": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "glass": {
+      "options": [
+        "rain",
+        "dew",
+        "snow",
+      ],
+      "type": "choice",
+    },
+    "hold": {
+      "max": 6,
+      "min": 0,
+      "type": "number",
+    },
+    "jellies": {
+      "max": 24,
+      "min": 0,
+      "step": 1,
+      "type": "number",
+    },
+    "jellySize": {
+      "max": 1.8,
+      "min": 0.5,
+      "type": "number",
+    },
+    "jitter": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "mist": {
+      "max": 1,
+      "min": 0.2,
+      "type": "number",
+    },
+    "neon": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "rain": {
+      "options": [
+        "slant",
+        "straight",
+        "off",
+      ],
+      "type": "choice",
+    },
+    "rainBig": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "rainHit": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
+    "refog": {
+      "max": 12,
+      "min": 0.5,
+      "type": "number",
+    },
+    "snow": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
+    "snowMelt": {
+      "max": 3,
+      "min": 0.25,
+      "type": "number",
+    },
+    "snowSize": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
+    },
+    "spot": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "spotX": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "strokeWidth": {
+      "max": 0.16,
+      "min": 0.04,
+      "type": "number",
+    },
+    "warp": {
+      "max": 1.5,
+      "min": 0,
+      "type": "number",
+    },
+    "writeSpeed": {
+      "max": 2.5,
+      "min": 0.4,
+      "type": "number",
+    },
+  },
+  "partita": {
+    "avoidOverlap": {
+      "type": "boolean",
+    },
+    "showGuideLines": {
+      "type": "boolean",
+    },
+    "staggerMax": {
+      "max": 180,
+      "min": 0,
+      "type": "number",
+    },
+    "staggerMin": {
+      "max": 180,
+      "min": 0,
+      "type": "number",
+    },
+    "useSemanticLayout": {
+      "type": "boolean",
+    },
+  },
+  "pendolo": {
+    "activeScale": {
+      "max": 1.6,
+      "min": 1,
+      "type": "number",
+    },
+    "arcAngleDeg": {
+      "max": 160,
+      "min": 40,
+      "type": "number",
+    },
+    "arcRadius": {
+      "max": 0.8,
+      "min": 0.25,
+      "type": "number",
+    },
+    "enableLineGlow": {
+      "type": "boolean",
+    },
+    "showCenterGradient": {
+      "type": "boolean",
+    },
+    "showCoverOnWatchFace": {
+      "type": "boolean",
+    },
+    "showGearDecor": {
+      "options": [
+        "none",
+        "subtle",
+        "full",
+      ],
+      "type": "choice",
+    },
+    "tickSnappiness": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
+    },
+    "wheelCenterX": {
+      "max": 0.4,
+      "min": -0.2,
+      "type": "number",
+    },
+  },
+  "sonnet": {
+    "cameraIntensity": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "enableTransitions": {
+      "type": "boolean",
+    },
+    "mgDensity": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "outerFrameMode": {
+      "options": [
+        "none",
+        "frame",
+        "full",
+      ],
+      "type": "choice",
+    },
+    "postProcessContrast": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessEnabled": {
+      "type": "boolean",
+    },
+    "postProcessGrain": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessHalftone": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessLensDispersion": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessLensDistortion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessRgbShift": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessVignette": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "showBackgroundDecor": {
+      "type": "boolean",
+    },
+    "showBackgroundMg": {
+      "type": "boolean",
+    },
+    "showFixedGeo": {
+      "type": "boolean",
+    },
+    "showGiantDecorativeText": {
+      "type": "boolean",
+    },
+    "showGuide": {
+      "type": "boolean",
+    },
+    "showOnlyText": {
+      "type": "boolean",
+    },
+    "typographyMotion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+  },
+  "tempera": {
+    "cameraIntensity": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "colorMode": {
+      "options": [
+        "duo",
+        "mono",
+        "gradient",
+      ],
+      "type": "choice",
+    },
+    "depthOfField": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "depthPan": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "enableTransitions": {
+      "type": "boolean",
+    },
+    "glyphDepth": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "glyphMotion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "glyphSettleStretch": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "layerImageDepth": {
+      "options": [
+        "back",
+        "front",
+      ],
+      "type": "choice",
+    },
+    "layerImageFrequency": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessContrast": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessEnabled": {
+      "type": "boolean",
+    },
+    "postProcessGrain": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessLensDistortion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessRgbShift": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "postProcessVignette": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "showBlocks": {
+      "type": "boolean",
+    },
+    "showCornerMarks": {
+      "type": "boolean",
+    },
+    "showDecor": {
+      "type": "boolean",
+    },
+    "textInversion": {
+      "type": "boolean",
+    },
+    "wholeLineLyrics": {
+      "type": "boolean",
+    },
+  },
+  "tilt": {
+    "colorScheme": {
+      "options": [
+        "default",
+        "swap",
+        "accentAll",
+        "primaryAll",
+      ],
+      "type": "choice",
+    },
+    "splitProbability": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+    "tiltStyleProbability": {
+      "max": 1,
+      "min": 0,
+      "type": "number",
+    },
+  },
+}
+`;

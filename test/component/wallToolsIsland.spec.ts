@@ -300,6 +300,73 @@ test.describe('wall tools queue island', () => {
         await expect(panel(page)).toBeVisible();
     });
 
+    test('searching filters the rows; actions and keys still reach the right songs', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await openPanel(page);
+        const searchButton = island(page).locator('[data-queue-island-action="search"]');
+        const input = island(page).locator('[data-queue-island-search]');
+        const rows = island(page).locator('.lattice-tools-island-row');
+        await searchButton.click();
+        await expect(input).toBeFocused();
+        await expect(input).toHaveAttribute('placeholder', 'Search the queue (200)');
+        // 搜索时不给存歌单与清空：头部那一行淡出并隐藏（不在 Tab 顺序里）。
+        await expect(island(page).locator('[data-queue-island-action="clear"]')).toBeHidden();
+
+        // 「199」既是第 200 首的歌名，也是第 199 首的位置号（与命令面板、遥控窗口的队列搜索同一份检索文字）。
+        await input.fill('track 199');
+        await expect(rows).toHaveCount(2);
+        await expect(rows.nth(0)).toHaveAttribute('data-queue-index', '198');
+        await expect(rows.nth(1)).toHaveAttribute('data-queue-index', '199');
+        // 筛选中不能拖拽排序：没有手柄，Alt+↑↓ 不挪。
+        await expect(island(page).locator('.lattice-tools-island-handle')).toHaveCount(0);
+        await expect(island(page)).toHaveAttribute('data-queue-filtering');
+        // 高度仍按整个队列算。
+        await expect.poll(async () => Math.round((await island(page).boundingBox())!.height)).toBe(2 + 36 + 8 * 40);
+
+        // ↓ 进第一行、↑ 回到搜索框；Enter 播放第一首匹配。
+        await page.keyboard.press('ArrowDown');
+        await expect(song(page, 198)).toBeFocused();
+        await page.keyboard.press('Alt+ArrowDown');
+        expect(await calls(page, 'moveQueueSong')).toEqual([]);
+        await page.keyboard.press('ArrowDown');
+        await expect(song(page, 199)).toBeFocused();
+        await page.keyboard.press('ArrowUp');
+        await expect(song(page, 198)).toBeFocused();
+        await page.keyboard.press('ArrowUp');
+        await expect(input).toBeFocused();
+        await page.keyboard.press('Enter');
+        expect(await calls(page, 'playQueueSong')).toEqual([{ kind: 'playQueueSong', id: 'island-198' }]);
+
+        // 悬停动作按队列下标走；Delete 删的也是队列里的那一首，焦点落在剩下的匹配上。
+        await row(page, 199).hover();
+        await row(page, 199).locator('[data-queue-row-action="move-to-end"]').click();
+        expect(await calls(page, 'moveQueueSongToEnd')).toEqual([{ kind: 'moveQueueSongToEnd', index: 199 }]);
+        await probe(page, api => api.clearCalls());
+        await probe(page, api => api.setCurrent(0));
+        await song(page, 198).focus();
+        await page.keyboard.press('Delete');
+        expect(await calls(page, 'removeQueueSong')).toEqual([{ kind: 'removeQueueSong', index: 198 }]);
+        await expect(rows).toHaveCount(1);
+        await expect(song(page, 198)).toBeFocused();
+        // 删掉最后剩下的那一行：焦点回到搜索框，不掉到 body 上。
+        await page.keyboard.press('Delete');
+        await expect(island(page).getByText('No songs match')).toBeVisible();
+        await expect(input).toBeFocused();
+
+        // 没有匹配：给一句说明。
+        await input.fill('zzz');
+        await expect(island(page).getByText('No songs match')).toBeVisible();
+
+        // Esc 只收起搜索（搜索词一起清掉），焦点回到放大镜，面板还在。
+        await input.focus();
+        await page.keyboard.press('Escape');
+        await expect(input).toHaveCount(0);
+        await expect(searchButton).toBeFocused();
+        await expect(island(page).locator('.lattice-tools-island-heading')).toHaveText('Play queue · 198 songs');
+        await expect(island(page).locator('.lattice-tools-island-handle').first()).toBeAttached();
+        await expect(panel(page)).toBeVisible();
+    });
+
     test('clearing takes a second click within three seconds', async ({ mount, page }) => {
         await mountProbe(mount, page);
         await openPanel(page);
@@ -515,5 +582,38 @@ test.describe('wall tools queue island', () => {
         await page.setViewportSize({ width: 390, height: 760 });
         await expect.poll(async () => { const [ix, iw, px, pw] = await edges(); return ix === px && iw === pw && iw === 296; }).toBe(true);
         await page.screenshot({ path: 'test-results/wall-tools-island-mobile.png' });
+    });
+});
+
+test.describe('wall tools queue island search field', () => {
+    // 2 倍像素密度：看得清搜索框的角和浮岛圆角的关系。
+    test.use({ deviceScaleFactor: 2 });
+
+    test('the search field sits evenly inside the island corner, close button included; screenshots', async ({ mount, page }) => {
+        await mountProbe(mount, page);
+        await probe(page, api => api.seed({ count: 40, currentIndex: 12 }));
+        await openPanel(page);
+        await island(page).locator('[data-queue-island-action="search"]').click();
+        await island(page).locator('[data-queue-island-search]').fill('track 1');
+        await page.waitForTimeout(300);
+        // 搜索框与浮岛上、左、右三边等距；关闭按钮在框里。
+        const [outer, field, close] = await Promise.all([
+            island(page).boundingBox(),
+            island(page).locator('.lattice-tools-island-search').boundingBox(),
+            island(page).locator('[data-queue-island-action="close-search"]').boundingBox(),
+        ]);
+        const top = field!.y - outer!.y;
+        const left = field!.x - outer!.x;
+        const right = outer!.x + outer!.width - (field!.x + field!.width);
+        expect(Math.abs(top - left)).toBeLessThanOrEqual(1.5);
+        expect(Math.abs(left - right)).toBeLessThanOrEqual(0.5);
+        expect(close!.x + close!.width).toBeLessThanOrEqual(field!.x + field!.width);
+        expect(close!.y).toBeGreaterThanOrEqual(field!.y);
+
+        const clip = { x: outer!.x - 12, y: outer!.y - 12, width: outer!.width + 24, height: 140 };
+        await page.screenshot({ path: 'test-results/wall-tools-island-search-dark.png', clip, scale: 'device' });
+        await probe(page, api => api.setDaylight(true));
+        await page.waitForTimeout(300);
+        await page.screenshot({ path: 'test-results/wall-tools-island-search-daylight.png', clip, scale: 'device' });
     });
 });

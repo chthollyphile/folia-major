@@ -3,10 +3,14 @@ import { DEFAULT_SONNET_TUNING, type SonnetOuterFrameMode, type SonnetTuning } f
 import { Group, Reveal, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 
 // src/components/visualizer/sonnet/SonnetSettingsPanel.tsx
-// Keeps Sonnet's tuning controls adjacent to the mode implementation: four groups of the settings kit.
+// Keeps Sonnet's tuning controls adjacent to the mode implementation: five groups of the settings kit
+// (渲染一组是分辨率 / 抗锯齿，#929).
 const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-sonnet-quality', titleKey: 'options.sonnetQualitySection' };
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「性能与动效」的全局挡位（#929）。 */
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-sonnet-render', titleKey: 'options.lyricRenderSection' };
 const MOTION_GROUP: SettingsGroupDef = { id: 'vis-sonnet-motion', titleKey: 'options.sonnetMotionSection' };
 const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-sonnet-post-process', titleKey: 'options.sonnetPostProcessSection' };
 const DISPLAY_GROUP: SettingsGroupDef = { id: 'vis-sonnet-display', titleKey: 'options.sonnetDisplaySection' };
@@ -65,6 +69,13 @@ const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps<SonnetTuning>> 
                     onChange={textureResolution => onSonnetTuningChange?.({ textureResolution })}
                 />
                 <Row notice={t('options.sonnetTexturePerformanceWarning')} />
+            </Group>
+
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={sonnetTuning.render}
+                    onChange={patch => onSonnetTuningChange?.({ render: { ...sonnetTuning.render, ...patch } })}
+                />
             </Group>
 
             <Group def={MOTION_GROUP}>

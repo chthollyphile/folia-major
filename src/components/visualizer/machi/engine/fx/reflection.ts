@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { compileInto } from '../programWarmup';
 
 // src/components/visualizer/machi/engine/fx/reflection.ts
 // 水洼里的倒影：把正交镜头按地面（y = planeY）镜像，只渲染 REFLECT 图层上的亮东西（招牌、灯箱、天花灯、
@@ -41,6 +42,23 @@ export class MachiReflection {
     setScale(scale: number, width: number, height: number) {
         this.scale = scale;
         this.setSize(width, height);
+    }
+
+    /**
+     * 预编倒影那一遍的着色器（programWarmup.ts）：只编镜像镜头看得到的 REFLECT 图层，灯也只取这一层的
+     * （所以是另一套变体），雾和天空像真正画时一样先摘掉。
+     */
+    compile(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+        const background = scene.background;
+        const fog = scene.fog;
+        scene.background = null;
+        scene.fog = null;
+        try {
+            compileInto(renderer, this.target, scene, this.mirror, scene, object => object.layers.test(this.mirror.layers));
+        } finally {
+            scene.background = background;
+            scene.fog = fog;
+        }
     }
 
     /** 跟着主镜头更新镜像镜头和投影矩阵，再把 REFLECT 图层画进贴图。 */

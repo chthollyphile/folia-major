@@ -91,7 +91,9 @@ export type PonderTargetId =
     // 登录：主页的登录按钮、右下角那一枚，和它们打开的登录窗口。
     | 'sign-in'
     // 匹配歌词的窗口：面板来源页的「在线匹配」打开它。
-    | 'lyric-match';
+    | 'lyric-match'
+    // 速记簿：左缘滑出的歌曲暂存区（收进来、按来源分组处理、展开成画布）。
+    | 'scratchpad';
 
 /**
  * 导航页把目标按这个分组。
@@ -205,6 +207,12 @@ export type PonderSurfaceKind =
     | 'lattice-page'
     | 'settings-page'
     | 'player-bar'
+    /** 指针停在胶囊上时浮在它上方的那一排快捷操作。 */
+    | 'capsule-quick-actions'
+    /** 从胶囊原地长出来的命令窗口：输入行在底，结果在上。 */
+    | 'capsule-palette'
+    /** 右键或按住槽位时在它正上方弹出的那块换按钮的浮层。 */
+    | 'slot-picker'
     /** 入门教程的示意图：思索自己是怎么用的，不对应任何一个真实页面。 */
     | 'ponder-onboarding'
     | 'bottom-ui-settings'
@@ -248,7 +256,9 @@ export type PonderSurfaceKind =
     /** 没有人登录时的主页，和盖在它上面的登录窗口。 */
     | 'sign-in'
     /** 匹配歌词的窗口：左边来源、搜索和结果，右边选中的那一条和它的歌词。 */
-    | 'lyric-match';
+    | 'lyric-match'
+    /** 速记簿：一面资料库磁贴墙和左缘的把手，以及滑出的抽屉、展开成的画布。 */
+    | 'scratchpad';
 
 /**
  * 以来源矩形为 0..1 坐标系的相对矩形。

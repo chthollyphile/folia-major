@@ -15,7 +15,6 @@ import type {
     LibraryLoginSessionSnapshot,
     LibraryLogoutResult,
     LibraryProviderSwitchReason,
-    LibraryProviderSwitchRequest,
     LibrarySelectProviderResult,
     LibraryStartLoginResult,
     LibrarySwitchCancelResult,
@@ -41,14 +40,14 @@ import {
 } from './providerLoginSession.service';
 
 // src/library/core/account/providerAccountController.service.ts
-// 在线账户 controller（Library v2 · A3）：组合登录会话，持有切换确认、单一在途登录与登出，实现 contracts/account 的
+// 在线账户 controller（Library v2 · A3）：组合登录会话，持有切换、单一在途登录与登出，实现 contracts/account 的
 // LibraryAccountController。无 React、不直接碰 omni / store：全部经注入的端口（默认装配在 providerAccountDeps，
-// 宿主传入退出、退出前的那一问与清空播放器）。
-// - 切换：播放器里有歌才生成待确认请求（自增 id），没有歌就直接切；切的时候依次 清空播放器 → 作废在途请求 →
-//   写当前平台 → 读新账户；新请求把旧的按 declined/superseded 结算，过期 id 返回 stale；
+// 宿主传入退出、退出前的那一问与播放器端口）。
+// - 切换：不问用的人（队列可以混着几个平台的歌，切换不拿走它们），依次 离开旧平台（退出私人 FM）→ 作废在途请求 →
+//   写当前平台 → 读新账户；快照里的待确认切换恒为 null，确认 / 取消一律返回 stale；
 // - 登录：同一时间一个，只由登录窗口开始；startLogin 先停旧会话，登录方式的解析带代次（晚到的结果作废）；
 //   确认后的回调只读账号，回调结束后由 controller 决定收起、显示没读到账号或切到登录的平台；
-// - 登出：先经宿主问用的人，退的是当前平台时清空播放器，再退出；
+// - 登出：先经宿主问用的人，答应后把这个平台的歌移出播放器，再退出；
 // - 当前平台：存的平台不在列表里时回落默认平台并写回（不经确认、不清空、不动账户缓存）；
 // - 快照在没有变化时保持对象身份（useSyncExternalStore 友好）。
 
@@ -74,11 +73,6 @@ type LoginState = {
     texts: LoginTexts | null;
     stage: 'resolving-methods' | 'choosing-method' | 'ready' | 'session';
     sessionId: number | null;
-};
-
-type PendingSwitch = {
-    request: LibraryProviderSwitchRequest;
-    resolve: (result: LibrarySwitchResult) => void;
 };
 
 const NO_METHODS: readonly LoginMethod[] = Object.freeze([]);
@@ -149,8 +143,6 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
     let login: LoginState | null = null;
     // 登录代次：startLogin / closeLogin / 每次开始 / dispose 都前进；方式解析与本地服务重启 await 之后按它作废。
     let loginSeq = 0;
-    let pending: PendingSwitch | null = null;
-    let switchSeq = 0;
     let logout: LibraryAccountLogoutState = IDLE_LOGOUT;
     let lastLoginCompletion: LibraryLoginCompletion | null = null;
     let snapshot: LibraryAccountSnapshot;
@@ -212,7 +204,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
             providers,
             activeProviderId: activeProviderId(),
             login: deriveLogin(previous?.login ?? null),
-            pendingSwitch: pending?.request ?? null,
+            pendingSwitch: null,
             logout,
             lastLoginCompletion,
         };
@@ -287,19 +279,12 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
 
     // ─── 切换 ───────────────────────────────────────────────────────────
 
-    const settlePending = (result: LibrarySwitchResult): void => {
-        const current = pending;
-        if (!current) return;
-        pending = null;
-        current.resolve(result);
-    };
-
-    /** 切过去：清空播放器 → 作废上一个平台的在途请求 → 写当前平台 → （switch 时）读新账户。 */
+    /** 切过去：离开旧平台 → 作废上一个平台的在途请求 → 写当前平台 → （switch 时）读新账户。 */
     const commitSwitch = async (from: OnlineProviderId, to: OnlineProviderId, readAccount: boolean): Promise<void> => {
         try {
-            await switchCleanup.resetForProviderSwitch(to, from);
+            await switchCleanup.leaveProvider(from, to);
         } catch (error) {
-            // 用户已经同意了（或者播放器里本来就没有歌）：清空出错也照样切过去，只记日志。
+            // 离开旧平台出错也照样切过去，只记日志。
             log('warn', 'switch:cleanup-error', { from, to, ...describeLoginError(error) });
         }
         accounts.invalidateActiveRequests();
@@ -312,6 +297,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         }
     };
 
+    // 切换不拿走播放器里的歌（各首按自己的平台播放），所以不问用的人，直接切。
     const openSwitchRequest = async (
         to: OnlineProviderId,
         reason: LibraryProviderSwitchReason,
@@ -321,39 +307,15 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         if (to === from) return { status: 'switched', providerId: to, changed: false };
         const selection = resolveProviderSelection(findProvider(to));
         if (selection.kind === 'unavailable') return { status: 'unavailable', providerId: to, reason: selection.reason };
-        // 切过去会清空播放器：里面有歌才问，没有歌就直接切。
-        if (!askSafely(() => switchCleanup.holdsSongs(), true)) {
-            log('info', 'switch', { from, to, reason, asked: false });
-            if (pending) batch(() => settlePending({ status: 'declined', providerId: pending!.request.to, reason: 'superseded' }));
-            await commitSwitch(from, to, reason === 'switch');
-            return { status: 'switched', providerId: to, changed: true };
-        }
-        return new Promise<LibrarySwitchResult>(resolve => {
-            batch(() => {
-                // 同一时间最多一个待确认请求：旧的按 superseded 拒绝。
-                if (pending) settlePending({ status: 'declined', providerId: pending.request.to, reason: 'superseded' });
-                pending = { request: { id: ++switchSeq, from, to, reason }, resolve };
-            });
-        });
-    };
-
-    const confirmSwitch = async (requestId: number): Promise<LibrarySwitchConfirmResult> => {
-        const current = pending;
-        if (!current || current.request.id !== requestId) return { status: 'stale', requestId };
-        const { from, to, reason } = current.request;
-        log('info', 'switch', { from, to, reason, asked: true });
-        // 先收起确认框，再清空（确认框按下确认后立即收起）。
-        batch(() => { pending = null; });
+        log('info', 'switch', { from, to, reason });
         await commitSwitch(from, to, reason === 'switch');
-        current.resolve({ status: 'switched', providerId: to, changed: true });
-        return { status: 'confirmed', requestId, providerId: to };
+        return { status: 'switched', providerId: to, changed: true };
     };
 
-    const cancelSwitch = (requestId: number): LibrarySwitchCancelResult => {
-        if (!pending || pending.request.id !== requestId) return { status: 'stale', requestId };
-        batch(() => settlePending({ status: 'declined', providerId: pending!.request.to, reason: 'cancelled' }));
-        return { status: 'cancelled', requestId };
-    };
+    // 没有待确认的切换：任何 id 都已过期。
+    const confirmSwitch = async (requestId: number): Promise<LibrarySwitchConfirmResult> => ({ status: 'stale', requestId });
+
+    const cancelSwitch = (requestId: number): LibrarySwitchCancelResult => ({ status: 'stale', requestId });
 
     // ─── 登录 ───────────────────────────────────────────────────────────
 
@@ -489,8 +451,8 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
 
     /**
      * 确认后的链路。会话的确认回调只读账号并返回（false → 会话回到 error + 没读到账号）；回调结束后在这里收尾：
-     * 没读到保留登录快照（界面显示失败）；读到了收起登录，不是当前平台时再切过去（播放器里有歌先问，切的时候
-     * 不再读账号）。登录在读账号期间被关掉或换掉时不再收尾（用户已经走开；账号照样读到了）。
+     * 没读到保留登录快照（界面显示失败）；读到了收起登录，不是当前平台时再切过去（切的时候不再读账号）。
+     * 登录在读账号期间被关掉或换掉时不再收尾（用户已经走开；账号照样读到了）。
      */
     const handleConfirmed = (event: ProviderLoginConfirmedEvent): Promise<boolean> => {
         const refreshed = (async () => {
@@ -543,19 +505,16 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         if (logout.status === 'pending') return { status: 'busy', providerId };
         batch(() => { logout = { providerId, status: 'pending' }; });
         try {
-            // 退出当前平台也清空播放器，和切换一样；别的平台的退出不动播放器（切换时已经清掉了它的歌）。
-            const wasActive = providerId === activeProviderId();
-            const emptiesPlayer = wasActive && askSafely(() => switchCleanup.holdsSongs(), false);
-            const confirmed = await providerAccounts.confirmLogout({ providerId, emptiesPlayer });
+            // 退出只拿走这个平台自己的歌：队列里别的平台、本地与 Navidrome 的歌留着。
+            const removesSongs = askSafely(() => switchCleanup.holdsSongsOf(providerId), false);
+            const confirmed = await providerAccounts.confirmLogout({ providerId, removesSongs });
             log('info', 'logout', { providerId, confirmed });
             if (!confirmed) return { status: 'cancelled', providerId };
-            // 在答应的那一刻清空，那时播放器里还是问的那些歌：退出要等平台的回答，这期间用的人可能放了别的。
-            if (wasActive) {
-                try {
-                    await switchCleanup.resetForProviderSwitch(providerId, providerId);
-                } catch (error) {
-                    log('warn', 'logout:cleanup-error', { providerId, ...describeLoginError(error) });
-                }
+            // 在答应的那一刻移出，那时播放器里还是问的那些歌：退出要等平台的回答，这期间用的人可能放了别的。
+            try {
+                await switchCleanup.dropSongsOf(providerId);
+            } catch (error) {
+                log('warn', 'logout:cleanup-error', { providerId, ...describeLoginError(error) });
             }
             await providerAccounts.logout(providerId);
             return { status: 'logged-out', providerId };
@@ -576,7 +535,6 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         session.dispose();
         login = null;
         watchLocalService(null);
-        if (pending) settlePending({ status: 'declined', providerId: pending.request.to, reason: 'disposed' });
         logout = IDLE_LOGOUT;
         for (const unsubscribe of unsubscribes) unsubscribe();
         disposed = true;

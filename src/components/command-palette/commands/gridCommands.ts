@@ -1,4 +1,4 @@
-import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, PanelLeft, PanelRight, Pencil, RefreshCw, Share, SquarePen, Star, Tags, Type } from 'lucide-react';
+import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, NotebookPen, PanelLeft, PanelRight, Pencil, RefreshCw, Share, SquarePen, Star, Tags, Type } from 'lucide-react';
 import { createGridSurfaceCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
@@ -135,5 +135,14 @@ export const gridCommands: CommandPaletteCommand[] = [
         ['subscribe', 'unsubscribe', 'favorite', 'save album', '收藏', '取消收藏', '订阅'],
         'toggle-subscribe',
         Star,
+    ),
+    // 速记簿（core 的 collect-scope）：网格与 Bravais 的集合页都发布它，范围与「播放全部 / 入队」相同。
+    createGridSurfaceCommand(
+        'grid-collect-filtered',
+        'Add these songs to the scratchpad',
+        'Put this collection (only the filtered songs while filtering) in the scratchpad without touching the queue',
+        ['scratchpad', 'later', 'collect', 'save for later', '速记簿', '稍后再听', '暂存', '收集'],
+        'collect-filtered',
+        NotebookPen,
     ),
 ];

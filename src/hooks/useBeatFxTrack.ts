@@ -2,6 +2,7 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { selectDisplaySong, usePlaybackStore } from '../stores/usePlaybackStore';
 import { useThemeSettingsStore } from '../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
+import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { liveBeatEffects, liveBeatEffectStrength, visualizerWantsBeats, visualizerWantsDrumHits, visualizerWantsStems } from '../components/visualizer/beatClockTargets';
 import { anyDrumBeatEffectOn, beatEffectPartId, resolveBeatEffectPartStrength, resolveBeatEffectSetting, smartBeatMayAnalyse } from '../services/beatFx/beatEffects';
 import { beginBeatFxTrack, getBeatFxHeard, setBeatFxEvents, setBeatFxIntensities, setBeatFxLiveEffects, stopBeatFx } from '../services/beatFx/beatFxLive';
@@ -37,10 +38,12 @@ const RETRY_DELAY_MS = 3000;
 /** Whether the beat clock should be stepped; the caller's frame loop reads it. */
 export function useBeatFxTrack(): boolean {
     const staticMode = useThemeSettingsStore(state => state.staticMode);
-    const beatsWanted = useVisualizerSettingsStore(state => visualizerWantsBeats(state)) && !staticMode;
-    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits(state)) && !staticMode;
+    // A see-through player page draws no background, so the background's effects do not count (beatClockTargets.ts).
+    const pageTransparent = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground || state.enablePlayerPageNativeBlur);
+    const beatsWanted = useVisualizerSettingsStore(state => visualizerWantsBeats({ ...state, pageTransparent })) && !staticMode;
+    const drumsWanted = useVisualizerSettingsStore(state => visualizerWantsDrumHits({ ...state, pageTransparent })) && !staticMode;
     // 雾笺's 疏雨轻车 reads the drum hits and the vocal envelope, which the same separation reads (analysis/vocalEnvelope.ts).
-    const vocalsWanted = useVisualizerSettingsStore(state => visualizerWantsStems(state)) && !staticMode;
+    const vocalsWanted = useVisualizerSettingsStore(state => visualizerWantsStems({ ...state, pageTransparent })) && !staticMode;
     const separationWanted = drumsWanted || vocalsWanted;
     const wanted = beatsWanted || separationWanted;
     // `cached`: read what is stored, never run a model (SmartBeatMode).
@@ -48,10 +51,10 @@ export function useBeatFxTrack(): boolean {
     // Read by the drum hits' retries, which must not restart (and so cancel a separation) when it changes.
     const beatsWantedRef = useRef(beatsWanted);
     beatsWantedRef.current = beatsWanted;
-    const beatStrength = useVisualizerSettingsStore(state => liveBeatEffectStrength(state, 'beats'));
+    const beatStrength = useVisualizerSettingsStore(state => liveBeatEffectStrength({ ...state, pageTransparent }, 'beats'));
     // The live effects and their strengths as one string, so the store's other changes do not re-render;
     // an effect's parts each under their own id (beatEffectPartId) beside it.
-    const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects(state)
+    const liveEffects = useVisualizerSettingsStore(state => liveBeatEffects({ ...state, pageTransparent })
         .flatMap((effect) => {
             const setting = resolveBeatEffectSetting(state.smartBeat, effect.id);
             return [`${effect.id}=${setting.strength}`, ...(effect.parts ?? [])

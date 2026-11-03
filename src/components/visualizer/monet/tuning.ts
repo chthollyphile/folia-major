@@ -1,5 +1,6 @@
 import { DEFAULT_MONET_TUNING, type MonetPortraitSource, type MonetTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, type StoredTuningFields } from '../tuningDefinition';
 import { monetPortraitActions, type MonetPortraitActions } from './portraitUpload';
 
 // src/components/visualizer/monet/tuning.ts
@@ -45,11 +46,22 @@ export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning> & Record<s
         : (DEFAULT_MONET_TUNING.portraitOffsetX ?? 0),
     portraitStyle: parsed.portraitStyle === 'rectangular' ? 'rectangular' : DEFAULT_MONET_TUNING.portraitStyle,
     showPortraitDragHanger: parsed.showPortraitDragHanger ?? DEFAULT_MONET_TUNING.showPortraitDragHanger,
+    // 分辨率覆盖（#929）：旧存档没有这一项就是全跟随全局。
+    render: normalizeLyricRenderOverride(parsed.render),
 });
 
 export default defineVisualizerTuning<MonetTuning>({
     mode: 'monet',
     defaults: DEFAULT_MONET_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        keywordColoringEnabled: MOD_SWITCH,
+        showDescription: MOD_SWITCH,
+        showAudioVisualization: MOD_SWITCH,
+        audioStyle: modChoice(['bar', 'line']),
+        fontScale: modNumber(0.7, 1.5),
+        portraitStyle: modChoice(['square', 'rectangular']),
+    },
     settingsKey: 'monetTuning',
     settingsSetterKey: 'handleSetMonetTuning',
     settingsResetterKey: 'handleResetMonetTuning',

@@ -6,7 +6,9 @@ import {
     ENTER_FX, EXIT_FX, SING_FX, enterPose, exitPose, restPose, scheduleEnter, scheduleExit, singPose, type FxContext,
 } from '@/components/visualizer/hanabi/text/animations';
 import { blockLayoutParams } from '@/components/visualizer/hanabi/text/blocks';
-import { estimateAdvance, isUprightGlyph, type BuildGlyphAtlas } from '@/components/visualizer/hanabi/text/glyphs';
+import {
+    estimateAdvance, isUprightGlyph, resolveGlyphAtlasLimit, setHanabiGlyphTextureLimit, type BuildGlyphAtlas,
+} from '@/components/visualizer/hanabi/text/glyphs';
 import { layoutText, wordScales, type PlacedGlyph, type TextPlacement } from '@/components/visualizer/hanabi/text/layout';
 import { buildHanabiText, lineWords } from '@/components/visualizer/hanabi/text/lyricText';
 import { splitLyricGraphemes } from '@/utils/lyrics/graphemeTiming';
@@ -441,5 +443,36 @@ describe('hanabi lyric text (fake pixi)', () => {
         const a = build(specOf({ enter: 'scramble', layout: 'scatter', block: 'pill' })).text;
         const b = build(specOf({ enter: 'scramble', layout: 'scatter', block: 'pill' })).text;
         for (const time of [9.1, 9.4, 10.3]) expect(a.anchors(time)).toEqual(b.anchors(time));
+    });
+});
+
+describe('hanabi glyph atlas limit (#929)', () => {
+    it('只按用户选的超采样倍数放大 4096，再和 GPU 纹理上限、8192 取小；屏幕密度本身不放大', () => {
+        try {
+            // GPU 还没报上来时按 4096 算，和原来一样。
+            expect(resolveGlyphAtlasLimit(1, undefined, 1)).toBe(4096);
+            expect(resolveGlyphAtlasLimit(2, undefined, 1)).toBe(4096);
+            setHanabiGlyphTextureLimit(16384);
+            // 倍数 1：1 倍屏、2 倍屏都和原来一样是 4096。
+            expect(resolveGlyphAtlasLimit(1, undefined, 1)).toBe(4096);
+            expect(resolveGlyphAtlasLimit(2, undefined, 2)).toBe(4096);
+            // 超采样：渲染倍率 ÷ 花火的像素密度。
+            expect(resolveGlyphAtlasLimit(1.5, undefined, 1)).toBe(6144);
+            expect(resolveGlyphAtlasLimit(2, undefined, 1)).toBe(8192);
+            expect(resolveGlyphAtlasLimit(3, undefined, 2)).toBe(6144);
+            expect(resolveGlyphAtlasLimit(3, undefined, 1)).toBe(8192);
+            // 缩小分辨率时不往下压。
+            expect(resolveGlyphAtlasLimit(0.5, undefined, 1)).toBe(4096);
+            setHanabiGlyphTextureLimit(8192);
+            expect(resolveGlyphAtlasLimit(1.5, undefined, 1)).toBe(6144);
+            // 不像样的上报不认。
+            setHanabiGlyphTextureLimit(Number.NaN);
+            setHanabiGlyphTextureLimit(512);
+            expect(resolveGlyphAtlasLimit(3, undefined, 1)).toBe(8192);
+            // 显式给了 maxCanvasPx 就用它。
+            expect(resolveGlyphAtlasLimit(2, 1024)).toBe(1024);
+        } finally {
+            setHanabiGlyphTextureLimit(4096);
+        }
     });
 });

@@ -60,6 +60,13 @@ describe('the platform column', () => {
         expect(filterRows(rows, '  ')).toHaveLength(3);
         expect(filterRows(rows, 'none')).toEqual([]);
     });
+
+    it('also finds a row by the name shown on screen, which may be a translated one', () => {
+        const rows = [row('alpha'), row('beta', { shortName: '波点', displayName: '波点音乐' })];
+        const shownName = (entry: ProviderAccountSummary) => (entry.providerId === 'beta' ? 'Bodian' : entry.shortName);
+        expect(filterRows(rows, 'bodian', shownName).map(entry => entry.providerId)).toEqual(['beta']);
+        expect(filterRows(rows, 'bodian')).toEqual([]);
+    });
 });
 
 // Rules the old switcher and the old row of badges had tests for; the parts are gone, the rules stay.

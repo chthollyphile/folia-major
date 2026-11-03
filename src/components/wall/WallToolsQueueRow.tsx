@@ -16,21 +16,24 @@ import type { QueueDrag } from './useQueueDragReorder';
 // 放在浮岛外面（理由同 panelTab/QueueTab 的 QueueRow）：切歌、拖拽只改 rowProps 里的数据，行不重挂，悬停中的动作按钮不闪。
 // 拖拽中每一行按 rowProps 的 drag（from / to）自己算让开的位移（queueRowShift），自动滚动中途才挂载的行也对得上；
 // 被拖的那一行留在原位但不显示（由浮岛画的幽灵行代替）。
+// 搜索筛选中（matches 不为 null）第 index 行显示队列里第 matches[index] 首，没有手柄（筛选中不拖拽排序）。
 
-/** 行要调的动作（浮岛给一份身份稳定的对象，行不因为它重渲染）。 */
+/** 行要调的动作（浮岛给一份身份稳定的对象，行不因为它重渲染）。除了 keyDown，参数都是队列下标。 */
 export type QueueIslandRowActions = {
     play: (index: number) => void;
     playNext: (index: number) => void;
     moveToEnd: (index: number) => void;
     remove: (index: number) => void;
-    /** 主按钮上的按键（Enter / Alt+↑↓ / Delete / ↑↓），由浮岛统一处理。 */
-    keyDown: (index: number, event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+    /** 主按钮上的按键（Enter / Alt+↑↓ / Delete / ↑↓），由浮岛统一处理；row 是列表里的位置。 */
+    keyDown: (row: number, event: ReactKeyboardEvent<HTMLButtonElement>) => void;
     /** 手柄上按下指针：交给 useQueueDragReorder。 */
     beginDrag: (index: number, event: ReactPointerEvent<HTMLElement>) => void;
 };
 
 export type QueueIslandRowProps = {
     playQueue: SongResult[];
+    /** 搜索命中的队列下标（列表第 n 行是队列第 matches[n] 首）；不筛选时为 null。 */
+    matches: number[] | null;
     /** 显示歌曲（selectDisplaySong）的 key：画「当前」标记。 */
     currentSongKey: string | null;
     /** 内部 currentSong 的 key（automix 交叉淡入时是淡入的那首，和显示的那首不同）：它也不能移除。 */
@@ -50,10 +53,11 @@ export type QueueIslandRowProps = {
 };
 
 export function WallToolsQueueRow({
-    index,
+    index: row,
     style,
     ariaAttributes,
     playQueue,
+    matches,
     currentSongKey,
     playingSongKey,
     readOnly,
@@ -61,6 +65,7 @@ export function WallToolsQueueRow({
     actions,
     labels,
 }: RowComponentProps<QueueIslandRowProps>): ReactElement | null {
+    const index = matches ? matches[row] ?? -1 : row;
     const song = playQueue[index];
     if (!song) return null;
     const songKey = getPlaybackSongKey(song);
@@ -88,10 +93,11 @@ export function WallToolsQueueRow({
             // 让开的位移叠在 react-window 自己的定位（translateY）后面。
             style={shift ? { ...style, transform: `${style.transform ?? ''} translateY(${shift}px)` } : style}
             className={className}
+            data-queue-row={row}
             data-queue-index={index}
             data-queue-key={songKey}
         >
-            {!readOnly && (
+            {!readOnly && !matches && (
                 <span
                     className="lattice-tools-island-handle"
                     role="presentation"
@@ -106,7 +112,7 @@ export function WallToolsQueueRow({
                 className="lattice-tools-island-song"
                 aria-current={isCurrent ? 'true' : undefined}
                 onClick={() => actions.play(index)}
-                onKeyDown={event => actions.keyDown(index, event)}
+                onKeyDown={event => actions.keyDown(row, event)}
             >
                 <span className="lattice-tools-island-marker" aria-hidden="true" />
                 <span className="lattice-tools-island-text">

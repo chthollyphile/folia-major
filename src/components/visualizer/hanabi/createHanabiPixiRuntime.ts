@@ -1,7 +1,7 @@
 // Copyright (c) 2026 chthollyphile
 import type { MotionValue } from 'framer-motion';
 import type { Container } from 'pixi.js';
-import type { Theme } from '../../../types';
+import type { LyricRenderScale, Theme } from '../../../types';
 import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import {
     getBeatEffectStrength,
@@ -12,6 +12,7 @@ import {
     isBeatFxReady,
 } from '../../../services/beatFx/beatFxLive';
 import { resolveLucideIconNames } from '../../../services/lucideIconResolver';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { beatImpact, downbeatImpact } from '../../../stores/motionSignals';
 import { loadPixi } from '../pixi/loadPixi';
 import { linkPixiPrograms } from '../pixi/pixiProgramLinks';
@@ -24,11 +25,12 @@ import { findHanabiParagraphIndexAtTime, type HanabiProgram } from './hanabiProg
 import { applyHanabiLayerFrame, buildHanabiSceneEntry, destroyHanabiSceneEntry, hanabiSpinDirection, type HanabiSceneEntry } from './hanabiSceneEntry';
 import { resolveHanabiSceneFrames } from './hanabiSceneFrames';
 import { HanabiSkyLayer } from './hanabiSky';
-import { changedHanabiKeys, HANABI_OVERLAY_KEYS, requiresHanabiSceneRebuild } from './hanabiTuning';
+import { changedHanabiKeys, HANABI_OVERLAY_KEYS, requiresHanabiSceneRebuild, resolveHanabiBaseResolution } from './hanabiTuning';
 import { createBloomFilter, type BloomFilter } from '../pixi/bloomFilter';
 import { rescaleBeatEnvelope, resolveHanabiBeatPulse } from './hanabiBeatFx';
 import { resolveHanabiChorusWeight, resolveHanabiScreenBloomStrength } from './hanabiScreenBloom';
 import { createHanabiTextures } from './mg/textures';
+import { setHanabiGlyphTextureLimit } from './text/glyphs';
 import type { HanabiBeatSource } from './scene';
 import { buildHanabiOverlay } from './overlay';
 import type { HanabiTextures, HanabiTuning, PixiModule } from './types';
@@ -41,6 +43,8 @@ import type { HanabiTextures, HanabiTuning, PixiModule } from './types';
 // 智能动感模式（hanabiBeatFx.ts）：节拍表装好、效果开着时，「随拍开花」把节拍表交给在画的场景，「随拍推镜」把拍的包络
 // 套在整个场景层上（以画面中心推近、左右轻摆）。静态模式下两个都不放。
 // 全屏辉光（hanabiScreenBloom.ts）：整体辉光 + 副歌辉光 × 副歌权重，挂在场景层上（夜空底与片尾卡不进），强度为 0 时摘掉。
+// 分辨率与抗锯齿（#929）：外壳把合出来的倍数与抗锯齿传进来；倍数就地改（同窗口缩放：渲染器立刻跟上，场景防抖重建），
+// 抗锯齿只能建上下文时定，变了由外壳重建运行时。
 
 /** 一首歌的全部输入；seed 变了才是真正的换歌。 */
 export interface HanabiSongContext {
@@ -58,6 +62,10 @@ export interface HanabiRuntimeOptions {
     showText: boolean;
     paused: boolean;
     metadata: HanabiCreditsMetadata;
+    /** 分辨率倍数（乘在 resolveBaseResolution 上）；预览传 1。 */
+    renderScale: LyricRenderScale;
+    /** MSAA：建上下文时定，原来写死关着。 */
+    antialias: boolean;
     signal?: AbortSignal;
 }
 
@@ -65,13 +73,14 @@ export interface HanabiRuntimeOptions {
 const REBUILD_DEBOUNCE_MS = 220;
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 240;
-/** 渲染倍率上限：烟花是成千上万的小精灵，3 倍屏上满分辨率只换来更贵的填充。 */
-const MAX_RESOLUTION = 2;
 /** 夜空不透明度到这里以上，配色按深色底算（纸白字、亮色描边）。 */
 const DARK_SKY = 0.5;
 const NIGHT_BACKGROUND = '#0b0d24';
 
-const resolveRenderResolution = (devicePixelRatio: number) => Math.min(MAX_RESOLUTION, Math.max(1, devicePixelRatio || 1));
+/** 实际的渲染倍率：花火自己的像素密度（resolveHanabiBaseResolution）乘上用户选的分辨率倍数（>1 时封顶 3，见 utils/lyricRenderQuality.ts）。 */
+const resolveRenderResolution = (devicePixelRatio: number, scale: LyricRenderScale) => (
+    resolveLyricPixelRatio(resolveHanabiBaseResolution(devicePixelRatio), scale)
+);
 
 export class HanabiPixiRuntime {
     private readonly sceneCache = new PixiSceneCache<HanabiSceneEntry>({
@@ -130,14 +139,14 @@ export class HanabiPixiRuntime {
         const contextOptions = {
             // 画布透明：夜空不透明度小于 1 时 folia 的共享背景要透出来。
             backgroundAlpha: 0,
-            antialias: false,
+            antialias: options.antialias,
             powerPreference: 'high-performance',
         } as const;
         const context = await makePixiContext(pixi, contextOptions, options.signal);
         const app = new pixi.Application();
         const width = Math.max(options.host.clientWidth, MIN_WIDTH);
         const height = Math.max(options.host.clientHeight, MIN_HEIGHT);
-        const resolution = resolveRenderResolution(window.devicePixelRatio);
+        const resolution = resolveRenderResolution(window.devicePixelRatio, options.renderScale);
         await app.init({
             width,
             height,
@@ -153,6 +162,9 @@ export class HanabiPixiRuntime {
             app.destroy({ removeView: true });
             throw new Error('Hanabi requires WebGL');
         }
+        // 字形图集按物理像素封顶时要知道 GPU 单张纹理能多大。
+        const gl = (app.renderer as { gl?: WebGLRenderingContext | WebGL2RenderingContext }).gl;
+        if (gl) setHanabiGlyphTextureLimit(gl.getParameter(gl.MAX_TEXTURE_SIZE) as number);
         const runtime = new HanabiPixiRuntime(pixi, options, app);
         runtime.renderResolution = resolution;
         runtime.sky = new HanabiSkyLayer(pixi);
@@ -200,7 +212,7 @@ export class HanabiPixiRuntime {
         if (this.destroyed) return false;
         const width = Math.max(this.options.host.clientWidth, MIN_WIDTH);
         const height = Math.max(this.options.host.clientHeight, MIN_HEIGHT);
-        const resolution = resolveRenderResolution(window.devicePixelRatio);
+        const resolution = resolveRenderResolution(window.devicePixelRatio, this.options.renderScale);
         if (width === this.width && height === this.height && resolution === this.renderResolution) return false;
         this.width = width;
         this.height = height;
@@ -513,6 +525,15 @@ export class HanabiPixiRuntime {
         if (changedHanabiKeys(previous, tuning, HANABI_OVERLAY_KEYS) || darkChanged) this.drawOverlay();
         if (requiresHanabiSceneRebuild(previous, tuning) || darkChanged) this.scheduleRebuild();
         if (this.options.paused) this.renderOnce();
+    }
+
+    /** 就地换分辨率倍数：同窗口缩放，渲染器立刻跟上，场景（字形图集、粒子纹理按分辨率画）防抖重建。 */
+    setRenderScale(scale: LyricRenderScale) {
+        if (this.destroyed || scale === this.options.renderScale) return;
+        this.options.renderScale = scale;
+        // 还没装好（第一帧前）时 install 里的 resizeToHost 会按新倍数来。
+        if (this.width === 0) return;
+        if (this.resizeToHost(false) && this.options.paused) this.renderOnce();
     }
 
     setShowText(showText: boolean) {

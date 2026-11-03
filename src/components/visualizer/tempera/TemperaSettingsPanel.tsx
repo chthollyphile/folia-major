@@ -3,13 +3,17 @@ import { DEFAULT_TEMPERA_TUNING, type TemperaColorMode, type TemperaTuning } fro
 import { Group, PictureGrid, Reveal, Row, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import TemperaImageLayerControls from './TemperaImageLayerControls';
 import { resolveTemperaPalette } from './temperaPalette';
 
 // src/components/visualizer/tempera/TemperaSettingsPanel.tsx
-// Keeps Tempera's tuning controls adjacent to the mode implementation: six groups of the settings kit.
+// Keeps Tempera's tuning controls adjacent to the mode implementation: seven groups of the settings kit
+// (渲染一组是分辨率 / 抗锯齿，#929).
 const IMAGE_GROUP: SettingsGroupDef = { id: 'vis-tempera-image', titleKey: 'options.temperaImageSection' };
 const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-tempera-quality', titleKey: 'options.temperaQualitySection' };
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「性能与动效」的全局挡位（#929）。 */
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-tempera-render', titleKey: 'options.lyricRenderSection' };
 const MOTION_GROUP: SettingsGroupDef = { id: 'vis-tempera-motion', titleKey: 'options.temperaMotionSection' };
 const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-tempera-post-process', titleKey: 'options.temperaPostProcessSection' };
 const LYRIC_GROUP: SettingsGroupDef = { id: 'vis-tempera-lyric', titleKey: 'options.temperaLyricSection' };
@@ -107,6 +111,13 @@ const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps<TemperaTuning>
                     onChange={textureResolution => onTemperaTuningChange?.({ textureResolution })}
                 />
                 <Row notice={t('options.temperaTexturePerformanceWarning')} />
+            </Group>
+
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={temperaTuning.render}
+                    onChange={patch => onTemperaTuningChange?.({ render: { ...temperaTuning.render, ...patch } })}
+                />
             </Group>
 
             <Group def={MOTION_GROUP}>

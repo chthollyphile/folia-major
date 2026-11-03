@@ -68,13 +68,18 @@ export type MachiRenderScale = typeof MACHI_RENDER_SCALES[number];
 export const MACHI_ANTIALIAS_MODES = ['off', 'fxaa', 'smaa', 'ssaa'] as const;
 export type MachiAntialias = typeof MACHI_ANTIALIAS_MODES[number];
 
+/** 分辨率、抗锯齿两项的「跟随全局」：用「性能与动效」里歌词画布的全局挡位（utils/lyricRenderQuality.ts）。 */
+export const MACHI_FOLLOW_GLOBAL = 'global';
+
 /** 阴影、倒影的档：关、低、高。 */
 export const MACHI_DETAIL_LEVELS = ['off', 'low', 'high'] as const;
 export type MachiDetailLevel = typeof MACHI_DETAIL_LEVELS[number];
 
 export interface MachiQuality {
-    renderScale: MachiRenderScale;
-    antialias: MachiAntialias;
+    /** global：全局挡位的倍数（大于 1 时按超采样画）。 */
+    renderScale: MachiRenderScale | typeof MACHI_FOLLOW_GLOBAL;
+    /** global：全局挡位的抗锯齿开就是 SMAA（町景原来的默认），关就是关。 */
+    antialias: MachiAntialias | typeof MACHI_FOLLOW_GLOBAL;
     /** 月光 / 太阳的阴影图：关、1024、2048。 */
     shadows: MachiDetailLevel;
     /** 湿路面的倒影贴图：关、0.3、0.5 倍分辨率。 */
@@ -83,19 +88,29 @@ export interface MachiQuality {
     glow: boolean;
     /** 帧时长期偏高时在这套设置之下逐步降低（不会高过这套设置）。 */
     adaptive: boolean;
+    /**
+     * 存档的版本。没有它的是有「跟随全局」之前存的：那时分辨率 100%、SMAA 就是默认值（没人动过也会存下来），
+     * 读的时候换成跟随全局（normalizeMachiQuality），之后存的都带着它。
+     */
+    revision?: typeof MACHI_QUALITY_REVISION;
 }
+
+export const MACHI_QUALITY_REVISION = 2;
 
 export const MACHI_QUALITY_PRESET_IDS = ['high', 'balanced', 'low'] as const;
 export type MachiQualityPresetId = typeof MACHI_QUALITY_PRESET_IDS[number];
 
-/** 面板上的三档：每档是一套细项（自动降级不归预设管）。 */
+/**
+ * 面板上的三档：每档是一套细项（自动降级不归预设管）。高档的分辨率和抗锯齿跟随全局：全局挡位是默认值时就是 1 倍 + SMAA
+ * （MSAA×4 加 SMAA，高 DPI 屏最多按 2 倍算），和原来的高档一样。
+ */
 export const MACHI_QUALITY_PRESETS: Record<MachiQualityPresetId, Omit<MachiQuality, 'adaptive'>> = {
-    high: { renderScale: 1, antialias: 'smaa', shadows: 'high', reflections: 'high', glow: true },
-    balanced: { renderScale: 1, antialias: 'fxaa', shadows: 'low', reflections: 'low', glow: true },
+    high: { renderScale: MACHI_FOLLOW_GLOBAL, antialias: MACHI_FOLLOW_GLOBAL, shadows: 'high', reflections: 'high', glow: true },
+    balanced: { renderScale: MACHI_FOLLOW_GLOBAL, antialias: 'fxaa', shadows: 'low', reflections: 'low', glow: true },
     low: { renderScale: 0.75, antialias: 'off', shadows: 'off', reflections: 'off', glow: false },
 };
 
-export const DEFAULT_MACHI_QUALITY: MachiQuality = { ...MACHI_QUALITY_PRESETS.high, adaptive: true };
+export const DEFAULT_MACHI_QUALITY: MachiQuality = { ...MACHI_QUALITY_PRESETS.high, adaptive: true, revision: MACHI_QUALITY_REVISION };
 
 export interface MachiTuning {
     scene: 'auto' | MachiSceneId;

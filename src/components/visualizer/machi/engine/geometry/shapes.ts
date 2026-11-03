@@ -208,6 +208,8 @@ export const bakeStatic = (root: THREE.Object3D) => {
             result.castShadow = bucket.cast;
             result.receiveShadow = bucket.receive;
             result.layers.mask = bucket.layers;
+            // 几何已经烘在 Group 的局部坐标里，自己的变换永远是单位阵：不用每帧重算。
+            result.matrixAutoUpdate = false;
             top.add(result);
         });
         removals.forEach(object => {

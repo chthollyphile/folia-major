@@ -22,13 +22,13 @@ export class NebbiaDrizzleRide {
 
     /**
      * 开一帧的玻璃运动并读这一帧的效果：这首有鼓点就由底鼓颠（没鼓、没分析完的照旧随机颠），强度乘颠簸幅度
-     * `bump`；`env`、`rain` 随后读。
+     * `bump`；`env`、`rain` 随后读。`bumps` 为 false（水族箱里车不颠）时只读雨点那份。
      */
-    step(motion: NebbiaGlassMotion, now: number, T: number, frozen: boolean, bump: number) {
+    step(motion: NebbiaGlassMotion, now: number, T: number, frozen: boolean, bump: number, bumps = true) {
         const on = isBeatEffectPlaying(DRIZZLE_RIDE);
         const key = on ? getBeatFxHeard().key : null;
-        const drums = on ? getDrumHits(key) : null;
-        motion.beginFrame(now, frozen, !drums);
+        const drums = on && bumps ? getDrumHits(key) : null;
+        motion.beginFrame(now, frozen, bumps && !drums);
         if (drums && !frozen) {
             const jolt = this.drumBumps.step(drums, key, T);
             const strength = getBeatEffectStrength(DRIZZLE_RIDE_BUMP);

@@ -25,6 +25,9 @@ export const PLAYER_PAGE_GEOMETRY = {
     track: { right: 0.03, bottom: 0.065, width: 0.116, aspect: 0.5 },
     /** 手柄上方展开的控制面板。 */
     panel: { right: 0.03, bottom: 0.225, width: 0.25, height: 0.60 },
-    /** 命令窗口：水平居中，顶在 18vh 上。 */
-    palette: { left: 0.19, right: 0.19, top: 0.14, height: 0.46 },
+    /**
+     * 命令窗口：播放页上有歌时控制条在，窗口从控制条原地往上长 —— 下沿和控制条齐平，
+     * 正好盖住它（真实的控制条这时会让出来）。
+     */
+    palette: { left: 0.19, right: 0.19, bottom: 0.06, height: 0.5 },
 } satisfies Record<string, PonderRelativeRect>;

@@ -373,7 +373,7 @@ describe('player.layout declaration without a standalone experimental service', 
         for (const experimental of [[], ['player.layout']]) {
             const descriptor = mod({ experimental });
             const api = createFoliumClientApi(descriptor, clientApiOptions('main', { experimental: createFoliumExperimental(descriptor) }));
-            expect(api.host.folium).toEqual({ major: 1, minor: 7 });
+            expect(api.host.folium).toEqual({ major: 1, minor: 8 });
             expect(() => api.experimental['player.layout']).toThrow(
                 experimental.length ? 'experimental-unknown:player.layout' : 'experimental-not-declared:player.layout',
             );

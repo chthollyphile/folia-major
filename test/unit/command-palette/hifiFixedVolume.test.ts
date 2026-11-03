@@ -64,6 +64,7 @@ const surfaceProps = (context: CommandPaletteContext) => volumeSurface.mapProps!
     isVolumeFixed: boolean;
     onVolumeChange: (volume: number) => void;
     onVolumePreview: (volume: number) => void;
+    onToggleMute: () => void;
 };
 
 beforeEach(() => {
@@ -138,6 +139,13 @@ describe('the volume surface', () => {
         expect(playback.previewVolume).toHaveBeenCalledWith(0.3);
         expect(playback.setVolume).toHaveBeenCalledWith(0.3);
     });
+
+    it('its icon toggles mute, on fixed-volume HiFi too', () => {
+        const { playback, shared, context } = contextFor();
+        surfaceProps(context).onToggleMute();
+        expect(playback.toggleMute).toHaveBeenCalledOnce();
+        expect(shared.setStatusMsg).not.toHaveBeenCalled();
+    });
 });
 
 describe('the volume control the surface draws', () => {
@@ -153,10 +161,10 @@ describe('the volume control the surface draws', () => {
         root = null;
     });
     // The query starts as the volume in percent, as the command's initial input gives it.
-    const render = (isVolumeFixed: boolean, isMuted = false) => {
+    const render = (isVolumeFixed: boolean, isMuted = false, onToggleMute = vi.fn()) => {
         act(() => root!.render(React.createElement(CommandPaletteVolumeControl, {
             isDaylight: false, isMuted, isVolumeFixed, query: '30', theme: { accentColor: '#fff', primaryColor: '#fff' } as never,
-            volume: 0.3, onQueryChange: vi.fn(), onVolumeChange: vi.fn(), onVolumePreview: vi.fn(),
+            volume: 0.3, onQueryChange: vi.fn(), onVolumeChange: vi.fn(), onVolumePreview: vi.fn(), onToggleMute,
         })));
         return host.querySelector('input[type="range"]') as HTMLInputElement;
     };
@@ -178,5 +186,18 @@ describe('the volume control the surface draws', () => {
         expect(slider.disabled).toBe(false);
         expect(host.textContent).toContain('commandPalette.volumeControlHint');
         expect(host.textContent).toContain('30%');
+    });
+
+    it('toggles mute when the icon is clicked, and names what a click will do', () => {
+        const onToggleMute = vi.fn();
+        render(true, false, onToggleMute);
+        const icon = host.querySelector('button[aria-pressed]') as HTMLButtonElement;
+        expect(icon.getAttribute('aria-label')).toBe('commandPalette.volumeMute');
+        act(() => icon.click());
+        expect(onToggleMute).toHaveBeenCalledOnce();
+
+        render(false, true, onToggleMute);
+        expect(icon.getAttribute('aria-label')).toBe('commandPalette.volumeUnmute');
+        expect(icon.getAttribute('aria-pressed')).toBe('true');
     });
 });

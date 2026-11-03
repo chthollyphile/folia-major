@@ -3,10 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_CADENZA_TUNING, Line } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { colorWithAlpha, mixColors } from '../colorMix';
 import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
 import type {
@@ -74,8 +76,16 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
         subtitleOverlayLayout,
+        isPreviewMode = false,
     } = props;
     const { t } = useTranslation();
+    // 文字画布的分辨率倍数（#929）：全局挡位叠上这个样式的覆盖，预览不跟。经 ref 交给绘制循环，
+    // 每帧照原样按设备像素比算尺寸，倍数变了下一帧就地改画布尺寸，不重启循环。
+    const renderQuality = useLyricRenderQuality(cadenzaTuning.render);
+    const renderScaleRef = useRef(isPreviewMode ? 1 : renderQuality.scale);
+    useEffect(() => {
+        renderScaleRef.current = isPreviewMode ? 1 : renderQuality.scale;
+    }, [isPreviewMode, renderQuality.scale]);
     const [viewport, setViewport] = useState({ width: 0, height: 0 });
     const containerRef = useRef<HTMLDivElement>(null);
     const lineLayerRef = useRef<HTMLDivElement>(null);
@@ -253,7 +263,7 @@ const VisualizerCadenza: React.FC<VisualizerProps> = (props) => {
             lastFrameTimeRef.current = now;
             const width = Math.max(Math.floor(viewport.width), 1);
             const height = Math.max(Math.floor(viewport.height), 1);
-            const dpr = window.devicePixelRatio || 1;
+            const dpr = resolveLyricPixelRatio(window.devicePixelRatio || 1, renderScaleRef.current);
 
             if (textCanvas.width !== Math.floor(width * dpr) || textCanvas.height !== Math.floor(height * dpr)) {
                 textCanvas.width = Math.floor(width * dpr);

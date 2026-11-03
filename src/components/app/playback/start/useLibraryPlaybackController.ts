@@ -56,7 +56,7 @@ import { getLocalLibraryCatalogSnapshot } from '../../../../services/localLibrar
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, setPlayerState, setPlayQueue, startLoadingToPlay } from '../../../../stores/usePlaybackStore';
-import { askedSongKeyRef, askForSong, playsDroppedSoFar, replaceShownSong, showSong, startPlay } from '../currentSong';
+import { askedSongKeyRef, askForSong, keepSongsOfProvidersStanding, playsDroppedSoFar, providerDropsSoFar, replaceShownSong, showSong, startPlay } from '../currentSong';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio } from '../source/songAudioSource';
 import { beginHifiTrack, hifiRouteFor } from '../../../../services/hifi/hifiPlayback';
 import { supplyLyricsAfterEmptyLoad } from '../createLyricsSetter';
@@ -148,9 +148,16 @@ const settlePlayerStateForStart = (autoplay: boolean) => {
 
 /*
  * The queue a library play lands in. Rewritten meanwhile: the store's queue as it is now, with the song
- * swapped in only where it holds it (`write` null: nothing to write). Otherwise the play's own.
+ * swapped in only where it holds it (`write` null: nothing to write). Otherwise the play's own, without
+ * the songs of a platform signed out of since the play started (`providerDropsAtStart`).
  */
-const landingQueue = (rewritten: boolean, own: SongResult[], song: SongResult): { write: SongResult[] | null; queue: SongResult[] } => {
+const landingQueue = (
+    rewritten: boolean,
+    givenQueue: SongResult[],
+    song: SongResult,
+    providerDropsAtStart: number,
+): { write: SongResult[] | null; queue: SongResult[] } => {
+    const own = keepSongsOfProvidersStanding(givenQueue, providerDropsAtStart);
     if (!rewritten) return { write: own, queue: own };
     const live = usePlaybackStore.getState().playQueue;
     const swapped = replacePlaybackSongWhereQueued(live, song);
@@ -175,6 +182,19 @@ type UseLibraryPlaybackControllerParams = {
     currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
     pendingResumeTimeRef: MutableRefObject<number | null>;
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;
+};
+
+// Navidrome ids of the picked songs; throws unless every one is a Navidrome song and a server is set.
+const resolveNavidromeSongIds = (songs: SongResult[]) => {
+    const ids = songs.map(song => (isNavidromePlaybackSong(song) ? resolveNavidromePlaybackCarrier(song)?.navidromeData?.id : undefined));
+    if (ids.length === 0 || ids.some(id => !id)) {
+        throw new Error('Picked songs are not all Navidrome songs');
+    }
+    const config = getNavidromeConfig();
+    if (!config) {
+        throw new Error('Navidrome is not configured');
+    }
+    return { config, ids: ids as string[] };
 };
 
 // Owns local and Navidrome playback helpers so App.tsx can stay focused on assembly.
@@ -420,37 +440,38 @@ export function useLibraryPlaybackController({
         await loadLocalPlaylists();
     }, [loadLocalPlaylists, playQueue, resolveLocalSongRecord]);
 
-    // In the six below `song` is the one the picker shows, which during a blend is not the store's
-    // current song.
-    const addCurrentSongToLocalPlaylist = useCallback(async (playlistId: string, song: SongResult) => {
-        const localSong = resolveLocalSongRecord(song);
-        if (!isLocalPlaybackSong(song) || !localSong) {
-            throw new Error('Current song is not local');
+    // The six below take the songs the picker was asked for: the shown song (which during a blend is
+    // not the store's current song), or a group of the scratchpad's. They are all of one source.
+    const addPickedSongsToLocalPlaylist = useCallback(async (playlistId: string, songs: SongResult[]) => {
+        const localSongs = songs.map(song => (isLocalPlaybackSong(song) ? resolveLocalSongRecord(song) : null));
+        if (localSongs.length === 0 || localSongs.some(song => !song)) {
+            throw new Error('Picked songs are not all local');
         }
 
-        await addSongsToLocalPlaylist(playlistId, [localSong]);
+        await addSongsToLocalPlaylist(playlistId, localSongs as LocalSong[]);
         await loadLocalPlaylists();
     }, [loadLocalPlaylists, resolveLocalSongRecord]);
 
-    const createCurrentLocalPlaylist = useCallback(async (name: string, song: SongResult) => {
+    const createLocalPlaylistWithSongs = useCallback(async (name: string, songs: SongResult[]) => {
         const trimmedName = name.trim();
         if (!trimmedName) {
             throw new Error('Playlist name is empty');
         }
 
-        const localSong = resolveLocalSongRecord(song);
-        if (!isLocalPlaybackSong(song) || !localSong) {
-            throw new Error('Current song is not local');
+        const localSongs = songs.map(song => (isLocalPlaybackSong(song) ? resolveLocalSongRecord(song) : null));
+        if (localSongs.length === 0 || localSongs.some(song => !song)) {
+            throw new Error('Picked songs are not all local');
         }
 
-        await createLocalPlaylist(trimmedName, [localSong]);
+        await createLocalPlaylist(trimmedName, localSongs as LocalSong[]);
         await loadLocalPlaylists();
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [loadLocalPlaylists, resolveLocalSongRecord, setStatusMsg, t]);
 
-    const addCurrentSongToOnlinePlaylist = useCallback(async (playlist: ProviderCollection, song: SongResult) => {
-        if (!omni.canAddSongToPlaylist(song)) {
-            const source = getPlaybackSourceRef(song);
+    const addPickedSongsToOnlinePlaylist = useCallback(async (playlist: ProviderCollection, songs: SongResult[]) => {
+        const refused = songs.find(song => !omni.canAddSongToPlaylist(song));
+        if (refused) {
+            const source = getPlaybackSourceRef(refused);
             const provider = source.kind === 'online' ? omni.getProviderLabel(source.providerId) : '';
             setStatusMsg({
                 type: 'info',
@@ -458,51 +479,44 @@ export function useLibraryPlaybackController({
             });
             return;
         }
-        await omni.addSongToPlaylist(song, playlist);
-        await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_tracks_${playlist.id}`));
-        await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_detail_${playlist.id}`));
+        try {
+            await omni.addSongsToPlaylist(songs, playlist);
+        } finally {
+            // A long add can stop after some batches went in: the cached list is stale either way.
+            await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_tracks_${playlist.id}`));
+            await removeFromCache(getProviderCacheKey(playlist.providerId, `playlist_detail_${playlist.id}`));
+        }
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [setStatusMsg, t]);
 
-    const createCurrentOnlinePlaylist = useCallback(async (name: string, song: SongResult) => {
+    const createOnlinePlaylistWithSongs = useCallback(async (name: string, songs: SongResult[]) => {
         const trimmedName = name.trim();
         if (!trimmedName) {
             throw new Error('Playlist name is empty');
         }
 
-        await omni.createPlaylistWithSong(song, trimmedName);
+        await omni.createPlaylistWithSongs(songs, trimmedName);
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [setStatusMsg, t]);
 
-    const addCurrentSongToNavidromePlaylist = useCallback(async (playlistId: string, song: SongResult) => {
-        if (!isNavidromePlaybackSong(song)) {
-            throw new Error('Current song is not a Navidrome song');
-        }
-
-        const config = getNavidromeConfig();
-        const navidromeSong = resolveNavidromePlaybackCarrier(song);
-        if (!config || !navidromeSong?.navidromeData?.id) {
-            throw new Error('Navidrome is not configured');
-        }
-
-        await navidromeApi.updatePlaylist(config, playlistId, {
-            songIdsToAdd: [navidromeSong.navidromeData.id],
+    const addPickedSongsToNavidromePlaylist = useCallback(async (playlistId: string, songs: SongResult[]) => {
+        const { config, ids } = resolveNavidromeSongIds(songs);
+        // The API answers false rather than throwing; the picker reports a throw.
+        const updated = await navidromeApi.updatePlaylist(config, playlistId, {
+            songIdsToAdd: ids,
         });
+        if (!updated) {
+            throw new Error('Navidrome did not update the playlist');
+        }
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [setStatusMsg, t]);
 
-    const createCurrentNavidromePlaylist = useCallback(async (name: string, song: SongResult) => {
-        if (!isNavidromePlaybackSong(song)) {
-            throw new Error('Current song is not a Navidrome song');
+    const createNavidromePlaylistWithSongs = useCallback(async (name: string, songs: SongResult[]) => {
+        const { config, ids } = resolveNavidromeSongIds(songs);
+        const created = await navidromeApi.createPlaylist(config, name, ids);
+        if (!created) {
+            throw new Error('Navidrome did not create the playlist');
         }
-
-        const config = getNavidromeConfig();
-        const navidromeSong = resolveNavidromePlaybackCarrier(song);
-        if (!config || !navidromeSong?.navidromeData?.id) {
-            throw new Error('Navidrome is not configured');
-        }
-
-        await navidromeApi.createPlaylist(config, name, [navidromeSong.navidromeData.id]);
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [setStatusMsg, t]);
 
@@ -692,6 +706,7 @@ export function useLibraryPlaybackController({
 
     const onPlayLocalSong = useCallback(async (localSong: LocalSong, queue: LocalSong[] = [], options: PlaybackNavigationOptions = {}) => {
         const stillWanted = startPlay();
+        const providerDropsAtStart = providerDropsSoFar();
         const queueRewritten = queueRewrittenFor(options);
         const start = playStartOf(options);
         interruptStagePlaybackForMainTransition();
@@ -778,7 +793,7 @@ export function useLibraryPlaybackController({
             ? replacePlaybackSongInQueue(options.unifiedQueue, initialMeta.unifiedSong)
             : queue.length > 0
                 ? buildLocalQueue(queue, initialMeta.unifiedSong, initialMeta.catalog)
-                : [initialMeta.unifiedSong], initialMeta.unifiedSong);
+                : [initialMeta.unifiedSong], initialMeta.unifiedSong, providerDropsAtStart);
         const finalQueue = landed.queue;
         if (landed.write) setPlayQueue(landed.write);
         void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
@@ -885,6 +900,7 @@ export function useLibraryPlaybackController({
         options: PlaybackNavigationOptions = {},
     ) => {
         const stillWanted = startPlay();
+        const providerDropsAtStart = providerDropsSoFar();
         const queueRewritten = queueRewrittenFor(options);
         const start = playStartOf(options);
         interruptStagePlaybackForMainTransition();
@@ -1113,7 +1129,7 @@ export function useLibraryPlaybackController({
                 ? replacePlaybackSongInQueue(options.unifiedQueue, unifiedSong)
                 : queue.length > 0
                     ? buildNavidromeQueue(queue, unifiedSong)
-                    : [unifiedSong], unifiedSong);
+                    : [unifiedSong], unifiedSong, providerDropsAtStart);
             const finalQueue = landed.queue;
             if (landed.write) setPlayQueue(landed.write);
             void persistLastPlaybackCache(unifiedSong, finalQueue);
@@ -1794,12 +1810,12 @@ export function useLibraryPlaybackController({
         getFavoriteLocalPlaylist,
         isLocalSongLiked,
         saveCurrentQueueAsLocalPlaylist,
-        addCurrentSongToLocalPlaylist,
-        createCurrentLocalPlaylist,
-        addCurrentSongToOnlinePlaylist,
-        createCurrentOnlinePlaylist,
-        addCurrentSongToNavidromePlaylist,
-        createCurrentNavidromePlaylist,
+        addPickedSongsToLocalPlaylist,
+        createLocalPlaylistWithSongs,
+        addPickedSongsToOnlinePlaylist,
+        createOnlinePlaylistWithSongs,
+        addPickedSongsToNavidromePlaylist,
+        createNavidromePlaylistWithSongs,
         resolveLocalMetadataUI,
         loadCurrentSongLyricPreview,
         handleLocalQueueAdd,

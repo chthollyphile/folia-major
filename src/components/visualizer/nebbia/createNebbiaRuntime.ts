@@ -1,4 +1,5 @@
-import type { Theme } from '../../../types';
+import type { LyricRenderScale, Theme } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { loadLucideIcons, resolveLucideIconNames } from '../../../services/lucideIconResolver';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import { buildNebbiaLines, collectEmojiIcons, NEBBIA_DEFAULT_DOODLES } from './nebbiaChars';
@@ -19,11 +20,22 @@ import type { VocalEnvelope } from '../../../services/analysis/vocalEnvelope';
 import { NebbiaDrizzleRide } from './nebbiaDrizzleRide';
 import { nebbiaFrameUniforms } from './nebbiaFrameUniforms';
 import { NebbiaSceneClock } from './nebbiaSceneClock';
+import { NebbiaCondensation } from './nebbiaCondensation';
+import { NebbiaSnow } from './nebbiaSnow';
+import { NebbiaAquarium, type NebbiaAquaBeats } from './nebbiaAquarium';
+import { BEAT_EFFECT_IDS, beatEffectPartId } from '../../../services/beatFx/beatEffects';
+import { getBeatEffectStrength, getBeatFxEvents, getBeatFxHeard, isBeatEffectPlaying, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
+
+const AQUA_BEAT = BEAT_EFFECT_IDS.nebbiaAquaBeat;
+const AQUA_JELLY = beatEffectPartId(AQUA_BEAT, 'jelly'), AQUA_WEED = beatEffectPartId(AQUA_BEAT, 'weed'), AQUA_BUBBLE = beatEffectPartId(AQUA_BEAT, 'bubble');
+const AQUA_SPOT = beatEffectPartId(AQUA_BEAT, 'spot');
 
 // src/components/visualizer/nebbia/createNebbiaRuntime.ts
 // 雾笺的运行时：一块画布、一个 WebGL2 上下文，自己的 rAF 循环。React 外壳把歌、tuning、主题、暂停推进来，
 // 每帧的播放时间和人声能量只在循环里读，不进 React state。暂停时不跑循环，只在需要时补画一帧；
 // 静态模式照常跟着歌词写字，窗外按车速匀速走，但不颠簸、没有小雨点。着色器在后台编（nebbiaPrograms.ts），编好之前循环空转、不画。
+// 窗外是水族箱时每帧推着水母、跟拍的水草和大泡走（nebbiaAquarium.ts），智能动感模式的「舞潮踏拍」开着就跟拍；
+// 水族箱里没有雨打窗、车也不颠（疏雨轻车不算）。玻璃是雪窗时雪花和雪化成的水归 nebbiaSnow.ts，写字的手指经过时把雪抹开。
 
 // 改了要重排整首的 tuning 项
 const LAYOUT_KEYS: (keyof NebbiaTuning)[] = ['appear', 'fade', 'layouts', 'credits', 'jitter', 'warp', 'hold', 'refog', 'writeSpeed', 'doodle'];
@@ -38,6 +50,10 @@ export class NebbiaRuntime {
     private readonly spot = new NebbiaSpot();
     private readonly energy = new VocalEnergy();
     private readonly fieldInst: number[] = [];
+    /** 玻璃是凝露时雾上的细小冷凝水珠（代替 motion 的凝结水珠）；雨窗时 null。 */
+    private readonly condensation: NebbiaCondensation | null;
+    /** 玻璃是雪窗时玻璃上的雪和雪化成的水（代替 motion 的凝结水珠）；别的玻璃 null。 */
+    private readonly snow: NebbiaSnow | null = null;
     private readonly observer: ResizeObserver | null = null;
     private readonly glyphs: NebbiaGlyphCache;
     private hits = new NebbiaHits(0);
@@ -47,10 +63,16 @@ export class NebbiaRuntime {
     private vocalEnv: VocalEnvelope | null = null;
     private readonly drizzleRide = new NebbiaDrizzleRide();
     private readonly clock = new NebbiaSceneClock();
+    /** 窗外是水族箱时的水母；街景时 null。 */
+    private readonly aquarium: NebbiaAquarium | null;
+    /** aquaBeats() 每帧改写的那一份。 */
+    private readonly aquaBeatsOut: NebbiaAquaBeats = { events: [], heard: 0, jelly: 0, weed: 0, bubble: 0, spot: 0 };
     private song: NebbiaSong = { lines: [], seed: 'nebbia' };
     private theme: Theme;
     private tuning: NebbiaTuning;
     private fontScale = 1;
+    /** 分辨率倍数（#929）：外壳从全局挡位和 tuning.render 合出来，预览时是 1。 */
+    private renderScale: LyricRenderScale;
     private showText = true;
     private paused = false;
     private still = false;
@@ -65,17 +87,28 @@ export class NebbiaRuntime {
     private readonly startedAt = performance.now();
     private shadersLogged = false;
 
-    constructor(private readonly input: NebbiaRuntimeInput, theme: Theme, tuning: NebbiaTuning) {
+    constructor(private readonly input: NebbiaRuntimeInput, theme: Theme, tuning: NebbiaTuning, renderScale: LyricRenderScale = 1) {
         this.theme = theme;
         this.tuning = tuning;
+        this.renderScale = renderScale;
+        this.aquarium = input.scene === 'aquarium' ? new NebbiaAquarium() : null;
+        this.condensation = input.glass === 'dew' ? new NebbiaCondensation() : null;
+        // 雪窗、凝露要知道歌词的水在哪（扫过的、写好的笔画），和玻璃上的雪、小水珠联动
+        if (input.glass !== 'rain') { this.mask.sweeps = []; this.mask.wet = []; }
+        // 雪窗：写字留下的水珠也会结冰（nebbiaInkIce.ts）
+        if (input.glass === 'snow') this.mask.ice = [];
         // setTuning 只在 tuning 变了才调：上下文恢复后重建的运行时要自己带上颠簸强度
         this.motion.bump = tuning.bump;
         this.canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block';
         this.glyphs = new NebbiaGlyphCache(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 600));
         input.host.appendChild(this.canvas);
         try {
-            this.gl = new NebbiaGl(this.canvas);
+            this.gl = new NebbiaGl(this.canvas, input.seeThrough, input.scene, input.glass);
             this.gl.onSpriteReady = () => this.requestFrame();
+            if (input.glass === 'snow') {
+                this.snow = new NebbiaSnow();
+                this.gl.setFlakeAtlas(...this.snow.atlas());
+            }
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
             this.observer = new ResizeObserver(() => this.resize());
@@ -106,6 +139,8 @@ export class NebbiaRuntime {
     }
     setFontScale(scale: number) { if (scale !== this.fontScale) { this.fontScale = scale; this.rebuild(); } }
     setShowText(show: boolean) { if (show !== this.showText) { this.showText = show; this.rebuild(); } }
+    /** 透明时雾的颜色跟主题日夜：日间乳白，夜间深色（像夜里起雾的车窗）。 */
+    setDaylight(daylight: boolean) { this.gl.mistTint = daylight ? [0.86, 0.89, 0.92] : [0.07, 0.08, 0.1]; this.requestFrame(); }
 
     // 只改配色时只换调色板；字体或涂鸦图标变了才重排整首
     setTheme(theme: Theme) {
@@ -122,9 +157,15 @@ export class NebbiaRuntime {
         const prev = this.tuning;
         this.tuning = tuning;
         this.motion.bump = tuning.bump;
-        if (prev.resolution !== tuning.resolution) this.resize();
         if (LAYOUT_KEYS.some(k => !sameValue(prev[k], tuning[k]))) this.rebuild();
         this.requestFrame();
+    }
+
+    /** 分辨率倍数变了：就地换画布和缓冲的尺寸，不重建上下文。 */
+    setRenderScale(scale: LyricRenderScale) {
+        if (scale === this.renderScale) return;
+        this.renderScale = scale;
+        this.resize();
     }
 
     setPlayback(paused: boolean, still: boolean) {
@@ -175,19 +216,41 @@ export class NebbiaRuntime {
     private applyTheme() {
         const p = resolveNebbiaPalette(this.theme);
         this.gl.setPalette(p.sky0, p.sky1, p.la, p.lb, p.lc);
+        this.aquarium?.setPalette(p.la, p.lb, p.lc);
+    }
+
+    /** 「舞潮踏拍」：开着、节拍表装好、不是静态模式时给的节拍表和三项强度。 */
+    private aquaBeats(): NebbiaAquaBeats | null {
+        if (this.still || !isBeatFxReady() || !isBeatEffectPlaying(AQUA_BEAT)) return null;
+        // 按听到的时刻走（扣掉输出延迟），和其他跟拍效果一样
+        const heard = getBeatFxHeard().time;
+        if (heard === null) return null;
+        const out = this.aquaBeatsOut;
+        out.events = getBeatFxEvents();
+        out.heard = heard;
+        out.jelly = getBeatEffectStrength(AQUA_JELLY);
+        out.weed = getBeatEffectStrength(AQUA_WEED);
+        out.bubble = getBeatEffectStrength(AQUA_BUBBLE);
+        out.spot = getBeatEffectStrength(AQUA_SPOT);
+        return out;
     }
 
     private resize() {
-        const rect = this.input.host.getBoundingClientRect();
-        if (rect.width < 1 || rect.height < 1) return;
-        const sized = Math.round(rect.width) !== this.W || Math.round(rect.height) !== this.H;
-        this.W = Math.round(rect.width);
-        this.H = Math.round(rect.height);
-        const dpr = Math.min(2, window.devicePixelRatio || 1) * this.tuning.resolution;
+        // 量排版尺寸，不量 getBoundingClientRect：样式小图和样式窗口的大样张把窗口大的舞台缩小了画（preview/previewScale.ts），
+        // 量到缩小后的尺寸，整首就排在小画布上，字小到笔画宽度被 8 像素的下限盖过，调笔画粗细看不出变化（#963）
+        const { clientWidth: width, clientHeight: height } = this.input.host;
+        if (width < 1 || height < 1) return;
+        const sized = width !== this.W || height !== this.H;
+        this.W = width;
+        this.H = height;
+        const dpr = resolveLyricPixelRatio(Math.min(2, window.devicePixelRatio || 1), this.renderScale);
         this.gl.resize(this.W, this.H, dpr);
         this.mask.resize(this.W, this.H);
+        this.snow?.resize(this.W, this.H);
         if (sized) {
-            this.motion.buildField(this.W, this.H);
+            // 雪窗没有雨窗那些凝结水珠（颠簸也就震不落什么）
+            if (this.condensation) this.condensation.build(this.W, this.H);
+            else if (!this.snow) this.motion.buildField(this.W, this.H);
             this.rebuild();
         }
         this.requestFrame();
@@ -246,10 +309,13 @@ export class NebbiaRuntime {
         const T = this.input.currentTime.get();
         const t = this.tuning;
         // 疏雨轻车：车跟底鼓颠；人声轨包络到了或开关变了，就按它重排整首的雨点，强度每帧乘小雨点密度和大雨点大小
+        // 车只在街景里颠（水族箱里不颠），雨只打在雨窗玻璃上（凝露没有雨打窗）
         const ride = this.drizzleRide;
-        ride.step(this.motion, now, T, frozen, t.bump);
-        const vocalStrength = ride.rain;
-        if (ride.env !== this.vocalEnv) {
+        const rainGlass = this.input.glass === 'rain';
+        if (rainGlass || !this.aquarium) ride.step(this.motion, now, T, frozen, t.bump, !this.aquarium);
+        else this.motion.beginFrame(now, frozen, false);
+        const vocalStrength = rainGlass ? ride.rain : 0;
+        if (rainGlass && ride.env !== this.vocalEnv) {
             this.vocalEnv = ride.env;
             this.rebuildHits();
         }
@@ -257,8 +323,17 @@ export class NebbiaRuntime {
         this.hits.advance(T, e, this.still ? 0 : t.rainHit * vocalStrength, NebbiaHits.lifeOf(t.refog, NEBBIA_FIXED.beadHold), this.W, this.H);
         this.mask.draw(this.laid, T, now, t, this.motion, this.hits, t.rainBig * vocalStrength);
         this.spot.update(this.laid, T, dt);
-        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath.canvas : null, this.motion.drops, this.motion.fieldInstances(this.fieldInst, t.busSpeed),
-            nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time));
+        const aqua = this.aquarium?.step(dt, this.clock.time, this.W / this.H, t, this.aquaBeats()) ?? null;
+        if (this.snow) {
+            // 车速带的风只在雨夜街景里吹雪（水族箱里没有车在开）
+            this.snow.step(frozen ? 0 : dt, t, this.mask.sweeps ?? [], this.mask.wet ?? [], this.aquarium ? 0 : t.busSpeed, !this.aquarium);
+            this.snow.drawFog(this.mask.ctx, t);
+        } else if (this.condensation) this.condensation.touchInk(this.mask.sweeps ?? [], this.mask.wet ?? [], t.dewSize);
+        const field = this.condensation ? this.condensation.instances(frozen ? 0 : dt, t.dew, t.dewSize)
+            : this.snow ? this.snow.instances(this.fieldInst) : this.motion.fieldInstances(this.fieldInst, t.busSpeed);
+        const u = nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua);
+        this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath : null, this.motion.drops, field, u, this.condensation?.changed ?? this.snow?.changed ?? true);
+        if (this.snow) this.gl.drawFlakes(...this.snow.flakeInstances(this.mask.ice ?? []), u.glassShift);
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);
     };

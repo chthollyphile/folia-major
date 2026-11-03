@@ -1,6 +1,8 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { drawFumeBackground } from './FumeBackground';
 import { isGlowBlurQuantized } from '../../../utils/glowBlurQuantize';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
+import type { LyricRenderScale } from '../../../types';
 import type { StaticBlockSnapshot } from './fumeTypes';
 import { resolveFumeBackgroundView, stepFumeCamera, syncFumeCameraToArticle } from './fumeCameraStep';
 import { isFumeBlockOnScreen, resolveFumeBlockTiming, resolveFumeGlowBases, resolveFumeStaticLayers, type FumeStaticLayerInput } from './fumeBlockFrame';
@@ -18,6 +20,10 @@ import { readFumeAudioLevels, type FumeStageDriver, type FumeStageScene } from '
 // the camera transform, which asked Chromium's glyph cache for a new size every frame. A Pixi stage
 // was built and measured as the alternative: no less CPU, 85 MiB more video memory
 // (docs/linux-glyph-cache-fd-leak.md).
+//
+// 分辨率倍数（#929）乘在三处密度上：舞台画布的位图（原来是 devicePixelRatio）、等待 / 唱过的文字快照
+// （原来是 clamp(devicePixelRatio, 1, 2)，快照的缓存键带着它，倍数变了自然画新的）、打字中那块的光栅
+// （FumeLiveRaster 按相机缩放 × 舞台像素密度选级）。>1 的倍数由 resolveLyricPixelRatio 封顶。
 
 /** A snapshot unused this long is released; it is cheap to draw again. */
 const SNAPSHOT_IDLE_MS = 15_000;
@@ -27,6 +33,7 @@ export const useFumeCanvasStage = (
     scene: FumeStageScene,
     driver: FumeStageDriver,
     paused: boolean,
+    renderScale: LyricRenderScale = 1,
 ) => {
     const staticBlockSnapshotCacheRef = useRef<Map<string, { snapshot: StaticBlockSnapshot; lastUsed: number }>>(new Map());
     const liveRasterRef = useRef<FumeLiveRaster | null>(null);
@@ -72,7 +79,10 @@ export const useFumeCanvasStage = (
 
         const width = Math.max(Math.floor(viewport.width), 1);
         const height = Math.max(Math.floor(viewport.height), 1);
-        const dpr = window.devicePixelRatio || 1;
+        // 舞台画布的像素密度与文字快照的光栅密度，都按样式原来的算法乘上分辨率倍数。
+        const resolveStagePixelRatio = () => resolveLyricPixelRatio(window.devicePixelRatio || 1, renderScale);
+        const resolveSnapshotScale = () => resolveLyricPixelRatio(clamp(window.devicePixelRatio || 1, 1, 2), renderScale);
+        const dpr = resolveStagePixelRatio();
 
         if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
             canvas.width = Math.floor(width * dpr);
@@ -97,7 +107,7 @@ export const useFumeCanvasStage = (
 
             const currentWidth = Math.max(Math.floor(viewport.width), 1);
             const currentHeight = Math.max(Math.floor(viewport.height), 1);
-            const currentDpr = window.devicePixelRatio || 1;
+            const currentDpr = resolveStagePixelRatio();
 
             if (canvas.width !== Math.floor(currentWidth * currentDpr) || canvas.height !== Math.floor(currentHeight * currentDpr)) {
                 canvas.width = Math.floor(currentWidth * currentDpr);
@@ -204,14 +214,14 @@ export const useFumeCanvasStage = (
                 passedGlowBase,
                 passedFadeDuration,
                 overviewTextRestoreProgress,
-                snapshotScale: clamp(window.devicePixelRatio || 1, 1, 2),
+                snapshotScale: resolveSnapshotScale(),
             };
 
             const rasterLive = isGlowBlurQuantized();
             // A little margin so glyphs entering the screen are already drawn.
             const margin = 32 / screenScale;
             const liveFrame = {
-                deviceScale: screenScale * (window.devicePixelRatio || 1),
+                deviceScale: screenScale * currentDpr,
                 visible: {
                     left: camera.x - viewportCenterX / screenScale - margin,
                     top: camera.y - viewportCenterY / screenScale - margin,
@@ -235,7 +245,7 @@ export const useFumeCanvasStage = (
                     const layers = resolveFumeStaticLayers(block, timing, staticLayerInput, (spec) => {
                         let entry = staticBlockSnapshotCacheRef.current.get(spec.key);
                         if (!entry) {
-                            const snapshot = createStaticBlockSnapshot(block, theme, spec.fill, spec.shadowBlur, spec.shadowColor);
+                            const snapshot = createStaticBlockSnapshot(block, theme, spec.fill, spec.shadowBlur, spec.shadowColor, staticLayerInput.snapshotScale);
                             if (!snapshot) return undefined;
                             entry = { snapshot, lastUsed: now };
                             staticBlockSnapshotCacheRef.current.set(spec.key, entry);
@@ -283,7 +293,7 @@ export const useFumeCanvasStage = (
             window.cancelAnimationFrame(frameId);
             lastFrameAt = null;
         };
-    }, [article, canvasRef, driver, paused, scene, theme]);
+    }, [article, canvasRef, driver, paused, renderScale, scene, theme]);
 };
 
 /** Releases snapshots idle for longer than SNAPSHOT_IDLE_MS (all of them for `now` = Infinity). */

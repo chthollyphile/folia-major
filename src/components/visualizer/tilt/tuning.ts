@@ -1,5 +1,5 @@
 import { DEFAULT_TILT_TUNING, type TiltTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, modChoice, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/tilt/tuning.ts
 // Tilt's tuning: its defaults, the settings store fields it lives in, where it is stored and how
@@ -19,6 +19,12 @@ const resolve = (values: Partial<TiltTuning>, base: TiltTuning): TiltTuning => (
 export default defineVisualizerTuning<TiltTuning>({
     mode: 'tilt',
     defaults: DEFAULT_TILT_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        splitProbability: modNumber(0, 1),
+        tiltStyleProbability: modNumber(0, 1),
+        colorScheme: modChoice(['default', 'swap', 'accentAll', 'primaryAll']),
+    },
     settingsKey: 'tiltTuning',
     settingsSetterKey: 'handleSetTiltTuning',
     settingsResetterKey: 'handleResetTiltTuning',

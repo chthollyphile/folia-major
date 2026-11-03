@@ -68,7 +68,7 @@ let activeLogin: SpotifyWireLoginStart | null = null;
 i18n.on('languageChanged', clearSpotifyCatalogCache);
 
 export const spotifyProvider: OnlineMusicProvider = {
-    id: 'spotify', displayName: 'Spotify', shortName: 'Spotify',
+    id: 'spotify', displayName: 'Spotify', shortName: 'Spotify', shortNameKey: 'onlineProviderName.spotify',
     mark: { letter: 'S', color: '#22c55e' },
     getAvailability: getSpotifyTransportAvailability,
     describeFailure: describeSpotifyFailure,

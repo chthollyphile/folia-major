@@ -6,6 +6,7 @@ import { getVisualizerRegistryEntry } from '../../visualizer/registry';
 import { smartBeatActive } from '../../../services/beatFx/beatEffects';
 import { isLyricSegmentationAiAvailable } from '../../../services/aiText';
 import type { LyricSegmentationActions } from '../playback/createLyricSegmentationActions';
+import { NEBBIA_BEHIND, NEBBIA_GLASS } from '../../visualizer/nebbia/types';
 
 // src/components/app/command-palette-context/buildVisualizerCommandContext.ts
 // The `visualizer` namespace. Almost entirely store-backed: App.tsx used to relay all seven
@@ -28,6 +29,20 @@ export const buildVisualizerCommandContext = (
         setVisualizerBackgroundMode: visualizer.handleSetVisualizerBackgroundMode,
         setMonetBackgroundTuning: visualizer.handleSetMonetBackgroundTuning,
         setLatentBackgroundTuning: visualizer.handleSetLatentBackgroundTuning,
+        // 和雾笺设置面板一样：换窗外不动玻璃，换玻璃不动窗外
+        cycleNebbiaBehind: () => {
+            const latest = useVisualizerSettingsStore.getState();
+            const { behind } = latest.nebbiaTuning;
+            const next = NEBBIA_BEHIND[(NEBBIA_BEHIND.indexOf(behind) + 1) % NEBBIA_BEHIND.length];
+            latest.handleSetNebbiaTuning({ behind: next });
+            return next;
+        },
+        cycleNebbiaGlass: () => {
+            const latest = useVisualizerSettingsStore.getState();
+            const next = NEBBIA_GLASS[(NEBBIA_GLASS.indexOf(latest.nebbiaTuning.glass) + 1) % NEBBIA_GLASS.length];
+            latest.handleSetNebbiaTuning({ glass: next });
+            return next;
+        },
         toggleVideoLayer: () => {
             const videoLayer = useVideoLayerSettingsStore.getState();
             videoLayer.setVideoLayerEnabled(!videoLayer.videoLayerEnabled);

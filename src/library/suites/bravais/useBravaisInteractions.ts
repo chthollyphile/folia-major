@@ -156,6 +156,16 @@ export const useBravaisInteractions = ({
             const item = itemAt(slotKey);
             if (item) displayRef.current?.layer.onEnqueueItem?.(item.key);
         },
+        canCollect: itemKey => Boolean(displayRef.current?.layer.canCollectItem?.(itemKey)),
+        collect: slotKey => {
+            const item = itemAt(slotKey);
+            if (item) displayRef.current?.layer.onCollectItem?.(item.key);
+        },
+        canSaveToPlaylist: itemKey => Boolean(displayRef.current?.layer.canSaveItemToPlaylist?.(itemKey)),
+        saveToPlaylist: slotKey => {
+            const item = itemAt(slotKey);
+            if (item) displayRef.current?.layer.onSaveItemToPlaylist?.(item.key);
+        },
         canOpenAlbum: itemKey => Boolean(displayRef.current?.layer.canOpenAlbum?.(itemKey)),
         openAlbum: slotKey => {
             const item = itemAt(slotKey);

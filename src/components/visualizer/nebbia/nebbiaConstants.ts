@@ -22,7 +22,7 @@ export const NEBBIA_FIXED = {
     /** 字被雾吞掉后水珠多挂几秒。 */
     beadHold: 4,
     /** 让位时哈气盖掉旧句子：白气从中线鼓开到整片的秒数、新句子唱完后再留几秒、散掉的秒数、浓度（nebbiaBreath.ts）。 */
-    breathSpread: 0.3,
+    breathSpread: 1.2,
     breathHold: 1,
     breathFade: 8,
     breathThick: 0.7,

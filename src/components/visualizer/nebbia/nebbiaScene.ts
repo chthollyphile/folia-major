@@ -43,6 +43,8 @@ export interface LaidLine {
      */
     breathAt: number;
     breathUntil: number;
+    /** 这口气鼓开用几秒：一般是 breathSpread，挤的时候收短（旧句写完至少留 YIELD_READ 秒、新句开写前已经鼓开）。 */
+    breathDur: number;
     /** 出现方式选到「哈气后书写」的：开写前对着自己的位置哈一口气（Infinity = 不哈），白气留到 appearBreathUntil 再散。 */
     appearBreathAt: number;
     appearBreathUntil: number;
@@ -163,7 +165,7 @@ export const buildNebbiaScene = (
         lingerUntil: i => lingerAt(i) + fadeOf(i),
     });
     const laid: LaidLine[] = source.map((line, li) => ({
-        t: line.t, end: line.end, next: line.next, mode: modes[li], fogAt: fogAt(li), yieldAt: Infinity, breathAt: Infinity, breathUntil: Infinity,
+        t: line.t, end: line.end, next: line.next, mode: modes[li], fogAt: fogAt(li), yieldAt: Infinity, breathAt: Infinity, breathUntil: Infinity, breathDur: NEBBIA_FIXED.breathSpread,
         appearBreathAt: Infinity, appearBreathUntil: Infinity,
         chars: line.chars.map((c, i) => {
             const p = pos[li][i], wide = isWideChar(c.ch) || isIconChar(c.ch);
@@ -186,20 +188,46 @@ export const buildNebbiaScene = (
         let by = -1;
         for (let j = i + 1; j < laid.length && laid[j].t < gone; j += 1) {
             const a = rects[i], b = rects[j];
-            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = laid[j].t; by = j; break; }
+            if (Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0)) { line.yieldAt = yieldMoment(laid[j].t, line); by = j; break; }
         }
         line.fogAt = Math.max(fogAt(i), Math.min(lingerAt(i), line.yieldAt - fadeOf(i)));
         // 给片尾让位的不哈气：前面已经在散了，按让位快速起雾就好
         if (by >= 0 && !source[by].credits && line.yieldAt < line.fogAt + fadeOf(i)) {
-            line.breathAt = line.yieldAt - breathSpread - 0.3;
+            // 挤的时候（让位紧跟着写完）不提前那么多：从写完 YIELD_READ 秒后才哈，鼓开收短到让位前 0.3 秒鼓完，最短 0.3 秒
+            const from = Math.max(line.yieldAt - breathSpread - 0.3, writtenAt(line) + YIELD_READ);
+            line.breathAt = from;
+            line.breathDur = Math.max(0.3, line.yieldAt - 0.3 - from);
             line.breathUntil = laid[by].end + breathHold;
         }
     });
     return laid;
 };
 
+/** 让位前多少秒开始收（快速起雾从让位前 0.6 秒起，哈气从 breathSpread + 0.3 秒起），和写完后至少留着看清的秒数。 */
+const YIELD_LEAD = 0.6, YIELD_READ = 0.3;
+/**
+ * 这句最早什么时候让位：后面那句开写的时刻，但不早于这句最后一个字写完（慢慢显现的显出一半）再留 YIELD_READ 秒。
+ * 不然唱得快、屏上又挤时，后面那句一压上来，这句写到一半就被哈气盖掉了（比如一句只唱一秒多，后半句没写就没了）。
+ */
+export const yieldMoment = (nextT: number, line: Pick<LaidLine, 'chars' | 't'>) => Math.max(nextT, writtenAt(line) + YIELD_READ + YIELD_LEAD);
+
+/** 这句最后一个字写完（慢慢显现的显出一半）的时刻。 */
+const writtenAt = (line: Pick<LaidLine, 'chars' | 't'>) => {
+    let done = line.t;
+    for (const c of line.chars) if (c.glyph) done = Math.max(done, c.wd > 0 ? c.wt + c.wd : c.t + Math.min(c.appearDur, 0.5));
+    return done;
+};
+
 /** 让位的句子在后面那句开写前 0.6 秒起用 1 秒快速起雾；屏上满了要哈气盖掉的，在白气鼓开的这一下里没了。 */
 export const yieldFactor = (line: LaidLine, T: number) => (line.breathAt < Infinity
-    // 哈气盖掉的：白气鼓开的这一下里没了
-    ? 1 - smooth(clamp((T - line.breathAt) / NEBBIA_FIXED.breathSpread))
-    : 1 - smooth(clamp((T - line.yieldAt + 0.6) / 1)));
+    // 哈气盖掉的：白气鼓开的这一阵里先糊开（着色器按白气遮罩的 B 通道糊），晚一点起淡进雾里，鼓开到 85% 时没了
+    ? 1 - smooth(clamp(((T - line.breathAt) / line.breathDur - 0.15) / 0.7))
+    : 1 - smooth(clamp((T - line.yieldAt + YIELD_LEAD) / 1)));
+
+/** 哈气盖掉的旧字在擦痕遮罩上留到多少：比起雾的阈值低，不再透出窗外，只让白气在那儿薄一点（着色器），留个浅浅的印子。 */
+export const BREATH_GHOST = 0.08;
+/** 擦痕遮罩用的让位系数：哈气盖掉的不降到 0，留 BREATH_GHOST 的印子，跟着这句自己慢慢起雾一起淡掉。水珠还是用 yieldFactor。 */
+export const yieldMask = (line: LaidLine, T: number) => {
+    const yf = yieldFactor(line, T);
+    return line.breathAt < Infinity ? Math.max(yf, BREATH_GHOST) : yf;
+};

@@ -406,7 +406,9 @@ describe('Visual Settings Import and Export', () => {
         };
         const decoded = decompressConfig(compressConfig({ temperaTuning }));
 
-        expect(decoded.temperaTuning).toEqual(temperaTuning);
+        // 旧的单独短码字段不带 render（分辨率与抗锯齿的覆盖随 visualizerTunings 那一包走），导入时本机的保留。
+        const { render: _render, ...carried } = temperaTuning;
+        expect(decoded.temperaTuning).toEqual(carried);
     });
 
     it('gracefully throws error on invalid configuration input strings', () => {

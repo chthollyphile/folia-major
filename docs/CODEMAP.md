@@ -24,7 +24,7 @@
 | 其他 | 64+ |
 | stores | 32+ |
 | types | 16+ |
-| i18n | 4+ |
+| i18n | 8+ |
 | workers | 4+ |
 
 ## 枢纽模块
@@ -40,6 +40,7 @@
 | 128+ | `src/utils/appPlaybackGuards.ts` |
 | 64+ | `src/components/command-palette/types.ts` |
 | 64+ | `src/components/modal/settings/kit/index.ts` |
+| 64+ | `src/components/visualizer/definition.ts` |
 | 64+ | `src/i18n/config.ts` |
 | 64+ | `src/library/core/suite/suite.contract.ts` |
 | 64+ | `src/mods/folium/contract.ts` |
@@ -51,13 +52,16 @@
 | 64+ | `src/types/hifi.ts` |
 | 64+ | `src/utils/lyrics/renderHints.ts` |
 | 32+ | `dev/probes/definition.ts` |
+| 32+ | `src/components/command-palette/commandRegistry.ts` |
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
+| 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
+| 32+ | `src/components/ponder/surfaces/surfaceDeclarations.ts` |
 | 32+ | `src/components/visualizer/colorMix.ts` |
-| 32+ | `src/components/visualizer/definition.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
 | 32+ | `src/components/visualizer/registry.tsx` |
 | 32+ | `src/components/visualizer/tuningDefinition.ts` |
+| 32+ | `src/components/visualizer/tuningRegistry.ts` |
 | 32+ | `src/components/wall/layout.ts` |
 | 32+ | `src/components/wall/wallSlots.ts` |
 | 32+ | `src/library/core/account/account.contract.ts` |
@@ -74,12 +78,15 @@
 | 32+ | `src/stores/useCollectionNavigationStore.ts` |
 | 32+ | `src/stores/useOnlineProviderAccountStore.ts` |
 | 32+ | `src/stores/usePlayerChromeSettingsStore.ts` |
+| 32+ | `src/stores/useSettingsModalStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/types/navidrome.ts` |
 | 32+ | `src/utils/coverUrl.ts` |
+| 32+ | `src/utils/errorText.ts` |
 | 32+ | `src/utils/fontStacks.ts` |
+| 32+ | `src/utils/lyricRenderQuality.ts` |
 | 32+ | `src/utils/lyrics/graphemeTiming.ts` |
 | 32+ | `src/utils/lyrics/parserCore.ts` |
 | 32+ | `test/component/fixtures.ts` |
@@ -161,10 +168,12 @@
 - `src/components/ponder/surfaces/library/gridView.surface.tsx`
 - `src/components/ponder/surfaces/library/gridViewPage.surface.tsx`
 - `src/components/ponder/surfaces/library/localLibrary.surface.tsx`
+- `src/components/ponder/surfaces/library/scratchpad.surface.tsx`
 - `src/components/ponder/surfaces/panel/audioEqualizer.surface.tsx`
 - `src/components/ponder/surfaces/panel/lyricMatch.surface.tsx`
 - `src/components/ponder/surfaces/panel/sidePanel.surface.tsx`
 - `src/components/ponder/surfaces/plain.surface.tsx`
+- `src/components/ponder/surfaces/player/capsule.surface.tsx`
 - `src/components/ponder/surfaces/player/latticeChrome.surface.tsx`
 - `src/components/ponder/surfaces/player/latticePage.surface.tsx`
 - `src/components/ponder/surfaces/player/playerBar.surface.tsx`
@@ -204,6 +213,7 @@
 - `src/components/ponder/targets/library/localMetadataMatch.target.ts`
 - `src/components/ponder/targets/library/localTrackSorting.target.ts`
 - `src/components/ponder/targets/library/onlineCollectionActions.target.ts`
+- `src/components/ponder/targets/library/scratchpad.target.ts`
 - `src/components/ponder/targets/panel/audioEqualizer.target.ts`
 - `src/components/ponder/targets/panel/lyricMatch.target.ts`
 - `src/components/ponder/targets/panel/panelAccountTab.target.ts`

@@ -19,7 +19,7 @@ const GridAccountSurface: React.FC<LibraryAccountSurfaceProps> = ({ account, isD
             isDaylight={isDaylight}
             title={pendingSwitch.title}
             description={pendingSwitch.description}
-            // 不等切换走完（清空播放器、读账号）：controller 同步清掉待确认请求，框随之收起。
+            // 不等切换走完（离开旧平台、读账号）：controller 同步清掉待确认请求，框随之收起。眼下切换不再确认，这个框不会出现。
             onConfirm={() => void account.confirmSwitch(pendingSwitch.request.id)}
             onClose={() => void account.cancelSwitch(pendingSwitch.request.id)}
         />,

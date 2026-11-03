@@ -19,6 +19,30 @@ describe('Qishui Omni adapter', () => {
         expect(normalizeQishuiCollection({ base_info: { id: '11', title: 'Playlist', owner_id: '22' }, isOwned: false }))
             .toMatchObject({ id: '11', name: 'Playlist', isOwned: false, providerData: { ownerId: '22' } });
     });
+    // The searched playlist is the same playlist entity user_playlists hands over; one without an id is skipped, not the page.
+    it('searches playlists through search_playlists and skips an entry without an id', async () => {
+        const request = vi.fn(async () => ({ ok: true, data: {
+            items: [
+                { base_info: { id: '11', title: 'Jay 精选', owner_id: '22' }, display_info: {}, resource_cnt: { track_cnt: 40 } },
+                { title: 'no id' },
+            ],
+            hasMore: true,
+            nextOffset: 2,
+        } }));
+        vi.stubGlobal('window', { electron: { qishuiRequest: request } });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        const page = await qishuiProvider.search!.searchPlaylists!('周杰伦', 30, 0);
+
+        expect(request).toHaveBeenCalledWith('search_playlists', { query: '周杰伦', limit: 30, offset: 0 });
+        expect(page).toMatchObject({ hasMore: true, nextOffset: 2, items: [{ providerId: 'qishui', id: '11', type: 'playlist', name: 'Jay 精选', trackCount: 40 }] });
+        expect(page.items).toHaveLength(1);
+        expect(warn).toHaveBeenCalledTimes(1);
+        warn.mockRestore();
+
+        await expect(qishuiProvider.search!.searchPlaylists!('   ', 30, 0)).resolves.toEqual({ items: [], hasMore: false, nextOffset: 0 });
+        expect(request).toHaveBeenCalledTimes(1);
+    });
     it('parses relative KRC word timings and translation lines by time', () => {
         const result = parseQishuiLyrics({ lyric_entity: { type: 'krc', content: '[1000,1000]<0,400,0>你<400,600,0>好\u0000' },
             lang_translations: { 'zh-CN': { type: 'krc', content: '[1000,1000]<0,1000,0>Hello' } } });

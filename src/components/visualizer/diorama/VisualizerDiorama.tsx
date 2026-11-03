@@ -4,9 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_DIORAMA_TUNING, type Line } from '../../../types';
 import { isInterludeLine } from '../../../utils/lyrics/parserCore';
+import { resolveLyricAntialias, resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
 import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
 import CameraRig from './CameraRig';
@@ -148,6 +150,9 @@ const FirstFrame: React.FC<{ onDrawn: () => void }> = ({ onDrawn }) => {
     return null;
 };
 
+/** 镜台原来的像素密度：r3f 的 dpr={[1, 2]}，即设备像素比夹在 1 到 2 之间。 */
+const DIORAMA_DPR_RANGE: [number, number] = [1, 2];
+
 const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
     const {
         currentTime,
@@ -168,8 +173,17 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
         subtitleOverlayLayout,
         seed,
         dioramaTuning,
+        isPreviewMode = false,
     } = props;
     const { t } = useTranslation();
+    // 分辨率与抗锯齿（#929）：全局挡位叠上这个样式的覆盖；预览（样式架小图等）保持原来的 dpr 与抗锯齿。
+    // 分辨率经 r3f 的 dpr 就地改（setPixelRatio，不重建上下文）；抗锯齿只在建上下文时生效，变了换 Canvas 的 key 重建。
+    const renderQuality = useLyricRenderQuality(dioramaTuning?.render);
+    const renderScale = isPreviewMode ? 1 : renderQuality.scale;
+    const canvasDpr = renderScale === 1
+        ? DIORAMA_DPR_RANGE
+        : resolveLyricPixelRatio(Math.min(DIORAMA_DPR_RANGE[1], Math.max(DIORAMA_DPR_RANGE[0], window.devicePixelRatio || 1)), renderScale);
+    const canvasAntialias = isPreviewMode ? true : resolveLyricAntialias(renderQuality.antialias, true);
     // A style switch waits for the first draw of the scene (FirstFrame).
     const firstFrameDrawn = useFirstFrameDrawn();
 
@@ -454,9 +468,10 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
         >
             <div className="absolute inset-0 z-0">
                 <Canvas
+                    key={canvasAntialias ? 'antialias' : 'aliased'}
                     camera={{ position: [0, 0.6, 9], fov: 55 }}
-                    dpr={[1, 2]}
-                    gl={{ alpha: true, antialias: true }}
+                    dpr={canvasDpr}
+                    gl={{ alpha: true, antialias: canvasAntialias }}
                     // The size it is laid out at, not the size on screen: drawn small through a CSS
                     // scale (the pickers' pictures) it keeps the scene of the full page.
                     resize={{ offsetSize: true }}

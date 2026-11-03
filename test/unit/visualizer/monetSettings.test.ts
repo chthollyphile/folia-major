@@ -152,6 +152,7 @@ describe('Monet tuning and lyric helpers', () => {
             fontScale: 3,
             portraitSource: 'custom',
         })).toEqual({
+            render: { scale: 'global', antialias: 'global' },
             keywordColoringEnabled: false,
             showAudioVisualization: false,
             audioStyle: 'line',

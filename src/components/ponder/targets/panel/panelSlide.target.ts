@@ -53,12 +53,15 @@ const SLIDE_ANCHORS = {
         // 不标名字：它和按钮、滑轨挤在同一小块地方，三个标签必然叠字。
         // 这根线是什么，由指着它的那句字幕讲。
     },
-    /** 命令面板此刻不在场，按视口比例合成。 */
+    /**
+     * 命令面板此刻不在场，按视口比例合成。这个手柄在播放页上，那里有歌时控制条在，
+     * 面板从控制条原地往上长 —— 所以画在下方、输入行在底。
+     */
     palette: {
         kind: 'synthetic',
-        rect: { left: 0.5, top: 0.2, width: 0.44, height: 0.3, anchorX: 'center' },
+        rect: { left: 0.5, top: 0.48, width: 0.44, height: 0.44, anchorX: 'center' },
         role: 'surface',
-        surfaceKind: 'palette',
+        surfaceKind: 'capsule-palette',
         labelKey: 'ponder.anchors.panelSlide.palette',
         // 面板是滑动越线或按 S 之后才打开的，一进场就摆着的话字幕在讲一件已经发生的事。
         startsHidden: true,
@@ -111,7 +114,7 @@ const slideToPalette: PonderSceneScript = {
         { kind: 'pause', id: 'atThreshold', dwellMs: 1600 },
 
         { kind: 'cursor', id: 'release', to: { anchor: 'toggle', offset: { x: -PANEL_SLIDE_CLAMP_PX } }, press: 'up', durationMs: 200 },
-        { kind: 'reveal', id: 'paletteOpens', anchor: 'palette', transition: 'zoom', durationMs: 460, keyframe: true },
+        { kind: 'reveal', id: 'paletteOpens', anchor: 'palette', transition: 'slide-up', durationMs: 460, keyframe: true },
         {
             kind: 'caption',
             id: 'outcome',
@@ -159,7 +162,7 @@ const keyboardShortcut: PonderSceneScript = {
         { kind: 'caption', id: 'intro', textKey: 'ponder.captions.panelSlide.keyboardIntro', durationMs: 2400 },
         { kind: 'pause', id: 'readIntro' },
         { kind: 'keypress', id: 'pressS', keys: ['Mod K'], at: 'bottom', durationMs: 1400, keyframe: true },
-        { kind: 'reveal', id: 'paletteOpens', anchor: 'palette', transition: 'zoom', durationMs: 460 },
+        { kind: 'reveal', id: 'paletteOpens', anchor: 'palette', transition: 'slide-up', durationMs: 460 },
         {
             kind: 'caption',
             id: 'outcome',

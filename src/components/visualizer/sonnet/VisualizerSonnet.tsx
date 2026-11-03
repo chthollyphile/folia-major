@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { DEFAULT_SONNET_TUNING } from '../../../types';
 import type { Line } from '../../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
+import { resolveLyricAntialias } from '../../../utils/lyricRenderQuality';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import type { VisualizerSharedProps } from '../definition';
 import { useVisualizerPixiHost } from '../pixi/pixiRuntimeHost';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import { useVisualizerRuntime } from '../runtime';
 import { useVisualizerSongCommit } from '../songHandover';
 import { useFoliumTunings } from '@/mods/folium/registries/tunings';
@@ -50,6 +52,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
         subtitleOverlayBackground,
         subtitleUpcomingLyricsBlur,
         background,
+        isPreviewMode = false,
         sonnetTuning = DEFAULT_SONNET_TUNING,
     } = props;
     const transparentBackground = background?.transparent ?? false;
@@ -63,6 +66,14 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     pausedRef.current = paused;
     const sonnetTuningRef = useRef(sonnetTuning);
     sonnetTuningRef.current = sonnetTuning;
+    // 分辨率与抗锯齿（#929）：全局挡位叠上本样式的覆盖。倍数乘在 textureResolution 上；抗锯齿「自动」是原来的
+    // !postProcessEnabled（开了后处理画面画进滤镜自己的多重采样目标，画布 MSAA 只剩画框边缘受益）。
+    // 预览（样式架小图、样式窗口、主题乐园）保持原来的密度和抗锯齿，不跟这两个设置。
+    const renderQuality = useLyricRenderQuality(sonnetTuning.render);
+    const renderScale = isPreviewMode ? 1 : renderQuality.scale;
+    const antialias = resolveLyricAntialias(isPreviewMode ? 'auto' : renderQuality.antialias, !sonnetTuning.postProcessEnabled);
+    const renderScaleRef = useRef(renderScale);
+    renderScaleRef.current = renderScale;
     // 智能动感模式 is one setting for every visualizer, so it is not part of the Sonnet tuning prop.
     const smartBeatEnabled = useVisualizerSettingsStore(state => smartBeatActive(state.smartBeat));
     const smartBeatEnabledRef = useRef(smartBeatEnabled);
@@ -132,14 +143,15 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
         label: 'Sonnet',
         // Only inputs that genuinely need a new WebGL context. The song is handed to the live
         // runtime instead - see SonnetPixiRuntime.swapSong.
-        // Of the tuning, only what shapes the canvas or the icon textures (post-processing decides
-        // whether the canvas is antialiased); the rest goes through setTuning, which rebuilds the
-        // scenes on the live context.
+        // Of the tuning, only what shapes the canvas or the icon textures (whether the canvas is
+        // antialiased - post-processing decides that unless the 抗锯齿 setting forces it); the rest
+        // goes through setTuning, which rebuilds the scenes on the live context. The 分辨率 multiplier
+        // is pushed in place through setRenderScale.
         rebuildKey: [
             currentTime,
             lyricsFontScale,
             sonnetTuning.textureResolution,
-            sonnetTuning.postProcessEnabled,
+            antialias,
             sonnetTuning.showOnlyText,
             sonnetTuning.showBackgroundDecor,
             staticMode,
@@ -155,6 +167,8 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                 program: song.program,
                 theme: song.theme,
                 tuning: sonnetTuningRef.current,
+                renderScale: renderScaleRef.current,
+                antialias,
                 smartBeatEnabled: smartBeatEnabledRef.current,
                 currentTime,
                 audioPower,
@@ -172,6 +186,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
             runtime.setSongMetadata(latestSongMetadataRef.current);
             // The tuning may have moved on while Pixi was importing or initializing.
             runtime.setTuning(sonnetTuningRef.current);
+            runtime.setRenderScale(renderScaleRef.current);
             runtime.setSmartBeatEnabled(smartBeatEnabledRef.current);
             // The pause state may have changed while Pixi was importing or initializing.
             runtime.setPaused(pausedRef.current);
@@ -193,6 +208,10 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     useEffect(() => {
         runtimeRef.current?.setTuning(sonnetTuning);
     }, [sonnetTuning]);
+
+    useEffect(() => {
+        runtimeRef.current?.setRenderScale(renderScale);
+    }, [renderScale]);
 
     useEffect(() => {
         runtimeRef.current?.setSmartBeatEnabled(smartBeatEnabled);

@@ -17,7 +17,7 @@ const songVersion = require('./songVersion.cjs');
 const YTM_OPERATIONS = Object.freeze([
   'login_status', 'logout',
   'web_login_start', 'web_login_check', 'web_login_open', 'web_login_cancel',
-  'search_songs', 'song_detail', 'song_detail_en', 'song_detail_zh', 'lyrics', 'album', 'artist', 'playlist', 'public_playlist', 'user_playlists', 'user_albums', 'audio',
+  'search_songs', 'search_albums', 'search_playlists', 'song_detail', 'song_detail_en', 'song_detail_zh', 'lyrics', 'album', 'artist', 'playlist', 'public_playlist', 'user_playlists', 'user_albums', 'audio',
   'explore', 'mix', 'playlist_edit', 'list_save', 'list_saved', 'song_like', 'song_versions', 'played_as',
 ]);
 
@@ -737,6 +737,22 @@ function createYtmApiBridge({
     };
   };
   const asShown = async songs => (await pairedRows(songs)).filter(oneRowEach()).map(row => row.song);
+
+  // The shelf of one page of a search for `type` (song, album or playlist) as a guest: the first
+  // page by `query`, the ones after it by the `continuation` the page before named.
+  const searchShelfOf = async (params, type) => {
+    const guest = await guestSession.get();
+    if (params.continuation !== undefined) {
+      if (!boundedText(params.continuation, 8192)) throw ytmError('invalid-response', 'Invalid page token');
+      const page = await guest.actions.execute('/search', { continuation: params.continuation, client: 'YTMUSIC', parse: true });
+      return page.continuation_contents;
+    }
+    const query = boundedText(typeof params.query === 'string' ? params.query.trim() : null, 200);
+    if (!query) throw ytmError('invalid-response', 'Search query is missing');
+    const search = await guest.music.search(query, { type });
+    return (search.contents ?? []).find(section => section?.type === 'MusicShelf');
+  };
+  const continuationOf = shelf => (typeof shelf?.continuation === 'string' && shelf.continuation ? { continuation: shelf.continuation } : {});
   // The song a music video a list showed as itself is played as, or null: it plays as itself.
   // The renderer plays the song in the video's place (played_as), its name, picture, length and
   // lyrics with it. Decided once a run for each video: the video played again is the same song.
@@ -875,20 +891,19 @@ function createYtmApiBridge({
     },
 
     async search_songs(params) {
-      const guest = await guestSession.get();
-      let shelf;
-      if (params.continuation !== undefined) {
-        if (!boundedText(params.continuation, 8192)) throw ytmError('invalid-response', 'Invalid page token');
-        const page = await guest.actions.execute('/search', { continuation: params.continuation, client: 'YTMUSIC', parse: true });
-        shelf = page.continuation_contents;
-      } else {
-        const query = boundedText(typeof params.query === 'string' ? params.query.trim() : null, 200);
-        if (!query) throw ytmError('invalid-response', 'Search query is missing');
-        const search = await guest.music.search(query, { type: 'song' });
-        shelf = (search.contents ?? []).find(section => section?.type === 'MusicShelf');
-      }
+      const shelf = await searchShelfOf(params, 'song');
       const items = await asShown((shelf?.contents ?? []).map(item => catalog.songFromListItem(item)).filter(Boolean));
-      return { items, ...(typeof shelf?.continuation === 'string' && shelf.continuation ? { continuation: shelf.continuation } : {}) };
+      return { items, ...continuationOf(shelf) };
+    },
+
+    // Albums and playlists found by a query, a page a call as search_songs reads songs.
+    async search_albums(params) {
+      const shelf = await searchShelfOf(params, 'album');
+      return { items: (shelf?.contents ?? []).map(item => catalog.albumFromSearchItem(item)).filter(Boolean), ...continuationOf(shelf) };
+    },
+    async search_playlists(params) {
+      const shelf = await searchShelfOf(params, 'playlist');
+      return { items: (shelf?.contents ?? []).map(item => catalog.playlistFromSearchItem(item)).filter(Boolean), ...continuationOf(shelf) };
     },
 
     async song_detail(params) {

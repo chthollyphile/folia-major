@@ -1,5 +1,9 @@
 import React from 'react';
-import { Button, Group, PictureGrid, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
+import { useTranslation } from 'react-i18next';
+import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
+import { formatLyricRenderScale } from '../../../utils/lyricRenderQuality';
+import { Button, Group, PictureGrid, Row, Segmented, Select, type SettingsGroupDef } from '../../modal/settings/kit';
+import { LYRIC_ANTIALIAS_LABEL_KEYS } from '../renderQuality/LyricRenderQualityRows';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import {
@@ -12,6 +16,7 @@ import {
     machiApertureToTrack,
     signedReadout,
 } from './cameraControls';
+import { getMachiDegrade, subscribeMachiDegrade } from './degradeStatus';
 import { resolveMachiQualityPreset } from './machiTuning';
 import { getMachiShownScene, subscribeMachiShownScene } from './shownScene';
 import {
@@ -22,6 +27,7 @@ import {
     MACHI_DETAIL_LEVELS,
     MACHI_DOF_LIMITS,
     MACHI_FOCUS_MODES,
+    MACHI_FOLLOW_GLOBAL,
     MACHI_MOTION_SPEED_LIMITS,
     MACHI_QUALITY_PRESET_IDS,
     MACHI_QUALITY_PRESETS,
@@ -46,7 +52,7 @@ import {
 // src/components/visualizer/machi/MachiSettingsPanel.tsx
 // 町景的设置面板：场景（线稿小图，不放实时预览）、时间、天气三项，每项都有“自动”；镜头（默认视角，或自定义视角
 // 与它的五个滑块，每个场景各一份：场景“自动”时多一排选调哪个场景的，默认是正在画的那个；运镜开关与快慢）；景深（光圈、强度、清晰范围、移轴、对焦在哪）；画质（高 / 平衡 / 低三套预设和各个细项，细项和哪套都对不上
-// 就多出一个选中的“自定义”，预设不单独存）。快捷控件里的胶囊和播放页的取景控制条用同一套文案（cameraControls.ts）。
+// 就多出一个选中的“自定义”，预设不单独存；分辨率、抗锯齿可以跟随「性能与动效」里的全局挡位；自动降级正在压着时写出压了几格）。快捷控件里的胶囊和播放页的取景控制条用同一套文案（cameraControls.ts）。
 
 const SCENE_GROUP: SettingsGroupDef = { id: 'vis-machi-scene', titleKey: 'options.machiSceneSection' };
 const SKY_GROUP: SettingsGroupDef = { id: 'vis-machi-sky', titleKey: 'options.machiSkySection' };
@@ -165,6 +171,11 @@ const MachiSettingsPanel: React.FC<VisualizerSettingsPanelProps<MachiTuning>> = 
     const preset = resolveMachiQualityPreset(quality);
     const setQuality = (patch: Partial<MachiQuality>) => onTuningChange?.({ quality: { ...quality, ...patch } });
     const levels = MACHI_DETAIL_LEVELS.map(level => ({ value: level, label: t(LEVEL_LABEL_KEYS[level]) }));
+    const globalQuality = useVisualizerSettingsStore(state => state.lyricRenderQuality);
+    const degraded = React.useSyncExternalStore(subscribeMachiDegrade, getMachiDegrade, getMachiDegrade);
+    const follow = t('options.lyricRenderFollowGlobal');
+    // 面板拿到的 t 不带插值参数：带全局挡位当前值的说明用 i18next 自己的。
+    const { t: format } = useTranslation();
     return (
         <>
             <Group def={SCENE_GROUP}>
@@ -344,17 +355,23 @@ const MachiSettingsPanel: React.FC<VisualizerSettingsPanelProps<MachiTuning>> = 
                         onChange={id => { if (id !== 'custom') setQuality(MACHI_QUALITY_PRESETS[id]); }}
                     />
                 </Row>
-                <Row label={t('options.machiRenderScale')} note={t('options.machiRenderScaleHint')}>
-                    <Segmented<string>
+                <Row label={t('options.machiRenderScale')} note={format('options.machiRenderScaleHint', { value: formatLyricRenderScale(globalQuality.scale) })}>
+                    <Select<string>
                         value={String(quality.renderScale)}
-                        options={MACHI_RENDER_SCALES.map(scale => ({ value: String(scale), label: `${Math.round(scale * 100)}%` }))}
-                        onChange={value => setQuality({ renderScale: MACHI_RENDER_SCALES.find(scale => String(scale) === value) ?? quality.renderScale })}
+                        options={[
+                            { value: MACHI_FOLLOW_GLOBAL, label: follow },
+                            ...MACHI_RENDER_SCALES.map(scale => ({ value: String(scale), label: `${Math.round(scale * 100)}%` })),
+                        ]}
+                        onChange={value => setQuality({ renderScale: value === MACHI_FOLLOW_GLOBAL ? MACHI_FOLLOW_GLOBAL : MACHI_RENDER_SCALES.find(scale => String(scale) === value) ?? quality.renderScale })}
                     />
                 </Row>
-                <Row label={t('options.machiAntialias')} note={t('options.machiAntialiasHint')}>
-                    <Segmented<MachiAntialias>
+                <Row label={t('options.machiAntialias')} note={format('options.machiAntialiasHint', { value: t(LYRIC_ANTIALIAS_LABEL_KEYS[globalQuality.antialias]) })}>
+                    <Select<MachiQuality['antialias']>
                         value={quality.antialias}
-                        options={MACHI_ANTIALIAS_MODES.map(mode => ({ value: mode, label: t(ANTIALIAS_LABEL_KEYS[mode]) }))}
+                        options={[
+                            { value: MACHI_FOLLOW_GLOBAL, label: follow },
+                            ...MACHI_ANTIALIAS_MODES.map(mode => ({ value: mode, label: t(ANTIALIAS_LABEL_KEYS[mode]) })),
+                        ]}
                         onChange={antialias => setQuality({ antialias })}
                     />
                 </Row>
@@ -372,7 +389,9 @@ const MachiSettingsPanel: React.FC<VisualizerSettingsPanelProps<MachiTuning>> = 
                 />
                 <ToggleRow
                     label={t('options.machiAdaptive')}
-                    note={t('options.machiAdaptiveHint')}
+                    note={quality.adaptive && degraded > 0
+                        ? `${t('options.machiAdaptiveHint')} ${format('options.machiAdaptiveActive', { count: degraded })}`
+                        : t('options.machiAdaptiveHint')}
                     checked={quality.adaptive}
                     onChange={adaptive => setQuality({ adaptive })}
                 />

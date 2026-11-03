@@ -68,6 +68,11 @@ const grid: LibrarySuiteManifest = {
                 'enqueue',
                 'play-scope',
                 'enqueue-scope',
+                // 速记簿：卡片封面右上角悬浮的「加入速记簿」、曲目侧栏行上的一颗、信息面板的「全部加入速记簿」。
+                'collect',
+                'collect-scope',
+                // 卡片封面右上角悬浮的「收藏到歌单」（应用的歌单选择器，含「我喜欢」）。
+                'save-to-playlist',
                 'filter',
                 'sort',
                 'reload',

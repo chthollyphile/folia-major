@@ -29,6 +29,7 @@ export const HELP_TAB_PRIMARY_SHORTCUTS: HelpTabShortcut[] = [
     { id: 'quick-actions', titleKey: 'help.quickActions', fallback: 'Quick actions', key: 'K' },
     { id: 'queue-collage', titleKey: 'help.queueCollage', fallback: 'Queue collage', key: 'B' },
     { id: 'play-queue', titleKey: 'help.playQueue', fallback: 'Play queue', key: 'P' },
+    { id: 'scratchpad', titleKey: 'help.scratchpad', fallback: 'Scratchpad', key: 'J' },
 ];
 
 export type HelpTabPlayerControl = {
@@ -46,6 +47,7 @@ export const HELP_TAB_PLAYER_CONTROLS: HelpTabPlayerControl[] = [
     { id: 'play-pause', titleKeys: ['help.playPause'], keys: ['Space'] },
     { id: 'previous-next-track', titleKeys: ['help.previousTrack', 'help.nextTrack'], withPrimaryModifier: true, keys: ['←', '→'] },
     { id: 'seek', titleKeys: ['help.seekBackward', 'help.seekForward'], keys: ['←', '→'] },
+    { id: 'control-panel', titleKeys: ['help.openControlPanel'], keys: ['P'] },
 ];
 
 export const PLAYER_PAGE_SHORTCUTS: UserGuideShortcut[] = [

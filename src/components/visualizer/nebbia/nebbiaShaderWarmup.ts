@@ -1,4 +1,6 @@
+import { readStoredTuning } from '../../../stores/visualizerSettingsPersistence';
 import { canRenderFogToFloat, NebbiaProgramBuild } from './nebbiaPrograms';
+import nebbiaTuning from './tuning';
 
 // src/components/visualizer/nebbia/nebbiaShaderWarmup.ts
 // 启动时预先编雾笺的着色器（entry.tsx 的 prewarm：保存的歌词样式是雾笺时应用一启动就调，否则首屏出来后空闲时调）。在一个不上屏的
@@ -17,7 +19,7 @@ export const warmNebbiaShaders = (): void => {
     started = true;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 1;
-    // 上下文参数和运行时（nebbiaGl.ts）一样
+    // 上下文参数和运行时（nebbiaGl.ts）一样；透明时运行时带透明通道，程序缓存按源码命中，不影响
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false });
     if (!gl) {
         console.info('[Nebbia] shader warm-up skipped: no WebGL2');
@@ -30,7 +32,11 @@ export const warmNebbiaShaders = (): void => {
         return;
     }
     const startedAt = performance.now();
-    const build = new NebbiaProgramBuild(gl, canRenderFogToFloat(gl));
+    // 窗外是哪套场景、玻璃是哪种是着色器变体：按保存的那套编
+    const { defaults, storage } = nebbiaTuning;
+    const saved = storage ? readStoredTuning({ defaults, storage }) : defaults;
+    const scene = saved.behind === 'aquarium' ? 'aquarium' : 'night';
+    const build = new NebbiaProgramBuild(gl, canRenderFogToFloat(gl), scene, saved.glass);
     const finish = (outcome: string, error?: unknown) => {
         gl.getExtension('WEBGL_lose_context')?.loseContext();
         const ms = Math.round(performance.now() - startedAt);

@@ -7,7 +7,9 @@ import { resolveMachiCar, type MachiLane } from './schedules';
 
 // src/components/visualizer/machi/engine/actors/traffic.ts
 // 偶尔开过的车：一辆轻型车（有时是出租车，车顶亮着灯），按 schedules 的窗口挑车道、颜色；车道和路面高度由场景给。
-// 车身、车灯都带底座边缘的裁切面，所以车是从底座边缘“开出来”的，不会悬在底座外面。前灯在湿路面上照出一块会移动的光斑，
+// 车身、车灯都带底座边缘的裁切面，所以车是从底座边缘“开出来”的，不会悬在底座外面。裁切写在车自己的着色器里（clipToBase），
+// 不用 three 的 clippingPlanes：那个的程序变体取决于画的时候渲染器的裁切状态，起步预编（programWarmup.ts）编不到，
+// 第一辆车开进画面时会在帧里同步编译。前灯在湿路面上照出一块会移动的光斑，
 // 前灯和尾灯进倒影图层，水洼里映得出来。脚下一块软阴影代替投影（阴影图不为它重画）。
 
 const WHEEL_RADIUS = 0.27;
@@ -24,6 +26,33 @@ export const createBaseClippingPlanes = (half = 6) => [
     new THREE.Plane(new THREE.Vector3(0, 0, -1), half),
     new THREE.Plane(new THREE.Vector3(0, 0, 1), half),
 ];
+
+/**
+ * 在材质的着色器里按 planes 裁掉底座外面的部分（three 的约定：distanceToPoint < 0 的一侧裁掉）。接在材质原有的
+ * onBeforeCompile 后面，程序缓存键另加一段，和不裁切的同类材质分开。车不投影，阴影图那一遍不用管。
+ */
+const clipToBase = <T extends THREE.Material>(material: T, planes: readonly THREE.Plane[]): T => {
+    const uniform = { value: planes.map(plane => new THREE.Vector4(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant)) };
+    const previous = material.onBeforeCompile;
+    const previousKey = material.customProgramCacheKey;
+    material.onBeforeCompile = (shader, renderer) => {
+        previous.call(material, shader, renderer);
+        shader.uniforms.uMachiBaseClip = uniform;
+        shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vMachiBaseClip;')
+            .replace('#include <project_vertex>', '#include <project_vertex>\nvMachiBaseClip = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', `#include <common>
+varying vec3 vMachiBaseClip;
+uniform vec4 uMachiBaseClip[${planes.length}];`)
+            .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+for (int i = 0; i < ${planes.length}; i++) {
+    if (dot(uMachiBaseClip[i].xyz, vMachiBaseClip) + uMachiBaseClip[i].w < 0.0) discard;
+}`);
+    };
+    material.customProgramCacheKey = () => `${previousKey.call(material)}:machi-base-clip`;
+    return material;
+};
 
 /** 柔边的椭圆贴图：脚下阴影、前灯光斑共用。 */
 export const createSoftEllipseTexture = (forward = false) => {
@@ -77,10 +106,7 @@ export class MachiTraffic {
         private readonly roadY: number,
     ) {
         this.group.name = 'Traffic';
-        const clip = <T extends THREE.Material>(material: T) => {
-            material.clippingPlanes = clipping;
-            return materials.track(material);
-        };
+        const clip = <T extends THREE.Material>(material: T) => materials.track(clipToBase(material, clipping));
         this.body = clip(materials.snowy(new THREE.MeshToonMaterial({ color: CAR_COLORS[0], gradientMap: materials.gradient }), MACHI_GLOSS.paint));
         const glass = clip(materials.snowy(new THREE.MeshToonMaterial({ color: '#1a2130', gradientMap: materials.gradient }), MACHI_GLOSS.glass));
         const rubber = clip(materials.snowy(new THREE.MeshToonMaterial({ color: '#15171c', gradientMap: materials.gradient })));

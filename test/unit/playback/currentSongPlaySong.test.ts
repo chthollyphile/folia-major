@@ -121,7 +121,7 @@ const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
-const { emptyPlayerForProviderChange } = await import('@/library/app/createLibraryAccountPort');
+const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { removeFromCache } = await import('@/services/db');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
@@ -133,8 +133,11 @@ const [songA, songB]: UnifiedSong[] = ['1', '2'].map(id => ({
     id, name: id === '1' ? 'A' : 'B', artists: [], album: { id: '', name: '' }, durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'bodian', mediaId: id },
 }));
+// A song of another platform than A and B.
+const songQ: UnifiedSong = { id: '3', name: 'Q', artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'qq', mediaId: '3' } };
 const keyA = 'online:bodian:1';
 const keyB = 'online:bodian:2';
+const keyQ = 'online:qq:3';
 
 beforeEach(() => {
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
@@ -354,8 +357,8 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBe(keyB);
     });
 
-    // What a provider switch, or a sign-out of the active provider, does to the player.
-    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => emptyPlayerForProviderChange({
+    // What signing out of the songs' provider does to the player: its songs leave, plays on their way give up.
+    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => dropProviderSongs({
         automixRef: { current: null },
         audioRef: refs.audioRef,
         shouldAutoPlay: refs.shouldAutoPlay,
@@ -418,8 +421,30 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBeNull();
     });
 
-    it('forgets the saved song and queue, so the next launch brings nothing back', () => {
+    it('a sign-out of the platform of the song that plays leaves a play of another platform, still waiting for its lyrics state, to land', async () => {
+        const { refs, watch, queue } = mount();
+        await queue.playSong(songA, [songA]);
+        const stateQ = deferred<OnlineLyricsState | null>();
+        env.lyricsStateFor.set('3', stateQ.promise);
+
+        const play = queue.playSong(songQ, [songA, songQ]);
+        await vi.waitFor(() => expect(watch.log.at(-1)).toContain('wait lyrics state 3'));
+        emptyThePlayer(refs);
+        // The ask for the other platform's song stands: only the song shown is taken away.
+        expect(refs.currentSongRef.current).toBe(keyQ);
+        expect(usePlaybackStore.getState().currentSong).toBeNull();
+
+        stateQ.resolve(null);
+        await play;
+
+        expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '3' });
+        expect(usePlaybackStore.getState().audioSrc).toBe('https://audio.test/3');
+        expect(refs.currentSongRef.current).toBe(keyQ);
+    });
+
+    it('forgets the saved song and queue when nothing is left, so the next launch brings nothing back', () => {
         const { refs } = mount();
+        usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB] });
         vi.mocked(removeFromCache).mockClear();
         emptyThePlayer(refs);
         expect(vi.mocked(removeFromCache).mock.calls.map(([key]) => key).sort()).toEqual(['last_queue', 'last_song']);

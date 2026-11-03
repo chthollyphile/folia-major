@@ -7,14 +7,18 @@ import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsSt
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../../../../stores/useVisualizerSettingsStore';
+import type { LyricAntialias } from '../../../../types';
 import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../../../utils/frameRateLimiter';
+import { LYRIC_RENDER_SCALES } from '../../../../utils/lyricRenderQuality';
+import { lyricAntialiasChoices, lyricRenderScaleChoices } from '../../../visualizer/renderQuality/LyricRenderQualityRows';
 import { Group, Link, Reveal, Row, Segmented, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { GpuPreferenceRow } from './graphics/GpuPreferenceRow';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/GraphicsPage.tsx
 // The 性能与动效 page: what trades picture for smoothness or works around a renderer problem
-// (static mode, the home background, native blur, the frame-rate cap, background throttling, the
+// (static mode, the home background, native blur, the frame-rate cap, the lyric canvas resolution and
+// anti-aliasing every canvas / WebGL lyric style follows by default, background throttling, the
 // Linux glow fix, the Windows render GPU), and which parts of the interface play reduced motion.
 
 /** Docs page behind the "Fix lyric animation freeze on Linux" switch. */
@@ -38,6 +42,8 @@ const O = {
     nativeBlur: option(PERFORMANCE, 'enablePlayerPageNativeBlur', 'options.enablePlayerPageNativeBlur'),
     frameRate: option(PERFORMANCE, 'visualizerFrameRate', 'options.visualizerFrameRate'),
     frameRateValue: option(PERFORMANCE, 'visualizerFrameRateValue', 'options.visualizerFrameRateValue'),
+    lyricRenderScale: option(PERFORMANCE, 'lyricRenderScale', 'options.lyricRenderScale'),
+    lyricAntialias: option(PERFORMANCE, 'lyricAntialias', 'options.lyricAntialias'),
     backgroundThrottling: option(PERFORMANCE, 'backgroundThrottling', 'options.backgroundThrottling', { electronOnly: true }),
     glowFix: option(PERFORMANCE, 'glowBlurQuantize', 'options.glowBlurQuantize'),
     gpuPreference: option(PERFORMANCE, 'gpuPreference', 'options.gpuPreference', { electronOnly: true, available: () => IS_WINDOWS_DESKTOP }),
@@ -80,6 +86,8 @@ const GraphicsPage: React.FC = () => {
         glowFix: state.glowBlurQuantize,
         setFrameRate: state.handleSetVisualizerFrameRate,
         setGlowFix: state.handleToggleGlowBlurQuantize,
+        renderQuality: state.lyricRenderQuality,
+        setRenderQuality: state.handleSetLyricRenderQuality,
     })));
     const motion = useMotionSettingsStore(useShallow(state => ({
         surfaces: state.reducedMotionSurfaces,
@@ -124,6 +132,23 @@ const GraphicsPage: React.FC = () => {
                         />
                     </Row>
                 </Reveal>
+                <Row option={O.lyricRenderScale} note={t('options.lyricRenderScaleDesc')}>
+                    <Segmented
+                        value={String(visualizer.renderQuality.scale)}
+                        options={lyricRenderScaleChoices()}
+                        onChange={(value) => {
+                            const scale = LYRIC_RENDER_SCALES.find(candidate => String(candidate) === value);
+                            if (scale) visualizer.setRenderQuality({ scale });
+                        }}
+                    />
+                </Row>
+                <Row option={O.lyricAntialias} note={t('options.lyricAntialiasDesc')}>
+                    <Segmented<LyricAntialias>
+                        value={visualizer.renderQuality.antialias}
+                        options={lyricAntialiasChoices(t)}
+                        onChange={antialias => visualizer.setRenderQuality({ antialias })}
+                    />
+                </Row>
                 {isElectron && (
                     <Row option={O.backgroundThrottling} hint={t('options.backgroundThrottlingHint')} note={t('options.backgroundThrottlingDesc')}>
                         <Toggle checked={backgroundThrottling} onChange={setBackgroundThrottling} />

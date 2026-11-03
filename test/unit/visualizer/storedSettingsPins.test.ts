@@ -105,9 +105,10 @@ afterEach(() => {
 // different value is as easy.
 const CURRENT: Record<string, unknown> = {
     classic_tuning: { enableWordRotation: false, breathingFloatMultiplier: 1.6, useLegacyLayout: true, wordSpacing: 1.2 },
-    cadenza_tuning: { fontScale: 1.3, widthRatio: 0.6, motionAmount: 0.8, glowIntensity: 1.4, beamIntensity: 0 },
+    cadenza_tuning: { render: { scale: 1.5, antialias: 'global' }, fontScale: 1.3, widthRatio: 0.6, motionAmount: 0.8, glowIntensity: 1.4, beamIntensity: 0 },
     partita_tuning: { showGuideLines: false, useSemanticLayout: false, staggerMin: 40, staggerMax: 150 },
     fume_tuning: {
+        render: { scale: 0.75, antialias: 'global' },
         hidePrintSymbols: true, disableGeometricBackground: false, backgroundObjectOpacity: 0.3, textHoldRatio: 0.7,
         cameraTrackingMode: 'stepped', cameraSpeed: 1.4, glowIntensity: 0.6, heroScale: 1.2,
     },
@@ -119,11 +120,13 @@ const CURRENT: Record<string, unknown> = {
         cameraSpeed: 1.3, motionAmount: 0.9, audioReactivity: 0.5,
         geometryVisibility: { ...DEFAULT_DIORAMA_TUNING.geometryVisibility, rings: !DEFAULT_DIORAMA_TUNING.geometryVisibility.rings },
         showParticles: !DEFAULT_DIORAMA_TUNING.showParticles, glowIntensity: 0.8, soulIntensity: 1.2, gradientIntensity: 0.4,
+        render: { scale: 2, antialias: 'off' },
     },
     monet_tuning: {
         ...DEFAULT_MONET_TUNING,
         keywordColoringEnabled: !DEFAULT_MONET_TUNING.keywordColoringEnabled, showDescription: !DEFAULT_MONET_TUNING.showDescription,
         audioStyle: 'line', fontScale: 1.2, portraitSource: 'custom', portraitOffsetX: -40, portraitStyle: 'rectangular',
+        render: { scale: 0.5, antialias: 'global' },
     },
     pendolo_tuning: {
         ...DEFAULT_PENDOLO_TUNING,
@@ -152,7 +155,7 @@ const CURRENT: Record<string, unknown> = {
         launches: !DEFAULT_HANABI_TUNING.launches, overlayFrame: !DEFAULT_HANABI_TUNING.overlayFrame, sky: 0.4, collage: 1.5,
     },
     machi_tuning: { ...DEFAULT_MACHI_TUNING, scene: 'konbini', timeOfDay: 'night', weather: 'snow', camera: 'custom', views: { ...DEFAULT_MACHI_TUNING.views, station: { azimuth: -20, elevation: 6, zoom: 1.6, panX: 1.5, panZ: -0.5 } }, motion: true, dof: 1.4, focus: 'lyrics', quality: { renderScale: 0.75, antialias: 'ssaa', shadows: 'low', reflections: 'off', glow: false, adaptive: false } },
-    nebbia_tuning: { ...DEFAULT_NEBBIA_TUNING, appear: ['write'], fade: ['fingers'], layouts: ['ribbon', 'orbit'], jitter: 1.2, mist: 0.5, refog: 6, spot: 1.2, rainHit: 2, resolution: 0.75 },
+    nebbia_tuning: { ...DEFAULT_NEBBIA_TUNING, appear: ['write'], fade: ['fingers'], layouts: ['ribbon', 'orbit'], jitter: 1.2, mist: 0.5, refog: 6, spot: 1.2, rainHit: 2, render: { scale: 0.75, antialias: 'global' } },
     monet_background_tuning: {
         ...DEFAULT_MONET_BACKGROUND_TUNING,
         backgroundSource: 'uploaded-global', backgroundLayout: 'half-pane-gradient', backgroundBlurPx: 24, backgroundOverlayOpacity: 0.3,
@@ -266,6 +269,8 @@ describe('what is read at start-up', () => {
             tilt_tuning: json({ splitProbability: 0.5, tiltStyleProbability: 0.5 }),
             nomand_background_tuning: json({ imageSource: 'uploaded-global', ditheringType: '2x2', size: 4, colorSteps: 3 }),
             latent_background_tuning: json({ displayMode: 'both', ditheringSpeed: 0.5 }),
+            // Before nebbia's resolution slider became the shared render override (#929).
+            nebbia_tuning: json({ mist: 0.5, resolution: 1.5 }),
         });
         expect(app.held()).toMatchSnapshot();
     });
@@ -421,9 +426,12 @@ describe('what is written', () => {
                 // What is held is what was written.
                 expect(json(app.state()[field])).toBe(app.text(key));
             }
+            const held = app.state()[field] as unknown as Record<string, unknown>;
             (app.state()[reset] as () => void)();
             steps.push({ from, reset: true, written: app.text(key) });
-            expect(app.text(key)).toBe(json(DEFAULTS[key]));
+            // 心象的面板上只有「渲染」一组：「默认」只还原它，别的项（只能靠导入得到）留着（cadenza/tuning.ts 的 reset）。
+            const expected = key === 'cadenza_tuning' ? { ...held, render: (DEFAULTS[key] as Record<string, unknown>).render } : DEFAULTS[key];
+            expect(app.text(key)).toBe(json(expected));
             expect(json(app.state()[field])).toBe(app.text(key));
             // No other key is touched.
             expect(app.keys()).toEqual([...new Set([...before, key])].sort());

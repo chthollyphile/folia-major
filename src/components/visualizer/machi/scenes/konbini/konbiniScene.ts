@@ -55,6 +55,9 @@ const resolveKonbiniArt: MachiArtResolver = (_theme, seed, base) => ({
     umbrella: UMBRELLA_COLORS[seedIndex(seed, 'umbrella', UMBRELLA_COLORS.length)]!,
 });
 
+/** 门开合时阴影图隔多大一段重画一次（开合度 0..1）。 */
+const DOOR_SHADOW_STEP = 0.06;
+
 /** 自发光件：颜色键与亮度倍数（线性空间，> 1 才会被 bloom 轻轻带出光晕）。 */
 const KONBINI_GLOWS: Record<string, MachiGlowSpec> = {
     ceilingLight: { key: 'interiorLight', level: 2.4 },
@@ -150,6 +153,8 @@ class KonbiniScene implements MachiScene {
     private song: MachiSongContext;
     private doorEvents: number[];
     private doorOpenness = 0;
+    /** 阴影图上一次按门开到多大画的。 */
+    private shadowDoorOpenness = 0;
 
     constructor(private readonly context: MachiSceneContext) {
         const { materials, blend, geometryCache } = context;
@@ -289,7 +294,12 @@ class KonbiniScene implements MachiScene {
         const openness = resolveKonbiniDoorOpenness(this.doorEvents, songTime, this.variation, this.song.isInstrumental || frame.lines.length === 0);
         if (Math.abs(openness - this.doorOpenness) > 1e-4) {
             this.doorOpenness = openness;
-            this.context.invalidateShadows();
+            // 门动一下就重画整张阴影图太贵：门走过一小段、或者停在全开 / 全关时才重画，门板本身每帧照常走。
+            const settled = openness === 0 || openness === 1;
+            if (Math.abs(openness - this.shadowDoorOpenness) >= DOOR_SHADOW_STEP || (settled && openness !== this.shadowDoorOpenness)) {
+                this.shadowDoorOpenness = openness;
+                this.context.invalidateShadows();
+            }
         }
         // 霓虹随拍（智能动感模式）：店里的灯（连同它投在地上的光斑）跟着小节慢慢涨落，店招上沿的霓虹边是第二组霓虹；
         // 地面干时光斑跟鼓点跳。

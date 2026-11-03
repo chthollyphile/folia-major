@@ -1,39 +1,13 @@
+import { NEBBIA_SCENE_COMMON_GLSL } from './nebbiaSceneCommonGlsl';
 import { NEBBIA_SPOT_GLSL } from './nebbiaSpotGlsl';
 
 // src/components/visualizer/nebbia/nebbiaSceneGlsl.ts
 // 公交车侧窗外的雨夜街景（GLSL，主着色器和雾的预渲染共用）：远近两层楼群、主题色霓虹散景、路灯招牌、湿路面倒影、
 // 车灯、斜着落的雨，和打向正在唱的字的两盏聚光灯。scene(q, b) 里 b 是模糊半径（屏高的比例），雾后面的窗外用大的 b。
+// 窗外每样都能在设置里单独关掉（uScenery）。
+// 哈希、光点这些和水族箱共用的函数在 nebbiaSceneCommonGlsl.ts。
 // 着色器从原型（feat/fog-write-prototype 分支 dev/prototypes/fog-write/index.html）搬来；格子伪随机数 h1 后来换成了纯算术哈希，分布不变、每格的样子和原型不同。
-export const NEBBIA_SCENE_GLSL = /* glsl */ `
-float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-// 格子编号 → 0..1 的伪随机数（Dave Hoskins 的 hash11）。原来用 fract(sin(n) × 43758)，sin 的精度各家驱动不一样、
-// 编号随行驶越来越大时平台间会对不上；纯算术的分布一样（均匀、相邻编号不相关），只是每格具体的值换了
-float h1(float n) { n = fract(n * 0.1031); n *= n + 33.33; n *= n + n; return fract(n); }
-float vnoise(vec2 p) {
-  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
-}
-vec3 pick(float h) { return h < 0.34 ? uLa : (h < 0.67 ? uLb : uLc); }
-// 高斯光点：r 光点半径，b 模糊半径，streak 横向拖影半长；模糊越大越暗、越散
-float glowPt(vec2 d, float r, float b, float streak) {
-  d.x = sign(d.x) * max(abs(d.x) - streak, 0.0);
-  float s2 = r * r + b * b;
-  return (r * r / s2) * exp(-dot(d, d) / s2 * 1.6);
-}
-// 软边矩形：size 半宽高，soft 模糊半径
-float softBox(vec2 d, vec2 size, float soft) {
-  vec2 q = abs(d) - size;
-  float sd = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-  float k = min(size.x, size.y);
-  return (1.0 - smoothstep(-soft * 0.5, soft, sd)) * k / (k + soft * 0.6);
-}
-// 半径 r、模糊 b 的 glowPt 纵向照得到多远：再远指数项 < 1e-6，乘上最大的倍数（霓虹 2.8 × uNeon 2）也远不到 8 位输出的一级。
-// 下面各组灯纵向照不到当前这一行就整组跳过，画面不变
-float reach(float r, float b) { return 3.0 * sqrt(r * r + b * b); }
-const float HZ = 0.6, ROAD = 0.7;
-const float WIND = 0.6;   // 车速 1 时，雨相对车身每往下 1 就往后 0.6（和 JS 里的 WIND_DRIFT 对应）
-const vec3 SODIUM = vec3(1.0, 0.68, 0.32);
-// 路灯和招牌（倒影也用它）
+export const NEBBIA_SCENE_GLSL = /* glsl */ `${NEBBIA_SCENE_COMMON_GLSL}// 路灯和招牌（倒影也用它）
 vec3 lampsSigns(vec2 q, float b, float t) {
   vec3 c = vec3(0.0);
   // 招牌、店面：近，移动快，带横向拖影
@@ -163,28 +137,32 @@ vec3 scene(vec2 q, float b) {
   float aa = max(b, 0.0015), c0;
   // 楼群走缓存（nebbiaBuildingCache.ts）。水珠透镜（b = 0.006）折射得远，会取到缓存范围外面，照旧现算（只占几颗水珠的面积）；
   // 缓存还没画好的那档也现算
+  bool bldOn = sceneryOn(SCN_BUILDINGS);
   bool cached = b < 0.002 ? uBldOn.x : (b > 0.05 ? uBldOn.z : (b > 0.02 ? uBldOn.y : false));
-  if (cached) {
+  if (bldOn && cached) {
     vec4 bf, bn;
     if (b > 0.05) { bf = bldAt(uBld4, q, t, 0.02, uBldGeo[2]); bn = bldAt(uBld5, q, t, 0.035, uBldGeo[2]); }
     else if (b > 0.02) { bf = bldAt(uBld2, q, t, 0.02, uBldGeo[1]); bn = bldAt(uBld3, q, t, 0.035, uBldGeo[1]); }
     else { bf = bldAt(uBld0, q, t, 0.02, uBldGeo[0]); bn = bldAt(uBld1, q, t, 0.035, uBldGeo[0]); }
     col = col * (1.0 - bf.a) + bf.rgb;
     col = col * (1.0 - bn.a) + bn.rgb;
-  } else {
+  } else if (bldOn) {
     vec4 bf = building(q, b, t, 0.0);
     col = mix(col, bf.rgb, bf.a);
     vec4 bn = building(q, b, t, 1.0);
     col = mix(col, bn.rgb, bn.a);
   }
   // 主题色霓虹压在楼群前面；天边再铺一层很宽的主题色辉光
-  col += (neonLights(q, b, t) + uLa * 0.12 * exp(-abs(q.y - HZ + 0.1) * 5.0)) * uNeon;
-  col += lampsSigns(q, b, t);
-  // 湿路面和倒影
-  float road = smoothstep(ROAD - aa, ROAD + aa, q.y);
+  bool lightsOn = sceneryOn(SCN_LIGHTS);
+  if (lightsOn) {
+    col += (neonLights(q, b, t) + uLa * 0.12 * exp(-abs(q.y - HZ + 0.1) * 5.0)) * uNeon;
+    col += lampsSigns(q, b, t);
+  }
+  // 湿路面和倒影（路面关掉时车灯也没有倒影）
+  float road = sceneryOn(SCN_ROAD) ? smoothstep(ROAD - aa, ROAD + aa, q.y) : 0.0;
   col = mix(col, uSky0 * 0.5, road * 0.85);
   // 倒影都乘 road，路面以上恰好是 0：直接跳过，画面不变，省掉屏上大半像素的两整套招牌、霓虹计算
-  if (road > 0.0) {
+  if (road > 0.0 && lightsOn) {
     vec2 qr = vec2(q.x, ROAD - (q.y - ROAD) * 0.55);
     col += lampsSigns(qr, b + 0.012, t) * road * 0.35;
     // 霓虹倒影：纵向压得更扁，所以在湿路面上拉成竖直的光柱（雨湖的倒影做法）
@@ -192,7 +170,7 @@ vec3 scene(vec2 q, float b) {
     col += neonLights(qn, b + 0.008, t) * road * 0.45 * uNeon;
   }
   // 车灯：同向车道尾灯（红），对向车道前灯（白），快速掠过拖出长影
-  for (float lane = 0.0; lane < 2.0; lane++) {
+  if (sceneryOn(SCN_CARS)) for (float lane = 0.0; lane < 2.0; lane++) {
     float sp = lane < 0.5 ? 0.55 : -1.1, ly = lane < 0.5 ? 0.76 : 0.83, ww = 0.9;
     float xc = q.x + t * sp, cc = floor(xc / ww);
     vec3 lc = lane < 0.5 ? vec3(1.0, 0.18, 0.12) : vec3(1.0, 0.95, 0.85);
@@ -211,14 +189,16 @@ vec3 scene(vec2 q, float b) {
       if (rf) col += lc * glowPt(vec2(xc - cx, (q.y - ly) * 3.0 - 0.03), 0.02, b * 2.0, st) * road * 0.3;
     }
   }
-  // 窗外的雨：相对车身的速度 = 往下落 + 往后（车往右开，窗外往左走），车越快越斜；停站时竖直落
-  vec2 rd = normalize(vec2(-WIND * uBus, 1.0));
+  // 窗外的雨：相对车身的速度 = 往下落 + 往后（车往右开，窗外往左走），车越快越斜；停站时竖直落。
+  // 雨丝只在聚光灯光柱里画（被照亮的那些）。设置里可以让它总是竖直落，或者不下（只剩光柱）
+  float beam = spotBeam(q, b);
+  if (!sceneryOn(SCN_RAIN)) return col + uLa * beam;
+  vec2 rd = normalize(vec2(sceneryOn(SCN_RAIN_SLANT) ? -WIND * uBus : 0.0, 1.0));
   vec2 r = vec2(dot(q, rd), dot(q, vec2(-rd.y, rd.x)));
   float colId = floor(r.y / 0.007), hr = h1(colId);
   float seg = fract(r.x * (1.5 + hr) - uTime * (2.5 + hr * 2.0) * (1.0 + 0.4 * uBus) + hr * 10.0);
   float line = smoothstep(0.0012 + b, 0.0, abs(fract(r.y / 0.007) - 0.5) * 0.007) * smoothstep(0.0, 0.1, seg) * smoothstep(0.3, 0.1, seg);
   // 聚光灯：光柱叠在最前面；光柱里的雨丝被照亮
-  float beam = spotBeam(q, b);
   col += uLa * beam + mix(uLa, vec3(1.0), 0.5) * line * beam * 1.6 * step(0.3, hr) * (1.0 - clamp(b * 40.0, 0.0, 1.0));
   return col;
 }

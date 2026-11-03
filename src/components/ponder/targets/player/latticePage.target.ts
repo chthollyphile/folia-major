@@ -97,7 +97,7 @@ export default {
                 { kind: 'caption', id: 'posterKeysCaption', textKey: 'ponder.captions.pages.latticePosterKeys', pointTo: { anchor: 'poster' }, durationMs: 4300, withPrevious: true },
                 { kind: 'pause', id: 'posterKeysRead' },
                 { kind: 'keypress', id: 'latticeKeys', keys: [': C', 'Mod P', 'Mod B', 'Mod K'], at: 'bottom', durationMs: 1300, keyframe: true },
-                { kind: 'surfaceState', id: 'commandResult', anchor: 'page', state: 'command-open', transition: 'zoom', durationMs: 520, withPrevious: true },
+                { kind: 'surfaceState', id: 'commandResult', anchor: 'page', state: 'command-open', transition: 'slide-up', durationMs: 520, withPrevious: true },
                 { kind: 'caption', id: 'latticeKeysCaption', textKey: 'ponder.captions.pages.latticePageKeys', pointTo: { anchor: 'page' }, durationMs: 4800, withPrevious: true },
                 { kind: 'pause', id: 'latticeKeysRead' },
             ],

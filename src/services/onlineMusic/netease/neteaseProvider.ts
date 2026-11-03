@@ -2,6 +2,7 @@ import type { SongResult, UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type {
     AudioQualityPreference,
+    DailyStyleGroup,
     LoginDiagnosticLine,
     MediaId,
     OnlineMusicProvider,
@@ -60,6 +61,15 @@ const mapScrobbleQuality = (quality?: AudioQualityPreference): { level: string; 
 
 /** This provider's normalized view of a song, shared by `songMetadata` and the listening report. */
 const getNeteaseSongMetadata = (song: SongResult) => createProviderSongMetadata(normalizeNeteaseSong(song));
+
+/** One group of the style recommendation's styles (`{ categoryId, categoryName, tagVOList }`); tags without an id are left out. */
+const normalizeDailyStyleGroup = (raw: any): DailyStyleGroup => ({
+    id: raw?.categoryId != null ? String(raw.categoryId) : '',
+    name: typeof raw?.categoryName === 'string' ? raw.categoryName : '',
+    tags: (Array.isArray(raw?.tagVOList) ? raw.tagVOList : [])
+        .filter((tag: any) => tag?.tagId != null)
+        .map((tag: any) => ({ id: String(tag.tagId), name: typeof tag.tagName === 'string' ? tag.tagName : String(tag.tagId) })),
+});
 
 const normalizeUser = (raw: any): ProviderUser => ({
     id: raw?.userId ?? raw?.id ?? 0,
@@ -295,6 +305,7 @@ export const neteaseProvider: OnlineMusicProvider = {
     id: 'netease',
     displayName: 'NetEase Cloud Music',
     shortName: '网易云',
+    shortNameKey: 'onlineProviderName.netease',
     mark: { letter: '云', color: '#dc2626' },
     watch: watchNeteaseLocalService,
     describeFailure: describeNeteaseFailure,
@@ -314,6 +325,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         wordByWordLyrics: true,
         userCloud: true,
         historyRecommendations: true,
+        dailyStyleRecommendations: true,
         playlistSubscription: true,
         playlistTrackMutations: true,
         likes: true,
@@ -336,6 +348,19 @@ export const neteaseProvider: OnlineMusicProvider = {
             const items = (response.result?.songs || []).map(normalizeNeteaseSong);
             const total = Number(response.result?.songCount || items.length);
             return { items, total, hasMore: offset + items.length < total, nextOffset: offset + items.length };
+        },
+        // 专辑和歌单的条目与 `/album`、`/playlist/detail` 读到的同一套字段（2026-10-31 实测），按同样的规则正规化。
+        async searchAlbums(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 10);
+            const items = (response.result?.albums || []).map((raw: any) => normalizeCollection(raw, 'album'));
+            const total = Number(response.result?.albumCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
+        },
+        async searchPlaylists(query, limit, offset) {
+            const response = await neteaseApi.cloudSearch(query, limit, offset, 1000);
+            const items = (response.result?.playlists || []).map((raw: any) => normalizeCollection(raw, 'playlist'));
+            const total = Number(response.result?.playlistCount || items.length);
+            return { items, total, hasMore: items.length > 0 && offset + items.length < total, nextOffset: offset + items.length };
         },
     },
     playback: {
@@ -710,6 +735,30 @@ export const neteaseProvider: OnlineMusicProvider = {
                 limitReached: Number(response?.code) === 432,
             };
         },
+        async getDailyStyleGroups() {
+            const response = await neteaseApi.getDailyStyleConfigs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style groups');
+            return (Array.isArray(response?.data?.categorys) ? response.data.categorys : [])
+                .map(normalizeDailyStyleGroup)
+                .filter((group: DailyStyleGroup) => group.id && group.tags.length > 0);
+        },
+        async getDailyStyleSongs() {
+            const response = await neteaseApi.getDailyStyleSongs();
+            if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the daily style songs');
+            const picked = normalizeDailyStyleGroup(response?.data?.tags);
+            return {
+                songs: (response?.songs || []).map(normalizeNeteaseSong),
+                selection: picked.id && picked.tags.length > 0
+                    ? { groupId: picked.id, tagIds: picked.tags.map(tag => tag.id) }
+                    : null,
+            };
+        },
+        async setDailyStyle(selection) {
+            const response = await neteaseApi.setDailyStyle(Number(selection.groupId), selection.tagIds.map(Number));
+            if (isRefusedNeteaseAnswer(response) || response?.data?.saveSuccess === false) {
+                throw neteaseAnswerError(response, 'the daily style');
+            }
+        },
     },
     // The explore page is in neteaseExplore.ts, which gets this file's normalizers handed in.
     explore: createNeteaseExplore({ song: normalizeNeteaseSong, collection: normalizeCollection }),
@@ -720,7 +769,16 @@ export const neteaseProvider: OnlineMusicProvider = {
         async updatePlaylistTracks(operation, playlist, tracks) {
             const playlistId = typeof playlist === 'object' ? playlist.id : playlist;
             const trackIds = tracks.map(track => typeof track === 'object' ? track.id : track);
-            await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
+            const response = await neteaseApi.updatePlaylistTracks(operation, toNeteaseId(playlistId), trackIds.map(toNeteaseId));
+            // The API answers a refusal (a song already in the playlist, not the owner's list, signed out) with
+            // HTTP 200 and NetEase's own body; a success comes wrapped as { status, body: { code } }.
+            const code = Number(response?.body?.code ?? response?.code);
+            if ([301, 401, 403].includes(code)) {
+                throw new OnlineProviderError('auth-required', 'NetEase refused the playlist change: not signed in', 'netease');
+            }
+            if (code !== 200) {
+                throw new OnlineProviderError('unavailable', `NetEase refused the playlist change: code ${code}`, 'netease');
+            }
         },
         async subscribePlaylist(playlist, subscribed) {
             await neteaseApi.subscribePlaylist(toNeteaseId(typeof playlist === 'object' ? playlist.id : playlist), subscribed);

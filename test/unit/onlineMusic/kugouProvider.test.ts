@@ -33,6 +33,47 @@ import { KUGOU_API_BASE_MISSING } from '@/services/onlineMusic/kugou/kugouTransp
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 describe('kugouProvider', () => {
+    // 字段取自 2026-10-31 `/search?type=album` 与 `type=special` 的实测回答（裁剪过）。
+    it('searches albums and playlists and opens a playlist by its gid', async () => {
+        requestMock.mockResolvedValueOnce({
+            status: 1, error_code: 0,
+            data: {
+                total: 500,
+                lists: [{
+                    albumid: 960399, albumname: '魔杰座', singer: '周杰伦', songcount: 11, publish_time: '2008-10-15',
+                    img: 'http://imge.kugou.com/stdmusic/240/20241118/20241118160622508429.jpg',
+                    singers: [{ name: '周杰伦', id: 3520 }],
+                }],
+            },
+        });
+        const albums = await kugouProvider.search!.searchAlbums!('周杰伦', 30, 0);
+        expect(requestMock).toHaveBeenLastCalledWith('search', expect.objectContaining({ keywords: '周杰伦', type: 'album', page: 1, pagesize: 30 }));
+        // 按页码翻：下一页从第 2 页（offset 30）起，不管这一页实际几条。
+        expect(albums).toMatchObject({ total: 500, hasMore: true, nextOffset: 30 });
+        expect(albums.items[0]).toMatchObject({
+            providerId: 'kugou', id: 960399, type: 'album', name: '魔杰座', trackCount: 11, artists: [{ name: '周杰伦' }],
+        });
+        expect(albums.items[0].coverUrl).toMatch(/^https:/);
+
+        requestMock.mockResolvedValueOnce({
+            status: 1, error_code: 0,
+            data: {
+                total: 480,
+                lists: [{
+                    specialid: 6409645, specialname: '周杰伦必听热歌', gid: 'collection_3_2132029040_287_0', song_count: 154,
+                    nickname: '酷乐推荐', suid: '2132029040', play_count: '179854', total_play_count: '37035193',
+                    img: 'http://imge.kugou.com/soft/collection/150/20260414/20260414170554928435.png',
+                }],
+            },
+        });
+        const playlists = await kugouProvider.search!.searchPlaylists!('周杰伦', 30, 30);
+        expect(requestMock).toHaveBeenLastCalledWith('search', expect.objectContaining({ type: 'special', page: 2, pagesize: 30 }));
+        expect(playlists.items[0]).toMatchObject({
+            providerId: 'kugou', id: 'collection_3_2132029040_287_0', type: 'playlist', name: '周杰伦必听热歌',
+            trackCount: 154, playCount: 37035193, creator: { nickname: '酷乐推荐' },
+        });
+    });
+
     beforeEach(async () => {
         // provider 里的"我喜欢"歌单引用和行号缓存是模块级的，按会话生命周期清理；用例之间必须先登出，
         // 否则上一条用例写进去的引用会让下一条跳过 user_playlist 请求。

@@ -6,6 +6,8 @@ import { loadCachedOrFetchCover } from './services/coverCache';
 import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
 import CommandPalette from './components/command-palette/CommandPalette';
 import AddToPlaylistHost from './components/app/AddToPlaylistHost';
+import ScratchpadHost from './components/app/scratchpad/ScratchpadHost';
+import { useScratchpadPlayback } from './components/app/scratchpad/useScratchpadPlayback';
 import { useCommandPalette } from './components/command-palette/useCommandPalette';
 import { useCommandPaletteContext } from './hooks/useCommandPaletteContext';
 import { useReducedMotionFor } from './hooks/useReducedMotionFor';
@@ -64,6 +66,7 @@ import { isWallLibrarySuite, useActiveLibrarySuiteId } from './library/app/libra
 import {
     createSearchAlbumCollection,
     createSearchArtistCollection,
+    createSearchResultCollection,
 } from './components/app/search/searchCollectionAdapters';
 import { usePlayerPanelModel } from './components/app/player-panel/usePlayerPanelModel';
 import { createQueueMutations } from './components/app/player-panel/createQueueMutations';
@@ -176,6 +179,7 @@ import { useWallHandoffStore } from './stores/useWallHandoffStore';
 import { countRender } from './dev/renderCount';
 import { resolveSongLiked } from './utils/resolveSongLiked';
 import StageSessionEmptyState from './components/app/stage/StageSessionEmptyState';
+import { useStagePlayerSearchBridge } from './components/app/stage/useStagePlayerSearchBridge';
 import { useVisualizerRendererModel } from './components/visualizer/useVisualizerRendererModel';
 import { useVisualizerTunings } from './components/visualizer/useVisualizerTunings';
 import { usePlaybackRuntimeRefs } from './components/app/playback/usePlaybackRuntimeRefs';
@@ -776,7 +780,7 @@ export default function App() {
         omni.getProviderSummaries().map(({ providerId }) => [providerId, async () => await omni.readAccount(providerId, 'sync') === 'read']),
     ), []);
     // 在线账户 controller（Library v2 · A4）：登录、选平台、切换确认与登出都在 core，App 只交出退出与退出前的那一问
-    // （useProviderSignOut），以及换平台时清空播放器的端口。端口读的句柄都是稳定引用，建一次。
+    // （useProviderSignOut），以及平台换了时的播放器端口（切换退出私人 FM，退出登录移出那个平台的歌）。端口读的句柄都是稳定引用，建一次。
     const { confirmLogout, signOut, dialog: signOutDialog } = useProviderSignOut();
     const [providerSwitchCleanup] = useState(() => createLibraryAccountSwitchCleanupPort(() => ({
         audioRef,
@@ -924,12 +928,12 @@ export default function App() {
         onRefreshLocalSongs,
         isLocalSongLiked,
         saveCurrentQueueAsLocalPlaylist,
-        addCurrentSongToLocalPlaylist,
-        createCurrentLocalPlaylist,
-        addCurrentSongToOnlinePlaylist,
-        createCurrentOnlinePlaylist,
-        addCurrentSongToNavidromePlaylist,
-        createCurrentNavidromePlaylist,
+        addPickedSongsToLocalPlaylist,
+        createLocalPlaylistWithSongs,
+        addPickedSongsToOnlinePlaylist,
+        createOnlinePlaylistWithSongs,
+        addPickedSongsToNavidromePlaylist,
+        createNavidromePlaylistWithSongs,
         loadCurrentSongLyricPreview,
         handleLocalQueueAdd,
         onPlayLocalSong,
@@ -1105,6 +1109,9 @@ export default function App() {
         }
         setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
     }, [navigateToCollection, setStatusMsg, t]);
+    const handleSearchResultCollectionOpen = useCallback((collection: ProviderCollection) => {
+        navigateToCollection(createSearchResultCollection(collection), 'search');
+    }, [navigateToCollection]);
 
     usePlaybackUiEffects({
         statusMsg,
@@ -1466,6 +1473,8 @@ export default function App() {
         pausePlayback,
         resumePlayback,
     });
+
+    useStagePlayerSearchBridge();
 
     const {
         publishStagePlayerPlaybackUpdate,
@@ -2232,6 +2241,7 @@ export default function App() {
         onPopCollectionTo: popCollectionTo,
         onBackCollection: backCollection,
     });
+    const scratchpadPlayback = useScratchpadPlayback(homeModel.surfaceProps, handleQueueAddAndPlay);
     const playerDisplayCatalogIndex = useMemo(() => buildLocalLibraryIndex(
         localLibraryCatalog.entities,
         localLibraryCatalog.assignments,
@@ -2250,10 +2260,6 @@ export default function App() {
             ? applyLocalLibraryEntityDisplay(track, localLibraryCatalog, playerDisplayCatalogIndex)
             : track
     ), [localLibraryCatalog, playerDisplayCatalogIndex]);
-    const onlinePlaylists = useMemo(() => {
-        return playerDisplayCurrentSong ? omni.getPlaylistsForSong(playerDisplayCurrentSong) : [];
-    }, [onlineProviders, playerDisplayCurrentSong]);
-
     const playerPanelModel = usePlayerPanelModel({
         navigateToHome,
         navigateToLattice,
@@ -2321,7 +2327,9 @@ export default function App() {
         handleSearchResultAddToQueue,
         handleSearchResultArtistOpen,
         handleSearchResultAlbumOpen,
+        handleSearchResultCollectionOpen,
         resolveSearchResultDisplay,
+        hasLocalSongs: localSongs.length > 0,
         devDebugSnapshot,
         effectiveLoopMode,
         canToggleCurrentPlayback,
@@ -2930,14 +2938,16 @@ export default function App() {
             <AddToPlaylistHost
                 isDaylight={isDaylight}
                 localPlaylists={localPlaylists}
-                onlinePlaylists={onlinePlaylists}
-                onAddCurrentSongToLocalPlaylist={addCurrentSongToLocalPlaylist}
-                onCreateCurrentLocalPlaylist={createCurrentLocalPlaylist}
-                onAddCurrentSongToOnlinePlaylist={addCurrentSongToOnlinePlaylist}
-                onCreateCurrentOnlinePlaylist={createCurrentOnlinePlaylist}
-                onAddCurrentSongToNavidromePlaylist={addCurrentSongToNavidromePlaylist}
-                onCreateCurrentNavidromePlaylist={createCurrentNavidromePlaylist}
+                onAddSongsToLocalPlaylist={addPickedSongsToLocalPlaylist}
+                onCreateLocalPlaylistWithSongs={createLocalPlaylistWithSongs}
+                onAddSongsToOnlinePlaylist={addPickedSongsToOnlinePlaylist}
+                onCreateOnlinePlaylistWithSongs={createOnlinePlaylistWithSongs}
+                onAddSongsToNavidromePlaylist={addPickedSongsToNavidromePlaylist}
+                onCreateNavidromePlaylistWithSongs={createNavidromePlaylistWithSongs}
             />
+
+            {/* 速记簿：左缘的把手与滑出的抽屉，非模态，三个视图里都在。 */}
+            <ScratchpadHost isDaylight={isDaylight} playback={scratchpadPlayback} />
 
             <CommandPalette
                 activeIndex={commandPalette.activeIndex}

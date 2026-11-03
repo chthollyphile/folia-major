@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeMachiTuning, resolveMachiQualityPreset, resolveMachiSceneId } from '@/components/visualizer/machi/machiTuning';
+import { normalizeMachiTuning, pinMachiQualityForExport, resolveMachiQualityPreset, resolveMachiSceneId } from '@/components/visualizer/machi/machiTuning';
 import { DEFAULT_MACHI_QUALITY, DEFAULT_MACHI_TUNING, DEFAULT_MACHI_VIEW, DEFAULT_MACHI_VIEWS, MACHI_QUALITY_PRESET_IDS, MACHI_QUALITY_PRESETS, MACHI_SCENE_IDS } from '@/components/visualizer/machi/types';
 
 // test/unit/visualizer/machi/machiTuning.test.ts
@@ -59,6 +59,17 @@ describe('normalizeMachiTuning', () => {
         expect(normalizeMachiTuning({ quality: { renderScale: 0.5, shadows: 'off', reflections: 'low', adaptive: false } }).quality)
             .toEqual({ ...DEFAULT_MACHI_QUALITY, renderScale: 0.5, shadows: 'off', reflections: 'low', adaptive: false });
     });
+
+    it('reads the old defaults saved before follow-global as following the global setting', () => {
+        // 没有 revision 的旧存档：100% 和 SMAA 是那时的默认值。
+        expect(normalizeMachiTuning({ quality: { renderScale: 1, antialias: 'smaa', shadows: 'high', reflections: 'high', glow: true, adaptive: true } }).quality).toEqual(DEFAULT_MACHI_QUALITY);
+        const oldBalanced = normalizeMachiTuning({ quality: { renderScale: 1, antialias: 'fxaa', shadows: 'low', reflections: 'low', glow: true, adaptive: true } }).quality;
+        expect(oldBalanced).toMatchObject({ renderScale: 'global', antialias: 'fxaa' });
+        expect(resolveMachiQualityPreset(oldBalanced)).toBe('balanced');
+        // 新存档里选的 100% 和 SMAA 是用户自己选的，照原样读回。
+        expect(normalizeMachiTuning({ quality: { renderScale: 1, antialias: 'smaa', revision: 2 } }).quality).toMatchObject({ renderScale: 1, antialias: 'smaa', revision: 2 });
+        expect(normalizeMachiTuning({ quality: { renderScale: 'global', antialias: 'global', revision: 2 } }).quality).toMatchObject({ renderScale: 'global', antialias: 'global' });
+    });
 });
 
 describe('resolveMachiQualityPreset', () => {
@@ -87,5 +98,15 @@ describe('resolveMachiSceneId', () => {
             expect(MACHI_SCENE_IDS).toContain(scene);
             expect(resolveMachiSceneId({ scene: 'auto' }, seed)).toBe(scene);
         });
+    });
+});
+
+describe('pinMachiQualityForExport', () => {
+    it('draws exports at the pinned 1× with SMAA and no auto-degrade, keeping the rest of the quality', () => {
+        const chosen = { ...MACHI_QUALITY_PRESETS.low, adaptive: true };
+        expect(pinMachiQualityForExport(chosen)).toEqual({ ...chosen, renderScale: 'global', antialias: 'global', adaptive: false });
+        expect(pinMachiQualityForExport({ ...DEFAULT_MACHI_QUALITY, antialias: 'ssaa' })).toMatchObject({ antialias: 'global', adaptive: false });
+        const already = { ...DEFAULT_MACHI_QUALITY, adaptive: false };
+        expect(pinMachiQualityForExport(already)).toBe(already);
     });
 });

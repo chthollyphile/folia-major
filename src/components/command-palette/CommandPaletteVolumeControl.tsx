@@ -6,6 +6,7 @@ import type { Theme } from '../../types';
 // src/components/command-palette/CommandPaletteVolumeControl.tsx
 // Keeps drag previews local and commits the persisted player volume only when interaction finishes.
 // On HiFi without software volume the slider is locked at what mpv puts out and says the DAC sets the level.
+// The icon is a button that toggles mute, which still works on fixed-volume HiFi.
 
 type CommandPaletteVolumeControlProps = {
     isDaylight: boolean;
@@ -18,6 +19,7 @@ type CommandPaletteVolumeControlProps = {
     onQueryChange: (query: string) => void;
     onVolumeChange: (volume: number) => void;
     onVolumePreview: (volume: number) => void;
+    onToggleMute: () => void;
 };
 
 const parsePercent = (value: string) => {
@@ -35,6 +37,7 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
     onQueryChange,
     onVolumeChange,
     onVolumePreview,
+    onToggleMute,
 }) => {
     const { t } = useTranslation();
     const [sliderVolume, setSliderVolume] = useState(volume);
@@ -83,6 +86,7 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
         ? VolumeX
         : shownVolume < 0.5 ? Volume1 : Volume2;
     const percent = Math.round(shownVolume * 100);
+    const muteLabel = isMuted ? t('commandPalette.volumeUnmute') : t('commandPalette.volumeMute');
     const hint = isVolumeFixed
         ? t('hifi.player.volumeFixed')
         : isMuted ? t('commandPalette.volumeMutedHint') : t('commandPalette.volumeControlHint');
@@ -92,7 +96,16 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
             <div className="w-full max-w-lg px-6 py-7">
                 <div className="mb-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <VolumeIcon size={22} style={{ color: theme.accentColor }} />
+                        <button
+                            type="button"
+                            onClick={onToggleMute}
+                            className={`-m-1.5 shrink-0 rounded-full p-1.5 transition-colors ${isDaylight ? 'hover:bg-black/5' : 'hover:bg-white/10'}`}
+                            aria-label={muteLabel}
+                            aria-pressed={isMuted}
+                            title={muteLabel}
+                        >
+                            <VolumeIcon size={22} style={{ color: theme.accentColor }} />
+                        </button>
                         <div>
                             <div className="text-sm font-medium">{t('commandPalette.volumeControlTitle')}</div>
                             <div className="mt-0.5 text-xs opacity-50">{hint}</div>

@@ -1,7 +1,8 @@
 import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
+import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
+import type { NebbiaBehind, NebbiaGlass } from '../visualizer/nebbia/types';
 import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning, SmartBeatMode } from '../../types';
 import type { LyricSegmentationRecord, LyricSegmentationSource } from '../../types/lyricSegmentation';
 import type { AppLanguagePreference } from '../../i18n/config';
@@ -97,6 +98,12 @@ export type CommandPaletteCommand = {
     settingsTarget?: { subview: SettingsSubviewId; anchorId?: SettingsAnchorId };
     /** Successful execution closes the palette unless the command opts out. */
     closeAfterExecute?: boolean;
+    /**
+     * Offered in the row that floats above the player bar. Only for things done to what is playing
+     * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
+     * not the palette's frequent list. The command declares it itself, so there is no list to keep.
+     */
+    capsuleAction?: boolean;
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 
@@ -137,6 +144,7 @@ export type CommandPaletteSearchContext = {
     submitSearch: (args: {
         query?: string;
         sourceTab: SearchSource;
+        kind?: SearchKind;
         deps: {
             localSongs: LocalSong[];
             localLibraryCatalog?: LocalLibraryDisplayCatalog;
@@ -313,6 +321,8 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
+    toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
     toggleReduceLatticeMotion: () => void;
     /** Whether the OS animation setting is allowed to reduce motion in the app at all. */
@@ -475,6 +485,9 @@ export type CommandPaletteVisualizerContext = {
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    /** 雾笺: the next window scene (the front glass changes to that scene's usual pair, as in its settings) and the next front glass; each returns what it switched to. */
+    cycleNebbiaBehind: () => NebbiaBehind;
+    cycleNebbiaGlass: () => NebbiaGlass;
     /** The built-in video layer behind the lyrics. */
     toggleVideoLayer: () => void;
     /** 智能动感模式 (the beat FX in every mode and background that draws them): off, stored results only, or on. */
