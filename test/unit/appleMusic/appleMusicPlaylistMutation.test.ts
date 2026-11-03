@@ -47,8 +47,22 @@ describe('Apple Music playlist additions', () => {
         await expect(run(call)).resolves.toMatchObject({ ok: true });
         expect(call).toHaveBeenNthCalledWith(1, 'v1/me/library/playlists/p.owned', { extend: 'tags' });
         expect(call).toHaveBeenNthCalledWith(2, 'v1/me/library/playlists/p.owned/tracks', { representation: 'resources' }, {
-            fetchOptions: { method: 'POST', body: JSON.stringify({ data: [{ id: '123', type: 'songs' }] }) },
+            method: 'POST', body: JSON.stringify({ data: [{ id: '123', type: 'songs' }] }),
         });
+    });
+    it('sends a real append with the webpage flat method/body contract', async () => {
+        let written = false;
+        const call = vi.fn(async (path: string, _query: unknown, options?: { method?: string; body?: string }) => {
+            if (!path.endsWith('/tracks')) return { status: 200, data: { data: [{ id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true } }] } };
+            if (options?.method === 'POST') {
+                written = JSON.parse(options.body || '{}').data?.[0]?.id === '123';
+                return { status: 204 };
+            }
+            // A mistaken GET can succeed without ever changing the playlist.
+            return { status: 200, data: { data: [] } };
+        });
+        await expect(run(call)).resolves.toMatchObject({ ok: true });
+        expect(written).toBe(true);
     });
     it.each([{ canEdit: false }, {}, { canEdit: true, tags: ['favorited'] }])('does not write when current server permission forbids it (%o)', async attributes => {
         const call = vi.fn(async () => ({ status: 200, data: { data: [{ id: 'p.owned', type: 'library-playlists', attributes }] } }));

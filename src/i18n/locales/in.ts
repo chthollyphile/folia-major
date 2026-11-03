@@ -1498,6 +1498,8 @@ export default {
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
+    "appleMusicLinuxUnsupported": "Linux belum didukung",
+    "appleMusicWindowsPending": "Dukungan Windows masih menunggu validasi",
     "loginNoteYtmBrowser": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
     "loginNoteYtmBrowserMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
     "loginNoBrowserYtm": "Masuk ke YouTube Music memerlukan Chrome (Beta, Dev, atau Canary juga bisa), Edge, Chromium, Brave, atau Helium yang terpasang.",

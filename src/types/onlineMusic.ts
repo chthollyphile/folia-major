@@ -87,6 +87,8 @@ export interface ProviderCapabilities {
 export interface ProviderAvailability {
     configured: boolean;
     reason?: 'not-configured' | 'runtime-unavailable';
+    /** Optional i18n key explaining a disabled platform row; kept provider-owned. */
+    messageKey?: string;
 }
 
 export interface ProviderAccountSummary {

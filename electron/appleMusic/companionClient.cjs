@@ -4,8 +4,9 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { validateRequest } = require('./companionRequests.cjs');
 
-// The child inherits one private IPC channel; neither process opens a network listener.
-function createCompanionClient({ runtimePath, profilePath, spawnProcess = spawn, timeoutMs = 25000 }) {
+// Both hosts use a private parent-owned channel; neither opens a network listener.
+function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnProcess = spawn, createNativeChannel = require('./nativeSpawn.cjs').createNativeSpawn, timeoutMs = 25000 }) {
+    const spawnNative = createNativeChannel({ spawnProcess });
     let child = null;
     let sequence = 0;
     const pending = new Map();
@@ -19,38 +20,11 @@ function createCompanionClient({ runtimePath, profilePath, spawnProcess = spawn,
         pending.clear();
     }
 
-    // The companion's own lines go into Folia's log too (the app panel reads this process's
-    // console). Chromium's stdout/stderr noise is left out: only lines the companion marks.
-    function forwardCompanionLogs(instance) {
-        const forward = (stream, warn) => {
-            if (!stream || typeof stream.on !== 'function') return;
-            let buffered = '';
-            if (typeof stream.setEncoding === 'function') stream.setEncoding('utf8');
-            stream.on('data', chunk => {
-                buffered += String(chunk);
-                const lines = buffered.split('\n');
-                buffered = lines.pop() ?? '';
-                for (const line of lines) {
-                    if (!line.includes('[AppleMusic]')) continue;
-                    const text = line.length > 500 ? `${line.slice(0, 500)}…` : line;
-                    if (warn) console.warn(text);
-                    else console.info(text);
-                }
-            });
-            stream.on('error', () => {});
-        };
-        forward(instance.stdout, false);
-        forward(instance.stderr, true);
-    }
-
     function start() {
         if (child?.connected) return true;
-        if (!path.isAbsolute(runtimePath || '') || !path.isAbsolute(profilePath || '')) return false;
-        const args = [path.join(__dirname, 'companion.cjs'), `--user-data-dir=${profilePath}`];
-        args.push('--folia-companion-hidden');
-        const instance = spawnProcess(runtimePath, args, { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], shell: false });
+        if (!path.isAbsolute(nativeExecutablePath || '') || !path.isAbsolute(profilePath || '')) return false;
+        const instance = spawnNative(nativeExecutablePath, [`--user-data-dir=${profilePath}`]);
         child = instance;
-        forwardCompanionLogs(instance);
         instance.on('message', message => {
             if (instance !== child || !message || typeof message !== 'object' || typeof message.id !== 'string') return;
             const entry = pending.get(message.id);

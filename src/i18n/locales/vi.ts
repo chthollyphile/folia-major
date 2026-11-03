@@ -1498,6 +1498,8 @@ export default {
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
+    "appleMusicLinuxUnsupported": "Chưa hỗ trợ Linux",
+    "appleMusicWindowsPending": "Phiên bản Windows đang chờ xác minh",
     "loginNoteYtmBrowser": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
     "loginNoteYtmBrowserMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
     "loginNoBrowserYtm": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave.",

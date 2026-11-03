@@ -20,7 +20,18 @@ describe('Apple Music favorites', () => {
         const request = validateRequest({ id: 'test', operation: 'likeSong', params: { catalogId: '123', liked } });
         const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } });
         expect(result).toMatchObject({ ok: true });
-        expect(call).toHaveBeenCalledExactlyOnceWith('v1/me/favorites', { 'ids[songs]': '123' }, { fetchOptions: { method: liked ? 'POST' : 'DELETE' } });
+        expect(call).toHaveBeenCalledExactlyOnceWith('v1/me/favorites', { 'ids[songs]': '123' }, { method: liked ? 'POST' : 'DELETE' });
+    });
+    it('preserves SDK v3 nested fetch options when that API is available', async () => {
+        const call = vi.fn(async () => ({ status: 202 }));
+        const request = validateRequest({ id: 'test', operation: 'likeSong', params: { catalogId: '123', liked: true } });
+        await expect(runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { v3: { music: call } } }) } } })).resolves.toMatchObject({ ok: true });
+        expect(call).toHaveBeenCalledExactlyOnceWith('v1/me/favorites', { 'ids[songs]': '123' }, { fetchOptions: { method: 'POST' } });
+    });
+    it('uses the webpage RequestInit shape rather than falling back to GET', async () => {
+        const call = vi.fn(async (_path: string, _query: unknown, options?: { method?: string }) => ({ status: options?.method === 'POST' ? 202 : 405 }));
+        const request = validateRequest({ id: 'test', operation: 'likeSong', params: { catalogId: '123', liked: true } });
+        await expect(runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } })).resolves.toMatchObject({ ok: true });
     });
     it.each([401, 403, 500, undefined])('does not claim a rejected or unreadable write succeeded (%s)', async status => {
         const call = vi.fn(async () => ({ status }));

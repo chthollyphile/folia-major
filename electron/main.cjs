@@ -393,9 +393,15 @@ const ytmApiBridge = createYtmApiBridge({ store, safeStorage,
   // sign-in ends.
   signInFolder: () => path.join(app.getPath('userData'), 'ytm-sign-in'),
 });
-// The separate runtime is opt-in during development until packaging and signing are verified.
+// Development and packaged builds both use the system-WebView host; no alternate browser runtime.
+const { resolveNativeExecutable } = require('./appleMusic/nativePaths.cjs');
 const appleMusicClient = createCompanionClient({
-  runtimePath: process.env.ELECTRON_DEV === 'true' ? (process.env.FOLIA_APPLE_MUSIC_ELECTRON || '') : '',
+  nativeExecutablePath: resolveNativeExecutable({
+    platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
+    projectRoot: path.join(__dirname, '..'),
+    override: process.env.ELECTRON_DEV === 'true' ? process.env.FOLIA_APPLE_MUSIC_NATIVE : '',
+    windowsExperimental: process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL === '1',
+  }),
   profilePath: path.join(app.getPath('userData'), 'apple-music-companion'),
 });
 let spotifyNetwork = null;

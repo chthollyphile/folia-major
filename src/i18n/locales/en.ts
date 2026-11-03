@@ -1498,6 +1498,8 @@ export default {
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
+    "appleMusicLinuxUnsupported": "Not supported on Linux yet",
+    "appleMusicWindowsPending": "Windows support is awaiting validation",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
     "loginNoBrowserYtm": "Signing in to YouTube Music needs Chrome (Beta, Dev or Canary also work), Edge, Chromium, Brave or Helium installed.",

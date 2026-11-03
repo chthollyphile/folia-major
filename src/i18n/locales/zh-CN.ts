@@ -1498,6 +1498,8 @@ export default {
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
+    "appleMusicLinuxUnsupported": "Linux 暂未支援",
+    "appleMusicWindowsPending": "Windows 版本尚待验证",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
     "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。",

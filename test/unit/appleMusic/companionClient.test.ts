@@ -4,7 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Test the parent-owned channel without starting Electron or loading an Apple account.
 const require = createRequire(import.meta.url);
-const { createCompanionClient } = require('../../../electron/appleMusic/companionClient.cjs');
+const { createCompanionClient: createClient } = require('../../../electron/appleMusic/companionClient.cjs');
+
+// Isolate client request routing from the separately tested native pipe adapter.
+const createCompanionClient = (options: Record<string, unknown>) => createClient({
+    ...options, createNativeChannel: ({ spawnProcess }: { spawnProcess: unknown }) => spawnProcess,
+});
 
 class Child extends EventEmitter {
     connected = true;
@@ -18,12 +23,11 @@ describe('Apple Music companion client', () => {
     it('routes replies to their own requests over one private child', async () => {
         const child = new Child();
         const spawnProcess = vi.fn((_binary: string, _args: string[], _options: unknown) => child);
-        const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess });
+        const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess });
         const first = client.request('accountStatus');
         const second = client.request('search', { query: 'example' });
         expect(spawnProcess).toHaveBeenCalledTimes(1);
-        expect(spawnProcess.mock.calls[0][1]).toContain('--folia-companion-hidden');
-        expect(spawnProcess.mock.calls[0][2]).toMatchObject({ shell: false, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+        expect(spawnProcess.mock.calls[0][1]).toEqual(['--user-data-dir=/profile']);
         const idOf = (operation: string) => {
             const call = child.send.mock.calls.find(([message]) => (message as { operation?: string }).operation === operation);
             return (call?.[0] as { id: string } | undefined)?.id;
@@ -35,43 +39,21 @@ describe('Apple Music companion client', () => {
         client.close();
     });
 
-    it('forwards the companion\'s own log lines and leaves the rest out', async () => {
-        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        try {
-            const child = new Child();
-            const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess: () => child });
-            const request = client.request('accountStatus');
-            child.stdout.emit('data', '[AppleMusic] Companion window opened\nnoise that is not ours\n');
-            child.stderr.emit('data', '[AppleMusic] Widevine components did not become ready\n');
-            const sent = child.send.mock.calls[0]?.[0] as { id?: string } | undefined;
-            child.emit('message', { id: sent?.id, ok: true, data: { id: 'a'.repeat(64) } });
-            await request;
-            expect(info).toHaveBeenCalledWith('[AppleMusic] Companion window opened');
-            expect(warn).toHaveBeenCalledWith('[AppleMusic] Widevine components did not become ready');
-            expect(info.mock.calls.flat()).not.toContain('noise that is not ours');
-            client.close();
-        } finally {
-            info.mockRestore();
-            warn.mockRestore();
-        }
-    });
-
     it('rejects invalid requests before starting a child', async () => {
         const spawnProcess = vi.fn();
-        const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess });
+        const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess });
         expect(await client.request('evaluate', { code: 'anything' })).toMatchObject({ ok: false, error: 'invalid-request' });
         expect(spawnProcess).not.toHaveBeenCalled();
     });
 
     it('resolves outstanding requests if the child exits or the parent closes', async () => {
         const child = new Child();
-        const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess: () => child });
+        const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child });
         const request = client.request('accountStatus');
         child.emit('exit', 1);
         expect(await request).toMatchObject({ ok: false, error: 'disconnected' });
         const child2 = new Child();
-        const client2 = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess: () => child2 });
+        const client2 = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child2 });
         const pending = client2.request('accountStatus');
         client2.close();
         expect(await pending).toMatchObject({ ok: false, error: 'disconnected' });
@@ -79,7 +61,7 @@ describe('Apple Music companion client', () => {
     });
 
     it('does not start without absolute runtime and profile paths', async () => {
-        const client = createCompanionClient({ runtimePath: '', profilePath: '/profile', spawnProcess: vi.fn() });
+        const client = createCompanionClient({ nativeExecutablePath: '', profilePath: '/profile', spawnProcess: vi.fn() });
         expect(await client.request('accountStatus')).toMatchObject({ ok: false, error: 'runtime-unavailable' });
     });
 
@@ -94,7 +76,7 @@ describe('Apple Music companion client', () => {
                     ? { id, ok: false, error: 'not-ready' }
                     : { id, ok: true, data: { ready: true } });
             });
-            const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 5000 });
+            const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 5000 });
             const pending = client.request('accountStatus');
             await vi.advanceTimersByTimeAsync(300);
             expect(await pending).toMatchObject({ ok: true, data: { ready: true } });
@@ -109,7 +91,7 @@ describe('Apple Music companion client', () => {
         vi.useFakeTimers();
         try {
             const child = new Child();
-            const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 25 });
+            const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 25 });
             const pending = client.request('accountStatus');
             await vi.advanceTimersByTimeAsync(25);
             expect(await pending).toMatchObject({ ok: false, error: 'timeout' });
@@ -123,11 +105,11 @@ describe('Apple Music companion client', () => {
     it('starts hidden even for login and forwards later show/hide requests', async () => {
         const child = new Child();
         const spawnProcess = vi.fn((_binary: string, _args: string[], _options: unknown) => child);
-        const client = createCompanionClient({ runtimePath: '/runtime', profilePath: '/profile', spawnProcess });
+        const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess });
         expect(await client.request('hideWindow')).toMatchObject({ ok: true });
         expect(spawnProcess).not.toHaveBeenCalled();
         const show = client.request('showWindow');
-        expect(spawnProcess.mock.calls[0][1]).toContain('--folia-companion-hidden');
+        expect(spawnProcess.mock.calls[0][1]).toEqual(['--user-data-dir=/profile']);
         const shown = child.send.mock.calls[0][0] as { id: string; operation: string };
         expect(shown.operation).toBe('showWindow');
         child.emit('message', { id: shown.id, ok: true, data: {} });

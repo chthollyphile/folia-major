@@ -167,6 +167,10 @@
         {
           "from": "build/mac-helper/darwin-${arch}",
           "to": "."
+        },
+        {
+          "from": "build/apple-music-native/darwin-${arch}/FoliaAppleMusicCompanion.app",
+          "to": "apple-music/FoliaAppleMusicCompanion.app"
         }
       ],
       "target": [

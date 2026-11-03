@@ -70,7 +70,14 @@ function validateRequest(message) {
 async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTracks) {
     try {
         const mk = window.MusicKit?.getInstance();
-        const call = mk?.api?.v3?.music?.bind(mk.api.v3) ?? mk?.api?.music?.bind(mk.api);
+        const modern = mk?.api?.v3;
+        const legacy = mk?.api;
+        // The webpage wrapper takes flat RequestInit, while SDK v3 takes { fetchOptions }.
+        // Normalize here so writes cannot silently become GET requests on the webpage's API.
+        const call = typeof modern?.music === 'function' ? modern.music.bind(modern)
+            : typeof legacy?.music === 'function' ? (path, query, options) => options
+                ? legacy.music(path, query, options.fetchOptions) : legacy.music(path, query)
+                : null;
         if (!call) return { ok: false, error: 'not-ready' };
         if (request.operation === 'addPlaylistTracks') return await addPlaylistTracks(call, request.params);
         if (request.operation === 'likeSong') return await updateFavorite(call, request.params);

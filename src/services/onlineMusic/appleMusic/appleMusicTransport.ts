@@ -10,16 +10,18 @@ export type AppleMusicBridgeResult =
     | { ok: true; data: unknown }
     | { ok: false; error: string; httpStatus?: number | null; playbackStage?: string };
 
-// The bridge exists only in the desktop app; the web build has no companion to ask. macOS is the
-// only platform verified so far, so the others do not offer the source as configured: an
-// unverified platform is not claimed as supported (PRD 4.5).
-export const getAppleMusicTransportAvailability = (): ProviderAvailability => (
-    typeof window !== 'undefined'
-        && typeof window.electron?.appleMusicRequest === 'function'
-        && window.electron.platform === 'darwin'
+// macOS is validated; Windows is an explicit development opt-in until its DRM path is tested.
+// Linux stays visible with a provider-owned explanation and never starts an unsupported player.
+export const getAppleMusicTransportAvailability = (): ProviderAvailability => {
+    const bridge = typeof window !== 'undefined' ? window.electron : undefined;
+    if (typeof bridge?.appleMusicRequest !== 'function') return { configured: false, reason: 'runtime-unavailable' };
+    if (bridge.platform === 'darwin') return { configured: true };
+    if (bridge.platform === 'win32') return bridge.appleMusicWindowsExperimental === true
         ? { configured: true }
-        : { configured: false, reason: 'runtime-unavailable' }
-);
+        : { configured: false, reason: 'not-configured', messageKey: 'home.appleMusicWindowsPending' };
+    if (bridge.platform === 'linux') return { configured: false, reason: 'not-configured', messageKey: 'home.appleMusicLinuxUnsupported' };
+    return { configured: false, reason: 'runtime-unavailable' };
+};
 
 // Translate protocol failures into the common provider error without copying credentials or response bodies.
 const errorCode = (error: string): ProviderErrorCode => {

@@ -176,6 +176,7 @@ contextBridge.exposeInMainWorld('electron', {
     qishuiRequest: (operation, params) => ipcRenderer.invoke('qishui-api-request', operation, params),
     bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
+    appleMusicWindowsExperimental: process.platform === 'win32' && process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL === '1',
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
     getQqPort: () => ipcRenderer.invoke('get-qq-port'),
