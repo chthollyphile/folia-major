@@ -10,7 +10,7 @@ const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const RESOURCE_ID = /^[a-zA-Z0-9._-]{1,200}$/;
 // Folia chooses the order; the companion may prepare a bounded tail but cannot invent next tracks.
 const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'prepareNext']);
-const OPERATIONS = new Set(['stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
+const OPERATIONS = new Set(['libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
 
 function validateRequest(message) {
     if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
@@ -65,6 +65,10 @@ function validateRequest(message) {
     if (operation === 'search') {
         if (typeof params.query !== 'string' || !params.query.trim() || params.query.length > 200) return null;
         return { id, operation, params: { query: params.query.trim(), offset, limit } };
+    }
+    if (operation === 'libraryAlbumTracks') {
+        if (typeof params.albumId !== 'string' || !/^l\.[a-zA-Z0-9._-]{1,198}$/.test(params.albumId)) return null;
+        return { id, operation, params: { albumId: params.albumId, offset, limit } };
     }
     if (operation === 'playlistTracks' || operation === 'playlistTrackCount') {
         if (typeof params.playlistId !== 'string' || !RESOURCE_ID.test(params.playlistId)) return null;
@@ -243,6 +247,12 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         } else if (request.operation === 'search') {
             path = base + '/search';
             options = { term: p.query, types: 'songs', limit: p.limit, offset: p.offset };
+        } else if (request.operation === 'libraryAlbums') {
+            path = 'v1/me/library/albums';
+            options = { limit: p.limit, offset: p.offset };
+        } else if (request.operation === 'libraryAlbumTracks') {
+            path = 'v1/me/library/albums/' + encodeURIComponent(p.albumId) + '/tracks';
+            options = { limit: p.limit, offset: p.offset, include: 'catalog' };
         } else if (request.operation === 'playlists') {
             path = 'v1/me/library/playlists';
             options = { limit: p.limit, offset: p.offset, extend: 'tags' };
@@ -291,8 +301,9 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                     isFavoritePlaylist: Array.isArray(a.tags) && a.tags.includes('favorited'),
                     name: string(a.name), artistName: string(a.artistName), albumName: string(a.albumName),
                     durationInMillis: Number.isFinite(a.durationInMillis) ? a.durationInMillis : 0,
+                    trackCount: Number.isSafeInteger(a.trackCount) && a.trackCount >= 0 ? a.trackCount : null,
                     artwork: { url: string(a.artwork?.url) }, isrc: string(a.isrc),
-                    playParams: { id: string(p.id), kind: string(p.kind), catalogId: string(p.catalogId), isLibrary: p.isLibrary === true },
+                    playParams: { id: string(p.id), kind: string(p.kind), catalogId: string(p.catalogId || item?.relationships?.catalog?.data?.[0]?.id), isLibrary: p.isLibrary === true },
                 },
             };
         });

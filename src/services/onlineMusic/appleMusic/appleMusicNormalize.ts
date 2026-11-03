@@ -83,3 +83,17 @@ export const normalizeAppleMusicPlaylist = (value: unknown): ProviderCollection 
         providerData: { resourceType: type, ...(typeof attributes.canEdit === 'boolean' ? { canEdit: attributes.canEdit } : {}) },
     };
 };
+
+// Keep the library album identity so its own tracks can be fetched without guessing a catalog ID.
+export const normalizeAppleMusicLibraryAlbum = (value: unknown): ProviderCollection => {
+    const resource = record(value);
+    const id = text(resource.id);
+    if (!/^l\.[a-zA-Z0-9._-]{1,198}$/.test(id) || resource.type !== 'library-albums') {
+        throw new OnlineProviderError('invalid-response', 'Apple Music library album identity is invalid', PROVIDER_ID);
+    }
+    const attributes = record(resource.attributes);
+    return { providerId: PROVIDER_ID, id, type: 'album', name: text(attributes.name),
+        coverUrl: artworkUrl(attributes.artwork),
+        ...(typeof attributes.trackCount === 'number' && Number.isSafeInteger(attributes.trackCount) && attributes.trackCount >= 0 ? { trackCount: attributes.trackCount } : {}),
+        providerData: { resourceType: 'library-albums' } };
+};

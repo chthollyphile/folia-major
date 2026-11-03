@@ -1,7 +1,7 @@
 import type { SongResult, UnifiedSong } from '../../../types';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../types/onlineMusic';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
+import { normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
 import { requestAppleMusic } from './appleMusicTransport';
 import type { AppleMusicOperation, AppleMusicParams } from './appleMusicTransport';
 
@@ -113,6 +113,17 @@ export async function searchAppleMusic(query: string, limit: number, offset: num
 export async function getAppleMusicPersonalFm(): Promise<UnifiedSong[]> {
     const data = await requestAppleMusic('personalFm');
     return pageOf(data, 0, normalizeAppleMusicSong, isSongResource).items.filter(isAppleMusicSongPlayable);
+}
+
+// Read library albums and their tracks using the same validated pagination as playlists.
+export async function getAppleMusicLibraryAlbums(limit: number, offset: number): Promise<ProviderPage<ProviderCollection>> {
+    const page = pageInputs(limit, offset);
+    return readPage('libraryAlbums', {}, page.limit, page.offset, normalizeAppleMusicLibraryAlbum,
+        item => (item as { type?: unknown } | null)?.type === 'library-albums');
+}
+export async function getAppleMusicLibraryAlbumTracks(albumId: string, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+    const page = pageInputs(limit, offset);
+    return readPage('libraryAlbumTracks', { albumId }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
 export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = false): Promise<ProviderPage<ProviderCollection>> {

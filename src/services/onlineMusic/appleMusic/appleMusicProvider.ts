@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from './appleMusicNormalize';
@@ -141,7 +141,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // word-level TTML; the parsed lyric says which timing it got (`LyricData.isWordByWord`).
         capabilities: {
             search: true, playback: false, externalPlayback: true, lyrics: true, wordByWordLyrics: true, auth: true,
-            userLibrary: true, playlists: true, albums: false, artists: false, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
+            userLibrary: true, userAlbums: true, playlists: true, albums: false, artists: false, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
         },
         normalizeSong: normalizeAppleMusicSong,
         normalizeCollection: normalizeAppleMusicPlaylist,
@@ -157,9 +157,11 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         library: {
             getSongLikeId: appleMusicSongLikeId,
             getLikedSongIds: () => getAppleMusicLikedSongIds(),
+            getUserAlbums: (_userId, limit, offset) => getAppleMusicLibraryAlbums(limit, offset),
             getUserPlaylists: (_userId, limit, offset) => getAppleMusicPlaylists(limit, offset),
         },
         catalog: {
+            getAlbumTracks: (id, limit = 100, offset = 0) => getAppleMusicLibraryAlbumTracks(String(id), limit, offset),
             getPlaylistTracks: (id, limit, offset) => String(id).startsWith('ra.')
                 ? getAppleMusicLiveStationTracks(String(id), offset) : getAppleMusicPlaylistTracks(String(id), limit, offset),
         },
