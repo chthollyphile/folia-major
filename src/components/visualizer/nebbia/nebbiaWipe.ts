@@ -3,10 +3,13 @@ import { lineRect, type LaidLine } from './nebbiaScene';
 import { createVisualizerRng } from '../visualizerSeedHash';
 
 // src/components/visualizer/nebbia/nebbiaWipe.ts
-// 「几根手指来回抹掉」的几何：三四根手指并排，在这句上来回快速抹几趟；每条拖痕有自己的时间窗 [a, b]
-// （占整个抹除过程的比例）。最后一趟手指抬起的地方留几颗被推过去的水珠。
+// 「手指来回搓掉」的几何：食指中指并拢，手从句子左头往右走，边走边快速上下来回搓。一来一回基本走同一条道，
+// 搓的角度随着手往右走慢慢偏（离竖直 ±35° 里摆），指尖走一道带点弧的短线，搓过的地方连成一片盖住整句。
+// 两根手指压在一起没有缝，只在端头看得出两个错开的圆头；哪根长、各多宽，整次抹除不变。
+// 每条拖痕（一根手指搓的一下）有自己的时间窗 [a, b]（占整个抹除过程的比例）。最后一下手指抬起的地方留几颗被推过去的水珠。
 
-export interface WipeStreak { pts: [number, number][]; w: number; a: number; b: number }
+/** box：外扩了带走水珠半径的包围盒 [x0, y0, x1, y1]，isSwept 先用它排除。 */
+export interface WipeStreak { pts: [number, number][]; w: number; a: number; b: number; box: [number, number, number, number] }
 export interface NebbiaWipe {
     streaks: WipeStreak[];
     beads: { x: number; y: number; r: number }[];
@@ -18,51 +21,61 @@ export const buildWipe = (line: LaidLine, idx: number): NebbiaWipe | null => {
     const rnd = createVisualizerRng((idx * 4241 + 77) >>> 0);
     const { x0, x1, y0, y1, S } = lineRect(line);
     if (!Number.isFinite(x0)) return null;
-    const fw = Math.max(14, S * 0.26), n = 3 + (rnd() < 0.5 ? 1 : 0), gap = fw * (1.25 + rnd() * 0.25);
-    const handH = (n - 1) * gap + fw, cy = (y0 + y1) / 2;
-    // 一趟的手要盖住整句的高度：句子比手高时，来回的几趟往下错开
-    const passes = Math.max(3, Math.min(5, Math.ceil((y1 - y0) / (handH * 0.8)) + 2));
-    const span = (y1 - y0) - handH * 0.6;
-    const startDir = rnd() < 0.7 ? 1 : -1, pad = S * 0.35;
+    const fw = Math.max(14, S * 0.28), n = 2, gap = fw * 0.8;
+    const handW = gap + fw, cy = (y0 + y1) / 2, pad = S * 0.3;
+    // 上下搓一下的长度盖住整句的高度；手每往右走半只手宽搓一下
+    // 同一只手：两根手指各多宽、哪根长（中指），整次不变；弧往哪边弯也不变（手腕转的方向）
+    const fingers = [{ w: fw * (0.92 + rnd() * 0.08), lenK: 0.88 + rnd() * 0.04 }, { w: fw * (0.97 + rnd() * 0.08), lenK: 1 }];
+    const bowDir = rnd() < 0.5 ? 1 : -1, phase = rnd() * Math.PI * 2, swing = 0.45 + rnd() * 0.15;
+    // 搓是斜的，两头的上下角会漏：起止各往外多走斜出去的那一截
+    const len = (y1 - y0) + pad * 2, slant = Math.sin(swing) * len * 0.5, xs = x0 - pad - slant, xe = x1 + pad + slant;
+    const rubs = Math.max(6, Math.ceil((xe - xs) / (handW * 0.5)));
     const streaks: WipeStreak[] = [];
-    for (let k = 0; k < passes; k += 1) {
-        const dir = k % 2 === 0 ? startDir : -startDir;
-        // 每趟的高度在句子范围里来回错开；越到后面越短、越潦草
-        const yc = cy + (passes > 1 ? (k / (passes - 1) - 0.5) * Math.max(0, span) : 0) + (rnd() - 0.5) * fw * 0.8;
-        const shrink = 1 - k * 0.08, mid = (x0 + x1) / 2, half = ((x1 - x0) / 2 + pad) * shrink;
-        const xa = mid - dir * half + (rnd() - 0.5) * S * 0.3, xb = mid + dir * half + (rnd() - 0.5) * S * 0.3;
-        const tilt = (rnd() - 0.5) * 0.16, bow = (rnd() - 0.5) * S * 0.35;
-        // 来回之间没有停顿；每趟占的时间略有重叠
-        const a = k / passes * 0.92, b = Math.min(1, (k + 1) / passes * 0.92 + 0.08);
+    for (let k = 0; k < rubs; k += 1) {
+        const hx = xs + (xe - xs) * (k + 0.5) / rubs, down = k % 2 === 0 ? 1 : -1, pair = Math.floor(k / 2);
+        // 一来一回同一个角度（只差一点），每来回一趟往一边慢慢偏
+        const ang = swing * Math.sin(phase + pair * 0.5) + (rnd() - 0.5) * 0.06, ca = Math.cos(ang), sa = Math.sin(ang);
+        const L = len * (0.95 + rnd() * 0.1), bow = bowDir * S * (0.08 + rnd() * 0.03);
+        // 搓得快：一下接一下没有停顿，前后略有重叠
+        const a = k / rubs * 0.96, b = Math.min(1, (k + 1) / rubs * 0.96 + 0.04);
         for (let f = 0; f < n; f += 1) {
-            const yOff = (f - (n - 1) / 2) * gap + (rnd() - 0.5) * fw * 0.25;
-            const lenK = f === n - 1 ? 0.84 + rnd() * 0.1 : 0.95 + rnd() * 0.05, wav = S * 0.04 * rnd();
+            const off = (f - (n - 1) / 2) * gap, { w: fwk, lenK } = fingers[f];
             const pts: [number, number][] = [];
-            for (let i = 0; i <= 24; i += 1) {
-                const t = i / 24, x = xa + (xb - xa) * lenK * t;
-                pts.push([x, yc + yOff + bow * Math.sin(Math.PI * t) + tilt * (x - mid) + wav * Math.sin(t * 5 + f)]);
+            for (let i = 0; i <= 12; i += 1) {
+                // v 沿着搓的方向（-L/2..L/2，短的那根两头各短一点），w 是横向的偏移（手指并排 + 弧）
+                const t = i / 12, u = 2 * t - 1, v = down * (t - 0.5) * L * lenK, w = off + bow * (1 - u * u);
+                pts.push([hx + sa * v + ca * w, cy + ca * v - sa * w]);
             }
-            streaks.push({ pts, w: fw * (0.85 + rnd() * 0.3), a, b });
+            const r = fwk * 0.7, xsP = pts.map(q => q[0]), ysP = pts.map(q => q[1]);
+            streaks.push({ pts, w: fwk, a, b, box: [Math.min(...xsP) - r, Math.min(...ysP) - r, Math.max(...xsP) + r, Math.max(...ysP) + r] });
         }
     }
     const beads: NebbiaWipe['beads'] = [];
     for (const st of streaks.slice(-n)) {
         const [ex, ey] = st.pts[st.pts.length - 1];
         beads.push({ x: ex, y: ey, r: st.w * 0.22 + 1.5 * rnd() });
-        if (rnd() < 0.6) beads.push({ x: ex - (st.pts[1][0] - st.pts[0][0]) * 0.6, y: ey + (rnd() - 0.5) * st.w * 0.6, r: 1.5 + rnd() * 2.5 });
+        if (rnd() < 0.6) beads.push({ x: ex - (st.pts[1][0] - st.pts[0][0]) * 0.6 + (rnd() - 0.5) * st.w * 0.6, y: ey - (st.pts[1][1] - st.pts[0][1]) * 0.6, r: 1.5 + rnd() * 2.5 });
     }
-    return { streaks, beads, dur: 0.32 * passes };
+    // 搓一下 0.08 秒，句子长的搓得更快，整次不超过 1.6 秒
+    return { streaks, beads, dur: Math.min(0.08 * rubs, 1.6) };
 };
 
 /** 拖痕在整体进度 ue 下画到哪：0..1。 */
 export const streakProgress = (st: WipeStreak, ue: number) => clamp((ue - st.a) / (st.b - st.a));
 
-/** (x, y) 处字边的水珠是否已经被手指带走。 */
+/** (x, y) 处字边的水珠是否已经被手指带走：离哪条拖痕已经画到的那段足够近。 */
 export const isSwept = (wipe: NebbiaWipe, ue: number, x: number, y: number) => wipe.streaks.some(st => {
     const lp = streakProgress(st, ue);
     if (lp <= 0) return false;
-    const p0 = st.pts[0][0], p1 = st.pts[st.pts.length - 1][0], front = p0 + (p1 - p0) * lp;
-    if ((x - p0) * (front - x) < 0) return false;
-    const k = clamp((x - p0) / (p1 - p0)), py = st.pts[Math.round(k * (st.pts.length - 1))][1];
-    return Math.abs(y - py) < st.w * 0.7;
+    const bx = st.box;
+    if (x < bx[0] || x > bx[2] || y < bx[1] || y > bx[3]) return false;
+    const pts = st.pts, last = lp * (pts.length - 1), r = st.w * 0.7, r2 = r * r;
+    for (let i = 0; i < last; i += 1) {
+        const [ax, ay] = pts[i], b = pts[i + 1], f = Math.min(1, last - i);
+        const dx = (b[0] - ax) * f, dy = (b[1] - ay) * f;
+        const t = clamp(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1));
+        const ex = x - ax - dx * t, ey = y - ay - dy * t;
+        if (ex * ex + ey * ey < r2) return true;
+    }
+    return false;
 });

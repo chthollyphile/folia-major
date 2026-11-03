@@ -8,7 +8,8 @@ import { createVisualizerRng } from '../visualizerSeedHash';
 // 很快上下鼓开成一整片白气（贴着整句外框的椭圆再叠几团大圆），旧句子被盖掉（nebbiaScene.ts 的 yieldFactor），
 // 新句子马上写在白气上；新句子唱完后白气再留一会儿，慢慢从薄的边上往里散，散完就是普通的雾。白气只是这一片的雾变密（着色器把它
 // 加进雾的浓度），所以写过的地方照样擦开、水珠周围照样抹开一圈。白气画在一张 1/4 分辨率的遮罩上：
-// R 通道是形状（散的时候变小，着色器按噪声取阈值，所以边往里退），G 通道是浓度（刚哈出来的头一下淡）。
+// R 通道是形状（散的时候变小，着色器按噪声取阈值，所以边往里退），G 通道是浓度（刚哈出来的头一下淡），
+// B 通道是盖住的旧字糊开多少（只在鼓开的那一阵）。
 // 出现方式选了「哈气后书写」的句子也用同一口气：开写前对着自己的位置哈，再写在白气上（nebbiaScene.ts 的 applyAppear）。
 // 原型在 fog-write-demo 的 index.html。
 
@@ -61,31 +62,34 @@ export class NebbiaBreathMask {
     }
 
     /**
-     * 一句外框上的一口白气：`t0` 起在 breathSpread 秒里从中线鼓开（要写的那句 0.3 秒后开写），到 `until`
+     * 一句外框上的一口白气：`t0` 起在 `spread` 秒里从中线鼓开（要写的那句 0.3 秒后开写），到 `until`
      * 再用 breathFade 秒慢慢散。字照常写（nebbiaMask.ts），写过的地方在白气上擦开。
+     * `melt`：让位时盖掉旧句的那口气才把底下的字糊开（B 通道）；「哈气后书写」的出场白气不糊旁边的字。
      */
-    drawLine(line: LaidLine, idx: number, T: number, t0: number, until: number) {
-        const { breathSpread, breathFade } = NEBBIA_FIXED;
+    drawLine(line: LaidLine, idx: number, T: number, t0: number, until: number, spread: number, melt: boolean) {
+        const { breathFade } = NEBBIA_FIXED;
         if (T < t0) return;
-        const s = 1 - smooth(clamp((T - Math.max(until, t0 + breathSpread)) / breathFade));
+        const s = 1 - smooth(clamp((T - Math.max(until, t0 + spread)) / breathFade));
         if (s <= 0.002) return;
         if (line.breath === undefined) line.breath = buildBreath(line, idx);
         const b = line.breath;
         if (!b) return;
-        const u = clamp((T - t0) / breathSpread), e = 1 - (1 - u) ** 3;
+        const u = clamp((T - t0) / spread), e = 1 - (1 - u) ** 3;
         const kx = 0.7 + 0.3 * e, ky = 0.08 + 0.92 * e;
         this.active = true;
         const { ctx } = this;
         ctx.globalCompositeOperation = 'lighten';
-        const c0 = Math.round(255 * s), g0 = Math.round(255 * clamp(u * 4));
+        // G 浓度在鼓开的头七成里慢慢浓起来；B 是盖住的旧字糊开多少（着色器），鼓开快完时回到 0，新句子写上来时不糊
+        const c0 = Math.round(255 * s), g0 = Math.round(255 * smooth(clamp(u * 1.4)));
+        const b0 = melt ? Math.round(255 * smooth(clamp(u * 2.5)) * (1 - smooth(clamp((u - 0.8) / 0.2)))) : 0;
         for (const lb of b.lobes) {
             // 每团跟着往中线压扁；按单位圆画，用变换拉成椭圆
             const x = b.cx + (lb.x - b.cx) * kx, y = b.cy + (lb.y - b.cy) * ky;
             ctx.setTransform(BREATH_SCALE * lb.rx * kx, 0, 0, BREATH_SCALE * Math.max(lb.ry * ky, 4), BREATH_SCALE * x, BREATH_SCALE * y);
             const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-            gr.addColorStop(0, `rgb(${c0},${g0},0)`);
-            gr.addColorStop(0.45, `rgb(${Math.round(c0 * 0.7)},${g0},0)`);
-            gr.addColorStop(0.999, `rgb(0,${g0},0)`);
+            gr.addColorStop(0, `rgb(${c0},${g0},${b0})`);
+            gr.addColorStop(0.45, `rgb(${Math.round(c0 * 0.7)},${g0},${b0})`);
+            gr.addColorStop(0.999, `rgb(0,${g0},${b0})`);
             gr.addColorStop(1, 'rgb(0,0,0)');
             ctx.fillStyle = gr;
             ctx.beginPath();

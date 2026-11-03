@@ -78,7 +78,8 @@ const pushWet = (wet: number[], c: LaidChar, st: GlyphStroke, drawn: number, wid
 };
 
 // 一颗往下淌的水珠：从笔画最低处出发，走走停停，越走越小，留下一道擦开的水痕
-const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: number, width: number, clarity: number, beadV: number) => {
+const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: number, width: number, clarity: number, beadV: number,
+    alive: ((x: number, y: number) => number) | null) => {
     let bx = 0, by = -1e9;
     for (const q of st.pts) { const [x, y] = toScreen(c, q[0], q[1]); if (y > by) { bx = x; by = y; } }
     by += width * c.s * 0.35;
@@ -86,11 +87,18 @@ const drawDrip = (ink: InkContext, c: LaidChar, st: GlyphStroke, d: Drip, age: n
     const dist = d.len * f, r = d.r * (1 - 0.35 * u);
     const wob = (y: number) => Math.sin(y * 0.07 + d.seed) * 1.6 + Math.sin(y * 0.023 + d.seed * 2) * 2.5 + windDrift(y, ink.busSpeed);
     if (dist > 1 && clarity > 0.002) strokeTrail(ink.ctx, bx, by, by + dist, r * 1.5, clarity * 0.95, d.seed, y => wob(y - by));
+    // 哈气盖掉的旧字只留擦痕的印子，水珠已经没了
+    if (beadV <= 0.002) return;
     // 走的时候被拉长，停下来变回圆一点；身后零星留下小水珠
     const speed = 1 - Math.cos(u * 6 * Math.PI);
-    for (let y = 14 + (d.seed % 7) * 2; y < dist - r * 2; y += 18 + ((y * 7 + d.seed * 13) % 11)) ink.motion.put(bx + wob(y), by + y, r * (0.3 + 0.2 * (((y + d.seed) * 0.37) % 1)), beadV);
+    // 手指搓过的地方（alive 为 0）水珠被带走
+    for (let y = 14 + (d.seed % 7) * 2; y < dist - r * 2; y += 18 + ((y * 7 + d.seed * 13) % 11)) {
+        const x = bx + wob(y), v = alive ? beadV * alive(x, by + y) : beadV;
+        if (v > 0.002) ink.motion.put(x, by + y, r * (0.3 + 0.2 * (((y + d.seed) * 0.37) % 1)), v);
+    }
     // 淌完停住的那颗：停下以后算结冰（nebbiaInkIce.ts）
-    putInkBead(ink, bx + wob(dist), by + dist + r * 0.3, r, beadV, u < 1 ? -1 : age - d.dur, d.seed + 0.5, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
+    const ex = bx + wob(dist), ey = by + dist + r * 0.3, ev = alive ? beadV * alive(ex, ey) : beadV;
+    if (ev > 0.002) putInkBead(ink, ex, ey, r, ev, u < 1 ? -1 : age - d.dur, d.seed + 0.5, 1, 1 + 0.35 * speed * (u < 1 ? 1 : 0));
     // 雪窗、凝露：还在往下淌的水珠头扫过的一段（冲掉路上的雪和水珠）
     if (ink.sweeps && u < 1 && dist > 1 && beadV > 0.3) {
         const ya = Math.max(0, dist - r * 3);
@@ -132,7 +140,9 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
                 if (b.s > drawn) break;
                 const off = width / 2 + (b.r * 0.7 + b.j * 1.5) / c.s;
                 const [x, y] = toScreen(c, b.x + b.nx * off, b.y + b.ny * off);
-                const bv = alive ? beadV * alive(x, y) : beadV;
+                const bv = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
+                // 哈气盖掉的旧字只留擦痕的印子，水珠已经没了
+                if (bv <= 0.002) continue;
                 // 这一笔写完以后算结冰（nebbiaInkIce.ts）
                 putInkBead(ink, x, y, b.r * (0.55 + 0.45 * bv), bv, p >= 1 ? local - dur : -1, b.x * 131.7 + b.y * 71.3 + si, 1 + b.j * 0.25, 1 + (1 - b.j) * 0.3);
             }
@@ -145,8 +155,8 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
                 dx /= dl; dy /= dl;
                 const r = c.s * (0.031 + 0.018 * e.h) * NEBBIA_FIXED.endBead * (0.5 + 0.5 * smooth(p));
                 const [x, y] = toScreen(c, ux + (dx * r * 0.35) / c.s, uy + (dy * r * 0.35 + r * 0.15) / c.s);
-                const ev = alive ? beadV * alive(x, y) : beadV;
-                putInkBead(ink, x, y, r * (0.6 + 0.4 * ev), ev, p >= 1 ? local - dur : -1, c.x * 3.1 + c.y * 5.7 + si * 11, 1, 1.12 + e.j * 0.12);
+                const ev = alive && beadV > 0.002 ? beadV * alive(x, y) : beadV;
+                if (ev > 0.002) putInkBead(ink, x, y, r * (0.6 + 0.4 * ev), ev, p >= 1 ? local - dur : -1, c.x * 3.1 + c.y * 5.7 + si * 11, 1, 1.12 + e.j * 0.12);
             }
             const d = c.drips[si];
             if (d && p >= 1 && local - dur > d.delay) drips.push([st, d, local - dur - d.delay]);
@@ -154,6 +164,6 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
         local -= dur + (fadeIn ? 0 : gap);
     });
     ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
-    for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV);
+    for (const [st, d, age] of drips) drawDrip(ink, c, st, d, age, width, clarity, beadV, alive);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 };

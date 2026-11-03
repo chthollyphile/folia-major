@@ -4,13 +4,13 @@ import { windDrift, type NebbiaGlassMotion } from './nebbiaDrops';
 import type { NebbiaHits } from './nebbiaHits';
 import { drawChar, strokeTrail, type InkContext } from './nebbiaInk';
 import { NebbiaSegments } from './nebbiaSegments';
-import { yieldFactor, type LaidLine } from './nebbiaScene';
+import { yieldFactor, yieldMask, type LaidLine } from './nebbiaScene';
 import { buildWipe, isSwept, streakProgress } from './nebbiaWipe';
 import type { NebbiaTuning } from './types';
 
 // src/components/visualizer/nebbia/nebbiaMask.ts
 // 每帧收一次擦痕遮罩的线段（nebbiaSegments.ts，由 nebbiaMaskGl.ts 在 GPU 上画）：每句按它的淡出方式算清晰度（写的时候 1，下一句开始后保持 hold 秒、屏上还空着就多留一会儿，再用 refog 秒起雾；
-// 或几根手指来回抹掉、抹过的地方再起雾），再画雨点和被震落的水珠留下的水痕。让位时被哈气盖掉的句子，
+// 或两根手指来回搓掉、抹过的地方再起雾），再画雨点和被震落的水珠留下的水痕。让位时被哈气盖掉的句子，
 // 白气另画一张遮罩（nebbiaBreath.ts）。水珠实例同时攒进 motion。
 
 /** 水珠甩出的印子停下后保持几秒、回雾用时是 refog 的几倍。 */
@@ -51,8 +51,8 @@ export class NebbiaMask {
         const ink: InkContext = { ctx, motion, strokeWidth: tuning.strokeWidth, writeSpeed: tuning.writeSpeed, busSpeed: tuning.busSpeed, sweeps: this.sweeps, wet: wetDue ? this.wet : null,
             ice: this.ice ? { out: this.ice, k: this.H / 1000, H: this.H } : null };
         laid.forEach((line, i) => {
-            if (line.breathAt < Infinity) this.breath.drawLine(line, i, T, line.breathAt, line.breathUntil);
-            if (line.appearBreathAt < Infinity) this.breath.drawLine(line, i, T, line.appearBreathAt, line.appearBreathUntil);
+            if (line.breathAt < Infinity) this.breath.drawLine(line, i, T, line.breathAt, line.breathUntil, line.breathDur, true);
+            if (line.appearBreathAt < Infinity) this.breath.drawLine(line, i, T, line.appearBreathAt, line.appearBreathUntil, NEBBIA_FIXED.breathSpread, false);
             if (T >= line.t - 0.5) this.drawLine(ink, line, i, T, tuning);
         });
         hits.draw(ctx, motion, T, tuning.refog, NEBBIA_FIXED.beadHold, rainSize);
@@ -63,12 +63,12 @@ export class NebbiaMask {
     private drawLine(ink: InkContext, line: LaidLine, idx: number, T: number, tuning: NebbiaTuning) {
         const { refog } = tuning, beadHold = NEBBIA_FIXED.beadHold;
         const { fogAt } = line;
-        const yf = yieldFactor(line, T);
+        const yf = yieldFactor(line, T), ym = yieldMask(line, T);
         if (line.mode === 'fog') {
-            const v = (1 - smooth(clamp((T - fogAt) / refog))) * yf;
+            const v = (1 - smooth(clamp((T - fogAt) / refog))) * ym;
             // 擦痕边的水珠：擦痕开始起雾后再挂 beadHold 秒，再用 refog × 3 慢慢缩小消失
             const vb = (1 - smooth(clamp((T - fogAt - beadHold) / (refog * 3)))) * yf;
-            if (vb > 0.002) for (const c of line.chars) drawChar(ink, c, T, v, vb);
+            if (vb > 0.002 || v > 0.002) for (const c of line.chars) drawChar(ink, c, T, v, vb);
             return;
         }
         if (line.wipe === undefined) line.wipe = buildWipe(line, idx);
@@ -79,22 +79,24 @@ export class NebbiaMask {
         const t0 = fogAt > early && early >= line.end ? early : fogAt;
         const ue = clamp((T - t0) / w.dur);
         // 抹完先清亮一会儿，再慢慢起雾
-        const vw = (1 - smooth(clamp((T - t0 - w.dur - 0.5) / refog))) * yf;
+        const back = 1 - smooth(clamp((T - t0 - w.dur - 0.5) / refog)), vw = back * ym;
+        // 拖痕不留印子：被哈气盖掉后不再抹（不然白气底下照样扫出一条条，雪窗、凝露也被扫开）
+        const vs = back * yf;
         const vbw = (1 - smooth(clamp((T - t0 - w.dur - 0.5 - beadHold) / (refog * 3)))) * yf;
-        if (vbw <= 0.002) return;
+        if (vbw <= 0.002 && vw <= 0.002) return;
         const alive = ue <= 0 ? null : (x: number, y: number) => (isSwept(w, ue, x, y) ? 0 : 1);
-        for (const c of line.chars) drawChar(ink, c, T, ue <= 0 ? yf : vw, ue <= 0 ? yf : vbw, alive);
+        for (const c of line.chars) drawChar(ink, c, T, ue <= 0 ? ym : vw, ue <= 0 ? yf : vbw, alive);
         if (ue <= 0) return;
         const { ctx } = ink;
         ctx.setTransform(MASK_SCALE, 0, 0, MASK_SCALE, 0, 0);
-        if (vw > 0.002) for (const st of w.streaks) {
+        if (vs > 0.002) for (const st of w.streaks) {
             const lp = streakProgress(st, ue);
             if (lp <= 0) continue;
             const pts = st.pts, n = pts.length - 1, f = lp * n, i = Math.floor(f);
             ctx.moveTo(pts[0][0], pts[0][1]);
             for (let k = 1; k <= Math.min(i, n); k += 1) ctx.lineTo(pts[k][0], pts[k][1]);
             if (i < n) { const a = pts[i], b = pts[i + 1], r = f - i; ctx.lineTo(a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r); }
-            ctx.stroke(st.w, vw);
+            ctx.stroke(st.w, vs);
             // 雪窗、凝露：手指正扫过的一段（指尖和它身后一点）
             if (ink.sweeps && lp < 1) {
                 const [ax, ay] = pts[Math.max(0, i - 1)], b = pts[Math.min(n, i + 1)];
@@ -102,7 +104,7 @@ export class NebbiaMask {
             }
         }
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        if (ue >= 1) for (const b of w.beads) ink.motion.put(b.x, b.y, b.r * (0.55 + 0.45 * vbw), vbw);
+        if (ue >= 1 && vbw > 0.002) for (const b of w.beads) ink.motion.put(b.x, b.y, b.r * (0.55 + 0.45 * vbw), vbw);
     }
 
     // 被震落的水珠留下的水痕、颠簸时水珠甩过的印子，和手指擦痕一样过一会儿重新起雾；完全回雾的丢掉

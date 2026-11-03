@@ -13,7 +13,7 @@ import type { Line } from '../../../types';
 export const NEBBIA_APPEAR_STYLES = ['write', 'fade', 'breath'] as const;
 export type NebbiaAppearStyle = typeof NEBBIA_APPEAR_STYLES[number];
 
-/** 写完怎么消失：慢慢起雾、几根手指来回抹掉；两种都开就每句随机。 */
+/** 写完怎么消失：慢慢起雾、两根手指来回搓掉；两种都开就每句随机。 */
 export const NEBBIA_FADE_STYLES = ['fog', 'fingers'] as const;
 export type NebbiaFadeStyle = typeof NEBBIA_FADE_STYLES[number];
 

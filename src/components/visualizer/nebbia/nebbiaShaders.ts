@@ -92,24 +92,48 @@ void main() {
   vec2 px = gv * uRes;
   float aspect = uRes.x / uRes.y;
   vec2 q = vec2(sv.x * aspect, sv.y);
-  float m = texture(uMask, gv).r;
   // 擦痕边缘：细噪声让边缘毛糙，大块噪声让重新起雾时一片片回来
   vec3 nz = uNoiseOn ? texture(uNoise, px / uRes).rgb : staticNoise(px);
   float fine = nz.r, blotch = nz.g;
-  float th = 0.3 + (fine - 0.5) * 0.22 * uEdge + (blotch - 0.5) * 0.12;
-  float clear = smoothstep(th - 0.05, th + 0.06, m);
   // 哈气：就是这一片的雾一下变密（更细密的一层水汽凝上来），不是另盖一层。边由大块噪声揉散成一卷卷的、
   // 细噪声让它发毛，散的时候从薄的地方先透。在白气上写的字照样擦开，水珠周围照样抹开一圈
-  float breath = 0.0;
+  float breath = 0.0, melt = 0.0;
   if (uBreathOn) {
-    vec2 bm = texture(uBreath, gv).rg;
+    vec3 bm = texture(uBreath, gv).rgb;
     if (bm.r > 0.003) {
       // 值噪声直接取阈值会露出横平竖直的格子：每层转一个角度、叠三层，边缘才是一卷卷的
       vec2 r1 = mat2(0.80, -0.60, 0.60, 0.80) * px, r2 = mat2(0.36, 0.93, -0.93, 0.36) * px;
       float bn = vnoise(r1 / 34.0 + 7.0) * 0.55 + vnoise(r2 / 15.0 + 2.3) * 0.3 + vnoise(px / 6.5) * 0.15;
       float bth = 0.3 + (bn - 0.5) * 0.5;
-      breath = smoothstep(bth - 0.2, bth + 0.25, bm.r) * bm.g * uBreathThick;
+      float cover = smoothstep(bth - 0.2, bth + 0.25, bm.r);
+      breath = cover * bm.g * uBreathThick;
+      // 白气漫到哪，那儿被盖住的旧字跟着糊开（B 通道，只在鼓开的那一阵）
+      melt = cover * bm.b;
     }
+  }
+  float m = texture(uMask, gv).r;
+  // 被白气盖住的旧字：遮罩在周围一圈取几下（每个像素转一个角度，糊出来是颗粒的雾气，不是几道重影），字先糊开、边变软，
+  // 再随 yieldFactor 淡进雾里
+  if (melt > 0.01) {
+    float rad = melt * 0.014 * uRes.y, a0 = hash(px) * 6.2832, acc = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float a = a0 + float(i) * 0.7854, rr = rad * ((i & 1) == 0 ? 1.0 : 0.5);
+      acc += texture(uMask, gv + vec2(cos(a), sin(a)) * rr / uRes).r;
+    }
+    m = mix(m, acc / 8.0, melt);
+  }
+  float th = 0.3 + (fine - 0.5) * 0.22 * uEdge + (blotch - 0.5) * 0.12;
+  float clear = smoothstep(th - 0.05 - 0.12 * melt, th + 0.06 + 0.06 * melt, m);
+  // 白气铺开后，盖掉的旧字在遮罩上留着 BREATH_GHOST（nebbiaScene.ts）那么一点：比阈值低、不透出窗外，
+  // 只让那儿的白气薄一点，糊糊的留个浅浅的印子。在周围四下取样糊开；新写的字在遮罩上是满的，取到的有一下超过 0.15
+  // 就是挨着新字，不薄（不然新字外面也薄一圈）
+  if (breath > 0.001) {
+    float gr = 0.006 * uRes.y, ga = hash(px + 17.0) * 6.2832, gm = 0.0, gx = m;
+    for (int i = 0; i < 4; i++) {
+      float a = ga + float(i) * 1.5708, g = texture(uMask, gv + vec2(cos(a), sin(a)) * gr / uRes).r;
+      gm += g; gx = max(gx, g);
+    }
+    breath *= 1.0 - 0.55 * smoothstep(0.0, 0.07, gm * 0.25) * (1.0 - smoothstep(0.1, 0.15, gx));
   }
   // 雾：模糊的窗外提亮发灰，光晕散得更开，加浓淡起伏和细颗粒，下半部分略浓
   float dens = uMist * (0.82 + 0.3 * vnoise(px / 380.0 + uTime * 0.015)) * (0.9 + 0.2 * vUv.y) + breath * 0.9;
