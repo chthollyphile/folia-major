@@ -32,16 +32,16 @@ describe('the sign-in window names no platform', () => {
 });
 
 describe('what each platform declares for the sign-in window', () => {
-    it('its mark: one letter, one colour and an optional logo', () => {
+    it('its mark: one letter and one colour', () => {
         const marks = Object.fromEntries(listOnlineMusicProviders().map(provider => [provider.id, omni.getProviderMark(provider.id)]));
         expect(marks).toEqual({
-            netease: { letter: '云', color: '#dc2626', logoKey: 'netease' },
-            kugou: { letter: 'K', color: '#2563eb', logoKey: 'kugou' },
-            qq: { letter: 'Q', color: '#16a34a', logoKey: 'qq-music' },
+            netease: { letter: '云', color: '#dc2626' },
+            kugou: { letter: 'K', color: '#2563eb' },
+            qq: { letter: 'Q', color: '#16a34a' },
             bodian: { letter: '波', color: '#0d9488' },
-            ytm: { letter: 'Y', color: '#e11d48', logoKey: 'youtube-music' },
-            spotify: { letter: 'S', color: '#22c55e', logoKey: 'spotify' },
-            qishui: { letter: '汽', color: '#19a58c', logoKey: 'qishui' },
+            ytm: { letter: 'Y', color: '#e11d48' },
+            spotify: { letter: 'S', color: '#22c55e' },
+            qishui: { letter: '汽', color: '#19a58c' },
         });
     });
 
