@@ -484,6 +484,7 @@ export const omni = {
                 providerId: provider.id,
                 displayName: provider.displayName,
                 shortName: provider.shortName || provider.displayName,
+                shortNameKey: provider.shortNameKey,
                 availability: provider.getAvailability?.() ?? { configured: true },
                 requiresAccount: provider.capabilities.auth,
                 status: account?.status || 'unknown',

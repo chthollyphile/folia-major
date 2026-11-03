@@ -1844,6 +1844,15 @@ export default {
     "spotify": "Spotify",
     "amll": "AMLLDB",
   },
+  "onlineProviderName": {
+    "netease": "NetEase",
+    "kugou": "Kugou",
+    "qq": "QQ Music",
+    "bodian": "Bodian",
+    "ytm": "YT Music",
+    "spotify": "Spotify",
+    "qishui": "Qishui",
+  },
   "globalLyricOffset": {
     "title": "Global Timing Offset",
     "subtitle": "Compensate audio/visual latency from Bluetooth headphones or other output devices",

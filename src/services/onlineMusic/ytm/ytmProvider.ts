@@ -67,8 +67,8 @@ const forgetPages = (): void => {
 i18n.on('languageChanged', forgetPages);
 
 export const ytmProvider: OnlineMusicProvider = {
-    id: 'ytm', displayName: 'YouTube Music', shortName: 'YT Music',
-    mark: { letter: 'Y', color: '#e11d48' },
+    id: 'ytm', displayName: 'YouTube Music', shortName: 'YT Music', shortNameKey: 'onlineProviderName.ytm',
+    mark: { letter: 'Y', color: '#e11d48', logoKey: 'youtube-music' },
     getAvailability: getYtmTransportAvailability,
     describeFailure: describeYtmFailure,
     // `recommendations` is the radio tab (ytmRecommendations.ts): a personal FM made of song

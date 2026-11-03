@@ -1844,6 +1844,15 @@ export default {
     "spotify": "Spotify",
     "amll": "AMLLDB",
   },
+  "onlineProviderName": {
+    "netease": "NetEase",
+    "kugou": "Kugou",
+    "qq": "QQ Music",
+    "bodian": "Bodian",
+    "ytm": "YT Music",
+    "spotify": "Spotify",
+    "qishui": "Qishui",
+  },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",
     "subtitle": "Bù độ trễ âm thanh/hình ảnh từ tai nghe Bluetooth hoặc thiết bị đầu ra khác",
