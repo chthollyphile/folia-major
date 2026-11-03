@@ -47,8 +47,8 @@ describe('NebbiaCondensation', () => {
         expect(c.changed).toBe(false);
         for (let i = 0; i < 10; i += 1) c.instances(0);
         expect(c.changed).toBe(false);
-        // 都长足了、还没开始缩的那一阵，到点更新也没有要改的
-        run(c, 17);
+        // 都长足了、还没开始缩的那一阵（16–18.5 秒），到点更新也没有要改的
+        run(c, 13.5);
         c.instances(0.06);
         expect(c.changed).toBe(false);
         // 大小、多少一变就重写

@@ -510,6 +510,7 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "options": [
         "rain",
         "dew",
+        "snow",
       ],
       "type": "choice",
     },
@@ -564,6 +565,21 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
     "refog": {
       "max": 12,
+      "min": 0.5,
+      "type": "number",
+    },
+    "snow": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
+    "snowMelt": {
+      "max": 3,
+      "min": 0.25,
+      "type": "number",
+    },
+    "snowSize": {
+      "max": 2,
       "min": 0.5,
       "type": "number",
     },

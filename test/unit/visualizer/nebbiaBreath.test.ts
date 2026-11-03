@@ -6,7 +6,8 @@ import type { LaidLine } from '@/components/visualizer/nebbia/nebbiaScene';
 
 // test/unit/visualizer/nebbiaBreath.test.ts
 // 白气遮罩只在这一帧要画的气和上一帧不一样时才重画、才加 version（nebbiaGl.ts 按 version 决定传不传纹理）：
-// 挂着的那段不重画，慢慢散时只在浓淡变了一级时重画，改尺寸后照画，白气没了清一次就停。
+// 挂着的那段不重画，慢慢散时只在浓淡变了一级时重画，改尺寸后照画，白气没了清一次就停；
+// 同一句的让位白气（糊开旧字）和出场白气共用一个 breath 对象，只差 B 通道时也要重画。
 
 const { breathSpread, breathFade } = NEBBIA_FIXED;
 
@@ -32,10 +33,10 @@ const lineWithBreath = (): LaidLine => {
     return { breath } as unknown as LaidLine;
 };
 
-/** 画一帧：这一帧在 T 秒，这句的气从 t0 起哈、挂到 until。 */
-const frame = (mask: NebbiaBreathMask, line: LaidLine | null, T: number, t0 = 0, until = 10) => {
+/** 画一帧：这一帧在 T 秒，这句的气从 t0 起哈、用 spread 秒鼓开、挂到 until；melt 是让位那口（糊开旧字）。 */
+const frame = (mask: NebbiaBreathMask, line: LaidLine | null, T: number, t0 = 0, until = 10, spread = breathSpread, melt = true) => {
     mask.begin();
-    if (line) mask.drawLine(line, 0, T, t0, until);
+    if (line) mask.drawLine(line, 0, T, t0, until, spread, melt);
     mask.end();
 };
 
@@ -93,6 +94,18 @@ describe('nebbia breath mask redraws only when the puffs change', () => {
         frame(mask, line, breathSpread + 1.1);
         expect(mask.version).toBe(resized + 1);
         expect(calls.arc).toBeGreaterThan(arcs);
+    });
+
+    it('redraws when only the blur of the covered words differs (same breath object)', () => {
+        const mask = new NebbiaBreathMask();
+        mask.resize(800, 400);
+        const line = lineWithBreath();
+        // 鼓开到一半：让位那口在 B 通道上糊开旧字，出场那口不糊
+        const T = breathSpread * 0.3;
+        frame(mask, line, T, 0, 10, breathSpread, true);
+        const drawn = mask.version;
+        frame(mask, line, T, 0, 10, breathSpread, false);
+        expect(mask.version).toBe(drawn + 1);
     });
 
     it('clears once when the breath is gone, then leaves the canvas alone', () => {

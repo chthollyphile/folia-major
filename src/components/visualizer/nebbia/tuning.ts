@@ -91,12 +91,6 @@ export default defineVisualizerTuning<NebbiaTuning>({
         // A count of jellyfish: whole ones, as the panel's slider steps.
         jellies: modNumber(NEBBIA_LIMITS.jellies.min, NEBBIA_LIMITS.jellies.max, 1),
     },
-    // As the panel and the command: a new window brings its own glass, unless the mod names one.
-    modPatch: (held, patch) => (
-        patch.behind !== undefined && patch.glass === undefined && patch.behind !== held.behind
-            ? { ...patch, glass: NEBBIA_GLASS_FOR[patch.behind] ?? held.glass }
-            : patch
-    ),
     settingsKey: 'nebbiaTuning',
     settingsSetterKey: 'handleSetNebbiaTuning',
     settingsResetterKey: 'handleResetNebbiaTuning',
