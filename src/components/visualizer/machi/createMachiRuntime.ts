@@ -974,8 +974,9 @@ export class MachiRuntime {
         this.camera.setCustom(this.customView(this.stageId));
         this.camera.setMotion(tuning.motion, tuning.motionSpeed);
         if (qualityKey(previous.quality) !== qualityKey(tuning.quality)) {
-            // 换了画质设置：自动降级从这套设置重新开始。
+            // 换了画质设置：自动降级从这套设置重新开始，不拿上一套降级时的平均帧时比。
             this.degrade = 0;
+            this.degradeState = { ...this.degradeState, degradedAverage: 0 };
             this.applyQuality();
         }
         this.wantsFrame = true;
@@ -990,6 +991,7 @@ export class MachiRuntime {
         const { renderScale, antialias } = this.tuning.quality;
         if (renderScale !== 'global' && antialias !== 'global') return;
         this.degrade = 0;
+        this.degradeState = { ...this.degradeState, degradedAverage: 0 };
         this.applyQuality();
     }
 

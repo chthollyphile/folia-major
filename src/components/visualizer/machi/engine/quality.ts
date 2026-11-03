@@ -111,6 +111,11 @@ const DEGRADE_SLACK = 1.33;
 const DEGRADE_SLOW_CHECKS = 2;
 /** 降了一格之后平均帧时低于降级那次的这么多倍，才算降级让画面变快了。 */
 const DEGRADE_RELIEF = 0.95;
+/**
+ * 较慢那一成的帧间隔不超过较快那一成的这么多倍，才算帧间隔挤在一起：屏幕卡着刷新时几乎每帧一样长，
+ * GPU 不够时快慢混着（120Hz 上 16.7 和 25 交替）。
+ */
+const DEGRADE_STEADY = 1.2;
 
 /** 自动降级在两次检查之间记着的东西。 */
 export interface MachiDegradeState {
@@ -120,10 +125,12 @@ export interface MachiDegradeState {
     slowChecks: number;
     /** 刚降过一格时，降级那次的平均帧时（毫秒；0 是没有），降级后的第一次检查拿它比一次。 */
     degradedAverage: number;
+    /** 认定是屏幕卡着刷新时的那个间隔（毫秒；0 是没有）：之后一帧应有的间隔不再比它短，换屏、改帧率上限时随整份状态清掉。 */
+    displayFloor: number;
 }
 
 /** 换到别的屏上（刷新率可能不一样）、改了帧率上限时也从这里重新来。 */
-export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0, degradedAverage: 0 });
+export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0, degradedAverage: 0, displayFloor: 0 });
 
 /** 帧时门槛（毫秒）：一帧应有的间隔乘 DEGRADE_SLACK，不低于 90fps 的帧时，不超过原来的 21 毫秒。 */
 export const resolveMachiDegradeThreshold = (refresh: number) => (
@@ -136,20 +143,25 @@ export const resolveMachiDegradeThreshold = (refresh: number) => (
  * 不能只看这一段——高刷屏上几乎每帧都赶不上刷新时（120Hz 上稳定 55fps），这一段较快的帧也是两个刷新间隔，门槛跟着翻倍，
  * 反而不降。窗口挪到别的屏上时以前见过的就不对了，由外面换一份新的状态（createMachiDegradeState）。
  * 屏幕自己降了刷新率（Windows 的动态刷新率、macOS 的低电量模式）从帧间隔上看和赶不上一样，取小的就一直按原来的刷新算、一路降到底：
- * 所以刚降过一格之后的第一次检查，平均帧时要是没比降级那次明显变快，卡住的就不是渲染而是屏幕的刷新，一帧应有的间隔改成这一段
- * 较快那一成的帧间隔重新认。只比这一次，下一次检查不再拿降级那次的平均比。
+ * 所以刚降过一格之后的第一次检查，平均帧时要是没比降级那次明显变快、帧间隔又挤在一起，卡住的就不是渲染而是屏幕的刷新，
+ * 一帧应有的间隔改成这一段较快那一成的帧间隔，并且记成下限（displayFloor）：动态刷新率偶尔升回去一下，较快的帧也不会把它拉回来、
+ * 再白降一格。只比这一次，下一次检查不再拿降级那次的平均比。帧间隔稳定在两个刷新间隔的 GPU 不够从帧间隔上分不出来，
+ * 也按屏幕卡着算，不再往下降（和原来固定 21 毫秒的门槛一样）。
  */
 export const stepMachiDegrade = (state: MachiDegradeState, intervals: readonly number[]) => {
     const sorted = [...intervals].sort((a, b) => a - b);
     const fast = sorted[Math.floor(sorted.length * 0.1)] ?? 0;
+    const slow = sorted[Math.floor(sorted.length * 0.9)] ?? 0;
     const average = intervals.reduce((sum, value) => sum + value, 0) / Math.max(1, intervals.length);
-    const refreshLimited = state.degradedAverage > 0 && average >= state.degradedAverage * DEGRADE_RELIEF;
-    const refresh = state.refresh > 0 && !refreshLimited ? Math.min(state.refresh, fast) : fast;
+    const displayLimited = state.degradedAverage > 0 && average >= state.degradedAverage * DEGRADE_RELIEF && slow <= fast * DEGRADE_STEADY;
+    const displayFloor = displayLimited ? fast : state.displayFloor;
+    const learned = state.refresh > 0 && !displayLimited ? Math.min(state.refresh, fast) : fast;
+    const refresh = Math.max(learned, displayFloor);
     const threshold = resolveMachiDegradeThreshold(refresh);
-    if (average <= threshold) return { state: { refresh, slowChecks: 0, degradedAverage: 0 }, degrade: false, average, threshold };
+    if (average <= threshold) return { state: { refresh, slowChecks: 0, degradedAverage: 0, displayFloor }, degrade: false, average, threshold };
     const slowChecks = state.slowChecks + 1;
-    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks, degradedAverage: 0 }, degrade: false, average, threshold };
-    return { state: { refresh, slowChecks: 0, degradedAverage: average }, degrade: true, average, threshold };
+    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks, degradedAverage: 0, displayFloor }, degrade: false, average, threshold };
+    return { state: { refresh, slowChecks: 0, degradedAverage: average, displayFloor }, degrade: true, average, threshold };
 };
 
 /** 把「跟随全局」换成全局挡位里的具体值。 */
