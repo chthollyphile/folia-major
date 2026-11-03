@@ -45,11 +45,17 @@ let mockAudio: Blob | null = null;
 // Calls that overlap (?mockSong at launch plus an agent's own call) share one import and one play.
 let pendingPlay: Promise<LocalSong> | null = null;
 
-/** Writes a file unless one of the same size is already there (the assets are deterministic). */
+/** Writes a file unless the same bytes are already there, so an unchanged file keeps its library record as it is. */
 const writeFileOnce = async (dir: FileSystemDirectoryHandle, name: string, makeBlob: () => Blob | Promise<Blob>) => {
     const handle = await dir.getFileHandle(name, { create: true });
     const blob = await makeBlob();
-    if ((await handle.getFile()).size === blob.size) return;
+    const existing = await handle.getFile();
+    if (existing.size === blob.size) {
+        const [before, after] = await Promise.all([existing.arrayBuffer(), blob.arrayBuffer()]);
+        const a = new Uint8Array(before);
+        const b = new Uint8Array(after);
+        if (a.every((byte, index) => byte === b[index])) return;
+    }
     const writable = await handle.createWritable();
     await writable.write(blob);
     await writable.close();
@@ -89,7 +95,12 @@ const importAndPlay = async (): Promise<LocalSong> => {
     const song = toFoliumSong(buildUnifiedLocalSong({ localSong, matchedSong: null, coverUrl: null, preferOnlineMetadata: false }));
     if (!song) throw new Error('[DevMockSong] could not build the song');
     if (!(await playback.playSong(song))) throw new Error('[DevMockSong] the player did not take the song');
-    console.log('[DevMockSong] Playing the mock song from', localSong.filePath);
+    // The player takes the song even when the browser then refuses to start audio without a user gesture.
+    if (playback.getState().state !== 'playing') {
+        console.warn('[DevMockSong] The mock song is loaded but not playing (autoplay blocked?); press play.');
+    } else {
+        console.log('[DevMockSong] Playing the mock song from', localSong.filePath);
+    }
     return localSong;
 };
 
