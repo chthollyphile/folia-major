@@ -1,5 +1,5 @@
 import React from 'react';
-import { Command, Heart, Languages, LayoutGrid, Search, Settings2, Shuffle, Star, Volume2, type LucideIcon } from 'lucide-react';
+import { Captions, Command, Heart, LayoutGrid, Search, Settings2, Shuffle, Star, Volume2, type LucideIcon } from 'lucide-react';
 import { PLAYER_CONTROL_SLOT_OPTIONS, type PlayerControlSlotActionId } from '../../../floating-player/playerControlSlotActions';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { CAPSULE_QUICK_ACTIONS_GEOMETRY as Q } from './playerBar.geometry';
@@ -19,7 +19,7 @@ const QUICK_ACTIONS: readonly { Icon: LucideIcon; slotAction?: PlayerControlSlot
     { Icon: Heart, slotAction: 'like' },
     { Icon: Star },
     { Icon: Shuffle, slotAction: 'shuffle' },
-    { Icon: Languages },
+    { Icon: Captions },
     { Icon: LayoutGrid },
 ];
 

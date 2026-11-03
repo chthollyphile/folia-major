@@ -219,7 +219,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     // pointer is no longer on it — so the shape remembered from the open is the wrong one to land in.
     const capsuleExitFrameRef = useRef<CapsuleFrame | null>(null);
     if (isOpen && !wasOpenRef.current) {
-        capsuleFrameRef.current = liveFilterAnchor ? null : readCapsuleFrame(useCapsulePaletteStore.getState().anchor);
+        // A palette opened straight into a surface that edits what sits above the bar (the bottom
+        // subtitle) stays in the top overlay. Decided here, once: a session that switched shells midway
+        // would remount the input (losing focus) and could not animate out of the shell it left.
+        capsuleFrameRef.current = liveFilterAnchor || surface?.keepsClearOfPlayerBar
+            ? null
+            : readCapsuleFrame(useCapsulePaletteStore.getState().anchor);
         capsuleExitFrameRef.current = null;
     } else if (!isOpen && wasOpenRef.current && capsuleFrameRef.current) {
         capsuleExitFrameRef.current = readCapsuleFrame(useCapsulePaletteStore.getState().anchor) ?? capsuleFrameRef.current;

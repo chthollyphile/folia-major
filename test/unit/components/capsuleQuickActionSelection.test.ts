@@ -26,7 +26,7 @@ describe('resolveCapsuleQuickActions', () => {
             'playback-like',
             'playback-shuffle',
             'playback-volume',
-            'settings-cycle-subtitle-content-mode',
+            'settings-subtitles',
             'visualizer-picker',
         ]);
     });
