@@ -98,12 +98,19 @@ const DEGRADE_STEPS: ((settled: Settled) => Settled | null)[] = [
 /** 原来的门槛（60Hz 上约 48fps 以下）：按刷新间隔算出来的门槛不比它高。 */
 const DEGRADE_MAX_FRAME_MS = 21;
 /**
+ * 门槛最低到这里（90fps）：144、165、240Hz 的屏按刷新间隔乘 DEGRADE_SLACK 算只有 9.2、8.1、5.5 毫秒，100 多 fps 也要降，
+ * 一路压到底；刷新率再高也只要求 90fps。
+ */
+const DEGRADE_MIN_FRAME_MS = 1000 / 90;
+/**
  * 平均帧时超过一帧应有的间隔这么多倍就算跟不上：120Hz 上约 11.1 毫秒（90fps 以下），视网膜屏上 4 倍 MSAA 的町景平时约 105fps，
  * 不动它；60Hz 上算出来比 21 毫秒高，仍按 21 毫秒，和原来一样。
  */
 const DEGRADE_SLACK = 1.33;
 /** 连着这么多次检查都超过门槛才降一格（偶尔一下卡顿不算）。 */
 const DEGRADE_SLOW_CHECKS = 2;
+/** 降了一格之后平均帧时低于降级那次的这么多倍，才算降级让画面变快了。 */
+const DEGRADE_RELIEF = 0.95;
 
 /** 自动降级在两次检查之间记着的东西。 */
 export interface MachiDegradeState {
@@ -111,30 +118,38 @@ export interface MachiDegradeState {
     refresh: number;
     /** 连着几次超过门槛。 */
     slowChecks: number;
+    /** 刚降过一格时，降级那次的平均帧时（毫秒；0 是没有），降级后的第一次检查拿它比一次。 */
+    degradedAverage: number;
 }
 
-/** 换到别的屏上（刷新率可能不一样）时也从这里重新来。 */
-export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0 });
+/** 换到别的屏上（刷新率可能不一样）、改了帧率上限时也从这里重新来。 */
+export const createMachiDegradeState = (): MachiDegradeState => ({ refresh: 0, slowChecks: 0, degradedAverage: 0 });
 
-/** 帧时门槛（毫秒）：一帧应有的间隔乘 DEGRADE_SLACK，不超过原来的 21 毫秒。 */
-export const resolveMachiDegradeThreshold = (refresh: number) => (refresh > 0 ? Math.min(DEGRADE_MAX_FRAME_MS, refresh * DEGRADE_SLACK) : DEGRADE_MAX_FRAME_MS);
+/** 帧时门槛（毫秒）：一帧应有的间隔乘 DEGRADE_SLACK，不低于 90fps 的帧时，不超过原来的 21 毫秒。 */
+export const resolveMachiDegradeThreshold = (refresh: number) => (
+    refresh > 0 ? Math.min(DEGRADE_MAX_FRAME_MS, Math.max(DEGRADE_MIN_FRAME_MS, refresh * DEGRADE_SLACK)) : DEGRADE_MAX_FRAME_MS
+);
 
 /**
  * 自动降级的一次检查（纯函数）：intervals 是这段时间的帧间隔。
  * 一帧应有的间隔（屏幕的刷新间隔，开了帧率上限就是实际跑出来的间隔）取这段里较快那一成的帧间隔，和以前检查见过的取小的：
  * 不能只看这一段——高刷屏上几乎每帧都赶不上刷新时（120Hz 上稳定 55fps），这一段较快的帧也是两个刷新间隔，门槛跟着翻倍，
  * 反而不降。窗口挪到别的屏上时以前见过的就不对了，由外面换一份新的状态（createMachiDegradeState）。
+ * 屏幕自己降了刷新率（Windows 的动态刷新率、macOS 的低电量模式）从帧间隔上看和赶不上一样，取小的就一直按原来的刷新算、一路降到底：
+ * 所以刚降过一格之后的第一次检查，平均帧时要是没比降级那次明显变快，卡住的就不是渲染而是屏幕的刷新，一帧应有的间隔改成这一段
+ * 较快那一成的帧间隔重新认。只比这一次，下一次检查不再拿降级那次的平均比。
  */
 export const stepMachiDegrade = (state: MachiDegradeState, intervals: readonly number[]) => {
     const sorted = [...intervals].sort((a, b) => a - b);
     const fast = sorted[Math.floor(sorted.length * 0.1)] ?? 0;
     const average = intervals.reduce((sum, value) => sum + value, 0) / Math.max(1, intervals.length);
-    const refresh = state.refresh > 0 ? Math.min(state.refresh, fast) : fast;
+    const refreshLimited = state.degradedAverage > 0 && average >= state.degradedAverage * DEGRADE_RELIEF;
+    const refresh = state.refresh > 0 && !refreshLimited ? Math.min(state.refresh, fast) : fast;
     const threshold = resolveMachiDegradeThreshold(refresh);
-    if (average <= threshold) return { state: { refresh, slowChecks: 0 }, degrade: false, average, threshold };
+    if (average <= threshold) return { state: { refresh, slowChecks: 0, degradedAverage: 0 }, degrade: false, average, threshold };
     const slowChecks = state.slowChecks + 1;
-    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks }, degrade: false, average, threshold };
-    return { state: { refresh, slowChecks: 0 }, degrade: true, average, threshold };
+    if (slowChecks < DEGRADE_SLOW_CHECKS) return { state: { refresh, slowChecks, degradedAverage: 0 }, degrade: false, average, threshold };
+    return { state: { refresh, slowChecks: 0, degradedAverage: average }, degrade: true, average, threshold };
 };
 
 /** 把「跟随全局」换成全局挡位里的具体值。 */

@@ -119,11 +119,20 @@ describe('resolveMachiRenderQuality', () => {
         expect(at(DEFAULT_MACHI_QUALITY, 0, 1, true, { scale: 1, antialias: 'off' })).toMatchObject({ postAA: 'smaa', antialias: 'smaa' });
     });
 
-    it('sets the degrade threshold from the display refresh, never above the old 21 ms', () => {
-        expect(resolveMachiDegradeThreshold(8.33)).toBeCloseTo(11.08, 1);
+    it('sets the degrade threshold from the display refresh, between 90 fps and the old 21 ms', () => {
+        expect(resolveMachiDegradeThreshold(8.33)).toBeCloseTo(1000 / 90, 2);
+        expect(resolveMachiDegradeThreshold(10)).toBeCloseTo(13.3, 2);
         expect(resolveMachiDegradeThreshold(16.67)).toBe(21);
         expect(resolveMachiDegradeThreshold(25)).toBe(21);
         expect(resolveMachiDegradeThreshold(0)).toBe(21);
+    });
+
+    it('asks no more than 90 fps of a 144 Hz or 240 Hz display', () => {
+        expect(resolveMachiDegradeThreshold(1000 / 144)).toBeCloseTo(1000 / 90, 2);
+        expect(resolveMachiDegradeThreshold(1000 / 240)).toBeCloseTo(1000 / 90, 2);
+        // 240Hz 上稳定 120fps：不降。
+        const step = stepMachiDegrade(createMachiDegradeState(), Array.from({ length: 120 }, (_, i) => (i % 2 === 0 ? 1000 / 240 : 1000 / 80)));
+        expect(step).toMatchObject({ degrade: false, state: { slowChecks: 0 } });
     });
 
     it('degrades after two slow checks, keeping the fastest refresh seen so far', () => {
@@ -136,14 +145,62 @@ describe('resolveMachiRenderQuality', () => {
         const at60 = Array.from({ length: 120 }, () => 16.67);
         step = stepMachiDegrade(step.state, at60);
         expect(step).toMatchObject({ degrade: false, state: { slowChecks: 1 } });
-        expect(step.threshold).toBeCloseTo(11.08, 1);
+        expect(step.state.refresh).toBeCloseTo(8.33);
+        expect(step.threshold).toBeCloseTo(1000 / 90, 2);
         step = stepMachiDegrade(step.state, at60);
         expect(step).toMatchObject({ degrade: true, state: { slowChecks: 0 } });
-        // 降了一格还是赶不上刷新（帧间隔仍是两个刷新间隔）：门槛不跟着松，接着降。
+        expect(step.state.refresh).toBeCloseTo(8.33);
+        expect(step.state.degradedAverage).toBeCloseTo(16.67);
+    });
+
+    it('takes the display as slowed down when a step down did not speed the frames up', () => {
+        // 120Hz 上学到 8.33，屏幕自己降到 60Hz（动态刷新率、低电量）：两次检查后降了一格。
+        let step = stepMachiDegrade(createMachiDegradeState(), Array.from({ length: 120 }, () => 8.33));
+        const at60 = Array.from({ length: 120 }, () => 16.67);
         step = stepMachiDegrade(step.state, at60);
         step = stepMachiDegrade(step.state, at60);
         expect(step).toMatchObject({ degrade: true });
-        expect(step.threshold).toBeCloseTo(11.08, 1);
+        // 降了一格还是 16.67：卡住的是刷新，按 60Hz 重新认，门槛回到 21 毫秒，不再降。
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: false, threshold: 21, state: { slowChecks: 0, degradedAverage: 0 } });
+        expect(step.state.refresh).toBeCloseTo(16.67);
+        for (let check = 0; check < 6; check += 1) {
+            step = stepMachiDegrade(step.state, at60);
+            expect(step.degrade).toBe(false);
+        }
+    });
+
+    it('keeps the learned refresh when a step down did speed the frames up, and compares only once', () => {
+        let step = stepMachiDegrade(createMachiDegradeState(), Array.from({ length: 120 }, () => 8.33));
+        const at60 = Array.from({ length: 120 }, () => 16.67);
+        step = stepMachiDegrade(step.state, at60);
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: true });
+        // 降了一格到 80fps：确实变快了，仍按 8.33 判断（门槛约 11.1，80fps 仍算慢）。
+        const at80 = Array.from({ length: 120 }, () => 12.5);
+        step = stepMachiDegrade(step.state, at80);
+        expect(step).toMatchObject({ degrade: false, state: { slowChecks: 1, degradedAverage: 0 } });
+        expect(step.state.refresh).toBeCloseTo(8.33);
+        expect(step.threshold).toBeCloseTo(1000 / 90, 2);
+        // 下一次又慢回 60fps：不再拿降级那次的平均比，照旧按 8.33 判断，降。
+        step = stepMachiDegrade(step.state, at60);
+        expect(step).toMatchObject({ degrade: true });
+        expect(step.threshold).toBeCloseTo(1000 / 90, 2);
+    });
+
+    it('does not loosen the refresh when the GPU falls short on a 120 Hz display', () => {
+        // 间隔有快有慢（8.33 和 25 交替，平均约 60fps）：较快那一成仍是 8.33。
+        const uneven = Array.from({ length: 120 }, (_, i) => (i % 2 === 0 ? 8.33 : 25));
+        let step = stepMachiDegrade(createMachiDegradeState(), uneven);
+        step = stepMachiDegrade(step.state, uneven);
+        expect(step).toMatchObject({ degrade: true });
+        // 降了一格没变快：重新认的刷新仍是 8.33，不放宽，接着降。
+        step = stepMachiDegrade(step.state, uneven);
+        expect(step).toMatchObject({ degrade: false, state: { slowChecks: 1 } });
+        expect(step.state.refresh).toBeCloseTo(8.33);
+        expect(step.threshold).toBeCloseTo(1000 / 90, 2);
+        step = stepMachiDegrade(step.state, uneven);
+        expect(step).toMatchObject({ degrade: true });
     });
 
     it('keeps the 21 ms threshold at 60 Hz and before any frame', () => {

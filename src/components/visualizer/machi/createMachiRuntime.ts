@@ -64,6 +64,7 @@ import { resolveMachiSceneId } from './machiTuning';
 import { MACHI_SCENES } from './scenes';
 import type { MachiScene, MachiSceneContent, MachiSceneContext } from './scenes/types';
 import { isGpuAnalysisActive } from '../../../services/analysis/gpuActivity';
+import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { reportMachiDegrade, withdrawMachiDegrade } from './degradeStatus';
 import { reportMachiShownScene, withdrawMachiShownScene } from './shownScene';
 import type { MachiCameraView, MachiQuality, MachiSceneId, MachiTuning } from './types';
@@ -222,9 +223,9 @@ export class MachiRuntime {
     private degrade = 0;
     private renderQuality: MachiRenderQuality;
     private qualityCheckedAt = 0;
-    /** 自动降级在两次检查之间记着的（刷新间隔、连着几次慢）。 */
+    /** 自动降级在两次检查之间记着的（刷新间隔、连着几次慢、刚降一格时那次的平均帧时）。 */
     private degradeState = createMachiDegradeState();
-    /** 窗口所在的屏（尺寸、像素比、在桌面上的位置）：变了就是挪到了别的屏上，刷新间隔重新推。 */
+    /** 窗口所在的屏（尺寸、像素比、在桌面上的位置）和全局帧率上限：变了就是挪到了别的屏上或改了上限，刷新间隔重新推。 */
     private degradeScreen = '';
     /** 这之前的帧不算进自动降级（NaN：还没开始渲染，第一次检查时从那一刻起算）。 */
     private settleUntil = Number.NaN;
@@ -608,17 +609,25 @@ export class MachiRuntime {
         if (Number.isNaN(this.settleUntil)) this.settleUntil = now + DEGRADE_SETTLE_MS;
         if (now < this.settleUntil || this.clock.paused || document.visibilityState !== 'visible' || now - this.analysisSeenAt < DEGRADE_WINDOW_MS) {
             this.frameTimes.length = 0;
-            this.degradeState = { ...this.degradeState, slowChecks: 0 };
+            if (this.degradeState.slowChecks !== 0) this.degradeState = { ...this.degradeState, slowChecks: 0 };
             this.qualityCheckedAt = now;
             return;
         }
         if (now - this.qualityCheckedAt < DEGRADE_WINDOW_MS || this.frameTimes.length < 60) return;
         this.qualityCheckedAt = now;
+        // 全局的帧率上限也算进来：改了上限，一帧应有的间隔跟着变，学到的作废重新推。
         const { screen } = window;
-        const screenKey = `${screen.width}x${screen.height}@${window.devicePixelRatio}:${(screen as Screen & { availLeft?: number }).availLeft ?? 0},${(screen as Screen & { availTop?: number }).availTop ?? 0}`;
+        const frameRate = useVisualizerSettingsStore.getState().visualizerFrameRate;
+        const screenKey = `${screen.width}x${screen.height}@${window.devicePixelRatio}:${(screen as Screen & { availLeft?: number }).availLeft ?? 0},${(screen as Screen & { availTop?: number }).availTop ?? 0}|${frameRate}`;
         if (screenKey !== this.degradeScreen) {
+            const changed = this.degradeScreen !== '';
             this.degradeScreen = screenKey;
             this.degradeState = createMachiDegradeState();
+            // 中途换了屏或上限：这一段前后两种间隔混着，较快那一成可能是换之前的，丢掉从现在起重新攒。
+            if (changed) {
+                this.frameTimes.length = 0;
+                return;
+            }
         }
         const { state, degrade, average, threshold } = stepMachiDegrade(this.degradeState, this.frameTimes);
         this.degradeState = state;

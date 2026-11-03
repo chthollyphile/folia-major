@@ -190,6 +190,8 @@ export class MachiBloomPass extends UnrealBloomPass {
 
     override dispose() {
         super.dispose();
+        // UnrealBloomPass.dispose() 不放提亮那道（materialHighPassFilter），换成的 highPass 在这里放。
+        this.highPass.dispose();
         [...this.blurX, ...this.blurY].forEach(material => material.dispose());
         this.quad.dispose();
     }
