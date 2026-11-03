@@ -41,6 +41,7 @@ const O = {
     tintCustomColor: option(VIEW, 'latticePosterTintCustomColor', 'options.latticePosterTintCustomColor'),
     tintColor: option(VIEW, 'latticePosterTintColor', 'options.latticePosterTintColor'),
     tintIntensity: option(VIEW, 'latticePosterTintIntensity', 'options.latticePosterTintIntensity'),
+    badgeCurrentOnly: option(VIEW, 'latticeBadgeCurrentOnly', 'options.latticeBadgeCurrentOnly'),
     autoHide: option(BAR, 'autoHidePlayerChrome', 'options.autoHidePlayerChrome'),
     autoHideCursor: option(BAR, 'autoHideCursorWithPlayerChrome', 'options.autoHideCursorWithPlayerChrome'),
     idleCursorHide: option(BAR, 'hideCursorWhenIdle', 'options.hideCursorWhenIdle'),
@@ -83,11 +84,13 @@ const PlayerPage: React.FC = () => {
         tintUseCustomColor: state.latticePosterTintUseCustomColor,
         tintColor: state.latticePosterTintColor,
         tintIntensity: state.latticePosterTintIntensity,
+        badgeCurrentOnly: state.latticeBadgeCurrentOnly,
         setVignette: state.handleToggleLatticeVignette,
         setTintEnabled: state.handleToggleLatticePosterTint,
         setTintUseCustomColor: state.handleToggleLatticePosterTintCustomColor,
         setTintColor: state.handleSetLatticePosterTintColor,
         setTintIntensity: state.handleSetLatticePosterTintIntensity,
+        setBadgeCurrentOnly: state.handleToggleLatticeBadgeCurrentOnly,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         autoHide: state.autoHidePlayerChrome,
@@ -226,6 +229,9 @@ const PlayerPage: React.FC = () => {
                         <Slider value={lattice.tintIntensity} min={0} max={1} step={0.01} onChange={lattice.setTintIntensity} format={percent} />
                     </Row>
                 </Reveal>
+                <Row option={O.badgeCurrentOnly} note={t('options.latticeBadgeCurrentOnlyDesc')}>
+                    <Toggle checked={lattice.badgeCurrentOnly} onChange={lattice.setBadgeCurrentOnly} />
+                </Row>
             </Group>
 
             <Group def={BAR}>

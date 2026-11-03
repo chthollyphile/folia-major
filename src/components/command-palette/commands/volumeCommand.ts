@@ -24,6 +24,7 @@ export const volumeCommand: CommandPaletteCommand = defineCommand({
     description: 'Adjust playback volume',
     keywords: ['volume slider', '音量', '音量条'],
     icon: Volume2,
+    capsuleAction: true,
     surface: volumeSurface,
     placeholder: context => context.shared.t('commandPalette.volumeInputPlaceholder', 'Enter a volume from 0 to 100'),
     requiresInput: true,

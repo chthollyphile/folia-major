@@ -102,7 +102,7 @@ export default {
                 { kind: 'caption', id: 'cardKeysCaption', textKey: 'ponder.captions.pages.gridCardKeys', pointTo: { anchor: 'shelf' }, durationMs: 3900, withPrevious: true },
                 { kind: 'pause', id: 'cardKeysRead' },
                 { kind: 'keypress', id: 'pageKeys', keys: ['Mod K', 'Mod B', 'Ctrl G'], at: 'bottom', durationMs: 1300, keyframe: true },
-                { kind: 'surfaceState', id: 'commandResult', anchor: 'page', state: 'command-open', transition: 'zoom', durationMs: 520, withPrevious: true },
+                { kind: 'surfaceState', id: 'commandResult', anchor: 'page', state: 'command-open', transition: 'slide-up', durationMs: 520, withPrevious: true },
                 { kind: 'caption', id: 'pageKeysCaption', textKey: 'ponder.captions.pages.gridPageKeys', pointTo: { anchor: 'page' }, durationMs: 4700, withPrevious: true },
                 { kind: 'pause', id: 'pageKeysRead' },
             ],

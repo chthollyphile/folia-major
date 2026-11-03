@@ -207,6 +207,12 @@ export type PonderSurfaceKind =
     | 'lattice-page'
     | 'settings-page'
     | 'player-bar'
+    /** 指针停在胶囊上时浮在它上方的那一排快捷操作。 */
+    | 'capsule-quick-actions'
+    /** 从胶囊原地长出来的命令窗口：输入行在底，结果在上。 */
+    | 'capsule-palette'
+    /** 右键或按住槽位时在它正上方弹出的那块换按钮的浮层。 */
+    | 'slot-picker'
     /** 入门教程的示意图：思索自己是怎么用的，不对应任何一个真实页面。 */
     | 'ponder-onboarding'
     | 'bottom-ui-settings'

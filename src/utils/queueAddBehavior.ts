@@ -80,3 +80,21 @@ export const applyQueueAddBehavior = ({
         )),
     };
 };
+
+/**
+ * The queue to play `song` in, for "play it in the queue" (the scratchpad's rows, a search result's
+ * play): a song already in the queue is played where it stands, nothing moves; any other is put
+ * where the user's "add to queue" setting puts songs (after the current one, or at the end), as
+ * every other add does, and played there. A queue of nothing but the current song is that song.
+ */
+export const queueForPlayingNow = ({
+    queue,
+    song,
+    currentSong,
+    behavior,
+}: { queue: SongResult[]; song: SongResult; currentSong: SongResult | null; behavior: QueueAddBehavior }): SongResult[] => {
+    if (queueIndexOf(queue, song) !== -1) return queue;
+    const baseQueue = queue.length > 0 ? queue : (currentSong ? [currentSong] : []);
+    const { nextQueue } = applyQueueAddBehavior({ queue: baseQueue, songs: [song], currentSong, behavior });
+    return queueIndexOf(nextQueue, song) === -1 ? [...nextQueue, song] : nextQueue;
+};

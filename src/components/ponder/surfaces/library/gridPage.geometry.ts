@@ -34,7 +34,8 @@ export const GRID_GEOMETRY = {
     shelf: { left: 0, right: 0, top: 0.357, height: 0.331 },
     focusedCard: GRID_CARDS[GRID_FOCUSED_CARD],
     focusedCopy: { left: 0.29, top: 0.715, width: 0.42, height: 0.105 },
-    command: { left: 0.18, right: 0.18, top: 0.18, height: 0.58 },
+    /** 有歌时控制条在底部，命令窗口从那里原地往上长，输入行在底。 */
+    command: { left: 0.18, right: 0.18, bottom: 0.06, height: 0.58 },
 } satisfies Record<string, PonderRelativeRect>;
 
 /** 换源之后轨道上摆的那批卡。 */

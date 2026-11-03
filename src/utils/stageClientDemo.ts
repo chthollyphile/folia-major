@@ -34,12 +34,17 @@ export interface StageSearchRequestInput {
     token: string;
     query: string;
     limit?: number;
+    // An omni provider id; left out, the search stays on the local service.
+    provider?: string;
 }
+
+// A song the Stage API plays or queues: a positive integer id of the local service, or `<provider>:<songId>`.
+export type StageSongRefInput = number | string;
 
 export interface StagePlayRequestInput {
     baseUrl: string;
     token: string;
-    songId: number;
+    songId: StageSongRefInput;
     appendToQueue?: boolean;
 }
 
@@ -54,8 +59,8 @@ export interface StagePlayerQueueRequestInput {
     baseUrl: string;
     token: string;
     action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-    songId?: number;
-    songIds?: number[];
+    songId?: StageSongRefInput;
+    songIds?: StageSongRefInput[];
     queueItemId?: string;
     fromQueueItemId?: string;
     fromIndex?: number;
@@ -157,6 +162,22 @@ export const validateStageLyricsRequestInput = (input: StageLyricsRequestInput):
     return null;
 };
 
+const STAGE_PROVIDER_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+
+export const isValidStageProviderId = (value: string): boolean => STAGE_PROVIDER_ID_PATTERN.test(value);
+
+// Whether the Stage API can read this as a song; what the provider's ids look like is left to the server.
+export const isValidStageSongRef = (value: unknown): value is StageSongRefInput => {
+    if (typeof value === 'string' && value.includes(':')) {
+        const text = value.trim();
+        const separatorIndex = text.indexOf(':');
+        const providerId = text.slice(0, separatorIndex);
+        const songId = text.slice(separatorIndex + 1).trim();
+        return isValidStageProviderId(providerId) && Boolean(songId) && songId.length <= 256;
+    }
+    return (typeof value === 'number' || typeof value === 'string') && Number.isInteger(Number(value)) && Number(value) > 0;
+};
+
 export const validateStageSearchRequestInput = (input: StageSearchRequestInput): string | null => {
     const baseAuthError = validateStageBaseAuth(input.baseUrl, input.token);
     if (baseAuthError) {
@@ -165,6 +186,10 @@ export const validateStageSearchRequestInput = (input: StageSearchRequestInput):
 
     if (!normalizeText(input.query)) {
         return 'Search query is required.';
+    }
+
+    if (normalizeText(input.provider) && !isValidStageProviderId(normalizeText(input.provider))) {
+        return 'provider must be an omni provider id.';
     }
 
     return null;
@@ -176,8 +201,8 @@ export const validateStagePlayRequestInput = (input: StagePlayRequestInput): str
         return baseAuthError;
     }
 
-    if (!Number.isInteger(input.songId) || input.songId <= 0) {
-        return 'songId must be a positive integer.';
+    if (!isValidStageSongRef(input.songId)) {
+        return 'songId must be a positive integer or a <provider>:<songId> reference.';
     }
 
     return null;
@@ -387,6 +412,7 @@ export const buildStageSearchRequest = (input: StageSearchRequestInput): StageRe
             body: JSON.stringify({
                 query: normalizeText(input.query),
                 ...(Number.isInteger(input.limit) ? { limit: input.limit } : {}),
+                ...(normalizeText(input.provider) ? { provider: normalizeText(input.provider) } : {}),
             }),
         },
     };

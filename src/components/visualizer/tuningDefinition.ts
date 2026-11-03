@@ -51,10 +51,40 @@ export interface HeldTuning<T> {
     hold: (tuning: T) => void;
 }
 
+/**
+ * One key of a style's tuning that mods may read and write (Folium 1.8 `folium.visualizer.getTuning` /
+ * `setTuning`), as the style's own settings offer it: a number inside its slider's range (`step` only where the
+ * value must land on whole steps, e.g. a count), a switch, or one of a few choices. The host checks a mod's
+ * value against this before the tuning's own `merge`, so the range here is never wider than the one `merge`
+ * clamps to (test/unit/visualizer/modTuningKeys.test.ts holds the two together). Declaring a key makes its
+ * name and meaning public API, as `foliumTunables` does: renaming or dropping one breaks mods. Settings of
+ * the picture's cost (resolution, render quality) are the user's and are not declared.
+ */
+export type VisualizerModTuningKey =
+    | { type: 'number'; min: number; max: number; step?: number }
+    | { type: 'boolean' }
+    | { type: 'choice'; options: readonly string[] };
+
+/** A numeric mod tuning key from `min` to `max`, landing on whole `step`s when one is given. */
+export const modNumber = (min: number, max: number, step?: number): VisualizerModTuningKey => (
+    step === undefined ? { type: 'number', min, max } : { type: 'number', min, max, step }
+);
+/** A mod tuning key that is a switch. */
+export const MOD_SWITCH: VisualizerModTuningKey = { type: 'boolean' };
+/** A mod tuning key that is one of `options`. */
+export const modChoice = (options: readonly string[]): VisualizerModTuningKey => ({ type: 'choice', options });
+
 export interface VisualizerTuningDefinition<T> {
     mode: string;
     /** The style's settings before the listener has changed anything. */
     defaults: T;
+    /** The keys of this tuning mods may read and write; see VisualizerModTuningKey. A style without it offers none. */
+    modKeys?: { readonly [K in keyof T]?: VisualizerModTuningKey };
+    /**
+     * A mod's checked patch as the style's panel would send it, from the tuning held now: for keys the panel
+     * changes together (a slider that takes the other end along). Without it the patch goes to the setter as it is.
+     */
+    modPatch?: (held: T, patch: Partial<T>) => Partial<T>;
     /** The settings store field that holds this tuning, and the store actions that change and reset it. */
     settingsKey: string;
     settingsSetterKey: string;

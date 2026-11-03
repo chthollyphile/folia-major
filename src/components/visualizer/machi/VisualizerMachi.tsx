@@ -22,7 +22,7 @@ import type { MachiSceneId, MachiTuning } from './types';
 // src/components/visualizer/machi/VisualizerMachi.tsx
 // 町景的 React 外壳：挂共享 shell 与底部字幕层，把按需加载的 three.js 运行时建一次（useVisualizerPixiHost 托管，
 // 它与渲染器无关），换歌、换主题、换设置（场景、时间、天气）、暂停、静态模式都就地推给运行时。
-// WebGL 上下文丢了就换一个 epoch 重建。
+// WebGL 上下文丢了就换一个 epoch 重建；透明模式（播放页透明）切换时也重建（画布带不带 alpha 只能在建上下文时定）。
 // 每帧的时间只在运行时的循环里读 currentTime，不进 React state。
 // 播放页上（不是预览、宿主存得下改动）控制面板的摄影机按钮打开取景控制条（MachiCameraBar）：开着时底部字幕让开；
 // 拖它的滑块时改动先记在这里的草稿上、只推给运行时，松手或收起时再一次存下。
@@ -67,6 +67,8 @@ const VisualizerMachi: React.FC<VisualizerMachiProps> = (props) => {
         subtitleUpcomingLyricsBlur,
         onVisualizerTuningChange,
     } = props;
+    // 透明模式：町景不画天空，只留街景本身。样式小图也把背景标成透明，那只是「不画共用背景」，小图照样画天空。
+    const transparent = !isPreviewMode && (props.background?.transparent ?? false);
     const { t } = useTranslation();
     const hostRef = useRef<HTMLDivElement>(null);
     const [runtimeFailed, setRuntimeFailed] = useState(false);
@@ -131,7 +133,7 @@ const VisualizerMachi: React.FC<VisualizerMachiProps> = (props) => {
         hostRef,
         label: 'Machi',
         // 只有真正需要新 WebGL 上下文的输入；歌、主题、暂停、静态模式都就地推给运行时。
-        rebuildKey: [currentTime, audioPower, audioBands, isPreviewMode, contextEpoch],
+        rebuildKey: [currentTime, audioPower, audioBands, isPreviewMode, transparent, contextEpoch],
         song: songContext,
         create: async (host, song, signal) => {
             const [{ MachiRuntime: Runtime }] = await Promise.all([
@@ -152,6 +154,7 @@ const VisualizerMachi: React.FC<VisualizerMachiProps> = (props) => {
                 staticMode: latest.staticMode,
                 showText: latest.showText,
                 previewMode: isPreviewMode,
+                transparent,
                 // 自定义视角下拖动停稳了：新视角存进 tuning 里这个场景的那一份（宿主经 onVisualizerTuningChange 存）。
                 onViewChange: (view, scene) => {
                     const latest = latestRef.current;

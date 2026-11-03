@@ -6,7 +6,6 @@ import { buildLocalQueue } from '../../../../services/playbackAdapters';
 import { prefetchNearbySongs } from '../../../../services/prefetchService';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
-import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { restorePlaybackSourceForSong, type RestorePlaybackSourceOutcome } from './restorePlaybackSource';
 import { getPlaybackSongKey, isStagePlaybackSong, normalizePlaybackSongSource } from '../../../../utils/appPlaybackGuards';
 import type { LyricData, SongResult, StatusMessage } from '../../../../types';
@@ -146,14 +145,9 @@ export function useSessionRestoreController({
                 // A song asked for while the remembered one was being read stands: the restore gives up.
                 if (askedSongKeyRef.current !== null) return;
 
+                // The active platform stays as it was: the song plays through its own platform, and the queue may
+                // hold songs of several.
                 console.log('[Session] Restoring last song:', lastSong.name);
-                if (lastSong.sourceRef?.kind === 'online' && lastSong.sourceRef.providerId) {
-                    const currentActiveProviderId = useOnlineProviderAccountStore.getState().activeProviderId;
-                    if (currentActiveProviderId !== lastSong.sourceRef.providerId) {
-                        console.log(`[Session] Aligning active provider to restored song provider: ${lastSong.sourceRef.providerId}`);
-                        useOnlineProviderAccountStore.getState().setActiveProviderId(lastSong.sourceRef.providerId);
-                    }
-                }
                 makeSongCurrent(lastSong);
                 const stillWanted = startRestore();
                 const rememberedQueue = lastQueue && lastQueue.length > 0 ? lastQueue : [lastSong];

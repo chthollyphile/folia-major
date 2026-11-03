@@ -17,17 +17,17 @@ import { useConfirmDialog } from '../../shared/useConfirmDialog';
 type AskConfirm = ReturnType<typeof useConfirmDialog>['ask'];
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-// Asks first. `emptiesPlayer`: the platform is the active one and the player holds songs, which the
-// sign-out takes away the way a switch does; the question says so then.
+// Asks first. `removesSongs`: the player holds songs of this platform (the one playing or queued ones),
+// which the sign-out takes out of it; the question says so then. Other platforms' songs stay.
 export const askProviderSignOut = (
-    { providerId, emptiesPlayer }: { providerId: OnlineProviderId; emptiesPlayer: boolean },
+    { providerId, removesSongs }: { providerId: OnlineProviderId; removesSongs: boolean },
     ask: AskConfirm,
     t: Translate,
 ): Promise<boolean> => ask({
     title: t('account.logoutConfirmTitle', { provider: omni.getProviderLabel(providerId) }),
     description: [
         useOnlineProviderAccountStore.getState().accounts[providerId]?.user?.nickname,
-        emptiesPlayer ? t('account.logoutClearsQueue') : null,
+        removesSongs ? t('account.logoutRemovesSongs') : null,
     ].filter(Boolean).join('\n') || undefined,
     confirmText: t('account.logout'),
     confirmVariant: 'danger',
@@ -45,7 +45,7 @@ export const useProviderSignOut = () => {
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
     const { ask, dialog } = useConfirmDialog(isDaylight);
     const confirmLogout = useCallback(
-        (request: { providerId: OnlineProviderId; emptiesPlayer: boolean }) => askProviderSignOut(request, ask, t),
+        (request: { providerId: OnlineProviderId; removesSongs: boolean }) => askProviderSignOut(request, ask, t),
         [ask, t],
     );
     const signOut = useCallback((providerId: OnlineProviderId) => signOutOfProvider(providerId, t), [t]);

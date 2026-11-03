@@ -1,6 +1,6 @@
 import { DEFAULT_MONET_TUNING, type MonetPortraitSource, type MonetTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, type StoredTuningFields } from '../tuningDefinition';
 import { monetPortraitActions, type MonetPortraitActions } from './portraitUpload';
 
 // src/components/visualizer/monet/tuning.ts
@@ -53,6 +53,15 @@ export const resolveStoredMonetTuning = (parsed: Partial<MonetTuning> & Record<s
 export default defineVisualizerTuning<MonetTuning>({
     mode: 'monet',
     defaults: DEFAULT_MONET_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        keywordColoringEnabled: MOD_SWITCH,
+        showDescription: MOD_SWITCH,
+        showAudioVisualization: MOD_SWITCH,
+        audioStyle: modChoice(['bar', 'line']),
+        fontScale: modNumber(0.7, 1.5),
+        portraitStyle: modChoice(['square', 'rectangular']),
+    },
     settingsKey: 'monetTuning',
     settingsSetterKey: 'handleSetMonetTuning',
     settingsResetterKey: 'handleResetMonetTuning',

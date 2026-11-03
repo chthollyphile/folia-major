@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { applyImportedConfig, buildCurrentConfig, type ConfigThemeControls } from '@/components/modal/settings/pages/storage/visualConfigTransfer';
 import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
+import { useLatticeSettingsStore } from '@/stores/useLatticeSettingsStore';
 import { useThemeSettingsStore } from '@/stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import type { DualTheme } from '@/types';
@@ -71,6 +72,18 @@ describe('applyImportedConfig', () => {
 
         applyImportedConfig({ followSystemTheme: false }, ['followSystemTheme'], controls());
         expect(useThemeSettingsStore.getState().followSystemTheme).toBe(false);
+    });
+
+    it('writes numbering only the playing song to the tile wall store, and only when picked', () => {
+        onTestFinished(() => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(false));
+        applyImportedConfig({ latticeBadgeCurrentOnly: true }, ['latticeBadgeCurrentOnly'], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(true);
+
+        applyImportedConfig({ latticeBadgeCurrentOnly: false }, [], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(true);
+
+        applyImportedConfig({ latticeBadgeCurrentOnly: false }, ['latticeBadgeCurrentOnly'], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(false);
     });
 
     it('takes the picked side of an incoming theme and keeps the saved other side', () => {

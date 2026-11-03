@@ -172,7 +172,6 @@ type AccountDriver = {
     expectRestartLabel: (page: Page, label: 'Restart backend' | 'Restarting…') => Promise<void>;
     closeLogin: (page: Page) => Promise<void>;
     confirmDialog: (page: Page) => Locator;
-    answerConfirm: (page: Page, answer: 'Confirm' | 'Cancel') => Promise<void>;
 };
 
 const GRID_DRIVER: AccountDriver = {
@@ -226,10 +225,6 @@ const GRID_DRIVER: AccountDriver = {
         await gridCloseButton(page).click();
     },
     confirmDialog: gridConfirmDialog,
-    answerConfirm: async (page, answer) => {
-        await gridConfirmDialog(page).getByRole('button', { name: answer, exact: true }).click();
-        await expect(gridConfirmDialog(page)).toHaveCount(0);
-    },
 };
 
 const TUI_DRIVER: AccountDriver = {
@@ -292,11 +287,6 @@ const TUI_DRIVER: AccountDriver = {
         await page.keyboard.press('Escape');
     },
     confirmDialog: tuiConfirm,
-    answerConfirm: async (page, answer) => {
-        await expect(tuiConfirm(page)).toBeVisible();
-        await page.keyboard.press(answer === 'Confirm' ? 'Enter' : 'Escape');
-        await expect(tuiConfirm(page)).toHaveCount(0);
-    },
 };
 
 const DRIVERS: Record<Suite, AccountDriver> = { grid: GRID_DRIVER, tui: TUI_DRIVER };
@@ -315,10 +305,11 @@ const mountAccount = async (mount: (id: string) => Promise<unknown>, page: Page,
     if (suite !== 'grid') await setSuite(page, suite);
 };
 
-const expectConfirmFor = async (page: Page, driver: AccountDriver, providerId: string) => {
-    await expect(driver.confirmDialog(page)).toBeVisible();
-    await expect(driver.confirmDialog(page)).toContainText(`Switch to ${shortName(providerId)}?`);
-    await expect.poll(() => pendingSwitch(page)).toBe(providerId);
+/** 切换不再先问：没有确认框、没有待确认请求，当前平台直接换过去。 */
+const expectSwitchedWithoutAsking = async (page: Page, driver: AccountDriver, providerId: string) => {
+    await expect.poll(() => activeProvider(page)).toBe(providerId);
+    await expect(driver.confirmDialog(page)).toHaveCount(0);
+    expect(await pendingSwitch(page)).toBeNull();
 };
 
 for (const suite of SUITES) {
@@ -343,7 +334,7 @@ test.describe(`[${suite}] switching`, () => {
         await mountAccount(mount, page, suite);
     });
 
-    test(`[${suite}] switching to a signed-in provider asks first; cancel keeps it, confirm switches and cleans up once`, async ({ page }) => {
+    test(`[${suite}] switching to a signed-in provider switches at once and leaves the old provider once`, async ({ page }) => {
         const generation = await requestGeneration(page);
 
         // 选当前平台：同一个 provider，直接结束，不问也不清理。
@@ -351,43 +342,27 @@ test.describe(`[${suite}] switching`, () => {
         if (isGrid) await expect(menu(page)).toHaveCount(0);
         await expect(driver.confirmDialog(page)).toHaveCount(0);
         expect(await pendingSwitch(page)).toBeNull();
-
-        await driver.selectProvider(page, ACCOUNT_BETA);
-        // 能直接切的平台：确认出来，登录界面不出现（网格的菜单随之关掉）。
-        if (isGrid) await expect(menu(page)).toHaveCount(0);
-        await expectConfirmFor(page, driver, ACCOUNT_BETA);
-        await expect(loginDialog(page)).toHaveCount(0);
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
-
-        await driver.answerConfirm(page, 'Cancel');
-        expect(await pendingSwitch(page)).toBeNull();
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
         expect(await countCalls(page, 'switch-cleanup')).toBe(0);
-        expect(await countCalls(page, 'refresh')).toBe(0);
-        expect(await requestGeneration(page)).toBe(generation);
 
         await driver.selectProvider(page, ACCOUNT_BETA);
-        await expectConfirmFor(page, driver, ACCOUNT_BETA);
-        await driver.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_BETA);
-        // 清理恰好一次、目标是新平台；提交前作废一次在途请求；提交后刷新新平台的账户（App 的 switchProvider 带 refresh）。
+        // 能直接切的平台：不问（队列留着，切换不拿走什么），登录界面也不出现（网格的菜单随之关掉）。
+        if (isGrid) await expect(menu(page)).toHaveCount(0);
+        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_BETA);
+        await expect(loginDialog(page)).toHaveCount(0);
+        // 离开旧平台恰好一次、目标是新平台；提交前作废一次在途请求；提交后刷新新平台的账户（App 的 switchProvider 带 refresh）。
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
         expect(await requestGeneration(page)).toBe(generation + 1);
         await expect.poll(() => calls(page, 'refresh')).toEqual([expect.objectContaining({ providerId: ACCOUNT_BETA, ok: true })]);
-        expect(await pendingSwitch(page)).toBeNull();
         await driver.expectCurrent(page, ACCOUNT_BETA);
     });
 
-    test(`[${suite}] a provider without accounts still asks before switching`, async ({ page }) => {
+    test(`[${suite}] a provider without accounts switches at once too`, async ({ page }) => {
         await driver.selectProvider(page, ACCOUNT_MODO);
         if (isGrid) await expect(menu(page)).toHaveCount(0);
-        await expectConfirmFor(page, driver, ACCOUNT_MODO);
+        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_MODO);
         await expect(loginDialog(page)).toHaveCount(0);
         expect(await countCalls(page, 'resolve-methods')).toBe(0);
         expect(await countCalls(page, 'create')).toBe(0);
-
-        await driver.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_MODO);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_MODO]);
         // mod 源没有宿主刷新器（App 的刷新表只有内置 provider）。
         expect(await countCalls(page, 'refresh')).toBe(0);
@@ -398,15 +373,20 @@ test.describe(`[${suite}] switching`, () => {
         await setActive(page, ACCOUNT_GAMMA);
         await expect(driver.guestPicker(page)).toBeVisible();
 
-        await driver.selectFromGuestPicker(page, ACCOUNT_BETA);
-        await expectConfirmFor(page, driver, ACCOUNT_BETA);
-        await driver.answerConfirm(page, 'Cancel');
-        expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
-
         await driver.selectFromGuestPicker(page, ACCOUNT_QUILL);
         await expect(loginDialog(page)).toBeVisible();
         await expect(driver.confirmDialog(page)).toHaveCount(0);
         await expect.poll(() => countCalls(page, 'resolve-methods', ACCOUNT_QUILL)).toBe(1);
+        expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
+    });
+
+    test(`[${suite}] picking a signed-in provider on the signed-out home switches at once`, async ({ page }) => {
+        await setActive(page, ACCOUNT_GAMMA);
+        await expect(driver.guestPicker(page)).toBeVisible();
+
+        await driver.selectFromGuestPicker(page, ACCOUNT_BETA);
+        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_BETA);
+        await expect(loginDialog(page)).toHaveCount(0);
     });
 });
 
@@ -415,7 +395,7 @@ test.describe(`[${suite}] signing in`, () => {
         await mountAccount(mount, page, suite);
     });
 
-    test(`[${suite}] signing in to another provider opens the login first, then asks to activate; declining keeps the account`, async ({ page }) => {
+    test(`[${suite}] signing in to another provider opens the login first, then switches to it`, async ({ page }) => {
         await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'confirmed']);
         await driver.selectProvider(page, ACCOUNT_GAMMA);
 
@@ -434,36 +414,15 @@ test.describe(`[${suite}] signing in`, () => {
         await expectQrKey(page, key);
 
         await expect(statusText(page, 'scanned')).toBeVisible();
-        // 确认后：登录界面收起 → 刷新账户（账户先写进 store）→ 不是当前平台，问要不要切过去。
-        await expectConfirmFor(page, driver, ACCOUNT_GAMMA);
+        // 确认后：登录界面收起 → 刷新账户（账户先写进 store）→ 不是当前平台，直接切过去（不问）。
+        await expectSwitchedWithoutAsking(page, driver, ACCOUNT_GAMMA);
         await expect(loginDialog(page)).toHaveCount(0);
-        expect(await calls(page, 'refresh')).toEqual([expect.objectContaining({ providerId: ACCOUNT_GAMMA, ok: true })]);
         expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
-
-        await driver.answerConfirm(page, 'Cancel');
-        // 拒绝激活：登录本身成功，账户保留；当前平台不变、不清理，登录界面也不再出现。
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
-        expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
-        expect(await countCalls(page, 'switch-cleanup')).toBe(0);
-        await expect(loginDialog(page)).toHaveCount(0);
+        // 离开旧平台恰好一次；激活这一步不再刷新：登录事务里的那一次刷新就是全部。
+        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
+        expect((await calls(page, 'refresh')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
         // 已确认的会话换成了登录凭据，不再取消。
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
-        // 它变成「已登录」：再选它就是直接切换（问确认），不再走登录。
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expectConfirmFor(page, driver, ACCOUNT_GAMMA);
-        await expect(loginDialog(page)).toHaveCount(0);
-    });
-
-    test(`[${suite}] accepting the activation switches and cleans up exactly once`, async ({ page }) => {
-        await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
-        await driver.selectProvider(page, ACCOUNT_GAMMA);
-        await expectConfirmFor(page, driver, ACCOUNT_GAMMA);
-        await driver.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_GAMMA);
-        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
-        // 激活这一步不再刷新：登录事务里的那一次刷新就是全部。
-        expect((await calls(page, 'refresh')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
-        expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
     });
 
     test(`[${suite}] signing in to the current provider needs no confirmation`, async ({ page }) => {
@@ -801,6 +760,8 @@ test.describe(`[${suite}] logout`, () => {
         await driver.logoutCurrent(page, ACCOUNT_ALPHA);
         await expect.poll(() => calls(page, 'host-logout')).toEqual([expect.objectContaining({ providerId: ACCOUNT_ALPHA })]);
         await expect.poll(() => calls(page, 'auth-logout')).toEqual([expect.objectContaining({ providerId: ACCOUNT_ALPHA })]);
+        // 退出只把这个平台的歌移出播放器，一次。
+        expect((await calls(page, 'drop-songs')).map(call => call.providerId)).toEqual([ACCOUNT_ALPHA]);
         await expect.poll(() => accountStatus(page, ACCOUNT_ALPHA)).toBe('anonymous');
         expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
         expect(await accountStatus(page, ACCOUNT_BETA)).toBe('authenticated');
@@ -843,18 +804,18 @@ test.describe('[grid-only] stacking', () => {
     });
 });
 
-// 登录会话与待确认切换在账户 controller 里（宿主持有，换 suite 不重建）：换 suite 只换 account surface，新 suite 接着显示
-// 同一个会话 / 同一个待确认请求，并能在那边答复。A6 起 TUI 有自己的 account surface，不再回退网格。
+// 登录会话在账户 controller 里（宿主持有，换 suite 不重建）：换 suite 只换 account surface，新 suite 接着显示同一个会话。
+// A6 起 TUI 有自己的 account surface，不再回退网格。切换不再先问，哪个 suite 都不出确认框。
 test.describe('[switch] grid and TUI share the account flows', () => {
     test.beforeEach(async ({ page, mount }) => {
         await mountAccount(mount, page, 'grid');
     });
 
-    test('[switch] with the TUI selected, its own account surface (not the grid fallback) answers a sign-in and a switch request', async ({ page }) => {
+    test('[switch] with the TUI selected, its own account surface (not the grid fallback) answers a sign-in, and switches ask nothing', async ({ page }) => {
         await setSuite(page, 'tui');
         await expect(switcher(page)).toHaveCount(0);
 
-        // 登录：TUI 的登录框（不是网格弹窗），扫码确认后问要不要激活，在 TUI 里答复。
+        // 登录：TUI 的登录框（不是网格弹窗），扫码确认后直接切到登录的平台。
         await scriptQr(page, ACCOUNT_GAMMA, ['scanned', 'confirmed']);
         expect(await startLogin(page, ACCOUNT_GAMMA)).toBe('started');
         await expect(loginDialog(page)).toBeVisible();
@@ -862,26 +823,16 @@ test.describe('[switch] grid and TUI share the account flows', () => {
         await expect(loginDialog(page)).toHaveAccessibleName('Scan with Netease App');
         await expectQrKey(page, await lastKey(page, ACCOUNT_GAMMA));
         await expect(statusText(page, 'scanned')).toBeVisible();
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_GAMMA);
+        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_GAMMA);
         await expect(gridConfirmDialog(page)).toHaveCount(0);
         await expect(loginDialog(page)).toHaveCount(0);
-        await TUI_DRIVER.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_GAMMA);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
         expect(await accountStatus(page, ACCOUNT_GAMMA)).toBe('authenticated');
 
-        // 切换：TUI 的确认；Esc 取消保持原平台，Enter 确认切过去并清理一次。
+        // 切换：不问，直接切过去，离开旧平台一次。
         await requestSwitch(page, ACCOUNT_ALPHA);
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_ALPHA);
-        await TUI_DRIVER.answerConfirm(page, 'Cancel');
-        await expect.poll(() => switchResult(page)).toBe('declined:cancelled');
-        expect(await activeProvider(page)).toBe(ACCOUNT_GAMMA);
-
-        await requestSwitch(page, ACCOUNT_ALPHA);
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_ALPHA);
-        await TUI_DRIVER.answerConfirm(page, 'Confirm');
         await expect.poll(() => switchResult(page)).toBe('switched');
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
+        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_ALPHA);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA, ACCOUNT_ALPHA]);
         await expect(tuiHome(page)).toBeVisible();
     });
@@ -923,39 +874,14 @@ test.describe('[switch] grid and TUI share the account flows', () => {
         await expectQrKey(page, key);
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
 
-        // 再到 TUI 扫码确认：激活确认出现在 TUI 里，在 TUI 答复；整个过程只有一次要码、没有取消。
+        // 再到 TUI 扫码确认：直接切到登录的平台；整个过程只有一次要码、没有取消。
         await setSuite(page, 'tui');
         await expectQrKey(page, key);
         await scriptQr(page, ACCOUNT_GAMMA, ['confirmed']);
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_GAMMA);
-        await TUI_DRIVER.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_GAMMA);
+        await expectSwitchedWithoutAsking(page, TUI_DRIVER, ACCOUNT_GAMMA);
         expect(await countCalls(page, 'create', ACCOUNT_GAMMA)).toBe(1);
         expect(await countCalls(page, 'cancel', ACCOUNT_GAMMA)).toBe(0);
         expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_GAMMA]);
-    });
-
-    test('[switch] a pending switch asked in one suite can be answered in the other', async ({ page }) => {
-        // 网格里问，TUI 里取消。
-        await GRID_DRIVER.selectProvider(page, ACCOUNT_BETA);
-        await expectConfirmFor(page, GRID_DRIVER, ACCOUNT_BETA);
-        await setSuite(page, 'tui');
-        await expect(gridConfirmDialog(page)).toHaveCount(0);
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_BETA);
-        await TUI_DRIVER.answerConfirm(page, 'Cancel');
-        expect(await pendingSwitch(page)).toBeNull();
-        expect(await activeProvider(page)).toBe(ACCOUNT_ALPHA);
-        expect(await countCalls(page, 'switch-cleanup')).toBe(0);
-
-        // TUI 里问，网格里确认。
-        await TUI_DRIVER.selectProvider(page, ACCOUNT_BETA);
-        await expectConfirmFor(page, TUI_DRIVER, ACCOUNT_BETA);
-        await setSuite(page, 'grid');
-        await expect(tuiConfirm(page)).toHaveCount(0);
-        await expectConfirmFor(page, GRID_DRIVER, ACCOUNT_BETA);
-        await GRID_DRIVER.answerConfirm(page, 'Confirm');
-        await expect.poll(() => activeProvider(page)).toBe(ACCOUNT_BETA);
-        expect((await calls(page, 'switch-cleanup')).map(call => call.providerId)).toEqual([ACCOUNT_BETA]);
     });
 });
 

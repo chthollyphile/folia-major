@@ -89,6 +89,34 @@ describe('buildCjkSemanticLayoutUnits', () => {
         }
     });
 
+    it('aligns word-by-word lyrics whose words carry the line spaces (#990)', () => {
+        // YRC/QRC glue a line's spaces onto the syllable before them.
+        const words = createTokenWords(['四', '季', '日', '月', '的', '更', '迭  ', '都', '只', '在', '你  ', '一', '眼', '之', '间']);
+        const fullText = '四季日月的更迭  都只在你  一眼之间';
+        const units = buildCjkSemanticLayoutUnits({
+            fullText,
+            words,
+            autoWordSegments: ['四季', '日月的', '更迭', '  ', '都', '只', '在', '你', '  ', '一眼', '之间'],
+        });
+
+        expect(units.map(unit => unit.text)).toEqual(['四季', '日月的', '更迭  ', '都', '只', '在', '你  ', '一眼', '之间']);
+        expect(units.flatMap(unit => unit.words)).toEqual(words);
+        expect(units.find(unit => unit.text === '更迭  ')).toMatchObject({ isSemantic: true, startTime: 5, endTime: 6.5 });
+    });
+
+    it('keeps whitespace-only words with the unit before them', () => {
+        const words = createTokenWords(['世', '界', ' ', '你', '好']);
+        const units = buildCjkSemanticLayoutUnits({
+            fullText: '世界 你好',
+            words,
+            autoWordSegments: ['世界', ' ', '你好'],
+        });
+
+        expect(units.map(unit => unit.text)).toEqual(['世界 ', '你好']);
+        expect(units.map(unit => unit.words.map(word => word.text))).toEqual([['世', '界', ' '], ['你', '好']]);
+        expect(units.every(unit => unit.isSemantic)).toBe(true);
+    });
+
     it('falls back when fullText cannot be aligned to words', () => {
         const words = createCharacterWords('世界');
         const units = buildCjkSemanticLayoutUnits({ fullText: '世界啊', words });
@@ -216,8 +244,10 @@ describe('buildPostLyricLayoutUnits', () => {
         });
         const displayWords = buildDisplayWordsFromLayoutUnits(units);
 
-        expect(units.map(unit => unit.text)).toEqual(['这', '是', ' ', 'It’s ', 'unbelievable']);
-        expect(units[3]).toMatchObject({
+        // The spaces in the words no longer break alignment, so the line follows the segmenter and
+        // the whitespace-only word stays with 是.
+        expect(units.map(unit => unit.text)).toEqual(['这', '是 ', 'It’s ', 'unbelievable']);
+        expect(units[2]).toMatchObject({
             text: 'It’s ',
             isSemantic: false,
             isSticky: true,

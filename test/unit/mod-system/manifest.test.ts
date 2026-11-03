@@ -174,6 +174,17 @@ describe('validateManifest Folium entries and opt-ins', () => {
         expect(result.value.permissions).toEqual(['visualizer.renderQuality']);
     });
 
+    // Folium 1.8: folium.visualizer.setMode / setTuning / setBeatEffects, each its own permission.
+    it('accepts visualizer.mode, visualizer.tuning and visualizer.beatEffects, alone or together', () => {
+        for (const permission of ['visualizer.mode', 'visualizer.tuning', 'visualizer.beatEffects']) {
+            const result = validateManifest({ ...validManifest, permissions: [permission] });
+            expect(result.ok, permission).toBe(true);
+            expect(result.value.permissions).toEqual([permission]);
+        }
+        const all = ['visualizer.renderQuality', 'visualizer.mode', 'visualizer.tuning', 'visualizer.beatEffects'];
+        expect(validateManifest({ ...validManifest, permissions: all }).value.permissions).toEqual(all);
+    });
+
     it('accepts an optional preview image path inside the mod directory', () => {
         expect(validateManifest({ ...validManifest, preview: 'preview.jpg' }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, preview: 'assets/cover.webp' }).ok).toBe(true);

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { SongResult } from '@/types';
-import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
+import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, navidromePlayAccount, noteSongListened, noteSongPlayed, recentPlayRecordsOf, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
 import { whenHeard } from '@/components/app/home/explore/useRecentPlaysRecorder';
 import { readOwnExploreSections } from '@/components/app/home/explore/ownSections';
 
@@ -147,8 +147,8 @@ describe('recent plays', () => {
         const again = recentPlaysOf('ytm', 'me');
         expect(again).not.toBe(first);
         watcher.mockClear();
-        // A song that is of no online platform is not recorded.
-        noteSongPlayed({ ...song('local'), sourceRef: { kind: 'local', mediaId: 'local' } } as unknown as SongResult, 'me');
+        // A song on the stage (another app's) is not recorded.
+        noteSongPlayed({ ...song('show'), sourceRef: { kind: 'stage', mediaId: 'show' } } as unknown as SongResult, 'me');
         expect(watcher).toHaveBeenCalledTimes(0);
         // A change gives another list: what renders from it sees that it changed.
         noteSongPlayed(song('b'), 'me');
@@ -157,6 +157,50 @@ describe('recent plays', () => {
         stop();
         noteSongPlayed(song('c'), 'me');
         expect(watcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists the recent plays with when each was last played, the same list until a play changes it', () => {
+        noteSongPlayed(song('a'), 'me');
+        later(HOUR);
+        noteSongPlayed(song('b'), 'me');
+        const records = recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' });
+        expect(records.map(play => [String(play.song.id), play.at])).toEqual([['b', START + HOUR], ['a', START]]);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' })).toBe(records);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'someone else' })).toEqual([]);
+
+        later(HOUR);
+        noteSongPlayed(song('a'), 'me');
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' }).map(play => String(play.song.id))).toEqual(['a', 'b']);
+        // Older than seven days: no longer listed, though still kept.
+        later(RECENT_PLAYS_KEPT_MS + 1);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' })).toEqual([]);
+    });
+
+    it('keeps local files and each Navidrome user apart from the platforms, a local file by its reference in the library only', () => {
+        const file = {
+            id: 'f1', name: 'A file', album: { id: 0, name: 'Folder', coverUrl: 'blob:http://app/cover' },
+            isLocal: true, localRef: { songId: 'f1' }, localData: { id: 'f1', fileHandle: {} },
+            sourceRef: { kind: 'local', mediaId: 'f1' },
+        } as unknown as SongResult;
+        const served = { id: 'n1', name: 'Served', sourceRef: { kind: 'navidrome', mediaId: 'n1' } } as unknown as SongResult;
+        const user = navidromePlayAccount({ serverUrl: 'https://music.example/', username: 'me' });
+        expect(user).toBe('me@https://music.example');
+        expect(navidromePlayAccount(null)).toBe('');
+
+        noteSongPlayed(song('a'), 'me');
+        later(MINUTE);
+        noteSongPlayed(file, '');
+        later(MINUTE);
+        noteSongPlayed(served, user);
+        expect(Object.keys(stored())).toEqual(['ytm:me', '#local:', `#navidrome:${user}`]);
+        // The explore page's lists are a platform's: the others stay out of them.
+        expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['a']);
+        const [kept] = recentPlayRecordsOf({ kind: 'local' });
+        expect(kept.song).toMatchObject({ id: 'f1', isLocal: true, localRef: { songId: 'f1' } });
+        expect(kept.song).not.toHaveProperty('localData');
+        expect(kept.song.album?.coverUrl).toBeUndefined();
+        expect(recentPlayRecordsOf({ kind: 'navidrome', accountId: user }).map(play => String(play.song.id))).toEqual(['n1']);
+        expect(recentPlayRecordsOf({ kind: 'navidrome', accountId: 'someone@elsewhere' })).toEqual([]);
     });
 
     it('keeps no more than its limit, dropping the oldest', () => {

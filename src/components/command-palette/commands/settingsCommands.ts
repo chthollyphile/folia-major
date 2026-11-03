@@ -7,8 +7,9 @@ import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
+import { subtitleSettingsCommand } from './subtitleSettingsCommand';
 import { lyricExportCommands } from './lyricExportCommands';
-import { Gauge, Images, Layers3, Library } from 'lucide-react';
+import { Gauge, Images, Languages, Layers3, Library } from 'lucide-react';
 import { latticePosterTintSurface } from '../surfaces/latticePosterTintSurface';
 import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
@@ -629,6 +630,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-daylight', 'settings', 'Toggle light/dark', 'Toggle theme daylight/midnight mode', ['daylight', 'midnight', 'light', 'dark', '明暗', '切换明暗', '日夜', '日间', '夜间'], context => context.settings.toggleDaylightMode(), { executeShortcut: 'd' }),
     createToggleCommand('settings-toggle-player-back-button', 'settings', 'Always show player back button', 'Toggle whether the player page back button stays visible', ['always show back button', 'player back button', 'back button', '返回按钮', '始终显示返回按钮', '播放页返回按钮', 'fanhui annniu', 'bofangye fanhui annniu', 'fh', 'bfyfh'], context => context.settings.toggleAlwaysShowPlayerBackButton()),
     createToggleCommand('settings-toggle-lattice-vignette', 'settings', 'Poster wall vignette', 'Turn the edge vignette on the queue collage (Lattice) and the library wall on or off', ['lattice', 'vignette', 'lattice vignette', 'queue collage vignette', 'collage vignette', 'library wall vignette', 'tile wall appearance', 'bravais', '暗角', '边缘暗角', '队列拼贴', '队列拼贴暗角', '拼贴暗角', '资料库墙', '海报墙暗角', '拼贴墙外观'], context => context.settings.toggleLatticeVignette()),
+    createToggleCommand('settings-toggle-lattice-badge-current-only', 'settings', 'Number only the playing song', 'Hide the corner numbers on the song cards of the queue collage (Lattice) and the Bravais wall except the playing one', ['lattice', 'bravais', 'badge', 'number badge', 'track number', 'now playing badge', 'hide numbers', 'queue collage', 'library wall', 'tile wall appearance', '序号', '角标', '序号角标', '正在播放', '只显示正在播放', '隐藏序号', '队列拼贴', '资料库墙', '拼贴墙外观'], context => context.settings.toggleLatticeBadgeCurrentOnly()),
     createToggleCommand('settings-toggle-lattice-auto-focus', 'settings', 'Lattice auto-focus', 'Toggle whether the queue collage follows the playing song when tracks change', ['lattice', 'lattice auto focus', 'queue collage', 'follow playing song', 'follow track changes', 'poster wall follow', '队列拼贴', '切歌自动聚焦', '自动聚焦当前歌曲', '海报墙跟随'], context => context.settings.toggleLatticeAutoFocusOnSongChange()),
     defineCommand({
         id: 'settings-gridview-cards',
@@ -730,7 +732,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
             '罗马字',
             '双行字幕',
             '副字幕',
-        ], context => context.settings.cycleSubtitleContentMode()),
+        ], context => context.settings.cycleSubtitleContentMode(), { icon: Languages }),
+    // 字幕的完整调节（行数、每行内容、背景、副字幕）；浮在进度条上方的字幕按钮也是它。
+    subtitleSettingsCommand,
     createToggleCommand('settings-toggle-subtitle-background', 'settings', 'Toggle subtitle background', 'Show or hide the readability background behind visualizer subtitles', [
             'subtitle background',
             'subtitle readability background',

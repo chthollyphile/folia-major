@@ -76,6 +76,8 @@ export type UnavailableReplacementRequest = {
      * `queue` and `isFmCall` stand.
      */
     liveQueue?: () => { queue: SongResult[]; isFmCall: boolean } | null;
+    /** Personal FM was ended from outside since the play that opened it (a switch to another platform): the other version plays without it. */
+    fmEnded?: () => boolean;
 };
 
 export type PlaybackSnapshot = {

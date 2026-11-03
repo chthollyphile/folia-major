@@ -100,6 +100,8 @@ export interface MachiRuntimeOptions {
     showText: boolean;
     /** 样式架小图、主题乐园预览：低分辨率、不接拖拽。 */
     previewMode: boolean;
+    /** 透明模式：不画天空，天空像素透出底下的桌面（画布带 alpha；切换时外壳重建运行时）。 */
+    transparent: boolean;
     /** 自定义视角下拖动停稳了：新视角（相对默认构图）与它属于哪个场景，交给外面存进 tuning。 */
     onViewChange?: (view: MachiCameraView, scene: MachiSceneId) => void;
     /** 换上了一个场景（取景控制条按它调视角）。 */
@@ -292,8 +294,8 @@ export class MachiRuntime {
         this.renderQuality = this.resolveQuality();
         this.pixelRatio = this.renderQuality.pixelRatio;
 
-        // 抗锯齿交给后处理（场景目标的 MSAA、最后的 FXAA / SMAA、超采样），画布本身不开。
-        this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false });
+        // 抗锯齿交给后处理（场景目标的 MSAA、最后的 FXAA / SMAA、超采样），画布本身不开。透明模式下画布带 alpha（预乘）。
+        this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: options.transparent, powerPreference: 'high-performance', stencil: false });
         this.renderer.setPixelRatio(this.pixelRatio);
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.NeutralToneMapping;
@@ -329,8 +331,8 @@ export class MachiRuntime {
         this.reflection = new MachiReflection(0.06, quality.reflectionScale || 0.3);
         this.ground.uniforms.uReflection.value = this.reflection.target.texture;
         this.ground.setReflections(quality.reflectionScale > 0);
-        this.post = new MachiPost(this.renderer, this.scene, this.camera.camera, quality);
-        this.scene.background = this.sky.texture;
+        this.post = new MachiPost(this.renderer, this.scene, this.camera.camera, quality, options.transparent);
+        this.scene.background = options.transparent ? null : this.sky.texture;
         this.camera.onCommit = view => this.options.onViewChange?.(view, this.stageId);
         this.camera.onWake = () => this.wake();
         this.camera.setMotion(options.tuning.motion, options.tuning.motionSpeed);

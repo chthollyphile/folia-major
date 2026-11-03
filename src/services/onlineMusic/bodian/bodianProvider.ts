@@ -48,7 +48,7 @@ async function getBodianDiscoverCollections(): Promise<ProviderCollection[]> {
 }
 
 export const bodianProvider: OnlineMusicProvider = {
-    id: 'bodian', displayName: '波点音乐', shortName: '波点',
+    id: 'bodian', displayName: '波点音乐', shortName: '波点', shortNameKey: 'onlineProviderName.bodian',
     mark: { letter: '波', color: '#0d9488' },
     getAvailability: getBodianTransportAvailability,
     describeFailure: describeBodianFailure,

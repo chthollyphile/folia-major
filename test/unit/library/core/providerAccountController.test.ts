@@ -15,9 +15,9 @@ import { noteLoginFailure } from '@/services/onlineMusic/login/loginFailureCase'
 import type { LoginLocalService, LoginLocalServiceStatus, LoginMethod, LoginState, OnlineProviderId, ProviderAccountSummary } from '@/types/onlineMusic';
 
 // test/unit/library/core/providerAccountController.test.ts
-// 在线账户 controller：切换（播放器里有歌才问；有歌时的待确认请求的 id 与取代；没有歌就直接切）、登录（只开始不选平台、
-// 方法解析竞态、单一在途登录、浏览器登录先等用的人、等待再试、本地服务重启）、确认后的读账号与切过去、登出（先问，退当前
-// 平台清空播放器）、当前平台回落写回、快照身份稳定、dispose。原来 providerSwitchTransaction.test.ts 的切换 / 登录事务逐条
+// 在线账户 controller：切换（不问，离开旧平台后直接切，没有待确认请求）、登录（只开始不选平台、
+// 方法解析竞态、单一在途登录、浏览器登录先等用的人、等待再试、本地服务重启）、确认后的读账号与切过去、登出（先问，只把
+// 这个平台的歌移出播放器）、当前平台回落写回、快照身份稳定、dispose。原来 providerSwitchTransaction.test.ts 的切换 / 登录事务逐条
 // 在这里（标注 [txn]）。端口全是假的；时钟是手动推进的假时钟。
 
 const POLL = PROVIDER_LOGIN_POLL_INTERVAL_MS;
@@ -161,7 +161,8 @@ let accounts: ReturnType<typeof createAccounts>;
 let refresh: ReturnType<typeof vi.fn<LibraryProviderAccountPort['refresh']>>;
 let logoutPort: ReturnType<typeof vi.fn<LibraryProviderAccountPort['logout']>>;
 let confirmLogout: ReturnType<typeof vi.fn<LibraryProviderAccountPort['confirmLogout']>>;
-let cleanup: ReturnType<typeof vi.fn<LibraryProviderSwitchCleanupPort['resetForProviderSwitch']>>;
+let cleanup: ReturnType<typeof vi.fn<LibraryProviderSwitchCleanupPort['leaveProvider']>>;
+let dropSongs: ReturnType<typeof vi.fn<LibraryProviderSwitchCleanupPort['dropSongsOf']>>;
 let holdsSongs: boolean;
 let keySeq: number;
 
@@ -169,7 +170,7 @@ const createController = (): LibraryAccountController => createProviderAccountCo
     auth: auth as unknown as LibraryAccountAuthPort,
     accounts: accounts.port,
     providerAccounts: { refresh, logout: logoutPort, confirmLogout },
-    switchCleanup: { holdsSongs: () => holdsSongs, resetForProviderSwitch: cleanup },
+    switchCleanup: { leaveProvider: cleanup, holdsSongsOf: () => holdsSongs, dropSongsOf: dropSongs },
     clock: manual.clock,
     diagnostics: { appVersion: '9.9.9-test', userAgent: 'vitest agent' },
     log,
@@ -223,10 +224,11 @@ beforeEach(() => {
         accounts.update(providerId, { status: 'anonymous' });
     });
     confirmLogout = vi.fn<LibraryProviderAccountPort['confirmLogout']>(async request => {
-        ops.push(['ask-logout', request.providerId, request.emptiesPlayer]);
+        ops.push(['ask-logout', request.providerId, request.removesSongs]);
         return true;
     });
-    cleanup = vi.fn<LibraryProviderSwitchCleanupPort['resetForProviderSwitch']>(async (next, previous) => { ops.push(['cleanup', next, previous]); });
+    cleanup = vi.fn<LibraryProviderSwitchCleanupPort['leaveProvider']>(async (previous, next) => { ops.push(['cleanup', next, previous]); });
+    dropSongs = vi.fn<LibraryProviderSwitchCleanupPort['dropSongsOf']>(async providerId => { ops.push(['drop-songs', providerId]); });
 });
 
 const opsOf = (...names: string[]) => ops.filter(op => names.includes(op[0]));
@@ -234,7 +236,7 @@ const opsOf = (...names: string[]) => ops.filter(op => names.includes(op[0]));
 // ─── 切换 ───────────────────────────────────────────────────────────────
 
 describe('providerAccountController · switch', () => {
-    it('switches to the current provider at once without asking or emptying the player', async () => {
+    it('switches to the current provider at once without leaving it', async () => {
         const controller = createController();
         await expect(controller.requestSwitch('alpha')).resolves.toEqual({ status: 'switched', providerId: 'alpha', changed: false });
         expect(controller.getSnapshot().pendingSwitch).toBeNull();
@@ -242,68 +244,44 @@ describe('providerAccountController · switch', () => {
         expect(refresh).not.toHaveBeenCalled();
     });
 
-    it('[txn] does not commit or read when the question is answered no', async () => {
-        const controller = createController();
-        const result = controller.requestSwitch('beta');
-        const request = controller.getSnapshot().pendingSwitch!;
-        expect(request).toEqual({ id: request.id, from: 'alpha', to: 'beta', reason: 'switch' });
-        expect(controller.cancelSwitch(request.id)).toEqual({ status: 'cancelled', requestId: request.id });
-        await expect(result).resolves.toEqual({ status: 'declined', providerId: 'beta', reason: 'cancelled' });
-        expect(ops).toEqual([]);
-        expect(controller.getSnapshot().activeProviderId).toBe('alpha');
-    });
-
-    it('[txn] empties the player before committing and reads only the new provider', async () => {
-        const controller = createController();
-        const result = controller.requestSwitch('beta');
-        const request = controller.getSnapshot().pendingSwitch!;
-        const confirming = controller.confirmSwitch(request.id);
-        // 确认框按下确认后立即收起。
-        expect(controller.getSnapshot().pendingSwitch).toBeNull();
-        await expect(confirming).resolves.toEqual({ status: 'confirmed', requestId: request.id, providerId: 'beta' });
-        await expect(result).resolves.toEqual({ status: 'switched', providerId: 'beta', changed: true });
-        expect(ops).toEqual([['cleanup', 'beta', 'alpha'], ['invalidate'], ['set-active', 'beta'], ['refresh', 'beta', 'switch']]);
-    });
-
-    it('does not ask with nothing in the player, and empties it before the commit as a yes would', async () => {
-        holdsSongs = false;
+    it('[txn] switches without asking, with songs in the player: leaves the old provider, commits, reads only the new one', async () => {
         const controller = createController();
         const listener = vi.fn();
         controller.subscribe(() => listener(controller.getSnapshot().pendingSwitch));
         await expect(controller.requestSwitch('beta')).resolves.toEqual({ status: 'switched', providerId: 'beta', changed: true });
         expect(listener.mock.calls.every(([pending]) => pending === null)).toBe(true);
         expect(ops).toEqual([['cleanup', 'beta', 'alpha'], ['invalidate'], ['set-active', 'beta'], ['refresh', 'beta', 'switch']]);
-        expect(log).toHaveBeenCalledWith('info', 'switch', expect.objectContaining({ to: 'beta', asked: false }));
+        expect(log).toHaveBeenCalledWith('info', 'switch', expect.objectContaining({ from: 'alpha', to: 'beta', reason: 'switch' }));
+        // The player is never emptied by a switch: songs of several platforms share the queue.
+        expect(dropSongs).not.toHaveBeenCalled();
     });
 
-    it('answers a confirmation or a cancellation with an outdated request id as stale', async () => {
+    it('answers a confirmation or a cancellation as stale: nothing is ever pending', async () => {
         const controller = createController();
-        void controller.requestSwitch('beta');
-        const request = controller.getSnapshot().pendingSwitch!;
-        expect(controller.cancelSwitch(request.id + 1)).toEqual({ status: 'stale', requestId: request.id + 1 });
-        await expect(controller.confirmSwitch(request.id + 1)).resolves.toEqual({ status: 'stale', requestId: request.id + 1 });
-        expect(controller.getSnapshot().pendingSwitch).toBe(request);
+        await controller.requestSwitch('beta');
+        expect(controller.cancelSwitch(1)).toEqual({ status: 'stale', requestId: 1 });
+        await expect(controller.confirmSwitch(1)).resolves.toEqual({ status: 'stale', requestId: 1 });
+        expect(controller.getSnapshot().pendingSwitch).toBeNull();
     });
 
-    it('declines the earlier pending request as superseded when a new one arrives', async () => {
+    it('runs two switches started together through, the later one last', async () => {
         const controller = createController();
-        const first = controller.requestSwitch('beta');
-        const firstId = controller.getSnapshot().pendingSwitch!.id;
-        void controller.requestSwitch('modo');
-        await expect(first).resolves.toEqual({ status: 'declined', providerId: 'beta', reason: 'superseded' });
-        expect(controller.getSnapshot().pendingSwitch).toMatchObject({ to: 'modo' });
-        expect(controller.getSnapshot().pendingSwitch!.id).toBeGreaterThan(firstId);
+        await Promise.all([controller.requestSwitch('beta'), controller.requestSwitch('modo')]);
+        expect(opsOf('cleanup', 'set-active')).toEqual([
+            ['cleanup', 'beta', 'alpha'], ['cleanup', 'modo', 'alpha'], ['set-active', 'beta'], ['set-active', 'modo'],
+        ]);
+        expect(controller.getSnapshot().activeProviderId).toBe('modo');
     });
 
-    it('refuses unknown and unconfigured providers without opening a request', async () => {
+    it('refuses unknown and unconfigured providers without switching', async () => {
         const controller = createController();
         await expect(controller.requestSwitch('nobody')).resolves.toEqual({ status: 'unavailable', providerId: 'nobody', reason: 'unknown-provider' });
         await expect(controller.requestSwitch('off')).resolves.toEqual({ status: 'unavailable', providerId: 'off', reason: 'not-configured' });
         expect(controller.getSnapshot().pendingSwitch).toBeNull();
+        expect(cleanup).not.toHaveBeenCalled();
     });
 
     it('routes selectProvider: signed-in and accountless providers switch, the others are left to the sign-in window', async () => {
-        holdsSongs = false;
         const controller = createController();
         await expect(controller.selectProvider('beta')).resolves.toEqual({ action: 'switch', result: { status: 'switched', providerId: 'beta', changed: true } });
         await expect(controller.selectProvider('modo')).resolves.toMatchObject({ action: 'switch', result: { status: 'switched', providerId: 'modo' } });
@@ -314,12 +292,10 @@ describe('providerAccountController · switch', () => {
         expect(auth.resolveLoginMethods).not.toHaveBeenCalled();
     });
 
-    it('switches anyway when emptying the player throws (the person already said yes)', async () => {
+    it('switches anyway when leaving the old provider throws', async () => {
         cleanup.mockRejectedValueOnce(new Error('audio element gone'));
         const controller = createController();
-        const result = controller.requestSwitch('beta');
-        await controller.confirmSwitch(controller.getSnapshot().pendingSwitch!.id);
-        await expect(result).resolves.toMatchObject({ status: 'switched', providerId: 'beta' });
+        await expect(controller.requestSwitch('beta')).resolves.toMatchObject({ status: 'switched', providerId: 'beta' });
         expect(accounts.stored()).toBe('beta');
         expect(log).toHaveBeenCalledWith('warn', 'switch:cleanup-error', expect.objectContaining({ from: 'alpha', to: 'beta', message: 'audio element gone' }));
     });
@@ -339,26 +315,16 @@ describe('providerAccountController · completing a sign-in', () => {
         });
     });
 
-    it('[txn] reads a different provider before asking to activate it, and does not read again on yes', async () => {
+    it('[txn] reads a different provider, then activates it without asking and without reading again', async () => {
         const controller = createController();
         const started = await controller.startLogin('gamma');
         await confirmNextPoll();
-        // 账号读到了，登录就收起；问要不要切过去（播放器里有歌）。
-        expect(controller.getSnapshot()).toMatchObject({ login: null, pendingSwitch: { from: 'alpha', to: 'gamma', reason: 'activate-after-login' }, lastLoginCompletion: null });
-        await controller.confirmSwitch(controller.getSnapshot().pendingSwitch!.id);
         await manual.flush();
         expect(opsOf('refresh', 'cleanup', 'set-active')).toEqual([['refresh', 'gamma', 'sign-in'], ['cleanup', 'gamma', 'alpha'], ['set-active', 'gamma']]);
+        expect(controller.getSnapshot()).toMatchObject({ activeProviderId: 'gamma', login: null, pendingSwitch: null });
         expect(controller.getSnapshot().lastLoginCompletion).toEqual({
             sessionId: started.status === 'started' ? started.sessionId : -1, providerId: 'gamma', outcome: 'completed',
         });
-    });
-
-    it('signing in to another platform with nothing in the player activates it without asking', async () => {
-        holdsSongs = false;
-        const controller = createController();
-        await controller.startLogin('gamma');
-        await confirmNextPoll();
-        expect(controller.getSnapshot()).toMatchObject({ activeProviderId: 'gamma', pendingSwitch: null, lastLoginCompletion: { outcome: 'completed' } });
     });
 
     it('[txn] does not activate a provider whose account could not be read, and shows the failure again', async () => {
@@ -381,16 +347,6 @@ describe('providerAccountController · completing a sign-in', () => {
         await confirmNextPoll();
         expect(controller.getSnapshot().login).toMatchObject({ phase: 'error', failure: { case: { id: 'account-not-read' } } });
         expect(log).toHaveBeenCalledWith('warn', 'login:refresh-error', expect.objectContaining({ providerId: 'gamma', message: 'store write failed' }));
-    });
-
-    it('[txn] reports a declined activation separately and keeps the provider signed in', async () => {
-        const controller = createController();
-        await controller.startLogin('gamma');
-        await confirmNextPoll();
-        controller.cancelSwitch(controller.getSnapshot().pendingSwitch!.id);
-        await manual.flush();
-        expect(controller.getSnapshot()).toMatchObject({ activeProviderId: 'alpha', lastLoginCompletion: { providerId: 'gamma', outcome: 'activation-declined' } });
-        expect(controller.getSnapshot().providers.find(p => p.providerId === 'gamma')?.status).toBe('authenticated');
     });
 
     it('drops the steps after the confirm when the sign-in is closed while the account is read', async () => {
@@ -608,7 +564,7 @@ describe('providerAccountController · the local service of a sign-in', () => {
 // ─── 登出 ───────────────────────────────────────────────────────────────
 
 describe('providerAccountController · sign-out', () => {
-    it('asks first, empties the player for the current provider, signs out and tracks the pending state', async () => {
+    it('asks first, takes that provider\'s songs out of the player, signs out and tracks the pending state', async () => {
         const answer = deferred<boolean>();
         confirmLogout.mockReturnValueOnce(answer.promise);
         const controller = createController();
@@ -617,8 +573,8 @@ describe('providerAccountController · sign-out', () => {
         await expect(controller.logout('alpha')).resolves.toEqual({ status: 'busy', providerId: 'alpha' });
         answer.resolve(true);
         await expect(out).resolves.toEqual({ status: 'logged-out', providerId: 'alpha' });
-        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'alpha', emptiesPlayer: true });
-        expect(opsOf('cleanup', 'logout')).toEqual([['cleanup', 'alpha', 'alpha'], ['logout', 'alpha']]);
+        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'alpha', removesSongs: true });
+        expect(opsOf('drop-songs', 'cleanup', 'logout')).toEqual([['drop-songs', 'alpha'], ['logout', 'alpha']]);
         expect(controller.getSnapshot().logout).toEqual({ providerId: null, status: 'idle' });
     });
 
@@ -626,23 +582,31 @@ describe('providerAccountController · sign-out', () => {
         confirmLogout.mockResolvedValueOnce(false);
         const controller = createController();
         await expect(controller.logout('alpha')).resolves.toEqual({ status: 'cancelled', providerId: 'alpha' });
-        expect(opsOf('cleanup', 'logout')).toEqual([]);
+        expect(opsOf('drop-songs', 'logout')).toEqual([]);
         expect(controller.getSnapshot().logout.status).toBe('idle');
     });
 
-    it('signs out of a provider that is not the current one, and leaves the player alone', async () => {
+    it('takes the songs of a provider that is not the current one out too, and stays on the current one', async () => {
         const controller = createController();
         await expect(controller.logout('beta')).resolves.toEqual({ status: 'logged-out', providerId: 'beta' });
-        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'beta', emptiesPlayer: false });
-        expect(opsOf('cleanup')).toEqual([]);
+        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'beta', removesSongs: true });
+        expect(opsOf('drop-songs', 'cleanup', 'set-active')).toEqual([['drop-songs', 'beta']]);
+        expect(controller.getSnapshot().activeProviderId).toBe('alpha');
     });
 
-    it('says the queue goes only where the player holds songs, and empties the current provider\'s player either way', async () => {
+    it('says songs go only where the player holds that provider\'s songs', async () => {
         holdsSongs = false;
         const controller = createController();
         await controller.logout('alpha');
-        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'alpha', emptiesPlayer: false });
-        expect(opsOf('cleanup')).toEqual([['cleanup', 'alpha', 'alpha']]);
+        expect(confirmLogout).toHaveBeenCalledWith({ providerId: 'alpha', removesSongs: false });
+        expect(opsOf('drop-songs')).toEqual([['drop-songs', 'alpha']]);
+    });
+
+    it('signs out anyway when taking the songs out throws', async () => {
+        dropSongs.mockRejectedValueOnce(new Error('audio element gone'));
+        const controller = createController();
+        await expect(controller.logout('alpha')).resolves.toEqual({ status: 'logged-out', providerId: 'alpha' });
+        expect(log).toHaveBeenCalledWith('warn', 'logout:cleanup-error', expect.objectContaining({ providerId: 'alpha', message: 'audio element gone' }));
     });
 
     it('refuses providers that are not signed in or unknown', async () => {
@@ -719,19 +683,19 @@ describe('providerAccountController · active provider and snapshot', () => {
 // ─── 寿命 ───────────────────────────────────────────────────────────────
 
 describe('providerAccountController · dispose', () => {
-    it('cancels the live sign-in, declines the pending switch and unsubscribes everything', async () => {
+    it('cancels the live sign-in, declines later switches and unsubscribes everything', async () => {
         const local = createLocalService();
         auth.getLoginLocalService.mockReturnValue(local.service);
         const controller = createController();
         await controller.startLogin('gamma');
         await manual.flush();
-        const pending = controller.requestSwitch('beta');
         const listener = vi.fn();
         controller.subscribe(listener);
 
         controller.dispose();
 
-        await expect(pending).resolves.toEqual({ status: 'declined', providerId: 'beta', reason: 'disposed' });
+        await expect(controller.requestSwitch('beta')).resolves.toEqual({ status: 'declined', providerId: 'beta', reason: 'disposed' });
+        expect(opsOf('cleanup', 'set-active')).toEqual([]);
         expect(opsOf('cancel')).toEqual([['cancel', 'gamma', 'key-1']]);
         expect(manual.pendingTimers()).toBe(0);
         expect(accounts.listenerCount()).toBe(0);

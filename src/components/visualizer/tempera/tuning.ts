@@ -1,6 +1,6 @@
 import { DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, TEMPERA_MAX_LAYER_IMAGES, type TemperaLayerImage, type TemperaTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/tempera/tuning.ts
 // Tempera's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -79,6 +79,30 @@ export const resolveStoredTemperaTuning = (stored: Partial<TemperaTuning>): Temp
 export default defineVisualizerTuning<TemperaTuning>({
     mode: 'tempera',
     defaults: DEFAULT_TEMPERA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        cameraIntensity: modNumber(0, 2),
+        glyphMotion: modNumber(0, 2),
+        wholeLineLyrics: MOD_SWITCH,
+        glyphSettleStretch: modNumber(0, 1),
+        depthOfField: modNumber(0, 2),
+        depthPan: modNumber(0, 2),
+        glyphDepth: modNumber(0, 2),
+        colorMode: modChoice(['duo', 'mono', 'gradient']),
+        showBlocks: MOD_SWITCH,
+        showDecor: MOD_SWITCH,
+        showCornerMarks: MOD_SWITCH,
+        textInversion: MOD_SWITCH,
+        layerImageDepth: modChoice(['back', 'front']),
+        layerImageFrequency: modNumber(0, 1),
+        enableTransitions: MOD_SWITCH,
+        postProcessEnabled: MOD_SWITCH,
+        postProcessGrain: modNumber(0, 1),
+        postProcessContrast: modNumber(0, 1),
+        postProcessRgbShift: modNumber(0, 1),
+        postProcessVignette: modNumber(0, 2),
+        postProcessLensDistortion: modNumber(0, 2),
+    },
     settingsKey: 'temperaTuning',
     settingsSetterKey: 'handleSetTemperaTuning',
     settingsResetterKey: 'handleResetTemperaTuning',

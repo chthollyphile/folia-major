@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { type Theme, type Line } from '../../../types';
 import { SECONDARY_TRACK_OPACITY } from '../../../utils/lyrics/subtitleTrackStyle';
+import { resolveLyricTextDirection } from '../../../utils/lyrics/textDirection';
 import { colorWithAlpha } from '../colorMix';
 import { type WordColorMatcher } from '../wordColoring';
 import { MONET_SCROLL_TRANSITION, MONET_SUBTITLE_TRACK_STAGGER_S, type PositionedMonetLineEntry } from './monetRailLayout';
@@ -37,6 +38,8 @@ export const MonetRailLine: React.FC<{
     // content instead of the pre-measured height, and it carries no truncation fade.
     // Context lines keep the fixed two-line box that keeps the rail compact.
     const isActiveLine = entry.status === 'active';
+    // An RTL line (Uyghur, Arabic...) runs its words from the right edge and scales about it.
+    const rtl = useMemo(() => resolveLyricTextDirection(entry.line.fullText) === 'rtl', [entry.line.fullText]);
     const textMask = isActiveLine
         ? undefined
         : getClippedTextMask(
@@ -44,7 +47,7 @@ export const MonetRailLine: React.FC<{
             vGlowBufferPx + entry.layout.textPaddingTopPx + entry.layout.textContentHeightPx,
             Math.max(lyricFontPx * 0.55, 12),
         );
-    const textEdgeMask = getEdgeFadeMask(entry.layout.isTextOverflowingWidth, Math.max(lyricFontPx * 0.9, 24));
+    const textEdgeMask = getEdgeFadeMask(entry.layout.isTextOverflowingWidth, Math.max(lyricFontPx * 0.9, 24), rtl);
     const textMaskStyle = composeLineMasks(textMask, textEdgeMask);
     const handleSeek = (event: React.MouseEvent | React.KeyboardEvent) => {
         if (!canSeek) {
@@ -95,7 +98,7 @@ export const MonetRailLine: React.FC<{
                 left: `${glowBufferPx}px`,
                 right: `${glowBufferPx}px`,
                 height: entry.layout.visualHeightPx,
-                transformOrigin: 'left top',
+                transformOrigin: rtl ? 'right top' : 'left top',
                 zIndex: entry.tone.zIndex,
             }}
         >
@@ -116,6 +119,7 @@ export const MonetRailLine: React.FC<{
                 />
             )}
             <div
+                dir={rtl ? 'rtl' : 'ltr'}
                 className="min-w-0 overflow-hidden pointer-events-none"
                 style={{
                     marginLeft: `-${glowBufferPx}px`,
@@ -153,6 +157,7 @@ export const MonetRailLine: React.FC<{
                     chorusAccentColor={theme.accentColor}
                     audioPower={audioPower}
                     renderStaticPassed={renderStaticPassed}
+                    rtl={rtl}
                 />
             </div>
             {entry.layout.subtitleTracks.map((track, trackIndex) => {
@@ -162,6 +167,8 @@ export const MonetRailLine: React.FC<{
                 return (
                     <motion.div
                         key={track.role}
+                        // The track reads in its own direction but sits on the lyric's side.
+                        dir="auto"
                         data-subtitle-track={track.role}
                         className="min-w-0 overflow-hidden whitespace-pre-wrap break-words"
                         initial={{ opacity: 0, y: 8 }}
@@ -177,6 +184,7 @@ export const MonetRailLine: React.FC<{
                             paddingBottom: track.paddingBottomPx,
                             boxSizing: 'border-box',
                             color: colorWithAlpha(theme.primaryColor, trackIndex > 0 ? 0.68 * SECONDARY_TRACK_OPACITY : 0.68),
+                            textAlign: rtl ? 'right' : 'left',
                             fontFamily: translationFontStack,
                             fontSize: track.fontPx,
                             fontWeight: track.fontWeight,

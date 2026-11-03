@@ -14,6 +14,7 @@ import { MachiAtmospherePass, MachiStreakPass, type MachiSceneTarget } from './p
 // 町景的后处理链：场景画进单独一张带深度贴图的 HDR 目标（MSAA，不参与合成器的来回交换）→ 氛围（墨线、贴地薄雾与灯的散射、云和闪电）
 // → bloom（柔和、宽，让招牌和灯在雨夜里晕开）→ 横向镜头光条 → 镜头（散景景深、色差、暗角、颗粒）→ 色调映射输出
 // → 抗锯齿（FXAA 或 SMAA，在输出之后的 sRGB 上做，边缘检测才准；墨线是氛围 pass 描的，场景目标的 MSAA 管不到它）。
+// 透明模式（cutout）：场景不画天空，氛围 pass 不在天空上画云，镜头 pass 写出 alpha（天空透明），输出和抗锯齿都带着 alpha 走。
 // 画质（engine/quality.ts）决定场景目标的 MSAA、墨线的取样步长、开不开 bloom / 光条 / 景深离焦层、最后用哪种抗锯齿。
 
 /** 一道 pass 自己持有的材质（字段里的材质和材质数组；bloom 的几道模糊在一个数组里）。 */
@@ -77,17 +78,18 @@ export class MachiPost {
         private readonly sceneGraph: THREE.Scene,
         private readonly camera: THREE.OrthographicCamera,
         quality: MachiPostQuality,
+        cutout = false,
     ) {
         const size = renderer.getDrawingBufferSize(new THREE.Vector2());
         this.scene = { target: createSceneTarget(size.x, size.y, quality.samples) };
         this.composer = new EffectComposer(renderer);
-        this.atmosphere = new MachiAtmospherePass(this.scene);
+        this.atmosphere = new MachiAtmospherePass(this.scene, cutout);
         this.composer.addPass(this.atmosphere);
         this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.5, 0.62, 0.86);
         this.composer.addPass(this.bloom);
         this.streaks = new MachiStreakPass();
         this.composer.addPass(this.streaks);
-        this.lens = new MachiLensPass(this.scene);
+        this.lens = new MachiLensPass(this.scene, cutout);
         this.composer.addPass(this.lens);
         this.output = new OutputPass();
         this.composer.addPass(this.output);

@@ -17,7 +17,7 @@ import type {
 // 在线账户 controller 的默认装配：登录的 auth 转给 omni 的同名方法（外加不再给登录请求计时的那一个）；provider
 // 列表与当前平台读 useOnlineProviderAccountStore + omni（mod 源增删经 omni.subscribeProviders）；读账号走
 // omni.readAccount（services/onlineMusic/account/accountRead）；时钟用 window 定时器；诊断环境读 __APP_VERSION__、
-// navigator 与构建来源。退出、退出前的那一问与清空播放器属于宿主（App），由调用方以函数形状传入。
+// navigator 与构建来源。退出、退出前的那一问与播放器端口属于宿主（App），由调用方以函数形状传入。
 // 单测给 createProviderAccountController 注入假端口，不经过这里。
 
 /** 登录的 auth：omni 的同名方法（经 omni.xxx() 调用，this 仍是 omni）。 */
@@ -89,7 +89,7 @@ export const resolveLoginDiagnosticsEnvironment = (): LibraryLoginDiagnosticsEnv
 
 /**
  * 宿主提供的端口（可以用 ref 指向每次渲染的最新实现）：退出与退出前的那一问（App 的 useProviderSignOut），
- * 平台换了时清空播放器（app/createLibraryAccountPort）。
+ * 平台换了时的播放器端口（app/createLibraryAccountPort）。
  */
 export type ProviderAccountHostPorts = {
     logout: LibraryProviderAccountPort['logout'];

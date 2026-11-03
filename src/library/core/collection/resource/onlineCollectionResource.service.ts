@@ -355,7 +355,8 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             try {
                 const tracks = await loadAll();
                 if (disposed || generation !== loadGeneration) return false;
-                state.set({ status: 'ready', tracks }, 'urgent');
+                // 换好了就不再是之前那次读取的失败（每日推荐从读失败的那份换到另一份时）。
+                state.set({ status: 'ready', tracks, error: null }, 'urgent');
                 return true;
             } catch (error) {
                 if (disposed || generation !== loadGeneration) return false;

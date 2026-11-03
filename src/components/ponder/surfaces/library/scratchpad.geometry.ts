@@ -44,12 +44,13 @@ export const SCRATCHPAD_CARD = {
 /**
  * 抽屉里的几块，坐标系是抽屉。
  *
- * 顶上是标题、首数，右边展开成画布和关闭两颗；下面一句说明。然后是按来源分的两组：组头写来源与首数，
+ * 顶上是两个页签（速记簿与首数、播放历史），右边展开成画布和关闭两颗；下面一句说明。然后是按来源分的两组：组头写来源与首数，
  * 右端「本组全部入队」「本组加入歌单」；每一行是封面、歌名、歌手 · 出处，悬停时右端出四颗。
  * 最底下一排：全部入队、替换队列播放、清空。
  */
 export const SCRATCHPAD_DRAWER = {
-    title: { left: 0.06, top: 0.035, width: 0.36, height: 0.04 },
+    notesTab: { left: 0.06, top: 0.035, width: 0.3, height: 0.04 },
+    historyTab: { left: 0.4, top: 0.035, width: 0.2, height: 0.04 },
     expand: { right: 0.15, top: 0.03, width: 0.075, square: true },
     close: { right: 0.05, top: 0.03, width: 0.075, square: true },
     hint: { left: 0.06, top: 0.1, right: 0.06, height: 0.025 },
@@ -102,8 +103,8 @@ export const SCRATCHPAD_HOVER_ROW = { group: 0, row: 1 } as const;
 /**
  * 展开成画布之后的几块，坐标系是画布。
  *
- * 两组上下排开，每组一条组头（右端多一颗「选中本组」），下面是一排卡片；最底下一排和抽屉里一样，
- * 有选中时换成「已选 N 首」和对选中的那几颗。
+ * 两组上下排开，每组一条组头（右端多一颗「选中本组」），下面是一排卡片；最底下一排和抽屉里一样。
+ * 有选中时，选中的卡片上方浮出一个菜单：「已选 N 首」和对选中的那几颗。
  */
 export const SCRATCHPAD_CANVAS = {
     title: { left: 0.02, top: 0.035, width: 0.12, height: 0.04 },
@@ -113,7 +114,8 @@ export const SCRATCHPAD_CANVAS = {
     footer: { left: 0.02, right: 0.02, bottom: 0.02, height: 0.055 },
     /** 框选：从第二组卡片左边的空白处拖到第二张卡片上。 */
     marquee: { left: 0.012, top: 0.52, width: 0.17, height: 0.22 },
-    selectionBar: { left: 0.02, right: 0.02, bottom: 0.02, height: 0.055 },
+    /** 选中第二组前两张时浮出的菜单：贴在它们上方，压着组头。 */
+    menu: { left: 0.02, top: 0.482, width: 0.2, height: 0.048 },
 } satisfies Record<string, PonderRelativeRect>;
 
 /** 画布上两组卡片的张数。 */

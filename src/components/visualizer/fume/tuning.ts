@@ -1,6 +1,6 @@
 import { DEFAULT_FUME_TUNING, type FumeTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/fume/tuning.ts
 // Fume's tuning: its defaults, the settings store fields it lives in, where it is stored and how
@@ -30,6 +30,17 @@ const cameraTrackingMode = (value: FumeTuning['cameraTrackingMode'] | undefined)
 export default defineVisualizerTuning<FumeTuning>({
     mode: 'fume',
     defaults: DEFAULT_FUME_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        hidePrintSymbols: MOD_SWITCH,
+        disableGeometricBackground: MOD_SWITCH,
+        backgroundObjectOpacity: modNumber(0, 1),
+        textHoldRatio: modNumber(0, 1),
+        cameraSpeed: modNumber(0.55, 1.85),
+        cameraTrackingMode: modChoice(['stepped', 'smooth']),
+        glowIntensity: modNumber(0, 1.8),
+        heroScale: modNumber(0.82, 1.32),
+    },
     settingsKey: 'fumeTuning',
     settingsSetterKey: 'handleSetFumeTuning',
     settingsResetterKey: 'handleResetFumeTuning',

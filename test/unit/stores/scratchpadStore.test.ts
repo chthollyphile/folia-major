@@ -7,6 +7,7 @@ import {
     parseStoredScratchpad,
     scratchpadGroupKey,
     toScratchpadSong,
+    useScratchpadStore,
 } from '@/stores/useScratchpadStore';
 
 // test/unit/stores/scratchpadStore.test.ts
@@ -99,5 +100,19 @@ describe('grouping and moving within a group', () => {
     it('clamps the target and ignores keys from another group', () => {
         expect(names(moveWithinGroup(entries, 'local', ['local:a'], 99))).toEqual(['b', 'song 1', 'c', 'song 2', 'a']);
         expect(moveWithinGroup(entries, 'local', ['online:netease:1'], 0)).toEqual(entries);
+    });
+});
+
+describe('the two pages of the drawer', () => {
+    it('collapses the canvas when going to the play history, and comes back to the notes when the canvas is expanded', () => {
+        const store = useScratchpadStore.getState();
+        store.setOpen(true);
+        store.setExpanded(true);
+        store.setTab('history');
+        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'history', isExpanded: false });
+        store.setExpanded(true);
+        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'notes', isExpanded: true });
+        store.setOpen(false);
+        store.setTab('notes');
     });
 });

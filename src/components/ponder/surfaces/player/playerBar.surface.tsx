@@ -17,6 +17,8 @@ import type { PonderSurfaceDeclarations } from '../surfaceDeclarations';
 // 标题区和两个槽位各自是一层，替换它们的那几层也一并嵌在基础层里：讲切歌或讲某个槽位动作时
 // 只换那一层，胶囊其余部分不动；而「收起来的样子」替换整个基础层，嵌在里面的全部一起带走 ——
 // 放在基础层外面的话，胶囊收起来了，浮出的箭头还留在屏幕上。
+//
+// 胶囊周围那几样（上方浮出的快捷操作、从胶囊长出来的命令窗口、换按钮的浮层）在 capsule.surface。
 
 /** 可被单独替换的两层。 */
 export const PLAYER_BAR_TITLE_STATE = 'title';
@@ -40,18 +42,25 @@ const SlotButton: React.FC<{
     outline: string;
     accent: string;
     active?: boolean;
+    /** 正被按住：按钮缩一点，外圈画到一大半 —— 画满的那一刻浮层就会弹出来。 */
+    holding?: boolean;
     slot: 'primary' | 'secondary';
-}> = ({ Icon, rect, outline, accent, active, slot }) => (
+}> = ({ Icon, rect, outline, accent, active, holding, slot }) => (
     <span
         data-ponder-bar-slot={slot}
         className="flex items-center justify-center rounded-full border"
         style={{
             ...relativeRectStyle(rect),
-            borderColor: active ? accent : outline,
-            color: active ? accent : undefined,
+            borderColor: active || holding ? accent : outline,
+            color: active || holding ? accent : undefined,
         }}
     >
-        <Icon className="h-1/2 w-1/2 opacity-70" />
+        <Icon className="h-1/2 w-1/2 opacity-70" style={holding ? { transform: 'scale(0.88)' } : undefined} />
+        {holding ? (
+            <svg data-ponder-bar-slot-hold viewBox="0 0 36 36" className="pointer-events-none absolute -inset-[18%] -rotate-90">
+                <circle cx="18" cy="18" r="16.5" fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" pathLength={1} strokeDasharray="0.72 1" />
+            </svg>
+        ) : null}
     </span>
 );
 
@@ -61,9 +70,10 @@ const SlotPair: React.FC<{
     primary: LucideIcon;
     secondary: LucideIcon;
     activePrimary?: boolean;
-}> = ({ outline, accent, primary, secondary, activePrimary }) => (
+    holdingPrimary?: boolean;
+}> = ({ outline, accent, primary, secondary, activePrimary, holdingPrimary }) => (
     <>
-        <SlotButton slot="primary" Icon={primary} rect={G.primarySlot} outline={outline} accent={accent} active={activePrimary} />
+        <SlotButton slot="primary" Icon={primary} rect={G.primarySlot} outline={outline} accent={accent} active={activePrimary} holding={holdingPrimary} />
         <SlotButton slot="secondary" Icon={secondary} rect={G.secondarySlot} outline={outline} accent={accent} />
     </>
 );
@@ -139,6 +149,11 @@ const PonderPlayerBarSurface: React.FC<PonderPlayerBarSurfaceProps> = ({
 
                 <PonderSurfaceStateLayer state="slots-volume" registerStateNode={registerStateNode} replaces={PLAYER_BAR_SLOTS_STATE}>
                     <SlotPair outline={outline} accent={accent} primary={Volume2} secondary={SecondaryIcon} activePrimary />
+                </PonderSurfaceStateLayer>
+
+                {/* 按住第一个槽位：外圈正在画，画满就弹出换按钮的浮层。 */}
+                <PonderSurfaceStateLayer state="slots-holding" registerStateNode={registerStateNode} replaces={PLAYER_BAR_SLOTS_STATE}>
+                    <SlotPair outline={outline} accent={accent} primary={PrimaryIcon} secondary={SecondaryIcon} holdingPrimary />
                 </PonderSurfaceStateLayer>
             </PonderSurfaceBase>
 

@@ -26,8 +26,8 @@ import type { PonderSurfaceDeclarations, PonderSurfaceProps as SurfaceProps } fr
 // 速记簿：一面资料库磁贴墙，左缘贴着速记簿的把手；指针停在一张歌曲磁贴上时右上角出两颗按钮。
 //
 // 结果层：磁贴上的两颗按钮（card-hover）、收进去之后把手上的首数（collected）、从左缘滑出的抽屉（drawer）
-// 和抽屉里悬停的那一行（row-hover）、展开成的画布（canvas），拖过一张之后的画布（canvas-reordered，
-// 只替换 canvas），以及框选与选中后的那一排（canvas-selected）。
+// 和抽屉里悬停的那一行（row-hover）、抽屉换到第二页播放历史（history）、展开成的画布（canvas），拖过一张之后的画布
+// （canvas-reordered，只替换 canvas），以及框选与浮在选中卡片上方的菜单（canvas-selected）。
 
 type Paint = Pick<SurfaceProps, 'accent' | 'line' | 'outline'>;
 
@@ -122,7 +122,20 @@ const DrawerRow: React.FC<Paint & { group: number; row: number; index: number }>
     </span>
 );
 
-/** 从左缘滑出来的抽屉：标题、说明、按来源分的两组、最底下一排。 */
+/** 抽屉顶上的两个页签：速记簿（带首数）与播放历史，开着的那页亮。 */
+const DrawerTabs: React.FC<Pick<Paint, 'line'> & { active: 'notes' | 'history' }> = ({ active, line }) => (
+    <>
+        <span className="flex items-center gap-[8%]" style={relativeRectStyle(D.notesTab)}>
+            <Bar width="58%" height="62%" color={line} opacity={active === 'notes' ? 0.95 : 0.4} />
+            <Bar width="28%" height="36%" color={line} opacity={active === 'notes' ? 0.5 : 0.25} />
+        </span>
+        <span className="flex items-center" style={relativeRectStyle(D.historyTab)}>
+            <Bar width="100%" height="62%" color={line} opacity={active === 'history' ? 0.95 : 0.4} />
+        </span>
+    </>
+);
+
+/** 从左缘滑出来的抽屉：页签、说明、按来源分的两组、最底下一排。 */
 const Drawer: React.FC<Paint> = ({ accent, line, outline }) => {
     let index = 0;
     return (
@@ -131,10 +144,7 @@ const Drawer: React.FC<Paint> = ({ accent, line, outline }) => {
             className="overflow-hidden rounded-r-xl"
             style={{ ...relativeRectStyle(G.drawer), backgroundColor: 'var(--st-win)', boxShadow: `0 0 0 1px ${outline}, 0 12px 32px rgb(0 0 0 / 28%)` }}
         >
-            <span className="flex items-center gap-[8%]" style={relativeRectStyle(D.title)}>
-                <Bar width="52%" height="62%" color={line} opacity={0.95} />
-                <Bar width="26%" height="36%" color={line} opacity={0.5} />
-            </span>
+            <DrawerTabs active="notes" line={line} />
             <span style={relativeRectStyle(D.expand)}><IconDot icon={Maximize2} outline={outline} /></span>
             <span style={relativeRectStyle(D.close)}><IconDot icon={X} outline={outline} /></span>
             <span style={relativeRectStyle(D.hint)}><Bar width="100%" height="50%" color={line} opacity={0.4} /></span>
@@ -183,6 +193,45 @@ const RowHover: React.FC<Paint> = ({ line, outline }) => {
             >
                 {[Play, ListPlus, Star, X].map((Icon, index) => <IconDot key={index} icon={Icon} outline={outline} />)}
             </span>
+        </div>
+    );
+};
+
+/** 第二页播放历史：页签换过来，没有展开钮；按天分段（今天三首、昨天两首），每一行的副标题末尾是几点几分，没有最底下那一排。 */
+const History: React.FC<Paint> = ({ accent, line, outline }) => {
+    let index = 2;
+    return (
+        <div
+            data-ponder-scratchpad-history
+            className="overflow-hidden rounded-r-xl"
+            style={{ ...relativeRectStyle(G.drawer), backgroundColor: 'var(--st-win)', boxShadow: `0 0 0 1px ${outline}, 0 12px 32px rgb(0 0 0 / 28%)` }}
+        >
+            <DrawerTabs active="history" line={line} />
+            <span style={relativeRectStyle(D.close)}><IconDot icon={X} outline={outline} /></span>
+            <span style={relativeRectStyle(D.hint)}><Bar width="100%" height="50%" color={line} opacity={0.4} /></span>
+            {SCRATCHPAD_GROUP_SIZES.map((size, group) => (
+                <React.Fragment key={group}>
+                    <span
+                        className="flex items-center gap-[4%] rounded-md px-[3%]"
+                        style={{ ...relativeRectStyle(scratchpadGroupHeaderRect(group)), backgroundColor: line }}
+                    >
+                        <Bar width="12%" height="22%" color={outline} />
+                        <Bar width="10%" height="16%" color={outline} opacity={0.6} />
+                    </span>
+                    {Array.from({ length: size }, (_, row) => (
+                        <span key={row} className="flex items-center gap-[4%] px-[3%]" style={relativeRectStyle(scratchpadRowRect(group, row))}>
+                            <span className="aspect-square h-[70%] shrink-0 rounded-md" style={{ backgroundColor: coverColor(accent, index++) }} />
+                            <span className="flex min-w-0 flex-1 flex-col gap-[10%]">
+                                <Bar width={`${40 + (index * 13) % 30}%`} height="7px" color={line} opacity={0.95} />
+                                <span className="flex items-center gap-[4%]">
+                                    <Bar width="46%" height="5px" color={line} opacity={0.5} />
+                                    <Bar width="14%" height="5px" color={line} opacity={0.75} />
+                                </span>
+                            </span>
+                        </span>
+                    ))}
+                </React.Fragment>
+            ))}
         </div>
     );
 };
@@ -273,7 +322,7 @@ const Canvas: React.FC<Paint & { firstGroup: readonly number[] }> = ({ firstGrou
     </div>
 );
 
-/** 框选：一道虚线框、框住的两张描边，最底下一排换成「已选 2 首」、对它们的三颗（入队、加入歌单、移出）和取消选择。 */
+/** 框选：一道虚线框、框住的两张描边，它们上方浮出菜单：「已选 2 首」、对它们的三颗（入队、加入歌单、移出）和取消选择。 */
 const CanvasSelected: React.FC<Paint> = ({ accent, line, outline }) => (
     <div style={relativeRectStyle(G.canvas)}>
         <span
@@ -289,18 +338,17 @@ const CanvasSelected: React.FC<Paint> = ({ accent, line, outline }) => (
         ))}
         <span
             data-ponder-scratchpad-selection
-            className="flex items-center gap-[0.8%] rounded-full px-[1%]"
-            style={{ ...relativeRectStyle(C.selectionBar), backgroundColor: 'var(--st-win)', boxShadow: `inset 0 0 0 1px ${accent}` }}
+            className="flex items-center gap-[2%] rounded-xl px-[1.5%]"
+            style={{ ...relativeRectStyle(C.menu), backgroundColor: 'var(--st-menu)', boxShadow: `inset 0 0 0 1px ${outline}, 0 8px 20px rgb(0 0 0 / 35%)` }}
         >
-            <Bar width="6%" height="22%" color={accent} />
-            <span className="flex-1" />
+            <Bar width="14%" height="22%" color={line} opacity={0.95} />
             {[ListPlus, Star, Trash2].map((Icon, index) => (
-                <span key={index} className="flex h-full w-[8%] items-center justify-center gap-[8%] rounded-full" style={{ boxShadow: `inset 0 0 0 1px ${outline}` }}>
-                    <Icon className="h-[42%] w-auto opacity-75" />
-                    <Bar width="40%" height="18%" color={line} opacity={0.8} />
+                <span key={index} className="flex h-[70%] flex-1 items-center justify-center gap-[10%]">
+                    <Icon className="h-[60%] w-auto shrink-0 opacity-75" />
+                    <Bar width="44%" height="16%" color={line} opacity={0.7} />
                 </span>
             ))}
-            <span className="h-[80%]"><IconDot icon={X} outline={outline} /></span>
+            <span className="h-[62%]"><IconDot icon={X} outline={outline} /></span>
         </span>
     </div>
 );
@@ -324,6 +372,9 @@ const PonderScratchpadSurface: React.FC<SurfaceProps> = ({ accent, line, outline
             </PonderSurfaceStateLayer>
             <PonderSurfaceStateLayer state="row-hover" registerStateNode={registerStateNode}>
                 <RowHover {...paint} />
+            </PonderSurfaceStateLayer>
+            <PonderSurfaceStateLayer state="history" registerStateNode={registerStateNode}>
+                <History {...paint} />
             </PonderSurfaceStateLayer>
             <PonderSurfaceStateLayer state="canvas" registerStateNode={registerStateNode}>
                 <Canvas firstGroup={CANVAS_ORDER} {...paint} />

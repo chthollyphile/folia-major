@@ -1,5 +1,5 @@
 import { DEFAULT_CLADDAGH_TUNING, type CladdaghTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/claddagh/tuning.ts
 // Claddagh's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -23,6 +23,14 @@ const letterSpacingOffset = inRange(-5, 20);
 export default defineVisualizerTuning<CladdaghTuning>({
     mode: 'claddagh',
     defaults: DEFAULT_CLADDAGH_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        focusScaleRatio: modNumber(0, 1.5),
+        radiusScale: modNumber(0.5, 1.5),
+        ellipseTiltDeg: modNumber(0, 60),
+        showAxisLine: MOD_SWITCH,
+        letterSpacingOffset: modNumber(-5, 20),
+    },
     settingsKey: 'claddaghTuning',
     settingsSetterKey: 'handleSetCladdaghTuning',
     settingsResetterKey: 'handleResetCladdaghTuning',

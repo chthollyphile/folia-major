@@ -98,6 +98,12 @@ export type CommandPaletteCommand = {
     settingsTarget?: { subview: SettingsSubviewId; anchorId?: SettingsAnchorId };
     /** Successful execution closes the palette unless the command opts out. */
     closeAfterExecute?: boolean;
+    /**
+     * Offered in the row that floats above the player bar. Only for things done to what is playing
+     * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
+     * not the palette's frequent list. The command declares it itself, so there is no list to keep.
+     */
+    capsuleAction?: boolean;
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 
@@ -315,6 +321,8 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
+    toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
     toggleReduceLatticeMotion: () => void;
     /** Whether the OS animation setting is allowed to reduce motion in the app at all. */

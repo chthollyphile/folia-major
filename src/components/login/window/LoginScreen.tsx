@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { LibraryLoginSessionSnapshot } from '../../../library/core/account/account.contract';
 import { resolveLoginSessionReportRoute, translateLoginSelfCheck } from '../../../library/core/account/useLibraryAccount';
 import { LOGIN_REPORT_ELSEWHERE_COPY, retryOpensAt } from '../../../library/core/account/accountRules';
+import { providerDisplayName } from '../../../i18n/providerName';
 import type { LoginFailure } from '../../../types/loginFailure';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
 import { useKitReducedMotion } from '../../modal/settings/kit/motion';
@@ -80,7 +81,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const still = useKitReducedMotion();
     const providerId = chosen?.providerId ?? null;
     const summary = rows.find(row => row.providerId === providerId) ?? null;
-    const label = summary?.shortName || summary?.displayName || providerId || '';
+    const label = summary ? providerDisplayName(t, summary, providerId ?? '') : providerId ?? '';
     const inBrowser = login?.inBrowser ?? false;
     const service = login?.localService ?? null;
     const failure: LoginFailure | null = providerId ? login?.failure ?? null : null;
