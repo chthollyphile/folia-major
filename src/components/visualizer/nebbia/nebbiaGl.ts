@@ -8,6 +8,7 @@ import { NebbiaMaskGl } from './nebbiaMaskGl';
 import { canRenderFogToFloat, NebbiaProgramBuild } from './nebbiaPrograms';
 import type { NebbiaSegments } from './nebbiaSegments';
 import { NebbiaSnowGl } from './nebbiaSnowGl';
+import { NebbiaFireflyGl } from './nebbiaFireflyGl';
 import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaGl.ts
@@ -57,6 +58,8 @@ export class NebbiaGl {
     private readonly fogOK: boolean;
     private readonly noise: NebbiaNoiseTex;
     private readonly snow: NebbiaSnowGl | null;
+    /** 凝露玻璃上的萤虫；别的玻璃 null。 */
+    private readonly fireflies: NebbiaFireflyGl | null;
     private W = 1; private H = 1;
     private spriteReady = false;
     /** 白气纹理里是哪一版画布、多大（版本没变不重传）。 */
@@ -93,6 +96,7 @@ export class NebbiaGl {
         this.bld = scene === 'night' ? new NebbiaBuildingCache(gl, 9) : null;
         this.noise = new NebbiaNoiseTex(gl, 15);
         this.snow = glass === 'snow' ? new NebbiaSnowGl(gl, 1) : null;
+        this.fireflies = glass === 'dew' ? new NebbiaFireflyGl(gl) : null;
 
         this.spriteVao = gl.createVertexArray()!;
         gl.bindVertexArray(this.spriteVao);
@@ -117,7 +121,7 @@ export class NebbiaGl {
         if (this.linked) return true;
         if (!this.build.poll()) return false;
         const { gl } = this;
-        const { main, fog, sprite, mask, bldFill, flake } = this.build.programs;
+        const { main, fog, sprite, mask, bldFill, flake, firefly } = this.build.programs;
         this.mask.attach(mask);
         this.U = locate(gl, main, MAIN_UNIFORMS);
         gl.useProgram(main);
@@ -135,6 +139,7 @@ export class NebbiaGl {
         }
         if (bldFill) this.B = locate(gl, bldFill, [...PALETTE_UNIFORMS, ...BLD_FILL_UNIFORMS]);
         if (flake) this.snow?.attach(flake, fogGlow.tex.unit, fogBlur.tex.unit, this.fogOK && !this.seeThrough);
+        if (firefly) this.fireflies?.attach(firefly, fogGlow.tex.unit, this.fogOK && !this.seeThrough);
         gl.useProgram(sprite);
         this.uView = gl.getUniformLocation(sprite, 'uView');
         gl.uniform1i(gl.getUniformLocation(sprite, 'uSprite'), this.sprite.unit);
@@ -308,6 +313,11 @@ export class NebbiaGl {
     /** render 之后叠上雪花：count 片，shift 是这一帧的玻璃颠簸（uniform 里的 glassShift）。 */
     drawFlakes(data: Float32Array, count: number, shift: [number, number]) {
         this.snow?.draw(data, count, this.W, this.H, [-shift[0] * this.W, -shift[1] * this.H]);
+    }
+
+    /** render 之后叠上凝露玻璃上的萤虫：count 只（nebbiaFireflies.ts 排好的实例）。 */
+    drawFireflies(data: Float32Array, count: number) {
+        this.fireflies?.draw(data, count, this.W, this.H);
     }
 
     destroy() {

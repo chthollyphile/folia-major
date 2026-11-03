@@ -22,6 +22,7 @@ import { nebbiaFrameUniforms } from './nebbiaFrameUniforms';
 import { NebbiaSceneClock } from './nebbiaSceneClock';
 import { NebbiaCondensation } from './nebbiaCondensation';
 import { NebbiaSnow } from './nebbiaSnow';
+import { NebbiaFireflies } from './nebbiaFireflies';
 import { NebbiaAquarium, type NebbiaAquaBeats } from './nebbiaAquarium';
 import { BEAT_EFFECT_IDS, beatEffectPartId } from '../../../services/beatFx/beatEffects';
 import { getBeatEffectStrength, getBeatFxEvents, getBeatFxHeard, isBeatEffectPlaying, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
@@ -54,6 +55,8 @@ export class NebbiaRuntime {
     private readonly condensation: NebbiaCondensation | null;
     /** 玻璃是雪窗时玻璃上的雪和雪化成的水（代替 motion 的凝结水珠）；别的玻璃 null。 */
     private readonly snow: NebbiaSnow | null = null;
+    /** 玻璃是凝露时玻璃上的萤虫；别的玻璃 null。 */
+    private readonly fireflies: NebbiaFireflies | null;
     private readonly observer: ResizeObserver | null = null;
     private readonly glyphs: NebbiaGlyphCache;
     private hits = new NebbiaHits(0);
@@ -93,6 +96,7 @@ export class NebbiaRuntime {
         this.renderScale = renderScale;
         this.aquarium = input.scene === 'aquarium' ? new NebbiaAquarium() : null;
         this.condensation = input.glass === 'dew' ? new NebbiaCondensation() : null;
+        this.fireflies = input.glass === 'dew' ? new NebbiaFireflies() : null;
         // 雪窗、凝露要知道歌词的水在哪（扫过的、写好的笔画），和玻璃上的雪、小水珠联动
         if (input.glass !== 'rain') { this.mask.sweeps = []; this.mask.wet = []; }
         // 雪窗：写字留下的水珠也会结冰（nebbiaInkIce.ts）
@@ -217,6 +221,7 @@ export class NebbiaRuntime {
         const p = resolveNebbiaPalette(this.theme);
         this.gl.setPalette(p.sky0, p.sky1, p.la, p.lb, p.lc);
         this.aquarium?.setPalette(p.la, p.lb, p.lc);
+        this.fireflies?.setPalette(p.la, p.lb, p.lc);
     }
 
     /** 「舞潮踏拍」：开着、节拍表装好、不是静态模式时给的节拍表和三项强度。 */
@@ -247,6 +252,7 @@ export class NebbiaRuntime {
         this.gl.resize(this.W, this.H, dpr);
         this.mask.resize(this.W, this.H);
         this.snow?.resize(this.W, this.H);
+        this.fireflies?.resize(this.W, this.H);
         if (sized) {
             // 雪窗没有雨窗那些凝结水珠（颠簸也就震不落什么）
             if (this.condensation) this.condensation.build(this.W, this.H);
@@ -334,6 +340,7 @@ export class NebbiaRuntime {
         const u = nebbiaFrameUniforms(t, this.motion.shake(), this.spot, this.W, this.H, this.clock.time, aqua);
         this.gl.render(this.mask.ctx, this.mask.breath.active ? this.mask.breath : null, this.motion.drops, field, u, this.condensation?.changed ?? this.snow?.changed ?? true);
         if (this.snow) this.gl.drawFlakes(...this.snow.flakeInstances(this.mask.ice ?? []), u.glassShift);
+        if (this.fireflies) this.gl.drawFireflies(...this.fireflies.step(frozen ? 0 : dt));
         if (!this.firstDrawn) { this.firstDrawn = true; this.input.onFirstFrame(); }
         if (!this.paused) this.raf = requestAnimationFrame(this.frame);
     };
