@@ -7,7 +7,7 @@ macOS 上通过的 WKWebView 测试不代表 WebView2 通过。默认 Windows �
 ## 依赖与构建
 
 - Windows x64，.NET Framework 4.8。
-- Visual Studio 2022 / Build Tools（含 .NET SDK）：.NET 桌面开发、.NET Framework 4.8 targeting pack 与 MSBuild。
+- Visual Studio 2022 / Build Tools（含 .NET SDK）：安装「.NET 桌面生成工具」工作负载及 .NET 桌面开发、.NET Framework 4.8 targeting pack 与 MSBuild。
 - Microsoft Edge WebView2 **Evergreen Runtime**。SDK 不包含浏览器运行时；不要用 Fixed Runtime
   的结果代替 Evergreen 验证，DRM 支持可能不同。
 - `Microsoft.Web.WebView2` SDK 钉死为 `1.0.4314.35`，由 NuGet 还原。没有打包独立的 .NET/CoreCLR。
@@ -46,3 +46,9 @@ npm run dev:electron
 - [ ] 正式安装包、系统版本和架构范围。
 
 Linux 不启动该宿主，Apple Music 登录行显示「Linux 暂未支援」。
+
+## Windows 11 用户实测（2026-11-04）
+
+用户确认安装 WebView2、使用实验开关后，官方登录、整首播放以及 TTML 逐词歌词正常，DRM 有声超过 30 秒。
+首次打开登录窗口曾被其他窗口遮挡；当前代码在显示期间启用任务栏按钮，隐藏时关闭，仍需 Windows 实机复测。
+构建脚本明确使用 NuGet.org；固定的宿主生命周期诊断经受限通道进入 Folia 日志，不转发网页或运行时原始输出。

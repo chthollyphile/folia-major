@@ -1,4 +1,5 @@
 import { LyricData, LyricProviderSource, SongResult } from '../../types';
+import { omni } from '../../services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
 import type { OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
 import { fetchAmllDbLyrics, getAmllDbMusicIds } from './providers/amllDbProvider';
@@ -387,8 +388,8 @@ async function matchUnderArtist(
         return null;
     };
 
-    // AMLL DB keeps lyrics under NetEase and QQ song ids, so it is asked about those two sources'
-    // candidates: the QQ song picked in the metadata dialog when there is one, then NetEase's.
+    // AMLL DB uses NetEase and QQ song IDs: try the metadata-selected candidate first.
+    // The NetEase candidate follows when available.
     const tryAmllDb = async (): Promise<AutoMatchBestLyricResult> => {
         if (options.metadataCandidate?.source === 'qq') {
             const qqCandidate = await getBestCandidate('qq');
@@ -452,6 +453,15 @@ export async function autoMatchBestLyric(
     options: AutoMatchBestLyricOptions = {}
 ): Promise<AutoMatchBestLyricResult> {
     const match = await matchUnderArtist(title, artist, durationMs, options);
+    if (match && (match.isPureMusic || match.lyrics.isWordByWord)) return match;
+    const originalSong = options.providerCandidate?.song;
+    if (originalSong) {
+        const alias = await withTimeout(omni.getLyricSearchAlias(originalSong).catch(() => null), 10000, 'Song alias', null);
+        if (alias && alias.title !== title) {
+            const result = await matchUnderArtist(alias.title, alias.artist, durationMs, { ...options, album: alias.album || options.album });
+            if (result && (!match || (!result.isPureMusic && result.lyrics.isWordByWord))) return result;
+        }
+    }
     if (match || !options.alternateArtist) return match;
     const alternate = await withTimeout(
         options.alternateArtist().catch(() => null),

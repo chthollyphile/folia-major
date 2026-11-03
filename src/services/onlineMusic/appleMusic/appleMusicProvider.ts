@@ -9,6 +9,7 @@ import {
     getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
+import { getAppleMusicLyricSearchAlias } from './appleMusicOriginal';
 import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from './appleMusicNormalize';
 import { getAppleMusicTransportAvailability, requestAppleMusic } from './appleMusicTransport';
 
@@ -195,7 +196,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         },
         // Apple's TTML carries the song's own word timing (and its translations and voices): where
         // it is word-level, the automatic pick must not replace it with another source's.
-        lyrics: { getLyrics: readLyrics, prefersOwnWordByWord: true },
+        lyrics: { getLyrics: readLyrics, getSearchAlias: getAppleMusicLyricSearchAlias, prefersOwnWordByWord: true },
         // Apple's audio never leaves its page: these calls steer the companion's MusicKit player.
         // A library song is played by its catalog id, which the companion puts in the queue.
         externalPlayback: {

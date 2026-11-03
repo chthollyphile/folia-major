@@ -10,7 +10,7 @@ const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const RESOURCE_ID = /^[a-zA-Z0-9._-]{1,200}$/;
 // Folia chooses the order; the companion may prepare a bounded tail but cannot invent next tracks.
 const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'prepareNext']);
-const OPERATIONS = new Set(['catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums', 'libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
+const OPERATIONS = new Set(['songOriginal', 'catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums', 'libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
 
 function validateRequest(message) {
     if (!message || typeof message !== 'object' || Array.isArray(message)) return null;
@@ -66,7 +66,7 @@ function validateRequest(message) {
         if (typeof params.query !== 'string' || !params.query.trim() || params.query.length > 200) return null;
         return { id, operation, params: { query: params.query.trim(), offset, limit } };
     }
-    if (['catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums'].includes(operation)) {
+    if (['songOriginal', 'catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums'].includes(operation)) {
         if (typeof params.catalogId !== 'string' || !/^\d{1,40}$/.test(params.catalogId)) return null;
         return { id, operation, params: { catalogId: params.catalogId, offset, limit } };
     }
@@ -239,6 +239,25 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             return { ok: true, data: { id, nickname, storefront: store, avatarUrl } };
         }
         const p = request.params;
+        // Cross-storefront metadata is an optional cn-only lookup; never change the playback storefront.
+        if (request.operation === 'songOriginal') {
+            if (store !== 'cn') return { ok: true, data: null };
+            // A page-scoped cache follows logout/navigation; transient network errors are not cached.
+            const cache = window.__foliaOriginalCache ||= new Map();
+            if (cache.has(p.catalogId)) return { ok: true, data: await cache.get(p.catalogId) };
+            const pending = (async () => {
+                const original = await call('v1/catalog/jp/songs/' + encodeURIComponent(p.catalogId), { l: 'ja' });
+                const status = Number(original?.status) || 0;
+                if (status === 404) return null;
+                if (status >= 400 || original?.data?.errors?.length) throw new Error('catalog unavailable');
+                const a = original?.data?.data?.[0]?.attributes;
+                if (!a || typeof a.name !== 'string' || typeof a.artistName !== 'string') return null;
+                return { name: a.name.slice(0, 1024), artistName: a.artistName.slice(0, 1024), albumName: typeof a.albumName === 'string' ? a.albumName.slice(0, 1024) : '' };
+            })();
+            cache.set(p.catalogId, pending);
+            try { return { ok: true, data: await pending }; }
+            catch { if (cache.get(p.catalogId) === pending) cache.delete(p.catalogId); return { ok: false, error: 'request-failed' }; }
+        }
         const base = 'v1/catalog/' + encodeURIComponent(store);
         let path;
         let options;

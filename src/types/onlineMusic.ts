@@ -494,7 +494,11 @@ export interface OnlineExternalPlaybackProvider {
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
 }
 
+/** An alternate title and artist that belong to the same song. */
+export interface ProviderLyricSearchAlias { song: SongResult; title: string; artist: string; album?: string }
+
 export interface OnlineLyricsProvider {
+    getSearchAlias?(song: SongResult): Promise<ProviderLyricSearchAlias | null>;
     getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<ProviderLyricsResult>;
     /**
      * Where its own lyrics are word-level, they are the timings to use even with automatic

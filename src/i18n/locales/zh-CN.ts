@@ -1852,6 +1852,7 @@ export default {
     "amll": "AMLLDB",
   },
   "onlineProviderName": {
+    "appleMusic": "Apple Music",
     "netease": "网易云",
     "kugou": "酷狗",
     "qq": "QQ音乐",

@@ -66,6 +66,11 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000 }) {
             for (const line of lines) {
                 let message;
                 try { message = JSON.parse(line); } catch { continue; }
+                // Forward only fixed host lifecycle codes, never arbitrary page or runtime output.
+                if (message?.event === 'diagnostic' && ['environment-ready', 'environment-failed', 'show', 'hide', 'navigation-failed', 'process-failed'].includes(message.code)) {
+                    console.info('[AppleMusic] Native companion:', message.code);
+                    continue;
+                }
                 if (message?.event === 'document' && Number.isSafeInteger(message.generation)) {
                     generation = message.generation;
                     currentUrl = message.ready === true && typeof message.url === 'string' ? message.url : 'about:blank';

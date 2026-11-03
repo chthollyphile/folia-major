@@ -36,12 +36,14 @@ namespace Folia.AppleMusic
                 // Null browserExecutableFolder selects the installed Evergreen runtime, not a bundled Fixed Runtime.
                 var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(profile, "WebView2"), options);
                 await main.Initialize(environment);
+                Protocol.Send(new { @event = "diagnostic", code = "environment-ready" });
                 main.Core.Navigate("https://music.apple.com/");
                 _ = Task.Run(() => Protocol.Read(Queue, () => Post(Stop)));
                 Protocol.Send(new { @event = "started", engine = "WebView2" });
             }
             catch
             {
+                Protocol.Send(new { @event = "diagnostic", code = "environment-failed" });
                 Protocol.Send(new { @event = "runtime-unavailable" });
                 Stop();
             }
@@ -70,12 +72,14 @@ namespace Folia.AppleMusic
                 switch (JsonLineProtocol.Text(request, "operation"))
                 {
                     case "show":
+                        Protocol.Send(new { @event = "diagnostic", code = "show" });
                         WantsWindowsVisible = true;
-                        foreach (var window in Windows.ToArray()) { window.Show(); window.Activate(); }
+                        foreach (var window in Windows.ToArray()) { window.ShowInTaskbar = true; window.Show(); window.Activate(); }
                         Protocol.Reply(id, new { }); break;
                     case "hide":
+                        Protocol.Send(new { @event = "diagnostic", code = "hide" });
                         WantsWindowsVisible = false;
-                        foreach (var window in Windows.ToArray()) window.Hide();
+                        foreach (var window in Windows.ToArray()) { window.Hide(); window.ShowInTaskbar = false; }
                         Protocol.Reply(id, new { }); break;
                     case "navigate":
                         await main.Navigate(id, JsonLineProtocol.Text(request, "url")); break;

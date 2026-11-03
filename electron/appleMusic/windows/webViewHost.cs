@@ -56,7 +56,7 @@ namespace Folia.AppleMusic
             Core.NavigationCompleted += NavigationCompleted;
             Core.NewWindowRequested += NewWindow;
             Core.WindowCloseRequested += (_, __) => Close();
-            Core.ProcessFailed += (_, __) => owner.Stop();
+            Core.ProcessFailed += (_, __) => { owner.Protocol.Send(new { @event = "diagnostic", code = "process-failed" }); owner.Stop(); };
             if (isMain) Core.WebMessageReceived += PageMessage;
         }
         private void Document()
@@ -88,7 +88,7 @@ namespace Folia.AppleMusic
                 navigationDone?.TrySetResult(args.IsSuccess);
                 navigationDone = null;
             }
-            if (!args.IsSuccess) owner.Stop();
+            if (!args.IsSuccess) { owner.Protocol.Send(new { @event = "diagnostic", code = "navigation-failed" }); owner.Stop(); }
         }
         internal Task Navigate(string id, string address)
         {
@@ -168,7 +168,7 @@ namespace Folia.AppleMusic
                 await popup.Initialize(Core.Environment);
                 args.NewWindow = popup.Core;
                 // A hide request may arrive while the popup is initializing.
-                if (owner.WantsWindowsVisible) { popup.Show(); popup.Activate(); }
+                if (owner.WantsWindowsVisible) { popup.ShowInTaskbar = true; popup.Show(); popup.Activate(); }
             }
             catch { popup?.Close(); }
             finally { deferral.Complete(); }

@@ -42,6 +42,16 @@ const send = (bridge: EventEmitter & Record<string, any>, request: unknown): Pro
 });
 
 describe('native WebView companion adapter', () => {
+    it('forwards only fixed lifecycle events and ignores arbitrary runtime text', () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            const f = fixture(); const bridge = f.create(); instances.push(bridge);
+            f.emit({ event: 'diagnostic', code: 'environment-ready' });
+            f.emit({ event: 'diagnostic', code: 'private-page-value' });
+            f.child.stderr.write('private-runtime-output\n');
+            expect(info).toHaveBeenCalledExactlyOnceWith('[AppleMusic] Native companion:', 'environment-ready');
+        } finally { info.mockRestore(); }
+    });
     it('uses only private pipes and a stable profile-specific store', () => {
         const f = fixture(); const bridge = f.create(); instances.push(bridge);
         expect(f.spawn).toHaveBeenCalledWith('/native', expect.arrayContaining(['--profile=/private/profile']), { shell: false, stdio: ['pipe', 'pipe', 'pipe'] });
