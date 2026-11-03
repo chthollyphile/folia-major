@@ -646,6 +646,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off không nhận giá trị thời lượng",
     "sleepTimerDurationRequired": "Nhập số phút trước khi bật hẹn giờ",
     "fmModeTitle": "Chế độ FM cá nhân",
+    "fmModeTitleOf": "Chế độ {{name}}",
     "fmModeHint": "Chọn ngữ cảnh để chuyển thẳng sang chế độ ngữ cảnh",
     "fmModeFilterPlaceholder": "Nhập để lọc chế độ và ngữ cảnh",
     "recommendationPreferencesPlaceholder": "Điều chỉnh sở thích bên dưới",

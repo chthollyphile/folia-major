@@ -1,3 +1,4 @@
+import i18n from '../../i18n/config';
 import type { PersonalFmRequestOptions } from '../../types/onlineMusic';
 import type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
 export type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
@@ -144,3 +145,16 @@ export const getPersonalFmSelectionLabel = (
     const sceneEntry = getPersonalFmSceneEntry(selection.scene, catalog);
     return sceneEntry ? `${modeLabel} · ${personalFmEntryLabel(sceneEntry, t)}` : modeLabel;
 };
+
+/**
+ * The picker's title, and the name of its command while it is open: after the radio on air where its catalogue
+ * names it ("Guess You Like mode"), "Personal FM mode" otherwise. One place, so the two always say the same.
+ */
+export const getPersonalFmPickerTitle = (catalog?: PersonalFmCatalog): string => (
+    catalog?.name
+        ? i18n.t('commandPalette.fmModeTitleOf', {
+            name: catalog.name.labelKey ? i18n.t(catalog.name.labelKey, { defaultValue: catalog.name.labelFallback }) : catalog.name.labelFallback,
+            defaultValue: '{{name}} mode',
+        })
+        : i18n.t('commandPalette.fmModeTitle', { defaultValue: 'Personal FM mode' })
+);

@@ -182,7 +182,10 @@ export const HomeSeamShortcuts: React.FC<{
     measure?: boolean;
 }> = ({ shortcuts, entries, label, rule, onOpen, measure = false }) => {
     const { t } = useTranslation();
-    const name = (shortcut: BravaisHomeShortcut) => t(`libraryBravaisHome.special.${shortcut.special}`);
+    // A provider's extra radio goes by its own name (Guess You Like); the other kinds by their fixed short names.
+    const name = (shortcut: BravaisHomeShortcut) => (shortcut.special === 'fm-station' && shortcut.label
+        ? shortcut.label
+        : t(`libraryBravaisHome.special.${shortcut.special}`));
     return (
         <div className="bravais-seam-shortcuts-wrap">
             {rule && <span className="bravais-seam-shortcuts-rule" aria-hidden />}

@@ -485,7 +485,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         }`}
                     style={{ borderColor: isDaylight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }}
                 >
-                    <span>{getCommandTitle(activeCommand, t)}</span>
+                    <span>{activeCommand.activeTitle?.(context) || getCommandTitle(activeCommand, t)}</span>
                     <button
                         type="button"
                         disabled={isExecuting}

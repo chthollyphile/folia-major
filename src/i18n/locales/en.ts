@@ -646,6 +646,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off does not accept a duration",
     "sleepTimerDurationRequired": "Enter minutes before turning the timer on",
     "fmModeTitle": "Personal FM mode",
+    "fmModeTitleOf": "{{name}} mode",
     "fmModeHint": "Pick a scene to switch straight into scene mode",
     "fmModeFilterPlaceholder": "Type to filter modes and scenes",
     "recommendationPreferencesPlaceholder": "Adjust your preferences below",

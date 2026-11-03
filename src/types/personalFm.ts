@@ -23,6 +23,8 @@ export type PersonalFmLaunch = PersonalFmSelection & {
     station?: string | null;
 };
 export type PersonalFmCatalog = {
+    /** The radio's own name, for a provider's extra radio: the picker is titled after it. Absent for the Personal FM. */
+    name?: { labelKey: string; labelFallback: string };
     modes: PersonalFmModeEntry[];
     scenes: PersonalFmSceneEntry[];
     categories: { id: PersonalFmSceneCategory; labelKey: string; labelFallback: string }[];

@@ -59,6 +59,11 @@ export type CommandPaletteCommand = {
     icon?: LucideIcon;
     keywords: string[];
     placeholder?: (context: CommandPaletteContext) => string;
+    /**
+     * While this command is open, the name its chip shows in place of the title: a command whose surface
+     * changes its subject (the FM radio on air) names it the way the surface does.
+     */
+    activeTitle?: (context: CommandPaletteContext) => string;
     requiresInput?: boolean;
     /** Environment gating: which platforms ship this feature at all. */
     platform?: CommandPlatform[];

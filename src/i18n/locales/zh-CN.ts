@@ -646,6 +646,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off 不能指定时长",
     "sleepTimerDurationRequired": "请先输入分钟数再开启定时器",
     "fmModeTitle": "私人 FM 模式",
+    "fmModeTitleOf": "{{name}}模式",
     "fmModeHint": "点下方场景即可直接切到场景模式",
     "fmModeFilterPlaceholder": "输入以筛选模式和场景",
     "recommendationPreferencesPlaceholder": "在下方调整偏好",

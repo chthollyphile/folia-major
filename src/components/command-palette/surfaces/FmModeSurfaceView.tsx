@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Radio } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../../types';
-import { getPersonalFmSelectionLabel, DEFAULT_PERSONAL_FM_CATALOG, type PersonalFmCatalog, type PersonalFmSelection } from '../../../services/onlineMusic/fmModes';
+import { getPersonalFmPickerTitle, getPersonalFmSelectionLabel, DEFAULT_PERSONAL_FM_CATALOG, type PersonalFmCatalog, type PersonalFmSelection } from '../../../services/onlineMusic/fmModes';
 import { readPersonalFmOption } from '../commands/fmModeOptions';
 import { buildPersonalFmSections } from './fmModeSurface';
 import type { CommandPaletteMatch } from '../types';
@@ -72,7 +72,7 @@ const FmModeSurfaceView: React.FC<FmModeSurfaceViewProps> = ({
                     <div className="flex items-center gap-3">
                         <Radio size={22} style={{ color: theme.accentColor }} />
                         <div>
-                            <div className="text-sm font-medium">{t('commandPalette.fmModeTitle', 'Personal FM mode')}</div>
+                            <div className="text-sm font-medium">{getPersonalFmPickerTitle(catalog)}</div>
                             <div className="mt-0.5 text-xs opacity-50">
                                 {t('commandPalette.fmModeHint', 'Pick a scene to switch straight into scene mode')}
                             </div>

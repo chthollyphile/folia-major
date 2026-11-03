@@ -646,6 +646,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off tidak menerima durasi",
     "sleepTimerDurationRequired": "Masukkan menit sebelum menyalakan timer",
     "fmModeTitle": "Mode FM Pribadi",
+    "fmModeTitleOf": "Mode {{name}}",
     "fmModeHint": "Pilih suasana untuk langsung masuk ke mode suasana",
     "fmModeFilterPlaceholder": "Ketik untuk menyaring mode dan suasana",
     "recommendationPreferencesPlaceholder": "Atur preferensi di bawah",
