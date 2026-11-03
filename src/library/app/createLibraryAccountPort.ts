@@ -99,9 +99,11 @@ export const dropProviderSongs = (host: LibraryAccountSwitchHost, providerId: On
     dropPlaysOfProvider(providerId);
     if (stopped) stopCurrentSong(host, stopped);
     if (removed > 0) playback.setPlayQueue(remaining);
-    if (playback.isFmMode && providerId === useOnlineProviderAccountStore.getState().activeProviderId) {
+    // Counted also when FM shows off: a play of another platform on its way may have turned it off for now,
+    // and would put it back on when it fails, asking the signed-out platform for its radio.
+    if (providerId === useOnlineProviderAccountStore.getState().activeProviderId) {
         notePersonalFmEnded();
-        playback.setIsFmMode(false);
+        if (playback.isFmMode) playback.setIsFmMode(false);
     }
     if (stopsCurrent || removed > 0) {
         const current = usePlaybackStore.getState().currentSong;
