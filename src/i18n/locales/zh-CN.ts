@@ -1837,6 +1837,13 @@ export default {
     "version": "版本"
   },
   "qishui": { "recentPlayed": "汽水最近播放", "recommended": "为你推荐" },
+  "listeningRank": {
+    "week": "听歌排行 · 最近一周",
+    "all": "听歌排行 · 所有时间",
+    "description": "按这个账号在平台上的收听记录排出的歌",
+    "listenCount_one": "听过 {{count}} 次",
+    "listenCount_other": "听过 {{count}} 次"
+  },
   "lyricProvider": {
     "qishui": "汽水音乐",
     "netease": "网易云音乐",

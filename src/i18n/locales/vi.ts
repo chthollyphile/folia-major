@@ -1837,6 +1837,13 @@ export default {
     "version": "phiên bản"
   },
   "qishui": { "recentPlayed": "Gần đây đã phát trên Qishui", "recommended": "Được đề xuất cho bạn" },
+  "listeningRank": {
+    "week": "Xếp hạng nghe · Tuần qua",
+    "all": "Xếp hạng nghe · Mọi lúc",
+    "description": "Bài hát xếp theo lịch sử nghe của tài khoản này trên nền tảng",
+    "listenCount_one": "Đã nghe {{count}} lần",
+    "listenCount_other": "Đã nghe {{count}} lần"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

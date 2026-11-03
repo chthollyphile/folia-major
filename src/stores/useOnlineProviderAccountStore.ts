@@ -81,15 +81,18 @@ export const reconcileProviderCollections = (
         : reconciled;
 };
 
-// Keeps the cloud collection in the stable second slot across provider refreshes.
-const placeCloudCollectionSecond = (collections: ProviderCollection[]): ProviderCollection[] => {
+// Keeps the cloud collection in the stable second slot across provider refreshes, and the listening
+// ranking's entries right after it: a refresh of the playlists alone puts the entries it keeps first.
+const placeAccountEntriesSecond = (collections: ProviderCollection[]): ProviderCollection[] => {
     const cloud = collections.find(collection => collection.type === 'cloud');
-    if (!cloud) return collections;
+    const ranks = collections.filter(collection => collection.type === 'listening_rank');
+    if (!cloud && ranks.length === 0) return collections;
 
-    const withoutCloud = collections.filter(collection => collection !== cloud);
-    return withoutCloud.length > 0
-        ? [withoutCloud[0], cloud, ...withoutCloud.slice(1)]
-        : [cloud];
+    const entries = [...(cloud ? [cloud] : []), ...ranks];
+    const rest = collections.filter(collection => collection !== cloud && collection.type !== 'listening_rank');
+    return rest.length > 0
+        ? [rest[0], ...entries, ...rest.slice(1)]
+        : entries;
 };
 
 export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(set => ({
@@ -109,7 +112,7 @@ export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(
                 ...patch,
                 collections: reconcileProviderCollections(
                     previous.collections,
-                    placeCloudCollectionSecond(patch.collections),
+                    placeAccountEntriesSecond(patch.collections),
                 ),
             };
         return {

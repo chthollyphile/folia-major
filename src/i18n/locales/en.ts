@@ -1837,6 +1837,13 @@ export default {
     "version": "Version"
   },
   "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
+  "listeningRank": {
+    "week": "Listening ranking · Last week",
+    "all": "Listening ranking · All time",
+    "description": "Songs ranked by this account's listening on the platform",
+    "listenCount_one": "Played {{count}} time",
+    "listenCount_other": "Played {{count}} times"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

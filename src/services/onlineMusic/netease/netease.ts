@@ -943,6 +943,12 @@ export const neteaseApi = {
     return fetchWithCreds(`/cloud/lyric/get?uid=${uid}&sid=${sid}`);
   },
 
+  // The account's listening ranking (`/user/record`): type 1 is the last week (`weekData`), 0 all
+  // time (`allData`), each row `{ playCount, score, song }`. It comes whole, without pages.
+  getUserRecord: async (uid: number, type: 0 | 1) => {
+    return fetchWithCreds(`/user/record?uid=${uid}&type=${type}`);
+  },
+
   getUserCloud: async (limit = 200, offset = 0) => {
     const res = await fetchWithCreds(`/user/cloud?limit=${limit}&offset=${offset}`);
     const normalizedSongs = (res.data || []).map((item: any) => normalizeSongResult({

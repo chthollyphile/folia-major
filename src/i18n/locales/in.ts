@@ -1837,6 +1837,13 @@ export default {
     "version": "Versi"
   },
   "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
+  "listeningRank": {
+    "week": "Peringkat dengar · Minggu terakhir",
+    "all": "Peringkat dengar · Sepanjang waktu",
+    "description": "Lagu yang diurutkan menurut riwayat dengar akun ini di platform",
+    "listenCount_one": "Diputar {{count}} kali",
+    "listenCount_other": "Diputar {{count}} kali"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
