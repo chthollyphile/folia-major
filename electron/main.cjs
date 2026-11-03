@@ -7089,7 +7089,10 @@ ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
       request: () => fnMusicApiBridge.request(params),
       stream: () => fnMusicApiBridge.stream(params),
       coverUrl: () => fnMusicApiBridge.coverUrl(params),
-      getStatus: () => fnMusicApiBridge.getStatus(),
+      getStatus: () => {
+        const status = fnMusicApiBridge.getStatus();
+        return { ok: true, data: status };
+      },
     };
     const handler = handlerByOperation[operation];
     if (!handler) return { ok: false, error: { code: 'unsupported', message: `Unknown FnMusic operation: ${operation}` } };
