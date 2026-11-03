@@ -93,6 +93,8 @@ export class NebbiaSnowGl {
     private uShift: WebGLUniformLocation | null = null;
     private uGrid: WebGLUniformLocation | null = null;
     private rows = 0;
+    /** 实例缓冲分配了多少个数（只在要放的比这多时重新分配，平时每帧只覆盖内容）。 */
+    private capacity = 0;
 
     constructor(private readonly gl: WebGL2RenderingContext, unit: number) {
         this.atlas = makeTex(gl, unit);
@@ -147,7 +149,12 @@ export class NebbiaSnowGl {
         gl.useProgram(this.prog);
         gl.bindVertexArray(this.vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
-        gl.bufferData(gl.ARRAY_BUFFER, data.subarray(0, count * FLAKE_FLOATS), gl.DYNAMIC_DRAW);
+        // 按 data 的容量分配一次（它变大了才重新分配），之后每帧只传这一帧用到的那段
+        if (data.length > this.capacity) {
+            gl.bufferData(gl.ARRAY_BUFFER, data.byteLength, gl.DYNAMIC_DRAW);
+            this.capacity = data.length;
+        }
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, data, 0, count * FLAKE_FLOATS);
         gl.uniform2f(this.uView, W, H);
         gl.uniform2f(this.uShift, shift[0], shift[1]);
         gl.uniform2f(this.uGrid, FLAKE_STAGES, this.rows);

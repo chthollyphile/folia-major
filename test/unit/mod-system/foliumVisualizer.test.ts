@@ -452,10 +452,15 @@ describe('getTuning / setTuning', () => {
         expect(() => rqMod().setTuning('cappella', { avatarSource: 'custom' })).toThrow(/^invalid-arguments: /);
     });
 
-    it('brings a new window\'s glass along, as the panel does, unless the mod names one', () => {
+    it('keeps the glass when only the window changes, as the panel and the command do, and takes a glass the mod names', () => {
         vi.useFakeTimers();
         later();
-        expect(rqMod().setTuning('nebbia', { behind: 'aquarium' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass: 'dew' } });
+        const { glass } = rqMod().getTuning('nebbia');
+        expect(rqMod().setTuning('nebbia', { behind: 'aquarium' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass } });
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'night' })).toMatchObject({ ok: true, tuning: { behind: 'night', glass } });
+        later();
+        expect(rqMod().setTuning('nebbia', { behind: 'aquarium', glass: 'snow' })).toMatchObject({ ok: true, tuning: { behind: 'aquarium', glass: 'snow' } });
         later();
         expect(rqMod().setTuning('nebbia', { behind: 'night', glass: 'dew' })).toMatchObject({ ok: true, tuning: { behind: 'night', glass: 'dew' } });
         later();

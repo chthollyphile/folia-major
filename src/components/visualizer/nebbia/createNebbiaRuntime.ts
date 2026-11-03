@@ -22,7 +22,6 @@ import { nebbiaFrameUniforms } from './nebbiaFrameUniforms';
 import { NebbiaSceneClock } from './nebbiaSceneClock';
 import { NebbiaCondensation } from './nebbiaCondensation';
 import { NebbiaSnow } from './nebbiaSnow';
-import { mountIcePanel } from './nebbiaIcePanel';
 import { NebbiaAquarium, type NebbiaAquaBeats } from './nebbiaAquarium';
 import { BEAT_EFFECT_IDS, beatEffectPartId } from '../../../services/beatFx/beatEffects';
 import { getBeatEffectStrength, getBeatFxEvents, getBeatFxHeard, isBeatEffectPlaying, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
@@ -55,8 +54,6 @@ export class NebbiaRuntime {
     private readonly condensation: NebbiaCondensation | null;
     /** 玻璃是雪窗时玻璃上的雪和雪化成的水（代替 motion 的凝结水珠）；别的玻璃 null。 */
     private readonly snow: NebbiaSnow | null = null;
-    /** 水珠结冰原型的滑块面板。 */
-    private unmountIcePanel: (() => void) | null = null;
     private readonly observer: ResizeObserver | null = null;
     private readonly glyphs: NebbiaGlyphCache;
     private hits = new NebbiaHits(0);
@@ -111,7 +108,6 @@ export class NebbiaRuntime {
             if (input.glass === 'snow') {
                 this.snow = new NebbiaSnow();
                 this.gl.setFlakeAtlas(...this.snow.atlas());
-                this.unmountIcePanel = mountIcePanel();
             }
             this.canvas.addEventListener('webglcontextlost', this.handleContextLost);
             this.canvas.addEventListener('webglcontextrestored', this.handleContextRestored);
@@ -186,7 +182,6 @@ export class NebbiaRuntime {
     destroy() {
         this.dead = true;
         cancelAnimationFrame(this.raf);
-        this.unmountIcePanel?.();
         this.observer?.disconnect();
         document.fonts?.removeEventListener('loadingdone', this.handleFontsLoaded);
         this.canvas.removeEventListener('webglcontextlost', this.handleContextLost);

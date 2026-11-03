@@ -53,8 +53,16 @@ export class NebbiaSnow {
         this.flakes = [];
     }
 
-    /** 全部贴图拼成的图集（nebbiaSnowFlakes.ts），和有几行。 */
-    atlas(): [HTMLCanvasElement, number] { const all = [...this.kinds, ...this.beads]; return [buildFlakeAtlas(all), all.length]; }
+    /**
+     * 全部贴图拼成的图集（nebbiaSnowFlakes.ts），和有几行。只在建运行时调一次：拼完就放掉各阶段的贴图（共约 4 MB），
+     * 之后只用图集里的行号和水先渗出的几处（lumps）；WebGL 上下文丢了是整个运行时重建，连这里一起重新生成。
+     */
+    atlas(): [HTMLCanvasElement, number] {
+        const all = [...this.kinds, ...this.beads];
+        const canvas = buildFlakeAtlas(all);
+        for (const kind of all) kind.stages = [];
+        return [canvas, all.length];
+    }
 
     /**
      * 走 dt 秒（暂停、静止时 0）：落新雪、化雪、长水；sweeps 是这一帧扫过的几段（抹雪、吸水），wet 是写好的笔画（只吸水），暂停时也照样算。
