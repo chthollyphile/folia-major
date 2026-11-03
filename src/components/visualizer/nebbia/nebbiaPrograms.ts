@@ -6,7 +6,7 @@ import { NEBBIA_FIREFLY_FS, NEBBIA_FIREFLY_VS } from './nebbiaFireflyGl';
 import type { NebbiaGlass, NebbiaWindowScene } from './types';
 
 // src/components/visualizer/nebbia/nebbiaPrograms.ts
-// 雾笺的六个着色器程序（雾的预渲染、主画面、水珠精灵、擦痕遮罩、楼群缓存的补画、静态噪声纹理）在后台编：有 KHR_parallel_shader_compile 时提交了不等，
+// 雾笺的着色器程序（雾的预渲染、主画面、水珠精灵、擦痕遮罩、楼群缓存的补画、静态噪声纹理、雪花、萤虫）在后台编：有 KHR_parallel_shader_compile 时提交了不等，
 // 每帧问一次编好没有，编好才查链接结果（查结果会一直等到编完，D3D11 上冷编要将近 1 秒）；没有这个扩展就当场等。
 // 运行时（nebbiaGl.ts）和启动时的预热（nebbiaShaderWarmup.ts）都从这里编：源码、属性位置一样，GPU 进程的程序缓存才对得上。
 // 雾的预渲染和主画面按窗外场景编（街景或水族箱）；楼群缓存的补画只有街景要；雪花（nebbiaSnowGl.ts）只有雪窗要，玻璃上的萤虫（nebbiaFireflyGl.ts）只有凝露要。

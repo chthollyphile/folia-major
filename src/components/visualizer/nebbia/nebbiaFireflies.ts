@@ -52,8 +52,21 @@ export class NebbiaFireflies {
 
     resize(W: number, H: number) {
         if (W === this.W && H === this.H) return;
+        const first = !this.W;
+        const sx = W / (this.W || W), sy = H / (this.H || H);
         this.W = W; this.H = H; this.k = H / 1000;
-        this.flies = [];
+        if (first) {
+            // 一开始就按稳态铺一批，各只随机已经活了一段（不然要半分钟以上才慢慢长满）；上一帧位置不算，免得第一帧头朝错
+            const p = fireflyParams, want = Math.round(p.count * W * H / (1280 * 720));
+            this.flies = Array.from({ length: want }, () => {
+                const f = this.spawn();
+                f.age = Math.random() * (f.app + f.hold + f.leave); f.px = f.py = NaN;
+                return f;
+            });
+            return;
+        }
+        // 窗口变了：按比例挪，不清掉（停着的要停半分钟）
+        for (const f of this.flies) { f.x *= sx; f.y *= sy; f.px *= sx; f.py *= sy; }
     }
 
     private spawn(): Fly {
@@ -105,7 +118,8 @@ export class NebbiaFireflies {
         } else if (lt < 0) {
             // 停着（尾巴亮 5～10 次）：一阵一阵地爬（爬的方向慢慢拐），偶尔抖一下翅膀
             const st = f.age - f.app, go = smooth(clamp((Math.sin(st * 0.9 + f.fp) - 0.2) / 0.4));
-            f.crawl += (Math.random() - 0.5) * 6 * dt;
+            // 爬的方向随机拐：按 √dt 走，和帧率无关
+            f.crawl += (Math.random() - 0.5) * 0.78 * Math.sqrt(dt);
             f.x += Math.cos(f.crawl) * 7 * k * go * dt; f.y += Math.sin(f.crawl) * 7 * k * go * dt;
             x = f.x; y = f.y;
             flap = 0.35 * Math.max(0, Math.sin(st * 1.7 + f.fp * 3) - 0.94) / 0.06 * Math.abs(Math.sin(st * 40));

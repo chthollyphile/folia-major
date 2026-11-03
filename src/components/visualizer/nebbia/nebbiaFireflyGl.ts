@@ -12,8 +12,8 @@ in vec2 aCorner; in vec4 aA; in vec4 aB; in vec4 aC;
 uniform vec2 uView; uniform float uHalo;
 out vec2 vLocal; out vec2 vFu; flat out vec4 vP; flat out vec4 vGlow;
 void main() {
-  // 方块要盖住糊开的虫子和柔光
-  float ext = 2.6 * max(1.0, uHalo);
+  // 方块要盖住糊开的虫子和柔光：柔光到方块边上要淡到看不出（低于 1/255），不然灯下看得见方框
+  float ext = max(2.6, 4.1 * uHalo);
   vec2 c = (aCorner * 2.0 - 1.0) * ext;
   // 按身子朝向转：vLocal 是虫子自己的坐标（x 朝头，单位是半径）
   float cs = cos(aB.z), sn = sin(aB.z);
