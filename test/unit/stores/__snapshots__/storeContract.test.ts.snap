@@ -160,6 +160,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "sleep_timer_minutes",
   "sonnet_tuning",
   "sora_background_tuning",
+  "stage_track_pill_in_obs",
   "stage_track_pill_mode",
   "stage_track_pill_on_home",
   "stage_track_pill_position",

@@ -23,6 +23,7 @@ import type {
 } from '../types';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
+import type { ObsNowPlayingCardConfig } from '../utils/obsNowPlayingCard';
 
 // src/types/obsBrowserSource.ts
 // Shared contracts for the local OBS browser source renderer.
@@ -99,6 +100,10 @@ export interface ObsBrowserSourceConfig {
      * the IndexedDB these files actually live in.
      */
     temperaLayerImageAssets?: { id: string; name: string; url: string }[];
+    /** The now playing card, when 在浏览器源中启用 is on; null or absent draws none. */
+    nowPlayingCard?: ObsNowPlayingCardConfig | null;
+    /** Folia's UI language, so text drawn in the source (the card) matches the main window, not OBS. */
+    language?: string;
     updatedAt: number;
 }
 

@@ -11,8 +11,11 @@ export const useNowPlayingCardPosition = (
     bottom: MotionValue<number>,
     visible: boolean,
     invalidate: () => void,
+    /** A position from elsewhere (an OBS source has no copy of the settings store); undefined reads the store. */
+    savedOverride?: NowPlayingCardPosition | null,
 ) => {
-    const saved = useStageSettingsStore(state => state.stageTrackPillPosition);
+    const stored = useStageSettingsStore(state => state.stageTrackPillPosition);
+    const saved = savedOverride === undefined ? stored : savedOverride;
     const positioning = useNowPlayingCardLayoutStore(state => state.isPositioning);
     const left = useMotionValue(24);
     const top = useMotionValue(0);
