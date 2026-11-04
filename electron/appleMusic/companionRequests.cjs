@@ -98,6 +98,15 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
         if (request.operation === 'likeSong') return await updateFavorite(call, request.params);
         if (request.operation === 'prepareNext') return await controlQueue(mk, request.operation, request.params);
         if (request.operation === 'playbackStatus') {
+            const pendingStart = window.__foliaStart;
+            // The player can already be sounding while its play/seek promise is still unresolved.
+            if (pendingStart?.pending && mk.isPlaying === true) pendingStart.pending = false;
+            // A hung media promise must not keep every later resume in the deduplication path.
+            if (pendingStart?.pending && !pendingStart.cancelled && Date.now() - pendingStart.startedAt >= 60000) {
+                pendingStart.pending = false;
+                pendingStart.cancelled = true;
+                pendingStart.failed = true;
+            }
             if (window.__foliaStart?.failed) return { ok: false, error: 'playback-failed', playbackStage: 'play' };
             const item = mk.nowPlayingItem;
             const params = item?.attributes?.playParams || {};
@@ -115,6 +124,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 ...(liveStation ? { live: true } : {}),
                 catalogId: liveStation || (typeof params.catalogId === 'string' ? params.catalogId : ''),
                 isPlaying: mk.isPlaying === true,
+                ...(window.__foliaStart?.pending && !window.__foliaStart.cancelled ? { starting: true } : {}),
                 // MusicKit's own state tells "stopped" and "ended" apart from a pause.
                 state: Number.isInteger(state) ? state : null,
                 queueLength,
@@ -163,7 +173,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 await mk.setQueue({ song: request.params.catalogId, startPlaying: false, startTime: request.params.startSec });
                 playbackStage = 'play';
                 console.info('[AppleMusic] Playback stage: play');
-                const attempt = { failed: false, cancelled: false, sought: false };
+                const attempt = { failed: false, cancelled: false, sought: false, pending: true, startedAt: Date.now() };
                 window.__foliaStart = attempt;
                 // Buffering may take longer than the IPC budget. Observe completion without holding the control queue.
                 Promise.resolve(mk.play()).then(async () => {
@@ -173,7 +183,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                         && !(Number(mk.currentPlaybackTime) >= request.params.startSec - 1)) await mk.seekToTime(request.params.startSec);
                 }).catch(() => {
                     if (window.__foliaStart === attempt && !attempt.cancelled) attempt.failed = true;
-                });
+                }).finally(() => { attempt.pending = false; });
             } catch {
                 console.warn('[AppleMusic] Playback command rejected', { operation: request.operation });
                 return { ok: false, error: 'playback-failed', playbackStage };
@@ -192,8 +202,26 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             if (typeof method !== 'function') return { ok: false, error: 'unsupported' };
             if (request.operation === 'seek' && window.__foliaStart) window.__foliaStart.sought = true;
             if (request.operation === 'pause' && window.__foliaStart) window.__foliaStart.cancelled = true;
-            // A resumed play owns its own result; discard callbacks from the interrupted start.
-            if (request.operation === 'resume') window.__foliaStart = null;
+            if (request.operation === 'resume') {
+                // Buffering is asynchronous; duplicate resumes must not restart it or hold the command queue.
+                const previous = window.__foliaStart;
+                if (previous?.pending && !previous.cancelled && Date.now() - previous.startedAt < 60000) return { ok: true, data: {} };
+                if (previous) previous.cancelled = true;
+                const attempt = { failed: false, cancelled: false, pending: true, startedAt: Date.now() };
+                window.__foliaStart = attempt;
+                try {
+                    Promise.resolve(method.call(mk)).then(async () => {
+                        if (window.__foliaStart === attempt && attempt.cancelled) await mk.pause();
+                    }).catch(() => {
+                        if (window.__foliaStart === attempt && !attempt.cancelled) attempt.failed = true;
+                    }).finally(() => { attempt.pending = false; });
+                } catch {
+                    attempt.pending = false;
+                    attempt.failed = true;
+                    return { ok: false, error: 'playback-failed' };
+                }
+                return { ok: true, data: {} };
+            }
             try {
                 await method.call(mk, ...(request.operation === 'seek' ? [request.params.seconds] : []));
             } catch {
@@ -381,7 +409,7 @@ function createRequestDispatcher(getContents, timeoutMs = 20000, getGeneration =
         }
         const generation = getGeneration();
         if (!scope || scope.contents !== contents || scope.generation !== generation) {
-            scope = { contents, generation, running: 0, chain: Promise.resolve(), invalid: false, preparing: false, pausing: false };
+            scope = { contents, generation, running: 0, chain: Promise.resolve(), invalid: false, preparing: false, pausing: false, playRevision: 0 };
         }
         const current = scope;
         if (current.invalid) return { ok: false, error: 'not-ready' };
@@ -391,10 +419,16 @@ function createRequestDispatcher(getContents, timeoutMs = 20000, getGeneration =
             || (PLAYBACK_COMMANDS.has(request.operation) && request.operation !== 'prepareNext');
         if (current.running >= (foreground ? 4 : 2) && !urgentPause) return { ok: false, error: 'busy' };
         current.running++;
+        if (request.operation === 'playSong' || request.operation === 'playStation') current.playRevision++;
+        const playRevision = current.playRevision;
         if (urgentPause) current.pausing = true;
         let expired = false;
         const playback = PLAYBACK_COMMANDS.has(request.operation);
         const run = () => {
+            // An old queued tail must not delay or alter a newer explicit song selection.
+            if (request.operation === 'prepareNext' && current.playRevision !== playRevision) {
+                return { ok: false, error: 'stale-request' };
+            }
             // Queued work must not execute after its caller timed out or its document was replaced.
             if (expired || current.invalid || getGeneration() !== generation || getContents() !== contents || contents.isDestroyed()) {
                 return { ok: false, error: 'not-ready' };

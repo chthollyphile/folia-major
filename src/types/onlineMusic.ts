@@ -479,6 +479,8 @@ export interface ProviderExternalPlaybackStatus {
     ended: boolean;
     /** An intentional player-side seek, so small backward jumps must not be smoothed away. */
     seeking?: boolean;
+    /** The player accepted a start/resume and is still buffering; this is not a user pause. */
+    starting?: boolean;
 }
 
 /**

@@ -93,7 +93,11 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
                 // not-ready for a moment: ask again until this call's own time is up.
                 // `busy` is a rejection before execution, so retrying cannot duplicate a write.
                 // Keep retries within this request's original deadline.
-                if (!['not-ready', 'busy'].includes(result.error) || Date.now() >= deadline) return result;
+                if (!['not-ready', 'busy'].includes(result.error) || Date.now() >= deadline) {
+                    const elapsedMs = Date.now() - (deadline - timeoutMs);
+                    if (elapsedMs >= 1000) console.info('[AppleMusic] Companion request settled', { operation, elapsedMs, attempts: attempt, ok: result.ok });
+                    return result;
+                }
                 await new Promise(resolve => setTimeout(resolve, Math.min(250, Math.max(0, deadline - Date.now()))));
             }
             return result;

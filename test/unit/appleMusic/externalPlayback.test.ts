@@ -192,6 +192,104 @@ describe('external playback route', () => {
     });
 
 
+    it('keeps an accepted buffering start in loading state rather than paused', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ starting: true, isPlaying: false, positionMs: 0 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(true);
+        expect(omniMock.resumeExternalPlayback).not.toHaveBeenCalled();
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(false);
+    });
+
+    it('shows a buffering start that then fails as paused, not loading', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ starting: true, isPlaying: false, positionMs: 0 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(true);
+        omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(false);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
+    it('does not mistake a seek jump for playback progress', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 0 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        engine.seekExternalPlayback(60);
+        await flush();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60000 }));
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(false);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60500 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(true);
+    });
+
+    it('does not treat a playing flag with a stalled startup position as ready', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 0 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(false);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 500 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(true);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not prepare ahead of an optimistic resume', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        engine.resumeExternalPlayback();
+        usePlaybackStore.setState({ playQueue: [song] });
+        expect(omniMock.resumeExternalPlayback).toHaveBeenCalledTimes(1);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10500 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases deferred preparation when seeking finishes without a pause', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ seeking: true }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ seeking: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10500 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits until playback starts before preparing successors', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10500 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+    });
+
     it('refreshes the prepared tail when queue order or repeat mode changes', async () => {
         const next = { ...song, id: '456', sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: '456' } };
         const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');

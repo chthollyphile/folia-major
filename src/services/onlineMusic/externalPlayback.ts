@@ -45,6 +45,12 @@ type ExternalSession = {
     /** The app has shown this song: only then may the player drive the transport and the shim. */
     announced: boolean;
     playing: boolean;
+    /** The player accepted a start/resume and is still buffering: shown as loading, not paused. */
+    starting: boolean;
+    /** The position of the last playing answer, to tell real progress from an optimistic flag. */
+    sampledPosition: number | null;
+    /** Two playing answers apart showed the position moving: background work may start. */
+    prefetchReady: boolean;
     live: boolean;
     ended: boolean;
     /** Set when the player moved to a track this app did not ask for. */
@@ -85,6 +91,11 @@ export const isExternalRoute = () => usePlaybackStore.getState().playbackRoute =
  * and the lyric clock must keep using what they used before.
  */
 export const isExternalPlaybackSounding = () => isExternalRoute() && session?.announced === true;
+
+/** Background reads wait for actual player progress, not an optimistic playing flag. */
+export const isExternalPlaybackReadyForPrefetch = (song: SongResult) => isExternalRoute()
+    && session?.songKey === getPlaybackSongKey(song) && session.announced
+    && session.prefetchReady && !session.seeking && !session.seekPending;
 
 /** The extrapolated position of the external player's track, in seconds. */
 export const getExternalPosition = () => session?.clock.read() ?? 0;
@@ -133,14 +144,16 @@ const validDurationSec = (ms: number): number | null => (
 // Queue edits and repeat-mode changes invalidate the prepared tail before the next transition.
 const refreshPreparedQueue = () => {
     const current = session;
-    if (!current?.announced || !isExternalRoute()) return;
+    if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
     const state = usePlaybackStore.getState();
     const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
     if (current.preparedQueueKey === key) return;
     current.preparedQueueKey = key;
     void omni.prepareExternalPlaybackQueue(current.song, next).catch(error => {
-        if (session === current && current.preparedQueueKey === key) current.preparedQueueKey = '';
+        // A newer song dropped this queued preparation: nothing went wrong.
+        if (session !== current) return;
+        if (current.preparedQueueKey === key) current.preparedQueueKey = '';
         console.warn('[ExternalPlayback] Could not prepare the next songs', error);
     });
 };
@@ -165,6 +178,9 @@ const markPlaying = (positionSec: number, preserveClock = false) => {
 const markPaused = (positionSec: number) => {
     if (!session) return;
     session.playing = false;
+    session.starting = false;
+    session.prefetchReady = false;
+    session.sampledPosition = null;
     syncClock(positionSec, true, performance.now(), true);
     externalMediaShim.markPaused();
     const playback = usePlaybackStore.getState();
@@ -204,6 +220,13 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         return;
     }
     current.live = status.live === true;
+    if (status.isPlaying && status.mediaId && !status.seeking) {
+        if (current.live || (current.sampledPosition !== null && positionSec > current.sampledPosition + 0.05)) current.prefetchReady = true;
+        current.sampledPosition = positionSec;
+    } else {
+        current.prefetchReady = false;
+        current.sampledPosition = null;
+    }
     const durationSec = current.live ? null : validDurationSec(status.durationMs);
     if (durationSec !== null && durationSec !== current.durationSec) {
         current.durationSec = durationSec;
@@ -219,7 +242,17 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     if (!current.announced) {
         current.clock.sync({ positionSec, paused: current.live || !status.isPlaying, holdBackward: false });
         current.playing = status.isPlaying;
+        current.seeking = status.seeking === true;
         if (status.ended || (status.isPlaying === false && atEnd)) current.ended = true;
+        return;
+    }
+    // An accepted start that is still buffering is loading, not a pause of the listener's.
+    current.starting = status.starting === true && !status.isPlaying;
+    if (current.starting) {
+        current.playing = false;
+        syncClock(current.clock.read(), true, sampledAtMs, true);
+        if (!usePlaybackStore.getState().isLoadingToPlay) usePlaybackStore.getState().startLoadingToPlay();
+        emit({ type: 'status' });
         return;
     }
     // The player has no track: it is between starts, or the start it was asked for did not take.
@@ -251,6 +284,8 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
             syncClock(positionSec, false, sampledAtMs, true);
             emit({ type: 'status' });
         }
+        // Only a player-confirmed start/resume may release deferred preparation.
+        refreshPreparedQueue();
         return;
     }
     markPaused(positionSec);
@@ -279,7 +314,8 @@ async function poll(): Promise<void> {
             emit({ type: 'failure', error });
         }
         // The position cannot be trusted while the answer does not come: hold the clock where it is.
-        if (current.playing) markPaused(current.clock.read());
+        // A start that was still buffering has failed too: show it paused rather than loading forever.
+        if (current.playing || current.starting) markPaused(current.clock.read());
     } finally {
         pollRunning = false;
         if (session === current && isExternalRoute()) schedulePoll(delay);
@@ -303,7 +339,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -368,6 +404,7 @@ export function stopExternalPlayback(reason: string): void {
     session = null;
     externalMediaShim.reset();
     if (!current) return;
+    emit({ type: 'status' });
     console.info('[ExternalPlayback] left the external player', { reason, songKey: current.songKey });
     void omni.pauseExternalPlayback(current.song).catch(error => {
         console.warn('[ExternalPlayback] the player could not be paused as the route is left', error);
@@ -418,6 +455,8 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     current.ended = false;
     const revision = ++current.positionRevision;
     current.seekPending = true;
+    current.prefetchReady = false;
+    current.sampledPosition = null;
     current.clock.sync({ positionSec: target, paused: !current.playing, holdBackward: false });
     externalMediaShim.markSeeked();
     void omni.seekExternalPlayback(current.song, target).catch(error => {

@@ -30,6 +30,7 @@ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 import { onlineFailureOf } from './onlineMusic/failure/onlineFailureCase';
 import { noteOnlineRequestCooldown, onlineRequestCooldown } from './onlineMusic/failure/onlineRequestCooldown';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
+import { getExternalSong, isExternalPlaybackReadyForPrefetch, subscribeExternalPlayback } from './onlineMusic/externalPlayback';
 
 // Prefetch configuration
 //
@@ -166,6 +167,25 @@ const touchPrefetchCacheEntry = (songKey: string, data: PrefetchedSongData): Pre
 
 // Track current prefetch operation to cancel on queue change
 let currentPrefetchAbortController: AbortController | null = null;
+
+// A restored or buffering external player gets the page's network capacity before nearby metadata.
+const waitForExternalPrefetch = (song: SongResult, signal: AbortSignal): Promise<boolean> => {
+    if (signal.aborted) return Promise.resolve(false);
+    if (isExternalPlaybackReadyForPrefetch(song)) return Promise.resolve(true);
+    return new Promise(resolve => {
+        const finish = (ready: boolean) => {
+            unsubscribe();
+            signal.removeEventListener('abort', abort);
+            resolve(ready);
+        };
+        const abort = () => finish(false);
+        const unsubscribe = subscribeExternalPlayback(() => {
+            if (isExternalPlaybackReadyForPrefetch(song)) finish(true);
+            else if (!getExternalSong() || getPlaybackSongKey(getExternalSong()!) !== getPlaybackSongKey(song)) finish(false);
+        });
+        signal.addEventListener('abort', abort, { once: true });
+    });
+};
 /**
  * Check if a prefetched URL is still valid (not expired)
  */
@@ -530,6 +550,8 @@ export const prefetchNearbySongs = async (
     }
     currentPrefetchAbortController = new AbortController();
     const signal = currentPrefetchAbortController.signal;
+    if (omni.canPlayExternally(currentSong) && !(await waitForExternalPrefetch(currentSong, signal))) return;
+    if (signal.aborted) return;
 
     // Find current song index in queue
     const currentSongKey = getPrefetchSongKey(currentSong);
