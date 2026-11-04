@@ -1,5 +1,5 @@
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
-import type { ProviderCollection } from '../../../types/onlineMusic';
+import type { CollectionDetail } from '../../core/shared/resource.contract';
 import type { BravaisSeamAlbum } from './bravaisSeamModels';
 
 // src/library/suites/bravais/bravaisAlbumModel.ts
@@ -16,7 +16,7 @@ export const formatAlbumDuration = (duration?: number) => {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
-const resolveYear = (info: Partial<ProviderCollection> & { albumYear?: number; publishedAt?: number; albumPublishTime?: number }) => {
+const resolveYear = (info: Partial<CollectionDetail> & { albumPublishTime?: number }) => {
     if (info.albumYear && Number.isFinite(info.albumYear)) return String(info.albumYear);
     const time = info.publishedAt ?? info.albumPublishTime;
     if (!time || !Number.isFinite(time)) return '';
@@ -31,7 +31,7 @@ export const projectBravaisSeamAlbum = ({
     labels,
 }: {
     collection: LibraryCollectionDescriptor;
-    detail: ProviderCollection | null | undefined;
+    detail: CollectionDetail | null | undefined;
     /** 已知的曲目数（详情的、描述的或已经载入的）。 */
     trackCount: number;
     labels: { kind: string; trackCount: (count: number) => string };

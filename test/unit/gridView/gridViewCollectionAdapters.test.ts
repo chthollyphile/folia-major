@@ -610,6 +610,26 @@ describe('resolveNavidromeGridViewTracks', () => {
         expect(whole.tracks).toHaveLength(2);
     });
 
+    // #1039: opened from a song, the album descriptor has only an id and a name; the page header takes the rest from here.
+    it('gives the information of an album that was read', async () => {
+        serve({
+            getAlbum: ok({
+                album: {
+                    id: 'one', name: 'Rebirth', artist: 'Hisa Knowledge', coverArt: 'al-one', songCount: 6,
+                    duration: 1500, year: 2015, genre: 'Touhou', song: [song('a')],
+                },
+            }),
+        });
+        const { detail } = await read('album');
+        expect(detail).toMatchObject({
+            id: 'one', name: 'Rebirth', type: 'album', description: 'Hisa Knowledge', trackCount: 6,
+            albumArtist: 'Hisa Knowledge', albumYear: 2015, albumGenre: 'Touhou', albumDuration: 1500,
+            publishedAt: new Date(2015, 0, 1).getTime(),
+        });
+        expect(detail?.coverUrl).toContain('getCoverArt');
+        expect(detail?.coverUrl).toContain('id=al-one');
+    });
+
     it('says the read failed when no server is set up', async () => {
         serve({ getAlbum: ok({ album: { id: 'one', song: [song('a')] } }) }, null);
         expect(await read('album')).toEqual({ tracks: [], failed: true });
