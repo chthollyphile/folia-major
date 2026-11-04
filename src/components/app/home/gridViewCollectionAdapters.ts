@@ -1,7 +1,7 @@
 import type React from 'react';
 import { LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
 import { LIST_ROW_COVER_SIZE, buildLocalQueue } from '../../../services/playbackAdapters';
-import { sortLocalFolderSongs } from '../../../utils/localSongSorting';
+import { sortLocalAlbumSongs, sortLocalFolderSongs } from '../../../utils/localSongSorting';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
 import type { OnlineProviderId } from '../../../types/onlineMusic';
 import type {
@@ -151,7 +151,8 @@ export const refreshLocalGridViewCollection = (
             .map(assignment => assignment.songId);
         const songIdSet = new Set(songIds);
         const currentSongs = localSongs.filter(song => songIdSet.has(song.id));
-        const refreshedSongs = entity.kind === 'album' ? sortLocalFolderSongs(currentSongs) : currentSongs;
+        // 专辑按碟号、曲号排，和首页专辑分组同一套规则；按文件名排会把各碟同号的曲目挤在一起。
+        const refreshedSongs = entity.kind === 'album' ? sortLocalAlbumSongs(currentSongs) : currentSongs;
         const albumArtist = entity.kind === 'album'
             ? resolveLocalAlbumArtistDisplay(songIds, catalog)
             : undefined;

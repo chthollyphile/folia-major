@@ -46,6 +46,19 @@ describe('resolveCapsuleQuickActions', () => {
         expect(result.map(entry => entry.id)).toEqual(['a']);
     });
 
+    it('手指点开的那排不放声明了 mouse-only 的音量，鼠标的照放', () => {
+        const input = {
+            commands: COMMAND_PALETTE_COMMANDS,
+            slots: ['loop', 'lyrics-timeline'] as const,
+            canInvoke: always,
+            counts: {},
+        };
+        expect(resolveCapsuleQuickActions(input).map(entry => entry.id)).toContain('playback-volume');
+        const touchIds = resolveCapsuleQuickActions({ ...input, touch: true }).map(entry => entry.id);
+        expect(touchIds).not.toContain('playback-volume');
+        expect(touchIds).toHaveLength(5);
+    });
+
     it('已经在槽位里的不重复', () => {
         const result = resolveCapsuleQuickActions({
             commands: [command('playback-like'), command('playback-volume'), command('visualizer-picker')],

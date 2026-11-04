@@ -298,6 +298,18 @@ export interface LibraryAccountController {
     /** 重启登录要靠的本地服务；起来了接着登录。 */
     restartLocalService(): Promise<LibraryLocalServiceRestartResult>;
     buildLoginDiagnosticReport(): Promise<LibraryLoginDiagnosticResult>;
+    /**
+     * 表单式登录完成（FormLogin 提交成功后由登录窗口调用）：读账号，走和扫码确认一样的收尾链路——
+     * 读到了收起登录，不是当前平台时先问（activate-after-login），再报完成（登录窗口据它放动画/关窗）。
+     * 表单登录没有会话，sessionId 为 0。
+     */
+    completeFormLogin(providerId: OnlineProviderId): Promise<LibraryLoginCompletion>;
+    /**
+     * 表单式登录完整链路（FormLogin 提交时调用）：先提交表单（provider 的 submitLoginForm，失败抛错由表单显示），
+     * 成功后读账号、走和扫码确认一样的收尾链路，返回完成结局。读账号失败（refresh-failed）：token 已存，
+     * 登录窗口据结局显示提示而不是静默。
+     */
+    submitFormLogin(providerId: OnlineProviderId, values: Record<string, string>): Promise<LibraryLoginCompletion>;
     /** 只对已登录的平台；先经宿主问用的人，答应后把这个平台的歌移出播放器，再走宿主注入的登出。 */
     logout(providerId: OnlineProviderId): Promise<LibraryLogoutResult>;
     /** 宿主卸载：关闭登录会话（keyed 取消），待确认切换按 declined / disposed 结算。 */
@@ -363,6 +375,8 @@ export type LibraryAccountRefreshReason = 'sign-in' | 'switch';
 export type LibraryProviderAccountPort = {
     /** 读这个平台的账号；sign-in 时回 false 表示确认了却没有人登录着（失败）。从不 reject。 */
     refresh(providerId: OnlineProviderId, reason: LibraryAccountRefreshReason): Promise<boolean>;
+    /** 提交表单式登录（FormLogin 渲染的字段，走 provider 的 submitLoginForm）。失败抛错，由表单显示。 */
+    submitLoginForm(providerId: OnlineProviderId, values: Record<string, string>): Promise<void>;
     /** 退出这个平台的登录：账号离开、平台被告知、存着的账号去掉。 */
     logout(providerId: OnlineProviderId): Promise<void>;
     /** 退出之前问用的人；removesSongs：播放器里有这个平台的歌（退出时会被移出）。回 false 就不退。 */

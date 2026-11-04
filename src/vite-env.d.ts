@@ -963,6 +963,10 @@ declare global {
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
+      fnmusicRequest: (
+        operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl' | 'getStatus',
+        params?: import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeParams,
+      ) => Promise<import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeResult>;
       qishuiRequest: (
         operation: import('./services/onlineMusic/qishui/qishuiTransport').QishuiOperation,
         params?: import('./services/onlineMusic/qishui/qishuiTransport').QishuiParams,

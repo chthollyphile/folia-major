@@ -34,7 +34,7 @@ const ObsPlayerCapSourceApp: React.FC = () => {
     const paramsRef = useRef(parseObsWebParams(window.location.search));
     const extrasRef = useRef(parsePlayerCapExtras(window.location.search));
     const obsAiConfigRef = useRef(parseObsAiParams(window.location.search));
-    const { host, cfg, isDaylight, transparent, visualizer, themeMode } = paramsRef.current;
+    const { host, cfg, isDaylight, transparent, visualizer, themeMode, language } = paramsRef.current;
     const { player, timeBasis, sticky } = extrasRef.current;
 
     const pc = usePlayerCapSource({ enabled: true, host: host || DEFAULT_PLAYERCAP_HOST, player, timeBasis, sticky });
@@ -44,7 +44,7 @@ const ObsPlayerCapSourceApp: React.FC = () => {
         [cfg, isDaylight, transparent, visualizer, themeMode],
     );
 
-    return <ObsWebSourceApp source={source} appearance={appearance} obsAiConfig={obsAiConfigRef.current} />;
+    return <ObsWebSourceApp source={source} appearance={appearance} language={language} obsAiConfig={obsAiConfigRef.current} />;
 };
 
 export default ObsPlayerCapSourceApp;

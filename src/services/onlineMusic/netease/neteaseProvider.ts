@@ -3,6 +3,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import type {
     AudioQualityPreference,
     DailyStyleGroup,
+    ListeningRankRange,
     LoginDiagnosticLine,
     MediaId,
     OnlineMusicProvider,
@@ -28,6 +29,7 @@ import { describeNeteaseFailure, isRefusedNeteaseAnswer, neteaseAnswerError, net
 import { neteaseLocalService, watchNeteaseLocalService } from './neteaseLocalService';
 import { createNeteaseExplore } from './neteaseExplore';
 import { neteaseRaw } from './neteaseRaw';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
 
@@ -144,6 +146,30 @@ const normalizeCollection = (raw: any, type = 'playlist'): ProviderCollection =>
         ...(Number.isFinite(tracksUpdatedAt) && tracksUpdatedAt > 0 ? { tracksUpdatedAt } : {}),
         ...(raw?.specialType === 'liked' || raw?.isLiked === true ? { isLiked: true } : {}),
     };
+};
+
+// `/user/record`'s type and the field its rows come in, a span each.
+const NETEASE_LISTENING_RANK: Record<ListeningRankRange, { type: 0 | 1; rows: 'weekData' | 'allData' }> = {
+    week: { type: 1, rows: 'weekData' },
+    all: { type: 0, rows: 'allData' },
+};
+/**
+ * A user's listening ranking over a span, in NetEase's order. Only the signed-in account's own is
+ * read: NetEase answers -2 (无权限访问) where the asker may not see it, which for one's own ranking
+ * is a request that came without the sign-in (an anonymous one is answered so). It fails like any
+ * other refusal, rather than reading as a ranking with no songs.
+ */
+const readNeteaseListeningRank = async (userId: MediaId, range: ListeningRankRange): Promise<UnifiedSong[]> => {
+    const { type, rows } = NETEASE_LISTENING_RANK[range];
+    const response = await neteaseApi.getUserRecord(toNeteaseId(userId), type);
+    if (isRefusedNeteaseAnswer(response)) throw neteaseAnswerError(response, 'the listening ranking');
+    const list = response?.[rows];
+    if (!Array.isArray(list)) {
+        throw new OnlineProviderError('invalid-response', `NetEase returned no listening ranking (${rows})`, 'netease');
+    }
+    return list
+        .filter((row: any) => row?.song && typeof row.song === 'object')
+        .map((row: any) => withListenCount(normalizeNeteaseSong(row.song), row.playCount));
 };
 
 // The cookie this page keeps is the sign-in. It goes at once, and with it what an older build kept
@@ -324,6 +350,7 @@ export const neteaseProvider: OnlineMusicProvider = {
         personalFmModes: true,
         wordByWordLyrics: true,
         userCloud: true,
+        listeningRank: true,
         historyRecommendations: true,
         dailyStyleRecommendations: true,
         playlistSubscription: true,
@@ -618,6 +645,14 @@ export const neteaseProvider: OnlineMusicProvider = {
                 creator: user,
             }, 'cloud');
         },
+        async getListeningRankCollections(user) {
+            const ranked = await Promise.all(LISTENING_RANK_RANGES.map(async range => ({ range, songs: await readNeteaseListeningRank(user.id, range) })));
+            const entries = ranked
+                .filter(({ songs }) => songs.length > 0)
+                .map(({ range, songs }) => listeningRankCollection('netease', user, range, songs));
+            console.info('[NeteaseProvider] Listening ranking read', { entries: entries.map(entry => `${entry.listeningRank}:${entry.trackCount}`) });
+            return entries;
+        },
     },
     catalog: {
         async getPlaylistTracks(id, limit, offset) {
@@ -633,6 +668,13 @@ export const neteaseProvider: OnlineMusicProvider = {
                 return { ...song, sourceRef: { ...song.sourceRef, variant: 'cloud' } } as UnifiedSong;
             });
             return { items, total: response?.count, hasMore: Boolean(response?.hasMore), nextOffset: offset + items.length };
+        },
+        async getListeningRankTracks(range, limit, offset, collection) {
+            const userId = collection?.creator?.id;
+            if (userId === undefined || userId === null) {
+                throw new OnlineProviderError('invalid-response', 'The listening ranking entry names no user', 'netease');
+            }
+            return listeningRankPage(await readNeteaseListeningRank(userId, range), limit, offset);
         },
         async getAlbumDetail(id, existingCollection) {
             const response = await neteaseApi.getAlbum(toNeteaseId(id));

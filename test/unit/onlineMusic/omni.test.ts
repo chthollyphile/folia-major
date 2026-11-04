@@ -123,6 +123,32 @@ describe('omni routing', () => {
         expect(getChorusRanges).toHaveBeenCalledWith('chorus-song');
     });
 
+    it("routes a listening ranking entry to its owner's ranking for its span, and offers no change to it", async () => {
+        const getListeningRankTracks = vi.fn(async () => ({ items: [{ ...song(providerId, 'ranked'), listenCount: 4 }], hasMore: false, nextOffset: 1 }));
+        const getPlaylistTracks = vi.fn(async () => ({ items: [], hasMore: false, nextOffset: 0 }));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistSubscription: true, playlistTrackMutations: true },
+            catalog: { getListeningRankTracks, getPlaylistTracks },
+            mutations: { subscribePlaylist: vi.fn(), updatePlaylistTracks: vi.fn() } as unknown as OnlineMusicProvider['mutations'],
+        });
+        const entry: ProviderCollection = {
+            providerId, id: 'listening-rank-week-user', type: 'listening_rank', listeningRank: 'week', name: 'Week', creator: { id: 'user', nickname: 'Listener' },
+        };
+
+        await expect(omni.getCollectionTracks(entry, { limit: 150, offset: 0 })).resolves.toMatchObject({ items: [{ listenCount: 4 }] });
+        expect(getListeningRankTracks).toHaveBeenCalledWith('week', 150, 0, entry);
+        expect(getPlaylistTracks).not.toHaveBeenCalled();
+        // An entry that names no span reads nothing.
+        await expect(omni.getCollectionTracks({ ...entry, listeningRank: undefined }, { limit: 150, offset: 0 })).resolves.toMatchObject({ items: [] });
+        expect(getListeningRankTracks).toHaveBeenCalledTimes(1);
+        // A platform that subscribes and edits playlists does neither to its ranking.
+        expect(omni.canSubscribeCollection({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canSubscribeCollection(entry)).toBe(false);
+        expect(omni.canEditCollectionTracks({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canEditCollectionTracks(entry)).toBe(false);
+    });
+
     it('rejects a late active-provider result after invalidation', async () => {
         let resolveSearch!: (value: { items: UnifiedSong[]; hasMore: false; nextOffset: number }) => void;
         registerOnlineMusicProvider(provider(providerId, {

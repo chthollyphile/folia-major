@@ -153,6 +153,24 @@ describe('buildObsAppearanceFromShortcode', () => {
         expect(typeof garbage.mode).toBe('string');
     });
 
+    // #1013: the card reaches the web overlay only when the cfg says to draw it in the source.
+    it('draws the now playing card only when the cfg enables it for the browser source', () => {
+        const on = compressConfig({ stageTrackPillMode: 'auto', stageTrackPillTimeoutSec: 99, stageTrackPillInObs: true, stageTrackPillPosition: { x: 1, y: 0 } });
+        expect(buildObsAppearanceFromShortcode(on, { isDaylight: false, transparent: true }).nowPlayingCard)
+            .toEqual({ mode: 'auto', timeoutSec: 60, position: { x: 1, y: 0 } });
+
+        const off = compressConfig({ stageTrackPillMode: 'always', stageTrackPillInObs: false });
+        expect(buildObsAppearanceFromShortcode(off, { isDaylight: false, transparent: true }).nowPlayingCard).toBeNull();
+        const never = compressConfig({ stageTrackPillMode: 'never', stageTrackPillInObs: true });
+        expect(buildObsAppearanceFromShortcode(never, { isDaylight: false, transparent: true }).nowPlayingCard).toBeNull();
+        // A link copied before the switch existed keeps drawing no card.
+        // A malformed timeout falls back to the default rather than to the 3 s floor.
+        const nullTimeout = compressConfig({ stageTrackPillMode: 'auto', stageTrackPillTimeoutSec: null, stageTrackPillInObs: true });
+        expect(buildObsAppearanceFromShortcode(nullTimeout, { isDaylight: false, transparent: true }).nowPlayingCard?.timeoutSec).toBe(10);
+        const legacy = compressConfig({ stageTrackPillMode: 'always' });
+        expect(buildObsAppearanceFromShortcode(legacy, { isDaylight: false, transparent: true }).nowPlayingCard).toBeNull();
+    });
+
     it('drops a non-array urlBackgroundList instead of passing it through (render crash guard)', () => {
         const cfg = JSON.stringify({ visualizerMode: 'monet', visualizerBackgroundMode: 'url', urlBackgroundList: 'x' });
         const a = buildObsAppearanceFromShortcode(cfg, { isDaylight: false, transparent: false });
@@ -168,6 +186,11 @@ describe('parseObsWebParams', () => {
         expect(p.isDaylight).toBe(true);
         expect(p.transparent).toBe(false); // 缺省=显示背景
         expect(p.visualizer).toBe('cadenza');
+    });
+
+    it('reads the UI language the link carries, null when absent', () => {
+        expect(parseObsWebParams('?lang=zh-CN').language).toBe('zh-CN');
+        expect(parseObsWebParams('').language).toBeNull();
     });
 
     it('defaults to dark + background (opaque), and transparent only when transparent=1', () => {

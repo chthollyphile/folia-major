@@ -8,6 +8,7 @@ import { BASE_DUAL_THEME } from '../baseThemes';
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { useStageSettingsStore } from '../../stores/useStageSettingsStore';
+import i18n from '../../i18n/config';
 
 // src/services/obs/currentObsUrl.ts
 // Build the OBS static URL for a given web source from the current visual settings, producing the
@@ -54,6 +55,9 @@ export async function buildCurrentObsUrl(obsSource: string, host = '', extra?: R
   // reverse needs a fresh copy, since the overlay cannot invent a theme a dynamic link never carried.
   mergedExtra.obsTheme = webObsThemeMode;
   if (isDaylight) mergedExtra.daylight = '1';
+  // The overlay draws the now playing card with Folia's own words; OBS's browser has none of the
+  // app's settings, so without this the card would follow OBS's language instead.
+  mergedExtra.lang = i18n.resolvedLanguage ?? i18n.language;
   mergedExtra.transparent = transparentPlayerBackground ? '1' : '0';
   Object.assign(mergedExtra, extra); // source-specific params (PlayerCap nxpcPlayer/nxpcBasis/nxpcSticky)
   return buildObsSourceUrl(obsSource, compressConfig(config), host, mergedExtra);

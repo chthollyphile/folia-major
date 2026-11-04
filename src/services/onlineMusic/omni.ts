@@ -32,6 +32,7 @@ import type {
     PersonalFmRequestOptions,
     ProviderCatalogEntityKind,
     ProviderExternalPlaybackStatus,
+    ProviderLoginForm,
     ProviderSearchContext,
     ProviderSongCatalogRefs,
     ProviderLikedSongIds,
@@ -638,6 +639,19 @@ export const omni = {
         return auth.resolveLoginMethods?.() ?? auth.getLoginMethods?.() ?? [];
     },
 
+    // 表单式登录：provider 声明了字段，登录窗口按声明渲染表单；没有就回 null（UI 走扫码/浏览器流程）。
+    // 宽松查询（像 getLoginTexts）：界面在选中一行时就要问，平台未注册时也要能回答“没有表单”。
+    getLoginForm(providerId: OmniProviderId): ProviderLoginForm | null {
+        return getOnlineMusicProvider(providerId)?.auth?.getLoginForm?.() ?? null;
+    },
+
+    // 提交表单式登录：字段值交给 provider 自己完成登录。
+    async submitLoginForm(providerId: OmniProviderId, values: Record<string, string>): Promise<unknown> {
+        const auth = requireOnlineMusicProvider(providerId).auth;
+        if (!auth?.submitLoginForm) return unsupported(providerId, 'form-login');
+        return runLoginStep(auth, 'form', () => auth.submitLoginForm!(values));
+    },
+
     // 扫码的 provider 回二维码图片；在浏览器里确认的登录没有图片，回空串。
     async startLogin(providerId: OmniProviderId, methodId?: string): Promise<{ key: string; imageUrl: string }> {
         const provider = requireOnlineMusicProvider(providerId);
@@ -774,7 +788,8 @@ export const omni = {
 
     canEditCollectionTracks(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
-        if (!providerSupports(provider, 'mutations')) return false;
+        // The listening ranking is the platform's count of plays: nobody edits it.
+        if (collection.type === 'listening_rank' || !providerSupports(provider, 'mutations')) return false;
         if (collection.isLiked === true) {
             return providerSupports(provider, 'likes') && Boolean(provider?.mutations?.likeSong);
         }
@@ -801,7 +816,8 @@ export const omni = {
     canSubscribeCollection(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
         if (
-            !providerSupports(provider, 'mutations')
+            collection.type === 'listening_rank'
+            || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistSubscription')
             || provider?.mutations?.canSubscribe?.(collection) === false
         ) {
@@ -1189,6 +1205,11 @@ export const omni = {
             }
             if (collection.type === 'cloud') {
                 return await (provider.catalog?.getCloudTracks?.(page.limit, page.offset, collection) ?? emptyPage(page.offset));
+            }
+            if (collection.type === 'listening_rank') {
+                // An entry that names no span is not one this build made: there is nothing to read for it.
+                if (!collection.listeningRank) return emptyPage(page.offset);
+                return await (provider.catalog?.getListeningRankTracks?.(collection.listeningRank, page.limit, page.offset, collection) ?? emptyPage(page.offset));
             }
             return await (provider.catalog?.getPlaylistTracks?.(collection.id, page.limit, page.offset, collection) ?? emptyPage(page.offset));
         });

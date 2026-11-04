@@ -1535,6 +1535,9 @@ export interface UnifiedSong extends SongResult {
   // The row this song was read from, where its collection names its rows: a YouTube Music
   // playlist may hold a song twice, and a removal names the row. It says nothing of the song.
   collectionRowId?: string;
+  // How many times the account played it, as its platform's listening ranking counts, where the song
+  // was read from that ranking. Like collectionRowId it belongs to the row, not to the song.
+  listenCount?: number;
   isLocal?: boolean;
   localRef?: import('./types/localLibrary').LocalSongReference;
   isNavidrome?: boolean;

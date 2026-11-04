@@ -102,8 +102,9 @@ export type CommandPaletteCommand = {
      * Offered in the row that floats above the player bar. Only for things done to what is playing
      * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
      * not the palette's frequent list. The command declares it itself, so there is no list to keep.
+     * 'mouse-only' leaves it out of the row a finger opens (volume: a phone has its own volume keys).
      */
-    capsuleAction?: boolean;
+    capsuleAction?: boolean | 'mouse-only';
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 
@@ -384,6 +385,8 @@ export type CommandPaletteSettingsContext = {
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
     toggleObsKeepMainWindowAnimation: () => void;
+    /** The now playing card in the OBS browser source (local source and the web link alike). */
+    toggleTrackCardInObs: () => void;
     /** macOS-only: the wallpaper-mode Dock auto-hide override (on by default). */
     toggleWallpaperMacAutohideDock: () => void;
     /** Windows-only: the saved render GPU choice, read when asked (it can change while the palette is open). */

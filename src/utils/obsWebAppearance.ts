@@ -8,6 +8,7 @@ import { decompressConfig } from './appearanceCodec';
 import { parseSubtitleOverlayLayout } from './lyrics/subtitleOverlayLayout';
 import type { ObsAiConfig } from '../services/aiText';
 import { getWebAiProvider } from '../services/runtimeConfig';
+import { resolveObsNowPlayingCard, type ObsNowPlayingCardConfig } from './obsNowPlayingCard';
 
 // src/utils/obsWebAppearance.ts
 // Parse the OBS URL params (including the appearance cfg shortcode) into the appearance
@@ -33,6 +34,7 @@ export interface ObsWebParams {
   transparent: boolean;
   visualizer: string; // single-mode override (empty = use the cfg's mode)
   themeMode: ObsThemeMode | null; // null = link predates the marker; infer from cfg instead
+  language: string | null; // Folia's UI language when the link was copied; null = OBS's own
 }
 
 export interface ObsWebAppearance {
@@ -66,6 +68,8 @@ export interface ObsWebAppearance {
   subtitleFontFamily?: string | null;
   subtitleFontFallbackFamilies?: string[];
   background: VisualizerBackgroundConfig;
+  // The now playing card, when the cfg asks for it in the browser source; null draws none.
+  nowPlayingCard: ObsNowPlayingCardConfig | null;
 }
 
 export function parseObsWebParams(search: string): ObsWebParams {
@@ -82,6 +86,7 @@ export function parseObsWebParams(search: string): ObsWebParams {
     transparent: params.get('transparent') === '1',
     visualizer: params.get('visualizer')?.trim() || '',
     themeMode: readObsThemeMode(params),
+    language: params.get('lang')?.trim() || null,
   };
 }
 
@@ -185,5 +190,11 @@ export function buildObsAppearanceFromShortcode(
     subtitleFontFamily: decoded?.subtitleFontFamily,
     subtitleFontFallbackFamilies: Array.isArray(decoded?.subtitleFontFallbackFamilies) ? decoded.subtitleFontFallbackFamilies : undefined,
     background,
+    nowPlayingCard: resolveObsNowPlayingCard({
+      inObs: decoded?.stageTrackPillInObs,
+      mode: decoded?.stageTrackPillMode,
+      timeoutSec: decoded?.stageTrackPillTimeoutSec,
+      position: decoded?.stageTrackPillPosition,
+    }),
   };
 }

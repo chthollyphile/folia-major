@@ -52,6 +52,7 @@ const O = {
     cardTimeout: option(CARD, 'stageTrackPillTimeout', 'options.stageTrackPillTimeout'),
     cardPosition: option(CARD, 'stageTrackPillReposition', 'options.stageTrackPillReposition'),
     cardOnHome: option(CARD, 'stageTrackPillOnHome', 'options.stageTrackPillOnHome', { available: () => !isWallLibrarySuite(getActiveLibrarySuiteId()) }),
+    cardInObs: option(CARD, 'stageTrackPillInObs', 'options.stageTrackPillInObs'),
     cardCloseButton: option(CARD, 'showOpenPanelCloseButton', 'options.showOpenPanelCloseButton'),
     videoEnabled: option(VIDEO, 'videoLayerEnabled', 'options.videoLayerEnabled'),
     videoFile: option(VIDEO, 'videoLayerLocalFile', 'options.videoLayerLocalFile'),
@@ -121,9 +122,11 @@ const PlayerPage: React.FC = () => {
         mode: state.stageTrackPillMode,
         timeoutSec: state.stageTrackPillTimeoutSec,
         onHome: state.stageTrackPillOnHome,
+        inObs: state.stageTrackPillInObs,
         setMode: state.handleSetStageTrackPillMode,
         setTimeoutSec: state.handleSetStageTrackPillTimeoutSec,
         setOnHome: state.handleToggleStageTrackPillOnHome,
+        setInObs: state.handleToggleStageTrackPillInObs,
     })));
     const video = useVideoLayerSettingsStore(useShallow(state => ({
         enabled: state.videoLayerEnabled,
@@ -313,6 +316,11 @@ const PlayerPage: React.FC = () => {
                         </Row>
                     </Reveal>
                 )}
+                <Reveal when={card.mode !== 'never'}>
+                    <Row option={O.cardInObs} note={t('options.stageTrackPillInObsDesc')}>
+                        <Toggle checked={card.inObs} onChange={card.setInObs} />
+                    </Row>
+                </Reveal>
                 <Row option={O.cardCloseButton} hint={t('options.showOpenPanelCloseButtonDesc')}>
                     <Toggle checked={chrome.cardCloseButton} onChange={chrome.setCardCloseButton} />
                 </Row>

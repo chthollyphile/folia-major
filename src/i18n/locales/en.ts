@@ -703,6 +703,7 @@ export default {
       "lyric-staff-absorb-cycle": { "title": "Opening credits absorb mode", "description": "Cycle whether neighbouring lines are folded into the credit block" },
       "settings-obs-browser-source": { "title": "OBS browser source", "description": "Open OBS browser source settings" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: keep main window animation", "description": "Toggle whether the main window keeps its animation while OBS is connected" },
+      "obs-toggle-track-card": { "title": "OBS: show the now playing card", "description": "Toggle whether the now playing card is drawn in the OBS browser source" },
       "desktop-toggle-lyric-api": { "title": "Lyrics API", "description": "Toggle the local unauthenticated lyrics endpoint" },
       "settings-obs-copy-css": { "title": "Copy OBS CSS", "description": "Copy the OBS Browser Source Custom CSS carrying uploaded assets" },
       "settings-storage": { "title": "Storage settings", "description": "Open cache and storage settings" },
@@ -1522,7 +1523,11 @@ export default {
     "noteDeviceLimit": "Sign out of a device you no longer use on your phone, then try again",
     "noteWrongScanApp": "Scan with the app this sign-in method is for, or choose another method",
     "noteCloseBrowser": "Close that browser, then try again",
-    "noteUnknown": "Unknown error"
+    "noteUnknown": "Unknown error",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "formErrorUnknown": "Sign-in failed. Check what you entered and try again.",
+    "formLoggedInRefreshFailed": "Signed in, but couldn't load your account. Try again or reopen the login window.",
   },
   "failure": {
     "unreachable": "Cannot connect to {{provider}}",
@@ -1584,6 +1589,8 @@ export default {
     "loginNoteQishui": "Scan with the Douyin app and confirm authorization",
     "loginTitleBodian": "Scan with Bodian Music",
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
+    "loginTitleFnMusic": "Sign in to fnOS Music",
+    "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
@@ -1842,6 +1849,13 @@ export default {
     "version": "Version"
   },
   "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
+  "listeningRank": {
+    "week": "Listening ranking · Last week",
+    "all": "Listening ranking · All time",
+    "description": "Songs ranked by this account's listening on the platform",
+    "listenCount_one": "Played {{count}} time",
+    "listenCount_other": "Played {{count}} times"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
@@ -1860,6 +1874,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Global Timing Offset",
@@ -2463,6 +2478,8 @@ export default {
     "stageTrackPillMode_never": "Never show",
     "stageTrackPillOnHome": "Show on the home page too",
     "stageTrackPillOnHomeDesc": "Off keeps the card on the player and play queue. On also shows it on home, including after launch or a track change there.",
+    "stageTrackPillInObs": "Show in the browser source",
+    "stageTrackPillInObsDesc": "On also draws the card in the OBS browser source, with the display mode, duration and position above. On the web, copy the OBS link again for it to apply.",
     "stageTrackPillTimeout": "Visible duration",
     "disableVisualizerVignette": "Disable vignette",
     "visualizerVignette": "Vignette",
@@ -4463,6 +4480,19 @@ export default {
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive",
   },
+  "fnmusic": {
+    "serverUrl": "Server address",
+    "serverUrlPlaceholder": "e.g. http://192.168.1.10:5666",
+    "username": "Account",
+    "usernamePlaceholder": "fnOS Music account or NAS account",
+    "password": "Password",
+    "login": "Log in",
+    "loginNote": "Enter your fnOS Music server address, account and password",
+    "errorBadCredentials": "Account or password is wrong",
+    "errorNetwork": "Cannot reach the server. Check the address and your connection.",
+    "errorBadResponse": "The server returned an unexpected response",
+    "errorBadServerUrl": "The server address is not valid, e.g. http://192.168.1.10:5666"
+  },
   "hifi": {
     "settings": {
       "groupEngine": "Playback engine",
@@ -6009,9 +6039,9 @@ export default {
         "slotsHold": "Press and hold a button until the ring around it fills, or just right-click it.",
         "slotsPick": "The actions you can put there pop up right above it; click one to swap it in. Picking the one in the other slot swaps the two. The same choice is in settings — the button below goes there.",
         "slotsSuggest": "If you keep running one of these actions from the command window, the bar asks you once whether to put it here.",
-        "quickIntro": "Rest the pointer on the capsule and a row of things to do with this song floats up above it: volume, like, add to a playlist, shuffle, subtitles and lyric style. Whatever already sits in your two slots is left out. There is no such row on a touch screen.",
+        "quickIntro": "Rest the pointer on the capsule and a row of things to do with this song floats up above it: volume, like, add to a playlist, shuffle, subtitles and lyric style. Whatever already sits in your two slots is left out. On a touch screen the row floats up as soon as you tap the capsule open or pause, without volume, and goes again after 4 seconds untouched.",
         "quickPalette": "The last one opens the command window. It grows out of the capsule itself: the input lands where the capsule was, with the best match right next to it.",
-        "quickOther": "Clicking an empty part of the capsule on the player page opens it the same way, unless playback is set to open on Lattice — then that click goes to Lattice. {{mod}} + K grows it out of the capsule too, whenever the capsule is on screen. When it closes it shrinks back into the capsule."
+        "quickOther": "Clicking an empty part of the capsule on the player page opens it the same way (on a touch screen, tap it again while that row is up), unless playback is set to open on Lattice — then that click goes to Lattice. {{mod}} + K grows it out of the capsule too, whenever the capsule is on screen. When it closes it shrinks back into the capsule."
       },
       "commandPalette": {
         "type": "Commands are searched for, not browsed to. Type as soon as the window opens and it filters on names, aliases and keywords together; half a name is usually enough.",

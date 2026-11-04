@@ -27,6 +27,8 @@ export type CapsuleQuickActionsInput = {
     /** commandFrequency 的衰减计数，只在放不下时用来取舍。 */
     counts: Readonly<Record<string, number>>;
     limit?: number;
+    /** 这一排是手指点开的：声明了 'mouse-only' 的（音量，手机有实体音量键）不上。 */
+    touch?: boolean;
 };
 
 export const resolveCapsuleQuickActions = ({
@@ -35,10 +37,11 @@ export const resolveCapsuleQuickActions = ({
     canInvoke,
     counts,
     limit = CAPSULE_QUICK_ACTION_LIMIT,
+    touch = false,
 }: CapsuleQuickActionsInput): CommandPaletteCommand[] => {
     const inSlots = new Set(slots.map(slotCommandId).filter((id): id is string => id !== null));
     const eligible = commands.filter(command => (
-        command.capsuleAction === true
+        (command.capsuleAction === true || (command.capsuleAction === 'mouse-only' && !touch))
         && !command.hidden
         && !inSlots.has(command.id)
         && canInvoke(command.id)

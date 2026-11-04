@@ -159,6 +159,7 @@ const createLocalService = (initial: Partial<LoginLocalServiceStatus> = {}) => {
 let auth: { [K in keyof LibraryAccountAuthPort]: ReturnType<typeof vi.fn> };
 let accounts: ReturnType<typeof createAccounts>;
 let refresh: ReturnType<typeof vi.fn<LibraryProviderAccountPort['refresh']>>;
+let submitLoginForm: ReturnType<typeof vi.fn<LibraryProviderAccountPort['submitLoginForm']>>;
 let logoutPort: ReturnType<typeof vi.fn<LibraryProviderAccountPort['logout']>>;
 let confirmLogout: ReturnType<typeof vi.fn<LibraryProviderAccountPort['confirmLogout']>>;
 let cleanup: ReturnType<typeof vi.fn<LibraryProviderSwitchCleanupPort['leaveProvider']>>;
@@ -169,7 +170,7 @@ let keySeq: number;
 const createController = (): LibraryAccountController => createProviderAccountController({
     auth: auth as unknown as LibraryAccountAuthPort,
     accounts: accounts.port,
-    providerAccounts: { refresh, logout: logoutPort, confirmLogout },
+    providerAccounts: { refresh, submitLoginForm, logout: logoutPort, confirmLogout },
     switchCleanup: { leaveProvider: cleanup, holdsSongsOf: () => holdsSongs, dropSongsOf: dropSongs },
     clock: manual.clock,
     diagnostics: { appVersion: '9.9.9-test', userAgent: 'vitest agent' },
@@ -218,6 +219,9 @@ beforeEach(() => {
         ops.push(['refresh', providerId, reason]);
         accounts.update(providerId, { status: 'authenticated' });
         return true;
+    });
+    submitLoginForm = vi.fn<LibraryProviderAccountPort['submitLoginForm']>(async (providerId, values) => {
+        ops.push(['submit-form', providerId, values]);
     });
     logoutPort = vi.fn<LibraryProviderAccountPort['logout']>(async providerId => {
         ops.push(['logout', providerId]);

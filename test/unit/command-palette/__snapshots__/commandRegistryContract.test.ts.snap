@@ -125,6 +125,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-discord-presence",
   "settings-obs-browser-source",
   "obs-toggle-keep-main-window-animation",
+  "obs-toggle-track-card",
   "desktop-toggle-lyric-api",
   "settings-obs-copy-css",
   "settings-storage",

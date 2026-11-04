@@ -5,6 +5,7 @@ import {
     useLibraryAccountProviders,
     useLibraryAccountSelector,
 } from '../../library/core/account/useLibraryAccount';
+import { omni } from '../../services/onlineMusic/omni';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
 import { loginDoneLanding, loginDonePlays } from './done/loginDoneFrame';
 import { createLoginHostState } from './loginHostState';
@@ -42,6 +43,8 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
         login: () => live.current.account.getSnapshot().login,
         startLogin: providerId => { void live.current.account.startLogin(providerId); },
         closeLogin: () => { live.current.account.closeLogin(); },
+        hasLoginForm: providerId => omni.getLoginForm(providerId) !== null,
+        submitForm: (providerId, values) => live.current.account.submitFormLogin(providerId, values),
         closeWindow: closeLoginWindow,
         playsDone: () => loginDonePlays(live.current.reducedMotion),
         switchTo: providerId => live.current.account.requestSwitch(providerId).then(result => result.status === 'switched'),
@@ -112,6 +115,10 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
             login={shownLogin}
             onChoose={host.choose}
             onStart={() => void account.retryLogin()}
+            // 表单式登录提交：经 host 走账户 controller 的完整链路（provider 提交 → 读账号 → activate-after-login → 报完成），
+            // 完成的一声由 host.completed 接到，和扫码确认一样放动画/关窗；读账号失败（refresh-failed）由
+            // FormLogin 显示提示（token 已存，不静默关窗）。
+            onSubmitForm={host.submitForm}
             onSelectMethod={methodId => void account.selectLoginMethod(methodId)}
             onReopenBrowser={() => void account.openLoginPage()}
             onRestartService={() => void account.restartLocalService()}

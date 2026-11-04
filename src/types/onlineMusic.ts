@@ -63,6 +63,11 @@ export interface ProviderCapabilities {
     personalFmModes?: boolean;
     wordByWordLyrics: boolean;
     userCloud?: boolean;
+    /**
+     * The account's listening ranking as the platform counts it (`library.getListeningRankCollections`,
+     * `catalog.getListeningRankTracks`): not the plays Folia keeps of its own.
+     */
+    listeningRank?: boolean;
     historyRecommendations?: boolean;
     /** Daily recommendations can be narrowed to styles the account picks (`recommendations.getDailyStyle*`). */
     dailyStyleRecommendations?: boolean;
@@ -211,13 +216,18 @@ export interface ProviderHistoryEntry {
     providerData?: Record<string, JsonValue>;
 }
 
+/** The span a listening ranking counts plays over: the last week, or all the account's time. */
+export type ListeningRankRange = 'week' | 'all';
+
 export interface ProviderCollection {
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
     personalFm?: PersonalFmSelection;
+    /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
+    listeningRank?: ListeningRankRange;
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
-    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | string;
+    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | string;
     coverUrl?: string;
     description?: string;
     trackCount?: number;
@@ -256,7 +266,7 @@ export type LoginFailureKind =
 
 // 一次登录停在哪一步：'start' 建二维码或开始浏览器登录，'open' 打开登录的页面，'wait' 等待期间过期，
 // 'check' 检查扫码或浏览器的结果，'account' 确认之后读账号。
-export type LoginStep = 'start' | 'open' | 'wait' | 'check' | 'account';
+export type LoginStep = 'start' | 'open' | 'wait' | 'check' | 'account' | 'form';
 
 // 登录没有成功时能分出的情况。每一种的类别、给出的操作、有没有详情，见 services/onlineMusic/login/loginFailureCase.ts 的表。
 export type LoginCaseId =
@@ -522,6 +532,32 @@ export interface LoginMethod {
     iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
 }
 
+// —— 表单式登录（账号密码类平台）——
+// provider 声明登录窗口要渲染的字段，登录窗口按声明画表单；提交后由 provider 自己完成登录。
+// 这样新平台接入不需要改登录界面本身（omni 通用能力）。
+export interface ProviderLoginFormField {
+    key: string;                    // 提交时 values 里的字段名
+    type: 'text' | 'password' | 'url';
+    labelKey?: string;              // i18n key，由 UI 层翻译；缺省用 label
+    label?: string;
+    placeholderKey?: string;
+    placeholder?: string;
+    required?: boolean;
+}
+
+export interface ProviderLoginForm {
+    fields: ProviderLoginFormField[];
+    submitLabelKey?: string;
+    submitLabel?: string;
+    noteKey?: string;               // 表单下方的提示文字（i18n key）
+    note?: string;
+    /**
+     * 提交失败时按错误 code 显示的 i18n key（键是 OnlineProviderError.code，如 'network' / 'auth-required'）。
+     * 没有对应项的 code 由界面显示通用失败文案；provider 错误信息只进日志，不直接上屏。
+     */
+    errorKeys?: Record<string, string>;
+}
+
 // 平台的记号：一个字和一种颜色，画在登录窗口、切换器和账号头像的角上。平台自己声明；没有声明的
 // （mod 加进来的平台）由界面从它的短名取第一个字、配一个中性的颜色。
 export interface ProviderMark {
@@ -657,6 +693,10 @@ export interface OnlineAuthProvider {
     // 需要远端能力发现的 provider 在这里等待结果；UI 用同一份返回值决定单步或多步流程。
     resolveLoginMethods?(): Promise<LoginMethod[]>;
     startLogin?(methodId?: string): Promise<string>;
+    // —— 表单式登录（账号密码类平台）——
+    // 声明后登录窗口按此渲染表单（替代扫码/浏览器确认流程）；提交后 provider 完成登录。
+    getLoginForm?(): ProviderLoginForm;
+    submitLoginForm?(values: Record<string, string>): Promise<unknown>;
     // 登录的某一步抛了错时，provider 把自己的错误翻成共用的事实，或者直接点名是哪一种情况；没有可说的
     // 就回 null，由共用的规则去分（services/onlineMusic/login/loginFailureCase.ts）。在失败之后才被问到，自己不抛错。
     describeLoginFailure?(step: LoginStep, error: unknown): LoginFailureDetail | null;
@@ -733,6 +773,13 @@ export interface OnlineLibraryProvider {
     getUserAlbums?(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     /** The entry that stands for the account's cloud songs among its collections; null where it has none to show. */
     getCloudCollection?(user?: ProviderUser): Promise<ProviderCollection | null>;
+    /**
+     * The entries that stand for the account's listening ranking among its collections, one a span
+     * (type `listening_rank`, `listeningRank` set), with ids that name the user. A span the platform
+     * answers with nothing for (no plays, or a ranking the account keeps hidden) has no entry. Throws
+     * where the platform could not be read.
+     */
+    getListeningRankCollections?(user: ProviderUser): Promise<ProviderCollection[]>;
 }
 
 export interface OnlineCatalogProvider {
@@ -741,6 +788,8 @@ export interface OnlineCatalogProvider {
     getPlaylistTracks?(id: MediaId, limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getPlaylistDetail?(id: MediaId, collection?: ProviderCollection): Promise<ProviderCollection | null>;
     getCloudTracks?(limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
+    /** The ranking's songs in the platform's order, each with the `listenCount` it gives where it gives one. */
+    getListeningRankTracks?(range: ListeningRankRange, limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getAlbumTracks?(id: MediaId, limit?: number, offset?: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getAlbumDetail?(id: MediaId, collection?: ProviderCollection): Promise<ProviderCollection | null>;
     getArtistSongs?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;

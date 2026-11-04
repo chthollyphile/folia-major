@@ -124,9 +124,10 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     const albumCoverUrl = collection.type === 'album' ? snapshot?.detail?.coverUrl || wallCoverUrl || undefined : undefined;
     const isAlbum = collection.type === 'album';
     const allItems = useMemo(() => {
-        const projected = projectCollectionTracks(view.displayTracks, view.entryKeyAt, describeBravaisTrack, unknownArtist);
+        const listenCountLabel = (count: number) => t('listeningRank.listenCount', { count });
+        const projected = projectCollectionTracks(view.displayTracks, view.entryKeyAt, describeBravaisTrack, unknownArtist, listenCountLabel);
         return isAlbum ? assignAlbumCoverArt(projected, albumCoverUrl) : projected;
-    }, [albumCoverUrl, isAlbum, unknownArtist, view.displayTracks, view.entryKeyAt]);
+    }, [albumCoverUrl, isAlbum, t, unknownArtist, view.displayTracks, view.entryKeyAt]);
     // 过滤时只放匹配项（序号徽标保留它在整张列表里的位置）。
     const items = useMemo<readonly BravaisItem[]>(() => {
         if (!view.matchIndexes) return allItems;

@@ -174,6 +174,7 @@ contextBridge.exposeInMainWorld('electron', {
     getKugouApiStatus: () => ipcRenderer.invoke('kugou-api-status'),
     kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     qishuiRequest: (operation, params) => ipcRenderer.invoke('qishui-api-request', operation, params),
+    fnmusicRequest: (operation, params) => ipcRenderer.invoke('fnmusic-api-request', operation, params),
     bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
     appleMusicWindowsExperimental: process.platform === 'win32' && process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL === '1',

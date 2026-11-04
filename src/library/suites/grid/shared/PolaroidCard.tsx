@@ -96,6 +96,9 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
             ? getSongUnavailableLabel(item.rawTrack, t('status.songUnavailableTag'))
             : '';
         const trackAlbum = item.rawTrack?.album;
+        // A song of a listening ranking carries the platform's play count: it follows the duration.
+        const trackListenCount = (item.rawTrack as UnifiedSong | undefined)?.listenCount;
+        const listenCountText = typeof trackListenCount === 'number' ? ` · ${t('listeningRank.listenCount', { count: trackListenCount })}` : '';
         const albumTargetId = resolveTrackAlbumTargetId(item.rawTrack);
         const canOpenAlbum = Boolean(
             onSelectAlbum
@@ -247,7 +250,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                             {item.rawTrack.album?.name || ''}
                                         </span>
                                         <span className="text-[9px] opacity-55 font-mono">
-                                            {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}
+                                            {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}
                                         </span>
                                     </>
                                 )}
@@ -336,7 +339,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                         {item.rawTrack.album?.name || ''}
                                     </span>
                                     <span className="text-[9px] opacity-35 font-mono">
-                                        {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}
+                                        {formatCardDuration(item.rawTrack.durationMs)}{item.rawTrack.isVideo && !isUnavailable && ` · ${t('status.songVideoTag')}`}{listenCountText}
                                     </span>
                                 </>
                             )}
