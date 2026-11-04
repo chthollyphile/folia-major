@@ -1796,6 +1796,7 @@ export default {
     "qqNewSongs": "Lagu baru",
     "qqNewAlbums": "Album baru",
     "qqCharts": "Tangga lagu",
+    "qqFeedForYou": "Untukmu",
     "qqRecommendedPlaylists": "Playlist rekomendasi",
     "personalFm": "FM Pribadi",
     "dailyRecommendations": "Rekomendasi Harian",

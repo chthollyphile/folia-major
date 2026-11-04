@@ -13,6 +13,7 @@ export const QQ_OPERATIONS = [
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
     'user_personal_fm', 'user_daily_history_dates', 'user_daily_history', 'user_blacklist_add',
+    'recommend_feed',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -63,6 +64,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     user_daily_history: '/user/daily-songs/history',
     // 3.3.6 的歌曲不喜欢：只送 `songs` 时默认开放；写一次、读首屏确认，结果不明不重送。
     user_blacklist_add: '/user/blacklist/add',
+    // 3.3.6 的客户端首页 feed 第 1 页（只有歌曲与歌单）。旧后端回 404，探索页就不出这几栏。
+    recommend_feed: '/recommend/feed',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',
