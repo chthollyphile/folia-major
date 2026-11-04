@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SlidersHorizontal } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OnlineProviderId } from '../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
@@ -14,7 +15,8 @@ import { recordSetRightTimes, watchRecentPlays } from '../../../components/app/h
 import { createOnlineGridViewCollection } from '../../../components/app/home/gridViewCollectionAdapters';
 import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
-import type { BravaisHomeTool } from './bravaisHomeModels';
+import type { BravaisHomeEntry, BravaisHomeTool } from './bravaisHomeModels';
+import { openRecommendationPreferences, useRecommendationPreferencesEntry } from '../../../components/recommendationPreferences/recommendationPreferencesEntry';
 import { projectExploreHeadings, projectExploreItems } from './bravaisExploreProjection';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisHomeAccount } from './useBravaisHomeAccount';
@@ -33,7 +35,7 @@ import { availableLocalTabLabel, onlineWallHint } from './bravaisEmptyWallHint';
 //   这两组是快照：进页签时（换平台、账户、语言就是另一页，也算进页签）与「换一批」时各读一次，之后放歌不跟着变，墙不在听歌时重排；
 //   只有播放记录被纠正（旧的 MV 记录换成正式版）时再读一次。
 // - 缝：标题与面包屑是「探索」，元数据行是平台；读取中 / 读不到 / 空页的说明进状态行（墙上有本机的两组时照样说）；
-//   「⋯」里有「换一批」。
+//   「⋯」里有「换一批」。平台声明了探索页的偏好入口时，缝中段（直达入口那一列，在线页签原本是空的）多一个「偏好设置」。
 // - 账户：与另外几个在线页签同一套（未登录、解析中时墙空着，缝里说原因；未登录时墙面上有背景说明，bravaisEmptyWallHint）。
 // 这个组件只渲染 null。
 
@@ -169,6 +171,13 @@ const BravaisHomeExplore: React.FC<{
         ...(refreshTool ? [refreshTool] : []),
         ...chrome.appTools,
     ], [chrome.appTools, chrome.searchTool, refreshTool]);
+    const offersPreferences = useRecommendationPreferencesEntry('explore');
+    const entries = useMemo<BravaisHomeEntry[] | undefined>(() => (offersPreferences ? [{
+        id: 'recommendation-preferences',
+        label: t('recommendationPreferences.open'),
+        icon: SlidersHorizontal,
+        run: openRecommendationPreferences,
+    }] : undefined), [offersPreferences, t]);
     const seam = useMemo<BravaisSeamModel>(() => ({
         title: chrome.title,
         crumb: chrome.title,
@@ -177,13 +186,14 @@ const BravaisHomeExplore: React.FC<{
         tabs: chrome.tabs,
         onSelectTab: chrome.onSelectTab,
         home: {
+            entries,
             tools,
             menuLabel: t('libraryBravaisHome.more'),
             scan: chrome.scan,
             search: chrome.search,
             account: accountSeam,
         },
-    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, online.providerLabel, status, t, tools]);
+    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, status, t, tools]);
     const localTab = availableLocalTabLabel(chrome.tabs);
     const { accountView, needsRelogin, providerLabel } = online;
     const wallHint = useMemo(
