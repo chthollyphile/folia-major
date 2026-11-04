@@ -1080,6 +1080,10 @@ declare global {
       appendVideoExportChunk: (sessionId: string, data: ArrayBuffer) => Promise<number>;
       finishVideoExportFile: (sessionId: string) => Promise<{ filePath: string; bytesWritten: number; finalized: boolean }>;
       abortVideoExportFile: (sessionId: string) => Promise<boolean>;
+      /** Linux: start/stop the Dux Stage bridge on its own loopback port. */
+      duxNowPlaying?: {
+        setEnabled: (enabled: boolean) => Promise<boolean>;
+      };
       getStageStatus: () => Promise<StageStatus>;
       setStageEnabled: (enabled: boolean) => Promise<StageStatus>;
       regenerateStageToken: () => Promise<StageStatus>;

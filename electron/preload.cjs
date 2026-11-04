@@ -309,6 +309,10 @@ contextBridge.exposeInMainWorld('electron', {
     appendVideoExportChunk: (sessionId, data) => ipcRenderer.invoke('video-export-append-chunk', sessionId, data),
     finishVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-finish-file', sessionId),
     abortVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-abort-file', sessionId),
+    // Linux: start/stop the Dux Stage bridge on its own loopback port (not the Now Playing app's).
+    duxNowPlaying: {
+        setEnabled: (enabled) => ipcRenderer.invoke('dux-now-playing-set-enabled', enabled),
+    },
     getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),

@@ -4,6 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import { LyricParserFactory } from '../../../utils/lyrics/LyricParserFactory';
 import { getFromCache, removeFromCache, saveToCache } from '../../../services/db';
 import { NowPlayingProvider } from '../../../services/nowPlayingProvider';
+import { DUX_STAGE_PROGRESS_QUERY_URL, DUX_STAGE_WS_URL } from '../../../services/duxStage';
 import { usePlayerCapSource } from '../../../hooks/usePlayerCapSource';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
 import { buildStageEntryKey, getStageLyricsTimelineBounds } from '../../../utils/appStageHelpers';
@@ -191,9 +192,24 @@ export function useStagePlaybackController({
     const stageSource: StageSource | null = isElectronWindow
         ? (stageStatus?.modeEnabled ? (stageStatus?.source ?? 'stage-api') : null)
         : (enablePlayerCapStage ? 'playercap' : (enableNowPlayingStage ? 'now-playing' : null));
-    const isNowPlayingStageActive = activePlaybackContext === 'stage' && stageSource === 'now-playing';
+    const isDuxStageSource = stageSource === 'dux';
+    // Now Playing and Dux share the same remote-source pipeline; only the endpoint differs.
+    const isRemoteStageSource = stageSource === 'now-playing' || isDuxStageSource;
+    const isNowPlayingStageActive = activePlaybackContext === 'stage' && isRemoteStageSource;
     const shouldPublishNowPlayingState = isDev || isNowPlayingStageActive;
     shouldPublishNowPlayingStateRef.current = shouldPublishNowPlayingState;
+
+    // Dux has its own loopback endpoint; it is never started for the Now Playing source, and it
+    // stops again when the source changes so port 9864 is not held for the rest of the session.
+    useEffect(() => {
+        if (window.electron?.platform !== 'linux') return;
+        const setEnabled = window.electron?.duxNowPlaying?.setEnabled;
+        if (!setEnabled) return;
+        void setEnabled(isDuxStageSource).catch(error => console.warn('[Dux] could not change the stage bridge state', error));
+        return () => {
+            void setEnabled(false).catch(() => {});
+        };
+    }, [isDuxStageSource]);
 
     // === PlayerCap stage source (third source): reuses usePlayerCapSource, passively mirrored to the main playback pane; the OBS SSE source inherits it automatically, source-agnostic ===
     const isPlayerCapStageActive = activePlaybackContext === 'stage' && stageSource === 'playercap';
@@ -531,7 +547,8 @@ export function useStagePlaybackController({
         }));
 
         try {
-            const response = await fetch(NOW_PLAYING_PROGRESS_QUERY_URL, { cache: 'no-store' });
+            const progressUrl = isDuxStageSource ? DUX_STAGE_PROGRESS_QUERY_URL : NOW_PLAYING_PROGRESS_QUERY_URL;
+            const response = await fetch(progressUrl, { cache: 'no-store' });
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -567,7 +584,7 @@ export function useStagePlaybackController({
             });
             return false;
         }
-    }, [applyNowPlayingPreciseAnchor, isDev, updateNowPlayingDebugInfo]);
+    }, [applyNowPlayingPreciseAnchor, isDev, isDuxStageSource, updateNowPlayingDebugInfo]);
 
     const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
         id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
@@ -930,7 +947,7 @@ export function useStagePlaybackController({
     }, []);
 
     const openStagePlayer = useCallback(async () => {
-        if ((stageSource === 'now-playing' || stageSource === 'playercap') && activePlaybackContext === 'stage') {
+        if ((isRemoteStageSource || stageSource === 'playercap') && activePlaybackContext === 'stage') {
             navigateToPlayer();
             return;
         }
@@ -952,7 +969,7 @@ export function useStagePlaybackController({
             return;
         }
 
-        if (stageSource === 'now-playing') {
+        if (isRemoteStageSource) {
             clearMainPlaybackContext();
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('stage');
@@ -968,7 +985,7 @@ export function useStagePlaybackController({
             }
             navigateToPlayer();
             if (!nowPlayingTrackRef.current && !nowPlayingLyricPayloadRef.current) {
-                setStatusMsg({ type: 'info', text: t('status.waitingNowPlayingInput') });
+                setStatusMsg({ type: 'info', text: isDuxStageSource ? t('status.waitingDuxInput') : t('status.waitingNowPlayingInput') });
             }
             return;
         }
@@ -1015,6 +1032,7 @@ export function useStagePlaybackController({
         stageLyricsSession,
         stageMediaSession,
         stageSource,
+        isDuxStageSource,
         shouldPublishNowPlayingState,
         syncStageLyricsClock,
         t,
@@ -1025,7 +1043,7 @@ export function useStagePlaybackController({
             return;
         }
 
-        if (stageSource === 'now-playing' || stageSource === 'playercap') {
+        if (isRemoteStageSource || stageSource === 'playercap') {
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('main');
             clearMainPlaybackContext();
@@ -1042,7 +1060,7 @@ export function useStagePlaybackController({
             return null;
         }
 
-        if (stageSource === 'now-playing' || stageSource === 'playercap') {
+        if (isRemoteStageSource || stageSource === 'playercap') {
             stagePlaybackSnapshotRef.current = null;
             setActivePlaybackContext('main');
             clearMainPlaybackContext();
@@ -1092,7 +1110,7 @@ export function useStagePlaybackController({
     }, []);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing') {
+        if (!isRemoteStageSource) {
             nowPlayingProviderRef.current?.stop();
             nowPlayingProviderRef.current = null;
             nowPlayingContentLoadKeyRef.current = null;
@@ -1146,7 +1164,7 @@ export function useStagePlaybackController({
                 nowPlayingProgressMsRef.current = progressMs;
                 nowPlayingProgressQualityRef.current = quality;
 
-                if (quality === 'precise' && stageSource === 'now-playing') {
+                if (quality === 'precise' && isRemoteStageSource) {
                     void applyNowPlayingPreciseAnchorRef.current?.(progressMs, nowPlayingPausedRef.current, {
                         onlyIfDrifted: true,
                         source: 'progress',
@@ -1158,7 +1176,7 @@ export function useStagePlaybackController({
                     setNowPlayingProgressQuality(quality);
                 }
             },
-        });
+        }, isDuxStageSource ? { wsUrl: DUX_STAGE_WS_URL } : {});
 
         nowPlayingProviderRef.current = provider;
         provider.start();
@@ -1169,10 +1187,10 @@ export function useStagePlaybackController({
                 nowPlayingProviderRef.current = null;
             }
         };
-    }, [isDev, resetNowPlayingClock, stageSource, updateNowPlayingDebugInfo]);
+    }, [isDev, resetNowPlayingClock, stageSource, isDuxStageSource, updateNowPlayingDebugInfo]);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing' || !shouldPublishNowPlayingState) {
+        if (!isRemoteStageSource || !shouldPublishNowPlayingState) {
             return;
         }
 
@@ -1197,7 +1215,7 @@ export function useStagePlaybackController({
     }, [activePlaybackContext, buildPlaybackSnapshot, currentSong, playQueue]);
 
     useEffect(() => {
-        if (stageSource === 'now-playing') {
+        if (isRemoteStageSource) {
             lastLoadedStageEntryKeyRef.current = null;
             stagePlaybackSnapshotRef.current = null;
             return;
@@ -1243,7 +1261,7 @@ export function useStagePlaybackController({
     ]);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing' || activePlaybackContext !== 'stage') {
+        if (!isRemoteStageSource || activePlaybackContext !== 'stage') {
             return;
         }
 
@@ -1266,7 +1284,7 @@ export function useStagePlaybackController({
     ]);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing') {
+        if (!isRemoteStageSource) {
             return;
         }
 
@@ -1299,7 +1317,7 @@ export function useStagePlaybackController({
     ]);
 
     useEffect(() => {
-        if (stageSource !== 'now-playing') {
+        if (!isRemoteStageSource) {
             lastNowPlayingPauseStateRef.current = nowPlayingPaused;
             return;
         }
@@ -1340,7 +1358,7 @@ export function useStagePlaybackController({
     }, [isNowPlayingStageActive, nowPlayingPaused, queryNowPlayingPreciseProgress]);
 
     useEffect(() => {
-        if (activePlaybackContext === 'stage' && stageSource === 'now-playing') {
+        if (activePlaybackContext === 'stage' && isRemoteStageSource) {
             return;
         }
 

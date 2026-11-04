@@ -161,7 +161,7 @@ export interface LyricRenderOverride {
 export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio' | 'explore';
 
 export type PlaybackContext = 'main' | 'stage';
-export type StageSource = 'stage-api' | 'now-playing' | 'playercap';
+export type StageSource = 'stage-api' | 'now-playing' | 'dux' | 'playercap';
 export type StageLoopMode = 'off' | 'all' | 'one';
 export type QueueAddBehavior = 'append' | 'next';
 export type StageActiveEntryKind = 'lyrics' | 'media';
