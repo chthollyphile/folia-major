@@ -3028,6 +3028,7 @@ export default {
     "nebbiaRain_off": "Tắt",
     "nebbiaBehind": "Ngoài cửa sổ",
     "nebbiaBehindHint": "Phố đêm mưa, Biển mơ đom đóm (bể cá), hoặc dùng nền chung. Khi dùng nền, sương thành một lớp mờ bán trong suốt (trắng với chủ đề ban ngày, tối với chủ đề ban đêm) và nét chữ đã lau để lộ nền phía sau; khi trang phát trong suốt thì luôn như vậy và lộ ra màn hình nền.",
+    "nebbiaBehindTransparentHint": "Khi trang phát trong suốt, bên ngoài cửa sổ luôn lộ ra phía sau; lựa chọn này chỉ quyết định giọt nước khúc xạ gì (nền chung thì khúc xạ phố đêm), và vẽ như thường khi tắt trong suốt.",
     "nebbiaBehind_night": "Phố đêm mưa",
     "nebbiaBehind_backdrop": "Nền",
     "nebbiaBehind_aquarium": "Biển mơ đom đóm",

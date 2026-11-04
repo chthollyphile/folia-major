@@ -278,8 +278,9 @@ describe('when the beat clock runs', () => {
         expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
         const rainyTank = { nebbiaTuning: { ...aquarium.nebbiaTuning, glass: 'rain' as const } };
         expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...rainyTank }))).toBe(true);
-        // 透明时透出后面，不画水族箱；雨夜街景和共用背景都没有水族箱
-        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(false);
+        // 透明时透出后面，但水珠里折射的还是水族箱，照样算；雨夜街景和共用背景都没有水族箱
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(true);
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(false);
         const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
         expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(false);
         const smartBeat: SmartBeatSettings = { mode: 'on', effects: { [BEAT_EFFECT_IDS.nebbiaAquaBeat]: { on: false, strength: 1 } } };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import { type VisualizerSettingsPanelProps } from '../definition';
+import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import {
@@ -111,6 +112,8 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
     const resolved = tuning ?? DEFAULT_NEBBIA_TUNING;
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
     const aquarium = resolved.behind === 'aquarium';
+    // 播放页透明时窗外固定透出后面：提示换一句，说明这里选的只决定水珠里折射什么（开着原生模糊也算透明，和 App.tsx 的 isPlayerPageTransparent 一样）
+    const transparent = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground || state.enablePlayerPageNativeBlur);
     // 开关和雨的文案：水族箱换一套说法
     const sceneryKey = aquarium ? 'options.nebbiaAquaScenery' : 'options.nebbiaScenery';
     const rainKey = aquarium ? 'options.nebbiaAquaRain' : 'options.nebbiaRain';
@@ -176,7 +179,7 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
             </Group>
             {/* 窗外每样单独开关，和上面几组不同，可以全关 */}
             <Group def={SCENERY_GROUP} foot={t(`${sceneryKey}Hint`)}>
-                <Row label={t('options.nebbiaBehind')} note={t('options.nebbiaBehindHint')}>
+                <Row label={t('options.nebbiaBehind')} note={t(transparent ? 'options.nebbiaBehindTransparentHint' : 'options.nebbiaBehindHint')}>
                     <Segmented<NebbiaTuning['behind']>
                         value={resolved.behind}
                         options={NEBBIA_BEHIND.map(behind => ({ value: behind, label: t(`options.nebbiaBehind_${behind}`) }))}

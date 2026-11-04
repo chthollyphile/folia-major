@@ -65,7 +65,8 @@ export class NebbiaMask {
         const { refog } = tuning, beadHold = NEBBIA_FIXED.beadHold;
         const { fogAt } = line;
         const yf = yieldFactor(line, T), ym = yieldMask(line, T);
-        if (line.mode === 'fog') {
+        // 被哈气盖掉的手指句不搓（不然先搓开、又哈上白气，两个效果打架）：和起雾的一样慢慢淡进雾里
+        if (line.mode === 'fog' || line.breathAt < Infinity) {
             const v = (1 - smooth(clamp((T - fogAt) / refog))) * ym;
             // 擦痕边的水珠：擦痕开始起雾后再挂 beadHold 秒，再用 refog × 3 慢慢缩小消失
             const vb = (1 - smooth(clamp((T - fogAt - beadHold) / (refog * 3)))) * yf;
@@ -75,13 +76,13 @@ export class NebbiaMask {
         if (line.wipe === undefined) line.wipe = buildWipe(line, idx);
         const w = line.wipe;
         if (!w) return;
-        // 要让位的句子：唱完了就提前抹，赶在后面那句开写前抹完（要哈气盖掉的不抹）
-        const early = line.breathAt < Infinity ? -Infinity : line.yieldAt - w.dur - 0.9;
+        // 要让位的句子：唱完了就提前抹，赶在后面那句开写前抹完
+        const early = line.yieldAt - w.dur - 0.9;
         const t0 = fogAt > early && early >= line.end ? early : fogAt;
         const ue = clamp((T - t0) / w.dur);
         // 抹完先清亮一会儿，再慢慢起雾
         const back = 1 - smooth(clamp((T - t0 - w.dur - 0.5) / refog)), vw = back * ym;
-        // 拖痕不留印子：被哈气盖掉后不再抹（不然白气底下照样扫出一条条，雪窗、凝露也被扫开）
+        // 拖痕不留印子：让位淡掉时一起淡掉
         const vs = back * yf;
         const vbw = (1 - smooth(clamp((T - t0 - w.dur - 0.5 - beadHold) / (refog * 3)))) * yf;
         if (vbw <= 0.002 && vw <= 0.002) return;
