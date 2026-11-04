@@ -279,7 +279,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     };
 
     return (
-        <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}`}>
+        <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}>
             {!isOpen && !isHandleHidden && (
                 <div className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`} data-ponder="scratchpad">
                     <button

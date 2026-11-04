@@ -16,10 +16,10 @@ export type Spacing = { x: number; y: number; edge?: number };
 export const CONTENT_EDGE = 16;
 
 export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
-/** 穿箭头线的画布（播放队列）：空隙宽到看得见线、放得下箭头。 */
-export const THREAD_SPACING: Spacing = { x: 28, y: 36 };
+/** 穿箭头线的画布（播放队列）：空隙宽到看得见线、放得下箭头，卡片也不挤（比速记簿的画布疏一些）。 */
+export const THREAD_SPACING: Spacing = { x: 48, y: 52, edge: 32 };
 /** 时间轴的画布（播放历史）：卡片之间放得下写着时间的节点；第一列前面的节点伸出网格左边，留白跟着放宽。 */
-export const TIMELINE_SPACING: Spacing = { x: 50, y: 36, edge: 50 };
+export const TIMELINE_SPACING: Spacing = { x: 64, y: 52, edge: 60 };
 
 /** 这么宽的网格放得下几列（至少一列）。 */
 export const columnsFor = (width: number, spacing: Spacing = DEFAULT_SPACING): number => (

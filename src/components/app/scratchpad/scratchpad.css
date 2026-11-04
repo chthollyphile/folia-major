@@ -388,13 +388,13 @@
     gap: 2px;
     padding: 0 6px 0 28px;
     border-radius: 0 12px 12px 0;
-    /* 半透明的底：按钮底不再是一整块实色。 */
-    background: linear-gradient(to right, transparent, rgb(28 28 30 / 45%) 28px);
+    /* 从左到右渐渐变实：左边淡、透出底下的字，右边最实、托住最右的按钮。 */
+    background: linear-gradient(to right, transparent, rgb(28 28 30 / 50%) 28px, rgb(28 28 30 / 90%));
     opacity: 0;
     pointer-events: none;
 }
 
-.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(255 255 255 / 45%) 28px); }
+.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(255 255 255 / 50%) 28px, rgb(255 255 255 / 90%)); }
 
 .scratchpad-row:hover .scratchpad-row-actions,
 .scratchpad-row:focus-within .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
@@ -785,3 +785,96 @@
 .scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; opacity: 0.55; }
 .scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; opacity: 0.95; }
 .scratchpad-thread.is-flow .is-played { color: inherit; opacity: 0.22; }
+
+/* —— 不让选中文字：抽屉里全是按钮和卡片，拖动、框选、双击时不该拉出蓝色的选区 —— */
+
+.scratchpad-root {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* —— 悬停的微动效（列表与展开的画布）——
+   位移和缩放用独立的 translate / scale 属性：画布卡片的 transform 归 framer（拖动时直接写），两边不打架。
+   只动合成层属性与颜色，不碰布局；动效降级（uiMicroMotion）时根节点有 is-calm，全部关掉。 */
+
+.scratchpad-row {
+    transition: background-color 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scratchpad-row:hover { translate: 2px 0; }
+
+.scratchpad-cover img,
+.scratchpad-card-cover img {
+    transition: scale 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scratchpad-row:hover .scratchpad-cover img { scale: 1.07; }
+
+/* 行尾的按钮：淡入的同时从右边滑进来一点。 */
+.scratchpad-row-actions {
+    translate: 6px 0;
+    transition: opacity 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scratchpad-row:hover .scratchpad-row-actions,
+.scratchpad-row:focus-within .scratchpad-row-actions { translate: 0 0; }
+
+@media (hover: none) {
+    .scratchpad-row-actions { translate: none; }
+}
+
+.scratchpad-icon-button {
+    transition: background-color 0.14s ease, opacity 0.14s ease, scale 0.14s ease;
+}
+
+.scratchpad-icon-button:hover:not(:disabled) { scale: 1.08; }
+.scratchpad-icon-button:active:not(:disabled) { scale: 0.94; }
+
+.scratchpad-pill,
+.scratchpad-menu-button {
+    transition: background-color 0.14s ease, scale 0.14s ease, flex 0.2s ease;
+}
+
+.scratchpad-pill:active,
+.scratchpad-menu-button:active:not(:disabled) { scale: 0.97; }
+
+/* 画布上的卡片：微微浮起、投一点影，封面略放大；被拖着的卡不浮（它已经在指针下了）。 */
+.scratchpad-card {
+    transition: background-color 0.16s ease, border-color 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
+}
+
+.scratchpad-card:hover:not(.is-moving) {
+    translate: 0 -3px;
+    box-shadow: 0 10px 24px rgb(0 0 0 / 32%);
+}
+
+.scratchpad-root.is-daylight .scratchpad-card:hover:not(.is-moving) { box-shadow: 0 10px 24px rgb(42 35 27 / 14%); }
+.scratchpad-card.is-selected:hover:not(.is-moving) { box-shadow: 0 0 0 1px var(--text-accent, rgb(255 255 255 / 70%)) inset, 0 10px 24px rgb(0 0 0 / 32%); }
+.scratchpad-card:hover:not(.is-moving) .scratchpad-card-cover img { scale: 1.05; }
+
+/* 卡片上的播放钮：淡入时从下面升上来一点。 */
+.scratchpad-card-play {
+    translate: 0 4px;
+    transition: opacity 0.14s ease, translate 0.2s cubic-bezier(0.22, 1, 0.36, 1), scale 0.14s ease;
+}
+
+.scratchpad-card:hover .scratchpad-card-play,
+.scratchpad-card-play:focus-visible { translate: 0 0; }
+.scratchpad-card-play:hover { scale: 1.08; }
+
+@media (hover: none) {
+    .scratchpad-card-play { translate: none; }
+}
+
+/* 动效降级：位移、缩放都不要，颜色照常变。 */
+.scratchpad-root.is-calm .scratchpad-row:hover,
+.scratchpad-root.is-calm .scratchpad-row-actions,
+.scratchpad-root.is-calm .scratchpad-card:hover:not(.is-moving),
+.scratchpad-root.is-calm .scratchpad-card-play { translate: none; }
+
+.scratchpad-root.is-calm .scratchpad-cover img,
+.scratchpad-root.is-calm .scratchpad-card-cover img,
+.scratchpad-root.is-calm .scratchpad-icon-button,
+.scratchpad-root.is-calm .scratchpad-pill,
+.scratchpad-root.is-calm .scratchpad-menu-button,
+.scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
