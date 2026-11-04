@@ -76,6 +76,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
 
     // pages/StoragePage (backup and import)
     importExportTitle: { section: 'storage' },
+    allSettingsTitle: { section: 'storage' },
 
     // pages/DesktopPage, and the update check on pages/GeneralPage
     desktopTrayBehavior: { section: 'desktop' },

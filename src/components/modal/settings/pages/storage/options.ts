@@ -10,6 +10,9 @@ export const CACHES: SettingsGroupDef = { id: 'cacheDetails', titleKey: 'options
 // Drawn only where the browser can watch a folder (FolderWatchGroup).
 export const WATCH: SettingsGroupDef = { id: 'localLibraryWatch', titleKey: 'options.localLibraryWatch', available: isLocalLibraryAutoScanSupported };
 export const BACKUP: SettingsGroupDef = { id: 'importExportTitle', titleKey: 'options.importExportTitle' };
+// Every portable setting as one file, beside the visual config code rather than as part of it: the
+// code is also the web build's OBS quick import and keeps its shape.
+export const ALL_SETTINGS: SettingsGroupDef = { id: 'allSettingsTitle', titleKey: 'options.allSettingsTitle' };
 
 /** What the app keeps on disk, one row each, in the order they are drawn. */
 export const CACHE_ROWS = [
@@ -28,4 +31,6 @@ export const O = {
     autoScan: option(WATCH, 'localLibraryAutoScan', 'options.localLibraryAutoScan'),
     exportConfig: option(BACKUP, 'exportConfig', 'options.exportThemeLabel'),
     importConfig: option(BACKUP, 'importConfig', 'options.importBtn'),
+    allSettingsExport: option(ALL_SETTINGS, 'allSettingsExport', 'options.allSettingsExportTitle'),
+    allSettingsImport: option(ALL_SETTINGS, 'allSettingsImport', 'options.allSettingsImportTitle'),
 };

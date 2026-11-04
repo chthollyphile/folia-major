@@ -307,6 +307,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsCommand('settings-storage', 'Storage settings', 'Open cache and storage settings', ['storage', 'cache', '存储', '缓存'], 'options', 'storage'),
     createSettingsAnchorCommand('settings-media-cache', 'Media cache', 'Jump to the downloaded audio cache', ['audio cache', 'downloads', 'offline songs', '音频缓存'], 'mediaCache'),
     createSettingsAnchorCommand('settings-r2-sync', 'Sync server settings', 'Open sync server settings', ['sync server', 'd1 sync', 'cloud sync', 'sync settings', '同步', '云同步', 'd1同步'], 'r2Sync'),
+    // Whole-settings export and import sit beside the visual config code on 存储与备份, not inside it:
+    // that shortcode is also the web build's OBS quick import and keeps its shape.
+    createSettingsAnchorCommand('settings-all-settings', 'All settings', 'Save every portable setting as one file, or take one', ['export settings', 'import settings', 'settings file', 'backup settings', '导出设置', '导入设置', '设置备份', '全部设置'], 'allSettingsTitle'),
     {
         id: 'sync-now',
         group: 'settings',
