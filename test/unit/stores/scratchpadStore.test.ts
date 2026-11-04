@@ -103,16 +103,17 @@ describe('grouping and moving within a group', () => {
     });
 });
 
-describe('the two pages of the drawer', () => {
-    it('collapses the canvas when going to the play history, and comes back to the notes when the canvas is expanded', () => {
+describe('the three pages of the drawer', () => {
+    it('keeps the drawer expanded across pages, and collapses it when the drawer closes', () => {
         const store = useScratchpadStore.getState();
         store.setOpen(true);
         store.setExpanded(true);
         store.setTab('history');
-        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'history', isExpanded: false });
-        store.setExpanded(true);
-        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'notes', isExpanded: true });
+        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'history', isExpanded: true });
+        store.setTab('queue');
+        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'queue', isExpanded: true });
         store.setOpen(false);
+        expect(useScratchpadStore.getState()).toMatchObject({ tab: 'queue', isExpanded: false });
         store.setTab('notes');
     });
 });

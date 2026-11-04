@@ -124,6 +124,8 @@ export const createQueueMutations = ({
     };
 
     return {
+        /** 整个换成这个顺序（速记簿「播放队列」页的拖动排序与批量操作）：和其余就地编辑同一条路。 */
+        setQueueOrder: updateQueueOrder,
         addNavidromeSongsToQueue,
         applyQueueBatchOperation,
         removeQueueSong,

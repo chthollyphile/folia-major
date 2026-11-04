@@ -15,6 +15,18 @@ import { mergeRecentPlays } from './historyDays';
 const subscribeProviders = (listener: () => void) => omni.subscribeProviders(listener);
 const providerRegistryVersion = () => omni.getProviderRegistryVersion();
 
+/** 此刻播放历史读的那几份记录：每个在线平台此刻的账户、本地文件、此刻连着的 Navidrome 用户。删除记录也只删这几份里的。 */
+export const historyScopes = (): PlayScope[] => {
+    const navidromeAccount = navidromePlayAccount(getNavidromeConfig());
+    return [
+        ...omni.getProviderSummaries().map((summary): PlayScope => (
+            { kind: 'online', providerId: summary.providerId, accountId: String(summary.user?.id ?? '') }
+        )),
+        { kind: 'local' },
+        ...(navidromeAccount ? [{ kind: 'navidrome', accountId: navidromeAccount } as const] : []),
+    ];
+};
+
 export const useScratchpadHistory = (): RecentPlay[] => {
     // 记录变了只是通知（watchRecentPlays），读取在下面的 useMemo 里：用一个计数让它重算。
     const [version, setVersion] = useState(0);
@@ -24,15 +36,7 @@ export const useScratchpadHistory = (): RecentPlay[] => {
     const accounts = useOnlineProviderAccountStore(state => state.accounts);
     return useMemo(() => {
         // version、registryVersion、accounts 不在式子里，只在依赖里：它们一变就重读。
-        const navidromeAccount = navidromePlayAccount(getNavidromeConfig());
-        const scopes: PlayScope[] = [
-            ...omni.getProviderSummaries().map((summary): PlayScope => (
-                { kind: 'online', providerId: summary.providerId, accountId: String(summary.user?.id ?? '') }
-            )),
-            { kind: 'local' },
-            ...(navidromeAccount ? [{ kind: 'navidrome', accountId: navidromeAccount } as const] : []),
-        ];
-        const lists = scopes.map(recentPlayRecordsOf);
+        const lists = historyScopes().map(recentPlayRecordsOf);
         return mergeRecentPlays(lists, play => getPlaybackSongKey(play.song));
     }, [accounts, registryVersion, version]);
 };

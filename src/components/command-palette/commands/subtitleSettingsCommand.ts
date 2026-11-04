@@ -12,13 +12,14 @@ export const subtitleSettingsCommand: CommandPaletteCommand = defineCommand({
     id: 'settings-subtitles',
     group: 'settings',
     title: 'Subtitles',
-    description: 'Bottom subtitle rows and what each row shows, its backdrop, and the secondary subtitle',
+    description: 'Bottom subtitle rows and what each row shows, its backdrop, size and blur, and the secondary subtitle',
     // 只放这块面板独有的说法。别的字幕命令（翻译、罗马音、字幕背景、隐藏底部字幕层）的搜索词多以
     // subtitle / 字幕开头：这里若把 subtitle、字幕 本身当关键词，输到「subtitle 」带空格时面板会直接
     // 进这一条，后面的字全成了它的输入，那几条就搜不到了。
     keywords: [
         'subtitle settings', 'subtitle layout', 'subtitle rows', 'captions',
         '字幕设置', '字幕调节', '字幕行数', '三行字幕',
+        'subtitle size', 'subtitle blur', '字幕大小', '字幕尺寸', '字幕模糊',
     ],
     icon: Captions,
     capsuleAction: true,

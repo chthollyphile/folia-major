@@ -2,7 +2,10 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SongResult } from '../../../types';
 import type { ScratchpadEntry, ScratchpadGroup } from '../../../stores/useScratchpadStore';
+import { ListPlus, Star } from 'lucide-react';
+import type { TFunction } from 'i18next';
 import ScratchpadGroupHeader from './ScratchpadGroupHeader';
+import type { ScratchpadAction } from './scratchpadModel';
 import ScratchpadRow, { type ScratchpadRowActions, type ScratchpadRowLabels } from './ScratchpadRow';
 
 // src/components/app/scratchpad/ScratchpadList.tsx
@@ -19,6 +22,17 @@ export type ScratchpadPanelActions = {
     sourceLabel: (song: SongResult) => string;
     canAddToPlaylist: (song: SongResult) => boolean;
 };
+
+/** 一个来源组的组头按钮（列表与画布同一份）：整组入队、整组加入歌单（这一组的来源允许时）。 */
+export const sourceGroupButtons = (
+    t: TFunction,
+    canAddToPlaylist: boolean,
+    onEnqueue: () => void,
+    onAddToPlaylist: () => void,
+): ScratchpadAction[] => [
+    { id: 'enqueue-group', label: t('scratchpad.enqueueGroup'), icon: ListPlus, run: onEnqueue },
+    ...(canAddToPlaylist ? [{ id: 'add-group-to-playlist', label: t('scratchpad.addGroupToPlaylist'), icon: Star, run: onAddToPlaylist }] : []),
+];
 
 type ScratchpadListProps = {
     groups: ScratchpadGroup[];
@@ -54,9 +68,7 @@ const ScratchpadList: React.FC<ScratchpadListProps> = ({ groups, freshKeys, acti
                         <ScratchpadGroupHeader
                             label={sourceLabel}
                             count={group.entries.length}
-                            canAddToPlaylist={canAdd}
-                            onEnqueue={() => actions.enqueue(group.entries)}
-                            onAddToPlaylist={() => actions.addToPlaylist(group.entries)}
+                            buttons={sourceGroupButtons(t, canAdd, () => actions.enqueue(group.entries), () => actions.addToPlaylist(group.entries))}
                         />
                         <ul>
                             {group.entries.map(entry => (
