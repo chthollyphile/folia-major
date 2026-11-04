@@ -1906,6 +1906,24 @@ export default {
     "listenCount_one": "Played {{count}} time",
     "listenCount_other": "Played {{count}} times"
   },
+  "qqPreferences": {
+    "note": "Saved on your account; affects every song recommended to you",
+    "familiarity": "Song familiarity",
+    "familiarityExplore": "More new",
+    "keep": "Keep as is",
+    "familiarityFamiliar": "More familiar",
+    "mood": "Music mood",
+    "moodSad": "Sadder",
+    "moodHappy": "Happier",
+    "coverLive": "Covers & live",
+    "instrumental": "Instrumental",
+    "mandarin": "Mandarin",
+    "english": "English",
+    "japanese": "Japanese",
+    "korean": "Korean",
+    "cantonese": "Cantonese",
+    "ai": "AI songs"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

@@ -2,6 +2,7 @@ import type { UnifiedSong } from '../../../types';
 import type { MediaId, OnlineRecommendationProvider, ProviderCollection, ProviderHistoryEntry } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
+import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from './qqPreferences';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
@@ -135,4 +136,8 @@ export const qqRecommendations: OnlineRecommendationProvider = {
     getHistoryDates,
     getHistorySongs,
     dislikeSong,
+    // 账号的音乐偏好同时影响私人 FM 和每日 30 首，所以三处都开入口。
+    preferenceEntries: ['explore', 'personal-fm', 'daily'],
+    getRecommendationPreferences: getQqRecommendationPreferences,
+    saveRecommendationPreferences: saveQqRecommendationPreferences,
 };

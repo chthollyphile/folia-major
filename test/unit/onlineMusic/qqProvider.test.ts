@@ -205,7 +205,13 @@ describe('qqProvider', () => {
             'getHistorySongs',
             'getPersonalFm',
             'getRecommendedCollections',
+            'getRecommendationPreferences',
+            'preferenceEntries',
+            'saveRecommendationPreferences',
         ].sort());
+        // 账号的音乐偏好同时影响私人 FM 和每日 30 首：三处入口都开。
+        expect(qqProvider.capabilities.recommendationPreferences).toBe(true);
+        expect(qqProvider.recommendations?.preferenceEntries).toEqual(['explore', 'personal-fm', 'daily']);
         expect(Object.keys(qqProvider.mutations ?? {}).sort()).toEqual([
             'canAddToPlaylist', 'canEditPlaylistTracks', 'canSubscribe', 'createPlaylist', 'likeSong', 'subscribeAlbum', 'subscribePlaylist',
             'updatePlaylistTracks',

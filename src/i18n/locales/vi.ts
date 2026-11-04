@@ -1906,6 +1906,24 @@ export default {
     "listenCount_one": "Đã nghe {{count}} lần",
     "listenCount_other": "Đã nghe {{count}} lần"
   },
+  "qqPreferences": {
+    "note": "Lưu trên tài khoản; ảnh hưởng đến mọi bài hát được đề xuất",
+    "familiarity": "Độ quen thuộc của bài hát",
+    "familiarityExplore": "Khám phá thêm",
+    "keep": "Giữ nguyên",
+    "familiarityFamiliar": "Quen thuộc hơn",
+    "mood": "Cảm xúc âm nhạc",
+    "moodSad": "Buồn hơn",
+    "moodHappy": "Vui hơn",
+    "coverLive": "Cover & live",
+    "instrumental": "Nhạc không lời",
+    "mandarin": "Tiếng Quan Thoại",
+    "english": "Tiếng Anh",
+    "japanese": "Tiếng Nhật",
+    "korean": "Tiếng Hàn",
+    "cantonese": "Tiếng Quảng Đông",
+    "ai": "Bài hát AI"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",

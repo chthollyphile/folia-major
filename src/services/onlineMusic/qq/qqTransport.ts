@@ -15,6 +15,7 @@ export const QQ_OPERATIONS = [
     'user_personal_fm', 'user_daily_history_dates', 'user_daily_history', 'user_blacklist_add',
     'user_listening_rank',
     'recommend_feed',
+    'user_recommendation_preferences', 'user_recommendation_preferences_update',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -33,7 +34,7 @@ export type QqParams = Record<string, string | number | boolean | undefined>;
 const POST_OPERATIONS: ReadonlySet<QqOperation> = new Set<QqOperation>([
     'login_refresh',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_song_like', 'user_album_subscribe',
-    'user_playlist_create', 'user_blacklist_add',
+    'user_playlist_create', 'user_blacklist_add', 'user_recommendation_preferences_update',
 ]);
 
 const ENDPOINTS: Record<QqOperation, string> = {
@@ -69,6 +70,9 @@ const ENDPOINTS: Record<QqOperation, string> = {
     user_listening_rank: '/user/listening-rank',
     // 3.3.6 的客户端首页 feed 第 1 页（只有歌曲与歌单）。旧后端回 404，探索页就不出这几栏。
     recommend_feed: '/recommend/feed',
+    // 3.3.6 的账号音乐偏好（私人 FM 和每日 30 首共用一份）：读，和只改指定项的写入（写一次、读回核对，不重送）。
+    user_recommendation_preferences: '/user/recommendation-preferences',
+    user_recommendation_preferences_update: '/user/recommendation-preferences/update',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',

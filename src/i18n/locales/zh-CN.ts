@@ -1906,6 +1906,24 @@ export default {
     "listenCount_one": "听过 {{count}} 次",
     "listenCount_other": "听过 {{count}} 次"
   },
+  "qqPreferences": {
+    "note": "保存在账号上，会影响所有推荐的歌",
+    "familiarity": "歌曲熟悉度",
+    "familiarityExplore": "更探索",
+    "keep": "保持现状",
+    "familiarityFamiliar": "更熟悉",
+    "mood": "音乐情绪",
+    "moodSad": "更伤感",
+    "moodHappy": "更欢快",
+    "coverLive": "翻唱与现场",
+    "instrumental": "纯音乐",
+    "mandarin": "国语",
+    "english": "英语",
+    "japanese": "日语",
+    "korean": "韩语",
+    "cantonese": "粤语",
+    "ai": "AI 歌曲"
+  },
   "lyricProvider": {
     "qishui": "汽水音乐",
     "netease": "网易云音乐",

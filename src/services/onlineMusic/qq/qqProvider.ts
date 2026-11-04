@@ -1066,6 +1066,8 @@ export const qqProvider: OnlineMusicProvider = {
         explore: true,
         // 听歌排行是 qq-music-api 3.3.6 的路由；旧后端 404，看到的只是没有排行条目。
         listeningRank: true,
+        // 账号的音乐偏好是 qq-music-api 3.3.6 的路由；旧后端 404，偏好面板显示没读到。
+        recommendationPreferences: true,
     },
     normalizeSong: normalizeQqSong,
     normalizeUser: normalizeQqUser,
