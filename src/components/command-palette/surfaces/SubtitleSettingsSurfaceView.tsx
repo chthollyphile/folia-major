@@ -13,8 +13,9 @@ import SubtitleOverlayRowsSetting from '../../visualizer/window/SubtitleOverlayR
 
 // src/components/command-palette/surfaces/SubtitleSettingsSurfaceView.tsx
 // The subtitle command's panel: the bottom subtitle on or off, how many rows it has and what each row
-// shows, its opacity and backdrop, and the 副字幕 the self-laid-out lyric styles (and the harmony line)
-// show. A link under the card opens the lyric style window's subtitle tab for everything else.
+// shows, its opacity, backdrop, size and whether upcoming lines are blurred, and the 副字幕 the
+// self-laid-out lyric styles (and the harmony line) show. A link under the card opens the lyric style
+// window's subtitle tab for everything else.
 //
 // The rows and the 副字幕 choice are the lyric style window's own controls, in its order, so the palette
 // and that window edit the same settings the same way. Values come straight from the typography store.
@@ -34,11 +35,15 @@ export default function SubtitleSettingsSurfaceView({ isDaylight, theme, onOpenM
         opacity: state.subtitleOverlayOpacity,
         hasBackground: state.subtitleOverlayBackground,
         contentMode: state.subtitleContentMode,
+        fontScale: state.subtitleFontScale,
+        blursUpcoming: state.subtitleUpcomingLyricsBlur,
         setOverlayHidden: state.handleToggleHidePlayerTranslationSubtitle,
         setLayout: state.handleSetSubtitleOverlayLayout,
         setOpacity: state.handleSetSubtitleOverlayOpacity,
         setBackground: state.handleToggleSubtitleOverlayBackground,
         setContentMode: state.handleSetSubtitleContentMode,
+        setFontScale: state.handleSetSubtitleFontScale,
+        setBlursUpcoming: state.handleToggleSubtitleUpcomingLyricsBlur,
     })));
 
     return (
@@ -69,7 +74,20 @@ export default function SubtitleSettingsSurfaceView({ isDaylight, theme, onOpenM
                         <Row label={t('options.subtitleOverlayBackground')} note={t('options.subtitleOverlayBackgroundDesc')}>
                             <Toggle checked={subtitles.hasBackground} onChange={subtitles.setBackground} />
                         </Row>
+                        <Row label={t('options.subtitleUpcomingLyricsBlur')}>
+                            <Toggle checked={subtitles.blursUpcoming} onChange={subtitles.setBlursUpcoming} />
+                        </Row>
                     </Reveal>
+                    {/* Same range and step as the lyric style window's 字幕缩放; it also sizes the 副字幕 below. */}
+                    <SliderRow
+                        label={t('options.subtitleFontScale')}
+                        value={subtitles.fontScale}
+                        min={0.85}
+                        max={1.4}
+                        step={0.05}
+                        format={percent}
+                        onChange={subtitles.setFontScale}
+                    />
                     <Row label={t('options.subtitleContentMode')} note={t('options.subtitleContentModeDesc')}>
                         <Select<SubtitleContentMode>
                             value={subtitles.contentMode}
