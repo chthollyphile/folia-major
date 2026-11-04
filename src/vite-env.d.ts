@@ -979,6 +979,11 @@ declare global {
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
       ) => Promise<import('./services/onlineMusic/ytm/ytmTransport').YtmBridgeResult>;
+      appleMusicWindowsExperimental?: boolean;
+      appleMusicRequest: (
+        operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
+        params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,
+      ) => Promise<import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicBridgeResult>;
       spotifyRequest: (
         operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
         params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,

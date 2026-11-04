@@ -831,7 +831,7 @@ export const parseTTML = (
         lines: finalizeParsedLyricLines(parsed.lines, options),
     };
 
-    console.log('[TTML] Adapted lyric data for visualizers:', adapted);
+    console.log('[TTML] Adapted lyric data for visualizers:', { lineCount: adapted.lines.length });
 
     return adapted;
 };

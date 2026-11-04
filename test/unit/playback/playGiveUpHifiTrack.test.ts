@@ -103,6 +103,7 @@ vi.mock('@/services/prefetchService', async importOriginal => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         canPlaySong: () => true,
+        canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getSongReplacement: async () => ({
             song: { id: 'other', name: 'Other version', artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'other' } },

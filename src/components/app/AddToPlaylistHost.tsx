@@ -180,7 +180,8 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
             const playlists = songPlaylists.map((playlist: ProviderCollection): PlaylistEntry => ({
                 id: String(playlist.id),
                 name: playlist.name,
-                description: trackCount(playlist.trackCount || 0),
+                description: typeof playlist.trackCount === 'number' && Number.isFinite(playlist.trackCount) && playlist.trackCount >= 0
+                    ? `${playlist.trackCount} ${t('playlist.tracks')}` : undefined,
                 coverUrl: playlist.coverUrl,
             }));
             if (!canLike) return playlists;

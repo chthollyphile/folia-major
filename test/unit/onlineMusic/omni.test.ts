@@ -1037,6 +1037,20 @@ describe('omni reads for callers beside the host UI', () => {
             ],
         });
 
+        it('returns every named artist resolved from a combined collaboration label', async () => {
+            const combined = { ...listed(providerId), artists: [{ id: '', name: 'A & B' }] };
+            registerOnlineMusicProvider({
+                ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+                capabilities: catalogCapabilities,
+                catalog: { resolveSongCatalogRefs: async () => resolved(providerId) },
+            });
+            const refs = await omni.getSongCatalogRefs(combined);
+            expect(refs.artists).toEqual([
+                { providerId, kind: 'artist', id: 'artist-a', name: 'A' },
+                { providerId, kind: 'artist', id: 'artist-b', name: 'B' },
+            ]);
+        });
+
         it('reads them with one answer of the provider\'s resolver, each ref once, with its name', async () => {
             const resolveSongCatalogRefs = vi.fn(async (_target: UnifiedSong) => resolved(providerId));
             registerOnlineMusicProvider({

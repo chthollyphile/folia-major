@@ -1,6 +1,6 @@
 # HiFi 原生直通（mpv）
 
-桌面版可选的第二套音频引擎。本地曲库和（可选的）Navidrome 歌曲交给 mpv 子进程，由 Electron 主进程经 JSON IPC 控制，按源文件的格式直接送到输出设备；在线歌曲和 Stage 推来的歌照旧走 `<audio>` + Web Audio。当前这首走哪套引擎记在 `usePlaybackStore` 的 `playbackRoute`（`'web' | 'hifi'`，不持久化，每次起播重新判）。网页版没有 `window.electron.hifi`，本目录的每个方法都回安全的默认值，不抛错。
+桌面版可选的第二套音频引擎。本地曲库和（可选的）Navidrome 歌曲交给 mpv 子进程，由 Electron 主进程经 JSON IPC 控制，按源文件的格式直接送到输出设备；在线歌曲和 Stage 推来的歌照旧走 `<audio>` + Web Audio。当前这首走哪套引擎记在 `usePlaybackStore` 的 `playbackRoute`（`'web' | 'hifi' | 'external'`，不持久化，每次起播重新判；`external` 是 Apple Music companion 那条路线，见 `src/services/onlineMusic/README.md`）。网页版没有 `window.electron.hifi`，本目录的每个方法都回安全的默认值，不抛错。
 
 跨进程的形状（引擎状态、载入请求、错误码、信号链路）都在 `src/types/hifi.ts`。主进程只回错误码，文案在渲染端按 `hifi.errors.<code>` 取。
 
@@ -53,7 +53,7 @@ mpv ──HTTP（Range）──> electron/hifi/sourceBridge.cjs（127.0.0.1，�
 - `hifiTransport.ts`：播放、暂停、跳转：发 IPC，先把 shim 和时钟改成预期的样子。
 - `hifiGapless.ts`：无缝接播：`loadfile append` 预载下一首、下一首变了就撤、mpv 接上时换成当前曲目。
 - `hifiClock.ts`：按 `performance.now()` 外推 mpv 约 4 Hz 推来的位置。
-- `hifiMediaShim.ts`：给 Media Session、听歌上报、scrobble 这些只读观察者一个像 `<audio>` 的对象；`getObservedMedia()` 在 HiFi 路线上返回它。
+- `hifiMediaShim.ts`：给 Media Session、听歌上报、scrobble 这些只读观察者一个像 `<audio>` 的对象；`getObservedMedia()` 在 HiFi 路线上返回它，在 `external` 路线上返回 companion 路线注册进来的那份。通用的 shim 类在 `src/services/mediaShim.ts`。
 - `hifiSourceResponder.ts`：`sourceKey` → `File`，按来源桥的请求切片回送。
 - `sourceSpec.ts`：源文件本身的格式：本地读文件头（music-metadata），Navidrome 用 Subsonic 返回的字段。
 - `signalPath.ts`：源 → 传输 → 解码 → 处理 → 输出逐级比对，判断是不是原生直通；Linux 上有 PipeWire 探测时再加 `system` 一级。

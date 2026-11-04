@@ -16,6 +16,7 @@ import { rowStatus } from '../platformRows';
 import { LOGIN_CASE_TEXTS } from './loginCaseTexts';
 import LoginMessage, { LoginDetails, type MessageAction } from './LoginMessage';
 import LoginTile from './LoginTile';
+import { shortAccountId } from '../../../utils/accountIdDisplay';
 import { accountView, failureNoteKey, failureQuote, loginScene, sceneHeadline, stepMarks, type RowLead } from './loginView';
 import FormLogin from './FormLogin';
 import LoginWindow from './LoginWindow';
@@ -142,7 +143,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             if (summary && rowStatus(summary) === 'ran-out') note = t('status.loginExpired');
             if (summary) actions = [{ label: t('home.loginBrowserRetry'), primary: true, onClick: () => onChoose(providerId) }];
         } else {
-            if (summary?.user) note = `${label} · ID: ${String(summary.user.id)}`;
+            if (summary?.user) note = `${label} · ID: ${shortAccountId(String(summary.user.id))}`;
             actions = [...switchAction, { label: t('account.logout'), onClick: onSignOut }];
         }
     } else if (scene === 'accountless') {

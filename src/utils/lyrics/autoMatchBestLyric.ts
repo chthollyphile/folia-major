@@ -184,6 +184,22 @@ async function matchUnderArtist(
         },
     } : undefined);
     const activeProviderChorusRanges: ChorusRange[] = providerCandidate?.lyricsResult.chorusRanges ?? [];
+    // A provider whose own word timing is kept (Apple) is the match before any search: another
+    // source may have words too, but not this song's own timing. The rule lives here so every
+    // caller - playback, prefetch, a match window - obeys it without repeating it.
+    const ownLyrics = providerCandidate?.lyricsResult.lyrics;
+    if (providerCandidate && ownLyrics?.isWordByWord
+        && getOnlineMusicProvider(providerCandidate.providerId)?.lyrics?.prefersOwnWordByWord === true) {
+        console.log(`[autoMatchBestLyric] ${providerCandidate.providerId} keeps its own word timing; no other source is asked`);
+        return {
+            lyrics: ownLyrics,
+            source: providerCandidate.providerId,
+            id: providerCandidate.song.id,
+            song: providerCandidate.song,
+            ...(providerCandidate.song.qqMid ? { qqMid: providerCandidate.song.qqMid } : {}),
+            ...(providerCandidate.song.kgHash ? { kgHash: providerCandidate.song.kgHash } : {}),
+        };
+    }
     // The chorus ranges a source that shares them (NetEase) gave in this run.
     let sharedChorusRanges: ChorusRange[] = [];
     const bestCandidates = new Map<LyricProviderSource, SongResult | null>();
@@ -371,8 +387,8 @@ async function matchUnderArtist(
         return null;
     };
 
-    // AMLL DB keeps lyrics under NetEase and QQ song ids, so it is asked about those two sources'
-    // candidates: the QQ song picked in the metadata dialog when there is one, then NetEase's.
+    // AMLL DB uses NetEase and QQ song IDs: try the metadata-selected candidate first.
+    // The NetEase candidate follows when available.
     const tryAmllDb = async (): Promise<AutoMatchBestLyricResult> => {
         if (options.metadataCandidate?.source === 'qq') {
             const qqCandidate = await getBestCandidate('qq');
@@ -436,6 +452,17 @@ export async function autoMatchBestLyric(
     options: AutoMatchBestLyricOptions = {}
 ): Promise<AutoMatchBestLyricResult> {
     const match = await matchUnderArtist(title, artist, durationMs, options);
+    if (match && (match.isPureMusic || match.lyrics.isWordByWord)) return match;
+    // The alias comes from the song's own provider, not the active Omni one.
+    const providerCandidate = options.providerCandidate;
+    const lyricsProvider = providerCandidate ? getOnlineMusicProvider(providerCandidate.providerId)?.lyrics : undefined;
+    if (providerCandidate && lyricsProvider?.getSearchAlias) {
+        const alias = await withTimeout(lyricsProvider.getSearchAlias(providerCandidate.song).catch(() => null), 10000, 'Song alias', null);
+        if (alias && alias.title !== title) {
+            const result = await matchUnderArtist(alias.title, alias.artist, durationMs, { ...options, album: alias.album || options.album });
+            if (result && (!match || (!result.isPureMusic && result.lyrics.isWordByWord))) return result;
+        }
+    }
     if (match || !options.alternateArtist) return match;
     const alternate = await withTimeout(
         options.alternateArtist().catch(() => null),

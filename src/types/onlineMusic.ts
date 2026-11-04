@@ -80,6 +80,11 @@ export interface ProviderCapabilities {
     /** The provider has a recommendation page of its own, read through `explore`. */
     explore?: boolean;
     /**
+     * The provider sounds its songs in a player of its own outside this app. `externalPlayback`
+     * steers that player; `playback.getAudioSource` is not used.
+     */
+    externalPlayback?: boolean;
+    /**
      * The provider can look a song up by id with `playback.getSongDetail`; absent reads as true
      * wherever `playback` is there.
      */
@@ -89,6 +94,8 @@ export interface ProviderCapabilities {
 export interface ProviderAvailability {
     configured: boolean;
     reason?: 'not-configured' | 'runtime-unavailable';
+    /** Optional i18n key explaining a disabled platform row; kept provider-owned. */
+    messageKey?: string;
 }
 
 export interface ProviderAccountSummary {
@@ -456,8 +463,59 @@ export interface OnlinePlaybackReportProvider {
     reportPlayback(song: SongResult, report: ProviderPlaybackReport): Promise<void>;
 }
 
+/**
+ * What an external player outside this app has loaded, as its provider says it.
+ * `mediaId` is the id the provider gave the player (not necessarily the song's `UnifiedSong.id`);
+ * `isStatusForSong` tells whether it is a given song.
+ */
+export interface ProviderExternalPlaybackStatus {
+    /** Live broadcasts have no seekable song timeline or natural track ending. */
+    live?: boolean;
+    mediaId: string;
+    isPlaying: boolean;
+    positionMs: number;
+    durationMs: number;
+    /** The player's own state says the track ran out. */
+    ended: boolean;
+    /** An intentional player-side seek, so small backward jumps must not be smoothed away. */
+    seeking?: boolean;
+}
+
+/**
+ * A player outside Folia that a provider steers: the provider's song plays there (inside a page
+ * this app cannot route as audio), and the app drives the transport and follows its clock.
+ * Only the song's own provider can answer these calls.
+ */
+export interface OnlineExternalPlaybackProvider {
+    /** False only for songs this external route already knows it cannot start; no network reads. */
+    canPlay?(song: SongResult): boolean;
+    /** Prepare a bounded successor queue without interrupting the current song. */
+    prepareNext?(song: SongResult, upcoming: SongResult[]): Promise<void>;
+    /** Whether a handoff can reuse an already prepared successor (not a guarantee of buffered audio). */
+    isPrepared?(song: SongResult): boolean;
+    /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
+    play(song: SongResult, startSec: number): Promise<void>;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    seek(seconds: number): Promise<void>;
+    /** The player's state now, from no cache. */
+    getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
+    /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
+    isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+}
+
+/** An alternate title and artist that belong to the same song. */
+export interface ProviderLyricSearchAlias { song: SongResult; title: string; artist: string; album?: string }
+
 export interface OnlineLyricsProvider {
+    getSearchAlias?(song: SongResult): Promise<ProviderLyricSearchAlias | null>;
     getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<ProviderLyricsResult>;
+    /**
+     * Where its own lyrics are word-level, they are the timings to use even with automatic
+     * matching on: another source may have words too, but not this platform's own timing.
+     * Off where the platform leaves the choice to the automatic pick.
+     */
+    prefersOwnWordByWord?: boolean;
     getChorusRanges?(songId: MediaId): Promise<ChorusRange[]>;
     // 这首歌的歌手在别的平台上可能用的另一个名字；没有就返回 null。
     getAlternateArtistName?(song: SongResult): Promise<string | null>;
@@ -687,6 +745,8 @@ export interface ProviderLikedSongIds {
 }
 
 export interface OnlineLibraryProvider {
+    /** One favorite identity across catalog/library aliases; omitted when playback IDs already match. */
+    getSongLikeId?(song: SongResult): MediaId;
     getUserPlaylists(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     /**
      * The id of every liked song. A page the adapter knows it could not read throws. An adapter
@@ -958,6 +1018,8 @@ export interface OnlineMusicProvider {
     getSongPageUrl?(song: SongResult): string | null;
     search?: OnlineSearchProvider;
     playback?: OnlinePlaybackProvider;
+    /** A player outside this app that sounds this provider's songs (see the capability of the same name). */
+    externalPlayback?: OnlineExternalPlaybackProvider;
     playbackReports?: OnlinePlaybackReportProvider;
     lyrics?: OnlineLyricsProvider;
     auth?: OnlineAuthProvider;

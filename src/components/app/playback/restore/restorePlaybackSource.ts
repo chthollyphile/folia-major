@@ -34,7 +34,7 @@ import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../..
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
-import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
@@ -377,6 +377,23 @@ const restoreSourceForSong = async (
             if (!prev || !isSamePlaybackSong(prev, song)) return prev;
             return { ...prev, onlineLyricsState };
         });
+    }
+
+    if (omni.canPlayExternally(song)) {
+        // A provider's own player has no track after a restart: the remembered song is shown as it
+        // was - paused, at its position - and the play path starts it when the listener asks. Its
+        // lyrics are still restored, so the screen is not empty.
+        try {
+            const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
+            if (overtaken()) return 'stale';
+            if (song.durationMs > 0) setDuration(song.durationMs / 1000);
+            const restoredLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
+            if (restoredLyrics) setLyrics(restoredLyrics);
+        } catch (error) {
+            if (overtaken()) return 'stale';
+            console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored for the external player', error);
+        }
+        return 'restored';
     }
 
     if (!omni.canPlaySong(song)) {

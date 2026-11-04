@@ -23,6 +23,8 @@ exports.default = async (context) => {
   const { prepareBundledModels } = await import("./fetchModels.mjs");
   await prepareBundledModels({ outputDir: require("path").join(context.packager.projectDir, "models") });
   if (context.electronPlatformName === 'darwin') {
+    const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });
     // The wallpaper's Stage Manager click guard (issue #698), a small native helper.

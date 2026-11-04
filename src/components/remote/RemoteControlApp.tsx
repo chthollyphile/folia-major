@@ -79,6 +79,8 @@ const RemoteControlApp: React.FC = () => {
 
     const clock = useRemoteClock({
         updatedAt: snapshot.updatedAt,
+        trackKey: snapshot.trackKey,
+        clockRevision: snapshot.clockRevision,
         currentTime: snapshot.currentTime,
         duration,
         playerState: snapshot.playerState,

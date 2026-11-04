@@ -49,6 +49,7 @@
 | 64+ | `src/stores/useAppViewStore.ts` |
 | 64+ | `src/stores/useAudioSettingsStore.ts` |
 | 64+ | `src/stores/useStatusMessageStore.ts` |
+| 64+ | `src/types/hifi.ts` |
 | 64+ | `src/utils/lyrics/renderHints.ts` |
 | 32+ | `dev/probes/definition.ts` |
 | 32+ | `src/components/command-palette/commandRegistry.ts` |
@@ -81,7 +82,6 @@
 | 32+ | `src/stores/useSettingsModalStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
-| 32+ | `src/types/hifi.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/types/navidrome.ts` |
 | 32+ | `src/utils/coverUrl.ts` |

@@ -16,7 +16,7 @@ vi.mock('@/services/onlinePlayback', () => ({
     applyOnlineAudioSourceMetadata: (song: unknown) => song,
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { canPlaySong: canPlaySongMock, getLyrics: getLyricsMock, getProviderLabel: (id: string) => id },
+    omni: { canPlaySong: canPlaySongMock, canPlayExternally: () => false, getLyrics: getLyricsMock, getProviderLabel: (id: string) => id },
 }));
 vi.mock('@/stores/usePlaybackStore', () => ({
     usePlaybackStore: { getState: () => playbackState },

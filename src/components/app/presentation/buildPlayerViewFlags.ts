@@ -16,6 +16,7 @@ export const buildPlayerViewFlags = ({
     duration,
     playbackRoute,
     hasHifiTrack,
+    hasExternalSong,
 }: {
     currentView: string;
     disableHomeDynamicBackground: boolean;
@@ -31,6 +32,8 @@ export const buildPlayerViewFlags = ({
     playbackRoute: PlaybackRoute;
     /** useHifiTrackStore has a current track (loading, ready, or the one mpv still holds). */
     hasHifiTrack: boolean;
+    /** The song on screen plays in a provider's own player outside this app (external route). */
+    hasExternalSong: boolean;
 }) => {
     const isPlayerView = currentView === 'player';
     return {
@@ -42,6 +45,9 @@ export const buildPlayerViewFlags = ({
         canToggleCurrentPlayback: !isNowPlayingControlDisabled && Boolean(
             audioSrc
             || (playbackRoute === 'hifi' && hasHifiTrack)
+            // Not gated on the route: a song restored paused has no route of its own yet, and the
+            // transport starts the provider's player when it is pressed.
+            || hasExternalSong
             || (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && duration > 0),
         ),
     };

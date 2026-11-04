@@ -6,6 +6,7 @@ import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMus
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getPersonalFmSelection } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { announceExternalPlayback, beginExternalPlayback, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../../../../services/prefetchService';
 import { getLocalSong } from '../../../../services/db';
@@ -34,7 +35,7 @@ import {
     canShuffleQueue,
     fmNeedsTopUpAt,
     hasTrackToSkipTo,
-    nextPlayableQueueSong,
+    nextPlayableQueueSong, nextPlayableQueueIndex,
     nextQueueIndex,
     prevQueueIndex,
     queueIndexOf,
@@ -177,9 +178,13 @@ const isPassingFailure = (shown: OnlineFailure) => (
 
 // The stops that leave the current song where it is pause what actually sounds it. On the HiFi route that
 // is mpv: the deck there has no source, so pausing it alone left the song playing under a stopped player.
+// The external player is the same case one step further out.
 const pauseWhatIsSounding = (audio: HTMLAudioElement | null) => {
     audio?.pause();
     if (isHifiRoute()) void hifiTransport.pause();
+    // The external player gives the song up completely: pressing play again starts it through the
+    // play path (which replays a queue that ended), not by resuming a player left at the end.
+    if (isExternalRoute()) yieldExternalPlayback('the song stops');
 };
 
 // A sign-in that has run out comes with the button that opens the sign-in window for that platform.
@@ -613,6 +618,13 @@ export function usePlaybackQueueController({
         };
         const isLocal = isLocalPlaybackSong(song);
         const isNavidrome = isNavidromePlaybackSong(song);
+        // A song its provider plays in a player of its own outside the app: no address
+        // is fetched and no deck plays it; the external route is begun below.
+        const isExternal = omni.canPlayExternally(song);
+        // Capture readiness before beginning the new attempt resets its preparation context.
+        const isPreparedExternal = isExternal && isExternalRoute() && omni.isExternalPlaybackPrepared(song);
+        // Another song is starting: the external player must not keep sounding while this one loads.
+        if (!isExternal && isExternalRoute()) yieldExternalPlayback('another song started');
         let prefetched: ReturnType<typeof getPrefetchedData> = null;
         let preloadedOnlineAudioResult: Awaited<ReturnType<typeof loadOnlineSongAudio>> | null = null;
         // A copy from the media cache is this play's own until its address is written: a play that
@@ -783,6 +795,12 @@ export function usePlaybackQueueController({
             return;
         }
 
+        if (isExternal && !omni.canPlaySong(song)) {
+            // Reject a known unstreamable row before replacing/pausing the external song that still sounds.
+            presentOnlineFailure(onlineFailureOf({ operation: 'audio', providerId }, { detail: { case: 'no-audio' } }));
+            return;
+        }
+
         if (isLocal) {
             // The newest record of this song from the library, not only the one in `localSongs`: the warm-up
             // of the songs nearby and a match writing back land in the store first, and an older copy here
@@ -849,13 +867,15 @@ export function usePlaybackQueueController({
             return;
         }
 
+        // External playback still reuses prefetched lyrics and artwork; only its audio URL is excluded.
         prefetched = getPrefetchedData(song, audioQuality);
 
         const hasImmediatePrefetchedAudio = Boolean(
+            !isExternal &&
             prefetched?.audioUrl &&
             prefetched.audioUrl !== 'CACHED_IN_DB'
         );
-        const hasCachedAudioBlob = hasImmediatePrefetchedAudio
+        const hasCachedAudioBlob = isExternal || hasImmediatePrefetchedAudio
             ? null
             : await hasCachedSongAudio(song);
 
@@ -864,30 +884,40 @@ export function usePlaybackQueueController({
             return;
         }
 
-        if (!hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
+        if (isExternal && !isPreparedExternal) {
+            setStatusMsg({ type: 'info', text: t('status.preparingExternalPlayback') });
+        } else if (!isExternal && !hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
             setStatusMsg({ type: 'info', text: t('status.loadingSong') });
         }
 
         try {
-            // Where the platform could not be reached the load asks again by itself while this play is
-            // wanted, and says so.
-            preloadedOnlineAudioResult = await loadOnlineSongAudio(song, audioQuality, prefetched, {
-                retry: {
-                    isCurrent: isLatestPlaybackRequest,
-                    onRetrying: shown => {
-                        if (isLatestPlaybackRequest()) {
-                            setStatusMsg({ type: 'info', text: t('status.songRetrying'), ...(shown.providerId ? { providerId: shown.providerId } : {}) });
-                        }
+            if (isExternal) {
+                // Another engine must stop before the companion starts, or both sound at once. The
+                // companion itself is not paused first: its next play replaces the track in one
+                // call, and pausing it here would race that play in the companion's queue.
+                if (!isExternalRoute()) pauseWhatIsSounding(audioRef.current);
+                await beginExternalPlayback(song, options.startAtSec ?? 0);
+            } else {
+                // Where the platform could not be reached the load asks again by itself while this play is
+                // wanted, and says so.
+                preloadedOnlineAudioResult = await loadOnlineSongAudio(song, audioQuality, prefetched, {
+                    retry: {
+                        isCurrent: isLatestPlaybackRequest,
+                        onRetrying: shown => {
+                            if (isLatestPlaybackRequest()) {
+                                setStatusMsg({ type: 'info', text: t('status.songRetrying'), ...(shown.providerId ? { providerId: shown.providerId } : {}) });
+                            }
+                        },
                     },
-                },
-            });
+                });
+            }
             if (!isLatestPlaybackRequest()) {
                 giveBackUnusedCopy();
                 isLatestPlaybackRequest.abandon();
                 return;
             }
 
-            if (preloadedOnlineAudioResult.kind === 'unavailable') {
+            if (preloadedOnlineAudioResult?.kind === 'unavailable') {
                 const shown = preloadedOnlineAudioResult.failure;
                 if (shown.case === 'taken-down') await presentTakenDown(shown);
                 else presentOnlineFailure(shown);
@@ -970,6 +1000,8 @@ export function usePlaybackQueueController({
             navigateToPlaybackView();
         }
         startLoadingToPlay();
+        // The song is on screen: the external player may now drive the transport and the shim.
+        if (isExternal) announceExternalPlayback();
 
         const cachedCoverUrl = await getCachedSongCoverUrl(song);
         if (askedSongKeyRef.current !== songKey || startOfAskedSong() !== askedStart) {
@@ -983,20 +1015,23 @@ export function usePlaybackQueueController({
         }
 
         const audioResult = preloadedOnlineAudioResult;
-        if (!audioResult || audioResult.kind !== 'ok') {
+        if (isExternal) {
+            // The companion plays this song; no address belongs to the decks.
+            currentOnlineAudioUrlFetchedAtRef.current = null;
+        } else if (!audioResult || audioResult.kind !== 'ok') {
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
             setPlayerState(PlayerState.IDLE);
             setIsLyricsLoading(false);
             return;
+        } else {
+            if (audioResult.blobUrl) {
+                blobUrlRef.current = audioResult.blobUrl;
+            }
+            // Here only an http address keeps its fetch time (the restore and the recovery keep it for
+            // every address that is not a blob).
+            currentOnlineAudioUrlFetchedAtRef.current = audioResult.audioSrc.startsWith('http') ? audioResult.fetchedAt : null;
+            setAudioSrc(audioResult.audioSrc);
         }
-
-        if (audioResult.blobUrl) {
-            blobUrlRef.current = audioResult.blobUrl;
-        }
-        // Here only an http address keeps its fetch time (the restore and the recovery keep it for
-        // every address that is not a blob).
-        currentOnlineAudioUrlFetchedAtRef.current = audioResult.audioSrc.startsWith('http') ? audioResult.fetchedAt : null;
-        setAudioSrc(audioResult.audioSrc);
 
         try {
             await loadOnlineSongLyrics(song, prefetched, userId, {
@@ -1017,7 +1052,7 @@ export function usePlaybackQueueController({
                 onAutoMatchStart: () => {
                     // A preview clip plays as it comes and is told of as it starts (previewNotice.ts),
                     // which is when this search starts too: its notice would take the preview's place.
-                    if (!audioResult.preview) setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') });
+                    if (!isExternal && !audioResult?.preview) setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') });
                 },
                 onDone: () => setIsLyricsLoading(false),
             });
@@ -1318,7 +1353,7 @@ export function usePlaybackQueueController({
             if (fmSongs.length > 0) setPlayQueue(nextQueue);
             // A batch that failed or brought nothing new steps on through the queue there is, and on its last
             // song stops (Personal FM does not go round).
-            const nextIndex = nextQueueIndex(nextQueue.length, queueIndexOf(base, stepFrom), indexLoopMode);
+            const nextIndex = nextPlayableQueueIndex(nextQueue, queueIndexOf(base, stepFrom), indexLoopMode, isQueueSongPlayable);
             if (nextIndex >= 0) {
                 void playSong(nextQueue[nextIndex], nextQueue, true, {
                     shouldNavigateToPlayer,
@@ -1331,7 +1366,7 @@ export function usePlaybackQueueController({
             return;
         }
 
-        const nextIndex = nextQueueIndex(playQueue.length, currentIndex, indexLoopMode);
+        const nextIndex = nextPlayableQueueIndex(playQueue, currentIndex, indexLoopMode, isQueueSongPlayable);
 
         if (nextIndex >= 0) {
             void playSong(playQueue[nextIndex], playQueue, isFmMode, {

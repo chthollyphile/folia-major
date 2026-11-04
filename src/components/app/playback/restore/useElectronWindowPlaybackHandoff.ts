@@ -26,6 +26,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
+import { getExternalPosition, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
@@ -115,7 +116,8 @@ const buildPlaybackSnapshot = ({
     isFmMode,
     playerState,
     // On the HiFi route <audio> sits idle: the position is mpv's, as its clock reads it now.
-    currentTime: isHifiRoute() ? getHifiPosition() : (audioRef.current?.currentTime ?? currentTime.get()),
+    // The external player's clock answers for itself the same way.
+    currentTime: isHifiRoute() ? getHifiPosition() : isExternalPlaybackSounding() ? getExternalPosition() : (audioRef.current?.currentTime ?? currentTime.get()),
     duration,
     currentLineIndex,
 });
@@ -178,6 +180,9 @@ export function useElectronWindowPlaybackHandoff({
     const handoffQueueWritesRef = useRef<number | null>(null);
 
     const captureWindowPlaybackHandoff = useCallback((): WindowPlaybackHandoff => {
+        // The provider's player cannot be adopted by the next window: stop it sounding under a
+        // window that will show the song paused.
+        if (isExternalRoute()) pauseExternalPlayback();
         const activePlayback = withUntransformedLyrics(buildPlaybackSnapshot({
             audioRef,
             audioSrc,
@@ -189,7 +194,9 @@ export function useElectronWindowPlaybackHandoff({
             isFmMode,
             lyrics,
             playQueue,
-            playerState,
+            // Read after the external player was paused above: the handoff must not claim a
+            // playing song when nothing of the next window will sound it.
+            playerState: isExternalRoute() ? usePlaybackStore.getState().playerState : playerState,
         }));
         const mainPlayback = activePlaybackContext === 'main'
             ? activePlayback

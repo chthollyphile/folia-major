@@ -6,8 +6,8 @@ import type { SongResult } from '@/types';
 // registry is replaced by two switches: whether the provider can play, whether it marks the track
 // unavailable.
 
-const provider = vi.hoisted(() => ({ canPlay: true, marksUnavailable: false }));
-vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => provider.canPlay } }));
+const provider = vi.hoisted(() => ({ canPlay: true, marksUnavailable: false, externalRoute: false }));
+vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => provider.canPlay, canPlayExternally: () => provider.externalRoute } }));
 vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: () => provider.marksUnavailable }));
 
 const { isQueueSongPlayable, isRestoredSongPlayable } = await import('@/components/app/playback/playableSong');
@@ -21,6 +21,7 @@ const songWithoutSource = { ...base } as SongResult;
 
 beforeEach(() => {
     provider.canPlay = true;
+    provider.externalRoute = false;
     provider.marksUnavailable = false;
 });
 
@@ -67,6 +68,14 @@ describe('isRestoredSongPlayable', () => {
 });
 
 describe('where the two checks differ', () => {
+
+    it('retains a known unplayable external row on restore while skipping it during queue advancement', () => {
+        provider.canPlay = false;
+        provider.externalRoute = true;
+        expect(isQueueSongPlayable(onlineSong)).toBe(false);
+        expect(isRestoredSongPlayable(onlineSong)).toBe(true);
+    });
+
     it('an online track marked unavailable fails the queue check and passes the restore check', () => {
         provider.marksUnavailable = true;
         expect(isQueueSongPlayable(onlineSong)).toBe(false);

@@ -36,6 +36,12 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus',
         'getLoginTexts', 'getLoginTtlMs', 'logout', 'signInRanOut', 'startLogin',
     ],
+    // Signs in inside the companion window: no code to show, and the window is gone when the
+    // attempt is cancelled, so there is no TTL of its own.
+    appleMusic: [
+        'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'logout', 'openLoginPage',
+        'opensLoginPageItself', 'signInRanOut', 'startLogin',
+    ],
     // 表单式登录：不扫码不开浏览器，登录窗口按 getLoginForm 声明渲染账号密码表单。
     fnmusic: [
         'checkLogin', 'describeLoginFailure', 'getLoginForm', 'getLoginStatus', 'getLoginTexts', 'logout', 'startLogin', 'submitLoginForm',

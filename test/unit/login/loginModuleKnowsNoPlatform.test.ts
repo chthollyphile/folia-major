@@ -43,6 +43,7 @@ describe('what each platform declares for the sign-in window', () => {
             ytm: { letter: 'Y', color: '#e11d48' },
             spotify: { letter: 'S', color: '#22c55e' },
             qishui: { letter: '汽', color: '#19a58c' },
+            appleMusic: { letter: 'A', color: '#fa243c' },
         });
     });
 
@@ -62,6 +63,7 @@ describe('what each platform declares for the sign-in window', () => {
             ytm: { title: 'home.loginTitleYtm', note: 'home.loginNoteYtmBrowser' },
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
             qishui: { title: 'home.loginTitleQishui', note: 'home.loginNoteQishui' },
+            appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
         });
     });
 

@@ -65,6 +65,28 @@ describe('autoMatchBestLyric', () => {
         fetchAmllDbLyricsMock.mockResolvedValue(null);
     });
 
+    it('keeps a provider\'s own word-level timing without asking any other source', async () => {
+        const appleSong = {
+            id: 'apple-song',
+            name: 'Song Title',
+            artists: [{ id: '', name: 'Artist Name' }],
+            album: { id: '', name: 'Album' },
+            durationMs: 200000,
+            sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: 'apple-song' },
+        };
+        const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+            providerCandidate: {
+                providerId: 'appleMusic',
+                song: appleSong,
+                lyricsResult: { lyrics: createLyrics(true), isPureMusic: false },
+            },
+        });
+
+        expect(result).toMatchObject({ source: 'appleMusic', id: 'apple-song', lyrics: { isWordByWord: true } });
+        expect(searchQQLyricsMock).not.toHaveBeenCalled();
+        expect(searchKugouLyricsMock).not.toHaveBeenCalled();
+    });
+
     it('tries the default QQ preference before a prefetched NetEase word-by-word candidate', async () => {
         const neteaseSong = {
             id: 101,
@@ -845,6 +867,37 @@ describe('autoMatchBestLyric', () => {
             cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
             searchQQLyricsMock.mockResolvedValue([]);
             searchKugouLyricsMock.mockResolvedValue([]);
+        });
+
+        it('prefers original-name word timing over the first search line fallback', async () => {
+            const song = { id: '1588262504', name: 'Yoi no Yo,Yoi!', durationMs: 200000,
+                artists: [{ id: '', name: 'Nakiri Ayame' }], album: { id: '', name: '' },
+                sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: '1588262504' } };
+            const alias = vi.spyOn(getOnlineMusicProvider('appleMusic')!.lyrics!, 'getSearchAlias').mockResolvedValueOnce({ song, title: '宵の余、良い!', artist: '百鬼あやめ' });
+            searchQQLyricsMock.mockImplementation(async query => query.includes('百鬼あやめ') ? [qqSong('宵の余、良い!', '百鬼あやめ', 200000)] : [qqSong(song.name, 'Nakiri Ayame', 200000)]);
+            fetchQQLyricsMock.mockResolvedValueOnce(createLyrics(false)).mockResolvedValueOnce(createLyrics(true));
+            const result = await autoMatchBestLyric(song.name, 'Nakiri Ayame', 200000, {
+                providerCandidate: { providerId: 'appleMusic', song, lyricsResult: { lyrics: null, isPureMusic: false } },
+            });
+            expect(result).toMatchObject({ source: 'qq', lyrics: { isWordByWord: true } });
+            expect(alias).toHaveBeenCalledOnce();
+            alias.mockRestore();
+        });
+
+        it('retries with the paired original title and artist after the first search misses', async () => {
+            const song = { id: '1588262504', name: 'Yoi no Yo,Yoi!', durationMs: 200000,
+                artists: [{ id: '', name: 'Nakiri Ayame' }], album: { id: '', name: '' },
+                sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: '1588262504' } };
+            const alias = vi.spyOn(getOnlineMusicProvider('appleMusic')!.lyrics!, 'getSearchAlias').mockResolvedValueOnce({ song, title: '宵の余、良い!', artist: '百鬼あやめ' });
+            searchQQLyricsMock.mockImplementation(async query => query.includes('百鬼あやめ') ? [qqSong('宵の余、良い!', '百鬼あやめ', 200000)] : []);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
+            const result = await autoMatchBestLyric(song.name, 'Nakiri Ayame', 200000, {
+                providerCandidate: { providerId: 'appleMusic', song, lyricsResult: { lyrics: null, isPureMusic: false } },
+            });
+            expect(result).toMatchObject({ source: 'qq', id: 201 });
+            expect(alias).toHaveBeenCalledOnce();
+            expect(searchQQLyricsMock.mock.calls.some(call => call[0].includes('宵の余、良い!') && call[0].includes('百鬼あやめ'))).toBe(true);
+            alias.mockRestore();
         });
 
         it('searches once more under the other name when the given one finds nothing', async () => {

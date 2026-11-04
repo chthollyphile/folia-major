@@ -62,7 +62,7 @@ const RowNote: React.FC<{ row: ProviderAccountSummary; status: RowStatus }> = ({
     }
     const text = status === 'ran-out' ? t('login.rowRanOut')
         : status === 'accountless' ? t('home.providerNoAccount')
-            : status === 'off' ? t('home.providerNotConfigured') : t('login.rowSignedOut');
+            : status === 'off' ? t(row.availability.messageKey ?? 'home.providerNotConfigured') : t('login.rowSignedOut');
     return (
         <span className={`truncate text-[11.5px] leading-4 ${status === 'ran-out' ? 'text-[color:var(--st-warn)]' : 'text-[color:var(--st-t3)]'}`}>{text}</span>
     );
@@ -162,8 +162,8 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
     };
 
     const fade = (more.before || more.after) ? `linear-gradient(${lie === 'column' ? 'to bottom' : 'to right'}, ${more.before ? 'transparent, #000 30px' : '#000'}, ${more.after ? '#000 calc(100% - 30px), transparent' : '#000'})` : undefined;
-    const stateText = (status: ReturnType<typeof rowStatus>): string | null => (
-        status === 'signed-in' ? t('login.rowSignedIn') : status === 'ran-out' ? t('login.rowRanOut') : status === 'off' ? t('home.providerNotConfigured') : null
+    const stateText = (status: ReturnType<typeof rowStatus>, messageKey?: string): string | null => (
+        status === 'signed-in' ? t('login.rowSignedIn') : status === 'ran-out' ? t('login.rowRanOut') : status === 'off' ? t(messageKey ?? 'home.providerNotConfigured') : null
     );
 
     return (
@@ -200,7 +200,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                 />
                 {shown.map(row => {
                     const status = rowStatus(row);
-                    const state = stateText(status);
+                    const state = stateText(status, row.availability.messageKey);
                     const name = providerDisplayName(t, row);
                     const chosen = row.providerId === chosenId;
                     const bright = chosen || row.providerId === lit?.providerId;

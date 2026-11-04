@@ -94,6 +94,7 @@ vi.mock('@/services/hostExtensionHooks', () => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         canPlaySong: () => true,
+        canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
         getSongReplacement: async (song: { id: string }) => env.self.replacementFor.get(String(song.id)) ?? null,

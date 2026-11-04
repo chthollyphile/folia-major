@@ -204,6 +204,11 @@ export async function loadOnlineSongLyrics(
     const preferredCachedLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
     const hasAuthoritativeLyricsSelection = onlineLyricsState?.lyricsSource === 'imported'
         || Boolean(onlineLyricsState?.hasOnlineOverride);
+    // A platform whose own word timing is kept as it is (`prefersOwnWordByWord`) is not searched
+    // for another source: the automatic pick would replace the timing the song actually has.
+    const keepsOwnWordByWord = (candidate: LyricData | null | undefined) => (
+        candidate?.isWordByWord === true && omni.prefersOwnWordByWordLyrics(song)
+    );
     if (preferredCachedLyrics && (hasAuthoritativeLyricsSelection || !initialSettingsLyricSettings.autoUseBestLyric)) {
         const cachedText = preferredCachedLyrics.lines.map(line => line.fullText).join('\n');
         onPureMusicChange?.(resolveOnlineLyricsPureMusic(onlineLyricsState, cachedText));
@@ -225,7 +230,8 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+            && !keepsOwnWordByWord(effectiveLyrics);
 
         if (!shouldAutoMatch) {
             const effectiveText = effectiveLyrics?.lines.map(line => line.fullText).join('\n') ?? '';
@@ -270,7 +276,8 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+        && !keepsOwnWordByWord(parsedLyrics);
 
     if (shouldAutoMatch) {
         // The lyrics in hand are already displayable, so hand them over and report done BEFORE the
