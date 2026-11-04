@@ -5,6 +5,7 @@ import {
     formatGlobalShortcutPart,
     GLOBAL_SHORTCUT_COMMAND_IDS,
     globalShortcutKeyLabels,
+    isDefaultGlobalShortcutCombination,
     isGlobalShortcutCommand,
     isGlobalShortcutKey,
     parseGlobalShortcutChord,
@@ -23,10 +24,11 @@ import {
 import { isMacPlatform } from '../../../src/utils/platform';
 
 // test/unit/command-palette/globalShortcutRules.test.ts
-// Which system-wide shortcuts the desktop app registers: playback commands only, any combination of
-// modifiers with at least one held, letters, digits, F1–F24, Space and the navigation keys, never
-// GNOME's Ctrl+Alt+Shift+R, never one combination twice. Mod commands (Folium 1.7 `globalShortcut`)
-// come in as the set of ids registered right now.
+// Which system-wide shortcuts the desktop app registers: playback commands only, modifiers of the
+// listener's choice but never none, Shift alone, one modifier with anything but a function key, the sets
+// that type characters, or a combination a desktop holds; letters, digits, F1–F24, Space and the
+// navigation keys; never one combination twice. Mod commands (Folium 1.7 `globalShortcut`) come in as
+// the set of ids registered right now.
 
 const TRIO: GlobalShortcutModifier[] = [...DEFAULT_GLOBAL_SHORTCUT_MODIFIERS];
 
@@ -67,11 +69,15 @@ describe('isGlobalShortcutKey', () => {
 });
 
 describe('refuseGlobalShortcutChord', () => {
-    it('takes a key held with at least one modifier', () => {
-        expect(refuseGlobalShortcutChord('p', ['control'], 0, empty())).toBeNull();
+    it('takes two or more modifiers, or one modifier with a function key', () => {
+        expect(refuseGlobalShortcutChord('p', ['control', 'shift'], 0, empty())).toBeNull();
         expect(refuseGlobalShortcutChord('space', TRIO, 0, empty())).toBeNull();
-        expect(refuseGlobalShortcutChord('up', ['alt', 'shift'], 0, empty())).toBeNull();
-        expect(refuseGlobalShortcutChord('f4', ['meta'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('space', ['control', 'shift'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('up', ['control', 'alt', 'shift'], 0, empty(), 'windows')).toBeNull();
+        expect(refuseGlobalShortcutChord('space', ['control', 'alt'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('p', ['control', 'alt', 'meta'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('f9', ['control'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('f9', ['alt'], 0, empty())).toBeNull();
     });
 
     it('asks for a modifier and names keys that cannot carry one', () => {
@@ -80,11 +86,112 @@ describe('refuseGlobalShortcutChord', () => {
         expect(refuseGlobalShortcutChord('escape', TRIO, 0, empty())).toBe('unsupported-key');
     });
 
-    it('refuses GNOME’s screencast combination only', () => {
-        expect(refuseGlobalShortcutChord('r', TRIO, 0, empty())).toBe('reserved');
-        expect(refuseGlobalShortcutChord('r', ['control', 'alt'], 0, empty())).toBeNull();
-        expect(refuseGlobalShortcutChord('r', ['control', 'alt', 'meta'], 0, empty())).toBeNull();
-        expect(refuseGlobalShortcutChord('p', TRIO, 0, empty())).toBeNull();
+    it('refuses Shift alone with any key: that is typing and selecting', () => {
+        for (const key of ['a', '1', 'up', 'space', 'f10']) {
+            expect(refuseGlobalShortcutChord(key, ['shift'], 0, empty()), key).toBe('shift-only');
+        }
+    });
+
+    it('refuses one modifier with anything but a function key: copy, paste, Alt+Tab, Win+L, Cmd+Space', () => {
+        expect(refuseGlobalShortcutChord('c', ['control'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('v', ['meta'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('tab', ['alt'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('l', ['meta'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('space', ['meta'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('space', ['control'], 0, empty())).toBe('single-modifier');
+        expect(refuseGlobalShortcutChord('left', ['alt'], 0, empty())).toBe('single-modifier');
+    });
+
+    it('refuses the modifier sets that type characters with a letter or digit, and only with those', () => {
+        // Option and Option+Shift on macOS; Ctrl+Alt is AltGr on Windows.
+        expect(refuseGlobalShortcutChord('e', ['control', 'alt'], 0, empty())).toBe('types-character');
+        expect(refuseGlobalShortcutChord('2', ['control', 'alt'], 0, empty())).toBe('types-character');
+        expect(refuseGlobalShortcutChord('k', ['alt', 'shift'], 0, empty())).toBe('types-character');
+        // A named key types nothing with them.
+        expect(refuseGlobalShortcutChord('space', ['control', 'alt'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('space', ['alt', 'shift'], 0, empty())).toBeNull();
+        // Other pairs, and the trio, keep their letters.
+        expect(refuseGlobalShortcutChord('e', ['control', 'shift'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('e', TRIO, 0, empty())).toBeNull();
+    });
+
+    it('refuses Shift and one more modifier with a caret key: selecting and deleting text', () => {
+        expect(refuseGlobalShortcutChord('left', ['control', 'shift'], 0, empty())).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('down', ['alt', 'shift'], 0, empty())).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('end', ['control', 'shift'], 0, empty())).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('delete', ['control', 'shift'], 0, empty())).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('left', TRIO, 0, empty(), 'windows')).toBeNull();
+    });
+
+    it('refuses Tab with fewer than three modifiers: window, app and tab switching', () => {
+        expect(refuseGlobalShortcutChord('tab', ['alt', 'shift'], 0, empty())).toBe('reserved');
+        expect(refuseGlobalShortcutChord('tab', ['control', 'alt'], 0, empty())).toBe('reserved');
+        expect(refuseGlobalShortcutChord('tab', ['control', 'shift'], 0, empty())).toBe('reserved');
+        expect(refuseGlobalShortcutChord('tab', TRIO, 0, empty())).toBeNull();
+    });
+
+    it('asks for three modifiers with Win/Command', () => {
+        // Windows: snipping, virtual desktops, Game Bar, moving windows; macOS: screenshots, Dock, lock.
+        expect(refuseGlobalShortcutChord('s', ['shift', 'meta'], 0, empty())).toBe('meta-needs-more');
+        expect(refuseGlobalShortcutChord('right', ['control', 'meta'], 0, empty())).toBe('meta-needs-more');
+        expect(refuseGlobalShortcutChord('r', ['alt', 'meta'], 0, empty())).toBe('meta-needs-more');
+        expect(refuseGlobalShortcutChord('4', ['shift', 'meta'], 0, empty())).toBe('meta-needs-more');
+        expect(refuseGlobalShortcutChord('tab', ['shift', 'meta'], 0, empty())).toBe('reserved');
+        expect(refuseGlobalShortcutChord('f9', ['meta'], 0, empty())).toBe('meta-needs-more');
+        expect(refuseGlobalShortcutChord('p', ['control', 'alt', 'meta'], 0, empty())).toBeNull();
+    });
+
+    it('refuses the combinations every system holds, and the editing keys programs share', () => {
+        for (const system of ['windows', 'mac', 'linux'] as const) {
+            expect(refuseGlobalShortcutChord('f4', ['alt'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('f4', ['control'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('delete', ['control', 'alt'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('c', ['control', 'shift'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('v', ['control', 'shift'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('z', ['control', 'shift'], 0, empty(), system), system).toBe('reserved');
+            expect(refuseGlobalShortcutChord('p', ['control', 'shift'], 0, empty(), system), system).toBeNull();
+            expect(refuseGlobalShortcutChord('p', TRIO, 0, empty(), system), system).toBeNull();
+        }
+    });
+
+    it('refuses the Linux desktops’ combinations on Linux only', () => {
+        const linux = (key: string, modifiers: GlobalShortcutModifier[]) => refuseGlobalShortcutChord(key, modifiers, 0, empty(), 'linux');
+        const windows = (key: string, modifiers: GlobalShortcutModifier[]) => refuseGlobalShortcutChord(key, modifiers, 0, empty(), 'windows');
+        for (const [key, modifiers] of [
+            ['r', TRIO], // GNOME screencast
+            ['f2', ['alt']], // run dialog
+            ['right', ['control', 'alt']], // switch workspace
+            ['left', TRIO], // move the window to the next workspace
+            ['f1', ['control', 'alt']], // text console
+            ['f12', ['control', 'alt']],
+        ] as Array<[string, GlobalShortcutModifier[]]>) {
+            expect(linux(key, modifiers), `${modifiers.join('+')}+${key}`).toBe('reserved');
+            expect(windows(key, modifiers), `${modifiers.join('+')}+${key}`).toBeNull();
+        }
+        // Ctrl+Alt+T and L type characters with AltGr anyway, everywhere.
+        expect(windows('t', ['control', 'alt'])).toBe('types-character');
+        // The console keys end at F12.
+        expect(linux('f13', ['control', 'alt'])).toBeNull();
+        expect(linux('p', ['control', 'alt', 'meta'])).toBeNull();
+    });
+
+    it('refuses the macOS and Windows combinations on their own system only', () => {
+        expect(refuseGlobalShortcutChord('f2', ['control'], 0, empty(), 'mac')).toBe('reserved');
+        expect(refuseGlobalShortcutChord('f2', ['control'], 0, empty(), 'windows')).toBeNull();
+        expect(refuseGlobalShortcutChord('3', ['control', 'shift', 'meta'], 0, empty(), 'mac')).toBe('reserved');
+        expect(refuseGlobalShortcutChord('3', ['control', 'shift', 'meta'], 0, empty(), 'windows')).toBeNull();
+        expect(refuseGlobalShortcutChord('b', ['control', 'shift', 'meta'], 0, empty(), 'windows')).toBe('reserved');
+        expect(refuseGlobalShortcutChord('b', ['control', 'shift', 'meta'], 0, empty(), 'mac')).toBeNull();
+    });
+
+    it('tells the default trio with a letter or digit from anything else, whatever order it comes in', () => {
+        expect(isDefaultGlobalShortcutCombination('p', ['shift', 'alt', 'control'])).toBe(true);
+        expect(isDefaultGlobalShortcutCombination('7', TRIO)).toBe(true);
+        expect(isDefaultGlobalShortcutCombination('p', ['control', 'shift'])).toBe(false);
+        expect(isDefaultGlobalShortcutCombination('p', ['control', 'alt', 'shift', 'meta'])).toBe(false);
+        // The trio with an arrow is how some desktops move windows between workspaces.
+        expect(isDefaultGlobalShortcutCombination('right', TRIO)).toBe(false);
+        expect(isDefaultGlobalShortcutCombination('f5', TRIO)).toBe(false);
     });
 
     it('refuses a combination another slot holds, and only that one', () => {
@@ -181,30 +288,42 @@ describe('resolveActiveGlobalShortcuts', () => {
     it('registers complete, legal bindings with their slot', () => {
         const bindings = empty();
         bindings[0] = bind('p', 'playback-toggle');
-        bindings[3] = bind('2', 'playback-volume-up', ['control', 'meta']);
+        bindings[3] = bind('2', 'playback-volume-up', ['control', 'alt', 'meta']);
         expect(resolveActiveGlobalShortcuts(bindings)).toEqual([
             { slot: 0, accelerator: 'Control+Alt+Shift+P', commandId: 'playback-toggle' },
-            { slot: 3, accelerator: 'Control+Super+2', commandId: 'playback-volume-up' },
+            { slot: 3, accelerator: 'Control+Alt+Super+2', commandId: 'playback-volume-up' },
         ]);
     });
 
     it('registers Space, arrows and function keys', () => {
         const bindings = empty();
-        bindings[0] = bind('space', 'playback-toggle', ['control']);
-        bindings[1] = bind('up', 'playback-next', ['alt']);
-        bindings[2] = bind('f5', 'playback-mute', ['shift']);
+        bindings[0] = bind('space', 'playback-toggle', ['control', 'shift']);
+        bindings[1] = bind('up', 'playback-next', ['control', 'alt', 'meta']);
+        bindings[2] = bind('f5', 'playback-mute', ['alt']);
         expect(resolveActiveGlobalShortcuts(bindings).map(shortcut => shortcut.accelerator)).toEqual([
-            'Control+Space',
-            'Alt+Up',
-            'Shift+F5',
+            'Control+Shift+Space',
+            'Control+Alt+Super+Up',
+            'Alt+F5',
         ]);
     });
 
-    it('leaves out half-filled slots, a key with no modifier, R, commands off the list, and a repeated combination', () => {
+    it('does not register a stored combination the rows would now refuse', () => {
+        const bindings = empty();
+        bindings[0] = bind('c', 'playback-toggle', ['control']);
+        bindings[1] = bind('a', 'playback-next', ['shift']);
+        bindings[2] = bind('e', 'playback-prev', ['control', 'alt']);
+        bindings[3] = bind('f4', 'playback-mute', ['alt']);
+        bindings[4] = bind('n', 'playback-loop');
+        expect(resolveActiveGlobalShortcuts(bindings).map(shortcut => shortcut.accelerator)).toEqual([
+            'Control+Alt+Shift+N',
+        ]);
+    });
+
+    it('leaves out half-filled slots, a key with no modifier, a held combination, commands off the list, and a repeated combination', () => {
         const bindings = empty();
         bindings[0] = bind('p', '');
         bindings[1] = bind('space', 'playback-next', []);
-        bindings[2] = bind('r', 'playback-prev');
+        bindings[2] = bind('v', 'playback-prev', ['control', 'shift']);
         bindings[3] = bind('n', 'settings-open');
         bindings[4] = bind('m', 'playback-mute');
         expect(resolveActiveGlobalShortcuts(bindings)).toEqual([
@@ -220,11 +339,11 @@ describe('resolveActiveGlobalShortcuts', () => {
 
     it('keeps two slots that hold the same key with different modifiers', () => {
         const bindings = empty();
-        bindings[0] = bind('p', 'playback-toggle', ['control']);
-        bindings[1] = bind('p', 'playback-next', ['alt']);
+        bindings[0] = bind('p', 'playback-toggle', ['control', 'shift']);
+        bindings[1] = bind('p', 'playback-next', ['control', 'alt', 'meta']);
         expect(resolveActiveGlobalShortcuts(bindings)).toEqual([
-            { slot: 0, accelerator: 'Control+P', commandId: 'playback-toggle' },
-            { slot: 1, accelerator: 'Alt+P', commandId: 'playback-next' },
+            { slot: 0, accelerator: 'Control+Shift+P', commandId: 'playback-toggle' },
+            { slot: 1, accelerator: 'Control+Alt+Super+P', commandId: 'playback-next' },
         ]);
     });
 });
@@ -267,10 +386,10 @@ describe('mod commands', () => {
         const bindings = empty();
         bindings[1] = bind('k', MOD_PING);
         expect(refuseGlobalShortcutChord('k', TRIO, 0, bindings)).toBe('duplicate');
-        expect(refuseGlobalShortcutChord('r', TRIO, 0, bindings)).toBe('reserved');
+        expect(refuseGlobalShortcutChord('r', TRIO, 0, bindings, 'linux')).toBe('reserved');
         bindings[2] = bind('k', 'playback-next');
         bindings[3] = bind('r', MOD_EXPORT);
-        expect(resolveActiveGlobalShortcuts(bindings, new Set([MOD_PING, MOD_EXPORT]))).toEqual([
+        expect(resolveActiveGlobalShortcuts(bindings, new Set([MOD_PING, MOD_EXPORT]), 'linux')).toEqual([
             { slot: 1, accelerator: 'Control+Alt+Shift+K', commandId: MOD_PING },
         ]);
     });
@@ -287,10 +406,10 @@ describe('mod commands', () => {
 describe('commandForGlobalShortcut', () => {
     it('maps a pressed accelerator back to its command, or to nothing', () => {
         const bindings = empty();
-        bindings[0] = { key: 'p', modifiers: ['control'], commandId: 'playback-toggle' };
+        bindings[0] = { key: 'p', modifiers: ['control', 'shift'], commandId: 'playback-toggle' };
         const active = resolveActiveGlobalShortcuts(bindings);
-        expect(commandForGlobalShortcut(active, 'Control+P')).toBe('playback-toggle');
-        expect(commandForGlobalShortcut(active, 'Control+N')).toBeNull();
+        expect(commandForGlobalShortcut(active, 'Control+Shift+P')).toBe('playback-toggle');
+        expect(commandForGlobalShortcut(active, 'Control+Shift+N')).toBeNull();
     });
 });
 

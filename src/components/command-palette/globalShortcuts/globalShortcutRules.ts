@@ -5,18 +5,20 @@ import {
     type GlobalShortcutBinding,
     type GlobalShortcutModifier,
 } from '../../../stores/useInteractionSettingsStore';
-import { isMacPlatform } from '../../../utils/platform';
+import { isMacPlatform, runsOnWindows } from '../../../utils/platform';
 
 // src/components/command-palette/globalShortcuts/globalShortcutRules.ts
 // What the system-wide shortcuts may be: which commands, which combinations, and which stored
 // bindings actually get registered. The settings rows and the registering hook both ask here, so a
 // binding the rows would refuse cannot be registered from a value already in storage.
 //
-// The combination is the listener's: any modifiers, at least one, and any key on the list below.
-// A press with no modifier is refused because a bare key registered system-wide takes that key from
-// every program — the ones other programs only listen for inside their own window cannot be seen
-// beforehand, so the refusal is the only warning there is. GNOME's Ctrl+Alt+Shift+R screencast is
-// the one combination a desktop already holds, so that one is refused by name. What this cannot
+// The combination is the listener's: modifiers of their choice and any key on the list below. A
+// combination registered system-wide is taken from every program, and the ones other programs only
+// listen for inside their own window cannot be seen beforehand, so the families that are surely
+// someone's (no modifier, Shift alone, one modifier, the sets that type characters, text selection,
+// Tab and Win/Command with too few modifiers, and the combinations desktops hold by name) are refused
+// here; see refuseCombination. What is left may still be some program's own key, which the settings
+// say next to any combination other than the default trio with a letter or digit. What this cannot
 // see: layouts whose AltGr types characters with Shift (Polish Ą and the like).
 //
 // Besides the host's playback commands, mods may offer commands (Folium 1.7 `globalShortcut`). Which
@@ -222,36 +224,141 @@ export const toGlobalShortcutAccelerator = (
     toAcceleratorKey(key),
 ].join('+');
 
-/** Keys a desktop already gives this modifier trio: GNOME starts a screencast on Ctrl+Alt+Shift+R. */
-const isReservedCombination = (key: string, modifiers: ReadonlyArray<GlobalShortcutModifier>): boolean => (
-    key === 'r' && modifiers.length === 3 && !modifiers.includes('meta')
-);
+/** Which system's reserved combinations apply: the rules are asked on the system they register on. */
+export type GlobalShortcutSystem = 'windows' | 'mac' | 'linux';
+
+/** The system this renderer runs on. */
+export const CURRENT_GLOBAL_SHORTCUT_SYSTEM: GlobalShortcutSystem = isMacPlatform ? 'mac' : runsOnWindows() ? 'windows' : 'linux';
 
 /**
- * Whether the combination may be held system-wide at all: a key on the list, at least one modifier,
- * and not the combination a desktop already holds.
+ * Combinations a system or desktop keeps for itself even with the modifiers the rules below let
+ * through, on every system and on each one. Registering may not reveal these: Windows and the X11
+ * desktops grab some of them in a keyboard hook rather than as hot keys, and programs listen for the
+ * editing ones only inside their own window, so Electron's register would succeed and quietly take
+ * them. Accelerator spelling, modifiers in the shown order (`Super` is Win on Windows, Command on macOS).
  */
-const isUsableCombination = (key: string, modifiers: ReadonlyArray<GlobalShortcutModifier>): boolean => (
-    isGlobalShortcutKey(key) && modifiers.length > 0 && !isReservedCombination(key, modifiers)
-);
+const RESERVED_EVERYWHERE: ReadonlyArray<string> = [
+    'Alt+F4', // Windows and the Linux desktops: close the window
+    'Control+F4', // close the tab or document
+    'Control+Alt+Delete', // Windows: secure attention; Linux: log out
+    'Control+Shift+C', 'Control+Shift+V', 'Control+Shift+Z', // Linux terminals: copy, paste; everywhere: redo, paste as plain text
+];
 
-export type GlobalShortcutKeyRefusal = 'needs-modifier' | 'unsupported-key' | 'reserved' | 'duplicate';
+const RESERVED_ON: Record<GlobalShortcutSystem, ReadonlySet<string>> = {
+    windows: new Set([
+        ...RESERVED_EVERYWHERE,
+        'Control+Shift+Super+B', // restart the graphics driver
+    ]),
+    mac: new Set([
+        ...RESERVED_EVERYWHERE,
+        'Control+F1', 'Control+F2', 'Control+F3', 'Control+F5', 'Control+F6', 'Control+F7', 'Control+F8', // keyboard navigation
+        'Control+Shift+Super+3', 'Control+Shift+Super+4', // screenshot to the clipboard
+    ]),
+    linux: new Set([
+        ...RESERVED_EVERYWHERE,
+        'Control+Alt+Shift+R', // GNOME: screencast
+        'Alt+F1', 'Alt+F2', 'Alt+F3', // GNOME/KDE: overview or menu, run, window menu
+        'Control+Alt+T', 'Control+Alt+L', // Ubuntu: terminal, lock screen
+        'Control+Alt+Left', 'Control+Alt+Right', 'Control+Alt+Up', 'Control+Alt+Down', // GNOME/Xfce: switch workspace
+        'Control+Alt+Shift+Left', 'Control+Alt+Shift+Right', 'Control+Alt+Shift+Up', 'Control+Alt+Shift+Down', // move the window there
+    ]),
+};
 
-/** Why `key` with `modifiers` cannot go in `slot`, or null when it can. */
-export const refuseGlobalShortcutChord = (
+/** Linux switches to a text console on Ctrl+Alt+F1 to F12, below every desktop. */
+const CONSOLE_SWITCH_PATTERN = /^Control\+Alt\+F(?:[1-9]|1[0-2])$/;
+
+/** The keys that move the caret: with Shift and one more modifier they select (Ctrl+Shift+←, Alt+Shift+↓). */
+const CARET_KEYS: ReadonlySet<string> = new Set(['up', 'down', 'left', 'right', 'home', 'end', 'pageup', 'pagedown', 'backspace', 'delete']);
+
+/** Modifier sets that type a character with a letter or digit instead of being a shortcut: Option and
+ * Option+Shift on macOS, and Ctrl+Alt, which Windows reads as AltGr (@ and € on German, ą on Polish). */
+const TYPING_MODIFIER_SETS: ReadonlyArray<string> = ['alt', 'alt+shift', 'control+alt'];
+
+export type GlobalShortcutKeyRefusal =
+    | 'needs-modifier'
+    | 'shift-only'
+    | 'single-modifier'
+    | 'types-character'
+    | 'edits-text'
+    | 'meta-needs-more'
+    | 'unsupported-key'
+    | 'reserved'
+    | 'duplicate';
+
+/**
+ * Why the combination may not be held system-wide at all, or null when it may. A registered combination
+ * is taken from every program, and the ones programs only listen for inside their own window cannot be
+ * seen from here, so whole families are refused up front:
+ * - no modifier, or Shift alone: that is typing and selecting text;
+ * - one modifier with anything but F1–F24: copy, paste, undo, menu letters, Alt+Tab, Win+L, Cmd+Space,
+ *   Ctrl+Space and the arrows' word and history moves all live there;
+ * - the modifier sets that type characters with a letter or digit (TYPING_MODIFIER_SETS);
+ * - Shift and one more modifier with a caret key: selecting and deleting text;
+ * - Tab with fewer than three modifiers: window, app and tab switching (Alt+Shift+Tab, Cmd+Shift+Tab,
+ *   Ctrl+Alt+Tab, Ctrl+Shift+Tab);
+ * - Win/Command with fewer than three modifiers: Windows keeps nearly all of those (virtual desktops,
+ *   moving windows, Game Bar, snipping), and on macOS they are the apps' own (Cmd+Shift+…, Cmd+Option+…)
+ *   or the system's (Dock, screenshots, Finder search);
+ * - the combinations held by name on `system` (RESERVED_ON, and on Linux the console switch keys).
+ * What is left may still be some program's own shortcut; the settings say so.
+ */
+const refuseCombination = (
     key: string,
     modifiers: ReadonlyArray<GlobalShortcutModifier>,
-    slot: number,
-    bindings: ReadonlyArray<GlobalShortcutBinding>,
-): GlobalShortcutKeyRefusal | null => {
+    system: GlobalShortcutSystem,
+): Exclude<GlobalShortcutKeyRefusal, 'duplicate'> | null => {
     if (!isGlobalShortcutKey(key)) {
         return 'unsupported-key';
     }
     if (modifiers.length === 0) {
         return 'needs-modifier';
     }
-    if (isReservedCombination(key, modifiers)) {
+    const held = GLOBAL_SHORTCUT_MODIFIER_IDS.filter(modifier => modifiers.includes(modifier));
+    if (held.length === 1 && held[0] === 'shift') {
+        return 'shift-only';
+    }
+    if (held.length === 1 && !FUNCTION_KEY_PATTERN.test(key)) {
+        return 'single-modifier';
+    }
+    if (isLetterOrDigit(key) && TYPING_MODIFIER_SETS.includes(held.join('+'))) {
+        return 'types-character';
+    }
+    if (CARET_KEYS.has(key) && held.length === 2 && held.includes('shift')) {
+        return 'edits-text';
+    }
+    if (key === 'tab' && held.length < 3) {
         return 'reserved';
+    }
+    if (held.includes('meta') && held.length < 3) {
+        return 'meta-needs-more';
+    }
+    const accelerator = toGlobalShortcutAccelerator(key, held);
+    if (RESERVED_ON[system].has(accelerator) || (system === 'linux' && CONSOLE_SWITCH_PATTERN.test(accelerator))) {
+        return 'reserved';
+    }
+    return null;
+};
+
+/** Whether the combination is what older versions could only bind, the one the note recommends: the
+ * default trio with a letter or digit. With anything else (other modifiers, or the trio with an arrow,
+ * Tab or a function key, which some desktops move windows with) the settings warn. */
+export const isDefaultGlobalShortcutCombination = (key: string, modifiers: ReadonlyArray<GlobalShortcutModifier>): boolean => (
+    isLetterOrDigit(key)
+    && modifiers.length === DEFAULT_GLOBAL_SHORTCUT_MODIFIERS.length
+    && DEFAULT_GLOBAL_SHORTCUT_MODIFIERS.every(modifier => modifiers.includes(modifier))
+);
+
+/** Why `key` with `modifiers` cannot go in `slot` on `system`, or null when it can. */
+export const refuseGlobalShortcutChord = (
+    key: string,
+    modifiers: ReadonlyArray<GlobalShortcutModifier>,
+    slot: number,
+    bindings: ReadonlyArray<GlobalShortcutBinding>,
+    system: GlobalShortcutSystem = CURRENT_GLOBAL_SHORTCUT_SYSTEM,
+): GlobalShortcutKeyRefusal | null => {
+    const refusal = refuseCombination(key, modifiers, system);
+    if (refusal) {
+        return refusal;
     }
     const accelerator = toGlobalShortcutAccelerator(key, modifiers);
     return bindings.some((binding, index) => index !== slot && binding.key
@@ -299,17 +406,20 @@ export const commandForGlobalShortcut = (
  * The bindings that get registered: both halves set, a combination the rows would take, a command on
  * the list (the host's, or a mod command in `modCommandIds`). A slot whose combination repeats an
  * earlier slot's stays quiet rather than fighting it. A slot whose mod command is not registered now
- * stays quiet too, and comes back by itself once the command is registered again.
+ * stays quiet too, and comes back by itself once the command is registered again. The combination
+ * rules are `system`'s, so a binding brought over from another system that this one holds is not
+ * registered here.
  */
 export const resolveActiveGlobalShortcuts = (
     bindings: ReadonlyArray<GlobalShortcutBinding>,
     modCommandIds: ReadonlySet<string> = NO_MOD_GLOBAL_SHORTCUT_COMMANDS,
+    system: GlobalShortcutSystem = CURRENT_GLOBAL_SHORTCUT_SYSTEM,
 ): ActiveGlobalShortcut[] => {
     const active: ActiveGlobalShortcut[] = [];
     const seen = new Set<string>();
     bindings.slice(0, GLOBAL_SHORTCUT_SLOTS).forEach((binding, slot) => {
         const { key, commandId } = binding;
-        if (!key || !commandId || !isUsableCombination(key, binding.modifiers)) {
+        if (!key || !commandId || refuseCombination(key, binding.modifiers, system)) {
             return;
         }
         if (!isGlobalShortcutCommand(commandId, modCommandIds)) {

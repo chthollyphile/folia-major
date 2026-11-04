@@ -828,8 +828,8 @@ export interface FoliumCommandDef {
     params?: FoliumSetting[];
     /**
      * Folium 1.7: offer this command in Settings → Global shortcuts (desktop app), listed after the host's
-     * playback commands under the mod's name. The user presses the combination there (any modifiers, at least
-     * one, plus a letter, a digit, F1–F24, Space, Tab, Enter, Backspace, Delete or one of the navigation keys);
+     * playback commands under the mod's name. The user presses the combination there (modifiers of their
+     * choice, within the host's rules against combinations other programs surely use, plus a letter, a digit, F1–F24, Space, Tab, Enter, Backspace, Delete or one of the navigation keys);
      * the mod never sees or chooses one.
      * Only for commands without `params`, since a key press cannot fill a form: the host ignores the flag on a
      * command that has any. A press runs `run` with an empty `values` object and shows no result, so use

@@ -8,6 +8,7 @@ import {
     PORTAL_GLOBAL_SHORTCUTS,
     formatGlobalShortcutPart,
     globalShortcutKeyLabels,
+    isDefaultGlobalShortcutCombination,
     parseGlobalShortcutChord,
     readGlobalShortcutChord,
     refuseGlobalShortcutChord,
@@ -43,6 +44,11 @@ export const GLOBAL_SHORTCUTS_OPTIONS = Object.values(O);
 
 const REFUSAL_KEYS: Record<GlobalShortcutKeyRefusal, string> = {
     'needs-modifier': 'options.globalShortcutNeedsModifier',
+    'shift-only': 'options.globalShortcutShiftOnly',
+    'single-modifier': 'options.globalShortcutSingleModifier',
+    'types-character': 'options.globalShortcutTypesCharacter',
+    'edits-text': 'options.globalShortcutEditsText',
+    'meta-needs-more': 'options.globalShortcutMetaNeedsMore',
     'unsupported-key': 'options.globalShortcutUnsupportedKey',
     reserved: 'options.globalShortcutReserved',
     duplicate: 'options.globalShortcutDuplicate',
@@ -120,9 +126,13 @@ export const GlobalShortcutsGroup: React.FC = () => {
                 const accelerator = binding.key ? toGlobalShortcutAccelerator(binding.key, binding.modifiers) : '';
                 const isRefused = !missing && Boolean(accelerator && binding.commandId)
                     && refused.includes(accelerator);
+                // Past the refusals, a combination other than the default trio with a letter or digit
+                // may still be some program's own key, which no registration reveals: said under its row.
+                const isCustom = Boolean(binding.key) && !isDefaultGlobalShortcutCombination(binding.key ?? '', binding.modifiers);
                 const below = missing
                     ? <Status tone="warn">{t(missing.reason === 'mod-inactive' ? 'options.globalShortcutModInactive' : 'options.globalShortcutModCommandMissing')}</Status>
-                    : isRefused ? <Status tone="error">{t('options.globalShortcutTakenBySystem')}</Status> : undefined;
+                    : isRefused ? <Status tone="error">{t('options.globalShortcutTakenBySystem')}</Status>
+                        : isCustom ? <Status tone="warn">{t('options.globalShortcutCustomCombination')}</Status> : undefined;
                 // The bound command stays the shown value while its mod is away; its label is not known then.
                 const options = missing && binding.commandId
                     ? [...commandOptions, {
