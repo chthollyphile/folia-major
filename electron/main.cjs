@@ -85,6 +85,7 @@ const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spo
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
+const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
 const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
@@ -6367,14 +6368,12 @@ let isAppQuitting = false;
 
 let isSwappingMainWindow = false;
 
-// Alt+Space opens Windows' window menu: Chromium hands the Space keydown to it before the page
-// sees it, so a shortcut that holds Alt and Space can never be recorded. The windows here draw no
-// frame of their own, and the menu is not wanted, so it is refused for every window; the Space
-// release still reaches the page, where the recorder picks the combination up.
-app.on('browser-window-created', (_event, window) => {
-  window.on('system-context-menu', (event) => {
-    event.preventDefault();
-  });
+// Alt+Space opens Windows' window menu before the page sees the Space; while a key-capture field
+// records, the menu is refused for its window so the combination can be recorded (windowSystemMenu.cjs).
+const windowSystemMenuGuard = createWindowSystemMenuGuard();
+app.on('browser-window-created', (_event, window) => windowSystemMenuGuard.attach(window));
+ipcMain.on('key-capture-active', (event, active) => {
+  windowSystemMenuGuard.setCapturing(event.sender.id, active === true);
 });
 
 app.on('window-all-closed', () => {

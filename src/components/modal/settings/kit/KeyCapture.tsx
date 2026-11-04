@@ -102,11 +102,11 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
             record(event);
         };
 
-        // Alt+Space: Windows gives the Space keydown to its window menu (main.cjs refuses the menu,
-        // but the keydown is consumed all the same), so only the release arrives. With Alt held, a
-        // released Space counts as the press.
+        // Alt+Space: Windows gives the Space keydown to its window menu (refused while this field
+        // records, see the effect below, but the keydown is consumed all the same), so only the
+        // release arrives. With Alt held, a released Space counts as the press.
         const handleKeyUp = (event: KeyboardEvent) => {
-            if (event.key !== ' ' || event.repeat || !event.altKey) {
+            if (event.key !== ' ' || !event.altKey) {
                 return;
             }
             event.preventDefault();
@@ -121,6 +121,16 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
             window.removeEventListener('keyup', handleKeyUp, true);
         };
     }, [listening, onChange, readKey, validate]);
+
+    // The desktop app keeps Windows' window menu away from this window only while the field records
+    // (electron/windowSystemMenu.cjs), so Alt+Space stays the menu everywhere else.
+    useEffect(() => {
+        if (!listening) {
+            return;
+        }
+        window.electron?.setKeyCaptureActive?.(true);
+        return () => window.electron?.setKeyCaptureActive?.(false);
+    }, [listening]);
 
     return (
         <div className="flex max-w-full flex-col items-end">

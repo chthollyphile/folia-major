@@ -130,8 +130,12 @@ describe('refuseGlobalShortcutChord', () => {
         expect(refuseGlobalShortcutChord('delete', ['control', 'shift'], 0, empty())).toBe('edits-text');
         expect(refuseGlobalShortcutChord('left', ['meta', 'shift'], 0, empty(), 'mac')).toBe('edits-text');
         // Alt+Shift+光标键不是多数程序里的编辑组合，留给想绑它的人。
-        expect(refuseGlobalShortcutChord('down', ['alt', 'shift'], 0, empty())).toBeNull();
-        expect(refuseGlobalShortcutChord('left', ['alt', 'shift'], 0, empty())).toBeNull();
+        expect(refuseGlobalShortcutChord('down', ['alt', 'shift'], 0, empty(), 'windows')).toBeNull();
+        expect(refuseGlobalShortcutChord('left', ['alt', 'shift'], 0, empty(), 'linux')).toBeNull();
+        // macOS: Option+Shift selects by word and paragraph in every text field.
+        expect(refuseGlobalShortcutChord('left', ['alt', 'shift'], 0, empty(), 'mac')).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('down', ['alt', 'shift'], 0, empty(), 'mac')).toBe('edits-text');
+        expect(refuseGlobalShortcutChord('delete', ['alt', 'shift'], 0, empty(), 'mac')).toBe('edits-text');
         expect(refuseGlobalShortcutChord('left', TRIO, 0, empty(), 'windows')).toBeNull();
     });
 

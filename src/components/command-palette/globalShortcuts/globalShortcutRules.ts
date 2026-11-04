@@ -267,8 +267,11 @@ const RESERVED_ON: Record<GlobalShortcutSystem, ReadonlySet<string>> = {
 /** Linux switches to a text console on Ctrl+Alt+F1 to F12, below every desktop. */
 const CONSOLE_SWITCH_PATTERN = /^Control\+Alt\+F(?:[1-9]|1[0-2])$/;
 
-/** The keys that move the caret: with Shift and Ctrl or Command they select (Ctrl+Shift+←).
- * Alt+Shift+← is not refused here: it is not a text-editing chord in most programs. */
+/** The keys that move the caret: with Shift and Ctrl or Command they select (Ctrl+Shift+←). On Windows
+ * and Linux Alt+Shift+← selects nothing in an ordinary text field, so it is let through there with the
+ * usual warning, although editors and terminals use it for their own (column selection, moving lines,
+ * resizing panes); on macOS Option+Shift selects by word and paragraph in every text field, so it is
+ * refused there too. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['up', 'down', 'left', 'right', 'home', 'end', 'pageup', 'pagedown', 'backspace', 'delete']);
 
 /** Modifier sets that type a character with a letter or digit instead of being a shortcut: Option and
@@ -296,7 +299,7 @@ export type GlobalShortcutKeyRefusal =
  * - one modifier with anything but F1–F24: copy, paste, undo, menu letters, Alt+Tab, Win+L, Cmd+Space,
  *   Ctrl+Space and the arrows' word and history moves all live there;
  * - the modifier sets that type characters with a letter or digit (TYPING_MODIFIER_SETS);
- * - Shift with Ctrl or Command on a caret key: selecting and deleting text;
+ * - Shift with Ctrl or Command on a caret key, and on macOS with Option too: selecting and deleting text;
  * - Tab with fewer than three modifiers: window, app and tab switching (Alt+Shift+Tab, Cmd+Shift+Tab,
  *   Ctrl+Alt+Tab, Ctrl+Shift+Tab);
  * - Win/Command with fewer than three modifiers: Windows keeps nearly all of those (virtual desktops,
@@ -327,7 +330,7 @@ const refuseCombination = (
         return 'types-character';
     }
     if (CARET_KEYS.has(key) && held.length === 2 && held.includes('shift')
-        && (held.includes('control') || held.includes('meta'))) {
+        && (held.includes('control') || held.includes('meta') || system === 'mac')) {
         return 'edits-text';
     }
     if (key === 'tab' && held.length < 3) {
