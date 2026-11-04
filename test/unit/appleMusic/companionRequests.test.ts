@@ -8,6 +8,74 @@ const require = createRequire(import.meta.url);
 const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../electron/appleMusic/companionRequests.cjs');
 
 describe('Apple Music companion requests', () => {
+    it('does not time out an already sounding player with an unresolved play promise', async () => {
+        let now = 0;
+        const mk = { api: { music: vi.fn() }, isPlaying: true, play: vi.fn(() => new Promise(() => {})) };
+        const context = { Date: { now: () => now }, window: { MusicKit: { getInstance: () => mk } } };
+        await runInNewContext(requestExpression(validateRequest({ id: 'r', operation: 'resume' })), context);
+        now = 60000;
+        const read = requestExpression(validateRequest({ id: 's', operation: 'playbackStatus' }));
+        expect(await runInNewContext(read, context)).toMatchObject({ ok: true });
+        mk.isPlaying = false;
+        now = 120000;
+        expect(await runInNewContext(read, context)).toMatchObject({ ok: true });
+    });
+
+    it('allows recovery from a hung resume without waiting in the command queue', async () => {
+        let now = 0;
+        const mk = { api: { music: vi.fn() }, play: vi.fn(() => new Promise(() => {})) };
+        const context = { Date: { now: () => now }, window: { MusicKit: { getInstance: () => mk } } };
+        const resume = requestExpression(validateRequest({ id: 'r', operation: 'resume' }));
+        await runInNewContext(resume, context);
+        now = 60000;
+        expect(await runInNewContext(requestExpression(validateRequest({ id: 's', operation: 'playbackStatus' })), context))
+            .toMatchObject({ ok: false, error: 'playback-failed' });
+        expect(await runInNewContext(resume, context)).toMatchObject({ ok: true });
+        expect(mk.play).toHaveBeenCalledTimes(2);
+    });
+
+    it('acknowledges a buffering resume without blocking or restarting it', async () => {
+        let finish!: () => void;
+        const mk = { api: { music: vi.fn() }, play: vi.fn(() => new Promise<void>(done => { finish = done; })) };
+        const context = { window: { MusicKit: { getInstance: () => mk } } };
+        const resume = requestExpression(validateRequest({ id: 'r', operation: 'resume' }));
+        expect(await runInNewContext(resume, context)).toMatchObject({ ok: true });
+        expect(await runInNewContext(resume, context)).toMatchObject({ ok: true });
+        expect(mk.play).toHaveBeenCalledTimes(1);
+        const statusRequest = requestExpression(validateRequest({ id: 's', operation: 'playbackStatus' }));
+        expect(await runInNewContext(statusRequest, context)).toMatchObject({ data: { starting: true } });
+        finish();
+        await new Promise(resolve => setImmediate(resolve));
+        expect((await runInNewContext(statusRequest, context)).data.starting).toBeUndefined();
+    });
+
+    it('reports an asynchronous resume rejection through status', async () => {
+        const mk = { api: { music: vi.fn() }, play: vi.fn(() => Promise.reject(new Error('refused'))) };
+        const context = { window: { MusicKit: { getInstance: () => mk } } };
+        expect(await runInNewContext(requestExpression(validateRequest({ id: 'r', operation: 'resume' })), context)).toMatchObject({ ok: true });
+        await Promise.resolve();
+        expect(await runInNewContext(requestExpression(validateRequest({ id: 's', operation: 'playbackStatus' })), context))
+            .toMatchObject({ ok: false, error: 'playback-failed' });
+    });
+
+    it('drops queued preparation superseded by a new song', async () => {
+        let finish!: (value: unknown) => void;
+        const executeJavaScript = vi.fn().mockImplementationOnce(() => new Promise(done => { finish = done; }))
+            .mockResolvedValue({ ok: true, data: {} });
+        const contents = { isDestroyed: () => false, getURL: () => 'https://music.apple.com/', executeJavaScript };
+        const dispatch = createRequestDispatcher(() => contents, 1000);
+        const first = dispatch({ id: 'a', operation: 'pause' });
+        const tail = dispatch({ id: 'b', operation: 'prepareNext', params: { catalogId: '123', nextIds: ['456'] } });
+        const play = dispatch({ id: 'c', operation: 'playSong', params: { catalogId: '789', startSec: 0 } });
+        await Promise.resolve();
+        await Promise.resolve();
+        finish({ ok: true, data: {} });
+        await first;
+        expect(await tail).toMatchObject({ error: 'stale-request' });
+        expect(await play).toMatchObject({ ok: true });
+        expect(executeJavaScript).toHaveBeenCalledTimes(2);
+    });
+
     it('rejects unknown operations, dangerous IDs and invalid page sizes', () => {
         expect(validateRequest({ id: '1', operation: 'evaluate', params: { code: 'anything' } })).toBeNull();
         expect(validateRequest({ id: '1', operation: 'lyrics', params: { songId: '../me' } })).toBeNull();

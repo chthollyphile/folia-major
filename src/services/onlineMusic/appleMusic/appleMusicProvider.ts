@@ -21,7 +21,7 @@ const isEndedState = (state: number | null): boolean => state === 5 || state ===
 function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
     const status = value as {
         itemId?: unknown; catalogId?: unknown; isPlaying?: unknown;
-        positionMs?: unknown; durationMs?: unknown; state?: unknown; live?: unknown;
+        positionMs?: unknown; durationMs?: unknown; state?: unknown; live?: unknown; starting?: unknown;
     } | null;
     const mediaId = typeof status?.catalogId === 'string' && status.catalogId
         ? status.catalogId
@@ -51,6 +51,7 @@ function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
         ended: status.live === true ? false : mediaId ? isEndedState(state) : false,
         ...(status.live === true ? { live: true } : {}),
         ...(state === 6 ? { seeking: true } : {}),
+        ...(status.starting === true ? { starting: true } : {}),
     };
 }
 

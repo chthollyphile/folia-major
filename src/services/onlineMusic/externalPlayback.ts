@@ -45,6 +45,9 @@ type ExternalSession = {
     /** The app has shown this song: only then may the player drive the transport and the shim. */
     announced: boolean;
     playing: boolean;
+    confirmedPlaying: boolean;
+    sampledPosition: number | null;
+    prefetchReady: boolean;
     live: boolean;
     ended: boolean;
     /** Set when the player moved to a track this app did not ask for. */
@@ -85,6 +88,11 @@ export const isExternalRoute = () => usePlaybackStore.getState().playbackRoute =
  * and the lyric clock must keep using what they used before.
  */
 export const isExternalPlaybackSounding = () => isExternalRoute() && session?.announced === true;
+
+/** Background reads wait for actual player progress, not an optimistic playing flag. */
+export const isExternalPlaybackReadyForPrefetch = (song: SongResult) => isExternalRoute()
+    && session?.songKey === getPlaybackSongKey(song) && session.announced
+    && session.confirmedPlaying && session.prefetchReady && !session.seeking && !session.seekPending;
 
 /** The extrapolated position of the external player's track, in seconds. */
 export const getExternalPosition = () => session?.clock.read() ?? 0;
@@ -133,7 +141,7 @@ const validDurationSec = (ms: number): number | null => (
 // Queue edits and repeat-mode changes invalidate the prepared tail before the next transition.
 const refreshPreparedQueue = () => {
     const current = session;
-    if (!current?.announced || !isExternalRoute()) return;
+    if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
     const state = usePlaybackStore.getState();
     const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
@@ -165,6 +173,9 @@ const markPlaying = (positionSec: number, preserveClock = false) => {
 const markPaused = (positionSec: number) => {
     if (!session) return;
     session.playing = false;
+    session.confirmedPlaying = false;
+    session.prefetchReady = false;
+    session.sampledPosition = null;
     syncClock(positionSec, true, performance.now(), true);
     externalMediaShim.markPaused();
     const playback = usePlaybackStore.getState();
@@ -204,6 +215,14 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         return;
     }
     current.live = status.live === true;
+    current.confirmedPlaying = status.isPlaying && Boolean(status.mediaId);
+    if (current.confirmedPlaying && !status.seeking) {
+        if (current.live || (current.sampledPosition !== null && positionSec > current.sampledPosition + 0.05)) current.prefetchReady = true;
+        current.sampledPosition = positionSec;
+    } else {
+        current.prefetchReady = false;
+        current.sampledPosition = null;
+    }
     const durationSec = current.live ? null : validDurationSec(status.durationMs);
     if (durationSec !== null && durationSec !== current.durationSec) {
         current.durationSec = durationSec;
@@ -219,10 +238,18 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     if (!current.announced) {
         current.clock.sync({ positionSec, paused: current.live || !status.isPlaying, holdBackward: false });
         current.playing = status.isPlaying;
+        current.seeking = status.seeking === true;
         if (status.ended || (status.isPlaying === false && atEnd)) current.ended = true;
         return;
     }
     // The player has no track: it is between starts, or the start it was asked for did not take.
+    if (status.starting && !status.isPlaying) {
+        current.playing = false;
+        syncClock(current.clock.read(), true, sampledAtMs, true);
+        if (!usePlaybackStore.getState().isLoadingToPlay) usePlaybackStore.getState().startLoadingToPlay();
+        emit({ type: 'status' });
+        return;
+    }
     // That is a pause to wait through, never another song of the listener's.
     if (!status.mediaId) {
         if (status.seeking && !current.seeking) {
@@ -251,6 +278,8 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
             syncClock(positionSec, false, sampledAtMs, true);
             emit({ type: 'status' });
         }
+        // Only a player-confirmed start/resume may release deferred preparation.
+        refreshPreparedQueue();
         return;
     }
     markPaused(positionSec);
@@ -303,7 +332,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, confirmedPlaying: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -368,6 +397,7 @@ export function stopExternalPlayback(reason: string): void {
     session = null;
     externalMediaShim.reset();
     if (!current) return;
+    emit({ type: 'status' });
     console.info('[ExternalPlayback] left the external player', { reason, songKey: current.songKey });
     void omni.pauseExternalPlayback(current.song).catch(error => {
         console.warn('[ExternalPlayback] the player could not be paused as the route is left', error);
@@ -418,6 +448,8 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     current.ended = false;
     const revision = ++current.positionRevision;
     current.seekPending = true;
+    current.prefetchReady = false;
+    current.sampledPosition = null;
     current.clock.sync({ positionSec: target, paused: !current.playing, holdBackward: false });
     externalMediaShim.markSeeked();
     void omni.seekExternalPlayback(current.song, target).catch(error => {
