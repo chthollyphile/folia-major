@@ -59,6 +59,8 @@ const TOUCH_REVEAL_MS = 4000;
 const TOUCH_TAP_SLOP_PX = 10;
 /** 手指点出那排之后，这么久内补发的那一下 click 不算数（见 swallowStrayClick）。 */
 const TOUCH_STRAY_CLICK_MS = 400;
+/** 鼠标或手指按下到 click 挪得比这多，是拖（多半在拖进度条、拖偏了几像素），不算点胶囊。 */
+const CLICK_DRAG_SLOP_PX = 10;
 /** 进度条的轨道（ProgressBar 的 progress.track，拖动用的 range 就在里面）。 */
 const isOnSeekTrack = (target: EventTarget | null): boolean => (
     target instanceof Element && target.closest('[data-folium-part="progress.track"]') !== null
@@ -217,14 +219,14 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 这一下手指按下时要不要把那排点出来，以及按在哪：抬起时没怎么挪才算点，拖进度条不算。
     const touchRevealPressRef = useRef<{ x: number; y: number; } | null>(null);
     const swallowClickUntilRef = useRef(0);
-    // 这一下是不是按在进度条上：按在那儿的是拖进度，不是点胶囊（#1056）。
-    const pressStartedOnSeekRef = useRef(false);
+    // 这一下按在哪、是不是按在进度条上：按在进度条上或按下后拖开了的，是拖进度，不是点胶囊（#1056）。
+    const pressRef = useRef<{ x: number; y: number; onSeek: boolean; } | null>(null);
     const noteHoverPointer = useCallback((event: React.PointerEvent) => {
         setIsTouchHover(event.pointerType === 'touch');
         if (event.type === 'pointerdown') {
             // 又按下了一次：上一下点出那排补发的 click 早该过去了，这一下的 click 是真的。
             swallowClickUntilRef.current = 0;
-            pressStartedOnSeekRef.current = isOnSeekTrack(event.target);
+            pressRef.current = { x: event.clientX, y: event.clientY, onSeek: isOnSeekTrack(event.target) };
             pressOpensPaletteRef.current = event.pointerType !== 'touch'
                 || touchRowShownRef.current
                 || (showExpandedRef.current && !touchRowAllowedRef.current);
@@ -532,15 +534,21 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
     const swallowStrayClick = (event: React.MouseEvent) => {
-        // 从进度条按下、拖到别处松开：浏览器补发的 click 可能落在胶囊或上方那排按钮上（进度条在
-        // 拖动中展开时被换掉、按住的元素没了，click 就落到按下和松开两处的共同祖先），一落上去
-        // 就成了点胶囊开命令面板。落在进度条自己身上的那一下由进度条自己拦。
-        const startedOnSeek = pressStartedOnSeekRef.current;
-        pressStartedOnSeekRef.current = false;
-        if (startedOnSeek && !isOnSeekTrack(event.target)) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
+        // 拖进度条松开时浏览器补发的 click 落到胶囊上，就成了点胶囊开命令面板（#1056）。进度条只有
+        // 6px 高，按偏几像素就按在了胶囊空白处，按下和松开都在胶囊里，click 照常补发；按准了的，
+        // 进度条在拖动中展开时被换掉、按住的元素没了，click 也会落到两处的共同祖先上。所以按下后
+        // 挪开过、或者按在进度条上而 click 落在别处的，都吞掉。落在进度条自己身上的那一下由它自己拦；
+        // 键盘和读屏发的 click 没有按下（detail 为 0），照常放行。
+        const press = pressRef.current;
+        pressRef.current = null;
+        if (press && event.detail > 0) {
+            const dragged = Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_DRAG_SLOP_PX;
+            if (dragged || (press.onSeek && !isOnSeekTrack(event.target))) {
+                swallowClickUntilRef.current = 0;
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
         }
         if (performance.now() < swallowClickUntilRef.current) {
             swallowClickUntilRef.current = 0;
