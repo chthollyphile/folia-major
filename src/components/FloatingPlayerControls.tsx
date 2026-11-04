@@ -59,6 +59,10 @@ const TOUCH_REVEAL_MS = 4000;
 const TOUCH_TAP_SLOP_PX = 10;
 /** 手指点出那排之后，这么久内补发的那一下 click 不算数（见 swallowStrayClick）。 */
 const TOUCH_STRAY_CLICK_MS = 400;
+/** 进度条的轨道（ProgressBar 的 progress.track，拖动用的 range 就在里面）。 */
+const isOnSeekTrack = (target: EventTarget | null): boolean => (
+    target instanceof Element && target.closest('[data-folium-part="progress.track"]') !== null
+);
 /*
  * 模组可以通过公开变量 --folium-player-bar-extra 加宽胶囊，补回进度条两侧按钮占掉的长度。
  * 外层 max-width 已经加了一份 extra；收起的胶囊是外层的 80% / 60%，所以只再补 (1 - 比例) 份，
@@ -213,11 +217,14 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 这一下手指按下时要不要把那排点出来，以及按在哪：抬起时没怎么挪才算点，拖进度条不算。
     const touchRevealPressRef = useRef<{ x: number; y: number; } | null>(null);
     const swallowClickUntilRef = useRef(0);
+    // 这一下是不是按在进度条上：按在那儿的是拖进度，不是点胶囊（#1056）。
+    const pressStartedOnSeekRef = useRef(false);
     const noteHoverPointer = useCallback((event: React.PointerEvent) => {
         setIsTouchHover(event.pointerType === 'touch');
         if (event.type === 'pointerdown') {
             // 又按下了一次：上一下点出那排补发的 click 早该过去了，这一下的 click 是真的。
             swallowClickUntilRef.current = 0;
+            pressStartedOnSeekRef.current = isOnSeekTrack(event.target);
             pressOpensPaletteRef.current = event.pointerType !== 'touch'
                 || touchRowShownRef.current
                 || (showExpandedRef.current && !touchRowAllowedRef.current);
@@ -525,6 +532,16 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
     const swallowStrayClick = (event: React.MouseEvent) => {
+        // 从进度条按下、拖到别处松开：浏览器补发的 click 可能落在胶囊或上方那排按钮上（进度条在
+        // 拖动中展开时被换掉、按住的元素没了，click 就落到按下和松开两处的共同祖先），一落上去
+        // 就成了点胶囊开命令面板。落在进度条自己身上的那一下由进度条自己拦。
+        const startedOnSeek = pressStartedOnSeekRef.current;
+        pressStartedOnSeekRef.current = false;
+        if (startedOnSeek && !isOnSeekTrack(event.target)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
         if (performance.now() < swallowClickUntilRef.current) {
             swallowClickUntilRef.current = 0;
             event.preventDefault();

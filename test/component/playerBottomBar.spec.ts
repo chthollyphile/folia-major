@@ -223,6 +223,25 @@ test.describe('capsule navigation', () => {
         await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '0');
     });
 
+    test('a drag that starts on the seek bar and ends on the capsule does not open the palette (#1056)', async ({ page }) => {
+        await setPlaybackEntryView(page, 'player');
+        await expect(page.locator(CAPSULE).first()).toBeVisible();
+        // 按在进度条上，松开时补发的 click 落到了胶囊上（进度条在拖动中被换掉时就是这样）。
+        await page.evaluate(() => {
+            const range = document.querySelector('input[type="range"]')!;
+            range.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', pointerId: 1 }));
+            range.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse', pointerId: 1 }));
+            (range.closest('.rounded-full.cursor-pointer') as HTMLElement).click();
+        });
+
+        expect(await paletteRequestSeq(page)).toBe(0);
+        await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '0');
+
+        // 下一次按在胶囊本身上的点击照常开面板。
+        await page.locator(CAPSULE).first().click({ position: { x: 20, y: 2 } });
+        await expect.poll(() => paletteRequestSeq(page)).toBe(1);
+    });
+
     test('a touch tap on the collapsed capsule only unfolds it', async ({ page }) => {
         await setPlaybackEntryView(page, 'player');
         // 触屏上点收起的胶囊是展开它的手势：按下时胶囊还收着，这一下不能直接弹出命令面板。
