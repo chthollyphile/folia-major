@@ -386,7 +386,10 @@ function createRequestDispatcher(getContents, timeoutMs = 20000, getGeneration =
         const current = scope;
         if (current.invalid) return { ok: false, error: 'not-ready' };
         const urgentPause = request.operation === 'pause' && current.preparing && !current.pausing;
-        if (current.running >= 4 && !urgentPause) return { ok: false, error: 'busy' };
+        // Leave room for the current transport and clock while background reads prepare the tail.
+        const foreground = request.operation === 'playbackStatus'
+            || (PLAYBACK_COMMANDS.has(request.operation) && request.operation !== 'prepareNext');
+        if (current.running >= (foreground ? 4 : 2) && !urgentPause) return { ok: false, error: 'busy' };
         current.running++;
         if (urgentPause) current.pausing = true;
         let expired = false;

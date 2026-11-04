@@ -20,6 +20,23 @@ class Child extends EventEmitter {
 }
 
 describe('Apple Music companion client', () => {
+    it('does not dispatch another attempt after busy exhausts the deadline', async () => {
+        vi.useFakeTimers();
+        try {
+            const child = new Child();
+            child.send = vi.fn((message: unknown, callback: (error?: Error) => void) => {
+                callback();
+                child.emit('message', { id: (message as { id: string }).id, ok: false, error: 'busy' });
+            });
+            const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 100 });
+            const pending = client.request('pause');
+            await vi.advanceTimersByTimeAsync(500);
+            expect(await pending).toMatchObject({ ok: false, error: 'busy' });
+            expect(child.send).toHaveBeenCalledTimes(1);
+            client.close();
+        } finally { vi.useRealTimers(); }
+    });
+
     it('routes replies to their own requests over one private child', async () => {
         const child = new Child();
         const spawnProcess = vi.fn((_binary: string, _args: string[], _options: unknown) => child);
@@ -65,7 +82,7 @@ describe('Apple Music companion client', () => {
         expect(await client.request('accountStatus')).toMatchObject({ ok: false, error: 'runtime-unavailable' });
     });
 
-    it('asks again while the companion is still starting', async () => {
+    it.each(['not-ready', 'busy'])('asks again when the companion returns %s before execution', async (rejection) => {
         vi.useFakeTimers();
         try {
             const child = new Child();
@@ -73,7 +90,7 @@ describe('Apple Music companion client', () => {
                 callback();
                 const id = (message as { id: string }).id;
                 child.emit('message', id.endsWith('_1')
-                    ? { id, ok: false, error: 'not-ready' }
+                    ? { id, ok: false, error: rejection }
                     : { id, ok: true, data: { ready: true } });
             });
             const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child, timeoutMs: 5000 });
