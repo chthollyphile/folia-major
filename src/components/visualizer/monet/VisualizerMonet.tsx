@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, useMotionValueEvent, useDragControls, useMotionValue } from 'framer-motion';
 import { RotateCcw } from 'lucide-react';
+import { Tooltip } from '../../modal/settings/kit/Tooltip';
+import { SettingsKitThemeContext } from '../../modal/settings/kit/kitTheme';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { DEFAULT_MONET_TUNING } from '../../../types';
 import { colorWithAlpha } from '../colorMix';
@@ -51,6 +53,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
         songHandoff = null,
     } = props;
     const { t } = useTranslation();
+    const tooltipTheme = useMemo(() => ({ isDaylight: props.isDaylight ?? false }), [props.isDaylight]);
     // 底部音频条的分辨率倍数（#929）：全局挡位叠上这个样式的覆盖；预览不跟。
     const renderQuality = useLyricRenderQuality(monetTuning.render);
     const audioRenderScale = isPreviewMode ? 1 : renderQuality.scale;
@@ -340,10 +343,10 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     initial={{ opacity: 0, scale: 0.9, y: 10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     transition={{ duration: 1.0, ease: [0.25, 1, 0.5, 1], delay: 0.95 }}
-                                    className="mt-auto pt-4"
+                                    className="group/monet-description relative mt-auto w-fit pt-4 before:absolute before:-inset-x-6 before:top-0 before:-bottom-6 before:content-['']"
                                 >
                                         <div
-                                            className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
+                                            className="inline-flex items-center gap-3 rounded-full border px-4 py-2 opacity-0 backdrop-blur-md transition-opacity duration-200 group-hover/monet-description:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
                                             style={{
                                                 borderColor: colorWithAlpha(theme.primaryColor, 0.16),
                                                 backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
@@ -450,7 +453,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 ? { duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }
                                                 : { duration: 0.8, ease: 'easeOut' }
                                         }
-                                        className="relative"
+                                        className="group/monet-cover relative"
                                         style={{
                                             width: monetTuning.portraitStyle === 'square' ? '135.135%' : '100%',
                                             marginLeft: monetTuning.portraitStyle === 'square' ? '-35.135%' : '0%',
@@ -460,7 +463,20 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     >
                                         {/* Hanger / Black-White Bar */}
                                         {monetTuning.showPortraitDragHanger && (
-                                            <motion.div
+                                            <SettingsKitThemeContext.Provider value={tooltipTheme}>
+                                              <Tooltip
+                                                text={t(isEditingPosition ? 'options.monetPortraitPositionEditing' : 'options.monetPortraitPositionHint')}
+                                                className="group/monet-hanger absolute -top-6 right-5 z-20 flex h-20 w-9 justify-center pt-3"
+                                              >
+                                            <motion.button
+                                                type="button"
+                                                aria-label={t(isEditingPosition ? 'options.monetPortraitPositionEditing' : 'options.monetPortraitPositionHint')}
+                                                aria-pressed={isEditingPosition}
+                                                onKeyDown={(e) => {
+                                                    if (!isEditingPosition || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+                                                    e.preventDefault();
+                                                    offsetX.set(Math.min(0, Math.max(-150, offsetX.get() + (e.key === 'ArrowLeft' ? -5 : 5))));
+                                                }}
                                                 onPointerDown={(e) => {
                                                     if (isEditingPosition) {
                                                         e.preventDefault();
@@ -484,7 +500,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 }}
                                                 onMouseEnter={() => setIsHangerHovered(true)}
                                                 onMouseLeave={() => setIsHangerHovered(false)}
-                                                className="absolute -top-3 right-8 z-20 h-14 w-3 rounded-full shadow-md cursor-pointer transition-transform duration-200 hover:scale-y-105 active:scale-y-95"
+                                                className={`h-14 w-3 cursor-pointer rounded-full shadow-md transition-[opacity,transform] duration-200 hover:scale-y-105 active:scale-y-95 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${isEditingPosition ? 'opacity-100' : 'opacity-0 group-hover/monet-cover:opacity-100'}`}
                                                 animate={isEditingPosition ? {
                                                     borderColor: [
                                                         colorWithAlpha(theme.accentColor, 0.3),
@@ -514,6 +530,8 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                     touchAction: isEditingPosition ? 'none' : 'auto',
                                                 }}
                                             />
+                                              </Tooltip>
+                                            </SettingsKitThemeContext.Provider>
                                         )}
 
                                         {/* Square cover with enhanced shadow, no transparent border. Its theme

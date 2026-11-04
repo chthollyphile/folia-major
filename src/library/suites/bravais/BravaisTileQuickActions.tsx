@@ -8,6 +8,7 @@ import type { BravaisFocusCardActions } from './BravaisFocusCardBody';
 // 歌曲磁贴与聚焦卡右上角悬浮才出现的两颗按钮：加入速记簿、收藏到歌单（应用的歌单选择器，含「我喜欢」）。
 // 显隐只靠 CSS（磁贴 :hover / 键盘聚焦，bravaisCollection.css 的 .bravais-tile-quick），不为悬停多一次 React 渲染；
 // 能不能做由 surface 判定（canCollect / canSaveToPlaylist），一颗都没有就不画。点击不冒泡到磁贴（磁贴的点击是展开）。
+// 按钮与聚焦卡的「⋯」同一种（bravais-chrome-button：静止时只有图标，悬停才出现圆角框），不用深色圆底。
 
 /** 太小的磁贴（拼贴里的 1×1 碎片）不放：两颗按钮会把封面盖满。 */
 export const BRAVAIS_QUICK_ACTIONS_MIN_WIDTH = 120;
@@ -38,6 +39,7 @@ const BravaisTileQuickActions: React.FC<BravaisTileQuickActionsProps> = ({ slotK
                 <button
                     key={id}
                     type="button"
+                    className="bravais-chrome-button"
                     data-bravais-action={id}
                     aria-label={label}
                     title={label}

@@ -13,7 +13,7 @@ export const subtitleSettingsSurface: CommandPaletteSurface = {
     mapProps: ({ context, isDaylight, theme, close }) => ({
         isDaylight,
         theme,
-        // The rest (fonts, the harmony line, blurring upcoming lines) is on the lyric style window's subtitle tab.
+        // The rest (fonts, the harmony line) is on the lyric style window's subtitle tab.
         onOpenMoreSettings: () => {
             close();
             context.settings.openSettings('options', 'visualizer', 'subtitle');

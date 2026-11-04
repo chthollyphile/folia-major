@@ -159,15 +159,15 @@ const writeEntries = (entries: ScratchpadEntry[]): boolean => {
     }
 };
 
-/** 抽屉的两页：速记簿本身，与播放历史（探索页「最近播放」那份记录）。 */
-export type ScratchpadTab = 'notes' | 'history';
+/** 抽屉的三页：速记簿本身、播放历史（探索页「最近播放」那份记录）、当前的播放队列。 */
+export type ScratchpadTab = 'notes' | 'history' | 'queue';
 
 type ScratchpadState = {
     entries: ScratchpadEntry[];
     isOpen: boolean;
     /** 抽屉开在哪一页（不存：这次运行里收起再打开还在原来那页）。 */
     tab: ScratchpadTab;
-    /** 抽屉展开成画布（不存：每次打开都从列表开始）。 */
+    /** 抽屉展开（不存：每次打开都从列表开始）。三页展开都是卡片画布：速记簿按来源分组，播放历史一天一组穿一条时间轴，播放队列穿一条带箭头的线。 */
     isExpanded: boolean;
     /**
      * 首页层里开着一个层级盖不过抽屉的弹窗（本地实体、歌曲信息、手动匹配）：速记簿整个藏起来，关了再回来。
@@ -179,7 +179,7 @@ type ScratchpadState = {
     setOpen: (isOpen: boolean) => void;
     toggleOpen: () => void;
     setExpanded: (isExpanded: boolean) => void;
-    /** 换页；去播放历史时画布收回（画布只是速记簿那一页的）。 */
+    /** 换页；展开与否跟着抽屉走，不随换页收回。 */
     setTab: (tab: ScratchpadTab) => void;
     setCovered: (isCovered: boolean) => void;
     add: (songs: readonly SongResult[], origin?: ScratchpadOrigin) => ScratchpadAddResult;
@@ -199,9 +199,8 @@ export const useScratchpadStore = create<ScratchpadState>((set, get) => ({
     // 收起时画布也收回：下次打开从列表开始。
     setOpen: isOpen => set(isOpen ? { isOpen } : { isOpen, isExpanded: false }),
     toggleOpen: () => set(state => (state.isOpen ? { isOpen: false, isExpanded: false } : { isOpen: true })),
-    // 展开成画布的是速记簿那一页：从播放历史那页展开（命令、快捷键）时先换回来。
-    setExpanded: isExpanded => set(isExpanded ? { isExpanded, tab: 'notes' } : { isExpanded }),
-    setTab: tab => set(tab === 'history' ? { tab, isExpanded: false } : { tab }),
+    setExpanded: isExpanded => set({ isExpanded }),
+    setTab: tab => set({ tab }),
     setCovered: isCovered => set(state => (state.isCovered === isCovered ? state : { isCovered })),
     add: (songs, origin) => {
         const { entries, result } = appendScratchpadEntries(get().entries, songs, { origin });

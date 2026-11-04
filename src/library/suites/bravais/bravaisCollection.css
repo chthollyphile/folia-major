@@ -451,12 +451,16 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
-    color: #fff;
-    filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+    /* 图标随卡片文字的颜色（深色主题白、日光黑），与底部按钮排一致。 */
+    color: inherit;
+    filter: drop-shadow(0 1px 2px var(--bravais-corner-shadow)) drop-shadow(0 2px 8px var(--bravais-corner-shadow-wide));
 }
 
-.bravais-focus-more-toggle { min-height: 36px; padding: 0 10px; }
-.bravais-focus-menu { min-width: 180px; background: rgb(0 0 0 / 55%); backdrop-filter: blur(18px); }
+/* 与左边两颗悬浮按钮（BravaisTileQuickActions）同一格：44px 方格。要压过 bravais-chrome-button 的内边距，
+   选择器得比它具体——两份 CSS 谁后加载由模块图决定，不能靠先后。 */
+.bravais-focus-more .bravais-focus-more-toggle { justify-content: center; width: 44px; padding: 0; }
+/* 菜单是深色玻璃底，日光下也用白字。 */
+.bravais-focus-menu { min-width: 180px; color: #fff; background: rgb(0 0 0 / 55%); backdrop-filter: blur(18px); }
 
 /* ---------- 歌曲磁贴与聚焦卡右上角悬浮的两颗（BravaisTileQuickActions）：加入速记簿、收藏到歌单 ----------
    平时看不见，指针在磁贴上或键盘聚焦到按钮时出现；没有悬停的设备（触屏）只在聚焦卡上常驻。 */
@@ -468,16 +472,17 @@
     z-index: 3;
     display: flex;
     gap: 6px;
-    color: #fff;
+    /* 颜色与影子同聚焦卡的「⋯」：随卡片文字（日光下黑），多一层更深的影子。 */
+    color: inherit;
     opacity: 0;
     pointer-events: none;
-    filter: drop-shadow(0 1px 3px var(--bravais-chrome-shadow));
+    filter: drop-shadow(0 1px 2px var(--bravais-corner-shadow)) drop-shadow(0 2px 8px var(--bravais-corner-shadow-wide));
     transition: opacity 0.15s ease;
 }
 
-/* 聚焦卡：与「⋯」同一条线（top 18px），有「⋯」时排在它左边。 */
+/* 聚焦卡：与「⋯」同一条线（top 18px），有「⋯」时排在它左边（「⋯」宽 44px，再隔 6px，与两颗之间的间距相同）。 */
 .lattice-poster.is-expanded .bravais-tile-quick { top: 18px; right: 18px; }
-.lattice-poster.is-expanded .bravais-tile-quick[data-beside='more'] { right: 78px; }
+.lattice-poster.is-expanded .bravais-tile-quick[data-beside='more'] { right: 68px; }
 
 /* 悬停只在真能悬停的设备上算：触屏点按会先模拟一次悬停，不挡的话这一下就落在看不见的按钮上。 */
 @media (hover: hover) {
@@ -490,22 +495,12 @@
     .lattice-poster.is-expanded .bravais-tile-quick { opacity: 1; pointer-events: auto; }
 }
 
-.bravais-tile-quick button {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    padding: 0;
-    border: 0;
-    border-radius: 999px;
-    color: inherit;
-    background: rgb(0 0 0 / 50%);
-    cursor: pointer;
-}
-
-.bravais-tile-quick button:hover { background: rgb(0 0 0 / 72%); }
-.bravais-tile-quick button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
-.bravais-tile-quick svg { width: 16px; height: 16px; }
+/* 按钮本身是 bravais-chrome-button（与「⋯」同一种：静止时无底无框，悬停才出现 12px 圆角框），这里只定尺寸：
+   磁贴上小一号（32px 方格、16px 图标），聚焦卡上与「⋯」一样（44px 方格、18px 图标）。 */
+.bravais-tile-quick .bravais-chrome-button { justify-content: center; width: 32px; min-height: 32px; padding: 0; }
+.bravais-tile-quick .bravais-chrome-button svg { width: 16px; height: 16px; }
+.lattice-poster.is-expanded .bravais-tile-quick .bravais-chrome-button { width: 44px; min-height: 44px; }
+.lattice-poster.is-expanded .bravais-tile-quick .bravais-chrome-button svg { width: 18px; height: 18px; }
 :root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
 
 /* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
