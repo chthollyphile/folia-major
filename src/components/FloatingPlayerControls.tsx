@@ -59,6 +59,12 @@ const TOUCH_REVEAL_MS = 4000;
 const TOUCH_TAP_SLOP_PX = 10;
 /** 手指点出那排之后，这么久内补发的那一下 click 不算数（见 swallowStrayClick）。 */
 const TOUCH_STRAY_CLICK_MS = 400;
+/** 鼠标或手指按下到 click 挪得比这多，是拖（多半在拖进度条、拖偏了几像素），不算点胶囊。 */
+const CLICK_DRAG_SLOP_PX = 10;
+/** 进度条的轨道（ProgressBar 的 progress.track，拖动用的 range 就在里面）。 */
+const isOnSeekTrack = (target: EventTarget | null): boolean => (
+    target instanceof Element && target.closest('[data-folium-part="progress.track"]') !== null
+);
 /*
  * 模组可以通过公开变量 --folium-player-bar-extra 加宽胶囊，补回进度条两侧按钮占掉的长度。
  * 外层 max-width 已经加了一份 extra；收起的胶囊是外层的 80% / 60%，所以只再补 (1 - 比例) 份，
@@ -213,11 +219,14 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 这一下手指按下时要不要把那排点出来，以及按在哪：抬起时没怎么挪才算点，拖进度条不算。
     const touchRevealPressRef = useRef<{ x: number; y: number; } | null>(null);
     const swallowClickUntilRef = useRef(0);
+    // 这一下按在哪、是不是按在进度条上：按在进度条上或按下后拖开了的，是拖进度，不是点胶囊（#1056）。
+    const pressRef = useRef<{ x: number; y: number; onSeek: boolean; } | null>(null);
     const noteHoverPointer = useCallback((event: React.PointerEvent) => {
         setIsTouchHover(event.pointerType === 'touch');
         if (event.type === 'pointerdown') {
             // 又按下了一次：上一下点出那排补发的 click 早该过去了，这一下的 click 是真的。
             swallowClickUntilRef.current = 0;
+            pressRef.current = { x: event.clientX, y: event.clientY, onSeek: isOnSeekTrack(event.target) };
             pressOpensPaletteRef.current = event.pointerType !== 'touch'
                 || touchRowShownRef.current
                 || (showExpandedRef.current && !touchRowAllowedRef.current);
@@ -532,8 +541,20 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
 
-    const handleClick = () => {
-        if (isPositioning) {
+    // 拖进度条松开时浏览器补发的 click 落到胶囊上，就成了点胶囊开命令面板（#1056）。进度条只有
+    // 6px 高，按偏几像素就按在了胶囊空白处，按下和松开都在胶囊里，click 照常补发；按准了的，
+    // 进度条在拖动中展开时被换掉、按住的元素没了，click 也会落到两处的共同祖先上。所以到了胶囊
+    // 这里的 click，按下后挪开过、或者按在进度条上的，都不算点胶囊。按钮、模组的按钮和图层、
+    // 进度条自己的 click 各自拦着，到不了这里，不受影响；键盘和读屏发的 click 没有按下（detail 为 0），照常算。
+    const isDragRelease = (event: React.MouseEvent): boolean => {
+        const press = pressRef.current;
+        pressRef.current = null;
+        if (!press || event.detail === 0) return false;
+        return press.onSeek || Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_DRAG_SLOP_PX;
+    };
+
+    const handleClick = (event: React.MouseEvent) => {
+        if (isDragRelease(event) || isPositioning) {
             return;
         }
         if (clickOpensPalette) {
