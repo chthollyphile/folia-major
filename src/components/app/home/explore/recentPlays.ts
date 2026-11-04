@@ -224,6 +224,30 @@ export const recentPlayRecordsOf = (scope: PlayScope): readonly RecentPlay[] => 
 };
 
 /**
+ * Forgets these songs (by playback key) in these scopes: the scratchpad's play history deletes
+ * them there. Their plays and listenings go with them, so they leave the explore page's sections of
+ * those accounts too. Says how many plays were forgotten; the watchers are told when there were any.
+ */
+export const forgetPlays = (scopes: readonly PlayScope[], songKeys: readonly string[]): number => {
+    const drop = new Set(songKeys);
+    const plays = recall();
+    let forgotten = 0;
+    for (const scope of new Set(scopes.map(keyOfScope))) {
+        const list = plays[scope];
+        if (!list) continue;
+        const kept = list.filter(play => !drop.has(getPlaybackSongKey(play.song)));
+        if (kept.length === list.length) continue;
+        forgotten += list.length - kept.length;
+        plays[scope] = kept;
+    }
+    if (forgotten > 0) {
+        store(plays);
+        for (const watcher of watchers) watcher();
+    }
+    return forgotten;
+};
+
+/**
  * The songs listened to more than once in the last thirty days from this platform under this
  * account, of those that are kept: the one whose listenings weigh most first (see `weightOf`),
  * and of two that weigh the same the one played later. The same list until a play changes it, a

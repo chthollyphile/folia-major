@@ -18,14 +18,16 @@
    放在左缘上部（标题栏让出的 56px 之下），不放正中：Bravais 的信息条收起 / 折叠后是贴边、垂直居中的标签
    （.bravais-seam-tab，最高占 60%，即 20%–80% 的高度），正中会和它叠在一起，感应带还会抢它的点击。 */
 
+/* 感应带比把手宽得多：指针贴着左缘往上部扫过去就能碰到。上边从 72px 起，让开播放页与两面墙左上角的返回钮
+   （24–64px 见方）；高度跟着窗口：在 Bravais 信息条标签（窗口高度的 20% 起）之上收住。 */
 .scratchpad-edge {
     position: fixed;
-    top: 56px;
+    top: 72px;
     left: 0;
     z-index: 95;
     display: flex;
-    width: 18px;
-    height: 96px;
+    width: 40px;
+    height: clamp(96px, calc(20vh - 76px), 168px);
     align-items: center;
     pointer-events: auto;
 }
@@ -45,7 +47,8 @@
     border-radius: 0 10px 10px 0;
     background: rgb(255 255 255 / 14%);
     color: inherit;
-    opacity: 0;
+    /* 空的时候也留一道淡淡的边，让人知道左缘有东西。 */
+    opacity: 0.28;
     backdrop-filter: blur(20px);
     cursor: pointer;
     transition: width 0.18s ease, height 0.18s ease, opacity 0.18s ease, background-color 0.18s ease;
@@ -128,13 +131,13 @@
     padding: 14px 10px 10px 18px;
 }
 
-/* 两页的页签（速记簿、播放历史）：就是标题本身，没选中的那页淡一些。 */
+/* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身，没选中的淡一些。 */
 .scratchpad-tabs {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
     align-items: baseline;
-    gap: 14px;
+    gap: 12px;
 }
 
 .scratchpad-tab {
@@ -158,6 +161,13 @@
 .scratchpad-tab:hover { opacity: 0.75; }
 .scratchpad-tab[aria-selected='true'] { opacity: 1; cursor: default; }
 .scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
+
+/* 名字长的语言（印尼语）三个页签仍可能差几个像素：页签名字可以收窄成省略号，不压到旁边的页签上。 */
+.scratchpad-tab > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scratchpad-tab-count { flex: none; }
+
+/* 三个页签排一行放不下两个条数（英文尤甚）：条数只跟着选中的那页出现。 */
+.scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
 
 .scratchpad-tab-count {
     font-size: 12px;
@@ -261,11 +271,11 @@
     gap: 8px;
     padding: 0 4px 0 10px;
     border-radius: 10px;
-    background: rgb(20 20 22 / 88%);
-    backdrop-filter: blur(12px);
+    /* 通透一些，透出抽屉的玻璃。 */
+    background: rgb(255 255 255 / 6%);
 }
 
-.scratchpad-root.is-daylight .scratchpad-group-header { background: rgb(244 242 238 / 92%); }
+.scratchpad-root.is-daylight .scratchpad-group-header { background: rgb(255 255 255 / 40%); }
 
 .scratchpad-group-label {
     overflow: hidden;
@@ -378,12 +388,13 @@
     gap: 2px;
     padding: 0 6px 0 28px;
     border-radius: 0 12px 12px 0;
-    background: linear-gradient(to right, transparent, rgb(28 28 30 / 96%) 28px);
+    /* 半透明的底：按钮底不再是一整块实色。 */
+    background: linear-gradient(to right, transparent, rgb(28 28 30 / 45%) 28px);
     opacity: 0;
     pointer-events: none;
 }
 
-.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(240 238 234 / 97%) 28px); }
+.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(255 255 255 / 45%) 28px); }
 
 .scratchpad-row:hover .scratchpad-row-actions,
 .scratchpad-row:focus-within .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
@@ -448,6 +459,7 @@
     position: relative;
     min-height: 0;
     flex: 1 1 auto;
+    overflow-x: hidden;
     overflow-y: auto;
     outline: none;
     user-select: none;
@@ -515,6 +527,25 @@
 }
 
 .scratchpad-card.is-fresh { animation: scratchpad-row-fresh 1.4s ease-out; }
+
+/* 拖着一摞卡时按下的那张：右上角写一共挪几张。 */
+.scratchpad-card-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    z-index: 1;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--text-accent, rgb(255 255 255 / 92%));
+    color: rgb(0 0 0 / 85%);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 22px;
+    text-align: center;
+}
 
 .scratchpad-card-cover {
     position: relative;
@@ -649,3 +680,108 @@
     .scratchpad-menu-button span { display: none; }
     .scratchpad-menu-button { padding: 0 8px; }
 }
+
+/* —— 播放历史页顶上的问候 —— */
+
+.scratchpad-greeting {
+    flex: none;
+    margin: 0 18px 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.5;
+    opacity: 0.85;
+}
+
+/* —— 播放队列收起时的列表（ScratchpadSongTable）——
+   虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度；行的样子沿用 .scratchpad-row。 */
+
+.scratchpad-table {
+    position: relative;
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+}
+
+.scratchpad-table-scroll { flex: 1 1 auto; padding: 0; }
+
+/* 虚拟列表的行是绝对定位的（react-window 在行内样式里给 left: 0、width: 100%），列表的 padding 管不到它们：
+   在这里把行往里收 6px，与抽屉列表的左右留白一致。 */
+.scratchpad-table-row {
+    left: 6px !important;
+    width: calc(100% - 12px) !important;
+    box-sizing: border-box;
+}
+
+/* 正在播放的那一首：左边一道竖线。 */
+.scratchpad-table-row.is-current::before {
+    position: absolute;
+    top: 14px;
+    bottom: 14px;
+    left: 2px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--text-accent, currentColor);
+    content: '';
+}
+
+.scratchpad-table-row.is-current .scratchpad-name { color: var(--text-accent, inherit); }
+
+/* —— 画布上正在播放的那张卡：名字用强调色，封面左上角一个小圆点 —— */
+
+.scratchpad-card.is-current .scratchpad-card-name { color: var(--text-accent, inherit); }
+
+.scratchpad-card.is-current .scratchpad-card-cover::after {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--text-accent, rgb(255 255 255 / 90%));
+    box-shadow: 0 0 0 2px rgb(0 0 0 / 35%);
+    content: '';
+}
+
+/* —— 穿过卡片的线（canvasThread）：画在卡片底下，从卡片之间的空隙里露出来 ——
+   播放历史是一条细的时间轴，每张卡前面一个空心刻度；播放队列是一条带箭头的线，放过的那一段淡下去。 */
+
+.scratchpad-thread {
+    position: absolute;
+    top: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.scratchpad-thread-line {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.scratchpad-thread-marks {
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.scratchpad-thread.is-timeline .scratchpad-thread-line { stroke-width: 1.5; opacity: 0.32; }
+
+/* 时间轴的节点：一块写着时间的小牌子，压在线上（底色与画布一样，把线在这里断开）。 */
+.scratchpad-thread-node rect { fill: rgb(30 30 33); stroke: currentColor; stroke-opacity: 0.35; stroke-width: 1; }
+.scratchpad-root.is-daylight .scratchpad-thread-node rect { fill: rgb(244 242 238); }
+.scratchpad-thread-node text {
+    fill: currentColor;
+    fill-opacity: 0.8;
+    font-size: 10.5px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* 先后：实心、圆角的箭头，与线同色。 */
+.scratchpad-thread.is-flow { color: var(--text-accent, currentColor); }
+.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; opacity: 0.55; }
+.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; opacity: 0.95; }
+.scratchpad-thread.is-flow .is-played { color: inherit; opacity: 0.22; }

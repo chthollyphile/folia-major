@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { SongResult } from '@/types';
-import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, navidromePlayAccount, noteSongListened, noteSongPlayed, recentPlayRecordsOf, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
+import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, forgetPlays, navidromePlayAccount, noteSongListened, noteSongPlayed, recentPlayRecordsOf, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
 import { whenHeard } from '@/components/app/home/explore/useRecentPlaysRecorder';
 import { readOwnExploreSections } from '@/components/app/home/explore/ownSections';
 
@@ -57,6 +57,27 @@ describe('recent plays', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
+    });
+
+    it('forgets songs in the scopes it is given, stores that and tells the watchers', () => {
+        listen('a');
+        listen('b');
+        listen('a', 'other');
+        const watcher = vi.fn();
+        const stop = watchRecentPlays(watcher);
+        const me = { kind: 'online', providerId: 'ytm', accountId: 'me' } as const;
+        expect(forgetPlays([me], ['online:ytm:a', 'online:ytm:zzz'])).toBe(1);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['b']);
+        // 另一个账户的记录不动。
+        expect(idsOf(recentPlaysOf('ytm', 'other'))).toEqual(['a']);
+        expect(stored()['ytm:me'].map(play => play.song.id)).toEqual(['b']);
+        // 没有可忘的：不写、不通知。
+        const writes = storage.setItem.mock.calls.length;
+        expect(forgetPlays([me], ['online:ytm:a'])).toBe(0);
+        expect(storage.setItem.mock.calls.length).toBe(writes);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        stop();
     });
 
     it('keeps the songs newest first, each once, apart for each platform and account', () => {

@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
-import { ListPlus, Star, Trash2, X } from 'lucide-react';
-import type { ScratchpadEntry, ScratchpadGroup } from '../../../stores/useScratchpadStore';
-import ScratchpadCard, { type CardMotion } from './ScratchpadCard';
+import { SquareCheck, X } from 'lucide-react';
+import ScratchpadCard, { type CanvasEntry, type CardMotion } from './ScratchpadCard';
 import ScratchpadGroupHeader from './ScratchpadGroupHeader';
 import {
-    CARD_GAP,
+    CARD_HEIGHT,
+    CONTENT_EDGE,
+    DEFAULT_SPACING,
     cardRect,
     columnsFor,
     dropIndexAt,
@@ -17,30 +17,68 @@ import {
     slotPosition,
     type Point,
     type Rect,
+    type Spacing,
 } from './canvasLayout';
-import type { ScratchpadPanelActions } from './ScratchpadList';
+import { roundedPath, threadArrows, threadNodes, threadPoints } from './canvasThread';
+import type { ScratchpadAction } from './scratchpadModel';
 
 // src/components/app/scratchpad/ScratchpadCanvas.tsx
-// 速记簿展开后的画布（设计稿 plan/scratchpad-spec.md「画布的交互细则」）。每个来源组一块卡片网格：
-// - 拖动（鼠标、笔）：按下卡片走过 4px 才算拖；卡片跟着指针走（直接写它的 MotionValue），同组其余卡片实时让出落点；松手吸附到
-//   最近的索引位（store.move）。拖的是已选中的卡时，同组选中的一起挪；卡片不跨组，指针在别的组上时落点停在本组最近处。
+// 抽屉展开后的卡片画布（设计稿 plan/scratchpad-spec.md「画布的交互细则」），速记簿、播放历史、播放队列三页共用：
+// 分组、组头按钮、选中后的菜单、能不能拖都由调用方给。每组一块卡片网格：
+// - 拖动（鼠标、笔；只有给了 onMove 时）：按下卡片走过 4px 才算拖；卡片跟着指针走（直接写它的 MotionValue），同组其余卡片
+//   实时让出落点；松手吸附到最近的索引位（onMove）。拖的是已选中的卡时，同组选中的一起挪；卡片不跨组。
 // - 拖动（触屏）：手指按住卡片不动 0.4 秒拿起来（轻震一下），之后和鼠标一样拖；没拿起来之前手指一划就是滚动画布。
 //   拿起来之后画布不再跟着手指滚（touchmove 被拦下）。
 // - 框选：在空白处按下拖出矩形，碰到的卡片选中；Shift / Ctrl 追加。单击卡片选它一张，Ctrl 单击切换，Shift 单击选到上一次点的那张。
 //   触屏上没有框选：已经有选中的卡时，点一下卡片是加选 / 取消（手机上多选的习惯），没有时点一下选它一张。
-// - 选中后在选中的卡片上方浮出一个菜单：入队、加入歌单（选中的都来自同一组时）、移出、取消选择；拖动、框选进行中先收起，
-//   滚动时留在看得见的地方。
-//   Delete 移除，Ctrl+A 全选，Esc 先取消选择。
-// 指针移动里只 set MotionValue 和直接改框选框的样式；进 React state 的只有离散的落点序号与选择集（变了才 set）。
+// - 选中后在选中的卡片上方浮出一个菜单（按钮由调用方给）与「取消选择」；拖动、框选进行中先收起，滚动时留在看得见的地方。
+//   Delete 交给 onDelete，Ctrl+A 全选，Esc 先取消选择、再交给抽屉收起。
+// - 穿线（组的 thread）：播放历史一条时间轴、播放队列一条带箭头的线穿过组里所有卡片（canvasThread），画在卡片底下。
+// - 卡片多（播放队列可能上千首）时只挂看得见的那几行附近的卡片：滚动时按 400px 一档换，档没变不重渲染。
+// 指针移动里只 set MotionValue 和直接改框选框的样式；进 React state 的只有离散的落点序号、选择集与可见的那一档（变了才 set）。
 
-type ScratchpadCanvasProps = {
-    groups: ScratchpadGroup[];
-    freshKeys: ReadonlySet<string>;
-    actions: ScratchpadPanelActions;
+/** 穿过一组卡片的线：时间轴（每张卡前一个刻度）或播放的先后（每一步一个箭头）。 */
+export type CanvasThread =
+    /** labels：每张卡节点上写的字（这首几点放的），按组里的序号。 */
+    | { kind: 'timeline'; labels: readonly string[] }
+    /** playedThrough：这一序号（含）之前是放过的，那一段画淡；-1 是都还没放。 */
+    | { kind: 'flow'; playedThrough: number };
+
+export type CanvasGroup<E extends CanvasEntry = CanvasEntry> = {
+    key: string;
+    label: string;
+    entries: E[];
+    /** 组头上「选中本组」之后的按钮。 */
+    buttons?: ScratchpadAction[];
+    thread?: CanvasThread;
+};
+
+type ScratchpadCanvasProps<E extends CanvasEntry> = {
+    groups: CanvasGroup<E>[];
+    freshKeys?: ReadonlySet<string>;
+    /** 画布顶上的一行说明。 */
+    hint: string;
+    ariaLabel: string;
+    testId?: string;
+    /** 卡片上播放钮的名字。 */
+    playLabel: string;
+    onPlay: (entry: E) => void;
+    /** 有它才能拖：把 keys（同一组）挪到组里剩下的卡之间第 targetIndex 个位置。 */
+    onMove?: (groupKey: string, keys: string[], targetIndex: number) => void;
+    /** 一次拖动开始 / 结束（不论有没有放下；放下时 onMove 在结束之后）。 */
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
+    /** 有选中时按 Delete。 */
+    onDelete?: (entries: E[]) => void;
+    /** 选中后浮动菜单里的按钮。 */
+    selectionActions: (entries: E[]) => ScratchpadAction[];
     /** 没有选择时按 Esc：交给抽屉（收回列表）。 */
     onEscape: () => void;
-    /** 底部的整本动作（与列表同一份）。 */
-    footer: React.ReactNode;
+    spacing?: Spacing;
+    /** 打开时把这张卡滚到看得见的地方（播放队列里正在播的那首）。 */
+    focusKey?: string;
+    /** 画布底下的整本动作（速记簿有）。 */
+    footer?: React.ReactNode;
 };
 
 /** 按下之后走过这么远才算拖（以内是点击）。 */
@@ -51,14 +89,17 @@ const LONG_PRESS_MS = 400;
 const TOUCH_SLOP = 10;
 /** 一起被拖的几张卡错开叠放的距离。 */
 const STACK_OFFSET = 6;
-/** 画布内容的左右留白（与 CSS 的 .scratchpad-canvas-content 一致）。 */
-const CONTENT_PADDING_X = 16;
+/** 一起拖的卡最多画几张叠在指针下（其余的只在按下那张的角标上算个数）。 */
+const STACK_VISIBLE = 5;
 /** 浮动菜单与选中卡片之间的空隙，以及它离画布内容上边至少要留出的高度（不够就放到卡片下面）。 */
 const MENU_GAP = 8;
 const MENU_ROOM_ABOVE = 52;
+/** 只挂看得见的卡片：可见范围上下各多挂这么高，按这么大一档换。 */
+const WINDOW_OVERSCAN = 800;
+const WINDOW_STEP = 400;
 
 type Press = {
-    entry: ScratchpadEntry;
+    entry: CanvasEntry;
     groupKey: string;
     pointerId: number;
     start: Point;
@@ -72,7 +113,11 @@ type Press = {
     longPress?: number;
 };
 
-type Drag = { groupKey: string; moving: ReadonlySet<string>; dropIndex: number };
+/**
+ * moving 是要挪的全部卡；跟着指针走、画出来的只有 stack（按下的那张在最前，再叠几张）：选了几百张一起拖时，
+ * 不挂几百张卡、不每次移动写几百个 MotionValue。其余要挪的卡在拖动期间不画，松手后在新格子里挂回来。
+ */
+type Drag = { groupKey: string; moving: ReadonlySet<string>; stack: readonly string[]; dropIndex: number };
 
 type Marquee = {
     pointerId: number;
@@ -86,9 +131,88 @@ type Marquee = {
 /** 浮动菜单落在哪：选中卡片的外框中线上，外框上方（或放不下时下方）。内容坐标。 */
 type MenuAnchor = { centerX: number; y: number; placement: 'above' | 'below' };
 
+/** 挂卡片的那一档（内容坐标）。 */
+type Band = { top: number; bottom: number };
+
+const NO_KEYS: ReadonlySet<string> = new Set();
+
 const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every(key => b.has(key));
 
-const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, actions, onEscape, footer }) => {
+const bandOf = (scrollTop: number, height: number): Band => ({
+    top: Math.floor((scrollTop - WINDOW_OVERSCAN) / WINDOW_STEP) * WINDOW_STEP,
+    bottom: Math.ceil((scrollTop + height + WINDOW_OVERSCAN) / WINDOW_STEP) * WINDOW_STEP,
+});
+
+/** 时间轴节点上那块小牌子的宽、高（写得下「23:59」）。 */
+const NODE_WIDTH = 44;
+const NODE_HEIGHT = 18;
+
+/**
+ * 一组的线。时间轴：一条线，每张卡前面一个写着这首几点放的小牌子；先后：放过的一段（淡）、没放的一段各一条线，加实心箭头。
+ * SVG 铺满画布内容的左右留白（edge）：拐弯与第一列前面的节点伸出网格，但不出内容区，不撑出横向滚动条。
+ */
+const ThreadLayer: React.FC<{ thread: CanvasThread; count: number; columns: number; spacing: Spacing; height: number }> = ({
+    thread,
+    count,
+    columns,
+    spacing,
+    height,
+}) => {
+    const paths = useMemo(() => {
+        if (thread.kind === 'timeline') {
+            return { line: roundedPath(threadPoints(count, columns, spacing)), marks: '', played: '', playedMarks: '', nodes: threadNodes(count, columns, spacing) };
+        }
+        const split = Math.min(Math.max(thread.playedThrough, -1), count - 1);
+        return {
+            played: split > 0 ? roundedPath(threadPoints(count, columns, spacing, 0, split)) : '',
+            playedMarks: split > 0 ? threadArrows(count, columns, spacing, 0, split) : '',
+            line: roundedPath(threadPoints(count, columns, spacing, Math.max(0, split), count - 1)),
+            marks: threadArrows(count, columns, spacing, Math.max(0, split), count - 1),
+            nodes: [],
+        };
+    }, [columns, count, spacing, thread]);
+    const edge = spacing.edge ?? CONTENT_EDGE;
+    return (
+        <svg
+            className={`scratchpad-thread is-${thread.kind}`}
+            aria-hidden="true"
+            height={height}
+            style={{ left: -edge, width: `calc(100% + ${edge * 2}px)` }}
+        >
+            <g transform={`translate(${edge} 0)`}>
+                {paths.played && <path className="scratchpad-thread-line is-played" d={paths.played} />}
+                {paths.playedMarks && <path className="scratchpad-thread-marks is-played" d={paths.playedMarks} />}
+                <path className="scratchpad-thread-line" d={paths.line} />
+                {paths.marks && <path className="scratchpad-thread-marks" d={paths.marks} />}
+                {thread.kind === 'timeline' && paths.nodes.map((node, index) => (
+                    <g key={index} className="scratchpad-thread-node" transform={`translate(${node.x} ${node.y})`}>
+                        <rect x={-NODE_WIDTH / 2} y={-NODE_HEIGHT / 2} width={NODE_WIDTH} height={NODE_HEIGHT} rx={NODE_HEIGHT / 2} />
+                        <text textAnchor="middle" dominantBaseline="central">{thread.labels[index] ?? ''}</text>
+                    </g>
+                ))}
+            </g>
+        </svg>
+    );
+};
+
+function ScratchpadCanvas<E extends CanvasEntry>({
+    groups,
+    freshKeys = NO_KEYS,
+    hint,
+    ariaLabel,
+    testId = 'scratchpad-canvas',
+    playLabel,
+    onPlay,
+    onMove,
+    onDragStart,
+    onDragEnd,
+    onDelete,
+    selectionActions,
+    onEscape,
+    spacing = DEFAULT_SPACING,
+    focusKey,
+    footer,
+}: ScratchpadCanvasProps<E>) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -109,19 +233,22 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
     const [menu, setMenu] = useState<MenuAnchor | null>(null);
     // 画布滚动、改变大小时加一：浮动菜单据此重新落位（只在有选中时才加，免得滚动时整块画布跟着重渲染）。
     const [viewTick, setViewTick] = useState(0);
+    const [band, setBand] = useState<Band>(() => bandOf(0, typeof window === 'undefined' ? 1200 : window.innerHeight));
+    // 各组网格的顶边（内容坐标）：只挂看得见的卡片时按它算每一行在哪。
+    const [gridTops, setGridTops] = useState<ReadonlyMap<string, number>>(() => new Map());
     const hasSelectionRef = useRef(false);
     hasSelectionRef.current = selected.size > 0;
 
     const entries = useMemo(() => groups.flatMap(group => group.entries), [groups]);
     const groupOf = useMemo(() => {
-        const map = new Map<string, ScratchpadGroup>();
+        const map = new Map<string, CanvasGroup<E>>();
         for (const group of groups) for (const entry of group.entries) map.set(entry.key, group);
         return map;
     }, [groups]);
 
     // 计时器里（手指按住 0.4 秒之后）读的是这一刻的值，不是按下那一刻的。
-    const latest = useRef({ groupOf, columns, selected });
-    latest.current = { groupOf, columns, selected };
+    const latest = useRef({ groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd });
+    latest.current = { groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd };
 
     // 条目被移走（这里删的、别处删的）时，选择里也去掉它们。
     useEffect(() => {
@@ -138,8 +265,10 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         const measure = () => {
             // 藏起来（display: none）时宽度是 0：不当成一列，免得回来时所有卡片从一列弹回网格。
             if (element.clientWidth === 0) return;
-            const next = columnsFor(element.clientWidth - CONTENT_PADDING_X * 2);
+            const next = columnsFor(element.clientWidth - (latest.current.spacing.edge ?? CONTENT_EDGE) * 2, latest.current.spacing);
             setColumns(current => (current === next ? current : next));
+            const nextBand = bandOf(element.scrollTop, element.clientHeight);
+            setBand(current => (current.top === nextBand.top && current.bottom === nextBand.bottom ? current : nextBand));
             if (hasSelectionRef.current) setViewTick(current => current + 1);
         };
         measure();
@@ -147,6 +276,32 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         observer.observe(element);
         return () => observer.disconnect();
     }, []);
+
+    // 各组网格的顶边：组、列数变了（网格高度跟着变）之后量一次，变了才 set。
+    useLayoutEffect(() => {
+        const next = new Map<string, number>();
+        for (const group of groups) {
+            const grid = gridRefs.current.get(group.key);
+            if (grid) next.set(group.key, grid.offsetTop);
+        }
+        setGridTops(current => (
+            current.size === next.size && [...next].every(([key, top]) => current.get(key) === top) ? current : next
+        ));
+    }, [columns, groups]);
+
+    // 打开时滚到 focusKey 那张卡（量到网格顶边之后，只做一次）：它落在可视高度的三分之一处。
+    const didFocusRef = useRef(false);
+    useLayoutEffect(() => {
+        if (didFocusRef.current || !focusKey) return;
+        const group = groupOf.get(focusKey);
+        const scroller = scrollRef.current;
+        const gridTop = group ? gridTops.get(group.key) : undefined;
+        if (!group || !scroller || gridTop === undefined) return;
+        didFocusRef.current = true;
+        const index = group.entries.findIndex(entry => entry.key === focusKey);
+        const top = gridTop + slotPosition(index, columns, spacing).y;
+        scroller.scrollTop = Math.max(0, top - scroller.clientHeight / 3);
+    }, [columns, focusKey, gridTops, groupOf, spacing]);
 
     // 手指拿起卡片之后，拦下 touchmove，画布不再跟着手指滚（卡片上是 touch-action: pan-y，只能这样收回来）。
     // React 的 onTouchMove 是被动监听，拦不住，所以直接挂原生的。
@@ -160,16 +315,18 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         return () => element.removeEventListener('touchmove', holdStill);
     }, []);
 
-    // 滚动时浮动菜单要留在看得见的地方：每帧至多重新落位一次。
+    // 滚动：每帧至多一次——换挂卡片的那一档（档变了才 set），有选中时浮动菜单重新落位。
     useEffect(() => {
         const element = scrollRef.current;
         if (!element) return;
         let frame = 0;
         const onScroll = () => {
-            if (!hasSelectionRef.current || frame) return;
+            if (frame) return;
             frame = requestAnimationFrame(() => {
                 frame = 0;
-                setViewTick(current => current + 1);
+                const nextBand = bandOf(element.scrollTop, element.clientHeight);
+                setBand(current => (current.top === nextBand.top && current.bottom === nextBand.bottom ? current : nextBand));
+                if (hasSelectionRef.current) setViewTick(current => current + 1);
             });
         };
         element.addEventListener('scroll', onScroll, { passive: true });
@@ -190,12 +347,16 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
     }, []);
 
     const selectedEntries = useMemo(() => entries.filter(entry => selected.has(entry.key)), [entries, selected]);
-    const selectionGroup = useMemo(() => {
-        const keys = new Set(selectedEntries.map(entry => groupOf.get(entry.key)?.key));
-        return keys.size === 1 ? groupOf.get(selectedEntries[0].key) ?? null : null;
-    }, [groupOf, selectedEntries]);
 
     // —— 卡片：点击选择、拖动排序 ——
+
+    /** 一次拖动结束（放下、取消都算）：收起拖动状态，告诉调用方。 */
+    const endDrag = useCallback(() => {
+        const wasDragging = dragRef.current !== null;
+        dragRef.current = null;
+        setDrag(null);
+        if (wasDragging) latest.current.onDragEnd?.();
+    }, []);
 
     /** 按下的卡（和同组选中的）开始跟着指针走。 */
     const startDrag = useCallback((press: Press) => {
@@ -209,13 +370,15 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         if (!chosen.has(press.entry.key)) setSelected(new Set([press.entry.key]));
         const index = group?.entries.findIndex(entry => entry.key === press.entry.key) ?? 0;
         const before = group?.entries.slice(0, index).filter(entry => moving.has(entry.key)).length ?? 0;
-        dragRef.current = { groupKey: press.groupKey, moving, dropIndex: index - before };
+        const stack = [press.entry.key, ...[...moving].filter(key => key !== press.entry.key).slice(0, STACK_VISIBLE - 1)];
+        dragRef.current = { groupKey: press.groupKey, moving, stack, dropIndex: index - before };
         setDrag(dragRef.current);
+        latest.current.onDragStart?.();
     }, []);
 
     /** 被拖的卡跟到指针下，落点变了才 set。 */
     const followPointer = useCallback((press: Press, clientX: number, clientY: number) => {
-        const { groupOf: groupsByKey, columns: columnCount } = latest.current;
+        const { groupOf: groupsByKey, columns: columnCount, spacing: gaps } = latest.current;
         const grid = gridRefs.current.get(press.groupKey);
         const group = groupsByKey.get(press.entry.key);
         const current = dragRef.current;
@@ -223,20 +386,19 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         const gridRect = grid.getBoundingClientRect();
         const topLeft = { x: clientX - gridRect.left - press.grab.x, y: clientY - gridRect.top - press.grab.y };
         // 被拖的卡：按下的那张在指针下，同组其余选中的错开叠在它后面。
-        const stacked = [press.entry.key, ...[...current.moving].filter(key => key !== press.entry.key)];
-        stacked.forEach((key, order) => {
+        current.stack.forEach((key, order) => {
             const motion = motions.current.get(key);
             motion?.x.set(topLeft.x + order * STACK_OFFSET);
             motion?.y.set(topLeft.y + order * STACK_OFFSET);
         });
-        const dropIndex = dropIndexAt(topLeft, columnCount, group.entries.length - current.moving.size);
+        const dropIndex = dropIndexAt(topLeft, columnCount, group.entries.length - current.moving.size, gaps);
         if (dropIndex !== current.dropIndex) {
             dragRef.current = { ...current, dropIndex };
             setDrag(dragRef.current);
         }
     }, []);
 
-    const handleCardPointerDown = useCallback((entry: ScratchpadEntry, event: React.PointerEvent<HTMLDivElement>) => {
+    const handleCardPointerDown = useCallback((entry: CanvasEntry, event: React.PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0) return;
         event.stopPropagation();
         // 已经有一根手指（或一个指针）按着：第二根不接，否则先按的那根的移动与抬起都对不上号，拖着的卡就停在半空。
@@ -263,6 +425,8 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
             event.currentTarget.setPointerCapture(event.pointerId);
             return;
         }
+        // 不能拖的画布：手指点一下只是选择，不等长按。
+        if (!latest.current.onMove) return;
         // 手指：按住不动才拿起来（触屏的指针本来就隐式捕获在按下的元素上）。
         press.longPress = window.setTimeout(() => {
             press.longPress = undefined;
@@ -276,6 +440,12 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
     const handleCardPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const press = pressRef.current;
         if (!press || press.pointerId !== event.pointerId) return;
+        // 鼠标的主键已经松开了（松手时卡片被卸掉、没收到 pointerup）：这一下按压作废，不能没按键还跟着指针拖。
+        if (!press.isTouch && (event.buttons & 1) === 0) {
+            pressRef.current = null;
+            if (press.dragging) endDrag();
+            return;
+        }
         if (!press.dragging) {
             const distance = Math.hypot(event.clientX - press.start.x, event.clientY - press.start.y);
             if (press.isTouch) {
@@ -287,10 +457,15 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
                 return;
             }
             if (distance < DRAG_THRESHOLD) return;
+            // 不能拖的画布：按着走开的这一下既不拖也不算点击。
+            if (!latest.current.onMove) {
+                pressRef.current = null;
+                return;
+            }
             startDrag(press);
         }
         followPointer(press, event.clientX, event.clientY);
-    }, [followPointer, startDrag]);
+    }, [endDrag, followPointer, startDrag]);
 
     const handleCardPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         const press = pressRef.current;
@@ -299,9 +474,8 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         pressRef.current = null;
         if (press.dragging) {
             const current = dragRef.current;
-            dragRef.current = null;
-            setDrag(null);
-            if (current) actions.move(current.groupKey, [...current.moving], current.dropIndex);
+            endDrag();
+            if (current) latest.current.onMove?.(current.groupKey, [...current.moving], current.dropIndex);
             return;
         }
         // 点击：选择。
@@ -323,14 +497,13 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
             else next.add(key);
             return next;
         });
-    }, [actions, groupOf]);
+    }, [endDrag, groupOf]);
 
     const handleCardPointerCancel = useCallback(() => {
         if (pressRef.current?.longPress) window.clearTimeout(pressRef.current.longPress);
         pressRef.current = null;
-        dragRef.current = null;
-        setDrag(null);
-    }, []);
+        endDrag();
+    }, [endDrag]);
 
     // —— 空白处：框选 ——
 
@@ -383,7 +556,7 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         const next = new Set(marquee.base);
         for (const grid of marquee.grids) {
             grid.keys.forEach((key, index) => {
-                if (rectsIntersect(rect, cardRect(grid.origin, index, columns))) next.add(key);
+                if (rectsIntersect(rect, cardRect(grid.origin, index, columns, spacing))) next.add(key);
             });
         }
         setSelected(current => (sameSet(current, next) ? current : next));
@@ -424,7 +597,7 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
             const origin = { x: gridRect.left - contentRect.left, y: gridRect.top - contentRect.top };
             group.entries.forEach((entry, index) => {
                 if (!selected.has(entry.key)) return;
-                const rect = cardRect(origin, index, columns);
+                const rect = cardRect(origin, index, columns, spacing);
                 union = union
                     ? { left: Math.min(union.left, rect.left), top: Math.min(union.top, rect.top), right: Math.max(union.right, rect.right), bottom: Math.max(union.bottom, rect.bottom) }
                     : rect;
@@ -453,7 +626,7 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         setMenu(current => (
             current && current.centerX === next.centerX && current.y === next.y && current.placement === next.placement ? current : next
         ));
-    }, [columns, drag, groups, isBoxSelecting, selected, viewTick]);
+    }, [columns, drag, groups, isBoxSelecting, selected, spacing, viewTick]);
 
     // 横向：以选中外框的中线居中，但不超出画布内容的左右边（菜单宽度要画出来才量得到）。
     useLayoutEffect(() => {
@@ -476,10 +649,10 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
             else onEscape();
             return;
         }
-        if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size > 0) {
+        if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size > 0 && onDelete) {
             event.preventDefault();
             event.stopPropagation();
-            actions.remove([...selected]);
+            onDelete(selectedEntries);
             return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
@@ -489,18 +662,17 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
         }
     };
 
-    const playLabel = t('scratchpad.play');
-    const canAddSelection = Boolean(selectionGroup) && selectedEntries.length > 0 && actions.canAddToPlaylist(selectedEntries[0].song);
+    const menuButtons = menu ? selectionActions(selectedEntries) : [];
 
     return (
         <>
             <div
                 ref={scrollRef}
                 className="scratchpad-canvas"
-                data-testid="scratchpad-canvas"
+                data-testid={testId}
                 role="listbox"
                 aria-multiselectable="true"
-                aria-label={t('scratchpad.title')}
+                aria-label={ariaLabel}
                 tabIndex={-1}
                 onKeyDown={handleKeyDown}
                 onPointerDown={handleCanvasPointerDown}
@@ -509,21 +681,30 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
                 onPointerCancel={handleCanvasPointerUp}
                 onContextMenu={handleContextMenu}
             >
-                <div ref={contentRef} className="scratchpad-canvas-content">
-                    <p className="scratchpad-canvas-hint">{t('scratchpad.canvasHint', { mod: PRIMARY_MODIFIER_LABEL })}</p>
+                <div
+                    ref={contentRef}
+                    className="scratchpad-canvas-content"
+                    // 左右留白跟着空隙走：时间轴第一列前面的节点要伸出网格。
+                    style={spacing.edge === undefined ? undefined : { paddingLeft: spacing.edge, paddingRight: spacing.edge }}
+                >
+                    <p className="scratchpad-canvas-hint">{hint}</p>
                     {groups.map(group => {
                         const keys = group.entries.map(entry => entry.key);
                         const preview = drag?.groupKey === group.key ? previewSlots(keys, drag.moving, drag.dropIndex) : null;
-                        const sample = group.entries[0].song;
+                        const height = gridHeight(group.entries.length, columns, spacing);
+                        const gridTop = gridTops.get(group.key);
+                        const selectAll: ScratchpadAction = {
+                            id: 'select-group',
+                            label: t('scratchpad.selectGroup'),
+                            icon: SquareCheck,
+                            run: () => setSelected(current => new Set([...current, ...keys])),
+                        };
                         return (
                             <section key={group.key} className="scratchpad-canvas-group" data-scratchpad-group={group.key}>
                                 <ScratchpadGroupHeader
-                                    label={actions.sourceLabel(sample)}
+                                    label={group.label}
                                     count={group.entries.length}
-                                    canAddToPlaylist={actions.canAddToPlaylist(sample)}
-                                    onSelectAll={() => setSelected(current => new Set([...current, ...keys]))}
-                                    onEnqueue={() => actions.enqueue(group.entries)}
-                                    onAddToPlaylist={() => actions.addToPlaylist(group.entries)}
+                                    buttons={[selectAll, ...(group.buttons ?? [])]}
                                 />
                                 <div
                                     ref={element => {
@@ -531,26 +712,40 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
                                         else gridRefs.current.delete(group.key);
                                     }}
                                     className="scratchpad-grid"
-                                    style={{ height: gridHeight(group.entries.length, columns) + CARD_GAP }}
+                                    style={{ height: height + spacing.y }}
                                     onPointerMove={handleCardPointerMove}
                                     onPointerUp={handleCardPointerUp}
                                     onPointerCancel={handleCardPointerCancel}
                                 >
+                                    {group.thread && group.entries.length > 0 && (
+                                        <ThreadLayer thread={group.thread} count={group.entries.length} columns={columns} spacing={spacing} height={height} />
+                                    )}
                                     {group.entries.map((entry, index) => {
-                                        const slot = slotPosition(preview?.get(entry.key) ?? index, columns);
+                                        const isMoving = Boolean(drag?.moving.has(entry.key));
+                                        // 一起挪、但不在叠起来的那几张里的卡：拖动期间不画。
+                                        if (isMoving && !drag?.stack.includes(entry.key)) return null;
+                                        const slot = slotPosition(preview?.get(entry.key) ?? index, columns, spacing);
+                                        // 只挂看得见的那一档附近的卡片；被拖的卡总在。网格顶边还没量到时（刚打开、刚多出一组）
+                                        // 一张都不挂：layout effect 量完会同步重渲染，画出来之前就补上了，长队列不会先全挂一遍。
+                                        if (!isMoving) {
+                                            if (gridTop === undefined) return null;
+                                            const top = gridTop + slot.y;
+                                            if (top + CARD_HEIGHT < band.top || top > band.bottom) return null;
+                                        }
                                         return (
                                             <ScratchpadCard
                                                 key={entry.key}
                                                 entry={entry}
                                                 slotX={slot.x}
                                                 slotY={slot.y}
-                                                isMoving={Boolean(drag?.moving.has(entry.key))}
+                                                isMoving={isMoving}
+                                                movingCount={isMoving && drag?.stack[0] === entry.key && drag.moving.size > 1 ? drag.moving.size : 0}
                                                 isSelected={selected.has(entry.key)}
                                                 isFresh={freshKeys.has(entry.key)}
                                                 playLabel={playLabel}
                                                 register={register}
                                                 onPointerDown={handleCardPointerDown}
-                                                onPlay={actions.play}
+                                                onPlay={onPlay as (entry: CanvasEntry) => void}
                                             />
                                         );
                                     })}
@@ -571,24 +766,20 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
                             onPointerDown={event => event.stopPropagation()}
                         >
                             <span className="scratchpad-selection-count">{t('scratchpad.selectedCount', { count: selected.size })}</span>
-                            <button type="button" className="scratchpad-menu-button" title={t('scratchpad.enqueue')} onClick={() => actions.enqueue(selectedEntries)}>
-                                <ListPlus aria-hidden="true" />
-                                <span>{t('scratchpad.enqueue')}</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="scratchpad-menu-button"
-                                disabled={!canAddSelection}
-                                title={selectionGroup ? t('scratchpad.addToPlaylist') : t('scratchpad.mixedSourcesHint')}
-                                onClick={() => actions.addToPlaylist(selectedEntries)}
-                            >
-                                <Star aria-hidden="true" />
-                                <span>{t('scratchpad.addToPlaylist')}</span>
-                            </button>
-                            <button type="button" className="scratchpad-menu-button" title={t('scratchpad.removeSelected')} onClick={() => actions.remove([...selected])}>
-                                <Trash2 aria-hidden="true" />
-                                <span>{t('scratchpad.removeSelected')}</span>
-                            </button>
+                            {menuButtons.map(({ id, label, title, icon: Icon, run, disabled }) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    className="scratchpad-menu-button"
+                                    data-scratchpad-selection-action={id}
+                                    title={title ?? label}
+                                    disabled={disabled}
+                                    onClick={run}
+                                >
+                                    <Icon aria-hidden="true" />
+                                    <span>{label}</span>
+                                </button>
+                            ))}
                             <button
                                 type="button"
                                 className="scratchpad-icon-button"
@@ -606,6 +797,6 @@ const ScratchpadCanvas: React.FC<ScratchpadCanvasProps> = ({ groups, freshKeys, 
             {footer}
         </>
     );
-};
+}
 
 export default ScratchpadCanvas;
