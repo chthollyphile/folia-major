@@ -68,6 +68,20 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
         if (!listening) {
             return;
         }
+        // Records the press that ends the waiting; a refused key keeps the field listening.
+        const record = (event: KeyboardEvent) => {
+            const key = readKey ? readKey(event) : event.key.toLowerCase();
+            const refusal = validate?.(key);
+            if (refusal) {
+                setReason(refusal);
+                setRefused(true);
+                return;
+            }
+            onChange(key);
+            setListening(false);
+            setRefused(false);
+        };
+
         const handleKeyDown = (event: KeyboardEvent) => {
             // Capture phase, and it stops here: the app's own keys listen for exactly the kind of
             // press that is being recorded. The listeners put on `window` in this phase before this
@@ -85,20 +99,38 @@ export const KeyCapture: React.FC<KeyCaptureProps> = ({ value, onChange, validat
                 setRefused(false);
                 return;
             }
-            const key = readKey ? readKey(event) : event.key.toLowerCase();
-            const refusal = validate?.(key);
-            if (refusal) {
-                setReason(refusal);
-                setRefused(true);
+            record(event);
+        };
+
+        // Alt+Space: Windows gives the Space keydown to its window menu (refused while this field
+        // records, see the effect below, but the keydown is consumed all the same), so only the
+        // release arrives. With Alt held, a released Space counts as the press.
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (event.key !== ' ' || !event.altKey) {
                 return;
             }
-            onChange(key);
-            setListening(false);
-            setRefused(false);
+            event.preventDefault();
+            event.stopPropagation();
+            record(event);
         };
+
         window.addEventListener('keydown', handleKeyDown, true);
-        return () => window.removeEventListener('keydown', handleKeyDown, true);
+        window.addEventListener('keyup', handleKeyUp, true);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown, true);
+            window.removeEventListener('keyup', handleKeyUp, true);
+        };
     }, [listening, onChange, readKey, validate]);
+
+    // The desktop app keeps Windows' window menu away from this window only while the field records
+    // (electron/windowSystemMenu.cjs), so Alt+Space stays the menu everywhere else.
+    useEffect(() => {
+        if (!listening) {
+            return;
+        }
+        window.electron?.setKeyCaptureActive?.(true);
+        return () => window.electron?.setKeyCaptureActive?.(false);
+    }, [listening]);
 
     return (
         <div className="flex max-w-full flex-col items-end">
