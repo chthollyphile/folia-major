@@ -10,6 +10,7 @@ const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
+const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('./mainWindowClickThrough.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
@@ -2837,6 +2838,8 @@ const stageApi = createStageApi({
   stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
   getNeteasePort: () => neteaseBackend.getPort(),
+  // Local tools read the address and token from here instead of asking the user to copy the token.
+  connectionFilePath: resolveStageConnectionFilePath({ userDataDir: app.getPath('userData') }),
 });
 
 const lyricApi = createLyricApi({
@@ -7540,6 +7543,7 @@ ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
 
 app.on('will-quit', () => {
   appleMusicClient.close();
+  stageApi.dispose();
   globalShortcutController?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();

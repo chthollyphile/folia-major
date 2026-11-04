@@ -328,6 +328,12 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('stage-session-cleared', listener);
         return () => ipcRenderer.removeListener('stage-session-cleared', listener);
     },
+    // POST /stage/lyrics/clock: an external player's position for the lyrics session on screen.
+    onStageLyricsClockUpdated: (callback) => {
+        const listener = (_event, update) => callback(update);
+        ipcRenderer.on('stage-lyrics-clock-updated', listener);
+        return () => ipcRenderer.removeListener('stage-lyrics-clock-updated', listener);
+    },
     onStageExternalPlayRequest: (callback) => {
         const listener = (_event, request) => callback(request);
         ipcRenderer.on('stage-external-play-request', listener);
