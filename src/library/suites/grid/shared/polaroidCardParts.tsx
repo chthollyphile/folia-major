@@ -226,6 +226,7 @@ export const PolaroidCardActions: React.FC<{
  * 封面右上角的两颗悬浮按钮：加入速记簿、收藏到歌单（应用的歌单选择器，含「我喜欢」）。平时看不见也点不到，指针移到卡片上
  * （卡片根节点的 group/card）或键盘聚焦到它们时才出现；只是 CSS 显隐，不为悬停多一次 React 渲染。编辑模式里不出。
  * 没有悬停的设备（触屏）只在聚焦的那张上常驻，免得点卡片右上角时误触看不见的按钮。
+ * 尺寸、图标和悬停反色与卡片右下角的播放 / 加入队列同一套；只有底色不同：它们压在封面上，用深色半透明底才看得清。
  */
 export const PolaroidCardQuickActions: React.FC<{
     onCollect?: () => void;
@@ -250,12 +251,12 @@ export const PolaroidCardQuickActions: React.FC<{
                         if (e.detail > 0) e.currentTarget.blur();
                         run();
                     }}
-                    className="w-8 h-8 rounded-full bg-black/55 text-white hover:bg-black/75 flex items-center justify-center shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                    className="w-9 h-9 rounded-full bg-black/55 text-white hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 flex items-center justify-center transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                     title={label}
                     aria-label={label}
                     data-grid-card-quick={id}
                 >
-                    <Icon size={14} />
+                    <Icon size={15} />
                 </button>
             ))}
         </div>
