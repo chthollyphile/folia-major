@@ -1495,6 +1495,7 @@ export default {
     "statusFailed": "Failed to switch the Personal FM mode"
   },
   "recommendationPreferences": {
+    "open": "Preferences",
     "noteDefault": "Kept on your account",
     "less": "Recommend less",
     "default": "Default",

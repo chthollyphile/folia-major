@@ -1495,6 +1495,7 @@ export default {
     "statusFailed": "Gagal mengganti mode FM Pribadi"
   },
   "recommendationPreferences": {
+    "open": "Preferensi",
     "noteDefault": "Disimpan di akun Anda",
     "less": "Kurangi rekomendasi",
     "default": "Default",

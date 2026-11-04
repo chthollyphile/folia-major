@@ -1495,6 +1495,7 @@ export default {
     "statusFailed": "切换私人 FM 模式失败"
   },
   "recommendationPreferences": {
+    "open": "偏好设置",
     "noteDefault": "保存在账号上",
     "less": "减少推荐",
     "default": "默认",

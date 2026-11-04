@@ -1495,6 +1495,7 @@ export default {
     "statusFailed": "Chuyển chế độ FM cá nhân thất bại"
   },
   "recommendationPreferences": {
+    "open": "Sở thích",
     "noteDefault": "Lưu trong tài khoản",
     "less": "Đề xuất ít hơn",
     "default": "Mặc định",
