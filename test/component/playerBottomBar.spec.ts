@@ -242,8 +242,12 @@ test.describe('capsule navigation', () => {
         expect(await paletteRequestSeq(page)).toBe(0);
         await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '0');
 
-        // 下一次按在胶囊本身上的点击照常开面板。
-        await capsule.click({ position: { x: 20, y: 2 } });
+        // 下一次按在胶囊本身上的点击照常开面板，手抖挪了几像素也算点。
+        const point = { x: track.x + 10, y };
+        await page.mouse.move(point.x, point.y);
+        await page.mouse.down();
+        await page.mouse.move(point.x + 4, point.y + 2);
+        await page.mouse.up();
         await expect.poll(() => paletteRequestSeq(page)).toBe(1);
     });
 

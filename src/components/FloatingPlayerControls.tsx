@@ -534,22 +534,6 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
     const swallowStrayClick = (event: React.MouseEvent) => {
-        // 拖进度条松开时浏览器补发的 click 落到胶囊上，就成了点胶囊开命令面板（#1056）。进度条只有
-        // 6px 高，按偏几像素就按在了胶囊空白处，按下和松开都在胶囊里，click 照常补发；按准了的，
-        // 进度条在拖动中展开时被换掉、按住的元素没了，click 也会落到两处的共同祖先上。所以按下后
-        // 挪开过、或者按在进度条上而 click 落在别处的，都吞掉。落在进度条自己身上的那一下由它自己拦；
-        // 键盘和读屏发的 click 没有按下（detail 为 0），照常放行。
-        const press = pressRef.current;
-        pressRef.current = null;
-        if (press && event.detail > 0) {
-            const dragged = Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_DRAG_SLOP_PX;
-            if (dragged || (press.onSeek && !isOnSeekTrack(event.target))) {
-                swallowClickUntilRef.current = 0;
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-        }
         if (performance.now() < swallowClickUntilRef.current) {
             swallowClickUntilRef.current = 0;
             event.preventDefault();
@@ -557,8 +541,20 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         }
     };
 
-    const handleClick = () => {
-        if (isPositioning) {
+    // 拖进度条松开时浏览器补发的 click 落到胶囊上，就成了点胶囊开命令面板（#1056）。进度条只有
+    // 6px 高，按偏几像素就按在了胶囊空白处，按下和松开都在胶囊里，click 照常补发；按准了的，
+    // 进度条在拖动中展开时被换掉、按住的元素没了，click 也会落到两处的共同祖先上。所以到了胶囊
+    // 这里的 click，按下后挪开过、或者按在进度条上的，都不算点胶囊。按钮、模组的按钮和图层、
+    // 进度条自己的 click 各自拦着，到不了这里，不受影响；键盘和读屏发的 click 没有按下（detail 为 0），照常算。
+    const isDragRelease = (event: React.MouseEvent): boolean => {
+        const press = pressRef.current;
+        pressRef.current = null;
+        if (!press || event.detail === 0) return false;
+        return press.onSeek || Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_DRAG_SLOP_PX;
+    };
+
+    const handleClick = (event: React.MouseEvent) => {
+        if (isDragRelease(event) || isPositioning) {
             return;
         }
         if (clickOpensPalette) {
