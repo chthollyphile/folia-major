@@ -859,6 +859,75 @@ describe('YouTube Music desktop bridge with a web sign-in', () => {
         expect((await bridge.request('user_albums')).data).toEqual({ continuation: 'grid-2', items: [expect.objectContaining({ id: 'MPREb_fixture01', type: 'album', playlistId: ALBUM_LIST })] });
     });
 
+    it('recognizes an owned library playlist whose edit controls are only on its signed-in detail page', async () => {
+        const items = [
+            ...playlistsTab,
+            playlistRow('PLeditHeader', 'Editable in detail', []),
+            playlistRow('PLunavailable', 'Unavailable detail', []),
+            playlistRow('PLguestDetail', 'Guest detail', []),
+        ];
+        const editable = { musicEditablePlaylistDetailHeaderRenderer: { header: { musicResponsiveHeaderRenderer: {} } } };
+        const details = (signedIn: string, header: unknown) => marked(signedIn, { contents: { twoColumnBrowseResultsRenderer: {
+            tabs: [{ tabRenderer: { content: { sectionListRenderer: { contents: [header] } } } }],
+        } } });
+        const browsed: string[] = [];
+        let detailAvailable = true;
+        const { bridge, clock } = setup({ web: true, answer: (_kind, _endpoint, { browseId }) => {
+            browsed.push(browseId);
+            if (browseId === 'FEmusic_liked_playlists') return { data: gridPage(items) };
+            if (browseId === 'VLPLeditHeader' && detailAvailable) return { data: details('1', editable) };
+            if (browseId === 'VLPLsaved01') return { data: details('1', { musicResponsiveHeaderRenderer: {} }) };
+            if (browseId === 'VLPLguestDetail') return { data: details('0', editable) };
+            throw new Error('fetch failed');
+        } });
+
+        const read = async () => {
+            const result = await bridge.request('user_playlists');
+            expect(result.ok).toBe(true);
+            return result.data.items.map(({ id, isOwned }: { id: string; isOwned?: boolean }) => [id, isOwned]);
+        };
+        expect(await read()).toEqual([
+            ['LM', undefined], ['PLown01', true], ['PLsaved01', false],
+            ['PLeditHeader', true], ['PLunavailable', undefined], ['PLguestDetail', undefined],
+        ]);
+        expect(browsed).toEqual([
+            'FEmusic_liked_playlists', 'VLPLsaved01', 'VLPLeditHeader', 'VLPLunavailable', 'VLPLguestDetail',
+        ]);
+        browsed.length = 0;
+        await read();
+        expect(browsed).toEqual(['FEmusic_liked_playlists', 'VLPLunavailable', 'VLPLguestDetail']);
+
+        clock.ms += 5 * 60 * 1000 + 1;
+        detailAvailable = false;
+        expect(await read()).toContainEqual(['PLeditHeader', true]);
+    });
+
+    it('returns the library on time and retries when a playlist detail stalls', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            let stall = true;
+            const ids = ['PLeditHeader', 'PLsecond', 'PLthird', 'PLfourth', 'PLfifth'];
+            const items = ids.map(id => playlistRow(id, id, []));
+            const { bridge } = setup({ web: true, answer: (_kind, _endpoint, { browseId }) => {
+                if (browseId === 'FEmusic_liked_playlists') return { data: gridPage(items) };
+                if (browseId === 'VLPLeditHeader' && stall) return new Promise(() => {});
+                return { data: marked('1', { header: { musicEditablePlaylistDetailHeaderRenderer: {} } }) };
+            } });
+            const first = bridge.request('user_playlists');
+            await vi.advanceTimersByTimeAsync(2500);
+            const firstRead = await first;
+            expect(firstRead.ok).toBe(true);
+            expect(firstRead.data.items[0].isOwned).toBeUndefined();
+            expect(firstRead.data.items.at(-1)).toMatchObject({ id: 'PLfifth', isOwned: true });
+            stall = false;
+            expect(await bridge.request('user_playlists')).toMatchObject({
+                ok: true, data: { items: ids.map(id => ({ id, isOwned: true })) },
+            });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('reads a playlist of the account as the guest read of a public one is read: a shelf, then the rows each further page appends', async () => {
         let yt!: ReturnType<typeof fakeYoutube>;
         const row = (id: string) => ({ type: 'MusicResponsiveListItem', id, title: `Song ${id}`, artists: [{ name: 'Artist', channel_id: 'UCartist' }], duration: { seconds: 60 } });
@@ -985,12 +1054,13 @@ describe('YouTube Music desktop bridge with a web sign-in', () => {
         it('does not hand the account\'s answer to the renderer', async () => {
             let release!: () => void;
             const gate = new Promise<void>(resolve => { release = resolve; });
-            const { bridge } = setup({ web: true, answer: async () => { await gate; return { data: gridPage(playlistsTab) }; } });
+            const { bridge, yt } = setup({ web: true, answer: async () => { await gate; return { data: gridPage(playlistsTab) }; } });
             const pending = bridge.request('user_playlists');
             await settled();
             await bridge.request('logout');
             release();
             expect(await pending).toEqual(changed);
+            expect(yt.of('web')[0].actions.execute).toHaveBeenCalledTimes(1);
         });
 
         it('asks nothing as that account once its session is there', async () => {
