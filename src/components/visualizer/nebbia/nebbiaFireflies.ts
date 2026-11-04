@@ -94,10 +94,14 @@ export class NebbiaFireflies {
         const life = 3.35 / (p.speed || 1) + HOLD_AVG;
         this.spawnAcc += dt * want / life;
         for (; this.spawnAcc >= 1; this.spawnAcc -= 1) this.flies.push(this.spawn());
-        this.flies = this.flies.filter(f => (f.age += dt) < f.app + f.hold + f.leave);
-        if (this.out.length < this.flies.length * FIREFLY_FLOATS) this.out = new Float32Array(Math.ceil(this.flies.length * 1.5) * FIREFLY_FLOATS);
-        this.flies.forEach((f, i) => this.pack(f, i * FIREFLY_FLOATS, dt));
-        return [this.out, this.flies.length];
+        // 原地剔掉飞走了的（每帧都跑，不新建数组）
+        const flies = this.flies;
+        let n = 0;
+        for (const f of flies) if ((f.age += dt) < f.app + f.hold + f.leave) flies[n++] = f;
+        flies.length = n;
+        if (this.out.length < n * FIREFLY_FLOATS) this.out = new Float32Array(Math.ceil(n * 1.5) * FIREFLY_FLOATS);
+        for (let i = 0; i < n; i += 1) this.pack(flies[i], i * FIREFLY_FLOATS, dt);
+        return [this.out, n];
     }
 
     /** 排一只：飞过来 → 停在玻璃上一阵一阵地爬 → 飞走。 */
