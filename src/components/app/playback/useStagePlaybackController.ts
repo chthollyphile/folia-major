@@ -192,15 +192,6 @@ export function useStagePlaybackController({
         ? (stageStatus?.modeEnabled ? (stageStatus?.source ?? 'stage-api') : null)
         : (enablePlayerCapStage ? 'playercap' : (enableNowPlayingStage ? 'now-playing' : null));
     const isNowPlayingStageActive = activePlaybackContext === 'stage' && stageSource === 'now-playing';
-
-    // Linux desktop: the Now Playing source is fed by the bridge that mirrors Dux Shell's player.
-    // Starting it only when the source is selected keeps port 9863 free for anyone not using Dux.
-    useEffect(() => {
-        if (stageSource !== 'now-playing' || window.electron?.platform !== 'linux') return;
-        const enable = window.electron?.duxNowPlaying?.enable;
-        if (!enable) return;
-        void enable().catch(error => console.warn('[Dux] could not start the now-playing bridge', error));
-    }, [stageSource]);
     const shouldPublishNowPlayingState = isDev || isNowPlayingStageActive;
     shouldPublishNowPlayingStateRef.current = shouldPublishNowPlayingState;
 
@@ -1257,17 +1248,7 @@ export function useStagePlaybackController({
         }
 
         const nextContentLoadKey = buildNowPlayingContentLoadKey(nowPlayingTrack, nowPlayingLyricPayload);
-        if (!nextContentLoadKey) {
-            // The player went away. Clear the surface that showed the previous song instead of
-            // leaving its title and lyrics on screen forever.
-            if (nowPlayingContentLoadKeyRef.current === null) return;
-            nowPlayingContentLoadKeyRef.current = null;
-            const requestId = nowPlayingContentLoadRequestIdRef.current + 1;
-            nowPlayingContentLoadRequestIdRef.current = requestId;
-            void loadNowPlayingIntoPlayback(null, null, requestId);
-            return;
-        }
-        if (nowPlayingContentLoadKeyRef.current === nextContentLoadKey) {
+        if (!nextContentLoadKey || nowPlayingContentLoadKeyRef.current === nextContentLoadKey) {
             return;
         }
 

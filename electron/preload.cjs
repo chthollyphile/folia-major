@@ -309,10 +309,6 @@ contextBridge.exposeInMainWorld('electron', {
     appendVideoExportChunk: (sessionId, data) => ipcRenderer.invoke('video-export-append-chunk', sessionId, data),
     finishVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-finish-file', sessionId),
     abortVideoExportFile: (sessionId) => ipcRenderer.invoke('video-export-abort-file', sessionId),
-    // Linux: starts the loopback bridge that mirrors Dux Shell's player into the Now Playing source.
-    duxNowPlaying: {
-        enable: () => ipcRenderer.invoke('dux-now-playing-enable'),
-    },
     getStageStatus: () => ipcRenderer.invoke('stage-get-status'),
     setStageEnabled: (enabled) => ipcRenderer.invoke('stage-set-enabled', enabled),
     regenerateStageToken: () => ipcRenderer.invoke('stage-regenerate-token'),

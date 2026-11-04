@@ -113,16 +113,12 @@ const PlayerCapRows: React.FC = () => {
 };
 
 /** The Now Playing source: it has one fixed address, so the row only says whether it is connected. */
-const NowPlayingRow: React.FC<{ desktop?: boolean }> = ({ desktop = false }) => {
+const NowPlayingRow: React.FC = () => {
     const { t } = useTranslation();
     const connection = nowPlayingConnection(useSettingsPage().viewProps.integration.stage.nowPlayingConnectionStatus);
-    // On the Linux desktop build the bridge starts with the source; there is no service to launch.
-    const hint = desktop && window.electron?.platform === 'linux'
-        ? t('options.nowPlayingDuxHint')
-        : t('options.nowPlayingFixedConnectionDesc');
 
     return (
-        <Row sub label="Now Playing" hint={hint}>
+        <Row sub label="Now Playing" hint={t('options.nowPlayingFixedConnectionDesc')}>
             <Status tone={connection.tone}>{t(connection.labelKey)}</Status>
         </Row>
     );
@@ -169,7 +165,7 @@ export const DesktopStageRows: React.FC = () => {
                     <PlayerCapRows />
                 </Reveal>
                 <Reveal when={source === 'now-playing'}>
-                    <NowPlayingRow desktop />
+                    <NowPlayingRow />
                 </Reveal>
                 <Reveal when={source === 'stage-api'}>
                     <Row sub label={t('options.stageAddress')}>
