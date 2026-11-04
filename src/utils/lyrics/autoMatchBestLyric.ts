@@ -1,5 +1,4 @@
 import { LyricData, LyricProviderSource, SongResult } from '../../types';
-import { omni } from '../../services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
 import type { OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
 import { fetchAmllDbLyrics, getAmllDbMusicIds } from './providers/amllDbProvider';
@@ -454,9 +453,11 @@ export async function autoMatchBestLyric(
 ): Promise<AutoMatchBestLyricResult> {
     const match = await matchUnderArtist(title, artist, durationMs, options);
     if (match && (match.isPureMusic || match.lyrics.isWordByWord)) return match;
-    const originalSong = options.providerCandidate?.song;
-    if (originalSong) {
-        const alias = await withTimeout(omni.getLyricSearchAlias(originalSong).catch(() => null), 10000, 'Song alias', null);
+    // The alias comes from the song's own provider, not the active Omni one.
+    const providerCandidate = options.providerCandidate;
+    const lyricsProvider = providerCandidate ? getOnlineMusicProvider(providerCandidate.providerId)?.lyrics : undefined;
+    if (providerCandidate && lyricsProvider?.getSearchAlias) {
+        const alias = await withTimeout(lyricsProvider.getSearchAlias(providerCandidate.song).catch(() => null), 10000, 'Song alias', null);
         if (alias && alias.title !== title) {
             const result = await matchUnderArtist(alias.title, alias.artist, durationMs, { ...options, album: alias.album || options.album });
             if (result && (!match || (!result.isPureMusic && result.lyrics.isWordByWord))) return result;
