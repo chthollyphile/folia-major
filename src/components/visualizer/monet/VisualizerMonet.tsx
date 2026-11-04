@@ -453,7 +453,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 ? { duration: 9, repeat: Infinity, ease: 'easeInOut', delay: 0.2 }
                                                 : { duration: 0.8, ease: 'easeOut' }
                                         }
-                                        className="relative"
+                                        className="group/monet-cover relative"
                                         style={{
                                             width: monetTuning.portraitStyle === 'square' ? '135.135%' : '100%',
                                             marginLeft: monetTuning.portraitStyle === 'square' ? '-35.135%' : '0%',
@@ -500,7 +500,7 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                                 }}
                                                 onMouseEnter={() => setIsHangerHovered(true)}
                                                 onMouseLeave={() => setIsHangerHovered(false)}
-                                                className={`h-14 w-3 cursor-pointer rounded-full shadow-md transition-[opacity,transform] duration-200 hover:scale-y-105 active:scale-y-95 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${isEditingPosition ? 'opacity-100' : 'opacity-0 group-hover/monet-hanger:opacity-100'}`}
+                                                className={`h-14 w-3 cursor-pointer rounded-full shadow-md transition-[opacity,transform] duration-200 hover:scale-y-105 active:scale-y-95 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${isEditingPosition ? 'opacity-100' : 'opacity-0 group-hover/monet-cover:opacity-100'}`}
                                                 animate={isEditingPosition ? {
                                                     borderColor: [
                                                         colorWithAlpha(theme.accentColor, 0.3),
