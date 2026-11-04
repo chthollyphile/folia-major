@@ -84,14 +84,17 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             const deadline = Date.now() + timeoutMs;
             let result = { ok: false, error: 'runtime-unavailable' };
             for (let attempt = 1; attempt <= 200; attempt++) {
+                if (Date.now() >= deadline) return result;
                 if (!start() || !child?.connected) {
                     return { ok: false, error: 'runtime-unavailable' };
                 }
                 result = await sendOnce({ ...validated, id: `request_${++sequence}_${attempt}` }, deadline);
                 // The first request of a run is always early, and a storefront move makes the page
                 // not-ready for a moment: ask again until this call's own time is up.
-                if (result.error !== 'not-ready' || Date.now() >= deadline) return result;
-                await new Promise(resolve => setTimeout(resolve, 250));
+                // `busy` is a rejection before execution, so retrying cannot duplicate a write.
+                // Keep retries within this request's original deadline.
+                if (!['not-ready', 'busy'].includes(result.error) || Date.now() >= deadline) return result;
+                await new Promise(resolve => setTimeout(resolve, Math.min(250, Math.max(0, deadline - Date.now()))));
             }
             return result;
         },

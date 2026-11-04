@@ -193,6 +193,25 @@ describe('Apple Music companion requests', () => {
             .toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 403 });
     });
 
+    it('reserves capacity for status and transport while reads are pending', async () => {
+        const gates: Array<(value: unknown) => void> = [];
+        const contents = {
+            isDestroyed: () => false,
+            getURL: () => 'https://music.apple.com/',
+            executeJavaScript: () => new Promise(done => { gates.push(done); }),
+        };
+        const dispatch = createRequestDispatcher(() => contents, 1000);
+        const reads = [dispatch({ id: 'a', operation: 'accountStatus' }), dispatch({ id: 'b', operation: 'accountStatus' })];
+        expect(await dispatch({ id: 'c', operation: 'accountStatus' })).toMatchObject({ error: 'busy' });
+        const status = dispatch({ id: 'd', operation: 'playbackStatus' });
+        const pause = dispatch({ id: 'e', operation: 'pause' });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(gates).toHaveLength(4);
+        gates.forEach(done => done({ ok: true, data: {} }));
+        expect((await Promise.all([...reads, status, pause])).every(result => result.ok)).toBe(true);
+    });
+
     it('runs one playback command at a time and does not drop the later one', async () => {
         const gates: Array<(value: unknown) => void> = [];
         let calls = 0;
