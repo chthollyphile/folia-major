@@ -87,6 +87,7 @@ import {
     useLibraryBrowseSessionStore,
 } from '../../../core/shared/useLibraryBrowseSessionStore';
 import { useLocalTrackSortStore } from '../../../core/directory/useLocalTrackSortStore';
+import { formatAlbumDuration } from '../../../core/collection/albumDuration';
 
 interface GridViewProps {
     title: string;
@@ -239,18 +240,6 @@ const formatAlbumDate = (timestamp?: number) => {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleDateString();
-};
-
-const formatAlbumDuration = (duration?: number) => {
-    if (!duration || !Number.isFinite(duration)) return '';
-    const totalSeconds = duration > 10000 ? Math.round(duration / 1000) : Math.round(duration);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
 };
 
 export const GridView: React.FC<GridViewProps> = ({
