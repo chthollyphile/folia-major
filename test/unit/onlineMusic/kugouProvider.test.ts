@@ -306,15 +306,14 @@ describe('kugouProvider', () => {
         expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
     });
 
-    // 搜索条目：OriSongName 是原名，Suffix 是括号里的译名（2026-11-04 实测）；歌单等接口的歌名带着 Suffix。
-    it('keeps OriSongName beside a suffixed title and offers it as the lyric search alias', async () => {
+    // 专辑曲目：歌名带后缀，后缀另在 trans_param.songname_suffix，没有 OriSongName（2026-11-05 album_songs 实测）。
+    it('takes the suffix off an album track title and offers the rest as the lyric search alias', async () => {
         const song = normalizeKugouSong({
-            FileHash: 'ab12cd',
-            SongName: '夜に駆ける (向夜晚奔去)',
-            OriSongName: '夜に駆ける',
-            Suffix: '(向夜晚奔去)',
-            Singers: [{ name: 'YOASOBI' }],
-            AlbumName: '夜に駆ける',
+            hash: 'ab12cd',
+            base: { audio_name: '夜に駆ける (向夜晚奔去)', author_name: 'YOASOBI' },
+            trans_param: { songname_suffix: '(向夜晚奔去)' },
+            authors: [{ author_name: 'YOASOBI' }],
+            album_info: { album_name: '夜に駆ける' },
         });
 
         expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
@@ -324,11 +323,13 @@ describe('kugouProvider', () => {
         });
     });
 
+    // 搜索条目没有 SongName：歌名取自 OriSongName，本来就是原名（2026-11-04 实测）。
     it('offers no alias when the title already is OriSongName', async () => {
         const song = normalizeKugouSong({
             FileHash: 'ab12cd',
             FileName: 'YOASOBI - 夜に駆ける (向夜晚奔去)',
             OriSongName: '夜に駆ける',
+            Suffix: '(向夜晚奔去)',
             SingerName: 'YOASOBI',
         });
 

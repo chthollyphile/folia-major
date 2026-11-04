@@ -448,6 +448,8 @@ async function matchUnderArtist(
     return null;
 }
 
+const INSTRUMENTAL_MARKER = /instrumental|\binst\b|off\s*vocal|karaoke|伴奏|カラオケ|インスト/iu;
+
 // A song's provider may name the artist differently from the lyric sources, which then find
 // nothing; `options.alternateArtist` gives the search one more go under the other name.
 export async function autoMatchBestLyric(
@@ -462,7 +464,10 @@ export async function autoMatchBestLyric(
     // since a platform that is not a lyric source has no providerCandidate here.
     if (options.searchAlias) {
         const alias = await withTimeout(options.searchAlias().catch(() => null), 10000, 'Song alias', null);
-        if (alias && alias.title !== title) {
+        // An original name leaves the bracketed part out, and that may be what said the song is the
+        // backing track: the match score keeps such markers apart, the alias would lose them.
+        const dropsInstrumental = alias !== null && INSTRUMENTAL_MARKER.test(title) && !INSTRUMENTAL_MARKER.test(alias.title);
+        if (alias && alias.title !== title && !dropsInstrumental) {
             console.log(`[autoMatchBestLyric] Searching again as "${alias.title}" by "${alias.artist}"`);
             const result = await matchUnderArtist(alias.title, alias.artist, durationMs, { ...options, album: alias.album || options.album });
             if (result && (!match || (!result.isPureMusic && result.lyrics.isWordByWord))) return result;

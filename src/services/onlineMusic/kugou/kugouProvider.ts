@@ -275,12 +275,19 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
     ) ?? valueOf(audioInfo, 'ori_audio_name', 'oriAudioName', 'audio_name', 'audioName')
         ?? valueOf(base, 'SongName', 'songname', 'songName', 'audio_name', 'audioName') ?? '');
     const { title, artists } = normalizeKugouTitleAndArtists(rawTitle, rawArtists);
-    // 有的接口给的歌名带着 `Suffix`（括号里的译名或版本，「夜に駆ける (向夜晚奔去)」），`OriSongName`
-    // 是不带它的原名：和显示的歌名不同时存下，歌词搜索在歌名搜不到时用它再搜一次。
+    // 歌名可能带着后缀（括号里的译名或版本）：专辑曲目的 `base.audio_name` 是「夜に駆ける (向夜晚奔去)」，
+    // 后缀另在 `trans_param.songname_suffix`；搜索条目的后缀在 `Suffix`，原名在 `OriSongName`
+    // （2026-11-05 实测）。去掉后缀的原名和显示的歌名不同时存下，歌词搜索在歌名搜不到时用它再搜一次。
+    const suffix = String(
+        valueOf(item, 'Suffix', 'suffix')
+        ?? valueOf(item?.trans_param ?? item?.transParam, 'songname_suffix')
+        ?? valueOf(audioInfo?.trans_param ?? audioInfo?.transParam, 'songname_suffix')
+        ?? '',
+    ).trim();
     const originalName = String(
         valueOf(item, 'OriSongName', 'ori_song_name', 'oriSongName')
         ?? valueOf(base, 'OriSongName', 'ori_song_name', 'oriSongName')
-        ?? '',
+        ?? (suffix && title.endsWith(suffix) ? title.slice(0, -suffix.length) : ''),
     ).trim();
     if (originalName && originalName !== title) providerData.originalName = originalName;
 
