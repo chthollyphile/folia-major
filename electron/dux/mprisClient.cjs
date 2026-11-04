@@ -17,6 +17,8 @@ const PLAYER_PREFIX = 'org.mpris.MediaPlayer2.';
 const PLAYERCTLD = 'org.mpris.MediaPlayer2.playerctld';
 // Folia's own player: it mirrors the displayed song and must not feed the bridge back into itself.
 const OWN_PLAYER = /^org\.mpris\.MediaPlayer2\.folia(\.|$)/;
+// Chromium's own media-session player for Folia's web audio, named after the browser (main) process.
+const OWN_CHROMIUM_PLAYER = `org.mpris.MediaPlayer2.chromium.instance${process.pid}`;
 const DISCOVERY_INTERVAL_MS = 5000;
 const DEFAULT_POLL_INTERVAL_MS = 1000;
 const DEFAULT_TIMEOUT_MS = 3000;
@@ -26,7 +28,8 @@ const SIGNAL_DEBOUNCE_MS = 50;
 const isMprisName = name => typeof name === 'string'
     && name.startsWith(PLAYER_PREFIX)
     && name !== PLAYERCTLD
-    && !OWN_PLAYER.test(name);
+    && !OWN_PLAYER.test(name)
+    && name !== OWN_CHROMIUM_PLAYER;
 
 /** A method reply's `a{sv}` body: the wire decoder gives entry pairs, but accept a plain object too. */
 const propertyMap = raw => {

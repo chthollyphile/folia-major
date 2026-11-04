@@ -109,6 +109,8 @@ describe('isMprisName', () => {
         expect(isMprisName('org.mpris.MediaPlayer2.playerctld')).toBe(false);
         expect(isMprisName('org.mpris.MediaPlayer2.folia')).toBe(false);
         expect(isMprisName('org.mpris.MediaPlayer2.folia.instance42')).toBe(false);
+        // Folia's own web audio, as Chromium's media session registers it under the main process id.
+        expect(isMprisName(`org.mpris.MediaPlayer2.chromium.instance${process.pid}`)).toBe(false);
         expect(isMprisName('org.freedesktop.DBus')).toBe(false);
     });
 });
