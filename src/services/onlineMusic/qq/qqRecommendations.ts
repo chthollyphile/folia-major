@@ -1,11 +1,11 @@
 import type { UnifiedSong } from '../../../types';
-import type { OnlineRecommendationProvider, ProviderCollection, ProviderHistoryEntry } from '../../../types/onlineMusic';
+import type { MediaId, OnlineRecommendationProvider, ProviderCollection, ProviderHistoryEntry } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqRecommendations.ts
-// QQ 音乐的推荐：私人 FM、每日 30 首与它的历史、推荐歌单。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM 与历史日推是 3.3.6，
+// QQ 音乐的推荐：私人 FM、每日 30 首与它的历史、推荐歌单，以及歌曲不喜欢。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM、历史日推与不喜欢是 3.3.6，
 // 出错时用状态码加固定的 errorKey 说明原因：422 是「上游成功但没有数据」，不是网络错误；旧后端没有这些路由，回 404。
 
 // 422（resource.not-found）是确实没有数据；404 是这个后端还没有这条路由。两者都当成空结果，不算失败。
@@ -85,6 +85,30 @@ const getHistorySongs = async (entry: ProviderHistoryEntry | string): Promise<Un
     }
 };
 
+/**
+ * 不喜欢这首歌：拉进账号的歌曲黑名单。手机上私人 FM、各个电台和每日 30 首的「不喜欢」都是这一下，
+ * 不带电台或歌单的上下文。后端只认数字 songid；读回首屏看到了（verified）才算成功，否则报错、不重送。
+ * QQ 不给替换的歌，所以回 removed。
+ */
+const dislikeSong = async (id: MediaId): Promise<{ removed: true }> => {
+    const songId = String(id ?? '').trim();
+    if (!/^[1-9]\d*$/.test(songId)) {
+        throw new OnlineProviderError('invalid-response', 'QQ song has no numeric song id for a dislike', 'qq');
+    }
+    try {
+        const response = await requestQq<any>('user_blacklist_add', {}, { songs: [songId] });
+        if (response?.verified !== true) {
+            throw new OnlineProviderError('invalid-response', 'QQMusicApi user_blacklist_add returned no confirmation', 'qq', response);
+        }
+        console.info('[QQProvider] dislike:confirmed');
+        // QQ 没有替换曲：回 removed，日推视图据此把这一行去掉。
+        return { removed: true };
+    } catch (error) {
+        console.warn('[QQProvider] dislike:failed', error);
+        throw error;
+    }
+};
+
 // `/recommend/playlists` 的 limit 默认 25、最多 60；有会话就带凭证读，没有就匿名读。
 const RECOMMEND_PLAYLISTS_MAX = 60;
 
@@ -110,4 +134,5 @@ export const qqRecommendations: OnlineRecommendationProvider = {
     getRecommendedCollections,
     getHistoryDates,
     getHistorySongs,
+    dislikeSong,
 };

@@ -172,6 +172,43 @@ describe('QQ recommendations', () => {
         });
     });
 
+    // 手机上私人 FM、猜你喜欢、其他电台与每日 30 首的「不喜欢」都是把这首歌拉进黑名单，不带电台或歌单的上下文。
+    describe('dislike a song', () => {
+        const confirmed = { code: 200, accepted: true, verified: true, verification: 'confirmed', writeAttempted: true, coverage: 'first-page', complete: false, results: [] };
+
+        it('puts the song on the blacklist once and hands back no replacement', async () => {
+            vi.spyOn(console, 'info').mockImplementation(() => { });
+            requestMock.mockResolvedValue(confirmed);
+
+            await expect(qqRecommendations.dislikeSong!(101)).resolves.toEqual({ removed: true });
+            await expect(qqRecommendations.dislikeSong!('102')).resolves.toEqual({ removed: true });
+            expect(requestMock.mock.calls).toEqual([
+                ['user_blacklist_add', {}, { songs: ['101'] }],
+                ['user_blacklist_add', {}, { songs: ['102'] }],
+            ]);
+        });
+
+        // 后端只认数字 songid；没有数字 id 的条目送去也只会被拒，干脆不送。
+        it('sends nothing for a song without a numeric id', async () => {
+            await expect(qqRecommendations.dislikeSong!('0039MnYb0qxYhV')).rejects.toMatchObject({ code: 'invalid-response' });
+            expect(requestMock).not.toHaveBeenCalled();
+        });
+
+        // 写了但首屏没读到（或结果不明）不算成功，也不再送一次。
+        it('fails without resending when the write is not confirmed', async () => {
+            requestMock.mockResolvedValueOnce({ ...confirmed, verified: false, verification: 'unconfirmed' });
+            await expect(qqRecommendations.dislikeSong!(101)).rejects.toMatchObject({ code: 'invalid-response' });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(console.warn).toHaveBeenCalledWith('[QQProvider] dislike:failed', expect.objectContaining({ name: 'OnlineProviderError' }));
+        });
+
+        it('passes a backend failure on without resending', async () => {
+            requestMock.mockRejectedValueOnce(upstreamFailure());
+            await expect(qqRecommendations.dislikeSong!(101)).rejects.toMatchObject({ httpStatus: 502 });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('recommended playlists', () => {
         const PLAYLIST = {
             tid: 90001,

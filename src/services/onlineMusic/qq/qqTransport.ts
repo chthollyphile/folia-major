@@ -12,7 +12,7 @@ export const QQ_OPERATIONS = [
     'login_channels', 'login_refresh',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
-    'user_personal_fm', 'user_daily_history_dates', 'user_daily_history',
+    'user_personal_fm', 'user_daily_history_dates', 'user_daily_history', 'user_blacklist_add',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -31,7 +31,7 @@ export type QqParams = Record<string, string | number | boolean | undefined>;
 const POST_OPERATIONS: ReadonlySet<QqOperation> = new Set<QqOperation>([
     'login_refresh',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_song_like', 'user_album_subscribe',
-    'user_playlist_create',
+    'user_playlist_create', 'user_blacklist_add',
 ]);
 
 const ENDPOINTS: Record<QqOperation, string> = {
@@ -61,6 +61,8 @@ const ENDPOINTS: Record<QqOperation, string> = {
     // 3.3.6 的每日 30 首历史：日期列表与某一天的歌，只读本人。旧后端回 404。
     user_daily_history_dates: '/user/daily-songs/history/dates',
     user_daily_history: '/user/daily-songs/history',
+    // 3.3.6 的歌曲不喜欢：只送 `songs` 时默认开放；写一次、读首屏确认，结果不明不重送。
+    user_blacklist_add: '/user/blacklist/add',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',

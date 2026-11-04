@@ -78,7 +78,7 @@ export const resolveCollectionMutationBranches = (input: CollectionMutationBranc
     const canEditPlaylist = Boolean(
         canEditOwnedPlaylist
         || canEditProviderPlaylist
-        // 管理每日推荐就是逐首「不喜欢」：provider 没有 dislikeSong（QQ）时不给编辑，免得按钮点了必定失败。
+        // 管理每日推荐就是逐首「不喜欢」：provider 有 dislikeSong 才给编辑（有的平台是拉进黑名单、没有替换曲）。
         || (isDailyRecommendationsCollection && !input.dailyDate && !input.dailyStyleShown && input.canDislikeCollectionSongs)
         || isLocalPlaylistCollection
         || isNavidromePlaylistCollection,
