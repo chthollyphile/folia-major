@@ -127,6 +127,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 
 - 探索页：见同目录 `EXPLORE_ADAPTER.md`。
 - 电台页签和音质档位：见 `EXPLORE_ADAPTER.md` 最后一节。
+- 推荐偏好（账号上那份会影响推荐的设置）：见下面「推荐偏好」。
 - 应用开着时要盯着的东西（比如本地服务起不来）：provider 的 `watch` 成员。提示由 `src/components/app/useProviderNotices.ts` 统一显示，不用改它。
 - 登录要靠的本地服务：`auth.localService`，登录窗口会显示它的错误和重启按钮。
 - 多种登录方式和图标：`auth.getLoginMethods` 回 `iconKey`，图标放 `src/assets/providers/<iconKey>.svg`。
@@ -162,6 +163,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 | 搜索 | `searchSongs`、`searchProviderSongs` | 普通搜索按 active provider；显式 provider 或跨 provider 用第二个方法。可选的 `context` 参数（`ProviderSearchContext`；`searchSongs` 的第三个、`searchProviderSongs` 的第四个参数）里的 `session` 把翻页互不干扰的调用方分开，不给就是宿主自己的界面：在两页之间留着读到哪儿的 adapter 按会话分开存，别的 adapter 不看它 |
 | 用户库 | `getUserPlaylists`、`getUserAlbums`、`getLikedSongIds`、`getProviderLikedSongIds`、`accountMoment`、`getCloudCollection` | 统一 `OmniCollection` / page 类型，账号快照可先展示再静默刷新。喜欢的歌读回来是 `{ ids, whole }`：adapter 在自己的上限处停下、或者说不准读没读到底时 `whole` 是 `false`；读不出来的一页必须抛错，不能当成更短的或空的列表交回。读账号的地方不自己写 `likedSongIds`：`account/accountRead.ts` 把读到的结果交给 `applyLikedRead`，由“修改”一行说的那条规则决定账号里留下什么；读失败就不交，账号里的保持原样；快照随后按 store 里此刻的 `likedSongIds` 存。回到 Folia 的窗口、进入主页这两个时机（`accountMoment`）不直接读整份：先向当前平台要“喜欢的歌”的数目（adapter 的 `getLikedSongCount`，一次请求，没有便宜办法的 adapter 不实现它），和手上的数目不一样才把喜欢的 id 整份读一遍；什么时候读只在 `account/readMoments.ts` 一处决定（见下面 `account/` 一条） |
 | 推荐 | `getHomeFeed`、`getPersonalFm`、`supportsDailySongs`、`getDailySongs`、`getRecommendationHistory*`、`dislikeSong` | 首页推荐与历史推荐仍由 Omni 路由；日推入口按能力显示，空结果不隐藏入口；私人 FM 一首歌都没交回时不出这张卡片（点了也没有可播的歌） |
+| 推荐偏好 | `supportsRecommendationPreferences`、`getRecommendationPreferenceEntries`、`getRecommendationPreferences`、`saveRecommendationPreferences` | 声明 `recommendationPreferences`、两个成员都有才算支持；偏好项只有选项式和比例两种，整理规则在 `recommendationPreferences.ts`。见下面「推荐偏好」 |
 | 播放/歌词 | `getSongDetail`、`getSongDetails`、`canPlaySong`、`getAudioSource`、`getAudioQualityLevels`、`resolveAudioQuality`、`getLyrics`、`getChorusRanges`、`getLyricSearchAlias`、`getAlternateArtistName` | 输出 `OmniAudioSource` / `OmniLyricsResult`；Navidrome 歌词走独立 service。`getSongDetail` / `getSongDetails` 收这首歌的 `UnifiedSong.id`，也收它的 `sourceRef.mediaId`，两者不同的平台在自己的目录里两种都接受。`getSongDetails(providerId, ids, { run? })` 按 id 查多首，每个 id 按入参顺序回一项 `OmniSongDetail`：`found`、`missing`（provider 答了、没有这首）、`failed`（为它发的那次请求失败，带 provider 的错；逐首问时一首失败不影响后面的）、`skipped`（调用方的 `run` 拒绝了这次或之前的请求、或不再等它，带 `run` 的拒绝；后面的都不再问）。adapter 有 `playback.getSongDetails` 就成批问：一批最多 `playback.songDetailsPerRequest` 个（不写就是全部一批），一批接一批，每批经 `run` 一次、一批失败不影响别的批（它拒绝的回答要抛错，不能回一串 null），没有就逐首问 `getSongDetail`，不并发；`run`（可选，`OmniRequestRunner`）包住 omni 对 adapter 的每一次调用（一次批量、或一首），由调用方计数和限流（`folium.omni` 的闸门）；`capabilities.songDetail` 为 false 的 provider 不能按 id 查歌（不写按能查）。`getLyrics` 的 `extensionHooks: false` 交出 provider 的歌词（副歌已标），不经扩展层改写。音质档位：档位从低到高是 `standard`、`high`、`ultra`、`lossless`、`hires`。`OnlinePlaybackProvider.audioQualityLevels`（可选）列出这个 provider 真正分得开的档位，不写就是 `standard`、`high`、`lossless`、`hires` 四档；`ultra` 只属于把它列出来的 provider（现在只有 YouTube Music，而且只对会员列出），列表可以随账号变，所以每次用到时现读。控制面板的音质选项只显示当前 provider 列出的档位（`getAudioQualityLevels`）。存的偏好仍是一个与 provider 无关的值，不迁移；它不在某个 provider 的列表里时，亮起的按钮和实际去要的档位都是不高于它的最近一档（`resolveAudioQuality`；`getAudioSource` 按歌曲所属的 provider 统一换算后再交给 adapter），所以存着 `ultra` 时，没列它的 provider 都按 `high` 去要。`getAudioSource` 交出地址时记下这个地址是按哪一档去要的、provider 有没有把它标成试听片段（`ProviderAudioSource.preview`；内存里，最近 200 个），`levelOfAudioSource(url)` 和 `isPreviewAudioSource(url)` 按地址查；扩展换进来的地址档位不明，也不算试听。片段还可能从歌中间开始：provider 在 `ProviderAudioSource.clipStartMs` 里写起点（毫秒，只在 `preview` 时有意义，不写就是从歌头开始），omni 按同一个地址记下（`previewClipStartMsOfAudioSource`），播放的歌词时钟加上这个偏移（`usePlaybackVisualizerBridge.ts`），远程窗口和 OBS 复用同一份地址记录；记录更新或淘汰时，主窗口按 `audioSourceMetadataVersion` 失效本地缓存。进度和时长仍是片段自己的，手动歌词偏移不被改写。有一个例外（2026-10-09）：列出了档位的 provider 在交回的 `quality` 里写的是它列出的另一档时，记的是它写的那一档（YouTube Music 的歌在 `ultra` 取不到、按 `high` 给的时候）；不这样的话，那份文件会顶着去要的那一档的名字存进媒体缓存，以后一直当那一档播。没列档位的 provider 不变，仍记去要的那一档。媒体缓存存一首歌时用它记下档位，播放只用和选项同一档的那一份，见下面 `resourceCache.ts` 一条 |
 | 听歌上报 | `canReportPlayback`、`reportPlayback` | 只有声明 `playbackReports` 的 provider 支持（当前仅网易云）；时长必须是真实累计播放秒数，频控在 `playbackReportGate.ts` |
 | 可用性 | `getSongAvailability`、`getSongReplacement` | 静态可用性只由 provider 的显式信号给出，`state: 'unavailable'` 只表示下架（taken-down），权限 / 付费 / 地区限制是 `unknown` + `reason: 'restricted'`；一次播放失败按 `failure/onlineFailureCase.ts` 分成有名字的情况，永不回写可用性、预取或缓存 |
@@ -171,6 +173,18 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 | 外链与引用 | `canResolveCatalogRef`、`resolveCatalogRefs`、`getSongCatalogRefs`、`getSongPageUrl` | 共享 `catalogRefs.ts` 的 provider-aware 引用；`getSongCatalogRefs(song)` 一次读出一首歌的专辑和各歌手能打开的引用（带歌曲上的名字），provider 的 resolver 只问一次 |
 
 共享类型包括 `UnifiedSong`、`OmniCollection`、`OmniPage`、`OmniLyricsResult`、`OmniAudioSource`、`OmniUser`、`OmniError`、`OmniSongUnavailableReason`、`OmniProviderCapabilities`。调用方不能依赖 provider 的 raw field、numeric id 单独比较或 raw response envelope。
+
+### 推荐偏好
+
+平台的账号上有一份会影响推荐的偏好时，可以接上这一项；没声明的平台什么都不变，界面不出现任何入口。
+
+- 声明 `capabilities.recommendationPreferences`，在 `recommendations` 上实现 `getRecommendationPreferences` 和 `saveRecommendationPreferences`，三样都有才算支持。
+- `preferenceEntries` 声明入口放在哪几处：`explore`（Bravais 探索页信息条）、`personal-fm`（私人 FM 页签，放在模式按钮的位置）、`daily`（每日推荐的控制列，放在「默认推荐 / 风格推荐」的位置）。命令面板只要支持就有。
+- 偏好项两种：`choice`（选项个数不限）和 `ratio`（`min`、`max`、`defaultValue`，可选 `snapWithin`：离默认这么近就算默认）。界面只显示「减少 … 默认 … 增加」，不显示数字。名字用 `{ labelKey, labelFallback }`：有译文用译文，没有就显示平台原文。
+- `note` 是面板标题下那一行说明，写清楚这份偏好影响到哪里（各平台不一样）；不给就只写「保存在账号上」。
+- 保存只交有改动的项（`key → value`），平台自己决定怎么写：整份写回，或者只写改了的字段。存了但读回对不上时回 `confirmed: false`；没存成就抛错。
+- 分数怎么换算、选项对应哪个值，只写在平台自己的 adapter 里，共用层不写死任何平台的数字。
+- omni 会把平台交来的偏好整理一遍（`recommendationPreferences.ts`）：不认识的种类、缺字段的项、重复的 key 丢掉；比例的值夹回范围里；选项式的值不在选项里时退回默认。以后加新的种类，已经接好的平台不受影响。
 
 ## Provider and cache files
 

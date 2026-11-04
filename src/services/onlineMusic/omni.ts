@@ -46,6 +46,10 @@ import type {
     ProviderMark,
     JsonValue,
     ProviderRawEndpoint,
+    RecommendationPreferenceChanges,
+    RecommendationPreferenceEntry,
+    RecommendationPreferences,
+    RecommendationPreferencesSaveResult,
 } from '../../types/onlineMusic';
 import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
 import { DEFAULT_ONLINE_PROVIDER_ID, OnlineProviderError } from '../../types/onlineMusic';
@@ -64,6 +68,11 @@ import {
     subscribeOnlineMusicProviderRegistry,
 } from './providerRegistry';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
+import {
+    checkRecommendationPreferenceChanges,
+    normalizeRecommendationPreferences,
+    readRecommendationPreferenceEntries,
+} from './recommendationPreferences';
 import { applyOmniAudioHook, applyOmniLyricsHook } from '../hostExtensionHooks';
 import { createLikePresses } from '../../utils/likePresses';
 import type { LikePress, LikePresses } from '../../utils/likePresses';
@@ -145,6 +154,17 @@ const activeProviderId = (): OmniProviderId => {
 };
 
 const activeProvider = () => requireOnlineMusicProvider(activeProviderId());
+
+/** A provider has recommendation preferences when it declares the capability and can both read and save them. */
+const hasRecommendationPreferences = (provider: OnlineMusicProvider | null | undefined): provider is OnlineMusicProvider => (
+    providerSupports(provider, 'recommendationPreferences')
+    && typeof provider?.recommendations?.getRecommendationPreferences === 'function'
+    && typeof provider.recommendations.saveRecommendationPreferences === 'function'
+);
+
+const unsupportedPreferences = (provider: OnlineMusicProvider): OnlineProviderError => (
+    new OnlineProviderError('unsupported', `Recommendation preferences are not supported by ${provider.id}`, provider.id)
+);
 
 const providerForSong = (song: SongResult) => {
     const provider = getOnlineMusicProviderForSong(song);
@@ -923,6 +943,40 @@ export const omni = {
             const setStyle = provider.recommendations?.setDailyStyle;
             if (!setStyle) throw new OnlineProviderError('unsupported', `Daily styles are not supported by ${provider.id}`, provider.id);
             await setStyle.call(provider.recommendations, selection);
+        });
+    },
+
+    // Recommendation preferences (capability `recommendationPreferences`): whether the active provider
+    // has them, where it offers them, reading them and saving what changed. A provider counts only when
+    // it declares the capability and has both members.
+    supportsRecommendationPreferences(): boolean {
+        return hasRecommendationPreferences(getOnlineMusicProvider(activeProviderId()));
+    },
+
+    getRecommendationPreferenceEntries(): RecommendationPreferenceEntry[] {
+        const provider = getOnlineMusicProvider(activeProviderId());
+        return hasRecommendationPreferences(provider)
+            ? readRecommendationPreferenceEntries(provider?.recommendations?.preferenceEntries)
+            : [];
+    },
+
+    async getRecommendationPreferences(): Promise<RecommendationPreferences> {
+        return withActiveProvider(async provider => {
+            if (!hasRecommendationPreferences(provider)) throw unsupportedPreferences(provider);
+            const recommendations = provider.recommendations!;
+            return normalizeRecommendationPreferences(await recommendations.getRecommendationPreferences!.call(recommendations));
+        });
+    },
+
+    async saveRecommendationPreferences(changes: RecommendationPreferenceChanges): Promise<RecommendationPreferencesSaveResult> {
+        const checked = checkRecommendationPreferenceChanges(changes);
+        return withActiveProvider(async provider => {
+            if (!hasRecommendationPreferences(provider)) throw unsupportedPreferences(provider);
+            // Nothing changed: nothing to write, and what the account has is what it had.
+            if (!Object.keys(checked).length) return { confirmed: true };
+            const recommendations = provider.recommendations!;
+            const result = await recommendations.saveRecommendationPreferences!.call(recommendations, checked);
+            return { confirmed: result?.confirmed === true };
         });
     },
 
