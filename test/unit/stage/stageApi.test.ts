@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { createStageApi } from '../../../electron/stageApi.cjs';
@@ -49,6 +49,8 @@ const withStageApi = async (options: {
     onControlRequest?: (payload: any) => void;
     onQueueRequest?: (payload: any) => void;
     onSearchRequest?: (payload: any, stageApi: ReturnType<typeof createStageApi>) => void;
+    onChannel?: (channel: string, payload: any) => void;
+    connectionFilePath?: (tempRoot: string) => string;
 } = {}) => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'folia-stage-api-'));
     const port = await getFreePort();
@@ -71,6 +73,7 @@ const withStageApi = async (options: {
             isDestroyed: () => false,
             webContents: {
                 send: (channel: string, payload: any) => {
+                    options.onChannel?.(channel, payload);
                     if (channel === 'stage-external-play-request') {
                         options.onPlayRequest?.(payload);
                     }
@@ -117,6 +120,7 @@ const withStageApi = async (options: {
         defaultStageApiPort: port,
         getNeteasePort: () => 39999,
         searchStageSongs: options.searchStageSongs,
+        connectionFilePath: options.connectionFilePath?.(tempRoot) ?? null,
     });
 
     await stageApi.setStageEnabled(true);
@@ -127,6 +131,8 @@ const withStageApi = async (options: {
         baseUrl,
         token,
         stageApi,
+        tempRoot,
+        port,
         cleanup: async () => {
             await stageApi.stopStageServer();
             await rm(tempRoot, { recursive: true, force: true });
@@ -990,5 +996,153 @@ describe('stageApi http contract', () => {
         expect(nextMessage.positionMs).toBeUndefined();
         expect(nextMessage.durationMs).toBeUndefined();
         expect(nextMessage.queue.items).toBeUndefined();
+    });
+});
+
+describe('stageApi external player sessions', () => {
+    const postJson = (context: { baseUrl: string; token: string }, route: string, body: unknown) => fetch(`${context.baseUrl}${route}`, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${context.token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    it('accepts a lyrics session without lyrics when it names its track, with its length and clock', async () => {
+        const context = await withStageApi();
+        activeCleanups.push(context.cleanup);
+
+        const response = await postJson(context, '/stage/lyrics', {
+            title: 'Spring Thief',
+            artist: 'yorushika',
+            durationMs: 263500.4,
+            coverUrl: 'https://example.com/cover.jpg',
+            positionMs: 12000,
+            paused: true,
+        });
+
+        expect(response.status).toBe(200);
+        const payload = await response.json();
+        expect(payload.activeEntryKind).toBe('lyrics');
+        expect(payload.lyricsSession).toMatchObject({
+            title: 'Spring Thief',
+            artist: 'yorushika',
+            durationMs: 263500,
+            coverUrl: 'https://example.com/cover.jpg',
+            clock: { positionMs: 12000, paused: true },
+        });
+        expect(payload.lyricsSession.lyricSource).toBeUndefined();
+        expect(typeof payload.lyricsSession.clock.sampledAtMs).toBe('number');
+    });
+
+    it('still asks a lyrics session for lyrics or a title, and rejects a bad cover or clock', async () => {
+        const context = await withStageApi();
+        activeCleanups.push(context.cleanup);
+
+        const cases: Array<[unknown, string]> = [
+            [{ artist: 'nobody' }, 'INVALID_STAGE_LYRICS'],
+            [{ title: 'x', coverUrl: 'file:///home/me/.cache/cover.png' }, 'INVALID_STAGE_COVER'],
+            [{ title: 'x', coverUrl: 'https://example.com/a.png', cover: { mimeType: 'image/png', data: 'iVBORw0KGgo=' } }, 'INVALID_STAGE_COVER'],
+            [{ title: 'x', cover: { mimeType: 'text/html', data: 'PGI+' } }, 'INVALID_STAGE_COVER'],
+            [{ title: 'x', positionMs: -1 }, 'INVALID_STAGE_LYRICS_CLOCK'],
+            [{ title: 'x', positionMs: 1, paused: 'yes' }, 'INVALID_STAGE_LYRICS_CLOCK'],
+            [{ title: 'x', durationMs: 0 }, 'INVALID_STAGE_DURATION'],
+        ];
+        for (const [body, code] of cases) {
+            const response = await postJson(context, '/stage/lyrics', body);
+            expect(response.status, JSON.stringify(body)).toBe(400);
+            expect((await response.json()).code).toBe(code);
+        }
+    });
+
+    it('serves an uploaded cover from its session with its image type', async () => {
+        const context = await withStageApi();
+        activeCleanups.push(context.cleanup);
+        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+        const response = await postJson(context, '/stage/lyrics', {
+            title: 'Cover',
+            cover: { mimeType: 'image/png', data: png.toString('base64') },
+        });
+        expect(response.status).toBe(200);
+        const coverUrl = (await response.json()).lyricsSession.coverUrl as string;
+        expect(coverUrl.startsWith(`http://127.0.0.1:${context.port}/stage/media/session/`)).toBe(true);
+        expect(coverUrl).toMatch(/\/cover\?v=\d+$/);
+
+        // An <img> loads it without the token, like a media session's cover.
+        const cover = await fetch(coverUrl);
+        expect(cover.status).toBe(200);
+        expect(cover.headers.get('content-type')).toContain('image/png');
+        expect(Buffer.from(await cover.arrayBuffer())).toEqual(png);
+
+        // Only from its session's address: the token-free "current" cover any page could poll does not show it.
+        expect((await fetch(`${context.baseUrl}/stage/media/current/cover`)).status).toBe(404);
+    });
+
+    it('moves the clock of the lyrics session on screen without loading it again', async () => {
+        const sent: Array<{ channel: string; payload: any }> = [];
+        const context = await withStageApi({ onChannel: (channel, payload) => sent.push({ channel, payload }) });
+        activeCleanups.push(context.cleanup);
+
+        const inactive = await postJson(context, '/stage/lyrics/clock', { positionMs: 1000 });
+        expect(inactive.status).toBe(409);
+        expect((await inactive.json()).code).toBe('STAGE_LYRICS_SESSION_INACTIVE');
+
+        // A session pushed without positionMs keeps Folia's own clock.
+        await postJson(context, '/stage/lyrics', { title: 'Own clock', lyricSource: { type: 'local', lrcContent: '[00:01.00]a' } });
+        const unclocked = await postJson(context, '/stage/lyrics/clock', { positionMs: 1000 });
+        expect(unclocked.status).toBe(409);
+        expect((await unclocked.json()).code).toBe('STAGE_LYRICS_SESSION_UNCLOCKED');
+
+        const session = (await (await postJson(context, '/stage/lyrics', { title: 'Clock', positionMs: 0, paused: true })).json()).lyricsSession;
+        sent.length = 0;
+
+        const response = await postJson(context, '/stage/lyrics/clock', { positionMs: 42000, durationMs: 200000, sessionUpdatedAt: session.updatedAt });
+        expect(response.status).toBe(200);
+        const payload = await response.json();
+        // paused is kept from the clock before when it is not sent.
+        expect(payload).toMatchObject({
+            domain: 'stage-input',
+            sessionUpdatedAt: session.updatedAt,
+            clock: { positionMs: 42000, paused: true },
+            durationMs: 200000,
+        });
+        expect(sent.map(entry => entry.channel)).toEqual(['stage-lyrics-clock-updated']);
+        expect(sent[0].payload).toMatchObject({ sessionUpdatedAt: session.updatedAt, clock: { positionMs: 42000 } });
+
+        const status = await (await fetch(`${context.baseUrl}/stage/status`, { headers: { Authorization: `Bearer ${context.token}` } })).json();
+        expect(status.lyricsSession).toMatchObject({ updatedAt: session.updatedAt, durationMs: 200000, clock: { positionMs: 42000 } });
+
+        const stale = await postJson(context, '/stage/lyrics/clock', { positionMs: 1, sessionUpdatedAt: session.updatedAt - 1 });
+        expect(stale.status).toBe(409);
+        expect((await stale.json()).code).toBe('STAGE_LYRICS_SESSION_CHANGED');
+
+        const unauthorized = await fetch(`${context.baseUrl}/stage/lyrics/clock`, { method: 'POST', body: JSON.stringify({ positionMs: 1 }) });
+        expect(unauthorized.status).toBe(401);
+    });
+
+    it('writes its address and token to the connection file while it serves, and removes it when stopped', async () => {
+        const context = await withStageApi({ connectionFilePath: tempRoot => path.join(tempRoot, 'run', 'folia', 'stage.json') });
+        activeCleanups.push(context.cleanup);
+        const filePath = path.join(context.tempRoot, 'run', 'folia', 'stage.json');
+
+        const written = JSON.parse(await readFile(filePath, 'utf-8'));
+        expect(written).toEqual({
+            version: 1,
+            pid: process.pid,
+            port: context.port,
+            baseUrl: `http://127.0.0.1:${context.port}`,
+            token: context.token,
+        });
+        if (process.platform !== 'win32') {
+            expect((await stat(filePath)).mode & 0o777).toBe(0o600);
+        }
+
+        const regenerated = await context.stageApi.regenerateStageToken();
+        expect(JSON.parse(await readFile(filePath, 'utf-8')).token).toBe(regenerated.token);
+
+        await context.stageApi.stopStageServer();
+        await expect(stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' });
     });
 });

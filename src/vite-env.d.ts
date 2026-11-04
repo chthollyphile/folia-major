@@ -505,12 +505,27 @@ declare global {
     | StageNavidromeLyricSource
     | StageQrcLyricSource;
 
+  interface StageLyricsClock {
+    positionMs: number;
+    paused: boolean;
+    sampledAtMs: number;
+  }
+
   interface StageLyricsSession {
     title?: string;
     artist?: string;
     album?: string;
-    lyricSource: StageLyricSource;
+    lyricSource?: StageLyricSource;
+    durationMs?: number;
+    coverUrl?: string;
+    clock?: StageLyricsClock;
     updatedAt: number;
+  }
+
+  interface StageLyricsClockUpdate {
+    sessionUpdatedAt: number;
+    clock: StageLyricsClock;
+    durationMs?: number;
   }
 
   interface StageMediaSession {
@@ -1091,6 +1106,7 @@ declare global {
       completeStagePlayerSearchRequest: (result: StagePlayerSearchResult) => Promise<boolean>;
       onStageSessionUpdated: (callback: (status: StageStatus) => void) => () => void;
       onStageSessionCleared: (callback: (status: StageStatus) => void) => () => void;
+      onStageLyricsClockUpdated?: (callback: (update: StageLyricsClockUpdate) => void) => () => void;
       onStageExternalPlayRequest: (callback: (request: StageExternalPlayRequest) => void) => () => void;
       onStagePlayerControlRequest: (callback: (request: StagePlayerControlRequest) => void) => () => void;
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;

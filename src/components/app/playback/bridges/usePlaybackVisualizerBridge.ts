@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { findLatestActiveLineIndex } from '../../../../utils/appPlaybackHelpers';
 import { PlayerState } from '../../../../types';
-import type { AudioBands, LyricData } from '../../../../types';
+import type { AudioBands, LyricData, StageLyricsSession } from '../../../../types';
 import { setCurrentLineIndex, setHandoffLineIndex, setPlayerState } from '../../../../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import {
@@ -41,7 +41,7 @@ type UsePlaybackVisualizerBridgeParams = {
     isNowPlayingStageActive: boolean;
     isPlayerCapStageActive: boolean;
     stageActiveEntryKind: string | null;
-    stageLyricsSession: unknown;
+    stageLyricsSession: StageLyricsSession | null;
     stageLyricsClockRef: MutableRefObject<{
         startTimeSec: number;
         endTimeSec: number;
@@ -367,20 +367,22 @@ export function usePlaybackVisualizerBridge({
             const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
             showLyricTime(effectiveLyricTime);
             showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
-        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
+        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession) {
+            // A session without lyrics (an external player's track whose lyrics are not found) still keeps time.
             const nextTime = getSyntheticStageLyricsTime();
             const clock = stageLyricsClockRef.current;
             const hasReachedEnd = playerState === PlayerState.PLAYING && nextTime >= clock.endTimeSec;
 
             currentTime.set(nextTime);
 
-            showLine(findLatestActiveLineIndex(lyrics.lines, nextTime));
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, nextTime) : -1);
 
             if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                // An external player's clock is its own to restart: the loop mode does not replay it here.
+                if (!stageLyricsSession.clock && (effectiveLoopMode === 'one' || effectiveLoopMode === 'all')) {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
-                    showLine(findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec));
+                    showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec) : -1);
                 } else {
                     syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
                     setPlayerState(PlayerState.PAUSED);

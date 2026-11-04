@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const Busboy = require('busboy');
 const { WebSocket, WebSocketServer } = require('ws');
 const { finished } = require('stream/promises');
+const { createStageConnectionFile } = require('./stageConnectionFile.cjs');
+const { createStageLyricsInput } = require('./stageLyricsInput.cjs');
 
 // Stage API server for desktop-local integrations. External tools can push
 // one parser-compatible lyrics session, push one media session, or ask Folia
@@ -233,8 +235,13 @@ function createStageApi({
   defaultStageApiPort,
   getNeteasePort,
   searchStageSongs,
+  connectionFilePath = /** @type {string | null} */ (null),
 }) {
   let stageServer = null;
+  // Set once the server listens: a server whose listen failed (port taken) is not advertised.
+  let stageServerListening = false;
+  // Bumped by every push and clear of the Stage input: a push that awaited is dropped when another came meanwhile.
+  let stageInputVersion = 0;
   let stageLyricsSession = null;
   let stageMediaSession = null;
   let stageActiveEntryKind = null;
@@ -263,6 +270,16 @@ function createStageApi({
       return;
     }
     method(`[Stage] ${message}`, details);
+  };
+
+  // 本机外部程序读的连接文件（stageConnectionFile.cjs）：服务开着时写，关掉时删
+  const connectionFile = createStageConnectionFile({
+    filePath: connectionFilePath,
+    log: (level, message, details) => logStage(level, message, details),
+  });
+  const writeConnectionFile = () => {
+    if (!stageServer || !stageServerListening) return;
+    connectionFile.write({ port: getConfiguredStagePort(), token: getStageToken() });
   };
 
   const getConfiguredStagePort = () => {
@@ -785,7 +802,7 @@ function createStageApi({
     }
   };
 
-  const rememberStageSessionAssets = (sessionId, sessionFiles) => {
+  const rememberStageSessionAssets = (sessionId, sessionFiles, coverMimeType = null) => {
     if (!sessionId) {
       return;
     }
@@ -797,6 +814,7 @@ function createStageApi({
     stageSessionAssetIndex.set(sessionId, {
       audioPath: sessionFiles?.audioPath || null,
       coverPath: sessionFiles?.coverPath || null,
+      coverMimeType: coverMimeType || null,
       workingDirectory: getStageSessionDirectory(sessionId),
     });
   };
@@ -822,6 +840,7 @@ function createStageApi({
   };
 
   const clearStageStateData = async () => {
+    stageInputVersion += 1;
     clearPendingExternalPlayRequests('Stage state was cleared.');
     stageLyricsSession = null;
     stageMediaSession = null;
@@ -1347,8 +1366,14 @@ function createStageApi({
     };
   };
 
-  const normalizeStageLyricsSessionPayload = (payload = {}) => {
-    const rawLyricSource = payload?.lyricSource;
+  // 外部播放器推来的时钟、长度、封面（stageLyricsInput.cjs）
+  const {
+    normalizeStageLyricsClock,
+    normalizeStageDurationMs,
+    normalizeStageLyricsCover,
+  } = createStageLyricsInput({ invalid: (message, code) => createStageValidationError(message, code) });
+
+  const normalizeStageLyricSource = (rawLyricSource) => {
     if (!rawLyricSource || typeof rawLyricSource !== 'object') {
       throw createStageValidationError(
         'Stage lyrics payload requires a parser-compatible lyricSource object.',
@@ -1484,12 +1509,42 @@ function createStageApi({
       );
     }
 
+    return lyricSource;
+  };
+
+  // /stage/lyrics 的载荷：lyricSource 可以没有（外部播放器先报曲目、歌词晚到或找不到），这时至少要有 title
+  const normalizeStageLyricsSessionPayload = (payload = {}) => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createStageValidationError(
+        'Stage lyrics payload must be a JSON object.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+    const title = normalizeStageText(payload.title);
+    const hasLyricSource = payload.lyricSource !== undefined && payload.lyricSource !== null;
+    if (!hasLyricSource && !title) {
+      throw createStageValidationError(
+        'Stage lyrics payload requires a parser-compatible lyricSource object, or a title for a session without lyrics.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+    const lyricSource = hasLyricSource ? normalizeStageLyricSource(payload.lyricSource) : null;
+    const durationMs = normalizeStageDurationMs(payload.durationMs);
+    const clock = payload.positionMs !== undefined && payload.positionMs !== null ? normalizeStageLyricsClock(payload) : null;
+    const cover = normalizeStageLyricsCover(payload);
+
     return {
-      ...(normalizeStageText(payload.title) ? { title: normalizeStageText(payload.title) } : {}),
-      ...(normalizeStageText(payload.artist) ? { artist: normalizeStageText(payload.artist) } : {}),
-      ...(normalizeStageText(payload.album) ? { album: normalizeStageText(payload.album) } : {}),
-      lyricSource,
-      updatedAt: Date.now(),
+      session: {
+        ...(title ? { title } : {}),
+        ...(normalizeStageText(payload.artist) ? { artist: normalizeStageText(payload.artist) } : {}),
+        ...(normalizeStageText(payload.album) ? { album: normalizeStageText(payload.album) } : {}),
+        ...(lyricSource ? { lyricSource } : {}),
+        ...(durationMs ? { durationMs } : {}),
+        ...(cover.coverUrl ? { coverUrl: cover.coverUrl } : {}),
+        ...(clock ? { clock } : {}),
+        updatedAt: Date.now(),
+      },
+      coverUpload: cover.upload,
     };
   };
 
@@ -2044,9 +2099,9 @@ function createStageApi({
         return;
       }
 
-      const mimeType = requestedSessionId === stageMediaSession?.id
+      const mimeType = sessionAssets.coverMimeType || (requestedSessionId === stageMediaSession?.id
         ? stageMediaSession.coverMimeType
-        : 'application/octet-stream';
+        : 'application/octet-stream');
       const buffer = await fsp.readFile(coverPath);
       sendStageBinary(res, 200, buffer, mimeType || 'application/octet-stream');
       return;
@@ -2112,20 +2167,119 @@ function createStageApi({
         });
       }
 
-      stageLyricsSession = normalizeStageLyricsSessionPayload(payload);
+      const { session: nextLyricsSession, coverUpload } = normalizeStageLyricsSessionPayload(payload);
+      stageInputVersion += 1;
+      const pushVersion = stageInputVersion;
+      let nextSessionId = null;
+      let nextCoverPath = null;
+      if (coverUpload) {
+        // An uploaded cover lives in its own session directory, served like a media session's cover.
+        nextSessionId = `stage-${nextLyricsSession.updatedAt}-${crypto.randomUUID()}`;
+        await ensureStageSessionsDirectory();
+        const workingDirectory = await createStageWorkingDirectory(nextSessionId);
+        nextCoverPath = path.join(workingDirectory, `cover${coverUpload.extension}`);
+        try {
+          await fsp.writeFile(nextCoverPath, coverUpload.bytes);
+        } catch (error) {
+          await removeStageSessionDirectory(workingDirectory);
+          throw error;
+        }
+        // Another push (or a clear) came while the cover was written: it is newer, this one is dropped.
+        if (pushVersion !== stageInputVersion) {
+          await removeStageSessionDirectory(workingDirectory);
+          throw new StageApiError('A newer Stage input replaced this lyrics session before it was applied.', {
+            statusCode: 409,
+            code: 'STAGE_INPUT_SUPERSEDED',
+          });
+        }
+        nextLyricsSession.coverUrl = buildStageSessionMediaUrl(nextSessionId, 'cover', nextLyricsSession.updatedAt);
+      }
+
+      stageLyricsSession = nextLyricsSession;
       stageMediaSession = null;
       stageActiveEntryKind = 'lyrics';
-      stageActiveSessionId = null;
+      stageActiveSessionId = nextSessionId;
+      // The cover is served only from its session's address (in coverUrl), not from the
+      // token-free /stage/media/current/cover any page could poll.
       stageActiveSessionFiles = {
         audioPath: null,
         coverPath: null,
       };
+      if (nextSessionId) {
+        rememberStageSessionAssets(nextSessionId, { audioPath: null, coverPath: nextCoverPath }, coverUpload.mimeType);
+        void cleanupInactiveStageSessions();
+      }
       broadcastStageEvent('stage-session-updated');
       sendStageJson(res, 200, buildStageStatus());
       return;
     }
 
+    // Moves the clock of the lyrics session on screen, without reloading it: an external player
+    // reports where it is whenever it plays, pauses or seeks (and now and then against drift).
+    if (pathname === '/stage/lyrics/clock' && req.method === 'POST') {
+      const requestBody = await readRequestBodyWithLimit(req, STAGE_JSON_BODY_LIMIT_BYTES);
+      let payload;
+      try {
+        payload = JSON.parse(requestBody.toString('utf-8') || '{}');
+      } catch (error) {
+        throw new StageApiError('Failed to parse Stage lyrics clock JSON payload.', {
+          statusCode: 400,
+          code: 'INVALID_STAGE_LYRICS_CLOCK',
+          details: {
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw createStageValidationError('Stage lyrics clock payload must be a JSON object.', 'INVALID_STAGE_LYRICS_CLOCK');
+      }
+
+      if (stageActiveEntryKind !== 'lyrics' || !stageLyricsSession) {
+        throw new StageApiError('No Stage lyrics session is active.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_INACTIVE',
+        });
+      }
+      // A clock meant for an earlier session (the player changed track meanwhile) is not applied.
+      if (payload.sessionUpdatedAt !== undefined && payload.sessionUpdatedAt !== stageLyricsSession.updatedAt) {
+        throw new StageApiError('The Stage lyrics session has changed.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_CHANGED',
+          details: { sessionUpdatedAt: stageLyricsSession.updatedAt },
+        });
+      }
+
+      // A session pushed without positionMs runs on Folia's own clock (lyrics bounds, loop mode): it is not driven from outside.
+      if (!stageLyricsSession.clock) {
+        throw new StageApiError('The Stage lyrics session was pushed without positionMs, so it has no external clock.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_UNCLOCKED',
+        });
+      }
+
+      const clock = normalizeStageLyricsClock(payload, stageLyricsSession.clock);
+      const durationMs = normalizeStageDurationMs(payload.durationMs);
+      stageLyricsSession = {
+        ...stageLyricsSession,
+        clock,
+        ...(durationMs ? { durationMs } : {}),
+      };
+      const clockUpdate = {
+        sessionUpdatedAt: stageLyricsSession.updatedAt,
+        clock,
+        ...(stageLyricsSession.durationMs ? { durationMs: stageLyricsSession.durationMs } : {}),
+      };
+      // Only the clock goes to the window: the session (and its lyrics) did not change.
+      const mainWindow = getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('stage-lyrics-clock-updated', clockUpdate);
+      }
+      sendStageJson(res, 200, withStageInputMetadata(clockUpdate));
+      return;
+    }
+
     if (pathname === '/stage/session' && req.method === 'POST') {
+      stageInputVersion += 1;
       const contentType = req.headers['content-type'] || '';
       const nextWorkingSessionId = `stage-${Date.now()}-${crypto.randomUUID()}`;
       await ensureStageSessionsDirectory();
@@ -2215,6 +2369,8 @@ function createStageApi({
     });
 
     stageServer = null;
+    stageServerListening = false;
+    connectionFile.remove();
     stagePlayerSnapshot = null;
     stagePlayerTrackKey = null;
     stagePlayerQueueKey = null;
@@ -2259,11 +2415,13 @@ function createStageApi({
       stageServer.once('error', reject);
       stageServer.listen(getConfiguredStagePort(), '127.0.0.1', () => {
         stageServer.off('error', reject);
+        stageServerListening = true;
         resolve();
       });
     });
 
     logStage('info', `Stage API server listening on http://127.0.0.1:${getConfiguredStagePort()}.`);
+    writeConnectionFile();
   };
 
   const syncStageModeState = async () => {
@@ -2299,6 +2457,7 @@ function createStageApi({
 
     if (isStageEnabled()) {
       await startStageServerIfNeeded();
+      writeConnectionFile();
     }
 
     const status = buildStageStatus();
@@ -2306,7 +2465,13 @@ function createStageApi({
     return status;
   };
 
+  // 退出时调：删掉连接文件（服务随进程一起关）
+  const dispose = () => {
+    connectionFile.remove();
+  };
+
   return {
+    dispose,
     buildStageStatus,
     clearStageState,
     clearStageStateData,

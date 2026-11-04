@@ -227,12 +227,32 @@ export type StageLyricSource =
   | StageNavidromeLyricSource
   | StageQrcLyricSource;
 
+/** Where an external player is, as last reported to the Stage API (POST /stage/lyrics or /stage/lyrics/clock). */
+export interface StageLyricsClock {
+  positionMs: number;
+  paused: boolean;
+  /** The main process's Date.now() when the position was received; the clock runs on from it. */
+  sampledAtMs: number;
+}
+
 export interface StageLyricsSession {
   title?: string;
   artist?: string;
   album?: string;
-  lyricSource: StageLyricSource;
+  /** Absent for a session that only shows a track (its lyrics not found, or not here yet). */
+  lyricSource?: StageLyricSource;
+  durationMs?: number;
+  coverUrl?: string;
+  /** Present when an external player drives the session's time. */
+  clock?: StageLyricsClock;
   updatedAt: number;
+}
+
+/** What POST /stage/lyrics/clock sends to the window: the clock of the session with that `updatedAt`. */
+export interface StageLyricsClockUpdate {
+  sessionUpdatedAt: number;
+  clock: StageLyricsClock;
+  durationMs?: number;
 }
 
 export interface StageMediaSession {
