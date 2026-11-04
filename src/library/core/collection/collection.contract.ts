@@ -43,6 +43,7 @@ export interface BaseGridViewCollectionDescriptor {
     albumArtist?: string;
     albumYear?: number;
     albumGenre?: string;
+    /** 专辑总时长，单位秒（Navidrome 的 album.duration）。 */
     albumDuration?: number;
     albumCompany?: string;
     albumPublishTime?: number;

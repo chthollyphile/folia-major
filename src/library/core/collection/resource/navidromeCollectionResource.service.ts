@@ -1,6 +1,6 @@
 import type { SongResult } from '../../../../types';
 import type { NavidromeGridViewCollectionDescriptor } from '../collection.contract';
-import type { CollectionResource } from '../../shared/resource.contract';
+import type { CollectionDetail, CollectionResource } from '../../shared/resource.contract';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import { collectionRevision } from '../collectionIdentity';
 import { createCollectionResourceState } from './collectionResourceState.service';
@@ -10,8 +10,13 @@ import { resolveNavidromeGridViewTracks } from './navidromeCollectionTracks.serv
 // Navidrome 集合资源：一次取完，不分页、不缓存。不复用：随机歌曲每次打开都应该重新抽。
 // 读失败（抛错，或者服务没给回答、没配服务器）时是错误态（status 'error'），带着读到的那些歌（歌手可能读到了
 // 一部分专辑）：页面据此知道列表不完整，空着时说「加载失败」而不是「这里没有歌」。
+// 专辑读到时连同专辑信息写进 detail：从歌曲跳过来的集合描述只有 id 和名字，页头靠它补全（#1039）。
 
-export type NavidromeTracksLoader = (descriptor: NavidromeGridViewCollectionDescriptor) => Promise<{ tracks: SongResult[]; failed: boolean }>;
+export type NavidromeTracksLoader = (descriptor: NavidromeGridViewCollectionDescriptor) => Promise<{
+    tracks: SongResult[];
+    failed: boolean;
+    detail?: CollectionDetail;
+}>;
 
 const NAVIDROME_READ_FAILED = { kind: 'generic', message: '' } as const;
 
@@ -29,14 +34,18 @@ export const createNavidromeCollectionResource = (
         state.set({ status: 'loading', tracks: [], generation: current, revision: collectionRevision(descriptor) }, 'urgent');
         let tracks: SongResult[] = [];
         let failed = false;
+        let detail: CollectionDetail | undefined;
         try {
-            ({ tracks, failed } = await loadTracks(descriptor));
+            ({ tracks, failed, detail } = await loadTracks(descriptor));
         } catch (error) {
             console.error('[LibraryUi] Failed to load Navidrome collection tracks:', error);
             failed = true;
         }
         if (disposed || current !== generation) return;
-        state.set(failed ? { status: 'error', tracks, error: NAVIDROME_READ_FAILED } : { status: 'ready', tracks, error: null }, 'urgent');
+        state.set({
+            ...(failed ? { status: 'error', tracks, error: NAVIDROME_READ_FAILED } : { status: 'ready', tracks, error: null }),
+            ...(detail ? { detail } : {}),
+        }, 'urgent');
     };
 
     let started = false;

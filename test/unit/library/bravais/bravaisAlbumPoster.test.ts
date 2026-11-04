@@ -23,17 +23,20 @@ describe('album seam projection', () => {
     it('lays the detail over the descriptor and reads the year from the release time', () => {
         const album = projectBravaisSeamAlbum({
             collection: collection({ coverUrl: 'a.jpg', artists: [{ id: '1', name: 'Old' }] } as Partial<LibraryCollectionDescriptor>),
-            detail: { artists: [{ id: '2', name: 'Singer' }], publishedAt: Date.UTC(2021, 5, 1), albumDuration: 1830_000, albumGenre: 'Dream Pop' } as never,
+            detail: { artists: [{ id: '2', name: 'Singer' }], publishedAt: Date.UTC(2021, 5, 1), albumDuration: 1830, albumGenre: 'Dream Pop' } as never,
             trackCount: 10,
             labels,
         });
         expect(album).toEqual({ coverUrl: 'a.jpg', artists: ['Singer'], kicker: '专辑 · 2021', facts: ['10 首', '30:30', 'Dream Pop'] });
     });
 
-    it('formats durations in seconds or milliseconds', () => {
+    // 单位是秒：超过 10000 秒（约 2 小时 47 分）的专辑以前被当成毫秒，显示成十几秒。
+    it('formats durations in seconds, long albums included', () => {
         expect(formatAlbumDuration(245)).toBe('4:05');
-        expect(formatAlbumDuration(3_725_000)).toBe('1:02:05');
+        expect(formatAlbumDuration(3725)).toBe('1:02:05');
+        expect(formatAlbumDuration(12_000)).toBe('3:20:00');
         expect(formatAlbumDuration(undefined)).toBe('');
+        expect(formatAlbumDuration(0)).toBe('');
     });
 });
 

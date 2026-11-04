@@ -1,22 +1,15 @@
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
-import type { ProviderCollection } from '../../../types/onlineMusic';
+import type { CollectionDetail } from '../../core/shared/resource.contract';
 import type { BravaisSeamAlbum } from './bravaisSeamModels';
+import { formatAlbumDuration } from '../../core/collection/albumDuration';
 
 // src/library/suites/bravais/bravaisAlbumModel.ts
 // 专辑页海报的信息（纯投影）：详情盖在集合描述上（与网格信息面板同一条规则），只有专辑类型的集合有。
-// 总时长的写法与网格信息面板相同（超过 10000 当毫秒）；年份没有时从发行时间里取。
+// 总时长的写法与网格信息面板相同（core/collection/albumDuration，单位秒）；年份没有时从发行时间里取。
 
-export const formatAlbumDuration = (duration?: number) => {
-    if (!duration || !Number.isFinite(duration)) return '';
-    const totalSeconds = duration > 10000 ? Math.round(duration / 1000) : Math.round(duration);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-};
+export { formatAlbumDuration };
 
-const resolveYear = (info: Partial<ProviderCollection> & { albumYear?: number; publishedAt?: number; albumPublishTime?: number }) => {
+const resolveYear = (info: Partial<CollectionDetail> & { albumPublishTime?: number }) => {
     if (info.albumYear && Number.isFinite(info.albumYear)) return String(info.albumYear);
     const time = info.publishedAt ?? info.albumPublishTime;
     if (!time || !Number.isFinite(time)) return '';
@@ -31,7 +24,7 @@ export const projectBravaisSeamAlbum = ({
     labels,
 }: {
     collection: LibraryCollectionDescriptor;
-    detail: ProviderCollection | null | undefined;
+    detail: CollectionDetail | null | undefined;
     /** 已知的曲目数（详情的、描述的或已经载入的）。 */
     trackCount: number;
     labels: { kind: string; trackCount: (count: number) => string };
