@@ -3458,6 +3458,8 @@ export default {
     "latentMeshSwirl": "Fluid Swirl",
     "nomandBackgroundUploadSuccess": "Background image uploaded",
     "nomandBackgroundUploadFailed": "Failed to upload background image",
+    "monetPortraitPositionHint": "Click to adjust the cover position, drag to move, then click again to save.",
+    "monetPortraitPositionEditing": "Drag to adjust the cover position; click again to save. Arrow keys also move it.",
     "monetKeywordColoring": "Keyword Coloring",
     "monetBackgroundLayout": "Layout Mode",
     "monetLayoutFullOverlay": "Full Overlay",

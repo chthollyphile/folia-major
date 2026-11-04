@@ -197,6 +197,23 @@
 .bravais-seam button { font: inherit; color: inherit; }
 .bravais-seam button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
 
+/* Keep seam hover feedback gentle without changing button geometry. */
+.bravais-seam .bravais-seam-icon,
+.bravais-seam .bravais-seam-level,
+.bravais-seam .bravais-seam-tabs button,
+.bravais-seam .bravais-account-entry {
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+:root[data-reduce-motion~='lattice'] .bravais-seam .bravais-seam-icon,
+:root[data-reduce-motion~='lattice'] .bravais-seam .bravais-seam-level,
+:root[data-reduce-motion~='lattice'] .bravais-seam .bravais-seam-tabs button,
+:root[data-reduce-motion~='lattice'] .bravais-seam .bravais-account-entry,
+:root[data-reduce-motion~='uiMicroMotion'] .bravais-seam .bravais-seam-icon,
+:root[data-reduce-motion~='uiMicroMotion'] .bravais-seam .bravais-seam-level,
+:root[data-reduce-motion~='uiMicroMotion'] .bravais-seam .bravais-seam-tabs button,
+:root[data-reduce-motion~='uiMicroMotion'] .bravais-seam .bravais-account-entry { transition: none; }
+
 .bravais-seam-icon,
 .bravais-seam-back {
     display: grid;
