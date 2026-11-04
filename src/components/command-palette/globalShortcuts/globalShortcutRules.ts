@@ -271,8 +271,10 @@ const CONSOLE_SWITCH_PATTERN = /^Control\+Alt\+F(?:[1-9]|1[0-2])$/;
 const CARET_KEYS: ReadonlySet<string> = new Set(['up', 'down', 'left', 'right', 'home', 'end', 'pageup', 'pagedown', 'backspace', 'delete']);
 
 /** Modifier sets that type a character with a letter or digit instead of being a shortcut: Option and
- * Option+Shift on macOS, and Ctrl+Alt, which Windows reads as AltGr (@ and € on German, ą on Polish). */
-const TYPING_MODIFIER_SETS: ReadonlyArray<string> = ['alt', 'alt+shift', 'control+alt'];
+ * Option+Shift on macOS. Ctrl+Alt, which Windows reads as AltGr (@ and € on German, ą on Polish), types
+ * nothing on the US and Chinese layouts and is what music players bind by default (Ctrl+Alt+P), so it
+ * is let through with its own warning instead (globalShortcutWarning). */
+const TYPING_MODIFIER_SETS: ReadonlyArray<string> = ['alt', 'alt+shift'];
 
 export type GlobalShortcutKeyRefusal =
     | 'needs-modifier'
@@ -347,6 +349,26 @@ export const isDefaultGlobalShortcutCombination = (key: string, modifiers: Reado
     && modifiers.length === DEFAULT_GLOBAL_SHORTCUT_MODIFIERS.length
     && DEFAULT_GLOBAL_SHORTCUT_MODIFIERS.every(modifier => modifiers.includes(modifier))
 );
+
+export type GlobalShortcutWarning = 'altgr' | 'custom';
+
+/**
+ * What the settings say under a combination the rules let through, or null for the default trio with a
+ * letter or digit: `altgr` for Ctrl+Alt with a letter or digit on Windows, where layouts with AltGr type
+ * a character on it and the registered key would take that character away; `custom` for anything else,
+ * which may be some program's own key.
+ */
+export const globalShortcutWarning = (
+    key: string,
+    modifiers: ReadonlyArray<GlobalShortcutModifier>,
+    system: GlobalShortcutSystem = CURRENT_GLOBAL_SHORTCUT_SYSTEM,
+): GlobalShortcutWarning | null => {
+    if (isDefaultGlobalShortcutCombination(key, modifiers)) {
+        return null;
+    }
+    const held = GLOBAL_SHORTCUT_MODIFIER_IDS.filter(modifier => modifiers.includes(modifier));
+    return system === 'windows' && isLetterOrDigit(key) && held.join('+') === 'control+alt' ? 'altgr' : 'custom';
+};
 
 /** Why `key` with `modifiers` cannot go in `slot` on `system`, or null when it can. */
 export const refuseGlobalShortcutChord = (
