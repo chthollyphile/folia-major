@@ -419,9 +419,6 @@ function createRequestDispatcher(getContents, timeoutMs = 20000, getGeneration =
             || (PLAYBACK_COMMANDS.has(request.operation) && request.operation !== 'prepareNext');
         if (current.running >= (foreground ? 4 : 2) && !urgentPause) return { ok: false, error: 'busy' };
         current.running++;
-        if (request.operation === 'playSong' || request.operation === 'pause' || request.operation === 'resume') {
-            console.info('[AppleMusic] Playback command accepted', { operation: request.operation });
-        }
         if (request.operation === 'playSong' || request.operation === 'playStation') current.playRevision++;
         const playRevision = current.playRevision;
         if (urgentPause) current.pausing = true;

@@ -206,6 +206,18 @@ describe('external playback route', () => {
         expect(usePlaybackStore.getState().isLoadingToPlay).toBe(false);
     });
 
+    it('shows a buffering start that then fails as paused, not loading', async () => {
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ starting: true, isPlaying: false, positionMs: 0 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(true);
+        omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(false);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
     it('does not mistake a seek jump for playback progress', async () => {
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 0 }));
         await engine.beginExternalPlayback(song, 0);
