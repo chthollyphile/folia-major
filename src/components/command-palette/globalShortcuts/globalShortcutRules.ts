@@ -15,9 +15,9 @@ import { isMacPlatform, runsOnWindows } from '../../../utils/platform';
 // The combination is the listener's: modifiers of their choice and any key on the list below. A
 // combination registered system-wide is taken from every program, and the ones other programs only
 // listen for inside their own window cannot be seen beforehand, so the families that are surely
-// someone's (no modifier, Shift alone, one modifier, the sets that type characters, text selection,
-// Tab and Win/Command with too few modifiers, and the combinations desktops hold by name) are refused
-// here; see refuseCombination. What is left may still be some program's own key, which the settings
+// someone's (no modifier, Shift alone, one modifier, the sets that type characters, Ctrl or Command
+// with Shift on a caret key, Tab and Win/Command with too few modifiers, and the combinations desktops
+// hold by name) are refused here; see refuseCombination. What is left may still be some program's own key, which the settings
 // say next to any combination other than the default trio with a letter or digit. What this cannot
 // see: layouts whose AltGr types characters with Shift (Polish Ą and the like).
 //
@@ -267,7 +267,8 @@ const RESERVED_ON: Record<GlobalShortcutSystem, ReadonlySet<string>> = {
 /** Linux switches to a text console on Ctrl+Alt+F1 to F12, below every desktop. */
 const CONSOLE_SWITCH_PATTERN = /^Control\+Alt\+F(?:[1-9]|1[0-2])$/;
 
-/** The keys that move the caret: with Shift and one more modifier they select (Ctrl+Shift+←, Alt+Shift+↓). */
+/** The keys that move the caret: with Shift and Ctrl or Command they select (Ctrl+Shift+←).
+ * Alt+Shift+← is not refused here: it is not a text-editing chord in most programs. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['up', 'down', 'left', 'right', 'home', 'end', 'pageup', 'pagedown', 'backspace', 'delete']);
 
 /** Modifier sets that type a character with a letter or digit instead of being a shortcut: Option and
@@ -293,7 +294,7 @@ export type GlobalShortcutKeyRefusal =
  * - one modifier with anything but F1–F24: copy, paste, undo, menu letters, Alt+Tab, Win+L, Cmd+Space,
  *   Ctrl+Space and the arrows' word and history moves all live there;
  * - the modifier sets that type characters with a letter or digit (TYPING_MODIFIER_SETS);
- * - Shift and one more modifier with a caret key: selecting and deleting text;
+ * - Shift with Ctrl or Command on a caret key: selecting and deleting text;
  * - Tab with fewer than three modifiers: window, app and tab switching (Alt+Shift+Tab, Cmd+Shift+Tab,
  *   Ctrl+Alt+Tab, Ctrl+Shift+Tab);
  * - Win/Command with fewer than three modifiers: Windows keeps nearly all of those (virtual desktops,
@@ -323,7 +324,8 @@ const refuseCombination = (
     if (isLetterOrDigit(key) && TYPING_MODIFIER_SETS.includes(held.join('+'))) {
         return 'types-character';
     }
-    if (CARET_KEYS.has(key) && held.length === 2 && held.includes('shift')) {
+    if (CARET_KEYS.has(key) && held.length === 2 && held.includes('shift')
+        && (held.includes('control') || held.includes('meta'))) {
         return 'edits-text';
     }
     if (key === 'tab' && held.length < 3) {
