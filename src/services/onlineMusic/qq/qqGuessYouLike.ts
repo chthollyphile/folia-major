@@ -16,8 +16,23 @@ export const QQ_GUESS_YOU_LIKE_STATION = 'guess-you-like';
 
 const FAMILIAR_NAME = '熟悉';
 const EXPLORE_NAME = '探索';
-const SCENE_CATEGORY = 'qq-scenes';
+const OTHER_CATEGORY = 'qq-other';
 const SUGGESTED_CATEGORY = 'qq-suggested';
+// 场景照默认私人 FM 目录的样子分成情绪、场景、曲风、语种几行，名字对不上的放「其他」；同一行里还是手机给的顺序。
+// 名字取自手机上的那一格，比对时不分大小写、不看空格。
+const SCENE_ROWS: { id: string; labelKey: string; labelFallback: string; names: string[] }[] = [
+    { id: 'mood', labelKey: 'personalFmMode.category.mood', labelFallback: 'Mood', names: ['深夜emo', '放松', '提神'] },
+    {
+        id: 'activity', labelKey: 'personalFmMode.category.activity', labelFallback: 'Moment',
+        names: ['宅家', '助眠', '暴汗时刻', '专注', '放假', '散步', '旅行', '起床', '通勤'],
+    },
+    { id: 'genre', labelKey: 'personalFmMode.category.genre', labelFallback: 'Genre', names: ['动感DJ', 'R&B', 'Kpop', 'Lo-fi音乐', '年代金曲', 'AI尝鲜'] },
+    { id: 'language', labelKey: 'personalFmMode.category.language', labelFallback: 'Language', names: ['粤语'] },
+];
+const OTHER_ROW = { id: OTHER_CATEGORY, labelKey: 'home.qqGuessYouLikeOther', labelFallback: 'Other' };
+const SUGGESTED_ROW = { id: SUGGESTED_CATEGORY, labelKey: 'home.qqGuessYouLikeSuggested', labelFallback: 'Suggested' };
+const sceneKey = (name: string): string => name.toLowerCase().replace(/\s+/g, '');
+const ROW_OF_SCENE = new Map(SCENE_ROWS.flatMap(row => row.names.map(name => [sceneKey(name), row.id] as const)));
 // 目录里的名字可能带「模式」（「探索模式」），比对时去掉。
 const modeNameOf = (entry: any): string => (typeof entry?.name === 'string' ? entry.name.trim().replace(/模式$/, '') : '');
 const CATALOG_TTL_MS = 10 * 60_000;
@@ -74,20 +89,22 @@ const readCatalog = async (): Promise<QqStationCatalog> => {
         else if (name === EXPLORE_NAME && !pools.explore) { pools.explore = pool; seen.add(pool); }
     }
     const others = listOf(answer?.primaryModes).filter(entry => ![FAMILIAR_NAME, EXPLORE_NAME, '默认'].includes(modeNameOf(entry)));
-    // 场景照手机那一格的顺序排一行，手机给的建议另排一行；上排其余的模式归进场景。
+    // 场景按名字分行（上排其余的模式也算场景）；手机给的建议另排一行，和场景重复的不再出现，去完是空的就没有这一行。
     const scenes: PersonalFmSceneEntry[] = [];
-    const add = (entries: any[], category: string) => {
+    const add = (entries: any[], categoryOf: (name: string) => string) => {
         for (const entry of entries) {
             const pool = poolOf(entry);
             const name = modeNameOf(entry);
             if (!pool || !name || seen.has(pool)) continue;
             seen.add(pool);
-            scenes.push({ id: pool, category, labelKey: '', labelFallback: name, keywords: [name, pool] });
+            scenes.push({ id: pool, category: categoryOf(name), labelKey: '', labelFallback: name, keywords: [name, pool] });
         }
     };
-    add([...listOf(answer?.scenes), ...others], SCENE_CATEGORY);
-    add(listOf(answer?.recommended), SUGGESTED_CATEGORY);
-    const has = (category: string) => scenes.some(scene => scene.category === category);
+    add([...listOf(answer?.scenes), ...others], name => ROW_OF_SCENE.get(sceneKey(name)) ?? OTHER_CATEGORY);
+    add(listOf(answer?.recommended), () => SUGGESTED_CATEGORY);
+    const rows = [...SCENE_ROWS, OTHER_ROW, SUGGESTED_ROW].filter(row => scenes.some(scene => scene.category === row.id));
+    // 选择器按目录里场景的先后排；先按行排好，同一行里保持原来的顺序。
+    scenes.sort((a, b) => rows.findIndex(row => row.id === a.category) - rows.findIndex(row => row.id === b.category));
     const modes = DEFAULT_PERSONAL_FM_CATALOG.modes.filter(mode => (
         mode.id === 'DEFAULT'
         || (mode.id === 'FAMILIAR' && pools.familiar)
@@ -99,10 +116,7 @@ const readCatalog = async (): Promise<QqStationCatalog> => {
         catalog: {
             name: STATION_NAME,
             modes,
-            categories: [
-                ...(has(SCENE_CATEGORY) ? [{ id: SCENE_CATEGORY, labelKey: 'personalFmMode.category.activity', labelFallback: 'Moment' }] : []),
-                ...(has(SUGGESTED_CATEGORY) ? [{ id: SUGGESTED_CATEGORY, labelKey: 'home.qqGuessYouLikeSuggested', labelFallback: 'Suggested' }] : []),
-            ],
+            categories: rows.map(({ id, labelKey, labelFallback }) => ({ id, labelKey, labelFallback })),
             scenes,
         },
         pools,

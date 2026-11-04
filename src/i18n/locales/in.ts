@@ -1823,6 +1823,7 @@ export default {
     "qqGuessYouLike": "Mungkin Kamu Suka",
     "qqGuessYouLikeDescription": "Radio Mungkin Kamu Suka dari QQ Music; ganti mode dengar saat diputar",
     "qqGuessYouLikeSuggested": "Saran",
+    "qqGuessYouLikeOther": "Lainnya",
     "personalFm": "FM Pribadi",
     "dailyRecommendations": "Rekomendasi Harian",
     "dailyRecommendationsDescription": "Campuran harian yang dibuat khusus untuk Anda",

@@ -1823,6 +1823,7 @@ export default {
     "qqGuessYouLike": "Guess You Like",
     "qqGuessYouLikeDescription": "QQ Music's Guess You Like radio; switch its listening mode while it plays",
     "qqGuessYouLikeSuggested": "Suggested",
+    "qqGuessYouLikeOther": "Other",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",

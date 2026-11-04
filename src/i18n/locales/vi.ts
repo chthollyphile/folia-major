@@ -1823,6 +1823,7 @@ export default {
     "qqGuessYouLike": "Có thể bạn thích",
     "qqGuessYouLikeDescription": "Đài Có thể bạn thích của QQ Music; đổi chế độ nghe khi đang phát",
     "qqGuessYouLikeSuggested": "Gợi ý",
+    "qqGuessYouLikeOther": "Khác",
     "personalFm": "FM cá nhân",
     "dailyRecommendations": "Gợi ý hàng ngày",
     "dailyRecommendationsDescription": "Bản phối hàng ngày dành riêng cho bạn",

@@ -117,11 +117,43 @@ describe('QQ Guess You Like station', () => {
         expect(catalog.modes.map(entry => entry.id)).toEqual(['DEFAULT', 'FAMILIAR', 'EXPLORE', 'SCENE_RCMD']);
         // Named after the radio, so the picker reads "Guess You Like mode".
         expect(catalog.name).toEqual({ labelKey: 'home.qqGuessYouLike', labelFallback: 'Guess You Like' });
-        // The phone's scene grid in its order, and its suggestions on a row of their own.
+        // Scenes on the rows their names belong to, and the suggestions not already offered on a row of their own.
         expect(catalog.scenes.map(entry => [entry.id, entry.labelFallback, entry.category])).toEqual([
-            ['7111', '助眠', 'qq-scenes'], ['7112', 'R&B', 'qq-scenes'], ['7113', '动感 DJ', 'qq-suggested'],
+            ['7111', '助眠', 'activity'], ['7112', 'R&B', 'genre'], ['7113', '动感 DJ', 'qq-suggested'],
         ]);
-        expect(catalog.categories.map(category => category.id)).toEqual(['qq-scenes', 'qq-suggested']);
+        expect(catalog.categories.map(category => category.id)).toEqual(['activity', 'genre', 'qq-suggested']);
+    });
+
+    it('groups the scenes by name into mood, moment, genre and language rows, the unknown ones under other', async () => {
+        answer({
+            user_guess_you_like_modes: {
+                ...MODES,
+                primaryModes: [...MODES.primaryModes, mode('4', '音乐视频', '7104')],
+                scenes: [
+                    mode('21', '动感DJ', '7121'), mode('22', '宅家', '7122'), mode('23', 'R&B', '7123'), mode('24', '助眠', '7124'),
+                    mode('25', '粤语', '7125'), mode('26', '深夜emo', '7126'), mode('27', '新歌', '7127'), mode('28', 'KPOP', '7128'),
+                    mode('29', '放松', '7129'), mode('30', 'AI尝鲜', '7130'), mode('31', '经典再绎', '7131'),
+                ],
+                // Every suggestion is already offered above, so there is no suggestion row.
+                recommended: [mode('22', '宅家', '7122'), mode('3', '熟悉', '7103')],
+            },
+        });
+        const catalog = await qqRecommendations.getPersonalFmCatalog!(QQ_GUESS_YOU_LIKE_STATION);
+        // Row by row, each row in the order QQ gave; the flat order is the order the picker walks.
+        expect(catalog.scenes.map(entry => [entry.labelFallback, entry.category])).toEqual([
+            ['深夜emo', 'mood'], ['放松', 'mood'],
+            ['宅家', 'activity'], ['助眠', 'activity'],
+            ['动感DJ', 'genre'], ['R&B', 'genre'], ['KPOP', 'genre'], ['AI尝鲜', 'genre'],
+            ['粤语', 'language'],
+            ['新歌', 'qq-other'], ['经典再绎', 'qq-other'], ['音乐视频', 'qq-other'],
+        ]);
+        expect(catalog.categories).toEqual([
+            { id: 'mood', labelKey: 'personalFmMode.category.mood', labelFallback: 'Mood' },
+            { id: 'activity', labelKey: 'personalFmMode.category.activity', labelFallback: 'Moment' },
+            { id: 'genre', labelKey: 'personalFmMode.category.genre', labelFallback: 'Genre' },
+            { id: 'language', labelKey: 'personalFmMode.category.language', labelFallback: 'Language' },
+            { id: 'qq-other', labelKey: 'home.qqGuessYouLikeOther', labelFallback: 'Other' },
+        ]);
     });
 
     it('falls back to the default mode alone when the catalogue cannot be read, and reads it again later', async () => {

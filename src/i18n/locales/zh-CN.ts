@@ -1823,6 +1823,7 @@ export default {
     "qqGuessYouLike": "猜你喜欢",
     "qqGuessYouLikeDescription": "QQ 音乐的猜你喜欢电台，播放时可以换听歌模式",
     "qqGuessYouLikeSuggested": "为你建议",
+    "qqGuessYouLikeOther": "其他",
     "personalFm": "私人FM",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",
