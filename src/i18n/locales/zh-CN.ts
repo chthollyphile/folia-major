@@ -3434,6 +3434,8 @@ export default {
     "latentMeshSwirl": "流体旋涡",
     "nomandBackgroundUploadSuccess": "背景图片上传成功",
     "nomandBackgroundUploadFailed": "背景图片上传失败",
+    "monetPortraitPositionHint": "点击开始调整封面位置，拖动后再次点击保存。",
+    "monetPortraitPositionEditing": "拖动调整封面位置，再次点击保存；也可使用方向键。",
     "monetKeywordColoring": "关键字着色",
     "monetBackgroundLayout": "布局模式",
     "monetLayoutFullOverlay": "全屏叠色",

@@ -3433,6 +3433,8 @@ export default {
     "latentMeshSwirl": "Xoáy chất lỏng",
     "nomandBackgroundUploadSuccess": "Đã tải lên ảnh nền",
     "nomandBackgroundUploadFailed": "Tải lên ảnh nền thất bại",
+    "monetPortraitPositionHint": "Nhấn để điều chỉnh vị trí ảnh bìa, kéo rồi nhấn lại để lưu.",
+    "monetPortraitPositionEditing": "Kéo để điều chỉnh vị trí ảnh bìa; nhấn lại để lưu. Cũng có thể dùng phím mũi tên.",
     "monetKeywordColoring": "Tô màu từ khóa",
     "monetBackgroundLayout": "Chế độ bố cục",
     "monetLayoutFullOverlay": "Phủ toàn màn hình",

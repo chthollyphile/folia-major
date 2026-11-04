@@ -3433,6 +3433,8 @@ export default {
     "latentMeshSwirl": "Pusaran Fluid",
     "nomandBackgroundUploadSuccess": "Gambar latar belakang diunggah",
     "nomandBackgroundUploadFailed": "Gagal mengunggah gambar latar belakang",
+    "monetPortraitPositionHint": "Klik untuk mengatur posisi sampul, geser, lalu klik lagi untuk menyimpan.",
+    "monetPortraitPositionEditing": "Geser untuk mengatur posisi sampul; klik lagi untuk menyimpan. Tombol panah juga dapat digunakan.",
     "monetKeywordColoring": "Pewarnaan Kata Kunci",
     "monetBackgroundLayout": "Mode Tata Letak",
     "monetLayoutFullOverlay": "Overlay Penuh",
