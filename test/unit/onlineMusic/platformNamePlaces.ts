@@ -35,6 +35,8 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'api/qq.js': { n: { qq: 10 }, kind: 'main', why: 'the built copy of api-ts/qq.ts' },
     'electron/aiCredentialStore.cjs': { n: { qq: 1, kugou: 1, bodian: 1 }, kind: 'doc' },
     'electron/backendLifecycle.cjs': { n: { netease: 1, qq: 1 }, kind: 'doc' },
+    'electron/dux/nowPlayingBridge.cjs': { n: { appleMusic: 2 }, kind: 'doc', why: 'the desktop player Apple Music that Dux Shell follows (its titles are looked up in the iTunes catalog), not the Apple Music platform' },
+    'electron/dux/titleResolver.cjs': { n: { appleMusic: 2 }, kind: 'doc', why: 'the desktop player Apple Music whose translated titles the iTunes catalog resolves, not the Apple Music platform' },
     'electron/linuxPasswordStore.cjs': { n: { qq: 1, kugou: 1 }, kind: 'main' },
     'electron/loginBackendIpc.cjs': { n: { netease: 6, qq: 6 }, kind: 'main', why: 'the IPC channels of the two embedded backends and the table that finds a backend by its platform id' },
     'electron/main.cjs': { n: { netease: 8, qq: 15, kugou: 25, bodian: 12, ytm: 23, spotify: 24, qishui: 10, fnmusic: 15, appleMusic: 6 }, kind: 'main', why: 'starts each platform\'s local service and bridge, its IPC channels, its media hosts; raised by the upstream merge 2026-10-17; spotify +1 for the list of bridges a quit waits for (2026-10-22); fnmusic by the pr-fnmusic bridge back into the repo (2026-10-26); appleMusic +6 for the companion client, native resource resolver, its IPC channel and the quit hook' },
