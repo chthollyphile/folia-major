@@ -6367,6 +6367,16 @@ let isAppQuitting = false;
 
 let isSwappingMainWindow = false;
 
+// Alt+Space opens Windows' window menu: Chromium hands the Space keydown to it before the page
+// sees it, so a shortcut that holds Alt and Space can never be recorded. The windows here draw no
+// frame of their own, and the menu is not wanted, so it is refused for every window; the Space
+// release still reaches the page, where the recorder picks the combination up.
+app.on('browser-window-created', (_event, window) => {
+  window.on('system-context-menu', (event) => {
+    event.preventDefault();
+  });
+});
+
 app.on('window-all-closed', () => {
   if (isSwappingMainWindow) {
     return;
