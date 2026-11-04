@@ -5,6 +5,7 @@ import {
     formatGlobalShortcutPart,
     GLOBAL_SHORTCUT_COMMAND_IDS,
     globalShortcutKeyLabels,
+    globalShortcutWarning,
     isDefaultGlobalShortcutCombination,
     isGlobalShortcutCommand,
     isGlobalShortcutKey,
@@ -103,16 +104,24 @@ describe('refuseGlobalShortcutChord', () => {
     });
 
     it('refuses the modifier sets that type characters with a letter or digit, and only with those', () => {
-        // Option and Option+Shift on macOS; Ctrl+Alt is AltGr on Windows.
-        expect(refuseGlobalShortcutChord('e', ['control', 'alt'], 0, empty())).toBe('types-character');
-        expect(refuseGlobalShortcutChord('2', ['control', 'alt'], 0, empty())).toBe('types-character');
+        // Option and Option+Shift on macOS.
         expect(refuseGlobalShortcutChord('k', ['alt', 'shift'], 0, empty())).toBe('types-character');
+        expect(refuseGlobalShortcutChord('2', ['alt', 'shift'], 0, empty())).toBe('types-character');
         // A named key types nothing with them.
-        expect(refuseGlobalShortcutChord('space', ['control', 'alt'], 0, empty())).toBeNull();
         expect(refuseGlobalShortcutChord('space', ['alt', 'shift'], 0, empty())).toBeNull();
         // Other pairs, and the trio, keep their letters.
         expect(refuseGlobalShortcutChord('e', ['control', 'shift'], 0, empty())).toBeNull();
         expect(refuseGlobalShortcutChord('e', TRIO, 0, empty())).toBeNull();
+    });
+
+    it('takes Ctrl+Alt with a letter or digit, the music players’ default (Ctrl+Alt+P)', () => {
+        for (const system of ['windows', 'mac', 'linux'] as const) {
+            expect(refuseGlobalShortcutChord('p', ['control', 'alt'], 0, empty(), system), system).toBeNull();
+            expect(refuseGlobalShortcutChord('2', ['control', 'alt'], 0, empty(), system), system).toBeNull();
+        }
+        // Except what a Linux desktop holds: Ubuntu's terminal and lock screen.
+        expect(refuseGlobalShortcutChord('t', ['control', 'alt'], 0, empty(), 'linux')).toBe('reserved');
+        expect(refuseGlobalShortcutChord('t', ['control', 'alt'], 0, empty(), 'windows')).toBeNull();
     });
 
     it('refuses Shift and one more modifier with a caret key: selecting and deleting text', () => {
@@ -168,8 +177,8 @@ describe('refuseGlobalShortcutChord', () => {
             expect(linux(key, modifiers), `${modifiers.join('+')}+${key}`).toBe('reserved');
             expect(windows(key, modifiers), `${modifiers.join('+')}+${key}`).toBeNull();
         }
-        // Ctrl+Alt+T and L type characters with AltGr anyway, everywhere.
-        expect(windows('t', ['control', 'alt'])).toBe('types-character');
+        expect(linux('l', ['control', 'alt'])).toBe('reserved');
+        expect(windows('l', ['control', 'alt'])).toBeNull();
         // The console keys end at F12.
         expect(linux('f13', ['control', 'alt'])).toBeNull();
         expect(linux('p', ['control', 'alt', 'meta'])).toBeNull();
@@ -192,6 +201,18 @@ describe('refuseGlobalShortcutChord', () => {
         // The trio with an arrow is how some desktops move windows between workspaces.
         expect(isDefaultGlobalShortcutCombination('right', TRIO)).toBe(false);
         expect(isDefaultGlobalShortcutCombination('f5', TRIO)).toBe(false);
+    });
+
+    it('warns about AltGr for Ctrl+Alt with a letter or digit on Windows, and about other programs otherwise', () => {
+        expect(globalShortcutWarning('p', ['control', 'alt'], 'windows')).toBe('altgr');
+        expect(globalShortcutWarning('7', ['alt', 'control'], 'windows')).toBe('altgr');
+        // AltGr is its own key on macOS and Linux; a named key types nothing.
+        expect(globalShortcutWarning('p', ['control', 'alt'], 'mac')).toBe('custom');
+        expect(globalShortcutWarning('p', ['control', 'alt'], 'linux')).toBe('custom');
+        expect(globalShortcutWarning('right', ['control', 'alt'], 'windows')).toBe('custom');
+        expect(globalShortcutWarning('p', ['control', 'shift'], 'windows')).toBe('custom');
+        // The default trio with a letter or digit says nothing.
+        expect(globalShortcutWarning('p', TRIO, 'windows')).toBeNull();
     });
 
     it('refuses a combination another slot holds, and only that one', () => {
@@ -311,7 +332,7 @@ describe('resolveActiveGlobalShortcuts', () => {
         const bindings = empty();
         bindings[0] = bind('c', 'playback-toggle', ['control']);
         bindings[1] = bind('a', 'playback-next', ['shift']);
-        bindings[2] = bind('e', 'playback-prev', ['control', 'alt']);
+        bindings[2] = bind('k', 'playback-prev', ['alt', 'shift']);
         bindings[3] = bind('f4', 'playback-mute', ['alt']);
         bindings[4] = bind('n', 'playback-loop');
         expect(resolveActiveGlobalShortcuts(bindings).map(shortcut => shortcut.accelerator)).toEqual([
