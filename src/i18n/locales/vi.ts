@@ -1521,7 +1521,11 @@ export default {
     "noteDeviceLimit": "Vui lòng đăng xuất khỏi các thiết bị không dùng trên điện thoại rồi thử lại",
     "noteWrongScanApp": "Vui lòng quét bằng ứng dụng tương ứng với phương thức đăng nhập này, hoặc chọn phương thức khác",
     "noteCloseBrowser": "Vui lòng đóng trình duyệt đó rồi thử lại",
-    "noteUnknown": "Lỗi không xác định"
+    "noteUnknown": "Lỗi không xác định",
+    "submit": "Gửi",
+    "submitting": "Đang gửi…",
+    "formErrorUnknown": "Đăng nhập thất bại. Kiểm tra thông tin đã nhập và thử lại.",
+    "formLoggedInRefreshFailed": "Đã đăng nhập nhưng không tải được tài khoản. Thử lại hoặc mở lại cửa sổ đăng nhập.",
   },
   "failure": {
     "unreachable": "Không thể kết nối tới {{provider}}",
@@ -1583,6 +1587,8 @@ export default {
     "loginNoteQishui": "Quét mã bằng ứng dụng Douyin và xác nhận ủy quyền",
     "loginTitleBodian": "Quét bằng Bodian Music",
     "loginNoteBodian": "Mở ứng dụng Bodian Music quét mã QR và xác nhận đăng nhập",
+    "loginTitleFnMusic": "Đăng nhập fnOS Music",
+    "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginNoteYtmBrowser": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
     "loginNoteYtmBrowserMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
@@ -1860,6 +1866,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",
@@ -4464,6 +4471,19 @@ export default {
     "cloudDrive": "Ổ đĩa đám mây",
     "cloudDriveDesc": "Ổ đĩa NetEase Cloud Music",
     "qqCloudDriveDesc": "Ổ nhạc đám mây Weiyun",
+  },
+  "fnmusic": {
+    "serverUrl": "Địa chỉ máy chủ",
+    "serverUrlPlaceholder": "vd: http://192.168.1.10:5666",
+    "username": "Tài khoản",
+    "usernamePlaceholder": "Tài khoản fnOS Music hoặc tài khoản NAS",
+    "password": "Mật khẩu",
+    "login": "Đăng nhập",
+    "loginNote": "Nhập địa chỉ máy chủ, tài khoản và mật khẩu fnOS Music",
+    "errorBadCredentials": "Sai tài khoản hoặc mật khẩu",
+    "errorNetwork": "Không thể kết nối máy chủ. Kiểm tra địa chỉ và kết nối của bạn.",
+    "errorBadResponse": "Máy chủ trả về phản hồi không nhận dạng được",
+    "errorBadServerUrl": "Địa chỉ máy chủ không hợp lệ, ví dụ: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

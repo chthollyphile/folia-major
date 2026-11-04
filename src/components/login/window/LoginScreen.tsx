@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryLoginSessionSnapshot } from '../../../library/core/account/account.contract';
+import type { LibraryLoginCompletion, LibraryLoginSessionSnapshot } from '../../../library/core/account/account.contract';
 import { resolveLoginSessionReportRoute, translateLoginSelfCheck } from '../../../library/core/account/useLibraryAccount';
 import { LOGIN_REPORT_ELSEWHERE_COPY, retryOpensAt } from '../../../library/core/account/accountRules';
 import { providerDisplayName } from '../../../i18n/providerName';
@@ -17,6 +17,7 @@ import { LOGIN_CASE_TEXTS } from './loginCaseTexts';
 import LoginMessage, { LoginDetails, type MessageAction } from './LoginMessage';
 import LoginTile from './LoginTile';
 import { accountView, failureNoteKey, failureQuote, loginScene, sceneHeadline, stepMarks, type RowLead } from './loginView';
+import FormLogin from './FormLogin';
 import LoginWindow from './LoginWindow';
 import PlatformColumn from './PlatformColumn';
 
@@ -39,6 +40,8 @@ export type LoginScreenProps = {
     onChoose: (providerId: OnlineProviderId) => void;
     /** 开始（浏览器登录的那一下），或者重来，保留选过的登录方式。 */
     onStart: () => void;
+    /** 表单式登录提交（走账户 controller 的完整链路：提交 → 读账号 → 报完成）；返回登录完成结局。 */
+    onSubmitForm: (providerId: OnlineProviderId, values: Record<string, string>) => Promise<LibraryLoginCompletion>;
     /** 用这种登录方式开始（任何时候都可以换）。 */
     onSelectMethod: (methodId: string) => void;
     onReopenBrowser: () => void;
@@ -74,7 +77,7 @@ const useReached = (at: number): boolean => {
 };
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
-    isOpen, onClose, rows, activeProviderId, chosen, login, onChoose, onStart, onSelectMethod, onReopenBrowser, onRestartService, onSwitch, onSignOut,
+    isOpen, onClose, rows, activeProviderId, chosen, login, onChoose, onStart, onSubmitForm, onSelectMethod, onReopenBrowser, onRestartService, onSwitch, onSignOut,
     buildReport, origin, done = false, onDoneLeave = nothing, onDoneEnd = nothing,
 }) => {
     const { t } = useTranslation();
@@ -85,7 +88,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const inBrowser = login?.inBrowser ?? false;
     const service = login?.localService ?? null;
     const failure: LoginFailure | null = providerId ? login?.failure ?? null : null;
-    const scene = loginScene({ lead: chosen?.lead ?? null, phase: login?.phase ?? null, inBrowser, failed: Boolean(failure) });
+    const scene = loginScene({ lead: chosen?.lead ?? null, phase: login?.phase ?? null, inBrowser, failed: Boolean(failure), providerId });
     const texts = login?.texts ?? null;
     const retry = onStart;
     const retryLabel = t(inBrowser ? 'home.loginBrowserRetry' : 'home.retryQr');
@@ -151,6 +154,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         // 'title'：平台自己的登录标题；没有声明的平台是「登录到 平台名」。
         headline = key.includes('.') ? t(key) : texts ? t(texts.title) : t('home.loginToProvider', { provider: label });
         if (texts && scene !== 'none' && scene !== 'scanned' && scene !== 'reading') note = t(texts.note);
+        if (scene === 'form' && texts) {
+            // 表单式登录：窗口标题条已经说了「登录到 平台名」，这里用平台的说明当标题，不再重复「登录…」。
+            headline = t(texts.note);
+            note = undefined;
+        }
         if (scene === 'browser-ready') actions = [{ label: t('login.openBrowser'), primary: true, onClick: onStart }];
         if (scene === 'browser' && login?.canReopenLoginPage) actions = [{ label: t('home.loginBrowserOpen'), onClick: onReopenBrowser }];
     }
@@ -224,23 +232,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     pendingText={t('home.loginMethodPending')}
                 />
             )}
-            message={(
-                <LoginMessage
-                    sceneKey={sceneKey}
-                    headline={headline}
-                    note={note}
-                    quote={quote}
-                    methods={login && login.methods.length > 0 && chosen?.lead === 'sign-in' ? {
-                        options: login.methods.map(method => ({ value: method.id, label: t(method.labelKey), icon: loginMethodIcon(method.iconKey) })),
-                        value: login.selectedMethodId,
-                        onChange: onSelectMethod,
-                    } : undefined}
-                    actions={actions}
-                    waitFor={waitFor}
-                    details={details ? { open: detailsOpen, onToggle: () => setDetailsOpen(open => !open) } : undefined}
-                    steps={stepMarks(scene, inBrowser)}
-                />
-            )}
+            message={scene === 'form' && providerId
+                ? <FormLogin providerId={providerId} onSubmitForm={values => onSubmitForm(providerId, values)} />
+                : (
+                    <LoginMessage
+                        sceneKey={sceneKey}
+                        headline={headline}
+                        note={note}
+                        quote={quote}
+                        methods={login && login.methods.length > 0 && chosen?.lead === 'sign-in' ? {
+                            options: login.methods.map(method => ({ value: method.id, label: t(method.labelKey), icon: loginMethodIcon(method.iconKey) })),
+                            value: login.selectedMethodId,
+                            onChange: onSelectMethod,
+                        } : undefined}
+                        actions={actions}
+                        waitFor={waitFor}
+                        details={details ? { open: detailsOpen, onToggle: () => setDetailsOpen(open => !open) } : undefined}
+                        steps={stepMarks(scene, inBrowser)}
+                    />
+                )}
             below={details ? <Unfold open={detailsOpen}>{details}</Unfold> : undefined}
         />
         {shownDone && providerId && <LoginDoneFlight parts={doneParts} providerId={providerId} label={label} user={summary?.user ?? null} />}

@@ -33,6 +33,7 @@ export const PLATFORM_NAMES = {
     ytm: /ytm|youtube/i,
     spotify: /spotify/i,
     qishui: /qishui|汽水音乐/i,
+    fnmusic: /fnmusic|飞牛/i,
 } as const;
 
 export type CountedPlatform = keyof typeof PLATFORM_NAMES;

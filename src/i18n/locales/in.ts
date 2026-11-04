@@ -1521,7 +1521,11 @@ export default {
     "noteDeviceLimit": "Keluar dari perangkat yang tidak dipakai di ponsel, lalu coba lagi",
     "noteWrongScanApp": "Pindai dengan aplikasi untuk metode masuk ini, atau pilih metode lain",
     "noteCloseBrowser": "Tutup browser itu, lalu coba lagi",
-    "noteUnknown": "Kesalahan tidak diketahui"
+    "noteUnknown": "Kesalahan tidak diketahui",
+    "submit": "Kirim",
+    "submitting": "Mengirim…",
+    "formErrorUnknown": "Gagal masuk. Periksa isian Anda dan coba lagi.",
+    "formLoggedInRefreshFailed": "Berhasil masuk, tetapi akun tidak dapat dimuat. Coba lagi atau buka ulang jendela masuk.",
   },
   "failure": {
     "unreachable": "Tidak dapat terhubung ke {{provider}}",
@@ -1583,6 +1587,8 @@ export default {
     "loginNoteQishui": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi",
     "loginTitleBodian": "Pindai dengan Bodian Music",
     "loginNoteBodian": "Pindai kode ini dengan aplikasi Bodian Music dan konfirmasi masuk",
+    "loginTitleFnMusic": "Masuk ke fnOS Music",
+    "loginNoteFnMusic": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginNoteYtmBrowser": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
     "loginNoteYtmBrowserMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
@@ -1860,6 +1866,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
@@ -4464,6 +4471,19 @@ export default {
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive"
+  },
+  "fnmusic": {
+    "serverUrl": "Alamat server",
+    "serverUrlPlaceholder": "cth: http://192.168.1.10:5666",
+    "username": "Akun",
+    "usernamePlaceholder": "Akun fnOS Music atau akun NAS",
+    "password": "Kata sandi",
+    "login": "Masuk",
+    "loginNote": "Masukkan alamat server, akun, dan kata sandi fnOS Music",
+    "errorBadCredentials": "Akun atau kata sandi salah",
+    "errorNetwork": "Tidak dapat menghubungi server. Periksa alamat dan koneksi Anda.",
+    "errorBadResponse": "Server mengembalikan respons yang tidak dikenali",
+    "errorBadServerUrl": "Alamat server tidak valid, contoh: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

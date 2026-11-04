@@ -36,6 +36,10 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus',
         'getLoginTexts', 'getLoginTtlMs', 'logout', 'signInRanOut', 'startLogin',
     ],
+    // 表单式登录：不扫码不开浏览器，登录窗口按 getLoginForm 声明渲染账号密码表单。
+    fnmusic: [
+        'checkLogin', 'describeLoginFailure', 'getLoginForm', 'getLoginStatus', 'getLoginTexts', 'logout', 'startLogin', 'submitLoginForm',
+    ],
 };
 
 describe('the sign-in members of each built-in platform', () => {

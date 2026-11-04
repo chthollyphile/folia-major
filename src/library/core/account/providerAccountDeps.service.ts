@@ -65,6 +65,11 @@ export const readProviderAccount: LibraryProviderAccountPort['refresh'] = async 
     return reason === 'switch' || outcome === 'read' || outcome === 'not read';
 };
 
+/** 提交表单式登录（FormLogin 渲染的字段）：转 omni.submitLoginForm，失败抛 OnlineProviderError。 */
+export const submitProviderLoginForm: LibraryProviderAccountPort['submitLoginForm'] = async (providerId, values) => {
+    await omni.submitLoginForm(providerId, values);
+};
+
 /** window 定时器（调用时才读 window，模块加载不依赖浏览器环境）。 */
 export const windowAccountClock: LibraryAccountClock = {
     now: () => Date.now(),
@@ -104,6 +109,7 @@ export const createProviderAccountDeps = (host: ProviderAccountHostPorts): Libra
     accounts: accountStorePort,
     providerAccounts: {
         refresh: readProviderAccount,
+        submitLoginForm: submitProviderLoginForm,
         logout: host.logout,
         confirmLogout: host.confirmLogout,
     },
