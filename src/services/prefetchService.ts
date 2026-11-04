@@ -420,6 +420,7 @@ const prefetchSong = async (
                             album: metadata.album?.name,
                             preferredSource: settingsLyricSettings.preferredAlternativeLyricSource,
                             alternateArtist: () => omni.getAlternateArtistName(song),
+                            searchAlias: () => omni.getLyricSearchAlias(song),
                             ...(ownLyricSource
                                 ? { providerCandidate: {
                                     providerId: ownLyricSource.id,

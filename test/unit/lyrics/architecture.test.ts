@@ -98,7 +98,9 @@ describe('lyrics architecture', () => {
         ];
 
         for (const file of callers) {
-            expect(await readRepoFile(file), file).toMatch(/alternateArtist: \(\) => omni\.getAlternateArtistName\(/);
+            const content = await readRepoFile(file);
+            expect(content, file).toMatch(/alternateArtist: \(\) => omni\.getAlternateArtistName\(/);
+            expect(content, file).toMatch(/searchAlias: \(\) => omni\.getLyricSearchAlias\(/);
         }
     });
 

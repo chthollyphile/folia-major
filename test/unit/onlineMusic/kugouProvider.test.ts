@@ -306,6 +306,38 @@ describe('kugouProvider', () => {
         expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
     });
 
+    // 专辑曲目：歌名带后缀，后缀另在 trans_param.songname_suffix，没有 OriSongName（2026-11-05 album_songs 实测）。
+    it('takes the suffix off an album track title and offers the rest as the lyric search alias', async () => {
+        const song = normalizeKugouSong({
+            hash: 'ab12cd',
+            base: { audio_name: '夜に駆ける (向夜晚奔去)', author_name: 'YOASOBI' },
+            trans_param: { songname_suffix: '(向夜晚奔去)' },
+            authors: [{ author_name: 'YOASOBI' }],
+            album_info: { album_name: '夜に駆ける' },
+        });
+
+        expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '夜に駆ける', artist: 'YOASOBI', album: '夜に駆ける',
+        });
+    });
+
+    // 搜索条目没有 SongName：歌名取自 OriSongName，本来就是原名（2026-11-04 实测）。
+    it('offers no alias when the title already is OriSongName', async () => {
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            FileName: 'YOASOBI - 夜に駆ける (向夜晚奔去)',
+            OriSongName: '夜に駆ける',
+            Suffix: '(向夜晚奔去)',
+            SingerName: 'YOASOBI',
+        });
+
+        expect(song.name).toBe('夜に駆ける');
+        expect(song.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toBeNull();
+    });
+
     it('keeps a high-resolution canonical KuGou cover for templates and sized CDN URLs', () => {
         const templateSong = normalizeKugouSong({
             FileHash: 'template-cover',
