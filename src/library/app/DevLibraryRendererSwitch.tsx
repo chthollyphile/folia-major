@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { listLibrarySuites } from '../registry';
 import { useActiveLibrarySuiteId } from './librarySuiteChoice';
 import { switchLibrarySuite } from './switchLibrarySuite';
+import { resolveReducedMotion, useMotionSettingsStore } from '../../stores/useMotionSettingsStore';
 
 // src/library/app/DevLibraryRendererSwitch.tsx
 // 开发验证浮层：在各套 UI suite 之间切换当前打开的集合，
@@ -26,6 +27,7 @@ const DevLibraryRendererSwitch: React.FC<{ sessionKey: string; placement?: keyof
 }) => {
     const { t } = useTranslation();
     const activeSuite = useActiveLibrarySuiteId();
+    const reduceMotion = useMotionSettingsStore(state => resolveReducedMotion(state, 'uiMicroMotion'));
 
     return (
         <div
@@ -46,7 +48,7 @@ const DevLibraryRendererSwitch: React.FC<{ sessionKey: string; placement?: keyof
                     data-suite={suite.id}
                     aria-pressed={activeSuite === suite.id}
                     onClick={() => switchLibrarySuite(sessionKey, suite.id)}
-                    className={`rounded-full px-2 py-0.5 ${activeSuite === suite.id ? 'bg-current/15 font-bold' : 'opacity-60 hover:opacity-100'}`}
+                    className={`rounded-full px-2 py-0.5 ${reduceMotion ? 'transition-none' : 'transition-[background-color,opacity] duration-150'} ${activeSuite === suite.id ? 'bg-current/15 font-bold' : 'opacity-60 hover:opacity-100'}`}
                 >
                     {t(suite.labelKey)}
                 </button>
