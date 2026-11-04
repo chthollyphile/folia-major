@@ -64,7 +64,7 @@ export default defineVisualizer({
     //   its strength scales the jolts. A drumless or not yet analysed track keeps the random ones.
     // 舞潮踏拍, off Beat This!' beats, the aquarium's own (nebbiaAquarium.ts): the jellyfish pulse, the seaweed
     // sways, a row of big bubbles rises from the sand (no random big bubbles while it is on) and the spotlight's pool swells on each beat, one strength each. Counted only while the
-    // aquarium is drawn, and 疏雨轻车 only while it is not - the aquarium has no rain on the glass and no bumps
+    // aquarium is chosen (drawn, or refracted in the drops on a see-through page), and 疏雨轻车 only while it is not - the aquarium has no rain on the glass and no bumps
     // (beatEffectOnScreen).
     beatEffects: [
         {

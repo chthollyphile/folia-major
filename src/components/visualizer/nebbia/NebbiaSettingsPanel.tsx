@@ -112,7 +112,7 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
     const resolved = tuning ?? DEFAULT_NEBBIA_TUNING;
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
     const aquarium = resolved.behind === 'aquarium';
-    // 播放页透明时窗外固定透出后面：提示换一句，说明这里的选择只影响预览和关掉透明后的样子（开着原生模糊也算透明，和 App.tsx 的 isPlayerPageTransparent 一样）
+    // 播放页透明时窗外固定透出后面：提示换一句，说明这里选的只决定水珠里折射什么（开着原生模糊也算透明，和 App.tsx 的 isPlayerPageTransparent 一样）
     const transparent = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground || state.enablePlayerPageNativeBlur);
     // 开关和雨的文案：水族箱换一套说法
     const sceneryKey = aquarium ? 'options.nebbiaAquaScenery' : 'options.nebbiaScenery';
