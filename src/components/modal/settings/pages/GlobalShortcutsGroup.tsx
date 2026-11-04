@@ -8,12 +8,13 @@ import {
     PORTAL_GLOBAL_SHORTCUTS,
     formatGlobalShortcutPart,
     globalShortcutKeyLabels,
-    isDefaultGlobalShortcutCombination,
+    globalShortcutWarning,
     parseGlobalShortcutChord,
     readGlobalShortcutChord,
     refuseGlobalShortcutChord,
     toGlobalShortcutAccelerator,
     type GlobalShortcutKeyRefusal,
+    type GlobalShortcutWarning,
 } from '../../../command-palette/globalShortcuts/globalShortcutRules';
 import { useGlobalShortcutStatusStore } from '../../../command-palette/globalShortcuts/globalShortcutStatusStore';
 import { useFoliumGlobalShortcutCommands } from '../../../../mods/folium/registries/globalShortcutCommands';
@@ -52,6 +53,11 @@ const REFUSAL_KEYS: Record<GlobalShortcutKeyRefusal, string> = {
     'unsupported-key': 'options.globalShortcutUnsupportedKey',
     reserved: 'options.globalShortcutReserved',
     duplicate: 'options.globalShortcutDuplicate',
+};
+
+const WARNING_KEYS: Record<GlobalShortcutWarning, string> = {
+    altgr: 'options.globalShortcutAltGrCombination',
+    custom: 'options.globalShortcutCustomCombination',
 };
 
 export const GlobalShortcutsGroup: React.FC = () => {
@@ -127,12 +133,13 @@ export const GlobalShortcutsGroup: React.FC = () => {
                 const isRefused = !missing && Boolean(accelerator && binding.commandId)
                     && refused.includes(accelerator);
                 // Past the refusals, a combination other than the default trio with a letter or digit
-                // may still be some program's own key, which no registration reveals: said under its row.
-                const isCustom = Boolean(binding.key) && !isDefaultGlobalShortcutCombination(binding.key ?? '', binding.modifiers);
+                // may still be some program's own key, or a character AltGr types, which no registration
+                // reveals: said under its row.
+                const warning = binding.key ? globalShortcutWarning(binding.key, binding.modifiers) : null;
                 const below = missing
                     ? <Status tone="warn">{t(missing.reason === 'mod-inactive' ? 'options.globalShortcutModInactive' : 'options.globalShortcutModCommandMissing')}</Status>
                     : isRefused ? <Status tone="error">{t('options.globalShortcutTakenBySystem')}</Status>
-                        : isCustom ? <Status tone="warn">{t('options.globalShortcutCustomCombination')}</Status> : undefined;
+                        : warning ? <Status tone="warn">{t(WARNING_KEYS[warning])}</Status> : undefined;
                 // The bound command stays the shown value while its mod is away; its label is not known then.
                 const options = missing && binding.commandId
                     ? [...commandOptions, {
