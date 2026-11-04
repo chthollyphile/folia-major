@@ -77,7 +77,7 @@ export default function WindowControls({
 
     return (
         <div
-            className={`flex h-full ${isDaylight ? 'text-zinc-800' : 'text-[var(--text-primary)]'}`}
+            className={`flex h-full ${isMac ? '[&_svg]:translate-y-1' : ''} ${isDaylight ? 'text-zinc-800' : 'text-[var(--text-primary)]'}`}
             style={{
                 WebkitAppRegion: 'no-drag',
                 pointerEvents: 'none',
