@@ -8,6 +8,10 @@
     --bravais-seam-paper: color-mix(in srgb, var(--bg-color, #070707) 90%, var(--text-primary, #f7f4ee));
     --bravais-seam-ink-soft: color-mix(in srgb, var(--text-primary, #f7f4ee) 55%, transparent);
     --bravais-chrome-shadow: rgb(0 0 0 / 55%);
+    /* 卡片右上角那排图标按钮（「⋯」与两颗悬浮按钮）压在封面最亮的地方，用两层更深的影子（紧贴的一层 + 扩散的一层）。
+       日光下也是深色影（用户定），不随 --bravais-chrome-shadow 翻成白色光晕。 */
+    --bravais-corner-shadow: rgb(0 0 0 / 60%);
+    --bravais-corner-shadow-wide: rgb(0 0 0 / 55%);
     --bravais-seam-shadow: 0 0 0 1px color-mix(in srgb, var(--text-primary, #fff) 6%, transparent), 0 24px 64px rgb(0 0 0 / 42%);
 }
 
