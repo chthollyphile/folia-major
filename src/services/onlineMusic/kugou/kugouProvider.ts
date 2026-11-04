@@ -309,7 +309,7 @@ export const normalizeKugouSong = (raw: unknown): UnifiedSong => {
     };
 };
 
-// 歌名的原名（normalizeKugouSong 存下的 `OriSongName`）配上同一组歌手，供歌词搜索换个名字再搜。
+// 歌名的原名（normalizeKugouSong 存下的 `OriSongName`，或去掉后缀的歌名）配上同一组歌手，供歌词搜索换个名字再搜。
 const getKugouLyricSearchAlias = async (song: SongResult): Promise<ProviderLyricSearchAlias | null> => {
     const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'kugou' ? song.sourceRef : undefined;
     const originalName = String(sourceRef?.providerData?.originalName ?? '').trim();
