@@ -340,10 +340,10 @@ const VisualizerMonet: React.FC<VisualizerMonetProps> = (props) => {
                                     initial={{ opacity: 0, scale: 0.9, y: 10 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     transition={{ duration: 1.0, ease: [0.25, 1, 0.5, 1], delay: 0.95 }}
-                                    className="mt-auto pt-4"
+                                    className="group/monet-description relative mt-auto w-fit pt-4 before:absolute before:-inset-x-6 before:top-0 before:-bottom-6 before:content-['']"
                                 >
                                         <div
-                                            className="inline-flex items-center gap-3 rounded-full border px-4 py-2 backdrop-blur-md"
+                                            className="inline-flex items-center gap-3 rounded-full border px-4 py-2 opacity-0 backdrop-blur-md transition-opacity duration-200 group-hover/monet-description:opacity-100 motion-reduce:transition-none"
                                             style={{
                                                 borderColor: colorWithAlpha(theme.primaryColor, 0.16),
                                                 backgroundColor: colorWithAlpha(theme.backgroundColor, 0.18),
