@@ -117,7 +117,6 @@ const { registerHifiIpc } = require('./hifi/hifiIpc.cjs');
 const { createPipewireProbe, collectOwnPids } = require('./hifi/pipewireProbe.cjs');
 const { createApprovedMpvPathStore, isReservedHifiSettingKey } = require('./hifi/approvedMpvPath.cjs');
 const { registerMprisIpc } = require('./hifi/mpris/mprisIpc.cjs');
-const { createDuxNowPlayingBridge } = require('./dux/nowPlayingBridge.cjs');
 const { sanitizeDualTheme: sanitizeGeneratedDualTheme } = require('../shared/themeSanitizer.cjs');
 const {
   aiProviderLabel,
@@ -356,8 +355,6 @@ const hifiMpris = process.platform === 'linux'
     getArtworkDirectory: () => path.join(app.getPath('userData'), 'mpris-artwork'),
   })
   : null;
-// Linux: mirror the player Dux Shell shows into the now-playing protocol Folia's stage reads.
-let duxNowPlaying = null;
 // Last resort for every way out, app.exit() included: an mpv left behind would keep playing.
 process.on('exit', () => hifiSession.killSync());
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
@@ -7541,24 +7538,12 @@ ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
   return getGlobalShortcutController().apply(accelerators);
 });
 
-ipcMain.handle('dux-now-playing-enable', (event) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    throw new Error('Untrusted renderer attempted to start the Dux now-playing bridge.');
-  }
-  if (process.platform !== 'linux') return false;
-  if (!duxNowPlaying) {
-    duxNowPlaying = createDuxNowPlayingBridge({ runtimeDir: process.env.XDG_RUNTIME_DIR });
-  }
-  return duxNowPlaying.start();
-});
-
 app.on('will-quit', () => {
   appleMusicClient.close();
   globalShortcutController?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();
   hifiInstaller.cancel();
-  void duxNowPlaying?.stop();
 });
 
 ipcMain.handle('thumbar-update-buttons', (event, state) => {

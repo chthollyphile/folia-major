@@ -2,7 +2,7 @@ import type { NowPlayingLyricPayload, NowPlayingTrackSnapshot } from '../types';
 
 // src/utils/nowPlayingClock.ts
 
-export const NOW_PLAYING_PROGRESS_QUERY_URL = 'http://127.0.0.1:9863/api/query/progress';
+export const NOW_PLAYING_PROGRESS_QUERY_URL = 'http://localhost:9863/api/query/progress';
 export const NOW_PLAYING_PROGRESS_POLL_INTERVAL_MS = 7000;
 export const NOW_PLAYING_PROGRESS_CORRECTION_THRESHOLD_SEC = 0.2;
 

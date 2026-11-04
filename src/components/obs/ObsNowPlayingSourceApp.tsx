@@ -7,7 +7,7 @@ import { buildObsAppearanceFromShortcode, parseObsAiParams, parseObsWebParams } 
 // Bootstrap entry: wires the NowPlaying source into the source-neutral ObsWebSourceApp
 // shell. Appearance is driven by URL params (including cfg).
 
-const DEFAULT_NOW_PLAYING_HOST = '127.0.0.1:9863';
+const DEFAULT_NOW_PLAYING_HOST = 'localhost:9863';
 
 const ObsNowPlayingSourceApp: React.FC = () => {
     const paramsRef = useRef(parseObsWebParams(window.location.search));
