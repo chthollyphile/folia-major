@@ -1877,6 +1877,10 @@ export default {
   },
   "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
   "listeningRank": {
+    "qqWeek": "Peringkat dengar · Minggu ini",
+    "qqYear": "Peringkat dengar · Tahunan",
+    "qqWeekDescription": "Peringkat QQ Music minggu ini, dihitung dari hari Senin; minggu yang belum selesai dihitung sampai hari ini",
+    "qqYearDescription": "Peringkat tahunan QQ Music, dihitung selama tahun lalu (1 Januari sampai 31 Desember)",
     "week": "Peringkat dengar · Minggu terakhir",
     "all": "Peringkat dengar · Sepanjang waktu",
     "description": "Lagu yang diurutkan menurut riwayat dengar akun ini di platform",

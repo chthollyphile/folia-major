@@ -1877,6 +1877,10 @@ export default {
   },
   "qishui": { "recentPlayed": "Gần đây đã phát trên Qishui", "recommended": "Được đề xuất cho bạn" },
   "listeningRank": {
+    "qqWeek": "Bảng xếp hạng nghe · Tuần này",
+    "qqYear": "Bảng xếp hạng nghe · Năm",
+    "qqWeekDescription": "Bảng xếp hạng tuần này của QQ Music, tính từ thứ Hai; tuần chưa hết thì tính đến hôm nay",
+    "qqYearDescription": "Bảng xếp hạng năm của QQ Music, tính trọn năm ngoái (1/1 đến 31/12)",
     "week": "Xếp hạng nghe · Tuần qua",
     "all": "Xếp hạng nghe · Mọi lúc",
     "description": "Bài hát xếp theo lịch sử nghe của tài khoản này trên nền tảng",

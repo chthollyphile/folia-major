@@ -1877,6 +1877,10 @@ export default {
   },
   "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "listeningRank": {
+    "qqWeek": "Listening rank · This week",
+    "qqYear": "Listening rank · Year",
+    "qqWeekDescription": "QQ Music's ranking for this week, counted from Monday; a week not over yet counts up to today",
+    "qqYearDescription": "QQ Music's yearly ranking, counted over all of last year (1 January to 31 December)",
     "week": "Listening ranking · Last week",
     "all": "Listening ranking · All time",
     "description": "Songs ranked by this account's listening on the platform",
