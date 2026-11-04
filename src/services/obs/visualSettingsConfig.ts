@@ -105,6 +105,9 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     stageTrackPillTimeoutSec: storeStageSettings.stageTrackPillTimeoutSec,
     stageTrackPillOnHome: storeStageSettings.stageTrackPillOnHome,
     stageTrackPillPosition: storeStageSettings.stageTrackPillPosition,
+    // Whether the web link's overlay draws the card at all: without it the three legs above travel
+    // but the overlay has no word on whether the streamer wanted the card in the source.
+    stageTrackPillInObs: storeStageSettings.stageTrackPillInObs,
     // The bravais wall's collection stack edges (a tile look, so it travels with a shared look by the
     // settings rule). The wall's transparency and windows per block deliberately stay out — the user
     // decided so; see useLibraryWallLookStore.

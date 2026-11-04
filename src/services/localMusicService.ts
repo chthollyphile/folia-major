@@ -1133,6 +1133,11 @@ export async function importFolder(expectedRootName?: string): Promise<LocalSong
     }
 }
 
+/** Imports a folder the caller already holds instead of asking the picker (the dev mock song's OPFS folder). */
+export async function importDirectoryHandle(dirHandle: FileSystemDirectoryHandle): Promise<LocalSong[]> {
+    return await runLocalFolderMutation(() => importFolderContents(dirHandle));
+}
+
 async function importFolderContents(dirHandle: FileSystemDirectoryHandle, expectedRootName?: string): Promise<LocalSong[]> {
     try {
         const importStartedAt = performance.now();

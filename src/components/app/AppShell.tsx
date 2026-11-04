@@ -7,6 +7,8 @@ import { SettingsKitThemeContext } from '../modal/settings/kit/kitTheme';
 import { SheetLayerContext } from '../shared/Sheet';
 import TitlebarDragZone from '../TitlebarDragZone';
 import WindowControls from '../WindowControls';
+import ClickThroughMediaControls from './ClickThroughMediaControls';
+import type { TransportButtonAction } from './playback/bridges/useTransportCommandRefs';
 import { usePlayerOverlayRoot, usePlayerOverlayReservation } from '../../hooks/usePlayerOverlayLayout';
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 import type { FoliumLayoutRect } from '../../mods/folium/contract';
@@ -25,6 +27,7 @@ type AppShellProps = {
     isMainWindowClickThroughEnabled: boolean;
     showMainWindowClickThroughToggle: boolean;
     onToggleMainWindowClickThrough: () => void;
+    onClickThroughTransportAction: (action: TransportButtonAction) => void;
     isDaylight: boolean;
     theme: Theme;
     audioElement: React.ReactNode;
@@ -55,6 +58,7 @@ const AppShell: React.FC<AppShellProps> = ({
     isMainWindowClickThroughEnabled,
     showMainWindowClickThroughToggle,
     onToggleMainWindowClickThrough,
+    onClickThroughTransportAction,
     isDaylight,
     theme,
     audioElement,
@@ -217,6 +221,22 @@ const AppShell: React.FC<AppShellProps> = ({
                             >
                                 {isMainWindowClickThroughEnabled ? <Lock size={14} /> : <LockOpen size={14} />}
                             </button>
+                        </div>
+                        {/* 点击穿透时窗口按钮都藏了，切歌按钮放在锁的左边，跟锁一起出现（#471）。
+                            右缘离锁 6px：锁在 right-[180px]/right-[224px]、宽 28px，这组宽 86px。
+                            不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
+                        <div
+                            className={`pointer-events-none absolute top-0 z-20 h-full flex items-center ${
+                                hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
+                            }`}
+                            // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
+                            style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
+                        >
+                            <ClickThroughMediaControls
+                                visible={isMainWindowClickThroughEnabled && showMainWindowClickThroughToggle}
+                                isDaylight={isDaylight}
+                                onAction={onClickThroughTransportAction}
+                            />
                         </div>
                         <div className="pointer-events-auto absolute top-0 right-0 z-10 h-full">
                             <WindowControls

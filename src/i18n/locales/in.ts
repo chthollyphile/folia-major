@@ -703,6 +703,7 @@ export default {
       "lyric-staff-absorb-cycle": { "title": "Mode serap kredit pembuka", "description": "Ganti apakah baris di sekitarnya ikut digabung ke blok kredit" },
       "settings-obs-browser-source": { "title": "Sumber browser OBS", "description": "Buka pengaturan sumber browser OBS" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: pertahankan animasi jendela utama", "description": "Aktifkan atau nonaktifkan animasi jendela utama saat OBS terhubung" },
+      "obs-toggle-track-card": { "title": "OBS: tampilkan kartu lagu yang diputar", "description": "Aktifkan atau nonaktifkan kartu lagu yang diputar di sumber browser OBS" },
       "desktop-toggle-lyric-api": { "title": "API Lirik", "description": "Alihkan endpoint lirik lokal tanpa autentikasi" },
       "settings-obs-copy-css": { "title": "Salin CSS OBS", "description": "Salin Custom CSS OBS Browser Source yang membawa aset unggahan" },
       "settings-storage": { "title": "Pengaturan penyimpanan", "description": "Buka pengaturan cache dan penyimpanan" },
@@ -1522,7 +1523,11 @@ export default {
     "noteDeviceLimit": "Keluar dari perangkat yang tidak dipakai di ponsel, lalu coba lagi",
     "noteWrongScanApp": "Pindai dengan aplikasi untuk metode masuk ini, atau pilih metode lain",
     "noteCloseBrowser": "Tutup browser itu, lalu coba lagi",
-    "noteUnknown": "Kesalahan tidak diketahui"
+    "noteUnknown": "Kesalahan tidak diketahui",
+    "submit": "Kirim",
+    "submitting": "Mengirim…",
+    "formErrorUnknown": "Gagal masuk. Periksa isian Anda dan coba lagi.",
+    "formLoggedInRefreshFailed": "Berhasil masuk, tetapi akun tidak dapat dimuat. Coba lagi atau buka ulang jendela masuk.",
   },
   "failure": {
     "unreachable": "Tidak dapat terhubung ke {{provider}}",
@@ -1584,6 +1589,8 @@ export default {
     "loginNoteQishui": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi",
     "loginTitleBodian": "Pindai dengan Bodian Music",
     "loginNoteBodian": "Pindai kode ini dengan aplikasi Bodian Music dan konfirmasi masuk",
+    "loginTitleFnMusic": "Masuk ke fnOS Music",
+    "loginNoteFnMusic": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
@@ -1842,6 +1849,13 @@ export default {
     "version": "Versi"
   },
   "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
+  "listeningRank": {
+    "week": "Peringkat dengar · Minggu terakhir",
+    "all": "Peringkat dengar · Sepanjang waktu",
+    "description": "Lagu yang diurutkan menurut riwayat dengar akun ini di platform",
+    "listenCount_one": "Diputar {{count}} kali",
+    "listenCount_other": "Diputar {{count}} kali"
+  },
   "lyricProvider": {
     "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
@@ -1860,6 +1874,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
@@ -2463,6 +2478,8 @@ export default {
     "stageTrackPillMode_never": "Jangan tampilkan",
     "stageTrackPillOnHome": "Tampilkan juga di halaman utama",
     "stageTrackPillOnHomeDesc": "Saat nonaktif, kartu tetap tampil di pemutar dan antrean putar. Aktifkan untuk menampilkannya juga di halaman utama.",
+    "stageTrackPillInObs": "Tampilkan di sumber browser",
+    "stageTrackPillInObsDesc": "Aktifkan untuk menampilkan kartu juga di sumber browser OBS, dengan mode tampilan, durasi, dan posisi di atas. Di versi web, salin ulang tautan OBS agar berlaku.",
     "stageTrackPillTimeout": "Durasi tampil",
     "disableVisualizerVignette": "Nonaktifkan vignette",
     "visualizerVignette": "Vignette",
@@ -4463,6 +4480,19 @@ export default {
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive"
   },
+  "fnmusic": {
+    "serverUrl": "Alamat server",
+    "serverUrlPlaceholder": "cth: http://192.168.1.10:5666",
+    "username": "Akun",
+    "usernamePlaceholder": "Akun fnOS Music atau akun NAS",
+    "password": "Kata sandi",
+    "login": "Masuk",
+    "loginNote": "Masukkan alamat server, akun, dan kata sandi fnOS Music",
+    "errorBadCredentials": "Akun atau kata sandi salah",
+    "errorNetwork": "Tidak dapat menghubungi server. Periksa alamat dan koneksi Anda.",
+    "errorBadResponse": "Server mengembalikan respons yang tidak dikenali",
+    "errorBadServerUrl": "Alamat server tidak valid, contoh: http://192.168.1.10:5666"
+  },
   "hifi": {
     "settings": {
       "groupEngine": "Mesin pemutaran",
@@ -6009,9 +6039,9 @@ export default {
         "slotsHold": "Tekan lama sebuah tombol sampai lingkaran di sekelilingnya penuh, atau langsung klik kanan.",
         "slotsPick": "Aksi yang bisa ditaruh muncul tepat di atasnya; klik salah satu untuk menggantinya. Memilih aksi yang ada di slot lain akan menukar keduanya. Pilihan yang sama ada di pengaturan — tombol di bawah langsung ke sana.",
         "slotsSuggest": "Kalau kamu sering menjalankan salah satu aksi ini dari jendela perintah, bilah akan menanyakan sekali apakah mau menaruhnya di sini.",
-        "quickIntro": "Biarkan penunjuk berhenti di kapsul, dan sederet aksi untuk lagu ini muncul di atasnya: volume, suka, tambah ke daftar putar, acak, subtitel, dan gaya lirik. Yang sudah ada di dua slotmu tidak ditampilkan lagi. Di layar sentuh deretan ini tidak ada.",
+        "quickIntro": "Biarkan penunjuk berhenti di kapsul, dan sederet aksi untuk lagu ini muncul di atasnya: volume, suka, tambah ke daftar putar, acak, subtitel, dan gaya lirik. Yang sudah ada di dua slotmu tidak ditampilkan lagi. Di layar sentuh deretan ini langsung muncul saat kamu mengetuk kapsul hingga terbuka atau menjeda, tanpa volume, dan hilang lagi setelah 4 detik tidak disentuh.",
         "quickPalette": "Yang paling kanan membuka jendela perintah. Jendela itu tumbuh dari kapsul itu sendiri: kotak input mendarat di tempat kapsul, dengan hasil terbaik tepat di sebelahnya.",
-        "quickOther": "Mengklik bagian kosong kapsul di halaman pemutar membukanya dengan cara yang sama, kecuali pemutaran diatur dibuka di Lattice — maka klik itu menuju Lattice. {{mod}} + K juga menumbuhkannya dari kapsul selama kapsul terlihat. Saat ditutup, ia menyusut kembali ke kapsul."
+        "quickOther": "Mengklik bagian kosong kapsul di halaman pemutar membukanya dengan cara yang sama (di layar sentuh, ketuk lagi saat deretan itu muncul), kecuali pemutaran diatur dibuka di Lattice — maka klik itu menuju Lattice. {{mod}} + K juga menumbuhkannya dari kapsul selama kapsul terlihat. Saat ditutup, ia menyusut kembali ke kapsul."
       },
       "commandPalette": {
         "type": "Perintah dicari, bukan ditelusuri. Ketik begitu jendela terbuka dan ia menyaring nama, alias dan kata kunci sekaligus; separuh nama biasanya sudah cukup.",

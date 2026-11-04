@@ -43,6 +43,7 @@ exports[`config surface contract > keeps every field of the exportable visual co
   "songThemeAutoSwitchEnabled",
   "sonnetTuning",
   "soraBackgroundTuning",
+  "stageTrackPillInObs",
   "stageTrackPillMode",
   "stageTrackPillOnHome",
   "stageTrackPillPosition",

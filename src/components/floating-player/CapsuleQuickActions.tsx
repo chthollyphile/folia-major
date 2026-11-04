@@ -19,6 +19,7 @@ import {
 // src/components/floating-player/CapsuleQuickActions.tsx
 // 胶囊上方浮出的一排命令：指针在胶囊上停一会儿才出现，挑哪几条见 capsuleQuickActionSelection。
 // 最右边固定一个打开命令面板的按钮，不受名单、上限和频次影响。
+// 手指没有悬停：播放页上点开胶囊、或者暂停时，由 FloatingPlayerControls 直接浮出 4 秒。
 
 /** 胶囊悬停展开后再停这么久才浮出：路过的指针不该每次都带出一排按钮。 */
 const DWELL_MS = 250;
@@ -45,6 +46,8 @@ interface CapsuleQuickActionsProps {
     slotSecondary: PlayerControlSlotActionId;
     context: PlayerControlSlotContext;
     isDaylight?: boolean;
+    /** 手指点开的：按钮放大到手指点得准的 44px，音量不上（见 capsuleQuickActionSelection）。 */
+    touch?: boolean;
 }
 
 /** 一条命令画成按钮要的东西。能放进槽位的命令借槽位的解析，喜爱的实心心、打乱的可用性才跟胶囊一致。 */
@@ -68,6 +71,7 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
     slotSecondary,
     context,
     isDaylight = false,
+    touch = false,
 }) => {
     const { t } = useTranslation();
     // 频次只在放不下时用来取舍，浮出那一刻读一次就够，不跟着播放刷新。
@@ -84,7 +88,10 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
             return !slotAction || !resolvePlayerControlSlot(slotAction, context).disabled;
         },
         counts,
-    }), [context, counts, slotPrimary, slotSecondary]);
+        touch,
+    }), [context, counts, slotPrimary, slotSecondary, touch]);
+    const buttonPadding = touch ? 'p-3' : 'p-2';
+    const iconSize = touch ? 20 : 16;
 
     return (
         <motion.div
@@ -115,13 +122,13 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                             data-capsule-action={command.id}
                             disabled={button.disabled}
                             onClick={() => button.onActivate()}
-                            className={`rounded-full p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
+                            className={`rounded-full ${buttonPadding} transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
                                 button.active ? 'bg-current/12' : 'opacity-70 hover:bg-current/10 hover:opacity-100'
                             }`}
                             title={title}
                             aria-label={title}
                         >
-                            <Icon size={16} fill={button.filled ? 'currentColor' : 'none'} />
+                            <Icon size={iconSize} fill={button.filled ? 'currentColor' : 'none'} />
                         </button>
                     );
                 })}
@@ -133,11 +140,11 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                     type="button"
                     data-capsule-action="open-command-palette"
                     onClick={() => openCommandPalette()}
-                    className="rounded-full p-2 opacity-70 transition-colors hover:bg-current/10 hover:opacity-100"
+                    className={`rounded-full ${buttonPadding} opacity-70 transition-colors hover:bg-current/10 hover:opacity-100`}
                     title={t('help.openCommandPalette')}
                     aria-label={t('help.openCommandPalette')}
                 >
-                    <Command size={16} />
+                    <Command size={iconSize} />
                 </button>
             </div>
         </motion.div>

@@ -78,6 +78,14 @@ describe('collection tracks', () => {
         expect(items[0].subtitle).toBe('Album');
     });
 
+    it("adds the platform's play count of a ranked song to the subtitle, where a label for it is given", () => {
+        const ranked = [{ name: 'One', listenCount: 12 }, { name: 'Two', listenCount: 0 }, { name: 'Three' }] as unknown as SongResult[];
+        const label = (count: number) => `${count} plays`;
+        expect(projectCollectionTracks(ranked, index => `entry-${index}`, describe_, 'Unknown', label).map(item => item.subtitle))
+            .toEqual(['Singer A, Singer B · 12 plays', 'Album · 0 plays', 'Singer A, Singer B']);
+        expect(projectCollectionTracks(ranked, index => `entry-${index}`, describe_, 'Unknown')[0].subtitle).toBe('Singer A, Singer B');
+    });
+
     it('pads the badge to the width of the total', () => {
         expect(formatEntryBadge(0, 9)).toBe('01');
         expect(formatEntryBadge(4, 120)).toBe('005');

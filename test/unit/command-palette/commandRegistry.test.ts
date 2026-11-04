@@ -171,6 +171,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleRemoteControlTextShade: vi.fn(),
             unlockRemoteControl: vi.fn(),
             toggleObsKeepMainWindowAnimation: vi.fn(),
+            toggleTrackCardInObs: vi.fn(),
             toggleWallpaperMacAutohideDock: vi.fn(),
             gpuPreference: () => 'auto',
             setGpuPreference: vi.fn(),

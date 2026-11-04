@@ -4,6 +4,7 @@ import {
     type AudioQualityPreference,
     type ChorusRange,
     type JsonValue,
+    type ListeningRankRange,
     type MediaId,
     type OnlineMusicProvider,
     type ProviderCatalogRef,
@@ -35,6 +36,7 @@ import {
 import { describeKugouLoginFailure, kugouCheckFailure } from './kugouLoginFailure';
 import { describeKugouFailure, isKugouTimeout, kugouNoUrlError } from './kugouFailure';
 import { errorFields } from '../../../utils/errorText';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
 
 // src/services/onlineMusic/kugou/kugouProvider.ts
 
@@ -1047,6 +1049,27 @@ const getKugouHistoryName = async (date: string): Promise<string> => {
     return kugouHistoryNameByDate.get(date) || date;
 };
 
+// `/user/listen`'s type a span (docs/ku-go-api-docs.md): 0 is the last week, 1 all time, each the top 120.
+const KUGOU_LISTENING_RANK_TYPES: Record<ListeningRankRange, 0 | 1> = { week: 0, all: 1 };
+
+/**
+ * A user's listening ranking over a span, in KuGou's order; without a user, the signed-in account's.
+ * The answer is `data.lists` beside `total_week` / `total_history` (read 2026-11-03, an account with
+ * none). A row is a song with its play count in `listen_count`: seen by another client of the same
+ * module on a real account, not yet by us.
+ */
+const readKugouListeningRank = async (range: ListeningRankRange, userId?: MediaId): Promise<UnifiedSong[]> => {
+    const response = await requestKugou('user_listen', {
+        userid: (userId === undefined || userId === null ? '' : String(userId)) || getKugouUserId() || undefined,
+        type: KUGOU_LISTENING_RANK_TYPES[range],
+    });
+    const rows = dataOf(response)?.lists;
+    if (!Array.isArray(rows)) throw new OnlineProviderError('invalid-response', 'KuGou returned no listening ranking (data.lists)', 'kugou');
+    return rows
+        .map((item: any) => withListenCount(normalizeKugouSong(item), item?.listen_count))
+        .filter(song => song.id);
+};
+
 export const kugouProvider: OnlineMusicProvider = {
     id: 'kugou',
     displayName: 'KuGou Music',
@@ -1058,7 +1081,7 @@ export const kugouProvider: OnlineMusicProvider = {
     capabilities: {
         search: true, playback: true, lyrics: true, auth: true, userLibrary: true,
         playlists: true, albums: true, artists: true, recommendations: true, mutations: true,
-        wordByWordLyrics: true, userCloud: true, historyRecommendations: true,
+        wordByWordLyrics: true, userCloud: true, listeningRank: true, historyRecommendations: true,
         playlistSubscription: true, playlistTrackMutations: true, likes: true, userAlbums: true,
     },
     normalizeSong: normalizeKugouSong,
@@ -1419,6 +1442,14 @@ export const kugouProvider: OnlineMusicProvider = {
         async getCloudCollection(user) {
             return { providerId: 'kugou', id: 'cloud', name: i18n.t('ui.cloudDrive'), type: 'cloud', coverUrl: user?.avatarUrl };
         },
+        async getListeningRankCollections(user) {
+            const ranked = await Promise.all(LISTENING_RANK_RANGES.map(async range => ({ range, songs: await readKugouListeningRank(range, user.id) })));
+            const entries = ranked
+                .filter(({ songs }) => songs.length > 0)
+                .map(({ range, songs }) => listeningRankCollection('kugou', user, range, songs));
+            console.info('[KugouProvider] Listening ranking read', { entries: entries.map(entry => `${entry.listeningRank}:${entry.trackCount}`) });
+            return entries;
+        },
     },
     catalog: {
         canResolveSongCatalogRefs: song => Boolean(getKugouCatalogLookupId(song)),
@@ -1430,6 +1461,9 @@ export const kugouProvider: OnlineMusicProvider = {
             const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);
             const response = await requestKugou('playlist_track_all', { id: String(id), pagesize: requestLimit, page: Math.floor(offset / requestLimit) + 1 });
             return pageOf(listOf(response).map(normalizeKugouSong), response, requestLimit, offset);
+        },
+        async getListeningRankTracks(range, limit, offset, collection) {
+            return listeningRankPage(await readKugouListeningRank(range, collection?.creator?.id), limit, offset);
         },
         async getCloudTracks(limit, offset) {
             const requestLimit = Math.min(Math.max(1, limit), KUGOU_MAX_PAGE_SIZE);

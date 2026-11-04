@@ -352,6 +352,7 @@ const Stage: React.FC<{ bridge: React.ReactNode }> = ({ bridge }) => {
             isMainWindowClickThroughEnabled={false}
             showMainWindowClickThroughToggle={false}
             onToggleMainWindowClickThrough={noop}
+            onClickThroughTransportAction={noop}
             isDaylight={isDaylight}
             theme={DEFAULT_THEME}
             audioElement={bridge}
