@@ -33,7 +33,8 @@ export type PlaybackCommandContextDeps = Pick<
     | 'previewVolume' | 'togglePlay' | 'toggleLoop' | 'next' | 'prev' | 'queue'
     | 'shuffleQueue' | 'clearQueue' | 'applyQueueBatchOperation' | 'removeQueueSong'
     | 'moveQueueSongToNext' | 'moveQueueSongToEnd' | 'setReplayGainMode' | 'isFmMode'
-    | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'runAutoMatchBestLyric' | 'toggleCurrentSongPureMusicMark'
+    | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'isRecommendationPreferencesOffered'
+    | 'runAutoMatchBestLyric' | 'toggleCurrentSongPureMusicMark'
     | 'toggleSongLike' | 'isSongLiked'
 > & {
     playSong: (song: SongResult, queue?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void | Promise<void>;

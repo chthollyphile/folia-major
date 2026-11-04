@@ -184,6 +184,7 @@ export type CommandPalettePlaybackContext = {
     /** Only the providers that actually implement FM modes offer the picker. */
     isPersonalFmModeSupported: boolean;
     setPersonalFmSelection: (selection: PersonalFmSelection) => Promise<void> | void;
+    isRecommendationPreferencesOffered: () => boolean;
     toggleMute: () => void;
     /**
      * The like/star action from the controls tab. It travels here rather than staying inside the

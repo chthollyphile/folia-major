@@ -648,6 +648,7 @@ export default {
     "fmModeTitle": "私人 FM 模式",
     "fmModeHint": "点下方场景即可直接切到场景模式",
     "fmModeFilterPlaceholder": "输入以筛选模式和场景",
+    "recommendationPreferencesPlaceholder": "在下方调整偏好",
     "sourceCurrent": "当前来源",
     "sourceLocal": "本地音乐",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +695,7 @@ export default {
       "queue": { "title": "队列", "description": "搜索队列；使用 @ 筛选元数据，使用 -- 批量操作" },
       "playback-volume": { "title": "音量条", "description": "调整播放音量" },
       "playback-fm-mode": { "title": "私人 FM 模式", "description": "切换私人 FM 的模式或场景" },
+      "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
       "settings-options": { "title": "打开选项", "description": "打开设置中心" },
@@ -1491,6 +1493,22 @@ export default {
     "statusApplied": "私人 FM 已切换到",
     "statusEmpty": "该私人 FM 模式没有返回歌曲",
     "statusFailed": "切换私人 FM 模式失败"
+  },
+  "recommendationPreferences": {
+    "noteDefault": "保存在账号上",
+    "less": "减少推荐",
+    "default": "默认",
+    "more": "增加推荐",
+    "reset": "重置",
+    "save": "保存",
+    "saving": "正在保存…",
+    "loading": "正在读取偏好…",
+    "loadFailed": "偏好没读到",
+    "retry": "重试",
+    "empty": "没有可以调整的偏好",
+    "saved": "已保存",
+    "unconfirmed": "已发出，还没确认生效，稍后再打开看看",
+    "saveFailed": "保存失败，选择还在，可以再试一次"
   },
   "login": {
     "title": "登录",

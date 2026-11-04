@@ -648,6 +648,7 @@ export default {
     "fmModeTitle": "Personal FM mode",
     "fmModeHint": "Pick a scene to switch straight into scene mode",
     "fmModeFilterPlaceholder": "Type to filter modes and scenes",
+    "recommendationPreferencesPlaceholder": "Adjust your preferences below",
     "sourceCurrent": "current source",
     "sourceLocal": "local library",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +695,7 @@ export default {
       "queue": { "title": "Queue", "description": "Search the queue; use @ for metadata and -- for batch actions" },
       "playback-volume": { "title": "Volume", "description": "Adjust playback volume" },
       "playback-fm-mode": { "title": "Personal FM mode", "description": "Switch the Personal FM mode or scene" },
+      "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
@@ -1491,6 +1493,22 @@ export default {
     "statusApplied": "Personal FM switched to",
     "statusEmpty": "This Personal FM mode returned nothing",
     "statusFailed": "Failed to switch the Personal FM mode"
+  },
+  "recommendationPreferences": {
+    "noteDefault": "Kept on your account",
+    "less": "Recommend less",
+    "default": "Default",
+    "more": "Recommend more",
+    "reset": "Reset",
+    "save": "Save",
+    "saving": "Saving…",
+    "loading": "Reading your preferences…",
+    "loadFailed": "Couldn't read your preferences",
+    "retry": "Retry",
+    "empty": "Nothing to adjust",
+    "saved": "Saved",
+    "unconfirmed": "Sent, but not confirmed yet. Open this again later to check.",
+    "saveFailed": "Couldn't save. Your choices are still here, so you can try again."
   },
   "login": {
     "title": "Log in",

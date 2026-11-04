@@ -180,9 +180,10 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 
 - 声明 `capabilities.recommendationPreferences`，在 `recommendations` 上实现 `getRecommendationPreferences` 和 `saveRecommendationPreferences`，三样都有才算支持。
 - `preferenceEntries` 声明入口放在哪几处：`explore`（Bravais 探索页信息条）、`personal-fm`（私人 FM 页签，放在模式按钮的位置）、`daily`（每日推荐的控制列，放在「默认推荐 / 风格推荐」的位置）。命令面板只要支持就有。
-- 偏好项两种：`choice`（选项个数不限）和 `ratio`（`min`、`max`、`defaultValue`，可选 `snapWithin`：离默认这么近就算默认）。界面只显示「减少 … 默认 … 增加」，不显示数字。名字用 `{ labelKey, labelFallback }`：有译文用译文，没有就显示平台原文。
+- 偏好项两种：`choice`（选项个数不限）和 `ratio`（`min`、`max`、`defaultValue`，可选 `snapWithin`：离默认这么近就算默认）。滑杆旁显示「减少推荐 / 默认 / 增加推荐」，拖动时拇指上方显示在滑杆上的位置（0–100%）。名字用 `{ labelKey, labelFallback }`：有译文用译文，没有就显示平台原文。
 - `note` 是面板标题下那一行说明，写清楚这份偏好影响到哪里（各平台不一样）；不给就只写「保存在账号上」。
-- 保存只交有改动的项（`key → value`），平台自己决定怎么写：整份写回，或者只写改了的字段。存了但读回对不上时回 `confirmed: false`；没存成就抛错。
+- 打开偏好面板时，命令面板的输入框只读。焦点在按钮等非输入控件上时，按 Backspace 回到命令列表；按 Esc 关闭面板。
+- 保存只交有改动的项（`key → value`），平台自己决定怎么写：整份写回，或者只写改了的字段。「重置」直接提交与当前账号值不同的默认值，已经是默认值时直接关闭。存了但读回对不上时回 `confirmed: false`；没存成就抛错，面板留着。
 - 分数怎么换算、选项对应哪个值，只写在平台自己的 adapter 里，共用层不写死任何平台的数字。
 - omni 会把平台交来的偏好整理一遍（`recommendationPreferences.ts`）：不认识的种类、缺字段的项、重复的 key 丢掉；比例的值夹回范围里；选项式的值不在选项里时退回默认。以后加新的种类，已经接好的平台不受影响。
 

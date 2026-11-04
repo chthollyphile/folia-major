@@ -648,6 +648,7 @@ export default {
     "fmModeTitle": "Mode FM Pribadi",
     "fmModeHint": "Pilih suasana untuk langsung masuk ke mode suasana",
     "fmModeFilterPlaceholder": "Ketik untuk menyaring mode dan suasana",
+    "recommendationPreferencesPlaceholder": "Atur preferensi di bawah",
     "sourceCurrent": "sumber saat ini",
     "sourceLocal": "perpustakaan lokal",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +695,7 @@ export default {
       "queue": { "title": "Antrean", "description": "Cari antrean; gunakan @ untuk metadata dan -- untuk aksi massal" },
       "playback-volume": { "title": "Volume", "description": "Atur volume pemutaran" },
       "playback-fm-mode": { "title": "Mode FM Pribadi", "description": "Ganti mode atau suasana FM Pribadi" },
+      "playback-recommendation-preferences": { "title": "Preferensi", "description": "Atur preferensi di akun Anda yang memengaruhi rekomendasi" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
       "settings-options": { "title": "Buka Opsi", "description": "Buka pusat opsi" },
@@ -1491,6 +1493,22 @@ export default {
     "statusApplied": "FM Pribadi beralih ke",
     "statusEmpty": "Mode FM Pribadi ini tidak mengembalikan lagu",
     "statusFailed": "Gagal mengganti mode FM Pribadi"
+  },
+  "recommendationPreferences": {
+    "noteDefault": "Disimpan di akun Anda",
+    "less": "Kurangi rekomendasi",
+    "default": "Default",
+    "more": "Tambah rekomendasi",
+    "reset": "Atur ulang",
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "loading": "Membaca preferensi…",
+    "loadFailed": "Preferensi tidak terbaca",
+    "retry": "Coba lagi",
+    "empty": "Tidak ada yang bisa diatur",
+    "saved": "Tersimpan",
+    "unconfirmed": "Terkirim, tetapi belum terkonfirmasi. Buka lagi nanti untuk memeriksa.",
+    "saveFailed": "Gagal menyimpan. Pilihan Anda masih ada, jadi bisa dicoba lagi."
   },
   "login": {
     "title": "Masuk",

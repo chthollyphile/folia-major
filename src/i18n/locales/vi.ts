@@ -648,6 +648,7 @@ export default {
     "fmModeTitle": "Chế độ FM cá nhân",
     "fmModeHint": "Chọn ngữ cảnh để chuyển thẳng sang chế độ ngữ cảnh",
     "fmModeFilterPlaceholder": "Nhập để lọc chế độ và ngữ cảnh",
+    "recommendationPreferencesPlaceholder": "Điều chỉnh sở thích bên dưới",
     "sourceCurrent": "nguồn hiện tại",
     "sourceLocal": "thư viện nội bộ",
     "sourceNavidrome": "Navidrome",
@@ -694,6 +695,7 @@ export default {
       "queue": { "title": "Hàng đợi", "description": "Tìm trong hàng đợi; dùng @ cho siêu dữ liệu và -- cho thao tác hàng loạt" },
       "playback-volume": { "title": "Âm lượng", "description": "Điều chỉnh âm lượng phát" },
       "playback-fm-mode": { "title": "Chế độ FM cá nhân", "description": "Chuyển chế độ hoặc ngữ cảnh FM cá nhân" },
+      "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
       "settings-options": { "title": "Mở Tùy chọn", "description": "Mở trung tâm tùy chọn" },
@@ -1491,6 +1493,22 @@ export default {
     "statusApplied": "FM cá nhân đã chuyển sang",
     "statusEmpty": "Chế độ FM cá nhân này không có bài hát",
     "statusFailed": "Chuyển chế độ FM cá nhân thất bại"
+  },
+  "recommendationPreferences": {
+    "noteDefault": "Lưu trong tài khoản",
+    "less": "Đề xuất ít hơn",
+    "default": "Mặc định",
+    "more": "Đề xuất nhiều hơn",
+    "reset": "Đặt lại",
+    "save": "Lưu",
+    "saving": "Đang lưu…",
+    "loading": "Đang đọc sở thích…",
+    "loadFailed": "Không đọc được sở thích",
+    "retry": "Thử lại",
+    "empty": "Không có gì để điều chỉnh",
+    "saved": "Đã lưu",
+    "unconfirmed": "Đã gửi nhưng chưa được xác nhận. Hãy mở lại sau để kiểm tra.",
+    "saveFailed": "Không lưu được. Lựa chọn của bạn vẫn còn, có thể thử lại."
   },
   "login": {
     "title": "Đăng nhập",
