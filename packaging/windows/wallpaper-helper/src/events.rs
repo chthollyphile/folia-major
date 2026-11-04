@@ -29,7 +29,8 @@ pub enum Event {
     /// why injection happens in the main process rather than via posted messages).
     MouseMove { x: i32, y: i32 },
     /// Primary (left) button press at the given position (physical screen pixels), only when it
-    /// lands on the desktop while the desktop is foreground. Sent immediately, not spaced out.
+    /// lands on the desktop (whatever window holds the foreground). Sent immediately, not spaced
+    /// out.
     MouseButtonDown { x: i32, y: i32 },
     /// Primary button release (physical screen pixels). Sent even when the desktop is no longer
     /// foreground while the button is tracked as held, so the renderer can never keep a stuck
