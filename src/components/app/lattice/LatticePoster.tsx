@@ -24,6 +24,7 @@ import { WALL_REFLOW_CONTROLS_REVEAL, WALL_REFLOW_SPRING } from '../../wall/wall
 import { LATTICE_TILE_ATTR, MORPH_SHADE_ATTR } from '../../collectionFlight';
 import { ENTRANCE_LIFT, LEAVING } from './tileMotion';
 import { useFlightBackTo } from './wallFlight';
+import { isWallDoubleClickOn, noteWallPress } from '../../wall/wallDoubleClick';
 
 // Renders one poster and its expanded Player Chrome controls. A poster of the explore page that
 // is a collection (album, playlist, artist, mix) has one button there instead, which opens its page.
@@ -74,6 +75,8 @@ type LatticePosterProps = {
     onExpand: (instanceId: string) => void;
     /** The tile's own action: plays a song, opens a collection's page. */
     onPlay: (tile: LatticeTile) => void;
+    /** A double click on the poster (#834): the tile's action, but it never pauses the playing song. */
+    onPlayFromWall: (tile: LatticeTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
@@ -154,6 +157,7 @@ function LatticePoster({
     didDragRef,
     onExpand,
     onPlay,
+    onPlayFromWall,
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
@@ -217,14 +221,26 @@ function LatticePoster({
                 opacity: { duration: 0.24, delay: landing },
             };
 
+    const pressKey = `lattice:${instanceId}:${tile.id}`;
     const handleClick = (event: MouseEvent<HTMLElement>) => {
-        if (event.target instanceof Element && event.target.closest('button, input')) return;
+        const onControl = event.target instanceof Element && Boolean(event.target.closest('button, input'));
+        noteWallPress(event, onControl ? '' : pressKey);
+        if (onControl) return;
         if (didDragRef.current) {
             didDragRef.current = false;
             return;
         }
         if (!expanded) onExpand(instanceId);
         else chrome.toggleTouch();
+    };
+
+    // #834: a double click does what Enter pressed twice does - the first click has grown the
+    // poster, the double click then plays the song or opens the collection - except on the song
+    // that is playing, which it resumes when paused and never pauses. Growing pans the poster to
+    // the middle, so the second click may land on another poster: that one does nothing.
+    const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+        if (event.target instanceof Element && event.target.closest('button, input')) return;
+        if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -299,6 +315,7 @@ function LatticePoster({
             }}
             onAnimationComplete={onExpansionComplete}
             onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}
             role={expanded ? 'group' : 'button'}
             tabIndex={expanded ? -1 : 0}
