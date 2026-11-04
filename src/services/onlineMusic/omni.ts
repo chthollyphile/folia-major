@@ -1176,12 +1176,12 @@ export const omni = {
         return getOnlineMusicProviderForSong(song)?.lyrics?.prefersOwnWordByWord === true;
     },
 
-    // Another name the song's artist may be listed under elsewhere, when its provider knows one.
     // Ask only the song's own provider for a paired title and artist alias.
     async getLyricSearchAlias(song: SongResult): Promise<import('../../types/onlineMusic').ProviderLyricSearchAlias | null> {
         return await getOnlineMusicProviderForSong(song)?.lyrics?.getSearchAlias?.(song) ?? null;
     },
 
+    // Another name the song's artist may be listed under elsewhere, when its provider knows one.
     async getAlternateArtistName(song: SongResult): Promise<string | null> {
         return await getOnlineMusicProviderForSong(song)?.lyrics?.getAlternateArtistName?.(song) ?? null;
     },

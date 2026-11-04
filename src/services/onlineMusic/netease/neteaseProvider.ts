@@ -264,11 +264,46 @@ const normalizeNeteaseSongFallback = (raw: unknown): UnifiedSong => {
     };
 };
 
+// cloudsearch 给每位歌手附上的译名（`tns`）和别名（`alias`）：Oasis 的 tns 是「绿洲乐队」，陈奕迅的
+// alias 是「Eason Chan」，而别的歌词源常只认其中一种写法。名字里有非拉丁字母的歌手取第一个拉丁字母
+// 的写法，否则取第一个带非拉丁字母的写法：王菲的 alias 先列旧名「王靖雯」，再列「Faye Wong」。
+// 一位歌手都没有另一种写法时为空。song_detail 的歌手不带这两个字段，那里来的歌就没有。
+const NON_LATIN_LETTER = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
+const LATIN_LETTER = /\p{Script=Latin}/u;
+const otherArtistNamesOf = (raw: unknown): string => {
+    const record = raw && typeof raw === 'object' ? raw as Record<string, any> : {};
+    const base = record.simpleSong && typeof record.simpleSong === 'object' ? record.simpleSong : record;
+    const rawArtists = Array.isArray(base.ar) ? base.ar : (Array.isArray(base.artists) ? base.artists : []);
+    let renamed = false;
+    const names = rawArtists.map((artist: any) => {
+        const name = String(artist?.name || '').trim();
+        if (!name) return '';
+        const wantsLatin = NON_LATIN_LETTER.test(name);
+        const other = [artist?.tns, artist?.alias]
+            .flatMap(list => Array.isArray(list) ? list : [])
+            .map(value => String(value ?? '').trim())
+            .find(value => value && value !== name && (wantsLatin
+                ? LATIN_LETTER.test(value) && !NON_LATIN_LETTER.test(value)
+                : NON_LATIN_LETTER.test(value)));
+        if (!other) return name;
+        renamed = true;
+        return other;
+    }).filter(Boolean);
+    return renamed ? names.join(', ') : '';
+};
+
 export const normalizeNeteaseSong = (raw: unknown): UnifiedSong => {
     const normalized = typeof neteaseApi.normalizeSongResult === 'function'
         ? neteaseApi.normalizeSongResult(raw)
         : normalizeNeteaseSongFallback(raw);
     const isCloud = normalized.t === 1 || normalized.t === 2 || normalized.sourceType === 'cloud';
+    // 正规化过的歌曲（缓存水合）里歌手已不带译名，另一种写法从它原来的 providerData 取回。
+    const rawSourceRef = (raw as SongResult | null)?.sourceRef;
+    const keptOtherArtistNames = rawSourceRef?.kind === 'online' && rawSourceRef.providerId === 'netease'
+        ? rawSourceRef.providerData?.otherArtistNames
+        : undefined;
+    const otherArtistNames = otherArtistNamesOf(raw)
+        || (typeof keptOtherArtistNames === 'string' ? keptOtherArtistNames : '');
     return {
         id: normalized.id,
         name: normalized.name,
@@ -287,8 +322,18 @@ export const normalizeNeteaseSong = (raw: unknown): UnifiedSong => {
             providerId: 'netease',
             mediaId: String(normalized.id),
             ...(isCloud ? { variant: 'cloud' } : {}),
+            ...(otherArtistNames ? { providerData: { otherArtistNames } } : {}),
         },
     };
+};
+
+// 歌手的另一种写法（normalizeNeteaseSong 从 cloudsearch 的 tns / alias 里挑出存下的），和现在的
+// 写法一样时不算另一个名字。
+const getNeteaseAlternateArtistName = async (song: SongResult): Promise<string | null> => {
+    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'netease' ? song.sourceRef : undefined;
+    const other = sourceRef?.providerData?.otherArtistNames;
+    if (typeof other !== 'string' || !other) return null;
+    return other === song.artists.map(artist => artist.name).join(', ') ? null : other;
 };
 
 const getLyrics = async (
@@ -489,7 +534,7 @@ export const neteaseProvider: OnlineMusicProvider = {
             }
         },
     },
-    lyrics: { getLyrics, getChorusRanges: getNeteaseChorusRanges },
+    lyrics: { getLyrics, getChorusRanges: getNeteaseChorusRanges, getAlternateArtistName: getNeteaseAlternateArtistName },
     auth: {
         getLoginTexts: () => ({ title: 'home.loginTitle', note: 'home.loginNote' }),
         localService: neteaseLocalService,

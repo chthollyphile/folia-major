@@ -1629,6 +1629,7 @@ export function useLibraryPlaybackController({
                 album: albumName,
                 preferredSource: settingsLyricSettings.preferredAlternativeLyricSource,
                 alternateArtist: () => omni.getAlternateArtistName(currentSong),
+                searchAlias: () => omni.getLyricSearchAlias(currentSong),
                 providerCandidate: ownLyricSource
                     ? { providerId: ownLyricSource.id, song: currentSong, lyricsResult: ownLyricsResult }
                     : undefined,

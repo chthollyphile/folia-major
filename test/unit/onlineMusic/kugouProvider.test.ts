@@ -306,6 +306,37 @@ describe('kugouProvider', () => {
         expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
     });
 
+    // 搜索条目：OriSongName 是原名，Suffix 是括号里的译名（2026-11-04 实测）；歌单等接口的歌名带着 Suffix。
+    it('keeps OriSongName beside a suffixed title and offers it as the lyric search alias', async () => {
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            SongName: '夜に駆ける (向夜晚奔去)',
+            OriSongName: '夜に駆ける',
+            Suffix: '(向夜晚奔去)',
+            Singers: [{ name: 'YOASOBI' }],
+            AlbumName: '夜に駆ける',
+        });
+
+        expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '夜に駆ける', artist: 'YOASOBI', album: '夜に駆ける',
+        });
+    });
+
+    it('offers no alias when the title already is OriSongName', async () => {
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            FileName: 'YOASOBI - 夜に駆ける (向夜晚奔去)',
+            OriSongName: '夜に駆ける',
+            SingerName: 'YOASOBI',
+        });
+
+        expect(song.name).toBe('夜に駆ける');
+        expect(song.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toBeNull();
+    });
+
     it('keeps a high-resolution canonical KuGou cover for templates and sized CDN URLs', () => {
         const templateSong = normalizeKugouSong({
             FileHash: 'template-cover',
