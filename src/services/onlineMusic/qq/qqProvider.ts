@@ -25,6 +25,7 @@ import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticR
 import { collectQqLoginDiagnostics } from './qqLoginDiagnostics';
 import { getQqSongDetailById, getQqSongDetails, QQ_SONG_DETAILS_PER_REQUEST, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
+import { clearQqGuessYouLikeCatalog } from './qqGuessYouLike';
 import { resetQqSearchFallbackMemory, searchQqCollections, searchQqSongs } from './qqSearch';
 import { getQqSubscriptionStatus, qqMutations } from './qqMutations';
 import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailure } from './qqLoginFailure';
@@ -117,14 +118,17 @@ const loadRawPlaylistTracks = async (
 // 后端有没有 `/user/playlist-detail` 只取决于它的版本，一个会话里不会变，所以探到一次 404
 // 就记下来，不再为每一页重试。刷新页面自然会重新探测。
 let ownedPlaylistRouteMissing = false;
+let lastQqAccountId: string | null = null;
 
 export const resetQqProviderRuntimeCache = (): void => {
     ownedPlaylistRouteMissing = false;
+    lastQqAccountId = null;
     lastLoginStatusCheck = null;
     playlistRound = null;
     resetQqVipMemory();
     resetQqSessionRefresh();
     resetQqSearchFallbackMemory();
+    clearQqGuessYouLikeCatalog();
 };
 
 /**
@@ -518,7 +522,11 @@ const getLoginStatus = async (): Promise<ProviderUser | null> => {
             console.info('[QQProvider] login-status:anonymous');
             return signedOutUnlessStoreUnreadable();
         }
-        const user = await withQqVipType(normalizeQqUser(profile));
+        const normalized = normalizeQqUser(profile);
+        const accountId = String(normalized.id || '');
+        if (lastQqAccountId && accountId && lastQqAccountId !== accountId) clearQqGuessYouLikeCatalog();
+        lastQqAccountId = accountId || null;
+        const user = await withQqVipType(normalized);
         // 登录还在：会话要在到期前续（qqSessionRefresh.ts）；续期的请求排在通道探测之后。
         void refreshDeclaredChannels().then(keepQqSessionFresh);
         // The acceptance test account returned a profile without a display name, so the profile itself is the signal.
@@ -543,6 +551,8 @@ const getLoginStatus = async (): Promise<ProviderUser | null> => {
 // The request takes the session as it is when it is made (`requestQq`); the session leaves the
 // page at once, before the first wait and whatever the backend answers.
 const logout = async (): Promise<void> => {
+    clearQqGuessYouLikeCatalog();
+    lastQqAccountId = null;
     stopQqSessionRefresh();
     const told = hasQqSession()
         ? requestQq('logout').catch(error => {
@@ -753,6 +763,8 @@ const checkLogin = async (key: string): Promise<LoginState> => {
         return { state: 'scanned' };
     }
     if (code === 803) {
+        clearQqGuessYouLikeCatalog();
+        lastQqAccountId = null;
         // Idempotent with the transport, which already stored the opaque session string on this response.
         if (typeof response?.cookie === 'string' && response.cookie) {
             writeProviderSessionValue('qq', 'cookie', response.cookie);
