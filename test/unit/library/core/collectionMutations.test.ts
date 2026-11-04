@@ -400,7 +400,54 @@ describe('disliking a daily recommendation', () => {
         expect(ids(resource.getSnapshot().tracks)).toEqual(['d0', 'd1', 'd2']);
     });
 
-    it('reports failed when upstream gives neither a replacement nor a limit, or throws', async () => {
+    // 有的平台的不喜欢是把歌拉进黑名单，没有替换曲：成功就把这一行从当天的列表里去掉（removed）。
+    it('removes the entry when the write succeeded without a replacement', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const omni = fakeOmni({ dislikeSong: vi.fn(async () => ({ removed: true })) });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        expect(await controller.removeEntry(entryIn(resource, 1))).toEqual({ ok: true });
+        expect(omni.dislikeSong).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }));
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d0', 'd2']);
+    });
+
+    it('keeps a matching song in history when a removal returns after switching dates', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const upstream = deferred<{ removed: boolean }>();
+        const omni = fakeOmni({
+            dislikeSong: vi.fn(() => upstream.promise),
+            getRecommendationHistorySongs: vi.fn(async () => [onlineSong('d1'), onlineSong('history')]),
+            getProviderCapabilities: vi.fn(() => ({ historyRecommendations: true, dailyStyleRecommendations: false })),
+        });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        const removal = controller.removeEntry(entryIn(resource, 1));
+        expect(await controller.setDailyDate('2024-01-02')).toEqual({ ok: true });
+        upstream.resolve({ removed: true });
+        expect(await removal).toEqual({ ok: false, reason: 'stale' });
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d1', 'history']);
+    });
+
+    it('keeps history when a removal starts while the date is loading', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const history = deferred<SongResult[]>();
+        const upstream = deferred<{ removed: boolean }>();
+        const omni = fakeOmni({
+            dislikeSong: vi.fn(() => upstream.promise),
+            getRecommendationHistorySongs: vi.fn(() => history.promise),
+            getProviderCapabilities: vi.fn(() => ({ historyRecommendations: true, dailyStyleRecommendations: false })),
+        });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        const switching = controller.setDailyDate('2024-01-02');
+        const removal = controller.removeEntry(entryIn(resource, 1));
+        expect(omni.dislikeSong).toHaveBeenCalledTimes(1);
+        history.resolve([onlineSong('d1'), onlineSong('history')]);
+        expect(await switching).toEqual({ ok: true });
+        upstream.resolve({ removed: true });
+        expect(await removal).toEqual({ ok: false, reason: 'stale' });
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d1', 'history']);
+    });
+
+    it('reports failed when upstream gives neither a replacement, a removal nor a limit, or throws', async () => {
         const { resource } = await onlineResource(daily, dailyTracks());
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const empty = setup({ descriptor: daily, resource, omni: fakeOmni({ dislikeSong: vi.fn(async () => ({})) }) });
