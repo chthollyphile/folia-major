@@ -1796,6 +1796,7 @@ export default {
     "qqNewSongs": "Bài hát mới",
     "qqNewAlbums": "Album mới",
     "qqCharts": "Bảng xếp hạng",
+    "qqRecommendedPlaylists": "Playlist đề xuất",
     "personalFm": "FM cá nhân",
     "dailyRecommendations": "Gợi ý hàng ngày",
     "dailyRecommendationsDescription": "Bản phối hàng ngày dành riêng cho bạn",

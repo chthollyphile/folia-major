@@ -1796,6 +1796,7 @@ export default {
     "qqNewSongs": "新歌速递",
     "qqNewAlbums": "新碟上架",
     "qqCharts": "排行榜",
+    "qqRecommendedPlaylists": "推荐歌单",
     "personalFm": "私人FM",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",

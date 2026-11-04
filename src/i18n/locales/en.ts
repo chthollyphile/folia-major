@@ -1796,6 +1796,7 @@ export default {
     "qqNewSongs": "New songs",
     "qqNewAlbums": "New albums",
     "qqCharts": "Charts",
+    "qqRecommendedPlaylists": "Recommended playlists",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",
