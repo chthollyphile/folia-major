@@ -221,6 +221,54 @@ describe('omni recommendation preferences', () => {
         expect(save).not.toHaveBeenCalled();
     });
 
+    it('tells the listeners which provider wrote, confirmed or not, and not when nothing was written', async () => {
+        const told: string[] = [];
+        const stop = omni.subscribeRecommendationPreferenceSaves(id => told.push(id));
+        const save = vi.fn()
+            .mockResolvedValueOnce({ confirmed: true })
+            .mockResolvedValueOnce({ confirmed: false })
+            .mockRejectedValueOnce(new Error('down'));
+        registerOnlineMusicProvider(provider(providerId, true, {
+            getRecommendationPreferences: async () => answer,
+            saveRecommendationPreferences: save,
+        }));
+        activate(providerId);
+
+        await omni.saveRecommendationPreferences({ live: 60 });
+        await omni.saveRecommendationPreferences({ live: 61 });
+        await expect(omni.saveRecommendationPreferences({ live: 62 })).rejects.toThrow('down');
+        await omni.saveRecommendationPreferences({});
+        expect(told).toEqual([providerId, providerId]);
+
+        stop();
+        save.mockResolvedValueOnce({ confirmed: true });
+        await omni.saveRecommendationPreferences({ live: 63 });
+        expect(told).toHaveLength(2);
+    });
+
+    it('tells of a write that lands after the active provider changed', async () => {
+        const told: string[] = [];
+        const stop = omni.subscribeRecommendationPreferenceSaves(id => told.push(id));
+        let finish: (value: { confirmed: boolean }) => void = () => undefined;
+        registerOnlineMusicProvider(provider(providerId, true, {
+            getRecommendationPreferences: async () => answer,
+            saveRecommendationPreferences: () => new Promise(resolve => { finish = resolve; }),
+        }));
+        registerOnlineMusicProvider(provider(otherProviderId, true, {
+            getRecommendationPreferences: async () => answer,
+            saveRecommendationPreferences: async () => ({ confirmed: true }),
+        }));
+        activate(providerId);
+
+        const saving = omni.saveRecommendationPreferences({ live: 60 });
+        omni.invalidateActiveRequests();
+        activate(otherProviderId);
+        finish({ confirmed: true });
+        await expect(saving).rejects.toMatchObject({ name: 'AbortError' });
+        expect(told).toEqual([providerId]);
+        stop();
+    });
+
     it('drops an answer that arrives after the active provider changed', async () => {
         let finish: (value: RecommendationPreferences) => void = () => undefined;
         registerOnlineMusicProvider(provider(providerId, true, {

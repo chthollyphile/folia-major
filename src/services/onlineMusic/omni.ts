@@ -166,6 +166,19 @@ const unsupportedPreferences = (provider: OnlineMusicProvider): OnlineProviderEr
     new OnlineProviderError('unsupported', `Recommendation preferences are not supported by ${provider.id}`, provider.id)
 );
 
+/** Told which provider's account preferences were written, confirmed or not: what it recommends may differ now. */
+const preferenceSaveListeners = new Set<(providerId: OmniProviderId) => void>();
+
+const tellPreferencesSaved = (providerId: OmniProviderId) => {
+    for (const listener of preferenceSaveListeners) {
+        try {
+            listener(providerId);
+        } catch (error) {
+            console.warn('[Omni] recommendation preference save listener failed', error);
+        }
+    }
+};
+
 const providerForSong = (song: SongResult) => {
     const provider = getOnlineMusicProviderForSong(song);
     if (!provider) throw new OnlineProviderError('unsupported', 'Song is not owned by an online provider');
@@ -976,8 +989,18 @@ export const omni = {
             if (!Object.keys(checked).length) return { confirmed: true };
             const recommendations = provider.recommendations!;
             const result = await recommendations.saveRecommendationPreferences!.call(recommendations, checked);
+            // The write reached that account whatever is active by now, so the listeners hear of it first.
+            tellPreferencesSaved(provider.id);
             return { confirmed: result?.confirmed === true };
         });
+    },
+
+    /** Hears which provider's account preferences were written; a provider that fails to save is not told of. */
+    subscribeRecommendationPreferenceSaves(listener: (providerId: OmniProviderId) => void): () => void {
+        preferenceSaveListeners.add(listener);
+        return () => {
+            preferenceSaveListeners.delete(listener);
+        };
     },
 
     supportsExplore(providerId: OmniProviderId): boolean {

@@ -140,14 +140,18 @@ const fakePort = () => {
 };
 
 /** 一次取完的在线资源（首页里允许重复条目，与上游一致）；缓存写入记账。 */
-const onlineResource = async (descriptor: OnlineGridViewCollectionDescriptor, tracks: SongResult[]) => {
+const onlineResource = async (
+    descriptor: OnlineGridViewCollectionDescriptor,
+    tracks: SongResult[],
+    getDailySongs = vi.fn(async () => tracks),
+) => {
     const writes: Array<{ tracks: SongResult[]; snapshotTime: number }> = [];
     const page: OmniPage<SongResult> = { items: tracks, total: tracks.length, hasMore: false, nextOffset: tracks.length };
     const resource = createOnlineCollectionResource('k', {
         getCollectionTracks: vi.fn(async () => page),
         getCollectionDetail: vi.fn(async () => null),
         getPersonalFm: vi.fn(async () => []),
-        getDailySongs: vi.fn(async () => tracks),
+        getDailySongs,
         readCache: vi.fn(async () => ({ tracks: [], snapshotTime: 0, schemaVersion: 0 })),
         writeCache: vi.fn(async (_key, written, snapshotTime) => { writes.push({ tracks: written, snapshotTime }); }),
         wait: async () => {},
@@ -523,6 +527,155 @@ describe('daily recommendation dates', () => {
         history.resolve([onlineSong('h')]);
         expect(await first).toEqual({ ok: true });
         expect(omni.getRecommendationHistorySongs).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('daily recommendations after the account preferences are saved', () => {
+    const listening = (overrides?: Partial<CollectionMutationOmni>) => {
+        const listeners = new Set<(providerId: string) => void>();
+        const omni = fakeOmni({
+            ...overrides,
+            subscribeRecommendationPreferenceSaves: vi.fn((listener: (providerId: string) => void) => {
+                listeners.add(listener);
+                return () => { listeners.delete(listener); };
+            }),
+        });
+        const tell = (providerId: string) => listeners.forEach(listener => listener(providerId));
+        return { listeners, omni, tell };
+    };
+
+    it('reads today again for a save on its own provider, once someone looks', async () => {
+        const { listeners, omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        expect(listeners.size).toBe(0);
+
+        controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(1);
+
+        tell('another-provider');
+        await settle();
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+
+        tell('p');
+        await settle();
+        expect(omni.getDailySongs).toHaveBeenCalledWith(true);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it('leaves a history date as it is', async () => {
+        const { omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        expect(await controller.setDailyDate('2024-01-02')).toEqual({ ok: true });
+
+        tell('p');
+        await settle();
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['h-0', 'h-1']);
+    });
+
+    it('reads today once more when preferences are saved during the first load', async () => {
+        const { omni, tell } = listening();
+        const initial = deferred<SongResult[]>();
+        const { resource } = await onlineResource(daily, [], vi.fn(() => initial.promise));
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        expect(resource.getSnapshot().status).toBe('loading');
+
+        tell('p');
+        tell('p');
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+
+        initial.resolve([onlineSong('before-save')]);
+        await settle();
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(true);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it('reads today again after returning from history if preferences were saved during the switch', async () => {
+        const { omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        await controller.setDailyDate('2024-01-02');
+        const returning = deferred<SongResult[]>();
+        vi.mocked(omni.getDailySongs).mockReturnValueOnce(returning.promise);
+
+        const change = controller.setDailyDate('');
+        tell('p');
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(false);
+
+        returning.resolve([onlineSong('before-save')]);
+        expect(await change).toEqual({ ok: true });
+        await settle();
+        expect(vi.mocked(omni.getDailySongs).mock.calls).toEqual([[false], [true]]);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it.each(['account change', 'provider change', 'dispose'])('drops a queued read on %s', async change => {
+        const { omni, tell } = listening();
+        const initial = deferred<SongResult[]>();
+        const { resource } = await onlineResource(daily, [], vi.fn(() => initial.promise));
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+
+        tell('p');
+        if (change === 'account change') controller.update({ currentUserId: 'u2' });
+        if (change === 'provider change') controller.update({ descriptor: { ...daily, providerId: 'p2' } });
+        if (change === 'dispose') controller.dispose();
+        initial.resolve([onlineSong('before-save')]);
+        await settle();
+
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+    });
+
+    it.each(['history', 'style'])('drops the queued read once %s is shown even if today is opened again immediately', async view => {
+        const history = deferred<SongResult[]>();
+        const style = deferred<{ songs: SongResult[]; selection: null }>();
+        const { omni, tell } = listening({
+            getRecommendationHistorySongs: vi.fn(() => history.promise),
+            getProviderCapabilities: () => ({ historyRecommendations: true, dailyStyleRecommendations: true }),
+            getDailyStyleSongs: vi.fn(() => style.promise),
+            setDailyStyle: vi.fn(async () => {}),
+        });
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        let returned = false;
+        controller.subscribe(() => {
+            const { dailyDate, dailyStyleShown, capabilities } = controller.getSnapshot();
+            if (returned || capabilities.dailyDate.pending || !(dailyDate || dailyStyleShown)) return;
+            returned = true;
+            void controller.setDailyDate('');
+        });
+
+        const change = view === 'history' ? controller.setDailyDate('2024-01-02') : controller.showDailyStyle();
+        tell('p');
+        history.resolve([onlineSong('history')]);
+        style.resolve({ songs: [onlineSong('style')], selection: null });
+        expect(await change).toEqual({ ok: true });
+        await settle();
+
+        expect(controller.getSnapshot()).toMatchObject({ dailyDate: '', dailyStyleShown: false });
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(false);
+    });
+
+    it('does not listen for other collections, and stops listening once disposed', async () => {
+        const { listeners, omni } = listening();
+        const { resource: playlist } = await onlineResource(ownedPlaylist(), [onlineSong('s0')]);
+        setup({ descriptor: ownedPlaylist(), resource: playlist, omni }).controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(0);
+
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(1);
+        controller.dispose();
+        expect(listeners.size).toBe(0);
     });
 });
 
