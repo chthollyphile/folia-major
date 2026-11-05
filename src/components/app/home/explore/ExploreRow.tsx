@@ -54,10 +54,10 @@ const Card: React.FC<{ item: OmniExploreItem; arrival: Arrival; onSelect: () => 
                 {face.kind === 'album' && face.pictureUrl && <Record />}
                 {playing && <BeatRing round={round} />}
                 <span className={`relative block h-full overflow-hidden bg-[var(--ex-tint)] transition-shadow duration-300 ease-out group-hover:shadow-[0_24px_40px_-24px_rgba(0,0,0,0.75)] group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--text-primary)] ${round}`}>
-                    <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={480} className="h-full w-full" /></Uncovered>
-                    {item.kind === 'song' && (
+                    <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={480} className="h-full w-full" overlay={face.coverOverlay} /></Uncovered>
+                    {(item.kind === 'song' || Boolean(item.collection.personalFm)) && (
                         <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-300 group-hover:bg-black/30 group-hover:opacity-100 group-focus-visible:opacity-100">
-                            <ActionMark isSong className="explore-float h-11 w-11 bg-white text-black" />
+                            <ActionMark plays className="explore-float h-11 w-11 bg-white text-black" />
                         </span>
                     )}
                     {playing
@@ -146,7 +146,7 @@ export const SoloBody: React.FC<BodyProps> = ({ items, base, leave, calm, there,
             className={`group flex w-full max-w-3xl items-center gap-5 rounded-3xl bg-[var(--ex-tint)] p-3.5 pr-6 text-left transition-colors duration-300 hover:bg-[var(--ex-tint-strong)] ${FOCUS_RING}`}
         >
             <span data-explore-beat className={`relative block h-[108px] shrink-0 overflow-hidden bg-[var(--ex-tint)] ${face.shape === 'wide' ? 'w-48 rounded-2xl' : face.shape === 'round' ? 'w-[108px] rounded-full' : 'w-[108px] rounded-2xl'}`}>
-                <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={480} className="h-full w-full" /></Uncovered>
+                <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={480} className="h-full w-full" overlay={face.coverOverlay} /></Uncovered>
                 {playing ? <Levels className={`bottom-2 right-2 ${LEVELS_CHIP}`} /> : <DurationChip durationMs={face.durationMs} className="bottom-2 right-2" />}
                 <Hairline />
             </span>
@@ -155,7 +155,7 @@ export const SoloBody: React.FC<BodyProps> = ({ items, base, leave, calm, there,
                 {face.subtitle && <span className="mt-1 block truncate text-sm text-[color:var(--ex-soft)]">{face.subtitle}</span>}
             </motion.span>
             <ActionMark
-                isSong={only.kind === 'song'}
+                plays={only.kind === 'song' || Boolean(only.collection.personalFm)}
                 className="h-12 w-12 transition-transform duration-300 group-hover:scale-110"
                 style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
             />

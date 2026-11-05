@@ -54,6 +54,7 @@ export const resetPlaybackStore = () => {
         playQueue: [],
         activePlaybackContext: 'main',
         isFmMode: false,
+        acceptedFmPlayback: null,
     } as never);
 };
 

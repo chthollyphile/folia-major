@@ -1547,6 +1547,28 @@ describe('a local or Navidrome restore on the HiFi route', () => {
             expect(watch.take().filter(line => line.startsWith('audio='))).toEqual(['audio=null key=local:l1', 'audio=blob:l1 key=local:l1']);
         });
 
+        it('hands over accepted FM ownership rather than a pending request flag or retained station', () => {
+            makeSongCurrent(onlineSong);
+            usePlaybackStore.setState({ playQueue: [onlineSong], isFmMode: true, acceptedFmPlayback: null });
+            usePersonalFmModeStore.setState({ stations: { bodian: { id: 'old-station', selection: { mode: 'DEFAULT', scene: null } } } });
+            const pending = mountHandoff(null).handoff.captureWindowPlaybackHandoff();
+            expect(pending.mainPlayback?.isFmMode).toBe(false);
+            expect(pending.fmStations).toBeUndefined();
+
+            usePlaybackStore.setState({ acceptedFmPlayback: {
+                providerId: 'bodian', selection: { mode: 'FAMILIAR', scene: null, station: 'accepted-station' },
+                songKeys: new Set(['online:bodian:x1']),
+            } });
+            const accepted = mountHandoff(null).handoff.captureWindowPlaybackHandoff();
+            expect(accepted.mainPlayback?.isFmMode).toBe(true);
+            expect(accepted.fmStations).toEqual({ bodian: 'accepted-station' });
+
+            usePlaybackStore.setState({ acceptedFmPlayback: {
+                providerId: 'bodian', selection: { mode: 'DEFAULT', scene: null }, songKeys: new Set(['online:bodian:x1']),
+            } });
+            expect(mountHandoff(null).handoff.captureWindowPlaybackHandoff().fmStations).toBeUndefined();
+        });
+
         it('the capture takes the position from mpv\'s clock on the HiFi route, and from <audio> on the web route', () => {
             makeSongCurrent(localSong);
             const { handoff } = mountHandoff(null, 33);

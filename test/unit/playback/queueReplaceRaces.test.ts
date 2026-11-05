@@ -142,7 +142,8 @@ vi.mock('@/components/app/playback/persistPlaybackCache', () => ({
 
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
-const { replacePlayQueue, setIsFmMode, setPlayQueue, usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { setIsFmMode, setPlayQueue, usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { noteAcceptedFmPlayback, replacePlayQueue } = await import('@/services/playbackQueueOrigin');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
@@ -204,6 +205,7 @@ const playerWith = (queue: SongResult[], current: SongResult | null, isFmMode = 
 beforeEach(() => {
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     resetPlaybackStore();
+    usePersonalFmModeStore.setState({ stations: {} });
     env.self.audioGate.clear();
     env.self.audioResultFor.clear();
     env.self.unavailable.clear();
@@ -604,6 +606,96 @@ describe('a platform switch while a play that turns Personal FM on was on its wa
 
         expect(store().currentSong).toMatchObject({ id: 'f1' });
         expect(store().isFmMode).toBe(false);
+    });
+});
+
+describe('accepted FM origin through pending plays', () => {
+    it('claims the radio only after its own song and queue land', async () => {
+        playerWith([a, b], a);
+        const { queue } = mount();
+        const release = holdAddress(f1);
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        expect(store().isFmMode).toBe(true);
+        expect(store().acceptedFmPlayback).toBeNull();
+        release();
+        await play;
+
+        expect(store().acceptedFmPlayback).toMatchObject({ providerId: 'bodian' });
+        expect(store().acceptedFmPlayback?.songKeys).toEqual(new Set(keys([f1, f2])));
+    });
+
+    it('does not claim an FM request that lands after a platform switch ended FM', async () => {
+        playerWith([a, b], a);
+        const { queue } = mount();
+        const release = holdAddress(f1);
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        endFmBySwitch();
+        release();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().isFmMode).toBe(false);
+        expect(store().acceptedFmPlayback).toBeNull();
+    });
+
+    it('keeps an accepted radio origin when a different pending play is refused', async () => {
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, [f1, f2], true);
+        const accepted = store().acceptedFmPlayback;
+        const { queue } = mount();
+        env.self.audioResultFor.set('b', unavailable('sign-in-needed'));
+        const release = holdAddress(b);
+        const play = queue.playSong(b, [a, b], false);
+        await settle();
+
+        expect(store().acceptedFmPlayback).toBe(accepted);
+        release();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().acceptedFmPlayback).toBe(accepted);
+    });
+
+    it('leaves no radio origin when a plain queue replaces the pending radio queue', async () => {
+        playerWith([f1, f2, f3], f1, true);
+        noteAcceptedFmPlayback(f1, [f1, f2, f3], true);
+        const { queue } = mount();
+        const release = holdAddress(f2);
+        const play = queue.playSong(f2, store().playQueue, true);
+        await settle();
+
+        replaceWhole([x, y]);
+        release();
+        await play;
+
+        expect(keys(store().playQueue)).toEqual(keys([x, y]));
+        expect(store().isFmMode).toBe(false);
+        expect(store().acceptedFmPlayback).toBeNull();
+    });
+
+    it('captures the accepted mode before a newer mode is requested while audio waits', async () => {
+        const before = usePersonalFmModeStore.getState().providerSelections;
+        const selected = { mode: 'SCENE_RCMD' as const, scene: 'rain' };
+        try {
+            usePersonalFmModeStore.setState({ providerSelections: { ...before, bodian: selected } });
+            playerWith([a, b], a);
+            const { queue } = mount();
+            const release = holdAddress(f1);
+            const play = queue.playSong(f1, [f1, f2], true);
+            await settle();
+
+            usePersonalFmModeStore.setState({ providerSelections: { ...before, bodian: { mode: 'DEFAULT', scene: null } } });
+            release();
+            await play;
+
+            expect(store().acceptedFmPlayback?.selection).toEqual(selected);
+        } finally {
+            usePersonalFmModeStore.setState({ providerSelections: before });
+        }
     });
 });
 

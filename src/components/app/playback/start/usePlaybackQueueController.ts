@@ -55,6 +55,7 @@ import { playbackFade } from '../../../../services/playbackFade';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, setDuration, setIsFmMode, setPlayQueue, setPlayerState, startLoadingToPlay, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { getAcceptedFmSelection, noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
 import { askedSongKeyRef, askForSong, keepSongsOfProvidersStanding, playsDroppedSoFar, providerDropsSoFar, providerPlaysDroppedSoFar, showSong, startOfAskedSong, startPlay, withdrawAsk } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
@@ -662,6 +663,7 @@ export function usePlaybackQueueController({
             quietLoadedToast: options.quietLoadedToast,
         };
         const providerId = getOnlineProviderIdForSong(song) ?? undefined;
+        const fmSelectionAtStart = playsAsFm && providerId ? getAcceptedFmSelection(providerId) : undefined;
 
         // A button of a failure may be pressed long after: where the queue follows the store, the main
         // queue as it is then (the stage keeps it in mainPlaybackSnapshotRef while it plays).
@@ -999,11 +1001,12 @@ export function usePlaybackQueueController({
         } else if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(landedQueue);
         }
-
         if (isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) {
             if (usePlaybackStore.getState().isFmMode && !queueRewritten()) onFmLanding?.();
             else if (fmModeToRestore && !usePlaybackStore.getState().isFmMode) usePersonalFmModeStore.getState().resetStationSelections();
         }
+
+        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, onFmLanding ? undefined : fmSelectionAtStart);
 
         void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, landedQueue);
 

@@ -4,7 +4,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OnlineProviderId } from '../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
-import type { LibraryHomeOnlineSource } from '../../core/home/homeModel.contract';
+import type { LibraryHomeActionsController, LibraryHomeOnlineSource } from '../../core/home/homeModel.contract';
 import type { LibraryAccountController } from '../../core/account/account.contract';
 import type { LibraryDeclaredActions } from '../../core/suite/suite.contract';
 import type { LibraryPlaybackPort } from '../../core/shared/ports.contract';
@@ -12,12 +12,12 @@ import { explorePageKey, useExploreFeedStore } from '../../../stores/useExploreF
 import { useExploreWall } from '../../../components/app/lattice/useExploreWall';
 import { listenedSongsOf, readOwnExploreSections } from '../../../components/app/home/explore/ownSections';
 import { recordSetRightTimes, watchRecentPlays } from '../../../components/app/home/explore/recentPlays';
-import { createOnlineGridViewCollection } from '../../../components/app/home/gridViewCollectionAdapters';
 import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { buildOnlinePlaylistCards } from '../../core/home/homeCards';
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeEntry, BravaisHomeTool } from './bravaisHomeModels';
 import { openRecommendationPreferences, useRecommendationPreferencesEntry } from '../../../components/recommendationPreferences/recommendationPreferencesEntry';
-import { projectExploreHeadings, projectExploreItems } from './bravaisExploreProjection';
+import { projectExploreHeadings, projectExploreItems, projectExploreShortcuts } from './bravaisExploreProjection';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisHomeAccount } from './useBravaisHomeAccount';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
@@ -31,7 +31,7 @@ import { availableLocalTabLabel, onlineWallHint } from './bravaisEmptyWallHint';
 //   集合墙；歌曲点了展开聚焦卡，播放时与网格一样连同它所在 section 的歌曲一起放。
 // - 歌曲磁贴与聚焦卡右上角悬浮的「加入速记簿」「收藏到歌单」（explore-collect / explore-save-to-playlist，走首页的
 //   播放端口）：速记簿里的出处是「探索 · section 标题」。
-// - 本机的两组（最近播放、再听一次，ownSections）排在平台的 section 前面，和网格的探索页一样；网格的探索墙不放它们。
+// - 本机的两组（最近播放、再听一次，ownSections）排在固定推荐入口之后、普通平台 section 之前，和网格探索页一样；网格的探索墙不放它们。
 //   这两组是快照：进页签时（换平台、账户、语言就是另一页，也算进页签）与「换一批」时各读一次，之后放歌不跟着变，墙不在听歌时重排；
 //   只有播放记录被纠正（旧的 MV 记录换成正式版）时再读一次。
 // - 缝：标题与面包屑是「探索」，元数据行是平台；读取中 / 读不到 / 空页的说明进状态行（墙上有本机的两组时照样说）；
@@ -59,12 +59,13 @@ const BravaisHomeExplore: React.FC<{
     chrome: BravaisHomeChrome;
     online: LibraryHomeOnlineSource;
     account: LibraryAccountController;
+    homeActions: LibraryHomeActionsController;
     isInteractive: boolean;
     declaredActions: LibraryDeclaredActions;
     playback: LibraryPlaybackPort;
     onPlaySong: (song: SongResult, queue: SongResult[], isFmCall?: boolean) => void;
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
-}> = ({ chrome, online, account: accountController, isInteractive, declaredActions, playback, onPlaySong, onOpenGridView }) => {
+}> = ({ chrome, online, account: accountController, homeActions, isInteractive, declaredActions, playback, onPlaySong, onOpenGridView }) => {
     const { t, i18n } = useTranslation();
     const isOn = online.accountView === 'authenticated' && online.canUseExplore;
     const providerId = online.providerId as OnlineProviderId;
@@ -101,12 +102,14 @@ const BravaisHomeExplore: React.FC<{
     const headings = useMemo(() => projectExploreHeadings(wall.sections, t), [t, wall.sections]);
     const shape = useMemo(() => (wall.sections.length > 0 ? { kind: 'explore' as const, sections: wall.sections, headings } : undefined), [headings, wall.sections]);
 
-    const latest = useRef({ tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, declaredActions, playback, t });
-    latest.current = { tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, declaredActions, playback, t };
+    const latest = useRef({ tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, homeActions, declaredActions, playback, t });
+    latest.current = { tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, homeActions, declaredActions, playback, t };
     const onOpenItem = useCallback((itemKey: string) => {
-        const { tiles, onOpenGridView: open, providerId: provider } = latest.current;
+        const { tiles, onOpenGridView: open, providerId: provider, homeActions: actions, t: translate } = latest.current;
         const tile = tiles.find(candidate => candidate.id === itemKey);
-        if (tile?.kind === 'collection') open(createOnlineGridViewCollection(tile.collection, provider));
+        if (tile?.kind === 'collection') {
+            void actions.openOnlineCard(buildOnlinePlaylistCards([tile.collection], translate)[0], provider, open);
+        }
     }, []);
     const onPlayItem = useCallback((itemKey: string) => {
         const { tiles, onPlaySong: play } = latest.current;
@@ -144,6 +147,10 @@ const BravaisHomeExplore: React.FC<{
             },
         };
     }, []);
+    const shortcuts = useMemo(() => projectExploreShortcuts(wall.tiles, feed?.sections ?? NO_SECTIONS).map(shortcut => ({
+        ...shortcut,
+        open: () => onOpenItem(shortcut.itemKey),
+    })), [feed?.sections, onOpenItem, wall.tiles]);
 
     const accountSeam = useBravaisHomeAccount(accountController, online);
     const status = online.accountView === 'guest'
@@ -187,13 +194,15 @@ const BravaisHomeExplore: React.FC<{
         onSelectTab: chrome.onSelectTab,
         home: {
             entries,
+            shortcuts,
+            shortcutsLabel: t('libraryBravaisHome.shortcuts'),
             tools,
             menuLabel: t('libraryBravaisHome.more'),
             scan: chrome.scan,
             search: chrome.search,
             account: accountSeam,
         },
-    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, status, t, tools]);
+    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, shortcuts, status, t, tools]);
     const localTab = availableLocalTabLabel(chrome.tabs);
     const { accountView, needsRelogin, providerLabel } = online;
     const wallHint = useMemo(

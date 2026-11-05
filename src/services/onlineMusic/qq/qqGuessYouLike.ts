@@ -4,10 +4,12 @@ import { OnlineProviderError, type PersonalFmRequestOptions, type ProviderCollec
 import type { PersonalFmCatalog, PersonalFmSceneEntry } from '../../../types/personalFm';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
 import { normalizeQqSong } from './qqNormalize';
+import { readProviderSessionValue } from '../providerStorage';
+import { createQqRecommendationPreview } from './qqRecommendationPreview';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqGuessYouLike.ts
-// 猜你喜欢（QQ 的电台 99）作为 QQ 的额外电台（station）：电台页多一张卡，点了开 FM；FM 模式选择器在它播的时候
+// 猜你喜欢（QQ 的电台 99）作为 QQ 的额外电台（station）：探索页固定一张卡，点了开 FM；FM 模式选择器在它播的时候
 // 换成它自己的「听歌模式」。手机上排的探索、默认、熟悉对上同名的模式，下面那一格（R&B、助眠、动感 DJ……）当场景，
 // 场景的 id 就是模式的 poolId。取歌只带 poolId，不写账号的模式设置；模式选择只在内存里，换台、FM 结束、重开都回默认。
 // 默认（或认不出的模式）读 `/user/guess-you-like` 的默认一批。
@@ -51,10 +53,6 @@ const DEFAULT_ONLY: QqStationCatalog = {
 
 let catalogTask: Promise<QqStationCatalog> | null = null;
 let catalogAt = 0;
-// 为卡片封面读的那一批默认歌：猜你喜欢是动态推荐，封面用它第一首的图；点卡片开播（默认模式）时先放这一批，
-// 不白白多耗一批。只留几分钟，过了就不用。
-const COVER_BATCH_TTL_MS = 5 * 60_000;
-let coverBatch: { songs: UnifiedSong[]; at: number } | null = null;
 // 清掉的次数：清掉之前就在路上的封面那一批，回来时不再记下（不让上一个账号的歌留给下一个账号）。
 let generation = 0;
 
@@ -63,7 +61,6 @@ export const clearQqGuessYouLikeCatalog = (): void => {
     generation += 1;
     catalogTask = null;
     catalogAt = 0;
-    coverBatch = null;
 };
 
 const listOf = (value: unknown): any[] => (Array.isArray(value) ? value : []);
@@ -165,11 +162,8 @@ const songsOf = (response: any): UnifiedSong[] => (Array.isArray(response?.songs
 export const getQqGuessYouLikeBatch = async (selected: PersonalFmRequestOptions): Promise<UnifiedSong[]> => {
     if (!hasUsableQqSession()) return [];
     const pool = await poolOfSelection(selected);
-    if (!pool && coverBatch && Date.now() - coverBatch.at < COVER_BATCH_TTL_MS) {
-        const kept = coverBatch.songs;
-        coverBatch = null;
-        return kept;
-    }
+    if (selected.previewToken !== undefined && pool) return [];
+    if (!pool) return preview.take(selected.previewToken);
     if (pool) {
         try {
             const songs = songsOf(await requestQq<any>('user_guess_you_like_tracks', { pool }));
@@ -181,30 +175,32 @@ export const getQqGuessYouLikeBatch = async (selected: PersonalFmRequestOptions)
             }
         }
     }
-    return songsOf(await requestQq<any>('user_guess_you_like'));
+    return preview.take();
 };
 
-/**
- * 电台页上这个电台的卡片：登录了才有。猜你喜欢是动态推荐，封面用默认一批第一首的图（这一批留给开播用），
- * 读不到歌才借默认模式的图。
- */
+// 单份默认批次缓存同时服务封面与显式开始；票据随账号代次失效，续歌不带票据。
+const preview = createQqRecommendationPreview(
+    async () => songsOf(await requestQq<any>('user_guess_you_like')),
+    () => hasUsableQqSession() ? `${generation}:${readProviderSessionValue('qq', 'cookie')}` : null,
+);
+
+/** 登录后的稳定电台卡用真实首歌预览；批次只在这里预留，不因电台页的隐藏卡而消耗。 */
 export const getQqGuessYouLikeCard = async (): Promise<ProviderCollection | null> => {
     if (!hasUsableQqSession()) return null;
     const mine = generation;
-    const songs = await requestQq<any>('user_guess_you_like').then(songsOf).catch(error => {
+    const held = await preview.reserve().catch(error => {
         console.warn('[QQProvider] guess-you-like-cover:failed', error);
-        return [] as UnifiedSong[];
+        return { songs: [] as UnifiedSong[], playbackToken: undefined };
     });
-    if (songs.length > 0 && mine === generation) coverBatch = { songs, at: Date.now() };
-    const cover = songs.find(song => song.album?.coverUrl)?.album.coverUrl
-        || (mine === generation ? (await stationCatalog()).cover : undefined);
+    const cover = held.songs[0]?.album.coverUrl || (mine === generation ? (await stationCatalog()).cover : undefined);
     return {
         providerId: 'qq',
         id: `station-${QQ_GUESS_YOU_LIKE_STATION}`,
         type: 'radio',
-        name: i18n.t('home.qqGuessYouLike'),
-        description: i18n.t('home.qqGuessYouLikeDescription'),
+        name: i18n.t('home.guessYouLike'),
+        description: i18n.t('home.immersiveRadio'),
         ...(cover ? { coverUrl: cover } : {}),
+        songPreview: { firstSong: held.songs[0], ...(held.playbackToken ? { playbackToken: held.playbackToken } : {}) },
         personalFm: { mode: 'DEFAULT', scene: null, station: QQ_GUESS_YOU_LIKE_STATION },
     };
 };

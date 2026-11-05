@@ -57,6 +57,7 @@ export const resetExploreMemory = (): void => { memory = null; };
 // The sections of one read in the order the page has kept: a provider hands the same sections
 // back in another order from read to read, and the section that opens the page would change
 // with it. A heading met for the first time goes after the ones known, in the order it came.
+// Fixed entry sections (`placement: 'first'`) lead that order, as the provider handed them over.
 export const inKeptOrder = (pageKey: string, sections: OmniExploreSection[]): OmniExploreSection[] => {
     const now = Date.now();
     const known = recall().orders[pageKey] ?? [];
@@ -77,7 +78,12 @@ export const inKeptOrder = (pageKey: string, sections: OmniExploreSection[]): Om
     // Sections of one heading keep the order they came in.
     return sections
         .map((section, index) => ({ section, index }))
-        .sort((left, right) => (rankOf(left.section) - rankOf(right.section)) || left.index - right.index)
+        .sort((left, right) => {
+            const leftFirst = left.section.placement === 'first';
+            const rightFirst = right.section.placement === 'first';
+            if (leftFirst || rightFirst) return leftFirst === rightFirst ? left.index - right.index : leftFirst ? -1 : 1;
+            return (rankOf(left.section) - rankOf(right.section)) || left.index - right.index;
+        })
         .map(entry => entry.section);
 };
 

@@ -26,6 +26,7 @@ import { LATTICE_TILE_ATTR, MORPH_SHADE_ATTR } from '../../collectionFlight';
 import { ENTRANCE_LIFT, LEAVING } from './tileMotion';
 import { useFlightBackTo } from './wallFlight';
 import { isWallDoubleClickOn, noteWallPress } from '../../wall/wallDoubleClick';
+import { ExploreCoverOverlay } from '../home/explore/ExploreCoverOverlay';
 
 // Renders one poster and its expanded Player Chrome controls. A poster of the explore page that
 // is a collection (album, playlist, artist, mix) has one button there instead, which opens its page.
@@ -331,6 +332,7 @@ function LatticePoster({
             <span className="lattice-poster-shade" {...(isFlightEnd ? { [MORPH_SHADE_ATTR]: '' } : {})} />
             <span className="lattice-poster-lights-out" />
             <span className="lattice-poster-tint" />
+            {tile.kind === 'collection' && <ExploreCoverOverlay overlay={tile.collection.coverOverlay} className="absolute right-3 top-3 h-7 w-28" />}
             {/* A queue tile's number is is-index: the wall root's has-badge-current-only hides it
                 on all but the playing poster (#930, wall.css). */}
             <span className={`lattice-poster-badge ${latticeBadgeIsIndex(tile) ? 'is-index' : ''} ${isCurrent ? 'is-current' : ''}`}>

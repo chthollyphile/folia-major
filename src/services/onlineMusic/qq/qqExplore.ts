@@ -6,17 +6,21 @@ import type {
     ProviderExploreItemsPage,
     ProviderExplorePage,
     ProviderExploreSection,
+    ProviderCollection,
 } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
 import { errorMessage } from '../../../utils/errorText';
+import { readProviderSessionValue } from '../providerStorage';
 import { qqRadioCollection, qqToplistCollection } from './qqLists';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
+import { getQqGuessYouLikeCard, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqExplore.ts
-// QQ 音乐的探索页：个人化的在前，往下相似歌曲和公开的栏交替。
-//  1. 第一页：刷歌模式（`/recommend/radar`，客户端的「雷达」，一页约 10 首，没登录也有，放最上面）、
+// QQ 音乐的探索页：两个固定推荐入口与至多九首雷达/相似歌曲在前，保留上游首页 feed、每日歌曲和交替分页。
+// 猜你喜欢使用独立 station，真正的私人 FM 仍在电台页；预览批次带临时票据供重复开始。
+//  1. 固定入口之后：刷歌模式（`/recommend/radar`，客户端的「雷达」，一页约 10 首，没登录也有）、
 //     每日 30 首（要登录）、客户端首页 feed 的几架（`/recommend/feed`，要登录，只有第 1 页，
 //     只有歌曲与歌单；架子每次读取都不同）、推荐歌单（`/recommend/playlists`）、
 //     全部榜单的卡片（`/recommend/toplists`，点开读那个榜的歌，见 qqLists.ts）。
@@ -30,8 +34,11 @@ import { hasUsableQqSession, requestQq } from './qqTransport';
 // `refreshReadsAnew`，每次换一批都从头重读；每栏一次读取交一批，交过什么记在 exploreReads.ts 的共用记忆里，
 // 下一次先交没交过的。一栏的游标只给「更多」用：把这一栏接着展开，不换内容。
 
+const daily30Mark = new URL('./qqDaily30Mark.svg', import.meta.url).href;
+
 /** 一栏一次交出的条数，「更多」每次也是这么多。 */
 const BATCH = 12;
+const RECOMMENDED_ON_LEAD = 9;
 // 一部分做几栏相似歌曲、一次读取最多几栏（每栏一个请求），一栏至少要几首不在别栏里的歌。
 const SIMILAR_A_PART = 3;
 const MAX_SIMILAR = 9;
@@ -124,6 +131,66 @@ const songsIn = (answer: any): UnifiedSong[] => (
     (Array.isArray(answer?.songs) ? answer.songs : []).map(normalizeQqSong).filter((song: UnifiedSong) => Boolean(song.qqMid))
 );
 const listOf = (value: unknown): any[] => (Array.isArray(value) ? value : []);
+
+interface RecommendationPreviews { personalFm?: ProviderCollection['songPreview']; dailySongs?: UnifiedSong }
+
+/** 两个稳定入口用实际首歌作预览，FM 那一批保留到点击播放时领取。 */
+const recommendationShelf = (songs: UnifiedSong[], previews: RecommendationPreviews, moreCursor?: string): ProviderExploreSection => {
+    const personalFm = { name: i18n.t('home.guessYouLike'), description: i18n.t('home.immersiveRadio'), summary: i18n.t('home.autoRadioSummary') };
+    const dailySongs = { name: i18n.t('home.daily30') };
+    return {
+        id: 'qq-personal-recommendations',
+        title: i18n.t('home.personalRecommendations'),
+        placement: 'first',
+        items: [{
+            kind: 'collection',
+            subtitle: personalFm.description,
+            collection: {
+                providerId: 'qq',
+                id: `station-${QQ_GUESS_YOU_LIKE_STATION}`,
+                type: 'radio',
+                ...personalFm,
+                personalFm: { mode: 'DEFAULT', scene: null, station: QQ_GUESS_YOU_LIKE_STATION },
+                songPreview: previews.personalFm ?? {},
+            },
+        }, {
+            kind: 'collection',
+            subtitle: i18n.t('home.dailyRecommendationsDescription'),
+            collection: {
+                providerId: 'qq',
+                id: 'daily_recommendations',
+                type: 'daily_recommendations',
+                ...dailySongs,
+                songPreview: { firstSong: previews.dailySongs },
+                coverOverlay: { label: i18n.t('home.daily30'), logoUrl: daily30Mark },
+            },
+        }, ...songs.map(songItem)],
+        ...(moreCursor ? { moreCursor } : {}),
+    };
+};
+
+/** 将已读推荐移到入口同栏，按 QQ 的播放身份去重，空雷达的后续游标由这一栏接手。 */
+const withRecommendedSongs = (sections: ProviderExploreSection[], previews: RecommendationPreviews): ProviderExploreSection[] => {
+    const songs: UnifiedSong[] = [];
+    const selected = new Set<string>();
+    for (const section of sections) {
+        for (const item of section.items) {
+            if (item.kind !== 'song' || !item.song.qqMid || selected.has(item.song.qqMid) || songs.length >= RECOMMENDED_ON_LEAD) continue;
+            selected.add(item.song.qqMid);
+            songs.push(item.song);
+        }
+    }
+    let moreCursor: string | undefined;
+    const remaining = sections.flatMap(section => {
+        const items = section.items.filter(item => item.kind !== 'song' || !selected.has(item.song.qqMid ?? ''));
+        if (section.id === 'qq-radar' && items.length === 0) {
+            moreCursor = section.moreCursor;
+            return [];
+        }
+        return items.length > 0 || section.moreCursor ? [{ ...section, items }] : [];
+    });
+    return [recommendationShelf(songs, previews, moreCursor), ...remaining];
+};
 
 // 422 是「上游成功但没有数据」：这一栏这次没有东西，不是失败。
 const isEmptyAnswer = (error: unknown): boolean => (
@@ -422,6 +489,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
     const firstPage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
         // 停用的会话（isQqSessionParked）请求不带，照游客读。
         const signedIn = hasUsableQqSession();
+        const previewSession = signedIn ? readProviderSessionValue('qq', 'cookie') : null;
         if (hadAccount !== undefined && hadAccount !== signedIn) {
             memory = newMemory();
             console.log(`[QQ] Explore page: read ${signedIn ? 'for an account after a guest' : 'for a guest after an account'}; what the shelves handed out before is forgotten`);
@@ -429,6 +497,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
         hadAccount = signedIn;
         const read = newRead(++reads, memory, signedIn, listened);
         const failures: unknown[] = [];
+        const previewAsked = signedIn ? getQqGuessYouLikeCard() : Promise.resolve(null);
         const shelves = await Promise.allSettled([
             pagedShelf(read, RADAR, i18n.t('home.qqRadar')),
             dailyOf(read).then(songs => listShelf(read, DAILY_SONGS_ID, i18n.t('home.dailyRecommendations'), songs.map(songItem))),
@@ -447,7 +516,20 @@ export const createQqExplore = (): OnlineExploreProvider => {
             failures.push(answer.reason);
             console.warn(`[QQ] Explore page: part of the first page could not be read (${errorMessage(answer.reason)}); the page goes on without it`);
         }
-        const sections = shelves.flatMap(answer => (answer.status === 'fulfilled' ? [answer.value].flat() : [])).filter(present);
+        const provided = shelves.flatMap(answer => (answer.status === 'fulfilled' ? [answer.value].flat() : [])).filter(present);
+        const songSections = provided.filter(section => section.id === 'qq-radar');
+        if (signedIn && new Set(songSections.flatMap(section => section.items.flatMap(item => item.kind === 'song' ? [item.song.qqMid] : []))).size < RECOMMENDED_ON_LEAD) {
+            // Only a short radar needs one existing similarity part; its used seeds are skipped by later parts.
+            try { songSections.push(...await similarPart(read)); }
+            catch (error) { console.warn('[QQ] Explore lead: similar songs failed', error); }
+        }
+        const card = await previewAsked;
+        const sameSession = previewSession && hasUsableQqSession() && readProviderSessionValue('qq', 'cookie') === previewSession;
+        const previews = { personalFm: sameSession ? card?.songPreview : undefined, dailySongs: sameSession ? (await dailyOf(read))[0] : undefined };
+        const sections = signedIn ? [
+            ...withRecommendedSongs(songSections, previews),
+            ...provided.filter(section => section.id !== 'qq-radar'),
+        ] : provided;
         page = read;
         console.log(`[QQ] Explore page: ${sections.length} shelves, ${countOf(sections)} entries; ${signedIn ? 'signed in' : 'a guest: no daily songs, no similar songs and no radio'}`);
         if (sections.length === 0) {

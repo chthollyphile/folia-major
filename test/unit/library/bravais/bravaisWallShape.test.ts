@@ -251,4 +251,19 @@ describe('bravais explore display', () => {
         expect(album).toMatchObject({ key: 'collection:album:9', kind: 'album', title: 'Al', badge: 'Album' });
         expect(mix.kind).toBe('playlist');
     });
+
+    it('marks a named explore stream as a direct action while daily recommendations still open a layer', () => {
+        const tiles: LatticeTile[] = [{
+            id: 'collection:radio:fm', kind: 'collection', queueIndex: 0,
+            collection: { providerId: 'p', id: 'fm', name: 'For you', type: 'radio', personalFm: { mode: 'DEFAULT', scene: null } },
+            title: 'For you', artist: 'Nonstop radio', section: 'upcoming', entryKind: 'playlist',
+        }, {
+            id: 'collection:daily_recommendations:daily', kind: 'collection', queueIndex: 1,
+            collection: { providerId: 'p', id: 'daily', name: 'Daily', type: 'daily_recommendations' },
+            title: 'Daily', artist: '', section: 'upcoming', entryKind: 'playlist',
+        }];
+        const [fm, daily] = projectExploreItems(tiles);
+        expect(fm.direct).toBe(true);
+        expect(daily.direct).toBeUndefined();
+    });
 });
