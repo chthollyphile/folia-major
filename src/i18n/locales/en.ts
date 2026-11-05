@@ -2068,6 +2068,7 @@ export default {
     "aiEndpoint_hongkong": "Hong Kong",
     "aiTemperatureRangeDesc": "Range: {{min}}–{{max}}. Defaults to 0.7 when left blank.",
     "aiTemperaturePerModelDesc": "Range: {{min}}–{{max}}; some models ignore it. Defaults to 0.7 when left blank.",
+    "aiTemperatureNote": "Temperature controls how random the output is: lower is steadier, higher is more varied. Keep the default unless you have a reason to change it, or adjust it as your provider's documentation recommends.",
     "randomVisualizerModes": "Styles to randomize",
     "randomVisualizerSelectAll": "Select all",
     "randomVisualizerCurrentStyle": "Current style",
@@ -4788,7 +4789,8 @@ export default {
     "posterTopSongs": "Top songs"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Album poster"
+    "posterLabel": "Album poster",
+    "openArtist": "Open artist {{name}}"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",

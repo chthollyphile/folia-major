@@ -203,13 +203,23 @@ export type BravaisSeamArtist = {
     name: string;
 };
 
+/** 专辑页海报上的一个专辑歌手：targetId 有值时名字可以点，打开那位歌手的页（交给宿主的 onOpenArtist）。 */
+export type BravaisSeamAlbumArtist = {
+    name: string;
+    targetId?: number | string;
+    /** 在线平台给的目录引用，原样交给宿主。 */
+    catalogRef?: unknown;
+};
+
 /**
  * 专辑页的海报（左边钉住的凝彩海报）要的信息：封面、歌手、「专辑 · 年份」标签、元信息行（首数、总时长、流派）。
  * 只有专辑类型的集合有（歌单、每日推荐、文件夹仍是原来的竖缝）；简介在 collection.description 里。
  */
 export type BravaisSeamAlbum = {
     coverUrl?: string;
-    artists: readonly string[];
+    artists: readonly BravaisSeamAlbumArtist[];
+    /** 打开一个专辑歌手的歌手页；只有声明了 open-artist 时才有，且只对带 targetId 的歌手调用。 */
+    onOpenArtist?: (artist: BravaisSeamAlbumArtist) => void;
     /** 「专辑 · 2024」（没有年份时只有「专辑」）。 */
     kicker: string;
     /** 首数、总时长、流派，已经排好的几段。 */

@@ -156,3 +156,19 @@ export const resolveSongCatalogRefSet = async (
         artists: artistRefs,
     };
 };
+
+/**
+ * An artist listed on an online collection (an album's artists, #1058): the id its artist page opens with,
+ * or undefined when it cannot be opened. A provider that keeps catalog refs puts one on every artist it can
+ * open, so an artist without its ref carries a stand-in id (an index, a name); a provider without catalog
+ * refs gives its own ids, where 0 or '' means the platform has none for that artist.
+ */
+export const resolveCollectionArtistCatalogId = (
+    providerId: string,
+    artist: Pick<Artist, 'id' | 'catalogRef'>,
+): number | string | undefined => {
+    if (isMatchingRef(artist.catalogRef, providerId, 'artist')) return artist.catalogRef.id;
+    const catalog = getOnlineMusicProvider(providerId)?.catalog;
+    if (catalog?.canResolveSongCatalogRefs || catalog?.resolveSongCatalogRefs) return undefined;
+    return artist.id === '' || artist.id === 0 || artist.id === '0' || artist.id === undefined ? undefined : artist.id;
+};

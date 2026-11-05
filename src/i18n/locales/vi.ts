@@ -2068,6 +2068,7 @@ export default {
     "aiEndpoint_hongkong": "Hồng Kông",
     "aiTemperatureRangeDesc": "Phạm vi: {{min}}–{{max}}. Mặc định là 0.7 khi để trống.",
     "aiTemperaturePerModelDesc": "Phạm vi: {{min}}–{{max}}; một số mô hình có thể bỏ qua tùy chọn này. Mặc định là 0.7 khi để trống.",
+    "aiTemperatureNote": "Temperature quyết định mức độ ngẫu nhiên của kết quả: càng thấp càng ổn định, càng cao càng đa dạng. Nên giữ giá trị mặc định, hoặc điều chỉnh theo khuyến nghị trong tài liệu của nhà cung cấp.",
     "randomVisualizerModes": "Phong cách tham gia ngẫu nhiên",
     "randomVisualizerSelectAll": "Chọn tất cả",
     "randomVisualizerCurrentStyle": "Phong cách hiện tại",
@@ -4788,7 +4789,8 @@ export default {
     "posterTopSongs": "Bài hát nổi bật"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Áp phích album"
+    "posterLabel": "Áp phích album",
+    "openArtist": "Mở nghệ sĩ {{name}}"
   },
   "artistGrid": {
     "localArtist": "Nghệ sĩ nội bộ: {{artistName}}",
