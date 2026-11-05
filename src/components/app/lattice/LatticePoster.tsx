@@ -8,6 +8,7 @@ import type { ReflowTile } from '../../wall/layout';
 import { latticeBadgeIsIndex, type LatticeTile } from './latticeModel';
 import { useLatticeChromeDisclosure } from './useLatticeChromeDisclosure';
 import LatticePlaybackControls from './LatticePlaybackControls';
+import LatticeQuickActions from './LatticeQuickActions';
 import { useLatticeExpansionSettled } from './useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from './lyrics/prewarmLatticeLyrics';
 import { prewarmWallPosterArtwork, useWallPosterArtwork } from '../../wall/useWallPosterArtwork';
@@ -340,6 +341,8 @@ function LatticePoster({
                     ? String(tile.queueIndex + 1).padStart(2, '0')
                     : tile.kind === 'collection' && expanded && tile.heading ? `${tile.label} · ${tile.heading}` : tile.label}
             </span>
+            {/* 歌曲海报右上角悬停才出现的加入速记簿、收藏到歌单（显隐在 Lattice.css）。 */}
+            {tile.kind === 'song' && <LatticeQuickActions tile={tile} width={rect.width} expanded={expanded} />}
             {expanded && expansionSettled && isCurrent ? (
                 <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded={expanded} targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
                     <LatticeLyrics key={tile.id} tile={tile} reducedMotion={Boolean(reducedMotion)} />
