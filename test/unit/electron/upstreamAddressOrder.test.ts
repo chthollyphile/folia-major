@@ -1,5 +1,6 @@
 import dns from 'node:dns';
 import http from 'node:http';
+import net from 'node:net';
 import type { AddressInfo, Socket } from 'node:net';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
@@ -10,12 +11,20 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const modulePath = require.resolve('../../../electron/netease/upstreamAddressOrder.cjs');
-const { UPSTREAM_RESULT_ORDER, preferIpv4Upstream } = require(modulePath) as {
+const { UPSTREAM_ATTEMPT_TIMEOUT_MS, UPSTREAM_RESULT_ORDER, preferIpv4Upstream } = require(modulePath) as {
+    UPSTREAM_ATTEMPT_TIMEOUT_MS: number;
     UPSTREAM_RESULT_ORDER: string;
-    preferIpv4Upstream: (options?: { dnsModule?: unknown; logger?: unknown }) => void;
+    preferIpv4Upstream: (options?: { dnsModule?: unknown; netModule?: unknown; logger?: unknown }) => void;
 };
 
-type WorkerAnswer = { order: string; status?: number; family?: string; error?: string };
+// 跳过判断要和连接看到同样的地址：非 Windows 上 net 不指定 family 时会带 ADDRCONFIG 去解析，
+// 没有非回环 IPv6 地址的 Linux 上会因此拿不到 ::1。
+const lookupLikeConnect = () => dns.promises.lookup('localhost', {
+    all: true,
+    hints: process.platform === 'win32' ? 0 : dns.ADDRCONFIG,
+});
+
+type WorkerAnswer = { order: string; attemptTimeout: number; status?: number; family?: string; error?: string };
 
 // 在一个新线程里（像网易云工作线程那样）按需调 preferIpv4Upstream，再用每次新建的 keep-alive agent
 // （上游 util/request 的做法）向 http://localhost:<port>/ 发一个 POST。
@@ -28,6 +37,7 @@ const requestFromWorker = (port: number, preferIpv4: boolean) => new Promise<Wor
             require(workerData.modulePath).preferIpv4Upstream({ logger: { log() {} } });
         }
         const order = dns.getDefaultResultOrder();
+        const attemptTimeout = require('net').getDefaultAutoSelectFamilyAttemptTimeout();
         const req = http.request({
             host: 'localhost',
             port: workerData.port,
@@ -35,9 +45,9 @@ const requestFromWorker = (port: number, preferIpv4: boolean) => new Promise<Wor
             agent: new http.Agent({ keepAlive: true }),
         }, (res) => {
             res.resume();
-            res.on('end', () => parentPort.postMessage({ order, status: res.statusCode, family: req.socket.remoteFamily }));
+            res.on('end', () => parentPort.postMessage({ order, attemptTimeout, status: res.statusCode, family: req.socket.remoteFamily }));
         });
-        req.on('error', (error) => parentPort.postMessage({ order, error: error.code || error.message }));
+        req.on('error', (error) => parentPort.postMessage({ order, attemptTimeout, error: error.code || error.message }));
         req.end('id=1');
     `, { eval: true, workerData: { port, preferIpv4, modulePath } });
     worker.once('message', (answer: WorkerAnswer) => {
@@ -48,15 +58,22 @@ const requestFromWorker = (port: number, preferIpv4: boolean) => new Promise<Wor
 });
 
 describe('preferIpv4Upstream', () => {
-    it('sets the ipv4first order and logs the decision', () => {
+    it('sets the ipv4first order and a longer attempt timeout, and logs the decision', () => {
         const dnsModule = { getDefaultResultOrder: vi.fn(() => 'verbatim'), setDefaultResultOrder: vi.fn() };
+        const netModule = {
+            getDefaultAutoSelectFamilyAttemptTimeout: vi.fn(() => 250),
+            setDefaultAutoSelectFamilyAttemptTimeout: vi.fn(),
+        };
         const logger = { log: vi.fn() };
 
-        preferIpv4Upstream({ dnsModule, logger });
+        preferIpv4Upstream({ dnsModule, netModule, logger });
 
         expect(UPSTREAM_RESULT_ORDER).toBe('ipv4first');
         expect(dnsModule.setDefaultResultOrder).toHaveBeenCalledWith('ipv4first');
-        expect(logger.log).toHaveBeenCalledWith('[Netease API] upstream address order set to ipv4first (was verbatim)');
+        expect(netModule.setDefaultAutoSelectFamilyAttemptTimeout).toHaveBeenCalledWith(UPSTREAM_ATTEMPT_TIMEOUT_MS);
+        expect(logger.log).toHaveBeenCalledWith(
+            '[Netease API] upstream address order set to ipv4first (was verbatim), attempt timeout 1000ms (was 250ms)',
+        );
     });
 
     describe('in a worker thread, when IPv6 resets the request after the handshake', () => {
@@ -81,7 +98,7 @@ describe('preferIpv4Upstream', () => {
             });
             if (bound) ipv6Server = resetting;
 
-            const addresses = await dns.promises.lookup('localhost', { all: true });
+            const addresses = await lookupLikeConnect();
             localhostHasBothFamilies = addresses.some(entry => entry.family === 4) && addresses.some(entry => entry.family === 6);
         });
 
@@ -94,16 +111,22 @@ describe('preferIpv4Upstream', () => {
             // 本机没有 IPv6 回环或 localhost 只解析出一种地址时，模拟不出这个场景。
             if (!ipv6Server || !localhostHasBothFamilies) context.skip();
             const mainOrderBefore = dns.getDefaultResultOrder();
+            const mainTimeoutBefore = net.getDefaultAutoSelectFamilyAttemptTimeout();
 
             const answer = await requestFromWorker(port, true);
 
-            expect(answer).toEqual({ order: 'ipv4first', status: 200, family: 'IPv4' });
+            expect(answer).toEqual({ order: 'ipv4first', attemptTimeout: UPSTREAM_ATTEMPT_TIMEOUT_MS, status: 200, family: 'IPv4' });
             expect(dns.getDefaultResultOrder()).toBe(mainOrderBefore);
+            expect(net.getDefaultAutoSelectFamilyAttemptTimeout()).toBe(mainTimeoutBefore);
         });
 
         it('reproduces the reset when the system order puts IPv6 first', async (context) => {
             if (!ipv6Server || !localhostHasBothFamilies) context.skip();
-            const [first] = await dns.promises.lookup('localhost', { all: true, order: 'verbatim' });
+            const [first] = await dns.promises.lookup('localhost', {
+                all: true,
+                order: 'verbatim',
+                hints: process.platform === 'win32' ? 0 : dns.ADDRCONFIG,
+            });
             // 系统把 127.0.0.1 排在前面（多数 Linux），默认顺序本来就走 IPv4，这条对照没有意义。
             if (first.family !== 6) context.skip();
 
@@ -122,12 +145,12 @@ describe('preferIpv4Upstream', () => {
         });
         if (!bound) context.skip();
         try {
-            const addresses = await dns.promises.lookup('localhost', { all: true });
+            const addresses = await lookupLikeConnect();
             if (!addresses.some(entry => entry.family === 6)) context.skip();
 
             const answer = await requestFromWorker((ipv6Only.address() as AddressInfo).port, true);
 
-            expect(answer).toEqual({ order: 'ipv4first', status: 200, family: 'IPv6' });
+            expect(answer).toEqual({ order: 'ipv4first', attemptTimeout: UPSTREAM_ATTEMPT_TIMEOUT_MS, status: 200, family: 'IPv6' });
         } finally {
             await new Promise<void>(resolve => ipv6Only.close(() => resolve()));
         }
