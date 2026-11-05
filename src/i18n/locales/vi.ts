@@ -15,6 +15,7 @@ export default {
     "empty": "Chưa có gì. Chọn \"Thêm vào sổ ghi nhanh\" trên thẻ bài hát, dòng danh sách bài hoặc kết quả tìm kiếm, hoặc ghi bài đang phát từ bảng lệnh.",
     "open": "Mở sổ ghi nhanh",
     "close": "Đóng sổ ghi nhanh",
+    "openQueueCanvas": "Mở hàng đợi trong sổ ghi nhanh",
     "play": "Phát trong hàng đợi",
     "enqueue": "Thêm vào hàng đợi",
     "addToPlaylist": "Thêm vào danh sách phát…",

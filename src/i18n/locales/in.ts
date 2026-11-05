@@ -15,6 +15,7 @@ export default {
     "empty": "Masih kosong. Pilih \"Tambahkan ke buku catatan\" pada kartu lagu, baris daftar lagu, atau hasil pencarian, atau catat lagu yang sedang diputar dari palet perintah.",
     "open": "Buka buku catatan",
     "close": "Tutup buku catatan",
+    "openQueueCanvas": "Buka antrean di buku catatan",
     "play": "Putar di antrean",
     "enqueue": "Tambahkan ke antrean",
     "addToPlaylist": "Tambahkan ke daftar putar…",

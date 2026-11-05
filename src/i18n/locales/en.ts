@@ -15,6 +15,7 @@ export default {
     "empty": "Nothing here yet. Choose \"Add to scratchpad\" on a song card, track row or search result, or jot down the playing song from the command palette.",
     "open": "Open the scratchpad",
     "close": "Close the scratchpad",
+    "openQueueCanvas": "Open the queue in the scratchpad",
     "play": "Play it in the queue",
     "enqueue": "Add to queue",
     "addToPlaylist": "Add to a playlist…",

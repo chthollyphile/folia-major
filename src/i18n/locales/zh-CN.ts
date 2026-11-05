@@ -15,6 +15,7 @@ export default {
     "empty": "还是空的。在歌曲卡片、曲目列表或搜索结果上点「加入速记簿」，或用命令面板记下正在播的歌。",
     "open": "打开速记簿",
     "close": "收起速记簿",
+    "openQueueCanvas": "在速记簿里展开播放队列",
     "play": "插进队列播放",
     "enqueue": "加入队列",
     "addToPlaylist": "加入歌单…",
