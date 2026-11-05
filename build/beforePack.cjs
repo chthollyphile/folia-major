@@ -22,6 +22,11 @@ exports.default = async (context) => {
   // file each for every platform.
   const { prepareBundledModels } = await import("./fetchModels.mjs");
   await prepareBundledModels({ outputDir: require("path").join(context.packager.projectDir, "models") });
+  if (context.electronPlatformName === 'win32') {
+    // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
+    const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    prepareWindowsCompanion({ arch, projectRoot: context.packager.projectDir });
+  }
   if (context.electronPlatformName === 'darwin') {
     const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
     prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });

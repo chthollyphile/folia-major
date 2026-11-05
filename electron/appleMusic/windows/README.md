@@ -1,8 +1,9 @@
-# Windows WebView2 companion（待实机验证）
+# Windows WebView2 companion
 
-已提供 Windows 源码与 Folia 开发接入，但尚未在 Windows 编译或验证 Apple Music 的 DRM 出声。
-macOS 上通过的 WKWebView 测试不代表 WebView2 通过。默认 Windows 登录行保持停用并显示验证中，
-仅开发者明确开启实验标志后允许试用。
+Windows 11 已实测官方登录、整首 DRM 播放与逐词歌词（见文末），从 0.7.26 起正式版默认启用。
+打包时 `build/beforePack.cjs` 调 `prepareBundle.cjs` 编译宿主（只支持 x64），`package.json` 的
+`build.win.extraResources` 把运行需要的文件放进 `resources/apple-music/windows/`，`build/afterPack.cjs`
+核对文件齐全。
 
 ## 依赖与构建
 
@@ -16,13 +17,12 @@ macOS 上通过的 WKWebView 测试不代表 WebView2 通过。默认 Windows �
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File electron/appleMusic/windows/buildCompanion.ps1
-$env:FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL = '1'
 npm run dev:electron
 ```
 
 输出为 `build/apple-music-native/windows/FoliaAppleMusicCompanion.exe`，开发版发现后优先使用。
 也可以通过 `FOLIA_APPLE_MUSIC_NATIVE` 指定可执行路径。构建输出与中间文件不进 Git。
-正式安装包配套分发、安装运行时的引导及代码签名尚未接入。
+正式安装包随附宿主；WebView2 Evergreen Runtime 不随附（Windows 11 自带），宿主未做代码签名。
 
 ## 结构与边界
 
@@ -49,6 +49,6 @@ Linux 不启动该宿主，Apple Music 登录行显示「Linux 暂未支援」�
 
 ## Windows 11 用户实测（2026-11-04）
 
-用户确认安装 WebView2、使用实验开关后，官方登录、整首播放以及 TTML 逐词歌词正常，DRM 有声超过 30 秒。
+用户确认安装 WebView2、使用（当时的）开发实验开关后，官方登录、整首播放以及 TTML 逐词歌词正常，DRM 有声超过 30 秒。
 首次打开登录窗口曾被其他窗口遮挡；当前代码在显示期间启用任务栏按钮，隐藏时关闭，仍需 Windows 实机复测。
 构建脚本明确使用 NuGet.org；固定的宿主生命周期诊断经受限通道进入 Folia 日志，不转发网页或运行时原始输出。

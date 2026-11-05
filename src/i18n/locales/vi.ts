@@ -1746,7 +1746,6 @@ export default {
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
     "appleMusicLinuxUnsupported": "Chưa hỗ trợ Linux",
-    "appleMusicWindowsPending": "Phiên bản Windows đang chờ xác minh",
     "loginNoteYtmBrowser": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
     "loginNoteYtmBrowserMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
     "loginNoBrowserYtm": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave.",
@@ -3997,7 +3996,7 @@ export default {
       }
     },
     "v0_7_26": {
-      "intro": "Chào mừng bạn đến với 0.7.26, Fawkes Update—một bản cập nhật lớn. Phiên bản này thêm Sổ ghi nhanh, ngăn kéo trượt ra từ bên trái để giữ bài hát tạm thời; Nebbia có khung cảnh và lớp kính mới, gồm bể cá, sương đọng và tuyết; Apple Music (macOS) và fnOS Music là hai nền tảng mới; bài hát từ các nền tảng khác nhau có thể nằm chung một hàng đợi, và trang tìm kiếm giờ tìm được cả album lẫn danh sách phát; viên thanh tiến trình hiện các lệnh thường dùng, và các nút bên phải có thể đổi ngay tại chỗ; gợi ý cũng phong phú hơn, với gợi ý theo phong cách cho Hằng ngày của NetEase cùng radio Có thể bạn thích và tùy chọn âm nhạc cho QQ Music.",
+      "intro": "Chào mừng bạn đến với 0.7.26, Fawkes Update—một bản cập nhật lớn. Phiên bản này thêm Sổ ghi nhanh, ngăn kéo trượt ra từ bên trái để giữ bài hát tạm thời; Nebbia có khung cảnh và lớp kính mới, gồm bể cá, sương đọng và tuyết; Apple Music và fnOS Music là hai nền tảng mới; bài hát từ các nền tảng khác nhau có thể nằm chung một hàng đợi, và trang tìm kiếm giờ tìm được cả album lẫn danh sách phát; viên thanh tiến trình hiện các lệnh thường dùng, và các nút bên phải có thể đổi ngay tại chỗ; gợi ý cũng phong phú hơn, với gợi ý theo phong cách cho Hằng ngày của NetEase cùng radio Có thể bạn thích và tùy chọn âm nhạc cho QQ Music.",
       "scratchpad": {
         "title": "Sổ ghi nhanh",
         "description": "Sổ ghi nhanh mới là ngăn kéo bài hát trượt ra từ bên trái; nhấn Ctrl+J để mở. Di chuột lên thẻ bài hát, kết quả tìm kiếm, trang Khám phá hoặc bức tường bìa Lattice để thêm bài vào Sổ ghi nhanh hoặc lưu vào danh sách phát. Bài hát được nhóm theo nguồn, và mỗi nhóm có thể mở thành một khung vẽ để sắp xếp, chọn vùng các thẻ rồi thêm cả nhóm vào danh sách phát—trên màn hình cảm ứng cũng kéo được. Ngăn kéo còn có trang Lịch sử và Hàng đợi: Lịch sử liệt kê những bài đã phát từ tệp cục bộ, Navidrome và mọi nền tảng, còn hàng đợi có thể mở thành khung vẽ gồm các thẻ. Việc hiện tab bên và chiều cao của nó chỉnh trong Cài đặt."
@@ -4008,7 +4007,7 @@ export default {
       },
       "newPlatforms": {
         "title": "Apple Music và fnOS Music",
-        "description": "Thêm hai nền tảng mới. Apple Music dùng được trên macOS 14 trở lên với gói đăng ký Apple Music: đăng nhập qua trang chính thức của Apple, rồi tìm kiếm và phát trọn bài, duyệt danh sách phát và album trong thư viện cùng trang danh mục nghệ sĩ và album, nghe radio cá nhân và radio trực tiếp, và lấy lời bài hát. Trên Windows tạm chưa bật, trên Linux chưa hỗ trợ. fnOS Music kết nối tới thư viện nhạc trên thiết bị fnOS—nhập địa chỉ và tài khoản trong cửa sổ đăng nhập để duyệt và phát."
+        "description": "Thêm hai nền tảng mới. Apple Music dùng được trên macOS 14 trở lên và trên Windows (cần WebView2 runtime, Windows 11 đã có sẵn), với gói đăng ký Apple Music: đăng nhập qua trang chính thức của Apple, rồi tìm kiếm và phát trọn bài, duyệt danh sách phát và album trong thư viện cùng trang danh mục nghệ sĩ và album, nghe radio cá nhân và radio trực tiếp, và lấy lời bài hát. Trên Linux chưa hỗ trợ. fnOS Music kết nối tới thư viện nhạc trên thiết bị fnOS—nhập địa chỉ và tài khoản trong cửa sổ đăng nhập để duyệt và phát."
       },
       "crossPlatform": {
         "title": "Hàng đợi đa nền tảng và trang tìm kiếm mới",

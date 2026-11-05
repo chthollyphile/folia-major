@@ -60,7 +60,7 @@ macOS 14+ 开发版已提供系统 WKWebView companion（`electron/appleMusic/ma
 开发版与正式打包均只使用原生宿主，保留原有 provider、请求白名单与队列函数；通过私有管道连接，无 EVS 依赖。
 实际 macOS 15.0.1 / arm64 已验证登录、隐藏播放、重启恢复以及控制桥的播放/暂停/跳转/TTML/切歌。
 用户已在 Folia 主界面确认正常播放与切歌。正式打包已接入按目标架构编译与资源分发，实际安装包仍待验收。
-Windows 已提供 WebView2 Evergreen 原生宿主源码，但未编译/实测，默认停用；仅开发实验开关可启用。
+Windows 使用 WebView2 Evergreen 原生宿主，已实测登录与整首播放，随正式安装包分发、默认启用。
 Linux 登录行显示「Linux 暂未支援」。构建和验证范围见 `electron/appleMusic/windows/README.md`。
 
 `appleMusic/appleMusicProvider.ts` 接入独立 companion 里的 Apple Music 网页会话：登录（Apple 自己的窗口）、
@@ -85,7 +85,7 @@ Apple 的音频受 DRM 保护，不能交出地址，所以能力是 `externalPl
 `omni.playSongExternally` / `pauseExternalPlayback` / `resumeExternalPlayback` / `seekExternalPlayback` 驱动
 companion，`getExternalPlaybackStatus` 每 500 ms 报告一次位置和状态，`externalPlayback` 用外推时钟驱动歌词和
 进度条；换到别的音源、HiFi 或 Stage 时这条路线会停掉 companion 的播放器。播放器自己换到别的歌时暂停并提示。
-companion 读到账号后先导航到账号的 storefront（`https://music.apple.com/<storefront>/`）再回答账号请求：MusicKit 只按页面地区解析目录 id，页面地区和账号不同时会接受队列却播不出来。播放命令在 companion 里串行执行，暂停/换歌不会被并发拒绝丢掉。Apple Music 目前只在 macOS 上声明可用（`getAppleMusicTransportAvailability`），Windows 默认显示尚待验证，Linux 显示暂未支援。companion 的窗口、协议和安全边界见 `electron/appleMusic/README.md`。
+companion 读到账号后先导航到账号的 storefront（`https://music.apple.com/<storefront>/`）再回答账号请求：MusicKit 只按页面地区解析目录 id，页面地区和账号不同时会接受队列却播不出来。播放命令在 companion 里串行执行，暂停/换歌不会被并发拒绝丢掉。Apple Music 在 macOS 和 Windows 上声明可用（`getAppleMusicTransportAvailability`），Linux 显示暂未支援。companion 的窗口、协议和安全边界见 `electron/appleMusic/README.md`。
 
 仍未完成的验收包括：正式安装包、Windows 编译与 DRM 实机测试、退出清理与异常恢复全流程、
 长时间和曲末行为，以及逐词时间的覆盖率和同步精度。收藏/歌单写入适配已修正，真实写入由用户手动验收。

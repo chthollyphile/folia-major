@@ -408,7 +408,6 @@ const appleMusicClient = createCompanionClient({
     platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
     projectRoot: path.join(__dirname, '..'),
     override: process.env.ELECTRON_DEV === 'true' ? process.env.FOLIA_APPLE_MUSIC_NATIVE : '',
-    windowsExperimental: process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL === '1',
   }),
   profilePath: path.join(app.getPath('userData'), 'apple-music-companion'),
 });

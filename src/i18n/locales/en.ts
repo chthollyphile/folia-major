@@ -1746,7 +1746,6 @@ export default {
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
     "appleMusicLinuxUnsupported": "Not supported on Linux yet",
-    "appleMusicWindowsPending": "Windows support is awaiting validation",
     "loginNoteYtmBrowser": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
     "loginNoteYtmBrowserMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
     "loginNoBrowserYtm": "Signing in to YouTube Music needs Chrome (Beta, Dev or Canary also work), Edge, Chromium, Brave or Helium installed.",
@@ -3997,7 +3996,7 @@ export default {
       }
     },
     "v0_7_26": {
-      "intro": "Welcome to 0.7.26, the Fawkes Update—a major update. This version adds the Scratchpad, a drawer that slides out from the left to hold songs on the fly; Nebbia gets new views and glass, with an aquarium, dew and snow; Apple Music (macOS) and fnOS Music join as new platforms; songs from different platforms can share one queue, and search now finds albums and playlists too; the progress capsule offers your common commands, and its right-hand buttons can be swapped in place; and recommendations grow, with style recommendations in NetEase Daily and the Guess You Like radio and music preferences for QQ Music.",
+      "intro": "Welcome to 0.7.26, the Fawkes Update—a major update. This version adds the Scratchpad, a drawer that slides out from the left to hold songs on the fly; Nebbia gets new views and glass, with an aquarium, dew and snow; Apple Music and fnOS Music join as new platforms; songs from different platforms can share one queue, and search now finds albums and playlists too; the progress capsule offers your common commands, and its right-hand buttons can be swapped in place; and recommendations grow, with style recommendations in NetEase Daily and the Guess You Like radio and music preferences for QQ Music.",
       "scratchpad": {
         "title": "Scratchpad",
         "description": "The new Scratchpad is a song drawer that slides out from the left; press Ctrl+J to open it. Hover a song card, a search result, the Explore page or the Lattice cover wall to add a song to the Scratchpad or save it to a playlist. Saved songs are grouped by source, and a group can open into a canvas where you arrange and box-select cards and add the whole group to a playlist—dragging works on touch screens too. The drawer also has History and Queue pages: History lists what you played from local files, Navidrome and every platform, and the queue can open into a canvas of cards. The side tab’s visibility and height are in Settings."
@@ -4008,7 +4007,7 @@ export default {
       },
       "newPlatforms": {
         "title": "Apple Music and fnOS Music",
-        "description": "Two new platforms. Apple Music works on macOS 14 or later with an Apple Music subscription: sign in through Apple’s own page, then search and play full songs, browse your library’s playlists and albums as well as artist and album catalog pages, listen to personal and live radio stations, and get lyrics. It isn’t enabled on Windows yet and isn’t supported on Linux. fnOS Music connects to the music library on an fnOS device—enter its address and your account in the sign-in window to browse and play."
+        "description": "Two new platforms. Apple Music works on macOS 14 or later and on Windows (which needs the WebView2 runtime, built into Windows 11), with an Apple Music subscription: sign in through Apple’s own page, then search and play full songs, browse your library’s playlists and albums as well as artist and album catalog pages, listen to personal and live radio stations, and get lyrics. It isn’t supported on Linux yet. fnOS Music connects to the music library on an fnOS device—enter its address and your account in the sign-in window to browse and play."
       },
       "crossPlatform": {
         "title": "Cross-platform queue and new search",

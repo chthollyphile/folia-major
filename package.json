@@ -205,6 +205,17 @@
           "filter": [
             "folia-wallpaper-helper.exe"
           ]
+        },
+        {
+          "from": "build/apple-music-native/windows",
+          "to": "apple-music/windows",
+          "filter": [
+            "FoliaAppleMusicCompanion.exe",
+            "FoliaAppleMusicCompanion.exe.config",
+            "Microsoft.Web.WebView2.Core.dll",
+            "Microsoft.Web.WebView2.WinForms.dll",
+            "WebView2Loader.dll"
+          ]
         }
       ]
     },

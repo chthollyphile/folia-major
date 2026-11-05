@@ -33,11 +33,8 @@ describe('Apple Music transport', () => {
 });
 
 describe('Apple Music transport availability', () => {
-    it('keeps Windows disabled until a development build explicitly opts in', () => {
-        const request = vi.fn();
-        vi.stubGlobal('window', { electron: { platform: 'win32', appleMusicRequest: request } });
-        expect(getAppleMusicTransportAvailability()).toEqual({ configured: false, reason: 'not-configured', messageKey: 'home.appleMusicWindowsPending' });
-        vi.stubGlobal('window', { electron: { platform: 'win32', appleMusicRequest: request, appleMusicWindowsExperimental: true } });
+    it('offers the source on Windows with the desktop bridge', () => {
+        vi.stubGlobal('window', { electron: { platform: 'win32', appleMusicRequest: vi.fn() } });
         expect(getAppleMusicTransportAvailability()).toEqual({ configured: true });
     });
     it('offers the source on macOS with the desktop bridge only', () => {

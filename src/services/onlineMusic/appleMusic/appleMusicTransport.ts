@@ -10,15 +10,12 @@ export type AppleMusicBridgeResult =
     | { ok: true; data: unknown }
     | { ok: false; error: string; httpStatus?: number | null; playbackStage?: string };
 
-// macOS is validated; Windows is an explicit development opt-in until its DRM path is tested.
+// macOS and Windows ship the system-WebView host (WKWebView / WebView2 Evergreen).
 // Linux stays visible with a provider-owned explanation and never starts an unsupported player.
 export const getAppleMusicTransportAvailability = (): ProviderAvailability => {
     const bridge = typeof window !== 'undefined' ? window.electron : undefined;
     if (typeof bridge?.appleMusicRequest !== 'function') return { configured: false, reason: 'runtime-unavailable' };
-    if (bridge.platform === 'darwin') return { configured: true };
-    if (bridge.platform === 'win32') return bridge.appleMusicWindowsExperimental === true
-        ? { configured: true }
-        : { configured: false, reason: 'not-configured', messageKey: 'home.appleMusicWindowsPending' };
+    if (bridge.platform === 'darwin' || bridge.platform === 'win32') return { configured: true };
     if (bridge.platform === 'linux') return { configured: false, reason: 'not-configured', messageKey: 'home.appleMusicLinuxUnsupported' };
     return { configured: false, reason: 'runtime-unavailable' };
 };

@@ -25,8 +25,9 @@ npm run dev:electron
 
 ## Windows 与 Linux
 
-Windows 已提供 .NET Framework 4.8 / WebView2 Evergreen 宿主源码，未编译或验证 DRM，默认停用。
-仅开发实验开关允许启用；[构建与验收说明](windows/README.md)。正式包不分发 Windows 宿主。
+Windows 使用 .NET Framework 4.8 / WebView2 Evergreen 宿主，2026-11-04 起在 Windows 11 实测登录与整首播放，
+从 0.7.26 起默认启用：打包时 `build/beforePack.cjs` 用 MSBuild 编译（只支持 x64），随安装包放进
+`resources/apple-music/windows/`，`build/afterPack.cjs` 核对文件齐全。[构建与验收说明](windows/README.md)。
 Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时。
 
 ## 模块

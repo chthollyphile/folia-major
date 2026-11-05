@@ -1746,7 +1746,6 @@ export default {
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
     "appleMusicLinuxUnsupported": "Linux belum didukung",
-    "appleMusicWindowsPending": "Dukungan Windows masih menunggu validasi",
     "loginNoteYtmBrowser": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
     "loginNoteYtmBrowserMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
     "loginNoBrowserYtm": "Masuk ke YouTube Music memerlukan Chrome (Beta, Dev, atau Canary juga bisa), Edge, Chromium, Brave, atau Helium yang terpasang.",
@@ -3997,7 +3996,7 @@ export default {
       }
     },
     "v0_7_26": {
-      "intro": "Selamat datang di 0.7.26, Fawkes Update—sebuah pembaruan besar. Versi ini menghadirkan Buku catatan, laci yang bergeser dari kiri untuk menampung lagu dengan cepat; Nebbia mendapat pemandangan dan kaca baru, dengan akuarium, embun, dan salju; Apple Music (macOS) dan fnOS Music hadir sebagai platform baru; lagu dari platform berbeda bisa berada di satu antrean, dan pencarian kini juga menemukan album dan playlist; kapsul progres menampilkan perintah yang sering dipakai, dan tombol di kanannya bisa diganti di tempat; serta rekomendasi makin beragam, dengan rekomendasi gaya di NetEase Harian dan radio Mungkin Kamu Suka serta preferensi musik untuk QQ Music.",
+      "intro": "Selamat datang di 0.7.26, Fawkes Update—sebuah pembaruan besar. Versi ini menghadirkan Buku catatan, laci yang bergeser dari kiri untuk menampung lagu dengan cepat; Nebbia mendapat pemandangan dan kaca baru, dengan akuarium, embun, dan salju; Apple Music dan fnOS Music hadir sebagai platform baru; lagu dari platform berbeda bisa berada di satu antrean, dan pencarian kini juga menemukan album dan playlist; kapsul progres menampilkan perintah yang sering dipakai, dan tombol di kanannya bisa diganti di tempat; serta rekomendasi makin beragam, dengan rekomendasi gaya di NetEase Harian dan radio Mungkin Kamu Suka serta preferensi musik untuk QQ Music.",
       "scratchpad": {
         "title": "Buku catatan",
         "description": "Buku catatan yang baru adalah laci lagu yang bergeser dari kiri; tekan Ctrl+J untuk membukanya. Arahkan kursor ke kartu lagu, hasil pencarian, halaman Jelajah, atau dinding sampul Lattice untuk menambahkan lagu ke Buku catatan atau menyimpannya ke playlist. Lagu dikelompokkan menurut sumbernya, dan satu kelompok bisa dibuka menjadi kanvas untuk menata dan memilih kartu sekaligus, lalu menambahkan seluruh kelompok ke playlist—menyeret juga bisa di layar sentuh. Laci ini juga punya halaman Riwayat dan Antrean: Riwayat mencantumkan lagu yang diputar dari file lokal, Navidrome, dan semua platform, dan antrean bisa dibuka menjadi kanvas kartu. Tampilan dan tinggi tab samping diatur di Pengaturan."
@@ -4008,7 +4007,7 @@ export default {
       },
       "newPlatforms": {
         "title": "Apple Music dan fnOS Music",
-        "description": "Dua platform baru. Apple Music bisa dipakai di macOS 14 atau lebih baru dengan langganan Apple Music: masuk melalui halaman resmi Apple, lalu cari dan putar lagu utuh, jelajahi playlist dan album di pustaka serta halaman katalog artis dan album, dengarkan radio pribadi dan radio siaran langsung, dan dapatkan lirik. Di Windows belum diaktifkan dan di Linux belum didukung. fnOS Music terhubung ke pustaka musik di perangkat fnOS—masukkan alamat dan akun di jendela masuk untuk menjelajah dan memutar."
+        "description": "Dua platform baru. Apple Music bisa dipakai di macOS 14 atau lebih baru dan di Windows (memerlukan runtime WebView2, sudah ada di Windows 11), dengan langganan Apple Music: masuk melalui halaman resmi Apple, lalu cari dan putar lagu utuh, jelajahi playlist dan album di pustaka serta halaman katalog artis dan album, dengarkan radio pribadi dan radio siaran langsung, dan dapatkan lirik. Di Linux belum didukung. fnOS Music terhubung ke pustaka musik di perangkat fnOS—masukkan alamat dan akun di jendela masuk untuk menjelajah dan memutar."
       },
       "crossPlatform": {
         "title": "Antrean lintas platform dan pencarian baru",

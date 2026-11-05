@@ -1746,7 +1746,6 @@ export default {
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
     "appleMusicLinuxUnsupported": "Linux 暂未支援",
-    "appleMusicWindowsPending": "Windows 版本尚待验证",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
     "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。",
@@ -3997,7 +3996,7 @@ export default {
       }
     },
     "v0_7_26": {
-      "intro": "欢迎来到 0.7.26「Fawkes Update」：这是一次重大更新。这一版新增「速记簿」，随手把歌收进左侧滑出的暂存区；「雾笺」的窗外和玻璃多了水族箱、凝露和融雪；新接入 Apple Music（macOS）和飞牛音乐；不同平台的歌可以排进同一个队列，搜索页也能搜专辑和歌单；进度条胶囊上会浮出常用命令，右侧按钮可以原地更换；推荐也更丰富：网易云每日推荐加了风格推荐，QQ 音乐接上「猜你喜欢」电台和音乐偏好。",
+      "intro": "欢迎来到 0.7.26「Fawkes Update」：这是一次重大更新。这一版新增「速记簿」，随手把歌收进左侧滑出的暂存区；「雾笺」的窗外和玻璃多了水族箱、凝露和融雪；新接入 Apple Music 和飞牛音乐；不同平台的歌可以排进同一个队列，搜索页也能搜专辑和歌单；进度条胶囊上会浮出常用命令，右侧按钮可以原地更换；推荐也更丰富：网易云每日推荐加了风格推荐，QQ 音乐接上「猜你喜欢」电台和音乐偏好。",
       "scratchpad": {
         "title": "速记簿",
         "description": "新增「速记簿」：从左侧滑出的歌曲暂存区，按 Ctrl+J 打开。在歌曲卡片、搜索结果、探索页和 Lattice 封面墙上悬停，就能把歌加入速记簿或收藏到歌单。收进来的歌按来源分组，可以展开成画布自由摆放、框选，整组加进歌单，触屏上也能拖动。抽屉里还有「播放历史」和「播放队列」两页：历史列出本地、Navidrome 和各平台播过的歌，队列可以展开成卡片画布。左侧悬浮标签的显示和高度可以在设置里调。"
@@ -4008,7 +4007,7 @@ export default {
       },
       "newPlatforms": {
         "title": "Apple Music 与飞牛音乐",
-        "description": "新接入两个平台。Apple Music 在 macOS 14 及以上可用，需要 Apple Music 订阅：用 Apple 官方页面登录后，可以搜索和播放整首歌曲，浏览资料库里的歌单和专辑、歌手和专辑目录，收听个人电台与直播电台，并读取歌词；Windows 版暂未开放，Linux 暂不支持。飞牛音乐连接 fnOS 设备上的音乐库，在登录窗口填写地址和账号即可浏览和播放。"
+        "description": "新接入两个平台。Apple Music 在 macOS 14 及以上和 Windows 上可用（Windows 需要 WebView2 运行时，Windows 11 已自带），需要 Apple Music 订阅：用 Apple 官方页面登录后，可以搜索和播放整首歌曲，浏览资料库里的歌单和专辑、歌手和专辑目录，收听个人电台与直播电台，并读取歌词；Linux 暂不支持。飞牛音乐连接 fnOS 设备上的音乐库，在登录窗口填写地址和账号即可浏览和播放。"
       },
       "crossPlatform": {
         "title": "跨平台队列与新搜索页",
