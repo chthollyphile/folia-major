@@ -129,10 +129,36 @@
 .scratchpad-header {
     display: flex;
     flex: none;
-    align-items: center;
+    /* 右边两颗按钮与页签那一行对齐（左边一列上面还有一句问候）。 */
+    align-items: flex-end;
     gap: 4px;
-    padding: 16px 10px 12px 18px;
+    padding: 14px 10px 12px 18px;
 }
+
+/* 左边一列：问候在上，页签在下。 */
+.scratchpad-heading {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* 页签上面那句按时段换的问候（ScratchpadGreeting）：小一号、淡一些，一行放不下就省略，不把页签往下挤。
+   窄的抽屉里是几个字的短版，展开成画布时是一整句的长版，字也大一号。 */
+.scratchpad-greeting {
+    overflow: hidden;
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    opacity: 0.6;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scratchpad-drawer.is-expanded .scratchpad-greeting { font-size: 14.5px; }
+.scratchpad-drawer.is-expanded .scratchpad-heading { gap: 4px; }
 
 /* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身。选中的那页大一号当标题，没选中的小而淡，
    三个按基线排，高低错落（用户定，2026-11-05）；展开成画布时整体再大一号（文件下面 is-expanded 那几条）。 */
@@ -142,7 +168,6 @@
     display: flex;
     height: 30px;
     min-width: 0;
-    flex: 1 1 auto;
     align-items: last baseline;
     gap: 14px;
 }
@@ -701,19 +726,6 @@
     .scratchpad-menu-button span { display: none; }
     .scratchpad-menu-button { padding: 0 8px; }
 }
-
-/* —— 播放历史页顶上的问候 —— */
-
-.scratchpad-greeting {
-    flex: none;
-    margin: 2px 18px 14px;
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.35;
-    opacity: 0.92;
-}
-
-.scratchpad-drawer.is-expanded .scratchpad-greeting { margin-bottom: 16px; font-size: 23px; }
 
 /* —— 播放队列收起时的列表（ScratchpadSongTable）——
    虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度；行的样子沿用 .scratchpad-row。 */

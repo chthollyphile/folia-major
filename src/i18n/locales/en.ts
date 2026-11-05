@@ -122,6 +122,50 @@ export default {
         "v5": "One more before the lights go out.",
         "v6": "Before goodnight, save one for tomorrow."
       }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Still up?",
+        "v2": "Late night",
+        "v3": "Hi, night owl",
+        "v4": "Up late"
+      },
+      "dawn": {
+        "v1": "Good morning",
+        "v2": "Up early",
+        "v3": "First light",
+        "v4": "Rise and shine"
+      },
+      "morning": {
+        "v1": "Good morning",
+        "v2": "Morning!",
+        "v3": "New day",
+        "v4": "Let's begin"
+      },
+      "noon": {
+        "v1": "Midday",
+        "v2": "Lunchtime",
+        "v3": "Take a break",
+        "v4": "Noon break"
+      },
+      "afternoon": {
+        "v1": "Good afternoon",
+        "v2": "Teatime",
+        "v3": "Afternoon",
+        "v4": "Hang in there"
+      },
+      "evening": {
+        "v1": "Good evening",
+        "v2": "Long day?",
+        "v3": "Day's done",
+        "v4": "Evening"
+      },
+      "night": {
+        "v1": "Good night",
+        "v2": "Bedtime?",
+        "v3": "Winding down",
+        "v4": "Quiet hours"
+      }
     }
   },
   "libraryBravais": {

@@ -15,6 +15,7 @@ import ScratchpadList, { sourceGroupButtons, type ScratchpadPanelActions } from 
 import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
 import ScratchpadHistory from './ScratchpadHistory';
 import ScratchpadQueue from './ScratchpadQueue';
+import ScratchpadGreeting from './ScratchpadGreeting';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
@@ -355,49 +356,53 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                         onKeyDown={handleKeyDown}
                     >
                         <header className="scratchpad-header">
-                            {/* 三页：速记簿本身、播放历史、播放队列。 */}
-                            <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-notes"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="notes"
-                                    aria-selected={tab === 'notes'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'notes' ? 0 : -1}
-                                    onClick={() => setTab('notes')}
-                                >
-                                    <span>{t('scratchpad.title')}</span>
-                                    <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-history"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="history"
-                                    aria-selected={tab === 'history'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'history' ? 0 : -1}
-                                    onClick={() => setTab('history')}
-                                >
-                                    <span>{t('scratchpad.historyTab')}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-queue"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="queue"
-                                    aria-selected={tab === 'queue'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'queue' ? 0 : -1}
-                                    onClick={() => setTab('queue')}
-                                >
-                                    <span>{t('scratchpad.queue')}</span>
-                                    <span className="scratchpad-tab-count">{t('scratchpad.count', { count: queueLength })}</span>
-                                </button>
+                            <div className="scratchpad-heading">
+                                {/* 页签上面一句按时段换的问候，三页都有：窄的抽屉里是短版，展开成画布时是长版。 */}
+                                <ScratchpadGreeting long={isExpanded} />
+                                {/* 三页：速记簿本身、播放历史、播放队列。 */}
+                                <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-notes"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="notes"
+                                        aria-selected={tab === 'notes'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'notes' ? 0 : -1}
+                                        onClick={() => setTab('notes')}
+                                    >
+                                        <span>{t('scratchpad.title')}</span>
+                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-history"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="history"
+                                        aria-selected={tab === 'history'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'history' ? 0 : -1}
+                                        onClick={() => setTab('history')}
+                                    >
+                                        <span>{t('scratchpad.historyTab')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-queue"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="queue"
+                                        aria-selected={tab === 'queue'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'queue' ? 0 : -1}
+                                        onClick={() => setTab('queue')}
+                                    >
+                                        <span>{t('scratchpad.queue')}</span>
+                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: queueLength })}</span>
+                                    </button>
+                                </div>
                             </div>
                             {/* 三页都能展开成卡片画布：速记簿按来源分组，播放历史一天一组穿一条时间轴，播放队列穿一条带箭头的线。 */}
                             <button

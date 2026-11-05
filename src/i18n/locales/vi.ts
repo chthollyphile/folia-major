@@ -122,6 +122,50 @@ export default {
         "v5": "Thêm một bài trước khi tắt đèn.",
         "v6": "Trước khi chúc ngủ ngon, để dành một bài cho ngày mai."
       }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Còn thức à?",
+        "v2": "Khuya rồi",
+        "v3": "Chào cú đêm",
+        "v4": "Thức khuya"
+      },
+      "dawn": {
+        "v1": "Chào buổi sáng",
+        "v2": "Dậy sớm thế",
+        "v3": "Bình minh",
+        "v4": "Sáng rồi"
+      },
+      "morning": {
+        "v1": "Chào buổi sáng",
+        "v2": "Ngày mới",
+        "v3": "Bắt đầu thôi",
+        "v4": "Sáng nay"
+      },
+      "noon": {
+        "v1": "Chào buổi trưa",
+        "v2": "Giờ ăn trưa",
+        "v3": "Nghỉ chút đi",
+        "v4": "Trưa rồi"
+      },
+      "afternoon": {
+        "v1": "Chào buổi chiều",
+        "v2": "Giờ trà chiều",
+        "v3": "Chiều rồi",
+        "v4": "Cố lên"
+      },
+      "evening": {
+        "v1": "Chào buổi tối",
+        "v2": "Ngày dài nhỉ?",
+        "v3": "Xong một ngày",
+        "v4": "Buổi tối"
+      },
+      "night": {
+        "v1": "Khuya rồi",
+        "v2": "Đi ngủ chưa?",
+        "v3": "Thư giãn",
+        "v4": "Giờ yên tĩnh"
+      }
     }
   },
   "libraryBravais": {
