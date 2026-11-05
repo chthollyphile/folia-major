@@ -749,6 +749,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                                 onDone={handleDoneCollection}
                                 onOpenAlbum={handlePushAlbumCollection}
                                 onOpenArtist={handlePushArtistCollection}
+                                onOpenCollection={handlePushCollection}
                                 onPopTo={onPopCollectionTo}
                             />
                         </React.Suspense>

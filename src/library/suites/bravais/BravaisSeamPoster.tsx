@@ -1,5 +1,5 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { ChevronLeft, ListFilter, ListPlus, Play } from 'lucide-react';
+import { ChevronLeft, ListFilter, ListMusic, ListPlus, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
@@ -23,6 +23,8 @@ import './bravaisPoster.css';
 // 播放热门 / 加入队列、「⋯ 更多」（列表面板、折叠、本地歌手的编辑），以及「关于艺术家」（简介两行截断、统计附注）、
 // 专辑补页进度、加载失败与重试这些状态行（与完整信息条同一套组件）。
 // 底色是海报自己的（不跟缝的材质预设、透明缝、叠色与熄灯走）；画面全是静态的，没有逐帧动画。
+// 变体：歌手的「全部歌曲」那一层（seam.artistSongs，#918）也画这幅海报——大字仍是歌手名，旁边的小词换成「全部歌曲」，
+// 热门三首换成一个超大的歌曲总数（同样的立体残影），按钮是集合页的播放全部 / 加入队列；构图按这一层的 key 定，与歌手页那幅不同。
 
 const TOP_SONG_COUNT = 3;
 
@@ -97,8 +99,11 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
     const { t } = useTranslation();
     const { seam } = layer;
     const artist = seam.artist;
-    const name = seam.title;
-    const coverUrl = artist?.coverUrl;
+    const artistSongs = seam.artistSongs;
+    const name = artistSongs?.name ?? seam.title;
+    const coverUrl = artistSongs ? artistSongs.coverUrl : artist?.coverUrl;
+    // 名字旁边的小词：歌手页是「歌手」，「全部歌曲」那一层换成「全部歌曲」（更宽，大字要跟着重新量）。
+    const kicker = artistSongs ? t('artistGrid.allSongs') : t('libraryBravais.kind.artist');
     const topSongs = useMemo(
         () => layer.items.filter(item => item.kind === 'track').slice(0, TOP_SONG_COUNT),
         [layer.items],
@@ -135,7 +140,8 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
             alive = false;
             observer.disconnect();
         };
-    }, [name]);
+    // 小词也算：从歌手页进「全部歌曲」时海报实例被复用、名字不变，只有小词变宽。
+    }, [kicker, name]);
     return (
         <section className="bravais-poster" style={style} aria-label={t('libraryBravaisArtist.posterLabel')} data-bravais-poster>
             <div className="bravais-poster-ground" aria-hidden>
@@ -207,13 +213,14 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
 
                 <div className="bravais-poster-title" ref={titleRef}>
                     {/* 小词与大字错落排在一起（凝彩一行里一个放大的 hero 词、其余压小）。 */}
-                    <span className="bravais-poster-kicker" aria-hidden>{t('libraryBravais.kind.artist')}</span>
+                    <span className="bravais-poster-kicker" aria-hidden>{kicker}</span>
                     <h2 className="bravais-poster-name" data-bravais-poster-name data-bravais-seam-title data-text={name}>{name}</h2>
                 </div>
 
                 <div className="bravais-poster-bottom">
                     {/* 统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
-                    {seam.meta && !(artist?.stats && artist.stats === seam.meta) && (
+                    {/* 全部歌曲的变体：曲目数就是下面那个大数字，元数据行不重复。 */}
+                    {seam.meta && !artistSongs && !(artist?.stats && artist.stats === seam.meta) && (
                         <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-poster-meta">{seam.meta}</BravaisSeamFlipText>
                     )}
                     {artist && (artist.description || artist.stats) && (
@@ -223,7 +230,13 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                     {seam.collection && <BravaisSeamCollectionMeta collection={seam.collection} />}
                     {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
                     {seam.collection?.status && <BravaisSeamStatusLine status={seam.collection.status} />}
-                    {topSongs.length > 0 && (
+                    {artistSongs && artistSongs.trackCount > 0 && (
+                        <div className="bravais-poster-count" data-bravais-poster-count>
+                            <span className="bravais-poster-count-number" data-text={String(artistSongs.trackCount)}>{artistSongs.trackCount}</span>
+                            <span className="bravais-poster-count-unit">{t('libraryBravaisArtist.allSongsCountUnit', { count: artistSongs.trackCount })}</span>
+                        </div>
+                    )}
+                    {!artistSongs && topSongs.length > 0 && (
                         <ol className="bravais-poster-songs" aria-label={t('libraryBravaisArtist.posterTopSongs')}>
                             {topSongs.map((item, index) => <PosterSong key={item.key} item={item} index={index} onPlay={layer.onPlayItem} />)}
                         </ol>
@@ -237,6 +250,11 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                         {seam.onEnqueueScope && (
                             <button type="button" className="bravais-poster-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                                 <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
+                            </button>
+                        )}
+                        {seam.onOpenAllSongs && (
+                            <button type="button" className="bravais-poster-button" data-bravais-seam-action="open-all-songs" onClick={seam.onOpenAllSongs}>
+                                <ListMusic aria-hidden />{t('artistGrid.allSongs')}
                             </button>
                         )}
                         <BravaisSeamCollectionMenu collection={seam.collection} onOpenList={actions.openList} fold={fold} />

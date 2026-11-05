@@ -189,8 +189,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen,
             searchOpen: current.searchOpen,
-            // 海报（歌手页、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
-            poster: (target.surface === 'artist' || Boolean(target.seam.album)) && target.mode !== 'finite',
+            // 海报（歌手页、歌手的「全部歌曲」、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
+            poster: (target.surface === 'artist' || Boolean(target.seam.artistSongs) || Boolean(target.seam.album)) && target.mode !== 'finite',
             horizontal: seamHorizontalRef.current,
         };
     }, [frameRef]);

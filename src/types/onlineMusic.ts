@@ -233,7 +233,11 @@ export interface ProviderCollection {
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
-    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | string;
+    /**
+     * `artist_songs` is every song of the artist whose id this is (the artist page's "all songs", #918):
+     * a read-only list the app makes, read through `catalog.getArtistSongs`.
+     */
+    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | 'artist_songs' | string;
     coverUrl?: string;
     description?: string;
     trackCount?: number;

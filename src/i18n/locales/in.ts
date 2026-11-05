@@ -926,6 +926,7 @@ export default {
       "artist-reload": { "title": "Muat ulang artis", "description": "Muat ulang halaman artis dari sumbernya" },
       "artist-retry-albums": { "title": "Lanjutkan memuat album", "description": "Coba lagi halaman album yang gagal dan lanjutkan memuat sisanya" },
       "artist-edit-entity": { "title": "Edit info artis", "description": "Buka editor pustaka lokal untuk artis ini" },
+      "artist-open-all-songs": { "title": "Buka semua lagu", "description": "Tampilkan semua lagu artis ini dalam satu halaman, termasuk single di luar album" },
       "settings-interaction": { "title": "Pengaturan interaksi", "description": "Buka pengaturan papan ketik, pintasan, dan interaksi kisi" },
       "settings-global-shortcuts": { "title": "Pintasan global", "description": "Langsung ke pintasan tingkat sistem untuk pemutaran dan perintah mod" },
       "settings-custom-shortcut": { "title": "Pintasan khusus", "description": "Langsung ke pengaturan pintasan papan ketik khusus" },
@@ -4934,6 +4935,8 @@ export default {
     "stageLocalInputDescription": "Stage dalam mode input tunggal lokal. Perangkat eksternal dapat mengirim lirik atau media, tetapi pemutaran dan tampilan dikendalikan oleh Folia itu sendiri."
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "lagu",
+    "allSongsCountUnit_other": "lagu",
     "playTopSongs": "Putar lagu populer",
     "songCount_one": "{{count}} lagu",
     "songCount_other": "{{count}} lagu",
@@ -4964,6 +4967,8 @@ export default {
     "topSongsAddedToQueue_one": "{{count}} lagu teratas ditambahkan ke antrean putar",
     "topSongsAddedToQueue_other": "{{count}} lagu teratas ditambahkan ke antrean putar",
     "noTopSongsToQueue": "Tidak ada lagu teratas yang bisa diantrekan",
+    "allSongs": "Semua lagu",
+    "allSongsCollectionName": "Semua lagu {{artistName}}",
   },
   "obs": {
     "connecting": "Menghubungkan ke Folia",

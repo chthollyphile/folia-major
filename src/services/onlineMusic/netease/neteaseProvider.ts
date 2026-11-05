@@ -752,7 +752,14 @@ export const neteaseProvider: OnlineMusicProvider = {
         async getArtistSongs(id, limit, offset) {
             const response = await neteaseApi.getArtistSongs(toNeteaseId(id), limit, offset);
             const items = (response?.songs || []).map(normalizeNeteaseSong);
-            return { items, hasMore: Boolean(response?.more), nextOffset: offset + items.length };
+            // /artist/songs answers the artist's whole song count: the "all songs" page syncs up to it.
+            const total = Number(response?.total);
+            return {
+                items,
+                hasMore: Boolean(response?.more),
+                nextOffset: offset + items.length,
+                ...(Number.isFinite(total) && total > 0 ? { total } : {}),
+            };
         },
         async getArtistAlbums(id, limit, offset) {
             const response = await neteaseApi.getArtistAlbums(toNeteaseId(id), limit, offset);

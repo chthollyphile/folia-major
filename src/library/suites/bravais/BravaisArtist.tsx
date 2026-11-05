@@ -23,12 +23,14 @@ import { useBravaisPlaybackMarks } from './useBravaisPlaybackMarks';
 import { useBravaisSessionFocus } from './useBravaisSessionFocus';
 
 // src/library/suites/bravais/BravaisArtist.tsx
-// 歌手页 surface（B8，设计稿 §10.4：全部 10 个动作）。它不画墙：订阅宿主交来的歌手资源，把热门歌曲与专辑混排成层描述
+// 歌手页 surface（B8，设计稿 §10.4：全部 10 个动作，#918 起 11 个）。它不画墙：订阅宿主交来的歌手资源，把热门歌曲与专辑混排成层描述
 // 推进 stage store（热门歌曲在前、专辑在后），再向命令面板注册歌手页动作（useLibraryArtistSurfaceRegistration，
 // core 能力 ∩ entry 的声明）。画面上只有一个不可见、铺满的锚点（页面教程的 none 标记与探针要的语义属性）。
 // - 歌曲磁贴 → 聚焦卡（播放 / 入队，专辑与其他歌手的链接推入下一层）；专辑磁贴单击进入专辑（被点的专辑是起点磁贴）。
 // - 过滤只筛专辑名（core 约定），热门歌曲不参与；过滤生效时退化为有限拼贴，热门歌曲的 rank 离缝最近。
 // - 「加入热门歌曲」的条数提示显示在缝底（不走 toast）；本地歌手的实体编辑在缝的「⋯ 更多」，用宿主对话框。
+// - #918「全部歌曲」：在线歌手热门歌曲之外还有歌时，倾斜信息条（BravaisSeamPoster）的按钮排里多一个「全部歌曲」，
+//   由宿主压进那一层在线集合（type 'artist_songs'，由集合页渲染）。
 // 缝与墙的投影在 useBravaisArtistSeam，聚焦卡上的链接在 useBravaisArtistLinks。
 
 const NO_KEYS: ReadonlySet<string> = new Set();
@@ -44,6 +46,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
     onDone,
     onOpenAlbum,
     onOpenArtist,
+    onOpenCollection,
     onPopTo,
 }) => {
     const { t } = useTranslation();
@@ -65,6 +68,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         declaredActions,
         onEditEntity,
         onOpenAlbum,
+        onOpenCollection,
         setStatus,
     });
     const sessionKey = view.sessionKey;
@@ -135,6 +139,9 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
     const { capabilities, offers } = view;
     const playScopeEnabled = offers('play-scope') && capabilities['play-scope'].enabled;
     const enqueueScopeEnabled = offers('enqueue-scope') && capabilities['enqueue-scope'].enabled;
+    // #918：不可用（详情没到、热门之外没有歌）时不给，与播放 / 入队按钮一样。
+    const allSongsEnabled = offers('open-all-songs') && capabilities['open-all-songs'].enabled;
+    const openAllSongs = view.actions.openAllSongs;
     const title = snapshot?.detail?.name || collection.name;
     const scopeLabels = useMemo(() => ({
         play: t('libraryBravaisArtist.playTopSongs'),
@@ -146,11 +153,12 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         meta,
         onPlayScope: playScopeEnabled ? callbacks.onPlayScope : undefined,
         onEnqueueScope: enqueueScopeEnabled ? callbacks.onEnqueueScope : undefined,
+        onOpenAllSongs: allSongsEnabled ? openAllSongs : undefined,
         scopeLabels,
         filter: seamFilter,
         collection: seamCollection,
         artist: seamArtist,
-    }), [callbacks, enqueueScopeEnabled, meta, playScopeEnabled, scopeLabels, seamArtist, seamCollection, seamFilter, title]);
+    }), [allSongsEnabled, callbacks, enqueueScopeEnabled, meta, openAllSongs, playScopeEnabled, scopeLabels, seamArtist, seamCollection, seamFilter, title]);
 
     const mode = isFilterActive ? 'finite' : 'infinite';
     const layer = useMemo<BravaisLayer>(() => ({
