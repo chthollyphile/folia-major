@@ -173,7 +173,8 @@
 .scratchpad-drawer.is-expanded .scratchpad-tabs { height: 38px; gap: 18px; }
 .scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
 .scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 27px; }
-.scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
+/* 键盘聚焦到页签不画框：焦点总是跟着选中的那页（Tab / 方向键换页都把焦点挪过去），放大的字号已经说明了在哪。 */
+.scratchpad-tab:focus-visible { outline: none; }
 
 /* 名字长的语言（印尼语）三个页签仍可能差几个像素：页签名字可以收窄成省略号，不压到旁边的页签上。 */
 .scratchpad-tab > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
