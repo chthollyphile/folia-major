@@ -1440,7 +1440,7 @@ export const omni = {
         likedChecks.songsInPlay(inPlay);
     },
 
-    async dislikeSong(song: SongResult): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }> {
+    async dislikeSong(song: SongResult): Promise<{ replacement?: UnifiedSong; limitReached?: boolean; removed?: boolean }> {
         const provider = providerForSong(song);
         if (!this.canDislikeSong(song) || !provider.recommendations?.dislikeSong) {
             return unsupported(provider.id, 'recommendation-dislike');

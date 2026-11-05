@@ -839,7 +839,8 @@ export interface OnlineRecommendationProvider {
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
-    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }>;
+    /** `removed`: the song was blacklisted with no replacement; the daily view drops the row. */
+    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean; removed?: boolean }>;
     /** The style groups to pick from (capability `dailyStyleRecommendations`). */
     getDailyStyleGroups?(): Promise<DailyStyleGroup[]>;
     getDailyStyleSongs?(): Promise<DailyStyleSongs>;

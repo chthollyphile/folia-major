@@ -59,7 +59,7 @@ export type CollectionMutationOmni = {
     subscribe(collection: OmniCollection, subscribed: boolean): Promise<void>;
     likeSong(song: SongResult, liked: boolean): Promise<void>;
     updateCollectionTracks(collection: OmniCollection, operation: 'add' | 'del', tracks: SongResult[]): Promise<void>;
-    dislikeSong(song: SongResult): Promise<{ replacement?: SongResult; limitReached?: boolean }>;
+    dislikeSong(song: SongResult): Promise<{ replacement?: SongResult; limitReached?: boolean; removed?: boolean }>;
     getRecommendationHistoryDates(): Promise<string[]>;
     getRecommendationHistorySongs(date: string): Promise<SongResult[]>;
     getDailySongs(refresh?: boolean): Promise<SongResult[]>;
@@ -149,6 +149,7 @@ export const createCollectionMutationController = (
     let historyRequested = false;
     let dailyHistoryDates: readonly string[] = [];
     let dailyDate = '';
+    let dailyListVersion = 0;
     let dailyDatePending = false;
     let dailyStyleShown = false;
     let stopWatchingDailyMode: (() => void) | null = null;
@@ -304,6 +305,9 @@ export const createCollectionMutationController = (
     // ---- 删条目 ----
 
     const removeDaily = async (entry: LibraryEntryRef): Promise<LibraryMutationResult> => {
+        const listVersion = dailyListVersion;
+        const originalResource = inputs.resource;
+        const originalUser = inputs.currentUserId;
         const result = await omni.dislikeSong(entry.track);
         if (result?.replacement) {
             const resource = inputs.resource;
@@ -315,6 +319,15 @@ export const createCollectionMutationController = (
         if (result?.limitReached) {
             dailyLimitReached = true;
             return fail('limit-reached');
+        }
+        // 写进黑名单但没有替换曲：把这一行从当天的列表去掉。
+        if (result?.removed) {
+            if (listVersion !== dailyListVersion || inputs.resource !== originalResource || inputs.currentUserId !== originalUser) return fail('stale');
+            const resource = inputs.resource;
+            const tracks = resource?.getSnapshot().tracks ?? [];
+            const index = resolveRawIndex(tracks, entry.entryKey);
+            if (!resource || index < 0) return fail('stale');
+            return resource.removeAt(index, getPlaybackSongKey(entry.track)) ? OK : fail('stale');
         }
         return fail('failed');
     };
@@ -555,6 +568,7 @@ export const createCollectionMutationController = (
                 date ? omni.getRecommendationHistorySongs(date) : omni.getDailySongs(afresh)
             ));
             if (!replaced) return fail('failed');
+            dailyListVersion += 1;
             dailyDate = date;
             dailyStyleShown = false;
             dailyMode?.setPrefersStyle(false);
@@ -626,6 +640,7 @@ export const createCollectionMutationController = (
                 return result?.songs ?? [];
             });
             if (!replaced) return fail('failed');
+            dailyListVersion += 1;
             dailyDate = '';
             dailyStyleShown = true;
             dailyMode?.setPrefersStyle(true);

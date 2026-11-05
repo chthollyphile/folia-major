@@ -31,6 +31,7 @@ import { describeQqLoginFailure, qqAccountHintNote, qqCheckFailure, qqHintFailur
 import { describeQqFailure } from './qqFailure';
 import { getQqCloudCollection, getQqCloudTracks, getQqListTracks, qqListKindOf } from './qqLists';
 import { qqExplore } from './qqExplore';
+import { getQqListeningRankCollections, getQqListeningRankTracks } from './qqListeningRank';
 import { areQqSongsLiked, resetQqVipMemory, withQqVipType } from './qqAccount';
 import { requestQqPreviewSource } from './qqPreview';
 import { noteQqBackendDeclaration, qqBackendSessionMode, resetQqBackendDeclaration } from './qqBackendDeclaration';
@@ -1052,6 +1053,8 @@ export const qqProvider: OnlineMusicProvider = {
         artists: true,
         // 推荐、歌单增删与收藏歌单是 qq-music-api 3.3.0 的路由，红心与收藏专辑是 3.3.1 的。
         recommendations: true,
+        // 每日 30 首的历史日期是 qq-music-api 3.3.6 的路由；旧后端 404，看到的只是没有日期。
+        historyRecommendations: true,
         mutations: true,
         playlistTrackMutations: true,
         playlistSubscription: true,
@@ -1061,6 +1064,8 @@ export const qqProvider: OnlineMusicProvider = {
         // 音乐云盘与探索页是 qq-music-api 3.3.3 的路由。
         userCloud: true,
         explore: true,
+        // 听歌排行是 qq-music-api 3.3.6 的路由；旧后端 404，看到的只是没有排行条目。
+        listeningRank: true,
     },
     normalizeSong: normalizeQqSong,
     normalizeUser: normalizeQqUser,
@@ -1168,6 +1173,7 @@ export const qqProvider: OnlineMusicProvider = {
         getLikedSongCount,
         areSongsLiked: areQqSongsLiked,
         getCloudCollection: getQqCloudCollection,
+        getListeningRankCollections: getQqListeningRankCollections,
     },
     catalog: {
         // 只要拿得到 songmid 就补得回 mid，所以能否导航等同于这首歌是不是 QQ 的歌。
@@ -1176,6 +1182,7 @@ export const qqProvider: OnlineMusicProvider = {
         getPlaylistTracks,
         getPlaylistDetail,
         getCloudTracks: (limit, offset) => getQqCloudTracks(limit, offset),
+        getListeningRankTracks: (range, limit, offset) => getQqListeningRankTracks(range, limit, offset),
         getAlbumDetail,
         getAlbumTracks,
         getArtistDetail,
