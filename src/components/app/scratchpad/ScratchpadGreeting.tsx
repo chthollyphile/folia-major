@@ -1,9 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Coffee, Moon, MoonStar, Sun, Sunrise, Sunset, Utensils, type LucideIcon } from 'lucide-react';
 import { GREETING_SHORT_VARIANTS, historyGreetingSlot, msUntilNextGreetingSlot, pickGreetingVariant, type HistoryGreetingSlot } from './historyGreeting';
 
 // src/components/app/scratchpad/ScratchpadGreeting.tsx
 // 速记簿抽屉顶上、页签上面的那一句问候（三页共用）：窄的抽屉里是短版（几个字），展开成画布时是长版（一整句）。
+
+/** 每一段前面的小图标。 */
+const SLOT_ICONS: Record<HistoryGreetingSlot, LucideIcon> = {
+    lateNight: MoonStar,
+    dawn: Sunrise,
+    morning: Sun,
+    noon: Utensils,
+    afternoon: Coffee,
+    evening: Sunset,
+    night: Moon,
+};
 
 type GreetingPick = { slot: HistoryGreetingSlot; short: string; long: string };
 
@@ -29,7 +41,13 @@ const ScratchpadGreeting: React.FC<{ long: boolean }> = ({ long }) => {
     const text = long
         ? t(`scratchpad.greeting.${pick.slot}.${pick.long}`)
         : t(`scratchpad.greetingShort.${pick.slot}.${pick.short}`);
-    return <p className="scratchpad-greeting" data-testid="scratchpad-greeting">{text}</p>;
+    const Icon = SLOT_ICONS[pick.slot];
+    return (
+        <p className="scratchpad-greeting" data-testid="scratchpad-greeting">
+            <Icon aria-hidden="true" />
+            <span>{text}</span>
+        </p>
+    );
 };
 
 export default ScratchpadGreeting;

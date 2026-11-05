@@ -132,7 +132,7 @@
     /* 右边两颗按钮与页签那一行对齐（左边一列上面还有一句问候）。 */
     align-items: flex-end;
     gap: 4px;
-    padding: 14px 10px 12px 18px;
+    padding: 16px 10px 12px 18px;
 }
 
 /* 左边一列：问候在上，页签在下。 */
@@ -141,24 +141,29 @@
     min-width: 0;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: 2px;
+    gap: 0;
 }
 
-/* 页签上面那句按时段换的问候（ScratchpadGreeting）：小一号、淡一些，一行放不下就省略，不把页签往下挤。
-   窄的抽屉里是几个字的短版，展开成画布时是一整句的长版，字也大一号。 */
+/* 页签上面那句按时段换的问候（ScratchpadGreeting）：强调色的小字，前面一个时段的小图标，紧贴在标题上面，
+   像标题的眉批；一行放不下就省略，不把页签往下挤。窄的抽屉里是几个字的短版，展开成画布时是一整句的长版，字也大一号。 */
 .scratchpad-greeting {
-    overflow: hidden;
-    margin: 0;
-    font-size: 12.5px;
-    font-weight: 600;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    margin: 0 0 1px 1px;
+    color: var(--text-accent, inherit);
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
     line-height: 1.4;
-    opacity: 0.6;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    opacity: 0.9;
 }
 
-.scratchpad-drawer.is-expanded .scratchpad-greeting { font-size: 14.5px; }
-.scratchpad-drawer.is-expanded .scratchpad-heading { gap: 4px; }
+.scratchpad-greeting svg { width: 13px; height: 13px; flex: none; }
+.scratchpad-greeting > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scratchpad-drawer.is-expanded .scratchpad-greeting { margin-bottom: 3px; font-size: 14px; }
+.scratchpad-drawer.is-expanded .scratchpad-greeting svg { width: 15px; height: 15px; }
 
 /* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身。选中的那页大一号当标题，没选中的小而淡，
    三个按基线排，高低错落（用户定，2026-11-05）；展开成画布时整体再大一号（文件下面 is-expanded 那几条）。 */
@@ -193,11 +198,11 @@
 }
 
 .scratchpad-tab:hover { opacity: 0.75; }
-.scratchpad-tab[aria-selected='true'] { font-size: 21px; letter-spacing: 0.01em; opacity: 1; cursor: default; }
+.scratchpad-tab[aria-selected='true'] { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; opacity: 1; cursor: default; }
 .scratchpad-drawer.is-expanded .scratchpad-header { padding: 20px 14px 14px 18px; }
 .scratchpad-drawer.is-expanded .scratchpad-tabs { height: 38px; gap: 18px; }
 .scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
-.scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 27px; }
+.scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 28px; }
 /* 键盘聚焦到页签不画框：焦点总是跟着选中的那页（Tab / 方向键换页都把焦点挪过去），放大的字号已经说明了在哪。 */
 .scratchpad-tab:focus-visible { outline: none; }
 
@@ -208,12 +213,21 @@
 /* 三个页签排一行放不下两个条数（英文尤甚）：条数只跟着选中的那页出现。 */
 .scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
 
+/* 选中那页的条数是名字右上角的小角标（不和名字排在同一条基线上）。 */
 .scratchpad-tab-count {
-    font-size: 12px;
-    font-weight: 400;
+    align-self: flex-start;
+    margin-left: -2px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 12%);
+    font-size: 10.5px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    opacity: 0.55;
+    letter-spacing: 0;
+    line-height: 1.4;
+    opacity: 0.75;
 }
+.scratchpad-root.is-daylight .scratchpad-tab-count { background: rgb(0 0 0 / 7%); }
 
 .scratchpad-icon-button {
     display: grid;
