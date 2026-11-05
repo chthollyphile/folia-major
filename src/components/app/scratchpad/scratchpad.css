@@ -136,11 +136,14 @@
 
 /* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身。选中的那页大一号当标题，没选中的小而淡，
    三个按基线排，高低错落（用户定，2026-11-05）；展开成画布时整体再大一号（文件下面 is-expanded 那几条）。 */
+/* 高度固定、按最后一条基线贴着底边排：换页时字号在渐变，行高跟着变的话下面的内容会被推着跳一下；
+   这样三个字的基线一直在同一条线上，放大只往上长。 */
 .scratchpad-tabs {
     display: flex;
+    height: 30px;
     min-width: 0;
     flex: 1 1 auto;
-    align-items: baseline;
+    align-items: last baseline;
     gap: 14px;
 }
 
@@ -167,7 +170,7 @@
 .scratchpad-tab:hover { opacity: 0.75; }
 .scratchpad-tab[aria-selected='true'] { font-size: 21px; letter-spacing: 0.01em; opacity: 1; cursor: default; }
 .scratchpad-drawer.is-expanded .scratchpad-header { padding: 20px 14px 14px 18px; }
-.scratchpad-drawer.is-expanded .scratchpad-tabs { gap: 18px; }
+.scratchpad-drawer.is-expanded .scratchpad-tabs { height: 38px; gap: 18px; }
 .scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
 .scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 27px; }
 .scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
