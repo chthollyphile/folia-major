@@ -22,8 +22,18 @@ type CreateLyricSegmentationActionsParams = {
     setLyrics: (lyrics: LyricData | null) => void;
 };
 
+export type LyricSegmentationSaveOptions = {
+    /**
+     * Playback key the lines were made for. When set and the current song no longer has it, the
+     * save is dropped: a background run that resolves after a skip must not land on the next song.
+     */
+    songKey?: string;
+    /** Saved by the automatic run rather than by the user, which the status line says. */
+    auto?: boolean;
+};
+
 export type LyricSegmentationActions = {
-    save: (lines: Record<string, string[]>, source: LyricSegmentationSource) => Promise<void>;
+    save: (lines: Record<string, string[]>, source: LyricSegmentationSource, options?: LyricSegmentationSaveOptions) => Promise<void>;
     reset: () => Promise<void>;
 };
 
@@ -32,22 +42,46 @@ export const createLyricSegmentationActions = ({
     loadCurrentSongLyricPreview,
     setLyrics,
 }: CreateLyricSegmentationActionsParams): LyricSegmentationActions => {
-    const relayoutCurrentLyrics = async () => {
-        setLyrics(await loadCurrentSongLyricPreview());
+    const isStillPlaying = (songKey: string) => {
+        const current = getCurrentSong();
+        return current !== null && getPlaybackSongKey(current) === songKey;
+    };
+
+    /**
+     * Lays `songKey`'s lyrics out again, unless another song started meanwhile: the preview load
+     * can go to the network, and the setter does not check whose lyrics it is handed.
+     */
+    const relayoutCurrentLyrics = async (songKey: string) => {
+        const preview = await loadCurrentSongLyricPreview();
+        if (isStillPlaying(songKey)) {
+            setLyrics(preview);
+        }
     };
 
     return {
-        save: async (lines, source) => {
+        save: async (lines, source, options = {}) => {
             const song = getCurrentSong();
             if (!song) {
                 return;
             }
+            const songKey = getPlaybackSongKey(song);
+            if (options.songKey && options.songKey !== songKey) {
+                return;
+            }
 
-            const record = createLyricSegmentationRecord(getPlaybackSongKey(song), source, lines);
+            const record = createLyricSegmentationRecord(songKey, source, lines);
             await saveSongSegmentation(song, record);
+            // The IndexedDB write is async too: a skip during it still keeps the record on disk
+            // for the song it belongs to, but must not put it in the store or re-lay the new song.
+            if (!isStillPlaying(songKey)) {
+                return;
+            }
             setLyricSegmentationRecord(record.songKey, record);
-            await relayoutCurrentLyrics();
-            setStatusMsg({ type: 'success', text: i18n.t('lyricSegmentation.saved') });
+            await relayoutCurrentLyrics(songKey);
+            setStatusMsg({
+                type: 'success',
+                text: i18n.t(options.auto ? 'lyricSegmentation.autoSaved' : 'lyricSegmentation.saved'),
+            });
         },
 
         reset: async () => {
@@ -56,9 +90,13 @@ export const createLyricSegmentationActions = ({
                 return;
             }
 
+            const songKey = getPlaybackSongKey(song);
             await deleteSongSegmentation(song);
-            setLyricSegmentationRecord(getPlaybackSongKey(song), null);
-            await relayoutCurrentLyrics();
+            if (!isStillPlaying(songKey)) {
+                return;
+            }
+            setLyricSegmentationRecord(songKey, null);
+            await relayoutCurrentLyrics(songKey);
             setStatusMsg({ type: 'success', text: i18n.t('lyricSegmentation.restored') });
         },
     };
