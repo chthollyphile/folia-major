@@ -502,11 +502,12 @@
 :root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
 
 /* 右上角这排（两颗悬浮按钮与「⋯」）静止时也垫一层底：压在封面最亮的地方，图标要看得清（用户定，2026-11-05）。
-   原来靠外层的两层 drop-shadow，那层影子会连底色一起晕开、看着发糊，现在不要影子，只用边缘清楚的底色加一圈细边，
-   底下再模糊一点封面。深色主题是深底白图标；日光下是近白的底、黑图标，细边用深色，浅封面上也分得出来。 */
+   原来靠外层的两层 drop-shadow，那层影子会连底色一起晕开、看着发糊，现在不要影子，也不要描边（用户定），只用边缘清楚的底色，
+   底下再模糊一点封面。深色主题是深底白图标；日光下是近白的底、黑图标。
+   悬停也不出 bravais-chrome-button 的悬停框，只把底加深。 */
 .bravais-tile-quick .bravais-chrome-button,
 .bravais-focus-more .bravais-focus-more-toggle {
-    border-color: rgb(255 255 255 / 12%);
+    border-color: transparent;
     background: rgb(0 0 0 / 38%);
     opacity: 1;
     backdrop-filter: blur(10px);
@@ -515,20 +516,18 @@
 .bravais-tile-quick .bravais-chrome-button:hover:not(:disabled),
 .bravais-focus-more .bravais-focus-more-toggle:hover:not(:disabled),
 .bravais-focus-more .bravais-focus-more-toggle[aria-expanded='true'] {
-    border-color: rgb(255 255 255 / 22%);
+    border-color: transparent;
     background: rgb(0 0 0 / 55%);
 }
 
 .bravais-root.is-daylight .bravais-tile-quick .bravais-chrome-button,
 .bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle {
-    border-color: rgb(0 0 0 / 12%);
     background: rgb(255 255 255 / 78%);
 }
 
 .bravais-root.is-daylight .bravais-tile-quick .bravais-chrome-button:hover:not(:disabled),
 .bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle:hover:not(:disabled),
 .bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle[aria-expanded='true'] {
-    border-color: rgb(0 0 0 / 22%);
     background: rgb(255 255 255 / 92%);
 }
 
