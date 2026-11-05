@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamActions } from './BravaisSeamContent';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
@@ -199,7 +199,7 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                                 ))}
                             </span>
                         )}
-                        {seam.meta && <BravaisSeamFlipText as="span" flipKey={seam.meta} className="bravais-poster-meta">{seam.meta}</BravaisSeamFlipText>}
+                        {seam.meta && <BravaisSeamMetaLine as="span" meta={seam.meta} reload={collection?.reload} className="bravais-poster-meta" />}
                         {album?.facts.filter(fact => fact !== seam.meta).map(fact => <span key={fact} className="bravais-album-fact">{fact}</span>)}
                     </div>
                     {collection?.description && (

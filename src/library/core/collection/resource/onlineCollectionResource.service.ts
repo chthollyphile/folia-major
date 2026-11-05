@@ -125,6 +125,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
         totalOverride?: number,
         startOffset = initialTracks.length,
         likedListRead: LikedListRead | null = null,
+        upstreamTotal?: number,
     ) => {
         const collection = descriptor;
         if (!collection) return;
@@ -141,6 +142,8 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             initialItems: initialTracks,
             startOffset,
             total: totalTracks,
+            // 只有刚读的首页回答里带的总数可信到能直接收尾；缓存、续传时的总数可能来自过期的集合描述。
+            ...(upstreamTotal !== undefined ? { upstreamTotal } : {}),
             fetchPage: pageOffset => deps.getCollectionTracks(collection, { limit: ONLINE_COLLECTION_BACKGROUND_PAGE_SIZE, offset: pageOffset }),
             // Where the collection names its rows, two rows of one song are two rows; a row that
             // comes a second time (the list moved between two pages) still has its one name.
@@ -250,7 +253,10 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             state.set({ status: 'ready', tracks }, 'background');
             void deps.writeCache(cacheKey(), tracks, targetTime, { nextOffset: upstreamOffset, hasMore, total });
             if (hasMore) {
-                void startSync(tracks, targetTime, total, upstreamOffset, likedListRead);
+                // 首页回答里的总数要比已经读到的位置大，才当上游的总数用：读到了「总数」却还说有，说明那个数只是
+                // 这一页的条数（有的平台的 count 就是这样），拿它收尾就只剩第一页。
+                const upstreamTotal = typeof total === 'number' && total > upstreamOffset ? total : undefined;
+                void startSync(tracks, targetTime, total, upstreamOffset, likedListRead, upstreamTotal);
             }
         } catch (error) {
             if (stale()) return;

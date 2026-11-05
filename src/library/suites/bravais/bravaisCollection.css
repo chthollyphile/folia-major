@@ -120,6 +120,24 @@
 /* fb10：星标在「播放全部 / 加入队列」那一行的末尾（靠右），不再单独占一行。 */
 .bravais-seam-actions .bravais-seam-star { margin-left: auto; }
 
+.bravais-seam .bravais-seam-meta-reload {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    background: none;
+    cursor: pointer;
+}
+
+/* 元数据行就是「重新拉取」按钮（不再进「⋯ 更多」）：计数后面一个刷新图标，悬停时整行变亮。 */
+.bravais-seam .bravais-seam-meta-reload svg { width: 13px; height: 13px; flex: none; opacity: 0.7; transition: opacity 120ms ease-out; }
+.bravais-seam .bravais-seam-meta-reload:hover:not(:disabled) { color: var(--text-primary, #f7f4ee); }
+.bravais-seam .bravais-seam-meta-reload:hover:not(:disabled) svg { opacity: 1; }
+.bravais-seam .bravais-seam-meta-reload:disabled { cursor: default; }
+.bravais-seam .bravais-seam-meta-reload:focus-visible { border-radius: 4px; }
+
 .bravais-seam .bravais-seam-sync {
     display: inline-flex;
     align-items: center;
