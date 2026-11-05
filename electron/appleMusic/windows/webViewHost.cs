@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,9 +20,37 @@ namespace Folia.AppleMusic
             internal string Nonce;
             internal int Generation;
         }
+        // The WinForms control mirrors its own Visible into the controller, so a hidden host window
+        // makes the page `hidden`, and Chromium defers media loading in a hidden page that never played
+        // media: MusicKit takes the license but never buffers a byte. While Folia starts a song, the
+        // controller stays visible (`keepVisible`); once the page has sounded, Chromium loads later media
+        // even while hidden, and the page goes back to hidden so music.apple.com renders for nobody.
+        // The field is private to the SDK, which is pinned to one exact version in the .csproj.
+        private sealed class PinnableWebView2 : WebView2
+        {
+            internal static readonly FieldInfo ControllerField = typeof(WebView2).GetField("_coreWebView2Controller", BindingFlags.Instance | BindingFlags.NonPublic);
+            internal bool Pinned;
+            internal void ApplyVisibility()
+            {
+                if (!(ControllerField?.GetValue(this) is CoreWebView2Controller controller)) return;
+                var visible = Pinned || Visible;
+                if (controller.IsVisible != visible) controller.IsVisible = visible;
+            }
+            protected override void OnVisibleChanged(EventArgs e)
+            {
+                base.OnVisibleChanged(e);
+                ApplyVisibility();
+            }
+            // The SDK also writes Visible into the controller when this control's own handle is recreated.
+            protected override void OnHandleCreated(EventArgs e)
+            {
+                base.OnHandleCreated(e);
+                ApplyVisibility();
+            }
+        }
         private readonly NativeCompanion owner;
         private readonly bool isMain;
-        private readonly WebView2 browser = new WebView2 { Dock = DockStyle.Fill };
+        private readonly PinnableWebView2 browser = new PinnableWebView2 { Dock = DockStyle.Fill };
         private readonly Dictionary<string, Evaluation> evaluations = new Dictionary<string, Evaluation>();
         private int generation;
         private ulong activeNavigation;
@@ -48,6 +77,8 @@ namespace Folia.AppleMusic
             var windowHandle = Handle;
             var browserHandle = browser.Handle;
             await browser.EnsureCoreWebView2Async(environment);
+            // A renamed SDK field would silently bring back the stalled hidden playback.
+            if (isMain && PinnableWebView2.ControllerField == null) owner.Protocol.Send(new { @event = "diagnostic", code = "visibility-pin-unavailable" });
             Core.Settings.AreHostObjectsAllowed = false;
             Core.Settings.AreDevToolsEnabled = false;
             Core.Settings.IsStatusBarEnabled = false;
@@ -58,6 +89,12 @@ namespace Folia.AppleMusic
             Core.WindowCloseRequested += (_, __) => Close();
             Core.ProcessFailed += (_, __) => { owner.Protocol.Send(new { @event = "diagnostic", code = "process-failed" }); owner.Stop(); };
             if (isMain) Core.WebMessageReceived += PageMessage;
+        }
+        // Folia says when a start needs the page visible behind a hidden window.
+        internal void KeepVisible(bool active)
+        {
+            browser.Pinned = active;
+            browser.ApplyVisibility();
         }
         private void Document()
         {

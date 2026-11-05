@@ -12,6 +12,13 @@ Windows 11 已实测官方登录、整首 DRM 播放与逐词歌词（见文末�
 - Microsoft Edge WebView2 **Evergreen Runtime**。SDK 不包含浏览器运行时；不要用 Fixed Runtime
   的结果代替 Evergreen 验证，DRM 支持可能不同。
 - `Microsoft.Web.WebView2` SDK 钉死为 `1.0.4314.35`，由 NuGet 还原。没有打包独立的 .NET/CoreCLR。
+  宿主窗口平时是隐藏的，而 WinForms 控件会跟着窗口把页面设成 hidden。Chromium 对隐藏、且这个 WebView
+  从没放过媒体的页面会推迟媒体加载（`prerender::DeferMediaLoad`），MusicKit 拿到许可证后就不再缓冲。
+  所以每次启播时，主进程发 `keepVisible` 指令，`webViewHost.cs` 用反射读 SDK 私有字段 `_coreWebView2Controller`，
+  让主页面保持可见；播放器出声（连续两次查询都在播放、位置在前进）、暂停或启播失败后就放开，最长 65 秒。
+  页面放过一次，之后隐藏也照常加载；可见时播放约占一个核的 20%，隐藏时 3–6%，所以不常驻。
+  升级 SDK 时要复核这个字段，字段不在时宿主会报 `visibility-pin-unavailable`（主进程日志里的
+  `[AppleMusic] Native companion:`）。
 
 在仓库根目录 PowerShell 执行：
 
