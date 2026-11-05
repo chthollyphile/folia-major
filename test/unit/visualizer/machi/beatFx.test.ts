@@ -12,6 +12,8 @@ import {
     resolveMachiDrumRipples,
     resolveMachiNeonPulse,
     resolveMachiScreenFlash,
+    resolveMachiSteadyNeonPulse,
+    resolveMachiSteadyScreenFlash,
 } from '@/components/visualizer/machi/engine/beatFx';
 
 // test/unit/visualizer/machi/beatFx.test.ts
@@ -19,6 +21,7 @@ import {
 // 一组亮时别的组暗一点（平均不变），只有小节第一拍让店里的灯慢慢涨落，没有节奏的小节不亮，按拍的三段占比分给霓虹与暖色灯；
 // 鼓点涟漪只认够响的底鼓、相隔够远（留早的那下）、最多四圈、最新的在前；大屏闪拍每下够响的军鼓慢慢亮起再暗下、
 // 先后几下落在不同的位置，军鼓再密也是平滑起伏、不超过四处；分离到一半的歌只用已知的鼓点；路面越湿涟漪越多、光斑的一跳越少。
+// 没开智能动感模式时的固定节拍：霓虹与按同样间隔排好的节拍表一样轮流，大屏在每小节第二、四拍亮起。
 
 const hits = (list: [number, number, number][], until?: number): DrumHits => ({
     times: Float64Array.from(list.map(([time]) => time)),
@@ -261,5 +264,66 @@ describe('machiRippleWetness', () => {
         expect(machiRippleWetness((from + to) / 2)).toBeCloseTo(0.5);
         expect(machiRippleWetness(to)).toBe(1);
         expect(machiRippleWetness(1)).toBe(1);
+    });
+});
+
+describe('resolveMachiSteadyNeonPulse', () => {
+    const { period, beatsPerBar, neon: scale } = MACHI_BEAT.steady;
+
+    it('matches a beat list laid out at the steady period, scaled by the steady strength', () => {
+        const times = Array.from({ length: 40 }, (_, index) => index * period);
+        const downbeats = times.filter((_, index) => index % beatsPerBar === 0);
+        const events = beats(times.filter(t => !downbeats.includes(t)), downbeats);
+        for (const time of [0.1, 0.5, 2.3, 7.77, 15.2]) {
+            const steady = resolveMachiSteadyNeonPulse(time, 1, createMachiBeatFrame());
+            const listed = neonAt(events, time, scale);
+            Array.from(steady.neonGroups).forEach((value, group) => expect(value).toBeCloseTo(listed.groups[group]!));
+            expect(steady.neon).toBeCloseTo(listed.neon);
+            expect(steady.warm).toBeCloseTo(listed.warm);
+            expect(steady.bloom).toBeCloseTo(listed.bloom);
+        }
+    });
+
+    it('takes turns between the groups and rests at strength 0', () => {
+        const at = (time: number) => Array.from(resolveMachiSteadyNeonPulse(time, 1, createMachiBeatFrame()).neonGroups);
+        const peak = MACHI_BEAT.neon.attack;
+        const brightest = (groups: number[]) => groups.indexOf(Math.max(...groups));
+        expect(brightest(at(period * 4 + peak))).toBe(4 % 3);
+        expect(brightest(at(period * 5 + peak))).toBe(5 % 3);
+        const rest = resolveMachiSteadyNeonPulse(3, 0, createMachiBeatFrame());
+        expect(Array.from(rest.neonGroups)).toEqual([1, 1, 1]);
+        expect(rest.warm).toBe(1);
+    });
+});
+
+describe('resolveMachiSteadyScreenFlash', () => {
+    const { period, screen: scale } = MACHI_BEAT.steady;
+    const { attack, fall, max } = MACHI_BEAT.screen;
+
+    it('lights a spot on beats two and four of each bar at the steady strength, each in another place', () => {
+        expect(Array.from(resolveMachiSteadyScreenFlash(period * 0.5, 1, createMachiBeatFrame()).swellAmp)).toEqual([0, 0, 0, 0]);
+        const first = resolveMachiSteadyScreenFlash(period + attack, 1, createMachiBeatFrame());
+        const second = resolveMachiSteadyScreenFlash(period * 3 + attack, 1, createMachiBeatFrame());
+        expect(first.swellAmp[0]).toBeCloseTo(scale);
+        expect(second.swellAmp[0]).toBeCloseTo(scale);
+        // 一处的寿命比两处的间隔短：后一处亮起时前一处已经灭了。
+        expect(attack + fall).toBeLessThan(period * 2);
+        expect(second.swellAmp[1]).toBe(0);
+        expect(second.swellAt[0]).not.toBeCloseTo(first.swellAt[0]!);
+        const between = resolveMachiSteadyScreenFlash(period * 2, 1, createMachiBeatFrame());
+        expect(between.swellAmp[0]).toBeCloseTo(scale * machiSwell(period, attack, fall));
+    });
+
+    it('keeps every spot until it has faded and never more than max', () => {
+        let previous: number[] = [];
+        for (let time = 0; time < 20; time += 1 / 120) {
+            const out = resolveMachiSteadyScreenFlash(time, 1, createMachiBeatFrame());
+            const lit = Array.from(out.swellAt).filter((_, slot) => out.swellAmp[slot]! > 1e-4);
+            expect(lit.length).toBeLessThanOrEqual(max);
+            // 上一帧亮得明显的一处，这一帧还在原处（不会被挤掉、不会跳位置）。
+            for (const place of previous) expect(lit.some(other => Math.abs(other - place) < 1e-6)).toBe(true);
+            previous = Array.from(out.swellAt).filter((_, slot) => out.swellAmp[slot]! > 0.05);
+        }
+        expect(Array.from(resolveMachiSteadyScreenFlash(5, 0, createMachiBeatFrame()).swellAmp)).toEqual([0, 0, 0, 0]);
     });
 });
