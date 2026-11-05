@@ -169,7 +169,7 @@ const AiProviderSettings: React.FC = () => {
             {alwaysThinks && <Row notice={t('options.aiModelAlwaysThinks')} />}
             {/* Shown only for providers that are sent a temperature, with their own range. */}
             <Reveal when={!gemini && Boolean(temperature)}>
-                <Row option={O.temperature} hint={temperature ? t(adapter.temperaturePerModel ? 'options.aiTemperaturePerModelDesc' : 'options.aiTemperatureRangeDesc', temperature) : undefined}>
+                <Row option={O.temperature} note={t('options.aiTemperatureNote')} hint={temperature ? t(adapter.temperaturePerModel ? 'options.aiTemperaturePerModelDesc' : 'options.aiTemperatureRangeDesc', temperature) : undefined}>
                     <NumberField value={parseNumberText(settings.OPENAI_API_TEMPERATURE)}
                         onChange={value => setAi({ OPENAI_API_TEMPERATURE: value === null ? '' : String(value) })}
                         min={temperature?.min ?? 0} max={temperature?.max ?? 2} step={0.1} placeholder="0.7" />
