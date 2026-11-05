@@ -71,4 +71,7 @@ export default defineVisualizer({
         </>
     ),
     ownFontSizeNoticeKey: 'options.hanabiFontSizeAutoNotice',
+    // Words come from segmentLyricWords (text/lyricText.ts lineWords): the saved split and icu-folia
+    // both change where a line breaks and which word gets the big scale.
+    usesWordSegmentation: true,
 });

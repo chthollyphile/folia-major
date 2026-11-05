@@ -55,6 +55,7 @@ import { createLyricsSetter } from './components/app/playback/createLyricsSetter
 import { createLyricSegmentationActions } from './components/app/playback/createLyricSegmentationActions';
 import { useLyricWordSegmentation } from './hooks/useLyricWordSegmentation';
 import { useIcuFoliaSegmentation } from './hooks/useIcuFoliaSegmentation';
+import { useAutoLyricSegmentation } from './hooks/useAutoLyricSegmentation';
 import { handleOnlineMediaFailure } from './components/app/playback/handleOnlineMediaFailure';
 import { createOnlineRecoveryController } from './components/app/playback/restore/createOnlineRecoveryController';
 import { notePreviewPlaying } from './components/app/playback/source/previewNotice';
@@ -1925,6 +1926,8 @@ export default function App() {
     useLyricWordSegmentation();
     // Loads icu-folia, the default word segmenter, once a word-based mode shows Chinese or Japanese.
     useIcuFoliaSegmentation(visualizerMode);
+    // With 自动 AI 分词 on, segments a song that has no saved split by itself (issue #960).
+    useAutoLyricSegmentation({ visualizerMode, isLyricsLoading, save: lyricSegmentationActions.save });
     /**
      * Cancels a blend back onto the track the listener is hearing, or null when there is none.
      *

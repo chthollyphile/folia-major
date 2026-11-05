@@ -73,6 +73,7 @@ const readStoredPreferredAlternativeLyricSource = (): LyricProviderSource => {
 };
 
 const LYRIC_LINE_RULES_KEY = 'lyrics_filter_rules';
+const AUTO_AI_LYRIC_SEGMENTATION_KEY = 'lyrics_auto_ai_segmentation';
 // The single expression older versions saved. Read once into a rule; written back on every save
 // (or removed with that rule), so an older version still filters the same lines.
 const LEGACY_LYRIC_FILTER_PATTERN_KEY = 'lyrics_filter_pattern';
@@ -133,6 +134,8 @@ export type LyricSettingsState = {
     lyricStaffMinDwellSeconds: number;
     lyricStaffAbsorbMode: LyricStaffAbsorbMode;
     lyricStaffPattern: string;
+    /** Run AI word segmentation by itself on a song that has none saved yet (issue #960). */
+    autoAiLyricSegmentation: boolean;
     handleToggleAutoUseBestLyric: (enable: boolean) => void;
     handleSetPreferredAlternativeLyricSource: (source: LyricProviderSource) => void;
     handleSetLocalLyricsPriority: (priority: LocalLyricsPriority) => void;
@@ -143,6 +146,7 @@ export type LyricSettingsState = {
     handleSetLyricStaffMinDwellSeconds: (seconds: number) => void;
     handleSetLyricStaffAbsorbMode: (mode: LyricStaffAbsorbMode) => void;
     handleSetLyricStaffPattern: (pattern: string) => void;
+    handleToggleAutoAiLyricSegmentation: (enable: boolean) => void;
 };
 
 export const useLyricSettingsStore = create<LyricSettingsState>((set, get) => ({
@@ -156,6 +160,8 @@ export const useLyricSettingsStore = create<LyricSettingsState>((set, get) => ({
     lyricStaffMinDwellSeconds: readStoredLyricStaffMinDwellSeconds(),
     lyricStaffAbsorbMode: readStoredLyricStaffAbsorbMode(),
     lyricStaffPattern: getStoredString('lyrics_staff_pattern', ''),
+    // Off by default: every song it runs on is a paid model request.
+    autoAiLyricSegmentation: getStoredBoolean(AUTO_AI_LYRIC_SEGMENTATION_KEY, false),
     handleToggleAutoUseBestLyric: (enable) => {
         setStoredBoolean('auto_use_best_lyric', enable);
         set({ autoUseBestLyric: enable });
@@ -251,6 +257,14 @@ export const useLyricSettingsStore = create<LyricSettingsState>((set, get) => ({
             localStorage.removeItem('lyrics_staff_pattern');
         }
     },
+    handleToggleAutoAiLyricSegmentation: (enable) => {
+        setStoredBoolean(AUTO_AI_LYRIC_SEGMENTATION_KEY, enable);
+        set({ autoAiLyricSegmentation: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'autoAiLyricSegmentationOn' : 'autoAiLyricSegmentationOff')),
+        });
+    },
 }));
 
 /** The lyric-sourcing half of the former settings snapshot. */
@@ -265,6 +279,7 @@ export const selectLyricSettingsSnapshot = (state: LyricSettingsState) => ({
     lyricStaffMinDwellSeconds: state.lyricStaffMinDwellSeconds,
     lyricStaffAbsorbMode: state.lyricStaffAbsorbMode,
     lyricStaffPattern: state.lyricStaffPattern,
+    autoAiLyricSegmentation: state.autoAiLyricSegmentation,
     handleToggleAutoUseBestLyric: state.handleToggleAutoUseBestLyric,
     handleSetPreferredAlternativeLyricSource: state.handleSetPreferredAlternativeLyricSource,
     handleSetLocalLyricsPriority: state.handleSetLocalLyricsPriority,
@@ -275,5 +290,6 @@ export const selectLyricSettingsSnapshot = (state: LyricSettingsState) => ({
     handleSetLyricStaffMinDwellSeconds: state.handleSetLyricStaffMinDwellSeconds,
     handleSetLyricStaffAbsorbMode: state.handleSetLyricStaffAbsorbMode,
     handleSetLyricStaffPattern: state.handleSetLyricStaffPattern,
+    handleToggleAutoAiLyricSegmentation: state.handleToggleAutoAiLyricSegmentation,
     lyricStaffPatternError: getLyricStaffPatternError(state.lyricStaffPattern),
 });

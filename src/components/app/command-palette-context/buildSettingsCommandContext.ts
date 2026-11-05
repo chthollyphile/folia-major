@@ -210,6 +210,10 @@ export const buildSettingsCommandContext = (
         togglePlaybackReport: () => audio.handleToggleNeteaseScrobble(
             !useAudioSettingsStore.getState().neteaseScrobbleEnabled,
         ),
+        toggleAutoAiLyricSegmentation: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleAutoAiLyricSegmentation(!lyric.autoAiLyricSegmentation);
+        },
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
         modSystemEnabled: desktop.modSystemEnabled,
         toggleVoiceInputPause: () => desktop.handleToggleVoiceInputPause(
