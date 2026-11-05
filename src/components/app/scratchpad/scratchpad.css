@@ -213,9 +213,10 @@
 /* 三个页签排一行放不下两个条数（英文尤甚）：条数只跟着选中的那页出现。 */
 .scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
 
-/* 选中那页的条数是名字右上角的小角标（不和名字排在同一条基线上）。 */
+/* 选中那页的条数是名字右下角的小角标（底边贴着名字的底边，不跟着大字的基线走）。 */
 .scratchpad-tab-count {
-    align-self: flex-start;
+    align-self: flex-end;
+    margin-bottom: 3px;
     margin-left: -2px;
     padding: 1px 6px;
     border-radius: 999px;
