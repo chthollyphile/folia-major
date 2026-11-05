@@ -64,6 +64,11 @@ const DRAWER_KEYS = new Set([
     'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Home', 'End', 'PageUp', 'PageDown', 'Delete', 'Backspace',
 ]);
 
+/** 抽屉里换页签的键：Tab 往后、Shift + Tab 往前（带 Ctrl / Alt / ⌘ 的留给系统和应用）。 */
+const isTabCycleKey = (event: KeyboardEvent | React.KeyboardEvent) => (
+    event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey
+);
+
 /** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
 const PAGE_SLIDE_PX = 28;
 const PAGE_EASE_IN = [0.22, 1, 0.36, 1] as const;
@@ -200,7 +205,36 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         setExpanded(false);
         requestAnimationFrame(() => toggleCanvasRef.current?.focus());
     }, [setExpanded]);
+    /** Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。 */
+    const cycleTab = useCallback((direction: 1 | -1) => {
+        const current = useScratchpadStore.getState().tab;
+        const next = TABS[(TABS.indexOf(current) + direction + TABS.length) % TABS.length];
+        setTab(next);
+        requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
+    }, [setTab]);
+    // 抽屉开着、焦点不在任何地方（刚用把手或 Ctrl / ⌘ + J 打开，把手一卸掉焦点就落在 body）时，Tab 也归抽屉换页；
+    // 焦点在别处（资料库、输入框）时 Tab 照常走焦点。
+    useEffect(() => {
+        if (!isOpen || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || !isTabCycleKey(event)) return;
+            const active = document.activeElement;
+            if (active && active !== document.body) return;
+            event.preventDefault();
+            cycleTab(event.shiftKey ? -1 : 1);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [cycleTab, isCovered, isOpen]);
+
     const handleKeyDown = (event: React.KeyboardEvent) => {
+        // 抽屉里 Tab 不走焦点，换页签（用户定，2026-11-05）；按钮之间用方向键和鼠标。
+        if (isTabCycleKey(event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            cycleTab(event.shiftKey ? -1 : 1);
+            return;
+        }
         if (DRAWER_KEYS.has(event.key)) {
             event.stopPropagation();
             return;
@@ -268,7 +302,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         }),
     }), [calm]);
 
-    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上（页签是一组，Tab 键只停在开着的那个）。
+    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上；Tab / Shift + Tab 在整个抽屉里都是换页（handleKeyDown）。
     const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const index = TABS.indexOf(tab);
         const next = event.key === 'Home' ? TABS[0]
