@@ -5,7 +5,7 @@ import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { BravaisSeamSpineTitle, BravaisSeamTitleArea } from './BravaisSeamTitle';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { openBravaisFilter } from './useBravaisSeamFilter';
@@ -100,8 +100,9 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                 onCollapse={collapse} />
             <div className="bravais-seam-rule" />
             {/* 歌手页的统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
+            {/* 集合能重新拉取时，这一行就是「重新拉取」按钮（不在「⋯ 更多」里）。 */}
             {!(seam.artist?.stats && seam.artist.stats === seam.meta) && (
-                <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
+                <BravaisSeamMetaLine meta={seam.meta} reload={collection?.reload} className="bravais-seam-meta" />
             )}
             {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
             {collection?.description && (

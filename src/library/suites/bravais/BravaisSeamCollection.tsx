@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star, Tags } from 'lucide-react';
 import type {
     BravaisSeamCollection as BravaisSeamCollectionModel,
+    BravaisSeamReload,
     BravaisSeamStatus,
     BravaisSeamSubscribe,
     BravaisSeamTone,
@@ -16,6 +17,7 @@ import './bravaisCollection.css';
 // src/library/suites/bravais/BravaisSeamCollection.tsx
 // 完整信息条里集合层的那几块（设计稿 §10.1 放置原则、§10.2、§10.6）：
 // （过滤输入位每面墙都有，在 BravaisSeamFilterField。）
+// - 元数据行（「N 首」）：集合能重新拉取时整行是一个按钮，计数后面一个刷新图标（不再进「⋯ 更多」）；
 // - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进
 //   （平台有风格推荐时上面多一行「默认推荐 / 风格推荐」，看风格推荐时步进换成选中的风格）；
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
@@ -66,6 +68,30 @@ export const BravaisSeamStar: React.FC<{ subscribe: BravaisSeamSubscribe }> = ({
         {subscribe.pending ? <Loader2 aria-hidden className="animate-spin" /> : <Star aria-hidden />}
     </button>
 );
+
+/**
+ * 元数据行（「N 首」，过滤中是匹配数）。给了 `reload` 时计数就是「重新拉取」按钮：计数照常翻页，后面跟一个刷新图标，
+ * 读首页时图标转圈、按钮禁用。完整信息条（竖 / 横）与专辑海报共用，外观的类名由各处给；按钮套在带这个类名的
+ * 元素里面，所在行的排版（专辑海报事实行的基线对齐与「·」分隔）照旧落在外层。
+ */
+export const BravaisSeamMetaLine: React.FC<{
+    meta: string;
+    reload?: BravaisSeamReload;
+    className: string;
+    as?: 'div' | 'span';
+}> = ({ meta, reload, className, as = 'div' }) => {
+    if (!reload) return <BravaisSeamFlipText as={as} flipKey={meta} className={className}>{meta}</BravaisSeamFlipText>;
+    const Tag = as;
+    return (
+        <Tag className={className}>
+            <button type="button" className="bravais-seam-meta-reload" data-bravais-seam-action="reload"
+                disabled={reload.disabled} title={reload.label} aria-label={meta ? `${meta} · ${reload.label}` : reload.label} onClick={reload.run}>
+                {meta && <BravaisSeamFlipText flipKey={meta}>{meta}</BravaisSeamFlipText>}
+                <RefreshCw aria-hidden className={reload.pending ? 'animate-spin' : undefined} />
+            </button>
+        </Tag>
+    );
+};
 
 /** 元数据行的补页进度、每日推荐的日期步进与风格推荐。 */
 export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollectionModel }> = ({ collection }) => {

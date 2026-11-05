@@ -12,7 +12,7 @@ import type { CollectionView } from '../../core/collection/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
 import type { DailyStyleSelection } from '../../../types/onlineMusic';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem, BravaisSeamReload } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
@@ -104,16 +104,22 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     const status = projection.status;
     const syncLine = projection.sync && (projection.sync.onResume && !declares('resume-sync') ? { ...projection.sync, onResume: undefined } : projection.sync);
 
-    // 「⋯ 更多」：低频的集合动作（重新拉取、改名、加入歌单、重扫、整理、导出、实体信息、设置封面、删除）。
+    // 重新拉取：画在元数据行（「N 首」）上，不进「⋯ 更多」。
+    const reloadCapability = actions.capabilities.reload;
+    const reload = useMemo<BravaisSeamReload | undefined>(() => (declares('reload') && reloadCapability.supported ? {
+        label: t('playlist.reload'),
+        disabled: !reloadCapability.enabled,
+        pending: reloadCapability.pending,
+        run: () => latest.current.actions.reload(),
+    } : undefined), [declares, reloadCapability, t]);
+
+    // 「⋯ 更多」：低频的集合动作（改名、加入歌单、重扫、整理、导出、实体信息、设置封面、删除）。
     const menu = useMemo<BravaisSeamMenuItem[]>(() => {
         const items: BravaisSeamMenuItem[] = [];
         const runMutation = (action: (controller: CollectionMutationController) => Promise<LibraryMutationResult>) => () => {
             const controller = latest.current.mutations;
             if (controller) void latest.current.notice.run(() => action(controller));
         };
-        if (declares('reload') && actions.capabilities.reload.supported) {
-            items.push({ id: 'reload', label: t('playlist.reload'), disabled: !actions.capabilities.reload.enabled, run: () => latest.current.actions.reload() });
-        }
         if (offers('rename')) items.push({ id: 'rename', label: t('libraryBravaisCollection.rename'), disabled: pending, run: forms.openRename });
         if (offers('add-to-playlist')) {
             items.push({
@@ -154,7 +160,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
             });
         }
         return items;
-    }, [actions.capabilities.collect, actions.capabilities.reload, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.contextTracks.length, view.playableTracks.length]);
+    }, [actions.capabilities.collect, collection.type, declares, forms.openDelete, forms.openRename, isLocalFolder, offers, pending, t, view.contextTracks.length, view.playableTracks.length]);
 
     // 每日推荐的日期步进：‹ 更早 · 日期 · 更近 ›，今天还能「刷新今天」。换日期就是换内容：整面翻牌，不换层。
     // 平台有风格推荐（#938）时上面多一行「默认推荐 / 风格推荐」；看风格推荐时步进换成选中的风格，点它翻出风格选择。
@@ -301,13 +307,14 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         status,
         notice: notice.notice,
         daily,
+        reload,
         menu,
         moreLabel: t('libraryBravaisCollection.more'),
         listLabel: t('libraryBravaisCollection.list'),
         form,
     // status / syncLine 是每次渲染新算的小对象：按它们的文案比较，免得层描述白换身份。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [daily, description, form, menu, notice.notice, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
+    }), [daily, description, form, menu, notice.notice, reload, status?.tone, status?.text, subscribe, syncLine?.state, syncLine?.label, t]);
 
     // 墙的内容规则：补页期间的循环周期（新页只翻新 slot）、有限拼贴的规划条目数、过滤身份、首屏呼吸。
     const periodCount = resolveWallPeriodCount({ itemCount: input.itemCount, totalCount, sync });

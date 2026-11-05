@@ -113,6 +113,14 @@ export type BravaisSeamForm = {
     onCancel: () => void;
 };
 
+/** 元数据行上的「重新拉取」。 */
+export type BravaisSeamReload = {
+    label: string;
+    disabled: boolean;
+    pending: boolean;
+    run: () => void;
+};
+
 /** 集合层在缝里的那一部分（首页没有）。 */
 export type BravaisSeamCollection = {
     /**
@@ -125,6 +133,11 @@ export type BravaisSeamCollection = {
     status?: BravaisSeamStatus;
     notice?: BravaisSeamNotice | null;
     daily?: BravaisSeamDaily;
+    /**
+     * 重新拉取：不进「⋯ 更多」，画成元数据行（「N 首」）本身的按钮，计数后面一个刷新图标；读首页时转圈、禁用。
+     * 只有在线集合有（core 的 reload 能力 ∩ suite 声明）。
+     */
+    reload?: BravaisSeamReload;
     menu: readonly BravaisSeamMenuItem[];
     moreLabel: string;
     /** 打开列表面板（只有支持面板的层有）。 */
