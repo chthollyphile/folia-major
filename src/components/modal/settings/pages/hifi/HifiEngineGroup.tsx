@@ -15,9 +15,9 @@ import { canOfferRuntimeDownload, isRuntimeInstalling, runtimeLine } from './run
 // src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx
 // The playback engine group at the top of the 播放控制 page: Web Audio or mpv for local and
 // Navidrome songs (the first switch to mpv asks to accept that the output is at full volume), and
-// what mpv turns off. With mpv chosen: which mpv is in use, the download of the recommended mpv with
-// its progress, the cloud-drive copies for when GitHub and its mirror are slow, an mpv file of one's
-// own, on Linux the package-manager lines in place of a download, and whether Navidrome songs use
+// what mpv turns off. With mpv chosen: which mpv is in use, the download of the recommended mpv (or
+// of the newest older one the system can take) with its progress, the cloud-drive copies for when
+// GitHub and its mirror are slow, an mpv file of one's own, on Linux the package-manager lines in place of a download, and whether Navidrome songs use
 // mpv too. The settings are pushed to the main process by the playback bridge, not from here.
 
 const IS_LINUX = HIFI_PLATFORM === 'linux';

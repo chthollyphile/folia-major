@@ -175,7 +175,7 @@ mpv ──HTTP（Range）──> electron/hifi/sourceBridge.cjs（127.0.0.1，�
 
 Linux 的 hw: 设备 mpv 的 `audio-device-list` 里没有（它都滤掉了），`mpvSession.cjs` 从 `/proc/asound/cards` 和 `/proc/asound/pcm` 补上；mpv 一个 `alsa/` 设备都没列（没编 ALSA 输出）时不补。用 hw: 直连时别的程序用不了这块声卡；PipeWire 正在这块声卡上放音时它是被占的（`DEVICE_BUSY`），要选 PipeWire 没在用的声卡，或把它的配置文件设为关。
 
-DSD：默认转 PCM，mpv 把 DSD 解成 PCM（DSD64 → 352.8 kHz 浮点），判“途中经过转换”。DoP（`--audio-spdif=dsd`）只在 Windows 的 WASAPI 独占下有，而且要比 0.41.0 新的 mpv（`mpvRuntime.cjs` 的 `isDopCapable`）。应用下载的官方 0.41.0 构建报的是 `0.41.0-dev-g…`，按 0.41.0 算，不能做 DoP；要用 DoP 得手动选一个更新的构建。DoP 帧的采样率是 DSD 位速率的 1/16（DSD64 → 176.4 kHz，DSD128 → 352.8 kHz），整数 24 / 32 位。不支持 DoP 的 DAC 收到 DoP 放出的是沙沙的噪声。
+DSD：默认转 PCM，mpv 把 DSD 解成 PCM（DSD64 → 352.8 kHz 浮点），判“途中经过转换”。DoP（`--audio-spdif=dsd`）只在 Windows 的 WASAPI 独占下有，而且要比 0.41.0 新的 mpv（`mpvRuntime.cjs` 的 `isDopCapable`）。应用下载的官方 0.42.0 构建在 Windows 上能做 DoP（0.42.0 的 WASAPI 加了 DoP 输出）；旧的官方 0.41.0 构建报的是 `0.41.0-dev-g…`，按 0.41.0 算，不能做 DoP。DoP 帧的采样率是 DSD 位速率的 1/16（DSD64 → 176.4 kHz，DSD128 → 352.8 kHz），整数 24 / 32 位。不支持 DoP 的 DAC 收到 DoP 放出的是沙沙的噪声。
 
 没有 ASIO：mpv 没有 ASIO 输出。Windows 上 WASAPI 独占能做到同样的原生直通。
 
@@ -229,7 +229,7 @@ HiFi 在放时（HiFi 路线、有曲目），主进程自己在会话总线上�
 `mpvRuntime.cjs` 的 `detect` 按这个顺序找，每个候选跑一次 `mpv --version`，比 0.39.0 旧的跳过（`--media-controls` 是 0.39.0 才有的；只找到旧的时报 `MPV_TOO_OLD`）：
 
 1. **手动路径**：只认主进程自己从系统文件框（`hifi:pick-runtime-path`）拿到的那个，存在 `approvedMpvPath.cjs` 那份文件里。渲染端经 `hifi:configure` 只能用它或清掉它，不能另报一个程序给主进程运行；通用的 save-settings 写不到它。路径不存在、不是 mpv 或太旧时 `manualPathRejected`，接着找下面的。
-2. **下载的运行时**：`mpvRuntimeInstaller.cjs` 按 `shared/mpvRuntimeManifest.json` 下载 mpv-player/mpv 官方 GitHub release 的资产（现在推荐 0.41.0，有 win32-x64、win32-arm64、darwin-arm64、darwin-x64），版本、字节数和 sha256 都钉在清单里，核对不上就删掉、报 `INSTALL_CHECKSUM_MISMATCH`。下载源依次是原址和清单 `mirrors` 套出来的镜像（现在只有 `https://gh-proxy.com/{url}`）：后面还有源时，响应头 15 s 没到、20 s 没来数据、下了 10 s 平均不到 256 KiB/s，或者下完核对不上，都换下一个源，进度从 0 重新算；最后一个源不设这些线，一直等到用户取消。镜像是第三方的，字节照样按清单核对。设置页在还没有 mpv、正在下载或下载失败时多给一行网盘（夸克、百度，是 mpv 自己的分享，不是安装包那个；清单列的官方 zip 原样放在「原生音频组件」文件夹里，换版本时要一起换），用户下了自己解压，再用「指定 mpv」选上。检测只认清单列出的版本目录，新的在前。macOS 的构建写着最低系统版本（`minOsVersion`），系统更旧时不提供下载。Linux 没有下载，报 `UNSUPPORTED_PLATFORM`，设置页给包管理器的安装命令；部分长期支持版的发行版仓库里 mpv 比 0.39 旧。
+2. **下载的运行时**：`mpvRuntimeInstaller.cjs` 按 `shared/mpvRuntimeManifest.json` 下载 mpv-player/mpv 官方 GitHub release 的资产（现在推荐 0.42.0，有 win32-x64、win32-arm64、darwin-arm64、darwin-x64），版本、字节数和 sha256 都钉在清单里，核对不上就删掉、报 `INSTALL_CHECKSUM_MISMATCH`。下载源依次是原址和清单 `mirrors` 套出来的镜像（现在只有 `https://gh-proxy.com/{url}`）：后面还有源时，响应头 15 s 没到、20 s 没来数据、下了 10 s 平均不到 256 KiB/s，或者下完核对不上，都换下一个源，进度从 0 重新算；最后一个源不设这些线，一直等到用户取消。镜像是第三方的，字节照样按清单核对。设置页在还没有 mpv、正在下载或下载失败时多给一行网盘（夸克、百度，是 mpv 自己的分享，不是安装包那个；清单列的官方 zip 原样放在「原生音频组件」文件夹里，换版本时要一起换），用户下了自己解压，再用「指定 mpv」选上。检测只认清单列出的版本目录，新的在前。macOS 的构建写着最低系统版本（`minOsVersion`）：推荐版本装不上时 `resolveInstallTarget` 退到清单里装得上的最新旧版本（macOS 14 的 Apple Silicon 退回 0.41.0；0.42.0 的 macOS 构建都要 15），一个都装不上时不提供下载。Linux 没有下载，报 `UNSUPPORTED_PLATFORM`，设置页给包管理器的安装命令；部分长期支持版的发行版仓库里 mpv 比 0.39 旧。
 3. **系统的 mpv**：环境变量 `FOLIA_MPV_PATH`、`PATH`，再是常见位置（Homebrew、`/Applications/mpv.app`、scoop、Chocolatey、`%ProgramFiles%\mpv`、`/usr/bin`、`/usr/local/bin`、`/snap/bin`）。
 
 ## 已知限制

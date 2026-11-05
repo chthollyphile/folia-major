@@ -849,7 +849,7 @@ describe('shared/mpvRuntimeManifest.json', () => {
         for (const entry of manifest.versions) expect(isSupportedMpvVersion(entry.version)).toBe(true);
     });
 
-    it('lists official v0.41.0 builds with a hash, a size and an executable for each platform', () => {
+    it('lists official v0.42.0 builds with a hash, a size and an executable for each platform', () => {
         const manifest = require('../../../shared/mpvRuntimeManifest.json') as {
             schema: number;
             recommended: string;
@@ -859,7 +859,7 @@ describe('shared/mpvRuntimeManifest.json', () => {
         const recommended = manifest.versions.find(entry => entry.version === manifest.recommended);
         expect(Object.keys(recommended?.builds ?? {}).sort()).toEqual(['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64']);
         for (const [key, build] of Object.entries(recommended?.builds ?? {})) {
-            expect(build.url).toMatch(/^https:\/\/github\.com\/mpv-player\/mpv\/releases\/download\/v0\.41\.0\//);
+            expect(build.url).toMatch(/^https:\/\/github\.com\/mpv-player\/mpv\/releases\/download\/v0\.42\.0\//);
             expect(build.sha256).toMatch(/^[0-9a-f]{64}$/);
             expect(Number.isSafeInteger(build.bytes)).toBe(true);
             expect(build.executable).toBe(key.startsWith('win32') ? 'mpv.exe' : 'mpv.app/Contents/MacOS/mpv');

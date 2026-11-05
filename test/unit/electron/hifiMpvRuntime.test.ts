@@ -46,6 +46,7 @@ const {
     compareMpvVersions,
     isSupportedMpvVersion,
     isDopCapable,
+    resolveInstallTarget,
     createMpvRuntime,
 } = require('../../../electron/hifi/mpvRuntime.cjs') as {
     CHECK_TIMEOUT_MS: number;
@@ -54,6 +55,7 @@ const {
     compareMpvVersions: (a: unknown, b: unknown) => number;
     isSupportedMpvVersion: (version: unknown) => boolean;
     isDopCapable: (platform: string, version: unknown) => boolean;
+    resolveInstallTarget: (options: { manifest: unknown; platform: string; arch: string; systemVersion?: string | null }) => { version: string } | null;
     createMpvRuntime: (options: RuntimeOptions) => MpvRuntime;
 };
 
@@ -347,7 +349,7 @@ describe('createMpvRuntime detect', () => {
             arch: 'arm64',
             download: {
                 supported: true,
-                version: '0.41.0',
+                version: '0.42.0',
                 installedVersion: null,
                 updateAvailable: false,
                 installing: false,
@@ -616,6 +618,39 @@ describe('createMpvRuntime detect', () => {
         expect((await oldIntel.detect()).download.supported).toBe(false);
     });
 
+    it('offers macOS 15 the update to 0.42.0 but keeps macOS 14 on the 0.41.0 it has', async () => {
+        const sonoma = await darwinRuntime(['downloaded'], { systemVersion: '14.5.0' }).runtime.detect();
+        expect(sonoma).toMatchObject({ path: downloaded, source: 'downloaded' });
+        expect(sonoma.download).toMatchObject({ supported: true, version: '0.41.0', installedVersion: '0.41.0', updateAvailable: false });
+
+        const sequoia = await darwinRuntime(['downloaded'], { systemVersion: '15.1' }).runtime.detect();
+        expect(sequoia.download).toMatchObject({ supported: true, version: '0.42.0', installedVersion: '0.41.0', updateAvailable: true });
+    });
+
+    it('falls back to the newest listed build the system can take, never past the recommended one', () => {
+        // 真清单：0.42.0 的 Apple Silicon 构建要 macOS 15，macOS 14 退回 0.41.0；Intel 两个版本都要 15。
+        const manifest = require('../../../shared/mpvRuntimeManifest.json');
+        const target = (platform: string, arch: string, systemVersion: string | null = null) =>
+            resolveInstallTarget({ manifest, platform, arch, systemVersion })?.version ?? null;
+        expect(target('darwin', 'arm64', '15.1')).toBe('0.42.0');
+        expect(target('darwin', 'arm64', '14.5.0')).toBe('0.41.0');
+        expect(target('darwin', 'arm64', '13.6.1')).toBeNull();
+        expect(target('darwin', 'x64', '14.7.2')).toBeNull();
+        expect(target('win32', 'x64')).toBe('0.42.0');
+
+        // 比推荐版本新的条目不拿；推荐版本缺这个平台时退到旧版本。
+        const ahead = { ...twoVersionManifest, recommended: '0.40.0' };
+        expect(resolveInstallTarget({ manifest: ahead, platform: 'win32', arch: 'x64' })?.version).toBe('0.40.0');
+        const gap = {
+            ...twoVersionManifest,
+            versions: twoVersionManifest.versions.map(entry => (entry.version === '0.41.0'
+                ? { ...entry, builds: { 'darwin-arm64': entry.builds['darwin-arm64'] } }
+                : entry)),
+        };
+        expect(resolveInstallTarget({ manifest: gap, platform: 'win32', arch: 'x64' })?.version).toBe('0.40.0');
+        expect(resolveInstallTarget({ manifest: { ...twoVersionManifest, recommended: undefined }, platform: 'win32', arch: 'x64' })).toBeNull();
+    });
+
     it('scans Path case-insensitively on Windows and knows scoop and the DoP threshold', async () => {
         const shim = 'C:\\Users\\lia\\scoop\\shims\\mpv.exe';
         const fromPath = 'D:\\tools\\mpv\\mpv.exe';
@@ -645,7 +680,7 @@ describe('createMpvRuntime detect', () => {
         });
         const shimStatus = await shimOnly.detect({ manualPath: 'C:\\missing\\mpv.exe' });
         expect(shimStatus).toMatchObject({ path: shim, dopCapable: false, manualPathRejected: true });
-        expect(shimStatus.download).toMatchObject({ supported: true, version: '0.41.0' });
+        expect(shimStatus.download).toMatchObject({ supported: true, version: '0.42.0' });
     });
 
     it('asks mpv.com for the version when mpv.exe prints nothing, and keeps mpv.exe as the path', async () => {
