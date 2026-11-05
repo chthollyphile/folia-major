@@ -215,6 +215,17 @@ describe('playSong and the current song (online)', () => {
     });
 
 
+    it('shows loading when a prepared external track is selected by a queue step', async () => {
+        env.external = true;
+        env.externalPrepared = true;
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { queue } = mount();
+        await queue.playSong(songA, [songA, songB], false, { showQueueStepLoading: true });
+        expect(messages).toContainEqual(expect.objectContaining({ activity: 'playback-loading' }));
+        unsubscribe();
+    });
+
     it('shows preparation feedback on a cold external start', async () => {
         env.external = true;
         const messages: unknown[] = [];
