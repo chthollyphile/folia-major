@@ -8,7 +8,6 @@ export default {
     "hint": "Songs to hear or sort out later. The queue stays as it is.",
     "history": "Play history",
     "historyTab": "History",
-    "historyHint": "Played on this device in the last 7 days, newest first.",
     "historyEmpty": "Nothing played in the last 7 days.",
     "today": "Today",
     "yesterday": "Yesterday",
@@ -67,13 +66,62 @@ export default {
     "historyDeleted_one": "Deleted {{count}} song from the play history",
     "historyDeleted_other": "Deleted {{count}} songs from the play history",
     "greeting": {
-      "lateNight": "Still up? The music is still on.",
-      "dawn": "Good morning. The day has only just begun.",
-      "morning": "Good morning. What should today start with?",
-      "noon": "Midday already. Take a short break.",
-      "afternoon": "Good afternoon. Tea and a song?",
-      "evening": "Good evening. Long day?",
-      "night": "Winding down? Something slower, maybe."
+      "lateNight": {
+        "v1": "Still up? The music is still on.",
+        "v2": "This late? One more, then sleep.",
+        "v3": "The night is quiet; every note carries.",
+        "v4": "Night owls always have their own playlists.",
+        "v5": "The moon is still on shift. So are you.",
+        "v6": "Late-night radio, on air just for you."
+      },
+      "dawn": {
+        "v1": "Good morning. The day has only just begun.",
+        "v2": "Up early. The birds are still tuning up.",
+        "v3": "The sky is turning pale. Something gentle?",
+        "v4": "Fresh morning air, fresh song.",
+        "v5": "Early riser, first listen.",
+        "v6": "The sun just woke up, and you are already listening."
+      },
+      "morning": {
+        "v1": "Good morning. What should today start with?",
+        "v2": "Good morning. Set the tone for the day.",
+        "v3": "One song, one coffee, let us begin.",
+        "v4": "Let the beat carry the morning.",
+        "v5": "Morning! Another good day for music.",
+        "v6": "New day. Try something different?"
+      },
+      "noon": {
+        "v1": "Midday already. Take a short break.",
+        "v2": "Had lunch yet? Eat and listen.",
+        "v3": "Lunch break: close your eyes for one song.",
+        "v4": "Bright noon, bright music.",
+        "v5": "Half the day done. Play one you love.",
+        "v6": "A song after lunch keeps the slump away."
+      },
+      "afternoon": {
+        "v1": "Good afternoon. Tea and a song?",
+        "v2": "Afternoon slump? Try something brighter.",
+        "v3": "Good afternoon. The day is winding toward its end.",
+        "v4": "Slanting light, slower songs.",
+        "v5": "Teatime. What is today’s soundtrack?",
+        "v6": "Hang in there. A few more songs till evening."
+      },
+      "evening": {
+        "v1": "Good evening. Long day?",
+        "v2": "Good evening. The headphones are yours now.",
+        "v3": "The day is done. Play what you like.",
+        "v4": "After dinner belongs to music.",
+        "v5": "Good evening. How was today?",
+        "v6": "The lights are on. Time for a new song."
+      },
+      "night": {
+        "v1": "Winding down? Something slower, maybe.",
+        "v2": "Heading to bed? Something quiet.",
+        "v3": "A good night for one song on repeat.",
+        "v4": "That is it for today, after this one.",
+        "v5": "One more before the lights go out.",
+        "v6": "Before goodnight, save one for tomorrow."
+      }
     }
   },
   "libraryBravais": {

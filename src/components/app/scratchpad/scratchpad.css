@@ -131,16 +131,17 @@
     flex: none;
     align-items: center;
     gap: 4px;
-    padding: 14px 10px 10px 18px;
+    padding: 16px 10px 12px 18px;
 }
 
-/* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身，没选中的淡一些。 */
+/* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身。选中的那页大一号当标题，没选中的小而淡，
+   三个按基线排，高低错落（用户定，2026-11-05）；展开成画布时整体再大一号（文件下面 is-expanded 那几条）。 */
 .scratchpad-tabs {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
     align-items: baseline;
-    gap: 12px;
+    gap: 14px;
 }
 
 .scratchpad-tab {
@@ -153,8 +154,9 @@
     background: transparent;
     color: inherit;
     font: inherit;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
+    line-height: 1.2;
     white-space: nowrap;
     opacity: 0.42;
     cursor: pointer;
@@ -162,7 +164,11 @@
 }
 
 .scratchpad-tab:hover { opacity: 0.75; }
-.scratchpad-tab[aria-selected='true'] { opacity: 1; cursor: default; }
+.scratchpad-tab[aria-selected='true'] { font-size: 21px; letter-spacing: 0.01em; opacity: 1; cursor: default; }
+.scratchpad-drawer.is-expanded .scratchpad-header { padding: 20px 14px 14px 18px; }
+.scratchpad-drawer.is-expanded .scratchpad-tabs { gap: 18px; }
+.scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
+.scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 27px; }
 .scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
 
 /* 名字长的语言（印尼语）三个页签仍可能差几个像素：页签名字可以收窄成省略号，不压到旁边的页签上。 */
@@ -688,12 +694,14 @@
 
 .scratchpad-greeting {
     flex: none;
-    margin: 0 18px 6px;
-    font-size: 13.5px;
-    font-weight: 600;
-    line-height: 1.5;
-    opacity: 0.85;
+    margin: 2px 18px 14px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.35;
+    opacity: 0.92;
 }
+
+.scratchpad-drawer.is-expanded .scratchpad-greeting { margin-bottom: 16px; font-size: 23px; }
 
 /* —— 播放队列收起时的列表（ScratchpadSongTable）——
    虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度；行的样子沿用 .scratchpad-row。 */
@@ -745,6 +753,15 @@
     box-shadow: 0 0 0 2px rgb(0 0 0 / 35%);
     content: '';
 }
+
+/* 灰掉的卡（播放队列画布里当前这首之前、已经放过的，和线上放过的那一段一起淡下去）：封面去色变淡、字变淡；卡片底色不动——卡片要保持不透明（见 .scratchpad-card）。
+   滤镜只落在静止的封面图上，卡片挪动时是整张合成层在动，不会每帧重算。悬停、选中时复原。
+   灰进、灰出都渐变（切到下一首时上一首慢慢灰下去）；动效降级时也保留，只是颜色变化。 */
+.scratchpad-card .scratchpad-card-name,
+.scratchpad-card .scratchpad-card-meta { transition: opacity 0.45s ease; }
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-cover img { filter: grayscale(1); opacity: 0.55; }
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-name,
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-meta { opacity: 0.5; }
 
 /* —— 穿过卡片的线（canvasThread）：画在卡片底下，从卡片之间的空隙里露出来 ——
    播放历史是一条细的时间轴，每张卡前面一个空心刻度；播放队列是一条带箭头的线，放过的那一段淡下去。 */
@@ -806,9 +823,13 @@
 
 .scratchpad-row:hover { translate: 2px 0; }
 
-.scratchpad-cover img,
-.scratchpad-card-cover img {
+.scratchpad-cover img {
     transition: scale 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 画布卡片的封面另有灰掉的渐变（.is-dimmed）。 */
+.scratchpad-card-cover img {
+    transition: scale 0.28s cubic-bezier(0.22, 1, 0.36, 1), filter 0.45s ease, opacity 0.45s ease;
 }
 
 .scratchpad-row:hover .scratchpad-cover img { scale: 1.07; }

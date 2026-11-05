@@ -8,7 +8,6 @@ export default {
     "hint": "Lagu untuk didengar atau dirapikan nanti. Antrean tidak berubah.",
     "history": "Riwayat putar",
     "historyTab": "Riwayat",
-    "historyHint": "Diputar di perangkat ini dalam 7 hari terakhir, terbaru di atas.",
     "historyEmpty": "Belum ada yang diputar dalam 7 hari terakhir.",
     "today": "Hari ini",
     "yesterday": "Kemarin",
@@ -67,13 +66,62 @@ export default {
     "historyDeleted_one": "{{count}} lagu dihapus dari riwayat putar",
     "historyDeleted_other": "{{count}} lagu dihapus dari riwayat putar",
     "greeting": {
-      "lateNight": "Masih terjaga? Musiknya masih menyala.",
-      "dawn": "Selamat pagi. Hari baru saja dimulai.",
-      "morning": "Selamat pagi. Mau mulai hari ini dengan lagu apa?",
-      "noon": "Selamat siang. Istirahat sebentar.",
-      "afternoon": "Selamat sore. Teh dan sebuah lagu?",
-      "evening": "Selamat malam. Hari yang panjang?",
-      "night": "Bersiap istirahat? Mungkin yang lebih pelan."
+      "lateNight": {
+        "v1": "Masih terjaga? Musiknya masih menyala.",
+        "v2": "Sudah larut. Satu lagu lagi, lalu tidur.",
+        "v3": "Malam sunyi, setiap nada terdengar jelas.",
+        "v4": "Yang begadang selalu punya playlist sendiri.",
+        "v5": "Bulan masih bertugas. Kamu juga.",
+        "v6": "Radio tengah malam, mengudara hanya untukmu."
+      },
+      "dawn": {
+        "v1": "Selamat pagi. Hari baru saja dimulai.",
+        "v2": "Bangun pagi sekali. Burung-burung masih pemanasan.",
+        "v3": "Langit mulai terang. Yang lembut dulu?",
+        "v4": "Udara pagi yang segar, lagu yang segar.",
+        "v5": "Yang bangun pagi, dengar duluan.",
+        "v6": "Matahari baru bangun, kamu sudah mendengarkan musik."
+      },
+      "morning": {
+        "v1": "Selamat pagi. Mau mulai hari ini dengan lagu apa?",
+        "v2": "Selamat pagi. Tentukan nada hari ini.",
+        "v3": "Satu lagu, satu kopi, ayo mulai.",
+        "v4": "Biar irama yang membawa pagi ini.",
+        "v5": "Pagi! Hari yang baik lagi untuk musik.",
+        "v6": "Hari baru. Coba sesuatu yang berbeda?"
+      },
+      "noon": {
+        "v1": "Selamat siang. Istirahat sebentar.",
+        "v2": "Sudah makan siang? Makan sambil dengar.",
+        "v3": "Istirahat siang: pejamkan mata untuk satu lagu.",
+        "v4": "Siang yang cerah, musik yang cerah.",
+        "v5": "Setengah hari berlalu. Putar lagu favoritmu.",
+        "v6": "Satu lagu setelah makan siang supaya tidak mengantuk."
+      },
+      "afternoon": {
+        "v1": "Selamat sore. Teh dan sebuah lagu?",
+        "v2": "Mengantuk sore ini? Coba yang lebih segar.",
+        "v3": "Selamat sore. Hari mulai mendekati akhir.",
+        "v4": "Cahaya miring, lagu yang lebih pelan.",
+        "v5": "Waktunya minum teh. Lagu apa hari ini?",
+        "v6": "Bertahanlah. Beberapa lagu lagi sampai petang."
+      },
+      "evening": {
+        "v1": "Selamat malam. Hari yang panjang?",
+        "v2": "Selamat malam. Headphone-nya untukmu sekarang.",
+        "v3": "Hari sudah selesai. Putar yang kamu suka.",
+        "v4": "Waktu setelah makan malam milik musik.",
+        "v5": "Selamat malam. Bagaimana hari ini?",
+        "v6": "Lampu sudah menyala. Saatnya lagu baru."
+      },
+      "night": {
+        "v1": "Bersiap istirahat? Mungkin yang lebih pelan.",
+        "v2": "Mau tidur? Yang tenang saja.",
+        "v3": "Malam yang pas untuk memutar satu lagu berulang.",
+        "v4": "Cukup untuk hari ini, setelah lagu ini.",
+        "v5": "Satu lagi sebelum lampu dimatikan.",
+        "v6": "Sebelum selamat tidur, simpan satu untuk besok."
+      }
     }
   },
   "libraryBravais": {

@@ -8,7 +8,6 @@ export default {
     "hint": "Bài để nghe hoặc sắp xếp sau. Hàng đợi không thay đổi.",
     "history": "Lịch sử phát",
     "historyTab": "Lịch sử",
-    "historyHint": "Đã phát trên thiết bị này trong 7 ngày qua, mới nhất ở trên.",
     "historyEmpty": "Chưa phát bài nào trong 7 ngày qua.",
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -67,13 +66,62 @@ export default {
     "historyDeleted_one": "Đã xóa {{count}} bài khỏi lịch sử phát",
     "historyDeleted_other": "Đã xóa {{count}} bài khỏi lịch sử phát",
     "greeting": {
-      "lateNight": "Vẫn còn thức à? Nhạc vẫn đang phát.",
-      "dawn": "Chào buổi sáng. Ngày mới vừa bắt đầu.",
-      "morning": "Chào buổi sáng. Hôm nay bắt đầu bằng bài nào?",
-      "noon": "Chào buổi trưa. Nghỉ ngơi một chút nhé.",
-      "afternoon": "Chào buổi chiều. Một tách trà và một bài hát?",
-      "evening": "Chào buổi tối. Một ngày dài nhỉ?",
-      "night": "Sắp nghỉ rồi à? Một bài chậm hơn nhé."
+      "lateNight": {
+        "v1": "Vẫn còn thức à? Nhạc vẫn đang phát.",
+        "v2": "Muộn thế này rồi. Thêm một bài rồi ngủ nhé.",
+        "v3": "Đêm yên tĩnh, từng nốt nhạc nghe rõ hơn.",
+        "v4": "Người thức khuya nào cũng có danh sách phát riêng.",
+        "v5": "Mặt trăng vẫn chưa tan ca. Bạn cũng vậy.",
+        "v6": "Đài phát thanh đêm khuya, chỉ phát cho riêng bạn."
+      },
+      "dawn": {
+        "v1": "Chào buổi sáng. Ngày mới vừa bắt đầu.",
+        "v2": "Dậy sớm thật. Chim ngoài cửa sổ vẫn đang thử giọng.",
+        "v3": "Trời đang hửng sáng. Nghe gì nhẹ nhàng nhé?",
+        "v4": "Không khí sáng sớm, hợp với một bài hát mới.",
+        "v5": "Người dậy sớm được nghe trước.",
+        "v6": "Mặt trời vừa thức dậy, bạn đã nghe nhạc rồi."
+      },
+      "morning": {
+        "v1": "Chào buổi sáng. Hôm nay bắt đầu bằng bài nào?",
+        "v2": "Chào buổi sáng. Chọn giai điệu cho ngày hôm nay.",
+        "v3": "Một bài hát, một ly cà phê, bắt đầu thôi.",
+        "v4": "Để nhịp điệu dẫn dắt buổi sáng.",
+        "v5": "Chào buổi sáng! Lại một ngày đẹp để nghe nhạc.",
+        "v6": "Ngày mới. Thử một chút khác lạ?"
+      },
+      "noon": {
+        "v1": "Chào buổi trưa. Nghỉ ngơi một chút nhé.",
+        "v2": "Ăn trưa chưa? Vừa ăn vừa nghe nhé.",
+        "v3": "Giờ nghỉ trưa: nhắm mắt nghe một bài.",
+        "v4": "Trưa nắng đẹp, nhạc cũng đẹp.",
+        "v5": "Nửa ngày đã qua. Bật một bài bạn thích.",
+        "v6": "Một bài sau bữa trưa cho đỡ buồn ngủ."
+      },
+      "afternoon": {
+        "v1": "Chào buổi chiều. Một tách trà và một bài hát?",
+        "v2": "Chiều buồn ngủ? Đổi bài tỉnh táo hơn.",
+        "v3": "Chào buổi chiều. Sắp hết ngày rồi.",
+        "v4": "Nắng chiều xiên, nhạc cũng chậm lại.",
+        "v5": "Giờ trà chiều. Hôm nay nghe gì?",
+        "v6": "Cố lên. Vài bài nữa là đến chiều tối."
+      },
+      "evening": {
+        "v1": "Chào buổi tối. Một ngày dài nhỉ?",
+        "v2": "Chào buổi tối. Tai nghe giờ là của bạn.",
+        "v3": "Một ngày đã xong. Nghe gì bạn thích nhé.",
+        "v4": "Thời gian sau bữa tối dành cho âm nhạc.",
+        "v5": "Chào buổi tối. Hôm nay thế nào?",
+        "v6": "Đèn đã sáng. Đến lúc đổi bài rồi."
+      },
+      "night": {
+        "v1": "Sắp nghỉ rồi à? Một bài chậm hơn nhé.",
+        "v2": "Chuẩn bị ngủ? Một bài yên tĩnh nhé.",
+        "v3": "Đêm nay hợp để nghe lặp một bài.",
+        "v4": "Hôm nay đến đây thôi, nghe xong bài này đã.",
+        "v5": "Thêm một bài trước khi tắt đèn.",
+        "v6": "Trước khi chúc ngủ ngon, để dành một bài cho ngày mai."
+      }
     }
   },
   "libraryBravais": {

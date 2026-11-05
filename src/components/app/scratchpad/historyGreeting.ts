@@ -1,5 +1,6 @@
 // src/components/app/scratchpad/historyGreeting.ts
-// 速记簿「播放历史」页顶上那一句问候：按系统时钟落在一天里的哪一段，一段一句，固定不随机。
+// 速记簿「播放历史」页顶上那一句问候：按系统时钟落在一天里的哪一段，一段有几句，每次随机挑一句
+// （文案在 scratchpad.greeting.<段>.v1 … v<GREETING_VARIANTS>，几种语言句数相同）。
 
 export type HistoryGreetingSlot = 'lateNight' | 'dawn' | 'morning' | 'noon' | 'afternoon' | 'evening' | 'night';
 
@@ -32,3 +33,11 @@ export const msUntilNextGreetingSlot = (at: Date): number => {
     next.setHours(nextStart, 0, 0, 0);
     return Math.max(1000, next.getTime() - at.getTime());
 };
+
+/** 每一段有几句（文案键 v1 … v6）。 */
+export const GREETING_VARIANTS = 6;
+
+/** 随机挑一句：返回文案键的后缀（v1 … v6）。random 给测试换成固定的数。 */
+export const pickGreetingVariant = (random: () => number = Math.random): string => (
+    `v${Math.min(GREETING_VARIANTS, Math.floor(random() * GREETING_VARIANTS) + 1)}`
+);
