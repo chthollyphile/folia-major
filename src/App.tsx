@@ -75,7 +75,7 @@ import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMod
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
 import { registerLocalTrackFileReader } from './services/analysis/trackAudio';
-import type { MediaId, OnlineProviderId, ProviderCollection } from './types/onlineMusic';
+import type { MediaId, ProviderCollection } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
 import { consumeProgrammaticPause, playbackFade } from './services/playbackFade';
@@ -87,7 +87,8 @@ import { useLibraryAccountController } from './library/app/useLibraryAccountCont
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
 import { useAppWallToolsHost } from './components/app/wall-tools/useAppWallToolsHost';
 import { useRemoteQueueCommands } from './components/app/playback/bridges/useRemoteQueueCommands';
-import { useLibraryAccountProviders } from './library/core/account/useLibraryAccount';
+import { selectAccountSyncPending, useLibraryAccountProviders, useLibraryAccountSelector } from './library/core/account/useLibraryAccount';
+import { syncAccountData } from './components/login/syncAccountData';
 import { resolveActiveProviderSummary } from './library/core/account/accountRules';
 import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './components/app/playback/bridges/useElectronPlaybackBridge';
@@ -196,7 +197,6 @@ import { useFoliumHostBridge } from './mods/runtime/hostBridge';
 import { useFoliumHostActions } from './mods/runtime/hostActions';
 import { refreshPrefetchAfterQueueEdit } from './services/prefetchService';
 import { FoliumStageLayerSlot } from './mods/folium/registries/stageLayers';
-import { errorFields } from './utils/errorText';
 import { runsOnWindows } from './utils/platform';
 
 const LOCAL_MUSIC_UPDATED_EVENT = 'folia-local-music-updated';
@@ -213,14 +213,11 @@ export default function App() {
     const {
         navidromeEnabled, setNavidromeEnabledState,
         starredNavidromeSongIds, setStarredNavidromeSongIds,
-        isProviderSyncing, setIsProviderSyncing,
     } = useLibraryStore(useShallow(state => ({
         navidromeEnabled: state.navidromeEnabled,
         setNavidromeEnabledState: state.setNavidromeEnabledState,
         starredNavidromeSongIds: state.starredNavidromeSongIds,
         setStarredNavidromeSongIds: state.setStarredNavidromeSongIds,
-        isProviderSyncing: state.isProviderSyncing,
-        setIsProviderSyncing: state.setIsProviderSyncing,
     })));
     const {
         currentSong, setCurrentSong,
@@ -776,10 +773,7 @@ export default function App() {
     } = useNeteaseLibrary();
 
     // Every platform's account is read and signed out of through omni (services/onlineMusic/account/),
-    // NetEase like the others. One entry per platform registered at start; a mod's source has none.
-    const onlineProviderRefreshers = useMemo<Partial<Record<OnlineProviderId, () => Promise<unknown>>>>(() => Object.fromEntries(
-        omni.getProviderSummaries().map(({ providerId }) => [providerId, async () => await omni.readAccount(providerId, 'sync') === 'read']),
-    ), []);
+    // NetEase like the others.
     // 在线账户 controller（Library v2 · A4）：登录、选平台、切换确认与登出都在 core，App 只交出退出与退出前的那一问
     // （useProviderSignOut），以及平台换了时的播放器端口（切换退出私人 FM，退出登录移出那个平台的歌）。端口读的句柄都是稳定引用，建一次。
     const { confirmLogout, signOut, dialog: signOutDialog } = useProviderSignOut();
@@ -804,26 +798,11 @@ export default function App() {
     // （resolveSongLiked → omni.isSongLiked）经 getState 读各平台的 likedSongIds，账户摘要里没有它，
     // 只订阅 controller 快照的话收藏之后心形不会当场更新。取值没有用处。
     useOnlineProviderAccountStore(state => state.accounts);
-    const handleActiveProviderSyncData = useCallback(async () => {
-        const providerId = activeProviderId;
-        setIsProviderSyncing(true);
-        try {
-            const synced = await onlineProviderRefreshers[providerId]?.();
-            const refreshedAccount = useOnlineProviderAccountStore.getState().accounts[providerId];
-            const authExpired = synced === false && refreshedAccount?.error === 'auth-required';
-            setStatusMsg({
-                type: synced === false ? 'error' : 'success',
-                text: synced === false
-                    ? t(authExpired ? 'status.loginExpired' : 'status.syncFailed')
-                    : t('status.dataSynced'),
-            });
-        } catch (error) {
-            console.warn('[OmniSync] Provider data sync failed', { providerId, ...errorFields(error) });
-            setStatusMsg({ type: 'error', text: t('status.syncFailed') });
-        } finally {
-            setIsProviderSyncing(false);
-        }
-    }, [activeProviderId, onlineProviderRefreshers, setStatusMsg, t]);
+    // 面板账户页的「同步数据」：经账户 controller 同步当前平台（和登录窗口账号那一幅同一条路，同一时间一个）。
+    const isProviderSyncing = useLibraryAccountSelector(accountController, selectAccountSyncPending);
+    const handleActiveProviderSyncData = useCallback(() => {
+        void syncAccountData(accountController, activeProviderId, t);
+    }, [accountController, activeProviderId, t]);
     const refreshActiveProviderPlaylists = useCallback(
         () => omni.refreshProviderPlaylists(activeProviderId),
         [activeProviderId],

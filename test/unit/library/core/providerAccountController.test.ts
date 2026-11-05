@@ -628,6 +628,65 @@ describe('providerAccountController · sign-out', () => {
     });
 });
 
+describe('providerAccountController · syncing an account', () => {
+    it('reads the account again, one provider at a time, and tracks the pending state', async () => {
+        const reading = deferred<boolean>();
+        refresh.mockReturnValueOnce(reading.promise);
+        const controller = createController();
+        const synced = controller.syncAccount('beta');
+        expect(controller.getSnapshot().sync).toEqual({ providerId: 'beta', status: 'pending' });
+        await expect(controller.syncAccount('alpha')).resolves.toEqual({ status: 'busy', providerId: 'alpha' });
+        reading.resolve(true);
+        await expect(synced).resolves.toEqual({ status: 'synced', providerId: 'beta' });
+        expect(refresh).toHaveBeenCalledTimes(1);
+        expect(refresh).toHaveBeenCalledWith('beta', 'sync');
+        expect(controller.getSnapshot().sync).toEqual({ providerId: null, status: 'idle' });
+        // 同步不换当前平台。
+        expect(controller.getSnapshot().activeProviderId).toBe('alpha');
+    });
+
+    it('tells a sign-in that ran out from a read that failed', async () => {
+        const controller = createController();
+        refresh.mockImplementationOnce(async providerId => {
+            accounts.update(providerId, { status: 'anonymous', user: null, error: 'auth-required' });
+            return false;
+        });
+        await expect(controller.syncAccount('alpha')).resolves.toEqual({ status: 'ran-out', providerId: 'alpha' });
+        refresh.mockResolvedValueOnce(false);
+        await expect(controller.syncAccount('beta')).resolves.toEqual({ status: 'failed', providerId: 'beta' });
+        refresh.mockRejectedValueOnce(new Error('store write failed'));
+        accounts.update('beta', { status: 'authenticated' });
+        await expect(controller.syncAccount('beta')).resolves.toEqual({ status: 'failed', providerId: 'beta' });
+        expect(log).toHaveBeenCalledWith('warn', 'sync:error', expect.objectContaining({ providerId: 'beta', message: 'store write failed' }));
+        expect(controller.getSnapshot().sync.status).toBe('idle');
+    });
+
+    it('says nothing failed when the platform was signed out of while it synced', async () => {
+        const controller = createController();
+        refresh.mockImplementationOnce(async providerId => {
+            accounts.update(providerId, { status: 'anonymous', user: null });
+            return false;
+        });
+        await expect(controller.syncAccount('alpha')).resolves.toEqual({ status: 'rejected', providerId: 'alpha', reason: 'not-signed-in' });
+        expect(controller.getSnapshot().sync.status).toBe('idle');
+    });
+
+    it('syncs an account that is shown before the platform has answered', async () => {
+        accounts.update('gamma', { status: 'unknown', user: { id: 7, nickname: 'kept' } });
+        const controller = createController();
+        await expect(controller.syncAccount('gamma')).resolves.toEqual({ status: 'synced', providerId: 'gamma' });
+        expect(refresh).toHaveBeenCalledWith('gamma', 'sync');
+    });
+
+    it('refuses providers nobody is signed in to, or unknown ones', async () => {
+        const controller = createController();
+        await expect(controller.syncAccount('gamma')).resolves.toEqual({ status: 'rejected', providerId: 'gamma', reason: 'not-signed-in' });
+        await expect(controller.syncAccount('modo')).resolves.toEqual({ status: 'rejected', providerId: 'modo', reason: 'not-signed-in' });
+        await expect(controller.syncAccount('nobody')).resolves.toEqual({ status: 'rejected', providerId: 'nobody', reason: 'unknown-provider' });
+        expect(refresh).not.toHaveBeenCalled();
+    });
+});
+
 // ─── 当前平台与快照 ─────────────────────────────────────────────────────
 
 describe('providerAccountController · active provider and snapshot', () => {

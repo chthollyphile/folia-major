@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LibraryAccountController, LibraryAccountSnapshot, LibraryLoginSessionSnapshot } from '../../library/core/account/account.contract';
 import {
+    selectAccountSyncProviderId,
     useLibraryAccountLogin,
     useLibraryAccountProviders,
     useLibraryAccountSelector,
@@ -11,6 +13,7 @@ import { loginDoneLanding, loginDonePlays } from './done/loginDoneFrame';
 import { createLoginHostState } from './loginHostState';
 import { closeLoginWindow, loginHostMounted, setLoginLanding, useLoginWindowStore } from './loginWindowStore';
 import { orderRows } from './platformRows';
+import { syncAccountData } from './syncAccountData';
 import LoginScreen from './window/LoginScreen';
 
 // src/components/login/LoginHost.tsx
@@ -26,6 +29,7 @@ type LoginHostProps = {
 const selectCompletion = (snapshot: LibraryAccountSnapshot) => snapshot.lastLoginCompletion;
 
 const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
+    const { t } = useTranslation();
     const requestId = useLoginWindowStore(state => state.requestId);
     const isOpen = useLoginWindowStore(state => state.isOpen);
     const origin = useLoginWindowStore(state => state.origin);
@@ -33,6 +37,7 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
     const rows = useMemo(() => orderRows(providers, activeProviderId), [providers, activeProviderId]);
     const login = useLibraryAccountLogin(account);
     const completion = useLibraryAccountSelector(account, selectCompletion);
+    const syncingProviderId = useLibraryAccountSelector(account, selectAccountSyncProviderId);
     const reducedMotion = useKitReducedMotion();
 
     // host 每次去问都拿到这一次渲染的东西。
@@ -124,6 +129,9 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
             onRestartService={() => void account.restartLocalService()}
             onSwitch={host.switchToChosen}
             onSignOut={host.signOutChosen}
+            // 同步选中的这个平台（不一定是正在用的那个），结果用一句提示说。
+            onSync={() => { if (providerId) void syncAccountData(account, providerId, t); }}
+            syncingProviderId={syncingProviderId}
             buildReport={async () => {
                 const result = await account.buildLoginDiagnosticReport();
                 return result.status === 'ok' ? result.report : '';

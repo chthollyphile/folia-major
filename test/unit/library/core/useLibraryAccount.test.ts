@@ -89,6 +89,7 @@ const baseSnapshot = (): LibraryAccountSnapshot => ({
     login: null,
     pendingSwitch: null,
     logout: { providerId: null, status: 'idle' },
+    sync: { providerId: null, status: 'idle' },
     lastLoginCompletion: null,
 });
 

@@ -50,6 +50,10 @@ export type LoginScreenProps = {
     onRestartService: () => void;
     onSwitch: () => void;
     onSignOut: () => void;
+    /** 账号那一幅的「同步数据」：重新读选中的这个平台的账号、歌单与红心。 */
+    onSync: () => void;
+    /** 正在同步数据的平台（同一时间一个）：是选中的这个就转圈，是别的就只是不可按。 */
+    syncingProviderId?: OnlineProviderId | null;
     /** 这一次登录的诊断报告（生成不了是空串）。 */
     buildReport: () => Promise<string>;
     /** 按下去打开窗口的那个东西在哪：窗口从那一边出来。 */
@@ -79,7 +83,7 @@ const useReached = (at: number): boolean => {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
     isOpen, onClose, rows, activeProviderId, chosen, login, onChoose, onStart, onSubmitForm, onSelectMethod, onReopenBrowser, onRestartService, onSwitch, onSignOut,
-    buildReport, origin, done = false, onDoneLeave = nothing, onDoneEnd = nothing,
+    onSync, syncingProviderId = null, buildReport, origin, done = false, onDoneLeave = nothing, onDoneEnd = nothing,
 }) => {
     const { t } = useTranslation();
     const still = useKitReducedMotion();
@@ -144,7 +148,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             if (summary) actions = [{ label: t('home.loginBrowserRetry'), primary: true, onClick: () => onChoose(providerId) }];
         } else {
             if (summary?.user) note = `${label} · ID: ${shortAccountId(String(summary.user.id))}`;
-            actions = [...switchAction, { label: t('account.logout'), onClick: onSignOut }];
+            const syncing = syncingProviderId === providerId;
+            const syncAction: MessageAction = {
+                label: t(syncing ? 'account.syncing' : 'account.syncData'),
+                onClick: onSync,
+                busy: syncing,
+                disabled: syncingProviderId !== null,
+            };
+            actions = [...switchAction, syncAction, { label: t('account.logout'), onClick: onSignOut }];
         }
     } else if (scene === 'accountless') {
         headline = label;
