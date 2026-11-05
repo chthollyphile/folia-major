@@ -341,6 +341,66 @@ describe('the field that records a key', () => {
         expect(isKeyCaptureTarget(field)).toBe(true);
         expect(isTextEntryTarget(field)).toBe(true);
     });
+
+    describe('Alt+Space on Windows, whose window menu takes the Space keydown', () => {
+        const electronWindow = window as unknown as { electron?: { setKeyCaptureActive?: (active: boolean) => void } };
+        afterEach(() => {
+            delete electronWindow.electron;
+        });
+
+        const recordWith = async (onChange: (key: string | null) => void) => {
+            const setKeyCaptureActive = vi.fn();
+            electronWindow.electron = { setKeyCaptureActive };
+            await render(React.createElement(KeyCapture, { value: null, onChange }));
+            const field = document.querySelector('button')!;
+            await act(async () => field.click());
+            return { field, setKeyCaptureActive };
+        };
+
+        it('asks the desktop app to hold the window menu back only while it records, whichever way the recording ends', async () => {
+            const { field, setKeyCaptureActive } = await recordWith(() => {});
+            expect(setKeyCaptureActive.mock.calls).toEqual([[true]]);
+            await press(field, 'Escape');
+            expect(setKeyCaptureActive.mock.calls).toEqual([[true], [false]]);
+
+            // Leaving the field stops it too (a click does not focus a button in jsdom).
+            await act(async () => {
+                field.focus();
+                field.click();
+            });
+            expect(setKeyCaptureActive.mock.calls.at(-1)).toEqual([true]);
+            await act(async () => field.blur());
+            expect(setKeyCaptureActive.mock.calls.at(-1)).toEqual([false]);
+
+            await act(async () => field.click());
+            await press(field, 'p');
+            expect(setKeyCaptureActive.mock.calls.at(-1)).toEqual([false]);
+
+            await act(async () => field.click());
+            await act(async () => root!.unmount());
+            root = null;
+            expect(setKeyCaptureActive.mock.calls.at(-1)).toEqual([false]);
+            expect(setKeyCaptureActive.mock.calls.filter(([active]) => active).length)
+                .toBe(setKeyCaptureActive.mock.calls.filter(([active]) => !active).length);
+        });
+
+        it('records a Space released with Alt held, the keydown having gone to the window menu', async () => {
+            const onChange = vi.fn();
+            const { field } = await recordWith(onChange);
+            await act(async () => {
+                field.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', altKey: true, shiftKey: true, bubbles: true }));
+            });
+            expect(onChange).toHaveBeenCalledWith(' ');
+
+            // Without Alt a released Space is not a press of its own.
+            onChange.mockClear();
+            await act(async () => field.click());
+            await act(async () => {
+                field.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true }));
+            });
+            expect(onChange).not.toHaveBeenCalled();
+        });
+    });
 });
 
 describe('the list whose order is the setting', () => {

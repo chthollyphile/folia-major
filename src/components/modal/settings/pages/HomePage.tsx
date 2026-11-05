@@ -15,6 +15,7 @@ import { omni } from '../../../../services/onlineMusic/omni';
 import { useGridViewSettingsStore } from '../../../../stores/useGridViewSettingsStore';
 import { useHomeLayoutSettingsStore } from '../../../../stores/useHomeLayoutSettingsStore';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
+import { useScratchpadSettingsStore } from '../../../../stores/useScratchpadSettingsStore';
 import { Button, Chips, Group, PictureChoice, Reveal, Row, Segmented, Slider, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { BRAVAIS_WALL_OPTIONS, BravaisWallGroup } from './BravaisWallGroup';
 import { GridCardsPreview, HomeCardStylePicture } from './pictures';
@@ -26,12 +27,14 @@ import { GridCardsPreview, HomeCardStylePicture } from './pictures';
 // home cards are drawn and the look of the card grid a playlist or album opens into. Every library
 // UI reads the entries; the card style, the remembered card and the card grid only the grid
 // (isGridLibraryActive), so under another UI they are not drawn and the search leaves them out.
+// Last, the scratchpad's group: whether its tab on the left edge shows, and how high on the edge it sits.
 
 // The choice of suite is not part of the config export.
 const SUITE: SettingsGroupDef = { id: 'librarySuite', titleKey: 'options.librarySuite', available: hasLibrarySuiteChoice };
 const HOME: SettingsGroupDef = { id: 'homeScreen', titleKey: 'options.settingsHeadingHome' };
 const GRID: SettingsGroupDef = { id: 'gridViewCardSettings', titleKey: 'options.gridViewCardSettings', available: isGridLibraryActive };
 const GRID_ONLY = { available: isGridLibraryActive };
+const SCRATCHPAD: SettingsGroupDef = { id: 'scratchpadSettings', titleKey: 'options.scratchpadSettings' };
 
 const O = {
     suite: option(SUITE, 'librarySuiteChoice', 'options.librarySuite'),
@@ -47,6 +50,8 @@ const O = {
     squareCard: option(GRID, 'gridViewSquareCard', 'options.gridViewSquareCard'),
     minCardScale: option(GRID, 'gridViewMinCardScale', 'options.gridViewMinCardScale'),
     minCardOpacity: option(GRID, 'gridViewMinCardOpacity', 'options.gridViewMinCardOpacity'),
+    scratchpadShowHandle: option(SCRATCHPAD, 'scratchpadShowHandle', 'options.scratchpadShowHandle'),
+    scratchpadHandlePosition: option(SCRATCHPAD, 'scratchpadHandlePosition', 'options.scratchpadHandlePosition'),
 };
 
 export const OPTIONS: SettingsOptionDef[] = [...Object.values(O), ...BRAVAIS_WALL_OPTIONS];
@@ -84,6 +89,12 @@ const HomePage: React.FC = () => {
         setMinCardOpacity: state.handleSetGridViewMinCardOpacity,
         resetFalloff: state.resetGridViewCardFalloff,
     })));
+    const scratchpad = useScratchpadSettingsStore(useShallow(state => ({
+        showHandle: state.showHandle,
+        handlePosition: state.handlePosition,
+        setShowHandle: state.setShowHandle,
+        setHandlePosition: state.setHandlePosition,
+    })));
     // The capsule has an explore tab only where the platform in use has an explore page.
     const hasExplore = useOnlineProviderAccountStore(() => omni.getActiveCapabilities().explore === true);
     const isDefaultFalloff = grid.minCardScale === HEX_CARD_MIN_SCALE_DEFAULT && grid.minCardOpacity === HEX_CARD_MIN_OPACITY_DEFAULT;
@@ -109,7 +120,7 @@ const HomePage: React.FC = () => {
                     <Chips
                         items={[
                             { id: O.tabPlaylist.id, label: t('home.playlists'), checked: home.tabPlaylist, onChange: home.setTabPlaylist },
-                            { id: O.tabRadio.id, label: t('home.radio'), checked: home.tabRadio, onChange: home.setTabRadio },
+                            { id: O.tabRadio.id, label: t('home.radioTab'), checked: home.tabRadio, onChange: home.setTabRadio },
                             { id: O.tabExplore.id, label: t('home.explore'), checked: home.tabExplore, onChange: home.setTabExplore, disabled: !hasExplore },
                             { id: O.tabAlbums.id, label: t('home.albums'), checked: home.tabAlbums, onChange: home.setTabAlbums },
                             { id: O.tabLocal.id, label: t('localMusic.folder'), checked: home.tabLocal, onChange: home.setTabLocal },
@@ -184,6 +195,25 @@ const HomePage: React.FC = () => {
                     </Row>
                 </Group>
             )}
+
+            <Group def={SCRATCHPAD}>
+                <Row option={O.scratchpadShowHandle} note={t('options.scratchpadShowHandleDesc')}>
+                    <Toggle checked={scratchpad.showHandle} onChange={scratchpad.setShowHandle} />
+                </Row>
+                {/* The height only means anything while the tab is drawn. */}
+                <Reveal when={scratchpad.showHandle}>
+                    <Row sub option={O.scratchpadHandlePosition} note={t('options.scratchpadHandlePositionDesc')}>
+                        <Slider
+                            value={scratchpad.handlePosition}
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            onChange={scratchpad.setHandlePosition}
+                            format={percent}
+                        />
+                    </Row>
+                </Reveal>
+            </Group>
         </>
     );
 };

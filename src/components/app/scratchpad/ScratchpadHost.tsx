@@ -6,6 +6,7 @@ import { ListPlus, Maximize2, Minimize2, NotebookPen, Play, Star, Trash2, X } fr
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useScratchpadSettingsStore } from '../../../stores/useScratchpadSettingsStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
@@ -14,6 +15,7 @@ import ScratchpadList, { sourceGroupButtons, type ScratchpadPanelActions } from 
 import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
 import ScratchpadHistory from './ScratchpadHistory';
 import ScratchpadQueue from './ScratchpadQueue';
+import ScratchpadGreeting from './ScratchpadGreeting';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
@@ -63,6 +65,11 @@ const DRAWER_KEYS = new Set([
     'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' ', 'Home', 'End', 'PageUp', 'PageDown', 'Delete', 'Backspace',
 ]);
 
+/** 抽屉里换页签的键：Tab 往后、Shift + Tab 往前（带 Ctrl / Alt / ⌘ 的留给系统和应用）。 */
+const isTabCycleKey = (event: KeyboardEvent | React.KeyboardEvent) => (
+    event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey
+);
+
 /** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
 const PAGE_SLIDE_PX = 28;
 const PAGE_EASE_IN = [0.22, 1, 0.36, 1] as const;
@@ -85,6 +92,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     })));
     const groups = useMemo(() => groupScratchpadEntries(entries), [entries]);
     const queueLength = usePlaybackStore(state => state.playQueue.length);
+    // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
+    const showHandle = useScratchpadSettingsStore(state => state.showHandle);
+    const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
     const listRef = useRef<HTMLDivElement>(null);
     const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -196,7 +206,36 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         setExpanded(false);
         requestAnimationFrame(() => toggleCanvasRef.current?.focus());
     }, [setExpanded]);
+    /** Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。 */
+    const cycleTab = useCallback((direction: 1 | -1) => {
+        const current = useScratchpadStore.getState().tab;
+        const next = TABS[(TABS.indexOf(current) + direction + TABS.length) % TABS.length];
+        setTab(next);
+        requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
+    }, [setTab]);
+    // 抽屉开着、焦点不在任何地方（刚用把手或 Ctrl / ⌘ + J 打开，把手一卸掉焦点就落在 body）时，Tab 也归抽屉换页；
+    // 焦点在别处（资料库、输入框）时 Tab 照常走焦点。
+    useEffect(() => {
+        if (!isOpen || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || !isTabCycleKey(event)) return;
+            const active = document.activeElement;
+            if (active && active !== document.body) return;
+            event.preventDefault();
+            cycleTab(event.shiftKey ? -1 : 1);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [cycleTab, isCovered, isOpen]);
+
     const handleKeyDown = (event: React.KeyboardEvent) => {
+        // 抽屉里 Tab 不走焦点，换页签（用户定，2026-11-05）；按钮之间用方向键和鼠标。
+        if (isTabCycleKey(event)) {
+            event.preventDefault();
+            event.stopPropagation();
+            cycleTab(event.shiftKey ? -1 : 1);
+            return;
+        }
         if (DRAWER_KEYS.has(event.key)) {
             event.stopPropagation();
             return;
@@ -264,7 +303,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         }),
     }), [calm]);
 
-    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上（页签是一组，Tab 键只停在开着的那个）。
+    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上；Tab / Shift + Tab 在整个抽屉里都是换页（handleKeyDown）。
     const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const index = TABS.indexOf(tab);
         const next = event.key === 'Home' ? TABS[0]
@@ -280,8 +319,12 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     return (
         <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}>
-            {!isOpen && !isHandleHidden && (
-                <div className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`} data-ponder="scratchpad">
+            {!isOpen && !isHandleHidden && showHandle && (
+                <div
+                    className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`}
+                    style={{ '--scratchpad-edge-position': handlePosition } as React.CSSProperties}
+                    data-ponder="scratchpad"
+                >
                     <button
                         ref={handleRef}
                         type="button"
@@ -313,49 +356,53 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                         onKeyDown={handleKeyDown}
                     >
                         <header className="scratchpad-header">
-                            {/* 三页：速记簿本身、播放历史、播放队列。 */}
-                            <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-notes"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="notes"
-                                    aria-selected={tab === 'notes'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'notes' ? 0 : -1}
-                                    onClick={() => setTab('notes')}
-                                >
-                                    <span>{t('scratchpad.title')}</span>
-                                    <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-history"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="history"
-                                    aria-selected={tab === 'history'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'history' ? 0 : -1}
-                                    onClick={() => setTab('history')}
-                                >
-                                    <span>{t('scratchpad.historyTab')}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="tab"
-                                    id="scratchpad-tab-queue"
-                                    className="scratchpad-tab"
-                                    data-scratchpad-tab="queue"
-                                    aria-selected={tab === 'queue'}
-                                    aria-controls="scratchpad-panel"
-                                    tabIndex={tab === 'queue' ? 0 : -1}
-                                    onClick={() => setTab('queue')}
-                                >
-                                    <span>{t('scratchpad.queue')}</span>
-                                    <span className="scratchpad-tab-count">{t('scratchpad.count', { count: queueLength })}</span>
-                                </button>
+                            <div className="scratchpad-heading">
+                                {/* 页签上面一句按时段换的问候，三页都有：窄的抽屉里是短版，展开成画布时是长版。 */}
+                                <ScratchpadGreeting long={isExpanded} />
+                                {/* 三页：速记簿本身、播放历史、播放队列。 */}
+                                <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-notes"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="notes"
+                                        aria-selected={tab === 'notes'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'notes' ? 0 : -1}
+                                        onClick={() => setTab('notes')}
+                                    >
+                                        <span>{t('scratchpad.title')}</span>
+                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-history"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="history"
+                                        aria-selected={tab === 'history'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'history' ? 0 : -1}
+                                        onClick={() => setTab('history')}
+                                    >
+                                        <span>{t('scratchpad.historyTab')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        id="scratchpad-tab-queue"
+                                        className="scratchpad-tab"
+                                        data-scratchpad-tab="queue"
+                                        aria-selected={tab === 'queue'}
+                                        aria-controls="scratchpad-panel"
+                                        tabIndex={tab === 'queue' ? 0 : -1}
+                                        onClick={() => setTab('queue')}
+                                    >
+                                        <span>{t('scratchpad.queue')}</span>
+                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: queueLength })}</span>
+                                    </button>
+                                </div>
                             </div>
                             {/* 三页都能展开成卡片画布：速记簿按来源分组，播放历史一天一组穿一条时间轴，播放队列穿一条带箭头的线。 */}
                             <button

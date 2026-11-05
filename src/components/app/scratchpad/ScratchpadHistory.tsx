@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, History, ListPlus, Music2, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
@@ -8,7 +8,6 @@ import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../store
 import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { groupPlaysByDay, type HistoryDay } from './historyDays';
-import { historyGreetingSlot, msUntilNextGreetingSlot, type HistoryGreetingSlot } from './historyGreeting';
 import { scratchpadSourceLabel, type ScratchpadAction } from './scratchpadModel';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
@@ -22,7 +21,6 @@ import type { ScratchpadPlayback } from './ScratchpadHost';
 // 速记簿的第二页：播放历史。最近七天在这台设备上放过的歌（Folia 自己的播放记录 recentPlays：在线平台、本地、
 // Navidrome 合在一起），新的在前，按天分段；每一行写歌手 · 来源 · 几点几分，悬停出四颗：插进队列播放、加入队列、
 // 加入速记簿（已经在里面时打勾、点不了）、收藏到歌单。
-// 顶上一句按系统时钟换的问候（historyGreeting，一天分几段，一段一句）。
 // 展开后是和速记簿一样的卡片画布（ScratchpadCanvas）：一天一组，一条时间轴穿过每天的卡片，每张卡前面的节点上写几点放的；框选、Ctrl / Shift
 // 点选，浮动菜单里加入队列、加入速记簿、收藏到歌单、从播放历史删除（Delete 也是删除）。播放历史按时间排，不能拖动排序。
 
@@ -31,22 +29,6 @@ type ScratchpadHistoryProps = {
     expanded: boolean;
     /** 画布里没有选择时按 Esc：收回窄的列表。 */
     onCollapse: () => void;
-};
-
-/** 顶上的问候：跨过一段（比如过了晚上十点）时换一句。 */
-const HistoryGreeting: React.FC = () => {
-    const { t } = useTranslation();
-    const [slot, setSlot] = useState<HistoryGreetingSlot>(() => historyGreetingSlot(new Date()));
-    // 每次到点都重挂下一个（tick 每次都变）：时钟被往回调过、算出来还是同一段时也不会停下。
-    const [tick, setTick] = useState(0);
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setSlot(historyGreetingSlot(new Date()));
-            setTick(current => current + 1);
-        }, msUntilNextGreetingSlot(new Date()));
-        return () => window.clearTimeout(timer);
-    }, [tick]);
-    return <p className="scratchpad-greeting" data-testid="scratchpad-history-greeting">{t(`scratchpad.greeting.${slot}`)}</p>;
 };
 
 type HistoryRowProps = {
@@ -194,63 +176,53 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
 
     if (plays.length === 0) {
         return (
-            <>
-                <HistoryGreeting />
-                <div className="scratchpad-empty" data-testid="scratchpad-history-empty">
-                    <History aria-hidden="true" />
-                    <p>{t('scratchpad.historyEmpty')}</p>
-                </div>
-            </>
+            <div className="scratchpad-empty" data-testid="scratchpad-history-empty">
+                <History aria-hidden="true" />
+                <p>{t('scratchpad.historyEmpty')}</p>
+            </div>
         );
     }
 
     if (expanded) {
         return (
-            <>
-                <HistoryGreeting />
-                <ScratchpadCanvas
-                    groups={canvasGroups}
-                    hint={t('scratchpad.historyCanvasHint', { mod: PRIMARY_MODIFIER_LABEL })}
-                    ariaLabel={t('scratchpad.history')}
-                    testId="scratchpad-history"
-                    playLabel={t('scratchpad.play')}
-                    onPlay={play}
-                    onDelete={forget}
-                    selectionActions={selectionActions}
-                    onEscape={onCollapse}
-                    spacing={TIMELINE_SPACING}
-                />
-            </>
+            <ScratchpadCanvas
+                groups={canvasGroups}
+                hint={t('scratchpad.historyCanvasHint', { mod: PRIMARY_MODIFIER_LABEL })}
+                ariaLabel={t('scratchpad.history')}
+                testId="scratchpad-history"
+                playLabel={t('scratchpad.play')}
+                onPlay={play}
+                onDelete={forget}
+                selectionActions={selectionActions}
+                onEscape={onCollapse}
+                spacing={TIMELINE_SPACING}
+            />
         );
     }
 
     return (
-        <>
-            <HistoryGreeting />
-            <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>
-            <div className="scratchpad-list" data-testid="scratchpad-history">
-                {days.map(day => (
-                    <section key={day.start} className="scratchpad-list-group">
-                        <div className="scratchpad-group-header">
-                            <span className="scratchpad-group-label">{dayLabel(day)}</span>
-                            <span className="scratchpad-group-count">{t('scratchpad.count', { count: day.plays.length })}</span>
-                        </div>
-                        <ul>
-                            {day.plays.map((play: RecentPlay) => (
-                                <HistoryRow
-                                    key={getPlaybackSongKey(play.song)}
-                                    song={play.song}
-                                    collected={collectedKeys.has(getPlaybackSongKey(play.song))}
-                                    timeLabel={formats.time.format(play.at)}
-                                    sourceLabel={scratchpadSourceLabel(play.song, t)}
-                                    playback={playback}
-                                />
-                            ))}
-                        </ul>
-                    </section>
-                ))}
-            </div>
-        </>
+        <div className="scratchpad-list" data-testid="scratchpad-history">
+            {days.map(day => (
+                <section key={day.start} className="scratchpad-list-group">
+                    <div className="scratchpad-group-header">
+                        <span className="scratchpad-group-label">{dayLabel(day)}</span>
+                        <span className="scratchpad-group-count">{t('scratchpad.count', { count: day.plays.length })}</span>
+                    </div>
+                    <ul>
+                        {day.plays.map((play: RecentPlay) => (
+                            <HistoryRow
+                                key={getPlaybackSongKey(play.song)}
+                                song={play.song}
+                                collected={collectedKeys.has(getPlaybackSongKey(play.song))}
+                                timeLabel={formats.time.format(play.at)}
+                                sourceLabel={scratchpadSourceLabel(play.song, t)}
+                                playback={playback}
+                            />
+                        ))}
+                    </ul>
+                </section>
+            ))}
+        </div>
     );
 };
 

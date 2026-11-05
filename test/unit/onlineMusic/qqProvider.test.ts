@@ -289,6 +289,32 @@ describe('qqProvider', () => {
         expect(normalizeQqSong(once)).toEqual(once);
     });
 
+    // 搜索条目的 `title` 带括号译名，`name` 是原名（2026-11-04 DoSearchForQQMusicLite 实测）。
+    it('keeps the original name beside a bracketed title and offers it as the lyric search alias', async () => {
+        const item = {
+            ...SEARCH_ITEM,
+            name: '夜に駆ける',
+            title: '夜に駆ける (向夜晚奔去)',
+            subtitle: '某剧插曲',
+            singer: [{ mid: '001ABC', name: 'YOASOBI' }],
+        };
+        const song = normalizeQqSong(item);
+
+        expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
+        expect(normalizeQqSong(song)).toEqual(song);
+        await expect(qqProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '夜に駆ける', artist: 'YOASOBI', album: '乐与怒',
+        });
+    });
+
+    it('offers no alias when the title is already the original name', async () => {
+        const song = normalizeQqSong({ ...SEARCH_ITEM, name: '海阔天空' });
+
+        expect(song.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(qqProvider.lyrics!.getSearchAlias!(song)).resolves.toBeNull();
+    });
+
     it('keeps a normalized song stable when it is normalized again from cache', () => {
         const song = normalizeQqSong(SEARCH_ITEM);
 

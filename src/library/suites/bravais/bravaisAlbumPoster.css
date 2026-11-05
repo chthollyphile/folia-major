@@ -251,10 +251,41 @@
     opacity: 0.5;
 }
 
-.bravais-album-artist {
+.bravais-album-artists {
     font-size: 19px;
     font-weight: 900;
+}
+
+.bravais-album-artist-separator {
+    opacity: 0.5;
+}
+
+.bravais-album-artist {
     border-bottom: 2px solid currentColor;
+}
+
+/* 带 id 的专辑歌手是按钮（点开歌手页）：样子同纯文字的名字，悬停时下划线换成强调色。 */
+button.bravais-album-artist {
+    padding: 0;
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    transition: border-color 140ms ease;
+}
+
+button.bravais-album-artist:hover,
+button.bravais-album-artist:focus-visible {
+    border-bottom-color: var(--album-accent);
+}
+
+button.bravais-album-artist:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 4px;
 }
 
 .bravais-album-poster .bravais-poster-meta {

@@ -443,6 +443,11 @@ describe('gridViewCollectionAdapters', () => {
         expect(refreshLocalGridViewCollection(descriptor, songs, catalog)).toMatchObject({
             albumArtist: 'Artist A, Artist B',
             description: 'Artist A, Artist B',
+            // 带实体 id，专辑页头的歌手名可以点开歌手页（#1058）。
+            artists: [
+                { id: 'artist-a', entityId: 'artist-a', name: 'Artist A' },
+                { id: 'artist-b', entityId: 'artist-b', name: 'Artist B' },
+            ],
         });
     });
 
@@ -628,6 +633,21 @@ describe('resolveNavidromeGridViewTracks', () => {
         });
         expect(detail?.coverUrl).toContain('getCoverArt');
         expect(detail?.coverUrl).toContain('id=al-one');
+    });
+
+    // #1058：专辑歌手带 id，页头的歌手名可以点开歌手页；OpenSubsonic 的 artists 优先，老服务器用 artistId。
+    it('gives the album artists with their ids', async () => {
+        serve({ getAlbum: ok({ album: { id: 'one', name: 'Rebirth', artist: 'Hisa Knowledge', artistId: 'ar-1', song: [song('a')] } }) });
+        expect((await read('album')).detail?.artists).toEqual([{ id: 'ar-1', name: 'Hisa Knowledge' }]);
+        serve({
+            getAlbum: ok({ album: {
+                id: 'one', name: 'Split', artist: 'A • B', artistId: 'ar-a',
+                artists: [{ id: 'ar-a', name: 'A' }, { id: 'ar-b', name: 'B' }], song: [song('a')],
+            } }),
+        });
+        expect((await read('album')).detail?.artists).toEqual([{ id: 'ar-a', name: 'A' }, { id: 'ar-b', name: 'B' }]);
+        serve({ getAlbum: ok({ album: { id: 'one', name: 'Nobody', song: [song('a')] } }) });
+        expect((await read('album')).detail?.artists).toBeUndefined();
     });
 
     it('says the read failed when no server is set up', async () => {

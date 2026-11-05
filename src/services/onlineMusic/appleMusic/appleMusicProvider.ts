@@ -1,6 +1,6 @@
 import type { SongResult } from '../../../types';
 import type {
-    OnlineMusicProvider, ProviderAvailability, ProviderExternalPlaybackStatus, ProviderLyricsResult, ProviderUser,
+    OnlineMusicProvider, ProviderArtistSummary, ProviderAvailability, ProviderCollection, ProviderExternalPlaybackStatus, ProviderLyricsResult, ProviderUser,
 } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
@@ -16,6 +16,18 @@ import { getAppleMusicTransportAvailability, requestAppleMusic } from './appleMu
 // MusicKit's PlaybackStates: ended is 5 and completed is 10 (waiting is 8, stalled is 9). A
 // stalled stream must not be taken for the end of the track.
 const isEndedState = (state: number | null): boolean => state === 5 || state === 10;
+
+// Name catalog artists given only by ID, one lookup each; null when an ID is malformed or an artist has no name.
+async function nameAppleMusicCatalogArtists(ids: readonly unknown[]): Promise<ProviderArtistSummary[] | null> {
+    const named: ProviderArtistSummary[] = [];
+    for (const id of ids) {
+        if (typeof id !== 'string') return null;
+        const detail = (await getAppleMusicCatalogPage('catalogArtist', id, 1, 0)).items[0] as ProviderCollection | undefined;
+        if (!detail?.name) return null;
+        named.push({ id, name: detail.name, catalogRef: { providerId: 'appleMusic', kind: 'artist', id } });
+    }
+    return named;
+}
 
 // Validate the one status shape playback follows: nothing from the page reaches the clock unread.
 function externalStatus(value: unknown): ProviderExternalPlaybackStatus {
@@ -172,13 +184,8 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 const ids = resolved.sourceRef?.kind === 'online' ? resolved.sourceRef.providerData?.catalogArtistIds : undefined;
                 let artists = resolved.artists;
                 if (Array.isArray(ids) && ids.length && !artists.some(artist => artist.catalogRef)) {
-                    const named: typeof song.artists = [];
-                    for (const id of ids) {
-                        if (typeof id !== 'string') return song;
-                        const detail = (await getAppleMusicCatalogPage('catalogArtist', id, 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined;
-                        if (!detail?.name) return song;
-                        named.push({ id, name: detail.name, catalogRef: { providerId: 'appleMusic', kind: 'artist', id } });
-                    }
+                    const named = await nameAppleMusicCatalogArtists(ids);
+                    if (!named) return song;
                     artists = named;
                 }
                 return { ...song, album: resolved.album.catalogRef ? resolved.album : song.album,
@@ -187,8 +194,20 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             getAlbumTracks: async (id, limit = 100, offset = 0) => String(id).startsWith('l.')
                 ? getAppleMusicLibraryAlbumTracks(String(id), limit, offset)
                 : await getAppleMusicCatalogPage('catalogAlbumTracks', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
-            getAlbumDetail: async (id, collection) => String(id).startsWith('l.') ? collection ?? null
-                : (await getAppleMusicCatalogPage('catalogAlbum', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
+            getAlbumDetail: async (id, collection) => {
+                if (String(id).startsWith('l.')) return collection ?? null;
+                const detail = (await getAppleMusicCatalogPage('catalogAlbum', String(id), 1, 0)).items[0] as ProviderCollection | undefined;
+                // Several artists came as bare IDs: name each so the album page can open them (one lookup per artist).
+                const ids = detail?.providerData?.catalogArtistIds;
+                if (!detail || !Array.isArray(ids) || !ids.length || detail.artists?.some(artist => artist.catalogRef)) return detail ?? null;
+                try {
+                    const named = await nameAppleMusicCatalogArtists(ids);
+                    return named ? { ...detail, artists: named } : detail;
+                } catch (error) {
+                    console.warn('[AppleMusic] could not name album artists', error);
+                    return detail;
+                }
+            },
             getArtistDetail: async id => (await getAppleMusicCatalogPage('catalogArtist', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
             getArtistSongs: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistSongs', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
             getArtistAlbums: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistAlbums', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types/onlineMusic').ProviderCollection>,

@@ -8,14 +8,16 @@ import {
     type RefObject,
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Lock, Save, Search, Trash2, X } from 'lucide-react';
+import { Lock, NotebookPen, Save, Search, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotionFor } from '../../hooks/useReducedMotionFor';
 import { setStatusMessage } from '../../stores/useStatusMessageStore';
+import { openScratchpadQueueCanvas } from '../../stores/useScratchpadStore';
 import type { WallToolsHost } from './wallToolsHost';
 
 // src/components/wall/WallToolsQueueIslandHeader.tsx
-// 队列浮岛（WallToolsQueueIsland）的头部：「播放队列 · N 首」、搜索、存为本地歌单、清空。
+// 队列浮岛（WallToolsQueueIsland）的头部：「播放队列 · N 首」、在速记簿里展开、搜索、存为本地歌单、清空。
+// - 在速记簿里展开：打开速记簿的播放队列页、展开成画布（卡片、框选、整块拖动），同时收起面板与浮岛（onOpenScratchpad）。
 // - 搜索：放大镜按钮展开成盖住整个头部的拱门形搜索框（自动聚焦，关闭按钮在框里），开着时不给存歌单与清空（免得以为只作用于
 //   筛出的歌）；筛选本身、搜索框里的 ↓ / Enter 由浮岛处理。关闭（× 或 Esc）清掉搜索词，焦点回到放大镜按钮。
 //   展开 / 收起：搜索框叠在头部那一行上面（绝对定位），clip-path 从放大镜按钮那一小块胶囊长到整个拱门、收起时缩回去；
@@ -67,6 +69,8 @@ type WallToolsQueueIslandHeaderProps = {
     isDragging: () => boolean;
     /** 搜索：状态在浮岛（列表要按它筛选），这里只画输入框和开关。 */
     search: QueueIslandSearch;
+    /** 在速记簿里展开队列之后：收起墙面工具面板（连同浮岛）。 */
+    onOpenScratchpad: () => void;
 };
 
 export type QueueIslandSearch = {
@@ -81,7 +85,7 @@ export type QueueIslandSearch = {
     onKeyDown: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
 };
 
-export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, announce, isDragging, search }: WallToolsQueueIslandHeaderProps) {
+export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, announce, isDragging, search, onOpenScratchpad }: WallToolsQueueIslandHeaderProps) {
     const { t } = useTranslation();
     const reduceMotion = useReducedMotionFor('uiMicroMotion');
     const headerRef = useRef<HTMLElement>(null);
@@ -212,6 +216,22 @@ export function WallToolsQueueIslandHeader({ host, count, readOnly, canSave, ann
                         <Lock aria-hidden="true" />
                         <span className="sr-only">{t('wallTools.queueStageReadOnly')}</span>
                     </span>
+                )}
+                {!naming && count > 0 && (
+                    <button
+                        type="button"
+                        className="lattice-tools-island-header-action"
+                        data-queue-island-action="scratchpad"
+                        aria-label={t('scratchpad.openQueueCanvas')}
+                        title={t('scratchpad.openQueueCanvas')}
+                        onClick={() => {
+                            stopClearPending();
+                            openScratchpadQueueCanvas();
+                            onOpenScratchpad();
+                        }}
+                    >
+                        <NotebookPen aria-hidden="true" />
+                    </button>
                 )}
                 {!naming && count > 0 && (
                     <button

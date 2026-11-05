@@ -66,7 +66,7 @@ const filterQueue = (searchTexts: readonly string[], query: string): number[] | 
     return matches;
 };
 
-export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: string; host: WallToolsHost; trailsPanel?: boolean }) {
+export function WallToolsQueueIsland({ id, host, trailsPanel = false, onClosePanel }: { id: string; host: WallToolsHost; trailsPanel?: boolean; onClosePanel: () => void }) {
     const { t } = useTranslation();
     const playQueue = usePlaybackStore(state => state.playQueue);
     const currentSong = usePlaybackStore(state => state.currentSong);
@@ -364,6 +364,7 @@ export function WallToolsQueueIsland({ id, host, trailsPanel = false }: { id: st
                 announce={announce}
                 isDragging={isDragging}
                 search={search}
+                onOpenScratchpad={onClosePanel}
             />
             <div ref={frameRef} className={drag ? 'lattice-tools-island-list is-dragging' : 'lattice-tools-island-list'}>
                 {count === 0 ? (

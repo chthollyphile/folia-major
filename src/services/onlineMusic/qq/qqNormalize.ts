@@ -1,9 +1,10 @@
-import type { Artist, UnifiedSong } from '../../../types';
+import type { Artist, SongResult, UnifiedSong } from '../../../types';
 import type {
     JsonValue,
     MediaId,
     ProviderCatalogRef,
     ProviderCollection,
+    ProviderLyricSearchAlias,
     ProviderUser,
 } from '../../../types/onlineMusic';
 import { getOriginalCoverUrl } from '../../../utils/coverUrl';
@@ -121,10 +122,18 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
     const durationMs = Number(item.durationMs);
     const intervalSeconds = Number(pick(item, 'interval', 'duration'));
     const coverUrl = normalizeQqCoverUrl(pick(album, 'coverUrl', 'picUrl')) || getQqAlbumCoverUrl(albumMid);
+    // 上游的 `title` 带括号里的译名或版本（「夜に駆ける (向夜晚奔去)」），显示用它；同一条里的 `name`
+    // 是不带这些的原名，留给歌词搜索在标题搜不到时再搜一次。只有同时给了 `title` 的条目，`name`
+    // 才是原名：正规化过的歌曲（缓存水合）的 `name` 就是标题，原名从 providerData 取回。
+    const name = text(pick(item, 'title', 'name', 'songname')) || 'Unknown Song';
+    const upstreamName = pick(item, 'title') !== undefined ? text(item.name) : '';
+    const originalName = upstreamName && upstreamName !== name
+        ? upstreamName
+        : text(pick(providerData, 'originalName'));
 
     return {
         id: songId,
-        name: text(pick(item, 'title', 'name', 'songname')) || 'Unknown Song',
+        name,
         artists: normalizeArtists(item),
         album: {
             // albummid 优先于数字 albumid：后者只在上游一个 mid 都不给时留作显示用的键，
@@ -147,8 +156,22 @@ export const normalizeQqSong = (raw: unknown): UnifiedSong => {
                 ['songMid', songMid],
                 ['albumMid', albumMid],
                 ['mediaMid', mediaMid],
+                ['originalName', originalName && originalName !== name ? originalName : undefined],
             ]),
         },
+    };
+};
+
+// 歌名的原名（normalizeQqSong 存下的上游 `name`）配上同一组歌手，供歌词搜索换个名字再搜。
+export const getQqLyricSearchAlias = async (song: SongResult): Promise<ProviderLyricSearchAlias | null> => {
+    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'qq' ? song.sourceRef : undefined;
+    const originalName = text(sourceRef?.providerData?.originalName);
+    if (!originalName || originalName === song.name) return null;
+    return {
+        song,
+        title: originalName,
+        artist: song.artists.map(artist => artist.name).join(', '),
+        ...(song.album?.name ? { album: song.album.name } : {}),
     };
 };
 

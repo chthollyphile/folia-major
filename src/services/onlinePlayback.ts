@@ -300,6 +300,7 @@ export async function loadOnlineSongLyrics(
                 album: metadata.album?.name,
                 preferredSource: settingsLyricSettings.preferredAlternativeLyricSource,
                 alternateArtist: () => omni.getAlternateArtistName(song),
+                searchAlias: () => omni.getLyricSearchAlias(song),
                 providerCandidate: ownLyricSource
                     ? {
                         providerId: ownLyricSource.id,

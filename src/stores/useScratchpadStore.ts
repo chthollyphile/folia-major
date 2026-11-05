@@ -250,3 +250,11 @@ export const collectToScratchpad = (songs: readonly SongResult[], origin?: Scrat
 };
 
 export const toggleScratchpad = () => useScratchpadStore.getState().toggleOpen();
+
+/** 打开速记簿，停在「播放队列」页、展开成画布（队列浮岛与播放页队列面板上的那颗按钮）。 */
+export const openScratchpadQueueCanvas = () => {
+    const state = useScratchpadStore.getState();
+    state.setTab('queue');
+    state.setExpanded(true);
+    state.setOpen(true);
+};

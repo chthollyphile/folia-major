@@ -19,15 +19,18 @@
    （.bravais-seam-tab，最高占 60%，即 20%–80% 的高度），正中会和它叠在一起，感应带还会抢它的点击。 */
 
 /* 感应带比把手宽得多：指针贴着左缘往上部扫过去就能碰到。上边从 72px 起，让开播放页与两面墙左上角的返回钮
-   （24–64px 见方）；高度跟着窗口：在 Bravais 信息条标签（窗口高度的 20% 起）之上收住。 */
+   （24–64px 见方）；高度跟着窗口：在 Bravais 信息条标签（窗口高度的 20% 起）之上收住。
+   设置里的「悬浮标签高度」（--scratchpad-edge-position，0–1，宿主写在行内）把它在 72px 与离窗口底部 24px 之间挪动；
+   默认 0 就是上面说的位置，挪到中段会和 Bravais 信息条的标签叠在一起，那是用户自己的取舍。 */
 .scratchpad-edge {
+    --scratchpad-edge-height: clamp(96px, calc(20vh - 76px), 168px);
     position: fixed;
-    top: 72px;
+    top: calc(72px + var(--scratchpad-edge-position, 0) * (100vh - 72px - 24px - var(--scratchpad-edge-height)));
     left: 0;
     z-index: 95;
     display: flex;
     width: 40px;
-    height: clamp(96px, calc(20vh - 76px), 168px);
+    height: var(--scratchpad-edge-height);
     align-items: center;
     pointer-events: auto;
 }
@@ -126,18 +129,52 @@
 .scratchpad-header {
     display: flex;
     flex: none;
-    align-items: center;
+    /* 右边两颗按钮与页签那一行对齐（左边一列上面还有一句问候）。 */
+    align-items: flex-end;
     gap: 4px;
-    padding: 14px 10px 10px 18px;
+    padding: 16px 10px 12px 18px;
 }
 
-/* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身，没选中的淡一些。 */
-.scratchpad-tabs {
+/* 左边一列：问候在上，页签在下。 */
+.scratchpad-heading {
     display: flex;
     min-width: 0;
     flex: 1 1 auto;
-    align-items: baseline;
-    gap: 12px;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* 页签上面那句按时段换的问候（ScratchpadGreeting）：强调色的小字，前面一个时段的小图标，紧贴在标题上面，
+   像标题的眉批；一行放不下就省略，不把页签往下挤。窄的抽屉里是几个字的短版，展开成画布时是一整句的长版，字也大一号。 */
+.scratchpad-greeting {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    margin: 0 0 1px 1px;
+    color: var(--text-accent, inherit);
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+    opacity: 0.9;
+}
+
+.scratchpad-greeting svg { width: 13px; height: 13px; flex: none; }
+.scratchpad-greeting > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scratchpad-drawer.is-expanded .scratchpad-greeting { margin-bottom: 3px; font-size: 14px; }
+.scratchpad-drawer.is-expanded .scratchpad-greeting svg { width: 15px; height: 15px; }
+
+/* 三页的页签（速记簿、播放历史、播放队列）：就是标题本身。选中的那页大一号当标题，没选中的小而淡，
+   三个按基线排，高低错落（用户定，2026-11-05）；展开成画布时整体再大一号（文件下面 is-expanded 那几条）。 */
+/* 高度固定、按最后一条基线贴着底边排：换页时字号在渐变，行高跟着变的话下面的内容会被推着跳一下；
+   这样三个字的基线一直在同一条线上，放大只往上长。 */
+.scratchpad-tabs {
+    display: flex;
+    height: 30px;
+    min-width: 0;
+    align-items: last baseline;
+    gap: 14px;
 }
 
 .scratchpad-tab {
@@ -150,17 +187,24 @@
     background: transparent;
     color: inherit;
     font: inherit;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
+    line-height: 1.2;
     white-space: nowrap;
     opacity: 0.42;
     cursor: pointer;
-    transition: opacity 0.15s ease;
+    /* 换页时字号渐变：只有页头这三个字在重新排版，开销很小；动效降级时只淡入淡出（文件末尾 is-calm）。 */
+    transition: opacity 0.15s ease, font-size 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .scratchpad-tab:hover { opacity: 0.75; }
-.scratchpad-tab[aria-selected='true'] { opacity: 1; cursor: default; }
-.scratchpad-tab:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 3px; border-radius: 4px; }
+.scratchpad-tab[aria-selected='true'] { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; opacity: 1; cursor: default; }
+.scratchpad-drawer.is-expanded .scratchpad-header { padding: 20px 14px 14px 18px; }
+.scratchpad-drawer.is-expanded .scratchpad-tabs { height: 38px; gap: 18px; }
+.scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
+.scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 28px; }
+/* 键盘聚焦到页签不画框：焦点总是跟着选中的那页（Tab / 方向键换页都把焦点挪过去），放大的字号已经说明了在哪。 */
+.scratchpad-tab:focus-visible { outline: none; }
 
 /* 名字长的语言（印尼语）三个页签仍可能差几个像素：页签名字可以收窄成省略号，不压到旁边的页签上。 */
 .scratchpad-tab > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -169,12 +213,22 @@
 /* 三个页签排一行放不下两个条数（英文尤甚）：条数只跟着选中的那页出现。 */
 .scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
 
+/* 选中那页的条数是名字右下角的小角标（底边贴着名字的底边，不跟着大字的基线走）。 */
 .scratchpad-tab-count {
-    font-size: 12px;
-    font-weight: 400;
+    align-self: flex-end;
+    margin-bottom: 3px;
+    margin-left: -2px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 12%);
+    font-size: 10.5px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-    opacity: 0.55;
+    letter-spacing: 0;
+    line-height: 1.4;
+    opacity: 0.75;
 }
+.scratchpad-root.is-daylight .scratchpad-tab-count { background: rgb(0 0 0 / 7%); }
 
 .scratchpad-icon-button {
     display: grid;
@@ -616,6 +670,13 @@
 
 .scratchpad-marquee[hidden] { display: none; }
 
+/* 框选途中：卡片的选中框、影子、灰掉的封面都立刻切换，不走过渡。来回划过几十张卡时，每张都起一段 box-shadow / filter
+   的过渡会让整块画布连着重绘好几百毫秒（CPU 占用高的主要来源之一）。松手以后过渡照常。 */
+.scratchpad-canvas.is-box-selecting .scratchpad-card,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-cover img,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-name,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-meta { transition: none; }
+
 /* —— 选中后的浮动菜单：浮在选中卡片的上方（放不下时下方），横向由画布按菜单宽度夹在内容里 —— */
 
 .scratchpad-selection-menu {
@@ -681,17 +742,6 @@
     .scratchpad-menu-button { padding: 0 8px; }
 }
 
-/* —— 播放历史页顶上的问候 —— */
-
-.scratchpad-greeting {
-    flex: none;
-    margin: 0 18px 6px;
-    font-size: 13.5px;
-    font-weight: 600;
-    line-height: 1.5;
-    opacity: 0.85;
-}
-
 /* —— 播放队列收起时的列表（ScratchpadSongTable）——
    虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度；行的样子沿用 .scratchpad-row。 */
 
@@ -743,6 +793,15 @@
     content: '';
 }
 
+/* 灰掉的卡（播放队列画布里当前这首之前、已经放过的，和线上放过的那一段一起淡下去）：封面去色变淡、字变淡；卡片底色不动——卡片要保持不透明（见 .scratchpad-card）。
+   滤镜只落在静止的封面图上，卡片挪动时是整张合成层在动，不会每帧重算。悬停、选中时复原。
+   灰进、灰出都渐变（切到下一首时上一首慢慢灰下去）；动效降级时也保留，只是颜色变化。 */
+.scratchpad-card .scratchpad-card-name,
+.scratchpad-card .scratchpad-card-meta { transition: opacity 0.45s ease; }
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-cover img { filter: grayscale(1); opacity: 0.55; }
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-name,
+.scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-meta { opacity: 0.5; }
+
 /* —— 穿过卡片的线（canvasThread）：画在卡片底下，从卡片之间的空隙里露出来 ——
    播放历史是一条细的时间轴，每张卡前面一个空心刻度；播放队列是一条带箭头的线，放过的那一段淡下去。 */
 
@@ -782,9 +841,13 @@
 
 /* 先后：实心、圆角的箭头，与线同色。 */
 .scratchpad-thread.is-flow { color: var(--text-accent, currentColor); }
-.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; opacity: 0.55; }
-.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; opacity: 0.95; }
-.scratchpad-thread.is-flow .is-played { color: inherit; opacity: 0.22; }
+/* 淡化放在整组（.scratchpad-thread-run）上：组里箭头不透明、盖住底下的线，整组再一起变淡，线不会从箭头里透出来。
+   线在组里另减一档（0.58 × 0.95 ≈ 原来的 0.55）；放过的那一段线和箭头一样淡（0.22）。 */
+.scratchpad-thread.is-flow .scratchpad-thread-run { opacity: 0.95; }
+.scratchpad-thread.is-flow .scratchpad-thread-run.is-played { opacity: 0.22; }
+.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; stroke-opacity: 0.58; }
+.scratchpad-thread.is-flow .is-played .scratchpad-thread-line { stroke-opacity: 1; }
+.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; }
 
 /* —— 不让选中文字：抽屉里全是按钮和卡片，拖动、框选、双击时不该拉出蓝色的选区 —— */
 
@@ -803,9 +866,13 @@
 
 .scratchpad-row:hover { translate: 2px 0; }
 
-.scratchpad-cover img,
-.scratchpad-card-cover img {
+.scratchpad-cover img {
     transition: scale 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 画布卡片的封面另有灰掉的渐变（.is-dimmed）。 */
+.scratchpad-card-cover img {
+    transition: scale 0.28s cubic-bezier(0.22, 1, 0.36, 1), filter 0.45s ease, opacity 0.45s ease;
 }
 
 .scratchpad-row:hover .scratchpad-cover img { scale: 1.07; }
@@ -878,3 +945,5 @@
 .scratchpad-root.is-calm .scratchpad-pill,
 .scratchpad-root.is-calm .scratchpad-menu-button,
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
+
+.scratchpad-root.is-calm .scratchpad-tab { transition: opacity 0.15s ease; }

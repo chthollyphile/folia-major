@@ -226,3 +226,52 @@
 
 :root[data-reduce-motion~='lattice'] .lattice-queue-root[data-wall-handoff] .lattice-back,
 :root[data-reduce-motion~='lattice'] .lattice-queue-root[data-wall-handoff] .lattice-empty { transition: none; }
+
+/* ---------- 歌曲海报右上角悬停才出现的两颗（LatticeQuickActions）：加入速记簿、收藏到歌单 ----------
+   与左上角的序号牌同一种底：主题的遮罩色加一层半透明，不加 backdrop-filter（每张海报一个模糊会把每张都升成合成层，
+   见 wall.css 的 .lattice-poster-badge）。方角，与墙上其余非控件的东西一致。
+   平时看不见，指针在海报上或键盘聚焦到按钮时出现；没有悬停的设备（触屏）只在展开的海报上常驻。 */
+.lattice-quick {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 3;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+@media (hover: hover) {
+    .lattice-poster:hover .lattice-quick { opacity: 1; pointer-events: auto; }
+}
+
+.lattice-quick:focus-within { opacity: 1; pointer-events: auto; }
+
+@media (hover: none) {
+    .lattice-poster.is-expanded .lattice-quick { opacity: 1; pointer-events: auto; }
+}
+
+.lattice-poster.is-expanded .lattice-quick { top: 22px; right: 22px; gap: 6px; }
+
+.lattice-quick-button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    color: var(--text-primary, #fff);
+    background: rgb(var(--lattice-shade-rgb) / 62%);
+    cursor: pointer;
+    transition: background-color 0.14s ease;
+}
+
+.lattice-quick-button:hover { background: rgb(var(--lattice-shade-rgb) / 82%); }
+.lattice-quick-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+.lattice-quick-button svg { width: 15px; height: 15px; }
+.lattice-poster.is-expanded .lattice-quick-button { width: 40px; height: 40px; }
+.lattice-poster.is-expanded .lattice-quick-button svg { width: 18px; height: 18px; }
+
+:root[data-reduce-motion~='lattice'] .lattice-quick { transition: none; }

@@ -30,7 +30,7 @@ import './bravaisAlbumPoster.css';
 // 专辑页的海报（完整等级下的专辑页缝，见 bravaisSeamTarget 的 'poster'）：凝彩的视觉语言，参考稿 album.png 竖过来——
 // 上半是浅色点阵纸，封面斜着贴在上面（一条胶带、墨色硬阴影），旁边竖排一行碎字；一道斜线网纹把纸和下半的深色块切开；
 // 色块上是「专辑 · 年份」的小标签、奶油色带立体残影的大标题（标题里一个词放大错开）、强调色下划线、「歌手 · 首数 · 时长 ·
-// 流派」、一句简介，最下面是播放全部 / 加入队列 / 收藏 / 「⋯ 更多」。色块上还有一个描边的水印大字。
+// 流派」（带 id 的歌手名可以点开歌手页）、一句简介，最下面是播放全部 / 加入队列 / 收藏 / 「⋯ 更多」。色块上还有一个描边的水印大字。
 // 构图按专辑定死（bravaisPosterComposition 的 resolveAlbumComposition），颜色从封面取（bravaisPosterPalette 的专辑那套，
 // 变量写在 stage 根节点上）。缝里原有的功能都在：返回与面包屑、过滤当前页、补页进度、状态行与重试、结果提示。
 // 纸、色块、网纹、水印这些底子不缩；倾斜时文字、封面与按钮（bravais-poster-ui）缩进安全区。
@@ -184,7 +184,21 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
 
                 <div className="bravais-poster-bottom bravais-album-bottom">
                     <div className="bravais-album-facts" data-bravais-album-facts>
-                        {album && album.artists.length > 0 && <span className="bravais-album-artist">{album.artists.join(' / ')}</span>}
+                        {album && album.artists.length > 0 && (
+                            <span className="bravais-album-artists" data-bravais-album-artists>
+                                {album.artists.map((artist, index) => (
+                                    <React.Fragment key={`${artist.targetId ?? ''}:${index}`}>
+                                        {index > 0 && <span className="bravais-album-artist-separator" aria-hidden> / </span>}
+                                        {artist.targetId !== undefined && album.onOpenArtist ? (
+                                            <button type="button" className="bravais-album-artist" data-bravais-seam-action="open-artist"
+                                                onClick={() => album.onOpenArtist?.(artist)} title={t('libraryBravaisAlbum.openArtist', { name: artist.name })}>
+                                                {artist.name}
+                                            </button>
+                                        ) : <span className="bravais-album-artist">{artist.name}</span>}
+                                    </React.Fragment>
+                                ))}
+                            </span>
+                        )}
                         {seam.meta && <BravaisSeamFlipText as="span" flipKey={seam.meta} className="bravais-poster-meta">{seam.meta}</BravaisSeamFlipText>}
                         {album?.facts.filter(fact => fact !== seam.meta).map(fact => <span key={fact} className="bravais-album-fact">{fact}</span>)}
                     </div>

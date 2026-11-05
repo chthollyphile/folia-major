@@ -8,7 +8,6 @@ export default {
     "hint": "Songs to hear or sort out later. The queue stays as it is.",
     "history": "Play history",
     "historyTab": "History",
-    "historyHint": "Played on this device in the last 7 days, newest first.",
     "historyEmpty": "Nothing played in the last 7 days.",
     "today": "Today",
     "yesterday": "Yesterday",
@@ -16,6 +15,7 @@ export default {
     "empty": "Nothing here yet. Choose \"Add to scratchpad\" on a song card, track row or search result, or jot down the playing song from the command palette.",
     "open": "Open the scratchpad",
     "close": "Close the scratchpad",
+    "openQueueCanvas": "Open the queue in the scratchpad",
     "play": "Play it in the queue",
     "enqueue": "Add to queue",
     "addToPlaylist": "Add to a playlist…",
@@ -60,20 +60,113 @@ export default {
     "removeFromQueue": "Remove from queue",
     "cannotRemoveCurrent": "The song that is playing cannot be removed",
     "originQueue": "Queue",
-    "queueCanvasHint": "Arrows show the play order; the part already played is faded. Drag a box or {{mod}}-click to select several, Shift-click for a run; drag the selection to move it, and the queue is updated once you pause. Double-click to play.",
-    "queueCanvasHintReadOnly": "Arrows show the play order. Drag a box or {{mod}}-click to select several, Shift-click for a run, double-click to play. This queue cannot be edited now.",
+    "queueCanvasHint": "Songs play in arrow order. Double-click to play, drag to reorder; drag a box or {{mod}}/Shift-click to select several.",
+    "queueCanvasHintReadOnly": "Songs play in arrow order. Double-click to play; drag a box or {{mod}}/Shift-click to select several. This queue can't be changed right now.",
     "historyCanvasHint": "The timeline runs through each day, newest first. Drag a box or {{mod}}-click to select several, Shift-click for a run, double-click to play; press Delete to remove the selection from the history.",
     "deleteFromHistory": "Delete from history",
     "historyDeleted_one": "Deleted {{count}} song from the play history",
     "historyDeleted_other": "Deleted {{count}} songs from the play history",
     "greeting": {
-      "lateNight": "Still up? The music is still on.",
-      "dawn": "Good morning. The day has only just begun.",
-      "morning": "Good morning. What should today start with?",
-      "noon": "Midday already. Take a short break.",
-      "afternoon": "Good afternoon. Tea and a song?",
-      "evening": "Good evening. Long day?",
-      "night": "Winding down? Something slower, maybe."
+      "lateNight": {
+        "v1": "Still up? The music is still on.",
+        "v2": "This late? One more, then sleep.",
+        "v3": "The night is quiet; every note carries.",
+        "v4": "Night owls always have their own playlists.",
+        "v5": "The moon is still on shift. So are you.",
+        "v6": "Late-night radio, on air just for you."
+      },
+      "dawn": {
+        "v1": "Good morning. The day has only just begun.",
+        "v2": "Up early. The birds are still tuning up.",
+        "v3": "The sky is turning pale. Something gentle?",
+        "v4": "Fresh morning air, fresh song.",
+        "v5": "Early riser, first listen.",
+        "v6": "The sun just woke up, and you are already listening."
+      },
+      "morning": {
+        "v1": "Good morning. What should today start with?",
+        "v2": "Good morning. Set the tone for the day.",
+        "v3": "One song, one coffee, let us begin.",
+        "v4": "Let the beat carry the morning.",
+        "v5": "Morning! Another good day for music.",
+        "v6": "New day. Try something different?"
+      },
+      "noon": {
+        "v1": "Midday already. Take a short break.",
+        "v2": "Had lunch yet? Eat and listen.",
+        "v3": "Lunch break: close your eyes for one song.",
+        "v4": "Bright noon, bright music.",
+        "v5": "Half the day done. Play one you love.",
+        "v6": "A song after lunch keeps the slump away."
+      },
+      "afternoon": {
+        "v1": "Good afternoon. Tea and a song?",
+        "v2": "Afternoon slump? Try something brighter.",
+        "v3": "Good afternoon. The day is winding toward its end.",
+        "v4": "Slanting light, slower songs.",
+        "v5": "Teatime. What is today’s soundtrack?",
+        "v6": "Hang in there. A few more songs till evening."
+      },
+      "evening": {
+        "v1": "Good evening. Long day?",
+        "v2": "Good evening. The headphones are yours now.",
+        "v3": "The day is done. Play what you like.",
+        "v4": "After dinner belongs to music.",
+        "v5": "Good evening. How was today?",
+        "v6": "The lights are on. Time for a new song."
+      },
+      "night": {
+        "v1": "Winding down? Something slower, maybe.",
+        "v2": "Heading to bed? Something quiet.",
+        "v3": "A good night for one song on repeat.",
+        "v4": "That is it for today, after this one.",
+        "v5": "One more before the lights go out.",
+        "v6": "Before goodnight, save one for tomorrow."
+      }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Still up?",
+        "v2": "Late night",
+        "v3": "Hi, night owl",
+        "v4": "Up late"
+      },
+      "dawn": {
+        "v1": "Good morning",
+        "v2": "Up early",
+        "v3": "First light",
+        "v4": "Rise and shine"
+      },
+      "morning": {
+        "v1": "Good morning",
+        "v2": "Morning!",
+        "v3": "New day",
+        "v4": "Let's begin"
+      },
+      "noon": {
+        "v1": "Midday",
+        "v2": "Lunchtime",
+        "v3": "Take a break",
+        "v4": "Noon break"
+      },
+      "afternoon": {
+        "v1": "Good afternoon",
+        "v2": "Teatime",
+        "v3": "Afternoon",
+        "v4": "Hang in there"
+      },
+      "evening": {
+        "v1": "Good evening",
+        "v2": "Long day?",
+        "v3": "Day's done",
+        "v4": "Evening"
+      },
+      "night": {
+        "v1": "Good night",
+        "v2": "Bedtime?",
+        "v3": "Winding down",
+        "v4": "Quiet hours"
+      }
     }
   },
   "libraryBravais": {
@@ -893,6 +986,8 @@ export default {
       "playback-add-to-playlist": { "title": "Add to a playlist", "description": "Put the current song in one of your playlists" },
       "scratchpad-toggle": { "title": "Open or close the scratchpad", "description": "Slide out the scratchpad: songs to hear or sort out later" },
       "scratchpad-collect-current": { "title": "Jot the current song into the scratchpad", "description": "Keep this song for later without touching the queue" },
+      "scratchpad-handle-toggle": { "title": "Show or hide the scratchpad side tab", "description": "The tab on the left edge that opens the scratchpad" },
+      "settings-scratchpad": { "title": "Scratchpad settings", "description": "Whether the side tab shows, and how high it sits" },
       "playback-mute": { "title": "Mute", "description": "Silence playback, or bring the sound back" },
       "playback-volume-up": { "title": "Volume up", "description": "Raise the volume by 5%" },
       "playback-volume-down": { "title": "Volume down", "description": "Lower the volume by 5%" },
@@ -1773,6 +1868,7 @@ export default {
     "allAlbums": "All",
     "popular": "Popular",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Explore",
     "exploreRefresh": "Refresh",
     "exploreMore": "More",
@@ -2073,6 +2169,7 @@ export default {
     "aiEndpoint_hongkong": "Hong Kong",
     "aiTemperatureRangeDesc": "Range: {{min}}–{{max}}. Defaults to 0.7 when left blank.",
     "aiTemperaturePerModelDesc": "Range: {{min}}–{{max}}; some models ignore it. Defaults to 0.7 when left blank.",
+    "aiTemperatureNote": "Temperature controls how random the output is: lower is steadier, higher is more varied. Keep the default unless you have a reason to change it, or adjust it as your provider's documentation recommends.",
     "randomVisualizerModes": "Styles to randomize",
     "randomVisualizerSelectAll": "Select all",
     "randomVisualizerCurrentStyle": "Current style",
@@ -2174,7 +2271,7 @@ export default {
     "globalShortcutNeedsModifier": "Hold at least one modifier with the key",
     "globalShortcutShiftOnly": "Shift alone is for typing and selecting text; add another modifier",
     "globalShortcutSingleModifier": "One modifier is usually a program's or the system's own shortcut; add another (function keys are fine with one)",
-    "globalShortcutTypesCharacter": "These modifiers type characters on some keyboard layouts (AltGr, Option); pick another set",
+    "globalShortcutTypesCharacter": "These modifiers type characters on macOS (Option), so they are refused on every system; pick another set",
     "globalShortcutEditsText": "This combination selects or deletes text; pick another",
     "globalShortcutMetaNeedsMore": "Win/Cmd combinations mostly belong to the system or to programs; hold at least three modifiers",
     "globalShortcutUnsupportedKey": "This key can't carry a global shortcut",
@@ -2182,6 +2279,7 @@ export default {
     "globalShortcutDuplicate": "Another global shortcut already uses that combination",
     "globalShortcutTakenBySystem": "Another program already uses this combination",
     "globalShortcutCustomCombination": "Other programs' in-app shortcuts can't be checked from here. Once registered, this combination goes to Folia in every program",
+    "globalShortcutAltGrCombination": "On layouts with AltGr (German, Polish and others), Ctrl+Alt with this key types a character such as @ or €, which can no longer be typed once this is registered. Other programs' in-app shortcuts can't be checked from here either",
     "globalShortcutModCommand": "{{command}} · {{mod}}",
     "globalShortcutModInactive": "The mod is not enabled. The key comes back once it is",
     "globalShortcutModCommandMissing": "The mod does not offer this command right now",
@@ -2290,6 +2388,11 @@ export default {
     "rememberHomeCardPosition": "Remember home card position",
     "rememberHomeCardPositionDesc": "Return to the last card in each section when switching tabs or leaving the player. Positions are kept until you close or reload the app.",
     "homeTabsVisibilityDesc": "Customize the capsule entries shown at the top of the home page",
+    "scratchpadSettings": "Scratchpad",
+    "scratchpadShowHandle": "Show the side tab",
+    "scratchpadShowHandleDesc": "The tab on the left edge of the window. With it hidden, Ctrl / ⌘ + J or the command palette still opens the scratchpad.",
+    "scratchpadHandlePosition": "Side tab height",
+    "scratchpadHandlePositionDesc": "Where the tab sits on the left edge: 0% at the top, 100% near the bottom of the window. Around the middle it overlaps the folded Bravais seam tab.",
     "showHomeTabPlaylist": "Show Playlists",
     "showHomeTabRadio": "Show Radio",
     "showHomeTabExplore": "Show Explore",
@@ -4795,7 +4898,8 @@ export default {
     "posterTopSongs": "Top songs"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Album poster"
+    "posterLabel": "Album poster",
+    "openArtist": "Open artist {{name}}"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",

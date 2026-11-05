@@ -8,7 +8,6 @@ export default {
     "hint": "Lagu untuk didengar atau dirapikan nanti. Antrean tidak berubah.",
     "history": "Riwayat putar",
     "historyTab": "Riwayat",
-    "historyHint": "Diputar di perangkat ini dalam 7 hari terakhir, terbaru di atas.",
     "historyEmpty": "Belum ada yang diputar dalam 7 hari terakhir.",
     "today": "Hari ini",
     "yesterday": "Kemarin",
@@ -16,6 +15,7 @@ export default {
     "empty": "Masih kosong. Pilih \"Tambahkan ke buku catatan\" pada kartu lagu, baris daftar lagu, atau hasil pencarian, atau catat lagu yang sedang diputar dari palet perintah.",
     "open": "Buka buku catatan",
     "close": "Tutup buku catatan",
+    "openQueueCanvas": "Buka antrean di buku catatan",
     "play": "Putar di antrean",
     "enqueue": "Tambahkan ke antrean",
     "addToPlaylist": "Tambahkan ke daftar putar…",
@@ -60,20 +60,113 @@ export default {
     "removeFromQueue": "Hapus dari antrean",
     "cannotRemoveCurrent": "Lagu yang sedang diputar tidak bisa dihapus",
     "originQueue": "Antrean",
-    "queueCanvasHint": "Panah menunjukkan urutan putar; bagian yang sudah diputar dibuat pudar. Seret kotak atau {{mod}}+klik untuk memilih beberapa, Shift+klik untuk satu rentang; seret pilihan untuk memindahkannya, antrean diperbarui setelah Anda berhenti sejenak. Klik ganda untuk memutar.",
-    "queueCanvasHintReadOnly": "Panah menunjukkan urutan putar. Seret kotak atau {{mod}}+klik untuk memilih beberapa, Shift+klik untuk satu rentang, klik ganda untuk memutar. Antrean ini tidak bisa diubah sekarang.",
+    "queueCanvasHint": "Lagu diputar sesuai urutan panah. Klik ganda untuk memutar, seret untuk mengubah urutan; seret kotak atau {{mod}}/Shift+klik untuk memilih beberapa.",
+    "queueCanvasHintReadOnly": "Lagu diputar sesuai urutan panah. Klik ganda untuk memutar; seret kotak atau {{mod}}/Shift+klik untuk memilih beberapa. Antrean ini tidak bisa diubah sekarang.",
     "historyCanvasHint": "Garis waktu melintasi setiap hari, terbaru di depan. Seret kotak atau {{mod}}+klik untuk memilih beberapa, Shift+klik untuk satu rentang, klik ganda untuk memutar; tekan Delete untuk menghapus pilihan dari riwayat.",
     "deleteFromHistory": "Hapus dari riwayat",
     "historyDeleted_one": "{{count}} lagu dihapus dari riwayat putar",
     "historyDeleted_other": "{{count}} lagu dihapus dari riwayat putar",
     "greeting": {
-      "lateNight": "Masih terjaga? Musiknya masih menyala.",
-      "dawn": "Selamat pagi. Hari baru saja dimulai.",
-      "morning": "Selamat pagi. Mau mulai hari ini dengan lagu apa?",
-      "noon": "Selamat siang. Istirahat sebentar.",
-      "afternoon": "Selamat sore. Teh dan sebuah lagu?",
-      "evening": "Selamat malam. Hari yang panjang?",
-      "night": "Bersiap istirahat? Mungkin yang lebih pelan."
+      "lateNight": {
+        "v1": "Masih terjaga? Musiknya masih menyala.",
+        "v2": "Sudah larut. Satu lagu lagi, lalu tidur.",
+        "v3": "Malam sunyi, setiap nada terdengar jelas.",
+        "v4": "Yang begadang selalu punya playlist sendiri.",
+        "v5": "Bulan masih bertugas. Kamu juga.",
+        "v6": "Radio tengah malam, mengudara hanya untukmu."
+      },
+      "dawn": {
+        "v1": "Selamat pagi. Hari baru saja dimulai.",
+        "v2": "Bangun pagi sekali. Burung-burung masih pemanasan.",
+        "v3": "Langit mulai terang. Yang lembut dulu?",
+        "v4": "Udara pagi yang segar, lagu yang segar.",
+        "v5": "Yang bangun pagi, dengar duluan.",
+        "v6": "Matahari baru bangun, kamu sudah mendengarkan musik."
+      },
+      "morning": {
+        "v1": "Selamat pagi. Mau mulai hari ini dengan lagu apa?",
+        "v2": "Selamat pagi. Tentukan nada hari ini.",
+        "v3": "Satu lagu, satu kopi, ayo mulai.",
+        "v4": "Biar irama yang membawa pagi ini.",
+        "v5": "Pagi! Hari yang baik lagi untuk musik.",
+        "v6": "Hari baru. Coba sesuatu yang berbeda?"
+      },
+      "noon": {
+        "v1": "Selamat siang. Istirahat sebentar.",
+        "v2": "Sudah makan siang? Makan sambil dengar.",
+        "v3": "Istirahat siang: pejamkan mata untuk satu lagu.",
+        "v4": "Siang yang cerah, musik yang cerah.",
+        "v5": "Setengah hari berlalu. Putar lagu favoritmu.",
+        "v6": "Satu lagu setelah makan siang supaya tidak mengantuk."
+      },
+      "afternoon": {
+        "v1": "Selamat sore. Teh dan sebuah lagu?",
+        "v2": "Mengantuk sore ini? Coba yang lebih segar.",
+        "v3": "Selamat sore. Hari mulai mendekati akhir.",
+        "v4": "Cahaya miring, lagu yang lebih pelan.",
+        "v5": "Waktunya minum teh. Lagu apa hari ini?",
+        "v6": "Bertahanlah. Beberapa lagu lagi sampai petang."
+      },
+      "evening": {
+        "v1": "Selamat malam. Hari yang panjang?",
+        "v2": "Selamat malam. Headphone-nya untukmu sekarang.",
+        "v3": "Hari sudah selesai. Putar yang kamu suka.",
+        "v4": "Waktu setelah makan malam milik musik.",
+        "v5": "Selamat malam. Bagaimana hari ini?",
+        "v6": "Lampu sudah menyala. Saatnya lagu baru."
+      },
+      "night": {
+        "v1": "Bersiap istirahat? Mungkin yang lebih pelan.",
+        "v2": "Mau tidur? Yang tenang saja.",
+        "v3": "Malam yang pas untuk memutar satu lagu berulang.",
+        "v4": "Cukup untuk hari ini, setelah lagu ini.",
+        "v5": "Satu lagi sebelum lampu dimatikan.",
+        "v6": "Sebelum selamat tidur, simpan satu untuk besok."
+      }
+    },
+    "greetingShort": {
+      "lateNight": {
+        "v1": "Masih terjaga?",
+        "v2": "Larut malam",
+        "v3": "Hai, begadang",
+        "v4": "Belum tidur?"
+      },
+      "dawn": {
+        "v1": "Selamat pagi",
+        "v2": "Bangun pagi",
+        "v3": "Fajar tiba",
+        "v4": "Pagi cerah"
+      },
+      "morning": {
+        "v1": "Selamat pagi",
+        "v2": "Pagi!",
+        "v3": "Hari baru",
+        "v4": "Ayo mulai"
+      },
+      "noon": {
+        "v1": "Selamat siang",
+        "v2": "Makan siang",
+        "v3": "Istirahat dulu",
+        "v4": "Siang hari"
+      },
+      "afternoon": {
+        "v1": "Selamat sore",
+        "v2": "Waktu teh",
+        "v3": "Sore hari",
+        "v4": "Bertahanlah"
+      },
+      "evening": {
+        "v1": "Selamat malam",
+        "v2": "Hari panjang?",
+        "v3": "Hari selesai",
+        "v4": "Malam hari"
+      },
+      "night": {
+        "v1": "Malam",
+        "v2": "Mau tidur?",
+        "v3": "Bersantai",
+        "v4": "Jam tenang"
+      }
     }
   },
   "libraryBravais": {
@@ -893,6 +986,8 @@ export default {
       "playback-add-to-playlist": { "title": "Tambahkan ke daftar putar", "description": "Masukkan lagu ini ke salah satu daftar putar Anda" },
       "scratchpad-toggle": { "title": "Buka atau tutup buku catatan", "description": "Tarik keluar buku catatan: lagu untuk didengar atau dirapikan nanti" },
       "scratchpad-collect-current": { "title": "Catat lagu ini ke buku catatan", "description": "Simpan lagu ini untuk nanti tanpa mengubah antrean" },
+      "scratchpad-handle-toggle": { "title": "Tampilkan atau sembunyikan tab samping buku catatan", "description": "Tab di tepi kiri yang membuka buku catatan" },
+      "settings-scratchpad": { "title": "Pengaturan buku catatan", "description": "Apakah tab samping tampil, dan setinggi apa letaknya" },
       "playback-mute": { "title": "Bisukan", "description": "Bisukan pemutaran, atau kembalikan suaranya" },
       "playback-volume-up": { "title": "Volume naik", "description": "Naikkan volume 5%" },
       "playback-volume-down": { "title": "Volume turun", "description": "Turunkan volume 5%" },
@@ -1773,6 +1868,7 @@ export default {
     "allAlbums": "Semua",
     "popular": "Populer",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Jelajahi",
     "exploreRefresh": "Muat ulang",
     "exploreMore": "Lainnya",
@@ -2073,6 +2169,7 @@ export default {
     "aiEndpoint_hongkong": "Hong Kong",
     "aiTemperatureRangeDesc": "Rentang: {{min}}–{{max}}. Default ke 0.7 bila dibiarkan kosong.",
     "aiTemperaturePerModelDesc": "Rentang: {{min}}–{{max}}; beberapa model mengabaikannya. Default ke 0.7 bila dibiarkan kosong.",
+    "aiTemperatureNote": "Temperatur mengatur seberapa acak hasilnya: makin rendah makin stabil, makin tinggi makin beragam. Sebaiknya biarkan default, atau sesuaikan sesuai rekomendasi dokumentasi penyedia Anda.",
     "randomVisualizerModes": "Gaya untuk diacak",
     "randomVisualizerSelectAll": "Pilih semua",
     "randomVisualizerCurrentStyle": "Gaya saat ini",
@@ -2174,7 +2271,7 @@ export default {
     "globalShortcutNeedsModifier": "Sertakan minimal satu tombol pengubah",
     "globalShortcutShiftOnly": "Shift saja dipakai untuk mengetik dan memilih teks; tambahkan tombol pengubah lain",
     "globalShortcutSingleModifier": "Satu tombol pengubah biasanya pintasan milik program atau sistem; tambahkan satu lagi (tombol fungsi boleh dengan satu)",
-    "globalShortcutTypesCharacter": "Tombol pengubah ini mengetik karakter pada beberapa tata letak keyboard (AltGr, Option); pilih kombinasi lain",
+    "globalShortcutTypesCharacter": "Tombol pengubah ini mengetik karakter di macOS (Option), jadi ditolak di semua sistem; pilih kombinasi lain",
     "globalShortcutEditsText": "Kombinasi ini untuk memilih atau menghapus teks; pilih yang lain",
     "globalShortcutMetaNeedsMore": "Kombinasi dengan Win/Cmd kebanyakan milik sistem atau program; tahan minimal tiga tombol pengubah",
     "globalShortcutUnsupportedKey": "Tombol ini tidak bisa dipakai untuk pintasan global",
@@ -2182,6 +2279,7 @@ export default {
     "globalShortcutDuplicate": "Pintasan global lain sudah memakai kombinasi itu",
     "globalShortcutTakenBySystem": "Kombinasi ini sudah dipakai program lain",
     "globalShortcutCustomCombination": "Pintasan internal program lain tidak bisa diperiksa dari sini. Setelah didaftarkan, kombinasi ini diambil Folia di semua program",
+    "globalShortcutAltGrCombination": "Pada tata letak dengan AltGr (Jerman, Polandia, dan lainnya), Ctrl+Alt dengan tombol ini mengetik karakter seperti @ atau €, yang tidak bisa diketik lagi setelah didaftarkan. Pintasan internal program lain juga tidak bisa diperiksa dari sini",
     "globalShortcutModCommand": "{{command}} · {{mod}}",
     "globalShortcutModInactive": "Mod belum diaktifkan. Tombol ini kembali berfungsi setelah mod diaktifkan",
     "globalShortcutModCommandMissing": "Mod saat ini tidak menyediakan perintah ini",
@@ -2290,6 +2388,11 @@ export default {
     "rememberHomeCardPosition": "Ingat posisi kartu beranda",
     "rememberHomeCardPositionDesc": "Kembali ke kartu terakhir di setiap bagian saat berpindah tab atau keluar dari pemutar. Posisi disimpan hingga aplikasi ditutup atau dimuat ulang.",
     "homeTabsVisibilityDesc": "Sesuaikan entri capsule yang ditampilkan di bagian atas halaman beranda",
+    "scratchpadSettings": "Buku catatan",
+    "scratchpadShowHandle": "Tampilkan tab samping",
+    "scratchpadShowHandleDesc": "Tab di tepi kiri jendela. Saat disembunyikan, Ctrl / ⌘ + J atau palet perintah tetap membuka buku catatan.",
+    "scratchpadHandlePosition": "Tinggi tab samping",
+    "scratchpadHandlePositionDesc": "Letak tab di tepi kiri: 0% di atas, 100% dekat bagian bawah jendela. Di sekitar tengah, tab ini menumpuk dengan tab seam Bravais yang dilipat.",
     "showHomeTabPlaylist": "Tampilkan Playlist",
     "showHomeTabRadio": "Tampilkan Radio",
     "showHomeTabExplore": "Tampilkan Jelajahi",
@@ -4795,7 +4898,8 @@ export default {
     "posterTopSongs": "Lagu populer"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Poster album"
+    "posterLabel": "Poster album",
+    "openArtist": "Buka artis {{name}}"
   },
   "artistGrid": {
     "localArtist": "Artis Lokal: {{artistName}}",

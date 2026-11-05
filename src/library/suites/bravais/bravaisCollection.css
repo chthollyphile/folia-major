@@ -451,9 +451,8 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
-    /* 图标随卡片文字的颜色（深色主题白、日光黑），与底部按钮排一致。 */
+    /* 图标随卡片文字的颜色（深色主题白、日光黑），与底部按钮排一致；可读性靠按钮自己的底（见文件下面这排的淡底）。 */
     color: inherit;
-    filter: drop-shadow(0 1px 2px var(--bravais-corner-shadow)) drop-shadow(0 2px 8px var(--bravais-corner-shadow-wide));
 }
 
 /* 与左边两颗悬浮按钮（BravaisTileQuickActions）同一格：44px 方格。要压过 bravais-chrome-button 的内边距，
@@ -472,11 +471,10 @@
     z-index: 3;
     display: flex;
     gap: 6px;
-    /* 颜色与影子同聚焦卡的「⋯」：随卡片文字（日光下黑），多一层更深的影子。 */
+    /* 颜色同聚焦卡的「⋯」：随卡片文字（日光下黑）。 */
     color: inherit;
     opacity: 0;
     pointer-events: none;
-    filter: drop-shadow(0 1px 2px var(--bravais-corner-shadow)) drop-shadow(0 2px 8px var(--bravais-corner-shadow-wide));
     transition: opacity 0.15s ease;
 }
 
@@ -502,6 +500,36 @@
 .lattice-poster.is-expanded .bravais-tile-quick .bravais-chrome-button { width: 44px; min-height: 44px; }
 .lattice-poster.is-expanded .bravais-tile-quick .bravais-chrome-button svg { width: 18px; height: 18px; }
 :root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
+
+/* 右上角这排（两颗悬浮按钮与「⋯」）静止时也垫一层底：压在封面最亮的地方，图标要看得清（用户定，2026-11-05）。
+   原来靠外层的两层 drop-shadow，那层影子会连底色一起晕开、看着发糊，现在不要影子，也不要描边（用户定），只用边缘清楚的底色，
+   底下再模糊一点封面。深色主题是深底白图标；日光下是近白的底、黑图标。
+   悬停也不出 bravais-chrome-button 的悬停框，只把底加深。 */
+.bravais-tile-quick .bravais-chrome-button,
+.bravais-focus-more .bravais-focus-more-toggle {
+    border-color: transparent;
+    background: rgb(0 0 0 / 38%);
+    opacity: 1;
+    backdrop-filter: blur(10px);
+}
+
+.bravais-tile-quick .bravais-chrome-button:hover:not(:disabled),
+.bravais-focus-more .bravais-focus-more-toggle:hover:not(:disabled),
+.bravais-focus-more .bravais-focus-more-toggle[aria-expanded='true'] {
+    border-color: transparent;
+    background: rgb(0 0 0 / 55%);
+}
+
+.bravais-root.is-daylight .bravais-tile-quick .bravais-chrome-button,
+.bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle {
+    background: rgb(255 255 255 / 78%);
+}
+
+.bravais-root.is-daylight .bravais-tile-quick .bravais-chrome-button:hover:not(:disabled),
+.bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle:hover:not(:disabled),
+.bravais-root.is-daylight .bravais-focus-more .bravais-focus-more-toggle[aria-expanded='true'] {
+    background: rgb(255 255 255 / 92%);
+}
 
 /* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
-import { ListEnd, ListMusic, ListPlus, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
+import { ListEnd, ListMusic, ListPlus, NotebookPen, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
@@ -41,6 +41,8 @@ interface QueueTabProps {
     canSaveLocalPlaylist?: boolean;
     /** Opens the same queue as a poster wall; absent when the host has no wall to show. */
     onOpenLattice?: () => void;
+    /** 在速记簿里展开队列（打开速记簿的播放队列页、展开成画布）。 */
+    onOpenScratchpadQueue?: () => void;
     onSaveCurrentQueueAsPlaylist?: (name: string) => Promise<void>;
     isDaylight?: boolean;
 }
@@ -138,6 +140,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
     onMoveSongToNext,
     canSaveLocalPlaylist = false,
     onOpenLattice,
+    onOpenScratchpadQueue,
     onSaveCurrentQueueAsPlaylist,
     isDaylight = false,
 }) => {
@@ -251,6 +254,11 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         <Button variant="quiet" onClick={handleSavePlaylist}>
                             {t('localMusic.saveQueueAsPlaylist')}
                         </Button>
+                    )}
+                    {onOpenScratchpadQueue && (
+                        <PanelIconButton size="s" label={t('scratchpad.openQueueCanvas')} onClick={onOpenScratchpadQueue}>
+                            <NotebookPen size={15} />
+                        </PanelIconButton>
                     )}
                     {onOpenLattice && (
                         <PanelIconButton size="s" label={t('home.lattice')} onClick={onOpenLattice}>

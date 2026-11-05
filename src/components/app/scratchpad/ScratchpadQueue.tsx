@@ -78,11 +78,14 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
 
     const rows = useMemo<CanvasEntry[]>(() => {
         const ids = rowIdsOf(order);
+        const currentIndex = displayKey === null ? -1 : order.findIndex(song => getPlaybackSongKey(song) === displayKey);
         return order.map((song, index) => ({
             key: ids[index],
             song,
             meta: [getSongArtistLabel(song), scratchpadSourceLabel(song, t)].filter(Boolean).join(' · '),
             isCurrent: displayKey !== null && getPlaybackSongKey(song) === displayKey,
+            // 画布上排在当前这首之前（已经放过）的灰掉（用户定，2026-11-05）；收起时的列表不画这个。
+            isDimmed: currentIndex >= 0 && index < currentIndex,
         }));
     }, [displayKey, order, t]);
     const focusIndex = useMemo(() => rows.findIndex(row => row.isCurrent), [rows]);

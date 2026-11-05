@@ -20,6 +20,8 @@ export type CanvasEntry = {
     meta?: string;
     /** 正在播放的那一首：画个记号。 */
     isCurrent?: boolean;
+    /** 灰掉：封面去色、字变淡（播放队列画布里排在当前这首之前、已经放过的歌）。悬停、选中时复原。 */
+    isDimmed?: boolean;
 };
 
 export type CardMotion = { x: MotionValue<number>; y: MotionValue<number> };
@@ -83,6 +85,7 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
         isMoving ? 'is-moving' : '',
         isFresh ? 'is-fresh' : '',
         entry.isCurrent ? 'is-current' : '',
+        entry.isDimmed ? 'is-dimmed' : '',
     ].filter(Boolean).join(' ');
 
     return (

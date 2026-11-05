@@ -13,9 +13,10 @@ import { useCollectionActions } from '../../core/collection/mutations/useCollect
 import { useCollectionMutationSnapshot } from '../../core/collection/mutations/useCollectionMutations';
 import { useLocalTrackSortStore } from '../../core/directory/useLocalTrackSortStore';
 import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistration';
-import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
+import { canResolveSongCatalogRef, resolveCollectionArtistCatalogId } from '../../../services/onlineMusic/catalogRefs';
 import { useNavigationPageKey } from '../../../components/app/playing-song-locator/useNavigationPageKey';
 import type { BravaisItem, BravaisLayer, BravaisLayerLocate, BravaisSeamModel } from './bravaisLayer';
+import type { BravaisSeamAlbumArtist } from './bravaisSeamModels';
 import { collectQueuedKeys, findNowPlayingKey, projectCollectionTracks } from './bravaisProjection';
 import { describeBravaisTrack } from './describeBravaisTrack';
 import type { BravaisPlaylistScope } from './bravaisFormModel';
@@ -280,12 +281,25 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
     const declaresEnqueueScope = declaredActions.actions.includes('enqueue-scope');
     // 专辑页的海报信息（左边的凝彩海报）：只有专辑类型的集合有，详情盖在集合描述上。
     const totalTracks = snapshot?.detail?.trackCount ?? collection.trackCount ?? allItems.length;
-    const seamAlbum = useMemo(() => projectBravaisSeamAlbum({
-        collection,
-        detail: snapshot?.detail,
-        trackCount: totalTracks,
-        labels: { kind: t('libraryBravais.kind.album'), trackCount: count => t('libraryBravais.trackCount', { count }) },
-    }), [collection, snapshot?.detail, t, totalTracks]);
+    // 专辑歌手可以点开歌手页（#1058）：能打开的（core/shared/collectionArtistLinks）交给宿主的 onOpenArtist（不带曲目，按这张专辑的来源打开）。
+    const declaresOpenArtist = declaredActions.actions.includes('open-artist');
+    const seamAlbum = useMemo(() => {
+        const album = projectBravaisSeamAlbum({
+            collection,
+            detail: snapshot?.detail,
+            trackCount: totalTracks,
+            labels: { kind: t('libraryBravais.kind.album'), trackCount: count => t('libraryBravais.trackCount', { count }) },
+            resolveOnlineArtist: resolveCollectionArtistCatalogId,
+        });
+        if (!album || !declaresOpenArtist || !album.artists.some(artist => artist.targetId !== undefined)) return album;
+        return {
+            ...album,
+            onOpenArtist: ({ name, targetId, catalogRef }: BravaisSeamAlbumArtist) => {
+                if (targetId === undefined) return;
+                latest.current.onOpenArtist(targetId, { name, ...(catalogRef ? { catalogRef } : {}) });
+            },
+        };
+    }, [collection, declaresOpenArtist, snapshot?.detail, t, totalTracks]);
     const seam = useMemo<BravaisSeamModel>(() => ({
         title: displayTitle,
         crumb: displayTitle,

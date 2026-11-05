@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SquareCheck, X } from 'lucide-react';
 import ScratchpadCard, { type CanvasEntry, type CardMotion } from './ScratchpadCard';
@@ -126,6 +126,9 @@ type Marquee = {
     moved: boolean;
     /** 框选开始时各组网格原点（内容坐标）与它们的条目。 */
     grids: { origin: Point; keys: string[] }[];
+    /** 还没处理的最近一次指针位置（视口坐标）：指针事件可能一帧来好几次（高回报率的鼠标上千次每秒），每帧只算一次。 */
+    pending: { clientX: number; clientY: number } | null;
+    frame: number;
 };
 
 /** 浮动菜单落在哪：选中卡片的外框中线上，外框上方（或放不下时下方）。内容坐标。 */
@@ -151,7 +154,7 @@ const NODE_HEIGHT = 18;
  * 一组的线。时间轴：一条线，每张卡前面一个写着这首几点放的小牌子；先后：放过的一段（淡）、没放的一段各一条线，加实心箭头。
  * SVG 铺满画布内容的左右留白（edge）：拐弯与第一列前面的节点伸出网格，但不出内容区，不撑出横向滚动条。
  */
-const ThreadLayer: React.FC<{ thread: CanvasThread; count: number; columns: number; spacing: Spacing; height: number }> = ({
+const ThreadLayer = memo<{ thread: CanvasThread; count: number; columns: number; spacing: Spacing; height: number }>(({
     thread,
     count,
     columns,
@@ -180,10 +183,17 @@ const ThreadLayer: React.FC<{ thread: CanvasThread; count: number; columns: numb
             style={{ left: -edge, width: `calc(100% + ${edge * 2}px)` }}
         >
             <g transform={`translate(${edge} 0)`}>
-                {paths.played && <path className="scratchpad-thread-line is-played" d={paths.played} />}
-                {paths.playedMarks && <path className="scratchpad-thread-marks is-played" d={paths.playedMarks} />}
-                <path className="scratchpad-thread-line" d={paths.line} />
-                {paths.marks && <path className="scratchpad-thread-marks" d={paths.marks} />}
+                {/* 线和箭头放在一组里、整组一起变淡：分开各自半透明的话，线会从箭头里透出来。 */}
+                {paths.played && (
+                    <g className="scratchpad-thread-run is-played">
+                        <path className="scratchpad-thread-line" d={paths.played} />
+                        {paths.playedMarks && <path className="scratchpad-thread-marks" d={paths.playedMarks} />}
+                    </g>
+                )}
+                <g className="scratchpad-thread-run">
+                    <path className="scratchpad-thread-line" d={paths.line} />
+                    {paths.marks && <path className="scratchpad-thread-marks" d={paths.marks} />}
+                </g>
                 {thread.kind === 'timeline' && paths.nodes.map((node, index) => (
                     <g key={index} className="scratchpad-thread-node" transform={`translate(${node.x} ${node.y})`}>
                         <rect x={-NODE_WIDTH / 2} y={-NODE_HEIGHT / 2} width={NODE_WIDTH} height={NODE_HEIGHT} rx={NODE_HEIGHT / 2} />
@@ -193,7 +203,7 @@ const ThreadLayer: React.FC<{ thread: CanvasThread; count: number; columns: numb
             </g>
         </svg>
     );
-};
+});
 
 function ScratchpadCanvas<E extends CanvasEntry>({
     groups,
@@ -346,7 +356,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         else motions.current.delete(key);
     }, []);
 
-    const selectedEntries = useMemo(() => entries.filter(entry => selected.has(entry.key)), [entries, selected]);
+    // 只在浮动菜单出来时才要（框选途中每帧都换选择，不跟着把整块画布的条目过滤一遍）；Delete 键自己现算。
+    const selectedEntries = useMemo(() => (menu ? entries.filter(entry => selected.has(entry.key)) : []), [entries, menu, selected]);
 
     // —— 卡片：点击选择、拖动排序 ——
 
@@ -507,7 +518,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
 
     // —— 空白处：框选 ——
 
-    const contentPoint = (event: React.PointerEvent) => {
+    const contentPoint = (event: { clientX: number; clientY: number }) => {
         const rect = contentRef.current!.getBoundingClientRect();
         return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
@@ -534,14 +545,15 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                 const rect = grid.getBoundingClientRect();
                 return [{ origin: { x: rect.left - contentRect.left, y: rect.top - contentRect.top }, keys: group.entries.map(entry => entry.key) }];
             }),
+            pending: null,
+            frame: 0,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
     };
 
-    const handleCanvasPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-        const marquee = marqueeStateRef.current;
-        if (!marquee || marquee.pointerId !== event.pointerId) return;
-        const point = contentPoint(event);
+    /** 按指针这一刻的位置更新框和选择。读一次内容的外框、写一次框的样式、至多 set 一次选择。 */
+    const applyMarquee = (marquee: Marquee, client: { clientX: number; clientY: number }) => {
+        const point = contentPoint(client);
         if (!marquee.moved && Math.hypot(point.x - marquee.start.x, point.y - marquee.start.y) < DRAG_THRESHOLD) return;
         if (!marquee.moved) setIsBoxSelecting(true);
         marquee.moved = true;
@@ -562,15 +574,38 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         setSelected(current => (sameSet(current, next) ? current : next));
     };
 
+    // 指针事件只记下位置，下一帧再算：一帧里来多少次都只重算、重渲染一次。
+    const handleCanvasPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        const marquee = marqueeStateRef.current;
+        if (!marquee || marquee.pointerId !== event.pointerId) return;
+        marquee.pending = { clientX: event.clientX, clientY: event.clientY };
+        if (marquee.frame) return;
+        marquee.frame = requestAnimationFrame(() => {
+            marquee.frame = 0;
+            const pending = marquee.pending;
+            marquee.pending = null;
+            if (pending && marqueeStateRef.current === marquee) applyMarquee(marquee, pending);
+        });
+    };
+
     const handleCanvasPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
         const marquee = marqueeStateRef.current;
         if (!marquee || marquee.pointerId !== event.pointerId) return;
+        // 还没轮到的最后一次移动先补上：松手那一刻框到哪就选到哪。
+        if (marquee.frame) cancelAnimationFrame(marquee.frame);
+        if (marquee.pending) applyMarquee(marquee, marquee.pending);
         marqueeStateRef.current = null;
         setIsBoxSelecting(false);
         if (marqueeRef.current) marqueeRef.current.hidden = true;
         // 在空白处点一下（没拖）：取消选择。
         if (!marquee.moved && marquee.base.size === 0) setSelected(new Set());
     };
+
+    // 卸载时还在等的那一帧。
+    useEffect(() => () => {
+        const marquee = marqueeStateRef.current;
+        if (marquee?.frame) cancelAnimationFrame(marquee.frame);
+    }, []);
 
     // 长按在有的浏览器上还会弹出系统菜单（复制图片、选文字）：拿卡片的那一下不要它。
     const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -652,7 +687,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size > 0 && onDelete) {
             event.preventDefault();
             event.stopPropagation();
-            onDelete(selectedEntries);
+            onDelete(entries.filter(entry => selected.has(entry.key)));
             return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
@@ -668,7 +703,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         <>
             <div
                 ref={scrollRef}
-                className="scratchpad-canvas"
+                className={`scratchpad-canvas${isBoxSelecting ? ' is-box-selecting' : ''}`}
                 data-testid={testId}
                 role="listbox"
                 aria-multiselectable="true"

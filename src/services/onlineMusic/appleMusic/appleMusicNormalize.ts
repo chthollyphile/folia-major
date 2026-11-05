@@ -98,10 +98,30 @@ export const normalizeAppleMusicLibraryAlbum = (value: unknown): ProviderCollect
         throw new OnlineProviderError('invalid-response', 'Apple Music library album identity is invalid', PROVIDER_ID);
     }
     const attributes = record(resource.attributes);
+    // A library album names its artist but gives no catalog ID: shown on the album page, not openable.
+    const artistName = text(attributes.artistName);
     return { providerId: PROVIDER_ID, id, type: 'album', name: text(attributes.name),
         coverUrl: artworkUrl(attributes.artwork),
+        ...(artistName ? { artists: [{ id: '', name: artistName }] } : {}),
         ...(typeof attributes.trackCount === 'number' && Number.isSafeInteger(attributes.trackCount) && attributes.trackCount >= 0 ? { trackCount: attributes.trackCount } : {}),
         providerData: { resourceType: 'library-albums' } };
+};
+
+// An album's artists: named catalog artists open their pages; a lone unnamed ID takes the album's
+// artist name; several unnamed IDs keep the combined name (not openable) and pass the IDs on so the
+// album detail can name each one rather than assigning the combined name to the wrong artist.
+const catalogAlbumArtists = (attributes: Record<string, unknown>): Pick<ProviderCollection, 'artists' | 'providerData'> => {
+    const artistName = text(attributes.artistName);
+    const catalogArtists = Array.isArray(attributes.catalogArtists) ? attributes.catalogArtists.map(record).filter(item => /^\d{1,40}$/.test(text(item.id))) : [];
+    const linked = (id: string, name: string) => ({ id, name, catalogRef: { providerId: PROVIDER_ID, kind: 'artist' as const, id } });
+    if (catalogArtists.length && catalogArtists.every(item => text(item.name))) {
+        return { artists: catalogArtists.map(item => linked(text(item.id), text(item.name))) };
+    }
+    if (catalogArtists.length === 1 && artistName) return { artists: [linked(text(catalogArtists[0].id), artistName)] };
+    return {
+        ...(artistName ? { artists: [{ id: '', name: artistName }] } : {}),
+        ...(catalogArtists.length > 1 ? { providerData: { catalogArtistIds: catalogArtists.map(item => text(item.id)) } } : {}),
+    };
 };
 
 // Catalog albums and artists use numeric Apple IDs, distinct from local library albums.
@@ -112,6 +132,9 @@ export const normalizeAppleMusicCatalogCollection = (value: unknown): ProviderCo
         throw new OnlineProviderError('invalid-response', 'Apple Music catalog identity is invalid', PROVIDER_ID);
     }
     const attributes = record(resource.attributes);
+    const albumArtists = resource.type === 'albums' ? catalogAlbumArtists(attributes) : {};
     return { providerId: PROVIDER_ID, id, type: resource.type === 'albums' ? 'album' : 'artist',
-        name: text(attributes.name), coverUrl: artworkUrl(attributes.artwork), providerData: { resourceType: resource.type } };
+        name: text(attributes.name), coverUrl: artworkUrl(attributes.artwork),
+        ...(albumArtists.artists ? { artists: albumArtists.artists } : {}),
+        providerData: { resourceType: resource.type, ...albumArtists.providerData } };
 };
