@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // and protocol URL shaping for the fnOS (飞牛) music bridge.
 
 const require = createRequire(import.meta.url);
-const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../electron/fnmusic/fnmusicApiBridge.cjs');
+const { createFnmusicApiBridge, resolveServer, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../electron/fnmusic/fnmusicApiBridge.cjs');
 
 const CONFIG_STORE_KEY = 'fnmusic-config';
 
@@ -48,6 +48,26 @@ describe('FnMusic desktop bridge', () => {
     it('reports unconfigured when the store holds no saved config', () => {
         const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
         expect(bridge.getStatus()).toMatchObject({ available: true, configured: false, authenticated: false, base: null });
+    });
+
+    describe('FN Connect relay (外网登录)', () => {
+        it('maps a bare FN ID to the fnos.net relay host', () => {
+            expect(resolveServer('mynas')).toBe('https://mynas.fnos.net');
+            expect(resolveServer(' https://mynas ')).toBe('https://mynas.fnos.net');
+        });
+
+        it('leaves LAN addresses untouched for direct connection', () => {
+            expect(resolveServer('192.168.1.10:5666')).toBe('192.168.1.10:5666');
+            expect(resolveServer('http://192.168.1.10:5666')).toBe('http://192.168.1.10:5666');
+            expect(resolveServer('nas.local:5666')).toBe('nas.local:5666');
+        });
+
+        it('builds the auth cookie: relay adds mode=relay, token is always included', () => {
+            expect(buildAuthCookie({ token: 'tk', relay: true })).toBe('music-token=tk; mode=relay');
+            expect(buildAuthCookie({ token: 'tk', relay: false })).toBe('music-token=tk');
+            expect(buildAuthCookie({ token: null, relay: true })).toBe('mode=relay');
+            expect(buildAuthCookie({ token: null, relay: false })).toBeNull();
+        });
     });
 
     it('rejects login with missing parameters before any network request', async () => {
@@ -114,7 +134,7 @@ describe('FnMusic desktop bridge', () => {
 
     describe('signing in against a server', () => {
         let server: Server | null = null;
-        const seen: Array<{ url: string; body: Record<string, unknown> }> = [];
+        const seen: Array<{ url: string; body: Record<string, unknown>; cookie?: string }> = [];
         afterEach(async () => {
             seen.length = 0;
             await new Promise<void>(done => (server ? server.close(() => done()) : done()));
@@ -126,7 +146,7 @@ describe('FnMusic desktop bridge', () => {
                 let raw = '';
                 request.on('data', chunk => { raw += chunk; });
                 request.on('end', () => {
-                    seen.push({ url: request.url ?? '', body: raw ? JSON.parse(raw) : {} });
+                    seen.push({ url: request.url ?? '', body: raw ? JSON.parse(raw) : {}, cookie: request.headers.cookie });
                     response.setHeader('Content-Type', 'application/json');
                     response.end(JSON.stringify(request.url?.endsWith('/password-login')
                         ? { code: 0, msg: '', data: { userToken: 'fixture-token', user: { guid: 'user-guid-1', name: 'Alice' } } }
@@ -144,6 +164,16 @@ describe('FnMusic desktop bridge', () => {
             expect(result.ok).toBe(true);
             expect(seen[0].url).toBe('/music/api/v1/user/password-login');
             expect(bridge.getStatus()).toMatchObject({ base: `http://${host}`, username: 'admin', userId: 'user-guid-1', nickname: 'Alice', authenticated: true });
+        });
+
+        it('sends the relay cookie on the login request but marks the LAN config as non-relay', async () => {
+            const host = await serve();
+            const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+            await bridge.login({ base: host, username: 'admin', password: 'secret' });
+            // 登录请求恒带 mode=relay（FN Connect 网关放行条件；局域网 NAS 忽略它，无害）。
+            expect(seen[0].cookie).toContain('mode=relay');
+            // 局域网地址不入库 relay 标志：后续 API/媒体请求不带中继 cookie。
+            expect(bridge.getStatus()).toMatchObject({ base: `http://${host}`, authenticated: true });
         });
 
         it('refuses an address that is not an http(s) server before any request', async () => {
