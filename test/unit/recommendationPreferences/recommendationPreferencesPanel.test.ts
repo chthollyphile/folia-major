@@ -406,4 +406,15 @@ describe('the recommendation preferences panel', () => {
         expect(read).toHaveBeenCalledTimes(2);
         expect(useRecommendationPreferencesStore.getState().owner).toBe(`${providerId}:u2`);
     });
+
+    // 开着时登出：偏好没有主人了，面板不留一块空白，直接收起。
+    it('closes when the account signs out while it is open', async () => {
+        register({ getRecommendationPreferences: async () => answer(), saveRecommendationPreferences: async () => ({ confirmed: true }) });
+        const onDone = await render();
+        expect(onDone).not.toHaveBeenCalled();
+        await act(async () => {
+            useOnlineProviderAccountStore.getState().updateAccount(providerId, { status: 'anonymous', user: null } as never);
+        });
+        expect(onDone).toHaveBeenCalledTimes(1);
+    });
 });
