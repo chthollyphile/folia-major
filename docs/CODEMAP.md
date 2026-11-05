@@ -42,6 +42,7 @@
 | 64+ | `src/components/modal/settings/kit/index.ts` |
 | 64+ | `src/components/visualizer/definition.ts` |
 | 64+ | `src/i18n/config.ts` |
+| 64+ | `src/library/core/collection/collection.contract.ts` |
 | 64+ | `src/library/core/suite/suite.contract.ts` |
 | 64+ | `src/mods/folium/contract.ts` |
 | 64+ | `src/services/db.ts` |
@@ -67,7 +68,6 @@
 | 32+ | `src/components/wall/layout.ts` |
 | 32+ | `src/components/wall/wallSlots.ts` |
 | 32+ | `src/library/core/account/account.contract.ts` |
-| 32+ | `src/library/core/collection/collection.contract.ts` |
 | 32+ | `src/library/core/directory/directory.contract.ts` |
 | 32+ | `src/library/core/home/homeModel.contract.ts` |
 | 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
