@@ -3996,6 +3996,37 @@ export default {
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
       }
     },
+    "v0_7_26": {
+      "intro": "Chào mừng bạn đến với 0.7.26, Fawkes Update—một bản cập nhật lớn. Phiên bản này thêm Sổ ghi nhanh, ngăn kéo trượt ra từ bên trái để giữ bài hát tạm thời; Nebbia có khung cảnh và lớp kính mới, gồm bể cá, sương đọng và tuyết; Apple Music (macOS) và fnOS Music là hai nền tảng mới; bài hát từ các nền tảng khác nhau có thể nằm chung một hàng đợi, và trang tìm kiếm giờ tìm được cả album lẫn danh sách phát; viên thanh tiến trình hiện các lệnh thường dùng, và các nút bên phải có thể đổi ngay tại chỗ; gợi ý cũng phong phú hơn, với gợi ý theo phong cách cho Hằng ngày của NetEase cùng radio Có thể bạn thích và tùy chọn âm nhạc cho QQ Music.",
+      "scratchpad": {
+        "title": "Sổ ghi nhanh",
+        "description": "Sổ ghi nhanh mới là ngăn kéo bài hát trượt ra từ bên trái; nhấn Ctrl+J để mở. Di chuột lên thẻ bài hát, kết quả tìm kiếm, trang Khám phá hoặc bức tường bìa Lattice để thêm bài vào Sổ ghi nhanh hoặc lưu vào danh sách phát. Bài hát được nhóm theo nguồn, và mỗi nhóm có thể mở thành một khung vẽ để sắp xếp, chọn vùng các thẻ rồi thêm cả nhóm vào danh sách phát—trên màn hình cảm ứng cũng kéo được. Ngăn kéo còn có trang Lịch sử và Hàng đợi: Lịch sử liệt kê những bài đã phát từ tệp cục bộ, Navidrome và mọi nền tảng, còn hàng đợi có thể mở thành khung vẽ gồm các thẻ. Việc hiện tab bên và chiều cao của nó chỉnh trong Cài đặt."
+      },
+      "nebbiaScenes": {
+        "title": "Nebbia: khung cảnh và lớp kính mới",
+        "description": "Nebbia giờ cho chọn riêng khung cảnh bên ngoài và lớp kính phía trước. Ngoài con phố đêm mưa, khung cảnh có thể là nền dùng chung hoặc bể cá “Biển mơ đom đóm”, và mưa ngoài phố có thể rơi xiên, rơi thẳng hoặc không rơi. Lớp kính thêm Sương đọng—những giọt nước nhỏ cùng đom đóm bay lượn—và Tuyết, nơi tuyết từ xa bay đến bám lên kính, sáng trong như băng khi ngược sáng, và những giọt nước đọng lâu sẽ dần đóng băng. Khi trang phát trong suốt, màu sương theo ngày đêm của chủ đề và các giọt nước khúc xạ khung cảnh phía sau. Bảng lệnh thêm Đổi cảnh ngoài cửa sổ và Đổi kính phía trước."
+      },
+      "newPlatforms": {
+        "title": "Apple Music và fnOS Music",
+        "description": "Thêm hai nền tảng mới. Apple Music dùng được trên macOS 14 trở lên với gói đăng ký Apple Music: đăng nhập qua trang chính thức của Apple, rồi tìm kiếm và phát trọn bài, duyệt danh sách phát và album trong thư viện cùng trang danh mục nghệ sĩ và album, nghe radio cá nhân và radio trực tiếp, và lấy lời bài hát. Trên Windows tạm chưa bật, trên Linux chưa hỗ trợ. fnOS Music kết nối tới thư viện nhạc trên thiết bị fnOS—nhập địa chỉ và tài khoản trong cửa sổ đăng nhập để duyệt và phát."
+      },
+      "crossPlatform": {
+        "title": "Hàng đợi đa nền tảng và trang tìm kiếm mới",
+        "description": "Bài hát từ các nền tảng khác nhau giờ có thể nằm chung một hàng đợi phát: đổi nền tảng không còn xóa trình phát và hàng đợi, và đăng xuất khỏi một nền tảng chỉ gỡ các bài của nền tảng đó. Trang tìm kiếm có bố cục phẳng mới và tìm được album, danh sách phát bên cạnh bài hát (NetEase, Kugou, QQ Music và YouTube Music; Qishui chỉ tìm danh sách phát). Bạn có thể tìm trên nền tảng hiện tại, các nền tảng đã đăng nhập, tệp cục bộ hoặc Navidrome, và đổi nền tảng không làm mất kết quả tìm kiếm."
+      },
+      "playerCapsule": {
+        "title": "Lệnh trên viên thanh tiến trình",
+        "description": "Để con trỏ dừng trên viên thanh tiến trình một lúc, một hàng lệnh thường dùng sẽ hiện lên phía trên: trộn bài, yêu thích, thêm vào danh sách phát, âm lượng, kiểu hoạt ảnh lời bài hát và phụ đề; trên điện thoại hàng này hiện khi chạm vào viên hoặc khi tạm dừng. Bảng lệnh giờ mọc ra từ chính viên này. Nhấp chuột phải hoặc nhấn giữ nút ở bên phải viên để đổi sang hành động khác, và các lệnh hay dùng sẽ được gợi ý đặt vào đó. Bảng Phụ đề mới chỉnh phụ đề phụ, độ mờ đục, tỷ lệ và làm mờ câu tiếp theo, còn chạm vào biểu tượng của bảng âm lượng sẽ tắt tiếng."
+      },
+      "recommendations": {
+        "title": "Thêm cách khám phá nhạc",
+        "description": "Hằng ngày của NetEase thêm gợi ý Theo phong cách—thêm 30 bài theo thể loại, tâm trạng và bối cảnh bạn chọn—có thể chuyển đổi ngay trên bức tường hằng ngày. QQ Music thêm radio Có thể bạn thích với chế độ Khám phá, Quen thuộc và các bối cảnh, tùy chọn âm nhạc của tài khoản, các ngày trước của Hằng ngày 30 và “Không quan tâm” cho bài hát; backend tự dựng cần qq-music-api 3.3.6 trở lên. Danh sách phát tài khoản trên NetEase, Kugou và QQ Music giờ có Bảng xếp hạng nghe, liệt kê những bài bạn nghe nhiều nhất trong một khoảng thời gian."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Machi hỗ trợ trang phát trong suốt, không còn khựng khi chuyển, và tự hạ chất lượng theo tần số quét để giữ mượt; khi không bật chuyển động thông minh, đèn neon và màn hình lớn nháy theo nhịp cố định, có thể tắt bằng Nhịp mô phỏng. Khung vẽ lời bài hát có cài đặt độ phân giải và khử răng cưa. Phím tắt toàn cục cho tự chọn phím bổ trợ và phím. Khi bật nhấp xuyên trên máy tính, bên cạnh ổ khóa có thêm bài trước, phát/tạm dừng và bài sau. Trang nghệ sĩ thêm Tất cả bài hát, và có thể mở nghệ sĩ của album từ trang album. Lời bài hát viết từ phải sang trái được xếp đúng chiều. Có thêm tùy chọn Tự tách từ bằng AI. Đã sửa lỗi yêu cầu NetEase bị ngắt trên một số mạng IPv6."
+      }
+    },
     "v0_7_25": {
       "intro": "Chào mừng bạn đến với 0.7.25, Rainy Update SP1—bản sửa lỗi nhanh cho 0.7.24, khắc phục vấn đề hiệu năng của kiểu lời bài hát Nebbia: chuyển sang kiểu này không còn bị khựng, và khi phát thì tốc độ khung hình cao hơn, tải nhẹ hơn. Chuyển nguồn chủ đề trên trang điều khiển về Mặc định giờ cũng thực sự khôi phục chủ đề mặc định. Phần còn lại vẫn là nội dung của Rainy Update: hai kiểu lời bài hát về đêm mưa—Nebbia, viết lời bài hát lên ô cửa kính xe buýt phủ hơi nước, và Machi, một thị trấn thu nhỏ 3D; phụ đề phía dưới xếp thành một đến ba dòng; và cửa sổ điều khiển từ xa trên bản máy tính có thể mở rộng để hiện hàng đợi phát.",
       "nebbia": {

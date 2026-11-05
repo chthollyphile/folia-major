@@ -3996,6 +3996,37 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_26": {
+      "intro": "Selamat datang di 0.7.26, Fawkes Update—sebuah pembaruan besar. Versi ini menghadirkan Buku catatan, laci yang bergeser dari kiri untuk menampung lagu dengan cepat; Nebbia mendapat pemandangan dan kaca baru, dengan akuarium, embun, dan salju; Apple Music (macOS) dan fnOS Music hadir sebagai platform baru; lagu dari platform berbeda bisa berada di satu antrean, dan pencarian kini juga menemukan album dan playlist; kapsul progres menampilkan perintah yang sering dipakai, dan tombol di kanannya bisa diganti di tempat; serta rekomendasi makin beragam, dengan rekomendasi gaya di NetEase Harian dan radio Mungkin Kamu Suka serta preferensi musik untuk QQ Music.",
+      "scratchpad": {
+        "title": "Buku catatan",
+        "description": "Buku catatan yang baru adalah laci lagu yang bergeser dari kiri; tekan Ctrl+J untuk membukanya. Arahkan kursor ke kartu lagu, hasil pencarian, halaman Jelajah, atau dinding sampul Lattice untuk menambahkan lagu ke Buku catatan atau menyimpannya ke playlist. Lagu dikelompokkan menurut sumbernya, dan satu kelompok bisa dibuka menjadi kanvas untuk menata dan memilih kartu sekaligus, lalu menambahkan seluruh kelompok ke playlist—menyeret juga bisa di layar sentuh. Laci ini juga punya halaman Riwayat dan Antrean: Riwayat mencantumkan lagu yang diputar dari file lokal, Navidrome, dan semua platform, dan antrean bisa dibuka menjadi kanvas kartu. Tampilan dan tinggi tab samping diatur di Pengaturan."
+      },
+      "nebbiaScenes": {
+        "title": "Nebbia: pemandangan dan kaca baru",
+        "description": "Nebbia kini memisahkan pilihan pemandangan di luar dan kaca di depan. Selain jalan malam hujan, pemandangan bisa diganti latar belakang bersama atau akuarium “Laut Mimpi Berpendar”, dan hujan di jalan bisa turun miring, tegak, atau tidak turun. Kaca menambah Embun—butiran air kecil dengan kunang-kunang yang beterbangan—dan Salju, tempat salju melayang ke kaca dari kejauhan, berpendar seperti es saat terkena cahaya dari belakang, dan butiran yang lama diam perlahan membeku. Saat halaman pemutar transparan, warna kabut mengikuti siang-malam tema dan butiran air membiaskan pemandangan di belakangnya. Palet perintah menambah Ganti pemandangan jendela dan Ganti kaca depan."
+      },
+      "newPlatforms": {
+        "title": "Apple Music dan fnOS Music",
+        "description": "Dua platform baru. Apple Music bisa dipakai di macOS 14 atau lebih baru dengan langganan Apple Music: masuk melalui halaman resmi Apple, lalu cari dan putar lagu utuh, jelajahi playlist dan album di pustaka serta halaman katalog artis dan album, dengarkan radio pribadi dan radio siaran langsung, dan dapatkan lirik. Di Windows belum diaktifkan dan di Linux belum didukung. fnOS Music terhubung ke pustaka musik di perangkat fnOS—masukkan alamat dan akun di jendela masuk untuk menjelajah dan memutar."
+      },
+      "crossPlatform": {
+        "title": "Antrean lintas platform dan pencarian baru",
+        "description": "Lagu dari platform berbeda kini bisa berada di satu antrean putar: berganti platform tidak lagi mengosongkan pemutar dan antrean, dan keluar dari sebuah platform hanya menghapus lagu dari platform itu. Halaman pencarian punya komposisi datar baru dan bisa menemukan album dan playlist selain lagu (NetEase, Kugou, QQ Music, dan YouTube Music; Qishui hanya playlist). Kamu bisa mencari di platform saat ini, platform yang sudah masuk, file lokal, atau Navidrome, dan berganti platform tidak menghapus hasil pencarian."
+      },
+      "playerCapsule": {
+        "title": "Perintah di kapsul progres",
+        "description": "Diamkan kursor di kapsul progres dan sederet perintah umum muncul di atasnya: acak, suka, tambah ke playlist, volume, gaya animasi lirik, dan pengaturan subtitle; di ponsel deret ini muncul saat kapsul diketuk atau pemutaran dijeda. Palet perintah kini tumbuh dari kapsul. Klik kanan atau tekan lama tombol di sisi kanan kapsul untuk menggantinya dengan aksi lain, dan perintah yang sering dipakai akan disarankan untuk tempat itu. Panel Subtitel yang baru mengatur subtitle sekunder, opasitas, skala, dan buram baris berikutnya, dan mengetuk ikon panel volume akan membisukan suara."
+      },
+      "recommendations": {
+        "title": "Lebih banyak cara menemukan lagu",
+        "description": "NetEase Harian menambah rekomendasi Per gaya—30 lagu lain yang dipilih menurut genre, suasana, dan situasi pilihanmu—yang bisa dialihkan di dinding harian. QQ Music menambah radio Mungkin Kamu Suka dengan mode Jelajah, Familiar, dan berbagai situasi, preferensi musik akun, hari-hari sebelumnya dari Harian 30, dan “Tidak tertarik” untuk lagu; backend yang di-host sendiri memerlukan qq-music-api 3.3.6 atau lebih baru. Playlist akun di NetEase, Kugou, dan QQ Music kini memuat Peringkat dengar, berisi lagu yang paling sering kamu putar dalam rentang waktu tertentu."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Machi mendukung halaman pemutar transparan, tidak lagi tersendat saat berganti, dan otomatis menurunkan kualitas menurut refresh rate agar tetap mulus; tanpa gerak cerdas, neon dan layar besarnya berkedip mengikuti ketukan tetap, yang bisa dimatikan lewat Ketukan simulasi. Kanvas lirik punya pengaturan resolusi dan antialiasing. Pintasan global kini bisa memakai tombol pengubah dan tombol pilihanmu sendiri. Saat klik tembus di desktop, tombol sebelumnya, putar/jeda, dan berikutnya ada di samping gembok. Halaman artis menambah Semua Lagu, dan artis album bisa dibuka dari halaman album. Lirik yang ditulis dari kanan ke kiri kini disusun ke arah yang benar. Ada opsi baru Segmentasi AI otomatis. Permintaan NetEase yang terputus di sebagian jaringan IPv6 sudah diperbaiki."
+      }
+    },
     "v0_7_25": {
       "intro": "Selamat datang di 0.7.25, Rainy Update SP1—perbaikan cepat untuk 0.7.24 yang memperbaiki masalah performa gaya lirik Nebbia: beralih ke gaya ini tidak lagi tersendat, dan saat diputar frame rate-nya lebih tinggi dengan beban lebih ringan. Mengembalikan sumber tema di halaman kontrol ke Default kini benar-benar memulihkan tema default. Selebihnya tetap isi Rainy Update: dua gaya lirik bertema malam hujan—Nebbia, yang menulis lirik di jendela bus yang berembun, dan Machi, sebuah kota miniatur 3D; subtitle bawah dalam satu sampai tiga baris; dan jendela remote di desktop yang bisa dibentangkan untuk menampilkan antrean putar.",
       "nebbia": {

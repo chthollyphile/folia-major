@@ -3996,6 +3996,37 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_26": {
+      "intro": "Welcome to 0.7.26, the Fawkes Update—a major update. This version adds the Scratchpad, a drawer that slides out from the left to hold songs on the fly; Nebbia gets new views and glass, with an aquarium, dew and snow; Apple Music (macOS) and fnOS Music join as new platforms; songs from different platforms can share one queue, and search now finds albums and playlists too; the progress capsule offers your common commands, and its right-hand buttons can be swapped in place; and recommendations grow, with style recommendations in NetEase Daily and the Guess You Like radio and music preferences for QQ Music.",
+      "scratchpad": {
+        "title": "Scratchpad",
+        "description": "The new Scratchpad is a song drawer that slides out from the left; press Ctrl+J to open it. Hover a song card, a search result, the Explore page or the Lattice cover wall to add a song to the Scratchpad or save it to a playlist. Saved songs are grouped by source, and a group can open into a canvas where you arrange and box-select cards and add the whole group to a playlist—dragging works on touch screens too. The drawer also has History and Queue pages: History lists what you played from local files, Navidrome and every platform, and the queue can open into a canvas of cards. The side tab’s visibility and height are in Settings."
+      },
+      "nebbiaScenes": {
+        "title": "Nebbia: new views and glass",
+        "description": "Nebbia now lets you choose the view outside and the glass in front separately. Besides the rainy street, the view can be the shared background or the aquarium “Dream Sea Glow”, and the street’s rain can fall slanted, straight, or not at all. The glass adds Dew—tiny droplets with drifting fireflies—and Snow, where snow drifts onto the glass from afar, glows like ice against the light, and droplets left alone slowly freeze. With a transparent player page, the fog follows the theme’s day and night and the droplets refract the view behind them. The command palette adds Switch window scene and Switch front glass."
+      },
+      "newPlatforms": {
+        "title": "Apple Music and fnOS Music",
+        "description": "Two new platforms. Apple Music works on macOS 14 or later with an Apple Music subscription: sign in through Apple’s own page, then search and play full songs, browse your library’s playlists and albums as well as artist and album catalog pages, listen to personal and live radio stations, and get lyrics. It isn’t enabled on Windows yet and isn’t supported on Linux. fnOS Music connects to the music library on an fnOS device—enter its address and your account in the sign-in window to browse and play."
+      },
+      "crossPlatform": {
+        "title": "Cross-platform queue and new search",
+        "description": "Songs from different platforms can now share one play queue: switching platforms no longer clears the player or the queue, and signing out of a platform only removes that platform’s songs. The search page has a new flat composition and finds albums and playlists as well as songs (NetEase, Kugou, QQ Music and YouTube Music; Qishui searches playlists only). You can search the current platform, any signed-in platform, local files or Navidrome, and switching platforms keeps your results."
+      },
+      "playerCapsule": {
+        "title": "Commands on the progress capsule",
+        "description": "Rest the pointer on the progress capsule and a row of common commands rises above it: shuffle, like, add to playlist, volume, lyric animation style and subtitles; on phones it appears when you tap the capsule or pause. The command palette now grows out of the capsule. Right-click or long-press a button on the capsule’s right to swap in another action, and commands you use often are suggested for those spots. A new Subtitles panel adjusts the secondary subtitle, opacity, scale and next-line blur, and tapping the volume panel’s icon mutes."
+      },
+      "recommendations": {
+        "title": "More ways to discover",
+        "description": "NetEase Daily adds recommendations By style—another 30 songs picked by the genres, moods and scenes you choose—switchable on the daily wall. QQ Music adds the Guess You Like radio with Explore, Familiar and scene modes, account music preferences, past days of Daily 30 and “Not interested” for songs; a self-hosted backend needs qq-music-api 3.3.6 or later. Account playlists on NetEase, Kugou and QQ Music now include Listening ranking, listing the songs you play most over a chosen period."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "Machi supports a transparent player page, no longer stalls when switching, and lowers its quality automatically by refresh rate to stay smooth; without smart motion its neon and big screen flash to a steady beat, which you can turn off with Simulated beat. The lyric canvas has resolution and antialiasing settings. Global shortcuts let you pick your own modifier keys and keys. With click-through on the desktop, previous, play/pause and next sit beside the lock. Artist pages add All Songs, and an album’s artist can be opened from its page. Right-to-left lyrics are laid out in the right direction. A new Automatic AI segmentation option is available. NetEase requests being cut off on some IPv6 networks are fixed."
+      }
+    },
     "v0_7_25": {
       "intro": "Welcome to 0.7.25, Rainy Update SP1—a hotfix for 0.7.24 that fixes the performance problems of the Nebbia lyric style: switching to it no longer stalls, and it plays at a higher frame rate with less load. Switching the theme source on the control page back to Default now really restores the default theme, too. Everything else is still the Rainy Update: two rainy-night lyric styles—Nebbia, which writes the lyrics on the fogged-up window of a bus, and Machi, a 3D miniature town; bottom subtitles in one to three rows; and a desktop remote control window that can expand to show the play queue.",
       "nebbia": {
