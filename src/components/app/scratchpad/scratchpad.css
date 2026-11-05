@@ -160,7 +160,8 @@
     white-space: nowrap;
     opacity: 0.42;
     cursor: pointer;
-    transition: opacity 0.15s ease;
+    /* 换页时字号渐变：只有页头这三个字在重新排版，开销很小；动效降级时只淡入淡出（文件末尾 is-calm）。 */
+    transition: opacity 0.15s ease, font-size 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .scratchpad-tab:hover { opacity: 0.75; }
@@ -913,3 +914,5 @@
 .scratchpad-root.is-calm .scratchpad-pill,
 .scratchpad-root.is-calm .scratchpad-menu-button,
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
+
+.scratchpad-root.is-calm .scratchpad-tab { transition: opacity 0.15s ease; }
