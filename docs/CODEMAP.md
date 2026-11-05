@@ -48,6 +48,7 @@
 | 64+ | `src/services/onlineMusic/omni.ts` |
 | 64+ | `src/stores/useAppViewStore.ts` |
 | 64+ | `src/stores/useAudioSettingsStore.ts` |
+| 64+ | `src/stores/useOnlineProviderAccountStore.ts` |
 | 64+ | `src/stores/useStatusMessageStore.ts` |
 | 64+ | `src/types/hifi.ts` |
 | 64+ | `src/utils/lyrics/renderHints.ts` |
@@ -77,7 +78,6 @@
 | 32+ | `src/services/onlineMusic/songMetadata.ts` |
 | 32+ | `src/stores/motionSignals.ts` |
 | 32+ | `src/stores/useCollectionNavigationStore.ts` |
-| 32+ | `src/stores/useOnlineProviderAccountStore.ts` |
 | 32+ | `src/stores/usePlayerChromeSettingsStore.ts` |
 | 32+ | `src/stores/useSettingsModalStore.ts` |
 | 32+ | `src/stores/useThemeSettingsStore.ts` |
