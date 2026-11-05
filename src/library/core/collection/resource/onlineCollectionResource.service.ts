@@ -65,6 +65,13 @@ export const UNVERSIONED_COLLECTION_REUSE_MS = 5 * 60 * 1000;
 
 const isPersonalFm = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'radio' && collection.id === 'personal_fm';
 const isDailyRecommendations = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'daily_recommendations';
+/**
+ * 没有版本、但短时间里不会变的集合：读完之后在 UNVERSIONED_COLLECTION_REUSE_MS 内可以原样复用。歌手的「全部歌曲」
+ * （artist_songs，#918）也算：从它打开一张专辑再返回，不该把几百上千首从头再读一遍。
+ */
+const isShortlyReusable = (collection: OnlineGridViewCollectionDescriptor) => (
+    collection.type === 'playlist' || collection.type === 'album' || collection.type === 'artist_songs'
+);
 
 export const createOnlineCollectionResource = (key: string, deps: OnlineCollectionResourceDeps): CollectionResource => {
     const state = createCollectionResourceState(key, 'online');
@@ -299,7 +306,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
                 && collectionRevision(next) === revision
                 && tombstones.size === 0
                 && (resolveOnlineTracksTargetTime(next) > 0
-                    || ((next.type === 'playlist' || next.type === 'album') && now() < reusableUntil))
+                    || (isShortlyReusable(next) && now() < reusableUntil))
                 && (status === 'ready' || sync.status === 'interrupted');
         },
         pause: () => {

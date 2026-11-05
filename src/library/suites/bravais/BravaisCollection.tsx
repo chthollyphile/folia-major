@@ -16,7 +16,8 @@ import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistr
 import { canResolveSongCatalogRef, resolveCollectionArtistCatalogId } from '../../../services/onlineMusic/catalogRefs';
 import { useNavigationPageKey } from '../../../components/app/playing-song-locator/useNavigationPageKey';
 import type { BravaisItem, BravaisLayer, BravaisLayerLocate, BravaisSeamModel } from './bravaisLayer';
-import type { BravaisSeamAlbumArtist } from './bravaisSeamModels';
+import type { BravaisSeamAlbumArtist, BravaisSeamArtistSongs } from './bravaisSeamModels';
+import { ARTIST_SONGS_COLLECTION_TYPE } from '../../core/artist/artistModel';
 import { collectQueuedKeys, findNowPlayingKey, projectCollectionTracks } from './bravaisProjection';
 import { describeBravaisTrack } from './describeBravaisTrack';
 import type { BravaisPlaylistScope } from './bravaisFormModel';
@@ -300,6 +301,12 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
             },
         };
     }, [collection, declaresOpenArtist, snapshot?.detail, t, totalTracks]);
+    // 歌手的「全部歌曲」（#918）：完整等级画成歌手海报的变体（大字是歌手名，热门三首换成歌曲总数）。
+    const seamArtistSongs = useMemo<BravaisSeamArtistSongs | undefined>(() => (
+        collection.type === ARTIST_SONGS_COLLECTION_TYPE
+            ? { name: collection.artists?.[0]?.name || displayTitle, coverUrl: collection.coverUrl, trackCount: totalTracks }
+            : undefined
+    ), [collection.artists, collection.coverUrl, collection.type, displayTitle, totalTracks]);
     const seam = useMemo<BravaisSeamModel>(() => ({
         title: displayTitle,
         crumb: displayTitle,
@@ -310,7 +317,8 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         filter: seamFilter,
         collection: seamCollection,
         album: seamAlbum,
-    }), [seamAlbum, allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
+        artistSongs: seamArtistSongs,
+    }), [seamAlbum, seamArtistSongs, allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
 
     const layer = useMemo<BravaisLayer>(() => ({
         key: sessionKey,

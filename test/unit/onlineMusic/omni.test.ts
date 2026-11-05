@@ -7,6 +7,7 @@ import type { UnifiedSong } from '@/types';
 import type { OmniRequestRunner, OmniSongDetail, OnlineMusicProvider, ProviderCapabilities, ProviderCollection } from '@/types/onlineMusic';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { installOmniResultHooks } from '@/services/hostExtensionHooks';
+import { ARTIST_SONGS_CAP } from '@/services/onlineMusic/alignedPages';
 
 // test/unit/onlineMusic/omni.test.ts
 
@@ -147,6 +148,79 @@ describe('omni routing', () => {
         expect(omni.canSubscribeCollection(entry)).toBe(false);
         expect(omni.canEditCollectionTracks({ ...entry, type: 'playlist' })).toBe(true);
         expect(omni.canEditCollectionTracks(entry)).toBe(false);
+    });
+
+    it("routes an artist's every song (#918) to its songs in aligned pages, and offers no change to it", async () => {
+        // A provider that pages by number: page = floor(offset / limit) + 1, the whole page whatever the offset.
+        const songIds = Array.from({ length: 1234 }, (_, index) => `s${index}`);
+        const getArtistSongs = vi.fn(async (_id: unknown, limit: number, offset: number) => {
+            const page = Math.floor(offset / limit) + 1;
+            const items = songIds.slice((page - 1) * limit, page * limit).map(mediaId => song(providerId, mediaId));
+            const nextOffset = offset + items.length;
+            return { items, total: songIds.length, hasMore: nextOffset < songIds.length, nextOffset };
+        });
+        const getPlaylistTracks = vi.fn(async () => ({ items: [], hasMore: false, nextOffset: 0 }));
+        const getSubscriptionStatus = vi.fn(async () => true);
+        const updatePlaylistTracks = vi.fn();
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistSubscription: true, playlistTrackMutations: true },
+            catalog: { getArtistSongs, getPlaylistTracks, getSubscriptionStatus },
+            mutations: { subscribePlaylist: vi.fn(), updatePlaylistTracks } as unknown as OnlineMusicProvider['mutations'],
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs', isOwned: false };
+
+        // The collection resource reads 150 first, then 1000 at a time from where the first page ended.
+        const first = await omni.getCollectionTracks(entry, { limit: 150, offset: 0 });
+        expect(first).toMatchObject({ total: 1234, hasMore: true, nextOffset: 150 });
+        const second = await omni.getCollectionTracks(entry, { limit: 1000, offset: first.nextOffset });
+        expect(second).toMatchObject({ total: 1234, hasMore: true, nextOffset: 1150 });
+        const third = await omni.getCollectionTracks(entry, { limit: 1000, offset: second.nextOffset });
+        expect(third).toMatchObject({ hasMore: false, nextOffset: 1234 });
+        expect([...first.items, ...second.items, ...third.items].map(item => item.id)).toEqual(songIds);
+        expect(getArtistSongs.mock.calls.every(([id, limit, offset]) => id === 'artist-7' && limit === 50 && offset % 50 === 0)).toBe(true);
+        expect(getPlaylistTracks).not.toHaveBeenCalled();
+
+        // A platform that subscribes and edits playlists does neither to it; its id is the artist's, not a playlist's.
+        expect(omni.canSubscribeCollection({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canSubscribeCollection(entry)).toBe(false);
+        expect(omni.canEditCollectionTracks({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canEditCollectionTracks(entry)).toBe(false);
+        await expect(omni.getSubscriptionStatus(entry)).resolves.toBe(false);
+        expect(getSubscriptionStatus).not.toHaveBeenCalled();
+        await expect(omni.updateCollectionTracks(entry, 'del', [song(providerId, 's1')])).rejects.toMatchObject({ code: 'unsupported' });
+        expect(updatePlaylistTracks).not.toHaveBeenCalled();
+    });
+
+    it('reads an artist of tens of thousands of songs no further than the cap', async () => {
+        const getArtistSongs = vi.fn(async (_id: unknown, limit: number, offset: number) => ({
+            items: Array.from({ length: limit }, (_, index) => song(providerId, `s${offset + index}`)),
+            total: 30000,
+            hasMore: true,
+            nextOffset: offset + limit,
+        }));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            catalog: { getArtistSongs },
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs' };
+        const first = await omni.getCollectionTracks(entry, { limit: 150, offset: 0 });
+        expect(first).toMatchObject({ total: ARTIST_SONGS_CAP, hasMore: true, nextOffset: 150 });
+        const last = await omni.getCollectionTracks(entry, { limit: 1000, offset: ARTIST_SONGS_CAP - 500 });
+        expect(last.items).toHaveLength(500);
+        expect(last).toMatchObject({ total: ARTIST_SONGS_CAP, hasMore: false, nextOffset: ARTIST_SONGS_CAP });
+        getArtistSongs.mockClear();
+        await expect(omni.getCollectionTracks(entry, { limit: 1000, offset: ARTIST_SONGS_CAP })).resolves.toMatchObject({ items: [], hasMore: false });
+        expect(getArtistSongs).not.toHaveBeenCalled();
+    });
+
+    it('reads nothing for an artist whose provider has no song list', async () => {
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            catalog: {},
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs' };
+        await expect(omni.getCollectionTracks(entry, { limit: 150, offset: 0 })).resolves.toEqual({ items: [], hasMore: false, nextOffset: 0 });
     });
 
     it('rejects a late active-provider result after invalidation', async () => {

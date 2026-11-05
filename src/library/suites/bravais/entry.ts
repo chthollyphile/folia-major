@@ -120,9 +120,10 @@ const HOME_ACTIONS: readonly LibraryHomeActionId[] = [
     'explore-save-to-playlist',
 ];
 
-// 歌手页（B8，入口见设计稿 §10.4，与 grid 的歌手页声明同一组 10 个）：热门歌曲磁贴 → 聚焦卡（播放 / 入队，其他歌手与
+// 歌手页（B8，入口见设计稿 §10.4，与 grid 的歌手页声明同一组，B8 时 10 个、#918 起 11 个）：热门歌曲磁贴 → 聚焦卡（播放 / 入队，其他歌手与
 // 专辑的链接）；单击专辑磁贴进入专辑；缝里的播放热门 / 加入热门歌曲、过滤位（只筛专辑名）、错误态的「重试」与专辑分页中断时
-// 元数据行的「续页」、「⋯ 更多」里的重新拉取与本地歌手的实体编辑（宿主对话框）。
+// 元数据行的「续页」、「⋯ 更多」里的重新拉取与本地歌手的实体编辑（宿主对话框）；#918 起多一个 open-all-songs：
+// 在线歌手倾斜信息条（海报）上的「全部歌曲」按钮（进那一层集合，命令面板里也有）。
 const ARTIST_ACTIONS: readonly LibraryArtistActionId[] = [
     'play',
     'enqueue',
@@ -134,6 +135,7 @@ const ARTIST_ACTIONS: readonly LibraryArtistActionId[] = [
     'edit-entity',
     'open-album',
     'open-artist',
+    'open-all-songs',
 ];
 
 // 外观动作（suite-chrome，只出现在命令面板里）：缝的三级开口、在这里裂开缝、定位正在播放。

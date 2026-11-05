@@ -329,6 +329,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `open-artist` | 打开歌曲上的其他歌手 | 推荐 | `onOpenArtist` |
 | `reload` / `resume-sync` | 加载失败时重试、专辑分页中断时续页 | 推荐 | `resource.reload()` / `resource.retryAlbums()` |
 | `edit-entity` | 编辑本地歌手实体 | 可选 | `onEditEntity`（对话框由宿主提供） |
+| `open-all-songs` | 打开在线歌手的「全部歌曲」（热门之外还有歌时；#918） | 可选 | `useArtistView` 的 `actions.openAllSongs()`：用 `artistSongsCollection` 拼出一层在线集合（type `artist_songs`）交给宿主的 `onOpenCollection`，由集合页渲染 |
 
 歌手资源的状态：`idle` / `loading` 显示加载中；`ready` 但没有 `detail` 是空态；`error` 显示加载失败。
 

@@ -920,6 +920,7 @@ export default {
       "artist-reload": { "title": "重新加载歌手", "description": "从来源重新加载这个歌手页" },
       "artist-retry-albums": { "title": "继续加载专辑", "description": "重试失败的那一页专辑，并继续加载其余的" },
       "artist-edit-entity": { "title": "编辑歌手信息", "description": "打开本地曲库里这位歌手的编辑窗口" },
+      "artist-open-all-songs": { "title": "打开全部歌曲", "description": "在一页里列出这位歌手的全部歌曲，包括不在专辑里的单曲" },
       "settings-interaction": { "title": "交互设置", "description": "打开键盘、快捷键与网格交互设置" },
       "settings-global-shortcuts": { "title": "全局快捷键", "description": "直接跳到系统级的快捷键：播放控制与模组命令" },
       "settings-custom-shortcut": { "title": "自定义快捷键", "description": "直接跳到自定义键盘快捷键的绑定处" },
@@ -4873,6 +4874,8 @@ export default {
     "stageLocalInputDescription": "Stage 现在是本地单项输入模式。外部可以推送一份完整歌词对象或一段媒体，播放与展示仍由 Folia 自己控制。",
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "首",
+    "allSongsCountUnit_other": "首",
     "playTopSongs": "播放热门",
     "songCount_one": "{{count}} 首歌",
     "songCount_other": "{{count}} 首歌",
@@ -4903,6 +4906,8 @@ export default {
     "topSongsAddedToQueue_one": "已加入 {{count}} 首热门歌曲到播放队列",
     "topSongsAddedToQueue_other": "已加入 {{count}} 首热门歌曲到播放队列",
     "noTopSongsToQueue": "没有可加入队列的热门歌曲",
+    "allSongs": "全部歌曲",
+    "allSongsCollectionName": "{{artistName}} 的全部歌曲",
   },
   "obs": {
     "connecting": "正在连接 Folia",

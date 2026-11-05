@@ -22,6 +22,7 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         getAlbum: vi.fn(),
         getArtistDetail: vi.fn(),
         getArtistAlbums: vi.fn(),
+        getArtistSongs: vi.fn(),
         getPersonalizedPlaylists: vi.fn(),
         getLikedSongs: vi.fn(),
         getUserPlaylists: vi.fn(),
@@ -275,6 +276,18 @@ describe('neteaseProvider', () => {
             publishedAt: 1704067200000,
             publisher: 'Publisher',
         });
+    });
+
+    it("pages an artist's songs with the whole count NetEase answers (#918)", async () => {
+        vi.mocked(neteaseApi.getArtistSongs).mockResolvedValue({ songs: [{ id: 1, name: 'One', ar: [], al: { id: 0, name: '' } }], more: true, total: 418 } as any);
+        await expect(neteaseProvider.catalog!.getArtistSongs!(9, 50, 50)).resolves.toMatchObject({ hasMore: true, nextOffset: 51, total: 418 });
+        expect(neteaseApi.getArtistSongs).toHaveBeenCalledWith(9, 50, 50);
+
+        // 没给总数（或给的不是正数）时不编一个出来：补页照 more 走。
+        vi.mocked(neteaseApi.getArtistSongs).mockResolvedValue({ songs: [], more: false, total: '0' } as any);
+        const page = await neteaseProvider.catalog!.getArtistSongs!(9, 50, 0);
+        expect(page.total).toBeUndefined();
+        expect(page.hasMore).toBe(false);
     });
 
     it('reads an album as an album whatever release type NetEase gives it', async () => {

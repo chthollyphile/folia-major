@@ -347,6 +347,43 @@
     color: rgba(255, 255, 255, 0.8);
 }
 
+/* 「全部歌曲」变体（#918）：热门三首的位置换成一个超大的歌曲总数，与名字同一套渐变填充与立体残影，单位压小跟在后面。 */
+.bravais-poster-count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35em;
+    font-size: min(120px, 13cqh);
+    font-weight: 900;
+    line-height: 0.9;
+}
+
+.bravais-poster-count-number {
+    position: relative;
+    letter-spacing: -0.02em;
+    color: transparent;
+    background: linear-gradient(180deg, #ffffff 0%, #ffffff 38%, #c9c9cc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    font-variant-numeric: tabular-nums;
+}
+
+.bravais-poster-count-number::before {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    color: var(--bravais-poster-extrude-1, #b0b0b3);
+    text-shadow: var(--bravais-poster-extrude);
+}
+
+.bravais-poster-count-unit {
+    font-size: 0.22em;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-shadow: 0.06em 0.06em 0 var(--bravais-poster-extrude-2, #7d7d80), 0.12em 0.12em 0 var(--bravais-poster-extrude-4, #4b4b4e);
+    transform: rotate(-3deg);
+}
+
 .bravais-poster .bravais-poster-songs {
     display: flex;
     flex-direction: column;

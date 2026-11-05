@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamAlbum, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamAlbum, BravaisSeamArtist, BravaisSeamArtistSongs, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 import type { BravaisLayerShape } from './bravaisWallShape';
@@ -83,6 +83,8 @@ export type BravaisSeamModel = {
     /** 播放 / 加入当前范围；没声明或不可用时不给。 */
     onPlayScope?: () => void;
     onEnqueueScope?: () => void;
+    /** 歌手页：打开这位歌手的「全部歌曲」（#918，倾斜信息条上的按钮）；没声明或不可用时不给。 */
+    onOpenAllSongs?: () => void;
     /**
      * 这面墙的「当前页过滤」输入位（设计稿 §7.6）：首页各页签、集合、歌手页、目录面板都有；suite 没声明过滤时不给。
      * 完整信息条、面板与首页窄缝把它画成缝自己的输入框（BravaisSeamFilterField）。
@@ -94,6 +96,8 @@ export type BravaisSeamModel = {
     home?: BravaisHomeSeam;
     /** B8 歌手页：头像、别名、简介与统计（ArtistGridView 的信息）。 */
     artist?: BravaisSeamArtist;
+    /** 歌手的「全部歌曲」那一层：画成歌手海报的变体（见 bravaisSeamModels 的 BravaisSeamArtistSongs）。 */
+    artistSongs?: BravaisSeamArtistSongs;
     /** 专辑页：封面、歌手、年份与元信息（左边钉住的专辑海报，见 bravaisAlbumModel）。只有专辑类型的集合有。 */
     album?: BravaisSeamAlbum;
     /** B8：播放 / 加入当前范围的按钮文案（歌手页是「播放热门」「加入热门歌曲」）；不给就是「播放全部」「加入队列」。 */

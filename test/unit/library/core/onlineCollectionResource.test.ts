@@ -126,7 +126,8 @@ describe('online collection resource: unversioned memory reuse', () => {
         }
     });
 
-    it.each(['playlist', 'album'] as const)('reuses a loaded %s only until its original deadline', async type => {
+    // artist_songs: an artist's every song (#918), back from an album opened from it.
+    it.each(['playlist', 'album', 'artist_songs'] as const)('reuses a loaded %s only until its original deadline', async type => {
         let time = 1000;
         const descriptor = playlist({ type, tracksUpdatedAt: undefined, trackCount: 10 });
         const h = harness(songs(10), { now: () => time });

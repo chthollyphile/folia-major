@@ -101,7 +101,7 @@ const grid: LibrarySuiteManifest = {
             component: GridArtistSurface,
             // 歌手页：播放 / 入队单曲（卡片）与热门歌曲（「加入热门歌曲」按钮；播放全部只经命令面板）、筛选专辑、
             // 错误态与专辑分页失败的「重试」（重新加载 / 续页）、编辑本地歌手实体（信息面板），专辑卡与歌曲卡上的
-            // 专辑 / 歌手链接。
+            // 专辑 / 歌手链接，以及在线歌手左上角的「全部歌曲」（#918，压进一层 artist_songs 集合，由上面的集合页渲染）。
             actions: [
                 'play',
                 'enqueue',
@@ -113,6 +113,7 @@ const grid: LibrarySuiteManifest = {
                 'edit-entity',
                 'open-album',
                 'open-artist',
+                'open-all-songs',
             ],
         },
         account: { component: GridAccountSurface, actions: GRID_ACCOUNT_ACTIONS },

@@ -80,6 +80,7 @@ import type { AccountMoment } from './account/readMoments';
 import { createAccountReads } from './account/accountRead';
 import { withoutCredentials } from './rawResponse';
 import { resolveSongCatalogRefSet } from './catalogRefs';
+import { ARTIST_SONGS_CAP, readAlignedPages } from './alignedPages';
 import type { AccountReadOutcome, AccountReadReason } from './account/accountRead';
 
 // src/services/onlineMusic/omni.ts
@@ -199,6 +200,11 @@ const runRequest = async <T>(provider: OnlineMusicProvider, operation: OnlineFai
 };
 
 const emptyPage = <T>(offset: number): OmniPage<T> => ({ items: [], hasMore: false, nextOffset: offset });
+
+// Lists the app makes from a provider's reads, that are nobody's playlist: the listening ranking
+// (the platform's count of plays) and an artist's every song (`artist_songs`, #918). Nobody edits
+// or saves them; their id is not a playlist's.
+const isReadOnlyListType = (type: string): boolean => type === 'listening_rank' || type === 'artist_songs';
 
 // A search with the caller's context (`ProviderSearchContext`) where it gave one, handed on as it
 // is; a search without one reaches the provider as the host's own searches always have.
@@ -788,8 +794,8 @@ export const omni = {
 
     canEditCollectionTracks(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
-        // The listening ranking is the platform's count of plays: nobody edits it.
-        if (collection.type === 'listening_rank' || !providerSupports(provider, 'mutations')) return false;
+        // The listening ranking is the platform's count of plays: nobody edits it; nor an artist's songs.
+        if (isReadOnlyListType(collection.type) || !providerSupports(provider, 'mutations')) return false;
         if (collection.isLiked === true) {
             return providerSupports(provider, 'likes') && Boolean(provider?.mutations?.likeSong);
         }
@@ -816,7 +822,7 @@ export const omni = {
     canSubscribeCollection(collection: OmniCollection): boolean {
         const provider = getOnlineMusicProvider(collection.providerId);
         if (
-            collection.type === 'listening_rank'
+            isReadOnlyListType(collection.type)
             || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistSubscription')
             || provider?.mutations?.canSubscribe?.(collection) === false
@@ -1211,6 +1217,22 @@ export const omni = {
                 if (!collection.listeningRank) return emptyPage(page.offset);
                 return await (provider.catalog?.getListeningRankTracks?.(collection.listeningRank, page.limit, page.offset, collection) ?? emptyPage(page.offset));
             }
+            if (collection.type === 'artist_songs') {
+                // The artist page's "all songs": the id is the artist's. Read in small pages on whole
+                // multiples of their size, so a provider that pages by number reads each stretch once.
+                // Stops at ARTIST_SONGS_CAP songs: an artist of tens of thousands is read that far and no further.
+                const getArtistSongs = provider.catalog?.getArtistSongs?.bind(provider.catalog);
+                if (!getArtistSongs || page.offset >= ARTIST_SONGS_CAP) return emptyPage(page.offset);
+                const read = await readAlignedPages((limit, offset) => getArtistSongs(collection.id, limit, offset), {
+                    limit: Math.min(page.limit, ARTIST_SONGS_CAP - page.offset),
+                    offset: page.offset,
+                });
+                return {
+                    ...read,
+                    ...(read.total !== undefined ? { total: Math.min(read.total, ARTIST_SONGS_CAP) } : {}),
+                    hasMore: read.hasMore && read.nextOffset < ARTIST_SONGS_CAP,
+                };
+            }
             return await (provider.catalog?.getPlaylistTracks?.(collection.id, page.limit, page.offset, collection) ?? emptyPage(page.offset));
         });
     },
@@ -1239,6 +1261,7 @@ export const omni = {
     },
 
     async getSubscriptionStatus(collection: OmniCollection): Promise<boolean> {
+        if (isReadOnlyListType(collection.type)) return false;
         const type = collection.type === 'album' ? 'album' : 'playlist';
         return providerForCollection(collection).catalog?.getSubscriptionStatus?.(type, collection.id, collection) ?? false;
     },
@@ -1260,7 +1283,8 @@ export const omni = {
         const provider = providerForCollection(collection);
         const mutations = provider.mutations;
         if (
-            !providerSupports(provider, 'mutations')
+            isReadOnlyListType(collection.type)
+            || !providerSupports(provider, 'mutations')
             || !providerSupports(provider, 'playlistTrackMutations')
             || !mutations?.updatePlaylistTracks
         ) {

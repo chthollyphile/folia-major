@@ -920,6 +920,7 @@ export default {
       "artist-reload": { "title": "Tải lại nghệ sĩ", "description": "Tải lại trang nghệ sĩ từ nguồn" },
       "artist-retry-albums": { "title": "Tiếp tục tải album", "description": "Thử lại trang album bị lỗi và tiếp tục tải phần còn lại" },
       "artist-edit-entity": { "title": "Sửa thông tin nghệ sĩ", "description": "Mở trình chỉnh sửa thư viện nội bộ cho nghệ sĩ này" },
+      "artist-open-all-songs": { "title": "Mở tất cả bài hát", "description": "Liệt kê mọi bài hát của nghệ sĩ này trên một trang, kể cả đĩa đơn không thuộc album nào" },
       "settings-interaction": { "title": "Cài đặt tương tác", "description": "Mở cài đặt bàn phím, phím tắt và tương tác lưới" },
       "settings-global-shortcuts": { "title": "Phím tắt toàn cục", "description": "Đi đến phần gán phím tắt điều khiển phát nhạc toàn hệ thống" },
       "settings-custom-shortcut": { "title": "Phím tắt tùy chỉnh", "description": "Đi đến phần gán phím tắt bàn phím tùy chỉnh" },
@@ -4873,6 +4874,8 @@ export default {
     "stageLocalInputDescription": "Stage đang ở chế độ nhập nội bộ đơn luồng. Thiết bị ngoài có thể đẩy lời hoặc phương tiện, nhưng Folia sẽ tự kiểm soát phát và hiển thị.",
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "bài hát",
+    "allSongsCountUnit_other": "bài hát",
     "playTopSongs": "Phát bài nổi bật",
     "songCount_one": "{{count}} bài hát",
     "songCount_other": "{{count}} bài hát",
@@ -4903,6 +4906,8 @@ export default {
     "topSongsAddedToQueue_one": "Đã thêm {{count}} bài nổi bật vào hàng đợi phát",
     "topSongsAddedToQueue_other": "Đã thêm {{count}} bài nổi bật vào hàng đợi phát",
     "noTopSongsToQueue": "Không có bài hát nổi bật để thêm vào hàng đợi",
+    "allSongs": "Tất cả bài hát",
+    "allSongsCollectionName": "Tất cả bài hát của {{artistName}}",
   },
   "obs": {
     "connecting": "Đang kết nối Folia",

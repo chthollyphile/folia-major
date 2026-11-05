@@ -920,6 +920,7 @@ export default {
       "artist-reload": { "title": "Reload artist", "description": "Load the artist page again from the source" },
       "artist-retry-albums": { "title": "Resume loading albums", "description": "Retry the album page that failed and keep loading the rest" },
       "artist-edit-entity": { "title": "Edit artist info", "description": "Open the local library editor for this artist" },
+      "artist-open-all-songs": { "title": "Open all songs", "description": "List every song by this artist on one page, including singles outside any album" },
       "settings-interaction": { "title": "Interaction settings", "description": "Open keyboard, shortcut and grid interaction settings" },
       "settings-global-shortcuts": { "title": "Global shortcuts", "description": "Jump to the system-wide shortcuts for playback and mod commands" },
       "settings-custom-shortcut": { "title": "Custom shortcuts", "description": "Jump to the custom keyboard shortcut bindings" },
@@ -4873,6 +4874,8 @@ export default {
     "stageLocalInputDescription": "Stage is in local single-input mode. External devices can push lyrics or media, but playback and display are controlled by Folia itself.",
   },
   "libraryBravaisArtist": {
+    "allSongsCountUnit_one": "song",
+    "allSongsCountUnit_other": "songs",
     "playTopSongs": "Play top songs",
     "songCount_one": "{{count}} song",
     "songCount_other": "{{count}} songs",
@@ -4903,6 +4906,8 @@ export default {
     "topSongsAddedToQueue_one": "Added {{count}} top song to the play queue",
     "topSongsAddedToQueue_other": "Added {{count}} top songs to the play queue",
     "noTopSongsToQueue": "No top songs available to queue",
+    "allSongs": "All songs",
+    "allSongsCollectionName": "All songs by {{artistName}}",
   },
   "obs": {
     "connecting": "Connecting to Folia",
