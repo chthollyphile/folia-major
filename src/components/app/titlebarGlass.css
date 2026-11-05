@@ -1,0 +1,38 @@
+/* Local titlebar glass: blur grows toward the controls without covering the window's full width. */
+.titlebar-glass {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 76px;
+    max-width: 100%;
+    pointer-events: none;
+    --titlebar-glass-tint: 12 14 18;
+    --titlebar-glass-opacity: 0.2;
+}
+
+.titlebar-glass.is-light { --titlebar-glass-tint: 255 255 255; --titlebar-glass-opacity: 0.34; }
+.titlebar-glass.is-strong { --titlebar-glass-opacity: 0.42; }
+.titlebar-glass.is-strong.is-light { --titlebar-glass-opacity: 0.62; }
+
+.titlebar-glass-layer {
+    position: absolute;
+    inset: 0;
+    background: rgb(var(--titlebar-glass-tint) / var(--titlebar-glass-opacity));
+    -webkit-mask-image: var(--titlebar-glass-mask);
+    mask-image: var(--titlebar-glass-mask);
+}
+
+.titlebar-glass-layer.is-soft {
+    backdrop-filter: blur(3px);
+    --titlebar-glass-mask: radial-gradient(ellipse at 100% 0%, #000 22%, transparent 74%);
+}
+
+.titlebar-glass-layer.is-medium {
+    backdrop-filter: blur(9px);
+    --titlebar-glass-mask: radial-gradient(ellipse at 100% 0%, #000 14%, transparent 62%);
+}
+
+.titlebar-glass-layer.is-core {
+    backdrop-filter: blur(18px) saturate(1.2);
+    --titlebar-glass-mask: radial-gradient(ellipse at 100% 0%, #000 8%, transparent 52%);
+}
