@@ -37,6 +37,7 @@ export type HomeModelDeps = {
     navigateToLattice: NonNullable<HomeSurfaceProps['onOpenLattice']>;
     /** fb3：暂停 / 继续（应用的 togglePlay；useHomeModel 给它稳定身份）。 */
     togglePlayback: NonNullable<HomeSurfaceProps['onTogglePlayback']>;
+    resumePlayback?: HomeSurfaceProps['onResumePlayback'];
     /** fb3：按「播放后进入的视图」进入播放视图（播放胶囊的同一个导航）。 */
     enterPlaybackView: NonNullable<HomeSurfaceProps['onEnterPlaybackView']>;
     refreshOnlineProviderPlaylists: () => Promise<unknown>;
@@ -79,6 +80,7 @@ export const buildHomeModel = ({
     navigateToPlayer,
     navigateToLattice,
     togglePlayback,
+    resumePlayback,
     enterPlaybackView,
     refreshOnlineProviderPlaylists,
     user,
@@ -130,6 +132,7 @@ export const buildHomeModel = ({
             onBackToPlayer: navigateToPlayer,
             onOpenLattice: navigateToLattice,
             onTogglePlayback: togglePlayback,
+            onResumePlayback: resumePlayback,
             onEnterPlaybackView: enterPlaybackView,
             onRefreshUser: () => refreshOnlineProviderPlaylists(),
             // An anonymous selected provider must not inherit a different platform's account.

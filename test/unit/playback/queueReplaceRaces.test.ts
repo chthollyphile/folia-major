@@ -24,6 +24,7 @@ const env = vi.hoisted(() => {
     const state = {
         /** Song ids whose audio address is held until the promise resolves. */
         audioGate: new Map<string, Promise<unknown>>(),
+        audioCalls: [] as string[],
         /** What the audio source answers for a song id; a plain http address when nothing is set. */
         audioResultFor: new Map<string, unknown>(),
         /** Song ids their platform marks unavailable. */
@@ -128,6 +129,7 @@ vi.mock('@/services/onlinePlayback', () => ({
     // A copy, as a song that took its replay gain is: the landing has a new object to put in the queue.
     applyOnlineAudioSourceMetadata: (song: object) => ({ ...song }),
     loadOnlineSongAudioSource: async (song: { id: string }) => {
+        env.self.audioCalls.push(String(song.id));
         await env.self.audioGate.get(String(song.id));
         return env.self.audioResultFor.get(String(song.id)) ?? { kind: 'ok', audioSrc: `https://audio.test/${song.id}` };
     },
@@ -148,7 +150,7 @@ const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore')
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const { notePersonalFmEnded } = await import('@/components/app/playback/personalFmEndings');
-const { dropPlaysOfProvider } = await import('@/components/app/playback/currentSong');
+const { dropPlaysOfProvider, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs, leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
 const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
 const { getPlaybackSongKey } = await import('@/utils/appPlaybackGuards');
@@ -158,6 +160,14 @@ const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
 const { registerPersonalFmLanding } = await import('@/components/app/playback/start/personalFmLanding');
+const { usePlaybackTransportController } = await import('@/components/app/playback/bridges/usePlaybackTransportController');
+const { buildHomeModel } = await import('@/components/app/home/buildHomeModel');
+const { createLibraryHomePort } = await import('@/library/app/createLibraryHomePort');
+const { createLibraryHomeActions } = await import('@/library/core/home/libraryHomeActions.service');
+const { currentTime } = await import('@/stores/motionSignals');
+const { DEFAULT_PERSONAL_FM_CATALOG } = await import('@/services/onlineMusic/fmModes');
+const { usePlayingSongLocatorStore } = await import('@/stores/usePlayingSongLocatorStore');
+const { createOnlineGridViewCollection } = await import('@/components/app/home/gridViewCollectionAdapters');
 
 const online = (id: string): SongResult => ({
     id, name: id.toUpperCase(), artists: [], album: { id: '', name: '' }, durationMs: 1000,
@@ -207,6 +217,7 @@ beforeEach(() => {
     resetPlaybackStore();
     usePersonalFmModeStore.setState({ stations: {} });
     env.self.audioGate.clear();
+    env.self.audioCalls.length = 0;
     env.self.audioResultFor.clear();
     env.self.unavailable.clear();
     env.self.replacementFor.clear();
@@ -259,8 +270,129 @@ function mount() {
         }
     };
     const queue = render();
-    return { queue, render, persistLastPlaybackCache };
+    return { queue, render, refs, mainPlaybackSnapshotRef: params.mainPlaybackSnapshotRef, persistLastPlaybackCache };
 }
+
+describe('continuing the accepted stream through the real home surface and playback controllers', () => {
+    const selection = { mode: 'SCENE_RCMD' as const, scene: '33', station: 'radio' };
+    const prepare = (state: PlayerState) => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        playerWith([f1, f2], f1, true);
+        usePersonalFmModeStore.getState().setStationCatalog('bodian', 'radio', {
+            ...DEFAULT_PERSONAL_FM_CATALOG, scenes: [{ id: '33', category: 'activity', labelKey: '', labelFallback: 'Driving', keywords: [] }],
+        });
+        usePersonalFmModeStore.getState().startStation('bodian', 'radio', selection);
+        noteAcceptedFmPlayback(f1, store().playQueue, true);
+        usePlaybackStore.setState({ playerState: state, audioSrc: 'https://audio.test/f1', playbackRoute: 'web' });
+        currentTime.set(42);
+        const locator = { collection: createOnlineGridViewCollection({ id: 'station-radio', name: 'For you', type: 'collection' }, 'bodian'), songKeys: new Set(keys(store().playQueue)) };
+        usePlayingSongLocatorStore.getState().setSource(locator);
+        const mounted = mount();
+        const audio = {
+            currentTime: 42, currentSrc: 'https://audio.test/f1', paused: state !== PlayerState.PLAYING, ended: false,
+            play: vi.fn(async () => { audio.paused = false; }), pause: vi.fn(),
+        };
+        mounted.refs.audioRef.current = audio as unknown as HTMLAudioElement;
+        const recover = vi.fn(async () => ({ recovered: false }));
+        const transport = usePlaybackTransportController({
+            stageActiveEntryKind: null, isNowPlayingStageActive: false,
+            audioRef: mounted.refs.audioRef, audioContextRef: { current: null },
+            stageLyricsClockRef: { current: { startTimeSec: 0, endTimeSec: 180, baseTimeSec: 0, startedAtMs: null } },
+            setupAudioAnalyzer: vi.fn(), syncOutputGain: vi.fn(), getTargetPlaybackVolume: () => 1,
+            shouldRefreshCurrentOnlineAudioSource: () => false, recoverOnlinePlaybackSource: recover,
+            getSyntheticStageLyricsTime: () => 0, syncStageLyricsClock: vi.fn(),
+        });
+        const enter = vi.fn();
+        // The actual surface forwards onPlaySong to queue.playSong: a regression would reset both clocks and fetch again.
+        const surface = buildHomeModel({
+            playSong: mounted.queue.playSong, resumePlayback: transport.resumePlayback, enterPlaybackView: enter,
+            localSongs: [], currentSong: f1, activePlaybackContext: 'main',
+        } as unknown as Parameters<typeof buildHomeModel>[0]).surfaceProps;
+        const actions = createLibraryHomeActions(createLibraryHomePort(() => surface));
+        const click = () => actions.openOnlineCard({ id: 'station-radio', name: 'For you', type: 'collection', raw: {
+            personalFm: selection, songPreview: { firstSong: f2, currentSong: f1 },
+        } }, 'bodian', vi.fn());
+        return { ...mounted, audio, recover, enter, click, locator, originalQueue: store().playQueue, accepted: store().acceptedFmPlayback };
+    };
+
+    it.each([PlayerState.PLAYING, PlayerState.PAUSED])('keeps the current source, queue and position when %s', async state => {
+        const host = prepare(state);
+        expect(await host.click()).toEqual({ ok: true });
+        await settle();
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect(store().acceptedFmPlayback).toBe(host.accepted);
+        expect(usePlayingSongLocatorStore.getState().source).toBe(host.locator);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(env.self.audioCalls).toEqual([]);
+        expect(host.recover).not.toHaveBeenCalled();
+        expect(host.audio.play).toHaveBeenCalledTimes(state === PlayerState.PAUSED ? 1 : 0);
+        expect(store().playerState).toBe(PlayerState.PLAYING);
+        expect(host.enter).toHaveBeenCalledOnce();
+    });
+
+    it.each(['audio', 'beforePlay'] as const)('cancels the older %s request without letting its late result replace the sounding track', async waitingAt => {
+        const host = prepare(PlayerState.PLAYING);
+        const gate = deferred();
+        if (waitingAt === 'audio') env.self.audioGate.set('b', gate.promise);
+        else env.self.beforePlay = gate.promise;
+        const pending = host.queue.playSong(b, [a, b], false);
+        await settle();
+        // A different request may have changed raw mode/station while the accepted source still sounds.
+        usePersonalFmModeStore.getState().startStation('bodian', 'other', { mode: 'DEFAULT', scene: null });
+        expect(await host.click()).toEqual({ ok: true });
+        gate.resolve();
+        await pending;
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect(store().acceptedFmPlayback).toBe(host.accepted);
+        expect(usePlayingSongLocatorStore.getState().source).toBe(host.locator);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(host.audio.play).not.toHaveBeenCalled();
+        expect(store().isFmMode).toBe(true);
+        expect(usePersonalFmModeStore.getState().stations.bodian).toMatchObject({ id: 'radio', selection: { mode: 'SCENE_RCMD', scene: '33' } });
+        // A later failed ordinary request restores the continued mode, never the cancelled request's intent.
+        env.self.beforePlay = null;
+        env.self.audioResultFor.set('c', unavailable('no-audio'));
+        await host.queue.playSong(c, [c], false);
+        expect(store().isFmMode).toBe(true);
+        expect(store().currentSong).toBe(f1);
+    });
+
+    it.each([false, true])('Stage corrects a pending FM flag unless that intent was already cancelled (cancelled: %s)', async cancelled => {
+        playerWith([a], a, false);
+        const host = mount();
+        const subscribe = env.self.effects.find(effect => String(effect).includes('fmModeBeforePendingPlayRef'));
+        expect(subscribe).toBeDefined();
+        const cleanup = subscribe!() as () => void;
+        const release = holdAddress(f1);
+        try {
+            const pending = host.queue.playSong(f1, [f1, f2], true);
+            await settle();
+            expect(store().isFmMode).toBe(true);
+            if (cancelled) dropPlaysInFlight({ keepShownPlayback: true });
+            host.mainPlaybackSnapshotRef.current = { isFmMode: true } as never;
+            // The actual Stage entry captures first, then drops once, then notifies the queue controller.
+            dropPlaysInFlight();
+            usePlaybackStore.getState().setActivePlaybackContext('stage');
+            expect((host.mainPlaybackSnapshotRef.current as { isFmMode: boolean } | null)?.isFmMode).toBe(cancelled);
+            release();
+            await pending;
+            expect(store().currentSong).toBe(a);
+        } finally { cleanup(); }
+    });
+
+    it('replays an ended source through the ordinary controller instead of attempting an empty resume', async () => {
+        const host = prepare(PlayerState.IDLE);
+        expect(await host.click()).toEqual({ ok: true });
+        await settle();
+        expect(env.self.audioCalls).toEqual(['f1']);
+        expect(currentTime.get()).toBe(0);
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().isFmMode).toBe(true);
+        expect(host.audio.play).not.toHaveBeenCalled();
+    });
+});
 
 describe('a play that lands after the queue was replaced whole', () => {
     it('swaps itself into the new queue when that queue holds it, and saves and fetches around the new queue', async () => {

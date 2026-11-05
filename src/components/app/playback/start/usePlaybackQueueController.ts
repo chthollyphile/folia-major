@@ -265,7 +265,7 @@ export function usePlaybackQueueController({
     /** FM state from before the oldest play that has not shown its song yet; a play that does not land puts it back. */
     // `queueWrites`: the whole-queue writes when it was kept. One that came since (a mod's replaceQueue ended FM)
     // makes it stale: no later play puts FM back to it.
-    const fmModeBeforePendingPlayRef = useRef<{ isFm: boolean; queueWrites: number; fmEndings: number } | null>(null);
+    const fmModeBeforePendingPlayRef = useRef<{ isFm: boolean; queueWrites: number; fmEndings: number; drops: number } | null>(null);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
 
@@ -275,7 +275,8 @@ export function usePlaybackQueueController({
     useEffect(() => usePlaybackStore.subscribe((state, previous) => {
         if (state.activePlaybackContext !== 'stage' || previous.activePlaybackContext === 'stage') return;
         const kept = fmModeBeforePendingPlayRef.current;
-        const fmModeBeforeRequest = kept && kept.queueWrites === wholeQueueWritesSoFar() ? kept.isFm : null;
+        // Entering Stage drops once before this notification; an earlier cancellation already retired the intent.
+        const fmModeBeforeRequest = kept && kept.queueWrites === wholeQueueWritesSoFar() && kept.drops + 1 === playsDroppedSoFar() ? kept.isFm : null;
         fmModeBeforePendingPlayRef.current = null;
         const mainSnapshot = mainPlaybackSnapshotRef.current;
         if (fmModeBeforeRequest !== null && mainSnapshot && mainSnapshot.isFmMode !== fmModeBeforeRequest) {
@@ -587,8 +588,8 @@ export function usePlaybackQueueController({
         // went with a song that played.
         const keptFmMode = fmModeBeforePendingPlayRef.current;
         const fmModeToRestore = keptFmMode && keptFmMode.queueWrites === wholeQueueWritesSoFar()
-            && keptFmMode.fmEndings === personalFmEndingsSoFar() ? keptFmMode.isFm : wasFmMode;
-        fmModeBeforePendingPlayRef.current = { isFm: fmModeToRestore, queueWrites: wholeQueueWritesSoFar(), fmEndings: personalFmEndingsSoFar() };
+            && keptFmMode.fmEndings === personalFmEndingsSoFar() && keptFmMode.drops === playsDroppedSoFar() ? keptFmMode.isFm : wasFmMode;
+        fmModeBeforePendingPlayRef.current = { isFm: fmModeToRestore, queueWrites: wholeQueueWritesSoFar(), fmEndings: personalFmEndingsSoFar(), drops: playsDroppedSoFar() };
         // A whole-queue write during the hook's wait has set Personal FM for the store's queue (a replacement
         // ends it): a play from that queue keeps it so, instead of the FM state it was called with.
         const playsAsFm = queueRewritten() ? wasFmMode : asFm();

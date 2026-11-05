@@ -1,7 +1,7 @@
 import i18n from '../../i18n/config';
 import type { LibraryHomePort, LibraryHomeScanProgress } from '../core/home/homeModel.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
-import type { SongResult } from '../../types';
+import { PlayerState, type SongResult } from '../../types';
 import type { PersonalFmLaunch, PersonalFmSelection } from '../../types/personalFm';
 import { translateHomeMessage } from '../core/home/homeSources';
 import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../../services/localMusicService';
@@ -16,6 +16,7 @@ import { noteQueueStart, queueStartsSoFar } from '../../components/app/playback/
 import { selectDisplaySong, usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getPlaybackSongKey, isSamePlaybackSong } from '../../utils/appPlaybackGuards';
 import { registerPersonalFmLanding } from '../../components/app/playback/start/personalFmLanding';
+import { dropPlaysInFlight } from '../../components/app/playback/currentSong';
 import {
     createLocalGridViewCollection,
     createNavidromeGridViewCollection,
@@ -27,7 +28,7 @@ import {
 // 的做法）。core 的 libraryHomeActions 只说「导入文件夹、刷新曲库、播放私人 FM、打开这张卡」；调哪个服务、
 // 提示怎么翻译与显示（alert 仍是 window.alert，状态消息走 onStatusMessage），都在这里。surface 按调用现读。
 
-type HomePortSurface = Pick<HomeSurfaceProps, 'localSongs' | 'onRefreshLocalSongs' | 'onStatusMessage' | 'onPlaySong'>;
+type HomePortSurface = Pick<HomeSurfaceProps, 'localSongs' | 'onRefreshLocalSongs' | 'onStatusMessage' | 'onPlaySong' | 'onResumePlayback' | 'onEnterPlaybackView'>;
 
 export const createLibraryHomePort = (getSurface: () => HomePortSurface): LibraryHomePort => {
     // A later card click supersedes both catalogue loading and songs from the earlier click.
@@ -135,14 +136,30 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
                 || !isSamePlaybackSong(state.currentSong, song)
                 || !accepted.songKeys.has(getPlaybackSongKey(song))
                 || !state.playQueue.some(entry => isSamePlaybackSong(entry, song))) return false;
-            noteQueueStart();
-            selectionBeforePending = null;
-            registerPersonalFmLanding(state.playQueue, () => {
+            const surface = getSurface();
+            if (state.playerState === PlayerState.PAUSED && !surface.onResumePlayback) return false;
+            const restoreSelection = () => {
                 const modes = usePersonalFmModeStore.getState();
                 if (selection.station) modes.startStation(providerId, selection.station, selection);
                 else { modes.endStation(providerId); modes.setProviderSelection(providerId, selection); }
-            });
-            getSurface().onPlaySong(state.currentSong!, state.playQueue, true);
+            };
+            noteQueueStart();
+            selectionBeforePending = null;
+            launched = null;
+            // An ended source has nothing to resume: replay the displayed song through the ordinary play route.
+            if (state.playerState === PlayerState.IDLE) {
+                registerPersonalFmLanding(state.playQueue, restoreSelection);
+                surface.onPlaySong(song, state.playQueue, true);
+                return true;
+            }
+            // Keep the sounding source and its watcher, while making every unfinished play give way to it.
+            dropPlaysInFlight({ keepShownPlayback: true });
+            restoreSelection();
+            usePlaybackStore.getState().setIsFmMode(true);
+            if (state.playerState !== PlayerState.PLAYING) {
+                void surface.onResumePlayback!().catch(error => console.warn('[LibraryHome] Failed to resume Personal FM:', error));
+            }
+            surface.onEnterPlaybackView?.();
             return true;
         },
         playPersonalFm: (song, queue) => {

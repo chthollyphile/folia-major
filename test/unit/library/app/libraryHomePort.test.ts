@@ -7,7 +7,7 @@ import { selectActiveStation, selectProviderPersonalFm, usePersonalFmModeStore }
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
 import type { HomeSurfaceProps } from '@/components/app/home/homeSurfaceTypes';
-import type { SongResult } from '@/types';
+import { PlayerState, type SongResult } from '@/types';
 import { noteQueueStart } from '@/components/app/playback/start/queueStarts';
 import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
@@ -34,12 +34,14 @@ const deferred = <T>() => {
 const setup = () => {
     const play = vi.fn();
     const status = vi.fn();
-    const port = createLibraryHomePort(() => ({ localSongs: [], onRefreshLocalSongs: vi.fn(), onPlaySong: play, onStatusMessage: status }) as unknown as HomeSurfaceProps);
-    return { port, play, status, actions: createLibraryHomeActions(port) };
+    const resume = vi.fn(async () => {});
+    const enter = vi.fn();
+    const port = createLibraryHomePort(() => ({ localSongs: [], onRefreshLocalSongs: vi.fn(), onPlaySong: play, onResumePlayback: resume, onEnterPlaybackView: enter, onStatusMessage: status }) as unknown as HomeSurfaceProps);
+    return { port, play, status, resume, enter, actions: createLibraryHomeActions(port) };
 };
 beforeEach(() => {
     vi.clearAllMocks();
-    usePlaybackStore.setState({ currentSong: null, playQueue: [], acceptedFmPlayback: null, transitionDisplay: null, isFmMode: false });
+    usePlaybackStore.setState({ currentSong: null, playQueue: [], acceptedFmPlayback: null, transitionDisplay: null, isFmMode: false, playerState: PlayerState.PLAYING });
     useOnlineProviderAccountStore.setState({ activeProviderId: 'qishui' });
     usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: {}, stations: {}, stationCatalogs: {}, fmRuns: {} });
     api.getPersonalFmCatalog.mockResolvedValue(catalog);
@@ -68,12 +70,14 @@ describe('home radio provider binding', () => {
         const queue = [earlier, current];
         const accepted = { providerId: 'qishui', selection, songKeys: new Set(queue.map(getPlaybackSongKey)) };
         usePlaybackStore.setState({ currentSong: current, playQueue: queue, acceptedFmPlayback: accepted, isFmMode: true });
-        const { actions, play } = setup();
+        const { actions, play, resume, enter } = setup();
         const card = { id: 'personal_fm', name: 'For you', type: 'radio', raw: {
             personalFm: selection, songPreview: { firstSong: earlier, currentSong: current, playbackToken: 'old-preview' },
         } };
         expect(await actions.openOnlineCard(card, 'qishui', vi.fn())).toEqual({ ok: true });
-        expect(play).toHaveBeenCalledExactlyOnceWith(current, queue, true);
+        expect(play).not.toHaveBeenCalled();
+        expect(resume).not.toHaveBeenCalled();
+        expect(enter).toHaveBeenCalledOnce();
         expect(usePlaybackStore.getState().acceptedFmPlayback).toBe(accepted);
         expect(api.getPersonalFm).not.toHaveBeenCalled();
         expect(api.getPersonalFmCatalog).not.toHaveBeenCalled();
@@ -81,7 +85,7 @@ describe('home radio provider binding', () => {
         // A stale current-song face cannot claim an ordinary queue or fall back to the initial ticket.
         usePlaybackStore.setState({ acceptedFmPlayback: null, isFmMode: false });
         expect(await actions.openOnlineCard(card, 'qishui', vi.fn())).toEqual({ ok: false, reason: 'failed' });
-        expect(play).toHaveBeenCalledTimes(1);
+        expect(play).not.toHaveBeenCalled();
         expect(api.getPersonalFm).not.toHaveBeenCalled();
     });
 
@@ -106,8 +110,8 @@ describe('home radio provider binding', () => {
         pending.reject(new Error('superseded card failed'));
         await earlier;
         expect(play).not.toHaveBeenCalled();
-        expect(continued.play).toHaveBeenCalledExactlyOnceWith(current, queue, true);
-        takePersonalFmLanding(queue)?.();
+        expect(continued.play).not.toHaveBeenCalled();
+        expect(continued.resume).not.toHaveBeenCalled();
         expect(selected()).toEqual(selection);
         expect(status).not.toHaveBeenCalled();
         expect(logged).not.toHaveBeenCalled();
