@@ -92,17 +92,31 @@ const ScratchpadSongTable: React.FC<ScratchpadSongTableProps> = ({ rows, primary
     const listRef = useListRef(null);
 
     // 打开时把正在播放的那一首滚到正中；之后它变了（切歌）平滑跟过去。行数变了（入队）不把列表拽回去。
+    // 打开那一下自己算、自己滚：react-window 的滚动容器在第一次渲染之后才挂到它的 ref 上（第一次 layout effect 里
+    // listRef.current.element 还是 null，scrollToRow 什么都不做），它量的容器高度也晚一步才有。所以等到容器在、量得出高度
+    // 的那一帧再滚，滚成了才算打开过。
     const didInitialScrollRef = useRef(false);
     useLayoutEffect(() => {
         if (focusIndex === undefined || focusIndex < 0 || focusIndex >= rows.length) return;
-        const list = listRef.current;
-        if (!list) return;
         if (!didInitialScrollRef.current) {
-            didInitialScrollRef.current = true;
-            list.scrollToRow({ index: focusIndex, align: 'center', behavior: 'instant' });
-            return;
+            let frame = 0;
+            let tries = 0;
+            const scrollToFocus = () => {
+                const element = listRef.current?.element;
+                if (!element || element.clientHeight === 0) {
+                    if (tries < 30) {
+                        tries += 1;
+                        frame = requestAnimationFrame(scrollToFocus);
+                    }
+                    return;
+                }
+                didInitialScrollRef.current = true;
+                element.scrollTop = Math.max(0, focusIndex * SONG_TABLE_ROW_HEIGHT - (element.clientHeight - SONG_TABLE_ROW_HEIGHT) / 2);
+            };
+            scrollToFocus();
+            return () => cancelAnimationFrame(frame);
         }
-        list.scrollToRow({ index: focusIndex, align: 'smart', behavior: 'smooth' });
+        listRef.current?.scrollToRow({ index: focusIndex, align: 'smart', behavior: 'smooth' });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusIndex]);
 
