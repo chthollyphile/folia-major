@@ -36,3 +36,6 @@
     backdrop-filter: blur(18px) saturate(1.2);
     --titlebar-glass-mask: radial-gradient(ellipse at 100% 0%, #000 8%, transparent 52%);
 }
+
+/* Reflect the material only; the controls themselves remain upright. */
+.titlebar-glass.is-left { right: auto; left: 0; transform: scaleX(-1); }

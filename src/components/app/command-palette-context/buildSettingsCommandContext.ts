@@ -177,6 +177,10 @@ export const buildSettingsCommandContext = (
         toggleAlwaysShowMainWindowTitlebar: () => chrome.handleToggleAlwaysShowMainWindowTitlebar(
             !usePlayerChromeSettingsStore.getState().alwaysShowMainWindowTitlebar,
         ),
+        toggleTitlebarSide: () => {
+            const current = usePlayerChromeSettingsStore.getState();
+            current.handleSetTitlebarSide(current.titlebarSide === 'left' ? 'right' : 'left');
+        },
         togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
             !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),

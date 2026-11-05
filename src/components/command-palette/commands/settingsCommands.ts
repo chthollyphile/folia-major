@@ -49,6 +49,7 @@ function gpuPreferenceCommand(preference: GpuPreference, title: string, descript
 }
 
 export const settingsCommands: CommandPaletteCommand[] = [
+    createToggleCommand('settings-toggle-titlebar-side', 'settings', 'Switch window controls side', 'Move window controls between left and right', ['window buttons placement', 'titlebar side', '窗口按钮位置', '左右切换'], context => context.settings.toggleTitlebarSide(), { platform: ['electron'] }),
     createSettingsCommand('settings-help', 'Open Help', 'Open help and shortcuts', ['help', '帮助'], 'help', null, { executeShortcut: 'h' }),
     {
         id: 'ponder-current-page',

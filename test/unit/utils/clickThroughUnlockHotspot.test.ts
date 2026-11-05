@@ -21,6 +21,14 @@ const VIEWPORT_WIDTH = 1920;
 const BUTTON_CENTER_Y = 16;
 
 describe('click-through unlock hotspot', () => {
+    it('covers the inset left controls without enabling the opposite edge', () => {
+        for (const x of [184, 212, 228, 256, 262, 348]) {
+            expect(isWithinClickThroughUnlockHotspot(x, 20, VIEWPORT_WIDTH, 'left')).toBe(true);
+        }
+        expect(isWithinClickThroughUnlockHotspot(30, 20, VIEWPORT_WIDTH, 'left')).toBe(false);
+        expect(isWithinClickThroughUnlockHotspot(VIEWPORT_WIDTH - 240, 20, VIEWPORT_WIDTH, 'left')).toBe(false);
+    });
+
     it.each([
         ['without the fullscreen button', CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET],
         ['with the fullscreen button', CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON],
@@ -74,6 +82,7 @@ describe('click-through unlock hotspot', () => {
             height: readField('height'),
             rightInset: readField('rightInset'),
             topInset: readField('topInset'),
+            leftShift: readField('leftShift'),
         }).toEqual(CLICK_THROUGH_UNLOCK_HOTSPOT);
     });
 });

@@ -104,6 +104,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     libraryWallSeamDirection: 'options.bravaisSeamDirection',
     latticeBadgeCurrentOnly: 'options.latticeBadgeCurrentOnly',
     playerHeaderBlur: 'options.playerHeaderBlur',
+    titlebarSide: 'options.titlebarSide',
 };
 
 // The per-renderer tunings borrow the renderer's own display name instead of inventing one.

@@ -75,6 +75,8 @@ const AppShell: React.FC<AppShellProps> = ({
     const [isWindowMaximized, setIsWindowMaximized] = useState(false);
     const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
     const hasFullscreenTitlebarButton = isElectronWindow && !hideFullscreenButton;
+    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
+    const leftControls = titlebarSide === 'left';
     const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
 
     useEffect(() => {
@@ -154,7 +156,7 @@ const AppShell: React.FC<AppShellProps> = ({
     const shouldRenderTitlebarBackdrop = !isPlayerView || showsPlayerHeaderBlur || (useCustomWindowRadius && !isMainWindowClickThroughEnabled);
     const isTitlebarBackdropVisible = isTitlebarRevealed || (showsPlayerHeaderBlur && alwaysShowMainWindowTitlebar);
     // Local glass fades away from the controls; each layer contributes a different blur strength.
-    const titlebarBackdropClassName = `titlebar-glass ${isDaylight ? 'is-light' : ''} ${showsPlayerHeaderBlur ? 'is-strong' : ''}`;
+    const titlebarBackdropClassName = `titlebar-glass ${isDaylight ? 'is-light' : ''} ${showsPlayerHeaderBlur ? 'is-strong' : ''} ${leftControls ? 'is-left' : ''}`;
 
     return (
         <div
@@ -176,7 +178,7 @@ const AppShell: React.FC<AppShellProps> = ({
                             }}
                             transition={{ duration: 0.18, ease: 'easeOut' }}
                             className={titlebarBackdropClassName}
-                            style={{ width: hasFullscreenTitlebarButton ? 420 : 376 }}
+                            style={{ width: (hasFullscreenTitlebarButton ? 420 : 376) + (leftControls ? 4 : 0) }}
                             aria-hidden="true"
                         >
                             <span className="titlebar-glass-layer is-soft" />
@@ -188,7 +190,7 @@ const AppShell: React.FC<AppShellProps> = ({
                         <TitlebarDragZone active={usesCustomWindowChrome} />
                         <div
                             className={`pointer-events-auto absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]'
+                                leftControls ? (hasFullscreenTitlebarButton ? 'left-[228px]' : 'left-[184px]') : (hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]')
                             }`}
                             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
@@ -219,7 +221,7 @@ const AppShell: React.FC<AppShellProps> = ({
                             不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
                         <div
                             className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
+                                leftControls ? (hasFullscreenTitlebarButton ? 'left-[262px]' : 'left-[218px]') : (hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]')
                             }`}
                             // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
                             style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
@@ -230,8 +232,9 @@ const AppShell: React.FC<AppShellProps> = ({
                                 onAction={onClickThroughTransportAction}
                             />
                         </div>
-                        <div className="pointer-events-auto absolute top-0 right-0 z-10 h-full">
+                        <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-1' : 'right-0'} z-10 h-full`}>
                             <WindowControls
+                                side={titlebarSide}
                                 revealed={areTitlebarControlsVisible}
                                 isDaylight={isDaylight}
                                 isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}

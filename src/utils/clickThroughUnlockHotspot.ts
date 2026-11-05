@@ -17,6 +17,7 @@ export const CLICK_THROUGH_UNLOCK_HOTSPOT = {
     height: 40,
     rightInset: 176,
     topInset: 4,
+    leftShift: 4,
 } as const;
 
 // Right-edge offsets (px from the window's right edge) of the unlock button in AppShell.
@@ -34,7 +35,9 @@ export const isWithinClickThroughUnlockHotspot = (
     clientX: number,
     clientY: number,
     viewportWidth: number,
+    side: 'left' | 'right' = 'right',
 ): boolean => {
+    if (side === 'left') clientX = viewportWidth - clientX + CLICK_THROUGH_UNLOCK_HOTSPOT.leftShift;
     const right = viewportWidth - CLICK_THROUGH_UNLOCK_HOTSPOT.rightInset;
     const left = right - CLICK_THROUGH_UNLOCK_HOTSPOT.width;
     const top = CLICK_THROUGH_UNLOCK_HOTSPOT.topInset;

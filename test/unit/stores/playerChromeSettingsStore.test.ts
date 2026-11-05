@@ -4,6 +4,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // The macOS native-fullscreen window button is experimental and must remain opt-in.
 
 describe('player chrome settings store', () => {
+    it.each([['darwin', 'left'], ['win32', 'right'], ['linux', 'right']])('defaults controls on %s to %s', async (platform, side) => {
+        vi.stubGlobal('window', { electron: { platform }, localStorage });
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+        expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe(side);
+        usePlayerChromeSettingsStore.getState().handleSetTitlebarSide(side === 'left' ? 'right' : 'left');
+        expect(values.get('window_titlebar_side')).toBe(side === 'left' ? 'right' : 'left');
+    });
+
+    it('restores an explicit side over the platform default', async () => {
+        values.set('window_titlebar_side', 'right');
+        vi.stubGlobal('window', { electron: { platform: 'darwin' }, localStorage });
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+        expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe('right');
+    });
+
     let values: Map<string, string>;
 
     beforeEach(() => {

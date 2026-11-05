@@ -13,12 +13,19 @@ import {
     type PlayerControlSlotActionId,
 } from '../types/playerControlSlots';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../utils/playerBottomBarLayout';
-import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
+import { getStoredBoolean, setStoredBoolean, getStoredString, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 
 const PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY = 'player_bottom_bar_offset';
 const PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY = 'player_control_slot_primary';
 const PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY = 'player_control_slot_secondary';
+
+/** Explicit choices override the platform default; ignore malformed persisted values. */
+const readTitlebarSide = (): 'left' | 'right' => {
+    const fallback = typeof window !== 'undefined' && window.electron?.platform === 'darwin' ? 'left' : 'right';
+    const value = getStoredString('window_titlebar_side', fallback);
+    return value === 'left' || value === 'right' ? value : fallback;
+};
 
 /** Reads the persisted lower-bounded offset; the viewport-dependent upper bound is applied by consumers. */
 const readStoredPlayerBottomBarOffset = (): number => {
@@ -57,6 +64,8 @@ export type PlayerChromeSettingsState = {
     alwaysShowMainWindowTitlebar: boolean;
     /** A frosted bar behind the window titlebar on the player page, so its buttons read over any picture. */
     playerHeaderBlur: boolean;
+    titlebarSide: 'left' | 'right';
+    handleSetTitlebarSide: (side: 'left' | 'right') => void;
     hideFullscreenButton: boolean;
     useNativeMacFullscreenButton: boolean;
     transparentPlayerBackground: boolean;
@@ -101,6 +110,12 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     alwaysShowTrackSwitchButtons: getStoredBoolean('always_show_track_switch_buttons', false),
     alwaysShowMainWindowTitlebar: getStoredBoolean('always_show_main_window_titlebar', false),
     playerHeaderBlur: getStoredBoolean('player_header_blur', false),
+    titlebarSide: readTitlebarSide(),
+    handleSetTitlebarSide: (side) => {
+        if (side !== 'left' && side !== 'right') return;
+        setStoredString('window_titlebar_side', side);
+        set({ titlebarSide: side });
+    },
     hideFullscreenButton: getStoredBoolean('hide_fullscreen_button', false),
     useNativeMacFullscreenButton: getStoredBoolean('use_native_mac_fullscreen_button', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
@@ -261,6 +276,8 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     alwaysShowTrackSwitchButtons: state.alwaysShowTrackSwitchButtons,
     alwaysShowMainWindowTitlebar: state.alwaysShowMainWindowTitlebar,
     playerHeaderBlur: state.playerHeaderBlur,
+    titlebarSide: state.titlebarSide,
+    handleSetTitlebarSide: state.handleSetTitlebarSide,
     hideFullscreenButton: state.hideFullscreenButton,
     useNativeMacFullscreenButton: state.useNativeMacFullscreenButton,
     transparentPlayerBackground: state.transparentPlayerBackground,
