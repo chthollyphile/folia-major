@@ -180,10 +180,17 @@ const ThreadLayer: React.FC<{ thread: CanvasThread; count: number; columns: numb
             style={{ left: -edge, width: `calc(100% + ${edge * 2}px)` }}
         >
             <g transform={`translate(${edge} 0)`}>
-                {paths.played && <path className="scratchpad-thread-line is-played" d={paths.played} />}
-                {paths.playedMarks && <path className="scratchpad-thread-marks is-played" d={paths.playedMarks} />}
-                <path className="scratchpad-thread-line" d={paths.line} />
-                {paths.marks && <path className="scratchpad-thread-marks" d={paths.marks} />}
+                {/* 线和箭头放在一组里、整组一起变淡：分开各自半透明的话，线会从箭头里透出来。 */}
+                {paths.played && (
+                    <g className="scratchpad-thread-run is-played">
+                        <path className="scratchpad-thread-line" d={paths.played} />
+                        {paths.playedMarks && <path className="scratchpad-thread-marks" d={paths.playedMarks} />}
+                    </g>
+                )}
+                <g className="scratchpad-thread-run">
+                    <path className="scratchpad-thread-line" d={paths.line} />
+                    {paths.marks && <path className="scratchpad-thread-marks" d={paths.marks} />}
+                </g>
                 {thread.kind === 'timeline' && paths.nodes.map((node, index) => (
                     <g key={index} className="scratchpad-thread-node" transform={`translate(${node.x} ${node.y})`}>
                         <rect x={-NODE_WIDTH / 2} y={-NODE_HEIGHT / 2} width={NODE_WIDTH} height={NODE_HEIGHT} rx={NODE_HEIGHT / 2} />

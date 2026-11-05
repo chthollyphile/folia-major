@@ -802,9 +802,13 @@
 
 /* 先后：实心、圆角的箭头，与线同色。 */
 .scratchpad-thread.is-flow { color: var(--text-accent, currentColor); }
-.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; opacity: 0.55; }
-.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; opacity: 0.95; }
-.scratchpad-thread.is-flow .is-played { color: inherit; opacity: 0.22; }
+/* 淡化放在整组（.scratchpad-thread-run）上：组里箭头不透明、盖住底下的线，整组再一起变淡，线不会从箭头里透出来。
+   线在组里另减一档（0.58 × 0.95 ≈ 原来的 0.55）；放过的那一段线和箭头一样淡（0.22）。 */
+.scratchpad-thread.is-flow .scratchpad-thread-run { opacity: 0.95; }
+.scratchpad-thread.is-flow .scratchpad-thread-run.is-played { opacity: 0.22; }
+.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; stroke-opacity: 0.58; }
+.scratchpad-thread.is-flow .is-played .scratchpad-thread-line { stroke-opacity: 1; }
+.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; }
 
 /* —— 不让选中文字：抽屉里全是按钮和卡片，拖动、框选、双击时不该拉出蓝色的选区 —— */
 
