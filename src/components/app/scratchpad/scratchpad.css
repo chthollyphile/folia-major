@@ -625,6 +625,13 @@
 
 .scratchpad-marquee[hidden] { display: none; }
 
+/* 框选途中：卡片的选中框、影子、灰掉的封面都立刻切换，不走过渡。来回划过几十张卡时，每张都起一段 box-shadow / filter
+   的过渡会让整块画布连着重绘好几百毫秒（CPU 占用高的主要来源之一）。松手以后过渡照常。 */
+.scratchpad-canvas.is-box-selecting .scratchpad-card,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-cover img,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-name,
+.scratchpad-canvas.is-box-selecting .scratchpad-card-meta { transition: none; }
+
 /* —— 选中后的浮动菜单：浮在选中卡片的上方（放不下时下方），横向由画布按菜单宽度夹在内容里 —— */
 
 .scratchpad-selection-menu {
