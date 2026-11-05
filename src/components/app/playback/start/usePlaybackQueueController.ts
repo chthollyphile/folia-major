@@ -579,7 +579,7 @@ export function usePlaybackQueueController({
         // A new play takes the place of the previous song's dialog of another version.
         setPendingUnavailableReplacement(null);
         clearPendingUnavailableSkip();
-        setStatusMsg(prev => prev?.persistent ? null : prev);
+        setStatusMsg(prev => prev?.persistent || prev?.activity === 'playback-loading' ? null : prev);
         const shouldNavigateToPlayer = options.shouldNavigateToPlayer ?? true;
         const wasFmMode = usePlaybackStore.getState().isFmMode;
         // With an earlier play still not landed, the FM state it kept stands: the one it wrote never
@@ -754,7 +754,7 @@ export function usePlaybackQueueController({
         // none counts down to the next song.
         const presentTakenDown = async (shown: OnlineFailure) => {
             setIsLyricsLoading(false);
-            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+            setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.loadingSong') });
             let replacement: Awaited<ReturnType<typeof omni.getSongReplacement>> = null;
             let lookupFailure: OnlineFailure | null = null;
             try {
@@ -891,9 +891,9 @@ export function usePlaybackQueueController({
         }
 
         if (isExternal && !isPreparedExternal) {
-            setStatusMsg({ type: 'info', text: t('status.preparingExternalPlayback') });
+            setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.preparingExternalPlayback') });
         } else if (!isExternal && !hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
-            setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+            setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.loadingSong') });
         }
 
         try {
@@ -962,7 +962,7 @@ export function usePlaybackQueueController({
         // The song before may have failed while this one loaded (its countdown, its toast that stays):
         // that is no longer about what plays, as at the start of this play.
         clearPendingUnavailableSkip();
-        setStatusMsg(prev => prev?.persistent ? null : prev);
+        setStatusMsg(prev => prev?.persistent || prev?.activity === 'playback-loading' ? null : prev);
         fmModeBeforePendingPlayRef.current = null;
 
         // Written only now: a play that gave up above leaves the intent to play, the time to resume
@@ -1063,7 +1063,7 @@ export function usePlaybackQueueController({
                 onAutoMatchStart: () => {
                     // A preview clip plays as it comes and is told of as it starts (previewNotice.ts),
                     // which is when this search starts too: its notice would take the preview's place.
-                    if (!isExternal && !audioResult?.preview) setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') });
+                    if (!isExternal && !audioResult?.preview) setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.matchingBestLyrics') });
                 },
                 onDone: () => setIsLyricsLoading(false),
             });

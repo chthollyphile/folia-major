@@ -1295,6 +1295,8 @@ export enum PlayerState {
 }
 
 export interface StatusMessage {
+  /** A loading indicator replaces the notification card for playback preparation. */
+  activity?: 'playback-loading';
   type: 'error' | 'success' | 'info';
   text: string;
   /** A second line under the text: what to do about it. */

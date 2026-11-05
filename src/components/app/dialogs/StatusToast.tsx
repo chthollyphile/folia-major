@@ -7,6 +7,7 @@ import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout'
 import { holdStatusMessage } from '../../../stores/useStatusMessageStore';
 import type { AppStatusToast } from './buildAppDialogsModel';
 import './statusToast.css';
+import LoadingDots from '../../shared/LoadingDots';
 
 // src/components/app/dialogs/StatusToast.tsx
 // The app's toast, one line: the platform's mark (or the type's icon), what happened, what to do, the
@@ -26,6 +27,7 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
     const isPresent = useIsPresent();
     const { ref: toastLayoutRef, invalidate: invalidateLayout } = usePlayerOverlayObstacle('status-toast', 'notification');
     const { quote, countdown, isDaylight } = toast;
+    const loading = toast.activity === 'playback-loading';
 
     // A quote without a code of its own is all in the chip, unless the chip had to cut it short.
     const chipRef = useRef<HTMLSpanElement>(null);
@@ -59,7 +61,9 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
             initial={calm ? { opacity: 0 } : { opacity: 0, y: -18 }}
             animate={calm ? { opacity: 1, transition: { duration: 0.15 } } : { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE_OUT } }}
             exit={calm ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: -10, transition: { duration: 0.22, ease: EASE_IN } }}
-            className={`status-toast${isDaylight ? ' is-daylight' : ''}${cancel || action ? ' has-buttons' : ''}${open ? ' is-open' : ''}${calm ? ' is-calm' : ''}${isPresent ? '' : ' is-leaving'}`}
+            className={`status-toast${loading ? ' is-loading' : ''}${isDaylight ? ' is-daylight' : ''}${cancel || action ? ' has-buttons' : ''}${open ? ' is-open' : ''}${calm ? ' is-calm' : ''}${isPresent ? '' : ' is-leaving'}`}
+            role={loading ? 'status' : undefined}
+            aria-live={loading ? 'polite' : undefined}
             onPointerEnter={() => rest(true)}
             onPointerLeave={() => rest(false)}
             onFocus={() => rest(true)}
@@ -69,14 +73,14 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
         >
             <div className="status-toast-line">
                 {/* A message about one online platform leads with that platform's mark; every other message with its type's icon. */}
-                {toast.providerId
+                {loading ? <LoadingDots isDaylight={isDaylight} /> : toast.providerId
                     ? <PlatformMark providerId={toast.providerId} size={20} />
                     : toast.type === 'error'
                         ? <AlertCircle size={18} className={`shrink-0 ${isDaylight ? 'text-red-500' : 'text-red-400'}`} />
                         : toast.type === 'success'
                             ? <CheckCircle2 size={18} className={`shrink-0 ${isDaylight ? 'text-green-600' : 'text-green-400'}`} />
                             : <Sparkles size={18} className={`shrink-0 ${isDaylight ? 'text-blue-600' : 'text-blue-400'}`} />}
-                <span className="status-toast-title">{toast.text}</span>
+                <span className={loading ? 'sr-only' : 'status-toast-title'}>{toast.text}</span>
                 {toast.note && (
                     <>
                         <span aria-hidden className="status-toast-sep" />

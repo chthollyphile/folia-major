@@ -965,7 +965,7 @@ export function useLibraryPlaybackController({
             if (!nextLyrics && !matchData?.noAutoMatch && !matchData?.matchedIsPureMusic) {
                 try {
                     if (!showedLoadingToast && !start.quiet) {
-                        setStatusMsg({ type: 'info', text: t('status.loadingSong') || '' });
+                        setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.loadingSong') || '' });
                         showedLoadingToast = true;
                     }
                     const navidromeMetadata = getProviderSongMetadata(navidromeSong);
@@ -1179,7 +1179,7 @@ export function useLibraryPlaybackController({
     ]);
 
     const onMatchNavidromeSong = useCallback(async () => {
-        setStatusMsg({ type: 'info', text: t('navidrome.fetchingLyrics')});
+        setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('navidrome.fetchingLyrics')});
     }, [setStatusMsg, t]);
 
     const handleUpdateLocalLyrics = useCallback(async (content: string, isTranslation: boolean, fileName?: string) => {
@@ -1511,7 +1511,7 @@ export function useLibraryPlaybackController({
         }
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '' });
+        setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.matchingBestLyrics') || '' });
 
         try {
             if (isLocalPlaybackSong(currentSong)) {

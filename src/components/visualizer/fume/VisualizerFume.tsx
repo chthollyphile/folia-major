@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Hourglass } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import LoadingDots from '../../shared/LoadingDots';
 import { DEFAULT_FUME_TUNING, FumeTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
@@ -54,6 +55,7 @@ const keepFumeLayout = (key: string, article: FumeArticleLayout | null) => {
 const LAYOUT_REBUILD_DEBOUNCE_MS = 96;
 
 const VisualizerFume: React.FC<VisualizerProps> = (props) => {
+    const { t } = useTranslation();
     const {
         currentTime,
         currentLineIndex,
@@ -362,41 +364,10 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 flex items-center justify-center"
+                        role="status"
+                        aria-label={t('localMusic.loadingLyrics')}
                     >
-                        <div
-                            className="flex min-w-40 flex-col items-center gap-4 rounded-3xl border px-6 py-5"
-                            style={{
-                                backgroundColor: theme.backgroundColor,
-                                borderColor: colorWithAlpha(theme.secondaryColor, 0.24),
-                                boxShadow: `0 18px 60px ${colorWithAlpha(theme.backgroundColor, 0.52)}`,
-                            }}
-                        >
-                            <Hourglass
-                                size={24}
-                                className="animate-pulse"
-                                style={{ color: colorWithAlpha(theme.primaryColor, 0.78) }}
-                            />
-                            <div className="flex w-28 flex-col gap-2.5">
-                                <div
-                                    className="h-2 rounded-full animate-pulse"
-                                    style={{ backgroundColor: colorWithAlpha(theme.primaryColor, 0.32) }}
-                                />
-                                <div
-                                    className="h-2 rounded-full animate-pulse"
-                                    style={{
-                                        width: '78%',
-                                        backgroundColor: colorWithAlpha(theme.primaryColor, 0.22),
-                                    }}
-                                />
-                                <div
-                                    className="h-2 rounded-full animate-pulse"
-                                    style={{
-                                        width: '56%',
-                                        backgroundColor: colorWithAlpha(theme.secondaryColor, 0.2),
-                                    }}
-                                />
-                            </div>
-                        </div>
+                        <LoadingDots />
                     </motion.div>
                 )}
             </div>

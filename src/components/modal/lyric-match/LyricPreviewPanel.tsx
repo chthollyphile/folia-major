@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Music, Sparkles, Languages } from 'lucide-react';
+import { Music, Sparkles, Languages } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SongResult, LyricData, Line } from '../../../types';
 import { findLatestActiveLineIndex } from '../../../utils/appPlaybackHelpers';
 import { fetchLyricsForMatchSource } from '../../../utils/lyrics/lyricMatchSources';
+import LoadingDots from '../../shared/LoadingDots';
 import type { LyricMatchSource } from '../../../utils/lyrics/matchResult';
 
 // src/components/modal/lyric-match/LyricPreviewPanel.tsx
@@ -336,7 +337,7 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     if (isLoading) {
         return (
             <div className={`w-full flex-1 flex flex-col items-center justify-center p-4 border rounded-xl ${previewBoxBg}`}>
-                <Loader2 className="animate-spin opacity-50 mb-2" size={20} />
+                <LoadingDots isDaylight={isDaylight} />
                 <span className={`text-xs opacity-60 ${textPrimary}`}>{t('localMusic.loadingLyrics')}</span>
             </div>
         );

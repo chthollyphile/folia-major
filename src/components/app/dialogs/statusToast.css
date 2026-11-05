@@ -62,6 +62,16 @@
 .status-toast.has-buttons { padding-right: 9px; }
 .status-toast.is-leaving { pointer-events: none; }
 
+/* Playback preparation uses the supplied dots without a notification card around them. */
+.status-toast.is-loading {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none;
+}
+
 .status-toast-line {
     display: flex;
     align-items: center;
