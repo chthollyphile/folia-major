@@ -112,7 +112,8 @@ export async function loadOnlineSongAudioSource(
     const fromCopy = await playCopy(await readCopy(level));
     if (fromCopy) return fromCopy;
 
-    if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)) {
+    if (prefetched?.audioUrl && prefetched.audioUrl !== 'CACHED_IN_DB' && isUrlValid(prefetched.audioUrlFetchedAt)
+        && omni.isAudioSourceValid(song, prefetched.audioUrl)) {
         return {
             kind: 'ok',
             audioSrc: prefetched.audioUrl,

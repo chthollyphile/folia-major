@@ -1,0 +1,24 @@
+/* Soloist setup uses the login surface's existing theme tokens. */
+.soloist-settings { margin-top: 20px; color: var(--st-t1); font-size: 12px; line-height: 1.65; }
+.soloist-settings header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.soloist-settings h3 { font-size: 15px; font-weight: 650; }
+.soloist-settings header span, .soloist-muted { color: var(--st-t3); font-size: 11px; }
+.soloist-settings p { margin: 8px 0; }
+.soloist-step { padding: 16px 0; border-top: 1px solid var(--st-line); }
+.soloist-step h4 { display: flex; gap: 9px; align-items: center; font-weight: 600; }
+.soloist-step-number { display: inline-flex; width: 21px; height: 21px; flex: none; align-items: center; justify-content: center; border: 1px solid var(--st-line); border-radius: 50%; }
+.soloist-step[data-done] .soloist-step-number { color: #20834d; border-color: #91caa5; }
+.soloist-step-body { margin-left: 30px; }
+.soloist-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
+.soloist-settings button { padding: 6px 10px; background: var(--st-card); border: 1px solid var(--st-line); border-radius: 7px; cursor: pointer; }
+.soloist-settings button:disabled { opacity: .5; cursor: default; }
+.soloist-settings .soloist-primary { background: #207748; color: white; }
+.soloist-key-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; }
+.soloist-key-row input { flex: 1 1 180px; min-width: 0; width: 100%; padding: 9px 11px; border: 1px solid var(--st-line); background: var(--st-card); border-radius: 7px; }
+.soloist-settings code { overflow-wrap: anywhere; }
+.soloist-settings [role=alert] { color: #b44b26; }
+[role=dialog]:has(.soloist-settings) [class*="pt-[70px]"] { padding-top: 12px; }
+[role=dialog]:has(.soloist-settings[data-account]) [class*="h-[200px]"][class*="w-[200px]"] { display: none; }
+@media (max-width: 560px) { .soloist-step-body { margin-left: 0; } }
+
+.soloist-settings :is(button, input):focus-visible { outline: 2px solid #1db954; outline-offset: 2px; }

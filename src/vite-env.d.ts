@@ -999,6 +999,15 @@ declare global {
         operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
         params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,
       ) => Promise<import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicBridgeResult>;
+      soloistPrepare?: () => Promise<import('./types/soloist').SoloistResult>;
+      soloistStatus?: () => Promise<import('./types/soloist').SoloistStatus>;
+      soloistSave?: (key: string) => Promise<import('./types/soloist').SoloistResult>;
+      soloistRestart?: () => Promise<import('./types/soloist').SoloistResult>;
+      soloistSelectBinary?: () => Promise<import('./types/soloist').SoloistResult>;
+      soloistCheckVersion?: () => Promise<import('./types/soloist').SoloistBuild>;
+      soloistOfficial?: (which: 'key' | 'download' | 'guide') => Promise<void>;
+      providerSettingsReady?: () => void;
+      onOpenProviderSettings?: (callback: (providerId: import('./types/onlineMusic').OnlineProviderId) => void) => () => void;
       spotifyRequest: (
         operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
         params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,

@@ -179,6 +179,19 @@ contextBridge.exposeInMainWorld('electron', {
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
     appleMusicWindowsExperimental: process.platform === 'win32' && process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_APPLE_MUSIC_WINDOWS_EXPERIMENTAL === '1',
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
+    soloistPrepare: () => ipcRenderer.invoke('soloist-local-prepare'),
+    soloistStatus: () => ipcRenderer.invoke('soloist-local-status'),
+    soloistSave: key => ipcRenderer.invoke('soloist-local-save', key),
+    soloistRestart: () => ipcRenderer.invoke('soloist-local-restart'),
+    soloistSelectBinary: () => ipcRenderer.invoke('soloist-local-select-binary'),
+    soloistCheckVersion: () => ipcRenderer.invoke('soloist-local-check-version'),
+    soloistOfficial: which => ipcRenderer.invoke('soloist-local-official', which),
+    providerSettingsReady: () => ipcRenderer.send('provider-settings-ready'),
+    onOpenProviderSettings: callback => {
+        const listener = (_event, providerId) => callback(providerId);
+        ipcRenderer.on('open-provider-settings', listener);
+        return () => ipcRenderer.removeListener('open-provider-settings', listener);
+    },
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
     getQqPort: () => ipcRenderer.invoke('get-qq-port'),
     getQqApiStatus: () => ipcRenderer.invoke('get-qq-api-status'),

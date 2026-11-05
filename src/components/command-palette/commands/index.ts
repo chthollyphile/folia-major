@@ -16,6 +16,7 @@ import { visualizerCommands } from './visualizerCommands';
 
 // src/components/command-palette/commands/index.ts
 // The one place that decides cross-group ordering; each group file owns its internal order.
+const integrationEntries = import.meta.glob<{ default: CommandPaletteCommand }>('./*/setupCommand.ts', { eager: true });
 
 const assertUniqueCommandIds = (commands: CommandPaletteCommand[]) => {
     const seen = new Set<string>();
@@ -85,6 +86,7 @@ export const ALL_COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = assertExecu
     ...searchCommands,
     ...playbackCommands,
     ...settingsCommands,
+    ...Object.values(integrationEntries).map(entry => entry.default),
     ...hifiCommands,
     ...navigationCommands,
     ...panelCommands,

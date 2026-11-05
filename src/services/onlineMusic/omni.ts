@@ -1155,6 +1155,11 @@ export const omni = {
         return audioQualityFor(providerId, preference);
     },
 
+    // TTL alone cannot validate an ephemeral URL that its owner has already released.
+    isAudioSourceValid(song: SongResult, url: string): boolean {
+        return providerForSong(song).playback?.isAudioSourceValid?.(url) ?? true;
+    },
+
     async getAudioSource(song: SongResult, quality: AudioQualityPreference): Promise<OmniAudioSource | null> {
         const provider = providerForSong(song);
         const level = audioQualityFor(provider.id, quality);

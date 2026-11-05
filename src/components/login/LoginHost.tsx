@@ -11,7 +11,7 @@ import { omni } from '../../services/onlineMusic/omni';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
 import { loginDoneLanding, loginDonePlays } from './done/loginDoneFrame';
 import { createLoginHostState } from './loginHostState';
-import { closeLoginWindow, loginHostMounted, setLoginLanding, useLoginWindowStore } from './loginWindowStore';
+import { openLoginWindow, closeLoginWindow, loginHostMounted, setLoginLanding, useLoginWindowStore } from './loginWindowStore';
 import { orderRows } from './platformRows';
 import { syncAccountData } from './syncAccountData';
 import LoginScreen from './window/LoginScreen';
@@ -39,6 +39,12 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
     const completion = useLibraryAccountSelector(account, selectCompletion);
     const syncingProviderId = useLibraryAccountSelector(account, selectAccountSyncProviderId);
     const reducedMotion = useKitReducedMotion();
+
+    useEffect(() => {
+        const dispose = window.electron?.onOpenProviderSettings?.(providerId => openLoginWindow(providerId));
+        window.electron?.providerSettingsReady?.();
+        return dispose;
+    }, []);
 
     // host 每次去问都拿到这一次渲染的东西。
     const live = useRef({ account, providers, reducedMotion });

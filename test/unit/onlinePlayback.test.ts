@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const cachedAudioMock = vi.hoisted(() => vi.fn());
 const songCacheMock = vi.hoisted(() => vi.fn());
 const sourceMock = vi.hoisted(() => vi.fn());
+const sourceValidMock = vi.hoisted(() => vi.fn(() => true));
 const lyricsMock = vi.hoisted(() => vi.fn());
 const otherArtistNameMock = vi.hoisted(() => vi.fn());
 const autoMatchMock = vi.hoisted(() => vi.fn());
@@ -21,6 +22,7 @@ vi.mock('@/services/onlineMusic/resourceCache', () => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         getAudioSource: sourceMock,
+        isAudioSourceValid: sourceValidMock,
         getLyrics: lyricsMock,
         getAlternateArtistName: otherArtistNameMock,
         resolveAudioQuality: (_providerId: string, preference: string) => preference,
@@ -88,6 +90,7 @@ describe('online audio ReplayGain plumbing', () => {
         vi.clearAllMocks();
         cachedAudioMock.mockResolvedValue(null);
         isUrlValidMock.mockReturnValue(true);
+        sourceValidMock.mockReturnValue(true);
         resetOnlineRequestCooldowns();
         useOnlineProviderAccountStore.setState({ accounts: {} });
     });
@@ -157,6 +160,14 @@ describe('online audio ReplayGain plumbing', () => {
         );
     });
 
+    it('replaces a revoked provider URL before handing it to the audio element', async () => {
+        const prefetched = { audioUrl: 'blob:revoked', audioUrlFetchedAt: Date.now() } as any;
+        sourceValidMock.mockReturnValue(false);
+        sourceMock.mockResolvedValue({ url: 'blob:fresh', fetchedAt: Date.now(), quality: 'high' });
+        expect(await loadOnlineSongAudioSource(song, 'high', prefetched)).toMatchObject({ kind: 'ok', audioSrc: 'blob:fresh' });
+        expect(sourceMock).toHaveBeenCalled();
+    });
+
     it('reuses prefetched metadata without asking the provider again', async () => {
         const prefetched = {
             audioUrl: 'https://audio.test/prefetched.flac',
@@ -201,6 +212,7 @@ describe('online audio source failures', () => {
         cachedAudioMock.mockReset();
         cachedAudioMock.mockResolvedValue(null);
         isUrlValidMock.mockReturnValue(true);
+        sourceValidMock.mockReturnValue(true);
         resetOnlineRequestCooldowns();
         clearCachedSongAudioDistrust(song);
         useOnlineProviderAccountStore.setState({ accounts: {} });

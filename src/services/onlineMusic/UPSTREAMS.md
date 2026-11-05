@@ -83,7 +83,7 @@
 - **上游**：
   - Spotify 自己应用用的两个服务，没有公开文档：查询服务 `https://api-partner.spotify.com/pathfinder/v2/query` 和 `https://spclient.wg.spotify.com`（`electron/spotify/spotifyApiBridge.cjs`）。公开的 Web API 对这种登录一律答 429（那个文件开头记着 2026-10-08 实测）。
   - 登录走 `https://accounts.spotify.com/authorize` 和 `/api/token`（`electron/spotify/signIn.cjs`）。
-  - 音频：`@lox-audioserver/node-librespot`（仓库 lox-audioserver/node-librespot），librespot 的 Node 原生模块，用账号连上 Spotify 拿到文件位置和密钥；文件从 CDN 按范围读、边读边解密（`electron/spotify/audio.cjs`）。
+  - 音频：Spotify 官方 Soloist 独立程序，由用户从官网下载。`electron/spotify/soloist.cjs` 管理程序和加密密钥，`spotify/spotifySoloistTransport.ts` 同步控件与歌词时间轴。安装包不包含 Soloist，配置和有效期见 [`docs/spotify-soloist.md`](../../../docs/spotify-soloist.md)。原 librespot 实现保留在 `electron/spotify/audio.cjs`，普通播放不再调用。
 - **版本**：
   - 查询服务：每个查询的名字和哈希写在 `spotifyApiBridge.cjs` 的 `QUERIES`（改账号的那些在同一文件的另一张表），注释写着 2026-10-08 读到的。这就是“钉住的版本”。
   - `@lox-audioserver/node-librespot` 0.5.1，在根目录 `package.json` 的 `optionalDependencies`：没有现成构建的系统上装不上也不让整个安装失败。现成构建是 win32-x64、darwin-arm64、linux-x64 和 linux-arm64（glibc），没有 darwin-x64；打包时这些 `.node` 文件放在 `asarUnpack` 里。

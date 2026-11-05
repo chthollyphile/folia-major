@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../../src/types';
 import { getPlaybackSongKey } from '../../../src/utils/appPlaybackGuards';
 
@@ -32,6 +32,7 @@ vi.mock('../../../src/services/db', () => ({
 }));
 
 const { cachePlayedTrackAssets } = await import('../../../src/services/playedTrackCache');
+const { spotifyProvider } = await import('../../../src/services/onlineMusic/spotify/spotifyProvider');
 const { getSongResourceCacheKey } = await import('../../../src/services/onlineMusic/resourceKeys');
 const {
     clearCachedSongAudioDistrust,
@@ -336,21 +337,22 @@ describe('cachePlayedTrackAssets', () => {
         expect(saveSongAudioLevel).not.toHaveBeenCalled();
     });
 
-    // Spotify keeps its audio in a cache of its own (encrypted, on the desktop side). The played
-    // track is not read here and nothing of it goes to the media cache: the provider is asked to
-    // keep the file the song played from, and a separation waiting for the song is told. The cover
-    // is kept like any other.
+    // Substitute the optional provider-cache contract here. Soloist itself does not retain
+    // Folia's silent timeline in this cache, so its old audio_keep IPC is no longer a fixture.
     describe('for a provider with a cache of its own', () => {
         const spotifySong = {
             ...onlineSong, sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '4cOdK2wGLETKBW3PvgPWqT' },
         } as unknown as SongResult;
         const src = 'folia-spotify://audio/4cOdK2wGLETKBW3PvgPWqT?k=1';
+        afterEach(() => vi.restoreAllMocks());
         const desktop = (answers: Record<string, boolean>) => {
             const asked: Array<[string, unknown]> = [];
-            vi.stubGlobal('window', { electron: { spotifyRequest: async (operation: string, params: unknown) => {
-                asked.push([operation, params]);
-                return { ok: true, data: answers[operation] };
-            } } });
+            vi.spyOn(spotifyProvider.playback!, 'hasKeptAudio').mockImplementation(async url => {
+                asked.push(['hasKeptAudio', url]); return answers.audio_kept;
+            });
+            vi.spyOn(spotifyProvider.playback!, 'keepAudio').mockImplementation(async url => {
+                asked.push(['keepAudio', url]); return answers.audio_keep;
+            });
             return asked;
         };
 
@@ -360,7 +362,7 @@ describe('cachePlayedTrackAssets', () => {
             const written = await cachePlayedTrackAssets(spotifySong, src);
 
             expect(written).toEqual({ audio: true, cover: true });
-            expect(asked).toEqual([['audio_kept', { url: src }], ['audio_keep', { url: src, limitBytes: 4096 }]]);
+            expect(asked).toEqual([['hasKeptAudio', src], ['keepAudio', src]]);
             expect(notifyAudioCached).toHaveBeenCalledWith(getSongResourceCacheKey('audio', spotifySong), src);
             expect(saveAudioBlob).not.toHaveBeenCalled();
             expect(fetch).toHaveBeenCalledTimes(1);
@@ -373,7 +375,7 @@ describe('cachePlayedTrackAssets', () => {
             const written = await cachePlayedTrackAssets(spotifySong, src);
 
             expect(written).toEqual({ audio: false, cover: true });
-            expect(asked).toEqual([['audio_kept', { url: src }]]);
+            expect(asked).toEqual([['hasKeptAudio', src]]);
             expect(notifyAudioCached).not.toHaveBeenCalled();
         });
 

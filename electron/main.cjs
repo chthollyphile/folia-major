@@ -421,6 +421,7 @@ const getSpotifyNetwork = () => {
   return spotifyNetwork;
 };
 const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
+  desktop: { app, BrowserWindow, ipcMain, safeStorage, shell, dialog, isTrustedMainWindowContents },
   fetch: async (input, init) => (await getSpotifyNetwork()).fetch(input instanceof URL ? input.href : input, { ...init, credentials: 'omit' }),
   openExternal: url => shell.openExternal(url),
   language: () => getMainLocaleKey(),

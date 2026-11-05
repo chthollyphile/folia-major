@@ -4,9 +4,8 @@ import { createProviderSongMetadata } from '../../../utils/songMetadata';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { formatLrcTimestamp } from '../../../utils/lyrics/lrcTimestamp';
 import i18n from '../../../i18n/config';
-import { cacheLimitBytes } from '../../audioCache';
 import { getSpotifyTransportAvailability, querySpotify, requestSpotify } from './spotifyTransport';
-import type { SpotifyWireAudio, SpotifyWireLoginStart, SpotifyWireLyrics } from './spotifyTransport';
+import type { SpotifyWireLoginStart, SpotifyWireLyrics } from './spotifyTransport';
 import {
     normalizeSpotifyCollection, normalizeSpotifySong, normalizeSpotifyUser, present, requireSpotifySong, spotifySongOf, spotifyUri,
 } from './spotifyNormalize';
@@ -18,6 +17,7 @@ import { spotifyMutations } from './spotifyMutations';
 import { resetSpotifyRecommendations, spotifyRecommendations } from './spotifyRecommendations';
 import { describeSpotifyLoginFailure, spotifyLoginFailure } from './spotifyLoginFailure';
 import { describeSpotifyFailure } from './spotifyFailure';
+import { soloistSource, isSoloistSourceValid } from './spotifySoloistTransport';
 
 // src/services/onlineMusic/spotify/spotifyProvider.ts
 // Spotify adapter. Sign-in happens in the browser where the person is already signed in to
@@ -134,22 +134,15 @@ export const spotifyProvider: OnlineMusicProvider = {
             const track = (await querySpotify<TrackAnswer>('getTrack', { uri: spotifyUri('track', String(id)) })).trackUnion;
             return spotifySongOf(track && { ...track, artists: { items: [...(track.firstArtist?.items ?? []), ...(track.otherArtists?.items ?? [])] } });
         },
-        // Spotify's files are Ogg Vorbis at 160 and at 320 kbit/s and nothing above (`BITRATES` on
-        // the desktop side): two levels, and a preference above `high` is asked for as `high`.
-        audioQualityLevels: ['standard', 'high'],
-        // Spotify's own audio, for paying accounts only (Spotify's rule for every player that is not
-        // its own): a free account is answered `subscription-required`. The URL is the desktop app's own.
+        // Soloist chooses its output format; no lossless or high-resolution level is advertised.
+        audioQualityLevels: ['high'],
+        // Soloist owns the audible output and its encrypted cache. Never retain silent timeline blobs.
         async getAudioSource(song, quality) {
-            const id = requireSpotifySong(song);
-            const startedAt = Date.now();
-            const audio = await requestSpotify<SpotifyWireAudio>('audio', { id, quality });
-            console.log(`[Spotify] Audio for "${song.name}" (${id}) is ready as ${audio.format} after ${Date.now() - startedAt}ms`);
-            return { url: audio.url, fetchedAt: Date.now(), quality };
+            return soloistSource(song, requireSpotifySong(song), quality);
         },
-        // Spotify's files stay out of the media cache. The desktop side keeps them on disk as
-        // Spotify sends them, encrypted and without their key, under the media cache's size limit.
-        keepAudio: url => requestSpotify<boolean>('audio_keep', { url, limitBytes: cacheLimitBytes() }),
-        hasKeptAudio: url => requestSpotify<boolean>('audio_kept', { url }),
+        isAudioSourceValid: isSoloistSourceValid,
+        keepAudio: async () => false,
+        hasKeptAudio: async () => false,
     },
     lyrics: {
         // Spotify's own lyrics are timed by line, or not at all. Untimed ones, and a failure to read

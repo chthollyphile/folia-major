@@ -89,8 +89,9 @@ const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 function createSpotifyApiBridge({
   store, safeStorage, fetch, openExternal, language = () => 'zh-CN', now = Date.now,
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), signIn: givenSignIn, openSession,
-  audioDirectory, onAudioKept, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
+  desktop, audioDirectory, onAudioKept, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
 }) {
+  const soloist = desktop ? require('./soloist.cjs').install(desktop) : null;
   const repo = createSpotifySessionRepository({ store, safeStorage, log, warn });
   const signIn = givenSignIn ?? createSpotifySignIn({ fetch, openExternal, language, now, log, warn });
   let renewing = null;
@@ -480,7 +481,9 @@ function createSpotifyApiBridge({
     // Answers null when there is nothing to wait for. Else the quit is to be held for the promise
     // answered: it resolves once the renewal was stored, or failed, or after SHUTDOWN_LIMIT_MS.
     shutdown() {
-      return renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);
+      const stopping = soloist?.shutdown();
+      const saving = renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);
+      return stopping || saving ? Promise.all([stopping, saving]).then(() => {}) : null;
     },
   };
 }

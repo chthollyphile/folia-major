@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // a provider is asked for under a preference it does not list.
 
 const request = vi.hoisted(() => vi.fn());
+const soloistSource = vi.hoisted(() => vi.fn(async () => ({ url: 'blob:soloist-test', fetchedAt: 1, quality: 'high' })));
+vi.mock('@/services/onlineMusic/spotify/spotifySoloistTransport', () => ({ soloistSource, isSoloistSourceValid: () => true }));
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
     requestSpotify: request,
     querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
@@ -139,12 +141,14 @@ describe('Spotify daily songs and recommended playlists', () => {
 });
 
 describe('quality levels', () => {
-    it('lists two levels for Spotify and asks for the nearest one at or below the preference', async () => {
-        expect(omni.getAudioQualityLevels('spotify')).toEqual(['standard', 'high']);
-        expect((['standard', 'high', 'lossless', 'hires'] as const).map(level => omni.resolveAudioQuality('spotify', level))).toEqual(['standard', 'high', 'high', 'high']);
+    it('routes Spotify audio through Soloist without advertising lossless playback', async () => {
+        expect(omni.getAudioQualityLevels('spotify')).toEqual(['high']);
+        expect((['standard', 'high', 'lossless', 'hires'] as const).map(level => omni.resolveAudioQuality('spotify', level))).toEqual(['high', 'high', 'high', 'high']);
         serve({});
         await omni.getAudioSource(spotifyProvider.normalizeSong(track('a')) as UnifiedSong, 'lossless');
-        expect(asked('audio')[0][1]).toEqual({ id: id('a'), quality: 'high' });
+        expect(soloistSource).toHaveBeenCalledWith(expect.objectContaining({ name: 'a' }), id('a'), 'high');
+        expect(asked('audio')).toHaveLength(0);
+        expect(await spotifyProvider.playback!.keepAudio!('blob:soloist-test')).toBe(false);
     });
 
     it('leaves a provider that lists no levels with all four', () => {

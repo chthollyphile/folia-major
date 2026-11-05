@@ -21,6 +21,7 @@ import { accountView, failureNoteKey, failureQuote, loginScene, sceneHeadline, s
 import FormLogin from './FormLogin';
 import LoginWindow from './LoginWindow';
 import PlatformColumn from './PlatformColumn';
+import { ProviderPlaybackSettings } from '../providerPlaybackSettings';
 
 // src/components/login/window/LoginScreen.tsx
 // 登录窗口此刻画什么：从「选中了哪一行、登录走到哪一步、失败是哪一种情况」定出那一块画、标题、
@@ -263,7 +264,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         steps={stepMarks(scene, inBrowser)}
                     />
                 )}
-            below={details ? <Unfold open={detailsOpen}>{details}</Unfold> : undefined}
+            below={<>{details ? <Unfold open={detailsOpen}>{details}</Unfold> : null}{isOpen && <ProviderPlaybackSettings providerId={providerId} signedIn={!!summary?.user} />}</>}
         />
         {shownDone && providerId && <LoginDoneFlight parts={doneParts} providerId={providerId} label={label} user={summary?.user ?? null} />}
         </>
