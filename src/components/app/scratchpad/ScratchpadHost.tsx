@@ -6,6 +6,7 @@ import { ListPlus, Maximize2, Minimize2, NotebookPen, Play, Star, Trash2, X } fr
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useScratchpadSettingsStore } from '../../../stores/useScratchpadSettingsStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
@@ -85,6 +86,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     })));
     const groups = useMemo(() => groupScratchpadEntries(entries), [entries]);
     const queueLength = usePlaybackStore(state => state.playQueue.length);
+    // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
+    const showHandle = useScratchpadSettingsStore(state => state.showHandle);
+    const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
     const listRef = useRef<HTMLDivElement>(null);
     const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -280,8 +284,12 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     return (
         <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}>
-            {!isOpen && !isHandleHidden && (
-                <div className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`} data-ponder="scratchpad">
+            {!isOpen && !isHandleHidden && showHandle && (
+                <div
+                    className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`}
+                    style={{ '--scratchpad-edge-position': handlePosition } as React.CSSProperties}
+                    data-ponder="scratchpad"
+                >
                     <button
                         ref={handleRef}
                         type="button"

@@ -19,15 +19,18 @@
    （.bravais-seam-tab，最高占 60%，即 20%–80% 的高度），正中会和它叠在一起，感应带还会抢它的点击。 */
 
 /* 感应带比把手宽得多：指针贴着左缘往上部扫过去就能碰到。上边从 72px 起，让开播放页与两面墙左上角的返回钮
-   （24–64px 见方）；高度跟着窗口：在 Bravais 信息条标签（窗口高度的 20% 起）之上收住。 */
+   （24–64px 见方）；高度跟着窗口：在 Bravais 信息条标签（窗口高度的 20% 起）之上收住。
+   设置里的「悬浮标签高度」（--scratchpad-edge-position，0–1，宿主写在行内）把它在 72px 与离窗口底部 24px 之间挪动；
+   默认 0 就是上面说的位置，挪到中段会和 Bravais 信息条的标签叠在一起，那是用户自己的取舍。 */
 .scratchpad-edge {
+    --scratchpad-edge-height: clamp(96px, calc(20vh - 76px), 168px);
     position: fixed;
-    top: 72px;
+    top: calc(72px + var(--scratchpad-edge-position, 0) * (100vh - 72px - 24px - var(--scratchpad-edge-height)));
     left: 0;
     z-index: 95;
     display: flex;
     width: 40px;
-    height: clamp(96px, calc(20vh - 76px), 168px);
+    height: var(--scratchpad-edge-height);
     align-items: center;
     pointer-events: auto;
 }
