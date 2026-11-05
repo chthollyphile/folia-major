@@ -153,5 +153,7 @@ describe('collection sync counts', () => {
         expect(resolveCollectionSyncCounts(1500, 3000)).toEqual({ loaded: (1500).toLocaleString(), total: (3000).toLocaleString() });
         expect(resolveCollectionSyncCounts(10, undefined)).toBeNull();
         expect(resolveCollectionSyncCounts(10, 0)).toBeNull();
+        // More loaded than the recorded count: the count is stale, so no "180 / 150".
+        expect(resolveCollectionSyncCounts(180, 150)).toBeNull();
     });
 });

@@ -3,7 +3,9 @@ import type { CollectionSyncPage } from './onlineCollectionSync.service';
 // src/library/core/collection/resource/collectionTrackSnapshot.service.ts
 // Preserve upstream pagination separately from the number of visible, deduplicated tracks.
 
-export const COLLECTION_TRACK_SNAPSHOT_SCHEMA_VERSION = 7;
+// 8：补页以前会被集合描述里过期的曲目数提前截断（只剩首页 150 首），并把截断的结果记成读完了；
+// 换版本让这些快照一次作废，打开时重新读。
+export const COLLECTION_TRACK_SNAPSHOT_SCHEMA_VERSION = 8;
 
 export type CollectionTrackSnapshot<T> = {
     schemaVersion: number;
