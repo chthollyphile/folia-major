@@ -288,6 +288,13 @@ describe('QQ explore page', () => {
         }
     });
 
+    // 旧后端缺这条路由是常态：不出这几栏，也不当成读失败记警告。
+    it('does not warn about the home feed on a backend without its route', async () => {
+        answerAs({ recommend_feed: () => { throw new OnlineProviderError('unsupported', 'QQMusicApi has no recommend_feed route', 'qq', undefined, 404); } });
+        await createQqExplore().getFeed(undefined, listened);
+        expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).not.toContain('recommend_feed');
+    });
+
     it('fails only where nothing of the first page and the parts after it could be read', async () => {
         transportState.hasSession = false;
         requestMock.mockRejectedValue(new OnlineProviderError('network', 'QQMusicApi request failed: 503', 'qq', undefined, 503));
