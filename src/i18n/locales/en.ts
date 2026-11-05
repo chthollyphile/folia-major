@@ -1495,7 +1495,10 @@ export default {
     "statusPending": "Personal FM mode",
     "statusApplied": "Personal FM switched to",
     "statusEmpty": "This Personal FM mode returned nothing",
-    "statusFailed": "Failed to switch the Personal FM mode"
+    "statusFailed": "Failed to switch the Personal FM mode",
+    "statusAppliedOf": "{{name}} switched to",
+    "statusEmptyOf": "This {{name}} mode returned nothing",
+    "statusFailedOf": "Failed to switch the {{name}} mode"
   },
   "recommendationPreferences": {
     "open": "Preferences",

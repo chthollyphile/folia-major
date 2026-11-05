@@ -1495,7 +1495,10 @@ export default {
     "statusPending": "私人 FM 模式",
     "statusApplied": "私人 FM 已切换到",
     "statusEmpty": "该私人 FM 模式没有返回歌曲",
-    "statusFailed": "切换私人 FM 模式失败"
+    "statusFailed": "切换私人 FM 模式失败",
+    "statusAppliedOf": "{{name}}已切换到",
+    "statusEmptyOf": "该{{name}}模式没有返回歌曲",
+    "statusFailedOf": "切换{{name}}模式失败"
   },
   "recommendationPreferences": {
     "open": "偏好设置",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import i18n from '../../../src/i18n/config';
-import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmOpenPickerLabel, getPersonalFmPickerTitle } from '../../../src/services/onlineMusic/fmModes';
+import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmOpenPickerLabel, getPersonalFmPickerTitle, getPersonalFmStatusText } from '../../../src/services/onlineMusic/fmModes';
 import { fmModeCommand } from '../../../src/components/command-palette/commands/fmModeCommand';
 import { stationModeCommand } from '../../../src/components/command-palette/commands/stationModeCommand';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
@@ -51,5 +51,16 @@ describe('FM picker title', () => {
         expect(getPersonalFmOpenPickerLabel(stationCatalog)).toContain('Fixture Radio');
         expect(getPersonalFmOpenPickerLabel()).toBe(i18n.t('personalFmMode.openPicker'));
         expect(getPersonalFmOpenPickerLabel(DEFAULT_PERSONAL_FM_CATALOG)).toBe(i18n.t('personalFmMode.openPicker'));
+    });
+
+    it('names the radio on air in the status lines of a mode switch, the Personal FM otherwise', () => {
+        expect(getPersonalFmStatusText('applied', stationCatalog)).toBe(i18n.t('personalFmMode.statusAppliedOf', { name: 'Fixture Radio' }));
+        expect(getPersonalFmStatusText('empty', stationCatalog)).toBe(i18n.t('personalFmMode.statusEmptyOf', { name: 'Fixture Radio' }));
+        expect(getPersonalFmStatusText('failed', stationCatalog)).toBe(i18n.t('personalFmMode.statusFailedOf', { name: 'Fixture Radio' }));
+        for (const kind of ['applied', 'empty', 'failed'] as const) {
+            expect(getPersonalFmStatusText(kind, stationCatalog)).toContain('Fixture Radio');
+        }
+        expect(getPersonalFmStatusText('applied')).toBe(i18n.t('personalFmMode.statusApplied'));
+        expect(getPersonalFmStatusText('failed', DEFAULT_PERSONAL_FM_CATALOG)).toBe(i18n.t('personalFmMode.statusFailed'));
     });
 });

@@ -1495,7 +1495,10 @@ export default {
     "statusPending": "Chế độ FM cá nhân",
     "statusApplied": "FM cá nhân đã chuyển sang",
     "statusEmpty": "Chế độ FM cá nhân này không có bài hát",
-    "statusFailed": "Chuyển chế độ FM cá nhân thất bại"
+    "statusFailed": "Chuyển chế độ FM cá nhân thất bại",
+    "statusAppliedOf": "{{name}} đã chuyển sang",
+    "statusEmptyOf": "Chế độ {{name}} này không có bài hát",
+    "statusFailedOf": "Chuyển chế độ {{name}} thất bại"
   },
   "recommendationPreferences": {
     "open": "Sở thích",

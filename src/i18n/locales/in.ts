@@ -1495,7 +1495,10 @@ export default {
     "statusPending": "Mode FM Pribadi",
     "statusApplied": "FM Pribadi beralih ke",
     "statusEmpty": "Mode FM Pribadi ini tidak mengembalikan lagu",
-    "statusFailed": "Gagal mengganti mode FM Pribadi"
+    "statusFailed": "Gagal mengganti mode FM Pribadi",
+    "statusAppliedOf": "{{name}} beralih ke",
+    "statusEmptyOf": "Mode {{name}} ini tidak mengembalikan lagu",
+    "statusFailedOf": "Gagal mengganti mode {{name}}"
   },
   "recommendationPreferences": {
     "open": "Preferensi",

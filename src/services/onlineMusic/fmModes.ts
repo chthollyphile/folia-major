@@ -163,6 +163,23 @@ export const getPersonalFmOpenPickerLabel = (catalog?: PersonalFmCatalog): strin
         : i18n.t('personalFmMode.openPicker', { defaultValue: 'Switch the Personal FM mode' })
 );
 
+const STATUS_KEYS = {
+    applied: ['statusApplied', 'Personal FM switched to', 'statusAppliedOf', '{{name}} switched to'],
+    empty: ['statusEmpty', 'This Personal FM mode returned nothing', 'statusEmptyOf', 'This {{name}} mode returned nothing'],
+    failed: ['statusFailed', 'Failed to switch the Personal FM mode', 'statusFailedOf', 'Failed to switch the {{name}} mode'],
+} as const;
+
+/**
+ * The status line of a mode switch, naming the radio on air where its catalogue names it ("Guess You Like
+ * switched to"), the Personal FM otherwise, like the picker's title.
+ */
+export const getPersonalFmStatusText = (kind: keyof typeof STATUS_KEYS, catalog?: PersonalFmCatalog | null): string => {
+    const [key, fallback, keyOf, fallbackOf] = STATUS_KEYS[kind];
+    return catalog?.name
+        ? i18n.t(`personalFmMode.${keyOf}`, { name: catalogName(catalog.name), defaultValue: fallbackOf })
+        : i18n.t(`personalFmMode.${key}`, { defaultValue: fallback });
+};
+
 function catalogName(name: NonNullable<PersonalFmCatalog['name']>): string {
     return name.labelKey ? i18n.t(name.labelKey, { defaultValue: name.labelFallback }) : name.labelFallback;
 }

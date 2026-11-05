@@ -3,6 +3,7 @@ import type React from 'react';
 import { omni } from '../services/onlineMusic/omni';
 import {
     getPersonalFmSelectionLabel,
+    getPersonalFmStatusText,
     isSamePersonalFmSelection,
     normalizePersonalFmSelection,
     toPersonalFmRequestOptions,
@@ -81,6 +82,12 @@ export function usePersonalFmModeController({
         selectionBeforePending.current = null;
         const applied = station ? normalizePersonalFmSelection(selection, catalog ?? undefined) : setSelection(activeProviderId, selection);
         const label = getPersonalFmSelectionLabel(applied, t, catalog);
+        // A radio on air is named in its status lines, as in the picker's title; the Personal FM keeps its own words.
+        const statusOf = (kind: 'applied' | 'empty' | 'failed'): string => (station
+            ? getPersonalFmStatusText(kind, catalog)
+            : kind === 'applied' ? t('personalFmMode.statusApplied', 'Personal FM switched to')
+                : kind === 'empty' ? t('personalFmMode.statusEmpty', 'This Personal FM mode returned nothing')
+                    : t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode'));
         const mine = ++request.current;
         // The same FM stream is still on air when the batch comes: nothing started a queue of its own or
         // replaced the queue whole meanwhile. The queue itself is not asked: the next song landing, an add
@@ -128,13 +135,13 @@ export function usePersonalFmModeController({
             if (!stillCurrent()) return;
             if (songs.length === 0) {
                 putBack();
-                setStatusMsg({ type: 'error', text: t('personalFmMode.statusEmpty', 'This Personal FM mode returned nothing') });
+                setStatusMsg({ type: 'error', text: statusOf('empty') });
                 return;
             }
 
             // Announced before handing over, because playSong clears any non-persistent status of
             // its own as it starts.
-            if (!station) setStatusMsg({ type: 'info', text: `${t('personalFmMode.statusApplied', 'Personal FM switched to')} ${label}` });
+            if (!station) setStatusMsg({ type: 'info', text: `${statusOf('applied')} ${label}` });
             // The whole queue is replaced and playback jumps to the head: a new mode means a new
             // stream, so keeping the old one's leftovers around would only muddy it.
             if (station) registerPersonalFmLanding(songs, () => {
@@ -145,7 +152,7 @@ export function usePersonalFmModeController({
                     && selectActiveStation(state, activeProviderId)?.id === station.id
                     && selectFmRun(state, activeProviderId) === run) {
                     state.setStationSelection(activeProviderId, applied);
-                    setStatusMsg({ type: 'info', text: `${t('personalFmMode.statusApplied', 'Personal FM switched to')} ${label}` });
+                    setStatusMsg({ type: 'info', text: `${statusOf('applied')} ${label}` });
                 }
             });
             await playSong(songs[0], songs, true);
@@ -159,7 +166,7 @@ export function usePersonalFmModeController({
             }
             putBack();
             console.error('[PersonalFm] Failed to refresh queue for mode', error);
-            setStatusMsg({ type: 'error', text: t('personalFmMode.statusFailed', 'Failed to switch the Personal FM mode') });
+            setStatusMsg({ type: 'error', text: statusOf('failed') });
         }
     }, [activeProviderId, catalog, currentSong, isFmMode, personalFmSelection, playSong, setSelection, station, t]);
 
