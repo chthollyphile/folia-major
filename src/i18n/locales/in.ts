@@ -2068,6 +2068,7 @@ export default {
     "aiEndpoint_hongkong": "Hong Kong",
     "aiTemperatureRangeDesc": "Rentang: {{min}}–{{max}}. Default ke 0.7 bila dibiarkan kosong.",
     "aiTemperaturePerModelDesc": "Rentang: {{min}}–{{max}}; beberapa model mengabaikannya. Default ke 0.7 bila dibiarkan kosong.",
+    "aiTemperatureNote": "Temperatur mengatur seberapa acak hasilnya: makin rendah makin stabil, makin tinggi makin beragam. Sebaiknya biarkan default, atau sesuaikan sesuai rekomendasi dokumentasi penyedia Anda.",
     "randomVisualizerModes": "Gaya untuk diacak",
     "randomVisualizerSelectAll": "Pilih semua",
     "randomVisualizerCurrentStyle": "Gaya saat ini",
@@ -4788,7 +4789,8 @@ export default {
     "posterTopSongs": "Lagu populer"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "Poster album"
+    "posterLabel": "Poster album",
+    "openArtist": "Buka artis {{name}}"
   },
   "artistGrid": {
     "localArtist": "Artis Lokal: {{artistName}}",

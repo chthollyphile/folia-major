@@ -15,6 +15,13 @@ export const resolveNavidromeServerScope = (): string => {
     return config ? `${config.serverUrl}|${config.username}` : '';
 };
 
+/** 专辑歌手（带 id，页头的歌手名可以点开歌手页）：OpenSubsonic 的 artists 优先，老服务器用 artistId + artist。 */
+const navidromeAlbumArtists = (album: SubsonicAlbum): Pick<CollectionDetail, 'artists'> => {
+    const artists = (album.artists ?? []).filter(artist => artist?.id && artist.name);
+    if (artists.length) return { artists: artists.map(artist => ({ id: artist.id, name: artist.name })) };
+    return album.artistId && album.artist ? { artists: [{ id: album.artistId, name: album.artist }] } : {};
+};
+
 /**
  * getAlbum 读回来的专辑信息，写法与首页专辑卡（navidromeHomeModel 的 buildNavidromeAlbumCards）一致：
  * 从歌曲、播放器、搜索跳到专辑时，集合描述里只有 id、名字和歌曲封面，页头的歌手、年份、流派、时长靠它补全。
@@ -27,6 +34,7 @@ export const toNavidromeAlbumDetail = (config: NavidromeConfig, album: SubsonicA
     description: album.artist,
     trackCount: album.songCount,
     albumArtist: album.artist,
+    ...navidromeAlbumArtists(album),
     albumYear: album.year,
     albumGenre: album.genre,
     albumDuration: album.duration,

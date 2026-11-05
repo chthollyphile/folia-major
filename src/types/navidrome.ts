@@ -41,6 +41,8 @@ export interface SubsonicAlbum {
     name: string;
     artist: string;
     artistId: string;
+    /** OpenSubsonic 扩展：专辑的每位歌手（Navidrome 0.53 起有；老服务器只有上面的 artist / artistId）。 */
+    artists?: { id: string; name: string }[];
     coverArt?: string;
     songCount: number;
     duration: number;

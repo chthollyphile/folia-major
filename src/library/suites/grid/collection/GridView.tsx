@@ -8,6 +8,7 @@ import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailabi
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
+import { resolveCollectionArtistCatalogId } from '../../../../services/onlineMusic/catalogRefs';
 import { colorWithAlpha } from '../../../../components/visualizer/colorMix';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureMessage } from '../../../../services/onlineMusic/failure/onlineFailureTexts';
@@ -79,6 +80,7 @@ import { useCollectionResourceState } from '../../../core/collection/resource/us
 import { useCollectionMutationSnapshot } from '../../../core/collection/mutations/useCollectionMutations';
 import { useCollectionView } from '../../../core/collection/useCollectionView';
 import { useCommittedQuery } from '../../../core/shared/useCommittedQuery';
+import { resolveCollectionArtistLinks } from '../../../core/shared/collectionArtistLinks';
 import { useLibrarySessionQuery } from '../../../core/shared/useLibrarySessionQuery';
 import { useGridCommandFilter } from '../../../../hooks/useGridCommandFilter';
 import {
@@ -1603,7 +1605,10 @@ export const GridView: React.FC<GridViewProps> = ({
         run: (action) => runGridSurfaceAction(action, gridSurfaceParams),
     });
 
-    const albumArtists = Array.isArray(infoCollection?.artists) ? infoCollection.artists : [];
+    // 专辑歌手：能打开的才做成按钮（与 Bravais 专辑海报同一条规则，在线的问平台，占位 id 不当真）。
+    const albumArtists = infoCollection && Array.isArray(infoCollection.artists)
+        ? resolveCollectionArtistLinks(infoCollection, resolveCollectionArtistCatalogId)
+        : [];
     const albumAlias = infoCollection?.aliases?.[0];
     const albumPublishedAt = infoCollection?.publishedAt;
     const albumPublisher = infoCollection?.publisher;
@@ -1943,15 +1948,19 @@ export const GridView: React.FC<GridViewProps> = ({
                                             )}
                                             {albumArtists.length > 0 ? (
                                                 <div className="flex flex-wrap gap-x-2 gap-y-1">
-                                                    {albumArtists.map((artist: { id: string | number; name: string }, index: number) => (
-                                                        <button
-                                                            key={`${artist.id}-${index}`}
-                                                            type="button"
-                                                            onClick={() => onSelectArtist?.(artist.id, artist)}
-                                                            className="font-semibold hover:underline"
-                                                        >
-                                                            {artist.name}
-                                                        </button>
+                                                    {albumArtists.map(({ artist, targetId }, index) => (
+                                                        targetId !== undefined && onSelectArtist ? (
+                                                            <button
+                                                                key={`${artist.id}-${index}`}
+                                                                type="button"
+                                                                onClick={() => onSelectArtist(targetId, artist)}
+                                                                className="font-semibold hover:underline"
+                                                            >
+                                                                {artist.name}
+                                                            </button>
+                                                        ) : (
+                                                            <span key={`${artist.id}-${index}`} className="font-semibold">{artist.name}</span>
+                                                        )
                                                     ))}
                                                 </div>
                                             ) : null}

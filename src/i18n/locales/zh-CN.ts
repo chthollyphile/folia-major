@@ -2068,6 +2068,7 @@ export default {
     "aiEndpoint_hongkong": "中国香港",
     "aiTemperatureRangeDesc": "范围为 {{min}}–{{max}}；留空时使用默认值 0.7。",
     "aiTemperaturePerModelDesc": "范围为 {{min}}–{{max}}，部分模型会忽略；留空时使用默认值 0.7。",
+    "aiTemperatureNote": "温度决定输出的随机程度：越低越稳定，越高越多变。建议保持默认值，或按照供应商文档的建议调整。",
     "randomVisualizerModes": "参与随机的样式",
     "randomVisualizerSelectAll": "全选",
     "randomVisualizerCurrentStyle": "当前样式",
@@ -4788,7 +4789,8 @@ export default {
     "posterTopSongs": "热门歌曲"
   },
   "libraryBravaisAlbum": {
-    "posterLabel": "专辑海报"
+    "posterLabel": "专辑海报",
+    "openArtist": "打开歌手 {{name}}"
   },
   "artistGrid": {
     "localArtist": "本地歌手: {{artistName}}",
