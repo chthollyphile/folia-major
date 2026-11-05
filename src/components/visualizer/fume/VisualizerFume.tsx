@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import LoadingDots from '../../shared/LoadingDots';
+import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { useStatusMessageStore } from '../../../stores/useStatusMessageStore';
 import { DEFAULT_FUME_TUNING, FumeTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
@@ -56,6 +58,8 @@ const LAYOUT_REBUILD_DEBOUNCE_MS = 96;
 
 const VisualizerFume: React.FC<VisualizerProps> = (props) => {
     const { t } = useTranslation();
+    const playbackLoading = usePlaybackStore(state => state.isLoadingToPlay);
+    const noticeLoading = useStatusMessageStore(state => state.message?.activity === 'playback-loading');
     const {
         currentTime,
         currentLineIndex,
@@ -367,7 +371,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
                         role="status"
                         aria-label={t('localMusic.loadingLyrics')}
                     >
-                        <LoadingDots />
+                        {!playbackLoading && !noticeLoading && <LoadingDots />}
                     </motion.div>
                 )}
             </div>

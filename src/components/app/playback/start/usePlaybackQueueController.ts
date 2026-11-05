@@ -604,6 +604,10 @@ export function usePlaybackQueueController({
 
         // The play starts here: from now on a newer play, or a drop of the plays in flight, ends it.
         const isLatestPlaybackRequest = startPlay(getOnlineProviderIdForSong(song));
+        // Show feedback as soon as a manual selection begins, including prepared external tracks.
+        if (!options.isAutomixAdvance) {
+            setStatusMsg({ type: 'info', activity: 'playback-loading', text: t('status.loadingSong') });
+        }
         // A play that does not land puts the FM state back as it was before it: left as it wrote it, it
         // would not go with the song that still plays and its queue, and the next track would be picked in
         // the wrong mode. A retry, a skip or another version calls playSong with `isFmCall` again; a newer
