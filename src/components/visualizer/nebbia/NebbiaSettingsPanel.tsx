@@ -22,8 +22,8 @@ import {
 } from './types';
 
 // src/components/visualizer/nebbia/NebbiaSettingsPanel.tsx
-// 雾笺的设置：雾上写字（笔画、手写歪斜和变形、雾、片尾写曲名），字怎么出现、怎么消失、一句怎么构图（每种一个开关，开几种用几种），
-// 窗外（车、霓虹、聚光灯），窗外画哪几样（聚光灯、楼群、光斑、车灯、马路各一个开关，雨斜着、竖直或不下），渲染（分辨率，
+// 雾笺的设置：最上面是窗外（选背景：街景、梦海流萤或共用背景，连同窗外画哪几样），然后是雾上写字（笔画、手写歪斜和变形、雾、片尾写曲名），字怎么出现、怎么消失、一句怎么构图（每种一个开关，开几种用几种），
+// 窗外（车、霓虹、聚光灯），窗外画哪几样在最上面那组（聚光灯、楼群、光斑、车灯、马路各一个开关，雨斜着、竖直或不下），渲染（分辨率，
 // 默认跟随全局）。用设置窗口的共用控件画成几组。
 // 窗外选了水族箱时多三个滑块（水母数量、大小、气泡多少），开关和雨换成水族箱的说法（同一组位，见 nebbiaAquaGlsl.ts）。
 // 前面雾玻璃上的水单独一组：雨窗（小雨点密度、大雨点大小）或凝露（冷凝水珠多少、大小、高光）；换窗外时玻璃换成那套的默认搭配。
@@ -148,36 +148,7 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
 
     return (
         <>
-            <Group def={WRITING_GROUP}>
-                {sliders(WRITING_SLIDERS)}
-                <ToggleRow
-                    label={t('options.nebbiaCredits')}
-                    note={t('options.nebbiaCreditsHint')}
-                    checked={resolved.credits}
-                    onChange={credits => onTuningChange({ credits })}
-                />
-            </Group>
-            <Group def={APPEAR_GROUP} foot={t('options.nebbiaAppearHint')}>
-                {toggles(NEBBIA_APPEAR_STYLES, resolved.appear, NEBBIA_APPEAR_LABEL_KEYS, appear => ({ appear }))}
-            </Group>
-            <Group def={FADE_GROUP} foot={t('options.nebbiaFadeHint')}>
-                {toggles(NEBBIA_FADE_STYLES, resolved.fade, NEBBIA_FADE_LABEL_KEYS, fade => ({ fade }))}
-            </Group>
-            <Group def={LAYOUT_GROUP} foot={t('options.nebbiaLayoutsHint')}>
-                {toggles(NEBBIA_LAYOUTS, resolved.layouts, LAYOUT_LABEL_KEYS, layouts => ({ layouts }))}
-            </Group>
-            <Group def={WINDOW_GROUP}>{sliders(aquarium ? AQUA_WINDOW_SLIDERS : WINDOW_SLIDERS)}</Group>
-            <Group def={GLASS_GROUP}>
-                <Row label={t('options.nebbiaGlassStyle')} note={t('options.nebbiaGlassHint')}>
-                    <Segmented<NebbiaTuning['glass']>
-                        value={resolved.glass}
-                        options={NEBBIA_GLASS.map(glass => ({ value: glass, label: t(`options.nebbiaGlass_${glass}`) }))}
-                        onChange={glass => onTuningChange({ glass })}
-                    />
-                </Row>
-                {sliders(GLASS_SLIDERS[resolved.glass])}
-            </Group>
-            {/* 窗外每样单独开关，和上面几组不同，可以全关 */}
+            {/* 选窗外（背景）放在最上面，后面几组的说法和可调项都跟着它变；窗外每样单独开关，和下面几组不同，可以全关 */}
             <Group def={SCENERY_GROUP} foot={t(`${sceneryKey}Hint`)}>
                 <Row label={t('options.nebbiaBehind')} note={t(transparent ? 'options.nebbiaBehindTransparentHint' : 'options.nebbiaBehindHint')}>
                     <Segmented<NebbiaTuning['behind']>
@@ -206,6 +177,35 @@ const NebbiaSettingsPanel: React.FC<VisualizerSettingsPanelProps<NebbiaTuning>> 
                         onChange={rain => onTuningChange({ rain })}
                     />
                 </Row>
+            </Group>
+            <Group def={WRITING_GROUP}>
+                {sliders(WRITING_SLIDERS)}
+                <ToggleRow
+                    label={t('options.nebbiaCredits')}
+                    note={t('options.nebbiaCreditsHint')}
+                    checked={resolved.credits}
+                    onChange={credits => onTuningChange({ credits })}
+                />
+            </Group>
+            <Group def={APPEAR_GROUP} foot={t('options.nebbiaAppearHint')}>
+                {toggles(NEBBIA_APPEAR_STYLES, resolved.appear, NEBBIA_APPEAR_LABEL_KEYS, appear => ({ appear }))}
+            </Group>
+            <Group def={FADE_GROUP} foot={t('options.nebbiaFadeHint')}>
+                {toggles(NEBBIA_FADE_STYLES, resolved.fade, NEBBIA_FADE_LABEL_KEYS, fade => ({ fade }))}
+            </Group>
+            <Group def={LAYOUT_GROUP} foot={t('options.nebbiaLayoutsHint')}>
+                {toggles(NEBBIA_LAYOUTS, resolved.layouts, LAYOUT_LABEL_KEYS, layouts => ({ layouts }))}
+            </Group>
+            <Group def={WINDOW_GROUP}>{sliders(aquarium ? AQUA_WINDOW_SLIDERS : WINDOW_SLIDERS)}</Group>
+            <Group def={GLASS_GROUP}>
+                <Row label={t('options.nebbiaGlassStyle')} note={t('options.nebbiaGlassHint')}>
+                    <Segmented<NebbiaTuning['glass']>
+                        value={resolved.glass}
+                        options={NEBBIA_GLASS.map(glass => ({ value: glass, label: t(`options.nebbiaGlass_${glass}`) }))}
+                        onChange={glass => onTuningChange({ glass })}
+                    />
+                </Row>
+                {sliders(GLASS_SLIDERS[resolved.glass])}
             </Group>
             <Group def={RENDER_GROUP}>
                 <LyricRenderQualityRows
