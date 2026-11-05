@@ -194,43 +194,45 @@ const AppShell: React.FC<AppShellProps> = ({
                             }`}
                             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
-                            <button
-                                type="button"
-                                aria-label={isMainWindowClickThroughEnabled ? 'Disable click-through' : 'Enable click-through'}
-                                title={isMainWindowClickThroughEnabled ? t('remote.disableClickThrough') : t('remote.enableClickThrough')}
-                                onClick={onToggleMainWindowClickThrough}
-                                className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition-all duration-200 ${
-                                    showMainWindowClickThroughToggle
-                                        ? 'click-through-interactive pointer-events-auto opacity-100 translate-y-0'
-                                        : 'pointer-events-none opacity-0 -translate-y-1'
-                                } ${
-                                    isMainWindowClickThroughEnabled
-                                        ? isDaylight
-                                            ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 hover:bg-amber-100/90'
-                                            : 'border-amber-300/35 bg-black/55 text-amber-100 hover:bg-black/70'
-                                        : isDaylight
-                                            ? 'border-black/[0.06] bg-white/40 text-zinc-700 hover:bg-white/80 hover:text-zinc-900 shadow-[0_4px_12px_rgba(0,0,0,0.04)]'
-                                            : 'border-white/15 bg-transparent text-white/75 hover:bg-black/20 hover:text-white'
-                                }`}
-                            >
-                                {isMainWindowClickThroughEnabled ? <Lock size={14} /> : <LockOpen size={14} />}
-                            </button>
-                        </div>
-                        {/* 点击穿透时窗口按钮都藏了，切歌按钮放在锁的左边，跟锁一起出现（#471）。
-                            右缘离锁 6px：锁在 right-[180px]/right-[224px]、宽 28px，这组宽 86px。
-                            不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
-                        <div
-                            className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                leftControls ? (hasFullscreenTitlebarButton ? 'left-[262px]' : 'left-[218px]') : (hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]')
-                            }`}
-                            // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
-                            style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
-                        >
-                            <ClickThroughMediaControls
-                                visible={isMainWindowClickThroughEnabled && showMainWindowClickThroughToggle}
-                                isDaylight={isDaylight}
-                                onAction={onClickThroughTransportAction}
-                            />
+                            {/* Keep the joined controls inside the existing unlock hotspot envelope. */}
+                            <div className={`flex items-center gap-px rounded-lg ${leftControls ? '' : 'flex-row-reverse'} ${
+                                isMainWindowClickThroughEnabled
+                                    ? `${isDaylight ? 'bg-white/80' : 'bg-black/55'} backdrop-blur-md shadow-[inset_0_0_0_1px_rgba(128,128,128,0.2)] ${showMainWindowClickThroughToggle ? 'opacity-100' : 'opacity-0'}`
+                                    : ''
+                            }`}>
+                                <button
+                                    type="button"
+                                    aria-label={isMainWindowClickThroughEnabled ? 'Disable click-through' : 'Enable click-through'}
+                                    title={isMainWindowClickThroughEnabled ? t('remote.disableClickThrough') : t('remote.enableClickThrough')}
+                                    onClick={onToggleMainWindowClickThrough}
+                                    className={`flex h-7 w-7 items-center justify-center transition-all duration-200 ${
+                                        isMainWindowClickThroughEnabled
+                                            ? 'rounded-lg border shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md'
+                                            : 'rounded-lg border border-transparent'
+                                    } ${
+                                        showMainWindowClickThroughToggle
+                                            ? 'click-through-interactive pointer-events-auto opacity-100 translate-y-0'
+                                            : 'pointer-events-none opacity-0 -translate-y-1'
+                                    } ${
+                                        isMainWindowClickThroughEnabled
+                                            ? isDaylight
+                                                ? 'border-amber-500/30 bg-amber-50/80 text-amber-700 hover:bg-amber-100/90'
+                                                : 'border-amber-300/35 bg-black/55 text-amber-100 hover:bg-black/70'
+                                            : isDaylight
+                                                ? 'bg-transparent text-zinc-800 hover:bg-black/[0.05] hover:text-zinc-900'
+                                                : 'bg-transparent text-white/75 hover:bg-white/10 hover:text-white'
+                                    }`}
+                                >
+                                    {isMainWindowClickThroughEnabled ? <Lock size={14} /> : <LockOpen size={14} />}
+                                </button>
+                                {isMainWindowClickThroughEnabled && (
+                                    <ClickThroughMediaControls
+                                        visible={showMainWindowClickThroughToggle}
+                                        isDaylight={isDaylight}
+                                        onAction={onClickThroughTransportAction}
+                                    />
+                                )}
+                            </div>
                         </div>
                         <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-1' : 'right-0'} z-10 h-full`}>
                             <WindowControls
