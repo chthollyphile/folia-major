@@ -45,6 +45,10 @@ const selectPendingSwitch = (snapshot: LibraryAccountSnapshot) => snapshot.pendi
 const selectProviders = (snapshot: LibraryAccountSnapshot) => snapshot.providers;
 const selectActiveProviderId = (snapshot: LibraryAccountSnapshot) => snapshot.activeProviderId;
 const selectSnapshot = (snapshot: LibraryAccountSnapshot) => snapshot;
+/** 有一个平台正在同步数据（同一时间只有一个）：「同步数据」按钮据它转圈、不可再按。 */
+export const selectAccountSyncPending = (snapshot: LibraryAccountSnapshot) => snapshot.sync.status === 'pending';
+/** 正在同步数据的那个平台；没有在同步是 null。 */
+export const selectAccountSyncProviderId = (snapshot: LibraryAccountSnapshot) => snapshot.sync.providerId;
 
 /** 已翻译的失败后自检。 */
 export type LibraryLoginSelfCheckView = {

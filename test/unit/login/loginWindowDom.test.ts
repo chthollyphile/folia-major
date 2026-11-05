@@ -46,7 +46,7 @@ const row = (providerId: string, extra: Partial<ProviderAccountSummary> = {}): P
 const signedIn = (providerId: string) => row(providerId, { status: 'authenticated', user: { id: 1, nickname: 'someone' } });
 // The pill reads the platforms and the one in use from the account controller: one that only shows them.
 const accountShowing = (providers: ProviderAccountSummary[], activeProviderId: string): LibraryAccountController => {
-    const snapshot = { providers, activeProviderId, login: null, pendingSwitch: null, logout: { providerId: null, status: 'idle' as const }, lastLoginCompletion: null };
+    const snapshot = { providers, activeProviderId, login: null, pendingSwitch: null, logout: { providerId: null, status: 'idle' as const }, sync: { providerId: null, status: 'idle' as const }, lastLoginCompletion: null };
     return { getSnapshot: () => snapshot, subscribe: () => () => { } } as unknown as LibraryAccountController;
 };
 
@@ -79,7 +79,7 @@ describe('the sign-in window, drawn', () => {
                 failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
             },
             onChoose: () => { }, onStart: () => { }, onSubmitForm: async () => ({ sessionId: 0, providerId: 'a', outcome: 'completed' }), onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
-            onSwitch: () => { }, onSignOut: () => { }, buildReport: async () => '',
+            onSwitch: () => { }, onSignOut: () => { }, onSync: () => { }, buildReport: async () => '',
         } satisfies LoginScreenProps);
         draw(screen(true, 'scanned'));
         expect(seen.done).toEqual({ playing: true, providerId: 'a' });

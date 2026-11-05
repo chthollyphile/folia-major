@@ -23,7 +23,7 @@ import { probeAccountController } from './probeAccountController';
  *
  * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en
  * state: none, preparing, code, scanned, reading, expired, methods, methods-code, browser-ready,
- * browser-opening, browser, account, account-other, account-nameless (signed in, no profile),
+ * browser-opening, browser, account (syncing=1: its data is syncing; syncing=other: another platform's is), account-other, account-nameless (signed in, no profile),
  * account-gone (the sign-in ran out while the account was shown), accountless, off, or fail-<case id>.
  * count=7–12 fills the column up to that many platforms with stand-ins (the search field shows from 12 up).
  * A test passes the same as props.
@@ -288,6 +288,9 @@ function LoginWindowProbe(props: ProbeProps) {
                     onSubmitForm={async (submitProviderId) => { setSaid('form submitted'); return { sessionId: 0, providerId: submitProviderId, outcome: 'completed' as const }; }}
                     onSwitch={() => setSaid('switch')}
                     onSignOut={() => setSaid('sign out')}
+                    onSync={() => setSaid('sync')}
+                    // syncing=1: the shown account's data is being synced (the button spins); syncing=other: another platform's is.
+                    syncingProviderId={query.get('syncing') === '1' ? view.chosen?.providerId ?? null : query.get('syncing') === 'other' ? 'probe-other' : null}
                     // origin=pill: as if the window was opened from the switcher pill at the bottom right.
                     origin={query.get('origin') === 'pill' && view.chosen
                         ? { x: window.innerWidth - 44, y: window.innerHeight - 44, size: 40, providerId: view.chosen.providerId }

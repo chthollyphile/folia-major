@@ -22,7 +22,10 @@ export type MessageAction = {
     label: string;
     onClick: () => void;
     primary?: boolean;
+    /** 正在做：转圈、不可按。 */
     busy?: boolean;
+    /** 不可按（不转圈）。 */
+    disabled?: boolean;
 };
 
 type LoginMessageProps = {
@@ -136,13 +139,16 @@ export const LoginMessage: React.FC<LoginMessageProps> = ({ sceneKey, headline, 
                 {first && (waitFor
                     ? <WaitButton key={waitFor.at} failure={waitFor} action={first} />
                     : (
-                        <Button variant={first.primary ? 'primary' : undefined} onClick={first.onClick} disabled={first.busy}>
+                        <Button variant={first.primary ? 'primary' : undefined} onClick={first.onClick} disabled={first.busy || first.disabled}>
                             {first.busy && <Loader2 size={14} className={reduced ? undefined : 'animate-spin'} />}
                             {first.label}
                         </Button>
                     ))}
                 {rest.map(action => (
-                    <Button key={action.label} variant={action.primary ? 'primary' : undefined} onClick={action.onClick} disabled={action.busy}>{action.label}</Button>
+                    <Button key={action.label} variant={action.primary ? 'primary' : undefined} onClick={action.onClick} disabled={action.busy || action.disabled}>
+                        {action.busy && <Loader2 size={14} className={reduced ? undefined : 'animate-spin'} />}
+                        {action.label}
+                    </Button>
                 ))}
                 {details && (
                     <button

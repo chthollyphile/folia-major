@@ -148,6 +148,12 @@ export type LibraryAccountLogoutState = {
     status: 'idle' | 'pending';
 };
 
+/** 同步账户数据（重新读账号、歌单与红心）的进度：同一时间最多一个平台在同步。idle 时 providerId 为 null。 */
+export type LibraryAccountSyncState = {
+    providerId: OnlineProviderId | null;
+    status: 'idle' | 'pending';
+};
+
 /** 登录确认之后的结局。 */
 export type LibraryLoginOutcome = 'completed' | 'refresh-failed' | 'activation-declined';
 
@@ -169,6 +175,7 @@ export type LibraryAccountSnapshot = {
     login: LibraryLoginSessionSnapshot | null;
     pendingSwitch: LibraryProviderSwitchRequest | null;
     logout: LibraryAccountLogoutState;
+    sync: LibraryAccountSyncState;
     lastLoginCompletion: LibraryLoginCompletion | null;
 };
 
@@ -266,6 +273,20 @@ export type LibraryLogoutResult =
     | { status: 'busy'; providerId: OnlineProviderId }
     | { status: 'failed'; providerId: OnlineProviderId; message: string };
 
+/** 同步被拒的原因（core/account/accountRules 的 resolveAccountSyncEligibility）：只有有账号的平台可以同步。 */
+export type LibraryAccountSyncRejectReason = 'unknown-provider' | 'not-signed-in';
+
+/**
+ * 同步账户数据的结局：读到了是 synced；平台说登录已经失效（账号离开了）是 ran-out；其余没读成的是 failed。
+ * 没有账号的平台被拒（同步途中这个平台被退出了也是）；已经有一个在同步时是 busy。
+ */
+export type LibraryAccountSyncResult =
+    | { status: 'synced'; providerId: OnlineProviderId }
+    | { status: 'ran-out'; providerId: OnlineProviderId }
+    | { status: 'failed'; providerId: OnlineProviderId }
+    | { status: 'rejected'; providerId: OnlineProviderId; reason: LibraryAccountSyncRejectReason }
+    | { status: 'busy'; providerId: OnlineProviderId };
+
 // ─── controller ─────────────────────────────────────────────────────────
 
 /**
@@ -312,6 +333,8 @@ export interface LibraryAccountController {
     submitFormLogin(providerId: OnlineProviderId, values: Record<string, string>): Promise<LibraryLoginCompletion>;
     /** 只对已登录的平台；先经宿主问用的人，答应后把这个平台的歌移出播放器，再走宿主注入的登出。 */
     logout(providerId: OnlineProviderId): Promise<LibraryLogoutResult>;
+    /** 只对有账号的平台：重新读它的账号、歌单与红心（面板账户页与登录窗口账号那一幅的「同步数据」）。 */
+    syncAccount(providerId: OnlineProviderId): Promise<LibraryAccountSyncResult>;
     /** 宿主卸载：关闭登录会话（keyed 取消），待确认切换按 declined / disposed 结算。 */
     dispose(): void;
 }
@@ -364,8 +387,8 @@ export type LibraryAccountStorePort = {
     subscribe(listener: () => void): () => void;
 };
 
-/** 读账号的时机：登录确认之后、切到这个平台之后。 */
-export type LibraryAccountRefreshReason = 'sign-in' | 'switch';
+/** 读账号的时机：登录确认之后、切到这个平台之后、用的人按了「同步数据」。 */
+export type LibraryAccountRefreshReason = 'sign-in' | 'switch' | 'sync';
 
 /**
  * 账户的读、退出与退出前的那一问。默认装配：读账号走 omni.readAccount（services/onlineMusic/account/accountRead），
@@ -373,7 +396,7 @@ export type LibraryAccountRefreshReason = 'sign-in' | 'switch';
  * 函数形状而不是记录：宿主可以用 ref 指向每次渲染的最新实现，controller 不必重建。
  */
 export type LibraryProviderAccountPort = {
-    /** 读这个平台的账号；sign-in 时回 false 表示确认了却没有人登录着（失败）。从不 reject。 */
+    /** 读这个平台的账号；sign-in 时回 false 表示确认了却没有人登录着（失败），sync 时回 false 表示没读全。从不 reject。 */
     refresh(providerId: OnlineProviderId, reason: LibraryAccountRefreshReason): Promise<boolean>;
     /** 提交表单式登录（FormLogin 渲染的字段，走 provider 的 submitLoginForm）。失败抛错，由表单显示。 */
     submitLoginForm(providerId: OnlineProviderId, values: Record<string, string>): Promise<void>;

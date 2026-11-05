@@ -4,6 +4,7 @@ import type { LoginFailure } from '../../../types/loginFailure';
 import type {
     LibraryLoginLocalServiceState,
     LibraryLoginPhase,
+    LibraryAccountSyncRejectReason,
     LibraryLoginSessionSnapshot,
     LibraryLogoutRejectReason,
     LibraryProviderUnavailableReason,
@@ -84,6 +85,22 @@ export const resolveLogoutEligibility = (provider: ProviderAccountSummary | unde
 export const canLogoutProvider = (provider: ProviderAccountSummary | undefined): boolean => (
     resolveLogoutEligibility(provider).allowed
 );
+
+// ─── 同步数据 ───────────────────────────────────────────────────────────
+
+export type LibraryAccountSyncEligibility =
+    | { allowed: true }
+    | { allowed: false; reason: LibraryAccountSyncRejectReason };
+
+/**
+ * 有账号的平台可以同步数据：平台确认了登录着，或者账号已经显示（启动时存着的账号先显示、平台还没回答的那一会儿，
+ * 同步就是再问一次）。不用登录的平台、没有人登录的平台没有账户数据可同步。
+ */
+export const resolveAccountSyncEligibility = (provider: ProviderAccountSummary | undefined): LibraryAccountSyncEligibility => {
+    if (!provider) return { allowed: false, reason: 'unknown-provider' };
+    if (provider.status !== 'authenticated' && !provider.user) return { allowed: false, reason: 'not-signed-in' };
+    return { allowed: true };
+};
 
 // ─── 登录会话的派生 ─────────────────────────────────────────────────────
 

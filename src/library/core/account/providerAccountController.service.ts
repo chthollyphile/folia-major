@@ -5,6 +5,8 @@ import type {
     LibraryAccountLogger,
     LibraryAccountLogoutState,
     LibraryAccountSnapshot,
+    LibraryAccountSyncResult,
+    LibraryAccountSyncState,
     LibraryLocalServiceRestartResult,
     LibraryLoginCloseResult,
     LibraryLoginCompletion,
@@ -28,6 +30,7 @@ import {
     describeLoginError,
     isAwaitingLoginMethod,
     isLoginUnderWay,
+    resolveAccountSyncEligibility,
     resolveActiveProviderId,
     resolveLocalServiceState,
     resolveLogoutEligibility,
@@ -49,10 +52,12 @@ import {
 // - 登录：同一时间一个，只由登录窗口开始；startLogin 先停旧会话，登录方式的解析带代次（晚到的结果作废）；
 //   确认后的回调只读账号，回调结束后由 controller 决定收起、显示没读到账号或切到登录的平台；
 // - 登出：先经宿主问用的人，答应后把这个平台的歌移出播放器，再退出；
+// - 同步数据：只对有账号的平台，同一时间一个；重新读账号，没读成时按账户 store 说的分出登录失效；
 // - 当前平台：存的平台不在列表里时回落默认平台并写回（不经确认、不清空、不动账户缓存）；
 // - 快照在没有变化时保持对象身份（useSyncExternalStore 友好）。
 
 const IDLE_LOGOUT: LibraryAccountLogoutState = Object.freeze({ providerId: null, status: 'idle' });
+const IDLE_SYNC: LibraryAccountSyncState = Object.freeze({ providerId: null, status: 'idle' });
 
 /** 控制器自己的日志出口（未注入时打到 console，前缀与会话的 [ProviderLogin] 区分）。 */
 const consoleAccountLogger: LibraryAccountLogger = (level, event, detail) => {
@@ -145,6 +150,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
     // 登录代次：startLogin / closeLogin / 每次开始 / dispose 都前进；方式解析与本地服务重启 await 之后按它作废。
     let loginSeq = 0;
     let logout: LibraryAccountLogoutState = IDLE_LOGOUT;
+    let sync: LibraryAccountSyncState = IDLE_SYNC;
     let lastLoginCompletion: LibraryLoginCompletion | null = null;
     let snapshot: LibraryAccountSnapshot;
     // 内部一次改多处时只在最外层结束后重建一次快照，避免中间态（例如会话 start 同步发出的通知）漏到界面。
@@ -207,6 +213,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
             login: deriveLogin(previous?.login ?? null),
             pendingSwitch: null,
             logout,
+            sync,
             lastLoginCompletion,
         };
         if (
@@ -216,6 +223,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
             && previous.login === next.login
             && previous.pendingSwitch === next.pendingSwitch
             && previous.logout === next.logout
+            && previous.sync === next.sync
             && previous.lastLoginCompletion === next.lastLoginCompletion
         ) {
             return previous;
@@ -571,6 +579,35 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         }
     };
 
+    const syncAccount = async (providerId: OnlineProviderId): Promise<LibraryAccountSyncResult> => {
+        if (disposed) return { status: 'failed', providerId };
+        const eligibility = resolveAccountSyncEligibility(findProvider(providerId));
+        if (!eligibility.allowed) return { status: 'rejected', providerId, reason: eligibility.reason };
+        if (sync.status === 'pending') return { status: 'busy', providerId };
+        batch(() => { sync = { providerId, status: 'pending' }; });
+        try {
+            const synced = await providerAccounts.refresh(providerId, 'sync');
+            // 没读成：账户 store 记下平台拒了登录（账号已经离开）就是登录失效；读的途中用的人退出了这个平台，
+            // 读作废了，这一次同步不算失败（退出自己会说）；其余是这一次没读到。
+            const after = synced ? undefined : askSafely(
+                () => accounts.listProviders().find(provider => provider.providerId === providerId),
+                undefined,
+            );
+            if (!synced && after?.error !== 'auth-required' && !resolveAccountSyncEligibility(after).allowed) {
+                log('info', 'sync', { providerId, status: 'signed-out' });
+                return { status: 'rejected', providerId, reason: 'not-signed-in' };
+            }
+            const status = synced ? 'synced' : after?.error === 'auth-required' ? 'ran-out' : 'failed';
+            log(synced ? 'info' : 'warn', 'sync', { providerId, status });
+            return { status, providerId };
+        } catch (error) {
+            log('warn', 'sync:error', { providerId, ...describeLoginError(error) });
+            return { status: 'failed', providerId };
+        } finally {
+            if (!disposed) batch(() => { sync = IDLE_SYNC; });
+        }
+    };
+
     // ─── 寿命 ───────────────────────────────────────────────────────────
 
     const dispose = (): void => {
@@ -580,6 +617,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         login = null;
         watchLocalService(null);
         logout = IDLE_LOGOUT;
+        sync = IDLE_SYNC;
         for (const unsubscribe of unsubscribes) unsubscribe();
         disposed = true;
         snapshot = buildSnapshot(snapshot);
@@ -607,6 +645,7 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         restartLocalService,
         buildLoginDiagnosticReport,
         logout: logoutProvider,
+        syncAccount,
         dispose,
     };
 };
