@@ -120,7 +120,7 @@ const HomePage: React.FC = () => {
                     <Chips
                         items={[
                             { id: O.tabPlaylist.id, label: t('home.playlists'), checked: home.tabPlaylist, onChange: home.setTabPlaylist },
-                            { id: O.tabRadio.id, label: t('home.radio'), checked: home.tabRadio, onChange: home.setTabRadio },
+                            { id: O.tabRadio.id, label: t('home.radioTab'), checked: home.tabRadio, onChange: home.setTabRadio },
                             { id: O.tabExplore.id, label: t('home.explore'), checked: home.tabExplore, onChange: home.setTabExplore, disabled: !hasExplore },
                             { id: O.tabAlbums.id, label: t('home.albums'), checked: home.tabAlbums, onChange: home.setTabAlbums },
                             { id: O.tabLocal.id, label: t('localMusic.folder'), checked: home.tabLocal, onChange: home.setTabLocal },

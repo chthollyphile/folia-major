@@ -1818,6 +1818,7 @@ export default {
     "allAlbums": "Tất cả",
     "popular": "Thịnh hành",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Khám phá",
     "exploreRefresh": "Đổi danh sách khác",
     "exploreMore": "Xem thêm",

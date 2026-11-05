@@ -54,7 +54,7 @@ const KIND_LABEL_KEYS: Record<BravaisWallItem['kind'], string> = {
     feed: 'libraryBravais.kind.feed',
 };
 /** 首页窄缝的四个页签（歌单 / 电台 / 专辑 / 本地），文案与真实页签同一份。 */
-const SEAM_TAB_KEYS = ['home.playlists', 'home.radio', 'home.albums', 'localMusic.folder'] as const;
+const SEAM_TAB_KEYS = ['home.playlists', 'home.radioTab', 'home.albums', 'localMusic.folder'] as const;
 const SPECIAL_ICONS: Record<BravaisSpecial, LucideIcon> = {
     liked: Heart,
     'personal-fm': Radio,

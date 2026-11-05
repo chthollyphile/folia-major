@@ -119,7 +119,7 @@ export const resolveHomeTabs = ({
     localAvailability: LibraryHomeLocalAvailability;
 }): LibraryHomeTab[] => [
     ...(visibility.playlist ? [{ key: 'playlist' as const, label: { key: 'home.playlists' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'playlist') }] : []),
-    ...(visibility.radio ? [{ key: 'radio' as const, label: { key: 'home.radio' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'radio') }] : []),
+    ...(visibility.radio ? [{ key: 'radio' as const, label: { key: 'home.radioTab' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'radio') }] : []),
     ...(visibility.explore && online.canUseExplore ? [{ key: 'explore' as const, label: { key: 'home.explore' } }] : []),
     ...(visibility.albums ? [{ key: 'albums' as const, label: { key: 'home.albums' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'albums') }] : []),
     ...(visibility.local ? [{ key: 'local' as const, label: { key: 'localMusic.folder' }, disabledReason: resolveLocalUnavailableReason(localAvailability) }] : []),
@@ -148,7 +148,7 @@ export const translateHomeTabs = (tabs: readonly LibraryHomeTab[], t: TFunction)
 
 /** 在线页签的标题文案 key。 */
 export const onlineHomeTitleKey = (tab: LibraryHomeOnlineTab): string => (
-    tab === 'playlist' ? 'home.playlists' : tab === 'albums' ? 'home.albums' : tab === 'explore' ? 'home.explore' : 'home.radio'
+    tab === 'playlist' ? 'home.playlists' : tab === 'albums' ? 'home.albums' : tab === 'explore' ? 'home.explore' : 'home.radioTab'
 );
 
 /**

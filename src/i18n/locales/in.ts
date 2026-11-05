@@ -1818,6 +1818,7 @@ export default {
     "allAlbums": "Semua",
     "popular": "Populer",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Jelajahi",
     "exploreRefresh": "Muat ulang",
     "exploreMore": "Lainnya",

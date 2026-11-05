@@ -1818,6 +1818,7 @@ export default {
     "allAlbums": "All",
     "popular": "Popular",
     "radio": "Radio",
+    "radioTab": "Radio",
     "explore": "Explore",
     "exploreRefresh": "Refresh",
     "exploreMore": "More",
