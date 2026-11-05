@@ -1,6 +1,7 @@
 import { LyricData, Line, Word } from '../../types';
 import type { TimedLyricFormat } from './formatDetection';
 import { annotateLyricLines } from './renderHints';
+import { buildTimedWords, estimateLrcLineEndTime } from './estimatedLineTiming';
 import type { LyricProcessingOptions } from './types';
 import { TTMLParser } from '@applemusic-like-lyrics/ttml';
 import { DOMParser } from '@xmldom/xmldom';
@@ -55,67 +56,6 @@ const AWLRC_LINE_REGEX = /^\[(\d{1,3}(?::\d{1,3}){0,2})\.(\d{1,3})\](.*)$/;
 // LX normalises KRC's three-field syllable tag down to two fields, but accept the original as well.
 const AWLRC_WORD_REGEX = /<(\d+),(\d+)(?:,\d+)?>([^<]*)/g;
 export const INTERLUDE_FULL_TEXT = '......';
-
-const buildTimedWords = (text: string, startTime: number, endTime: number): Word[] => {
-    const duration = Math.max(endTime - startTime, 0.1);
-    const rawTokens = text.split(/\s+/).filter(token => token);
-    const words: Word[] = [];
-    const tokens: Array<{ text: string; weight: number }> = [];
-    let totalWeight = 0;
-
-    for (const token of rawTokens) {
-        if (/[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(token)) {
-            token.split('').forEach(char => {
-                const isPunctuation = /[，。！？、：；"'）]/.test(char);
-                const weight = isPunctuation ? 0 : 1;
-                tokens.push({ text: char, weight });
-                totalWeight += weight;
-            });
-        } else {
-            const weight = 1 + (token.length * 0.15);
-            tokens.push({ text: token, weight });
-            totalWeight += weight;
-        }
-    }
-
-    if (totalWeight === 0) {
-        totalWeight = 1;
-    }
-
-    const activeDuration = duration * 0.9;
-    const timePerWeight = activeDuration / totalWeight;
-    let currentWordStart = startTime;
-
-    tokens.forEach(token => {
-        const wordDuration = token.weight * timePerWeight;
-        const finalDuration = Math.max(wordDuration, 0.05);
-
-        words.push({
-            text: token.text,
-            startTime: currentWordStart,
-            endTime: currentWordStart + finalDuration
-        });
-
-        if (token.weight > 0) {
-            currentWordStart += wordDuration;
-        } else {
-            currentWordStart += 0.05;
-        }
-    });
-
-    if (words.length > 0) {
-        const lastWord = words[words.length - 1];
-        if (lastWord.endTime > endTime) {
-            const scale = (endTime - startTime) / (lastWord.endTime - startTime);
-            words.forEach(word => {
-                word.startTime = startTime + ((word.startTime - startTime) * scale);
-                word.endTime = startTime + ((word.endTime - startTime) * scale);
-            });
-        }
-    }
-
-    return words;
-};
 
 export const isInterludeLine = (line: Pick<Line, 'fullText'>): boolean => line.fullText === INTERLUDE_FULL_TEXT;
 
@@ -467,13 +407,7 @@ export const parseLRC = (
         const next = sortedRawEntries[index + 1];
         const translation = translations[index];
 
-        let duration = next ? next.startTime - current.startTime : 5;
-        const estimatedReadingTime = current.text.length * 0.5;
-        if (duration > estimatedReadingTime + 2 && duration > 5) {
-            duration = Math.min(duration, estimatedReadingTime + 2);
-        }
-
-        const endTime = current.startTime + duration;
+        const endTime = estimateLrcLineEndTime(current.text, current.startTime, next?.startTime);
         lines.push({
             words: buildTimedWords(current.text, current.startTime, endTime),
             startTime: current.startTime,
