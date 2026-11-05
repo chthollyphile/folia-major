@@ -172,6 +172,19 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 | 修改 | `pressSongLike`、`likeSong`、`toggleSongLike`、`beginLikedListRead` / `endLikedListRead`、`getSubscriptionStatus`、`subscribe`、`updateCollectionTracks` | mutation 按歌曲/集合所属 provider 执行并更新 account cache。点赞（2026-10-09，只跑过单元测试）：`pressSongLike` 先让心形变（account store 的 `wantedLikes`，`isSongLiked` 先读它），请求随后发出，同一首歌一次只发一个，请求失败心形回到账号里存的状态，20 秒没有答复也算失败（之后才到的答复什么都不写），规则在 `src/utils/likePresses.ts`；请求答复时账号已经登出或换了人的，也什么都不写（发出时账号还没有名字、答复时有了的，算同一个账号：应用刚启动时会这样）；`likeSong` / `toggleSongLike` 走同一条路、等到结果才返回，请求期间心形又被按过、平台最后停在另一个状态时报错。从平台读回来的喜欢的歌和听者在应用里按过的心形怎么对账，只有一条规则（2026-10-09，只跑过单元测试），在 `account/keptAfterRead.ts`，所有把读到的结果写进 `likedSongIds` 的地方都走它（`omni.ts` 的 `applyLikedRead`）：读整个账号时读的 id（`account/accountRead.ts`）、往“我喜欢”歌单加歌之后的重读、回到窗口或进入主页时数目变了的那次重读（`accountMoment`）、账号自己的“我喜欢”歌单（带 `isLiked`、在账号的歌单列表里）从第一页起读的歌（`beginLikedListRead` / `endLikedListRead`）。规则：请求还没落定的歌、读开始前 5 秒以内有请求被平台接受的歌，保持账号里存的状态（请求失败或 20 秒没有答复的不算：那时账号里存的并不比读到的新）（平台的列表多久跟上一次点赞没有量过，5 秒是估的）；账号离开（退出登录、登录失效、平台说没人登录）或者平台报出另一个人时，之前按过的红心全部忘掉（`likePresses.ts` 的 `forget`，由 `account/accountRead.ts` 调），不挡下一个账号的读取，当时还没答复的请求之后答复了也不记、不再接着发；其余的歌以读到的为准；没读全的（`whole` 为 `false`）只加不减；比它晚开始的一次读全了的读取已经先被采用、或者登录的人已经不是开始读时的那个，整份丢掉（晚开始的那次一直没读完、读失败或没读全，不挡别的读取）。读全了却一首都没有、而账号里存着点赞的：不采用（独立检查查出三个平台上读不出来的一页会变成空列表：YouTube Music 的第一页、QQ 经过它的后端、酷狗没有列表的一页；照单全收会把所有红心灭掉并存盘）。只有一个例外（2026-10-17，起因是 QQ 上实测到的：在 QQ 里取消最后一首喜欢，这里的红心一直不灭）：回到窗口或进入主页时，平台刚数出的喜欢数也是 0（`account/readMoments.ts`），两个答复对得上，就采用空列表。有数目的几个 adapter 在答复里没有列表时都会抛错，QQ 的后端在上游报出任何错误码时也会抛错，剩下的空列表就是平台自己说的空。YouTube Music 另有一条自己的（`ytm/ytmLibrary.ts`）：满 100 行却没有下一页标记的一页不当作末尾（标记的位置 2026-10-07 变过一次），这次读取算没读全。每采用一次记一行 `[Like] <平台>: liked songs read (whole 或 not whole, <个数> ids) applied: <加> added, <减> removed, <个数> kept because pressed`，不采用时记原因。酷狗的歌单内行号不在 account store 里，由它的 adapter 自己记（`kugou/kugouProvider.ts` 的 `kugouLikedRowIds`，按歌的 hash）：读喜欢的歌时记下每首的行号，这次读取开始之后发过喜欢或取消请求的歌不记，读回来的列表里没有的歌不留；发喜欢或取消的请求时取出来用一次就丢，没有记着的就先到列表里找；退出登录、换账号时全部清掉，不跨会话。网易云的歌单没有 `isLiked` 标记，打开“我喜欢”歌单不会触发读取，它的心形跟账号刷新走，也跟回到窗口、进入主页时数目变了的那次重读走 |
 | 外链与引用 | `canResolveCatalogRef`、`resolveCatalogRefs`、`getSongCatalogRefs`、`getSongPageUrl` | 共享 `catalogRefs.ts` 的 provider-aware 引用；`getSongCatalogRefs(song)` 一次读出一首歌的专辑和各歌手能打开的引用（带歌曲上的名字），provider 的 resolver 只问一次 |
 
+#### 额外电台（station）
+
+平台除私人 FM 之外还有别的电台流（独立的取歌端）时，用 station 区分，不另建第二套模式机制：
+
+- 电台卡片在 `getRecommendedCollections` 返回的集合上写 `personalFm: { mode, scene, station }`；`station` 是平台自己的电台 id。没有 `station` 的卡片（私人 FM、场景卡）行为不变。
+- `getPersonalFmCatalog(station?)`：不传是私人 FM 的模式目录；传 `station` 是这个电台自己的目录，经 `omni.getPersonalFmStationCatalog(providerId, station)` 读取，平台没有该电台时是 `null`。电台的模式沿用 `PersonalFmCatalog` 的 modes／scenes／categories，不加新的模式 id；目录可以带 `name`（电台自己的名字），电台播着时模式选择器的标题和命令面板的标签都写成「某某模式」，没有就照旧是「私人 FM 模式」。命令面板里电台和私人 FM 各有一个命令（「电台模式」`playback-station-mode`、「私人 FM 模式」`playback-fm-mode`），共用同一个选择器，同一时间只出现一个：电台播着时是前者，否则是后者；FM 面板的按钮打开当下那一个，提示文字也跟着电台的名字走。
+- `getPersonalFm(options)` 的 `PersonalFmRequestOptions.station` 带着当前电台；不带就是私人 FM。点电台卡片、在电台里切模式、电台的续歌补批会带；首页 feed、集合页读私人 FM 时不带。
+- 正在播的电台和它的模式选择只放内存（`usePersonalFmModeStore` 的 `stations`），不写存储：换电台、FM 结束、重开都回到电台卡片带的默认。私人 FM 原有的本机记忆（`folia.personalFm.selection`、`folia.personalFm.providerSelections`）不变。
+- 点电台卡片、拿到歌之后才算该电台开播；点私人 FM 卡片（或它的场景卡）拿到歌就让电台下线。FM 没开时电台状态不起作用。
+- 换窗口时（重建主窗口、桌布模式重启）交接资料带着“队列来自哪个电台”（`WindowPlaybackHandoff.fmStations`），模式选择不带，新窗口从默认模式补批。普通关闭再打开不还原 FM，所以不涉及。
+- Bravais 首页直达入口为电台卡片多一种 `fm-station`（图标 `RadioTower`），入口显示卡片自己的名字（`libraryBravaisHome.special.fm-station` 只在卡片没名字时用）；同一个来源里每种只列第一张，平台有多个电台时只有第一个有直达入口。
+
+
 共享类型包括 `UnifiedSong`、`OmniCollection`、`OmniPage`、`OmniLyricsResult`、`OmniAudioSource`、`OmniUser`、`OmniError`、`OmniSongUnavailableReason`、`OmniProviderCapabilities`。调用方不能依赖 provider 的 raw field、numeric id 单独比较或 raw response envelope。
 
 ### 推荐偏好

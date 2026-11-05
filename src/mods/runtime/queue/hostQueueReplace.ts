@@ -1,3 +1,4 @@
+import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 import type { SongResult } from '@/types';
 import { replacePlayQueue, selectIsShowingTail, usePlaybackStore } from '@/stores/usePlaybackStore';
 import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
@@ -136,6 +137,7 @@ export const replaceFoliumQueue = (modId: string, refs: readonly string[], expec
     const nextVersion = recordFoliumQueueReplace(next, 'queue', modId);
     const prompt = holdFoliumQueueUndo(state, version, nextVersion, modId);
     noteWholeQueueWrite();
+    usePersonalFmModeStore.getState().resetStationSelections();
     replacePlayQueue(next, false);
     // Behind the event the write scheduled: a replacement nobody heard is nobody's later.
     queueMicrotask(dropFoliumQueueWriter);

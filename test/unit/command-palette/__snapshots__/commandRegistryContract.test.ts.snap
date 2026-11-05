@@ -44,6 +44,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "queue-keep-open",
   "playback-volume",
   "playback-fm-mode",
+  "playback-station-mode",
   "playback-recommendation-preferences",
   "playback-replaygain-off",
   "playback-replaygain-track",

@@ -13,7 +13,7 @@ export const QQ_OPERATIONS = [
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
     'user_personal_fm', 'user_daily_history_dates', 'user_daily_history', 'user_blacklist_add',
-    'user_listening_rank',
+    'user_listening_rank', 'user_guess_you_like_modes', 'user_guess_you_like_tracks',
     'recommend_feed',
     'user_recommendation_preferences', 'user_recommendation_preferences_update',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
@@ -68,6 +68,9 @@ const ENDPOINTS: Record<QqOperation, string> = {
     user_blacklist_add: '/user/blacklist/add',
     // 3.3.6 的本人听歌排行（range=week|year）。旧后端回 404，没有排行条目。
     user_listening_rank: '/user/listening-rank',
+    // 3.3.6 的猜你喜欢听歌模式目录与按模式（pool）取一批，只读，不写账号的模式设置。旧后端 404。
+    user_guess_you_like_modes: '/user/guess-you-like/modes',
+    user_guess_you_like_tracks: '/user/guess-you-like/tracks',
     // 3.3.6 的客户端首页 feed 第 1 页（只有歌曲与歌单）。旧后端回 404，探索页就不出这几栏。
     recommend_feed: '/recommend/feed',
     // 3.3.6 的账号音乐偏好（私人 FM 和每日 30 首共用一份）：读，和只改指定项的写入（写一次、读回核对，不重送）。

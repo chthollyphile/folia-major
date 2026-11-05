@@ -74,6 +74,38 @@ describe('omni routing', () => {
         expect(summaries.find(summary => summary.providerId === 'netease')?.requiresAccount).toBe(true);
     });
 
+    it('asks the provider for the catalogue of an extra radio, and gives null where it has none', async () => {
+        const catalog = { modes: [], scenes: [], categories: [] };
+        const getPersonalFmCatalog = vi.fn(async (station?: string) => (station === 'radio' || station === undefined ? catalog : undefined));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            recommendations: { getPersonalFmCatalog: getPersonalFmCatalog as never },
+        });
+        registerOnlineMusicProvider(provider(otherProviderId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }));
+
+        await expect(omni.getPersonalFmStationCatalog(providerId, 'radio')).resolves.toBe(catalog);
+        expect(getPersonalFmCatalog).toHaveBeenLastCalledWith('radio');
+        await expect(omni.getPersonalFmStationCatalog(providerId, 'other')).resolves.toBeNull();
+        await expect(omni.getPersonalFmStationCatalog(otherProviderId, 'radio')).resolves.toBeNull();
+        // The Personal FM's own catalogue is asked for with no station, as before.
+        await expect(omni.getPersonalFmCatalog(providerId)).resolves.toBe(catalog);
+        expect(getPersonalFmCatalog).toHaveBeenLastCalledWith();
+    });
+
+    it('hands the options of an extra radio to the active Personal FM', async () => {
+        const getPersonalFm = vi.fn(async () => [song(providerId)]);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            recommendations: { getPersonalFm },
+        });
+        useOnlineProviderAccountStore.getState().setActiveProviderId(providerId);
+
+        await omni.getPersonalFm({ station: 'radio', mode: 'DEFAULT', submode: null });
+        expect(getPersonalFm).toHaveBeenLastCalledWith({ station: 'radio', mode: 'DEFAULT', submode: null });
+        await omni.getPersonalFm();
+        expect(getPersonalFm).toHaveBeenLastCalledWith(undefined);
+    });
+
     it('reports songs from unavailable providers as unplayable without routing them elsewhere', () => {
         expect(omni.canPlaySong(song(missingProviderId))).toBe(false);
     });

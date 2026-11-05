@@ -31,7 +31,7 @@ export type BravaisHomeEntry = {
  */
 export type BravaisHomeShortcut = {
     special: LibraryHomeSpecialKind;
-    /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名）。 */
+    /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名，平台的额外电台例外，显示它自己的名字）。 */
     label: string;
     /** 这张卡在墙上的条目 key。 */
     itemKey: string;

@@ -284,7 +284,7 @@ export default {
       "localTitle": "还没有导入本地音乐",
       "localBody": "在信息条的「⋯」里选「{{action}}」，文件夹、专辑和歌手会铺满这面墙。"
     },
-    "special": {"liked": "我喜欢的音乐", "cloud": "云盘", "personal-fm": "私人FM", "daily": "每日推荐", "all-songs": "全部歌曲", "local-favorites": "我喜欢", "navidrome-random": "随机音乐", "navidrome-favorites": "收藏"}
+    "special": {"liked": "我喜欢的音乐", "cloud": "云盘", "personal-fm": "私人FM", "fm-station": "电台", "daily": "每日推荐", "all-songs": "全部歌曲", "local-favorites": "我喜欢", "navidrome-random": "随机音乐", "navidrome-favorites": "收藏"}
   },
   "libraryTui": {
     "back": "返回",
@@ -741,6 +741,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off 不能指定时长",
     "sleepTimerDurationRequired": "请先输入分钟数再开启定时器",
     "fmModeTitle": "私人 FM 模式",
+    "fmModeTitleOf": "{{name}}模式",
     "fmModeHint": "点下方场景即可直接切到场景模式",
     "fmModeFilterPlaceholder": "输入以筛选模式和场景",
     "recommendationPreferencesPlaceholder": "在下方调整偏好",
@@ -790,6 +791,7 @@ export default {
       "queue": { "title": "队列", "description": "搜索队列；使用 @ 筛选元数据，使用 -- 批量操作" },
       "playback-volume": { "title": "音量条", "description": "调整播放音量" },
       "playback-fm-mode": { "title": "私人 FM 模式", "description": "切换私人 FM 的模式或场景" },
+      "playback-station-mode": { "title": "电台模式", "description": "切换正在播的电台的模式或场景" },
       "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
@@ -1531,6 +1533,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "切换私人 FM 模式",
+    "openPickerOf": "切换{{name}}模式",
     "category": {
       "mode": "模式",
       "mood": "情绪",
@@ -1592,7 +1595,10 @@ export default {
     "statusPending": "私人 FM 模式",
     "statusApplied": "私人 FM 已切换到",
     "statusEmpty": "该私人 FM 模式没有返回歌曲",
-    "statusFailed": "切换私人 FM 模式失败"
+    "statusFailed": "切换私人 FM 模式失败",
+    "statusAppliedOf": "{{name}}已切换到",
+    "statusEmptyOf": "该{{name}}模式没有返回歌曲",
+    "statusFailedOf": "切换{{name}}模式失败"
   },
   "recommendationPreferences": {
     "open": "偏好设置",
@@ -1918,6 +1924,10 @@ export default {
     "qqCharts": "排行榜",
     "qqFeedForYou": "为你推荐",
     "qqRecommendedPlaylists": "推荐歌单",
+    "qqGuessYouLike": "猜你喜欢",
+    "qqGuessYouLikeDescription": "QQ 音乐的猜你喜欢电台，播放时可以换听歌模式",
+    "qqGuessYouLikeSuggested": "为你建议",
+    "qqGuessYouLikeOther": "其他",
     "personalFm": "私人FM",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",

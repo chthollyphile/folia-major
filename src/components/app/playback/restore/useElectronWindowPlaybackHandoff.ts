@@ -6,7 +6,7 @@ import { PlayerState } from '../../../../types';
 import type { LyricData, SongResult, StageSource, StageStatus, StatusMessage } from '../../../../types';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
-import { getPlaybackSongKey, isStagePlaybackSong } from '../../../../utils/appPlaybackGuards';
+import { getOnlineProviderIdForSong, getPlaybackSongKey, isStagePlaybackSong } from '../../../../utils/appPlaybackGuards';
 import type {
     PlaybackSnapshot,
     StageLyricsClockState,
@@ -17,6 +17,7 @@ import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLin
 import { askedSongKeyRef, makeSongCurrent, startRestore } from '../currentSong';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { captureActiveStations, restoreActiveStations } from '../../../../stores/usePersonalFmModeStore';
 import { useAppViewStore } from '../../../../stores/useAppViewStore';
 import { useAppChromeStore } from '../../../../stores/useAppChromeStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
@@ -208,6 +209,8 @@ export function useElectronWindowPlaybackHandoff({
             activePlaybackContext,
             mainPlayback,
             activePlayback,
+            // Which extra radio the FM queue came from, so the new window tops it up from the same one.
+            ...(mainPlayback?.isFmMode ? { fmStations: captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
             stage: {
                 status: stageStatus,
                 source: stageSource,
@@ -258,7 +261,7 @@ export function useElectronWindowPlaybackHandoff({
         transparentPlayerBackground,
     ]);
 
-    const restoreMainPlaybackSnapshot = useCallback(async (snapshot: PlaybackSnapshot | null) => {
+    const restoreMainPlaybackSnapshot = useCallback(async (snapshot: PlaybackSnapshot | null, fmStations?: unknown) => {
         mainPlaybackSnapshotRef.current = snapshot;
         // A song asked for in the new window while the handoff was being read stands.
         if (askedSongKeyRef.current !== null) {
@@ -305,6 +308,7 @@ export function useElectronWindowPlaybackHandoff({
         if (!queueRewritten) {
             setPlayQueue(restoredQueue);
             setIsFmMode(snapshot.isFmMode);
+            if (snapshot.isFmMode) restoreActiveStations(fmStations);
         } else {
             // Saved again now that a song is current, as the session restore does: the replacement's own save
             // found none, so it kept nothing, and the source's restore saves only on some of its paths.
@@ -392,6 +396,7 @@ export function useElectronWindowPlaybackHandoff({
 
         if (handoff.activePlaybackContext === 'stage') {
             mainPlaybackSnapshotRef.current = handoff.mainPlayback;
+            if (handoff.mainPlayback?.isFmMode) restoreActiveStations(handoff.fmStations);
             // The Stage plays on the Web engine, and the main song waits in the snapshot until it ends:
             // a track the old window left playing in mpv is stopped before the Stage sounds.
             await releaseTrackLeftInMpv();
@@ -400,7 +405,7 @@ export function useElectronWindowPlaybackHandoff({
         }
 
         setActivePlaybackContext('main');
-        await restoreMainPlaybackSnapshot(handoff.mainPlayback ?? handoff.activePlayback);
+        await restoreMainPlaybackSnapshot(handoff.mainPlayback ?? handoff.activePlayback, handoff.fmStations);
         return true;
     }, [
         mainPlaybackSnapshotRef,

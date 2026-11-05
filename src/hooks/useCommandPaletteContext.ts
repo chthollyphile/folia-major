@@ -163,6 +163,10 @@ export const useCommandPaletteContext = (
     const personalFmSelection = usePersonalFmModeStore(state => state.selection);
     const personalFmCatalogs = usePersonalFmModeStore(state => state.catalogs);
     const providerFmSelections = usePersonalFmModeStore(state => state.providerSelections);
+    // The picker follows the extra radio on air: its choice and catalogue are read at build time too.
+    const fmStations = usePersonalFmModeStore(state => state.stations);
+    const fmStationCatalogs = usePersonalFmModeStore(state => state.stationCatalogs);
+    const fmOnAir = usePlaybackStore(state => state.isFmMode);
     const activeProviderId = useOnlineProviderAccountStore(state => state.activeProviderId);
     // Which surface the palette is opening over; commands that only apply to one of them gate on it.
     const view = useAppViewStore(state => state.view);
@@ -229,7 +233,7 @@ export const useCommandPaletteContext = (
         queuePaletteKeepOpen,
         settingsSignals, chromeSignals, desktopSignals, automixSignals,
         sleepTimerSignals, latticeSignals, audioSignals, visualizerSignals,
-        lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, personalFmCatalogs, providerFmSelections, activeProviderId, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
+        lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, personalFmCatalogs, providerFmSelections, fmStations, fmStationCatalogs, fmOnAir, activeProviderId, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
         recommendationPreferencesOffered,
         lyricSegmentationRecord, lyricSegmentationActions,
     ]);

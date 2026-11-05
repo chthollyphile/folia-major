@@ -1,3 +1,4 @@
+import i18n from '../../i18n/config';
 import type { PersonalFmRequestOptions } from '../../types/onlineMusic';
 import type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
 export type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
@@ -127,9 +128,10 @@ export const isDefaultPersonalFmSelection = (selection: PersonalFmSelection) => 
     isSamePersonalFmSelection(selection, DEFAULT_PERSONAL_FM_SELECTION)
 );
 
-export const toPersonalFmRequestOptions = (selection: PersonalFmSelection): PersonalFmRequestOptions => ({
+export const toPersonalFmRequestOptions = (selection: PersonalFmSelection, station?: string | null): PersonalFmRequestOptions => ({
     mode: selection.mode,
     submode: selection.scene,
+    ...(station ? { station } : {}),
 });
 
 /** "Scene · Sleep" for SCENE_RCMD, the plain mode name otherwise. */
@@ -143,3 +145,41 @@ export const getPersonalFmSelectionLabel = (
     const sceneEntry = getPersonalFmSceneEntry(selection.scene, catalog);
     return sceneEntry ? `${modeLabel} · ${personalFmEntryLabel(sceneEntry, t)}` : modeLabel;
 };
+
+/**
+ * The picker's title, and the name of its command while it is open: after the radio on air where its catalogue
+ * names it ("Guess You Like mode"), "Personal FM mode" otherwise. One place, so the two always say the same.
+ */
+export const getPersonalFmPickerTitle = (catalog?: PersonalFmCatalog): string => (
+    catalog?.name
+        ? i18n.t('commandPalette.fmModeTitleOf', { name: catalogName(catalog.name), defaultValue: '{{name}} mode' })
+        : i18n.t('commandPalette.fmModeTitle', { defaultValue: 'Personal FM mode' })
+);
+
+/** The hint on the button that opens the picker, naming the same thing the picker's title does. */
+export const getPersonalFmOpenPickerLabel = (catalog?: PersonalFmCatalog): string => (
+    catalog?.name
+        ? i18n.t('personalFmMode.openPickerOf', { name: catalogName(catalog.name), defaultValue: 'Switch the {{name}} mode' })
+        : i18n.t('personalFmMode.openPicker', { defaultValue: 'Switch the Personal FM mode' })
+);
+
+const STATUS_KEYS = {
+    applied: ['statusApplied', 'Personal FM switched to', 'statusAppliedOf', '{{name}} switched to'],
+    empty: ['statusEmpty', 'This Personal FM mode returned nothing', 'statusEmptyOf', 'This {{name}} mode returned nothing'],
+    failed: ['statusFailed', 'Failed to switch the Personal FM mode', 'statusFailedOf', 'Failed to switch the {{name}} mode'],
+} as const;
+
+/**
+ * The status line of a mode switch, naming the radio on air where its catalogue names it ("Guess You Like
+ * switched to"), the Personal FM otherwise, like the picker's title.
+ */
+export const getPersonalFmStatusText = (kind: keyof typeof STATUS_KEYS, catalog?: PersonalFmCatalog | null): string => {
+    const [key, fallback, keyOf, fallbackOf] = STATUS_KEYS[kind];
+    return catalog?.name
+        ? i18n.t(`personalFmMode.${keyOf}`, { name: catalogName(catalog.name), defaultValue: fallbackOf })
+        : i18n.t(`personalFmMode.${key}`, { defaultValue: fallback });
+};
+
+function catalogName(name: NonNullable<PersonalFmCatalog['name']>): string {
+    return name.labelKey ? i18n.t(name.labelKey, { defaultValue: name.labelFallback }) : name.labelFallback;
+}

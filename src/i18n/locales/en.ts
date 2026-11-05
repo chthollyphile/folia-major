@@ -284,7 +284,7 @@ export default {
       "localTitle": "No local music imported yet",
       "localBody": "Choose “{{action}}” under “⋯” in the info strip, and your folders, albums and artists will fill this wall."
     },
-    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
+    "special": {"liked": "Liked Songs", "cloud": "Cloud Drive", "personal-fm": "Personal FM", "fm-station": "Radio", "daily": "Daily Picks", "all-songs": "All Songs", "local-favorites": "Favorites", "navidrome-random": "Random", "navidrome-favorites": "Starred"}
   },
   "libraryTui": {
     "back": "Back",
@@ -741,6 +741,7 @@ export default {
     "sleepTimerUnexpectedMinutes": "--off does not accept a duration",
     "sleepTimerDurationRequired": "Enter minutes before turning the timer on",
     "fmModeTitle": "Personal FM mode",
+    "fmModeTitleOf": "{{name}} mode",
     "fmModeHint": "Pick a scene to switch straight into scene mode",
     "fmModeFilterPlaceholder": "Type to filter modes and scenes",
     "recommendationPreferencesPlaceholder": "Adjust your preferences below",
@@ -790,6 +791,7 @@ export default {
       "queue": { "title": "Queue", "description": "Search the queue; use @ for metadata and -- for batch actions" },
       "playback-volume": { "title": "Volume", "description": "Adjust playback volume" },
       "playback-fm-mode": { "title": "Personal FM mode", "description": "Switch the Personal FM mode or scene" },
+      "playback-station-mode": { "title": "Radio mode", "description": "Switch the mode or scene of the radio on air" },
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
@@ -1531,6 +1533,7 @@ export default {
   },
   "personalFmMode": {
     "openPicker": "Switch the Personal FM mode",
+    "openPickerOf": "Switch the {{name}} mode",
     "category": {
       "mode": "Mode",
       "mood": "Mood",
@@ -1592,7 +1595,10 @@ export default {
     "statusPending": "Personal FM mode",
     "statusApplied": "Personal FM switched to",
     "statusEmpty": "This Personal FM mode returned nothing",
-    "statusFailed": "Failed to switch the Personal FM mode"
+    "statusFailed": "Failed to switch the Personal FM mode",
+    "statusAppliedOf": "{{name}} switched to",
+    "statusEmptyOf": "This {{name}} mode returned nothing",
+    "statusFailedOf": "Failed to switch the {{name}} mode"
   },
   "recommendationPreferences": {
     "open": "Preferences",
@@ -1918,6 +1924,10 @@ export default {
     "qqCharts": "Charts",
     "qqFeedForYou": "For you",
     "qqRecommendedPlaylists": "Recommended playlists",
+    "qqGuessYouLike": "Guess You Like",
+    "qqGuessYouLikeDescription": "QQ Music's Guess You Like radio; switch its listening mode while it plays",
+    "qqGuessYouLikeSuggested": "Suggested",
+    "qqGuessYouLikeOther": "Other",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",

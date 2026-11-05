@@ -19,6 +19,11 @@ import { useAppViewStore } from '@/stores/useAppViewStore';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import type { CollectionMutationSnapshot } from '@/library/core/collection/mutations/mutations.contract';
 import type { RecommendationPreferenceEntry } from '@/types/onlineMusic';
+import FmTab from '@/components/panelTab/FmTab';
+import { DEFAULT_PERSONAL_FM_SELECTION } from '@/services/onlineMusic/fmModes';
+import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
+import { usePlaybackStore } from '@/stores/usePlaybackStore';
+import { PlayerState } from '@/types';
 
 // test/unit/recommendationPreferences/recommendationPreferencesEntries.test.ts
 // 私人 FM 页签、网格的每日推荐控制列和 Bravais 信息条的每日推荐区块上的「偏好设置」：平台声明了那一处、已经登录才出现，
@@ -167,5 +172,36 @@ describe('the daily recommendations entry in the Bravais seam', () => {
     it('draws none without it', async () => {
         await render(React.createElement(BravaisSeamCollectionMeta, { collection: { menu: [], moreLabel: 'more', daily } }));
         expect(find('[data-bravais-seam-action="daily-preferences"]')).toBeNull();
+    });
+});
+
+describe('the personal FM tab while an extra station plays', () => {
+    const fmTab = () => React.createElement(FmTab, {
+        playerState: PlayerState.PAUSED,
+        modeLabel: 'mode',
+        onOpenModePicker: () => undefined,
+        onTogglePlay: () => undefined,
+        onNextTrack: () => undefined,
+        onPrevTrack: () => undefined,
+        onTrash: () => undefined,
+        onLike: () => undefined,
+        isLiked: false,
+    });
+
+    afterEach(() => {
+        usePersonalFmModeStore.getState().endStation(providerId);
+        usePlaybackStore.setState({ isFmMode: false });
+    });
+
+    it('shows only the mode button of the station on an extra station, and the preferences on the personal FM', async () => {
+        register(['personal-fm']);
+        usePlaybackStore.setState({ isFmMode: true });
+        usePersonalFmModeStore.getState().startStation(providerId, 'station-a', DEFAULT_PERSONAL_FM_SELECTION);
+        await render(fmTab());
+        expect(find('[data-testid="fm-recommendation-preferences"]')).toBeNull();
+        expect(host.textContent).toContain('mode');
+
+        await act(async () => { usePersonalFmModeStore.getState().endStation(providerId); });
+        expect(find('[data-testid="fm-recommendation-preferences"]')).not.toBeNull();
     });
 });

@@ -267,14 +267,20 @@ describe('QQ recommendations', () => {
             requestMock.mockResolvedValue({ code: 200, playlists: [] });
             await qqRecommendations.getRecommendedCollections!(500);
             await qqRecommendations.getRecommendedCollections!(0);
-            expect(requestMock.mock.calls.map(call => call[1])).toEqual([{ limit: 60 }, { limit: 1 }]);
+            expect(requestMock.mock.calls.filter(call => call[0] === 'recommend_playlists').map(call => call[1])).toEqual([{ limit: 60 }, { limit: 1 }]);
         });
 
         // 首页三块推荐一起取：推荐歌单失败不该把 FM 与日推一起拖下去。
         it('degrades to no playlists when the request fails', async () => {
-            requestMock.mockRejectedValueOnce(upstreamFailure()).mockRejectedValueOnce(emptyAnswer());
-            await expect(qqRecommendations.getRecommendedCollections!(10)).resolves.toEqual([]);
-            await expect(qqRecommendations.getRecommendedCollections!(10)).resolves.toEqual([]);
+            const failures = [upstreamFailure(), emptyAnswer()];
+            requestMock.mockImplementation(async (operation: string) => {
+                if (operation === 'recommend_playlists') throw failures.shift();
+                return { code: 200, primaryModes: [], scenes: [] };
+            });
+            // Only the station card of Guess You Like is left, which comes from elsewhere.
+            const playlistsOf = (collections: { personalFm?: unknown }[]) => collections.filter(collection => !collection.personalFm);
+            expect(playlistsOf(await qqRecommendations.getRecommendedCollections!(10))).toEqual([]);
+            expect(playlistsOf(await qqRecommendations.getRecommendedCollections!(10))).toEqual([]);
             expect(console.warn).toHaveBeenCalledTimes(1);
         });
     });
