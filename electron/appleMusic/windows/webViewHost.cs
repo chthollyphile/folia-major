@@ -21,35 +21,36 @@ namespace Folia.AppleMusic
             internal int Generation;
         }
         // The WinForms control mirrors its own Visible into the controller, so a hidden host window
-        // makes the page `hidden`; MusicKit then takes the license but never buffers a byte.
-        // While the main page plays with its window hidden, keep its controller visible; between plays the
-        // page goes back to hidden, which keeps music.apple.com from rendering for nobody (about 10% of a core).
+        // makes the page `hidden`, and Chromium defers media loading in a hidden page that never played
+        // media: MusicKit takes the license but never buffers a byte. While Folia starts a song, the
+        // controller stays visible (`keepVisible`); once the page has sounded, Chromium loads later media
+        // even while hidden, and the page goes back to hidden so music.apple.com renders for nobody.
         // The field is private to the SDK, which is pinned to one exact version in the .csproj.
-        private sealed class PlayingWebView2 : WebView2
+        private sealed class PinnableWebView2 : WebView2
         {
             internal static readonly FieldInfo ControllerField = typeof(WebView2).GetField("_coreWebView2Controller", BindingFlags.Instance | BindingFlags.NonPublic);
-            internal bool KeepsPlaying;
-            internal void KeepVisible()
+            internal bool Pinned;
+            internal void ApplyVisibility()
             {
                 if (!(ControllerField?.GetValue(this) is CoreWebView2Controller controller)) return;
-                var visible = KeepsPlaying || Visible;
+                var visible = Pinned || Visible;
                 if (controller.IsVisible != visible) controller.IsVisible = visible;
             }
             protected override void OnVisibleChanged(EventArgs e)
             {
                 base.OnVisibleChanged(e);
-                KeepVisible();
+                ApplyVisibility();
             }
             // The SDK also writes Visible into the controller when this control's own handle is recreated.
             protected override void OnHandleCreated(EventArgs e)
             {
                 base.OnHandleCreated(e);
-                KeepVisible();
+                ApplyVisibility();
             }
         }
         private readonly NativeCompanion owner;
         private readonly bool isMain;
-        private readonly PlayingWebView2 browser = new PlayingWebView2 { Dock = DockStyle.Fill };
+        private readonly PinnableWebView2 browser = new PinnableWebView2 { Dock = DockStyle.Fill };
         private readonly Dictionary<string, Evaluation> evaluations = new Dictionary<string, Evaluation>();
         private int generation;
         private ulong activeNavigation;
@@ -77,7 +78,7 @@ namespace Folia.AppleMusic
             var browserHandle = browser.Handle;
             await browser.EnsureCoreWebView2Async(environment);
             // A renamed SDK field would silently bring back the stalled hidden playback.
-            if (isMain && PlayingWebView2.ControllerField == null) owner.Protocol.Send(new { @event = "diagnostic", code = "visibility-pin-unavailable" });
+            if (isMain && PinnableWebView2.ControllerField == null) owner.Protocol.Send(new { @event = "diagnostic", code = "visibility-pin-unavailable" });
             Core.Settings.AreHostObjectsAllowed = false;
             Core.Settings.AreDevToolsEnabled = false;
             Core.Settings.IsStatusBarEnabled = false;
@@ -89,11 +90,11 @@ namespace Folia.AppleMusic
             Core.ProcessFailed += (_, __) => { owner.Protocol.Send(new { @event = "diagnostic", code = "process-failed" }); owner.Stop(); };
             if (isMain) Core.WebMessageReceived += PageMessage;
         }
-        // Folia says when the page plays: only then must a hidden window keep the page visible.
-        internal void KeepPlaying(bool active)
+        // Folia says when a start needs the page visible behind a hidden window.
+        internal void KeepVisible(bool active)
         {
-            browser.KeepsPlaying = active;
-            browser.KeepVisible();
+            browser.Pinned = active;
+            browser.ApplyVisibility();
         }
         private void Document()
         {
