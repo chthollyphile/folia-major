@@ -106,6 +106,7 @@ export const normalizeMachiTuning = (raw: unknown): MachiTuning => {
         tiltShift: within('tiltShift'),
         focus: MACHI_FOCUS_MODES.includes(input.focus) ? input.focus : d.focus,
         focusOffset: within('focusOffset'),
+        simulatedBeat: typeof input.simulatedBeat === 'boolean' ? input.simulatedBeat : d.simulatedBeat,
         quality: normalizeMachiQuality(input.quality),
     };
 };

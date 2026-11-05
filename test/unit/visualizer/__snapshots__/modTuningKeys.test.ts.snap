@@ -404,6 +404,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       ],
       "type": "choice",
     },
+    "simulatedBeat": {
+      "type": "boolean",
+    },
     "tiltShift": {
       "max": 1,
       "min": 0,

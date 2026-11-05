@@ -79,7 +79,7 @@ import type { MachiCameraView, MachiQuality, MachiSceneId, MachiTuning } from '.
 // 自己的 requestAnimationFrame 循环：暂停时只在镜头还在动、颜色还在插值、或外面要求补一帧时出帧，其余时间不跑。
 // 每帧的时间只从 currentTime（歌词）和 MachiClock（氛围）读，不进 React。
 // 智能动感模式（engine/beatFx.ts）：每帧按节拍表与鼓点算出霓虹、涟漪、闪拍的量，涟漪交给地面，其余随场景帧交给场景。
-// 没开智能动感模式时，霓虹随拍和大屏闪拍按固定节拍走（MACHI_BEAT.steady），没有涟漪。
+// 没开智能动感模式、开着「模拟节拍」（tuning.simulatedBeat）时，霓虹随拍和大屏闪拍按固定节拍走（MACHI_BEAT.steady），没有涟漪。
 
 export interface MachiSongContext {
     seed: string | number;
@@ -885,17 +885,18 @@ export class MachiRuntime {
     /**
      * 智能动感模式：霓虹随拍读整张节拍表、鼓点效果读这首歌的鼓点，都按听到的时间取；涟漪交给地面。
      * 静态模式、暂停（停在霓虹或大屏亮到一半的那帧不留着）、效果关着、拍点 / 鼓点还没有时都是常态值。
-     * 没开智能动感模式时，霓虹随拍和大屏闪拍按氛围时钟上的固定节拍走（engine/beatFx.ts 的 MACHI_BEAT.steady）。
+     * 没开智能动感模式时，开着「模拟节拍」就让霓虹随拍和大屏闪拍按氛围时钟上的固定节拍走（engine/beatFx.ts 的
+     * MACHI_BEAT.steady），关着就是常态值。
      */
     private stepBeat(songTime: number): MachiBeatFrame {
         const beat = resetMachiBeatFrame(this.beat);
         const idle = this.clock.paused;
         const focus = this.stage.focusPoint;
         if (!smartBeatActive(useVisualizerSettingsStore.getState().smartBeat)) {
-            // 没开智能动感：没有鼓点，涟漪清空；霓虹、大屏按固定节拍走。
+            // 没开智能动感：没有鼓点，涟漪清空；开着模拟节拍时霓虹、大屏按固定节拍走。
             resolveMachiDrumRipples(null, 0, 0, this.kickRings);
             this.ground.setKicks(focus.x, focus.z, this.kickRings);
-            if (idle) return beat;
+            if (idle || !this.tuning.simulatedBeat) return beat;
             resolveMachiSteadyNeonPulse(this.clock.elapsed, 1, beat);
             resolveMachiSteadyScreenFlash(this.clock.elapsed, 1, beat);
             return beat;

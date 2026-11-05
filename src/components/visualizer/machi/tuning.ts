@@ -26,6 +26,7 @@ export default defineVisualizerTuning<MachiTuning>({
         tiltShift: modNumber(MACHI_DOF_LIMITS.tiltShift.min, MACHI_DOF_LIMITS.tiltShift.max),
         focus: modChoice(MACHI_FOCUS_MODES),
         focusOffset: modNumber(MACHI_DOF_LIMITS.focusOffset.min, MACHI_DOF_LIMITS.focusOffset.max),
+        simulatedBeat: MOD_SWITCH,
     },
     settingsKey: 'machiTuning',
     settingsSetterKey: 'handleSetMachiTuning',

@@ -43,6 +43,12 @@ describe('normalizeMachiTuning', () => {
         expect(normalizeMachiTuning({ motionSpeed: 'fast' }).motionSpeed).toBe(1);
     });
 
+    it('keeps the simulated beat switch on unless it is stored off', () => {
+        expect(normalizeMachiTuning({}).simulatedBeat).toBe(true);
+        expect(normalizeMachiTuning({ simulatedBeat: false }).simulatedBeat).toBe(false);
+        expect(normalizeMachiTuning({ simulatedBeat: 'no' }).simulatedBeat).toBe(true);
+    });
+
     it('clamps the depth of field and falls back to centre focus', () => {
         const tuning = normalizeMachiTuning({ aperture: 0.5, dof: 5, dofRange: 0, tiltShift: -1, focus: 'eyes', focusOffset: -30 });
         expect(tuning).toMatchObject({ aperture: 1.4, dof: 2, dofRange: 0.3, tiltShift: 0, focus: 'center', focusOffset: -10 });

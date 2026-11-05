@@ -130,6 +130,8 @@ export interface MachiTuning {
     tiltShift: number;
     focus: MachiFocusMode;
     focusOffset: number;
+    /** 模拟节拍：没开智能动感模式时，霓虹随拍和大屏闪拍按固定节拍走（engine/beatFx.ts 的 MACHI_BEAT.steady）。 */
+    simulatedBeat: boolean;
     quality: MachiQuality;
 }
 
@@ -155,5 +157,6 @@ export const DEFAULT_MACHI_TUNING: MachiTuning = {
     tiltShift: 0.3,
     focus: 'center',
     focusOffset: 0,
+    simulatedBeat: true,
     quality: DEFAULT_MACHI_QUALITY,
 };
