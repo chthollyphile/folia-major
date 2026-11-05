@@ -82,7 +82,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
 }, ref) => {
     const { t } = useTranslation();
     const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerBackButton = Boolean(window.electron) && titlebarSide === 'left';
+    const lowerBackButton = typeof window !== 'undefined' && Boolean(window.electron) && titlebarSide === 'left';
     const backdrop = useContext(VisualizerBackdropContext);
     const isInBackdrop = backdrop !== null;
     const pointerArea = backdrop?.pointerArea ?? null;
