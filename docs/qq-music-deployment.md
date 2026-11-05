@@ -252,7 +252,7 @@ Docker / NAS、HTTPS、反向代理和本地镜像验证见 [Docker 全栈部署
 mkdir qq-api
 cd qq-api
 npm init -y
-npm install @yakult-green-tea/qq-music-api@^3.3.3
+npm install @yakult-green-tea/qq-music-api@^3.3.6
 ```
 
 macOS / Linux：
