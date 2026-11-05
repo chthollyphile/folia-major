@@ -116,13 +116,13 @@ afterEach(() => {
 });
 
 describe('app start, where the kept account waits for the platform to name the user', () => {
-    it('shows nobody until the platform has answered, and nobody after it names nobody', async () => {
+    it('shows a pending account until the platform answers, then shows its signed-out result', async () => {
         keep({ user, collections: [list('kept')] });
         const status = held<ProviderUser | null>();
         platform({ auth: { getLoginStatus: vi.fn(() => status.promise) } });
 
         const read = omni.readAccount(providerId, 'start');
-        expect(account()).toMatchObject({ status: 'anonymous', hydration: 'ready', user: null, collections: [], freshness: 'refreshing' });
+        expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, collections: [], freshness: 'refreshing' });
         status.answer(null);
 
         await expect(read).resolves.toBe('nobody');

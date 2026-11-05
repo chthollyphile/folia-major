@@ -1625,6 +1625,7 @@ export default {
     "noPlatformMatch": "Tidak ada platform yang cocok",
     "rowSignedIn": "Sudah login",
     "rowRanOut": "Login kedaluwarsa",
+    "rowChecking": "Memeriksa status masuk…",
     "rowSignedOut": "Belum login",
     "signInRanOut": "Login kedaluwarsa",
     "readingAccount": "Membaca akun…",

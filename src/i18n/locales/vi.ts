@@ -1625,6 +1625,7 @@ export default {
     "noPlatformMatch": "Không tìm thấy nền tảng phù hợp",
     "rowSignedIn": "Đã đăng nhập",
     "rowRanOut": "Đăng nhập đã hết hạn",
+    "rowChecking": "Đang kiểm tra đăng nhập…",
     "rowSignedOut": "Chưa đăng nhập",
     "signInRanOut": "Đăng nhập đã hết hạn",
     "readingAccount": "Đang đọc thông tin tài khoản…",
