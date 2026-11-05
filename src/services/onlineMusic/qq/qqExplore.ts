@@ -11,10 +11,9 @@ import type {
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
 import { errorMessage } from '../../../utils/errorText';
-import { readProviderSessionValue } from '../providerStorage';
 import { qqRadioCollection, qqToplistCollection } from './qqLists';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
-import { getQqGuessYouLikeCard, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
+import { getQqGuessYouLikeCard, getQqRecommendationSessionKey, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqExplore.ts
@@ -489,7 +488,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
     const firstPage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
         // 停用的会话（isQqSessionParked）请求不带，照游客读。
         const signedIn = hasUsableQqSession();
-        const previewSession = signedIn ? readProviderSessionValue('qq', 'cookie') : null;
+        const previewSession = getQqRecommendationSessionKey();
         if (hadAccount !== undefined && hadAccount !== signedIn) {
             memory = newMemory();
             console.log(`[QQ] Explore page: read ${signedIn ? 'for an account after a guest' : 'for a guest after an account'}; what the shelves handed out before is forgotten`);
@@ -524,7 +523,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
             catch (error) { console.warn('[QQ] Explore lead: similar songs failed', error); }
         }
         const card = await previewAsked;
-        const sameSession = previewSession && hasUsableQqSession() && readProviderSessionValue('qq', 'cookie') === previewSession;
+        const sameSession = previewSession !== null && getQqRecommendationSessionKey() === previewSession;
         const previews = { personalFm: sameSession ? card?.songPreview : undefined, dailySongs: sameSession ? (await dailyOf(read))[0] : undefined };
         const sections = signedIn ? [
             ...withRecommendedSongs(songSections, previews),

@@ -4,7 +4,6 @@ import { OnlineProviderError, type PersonalFmRequestOptions, type ProviderCollec
 import type { PersonalFmCatalog, PersonalFmSceneEntry } from '../../../types/personalFm';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
 import { normalizeQqSong } from './qqNormalize';
-import { readProviderSessionValue } from '../providerStorage';
 import { createQqRecommendationPreview } from './qqRecommendationPreview';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
@@ -62,6 +61,9 @@ export const clearQqGuessYouLikeCatalog = (): void => {
     catalogTask = null;
     catalogAt = 0;
 };
+
+/** 同一登录代次的推荐身份：凭据续期不换代，退出、重新登录和换账号由 provider 清掉。 */
+export const getQqRecommendationSessionKey = (): string | null => hasUsableQqSession() ? String(generation) : null;
 
 const listOf = (value: unknown): any[] => (Array.isArray(value) ? value : []);
 const poolOf = (entry: any): string | null => {
@@ -181,7 +183,7 @@ export const getQqGuessYouLikeBatch = async (selected: PersonalFmRequestOptions)
 // 单份默认批次缓存同时服务封面与显式开始；票据随账号代次失效，续歌不带票据。
 const preview = createQqRecommendationPreview(
     async () => songsOf(await requestQq<any>('user_guess_you_like')),
-    () => hasUsableQqSession() ? `${generation}:${readProviderSessionValue('qq', 'cookie')}` : null,
+    getQqRecommendationSessionKey,
 );
 
 /** 登录后的稳定电台卡用真实首歌预览；批次只在这里预留，不因电台页的隐藏卡而消耗。 */

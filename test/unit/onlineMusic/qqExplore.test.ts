@@ -6,12 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // 「电台」）；数字与名字是虚构示例。
 
 const requestMock = vi.hoisted(() => vi.fn());
-const transportState = vi.hoisted(() => ({ hasSession: true, session: 0 }));
-
-vi.mock('@/services/onlineMusic/providerStorage', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/providerStorage')>(),
-    readProviderSessionValue: () => `opaque-test-session-${transportState.session}`,
-}));
+const transportState = vi.hoisted(() => ({ hasSession: true }));
 
 vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
@@ -21,6 +16,7 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
 }));
 
 import i18n from '@/i18n/config';
+import { clearQqGuessYouLikeCatalog } from '@/services/onlineMusic/qq/qqGuessYouLike';
 import { createQqExplore } from '@/services/onlineMusic/qq/qqExplore';
 import { normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
 import { OnlineProviderError, type ProviderExploreSection } from '@/types/onlineMusic';
@@ -109,7 +105,7 @@ describe('QQ explore page', () => {
     beforeEach(() => {
         requestMock.mockReset();
         transportState.hasSession = true;
-        transportState.session += 1;
+        clearQqGuessYouLikeCatalog();
         vi.spyOn(console, 'log').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
@@ -349,13 +345,13 @@ describe('QQ explore page', () => {
         expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);
     });
 
-    it('discards preview artwork if the session changes while other first-page songs are loading', async () => {
+    it('discards preview artwork if the login generation changes while other first-page songs are loading', async () => {
         let finishRadar!: (answer: unknown) => void;
         answerAs({ recommend_radar: () => new Promise(resolve => { finishRadar = resolve; }) });
         const pending = createQqExplore().getFeed(undefined, listened);
         await Promise.resolve();
         await Promise.resolve();
-        transportState.session += 1;
+        clearQqGuessYouLikeCatalog();
         finishRadar({ songs: tracks('radar', 100, 10), more: false });
 
         const first = await pending;
