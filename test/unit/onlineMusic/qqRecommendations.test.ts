@@ -194,11 +194,33 @@ describe('QQ recommendations', () => {
             expect(requestMock).not.toHaveBeenCalled();
         });
 
-        // 写了但首屏没读到（或结果不明）不算成功，也不再送一次。
-        it('fails without resending when the write is not confirmed', async () => {
+        // 上游收下了、只是首屏没读到：算成功（报失败只会让人再写一次），也不再送一次。
+        it('counts an accepted write the first page did not show as done, without resending', async () => {
+            vi.spyOn(console, 'info').mockImplementation(() => { });
             requestMock.mockResolvedValueOnce({ ...confirmed, verified: false, verification: 'unconfirmed' });
-            await expect(qqRecommendations.dislikeSong!(101)).rejects.toMatchObject({ code: 'invalid-response' });
+            await expect(qqRecommendations.dislikeSong!(101)).resolves.toEqual({ removed: true });
             expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(console.info).toHaveBeenCalledWith('[QQProvider] dislike:accepted', { verified: false });
+        });
+
+        // 写入收下了、核对的那一读失败（非 2xx 的错误体里带 writeAttempted 与 accepted）：同样算成功。
+        it('counts an accepted write whose read-back failed as done', async () => {
+            requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', {
+                writeAttempted: true, accepted: true, verified: false, verification: 'unconfirmed', retryable: false,
+            }, 502));
+            await expect(qqRecommendations.dislikeSong!(101)).resolves.toEqual({ removed: true });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+        });
+
+        // 上游没有收下（回包里既没核对也没收下，或写了但没被接受）：报失败，不再送一次。
+        it('fails without resending when the write was not accepted', async () => {
+            requestMock.mockResolvedValueOnce({ code: 200, verified: false });
+            await expect(qqRecommendations.dislikeSong!(101)).rejects.toMatchObject({ code: 'invalid-response' });
+            requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', {
+                writeAttempted: true, accepted: false, verified: false,
+            }, 502));
+            await expect(qqRecommendations.dislikeSong!(102)).rejects.toMatchObject({ httpStatus: 502 });
+            expect(requestMock).toHaveBeenCalledTimes(2);
             expect(console.warn).toHaveBeenCalledWith('[QQProvider] dislike:failed', expect.objectContaining({ name: 'OnlineProviderError' }));
         });
 
