@@ -399,7 +399,11 @@ export const createQqExplore = (): OnlineExploreProvider => {
     /** 首页 feed 的几架（要登录）；旧后端没有这条路由、没有可用架子都只是不出。 */
     const feedShelvesOf = async (read: Read): Promise<ProviderExploreSection[]> => {
         if (!read.signedIn) return [];
-        const answer = await orEmpty(requestQq<any>('recommend_feed'), null);
+        // 旧后端没有这条路由（404／旧 Serverless 的 501，transport 报成 unsupported）是常态，不当成读失败。
+        const answer = await orEmpty(requestQq<any>('recommend_feed'), null).catch(error => {
+            if (error instanceof OnlineProviderError && error.code === 'unsupported') return null;
+            throw error;
+        });
         return listOf(answer?.shelves).map((shelf, index) => {
             const items = listOf(shelf?.items).map((item): ProviderExploreItem | null => {
                 if (item?.type === 'song') {

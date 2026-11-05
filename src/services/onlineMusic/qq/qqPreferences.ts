@@ -97,7 +97,17 @@ const itemOf = (key: string, name: string, score: number): RecommendationPrefere
 
 /** 读账号的偏好，照后端给的顺序；缺字段的项不要。 */
 export const getQqRecommendationPreferences = async (): Promise<RecommendationPreferences> => {
-    const answer = await requestQq<{ profiles?: unknown }>('user_recommendation_preferences');
+    let answer: { profiles?: unknown };
+    try {
+        answer = await requestQq<{ profiles?: unknown }>('user_recommendation_preferences');
+    } catch (error) {
+        // 账号上一项偏好都没有时，后端回 422（resource.not-found）：这是空的，不是读失败。
+        if (error instanceof OnlineProviderError && error.code === 'network' && error.httpStatus === 422) {
+            console.info('[QQProvider] preferences:read', { items: 0 });
+            return { items: [], note: NOTE };
+        }
+        throw error;
+    }
     if (!Array.isArray(answer?.profiles)) {
         throw new OnlineProviderError('invalid-response', 'QQMusicApi user_recommendation_preferences answered without profiles', 'qq');
     }
@@ -136,6 +146,12 @@ export const saveQqRecommendationPreferences = async (
         console.info('[QQProvider] preferences:saved', { changed: profiles.length, confirmed });
         return { confirmed };
     } catch (error) {
+        // 写已经发出、之后读回核对失败：后端回非 2xx，错误体里带 writeAttempted。账号上可能已经改了，
+        // 按「存了但没确认」交回，不当成没存成。
+        if (error instanceof OnlineProviderError && (error.cause as { writeAttempted?: unknown } | undefined)?.writeAttempted === true) {
+            console.warn('[QQProvider] preferences:saved, read-back failed', error);
+            return { confirmed: false };
+        }
         console.warn('[QQProvider] preferences:save failed', error);
         throw error;
     }

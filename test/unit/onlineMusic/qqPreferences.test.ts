@@ -144,4 +144,19 @@ describe('QQ recommendation preferences', () => {
         await expect(saveQqRecommendationPreferences({ 10010: 20 })).rejects.toThrow('502');
         expect(requestMock).toHaveBeenCalledTimes(1);
     });
+
+    // 写已经发出、核对那一读失败：账号上可能已经改了，按存了但没确认交回，也不再送一次。
+    it('is unconfirmed, not failed, when the write went out and only the read-back failed', async () => {
+        requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi failed: HTTP 502', 'qq', {
+            retryable: false, writeAttempted: true, accepted: true, verified: false, verification: 'unconfirmed',
+        }, 502));
+        await expect(saveQqRecommendationPreferences({ 10010: 20 })).resolves.toEqual({ confirmed: false });
+        expect(requestMock).toHaveBeenCalledTimes(1);
+    });
+
+    // 账号上一项偏好都没有时后端回 422：是空的，不是读失败。
+    it('reads an account without any preference as empty', async () => {
+        requestMock.mockRejectedValueOnce(new OnlineProviderError('network', 'QQMusicApi failed: HTTP 422', 'qq', { errorKey: 'resource.not-found' }, 422));
+        await expect(getQqRecommendationPreferences()).resolves.toMatchObject({ items: [] });
+    });
 });

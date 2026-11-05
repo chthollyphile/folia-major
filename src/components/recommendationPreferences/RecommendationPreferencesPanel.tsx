@@ -64,9 +64,13 @@ export default function RecommendationPreferencesPanel({ isDaylight, theme, onCl
         setSliderPosition((draggedSlider.valueAsNumber - min) / (max - min));
     }, [draggedSlider, state.draft]);
 
+    const closeRef = useRef(onClose);
+    closeRef.current = onClose;
     // 打开时读一次；开着的时候换了平台或账号，就按新的账号重读（旧的答复由 store 作废）。
+    // 登出了、或换到没有偏好的平台，这份偏好就没有主人了：面板留着只剩一行说明，直接收起。
     useEffect(() => {
         void open();
+        if (useRecommendationPreferencesStore.getState().owner === null) closeRef.current();
     }, [open, accountKey]);
 
     const say = (label: RecommendationPreferenceLabel): string => (

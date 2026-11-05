@@ -91,10 +91,14 @@ const getHistorySongs = async (entry: ProviderHistoryEntry | string): Promise<Un
     }
 };
 
+/** 上游已经收下这次写入（accepted）：读回失败时它带在非 2xx 的错误体里。 */
+const writeAccepted = (body: any): boolean => body?.writeAttempted === true && body?.accepted === true;
+
 /**
  * 不喜欢这首歌：拉进账号的歌曲黑名单。手机上私人 FM、各个电台和每日 30 首的「不喜欢」都是这一下，
- * 不带电台或歌单的上下文。后端只认数字 songid；读回首屏看到了（verified）才算成功，否则报错、不重送。
- * QQ 不给替换的歌，所以回 removed。
+ * 不带电台或歌单的上下文。后端只认数字 songid。上游收下写入（accepted）就算成功：它只读黑名单首屏核对，
+ * 首屏没看到（verified false）或核对那一读失败，都不说明没写进去；这时报失败只会让人再点一次、再写一次。
+ * 只记日志里核对了没有。上游没收下才报错，都不重送。QQ 不给替换的歌，所以回 removed。
  */
 const dislikeSong = async (id: MediaId): Promise<{ removed: true }> => {
     const songId = String(id ?? '').trim();
@@ -103,13 +107,17 @@ const dislikeSong = async (id: MediaId): Promise<{ removed: true }> => {
     }
     try {
         const response = await requestQq<any>('user_blacklist_add', {}, { songs: [songId] });
-        if (response?.verified !== true) {
-            throw new OnlineProviderError('invalid-response', 'QQMusicApi user_blacklist_add returned no confirmation', 'qq', response);
+        if (response?.verified !== true && response?.accepted !== true) {
+            throw new OnlineProviderError('invalid-response', 'QQMusicApi user_blacklist_add returned no acknowledgement', 'qq', response);
         }
-        console.info('[QQProvider] dislike:confirmed');
+        console.info('[QQProvider] dislike:accepted', { verified: response?.verified === true });
         // QQ 没有替换曲：回 removed，日推视图据此把这一行去掉。
         return { removed: true };
     } catch (error) {
+        if (error instanceof OnlineProviderError && writeAccepted(error.cause)) {
+            console.warn('[QQProvider] dislike:accepted, read-back failed', error);
+            return { removed: true };
+        }
         console.warn('[QQProvider] dislike:failed', error);
         throw error;
     }
