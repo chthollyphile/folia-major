@@ -90,7 +90,7 @@ subview 只是调用方；新增字段要同时改这两处，光改 subview 不
   - 连接与集成 `IntegrationPage.tsx`，几组的行在 `pages/integration/`（Navidrome、同步服务、舞台模式）；听歌打卡也在这一页
   - 存储与备份 `StoragePage.tsx`，几组的行在 `pages/storage/`（本地文件夹监视 `FolderWatchGroup.tsx`、备份与导入 `ConfigTransferRows.tsx`）
   - 桌面 `DesktopPage.tsx`（仅桌面端）
-  - 性能与动效 `GraphicsPage.tsx`
+  - 动画与性能 `GraphicsPage.tsx`
     静态模式、主页动态背景、原生模糊（开启前弹窗确认）、帧率限制、Linux 发光修复和降低动态效果。性能取舍和渲染问题的绕行开关放这里。
   - 模组 `ModsPage.tsx`（仅桌面端）
     顶部是模组系统总开关，下方是模组列表；两者和命令面板的 `mods` surface 共用 `src/mods/manager/` 里的组件，改样式只改那一处。

@@ -1,7 +1,7 @@
 import type { LyricAntialias, LyricRenderOverride, LyricRenderQuality, LyricRenderScale } from '../types';
 
 // src/utils/lyricRenderQuality.ts
-// 歌词画布的分辨率与抗锯齿（#929）：「性能与动效」里一个全局挡位，用 canvas / WebGL 画的歌词样式各自有一份覆盖，
+// 歌词画布的分辨率与抗锯齿（#929）：「动画与性能」里一个全局挡位，用 canvas / WebGL 画的歌词样式各自有一份覆盖，
 // 默认「跟随全局」。这里是纯函数：校验存着的值、合出一个样式实际用的那一组、按样式自己的默认像素密度算出渲染倍率。
 // 全局挡位存在 useVisualizerSettingsStore，样式的覆盖存在样式自己的 tuning 里，模组经 folium.visualizer 读写全局挡位。
 

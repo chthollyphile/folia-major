@@ -2203,7 +2203,7 @@ export default {
     "settingsPageIntegration": "Connections",
     "settingsPageStorage": "Storage & backup",
     "settingsPageDesktop": "Desktop",
-    "settingsPageGraphics": "Performance & motion",
+    "settingsPageGraphics": "Motion & performance",
     "settingsPageMods": "Mods",
     "settingsPageDeveloper": "Developer",
     "settingsHeadingTheme": "Theme",

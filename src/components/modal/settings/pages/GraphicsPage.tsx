@@ -16,7 +16,7 @@ import { GpuPreferenceRow } from './graphics/GpuPreferenceRow';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/GraphicsPage.tsx
-// The 性能与动效 page: what trades picture for smoothness or works around a renderer problem
+// The 动画与性能 page: what trades picture for smoothness or works around a renderer problem
 // (static mode, the home background, native blur, the frame-rate cap, the lyric canvas resolution and
 // anti-aliasing every canvas / WebGL lyric style follows by default, background throttling, the
 // Linux glow fix, the Windows render GPU), and which parts of the interface play reduced motion.

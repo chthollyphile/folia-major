@@ -11,7 +11,7 @@ export const LyricRenderQualityPinContext = createContext<LyricRenderQuality | n
 /** 钉住的那一组（导出时），没钉时是 null。 */
 export const useLyricRenderQualityPin = (): LyricRenderQuality | null => useContext(LyricRenderQualityPinContext);
 
-/** 全局挡位：钉住时用钉住的值，否则是「性能与动效」里的设置。 */
+/** 全局挡位：钉住时用钉住的值，否则是「动画与性能」里的设置。 */
 export const useGlobalLyricRenderQuality = (): LyricRenderQuality => {
     const pinned = useLyricRenderQualityPin();
     const global = useVisualizerSettingsStore(state => state.lyricRenderQuality);

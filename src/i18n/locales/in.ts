@@ -2203,7 +2203,7 @@ export default {
     "settingsPageIntegration": "Koneksi & integrasi",
     "settingsPageStorage": "Penyimpanan & cadangan",
     "settingsPageDesktop": "Desktop",
-    "settingsPageGraphics": "Performa & gerakan",
+    "settingsPageGraphics": "Gerakan & performa",
     "settingsPageMods": "Mod",
     "settingsPageDeveloper": "Pengembang",
     "settingsHeadingTheme": "Tema",

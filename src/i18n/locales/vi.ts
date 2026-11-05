@@ -2203,7 +2203,7 @@ export default {
     "settingsPageIntegration": "Kết nối & Tích hợp",
     "settingsPageStorage": "Lưu trữ & Sao lưu",
     "settingsPageDesktop": "Ứng dụng máy tính",
-    "settingsPageGraphics": "Hiệu năng & Hoạt họa",
+    "settingsPageGraphics": "Hoạt họa & Hiệu năng",
     "settingsPageMods": "Quản lý Mod",
     "settingsPageDeveloper": "Dành cho nhà phát triển",
     "settingsHeadingTheme": "Chủ đề",

@@ -8,7 +8,7 @@ import { Row, Segmented, Select } from '../../modal/settings/kit';
 
 // src/components/visualizer/renderQuality/LyricRenderQualityRows.tsx
 // 用 canvas / WebGL 画的歌词样式在自己设置面板里的「分辨率」「抗锯齿」两行（#929）：默认「跟随全局」，说明里写着全局挡位
-// 现在是什么；选了具体值就只改这个样式。全局挡位的那两行在「性能与动效」页（GraphicsPage）。
+// 现在是什么；选了具体值就只改这个样式。全局挡位的那两行在「动画与性能」页（GraphicsPage）。
 
 export const LYRIC_ANTIALIAS_LABEL_KEYS: Record<LyricAntialias, string> = {
     auto: 'options.lyricAntialiasAuto',

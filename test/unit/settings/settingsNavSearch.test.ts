@@ -70,7 +70,7 @@ describe('searchSettings', () => {
     });
 
     it('finds a category through a command synonym no label spells out', () => {
-        expect(hitsFor('fps')).toContainEqual({ sectionId: 'graphics', targetId: null, label: '性能与动效', path: '应用' });
+        expect(hitsFor('fps')).toContainEqual({ sectionId: 'graphics', targetId: null, label: '动画与性能', path: '界面' });
     });
 
     it('finds a category by the name of its side-list group', () => {

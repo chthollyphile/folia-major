@@ -379,7 +379,7 @@ export interface HanabiProfile {
 // ─── tuning ────────────────────────────────────────────────────────────
 
 export interface HanabiTuning {
-    /** 分辨率与抗锯齿（#929）：默认跟随「性能与动效」里的全局挡位（utils/lyricRenderQuality.ts）。 */
+    /** 分辨率与抗锯齿（#929）：默认跟随「动画与性能」里的全局挡位（utils/lyricRenderQuality.ts）。 */
     render: LyricRenderOverride;
     /** 配色：跟随主题 / 预设自带的鲜艳配色 / 两者混合。 */
     colorMode: 'theme' | 'vivid' | 'mixed';

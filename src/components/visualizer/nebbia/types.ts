@@ -51,7 +51,7 @@ export const NEBBIA_MAX_JELLIES = 24;
 export const NEBBIA_MAX_BURSTS = 12;
 
 export interface NebbiaTuning {
-    /** 分辨率与抗锯齿（#929）：默认跟随「性能与动效」里的全局挡位（utils/lyricRenderQuality.ts）。 */
+    /** 分辨率与抗锯齿（#929）：默认跟随「动画与性能」里的全局挡位（utils/lyricRenderQuality.ts）。 */
     render: LyricRenderOverride;
     /** 打开的出现方式，至少一种。 */
     appear: NebbiaAppearStyle[];

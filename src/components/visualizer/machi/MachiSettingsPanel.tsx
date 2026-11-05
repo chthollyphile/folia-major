@@ -52,7 +52,7 @@ import {
 // src/components/visualizer/machi/MachiSettingsPanel.tsx
 // 町景的设置面板：场景（线稿小图，不放实时预览）、时间、天气三项，每项都有“自动”；镜头（默认视角，或自定义视角
 // 与它的五个滑块，每个场景各一份：场景“自动”时多一排选调哪个场景的，默认是正在画的那个；运镜开关与快慢）；景深（光圈、强度、清晰范围、移轴、对焦在哪）；画质（高 / 平衡 / 低三套预设和各个细项，细项和哪套都对不上
-// 就多出一个选中的“自定义”，预设不单独存；分辨率、抗锯齿可以跟随「性能与动效」里的全局挡位；自动降级正在压着时写出压了几格）。快捷控件里的胶囊和播放页的取景控制条用同一套文案（cameraControls.ts）。
+// 就多出一个选中的“自定义”，预设不单独存；分辨率、抗锯齿可以跟随「动画与性能」里的全局挡位；自动降级正在压着时写出压了几格）。快捷控件里的胶囊和播放页的取景控制条用同一套文案（cameraControls.ts）。
 
 const SCENE_GROUP: SettingsGroupDef = { id: 'vis-machi-scene', titleKey: 'options.machiSceneSection' };
 const SKY_GROUP: SettingsGroupDef = { id: 'vis-machi-sky', titleKey: 'options.machiSkySection' };

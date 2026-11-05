@@ -9,7 +9,7 @@ import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 // Keeps Sonnet's tuning controls adjacent to the mode implementation: five groups of the settings kit
 // (渲染一组是分辨率 / 抗锯齿，#929).
 const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-sonnet-quality', titleKey: 'options.sonnetQualitySection' };
-/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「性能与动效」的全局挡位（#929）。 */
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「动画与性能」的全局挡位（#929）。 */
 const RENDER_GROUP: SettingsGroupDef = { id: 'vis-sonnet-render', titleKey: 'options.lyricRenderSection' };
 const MOTION_GROUP: SettingsGroupDef = { id: 'vis-sonnet-motion', titleKey: 'options.sonnetMotionSection' };
 const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-sonnet-post-process', titleKey: 'options.sonnetPostProcessSection' };

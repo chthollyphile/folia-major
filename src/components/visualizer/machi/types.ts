@@ -68,7 +68,7 @@ export type MachiRenderScale = typeof MACHI_RENDER_SCALES[number];
 export const MACHI_ANTIALIAS_MODES = ['off', 'fxaa', 'smaa', 'ssaa'] as const;
 export type MachiAntialias = typeof MACHI_ANTIALIAS_MODES[number];
 
-/** 分辨率、抗锯齿两项的「跟随全局」：用「性能与动效」里歌词画布的全局挡位（utils/lyricRenderQuality.ts）。 */
+/** 分辨率、抗锯齿两项的「跟随全局」：用「动画与性能」里歌词画布的全局挡位（utils/lyricRenderQuality.ts）。 */
 export const MACHI_FOLLOW_GLOBAL = 'global';
 
 /** 阴影、倒影的档：关、低、高。 */

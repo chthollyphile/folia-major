@@ -12,7 +12,7 @@ import { resolveTemperaPalette } from './temperaPalette';
 // (渲染一组是分辨率 / 抗锯齿，#929).
 const IMAGE_GROUP: SettingsGroupDef = { id: 'vis-tempera-image', titleKey: 'options.temperaImageSection' };
 const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-tempera-quality', titleKey: 'options.temperaQualitySection' };
-/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「性能与动效」的全局挡位（#929）。 */
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「动画与性能」的全局挡位（#929）。 */
 const RENDER_GROUP: SettingsGroupDef = { id: 'vis-tempera-render', titleKey: 'options.lyricRenderSection' };
 const MOTION_GROUP: SettingsGroupDef = { id: 'vis-tempera-motion', titleKey: 'options.temperaMotionSection' };
 const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-tempera-post-process', titleKey: 'options.temperaPostProcessSection' };

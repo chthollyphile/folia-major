@@ -194,7 +194,7 @@ const ModExportPage: React.FC = () => {
         >
             {config ? (
                 <LyricRenderQualityPinContext.Provider value={DEFAULT_LYRIC_RENDER_QUALITY}>
-                    {/* 导出固定按 1×、各样式默认的抗锯齿画：不跟「性能与动效」的挡位和样式自己的覆盖。 */}
+                    {/* 导出固定按 1×、各样式默认的抗锯齿画：不跟「动画与性能」的挡位和样式自己的覆盖。 */}
                     <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
                 </LyricRenderQualityPinContext.Provider>
             ) : (
