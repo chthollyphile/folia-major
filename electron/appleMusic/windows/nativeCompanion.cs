@@ -81,6 +81,9 @@ namespace Folia.AppleMusic
                         WantsWindowsVisible = false;
                         foreach (var window in Windows.ToArray()) { window.Hide(); window.ShowInTaskbar = false; }
                         Protocol.Reply(id, new { }); break;
+                    case "playback":
+                        main.KeepPlaying(request.TryGetValue("active", out var active) && active is bool playing && playing);
+                        Protocol.Reply(id, new { }); break;
                     case "navigate":
                         await main.Navigate(id, JsonLineProtocol.Text(request, "url")); break;
                     case "evaluate":

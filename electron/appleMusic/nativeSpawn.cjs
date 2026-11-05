@@ -67,7 +67,7 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000 }) {
                 let message;
                 try { message = JSON.parse(line); } catch { continue; }
                 // Forward only fixed host lifecycle codes, never arbitrary page or runtime output.
-                if (message?.event === 'diagnostic' && ['environment-ready', 'environment-failed', 'show', 'hide', 'navigation-failed', 'process-failed'].includes(message.code)) {
+                if (message?.event === 'diagnostic' && ['environment-ready', 'environment-failed', 'show', 'hide', 'navigation-failed', 'process-failed', 'visibility-pin-unavailable'].includes(message.code)) {
                     console.info('[AppleMusic] Native companion:', message.code);
                     continue;
                 }
@@ -126,7 +126,13 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000 }) {
                         result = loaded ? { ok: true, data: {} } : { ok: false, error: 'request-failed' };
                         if (!loaded) bridge.disconnect();
                     } finally { sessionBusy = false; }
-                } else result = await dispatch(request);
+                } else {
+                    // A hidden WebView2 page takes the license but never buffers: the Windows host keeps the
+                    // page visible from a start until a pause. Hosts without that need answer invalid-request.
+                    if (['playSong', 'playStation', 'resume'].includes(request.operation)) await command('playback', { active: true });
+                    result = await dispatch(request);
+                    if (request.operation === 'pause' && result.ok) void command('playback', { active: false });
+                }
                 if (request.operation === 'accountStatus' && result.ok) {
                     const target = storefrontTarget(currentUrl, result.data?.storefront);
                     if (target && !(await navigate(target))) result = { ok: false, error: 'not-ready' };
