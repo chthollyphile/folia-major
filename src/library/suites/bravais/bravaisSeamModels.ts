@@ -51,6 +51,8 @@ export type BravaisSeamDaily = {
     };
     /** 正在看风格推荐：日期步进换成选中的风格，点它翻出风格选择。 */
     style?: { label: string; title: string; onOpen: () => void };
+    /** 「偏好设置」（平台声明了每日推荐的偏好入口才给）：放在「默认推荐 / 风格推荐」的位置，打开命令面板里的偏好面板。 */
+    preferences?: { label: string; onOpen: () => void };
 };
 
 /**

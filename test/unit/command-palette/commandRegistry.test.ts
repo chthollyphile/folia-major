@@ -45,6 +45,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             personalFmSelection: { mode: 'DEFAULT' as const, scene: null },
             isPersonalFmModeSupported: true,
             setPersonalFmSelection: vi.fn(),
+            isRecommendationPreferencesOffered: () => false,
             togglePlay: vi.fn(),
             toggleLoop: vi.fn(),
             next: vi.fn(),

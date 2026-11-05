@@ -1,6 +1,7 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/directory/directory.contract';
 import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
+import type { LucideIcon } from 'lucide-react';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
 // B9 首页挂在层描述上的扩展类型（设计稿 §10.5、§5「面板」的目录树）：首页窄缝里的二级切换、工具按钮（搜索、目录、
@@ -10,6 +11,17 @@ import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 
 /** 缝里的二级切换：本地四行（文件夹 / 专辑 / 歌手 / 歌单）、Navidrome 的 section。切换 = 整面翻牌，不换层。 */
 export type BravaisHomeSection = { key: string; label: string; active: boolean };
+
+/**
+ * 直达入口那一列里的动作入口（平台声明的「偏好设置」这类）：样子与直达入口一样、一起量、放不下时一起挪进「⋯」，
+ * 只是点了直接做事，不开墙上的卡。`label` 是缝里竖排的名字，`icon` 在「⋯」菜单里用。
+ */
+export type BravaisHomeEntry = {
+    id: string;
+    label: string;
+    icon: LucideIcon;
+    run: () => void;
+};
 
 /**
  * 直达入口（特殊集合：我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
@@ -126,6 +138,8 @@ export type BravaisHomeSeam = {
     shortcuts?: readonly BravaisHomeShortcut[];
     /** 直达入口那一列的读屏名（「直达」）。 */
     shortcutsLabel?: string;
+    /** 排在直达入口后面的动作入口（见 BravaisHomeEntry）。 */
+    entries?: readonly BravaisHomeEntry[];
     tools: readonly BravaisHomeTool[];
     /** 本地「⋯」：导入文件夹、刷新、导入歌单文件。 */
     menu?: readonly BravaisSeamMenuItem[];

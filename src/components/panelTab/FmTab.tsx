@@ -10,6 +10,7 @@ import { IconSwap } from './shell/IconSwap';
 import { LikeButton } from './shell/LikeButton';
 import { PanelButton } from './shell/PanelButton';
 import { PanelIconButton } from './shell/PanelIconButton';
+import { FmRecommendationPreferencesButton } from '../recommendationPreferences/FmRecommendationPreferencesButton';
 
 // src/components/panelTab/FmTab.tsx
 // The panel's radio tab, shown in place of the queue while a personal FM plays: the mode the radio
@@ -58,6 +59,8 @@ const FmTab: React.FC<FmTabProps> = ({
 
     return (
         <div className="flex flex-col items-center gap-3.5 px-1 pb-1.5 pt-2.5">
+            {/* 平台声明了私人 FM 的偏好入口才有；它的私人 FM 没有模式时，这一行就只有它。 */}
+            <FmRecommendationPreferencesButton />
             {/* Opens the command palette's FM mode picker: the same surface the palette offers, so
                 the mode lives in one place instead of being reimplemented inside the panel. */}
             {onOpenModePicker && (

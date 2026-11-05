@@ -15,6 +15,7 @@ import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollec
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
+import { openRecommendationPreferences, useRecommendationPreferencesEntry } from '../../../components/recommendationPreferences/recommendationPreferencesEntry';
 
 // src/library/suites/bravais/useBravaisCollectionSeam.ts
 // 集合层在缝与墙上的投影（设计稿 §10.2 / §10.6）：缝里标题下的描述、收藏星标、补页进度 / 续传、状态行、过滤输入位、每日推荐的日期步进、
@@ -158,7 +159,9 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
 
     // 每日推荐的日期步进：‹ 更早 · 日期 · 更近 ›，今天还能「刷新今天」。换日期就是换内容：整面翻牌，不换层。
     // 平台有风格推荐（#938）时上面多一行「默认推荐 / 风格推荐」；看风格推荐时步进换成选中的风格，点它翻出风格选择。
+    // 平台声明了每日推荐的偏好入口时，那个位置是「偏好设置」（两样都有就都在）。
     const dailyStyleLabel = describeDailyStyle(mutation.dailyStyleGroups, mutation.dailyStyleSelection);
+    const offersPreferences = useRecommendationPreferencesEntry('daily');
     const daily = useMemo<BravaisSeamCollection['daily']>(() => {
         if (!offers('daily-date')) return undefined;
         const dates = ['', ...mutation.dailyHistoryDates];
@@ -189,8 +192,9 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
                 title: t('home.dailyStylePickerTitle'),
                 onOpen: () => latest.current.forms.openDailyStyle(),
             } : undefined,
+            preferences: offersPreferences ? { label: t('recommendationPreferences.open'), onOpen: openRecommendationPreferences } : undefined,
         };
-    }, [dailyStyleLabel, isLoading, mutation.dailyDate, mutation.dailyHistoryDates, mutation.dailyStyleAvailable, mutation.dailyStyleShown, offers, t]);
+    }, [dailyStyleLabel, isLoading, mutation.dailyDate, mutation.dailyHistoryDates, mutation.dailyStyleAvailable, mutation.dailyStyleShown, offers, offersPreferences, t]);
 
     const subscribe = useMemo<BravaisSeamCollection['subscribe']>(() => {
         if (!offers('subscribe')) return undefined;

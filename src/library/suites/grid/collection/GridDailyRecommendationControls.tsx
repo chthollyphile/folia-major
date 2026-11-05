@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ChevronDown, RefreshCw, Tags } from 'lucide-react';
+import { ChevronDown, RefreshCw, SlidersHorizontal, Tags } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { StatusMessage, Theme } from '../../../../types';
 import type { DailyStyleSelection } from '../../../../types/onlineMusic';
@@ -7,10 +7,12 @@ import { CustomSelect } from '../../../../components/shared/CustomSelect';
 import type { CollectionMutationController, CollectionMutationSnapshot } from '../../../core/collection/mutations/mutations.contract';
 import { describeDailyStyle, sameDailyStyle } from '../../../core/collection/dailyStyle';
 import DailyStylePickerDialog from './DailyStylePickerDialog';
+import { openRecommendationPreferences, useRecommendationPreferencesEntry } from '../../../../components/recommendationPreferences/recommendationPreferencesEntry';
 
 // src/library/suites/grid/collection/GridDailyRecommendationControls.tsx
 // 网格信息面板里每日推荐的那一块：「默认推荐 / 风格推荐」（平台有风格推荐才有，#938）；默认推荐下是日期选择与
 // 「刷新今天」，风格推荐下是选中的风格，点开风格选择（DailyStylePickerDialog）。换内容都经变更控制器交给资源。
+// 平台声明了每日推荐的偏好入口时，最上面多一行「偏好设置」，打开命令面板里的偏好面板。
 
 type GridDailyRecommendationControlsProps = {
     mutations: CollectionMutationController | null;
@@ -36,6 +38,7 @@ const GridDailyRecommendationControls: React.FC<GridDailyRecommendationControlsP
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const supported = snapshot.capabilities.dailyDate.supported;
     const styleLabel = describeDailyStyle(snapshot.dailyStyleGroups, snapshot.dailyStyleSelection);
+    const offersPreferences = useRecommendationPreferencesEntry('daily');
 
     // Switches the virtual playlist between today's recommendations and a supported history date.
     const changeDate = useCallback(async (date: string, afresh = false) => {
@@ -69,6 +72,18 @@ const GridDailyRecommendationControls: React.FC<GridDailyRecommendationControlsP
 
     return (
         <div className="mt-3 space-y-2">
+            {/* 平台声明了每日推荐的偏好入口才有，放在「默认推荐 / 风格推荐」的位置；平台两样都有时两行都在。 */}
+            {offersPreferences && (
+                <button
+                    type="button"
+                    onClick={openRecommendationPreferences}
+                    data-testid="daily-recommendation-preferences"
+                    className="flex h-11 w-full items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-left text-sm transition-colors hover:bg-white/10"
+                >
+                    <SlidersHorizontal size={14} className="shrink-0 opacity-60" />
+                    <span className="min-w-0 flex-1 truncate">{t('recommendationPreferences.open')}</span>
+                </button>
+            )}
             {snapshot.dailyStyleAvailable && (
                 <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-white/5 p-1 text-xs" role="group" aria-label={t('home.dailyRecommendationMode')}>
                     {([false, true] as const).map(style => (
