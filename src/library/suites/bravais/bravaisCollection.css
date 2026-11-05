@@ -503,6 +503,20 @@
 .lattice-poster.is-expanded .bravais-tile-quick .bravais-chrome-button svg { width: 18px; height: 18px; }
 :root[data-reduce-motion~='lattice'] .bravais-tile-quick { transition: none; }
 
+/* 右上角这排（两颗悬浮按钮与「⋯」）静止时也垫一层淡底：压在封面最亮的地方，只靠影子还是看不清（用户定，2026-11-05）。
+   底色取主题背景色（深色主题深、日光浅），与随卡片文字走的图标颜色正好相反；悬停再加深一点，悬停框照旧。
+   父层有 drop-shadow 滤镜，backdrop-filter 在里面只能模糊到父层自己，所以不加模糊，只用半透明。 */
+.bravais-tile-quick .bravais-chrome-button,
+.bravais-focus-more .bravais-focus-more-toggle {
+    background: color-mix(in srgb, var(--bg-color, #070707) 40%, transparent);
+}
+
+.bravais-tile-quick .bravais-chrome-button:hover:not(:disabled),
+.bravais-focus-more .bravais-focus-more-toggle:hover:not(:disabled),
+.bravais-focus-more .bravais-focus-more-toggle[aria-expanded='true'] {
+    background: color-mix(in srgb, var(--bg-color, #070707) 58%, transparent);
+}
+
 /* ---------- 墙：列表联动（与键盘焦点同一道环）与首屏加载的呼吸 ---------- */
 
 .bravais-tile > .lattice-poster.bravais-tile-face.is-linked:not(.is-focused) {
