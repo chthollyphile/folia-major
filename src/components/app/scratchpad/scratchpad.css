@@ -2,7 +2,7 @@
    抽屉平时是 Bravais 样式的左缘面板（ScratchpadPanel）：深浅不同的中性黑分区，米白的纸、黑墨，点缀色跟主题强调色走
    （纸与墨由 scratchpadLook 写在根节点上，点缀色在下面）；日光档在 .scratchpad-root.is-daylight 下换成浅灰。
    展开整页是一张倾斜的纸（文件末尾「展开整页」一节）。抽屉非模态：没有遮罩，背后照常能点。
-   整个速记簿接 Bravais 墙的「海报聚焦叠色」（文件末尾「叠色」一节）。
+   不接墙上的「海报聚焦叠色」（接过一阵，2026-11-07 用户让去掉）。
    画布里的次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
 
 /* 面板的几块黑（中性灰阶，不掺主题色，用户定）：页签列最深，内容区本色，悬停的行浅一档、按下再浅一档；
@@ -231,7 +231,7 @@
 
 /* —— 抽屉：左缘的面板 ——
    盖在墙上（不推开墙、不加遮罩），从窗口顶到底贴着左缘：左边一列页签（最深的黑，64px）、右边内容区（本色）。
-   两块颜色画在同一层底上（不是各自的底），叠色的纸层（文件末尾）才能垫在两块下面。
+   两块颜色画在同一层底上（不是各自的底）。
    顶上 32px 是窗口标题栏的拖动区（AppShell，z 9999，盖在一切之上），所以面板里的东西从 40px 起。 */
 .scratchpad-drawer {
     position: fixed;
@@ -1365,56 +1365,6 @@
 .scratchpad-table-row.is-dimmed:not(:hover) .scratchpad-cover img { filter: grayscale(1); opacity: 0.55; }
 .scratchpad-table-row.is-dimmed:not(:hover) :is(.scratchpad-name, .scratchpad-meta) { opacity: 0.5; }
 
-/* —— 叠色：接 Bravais 墙的「海报聚焦叠色」（用户定，2026-11-06）——
-   与 Lattice / Bravais 同一种颜色（默认渐变 / 自定义色），强度 e 是同一个设置（--lattice-poster-tint-intensity，日光 ×0.72）
-   再打六折（--scratchpad-tint-scale，用户嫌浓，2026-11-06：速记簿整页都是卡片和纸，照墙上的强度染出来太重），
-   宿主在根节点上挂 has-poster-tint / uses-custom-poster-tint 与两个变量。左缘面板按 Bravais 缝的规则染
-   （bravaisAppearance.css「缝」一节）：纸最终被染 e；内容之上那一层封顶 0.35（字最多被染 35%），纸上不够的由内容之下
-   那一层补齐：1 − (1 − e) / (1 − min(e, 0.35))。指针在面板上、面板里有键盘焦点时整块亮起（不染），和缝一样。
-   探出面板的那条米白信息条自己画这两层（它比面板宽，面板的两层盖不到探出去的那截，所以它压在面板那两层之上）。
-   熄灯（latticeLightsOn 关）时墙上的叠色归零，这里也不染（宿主不挂 has-poster-tint）；熄灯的压暗没接。
-   展开整页不染（用户定，2026-11-07：卡片、信息条、细纸带都不染），见下面「展开整页不染」。
-   --scratchpad-tint-on 是这一刻该染多少，--scratchpad-tint 是这一处实际染多少（悬停、展开整页里归零）。 */
-.scratchpad-root {
-    --scratchpad-tint-on: 0;
-    --scratchpad-tint: var(--scratchpad-tint-on);
-    --scratchpad-tint-scale: 0.6;
-    --scratchpad-tint-fill: linear-gradient(
-        145deg,
-        color-mix(in srgb, var(--bg-color, #070707) 78%, var(--text-accent, #fd5c47)),
-        color-mix(in srgb, var(--bg-color, #070707) 84%, var(--text-secondary, #6a48ff))
-    );
-}
-
-.scratchpad-root.uses-custom-poster-tint { --scratchpad-tint-fill: var(--lattice-poster-tint-color); }
-.scratchpad-root.has-poster-tint { --scratchpad-tint-on: calc(var(--lattice-poster-tint-intensity, 0.5) * var(--scratchpad-tint-scale)); }
-.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint-on: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72 * var(--scratchpad-tint-scale)); }
-.scratchpad-drawer.is-panel:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
-
-.scratchpad-drawer.is-panel::before,
-.scratchpad-drawer.is-panel::after,
-.scratchpad-band::before,
-.scratchpad-band::after {
-    position: absolute;
-    inset: 0;
-    background: var(--scratchpad-tint-fill);
-    content: '';
-    pointer-events: none;
-    transition: opacity 260ms ease;
-}
-
-.scratchpad-drawer.is-panel::before,
-.scratchpad-band::before {
-    z-index: -1;
-    opacity: calc(1 - (1 - var(--scratchpad-tint)) / (1 - min(var(--scratchpad-tint), 0.35)));
-}
-
-.scratchpad-drawer.is-panel::after { z-index: 5; opacity: min(var(--scratchpad-tint), 0.35); }
-.scratchpad-band::after { z-index: 2; opacity: min(var(--scratchpad-tint), 0.35); }
-
-.scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::before,
-.scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::after { transition: none; }
-
 /* —— 展开整页（ScratchpadSheet，设计稿 F 定稿）——
    一张比窗口每边大出一截的纸（左右 160px、上下 130px，转过之后四角不露底），绕窗口中心向右下转 4°（设计稿 6°，用户改小；降低动态效果时 0；
    转多少由 ScratchpadSheet 用 framer 写，展开、收回时跟着转）。纸上的坐标照设计稿：信息条在 230px，卡片从 362px 起，
@@ -1742,14 +1692,18 @@
     border-radius: 0;
 }
 
-/* 选中的卡：卡边内侧一圈 2px 的点缀色细线（outline 往里收，画在封面之上；胶片一格挨一格，往外画会被邻格盖住），
-   左上角折一个点缀色的小角（.scratchpad-card-fold）。原来是一圈纸色的粗框，用户嫌太粗（2026-11-07）。 */
-.scratchpad-drawer.is-expanded .scratchpad-card.is-selected {
-    outline: 2px solid var(--scratchpad-mark-wall);
-    outline-offset: -2px;
+/* 选中（用户定，2026-11-07）：不描边、不靠点缀色（原来一圈纸色粗框嫌太粗；换成点缀色细线后，主题色是白的时候在纸色卡片上
+   看不见）。有选中时没选中的卡压暗到 40%，选中的照常亮、浮起 4px、投影加深，左上角一颗墨底纸色的勾。 */
+.scratchpad-drawer.is-expanded .scratchpad-card {
+    transition: background-color 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, opacity 0.18s ease;
 }
 
-.scratchpad-drawer.is-expanded .scratchpad-card.is-selected:not(.is-photo):not(:hover) { box-shadow: none; }
+.scratchpad-drawer.is-expanded :is(.scratchpad-canvas, .scratchpad-overview).has-selection .scratchpad-card:not(.is-selected, .is-moving) { opacity: 0.4; }
+
+.scratchpad-drawer.is-expanded .scratchpad-card.is-selected:not(.is-moving) {
+    translate: 0 -4px;
+    box-shadow: 0 14px 28px rgb(0 0 0 / 55%);
+}
 
 .scratchpad-drawer.is-expanded .scratchpad-card-cover { border-radius: 0; }
 
@@ -1999,33 +1953,30 @@
 .scratchpad-tip b { color: var(--scratchpad-text); font-weight: 800; }
 .scratchpad-tip > span:last-child { color: var(--scratchpad-text-soft); }
 
-/* 面板顶上那条信息条：指针在条上或条里有键盘焦点时整条亮起（不染）。 */
-.scratchpad-band:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
+/* 选中的卡左上角那颗勾：墨底纸色，外面一圈细纸色（压在胶片的黑上也看得出），压在封面之上。
+   平时不占位（相片卡是网格，多一个子元素会占一格）；胶片的勾放进画面里，不压在齿孔上。 */
+.scratchpad-card-check { display: none; }
 
-/* 展开整页不染（用户定，2026-11-07）：卡片、信息条、细纸带都不画叠色。原来卡片各染一层、信息条与细纸带按缝的规则染，
-   整页一片都是叠色，取消选择时那一层还会闪。只有展开开头、收回末尾信息条里那一面面板的样子照面板染，与底下面板那条交接时颜色对得上。 */
-.scratchpad-drawer.is-expanded { --scratchpad-tint: 0; }
-.scratchpad-drawer.is-expanded .scratchpad-band.is-panel { --scratchpad-tint: var(--scratchpad-tint-on); }
-.scratchpad-drawer.is-expanded .scratchpad-band:not(.is-panel)::before,
-.scratchpad-drawer.is-expanded .scratchpad-band:not(.is-panel)::after { content: none; }
-
-/* 选中的卡左上角折起的小角：点缀色的直角三角，压在封面之上。平时不占位（相片卡是网格，多一个子元素会占一格）。 */
-.scratchpad-card-fold { display: none; }
-
-.scratchpad-drawer.is-expanded .scratchpad-card.is-selected .scratchpad-card-fold {
+.scratchpad-drawer.is-expanded .scratchpad-card.is-selected .scratchpad-card-check {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 8px;
+    left: 8px;
     z-index: 4;
-    display: block;
-    width: 18px;
-    height: 18px;
-    background: var(--scratchpad-mark-wall);
-    clip-path: polygon(0 0, 100% 0, 0 100%);
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    background: var(--scratchpad-ink);
+    box-shadow: 0 0 0 1.5px var(--scratchpad-paper);
+    color: var(--scratchpad-paper);
     pointer-events: none;
 }
 
+.scratchpad-drawer.is-expanded .scratchpad-card.is-film.is-selected .scratchpad-card-check { top: 20px; left: 9px; }
+.scratchpad-card-check svg { width: 14px; height: 14px; stroke-width: 3; }
+
 .scratchpad-root.is-calm .scratchpad-card.is-photo:hover { rotate: var(--scratchpad-photo-rotate, 0deg); }
+.scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-selected { translate: none; }
 
 /* —— 三行总览（ScratchpadOverview）——
    三条 72px 的信息条横贯整张纸（在纸上的高度按窗口比例），每条下面 84px 处一行这一页的头几张卡，行尾一块「还有几首」。

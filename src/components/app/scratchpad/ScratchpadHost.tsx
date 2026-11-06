@@ -22,7 +22,6 @@ import ScratchpadOverview from './ScratchpadOverview';
 import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
-import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import './scratchpad.css';
 
@@ -441,20 +440,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         mark: 'circle',
         tips: scratchpadTips('notes', t, PRIMARY_MODIFIER_LABEL),
     }), [t]);
-    // 整个速记簿接 Bravais 墙的「海报聚焦叠色」（用户定，2026-11-06）：与 Lattice / Bravais 同一种颜色（默认渐变 / 自定义色）、
-    // 同一个强度，根节点上挂同名的类与变量，染法在 scratchpad.css 的「叠色」一节。
-    const posterTintEnabled = useLatticeSettingsStore(state => state.latticePosterTintEnabled);
-    const posterTintUseCustomColor = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
-    const posterTintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
-    const posterTintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
-    // 熄灯时墙上的叠色归零（改成压暗，wall.css），速记簿也不染；熄灯的压暗没接（交给用户再定）。
-    const lightsOn = useLatticeSettingsStore(state => state.latticeLightsOn);
     // 构成主义的纸、墨与跟主题强调色走的点缀色（scratchpadLook）交给样式表：边缘标签、面板与展开页都读这些变量。
-    const lookVars = useMemo(() => ({
-        ...scratchpadLookVars(isDaylight),
-        '--lattice-poster-tint-color': posterTintColor,
-        '--lattice-poster-tint-intensity': posterTintIntensity,
-    }) as React.CSSProperties, [isDaylight, posterTintColor, posterTintIntensity]);
+    // 不接墙上的「海报聚焦叠色」（2026-11-06 接过，11-07 用户让展开整页与面板都去掉）。
+    const lookVars = useMemo(() => scratchpadLookVars(isDaylight) as React.CSSProperties, [isDaylight]);
     const previousTabRef = useRef(tab);
     const pageDirectionRef = useRef(1);
     if (previousTabRef.current !== tab) {
@@ -562,7 +550,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     return (
         <div
-            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}${posterTintEnabled && lightsOn ? ' has-poster-tint' : ''}${posterTintUseCustomColor ? ' uses-custom-poster-tint' : ''}`}
+            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}
             style={lookVars}
         >
             {!isOpen && !isHandleHidden && showHandle && (

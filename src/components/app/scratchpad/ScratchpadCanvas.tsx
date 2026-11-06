@@ -723,7 +723,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         <>
             <div
                 ref={scrollRef}
-                className={`scratchpad-canvas${variant ? ` is-${variant}` : ''}${isBoxSelecting ? ' is-box-selecting' : ''}`}
+                className={`scratchpad-canvas${variant ? ` is-${variant}` : ''}${isBoxSelecting ? ' is-box-selecting' : ''}${selected.size > 0 ? ' has-selection' : ''}`}
                 data-testid={testId}
                 role="listbox"
                 aria-multiselectable="true"

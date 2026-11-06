@@ -274,7 +274,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
     return (
         <div
             ref={rootRef}
-            className={`scratchpad-overview${boxing ? ' is-box-selecting' : ''}`}
+            className={`scratchpad-overview${boxing ? ' is-box-selecting' : ''}${selected.size > 0 ? ' has-selection' : ''}`}
             data-testid="scratchpad-overview"
             role="listbox"
             aria-multiselectable="true"

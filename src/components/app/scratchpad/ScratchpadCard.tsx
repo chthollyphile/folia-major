@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from 'react';
 import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion';
-import { Music2, Play } from 'lucide-react';
+import { Check, Music2, Play } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { scratchpadCoverUrl } from './scratchpadCover';
@@ -168,9 +168,8 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
             ) : (
                 <span className="scratchpad-card-meta">{entry.meta ?? getSongArtistLabel(entry.song)}</span>
             )}
-            {/* 选中时左上角折起的小角（只在展开整页里画，scratchpad.css）。单独一个元素，不借叠色那一层：借的话取消选择时那一层
-                一下子变回整张卡、透明度再从 1 慢慢降回去，整张卡会闪一下。 */}
-            <span className="scratchpad-card-fold" aria-hidden="true" />
+            {/* 选中时左上角那颗勾（只在展开整页里画，scratchpad.css）。 */}
+            <span className="scratchpad-card-check" aria-hidden="true"><Check /></span>
         </motion.div>
     );
 };
