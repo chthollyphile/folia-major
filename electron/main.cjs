@@ -15,6 +15,7 @@ const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('./ma
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
+const { transparentWindowLook } = require('./transparentWindowLook.cjs');
 const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = require('./backgroundThrottling.cjs');
 const {
@@ -1751,9 +1752,9 @@ function exitMacWallpaperMode() {
   return true;
 }
 
-// The transparent-background toggle rebuilds the main window (the `transparent` flag is fixed at
-// window creation), destroying the window the wallpaper session was sunk into. The session's
-// per-window state — level, geometry, click-through, saved state — dies with it, so re-assert the
+// A transparent-background toggle during a live wallpaper session rebuilds the main window (the
+// in-place macOS switch is skipped there), destroying the window the session was sunk into. The
+// session's per-window state — level, geometry, click-through, saved state — dies with it, so re-assert the
 // full wallpaper posture on the replacement. Without this the window comes back as an ordinary
 // window while the stored wallpaper_mode stays on: the renderer keeps its wallpaper chrome but the
 // mode is visually gone (the in-place macOS path otherwise never rebuilds the window).
@@ -5747,15 +5748,14 @@ function createWindow(options = {}) {
       minWidth: 350,
       minHeight: 100,
       frame: false,
-      transparent: useTransparentWindow,
-      hasShadow: !useTransparentWindow,
+      // `transparent` is fixed at creation. macOS always builds a transparent window and switches
+      // the look below at runtime (setMainWindowTransparentMode); the other platforms rebuild.
+      transparent: process.platform === 'darwin' || useTransparentWindow,
       // Windows wallpaper mode must drop WS_THICKFRAME entirely: with it, Windows treats the
       // window as frame-bearing and the geometry work leaves frame-width gaps at the screen
       // edges (and the pre-attach bounds get adjusted off the requested display rect).
       thickFrame: process.platform === 'win32' ? !useTransparentWindow && !useWindowsWallpaper : undefined,
-      backgroundColor: (useTransparentWindow || enableNativeBlur) ? '#00000000' : '#09090b',
-      vibrancy: (!useTransparentWindow && enableNativeBlur) && process.platform === 'darwin' ? 'fullscreen-ui' : undefined,
-      backgroundMaterial: (!useTransparentWindow && enableNativeBlur) && process.platform === 'win32' ? 'acrylic' : undefined,
+      ...transparentWindowLook(useTransparentWindow, enableNativeBlur),
       autoHideMenuBar: true,
       icon: APP_ICON_PATH,
       skipTaskbar: mainWindowSkipTaskbarEnabled,
@@ -5785,6 +5785,7 @@ function createWindow(options = {}) {
     wallpaperWatchdog.handleWindowBuildFailure();
     throw error;
   }
+  // The look the window presents (on macOS the `transparent` flag itself is always on).
   win.__wallpaperWindowTransparent = useTransparentWindow;
   win.__wallpaperGeometry = useWallpaperGeometry;
   win.__transparentFullscreen = false;
@@ -6063,12 +6064,23 @@ function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
   return nextWindow;
 }
 
-async function setMainWindowTransparentMode(enabled, handoff = null) {
+// macOS switches the look of its always-transparent window in place. A live macOS wallpaper
+// session keeps the rebuild path (its re-sink logic lives there); Windows and Linux always rebuild.
+function transparentToggleRebuildsWindow() {
+  return process.platform !== 'darwin' || isMacWallpaperActive || !mainWindow || mainWindow.isDestroyed();
+}
+
+// Classic-desktop wallpaper windows cannot present a transparent surface after SetParent (the
+// wallpaper goes black); the enable toggle is refused instead of recreating into a broken state.
+// The renderer keeps its previous state and shows the unsupported hint.
+function isTransparentToggleRefused(enabled) {
+  return Boolean(enabled) && process.platform === 'win32' && isWindowsWallpaperMode() && !isWindowsWallpaperTransparentSupported();
+}
+
+// `rebuilds` is transparentToggleRebuildsWindow() as the caller saw it before asking for the handoff.
+async function setMainWindowTransparentMode(enabled, handoff = null, rebuilds = transparentToggleRebuildsWindow()) {
   const nextEnabled = Boolean(enabled);
-  // Classic-desktop wallpaper windows cannot present a transparent surface after SetParent
-  // (the wallpaper goes black); refuse the toggle instead of recreating into a broken state.
-  // The renderer keeps its previous state and shows the unsupported hint.
-  if (nextEnabled && process.platform === 'win32' && isWindowsWallpaperMode() && !isWindowsWallpaperTransparentSupported()) {
+  if (isTransparentToggleRefused(nextEnabled)) {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('wallpaper-transparent-refused', getPublicSettings());
     }
@@ -6076,6 +6088,24 @@ async function setMainWindowTransparentMode(enabled, handoff = null) {
   }
   patchRemoteControlSnapshot({
     transparentModeEnabled: nextEnabled,
+  });
+  if (!rebuilds) {
+    setMainWindowClickThroughEnabled(false);
+    store.set(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, nextEnabled);
+    const look = transparentWindowLook(nextEnabled, store.get('enable_player_page_native_blur') === true);
+    mainWindow.setBackgroundColor(look.backgroundColor);
+    mainWindow.setVibrancy(look.vibrancy ?? null);
+    mainWindow.setHasShadow(look.hasShadow);
+    // The shadow of a transparent window follows its opaque content; AppKit does not recompute it
+    // on its own when the content turns opaque.
+    mainWindow.invalidateShadow();
+    mainWindow.__wallpaperWindowTransparent = nextEnabled;
+    // The renderer stays alive, so it learns the new value here (a rebuilt renderer reads it on boot).
+    mainWindow.webContents.send('window-transparent-mode-changed', nextEnabled);
+    refreshTrayMenu();
+    return true;
+  }
+  patchRemoteControlSnapshot({
     mainWindowClickThroughEnabled: false,
   });
   mainWindowClickThroughEnabled = false;
@@ -6085,9 +6115,16 @@ async function setMainWindowTransparentMode(enabled, handoff = null) {
   return true;
 }
 
-async function setMainWindowTransparentModeFromRemote(enabled) {
-  const handoff = await requestWindowPlaybackHandoff();
-  return setMainWindowTransparentMode(enabled, handoff);
+// Every caller goes through here. A playback handoff the renderer sent along is used as is; one is
+// asked of the renderer only when the window is about to be rebuilt (capturing one pauses an
+// external player), and not for a toggle that is refused anyway.
+async function setMainWindowTransparentModeFromRemote(enabled, handoff = null) {
+  if (isTransparentToggleRefused(enabled)) {
+    return setMainWindowTransparentMode(enabled, null, false);
+  }
+  const rebuilds = transparentToggleRebuildsWindow();
+  const playbackHandoff = handoff ?? (rebuilds ? await requestWindowPlaybackHandoff() : null);
+  return setMainWindowTransparentMode(enabled, playbackHandoff, rebuilds);
 }
 
 app.whenReady().then(async () => {
@@ -6732,18 +6769,18 @@ ipcMain.handle('save-settings', (event, key, value) => {
   if (key === 'enable_player_page_native_blur') {
     if (!isTransparentPlayerBackgroundEnabled()) {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        const enableNativeBlur = Boolean(nextValue);
-        mainWindow.setBackgroundColor(enableNativeBlur ? '#00000000' : '#09090b');
+        const look = transparentWindowLook(false, Boolean(nextValue));
+        mainWindow.setBackgroundColor(look.backgroundColor);
         if (process.platform === 'darwin') {
           // A wallpaper session holds the window at the desktop layer, where vibrancy renders
           // behind the icons (the "wallpaper stuck" AppKit trap the entry path clears). The
           // stored choice is re-applied on session exit, so a mid-session toggle must not apply
           // vibrancy live — the session keeps it suppressed throughout.
           if (!isMacWallpaperActive) {
-            mainWindow.setVibrancy(enableNativeBlur ? 'fullscreen-ui' : null);
+            mainWindow.setVibrancy(look.vibrancy ?? null);
           }
         } else if (process.platform === 'win32') {
-          mainWindow.setBackgroundMaterial(enableNativeBlur ? 'acrylic' : 'none');
+          mainWindow.setBackgroundMaterial(look.backgroundMaterial ?? 'none');
         }
       }
     }
@@ -7282,7 +7319,7 @@ ipcMain.handle('window-set-transparent-mode', async (event, enabled, handoff) =>
     return false;
   }
 
-  return setMainWindowTransparentMode(Boolean(enabled), handoff);
+  return setMainWindowTransparentModeFromRemote(Boolean(enabled), handoff);
 });
 
 ipcMain.handle('window-playback-handoff-consume', (event) => {

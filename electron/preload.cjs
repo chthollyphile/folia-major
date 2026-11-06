@@ -200,6 +200,11 @@ contextBridge.exposeInMainWorld('electron', {
     },
     getWindowTransparentMode: () => ipcRenderer.invoke('window-get-transparent-mode'),
     setWindowTransparentMode: (enabled, handoff) => ipcRenderer.invoke('window-set-transparent-mode', enabled, handoff),
+    onWindowTransparentModeChanged: (callback) => {
+        const listener = (_event, enabled) => callback(Boolean(enabled));
+        ipcRenderer.on('window-transparent-mode-changed', listener);
+        return () => ipcRenderer.removeListener('window-transparent-mode-changed', listener);
+    },
     consumeWindowPlaybackHandoff: () => ipcRenderer.invoke('window-playback-handoff-consume'),
     submitWindowPlaybackHandoff: (requestId, handoff) => ipcRenderer.invoke('window-playback-handoff-submit', requestId, handoff),
     onWindowPlaybackHandoffRequested: (callback) => {
