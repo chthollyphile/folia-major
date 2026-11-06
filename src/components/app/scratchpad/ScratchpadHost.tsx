@@ -105,15 +105,23 @@ const CLICK_SLOP_PX = 6;
 const hasOpenModal = () => document.querySelector('[aria-modal="true"]') !== null;
 
 /**
- * 左缘面板的进出。custom 是这一次是不是去展开整页：去的话在纱底下待一会儿再淡掉，不往左滑
- * （整页那条正从它顶上那条长出来）；平时收起是往左滑走。从展开整页回来时不用 away（直接在原位，见 panelReturns）。
+ * 左缘面板的进出（custom：toSheet 这一次是不是去展开整页，returning 是不是从展开整页回来）。
+ * 去展开整页：纱淡上来时它一起淡掉，不往左滑（整页那条正从它顶上那条长出来），整页的卡片浮上来之前就没了。
+ * 从展开整页回来：在原位、晚一点淡入（整页的卡片先淡掉、纱淡下去，信息条快落回它顶上那条时它才出来），
+ * 不和还没收起的整页叠在一起（用户看到过的中间状态）。平时开合是从左边滑进滑出。
  */
+type PanelMotionCustom = { toSheet: boolean; returning?: boolean };
 const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
 const PANEL_VARIANTS = {
     away: { x: -32, opacity: 0 },
-    shown: { x: 0, opacity: 1, transition: { duration: 0.2, ease: PANEL_EASE } },
-    gone: (toSheet: boolean) => (toSheet
-        ? { opacity: 0, transition: { duration: 0.16, delay: 0.24 } }
+    returning: { x: 0, opacity: 0 },
+    shown: (custom: PanelMotionCustom) => ({
+        x: 0,
+        opacity: 1,
+        transition: custom.returning ? { duration: 0.18, delay: 0.18 } : { duration: 0.2, ease: PANEL_EASE },
+    }),
+    gone: (custom: PanelMotionCustom) => (custom.toSheet
+        ? { opacity: 0, transition: { duration: 0.16, delay: 0.04 } }
         : { x: -32, opacity: 0, transition: { duration: 0.2, ease: PANEL_EASE } }),
 };
 
@@ -410,8 +418,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const calm = useReducedMotionFor('uiMicroMotion');
     // 展开整页那张纸转 4°（设计稿 6°，用户嫌斜改小，2026-11-06）；降低动态效果时不转（同歌手页）。
     const tilt = calm ? 0 : 4;
-    // 面板这一次是怎么来、怎么走的：从展开整页收回来时它直接在原位（整页的条正缩回它顶上那条），不从左边滑进来；
-    // 去展开整页时它在纱底下待一会儿再淡掉，不往左滑（整页那条正从它顶上那条长出来）。
+    // 面板这一次是怎么来、怎么走的（PANEL_VARIANTS）：从展开整页收回来时在原位晚一点淡入，去展开整页时淡掉，都不滑。
     const wasExpandedRef = useRef(isExpanded);
     const panelReturns = wasExpandedRef.current && !isExpanded;
     useEffect(() => {
@@ -574,7 +581,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             {/* 左缘的面板与展开整页各是一层：展开、收回时两层同时在场——展开时纱淡上来，这一页的信息条从面板顶上那条长出来、
                 纸转过去，面板在纱底下待一会儿再淡掉；收回时信息条缩回面板顶上那条、纸转回来、纱淡掉，面板已经在原位等着
                 （ScratchpadSheet 的文件头）。 */}
-            <AnimatePresence custom={isExpanded}>
+            <AnimatePresence custom={{ toSheet: isExpanded } satisfies PanelMotionCustom}>
                 {isOpen && !isExpanded && (
                     <motion.aside
                         key="scratchpad-panel"
@@ -583,9 +590,9 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                         data-testid="scratchpad-drawer"
                         data-ponder="scratchpad"
                         aria-label={t('scratchpad.title')}
-                        custom={isExpanded}
+                        custom={{ toSheet: isExpanded, returning: panelReturns && !calm } satisfies PanelMotionCustom}
                         variants={PANEL_VARIANTS}
-                        initial={panelReturns && !calm ? false : 'away'}
+                        initial={panelReturns && !calm ? 'returning' : 'away'}
                         animate="shown"
                         exit="gone"
                         onKeyDown={handleKeyDown}

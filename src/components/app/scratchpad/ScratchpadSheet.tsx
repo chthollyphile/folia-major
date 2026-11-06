@@ -349,19 +349,21 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.3 } }}
                 exit={{ opacity: 0, transition: { duration: calm ? 0.12 : 0.34, delay: calm ? 0 : 0.06 } }}
             />
-            {/* 纸后面的大构图跟着这一页换，交叉淡入。 */}
-            <AnimatePresence initial={false}>
-                <motion.div
-                    key={tab}
-                    className="scratchpad-backdrop"
-                    aria-hidden="true"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.45 } }}
-                    exit={{ opacity: 0, transition: { duration: calm ? 0.08 : 0.3 } }}
-                >
-                    <Backdrop tab={tab} word={title} />
-                </motion.div>
-            </AnimatePresence>
+            {/* 纸后面的大构图跟着这一页换，交叉淡入；收回时跟着纱一起淡掉（包一层，理由同下面卡片那一层）。 */}
+            <motion.div className="scratchpad-f-content" exit={{ opacity: 0, transition: { duration: calm ? 0.08 : 0.2 } }}>
+                <AnimatePresence initial={false}>
+                    <motion.div
+                        key={tab}
+                        className="scratchpad-backdrop"
+                        aria-hidden="true"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.45 } }}
+                        exit={{ opacity: 0, transition: { duration: calm ? 0.08 : 0.3 } }}
+                    >
+                        <Backdrop tab={tab} word={title} />
+                    </motion.div>
+                </AnimatePresence>
+            </motion.div>
             {/* 纸：展开时从不转长到 tilt，收回时转回去（纸的四角比窗口大，转着也不露底）。 */}
             <motion.div
                 className="scratchpad-f-sheet"
@@ -433,29 +435,33 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                     <ChevronLeft aria-hidden="true" />
                 </motion.button>
                 {/* 条下面的东西（这一页的卡片，或总览里的三行卡）：先退后进，等条挪得差不多了再浮上来。 */}
-                <AnimatePresence mode="wait">
-                    {overview ? (
-                        <motion.div
-                            key="overview"
-                            className="scratchpad-f-layer"
-                            initial={{ opacity: 0, y: calm ? 0 : 28 }}
-                            animate={{ opacity: 1, y: 0, transition: layerIn }}
-                            exit={{ opacity: 0, transition: faceOut }}
-                        >
-                            {overview(sheetWidth, viewHeight)}
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="page"
-                            className="scratchpad-f-body"
-                            initial={{ opacity: 0, y: calm ? 0 : 28 }}
-                            animate={{ opacity: 1, y: 0, transition: layerIn }}
-                            exit={{ opacity: 0, transition: faceOut }}
-                        >
-                            <BandSlotContext.Provider value={slots[tab] ?? null}>{children}</BandSlotContext.Provider>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {/* 收回时卡片这一层一开始就淡掉：里面那层 AnimatePresence 不跟着整页退场（不传下去），不包这一层的话
+                    纱都淡完了、面板都出来了，卡片还整片留在上面（用户看到的中间状态）。 */}
+                <motion.div className="scratchpad-f-content" exit={{ opacity: 0, transition: { duration: calm ? 0.08 : 0.12 } }}>
+                    <AnimatePresence mode="wait">
+                        {overview ? (
+                            <motion.div
+                                key="overview"
+                                className="scratchpad-f-layer"
+                                initial={{ opacity: 0, y: calm ? 0 : 28 }}
+                                animate={{ opacity: 1, y: 0, transition: layerIn }}
+                                exit={{ opacity: 0, transition: faceOut }}
+                            >
+                                {overview(sheetWidth, viewHeight)}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="page"
+                                className="scratchpad-f-body"
+                                initial={{ opacity: 0, y: calm ? 0 : 28 }}
+                                animate={{ opacity: 1, y: 0, transition: layerIn }}
+                                exit={{ opacity: 0, transition: faceOut }}
+                            >
+                                <BandSlotContext.Provider value={slots[tab] ?? null}>{children}</BandSlotContext.Provider>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </motion.div>
             </motion.div>
             {/* 右上角的黑色直角三角：字右对齐，顺着斜边一行比一行收进去（左下半是一块 shape-outside 的浮动）。展开时从上面落下来。 */}
             <motion.div
@@ -488,9 +494,14 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 </span>
             </motion.div>
             {overview && helpOpen && (
-                <p id="scratchpad-overview-help" className="scratchpad-overview-help" role="note">
+                <motion.p
+                    id="scratchpad-overview-help"
+                    className="scratchpad-overview-help"
+                    role="note"
+                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                >
                     {t('scratchpad.overviewHelp', { mod: PRIMARY_MODIFIER_LABEL })}
-                </p>
+                </motion.p>
             )}
         </div>
     );
