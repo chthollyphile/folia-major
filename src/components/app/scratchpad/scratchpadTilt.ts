@@ -6,6 +6,12 @@ import type { Point } from './canvasLayout';
 // 所以只要这个元素的外接框和它自己的宽高（offsetWidth / offsetHeight）就能换算，不用管纸绕哪一点转、里面滚了多少。
 // 不倾斜（deg 为 0）时就是减去外接框的左上角。
 
+/**
+ * 展开整页那张纸转几度（用户 2026-11-06 从设计稿的 6° 改小）。纸怎么转（ScratchpadSheet）与指针怎么换算（三页的画布、总览）
+ * 都读这一个：两边对不上时，越往下（内容越长、离外接框中心越远）框选越偏——播放队列一千多首时偏出几百像素。
+ */
+export const SCRATCHPAD_TILT_DEG = 4;
+
 /** 绕原点转 deg 度（屏幕坐标系：y 朝下，正的角度顺时针）。 */
 export const rotatePoint = (point: Point, deg: number): Point => {
     if (deg === 0) return point;

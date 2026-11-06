@@ -11,9 +11,7 @@ import {
     columnsFor,
     dropIndexAt,
     gridHeight,
-    polygonsIntersect,
     previewSlots,
-    rectCorners,
     rectFromPoints,
     rectsIntersect,
     slotPosition,
@@ -21,7 +19,7 @@ import {
     type Rect,
     type Spacing,
 } from './canvasLayout';
-import { clientToLocal, localToClient } from './scratchpadTilt';
+import { clientToLocal } from './scratchpadTilt';
 import ScratchpadCanvasSide, { type CanvasSide, type JumpTarget } from './ScratchpadCanvasSide';
 import type { ScratchpadShapeKind } from './scratchpadLook';
 import type { ScratchpadAction } from './scratchpadModel';
@@ -42,8 +40,8 @@ export type { CanvasSide } from './ScratchpadCanvasSide';
 // - 卡片多（播放队列可能上千首）时只挂看得见的那几行附近的卡片：滚动时按 400px 一档换，档没变不重渲染。
 // 指针移动里只 set MotionValue 和直接改框选框的样式；进 React state 的只有离散的落点序号、选择集与可见的那一档（变了才 set）。
 // - 倾斜（tilt，展开整页那张转了 4° 的纸）：指针的屏幕坐标先换算到网格、内容自己的坐标里再算（scratchpadTilt），
-//   位置一律用 offsetTop / offsetLeft 与滚动量，不拿外接框相减（转过的元素外接框是斜的）。框选框是屏幕方向的（设计稿 F），
-//   落到内容坐标里是一个斜着的矩形，拿它和卡片比（polygonsIntersect）。浮动菜单在内容里，跟着纸一起斜。
+//   位置一律用 offsetTop / offsetLeft 与滚动量，不拿外接框相减（转过的元素外接框是斜的）。框选框是纸上的矩形，跟着纸一起斜
+//   （用户定，2026-11-07；原来是屏幕方向的）：起点与指针都换成内容坐标，两点围成的矩形直接和卡片比。浮动菜单在内容里，也跟着纸斜。
 // - 跳到栏与操作提示（side）：展开整页时画在卡片右边那一列；跳到栏按组（只有一组时按一段段）滚过去。
 
 
@@ -532,29 +530,16 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         if (!marquee.moved && Math.hypot(point.x - marquee.start.x, point.y - marquee.start.y) < DRAG_THRESHOLD) return;
         if (!marquee.moved) setIsBoxSelecting(true);
         marquee.moved = true;
-        const content = contentRef.current!;
         const box = marqueeRef.current;
-        // 不倾斜：框就是内容坐标里的矩形。倾斜：框是屏幕方向的（起点按内容坐标记着，滚动过也对得上），四个角换回内容坐标是斜的。
-        let hits: (rect: Rect) => boolean;
-        if (tilt === 0) {
-            const rect = rectFromPoints(marquee.start, point);
-            hits = cardBox => rectsIntersect(rect, cardBox);
-            if (box) {
-                box.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
-                box.style.width = `${rect.right - rect.left}px`;
-                box.style.height = `${rect.bottom - rect.top}px`;
-            }
-        } else {
-            const screen = rectFromPoints(localToClient(content, marquee.start, tilt), { x: client.clientX, y: client.clientY });
-            const corners = rectCorners(screen).map(corner => clientToLocal(content, corner, tilt));
-            hits = cardBox => polygonsIntersect(corners, rectCorners(cardBox));
-            if (box) {
-                box.style.transform = `translate(${corners[0].x}px, ${corners[0].y}px) rotate(${-tilt}deg)`;
-                box.style.width = `${screen.right - screen.left}px`;
-                box.style.height = `${screen.bottom - screen.top}px`;
-            }
+        // 框就是内容坐标里两点围成的矩形（起点按内容坐标记着，滚动过也对得上）；纸斜着时它跟着纸斜。
+        const rect = rectFromPoints(marquee.start, point);
+        const hits = (cardBox: Rect) => rectsIntersect(rect, cardBox);
+        if (box) {
+            box.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+            box.style.width = `${rect.right - rect.left}px`;
+            box.style.height = `${rect.bottom - rect.top}px`;
+            box.hidden = false;
         }
-        if (box) box.hidden = false;
         const next = new Set(marquee.base);
         for (const grid of marquee.grids) {
             grid.keys.forEach((key, index) => {

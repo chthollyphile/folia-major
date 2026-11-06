@@ -26,8 +26,8 @@ export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
 /**
  * 展开整页（设计稿 F）的三种卡片：速记簿是笔记本上的一条记录，播放历史是一张回忆相片（微微歪着，空隙留出歪出去的角），
  * 播放队列是连在一起的电影胶片（横向没有空隙，一行接着一行；两头留出行尾、行首的「》」）。
- * 行与行之间隔得开（用户定，2026-11-06）：纸是斜的，屏幕方向的框选框横着一拉就斜着碰到下一行，
- * 原来 10px 的行距一拉就串行；行距放到 44–48px，横着拉到五六百像素也还在这一行里。
+ * 行与行之间隔得开（用户定，2026-11-06）：当时框选框是屏幕方向的，纸斜着，横着一拉就斜着碰到下一行，
+ * 原来 10px 的行距一拉就串行，行距放到了 44–48px。后来框选框改成跟着纸斜（2026-11-07），行距留着，看着也松快。
  * 速记簿与播放队列的卡片后来又放大了（用户要的，2026-11-06）：笔记本 128 × 152、胶片 140 × 128，行距不变。
  */
 export const NOTE_SPACING: Spacing = { x: 16, y: 44, edge: 10, card: { width: 128, height: 152 } };
@@ -142,39 +142,3 @@ export const cardRect = (origin: Point, index: number, columns: number, spacing:
     return { left: origin.x + x, top: origin.y + y, right: origin.x + x + width, bottom: origin.y + y + height };
 };
 
-/** 矩形的四个角（顺时针）。 */
-export const rectCorners = (rect: Rect): Point[] => [
-    { x: rect.left, y: rect.top },
-    { x: rect.right, y: rect.top },
-    { x: rect.right, y: rect.bottom },
-    { x: rect.left, y: rect.bottom },
-];
-
-/**
- * 两个凸多边形相交没有（分离轴）：只碰到边不算。倾斜的纸上，屏幕方向的框选框落到内容坐标里是一个斜着的矩形，
- * 拿它和卡片的矩形比；不倾斜时就是两个矩形相交（与 rectsIntersect 相同）。
- */
-export const polygonsIntersect = (a: readonly Point[], b: readonly Point[]): boolean => {
-    const project = (points: readonly Point[], axis: Point) => {
-        let min = Infinity;
-        let max = -Infinity;
-        for (const point of points) {
-            const distance = point.x * axis.x + point.y * axis.y;
-            if (distance < min) min = distance;
-            if (distance > max) max = distance;
-        }
-        return { min, max };
-    };
-    for (const polygon of [a, b]) {
-        for (let index = 0; index < polygon.length; index += 1) {
-            const from = polygon[index];
-            const to = polygon[(index + 1) % polygon.length];
-            const axis = { x: to.y - from.y, y: from.x - to.x };
-            if (axis.x === 0 && axis.y === 0) continue;
-            const one = project(a, axis);
-            const other = project(b, axis);
-            if (one.max <= other.min || other.max <= one.min) return false;
-        }
-    }
-    return true;
-};

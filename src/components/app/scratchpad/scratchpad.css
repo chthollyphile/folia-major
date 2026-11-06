@@ -1724,7 +1724,7 @@
 .scratchpad-drawer.is-expanded .scratchpad-group-header.is-day .scratchpad-day-number { font-size: 34px; }
 .scratchpad-drawer.is-expanded .scratchpad-group-header.is-day .scratchpad-group-label { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; }
 
-/* 屏幕方向的框选框：倾斜时画布把它反转回来（transform 里的 rotate 绕左上角）。 */
+/* 框选框：内容坐标里的矩形（左上角对齐，跟着纸斜）。 */
 .scratchpad-marquee { transform-origin: 0 0; }
 
 .scratchpad-drawer.is-expanded .scratchpad-marquee {
@@ -2025,7 +2025,7 @@
 
 /* —— 三行总览（ScratchpadOverview）——
    三条 72px 的信息条横贯整张纸（在纸上的高度按窗口比例），每条下面 84px 处一行这一页的头几张卡，行尾一块「还有几首」。
-   空白处框选（屏幕方向，可以跨行）；选中后的墨色板与展开整页同一种样子。 */
+   空白处框选（跟着纸斜的矩形，可以跨行）；选中后的墨色板与展开整页同一种样子。 */
 .scratchpad-overview { position: absolute; inset: 0; outline: none; touch-action: pan-y; }
 .scratchpad-overview-row { position: absolute; right: 0; left: 0; }
 .scratchpad-overview-row:nth-child(1) { z-index: 3; }

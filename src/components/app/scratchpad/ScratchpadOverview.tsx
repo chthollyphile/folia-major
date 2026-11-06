@@ -13,14 +13,14 @@ import { forgetPlays } from '../home/explore/recentPlays';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
-import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewBottomInset, overviewRowTops, polygonsIntersect, rectCorners, rectFromPoints, type Point, type Rect, type Spacing } from './canvasLayout';
+import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewBottomInset, overviewRowTops, rectFromPoints, rectsIntersect, type Point, type Rect, type Spacing } from './canvasLayout';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
-import { clientToLocal, localToClient } from './scratchpadTilt';
+import { clientToLocal } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
 
 // src/components/app/scratchpad/ScratchpadOverview.tsx
 // 三行总览（设计稿 F 的 Rows）里的三行卡：三条信息条（ScratchpadSheet 画，进出总览时挪动、长高）每条下面一行这一页的头几张卡（速记簿的头几首、最近放的几首、
-// 正在播的那首起的几格胶片），行尾一块「还有几首 · 展开整页 ›」。在空白处拖出屏幕方向的框选（可以跨行），Ctrl 点加选；
+// 正在播的那首起的几格胶片），行尾一块「还有几首 · 展开整页 ›」。在空白处拖出框选（跟着纸斜的矩形，可以跨行），Ctrl 点加选；
 // 选中后在卡片下面浮出一块墨色的板：加入队列、加入歌单（同一来源时）、加入速记簿（选了历史或队列里的歌时）、移除
 // （速记簿里的移出、历史里的删记录；队列里的歌要到播放队列那一页移出）。双击播放。不能在这里拖动重排（各页展开整页里拖）。
 // 纸的倾斜由 ScratchpadSheet 给；坐标换算与展开整页的画布同一套（scratchpadTilt）。
@@ -148,29 +148,28 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         else playback.playNow(item.song);
     }, [playback, queue]);
 
-    // —— 空白处框选（屏幕方向的框，可以跨行）——
+    // —— 空白处框选（总览坐标里的矩形，跟着纸斜，可以跨行）——
     const applyBox = (clientX: number, clientY: number) => {
         const root = rootRef.current;
         const drag = dragRef.current;
         if (!root || !drag) return;
-        const startClient = localToClient(root, drag.start, tilt);
-        if (!drag.moved && Math.hypot(clientX - startClient.x, clientY - startClient.y) < 4) return;
+        const point = clientToLocal(root, { x: clientX, y: clientY }, tilt);
+        if (!drag.moved && Math.hypot(point.x - drag.start.x, point.y - drag.start.y) < 4) return;
         if (!drag.moved) setBoxing(true);
         drag.moved = true;
-        const screen = rectFromPoints(startClient, { x: clientX, y: clientY });
-        const corners = rectCorners(screen).map(corner => clientToLocal(root, corner, tilt));
+        const area = rectFromPoints(drag.start, point);
         const box = marqueeRef.current;
         if (box) {
             box.hidden = false;
-            box.style.transform = `translate(${corners[0].x}px, ${corners[0].y}px) rotate(${-tilt}deg)`;
-            box.style.width = `${screen.right - screen.left}px`;
-            box.style.height = `${screen.bottom - screen.top}px`;
+            box.style.transform = `translate(${area.left}px, ${area.top}px)`;
+            box.style.width = `${area.right - area.left}px`;
+            box.style.height = `${area.bottom - area.top}px`;
         }
         const next = new Set(drag.base);
         for (const tab of SCRATCHPAD_TABS) {
             rows[tab].entries.forEach((entry, index) => {
                 const rect = cardBox(tab, index);
-                if (rect && polygonsIntersect(corners, rectCorners(rect))) next.add(entry.key);
+                if (rect && rectsIntersect(area, rect)) next.add(entry.key);
             });
         }
         setSelected(current => (current.size === next.size && [...next].every(key => current.has(key)) ? current : next));

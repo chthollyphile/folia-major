@@ -11,15 +11,13 @@ import {
     columnsFor,
     overviewBottomInset,
     overviewRowTops,
-    polygonsIntersect,
-    rectCorners,
     slotPosition,
     tiltDrop,
 } from '@/components/app/scratchpad/canvasLayout';
 import { mulberry32, scatterBandDecos, scatterSlimDecos } from '@/components/app/scratchpad/scratchpadLook';
 
 // test/unit/scratchpad/scratchpadTilt.test.ts
-// 展开整页那张倾斜的纸：屏幕坐标与元素自己坐标的换算、斜着的框选框碰没碰到卡片、三种卡片的格子大小、信息条装饰按种子撒。
+// 展开整页那张倾斜的纸：屏幕坐标与元素自己坐标的换算、三种卡片的格子大小、信息条装饰按种子撒。
 
 /** 一个 w × h 的元素，左上角（没转时）在 origin，整个绕 pivot 转了 deg 度：它的外接框与自身宽高。 */
 const tiltedBox = (origin: { x: number; y: number }, w: number, h: number, pivot: { x: number; y: number }, deg: number): TiltBox => {
@@ -64,26 +62,6 @@ describe('tilted sheet coordinates', () => {
         const flat = tiltedBox({ x: 40, y: 50 }, 300, 200, { x: 0, y: 0 }, 0);
         expect(clientToLocal(flat, { x: 100, y: 80 }, 0)).toEqual({ x: 60, y: 30 });
         expect(localToClient(flat, { x: 60, y: 30 }, 0)).toEqual({ x: 100, y: 80 });
-    });
-});
-
-describe('marquee against cards', () => {
-    const card = { left: 100, top: 100, right: 200, bottom: 220 };
-
-    it('agrees with plain rectangles when nothing is turned', () => {
-        expect(polygonsIntersect(rectCorners({ left: 150, top: 150, right: 300, bottom: 300 }), rectCorners(card))).toBe(true);
-        expect(polygonsIntersect(rectCorners({ left: 201, top: 100, right: 300, bottom: 300 }), rectCorners(card))).toBe(false);
-        // Only touching an edge is not a hit.
-        expect(polygonsIntersect(rectCorners({ left: 200, top: 100, right: 300, bottom: 300 }), rectCorners(card))).toBe(false);
-    });
-
-    it('catches a card that only a turned box overlaps', () => {
-        // A thin box turned 45° that crosses the card's corner region diagonally.
-        const diamond = [{ x: 190, y: 90 }, { x: 230, y: 130 }, { x: 225, y: 135 }, { x: 185, y: 95 }];
-        expect(polygonsIntersect(diamond, rectCorners(card))).toBe(true);
-        // The same shape moved past the corner misses, though its bounding box still overlaps the card.
-        const missed = diamond.map(point => ({ x: point.x + 12, y: point.y - 12 }));
-        expect(polygonsIntersect(missed, rectCorners(card))).toBe(false);
     });
 });
 

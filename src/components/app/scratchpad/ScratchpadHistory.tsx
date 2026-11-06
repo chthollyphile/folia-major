@@ -19,6 +19,7 @@ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import type { CanvasEntry } from './ScratchpadCard';
 import { PHOTO_SPACING } from './canvasLayout';
 import type { ScratchpadPlayback } from './ScratchpadHost';
+import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import ScratchpadShape from './ScratchpadShape';
 
 // src/components/app/scratchpad/ScratchpadHistory.tsx
@@ -146,7 +147,7 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
         };
     }) : []), [dayLabel, days, expanded, formats, t]);
     // 展开整页那张纸转不转（降低动态效果时不转），与右边那一列的跳到栏、操作提示。
-    const tilt = useReducedMotionFor('uiMicroMotion') ? 0 : 6;
+    const tilt = useReducedMotionFor('uiMicroMotion') ? 0 : SCRATCHPAD_TILT_DEG;
     const side = useMemo<CanvasSide>(() => ({
         jumpLabel: t('scratchpad.jumpTo'),
         tipsLabel: t('scratchpad.tipsTitle'),

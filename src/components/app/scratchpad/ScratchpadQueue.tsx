@@ -23,6 +23,7 @@ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import type { CanvasEntry } from './ScratchpadCard';
 import { useQueueOrderDraft } from './useQueueOrderDraft';
 import type { ScratchpadQueuePort } from './ScratchpadHost';
+import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 
 // src/components/app/scratchpad/ScratchpadQueue.tsx
 // 速记簿的第三页：当前的播放队列（直接读 usePlaybackStore）。正在播放的那首有记号，打开时滚到它。
@@ -223,7 +224,7 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
         entries: rows,
     }], [rows, t]);
     // 展开整页那张纸转不转（降低动态效果时不转），与右边那一列：每 50 首一段的跳到栏、定位正在播放、操作提示。
-    const tilt = useReducedMotionFor('uiMicroMotion') ? 0 : 6;
+    const tilt = useReducedMotionFor('uiMicroMotion') ? 0 : SCRATCHPAD_TILT_DEG;
     const side = useMemo<CanvasSide>(() => ({
         jumpLabel: t('scratchpad.jumpTo'),
         tipsLabel: t('scratchpad.tipsTitle'),

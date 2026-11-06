@@ -23,6 +23,7 @@ import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
+import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
@@ -417,7 +418,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     // 换页的动画：往右边的页签走时方向是 1，往左是 -1（和上一页比）。
     const calm = useReducedMotionFor('uiMicroMotion');
     // 展开整页那张纸转 4°（设计稿 6°，用户嫌斜改小，2026-11-06）；降低动态效果时不转（同歌手页）。
-    const tilt = calm ? 0 : 4;
+    const tilt = calm ? 0 : SCRATCHPAD_TILT_DEG;
     // 面板这一次是怎么来、怎么走的（PANEL_VARIANTS）：从展开整页收回来时在原位晚一点淡入，去展开整页时淡掉，都不滑。
     const wasExpandedRef = useRef(isExpanded);
     const panelReturns = wasExpandedRef.current && !isExpanded;
