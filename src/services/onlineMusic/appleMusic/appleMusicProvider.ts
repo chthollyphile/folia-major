@@ -356,6 +356,10 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             // The companion's window is the sign-in surface: there is no code to show and no
             // separate browser page to open.
             getLoginStatus: readUser,
+            // The sign-in lives in the companion's own profile on this machine (WKWebsiteDataStore /
+            // WebView2 user data folder), so the kept account shows at app start while the companion
+            // is asked, instead of "nobody" for the seconds the companion takes to come up.
+            showsKeptAccountAtStart: true,
             async startLogin() {
                 const ticket = ++generation;
                 await scheduleWindowAction(async () => {
