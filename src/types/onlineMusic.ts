@@ -514,6 +514,8 @@ export interface OnlineExternalPlaybackProvider {
     pause(): Promise<void>;
     resume(): Promise<void>;
     seek(seconds: number): Promise<void>;
+    /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
+    setVolume?(volume: number): Promise<void>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */

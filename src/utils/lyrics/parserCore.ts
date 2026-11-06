@@ -750,6 +750,42 @@ export const parseVTT = (
     return { lines: finalizeParsedLyricLines(lines, options), isWordByWord: false };
 };
 
+const ITUNES_TTML_NAMESPACE = 'http://music.apple.com/lyric-ttml-internal';
+
+type XmlDomElement = NonNullable<ReturnType<InstanceType<typeof DOMParser>['parseFromString']>['documentElement']>;
+
+const getLocalName = (node: { localName?: string | null; nodeName: string; }): string =>
+    node.localName || node.nodeName.split(':').pop() || '';
+
+// The AMLL parser silently drops every <p> without an `itunes:key`. AMLL TTML Tool and the store's
+// own lyric TTML always write one, but TTML from other tools (LRC converters and the like) usually does not, and
+// such a file would parse to zero lines. Give unkeyed lines a unique key before AMLL reads them.
+const ensureTtmlLineKeys = (documentElement: XmlDomElement | null): void => {
+    if (!documentElement) return;
+    const lines = Array.from(documentElement.getElementsByTagName('*'))
+        .filter(element => getLocalName(element) === 'p');
+    // Same lookup as AMLL's getAttr: any attribute whose local name is `key`.
+    const readKey = (element: XmlDomElement) => Array.from(element.attributes)
+        .find(attribute => getLocalName(attribute) === 'key')?.value;
+    const usedKeys = new Set(lines.map(readKey).filter((key): key is string => Boolean(key)));
+    let nextIndex = 1;
+    lines.forEach((line) => {
+        if (readKey(line)) return;
+        while (usedKeys.has(`L${nextIndex}`)) nextIndex += 1;
+        const key = `L${nextIndex}`;
+        usedKeys.add(key);
+        line.setAttributeNS(ITUNES_TTML_NAMESPACE, 'itunes:key', key);
+    });
+};
+
+const ttmlDomParser = {
+    parseFromString: (source: string, mimeType: string) => {
+        const document = new DOMParser().parseFromString(source, mimeType as 'application/xml');
+        ensureTtmlLineKeys(document.documentElement);
+        return document;
+    },
+};
+
 export const parseTTML = (
     ttmlString: string,
     _translationString: string = '',
@@ -757,7 +793,7 @@ export const parseTTML = (
     _romanizationString: string = ''
 ): LyricData => {
     const ttmlResult = TTMLParser.parse(ttmlString.replace(/^\uFEFF/, ''), {
-        domParser: new DOMParser(),
+        domParser: ttmlDomParser as unknown as globalThis.DOMParser,
     });
     const parsed = buildLyricDataFromTTMLResult(ttmlResult, buildTimedWords);
     const adapted = {
