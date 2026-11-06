@@ -40,6 +40,11 @@ const STOP_LIMIT_MS = 2500;
 const PLAY_LIMIT_MS = 10_000;
 // A track that stopped, or was left, this close to its end has ended.
 const END_SLACK_MS = 2500;
+// A program just started may open its socket before it has signed in with its stored pairing.
+const SIGN_IN_WAIT_MS = 5000;
+// A command refused while a play waits fails the play only if the play does not take this soon after:
+// the refusal may be of another command (repeat off, the volume) sent beside it.
+const REFUSAL_GRACE_MS = 1500;
 // A timestamp further than this from this computer's clock is not a wall-clock time.
 const CLOCK_SLACK_MS = 60 * 60 * 1000;
 const KEY_SHAPE = /^[!-~]{8,512}$/;
@@ -73,6 +78,7 @@ function createSoloist({
     }
   },
   killPid = pid => { process.kill(pid); },
+  signInWaitMs = SIGN_IN_WAIT_MS,
 }) {
   const readConfig = () => {
     const value = store.get(CONFIG_KEY);
@@ -104,8 +110,8 @@ function createSoloist({
   };
   // What the program said, with the key taken out should it ever say it.
   const scrub = text => {
-    const words = String(text ?? '').slice(-600);
-    return keyInMemory ? words.split(keyInMemory).join('<key>') : words;
+    const words = String(text ?? '');
+    return (keyInMemory ? words.split(keyInMemory).join('<key>') : words).slice(-600);
   };
 
   let child = null;
@@ -189,6 +195,7 @@ function createSoloist({
     // Where the track asked for was just before this event changes what the program plays (once the
     // program has been seen playing it: before that, what it says is of the track before).
     if (wanted?.seen && !wanted.ended && playback?.item?.uri === wanted.uri) wanted.lastMs = positionNow();
+    const before = wanted?.lastMs ?? 0;
     switch (event.type) {
       case 'auth_state':
         auth = { loggedIn: event.logged_in === true, active: event.is_active === true };
@@ -246,6 +253,9 @@ function createSoloist({
           const told = Number(playback?.item?.duration_ms);
           if (Number.isFinite(told) && told > 0) wanted.durationMs = told;
           if (stoppedAtEnd()) endWanted('it stopped at its end');
+          // From its end back to its start without being asked (a seek Folia sends moves `lastMs`
+          // first): the program finished the track and went back, as at the end of a list.
+          else if (nearEnd(before, wanted.durationMs) && positionNow() + END_SLACK_MS < before) endWanted('it went back to its start');
         }
       } else if (wanted.seen && nearEnd(wanted.lastMs ?? 0, wanted.durationMs)) {
         endWanted(`the program went on to ${uri ?? 'nothing'}`);
@@ -258,16 +268,22 @@ function createSoloist({
   // or takes longer than `limitMs`.
   const until = (test, limitMs, what) => new Promise((resolve, reject) => {
     const since = eventSeq;
+    let grace = null;
     const waiter = {
       check: () => {
-        if (playback?.refusalSeq > since) finish(spotifyError('unavailable', SOLOIST_REFUSED, `${what}: ${playback.refusal}`, 'soloist-refused'));
-        else if (test()) finish(null);
+        if (test()) {
+          finish(null);
+        } else if (playback?.refusalSeq > since && !grace) {
+          const refusal = playback.refusal;
+          grace = setTimeout(() => finish(spotifyError('unavailable', SOLOIST_REFUSED, `${what}: ${refusal}`, 'soloist-refused')), REFUSAL_GRACE_MS);
+        }
       },
       lost: () => finish(spotifyError('unavailable', SOLOIST_GONE, `${what}: the program stopped`, 'soloist-gone')),
     };
     const timer = setTimeout(() => finish(spotifyError('unavailable', SOLOIST_REFUSED, `${what}: no answer in ${limitMs}ms`, 'soloist-refused')), limitMs);
     function finish(error) {
       clearTimeout(timer);
+      clearTimeout(grace);
       waiters.delete(waiter);
       if (error) reject(error);
       else resolve();
@@ -275,9 +291,30 @@ function createSoloist({
     waiters.add(waiter);
   });
 
+  // Waits for `test` to hold, up to `limitMs`; answers whether it did. Refusals are not its business.
+  const waitFor = (test, limitMs) => new Promise(resolve => {
+    if (test()) {
+      resolve(true);
+      return;
+    }
+    const waiter = {
+      check: () => { if (test()) done(true); },
+      lost: () => done(false),
+    };
+    const timer = setTimeout(() => done(false), limitMs);
+    function done(held) {
+      clearTimeout(timer);
+      waiters.delete(waiter);
+      resolve(held);
+    }
+    waiters.add(waiter);
+  });
+
   const lost = closed => {
     if (socket !== closed) return;
     socket = null;
+    // A program taken over from an earlier run that went away: its process id may be another's later.
+    adopted = null;
     auth = null;
     playback = null;
     for (const waiter of [...waiters]) waiter.lost();
@@ -387,6 +424,8 @@ function createSoloist({
         return;
       } catch { /* an address left by a program that is gone */ }
     }
+    // Whatever was taken over before is gone (its address did not answer): its id is not this run's.
+    adopted = null;
     if (!config.executable) throw notSetUp('program');
     const build = await readBuild(config.executable);
     if (quitting) throw spotifyError('unavailable', SOLOIST_GONE, 'the app is quitting', 'soloist-gone');
@@ -408,7 +447,11 @@ function createSoloist({
     const startedAt = now();
     const proc = spawn(config.executable, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
     let said = '';
-    proc.stderr?.on('data', chunk => { said = `${said}${chunk}`.slice(-4000); });
+    // The key is taken out before the text is cut: a cut must not leave part of it.
+    proc.stderr?.on('data', chunk => {
+      const text = `${said}${chunk}`;
+      said = (keyInMemory ? text.split(keyInMemory).join('<key>') : text).slice(-4000);
+    });
     const exited = new Promise(resolve => {
       proc.once('exit', code => resolve(code));
       proc.once('error', error => {
@@ -475,9 +518,13 @@ function createSoloist({
     if (typeof uri !== 'string' || !TRACK_URI.test(uri)) throw spotifyError('invalid-response', 'Invalid Spotify track');
   };
 
+  // A program just started signs in with its stored pairing a moment after it opens its socket: that
+  // moment is waited for before the program is taken for unpaired.
   const requirePaired = async () => {
     await ensureRunning();
-    if (!auth?.loggedIn) throw spotifyError('unavailable', SOLOIST_NOT_PAIRED, 'not signed in through Spotify Connect', 'soloist-unpaired');
+    if (auth?.loggedIn) return;
+    if (await waitFor(() => auth?.loggedIn === true, signInWaitMs)) return;
+    throw spotifyError('unavailable', SOLOIST_NOT_PAIRED, 'not signed in through Spotify Connect', 'soloist-unpaired');
   };
 
   // The commands that move the program run one after another, in the order asked: a resume sent
@@ -623,6 +670,9 @@ function createSoloist({
           return;
         }
         if (wanted) wanted.lastMs = at;
+        // The position is where it was asked to go from now on, not where the old anchor runs to:
+        // a seek back from near the end is not the track going back to its start by itself.
+        if (playback) playback = { ...playback, position: { position_ms: at, timestamp_ms: now(), speed: playback.status === 'playing' ? 1 : 0 }, positionAt: now() };
         send('seek', { position_ms: at });
       });
     },

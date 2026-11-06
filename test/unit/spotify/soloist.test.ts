@@ -42,7 +42,7 @@ const memoryStore = (initial: Record<string, unknown> = {}) => {
 };
 
 /** The program, as its control API behaves: `spawned` holds each start, with what it was told and asked. */
-const program = ({ paired = true, exitAtOnce = null as number | null } = {}) => {
+const program = ({ paired = true, exitAtOnce = null as number | null, pairAfterMs = null as number | null, stderr = null as ((key: string) => string) | null } = {}) => {
     const spawned: Array<{ args: string[]; commands: any[]; send: (event: object) => void; proc: any }> = [];
     const spawn = vi.fn((_file: string, args: string[]) => {
         const proc: any = new EventEmitter();
@@ -60,7 +60,16 @@ const program = ({ paired = true, exitAtOnce = null as number | null } = {}) => 
         if (exitAtOnce !== null) {
             setImmediate(() => {
                 proc.exitCode = exitAtOnce;
-                proc.stderr.emit('data', `could not start, key was ${args[args.indexOf('-k') + 1]}`);
+                const key = args[args.indexOf('-k') + 1];
+                if (stderr) {
+                    // Said in two pieces, cut inside the key.
+                    const text = stderr(key);
+                    const cut = text.indexOf(key) + 5;
+                    proc.stderr.emit('data', text.slice(0, cut));
+                    proc.stderr.emit('data', text.slice(cut));
+                } else {
+                    proc.stderr.emit('data', `could not start, key was ${key}`);
+                }
                 proc.emit('exit', exitAtOnce);
             });
             return proc;
@@ -72,7 +81,8 @@ const program = ({ paired = true, exitAtOnce = null as number | null } = {}) => 
         server.on('connection', (socket: any) => {
             run.send = event => socket.send(JSON.stringify(event));
             socket.on('message', (raw: Buffer) => run.commands.push(JSON.parse(String(raw))));
-            run.send({ type: 'auth_state', logged_in: paired, is_active: false, device_name: 'Folia' });
+            run.send({ type: 'auth_state', logged_in: pairAfterMs === null ? paired : false, is_active: false, device_name: 'Folia' });
+            if (pairAfterMs !== null) setTimeout(() => run.send({ type: 'auth_state', logged_in: true, is_active: false, device_name: 'Folia' }), pairAfterMs);
         });
         return proc;
     });
@@ -81,11 +91,14 @@ const program = ({ paired = true, exitAtOnce = null as number | null } = {}) => 
 
 const VALID_BUILD = { path: '/opt/soloist', state: 'valid', version: '1.0.0', builtAt: Date.now() - 10 * DAY_MS, expiresAt: Date.now() + 80 * DAY_MS, daysLeft: 80 };
 
-const setup = ({ paired = true, exitAtOnce = null as number | null, executable = '/opt/soloist' as string | null, sealed = true, available = true, build = VALID_BUILD as any } = {}) => {
+const setup = ({
+    paired = true, exitAtOnce = null as number | null, executable = '/opt/soloist' as string | null, sealed = true, available = true, build = VALID_BUILD as any,
+    pairAfterMs = null as number | null, stderr = null as ((key: string) => string) | null,
+} = {}) => {
     const data = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-soloist-'));
     folders.push(data);
     const store = memoryStore({ SPOTIFY_SOLOIST_V1: { executable, sealedKey: sealed ? Buffer.from(`sealed:${KEY}`).toString('base64') : null } });
-    const fake = program({ paired, exitAtOnce });
+    const fake = program({ paired, exitAtOnce, pairAfterMs, stderr });
     const logs: string[] = [];
     const soloist = createSoloist({
         store,
@@ -99,6 +112,7 @@ const setup = ({ paired = true, exitAtOnce = null as number | null, executable =
         log: (line: string) => logs.push(line),
         warn: (line: string) => logs.push(line),
         onProcessExit: (stop: () => void) => { exitStops.push(stop); },
+        signInWaitMs: 400,
     });
     return { soloist, store, ...fake, logs, data, exitStops };
 };
@@ -327,6 +341,75 @@ describe('soloist', () => {
         await soloist.shutdown();
     });
 
+    it('waits a moment for a program just started to sign in with its stored pairing', async () => {
+        const { soloist, spawned } = setup({ pairAfterMs: 150 });
+        const run = await playing(soloist, spawned);
+        expect(run.commands.some((command: any) => command.command === 'play')).toBe(true);
+        await soloist.shutdown();
+    });
+
+    it('ends the track when the program goes back to its start at the end and stops there', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'playback_state', status: 'paused', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, ended: true });
+
+        const again = setup();
+        const second = await playing(again.soloist, again.spawned, { durationMs: 200_000 });
+        second.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        second.send({ type: 'position_sync', position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        second.send({ type: 'playback_changed', status: 'paused' });
+        await settle();
+        expect(again.soloist.status()).toMatchObject({ ended: true });
+        await soloist.shutdown();
+        await again.soloist.shutdown();
+    });
+
+    it('does not take a seek back to the start near the end for an end', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        await soloist.seek(0);
+        run.send({ type: 'position_sync', position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: false });
+        await soloist.shutdown();
+    });
+
+    it('does not fail a play for a refusal of another command when the play takes', async () => {
+        const { soloist, spawned } = setup();
+        const started = soloist.play({ uri: URI });
+        for (let tries = 0; tries < 100 && !spawned[0]?.commands.some((command: any) => command.command === 'play'); tries += 1) await settle(10);
+        const run = spawned[0];
+        run.send({ type: 'error', message: 'repeat cannot be set with nothing loaded' });
+        await settle();
+        run.send({ type: 'playback_state', status: 'playing', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await expect(started).resolves.toBeUndefined();
+        await soloist.shutdown();
+    });
+
+    it('fails a play the program refuses and does not then play', async () => {
+        const { soloist, spawned } = setup();
+        const started = soloist.play({ uri: URI });
+        for (let tries = 0; tries < 100 && !spawned[0]?.commands.some((command: any) => command.command === 'play'); tries += 1) await settle(10);
+        spawned[0].send({ type: 'error', message: 'track unavailable' });
+        await expect(started).rejects.toMatchObject({ reason: 'soloist-refused' });
+        await soloist.shutdown();
+    });
+
+    it('leaves no part of the key in the log, wherever the program cuts what it says', async () => {
+        const { soloist, logs } = setup({ exitAtOnce: 1, stderr: key => `${'x'.repeat(590)}key=${key}${'y'.repeat(590)}` });
+        await expect(soloist.play({ uri: URI })).rejects.toMatchObject({ reason: 'soloist-start' });
+        const said = logs.join('\n');
+        expect(said).not.toContain(KEY.slice(-8));
+        expect(said).not.toContain(KEY.slice(0, 8));
+    });
+
     it('does not take a track changed in another app mid-track for an end', async () => {
         const { soloist, spawned } = setup();
         const run = await playing(soloist, spawned, { durationMs: 200_000 });
@@ -390,6 +473,27 @@ describe('soloist', () => {
         await again.saveKey('sk-another-key-42');
         expect(killPid).toHaveBeenCalledWith(4321);
         expect(fs.existsSync(path.join(dataDir, 'ws.port'))).toBe(false);
+        await first.soloist.shutdown();
+    });
+
+    it('forgets the process id of a program it took over once that program goes away', async () => {
+        const first = setup();
+        await playing(first.soloist, first.spawned);
+        const dataDir = path.join(first.data, 'data');
+        const killPid = vi.fn();
+        const again = createSoloist({
+            store: first.store, safeStorage: keychain(), dataDirectory: () => dataDir, cacheDirectory: () => path.join(first.data, 'cache'),
+            chooseFile: async () => null, spawn: vi.fn(), readBuild: async () => VALID_BUILD, log: () => { }, warn: () => { },
+            onProcessExit: () => { }, isAlive: () => false, killPid,
+        });
+        await again.restart();
+        await expect(again.state()).resolves.toMatchObject({ running: true });
+        // The program taken over goes away (it crashed, or it was ended by hand).
+        for (const server of servers) for (const client of server.clients) client.terminate();
+        await settle(50);
+        await expect(again.state()).resolves.toMatchObject({ running: false });
+        expect(again.shutdown()).toBeNull();
+        expect(killPid).not.toHaveBeenCalled();
         await first.soloist.shutdown();
     });
 
