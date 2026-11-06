@@ -4,8 +4,8 @@ import { Coffee, Moon, MoonStar, Sun, Sunrise, Sunset, Utensils, type LucideIcon
 import { GREETING_SHORT_VARIANTS, historyGreetingSlot, msUntilNextGreetingSlot, pickGreetingVariant, type HistoryGreetingSlot } from './historyGreeting';
 
 // src/components/app/scratchpad/ScratchpadGreeting.tsx
-// 速记簿的那一句问候（三页共用）：左缘面板里放大写在信息条下面，展开整页写在右上角的黑三角里（都是长版，headline）。
-// 不带 headline 时是一行带时段图标的眉批；短版（几个字）留着给更窄的地方用。
+// 速记簿的那一句问候（三页共用，都是放大的 headline）：左缘面板里写在信息条下面，用短版（几个字，用户定 2026-11-06）；
+// 展开整页写在右上角的黑三角里，用长版。不带 headline 时是一行带时段图标的眉批。
 
 /** 每一段前面的小图标。 */
 const SLOT_ICONS: Record<HistoryGreetingSlot, LucideIcon> = {

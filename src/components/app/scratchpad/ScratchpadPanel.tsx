@@ -95,9 +95,9 @@ const ScratchpadPanel: React.FC<ScratchpadPanelProps> = ({
                         <Maximize2 aria-hidden="true" />
                     </button>
                 </div>
-                {/* 按时段的问候放大，下面一道短杠；这一页的说明在 children 的最上面（随页换）。 */}
+                {/* 按时段的问候放大（短版，用户定 2026-11-06：长版留给展开整页），下面一道短杠；这一页的说明在 children 的最上面（随页换）。 */}
                 <div className="scratchpad-intro">
-                    <ScratchpadGreeting long headline />
+                    <ScratchpadGreeting long={false} headline />
                     <span className="scratchpad-intro-rule" aria-hidden="true" />
                 </div>
                 {children}
