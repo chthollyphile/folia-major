@@ -16,6 +16,8 @@ import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
 import ScratchpadHistory from './ScratchpadHistory';
 import ScratchpadQueue from './ScratchpadQueue';
 import ScratchpadGreeting from './ScratchpadGreeting';
+import ScratchpadEdge from './ScratchpadEdge';
+import { scratchpadLookVars } from './scratchpadLook';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
@@ -95,6 +97,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
     const showHandle = useScratchpadSettingsStore(state => state.showHandle);
     const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
+    // 把手常驻时的样子（米白小条 / 细竖线 / 小圆点 / 几何体），指针进来一律展开成完整的米白标签。
+    const handleStyle = useScratchpadSettingsStore(state => state.handleStyle);
     const listRef = useRef<HTMLDivElement>(null);
     const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -286,6 +290,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     // 换页的动画：往右边的页签走时方向是 1，往左是 -1（和上一页比）。
     const calm = useReducedMotionFor('uiMicroMotion');
+    // 构成主义的纸、墨与跟主题强调色走的点缀色（scratchpadLook）交给样式表：边缘标签、面板与展开页都读这些变量。
+    const lookVars = useMemo(() => scratchpadLookVars(isDaylight) as React.CSSProperties, [isDaylight]);
     const previousTabRef = useRef(tab);
     const pageDirectionRef = useRef(1);
     if (previousTabRef.current !== tab) {
@@ -318,27 +324,22 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     };
 
     return (
-        <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}>
+        <div
+            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}
+            style={lookVars}
+        >
             {!isOpen && !isHandleHidden && showHandle && (
-                <div
-                    className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`}
-                    style={{ '--scratchpad-edge-position': handlePosition } as React.CSSProperties}
-                    data-ponder="scratchpad"
-                >
-                    <button
-                        ref={handleRef}
-                        type="button"
-                        className={`scratchpad-handle${pulsing ? ' is-pulsing' : ''}`}
-                        data-testid="scratchpad-handle"
-                        title={handleTitle}
-                        aria-label={handleLabel}
-                        aria-expanded={false}
-                        onClick={toggleOpen}
-                    >
-                        <NotebookPen aria-hidden="true" />
-                        {entries.length > 0 && <span className="scratchpad-handle-count">{entries.length}</span>}
-                    </button>
-                </div>
+                <ScratchpadEdge
+                    handleStyle={handleStyle}
+                    position={handlePosition}
+                    count={entries.length}
+                    pulsing={pulsing}
+                    title={t('scratchpad.title')}
+                    label={handleLabel}
+                    hint={handleTitle}
+                    onToggle={toggleOpen}
+                    handleRef={handleRef}
+                />
             )}
 
             <AnimatePresence>

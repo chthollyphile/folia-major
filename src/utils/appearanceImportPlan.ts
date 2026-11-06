@@ -156,6 +156,8 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     // Numbering only the playing song styles the tiles of both walls (queue collage and bravais): the
     // library wall group is where the other tile looks are.
     latticeBadgeCurrentOnly: 'libraryWall',
+    // The scratchpad's side tab sits on the library's edge and follows the wall's look: same group.
+    scratchpadHandleStyle: 'libraryWall',
 
     // The frosted bar behind the player page's titlebar. Under visualizer with the other player-page
     // switch that travels (hidePlayerTranslationSubtitle): it is part of how the playing screen looks.
@@ -207,6 +209,8 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'libraryWallSeamStyle',
     // Likewise a known info strip direction (auto / auto-reverse / vertical / horizontal).
     'libraryWallSeamDirection',
+    // Likewise a known scratchpad side tab style.
+    'scratchpadHandleStyle',
 ]);
 
 // Per-renderer tunings the import skips whenever the visualizerTunings bundle is present. The three

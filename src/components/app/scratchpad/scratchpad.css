@@ -28,69 +28,125 @@
     top: calc(72px + var(--scratchpad-edge-position, 0) * (100vh - 72px - 24px - var(--scratchpad-edge-height)));
     left: 0;
     z-index: 95;
-    display: flex;
-    width: 40px;
+    width: 46px;
     height: var(--scratchpad-edge-height);
-    align-items: center;
     pointer-events: auto;
 }
 
-.scratchpad-handle {
+/* 常驻时只露一点点（ScratchpadHandleRest：米白小条 / 细竖线 / 小圆点 / 几何体），贴着左缘、竖直居中，小而半透明。
+   设置页「悬浮标签样式」的小图用同一个组件，透明度也在这里。 */
+.scratchpad-edge-rest {
+    position: absolute;
+    top: 0;
+    left: 0;
     display: flex;
-    width: 6px;
-    height: 56px;
-    flex-direction: column;
+    height: 100%;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    overflow: hidden;
-    padding: 0;
-    border: 1px solid rgb(255 255 255 / 16%);
-    border-left: none;
-    border-radius: 0 10px 10px 0;
-    background: rgb(255 255 255 / 14%);
-    color: inherit;
-    /* 空的时候也留一道淡淡的边，让人知道左缘有东西。 */
-    opacity: 0.28;
-    backdrop-filter: blur(20px);
-    cursor: pointer;
-    transition: width 0.18s ease, height 0.18s ease, opacity 0.18s ease, background-color 0.18s ease;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
 }
 
-.scratchpad-root.is-daylight .scratchpad-handle { border-color: rgb(0 0 0 / 12%); background: rgb(0 0 0 / 10%); }
+.scratchpad-rest-strip { display: block; opacity: 0.4; }
+.scratchpad-rest-line { display: block; opacity: 0.28; }
+.scratchpad-rest-dot { display: block; border-radius: 50%; opacity: 0.55; }
+.scratchpad-rest-shapes { display: flex; flex-direction: column; opacity: 0.45; }
 
-/* 非空时常驻（低调）；指针靠近或键盘聚焦时展开成带图标和条数的小舌头。 */
-.scratchpad-edge.has-entries .scratchpad-handle { opacity: 0.55; }
+/* 完整的标签：平时藏在左缘外面，指针进热区或键盘聚焦时滑进来，常驻的那一点同时淡掉。
+   投影画在按钮上（drop-shadow），斜切的下端裁在里面那层纸上：clip-path 会把同一个元素的投影一起裁掉。 */
+.scratchpad-handle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 42px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--scratchpad-ink);
+    cursor: pointer;
+    filter: drop-shadow(0 12px 24px rgb(0 0 0 / 45%));
+    opacity: 0;
+    transform: translateX(-105%);
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
+}
+
+.scratchpad-edge:hover .scratchpad-edge-rest,
+.scratchpad-edge:focus-within .scratchpad-edge-rest { opacity: 0; }
 
 .scratchpad-edge:hover .scratchpad-handle,
-.scratchpad-handle:focus-visible {
-    width: 30px;
-    height: 72px;
+.scratchpad-edge:focus-within .scratchpad-handle {
     opacity: 1;
+    transform: none;
 }
 
-.scratchpad-handle:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+.scratchpad-handle:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
 
-.scratchpad-handle svg { width: 15px; height: 15px; flex: none; }
+.scratchpad-handle-paper {
+    position: relative;
+    display: block;
+    padding: 10px 0 16px;
+    border-top: 4px solid var(--scratchpad-mark);
+    background: var(--scratchpad-paper);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%);
+}
 
+/* 网点纹理，中段（标题那一截）渐隐掉，不影响读字。 */
+.scratchpad-handle-texture {
+    position: absolute;
+    inset: 0;
+    color: var(--scratchpad-ink);
+    background: radial-gradient(circle, currentColor 1.3px, transparent 1.7px) 0 0 / 9px 9px;
+    opacity: 0.16;
+    -webkit-mask-image: linear-gradient(180deg, #000 0, #000 26px, transparent 60px, transparent calc(100% - 46px), #000 calc(100% - 14px));
+    mask-image: linear-gradient(180deg, #000 0, #000 26px, transparent 60px, transparent calc(100% - 46px), #000 calc(100% - 14px));
+}
+
+.scratchpad-handle-body {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.scratchpad-handle-title {
+    max-height: 132px;
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    line-height: 1.2;
+    writing-mode: vertical-rl;
+}
+
+/* 首数：构成主义的红色斜块（斜块里的字摆正）。 */
 .scratchpad-handle-count {
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 650;
-    line-height: 1;
+    display: grid;
+    min-width: 32px;
+    height: 22px;
+    box-sizing: border-box;
+    padding: 0 4px;
+    place-items: center;
+    background: var(--scratchpad-mark);
+    color: var(--scratchpad-paper);
+    transform: skewX(-14deg);
 }
 
-.scratchpad-handle > * { opacity: 0; transition: opacity 0.12s ease; }
-.scratchpad-edge:hover .scratchpad-handle > *,
-.scratchpad-handle:focus-visible > * { opacity: 1; }
+.scratchpad-handle-count > span {
+    display: block;
+    font-family: Inter, sans-serif;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    line-height: 1;
+    transform: skewX(14deg);
+}
 
-/* 新东西收进来时闪一下。 */
-.scratchpad-handle.is-pulsing { animation: scratchpad-pulse 0.9s ease-out; }
+/* 新东西收进来时，常驻的那一点闪一下（亮到不透明、放大一点再回去）。 */
+.scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: scratchpad-pulse 0.9s ease-out; transform-origin: 0 50%; }
 
 @keyframes scratchpad-pulse {
-    0% { width: 6px; opacity: 0.55; }
-    25% { width: 14px; opacity: 1; background-color: var(--text-accent, rgb(255 255 255 / 60%)); }
-    100% { width: 6px; opacity: 0.55; }
+    25% { opacity: 1; transform: scale(1.5); }
 }
 
 /* —— 抽屉 —— */
@@ -947,3 +1003,7 @@
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
 
 .scratchpad-root.is-calm .scratchpad-tab { transition: opacity 0.15s ease; }
+
+/* 动效降级时左缘的标签不滑，只淡入淡出；收进新歌也不闪。 */
+.scratchpad-root.is-calm .scratchpad-handle { transform: none; transition: opacity 0.12s ease; }
+.scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }

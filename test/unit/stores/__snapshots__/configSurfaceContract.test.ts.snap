@@ -36,6 +36,7 @@ exports[`config surface contract > keeps every field of the exportable visual co
   "playerHeaderBlur",
   "randomVisualizerModePerSong",
   "randomVisualizerModes",
+  "scratchpadHandleStyle",
   "showHarmonySubtitle",
   "showSubtitleTranslation",
   "smartBeat",
