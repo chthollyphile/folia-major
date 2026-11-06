@@ -514,6 +514,11 @@ export interface OnlineExternalPlaybackProvider {
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+    /**
+     * Sets the player's own volume (0 to 1; muted is 0), for a player whose sound does not pass
+     * through this app's volume. Without it the app's volume does not reach the player.
+     */
+    setVolume?(volume: number): Promise<void>;
 }
 
 /** An alternate title and artist that belong to the same song. */

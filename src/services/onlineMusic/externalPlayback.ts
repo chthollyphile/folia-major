@@ -322,6 +322,35 @@ async function poll(): Promise<void> {
     }
 }
 
+/** The listener's volume (0 to 1, muted is 0), for a player that sets its own (`setVolume`). */
+const listenerVolume = (): number => {
+    const { volume, isMuted } = useAudioSettingsStore.getState();
+    return isMuted ? 0 : Math.max(0, Math.min(1, volume));
+};
+const pushVolume = async (song: SongResult): Promise<void> => {
+    try {
+        await omni.setExternalPlaybackVolume(song, listenerVolume());
+    } catch (error) {
+        console.warn('[ExternalPlayback] the player volume could not be set', error);
+    }
+};
+// A volume drag changes the volume many times a second: one push at a time, the last value after it.
+let volumePush: Promise<void> | null = null;
+let volumeChangedSincePush = false;
+const syncVolume = (): void => {
+    if (!session || !isExternalRoute()) return;
+    if (volumePush) {
+        volumeChangedSincePush = true;
+        return;
+    }
+    volumePush = pushVolume(session.song).finally(() => {
+        volumePush = null;
+        if (!volumeChangedSincePush) return;
+        volumeChangedSincePush = false;
+        syncVolume();
+    });
+};
+
 /** Starts a track in the external player and puts the app on that route. */
 export async function beginExternalPlayback(song: SongResult, startSec = 0): Promise<void> {
     if (isExternalRoute()) {
@@ -348,6 +377,10 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
         setPlaybackRoute('external');
     });
     emit({ type: 'status' });
+    // A player that sets its own volume starts at the listener's. A newer start while it is set
+    // takes over: this one must not start its song after it.
+    await pushVolume(song);
+    if (session?.attempt !== attempt || !isExternalRoute()) return;
     try {
         await omni.playSongExternally(song, Math.max(0, startSec));
     } catch (error) {
@@ -477,6 +510,7 @@ export const installExternalPlayback = (): void => {
     externalMediaShim.setClockReader(() => getExternalPosition());
     useAudioSettingsStore.subscribe((state, previous) => {
         if (state.loopMode !== previous.loopMode) refreshPreparedQueue();
+        if (state.volume !== previous.volume || state.isMuted !== previous.isMuted) syncVolume();
     });
     usePlaybackStore.subscribe((state, previous) => {
         if (ownWriteDepth > 0) return;

@@ -19,6 +19,7 @@ const omniMock = vi.hoisted(() => ({
         mediaId: '123', isPlaying: true, positionMs: 10000, durationMs: 200000, ended: false,
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
+    setExternalPlaybackVolume: vi.fn(async (_song: unknown, _volume: number) => {}),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));

@@ -1,0 +1,294 @@
+import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// test/unit/spotify/soloist.test.ts — Spotify Soloist in the main process (electron/spotify/soloist.cjs)
+// and the reading of its build (soloistBuild.cjs). The program is a stand-in: `spawn` starts a real
+// WebSocket server on loopback, writes its port where Soloist writes it, and answers the way the
+// documented control API does. The tests then drive it as the program would.
+
+const require = createRequire(import.meta.url);
+const { WebSocketServer } = require('ws');
+const { createSoloist } = require('../../../electron/spotify/soloist.cjs');
+const { describeBuild, createSoloistBuildReader, DAY_MS } = require('../../../electron/spotify/soloistBuild.cjs');
+
+const URI = 'spotify:track:4cOdK2wGLETKBW3PvgPWqT';
+const OTHER = 'spotify:track:7qiZfU4dY1lWllzX7mPBI3';
+const KEY = 'sk-test-0123456789';
+
+const folders: string[] = [];
+const servers: any[] = [];
+afterEach(async () => {
+    await Promise.all(servers.splice(0).map(server => new Promise(resolve => {
+        for (const client of server.clients) client.terminate();
+        server.close(resolve);
+    })));
+    folders.splice(0).forEach(made => fs.rmSync(made, { recursive: true, force: true }));
+});
+
+const keychain = (available = true) => ({
+    isEncryptionAvailable: () => available,
+    getSelectedStorageBackend: () => (available ? 'dpapi' : 'basic_text'),
+    encryptString: (text: string) => Buffer.from(`sealed:${text}`),
+    decryptString: (sealed: Buffer) => sealed.toString().replace(/^sealed:/, ''),
+});
+
+const memoryStore = (initial: Record<string, unknown> = {}) => {
+    const values = new Map(Object.entries(initial));
+    return { get: (key: string) => values.get(key), set: (key: string, value: unknown) => { values.set(key, value); }, values };
+};
+
+/** The program, as its control API behaves: `spawned` holds each start, with what it was told and asked. */
+const program = ({ paired = true, exitAtOnce = null as number | null } = {}) => {
+    const spawned: Array<{ args: string[]; commands: any[]; send: (event: object) => void; proc: any }> = [];
+    const spawn = vi.fn((_file: string, args: string[]) => {
+        const proc: any = new EventEmitter();
+        proc.stderr = new EventEmitter();
+        proc.exitCode = null;
+        proc.signalCode = null;
+        proc.pid = 4321;
+        const run = { args, commands: [] as any[], send: (_event: object) => { }, proc };
+        spawned.push(run);
+        proc.kill = vi.fn(() => {
+            if (proc.exitCode !== null) return;
+            proc.exitCode = 0;
+            setImmediate(() => proc.emit('exit', 0));
+        });
+        if (exitAtOnce !== null) {
+            setImmediate(() => {
+                proc.exitCode = exitAtOnce;
+                proc.stderr.emit('data', `could not start, key was ${args[args.indexOf('-k') + 1]}`);
+                proc.emit('exit', exitAtOnce);
+            });
+            return proc;
+        }
+        const dataDir = args[args.indexOf('-D') + 1];
+        const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+        servers.push(server);
+        server.on('listening', () => fs.writeFileSync(path.join(dataDir, 'ws.port'), String(server.address().port)));
+        server.on('connection', (socket: any) => {
+            run.send = event => socket.send(JSON.stringify(event));
+            socket.on('message', (raw: Buffer) => run.commands.push(JSON.parse(String(raw))));
+            run.send({ type: 'auth_state', logged_in: paired, is_active: false, device_name: 'Folia' });
+        });
+        return proc;
+    });
+    return { spawn, spawned };
+};
+
+const VALID_BUILD = { path: '/opt/soloist', state: 'valid', version: '1.0.0', builtAt: Date.now() - 10 * DAY_MS, expiresAt: Date.now() + 80 * DAY_MS, daysLeft: 80 };
+
+const setup = ({ paired = true, exitAtOnce = null as number | null, executable = '/opt/soloist' as string | null, sealed = true, available = true, build = VALID_BUILD as any } = {}) => {
+    const data = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-soloist-'));
+    folders.push(data);
+    const store = memoryStore({ SPOTIFY_SOLOIST_V1: { executable, sealedKey: sealed ? Buffer.from(`sealed:${KEY}`).toString('base64') : null } });
+    const fake = program({ paired, exitAtOnce });
+    const logs: string[] = [];
+    const soloist = createSoloist({
+        store,
+        safeStorage: keychain(available),
+        dataDirectory: () => path.join(data, 'data'),
+        cacheDirectory: () => path.join(data, 'cache'),
+        chooseFile: vi.fn(async () => '/downloads/soloist'),
+        spawn: fake.spawn,
+        readBuild: vi.fn(async (file: string) => ({ ...build, path: file })),
+        wait: (ms: number) => new Promise(resolve => { setTimeout(resolve, Math.min(ms, 20)); }),
+        log: (line: string) => logs.push(line),
+        warn: (line: string) => logs.push(line),
+    });
+    return { soloist, store, ...fake, logs, data };
+};
+
+/** Lets the stand-in's messages arrive. */
+const settle = (ms = 30) => new Promise(resolve => { setTimeout(resolve, ms); });
+
+/** Plays URI and answers it as the program would. */
+const playing = async (soloist: any, spawned: any[], options: { startMs?: number; durationMs?: number } = {}) => {
+    const started = soloist.play({ uri: URI, ...options });
+    for (let tries = 0; tries < 100 && !spawned[0]?.commands.some((command: any) => command.command === 'play'); tries += 1) await settle(10);
+    const run = spawned[0];
+    run.send({ type: 'track_changed', item: { uri: URI, duration_ms: options.durationMs ?? 200_000 } });
+    run.send({ type: 'playback_state', status: 'playing', item: { uri: URI, duration_ms: options.durationMs ?? 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+    await started;
+    return run;
+};
+
+describe('soloistBuild', () => {
+    const at = Date.UTC(2026, 9, 1);
+    const seconds = Math.floor(at / 1000);
+
+    it('reads the build time next to "build" and counts the 90 days from it', () => {
+        expect(describeBuild(`soloist 1.4.2 build ${seconds} linux x86_64`, at + 10 * DAY_MS)).toMatchObject({
+            state: 'valid', version: '1.4.2', builtAt: at, expiresAt: at + 90 * DAY_MS, daysLeft: 80,
+        });
+    });
+
+    it('warns from 14 days before the end, and is expired at it', () => {
+        expect(describeBuild(`soloist 1.0 build ${seconds}`, at + 76 * DAY_MS)).toMatchObject({ state: 'expiring', daysLeft: 14 });
+        expect(describeBuild(`soloist 1.0 build ${seconds}`, at + 75 * DAY_MS)).toMatchObject({ state: 'valid', daysLeft: 15 });
+        expect(describeBuild(`soloist 1.0 build ${seconds}`, at + 90 * DAY_MS)).toMatchObject({ state: 'expired', daysLeft: 0 });
+    });
+
+    it('reads an ISO date, says when nothing can be read, and distrusts a clock behind the build', () => {
+        expect(describeBuild('Spotify Soloist 2.0.0 (built 2026-10-01T00:00:00Z)', at + DAY_MS)).toMatchObject({ state: 'valid', builtAt: at, version: '2.0.0' });
+        expect(describeBuild('soloist 2.0.0', at)).toMatchObject({ state: 'unknown', version: '2.0.0', daysLeft: null });
+        expect(describeBuild(`soloist 1.0 build ${seconds}`, at - 3 * DAY_MS)).toMatchObject({ state: 'clock' });
+    });
+
+    it('tells a missing file, a program that is not Soloist, and the exit code of an expired build', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-soloist-build-'));
+        folders.push(dir);
+        const file = path.join(dir, 'soloist');
+        fs.writeFileSync(file, 'binary');
+        const run = vi.fn(async () => ({ code: 0, failed: false, output: `soloist 1.0 build ${seconds}` }));
+        const read = createSoloistBuildReader({ run, now: () => at + DAY_MS });
+        await expect(read(path.join(dir, 'nothing'))).resolves.toMatchObject({ state: 'missing' });
+        await expect(read(file)).resolves.toMatchObject({ state: 'valid', version: '1.0' });
+        await read(file);
+        expect(run).toHaveBeenCalledTimes(1);
+
+        const notSoloist = createSoloistBuildReader({ run: async () => ({ code: 0, failed: false, output: 'ffmpeg version 7' }) });
+        await expect(notSoloist(file)).resolves.toMatchObject({ state: 'invalid' });
+        const expired = createSoloistBuildReader({ run: async () => ({ code: 10, failed: true, output: 'build expired' }) });
+        await expect(expired(file)).resolves.toMatchObject({ state: 'expired', daysLeft: 0 });
+    });
+});
+
+describe('soloist', () => {
+    it('is not started before it is wanted, and says what is missing', async () => {
+        const { soloist, spawn } = setup({ executable: null, sealed: false });
+        await expect(soloist.state({ start: true })).resolves.toMatchObject({ executable: null, key: 'missing', running: false, paired: false });
+        await expect(soloist.play({ uri: URI })).rejects.toMatchObject({ code: 'unavailable', reason: 'soloist-program' });
+        expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('keeps the key sealed, never in the clear, and refuses one it cannot seal or that is no key', async () => {
+        const { soloist, store } = setup({ sealed: false });
+        await expect(soloist.saveKey('has a space')).resolves.toEqual({ saved: false, why: 'shape' });
+        await expect(soloist.saveKey(KEY)).resolves.toEqual({ saved: true });
+        expect(JSON.stringify([...store.values])).not.toContain(KEY);
+        await expect(soloist.state()).resolves.toMatchObject({ key: 'saved' });
+
+        const locked = setup({ sealed: false, available: false });
+        await expect(locked.soloist.saveKey(KEY)).resolves.toEqual({ saved: false, why: 'keychain' });
+    });
+
+    it('starts on a port the system picks, plays one track with repeat off, and seeks only after it plays', async () => {
+        const { soloist, spawned, logs } = setup();
+        const run = await playing(soloist, spawned, { startMs: 42_000 });
+        expect(run.args).toEqual(expect.arrayContaining(['-n', 'Folia', '-k', KEY, '-w', '127.0.0.1:0']));
+        await settle();
+        expect(run.commands.map((command: any) => command.command)).toEqual(['set_repeat_track', 'set_repeat_context', 'play', 'seek']);
+        expect(run.commands[2]).toMatchObject({ type: 'command', command: 'play', uri: URI });
+        expect(run.commands[3]).toMatchObject({ position_ms: 42_000 });
+        expect(logs.join('\n')).not.toContain(KEY);
+        await soloist.shutdown();
+    });
+
+    it('says the program is not paired instead of playing', async () => {
+        const { soloist } = setup({ paired: false });
+        await expect(soloist.play({ uri: URI })).rejects.toMatchObject({ reason: 'soloist-unpaired' });
+        await expect(soloist.state()).resolves.toMatchObject({ running: true, paired: false });
+        await soloist.shutdown();
+    });
+
+    it('follows the position between events while it plays', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned);
+        run.send({ type: 'position_sync', position: { position_ms: 30_000, timestamp_ms: Date.now() - 2000, speed: 1 } });
+        await settle();
+        const status = soloist.status();
+        expect(status).toMatchObject({ uri: URI, status: 'playing', ended: false, durationMs: 200_000 });
+        expect(status.positionMs).toBeGreaterThanOrEqual(31_900);
+        expect(status.positionMs).toBeLessThan(33_000);
+        await soloist.shutdown();
+    });
+
+    it('ends the track when the program goes on to its own next one at the end, and pauses that one', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'track_changed', item: { uri: OTHER, duration_ms: 180_000 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, ended: true, positionMs: 200_000 });
+        expect(run.commands.at(-1)).toMatchObject({ command: 'pause' });
+        await soloist.shutdown();
+    });
+
+    it('does not take a track changed in another app mid-track for an end', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 60_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'track_changed', item: { uri: OTHER, duration_ms: 180_000 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: OTHER, ended: false });
+        await soloist.shutdown();
+    });
+
+    it('ends the track when the program stops at its end', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_500, timestamp_ms: Date.now(), speed: 1 } });
+        run.send({ type: 'playback_changed', status: 'idle' });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: true });
+        await soloist.shutdown();
+    });
+
+    it('says an expired build and leaves the key out of what it logs of the failure', async () => {
+        const { soloist, logs } = setup({ exitAtOnce: 10 });
+        await expect(soloist.play({ uri: URI })).rejects.toMatchObject({ reason: 'soloist-expired' });
+        await expect(soloist.state()).resolves.toMatchObject({ running: false, error: 'expired' });
+        expect(logs.join('\n')).toContain('<key>');
+        expect(logs.join('\n')).not.toContain(KEY);
+    });
+
+    it('uses a program an earlier run left running instead of starting a second one', async () => {
+        const first = setup();
+        await playing(first.soloist, first.spawned);
+        const spawn = vi.fn();
+        const again = createSoloist({
+            store: first.store,
+            safeStorage: keychain(),
+            dataDirectory: () => path.join(first.data, 'data'),
+            cacheDirectory: () => path.join(first.data, 'cache'),
+            chooseFile: async () => null,
+            spawn,
+            readBuild: async () => VALID_BUILD,
+            log: () => { },
+            warn: () => { },
+        });
+        await expect(again.state({ start: false })).resolves.toMatchObject({ running: false });
+        await again.restart();
+        expect(spawn).not.toHaveBeenCalled();
+        await expect(again.state()).resolves.toMatchObject({ running: true, paired: true });
+        await again.setVolume(40);
+        await settle();
+        expect(first.spawned[0].commands.at(-1)).toMatchObject({ command: 'set_volume', volume: 40 });
+        await again.shutdown();
+        await first.soloist.shutdown();
+    });
+
+    it('stops the program when the app quits', async () => {
+        const { soloist, spawned } = setup();
+        await playing(soloist, spawned);
+        expect(soloist.shutdown()).not.toBeNull();
+        await settle();
+        expect(spawned[0].proc.kill).toHaveBeenCalled();
+        expect(soloist.shutdown()).toBeNull();
+    });
+
+    it('keeps a program it picked only when it runs', async () => {
+        const { soloist, store } = setup({ executable: null, build: { state: 'invalid', version: null } });
+        await expect(soloist.pickExecutable()).resolves.toMatchObject({ picked: false, executable: { state: 'invalid' } });
+        expect((store.get('SPOTIFY_SOLOIST_V1') as any).executable).toBeNull();
+        const good = setup({ executable: null });
+        await expect(good.soloist.pickExecutable()).resolves.toMatchObject({ picked: true });
+        expect((good.store.get('SPOTIFY_SOLOIST_V1') as any).executable).toBe('/downloads/soloist');
+    });
+});

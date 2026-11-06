@@ -1168,6 +1168,14 @@ export const omni = {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isStatusForSong(song, status) === true;
     },
 
+    // The listener's volume (0 to 1) for an external player that sets its own (`setVolume`); nothing
+    // for one that does not.
+    async setExternalPlaybackVolume(song: SongResult, volume: number): Promise<void> {
+        const setVolume = getOnlineMusicProviderForSong(song)?.externalPlayback?.setVolume;
+        if (!setVolume) return;
+        await setVolume(Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0)));
+    },
+
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
     // standard, high, lossless and hires without it): the ones the quality option shows for it.
     // Read anew on every call: a provider's list may change with its account.
