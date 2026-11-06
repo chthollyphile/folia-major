@@ -217,9 +217,9 @@
 
 /* 展开整页（ScratchpadSheet，设计稿 F）：铺满整个窗口，里面那张纸倾斜（文件末尾「展开整页」一节）。
    信息条、细纸带、卡片之外的墙面是透明的（用户定，2026-11-06）：隔着一层半透明的纱看得见后面的播放页或墙；
-   纱按主题深浅取色、留一半，墙上的字（跳到栏、操作提示、组头）在亮的封面上也看得清。不用 backdrop-filter（后面常是在动的歌词画面）。 */
+   纱按主题深浅取色、八成浓（用户定），墙上的字（跳到栏、操作提示、组头）在亮的封面上也看得清。不用 backdrop-filter（后面常是在动的歌词画面）。 */
 .scratchpad-drawer.is-expanded {
-    --scratchpad-scrim: rgb(12 11 16 / 50%);
+    --scratchpad-scrim: rgb(12 11 16 / 80%);
     --scratchpad-veil: rgb(12 11 16 / 86%);
     --scratchpad-text-soft: rgb(244 241 234 / 80%);
     --scratchpad-wall-shadow: 0 1px 3px rgb(0 0 0 / 70%);
@@ -232,7 +232,7 @@
 }
 
 .scratchpad-root.is-daylight .scratchpad-drawer.is-expanded {
-    --scratchpad-scrim: rgb(235 233 228 / 56%);
+    --scratchpad-scrim: rgb(235 233 228 / 80%);
     --scratchpad-veil: rgb(235 233 228 / 90%);
     --scratchpad-text-soft: rgb(20 20 20 / 76%);
     --scratchpad-wall-shadow: 0 1px 3px rgb(255 255 255 / 80%);
