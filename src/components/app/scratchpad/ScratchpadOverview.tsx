@@ -62,7 +62,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
     const rootRef = useRef<HTMLDivElement>(null);
     const rowRefs = useRef(new Map<ScratchpadTab, HTMLDivElement>());
     const marqueeRef = useRef<HTMLDivElement>(null);
-    const dragRef = useRef<{ pointerId: number; start: Point; base: ReadonlySet<string>; moved: boolean } | null>(null);
+    const dragRef = useRef<{ pointerId: number; start: Point; base: ReadonlySet<string>; moved: boolean; collapses: boolean } | null>(null);
     const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
     const [boxing, setBoxing] = useState(false);
 
@@ -186,6 +186,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
             start: clientToLocal(rootRef.current, { x: event.clientX, y: event.clientY }, tilt),
             base: additive ? selected : new Set(),
             moved: false,
+            // 空着的地方点一下、又没有选中什么：收回左缘的面板（同 Esc，用户要的「点空白处退出」）。
+            collapses: !additive && selected.size === 0,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
     };
@@ -201,7 +203,9 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         dragRef.current = null;
         setBoxing(false);
         if (marqueeRef.current) marqueeRef.current.hidden = true;
-        if (!drag.moved && drag.base.size === 0) setSelected(new Set());
+        if (drag.moved) return;
+        if (drag.collapses) onEscape();
+        else if (drag.base.size === 0) setSelected(new Set());
     };
 
     // —— 选中后的动作 ——

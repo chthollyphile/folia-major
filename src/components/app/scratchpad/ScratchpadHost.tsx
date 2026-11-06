@@ -84,6 +84,26 @@ const isTabCycleKey = (event: KeyboardEvent | React.KeyboardEvent) => (
     event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey
 );
 
+/**
+ * 墙上不算空白的地方：点它们照旧是它们的事，左缘面板不收（见「点空白处收起」）。海报与 Bravais 的瓷砖是 article；
+ * 弹窗、菜单、列表框里的点击也不算。
+ */
+const NOT_BLANK_SELECTOR = [
+    'button', 'a[href]', 'input', 'textarea', 'select', 'label', 'summary', 'video', 'audio', 'article',
+    '[contenteditable]:not([contenteditable="false"])', '[draggable="true"]',
+    '[role="button"]', '[role="link"]', '[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]', '[role="option"]',
+    '[role="tab"]', '[role="checkbox"]', '[role="switch"]', '[role="slider"]', '[role="radio"]', '[role="gridcell"]', '[role="row"]',
+    '[role="treeitem"]', '[role="dialog"]', '[role="alertdialog"]', '[role="menu"]', '[role="listbox"]', '[aria-modal="true"]',
+].join(', ');
+
+/** 焦点在这些里面时 Esc 归它们（输入框里撤销输入法、弹窗与菜单自己关）。 */
+const OWNS_ESCAPE_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [aria-modal="true"]';
+
+/** 按下到松开挪了这么多就是拖（平移墙、拖东西），不算点。 */
+const CLICK_SLOP_PX = 6;
+
+const hasOpenModal = () => document.querySelector('[aria-modal="true"]') !== null;
+
 /** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
 const PAGE_SLIDE_PX = 28;
 const PAGE_EASE_IN = [0.22, 1, 0.36, 1] as const;
@@ -218,7 +238,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         clear();
     };
 
-    // Esc 收起：只管焦点在抽屉里的时候（抽屉非模态，别的地方的 Esc 是别人的）。画布开着时先收回列表（画布自己先处理
+    // Esc 收起：焦点在抽屉里的时候在这里（焦点在外面时见下面「左缘面板浮在墙上」那一段）。画布开着时先收回列表（画布自己先处理
     // 选择与拖动）；焦点交还给把手，别掉到 body 上。
     const focusHandleRef = useRef(false);
     // 画布被 Esc 收回列表时，焦点落到展开按钮上（画布一卸载焦点就掉到 body，下一下 Esc 就没人接了）。
@@ -276,6 +296,44 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         window.addEventListener('keydown', onKeyDown, true);
         return () => window.removeEventListener('keydown', onKeyDown, true);
     }, [collapseCanvas, isCovered, isExpanded, isOpen]);
+    // 左缘面板浮在墙上（用户要的，2026-11-06）：Esc 先收起它，点墙上的空白处也收起它。
+    // Esc：焦点在面板里由 handleKeyDown 管（收起后焦点交还把手）；这里管焦点在面板外的时候——刚用把手或 Ctrl / ⌘ + J 打开
+    // （焦点落在 body）、点过墙上别处。焦点在输入框、弹窗、菜单里，或有模态弹窗开着时，Esc 是它们的。捕获阶段先接住，墙不再收到这一下。
+    // 空白处：按下时就看准（处理函数可能在点击里把节点换掉），不在速记簿里、不是墙上可以点的东西（NOT_BLANK_SELECTOR）；
+    // 松开时没挪开、没被谁接走（点击冒到 window 上、没 preventDefault）才收。
+    useEffect(() => {
+        if (!isOpen || isExpanded || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+            const active = document.activeElement;
+            if (active?.closest('.scratchpad-root') || active?.closest(OWNS_ESCAPE_SELECTOR) || hasOpenModal()) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+        };
+        let press: { x: number; y: number } | null = null;
+        const onPointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            const blank = event.button === 0 && event.isPrimary && target instanceof Element
+                && !target.closest('.scratchpad-root') && !target.closest(NOT_BLANK_SELECTOR) && !hasOpenModal();
+            press = blank ? { x: event.clientX, y: event.clientY } : null;
+        };
+        const onClick = (event: MouseEvent) => {
+            const start = press;
+            press = null;
+            if (!start || event.button !== 0 || event.defaultPrevented) return;
+            if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
+            setOpen(false);
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('pointerdown', onPointerDown, true);
+        window.addEventListener('click', onClick);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('pointerdown', onPointerDown, true);
+            window.removeEventListener('click', onClick);
+        };
+    }, [isCovered, isExpanded, isOpen, setOpen]);
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
         // 抽屉里 Tab 不走焦点，换页签（用户定，2026-11-05）；按钮之间用方向键和鼠标。

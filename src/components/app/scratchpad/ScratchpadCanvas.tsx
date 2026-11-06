@@ -136,6 +136,8 @@ type Marquee = {
     start: Point;
     base: ReadonlySet<string>;
     moved: boolean;
+    /** 松手时没拖就收回（按下时没有选中什么、不是加选、不在组头上）。 */
+    collapses: boolean;
     /** 框选开始时各组网格原点（内容坐标）与它们的条目。 */
     grids: { origin: Point; keys: string[] }[];
     /** 还没处理的最近一次指针位置（视口坐标）：指针事件可能一帧来好几次（高回报率的鼠标上千次每秒），每帧只算一次。 */
@@ -511,6 +513,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             start: contentPoint(event),
             base: additive ? selected : new Set(),
             moved: false,
+            // 空着的地方点一下、又没有选中什么：收回（同 Esc，用户要的「点空白处退出」）。组头不算空着的地方。
+            collapses: !additive && selected.size === 0 && !(event.target as HTMLElement).closest('.scratchpad-group-header'),
             grids: groups.flatMap(group => {
                 const grid = gridRefs.current.get(group.key);
                 if (!grid) return [];
@@ -583,8 +587,10 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         marqueeStateRef.current = null;
         setIsBoxSelecting(false);
         if (marqueeRef.current) marqueeRef.current.hidden = true;
-        // 在空白处点一下（没拖）：取消选择。
-        if (!marquee.moved && marquee.base.size === 0) setSelected(new Set());
+        // 在空白处点一下（没拖）：取消选择；本来就没选中什么时收回（同 Esc）。
+        if (marquee.moved) return;
+        if (marquee.collapses) onEscape();
+        else if (marquee.base.size === 0) setSelected(new Set());
     };
 
     // 卸载时还在等的那一帧。

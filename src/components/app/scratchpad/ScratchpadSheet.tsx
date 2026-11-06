@@ -70,6 +70,13 @@ const CARDS_RIGHT = SIDE_RIGHT + 124 + 26;
 const BACK_LEFT = 174;
 const BACK_SIZE = 48;
 
+/**
+ * 纸上不算空白的地方：点空白处收回左缘的面板（用户要的，2026-11-06，与 Esc 一样），这些不算——信息条、细纸带、按钮、
+ * 黑三角，以及卡片画布与三行总览（它们自己判断：在空着的地方点一下、又没有选中什么时才收，见 ScratchpadCanvas / ScratchpadOverview）。
+ */
+const SHEET_NOT_BLANK_SELECTOR = 'button, a[href], input, .scratchpad-sheet-band, .scratchpad-triangle, .scratchpad-overview-help, .scratchpad-canvas, .scratchpad-overview, .scratchpad-canvas-side .scratchpad-jump, [role="menu"], [role="dialog"]';
+const CLICK_SLOP_PX = 6;
+
 /** 安全区：转过之后的底边离窗口底边至少留这么多。 */
 const SAFE_MARGIN = 20;
 
@@ -192,6 +199,18 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         return next;
     }, [showsOverview, tab]);
     const title = t(TITLE_KEYS[tab]);
+    // 点纸上的空白处收回：按下时记下位置，松开时没挪开才算点。
+    const pressRef = useRef<{ x: number; y: number } | null>(null);
+    const handleBlankPointerDown = (event: React.PointerEvent) => {
+        pressRef.current = event.button === 0 && event.isPrimary ? { x: event.clientX, y: event.clientY } : null;
+    };
+    const handleBlankClick = (event: React.MouseEvent) => {
+        const start = pressRef.current;
+        pressRef.current = null;
+        if (!start || event.defaultPrevented || !(event.target instanceof Element) || event.target.closest(SHEET_NOT_BLANK_SELECTOR)) return;
+        if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
+        onCollapse();
+    };
 
     // 每一条此刻该在哪、多高。
     const sheetHeight = viewHeight + SHEET_BLEED_Y * 2;
@@ -291,6 +310,8 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
             ref={rootRef}
             className="scratchpad-f"
             tabIndex={-1}
+            onPointerDown={handleBlankPointerDown}
+            onClick={handleBlankClick}
             style={{
                 '--scratchpad-safe-side': `${safe.side}px`,
                 '--scratchpad-safe-cards': `${safe.cards}px`,
