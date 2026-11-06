@@ -1373,9 +1373,11 @@
    那一层补齐：1 − (1 − e) / (1 − min(e, 0.35))。指针在面板上、面板里有键盘焦点时整块亮起（不染），和缝一样。
    探出面板的那条米白信息条自己画这两层（它比面板宽，面板的两层盖不到探出去的那截，所以它压在面板那两层之上）。
    熄灯（latticeLightsOn 关）时墙上的叠色归零，这里也不染（宿主不挂 has-poster-tint）；熄灯的压暗没接。
-   展开整页时面板不画这两层（纸上另算，见下面「展开整页」的叠色）。 */
+   展开整页不染（用户定，2026-11-07：卡片、信息条、细纸带都不染），见下面「展开整页不染」。
+   --scratchpad-tint-on 是这一刻该染多少，--scratchpad-tint 是这一处实际染多少（悬停、展开整页里归零）。 */
 .scratchpad-root {
-    --scratchpad-tint: 0;
+    --scratchpad-tint-on: 0;
+    --scratchpad-tint: var(--scratchpad-tint-on);
     --scratchpad-tint-scale: 0.6;
     --scratchpad-tint-fill: linear-gradient(
         145deg,
@@ -1385,8 +1387,8 @@
 }
 
 .scratchpad-root.uses-custom-poster-tint { --scratchpad-tint-fill: var(--lattice-poster-tint-color); }
-.scratchpad-root.has-poster-tint { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * var(--scratchpad-tint-scale)); }
-.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72 * var(--scratchpad-tint-scale)); }
+.scratchpad-root.has-poster-tint { --scratchpad-tint-on: calc(var(--lattice-poster-tint-intensity, 0.5) * var(--scratchpad-tint-scale)); }
+.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint-on: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72 * var(--scratchpad-tint-scale)); }
 .scratchpad-drawer.is-panel:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
 
 .scratchpad-drawer.is-panel::before,
@@ -1997,38 +1999,17 @@
 .scratchpad-tip b { color: var(--scratchpad-text); font-weight: 800; }
 .scratchpad-tip > span:last-child { color: var(--scratchpad-text-soft); }
 
-/* 叠色（展开整页）：纸上的卡片各自画一层，悬停、键盘焦点、选中、正在播放、正被拖着的不染；信息条与细纸带按缝的规则染，
-   指针在条上或条里有键盘焦点时整条亮起。 */
-.scratchpad-band:is(:hover, :has(:focus-visible)),
-.scratchpad-slim:is(:hover, :focus-visible) { --scratchpad-tint: 0; }
+/* 面板顶上那条信息条：指针在条上或条里有键盘焦点时整条亮起（不染）。 */
+.scratchpad-band:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
 
-.scratchpad-slim::before,
-.scratchpad-slim::after {
-    position: absolute;
-    inset: 0;
-    background: var(--scratchpad-tint-fill);
-    content: '';
-    pointer-events: none;
-    transition: opacity 260ms ease;
-}
+/* 展开整页不染（用户定，2026-11-07）：卡片、信息条、细纸带都不画叠色。原来卡片各染一层、信息条与细纸带按缝的规则染，
+   整页一片都是叠色，取消选择时那一层还会闪。只有展开开头、收回末尾信息条里那一面面板的样子照面板染，与底下面板那条交接时颜色对得上。 */
+.scratchpad-drawer.is-expanded { --scratchpad-tint: 0; }
+.scratchpad-drawer.is-expanded .scratchpad-band.is-panel { --scratchpad-tint: var(--scratchpad-tint-on); }
+.scratchpad-drawer.is-expanded .scratchpad-band:not(.is-panel)::before,
+.scratchpad-drawer.is-expanded .scratchpad-band:not(.is-panel)::after { content: none; }
 
-.scratchpad-slim::before { z-index: -1; opacity: calc(1 - (1 - var(--scratchpad-tint)) / (1 - min(var(--scratchpad-tint), 0.35))); }
-.scratchpad-slim::after { z-index: 2; opacity: min(var(--scratchpad-tint), 0.35); }
-
-.scratchpad-drawer.is-expanded .scratchpad-card::after {
-    position: absolute;
-    inset: 0;
-    z-index: 3;
-    background: var(--scratchpad-tint-fill);
-    content: '';
-    opacity: var(--scratchpad-tint);
-    pointer-events: none;
-    transition: opacity 260ms ease;
-}
-
-.scratchpad-drawer.is-expanded .scratchpad-card:is(:hover, :focus-within, .is-selected, .is-current, .is-moving)::after { opacity: 0; }
-
-/* 选中的卡左上角折起的小角：点缀色的直角三角，压在封面与叠色层之上。平时不占位（相片卡是网格，多一个子元素会占一格）。 */
+/* 选中的卡左上角折起的小角：点缀色的直角三角，压在封面之上。平时不占位（相片卡是网格，多一个子元素会占一格）。 */
 .scratchpad-card-fold { display: none; }
 
 .scratchpad-drawer.is-expanded .scratchpad-card.is-selected .scratchpad-card-fold {
@@ -2044,9 +2025,6 @@
     pointer-events: none;
 }
 
-.scratchpad-root.is-calm .scratchpad-slim::before,
-.scratchpad-root.is-calm .scratchpad-slim::after,
-.scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card::after { transition: none; }
 .scratchpad-root.is-calm .scratchpad-card.is-photo:hover { rotate: var(--scratchpad-photo-rotate, 0deg); }
 
 /* —— 三行总览（ScratchpadOverview）——
