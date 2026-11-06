@@ -81,6 +81,11 @@ function closeQuietly(session) {
 // for some systems only; where there is none, Spotify cannot be played.
 function openLibrespotSession({ accessToken, deviceId }) {
   let librespot;
+  // On Linux the module asks for a diagnostic report when it is first required, to tell glibc
+  // from musl. The report's network section looks up every interface's address and can wait
+  // without end on some systems, holding the main process (and every window) with it. The
+  // module reads only the report's header, so the network section is left out.
+  if (process.report) process.report.excludeNetwork = true;
   try {
     librespot = require('@lox-audioserver/node-librespot');
   } catch (error) {
