@@ -45,26 +45,26 @@ export const SCRATCHPAD_CARD = {
 /**
  * 面板里的几块，坐标系是面板（368 × 900）。
  *
- * 左边一列页签（最深的黑，64px）：顶上收起，下面三个竖排页签（速记簿、播放历史、播放队列，各带几何体与首数）。
- * 右边是内容：顶上一条米白信息条（探出面板一截，右端压一颗墨色的「展开整页」），放大的问候、一道短杠、一行说明；然后是按来源分的两组：组头写来源与首数，
- * 右端「本组全部入队」「本组加入歌单」；每一行是封面、歌名、歌手 · 出处，悬停时右端出四颗。最底下一排：全部入队、替换队列播放、清空。
+ * 三页各一条米白的纸：这一页的信息条在顶上（探出面板一截，左端压一颗墨色的返回钮收起面板，右端一颗「展开整页」），
+ * 另外两页是压在底部的两条细纸带（点一下换过去）。信息条下面是放大的问候、一道短杠、一行说明；然后是按来源分的两组：组头写来源与首数，
+ * 右端「本组全部入队」「本组加入歌单」；每一行是封面、歌名、歌手 · 出处，悬停时右端出四颗。细纸带上面一排：全部入队、替换队列播放、清空。
  */
 export const SCRATCHPAD_DRAWER = {
-    rail: { left: 0, top: 0, width: 0.174, bottom: 0 },
-    close: { left: 0.043, top: 0.053, width: 0.087, square: true },
-    notesTab: { left: 0.025, top: 0.105, width: 0.125, height: 0.15 },
-    historyTab: { left: 0.025, top: 0.27, width: 0.125, height: 0.16 },
-    queueTab: { left: 0.025, top: 0.445, width: 0.125, height: 0.16 },
+    /** 信息条左端的返回钮（收起面板）。 */
+    fold: { left: 0.033, top: 0.063, width: 0.087, square: true },
     /** 信息条右端探出面板的那一截上（所以伸出面板右边）。 */
     expand: { left: 0.962, top: 0.063, width: 0.087, square: true },
-    band: { left: 0.174, top: 0.044, width: 0.924, height: 0.071 },
-    greeting: { left: 0.223, top: 0.14, right: 0.04, height: 0.03 },
-    rule: { left: 0.223, top: 0.183, width: 0.098, height: 0.0045 },
-    hint: { left: 0.223, top: 0.198, right: 0.04, height: 0.016 },
-    footer: { left: 0.223, right: 0.038, bottom: 0.024, height: 0.036 },
-    enqueueAll: { left: 0.223, bottom: 0.024, width: 0.27, height: 0.036 },
-    replaceQueue: { left: 0.505, bottom: 0.024, width: 0.33, height: 0.036 },
-    clear: { right: 0.038, bottom: 0.024, width: 0.087, height: 0.036 },
+    band: { left: 0, top: 0.044, width: 1.098, height: 0.071 },
+    greeting: { left: 0.049, top: 0.14, right: 0.04, height: 0.03 },
+    rule: { left: 0.049, top: 0.183, width: 0.098, height: 0.0045 },
+    hint: { left: 0.049, top: 0.198, right: 0.04, height: 0.016 },
+    footer: { left: 0.049, right: 0.038, bottom: 0.104, height: 0.036 },
+    enqueueAll: { left: 0.049, bottom: 0.104, width: 0.26, height: 0.036 },
+    replaceQueue: { left: 0.326, bottom: 0.104, width: 0.33, height: 0.036 },
+    clear: { right: 0.038, bottom: 0.104, width: 0.087, height: 0.036 },
+    /** 底部两条细纸带（上面一格、下面一格），也探出面板一截。 */
+    slimUpper: { left: 0, top: 0.913, width: 1.098, height: 0.031 },
+    slimLower: { left: 0, top: 0.951, width: 1.098, height: 0.031 },
 } satisfies Record<string, PonderRelativeRect>;
 
 /** 面板里两组的行数：第一组（在线平台）三行，第二组（本地）两行。 */
@@ -74,8 +74,8 @@ const DRAWER_LIST_TOP = 0.235;
 const DRAWER_HEADER_HEIGHT = 0.038;
 const DRAWER_ROW_HEIGHT = 0.058;
 const DRAWER_GROUP_GAP = 0.011;
-/** 行与组头从页签列右边起，铺到面板右边。 */
-const DRAWER_LIST_LEFT = 0.174;
+/** 行与组头铺满面板。 */
+const DRAWER_LIST_LEFT = 0;
 
 /** 第 group 组的组头从哪儿起（坐标系是面板的高）。 */
 const drawerGroupTop = (group: number) => {

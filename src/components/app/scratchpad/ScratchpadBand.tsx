@@ -18,7 +18,7 @@ import {
 // 米白的信息条（设计稿 F）：计数斜块、编号、标题；条内纹理（速记簿网点、历史 60° 斜线、队列上下两排短刻度，标题那一段渐隐）；
 // 标题右边的空白里撒一组这一页的几何体——实心、线框、墨色、镂空，和几张裁成这个形状的队列封面（接下来要放的几首）。
 // 两种：左缘面板顶上那条（panel，缩成面板宽、右端斜切探出面板）与展开整页的那条（full，横贯整张纸，右端是这一页的按钮，
-// 按钮由这一页自己经 actionsRef 那个空位画进来）。另有收起的细纸带（ScratchpadSlim）：展开整页时另外两页压在底下，点它换过去。
+// 按钮由这一页自己经 actionsRef 那个空位画进来）。另有收起的细纸带（ScratchpadSlim）：另外两页压在底部，点它换过去。
 // 纹理与颜色在 scratchpad.css（按抽屉上的 data-page 换）。
 
 type ScratchpadBandProps = {
@@ -141,16 +141,22 @@ type ScratchpadSlimProps = {
     index: string;
     title: string;
     countLabel: string;
+    /** 右端「展开整页 ›」的字（左缘面板里不显示，scratchpad.css）。 */
     openLabel: string;
+    /** 读屏念的名字；缺省是「展开整页 · 标题」（面板里点它是换页，交进来「标题 · 首数」）。 */
+    ariaLabel?: string;
     onOpen: (tab: ScratchpadTab) => void;
 };
 
-/** 收起的信息条：一条细纸带，整条是换到那一页的按钮。 */
-export const ScratchpadSlim: React.FC<ScratchpadSlimProps> = memo(({ tab, index, title, countLabel, openLabel, onOpen }) => {
+/**
+ * 收起的信息条：一条细纸带，整条是换到那一页的按钮。展开整页里压在左下角，左缘面板里压在底部；
+ * 字、装饰、纹理按 --scratchpad-slim-shift 往左挪（面板里 160px，展开、收起时跟着纸变，见 scratchpadPaper.ts）。
+ */
+export const ScratchpadSlim: React.FC<ScratchpadSlimProps> = memo(({ tab, index, title, countLabel, openLabel, ariaLabel, onOpen }) => {
     const shape = SCRATCHPAD_TAB_SHAPES[tab];
     const decos = useMemo(() => scatterSlimDecos(tab), [tab]);
     return (
-        <button type="button" className="scratchpad-slim" data-page={tab} data-scratchpad-slim={tab} aria-label={`${openLabel} · ${title}`} onClick={() => onOpen(tab)}>
+        <button type="button" className="scratchpad-slim" data-page={tab} data-scratchpad-slim={tab} aria-label={ariaLabel ?? `${openLabel} · ${title}`} onClick={() => onOpen(tab)}>
             <span className="scratchpad-band-texture" aria-hidden="true" />
             <Decos shape={shape} decos={decos} covers={[]} />
             <span className="scratchpad-slim-head">
