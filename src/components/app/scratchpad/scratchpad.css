@@ -261,7 +261,8 @@
     display: block;
     width: auto;
     overflow: hidden;
-    background: var(--scratchpad-scrim);
+    /* 纱画在里面那一层（.scratchpad-f-scrim），单独淡入淡出：展开时长出来的信息条从头到尾不透明。 */
+    background: none;
     box-shadow: none;
 }
 
@@ -1418,6 +1419,7 @@
    三条信息条的位置与高度也由 ScratchpadSheet 写（.scratchpad-sheet-band），换页、进出总览时挪过去。 */
 
 .scratchpad-f { position: absolute; inset: 0; outline: none; }
+.scratchpad-f-scrim { position: absolute; inset: 0; background: var(--scratchpad-scrim); }
 
 .scratchpad-f-sheet {
     position: absolute;

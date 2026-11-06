@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion, type Transition } from 'framer-motion';
+import { AnimatePresence, motion, useIsPresent, type Transition } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
@@ -26,7 +26,11 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入。
 // 所有的条都朝上走（用户定，2026-11-06）：要去左下角当细纸带的条（从顶上那条、从总览的一行）先从上方离开视口，
 // 再从窗口下面升回到底部（WRAP_*，它在视口外的那一下换高度、换样子）；往上去的条直接挪；两条细纸带之间对调直接挪。
-// 展开时这一页的条从左缘面板顶上那条的位置长出来（纸同时转到 tilt），收回时缩回去。降低动态效果时不挪，只淡入淡出。
+// 展开与收回是同一张纸的一次连续动作（用户要的，2026-11-07「优化展开 / 普通之间的过渡」）：
+// 展开时这一页的条就是面板顶上那条——同一个位置、同一个样子（面板那一面，ENTER_*），一边长到整页那条、一边换成整页的样子，
+// 纸同时转到 tilt；墙上的纱单独淡入（.scratchpad-f-scrim），面板在纱底下待着再淡掉。收回时倒过来：这一页的条换回面板的样子、
+// 缩回面板顶上那条的位置，纱淡掉；面板已经在原位（不再从左边滑进来），条落定的那一刻整页才淡掉，看不出接缝。
+// 降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
 const BandSlotContext = createContext<HTMLElement | null>(null);
@@ -48,6 +52,8 @@ const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', his
 type BandFrame = { top: number; left: number; width: number; height: number };
 /** 一条信息条此刻的样子：整页顶上那条、总览里的一行、左下角的细纸带。 */
 type BandMode = 'full' | 'row' | 'slim';
+/** 条里那一面：除了上面三种，展开开头与收回末尾是左缘面板顶上那条的样子。 */
+type FaceMode = BandMode | 'panel';
 
 /** 左缘面板顶上那条信息条在纸上的位置（纸还没转时，面板 64px 的页签列右边、离窗口顶 40px，340 × 64）。 */
 const PANEL_BAND_FRAME: BandFrame = { top: SHEET_BLEED_Y + 40, left: SHEET_BLEED_X + 64, width: 340, height: 64 };
@@ -79,6 +85,14 @@ const CLICK_SLOP_PX = 6;
 
 /** 安全区：转过之后的底边离窗口底边至少留这么多。 */
 const SAFE_MARGIN = 20;
+
+/**
+ * 展开：条里先是面板那一面，下一帧换成整页那一面——面板那一面马上淡掉，整页那一面在它快淡完时接上，条长到大半时淡满。
+ * 收回：整页那一面马上淡掉，面板那一面接着淡入，条落定前淡满；条缩回去比展开快一点。两面之间不留一段空白的纸。
+ */
+const ENTER_FACE: Pick<BandMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.26, delay: 0.04 }, faceOut: { duration: 0.16 } };
+const LEAVE_FACE: Pick<BandMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.24, delay: 0.06 }, faceOut: { duration: 0.14 } };
+const LEAVE_DURATION = 0.44;
 
 /** 挪动、长高的曲线（与抽屉滑出同一条）。 */
 const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
@@ -153,6 +167,12 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     tab, notesCount, queueCount, tilt, calm, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
 }) => {
     const { t } = useTranslation();
+    // 收回时（整页正在退场）这一页的条换回面板那一面；展开的头一帧也是面板那一面，下一帧再换成整页的（entering）。
+    const isPresent = useIsPresent();
+    const [entering, setEntering] = useState(!calm);
+    useEffect(() => {
+        if (entering) setEntering(false);
+    }, [entering]);
     const historyCount = useScratchpadHistory().length;
     const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount };
     // 每一页的信息条各有一个按钮空位（换页时新旧两条同时在场），这一页的按钮画进这一页的那个。
@@ -274,7 +294,10 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     };
     const layerIn: Transition = { duration: calm ? 0.12 : 0.3, delay: calm ? 0 : 0.2, ease: MOVE_EASE };
 
-    const face = (id: ScratchpadTab, mode: BandMode) => {
+    const face = (id: ScratchpadTab, mode: FaceMode) => {
+        if (mode === 'panel') {
+            return <ScratchpadBand tab={id} index={indexOf(id)} title={t(TITLE_KEYS[id])} count={counts[id]} />;
+        }
         if (mode === 'slim') {
             return (
                 <ScratchpadSlim
@@ -318,6 +341,14 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 '--scratchpad-body-bottom': `${bodyFromBottom}px`,
             } as React.CSSProperties}
         >
+            {/* 墙上的纱：单独淡入淡出（不让整页一起淡，长出来的那条信息条从头到尾是不透明的）。收回时稍晚一点开始淡。 */}
+            <motion.div
+                className="scratchpad-f-scrim"
+                aria-hidden="true"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.3 } }}
+                exit={{ opacity: 0, transition: { duration: calm ? 0.12 : 0.34, delay: calm ? 0 : 0.06 } }}
+            />
             {/* 纸后面的大构图跟着这一页换，交叉淡入。 */}
             <AnimatePresence initial={false}>
                 <motion.div
@@ -336,7 +367,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 className="scratchpad-f-sheet"
                 initial={{ rotate: 0 }}
                 animate={{ rotate: tilt }}
-                exit={{ rotate: 0 }}
+                exit={{ rotate: 0, transition: calm ? move : { duration: LEAVE_DURATION, ease: MOVE_EASE } }}
                 transition={move}
             >
                 {SCRATCHPAD_TABS.map(id => {
@@ -345,7 +376,14 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                     const bandMotion = motionOf(id, mode, frame);
                     // 展开时这一页的条从面板顶上那条长出来，另外两条从纸下面滑上来；收回时反过来。
                     const away: BandFrame = { ...frame, top: sheetHeight };
-                    const origin = id === tab && !showsOverview ? PANEL_BAND_FRAME : away;
+                    const fromPanel = id === tab && !showsOverview;
+                    const origin = fromPanel ? PANEL_BAND_FRAME : away;
+                    // 这一页的条在展开的头一帧、收回的一路上是面板那一面（见文件头）。
+                    const asPanel = fromPanel && !calm && (entering || !isPresent);
+                    const faceMode: FaceMode = asPanel ? 'panel' : mode;
+                    const faceMotion: BandMotion = !fromPanel || calm
+                        ? bandMotion
+                        : !isPresent ? { ...bandMotion, ...LEAVE_FACE } : { ...bandMotion, ...ENTER_FACE };
                     return (
                         <motion.div
                             key={id}
@@ -353,21 +391,21 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                             data-page={id}
                             initial={calm ? false : origin}
                             animate={bandMotion.animate}
-                            exit={calm ? undefined : { ...origin, transition: move }}
+                            exit={calm ? undefined : { ...origin, transition: { duration: LEAVE_DURATION, ease: MOVE_EASE } }}
                             transition={bandMotion.transition}
                         >
                             {/* 退场的那一面拿的是 AnimatePresence 的 custom（这一次的动法），不是它自己上一次的：绕一圈时它要留到出了视口才换。 */}
-                            <AnimatePresence initial={false} custom={bandMotion}>
+                            <AnimatePresence initial={false} custom={faceMotion}>
                                 <motion.div
-                                    key={mode}
+                                    key={faceMode}
                                     className="scratchpad-sheet-band-face"
-                                    custom={bandMotion}
+                                    custom={faceMotion}
                                     variants={FACE_VARIANTS}
                                     initial="hidden"
                                     animate="shown"
                                     exit="gone"
                                 >
-                                    {face(id, mode)}
+                                    {face(id, faceMode)}
                                 </motion.div>
                             </AnimatePresence>
                         </motion.div>
