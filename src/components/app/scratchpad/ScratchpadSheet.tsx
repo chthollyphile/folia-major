@@ -162,7 +162,16 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         }, 600);
         return () => window.clearTimeout(timer);
     }, [showsOverview, tab]);
-    const others = useMemo(() => SCRATCHPAD_TABS.filter(id => id !== tab), [tab]);
+    // 左下角两条细纸带的上下次序像一条传送带（用户定，2026-11-06）：新收下来的那条（从窗口下面上来）落在最下面一格，
+    // 原来在下面的往上挪一格让位，已经在上面的不动；谁也不从下面穿过另一条。进出总览（没有细纸带）之后按页签的先后重新排。
+    const slimOrderRef = useRef<ScratchpadTab[]>([]);
+    const slimOrder = useMemo(() => {
+        const slim = showsOverview ? [] : SCRATCHPAD_TABS.filter(id => id !== tab);
+        const kept = slimOrderRef.current.filter(id => slim.includes(id));
+        const next = [...kept, ...slim.filter(id => !kept.includes(id))];
+        slimOrderRef.current = next;
+        return next;
+    }, [showsOverview, tab]);
     const title = t(TITLE_KEYS[tab]);
 
     // 每一条此刻该在哪、多高。
@@ -174,7 +183,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         const across = { left: 0, width: sheetWidth };
         if (showsOverview) return { ...across, top: SHEET_BLEED_Y + rowTops[SCRATCHPAD_TABS.indexOf(id)], height: ROW_BAND_HEIGHT };
         if (id === tab) return { ...across, top: FULL_BAND_TOP, height: FULL_BAND_HEIGHT };
-        return { ...across, top: sheetHeight - slimFromBottom[others.indexOf(id)], height: SLIM_HEIGHT };
+        return { ...across, top: sheetHeight - slimFromBottom[slimOrder.indexOf(id)], height: SLIM_HEIGHT };
     };
     const move: Transition = calm ? { duration: 0 } : { duration: 0.52, ease: MOVE_EASE };
     const faceIn: Transition = { duration: calm ? 0.12 : 0.22, delay: calm ? 0 : 0.14 };
