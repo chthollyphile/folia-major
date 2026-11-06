@@ -82,13 +82,8 @@ const FORGET_APIS = `(() => {
   return true;
 })()`;
 
-// Whether an advertisement is muted is kept on the page, apart from the player and the volume API,
-// which are forgotten when Spotify's UI changes (M2): a mute that is on stays on across that
-// (L2), and Folia still knows of it when it quits.
-const AD_STATE = `window.__foliaAd || (window.__foliaAd = { muted: false, volumeBeforeAd: null, volumeDuringAd: null });`;
-
-// The body of one call in the page, with the APIs as `api` and the advertisement state as `ad`.
-const inPage = body => `(async () => { const api = ${FIND_APIS}; if (!api) throw new Error('player-unavailable'); const ad = ${AD_STATE} ${body} })()`;
+// The body of one call in the page, with the APIs as `api`.
+const inPage = body => `(async () => { const api = ${FIND_APIS}; if (!api) throw new Error('player-unavailable'); ${body} })()`;
 
 // The player's state as it stands, read in the page and turned into Folia's status here
 // (`statusFromPlayerState`). Page and process share one clock: both run on this computer.
@@ -99,32 +94,10 @@ const STATE_BODY = `
     item: item ? { uri: item.uri, type: item.type, metadata: item.metadata ? { is_advertisement: item.metadata.is_advertisement } : null } : null,
     isPaused: Boolean(s && s.isPaused), isBuffering: Boolean(s && s.isBuffering),
     positionAsOfTimestamp: s && s.positionAsOfTimestamp, timestamp: s && s.timestamp, duration: s && s.duration,
-    repeat: s && s.repeat, adMuted: Boolean(ad.muted),
+    repeat: s && s.repeat,
   };
 `;
 
-// An advertisement is muted for as long as it plays (a free account cannot skip one), and the
-// volume is given back when it is over. Whether it is muted is kept in the page, across Folia runs.
-// The volume heard before the advertisement is written once, when the mute begins: a second mute
-// asked for while the advertisement plays must not record the 0 it set (L2). A volume the listener
-// chooses during the advertisement is kept apart and is the one given back (L2).
-const adMuteBody = muted => `
-  const muter = typeof api.playback.getMuteHelper === 'function' ? api.playback.getMuteHelper() : null;
-  if (${muted}) {
-    if (!ad.muted) {
-      if (muter && typeof muter.mute === 'function') muter.mute();
-      else { ad.volumeBeforeAd = await api.playback.getVolume(); await api.playback.setVolume(0); }
-    }
-  } else {
-    if (muter && typeof muter.unmute === 'function') muter.unmute();
-    const back = ad.volumeDuringAd !== null && ad.volumeDuringAd !== undefined ? ad.volumeDuringAd : ad.volumeBeforeAd;
-    if (back !== null && back !== undefined) await api.playback.setVolume(back);
-  }
-  ad.volumeBeforeAd = null;
-  ad.volumeDuringAd = null;
-  ad.muted = ${muted};
-  return true;
-`;
 
 // Spotify's repeat (0 off, 1 the list, 2 the track) by the names the renderer sends.
 const REPEAT_MODES = Object.freeze({ off: 0, all: 1, one: 2 });
@@ -499,8 +472,6 @@ function createSpotifyOfficialClient({
   // Whether this run of Folia started Spotify: the app is closed with Folia only when it did, or
   // when the DevTools port Folia opened it with still answers (D3).
   let startedByUs = false;
-  // Whether an advertisement is muted in the page right now, as its own answers said (L2).
-  let adMuted = false;
 
   const debugPortAnswers = async () => {
     try {
@@ -652,16 +623,6 @@ function createSpotifyOfficialClient({
     }
   }
 
-  // An advertisement that muted Spotify is given its volume back: the mute lives in the page and
-  // would outlive Folia otherwise (L2). Bounded, because a page that stopped answering must not
-  // hold the quit (N3).
-  async function releaseAdMute() {
-    if (!adMuted || !page.connected()) return;
-    adMuted = false;
-    try {
-      await withLimit(page.evaluate(inPage(adMuteBody(false))), 1000, 'Spotify');
-    } catch { /* the page may be gone meanwhile */ }
-  }
 
   return {
     // Asked by the launch switch (or at app start): tries again even within the cool-down, and
@@ -684,15 +645,11 @@ function createSpotifyOfficialClient({
     // D3: Folia quits and the listener asked for Spotify to be closed with it. Closed when this
     // run started it, or when it runs with the DevTools port Folia opened it with; a Spotify the
     // listener started without the port is left alone, and so is a port another program holds.
-    //
-    // An advertisement that muted Spotify has its volume given back before the app is closed (L2):
-    // the mute lives in the page, and a page killed with it keeps Spotify silent for good.
     async closeForQuit() {
       if (platform !== 'win32') return false;
       // A Spotify this run started and the listener closed meanwhile is not Folia's to close.
       if (startedByUs && !(await spotifyIsRunning())) startedByUs = false;
       if (!startedByUs && !(await spotifyAnswersOnPort())) return false;
-      await releaseAdMute();
       page.close();
       await stopSpotify();
       startedByUs = false;
@@ -700,8 +657,6 @@ function createSpotifyOfficialClient({
       return true;
     },
 
-    // Whether quitting has something to wait for in the page: an advertisement mute still on (L2).
-    releasePending: () => Boolean(page.connected() && adMuted),
 
     // Plays one track from `startMs` with Spotify's own repeat and shuffle off: the order is Folia's.
     // Resolves once Spotify has the track loaded, so a status read after it is about this track.
@@ -768,13 +723,11 @@ function createSpotifyOfficialClient({
       return orMediaSession(`await api.player.seekTo(${target}); return true;`, 'seek', { ms: target });
     },
 
-    // The listener's own volume; a volume chosen while an advertisement plays is the one given
-    // back when it is over (L2).
+    // The listener's own volume, set as given.
     setVolume({ value }) {
       const volume = Math.min(1, Math.max(0, Number(value)));
       if (!Number.isFinite(volume)) throw spotifyError('invalid-response', 'Invalid volume');
       return call(`
-        if (ad.muted) { ad.volumeDuringAd = ${volume}; return true; }
         await api.playback.setVolume(${volume});
         return true;
       `);
@@ -792,29 +745,12 @@ function createSpotifyOfficialClient({
         if (!mediaSession) throw error;
         return statusFromMediaSession(await mediaSession.ask('status'));
       }
-      const status = statusFromPlayerState(state, Date.now());
-      const wasMuted = Boolean(state?.adMuted);
-      if (status.ad !== wasMuted) {
-        try {
-          await page.evaluate(inPage(adMuteBody(status.ad)));
-          log(status.ad ? '[SpotifyClient] an advertisement plays; it is muted' : '[SpotifyClient] the advertisement is over; the volume is given back');
-          adMuted = status.ad;
-        } catch (error) {
-          warn('[SpotifyClient] the advertisement mute could not be changed', error);
-          adMuted = wasMuted;
-        }
-      } else {
-        adMuted = wasMuted;
-      }
-      return status;
+      return statusFromPlayerState(state, Date.now());
     },
 
-    // The app is quitting. An advertisement that muted Spotify has its volume given back first:
-    // the mute is kept in the page and would outlive Folia otherwise (L2).
+    // The app is quitting: the page connection and the media session helper are let go. Nothing in
+    // the page is changed, so a page that stopped answering cannot hold the quit.
     async close() {
-      // Only a mute this run set has anything to give back: a connection that was never made has
-      // nothing, and waiting on a page that is not there would hold the quit.
-      await releaseAdMute();
       page.close();
       mediaSession?.close();
     },

@@ -497,8 +497,9 @@ export interface ProviderExternalPlaybackStatus {
     /** The player accepted a start/resume and is still buffering; this is not a user pause. */
     starting?: boolean;
     /**
-     * The player is sounding an advertisement between songs (a free account has some): the app
-     * shows it as one, holds the song's clock, and reads no lyrics for it.
+     * The player is sounding an advertisement between songs (a free account has some). Folia only
+     * recognises it, so that it is never taken for the song's end or for a track it did not ask
+     * for: nothing about the advertisement is shown, muted or otherwise changed.
      */
     advertisement?: boolean;
     /**

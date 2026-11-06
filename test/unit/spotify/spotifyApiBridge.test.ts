@@ -624,7 +624,7 @@ describe('Spotify playback ways: standard and Soloist', () => {
         available: vi.fn(() => ({ available: true })),
         launch: vi.fn(async () => {}),
         status: vi.fn(async () => ({ id: '', ad: false, isPaused: true, isBuffering: false, positionMs: 0, durationMs: 0 })),
-        releasePending: vi.fn(() => false),
+
         closeForQuit: vi.fn(async () => {}),
         close: vi.fn(async () => {}),
     });

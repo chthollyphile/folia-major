@@ -33,7 +33,6 @@
 
 进度、播放/暂停、切歌、循环、随机、打乱、歌单播放与编辑、音量（含静音）、插队、喜欢，都由 Folia 的队列和控件完成。另外：
 
-- **广告**：免费账号在歌与歌之间会有广告。广告期间 Folia 把 Spotify 静音并显示"广告"，歌曲时钟停住、不读歌词；广告结束恢复原音量。广告本身跳不过，只能静音。
 - **媒体键**：外部播放期间，Folia 接管系统的上一首/播放暂停/下一首，走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走。
 - **在 Spotify 里手动切歌**：在 Spotify 窗口里点上一首/下一首，Folia 会拉回自己的队列：往前走就是 Folia 的下一首，往回走就是 Folia 的上一首，队首时从头重放当前这首。
 - **手动关了 Spotify**：之后点播放，Folia 重新拉起它，并从原来的进度继续。自动续播和暂停永远不会拉起 Spotify。
@@ -51,11 +50,11 @@
 
 - **只验证了 Windows**：Windows 11、微软商店版 Spotify 1.3.6、免费账号。其他版本和安装方式没有测。
 - **声音不经过 Folia**：均衡器、音效、ReplayGain、Automix 和跟着音频跳动的效果都不处理它，视频导出也不可用。
-- **广告只能静音**。
+- **广告照常播放**：免费账号在歌与歌之间会有广告。Folia 不做任何屏蔽或静音（Spotify 的条款禁止屏蔽广告），音量也不动。Folia 只是认得出它是广告，所以它既不会被当成当前这首的结束，也不会被当成你在 Spotify 窗口里切了歌：队列和进度都停在这首上。
 - **Spotify 的页面结构会变**：播放器是在页面的 React 树里找到的，Spotify 改版后可能找不到，这时会退到媒体会话，精度降低。
 
 ## 实现
 
-- 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口连接、播放器调用、广告静音、媒体会话）、`mediaKeys.cjs`（外部播放期间接管媒体键）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）。
+- 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口连接、播放器调用、媒体会话）、`mediaKeys.cjs`（外部播放期间接管媒体键）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）。
 - 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现），`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派），`spotifySetup.ts`（配置清单）。
-- 公共部分：`externalPlayback.ts` 里的 `skipped`（播放器被它自己的控件换了歌）、广告和降级状态，`externalPlayerWake.ts`（启动时唤起）。
+- 公共部分：`externalPlayback.ts` 里的 `skipped`（播放器被它自己的控件换了歌）和降级状态，`externalPlayerWake.ts`（启动时唤起）。

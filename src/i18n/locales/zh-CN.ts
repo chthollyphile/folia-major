@@ -617,7 +617,6 @@ export default {
     "externalBypassTitle": "这首歌由平台自己的播放器播放",
     "externalBypassBody": "声音不经过 Folia，这里的均衡器和音效不会改变你听到的声音。设置会保留，播放其他歌曲时照常生效。",
     "externalReplayGainBypassed": "由平台自己的播放器播放，不应用 ReplayGain",
-    "externalPlayerAdvertisement": "广告",
     "externalPlayerFallback": "播放器目前经由系统媒体会话应答：远程调试恢复前，控制精度会降低",
     "songUnavailableAlternativeTitle": "可播放其他版本",
     "songUnavailableAlternativeDescription": "当前歌曲已下架，{{typeDesc}}。是否改为播放其他版本？",

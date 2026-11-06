@@ -122,8 +122,8 @@ const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boo
 export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalPlaybackStatus => {
     const current = attempt;
     const isPlaying = !data.isPaused && !data.isBuffering;
-    // An advertisement plays between songs of a free account: it is muted on the desktop side, and
-    // shown as the song still loading here, never as another song to stop.
+    // An advertisement plays between songs of a free account: it is read as the song still loading,
+    // so it is never taken for the song's end or for another song to stop. Nothing is muted.
     if (data.ad) {
         return { mediaId: current?.id ?? '', isPlaying: false, ended: false, starting: true, advertisement: true,
             positionMs: current?.positionMs ?? 0, durationMs: current?.durationMs ?? 0 };

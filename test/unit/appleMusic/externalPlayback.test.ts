@@ -455,14 +455,9 @@ describe('external playback route', () => {
     });
 });
 
-// An advertisement of the player itself, and the player answering through its fallback channel:
-// what the app is told, once, and that the song it shows is not moved on by either (so no lyric
-// read is started for a song that is not playing).
-const advertisement = (): ProviderExternalPlaybackStatus => status({
-    isPlaying: false, positionMs: 0, durationMs: 30000, starting: true, advertisement: true,
-});
-
-describe('an advertisement of the external player', () => {
+// The player answering through its coarse channel: said once in a run of Folia, whichever way it
+// comes and goes (L8).
+describe('the player answering coarsely', () => {
     let events: string[] = [];
     let unsubscribe = () => {};
 
@@ -475,7 +470,6 @@ describe('an advertisement of the external player', () => {
         omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
         events = [];
         unsubscribe = engine.subscribeExternalPlayback(event => {
-            if (event.type === 'advertisement') events.push(`advertisement:${event.active}`);
             if (event.type === 'degraded') events.push(`degraded:${event.active}`);
             if (event.type === 'ended') events.push('ended');
         });
@@ -488,34 +482,6 @@ describe('an advertisement of the external player', () => {
         vi.useRealTimers();
     });
 
-    it('is told once when it starts and once when it is over', async () => {
-        await engine.beginExternalPlayback(song);
-        engine.announceExternalPlayback();
-        expect(engine.isExternalAdvertisement()).toBe(false);
-
-        omniMock.getExternalPlaybackStatus.mockResolvedValue(advertisement());
-        await vi.advanceTimersByTimeAsync(600);
-        expect(engine.isExternalAdvertisement()).toBe(true);
-
-        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 40000 }));
-        await vi.advanceTimersByTimeAsync(600);
-        expect(engine.isExternalAdvertisement()).toBe(false);
-        expect(events.filter(event => event.startsWith('advertisement:'))).toEqual(['advertisement:true', 'advertisement:false']);
-    });
-
-    it('does not end the song Folia shows, so no lyric read is started for another one', async () => {
-        await engine.beginExternalPlayback(song);
-        engine.announceExternalPlayback();
-        omniMock.getExternalPlaybackStatus.mockResolvedValue(advertisement());
-        await vi.advanceTimersByTimeAsync(1200);
-
-        expect(events).not.toContain('ended');
-        expect(engine.getExternalSong()).toBe(song);
-        // The advertised minute is the player's, so the song's clock stands where it was.
-        const held = engine.getExternalPosition();
-        await vi.advanceTimersByTimeAsync(2000);
-        expect(engine.getExternalPosition()).toBe(held);
-    });
 
     it('tells the fallback once in a run of Folia, not once an episode (L8)', async () => {
         await engine.beginExternalPlayback(song);

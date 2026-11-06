@@ -664,19 +664,18 @@ function createSpotifyApiBridge({
     // running with the DevTools port Folia opened, as it quits. Soloist, where it runs, is stopped as well.
     shutdown({ closePlayerOnQuit = false } = {}) {
       const stopping = soloist?.shutdown() ?? null;
-      // The page has to be touched only for a Spotify that is closed with Folia, or for an
-      // advertisement mute still waiting to be given back. Neither: the quit is not held for it.
-      const playerWaits = Boolean(officialClient) && (closePlayerOnQuit || officialClient.releasePending?.() === true);
+      // The page has to be touched only for a Spotify that is closed with Folia. Without it the
+      // quit is not held for the player at all.
+      const playerWaits = Boolean(officialClient) && closePlayerOnQuit;
       const closing = (async () => {
-        if (playerWaits && closePlayerOnQuit) {
+        if (playerWaits) {
           try {
             await officialClient.closeForQuit();
           } catch (error) {
             warn('[Spotify] Spotify could not be closed as Folia quits', error);
           }
         }
-        // The media session helper is a child process; it ends with the app, and an advertisement
-        // that muted Spotify has its volume given back first.
+        // The media session helper is a child process; it ends with the app.
         await officialClient?.close();
       })();
       const renewal = renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);

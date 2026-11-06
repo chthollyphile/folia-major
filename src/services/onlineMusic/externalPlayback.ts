@@ -36,8 +36,6 @@ export type ExternalPlaybackEvent =
     | { type: 'ended'; skipped?: 'next' | 'previous' }
     | { type: 'failure'; error: unknown }
     | { type: 'foreign-track' }
-    // An advertisement between songs started (active) or ended: the app says so instead of the song.
-    | { type: 'advertisement'; active: boolean }
     // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
     | { type: 'degraded'; active: boolean }
 
@@ -62,8 +60,6 @@ type ExternalSession = {
     skipped?: 'next' | 'previous';
     /** Set when the player moved to a track this app did not ask for. */
     foreign: boolean;
-    /** The player is sounding an advertisement: no lyric read, and the song's clock stands still. */
-    advertisement: boolean;
     /** The last answer came from the player's fallback channel. */
     degraded: boolean;
     preparedQueueKey: string;
@@ -124,10 +120,6 @@ export const getExternalPosition = () => session?.clock.read() ?? 0;
 
 /** Whether the external player is paused (also true while a track loads). */
 export const isExternalPaused = () => session ? !session.playing : false;
-
-/** Whether the player is sounding an advertisement of its own between Folia's songs. */
-export const isExternalAdvertisement = () => isExternalPlaybackSounding() && session?.advertisement === true;
-
 
 /** The song the external player was told to play, or null. */
 export const getExternalSong = () => session?.song ?? null;
@@ -234,13 +226,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     const positionSec = status.positionMs / 1000;
     // A late completion belonging to the previous song cannot fill or finish the new session.
     if (!current.announced && !status.mediaId) return;
-    // Told before the song is on screen too: an advertisement is not about this song, and the
-    // fallback is about the player rather than the track.
-    const advertisement = status.advertisement === true;
-    if (advertisement !== current.advertisement) {
-        current.advertisement = advertisement;
-        emit({ type: 'advertisement', active: advertisement });
-    }
+    // Told before the song is on screen too: the fallback is about the player rather than the track.
     const degraded = status.degraded === true;
     if (degraded !== current.degraded) {
         current.degraded = degraded;
@@ -436,7 +422,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0, { us
     session = {
         song, songKey, attempt, clock, durationSec,
         announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
-        advertisement: false, degraded: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        degraded: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);

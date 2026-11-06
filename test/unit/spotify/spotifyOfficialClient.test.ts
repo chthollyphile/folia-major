@@ -11,8 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // D1: only a play or the launch switch may close and start it again, once in a run; a status read,
 // a pause, a seek and a queue write never start it and never close it. M2: a page that throws is
 // given one more look with the cached player dropped. M7: the whole DevTools connection is bounded,
-// and a socket that closes before it opened is a refused connection. L2: the advertisement mute
-// script switches on and off. L5: Windows' own tools run by their absolute path. The last block is
+// and a socket that closes before it opened is a refused connection. L5: Windows' own tools run by
+// their absolute path. The last block is
 // the system media keys Folia holds while an external player sounds the song (mediaKeys.cjs): the
 // three keys are registered and mapped to transport actions, given back on request, and a key the
 // system refused is tried again the next time.
@@ -381,55 +381,6 @@ describe('M7: the DevTools connection', () => {
     });
 });
 
-describe('L2: the advertisement mute', () => {
-    it('switches the mute on for an advertisement and off again after it', async () => {
-        let advertisement: unknown = { item: { uri: 'spotify:ad:1', metadata: { is_advertisement: 'true' } }, isPaused: false, isBuffering: false, duration: 30000, adMuted: false };
-        handle = expression => (expression.includes('positionAsOfTimestamp') ? { value: advertisement } : { value: true });
-        const app = makeClient({ running: true, portAnswers: true });
-
-        expect((await app.client.status()).ad).toBe(true);
-        // The page keeps the mute: the second read sees it already on, and does not mute again.
-        (advertisement as { adMuted: boolean }).adMuted = true;
-        expect((await app.client.status()).ad).toBe(true);
-        let expressions = FakeSocket.sockets.flatMap(socket => socket.expressions);
-        expect(expressions.filter(text => text.includes('ad.muted = true')).length).toBe(1);
-
-        advertisement = { item: { uri: 'spotify:track:' + TRACK }, isPaused: false, isBuffering: false, duration: 200000, adMuted: true };
-        expect((await app.client.status()).ad).toBe(false);
-        expressions = FakeSocket.sockets.flatMap(socket => socket.expressions);
-        expect(expressions.filter(text => text.includes('ad.muted = false')).length).toBe(1);
-        await app.client.close();
-    });
-
-    it('keeps the mute state apart from the player the page forgets (N5)', async () => {
-        let seen = 0;
-        handle = expression => {
-            if (expression.includes('delete window.__foliaSpotify')) return { value: true };
-            seen += 1;
-            return seen === 1 ? { details: 'Error: player-unavailable' } : { value: true };
-        };
-        const app = makeClient({ running: true, portAnswers: true });
-        await app.client.pause();
-        const expressions = FakeSocket.sockets.flatMap(socket => socket.expressions);
-        // Forgetting the player leaves the advertisement state alone, and the calls read it from the window.
-        expect(expressions.find(text => text.includes('delete window.__foliaSpotify'))).not.toContain('__foliaAd');
-        expect(expressions.some(text => text.includes('window.__foliaAd'))).toBe(true);
-        await app.client.close();
-    });
-
-    it('gives a muted advertisement its volume back as Folia quits', async () => {
-        handle = expression => (expression.includes('positionAsOfTimestamp')
-            ? { value: { item: { uri: 'spotify:ad:1', metadata: { is_advertisement: 'true' } }, isPaused: false, isBuffering: false, duration: 30000, adMuted: false } }
-            : { value: true });
-        const app = makeClient({ running: true, portAnswers: true });
-        // The mute is kept in the page, so the page has to be open for it to be given back.
-        expect((await app.client.status()).ad).toBe(true);
-        await app.client.close();
-        const expressions = FakeSocket.sockets.flatMap(socket => socket.expressions);
-        expect(expressions.some(text => text.includes('ad.muted = false'))).toBe(true);
-    });
-});
-
 describe('the bridge over the official client', () => {
     const makeBridge = (officialClient: any, now = () => 0) => createSpotifyApiBridge({
         store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
@@ -495,45 +446,6 @@ describe('the quit, the helper and the port', () => {
         openExternal: vi.fn(), officialClient, now: () => 0, log: () => {}, warn: () => {},
     });
 
-    // The page says an advertisement plays, and keeps the mute the test can watch.
-    const adPlaying = () => {
-        const page = { muted: false, mutedWhenKilled: null as boolean | null };
-        handle = expression => {
-            if (expression.includes('positionAsOfTimestamp')) {
-                return { value: { item: { uri: 'spotify:ad:1', metadata: { is_advertisement: 'true' } }, isPaused: false, isBuffering: false, duration: 30000, adMuted: page.muted } };
-            }
-            if (expression.includes('ad.muted = true')) { page.muted = true; return { value: true }; }
-            if (expression.includes('ad.muted = false')) { page.muted = false; return { value: true }; }
-            return { value: 'loaded' };
-        };
-        return page;
-    };
-
-    it('gives the advertisement mute back before it closes Spotify (N2)', async () => {
-        const page = adPlaying();
-        const app = makeClient({ portAnswers: true });
-        const order: string[] = [];
-        app.runFile.mockImplementation((file: string, _args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
-            if (String(file).includes('taskkill')) {
-                page.mutedWhenKilled = page.muted;
-                order.push('taskkill');
-                callback(null, '');
-                return;
-            }
-            callback(null, '');
-        });
-        expect((await app.client.status()).ad).toBe(true);
-        expect(page.muted).toBe(true);
-        // Quitting has something to wait for only while the mute is still on (N3).
-        expect(app.client.releasePending()).toBe(true);
-
-        await expect(app.client.closeForQuit()).resolves.toBe(true);
-        // The volume was given back before the app was closed, and the page no longer holds a mute.
-        expect(page.mutedWhenKilled).toBe(false);
-        expect(page.muted).toBe(false);
-        expect(app.client.releasePending()).toBe(false);
-    });
-
     it('closes Spotify when the port answering is Spotify itself, and leaves the port alone otherwise (N9)', async () => {
         const spotify = makeClient({ portAnswers: true });
         expect(await spotify.client.closeForQuit()).toBe(true);
@@ -580,7 +492,7 @@ describe('the quit, the helper and the port', () => {
         // The flag lives in main.cjs, which the bridge cannot see: what is pinned here is the one
         // wire the flag leans on — a shutdown that already finished answers nothing to hold, and a
         // second call is what main.cjs must not make.
-        const officialClient: any = { close: vi.fn(async () => {}), releasePending: () => false, closeForQuit: vi.fn(async () => true) };
+        const officialClient: any = { close: vi.fn(async () => {}), closeForQuit: vi.fn(async () => true) };
         const bridge = makeBridge(officialClient);
         expect(await bridge.shutdown()).toBeNull();
         expect(officialClient.closeForQuit).not.toHaveBeenCalled();
@@ -603,7 +515,7 @@ describe('the quit, the helper and the port', () => {
         expect(timeouts).toEqual([2000]);
     });
 
-    it('does not hold the quit when the setting is off and no advertisement is muted (N3)', async () => {
+    it('does not hold the quit when the setting is off (N3)', async () => {
         const app = makeClient({ portAnswers: true });
         const bridge = makeBridge(app.client);
         expect(await bridge.shutdown()).toBeNull();

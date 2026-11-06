@@ -88,13 +88,6 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack, ru
                 setStatusMessage({ type: 'info', text: latestRef.current.t('status.externalPlayerMovedOn') });
                 return;
             }
-            if (event.type === 'advertisement') {
-                if (!event.active) return;
-                // The player's own advertisement between songs: Folia says so instead of drawing
-                // the queued song, and reads no lyrics for it.
-                setStatusMessage({ type: 'info', text: latestRef.current.t('status.externalPlayerAdvertisement') });
-                return;
-            }
             if (event.type === 'degraded' && event.active) {
                 // Once per episode: the service reports the change, and coming back resets it. A
                 // status message, never a dialog: the songs still play, just steered coarsely.
