@@ -39,6 +39,7 @@ const settle = async () => { for (let turn = 0; turn < 5; turn += 1) await Promi
 const sessionOf = (providerId: string, phase: LibraryLoginPhase): LibraryLoginSessionSnapshot => ({
     id: 1, providerId, phase, methods: [], selectedMethodId: null, inBrowser: false, codeImage: '', canReopenLoginPage: true,
     failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
+    checksAfterLogin: false,
 });
 const completion = (providerId: string, outcome: LibraryLoginCompletion['outcome'] = 'completed'): LibraryLoginCompletion => ({ sessionId: 1, providerId, outcome });
 
@@ -68,6 +69,7 @@ const setup = ({ plays = false } = {}) => {
         playsDone: () => motion.on,
         switchTo: providerId => ask('switch', providerId),
         signOut: providerId => ask('sign out', providerId),
+        openSetup: providerId => { said.push(`setup ${providerId}`); },
     });
     // A switch and a sign-out are answered by hand: `answers` holds the last one asked.
     const answers: Record<string, Deferred<boolean>> = {};

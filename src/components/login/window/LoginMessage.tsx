@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AppWindow, ChevronDown, ExternalLink, Loader2, QrCode, Smartphone, User, type LucideIcon } from 'lucide-react';
+import { AppWindow, ChevronDown, ExternalLink, ListChecks, Loader2, QrCode, Smartphone, User, type LucideIcon } from 'lucide-react';
 import type { LoginFailure } from '../../../types/loginFailure';
 import { buildLoginIssueUrl } from '../../../services/onlineMusic/login/loginDiagnosticReport';
 import type { OnlineProviderId } from '../../../types/onlineMusic';
@@ -45,7 +45,7 @@ type LoginMessageProps = {
     steps?: { marks: StepMark[]; current: number } | null;
 };
 
-const STEP_ICON: Record<StepMark, LucideIcon> = { code: QrCode, browser: AppWindow, phone: Smartphone, account: User };
+const STEP_ICON: Record<StepMark, LucideIcon> = { code: QrCode, browser: AppWindow, phone: Smartphone, account: User, check: ListChecks };
 
 const StepMarks: React.FC<{ marks: StepMark[]; current: number }> = ({ marks, current }) => (
     <div aria-hidden className="login-fade ml-auto flex shrink-0 items-center self-end">

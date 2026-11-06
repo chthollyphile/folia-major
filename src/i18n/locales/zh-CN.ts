@@ -795,6 +795,7 @@ export default {
       "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
+      "provider-playback-setup": { "title": "平台播放设置", "description": "打开当前平台的播放配置清单" },
       "settings-options": { "title": "打开选项", "description": "打开设置中心" },
       "settings-now-playing-card-position": { "title": "调整卡片位置", "description": "拖动正在播放卡片到新的位置" },
       "settings-ai-provider": { "title": "AI 供应商设置", "description": "选择 AI 供应商和模型" },
@@ -1628,6 +1629,14 @@ export default {
     "rowSignedOut": "未登录",
     "signInRanOut": "登录已过期",
     "readingAccount": "正在读取账号…",
+    "checkingAccount": "正在检查这个账号能否播放…",
+    "setupOpen": "播放设置",
+    "setupDone": "完成",
+    "setupLater": "稍后再说",
+    "setupBack": "返回",
+    "setupSecretChange": "更换",
+    "setupSecretCancel": "保留已存的",
+    "setupState": { "done": "已完成", "todo": "待完成", "warn": "需要注意", "error": "出错" },
     "openBrowser": "打开浏览器",
     "details": "详情",
     "retryIn": "{{seconds}} 秒后可重试",
@@ -1699,7 +1708,8 @@ export default {
     "noteMaybeSubscription": "可能需要会员才能播放",
     "noteMaybeRegion": "可能受地区限制",
     "skipCountdown": "{{seconds}} 秒后跳到下一首",
-    "signIn": "登录"
+    "signIn": "登录",
+    "openSetup": "播放设置"
   },
   "home": {
     "welcome": "欢迎使用 Folia",

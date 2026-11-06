@@ -72,6 +72,11 @@ const createSession = async () => {
         canRunLoginSelfCheck: () => false,
         runLoginSelfCheck: async () => null,
         getProviderCapabilities: () => ({ auth: true }),
+        checksAfterLogin: () => false,
+        checkAfterLogin: async () => null,
+        hasSetup: () => false,
+        getSetup: async () => null,
+        runSetupAction: async () => { throw new Error('no setup'); },
         dropRequestLimits: () => { },
     };
     const manual = createManualClock();

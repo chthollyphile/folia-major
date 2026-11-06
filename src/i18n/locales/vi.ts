@@ -795,6 +795,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
+      "provider-playback-setup": { "title": "Thiết lập phát nhạc của nền tảng", "description": "Mở danh sách thiết lập phát nhạc của nền tảng hiện tại" },
       "settings-options": { "title": "Mở Tùy chọn", "description": "Mở trung tâm tùy chọn" },
       "settings-now-playing-card-position": { "title": "Đổi vị trí thẻ bài hát", "description": "Kéo thẻ bài hát đang phát đến vị trí mới" },
       "settings-ai-provider": { "title": "Cài đặt nhà cung cấp AI", "description": "Chọn nhà cung cấp AI và mô hình" },
@@ -1628,6 +1629,14 @@ export default {
     "rowSignedOut": "Chưa đăng nhập",
     "signInRanOut": "Đăng nhập đã hết hạn",
     "readingAccount": "Đang đọc thông tin tài khoản…",
+    "checkingAccount": "Đang kiểm tra tài khoản này có phát được không…",
+    "setupOpen": "Thiết lập phát nhạc",
+    "setupDone": "Xong",
+    "setupLater": "Để sau",
+    "setupBack": "Quay lại",
+    "setupSecretChange": "Thay đổi",
+    "setupSecretCancel": "Giữ khóa đã lưu",
+    "setupState": { "done": "đã xong", "todo": "chưa làm", "warn": "cần chú ý", "error": "lỗi" },
     "openBrowser": "Mở trình duyệt",
     "details": "Chi tiết",
     "retryIn": "Có thể thử lại sau {{seconds}} giây",
@@ -1699,7 +1708,8 @@ export default {
     "noteMaybeSubscription": "Có thể cần tài khoản VIP/Premium để phát",
     "noteMaybeRegion": "Có thể bị giới hạn theo khu vực địa lý",
     "skipCountdown": "Sẽ chuyển sang bài tiếp theo sau {{seconds}} giây",
-    "signIn": "Đăng nhập"
+    "signIn": "Đăng nhập",
+    "openSetup": "Thiết lập phát nhạc"
   },
   "home": {
     "welcome": "Chào mừng đến với Folia",

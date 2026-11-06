@@ -795,6 +795,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
+      "provider-playback-setup": { "title": "Platform playback setup", "description": "Open the playback setup checklist of the current platform" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
       "settings-now-playing-card-position": { "title": "Reposition song card", "description": "Drag the now playing card to a new position" },
       "settings-ai-provider": { "title": "AI provider settings", "description": "Choose an AI provider and model" },
@@ -1628,6 +1629,14 @@ export default {
     "rowSignedOut": "Not signed in",
     "signInRanOut": "Sign-in expired",
     "readingAccount": "Reading your account…",
+    "checkingAccount": "Checking whether this account can play…",
+    "setupOpen": "Playback setup",
+    "setupDone": "Done",
+    "setupLater": "Not now",
+    "setupBack": "Back",
+    "setupSecretChange": "Change",
+    "setupSecretCancel": "Keep the saved one",
+    "setupState": { "done": "done", "todo": "to do", "warn": "needs attention", "error": "failed" },
     "openBrowser": "Open the browser",
     "details": "Details",
     "retryIn": "Try again in {{seconds}} s",
@@ -1699,7 +1708,8 @@ export default {
     "noteMaybeSubscription": "May need a membership to play",
     "noteMaybeRegion": "May be restricted in your region",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "openSetup": "Playback setup"
   },
   "home": {
     "welcome": "Welcome to Folia",

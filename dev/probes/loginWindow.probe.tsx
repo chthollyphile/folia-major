@@ -134,6 +134,7 @@ const sessionOf = (providerId: string, patch: Partial<LibraryLoginSessionSnapsho
     selfCheck: null,
     localService: providerId === 'netease' ? SERVICE_UP : { available: false, failed: false, error: null, restarting: false },
     texts: null,
+    checksAfterLogin: false,
     ...patch,
 });
 

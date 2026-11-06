@@ -795,6 +795,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferensi", "description": "Atur preferensi di akun Anda yang memengaruhi rekomendasi" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
+      "provider-playback-setup": { "title": "Pengaturan pemutaran platform", "description": "Buka daftar pengaturan pemutaran platform saat ini" },
       "settings-options": { "title": "Buka Opsi", "description": "Buka pusat opsi" },
       "settings-now-playing-card-position": { "title": "Atur posisi kartu lagu", "description": "Seret kartu yang sedang diputar ke posisi baru" },
       "settings-ai-provider": { "title": "Pengaturan penyedia AI", "description": "Pilih penyedia dan model AI" },
@@ -1628,6 +1629,14 @@ export default {
     "rowSignedOut": "Belum login",
     "signInRanOut": "Login kedaluwarsa",
     "readingAccount": "Membaca akun…",
+    "checkingAccount": "Memeriksa apakah akun ini dapat memutar…",
+    "setupOpen": "Pengaturan pemutaran",
+    "setupDone": "Selesai",
+    "setupLater": "Nanti saja",
+    "setupBack": "Kembali",
+    "setupSecretChange": "Ganti",
+    "setupSecretCancel": "Pakai yang tersimpan",
+    "setupState": { "done": "selesai", "todo": "belum", "warn": "perlu perhatian", "error": "gagal" },
     "openBrowser": "Buka browser",
     "details": "Detail",
     "retryIn": "Coba lagi dalam {{seconds}} dtk",
@@ -1699,7 +1708,8 @@ export default {
     "noteMaybeSubscription": "Mungkin perlu keanggotaan untuk memutar",
     "noteMaybeRegion": "Mungkin dibatasi di wilayah Anda",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
-    "signIn": "Masuk"
+    "signIn": "Masuk",
+    "openSetup": "Pengaturan pemutaran"
   },
   "home": {
     "welcome": "Selamat datang di Folia",
