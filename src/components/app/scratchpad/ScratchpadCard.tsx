@@ -3,6 +3,7 @@ import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion
 import { Check, Music2, Play } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { scratchpadCoverUrl } from './scratchpadCover';
 import { CARD_HEIGHT, CARD_WIDTH } from './canvasLayout';
 
@@ -95,6 +96,16 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
 }) => {
     const x = useMotionValue(slotX);
     const y = useMotionValue(slotY);
+    // 相片歪的角度也交给 framer：它把位移与旋转写进同一个 transform（先挪到格子、再绕自己的中心转）。用 CSS 的 rotate 属性的话，
+    // 它绕卡片挪动之前的位置（网格原点）转，越靠右甩得越远——第六格歪 1.7° 就低出十几像素，悬停摆正时整张往上跳（用户看到的）。
+    const photoTilt = variant === 'photo' ? photoRotation(entry.key) : 0;
+    const rotate = useMotionValue(photoTilt);
+    const calm = useReducedMotionFor('uiMicroMotion');
+    // 悬停时摆正，离开时歪回去（降低动态效果时不动）。
+    const straighten = (straight: boolean) => {
+        if (variant !== 'photo' || calm) return;
+        animate(rotate, straight ? 0 : photoTilt, { duration: 0.26, ease: [0.22, 1, 0.36, 1] });
+    };
     const [coverFailed, setCoverFailed] = useState(false);
     const coverUrl = scratchpadCoverUrl(entry.song, width);
 
@@ -135,8 +146,10 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
                 y,
                 width,
                 height,
-                ...(variant === 'photo' ? { '--scratchpad-photo-rotate': `${photoRotation(entry.key)}deg` } as React.CSSProperties : null),
+                ...(variant === 'photo' ? { rotate } : null),
             }}
+            onPointerEnter={() => straighten(true)}
+            onPointerLeave={() => straighten(false)}
             title={variant === 'film' ? `${entry.song.name} · ${getSongArtistLabel(entry.song)}` : undefined}
             onPointerDown={event => onPointerDown(entry, event)}
             onDoubleClick={() => onPlay(entry)}

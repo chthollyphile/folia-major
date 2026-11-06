@@ -1759,17 +1759,12 @@
     background: #ece6d8;
     box-shadow: 0 8px 18px rgb(0 0 0 / 50%);
     color: #3a332a;
-    rotate: var(--scratchpad-photo-rotate, 0deg);
 }
 
-.scratchpad-card.is-photo:hover { background: #f3eee2; rotate: 0deg; }
+/* 歪的角度与悬停摆正在 ScratchpadCard（framer 的 rotate，与位移写进同一个 transform，绕卡片自己的中心转）。 */
+.scratchpad-card.is-photo:hover { background: #f3eee2; }
 
-/* 相片悬停、选中时动得小一点（用户嫌跳得太远，2026-11-07）：摆正是平滑转过去的（原来没过渡，一下子跳正），
-   只浮起 1px（选中 2px），不像笔记本、胶片那样浮 3 / 4px。 */
-.scratchpad-drawer.is-expanded .scratchpad-card.is-photo {
-    transition: background-color 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1), rotate 0.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, opacity 0.18s ease;
-}
-
+/* 相片悬停、选中时只浮起 1px（选中 2px），不像笔记本、胶片那样浮 3 / 4px（用户嫌跳得太远，2026-11-07）。 */
 .scratchpad-drawer.is-expanded .scratchpad-card.is-photo:hover:not(.is-moving) { translate: 0 -1px; }
 .scratchpad-drawer.is-expanded .scratchpad-card.is-photo.is-selected:not(.is-moving) { translate: 0 -2px; }
 .scratchpad-card.is-photo .scratchpad-card-cover { grid-column: 1 / -1; width: 92px; height: 92px; aspect-ratio: auto; }
@@ -1984,7 +1979,6 @@
 .scratchpad-drawer.is-expanded .scratchpad-card.is-film.is-selected .scratchpad-card-check { top: 20px; left: 9px; }
 .scratchpad-card-check svg { width: 14px; height: 14px; stroke-width: 3; }
 
-.scratchpad-root.is-calm .scratchpad-card.is-photo:hover { rotate: var(--scratchpad-photo-rotate, 0deg); }
 .scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-selected,
 .scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-photo:is(.is-selected, :hover) { translate: none; }
 
