@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { ListPlus, Maximize2, Minimize2, NotebookPen, Play, Star, Trash2, X } from 'lucide-react';
+import { ListPlus, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
@@ -10,19 +10,28 @@ import { useScratchpadSettingsStore } from '../../../stores/useScratchpadSetting
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
-import { canAddScratchpadSongToPlaylist, scratchpadSourceLabel, type ScratchpadAction } from './scratchpadModel';
+import { canAddScratchpadSongToPlaylist, scratchpadSourceLabel, scratchpadTips, type ScratchpadAction } from './scratchpadModel';
 import ScratchpadList, { sourceGroupButtons, type ScratchpadPanelActions } from './ScratchpadList';
-import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
+import ScratchpadCanvas, { type CanvasGroup, type CanvasSide } from './ScratchpadCanvas';
 import ScratchpadHistory from './ScratchpadHistory';
 import ScratchpadQueue from './ScratchpadQueue';
-import ScratchpadGreeting from './ScratchpadGreeting';
+import ScratchpadEdge from './ScratchpadEdge';
+import ScratchpadPanel from './ScratchpadPanel';
+import ScratchpadSheet, { ScratchpadBandActions } from './ScratchpadSheet';
+import ScratchpadOverview from './ScratchpadOverview';
+import { NOTE_SPACING } from './canvasLayout';
+import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
 // 速记簿的界面：左缘的把手和从左边滑出的抽屉（设计稿 plan/scratchpad-spec.md）。抽屉非模态——不加遮罩、不抢焦点，
 // 开着时背后照常能逛、能往里收。内容与开合在 useScratchpadStore；播放动作由 App 交进来（和资料库同一个播放端口），
 // 这里只决定什么按钮做什么：单条的「播放」插进当前队列，不换队列；唯一会换掉队列的是底部明写了的「替换队列播放」。
-// 平时是按来源分组的列表（ScratchpadList）；展开成画布（ScratchpadCanvas）后每首是一张能拖动整理、能框选的卡片。
+// 抽屉平时是左缘的面板（ScratchpadPanel：页签列、米白信息条、放大的问候，Bravais 样式，计划见 plan/scratchpad-bravais-plan.md），
+// 里面是按来源分组的列表（ScratchpadList）；展开整页（ScratchpadSheet，设计稿 F：倾斜的纸、横贯的信息条）后
+// 是卡片画布（ScratchpadCanvas），每首是一张能拖动整理、能框选的笔记本卡。
 // 另外两页：播放历史（ScratchpadHistory）与当前的播放队列（ScratchpadQueue）；展开后也是卡片画布（框选、多选），
 // 历史上穿一条时间轴、能删记录，队列上穿一条带箭头的线、能选中几张一起拖动换位置。
 
@@ -43,6 +52,8 @@ export type ScratchpadQueuePort = {
     playSong: (song: SongResult) => void;
     /** 整个换成这个顺序（拖动排序、批量的下一首播放 / 移到末尾 / 移除）：写 store、持久化、按需重新预取。 */
     setOrder: (order: SongResult[]) => void;
+    /** 打乱队列（与命令「打乱播放队列」同一个动作：正在播的那首留在最前；私人 FM、外部舞台时不做）。 */
+    shuffle: () => void;
 };
 
 type ScratchpadHostProps = {
@@ -54,7 +65,10 @@ type ScratchpadHostProps = {
 };
 
 /** 页签的先后（换页动画的方向、方向键换页都按它）。 */
-const TABS: readonly ScratchpadTab[] = ['notes', 'history', 'queue'];
+const TABS = SCRATCHPAD_TABS;
+
+/** 各页的全名（展开整页里那一页区域的名字）。 */
+const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
 
 /** 清空的第二下要在这么久之内点，过了就复原。 */
 const CLEAR_CONFIRM_MS = 3000;
@@ -69,6 +83,47 @@ const DRAWER_KEYS = new Set([
 const isTabCycleKey = (event: KeyboardEvent | React.KeyboardEvent) => (
     event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey
 );
+
+/**
+ * 墙上不算空白的地方：点它们照旧是它们的事，左缘面板不收（见「点空白处收起」）。海报与 Bravais 的瓷砖是 article；
+ * 弹窗、菜单、列表框里的点击也不算。
+ */
+const NOT_BLANK_SELECTOR = [
+    'button', 'a[href]', 'input', 'textarea', 'select', 'label', 'summary', 'video', 'audio', 'article',
+    '[contenteditable]:not([contenteditable="false"])', '[draggable="true"]',
+    '[role="button"]', '[role="link"]', '[role="menuitem"]', '[role="menuitemcheckbox"]', '[role="menuitemradio"]', '[role="option"]',
+    '[role="tab"]', '[role="checkbox"]', '[role="switch"]', '[role="slider"]', '[role="radio"]', '[role="gridcell"]', '[role="row"]',
+    '[role="treeitem"]', '[role="dialog"]', '[role="alertdialog"]', '[role="menu"]', '[role="listbox"]', '[aria-modal="true"]',
+].join(', ');
+
+/** 焦点在这些里面时 Esc 归它们（输入框里撤销输入法、弹窗与菜单自己关）。 */
+const OWNS_ESCAPE_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [aria-modal="true"]';
+
+/** 按下到松开挪了这么多就是拖（平移墙、拖东西），不算点。 */
+const CLICK_SLOP_PX = 6;
+
+const hasOpenModal = () => document.querySelector('[aria-modal="true"]') !== null;
+
+/**
+ * 左缘面板的进出（custom：toSheet 这一次是不是去展开整页，returning 是不是从展开整页回来）。
+ * 去展开整页：纱淡上来时它一起淡掉，不往左滑（整页那条正从它顶上那条长出来），整页的卡片浮上来之前就没了。
+ * 从展开整页回来：在原位、晚一点淡入（整页的卡片先淡掉、纱淡下去，信息条快落回它顶上那条时它才出来），
+ * 不和还没收起的整页叠在一起（用户看到过的中间状态）。平时开合是从左边滑进滑出。
+ */
+type PanelMotionCustom = { toSheet: boolean; returning?: boolean };
+const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
+const PANEL_VARIANTS = {
+    away: { x: -32, opacity: 0 },
+    returning: { x: 0, opacity: 0 },
+    shown: (custom: PanelMotionCustom) => ({
+        x: 0,
+        opacity: 1,
+        transition: custom.returning ? { duration: 0.18, delay: 0.18 } : { duration: 0.2, ease: PANEL_EASE },
+    }),
+    gone: (custom: PanelMotionCustom) => (custom.toSheet
+        ? { opacity: 0, transition: { duration: 0.16, delay: 0.04 } }
+        : { x: -32, opacity: 0, transition: { duration: 0.2, ease: PANEL_EASE } }),
+};
 
 /** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
 const PAGE_SLIDE_PX = 28;
@@ -95,6 +150,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
     const showHandle = useScratchpadSettingsStore(state => state.showHandle);
     const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
+    // 把手常驻时的样子（米白小条 / 细竖线 / 小圆点 / 几何体），指针进来一律展开成完整的米白标签。
+    const handleStyle = useScratchpadSettingsStore(state => state.handleStyle);
     const listRef = useRef<HTMLDivElement>(null);
     const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -163,7 +220,12 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         return {
             key: group.key,
             label: actions.sourceLabel(sample),
-            entries: group.entries,
+            mark: 'circle',
+            // 笔记本卡的第二行：歌手 · 从哪收来的（斜体，scratchpad.css）。
+            entries: group.entries.map(entry => ({
+                ...entry,
+                meta: [getSongArtistLabel(entry.song), entry.origin?.label].filter(Boolean).join(' · '),
+            })),
             buttons: sourceGroupButtons(t, actions.canAddToPlaylist(sample), () => actions.enqueue(group.entries), () => actions.addToPlaylist(group.entries)),
         };
     }), [actions, groups, t]);
@@ -197,7 +259,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         clear();
     };
 
-    // Esc 收起：只管焦点在抽屉里的时候（抽屉非模态，别的地方的 Esc 是别人的）。画布开着时先收回列表（画布自己先处理
+    // Esc 收起：焦点在抽屉里的时候在这里（焦点在外面时见下面「左缘面板浮在墙上」那一段）。画布开着时先收回列表（画布自己先处理
     // 选择与拖动）；焦点交还给把手，别掉到 body 上。
     const focusHandleRef = useRef(false);
     // 画布被 Esc 收回列表时，焦点落到展开按钮上（画布一卸载焦点就掉到 body，下一下 Esc 就没人接了）。
@@ -206,8 +268,13 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         setExpanded(false);
         requestAnimationFrame(() => toggleCanvasRef.current?.focus());
     }, [setExpanded]);
-    /** Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。 */
+    /**
+     * Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。
+     * 展开整页里没有页签，新挂上的画布自己接焦点；三行总览开着时不换（总览里三页都在，换了也看不出来）。
+     */
+    const showOverviewRef = useRef(false);
     const cycleTab = useCallback((direction: 1 | -1) => {
+        if (showOverviewRef.current) return;
         const current = useScratchpadStore.getState().tab;
         const next = TABS[(TABS.indexOf(current) + direction + TABS.length) % TABS.length];
         setTab(next);
@@ -227,6 +294,67 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [cycleTab, isCovered, isOpen]);
+    // 展开整页盖住了墙：点的那颗按钮跟着浮动板、跟着删空的那一页一起卸掉，焦点落到 body 时，按键也归速记簿——
+    // Esc 收回侧栏，其余抽屉键把焦点交还给这一页（画布、总览或整页本身），不让它们落到墙上（墙的键盘在 window 上听，
+    // 所以这里在捕获阶段先接住）。Tab 交给上面那个换页。
+    const drawerRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (!isOpen || !isExpanded || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            const active = document.activeElement;
+            if ((active && active !== document.body) || isTabCycleKey(event)) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                collapseCanvas();
+                return;
+            }
+            if (!DRAWER_KEYS.has(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            drawerRef.current?.querySelector<HTMLElement>('.scratchpad-canvas, .scratchpad-overview, .scratchpad-f')?.focus({ preventScroll: true });
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [collapseCanvas, isCovered, isExpanded, isOpen]);
+    // 左缘面板浮在墙上（用户要的，2026-11-06）：Esc 先收起它，点墙上的空白处也收起它。
+    // Esc：焦点在面板里由 handleKeyDown 管（收起后焦点交还把手）；这里管焦点在面板外的时候——刚用把手或 Ctrl / ⌘ + J 打开
+    // （焦点落在 body）、点过墙上别处。焦点在输入框、弹窗、菜单里，或有模态弹窗开着时，Esc 是它们的。捕获阶段先接住，墙不再收到这一下。
+    // 空白处：按下时就看准（处理函数可能在点击里把节点换掉），不在速记簿里、不是墙上可以点的东西（NOT_BLANK_SELECTOR）；
+    // 松开时没挪开、没被谁接走（点击冒到 window 上、没 preventDefault）才收。
+    useEffect(() => {
+        if (!isOpen || isExpanded || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+            const active = document.activeElement;
+            if (active?.closest('.scratchpad-root') || active?.closest(OWNS_ESCAPE_SELECTOR) || hasOpenModal()) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+        };
+        let press: { x: number; y: number } | null = null;
+        const onPointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            const blank = event.button === 0 && event.isPrimary && target instanceof Element
+                && !target.closest('.scratchpad-root') && !target.closest(NOT_BLANK_SELECTOR) && !hasOpenModal();
+            press = blank ? { x: event.clientX, y: event.clientY } : null;
+        };
+        const onClick = (event: MouseEvent) => {
+            const start = press;
+            press = null;
+            if (!start || event.button !== 0 || event.defaultPrevented) return;
+            if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > CLICK_SLOP_PX) return;
+            setOpen(false);
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('pointerdown', onPointerDown, true);
+        window.addEventListener('click', onClick);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('pointerdown', onPointerDown, true);
+            window.removeEventListener('click', onClick);
+        };
+    }, [isCovered, isExpanded, isOpen, setOpen]);
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
         // 抽屉里 Tab 不走焦点，换页签（用户定，2026-11-05）；按钮之间用方向键和鼠标。
@@ -261,9 +389,10 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const handleTitle = `${handleLabel} (${PRIMARY_MODIFIER_LABEL} + J)`;
     const expandLabel = isExpanded ? t('scratchpad.collapseCanvas') : t('scratchpad.expandCanvas');
 
+    // 底部按钮是 F 的方角描边按钮：最常用的「全部入队」实心，清空单独靠右（点两下才清，第二下前写明）。
     const footer = entries.length > 0 && (
         <footer className="scratchpad-footer">
-            <button type="button" className="scratchpad-pill" onClick={() => playback.enqueueAll(songs)}>
+            <button type="button" className="scratchpad-pill is-solid" onClick={() => playback.enqueueAll(songs)}>
                 <ListPlus aria-hidden="true" />
                 <span>{t('scratchpad.enqueueAll')}</span>
             </button>
@@ -271,11 +400,12 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                 <Play aria-hidden="true" />
                 <span>{t('scratchpad.replaceQueue')}</span>
             </button>
+            <span className="scratchpad-footer-spacer" />
             <button
                 type="button"
-                className={`scratchpad-pill${confirmingClear ? ' is-confirming' : ''}`}
-                style={{ flex: confirmingClear ? '1.4 1 0' : '0 0 auto' }}
+                className={`scratchpad-pill${confirmingClear ? ' is-confirming' : ' is-icon'}`}
                 title={t('scratchpad.clear')}
+                aria-label={confirmingClear ? undefined : t('scratchpad.clear')}
                 onClick={handleClear}
             >
                 <Trash2 aria-hidden="true" />
@@ -286,6 +416,33 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     // 换页的动画：往右边的页签走时方向是 1，往左是 -1（和上一页比）。
     const calm = useReducedMotionFor('uiMicroMotion');
+    // 展开整页那张纸转 4°（设计稿 6°，用户嫌斜改小，2026-11-06）；降低动态效果时不转（同歌手页）。
+    const tilt = calm ? 0 : SCRATCHPAD_TILT_DEG;
+    // 面板这一次是怎么来、怎么走的（PANEL_VARIANTS）：从展开整页收回来时在原位晚一点淡入，去展开整页时淡掉，都不滑。
+    const wasExpandedRef = useRef(isExpanded);
+    const panelReturns = wasExpandedRef.current && !isExpanded;
+    useEffect(() => {
+        wasExpandedRef.current = isExpanded;
+    }, [isExpanded]);
+    // 展开整页的信息条上「‹ 三行总览」换到三行总览；收回侧栏之后再展开，回到这一页（不回总览）。
+    const [showOverview, setShowOverview] = useState(false);
+    showOverviewRef.current = isExpanded && showOverview;
+    useEffect(() => {
+        if (!isExpanded) setShowOverview(false);
+    }, [isExpanded]);
+    const openPage = useCallback((next: ScratchpadTab) => {
+        setTab(next);
+        setShowOverview(false);
+    }, [setTab]);
+    const notesSide = useMemo<CanvasSide>(() => ({
+        jumpLabel: t('scratchpad.jumpTo'),
+        tipsLabel: t('scratchpad.tipsTitle'),
+        mark: 'circle',
+        tips: scratchpadTips('notes', t, PRIMARY_MODIFIER_LABEL),
+    }), [t]);
+    // 构成主义的纸、墨与跟主题强调色走的点缀色（scratchpadLook）交给样式表：边缘标签、面板与展开页都读这些变量。
+    // 不接墙上的「海报聚焦叠色」（2026-11-06 接过，11-07 用户让展开整页与面板都去掉）。
+    const lookVars = useMemo(() => scratchpadLookVars(isDaylight) as React.CSSProperties, [isDaylight]);
     const previousTabRef = useRef(tab);
     const pageDirectionRef = useRef(1);
     if (previousTabRef.current !== tab) {
@@ -303,13 +460,14 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         }),
     }), [calm]);
 
-    // 页签之间用左右方向键（以及 Home / End）换，焦点跟着换到新页签上；Tab / Shift + Tab 在整个抽屉里都是换页（handleKeyDown）。
+    // 页签之间用方向键（以及 Home / End）换，焦点跟着换到新页签上；Tab / Shift + Tab 在整个抽屉里都是换页（handleKeyDown）。
+    // 左缘面板的页签是竖着的一列（上下键），展开后页头的页签是横着的一行（左右键）；两种都认。
     const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         const index = TABS.indexOf(tab);
         const next = event.key === 'Home' ? TABS[0]
             : event.key === 'End' ? TABS[TABS.length - 1]
-                : event.key === 'ArrowLeft' ? TABS[Math.max(0, index - 1)]
-                    : event.key === 'ArrowRight' ? TABS[Math.min(TABS.length - 1, index + 1)]
+                : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? TABS[Math.max(0, index - 1)]
+                    : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? TABS[Math.min(TABS.length - 1, index + 1)]
                         : null;
         if (!next) return;
         event.preventDefault();
@@ -317,175 +475,173 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
     };
 
-    return (
-        <div className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}>
-            {!isOpen && !isHandleHidden && showHandle && (
-                <div
-                    className={`scratchpad-edge${entries.length > 0 ? ' has-entries' : ''}`}
-                    style={{ '--scratchpad-edge-position': handlePosition } as React.CSSProperties}
-                    data-ponder="scratchpad"
+    // 页签下面的那一页（列表、画布或播放历史）：左缘面板与展开后的画布共用。
+    const tabPanel = (
+        <div
+            className="scratchpad-panel"
+            // 左缘面板里是页签控制的那一页；展开整页里没有页签（信息条与细纸带换页），是一块有名字的区域。
+            role={isExpanded ? 'region' : 'tabpanel'}
+            id="scratchpad-panel"
+            aria-labelledby={isExpanded ? undefined : `scratchpad-tab-${tab}`}
+            aria-label={isExpanded ? t(PAGE_TITLE_KEYS[tab]) : undefined}
+        >
+            {/* 换页：往右边的页签走，新的一页从右边滑进来、旧的往左边让开；往回走反过来。先退后进（mode wait），
+                两页不同时在场，列表与画布各自的尺寸量得准。降级动效时只淡入淡出。 */}
+            <AnimatePresence initial={false} mode="wait" custom={pageDirection}>
+                <motion.div
+                    key={tab}
+                    className="scratchpad-panel-page"
+                    data-page={tab}
+                    custom={pageDirection}
+                    variants={pageVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
                 >
-                    <button
-                        ref={handleRef}
-                        type="button"
-                        className={`scratchpad-handle${pulsing ? ' is-pulsing' : ''}`}
-                        data-testid="scratchpad-handle"
-                        title={handleTitle}
-                        aria-label={handleLabel}
-                        aria-expanded={false}
-                        onClick={toggleOpen}
-                    >
-                        <NotebookPen aria-hidden="true" />
-                        {entries.length > 0 && <span className="scratchpad-handle-count">{entries.length}</span>}
-                    </button>
-                </div>
+                    {tab === 'history' ? (
+                        <>
+                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.historyHint')}</p>}
+                            <ScratchpadHistory playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
+                        </>
+                    ) : tab === 'queue' ? (
+                        <>
+                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.queueHint')}</p>}
+                            <ScratchpadQueue queue={queue} expanded={isExpanded} onCollapse={collapseCanvas} />
+                        </>
+                    ) : (
+                        <>
+                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
+                            {entries.length === 0 ? (
+                                <div className="scratchpad-empty">
+                                    <NotebookPen aria-hidden="true" />
+                                    <p>{t('scratchpad.empty')}</p>
+                                </div>
+                            ) : isExpanded ? (
+                                <>
+                                    <ScratchpadBandActions>{footer}</ScratchpadBandActions>
+                                    <ScratchpadCanvas
+                                        groups={canvasGroups}
+                                        freshKeys={freshKeys}
+                                        variant="note"
+                                        spacing={NOTE_SPACING}
+                                        tilt={tilt}
+                                        side={notesSide}
+                                        ariaLabel={t('scratchpad.title')}
+                                        playLabel={t('scratchpad.play')}
+                                        onPlay={actions.play}
+                                        onMove={actions.move}
+                                        onDelete={removeEntries}
+                                        selectionActions={notesSelectionActions}
+                                        onEscape={collapseCanvas}
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
+                                    {footer}
+                                </>
+                            )}
+                        </>
+                    )}
+                </motion.div>
+            </AnimatePresence>
+        </div>
+    );
+
+    return (
+        <div
+            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}`}
+            style={lookVars}
+        >
+            {!isOpen && !isHandleHidden && showHandle && (
+                <ScratchpadEdge
+                    handleStyle={handleStyle}
+                    position={handlePosition}
+                    count={entries.length}
+                    pulsing={pulsing}
+                    title={t('scratchpad.title')}
+                    label={handleLabel}
+                    hint={handleTitle}
+                    onToggle={toggleOpen}
+                    handleRef={handleRef}
+                />
             )}
 
-            <AnimatePresence>
-                {isOpen && (
+            {/* 左缘的面板与展开整页各是一层：展开、收回时两层同时在场——展开时纱淡上来，这一页的信息条从面板顶上那条长出来、
+                纸转过去，面板在纱底下待一会儿再淡掉；收回时信息条缩回面板顶上那条、纸转回来、纱淡掉，面板已经在原位等着
+                （ScratchpadSheet 的文件头）。 */}
+            <AnimatePresence custom={{ toSheet: isExpanded } satisfies PanelMotionCustom}>
+                {isOpen && !isExpanded && (
                     <motion.aside
-                        key="scratchpad-drawer"
-                        className={`scratchpad-drawer${isExpanded ? ' is-expanded' : ''}`}
+                        key="scratchpad-panel"
+                        className="scratchpad-drawer is-panel"
+                        data-page={tab}
                         data-testid="scratchpad-drawer"
                         data-ponder="scratchpad"
                         aria-label={t('scratchpad.title')}
-                        initial={{ x: -32, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: -32, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                        custom={{ toSheet: isExpanded, returning: panelReturns && !calm } satisfies PanelMotionCustom}
+                        variants={PANEL_VARIANTS}
+                        initial={panelReturns && !calm ? 'returning' : 'away'}
+                        animate="shown"
+                        exit="gone"
                         onKeyDown={handleKeyDown}
                     >
-                        <header className="scratchpad-header">
-                            <div className="scratchpad-heading">
-                                {/* 页签上面一句按时段换的问候，三页都有：窄的抽屉里是短版，展开成画布时是长版。 */}
-                                <ScratchpadGreeting long={isExpanded} />
-                                {/* 三页：速记簿本身、播放历史、播放队列。 */}
-                                <div className="scratchpad-tabs" role="tablist" aria-label={t('scratchpad.title')} onKeyDown={handleTabsKeyDown}>
-                                    <button
-                                        type="button"
-                                        role="tab"
-                                        id="scratchpad-tab-notes"
-                                        className="scratchpad-tab"
-                                        data-scratchpad-tab="notes"
-                                        aria-selected={tab === 'notes'}
-                                        aria-controls="scratchpad-panel"
-                                        tabIndex={tab === 'notes' ? 0 : -1}
-                                        onClick={() => setTab('notes')}
-                                    >
-                                        <span>{t('scratchpad.title')}</span>
-                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: entries.length })}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        role="tab"
-                                        id="scratchpad-tab-history"
-                                        className="scratchpad-tab"
-                                        data-scratchpad-tab="history"
-                                        aria-selected={tab === 'history'}
-                                        aria-controls="scratchpad-panel"
-                                        tabIndex={tab === 'history' ? 0 : -1}
-                                        onClick={() => setTab('history')}
-                                    >
-                                        <span>{t('scratchpad.historyTab')}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        role="tab"
-                                        id="scratchpad-tab-queue"
-                                        className="scratchpad-tab"
-                                        data-scratchpad-tab="queue"
-                                        aria-selected={tab === 'queue'}
-                                        aria-controls="scratchpad-panel"
-                                        tabIndex={tab === 'queue' ? 0 : -1}
-                                        onClick={() => setTab('queue')}
-                                    >
-                                        <span>{t('scratchpad.queue')}</span>
-                                        <span className="scratchpad-tab-count">{t('scratchpad.count', { count: queueLength })}</span>
-                                    </button>
-                                </div>
-                            </div>
-                            {/* 三页都能展开成卡片画布：速记簿按来源分组，播放历史一天一组穿一条时间轴，播放队列穿一条带箭头的线。 */}
-                            <button
-                                ref={toggleCanvasRef}
-                                type="button"
-                                className="scratchpad-icon-button"
-                                data-scratchpad-action="toggle-canvas"
-                                disabled={tab === 'notes' && entries.length === 0 && !isExpanded}
-                                title={expandLabel}
-                                aria-label={expandLabel}
-                                aria-pressed={isExpanded}
-                                onClick={() => setExpanded(!isExpanded)}
-                            >
-                                {isExpanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-                            </button>
-                            <button
-                                type="button"
-                                className="scratchpad-icon-button"
-                                title={t('scratchpad.close')}
-                                aria-label={t('scratchpad.close')}
-                                onClick={() => setOpen(false)}
-                            >
-                                <X aria-hidden="true" />
-                            </button>
-                        </header>
-                        <div
-                            className="scratchpad-panel"
-                            role="tabpanel"
-                            id="scratchpad-panel"
-                            aria-labelledby={`scratchpad-tab-${tab}`}
+                        <ScratchpadPanel
+                            tab={tab}
+                            notesCount={entries.length}
+                            queueCount={queueLength}
+                            onSelectTab={setTab}
+                            onTabsKeyDown={handleTabsKeyDown}
+                            onClose={() => setOpen(false)}
+                            expandLabel={expandLabel}
+                            expandDisabled={tab === 'notes' && entries.length === 0}
+                            onExpand={() => setExpanded(true)}
+                            expandRef={toggleCanvasRef}
                         >
-                            {/* 换页：往右边的页签走，新的一页从右边滑进来、旧的往左边让开；往回走反过来。先退后进（mode wait），
-                                两页不同时在场，列表与画布各自的尺寸量得准。降级动效时只淡入淡出。 */}
-                            <AnimatePresence initial={false} mode="wait" custom={pageDirection}>
-                                <motion.div
-                                    key={tab}
-                                    className="scratchpad-panel-page"
-                                    custom={pageDirection}
-                                    variants={pageVariants}
-                                    initial="enter"
-                                    animate="center"
-                                    exit="exit"
-                                >
-                                    {tab === 'history' ? (
-                                        <ScratchpadHistory playback={playback} expanded={isExpanded} onCollapse={collapseCanvas} />
-                                    ) : tab === 'queue' ? (
-                                        <>
-                                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.queueHint')}</p>}
-                                            <ScratchpadQueue queue={queue} expanded={isExpanded} onCollapse={collapseCanvas} />
-                                        </>
-                                    ) : (
-                                        <>
-                                            {!isExpanded && <p className="scratchpad-hint">{t('scratchpad.hint')}</p>}
-                                            {entries.length === 0 ? (
-                                                <div className="scratchpad-empty">
-                                                    <NotebookPen aria-hidden="true" />
-                                                    <p>{t('scratchpad.empty')}</p>
-                                                </div>
-                                            ) : isExpanded ? (
-                                                <ScratchpadCanvas
-                                                    groups={canvasGroups}
-                                                    freshKeys={freshKeys}
-                                                    hint={t('scratchpad.canvasHint', { mod: PRIMARY_MODIFIER_LABEL })}
-                                                    ariaLabel={t('scratchpad.title')}
-                                                    playLabel={t('scratchpad.play')}
-                                                    onPlay={actions.play}
-                                                    onMove={actions.move}
-                                                    onDelete={removeEntries}
-                                                    selectionActions={notesSelectionActions}
-                                                    onEscape={collapseCanvas}
-                                                    footer={footer}
-                                                />
-                                            ) : (
-                                                <>
-                                                    <ScratchpadList groups={groups} freshKeys={freshKeys} actions={actions} listRef={listRef} />
-                                                    {footer}
-                                                </>
-                                            )}
-                                        </>
-                                    )}
-                                </motion.div>
-                            </AnimatePresence>
-                        </div>
+                            {tabPanel}
+                        </ScratchpadPanel>
+                    </motion.aside>
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {isOpen && isExpanded && (
+                    <motion.aside
+                        ref={drawerRef}
+                        key="scratchpad-sheet"
+                        className="scratchpad-drawer is-expanded"
+                        data-page={tab}
+                        data-testid="scratchpad-drawer"
+                        data-ponder="scratchpad"
+                        aria-label={t('scratchpad.title')}
+                        // 整页自己不淡入：纱、纸、信息条各管各的（ScratchpadSheet）。收回时等信息条落回面板顶上那条、纸转回来，
+                        // 最后一下才淡掉（那时条与面板那条叠在一处，看不出来）；也给里面各层的退场兜个底。
+                        exit={{ opacity: 0, transition: { duration: calm ? 0.12 : 0.08, delay: calm ? 0 : 0.42 } }}
+                        onKeyDown={handleKeyDown}
+                    >
+                        <ScratchpadSheet
+                            tab={tab}
+                            notesCount={entries.length}
+                            queueCount={queueLength}
+                            tilt={tilt}
+                            calm={calm}
+                            onOpenPage={openPage}
+                            onCollapse={collapseCanvas}
+                            collapseLabel={t('scratchpad.collapseCanvas')}
+                            onShowOverview={() => setShowOverview(true)}
+                            overview={showOverview ? ((sheetWidth, viewHeight) => (
+                                <ScratchpadOverview
+                                    playback={playback}
+                                    queue={queue}
+                                    tilt={tilt}
+                                    sheetWidth={sheetWidth}
+                                    viewHeight={viewHeight}
+                                    onOpenPage={openPage}
+                                    onEscape={collapseCanvas}
+                                />
+                            )) : null}
+                        >
+                            {tabPanel}
+                        </ScratchpadSheet>
                     </motion.aside>
                 )}
             </AnimatePresence>

@@ -5,6 +5,7 @@ import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../..
 import { useLatticeSettingsStore } from '../../../../../stores/useLatticeSettingsStore';
 import { useLibraryWallLookStore } from '../../../../../stores/useLibraryWallLookStore';
 import { usePlayerChromeSettingsStore } from '../../../../../stores/usePlayerChromeSettingsStore';
+import { isScratchpadHandleStyle, useScratchpadSettingsStore } from '../../../../../stores/useScratchpadSettingsStore';
 import { useStageSettingsStore } from '../../../../../stores/useStageSettingsStore';
 import { useThemeSettingsStore } from '../../../../../stores/useThemeSettingsStore';
 import { useTypographySettingsStore } from '../../../../../stores/useTypographySettingsStore';
@@ -355,6 +356,10 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('libraryWallSeamDirection') && isLibraryWallSeamDirection(config.libraryWallSeamDirection)) {
         storeLibraryWall.setSeamDirection(config.libraryWallSeamDirection);
+    }
+    // The scratchpad side tab's resting look (the 主页与歌单 page's scratchpad group writes it).
+    if (has('scratchpadHandleStyle') && isScratchpadHandleStyle(config.scratchpadHandleStyle)) {
+        useScratchpadSettingsStore.getState().setHandleStyle(config.scratchpadHandleStyle);
     }
     // Numbering only the playing song, on both tile walls (the 播放页 page's tile wall group writes it).
     if (has('latticeBadgeCurrentOnly')) {

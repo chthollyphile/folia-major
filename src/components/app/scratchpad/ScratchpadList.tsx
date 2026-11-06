@@ -66,6 +66,7 @@ const ScratchpadList: React.FC<ScratchpadListProps> = ({ groups, freshKeys, acti
                 return (
                     <section key={group.key} className="scratchpad-list-group" data-scratchpad-group={group.key}>
                         <ScratchpadGroupHeader
+                            mark="circle"
                             label={sourceLabel}
                             count={group.entries.length}
                             buttons={sourceGroupButtons(t, canAdd, () => actions.enqueue(group.entries), () => actions.addToPlaylist(group.entries))}
