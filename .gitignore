@@ -103,3 +103,10 @@ public/nebbia-strokes.json
 
 # Generated system-WebView companions
 /build/apple-music-native/
+
+# Standalone style authoring bundle and local browser validation artifacts.
+/dist-style-studio/
+/dist-style-mcp-clients/
+/build/style-tools-cache/
+/output/playwright/
+/.playwright-cli/

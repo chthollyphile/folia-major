@@ -33,9 +33,9 @@ export type PictureState = {
     active: boolean;
 };
 
-type PictureGridProps<T extends string> = {
+export type PictureGridProps<T extends string> = {
     value: T;
-    options: ReadonlyArray<{ value: T; label: string }>;
+    options: ReadonlyArray<{ value: T; label: string; group?: string }>;
     /**
      * Draws what is in a picture's frame. It is called again when that picture's state changes, and
      * for every picture when the function itself is a new one: give the same function each time (one

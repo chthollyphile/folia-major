@@ -12,6 +12,7 @@ import { navigationCommands } from './navigationCommands';
 import { panelCommands } from './panelCommands';
 import { scratchpadCommands } from './scratchpadCommands';
 import { modsCommands } from './modsCommands';
+import { stylePackCommands } from './stylePackCommands';
 import { visualizerCommands } from './visualizerCommands';
 
 // src/components/command-palette/commands/index.ts
@@ -90,6 +91,7 @@ export const ALL_COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = assertExecu
     ...panelCommands,
     ...scratchpadCommands,
     ...modsCommands,
+    ...stylePackCommands,
     ...visualizerCommands,
 ])));
 

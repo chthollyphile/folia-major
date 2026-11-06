@@ -1,0 +1,7 @@
+{
+    "name": "Folia Style Tools",
+    "version": "1.0.0-rc.2",
+    "windowsVersion": "1.0.0.2",
+    "nodeVersion": "24.15.0",
+    "platform": "win32-x64"
+}

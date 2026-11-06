@@ -7,7 +7,8 @@ import VisualizerRenderer from '../VisualizerRenderer';
 import { type StoredCustomLyricsFont, type SubtitleContentMode, type SubtitleOverlayLayout, type Theme, type VisualizerMode } from '../../../types';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { selectVisualizerSettingsSnapshot, useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
-import { PictureGrid, Tooltip } from '../../modal/settings/kit';
+import { GroupedPictureGrid, Tooltip } from '../../modal/settings/kit';
+import { stylePickerGroups, withStyleGroup } from '../../../stylePacks/pickerGroups';
 import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/motion';
 import StudioWindow from '../../shared/StudioWindow';
 import { visualizersRegistry } from '@/mods/folium/registries/visualizers';
@@ -293,7 +294,7 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                 value: entry.mode,
             })),
             { label: t('ui.visualizerRandom'), value: RANDOM_VISUALIZER_CHOICE },
-        ]
+        ].map(withStyleGroup)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     ), [t, foliumVisualizerEntries]);
     // The window's own split: under it the column lies under the stage and the shelf is narrow.
@@ -561,9 +562,10 @@ const VisPlayground: React.FC<VisPlaygroundProps> = ({
                     {t('options.lyricStyles')}
                     <span className="ml-1.5 font-normal text-[color:var(--st-t3)]">{modeOptions.length}</span>
                 </h3>
-                <PictureGrid
+                <GroupedPictureGrid
                     value={settings.randomVisualizerModePerSong ? RANDOM_VISUALIZER_CHOICE : visualizerMode}
                     options={modeOptions}
+                    groups={stylePickerGroups(t)}
                     picture={drawLyricStyleChoice}
                     columns={isWideWindow ? SHELF_COLUMNS.wide : SHELF_COLUMNS.narrow}
                     onChange={mode => {

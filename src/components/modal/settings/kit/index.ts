@@ -19,6 +19,7 @@ export { PageHeader } from './PageHeader';
 export { PictureChecks } from './PictureChecks';
 export { PictureChoice } from './PictureChoice';
 export { PictureGrid, type PictureState } from './PictureGrid';
+export { GroupedPictureGrid, type PictureGroup } from './GroupedPictureGrid';
 export { Popover } from './Popover';
 export { Progress } from './Progress';
 export { Reveal } from './Reveal';

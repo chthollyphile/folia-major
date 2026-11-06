@@ -44,6 +44,7 @@ const STYLES = [
     ['cappella', 'Cappella', 'DOM'],
     ['diorama', '镜台', 'three.js'],
     ['still', 'Still', 'DOM，不画背景'],
+    ['stylePack', 'Style Pack', '隔离 Worker / OffscreenCanvas'],
 ];
 
 const style = ([id, name, drawsWith]) => ({

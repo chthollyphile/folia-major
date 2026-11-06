@@ -1,0 +1,49 @@
+name: Style Tools Windows candidate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'dev/stylePacks/**'
+      - 'src/stylePacks/**'
+      - 'skills/folia-style-art-direction/**'
+      - 'docs/style-*'
+      - 'test/unit/stylePacks/**'
+      - 'package*.json'
+      - '.github/workflows/style-tools.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.15.0'
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run test:unit -- test/unit/stylePacks
+      - run: npm run style:tools:build
+      - name: Install and exercise the bundled runtime
+        shell: pwsh
+        run: |
+          $build = Get-Content release/style-tools/latest.json | ConvertFrom-Json
+          $installed = Join-Path $env:LOCALAPPDATA 'Programs/FoliaStyleTools'
+          $setup = Start-Process -FilePath $build.installer -ArgumentList '/S' -PassThru -Wait -WindowStyle Hidden
+          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+          & "$installed/folia-style.cmd" self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Installed self-test failed' }
+      - run: npm run style:tools:source
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Folia-Style-Tools-Windows-candidate
+          path: |
+            release/style-tools/*Setup.exe
+            release/style-tools/*.sha256
+            release/style-tools/*Source.zip
+            release/style-tools/*.patch
+            release/style-tools/contribution.json

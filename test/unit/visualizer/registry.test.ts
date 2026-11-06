@@ -35,6 +35,7 @@ describe('visualizer registry', () => {
             'cappella',
             'diorama',
             'still',
+            'stylePack',
         ]);
     });
 

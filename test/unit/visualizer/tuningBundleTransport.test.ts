@@ -7,6 +7,7 @@ import { parseSyncedSettingsRecord } from '@/services/sync/syncSchema';
 import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
 import { buildImportPlan } from '@/utils/appearanceImportPlan';
 import { buildObsAppearanceFromShortcode } from '@/utils/obsWebAppearance';
+import { RENDERER_PACK as EXAMPLE_PACK } from '@/stylePacks/code/example';
 
 // test/unit/visualizer/tuningBundleTransport.test.ts
 // Pins the rule that a lyric style's settings leave this machine in the visualizerTunings bundle
@@ -55,9 +56,10 @@ describe('lyric style tunings travel in the bundle alone', () => {
         useVisualizerSettingsStore.setState(structuredClone(defaults));
     };
 
-    // A style whose fields are all named choices (no switch or number to nudge) gets a hand-picked change.
+    // Structured bundles and named choices need a valid hand-picked change.
     const CHOICE_PATCHES: Record<string, Record<string, unknown>> = {
         machi: { weather: 'snow' },
+        stylePack: { pack: { ...EXAMPLE_PACK, id: 'test.backup', name: 'Backup test', palette: { ...EXAMPLE_PACK.palette, accent: '#cc8844' } } },
     };
 
     // Moves every style off its defaults through the store's own setter, so what is exported is a

@@ -1,4 +1,5 @@
 import React, { useId, useMemo, useRef, useState } from 'react';
+import { stylePickerGroups, withStyleGroup } from '../../../stylePacks/pickerGroups';
 import { useTranslation } from 'react-i18next';
 import { PlayerState, type Theme, type VisualizerBackgroundMode, type VisualizerMode } from '../../../types';
 import { getVisualizerModeLabel, getVisualizerRegistryEntry, VISUALIZER_REGISTRY } from '../../visualizer/registry';
@@ -96,7 +97,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                 label: getVisualizerModeLabel(entry.mode, t),
             })),
             { value: RANDOM_VISUALIZER_CHOICE, label: t('ui.visualizerRandom') },
-        ],
+        ].map(withStyleGroup),
         [t],
     );
     const visualizerModes = useMemo(() => visualizerOptions.map(option => option.value), [visualizerOptions]);
@@ -218,6 +219,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     <ModeStepperRow<VisualizerMode>
                         value={randomEnabled ? RANDOM_VISUALIZER_CHOICE : visualizerMode}
                         options={visualizerOptions}
+                        groups={stylePickerGroups(t)}
                         onSelect={mode => selectLyricStyleChoice(mode, onVisualizerModeChange)}
                         onStep={stepVisualizerMode}
                         renderGlyph={drawLyricStyleChoiceGlyph}

@@ -28,6 +28,7 @@ export const BUILTIN_VISUALIZER_MODES = [
     'pendolo',
     'sonnet',
     'still',
+    'stylePack',
     'tempera',
     'tilt',
 ] as const;

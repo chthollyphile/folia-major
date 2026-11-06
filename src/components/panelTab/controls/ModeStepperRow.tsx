@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import QuickEffectPicker from '../QuickEffectPicker';
-import type { PictureState } from '../../modal/settings/kit';
+import type { PictureState, PictureGroup } from '../../modal/settings/kit';
 import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/motion';
 
 // src/components/panelTab/controls/ModeStepperRow.tsx
@@ -18,7 +18,8 @@ const STEP_ENTER_OFFSET_PX = 10;
 
 interface ModeStepperRowProps<Value extends string> {
     value: Value;
-    options: { value: Value; label: string; }[];
+    options: { value: Value; label: string; group?: string }[];
+    groups?: readonly PictureGroup[];
     onSelect: (value: Value) => void;
     onStep: (direction: -1 | 1) => void;
     /** Draws a mode's glyph, the row's own sign of the chosen mode. */
@@ -41,6 +42,7 @@ interface ModeStepperRowProps<Value extends string> {
 const ModeStepperRow = <Value extends string>({
     value,
     options,
+    groups,
     onSelect,
     onStep,
     renderGlyph,
@@ -167,6 +169,7 @@ const ModeStepperRow = <Value extends string>({
                 onClose={() => onOpenChange(false)}
                 value={value}
                 options={options}
+                groups={groups}
                 picture={renderPicture}
                 onChange={handleSelect}
                 label={caption}

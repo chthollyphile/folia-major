@@ -1,0 +1,46 @@
+/* Independent tool chrome; the preview always receives the pack's own palette. */
+:root { color-scheme: dark; font: 14px/1.5 Inter, Arial, "Microsoft YaHei", sans-serif; color: #e8eee4; background: #101612; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 34px 4vw; border-bottom: 1px solid #354136; }
+header small { letter-spacing: .22em; color: #abc58f; font-size: 10px; }
+h1 { font-size: 36px; letter-spacing: -.04em; line-height: 1.1; margin: 9px 0 0; font-weight: 500; }
+h1 span { font-size: 14px; vertical-align: top; color: #abc58f; margin-left: 8px; }
+header p { max-width: 410px; color: #9eaea0; margin: 0; }
+main { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); }
+section { min-width: 0; padding: 24px; }
+.preview { border-right: 1px solid #354136; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+h2 { font-size: 14px; font-weight: 500; margin: 0 auto 0 0; }
+button, .file { color: inherit; background: #1f2b22; border: 1px solid #3a493d; border-radius: 7px; padding: 8px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+button:hover, .file:hover { background: #344332; }
+button:disabled { opacity: .35; cursor: not-allowed; }
+button:focus-visible, .file:focus-within, textarea:focus-visible, input:focus-visible { outline: 2px solid #bbdba0; outline-offset: 3px; }
+.file { position: relative; overflow: hidden; }
+.file input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+#play, #export { background: #bbdba0; color: #162114; border-color: transparent; }
+.stage { min-height: 380px; height: 52vh; display: grid; place-items: center; background: #0b0f0c; border: 1px solid #354136; border-radius: 10px; padding: 14px; overflow: hidden; }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 100%; }
+.timeline { display: block; font-size: 12px; color: #a8b7a7; padding: 18px 0; }
+output { float: right; font-variant-numeric: tabular-nums; }
+input[type=range] { display: block; width: 100%; accent-color: #bbdba0; margin: 14px 0 0; }
+textarea { width: 100%; height: 61vh; min-height: 330px; resize: vertical; background: #151e18; color: #d5e5cd; border: 1px solid #354136; border-radius: 10px; padding: 18px; font: 12px/1.7 Consolas, monospace; tab-size: 2; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; color: #c0d5ac; font: 12px/1.6 Consolas, monospace; max-height: 160px; overflow: auto; }
+.muted { color: #9eaea0; font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+summary { cursor: pointer; padding: 12px 0; color: #c0d5ac; }
+#viewport { position: relative; overflow: hidden; }
+#code { height: 59vh; margin-top: 8px; }
+#source { height: 280px; min-height: 200px; }
+.reference { border-top: 1px solid #354136; margin-top: 20px; }
+.reference h2 { margin-top: 10px; }
+.reference video { width: 100%; max-height: 320px; margin: 16px 0; background: #050706; }
+.reference input[type=number] { width: 86px; margin-left: 6px; }
+.reference input[type=text] { width: 100%; margin: 8px 0; }
+.reference input[type=number], .reference input[type=text] { color: inherit; background: #151e18; border: 1px solid #354136; border-radius: 4px; padding: 6px; }
+.reference-frames { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
+.reference-frames figure { margin: 0; }
+.reference-frames img { width: 100%; }
+.reference-frames figcaption { font: 11px Consolas,monospace; color: #9eaea0; }
+.video-status { white-space: pre-wrap; font-size: 12px; }
+@media(max-width: 900px) { main { grid-template-columns: 1fr; } header { align-items: start; flex-direction: column; } .preview { border-right: 0; border-bottom: 1px solid #354136; } .stage { height: 440px; } textarea { height: 420px; } }
