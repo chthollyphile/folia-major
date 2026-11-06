@@ -612,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} 暂未提供歌单库。",
     "songUnavailable": "歌曲已下架",
     "externalPlayerMovedOn": "播放器已换到其他歌曲，已暂停",
+    "externalVideoExportUnavailable": "这首歌由平台自己的播放器播放，声音不经过 Folia，无法导出视频。",
+    "externalBypassTitle": "这首歌由平台自己的播放器播放",
+    "externalBypassBody": "声音不经过 Folia，这里的均衡器和音效不会改变你听到的声音。设置会保留，播放其他歌曲时照常生效。",
+    "externalReplayGainBypassed": "由平台自己的播放器播放，不应用 ReplayGain",
     "songUnavailableAlternativeTitle": "可播放其他版本",
     "songUnavailableAlternativeDescription": "当前歌曲已下架，{{typeDesc}}。是否改为播放其他版本？",
     "songUnavailableAlternativeDefaultType": "存在可播放的其他版本",
@@ -828,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
+      "provider-playback-setup": { "title": "平台播放设置", "description": "打开当前平台的播放配置清单" },
       "settings-options": { "title": "打开选项", "description": "打开设置中心" },
       "settings-now-playing-card-position": { "title": "调整卡片位置", "description": "拖动正在播放卡片到新的位置" },
       "settings-ai-provider": { "title": "AI 供应商设置", "description": "选择 AI 供应商和模型" },
@@ -1661,6 +1666,14 @@ export default {
     "rowSignedOut": "未登录",
     "signInRanOut": "登录已过期",
     "readingAccount": "正在读取账号…",
+    "checkingAccount": "正在检查这个账号能否播放…",
+    "setupOpen": "播放设置",
+    "setupDone": "完成",
+    "setupLater": "稍后再说",
+    "setupBack": "返回",
+    "setupSecretChange": "更换",
+    "setupSecretCancel": "保留已存的",
+    "setupState": { "done": "已完成", "todo": "待完成", "warn": "需要注意", "error": "出错" },
     "openBrowser": "打开浏览器",
     "details": "详情",
     "retryIn": "{{seconds}} 秒后可重试",
@@ -1732,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "可能需要会员才能播放",
     "noteMaybeRegion": "可能受地区限制",
     "skipCountdown": "{{seconds}} 秒后跳到下一首",
-    "signIn": "登录"
+    "signIn": "登录",
+    "openSetup": "播放设置"
   },
   "home": {
     "welcome": "欢迎使用 Folia",
@@ -5190,6 +5204,81 @@ export default {
     "ready": {
       "title": "准备就绪",
       "subtitle": "尽情享受您的音乐之旅。"
+    }
+  },
+  "soloist": {
+    "method": {
+      "standard": "标准播放",
+      "standardNote": "在浏览器里登录 Spotify，歌曲由 Folia 自己播放。均衡器、Automix 和跟着音乐跳动的效果都能用。",
+      "soloist": "Soloist 播放",
+      "soloistNote": "在浏览器里登录 Spotify，歌曲交给 Spotify 官方的 Soloist 程序播放，适合拿不到音频密钥的账号。需要另外下载 Soloist，并用 Premium 账号生成一把 API 密钥。"
+    },
+    "setup": {
+      "title": "Spotify Soloist 播放设置",
+      "note": "Soloist 是 Spotify 官方的播放程序，装在这台电脑上，自己把声音送到系统输出；Folia 控制它，并跟着它的进度显示歌词。Folia 的均衡器、Automix 和跟着音乐跳动的效果不处理它的声音。",
+      "titleStandard": "Spotify 播放方式",
+      "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。"
+    },
+    "noKey": {
+      "title": "这个账号拿不到 Spotify 的音频密钥",
+      "note": "Spotify 不给这个账号发放音频密钥，Folia 自己的播放方式放不了它的歌（2024 年底以后注册的账号常见）。可以改用 Spotify 官方的 Soloist 播放：下载 Soloist 程序，用 Premium 账号生成一把 API 密钥，再在 Spotify 应用里选一次设备。歌单、歌词和搜索不受影响。"
+    },
+    "step": {
+      "program": "Soloist 程序",
+      "key": "API 密钥",
+      "pair": "配对设备",
+      "modeStandard": "播放方式：标准",
+      "modeSoloist": "播放方式：Soloist"
+    },
+    "mode": {
+      "standardNote": "Spotify 的歌曲由 Folia 自己播放。",
+      "soloistNote": "Spotify 的歌曲由 Soloist 播放。",
+      "noKeyNote": "Folia 自己的播放方式放不了这个账号的歌。"
+    },
+    "program": {
+      "todo": "从 Spotify 官方页面下载适合这台电脑的 Soloist，解压后选择里面的 soloist 程序（Windows 上是 soloist.exe）。Folia 不附带这个程序。",
+      "valid": "版本 {{version}}，{{expires}} 到期，还剩 {{days}} 天。",
+      "expiring": "版本 {{version}}，还剩 {{days}} 天就到期（{{expires}}）。每个构建只能用 90 天，请下载新版，解压后重新选择。",
+      "unknown": "版本 {{version}}。读不出这个构建的日期，不知道什么时候到期。每个构建只能用 90 天，到期后 Soloist 会拒绝启动。",
+      "clock": "这个构建的日期比这台电脑的时间还晚，可能是系统时间不对，剩余天数算不准。",
+      "expired": "这个构建已经过期（{{expires}}），Soloist 不会再启动。请下载新版，解压后重新选择。",
+      "missing": "找不到之前选的程序，可能被移动或删除了。请重新选择。",
+      "invalid": "选的文件不是能运行的 Soloist 程序。请重新选择。"
+    },
+    "key": {
+      "label": "Soloist API 密钥",
+      "todo": "用 Premium 账号打开 Spotify 开发者控制台，生成 Soloist 的 API 密钥，填在下面。密钥用系统钥匙串加密后保存在这台电脑上。Soloist 只能从命令行接收密钥，它运行时这台电脑上的其他用户能在进程列表里看到它。",
+      "saved": "密钥已加密保存。Soloist 只能从命令行接收密钥，它运行时这台电脑上的其他用户能在进程列表里看到它。",
+      "locked": "系统钥匙串现在打不开，读不出保存的密钥。解锁钥匙串后点「重新连接」。",
+      "noKeychain": "这台电脑没有可用的系统钥匙串（例如 Linux 的 basic_text），密钥无法安全保存，所以不保存。",
+      "unreadable": "保存的密钥读不出来（可能换过系统账号或钥匙串）。请重新填一次。"
+    },
+    "pair": {
+      "done": "已配对，可以播放。",
+      "waiting": "先完成上面两步。",
+      "todo": "在同一局域网里的 Spotify 应用（手机或电脑）上打开设备列表，选择「Folia」。只需要做一次，之后会自动登录。",
+      "starting": "Soloist 还没启动。",
+      "startFailed": "Soloist 没能启动。确认程序和密钥都对，然后点「重新连接」。"
+    },
+    "action": {
+      "useStandard": "改回标准播放",
+      "useSoloist": "改用 Soloist 播放",
+      "pick": "选择已下载的程序",
+      "pickAgain": "重新选择",
+      "download": "官方下载页",
+      "keyPage": "打开开发者控制台",
+      "saveKey": "保存密钥",
+      "reconnect": "重新连接"
+    },
+    "message": {
+      "picked": "已选好程序。",
+      "pickedExpired": "这个构建已经过期，没有使用。请下载新版。",
+      "pickedInvalid": "这个文件不是能运行的 Soloist 程序，没有使用。",
+      "keySaved": "密钥已保存。",
+      "keychain": "系统钥匙串不可用，密钥没有保存。",
+      "keyShape": "密钥格式不对：应该是一串不含空格的字符。",
+      "startFailed": "Soloist 没能启动。",
+      "failed": "操作没有完成，详情见运行日志。"
     }
   },
   "remote": {

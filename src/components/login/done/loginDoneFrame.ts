@@ -153,7 +153,8 @@ export const loginDonePlays = (reducedMotion: boolean): boolean => !reducedMotio
  * 会一直放下去。
  */
 export const loginDonePlaying = ({ open, still, scene, done }: { open: boolean; still: boolean; scene: LoginScene; done: boolean }): boolean => (
-    !still && (done || (open && (scene === 'scanned' || scene === 'reading')))
+    // 登录之后的检查（checking）接着读账号的那一段放：人和弧留着，等检查有了结果。
+    !still && (done || (open && (scene === 'scanned' || scene === 'reading' || scene === 'checking')))
 );
 
 /**

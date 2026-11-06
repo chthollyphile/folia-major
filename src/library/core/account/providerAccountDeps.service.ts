@@ -36,6 +36,11 @@ export const omniAccountAuthPort: LibraryAccountAuthPort = {
     canRunLoginSelfCheck: providerId => omni.canRunLoginSelfCheck(providerId),
     runLoginSelfCheck: providerId => omni.runLoginSelfCheck(providerId),
     getProviderCapabilities: providerId => omni.getProviderCapabilities(providerId),
+    checksAfterLogin: providerId => omni.checksAfterLogin(providerId),
+    checkAfterLogin: (providerId, methodId) => omni.checkAfterLogin(providerId, methodId),
+    hasSetup: providerId => omni.hasSetup(providerId),
+    getSetup: providerId => omni.getSetup(providerId),
+    runSetupAction: (providerId, stepId, actionId, value) => omni.runSetupAction(providerId, stepId, actionId, value),
     dropRequestLimits: dropLoginRequestLimits,
 };
 

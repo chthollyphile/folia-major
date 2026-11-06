@@ -190,18 +190,31 @@ const pauseWhatIsSounding = (audio: HTMLAudioElement | null) => {
 };
 
 // A sign-in that has run out comes with the button that opens the sign-in window for that platform.
+// An account the platform will not play for, where the platform has a setup checklist (another way to
+// play, for one), comes with the button that opens that checklist; so does a source not set up yet.
 const withSignInAction = (
     shown: OnlineFailure,
     said: StatusMessage,
     t: (key: string) => string,
 ): StatusMessage => {
     const signInTo = shown.case === 'sign-in-needed' ? shown.providerId : undefined;
-    return signInTo ? {
+    if (signInTo) {
+        return {
+            ...said,
+            actionLabel: t('failure.signIn'),
+            onAction: () => {
+                setStatusMsg(null);
+                openLoginWindow(signInTo);
+            },
+        };
+    }
+    const setUp = (shown.case === 'account-refused' || shown.case === 'not-configured') && shown.providerId && omni.hasSetup(shown.providerId) ? shown.providerId : undefined;
+    return setUp ? {
         ...said,
-        actionLabel: t('failure.signIn'),
+        actionLabel: t('failure.openSetup'),
         onAction: () => {
             setStatusMsg(null);
-            openLoginWindow(signInTo);
+            openLoginWindow(setUp, null, 'setup');
         },
     } : said;
 };

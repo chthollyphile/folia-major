@@ -612,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} tidak menyediakan perpustakaan playlist.",
     "songUnavailable": "Lagu telah dihapus",
     "externalPlayerMovedOn": "Pemutar berpindah ke lagu lain; pemutaran dijeda",
+    "externalVideoExportUnavailable": "Lagu ini diputar di pemutar milik platform dan suaranya tidak melewati Folia, jadi video tidak bisa diekspor.",
+    "externalBypassTitle": "Lagu ini diputar di pemutar milik platform",
+    "externalBypassBody": "Suaranya tidak melewati Folia, jadi ekualiser dan efek di sini tidak mengubah yang Anda dengar. Pengaturan tetap disimpan dan berlaku untuk lagu lain seperti biasa.",
+    "externalReplayGainBypassed": "Diputar di pemutar milik platform; ReplayGain tidak diterapkan",
     "songUnavailableAlternativeTitle": "Versi alternatif tersedia",
     "songUnavailableAlternativeDescription": "\"{{song}}\" tidak tersedia. {{typeDesc}}. Mainkan versi alternatif?",
     "songUnavailableAlternativeDefaultType": "Versi lain bisa diputar",
@@ -828,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferensi", "description": "Atur preferensi di akun Anda yang memengaruhi rekomendasi" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
+      "provider-playback-setup": { "title": "Pengaturan pemutaran platform", "description": "Buka daftar pengaturan pemutaran platform saat ini" },
       "settings-options": { "title": "Buka Opsi", "description": "Buka pusat opsi" },
       "settings-now-playing-card-position": { "title": "Atur posisi kartu lagu", "description": "Seret kartu yang sedang diputar ke posisi baru" },
       "settings-ai-provider": { "title": "Pengaturan penyedia AI", "description": "Pilih penyedia dan model AI" },
@@ -1661,6 +1666,14 @@ export default {
     "rowSignedOut": "Belum login",
     "signInRanOut": "Login kedaluwarsa",
     "readingAccount": "Membaca akun…",
+    "checkingAccount": "Memeriksa apakah akun ini dapat memutar…",
+    "setupOpen": "Pengaturan pemutaran",
+    "setupDone": "Selesai",
+    "setupLater": "Nanti saja",
+    "setupBack": "Kembali",
+    "setupSecretChange": "Ganti",
+    "setupSecretCancel": "Pakai yang tersimpan",
+    "setupState": { "done": "selesai", "todo": "belum", "warn": "perlu perhatian", "error": "gagal" },
     "openBrowser": "Buka browser",
     "details": "Detail",
     "retryIn": "Coba lagi dalam {{seconds}} dtk",
@@ -1732,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "Mungkin perlu keanggotaan untuk memutar",
     "noteMaybeRegion": "Mungkin dibatasi di wilayah Anda",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
-    "signIn": "Masuk"
+    "signIn": "Masuk",
+    "openSetup": "Pengaturan pemutaran"
   },
   "home": {
     "welcome": "Selamat datang di Folia",
@@ -5190,6 +5204,81 @@ export default {
     "ready": {
       "title": "Siap Digunakan",
       "subtitle": "Nikmati perjalanan musik Anda bersama Folia."
+    }
+  },
+  "soloist": {
+    "method": {
+      "standard": "Standar",
+      "standardNote": "Masuk ke Spotify di peramban; Folia memutar lagunya sendiri. Ekualiser, Automix, dan efek yang mengikuti musik semuanya berfungsi.",
+      "soloist": "Soloist",
+      "soloistNote": "Masuk ke Spotify di peramban; program Soloist resmi dari Spotify yang memutar lagunya. Untuk akun yang tidak mendapat kunci audio. Soloist diunduh terpisah, dan kunci API-nya dibuat dengan akun Premium."
+    },
+    "setup": {
+      "title": "Pengaturan Spotify Soloist",
+      "note": "Soloist adalah pemutar resmi Spotify, program di komputer ini yang mengirim suaranya sendiri ke keluaran sistem; Folia mengendalikannya dan mengikuti posisinya untuk lirik. Ekualiser, Automix, dan efek Folia yang mengikuti musik tidak memproses suaranya.",
+      "titleStandard": "Cara Spotify diputar",
+      "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify."
+    },
+    "noKey": {
+      "title": "Akun ini tidak mendapat kunci audio dari Spotify",
+      "note": "Spotify tidak memberi akun ini kunci audio, sehingga cara Folia sendiri tidak bisa memutar lagunya (umum untuk akun yang dibuat sejak akhir 2024). Anda bisa memutar lewat Soloist resmi dari Spotify: unduh program Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
+    },
+    "step": {
+      "program": "Program Soloist",
+      "key": "Kunci API",
+      "pair": "Pasangkan perangkat",
+      "modeStandard": "Diputar: standar",
+      "modeSoloist": "Diputar: Soloist"
+    },
+    "mode": {
+      "standardNote": "Folia memutar lagu Spotify sendiri.",
+      "soloistNote": "Soloist memutar lagu Spotify.",
+      "noKeyNote": "Cara Folia sendiri tidak bisa memutar lagu akun ini."
+    },
+    "program": {
+      "todo": "Unduh Soloist untuk komputer ini dari halaman Spotify, ekstrak, lalu pilih program soloist di dalamnya (soloist.exe di Windows). Folia tidak menyertakannya.",
+      "valid": "Versi {{version}}, berlaku sampai {{expires}} (sisa {{days}} hari).",
+      "expiring": "Versi {{version}} berhenti berfungsi dalam {{days}} hari ({{expires}}). Setiap build berlaku 90 hari: unduh yang baru, ekstrak, lalu pilih lagi.",
+      "unknown": "Versi {{version}}. Tanggal build ini tidak terbaca, jadi tidak diketahui kapan berhenti berfungsi. Setiap build berlaku 90 hari; setelah itu Soloist menolak berjalan.",
+      "clock": "Tanggal build ini lebih lambat dari jam komputer ini: jamnya mungkin salah, dan sisa hari tidak bisa dihitung.",
+      "expired": "Build ini sudah kedaluwarsa ({{expires}}) dan Soloist tidak akan berjalan. Unduh yang baru, ekstrak, lalu pilih lagi.",
+      "missing": "Program yang dipilih sebelumnya tidak ada lagi; mungkin dipindah atau dihapus. Pilih lagi.",
+      "invalid": "Berkas yang dipilih bukan program Soloist yang bisa berjalan. Pilih yang lain."
+    },
+    "key": {
+      "label": "Kunci API Soloist",
+      "todo": "Buka dasbor pengembang Spotify dengan akun Premium, buat kunci API Soloist, lalu masukkan di bawah. Kunci disimpan di komputer ini, disegel dengan rantai kunci sistem. Soloist hanya menerima kunci lewat baris perintah, jadi pengguna lain komputer ini bisa melihatnya di daftar proses selama berjalan.",
+      "saved": "Kunci tersimpan dan disegel. Soloist hanya menerima kunci lewat baris perintah, jadi pengguna lain komputer ini bisa melihatnya di daftar proses selama berjalan.",
+      "locked": "Rantai kunci sistem tidak bisa dibuka sekarang, jadi kunci tersimpan tidak terbaca. Buka kuncinya, lalu tekan Sambungkan ulang.",
+      "noKeychain": "Komputer ini tidak punya rantai kunci sistem untuk menyegel kunci (misalnya basic_text di Linux), jadi kunci tidak disimpan.",
+      "unreadable": "Kunci tersimpan tidak terbaca (mungkin akun sistem atau rantai kunci lain). Masukkan lagi."
+    },
+    "pair": {
+      "done": "Sudah dipasangkan: siap diputar.",
+      "waiting": "Selesaikan dua langkah di atas dulu.",
+      "todo": "Di aplikasi Spotify pada jaringan yang sama (ponsel atau komputer), buka daftar perangkat dan pilih \"Folia\". Cukup sekali: setelah itu masuk sendiri.",
+      "starting": "Soloist belum berjalan.",
+      "startFailed": "Soloist gagal berjalan. Periksa program dan kuncinya, lalu tekan Sambungkan ulang."
+    },
+    "action": {
+      "useStandard": "Putar dengan cara standar",
+      "useSoloist": "Putar lewat Soloist",
+      "pick": "Pilih program yang diunduh",
+      "pickAgain": "Pilih lagi",
+      "download": "Unduhan resmi",
+      "keyPage": "Buka dasbor pengembang",
+      "saveKey": "Simpan kunci",
+      "reconnect": "Sambungkan ulang"
+    },
+    "message": {
+      "picked": "Program dipilih.",
+      "pickedExpired": "Build itu sudah kedaluwarsa dan tidak dipakai. Unduh yang baru.",
+      "pickedInvalid": "Berkas itu bukan program Soloist yang bisa berjalan dan tidak dipakai.",
+      "keySaved": "Kunci tersimpan.",
+      "keychain": "Rantai kunci sistem tidak tersedia; kunci tidak disimpan.",
+      "keyShape": "Itu bukan kunci: seharusnya satu deret karakter tanpa spasi.",
+      "startFailed": "Soloist gagal berjalan.",
+      "failed": "Tidak berhasil; log runtime menjelaskan sebabnya."
     }
   },
   "remote": {

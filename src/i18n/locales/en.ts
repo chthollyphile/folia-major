@@ -612,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} does not provide a playlist library.",
     "songUnavailable": "Song has been taken down",
     "externalPlayerMovedOn": "The player moved to another track; playback is paused",
+    "externalVideoExportUnavailable": "This song plays in the platform's own player and its sound does not pass through Folia, so no video can be exported.",
+    "externalBypassTitle": "This song plays in the platform's own player",
+    "externalBypassBody": "Its sound does not pass through Folia, so the equalizer and effects here do not change what you hear. The settings are kept and apply to other songs as usual.",
+    "externalReplayGainBypassed": "Plays in the platform's own player; no ReplayGain is applied",
     "songUnavailableAlternativeTitle": "Alternate version available",
     "songUnavailableAlternativeDescription": "\"{{song}}\" is unavailable. {{typeDesc}}. Play an alternate version instead?",
     "songUnavailableAlternativeDefaultType": "Another version can be played",
@@ -828,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
+      "provider-playback-setup": { "title": "Platform playback setup", "description": "Open the playback setup checklist of the current platform" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
       "settings-now-playing-card-position": { "title": "Reposition song card", "description": "Drag the now playing card to a new position" },
       "settings-ai-provider": { "title": "AI provider settings", "description": "Choose an AI provider and model" },
@@ -1661,6 +1666,14 @@ export default {
     "rowSignedOut": "Not signed in",
     "signInRanOut": "Sign-in expired",
     "readingAccount": "Reading your account…",
+    "checkingAccount": "Checking whether this account can play…",
+    "setupOpen": "Playback setup",
+    "setupDone": "Done",
+    "setupLater": "Not now",
+    "setupBack": "Back",
+    "setupSecretChange": "Change",
+    "setupSecretCancel": "Keep the saved one",
+    "setupState": { "done": "done", "todo": "to do", "warn": "needs attention", "error": "failed" },
     "openBrowser": "Open the browser",
     "details": "Details",
     "retryIn": "Try again in {{seconds}} s",
@@ -1732,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "May need a membership to play",
     "noteMaybeRegion": "May be restricted in your region",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "openSetup": "Playback setup"
   },
   "home": {
     "welcome": "Welcome to Folia",
@@ -5190,6 +5204,81 @@ export default {
     "ready": {
       "title": "Ready to Go",
       "subtitle": "Enjoy your music journey with Folia."
+    }
+  },
+  "soloist": {
+    "method": {
+      "standard": "Standard",
+      "standardNote": "Sign in to Spotify in the browser; Folia plays the songs itself. The equalizer, Automix and the effects that move with the music all work.",
+      "soloist": "Soloist",
+      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account."
+    },
+    "setup": {
+      "title": "Spotify Soloist setup",
+      "note": "Soloist is Spotify's own player, a program on this computer that sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia's equalizer, Automix and the effects that move with the music do not reach its sound.",
+      "titleStandard": "How Spotify plays",
+      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist."
+    },
+    "noKey": {
+      "title": "This account gets no audio key from Spotify",
+      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common for accounts made since late 2024). You can play through Spotify's own Soloist instead: download the Soloist program, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are not affected."
+    },
+    "step": {
+      "program": "Soloist program",
+      "key": "API key",
+      "pair": "Pair the device",
+      "modeStandard": "Plays: standard",
+      "modeSoloist": "Plays: Soloist"
+    },
+    "mode": {
+      "standardNote": "Folia plays Spotify's songs itself.",
+      "soloistNote": "Soloist plays Spotify's songs.",
+      "noKeyNote": "Folia's own way cannot play this account's songs."
+    },
+    "program": {
+      "todo": "Download Soloist for this computer from Spotify's page, unpack it and pick the soloist program inside (soloist.exe on Windows). Folia does not include it.",
+      "valid": "Version {{version}}, runs until {{expires}} ({{days}} days left).",
+      "expiring": "Version {{version}} stops running in {{days}} days ({{expires}}). Each build runs for 90 days: download the new one, unpack it and pick it again.",
+      "unknown": "Version {{version}}. This build's date cannot be read, so when it stops running is not known. Each build runs for 90 days; then Soloist refuses to start.",
+      "clock": "This build is dated later than this computer's clock: the clock may be wrong, and the days left cannot be counted.",
+      "expired": "This build expired ({{expires}}) and Soloist will not start. Download the new one, unpack it and pick it again.",
+      "missing": "The program picked before is not there any more; it may have been moved or deleted. Pick it again.",
+      "invalid": "The file picked is not a Soloist program that runs. Pick another."
+    },
+    "key": {
+      "label": "Soloist API key",
+      "todo": "Open Spotify's developer dashboard with a Premium account, make a Soloist API key and enter it below. It is kept on this computer, sealed with the system keychain. Soloist takes the key only on its command line, so other users of this computer can see it in the process list while it runs.",
+      "saved": "The key is saved, sealed. Soloist takes the key only on its command line, so other users of this computer can see it in the process list while it runs.",
+      "locked": "The system keychain cannot be opened now, so the saved key cannot be read. Unlock it, then press Reconnect.",
+      "noKeychain": "This computer has no system keychain to seal the key with (basic_text on Linux, for one), so the key is not saved.",
+      "unreadable": "The saved key cannot be read (another system account or keychain, perhaps). Enter it again."
+    },
+    "pair": {
+      "done": "Paired: ready to play.",
+      "waiting": "Do the two steps above first.",
+      "todo": "In a Spotify app on the same network (phone or computer), open the device list and pick \"Folia\". Once is enough: it signs in by itself afterwards.",
+      "starting": "Soloist has not started yet.",
+      "startFailed": "Soloist did not start. Check the program and the key, then press Reconnect."
+    },
+    "action": {
+      "useStandard": "Play the standard way",
+      "useSoloist": "Play through Soloist",
+      "pick": "Pick the downloaded program",
+      "pickAgain": "Pick again",
+      "download": "Official downloads",
+      "keyPage": "Open the developer dashboard",
+      "saveKey": "Save the key",
+      "reconnect": "Reconnect"
+    },
+    "message": {
+      "picked": "Program picked.",
+      "pickedExpired": "That build has expired and was not used. Download the new one.",
+      "pickedInvalid": "That file is not a Soloist program that runs and was not used.",
+      "keySaved": "Key saved.",
+      "keychain": "The system keychain is not available; the key was not saved.",
+      "keyShape": "That is not a key: it should be one run of characters without spaces.",
+      "startFailed": "Soloist did not start.",
+      "failed": "That did not work; the runtime log says why."
     }
   },
   "remote": {
