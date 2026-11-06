@@ -29,6 +29,7 @@ import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
 import { getExternalPosition, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
+import { isMacPlatform } from '../../../../utils/platform';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
 // Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
@@ -420,7 +421,10 @@ export function useElectronWindowPlaybackHandoff({
 
     const toggleTransparentModeWithHandoff = useCallback(async (enabled: boolean) => {
         if (isElectronWindow && window.electron?.setWindowTransparentMode) {
-            const handoff = captureWindowPlaybackHandoff();
+            // Windows and Linux rebuild the window: the handoff goes along, captured here and now.
+            // macOS switches the look in place and sends none (capturing one pauses an external
+            // player); should it still rebuild (a live wallpaper session), main asks for one itself.
+            const handoff = isMacPlatform ? null : captureWindowPlaybackHandoff();
             const applied = await window.electron.setWindowTransparentMode(enabled, handoff);
             // Main refuses the enable toggle when the current desktop cannot present a
             // transparent wallpaper window (classic Windows wallpaper mode); keep the old state.

@@ -122,6 +122,14 @@ export function useAppPreferences() {
     }, [setTransparentPlayerBackgroundFromSystem]);
 
     useEffect(() => {
+        // macOS switches the window look in place (tray, remote control, desktop-lyric preset), so
+        // the setting arrives as an event instead of being read by a rebuilt renderer at boot.
+        return window.electron?.onWindowTransparentModeChanged?.((enabled) => {
+            setTransparentPlayerBackgroundFromSystem(enabled);
+        });
+    }, [setTransparentPlayerBackgroundFromSystem]);
+
+    useEffect(() => {
         if (!window.electron?.getSettings) {
             return;
         }

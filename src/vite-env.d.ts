@@ -1022,6 +1022,7 @@ declare global {
         enabled: boolean,
         handoff?: import('./types/appPlayback').WindowPlaybackHandoff | null,
       ) => Promise<boolean>;
+      onWindowTransparentModeChanged?: (callback: (enabled: boolean) => void) => () => void;
       consumeWindowPlaybackHandoff: () => Promise<import('./types/appPlayback').WindowPlaybackHandoff | null>;
       submitWindowPlaybackHandoff: (
         requestId: string,

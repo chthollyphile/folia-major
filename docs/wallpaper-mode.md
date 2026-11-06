@@ -14,6 +14,8 @@ Folia 渲染为桌面歌词壁纸，窗口常驻桌面最底层。三平台各�
 | Linux | Wayland：`windowtolayer` → `wlr-layer-shell` bottom；X11：`_NET_WM_WINDOW_TYPE_DESKTOP` | **relaunch**：跳板进程经 `windowtolayer` 包装后重启 Folia | `windowtolayer`（随 Linux 包分发） |
 | macOS | 无边框窗口原地沉到 `kCGDesktopIconWindowLevelKey - 1` | **原地切换**：不 relaunch、无 helper；通常不重建窗口，仅当窗口曾被 Electron `setAlwaysOnTop` 碰过时进入前重建一次 | 无（koffi FFI） |
 
+播放页「透明背景」开关：Windows、Linux 重建主窗口（Electron 的 `transparent` 是建窗参数），播放状态经 handoff 交接；macOS 主窗口始终按 `transparent: true` 建，开关只在运行时改背景色、阴影和毛玻璃（`electron/transparentWindowLook.cjs`），不重建、不重载页面；只有 macOS 壁纸会话开着时仍走重建。
+
 ### 2. 共享设置键与入口
 
 store 中平台共享的持久化键：
@@ -150,7 +152,7 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 - `package.json` 新增 `koffi`（^3.2.0，仅 darwin 运行时使用；N-API 预编译，无需 electron-rebuild）。原生 `.node` 经 OS 门控可选包 `@koromix/koffi-<platform>-<arch>` 分发，`build.asarUnpack` 已含 `node_modules/@koromix/koffi-*/**/*.node`。
 - 新增 `electron/wallpaper/macWallpaperController.cjs`（darwin-only、依赖注入、无 Electron 硬依赖），与 Windows 控制器同为「纯逻辑 + `main.cjs` 接线」结构；`main.cjs` 顶部无条件 require（模块自身按 darwin 门控 FFI，非 darwin 不加载原生依赖）。职责：
   - **level**：`isAvailable()/desktopLevel()/normalLevel()/setLevel(win,level)/setCollectionBehavior(win,mask)/getLevel(win)/getOcclusionState(win)`；FFI 失败一律 no-op 返回；`objc_msgSend` 按具体签名声明多个原型（arm64 要求）。collection behavior 优先走 Electron `setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true})`，不用裸 `setCollectionBehavior(81)`（会丢掉 FullScreenAuxiliary 位）。
-  - **presentation**：`clearAutoHidePresentationOptions()`——经 `objc_getClass('NSApplication')`/`sharedApplication` 清除 NSApp **应用级** AutoHideDock|AutoHideMenuBar 位。背景：Electron simple-FS 进入时以 `[NSApp setPresentationOptions:]` 设置这两位、退出时恢复「进入时捕获的值」；若窗口在 simple-FS 中被直接销毁（窗口关闭/透明切换重建），无退出恢复，位会残留并被下一次进入捕获为脏值，之后每次退出「恢复」的仍是脏值——表现为聚焦本应用即隐藏菜单栏/Dock（实测）。**只清 AutoHide 两位，绝不碰 FullScreen 位**（原生全屏过渡期由系统持有；旧修复连 FullScreen 一起清导致死循环，已移除）。仅在壁纸会话完全拆除后调用。
+  - **presentation**：`clearAutoHidePresentationOptions()`——经 `objc_getClass('NSApplication')`/`sharedApplication` 清除 NSApp **应用级** AutoHideDock|AutoHideMenuBar 位。背景：Electron simple-FS 进入时以 `[NSApp setPresentationOptions:]` 设置这两位、退出时恢复「进入时捕获的值」；若窗口在 simple-FS 中被直接销毁（窗口关闭/壁纸会话中的透明切换重建），无退出恢复，位会残留并被下一次进入捕获为脏值，之后每次退出「恢复」的仍是脏值——表现为聚焦本应用即隐藏菜单栏/Dock（实测）。**只清 AutoHide 两位，绝不碰 FullScreen 位**（原生全屏过渡期由系统持有；旧修复连 FullScreen 一起清导致死循环，已移除）。仅在壁纸会话完全拆除后调用。
   - **tap**：`hasPermission()/requestPermission()/start(forward)/stop()/isRunning()`；mask 覆盖 left/right down/up/dragged、mouseMoved、scroll。`CGEventType` 必须按 `uint32` 声明（tap-disabled 哨兵 0xFFFFFFFE/0xFFFFFFFF 若按 int 会变 -2/-1 而失配）；tap 被系统禁用收到哨兵后自动 `CGEventTapEnable` 重武装。权限探测抽为闭包 `listenAccessGranted()`，`start()` 与对外 `hasPermission()` 共用。
   - **桌面点过滤** `isDesktopPoint(x,y)`：枚举 `CGWindowListCopyWindowInfo(onScreenOnly)`，只读 `kCGWindowLayer`/`kCGWindowBounds`/`kCGWindowOwnerPID`（不读 window name，避免触发屏幕录制权限）。除「任何层高于 Finder 桌面层且覆盖该点的窗口 → 非桌面」外，还排除两类会把整屏「盖住」的窗口（实测所得，否则所有点都会被判 covered）：本进程的全屏呈现窗口（simple-fullscreen 下 WindowServer 按 layer≥101 报告，尽管 NSWindow 逻辑 level 是桌面层，按 `ownerPID === process.pid && layer >= 101` 跳过）与 Dock 进程的追踪窗口（自动隐藏态 layer≈20、bounds 铺满全屏，Dock pid 用 `pgrep -x Dock` 惰性解析并缓存、失效自动刷新）。
   - **Dock 自动隐藏**：`setDockAutohide(on)/restoreDock()/restoreDockSync()/recoverStrandedDock()/configureDockRecovery()`，配合 marker 文件 `.wallpaper-dock-autohidden` 做崩溃恢复。
