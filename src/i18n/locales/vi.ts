@@ -1,6 +1,18 @@
 // Vietnamese (vi) interface text, laid out line for line like en.ts.
 
 export default {
+  "librarySongs": {
+    "title": "Tất cả bài hát",
+    "description": "Các bài hát trong thư viện nhạc của bạn",
+    "loading": "Đã tải {{count}} bài · Đang tải các bài còn lại…",
+    "loaded": "Đã tải {{count}} bài · Hoàn tất",
+    "incomplete": "Đã tải {{count}} bài · Chưa hoàn tất",
+    "refreshing": "Đang làm mới · Giữ nguyên danh sách cũ (đã tải {{count}} bài)",
+    "refreshFailed": "Chưa cập nhật · Làm mới thất bại; giữ nguyên danh sách cũ (đã tải {{count}} bài)",
+    "unsupportedPlayback": "Chưa hỗ trợ phát",
+    "skipped": "Đã bỏ qua {{count}} bài không có phương thức phát được hỗ trợ",
+    "filterPartial": "Bộ lọc chỉ áp dụng cho các bài đã tải cho đến khi tải xong."
+  },
   "scratchpad": {
     "title": "Sổ ghi nhanh",
     "count_one": "{{count}} bài",
