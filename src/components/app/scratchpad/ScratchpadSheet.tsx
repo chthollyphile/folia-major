@@ -21,7 +21,9 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
 //
 // 三条信息条一直都在、各自一层（用户要的「整个信息条移动展开」）：总览里是三行 72px 的条，整页里这一页是顶上 120px 的条、
-// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入；
+// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入。
+// 所有的条都朝上走（用户定，2026-11-06）：要去左下角当细纸带的条（从顶上那条、从总览的一行）先从上方离开视口，
+// 再从窗口下面升回到底部（WRAP_*，它在视口外的那一下换高度、换样子）；往上去的条直接挪；两条细纸带之间对调直接挪。
 // 展开时这一页的条从左缘面板顶上那条的位置长出来（纸同时转到 6°），收回时缩回去。降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
@@ -56,6 +58,30 @@ const SLIM_HEIGHT = 36;
 const SLIM_FROM_BOTTOM = { tilted: [160, 118], flat: [214, 172] } as const;
 /** 挪动、长高的曲线（与抽屉滑出同一条）。 */
 const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
+/**
+ * 绕一圈去底部：一共多久，离开视口用掉的那一段占多少（之后在视口外一下子跳到窗口下面，再升上来）；
+ * 离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转 6° 时右端压低、左端抬高的那一截）。
+ */
+const WRAP_DURATION = 0.82;
+const WRAP_LEAVE = 0.4;
+const WRAP_ABOVE = -60;
+const WRAP_BELOW = 60;
+
+/** 信息条里那一面的淡入淡出，时机按这一次的动法（custom）。 */
+const FACE_VARIANTS = {
+    hidden: { opacity: 0 },
+    shown: (motion: BandMotion) => ({ opacity: 1, transition: motion.faceIn }),
+    gone: (motion: BandMotion) => ({ opacity: 0, transition: motion.faceOut }),
+};
+
+/** 一条信息条这一次怎么动：直接挪到新的框，或绕一圈（先往上出去、再从下面上来）；里面的样子什么时候换。 */
+type BandMotion = {
+    key: string;
+    animate: Record<string, number | number[]>;
+    transition: Transition;
+    faceIn: Transition;
+    faceOut: Transition;
+};
 
 type ScratchpadSheetProps = {
     tab: ScratchpadTab;
@@ -153,6 +179,39 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     const move: Transition = calm ? { duration: 0 } : { duration: 0.52, ease: MOVE_EASE };
     const faceIn: Transition = { duration: calm ? 0.12 : 0.22, delay: calm ? 0 : 0.14 };
     const faceOut: Transition = { duration: calm ? 0.08 : 0.14 };
+
+    // 每一条这一次怎么动。框或样子变了才重算，之后（动画途中别的状态变了、重渲染）原样复用同一个对象：
+    // 换一个 animate 对象 framer 就会从半路直接改道去终点，绕一圈的那一下会被截断。
+    const motionsRef = useRef<Partial<Record<ScratchpadTab, BandMotion & { mode: BandMode; frame: BandFrame }>>>({});
+    const motionOf = (id: ScratchpadTab, mode: BandMode, frame: BandFrame): BandMotion => {
+        const key = `${mode}|${frame.top}|${frame.left}|${frame.width}|${frame.height}|${calm ? 1 : 0}`;
+        const previous = motionsRef.current[id];
+        if (previous?.key === key) return previous;
+        const toBottom = !calm && previous !== undefined && previous.mode !== 'slim' && mode === 'slim';
+        const next: BandMotion = toBottom
+            ? {
+                key,
+                // null：从此刻的位置（可能还在半路）起；离开视口、在视口外跳到窗口下面、升到细纸带的位置。
+                // 高度在视口外的那一下换；宽、左边总览与整页一样（横贯整张纸），也在那一下对齐。
+                animate: {
+                    top: [null as unknown as number, WRAP_ABOVE - previous.frame.height, sheetHeight + WRAP_BELOW, frame.top],
+                    height: [previous.frame.height, previous.frame.height, frame.height, frame.height],
+                    left: [previous.frame.left, previous.frame.left, frame.left, frame.left],
+                    width: [previous.frame.width, previous.frame.width, frame.width, frame.width],
+                },
+                transition: {
+                    duration: WRAP_DURATION,
+                    times: [0, WRAP_LEAVE, WRAP_LEAVE + 0.0005, 1],
+                    ease: ['easeIn', 'linear', 'easeOut'],
+                },
+                // 样子在视口外换：离开途中仍是原来的样子，回来时已经是细纸带。
+                faceIn: { duration: 0.01, delay: WRAP_DURATION * WRAP_LEAVE },
+                faceOut: { duration: 0.01, delay: WRAP_DURATION * WRAP_LEAVE },
+            }
+            : { key, animate: { ...frame }, transition: move, faceIn, faceOut };
+        motionsRef.current[id] = { ...next, mode, frame };
+        return next;
+    };
     const layerIn: Transition = { duration: calm ? 0.12 : 0.3, delay: calm ? 0 : 0.2, ease: MOVE_EASE };
 
     const face = (id: ScratchpadTab, mode: BandMode) => {
@@ -212,6 +271,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 {SCRATCHPAD_TABS.map(id => {
                     const mode = modeOf(id);
                     const frame = frameOf(id);
+                    const bandMotion = motionOf(id, mode, frame);
                     // 展开时这一页的条从面板顶上那条长出来，另外两条从纸下面滑上来；收回时反过来。
                     const away: BandFrame = { ...frame, top: sheetHeight };
                     const origin = id === tab && !showsOverview ? PANEL_BAND_FRAME : away;
@@ -221,17 +281,20 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                             className={`scratchpad-sheet-band is-${mode}`}
                             data-page={id}
                             initial={calm ? false : origin}
-                            animate={frame}
-                            exit={calm ? undefined : origin}
-                            transition={move}
+                            animate={bandMotion.animate}
+                            exit={calm ? undefined : { ...origin, transition: move }}
+                            transition={bandMotion.transition}
                         >
-                            <AnimatePresence initial={false}>
+                            {/* 退场的那一面拿的是 AnimatePresence 的 custom（这一次的动法），不是它自己上一次的：绕一圈时它要留到出了视口才换。 */}
+                            <AnimatePresence initial={false} custom={bandMotion}>
                                 <motion.div
                                     key={mode}
                                     className="scratchpad-sheet-band-face"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1, transition: faceIn }}
-                                    exit={{ opacity: 0, transition: faceOut }}
+                                    custom={bandMotion}
+                                    variants={FACE_VARIANTS}
+                                    initial="hidden"
+                                    animate="shown"
+                                    exit="gone"
                                 >
                                     {face(id, mode)}
                                 </motion.div>
