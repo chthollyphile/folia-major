@@ -1763,6 +1763,15 @@
 }
 
 .scratchpad-card.is-photo:hover { background: #f3eee2; rotate: 0deg; }
+
+/* 相片悬停、选中时动得小一点（用户嫌跳得太远，2026-11-07）：摆正是平滑转过去的（原来没过渡，一下子跳正），
+   只浮起 1px（选中 2px），不像笔记本、胶片那样浮 3 / 4px。 */
+.scratchpad-drawer.is-expanded .scratchpad-card.is-photo {
+    transition: background-color 0.16s ease, translate 0.22s cubic-bezier(0.22, 1, 0.36, 1), rotate 0.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, opacity 0.18s ease;
+}
+
+.scratchpad-drawer.is-expanded .scratchpad-card.is-photo:hover:not(.is-moving) { translate: 0 -1px; }
+.scratchpad-drawer.is-expanded .scratchpad-card.is-photo.is-selected:not(.is-moving) { translate: 0 -2px; }
 .scratchpad-card.is-photo .scratchpad-card-cover { grid-column: 1 / -1; width: 92px; height: 92px; aspect-ratio: auto; }
 .scratchpad-card.is-photo .scratchpad-card-cover img { filter: sepia(0.42) saturate(0.7) contrast(0.92) brightness(0.96); }
 
@@ -1976,7 +1985,8 @@
 .scratchpad-card-check svg { width: 14px; height: 14px; stroke-width: 3; }
 
 .scratchpad-root.is-calm .scratchpad-card.is-photo:hover { rotate: var(--scratchpad-photo-rotate, 0deg); }
-.scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-selected { translate: none; }
+.scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-selected,
+.scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card.is-photo:is(.is-selected, :hover) { translate: none; }
 
 /* —— 三行总览（ScratchpadOverview）——
    三条 72px 的信息条横贯整张纸（在纸上的高度按窗口比例），每条下面 84px 处一行这一页的头几张卡，行尾一块「还有几首」。
