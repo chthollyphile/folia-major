@@ -757,8 +757,8 @@ type XmlDomElement = NonNullable<ReturnType<InstanceType<typeof DOMParser>['pars
 const getLocalName = (node: { localName?: string | null; nodeName: string; }): string =>
     node.localName || node.nodeName.split(':').pop() || '';
 
-// The AMLL parser silently drops every <p> without an `itunes:key`. AMLL TTML Tool and Apple Music
-// always write one, but TTML from other tools (LRC converters and the like) usually does not, and
+// The AMLL parser silently drops every <p> without an `itunes:key`. AMLL TTML Tool and the store's
+// own lyric TTML always write one, but TTML from other tools (LRC converters and the like) usually does not, and
 // such a file would parse to zero lines. Give unkeyed lines a unique key before AMLL reads them.
 const ensureTtmlLineKeys = (documentElement: XmlDomElement | null): void => {
     if (!documentElement) return;
