@@ -493,12 +493,13 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                 />
             )}
 
+            {/* 左缘的面板与展开整页各是一层：展开、收回时两层同时在场——展开时整页盖上来，这一页的信息条从面板顶上那条长出来、
+                纸转到 6°，面板在底下让开；收回时整页的信息条缩回去、纸转回来再淡掉，面板在底下滑回来（ScratchpadSheet）。 */}
             <AnimatePresence>
-                {isOpen && (
+                {isOpen && !isExpanded && (
                     <motion.aside
-                        ref={drawerRef}
-                        key="scratchpad-drawer"
-                        className={`scratchpad-drawer${isExpanded ? ' is-expanded' : ' is-panel'}`}
+                        key="scratchpad-panel"
+                        className="scratchpad-drawer is-panel"
                         data-page={tab}
                         data-testid="scratchpad-drawer"
                         data-ponder="scratchpad"
@@ -509,46 +510,63 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                         onKeyDown={handleKeyDown}
                     >
-                        {isExpanded ? (
-                            <ScratchpadSheet
-                                tab={tab}
-                                notesCount={entries.length}
-                                queueCount={queueLength}
-                                tilt={tilt}
-                                onSelectTab={setTab}
-                                onCollapse={collapseCanvas}
-                                collapseLabel={t('scratchpad.collapseCanvas')}
-                                onShowOverview={() => setShowOverview(true)}
-                                overview={showOverview ? ((sheetWidth, viewHeight) => (
-                                    <ScratchpadOverview
-                                        playback={playback}
-                                        queue={queue}
-                                        tilt={tilt}
-                                        sheetWidth={sheetWidth}
-                                        viewHeight={viewHeight}
-                                        onOpenPage={openPage}
-                                        onEscape={collapseCanvas}
-                                    />
-                                )) : null}
-                            >
-                                {tabPanel}
-                            </ScratchpadSheet>
-                        ) : (
-                            <ScratchpadPanel
-                                tab={tab}
-                                notesCount={entries.length}
-                                queueCount={queueLength}
-                                onSelectTab={setTab}
-                                onTabsKeyDown={handleTabsKeyDown}
-                                onClose={() => setOpen(false)}
-                                expandLabel={expandLabel}
-                                expandDisabled={tab === 'notes' && entries.length === 0}
-                                onExpand={() => setExpanded(true)}
-                                expandRef={toggleCanvasRef}
-                            >
-                                {tabPanel}
-                            </ScratchpadPanel>
-                        )}
+                        <ScratchpadPanel
+                            tab={tab}
+                            notesCount={entries.length}
+                            queueCount={queueLength}
+                            onSelectTab={setTab}
+                            onTabsKeyDown={handleTabsKeyDown}
+                            onClose={() => setOpen(false)}
+                            expandLabel={expandLabel}
+                            expandDisabled={tab === 'notes' && entries.length === 0}
+                            onExpand={() => setExpanded(true)}
+                            expandRef={toggleCanvasRef}
+                        >
+                            {tabPanel}
+                        </ScratchpadPanel>
+                    </motion.aside>
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {isOpen && isExpanded && (
+                    <motion.aside
+                        ref={drawerRef}
+                        key="scratchpad-sheet"
+                        className="scratchpad-drawer is-expanded"
+                        data-page={tab}
+                        data-testid="scratchpad-drawer"
+                        data-ponder="scratchpad"
+                        aria-label={t('scratchpad.title')}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.24 } }}
+                        // 收回时先让信息条缩回去、纸转回来，再淡掉。
+                        exit={{ opacity: 0, transition: { duration: 0.2, delay: calm ? 0 : 0.34 } }}
+                        onKeyDown={handleKeyDown}
+                    >
+                        <ScratchpadSheet
+                            tab={tab}
+                            notesCount={entries.length}
+                            queueCount={queueLength}
+                            tilt={tilt}
+                            calm={calm}
+                            onOpenPage={openPage}
+                            onCollapse={collapseCanvas}
+                            collapseLabel={t('scratchpad.collapseCanvas')}
+                            onShowOverview={() => setShowOverview(true)}
+                            overview={showOverview ? ((sheetWidth, viewHeight) => (
+                                <ScratchpadOverview
+                                    playback={playback}
+                                    queue={queue}
+                                    tilt={tilt}
+                                    sheetWidth={sheetWidth}
+                                    viewHeight={viewHeight}
+                                    onOpenPage={openPage}
+                                    onEscape={collapseCanvas}
+                                />
+                            )) : null}
+                        >
+                            {tabPanel}
+                        </ScratchpadSheet>
                     </motion.aside>
                 )}
             </AnimatePresence>

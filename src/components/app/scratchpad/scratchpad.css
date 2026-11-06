@@ -1022,6 +1022,11 @@
     filter: drop-shadow(0 14px 28px rgb(0 0 0 / 38%));
 }
 
+/* 面板里信息条的位子：换页时新旧两条叠在这里交接（ScratchpadPanel）。 */
+.scratchpad-panel-band { position: relative; z-index: 6; width: calc(100% + 36px); height: 64px; flex: none; }
+.scratchpad-panel-band-face { position: absolute; inset: 0; }
+.scratchpad-panel-band .scratchpad-band-wrap { width: 100%; }
+
 .scratchpad-root.is-daylight .scratchpad-band-wrap { filter: drop-shadow(0 10px 22px rgb(42 35 27 / 18%)); }
 
 .scratchpad-band {
@@ -1047,14 +1052,14 @@
     mask-image: linear-gradient(90deg, transparent 0, transparent 160px, #000 240px);
 }
 
-.scratchpad-drawer[data-page='history'] .scratchpad-band .scratchpad-band-texture,
-.scratchpad-slim[data-page='history'] .scratchpad-band-texture {
+.scratchpad-drawer.is-panel[data-page='history'] .scratchpad-band .scratchpad-band-texture,
+.scratchpad-sheet-band[data-page='history'] .scratchpad-band-texture {
     background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
     opacity: 0.12;
 }
 
-.scratchpad-drawer[data-page='queue'] .scratchpad-band .scratchpad-band-texture,
-.scratchpad-slim[data-page='queue'] .scratchpad-band-texture {
+.scratchpad-drawer.is-panel[data-page='queue'] .scratchpad-band .scratchpad-band-texture,
+.scratchpad-sheet-band[data-page='queue'] .scratchpad-band-texture {
     background:
         repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 6px / 100% 5px no-repeat,
         repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 calc(100% - 6px) / 100% 5px no-repeat;
@@ -1089,7 +1094,8 @@
     transform: skewX(-14deg);
 }
 
-.scratchpad-drawer[data-page='notes'] .scratchpad-band .scratchpad-band-count { background: var(--scratchpad-mark); }
+.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-band .scratchpad-band-count,
+.scratchpad-sheet-band[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
 
 .scratchpad-band-count > span {
     display: block;
@@ -1326,9 +1332,10 @@
 .scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::after { transition: none; }
 
 /* —— 展开整页（ScratchpadSheet，设计稿 F 定稿）——
-   一张比窗口每边大出一截的纸（左右 160px、上下 130px，转过之后四角不露底），绕窗口中心向右下转 --scratchpad-tilt（6°，
-   降低动态效果时 0）。纸上的坐标照设计稿：信息条在 230px，卡片从 362px 起，铺到两条细纸带上沿；左边让出 186px，
-   右边 184px（跳到栏与操作提示那一列在卡片右边）。纸后面的大构图、右上角的黑三角不转。 */
+   一张比窗口每边大出一截的纸（左右 160px、上下 130px，转过之后四角不露底），绕窗口中心向右下转 6°（降低动态效果时 0；
+   转多少由 ScratchpadSheet 用 framer 写，展开、收回时跟着转）。纸上的坐标照设计稿：信息条在 230px，卡片从 362px 起，
+   铺到两条细纸带上沿；左边让出 186px，右边 184px（跳到栏与操作提示那一列在卡片右边）。纸后面的大构图、右上角的黑三角不转。
+   三条信息条的位置与高度也由 ScratchpadSheet 写（.scratchpad-sheet-band），换页、进出总览时挪过去。 */
 
 .scratchpad-f { position: absolute; inset: 0; outline: none; }
 
@@ -1338,10 +1345,30 @@
     left: -160px;
     width: calc(100% + 320px);
     height: calc(100% + 260px);
-    rotate: var(--scratchpad-tilt, 0deg);
 }
 
-.scratchpad-f-band { position: absolute; top: 230px; right: 0; left: 0; z-index: 3; }
+/* 一条信息条：纸画在这一层上（它在挪、在长高），里面的样子（整页那条、总览一行、细纸带）是透明底的一面，换样子时交叉淡入，
+   中途不露出底下的墙。整页那条与总览的行投影朝下，细纸带朝上、压在卡片上面。 */
+.scratchpad-sheet-band {
+    position: absolute;
+    z-index: 3;
+    background: var(--scratchpad-paper);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 40%);
+}
+
+.scratchpad-sheet-band.is-slim { z-index: 4; box-shadow: 0 -10px 30px rgb(0 0 0 / 35%); }
+.scratchpad-sheet-band-face { position: absolute; inset: 0; }
+.scratchpad-sheet-band .scratchpad-band-wrap { width: 100%; height: 100%; }
+
+.scratchpad-sheet-band .scratchpad-band,
+.scratchpad-sheet-band .scratchpad-slim {
+    height: 100%;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* 总览那三行卡所在的一层（与这一页的卡片区一样，进出总览时淡入淡出）。 */
+.scratchpad-f-layer { position: absolute; inset: 0; }
 
 .scratchpad-f-body {
     position: absolute;
@@ -1364,14 +1391,8 @@
 
 .scratchpad-drawer.is-expanded .scratchpad-canvas { grid-column: 1; }
 
-.scratchpad-f-slim { position: absolute; right: 0; left: 0; z-index: 4; height: 36px; }
-.scratchpad-f-slim.is-upper { top: calc(100% - 160px); }
-.scratchpad-f-slim.is-lower { top: calc(100% - 118px); }
-
-/* 不倾斜时（降低动态效果）纸的左半边不再往上抬：两条细纸带整条挪进窗口（窗口底边在纸上 100% − 130px），卡片区跟着让出来。 */
+/* 不倾斜时（降低动态效果）纸的左半边不再往上抬：两条细纸带整条挪进窗口（位置在 ScratchpadSheet），卡片区跟着让出来。 */
 .scratchpad-f.is-flat .scratchpad-f-body { bottom: 220px; }
-.scratchpad-f.is-flat .scratchpad-f-slim.is-upper { top: calc(100% - 214px); }
-.scratchpad-f.is-flat .scratchpad-f-slim.is-lower { top: calc(100% - 172px); }
 
 /* 展开整页的信息条：横贯整张纸、120px 高；左边一道墨色的斜杠，标题放大，下面一行说明；右端是这一页的按钮（各页自己画进来）。
    装饰可以探出条的上下沿（不裁）。 */
@@ -1903,18 +1924,6 @@
 .scratchpad-band.is-row .scratchpad-band-heading { max-width: 380px; gap: 3px; }
 .scratchpad-band.is-row .scratchpad-band-index { font-size: 11px; }
 .scratchpad-band.is-row .scratchpad-band-title { margin: 0; font-size: 24px; }
-.scratchpad-overview-row[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
-.scratchpad-overview-row[data-page='history'] .scratchpad-band-texture {
-    background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
-    opacity: 0.12;
-}
-
-.scratchpad-overview-row[data-page='queue'] .scratchpad-band-texture {
-    background:
-        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 6px / 100% 5px no-repeat,
-        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 calc(100% - 6px) / 100% 5px no-repeat;
-    opacity: 0.22;
-}
 
 /* 编号后面那个带下划线的链接（「‹ 三行总览」「展开整页 ›」）。 */
 .scratchpad-band-index { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
@@ -1935,7 +1944,7 @@
 .scratchpad-band-link:hover { border-bottom-width: 3px; }
 .scratchpad-band-link:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
 
-.scratchpad-overview-cards { position: absolute; top: 84px; right: 0; left: 196px; }
+.scratchpad-overview-cards { position: absolute; top: 0; right: 0; left: 196px; }
 
 .scratchpad-overview-more {
     position: absolute;

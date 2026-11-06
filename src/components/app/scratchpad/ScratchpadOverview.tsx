@@ -10,7 +10,6 @@ import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { forgetPlays } from '../home/explore/recentPlays';
-import ScratchpadBand from './ScratchpadBand';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
@@ -20,7 +19,7 @@ import { clientToLocal, localToClient } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
 
 // src/components/app/scratchpad/ScratchpadOverview.tsx
-// 三行总览（设计稿 F 的 Rows）：三条信息条横贯整张纸，每条下面一行这一页的头几张卡（速记簿的头几首、最近放的几首、
+// 三行总览（设计稿 F 的 Rows）里的三行卡：三条信息条（ScratchpadSheet 画，进出总览时挪动、长高）每条下面一行这一页的头几张卡（速记簿的头几首、最近放的几首、
 // 正在播的那首起的几格胶片），行尾一块「还有几首 · 展开整页 ›」。在空白处拖出屏幕方向的框选（可以跨行），Ctrl 点加选；
 // 选中后在卡片下面浮出一块墨色的板：加入队列、加入歌单（同一来源时）、加入速记簿（选了历史或队列里的歌时）、移除
 // （速记簿里的移出、历史里的删记录；队列里的歌要到播放队列那一页移出）。双击播放。不能在这里拖动重排（各页展开整页里拖）。
@@ -37,8 +36,6 @@ const ROW_SPACING: Record<ScratchpadTab, Spacing> = { notes: NOTE_SPACING, histo
 const ROW_VARIANT: Record<ScratchpadTab, CardVariant> = { notes: 'note', history: 'photo', queue: 'film' };
 /** 每行最多几张。 */
 const ROW_CAP: Record<ScratchpadTab, number> = { notes: 10, history: 6, queue: 10 };
-const TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
-const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', history: 'scratchpad.historyHint', queue: 'scratchpad.queueHint' };
 
 /** 一张卡：哪一行的，以及它在那一行的什么歌。 */
 type OverviewEntry = CanvasEntry & { tab: ScratchpadTab; sourceKey: string };
@@ -104,7 +101,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
     // 挂上时焦点不在任何地方（点的「‹ 三行总览」跟着信息条一起卸掉了）：接过焦点，Esc 与快捷键才归总览。
     useEffect(() => {
         const active = document.activeElement;
-        if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
+        if (!active || active === document.body || active.closest('.scratchpad-drawer.is-panel')) rootRef.current?.focus({ preventScroll: true });
     }, []);
 
     // 行里的卡换了（收进新歌、切了歌）时，选择里也去掉不在了的。
@@ -123,7 +120,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         const spacing = ROW_SPACING[tab];
         const { width, height } = cardSize(spacing);
         const left = CARDS_LEFT + index * (width + spacing.x);
-        const top = row.offsetTop + CARDS_BELOW_BAND;
+        const top = row.offsetTop;
         return { left, top, right: left + width, bottom: top + height };
     }, []);
 
@@ -299,18 +296,9 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                         }}
                         className="scratchpad-overview-row"
                         data-page={tab}
-                        style={{ top: SHEET_BLEED_Y + tops[order] }}
+                        // 一行卡放在这一行信息条下面 84px（信息条本身由 ScratchpadSheet 画，挪动、长高都在那边）。
+                        style={{ top: SHEET_BLEED_Y + tops[order] + CARDS_BELOW_BAND, height }}
                     >
-                        <ScratchpadBand
-                            variant="row"
-                            tab={tab}
-                            index={String(order + 1).padStart(2, '0')}
-                            title={t(TITLE_KEYS[tab])}
-                            meta={t(META_KEYS[tab])}
-                            count={row.total}
-                            width={sheetWidth}
-                            link={{ label: `${t('scratchpad.expandPage')} ›`, onClick: () => onOpenPage(tab) }}
-                        />
                         <div className="scratchpad-overview-cards" style={{ height }}>
                             {row.entries.map((entry, index) => (
                                 <ScratchpadCard

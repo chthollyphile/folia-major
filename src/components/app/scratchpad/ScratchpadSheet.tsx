@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, motion, type Transition } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
@@ -8,6 +9,7 @@ import ScratchpadGreeting from './ScratchpadGreeting';
 import ScratchpadShape from './ScratchpadShape';
 import { useScratchpadHistory } from './useScratchpadHistory';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
+import { overviewRowTops } from './canvasLayout';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
@@ -17,6 +19,10 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // 纸后面是这一页几何体的低可见度大构图（照搜索页的至上主义构图：大空心形、淡色块、实心小形、发丝线、斜线小方块、竖排大字）。
 // 信息条右端的按钮由各页自己画进来（ScratchpadBandActions，经 portal 放进条上的空位）。
 // 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
+//
+// 三条信息条一直都在、各自一层（用户要的「整个信息条移动展开」）：总览里是三行 72px 的条，整页里这一页是顶上 120px 的条、
+// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入；
+// 展开时这一页的条从左缘面板顶上那条的位置长出来（纸同时转到 6°），收回时缩回去。降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
 const BandSlotContext = createContext<HTMLElement | null>(null);
@@ -29,9 +35,27 @@ export const ScratchpadBandActions: React.FC<{ children: React.ReactNode }> = ({
 
 /** 纸比窗口每边多出来的（转过之后四角不露底）：左右 160px、上下 130px。 */
 const SHEET_BLEED_X = 160;
+const SHEET_BLEED_Y = 130;
 
 const TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
 const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', history: 'scratchpad.historyHint', queue: 'scratchpad.queueHint' };
+
+/** 一条信息条在纸上的框（纸上坐标，px）。 */
+type BandFrame = { top: number; left: number; width: number; height: number };
+/** 一条信息条此刻的样子：整页顶上那条、总览里的一行、左下角的细纸带。 */
+type BandMode = 'full' | 'row' | 'slim';
+
+/** 左缘面板顶上那条信息条在纸上的位置（纸还没转时，面板 64px 的页签列右边、离窗口顶 40px，340 × 64）。 */
+const PANEL_BAND_FRAME: BandFrame = { top: SHEET_BLEED_Y + 40, left: SHEET_BLEED_X + 64, width: 340, height: 64 };
+/** 整页那条信息条：离纸顶 230px（转过之后左端离窗口顶约 25px），120px 高。 */
+const FULL_BAND_TOP = 230;
+const FULL_BAND_HEIGHT = 120;
+const ROW_BAND_HEIGHT = 72;
+const SLIM_HEIGHT = 36;
+/** 细纸带离纸底边多远：倾斜时左半边会被纸抬起来，所以压得低一些；不倾斜时整条挪进窗口（窗口底边在纸上 100% − 130px）。 */
+const SLIM_FROM_BOTTOM = { tilted: [160, 118], flat: [214, 172] } as const;
+/** 挪动、长高的曲线（与抽屉滑出同一条）。 */
+const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
 
 type ScratchpadSheetProps = {
     tab: ScratchpadTab;
@@ -39,24 +63,27 @@ type ScratchpadSheetProps = {
     queueCount: number;
     /** 纸转几度（降低动态效果时 0）。 */
     tilt: number;
-    onSelectTab: (tab: ScratchpadTab) => void;
+    /** 降低动态效果：信息条不挪，只淡入淡出。 */
+    calm: boolean;
+    /** 换到这一页（细纸带、总览里的「展开整页 ›」）。 */
+    onOpenPage: (tab: ScratchpadTab) => void;
     /** 收回左缘的面板。 */
     onCollapse: () => void;
     collapseLabel: string;
     collapseRef?: React.Ref<HTMLButtonElement>;
-    /** 三行总览：给了就画它（参数是纸的宽度），不画这一页。 */
+    /** 三行总览：给了就画它（参数是纸的宽度与窗口高度），不画这一页。 */
     overview?: ((sheetWidth: number, viewHeight: number) => React.ReactNode) | null;
     /** 展开整页的信息条上「‹ 三行总览」。 */
     onShowOverview?: () => void;
     children: React.ReactNode;
 };
 
-/** 纸后面的大构图：这一页的几何体放大、几乎看不见（只在展开整页时画，不转）。 */
+/** 纸后面的大构图：这一页的几何体放大、几乎看不见（不转）。 */
 const Backdrop: React.FC<{ tab: ScratchpadTab; word: string }> = ({ tab, word }) => {
     const kind = SCRATCHPAD_TAB_SHAPES[tab];
     const turn = (deg: number): React.CSSProperties => (kind === 'circle' ? {} : { transform: `rotate(${deg}deg)` });
     return (
-        <div className="scratchpad-backdrop" aria-hidden="true">
+        <>
             <span className="scratchpad-backdrop-wedge" />
             <ScratchpadShape kind={kind} size={680} fill="none" stroke="currentColor" strokeWidth={1.5} className="scratchpad-backdrop-shape is-big" style={turn(-8)} />
             <ScratchpadShape kind={kind} size={250} fill="none" stroke="currentColor" strokeWidth={1.5} className="scratchpad-backdrop-shape is-mid" style={turn(14)} />
@@ -66,20 +93,23 @@ const Backdrop: React.FC<{ tab: ScratchpadTab; word: string }> = ({ tab, word })
             <span className="scratchpad-backdrop-hair is-lower" />
             <span className="scratchpad-backdrop-hatch" />
             <span className="scratchpad-backdrop-word">{word}</span>
-        </div>
+        </>
     );
 };
 
 const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
-    tab, notesCount, queueCount, tilt, onSelectTab, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
+    tab, notesCount, queueCount, tilt, calm, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
 }) => {
     const { t } = useTranslation();
     const historyCount = useScratchpadHistory().length;
     const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount };
-    const [slot, setSlot] = useState<HTMLElement | null>(null);
-    // 信息条的装饰按纸的宽度撒（窗口宽 + 两边多出来的）。
+    // 每一页的信息条各有一个按钮空位（换页时新旧两条同时在场），这一页的按钮画进这一页的那个。
+    const [slots, setSlots] = useState<Partial<Record<ScratchpadTab, HTMLElement | null>>>({});
+    const slotRefs = useMemo(() => Object.fromEntries(SCRATCHPAD_TABS.map(id => [id, (element: HTMLElement | null) => {
+        setSlots(current => (current[id] === element ? current : { ...current, [id]: element }));
+    }])) as Record<ScratchpadTab, (element: HTMLElement | null) => void>, []);
+    // 信息条的装饰按纸的宽度撒（窗口宽 + 两边多出来的）；三行总览与细纸带按窗口高度排。
     const [sheetWidth, setSheetWidth] = useState(() => (typeof window === 'undefined' ? 1760 : window.innerWidth + SHEET_BLEED_X * 2));
-    // 三行总览按窗口高度排行（矮的窗口里挤一挤，第三行不出窗口）。
     const [viewHeight, setViewHeight] = useState(() => (typeof window === 'undefined' ? 900 : window.innerHeight));
     useEffect(() => {
         const onResize = () => {
@@ -103,51 +133,145 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         const timer = window.setTimeout(() => {
             const active = document.activeElement;
             if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
-        }, 400);
+        }, 600);
         return () => window.clearTimeout(timer);
     }, [showsOverview, tab]);
     const others = useMemo(() => SCRATCHPAD_TABS.filter(id => id !== tab), [tab]);
     const title = t(TITLE_KEYS[tab]);
 
+    // 每一条此刻该在哪、多高。
+    const sheetHeight = viewHeight + SHEET_BLEED_Y * 2;
+    const rowTops = useMemo(() => overviewRowTops(viewHeight), [viewHeight]);
+    const slimFromBottom = tilt === 0 ? SLIM_FROM_BOTTOM.flat : SLIM_FROM_BOTTOM.tilted;
+    const modeOf = (id: ScratchpadTab): BandMode => (showsOverview ? 'row' : id === tab ? 'full' : 'slim');
+    const frameOf = (id: ScratchpadTab): BandFrame => {
+        const across = { left: 0, width: sheetWidth };
+        if (showsOverview) return { ...across, top: SHEET_BLEED_Y + rowTops[SCRATCHPAD_TABS.indexOf(id)], height: ROW_BAND_HEIGHT };
+        if (id === tab) return { ...across, top: FULL_BAND_TOP, height: FULL_BAND_HEIGHT };
+        return { ...across, top: sheetHeight - slimFromBottom[others.indexOf(id)], height: SLIM_HEIGHT };
+    };
+    const move: Transition = calm ? { duration: 0 } : { duration: 0.52, ease: MOVE_EASE };
+    const faceIn: Transition = { duration: calm ? 0.12 : 0.22, delay: calm ? 0 : 0.14 };
+    const faceOut: Transition = { duration: calm ? 0.08 : 0.14 };
+    const layerIn: Transition = { duration: calm ? 0.12 : 0.3, delay: calm ? 0 : 0.2, ease: MOVE_EASE };
+
+    const face = (id: ScratchpadTab, mode: BandMode) => {
+        if (mode === 'slim') {
+            return (
+                <ScratchpadSlim
+                    tab={id}
+                    index={indexOf(id)}
+                    title={t(TITLE_KEYS[id])}
+                    countLabel={t('scratchpad.count', { count: counts[id] })}
+                    openLabel={t('scratchpad.expandPage')}
+                    onOpen={onOpenPage}
+                />
+            );
+        }
+        const full = mode === 'full';
+        return (
+            <ScratchpadBand
+                variant={mode}
+                tab={id}
+                index={indexOf(id)}
+                title={t(TITLE_KEYS[id])}
+                meta={t(META_KEYS[id])}
+                count={counts[id]}
+                width={sheetWidth}
+                actionsRef={full ? slotRefs[id] : undefined}
+                link={full
+                    ? (onShowOverview ? { label: `‹ ${t('scratchpad.overview')}`, onClick: onShowOverview } : undefined)
+                    : { label: `${t('scratchpad.expandPage')} ›`, onClick: () => onOpenPage(id) }}
+            />
+        );
+    };
+
     return (
-        <div ref={rootRef} className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`} tabIndex={-1} style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
-            <Backdrop tab={tab} word={title} />
-            {overview ? (
-                <div className="scratchpad-f-sheet">{overview(sheetWidth, viewHeight)}</div>
-            ) : (
-                <div className="scratchpad-f-sheet">
-                    <div className="scratchpad-f-band">
-                        <ScratchpadBand
-                            variant="full"
-                            tab={tab}
-                            index={indexOf(tab)}
-                            title={title}
-                            meta={t(META_KEYS[tab])}
-                            count={counts[tab]}
-                            width={sheetWidth}
-                            actionsRef={setSlot}
-                            link={onShowOverview ? { label: `‹ ${t('scratchpad.overview')}`, onClick: onShowOverview } : undefined}
-                        />
-                    </div>
-                    <div className="scratchpad-f-body">
-                        <BandSlotContext.Provider value={slot}>{children}</BandSlotContext.Provider>
-                    </div>
-                    {others.map((id, order) => (
-                        <div key={id} className={`scratchpad-f-slim is-${order === 0 ? 'upper' : 'lower'}`}>
-                            <ScratchpadSlim
-                                tab={id}
-                                index={indexOf(id)}
-                                title={t(TITLE_KEYS[id])}
-                                countLabel={t('scratchpad.count', { count: counts[id] })}
-                                openLabel={t('scratchpad.expandPage')}
-                                onOpen={onSelectTab}
-                            />
-                        </div>
-                    ))}
-                </div>
-            )}
-            {/* 右上角的黑色直角三角：字右对齐，顺着斜边一行比一行收进去（左下半是一块 shape-outside 的浮动）。 */}
-            <div className="scratchpad-triangle">
+        <div ref={rootRef} className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`} tabIndex={-1}>
+            {/* 纸后面的大构图跟着这一页换，交叉淡入。 */}
+            <AnimatePresence initial={false}>
+                <motion.div
+                    key={tab}
+                    className="scratchpad-backdrop"
+                    aria-hidden="true"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, transition: { duration: calm ? 0.12 : 0.45 } }}
+                    exit={{ opacity: 0, transition: { duration: calm ? 0.08 : 0.3 } }}
+                >
+                    <Backdrop tab={tab} word={title} />
+                </motion.div>
+            </AnimatePresence>
+            {/* 纸：展开时从不转长到 tilt，收回时转回去（纸的四角比窗口大，转着也不露底）。 */}
+            <motion.div
+                className="scratchpad-f-sheet"
+                initial={{ rotate: 0 }}
+                animate={{ rotate: tilt }}
+                exit={{ rotate: 0 }}
+                transition={move}
+            >
+                {SCRATCHPAD_TABS.map(id => {
+                    const mode = modeOf(id);
+                    const frame = frameOf(id);
+                    // 展开时这一页的条从面板顶上那条长出来，另外两条从纸下面滑上来；收回时反过来。
+                    const away: BandFrame = { ...frame, top: sheetHeight };
+                    const origin = id === tab && !showsOverview ? PANEL_BAND_FRAME : away;
+                    return (
+                        <motion.div
+                            key={id}
+                            className={`scratchpad-sheet-band is-${mode}`}
+                            data-page={id}
+                            initial={calm ? false : origin}
+                            animate={frame}
+                            exit={calm ? undefined : origin}
+                            transition={move}
+                        >
+                            <AnimatePresence initial={false}>
+                                <motion.div
+                                    key={mode}
+                                    className="scratchpad-sheet-band-face"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1, transition: faceIn }}
+                                    exit={{ opacity: 0, transition: faceOut }}
+                                >
+                                    {face(id, mode)}
+                                </motion.div>
+                            </AnimatePresence>
+                        </motion.div>
+                    );
+                })}
+                {/* 条下面的东西（这一页的卡片，或总览里的三行卡）：先退后进，等条挪得差不多了再浮上来。 */}
+                <AnimatePresence mode="wait">
+                    {overview ? (
+                        <motion.div
+                            key="overview"
+                            className="scratchpad-f-layer"
+                            initial={{ opacity: 0, y: calm ? 0 : 28 }}
+                            animate={{ opacity: 1, y: 0, transition: layerIn }}
+                            exit={{ opacity: 0, transition: faceOut }}
+                        >
+                            {overview(sheetWidth, viewHeight)}
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="page"
+                            className="scratchpad-f-body"
+                            initial={{ opacity: 0, y: calm ? 0 : 28 }}
+                            animate={{ opacity: 1, y: 0, transition: layerIn }}
+                            exit={{ opacity: 0, transition: faceOut }}
+                        >
+                            <BandSlotContext.Provider value={slots[tab] ?? null}>{children}</BandSlotContext.Provider>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+            {/* 右上角的黑色直角三角：字右对齐，顺着斜边一行比一行收进去（左下半是一块 shape-outside 的浮动）。展开时从上面落下来。 */}
+            <motion.div
+                className="scratchpad-triangle"
+                initial={calm ? { opacity: 0 } : { opacity: 0, y: -80 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={calm ? { opacity: 0 } : { opacity: 0, y: -80 }}
+                transition={move}
+            >
                 <span className="scratchpad-triangle-float" aria-hidden="true" />
                 <ScratchpadGreeting long headline />
                 <span className="scratchpad-intro-rule" aria-hidden="true" />
@@ -172,7 +296,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                         </button>
                     )}
                 </span>
-            </div>
+            </motion.div>
             {overview && helpOpen && (
                 <p id="scratchpad-overview-help" className="scratchpad-overview-help" role="note">
                     {t('scratchpad.overviewHelp', { mod: PRIMARY_MODIFIER_LABEL })}

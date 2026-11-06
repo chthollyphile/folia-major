@@ -317,7 +317,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
     // Esc、Delete、方向键才归画布与抽屉，不会落到被盖住的资料库墙上。
     useEffect(() => {
         const active = document.activeElement;
-        if (!active || active === document.body) scrollRef.current?.focus({ preventScroll: true });
+        if (!active || active === document.body || active.closest('.scratchpad-drawer.is-panel')) scrollRef.current?.focus({ preventScroll: true });
     }, []);
 
     // 卸载时还在等的长按计时器。
