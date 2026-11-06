@@ -1292,6 +1292,13 @@
 .scratchpad-root.is-daylight .scratchpad-table .scratchpad-cover { background: rgb(255 255 255 / 8%); }
 
 .scratchpad-table-row { gap: 12px; padding: 0 18px; }
+
+/* 胶片的格子不左右滑：行悬停时往右滑的那 2px 会把可滚动区撑宽，跟着内容走、贴右边放的齿孔就跟着右移一下（用户反馈）。
+   悬停、正在播放的底色只铺在两排齿孔之间（行的左右各留 18px 是齿孔的位置），不盖住齿孔。 */
+.scratchpad-table-row:hover { translate: none; }
+
+.scratchpad-drawer.is-panel .scratchpad-table-row,
+.scratchpad-drawer.is-panel .scratchpad-table-row:hover { background-clip: content-box; }
 .scratchpad-table-row .scratchpad-row-actions { right: 12px; padding-right: 0; }
 .scratchpad-table-row.is-current { background: rgb(255 255 255 / 5%); }
 .scratchpad-table-row.is-current .scratchpad-cover { box-shadow: 0 0 0 3px var(--scratchpad-mark-dark); }
