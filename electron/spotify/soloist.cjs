@@ -404,6 +404,30 @@ function createSoloist({
     if (!auth?.loggedIn) throw spotifyError('unavailable', SOLOIST_NOT_PAIRED, 'not signed in through Spotify Connect', 'soloist-unpaired');
   };
 
+  // The commands that move the program run one after another, in the order asked: a resume sent
+  // right after a seek must find the track the seek put back, and a pause after a play must come
+  // after the play has taken.
+  let turn = Promise.resolve();
+  const inTurn = work => {
+    const run = turn.then(work);
+    turn = run.catch(() => { });
+    return run;
+  };
+
+  // Starts the track asked for (`wanted`) from `startMs`, and waits for the program to play it.
+  const playWanted = async startMs => {
+    const { uri } = wanted;
+    wanted.ended = false;
+    wanted.seen = false;
+    wanted.lastMs = Math.max(0, Math.round(startMs));
+    send('set_repeat_track', { enabled: false });
+    send('set_repeat_context', { enabled: false });
+    send('play', { uri });
+    await until(() => playback?.item?.uri === uri && (playback.status === 'playing' || playback.status === 'buffering'), PLAY_LIMIT_MS, `play ${uri}`);
+    // Only now: a seek sent with the play would be applied to the track before it.
+    if (startMs > 1000) send('seek', { position_ms: Math.round(startMs) });
+  };
+
   return {
     // The setup checklist's view of the program. With `start`, a program that is set up is started
     // (to say whether it is paired), unless a start failed a moment ago.
@@ -467,35 +491,50 @@ function createSoloist({
 
     // Plays `uri` from `startMs`. Folia's queue decides what comes next: repeat is turned off in the
     // program, and its own next track is paused when this one ends.
-    async play({ uri, startMs = 0, durationMs = 0 }) {
+    play({ uri, startMs = 0, durationMs = 0 }) {
       requireTrack(uri);
-      await requirePaired();
-      wanted = { uri, durationMs: Number(durationMs) > 0 ? Number(durationMs) : 0, ended: false, seen: false, lastMs: 0 };
-      send('set_repeat_track', { enabled: false });
-      send('set_repeat_context', { enabled: false });
-      send('play', { uri });
-      await until(() => playback?.item?.uri === uri && (playback.status === 'playing' || playback.status === 'buffering'), PLAY_LIMIT_MS, `play ${uri}`);
-      // Only now: a seek sent with the play would be applied to the track before it.
-      if (Number(startMs) > 1000) send('seek', { position_ms: Math.round(Number(startMs)) });
+      return inTurn(async () => {
+        await requirePaired();
+        wanted = { uri, durationMs: Number(durationMs) > 0 ? Number(durationMs) : 0, ended: false, seen: false, lastMs: 0 };
+        await playWanted(Number(startMs) || 0);
+      });
     },
 
-    async pause() {
-      send('pause');
+    // Nothing sounds where the program does not run: there is nothing to pause.
+    pause() {
+      return inTurn(async () => {
+        if (socket) send('pause');
+      });
     },
 
-    async resume() {
-      await requirePaired();
-      if (wanted?.ended) throw spotifyError('unavailable', SOLOIST_REFUSED, 'the track ended', 'soloist-refused');
-      send('play');
+    // A program that went on to a track of its own (this one ended), or was started again, is put
+    // back on the track asked for first.
+    resume() {
+      return inTurn(async () => {
+        await requirePaired();
+        if (!wanted) throw spotifyError('unavailable', SOLOIST_REFUSED, 'no track was asked for', 'soloist-refused');
+        if (playback?.item?.uri !== wanted.uri || wanted.ended) {
+          await playWanted(wanted.ended ? 0 : wanted.lastMs ?? 0);
+          return;
+        }
+        send('play');
+      });
     },
 
-    async seek(positionMs) {
+    // A seek on a track the program is no longer on puts the track back there, paused: the renderer
+    // resumes it after the seek when it should play.
+    seek(positionMs) {
       const at = Math.max(0, Math.round(Number(positionMs) || 0));
-      if (wanted) {
-        wanted.ended = false;
-        wanted.lastMs = at;
-      }
-      send('seek', { position_ms: at });
+      return inTurn(async () => {
+        if (wanted && (playback?.item?.uri !== wanted.uri || wanted.ended)) {
+          await requirePaired();
+          await playWanted(at);
+          send('pause');
+          return;
+        }
+        if (wanted) wanted.lastMs = at;
+        send('seek', { position_ms: at });
+      });
     },
 
     async setVolume(level) {

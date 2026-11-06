@@ -219,6 +219,37 @@ describe('soloist', () => {
         await soloist.shutdown();
     });
 
+    it('puts the track back when a seek or a resume finds the program on another one, in the order asked', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'track_changed', item: { uri: OTHER, duration_ms: 180_000 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: true });
+        run.commands.length = 0;
+
+        // The bar is dragged back on the ended song, and play is pressed at once.
+        const seeking = soloist.seek(50_000);
+        const resuming = soloist.resume();
+        for (let tries = 0; tries < 50 && !run.commands.some((command: any) => command.command === 'play'); tries += 1) await settle(10);
+        run.send({ type: 'playback_state', status: 'playing', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await seeking;
+        await resuming;
+        await settle();
+        expect(run.commands.map((command: any) => [command.command, command.uri ?? command.position_ms])).toEqual([
+            ['set_repeat_track', undefined], ['set_repeat_context', undefined], ['play', URI], ['seek', 50_000], ['pause', undefined], ['play', undefined],
+        ]);
+        expect(soloist.status()).toMatchObject({ uri: URI, ended: false });
+        await soloist.shutdown();
+    });
+
+    it('has nothing to pause where the program does not run', async () => {
+        const { soloist, spawn } = setup();
+        await expect(soloist.pause()).resolves.toBeUndefined();
+        expect(spawn).not.toHaveBeenCalled();
+    });
+
     it('does not take a track changed in another app mid-track for an end', async () => {
         const { soloist, spawned } = setup();
         const run = await playing(soloist, spawned, { durationMs: 200_000 });
