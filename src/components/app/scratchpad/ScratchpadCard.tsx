@@ -2,7 +2,8 @@ import React, { memo, useEffect, useState } from 'react';
 import { animate, motion, useMotionValue, type MotionValue } from 'framer-motion';
 import { Music2, Play } from 'lucide-react';
 import type { SongResult } from '../../../types';
-import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 import { CARD_HEIGHT, CARD_WIDTH } from './canvasLayout';
 
 /**
@@ -95,7 +96,7 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
     const x = useMotionValue(slotX);
     const y = useMotionValue(slotY);
     const [coverFailed, setCoverFailed] = useState(false);
-    const coverUrl = getSongCoverUrl(entry.song);
+    const coverUrl = scratchpadCoverUrl(entry.song, width);
 
     useEffect(() => {
         register(entry.key, { x, y });

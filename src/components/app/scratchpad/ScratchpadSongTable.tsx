@@ -1,7 +1,8 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { Music2, Play } from 'lucide-react';
-import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 import type { CanvasEntry } from './ScratchpadCard';
 import type { ScratchpadAction } from './scratchpadModel';
 
@@ -40,7 +41,7 @@ type SongTableRowProps = {
 function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, currentLabel, rowActions, onActivate }: RowComponentProps<SongTableRowProps>) {
     const row = rows[index];
     const [coverFailed, setCoverFailed] = useState(false);
-    const coverUrl = getSongCoverUrl(row.song);
+    const coverUrl = scratchpadCoverUrl(row.song, 96);
     return (
         <div
             {...ariaAttributes}

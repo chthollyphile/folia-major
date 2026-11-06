@@ -5,7 +5,8 @@ import type { SongResult } from '../../../types';
 import { forgetPlays, type RecentPlay } from '../home/explore/recentPlays';
 import { collectToScratchpad, scratchpadGroupKey, useScratchpadStore } from '../../../stores/useScratchpadStore';
 import { canOpenPlaylistPickerFor, openAddSongsToPlaylist } from '../../../stores/useAddToPlaylistStore';
-import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { groupPlaysByDay, type HistoryDay } from './historyDays';
 import { scratchpadSourceLabel, scratchpadTips, type ScratchpadAction } from './scratchpadModel';
@@ -47,7 +48,7 @@ type HistoryRowProps = {
 const HistoryRow: React.FC<HistoryRowProps> = memo(({ song, collected, timeLabel, sourceLabel, playback }) => {
     const { t } = useTranslation();
     const [coverFailed, setCoverFailed] = useState(false);
-    const coverUrl = getSongCoverUrl(song);
+    const coverUrl = scratchpadCoverUrl(song, 96);
     const playLabel = t('scratchpad.play');
     const buttons = [
         { id: 'enqueue', label: t('scratchpad.enqueue'), icon: ListPlus, run: () => playback.enqueue(song), disabled: false },

@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from 'react';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import ScratchpadShape from './ScratchpadShape';
 import {
@@ -48,7 +48,7 @@ const useUpcomingCovers = (limit: number): string[] => {
         const current = displayKey === null ? -1 : playQueue.findIndex(song => getPlaybackSongKey(song) === displayKey);
         const covers: string[] = [];
         for (let index = current + 1; index < playQueue.length && covers.length < limit; index += 1) {
-            const url = getSongCoverUrl(playQueue[index]);
+            const url = scratchpadCoverUrl(playQueue[index], 160);
             if (url) covers.push(url);
         }
         return covers;
