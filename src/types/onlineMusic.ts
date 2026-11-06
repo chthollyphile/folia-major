@@ -549,6 +549,8 @@ export interface LoginMethod {
     iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
     // 选中这种方式时那一行说明（i18n key）：浏览器登录的几种方式靠它说清楚彼此差在哪。不给就用平台的登录说明。
     noteKey?: string;
+    // 在浏览器里确认的几种方式里，开始时先替用的人选上的那一种（例如此刻在用的那一种）；都不标就是第一种。
+    preferred?: boolean;
 }
 
 // —— 平台的配置清单 ——

@@ -422,8 +422,9 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         const resolved: LoginState = { ...login, methods: methods.length > 0 ? methods : NO_METHODS };
         log('info', 'login:chosen', { providerId, methods: methods.length, inBrowser: resolved.inBrowser });
         if (methods.length > 0 && resolved.inBrowser) {
-            // 在浏览器里确认的几种方式：先替用的人选上第一种，停在「打开浏览器」；按下去之前还能换。
-            batch(() => { login = { ...resolved, stage: 'ready', selectedMethodId: methods[0].id }; });
+            // 在浏览器里确认的几种方式：先替用的人选上平台标的那一种（没标就是第一种），停在「打开浏览器」；按下去之前还能换。
+            const first = (methods.find(method => method.preferred) ?? methods[0]).id;
+            batch(() => { login = { ...resolved, stage: 'ready', selectedMethodId: first }; });
             return { status: 'started', providerId, sessionId: attempt, step: 'ready' };
         }
         if (methods.length > 0) {
@@ -443,8 +444,8 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
     const selectLoginMethod = async (methodId: string): Promise<LibraryLoginRequestResult> => {
         if (disposed || !login) return { status: 'no-session' };
         if (!login.methods.some(method => method.id === methodId)) return { status: 'rejected', reason: 'unknown-method' };
-        // 账号已经读到、正在做登录之后的检查：这一次登录已经成了，不再换。
-        if (login.stage === 'checking') return { status: 'rejected', reason: 'not-retryable' };
+        // 平台已经确认（正在读账号）或账号已经读到、正在做登录之后的检查：这一次登录已经成了，不再换。
+        if (login.stage === 'checking' || deriveLogin(null)?.phase === 'confirmed') return { status: 'rejected', reason: 'not-retryable' };
         if (login.inBrowser) {
             // 浏览器登录的方式只在开始之前选：换了就停下已经开始的那一次，回到「打开浏览器」，由用的人按下去再开始。
             if (methodId === login.selectedMethodId && login.stage === 'ready') return { status: 'requested', sessionId: login.id };

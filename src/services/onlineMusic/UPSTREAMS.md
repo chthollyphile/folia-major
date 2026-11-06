@@ -94,7 +94,7 @@
   - Spotify 换掉一个查询时答复里带 `PersistedQueryNotFound`，主进程记一行 `[Spotify] query <名字> failed`。要改的是 `QUERIES` 里那个哈希，以及 `spotify/spotifyNormalize.ts` 里读答复的地方。新的哈希从哪里读到，代码和文档都没写：不清楚。
   - `test/unit/spotify/` 下的测试（`spotifyApiBridge.test.ts`、`spotifyAudio.test.ts`、`spotifyAudioFiles.test.ts` 等）用替身，抓不到 Spotify 改了查询或答复。
   - 升级 node-librespot 前看它支持哪些系统；平台条目里的实测在同目录 `README.md` 的 `spotify/spotifyProvider.ts` 一条。
-  - Soloist 的命令行参数和控制接口（`-k`、`-D`、`-w 127.0.0.1:0` 与数据目录里的 `ws.port`，命令 `play` / `pause` / `seek` / `set_volume` / `set_repeat_*`，事件 `auth_state` / `playback_state` / `track_changed` / `position_sync`）照 2026-11 的官方文档写；它改了，`soloist.cjs` 跟着改。它没有曲目结束事件、会自己续播推荐，结束是按位置判断的；`test/unit/spotify/soloist.test.ts` 用替身，抓不到它改了协议。
+  - Soloist 的命令行参数和控制接口（`-n` 设备名、`-k`、`-D`、`-C`、`-z`（0 或 100 以上的 MB）、`-i` 初始音量、`-w 127.0.0.1:0` 与数据目录里的 `ws.port`，命令 `play` / `pause` / `seek` / `set_volume` / `set_repeat_*`，事件 `auth_state` / `playback_state` / `track_changed` / `position_sync`）照 2026-11 的官方文档写；它改了，`soloist.cjs` 跟着改。它没有曲目结束事件、会自己续播推荐，结束是按位置判断的；`test/unit/spotify/soloist.test.ts` 用替身，抓不到它改了协议。
 
 ## 汽水音乐（`qishui`，仅桌面端）
 

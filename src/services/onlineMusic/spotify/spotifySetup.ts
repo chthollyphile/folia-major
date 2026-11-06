@@ -97,7 +97,12 @@ const pairStep = (state: SoloistWireState, ready: boolean): ProviderSetupStep =>
     return { id: 'pair', titleKey: 'soloist.step.pair', noteKey: 'soloist.pair.todo', state: 'todo', actions: [run('restart', 'soloist.action.reconnect')] };
 };
 
-const soloistView = (state: SoloistWireState): ProviderSetupView => {
+const soloistView = (read: SoloistWireState): ProviderSetupView => {
+    // The program refused to start as expired (exit code 10) though its build date could not be read:
+    // it is expired, and the setup says to fetch a new build.
+    const state = read.error === 'expired' && read.executable && read.executable.state !== 'expired'
+        ? { ...read, executable: { ...read.executable, state: 'expired' as const, daysLeft: 0 } }
+        : read;
     const program = programStep(state);
     const usable = program.state === 'done' || program.state === 'warn';
     const ready = usable && state.key === 'saved';

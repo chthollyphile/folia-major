@@ -54,10 +54,13 @@ const SONG = {
 } as unknown as UnifiedSong;
 
 describe('Spotify after a sign-in', () => {
-    it('offers both ways at the sign-in where Soloist is offered', async () => {
+    it('offers both ways at the sign-in where Soloist is offered, the one in use picked to begin with', async () => {
         const methods = await spotifyProvider.auth!.resolveLoginMethods!();
         expect(methods.map(method => method.id)).toEqual(['standard', 'soloist']);
         expect(methods.every(method => method.noteKey)).toBe(true);
+        expect(methods.find(method => method.preferred)?.id).toBe('standard');
+        mode = 'soloist';
+        expect((await spotifyProvider.auth!.resolveLoginMethods!()).find(method => method.preferred)?.id).toBe('soloist');
         await spotifyProvider.auth!.startLogin!('soloist');
         expect(request).toHaveBeenCalledWith('login_start', { method: 'soloist' });
     });
@@ -115,6 +118,9 @@ describe('Spotify setup checklist', () => {
         expect(expired?.steps[2]).toMatchObject({ noteKey: 'soloist.pair.waiting' });
         soloistState = { ...STATE_EMPTY, canSealKey: false };
         expect((await getSpotifySetup())?.steps[1]).toMatchObject({ state: 'error', noteKey: 'soloist.key.noKeychain' });
+        // A build whose date could not be read refused to start as expired.
+        soloistState = { ...STATE_READY, running: false, paired: false, error: 'expired', executable: { ...STATE_READY.executable, state: 'unknown', daysLeft: null } };
+        expect((await getSpotifySetup())?.steps[0]).toMatchObject({ state: 'error', noteKey: 'soloist.program.expired' });
     });
 });
 

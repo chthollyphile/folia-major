@@ -20,7 +20,8 @@ import LoginScreen from './window/LoginScreen';
 // 登录窗口：App 最外层挂一个（换 suite、离开首页都不卸载），由 loginWindowStore 的 openLoginWindow 打开。它把三样东西接在一起：
 // 账户 controller（平台那一列、登录会话、切换、退出、本地服务重启都经它），窗口背后的决定（loginHostState.ts：
 // 选中哪一行、它通向什么、晚到的回答作不作数），和窗口的开关。画什么由 window/LoginScreen 决定。
-// 这里不调 omni，不读账户 store：数据和动作都来自 controller。
+// 这里不读账户 store：数据和动作都来自 controller。只向 omni 问两件选中一行时就要知道、controller 不管的事：
+// 这个平台是不是表单登录（getLoginForm），有没有配置清单（hasSetup）。
 
 type LoginHostProps = {
     account: LibraryAccountController;
@@ -102,7 +103,9 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
 
     // 头像要从窗口飞向切换器：告诉切换器是哪个平台的（规则在 loginDoneLanding）。切换器画的是这个平台时
     // 先不画自己的那一个，名字也等头像落下再展开；画的是别的平台就什么都不变。
-    const confirmed = shownLogin?.phase === 'confirmed' || shownLogin?.phase === 'checking';
+    // 停在配置清单上时还不算登录完成：切换器照常画它自己的头像，清单做完放动画时才交给飞过去的那一个。
+    const onSetup = setup !== null && setup.providerId === providerId;
+    const confirmed = (shownLogin?.phase === 'confirmed' || shownLogin?.phase === 'checking') && !onSetup;
     const landing = loginDoneLanding({ open: isOpen, still: reducedMotion, confirmed, done, providerId });
     useEffect(() => {
         setLoginLanding(landing);

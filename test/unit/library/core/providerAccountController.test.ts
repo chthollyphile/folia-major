@@ -850,6 +850,25 @@ describe('providerAccountController · browser sign-in with several methods', ()
         expect(opsOf('start', 'open-page')).toEqual([['start', 'webby', 'helper', 'key-1'], ['open-page', 'webby', 'key-1']]);
     });
 
+    it('picks the method the platform marks to begin with', async () => {
+        auth.resolveLoginMethods.mockResolvedValue([WEBBY_METHODS[0], { ...WEBBY_METHODS[1], preferred: true }]);
+        const controller = createController();
+        await controller.startLogin('webby');
+        expect(controller.getSnapshot().login).toMatchObject({ phase: 'ready', selectedMethodId: 'helper' });
+    });
+
+    it('keeps the method once the platform has confirmed the sign-in', async () => {
+        refresh.mockReturnValueOnce(new Promise(() => { }));
+        const controller = createController();
+        await controller.startLogin('webby');
+        await controller.retryLogin();
+        await manual.flush();
+        await confirmNextPoll();
+        expect(controller.getSnapshot().login?.phase).toBe('confirmed');
+        await expect(controller.selectLoginMethod('helper')).resolves.toEqual({ status: 'rejected', reason: 'not-retryable' });
+        expect(opsOf('cancel')).toEqual([]);
+    });
+
     it('stops a sign-in already in the browser when the method changes, and waits again', async () => {
         const controller = createController();
         await controller.startLogin('webby');

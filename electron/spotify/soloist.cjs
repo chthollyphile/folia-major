@@ -43,6 +43,9 @@ const END_SLACK_MS = 2500;
 // A timestamp further than this from this computer's clock is not a wall-clock time.
 const CLOCK_SLACK_MS = 60 * 60 * 1000;
 const KEY_SHAPE = /^[!-~]{8,512}$/;
+// The process id of the program Folia started, written by Folia beside its data (the program's
+// own files say nothing of it): a program an earlier run left running can then be stopped.
+const PID_FILE = 'folia-soloist.pid';
 const TRACK_URI = /^spotify:track:[0-9A-Za-z]{22}$/;
 
 // The sentences the renderer is told; it sorts them by the reason word (spotifySoloistPlayback.ts).
@@ -52,11 +55,24 @@ const SOLOIST_DID_NOT_START = 'Spotify Soloist did not start';
 const SOLOIST_GONE = 'Spotify Soloist is not running';
 const SOLOIST_REFUSED = 'Spotify Soloist did not play the track';
 
+// `onProcessExit(stop)` registers what stops the program when this process ends without quitting
+// (a crash, a relaunch): on macOS and Linux a child outlives its parent and would go on playing.
+// `isAlive(pid)` and `killPid(pid)` reach a program an earlier run left running.
 function createSoloist({
   store, safeStorage, dataDirectory, cacheDirectory, chooseFile,
   spawn = spawnProcess, readBuild = createSoloistBuildReader(), WebSocketClass = WebSocket, files = fs,
   now = Date.now, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
+  onProcessExit = stop => { process.once('exit', stop); },
+  isAlive = pid => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  killPid = pid => { process.kill(pid); },
 }) {
   const readConfig = () => {
     const value = store.get(CONFIG_KEY);
@@ -110,6 +126,10 @@ function createSoloist({
   const waiters = new Set();
   // The track Folia asked for: its length, the last position it was seen at, and whether it ended.
   let wanted = null;
+  // The program is paused because Folia asked it to (the listener's pause), not by itself at an end.
+  let pausedByUs = false;
+  // Bumped by every play asked for: a play still waiting its turn when a newer one is asked is dropped.
+  let playAsked = 0;
   // The volume Folia last asked for (0 to 100), given to a program started later as its first one.
   let volume = null;
 
@@ -156,30 +176,54 @@ function createSoloist({
     } catch { /* not running any more: nothing plays */ }
   };
 
+  // The track asked for stopped at its end: the program is idle there, or paused there by itself
+  // (a pause Folia asked for near the end is the listener's, not an end).
+  const stoppedAtEnd = () => {
+    const status = playback?.status;
+    return (status === 'idle' || (status === 'paused' && !pausedByUs)) && nearEnd(positionNow(), durationNow());
+  };
+
   const onEvent = event => {
     if (!event || typeof event.type !== 'string') return;
     eventSeq += 1;
-    // Where the track asked for was just before this event changes what the program plays.
-    if (wanted && !wanted.ended && playback?.item?.uri === wanted.uri) wanted.lastMs = positionNow();
+    // Where the track asked for was just before this event changes what the program plays (once the
+    // program has been seen playing it: before that, what it says is of the track before).
+    if (wanted?.seen && !wanted.ended && playback?.item?.uri === wanted.uri) wanted.lastMs = positionNow();
     switch (event.type) {
       case 'auth_state':
         auth = { loggedIn: event.logged_in === true, active: event.is_active === true };
         break;
       case 'playback_state':
-        playback = { status: event.status, item: event.item ?? null, position: event.position ?? null, positionAt: now(), volume: event.volume };
+        playback = {
+          status: event.status, item: event.item ?? null, position: event.position ?? null, positionAt: now(), volume: event.volume,
+          options: event.options ?? playback?.options,
+        };
         break;
-      case 'track_changed':
-        playback = { ...playback, item: event.item ?? null };
+      case 'track_changed': {
+        // Another track begins: the position sent for the one before is not its position.
+        const changed = event.item?.uri !== playback?.item?.uri;
+        playback = { ...playback, item: event.item ?? null, ...(changed ? { position: null, positionAt: now() } : {}) };
         break;
+      }
       case 'playback_changed': {
-        // A stop keeps the position it stopped at, not the one sent while it played.
+        // A stop keeps the position it stopped at, not the one sent while it played; a start moves
+        // on from where it stopped.
         const at = positionNow();
-        const stopped = playback?.status === 'playing' && event.status !== 'playing';
-        playback = { ...playback, status: event.status, ...(stopped ? { position: { position_ms: at, timestamp_ms: now(), speed: 0 }, positionAt: now() } : {}) };
+        const was = playback?.status;
+        const stopped = was === 'playing' && event.status !== 'playing';
+        const started = was !== 'playing' && event.status === 'playing';
+        playback = {
+          ...playback,
+          status: event.status,
+          ...(stopped || started ? { position: { position_ms: at, timestamp_ms: now(), speed: started ? 1 : 0 }, positionAt: now() } : {}),
+        };
         break;
       }
       case 'position_sync':
         playback = { ...playback, position: event.position ?? null, positionAt: now() };
+        break;
+      case 'options_changed':
+        playback = { ...playback, options: event.options ?? playback?.options };
         break;
       case 'volume_changed':
         playback = { ...playback, volume: event.volume };
@@ -194,12 +238,15 @@ function createSoloist({
     if (wanted && !wanted.ended) {
       const uri = playback?.item?.uri;
       if (uri === wanted.uri) {
-        wanted.seen = true;
-        // The program's own length of the track is the one its position is measured against.
-        const told = Number(playback?.item?.duration_ms);
-        if (Number.isFinite(told) && told > 0) wanted.durationMs = told;
-        const status = playback?.status;
-        if ((status === 'idle' || status === 'paused') && nearEnd(positionNow(), durationNow())) endWanted(`it stopped at its end`);
+        // Seen only once the program plays the track after it was asked to: until then, its state
+        // (stopped at an end) can still be of the track before, or of this one played before.
+        if (playback?.status === 'playing' || playback?.status === 'buffering') wanted.seen = true;
+        if (wanted.seen) {
+          // The program's own length of the track is the one its position is measured against.
+          const told = Number(playback?.item?.duration_ms);
+          if (Number.isFinite(told) && told > 0) wanted.durationMs = told;
+          if (stoppedAtEnd()) endWanted('it stopped at its end');
+        }
       } else if (wanted.seen && nearEnd(wanted.lastMs ?? 0, wanted.durationMs)) {
         endWanted(`the program went on to ${uri ?? 'nothing'}`);
       }
@@ -276,6 +323,14 @@ function createSoloist({
     });
   });
 
+  // The files a stopped program leaves: its control address (it removes them itself only when it
+  // stops cleanly) and the process id Folia wrote.
+  const forgetRunFiles = () => {
+    for (const name of ['ws.port', 'ws.addr', PID_FILE]) {
+      try { files.rmSync(path.join(dataDir(), name), { force: true }); } catch { /* not there */ }
+    }
+  };
+
   const stopRunning = async () => {
     const running = child;
     const left = adopted;
@@ -290,19 +345,30 @@ function createSoloist({
     auth = null;
     playback = null;
     if (left) {
-      try {
-        process.kill(left.pid);
-        log(`[Soloist] Stopped the program an earlier run left (pid ${left.pid})`);
-      } catch { /* already gone */ }
+      try { killPid(left.pid); } catch { /* already gone */ }
+      // A new program refuses the data directory while this one still holds it.
+      const deadline = now() + STOP_LIMIT_MS;
+      while (isAlive(left.pid) && now() < deadline) await wait(50);
+      forgetRunFiles();
+      log(`[Soloist] Stopped the program an earlier run left (pid ${left.pid})`);
     }
-    if (!running || running.proc.exitCode !== null || running.proc.signalCode !== null) return;
-    running.proc.kill();
-    const stopped = await Promise.race([running.exited.then(() => true), wait(STOP_LIMIT_MS).then(() => false)]);
-    if (!stopped) {
-      try { running.proc.kill('SIGKILL'); } catch { /* gone */ }
+    if (!running) return;
+    if (running.proc.exitCode === null && running.proc.signalCode === null) {
+      running.proc.kill();
+      const stopped = await Promise.race([running.exited.then(() => true), wait(STOP_LIMIT_MS).then(() => false)]);
+      if (!stopped) {
+        try { running.proc.kill('SIGKILL'); } catch { /* gone */ }
+      }
+      log('[Soloist] Stopped');
     }
-    log('[Soloist] Stopped');
+    forgetRunFiles();
   };
+
+  // This process ends without quitting: the program it started, or took over, ends with it.
+  onProcessExit(() => {
+    try { child?.proc.kill(); } catch { /* gone */ }
+    try { if (adopted) killPid(adopted.pid); } catch { /* gone */ }
+  });
 
   const notSetUp = (what, detail) => spotifyError('unavailable', SOLOIST_NOT_SET_UP, detail ?? what, `soloist-${what}`);
 
@@ -314,15 +380,16 @@ function createSoloist({
       try {
         await connect(left);
         let pid = null;
-        try { pid = Number(files.readFileSync(path.join(dataDir(), 'soloist.pid'), 'utf8').trim()) || null; } catch { /* none */ }
+        try { pid = Number(files.readFileSync(path.join(dataDir(), PID_FILE), 'utf8').trim()) || null; } catch { /* none */ }
         adopted = pid ? { pid } : null;
         lastError = null;
-        log('[Soloist] Using the program an earlier run left running');
+        log(`[Soloist] Using the program an earlier run left running${pid ? ` (pid ${pid})` : ', with no process id to stop it by'}`);
         return;
       } catch { /* an address left by a program that is gone */ }
     }
     if (!config.executable) throw notSetUp('program');
     const build = await readBuild(config.executable);
+    if (quitting) throw spotifyError('unavailable', SOLOIST_GONE, 'the app is quitting', 'soloist-gone');
     if (build.state === 'missing' || build.state === 'invalid') throw notSetUp('program', `${build.state}: ${config.executable}`);
     if (build.state === 'expired') {
       lastError = 'expired';
@@ -351,6 +418,9 @@ function createSoloist({
     });
     const entry = { proc, exited };
     child = entry;
+    if (proc.pid) {
+      try { files.writeFileSync(path.join(dataDir(), PID_FILE), String(proc.pid)); } catch { /* it can still be stopped by this run */ }
+    }
     void exited.then(code => {
       if (child !== entry) return;
       child = null;
@@ -363,7 +433,7 @@ function createSoloist({
         lost(closing);
       }
     });
-    while (child === entry && now() - startedAt < START_LIMIT_MS) {
+    while (child === entry && !quitting && now() - startedAt < START_LIMIT_MS) {
       const url = endpoint();
       if (url) {
         try {
@@ -395,6 +465,12 @@ function createSoloist({
     return starting;
   };
 
+  // Waits for a start under way to end (either way): what stops the program and starts it again must
+  // not have that start's failure land after it.
+  const settleStart = async () => {
+    if (starting) await starting.catch(() => { });
+  };
+
   const requireTrack = uri => {
     if (typeof uri !== 'string' || !TRACK_URI.test(uri)) throw spotifyError('invalid-response', 'Invalid Spotify track');
   };
@@ -420,8 +496,13 @@ function createSoloist({
     wanted.ended = false;
     wanted.seen = false;
     wanted.lastMs = Math.max(0, Math.round(startMs));
-    send('set_repeat_track', { enabled: false });
-    send('set_repeat_context', { enabled: false });
+    pausedByUs = false;
+    // The same track played again: where it stopped last time is not where it is going to be.
+    if (playback?.item?.uri === uri) playback = { ...playback, position: null, positionAt: now() };
+    if (playback?.options?.repeat !== 'off') {
+      send('set_repeat_track', { enabled: false });
+      send('set_repeat_context', { enabled: false });
+    }
     send('play', { uri });
     await until(() => playback?.item?.uri === uri && (playback.status === 'playing' || playback.status === 'buffering'), PLAY_LIMIT_MS, `play ${uri}`);
     // Only now: a seek sent with the play would be applied to the track before it.
@@ -457,6 +538,7 @@ function createSoloist({
         log(`[Soloist] The chosen program was not kept: ${build.state}`);
         return { picked: false, executable: build };
       }
+      await settleStart();
       await stopRunning();
       writeConfig({ ...config, executable: chosen });
       lastError = null;
@@ -471,6 +553,7 @@ function createSoloist({
       if (!KEY_SHAPE.test(key)) return { saved: false, why: 'shape' };
       if (!canSeal()) return { saved: false, why: 'keychain' };
       const sealedKey = safeStorage.encryptString(key).toString('base64');
+      await settleStart();
       await stopRunning();
       writeConfig({ ...config, sealedKey });
       keyInMemory = key;
@@ -482,6 +565,7 @@ function createSoloist({
 
     // Starts the program again (after the keychain was unlocked, or a pairing in another app).
     async restart() {
+      await settleStart();
       await stopRunning();
       keyInMemory = null;
       lastError = null;
@@ -493,7 +577,10 @@ function createSoloist({
     // program, and its own next track is paused when this one ends.
     play({ uri, startMs = 0, durationMs = 0 }) {
       requireTrack(uri);
+      const asked = ++playAsked;
       return inTurn(async () => {
+        // A newer play was asked while this one waited: this track is not wanted any more.
+        if (asked !== playAsked) return;
         await requirePaired();
         wanted = { uri, durationMs: Number(durationMs) > 0 ? Number(durationMs) : 0, ended: false, seen: false, lastMs: 0 };
         await playWanted(Number(startMs) || 0);
@@ -503,6 +590,7 @@ function createSoloist({
     // Nothing sounds where the program does not run: there is nothing to pause.
     pause() {
       return inTurn(async () => {
+        pausedByUs = true;
         if (socket) send('pause');
       });
     },
@@ -517,6 +605,7 @@ function createSoloist({
           await playWanted(wanted.ended ? 0 : wanted.lastMs ?? 0);
           return;
         }
+        pausedByUs = false;
         send('play');
       });
     },
@@ -529,6 +618,7 @@ function createSoloist({
         if (wanted && (playback?.item?.uri !== wanted.uri || wanted.ended)) {
           await requirePaired();
           await playWanted(at);
+          pausedByUs = true;
           send('pause');
           return;
         }
@@ -550,10 +640,9 @@ function createSoloist({
     // track someone started in another app.
     status() {
       const uri = playback?.item?.uri ?? null;
-      if (wanted && !wanted.ended && uri === wanted.uri) {
-        const at = positionNow();
-        wanted.lastMs = at;
-        if (playback?.status !== 'playing' && playback?.status !== 'buffering' && nearEnd(at, durationNow())) endWanted('it stopped at its end');
+      if (wanted?.seen && !wanted.ended && uri === wanted.uri) {
+        wanted.lastMs = positionNow();
+        if (stoppedAtEnd()) endWanted('it stopped at its end');
       }
       const running = Boolean(socket);
       const paired = Boolean(socket && auth?.loggedIn);
@@ -573,10 +662,12 @@ function createSoloist({
     },
 
     // The app is quitting: the program is stopped. Answers null when nothing runs.
+    // A start under way is not waited for: it stops at its next step, and what it started is
+    // stopped here.
     shutdown() {
       quitting = true;
       if (!child && !adopted && !socket && !starting) return null;
-      return (starting ?? Promise.resolve()).catch(() => { }).then(stopRunning);
+      return stopRunning();
     },
   };
 }

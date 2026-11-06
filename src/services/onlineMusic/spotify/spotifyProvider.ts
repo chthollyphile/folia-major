@@ -18,7 +18,7 @@ import { spotifyMutations } from './spotifyMutations';
 import { resetSpotifyRecommendations, spotifyRecommendations } from './spotifyRecommendations';
 import { describeSpotifyLoginFailure, spotifyLoginFailure } from './spotifyLoginFailure';
 import { describeSpotifyFailure } from './spotifyFailure';
-import { readSpotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistOffered, spotifySoloistPlayback } from './spotifySoloistPlayback';
+import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistOffered, spotifySoloistPlayback } from './spotifySoloistPlayback';
 import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from './spotifySetup';
 
 // src/services/onlineMusic/spotify/spotifyProvider.ts
@@ -200,9 +200,12 @@ export const spotifyProvider: OnlineMusicProvider = {
             await requestSpotify('logout');
         },
         // Two ways only where Soloist is offered (the desktop side says so); else the one sign-in.
+        // The way it plays now is picked to begin with: signing in again does not change it unasked.
         async resolveLoginMethods() {
             const answer = await readSpotifyPlaybackMode();
-            return (answer?.soloist ?? spotifySoloistOffered()) ? SPOTIFY_LOGIN_METHODS : [];
+            if (!(answer?.soloist ?? spotifySoloistOffered())) return [];
+            const now = answer?.mode ?? spotifyPlaybackMode();
+            return SPOTIFY_LOGIN_METHODS.map(method => ({ ...method, preferred: method.id === now }));
         },
         // The way picked goes with the sign-in: the desktop side keeps it once Spotify approves.
         async startLogin(methodId) {
@@ -214,7 +217,12 @@ export const spotifyProvider: OnlineMusicProvider = {
         // is removed without a sign-out): the FM and the lists of the one before are forgotten.
         async checkLogin(key) {
             const state = await requestSpotify<LoginState>('login_check', { key });
-            if (state.state === 'confirmed') resetSpotifyRecommendations();
+            // The desktop side keeps the way picked with this sign-in now: the route follows it at once,
+            // whether or not the check after the sign-in is reached.
+            if (state.state === 'confirmed') {
+                resetSpotifyRecommendations();
+                void readSpotifyPlaybackMode();
+            }
             if (state.state !== 'error') return state;
             const failure = spotifyLoginFailure(state.message);
             return failure ? { ...state, failure } : state;

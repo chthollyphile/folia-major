@@ -98,9 +98,12 @@ const setup = ({ paired = true, exitAtOnce = null as number | null, executable =
         wait: (ms: number) => new Promise(resolve => { setTimeout(resolve, Math.min(ms, 20)); }),
         log: (line: string) => logs.push(line),
         warn: (line: string) => logs.push(line),
+        onProcessExit: (stop: () => void) => { exitStops.push(stop); },
     });
-    return { soloist, store, ...fake, logs, data };
+    return { soloist, store, ...fake, logs, data, exitStops };
 };
+// What each Soloist made in a test would stop when the process ends.
+const exitStops: Array<() => void> = [];
 
 /** Lets the stand-in's messages arrive. */
 const settle = (ms = 30) => new Promise(resolve => { setTimeout(resolve, ms); });
@@ -250,6 +253,80 @@ describe('soloist', () => {
         expect(spawn).not.toHaveBeenCalled();
     });
 
+    it('does not take the next track for ended because the one before stopped at its end', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_500, timestamp_ms: Date.now(), speed: 1 } });
+        run.send({ type: 'playback_changed', status: 'idle' });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: true });
+
+        // The queue goes on with a shorter track; the program names it before it says it plays it.
+        const next = soloist.play({ uri: OTHER, durationMs: 180_000 });
+        for (let tries = 0; tries < 50 && run.commands.filter((command: any) => command.command === 'play').length < 2; tries += 1) await settle(10);
+        run.send({ type: 'track_changed', item: { uri: OTHER, duration_ms: 180_000 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: OTHER, ended: false });
+        run.send({ type: 'playback_state', status: 'playing', item: { uri: OTHER, duration_ms: 180_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await next;
+        expect(soloist.status()).toMatchObject({ uri: OTHER, ended: false });
+        await soloist.shutdown();
+    });
+
+    it('plays the same track again from its start, not as ended', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 199_500, timestamp_ms: Date.now(), speed: 1 } });
+        run.send({ type: 'playback_changed', status: 'idle' });
+        await settle();
+        const again = soloist.play({ uri: URI, durationMs: 200_000 });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: false });
+        run.send({ type: 'playback_state', status: 'playing', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await again;
+        expect(soloist.status()).toMatchObject({ ended: false });
+        expect(soloist.status().positionMs).toBeLessThan(1000);
+        await soloist.shutdown();
+    });
+
+    it('moves on again after a pause or a buffering stop without a new position', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned);
+        run.send({ type: 'position_sync', position: { position_ms: 40_000, timestamp_ms: Date.now(), speed: 1 } });
+        run.send({ type: 'playback_changed', status: 'buffering' });
+        await settle();
+        const held = soloist.status().positionMs;
+        run.send({ type: 'playback_changed', status: 'playing' });
+        await settle(300);
+        expect(soloist.status().positionMs).toBeGreaterThan(held + 200);
+        await soloist.shutdown();
+    });
+
+    it('does not take a pause the listener asked for near the end for an end', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'position_sync', position: { position_ms: 198_800, timestamp_ms: Date.now(), speed: 1 } });
+        await soloist.pause();
+        run.send({ type: 'playback_changed', status: 'paused' });
+        await settle();
+        expect(soloist.status()).toMatchObject({ ended: false, status: 'paused' });
+        await soloist.shutdown();
+    });
+
+    it('drops a play that a newer one replaced while it waited its turn', async () => {
+        const { soloist, spawned } = setup();
+        const run = await playing(soloist, spawned);
+        run.commands.length = 0;
+        const third = 'spotify:track:1111111111111111111111';
+        const skipped = soloist.play({ uri: OTHER });
+        const last = soloist.play({ uri: third });
+        for (let tries = 0; tries < 50 && !run.commands.some((command: any) => command.command === 'play'); tries += 1) await settle(10);
+        run.send({ type: 'playback_state', status: 'playing', item: { uri: third, duration_ms: 1000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 1 } });
+        await Promise.all([skipped, last]);
+        expect(run.commands.filter((command: any) => command.command === 'play').map((command: any) => command.uri)).toEqual([third]);
+        await soloist.shutdown();
+    });
+
     it('does not take a track changed in another app mid-track for an end', async () => {
         const { soloist, spawned } = setup();
         const run = await playing(soloist, spawned, { durationMs: 200_000 });
@@ -279,20 +356,27 @@ describe('soloist', () => {
         expect(logs.join('\n')).not.toContain(KEY);
     });
 
-    it('uses a program an earlier run left running instead of starting a second one', async () => {
+    it('uses a program an earlier run left running, and stops it by the process id Folia wrote', async () => {
         const first = setup();
         await playing(first.soloist, first.spawned);
+        const dataDir = path.join(first.data, 'data');
+        expect(fs.readFileSync(path.join(dataDir, 'folia-soloist.pid'), 'utf8')).toBe('4321');
         const spawn = vi.fn();
+        let alive = true;
+        const killPid = vi.fn((_pid: number) => { alive = false; });
         const again = createSoloist({
             store: first.store,
             safeStorage: keychain(),
-            dataDirectory: () => path.join(first.data, 'data'),
+            dataDirectory: () => dataDir,
             cacheDirectory: () => path.join(first.data, 'cache'),
             chooseFile: async () => null,
             spawn,
             readBuild: async () => VALID_BUILD,
             log: () => { },
             warn: () => { },
+            onProcessExit: () => { },
+            isAlive: () => alive,
+            killPid,
         });
         await expect(again.state({ start: false })).resolves.toMatchObject({ running: false });
         await again.restart();
@@ -301,8 +385,31 @@ describe('soloist', () => {
         await again.setVolume(40);
         await settle();
         expect(first.spawned[0].commands.at(-1)).toMatchObject({ command: 'set_volume', volume: 40 });
-        await again.shutdown();
+
+        // A new key is to be used: the program taken over is stopped, and its address forgotten.
+        await again.saveKey('sk-another-key-42');
+        expect(killPid).toHaveBeenCalledWith(4321);
+        expect(fs.existsSync(path.join(dataDir, 'ws.port'))).toBe(false);
         await first.soloist.shutdown();
+    });
+
+    it('stops what it started when the process ends without quitting', async () => {
+        const { soloist, spawned, exitStops: stops } = setup();
+        await playing(soloist, spawned);
+        stops.at(-1)!();
+        expect(spawned[0].proc.kill).toHaveBeenCalled();
+        await soloist.shutdown();
+    });
+
+    it('does not wait for a start under way when the app quits', async () => {
+        const { soloist, spawned } = setup();
+        const starting = soloist.play({ uri: URI }).catch((error: any) => error);
+        for (let tries = 0; tries < 50 && !spawned[0]; tries += 1) await settle(5);
+        const quitAt = Date.now();
+        await soloist.shutdown();
+        expect(Date.now() - quitAt).toBeLessThan(1000);
+        expect(spawned[0].proc.kill).toHaveBeenCalled();
+        await starting;
     });
 
     it('stops the program when the app quits', async () => {
