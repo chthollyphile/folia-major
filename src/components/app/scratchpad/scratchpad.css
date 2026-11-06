@@ -1323,7 +1323,8 @@
 .scratchpad-table-row.is-dimmed:not(:hover) :is(.scratchpad-name, .scratchpad-meta) { opacity: 0.5; }
 
 /* —— 叠色：接 Bravais 墙的「海报聚焦叠色」（用户定，2026-11-06）——
-   与 Lattice / Bravais 同一种颜色（默认渐变 / 自定义色）、同一个强度 e（--lattice-poster-tint-intensity，日光 ×0.72），
+   与 Lattice / Bravais 同一种颜色（默认渐变 / 自定义色），强度 e 是同一个设置（--lattice-poster-tint-intensity，日光 ×0.72）
+   再打六折（--scratchpad-tint-scale，用户嫌浓，2026-11-06：速记簿整页都是卡片和纸，照墙上的强度染出来太重），
    宿主在根节点上挂 has-poster-tint / uses-custom-poster-tint 与两个变量。左缘面板按 Bravais 缝的规则染
    （bravaisAppearance.css「缝」一节）：纸最终被染 e；内容之上那一层封顶 0.35（字最多被染 35%），纸上不够的由内容之下
    那一层补齐：1 − (1 − e) / (1 − min(e, 0.35))。指针在面板上、面板里有键盘焦点时整块亮起（不染），和缝一样。
@@ -1332,6 +1333,7 @@
    展开整页时面板不画这两层（纸上另算，见下面「展开整页」的叠色）。 */
 .scratchpad-root {
     --scratchpad-tint: 0;
+    --scratchpad-tint-scale: 0.6;
     --scratchpad-tint-fill: linear-gradient(
         145deg,
         color-mix(in srgb, var(--bg-color, #070707) 78%, var(--text-accent, #fd5c47)),
@@ -1340,8 +1342,8 @@
 }
 
 .scratchpad-root.uses-custom-poster-tint { --scratchpad-tint-fill: var(--lattice-poster-tint-color); }
-.scratchpad-root.has-poster-tint { --scratchpad-tint: var(--lattice-poster-tint-intensity, 0.5); }
-.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72); }
+.scratchpad-root.has-poster-tint { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * var(--scratchpad-tint-scale)); }
+.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72 * var(--scratchpad-tint-scale)); }
 .scratchpad-drawer.is-panel:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
 
 .scratchpad-drawer.is-panel::before,
