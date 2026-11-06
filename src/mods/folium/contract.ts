@@ -1884,8 +1884,9 @@ export interface FoliumEqualizerState {
     readonly maxGain: number;
     /**
      * Whether what plays goes through the host's own audio, where the equalizer sits. False during external
-     * Stage playback (another player's now-playing, a Stage source with lyrics and no audio): the equalizer
-     * has nothing to act on then. Its settings still apply once the host plays again.
+     * Stage playback (another player's now-playing, a Stage source with lyrics and no audio), and while an
+     * online platform sounds the song in a player of its own (a page or a program of the platform's): the
+     * equalizer has nothing to act on then. Its settings still apply once the host plays again.
      */
     readonly hostPlaysAudio: boolean;
     /**

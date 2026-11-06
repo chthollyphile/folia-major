@@ -1284,7 +1284,7 @@ one playing.
 | `readonly bands` | `readonly FoliumEqualizerBand[]` | The bands, lowest first: ten in Folium 1.7. The same frozen array on every read. |
 | `readonly minGain` | `number` | The lowest gain of a band in dB: -12 in Folium 1.7. |
 | `readonly maxGain` | `number` | The highest gain of a band in dB: 12 in Folium 1.7. |
-| `readonly hostPlaysAudio` | `boolean` | Whether what plays goes through the host's own audio, where the equalizer sits. False during external Stage playback (another player's now-playing, a Stage source with lyrics and no audio): the equalizer has nothing to act on then. Its settings still apply once the host plays again. |
+| `readonly hostPlaysAudio` | `boolean` | Whether what plays goes through the host's own audio, where the equalizer sits. False during external Stage playback (another player's now-playing, a Stage source with lyrics and no audio), and while an online platform sounds the song in a player of its own (a page or a program of the platform's): the equalizer has nothing to act on then. Its settings still apply once the host plays again. |
 | `readonly writable` | `boolean` | False while the audio effects window is open: a write that would change something is refused `panel-open` then, and `equalizer.changed` fires when the window closes. Later minors may add other times it is false. The permission and the rate limit are not part of it. |
 
 相关：[FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerBand](#foliumequalizerband)
