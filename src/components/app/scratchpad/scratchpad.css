@@ -494,7 +494,6 @@
 .scratchpad-name { font-size: 14px; font-weight: 800; }
 .scratchpad-meta { margin-top: 1px; color: var(--scratchpad-text-soft); font-size: 11.5px; }
 
-
 /* 动作浮在行尾（不占文字的宽度），悬停 / 聚焦时才出现；左边一段渐变把底下的文字压暗。 */
 .scratchpad-row-actions {
     position: absolute;
@@ -514,11 +513,8 @@
 .scratchpad-row:hover .scratchpad-row-actions,
 .scratchpad-row:focus-within .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
 
-/* 没有悬停的设备（触屏）：行上的动作常驻，否则只能点标题（插队播放）。 */
-@media (hover: none) {
-    .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
-    .scratchpad-card-play { opacity: 1; }
-}
+/* 触屏上行的按钮、卡片的播放钮也不常驻（用户定，2026-11-07：常驻时一列按钮压住窄面板里的歌名，太乱）。
+   点一下那一行 / 那张卡，触屏模拟出的悬停会让它们出来。 */
 
 .scratchpad-row-actions .scratchpad-icon-button { width: 30px; height: 30px; }
 .scratchpad-row-actions .scratchpad-icon-button svg { width: 15px; height: 15px; }
@@ -895,10 +891,6 @@
 .scratchpad-row:hover .scratchpad-row-actions,
 .scratchpad-row:focus-within .scratchpad-row-actions { translate: 0 0; }
 
-@media (hover: none) {
-    .scratchpad-row-actions { translate: none; }
-}
-
 .scratchpad-icon-button {
     transition: background-color 0.14s ease, opacity 0.14s ease, scale 0.14s ease;
 }
@@ -938,10 +930,6 @@
 .scratchpad-card-play:focus-visible { translate: 0 0; }
 .scratchpad-card-play:hover { scale: 1.08; }
 
-@media (hover: none) {
-    .scratchpad-card-play { translate: none; }
-}
-
 /* 动效降级：位移、缩放都不要，颜色照常变。 */
 .scratchpad-root.is-calm .scratchpad-row:hover,
 .scratchpad-root.is-calm .scratchpad-row-actions,
@@ -954,7 +942,6 @@
 .scratchpad-root.is-calm .scratchpad-pill,
 .scratchpad-root.is-calm .scratchpad-menu-button,
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
-
 
 /* 动效降级时左缘的标签不从那一点长出来，整张淡入淡出（与常驻那一点交叉淡入）；收进新歌也不闪。 */
 .scratchpad-root.is-calm .scratchpad-handle,
@@ -994,7 +981,6 @@
     align-items: center;
     gap: 12px;
 }
-
 
 .scratchpad-rail-tabs .scratchpad-tab {
     position: relative;
