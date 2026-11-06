@@ -289,11 +289,13 @@
     line-height: 1.6;
 }
 
-/* 行贴着内容区的两边，行自己留白（与组头、说明对齐）。 */
+/* 行贴着内容区的两边，行自己留白（与组头、说明对齐）。只上下滚：行悬停时往右滑的那 2px 会横向溢出，
+   不裁掉的话列表下面会冒出横向滚动条（用户反馈）。 */
 .scratchpad-list {
     min-height: 0;
     flex: 1 1 auto;
     padding: 0 0 6px;
+    overflow-x: hidden;
     overflow-y: auto;
 }
 
