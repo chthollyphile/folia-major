@@ -5343,7 +5343,7 @@ export default {
       "theme_settings": "Bộ mẫu sẵn, nguồn bảng màu tùy chỉnh và khi nào màu tự thay đổi.",
       "sign_in": "Nút Đăng nhập trên trang chủ và biểu tượng ở góc dưới bên phải đều mở cùng một cửa sổ.",
       "lyric_match": "Tự chọn lời bài hát thủ công: đổi nguồn, tìm kiếm, xem trước rồi lưu lại.",
-      "scratchpad": "Sổ ghi nhanh ở mép trái: gom bài hát, xử lý theo nguồn, và chế độ bảng."
+      "scratchpad": "Sổ ghi nhanh ở mép trái: gom bài hát, xử lý theo nguồn, và chế độ toàn trang."
     },
     "categories": {
       "basics": "Bắt đầu",
@@ -6094,7 +6094,7 @@ export default {
       "lyricMatchLocal": "Ba công tắc bổ sung cho bài hát cục bộ",
       "scratchpadCollect": "Gom bài hát",
       "scratchpadDrawer": "Mở sổ và các nhóm",
-      "scratchpadCanvas": "Chế độ bảng",
+      "scratchpadCanvas": "Toàn trang",
       "playerBarQuickActions": "Dừng lại để hiện thao tác nhanh"
     },
     "captions": {
@@ -6571,18 +6571,18 @@ export default {
       "scratchpad": {
         "hover": "Rê chuột lên thẻ một bài hát, hai nút hiện ra ở góc trên bên phải; nút bên trái thêm bài vào sổ ghi nhanh. Thẻ ở Grid, ô và thẻ tiêu điểm ở Bravais, cùng mỗi dòng kết quả tìm kiếm đều có cặp nút này.",
         "save": "Nút bên phải lưu bài vào danh sách phát. Với nguồn hỗ trợ thích, dòng đầu của cửa sổ chọn danh sách là Bài hát yêu thích; bạn cũng có thể tạo danh sách mới ngay tại đó rồi thêm bài vào.",
-        "notQueue": "Thêm vào sổ ghi nhanh không đụng đến hàng đợi phát; bài đang phát vẫn tiếp tục. Đưa chuột lên phần trên mép trái, tay nắm mở ra và cho thấy số bài bên trong; khi sổ trống, tay nắm bị ẩn.",
+        "notQueue": "Thêm vào sổ ghi nhanh không đụng đến hàng đợi phát; bài đang phát vẫn tiếp tục. Một dấu nhỏ, mờ luôn nằm ở phần trên mép trái; đưa chuột tới đó, nó mở ra thành nhãn giấy cho thấy số bài bên trong. Có thể đổi kiểu dấu trong Cài đặt.",
         "otherWays": "Với bài đang phát, nhấn : để vào chế độ thực thi rồi nhấn S. Ở trang bộ sưu tập, “Thêm tất cả vào sổ ghi nhanh” lấy các bài của trang đó một lần, chỉ những bài đã lọc khi đang lọc: ở Grid nằm trong bảng thông tin, ở Bravais nằm trong “⋯ Thêm” của dải thông tin.",
         "open": "Nhấn tay nắm, hoặc nhấn {{mod}} + J, để mở sổ ghi nhanh; trong chế độ thực thi là J. Nhấn lần nữa để đóng.",
         "groups": "Bài hát được nhóm theo nguồn: mỗi nền tảng trực tuyến một nhóm, tệp cục bộ một nhóm, Navidrome một nhóm. Bài được lấy từ đâu (danh sách nào, lần tìm kiếm nào) ghi sau tên nghệ sĩ.",
         "groupActions": "Bên phải đầu nhóm: “Thêm nhóm này vào hàng đợi” và “Thêm nhóm này vào danh sách phát…”. Một danh sách phát chỉ nhận bài từ một nguồn; vì đã nhóm theo nguồn, cả nhóm vừa vặn một danh sách.",
         "rowActions": "Rê chuột lên một dòng để thấy: phát trong hàng đợi, thêm vào hàng đợi, thêm vào danh sách phát, và bỏ ra khỏi sổ. Bài vẫn ở lại sau khi đã vào hàng đợi hay danh sách phát; không cần nữa thì tự bỏ ra.",
         "footer": "Hàng dưới cùng: thêm tất cả vào hàng đợi, thay hàng đợi bằng sổ ghi nhanh, và xóa sạch. Xóa sạch cần nhấn hai lần.",
-        "history": "“Lịch sử phát” ở đầu ngăn kéo là trang thứ hai: các bài đã phát trên thiết bị này trong 7 ngày qua (nền tảng trực tuyến, tệp cục bộ, Navidrome), theo ngày, mới nhất ở trên. Mỗi dòng có thể phát trong hàng đợi, thêm vào hàng đợi, thêm vào sổ ghi nhanh hoặc lưu vào danh sách phát.",
+        "history": "“Lịch sử phát” ở cột thẻ bên trái là trang thứ hai: các bài đã phát trên thiết bị này trong 7 ngày qua (nền tảng trực tuyến, tệp cục bộ, Navidrome), theo ngày, mới nhất ở trên, mỗi bài là một tấm ảnh nhỏ. Mỗi dòng có thể phát trong hàng đợi, thêm vào hàng đợi, thêm vào sổ ghi nhanh hoặc lưu vào danh sách phát.",
         "expand": "Ở cuối cột thẻ bên trái: “Mở rộng toàn trang”.",
-        "canvas": "Khi mở rộng, mỗi bài là một thẻ, vẫn nhóm theo nguồn, và đầu nhóm có thêm “Chọn nhóm này”. Esc bỏ chọn trước, rồi quay lại danh sách.",
+        "canvas": "Khi mở rộng toàn trang, cả tờ giấy nghiêng: dải của trang này chạy ngang phía trên, mỗi bài là một thẻ sổ tay, vẫn nhóm theo nguồn, và đầu nhóm có thêm “Chọn nhóm này”; cột bên phải là danh sách nhảy tới và các thao tác, hai trang còn lại gấp thành dải mỏng ở góc dưới bên trái. Esc bỏ chọn trước, rồi quay lại bảng bên.",
         "drag": "Kéo thẻ để sắp xếp lại. Thẻ chỉ di chuyển trong nhóm của nó, và bám vào vị trí gần nhất khi thả. Trên màn hình cảm ứng, nhấn giữ thẻ đến khi nó nhấc lên rồi kéo.",
-        "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Một menu nổi phía trên các thẻ đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra, bỏ chọn. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."
+        "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Một bảng nổi bên cạnh các thẻ đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra, bỏ chọn. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."
       }
     }
   }

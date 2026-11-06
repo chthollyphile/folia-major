@@ -5343,7 +5343,7 @@ export default {
       "theme_settings": "Presets, where a custom palette comes from, and when it changes by itself.",
       "sign_in": "The home page’s Login button and the pill at the bottom right open the same window.",
       "lyric_match": "Pick lyrics for a song by hand: change the source, search, look, then save.",
-      "scratchpad": "The scratchpad on the left edge: collecting songs, sorting them out by source, and the canvas."
+      "scratchpad": "The scratchpad on the left edge: collecting songs, sorting them out by source, and the full page."
     },
     "categories": {
       "basics": "Getting started",
@@ -6094,7 +6094,7 @@ export default {
       "lyricMatchLocal": "Three extra switches for a local song",
       "scratchpadCollect": "Collecting songs",
       "scratchpadDrawer": "Opening it, and the groups",
-      "scratchpadCanvas": "The canvas",
+      "scratchpadCanvas": "The full page",
       "playerBarQuickActions": "Rest on it for quick actions"
     },
     "captions": {
@@ -6571,18 +6571,18 @@ export default {
       "scratchpad": {
         "hover": "Hover a song card and two buttons appear at its top right; the left one adds the song to the scratchpad. Grid cards, Bravais tiles and focus cards, and every search result row have this pair.",
         "save": "The right one saves it to a playlist. For sources that take likes, the first row of the playlist picker is Liked Songs; you can also create a playlist right there and put the song in it.",
-        "notQueue": "Adding to the scratchpad leaves the play queue alone; what is playing keeps playing. Move the pointer to the upper left edge and the handle opens up, showing how many songs are inside; while the scratchpad is empty, the handle is hidden.",
+        "notQueue": "Adding to the scratchpad leaves the play queue alone; what is playing keeps playing. A small, faint mark rests on the upper left edge; move the pointer there and it opens into the paper tab, showing how many songs are inside. You can change the mark in Settings.",
         "otherWays": "For the song that is playing, press : for execute mode and then S. On a collection page, “Add all to scratchpad” takes the songs of that page at once, only the filtered ones when a filter is on: in Grid it is in the info panel, in Bravais under “⋯ More” in the info strip.",
         "open": "Click the handle, or press {{mod}} + J, to open the scratchpad; in execute mode it is J. Press it again to close it.",
         "groups": "Songs are grouped by source: one group per online platform, one for local files, one for Navidrome. Where each came from (which playlist, which search) is written after its artist.",
         "groupActions": "At the right of a group header: “Queue this group” and “Add this group to a playlist…”. A playlist takes songs from one source only; grouped by source, a whole group fits one playlist.",
         "rowActions": "Hover a row for: play it in the queue, add to queue, add to playlist, and take out of the scratchpad. A song stays after you queue it or save it to a playlist; take it out yourself when you are done with it.",
         "footer": "The bottom row: add all to queue, replace the queue with the scratchpad, and clear. Clearing takes two clicks.",
-        "history": "“Play history” at the top of the drawer is the second page: songs played on this device in the last 7 days (online platforms, local files, Navidrome), by day, newest first. Each row can be played in the queue, queued, added to the scratchpad or saved to a playlist.",
+        "history": "“Play history” in the tab column on the left is the second page: songs played on this device in the last 7 days (online platforms, local files, Navidrome), by day, newest first, each one a small photo. Each row can be played in the queue, queued, added to the scratchpad or saved to a playlist.",
         "expand": "At the bottom of the tab column on the left: “Expand to full page”.",
-        "canvas": "Expanded, every song is a card, still grouped by source, and each group header gains “Select this group”. Esc first clears the selection, then goes back to the list.",
+        "canvas": "Expanded to a full page, the whole sheet tilts: this page's band runs across the top, every song is a notebook card, still grouped by source, and each group header gains “Select this group”; the column on the right holds the jump list and the controls, and the other two pages fold into thin strips at the lower left. Esc first clears the selection, then goes back to the side panel.",
         "drag": "Drag cards to reorder them. A card moves only within its own group, and snaps to the nearest place when you let go. On a touch screen, press and hold a card until it lifts, then drag.",
-        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. A menu floats above the selected cards: add to queue, add to playlist, take out, clear selection. When the selection mixes sources, add to playlist is greyed out."
+        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. A panel floats beside the selected cards: add to queue, add to playlist, take out, clear selection. When the selection mixes sources, add to playlist is greyed out."
       }
     }
   }

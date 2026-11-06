@@ -5343,7 +5343,7 @@ export default {
       "theme_settings": "Preset, asal palet kustom, dan kapan ia berubah sendiri.",
       "sign_in": "Tombol Login di beranda dan pil di kanan bawah membuka jendela yang sama.",
       "lyric_match": "Pilih lirik untuk sebuah lagu secara manual: ganti sumber, cari, lihat dulu, lalu simpan.",
-      "scratchpad": "Buku catatan di tepi kiri: mengumpulkan lagu, membereskannya per sumber, dan kanvasnya."
+      "scratchpad": "Buku catatan di tepi kiri: mengumpulkan lagu, membereskannya per sumber, dan tampilan satu halaman."
     },
     "categories": {
       "basics": "Memulai",
@@ -6094,7 +6094,7 @@ export default {
       "lyricMatchLocal": "Tiga sakelar tambahan untuk lagu lokal",
       "scratchpadCollect": "Mengumpulkan lagu",
       "scratchpadDrawer": "Membuka dan kelompok",
-      "scratchpadCanvas": "Kanvas",
+      "scratchpadCanvas": "Satu halaman",
       "playerBarQuickActions": "Berhenti sejenak untuk aksi cepat"
     },
     "captions": {
@@ -6571,18 +6571,18 @@ export default {
       "scratchpad": {
         "hover": "Arahkan penunjuk ke kartu lagu, dua tombol muncul di kanan atasnya; yang kiri menambahkan lagu ke buku catatan. Kartu Grid, ubin dan kartu fokus Bravais, serta setiap baris hasil pencarian punya pasangan ini.",
         "save": "Yang kanan menyimpannya ke daftar putar. Untuk sumber yang mendukung suka, baris pertama pemilih daftar putar adalah Lagu Disukai; Anda juga bisa membuat daftar putar baru di sana lalu memasukkan lagunya.",
-        "notQueue": "Menambahkan ke buku catatan tidak mengubah antrean putar; yang sedang diputar tetap berjalan. Arahkan penunjuk ke tepi kiri atas dan pegangannya terbuka, menunjukkan jumlah lagu di dalamnya; selama buku catatan kosong, pegangannya tersembunyi.",
+        "notQueue": "Menambahkan ke buku catatan tidak mengubah antrean putar; yang sedang diputar tetap berjalan. Tanda kecil yang samar selalu ada di tepi kiri atas; arahkan penunjuk ke sana dan tanda itu terbuka menjadi label kertas yang menunjukkan jumlah lagu di dalamnya. Bentuk tandanya bisa diganti di Pengaturan.",
         "otherWays": "Untuk lagu yang sedang diputar, tekan : untuk mode eksekusi lalu S. Di halaman koleksi, “Tambahkan semua ke buku catatan” mengambil lagu halaman itu sekaligus, hanya yang tersaring bila filter aktif: di Grid ada di panel info, di Bravais di bawah “⋯ Lainnya” pada strip info.",
         "open": "Klik pegangannya, atau tekan {{mod}} + J, untuk membuka buku catatan; di mode eksekusi tombolnya J. Tekan lagi untuk menutupnya.",
         "groups": "Lagu dikelompokkan per sumber: satu kelompok per platform daring, satu untuk berkas lokal, satu untuk Navidrome. Asal tiap lagu (daftar putar atau pencarian mana) tertulis setelah artisnya.",
         "groupActions": "Di kanan kepala kelompok: “Antrekan grup ini” dan “Tambahkan grup ini ke daftar putar…”. Satu daftar putar hanya menerima lagu dari satu sumber; karena dikelompokkan per sumber, satu kelompok pas untuk satu daftar putar.",
         "rowActions": "Arahkan penunjuk ke sebuah baris untuk: putar di antrean, tambahkan ke antrean, tambahkan ke daftar putar, dan keluarkan dari buku catatan. Lagu tetap ada setelah dimasukkan ke antrean atau daftar putar; keluarkan sendiri bila sudah tidak perlu.",
         "footer": "Baris paling bawah: tambahkan semua ke antrean, ganti antrean dengan buku catatan, dan kosongkan. Mengosongkan perlu dua klik.",
-        "history": "“Riwayat putar” di atas laci adalah halaman kedua: lagu yang diputar di perangkat ini dalam 7 hari terakhir (platform daring, berkas lokal, Navidrome), per hari, terbaru di atas. Tiap baris bisa diputar di antrean, diantrekan, ditambahkan ke buku catatan, atau disimpan ke daftar putar.",
+        "history": "“Riwayat putar” di kolom tab sebelah kiri adalah halaman kedua: lagu yang diputar di perangkat ini dalam 7 hari terakhir (platform daring, berkas lokal, Navidrome), per hari, terbaru di atas, masing-masing berupa foto kecil. Tiap baris bisa diputar di antrean, diantrekan, ditambahkan ke buku catatan, atau disimpan ke daftar putar.",
         "expand": "Di bagian bawah kolom tab di kiri: “Bentangkan satu halaman”.",
-        "canvas": "Setelah dibentangkan, tiap lagu menjadi kartu, tetap dikelompokkan per sumber, dan kepala kelompok mendapat “Pilih grup ini”. Esc lebih dulu membatalkan pilihan, lalu kembali ke daftar.",
+        "canvas": "Setelah dibentangkan satu halaman, seluruh lembar miring: pita halaman ini membentang di atas, tiap lagu menjadi kartu catatan, tetap dikelompokkan per sumber, dan kepala kelompok mendapat “Pilih grup ini”; kolom di kanan berisi daftar lompat dan kontrol, dan dua halaman lainnya terlipat menjadi pita tipis di kiri bawah. Esc lebih dulu membatalkan pilihan, lalu kembali ke panel samping.",
         "drag": "Seret kartu untuk mengatur urutan. Kartu hanya berpindah di dalam kelompoknya sendiri, dan menempel ke tempat terdekat saat dilepas. Di layar sentuh, tekan lama kartu sampai terangkat, lalu seret.",
-        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Sebuah menu mengambang di atas kartu yang dipilih: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan, batalkan pilihan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
+        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Sebuah panel mengambang di samping kartu yang dipilih: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan, batalkan pilihan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
       }
     }
   }
