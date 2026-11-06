@@ -103,3 +103,6 @@ public/nebbia-strokes.json
 
 # Generated system-WebView companions
 /build/apple-music-native/
+
+# Local Folium MCP client snippets contain machine-specific paths.
+dist-folium-mcp-clients/

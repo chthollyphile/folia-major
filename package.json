@@ -60,7 +60,10 @@
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
-    "manual:ai-probe": "node test/manual/ai_probe.mjs"
+    "manual:ai-probe": "node test/manual/ai_probe.mjs",
+    "folium:mcp": "node dev/folium/mcp/server.mjs",
+    "folium:mcp:config": "node dev/folium/mcp/exportClients.mjs",
+    "folium:mcp:doctor": "node dev/folium/mcp/diagnose.mjs"
   },
   "build": {
     "appId": "top.izuna.foliamajor",
@@ -332,7 +335,8 @@
     "vitest": "^4.1.11",
     "wait-on": "^9.1.0",
     "wanakana": "^5.3.1",
-    "zustand": "^5.0.15"
+    "zustand": "^5.0.15",
+    "@modelcontextprotocol/sdk": "1.32.2"
   },
   "overrides": {
     "@babel/plugin-transform-runtime": "7.29.7",

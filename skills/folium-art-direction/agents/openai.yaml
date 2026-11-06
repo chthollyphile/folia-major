@@ -1,0 +1,4 @@
+interface:
+  display_name: "Folia 风格导演"
+  short_description: "按素材艺术风格选择三种歌词释放语法，设计自然轨迹、节奏联动与可读性"
+  default_prompt: "使用 $folium-art-direction 分析素材，选择逐字、逐句或字词组句，编排自然节奏与间奏动作，并按公开 Folium 契约制作标准模组，在真实桌面宿主验收。"
