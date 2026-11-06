@@ -89,23 +89,26 @@
     height: 100%;
     align-items: center;
     pointer-events: none;
-    transition: opacity 0.18s ease;
+    /* 收回时等标签缩回这一点才重新出现，与标签消失在同一刻（接上，见下一节）。 */
+    transition: opacity 0s linear 0.2s;
 }
 
-/* 常驻那一点在左缘上的框（左边、宽、高；竖直居中），完整的标签从这里长出来（见下一节）。 */
-.scratchpad-edge { --scratchpad-rest-x: 0px; --scratchpad-rest-w: 6px; --scratchpad-rest-h: 56px; }
-.scratchpad-edge.is-line { --scratchpad-rest-w: 3px; --scratchpad-rest-h: 72px; }
-.scratchpad-edge.is-dot { --scratchpad-rest-w: 7px; --scratchpad-rest-h: 14px; }
-.scratchpad-edge.is-shapes { --scratchpad-rest-x: 4px; --scratchpad-rest-w: 8px; --scratchpad-rest-h: 36px; }
+/* 常驻那一点在左缘上的框（左边、宽、高；竖直居中）与它的透明度，完整的标签从这里长出来（见下一节）。 */
+.scratchpad-edge { --scratchpad-rest-x: 0px; --scratchpad-rest-w: 6px; --scratchpad-rest-h: 56px; --scratchpad-rest-opacity: 0.4; }
+.scratchpad-edge.is-line { --scratchpad-rest-w: 3px; --scratchpad-rest-h: 72px; --scratchpad-rest-opacity: 0.28; }
+.scratchpad-edge.is-dot { --scratchpad-rest-w: 7px; --scratchpad-rest-h: 14px; --scratchpad-rest-opacity: 0.55; }
+.scratchpad-edge.is-shapes { --scratchpad-rest-x: 4px; --scratchpad-rest-w: 8px; --scratchpad-rest-h: 36px; --scratchpad-rest-opacity: 0.45; }
 
 .scratchpad-rest-strip { display: block; opacity: 0.4; }
 .scratchpad-rest-line { display: block; opacity: 0.28; }
 .scratchpad-rest-dot { display: block; border-radius: 50%; opacity: 0.55; }
 .scratchpad-rest-shapes { display: flex; flex-direction: column; opacity: 0.45; }
 
-/* 完整的标签从常驻的那一点长出来（用户要的，2026-11-06）：平时它的纸裁成常驻那一点的框（--scratchpad-rest-*），
-   指针进热区或键盘聚焦时裁切框撑到整张标签（斜切的下端也是这个框的一部分），同时淡入，常驻的那一点淡掉；
-   纸上的字和纹理等纸撑开一截再淡入，不露出被裁成一条的字。收回时缩回那一点。
+/* 完整的标签从常驻的那一点长出来（用户要的，2026-11-06），手感照上一版的玻璃小舌头：同一个东西变大，0.2s ease，
+   字跟着淡入，不是两样东西交叉淡入。平时标签的纸裁成常驻那一点的框（--scratchpad-rest-*）；指针进热区或键盘聚焦时
+   常驻那一点立刻让位给同样大小、同样透明度（--scratchpad-rest-opacity）的标签，标签的纸亮起来、裁切框撑到整张标签
+   （斜切的下端也是这个框的一部分），投影跟着长出来。收回时反过来：缩回那一点、暗回那个透明度，到头的那一刻换回常驻那一点。
+   显隐在按钮上（瞬间），亮暗在纸上（过渡）：用 CSS 动画去亮起会挡掉收回时的过渡。
    投影画在按钮上（drop-shadow，跟着裁过的纸走）：clip-path 会把同一个元素的投影一起裁掉，所以裁在里面那层纸上。
    没展开时按钮不接指针：它比热区高，会挡住下面 Bravais 信息条的标签；键盘照样聚焦得到。 */
 .scratchpad-handle {
@@ -119,19 +122,19 @@
     background: transparent;
     color: var(--scratchpad-ink);
     cursor: pointer;
-    filter: drop-shadow(0 12px 24px rgb(0 0 0 / 45%));
+    filter: drop-shadow(0 0 0 rgb(0 0 0 / 0%));
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0s linear 0.2s, filter 0.2s ease;
 }
 
-.scratchpad-edge:hover .scratchpad-edge-rest,
-.scratchpad-edge:focus-within .scratchpad-edge-rest { opacity: 0; }
+.scratchpad-edge:is(:hover, :focus-within) .scratchpad-edge-rest { opacity: 0; transition: none; }
 
-.scratchpad-edge:hover .scratchpad-handle,
-.scratchpad-edge:focus-within .scratchpad-handle {
+.scratchpad-edge:is(:hover, :focus-within) .scratchpad-handle {
+    filter: drop-shadow(0 12px 24px rgb(0 0 0 / 45%));
     opacity: 1;
     pointer-events: auto;
+    transition: filter 0.2s ease;
 }
 
 .scratchpad-handle:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
@@ -152,17 +155,20 @@
         var(--scratchpad-rest-right) var(--scratchpad-rest-bottom),
         var(--scratchpad-rest-x) var(--scratchpad-rest-bottom)
     );
-    transition: clip-path 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: var(--scratchpad-rest-opacity);
+    transition: clip-path 0.2s ease, opacity 0.2s ease;
 }
 
-.scratchpad-edge:is(:hover, :focus-within) .scratchpad-handle-paper { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%); }
+.scratchpad-edge:is(:hover, :focus-within) .scratchpad-handle-paper {
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%);
+    opacity: 1;
+}
 
-/* 纸上的东西：收回时先淡掉，展开时等纸撑开一截再淡入。 */
+/* 纸上的东西跟着纸淡入淡出（同上一版的 0.12s）：裁切框从左缘那一条撑开，一开始框里只有纸边，露不出字。 */
 .scratchpad-handle-texture,
-.scratchpad-handle-body { transition: opacity 0.1s ease; }
+.scratchpad-handle-body { transition: opacity 0.12s ease; }
 
 .scratchpad-edge:not(:hover, :focus-within) :is(.scratchpad-handle-texture, .scratchpad-handle-body) { opacity: 0; }
-.scratchpad-edge:is(:hover, :focus-within) :is(.scratchpad-handle-texture, .scratchpad-handle-body) { transition: opacity 0.2s ease 0.1s; }
 
 /* 网点纹理，中段（标题那一截）渐隐掉，不影响读字。 */
 .scratchpad-handle-texture {
@@ -947,11 +953,14 @@
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
 
 
-/* 动效降级时左缘的标签不从那一点长出来，整张淡入淡出；收进新歌也不闪。 */
-.scratchpad-root.is-calm .scratchpad-handle { transition: opacity 0.12s ease; }
+/* 动效降级时左缘的标签不从那一点长出来，整张淡入淡出（与常驻那一点交叉淡入）；收进新歌也不闪。 */
+.scratchpad-root.is-calm .scratchpad-handle,
+.scratchpad-root.is-calm .scratchpad-edge-rest,
+.scratchpad-root.is-calm .scratchpad-edge:is(:hover, :focus-within) :is(.scratchpad-handle, .scratchpad-edge-rest) { transition: opacity 0.12s ease; }
 
 .scratchpad-root.is-calm .scratchpad-handle-paper {
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%);
+    opacity: 1;
     transition: none;
 }
 
