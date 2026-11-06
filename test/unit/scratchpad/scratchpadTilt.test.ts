@@ -10,7 +10,7 @@ import {
     rectCorners,
     slotPosition,
 } from '@/components/app/scratchpad/canvasLayout';
-import { mulberry32, scatterFullBandDecos, scatterSlimDecos } from '@/components/app/scratchpad/scratchpadLook';
+import { mulberry32, scatterBandDecos, scatterSlimDecos } from '@/components/app/scratchpad/scratchpadLook';
 
 // test/unit/scratchpad/scratchpadTilt.test.ts
 // 展开整页那张倾斜的纸：屏幕坐标与元素自己坐标的换算、斜着的框选框碰没碰到卡片、三种卡片的格子大小、信息条装饰按种子撒。
@@ -108,8 +108,8 @@ describe('band decorations', () => {
     });
 
     it('places the same shapes every time, inside their zones, without overlapping', () => {
-        const decos = scatterFullBandDecos('history', 1760);
-        expect(scatterFullBandDecos('history', 1760)).toEqual(decos);
+        const decos = scatterBandDecos('history', 1760);
+        expect(scatterBandDecos('history', 1760)).toEqual(decos);
         expect(decos.length).toBeGreaterThan(8);
         for (const deco of decos) {
             expect(deco.x).toBeGreaterThanOrEqual(742);

@@ -1899,3 +1899,87 @@
 .scratchpad-root.is-calm .scratchpad-slim::after,
 .scratchpad-root.is-calm .scratchpad-drawer.is-expanded .scratchpad-card::after { transition: none; }
 .scratchpad-root.is-calm .scratchpad-card.is-photo:hover { rotate: var(--scratchpad-photo-rotate, 0deg); }
+
+/* —— 三行总览（ScratchpadOverview）——
+   三条 72px 的信息条横贯整张纸（在纸上的高度按窗口比例），每条下面 84px 处一行这一页的头几张卡，行尾一块「还有几首」。
+   空白处框选（屏幕方向，可以跨行）；选中后的墨色板与展开整页同一种样子。 */
+.scratchpad-overview { position: absolute; inset: 0; outline: none; touch-action: pan-y; }
+.scratchpad-overview-row { position: absolute; right: 0; left: 0; }
+.scratchpad-overview-row:nth-child(1) { z-index: 3; }
+.scratchpad-overview-row:nth-child(2) { z-index: 2; }
+.scratchpad-overview-row:nth-child(3) { z-index: 1; }
+
+.scratchpad-band.is-row { height: 72px; overflow: visible; box-shadow: 0 16px 40px rgb(0 0 0 / 40%); clip-path: none; }
+.scratchpad-band-wrap.is-row { width: 100%; filter: none; }
+
+.scratchpad-band.is-row .scratchpad-band-texture {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent 630px, #000 780px);
+    mask-image: linear-gradient(90deg, transparent 0, transparent 630px, #000 780px);
+}
+
+.scratchpad-band.is-row .scratchpad-band-head { left: 186px; height: 100%; gap: 14px; }
+.scratchpad-band.is-row .scratchpad-band-count { min-width: 64px; height: 52px; padding: 0 8px; }
+.scratchpad-band.is-row .scratchpad-band-count > span { font-size: 30px; }
+.scratchpad-band.is-row .scratchpad-band-heading { max-width: 380px; gap: 3px; }
+.scratchpad-band.is-row .scratchpad-band-index { font-size: 11px; }
+.scratchpad-band.is-row .scratchpad-band-title { margin: 0; font-size: 24px; }
+.scratchpad-overview-row[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
+.scratchpad-overview-row[data-page='history'] .scratchpad-band-texture {
+    background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
+    opacity: 0.12;
+}
+
+.scratchpad-overview-row[data-page='queue'] .scratchpad-band-texture {
+    background:
+        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 6px / 100% 5px no-repeat,
+        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 calc(100% - 6px) / 100% 5px no-repeat;
+    opacity: 0.22;
+}
+
+/* 编号后面那个带下划线的链接（「‹ 三行总览」「展开整页 ›」）。 */
+.scratchpad-band-index { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+
+.scratchpad-band-link {
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid var(--scratchpad-mark);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+}
+
+.scratchpad-band-link:hover { border-bottom-width: 3px; }
+.scratchpad-band-link:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
+
+.scratchpad-overview-cards { position: absolute; top: 84px; right: 0; left: 196px; }
+
+.scratchpad-overview-more {
+    position: absolute;
+    top: 0;
+    display: flex;
+    width: 132px;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 12px;
+    border: 0;
+    background: var(--scratchpad-rail);
+    color: var(--scratchpad-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.scratchpad-overview-more:hover { background: var(--scratchpad-raise); }
+.scratchpad-overview-more:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
+.scratchpad-overview-more-count { font-size: 13px; font-weight: 800; line-height: 1.35; }
+.scratchpad-overview-more .scratchpad-slim-open { border-bottom-color: var(--scratchpad-mark-wall); }
+
+.scratchpad-overview .scratchpad-selection-menu { position: absolute; z-index: 30; }
+.scratchpad-overview.is-box-selecting .scratchpad-card { transition: none; }
+.scratchpad-triangle-help { margin-left: 8px; font-size: 13px; }

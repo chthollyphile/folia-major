@@ -72,30 +72,34 @@ export const mulberry32 = (seed: number) => {
 
 const DECO_SEEDS: Record<ScratchpadTab, number> = { notes: 11, history: 23, queue: 37 };
 const SCATTER_STYLES: readonly ScratchpadDecoStyle[] = ['fill', 'wire', 'hollow', 'image', 'ink', 'wire', 'fill', 'image', 'hollow', 'fill', 'ink', 'wire'];
-/** 展开整页的信息条右端留给按钮的宽度（按钮宽度不同，装饰的右界跟着变；最右 220px 转出屏幕）。 */
-const ACTION_ROOM: Record<ScratchpadTab, number> = { notes: 538, history: 488, queue: 448 };
-/** 展开整页的信息条高度（含上下边）。 */
-export const FULL_BAND_HEIGHT = 120;
+/** 信息条右端留给按钮的宽度（按钮宽度不同，装饰的右界跟着变；最右 220px 转出屏幕）。三行总览那一版右端只有短短一截。 */
+const ACTION_ROOM: Record<'full' | 'row', Record<ScratchpadTab, number>> = {
+    full: { notes: 538, history: 488, queue: 448 },
+    row: { notes: 538, history: 492, queue: 448 },
+};
+/** 信息条高度（含上下边）：展开整页 120px，三行总览 72px。 */
+export const BAND_HEIGHTS = { full: 120, row: 72 } as const;
 
 /**
- * 展开整页那条信息条（width 宽、120px 高）上的装饰：同一种几何体随机撒在标题与按钮之间的空白里，按钮上方那一截再放几颗小的；
+ * 展开整页（120px 高）与三行总览（72px 高）那条信息条（width 宽）上的装饰：同一种几何体随机撒在标题与按钮之间的空白里，按钮上方那一截再放几颗小的；
  * 大小、样式、角度随机，按页固定种子（设计稿 F 的 gen-f 同一套算法）。线框与镂空整个落在条内，填充与封面可以探出条的上下沿；
  * 互相之间留一点空，不压文字和按钮。
  */
-export const scatterFullBandDecos = (tab: ScratchpadTab, width: number): ScratchpadDeco[] => {
-    const random = mulberry32(DECO_SEEDS[tab] * 7);
-    const inner = FULL_BAND_HEIGHT - 7;
-    const split = width - ACTION_ROOM[tab];
-    const zones: [number, number, number][] = [[742, split, 99], [split, width - 220, 54]];
+export const scatterBandDecos = (tab: ScratchpadTab, width: number, variant: 'full' | 'row' = 'full'): ScratchpadDeco[] => {
+    const full = variant === 'full';
+    const random = mulberry32(DECO_SEEDS[tab] * (full ? 7 : 3));
+    const inner = BAND_HEIGHTS[variant] - 7;
+    const split = width - ACTION_ROOM[variant][tab];
+    const zones: [number, number, number][] = full ? [[742, split, 99], [split, width - 220, 54]] : [[650, split, 99]];
     const placed: ScratchpadDeco[] = [];
-    for (let tries = 0; placed.length < 15 && tries < 600; tries += 1) {
+    for (let tries = 0; placed.length < (full ? 15 : 11) && tries < 600; tries += 1) {
         const style = SCATTER_STYLES[Math.floor(random() * SCATTER_STYLES.length)];
-        const [x0, x1, yMax] = zones[random() < 0.82 ? 0 : 1];
+        const [x0, x1, yMax] = zones[random() < 0.82 || zones.length === 1 ? 0 : 1];
         const bottom = Math.min(yMax === 99 ? inner : yMax, inner);
         const inside = style === 'wire' || style === 'hollow';
-        const maxSize = inside ? bottom - 8 : 104;
+        const maxSize = inside ? bottom - 8 : (full ? 104 : 74);
         const minSize = style === 'image' ? 34 : 12;
-        const size = Math.round(minSize + Math.pow(random(), 1.7) * Math.max(0, Math.min(maxSize, 96) - minSize));
+        const size = Math.round(minSize + Math.pow(random(), 1.7) * Math.max(0, Math.min(maxSize, full ? 96 : 66) - minSize));
         if (size < minSize || x1 - x0 < size + 4) continue;
         const yLow = inside ? 4 : -Math.round(size * 0.45);
         const yHigh = inside ? bottom - 4 - size : (yMax === 99 ? Math.round(inner - size * 0.55) : bottom - size);

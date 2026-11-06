@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { ListPlus, NotebookPen, Play, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
-import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry } from '../../../stores/useScratchpadStore';
+import { groupScratchpadEntries, scratchpadGroupKey, useScratchpadStore, type ScratchpadEntry, type ScratchpadTab } from '../../../stores/useScratchpadStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { useScratchpadSettingsStore } from '../../../stores/useScratchpadSettingsStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
@@ -18,6 +18,7 @@ import ScratchpadQueue from './ScratchpadQueue';
 import ScratchpadEdge from './ScratchpadEdge';
 import ScratchpadPanel from './ScratchpadPanel';
 import ScratchpadSheet, { ScratchpadBandActions } from './ScratchpadSheet';
+import ScratchpadOverview from './ScratchpadOverview';
 import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
@@ -307,6 +308,15 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const calm = useReducedMotionFor('uiMicroMotion');
     // 展开整页那张纸转 6°；降低动态效果时不转（同歌手页）。
     const tilt = calm ? 0 : 6;
+    // 展开整页的信息条上「‹ 三行总览」换到三行总览；收回侧栏之后再展开，回到这一页（不回总览）。
+    const [showOverview, setShowOverview] = useState(false);
+    useEffect(() => {
+        if (!isExpanded) setShowOverview(false);
+    }, [isExpanded]);
+    const openPage = useCallback((next: ScratchpadTab) => {
+        setTab(next);
+        setShowOverview(false);
+    }, [setTab]);
     const notesSide = useMemo<CanvasSide>(() => ({
         jumpLabel: t('scratchpad.jumpTo'),
         tipsLabel: t('scratchpad.tipsTitle'),
@@ -470,6 +480,17 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                                 onSelectTab={setTab}
                                 onCollapse={collapseCanvas}
                                 collapseLabel={t('scratchpad.collapseCanvas')}
+                                onShowOverview={() => setShowOverview(true)}
+                                overview={showOverview ? (sheetWidth => (
+                                    <ScratchpadOverview
+                                        playback={playback}
+                                        queue={queue}
+                                        tilt={tilt}
+                                        sheetWidth={sheetWidth}
+                                        onOpenPage={openPage}
+                                        onEscape={collapseCanvas}
+                                    />
+                                )) : null}
                             >
                                 {tabPanel}
                             </ScratchpadSheet>

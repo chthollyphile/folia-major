@@ -7,7 +7,7 @@ import ScratchpadShape from './ScratchpadShape';
 import {
     SCRATCHPAD_PANEL_BAND_DECOS,
     SCRATCHPAD_TAB_SHAPES,
-    scatterFullBandDecos,
+    scatterBandDecos,
     scatterSlimDecos,
     scratchpadShapeClipPath,
     type ScratchpadDeco,
@@ -27,13 +27,16 @@ type ScratchpadBandProps = {
     index: string;
     title: string;
     count: number;
-    variant?: 'panel' | 'full';
-    /** 展开整页：标题下面一行小字（这一页的说明）。 */
+    /** panel：左缘面板顶上；full：展开整页；row：三行总览里的一行。 */
+    variant?: 'panel' | 'full' | 'row';
+    /** 展开整页与三行总览：标题下面一行小字（这一页的说明）。 */
     meta?: string;
-    /** 展开整页：条的宽度（整张纸那么宽），装饰按它撒。 */
+    /** 展开整页与三行总览：条的宽度（整张纸那么宽），装饰按它撒。 */
     width?: number;
     /** 展开整页：右端按钮的空位。 */
     actionsRef?: React.Ref<HTMLDivElement>;
+    /** 编号后面那个带下划线的链接：展开整页里是「‹ 三行总览」，三行总览里是「展开整页 ›」。 */
+    link?: { label: string; onClick: () => void };
 };
 
 /** 装饰用的封面：正在放的那首之后的几首（没有正在放的就从头），有封面的取前 limit 张。 */
@@ -99,25 +102,32 @@ const Decos: React.FC<{ shape: ScratchpadShapeKind; decos: readonly ScratchpadDe
     );
 };
 
-const ScratchpadBand: React.FC<ScratchpadBandProps> = ({ tab, index, title, count, variant = 'panel', meta, width = 0, actionsRef }) => {
+const ScratchpadBand: React.FC<ScratchpadBandProps> = ({ tab, index, title, count, variant = 'panel', meta, width = 0, actionsRef, link }) => {
     const shape = SCRATCHPAD_TAB_SHAPES[tab];
     const full = variant === 'full';
-    const covers = useUpcomingCovers(full ? 6 : 3);
+    const wide = variant !== 'panel';
+    const covers = useUpcomingCovers(wide ? 6 : 3);
     // 宽度按 40px 一档取整再撒：窗口拖动改变大小时装饰不跟着每个像素重排。
     const widthStep = Math.round(width / 40) * 40;
-    const decos = useMemo(() => (full ? scatterFullBandDecos(tab, widthStep) : SCRATCHPAD_PANEL_BAND_DECOS[tab]), [full, tab, widthStep]);
+    const decos = useMemo(
+        () => (variant === 'panel' ? SCRATCHPAD_PANEL_BAND_DECOS[tab] : scatterBandDecos(tab, widthStep, variant)),
+        [tab, variant, widthStep],
+    );
     return (
         <div className={`scratchpad-band-wrap is-${variant}`}>
             <div className={`scratchpad-band is-${variant}`} data-testid="scratchpad-band" role="region" aria-label={title}>
                 <span className="scratchpad-band-texture" aria-hidden="true" />
-                {full && <span className="scratchpad-band-skew" aria-hidden="true" />}
+                {wide && <span className="scratchpad-band-skew" aria-hidden="true" />}
                 <Decos shape={shape} decos={decos} covers={covers} />
                 <div className="scratchpad-band-head">
                     <span className="scratchpad-band-count"><span>{count}</span></span>
                     <span className="scratchpad-band-heading">
-                        <span className="scratchpad-band-index" aria-hidden="true">{index}</span>
-                        {full ? <h2 className="scratchpad-band-title">{title}</h2> : <span className="scratchpad-band-title">{title}</span>}
-                        {full && meta && <span className="scratchpad-band-meta">{meta}</span>}
+                        <span className="scratchpad-band-index">
+                            <span aria-hidden="true">{index}</span>
+                            {link && <button type="button" className="scratchpad-band-link" onClick={link.onClick}>{link.label}</button>}
+                        </span>
+                        {wide ? <h2 className="scratchpad-band-title">{title}</h2> : <span className="scratchpad-band-title">{title}</span>}
+                        {wide && meta && <span className="scratchpad-band-meta">{meta}</span>}
                     </span>
                 </div>
                 {full && <div className="scratchpad-band-actions" ref={actionsRef} />}

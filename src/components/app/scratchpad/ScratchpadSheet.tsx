@@ -15,6 +15,7 @@ import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 // （右边转出屏幕、被播放胶囊挡住），点它换过去。右上角一块黑色直角三角（不转）：放大的问候、收回侧栏、面包屑。
 // 纸后面是这一页几何体的低可见度大构图（照搜索页的至上主义构图：大空心形、淡色块、实心小形、发丝线、斜线小方块、竖排大字）。
 // 信息条右端的按钮由各页自己画进来（ScratchpadBandActions，经 portal 放进条上的空位）。
+// 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
 const BandSlotContext = createContext<HTMLElement | null>(null);
@@ -42,6 +43,10 @@ type ScratchpadSheetProps = {
     onCollapse: () => void;
     collapseLabel: string;
     collapseRef?: React.Ref<HTMLButtonElement>;
+    /** 三行总览：给了就画它（参数是纸的宽度），不画这一页。 */
+    overview?: ((sheetWidth: number) => React.ReactNode) | null;
+    /** 展开整页的信息条上「‹ 三行总览」。 */
+    onShowOverview?: () => void;
     children: React.ReactNode;
 };
 
@@ -65,7 +70,7 @@ const Backdrop: React.FC<{ tab: ScratchpadTab; word: string }> = ({ tab, word })
 };
 
 const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
-    tab, notesCount, queueCount, tilt, onSelectTab, onCollapse, collapseLabel, collapseRef, children,
+    tab, notesCount, queueCount, tilt, onSelectTab, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
 }) => {
     const { t } = useTranslation();
     const historyCount = useScratchpadHistory().length;
@@ -85,35 +90,40 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     return (
         <div className="scratchpad-f" style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
             <Backdrop tab={tab} word={title} />
-            <div className="scratchpad-f-sheet">
-                <div className="scratchpad-f-band">
-                    <ScratchpadBand
-                        variant="full"
-                        tab={tab}
-                        index={indexOf(tab)}
-                        title={title}
-                        meta={t(META_KEYS[tab])}
-                        count={counts[tab]}
-                        width={sheetWidth}
-                        actionsRef={setSlot}
-                    />
-                </div>
-                <div className="scratchpad-f-body">
-                    <BandSlotContext.Provider value={slot}>{children}</BandSlotContext.Provider>
-                </div>
-                {others.map((id, order) => (
-                    <div key={id} className={`scratchpad-f-slim is-${order === 0 ? 'upper' : 'lower'}`}>
-                        <ScratchpadSlim
-                            tab={id}
-                            index={indexOf(id)}
-                            title={t(TITLE_KEYS[id])}
-                            countLabel={t('scratchpad.count', { count: counts[id] })}
-                            openLabel={t('scratchpad.expandPage')}
-                            onOpen={() => onSelectTab(id)}
+            {overview ? (
+                <div className="scratchpad-f-sheet">{overview(sheetWidth)}</div>
+            ) : (
+                <div className="scratchpad-f-sheet">
+                    <div className="scratchpad-f-band">
+                        <ScratchpadBand
+                            variant="full"
+                            tab={tab}
+                            index={indexOf(tab)}
+                            title={title}
+                            meta={t(META_KEYS[tab])}
+                            count={counts[tab]}
+                            width={sheetWidth}
+                            actionsRef={setSlot}
+                            link={onShowOverview ? { label: `‹ ${t('scratchpad.overview')}`, onClick: onShowOverview } : undefined}
                         />
                     </div>
-                ))}
-            </div>
+                    <div className="scratchpad-f-body">
+                        <BandSlotContext.Provider value={slot}>{children}</BandSlotContext.Provider>
+                    </div>
+                    {others.map((id, order) => (
+                        <div key={id} className={`scratchpad-f-slim is-${order === 0 ? 'upper' : 'lower'}`}>
+                            <ScratchpadSlim
+                                tab={id}
+                                index={indexOf(id)}
+                                title={t(TITLE_KEYS[id])}
+                                countLabel={t('scratchpad.count', { count: counts[id] })}
+                                openLabel={t('scratchpad.expandPage')}
+                                onOpen={() => onSelectTab(id)}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
             {/* 右上角的黑色直角三角：字右对齐，顺着斜边一行比一行收进去（左下半是一块 shape-outside 的浮动）。 */}
             <div className="scratchpad-triangle">
                 <span className="scratchpad-triangle-float" aria-hidden="true" />
@@ -123,7 +133,14 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                     <button ref={collapseRef} type="button" className="scratchpad-pill is-icon is-small" title={collapseLabel} aria-label={collapseLabel} onClick={onCollapse}>
                         <ChevronLeft aria-hidden="true" />
                     </button>
-                    <span className="scratchpad-triangle-crumb">{t('scratchpad.crumb', { page: title })}</span>
+                    <span className="scratchpad-triangle-crumb">
+                        {overview ? t('scratchpad.crumbOverview', { title: t('scratchpad.title') }) : t('scratchpad.crumb', { page: title })}
+                    </span>
+                    {overview && (
+                        <button type="button" className="scratchpad-pill is-icon is-small scratchpad-triangle-help" title={t('scratchpad.overviewHelp')} aria-label={t('scratchpad.overviewHelp')}>
+                            ?
+                        </button>
+                    )}
                 </span>
             </div>
         </div>
