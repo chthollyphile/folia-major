@@ -10,6 +10,16 @@ import ScratchpadShape from './ScratchpadShape';
 import { useScratchpadHistory } from './useScratchpadHistory';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 import { overviewBottomInset, overviewRowTops, tiltDrop } from './canvasLayout';
+import {
+    PANEL_SLIM_SHIFT,
+    PAPER_EASE,
+    PAPER_FACE_VARIANTS,
+    SLIM_HEIGHT,
+    panelPaperFrame,
+    usePaperMotions,
+    type PaperFrame,
+    type PaperMotion,
+} from './scratchpadPaper';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
@@ -23,13 +33,13 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
 //
 // 三条信息条一直都在、各自一层（用户要的「整个信息条移动展开」）：总览里是三行 72px 的条，整页里这一页是顶上 120px 的条、
-// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入。
-// 所有的条都朝上走（用户定，2026-11-06）：要去左下角当细纸带的条（从顶上那条、从总览的一行）先从上方离开视口，
-// 再从窗口下面升回到底部（WRAP_*，它在视口外的那一下换高度、换样子）；往上去的条直接挪；两条细纸带之间对调直接挪。
-// 展开与收回是同一张纸的一次连续动作（用户要的，2026-11-07「优化展开 / 普通之间的过渡」）：
-// 展开时这一页的条就是面板顶上那条——同一个位置、同一个样子（面板那一面，ENTER_*），一边长到整页那条、一边换成整页的样子，
-// 纸同时转到 tilt；墙上的纱单独淡入（.scratchpad-f-scrim），面板在纱底下待着再淡掉。收回时倒过来：这一页的条换回面板的样子、
-// 缩回面板顶上那条的位置，纱淡掉；面板已经在原位（不再从左边滑进来），条落定的那一刻整页才淡掉，看不出接缝。
+// 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入；
+// 怎么挪（直接挪，或先从上方出去、再从下面升回底部）与左缘面板共用（scratchpadPaper.ts）。
+// 展开与收回是同一张纸的一次连续动作（用户要的，2026-11-07）：左缘面板也是这三条纸（顶上信息条、底部两条细纸带），
+// 展开时三条各自从面板里的位置长出去——这一页的条从面板顶上那条（同一个位置、同一个样子，面板那一面，ENTER_*）
+// 一边长到整页那条、一边换成整页的样子；另外两条从面板底部那两格拉长成左下角的细纸带，字不动（--scratchpad-slim-shift 跟着变）。
+// 纸同时转到 tilt；墙上的纱单独淡入（.scratchpad-f-scrim），面板在纱底下待着再淡掉。收回时倒过来：三条缩回面板里各自那一格
+// （总览里的三行也一样），纱淡掉；面板已经在原位（不再从左边滑进来），条落定的那一刻整页才淡掉，看不出接缝。
 // 降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
@@ -48,20 +58,25 @@ const SHEET_BLEED_Y = 130;
 const TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
 const META_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.hint', history: 'scratchpad.historyHint', queue: 'scratchpad.queueHint' };
 
-/** 一条信息条在纸上的框（纸上坐标，px）。 */
-type BandFrame = { top: number; left: number; width: number; height: number };
 /** 一条信息条此刻的样子：整页顶上那条、总览里的一行、左下角的细纸带。 */
 type BandMode = 'full' | 'row' | 'slim';
 /** 条里那一面：除了上面三种，展开开头与收回末尾是左缘面板顶上那条的样子。 */
 type FaceMode = BandMode | 'panel';
 
-/** 左缘面板顶上那条信息条在纸上的位置（纸还没转时，面板 64px 的页签列右边、离窗口顶 40px，340 × 64）。 */
-const PANEL_BAND_FRAME: BandFrame = { top: SHEET_BLEED_Y + 40, left: SHEET_BLEED_X + 64, width: 340, height: 64 };
+/** 左缘面板里一条纸在纸上的位置（纸还没转时）：面板里的窗口坐标挪到纸上；细纸带的字在面板里那个位置。 */
+const fromPanel = (frame: PaperFrame) => ({
+    top: frame.top + SHEET_BLEED_Y,
+    left: frame.left + SHEET_BLEED_X,
+    width: frame.width,
+    height: frame.height,
+    '--scratchpad-slim-shift': `${PANEL_SLIM_SHIFT}px`,
+});
+/** 落定之后细纸带的字回到纸上 186px（scratchpadPaper.ts 的 PANEL_SLIM_SHIFT）。 */
+const SETTLE = { '--scratchpad-slim-shift': '0px' };
 /** 整页那条信息条：离纸顶 230px（转过之后左端离窗口顶约 25px），120px 高。 */
 const FULL_BAND_TOP = 230;
 const FULL_BAND_HEIGHT = 120;
 const ROW_BAND_HEIGHT = 72;
-const SLIM_HEIGHT = 36;
 /**
  * 细纸带、卡片区底边离纸底边多远。不倾斜时细纸带整条挪进窗口（窗口底边在纸上 100% − 130px），卡片区让到它们上面；
  * 倾斜时纸的左半边被抬起来，两样都往下压 tiltSink（按 sin(tilt) 算，6° 时 54px）。
@@ -90,38 +105,13 @@ const SAFE_MARGIN = 20;
  * 展开：条里先是面板那一面，下一帧换成整页那一面——面板那一面马上淡掉，整页那一面在它快淡完时接上，条长到大半时淡满。
  * 收回：整页那一面马上淡掉，面板那一面接着淡入，条落定前淡满；条缩回去比展开快一点。两面之间不留一段空白的纸。
  */
-const ENTER_FACE: Pick<BandMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.26, delay: 0.04 }, faceOut: { duration: 0.16 } };
-const LEAVE_FACE: Pick<BandMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.24, delay: 0.06 }, faceOut: { duration: 0.14 } };
+const ENTER_FACE: Pick<PaperMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.26, delay: 0.04 }, faceOut: { duration: 0.16 } };
+const LEAVE_FACE: Pick<PaperMotion, 'faceIn' | 'faceOut'> = { faceIn: { duration: 0.24, delay: 0.06 }, faceOut: { duration: 0.14 } };
 const LEAVE_DURATION = 0.44;
 
-/** 挪动、长高的曲线（与抽屉滑出同一条）。 */
-const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
-/**
- * 绕一圈去底部：一共多久，离开视口用掉的那一段占多少（之后在视口外一下子跳到窗口下面，再升上来）；
- * 离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转过之后右端压低、左端抬高的那一截）。
- */
-const WRAP_DURATION = 0.58;
-const WRAP_LEAVE = 0.5;
-/** 从窗口下面升回来的那一段：起步快、收得干脆（用户嫌原来的 easeOut 拖），离开那一段照旧是渐快的 easeIn。 */
-const WRAP_RISE_EASE = [0.2, 0.8, 0.3, 1] as const;
+/** 绕一圈去底部时，离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转过之后右端压低、左端抬高的那一截）。 */
 const WRAP_ABOVE = -60;
 const WRAP_BELOW = 60;
-
-/** 信息条里那一面的淡入淡出，时机按这一次的动法（custom）。 */
-const FACE_VARIANTS = {
-    hidden: { opacity: 0 },
-    shown: (motion: BandMotion) => ({ opacity: 1, transition: motion.faceIn }),
-    gone: (motion: BandMotion) => ({ opacity: 0, transition: motion.faceOut }),
-};
-
-/** 一条信息条这一次怎么动：直接挪到新的框，或绕一圈（先往上出去、再从下面上来）；里面的样子什么时候换。 */
-type BandMotion = {
-    key: string;
-    animate: Record<string, number | number[]>;
-    transition: Transition;
-    faceIn: Transition;
-    faceOut: Transition;
-};
 
 type ScratchpadSheetProps = {
     tab: ScratchpadTab;
@@ -131,6 +121,8 @@ type ScratchpadSheetProps = {
     tilt: number;
     /** 降低动态效果：信息条不挪，只淡入淡出。 */
     calm: boolean;
+    /** 左下角两条细纸带的上下次序（与左缘面板共用，useSlimOrder）。 */
+    slimOrder: readonly ScratchpadTab[];
     /** 换到这一页（细纸带、总览里的「展开整页 ›」）。 */
     onOpenPage: (tab: ScratchpadTab) => void;
     /** 收回左缘的面板。 */
@@ -164,7 +156,7 @@ const Backdrop: React.FC<{ tab: ScratchpadTab; word: string }> = ({ tab, word })
 };
 
 const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
-    tab, notesCount, queueCount, tilt, calm, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
+    tab, notesCount, queueCount, tilt, calm, slimOrder, onOpenPage, onCollapse, collapseLabel, collapseRef, overview, onShowOverview, children,
 }) => {
     const { t } = useTranslation();
     // 收回时（整页正在退场）这一页的条换回面板那一面；展开的头一帧也是面板那一面，下一帧再换成整页的（entering）。
@@ -208,16 +200,6 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         }, 600);
         return () => window.clearTimeout(timer);
     }, [showsOverview, tab]);
-    // 左下角两条细纸带的上下次序像一条传送带（用户定，2026-11-06）：新收下来的那条（从窗口下面上来）落在最下面一格，
-    // 原来在下面的往上挪一格让位，已经在上面的不动；谁也不从下面穿过另一条。进出总览（没有细纸带）之后按页签的先后重新排。
-    const slimOrderRef = useRef<ScratchpadTab[]>([]);
-    const slimOrder = useMemo(() => {
-        const slim = showsOverview ? [] : SCRATCHPAD_TABS.filter(id => id !== tab);
-        const kept = slimOrderRef.current.filter(id => slim.includes(id));
-        const next = [...kept, ...slim.filter(id => !kept.includes(id))];
-        slimOrderRef.current = next;
-        return next;
-    }, [showsOverview, tab]);
     const title = t(TITLE_KEYS[tab]);
     // 点纸上的空白处收回：按下时记下位置，松开时没挪开才算点。
     const pressRef = useRef<{ x: number; y: number } | null>(null);
@@ -250,49 +232,19 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         return { side: lift(SIDE_RIGHT), cards: lift(CARDS_RIGHT) };
     }, [bodyFromBottom, sheetHeight, sheetWidth, tilt, viewHeight]);
     const modeOf = (id: ScratchpadTab): BandMode => (showsOverview ? 'row' : id === tab ? 'full' : 'slim');
-    const frameOf = (id: ScratchpadTab): BandFrame => {
+    const frameOf = (id: ScratchpadTab): PaperFrame => {
         const across = { left: 0, width: sheetWidth };
         if (showsOverview) return { ...across, top: SHEET_BLEED_Y + rowTops[SCRATCHPAD_TABS.indexOf(id)], height: ROW_BAND_HEIGHT };
         if (id === tab) return { ...across, top: FULL_BAND_TOP, height: FULL_BAND_HEIGHT };
         return { ...across, top: sheetHeight - slimFromBottom[slimOrder.indexOf(id)], height: SLIM_HEIGHT };
     };
-    const move: Transition = calm ? { duration: 0 } : { duration: 0.52, ease: MOVE_EASE };
-    const faceIn: Transition = { duration: calm ? 0.12 : 0.22, delay: calm ? 0 : 0.14 };
+    const move: Transition = calm ? { duration: 0 } : { duration: 0.52, ease: PAPER_EASE };
     const faceOut: Transition = { duration: calm ? 0.08 : 0.14 };
-
-    // 每一条这一次怎么动。框或样子变了才重算，之后（动画途中别的状态变了、重渲染）原样复用同一个对象：
-    // 换一个 animate 对象 framer 就会从半路直接改道去终点，绕一圈的那一下会被截断。
-    const motionsRef = useRef<Partial<Record<ScratchpadTab, BandMotion & { mode: BandMode; frame: BandFrame }>>>({});
-    const motionOf = (id: ScratchpadTab, mode: BandMode, frame: BandFrame): BandMotion => {
-        const key = `${mode}|${frame.top}|${frame.left}|${frame.width}|${frame.height}|${calm ? 1 : 0}`;
-        const previous = motionsRef.current[id];
-        if (previous?.key === key) return previous;
-        const toBottom = !calm && previous !== undefined && previous.mode !== 'slim' && mode === 'slim';
-        const next: BandMotion = toBottom
-            ? {
-                key,
-                // null：从此刻的位置（可能还在半路）起；离开视口、在视口外跳到窗口下面、升到细纸带的位置。
-                // 高度在视口外的那一下换；宽、左边总览与整页一样（横贯整张纸），也在那一下对齐。
-                animate: {
-                    top: [null as unknown as number, WRAP_ABOVE - previous.frame.height, sheetHeight + WRAP_BELOW, frame.top],
-                    height: [previous.frame.height, previous.frame.height, frame.height, frame.height],
-                    left: [previous.frame.left, previous.frame.left, frame.left, frame.left],
-                    width: [previous.frame.width, previous.frame.width, frame.width, frame.width],
-                },
-                transition: {
-                    duration: WRAP_DURATION,
-                    times: [0, WRAP_LEAVE, WRAP_LEAVE + 0.0005, 1],
-                    ease: ['easeIn', 'linear', WRAP_RISE_EASE],
-                },
-                // 样子在视口外换：离开途中仍是原来的样子，回来时已经是细纸带。
-                faceIn: { duration: 0.01, delay: WRAP_DURATION * WRAP_LEAVE },
-                faceOut: { duration: 0.01, delay: WRAP_DURATION * WRAP_LEAVE },
-            }
-            : { key, animate: { ...frame }, transition: move, faceIn, faceOut };
-        motionsRef.current[id] = { ...next, mode, frame };
-        return next;
-    };
-    const layerIn: Transition = { duration: calm ? 0.12 : 0.3, delay: calm ? 0 : 0.2, ease: MOVE_EASE };
+    const motionOf = usePaperMotions<BandMode>('slim');
+    const wrap = { calm, above: WRAP_ABOVE, below: sheetHeight + WRAP_BELOW, settle: SETTLE };
+    // 展开的头一帧、收回的一路上：细纸带右端「展开整页 ›」不显示（面板里没有它），淡入淡出（scratchpad.css 的 .is-handoff）。
+    const handoff = !calm && (entering || !isPresent);
+    const layerIn: Transition = { duration: calm ? 0.12 : 0.3, delay: calm ? 0 : 0.2, ease: PAPER_EASE };
 
     const face = (id: ScratchpadTab, mode: FaceMode) => {
         if (mode === 'panel') {
@@ -331,7 +283,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     return (
         <div
             ref={rootRef}
-            className="scratchpad-f"
+            className={`scratchpad-f${handoff ? ' is-handoff' : ''}`}
             tabIndex={-1}
             onPointerDown={handleBlankPointerDown}
             onClick={handleBlankClick}
@@ -369,23 +321,21 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 className="scratchpad-f-sheet"
                 initial={{ rotate: 0 }}
                 animate={{ rotate: tilt }}
-                exit={{ rotate: 0, transition: calm ? move : { duration: LEAVE_DURATION, ease: MOVE_EASE } }}
+                exit={{ rotate: 0, transition: calm ? move : { duration: LEAVE_DURATION, ease: PAPER_EASE } }}
                 transition={move}
             >
                 {SCRATCHPAD_TABS.map(id => {
                     const mode = modeOf(id);
                     const frame = frameOf(id);
-                    const bandMotion = motionOf(id, mode, frame);
-                    // 展开时这一页的条从面板顶上那条长出来，另外两条从纸下面滑上来；收回时反过来。
-                    const away: BandFrame = { ...frame, top: sheetHeight };
-                    const fromPanel = id === tab && !showsOverview;
-                    const origin = fromPanel ? PANEL_BAND_FRAME : away;
-                    // 这一页的条在展开的头一帧、收回的一路上是面板那一面（见文件头）。
-                    const asPanel = fromPanel && !calm && (entering || !isPresent);
-                    const faceMode: FaceMode = asPanel ? 'panel' : mode;
-                    const faceMotion: BandMotion = !fromPanel || calm
+                    const bandMotion = motionOf(id, mode, frame, wrap);
+                    // 展开时三条各自从面板里那一格长出来（这一页的从顶上那条，另外两条从底部那两格）；收回时缩回去，
+                    // 总览里的三行也缩回各自那一格。
+                    const origin = fromPanel(panelPaperFrame(id === tab ? 'band' : slimOrder.indexOf(id), sheetWidth - SHEET_BLEED_X * 2, viewHeight));
+                    // 展开的头一帧、收回的一路上是面板里的样子：这一页是面板顶上那条，另外两条是细纸带（见文件头）。
+                    const faceMode: FaceMode = handoff ? (id === tab ? 'panel' : 'slim') : mode;
+                    const faceMotion: PaperMotion = calm
                         ? bandMotion
-                        : !isPresent ? { ...bandMotion, ...LEAVE_FACE } : { ...bandMotion, ...ENTER_FACE };
+                        : !isPresent ? { ...bandMotion, ...LEAVE_FACE } : id === tab && !showsOverview ? { ...bandMotion, ...ENTER_FACE } : bandMotion;
                     return (
                         <motion.div
                             key={id}
@@ -393,7 +343,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                             data-page={id}
                             initial={calm ? false : origin}
                             animate={bandMotion.animate}
-                            exit={calm ? undefined : { ...origin, transition: { duration: LEAVE_DURATION, ease: MOVE_EASE } }}
+                            exit={calm ? undefined : { ...origin, transition: { duration: LEAVE_DURATION, ease: PAPER_EASE } }}
                             transition={bandMotion.transition}
                         >
                             {/* 退场的那一面拿的是 AnimatePresence 的 custom（这一次的动法），不是它自己上一次的：绕一圈时它要留到出了视口才换。 */}
@@ -402,7 +352,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                                     key={faceMode}
                                     className="scratchpad-sheet-band-face"
                                     custom={faceMotion}
-                                    variants={FACE_VARIANTS}
+                                    variants={PAPER_FACE_VARIANTS}
                                     initial="hidden"
                                     animate="shown"
                                     exit="gone"
@@ -472,7 +422,9 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 transition={move}
             >
                 <span className="scratchpad-triangle-float" aria-hidden="true" />
-                <ScratchpadGreeting long headline />
+                {/* 宽的写长版；窄屏（手机）三角收小，换成短版、不写面包屑（scratchpad.css，用户定 2026-11-07）。 */}
+                <ScratchpadGreeting long headline className="is-wide" />
+                <ScratchpadGreeting long={false} headline className="is-narrow" />
                 <span className="scratchpad-intro-rule" aria-hidden="true" />
                 <span className="scratchpad-triangle-row">
                     <span className="scratchpad-triangle-crumb">

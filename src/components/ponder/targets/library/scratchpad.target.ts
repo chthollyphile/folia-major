@@ -51,7 +51,7 @@ const anchors = {
     row: region('drawer', scratchpadRowRect(hoverGroup, hoverRow), 'ponder.anchors.scratchpad.row'),
     rowActions: region('drawer', scratchpadRowActionsRect(hoverGroup, hoverRow), 'ponder.anchors.scratchpad.rowActions'),
     footer: region('drawer', D.footer, 'ponder.anchors.scratchpad.footer'),
-    historyTab: region('drawer', D.historyTab, 'ponder.anchors.scratchpad.historyTab'),
+    historyTab: region('drawer', D.slimUpper, 'ponder.anchors.scratchpad.historyTab'),
     expand: region('drawer', D.expand, 'ponder.anchors.scratchpad.expand'),
     canvas: region('page', G.canvas, 'ponder.anchors.scratchpad.canvas'),
     canvasGroup: region('canvas', scratchpadCanvasHeaderRect(0), 'ponder.anchors.scratchpad.canvasGroup'),

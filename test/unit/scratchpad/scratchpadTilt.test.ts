@@ -118,6 +118,14 @@ describe('band decorations', () => {
         }
         expect(scatterSlimDecos('queue').every(deco => deco.x > 500)).toBe(true);
     });
+
+    it('keeps shapes right of the heading on a narrow sheet (phone)', () => {
+        for (const tab of ['notes', 'history', 'queue'] as const) {
+            for (const width of [695, 900, 1100]) {
+                expect(scatterBandDecos(tab, width).every(deco => deco.x >= 742)).toBe(true);
+            }
+        }
+    });
 });
 
 describe('three-row overview layout', () => {

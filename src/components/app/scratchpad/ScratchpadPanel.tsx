@@ -1,31 +1,35 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Maximize2 } from 'lucide-react';
+import { ChevronLeft, Maximize2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
-import ScratchpadRail, { type ScratchpadRailTab } from './ScratchpadRail';
-import ScratchpadBand from './ScratchpadBand';
+import ScratchpadBand, { ScratchpadSlim } from './ScratchpadBand';
 import ScratchpadGreeting from './ScratchpadGreeting';
 import { useScratchpadHistory } from './useScratchpadHistory';
 import { SCRATCHPAD_TABS } from './scratchpadLook';
+import { PAPER_FACE_VARIANTS, panelPaperFrame, usePaperMotions, useViewSize } from './scratchpadPaper';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 
 // src/components/app/scratchpad/ScratchpadPanel.tsx
-// 左缘的面板（设计稿 A 按 F 定稿适配；盖在墙上，不推开墙）：左边一列页签（ScratchpadRail），右边是内容区——
-// 顶上一条米白信息条（ScratchpadBand），下面放大的问候和一道点缀色的短杠，再下面是这一页（宿主交进来的 children：
-// 说明、列表、底部按钮）。分区靠深浅不同的黑，不画描边与分割线；底部按钮与内容同一张底。
+// 左缘的面板（设计稿 A 按 F 定稿适配；盖在墙上，不推开墙）：三页各一条米白的纸——这一页是顶上的信息条（ScratchpadBand），
+// 另外两页是压在底部的两条细纸带（ScratchpadSlim），点一下换过去；与展开整页一一对应（scratchpadPaper.ts 的文件头）。
+// 原来左边一列竖排页签，用户嫌占地方（2026-11-07），换成这样，展开 / 收起时三条纸各自从原位长过去、缩回来。
+// 换页时三条纸照展开整页的走法挪：底部那条升到顶上、长高；顶上那条从上方出去，再从下面升回到底部。
+// 信息条下面是放大的问候和一道点缀色的短杠，再下面是这一页（宿主交进来的 children：说明、列表、底部按钮）。
+// 信息条左端是收起（返回箭头，用户定），右端探出面板的那一截上是「展开整页」。分区靠深浅不同的黑，不画描边与分割线。
 // 展开整页时不用它，换成 ScratchpadSheet（倾斜的纸）。
 
-/** 页签列里的短名字（竖排），与信息条上的全名。 */
-const TAB_LABEL_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.historyTab', queue: 'scratchpad.queue' };
 const TAB_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
+
+type PaperMode = 'band' | 'slim';
 
 type ScratchpadPanelProps = {
     tab: ScratchpadTab;
     notesCount: number;
     queueCount: number;
+    /** 底部两条细纸带的上下次序（与展开整页共用，useSlimOrder）。 */
+    slimOrder: readonly ScratchpadTab[];
     onSelectTab: (tab: ScratchpadTab) => void;
-    onTabsKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
     onClose: () => void;
     expandLabel: string;
     expandDisabled: boolean;
@@ -35,52 +39,73 @@ type ScratchpadPanelProps = {
 };
 
 const ScratchpadPanel: React.FC<ScratchpadPanelProps> = ({
-    tab, notesCount, queueCount, onSelectTab, onTabsKeyDown, onClose, expandLabel, expandDisabled, onExpand, expandRef, children,
+    tab, notesCount, queueCount, slimOrder, onSelectTab, onClose, expandLabel, expandDisabled, onExpand, expandRef, children,
 }) => {
     const { t } = useTranslation();
     const calm = useReducedMotionFor('uiMicroMotion');
-    // 页签上写播放历史有几首：只在面板开着时读（面板关着不挂这个组件）。
+    // 纸上写播放历史有几首：只在面板开着时读（面板关着不挂这个组件）。
     const historyCount = useScratchpadHistory().length;
-    const tabs = useMemo<ScratchpadRailTab[]>(() => {
-        const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount };
-        return SCRATCHPAD_TABS.map(id => ({ id, label: t(TAB_LABEL_KEYS[id]), count: counts[id] }));
-    }, [historyCount, notesCount, queueCount, t]);
-    const current = tabs.find(item => item.id === tab) ?? tabs[0];
+    const counts: Record<ScratchpadTab, number> = { notes: notesCount, history: historyCount, queue: queueCount };
+    const view = useViewSize();
+    const motionOf = usePaperMotions<PaperMode>('slim');
+    const indexOf = (id: ScratchpadTab) => String(SCRATCHPAD_TABS.indexOf(id) + 1).padStart(2, '0');
 
     return (
         <>
-            <ScratchpadRail
-                tab={tab}
-                tabs={tabs}
-                ariaLabel={t('scratchpad.title')}
-                onSelect={onSelectTab}
-                onTabsKeyDown={onTabsKeyDown}
-                closeLabel={t('scratchpad.close')}
-                onClose={onClose}
-            />
+            {SCRATCHPAD_TABS.map(id => {
+                const mode: PaperMode = id === tab ? 'band' : 'slim';
+                const frame = panelPaperFrame(mode === 'band' ? 'band' : slimOrder.indexOf(id), view.width, view.height);
+                // 绕一圈去底部时从窗口上方出去、从窗口下面回来。
+                const paperMotion = motionOf(id, mode, frame, { calm, above: -24, below: view.height + 24 });
+                const title = t(TAB_TITLE_KEYS[id]);
+                const countLabel = t('scratchpad.count', { count: counts[id] });
+                return (
+                    <motion.div
+                        key={id}
+                        className={`scratchpad-panel-paper is-${mode}`}
+                        data-page={id}
+                        initial={false}
+                        animate={paperMotion.animate}
+                        transition={paperMotion.transition}
+                    >
+                        <div className="scratchpad-panel-paper-sheet">
+                            {/* 退场的那一面拿的是 AnimatePresence 的 custom（这一次的动法）：绕一圈时它要留到出了视口才换。 */}
+                            <AnimatePresence initial={false} custom={paperMotion}>
+                                <motion.div
+                                    key={mode}
+                                    className="scratchpad-sheet-band-face"
+                                    custom={paperMotion}
+                                    variants={PAPER_FACE_VARIANTS}
+                                    initial="hidden"
+                                    animate="shown"
+                                    exit="gone"
+                                >
+                                    {mode === 'band' ? (
+                                        <ScratchpadBand tab={id} index={indexOf(id)} title={title} count={counts[id]} />
+                                    ) : (
+                                        <ScratchpadSlim
+                                            tab={id}
+                                            index={indexOf(id)}
+                                            title={title}
+                                            countLabel={countLabel}
+                                            openLabel={t('scratchpad.expandPage')}
+                                            ariaLabel={`${title} · ${countLabel}`}
+                                            onOpen={onSelectTab}
+                                        />
+                                    )}
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+                );
+            })}
             <div className="scratchpad-sheet">
-                {/* 换页时信息条换成那一页的（计数、标题、纹理、几何体）：新的一条从右边滑进来盖上去，旧的那条在底下待到盖住再走，
-                    中途不露出底下的面板。降低动态效果时只淡入。 */}
+                {/* 顶上那条信息条的位子（纸本身在上面那一层里挪）：左端收起，右端探出面板的那一截上是「展开整页」（用户定，2026-11-06）。
+                    两颗都不放进纸里：换页时纸在挪，按钮要是跟着走，收回整页时焦点要落回的那一颗会被换掉。 */}
                 <div className="scratchpad-panel-band">
-                    <AnimatePresence initial={false}>
-                        <motion.div
-                            key={tab}
-                            className="scratchpad-panel-band-face"
-                            initial={{ opacity: 0, x: calm ? 0 : 24 }}
-                            animate={{ opacity: 1, x: 0, transition: { duration: calm ? 0.12 : 0.26, ease: [0.22, 1, 0.36, 1] } }}
-                            // 旧的那条留在底下等新的盖住：退场时只动一点点透明度（动画要有变化才会等它走完）。
-                            exit={{ opacity: 0.99, transition: { duration: calm ? 0.12 : 0.26 } }}
-                        >
-                            <ScratchpadBand
-                                tab={tab}
-                                index={String(SCRATCHPAD_TABS.indexOf(tab) + 1).padStart(2, '0')}
-                                title={t(TAB_TITLE_KEYS[tab])}
-                                count={current.count}
-                            />
-                        </motion.div>
-                    </AnimatePresence>
-                    {/* 「展开整页」压在信息条右端探出面板的那一截上（用户定，2026-11-06）。不放进上面换页交接的那一面里：
-                        换页时新旧两条同时在场，按钮要是跟着条走就有两颗，收回整页时焦点要落回的那一颗会被旧的卸掉时清空。 */}
+                    <button type="button" className="scratchpad-band-fold" title={t('scratchpad.close')} aria-label={t('scratchpad.close')} onClick={onClose}>
+                        <ChevronLeft aria-hidden="true" />
+                    </button>
                     <button
                         ref={expandRef}
                         type="button"

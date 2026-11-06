@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, FoldHorizontal, ListPlus, Maximize2, Music2, NotebookPen, Play, SquareCheck, Star, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ListPlus, Maximize2, Music2, NotebookPen, Play, SquareCheck, Star, Trash2, X } from 'lucide-react';
 import PonderSurfaceStateLayer, { PonderSurfaceBase } from '../PonderSurfaceStateLayer';
 import {
     SCRATCHPAD_CANVAS as C,
@@ -37,8 +37,7 @@ type Paint = Pick<SurfaceProps, 'accent' | 'line' | 'outline'>;
 /** 构成主义的纸与墨（固定，不随主题）。 */
 const PAPER = '#f4f0e6';
 const INK = '#141414';
-/** 面板的两块黑：页签列更深一档。 */
-const RAIL = 'color-mix(in srgb, var(--st-win) 72%, #000)';
+/** 面板的底色。 */
 const SHEET = 'var(--st-win)';
 
 /** 第几张封面用什么颜色：主题色按不同浓度调出来，几张挨着的封面看得出不是同一张。 */
@@ -157,28 +156,31 @@ const CardHover: React.FC<Paint> = ({ accent }) => (
 /** 收进去一首之后：标签（指针移到左缘时展开的样子）上写出首数。 */
 const Collected: React.FC<Paint> = ({ accent }) => <Handle accent={accent} count={1} />;
 
-/** 面板左边那一列：收起、三个竖排页签（开着的那页垫一块斜着的米白纸）。 */
-const Rail: React.FC<Paint & { active: 'notes' | 'history' }> = ({ active, accent, line }) => (
+/** 面板底部的两条细纸带：另外两页（点一下换过去），点缀色的顶边、几何体、编号与标题。 */
+const PanelSlims: React.FC<Paint & { pages: readonly ScratchpadShapeKind[] }> = ({ accent, pages }) => (
     <>
-        <span style={{ ...relativeRectStyle(D.rail), backgroundColor: RAIL }} />
-        <span style={relativeRectStyle(D.close)}><IconSquare icon={FoldHorizontal} /></span>
-        {([['notes', D.notesTab, 'circle'], ['history', D.historyTab, 'tri'], ['queue', D.queueTab, 'chev']] as const).map(([id, rect, shape]) => {
-            const on = id === active;
-            return (
-                <span key={id} className="flex flex-col items-center gap-[8%] pt-[14%]" style={relativeRectStyle(rect)}>
-                    {on && <span className="absolute inset-0" style={{ backgroundColor: PAPER, transform: 'skewY(-6deg)' }} />}
-                    <ScratchpadShape kind={shape} size={8} fill={on ? accent : line} style={{ position: 'relative' }} />
-                    <span className="relative w-[22%] rounded-full" style={{ height: '50%', backgroundColor: on ? INK : line, opacity: on ? 0.9 : 0.55 }} />
-                </span>
-            );
-        })}
+        {[D.slimUpper, D.slimLower].map((rect, index) => (
+            <span
+                key={index}
+                className="flex items-center gap-[2%] pl-[7%]"
+                style={{ ...relativeRectStyle(rect), backgroundColor: PAPER, borderTop: `2px solid ${accent}`, boxSizing: 'border-box', boxShadow: '0 -6px 16px rgb(0 0 0 / 30%)' }}
+            >
+                <ScratchpadShape kind={pages[index]} size={8} fill={accent} />
+                <Bar width="5%" height="24%" color={INK} opacity={0.6} />
+                <Bar width="16%" height="34%" color={INK} opacity={0.9} />
+                <Bar width="8%" height="24%" color={INK} opacity={0.5} />
+            </span>
+        ))}
     </>
 );
 
-/** 面板内容区顶上那几块：信息条（右端压一颗墨色的「展开整页」）、放大的问候、短杠、说明。 */
+/** 面板内容区顶上那几块：信息条（左端一颗墨色的返回钮，右端一颗「展开整页」）、放大的问候、短杠、说明。 */
 const SheetHead: React.FC<Paint & { shape: ScratchpadShapeKind }> = ({ accent, line, shape }) => (
     <>
         <Band rect={relativeRectStyle(D.band)} accent={accent} shape={shape} />
+        <span className="flex items-center justify-center" style={{ ...relativeRectStyle(D.fold), backgroundColor: INK, color: PAPER }}>
+            <ChevronLeft className="h-[60%] w-auto" />
+        </span>
         <span className="flex items-center justify-center" style={{ ...relativeRectStyle(D.expand), backgroundColor: INK, color: PAPER }}>
             <Maximize2 className="h-[48%] w-auto" />
         </span>
@@ -199,7 +201,7 @@ const DrawerRow: React.FC<Paint & { group: number; row: number; index: number }>
     </span>
 );
 
-/** 从左缘滑出来的面板：页签列、信息条与问候、按来源分的两组、最底下一排。 */
+/** 从左缘滑出来的面板：信息条与问候、按来源分的两组、底部按钮，压在底部的两条细纸带（播放历史、播放队列）。 */
 const Drawer: React.FC<Paint> = ({ accent, line, outline }) => {
     let index = 0;
     return (
@@ -207,7 +209,6 @@ const Drawer: React.FC<Paint> = ({ accent, line, outline }) => {
             data-ponder-scratchpad-drawer
             style={{ ...relativeRectStyle(G.drawer), backgroundColor: SHEET, boxShadow: '0 12px 32px rgb(0 0 0 / 35%)' }}
         >
-            <Rail active="notes" accent={accent} line={line} outline={outline} />
             <SheetHead accent={accent} line={line} outline={outline} shape="circle" />
             {SCRATCHPAD_GROUP_SIZES.map((size, group) => (
                 <React.Fragment key={group}>
@@ -229,6 +230,7 @@ const Drawer: React.FC<Paint> = ({ accent, line, outline }) => {
             <KButton rect={relativeRectStyle(D.enqueueAll)} ink={line} paper={SHEET} solid icon={ListPlus} label="40%" />
             <KButton rect={relativeRectStyle(D.replaceQueue)} ink={line} paper={SHEET} icon={Play} label="46%" />
             <KButton rect={relativeRectStyle(D.clear)} ink={line} paper={SHEET} icon={Trash2} />
+            <PanelSlims accent={accent} line={line} outline={outline} pages={['tri', 'chev']} />
         </div>
     );
 };
@@ -249,7 +251,7 @@ const RowHover: React.FC<Paint> = ({ line }) => {
     );
 };
 
-/** 第二页播放历史：页签换过来；按天分段（今天三首、昨天两首），页眉写大号的日子，每首的封面是一张微歪的小相片。 */
+/** 第二页播放历史：底部那条细纸带升上来当信息条，速记簿落到底部；按天分段（今天三首、昨天两首），页眉写大号的日子，每首的封面是一张微歪的小相片。 */
 const History: React.FC<Paint> = ({ accent, line, outline }) => {
     let index = 2;
     return (
@@ -257,7 +259,6 @@ const History: React.FC<Paint> = ({ accent, line, outline }) => {
             data-ponder-scratchpad-history
             style={{ ...relativeRectStyle(G.drawer), backgroundColor: SHEET, boxShadow: '0 12px 32px rgb(0 0 0 / 35%)' }}
         >
-            <Rail active="history" accent={accent} line={line} outline={outline} />
             <SheetHead accent={accent} line={line} outline={outline} shape="tri" />
             {SCRATCHPAD_GROUP_SIZES.map((size, group) => (
                 <React.Fragment key={group}>
@@ -285,6 +286,7 @@ const History: React.FC<Paint> = ({ accent, line, outline }) => {
                     ))}
                 </React.Fragment>
             ))}
+            <PanelSlims accent={accent} line={line} outline={outline} pages={['chev', 'circle']} />
         </div>
     );
 };

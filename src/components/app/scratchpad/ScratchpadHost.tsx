@@ -23,13 +23,14 @@ import { NOTE_SPACING } from './canvasLayout';
 import { SCRATCHPAD_TABS, scratchpadLookVars } from './scratchpadLook';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { SCRATCHPAD_TILT_DEG } from './scratchpadTilt';
+import { useSlimOrder } from './scratchpadPaper';
 import './scratchpad.css';
 
 // src/components/app/scratchpad/ScratchpadHost.tsx
 // 速记簿的界面：左缘的把手和从左边滑出的抽屉（设计稿 plan/scratchpad-spec.md）。抽屉非模态——不加遮罩、不抢焦点，
 // 开着时背后照常能逛、能往里收。内容与开合在 useScratchpadStore；播放动作由 App 交进来（和资料库同一个播放端口），
 // 这里只决定什么按钮做什么：单条的「播放」插进当前队列，不换队列；唯一会换掉队列的是底部明写了的「替换队列播放」。
-// 抽屉平时是左缘的面板（ScratchpadPanel：页签列、米白信息条、放大的问候，Bravais 样式，计划见 plan/scratchpad-bravais-plan.md），
+// 抽屉平时是左缘的面板（ScratchpadPanel：顶上这一页的米白信息条、底部另外两页的细纸带、放大的问候，Bravais 样式，计划见 plan/scratchpad-bravais-plan.md），
 // 里面是按来源分组的列表（ScratchpadList）；展开整页（ScratchpadSheet，设计稿 F：倾斜的纸、横贯的信息条）后
 // 是卡片画布（ScratchpadCanvas），每首是一张能拖动整理、能框选的笔记本卡。
 // 另外两页：播放历史（ScratchpadHistory）与当前的播放队列（ScratchpadQueue）；展开后也是卡片画布（框选、多选），
@@ -125,10 +126,19 @@ const PANEL_VARIANTS = {
         : { x: -32, opacity: 0, transition: { duration: 0.2, ease: PANEL_EASE } }),
 };
 
-/** 换页时新旧两页各滑动多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。 */
-const PAGE_SLIDE_PX = 28;
+/**
+ * 换页时新旧两页往上走多远，以及进场 / 退场的缓动（进场与抽屉滑出同一条曲线）。和纸一样朝上走（用户要的，2026-11-07：
+ * 纸带从底部升上来时列表还左右滑，对不上）：旧的一页往上淡出，新的一页从下面升上来。
+ */
+const PAGE_RISE_PX = 24;
+const PAGE_LEAVE_PX = 14;
 const PAGE_EASE_IN = [0.22, 1, 0.36, 1] as const;
 const PAGE_EASE_OUT = [0.4, 0, 1, 1] as const;
+const PAGE_VARIANTS = {
+    enter: (calm: boolean) => ({ opacity: 0, y: calm ? 0 : PAGE_RISE_PX }),
+    center: (calm: boolean) => ({ opacity: 1, y: 0, transition: { duration: calm ? 0.12 : 0.24, ease: PAGE_EASE_IN } }),
+    exit: (calm: boolean) => ({ opacity: 0, y: calm ? 0 : -PAGE_LEAVE_PX, transition: { duration: calm ? 0.08 : 0.12, ease: PAGE_EASE_OUT } }),
+};
 
 const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, queue, isHandleHidden = false }) => {
     const { t } = useTranslation();
@@ -269,16 +279,16 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         requestAnimationFrame(() => toggleCanvasRef.current?.focus());
     }, [setExpanded]);
     /**
-     * Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。
-     * 展开整页里没有页签，新挂上的画布自己接焦点；三行总览开着时不换（总览里三页都在，换了也看不出来）。
+     * Tab / Shift + Tab 换到下一页 / 上一页（首尾相接）。左缘面板里焦点落到这一页上（#scratchpad-panel，读屏念出页名）：
+     * 原来那页的按钮卸掉以后焦点不至于掉到 body。展开整页里新挂上的画布自己接焦点；三行总览开着时不换（总览里三页都在，换了也看不出来）。
      */
     const showOverviewRef = useRef(false);
     const cycleTab = useCallback((direction: 1 | -1) => {
         if (showOverviewRef.current) return;
-        const current = useScratchpadStore.getState().tab;
+        const { tab: current, isExpanded: expanded } = useScratchpadStore.getState();
         const next = TABS[(TABS.indexOf(current) + direction + TABS.length) % TABS.length];
         setTab(next);
-        requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
+        if (!expanded) requestAnimationFrame(() => document.getElementById('scratchpad-panel')?.focus({ preventScroll: true }));
     }, [setTab]);
     // 抽屉开着、焦点不在任何地方（刚用把手或 Ctrl / ⌘ + J 打开，把手一卸掉焦点就落在 body）时，Tab 也归抽屉换页；
     // 焦点在别处（资料库、输入框）时 Tab 照常走焦点。
@@ -414,7 +424,6 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         </footer>
     );
 
-    // 换页的动画：往右边的页签走时方向是 1，往左是 -1（和上一页比）。
     const calm = useReducedMotionFor('uiMicroMotion');
     // 展开整页那张纸转 4°（设计稿 6°，用户嫌斜改小，2026-11-06）；降低动态效果时不转（同歌手页）。
     const tilt = calm ? 0 : SCRATCHPAD_TILT_DEG;
@@ -443,57 +452,28 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     // 构成主义的纸、墨与跟主题强调色走的点缀色（scratchpadLook）交给样式表：边缘标签、面板与展开页都读这些变量。
     // 不接墙上的「海报聚焦叠色」（2026-11-06 接过，11-07 用户让展开整页与面板都去掉）。
     const lookVars = useMemo(() => scratchpadLookVars(isDaylight) as React.CSSProperties, [isDaylight]);
-    const previousTabRef = useRef(tab);
-    const pageDirectionRef = useRef(1);
-    if (previousTabRef.current !== tab) {
-        pageDirectionRef.current = TABS.indexOf(tab) > TABS.indexOf(previousTabRef.current) ? 1 : -1;
-        previousTabRef.current = tab;
-    }
-    const pageDirection = pageDirectionRef.current;
-    const pageVariants = useMemo(() => ({
-        enter: (direction: number) => ({ opacity: 0, x: calm ? 0 : direction * PAGE_SLIDE_PX }),
-        center: { opacity: 1, x: 0, transition: { duration: calm ? 0.12 : 0.2, ease: PAGE_EASE_IN } },
-        exit: (direction: number) => ({
-            opacity: 0,
-            x: calm ? 0 : -direction * PAGE_SLIDE_PX,
-            transition: { duration: calm ? 0.08 : 0.12, ease: PAGE_EASE_OUT },
-        }),
-    }), [calm]);
-
-    // 页签之间用方向键（以及 Home / End）换，焦点跟着换到新页签上；Tab / Shift + Tab 在整个抽屉里都是换页（handleKeyDown）。
-    // 左缘面板的页签是竖着的一列（上下键），展开后页头的页签是横着的一行（左右键）；两种都认。
-    const handleTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        const index = TABS.indexOf(tab);
-        const next = event.key === 'Home' ? TABS[0]
-            : event.key === 'End' ? TABS[TABS.length - 1]
-                : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? TABS[Math.max(0, index - 1)]
-                    : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? TABS[Math.min(TABS.length - 1, index + 1)]
-                        : null;
-        if (!next) return;
-        event.preventDefault();
-        setTab(next);
-        requestAnimationFrame(() => document.getElementById(`scratchpad-tab-${next}`)?.focus());
-    };
+    // 底部两条细纸带的上下次序：面板与展开整页共用，展开、收起时每条落在对面同一格。
+    const slimOrder = useSlimOrder(TABS, tab);
 
     // 页签下面的那一页（列表、画布或播放历史）：左缘面板与展开后的画布共用。
     const tabPanel = (
         <div
             className="scratchpad-panel"
-            // 左缘面板里是页签控制的那一页；展开整页里没有页签（信息条与细纸带换页），是一块有名字的区域。
-            role={isExpanded ? 'region' : 'tabpanel'}
+            // 一块有名字的区域（没有页签：信息条与细纸带换页）。Tab 换页后焦点落在这里（cycleTab）。
+            role="region"
             id="scratchpad-panel"
-            aria-labelledby={isExpanded ? undefined : `scratchpad-tab-${tab}`}
-            aria-label={isExpanded ? t(PAGE_TITLE_KEYS[tab]) : undefined}
+            tabIndex={-1}
+            aria-label={t(PAGE_TITLE_KEYS[tab])}
         >
-            {/* 换页：往右边的页签走，新的一页从右边滑进来、旧的往左边让开；往回走反过来。先退后进（mode wait），
+            {/* 换页：旧的一页往上淡出，新的一页从下面升上来（PAGE_VARIANTS）。先退后进（mode wait），
                 两页不同时在场，列表与画布各自的尺寸量得准。降级动效时只淡入淡出。 */}
-            <AnimatePresence initial={false} mode="wait" custom={pageDirection}>
+            <AnimatePresence initial={false} mode="wait" custom={calm}>
                 <motion.div
                     key={tab}
                     className="scratchpad-panel-page"
                     data-page={tab}
-                    custom={pageDirection}
-                    variants={pageVariants}
+                    custom={calm}
+                    variants={PAGE_VARIANTS}
                     initial="enter"
                     animate="center"
                     exit="exit"
@@ -590,8 +570,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             tab={tab}
                             notesCount={entries.length}
                             queueCount={queueLength}
+                            slimOrder={slimOrder}
                             onSelectTab={setTab}
-                            onTabsKeyDown={handleTabsKeyDown}
                             onClose={() => setOpen(false)}
                             expandLabel={expandLabel}
                             expandDisabled={tab === 'notes' && entries.length === 0}
@@ -624,6 +604,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                             queueCount={queueLength}
                             tilt={tilt}
                             calm={calm}
+                            slimOrder={slimOrder}
                             onOpenPage={openPage}
                             onCollapse={collapseCanvas}
                             collapseLabel={t('scratchpad.collapseCanvas')}

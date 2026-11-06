@@ -5,9 +5,10 @@
    不接墙上的「海报聚焦叠色」（接过一阵，2026-11-07 用户让去掉）。
    画布里的次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
 
-/* 面板的几块黑（中性灰阶，不掺主题色，用户定）：页签列最深，内容区本色，悬停的行浅一档、按下再浅一档；
-   镂空的几何体露出最深的那块。日光主题换成同样深浅次序的浅灰。 */
+/* 面板的几块黑（中性灰阶，不掺主题色，用户定）：最深的一档（原来是页签列，现在只给镂空的几何体与几处垫底），内容区本色，
+   悬停的行浅一档、按下再浅一档。日光主题换成同样深浅次序的浅灰。 */
 .scratchpad-root {
+    /* 面板宽（scratchpadPaper.ts 的 panelWidthFor 跟着它）。 */
     --scratchpad-width: min(368px, calc(100vw - 24px));
     --scratchpad-rail: #18181a;
     --scratchpad-sheet: #232226;
@@ -230,8 +231,8 @@
 }
 
 /* —— 抽屉：左缘的面板 ——
-   盖在墙上（不推开墙、不加遮罩），从窗口顶到底贴着左缘：左边一列页签（最深的黑，64px）、右边内容区（本色）。
-   两块颜色画在同一层底上（不是各自的底）。
+   盖在墙上（不推开墙、不加遮罩），从窗口顶到底贴着左缘，一整块内容区的本色。三页各一条米白的纸：这一页的信息条在顶上，
+   另外两页的细纸带压在底部（ScratchpadPanel；原来左边一列竖排页签，2026-11-07 用户嫌占地方，去掉）。
    顶上 32px 是窗口标题栏的拖动区（AppShell，z 9999，盖在一切之上），所以面板里的东西从 40px 起。 */
 .scratchpad-drawer {
     position: fixed;
@@ -241,7 +242,7 @@
     z-index: 95;
     display: flex;
     width: var(--scratchpad-width);
-    background: linear-gradient(90deg, var(--scratchpad-rail) 0 64px, var(--scratchpad-sheet) 64px);
+    background: var(--scratchpad-sheet);
     box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
     isolation: isolate;
     pointer-events: auto;
@@ -277,8 +278,8 @@
 .scratchpad-greeting { margin: 0; }
 .scratchpad-greeting svg { width: 13px; height: 13px; flex: none; }
 
-/* 键盘聚焦到页签不画框：焦点总是跟着选中的那页（Tab / 方向键换页都把焦点挪过去），垫着的米白纸已经说明了在哪。 */
-.scratchpad-tab:focus-visible { outline: none; }
+/* Tab 换页后焦点落在这一页上（宿主的 cycleTab），不画框：顶上那条信息条已经说明了在哪一页。 */
+.scratchpad-panel:focus { outline: none; }
 
 .scratchpad-icon-button {
     display: grid;
@@ -957,85 +958,8 @@
 .scratchpad-root.is-calm :is(.scratchpad-handle-texture, .scratchpad-handle-body) { transition: none; }
 .scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }
 
-/* —— 左缘面板的页签列（ScratchpadRail）——
-   最深的黑；顶上收起、中间三个竖排页签、底下「展开整页」。选中的页签垫一块斜着的米白纸（随展开整页的纸一起斜 4°，字摆正），
-   几何体换成点缀色；没选中的是淡的纸色字。键盘焦点总跟着选中的那页，不另画框（与展开后的页签一样）。 */
-
-.scratchpad-rail {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    width: 64px;
-    flex: none;
-    box-sizing: border-box;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    padding: 48px 0 18px;
-}
-
-.scratchpad-rail-tabs {
-    display: flex;
-    min-height: 0;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-}
-
-.scratchpad-rail-tabs .scratchpad-tab {
-    position: relative;
-    display: flex;
-    width: 46px;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 0 10px;
-    border: 0;
-    background: transparent;
-    color: var(--scratchpad-text-soft);
-    font: inherit;
-    cursor: pointer;
-    transition: color 0.15s ease;
-}
-
-.scratchpad-rail-tabs .scratchpad-tab:hover { color: var(--scratchpad-text); }
-.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] { color: var(--scratchpad-ink); cursor: default; }
-.scratchpad-rail-tabs .scratchpad-tab > :not(.scratchpad-tab-face) { position: relative; }
-
-.scratchpad-tab-face {
-    position: absolute;
-    inset: 0;
-    transform: skewY(-4deg);
-    transition: background-color 0.15s ease;
-}
-
-.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-face { background: var(--scratchpad-paper); }
-.scratchpad-root.is-daylight .scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-face { box-shadow: 0 3px 10px rgb(42 35 27 / 16%); }
-
-/* 竖排的名字：名字长的语言收成省略号，不把下面的页签挤出去。 */
-.scratchpad-tab-label {
-    max-height: 132px;
-    overflow: hidden;
-    font-size: 14px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    writing-mode: vertical-rl;
-}
-
-.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-label { font-size: 17px; }
-
-.scratchpad-tab-number {
-    font-family: Inter, sans-serif;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 800;
-    line-height: 1;
-}
-
-/* —— 左缘面板的内容区：信息条、问候 —— */
+/* —— 左缘面板的内容区：信息条、问候 ——
+   底下让出两条细纸带的位子（78px，scratchpadPaper.ts 的 PANEL_SLIM_ROOM）。 */
 
 .scratchpad-sheet {
     position: relative;
@@ -1044,7 +968,10 @@
     flex: 1 1 auto;
     flex-direction: column;
     padding-top: 40px;
+    padding-bottom: 78px;
 }
+
+.scratchpad-drawer.is-panel .scratchpad-footer { padding-bottom: 16px; }
 
 /* 米白信息条（ScratchpadBand）：比内容区宽 36px，探出面板；右端斜切。投影画在外面那层上（clip-path 会把同一个元素的投影裁掉）。 */
 .scratchpad-band-wrap {
@@ -1055,10 +982,71 @@
     filter: drop-shadow(0 14px 28px rgb(0 0 0 / 38%));
 }
 
-/* 面板里信息条的位子：换页时新旧两条叠在这里交接（ScratchpadPanel）。 */
-.scratchpad-panel-band { position: relative; z-index: 6; width: calc(100% + 36px); height: 64px; flex: none; }
-.scratchpad-panel-band-face { position: absolute; inset: 0; }
-.scratchpad-panel-band .scratchpad-band-wrap { width: 100%; }
+/* 面板里顶上那条信息条的位子（纸本身在 .scratchpad-panel-paper 那一层里挪）：左端收起、右端「展开整页」两颗压在纸上。 */
+.scratchpad-panel-band { position: relative; z-index: 6; width: calc(100% + 36px); height: 64px; flex: none; pointer-events: none; }
+.scratchpad-panel-band > button { pointer-events: auto; }
+
+/* 面板里的三条纸（ScratchpadPanel）：各自一层，换页时挪动、长高变矮（框由 framer 写）。纸画在这一层上，里面那一面透明，
+   换样子时交叉淡入，中途不露出底下的面板；右端斜切 7px。投影画在外面那层（clip-path 会把同一个元素的投影裁掉）：
+   信息条朝下，细纸带朝上、压在列表上面。面板里细纸带的字挪到左边 26px（--scratchpad-slim-shift，见 scratchpadPaper.ts）。 */
+.scratchpad-drawer.is-panel { --scratchpad-slim-shift: 160px; }
+
+.scratchpad-panel-paper {
+    position: absolute;
+    z-index: 6;
+    filter: drop-shadow(0 14px 28px rgb(0 0 0 / 38%));
+}
+
+.scratchpad-panel-paper.is-slim { filter: drop-shadow(0 -8px 22px rgb(0 0 0 / 34%)); }
+.scratchpad-root.is-daylight .scratchpad-panel-paper { filter: drop-shadow(0 10px 22px rgb(42 35 27 / 18%)); }
+.scratchpad-root.is-daylight .scratchpad-panel-paper.is-slim { filter: drop-shadow(0 -6px 18px rgb(42 35 27 / 16%)); }
+
+.scratchpad-panel-paper-sheet {
+    position: absolute;
+    inset: 0;
+    background: var(--scratchpad-paper);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+}
+
+.scratchpad-panel-paper .scratchpad-band-wrap { width: 100%; height: 100%; filter: none; }
+
+.scratchpad-panel-paper .scratchpad-band,
+.scratchpad-panel-paper .scratchpad-slim {
+    height: 100%;
+    background: transparent;
+    box-shadow: none;
+}
+
+/* 面板里点细纸带是换页（不是展开整页）：右端「展开整页 ›」不画，悬停时标题下面划一道点缀色。 */
+.scratchpad-drawer.is-panel .scratchpad-slim-open { visibility: hidden; opacity: 0; }
+.scratchpad-drawer.is-panel .scratchpad-slim:hover .scratchpad-slim-title { text-decoration: underline 2px var(--scratchpad-mark); text-underline-offset: 5px; }
+
+/* 收起：墨色的方钮压在信息条左端，返回箭头（用户定，2026-11-07；与展开整页信息条左端的返回钮同一个样子、同一个位置关系），竖着居中在纸面里。 */
+.scratchpad-band-fold {
+    position: absolute;
+    top: 17px;
+    left: 12px;
+    z-index: 7;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: var(--scratchpad-ink);
+    color: var(--scratchpad-paper);
+    cursor: pointer;
+    transition: background-color 0.14s ease, scale 0.14s ease;
+}
+
+.scratchpad-band-fold svg { width: 20px; height: 20px; stroke-width: 2.6; }
+.scratchpad-band-fold:hover { background: var(--scratchpad-mark); scale: 1.06; }
+.scratchpad-band-fold:active { scale: 0.95; }
+.scratchpad-band-fold:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
+.scratchpad-root.is-calm .scratchpad-band-fold { transition: background-color 0.14s ease; scale: none; }
+
+/* 面板那一条的字从收起钮右边起（展开整页开头那一下也是这一面，位置一样）。 */
+.scratchpad-band.is-panel .scratchpad-band-head { left: 56px; }
 
 /* 「展开整页」：墨色的方钮压在信息条右端探出面板的那一截上（右端斜切了 7px，离边再留一点），竖着居中在纸面里
    （上边 4px 的点缀色、下边 3px 的墨色之间）。 */
@@ -1112,14 +1100,12 @@
     mask-image: linear-gradient(90deg, transparent 0, transparent 160px, #000 240px);
 }
 
-.scratchpad-drawer.is-panel[data-page='history'] .scratchpad-band .scratchpad-band-texture,
-.scratchpad-sheet-band[data-page='history'] .scratchpad-band-texture {
+:is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='history'] .scratchpad-band-texture {
     background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
     opacity: 0.12;
 }
 
-.scratchpad-drawer.is-panel[data-page='queue'] .scratchpad-band .scratchpad-band-texture,
-.scratchpad-sheet-band[data-page='queue'] .scratchpad-band-texture {
+:is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='queue'] .scratchpad-band-texture {
     background:
         repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 6px / 100% 5px no-repeat,
         repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 calc(100% - 6px) / 100% 5px no-repeat;
@@ -1154,8 +1140,7 @@
     transform: skewX(-14deg);
 }
 
-.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-band .scratchpad-band-count,
-.scratchpad-sheet-band[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
+:is(.scratchpad-panel-paper, .scratchpad-sheet-band)[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
 
 .scratchpad-band-count > span {
     display: block;
@@ -1443,6 +1428,13 @@
 
 .scratchpad-drawer.is-expanded .scratchpad-canvas { grid-column: 1; }
 
+/* 窄屏（手机）上不画右边的操作区（用户定，2026-11-07）：卡片右边那一列（跳到栏与操作提示，要占掉快一半宽）、
+   信息条右端那几颗按钮（窄了会压在标题上；全部入队、清空这些收回面板里还有）。卡片铺满。 */
+@media (max-width: 640px) {
+    .scratchpad-drawer.is-expanded .scratchpad-panel-page { grid-template-columns: minmax(0, 1fr); }
+    .scratchpad-drawer.is-expanded :is(.scratchpad-canvas-side, .scratchpad-band-actions) { display: none; }
+}
+
 /* 卡片区底边（--scratchpad-body-bottom）由 ScratchpadSheet 按倾斜角写：不倾斜时两条细纸带整条挪进窗口，卡片区跟着让出来。 */
 
 /* 展开整页的信息条：横贯整张纸、120px 高；左边一道墨色的斜杠，标题放大，下面一行说明；右端是这一页的按钮（各页自己画进来）。
@@ -1531,18 +1523,20 @@
 }
 
 .scratchpad-slim .scratchpad-band-texture {
-    -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent 470px, #000 620px);
-    mask-image: linear-gradient(90deg, transparent 0, transparent 470px, #000 620px);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent calc(470px - var(--scratchpad-slim-shift, 0px)), #000 calc(620px - var(--scratchpad-slim-shift, 0px)));
+    mask-image: linear-gradient(90deg, transparent 0, transparent calc(470px - var(--scratchpad-slim-shift, 0px)), #000 calc(620px - var(--scratchpad-slim-shift, 0px)));
 }
+
+.scratchpad-slim .scratchpad-band-deco { translate: calc(-1 * var(--scratchpad-slim-shift, 0px)) 0; }
 
 .scratchpad-slim:focus-visible { outline: 3px solid var(--scratchpad-mark); outline-offset: -3px; }
 
 .scratchpad-slim-head {
     position: absolute;
     top: 0;
-    left: 186px;
+    bottom: 0;
+    left: calc(186px - var(--scratchpad-slim-shift, 0px));
     display: flex;
-    height: 33px;
     align-items: center;
     gap: 12px;
     white-space: nowrap;
@@ -1550,7 +1544,9 @@
 
 .scratchpad-slim-title { font-size: 16px; font-weight: 900; }
 .scratchpad-slim-count { font-size: 12px; font-weight: 700; opacity: 0.7; }
-.scratchpad-slim-open { border-bottom: 2px solid var(--scratchpad-mark); font-size: 11px; font-weight: 800; letter-spacing: 0.12em; }
+.scratchpad-slim-open { border-bottom: 2px solid var(--scratchpad-mark); font-size: 11px; font-weight: 800; letter-spacing: 0.12em; transition: opacity 0.2s ease; }
+/* 展开的头一帧、收回的一路上（ScratchpadSheet 的 handoff）：和面板里一样不显示，展开后淡入。 */
+.scratchpad-f.is-handoff .scratchpad-slim-open { opacity: 0; }
 .scratchpad-slim:hover .scratchpad-slim-open { border-bottom-width: 3px; }
 
 /* 右上角的黑色直角三角（不转）：斜边比信息条陡；字右对齐，左下半一块 shape-outside 的浮动让每一行顺着斜边收进去。
@@ -1584,6 +1580,18 @@
 .scratchpad-triangle .scratchpad-intro-rule { display: block; margin-left: auto; }
 .scratchpad-triangle-row { display: block; margin-top: 10px; line-height: 26px; }
 .scratchpad-triangle-crumb { font-size: 10.5px; font-weight: 800; letter-spacing: 0.2em; opacity: 0.7; }
+.scratchpad-triangle .scratchpad-greeting.is-narrow { display: none; }
+
+/* 窄屏（手机）：440 × 220 的三角斜边会切过信息条的标题（用户反馈，2026-11-07），收成 320 × 130；
+   里面只写短版问候（18px 一行，最长的 “Good afternoon” 也放得下），不写面包屑（用户定：它没什么意义），总览的「?」还在下一行。
+   总览的操作说明跟着往上挪到三角下面。 */
+@media (max-width: 640px) {
+    .scratchpad-triangle { width: 320px; height: 130px; padding-right: 14px; }
+    .scratchpad-triangle :is(.scratchpad-greeting.is-wide, .scratchpad-intro-rule, .scratchpad-triangle-crumb) { display: none; }
+    .scratchpad-triangle .scratchpad-greeting.is-narrow { display: block; margin: 40px 0 0; font-size: 18px; }
+    .scratchpad-triangle-row { margin-top: 6px; }
+    .scratchpad-f .scratchpad-overview-help { top: 138px; right: 14px; max-width: calc(100vw - 28px); }
+}
 
 /* 返回（收回左缘的面板）：墨色的大方钮压在顶上那条信息条的左端，纸色的「‹」；悬停换点缀色。跟着纸斜。 */
 .scratchpad-sheet-back {
