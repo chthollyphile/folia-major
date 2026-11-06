@@ -1327,10 +1327,11 @@
     color: var(--scratchpad-text);
 }
 
+/* 两侧的齿孔：疏一点、淡一点（用户嫌又密又显眼，2026-11-07）——每 26px 一个、6px 高、26% 的纸色。 */
 .scratchpad-drawer.is-panel .scratchpad-table-scroll {
     background:
-        linear-gradient(180deg, transparent 5px, rgb(236 230 216 / 50%) 5px 12px, transparent 12px) left 4px top 0 / 6px 18px repeat-y local,
-        linear-gradient(180deg, transparent 5px, rgb(236 230 216 / 50%) 5px 12px, transparent 12px) right 4px top 0 / 6px 18px repeat-y local;
+        linear-gradient(180deg, transparent 10px, rgb(236 230 216 / 26%) 10px 16px, transparent 16px) left 4px top 0 / 6px 26px repeat-y local,
+        linear-gradient(180deg, transparent 10px, rgb(236 230 216 / 26%) 10px 16px, transparent 16px) right 4px top 0 / 6px 26px repeat-y local;
 }
 
 .scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 20%); background-clip: content-box; }
@@ -1739,10 +1740,14 @@
     border-radius: 0;
 }
 
-.scratchpad-drawer.is-expanded .scratchpad-card.is-selected,
-.scratchpad-drawer.is-expanded .scratchpad-card.is-selected:hover:not(.is-moving) {
-    box-shadow: 0 0 0 1px rgb(12 11 16 / 90%), 0 0 0 5px rgb(244 241 234 / 95%), 0 0 0 6px rgb(12 11 16 / 90%);
+/* 选中的卡：卡边内侧一圈 2px 的点缀色细线（outline 往里收，画在封面之上；胶片一格挨一格，往外画会被邻格盖住），
+   左上角折一个点缀色的小角（见文件末尾叠色那一节，借的是卡片的 ::after）。原来是一圈纸色的粗框，用户嫌太粗（2026-11-07）。 */
+.scratchpad-drawer.is-expanded .scratchpad-card.is-selected {
+    outline: 2px solid var(--scratchpad-mark-wall);
+    outline-offset: -2px;
 }
+
+.scratchpad-drawer.is-expanded .scratchpad-card.is-selected:not(.is-photo):not(:hover) { box-shadow: none; }
 
 .scratchpad-drawer.is-expanded .scratchpad-card-cover { border-radius: 0; }
 
@@ -1802,7 +1807,6 @@
 }
 
 .scratchpad-card.is-photo:hover { background: #f3eee2; rotate: 0deg; }
-.scratchpad-drawer.is-expanded .scratchpad-card.is-photo.is-selected { box-shadow: 0 0 0 1px rgb(12 11 16 / 90%), 0 0 0 5px rgb(244 241 234 / 95%), 0 0 0 6px rgb(12 11 16 / 90%), 0 8px 18px rgb(0 0 0 / 50%); }
 .scratchpad-card.is-photo .scratchpad-card-cover { grid-column: 1 / -1; width: 92px; height: 92px; aspect-ratio: auto; }
 .scratchpad-card.is-photo .scratchpad-card-cover img { filter: sepia(0.42) saturate(0.7) contrast(0.92) brightness(0.96); }
 
@@ -1818,12 +1822,14 @@
 .scratchpad-card.is-photo .scratchpad-card-name { margin: 5px 0 0; padding: 0; font-size: 11px; font-weight: 800; }
 .scratchpad-card.is-photo .scratchpad-card-meta { padding: 0; font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700; opacity: 0.75; }
 
-/* 播放队列：一格电影胶片——上下两排齿孔，封面铺满中间，标题压在封面下沿，片边印序号与时长；一格接一格连成一条。 */
+/* 播放队列：一格电影胶片——上下两排齿孔，封面铺满中间，标题压在封面下沿，片边印序号与时长；一格接一格连成一条。
+   齿孔疏一点、淡一点（用户嫌又密又显眼，2026-11-07）：每 28px 一个、7 × 5px、26% 的纸色；28 整除卡宽 140，
+   一格接一格时齿孔的间距接得上。 */
 .scratchpad-card.is-film {
     padding: 0;
     background:
-        repeating-linear-gradient(90deg, transparent 0 6px, rgb(236 230 216 / 50%) 6px 14px, transparent 14px 20px) 0 4px / 100% 7px no-repeat,
-        repeating-linear-gradient(90deg, transparent 0 6px, rgb(236 230 216 / 50%) 6px 14px, transparent 14px 20px) 0 calc(100% - 4px) / 100% 7px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 10px, rgb(236 230 216 / 26%) 10px 17px, transparent 17px 28px) 0 5px / 100% 5px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 10px, rgb(236 230 216 / 26%) 10px 17px, transparent 17px 28px) 0 calc(100% - 5px) / 100% 5px no-repeat,
         #121212;
     color: #f4f1ea;
 }
@@ -1892,7 +1898,8 @@
 
 .scratchpad-card.is-film .scratchpad-card-play { top: 6px; bottom: auto; }
 
-/* 选中后的浮动菜单（展开整页）：一块墨色的板，按钮是纸色描边的方角按钮，跟着纸一起斜。 */
+/* 选中后的浮动菜单（展开整页）：一块墨色的板，跟着纸一起斜。按钮不描边（用户嫌纸色粗描边太重，2026-11-07）：
+   方角、垫一档浅一点的黑（分区靠深浅，不靠线），悬停翻成纸色底墨色字。 */
 .scratchpad-drawer.is-expanded .scratchpad-selection-menu,
 .scratchpad-root.is-daylight .scratchpad-drawer.is-expanded .scratchpad-selection-menu {
     --scratchpad-text: var(--scratchpad-paper);
@@ -1911,12 +1918,15 @@
 
 .scratchpad-drawer.is-expanded .scratchpad-menu-button {
     height: 30px;
-    padding: 0 10px;
-    border: 2px solid var(--scratchpad-paper);
+    padding: 0 12px;
+    border: 0;
     border-radius: 0;
+    background: rgb(255 255 255 / 9%);
     font-size: 12px;
     font-weight: 800;
 }
+
+.scratchpad-drawer.is-expanded .scratchpad-menu-button:disabled { background: rgb(255 255 255 / 4%); }
 
 .scratchpad-drawer.is-expanded .scratchpad-menu-button:hover:not(:disabled),
 .scratchpad-root.is-daylight .scratchpad-drawer.is-expanded .scratchpad-menu-button:hover:not(:disabled) {
@@ -2017,6 +2027,16 @@
 }
 
 .scratchpad-drawer.is-expanded .scratchpad-card:is(:hover, :focus-within, .is-selected, .is-current, .is-moving)::after { opacity: 0; }
+
+/* 选中的卡不染，这一层改作左上角折起的小角（点缀色的直角三角）。 */
+.scratchpad-drawer.is-expanded .scratchpad-card.is-selected::after {
+    inset: 0 auto auto 0;
+    width: 18px;
+    height: 18px;
+    background: var(--scratchpad-mark-wall);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+    opacity: 1;
+}
 
 .scratchpad-root.is-calm .scratchpad-slim::before,
 .scratchpad-root.is-calm .scratchpad-slim::after,
