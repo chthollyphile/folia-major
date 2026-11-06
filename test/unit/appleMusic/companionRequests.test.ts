@@ -196,6 +196,17 @@ describe('Apple Music companion requests', () => {
         expect(result).toMatchObject({ ok: true });
     });
 
+    it('sets the page player volume and accepts only a level from 0 to 1', async () => {
+        expect(validateRequest({ id: '1', operation: 'setVolume', params: { volume: 1.5 } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'setVolume', params: { volume: -0.1 } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'setVolume', params: { volume: '0.5' } })).toBeNull();
+        const mk = { api: { music: vi.fn() }, volume: 1 };
+        const request = validateRequest({ id: '1', operation: 'setVolume', params: { volume: 0.25 } });
+        expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } }))
+            .toMatchObject({ ok: true });
+        expect(mk.volume).toBe(0.25);
+    });
+
     it('accepts only a bounded start position for a song', () => {
         expect(validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: 12.5 } }))
             .toMatchObject({ params: { catalogId: '123', startSec: 12.5 } });

@@ -1158,6 +1158,13 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
     },
 
+    // A player without its own level control is left alone: the call is a no-op, not an error.
+    async setExternalPlaybackVolume(song: SongResult, volume: number): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback?.setVolume) return;
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.setVolume!(volume));
+    },
+
     async getExternalPlaybackStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
@@ -1166,14 +1173,6 @@ export const omni = {
 
     isExternalPlaybackStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isStatusForSong(song, status) === true;
-    },
-
-    // The listener's volume (0 to 1) for an external player that sets its own (`setVolume`); nothing
-    // for one that does not.
-    async setExternalPlaybackVolume(song: SongResult, volume: number): Promise<void> {
-        const setVolume = getOnlineMusicProviderForSong(song)?.externalPlayback?.setVolume;
-        if (!setVolume) return;
-        await setVolume(Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0)));
     },
 
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
