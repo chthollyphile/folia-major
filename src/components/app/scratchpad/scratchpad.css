@@ -215,25 +215,27 @@
 
 .scratchpad-root.is-daylight .scratchpad-drawer { box-shadow: 0 24px 64px rgb(42 35 27 / 18%); }
 
-/* 展开整页（ScratchpadSheet，设计稿 F）：铺满整个窗口、不透明，盖住墙；里面那张纸倾斜（文件末尾「展开整页」一节）。
-   底色与墙一样是两团主题色的光晕，日光主题换浅。 */
+/* 展开整页（ScratchpadSheet，设计稿 F）：铺满整个窗口，里面那张纸倾斜（文件末尾「展开整页」一节）。
+   信息条、细纸带、卡片之外的墙面是透明的（用户定，2026-11-06）：隔着一层半透明的纱看得见后面的播放页或墙；
+   纱按主题深浅取色、留一半，墙上的字（跳到栏、操作提示、组头）在亮的封面上也看得清。不用 backdrop-filter（后面常是在动的歌词画面）。 */
 .scratchpad-drawer.is-expanded {
-    --scratchpad-wall: #0c0b10;
-    --scratchpad-veil: rgb(12 11 16 / 88%);
+    --scratchpad-scrim: rgb(12 11 16 / 50%);
+    --scratchpad-veil: rgb(12 11 16 / 86%);
+    --scratchpad-text-soft: rgb(244 241 234 / 80%);
+    --scratchpad-wall-shadow: 0 1px 3px rgb(0 0 0 / 70%);
     right: 0;
     display: block;
     width: auto;
     overflow: hidden;
-    background:
-        radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--scratchpad-mark-wall) 14%, transparent), transparent 29%),
-        radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--text-secondary, #7b6cff) 18%, transparent), transparent 32%),
-        var(--scratchpad-wall);
+    background: var(--scratchpad-scrim);
     box-shadow: none;
 }
 
 .scratchpad-root.is-daylight .scratchpad-drawer.is-expanded {
-    --scratchpad-wall: #ebe9e4;
+    --scratchpad-scrim: rgb(235 233 228 / 56%);
     --scratchpad-veil: rgb(235 233 228 / 90%);
+    --scratchpad-text-soft: rgb(20 20 20 / 76%);
+    --scratchpad-wall-shadow: 0 1px 3px rgb(255 255 255 / 80%);
 }
 
 /* 按时段的问候（ScratchpadGreeting）：左缘面板里放大写在信息条下面，展开整页写在右上角的黑三角里（headline，见下面两节）。 */
@@ -1657,7 +1659,7 @@
     writing-mode: vertical-rl;
 }
 
-/* 纸上的卡片画布：透明，组头吸顶时垫一层墙色的纱。 */
+/* 纸上的卡片画布：透明，组头吸顶时垫一层更浓的纱（盖住滚到它底下的卡）。 */
 .scratchpad-drawer.is-expanded .scratchpad-canvas-content { padding-top: 0; }
 .scratchpad-drawer.is-expanded .scratchpad-grid { margin-top: 8px; }
 .scratchpad-drawer.is-expanded .scratchpad-canvas-group + .scratchpad-canvas-group { margin-top: 18px; }
@@ -1868,7 +1870,12 @@
     color: var(--scratchpad-ink);
 }
 
-/* 卡片右边那一列：跳到栏（看得见的那几项垫一档浅黑，正在播的那一项记号用点缀色）、定位正在播放、贴着底的操作提示。 */
+/* 卡片右边那一列：跳到栏（看得见的那几项垫一档浅黑，正在播的那一项记号用点缀色）、定位正在播放、贴着底的操作提示。
+   展开整页的墙是透明的，这一列的字垫一道淡影（--scratchpad-wall-shadow），后面的画面再亮也读得出来。 */
+.scratchpad-drawer.is-expanded :is(.scratchpad-side-title, .scratchpad-jump-item, .scratchpad-tip, .scratchpad-empty) {
+    text-shadow: var(--scratchpad-wall-shadow);
+}
+
 .scratchpad-canvas-side {
     display: flex;
     min-height: 0;
