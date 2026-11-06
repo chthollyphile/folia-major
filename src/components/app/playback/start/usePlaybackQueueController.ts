@@ -636,9 +636,8 @@ export function usePlaybackQueueController({
         const isLocal = isLocalPlaybackSong(song);
         const isNavidrome = isNavidromePlaybackSong(song);
         // A song its provider plays in a player of its own outside the app: no address
-        // is fetched and no deck plays it; the external route is begun below. It goes back to
-        // false there when that player gave the song up for good (N1).
-        let isExternal = omni.canPlayExternally(song);
+        // is fetched and no deck plays it; the external route is begun below.
+        const isExternal = omni.canPlayExternally(song);
         // Capture readiness before beginning the new attempt resets its preparation context.
         const isPreparedExternal = isExternal && isExternalRoute() && omni.isExternalPlaybackPrepared(song);
         // Another song is starting: the external player must not keep sounding while this one loads.
@@ -933,24 +932,17 @@ export function usePlaybackQueueController({
                     // An advance Folia made by itself may not wake or restart the player (T5).
                     await beginExternalPlayback(song, options.startAtSec ?? 0, { userAction: options.autoAdvance !== true });
                 } catch (error) {
+                    // Only a player that asks for it stops here (one that would have to be started again for
+                    // this advance); the others report the failure as before.
+                    if (!options.autoAdvance || !omni.stopsAutoAdvanceWhenExternalUnreachable(song)) throw error;
                     if (!isLatestPlaybackRequest()) {
                         isLatestPlaybackRequest.abandon();
                         return;
                     }
-                    if (options.autoAdvance) {
-                        stopOnUnreachableExternalPlayer();
-                        return;
-                    }
-                    // N1: the player gave the song up for good (not installed, a restart already spent
-                    // this run, the cool-down after a start that failed). The same song plays in Folia
-                    // rather than being reported as an external failure.
-                    if (omni.canPlayExternally(song)) throw error;
-                    console.info('[App] the external player gave the song up; it plays in Folia', error);
-                    isExternal = false;
-                    setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+                    stopOnUnreachableExternalPlayer();
+                    return;
                 }
-            }
-            if (!isExternal) {
+            } else {
                 // Where the platform could not be reached the load asks again by itself while this play is
                 // wanted, and says so.
                 preloadedOnlineAudioResult = await loadOnlineSongAudio(song, audioQuality, prefetched, {

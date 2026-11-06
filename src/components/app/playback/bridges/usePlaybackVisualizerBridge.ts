@@ -22,6 +22,7 @@ import { readIncomingLyricClock } from './incomingLyricClock';
 import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } from '../../backgroundThrottling/backgroundLyricHoldStore';
 import { getHifiPosition } from '../../../../services/hifi/hifiPlayback';
 import { getExternalPosition, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
+import { externalSpectrumAt } from '../externalSpectrum';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
 
@@ -288,6 +289,19 @@ export function usePlaybackVisualizerBridge({
             audioBands.mid.set(process(mid, 2));
             audioBands.vocal.set(process(vocal, 1.5));
             audioBands.treble.set(process(treble, 2));
+        } else if (isExternalRouteActive) {
+            // The external player hands the app no audio to analyse: the bands follow the player's
+            // own clock, so they move with the song and freeze where it is paused, advertising, or
+            // still loading a track. The route never falls back to the breathing animation, and the
+            // bands are written in place: no frame allocates (M3).
+            const bands = externalSpectrumAt(getExternalPosition());
+            audioPower.set(bands.power);
+            audioBands.bass.set(bands.bass);
+            audioBands.lowMid.set(bands.lowMid);
+            audioBands.mid.set(bands.mid);
+            audioBands.vocal.set(bands.vocal);
+            audioBands.treble.set(bands.treble);
+            audioBands.spectrum?.set(bands.spectrum);
         } else {
             const time = Date.now() / 2000;
             const breath = (Math.sin(time) + 1) * 20;

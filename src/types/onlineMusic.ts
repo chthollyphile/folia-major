@@ -532,6 +532,12 @@ export interface OnlineExternalPlaybackProvider {
      * listener asked for it (omni.warmUpExternalPlayers).
      */
     warmUp?(): Promise<void>;
+    /**
+     * Whether an advance the app made by itself (the track ended, the queue moved on) that this
+     * player cannot take stops the playback where it is with one line said, instead of failing the
+     * song. True for a player that would have to be started again for it; absent or false elsewhere.
+     */
+    stopsAutoAdvanceWhenUnreachable?(): boolean;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */

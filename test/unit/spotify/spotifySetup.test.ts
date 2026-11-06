@@ -217,6 +217,15 @@ describe('Spotify\'s three ways to play', () => {
         }
     });
 
+    it('has an advance of Folia\'s own stop where it is only when Spotify\'s app is the way in use', async () => {
+        await readSpotifyPlaybackMode();
+        expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable!()).toBe(false);
+        await runSpotifySetupAction('mode', 'use-soloist');
+        expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable!()).toBe(false);
+        await runSpotifySetupAction('mode', 'use-client');
+        expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable!()).toBe(true);
+    });
+
     it('wakes Spotify\'s app with Folia only when it is the way in use', async () => {
         (globalThis as { window?: unknown }).window = { electron: { platform: 'win32', spotifyRequest: vi.fn() } };
         try {

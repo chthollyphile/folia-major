@@ -1153,6 +1153,12 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.resume());
     },
 
+    // Whether an advance Folia made by itself that the external player cannot take stops where it is,
+    // instead of failing the song: for a player that would have to be started again for it.
+    stopsAutoAdvanceWhenExternalUnreachable(song: SongResult): boolean {
+        return providerForSong(song).externalPlayback?.stopsAutoAdvanceWhenUnreachable?.() === true;
+    },
+
     async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');

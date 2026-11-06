@@ -15,6 +15,8 @@ import type { OnlineLyricsState, UnifiedSong } from '@/types';
 const env = vi.hoisted(() => ({
     blockedIds: new Set<string>(),
     external: false,
+    /** Whether the external player asks for an advance of the app's own to stop where it is when it cannot be reached. */
+    stopsAutoAdvance: false,
     externalPrepared: false,
     externalStarts: vi.fn(async (..._args: unknown[]) => {}),
     note: (_label: string) => {},
@@ -67,7 +69,7 @@ vi.mock('@/services/hostExtensionHooks', () => ({
     // A play that fails tells the extensions (Folium playback.failed); nothing listens here.
     notifyPlaybackFailed: () => undefined,
 }));
-vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: (song: { id: string }) => !env.blockedIds.has(song.id), canPlayExternally: () => env.external, isExternalPlaybackPrepared: () => env.externalPrepared, getProviderLabel: (id: string) => id } }));
+vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: (song: { id: string }) => !env.blockedIds.has(song.id), canPlayExternally: () => env.external, stopsAutoAdvanceWhenExternalUnreachable: () => env.stopsAutoAdvance, isExternalPlaybackPrepared: () => env.externalPrepared, getProviderLabel: (id: string) => id } }));
 vi.mock('@/services/onlineMusic/externalPlayback', async importOriginal => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/externalPlayback')>(),
     beginExternalPlayback: (...args: unknown[]) => env.externalStarts(...args),
@@ -144,6 +146,7 @@ beforeEach(() => {
     resetPlaybackStore();
     env.blockedIds.clear();
     env.external = false;
+    env.stopsAutoAdvance = false;
     env.externalPrepared = false;
     env.externalStarts.mockReset().mockResolvedValue(undefined);
     env.lyricsStateFor.clear();
@@ -197,47 +200,10 @@ const deferred = <T,>() => {
     return { promise, resolve };
 };
 
-describe('the play that goes outside the app (N1, T5)', () => {
-    it('plays the same song in Folia when that player gave it up (N1)', async () => {
+describe('the play that goes outside the app (T5)', () => {
+    it('stops where it is when its own advance cannot reach a player that asks for it (T5)', async () => {
         env.external = true;
-        env.externalStarts.mockImplementation(async () => {
-            // The app cannot take it any more: from here canPlayExternally answers no (D2).
-            env.external = false;
-            throw new Error('The Spotify app is not installed');
-        });
-        const messages: unknown[] = [];
-        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
-        const { watch, queue } = mount();
-        await queue.playSong(songA, [songA, songB]);
-
-        // The same song went down Folia's own route: its address was read, and it is what plays.
-        expect(watch.take().some(line => line.includes('wait audio source 1'))).toBe(true);
-        expect(usePlaybackStore.getState().audioSrc).toBe('https://audio.test/1');
-        expect(usePlaybackStore.getState().currentSong?.id).toBe('1');
-        // No external failure was shown: the song simply played.
-        expect(messages).not.toContainEqual(expect.objectContaining({ type: 'error' }));
-        unsubscribe();
-    });
-
-    it('goes straight to Folia on the next click once the player spent its restart (N1)', async () => {
-        env.external = true;
-        env.externalStarts.mockImplementation(async () => {
-            env.external = false;
-            throw new Error('Spotify runs without its DevTools port, a restart already spent this run');
-        });
-        const { queue } = mount();
-        await queue.playSong(songA, [songA, songB]);
-        env.externalStarts.mockClear();
-
-        await queue.playSong(songB, [songA, songB]);
-        // The external route is not even tried: the app is given up for this run.
-        expect(env.externalStarts).not.toHaveBeenCalled();
-        expect(usePlaybackStore.getState().currentSong?.id).toBe('2');
-        expect(usePlaybackStore.getState().audioSrc).toBe('https://audio.test/2');
-    });
-
-    it('stops where it is when its own advance cannot reach the player (T5)', async () => {
-        env.external = true;
+        env.stopsAutoAdvance = true;
         env.externalStarts.mockImplementation(async () => { throw new Error('The Spotify app cannot be reached'); });
         const { PlayerState } = await import('@/types');
         const messages: unknown[] = [];
@@ -252,6 +218,22 @@ describe('the play that goes outside the app (N1, T5)', () => {
         // The song it was on stays on screen, paused.
         expect(usePlaybackStore.getState().currentSong).toBeNull();
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        unsubscribe();
+    });
+
+    it('reports the failure of its own advance as before for a player that does not ask for it to stop', async () => {
+        env.external = true;
+        env.stopsAutoAdvance = false;
+        env.externalStarts.mockImplementation(async () => { throw new Error('The Soloist program is gone'); });
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { queue } = mount();
+        await queue.playSong(songA, [songA, songB], false, { autoAdvance: true });
+
+        // The player is still asked without waking it, but its failure is the usual one, not the stop.
+        expect(env.externalStarts).toHaveBeenCalledWith(songA, 0, { userAction: false });
+        expect(messages).toContainEqual(expect.objectContaining({ type: 'error' }));
+        expect(messages).not.toContainEqual(expect.objectContaining({ text: 'status.externalPlayerUnreachable' }));
         unsubscribe();
     });
 

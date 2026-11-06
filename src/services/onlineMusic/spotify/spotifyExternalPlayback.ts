@@ -11,6 +11,8 @@ import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback } 
 const current = (): OnlineExternalPlaybackProvider => (spotifyPlaybackMode() === 'client' ? spotifyClientPlayback : spotifySoloistPlayback);
 
 export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
+    // Spotify's own app is not started again by an advance of Folia's own; Soloist's failures are reported.
+    stopsAutoAdvanceWhenUnreachable: () => spotifyPlaybackMode() === 'client',
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming) {
