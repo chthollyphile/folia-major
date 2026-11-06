@@ -70,6 +70,15 @@ let pollRunning = false;
 let installed = false;
 let ownWriteDepth = 0;
 let failureNoted = false;
+/** The level the player last confirmed, or null when unknown (a new start, a failed write). */
+let appliedVolume: number | null = null;
+/** The level of the write in flight, or null when none is: at most one is sent at a time. */
+let sendingVolume: number | null = null;
+/** A level asked for while a write was in flight (a slider drag); sent when that write returns. */
+let wantedVolume: number | null = null;
+let volumeFailureNoted = false;
+/** Bumped by every start: a write sent before it cannot vouch for the level after it. */
+let volumeEpoch = 0;
 const listeners = new Set<(event: ExternalPlaybackEvent) => void>();
 
 const emit = (event: ExternalPlaybackEvent) => {
@@ -322,6 +331,53 @@ async function poll(): Promise<void> {
     }
 }
 
+/** The app's own volume as a linear level for the external player: muted is 0. */
+const settingsVolume = () => {
+    const { volume, isMuted } = useAudioSettingsStore.getState();
+    return isMuted ? 0 : Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+};
+
+/**
+ * Hands the player its output level. Its audio never passes through the app's gain node, so the
+ * volume slider and mute reach it only this way. Writes are coalesced: a drag sends one at a time
+ * and the newest level when the last one returns. `level` defaults to the stored volume.
+ */
+export function setExternalPlaybackVolume(level = settingsVolume()): void {
+    const current = session;
+    if (!current || !isExternalRoute()) return;
+    if (sendingVolume !== null) {
+        wantedVolume = level;
+        return;
+    }
+    wantedVolume = null;
+    if (appliedVolume === level) return;
+    sendingVolume = level;
+    const epoch = volumeEpoch;
+    void omni.setExternalPlaybackVolume(current.song, level).then(() => {
+        if (epoch !== volumeEpoch) return;
+        appliedVolume = level;
+        volumeFailureNoted = false;
+    }, error => {
+        appliedVolume = null;
+        if (!volumeFailureNoted) {
+            volumeFailureNoted = true;
+            console.warn('[ExternalPlayback] the player volume could not be set', error);
+        }
+    }).finally(() => {
+        sendingVolume = null;
+        // Only a level asked for meanwhile is sent: a failed write is not repeated on its own.
+        const next = wantedVolume;
+        wantedVolume = null;
+        if (next !== null) setExternalPlaybackVolume(next);
+    });
+}
+
+/** A slider drag: the level being dragged to, heard from the external player when it is the route. */
+export function previewExternalPlaybackVolume(volume: number): void {
+    if (!isExternalRoute()) return;
+    setExternalPlaybackVolume(useAudioSettingsStore.getState().isMuted ? 0 : Math.min(1, Math.max(0, volume)));
+}
+
 /** Starts a track in the external player and puts the app on that route. */
 export async function beginExternalPlayback(song: SongResult, startSec = 0): Promise<void> {
     if (isExternalRoute()) {
@@ -348,6 +404,12 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
         setPlaybackRoute('external');
     });
     emit({ type: 'status' });
+    // The player's page may have been replaced since the last song: set its level again before it
+    // sounds. Playback commands reach the page in order, so this lands before the start.
+    volumeEpoch += 1;
+    appliedVolume = null;
+    volumeFailureNoted = false;
+    setExternalPlaybackVolume();
     try {
         await omni.playSongExternally(song, Math.max(0, startSec));
     } catch (error) {
@@ -359,6 +421,11 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
         throw error;
     }
     if (session?.attempt !== attempt || !isExternalRoute()) return;
+    // The level sent ahead may have landed on a page the companion then replaced (it moves to the
+    // account's storefront between requests): once the player has the song, send the level again.
+    volumeEpoch += 1;
+    appliedVolume = null;
+    setExternalPlaybackVolume();
     // Seed the incoming clock before announcement instead of showing a paused/loading frame for 500 ms.
     const sampledAt = performance.now();
     const positionRevision = session.positionRevision;
@@ -477,6 +544,7 @@ export const installExternalPlayback = (): void => {
     externalMediaShim.setClockReader(() => getExternalPosition());
     useAudioSettingsStore.subscribe((state, previous) => {
         if (state.loopMode !== previous.loopMode) refreshPreparedQueue();
+        if (state.volume !== previous.volume || state.isMuted !== previous.isMuted) setExternalPlaybackVolume();
     });
     usePlaybackStore.subscribe((state, previous) => {
         if (ownWriteDepth > 0) return;

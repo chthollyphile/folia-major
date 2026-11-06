@@ -9,7 +9,7 @@ const { readPersonalStation } = require('./companionRadio.cjs');
 const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const RESOURCE_ID = /^[a-zA-Z0-9._-]{1,200}$/;
 // Folia chooses the order; the companion may prepare a bounded tail but cannot invent next tracks.
-const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'prepareNext']);
+const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'setVolume', 'prepareNext']);
 const OPERATIONS = new Set(['songOriginal', 'catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums', 'libraryAlbums', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
 
 function validateRequest(message) {
@@ -28,6 +28,10 @@ function validateRequest(message) {
     if (operation === 'seek') {
         if (typeof params.seconds !== 'number' || !Number.isFinite(params.seconds) || params.seconds < 0 || params.seconds > 604800) return null;
         return { id, operation, params: { seconds: params.seconds } };
+    }
+    if (operation === 'setVolume') {
+        if (typeof params.volume !== 'number' || !Number.isFinite(params.volume) || params.volume < 0 || params.volume > 1) return null;
+        return { id, operation, params: { volume: params.volume } };
     }
     if (operation === 'addPlaylistTracks') {
         if (typeof params.playlistId !== 'string' || !/^p\.[a-zA-Z0-9._-]{1,198}$/.test(params.playlistId)
@@ -153,6 +157,12 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 await mk.play();
                 return { ok: true, data: {} };
             } catch { return { ok: false, error: 'playback-failed' }; }
+        }
+        if (request.operation === 'setVolume') {
+            // Apple's audio plays here, outside Folia's gain: the page's player owns the level.
+            if (typeof mk.volume !== 'number') return { ok: false, error: 'unsupported' };
+            mk.volume = request.params.volume;
+            return { ok: true, data: {} };
         }
         const methods = { pause: 'pause', resume: 'play', seek: 'seekToTime' };
         if (request.operation === 'playSong') {
