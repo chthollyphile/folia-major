@@ -3,9 +3,12 @@ import { clientToLocal, localToClient, rotatePoint, type TiltBox } from '@/compo
 import {
     FILM_SPACING,
     NOTE_SPACING,
+    OVERVIEW_ROW_BLOCK,
+    OVERVIEW_ROW_MIN_STEP,
     cardRect,
     cardSize,
     columnsFor,
+    overviewRowTops,
     polygonsIntersect,
     rectCorners,
     slotPosition,
@@ -124,5 +127,34 @@ describe('band decorations', () => {
             }
         }
         expect(scatterSlimDecos('queue').every(deco => deco.x > 500)).toBe(true);
+    });
+});
+
+describe('three-row overview layout', () => {
+    it('keeps the design positions on a tall window', () => {
+        const tops = overviewRowTops(900);
+        expect(tops[0]).toBeCloseTo(116.1, 1);
+        expect(tops[1]).toBeCloseTo(352.1, 1);
+        expect(tops[2]).toBeCloseTo(592.2, 1);
+    });
+
+    it('never lets a row run into the next one', () => {
+        for (const height of [560, 640, 700, 768, 824, 900, 1080]) {
+            const tops = overviewRowTops(height);
+            for (let index = 1; index < tops.length; index += 1) {
+                expect(tops[index] - tops[index - 1]).toBeGreaterThanOrEqual(OVERVIEW_ROW_BLOCK - 1e-9);
+            }
+        }
+    });
+
+    it('keeps the third row inside a short window, moving up before squeezing', () => {
+        const tops = overviewRowTops(720);
+        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(720 - 8 + 1e-9);
+        expect(tops[1] - tops[0]).toBeGreaterThanOrEqual(OVERVIEW_ROW_BLOCK);
+        expect(tops[0]).toBeGreaterThanOrEqual(36);
+        // Tall enough to keep the full spacing once moved up: no squeezing.
+        const roomy = overviewRowTops(780);
+        expect(roomy[1] - roomy[0]).toBeCloseTo(OVERVIEW_ROW_MIN_STEP, 6);
+        expect(roomy[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(780 - 8 + 1e-9);
     });
 });

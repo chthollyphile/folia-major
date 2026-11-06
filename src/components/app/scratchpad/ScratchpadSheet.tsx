@@ -45,7 +45,7 @@ type ScratchpadSheetProps = {
     collapseLabel: string;
     collapseRef?: React.Ref<HTMLButtonElement>;
     /** 三行总览：给了就画它（参数是纸的宽度），不画这一页。 */
-    overview?: ((sheetWidth: number) => React.ReactNode) | null;
+    overview?: ((sheetWidth: number, viewHeight: number) => React.ReactNode) | null;
     /** 展开整页的信息条上「‹ 三行总览」。 */
     onShowOverview?: () => void;
     children: React.ReactNode;
@@ -79,8 +79,13 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     const [slot, setSlot] = useState<HTMLElement | null>(null);
     // 信息条的装饰按纸的宽度撒（窗口宽 + 两边多出来的）。
     const [sheetWidth, setSheetWidth] = useState(() => (typeof window === 'undefined' ? 1760 : window.innerWidth + SHEET_BLEED_X * 2));
+    // 三行总览按窗口高度排行（矮的窗口里挤一挤，第三行不出窗口）。
+    const [viewHeight, setViewHeight] = useState(() => (typeof window === 'undefined' ? 900 : window.innerHeight));
     useEffect(() => {
-        const onResize = () => setSheetWidth(window.innerWidth + SHEET_BLEED_X * 2);
+        const onResize = () => {
+            setSheetWidth(window.innerWidth + SHEET_BLEED_X * 2);
+            setViewHeight(window.innerHeight);
+        };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
@@ -105,10 +110,10 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     const title = t(TITLE_KEYS[tab]);
 
     return (
-        <div ref={rootRef} className="scratchpad-f" tabIndex={-1} style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
+        <div ref={rootRef} className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`} tabIndex={-1} style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
             <Backdrop tab={tab} word={title} />
             {overview ? (
-                <div className="scratchpad-f-sheet">{overview(sheetWidth)}</div>
+                <div className="scratchpad-f-sheet">{overview(sheetWidth, viewHeight)}</div>
             ) : (
                 <div className="scratchpad-f-sheet">
                     <div className="scratchpad-f-band">

@@ -14,7 +14,7 @@ import ScratchpadBand from './ScratchpadBand';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
-import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, polygonsIntersect, rectCorners, rectFromPoints, type Point, type Rect, type Spacing } from './canvasLayout';
+import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewRowTops, polygonsIntersect, rectCorners, rectFromPoints, type Point, type Rect, type Spacing } from './canvasLayout';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 import { clientToLocal, localToClient } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
@@ -26,16 +26,8 @@ import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
 // （速记簿里的移出、历史里的删记录；队列里的歌要到播放队列那一页移出）。双击播放。不能在这里拖动重排（各页展开整页里拖）。
 // 纸的倾斜由 ScratchpadSheet 给；坐标换算与展开整页的画布同一套（scratchpadTilt）。
 
-/** 每一行在纸上的高度位置（窗口高度的比例，加上纸上下多出来的 130px）：照设计稿 1440 × 900 时的 246 / 482 / 722。 */
-const ROW_TOPS = [0.129, 0.391, 0.658];
-/** 一行至少占多高（信息条 72 + 下面 12 + 最高的卡 136，再留 16）：窗口矮时按它往下排，上一行的卡不压到下一条信息条上。 */
-const ROW_MIN_STEP = 236;
-
-/** 第 order 行的顶边：按比例的位置，和「上面每一行都至少占 ROW_MIN_STEP」两者取大（CSS 的 max，跟着窗口高度变）。 */
-const rowTop = (order: number) => {
-    const terms = ROW_TOPS.slice(0, order + 1).map((ratio, index) => `(100% - 260px) * ${ratio} + ${(order - index) * ROW_MIN_STEP}px`);
-    return `calc(130px + max(${terms.join(', ')}))`;
-};
+/** 纸比窗口上边多出来的那一截：行的顶边（窗口坐标，overviewRowTops）加上它才是纸上的位置。 */
+const SHEET_BLEED_Y = 130;
 /** 一行里卡片的左边、相对信息条顶边往下多少，右边留给跳到栏的宽度。 */
 const CARDS_LEFT = 196;
 const CARDS_BELOW_BAND = 84;
@@ -58,12 +50,14 @@ type ScratchpadOverviewProps = {
     queue: ScratchpadQueuePort;
     tilt: number;
     sheetWidth: number;
+    /** 窗口的高度：三行按它排。 */
+    viewHeight: number;
     onOpenPage: (tab: ScratchpadTab) => void;
     /** 没有选择时按 Esc：收回左缘的面板。 */
     onEscape: () => void;
 };
 
-const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue, tilt, sheetWidth, onOpenPage, onEscape }) => {
+const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue, tilt, sheetWidth, viewHeight, onOpenPage, onEscape }) => {
     const { t, i18n } = useTranslation();
     const notes = useScratchpadStore(state => state.entries);
     const plays = useScratchpadHistory();
@@ -105,6 +99,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         };
     }, [displaySong, i18n.language, notes, playQueue, plays, sheetWidth]);
     const all = useMemo(() => SCRATCHPAD_TABS.flatMap(tab => rows[tab].entries), [rows]);
+    const tops = useMemo(() => overviewRowTops(viewHeight), [viewHeight]);
 
     // 挂上时焦点不在任何地方（点的「‹ 三行总览」跟着信息条一起卸掉了）：接过焦点，Esc 与快捷键才归总览。
     useEffect(() => {
@@ -304,7 +299,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                         }}
                         className="scratchpad-overview-row"
                         data-page={tab}
-                        style={{ top: rowTop(order) }}
+                        style={{ top: SHEET_BLEED_Y + tops[order] }}
                     >
                         <ScratchpadBand
                             variant="row"

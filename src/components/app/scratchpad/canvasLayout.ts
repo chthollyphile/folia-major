@@ -80,6 +80,34 @@ export const previewSlots = (
     return slots;
 };
 
+/** 三行总览里一行占的高度：信息条 72 + 往下 12 + 最高的卡 136。 */
+export const OVERVIEW_ROW_BLOCK = 220;
+/** 两行之间至少隔多少（一行的高度再留 16）。 */
+export const OVERVIEW_ROW_MIN_STEP = 236;
+/** 第一行最高到哪（让开窗口标题栏）、第三行的卡离窗口底边至少多少。 */
+const OVERVIEW_TOP_MIN = 36;
+const OVERVIEW_BOTTOM_GAP = 8;
+/** 三行在窗口里的比例位置（照设计稿 1440 × 900 时的 116 / 352 / 592）。 */
+const OVERVIEW_ROW_RATIOS = [0.129, 0.391, 0.658];
+
+/**
+ * 三行总览每一行信息条的顶边（窗口坐标，不含纸上下多出来的那一截）：按比例排；行与行至少隔 OVERVIEW_ROW_MIN_STEP；
+ * 窗口矮到第三行的卡出了底边时，先整体往上挪（不高过标题栏），还不够就把行距挤到正好一行高。
+ */
+export const overviewRowTops = (viewHeight: number): number[] => {
+    const tops = OVERVIEW_ROW_RATIOS.map(ratio => ratio * viewHeight);
+    for (let index = 1; index < tops.length; index += 1) tops[index] = Math.max(tops[index], tops[index - 1] + OVERVIEW_ROW_MIN_STEP);
+    const room = viewHeight - OVERVIEW_BOTTOM_GAP;
+    const last = tops.length - 1;
+    const overflow = tops[last] + OVERVIEW_ROW_BLOCK - room;
+    if (overflow <= 0) return tops;
+    const shift = Math.min(overflow, Math.max(0, tops[0] - OVERVIEW_TOP_MIN));
+    const shifted = tops.map(top => top - shift);
+    if (shifted[last] + OVERVIEW_ROW_BLOCK <= room) return shifted;
+    const step = Math.max(OVERVIEW_ROW_BLOCK, (room - OVERVIEW_ROW_BLOCK - shifted[0]) / last);
+    return shifted.map((_, index) => shifted[0] + index * step);
+};
+
 /** 两点拉出的矩形（不管哪个方向拉的）。 */
 export const rectFromPoints = (a: Point, b: Point): Rect => ({
     left: Math.min(a.x, b.x),

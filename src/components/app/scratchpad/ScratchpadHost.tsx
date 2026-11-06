@@ -253,6 +253,29 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [cycleTab, isCovered, isOpen]);
+    // 展开整页盖住了墙：点的那颗按钮跟着浮动板、跟着删空的那一页一起卸掉，焦点落到 body 时，按键也归速记簿——
+    // Esc 收回侧栏，其余抽屉键把焦点交还给这一页（画布、总览或整页本身），不让它们落到墙上（墙的键盘在 window 上听，
+    // 所以这里在捕获阶段先接住）。Tab 交给上面那个换页。
+    const drawerRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (!isOpen || !isExpanded || isCovered) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            const active = document.activeElement;
+            if ((active && active !== document.body) || isTabCycleKey(event)) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                collapseCanvas();
+                return;
+            }
+            if (!DRAWER_KEYS.has(event.key)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            drawerRef.current?.querySelector<HTMLElement>('.scratchpad-canvas, .scratchpad-overview, .scratchpad-f')?.focus({ preventScroll: true });
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        return () => window.removeEventListener('keydown', onKeyDown, true);
+    }, [collapseCanvas, isCovered, isExpanded, isOpen]);
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
         // 抽屉里 Tab 不走焦点，换页签（用户定，2026-11-05）；按钮之间用方向键和鼠标。
@@ -473,6 +496,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             <AnimatePresence>
                 {isOpen && (
                     <motion.aside
+                        ref={drawerRef}
                         key="scratchpad-drawer"
                         className={`scratchpad-drawer${isExpanded ? ' is-expanded' : ' is-panel'}`}
                         data-page={tab}
@@ -495,12 +519,13 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                                 onCollapse={collapseCanvas}
                                 collapseLabel={t('scratchpad.collapseCanvas')}
                                 onShowOverview={() => setShowOverview(true)}
-                                overview={showOverview ? (sheetWidth => (
+                                overview={showOverview ? ((sheetWidth, viewHeight) => (
                                     <ScratchpadOverview
                                         playback={playback}
                                         queue={queue}
                                         tilt={tilt}
                                         sheetWidth={sheetWidth}
+                                        viewHeight={viewHeight}
                                         onOpenPage={openPage}
                                         onEscape={collapseCanvas}
                                     />

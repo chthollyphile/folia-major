@@ -917,6 +917,9 @@
 
 /* 动效降级时左缘的标签不滑，只淡入淡出；收进新歌也不闪。 */
 .scratchpad-root.is-calm .scratchpad-handle { transform: none; transition: opacity 0.12s ease; }
+/* 不滑出去的标签只是透明地留在原地：没展开时不接指针（它比热区高，会挡住下面 Bravais 信息条的标签），键盘照样聚焦得到。 */
+.scratchpad-root.is-calm .scratchpad-handle { pointer-events: none; }
+.scratchpad-root.is-calm .scratchpad-edge:is(:hover, :focus-within) .scratchpad-handle { pointer-events: auto; }
 .scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }
 
 /* —— 左缘面板的页签列（ScratchpadRail）——
@@ -1364,6 +1367,11 @@
 .scratchpad-f-slim { position: absolute; right: 0; left: 0; z-index: 4; height: 36px; }
 .scratchpad-f-slim.is-upper { top: calc(100% - 160px); }
 .scratchpad-f-slim.is-lower { top: calc(100% - 118px); }
+
+/* 不倾斜时（降低动态效果）纸的左半边不再往上抬：两条细纸带整条挪进窗口（窗口底边在纸上 100% − 130px），卡片区跟着让出来。 */
+.scratchpad-f.is-flat .scratchpad-f-body { bottom: 220px; }
+.scratchpad-f.is-flat .scratchpad-f-slim.is-upper { top: calc(100% - 214px); }
+.scratchpad-f.is-flat .scratchpad-f-slim.is-lower { top: calc(100% - 172px); }
 
 /* 展开整页的信息条：横贯整张纸、120px 高；左边一道墨色的斜杠，标题放大，下面一行说明；右端是这一页的按钮（各页自己画进来）。
    装饰可以探出条的上下沿（不裁）。 */
