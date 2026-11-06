@@ -299,6 +299,12 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 }
                 await requestAppleMusic('seek', { seconds: Math.min(seconds, 604800) });
             },
+            async setVolume(volume) {
+                if (!Number.isFinite(volume)) {
+                    throw new OnlineProviderError('invalid-response', 'Apple Music volume is invalid', 'appleMusic');
+                }
+                await requestAppleMusic('setVolume', { volume: Math.round(Math.min(1, Math.max(0, volume)) * 1000) / 1000 });
+            },
             async getStatus(song: SongResult) {
                 const attempt = playback;
                 const data = await requestAppleMusic<unknown>('playbackStatus');
