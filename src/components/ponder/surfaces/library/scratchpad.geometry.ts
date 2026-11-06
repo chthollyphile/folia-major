@@ -45,8 +45,8 @@ export const SCRATCHPAD_CARD = {
 /**
  * 面板里的几块，坐标系是面板（368 × 900）。
  *
- * 左边一列页签（最深的黑，64px）：顶上收起，中间三个竖排页签（速记簿、播放历史、播放队列，各带几何体与首数），最底下「展开整页」。
- * 右边是内容：顶上一条米白信息条（探出面板一截），放大的问候、一道短杠、一行说明；然后是按来源分的两组：组头写来源与首数，
+ * 左边一列页签（最深的黑，64px）：顶上收起，下面三个竖排页签（速记簿、播放历史、播放队列，各带几何体与首数）。
+ * 右边是内容：顶上一条米白信息条（探出面板一截，右端压一颗墨色的「展开整页」），放大的问候、一道短杠、一行说明；然后是按来源分的两组：组头写来源与首数，
  * 右端「本组全部入队」「本组加入歌单」；每一行是封面、歌名、歌手 · 出处，悬停时右端出四颗。最底下一排：全部入队、替换队列播放、清空。
  */
 export const SCRATCHPAD_DRAWER = {
@@ -55,7 +55,8 @@ export const SCRATCHPAD_DRAWER = {
     notesTab: { left: 0.025, top: 0.105, width: 0.125, height: 0.15 },
     historyTab: { left: 0.025, top: 0.27, width: 0.125, height: 0.16 },
     queueTab: { left: 0.025, top: 0.445, width: 0.125, height: 0.16 },
-    expand: { left: 0.043, bottom: 0.02, width: 0.087, square: true },
+    /** 信息条右端探出面板的那一截上（所以伸出面板右边）。 */
+    expand: { left: 0.962, top: 0.063, width: 0.087, square: true },
     band: { left: 0.174, top: 0.044, width: 0.924, height: 0.071 },
     greeting: { left: 0.223, top: 0.14, right: 0.04, height: 0.03 },
     rule: { left: 0.223, top: 0.183, width: 0.098, height: 0.0045 },

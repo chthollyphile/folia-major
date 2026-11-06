@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Maximize2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
 import ScratchpadRail, { type ScratchpadRailTab } from './ScratchpadRail';
@@ -56,10 +57,6 @@ const ScratchpadPanel: React.FC<ScratchpadPanelProps> = ({
                 onTabsKeyDown={onTabsKeyDown}
                 closeLabel={t('scratchpad.close')}
                 onClose={onClose}
-                expandLabel={expandLabel}
-                expandDisabled={expandDisabled}
-                onExpand={onExpand}
-                expandRef={expandRef}
             />
             <div className="scratchpad-sheet">
                 {/* 换页时信息条换成那一页的（计数、标题、纹理、几何体）：新的一条从右边滑进来盖上去，旧的那条在底下待到盖住再走，
@@ -82,6 +79,21 @@ const ScratchpadPanel: React.FC<ScratchpadPanelProps> = ({
                             />
                         </motion.div>
                     </AnimatePresence>
+                    {/* 「展开整页」压在信息条右端探出面板的那一截上（用户定，2026-11-06）。不放进上面换页交接的那一面里：
+                        换页时新旧两条同时在场，按钮要是跟着条走就有两颗，收回整页时焦点要落回的那一颗会被旧的卸掉时清空。 */}
+                    <button
+                        ref={expandRef}
+                        type="button"
+                        className="scratchpad-band-expand"
+                        data-scratchpad-action="toggle-canvas"
+                        disabled={expandDisabled}
+                        title={expandLabel}
+                        aria-label={expandLabel}
+                        aria-pressed={false}
+                        onClick={onExpand}
+                    >
+                        <Maximize2 aria-hidden="true" />
+                    </button>
                 </div>
                 {/* 按时段的问候放大，下面一道短杠；这一页的说明在 children 的最上面（随页换）。 */}
                 <div className="scratchpad-intro">

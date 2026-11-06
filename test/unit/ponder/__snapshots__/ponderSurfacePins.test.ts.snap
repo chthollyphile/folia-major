@@ -42,7 +42,7 @@ exports[`the stand-ins as recorded before the size table was split > every kind 
   "queue-command": "14789 686c83b948331de6",
   "queue-settings": "1433 56ebafde7ee8f8fe",
   "replay-gain-settings": "3227 91bb8c63ace1a3cf",
-  "scratchpad": "100140 e703a07c9f7ad927",
+  "scratchpad": "100110 96bb9ab3d7727087",
   "settings-page": "10816 8b59c7ff32f881ba",
   "side-panel": "90539 17ded908eef3af84",
   "sign-in": "22287 3a6d159ab6636611",
@@ -5685,9 +5685,9 @@ exports[`the stand-ins as recorded before the size table was split > every size 
       "width": 0.27,
     },
     "expand": {
-      "bottom": 0.02,
-      "left": 0.043,
+      "left": 0.962,
       "square": true,
+      "top": 0.063,
       "width": 0.087,
     },
     "footer": {

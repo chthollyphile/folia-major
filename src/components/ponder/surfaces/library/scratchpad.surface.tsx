@@ -157,7 +157,7 @@ const CardHover: React.FC<Paint> = ({ accent }) => (
 /** 收进去一首之后：标签（指针移到左缘时展开的样子）上写出首数。 */
 const Collected: React.FC<Paint> = ({ accent }) => <Handle accent={accent} count={1} />;
 
-/** 面板左边那一列：收起、三个竖排页签（开着的那页垫一块斜着的米白纸），最底下展开整页。 */
+/** 面板左边那一列：收起、三个竖排页签（开着的那页垫一块斜着的米白纸）。 */
 const Rail: React.FC<Paint & { active: 'notes' | 'history' }> = ({ active, accent, line }) => (
     <>
         <span style={{ ...relativeRectStyle(D.rail), backgroundColor: RAIL }} />
@@ -172,14 +172,16 @@ const Rail: React.FC<Paint & { active: 'notes' | 'history' }> = ({ active, accen
                 </span>
             );
         })}
-        <span style={relativeRectStyle(D.expand)}><IconSquare icon={Maximize2} /></span>
     </>
 );
 
-/** 面板内容区顶上那几块：信息条、放大的问候、短杠、说明。 */
+/** 面板内容区顶上那几块：信息条（右端压一颗墨色的「展开整页」）、放大的问候、短杠、说明。 */
 const SheetHead: React.FC<Paint & { shape: ScratchpadShapeKind }> = ({ accent, line, shape }) => (
     <>
         <Band rect={relativeRectStyle(D.band)} accent={accent} shape={shape} />
+        <span className="flex items-center justify-center" style={{ ...relativeRectStyle(D.expand), backgroundColor: INK, color: PAPER }}>
+            <Maximize2 className="h-[48%] w-auto" />
+        </span>
         <span style={relativeRectStyle(D.greeting)}><Bar width="86%" height="64%" color={line} opacity={0.95} /></span>
         <span style={{ ...relativeRectStyle(D.rule), backgroundColor: accent }} />
         <span style={relativeRectStyle(D.hint)}><Bar width="92%" height="60%" color={line} opacity={0.4} /></span>

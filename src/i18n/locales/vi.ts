@@ -6576,7 +6576,7 @@ export default {
         "rowActions": "Rê chuột lên một dòng để thấy: phát trong hàng đợi, thêm vào hàng đợi, thêm vào danh sách phát, và bỏ ra khỏi sổ. Bài vẫn ở lại sau khi đã vào hàng đợi hay danh sách phát; không cần nữa thì tự bỏ ra.",
         "footer": "Hàng dưới cùng: thêm tất cả vào hàng đợi, thay hàng đợi bằng sổ ghi nhanh, và xóa sạch. Xóa sạch cần nhấn hai lần.",
         "history": "“Lịch sử phát” ở cột thẻ bên trái là trang thứ hai: các bài đã phát trên thiết bị này trong 7 ngày qua (nền tảng trực tuyến, tệp cục bộ, Navidrome), theo ngày, mới nhất ở trên, mỗi bài là một tấm ảnh nhỏ. Mỗi dòng có thể phát trong hàng đợi, thêm vào hàng đợi, thêm vào sổ ghi nhanh hoặc lưu vào danh sách phát.",
-        "expand": "Ở cuối cột thẻ bên trái: “Mở rộng toàn trang”.",
+        "expand": "Ô vuông tối ở đầu phải của dải: “Mở rộng toàn trang”.",
         "canvas": "Khi mở rộng toàn trang, cả tờ giấy nghiêng: dải của trang này chạy ngang phía trên, mỗi bài là một thẻ sổ tay, vẫn nhóm theo nguồn, và đầu nhóm có thêm “Chọn nhóm này”; cột bên phải là danh sách nhảy tới và các thao tác, hai trang còn lại gấp thành dải mỏng ở góc dưới bên trái. Esc bỏ chọn trước, rồi quay lại bảng bên.",
         "drag": "Kéo thẻ để sắp xếp lại. Thẻ chỉ di chuyển trong nhóm của nó, và bám vào vị trí gần nhất khi thả. Trên màn hình cảm ứng, nhấn giữ thẻ đến khi nó nhấc lên rồi kéo.",
         "select": "Kéo một khung ở chỗ trống để chọn các thẻ bên trong; {{mod}}-nhấn một thẻ để thêm hoặc bỏ chọn. Một bảng nổi bên cạnh các thẻ đã chọn: thêm vào hàng đợi, thêm vào danh sách phát, bỏ ra, bỏ chọn. Khi mục chọn đến từ nhiều nguồn, thêm vào danh sách phát sẽ bị mờ."

@@ -947,7 +947,6 @@
     gap: 12px;
 }
 
-.scratchpad-rail-spacer { flex: 1 1 auto; }
 
 .scratchpad-rail-tabs .scratchpad-tab {
     position: relative;
@@ -1026,6 +1025,33 @@
 .scratchpad-panel-band { position: relative; z-index: 6; width: calc(100% + 36px); height: 64px; flex: none; }
 .scratchpad-panel-band-face { position: absolute; inset: 0; }
 .scratchpad-panel-band .scratchpad-band-wrap { width: 100%; }
+
+/* 「展开整页」：墨色的方钮压在信息条右端探出面板的那一截上（右端斜切了 7px，离边再留一点），竖着居中在纸面里
+   （上边 4px 的点缀色、下边 3px 的墨色之间）。 */
+.scratchpad-band-expand {
+    position: absolute;
+    top: 17px;
+    right: 18px;
+    /* 压在信息条（.scratchpad-band-wrap 自己是 z 6）上面。 */
+    z-index: 7;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: var(--scratchpad-ink);
+    color: var(--scratchpad-paper);
+    cursor: pointer;
+    transition: background-color 0.14s ease, scale 0.14s ease;
+}
+
+.scratchpad-band-expand svg { width: 15px; height: 15px; }
+.scratchpad-band-expand:hover:not(:disabled) { background: var(--scratchpad-mark); scale: 1.06; }
+.scratchpad-band-expand:active:not(:disabled) { scale: 0.95; }
+.scratchpad-band-expand:disabled { opacity: 0.35; cursor: default; }
+.scratchpad-band-expand:focus-visible { outline: 2px solid var(--scratchpad-mark); outline-offset: 2px; }
+.scratchpad-root.is-calm .scratchpad-band-expand { transition: background-color 0.14s ease; scale: none; }
 
 .scratchpad-root.is-daylight .scratchpad-band-wrap { filter: drop-shadow(0 10px 22px rgb(42 35 27 / 18%)); }
 

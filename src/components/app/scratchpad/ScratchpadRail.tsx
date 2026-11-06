@@ -1,11 +1,11 @@
 import React from 'react';
-import { FoldHorizontal, Maximize2 } from 'lucide-react';
+import { FoldHorizontal } from 'lucide-react';
 import type { ScratchpadTab } from '../../../stores/useScratchpadStore';
 import ScratchpadShape from './ScratchpadShape';
 import { SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 
 // src/components/app/scratchpad/ScratchpadRail.tsx
-// 左缘面板最左边那一列（最深的黑）：顶上收起速记簿，中间三个竖排页签，底下「展开整页」。
+// 左缘面板最左边那一列（最深的黑）：顶上收起速记簿，下面三个竖排页签。「展开整页」在信息条的右端（ScratchpadPanel）。
 // 页签前面是各页的几何体（速记簿圆、历史三角、队列「》」），带条数；选中的那个垫一块斜着的米白纸，几何体换成点缀色。
 // 页签的键盘操作（上下 / 左右方向键、Home / End）由宿主给；抽屉里 Tab 键整个用来换页（ScratchpadHost）。
 
@@ -23,14 +23,10 @@ type ScratchpadRailProps = {
     onTabsKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
     closeLabel: string;
     onClose: () => void;
-    expandLabel: string;
-    expandDisabled: boolean;
-    onExpand: () => void;
-    expandRef: React.Ref<HTMLButtonElement>;
 };
 
 const ScratchpadRail: React.FC<ScratchpadRailProps> = ({
-    tab, tabs, ariaLabel, onSelect, onTabsKeyDown, closeLabel, onClose, expandLabel, expandDisabled, onExpand, expandRef,
+    tab, tabs, ariaLabel, onSelect, onTabsKeyDown, closeLabel, onClose,
 }) => (
     <nav className="scratchpad-rail">
         <button type="button" className="scratchpad-icon-button" title={closeLabel} aria-label={closeLabel} onClick={onClose}>
@@ -60,20 +56,6 @@ const ScratchpadRail: React.FC<ScratchpadRailProps> = ({
                 );
             })}
         </div>
-        <span className="scratchpad-rail-spacer" />
-        <button
-            ref={expandRef}
-            type="button"
-            className="scratchpad-icon-button"
-            data-scratchpad-action="toggle-canvas"
-            disabled={expandDisabled}
-            title={expandLabel}
-            aria-label={expandLabel}
-            aria-pressed={false}
-            onClick={onExpand}
-        >
-            <Maximize2 aria-hidden="true" />
-        </button>
     </nav>
 );
 
