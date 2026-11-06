@@ -1,5 +1,5 @@
 import type { UnifiedSong } from '../../../types';
-import type { OnlineMusicProvider, ProviderUser, LoginState } from '../../../types/onlineMusic';
+import type { LoginMethod, OnlineMusicProvider, ProviderUser, LoginState } from '../../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../../utils/songMetadata';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { formatLrcTimestamp } from '../../../utils/lyrics/lrcTimestamp';
@@ -18,6 +18,8 @@ import { spotifyMutations } from './spotifyMutations';
 import { resetSpotifyRecommendations, spotifyRecommendations } from './spotifyRecommendations';
 import { describeSpotifyLoginFailure, spotifyLoginFailure } from './spotifyLoginFailure';
 import { describeSpotifyFailure } from './spotifyFailure';
+import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistOffered, spotifySoloistPlayback } from './spotifySoloistPlayback';
+import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from './spotifySetup';
 
 // src/services/onlineMusic/spotify/spotifyProvider.ts
 // Spotify adapter. Sign-in happens in the browser where the person is already signed in to
@@ -66,6 +68,15 @@ let activeLogin: SpotifyWireLoginStart | null = null;
 // The desktop side asks for pages in the app's language; an album or artist read before the
 // language changed is named in the previous one.
 i18n.on('languageChanged', clearSpotifyCatalogCache);
+// The way Spotify plays is read at once: a song played right after the start takes its route from it.
+void readSpotifyPlaybackMode();
+
+// The two ways of signing in: the same sign-in in the browser (the library, the lyrics and the
+// search need it either way), and then one of the two ways Spotify plays (spotifySoloistPlayback.ts).
+const SPOTIFY_LOGIN_METHODS: LoginMethod[] = [
+    { id: 'standard', labelKey: 'soloist.method.standard', iconKey: '', noteKey: 'soloist.method.standardNote' },
+    { id: 'soloist', labelKey: 'soloist.method.soloist', iconKey: '', noteKey: 'soloist.method.soloistNote' },
+];
 
 export const spotifyProvider: OnlineMusicProvider = {
     id: 'spotify', displayName: 'Spotify', shortName: 'Spotify', shortNameKey: 'onlineProviderName.spotify',
@@ -75,12 +86,16 @@ export const spotifyProvider: OnlineMusicProvider = {
     // `recommendations` is the radio tab: a personal FM, daily songs and playlists, each made of
     // what Spotify has for the account (spotifyRecommendations.ts). `personalFmModes` stays off:
     // the FM here has no modes. Spotify's recommendation page is the explore tab.
+    // `externalPlayback` follows the way Spotify plays: through Soloist, the app steers that program
+    // (`externalPlayback` below); else `playback.getAudioSource` gives a URL. `playback` stays on
+    // either way for `getSongDetail`.
     capabilities: {
         search: true, playback: true, lyrics: true, wordByWordLyrics: false, auth: true,
         userLibrary: true, playlists: true, albums: true, artists: true, userAlbums: true,
         // `playlistSubscription` is albums and other people's playlists (`mutations.canSubscribe`).
         recommendations: true, explore: true, mutations: true, likes: true, playlistTrackMutations: true,
         playlistSubscription: true,
+        get externalPlayback() { return spotifyPlaysThroughSoloist(); },
     },
     normalizeSong: normalizeSpotifySong, normalizeUser: normalizeSpotifyUser, normalizeCollection: normalizeSpotifyCollection,
     songMetadata: { getSongMetadata: createProviderSongMetadata },
@@ -184,8 +199,17 @@ export const spotifyProvider: OnlineMusicProvider = {
             resetSpotifyRecommendations();
             await requestSpotify('logout');
         },
-        async startLogin() {
-            activeLogin = await requestSpotify<SpotifyWireLoginStart>('login_start');
+        // Two ways only where Soloist is offered (the desktop side says so); else the one sign-in.
+        // The way it plays now is picked to begin with: signing in again does not change it unasked.
+        async resolveLoginMethods() {
+            const answer = await readSpotifyPlaybackMode();
+            if (!(answer?.soloist ?? spotifySoloistOffered())) return [];
+            const now = answer?.mode ?? spotifyPlaybackMode();
+            return SPOTIFY_LOGIN_METHODS.map(method => ({ ...method, preferred: method.id === now }));
+        },
+        // The way picked goes with the sign-in: the desktop side keeps it once Spotify approves.
+        async startLogin(methodId) {
+            activeLogin = await requestSpotify<SpotifyWireLoginStart>('login_start', methodId ? { method: methodId } : {});
             return activeLogin.key;
         },
         async openLoginPage(key) { await requestSpotify('login_open', { key }); },
@@ -193,7 +217,12 @@ export const spotifyProvider: OnlineMusicProvider = {
         // is removed without a sign-out): the FM and the lists of the one before are forgotten.
         async checkLogin(key) {
             const state = await requestSpotify<LoginState>('login_check', { key });
-            if (state.state === 'confirmed') resetSpotifyRecommendations();
+            // The desktop side keeps the way picked with this sign-in now: the route follows it at once,
+            // whether or not the check after the sign-in is reached.
+            if (state.state === 'confirmed') {
+                resetSpotifyRecommendations();
+                void readSpotifyPlaybackMode();
+            }
             if (state.state !== 'error') return state;
             const failure = spotifyLoginFailure(state.message);
             return failure ? { ...state, failure } : state;
@@ -204,7 +233,12 @@ export const spotifyProvider: OnlineMusicProvider = {
             await requestSpotify('login_cancel', { key });
         },
         getLoginTtlMs: () => (activeLogin?.expiresInMs || DEFAULT_LOGIN_TTL_MS) + LOGIN_SETTLE_MS,
+        // After a sign-in: the way picked was kept with it; whether it can play is checked here.
+        checkAfterLogin: checkSpotifyAfterLogin,
+        getSetup: getSpotifySetup,
+        runSetupAction: runSpotifySetupAction,
     },
+    externalPlayback: spotifySoloistPlayback,
     catalog: spotifyCatalog,
     library: spotifyLibrary,
     mutations: spotifyMutations,

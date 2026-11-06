@@ -579,6 +579,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} không cung cấp thư viện danh sách phát.",
     "songUnavailable": "Bài hát đã bị gỡ",
     "externalPlayerMovedOn": "Trình phát đã chuyển sang bài khác; đã tạm dừng",
+    "externalVideoExportUnavailable": "Bài hát này phát trong trình phát riêng của nền tảng và âm thanh không đi qua Folia, nên không thể xuất video.",
+    "externalBypassTitle": "Bài hát này phát trong trình phát riêng của nền tảng",
+    "externalBypassBody": "Âm thanh không đi qua Folia, nên bộ cân bằng và hiệu ứng ở đây không thay đổi những gì bạn nghe. Thiết lập vẫn được giữ và áp dụng cho các bài khác như bình thường.",
+    "externalReplayGainBypassed": "Phát trong trình phát riêng của nền tảng; không áp dụng ReplayGain",
     "songUnavailableAlternativeTitle": "Có phiên bản thay thế",
     "songUnavailableAlternativeDescription": "\"{{song}}\" không khả dụng. {{typeDesc}}. Phát phiên bản thay thế?",
     "songUnavailableAlternativeDefaultType": "Có thể phát phiên bản khác",
@@ -795,6 +799,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Sở thích", "description": "Điều chỉnh sở thích lưu trong tài khoản, ảnh hưởng đến những gì được gợi ý" },
       "settings-help": { "title": "Mở Trợ giúp", "description": "Mở trợ giúp và phím tắt" },
       "ponder-current-page": { "title": "Khám phá trang này", "description": "Mở hướng dẫn tương tác cho trang hiện tại" },
+      "provider-playback-setup": { "title": "Thiết lập phát nhạc của nền tảng", "description": "Mở danh sách thiết lập phát nhạc của nền tảng hiện tại" },
       "settings-options": { "title": "Mở Tùy chọn", "description": "Mở trung tâm tùy chọn" },
       "settings-now-playing-card-position": { "title": "Đổi vị trí thẻ bài hát", "description": "Kéo thẻ bài hát đang phát đến vị trí mới" },
       "settings-ai-provider": { "title": "Cài đặt nhà cung cấp AI", "description": "Chọn nhà cung cấp AI và mô hình" },
@@ -1628,6 +1633,14 @@ export default {
     "rowSignedOut": "Chưa đăng nhập",
     "signInRanOut": "Đăng nhập đã hết hạn",
     "readingAccount": "Đang đọc thông tin tài khoản…",
+    "checkingAccount": "Đang kiểm tra tài khoản này có phát được không…",
+    "setupOpen": "Thiết lập phát nhạc",
+    "setupDone": "Xong",
+    "setupLater": "Để sau",
+    "setupBack": "Quay lại",
+    "setupSecretChange": "Thay đổi",
+    "setupSecretCancel": "Giữ khóa đã lưu",
+    "setupState": { "done": "đã xong", "todo": "chưa làm", "warn": "cần chú ý", "error": "lỗi" },
     "openBrowser": "Mở trình duyệt",
     "details": "Chi tiết",
     "retryIn": "Có thể thử lại sau {{seconds}} giây",
@@ -1699,7 +1712,8 @@ export default {
     "noteMaybeSubscription": "Có thể cần tài khoản VIP/Premium để phát",
     "noteMaybeRegion": "Có thể bị giới hạn theo khu vực địa lý",
     "skipCountdown": "Sẽ chuyển sang bài tiếp theo sau {{seconds}} giây",
-    "signIn": "Đăng nhập"
+    "signIn": "Đăng nhập",
+    "openSetup": "Thiết lập phát nhạc"
   },
   "home": {
     "welcome": "Chào mừng đến với Folia",
@@ -5151,6 +5165,81 @@ export default {
     "ready": {
       "title": "Sẵn sàng",
       "subtitle": "Tận hưởng hành trình âm nhạc cùng Folia."
+    }
+  },
+  "soloist": {
+    "method": {
+      "standard": "Tiêu chuẩn",
+      "standardNote": "Đăng nhập Spotify trong trình duyệt; Folia tự phát bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc đều hoạt động.",
+      "soloist": "Soloist",
+      "soloistNote": "Đăng nhập Spotify trong trình duyệt; chương trình Soloist chính thức của Spotify phát bài hát. Dành cho tài khoản không nhận được khóa âm thanh. Soloist được tải riêng, và khóa API của nó được tạo bằng tài khoản Premium."
+    },
+    "setup": {
+      "title": "Thiết lập Spotify Soloist",
+      "note": "Soloist là trình phát chính thức của Spotify, một chương trình trên máy này tự gửi âm thanh ra đầu ra của hệ thống; Folia điều khiển nó và theo vị trí của nó để hiện lời bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc của Folia không xử lý âm thanh của nó.",
+      "titleStandard": "Cách Spotify phát nhạc",
+      "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify."
+    },
+    "noKey": {
+      "title": "Tài khoản này không nhận được khóa âm thanh từ Spotify",
+      "note": "Spotify không cấp khóa âm thanh cho tài khoản này, nên cách phát của Folia không phát được bài hát của nó (thường gặp với tài khoản tạo từ cuối năm 2024). Bạn có thể phát qua Soloist chính thức của Spotify: tải chương trình Soloist, tạo khóa API bằng tài khoản Premium, rồi chọn thiết bị một lần trong ứng dụng Spotify. Danh sách phát, lời bài hát và tìm kiếm không bị ảnh hưởng."
+    },
+    "step": {
+      "program": "Chương trình Soloist",
+      "key": "Khóa API",
+      "pair": "Ghép nối thiết bị",
+      "modeStandard": "Cách phát: tiêu chuẩn",
+      "modeSoloist": "Cách phát: Soloist"
+    },
+    "mode": {
+      "standardNote": "Folia tự phát bài hát Spotify.",
+      "soloistNote": "Soloist phát bài hát Spotify.",
+      "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này."
+    },
+    "program": {
+      "todo": "Tải Soloist cho máy này từ trang của Spotify, giải nén rồi chọn chương trình soloist bên trong (soloist.exe trên Windows). Folia không kèm theo chương trình này.",
+      "valid": "Phiên bản {{version}}, chạy đến {{expires}} (còn {{days}} ngày).",
+      "expiring": "Phiên bản {{version}} sẽ ngừng chạy sau {{days}} ngày ({{expires}}). Mỗi bản dựng chạy được 90 ngày: hãy tải bản mới, giải nén rồi chọn lại.",
+      "unknown": "Phiên bản {{version}}. Không đọc được ngày của bản dựng này nên không biết khi nào nó ngừng chạy. Mỗi bản dựng chạy được 90 ngày; sau đó Soloist từ chối khởi động.",
+      "clock": "Ngày của bản dựng này muộn hơn đồng hồ của máy: có thể đồng hồ sai, và không tính được số ngày còn lại.",
+      "expired": "Bản dựng này đã hết hạn ({{expires}}) và Soloist sẽ không khởi động. Hãy tải bản mới, giải nén rồi chọn lại.",
+      "missing": "Không còn thấy chương trình đã chọn trước đó; có thể nó đã bị di chuyển hoặc xóa. Hãy chọn lại.",
+      "invalid": "Tệp đã chọn không phải chương trình Soloist chạy được. Hãy chọn tệp khác."
+    },
+    "key": {
+      "label": "Khóa API Soloist",
+      "todo": "Mở bảng điều khiển nhà phát triển của Spotify bằng tài khoản Premium, tạo khóa API Soloist rồi nhập vào bên dưới. Khóa được lưu trên máy này, niêm phong bằng chuỗi khóa của hệ thống. Soloist chỉ nhận khóa qua dòng lệnh, nên người dùng khác của máy này có thể thấy nó trong danh sách tiến trình khi nó chạy.",
+      "saved": "Khóa đã được lưu và niêm phong. Soloist chỉ nhận khóa qua dòng lệnh, nên người dùng khác của máy này có thể thấy nó trong danh sách tiến trình khi nó chạy.",
+      "locked": "Hiện không mở được chuỗi khóa của hệ thống nên không đọc được khóa đã lưu. Hãy mở khóa rồi nhấn Kết nối lại.",
+      "noKeychain": "Máy này không có chuỗi khóa hệ thống để niêm phong khóa (ví dụ basic_text trên Linux), nên khóa không được lưu.",
+      "unreadable": "Không đọc được khóa đã lưu (có thể do tài khoản hệ thống hoặc chuỗi khóa khác). Hãy nhập lại."
+    },
+    "pair": {
+      "done": "Đã ghép nối: sẵn sàng phát.",
+      "waiting": "Hãy làm xong hai bước ở trên trước.",
+      "todo": "Trong ứng dụng Spotify trên cùng mạng (điện thoại hoặc máy tính), mở danh sách thiết bị và chọn \"Folia\". Chỉ cần một lần: sau đó nó tự đăng nhập.",
+      "starting": "Soloist chưa khởi động.",
+      "startFailed": "Soloist không khởi động được. Hãy kiểm tra chương trình và khóa, rồi nhấn Kết nối lại."
+    },
+    "action": {
+      "useStandard": "Phát theo cách tiêu chuẩn",
+      "useSoloist": "Phát qua Soloist",
+      "pick": "Chọn chương trình đã tải",
+      "pickAgain": "Chọn lại",
+      "download": "Trang tải chính thức",
+      "keyPage": "Mở bảng điều khiển nhà phát triển",
+      "saveKey": "Lưu khóa",
+      "reconnect": "Kết nối lại"
+    },
+    "message": {
+      "picked": "Đã chọn chương trình.",
+      "pickedExpired": "Bản dựng đó đã hết hạn nên không được dùng. Hãy tải bản mới.",
+      "pickedInvalid": "Tệp đó không phải chương trình Soloist chạy được nên không được dùng.",
+      "keySaved": "Đã lưu khóa.",
+      "keychain": "Chuỗi khóa hệ thống không khả dụng; khóa chưa được lưu.",
+      "keyShape": "Đó không phải khóa: khóa là một chuỗi ký tự liền, không có dấu cách.",
+      "startFailed": "Soloist không khởi động được.",
+      "failed": "Thao tác không thành công; nhật ký vận hành có ghi lý do."
     }
   },
   "remote": {

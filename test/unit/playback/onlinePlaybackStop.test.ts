@@ -47,7 +47,10 @@ vi.mock('@/stores/useSearchNavigationStore', () => ({
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
+    omni: {
+        canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
+        hasSetup: vi.fn((_id: string) => false),
+    },
 }));
 vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
@@ -200,6 +203,19 @@ describe('online playback stop conditions', () => {
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(message()).toMatchObject({ text: 'failure.signInNeeded', actionLabel: 'failure.signIn', providerId: 'netease' });
+    });
+
+    it.each(['account-refused', 'not-configured'] as const)('offers the platform setup checklist for %s where the platform has one', async (caseId) => {
+        vi.mocked(omni.hasSetup).mockReturnValue(true);
+        loader.mockResolvedValue(unavailable(caseId));
+        await controller().playSong(songs[0], songs);
+        const shown = message();
+        expect(shown).toMatchObject({ providerId: 'bodian', actionLabel: 'failure.openSetup' });
+        shown?.onAction?.();
+        expect(useLoginWindowStore.getState()).toMatchObject({ isOpen: true, providerId: 'bodian', intent: 'setup' });
+        expect(message()).toBeNull();
+        vi.mocked(omni.hasSetup).mockReturnValue(false);
+        useLoginWindowStore.setState({ isOpen: false, intent: null });
     });
 
     it('offers to sign in again when the sign-in has ended', async () => {

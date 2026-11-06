@@ -425,6 +425,21 @@ const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
   language: () => getMainLocaleKey(),
   audioDirectory: () => path.join(getConfiguredCacheDirectory(), 'spotify'),
   onAudioKept: limitBytes => pruneMediaCache(limitBytes),
+  // Soloist (the program the person downloads) keeps its pairing and its cache under the app's data.
+  soloistPaths: {
+    data: () => path.join(app.getPath('userData'), 'soloist', 'data'),
+    cache: () => path.join(app.getPath('userData'), 'soloist', 'cache'),
+  },
+  chooseSoloistFile: async () => {
+    const owner = BrowserWindow.getFocusedWindow();
+    const options = {
+      properties: ['openFile'],
+      defaultPath: app.getPath('downloads'),
+      filters: process.platform === 'win32' ? [{ name: 'Soloist', extensions: ['exe'] }] : [],
+    };
+    const chosen = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
+    return chosen.canceled ? null : chosen.filePaths[0] ?? null;
+  },
 });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
