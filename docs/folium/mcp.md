@@ -29,6 +29,8 @@ npm run folium:mcp:config
 
 HTTP 配置分别采用 Codex 的 `bearer_token_env_var`、Claude Code 的 `type: http`、WorkBuddy 的 `type: streamableHttp`、DeepSeek Harness 的 `transport: streamable-http`；变量展开遵循各宿主约定。默认使用 stdio。
 
+HTTP 为每个客户端分配独立会话，将取消通知传给原检查进程。最多 32 个会话及同时请求，空闲会话 5 分钟过期；客户端结束时可发送 DELETE。检查进程最多同时运行 4 个，取消后等待进程真正退出才释放额度。
+
 ## 工具流程
 
 1. `folium_brief({task, source?, kind?, lyricTemplate?})`：获取审美 skill、三种入场与 N+2 规则。source 为 original、wallpaper、video 或 revision。
@@ -49,7 +51,7 @@ HTTP 配置分别采用 Codex 的 `bearer_token_env_var`、Claude Code 的 `type
 
 ```sh
 npm run typecheck
-npm run test:unit -- test/unit/folium/authoringMcp.test.ts test/unit/folium/authoringCompatibility.test.ts
+npm run test:unit -- test/unit/folium/authoringMcp.test.ts test/unit/folium/authoringCompatibility.test.ts test/unit/folium/authoringCancellation.test.ts
 ```
 
 这些测试覆盖真实 stdio / HTTP SDK 连接、资源与 prompt、tools-only 分页、同源检查器、静态不执行、输入与体积边界、配置启动和客户端断开隔离。

@@ -26,7 +26,11 @@ export async function diagnose({ url = '', command = process.execPath, args = [p
             tools: definitions.tools.map(tool => tool.name), status: JSON.parse(status.content[0].text),
             apiGuideAvailable: JSON.parse(guide.content[0].text).text.includes('Folium'),
             scope: 'SDK transport and tool calls verified; not a model-turn or visual-quality test.' };
-    } finally { clearTimeout(timeout); await client.close(); await transport.close(); }
+    } finally {
+        clearTimeout(timeout);
+        if (url) await transport.terminateSession().catch(() => {});
+        await client.close(); await transport.close();
+    }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
     try {
