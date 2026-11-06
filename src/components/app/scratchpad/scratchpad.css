@@ -1754,10 +1754,20 @@
 .scratchpad-card.is-note {
     gap: 0;
     padding: 0;
-    background:
-        linear-gradient(90deg, transparent 14px, color-mix(in srgb, var(--scratchpad-mark) 55%, transparent) 14px 16px, transparent 16px) 0 94px / 100% 58px no-repeat,
-        #efe9dc;
+    background: #efe9dc;
     color: #1d1a16;
+}
+
+/* 红页边线：一条 2px 的块，不用渐变的硬边画——纸斜着时渐变的硬边不抗锯齿，竖着 58px 的线会出锯齿（用户看到的）。 */
+.scratchpad-card.is-note::before {
+    position: absolute;
+    top: 94px;
+    bottom: 0;
+    left: 14px;
+    width: 2px;
+    background: color-mix(in srgb, var(--scratchpad-mark) 55%, transparent);
+    content: '';
+    pointer-events: none;
 }
 
 .scratchpad-card.is-note:hover { background-color: #f6f1e6; }
