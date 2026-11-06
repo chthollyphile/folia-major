@@ -13,6 +13,7 @@ import { closeOpenLibraryDirectory } from '../core/directory/useLibraryDirectory
 import { useSearchNavigationStore } from '../../stores/useSearchNavigationStore';
 import { omni } from '../../services/onlineMusic/omni';
 import { createLibraryHomePort } from './createLibraryHomePort';
+import { watchLibrarySongsScope } from './librarySongsScope.service';
 
 // src/library/app/useLibraryHomeResources.ts
 // 首页外壳持有的首页资源（与 useLibraryDirectoryBatchController 同一个做法）：一个首页一份，生命周期跟着首页，
@@ -47,6 +48,9 @@ export const useLibraryHomeResources = (
         navidromeOverview: createNavidromeHomeLibrary(navidromeHomeLibraryDeps),
         localDirectoryTrees: createLocalDirectoryTrees(localDirectoryTreesDeps),
     }));
+
+    // 集合关闭或切换 suite 不丢全库结果；来源、平台、账号离开时立即丢弃，隐藏首页仍保持订阅。
+    useEffect(() => watchLibrarySongsScope(), []);
 
     // 首页真的离开：藏起（surface 已在同一次提交里卸载，子组件的清理先于这里）与宿主卸载都算。
     // 回到首页时 surface 重新挂载、绑定重新认领与 ensure，于是重新读（homeCardPosition 的延迟专辑用例锁着它）。

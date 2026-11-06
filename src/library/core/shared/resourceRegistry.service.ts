@@ -34,6 +34,8 @@ export type ResourceRegistry<TResource, TDescriptor> = {
     peekOrCreate: (key: string, descriptor: TDescriptor, create: () => TResource) => TResource;
     /** 返回释放函数（重复调用无害）；资源已被销毁时返回 null，调用方应重新 peek。 */
     retain: (resource: TResource) => (() => void) | null;
+    /** Immediately destroy matching resources, including active reads and session-retained instances. */
+    invalidate: (match: (resource: TResource) => boolean) => void;
     /** 测试与诊断用：当前在用的资源数与 LRU 里的资源数。 */
     size: () => { live: number; retained: number };
 };
@@ -43,12 +45,16 @@ export const createResourceRegistry = <TResource extends RegistryResource<TDescr
     orphanGraceMs = 5000,
     maxRetained = 3,
     retainable,
+    sessionRetained = () => false,
 }: ResourceRegistryOptions & {
     /** 最后一个使用者离开后这个资源值不值得留在 LRU 里（例如只有在线集合）。 */
     retainable: (resource: TResource) => boolean;
+    /** Session resources keep reading with no subscribers and never enter the bounded LRU. */
+    sessionRetained?: (resource: TResource) => boolean;
 }): ResourceRegistry<TResource, TDescriptor> => {
     const live = new Map<string, LiveEntry<TResource>>();
     const retained = new Map<string, TResource>();
+    const session = new Map<string, TResource>();
 
     const clearTimers = (entry: LiveEntry<TResource>) => {
         if (entry.releaseTimer) clearTimeout(entry.releaseTimer);
@@ -62,6 +68,10 @@ export const createResourceRegistry = <TResource extends RegistryResource<TDescr
         if (live.get(key) !== entry || entry.refs > 0) return;
         clearTimers(entry);
         live.delete(key);
+        if (sessionRetained(entry.resource)) {
+            session.set(key, entry.resource);
+            return;
+        }
         entry.resource.pause();
         if (!retainable(entry.resource)) {
             entry.resource.dispose();
@@ -85,8 +95,9 @@ export const createResourceRegistry = <TResource extends RegistryResource<TDescr
             const current = live.get(key);
             if (current) return current.resource;
 
-            const kept = retained.get(key);
+            const kept = session.get(key) ?? retained.get(key);
             if (kept) {
+                session.delete(key);
                 retained.delete(key);
                 if (kept.canReuse(descriptor)) {
                     const entry: LiveEntry<TResource> = { resource: kept, refs: 0 };
@@ -112,10 +123,25 @@ export const createResourceRegistry = <TResource extends RegistryResource<TDescr
                 if (released) return;
                 released = true;
                 entry.refs -= 1;
-                if (entry.refs > 0) return;
+                if (entry.refs > 0 || live.get(resource.key) !== entry) return;
                 entry.releaseTimer = setTimeout(() => settle(resource.key, entry), releaseGraceMs);
             };
         },
-        size: () => ({ live: live.size, retained: retained.size }),
+        invalidate: (match) => {
+            for (const [key, entry] of live) {
+                if (!match(entry.resource)) continue;
+                clearTimers(entry);
+                live.delete(key);
+                entry.resource.dispose();
+            }
+            for (const kept of [retained, session]) {
+                for (const [key, resource] of kept) {
+                    if (!match(resource)) continue;
+                    kept.delete(key);
+                    resource.dispose();
+                }
+            }
+        },
+        size: () => ({ live: live.size, retained: retained.size + session.size }),
     };
 };

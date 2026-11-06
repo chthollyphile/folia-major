@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 import type { SongResult } from '../../../types';
-import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { canPlaySongInCurrentRoute } from '../../../services/onlineMusic/songAvailability';
 import {
     buildDuplicateOccurrences,
     entryKeyAt,
@@ -20,6 +20,7 @@ import {
 // 规则都在 core/collection 的纯规则文件里，这里只负责按依赖记忆化，并缓存重复序号的扫描（分页追加时复用前缀）。
 
 const NO_HIDDEN_KEYS: ReadonlySet<string> = new Set();
+const isPlaybackBlocked = (track: SongResult): boolean => !canPlaySongInCurrentRoute(track);
 
 export type CollectionView = {
     displayTracks: SongResult[];
@@ -49,7 +50,7 @@ export const useCollectionView = ({
         () => deriveDisplayTracks(tracks, hiddenKeys, localSort),
         [hiddenKeys, localSort, tracks],
     );
-    const playableTracks = useMemo(() => derivePlayableTracks(displayTracks, isSongUnavailable), [displayTracks]);
+    const playableTracks = useMemo(() => derivePlayableTracks(displayTracks, isPlaybackBlocked), [displayTracks]);
 
     const occurrenceCacheRef = useRef<DuplicateOccurrenceCache | null>(null);
     const occurrences = useMemo(() => {
@@ -62,7 +63,7 @@ export const useCollectionView = ({
     const contextTracks = useMemo(() => resolveContextTracks(
         matchIndexes ? matchIndexes.map(index => displayTracks[index]) : null,
         playableTracks,
-        isSongUnavailable,
+        isPlaybackBlocked,
     ), [displayTracks, matchIndexes, playableTracks]);
 
     const entryKeyAtIndex = useCallback((index: number) => entryKeyAt(displayTracks, occurrences, index), [displayTracks, occurrences]);

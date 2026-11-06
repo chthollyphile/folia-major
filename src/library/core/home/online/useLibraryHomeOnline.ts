@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LibraryHomeCard, LibraryHomeResources } from '../homeModel.contract';
-import { buildOnlineAlbumCards, buildOnlinePlaylistCards, buildOnlineRadioCards } from '../homeCards';
+import { buildLibrarySongsCard, buildOnlineAlbumCards, buildOnlinePlaylistCards, buildOnlineRadioCards } from '../homeCards';
 import {
     isOnlineHomeTab,
     onlineHomeTitleKey,
@@ -40,7 +40,10 @@ export const useLibraryHomeOnline = (
         canUseRadio: online.canUseRadio,
     });
 
-    const playlistCards = useMemo(() => buildOnlinePlaylistCards(online.collections, t), [online.collections, t]);
+    const playlistCards = useMemo(() => [
+        ...(online.canUseSongs && online.user ? [buildLibrarySongsCard(online.providerId, online.user.id, t)] : []),
+        ...buildOnlinePlaylistCards(online.collections, t),
+    ], [online.canUseSongs, online.collections, online.providerId, online.user, t]);
     const albumCards = useMemo(() => buildOnlineAlbumCards(favoriteAlbums.data, t), [favoriteAlbums.data, t]);
     const radioCards = useMemo(
         () => buildOnlineRadioCards(radioFeed.data, { t, personalFmModeLabel }),

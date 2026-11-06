@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import type { CollectionResource, CollectionResourceKind } from '@/library/core/shared/resource.contract';
-import { createCollectionResourceRegistry } from '@/library/core/collection/resource/collectionResourceRegistry.service';
+import { createCollectionResourceRegistry, invalidateLibrarySongsResources } from '@/library/core/collection/resource/collectionResourceRegistry.service';
+import { createCollectionResourceState } from '@/library/core/collection/resource/collectionResourceState.service';
 
 // test/unit/library/core/collectionResourceRegistry.test.ts
 // 资源生命周期：StrictMode 的「挂载 → 卸载 → 挂载」不能造成重复请求；只 peek 不 retain 的实例
@@ -111,6 +112,57 @@ describe('collection resource registry', () => {
         vi.advanceTimersByTime(1);
         expect(orphan.paused).toBe(1);
         expect(registry.size()).toEqual({ live: 0, retained: 1 });
+    });
+
+    const libraryResource = (key: string) => {
+        const resource = fakeResource(key);
+        resource.getSnapshot = createCollectionResourceState(key, 'online', {
+            librarySongs: { complete: false, loadedCount: 0, refreshing: false },
+        }).get;
+        return resource;
+    };
+
+    it('retains library songs for the session without pause or LRU eviction', () => {
+        const registry = createCollectionResourceRegistry({ maxRetained: 0 });
+        const key = 'online:p:library_songs:all|u:u';
+        const library = registry.peekOrCreate(key, descriptor, () => libraryResource(key)) as FakeResource;
+        registry.retain(library)!();
+        vi.runAllTimers();
+        for (const id of ['a', 'b', 'c', 'd']) {
+            const regular = registry.peekOrCreate(id, descriptor, () => fakeResource(id));
+            registry.retain(regular)!();
+            vi.runAllTimers();
+        }
+        expect(library.paused).toBe(0);
+        expect(library.disposed).toBe(false);
+        expect(registry.peekOrCreate(key, descriptor, () => fakeResource(key))).toBe(library);
+    });
+
+    it('invalidates live, released, and orphan library reads while preserving the current account', () => {
+        const registry = createCollectionResourceRegistry();
+        const keys = ['online:p:library_songs:all|u:old', 'online:p:library_songs:all|u:new', 'online:q:library_songs:all|u:new'];
+        const resources = keys.map(key => registry.peekOrCreate(key, descriptor, () => libraryResource(key)) as FakeResource);
+        const release = registry.retain(resources[0])!;
+        registry.retain(resources[1])!();
+        vi.advanceTimersByTime(1);
+        invalidateLibrarySongsResources({ providerId: 'p', userId: 'new' }, registry);
+        expect(resources.map(resource => resource.disposed)).toEqual([true, false, true]);
+        release();
+        vi.runAllTimers();
+        expect(registry.size()).toEqual({ live: 0, retained: 1 });
+        invalidateLibrarySongsResources(null, registry);
+        expect(resources[1].disposed).toBe(true);
+        expect(registry.size()).toEqual({ live: 0, retained: 0 });
+    });
+
+    it('preserves ordinary retained resources when invalidating library scope', () => {
+        const registry = createCollectionResourceRegistry();
+        const ordinary = registry.peekOrCreate('ordinary', descriptor, () => fakeResource('ordinary')) as FakeResource;
+        registry.retain(ordinary)!();
+        vi.runAllTimers();
+        invalidateLibrarySongsResources(null, registry);
+        expect(ordinary.disposed).toBe(false);
+        expect(registry.size().retained).toBe(1);
     });
 
     it('refuses to retain a resource it no longer holds, and ignores a second release', () => {

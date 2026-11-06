@@ -42,6 +42,31 @@ describe('core collection surface', () => {
         ]);
     });
 
+    it('refuses bulk playback until the whole library is loaded, including stale commands', () => {
+        const params = core({ canPlayScope: false, collectFiltered: vi.fn() });
+        expect(buildGridSurfaceState(params).availableActions).not.toContain('play-filtered');
+        expect(buildGridSurfaceState(params).availableActions).not.toContain('enqueue-filtered');
+        expect(buildGridSurfaceState(params).availableActions).toContain('collect-filtered');
+        runGridSurfaceAction('play-filtered', params);
+        runGridSurfaceAction('enqueue-filtered', params);
+        expect(params.playFiltered).not.toHaveBeenCalled();
+        expect(params.enqueueFiltered).not.toHaveBeenCalled();
+    });
+
+    it('keeps unsupported songs collectable without publishing playback commands', () => {
+        const collectFiltered = vi.fn();
+        const params = core({ filteredTrackCount: 0, collectTrackCount: 1, collectFiltered });
+        const available = buildGridSurfaceState(params).availableActions;
+        expect(available).toContain('collect-filtered');
+        expect(available).not.toContain('play-filtered');
+        expect(available).not.toContain('enqueue-filtered');
+        runGridSurfaceAction('collect-filtered', params);
+        expect(collectFiltered).toHaveBeenCalledTimes(1);
+
+        runGridSurfaceAction('collect-filtered', { ...params, collectTrackCount: 0 });
+        expect(collectFiltered).toHaveBeenCalledTimes(1);
+    });
+
     it('adds the local sort actions when the collection supports them', () => {
         expect(buildGridSurfaceState(core({ supportsLocalTrackSorting: true, canReloadOnlineCollection: false })).availableActions)
             .toEqual(['play-filtered', 'enqueue-filtered', 'sort-file-name', 'sort-modified-date', 'sort-album-track', 'sort-toggle-direction']);

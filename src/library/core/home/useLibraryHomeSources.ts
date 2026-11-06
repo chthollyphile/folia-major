@@ -65,11 +65,11 @@ export const useLibraryHomeSources = ({
     const personalFmSelection = usePersonalFmModeStore(state => selectProviderPersonalFm(state, providerId));
     const provider = useMemo(() => resolveActiveProviderSummary(providers, providerId), [providerId, providers]);
     const capabilities = readOnlineProviderCapabilities(providerId);
-    const { userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, explore } = capabilities;
+    const { userLibrary, playlists: canListPlaylists, userAlbums, userSongs, recommendations, personalFmModes, explore } = capabilities;
     const online = useMemo(() => resolveHomeOnlineSource({
         providerId,
         provider,
-        capabilities: { ...capabilities, userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, explore },
+        capabilities: { ...capabilities, userLibrary, playlists: canListPlaylists, userAlbums, userSongs, recommendations, personalFmModes, explore },
         fallbackLabel: readOnlineProviderLabel(providerId),
         fallbackUser: user,
         fallbackPlaylists: playlists,
@@ -78,7 +78,7 @@ export const useLibraryHomeSources = ({
     }), [
         // capabilities 每次读都是新对象：按用到的几个开关比较。
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        canListPlaylists, cloudPlaylist, explore, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
+        canListPlaylists, cloudPlaylist, explore, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary, userSongs,
     ]);
 
     // The explore tab is gone after a switch to a provider without one, and a stored choice of it

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import type { SongResult, Theme, UnifiedSong } from '../../../../types';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
+import { canPlaySongInCurrentRoute, getSongUnavailableLabel, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { canResolveSongCatalogRef } from '../../../../services/onlineMusic/catalogRefs';
 import { resolveTrackAlbumTargetId } from '../../../core/shared/trackLinks';
 import { CARD_TITLE_ATTR, MORPH_FRAME_ATTR } from '../transitions/gridMorphContract';
@@ -91,9 +91,12 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
         fullBleedCover = false,
         playbackMark = null,
     }) => {
-        const isUnavailable = mode === 'tracks' && item.rawTrack ? isSongUnavailable(item.rawTrack) : false;
+        const isTakenDown = mode === 'tracks' && item.rawTrack ? isSongUnavailable(item.rawTrack) : false;
+        const isUnavailable = mode === 'tracks' && item.rawTrack ? !canPlaySongInCurrentRoute(item.rawTrack) : false;
         const unavailableTagText = (mode === 'tracks' && item.rawTrack)
-            ? getSongUnavailableLabel(item.rawTrack, t('status.songUnavailableTag'))
+            ? isSongUnavailable(item.rawTrack)
+                ? getSongUnavailableLabel(item.rawTrack, t('status.songUnavailableTag'))
+                : isUnavailable ? t('librarySongs.unsupportedPlayback') : ''
             : '';
         const trackAlbum = item.rawTrack?.album;
         // A song of a listening ranking carries the platform's play count: it follows the duration.
@@ -164,7 +167,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
         };
 
         // 加入速记簿、收藏到歌单：悬浮才出现的两颗（编辑模式、不可播放的歌不给）。
-        const quickActions = mode === 'tracks' && !isEditMode && !isUnavailable ? (
+        const quickActions = mode === 'tracks' && !isEditMode && !isTakenDown ? (
             <PolaroidCardQuickActions onCollect={onCollect} onSaveToPlaylist={onSaveToPlaylist} isFocused={isFocused} t={t} />
         ) : null;
 
@@ -209,7 +212,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                     )}
 
                     <PolaroidCardRemoveButton
-                        show={Boolean(isEditMode && onRemoveTrack && !isUnavailable)}
+                        show={Boolean(isEditMode && onRemoveTrack && !isTakenDown)}
                         onRemove={onRemoveTrack}
                     />
 
@@ -259,6 +262,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                                 mode={mode}
                                 isEditMode={isEditMode}
                                 isUnavailable={isUnavailable}
+                                unavailableLabel={unavailableTagText}
                                 onSelect={onSelect}
                                 onAddQueue={onAddQueue}
                                 playbackMark={playbackMark}
@@ -292,7 +296,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
 
                     {/* Delete button overlay for Edit Mode */}
                     <PolaroidCardRemoveButton
-                        show={Boolean(isEditMode && onRemoveTrack && !isUnavailable)}
+                        show={Boolean(isEditMode && onRemoveTrack && !isTakenDown)}
                         onRemove={onRemoveTrack}
                     />
 
@@ -350,6 +354,7 @@ export const PolaroidCard = React.memo<PolaroidCardProps>(
                             mode={mode}
                             isEditMode={isEditMode}
                             isUnavailable={isUnavailable}
+                            unavailableLabel={unavailableTagText}
                             onSelect={onSelect}
                             onAddQueue={onAddQueue}
                             playbackMark={playbackMark}

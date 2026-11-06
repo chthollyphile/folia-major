@@ -21,6 +21,7 @@ import {
     resolveLocalGridViewTracks,
 } from '../../components/app/home/gridViewCollectionAdapters';
 import { createLibraryPlaybackPort } from './createLibraryPlaybackPort';
+import { useLibrarySongsAccessScope } from './librarySongsScope.service';
 import { createLibraryMutationPort } from './createLibraryMutationPort';
 import { useCollectionResource } from '../core/collection/resource/useCollectionResource';
 import { useCollectionMutations } from '../core/collection/mutations/useCollectionMutations';
@@ -298,9 +299,11 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     ), [liveSelectedCollection, localLibraryCatalog, surfaceProps.localSongs]);
     // 宿主持有集合资源，网格（以及别的 renderer）只订阅它：切换 renderer 不会重新请求。
     // 宿主自己不订阅快照，所以分页到达不会让首页这棵大树重渲染。歌手页同理，见下面的 artistResource。
+    const librarySongsScope = useLibrarySongsAccessScope();
     const collectionResource = useCollectionResource({
         descriptor: liveSelectedCollection && liveSelectedCollection.type !== 'artist' ? liveSelectedCollection : null,
         currentUserId: surfaceProps.user?.id,
+        librarySongsScope,
         localTracks,
     });
     // 歌手资源：宿主按导航栈里那一层的 collectionKey 持有（本地描述的 id 会在 catalog 就绪后改写，不拿它算 key），

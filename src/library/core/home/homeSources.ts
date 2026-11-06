@@ -70,6 +70,7 @@ export const resolveHomeOnlineSource = ({
             : []),
         canUsePlaylists: capabilities.userLibrary && capabilities.playlists,
         canUseAlbums: capabilities.userLibrary && Boolean(capabilities.userAlbums),
+        canUseSongs: capabilities.userLibrary && Boolean(capabilities.userSongs),
         canUseRadio: capabilities.recommendations,
         canUseExplore: Boolean(capabilities.explore),
         hasPersonalFmModes: Boolean(capabilities.personalFmModes),
@@ -162,11 +163,11 @@ export const resolveOnlineHomeLoading = ({
     radioFeedLoading,
 }: {
     tab: LibraryHomeTabKey;
-    source: Pick<LibraryHomeOnlineSource, 'canUsePlaylists' | 'canUseAlbums' | 'canUseRadio' | 'collections' | 'user'>;
+    source: Pick<LibraryHomeOnlineSource, 'canUsePlaylists' | 'canUseSongs' | 'canUseAlbums' | 'canUseRadio' | 'collections' | 'user'>;
     favoriteAlbumsLoading: boolean;
     radioFeedLoading: boolean;
 }): boolean => (
-    (tab === 'playlist' && source.canUsePlaylists && source.collections.length === 0 && source.user !== null)
+    (tab === 'playlist' && source.canUsePlaylists && !source.canUseSongs && source.collections.length === 0 && source.user !== null)
     || (tab === 'albums' && source.canUseAlbums && favoriteAlbumsLoading)
     || (tab === 'radio' && source.canUseRadio && radioFeedLoading)
 );

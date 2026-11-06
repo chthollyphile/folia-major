@@ -88,6 +88,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         declaredActions,
         supportsLocalTrackSorting,
         canReloadOnlineCollection: actions.capabilities.reload.enabled,
+        canPlayScope: actions.capabilities.scope.enabled,
         filteredTrackCount: view.contextTracks.length,
         isFilterActive: view.isFilterActive,
         sortField,
@@ -171,7 +172,7 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         run: notice.run,
         describe: notice.describe,
     });
-    const { seamCollection, filter: seamFilter, wall, entries, matchLabel } = useBravaisCollectionSeam({
+    const { seamCollection, filter: seamFilter, wall, entries, matchLabel, librarySongsLabel } = useBravaisCollectionSeam({
         collection,
         mutations,
         snapshot,
@@ -215,13 +216,13 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         return {
             onPlayItem: (key: string) => {
                 const track = trackOf(key);
-                if (!track || !declared('play')) return;
+                if (!track || !declared('play') || !latest.current.actions.canPlayTrack(track)) return;
                 latest.current.focus.persistFocus(key);
                 latest.current.actions.playTrack(track);
             },
             onEnqueueItem: (key: string) => {
                 const track = trackOf(key);
-                if (track && declared('enqueue')) latest.current.actions.enqueueTrack(track);
+                if (track && declared('enqueue') && latest.current.actions.canPlayTrack(track)) latest.current.actions.enqueueTrack(track);
             },
             canCollectItem: (key: string) => Boolean(trackOf(key)) && declared('collect') && latest.current.actions.capabilities.collect,
             onCollectItem: (key: string) => {
@@ -311,14 +312,16 @@ const BravaisCollection: React.FC<LibraryCollectionSurfaceProps> = ({
         title: displayTitle,
         crumb: displayTitle,
         // 过滤中显示「匹配 / 总数」（书脊上也是它）。
-        meta: view.isFilterActive ? matchLabel : t('libraryBravais.trackCount', { count: allItems.length }),
+        meta: librarySongsLabel
+            ? [view.isFilterActive ? matchLabel : '', librarySongsLabel].filter(Boolean).join(' · ')
+            : view.isFilterActive ? matchLabel : t('libraryBravais.trackCount', { count: allItems.length }),
         onPlayScope: declaresScope && scopeEnabled ? callbacks.onPlayScope : undefined,
         onEnqueueScope: declaresEnqueueScope && scopeEnabled ? callbacks.onEnqueueScope : undefined,
         filter: seamFilter,
         collection: seamCollection,
         album: seamAlbum,
         artistSongs: seamArtistSongs,
-    }), [seamAlbum, seamArtistSongs, allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
+    }), [seamAlbum, seamArtistSongs, allItems.length, callbacks, declaresEnqueueScope, declaresScope, displayTitle, librarySongsLabel, matchLabel, scopeEnabled, seamCollection, seamFilter, t, view.isFilterActive]);
 
     const layer = useMemo<BravaisLayer>(() => ({
         key: sessionKey,

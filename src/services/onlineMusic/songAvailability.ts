@@ -2,6 +2,7 @@ import type { SongResult, UnifiedSong } from '../../types';
 import type { ProviderSongAvailability, ProviderSongReplacement } from '../../types/onlineMusic';
 import { getOnlineMusicProviderForSong } from './providerRegistry';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
+import { omni } from './omni';
 
 // src/services/onlineMusic/songAvailability.ts
 
@@ -18,6 +19,12 @@ export const getSongAvailability = (song: SongResult): ProviderSongAvailability 
 
 export const isSongUnavailable = (song: SongResult | null | undefined): boolean => (
     Boolean(song && getSongAvailability(song).state === 'unavailable')
+);
+
+// A missing playback route is not a takedown; retain the row but keep it out of playback/queue actions.
+export const canPlaySongInCurrentRoute = (song: SongResult): boolean => (
+    !isSongUnavailable(song)
+    && (getPlaybackSourceRef(song).kind !== 'online' || omni.canPlaySong(song))
 );
 
 export const getSongUnavailableLabel = (

@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { getAppleMusicLyricSearchAlias } from './appleMusicOriginal';
@@ -155,7 +155,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // word-level TTML; the parsed lyric says which timing it got (`LyricData.isWordByWord`).
         capabilities: {
             search: true, playback: false, externalPlayback: true, lyrics: true, wordByWordLyrics: true, auth: true,
-            userLibrary: true, userAlbums: true, playlists: true, albums: true, artists: true, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
+            userLibrary: true, userAlbums: true, userSongs: true, playlists: true, albums: true, artists: true, recommendations: true, mutations: true, playlistTrackMutations: true, likes: true,
         },
         normalizeSong: normalizeAppleMusicSong,
         normalizeCollection: normalizeAppleMusicPlaylist,
@@ -172,6 +172,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             getSongLikeId: appleMusicSongLikeId,
             getLikedSongIds: () => getAppleMusicLikedSongIds(),
             getUserAlbums: (_userId, limit, offset) => getAppleMusicLibraryAlbums(limit, offset),
+            getUserSongs: (_userId, limit, offset) => getAppleMusicLibrarySongs(limit, offset),
             getUserPlaylists: (_userId, limit, offset) => getAppleMusicPlaylists(limit, offset),
         },
         catalog: {

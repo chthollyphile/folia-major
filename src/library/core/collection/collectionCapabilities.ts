@@ -1,4 +1,4 @@
-import type { CollectionLoadStatus, CollectionResourceKind } from '../shared/resource.contract';
+import type { CollectionLoadStatus, CollectionResourceKind, CollectionSyncState } from '../shared/resource.contract';
 import type { LibraryCapability } from '../shared/capability.contract';
 
 // src/library/core/collection/collectionCapabilities.ts
@@ -15,12 +15,14 @@ const isLoadingStatus = (status: CollectionLoadStatus) => status === 'idle' || s
 export const resolveReloadCapability = (input: {
     kind: CollectionResourceKind;
     status: CollectionLoadStatus;
+    syncStatus?: CollectionSyncState['status'];
     collectionType?: string;
 }): LibraryCapability => {
     if (input.kind !== 'online' || input.collectionType === 'daily_recommendations' || input.collectionType === 'radio') {
         return UNSUPPORTED;
     }
-    const pending = isLoadingStatus(input.status);
+    const pending = isLoadingStatus(input.status)
+        || (input.collectionType === 'library_songs' && input.syncStatus === 'syncing');
     return pending
         ? { supported: true, enabled: false, pending: true, reason: 'loading' }
         : { supported: true, enabled: true, pending: false };
@@ -30,7 +32,10 @@ export const resolveReloadCapability = (input: {
 export const resolveScopeCapability = (input: {
     scopeCount: number;
     status: CollectionLoadStatus;
+    /** 资料库的批量操作只对完整结果开放，旧列表刷新期间也不例外。 */
+    complete?: boolean;
 }): LibraryCapability => {
+    if (input.complete === false) return { supported: true, enabled: false, pending: isLoadingStatus(input.status), reason: 'loading' };
     if (input.scopeCount > 0) return { supported: true, enabled: true, pending: false };
     const pending = isLoadingStatus(input.status);
     return { supported: true, enabled: false, pending, reason: pending ? 'loading' : 'empty' };

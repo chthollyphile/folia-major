@@ -66,6 +66,7 @@ export type TrackDescription = {
     durationMs: number;
     playbackKey: string;
     unavailable: boolean;
+    playbackUnsupported?: boolean;
 };
 
 export const formatDuration = (durationMs: number) => {
@@ -112,6 +113,7 @@ export const projectCollectionTracks = (
             artists: description.artists,
             durationLabel: formatDuration(description.durationMs),
             unavailable: description.unavailable || undefined,
+            playbackUnsupported: description.playbackUnsupported || undefined,
         });
     });
     return items;

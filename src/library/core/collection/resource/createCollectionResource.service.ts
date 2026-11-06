@@ -1,6 +1,7 @@
 import type { MediaId } from '../../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../collection.contract';
-import type { CollectionResource } from '../../shared/resource.contract';
+import type { CollectionResource, CollectionResourceContext } from '../../shared/resource.contract';
+import { collectionResourceRegistry, type CollectionResourceRegistry } from './collectionResourceRegistry.service';
 import { collectionKey, isCloudDriveCollection } from '../collectionIdentity';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { readOnlineTracksCache, resolveOnlineTracksTargetTime, writeOnlineTracksCache } from './onlineCollectionCache.service';
@@ -8,6 +9,8 @@ import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } fro
 import { createNavidromeCollectionResource } from './navidromeCollectionResource.service';
 import { resolveNavidromeServerScope } from './navidromeCollectionTracks.service';
 import { createStaticCollectionResource } from './staticCollectionResource.service';
+import { createLibrarySongsResource } from './librarySongsResource.service';
+import { canAccessCollectionResource } from './collectionResourceScope.service';
 import { loadPreferredDailySongs } from '../dailyRecommendationLoad.service';
 
 // src/library/core/collection/resource/createCollectionResource.service.ts
@@ -37,7 +40,7 @@ export const resolveCollectionResourceKey = (
 ): string => {
     const base = collectionKey(descriptor);
     if (descriptor.source === 'online'
-        && (isCloudDriveCollection(descriptor) || resolveOnlineTracksTargetTime(descriptor) <= 0)) {
+        && (descriptor.type === 'library_songs' || isCloudDriveCollection(descriptor) || resolveOnlineTracksTargetTime(descriptor) <= 0)) {
         return `${base}|u:${currentUserId ?? 'anonymous'}`;
     }
     if (descriptor.source === 'navidrome') {
@@ -48,7 +51,21 @@ export const resolveCollectionResourceKey = (
 
 /** 按来源创建资源；本地集合的曲目由调用方算好，用 createStaticCollectionResource。 */
 export const createCollectionResource = (key: string, descriptor: LibraryCollectionDescriptor): CollectionResource => {
+    if (descriptor.source === 'online' && descriptor.type === 'library_songs') {
+        return createLibrarySongsResource(key, { getCollectionTracks: onlineDeps.getCollectionTracks });
+    }
     if (descriptor.source === 'online') return createOnlineCollectionResource(key, onlineDeps);
     if (descriptor.source === 'navidrome') return createNavidromeCollectionResource(key);
     return createStaticCollectionResource(key, []);
+};
+
+/** Registry acquisition stays separate from ensure so denied history entries never create orphan resources. */
+export const acquireCollectionResource = (
+    key: string,
+    descriptor: LibraryCollectionDescriptor,
+    context: CollectionResourceContext,
+    registry: CollectionResourceRegistry = collectionResourceRegistry,
+): CollectionResource | null => {
+    if (!canAccessCollectionResource(descriptor, context)) return null;
+    return registry.peekOrCreate(key, descriptor, () => createCollectionResource(key, descriptor));
 };

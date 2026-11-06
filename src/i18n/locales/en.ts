@@ -1,6 +1,18 @@
 
 
 export default {
+  "librarySongs": {
+    "title": "All songs",
+    "description": "Songs in your music library",
+    "loading": "Loaded {{count}} songs · Loading the rest…",
+    "loaded": "Loaded {{count}} songs · Complete",
+    "incomplete": "Loaded {{count}} songs · Incomplete",
+    "refreshing": "Refreshing · Keeping the previous list ({{count}} songs loaded)",
+    "refreshFailed": "Not updated · Refresh failed; keeping the previous list ({{count}} songs loaded)",
+    "unsupportedPlayback": "Playback not supported",
+    "skipped": "Skipped {{count}} songs without a supported playback route",
+    "filterPartial": "Filtering only covers loaded songs until loading finishes."
+  },
   "scratchpad": {
     "title": "Scratchpad",
     "count_one": "{{count}} song",

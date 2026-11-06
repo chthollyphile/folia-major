@@ -1,6 +1,6 @@
 import type { SongResult } from '../../../types';
 import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl, getSongDurationMs } from '../../../services/onlineMusic/songMetadata';
-import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { canPlaySongInCurrentRoute, isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import type { TrackDescription } from './bravaisProjection';
 
@@ -18,5 +18,6 @@ export const describeBravaisTrack = (track: SongResult): TrackDescription => {
         durationMs: getSongDurationMs(track) || track.durationMs || 0,
         playbackKey: getPlaybackSongKey(track),
         unavailable: isSongUnavailable(track),
+        playbackUnsupported: !isSongUnavailable(track) && !canPlaySongInCurrentRoute(track),
     };
 };

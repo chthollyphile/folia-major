@@ -1,11 +1,12 @@
 import React from 'react';
 import type { RowComponentProps } from 'react-window';
 import type { SongResult, UnifiedSong } from '../../../types';
-import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
+import { canPlaySongInCurrentRoute, isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { formatTime } from '../../../utils/appPlaybackHelpers';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/shared/trackLinks';
+import { useTranslation } from 'react-i18next';
 
 // src/library/suites/tui/LibraryTuiRow.tsx
 // TUI 的一行：序号、歌名、歌手、专辑、时长，等宽排列。单击移动焦点，双击播放，[+] 入队；
@@ -66,13 +67,15 @@ const LibraryTuiRow = ({
     onOpenAlbumRow,
     onOpenArtistRow,
 }: RowComponentProps<LibraryTuiRowProps>): React.ReactElement | null => {
+    const { t } = useTranslation();
     const displayIndex = rowDisplayIndexes[index];
     const track = displayIndex === undefined ? undefined : tracks[displayIndex];
     if (!track) return null;
 
     const isFocused = index === focusedRow;
     const unavailable = isSongUnavailable(track);
-    const tag = unavailable ? unavailableLabel : track.isVideo ? videoLabel : '';
+    const playable = canPlaySongInCurrentRoute(track);
+    const tag = unavailable ? unavailableLabel : !playable ? t('librarySongs.unsupportedPlayback') : track.isVideo ? videoLabel : '';
     const entryKey = rowKeys[index];
     const isPending = pendingKeys.has(entryKey);
     const canMatch = Boolean(onMatchRow && (track as UnifiedSong).localRef?.songId);
@@ -91,10 +94,10 @@ const LibraryTuiRow = ({
             style={{
                 ...style,
                 backgroundColor: isFocused ? accentBackground : undefined,
-                opacity: unavailable || isPending ? 0.45 : undefined,
+                opacity: !playable || isPending ? 0.45 : undefined,
             }}
             onClick={() => onFocusRow(index)}
-            onDoubleClick={() => onPlayRow(index)}
+            onDoubleClick={() => { if (playable) onPlayRow(index); }}
             className={`grid cursor-default select-none ${LIBRARY_TUI_COLUMNS} items-center gap-x-3 px-4 text-[13px]`}
         >
             <span style={{ color: isFocused ? accentColor : undefined }}>{isPending ? '~' : isFocused ? '>' : ' '}</span>
@@ -164,7 +167,7 @@ const LibraryTuiRow = ({
                         onEnqueueRow(index);
                     }}
                     className="opacity-50 hover:opacity-100 disabled:opacity-20"
-                    disabled={unavailable}
+                    disabled={!playable}
                 >
                     [+]
                 </button>

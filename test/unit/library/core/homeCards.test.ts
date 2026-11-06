@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { ProviderCollection } from '@/types/onlineMusic';
 import {
+    buildLibrarySongsCard,
     buildOnlineAlbumCards,
     buildOnlinePlaylistCards,
     buildOnlineRadioCards,
@@ -25,6 +26,14 @@ const collection = (patch: Partial<ProviderCollection>): ProviderCollection => (
 });
 
 describe('online home cards', () => {
+    it('keeps the account library separate from playlists, with no guessed total', () => {
+        const card = buildLibrarySongsCard('p', 'account-1', t);
+        expect(card).toMatchObject({ id: 'account-1', type: 'library_songs', name: 't:librarySongs.title' });
+        expect(card.trackCount).toBeUndefined();
+        expect(onlineCardCollection(card)).toMatchObject({ providerId: 'p', id: 'account-1', type: 'library_songs', isOwned: false });
+        expect(card.summary).toBe('t:librarySongs.description');
+    });
+
     it('playlist cards show the creator, falling back to the tab name', () => {
         const owned = collection({ id: 'a', creator: { id: 1, nickname: 'Owner' }, description: 'About', trackCount: 3 });
         const cloud = collection({ id: 'cloud', type: 'cloud' });

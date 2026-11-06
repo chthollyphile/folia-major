@@ -32,6 +32,8 @@ export interface LibraryPlaybackPort {
     pickPlaylistFor?(tracks: SongResult[]): void;
     /** 这首能不能交给选择器（来源支持歌单或红心）；与 pickPlaylistFor 一起给。 */
     canPickPlaylistFor?(track: SongResult): boolean;
+    /** 批量播放跳过当前链路未支持的条目时，说明跳过的数量。 */
+    statusMessage?(message: StatusMessage): void;
 }
 
 /** 收进速记簿时记下的出处（速记簿行上的小字）。 */

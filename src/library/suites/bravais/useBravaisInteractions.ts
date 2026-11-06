@@ -149,6 +149,7 @@ export const useBravaisInteractions = ({
                 toggle();
                 return;
             }
+            if (item.unavailable || item.playbackUnsupported) return;
             armBravaisPlayingCard(layer.key, item.key);
             layer.onPlayItem?.(item.key);
         },
@@ -163,7 +164,7 @@ export const useBravaisInteractions = ({
                 if (selectDisplayPlayerState(usePlaybackStore.getState()) !== PlayerState.PLAYING) toggle();
                 return;
             }
-            if (item.unavailable) return;
+            if (item.unavailable || item.playbackUnsupported) return;
             armBravaisPlayingCard(layer.key, item.key);
             layer.onPlayItem?.(item.key);
         },

@@ -125,6 +125,17 @@ export async function getAppleMusicCatalogPage(operation: 'catalogSong' | 'catal
             item => ['albums', 'artists'].includes(String((item as { type?: unknown } | null)?.type)));
 }
 
+// Publish each raw page so callers retain progress and retry exactly the failed cursor.
+// All library songs keep their own identity, even without a playable catalog mapping.
+export async function getAppleMusicLibrarySongs(limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+        throw new OnlineProviderError('invalid-response', 'Apple Music library song offset is invalid', 'appleMusic');
+    }
+    const take = Math.min(MAX_ROWS_PER_REQUEST, Math.max(1, Math.floor(limit)));
+    const data = await requestAppleMusic('librarySongs', { limit: take, offset });
+    return pageOf(data, offset, normalizeAppleMusicSong, isSongResource);
+}
+
 // Read library albums and their tracks using the same validated pagination as playlists.
 export async function getAppleMusicLibraryAlbums(limit: number, offset: number): Promise<ProviderPage<ProviderCollection>> {
     const page = pageInputs(limit, offset);

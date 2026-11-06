@@ -44,6 +44,8 @@ export type BravaisItem = {
     durationLabel?: string;
     /** 不可播放（灰显）。 */
     unavailable?: boolean;
+    /** Kept in the list, but no supported playback route (not a taken-down song). */
+    playbackUnsupported?: boolean;
     /** B9 首页：歌单类卡片可隐藏（右上角眼睛按钮）；hidden 是它此刻在隐藏表里（管理隐藏视图里显示）。 */
     hideable?: boolean;
     hidden?: boolean;

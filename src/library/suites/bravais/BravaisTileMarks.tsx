@@ -19,14 +19,15 @@ import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
  * has-badge-current-only 把不是正在播放的那些藏起来（wall.css）；带文字的类型标签（首页卡片、探索页）照旧。
  */
 export const BravaisTileBadge: React.FC<{ item: BravaisItem; current: boolean }> = ({ item, current }) => {
+    const { t } = useTranslation();
     const Icon = item.special ? BRAVAIS_SPECIAL_ICONS[item.special] : null;
     return (
         <span
-            className={`lattice-poster-badge${item.badgeIsIndex ? ' is-index' : ''}${current ? ' is-current' : ''}${Icon ? ' is-special' : ''}`}
+            className={`lattice-poster-badge${item.badgeIsIndex && !item.playbackUnsupported ? ' is-index' : ''}${current ? ' is-current' : ''}${Icon ? ' is-special' : ''}`}
             data-bravais-special={item.special}
         >
             {Icon && <Icon aria-hidden className="bravais-badge-icon" />}
-            {item.badge}
+            {item.playbackUnsupported ? t('librarySongs.unsupportedPlayback') : item.badge}
         </span>
     );
 };

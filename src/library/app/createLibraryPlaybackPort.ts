@@ -1,4 +1,6 @@
 import type { SongResult, UnifiedSong } from '../../types';
+import i18next from 'i18next';
+import { canPlaySongInCurrentRoute } from '../../services/onlineMusic/songAvailability';
 import type { LibraryPlaybackPort } from '../core/shared/ports.contract';
 import { resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
@@ -19,13 +21,22 @@ type PlaybackSurface = Pick<
     | 'onAddNavidromeSongsToQueue'
     | 'onTogglePlayback'
     | 'localSongs'
+    | 'onStatusMessage'
 >;
 
 export const createLibraryPlaybackPort = (surface: PlaybackSurface): LibraryPlaybackPort => ({
-    playTrack: (track, queue) => surface.onPlaySong(track, queue),
-    playAll: tracks => surface.onPlayAll?.(tracks),
+    playTrack: (track, queue) => {
+        if (canPlaySongInCurrentRoute(track)) surface.onPlaySong(track, queue.filter(canPlaySongInCurrentRoute));
+    },
+    playAll: tracks => {
+        const playable = tracks.filter(canPlaySongInCurrentRoute);
+        if (playable.length > 0) surface.onPlayAll?.(playable);
+        const skipped = tracks.length - playable.length;
+        if (skipped > 0) surface.onStatusMessage?.({ type: 'info', text: i18next.t('librarySongs.skipped', { count: skipped }) });
+    },
     // 单曲入队按来源分流：本地歌交给本地队列，Navidrome 歌交出它的播放载体，其余走在线入队。
     enqueueTrack: (track: SongResult) => {
+        if (!canPlaySongInCurrentRoute(track)) return;
         const unifiedTrack = track as UnifiedSong;
         const localSongId = unifiedTrack.localRef?.songId;
         const localSong = localSongId ? surface.localSongs.find(song => song.id === localSongId) : undefined;
@@ -43,7 +54,16 @@ export const createLibraryPlaybackPort = (surface: PlaybackSurface): LibraryPlay
         surface.onAddSongToQueue?.(track);
     },
     // 选项与返回的条数原样转交：歌手页的「加入热门歌曲」靠它们静默队列提示、报出队列实际收下的数量。
-    enqueueAll: (tracks, options) => surface.onAddAllToQueue?.(tracks, options),
+    enqueueAll: (tracks, options) => {
+        const playable = tracks.filter(canPlaySongInCurrentRoute);
+        const skipped = tracks.length - playable.length;
+        const count = playable.length > 0
+            ? surface.onAddAllToQueue?.(playable, skipped > 0 ? { ...options, suppressToast: true } : options)
+            : undefined;
+        if (skipped > 0) surface.onStatusMessage?.({ type: 'info', text: i18next.t('librarySongs.skipped', { count: skipped }) });
+        return count;
+    },
+    statusMessage: surface.onStatusMessage,
     // fb3：宿主的播放开关原样转交（「留在原处」时网格卡片上正在播放的那首的播放键用它）。
     togglePlayback: surface.onTogglePlayback,
     // 速记簿：收进来不动队列（提示由速记簿自己报）。
