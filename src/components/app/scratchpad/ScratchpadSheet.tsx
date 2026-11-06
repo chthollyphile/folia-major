@@ -62,8 +62,10 @@ const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
  * 绕一圈去底部：一共多久，离开视口用掉的那一段占多少（之后在视口外一下子跳到窗口下面，再升上来）；
  * 离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转 6° 时右端压低、左端抬高的那一截）。
  */
-const WRAP_DURATION = 0.82;
-const WRAP_LEAVE = 0.4;
+const WRAP_DURATION = 0.58;
+const WRAP_LEAVE = 0.5;
+/** 从窗口下面升回来的那一段：起步快、收得干脆（用户嫌原来的 easeOut 拖），离开那一段照旧是渐快的 easeIn。 */
+const WRAP_RISE_EASE = [0.2, 0.8, 0.3, 1] as const;
 const WRAP_ABOVE = -60;
 const WRAP_BELOW = 60;
 
@@ -211,7 +213,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 transition: {
                     duration: WRAP_DURATION,
                     times: [0, WRAP_LEAVE, WRAP_LEAVE + 0.0005, 1],
-                    ease: ['easeIn', 'linear', 'easeOut'],
+                    ease: ['easeIn', 'linear', WRAP_RISE_EASE],
                 },
                 // 样子在视口外换：离开途中仍是原来的样子，回来时已经是细纸带。
                 faceIn: { duration: 0.01, delay: WRAP_DURATION * WRAP_LEAVE },
