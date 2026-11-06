@@ -26,10 +26,12 @@ export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
 /**
  * 展开整页（设计稿 F）的三种卡片：速记簿是笔记本上的一条记录，播放历史是一张回忆相片（微微歪着，空隙留出歪出去的角），
  * 播放队列是连在一起的电影胶片（横向没有空隙，一行接着一行；两头留出行尾、行首的「》」）。
+ * 行与行之间隔得开（用户定，2026-11-06）：纸斜着 6°，屏幕方向的框选框横着一拉就斜着碰到下一行，
+ * 原来 10px 的行距一拉就串行；卡片小一号、行距放到 44–48px，横着拉到五六百像素也还在这一行里。
  */
-export const NOTE_SPACING: Spacing = { x: 10, y: 10, edge: 10, card: { width: 112, height: 132 } };
-export const PHOTO_SPACING: Spacing = { x: 12, y: 14, edge: 10, card: { width: 112, height: 136 } };
-export const FILM_SPACING: Spacing = { x: 0, y: 16, edge: 28, card: { width: 120, height: 112 } };
+export const NOTE_SPACING: Spacing = { x: 14, y: 44, edge: 10, card: { width: 104, height: 124 } };
+export const PHOTO_SPACING: Spacing = { x: 16, y: 48, edge: 10, card: { width: 104, height: 128 } };
+export const FILM_SPACING: Spacing = { x: 0, y: 48, edge: 28, card: { width: 112, height: 104 } };
 
 /** 这么宽的网格放得下几列（至少一列）。 */
 export const columnsFor = (width: number, spacing: Spacing = DEFAULT_SPACING): number => (
@@ -80,7 +82,7 @@ export const previewSlots = (
     return slots;
 };
 
-/** 三行总览里一行占的高度：信息条 72 + 往下 12 + 最高的卡 136。 */
+/** 三行总览里一行占的高度：信息条 72 + 往下 12 + 最高的卡（相片 128），再留一点余量。 */
 export const OVERVIEW_ROW_BLOCK = 220;
 /** 两行之间至少隔多少（一行的高度再留 16）。 */
 export const OVERVIEW_ROW_MIN_STEP = 236;
@@ -91,13 +93,25 @@ const OVERVIEW_BOTTOM_GAP = 8;
 const OVERVIEW_ROW_RATIOS = [0.129, 0.391, 0.658];
 
 /**
+ * 纸绕中心转 tilt 度时，离中线 offset（往右为正）处在屏幕上比中线低多少（px；往左是负的，比中线高）。
+ * 内容安全区都按它算：越靠右的东西转下去越低，会出窗口底边。
+ */
+export const tiltDrop = (offset: number, tilt: number): number => offset * Math.sin((tilt * Math.PI) / 180);
+
+/** 三行总览每一行最右端（行尾那块「还有几首」，离纸右边约 200px）比中线低多少：排行时底下多留这一截。 */
+export const overviewBottomInset = (sheetWidth: number, tilt: number): number => (
+    Math.max(0, Math.ceil(tiltDrop(sheetWidth / 2 - 200, tilt)))
+);
+
+/**
  * 三行总览每一行信息条的顶边（窗口坐标，不含纸上下多出来的那一截）：按比例排；行与行至少隔 OVERVIEW_ROW_MIN_STEP；
  * 窗口矮到第三行的卡出了底边时，先整体往上挪（不高过标题栏），还不够就把行距挤到正好一行高。
+ * bottomInset：底下另外让出来的高度（纸斜着时行的右端比中间低，见 overviewBottomInset）。
  */
-export const overviewRowTops = (viewHeight: number): number[] => {
+export const overviewRowTops = (viewHeight: number, bottomInset = 0): number[] => {
     const tops = OVERVIEW_ROW_RATIOS.map(ratio => ratio * viewHeight);
     for (let index = 1; index < tops.length; index += 1) tops[index] = Math.max(tops[index], tops[index - 1] + OVERVIEW_ROW_MIN_STEP);
-    const room = viewHeight - OVERVIEW_BOTTOM_GAP;
+    const room = viewHeight - OVERVIEW_BOTTOM_GAP - bottomInset;
     const last = tops.length - 1;
     const overflow = tops[last] + OVERVIEW_ROW_BLOCK - room;
     if (overflow <= 0) return tops;

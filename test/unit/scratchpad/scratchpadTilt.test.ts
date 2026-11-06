@@ -3,15 +3,18 @@ import { clientToLocal, localToClient, rotatePoint, type TiltBox } from '@/compo
 import {
     FILM_SPACING,
     NOTE_SPACING,
+    PHOTO_SPACING,
     OVERVIEW_ROW_BLOCK,
     OVERVIEW_ROW_MIN_STEP,
     cardRect,
     cardSize,
     columnsFor,
+    overviewBottomInset,
     overviewRowTops,
     polygonsIntersect,
     rectCorners,
     slotPosition,
+    tiltDrop,
 } from '@/components/app/scratchpad/canvasLayout';
 import { mulberry32, scatterBandDecos, scatterSlimDecos } from '@/components/app/scratchpad/scratchpadLook';
 
@@ -86,9 +89,18 @@ describe('marquee against cards', () => {
 
 describe('full-page card sizes', () => {
     it('lays notebook cards out on their own size', () => {
-        expect(cardSize(NOTE_SPACING)).toEqual({ width: 112, height: 132 });
-        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 122, y: 142 });
-        expect(columnsFor(122 * 10 - 10, NOTE_SPACING)).toBe(10);
+        expect(cardSize(NOTE_SPACING)).toEqual({ width: 104, height: 124 });
+        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 118, y: 168 });
+        expect(columnsFor(118 * 10 - 14, NOTE_SPACING)).toBe(10);
+    });
+
+    it('keeps rows far enough apart that a long sideways marquee on the tilted sheet stays in its row', () => {
+        // Dragging 400px sideways on a sheet turned 6° drifts about 42px across rows.
+        const drift = tiltDrop(400, 6);
+        expect(drift).toBeCloseTo(41.8, 1);
+        for (const spacing of [NOTE_SPACING, PHOTO_SPACING, FILM_SPACING]) {
+            expect(spacing.y).toBeGreaterThan(drift);
+        }
     });
 
     it('butts film frames together with no gap', () => {
@@ -156,5 +168,22 @@ describe('three-row overview layout', () => {
         const roomy = overviewRowTops(780);
         expect(roomy[1] - roomy[0]).toBeCloseTo(OVERVIEW_ROW_MIN_STEP, 6);
         expect(roomy[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(780 - 8 + 1e-9);
+    });
+});
+
+describe('tilted safe area', () => {
+    it('measures how far the right end of a tilted row sinks', () => {
+        expect(tiltDrop(0, 6)).toBe(0);
+        expect(tiltDrop(-500, 6)).toBeLessThan(0);
+        expect(overviewBottomInset(1760, 0)).toBe(0);
+        expect(overviewBottomInset(1760, 6)).toBe(Math.ceil(680 * Math.sin((6 * Math.PI) / 180)));
+    });
+
+    it('keeps the overview clear of the sunk right end when the window has room for it', () => {
+        const inset = overviewBottomInset(1760, 6);
+        const tops = overviewRowTops(820, inset);
+        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(820 - 8 - inset + 1e-9);
+        // Without the inset the last row would have stayed lower.
+        expect(overviewRowTops(820)[2]).toBeGreaterThan(tops[2]);
     });
 });

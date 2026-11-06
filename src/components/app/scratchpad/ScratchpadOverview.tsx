@@ -13,7 +13,7 @@ import { forgetPlays } from '../home/explore/recentPlays';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
-import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewRowTops, polygonsIntersect, rectCorners, rectFromPoints, type Point, type Rect, type Spacing } from './canvasLayout';
+import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewBottomInset, overviewRowTops, polygonsIntersect, rectCorners, rectFromPoints, type Point, type Rect, type Spacing } from './canvasLayout';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 import { clientToLocal, localToClient } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
@@ -96,7 +96,8 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         };
     }, [displaySong, i18n.language, notes, playQueue, plays, sheetWidth]);
     const all = useMemo(() => SCRATCHPAD_TABS.flatMap(tab => rows[tab].entries), [rows]);
-    const tops = useMemo(() => overviewRowTops(viewHeight), [viewHeight]);
+    // 与信息条（ScratchpadSheet）同一套排法：纸斜着时行的右端低一截，底下让出来。
+    const tops = useMemo(() => overviewRowTops(viewHeight, overviewBottomInset(sheetWidth, tilt)), [sheetWidth, tilt, viewHeight]);
 
     // 挂上时焦点不在任何地方（点的「‹ 三行总览」跟着信息条一起卸掉了）：接过焦点，Esc 与快捷键才归总览。
     useEffect(() => {

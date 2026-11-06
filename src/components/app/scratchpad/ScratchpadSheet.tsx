@@ -9,7 +9,7 @@ import ScratchpadGreeting from './ScratchpadGreeting';
 import ScratchpadShape from './ScratchpadShape';
 import { useScratchpadHistory } from './useScratchpadHistory';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
-import { overviewRowTops } from './canvasLayout';
+import { overviewBottomInset, overviewRowTops, tiltDrop } from './canvasLayout';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
@@ -56,6 +56,14 @@ const ROW_BAND_HEIGHT = 72;
 const SLIM_HEIGHT = 36;
 /** 细纸带离纸底边多远：倾斜时左半边会被纸抬起来，所以压得低一些；不倾斜时整条挪进窗口（窗口底边在纸上 100% − 130px）。 */
 const SLIM_FROM_BOTTOM = { tilted: [160, 118], flat: [214, 172] } as const;
+/** 卡片区与右边那一列在纸上的右边界（离纸右边多远）：右边那一列 124px 宽、与卡片区隔 26px。 */
+const SIDE_RIGHT = 184;
+const CARDS_RIGHT = SIDE_RIGHT + 124 + 26;
+/** 卡片区底边离纸底多远（不倾斜时细纸带整条在窗口里，卡片区让得多一些，见 scratchpad.css 的 is-flat）。 */
+const BODY_FROM_BOTTOM = { tilted: 166, flat: 220 } as const;
+/** 安全区：转过之后的底边离窗口底边至少留这么多。 */
+const SAFE_MARGIN = 20;
+
 /** 挪动、长高的曲线（与抽屉滑出同一条）。 */
 const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
 /**
@@ -178,7 +186,18 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
 
     // 每一条此刻该在哪、多高。
     const sheetHeight = viewHeight + SHEET_BLEED_Y * 2;
-    const rowTops = useMemo(() => overviewRowTops(viewHeight), [viewHeight]);
+    const rowTops = useMemo(() => overviewRowTops(viewHeight, overviewBottomInset(sheetWidth, tilt)), [sheetWidth, tilt, viewHeight]);
+    // 内容安全区（用户反馈：右下角的操作提示在有的窗口比例下被裁）：纸往右下转，越靠右越低，右边那一列（跳到栏、贴底的操作提示）
+    // 与卡片区右下角会转出窗口底边。按这一刻的窗口算它们的底边低出去多少（纸上的 px），往上收这么多，再留 SAFE_MARGIN。
+    const safe = useMemo(() => {
+        const cos = Math.cos((tilt * Math.PI) / 180);
+        const bodyBottom = sheetHeight - (tilt === 0 ? BODY_FROM_BOTTOM.flat : BODY_FROM_BOTTOM.tilted);
+        const lift = (fromRight: number) => {
+            const screenBottom = viewHeight / 2 + tiltDrop(sheetWidth / 2 - fromRight, tilt) + (bodyBottom - sheetHeight / 2) * cos;
+            return Math.max(0, Math.ceil((screenBottom - (viewHeight - SAFE_MARGIN)) / cos));
+        };
+        return { side: lift(SIDE_RIGHT), cards: lift(CARDS_RIGHT) };
+    }, [sheetHeight, sheetWidth, tilt, viewHeight]);
     const slimFromBottom = tilt === 0 ? SLIM_FROM_BOTTOM.flat : SLIM_FROM_BOTTOM.tilted;
     const modeOf = (id: ScratchpadTab): BandMode => (showsOverview ? 'row' : id === tab ? 'full' : 'slim');
     const frameOf = (id: ScratchpadTab): BandFrame => {
@@ -257,7 +276,12 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     };
 
     return (
-        <div ref={rootRef} className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`} tabIndex={-1}>
+        <div
+            ref={rootRef}
+            className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`}
+            tabIndex={-1}
+            style={{ '--scratchpad-safe-side': `${safe.side}px`, '--scratchpad-safe-cards': `${safe.cards}px` } as React.CSSProperties}
+        >
             {/* 纸后面的大构图跟着这一页换，交叉淡入。 */}
             <AnimatePresence initial={false}>
                 <motion.div
