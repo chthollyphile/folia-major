@@ -14,8 +14,8 @@ const prompt = { name: 'folium_director', description: 'Load Folia art direction
 export function createFoliaServer() {
     const server = new Server(serverInfo, { instructions, capabilities: { tools: {}, resources: {}, prompts: {} } });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ run, ...definition }) => definition) }));
-    server.setRequestHandler(CallToolRequestSchema, async request => {
-        try { return await callTool(request.params.name, request.params.arguments); }
+    server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+        try { return await callTool(request.params.name, request.params.arguments, { signal: extra.signal }); }
         catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
     });
     server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources }));

@@ -9,12 +9,22 @@ import { object, string, validate } from './validation.mjs';
 
 // Read-only MCP tools reuse Folium's existing static checker and public documentation.
 const runFile = promisify(execFile);
+let activeChecks = 0;
+export const activeCheckCount = () => activeChecks;
 export const briefSchema = object({ task: string(6000), source: { type: 'string', enum: ['original', 'wallpaper', 'video', 'revision'] },
     kind: { type: 'string', enum: STYLE_KINDS }, lyricTemplate: { type: 'string', enum: LYRIC_TEMPLATE_IDS } }, ['task']);
-export async function checkMod({ directory }) {
-    const result = await runFile(process.execPath, [path.join(root, 'dev/folium/mcp/checkWorker.mjs'), path.resolve(root, directory)],
-        { cwd: root, windowsHide: true, timeout: 10000, maxBuffer: 2 * 1024 * 1024 });
-    return JSON.parse(result.stdout);
+export async function checkMod({ directory }, { signal } = {}) {
+    signal?.throwIfAborted();
+    if (activeChecks >= 4) throw new Error('Four checks are already running; retry after one exits.');
+    activeChecks++;
+    let started = false;
+    try {
+        const job = runFile(process.execPath, [path.join(root, 'dev/folium/mcp/checkWorker.mjs'), path.resolve(root, directory)],
+            { cwd: root, windowsHide: true, timeout: 10000, maxBuffer: 2 * 1024 * 1024, signal });
+        // Abort can reject before the OS has closed the process; hold its slot until close.
+        job.child.once('close', () => { activeChecks--; }); started = true;
+        return JSON.parse((await job).stdout);
+    } finally { if (!started) activeChecks--; }
 }
 const pageFields = { startLine: { type: 'integer', minimum: 1 }, lineCount: { type: 'integer', minimum: 1, maximum: 240 } };
 const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -31,9 +41,9 @@ export const tools = [
         run: async () => ({ service: 'folium-authoring', node: process.versions.node, projectRoot: root, folium: readFoliumShared().version,
             guides: Object.keys(documents), firstTool: 'folium_brief', runtime: 'Existing desktop Folium mod host. Trusted code, not a sandbox.', clientIndependent: true }) },
 ].map(tool => ({ ...tool, annotations }));
-export async function callTool(name, args = {}) {
+export async function callTool(name, args = {}, context = {}) {
     const tool = tools.find(item => item.name === name);
     if (!tool) throw new Error(`Unknown tool: ${name}`);
     validate(args, tool.inputSchema);
-    return { content: [{ type: 'text', text: JSON.stringify(await tool.run(args)) }] };
+    return { content: [{ type: 'text', text: JSON.stringify(await tool.run(args, context)) }] };
 }

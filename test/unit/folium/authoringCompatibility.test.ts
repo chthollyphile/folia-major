@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { randomBytes } from 'node:crypto';
@@ -6,6 +6,8 @@ import { request as httpRequest } from 'node:http';
 import { createClientProfiles } from '../../../dev/folium/mcp/clientProfiles.mjs';
 import { startHttpServer } from '../../../dev/folium/mcp/http.mjs';
 import { diagnose } from '../../../dev/folium/mcp/diagnose.mjs';
+import { activeCheckCount, callTool } from '../../../dev/folium/mcp/tools.mjs';
+import { root } from '../../../dev/folium/mcp/content.mjs';
 
 // Verify real SDK interop and isolation, not just the spelling of configuration examples.
 describe('Folia client profiles', () => {
@@ -85,5 +87,21 @@ describe('Folia Streamable HTTP', () => {
     it('rejects unusable HTTP startup configuration', async () => {
         await expect(startHttpServer({ port: -1, token })).rejects.toThrow(/port/);
         await expect(startHttpServer({ port: 0, token: 'short' })).rejects.toThrow(/FOLIUM_MCP_TOKEN/);
+    });
+    it('propagates SDK cancellation to the checker and releases its process slot', async () => {
+        const instance = await client('cancel-check'), controller = new AbortController();
+        const request = instance.callTool({ name: 'folium_check_mod', arguments: { directory: 'mods/visualizer52hz' } }, undefined, { signal: controller.signal });
+        const rejected = expect(request).rejects.toThrow();
+        await vi.waitFor(() => expect(activeCheckCount()).toBe(1), { interval: 5, timeout: 1000 });
+        controller.abort(); await rejected;
+        await vi.waitFor(() => expect(activeCheckCount()).toBe(0), { interval: 5, timeout: 2000 });
+    });
+    it('bounds concurrent workers until they close, including cancelled calls', async () => {
+        const controller = new AbortController();
+        const pending = Array.from({ length: 4 }, () => callTool('folium_check_mod', { directory: root }, { signal: controller.signal }).catch(() => null));
+        expect(activeCheckCount()).toBe(4);
+        await expect(callTool('folium_check_mod', { directory: root })).rejects.toThrow(/Four checks/);
+        controller.abort(); await Promise.all(pending);
+        await vi.waitFor(() => expect(activeCheckCount()).toBe(0), { interval: 5, timeout: 2000 });
     });
 });
