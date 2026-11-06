@@ -13,7 +13,7 @@ import { overviewBottomInset, overviewRowTops, tiltDrop } from './canvasLayout';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
-// 展开整页（设计稿 F 定稿）：整张纸向右下转 6°（降低动态效果时不转，同歌手页），这一页的米白信息条横贯整张纸，
+// 展开整页（设计稿 F 定稿）：整张纸向右下转 4°（设计稿 6°，用户嫌斜，2026-11-06 改小；降低动态效果时不转，同歌手页），这一页的米白信息条横贯整张纸，
 // 下面是这一页的卡片（宿主交进来的 children：画布、跳到栏与操作提示），另外两页收成两条细纸带压在左下角
 // （右边转出屏幕、被播放胶囊挡住），点它换过去。右上角一块黑色直角三角（不转）：放大的问候与面包屑。
 // 返回（收回左缘的面板）是压在顶上那条信息条左端的一颗墨色大方钮（用户要的，放在左边、显眼）：整页里在这一页的条上，
@@ -26,7 +26,7 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // 另外两条是左下角 36px 的细纸带。换页、进出总览时每一条从现在的位置挪到新位置、长高或变矮，条里的内容交叉淡入。
 // 所有的条都朝上走（用户定，2026-11-06）：要去左下角当细纸带的条（从顶上那条、从总览的一行）先从上方离开视口，
 // 再从窗口下面升回到底部（WRAP_*，它在视口外的那一下换高度、换样子）；往上去的条直接挪；两条细纸带之间对调直接挪。
-// 展开时这一页的条从左缘面板顶上那条的位置长出来（纸同时转到 6°），收回时缩回去。降低动态效果时不挪，只淡入淡出。
+// 展开时这一页的条从左缘面板顶上那条的位置长出来（纸同时转到 tilt），收回时缩回去。降低动态效果时不挪，只淡入淡出。
 
 /** 信息条右端的空位：各页把自己的按钮画进去。 */
 const BandSlotContext = createContext<HTMLElement | null>(null);
@@ -56,13 +56,16 @@ const FULL_BAND_TOP = 230;
 const FULL_BAND_HEIGHT = 120;
 const ROW_BAND_HEIGHT = 72;
 const SLIM_HEIGHT = 36;
-/** 细纸带离纸底边多远：倾斜时左半边会被纸抬起来，所以压得低一些；不倾斜时整条挪进窗口（窗口底边在纸上 100% − 130px）。 */
-const SLIM_FROM_BOTTOM = { tilted: [160, 118], flat: [214, 172] } as const;
+/**
+ * 细纸带、卡片区底边离纸底边多远。不倾斜时细纸带整条挪进窗口（窗口底边在纸上 100% − 130px），卡片区让到它们上面；
+ * 倾斜时纸的左半边被抬起来，两样都往下压 tiltSink（按 sin(tilt) 算，6° 时 54px）。
+ */
+const SLIM_FROM_BOTTOM_FLAT = [214, 172] as const;
+const BODY_FROM_BOTTOM_FLAT = 220;
+const tiltSink = (tilt: number): number => Math.round((54 * Math.sin((tilt * Math.PI) / 180)) / Math.sin((6 * Math.PI) / 180));
 /** 卡片区与右边那一列在纸上的右边界（离纸右边多远）：右边那一列 124px 宽、与卡片区隔 26px。 */
 const SIDE_RIGHT = 184;
 const CARDS_RIGHT = SIDE_RIGHT + 124 + 26;
-/** 卡片区底边离纸底多远（不倾斜时细纸带整条在窗口里，卡片区让得多一些，见 scratchpad.css 的 is-flat）。 */
-const BODY_FROM_BOTTOM = { tilted: 166, flat: 220 } as const;
 /** 返回钮：在纸上的左边（纸左边多出来 160px，转过之后约在窗口左边 15–50px）、边长。 */
 const BACK_LEFT = 174;
 const BACK_SIZE = 48;
@@ -74,7 +77,7 @@ const SAFE_MARGIN = 20;
 const MOVE_EASE = [0.22, 1, 0.36, 1] as const;
 /**
  * 绕一圈去底部：一共多久，离开视口用掉的那一段占多少（之后在视口外一下子跳到窗口下面，再升上来）；
- * 离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转 6° 时右端压低、左端抬高的那一截）。
+ * 离开时在纸上要到多高、从多低回来（纸的上下各比窗口多 130px，再留出转过之后右端压低、左端抬高的那一截）。
  */
 const WRAP_DURATION = 0.58;
 const WRAP_LEAVE = 0.5;
@@ -193,18 +196,20 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     // 每一条此刻该在哪、多高。
     const sheetHeight = viewHeight + SHEET_BLEED_Y * 2;
     const rowTops = useMemo(() => overviewRowTops(viewHeight, overviewBottomInset(sheetWidth, tilt)), [sheetWidth, tilt, viewHeight]);
+    const sink = tiltSink(tilt);
+    const bodyFromBottom = BODY_FROM_BOTTOM_FLAT - sink;
+    const slimFromBottom = useMemo(() => SLIM_FROM_BOTTOM_FLAT.map(offset => offset - sink), [sink]);
     // 内容安全区（用户反馈：右下角的操作提示在有的窗口比例下被裁）：纸往右下转，越靠右越低，右边那一列（跳到栏、贴底的操作提示）
     // 与卡片区右下角会转出窗口底边。按这一刻的窗口算它们的底边低出去多少（纸上的 px），往上收这么多，再留 SAFE_MARGIN。
     const safe = useMemo(() => {
         const cos = Math.cos((tilt * Math.PI) / 180);
-        const bodyBottom = sheetHeight - (tilt === 0 ? BODY_FROM_BOTTOM.flat : BODY_FROM_BOTTOM.tilted);
+        const bodyBottom = sheetHeight - bodyFromBottom;
         const lift = (fromRight: number) => {
             const screenBottom = viewHeight / 2 + tiltDrop(sheetWidth / 2 - fromRight, tilt) + (bodyBottom - sheetHeight / 2) * cos;
             return Math.max(0, Math.ceil((screenBottom - (viewHeight - SAFE_MARGIN)) / cos));
         };
         return { side: lift(SIDE_RIGHT), cards: lift(CARDS_RIGHT) };
-    }, [sheetHeight, sheetWidth, tilt, viewHeight]);
-    const slimFromBottom = tilt === 0 ? SLIM_FROM_BOTTOM.flat : SLIM_FROM_BOTTOM.tilted;
+    }, [bodyFromBottom, sheetHeight, sheetWidth, tilt, viewHeight]);
     const modeOf = (id: ScratchpadTab): BandMode => (showsOverview ? 'row' : id === tab ? 'full' : 'slim');
     const frameOf = (id: ScratchpadTab): BandFrame => {
         const across = { left: 0, width: sheetWidth };
@@ -284,9 +289,13 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
     return (
         <div
             ref={rootRef}
-            className={`scratchpad-f${tilt === 0 ? ' is-flat' : ''}`}
+            className="scratchpad-f"
             tabIndex={-1}
-            style={{ '--scratchpad-safe-side': `${safe.side}px`, '--scratchpad-safe-cards': `${safe.cards}px` } as React.CSSProperties}
+            style={{
+                '--scratchpad-safe-side': `${safe.side}px`,
+                '--scratchpad-safe-cards': `${safe.cards}px`,
+                '--scratchpad-body-bottom': `${bodyFromBottom}px`,
+            } as React.CSSProperties}
         >
             {/* 纸后面的大构图跟着这一页换，交叉淡入。 */}
             <AnimatePresence initial={false}>

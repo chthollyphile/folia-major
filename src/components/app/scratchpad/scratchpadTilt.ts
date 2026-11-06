@@ -1,7 +1,7 @@
 import type { Point } from './canvasLayout';
 
 // src/components/app/scratchpad/scratchpadTilt.ts
-// 展开整页那张倾斜的纸（设计稿 F：整张纸向右下转 6°）上，屏幕坐标与纸上某个元素自己的坐标之间的换算。
+// 展开整页那张倾斜的纸（设计稿 F：整张纸向右下转，设计稿 6°、实装 4°）上，屏幕坐标与纸上某个元素自己的坐标之间的换算。
 // 纸整个转了 deg 度、元素本身不再另转时，元素外接框（getBoundingClientRect）的中心正是它自己的中心转过去的位置，
 // 所以只要这个元素的外接框和它自己的宽高（offsetWidth / offsetHeight）就能换算，不用管纸绕哪一点转、里面滚了多少。
 // 不倾斜（deg 为 0）时就是减去外接框的左上角。

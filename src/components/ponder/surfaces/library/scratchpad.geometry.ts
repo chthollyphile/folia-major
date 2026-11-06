@@ -110,7 +110,7 @@ export const scratchpadRowActionsRect = (group: number, row: number): PonderRela
 export const SCRATCHPAD_HOVER_ROW = { group: 0, row: 1 } as const;
 
 /**
- * 展开整页之后的几块，坐标系是整页。真实界面里整张纸斜 6°；这张图摆正了画，框才对得上。
+ * 展开整页之后的几块，坐标系是整页。真实界面里整张纸斜 4°；这张图摆正了画，框才对得上。
  *
  * 顶上横贯一条米白信息条（左端压一颗墨色的返回钮，然后是计数、标题、说明，右端是这一页的按钮）；右上角一块黑色直角三角写问候。
  * 下面两组，每组一条组头（右端多一颗「选中本组」），下面一排笔记本卡；右边一列是跳到栏与操作提示；

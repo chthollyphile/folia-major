@@ -927,7 +927,7 @@
 .scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }
 
 /* —— 左缘面板的页签列（ScratchpadRail）——
-   最深的黑；顶上收起、中间三个竖排页签、底下「展开整页」。选中的页签垫一块斜着的米白纸（随纸一起斜 6°，字摆正），
+   最深的黑；顶上收起、中间三个竖排页签、底下「展开整页」。选中的页签垫一块斜着的米白纸（随展开整页的纸一起斜 4°，字摆正），
    几何体换成点缀色；没选中的是淡的纸色字。键盘焦点总跟着选中的那页，不另画框（与展开后的页签一样）。 */
 
 .scratchpad-rail {
@@ -975,7 +975,7 @@
 .scratchpad-tab-face {
     position: absolute;
     inset: 0;
-    transform: skewY(-6deg);
+    transform: skewY(-4deg);
     transition: background-color 0.15s ease;
 }
 
@@ -1371,7 +1371,7 @@
 .scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::after { transition: none; }
 
 /* —— 展开整页（ScratchpadSheet，设计稿 F 定稿）——
-   一张比窗口每边大出一截的纸（左右 160px、上下 130px，转过之后四角不露底），绕窗口中心向右下转 6°（降低动态效果时 0；
+   一张比窗口每边大出一截的纸（左右 160px、上下 130px，转过之后四角不露底），绕窗口中心向右下转 4°（设计稿 6°，用户改小；降低动态效果时 0；
    转多少由 ScratchpadSheet 用 framer 写，展开、收回时跟着转）。纸上的坐标照设计稿：信息条在 230px，卡片从 362px 起，
    铺到两条细纸带上沿；左边让出 186px，右边 184px（跳到栏与操作提示那一列在卡片右边）。纸后面的大构图、右上角的黑三角不转。
    三条信息条的位置与高度也由 ScratchpadSheet 写（.scratchpad-sheet-band），换页、进出总览时挪过去。 */
@@ -1413,7 +1413,7 @@
     position: absolute;
     top: 362px;
     right: 184px;
-    bottom: 166px;
+    bottom: var(--scratchpad-body-bottom, 166px);
     left: 186px;
     display: flex;
 }
@@ -1434,8 +1434,7 @@
 
 .scratchpad-drawer.is-expanded .scratchpad-canvas { grid-column: 1; }
 
-/* 不倾斜时（降低动态效果）纸的左半边不再往上抬：两条细纸带整条挪进窗口（位置在 ScratchpadSheet），卡片区跟着让出来。 */
-.scratchpad-f.is-flat .scratchpad-f-body { bottom: 220px; }
+/* 卡片区底边（--scratchpad-body-bottom）由 ScratchpadSheet 按倾斜角写：不倾斜时两条细纸带整条挪进窗口，卡片区跟着让出来。 */
 
 /* 展开整页的信息条：横贯整张纸、120px 高；左边一道墨色的斜杠，标题放大，下面一行说明；右端是这一页的按钮（各页自己画进来）。
    装饰可以探出条的上下沿（不裁）。 */

@@ -337,8 +337,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     // 换页的动画：往右边的页签走时方向是 1，往左是 -1（和上一页比）。
     const calm = useReducedMotionFor('uiMicroMotion');
-    // 展开整页那张纸转 6°；降低动态效果时不转（同歌手页）。
-    const tilt = calm ? 0 : 6;
+    // 展开整页那张纸转 4°（设计稿 6°，用户嫌斜改小，2026-11-06）；降低动态效果时不转（同歌手页）。
+    const tilt = calm ? 0 : 4;
     // 展开整页的信息条上「‹ 三行总览」换到三行总览；收回侧栏之后再展开，回到这一页（不回总览）。
     const [showOverview, setShowOverview] = useState(false);
     showOverviewRef.current = isExpanded && showOverview;
@@ -494,7 +494,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
             )}
 
             {/* 左缘的面板与展开整页各是一层：展开、收回时两层同时在场——展开时整页盖上来，这一页的信息条从面板顶上那条长出来、
-                纸转到 6°，面板在底下让开；收回时整页的信息条缩回去、纸转回来再淡掉，面板在底下滑回来（ScratchpadSheet）。 */}
+                纸转过去，面板在底下让开；收回时整页的信息条缩回去、纸转回来再淡掉，面板在底下滑回来（ScratchpadSheet）。 */}
             <AnimatePresence>
                 {isOpen && !isExpanded && (
                     <motion.aside

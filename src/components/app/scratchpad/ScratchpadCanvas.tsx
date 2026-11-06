@@ -41,7 +41,7 @@ export type { CanvasSide } from './ScratchpadCanvasSide';
 //   Delete 交给 onDelete，Ctrl+A 全选，Esc 先取消选择、再交给抽屉收起。
 // - 卡片多（播放队列可能上千首）时只挂看得见的那几行附近的卡片：滚动时按 400px 一档换，档没变不重渲染。
 // 指针移动里只 set MotionValue 和直接改框选框的样式；进 React state 的只有离散的落点序号、选择集与可见的那一档（变了才 set）。
-// - 倾斜（tilt，展开整页那张转了 6° 的纸）：指针的屏幕坐标先换算到网格、内容自己的坐标里再算（scratchpadTilt），
+// - 倾斜（tilt，展开整页那张转了 4° 的纸）：指针的屏幕坐标先换算到网格、内容自己的坐标里再算（scratchpadTilt），
 //   位置一律用 offsetTop / offsetLeft 与滚动量，不拿外接框相减（转过的元素外接框是斜的）。框选框是屏幕方向的（设计稿 F），
 //   落到内容坐标里是一个斜着的矩形，拿它和卡片比（polygonsIntersect）。浮动菜单在内容里，跟着纸一起斜。
 // - 跳到栏与操作提示（side）：展开整页时画在卡片右边那一列；跳到栏按组（只有一组时按一段段）滚过去。
@@ -85,7 +85,7 @@ type ScratchpadCanvasProps<E extends CanvasEntry> = {
     focusKey?: string;
     /** 卡片画成哪一种（展开整页：笔记本 / 相片 / 胶片）。 */
     variant?: CardVariant;
-    /** 画布所在的纸转了几度（展开整页 6°，降低动态效果时 0）。 */
+    /** 画布所在的纸转了几度（展开整页 4°，降低动态效果时 0）。 */
     tilt?: number;
     /** 卡片右边的跳到栏与操作提示（展开整页）。 */
     side?: CanvasSide;
