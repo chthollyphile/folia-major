@@ -628,8 +628,8 @@
     -webkit-touch-callout: none;
 }
 
-/* 日光档的浅底只给原来那种卡；笔记本、相片、胶片是实物，两档一个样（胶片在日光下也是黑的，与面板里那条胶片一致）。
-   原来这条也压到它们身上，background 简写把胶片的黑底和齿孔一起盖掉了（用户看到日光下胶片没有打孔）。 */
+/* 日光档的浅底只给原来那种卡；笔记本、相片、胶片自己管颜色（胶片读 --scratchpad-film-*，日光档是白胶片）。
+   原来这条也压到它们身上，background 简写把胶片的底和齿孔一起盖掉了（用户看到日光下胶片没有打孔）。 */
 .scratchpad-root.is-daylight .scratchpad-card:not(.is-note, .is-photo, .is-film) { border-color: rgb(0 0 0 / 7%); background: rgb(250 249 246); }
 .scratchpad-card:hover { background: rgb(44 44 48); }
 .scratchpad-root.is-daylight .scratchpad-card:not(.is-note, .is-photo, .is-film):hover { background: rgb(255 255 255); }
@@ -1319,26 +1319,50 @@
 .scratchpad-played-toggle:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
 .scratchpad-played-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* 胶片的颜色：暗档是黑胶片，日光档是白胶片（用户定，2026-11-07）。面板里这条竖胶片与展开整页的胶片卡都读这几个。 */
+.scratchpad-root {
+    --scratchpad-film: #121212;
+    --scratchpad-film-raise: #1a1a1c;
+    --scratchpad-film-hole: rgb(236 230 216 / 26%);
+    --scratchpad-film-ink: #f4f1ea;
+    --scratchpad-film-edge: #d9a35c;
+}
+
+.scratchpad-root.is-daylight {
+    --scratchpad-film: #f6f4ef;
+    --scratchpad-film-raise: #ffffff;
+    --scratchpad-film-hole: rgb(20 18 16 / 16%);
+    --scratchpad-film-ink: #1a1714;
+    --scratchpad-film-edge: #94621f;
+}
+
 .scratchpad-drawer.is-panel .scratchpad-table {
     --scratchpad-raise: #26262a;
     --scratchpad-press: #3a3a3e;
     --scratchpad-text: #f4f1ea;
     --scratchpad-text-soft: rgb(244 241 234 / 62%);
     margin: 0 14px 0 18px;
-    background: #121212;
+    background: var(--scratchpad-film);
     color: var(--scratchpad-text);
+}
+
+.scratchpad-root.is-daylight .scratchpad-drawer.is-panel .scratchpad-table {
+    --scratchpad-raise: #ecebe6;
+    --scratchpad-press: #e1dfd8;
+    --scratchpad-text: #1a1714;
+    --scratchpad-text-soft: rgb(26 23 20 / 62%);
 }
 
 /* 两侧的齿孔：疏一点、淡一点（用户嫌又密又显眼，2026-11-07）——每 26px 一个、6px 高、26% 的纸色。 */
 .scratchpad-drawer.is-panel .scratchpad-table-scroll {
     background:
-        linear-gradient(180deg, transparent 10px, rgb(236 230 216 / 26%) 10px 16px, transparent 16px) left 4px top 0 / 6px 26px repeat-y local,
-        linear-gradient(180deg, transparent 10px, rgb(236 230 216 / 26%) 10px 16px, transparent 16px) right 4px top 0 / 6px 26px repeat-y local;
+        linear-gradient(180deg, transparent 10px, var(--scratchpad-film-hole) 10px 16px, transparent 16px) left 4px top 0 / 6px 26px repeat-y local,
+        linear-gradient(180deg, transparent 10px, var(--scratchpad-film-hole) 10px 16px, transparent 16px) right 4px top 0 / 6px 26px repeat-y local;
 }
 
-.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 20%); background-clip: content-box; }
-.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 34%); background-clip: content-box; }
-.scratchpad-root.is-daylight .scratchpad-table .scratchpad-cover { background: rgb(255 255 255 / 8%); }
+.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb { background: rgb(0 0 0 / 18%); background-clip: content-box; }
+.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb:hover { background: rgb(0 0 0 / 30%); background-clip: content-box; }
+.scratchpad-root.is-daylight .scratchpad-table .scratchpad-cover { background: rgb(0 0 0 / 6%); }
 
 .scratchpad-table-row { gap: 12px; padding: 0 18px; }
 
@@ -1350,12 +1374,13 @@
 .scratchpad-drawer.is-panel .scratchpad-table-row:hover { background-clip: content-box; }
 .scratchpad-table-row .scratchpad-row-actions { right: 12px; padding-right: 0; }
 .scratchpad-table-row.is-current { background: rgb(255 255 255 / 5%); }
+.scratchpad-root.is-daylight .scratchpad-table-row.is-current { background: rgb(0 0 0 / 4%); }
 .scratchpad-table-row.is-current .scratchpad-cover { box-shadow: 0 0 0 3px var(--scratchpad-mark-dark); }
 
 /* 片边印的字：等宽、琥珀色；正在播的那一格是点缀色。 */
 .scratchpad-film-edge {
     margin-right: 6px;
-    color: #d9a35c;
+    color: var(--scratchpad-film-edge);
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 10px;
     letter-spacing: 0.08em;
@@ -1785,18 +1810,18 @@
 .scratchpad-card.is-photo .scratchpad-card-meta { padding: 0; font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700; opacity: 0.75; }
 
 /* 播放队列：一格电影胶片——上下两排齿孔，封面铺满中间，标题压在封面下沿，片边印序号与时长；一格接一格连成一条。
-   齿孔疏一点、淡一点（用户嫌又密又显眼，2026-11-07）：每 28px 一个、7 × 5px、26% 的纸色；28 整除卡宽 140，
-   一格接一格时齿孔的间距接得上。 */
+   齿孔疏一点、淡一点（用户嫌又密又显眼，2026-11-07）：每 28px 一个、7 × 5px；28 整除卡宽 140，一格接一格时齿孔的间距接得上。
+   颜色读 --scratchpad-film-*：暗档黑胶片配淡纸色齿孔，日光档白胶片配淡墨色齿孔。标题压在封面下沿的暗渐变上，两档都是纸色字。 */
 .scratchpad-card.is-film {
     padding: 0;
     background:
-        repeating-linear-gradient(90deg, transparent 0 10px, rgb(236 230 216 / 26%) 10px 17px, transparent 17px 28px) 0 5px / 100% 5px no-repeat,
-        repeating-linear-gradient(90deg, transparent 0 10px, rgb(236 230 216 / 26%) 10px 17px, transparent 17px 28px) 0 calc(100% - 5px) / 100% 5px no-repeat,
-        #121212;
-    color: #f4f1ea;
+        repeating-linear-gradient(90deg, transparent 0 10px, var(--scratchpad-film-hole) 10px 17px, transparent 17px 28px) 0 5px / 100% 5px no-repeat,
+        repeating-linear-gradient(90deg, transparent 0 10px, var(--scratchpad-film-hole) 10px 17px, transparent 17px 28px) 0 calc(100% - 5px) / 100% 5px no-repeat,
+        var(--scratchpad-film);
+    color: var(--scratchpad-film-ink);
 }
 
-.scratchpad-card.is-film:hover { background-color: #1a1a1c; }
+.scratchpad-card.is-film:hover { background-color: var(--scratchpad-film-raise); }
 
 .scratchpad-card.is-film .scratchpad-card-cover {
     position: absolute;
@@ -1839,7 +1864,7 @@
     display: flex;
     justify-content: space-between;
     gap: 4px;
-    color: #d9a35c;
+    color: var(--scratchpad-film-edge);
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 10px;
     letter-spacing: 0.08em;
