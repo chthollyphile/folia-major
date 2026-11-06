@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../../types';
-import type { OmniExploreSection, ProviderCollection } from '../../../../types/onlineMusic';
+import type { DailySongPreview, OmniExploreSection, ProviderCollection } from '../../../../types/onlineMusic';
 import type { AcceptedFmPlayback } from '../../../../stores/usePlaybackStore';
 import type { LibraryCollectionIdentity } from '../../../../library/core/collection/collection.contract';
 import { collectionKey } from '../../../../library/core/collection/collectionIdentity';
@@ -16,6 +16,8 @@ export interface ExplorePreviewPlayback {
     acceptedFmPlayback: AcceptedFmPlayback | null;
     /** The collection still owning the queue, checked against the displayed song as well as its entries. */
     playingFrom: LibraryCollectionIdentity | null;
+    /** Latest successful default daily read, already scoped to the active provider/account by Omni. */
+    dailySongs?: DailySongPreview | null;
 }
 
 const ownsDisplayedSong = (collection: ProviderCollection, playback: ExplorePreviewPlayback): boolean => {
@@ -35,16 +37,19 @@ const ownsDisplayedSong = (collection: ProviderCollection, playback: ExplorePrev
 
 const collectionWithSongPreview = (collection: ProviderCollection, playback: ExplorePreviewPlayback): ProviderCollection => {
     if (!collection.songPreview) return collection;
+    const dailySongs = collection.type === 'daily_recommendations' && collection.songPreview.dailySongs === true
+        && playback.dailySongs?.providerId === collection.providerId ? playback.dailySongs : null;
+    const firstSong = dailySongs ? dailySongs.firstSong : collection.songPreview.firstSong;
     const song = ownsDisplayedSong(collection, playback) ? playback.song : null;
     const currentSong = song ? normalizePlaybackSongSource(song) : undefined;
     const followsStation = Boolean(song && collection.personalFm?.station);
     const sameSelection = !followsStation || isSamePersonalFmSelection(collection.personalFm!, playback.acceptedFmPlayback!.selection);
-    return collection.songPreview.currentSong === currentSong && sameSelection
+    return collection.songPreview.firstSong === firstSong && collection.songPreview.currentSong === currentSong && sameSelection
         ? collection
-        : { ...collection, ...(song && collection.personalFm?.station ? { personalFm: playback.acceptedFmPlayback!.selection } : {}), songPreview: { ...collection.songPreview, currentSong } };
+        : { ...collection, ...(song && collection.personalFm?.station ? { personalFm: playback.acceptedFmPlayback!.selection } : {}), songPreview: { ...collection.songPreview, firstSong, currentSong } };
 };
 
-/** Derives display-only current songs without changing collection identity, first previews or playback actions. */
+/** Derives latest daily and accepted current-song previews without changing collection identity or playback actions. */
 export const withExploreSongPreviews = (sections: OmniExploreSection[], playback: ExplorePreviewPlayback): OmniExploreSection[] => {
     let changed = false;
     const nextSections = sections.map(section => {

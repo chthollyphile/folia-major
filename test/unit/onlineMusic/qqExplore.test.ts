@@ -339,7 +339,7 @@ describe('QQ explore page', () => {
         expect(first.sections[0].items).toHaveLength(11);
         expect(first.sections[0].items.slice(0, 2)).toEqual([
             expect.objectContaining({ collection: expect.objectContaining({ id: 'station-guess-you-like', songPreview: {} }) }),
-            expect.objectContaining({ collection: expect.objectContaining({ id: 'daily_recommendations', songPreview: {} }) }),
+            expect.objectContaining({ collection: expect.objectContaining({ id: 'daily_recommendations', songPreview: { dailySongs: true } }) }),
         ]);
         expect(operations().filter(operation => operation === 'user_daily_songs')).toHaveLength(1);
         expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);

@@ -160,7 +160,7 @@ const recommendationShelf = (songs: UnifiedSong[], previews: RecommendationPrevi
                 id: 'daily_recommendations',
                 type: 'daily_recommendations',
                 ...dailySongs,
-                songPreview: { firstSong: previews.dailySongs },
+                songPreview: { firstSong: previews.dailySongs, dailySongs: true },
                 coverOverlay: { label: i18n.t('home.daily30'), logoUrl: daily30Mark },
             },
         }, ...songs.map(songItem)],

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SongResult, UnifiedSong } from '@/types';
 import type { OmniExploreSection, ProviderCollection } from '@/types/onlineMusic';
 import { withExploreSongPreviews, withExploreTileSongPreviews, type ExplorePreviewPlayback } from '@/components/app/home/explore/exploreSongPreviews';
+import { faceOf } from '@/components/app/home/explore/exploreFace';
 import { buildExploreTiles, handedEntriesOf, sectionsOfTiles } from '@/components/app/lattice/exploreWall';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 
@@ -149,5 +150,69 @@ describe('Explore recommendation song previews', () => {
         const entries = buildExploreTiles(sections(), key => key);
         expect(withExploreTileSongPreviews(entries, playback({ song: current, queue: [current] }), key => key)).toBe(entries);
         expect(withExploreTileSongPreviews(entries, playback({ song: current, queue: [current], playingFrom: dailySource }), key => key)[1]).toMatchObject({ coverUrl: current.album.coverUrl });
+    });
+
+    it('updates a kept Daily 30 card from a newer independent daily read without refreshing its section', () => {
+        const original = sections();
+        shown(original, 1).songPreview!.dailySongs = true;
+        const today = song('today');
+        const next = withExploreSongPreviews(original, playback({ dailySongs: { providerId: 'probe', firstSong: today } }));
+        expect(shown(next, 1).songPreview?.firstSong).toBe(today);
+        expect(shown(next, 1).id).toBe('daily');
+        expect(shown(next, 1).coverOverlay).toBe(shown(original, 1).coverOverlay);
+        expect(faceOf(next[0].items[1], key => key)).toMatchObject({ coverUrl: today.album.coverUrl, subtitle: 'Song today — Artist' });
+        expect(next[0].items[0]).toBe(original[0].items[0]);
+        expect(next[1]).toBe(original[1]);
+        expect(shown(original, 1).songPreview?.firstSong).toBe(firstDaily);
+    });
+
+    it('keeps owned daily playback on top of the updated first song and returns to that new first song afterward', () => {
+        const original = sections();
+        shown(original, 1).songPreview!.dailySongs = true;
+        const today = song('today');
+        const dailySongs = { providerId: 'probe', firstSong: today };
+        const playing = withExploreSongPreviews(original, playback({ dailySongs, song: current, queue: [current], playingFrom: dailySource }));
+        expect(shown(playing, 1).songPreview).toMatchObject({ firstSong: today, currentSong: current });
+        expect(faceOf(playing[0].items[1], key => key).coverUrl).toBe(current.album.coverUrl);
+        const ended = withExploreSongPreviews(playing, playback({ dailySongs, song: current, queue: [current] }));
+        expect(faceOf(ended[0].items[1], key => key).coverUrl).toBe(today.album.coverUrl);
+        expect(shown(ended, 1).songPreview?.currentSong).toBeUndefined();
+        expect(withExploreSongPreviews(ended, playback({ dailySongs, song: current, queue: [current] }))).toBe(ended);
+    });
+
+    it('does not sync another provider, a non-opted-in daily card or an FM reservation to a default daily read', () => {
+        const original = sections();
+        const today = song('today');
+        expect(withExploreSongPreviews(original, playback({ dailySongs: { providerId: 'probe', firstSong: today } }))).toBe(original);
+        shown(original, 1).songPreview!.dailySongs = true;
+        expect(withExploreSongPreviews(original, playback({ dailySongs: { providerId: 'other', firstSong: today } }))).toBe(original);
+        const next = withExploreSongPreviews(original, playback({ dailySongs: { providerId: 'probe', firstSong: today } }));
+        expect(next[0].items[0]).toBe(original[0].items[0]);
+        expect(shown(next, 0).songPreview?.firstSong).toBe(firstFm);
+    });
+
+    it('clears an old daily first-song cover after a successful empty read while retaining the entry and watermark', () => {
+        const original = sections();
+        shown(original, 1).songPreview!.dailySongs = true;
+        const next = withExploreSongPreviews(original, playback({ dailySongs: { providerId: 'probe' } }));
+        expect(shown(next, 1).songPreview?.firstSong).toBeUndefined();
+        expect(faceOf(next[0].items[1], key => key)).toMatchObject({ title: 'Daily 30', coverUrl: '' });
+        expect(shown(next, 1).coverOverlay).toBe(shown(original, 1).coverOverlay);
+    });
+
+    it('updates a held daily wall poster without replacing its raw entries or moving its geometry', () => {
+        const original = sections();
+        shown(original, 1).songPreview!.dailySongs = true;
+        const entries = buildExploreTiles(original, key => key);
+        const held = { read: 1, entries };
+        expect(handedEntriesOf(held, 1, [], 'wait')).toBe(held);
+        const today = song('today');
+        const next = withExploreTileSongPreviews(held.entries, playback({ dailySongs: { providerId: 'probe', firstSong: today } }), key => key);
+        expect(next[1]).toMatchObject({ coverUrl: today.album.coverUrl, artist: 'Song today — Artist', collection: { songPreview: { firstSong: today } } });
+        expect(next.map(tile => [tile.id, tile.queueIndex, tile.sectionKey, tile.entryKind])).toEqual(entries.map(tile => [tile.id, tile.queueIndex, tile.sectionKey, tile.entryKind]));
+        expect(sectionsOfTiles(next)).toEqual(sectionsOfTiles(entries));
+        expect(next[0]).toBe(entries[0]);
+        expect(next[2]).toBe(entries[2]);
+        expect(entries[1].kind === 'collection' && entries[1].collection.songPreview?.firstSong).toBe(firstDaily);
     });
 });

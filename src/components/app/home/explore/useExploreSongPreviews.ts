@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { omni } from '../../../../services/onlineMusic/omni';
 import type { OmniExploreSection } from '../../../../types/onlineMusic';
 import type { LatticeTile } from '../../lattice/latticeModel';
 import { selectDisplaySong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
@@ -9,6 +10,7 @@ import { withExploreSongPreviews, withExploreTileSongPreviews, type ExplorePrevi
 // Both Explore layouts share this low-frequency view of recommendation-card playback.
 
 const useExplorePreviewPlayback = (): ExplorePreviewPlayback => {
+    const dailySongs = useSyncExternalStore(omni.subscribeDailySongPreview, omni.getDailySongPreview, omni.getDailySongPreview);
     const song = usePlaybackStore(selectDisplaySong);
     const queue = usePlaybackStore(state => state.playQueue);
     const acceptedFmPlayback = usePlaybackStore(state => state.acceptedFmPlayback);
@@ -16,9 +18,10 @@ const useExplorePreviewPlayback = (): ExplorePreviewPlayback => {
     return useMemo(() => ({
         song,
         queue,
+        dailySongs,
         acceptedFmPlayback,
         playingFrom: playbackSourceOf(source, queue, song),
-    }), [acceptedFmPlayback, queue, song, source]);
+    }), [acceptedFmPlayback, dailySongs, queue, song, source]);
 };
 
 export const useExploreSongPreviews = (sections: OmniExploreSection[]): OmniExploreSection[] => {
