@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react';
-import type { SoloistResult, SoloistStatus } from '../../../types/soloist';
+import type { SoloistResult } from '../../../types/soloist';
+import { useSoloistSettingsStore, watchSoloistStatus, runSoloistAction, soloistProgramInstalled, soloistProgramUsable } from '../../../stores/useSoloistSettingsStore';
 import './playbackSettings.css';
 
 // Local playback setup supplements the existing account login; it does not read song or account APIs.
@@ -14,44 +15,31 @@ const Step = ({ number, title, done, children }: { number: number; title: string
 );
 const PlaybackSettings = ({ signedIn }: { signedIn: boolean }) => {
     const { t, i18n } = useTranslation();
-    const [status, setStatus] = useState<SoloistStatus | null>(null);
+    const status = useSoloistSettingsStore(state => state.status);
+    const busy = useSoloistSettingsStore(state => state.busy);
+    const statusError = useSoloistSettingsStore(state => state.error);
     const [key, setKey] = useState('');
     const [editing, setEditing] = useState(false);
-    const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
     const alive = useRef(false);
-    const refresh = useCallback(async () => {
-        try {
-            const value = await api?.soloistStatus?.();
-            if (alive.current && value) setStatus(value);
-        } catch { if (alive.current) setMessage('unavailable'); }
-    }, []);
     useEffect(() => {
         alive.current = true;
-        let canceled = false;
-        let timer: ReturnType<typeof setTimeout>;
-        const poll = async () => {
-            await refresh();
-            if (!canceled) timer = setTimeout(poll, 4000);
-        };
-        void poll();
-        return () => { canceled = true; alive.current = false; clearTimeout(timer); };
-    }, [refresh]);
+        const stop = watchSoloistStatus();
+        return () => { alive.current = false; stop(); };
+    }, []);
     if (!api?.soloistStatus) return null;
     const action = async (work: () => Promise<SoloistResult | unknown>) => {
-        setBusy(true); setMessage('');
+        setMessage('');
         try {
-            const result = await work() as SoloistResult;
+            const result = await runSoloistAction(work) as SoloistResult;
             if (!alive.current) return;
             if (result?.saved) { setKey(''); setEditing(false); }
             if (result?.ok === false) setMessage(result.message || 'start');
-            await refresh();
         } catch { if (alive.current) setMessage('storage'); }
-        finally { if (alive.current) setBusy(false); }
     };
     const binary = status?.binary;
-    const installed = !!binary && !['missing', 'invalid'].includes(binary.state);
-    const usable = installed && binary.state !== 'expired';
+    const installed = soloistProgramInstalled(status);
+    const usable = soloistProgramUsable(status);
     const stored = status?.configured === true;
     const unlocked = stored && status?.keyState === 'available';
     const connected = status?.connected === true;
@@ -66,7 +54,7 @@ const PlaybackSettings = ({ signedIn }: { signedIn: boolean }) => {
                 <p>{t(signedIn ? 'soloist.accountReady' : 'soloist.accountGuide')}</p>
             </Step>
             <Step number={2} title={t('soloist.install')} done={usable}>
-                {installed ? <>
+                {installed && binary ? <>
                     <p><strong>{t('soloist.version', { version: binary.version || t('soloist.unknown') })}</strong>{' · '}{binary.state === 'expired' ? t('soloist.expired') : binary.daysRemaining != null ? t('soloist.remaining', { count: binary.daysRemaining }) : t('soloist.unknown')}</p>
                     {binary.builtAt && <p className="soloist-muted">{t('soloist.dates', { built: formatDate(binary.builtAt), expires: formatDate(binary.expiresAt) })}</p>}
                     {['expired', 'expiring', 'clock-warning', 'unknown'].includes(binary.state) && <p role="status">{t(`soloist.build.${binary.state}`)}</p>}
@@ -96,7 +84,7 @@ const PlaybackSettings = ({ signedIn }: { signedIn: boolean }) => {
             <Step number={4} title={t('soloist.pair')} done={connected}>
                 <p>{t(connected ? 'soloist.paired' : status?.running ? 'soloist.pairGuide' : 'soloist.startGuide')}</p>
             </Step>
-            {(message || status?.error) && <p role="alert">{t(`soloist.errors.${message || status?.error}`)}</p>}
+            {(message || status?.error || statusError) && <p role="alert">{t(`soloist.errors.${message || status?.error || statusError}`)}</p>}
             <p className="soloist-muted">{t('soloist.limitations')} <button type="button" onClick={() => void api.soloistOfficial?.('guide')}>{t('soloist.guide')}</button></p>
         </section>
     );

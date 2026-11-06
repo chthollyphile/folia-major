@@ -396,6 +396,8 @@ export interface OnlineSearchProvider {
 }
 
 export interface OnlinePlaybackProvider {
+    /** False when this source cannot be mixed through the app's two audio decks. */
+    supportsAutomix?: boolean;
     /**
      * The song by id, or null where the platform has no song by it. Takes the song's `UnifiedSong.id`
      * and also its `sourceRef.mediaId`; a platform whose two differ accepts both, in its own folder.

@@ -2,6 +2,7 @@
 
 export default {
   "soloist": {
+    "reconnected": "Soloist restarted. Check the connection in playback setup.",
     "title": "Spotify playback setup",
     "ready": "Ready to play",
     "incomplete": "Complete setup",
@@ -840,6 +841,8 @@ export default {
       }
     },
     "commands": {
+      "spotify-soloist-reconnect": {"title": "Reconnect Spotify Soloist", "description": "Restart the configured Soloist player and reconnect"},
+      "spotify-soloist-check-lifetime": {"title": "Check Spotify Soloist lifetime", "description": "Read the installed build and show its remaining lifetime"},
       "spotify-playback-setup": {"title": "Spotify playback setup", "description": "Configure official Soloist, its API key, and device pairing"},
       "settings-ponder-hints": { "title": "Ponder tutorial hints", "description": "Choose when the hold-G tutorial hint appears" },
       "ponder-hints-always": { "title": "Ponder hints: always show", "description": "Show the hold-G hint on every teachable control" },

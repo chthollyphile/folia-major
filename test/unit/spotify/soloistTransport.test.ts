@@ -93,6 +93,24 @@ describe('Soloist renderer transport', () => {
         await flush();
         expect(audio.paused).toBe(true); expect(audio.currentTime).toBe(25);
     });
+    it('prepares the daemon before reconnecting a retained timeline through Play', async () => {
+        const source = await soloistSource(song, 'r'.repeat(22), 'high'); state.audioSrc = source.url;
+        const audio = media(source.url); audio.currentTime = 65;
+        audio.dispatchEvent(new Event('playing')); await flush();
+        sockets.at(-1)!.close(); await flush();
+        const calls = state.prepare.mock.calls.length;
+        state.prepare.mockImplementation(async () => {
+            expect(sockets).toHaveLength(1);
+            return { ok: true };
+        });
+        Object.defineProperty(audio, 'paused', { value: false, writable: true });
+        audio.dispatchEvent(new Event('playing')); await flush();
+        expect(state.prepare).toHaveBeenCalledTimes(calls + 1);
+        expect(sockets).toHaveLength(2);
+        sockets.at(-1)!.event({ type: 'track_changed', item: { uri: `spotify:track:${'r'.repeat(22)}` } });
+        await flush();
+        expect(commands).toContainEqual({ type: 'command', command: 'seek', position_ms: 65000 });
+    });
     it('closes a logged-out connection before replacing it on retry', async () => {
         await soloistSource(song, 'e'.repeat(22), 'high');
         const old = sockets.at(-1)!;

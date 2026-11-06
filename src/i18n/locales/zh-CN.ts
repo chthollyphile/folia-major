@@ -2,6 +2,7 @@
 
 export default {
   "soloist": {
+    "reconnected": "Soloist 已重启。可在播放设置页查看连接状态。",
     "title": "Spotify 播放设置",
     "ready": "可以播放",
     "incomplete": "完成以下设置",
@@ -840,6 +841,8 @@ export default {
       }
     },
     "commands": {
+      "spotify-soloist-reconnect": {"title": "重新连接 Spotify Soloist", "description": "重启已配置的 Soloist 并重新连接"},
+      "spotify-soloist-check-lifetime": {"title": "检查 Spotify Soloist 有效期", "description": "读取本机程序版本并显示剩余有效期"},
       "spotify-playback-setup": {"title": "Spotify 播放设置", "description": "配置官方 Soloist、API 密钥和设备配对"},
       "settings-ponder-hints": { "title": "思索教程提示", "description": "设置长按 G 的提示什么时候出现" },
       "ponder-hints-always": { "title": "思索提示：始终显示", "description": "所有可教学的控件都提示长按 G" },

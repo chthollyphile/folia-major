@@ -1090,6 +1090,11 @@ export const omni = {
         return Boolean(provider?.playback) || (canPlaySongExternally(song) && provider?.externalPlayback?.canPlay?.(song) !== false);
     },
 
+    // A source outside the deck audio graph cannot participate in deck transitions.
+    blocksAutomix(song: SongResult): boolean {
+        return canPlaySongExternally(song) || getOnlineMusicProviderForSong(song)?.playback?.supportsAutomix === false;
+    },
+
     // A provider whose audio plays in a player of its own outside this app: the app steers that
     // player and follows its clock; no URL ever comes back.
     canPlayExternally(song: SongResult): boolean {

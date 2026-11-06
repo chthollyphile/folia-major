@@ -136,6 +136,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         },
         // Soloist chooses its output format; no lossless or high-resolution level is advertised.
         audioQualityLevels: ['high'],
+        supportsAutomix: false,
         // Soloist owns the audible output and its encrypted cache. Never retain silent timeline blobs.
         async getAudioSource(song, quality) {
             return soloistSource(song, requireSpotifySong(song), quality);

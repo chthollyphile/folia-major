@@ -19,6 +19,7 @@ function harness(directory?: string, backend = 'kwallet6') {
     fs.writeFileSync(defaultBinary, 'test executable');
     let running = false;
     let available = true;
+    let launchArgs: string[] = [];
     const handlers = new Map<string, (...args: any[]) => any>();
     class Socket extends EventEmitter {
         constructor() { super(); queueMicrotask(() => running ? this.emit('message', JSON.stringify({ type: 'auth_state', logged_in: true })) : this.emit('error', Error('offline'))); }
@@ -27,7 +28,8 @@ function harness(directory?: string, backend = 'kwallet6') {
     const exports = { exports: {} as any };
     const childProcess = {
         execFile: (_file: string, _args: string[], _options: unknown, callback: (error: unknown, result: unknown) => void) => callback(null, `soloist test build ${Math.floor(Date.now() / 1000)} (linux/x86_64)`),
-        spawn: () => {
+        spawn: (_file: string, args: string[]) => {
+            launchArgs = args;
             running = true;
             const child: any = new EventEmitter(); child.exitCode = null;
             child.kill = () => { running = false; child.exitCode = 0; queueMicrotask(() => child.emit('exit', 0)); };
@@ -41,7 +43,10 @@ function harness(directory?: string, backend = 'kwallet6') {
     });
     // Match Node's execFile promisify contract without starting an executable.
     const app: any = new EventEmitter();
-    app.getPath = (which: string) => which === 'home' ? dir : dir;
+    app.getPath = (which: string) => {
+        if (!['home', 'userData', 'downloads'].includes(which)) throw Error(`Unsupported Electron path: ${which}`);
+        return dir;
+    };
     app.whenReady = () => new Promise(() => {});
     const trusted = {};
     const api = exports.exports.install({
@@ -55,7 +60,7 @@ function harness(directory?: string, backend = 'kwallet6') {
         shell: { openExternal() {} }, dialog: { showOpenDialog: async () => ({ canceled: true }) },
         isTrustedMainWindowContents: (sender: unknown) => sender === trusted,
     });
-    return { dir, api, setAvailable: (value: boolean) => { available = value; }, request: (operation: string, value?: unknown, sender = trusted) => handlers.get('soloist-local-' + operation)!({ sender }, value) };
+    return { dir, api, launchArgs: () => launchArgs, setAvailable: (value: boolean) => { available = value; }, request: (operation: string, value?: unknown, sender = trusted) => handlers.get('soloist-local-' + operation)!({ sender }, value) };
 }
 describe('Soloist encrypted key persistence', () => {
     it('rejects untrusted and malformed requests before creating a key file', async () => {
@@ -73,6 +78,8 @@ describe('Soloist encrypted key persistence', () => {
         const h = harness();
         const saved = await h.request('save', 'test-only-key');
         expect(saved).toMatchObject({ saved: true, ok: true });
+        const args = h.launchArgs();
+        expect(args[args.indexOf('--cache-dir') + 1]).toBe(path.join(h.dir, 'soloist-cache'));
         const file = path.join(h.dir, 'soloist-api-key.enc');
         expect(fs.readFileSync(file).includes(Buffer.from('test-only-key'))).toBe(false);
         expect(fs.statSync(file).mode & 0o777).toBe(0o600);

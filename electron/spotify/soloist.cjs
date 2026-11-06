@@ -103,7 +103,7 @@ function install({ app, BrowserWindow, ipcMain, safeStorage, shell, dialog, isTr
             if ((await connectionStatus()).running) { error = ''; return { ok: true }; }
             fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 }); error = '';
             const owned = spawn(binaryPath(), ['--device-name', 'Folia Audio', '--api-key', key, '--ws', '127.0.0.1:9090',
-                '--data-dir', dataDir, '--cache-dir', path.join(app.getPath('cache'), 'folia-soloist'), '--cache-size', '512'], { stdio: 'ignore' });
+                '--data-dir', dataDir, '--cache-dir', path.join(configDir, 'soloist-cache'), '--cache-size', '512'], { stdio: 'ignore' });
             child = owned;
             owned.once('error', () => { if (child === owned) { child = null; error = 'start'; } });
             owned.once('exit', code => {

@@ -596,7 +596,7 @@ describe('YouTube Music adapter at the level ultra', () => {
         expect(LEVELS.map(level => omni.resolveAudioQuality(unlisted.id, level))).toEqual(['standard', 'high', 'high', 'lossless', 'hires']);
         expect(omni.getAudioQualityLevels('netease')).toEqual(['standard', 'high', 'lossless', 'hires']);
         expect(omni.resolveAudioQuality('netease', 'ultra')).toBe('high');
-        expect(omni.getAudioQualityLevels('spotify')).toEqual(['standard', 'high']);
+        expect(omni.getAudioQualityLevels('spotify')).toEqual(['high']);
         expect(omni.resolveAudioQuality('spotify', 'ultra')).toBe('high');
         // The stored preference survives a restart as it is.
         expect(resolveStoredAudioQuality('ultra')).toBe('ultra');

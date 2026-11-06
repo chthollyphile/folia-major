@@ -220,68 +220,72 @@ function ready(): Promise<WebSocket> {
     const previous = latestSocket;
     latestSocket = null; conn = null;
     previous?.close();
-    connecting = new Promise<WebSocket>((resolve, reject) => {
-        const socket = new WebSocket(SOLOIST_URL);
-        latestSocket = socket;
-        remoteUri = null;
-        remoteRepeat = null;
-        repeatOffPendingAt = null;
-        let settled = false;
-        const limit = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            socket.close();
-            reject(new OnlineProviderError('unavailable', i18n.t('soloist.errors.connection'), 'spotify'));
-        }, 5000);
-        const fail = (reason: 'connection' | 'pairing') => {
-            if (settled) return;
-            settled = true;
-            clearTimeout(limit);
-            reject(new OnlineProviderError('unavailable', i18n.t(`soloist.errors.${reason}`), 'spotify'));
-        };
-        socket.addEventListener('message', raw => {
-            if (socket !== latestSocket) return;
-            let data: SoloistEvent;
-            try {
-                data = JSON.parse(String(raw.data)) as SoloistEvent;
-            } catch { return; }
-            onEvent(data);
-            if (!settled && data.type === 'auth_state') {
-                if (!data.logged_in) {
-                    fail('pairing');
-                    socket.close();
-                } else {
-                    conn = socket;
-                    try { ensureRemoteRepeatOff(socket); }
-                    catch (error) {
-                        console.warn('[Soloist] Could not initialize remote repeat', error);
-                        fail('connection');
-                        socket.close();
-                        return;
-                    }
-                    settled = true;
-                    clearTimeout(limit);
-                    console.info('[Soloist] Connected to Spotify Soloist on localhost');
-                    resolve(socket);
-                }
-            } else if (data.type === 'error') {
-                // A rejected control must not leave repeat synchronization permanently pending.
-                repeatOffPendingAt = null;
-                remoteRepeat = null;
-                console.warn('[Soloist] Command rejected:', data.message);
-                pauseLocalTimeline();
-            }
-        });
-        socket.addEventListener('error', () => fail('connection'));
-        socket.addEventListener('close', () => {
-            if (socket !== latestSocket) return;
-            if (conn === socket) conn = null;
-            pauseLocalTimeline();
-            remoteLoggedIn = false;
+    connecting = (async () => {
+        const setup = await window.electron?.soloistPrepare?.();
+        if (!setup?.ok) throw new OnlineProviderError('unavailable', i18n.t(`soloist.errors.${setup?.message || 'unavailable'}`), 'spotify');
+        return new Promise<WebSocket>((resolve, reject) => {
+            const socket = new WebSocket(SOLOIST_URL);
+            latestSocket = socket;
             remoteUri = null;
-            if (!settled) fail('connection');
+            remoteRepeat = null;
+            repeatOffPendingAt = null;
+            let settled = false;
+            const limit = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                socket.close();
+                reject(new OnlineProviderError('unavailable', i18n.t('soloist.errors.connection'), 'spotify'));
+            }, 5000);
+            const fail = (reason: 'connection' | 'pairing') => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(limit);
+                reject(new OnlineProviderError('unavailable', i18n.t(`soloist.errors.${reason}`), 'spotify'));
+            };
+            socket.addEventListener('message', raw => {
+                if (socket !== latestSocket) return;
+                let data: SoloistEvent;
+                try {
+                    data = JSON.parse(String(raw.data)) as SoloistEvent;
+                } catch { return; }
+                onEvent(data);
+                if (!settled && data.type === 'auth_state') {
+                    if (!data.logged_in) {
+                        fail('pairing');
+                        socket.close();
+                    } else {
+                        conn = socket;
+                        try { ensureRemoteRepeatOff(socket); }
+                        catch (error) {
+                            console.warn('[Soloist] Could not initialize remote repeat', error);
+                            fail('connection');
+                            socket.close();
+                            return;
+                        }
+                        settled = true;
+                        clearTimeout(limit);
+                        console.info('[Soloist] Connected to Spotify Soloist on localhost');
+                        resolve(socket);
+                    }
+                } else if (data.type === 'error') {
+                    // A rejected control must not leave repeat synchronization permanently pending.
+                    repeatOffPendingAt = null;
+                    remoteRepeat = null;
+                    console.warn('[Soloist] Command rejected:', data.message);
+                    pauseLocalTimeline();
+                }
+            });
+            socket.addEventListener('error', () => fail('connection'));
+            socket.addEventListener('close', () => {
+                if (socket !== latestSocket) return;
+                if (conn === socket) conn = null;
+                pauseLocalTimeline();
+                remoteLoggedIn = false;
+                remoteUri = null;
+                if (!settled) fail('connection');
+            });
         });
-    }).finally(() => { connecting = null; });
+    })().finally(() => { connecting = null; });
     return connecting;
 }
 
@@ -316,7 +320,7 @@ function command(name: string, fields: Record<string, unknown> = {}): void {
         if (generation !== playbackGeneration) return;
         console.error(`[Soloist] ${name} failed`, error);
         // A failed play must remain retryable by the normal play control.
-        if (name === 'play' && currentAudio && ownsTimeline(currentAudio)) currentAudio.pause();
+        if (name === 'play' && currentAudio && ownsTimeline(currentAudio)) pauseLocalTimeline();
     });
 }
 
@@ -475,8 +479,6 @@ if (import.meta.hot) import.meta.hot.dispose(disposeSoloistTransport);
 export async function soloistSource(song: SongResult, trackId: string, quality: AudioQualityPreference): Promise<{ url: string; fetchedAt: number; quality: AudioQualityPreference }> {
     if (!/^[0-9A-Za-z]{22}$/.test(trackId)) throw new Error('Invalid Spotify track ID');
     playbackStore ??= (await import('../../../stores/usePlaybackStore')).usePlaybackStore;
-    const setup = await window.electron?.soloistPrepare?.();
-    if (!setup?.ok) throw new OnlineProviderError('unavailable', i18n.t(`soloist.errors.${setup?.message || 'unavailable'}`), 'spotify');
     await ready();
     installControls();
     const durationMs = createProviderSongMetadata(song).durationMs || 180000;

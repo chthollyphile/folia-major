@@ -141,9 +141,9 @@ const collectLocaleCommandPhrases = (sink) => {
  * 不区分它属于哪条命令——字典按短语查，多收几个无害。
  */
 const collectCommandSynonymPhrases = (sink) => {
-    const files = fs.readdirSync(COMMANDS_DIR)
-        .filter(name => name.endsWith('.ts'))
-        .map(name => path.join(COMMANDS_DIR, name));
+    const files = fs.readdirSync(COMMANDS_DIR, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile() && entry.name.endsWith('.ts'))
+        .map(entry => path.join(entry.parentPath, entry.name));
     files.push(COMMAND_FACTORIES_PATH);
     files.forEach(filePath => collectCjkStrings(parse(filePath), sink));
 };

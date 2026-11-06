@@ -2,6 +2,7 @@
 
 export default {
   "soloist": {
+    "reconnected": "Soloist dimulai ulang. Periksa koneksi di pengaturan pemutaran.",
     "title": "Pengaturan pemutaran Spotify",
     "ready": "Siap diputar",
     "incomplete": "Selesaikan pengaturan",
@@ -840,6 +841,8 @@ export default {
       }
     },
     "commands": {
+      "spotify-soloist-reconnect": {"title": "Hubungkan ulang Spotify Soloist", "description": "Mulai ulang Soloist yang dikonfigurasi dan hubungkan kembali"},
+      "spotify-soloist-check-lifetime": {"title": "Periksa masa berlaku Spotify Soloist", "description": "Baca build terpasang dan tampilkan sisa masa berlakunya"},
       "spotify-playback-setup": {"title": "Pengaturan pemutaran Spotify", "description": "Atur Soloist resmi, kunci API, dan pemasangan perangkat"},
       "settings-ponder-hints": { "title": "Petunjuk tutorial Ponder", "description": "Atur kapan petunjuk tahan G muncul" },
       "ponder-hints-always": { "title": "Petunjuk Ponder: selalu tampilkan", "description": "Tampilkan petunjuk tahan G pada setiap kontrol yang bisa dipelajari" },

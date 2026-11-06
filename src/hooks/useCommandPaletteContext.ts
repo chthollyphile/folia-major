@@ -1,4 +1,4 @@
-import { useMemo, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { selectDisplayLyrics, selectDisplayPlayerState, usePlaybackStore } from '../stores/usePlaybackStore';
 import { setIsPanelOpen, setPanelTab, useAppViewStore } from '../stores/useAppViewStore';
@@ -39,6 +39,7 @@ import type { LyricSegmentationActions } from '../components/app/playback/create
 import { selectNativeHomeTabWithoutSurface } from '../components/app/home/foliumHomePageDismissal';
 import { isRecommendationPreferencesOffered } from '../components/recommendationPreferences/useRecommendationPreferencesStore';
 import { omni } from '../services/onlineMusic/omni';
+import { useSoloistSettingsStore, watchSoloistStatus, canReconnectSoloist, canCheckSoloistLifetime } from '../stores/useSoloistSettingsStore';
 
 // src/hooks/useCommandPaletteContext.ts
 // Assembles the command palette's namespaced context.
@@ -86,6 +87,10 @@ export const useCommandPaletteContext = (
     lyricSegmentationActions: LyricSegmentationActions,
 ): CommandPaletteContext => {
     const { t } = useTranslation();
+    const soloistSignals = useSoloistSettingsStore(useShallow(() => ({
+        reconnect: canReconnectSoloist(), checkLifetime: canCheckSoloistLifetime(),
+    })));
+    useEffect(() => watchSoloistStatus(), []);
     const currentSong = usePlaybackStore(state => state.currentSong);
     const queue = usePlaybackStore(state => state.playQueue);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
@@ -231,7 +236,7 @@ export const useCommandPaletteContext = (
         ...valueDeps,
         ambient,
         queuePaletteKeepOpen,
-        settingsSignals, chromeSignals, desktopSignals, automixSignals,
+        soloistSignals, settingsSignals, chromeSignals, desktopSignals, automixSignals,
         sleepTimerSignals, latticeSignals, audioSignals, visualizerSignals,
         lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, personalFmCatalogs, providerFmSelections, fmStations, fmStationCatalogs, fmOnAir, activeProviderId, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
         recommendationPreferencesOffered,
