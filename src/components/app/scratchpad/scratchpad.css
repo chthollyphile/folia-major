@@ -1580,6 +1580,18 @@
 .scratchpad-triangle .scratchpad-intro-rule { display: block; margin-left: auto; }
 .scratchpad-triangle-row { display: block; margin-top: 10px; line-height: 26px; }
 .scratchpad-triangle-crumb { font-size: 10.5px; font-weight: 800; letter-spacing: 0.2em; opacity: 0.7; }
+.scratchpad-triangle .scratchpad-greeting.is-narrow { display: none; }
+
+/* 窄屏（手机）：440 × 220 的三角斜边会切过信息条的标题（用户反馈，2026-11-07），收成 320 × 130；
+   里面只写短版问候（18px 一行，最长的 “Good afternoon” 也放得下），不写面包屑（用户定：它没什么意义），总览的「?」还在下一行。
+   总览的操作说明跟着往上挪到三角下面。 */
+@media (max-width: 640px) {
+    .scratchpad-triangle { width: 320px; height: 130px; padding-right: 14px; }
+    .scratchpad-triangle :is(.scratchpad-greeting.is-wide, .scratchpad-intro-rule, .scratchpad-triangle-crumb) { display: none; }
+    .scratchpad-triangle .scratchpad-greeting.is-narrow { display: block; margin: 40px 0 0; font-size: 18px; }
+    .scratchpad-triangle-row { margin-top: 6px; }
+    .scratchpad-f .scratchpad-overview-help { top: 138px; right: 14px; max-width: calc(100vw - 28px); }
+}
 
 /* 返回（收回左缘的面板）：墨色的大方钮压在顶上那条信息条的左端，纸色的「‹」；悬停换点缀色。跟着纸斜。 */
 .scratchpad-sheet-back {

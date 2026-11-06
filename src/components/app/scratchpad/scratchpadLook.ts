@@ -85,7 +85,8 @@ export const scatterBandDecos = (tab: ScratchpadTab, width: number, variant: 'fu
     const random = mulberry32(DECO_SEEDS[tab] * (full ? 7 : 3));
     const inner = BAND_HEIGHTS[variant] - 7;
     const split = width - ACTION_ROOM[variant][tab];
-    const zones: [number, number, number][] = full ? [[742, split, 99], [split, width - 220, 54]] : [[650, split, 99]];
+    // 按钮上方那一截也不早于标题的右边（742px）：纸窄时（手机）按钮区的左沿会落到标题前面，装饰就压在标题与「‹ 三行总览」上。
+    const zones: [number, number, number][] = full ? [[742, split, 99], [Math.max(split, 742), width - 220, 54]] : [[650, split, 99]];
     const placed: ScratchpadDeco[] = [];
     for (let tries = 0; placed.length < (full ? 15 : 11) && tries < 600; tries += 1) {
         const style = SCATTER_STYLES[Math.floor(random() * SCATTER_STYLES.length)];

@@ -422,7 +422,9 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 transition={move}
             >
                 <span className="scratchpad-triangle-float" aria-hidden="true" />
-                <ScratchpadGreeting long headline />
+                {/* 宽的写长版；窄屏（手机）三角收小，换成短版、不写面包屑（scratchpad.css，用户定 2026-11-07）。 */}
+                <ScratchpadGreeting long headline className="is-wide" />
+                <ScratchpadGreeting long={false} headline className="is-narrow" />
                 <span className="scratchpad-intro-rule" aria-hidden="true" />
                 <span className="scratchpad-triangle-row">
                     <span className="scratchpad-triangle-crumb">
