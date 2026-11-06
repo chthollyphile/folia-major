@@ -43,6 +43,15 @@ export const WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY = 'wallpaper_mac_autohide_d
 
 export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 
+// Wakes the players Folia steers but does not own (the platform's own player) when the app starts,
+// so the first song does not wait for a launch. The app is the only owner of this one: it stays here.
+export const WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY = 'wake_external_players_on_launch';
+
+// Windows desktop only: close the external player this run started (or the one running with the
+// DevTools port Folia opened it with) when Folia quits, so the port is released. The main process
+// reads the same key from its shared store at the quit (electron/main.cjs).
+export const CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY = 'close_external_player_on_quit';
+
 // Mirrored from the main process's GPU_PREFERENCE (electron/gpuPreference.cjs), which reads it
 // before the GPU process starts. Windows only; a change takes effect on the next launch.
 export const GPU_PREFERENCE_STORAGE_KEY = 'gpu_preference';
@@ -91,6 +100,11 @@ export type DesktopSettingsState = {
      *  is hidden automatically; switching it off overrides the automatic rule. */
     wallpaperMacAutohideDock: boolean;
     openPlayerOnLaunch: boolean;
+    /** Wake the external players (the platform's own player) when the app starts. Off by default:
+     *  only a listener whose songs play there wants another program started at launch. */
+    wakeExternalPlayersOnLaunch: boolean;
+    /** Windows desktop only: close the external player Folia started when the app quits (D3). */
+    closeExternalPlayerOnQuit: boolean;
     /** Windows only: the saved GPU choice, which the next launch starts with. */
     gpuPreference: GpuPreference;
     /**
@@ -125,6 +139,8 @@ export type DesktopSettingsState = {
     cancelWallpaperEntry: () => void;
     handleToggleWallpaperMacAutohideDock: (enable: boolean) => void;
     handleToggleOpenPlayerOnLaunch: (enable: boolean) => void;
+    handleToggleWakeExternalPlayersOnLaunch: (enable: boolean) => void;
+    handleToggleCloseExternalPlayerOnQuit: (enable: boolean) => void;
     handleSetGpuPreference: (preference: GpuPreference) => void;
     handleToggleBackgroundThrottling: (enable: boolean) => void;
 };
@@ -146,6 +162,8 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     wallpaperEntryConfirmOpen: false,
     wallpaperMacAutohideDock: getStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, true),
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
+    wakeExternalPlayersOnLaunch: getStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, false),
+    closeExternalPlayerOnQuit: getStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, false),
     gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',
     backgroundThrottling: getStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, false),
     windowAlwaysOnTopSupported: true,
@@ -382,6 +400,20 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'openPlayerOnLaunch' : 'openHomeOnLaunch')),
         });
+    },
+    // Renderer-only: the launch wake-up reads it from here, so no main-process value mirrors it.
+    handleToggleWakeExternalPlayersOnLaunch: (enable) => {
+        setStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, enable);
+        set({ wakeExternalPlayersOnLaunch: enable });
+    },
+    // The main process does this one at the quit, so the value is written to its store too: the
+    // renderer keeps the persisted copy the settings row reads, the main process the one it acts on.
+    handleToggleCloseExternalPlayerOnQuit: (enable) => {
+        setStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
+        set({ closeExternalPlayerOnQuit: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
+        }
     },
     // The main process owns the value: it adds the Chromium switch before the next launch's GPU process starts.
     handleSetGpuPreference: (preference) => {

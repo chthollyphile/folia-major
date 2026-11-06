@@ -47,6 +47,12 @@ export type PlaybackNavigationOptions = {
      * is showing (why the song left HiFi) stays. Only onPlayLocalSong and onPlayNavidromeSong read it.
      */
     quietLoadedToast?: boolean;
+    /**
+     * Set only where the play was not pressed: the deck ran out, the blend advanced, or a provider's
+     * own player reported the track ended. Such a play may not start or restart the player outside
+     * the app, and a player that cannot be reached stops it where it is instead of failing it (T5).
+     */
+    autoAdvance?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {

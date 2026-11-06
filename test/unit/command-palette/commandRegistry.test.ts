@@ -90,6 +90,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
         },
         settings: {
             toggleRememberHomeCardPosition: vi.fn(),
+            toggleWakeExternalPlayersOnLaunch: vi.fn(),
+            toggleCloseExternalPlayerOnQuit: vi.fn(),
             openSettings: vi.fn(),
             lyricStaffPolicy: 'smart' as const,
             cycleLyricStaffPolicy: vi.fn(),

@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackReportReady } from '../../../../services/onlineMusic/playbackReportGate';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
+import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
@@ -31,6 +32,12 @@ const IntegrationPage: React.FC = () => {
     const transparentPlayerBackground = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground);
     const obsKeepAnimation = useStageSettingsStore(state => state.obsKeepMainWindowAnimation);
     const setObsKeepAnimation = useStageSettingsStore(state => state.handleToggleObsKeepMainWindowAnimation);
+    const wakeExternalPlayers = useDesktopSettingsStore(state => state.wakeExternalPlayersOnLaunch);
+    const setWakeExternalPlayers = useDesktopSettingsStore(state => state.handleToggleWakeExternalPlayersOnLaunch);
+    const closeExternalPlayerOnQuit = useDesktopSettingsStore(state => state.closeExternalPlayerOnQuit);
+    const setCloseExternalPlayerOnQuit = useDesktopSettingsStore(state => state.handleToggleCloseExternalPlayerOnQuit);
+    // The row is drawn where the player it wakes can be steered from here at all: the Windows build.
+    const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
     const setScrobbleEnabled = useAudioSettingsStore(state => state.handleToggleNeteaseScrobble);
     // Subscribed to, so the row follows the reporting account signing in or out while the page is open.
@@ -65,6 +72,16 @@ const IntegrationPage: React.FC = () => {
                 >
                     <Toggle checked={scrobbleEnabled} onChange={setScrobbleEnabled} />
                 </Row>
+                {wakesExternalPlayer && (
+                    <>
+                        <Row option={O.wakeExternalPlayers} hint={t('options.wakeExternalPlayersOnLaunchDesc')}>
+                            <Toggle checked={wakeExternalPlayers} onChange={setWakeExternalPlayers} />
+                        </Row>
+                        <Row option={O.closeExternalPlayerOnQuit} hint={t('options.closeExternalPlayerOnQuitDesc')}>
+                            <Toggle checked={closeExternalPlayerOnQuit} onChange={setCloseExternalPlayerOnQuit} />
+                        </Row>
+                    </>
+                )}
             </Group>
 
             <Group def={STREAMING}>

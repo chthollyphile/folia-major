@@ -247,6 +247,12 @@ export const buildSettingsCommandContext = (
         toggleTrackCardInObs: () => useStageSettingsStore.getState().handleToggleStageTrackPillInObs(
             !useStageSettingsStore.getState().stageTrackPillInObs,
         ),
+        toggleWakeExternalPlayersOnLaunch: () => desktop.handleToggleWakeExternalPlayersOnLaunch(
+            !useDesktopSettingsStore.getState().wakeExternalPlayersOnLaunch,
+        ),
+        toggleCloseExternalPlayerOnQuit: () => desktop.handleToggleCloseExternalPlayerOnQuit(
+            !useDesktopSettingsStore.getState().closeExternalPlayerOnQuit,
+        ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,
         ),

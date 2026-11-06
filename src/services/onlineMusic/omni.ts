@@ -6,6 +6,7 @@ import type {
     DailyStyleGroup,
     DailyStyleSelection,
     DailyStyleSongs,
+    ExternalPlaybackStartOptions,
     LoginStep,
     MediaId,
     OmniAudioSource,
@@ -1122,12 +1123,12 @@ export const omni = {
         return canPlaySongExternally(song);
     },
 
-    async playSongExternally(song: SongResult, startSec = 0): Promise<void> {
+    async playSongExternally(song: SongResult, startSec = 0, options: ExternalPlaybackStartOptions = {}): Promise<void> {
         const provider = providerForSong(song);
         if (!providerSupports(provider, 'externalPlayback') || !provider.externalPlayback) {
             return unsupported(provider.id, 'externalPlayback');
         }
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec));
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec, options));
     },
 
     isExternalPlaybackPrepared(song: SongResult): boolean {
@@ -1156,6 +1157,23 @@ export const omni = {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
         await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
+    },
+
+    // Starts every registered provider's own player that has a start to give (a player that has to
+    // be running before a song can sound in it), for the setting that wakes it with the app. A
+    // provider that fails, or that has no external player here, does not stop the others.
+    async warmUpExternalPlayers(): Promise<void> {
+        for (const provider of listOnlineMusicProviders()) {
+            // A provider whose external player is only sometimes on (by the way it plays)
+            // decides inside its own warmUp.
+            const external = provider.externalPlayback;
+            if (!external?.warmUp) continue;
+            try {
+                await external.warmUp();
+            } catch (error) {
+                console.warn(`[Omni] ${provider.id}'s own player could not be started`, error);
+            }
+        }
     },
 
     // A player without its own level control is left alone: the call is a no-op, not an error.

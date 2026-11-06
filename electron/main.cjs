@@ -81,6 +81,7 @@ const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
+const { createMediaKeyTakeover } = require('./spotify/mediaKeys.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -6410,10 +6411,17 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Windows desktop only: close the external player with Folia, so the DevTools port Folia opened it
+// with stops answering (D3). Written by the renderer through `save-settings`, read here at the quit.
+const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'close_external_player_on_quit';
+
 // The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
 const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
 // Set while a quit is held for such work (see before-quit).
 let isQuitHeldForAccounts = false;
+// Set once the bridges were asked to shut down: the quit asked for again after their work settled
+// must not ask them a second time (the player outside Folia is closed once, not on every one).
+let isQuitShutdownAsked = false;
 
 app.on('before-quit', (event) => {
   // Work of a bridge that must not be cut off: a web sign-in under way, whose ended browser leaves
@@ -6422,7 +6430,16 @@ app.on('before-quit', (event) => {
   // while there is such work, settled in 3 seconds at most. The quit is held until all have
   // settled, and then asked for again; nothing below has run by then. A quit with no such work is
   // not held, and neither is one that arrives while another is held.
-  const held = quitHoldingBridges.map(bridge => bridge.shutdown()).filter(Boolean);
+  // D3: the listener's settings row, read from the shared store the renderer writes through
+  // `save-settings`. The player is closed with Folia only when this run started it, or when it
+  // still answers on the DevTools port Folia opened it with.
+  // Every bridge is asked the same way: the one that does not know the option ignores it.
+  let held = [];
+  if (!isQuitShutdownAsked) {
+    isQuitShutdownAsked = true;
+    const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) === true;
+    held = quitHoldingBridges.map(bridge => bridge.shutdown({ closePlayerOnQuit })).filter(Boolean);
+  }
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
@@ -7556,6 +7573,23 @@ ipcMain.handle('global-shortcuts-backend', () => (
   usesGlobalShortcutsPortal({ ozonePlatform: app.commandLine.getSwitchValue('ozone-platform') }) ? 'portal' : 'native'
 ));
 
+// The media keys while an external player sounds the song: held only while the renderer asks.
+let externalMediaKeys = null;
+ipcMain.handle('external-media-keys-set', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to take the media keys.');
+  }
+  externalMediaKeys ??= createMediaKeyTakeover({
+    globalShortcut,
+    onKey: (action) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('external-media-key', action);
+      }
+    },
+  });
+  return externalMediaKeys.set(enabled === true);
+});
+
 ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to set global shortcuts.');
@@ -7568,6 +7602,7 @@ app.on('will-quit', () => {
   appleMusicClient.close();
   stageApi.dispose();
   globalShortcutController?.dispose();
+  externalMediaKeys?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();
   hifiInstaller.cancel();

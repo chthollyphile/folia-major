@@ -256,6 +256,26 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['obs card', 'now playing card', 'browser source card', 'track card', 'obs 卡片', '歌曲信息卡片', '浏览器源卡片', '直播卡片'],
         context => context.settings.toggleTrackCardInObs(),
     ),
+    // The player that sounds the songs is another program (Windows), so the row is the desktop app's.
+    createToggleCommand(
+        'external-player-wake-on-launch',
+        'settings',
+        'Wake the external player with Folia',
+        'Toggle starting the player that sounds your songs when Folia opens',
+        ['wake player', 'launch player', 'external player', 'auto start player', '唤起播放器', '启动播放器', '随应用启动播放器', 'hqwq'],
+        context => context.settings.toggleWakeExternalPlayersOnLaunch(),
+        { platform: ['win'] },
+    ),
+    // The same external player, at the other end of the run: it is closed with Folia (D3).
+    createToggleCommand(
+        'external-player-close-on-quit',
+        'settings',
+        'Close the external player when Folia quits',
+        'Toggle closing the player Folia started when Folia quits',
+        ['close player', 'quit player', 'close on quit', '释放端口', '退出时关闭播放器', '关闭外部播放器', 'tuichu guanbi'],
+        context => context.settings.toggleCloseExternalPlayerOnQuit(),
+        { platform: ['win'] },
+    ),
     {
         id: 'desktop-toggle-lyric-api',
         platform: ['electron'],

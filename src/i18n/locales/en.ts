@@ -580,6 +580,7 @@ export default {
     "playbackError": "Playback Error",
     "loadingSong": "Loading song URL...",
     "preparingExternalPlayback": "Preparing playback...",
+    "externalPlayerUnreachable": "Spotify could not be reached; playback stopped",
     "dataSynced": "Data synced successfully",
     "syncFailed": "Sync failed",
     "loginExpired": "Login expired. Please sign in again",
@@ -616,6 +617,8 @@ export default {
     "externalBypassTitle": "This song plays in the platform's own player",
     "externalBypassBody": "Its sound does not pass through Folia, so the equalizer and effects here do not change what you hear. The settings are kept and apply to other songs as usual.",
     "externalReplayGainBypassed": "Plays in the platform's own player; no ReplayGain is applied",
+    "externalPlayerAdvertisement": "Advertisement",
+    "externalPlayerFallback": "The player answered through the system media session: Folia steers it coarsely until remote debugging is back",
     "songUnavailableAlternativeTitle": "Alternate version available",
     "songUnavailableAlternativeDescription": "\"{{song}}\" is unavailable. {{typeDesc}}. Play an alternate version instead?",
     "songUnavailableAlternativeDefaultType": "Another version can be played",
@@ -866,6 +869,8 @@ export default {
       "settings-obs-browser-source": { "title": "OBS browser source", "description": "Open OBS browser source settings" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: keep main window animation", "description": "Toggle whether the main window keeps its animation while OBS is connected" },
       "obs-toggle-track-card": { "title": "OBS: show the now playing card", "description": "Toggle whether the now playing card is drawn in the OBS browser source" },
+      "external-player-wake-on-launch": { "title": "Wake the external player with Folia", "description": "Toggle starting the player that sounds your songs when Folia opens" },
+      "external-player-close-on-quit": { "title": "Close the external player when Folia quits", "description": "Toggle closing the Spotify app Folia started when the app quits" },
       "desktop-toggle-lyric-api": { "title": "Lyrics API", "description": "Toggle the local unauthenticated lyrics endpoint" },
       "settings-obs-copy-css": { "title": "Copy OBS CSS", "description": "Copy the OBS Browser Source Custom CSS carrying uploaded assets" },
       "settings-storage": { "title": "Storage settings", "description": "Open cache and storage settings" },
@@ -2780,6 +2785,10 @@ export default {
     "remoteControlTextShadeHint": "On the transparent background, idle text sits on a soft translucent black backdrop, easier to read over a bright desktop",
     "openPlayerOnLaunch": "Open playback view on launch",
     "openPlayerOnLaunchDesc": "Opens the playback view when the app starts. Follows \"View opened by Play\": with Lattice selected, launch opens the queue collage.",
+    "wakeExternalPlayersOnLaunch": "Wake the external player on launch",
+        "wakeExternalPlayersOnLaunchDesc": "Starts the player that sounds your songs (the Spotify app) when Folia opens, so the first song does not wait for a launch. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
+    "closeExternalPlayerOnQuit": "Close Spotify when Folia quits",
+    "closeExternalPlayerOnQuitDesc": "Closes the Spotify app Folia started, or the one running with its DevTools port, when Folia quits, handing the port back. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
     "wallpaperMode": "Wallpaper mode",
     "wallpaperModeDesc": "Sinks the window under the desktop as a lyrics wallpaper. No keyboard input",
     "wallpaperModeMacPermissionHint": "Mac wallpaper mode needs Input Monitoring: enable Folia in System Settings → Privacy & Security → Input Monitoring, then restart the app.",
@@ -5211,13 +5220,17 @@ export default {
       "standard": "Standard",
       "standardNote": "Sign in to Spotify in the browser; Folia plays the songs itself. The equalizer, Automix and the effects that move with the music all work.",
       "soloist": "Soloist",
-      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account."
+      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account.",
+      "client": "Spotify app",
+      "clientNote": "Sign in to Spotify in the browser; the Spotify desktop app on this computer plays the songs, free accounts included. The desktop app has to be installed. Folia starts it with a debugging port on this computer only (127.0.0.1) to steer it. Its sound does not pass through Folia, so the equalizer and effects do not apply. Windows only."
     },
     "setup": {
       "title": "Spotify Soloist setup",
       "note": "Soloist is Spotify's own player, a program on this computer that sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia's equalizer, Automix and the effects that move with the music do not reach its sound.",
       "titleStandard": "How Spotify plays",
-      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist."
+      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist.",
+      "clientTitle": "Spotify app setup",
+      "clientNote": "The Spotify desktop app is installed on this computer and sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia starts it with a debugging port that listens on this computer only (127.0.0.1), and starts it again when you press play and it is closed. Its sound does not pass through Folia, so Folia's equalizer, Automix and the effects that move with the music do not apply to it."
     },
     "noKey": {
       "title": "This account gets no audio key from Spotify",
@@ -5228,12 +5241,16 @@ export default {
       "key": "API key",
       "pair": "Pair the device",
       "modeStandard": "Plays: standard",
-      "modeSoloist": "Plays: Soloist"
+      "modeSoloist": "Plays: Soloist",
+      "modeClient": "Plays: Spotify app",
+      "clientApp": "Spotify desktop app"
     },
     "mode": {
       "standardNote": "Folia plays Spotify's songs itself.",
       "soloistNote": "Soloist plays Spotify's songs.",
-      "noKeyNote": "Folia's own way cannot play this account's songs."
+      "noKeyNote": "Folia's own way cannot play this account's songs.",
+      "clientNote": "The Spotify desktop app plays Spotify's songs; its sound does not pass through Folia.",
+      "freeNote": "This is a free account: Spotify does not let Folia play its songs itself."
     },
     "program": {
       "todo": "Download Soloist for this computer from Spotify's page, unpack it and pick the soloist program inside (soloist.exe on Windows). Folia does not include it.",
@@ -5268,7 +5285,16 @@ export default {
       "download": "Official downloads",
       "keyPage": "Open the developer dashboard",
       "saveKey": "Save the key",
-      "reconnect": "Reconnect"
+      "reconnect": "Reconnect",
+      "useClient": "Play through the Spotify app"
+    },
+    "clientApp": {
+      "ready": "The Spotify desktop app was found.",
+      "missing": "The Spotify desktop app was not found. Install it from spotify.com/download or the Microsoft Store, then play again."
+    },
+    "free": {
+      "title": "This is a free account",
+      "note": "Spotify lets only Premium accounts play in Folia. A free account can play through the Spotify desktop app instead: Folia steers it and its sound comes from the app. The desktop app has to be installed; Windows only."
     },
     "message": {
       "picked": "Program picked.",

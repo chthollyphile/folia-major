@@ -1062,6 +1062,9 @@ declare global {
       getGlobalShortcutBackend: () => Promise<'native' | 'portal'>;
       setGlobalShortcuts: (accelerators: string[]) => Promise<{ backend: 'native' | 'portal'; results: Array<{ accelerator: string; registered: boolean }> }>;
       onGlobalShortcut: (callback: (accelerator: string) => void) => () => void;
+      /** Holds the system media keys (true) or gives them back (false), for the time an external player sounds the song. */
+      setExternalMediaKeys: (enabled: boolean) => Promise<{ enabled: boolean; held: string[] }>;
+      onExternalMediaKey: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       openRemoteControl: () => Promise<boolean>;

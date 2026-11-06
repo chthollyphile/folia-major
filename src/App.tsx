@@ -1149,6 +1149,7 @@ export default function App() {
                 shouldNavigateToPlayer: false,
                 fromSong: currentSong ?? undefined,
                 isAutomixAdvance: true,
+                autoAdvance: true,
             });
         },
         onDeckPlayedOut: (song, src) => cachePlayedOutRef.current(song, src),
@@ -1391,7 +1392,6 @@ export default function App() {
         startExternalSong: () => startExternalSong(playSong),
     });
     useHifiPlaybackBridge({ handleNextTrack, playSong, shouldAutoPlayRef: shouldAutoPlay, isLyricsLoading, effectiveLoopMode, isFmMode });
-    useExternalPlaybackBridge({ handleNextTrack });
     useNavidromeScrobbleReporter({
         audioRef,
         currentSong,
@@ -1417,6 +1417,11 @@ export default function App() {
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
     } = transportCommandRefs;
+    useExternalPlaybackBridge({
+        handleNextTrack,
+        handlePrevTrack,
+        runTransportAction: (action) => runTransportButtonAction({ ...transportCommandRefs, isNowPlayingControlDisabledRef, audioRef }, action),
+    });
 
     const mediaSessionOptions = {
         audioRef,
@@ -2631,7 +2636,7 @@ export default function App() {
                 // If single loop is active, native loop handles it.
                 // If not, we handle queue logic.
                 if (effectiveLoopMode !== 'one') {
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
                 }
             }}
             onLoadedMetadata={(e) => {
@@ -2692,7 +2697,7 @@ export default function App() {
                         return;
                     }
 
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
                     return;
                 }
 

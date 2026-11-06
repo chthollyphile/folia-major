@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// test/unit/spotify/spotifySetup.test.ts — the renderer side of Spotify's two ways to play: the
+// test/unit/spotify/spotifySetup.test.ts — the renderer side of Spotify's three ways to play: the
 // setup checklist the sign-in window shows (spotifySetup.ts), the check right after a sign-in, the
-// external player that steers Soloist (spotifySoloistPlayback.ts) and how its failures are sorted.
+// external player that steers Soloist (spotifySoloistPlayback.ts) or Spotify's own app
+// (spotifyClientPlayback.ts), the pick between the two (spotifyExternalPlayback.ts) and how their
+// failures are sorted.
 
 const request = vi.hoisted(() => vi.fn());
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
@@ -14,6 +16,7 @@ import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from '
 import { readSpotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistPlayback } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
 import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
 import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
+import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import type { UnifiedSong } from '@/types';
 
@@ -24,20 +27,27 @@ const STATE_READY = {
 };
 const STATE_EMPTY = { executable: null, key: 'missing', canSealKey: true, running: false, paired: false, error: null };
 
-let mode: 'standard' | 'soloist';
+let mode: 'standard' | 'soloist' | 'client';
 let soloistState: Record<string, unknown>;
 let probe: string;
+/** Whether the desktop side offers Spotify's own app, and whether it finds it installed. */
+let clientOffered: boolean;
+let clientInstalled: boolean;
 
 beforeEach(async () => {
     mode = 'standard';
     soloistState = STATE_EMPTY;
     probe = 'ok';
+    clientOffered = false;
+    clientInstalled = true;
     request.mockReset();
     request.mockImplementation(async (operation: string, params: any = {}) => {
         switch (operation) {
             case 'playback_mode':
                 if (params.mode) mode = params.mode;
-                return { mode, soloist: true };
+                return { mode, soloist: true, ...(clientOffered ? { client: true } : {}) };
+            case 'client_probe': return { available: clientInstalled };
+            case 'client_play': return 'loaded';
             case 'soloist_state': return { mode, ...soloistState };
             case 'audio_probe': return probe;
             case 'soloist_key': return params.key === 'good-key-123' ? { saved: true } : { saved: false, why: 'shape' };
@@ -148,5 +158,110 @@ describe('Spotify through Soloist', () => {
         expect(failure('soloist-gone')).toEqual({ case: 'unreachable' });
         expect(failure('soloist-refused')).toEqual({ case: 'refused' });
         expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'Spotify gives this account no audio key', 'spotify'))).toEqual({ case: 'account-refused' });
+    });
+});
+
+describe('Spotify\'s three ways to play', () => {
+    beforeEach(() => {
+        clientOffered = true;
+    });
+
+    it('offers the app\'s own client at the sign-in only where the desktop side offers it', async () => {
+        clientOffered = false;
+        await readSpotifyPlaybackMode();
+        expect((await spotifyProvider.auth!.resolveLoginMethods!()).map(method => method.id)).toEqual(['standard', 'soloist']);
+        clientOffered = true;
+        await readSpotifyPlaybackMode();
+        const methods = await spotifyProvider.auth!.resolveLoginMethods!();
+        expect(methods.map(method => method.id)).toEqual(['standard', 'soloist', 'client']);
+        expect(methods.every(method => method.noteKey)).toBe(true);
+        expect(methods.find(method => method.preferred)?.id).toBe('standard');
+        mode = 'client';
+        expect((await spotifyProvider.auth!.resolveLoginMethods!()).find(method => method.preferred)?.id).toBe('client');
+        await spotifyProvider.auth!.startLogin!('client');
+        expect(request).toHaveBeenCalledWith('login_start', { method: 'client' });
+    });
+
+    it('turns the external route on for Soloist and for the app, and off for the standard way', async () => {
+        await readSpotifyPlaybackMode();
+        expect(spotifyProvider.capabilities.externalPlayback).toBe(false);
+        await runSpotifySetupAction('mode', 'use-soloist');
+        expect(spotifyProvider.capabilities.externalPlayback).toBe(true);
+        await runSpotifySetupAction('mode', 'use-client');
+        expect(spotifyProvider.capabilities.externalPlayback).toBe(true);
+        expect(request).toHaveBeenCalledWith('playback_mode', { mode: 'client' });
+        await runSpotifySetupAction('mode', 'use-standard');
+        expect(spotifyProvider.capabilities.externalPlayback).toBe(false);
+    });
+
+    it('sends each call to the player of the way in use', async () => {
+        (globalThis as { window?: unknown }).window = { electron: { platform: 'win32', spotifyRequest: vi.fn() } };
+        try {
+            await runSpotifySetupAction('mode', 'use-soloist');
+            await spotifyExternalPlayback.play(SONG, 3);
+            await spotifyExternalPlayback.pause();
+            expect(request).toHaveBeenCalledWith('soloist_play', expect.objectContaining({ startMs: 3000 }));
+            expect(request).toHaveBeenCalledWith('soloist_pause');
+            expect(request).not.toHaveBeenCalledWith('client_pause');
+
+            request.mockClear();
+            await runSpotifySetupAction('mode', 'use-client');
+            await spotifyExternalPlayback.play(SONG, 3);
+            await spotifyExternalPlayback.pause();
+            expect(request).toHaveBeenCalledWith('client_probe');
+            expect(request).toHaveBeenCalledWith('client_play', expect.objectContaining({ id: SONG.sourceRef!.mediaId, startMs: 3000 }));
+            expect(request).toHaveBeenCalledWith('client_pause');
+            expect(request).not.toHaveBeenCalledWith('soloist_pause');
+        } finally {
+            delete (globalThis as { window?: unknown }).window;
+        }
+    });
+
+    it('wakes Spotify\'s app with Folia only when it is the way in use', async () => {
+        (globalThis as { window?: unknown }).window = { electron: { platform: 'win32', spotifyRequest: vi.fn() } };
+        try {
+            await spotifyExternalPlayback.warmUp!();
+            expect(request).not.toHaveBeenCalledWith('client_launch');
+            await runSpotifySetupAction('mode', 'use-client');
+            await spotifyExternalPlayback.warmUp!();
+            expect(request).toHaveBeenCalledWith('client_launch');
+        } finally {
+            delete (globalThis as { window?: unknown }).window;
+        }
+    });
+
+    it('offers the app next to Soloist to an account that gets no key, and the app alone to a free one', async () => {
+        probe = 'no-key';
+        const noKey = await checkSpotifyAfterLogin('standard');
+        expect(noKey).toMatchObject({ titleKey: 'soloist.noKey.title', complete: false });
+        expect(noKey?.steps[0]).toMatchObject({ id: 'mode', state: 'warn', actions: [{ id: 'use-soloist', primary: true }, { id: 'use-client' }] });
+
+        probe = 'free';
+        const free = await checkSpotifyAfterLogin('standard');
+        expect(free).toMatchObject({ titleKey: 'soloist.free.title', complete: false });
+        expect(free?.steps[0]).toMatchObject({ noteKey: 'soloist.mode.freeNote', actions: [{ id: 'use-client', primary: true }] });
+        expect(free?.steps[0].actions?.some(action => action.id === 'use-soloist')).toBe(false);
+
+        // Where the app is not offered, a free account is left as it was.
+        clientOffered = false;
+        await readSpotifyPlaybackMode();
+        await expect(checkSpotifyAfterLogin('standard')).resolves.toBeNull();
+    });
+
+    it('shows the app\'s checklist until the app is found, with the other ways to switch to', async () => {
+        mode = 'client';
+        clientInstalled = false;
+        const missing = await checkSpotifyAfterLogin('client');
+        expect(missing?.steps.map(step => [step.id, step.state])).toEqual([['app', 'error'], ['mode', 'done']]);
+        expect(missing?.steps[0].noteKey).toBe('soloist.clientApp.missing');
+        expect(missing?.steps[1].actions?.map(action => action.id)).toEqual(['use-standard', 'use-soloist']);
+        expect(missing?.complete).toBe(false);
+        clientInstalled = true;
+        await expect(checkSpotifyAfterLogin('client')).resolves.toBeNull();
+        expect(await getSpotifySetup()).toMatchObject({ complete: true, steps: [{ id: 'app', state: 'done' }, { id: 'mode' }] });
+    });
+
+    it('sorts the app\'s missing program as a source that is not set up', () => {
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing'))).toEqual({ case: 'not-configured' });
     });
 });

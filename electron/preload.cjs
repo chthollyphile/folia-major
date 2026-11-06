@@ -264,6 +264,12 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('global-shortcut-triggered', listener);
         return () => ipcRenderer.removeListener('global-shortcut-triggered', listener);
     },
+    setExternalMediaKeys: (enabled) => ipcRenderer.invoke('external-media-keys-set', enabled),
+    onExternalMediaKey: (callback) => {
+        const listener = (_event, action) => callback(action);
+        ipcRenderer.on('external-media-key', listener);
+        return () => ipcRenderer.removeListener('external-media-key', listener);
+    },
     updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
     onTaskbarControl: (callback) => {
         const listener = (_event, action) => callback(action);

@@ -636,8 +636,9 @@ export function usePlaybackQueueController({
         const isLocal = isLocalPlaybackSong(song);
         const isNavidrome = isNavidromePlaybackSong(song);
         // A song its provider plays in a player of its own outside the app: no address
-        // is fetched and no deck plays it; the external route is begun below.
-        const isExternal = omni.canPlayExternally(song);
+        // is fetched and no deck plays it; the external route is begun below. It goes back to
+        // false there when that player gave the song up for good (N1).
+        let isExternal = omni.canPlayExternally(song);
         // Capture readiness before beginning the new attempt resets its preparation context.
         const isPreparedExternal = isExternal && isExternalRoute() && omni.isExternalPlaybackPrepared(song);
         // Another song is starting: the external player must not keep sounding while this one loads.
@@ -662,6 +663,7 @@ export function usePlaybackQueueController({
         const deferredPlayOptions: PlaybackNavigationOptions = {
             ...options,
             isAutomixAdvance: undefined,
+            autoAdvance: undefined,
             queueRewritten: undefined,
             startAtSec: undefined,
             autoplay: undefined,
@@ -686,6 +688,18 @@ export function usePlaybackQueueController({
         const readClickTimeQueue = (): SongResult[] | null => (queueFollowsStore ? readLiveQueue() : null);
         const tellFailure = (shown: OnlineFailure | null, willAutoSkip: boolean) => {
             notifyPlaybackFailed({ song, reason: shown?.case ?? null, phase: 'play', willAutoSkip });
+        };
+
+        // T5: an advance Folia made by itself (the deck ran out, the blend moved on, the player's own
+        // track ended) that the player outside the app could not take stops here. Nothing was
+        // pressed, so nothing pops up: the song stays on screen, paused, with one line said.
+        const stopOnUnreachableExternalPlayer = () => {
+            restoreFmModeIfNotLanded();
+            shouldAutoPlayRef.current = false;
+            pauseWhatIsSounding(audioRef.current);
+            setPlayerState(PlayerState.PAUSED);
+            setIsLyricsLoading(false);
+            setStatusMsg({ type: 'info', text: t('status.externalPlayerUnreachable') });
         };
 
         // How a failure of this play is shown. The refusals the listener can act on (sign in, a
@@ -915,8 +929,28 @@ export function usePlaybackQueueController({
                 // companion itself is not paused first: its next play replaces the track in one
                 // call, and pausing it here would race that play in the companion's queue.
                 if (!isExternalRoute()) pauseWhatIsSounding(audioRef.current);
-                await beginExternalPlayback(song, options.startAtSec ?? 0);
-            } else {
+                try {
+                    // An advance Folia made by itself may not wake or restart the player (T5).
+                    await beginExternalPlayback(song, options.startAtSec ?? 0, { userAction: options.autoAdvance !== true });
+                } catch (error) {
+                    if (!isLatestPlaybackRequest()) {
+                        isLatestPlaybackRequest.abandon();
+                        return;
+                    }
+                    if (options.autoAdvance) {
+                        stopOnUnreachableExternalPlayer();
+                        return;
+                    }
+                    // N1: the player gave the song up for good (not installed, a restart already spent
+                    // this run, the cool-down after a start that failed). The same song plays in Folia
+                    // rather than being reported as an external failure.
+                    if (omni.canPlayExternally(song)) throw error;
+                    console.info('[App] the external player gave the song up; it plays in Folia', error);
+                    isExternal = false;
+                    setStatusMsg({ type: 'info', text: t('status.loadingSong') });
+                }
+            }
+            if (!isExternal) {
                 // Where the platform could not be reached the load asks again by itself while this play is
                 // wanted, and says so.
                 preloadedOnlineAudioResult = await loadOnlineSongAudio(song, audioQuality, prefetched, {
@@ -1362,6 +1396,7 @@ export function usePlaybackQueueController({
                         shouldNavigateToPlayer,
                         unavailableSkipCount: options?.unavailableSkipCount,
                         isAutomixAdvance: options?.isAutomixAdvance,
+                        autoAdvance: options?.autoAdvance,
                     });
                 } else if (options?.allowStopOnMissing) {
                     stopAtQueueEnd();
@@ -1388,6 +1423,7 @@ export function usePlaybackQueueController({
                     shouldNavigateToPlayer,
                     unavailableSkipCount: options?.unavailableSkipCount,
                     isAutomixAdvance: options?.isAutomixAdvance,
+                    autoAdvance: options?.autoAdvance,
                 });
             } else if (options?.allowStopOnMissing) {
                 stopAtQueueEnd();
@@ -1402,13 +1438,17 @@ export function usePlaybackQueueController({
                 shouldNavigateToPlayer,
                 unavailableSkipCount: options?.unavailableSkipCount,
                 isAutomixAdvance: options?.isAutomixAdvance,
+                autoAdvance: options?.autoAdvance,
             });
         } else if (options?.allowStopOnMissing) {
             stopAtQueueEnd();
         }
     }, [audioRef, currentSong, endHeldTransition, getDisplaySong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, setPlayQueue, setPlayerState, shouldNavigateToPlayerOnTrackChange]);
 
-    const handlePrevTrack = useCallback(() => {
+    // `replayCurrentAtStart`: asked by the external player's pull-back when the player was stepped
+    // back by its own controls. With no song before this one, the current song starts over from its
+    // beginning, so the player is not left on the track it moved to by itself.
+    const handlePrevTrack = useCallback((options?: { replayCurrentAtStart?: boolean }) => {
         if (isNowPlayingStageActive) return;
         if (!currentSong || playQueue.length === 0) return;
 
@@ -1424,6 +1464,11 @@ export function usePlaybackQueueController({
         if (prevIndex >= 0) {
             void playSong(playQueue[prevIndex], playQueue, isFmMode, {
                 shouldNavigateToPlayer: shouldNavigateToPlayerOnTrackChange,
+            });
+        } else if (options?.replayCurrentAtStart === true) {
+            void playSong(heldSong ?? currentSong, playQueue, isFmMode, {
+                shouldNavigateToPlayer: shouldNavigateToPlayerOnTrackChange,
+                startAtSec: 0,
             });
         }
     }, [currentSong, endHeldTransition, getDisplaySong, isFmMode, isNowPlayingStageActive, loopMode, playQueue, playSong, shouldNavigateToPlayerOnTrackChange]);

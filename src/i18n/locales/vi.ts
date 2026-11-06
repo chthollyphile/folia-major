@@ -580,6 +580,7 @@ export default {
     "playbackError": "Lỗi phát nhạc",
     "loadingSong": "Đang tải URL bài hát...",
     "preparingExternalPlayback": "Đang chuẩn bị phát...",
+    "externalPlayerUnreachable": "Không kết nối được Spotify; đã dừng ở bài này",
     "dataSynced": "Đồng bộ dữ liệu thành công",
     "syncFailed": "Đồng bộ thất bại",
     "loginExpired": "Phiên đăng nhập hết hạn. Đăng nhập lại",
@@ -616,6 +617,8 @@ export default {
     "externalBypassTitle": "Bài hát này phát trong trình phát riêng của nền tảng",
     "externalBypassBody": "Âm thanh không đi qua Folia, nên bộ cân bằng và hiệu ứng ở đây không thay đổi những gì bạn nghe. Thiết lập vẫn được giữ và áp dụng cho các bài khác như bình thường.",
     "externalReplayGainBypassed": "Phát trong trình phát riêng của nền tảng; không áp dụng ReplayGain",
+    "externalPlayerAdvertisement": "Quảng cáo",
+    "externalPlayerFallback": "Trình phát trả lời qua phiên phương tiện của hệ thống: Folia điều khiển thô hơn cho tới khi gỡ lỗi từ xa hoạt động lại",
     "songUnavailableAlternativeTitle": "Có phiên bản thay thế",
     "songUnavailableAlternativeDescription": "\"{{song}}\" không khả dụng. {{typeDesc}}. Phát phiên bản thay thế?",
     "songUnavailableAlternativeDefaultType": "Có thể phát phiên bản khác",
@@ -866,6 +869,8 @@ export default {
       "settings-obs-browser-source": { "title": "Nguồn trình duyệt OBS", "description": "Mở cài đặt nguồn trình duyệt OBS" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: giữ hiệu ứng động cửa sổ chính", "description": "Bật/tắt giữ hiệu ứng động ở cửa sổ chính khi kết nối OBS" },
       "obs-toggle-track-card": { "title": "OBS: hiện thẻ bài đang phát", "description": "Bật/tắt vẽ thẻ bài đang phát trong nguồn trình duyệt OBS" },
+      "external-player-wake-on-launch": { "title": "Đánh thức trình phát ngoài khi mở Folia", "description": "Bật/tắt việc khởi động trình phát phát nhạc khi mở Folia" },
+      "external-player-close-on-quit": { "title": "Đóng trình phát ngoài khi thoát Folia", "description": "Bật/tắt việc đóng ứng dụng Spotify do Folia khởi động khi thoát Folia" },
       "desktop-toggle-lyric-api": { "title": "API lời bài hát", "description": "Bật/tắt endpoint lời bài hát nội bộ không cần xác thực" },
       "settings-obs-copy-css": { "title": "Sao chép CSS OBS", "description": "Sao chép CSS tùy chỉnh nguồn OBS kèm tài nguyên đã tải lên" },
       "settings-storage": { "title": "Cài đặt lưu trữ", "description": "Mở cài đặt bộ nhớ đệm và lưu trữ" },
@@ -2780,6 +2785,10 @@ export default {
     "remoteControlTextShadeHint": "Trên nền trong suốt, chữ ở trạng thái chờ nằm trên một lớp nền đen mờ trong suốt, dễ đọc hơn trên màn hình nền sáng",
     "openPlayerOnLaunch": "Vào giao diện phát khi khởi động",
     "openPlayerOnLaunchDesc": "Mở giao diện phát khi khởi động ứng dụng. Tuân theo \"Chế độ xem khi nhấn Phát\": nếu chọn Lattice, khởi động sẽ mở hàng đợi Lattice.",
+    "wakeExternalPlayersOnLaunch": "Đánh thức trình phát ngoài khi mở Folia",
+        "wakeExternalPlayersOnLaunchDesc": "Khởi động trình phát thực sự phát nhạc (ứng dụng Spotify) khi mở Folia, để bài đầu tiên không phải chờ nó khởi động. Spotify chạy với cổng DevTools; nếu nó đang chạy mà không có cổng đó, Folia sẽ khởi động lại nó một lần",
+    "closeExternalPlayerOnQuit": "Đóng Spotify khi thoát Folia",
+    "closeExternalPlayerOnQuitDesc": "Đóng ứng dụng Spotify do Folia khởi động, hoặc đang chạy với cổng DevTools của nó, khi thoát Folia để trả lại cổng đó. Spotify chạy với cổng DevTools; nếu nó đang chạy mà không có cổng đó, Folia sẽ khởi động lại nó một lần",
     "wallpaperMode": "Chế độ hình nền",
     "wallpaperModeDesc": "Đưa cửa sổ xuống đáy màn hình nền làm hình nền lời bài hát cố định. Không hỗ trợ phím tắt bàn phím.",
     "wallpaperModeMacPermissionHint": "Chế độ hình nền Mac cần quyền Giám sát đầu vào: bật Folia trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Giám sát đầu vào, sau đó khởi động lại ứng dụng.",
@@ -5211,13 +5220,17 @@ export default {
       "standard": "Tiêu chuẩn",
       "standardNote": "Đăng nhập Spotify trong trình duyệt; Folia tự phát bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc đều hoạt động.",
       "soloist": "Soloist",
-      "soloistNote": "Đăng nhập Spotify trong trình duyệt; chương trình Soloist chính thức của Spotify phát bài hát. Dành cho tài khoản không nhận được khóa âm thanh. Soloist được tải riêng, và khóa API của nó được tạo bằng tài khoản Premium."
+      "soloistNote": "Đăng nhập Spotify trong trình duyệt; chương trình Soloist chính thức của Spotify phát bài hát. Dành cho tài khoản không nhận được khóa âm thanh. Soloist được tải riêng, và khóa API của nó được tạo bằng tài khoản Premium.",
+      "client": "Ứng dụng Spotify",
+      "clientNote": "Đăng nhập Spotify trong trình duyệt; ứng dụng Spotify trên máy này phát bài hát, kể cả tài khoản miễn phí. Cần cài sẵn ứng dụng Spotify cho máy tính. Folia khởi chạy nó với một cổng gỡ lỗi chỉ trên máy này (127.0.0.1) để điều khiển. Âm thanh không đi qua Folia nên bộ cân bằng và hiệu ứng không có tác dụng. Chỉ dành cho Windows."
     },
     "setup": {
       "title": "Thiết lập Spotify Soloist",
       "note": "Soloist là trình phát chính thức của Spotify, một chương trình trên máy này tự gửi âm thanh ra đầu ra của hệ thống; Folia điều khiển nó và theo vị trí của nó để hiện lời bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc của Folia không xử lý âm thanh của nó.",
       "titleStandard": "Cách Spotify phát nhạc",
-      "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify."
+      "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify.",
+      "clientTitle": "Thiết lập ứng dụng Spotify",
+      "clientNote": "Ứng dụng Spotify cho máy tính được cài trên máy này và tự gửi âm thanh ra đầu ra của hệ thống; Folia điều khiển nó và theo vị trí của nó để hiển thị lời. Folia khởi chạy nó với cổng gỡ lỗi chỉ lắng nghe trên máy này (127.0.0.1), và khởi chạy lại khi bạn bấm phát mà nó đã đóng. Âm thanh không đi qua Folia nên bộ cân bằng, Automix và các hiệu ứng theo nhạc của Folia không có tác dụng."
     },
     "noKey": {
       "title": "Tài khoản này không nhận được khóa âm thanh từ Spotify",
@@ -5228,12 +5241,16 @@ export default {
       "key": "Khóa API",
       "pair": "Ghép nối thiết bị",
       "modeStandard": "Cách phát: tiêu chuẩn",
-      "modeSoloist": "Cách phát: Soloist"
+      "modeSoloist": "Cách phát: Soloist",
+      "modeClient": "Cách phát: ứng dụng Spotify",
+      "clientApp": "Ứng dụng Spotify cho máy tính"
     },
     "mode": {
       "standardNote": "Folia tự phát bài hát Spotify.",
       "soloistNote": "Soloist phát bài hát Spotify.",
-      "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này."
+      "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này.",
+      "clientNote": "Ứng dụng Spotify phát bài hát Spotify; âm thanh không đi qua Folia.",
+      "freeNote": "Đây là tài khoản miễn phí: Spotify không cho Folia tự phát bài hát."
     },
     "program": {
       "todo": "Tải Soloist cho máy này từ trang của Spotify, giải nén rồi chọn chương trình soloist bên trong (soloist.exe trên Windows). Folia không kèm theo chương trình này.",
@@ -5268,7 +5285,16 @@ export default {
       "download": "Trang tải chính thức",
       "keyPage": "Mở bảng điều khiển nhà phát triển",
       "saveKey": "Lưu khóa",
-      "reconnect": "Kết nối lại"
+      "reconnect": "Kết nối lại",
+      "useClient": "Phát qua ứng dụng Spotify"
+    },
+    "clientApp": {
+      "ready": "Đã tìm thấy ứng dụng Spotify cho máy tính.",
+      "missing": "Không tìm thấy ứng dụng Spotify cho máy tính. Hãy cài từ spotify.com/download hoặc Microsoft Store rồi phát lại."
+    },
+    "free": {
+      "title": "Đây là tài khoản miễn phí",
+      "note": "Spotify chỉ cho tài khoản Premium phát trong Folia. Tài khoản miễn phí có thể phát qua ứng dụng Spotify cho máy tính: Folia điều khiển và âm thanh phát ra từ ứng dụng đó. Cần cài sẵn ứng dụng; chỉ dành cho Windows."
     },
     "message": {
       "picked": "Đã chọn chương trình.",

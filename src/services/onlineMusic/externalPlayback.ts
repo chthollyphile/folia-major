@@ -32,9 +32,14 @@ const END_TOLERANCE_SEC = 0.75;
 
 export type ExternalPlaybackEvent =
     | { type: 'status' }
-    | { type: 'ended' }
+    // `skipped`: the player was moved off the song by its own controls, not by its end.
+    | { type: 'ended'; skipped?: 'next' | 'previous' }
     | { type: 'failure'; error: unknown }
-    | { type: 'foreign-track' };
+    | { type: 'foreign-track' }
+    // An advertisement between songs started (active) or ended: the app says so instead of the song.
+    | { type: 'advertisement'; active: boolean }
+    // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
+    | { type: 'degraded'; active: boolean }
 
 type ExternalSession = {
     song: SongResult;
@@ -53,8 +58,14 @@ type ExternalSession = {
     prefetchReady: boolean;
     live: boolean;
     ended: boolean;
+    /** The direction the player's own controls moved it off the song in, carried to the end event. */
+    skipped?: 'next' | 'previous';
     /** Set when the player moved to a track this app did not ask for. */
     foreign: boolean;
+    /** The player is sounding an advertisement: no lyric read, and the song's clock stands still. */
+    advertisement: boolean;
+    /** The last answer came from the player's fallback channel. */
+    degraded: boolean;
     preparedQueueKey: string;
     positionRevision: number;
     seekPending: boolean;
@@ -79,6 +90,8 @@ let wantedVolume: number | null = null;
 let volumeFailureNoted = false;
 /** Bumped by every start: a write sent before it cannot vouch for the level after it. */
 let volumeEpoch = 0;
+/** The coarser channel is told once in a run of Folia, not once per episode (L8). */
+let degradedNotified = false;
 const listeners = new Set<(event: ExternalPlaybackEvent) => void>();
 
 const emit = (event: ExternalPlaybackEvent) => {
@@ -111,6 +124,10 @@ export const getExternalPosition = () => session?.clock.read() ?? 0;
 
 /** Whether the external player is paused (also true while a track loads). */
 export const isExternalPaused = () => session ? !session.playing : false;
+
+/** Whether the player is sounding an advertisement of its own between Folia's songs. */
+export const isExternalAdvertisement = () => isExternalPlaybackSounding() && session?.advertisement === true;
+
 
 /** The song the external player was told to play, or null. */
 export const getExternalSong = () => session?.song ?? null;
@@ -205,7 +222,9 @@ const markEnded = (positionSec: number) => {
     syncClock(positionSec, true, performance.now(), false);
     externalMediaShim.markEnded();
     setPlayerState(PlayerState.PAUSED);
-    emit({ type: 'ended' });
+    const skipped = session.skipped;
+    session.skipped = undefined;
+    emit(skipped ? { type: 'ended', skipped } : { type: 'ended' });
     emit({ type: 'status' });
 };
 
@@ -215,6 +234,23 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     const positionSec = status.positionMs / 1000;
     // A late completion belonging to the previous song cannot fill or finish the new session.
     if (!current.announced && !status.mediaId) return;
+    // Told before the song is on screen too: an advertisement is not about this song, and the
+    // fallback is about the player rather than the track.
+    const advertisement = status.advertisement === true;
+    if (advertisement !== current.advertisement) {
+        current.advertisement = advertisement;
+        emit({ type: 'advertisement', active: advertisement });
+    }
+    const degraded = status.degraded === true;
+    if (degraded !== current.degraded) {
+        current.degraded = degraded;
+        // Said once in a run of Folia: a player that drops to its coarse channel and back all
+        // evening must not say so all evening (L8).
+        if (degraded && !degradedNotified) {
+            degradedNotified = true;
+            emit({ type: 'degraded', active: true });
+        }
+    }
     if (status.mediaId && !omni.isExternalPlaybackStatusForSong(current.song, status)) {
         if (!current.announced) return;
         // The player is on a track this app did not ask for (someone used its own window). Stop it
@@ -229,6 +265,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         return;
     }
     current.live = status.live === true;
+    if (status.ended && status.skipped) current.skipped = status.skipped;
     if (status.isPlaying && status.mediaId && !status.seeking) {
         if (current.live || (current.sampledPosition !== null && positionSec > current.sampledPosition + 0.05)) current.prefetchReady = true;
         current.sampledPosition = positionSec;
@@ -378,8 +415,11 @@ export function previewExternalPlaybackVolume(volume: number): void {
     setExternalPlaybackVolume(useAudioSettingsStore.getState().isMuted ? 0 : Math.min(1, Math.max(0, volume)));
 }
 
-/** Starts a track in the external player and puts the app on that route. */
-export async function beginExternalPlayback(song: SongResult, startSec = 0): Promise<void> {
+/**
+ * Starts a track in the external player and puts the app on that route. `userAction` is false only
+ * for an advance Folia made by itself: that one may not wake or restart the player (T5).
+ */
+export async function beginExternalPlayback(song: SongResult, startSec = 0, { userAction = true }: { userAction?: boolean } = {}): Promise<void> {
     if (isExternalRoute()) {
         // Already on the route: replacing the track is one call, and the old clock must not speak
         // for the new song while it does.
@@ -395,7 +435,8 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
+        advertisement: false, degraded: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -411,7 +452,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
     try {
-        await omni.playSongExternally(song, Math.max(0, startSec));
+        await omni.playSongExternally(song, Math.max(0, startSec), { userAction });
     } catch (error) {
         if (session?.attempt === attempt) {
             stopExternalPlayback('the player refused the song');

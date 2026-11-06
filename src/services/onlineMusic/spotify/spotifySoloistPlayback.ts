@@ -5,17 +5,19 @@ import { getSpotifyTransportAvailability, requestSpotify } from './spotifyTransp
 import { requireSpotifySong, spotifyUri } from './spotifyNormalize';
 
 // src/services/onlineMusic/spotify/spotifySoloistPlayback.ts
-// The two ways Spotify plays here, and the second of them. 'standard' is librespot in the desktop
+// The ways Spotify plays here, and the second of them. 'standard' is librespot in the desktop
 // side (an audio URL, the web route); 'soloist' is Spotify's own Soloist program on this computer,
 // for accounts Spotify gives no audio key: it plays to the system's output itself, and the app
 // steers it on the external route (services/onlineMusic/externalPlayback.ts) and follows its clock.
+// 'client' is the third, Spotify's desktop app steered the same way (spotifyClientPlayback.ts);
+// spotifyExternalPlayback.ts picks the one of the two that is on.
 // The way is kept by the desktop side (electron/spotify/spotifyApiBridge.cjs, `playback_mode`); it
 // is read once at start and after each change, and kept here so the route can be chosen at once.
 
-export type SpotifyPlaybackMode = 'standard' | 'soloist';
+export type SpotifyPlaybackMode = 'standard' | 'soloist' | 'client';
 
-/** What the desktop side says of the way Spotify plays: the way, and whether Soloist is offered at all. */
-export interface SpotifyWirePlaybackMode { mode: SpotifyPlaybackMode; soloist: boolean }
+/** What the desktop side says of the way Spotify plays: the way, and which of the other two are offered at all. */
+export interface SpotifyWirePlaybackMode { mode: SpotifyPlaybackMode; soloist: boolean; client?: boolean }
 
 /** What Soloist plays now (electron/spotify/soloist.cjs `status`). */
 interface SoloistWireStatus {
@@ -30,12 +32,17 @@ interface SoloistWireStatus {
 
 let mode: SpotifyPlaybackMode = 'standard';
 let soloistOffered = false;
+let clientOffered = false;
 let reading: Promise<SpotifyWirePlaybackMode | null> | null = null;
 
+const MODE_NAMES: Record<SpotifyPlaybackMode, string> = { standard: 'the standard way', soloist: 'Soloist', client: 'the Spotify app' };
+
 const keep = (answer: SpotifyWirePlaybackMode): SpotifyWirePlaybackMode => {
-    if (answer.mode !== mode) console.info(`[Spotify] Plays through ${answer.mode === 'soloist' ? 'Soloist' : 'the standard way'}`);
-    mode = answer.mode === 'soloist' ? 'soloist' : 'standard';
+    const next: SpotifyPlaybackMode = answer.mode === 'soloist' || answer.mode === 'client' ? answer.mode : 'standard';
+    if (next !== mode) console.info(`[Spotify] Plays through ${MODE_NAMES[next]}`);
+    mode = next;
     soloistOffered = answer.soloist === true;
+    clientOffered = answer.client === true;
     return answer;
 };
 
@@ -61,7 +68,12 @@ export const setSpotifyPlaybackMode = async (next: SpotifyPlaybackMode): Promise
 
 /** Whether Spotify plays through Soloist now (the provider's `externalPlayback` capability). */
 export const spotifyPlaysThroughSoloist = (): boolean => mode === 'soloist';
+/** Whether Spotify plays on the external route now: through Soloist or through Spotify's own app. */
+export const spotifyPlaysExternally = (): boolean => mode !== 'standard';
+/** Whether Spotify plays through Spotify's own desktop app now. */
+export const spotifyPlaysThroughClient = (): boolean => mode === 'client';
 export const spotifySoloistOffered = (): boolean => soloistOffered;
+export const spotifyClientOffered = (): boolean => clientOffered;
 export const spotifyPlaybackMode = (): SpotifyPlaybackMode => mode;
 
 export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
