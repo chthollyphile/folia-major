@@ -15,7 +15,9 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 // src/components/app/scratchpad/ScratchpadSheet.tsx
 // 展开整页（设计稿 F 定稿）：整张纸向右下转 6°（降低动态效果时不转，同歌手页），这一页的米白信息条横贯整张纸，
 // 下面是这一页的卡片（宿主交进来的 children：画布、跳到栏与操作提示），另外两页收成两条细纸带压在左下角
-// （右边转出屏幕、被播放胶囊挡住），点它换过去。右上角一块黑色直角三角（不转）：放大的问候、收回侧栏、面包屑。
+// （右边转出屏幕、被播放胶囊挡住），点它换过去。右上角一块黑色直角三角（不转）：放大的问候与面包屑。
+// 返回（收回左缘的面板）是压在顶上那条信息条左端的一颗墨色大方钮（用户要的，放在左边、显眼）：整页里在这一页的条上，
+// 总览里在第一行的条上，进出总览时跟着条挪。
 // 纸后面是这一页几何体的低可见度大构图（照搜索页的至上主义构图：大空心形、淡色块、实心小形、发丝线、斜线小方块、竖排大字）。
 // 信息条右端的按钮由各页自己画进来（ScratchpadBandActions，经 portal 放进条上的空位）。
 // 信息条上「‹ 三行总览」换成三行总览（ScratchpadOverview，宿主经 overview 交进来）：三条信息条各带一行头几张卡。
@@ -61,6 +63,10 @@ const SIDE_RIGHT = 184;
 const CARDS_RIGHT = SIDE_RIGHT + 124 + 26;
 /** 卡片区底边离纸底多远（不倾斜时细纸带整条在窗口里，卡片区让得多一些，见 scratchpad.css 的 is-flat）。 */
 const BODY_FROM_BOTTOM = { tilted: 166, flat: 220 } as const;
+/** 返回钮：在纸上的左边（纸左边多出来 160px，转过之后约在窗口左边 15–50px）、边长。 */
+const BACK_LEFT = 174;
+const BACK_SIZE = 48;
+
 /** 安全区：转过之后的底边离窗口底边至少留这么多。 */
 const SAFE_MARGIN = 20;
 
@@ -337,6 +343,27 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                         </motion.div>
                     );
                 })}
+                {/* 返回：压在顶上那条信息条的左端（整页里这一页的条、总览里第一行的条），竖着居中，跟着条挪；展开时等条长出来再出现。 */}
+                <motion.button
+                    ref={collapseRef}
+                    type="button"
+                    className="scratchpad-sheet-back"
+                    title={collapseLabel}
+                    aria-label={collapseLabel}
+                    onClick={onCollapse}
+                    style={{ left: BACK_LEFT, width: BACK_SIZE, height: BACK_SIZE }}
+                    initial={{ opacity: 0, top: FULL_BAND_TOP + (FULL_BAND_HEIGHT - BACK_SIZE) / 2 }}
+                    animate={{
+                        opacity: 1,
+                        top: showsOverview
+                            ? SHEET_BLEED_Y + rowTops[0] + (ROW_BAND_HEIGHT - BACK_SIZE) / 2
+                            : FULL_BAND_TOP + (FULL_BAND_HEIGHT - BACK_SIZE) / 2,
+                        transition: { opacity: { duration: 0.2, delay: calm ? 0 : 0.3 }, top: move },
+                    }}
+                    exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                >
+                    <ChevronLeft aria-hidden="true" />
+                </motion.button>
                 {/* 条下面的东西（这一页的卡片，或总览里的三行卡）：先退后进，等条挪得差不多了再浮上来。 */}
                 <AnimatePresence mode="wait">
                     {overview ? (
@@ -374,9 +401,6 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                 <ScratchpadGreeting long headline />
                 <span className="scratchpad-intro-rule" aria-hidden="true" />
                 <span className="scratchpad-triangle-row">
-                    <button ref={collapseRef} type="button" className="scratchpad-pill is-icon is-small" title={collapseLabel} aria-label={collapseLabel} onClick={onCollapse}>
-                        <ChevronLeft aria-hidden="true" />
-                    </button>
                     <span className="scratchpad-triangle-crumb">
                         {overview ? t('scratchpad.crumbOverview', { title: t('scratchpad.title') }) : t('scratchpad.crumb', { page: title })}
                     </span>

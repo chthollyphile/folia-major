@@ -1459,7 +1459,8 @@
     transform: skewX(-14deg);
 }
 
-.scratchpad-band.is-full .scratchpad-band-head { left: 186px; height: 100%; gap: 18px; }
+/* 标题区从 248px 起：左端让给返回钮（.scratchpad-sheet-back，174–222px），计数斜块斜出去的那一截不碰到它。 */
+.scratchpad-band.is-full .scratchpad-band-head { left: 248px; height: 100%; gap: 18px; }
 .scratchpad-band.is-full .scratchpad-band-count { min-width: 96px; height: 80px; padding: 0 10px; }
 .scratchpad-band.is-full .scratchpad-band-count > span { font-size: 46px; }
 .scratchpad-band.is-full .scratchpad-band-heading { max-width: 460px; gap: 6px; }
@@ -1570,7 +1571,28 @@
 .scratchpad-triangle .scratchpad-greeting.is-headline > span { display: inline; overflow: visible; -webkit-line-clamp: none; }
 .scratchpad-triangle .scratchpad-intro-rule { display: block; margin-left: auto; }
 .scratchpad-triangle-row { display: block; margin-top: 10px; line-height: 26px; }
-.scratchpad-triangle-crumb { margin-left: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.2em; opacity: 0.7; }
+.scratchpad-triangle-crumb { font-size: 10.5px; font-weight: 800; letter-spacing: 0.2em; opacity: 0.7; }
+
+/* 返回（收回左缘的面板）：墨色的大方钮压在顶上那条信息条的左端，纸色的「‹」；悬停换点缀色。跟着纸斜。 */
+.scratchpad-sheet-back {
+    position: absolute;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: var(--scratchpad-ink);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 35%);
+    color: var(--scratchpad-paper);
+    cursor: pointer;
+    transition: background-color 0.14s ease, scale 0.14s ease;
+}
+
+.scratchpad-sheet-back svg { width: 26px; height: 26px; stroke-width: 2.6; }
+.scratchpad-sheet-back:hover { background: var(--scratchpad-mark); scale: 1.06; }
+.scratchpad-sheet-back:active { scale: 0.95; }
+.scratchpad-sheet-back:focus-visible { outline: 3px solid var(--scratchpad-mark); outline-offset: 3px; }
+.scratchpad-root.is-calm .scratchpad-sheet-back { transition: background-color 0.14s ease; scale: none; }
 .scratchpad-pill.is-small { height: 26px; vertical-align: middle; }
 .scratchpad-pill.is-small.is-icon { width: 26px; }
 
@@ -1957,7 +1979,7 @@
     mask-image: linear-gradient(90deg, transparent 0, transparent 630px, #000 780px);
 }
 
-.scratchpad-band.is-row .scratchpad-band-head { left: 186px; height: 100%; gap: 14px; }
+.scratchpad-band.is-row .scratchpad-band-head { left: 248px; height: 100%; gap: 14px; }
 .scratchpad-band.is-row .scratchpad-band-count { min-width: 64px; height: 52px; padding: 0 8px; }
 .scratchpad-band.is-row .scratchpad-band-count > span { font-size: 30px; }
 .scratchpad-band.is-row .scratchpad-band-heading { max-width: 380px; gap: 3px; }

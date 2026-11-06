@@ -76,8 +76,8 @@ const Band: React.FC<{ rect: React.CSSProperties; accent: string; shape: Scratch
         className="overflow-hidden"
         style={{ ...rect, backgroundColor: PAPER, borderTop: `3px solid ${accent}`, borderBottom: `2px solid ${INK}`, boxSizing: 'border-box', boxShadow: '0 10px 24px rgb(0 0 0 / 35%)' }}
     >
-        <span className="absolute top-[14%] bottom-[14%]" style={{ left: big ? '13%' : '4%', width: big ? '4.6%' : '17%', backgroundColor: shape === 'circle' ? accent : INK, transform: 'skewX(-14deg)' }} />
-        <span className="absolute flex flex-col gap-[10%]" style={{ left: big ? '21%' : '25%', top: '20%', width: '30%', height: '60%' }}>
+        <span className="absolute top-[14%] bottom-[14%]" style={{ left: big ? '16.5%' : '4%', width: big ? '4.6%' : '17%', backgroundColor: shape === 'circle' ? accent : INK, transform: 'skewX(-14deg)' }} />
+        <span className="absolute flex flex-col gap-[10%]" style={{ left: big ? '24.5%' : '25%', top: '20%', width: '30%', height: '60%' }}>
             <Bar width="14%" height="14%" color={INK} opacity={0.7} />
             <Bar width={big ? '50%' : '64%'} height="34%" color={INK} />
         </span>
@@ -319,7 +319,7 @@ const REORDERED = (() => {
 })();
 
 /**
- * 展开整页：顶上横贯的信息条（右端这一页的按钮），右上角黑三角（问候、收回侧栏），两组各一条组头（多一颗「选中本组」）
+ * 展开整页：顶上横贯的信息条（左端返回钮、右端这一页的按钮），右上角黑三角（问候），两组各一条组头（多一颗「选中本组」）
  * 与一排笔记本卡，右边一列跳到栏与提示，底下两条细纸带。firstGroup 是第一组的顺序。
  */
 const Canvas: React.FC<Paint & { firstGroup: readonly number[] }> = ({ firstGroup, accent, line, outline }) => (
@@ -336,7 +336,7 @@ const Canvas: React.FC<Paint & { firstGroup: readonly number[] }> = ({ firstGrou
         </span>
         <span style={{ ...relativeRectStyle(C.triangle), backgroundColor: INK, clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
         <span className="flex justify-end" style={relativeRectStyle(C.greeting)}><Bar width="80%" height="70%" color={PAPER} /></span>
-        <span style={{ ...relativeRectStyle(C.collapse), boxShadow: `inset 0 0 0 1.5px ${PAPER}`, color: PAPER }} className="flex items-center justify-center">
+        <span style={{ ...relativeRectStyle(C.collapse), backgroundColor: INK, color: PAPER }} className="flex items-center justify-center">
             <ChevronLeft className="h-[60%] w-auto" />
         </span>
         {SCRATCHPAD_CANVAS_GROUP_SIZES.map((size, group) => (

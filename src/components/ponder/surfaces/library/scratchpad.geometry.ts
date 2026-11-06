@@ -112,19 +112,20 @@ export const SCRATCHPAD_HOVER_ROW = { group: 0, row: 1 } as const;
 /**
  * 展开整页之后的几块，坐标系是整页。真实界面里整张纸斜 6°；这张图摆正了画，框才对得上。
  *
- * 顶上横贯一条米白信息条（计数、标题、说明，右端是这一页的按钮）；右上角一块黑色直角三角写问候和收回侧栏。
+ * 顶上横贯一条米白信息条（左端压一颗墨色的返回钮，然后是计数、标题、说明，右端是这一页的按钮）；右上角一块黑色直角三角写问候。
  * 下面两组，每组一条组头（右端多一颗「选中本组」），下面一排笔记本卡；右边一列是跳到栏与操作提示；
  * 另外两页收成两条细纸带压在底下。有选中时，选中的卡片旁边浮出一块墨色的板：「已选 N 首」和对选中的那几颗。
  */
 export const SCRATCHPAD_CANVAS = {
     band: { left: 0, right: 0, top: 0.11, height: 0.133 },
-    count: { left: 0.13, top: 0.13, width: 0.067, height: 0.089 },
-    title: { left: 0.21, top: 0.135, width: 0.16, height: 0.05 },
-    meta: { left: 0.21, top: 0.195, width: 0.22, height: 0.018 },
+    count: { left: 0.165, top: 0.13, width: 0.067, height: 0.089 },
+    title: { left: 0.245, top: 0.135, width: 0.16, height: 0.05 },
+    meta: { left: 0.245, top: 0.195, width: 0.22, height: 0.018 },
     bandActions: { right: 0.19, top: 0.19, width: 0.2, height: 0.036 },
     triangle: { right: 0, top: 0, width: 0.305, height: 0.24 },
     greeting: { right: 0.014, top: 0.05, width: 0.18, height: 0.03 },
-    collapse: { right: 0.115, top: 0.11, width: 0.018, square: true },
+    /** 返回（收回侧栏）：信息条左端那颗墨色的方钮。 */
+    collapse: { left: 0.012, top: 0.15, width: 0.033, square: true },
     side: { right: 0.03, top: 0.29, width: 0.086, bottom: 0.17 },
     slimUpper: { left: 0, right: 0, bottom: 0.07, height: 0.04 },
     slimLower: { left: 0, right: 0, bottom: 0.023, height: 0.04 },
