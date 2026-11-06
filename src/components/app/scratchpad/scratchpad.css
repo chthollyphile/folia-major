@@ -1689,21 +1689,21 @@
     gap: 0;
     padding: 0;
     background:
-        linear-gradient(90deg, transparent 12px, color-mix(in srgb, var(--scratchpad-mark) 55%, transparent) 12px 14px, transparent 14px) 0 76px / 100% 48px no-repeat,
+        linear-gradient(90deg, transparent 14px, color-mix(in srgb, var(--scratchpad-mark) 55%, transparent) 14px 16px, transparent 16px) 0 94px / 100% 58px no-repeat,
         #efe9dc;
     color: #1d1a16;
 }
 
 .scratchpad-card.is-note:hover { background-color: #f6f1e6; }
-.scratchpad-card.is-note .scratchpad-card-cover { width: 100%; height: 76px; aspect-ratio: auto; }
-.scratchpad-card.is-note .scratchpad-card-name { margin: 7px 8px 0 20px; padding: 0; font-size: 12.5px; font-weight: 800; }
+.scratchpad-card.is-note .scratchpad-card-cover { width: 100%; height: 94px; aspect-ratio: auto; }
+.scratchpad-card.is-note .scratchpad-card-name { margin: 9px 10px 0 24px; padding: 0; font-size: 13.5px; font-weight: 800; }
 
 .scratchpad-card.is-note .scratchpad-card-meta {
-    margin: 4px 8px 0 20px;
-    padding: 3px 0 0;
+    margin: 5px 10px 0 24px;
+    padding: 4px 0 0;
     border-top: 1px solid rgb(70 100 170 / 30%);
     color: #6b6255;
-    font-size: 10.5px;
+    font-size: 11px;
     font-style: italic;
     font-weight: 600;
     opacity: 1;
@@ -1756,7 +1756,7 @@
     position: absolute;
     top: 15px;
     right: 4px;
-    bottom: 24px;
+    bottom: 26px;
     left: 4px;
     width: auto;
     height: auto;
@@ -1774,28 +1774,28 @@
 
 .scratchpad-card.is-film .scratchpad-card-name {
     position: absolute;
-    right: 9px;
-    bottom: 28px;
-    left: 9px;
+    right: 10px;
+    bottom: 31px;
+    left: 10px;
     z-index: 2;
     margin: 0;
     padding: 0;
     color: #f4f1ea;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
 }
 
 .scratchpad-card-edge {
     position: absolute;
-    right: 6px;
+    right: 7px;
     bottom: 12px;
-    left: 6px;
+    left: 7px;
     display: flex;
     justify-content: space-between;
     gap: 4px;
     color: #d9a35c;
     font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.08em;
     white-space: nowrap;
 }

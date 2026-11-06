@@ -27,11 +27,12 @@ export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
  * 展开整页（设计稿 F）的三种卡片：速记簿是笔记本上的一条记录，播放历史是一张回忆相片（微微歪着，空隙留出歪出去的角），
  * 播放队列是连在一起的电影胶片（横向没有空隙，一行接着一行；两头留出行尾、行首的「》」）。
  * 行与行之间隔得开（用户定，2026-11-06）：纸斜着 6°，屏幕方向的框选框横着一拉就斜着碰到下一行，
- * 原来 10px 的行距一拉就串行；卡片小一号、行距放到 44–48px，横着拉到五六百像素也还在这一行里。
+ * 原来 10px 的行距一拉就串行；行距放到 44–48px，横着拉到五六百像素也还在这一行里。
+ * 速记簿与播放队列的卡片后来又放大了（用户要的，2026-11-06）：笔记本 128 × 152、胶片 140 × 128，行距不变。
  */
-export const NOTE_SPACING: Spacing = { x: 14, y: 44, edge: 10, card: { width: 104, height: 124 } };
+export const NOTE_SPACING: Spacing = { x: 16, y: 44, edge: 10, card: { width: 128, height: 152 } };
 export const PHOTO_SPACING: Spacing = { x: 16, y: 48, edge: 10, card: { width: 104, height: 128 } };
-export const FILM_SPACING: Spacing = { x: 0, y: 48, edge: 28, card: { width: 112, height: 104 } };
+export const FILM_SPACING: Spacing = { x: 0, y: 48, edge: 28, card: { width: 140, height: 128 } };
 
 /** 这么宽的网格放得下几列（至少一列）。 */
 export const columnsFor = (width: number, spacing: Spacing = DEFAULT_SPACING): number => (
@@ -82,10 +83,10 @@ export const previewSlots = (
     return slots;
 };
 
-/** 三行总览里一行占的高度：信息条 72 + 往下 12 + 最高的卡（相片 128），再留一点余量。 */
-export const OVERVIEW_ROW_BLOCK = 220;
+/** 三行总览里一行占的高度：信息条 72 + 往下 12 + 最高的卡（笔记本 152）。 */
+export const OVERVIEW_ROW_BLOCK = 236;
 /** 两行之间至少隔多少（一行的高度再留 16）。 */
-export const OVERVIEW_ROW_MIN_STEP = 236;
+export const OVERVIEW_ROW_MIN_STEP = 252;
 /** 第一行最高到哪（让开窗口标题栏）、第三行的卡离窗口底边至少多少。 */
 const OVERVIEW_TOP_MIN = 36;
 const OVERVIEW_BOTTOM_GAP = 8;

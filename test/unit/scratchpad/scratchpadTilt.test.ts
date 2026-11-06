@@ -89,9 +89,9 @@ describe('marquee against cards', () => {
 
 describe('full-page card sizes', () => {
     it('lays notebook cards out on their own size', () => {
-        expect(cardSize(NOTE_SPACING)).toEqual({ width: 104, height: 124 });
-        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 118, y: 168 });
-        expect(columnsFor(118 * 10 - 14, NOTE_SPACING)).toBe(10);
+        expect(cardSize(NOTE_SPACING)).toEqual({ width: 128, height: 152 });
+        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 144, y: 196 });
+        expect(columnsFor(144 * 10 - 16, NOTE_SPACING)).toBe(10);
     });
 
     it('keeps rows far enough apart that a long sideways marquee on the tilted sheet stays in its row', () => {
@@ -146,8 +146,9 @@ describe('three-row overview layout', () => {
     it('keeps the design positions on a tall window', () => {
         const tops = overviewRowTops(900);
         expect(tops[0]).toBeCloseTo(116.1, 1);
-        expect(tops[1]).toBeCloseTo(352.1, 1);
-        expect(tops[2]).toBeCloseTo(592.2, 1);
+        // The minimum step (a row is as tall as the tallest card) wins over the design ratio here.
+        expect(tops[1]).toBeCloseTo(116.1 + OVERVIEW_ROW_MIN_STEP, 1);
+        expect(tops[2]).toBeCloseTo(116.1 + 2 * OVERVIEW_ROW_MIN_STEP, 1);
     });
 
     it('never lets a row run into the next one', () => {
@@ -160,14 +161,14 @@ describe('three-row overview layout', () => {
     });
 
     it('keeps the third row inside a short window, moving up before squeezing', () => {
-        const tops = overviewRowTops(720);
-        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(720 - 8 + 1e-9);
+        const tops = overviewRowTops(760);
+        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(760 - 8 + 1e-9);
         expect(tops[1] - tops[0]).toBeGreaterThanOrEqual(OVERVIEW_ROW_BLOCK);
         expect(tops[0]).toBeGreaterThanOrEqual(36);
         // Tall enough to keep the full spacing once moved up: no squeezing.
-        const roomy = overviewRowTops(780);
+        const roomy = overviewRowTops(820);
         expect(roomy[1] - roomy[0]).toBeCloseTo(OVERVIEW_ROW_MIN_STEP, 6);
-        expect(roomy[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(780 - 8 + 1e-9);
+        expect(roomy[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(820 - 8 + 1e-9);
     });
 });
 
@@ -181,9 +182,9 @@ describe('tilted safe area', () => {
 
     it('keeps the overview clear of the sunk right end when the window has room for it', () => {
         const inset = overviewBottomInset(1760, 6);
-        const tops = overviewRowTops(820, inset);
-        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(820 - 8 - inset + 1e-9);
+        const tops = overviewRowTops(860, inset);
+        expect(tops[2] + OVERVIEW_ROW_BLOCK).toBeLessThanOrEqual(860 - 8 - inset + 1e-9);
         // Without the inset the last row would have stayed lower.
-        expect(overviewRowTops(820)[2]).toBeGreaterThan(tops[2]);
+        expect(overviewRowTops(860)[2]).toBeGreaterThan(tops[2]);
     });
 });
