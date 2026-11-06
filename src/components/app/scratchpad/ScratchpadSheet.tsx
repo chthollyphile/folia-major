@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
@@ -8,6 +8,7 @@ import ScratchpadGreeting from './ScratchpadGreeting';
 import ScratchpadShape from './ScratchpadShape';
 import { useScratchpadHistory } from './useScratchpadHistory';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 
 // src/components/app/scratchpad/ScratchpadSheet.tsx
 // 展开整页（设计稿 F 定稿）：整张纸向右下转 6°（降低动态效果时不转，同歌手页），这一页的米白信息条横贯整张纸，
@@ -84,11 +85,27 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
         return () => window.removeEventListener('resize', onResize);
     }, []);
     const indexOf = (id: ScratchpadTab) => String(SCRATCHPAD_TABS.indexOf(id) + 1).padStart(2, '0');
+    // 兜底：换页、进出总览之后（这一页是空的、没有画布来接焦点时）焦点还在 body 上，就交给整页自己，
+    // Esc 冒到抽屉上收回侧栏，按键不落到被盖住的墙上。等换页的动画（先退后进）走完再看。
+    const rootRef = useRef<HTMLDivElement>(null);
+    const showsOverview = Boolean(overview);
+    // 总览右上角「?」点开的一行操作说明（离开总览就收起）。
+    const [helpOpen, setHelpOpen] = useState(false);
+    useEffect(() => {
+        if (!showsOverview) setHelpOpen(false);
+    }, [showsOverview]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            const active = document.activeElement;
+            if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
+        }, 400);
+        return () => window.clearTimeout(timer);
+    }, [showsOverview, tab]);
     const others = useMemo(() => SCRATCHPAD_TABS.filter(id => id !== tab), [tab]);
     const title = t(TITLE_KEYS[tab]);
 
     return (
-        <div className="scratchpad-f" style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
+        <div ref={rootRef} className="scratchpad-f" tabIndex={-1} style={{ '--scratchpad-tilt': `${tilt}deg` } as React.CSSProperties}>
             <Backdrop tab={tab} word={title} />
             {overview ? (
                 <div className="scratchpad-f-sheet">{overview(sheetWidth)}</div>
@@ -118,7 +135,7 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                                 title={t(TITLE_KEYS[id])}
                                 countLabel={t('scratchpad.count', { count: counts[id] })}
                                 openLabel={t('scratchpad.expandPage')}
-                                onOpen={() => onSelectTab(id)}
+                                onOpen={onSelectTab}
                             />
                         </div>
                     ))}
@@ -137,12 +154,25 @@ const ScratchpadSheet: React.FC<ScratchpadSheetProps> = ({
                         {overview ? t('scratchpad.crumbOverview', { title: t('scratchpad.title') }) : t('scratchpad.crumb', { page: title })}
                     </span>
                     {overview && (
-                        <button type="button" className="scratchpad-pill is-icon is-small scratchpad-triangle-help" title={t('scratchpad.overviewHelp')} aria-label={t('scratchpad.overviewHelp')}>
+                        <button
+                            type="button"
+                            className="scratchpad-pill is-icon is-small scratchpad-triangle-help"
+                            title={t('scratchpad.overviewHelpLabel')}
+                            aria-label={t('scratchpad.overviewHelpLabel')}
+                            aria-expanded={helpOpen}
+                            aria-controls="scratchpad-overview-help"
+                            onClick={() => setHelpOpen(open => !open)}
+                        >
                             ?
                         </button>
                     )}
                 </span>
             </div>
+            {overview && helpOpen && (
+                <p id="scratchpad-overview-help" className="scratchpad-overview-help" role="note">
+                    {t('scratchpad.overviewHelp', { mod: PRIMARY_MODIFIER_LABEL })}
+                </p>
+            )}
         </div>
     );
 };

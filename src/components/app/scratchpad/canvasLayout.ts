@@ -1,8 +1,8 @@
 // src/components/app/scratchpad/canvasLayout.ts
 // 速记簿画布的几何：每组一块卡片网格，卡片按组内序号排进固定大小的格子（索引位）。拖动时卡片跟着指针走，
 // 松手的落点按指针下卡片中心最近的格子换算成组内序号；框选按格子的矩形判断碰没碰到。全是纯函数，单测直接测。
-// 格子之间的空隙（Spacing）可以换：速记簿用窄的；播放历史与播放队列的卡片之间要穿一条线，用宽的（THREAD_SPACING）。
-// Spacing 还能带卡片自己的大小（card）：展开整页（设计稿 F）里三页的卡片大小各不相同（NOTE / PHOTO / FILM_SPACING）。
+// 格子之间的空隙（Spacing）可以换，还能带卡片自己的大小（card）：展开整页（设计稿 F）里三页的卡片大小各不相同
+// （NOTE / PHOTO / FILM_SPACING）。
 
 export const CARD_WIDTH = 136;
 export const CARD_HEIGHT = 176;
@@ -22,10 +22,6 @@ export const cardSize = (spacing: Spacing): { width: number; height: number } =>
 export const CONTENT_EDGE = 16;
 
 export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
-/** 穿箭头线的画布（播放队列）：空隙宽到看得见线、放得下箭头，卡片也不挤（比速记簿的画布疏一些）。 */
-export const THREAD_SPACING: Spacing = { x: 48, y: 52, edge: 32 };
-/** 时间轴的画布（播放历史）：卡片之间放得下写着时间的节点；第一列前面的节点伸出网格左边，留白跟着放宽。 */
-export const TIMELINE_SPACING: Spacing = { x: 64, y: 52, edge: 60 };
 
 /**
  * 展开整页（设计稿 F）的三种卡片：速记簿是笔记本上的一条记录，播放历史是一张回忆相片（微微歪着，空隙留出歪出去的角），

@@ -1,16 +1,17 @@
 import React from 'react';
 import type { ScratchpadHandleStyle } from '../../../stores/useScratchpadSettingsStore';
 import ScratchpadShape from './ScratchpadShape';
-import { SCRATCHPAD_MARK_ON_DARK, SCRATCHPAD_MARK_ON_PAPER, SCRATCHPAD_PAPER } from './scratchpadLook';
+import { SCRATCHPAD_MARK_FALLBACK, SCRATCHPAD_MARK_WALL_FALLBACK, SCRATCHPAD_PAPER } from './scratchpadLook';
 
 // src/components/app/scratchpad/ScratchpadHandleRest.tsx
 // 悬浮标签常驻时（指针还没进左缘热区）露出来的那一点点：米白小条、细竖线、小圆点、几何体三颗。都贴着左缘、小而半透明。
 // 左缘的热区（ScratchpadHost）和设置页「悬浮标签样式」的小图共用它；小图按 scale 缩小，形状一样。
 
-// 颜色读速记簿根节点上的变量（日光主题下墙是浅的，记号换成墨色）；设置页的小图不在根节点里，退回暗色墙上的配色。
+// 颜色读速记簿根节点上的变量（日光主题下墙是浅的，记号换成墨色）；设置页的小图包在 .scratchpad-look 里读同一套点缀色，
+// 纸色退回暗色墙上的配色。
 const REST_INK = `var(--scratchpad-rest-ink, ${SCRATCHPAD_PAPER})`;
-const MARK_ON_WALL = `var(--scratchpad-mark-wall, ${SCRATCHPAD_MARK_ON_DARK})`;
-const MARK_ON_PAPER = `var(--scratchpad-mark, ${SCRATCHPAD_MARK_ON_PAPER})`;
+const MARK_ON_WALL = `var(--scratchpad-mark-wall, ${SCRATCHPAD_MARK_WALL_FALLBACK})`;
+const MARK_ON_PAPER = `var(--scratchpad-mark, ${SCRATCHPAD_MARK_FALLBACK})`;
 
 type ScratchpadHandleRestProps = {
     handleStyle: ScratchpadHandleStyle;

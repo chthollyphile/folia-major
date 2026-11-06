@@ -67,6 +67,9 @@ type ScratchpadHostProps = {
 /** 页签的先后（换页动画的方向、方向键换页都按它）。 */
 const TABS = SCRATCHPAD_TABS;
 
+/** 各页的全名（展开整页里那一页区域的名字）。 */
+const PAGE_TITLE_KEYS: Record<ScratchpadTab, string> = { notes: 'scratchpad.title', history: 'scratchpad.history', queue: 'scratchpad.queue' };
+
 /** 清空的第二下要在这么久之内点，过了就复原。 */
 const CLEAR_CONFIRM_MS = 3000;
 
@@ -224,8 +227,13 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
         setExpanded(false);
         requestAnimationFrame(() => toggleCanvasRef.current?.focus());
     }, [setExpanded]);
-    /** Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。 */
+    /**
+     * Tab / Shift + Tab 换到下一页 / 上一页（首尾相接），焦点跟到新页签上：原来那页的按钮卸掉以后焦点不至于掉到 body。
+     * 展开整页里没有页签，新挂上的画布自己接焦点；三行总览开着时不换（总览里三页都在，换了也看不出来）。
+     */
+    const showOverviewRef = useRef(false);
     const cycleTab = useCallback((direction: 1 | -1) => {
+        if (showOverviewRef.current) return;
         const current = useScratchpadStore.getState().tab;
         const next = TABS[(TABS.indexOf(current) + direction + TABS.length) % TABS.length];
         setTab(next);
@@ -310,6 +318,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const tilt = calm ? 0 : 6;
     // 展开整页的信息条上「‹ 三行总览」换到三行总览；收回侧栏之后再展开，回到这一页（不回总览）。
     const [showOverview, setShowOverview] = useState(false);
+    showOverviewRef.current = isExpanded && showOverview;
     useEffect(() => {
         if (!isExpanded) setShowOverview(false);
     }, [isExpanded]);
@@ -329,6 +338,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const posterTintUseCustomColor = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const posterTintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const posterTintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+    // 熄灯时墙上的叠色归零（改成压暗，wall.css），速记簿也不染；熄灯的压暗没接（交给用户再定）。
+    const lightsOn = useLatticeSettingsStore(state => state.latticeLightsOn);
     // 构成主义的纸、墨与跟主题强调色走的点缀色（scratchpadLook）交给样式表：边缘标签、面板与展开页都读这些变量。
     const lookVars = useMemo(() => ({
         ...scratchpadLookVars(isDaylight),
@@ -371,9 +382,11 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     const tabPanel = (
         <div
             className="scratchpad-panel"
-            role="tabpanel"
+            // 左缘面板里是页签控制的那一页；展开整页里没有页签（信息条与细纸带换页），是一块有名字的区域。
+            role={isExpanded ? 'region' : 'tabpanel'}
             id="scratchpad-panel"
-            aria-labelledby={`scratchpad-tab-${tab}`}
+            aria-labelledby={isExpanded ? undefined : `scratchpad-tab-${tab}`}
+            aria-label={isExpanded ? t(PAGE_TITLE_KEYS[tab]) : undefined}
         >
             {/* 换页：往右边的页签走，新的一页从右边滑进来、旧的往左边让开；往回走反过来。先退后进（mode wait），
                 两页不同时在场，列表与画布各自的尺寸量得准。降级动效时只淡入淡出。 */}
@@ -381,6 +394,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                 <motion.div
                     key={tab}
                     className="scratchpad-panel-page"
+                    data-page={tab}
                     custom={pageDirection}
                     variants={pageVariants}
                     initial="enter"
@@ -439,7 +453,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
 
     return (
         <div
-            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}${posterTintEnabled ? ' has-poster-tint' : ''}${posterTintUseCustomColor ? ' uses-custom-poster-tint' : ''}`}
+            className={`scratchpad-root${isDaylight ? ' is-daylight' : ''}${isCovered ? ' is-covered' : ''}${calm ? ' is-calm' : ''}${posterTintEnabled && lightsOn ? ' has-poster-tint' : ''}${posterTintUseCustomColor ? ' uses-custom-poster-tint' : ''}`}
             style={lookVars}
         >
             {!isOpen && !isHandleHidden && showHandle && (

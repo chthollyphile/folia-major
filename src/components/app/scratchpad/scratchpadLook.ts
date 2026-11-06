@@ -12,26 +12,21 @@ export const SCRATCHPAD_INK = '#141414';
 /**
  * 点缀色跟主题强调色走（用户定，2026-11-06：设计稿里的红只是示意）。强调色可能很亮（默认暗色主题接近白色）也可能很暗，
  * 所以按它画在什么上面钳住亮度（oklch 的 L），色相与彩度照旧：
- * - 画在米白纸上（信息条的红顶边、计数斜块、圆形记号）：L 不超过 0.52，纸色的字压在上面也读得清（约 4.5 : 1）；
- * - 画在暗色墙面上（常驻的小圆点、几何体）：L 不低于 0.62；
- * - 日光主题的浅色墙面上：L 不超过 0.5。
- * 强调色几乎没有彩度时（默认的近白），钳完是一块中性灰，仍看得见。没有主题变量的地方退回构成主义红。
+ * - 画在米白纸上（信息条的红顶边、计数斜块、圆形记号）：L 不超过 0.52，纸色的字压在上面也读得清（约 4.5 : 1）——--scratchpad-mark；
+ * - 画在暗色墙面上（常驻的小圆点、几何体）：L 不低于 0.62；日光主题的浅色墙面上：L 不超过 0.5——--scratchpad-mark-wall；
+ *   面板随日光主题换成浅灰，所以「墙上」的点缀色也是面板上的点缀色；
+ * - 播放队列那条胶片不随主题、一直是黑的：--scratchpad-mark-dark（同暗色墙）。
+ * 强调色几乎没有彩度时（默认的近白），钳完是一块中性灰，仍看得见。
+ * 这几个变量写在 scratchpad.css（.scratchpad-root 与 .scratchpad-look 上）：网页版可能跑在不认 oklch(from …) 的浏览器里，
+ * 那里退回下面这两种固定的构成主义红（纸上 4.7 : 1、暗墙 4.9 : 1、日光墙 4.6 : 1）。
  */
-const ACCENT = 'var(--text-accent, #d93a26)';
-export const SCRATCHPAD_MARK_ON_PAPER = `oklch(from ${ACCENT} min(l, 0.52) c h)`;
-export const SCRATCHPAD_MARK_ON_DARK = `oklch(from ${ACCENT} max(l, 0.62) c h)`;
-export const SCRATCHPAD_MARK_ON_LIGHT = `oklch(from ${ACCENT} min(l, 0.5) c h)`;
+export const SCRATCHPAD_MARK_FALLBACK = '#c43521';
+export const SCRATCHPAD_MARK_WALL_FALLBACK = '#e45a43';
 
-/**
- * 速记簿根节点上写的变量：纸、墨、两种点缀色（纸上 / 墙上），以及常驻在墙上的小记号用的颜色（暗色墙用纸色，日光墙用墨色）。
- * 面板随日光主题换成浅灰，所以「墙上」的点缀色也是面板上的点缀色；播放队列那条胶片不随主题、一直是黑的，用 --scratchpad-mark-dark。
- */
+/** 速记簿根节点上写的变量：纸、墨，以及常驻在墙上的小记号用的颜色（暗色墙用纸色，日光墙用墨色）。点缀色在样式表里。 */
 export const scratchpadLookVars = (isDaylight: boolean): Record<string, string> => ({
     '--scratchpad-paper': SCRATCHPAD_PAPER,
     '--scratchpad-ink': SCRATCHPAD_INK,
-    '--scratchpad-mark': SCRATCHPAD_MARK_ON_PAPER,
-    '--scratchpad-mark-wall': isDaylight ? SCRATCHPAD_MARK_ON_LIGHT : SCRATCHPAD_MARK_ON_DARK,
-    '--scratchpad-mark-dark': SCRATCHPAD_MARK_ON_DARK,
     '--scratchpad-rest-ink': isDaylight ? SCRATCHPAD_INK : SCRATCHPAD_PAPER,
 });
 

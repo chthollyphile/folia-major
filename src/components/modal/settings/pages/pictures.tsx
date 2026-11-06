@@ -155,7 +155,8 @@ export const GridCardsPreview: React.FC<GridCardsPreviewProps> = ({ minScale, mi
  */
 export const ScratchpadHandleStylePicture: React.FC<{ handleStyle: ScratchpadHandleStyle }> = ({ handleStyle }) => (
     // The tab lives on the dark wall, so the frame is that wall whatever the settings theme is.
-    <span className="relative block h-full w-full" style={{ background: '#121114' }}>
+    // scratchpad-look gives it the scratchpad's accent marks (defined in scratchpad.css).
+    <span className="scratchpad-look relative block h-full w-full" style={{ background: '#121114' }}>
         <span className="absolute right-2 top-2 h-9 w-9 rounded-[3px] opacity-60" style={{ background: SAMPLE_COVERS[1] }} />
         <span className="absolute right-12 top-6 h-7 w-7 rounded-[3px] opacity-60" style={{ background: SAMPLE_COVERS[2] }} />
         <span className="absolute left-0 top-0 flex h-full items-center">

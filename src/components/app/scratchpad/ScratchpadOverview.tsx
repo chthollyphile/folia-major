@@ -28,6 +28,14 @@ import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
 
 /** 每一行在纸上的高度位置（窗口高度的比例，加上纸上下多出来的 130px）：照设计稿 1440 × 900 时的 246 / 482 / 722。 */
 const ROW_TOPS = [0.129, 0.391, 0.658];
+/** 一行至少占多高（信息条 72 + 下面 12 + 最高的卡 136，再留 16）：窗口矮时按它往下排，上一行的卡不压到下一条信息条上。 */
+const ROW_MIN_STEP = 236;
+
+/** 第 order 行的顶边：按比例的位置，和「上面每一行都至少占 ROW_MIN_STEP」两者取大（CSS 的 max，跟着窗口高度变）。 */
+const rowTop = (order: number) => {
+    const terms = ROW_TOPS.slice(0, order + 1).map((ratio, index) => `(100% - 260px) * ${ratio} + ${(order - index) * ROW_MIN_STEP}px`);
+    return `calc(130px + max(${terms.join(', ')}))`;
+};
 /** 一行里卡片的左边、相对信息条顶边往下多少，右边留给跳到栏的宽度。 */
 const CARDS_LEFT = 196;
 const CARDS_BELOW_BAND = 84;
@@ -56,7 +64,7 @@ type ScratchpadOverviewProps = {
 };
 
 const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue, tilt, sheetWidth, onOpenPage, onEscape }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const notes = useScratchpadStore(state => state.entries);
     const plays = useScratchpadHistory();
     const { playQueue, displaySong } = usePlaybackStore(useShallow(state => ({ playQueue: state.playQueue, displaySong: selectDisplaySong(state) })));
@@ -78,7 +86,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
         const displayKey = displaySong ? getPlaybackSongKey(displaySong) : null;
         const currentIndex = displayKey === null ? -1 : playQueue.findIndex(song => getPlaybackSongKey(song) === displayKey);
         const queueFrom = Math.max(0, currentIndex);
-        const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+        const time = new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
         const make = (tab: ScratchpadTab, sourceKey: string, song: SongResult, extra: Partial<CanvasEntry> = {}): OverviewEntry => ({
             key: `${tab}|${sourceKey}`, tab, sourceKey, song, ...extra,
         });
@@ -95,8 +103,14 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
             history: { entries: historyRow, more: plays.length - historyRow.length, total: plays.length },
             queue: { entries: queueRow, more: playQueue.length - queueFrom - queueRow.length, total: playQueue.length },
         };
-    }, [displaySong, notes, playQueue, plays, sheetWidth]);
+    }, [displaySong, i18n.language, notes, playQueue, plays, sheetWidth]);
     const all = useMemo(() => SCRATCHPAD_TABS.flatMap(tab => rows[tab].entries), [rows]);
+
+    // 挂上时焦点不在任何地方（点的「‹ 三行总览」跟着信息条一起卸掉了）：接过焦点，Esc 与快捷键才归总览。
+    useEffect(() => {
+        const active = document.activeElement;
+        if (!active || active === document.body) rootRef.current?.focus({ preventScroll: true });
+    }, []);
 
     // 行里的卡换了（收进新歌、切了歌）时，选择里也去掉不在了的。
     useEffect(() => {
@@ -290,7 +304,7 @@ const ScratchpadOverview: React.FC<ScratchpadOverviewProps> = ({ playback, queue
                         }}
                         className="scratchpad-overview-row"
                         data-page={tab}
-                        style={{ top: `calc(130px + (100% - 260px) * ${ROW_TOPS[order]})` }}
+                        style={{ top: rowTop(order) }}
                     >
                         <ScratchpadBand
                             variant="row"

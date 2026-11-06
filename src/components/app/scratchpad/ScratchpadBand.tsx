@@ -142,7 +142,7 @@ type ScratchpadSlimProps = {
     title: string;
     countLabel: string;
     openLabel: string;
-    onOpen: () => void;
+    onOpen: (tab: ScratchpadTab) => void;
 };
 
 /** 收起的信息条：一条细纸带，整条是换到那一页的按钮。 */
@@ -150,7 +150,7 @@ export const ScratchpadSlim: React.FC<ScratchpadSlimProps> = memo(({ tab, index,
     const shape = SCRATCHPAD_TAB_SHAPES[tab];
     const decos = useMemo(() => scatterSlimDecos(tab), [tab]);
     return (
-        <button type="button" className="scratchpad-slim" data-page={tab} data-scratchpad-slim={tab} aria-label={`${openLabel} · ${title}`} onClick={onOpen}>
+        <button type="button" className="scratchpad-slim" data-page={tab} data-scratchpad-slim={tab} aria-label={`${openLabel} · ${title}`} onClick={() => onOpen(tab)}>
             <span className="scratchpad-band-texture" aria-hidden="true" />
             <Decos shape={shape} decos={decos} covers={[]} />
             <span className="scratchpad-slim-head">

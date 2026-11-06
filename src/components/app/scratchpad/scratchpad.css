@@ -1,7 +1,8 @@
 /* src/components/app/scratchpad/scratchpad.css — 速记簿：左缘的把手与从左边滑出的抽屉（ScratchpadHost）。
    抽屉平时是 Bravais 样式的左缘面板（ScratchpadPanel）：深浅不同的中性黑分区，米白的纸、黑墨，点缀色跟主题强调色走
-   （scratchpadLook 写在根节点上的变量）；日光档在 .scratchpad-root.is-daylight 下换成浅灰。展开成画布时仍是玻璃。
-   抽屉非模态：没有遮罩，背后照常能点。整个速记簿接 Bravais 墙的「海报聚焦叠色」（文件末尾「叠色」一节）。
+   （纸与墨由 scratchpadLook 写在根节点上，点缀色在下面）；日光档在 .scratchpad-root.is-daylight 下换成浅灰。
+   展开整页是一张倾斜的纸（文件末尾「展开整页」一节）。抽屉非模态：没有遮罩，背后照常能点。
+   整个速记簿接 Bravais 墙的「海报聚焦叠色」（文件末尾「叠色」一节）。
    画布里的次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
 
 /* 面板的几块黑（中性灰阶，不掺主题色，用户定）：页签列最深，内容区本色，悬停的行浅一档、按下再浅一档；
@@ -18,6 +19,29 @@
     --scratchpad-text-soft: rgb(244 241 234 / 62%);
     --scratchpad-rule: rgb(244 241 234 / 5%);
     color: var(--scratchpad-text);
+}
+
+/* 点缀色跟主题强调色走，按画在什么上面钳住亮度（理由与数值见 scratchpadLook.ts）：纸上 --scratchpad-mark，
+   墙上 / 面板上 --scratchpad-mark-wall，一直是黑的胶片上 --scratchpad-mark-dark。不认 oklch(from …) 的浏览器（网页版
+   可能跑在上面）用固定的构成主义红：放在 @supports 外面的是退路，里面的覆盖它。设置页的小图包在 .scratchpad-look 里读同一套。 */
+.scratchpad-root,
+.scratchpad-look {
+    --scratchpad-mark: #c43521;
+    --scratchpad-mark-wall: #e45a43;
+    --scratchpad-mark-dark: #e45a43;
+}
+
+.scratchpad-root.is-daylight { --scratchpad-mark-wall: #c43521; }
+
+@supports (color: oklch(from red l c h)) {
+    .scratchpad-root,
+    .scratchpad-look {
+        --scratchpad-mark: oklch(from var(--text-accent, #d93a26) min(l, 0.52) c h);
+        --scratchpad-mark-wall: oklch(from var(--text-accent, #d93a26) max(l, 0.62) c h);
+        --scratchpad-mark-dark: oklch(from var(--text-accent, #d93a26) max(l, 0.62) c h);
+    }
+
+    .scratchpad-root.is-daylight { --scratchpad-mark-wall: oklch(from var(--text-accent, #d93a26) min(l, 0.5) c h); }
 }
 
 .scratchpad-root.is-daylight {
@@ -539,12 +563,6 @@
     padding: 0 16px 24px;
 }
 
-.scratchpad-canvas-hint {
-    margin: 0 2px 10px;
-    font-size: 12px;
-    opacity: 0.5;
-}
-
 .scratchpad-canvas-group + .scratchpad-canvas-group { margin-top: 14px; }
 
 .scratchpad-grid {
@@ -798,53 +816,6 @@
 .scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-cover img { filter: grayscale(1); opacity: 0.55; }
 .scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-name,
 .scratchpad-card.is-dimmed:not(:hover, .is-selected) .scratchpad-card-meta { opacity: 0.5; }
-
-/* —— 穿过卡片的线（canvasThread）：画在卡片底下，从卡片之间的空隙里露出来 ——
-   播放历史是一条细的时间轴，每张卡前面一个空心刻度；播放队列是一条带箭头的线，放过的那一段淡下去。 */
-
-.scratchpad-thread {
-    position: absolute;
-    top: 0;
-    overflow: visible;
-    pointer-events: none;
-}
-
-.scratchpad-thread-line {
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.scratchpad-thread-marks {
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.scratchpad-thread.is-timeline .scratchpad-thread-line { stroke-width: 1.5; opacity: 0.32; }
-
-/* 时间轴的节点：一块写着时间的小牌子，压在线上（底色与画布一样，把线在这里断开）。 */
-.scratchpad-thread-node rect { fill: rgb(30 30 33); stroke: currentColor; stroke-opacity: 0.35; stroke-width: 1; }
-.scratchpad-root.is-daylight .scratchpad-thread-node rect { fill: rgb(244 242 238); }
-.scratchpad-thread-node text {
-    fill: currentColor;
-    fill-opacity: 0.8;
-    font-size: 10.5px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-
-/* 先后：实心、圆角的箭头，与线同色。 */
-.scratchpad-thread.is-flow { color: var(--text-accent, currentColor); }
-/* 淡化放在整组（.scratchpad-thread-run）上：组里箭头不透明、盖住底下的线，整组再一起变淡，线不会从箭头里透出来。
-   线在组里另减一档（0.58 × 0.95 ≈ 原来的 0.55）；放过的那一段线和箭头一样淡（0.22）。 */
-.scratchpad-thread.is-flow .scratchpad-thread-run { opacity: 0.95; }
-.scratchpad-thread.is-flow .scratchpad-thread-run.is-played { opacity: 0.22; }
-.scratchpad-thread.is-flow .scratchpad-thread-line { stroke-width: 2; stroke-opacity: 0.58; }
-.scratchpad-thread.is-flow .is-played .scratchpad-thread-line { stroke-opacity: 1; }
-.scratchpad-thread.is-flow .scratchpad-thread-marks { fill: currentColor; stroke-width: 1.5; }
 
 /* —— 不让选中文字：抽屉里全是按钮和卡片，拖动、框选、双击时不该拉出蓝色的选区 —— */
 
@@ -1165,7 +1136,7 @@
 /* —— 三页各自的样子（左缘面板）——
    速记簿是笔记本：每行底下一道极淡的横格，封面与字之间一道点缀色的页边线，来源写成斜体。 */
 
-.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-list {
+.scratchpad-drawer.is-panel .scratchpad-panel-page[data-page='notes'] .scratchpad-list {
     background: linear-gradient(
         90deg,
         transparent 69px,
@@ -1174,15 +1145,15 @@
     );
 }
 
-.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-row {
+.scratchpad-drawer.is-panel .scratchpad-panel-page[data-page='notes'] .scratchpad-row {
     gap: 22px;
     background-image: linear-gradient(to top, var(--scratchpad-rule) 1px, transparent 1px);
 }
 
-.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-meta { font-style: italic; }
+.scratchpad-drawer.is-panel .scratchpad-panel-page[data-page='notes'] .scratchpad-meta { font-style: italic; }
 
 /* 播放历史是相册：每天的页眉写大号的日子（三角记号、月份星期的小字），每首的封面是一张泛黄、微歪的小相片，悬停时摆正。 */
-.scratchpad-drawer.is-panel[data-page='history'] .scratchpad-row { height: 60px; contain-intrinsic-size: auto 60px; }
+.scratchpad-drawer.is-panel .scratchpad-panel-page[data-page='history'] .scratchpad-row { height: 60px; contain-intrinsic-size: auto 60px; }
 
 .scratchpad-list .scratchpad-group-header.is-day {
     height: 44px;
@@ -1311,7 +1282,8 @@
    （bravaisAppearance.css「缝」一节）：纸最终被染 e；内容之上那一层封顶 0.35（字最多被染 35%），纸上不够的由内容之下
    那一层补齐：1 − (1 − e) / (1 − min(e, 0.35))。指针在面板上、面板里有键盘焦点时整块亮起（不染），和缝一样。
    探出面板的那条米白信息条自己画这两层（它比面板宽，面板的两层盖不到探出去的那截，所以它压在面板那两层之上）。
-   熄灯（latticeLightsOn）没接。展开成画布时面板不画这两层。 */
+   熄灯（latticeLightsOn 关）时墙上的叠色归零，这里也不染（宿主不挂 has-poster-tint）；熄灯的压暗没接。
+   展开整页时面板不画这两层（纸上另算，见下面「展开整页」的叠色）。 */
 .scratchpad-root {
     --scratchpad-tint: 0;
     --scratchpad-tint-fill: linear-gradient(
@@ -1355,7 +1327,7 @@
    降低动态效果时 0）。纸上的坐标照设计稿：信息条在 230px，卡片从 362px 起，铺到两条细纸带上沿；左边让出 186px，
    右边 184px（跳到栏与操作提示那一列在卡片右边）。纸后面的大构图、右上角的黑三角不转。 */
 
-.scratchpad-f { position: absolute; inset: 0; }
+.scratchpad-f { position: absolute; inset: 0; outline: none; }
 
 .scratchpad-f-sheet {
     position: absolute;
@@ -1983,3 +1955,20 @@
 .scratchpad-overview .scratchpad-selection-menu { position: absolute; z-index: 30; }
 .scratchpad-overview.is-box-selecting .scratchpad-card { transition: none; }
 .scratchpad-triangle-help { margin-left: 8px; font-size: 13px; }
+
+/* 总览「?」点开的那一行说明：贴在黑三角下面，墨色底。 */
+.scratchpad-overview-help {
+    position: absolute;
+    top: 228px;
+    right: 18px;
+    z-index: 6;
+    max-width: 360px;
+    margin: 0;
+    padding: 10px 12px;
+    background: var(--scratchpad-ink);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
+    color: var(--scratchpad-paper);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.6;
+}
