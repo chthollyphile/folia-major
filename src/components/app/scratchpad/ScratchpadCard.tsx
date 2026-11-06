@@ -22,6 +22,8 @@ export type CanvasEntry = {
     isCurrent?: boolean;
     /** 灰掉：封面去色、字变淡（播放队列画布里排在当前这首之前、已经放过的歌）。悬停、选中时复原。 */
     isDimmed?: boolean;
+    /** 在播放队列里是第几首（从 1 起）：队列的胶片在片边印这个号。 */
+    position?: number;
 };
 
 export type CardMotion = { x: MotionValue<number>; y: MotionValue<number> };

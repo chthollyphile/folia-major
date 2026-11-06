@@ -22,16 +22,48 @@ export const SCRATCHPAD_MARK_ON_PAPER = `oklch(from ${ACCENT} min(l, 0.52) c h)`
 export const SCRATCHPAD_MARK_ON_DARK = `oklch(from ${ACCENT} max(l, 0.62) c h)`;
 export const SCRATCHPAD_MARK_ON_LIGHT = `oklch(from ${ACCENT} min(l, 0.5) c h)`;
 
-/** 速记簿根节点上写的变量：纸、墨、两种点缀色（纸上 / 墙上），以及常驻在墙上的小记号用的颜色（暗色墙用纸色，日光墙用墨色）。 */
+/**
+ * 速记簿根节点上写的变量：纸、墨、两种点缀色（纸上 / 墙上），以及常驻在墙上的小记号用的颜色（暗色墙用纸色，日光墙用墨色）。
+ * 面板随日光主题换成浅灰，所以「墙上」的点缀色也是面板上的点缀色；播放队列那条胶片不随主题、一直是黑的，用 --scratchpad-mark-dark。
+ */
 export const scratchpadLookVars = (isDaylight: boolean): Record<string, string> => ({
     '--scratchpad-paper': SCRATCHPAD_PAPER,
     '--scratchpad-ink': SCRATCHPAD_INK,
     '--scratchpad-mark': SCRATCHPAD_MARK_ON_PAPER,
     '--scratchpad-mark-wall': isDaylight ? SCRATCHPAD_MARK_ON_LIGHT : SCRATCHPAD_MARK_ON_DARK,
+    '--scratchpad-mark-dark': SCRATCHPAD_MARK_ON_DARK,
     '--scratchpad-rest-ink': isDaylight ? SCRATCHPAD_INK : SCRATCHPAD_PAPER,
 });
 
+/** 三页的先后：页签列从上到下、换页动画的方向、信息条上的编号（01 / 02 / 03）都按它。 */
+export const SCRATCHPAD_TABS: readonly ScratchpadTab[] = ['notes', 'history', 'queue'];
+
 export type ScratchpadShapeKind = 'circle' | 'tri' | 'chev';
+
+/** 信息条上一颗装饰：实心（点缀色）、线框、墨色、镂空（面板底下的黑）、或一张裁成这一页几何体的队列封面。 */
+export type ScratchpadDecoStyle = 'fill' | 'wire' | 'ink' | 'hollow' | 'image';
+
+export type ScratchpadDeco = {
+    /** 相对信息条左上角（px），可以探出条外，被条的斜切裁掉。 */
+    x: number;
+    y: number;
+    size: number;
+    style: ScratchpadDecoStyle;
+    /** 转多少度。 */
+    rotate: number;
+};
+
+const deco = (x: number, y: number, size: number, style: ScratchpadDecoStyle, rotate = 0): ScratchpadDeco => ({ x, y, size, style, rotate });
+
+/**
+ * 左缘面板顶上那条米白信息条的装饰：每页一组固定的「随机」位置，撒在标题右边那段空白里（设计稿 A 按 F 适配的那一版，原样搬过来）。
+ * 条宽 340px（面板内容区 304px，再探出 36px）。
+ */
+export const SCRATCHPAD_PANEL_BAND_DECOS: Record<ScratchpadTab, readonly ScratchpadDeco[]> = {
+    notes: [deco(176, -10, 26, 'fill'), deco(206, 14, 30, 'wire'), deco(244, -6, 40, 'image'), deco(292, 22, 20, 'hollow'), deco(312, -12, 30, 'fill'), deco(262, 38, 14, 'ink')],
+    history: [deco(182, 8, 28, 'wire', -14), deco(216, -12, 36, 'image', 18), deco(258, 26, 18, 'fill', -22), deco(282, -8, 30, 'fill', 9), deco(318, 18, 22, 'hollow', -6), deco(176, 40, 12, 'ink', 25)],
+    queue: [deco(178, 12, 28, 'fill', -8), deco(214, -10, 40, 'image', 12), deco(262, 18, 24, 'wire', -20), deco(292, -6, 22, 'ink', 16), deco(316, 26, 18, 'hollow'), deco(190, -12, 14, 'fill', 24)],
+};
 
 /** 每一页的几何体。 */
 export const SCRATCHPAD_TAB_SHAPES: Record<ScratchpadTab, ScratchpadShapeKind> = {

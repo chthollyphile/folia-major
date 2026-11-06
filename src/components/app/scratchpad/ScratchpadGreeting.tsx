@@ -4,7 +4,8 @@ import { Coffee, Moon, MoonStar, Sun, Sunrise, Sunset, Utensils, type LucideIcon
 import { GREETING_SHORT_VARIANTS, historyGreetingSlot, msUntilNextGreetingSlot, pickGreetingVariant, type HistoryGreetingSlot } from './historyGreeting';
 
 // src/components/app/scratchpad/ScratchpadGreeting.tsx
-// 速记簿抽屉顶上、页签上面的那一句问候（三页共用）：窄的抽屉里是短版（几个字），展开成画布时是长版（一整句）。
+// 速记簿抽屉顶上的那一句问候（三页共用）：左缘面板里放大写在信息条下面（长版），展开成画布时是页签上面的一行眉批（长版）。
+// 短版（几个字）留着给更窄的地方用。
 
 /** 每一段前面的小图标。 */
 const SLOT_ICONS: Record<HistoryGreetingSlot, LucideIcon> = {
@@ -25,8 +26,11 @@ const pickNow = (): GreetingPick => ({
     long: pickGreetingVariant(),
 });
 
-/** 挂上时两种长度各随机挑一句；跨过一段（比如过了晚上十点）时换成新一段里随机的。 */
-const ScratchpadGreeting: React.FC<{ long: boolean }> = ({ long }) => {
+/**
+ * 挂上时两种长度各随机挑一句；跨过一段（比如过了晚上十点）时换成新一段里随机的。
+ * headline：左缘面板里那种放大的写法（不带图标，最多两行），见 ScratchpadPanel。
+ */
+const ScratchpadGreeting: React.FC<{ long: boolean; headline?: boolean }> = ({ long, headline = false }) => {
     const { t } = useTranslation();
     const [pick, setPick] = useState(pickNow);
     // 每次到点都重挂下一个（tick 每次都变）：时钟被往回调过、算出来还是同一段时也不会停下。
@@ -43,8 +47,8 @@ const ScratchpadGreeting: React.FC<{ long: boolean }> = ({ long }) => {
         : t(`scratchpad.greetingShort.${pick.slot}.${pick.short}`);
     const Icon = SLOT_ICONS[pick.slot];
     return (
-        <p className="scratchpad-greeting" data-testid="scratchpad-greeting">
-            <Icon aria-hidden="true" />
+        <p className={`scratchpad-greeting${headline ? ' is-headline' : ''}`} data-testid="scratchpad-greeting">
+            {!headline && <Icon aria-hidden="true" />}
             <span>{text}</span>
         </p>
     );

@@ -2225,7 +2225,7 @@ export default function App() {
         onBackCollection: backCollection,
     });
     const scratchpadPlayback = useScratchpadPlayback(homeModel.surfaceProps, handleQueueAddAndPlay);
-    const scratchpadQueue = useScratchpadQueuePort(playSong, setQueueOrder);
+    const scratchpadQueue = useScratchpadQueuePort(playSong, setQueueOrder, shuffleQueue);
     const playerDisplayCatalogIndex = useMemo(() => buildLocalLibraryIndex(
         localLibraryCatalog.entities,
         localLibraryCatalog.assignments,

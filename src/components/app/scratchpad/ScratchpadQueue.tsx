@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Check, ListEnd, ListMusic, ListStart, NotebookPen, Star, Trash2 } from 'lucide-react';
+import { Check, ListEnd, ListMusic, ListStart, NotebookPen, Shuffle, Star, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import { selectDisplaySong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { collectToScratchpad, scratchpadGroupKey, useScratchpadStore } from '../../../stores/useScratchpadStore';
@@ -16,6 +16,7 @@ import { moveBlockToIndex } from './queueOrder';
 import { THREAD_SPACING } from './canvasLayout';
 import { scratchpadSourceLabel, type ScratchpadAction } from './scratchpadModel';
 import ScratchpadSongTable from './ScratchpadSongTable';
+import ScratchpadShape from './ScratchpadShape';
 import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
 import type { CanvasEntry } from './ScratchpadCard';
 import { useQueueOrderDraft } from './useQueueOrderDraft';
@@ -29,6 +30,7 @@ import type { ScratchpadQueuePort } from './ScratchpadHost';
 // 拖动松手只改草稿，停手一会儿才一次写进队列（useQueueOrderDraft），免得 Lattice 这些跟着队列重排的画面连着重渲染。
 // 正在播放的那首（显示的那首与内部 currentSong，automix 交叉淡入时两首不同）不能移除，与墙面工具的队列浮岛一致。
 // 外部舞台播放（activePlaybackContext 是 stage）与私人 FM 时只读：只能点歌播放（FM 时照旧按 FM 播）、收进速记簿或歌单。
+// 左缘面板里（收起时）是一条竖着走的胶片：片边印序号，已经放过的几首默认收起（顶上一颗按钮点开），底下一颗「打乱队列」。
 
 type ScratchpadQueueProps = {
     queue: ScratchpadQueuePort;
@@ -84,11 +86,16 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
             song,
             meta: [getSongArtistLabel(song), scratchpadSourceLabel(song, t)].filter(Boolean).join(' · '),
             isCurrent: displayKey !== null && getPlaybackSongKey(song) === displayKey,
-            // 画布上排在当前这首之前（已经放过）的灰掉（用户定，2026-11-05）；收起时的列表不画这个。
+            // 排在当前这首之前（已经放过）的灰掉（用户定，2026-11-05）：画布上，与面板里点开的那几格胶片。
             isDimmed: currentIndex >= 0 && index < currentIndex,
+            position: index + 1,
         }));
     }, [displayKey, order, t]);
     const focusIndex = useMemo(() => rows.findIndex(row => row.isCurrent), [rows]);
+    // 面板里的胶片：已经放过的那几首默认收起（设计稿 A 按 F 适配），点开后接在正在播的那首上面。
+    const [showPlayed, setShowPlayed] = useState(false);
+    const playedCount = Math.max(0, focusIndex);
+    const filmRows = useMemo(() => (showPlayed ? rows : rows.slice(playedCount)), [playedCount, rows, showPlayed]);
 
     // 行内按钮与菜单在事件里读这一刻的值（身份稳定，行不因为它们重渲染）。
     const latest = useRef({ rows, order, currentSong, displayKey, playingKey, readOnly, collectedKeys, draft, queue, t });
@@ -200,6 +207,11 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
     const hold = useCallback(() => latest.current.draft.hold(), []);
     const resume = useCallback(() => latest.current.draft.resume(), []);
     const remove = useCallback((selected: CanvasEntry[]) => runBatch('remove', selected), [runBatch]);
+    // 打乱：没提交的拖动草稿直接作废（打乱以后那个顺序也就没有意义了），交给 App 的打乱（正在播的那首留在最前）。
+    const shuffle = useCallback(() => {
+        latest.current.draft.discard();
+        latest.current.queue.shuffle();
+    }, []);
 
     // 画布上的那一组：线从第一首穿到最后一首，正在播的那首之前（放过的）那一段淡一些。
     const canvasGroups = useMemo<CanvasGroup[]>(() => [{
@@ -240,15 +252,42 @@ const ScratchpadQueue: React.FC<ScratchpadQueueProps> = ({ queue, expanded, onCo
     }
 
     return (
-        <ScratchpadSongTable
-            rows={rows}
-            primaryLabel={t('scratchpad.playFromQueue')}
-            onActivate={play}
-            rowActions={rowActions}
-            focusIndex={focusIndex}
-            ariaLabel={t('scratchpad.queue')}
-            testId="scratchpad-queue"
-        />
+        <>
+            {playedCount > 0 && (
+                <button
+                    type="button"
+                    className="scratchpad-played-toggle"
+                    data-scratchpad-action="toggle-played"
+                    aria-expanded={showPlayed}
+                    onClick={() => setShowPlayed(current => !current)}
+                >
+                    <ScratchpadShape kind="chev" size={12} />
+                    <span>{t(showPlayed ? 'scratchpad.playedShown' : 'scratchpad.playedHidden', { count: playedCount })}</span>
+                </button>
+            )}
+            <ScratchpadSongTable
+                rows={filmRows}
+                primaryLabel={t('scratchpad.playFromQueue')}
+                onActivate={play}
+                rowActions={rowActions}
+                focusIndex={showPlayed ? focusIndex : Math.min(focusIndex, 0)}
+                currentLabel={t('scratchpad.nowPlaying')}
+                ariaLabel={t('scratchpad.queue')}
+                testId="scratchpad-queue"
+            />
+            <footer className="scratchpad-footer">
+                <button
+                    type="button"
+                    className="scratchpad-pill is-solid"
+                    data-scratchpad-action="shuffle-queue"
+                    disabled={readOnly || rows.length < 2}
+                    onClick={shuffle}
+                >
+                    <Shuffle aria-hidden="true" />
+                    <span>{t('scratchpad.shuffleQueue')}</span>
+                </button>
+            </footer>
+        </>
     );
 };
 

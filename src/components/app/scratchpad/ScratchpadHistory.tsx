@@ -16,6 +16,7 @@ import ScratchpadCanvas, { type CanvasGroup } from './ScratchpadCanvas';
 import type { CanvasEntry } from './ScratchpadCard';
 import { TIMELINE_SPACING } from './canvasLayout';
 import type { ScratchpadPlayback } from './ScratchpadHost';
+import ScratchpadShape from './ScratchpadShape';
 
 // src/components/app/scratchpad/ScratchpadHistory.tsx
 // 速记簿的第二页：播放历史。最近七天在这台设备上放过的歌（Folia 自己的播放记录 recentPlays：在线平台、本地、
@@ -23,6 +24,7 @@ import type { ScratchpadPlayback } from './ScratchpadHost';
 // 加入速记簿（已经在里面时打勾、点不了）、收藏到歌单。
 // 展开后是和速记簿一样的卡片画布（ScratchpadCanvas）：一天一组，一条时间轴穿过每天的卡片，每张卡前面的节点上写几点放的；框选、Ctrl / Shift
 // 点选，浮动菜单里加入队列、加入速记簿、收藏到歌单、从播放历史删除（Delete 也是删除）。播放历史按时间排，不能拖动排序。
+// 左缘面板里（收起时）是一本相册：每天的页眉写大号的日子，每首的封面是一张泛黄、微歪的小相片（scratchpad.css）。
 
 type ScratchpadHistoryProps = {
     playback: ScratchpadPlayback;
@@ -55,7 +57,7 @@ const HistoryRow: React.FC<HistoryRowProps> = memo(({ song, collected, timeLabel
     ];
     return (
         <li className="scratchpad-row" data-scratchpad-history-key={getPlaybackSongKey(song)}>
-            <span className="scratchpad-cover" aria-hidden="true">
+            <span className="scratchpad-cover scratchpad-photo" aria-hidden="true">
                 {coverUrl && !coverFailed
                     ? <img src={coverUrl} alt="" loading="lazy" decoding="async" onError={() => setCoverFailed(true)} />
                     : <span className="grid h-full w-full place-items-center opacity-50"><Music2 size={16} /></span>}
@@ -108,6 +110,8 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
     const formats = useMemo(() => ({
         time: new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }),
         day: new Intl.DateTimeFormat(i18n.language, { month: 'long', day: 'numeric', weekday: 'short' }),
+        // 相册页眉：大号的日子旁边那行小字（「11月 周五」）。
+        monthWeekday: new Intl.DateTimeFormat(i18n.language, { month: 'short', weekday: 'short' }),
         // 时间轴节点上的时间：一律 24 小时制，牌子窄，放不下「下午」「PM」。
         node: new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
     }), [i18n.language]);
@@ -201,28 +205,40 @@ const ScratchpadHistory: React.FC<ScratchpadHistoryProps> = ({ playback, expande
     }
 
     return (
-        <div className="scratchpad-list" data-testid="scratchpad-history">
-            {days.map(day => (
-                <section key={day.start} className="scratchpad-list-group">
-                    <div className="scratchpad-group-header">
-                        <span className="scratchpad-group-label">{dayLabel(day)}</span>
-                        <span className="scratchpad-group-count">{t('scratchpad.count', { count: day.plays.length })}</span>
-                    </div>
-                    <ul>
-                        {day.plays.map((play: RecentPlay) => (
-                            <HistoryRow
-                                key={getPlaybackSongKey(play.song)}
-                                song={play.song}
-                                collected={collectedKeys.has(getPlaybackSongKey(play.song))}
-                                timeLabel={formats.time.format(play.at)}
-                                sourceLabel={scratchpadSourceLabel(play.song, t)}
-                                playback={playback}
-                            />
-                        ))}
-                    </ul>
-                </section>
-            ))}
-        </div>
+        <>
+            <div className="scratchpad-list" data-testid="scratchpad-history">
+                {days.map(day => (
+                    <section key={day.start} className="scratchpad-list-group">
+                        {/* 相册的页眉：三角记号、大号的日子，旁边小字写月份、星期（今天 / 昨天再写一遍），几首。 */}
+                        <div className="scratchpad-group-header is-day">
+                            <ScratchpadShape kind="tri" size={11} fill="var(--scratchpad-mark-wall)" />
+                            <span className="scratchpad-day-number">{String(new Date(day.start).getDate()).padStart(2, '0')}</span>
+                            <span className="scratchpad-group-label">
+                                {day.kind === 'earlier'
+                                    ? formats.monthWeekday.format(day.start)
+                                    : `${formats.monthWeekday.format(day.start)} · ${dayLabel(day)}`}
+                            </span>
+                            <span className="scratchpad-group-count">{t('scratchpad.count', { count: day.plays.length })}</span>
+                        </div>
+                        <ul>
+                            {day.plays.map((play: RecentPlay) => (
+                                <HistoryRow
+                                    key={getPlaybackSongKey(play.song)}
+                                    song={play.song}
+                                    collected={collectedKeys.has(getPlaybackSongKey(play.song))}
+                                    timeLabel={formats.time.format(play.at)}
+                                    sourceLabel={scratchpadSourceLabel(play.song, t)}
+                                    playback={playback}
+                                />
+                            ))}
+                        </ul>
+                    </section>
+                ))}
+            </div>
+            <footer className="scratchpad-footer">
+                <span className="scratchpad-footer-hint">{t('scratchpad.historyListHint')}</span>
+            </footer>
+        </>
     );
 };
 

@@ -1,13 +1,35 @@
 /* src/components/app/scratchpad/scratchpad.css — 速记簿：左缘的把手与从左边滑出的抽屉（ScratchpadHost）。
-   与队列浮岛同一种玻璃；日光档在 .scratchpad-root.is-daylight 下覆盖。抽屉非模态：没有遮罩，背后照常能点。
-   次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
+   抽屉平时是 Bravais 样式的左缘面板（ScratchpadPanel）：深浅不同的中性黑分区，米白的纸、黑墨，点缀色跟主题强调色走
+   （scratchpadLook 写在根节点上的变量）；日光档在 .scratchpad-root.is-daylight 下换成浅灰。展开成画布时仍是玻璃。
+   抽屉非模态：没有遮罩，背后照常能点。整个速记簿接 Bravais 墙的「海报聚焦叠色」（文件末尾「叠色」一节）。
+   画布里的次要文字用 opacity，不用 color-mix(currentColor)（理由见 WallToolsQueueIsland.css 文件头）。 */
 
+/* 面板的几块黑（中性灰阶，不掺主题色，用户定）：页签列最深，内容区本色，悬停的行浅一档、按下再浅一档；
+   镂空的几何体露出最深的那块。日光主题换成同样深浅次序的浅灰。 */
 .scratchpad-root {
-    --scratchpad-width: min(360px, calc(100vw - 48px));
-    color: rgb(255 255 255 / 92%);
+    --scratchpad-width: min(368px, calc(100vw - 24px));
+    --scratchpad-rail: #18181a;
+    --scratchpad-sheet: #232226;
+    --scratchpad-raise: #313134;
+    --scratchpad-fresh: #38383c;
+    --scratchpad-press: #3e3e42;
+    --scratchpad-hollow: var(--scratchpad-rail);
+    --scratchpad-text: #f4f1ea;
+    --scratchpad-text-soft: rgb(244 241 234 / 62%);
+    --scratchpad-rule: rgb(244 241 234 / 5%);
+    color: var(--scratchpad-text);
 }
 
-.scratchpad-root.is-daylight { color: rgb(24 20 16 / 90%); }
+.scratchpad-root.is-daylight {
+    --scratchpad-rail: #dcdcdf;
+    --scratchpad-sheet: #ededef;
+    --scratchpad-raise: #e2e2e5;
+    --scratchpad-fresh: #d6d6da;
+    --scratchpad-press: #d0d0d4;
+    --scratchpad-text: #141414;
+    --scratchpad-text-soft: rgb(20 20 20 / 62%);
+    --scratchpad-rule: rgb(20 20 20 / 7%);
+}
 
 /* 层级：z 95 在首页层（App 里 absolute z-10 的层叠上下文，集合页的 z-110 只在里面比高低）之上，在设置、歌词时间轴
    （z-100）之下；Sheet（z-200）与命令面板（z-150）本来就在它上面。首页层里那几个盖不过抽屉的弹窗开着时，宿主给根节点
@@ -149,38 +171,46 @@
     25% { opacity: 1; transform: scale(1.5); }
 }
 
-/* —— 抽屉 —— */
-
+/* —— 抽屉：左缘的面板 ——
+   盖在墙上（不推开墙、不加遮罩），从窗口顶到底贴着左缘：左边一列页签（最深的黑，64px）、右边内容区（本色）。
+   两块颜色画在同一层底上（不是各自的底），叠色的纸层（文件末尾）才能垫在两块下面。
+   顶上 32px 是窗口标题栏的拖动区（AppShell，z 9999，盖在一切之上），所以面板里的东西从 40px 起。 */
 .scratchpad-drawer {
     position: fixed;
-    top: 40px;
-    bottom: 12px;
-    left: 12px;
+    top: 0;
+    bottom: 0;
+    left: 0;
     z-index: 95;
     display: flex;
     width: var(--scratchpad-width);
-    transition: width 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+    background: linear-gradient(90deg, var(--scratchpad-rail) 0 64px, var(--scratchpad-sheet) 64px);
+    box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
+    isolation: isolate;
+    pointer-events: auto;
+}
+
+.scratchpad-root.is-daylight .scratchpad-drawer { box-shadow: 0 24px 64px rgb(42 35 27 / 18%); }
+
+/* 展开成画布：铺满窗口（左右各留 12px），仍然不加遮罩；玻璃更实一些，背后的墙不抢卡片的眼。 */
+.scratchpad-drawer.is-expanded {
+    top: 40px;
+    bottom: 12px;
+    left: 12px;
+    width: calc(100vw - 24px);
     flex-direction: column;
     overflow: hidden;
     border: 1px solid rgb(255 255 255 / 8%);
     border-radius: 20px;
-    background: rgb(0 0 0 / 52%);
-    box-shadow: 0 24px 64px rgb(0 0 0 / 42%);
+    background: rgb(0 0 0 / 68%);
     backdrop-filter: blur(28px);
-    pointer-events: auto;
 }
 
-/* 展开成画布：铺满窗口（左右各留 12px），仍然不加遮罩；玻璃更实一些，背后的墙不抢卡片的眼。 */
-.scratchpad-drawer.is-expanded { width: calc(100vw - 24px); background: rgb(0 0 0 / 68%); }
-.scratchpad-root.is-daylight .scratchpad-drawer.is-expanded { background: rgb(255 255 255 / 84%); }
-.scratchpad-drawer.is-expanded .scratchpad-footer { justify-content: flex-end; }
-.scratchpad-drawer.is-expanded .scratchpad-footer .scratchpad-pill { flex: 0 1 auto; }
-
-.scratchpad-root.is-daylight .scratchpad-drawer {
+.scratchpad-root.is-daylight .scratchpad-drawer.is-expanded {
     border-color: rgb(0 0 0 / 7%);
-    background: rgb(255 255 255 / 72%);
-    box-shadow: 0 24px 64px rgb(42 35 27 / 18%);
+    background: rgb(255 255 255 / 84%);
 }
+
+.scratchpad-drawer.is-expanded .scratchpad-footer { justify-content: flex-end; }
 
 .scratchpad-header {
     display: flex;
@@ -233,7 +263,7 @@
     gap: 14px;
 }
 
-.scratchpad-tab {
+.scratchpad-tabs .scratchpad-tab {
     display: inline-flex;
     min-width: 0;
     align-items: baseline;
@@ -253,21 +283,21 @@
     transition: opacity 0.15s ease, font-size 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.scratchpad-tab:hover { opacity: 0.75; }
-.scratchpad-tab[aria-selected='true'] { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; opacity: 1; cursor: default; }
+.scratchpad-tabs .scratchpad-tab:hover { opacity: 0.75; }
+.scratchpad-tabs .scratchpad-tab[aria-selected='true'] { font-size: 22px; font-weight: 800; letter-spacing: 0.01em; opacity: 1; cursor: default; }
 .scratchpad-drawer.is-expanded .scratchpad-header { padding: 20px 14px 14px 18px; }
 .scratchpad-drawer.is-expanded .scratchpad-tabs { height: 38px; gap: 18px; }
-.scratchpad-drawer.is-expanded .scratchpad-tab { font-size: 16px; }
-.scratchpad-drawer.is-expanded .scratchpad-tab[aria-selected='true'] { font-size: 28px; }
+.scratchpad-drawer.is-expanded .scratchpad-tabs .scratchpad-tab { font-size: 16px; }
+.scratchpad-drawer.is-expanded .scratchpad-tabs .scratchpad-tab[aria-selected='true'] { font-size: 28px; }
 /* 键盘聚焦到页签不画框：焦点总是跟着选中的那页（Tab / 方向键换页都把焦点挪过去），放大的字号已经说明了在哪。 */
 .scratchpad-tab:focus-visible { outline: none; }
 
 /* 名字长的语言（印尼语）三个页签仍可能差几个像素：页签名字可以收窄成省略号，不压到旁边的页签上。 */
-.scratchpad-tab > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scratchpad-tabs .scratchpad-tab > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .scratchpad-tab-count { flex: none; }
 
 /* 三个页签排一行放不下两个条数（英文尤甚）：条数只跟着选中的那页出现。 */
-.scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
+.scratchpad-tabs .scratchpad-tab:not([aria-selected='true']) .scratchpad-tab-count { display: none; }
 
 /* 选中那页的条数是名字右下角的小角标（底边贴着名字的底边，不跟着大字的基线走）。 */
 .scratchpad-tab-count {
@@ -288,24 +318,24 @@
 
 .scratchpad-icon-button {
     display: grid;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     flex: none;
     place-items: center;
     padding: 0;
     border: none;
-    border-radius: 9px;
+    border-radius: 0;
     background: transparent;
     color: inherit;
-    opacity: 0.7;
+    opacity: 0.86;
     cursor: pointer;
 }
 
-.scratchpad-icon-button:hover { background: rgb(255 255 255 / 10%); opacity: 1; }
-.scratchpad-root.is-daylight .scratchpad-icon-button:hover { background: rgb(0 0 0 / 6%); }
+/* 方的，悬停垫一块浅一档的黑（F 的方角按钮），不画描边。 */
+.scratchpad-icon-button:hover { background: var(--scratchpad-press); opacity: 1; }
 .scratchpad-icon-button:disabled { opacity: 0.25; cursor: default; background: transparent; }
-.scratchpad-icon-button:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
-.scratchpad-icon-button svg { width: 16px; height: 16px; }
+.scratchpad-icon-button:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 1px; }
+.scratchpad-icon-button svg { width: 15px; height: 15px; }
 
 /* 页签下面那一页（列表、画布或播放历史）：和抽屉本身一样是纵向的弹性盒，里面各块照旧伸缩。 */
 .scratchpad-panel {
@@ -323,18 +353,20 @@
     flex-direction: column;
 }
 
+/* 这一页的说明：在问候和短杠下面一行小字（随页换）。 */
 .scratchpad-hint {
     flex: none;
-    margin: 0 18px 10px;
+    margin: 8px 14px 14px 18px;
+    color: var(--scratchpad-text-soft);
     font-size: 12px;
-    line-height: 1.5;
-    opacity: 0.55;
+    line-height: 1.6;
 }
 
+/* 行贴着内容区的两边，行自己留白（与组头、说明对齐）。 */
 .scratchpad-list {
     min-height: 0;
     flex: 1 1 auto;
-    padding: 0 6px 6px;
+    padding: 0 0 6px;
     overflow-y: auto;
 }
 
@@ -367,9 +399,11 @@
 .scratchpad-root.is-daylight .scratchpad-canvas::-webkit-scrollbar-thumb:hover { background: rgb(0 0 0 / 34%); background-clip: content-box; }
 
 .scratchpad-list ul { margin: 0; padding: 0; list-style: none; }
-.scratchpad-list-group + .scratchpad-list-group { margin-top: 8px; }
+.scratchpad-list-group + .scratchpad-list-group { margin-top: 10px; }
 
-/* —— 组头（列表与画布共用）—— */
+/* —— 组头（列表与画布共用）——
+   左缘面板里：组名粗、条数淡，前面一颗这一页的几何体、条数后面一道点缀色的短杠（ScratchpadGroupHeader 的 mark），
+   整组的按钮靠右。吸顶时底色与内容区相同，盖住滚上去的行。 */
 
 .scratchpad-group-header {
     position: sticky;
@@ -379,31 +413,42 @@
     height: 34px;
     align-items: center;
     gap: 8px;
+    padding: 0 8px 0 18px;
+    background: var(--scratchpad-sheet);
+}
+
+/* 画布上的组头仍然通透，透出画布的玻璃。 */
+.scratchpad-canvas .scratchpad-group-header {
     padding: 0 4px 0 10px;
     border-radius: 10px;
-    /* 通透一些，透出抽屉的玻璃。 */
     background: rgb(255 255 255 / 6%);
 }
 
-.scratchpad-root.is-daylight .scratchpad-group-header { background: rgb(255 255 255 / 40%); }
+.scratchpad-root.is-daylight .scratchpad-canvas .scratchpad-group-header { background: rgb(255 255 255 / 40%); }
 
 .scratchpad-group-label {
+    min-width: 0;
     overflow: hidden;
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 14px;
+    font-weight: 900;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .scratchpad-group-count {
-    flex: 1 1 auto;
+    flex: none;
+    color: var(--scratchpad-text-soft);
     font-size: 11.5px;
     font-variant-numeric: tabular-nums;
-    opacity: 0.5;
+    font-weight: 700;
 }
 
-.scratchpad-group-actions { display: flex; flex: none; gap: 2px; }
-.scratchpad-group-actions .scratchpad-icon-button { width: 28px; height: 28px; }
+.scratchpad-canvas .scratchpad-group-label { font-size: 12px; font-weight: 700; }
+.scratchpad-canvas .scratchpad-group-count { flex: 1 1 auto; color: inherit; font-weight: 400; opacity: 0.5; }
+
+.scratchpad-group-rule { width: 28px; height: 3px; flex: none; background: var(--scratchpad-mark-wall); }
+.scratchpad-group-actions { display: flex; flex: none; gap: 2px; margin-left: auto; }
+.scratchpad-group-actions .scratchpad-icon-button { width: 30px; height: 30px; }
 .scratchpad-group-actions .scratchpad-icon-button svg { width: 15px; height: 15px; }
 
 .scratchpad-empty {
@@ -418,40 +463,37 @@
 }
 
 .scratchpad-empty svg { width: 28px; height: 28px; opacity: 0.35; }
-.scratchpad-empty p { margin: 0; font-size: 13px; line-height: 1.6; opacity: 0.6; }
+.scratchpad-empty p { margin: 0; color: var(--scratchpad-text-soft); font-size: 13px; line-height: 1.6; }
 
-/* —— 行 —— */
+/* —— 行 ——
+   方的、贴满内容区的宽，悬停垫浅一档的黑；封面是方的。三页各自的样子（笔记本、相册、胶片）在文件末尾。 */
 
 .scratchpad-row {
     position: relative;
     display: flex;
     height: 52px;
     align-items: center;
-    gap: 10px;
-    padding: 0 6px 0 8px;
-    border-radius: 12px;
+    gap: 14px;
+    padding: 0 8px 0 18px;
     content-visibility: auto;
     contain-intrinsic-size: auto 52px;
 }
 
 .scratchpad-row:hover,
-.scratchpad-row:focus-within { background: rgb(255 255 255 / 7%); }
-.scratchpad-root.is-daylight .scratchpad-row:hover,
-.scratchpad-root.is-daylight .scratchpad-row:focus-within { background: rgb(0 0 0 / 5%); }
+.scratchpad-row:focus-within { background: var(--scratchpad-raise); }
 
 .scratchpad-row.is-fresh { animation: scratchpad-row-fresh 1.4s ease-out; }
 
 @keyframes scratchpad-row-fresh {
-    0% { background-color: rgb(255 255 255 / 16%); }
+    0% { background-color: var(--scratchpad-fresh); }
     100% { background-color: transparent; }
 }
 
 .scratchpad-cover {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     flex: none;
     overflow: hidden;
-    border-radius: 7px;
     background: rgb(255 255 255 / 8%);
 }
 
@@ -474,7 +516,7 @@
 }
 
 .scratchpad-song:focus-visible { outline: none; }
-.scratchpad-row:has(.scratchpad-song:focus-visible) { box-shadow: inset 0 0 0 2px var(--text-accent, currentColor); }
+.scratchpad-row:has(.scratchpad-song:focus-visible) { box-shadow: inset 0 0 0 2px var(--scratchpad-mark-wall); }
 
 .scratchpad-name,
 .scratchpad-meta {
@@ -483,8 +525,8 @@
     white-space: nowrap;
 }
 
-.scratchpad-name { font-size: 13px; font-weight: 600; }
-.scratchpad-meta { font-size: 11.5px; opacity: 0.55; }
+.scratchpad-name { font-size: 14px; font-weight: 800; }
+.scratchpad-meta { margin-top: 1px; color: var(--scratchpad-text-soft); font-size: 11.5px; }
 
 
 /* 动作浮在行尾（不占文字的宽度），悬停 / 聚焦时才出现；左边一段渐变把底下的文字压暗。 */
@@ -496,15 +538,12 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 0 6px 0 28px;
-    border-radius: 0 12px 12px 0;
-    /* 从左到右渐渐变实：左边淡、透出底下的字，右边最实、托住最右的按钮。 */
-    background: linear-gradient(to right, transparent, rgb(28 28 30 / 50%) 28px, rgb(28 28 30 / 90%));
+    padding: 0 8px 0 28px;
+    /* 左边一段从透明渐到行悬停时的底色，压住底下的字；右边与行同色，托住按钮。 */
+    background: linear-gradient(to right, transparent, var(--scratchpad-raise) 28px);
     opacity: 0;
     pointer-events: none;
 }
-
-.scratchpad-root.is-daylight .scratchpad-row-actions { background: linear-gradient(to right, transparent, rgb(255 255 255 / 50%) 28px, rgb(255 255 255 / 90%)); }
 
 .scratchpad-row:hover .scratchpad-row-actions,
 .scratchpad-row:focus-within .scratchpad-row-actions { opacity: 1; pointer-events: auto; }
@@ -515,52 +554,66 @@
     .scratchpad-card-play { opacity: 1; }
 }
 
-.scratchpad-row-actions .scratchpad-icon-button { width: 28px; height: 28px; }
+.scratchpad-row-actions .scratchpad-icon-button { width: 30px; height: 30px; }
 .scratchpad-row-actions .scratchpad-icon-button svg { width: 15px; height: 15px; }
 
-/* —— 底部 —— */
+/* —— 底部 ——
+   与内容区同一张底，不画分割线（用户定）。按钮是 F 的方角描边按钮：纸色的粗边，悬停与「实心」那颗填满；
+   「清空」只有图标，点第一下换成写明的确认（点缀色），三秒不点复原（宿主）。 */
 
 .scratchpad-footer {
     display: flex;
     flex: none;
+    align-items: center;
     gap: 6px;
-    padding: 10px 12px 12px;
-    border-top: 1px solid rgb(255 255 255 / 8%);
+    padding: 14px 14px 22px 18px;
 }
 
-.scratchpad-root.is-daylight .scratchpad-footer { border-top-color: rgb(0 0 0 / 7%); }
+.scratchpad-footer-spacer { flex: 1 1 auto; }
+
+.scratchpad-footer-hint {
+    color: var(--scratchpad-text-soft);
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.5;
+}
 
 .scratchpad-pill {
     display: inline-flex;
     height: 32px;
     min-width: 0;
-    flex: 1 1 0;
+    flex: 0 1 auto;
+    box-sizing: border-box;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 0 10px;
-    border: 1px solid rgb(255 255 255 / 12%);
-    border-radius: 999px;
-    background: rgb(255 255 255 / 6%);
-    color: inherit;
+    padding: 0 11px;
+    border: 2px solid var(--scratchpad-text);
+    border-radius: 0;
+    background: transparent;
+    color: var(--scratchpad-text);
     font: inherit;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 800;
+    letter-spacing: 0.04em;
     white-space: nowrap;
     cursor: pointer;
 }
 
-.scratchpad-pill:hover { background: rgb(255 255 255 / 12%); }
-.scratchpad-root.is-daylight .scratchpad-pill { border-color: rgb(0 0 0 / 12%); background: rgb(0 0 0 / 4%); }
-.scratchpad-root.is-daylight .scratchpad-pill:hover { background: rgb(0 0 0 / 8%); }
-.scratchpad-pill:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 1px; }
+.scratchpad-pill:hover:not(:disabled),
+.scratchpad-pill.is-solid { background: var(--scratchpad-text); color: var(--scratchpad-sheet); }
+.scratchpad-pill.is-solid:hover:not(:disabled) { opacity: 0.86; }
+.scratchpad-pill:disabled { opacity: 0.35; cursor: default; }
+.scratchpad-pill.is-icon { width: 32px; flex: none; padding: 0; }
+.scratchpad-pill:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
 .scratchpad-pill svg { width: 14px; height: 14px; flex: none; }
 .scratchpad-pill span { overflow: hidden; text-overflow: ellipsis; }
 
-.scratchpad-pill.is-confirming {
-    border-color: transparent;
-    background: var(--text-accent, rgb(255 255 255 / 85%));
-    color: rgb(0 0 0 / 85%);
+.scratchpad-pill.is-confirming,
+.scratchpad-pill.is-confirming:hover {
+    border-color: var(--scratchpad-mark-wall);
+    background: var(--scratchpad-mark-wall);
+    color: var(--scratchpad-sheet);
 }
 
 /* —— 画布 —— */
@@ -799,7 +852,8 @@
 }
 
 /* —— 播放队列收起时的列表（ScratchpadSongTable）——
-   虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度；行的样子沿用 .scratchpad-row。 */
+   虚拟列表：行是绝对定位的，所以行之间的间距靠行自己的高度（56px，与 SONG_TABLE_ROW_HEIGHT 一致）；
+   画成一条竖着走的胶片（文件末尾「胶片」一节）。 */
 
 .scratchpad-table {
     position: relative;
@@ -811,27 +865,11 @@
 
 .scratchpad-table-scroll { flex: 1 1 auto; padding: 0; }
 
-/* 虚拟列表的行是绝对定位的（react-window 在行内样式里给 left: 0、width: 100%），列表的 padding 管不到它们：
-   在这里把行往里收 6px，与抽屉列表的左右留白一致。 */
 .scratchpad-table-row {
-    left: 6px !important;
-    width: calc(100% - 12px) !important;
+    height: 56px;
     box-sizing: border-box;
+    contain-intrinsic-size: auto 56px;
 }
-
-/* 正在播放的那一首：左边一道竖线。 */
-.scratchpad-table-row.is-current::before {
-    position: absolute;
-    top: 14px;
-    bottom: 14px;
-    left: 2px;
-    width: 3px;
-    border-radius: 2px;
-    background: var(--text-accent, currentColor);
-    content: '';
-}
-
-.scratchpad-table-row.is-current .scratchpad-name { color: var(--text-accent, inherit); }
 
 /* —— 画布上正在播放的那张卡：名字用强调色，封面左上角一个小圆点 —— */
 
@@ -1002,8 +1040,408 @@
 .scratchpad-root.is-calm .scratchpad-menu-button,
 .scratchpad-root.is-calm .scratchpad-card-play { scale: none !important; }
 
-.scratchpad-root.is-calm .scratchpad-tab { transition: opacity 0.15s ease; }
+.scratchpad-root.is-calm .scratchpad-tabs .scratchpad-tab { transition: opacity 0.15s ease; }
 
 /* 动效降级时左缘的标签不滑，只淡入淡出；收进新歌也不闪。 */
 .scratchpad-root.is-calm .scratchpad-handle { transform: none; transition: opacity 0.12s ease; }
 .scratchpad-root.is-calm .scratchpad-edge.is-pulsing .scratchpad-edge-rest > * { animation: none; }
+
+/* —— 左缘面板的页签列（ScratchpadRail）——
+   最深的黑；顶上收起、中间三个竖排页签、底下「展开整页」。选中的页签垫一块斜着的米白纸（随纸一起斜 6°，字摆正），
+   几何体换成点缀色；没选中的是淡的纸色字。键盘焦点总跟着选中的那页，不另画框（与展开后的页签一样）。 */
+
+.scratchpad-rail {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: 64px;
+    flex: none;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 48px 0 18px;
+}
+
+.scratchpad-rail-tabs {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.scratchpad-rail-spacer { flex: 1 1 auto; }
+
+.scratchpad-rail-tabs .scratchpad-tab {
+    position: relative;
+    display: flex;
+    width: 46px;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.scratchpad-rail-tabs .scratchpad-tab:hover { color: var(--scratchpad-text); }
+.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] { color: var(--scratchpad-ink); cursor: default; }
+.scratchpad-rail-tabs .scratchpad-tab > :not(.scratchpad-tab-face) { position: relative; }
+
+.scratchpad-tab-face {
+    position: absolute;
+    inset: 0;
+    transform: skewY(-6deg);
+    transition: background-color 0.15s ease;
+}
+
+.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-face { background: var(--scratchpad-paper); }
+.scratchpad-root.is-daylight .scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-face { box-shadow: 0 3px 10px rgb(42 35 27 / 16%); }
+
+/* 竖排的名字：名字长的语言收成省略号，不把下面的页签挤出去。 */
+.scratchpad-tab-label {
+    max-height: 132px;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
+}
+
+.scratchpad-rail-tabs .scratchpad-tab[aria-selected='true'] .scratchpad-tab-label { font-size: 17px; }
+
+.scratchpad-tab-number {
+    font-family: Inter, sans-serif;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    line-height: 1;
+}
+
+/* —— 左缘面板的内容区：信息条、问候 —— */
+
+.scratchpad-sheet {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    padding-top: 40px;
+}
+
+/* 米白信息条（ScratchpadBand）：比内容区宽 36px，探出面板；右端斜切。投影画在外面那层上（clip-path 会把同一个元素的投影裁掉）。 */
+.scratchpad-band-wrap {
+    position: relative;
+    z-index: 6;
+    width: calc(100% + 36px);
+    flex: none;
+    filter: drop-shadow(0 14px 28px rgb(0 0 0 / 38%));
+}
+
+.scratchpad-root.is-daylight .scratchpad-band-wrap { filter: drop-shadow(0 10px 22px rgb(42 35 27 / 18%)); }
+
+.scratchpad-band {
+    position: relative;
+    height: 64px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border-top: 4px solid var(--scratchpad-mark);
+    border-bottom: 3px solid var(--scratchpad-ink);
+    background: var(--scratchpad-paper);
+    color: var(--scratchpad-ink);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+    isolation: isolate;
+}
+
+/* 条内纹理，标题那一段渐隐：速记簿网点、播放历史 60° 斜线、播放队列上下两排短刻度（与 F 的信息条同一套）。 */
+.scratchpad-band-texture {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, currentColor 1.3px, transparent 1.7px) 0 0 / 9px 9px;
+    opacity: 0.16;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, transparent 160px, #000 240px);
+    mask-image: linear-gradient(90deg, transparent 0, transparent 160px, #000 240px);
+}
+
+.scratchpad-drawer[data-page='history'] .scratchpad-band-texture {
+    background: repeating-linear-gradient(60deg, currentColor 0 1px, transparent 1px 9px);
+    opacity: 0.12;
+}
+
+.scratchpad-drawer[data-page='queue'] .scratchpad-band-texture {
+    background:
+        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 6px / 100% 5px no-repeat,
+        repeating-linear-gradient(90deg, currentColor 0 3px, transparent 3px 11px) 0 calc(100% - 6px) / 100% 5px no-repeat;
+    opacity: 0.22;
+}
+
+.scratchpad-band-deco { position: absolute; }
+.scratchpad-band-deco.is-cover { overflow: hidden; background: var(--scratchpad-ink); }
+.scratchpad-band-deco.is-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.scratchpad-band-head {
+    position: absolute;
+    top: 0;
+    left: 12px;
+    display: flex;
+    height: 57px;
+    align-items: center;
+    gap: 12px;
+}
+
+/* 条数：斜着的块（速记簿是点缀色，另外两页是墨色），块里的字摆正。 */
+.scratchpad-band-count {
+    display: grid;
+    min-width: 56px;
+    height: 40px;
+    box-sizing: border-box;
+    flex: none;
+    padding: 0 6px;
+    place-items: center;
+    background: var(--scratchpad-ink);
+    color: var(--scratchpad-paper);
+    transform: skewX(-14deg);
+}
+
+.scratchpad-drawer[data-page='notes'] .scratchpad-band-count { background: var(--scratchpad-mark); }
+
+.scratchpad-band-count > span {
+    display: block;
+    font-family: Inter, sans-serif;
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    line-height: 1;
+    transform: skewX(14deg);
+}
+
+.scratchpad-band-heading { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.scratchpad-band-index { font-size: 10.5px; font-weight: 800; letter-spacing: 0.22em; line-height: 1; }
+.scratchpad-band-title { font-size: 20px; font-weight: 900; letter-spacing: -0.02em; line-height: 1; white-space: nowrap; }
+
+/* 问候放大（长版，最多两行），下面一道点缀色的短杠；说明在下面那一页的最上面（.scratchpad-hint）。 */
+.scratchpad-intro {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px 14px 0 18px;
+}
+
+.scratchpad-greeting.is-headline {
+    display: block;
+    margin: 0;
+    color: inherit;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    opacity: 1;
+}
+
+.scratchpad-greeting.is-headline > span {
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.scratchpad-intro-rule { width: 36px; height: 4px; background: var(--scratchpad-mark-wall); }
+
+/* —— 三页各自的样子（左缘面板）——
+   速记簿是笔记本：每行底下一道极淡的横格，封面与字之间一道点缀色的页边线，来源写成斜体。 */
+
+.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-list {
+    background: linear-gradient(
+        90deg,
+        transparent 69px,
+        color-mix(in srgb, var(--scratchpad-mark-wall) 35%, transparent) 69px 71px,
+        transparent 71px
+    );
+}
+
+.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-row {
+    gap: 22px;
+    background-image: linear-gradient(to top, var(--scratchpad-rule) 1px, transparent 1px);
+}
+
+.scratchpad-drawer.is-panel[data-page='notes'] .scratchpad-meta { font-style: italic; }
+
+/* 播放历史是相册：每天的页眉写大号的日子（三角记号、月份星期的小字），每首的封面是一张泛黄、微歪的小相片，悬停时摆正。 */
+.scratchpad-drawer.is-panel[data-page='history'] .scratchpad-row { height: 60px; contain-intrinsic-size: auto 60px; }
+
+.scratchpad-list .scratchpad-group-header.is-day {
+    height: 44px;
+    box-sizing: border-box;
+    align-items: flex-end;
+    gap: 10px;
+    padding-bottom: 6px;
+}
+
+.scratchpad-group-header.is-day > svg { margin-bottom: 4px; }
+.scratchpad-group-header.is-day .scratchpad-group-label { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; line-height: 1.3; }
+.scratchpad-group-header.is-day .scratchpad-group-count { line-height: 1.5; }
+
+.scratchpad-day-number {
+    flex: none;
+    font-family: Inter, sans-serif;
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+}
+
+.scratchpad-root .scratchpad-cover.scratchpad-photo {
+    position: relative;
+    width: 44px;
+    height: 52px;
+    box-sizing: border-box;
+    padding: 3px 3px 11px;
+    overflow: visible;
+    background: #ece6d8;
+    box-shadow: 0 6px 12px rgb(0 0 0 / 50%);
+    transition: rotate 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.scratchpad-root.is-daylight .scratchpad-cover.scratchpad-photo { box-shadow: 0 4px 10px rgb(42 35 27 / 24%); }
+.scratchpad-photo img { display: block; width: 38px; height: 38px; filter: sepia(0.42) saturate(0.7) contrast(0.92) brightness(0.96); }
+
+/* 相片的暗角。 */
+.scratchpad-photo::after {
+    position: absolute;
+    inset: 3px 3px 11px;
+    background: radial-gradient(circle at 50% 42%, rgb(255 240 210 / 10%) 38%, rgb(50 30 10 / 42%) 100%);
+    content: '';
+    pointer-events: none;
+}
+
+.scratchpad-list li:nth-child(6n + 1) .scratchpad-photo { rotate: -2.2deg; }
+.scratchpad-list li:nth-child(6n + 2) .scratchpad-photo { rotate: 1.4deg; }
+.scratchpad-list li:nth-child(6n + 3) .scratchpad-photo { rotate: -0.6deg; }
+.scratchpad-list li:nth-child(6n + 4) .scratchpad-photo { rotate: 2deg; }
+.scratchpad-list li:nth-child(6n + 5) .scratchpad-photo { rotate: -1.5deg; }
+.scratchpad-list li:nth-child(6n) .scratchpad-photo { rotate: 0.8deg; }
+.scratchpad-list .scratchpad-row:hover .scratchpad-photo { rotate: 0deg; }
+.scratchpad-row:hover .scratchpad-photo img { scale: none; }
+.scratchpad-root.is-calm .scratchpad-photo { transition: none; }
+
+/* 播放队列是一条竖着走的胶片：两侧齿孔（跟着内容滚动）、片边印序号，正在播的那一格加一圈点缀色；
+   已经放过的几首默认收起（上面一颗按钮点开）。胶片不随日光主题，一直是黑的。 */
+.scratchpad-played-toggle {
+    display: flex;
+    min-width: 0;
+    height: 30px;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin: 0 14px 10px 18px;
+    padding: 0 10px;
+    border: 0;
+    background: var(--scratchpad-rail);
+    color: var(--scratchpad-text-soft);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+}
+
+.scratchpad-played-toggle:hover { color: var(--scratchpad-text); }
+.scratchpad-played-toggle:focus-visible { outline: 2px solid var(--scratchpad-mark-wall); outline-offset: 2px; }
+.scratchpad-played-toggle > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.scratchpad-drawer.is-panel .scratchpad-table {
+    --scratchpad-raise: #26262a;
+    --scratchpad-press: #3a3a3e;
+    --scratchpad-text: #f4f1ea;
+    --scratchpad-text-soft: rgb(244 241 234 / 62%);
+    margin: 0 14px 0 18px;
+    background: #121212;
+    color: var(--scratchpad-text);
+}
+
+.scratchpad-drawer.is-panel .scratchpad-table-scroll {
+    background:
+        linear-gradient(180deg, transparent 5px, rgb(236 230 216 / 50%) 5px 12px, transparent 12px) left 4px top 0 / 6px 18px repeat-y local,
+        linear-gradient(180deg, transparent 5px, rgb(236 230 216 / 50%) 5px 12px, transparent 12px) right 4px top 0 / 6px 18px repeat-y local;
+}
+
+.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 20%); background-clip: content-box; }
+.scratchpad-root.is-daylight .scratchpad-table-scroll::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 34%); background-clip: content-box; }
+.scratchpad-root.is-daylight .scratchpad-table .scratchpad-cover { background: rgb(255 255 255 / 8%); }
+
+.scratchpad-table-row { gap: 12px; padding: 0 18px; }
+.scratchpad-table-row .scratchpad-row-actions { right: 12px; padding-right: 0; }
+.scratchpad-table-row.is-current { background: rgb(255 255 255 / 5%); }
+.scratchpad-table-row.is-current .scratchpad-cover { box-shadow: 0 0 0 3px var(--scratchpad-mark-dark); }
+
+/* 片边印的字：等宽、琥珀色；正在播的那一格是点缀色。 */
+.scratchpad-film-edge {
+    margin-right: 6px;
+    color: #d9a35c;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+}
+
+.scratchpad-table-row.is-current .scratchpad-film-edge { color: var(--scratchpad-mark-dark); }
+
+/* 点开的那几首已经放过：封面去色、字变淡（与画布上灰掉的卡一样），悬停时复原。 */
+.scratchpad-table-row.is-dimmed:not(:hover) .scratchpad-cover img { filter: grayscale(1); opacity: 0.55; }
+.scratchpad-table-row.is-dimmed:not(:hover) :is(.scratchpad-name, .scratchpad-meta) { opacity: 0.5; }
+
+/* —— 叠色：接 Bravais 墙的「海报聚焦叠色」（用户定，2026-11-06）——
+   与 Lattice / Bravais 同一种颜色（默认渐变 / 自定义色）、同一个强度 e（--lattice-poster-tint-intensity，日光 ×0.72），
+   宿主在根节点上挂 has-poster-tint / uses-custom-poster-tint 与两个变量。左缘面板按 Bravais 缝的规则染
+   （bravaisAppearance.css「缝」一节）：纸最终被染 e；内容之上那一层封顶 0.35（字最多被染 35%），纸上不够的由内容之下
+   那一层补齐：1 − (1 − e) / (1 − min(e, 0.35))。指针在面板上、面板里有键盘焦点时整块亮起（不染），和缝一样。
+   探出面板的那条米白信息条自己画这两层（它比面板宽，面板的两层盖不到探出去的那截，所以它压在面板那两层之上）。
+   熄灯（latticeLightsOn）没接。展开成画布时面板不画这两层。 */
+.scratchpad-root {
+    --scratchpad-tint: 0;
+    --scratchpad-tint-fill: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--bg-color, #070707) 78%, var(--text-accent, #fd5c47)),
+        color-mix(in srgb, var(--bg-color, #070707) 84%, var(--text-secondary, #6a48ff))
+    );
+}
+
+.scratchpad-root.uses-custom-poster-tint { --scratchpad-tint-fill: var(--lattice-poster-tint-color); }
+.scratchpad-root.has-poster-tint { --scratchpad-tint: var(--lattice-poster-tint-intensity, 0.5); }
+.scratchpad-root.has-poster-tint.is-daylight { --scratchpad-tint: calc(var(--lattice-poster-tint-intensity, 0.5) * 0.72); }
+.scratchpad-drawer:is(:hover, :has(:focus-visible)) { --scratchpad-tint: 0; }
+
+.scratchpad-drawer.is-panel::before,
+.scratchpad-drawer.is-panel::after,
+.scratchpad-band::before,
+.scratchpad-band::after {
+    position: absolute;
+    inset: 0;
+    background: var(--scratchpad-tint-fill);
+    content: '';
+    pointer-events: none;
+    transition: opacity 260ms ease;
+}
+
+.scratchpad-drawer.is-panel::before,
+.scratchpad-band::before {
+    z-index: -1;
+    opacity: calc(1 - (1 - var(--scratchpad-tint)) / (1 - min(var(--scratchpad-tint), 0.35)));
+}
+
+.scratchpad-drawer.is-panel::after { z-index: 5; opacity: min(var(--scratchpad-tint), 0.35); }
+.scratchpad-band::after { z-index: 2; opacity: min(var(--scratchpad-tint), 0.35); }
+
+.scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::before,
+.scratchpad-root.is-calm :is(.scratchpad-drawer.is-panel, .scratchpad-band)::after { transition: none; }
