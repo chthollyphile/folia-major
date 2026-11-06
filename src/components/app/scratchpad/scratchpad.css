@@ -1443,6 +1443,13 @@
 
 .scratchpad-drawer.is-expanded .scratchpad-canvas { grid-column: 1; }
 
+/* 窄屏（手机）上不画右边的操作区（用户定，2026-11-07）：卡片右边那一列（跳到栏与操作提示，要占掉快一半宽）、
+   信息条右端那几颗按钮（窄了会压在标题上；全部入队、清空这些收回面板里还有）。卡片铺满。 */
+@media (max-width: 640px) {
+    .scratchpad-drawer.is-expanded .scratchpad-panel-page { grid-template-columns: minmax(0, 1fr); }
+    .scratchpad-drawer.is-expanded :is(.scratchpad-canvas-side, .scratchpad-band-actions) { display: none; }
+}
+
 /* 卡片区底边（--scratchpad-body-bottom）由 ScratchpadSheet 按倾斜角写：不倾斜时两条细纸带整条挪进窗口，卡片区跟着让出来。 */
 
 /* 展开整页的信息条：横贯整张纸、120px 高；左边一道墨色的斜杠，标题放大，下面一行说明；右端是这一页的按钮（各页自己画进来）。
