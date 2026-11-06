@@ -1,17 +1,19 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SquareCheck, X } from 'lucide-react';
-import ScratchpadCard, { type CanvasEntry, type CardMotion } from './ScratchpadCard';
+import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadGroupHeader from './ScratchpadGroupHeader';
 import {
-    CARD_HEIGHT,
     CONTENT_EDGE,
     DEFAULT_SPACING,
     cardRect,
+    cardSize,
     columnsFor,
     dropIndexAt,
     gridHeight,
+    polygonsIntersect,
     previewSlots,
+    rectCorners,
     rectFromPoints,
     rectsIntersect,
     slotPosition,
@@ -20,6 +22,9 @@ import {
     type Spacing,
 } from './canvasLayout';
 import { roundedPath, threadArrows, threadNodes, threadPoints } from './canvasThread';
+import { clientToLocal, localToClient } from './scratchpadTilt';
+import ScratchpadShape from './ScratchpadShape';
+import type { ScratchpadShapeKind } from './scratchpadLook';
 import type { ScratchpadAction } from './scratchpadModel';
 
 // src/components/app/scratchpad/ScratchpadCanvas.tsx
@@ -36,6 +41,10 @@ import type { ScratchpadAction } from './scratchpadModel';
 // - 穿线（组的 thread）：播放历史一条时间轴、播放队列一条带箭头的线穿过组里所有卡片（canvasThread），画在卡片底下。
 // - 卡片多（播放队列可能上千首）时只挂看得见的那几行附近的卡片：滚动时按 400px 一档换，档没变不重渲染。
 // 指针移动里只 set MotionValue 和直接改框选框的样式；进 React state 的只有离散的落点序号、选择集与可见的那一档（变了才 set）。
+// - 倾斜（tilt，展开整页那张转了 6° 的纸）：指针的屏幕坐标先换算到网格、内容自己的坐标里再算（scratchpadTilt），
+//   位置一律用 offsetTop / offsetLeft 与滚动量，不拿外接框相减（转过的元素外接框是斜的）。框选框是屏幕方向的（设计稿 F），
+//   落到内容坐标里是一个斜着的矩形，拿它和卡片比（polygonsIntersect）。浮动菜单在内容里，跟着纸一起斜。
+// - 跳到栏与操作提示（side）：展开整页时画在卡片右边那一列；跳到栏按组（只有一组时按一段段）滚过去。
 
 /** 穿过一组卡片的线：时间轴（每张卡前一个刻度）或播放的先后（每一步一个箭头）。 */
 export type CanvasThread =
@@ -51,13 +60,32 @@ export type CanvasGroup<E extends CanvasEntry = CanvasEntry> = {
     /** 组头上「选中本组」之后的按钮。 */
     buttons?: ScratchpadAction[];
     thread?: CanvasThread;
+    /** 组头前面的几何体（展开整页）。 */
+    mark?: ScratchpadShapeKind;
+    /** 组头里大号的字（播放历史那一天是几号），写在名字前面。 */
+    lead?: string;
+    /** 跳到栏里这一组的短名字（缺省用 label）。 */
+    jumpLabel?: string;
+};
+
+/** 跳到栏与操作提示（展开整页时卡片右边那一列）。 */
+export type CanvasSide = {
+    jumpLabel: string;
+    tipsLabel: string;
+    /** 跳到栏、提示前面的小几何体。 */
+    mark: ScratchpadShapeKind;
+    tips: readonly { key: string; label: string }[];
+    /** 只有一组时每段多少首（播放队列）。 */
+    chunk?: number;
+    /** 跳到栏下面「定位正在播放」那一颗的字（给了 focusKey 才有）。 */
+    locateLabel?: string;
 };
 
 type ScratchpadCanvasProps<E extends CanvasEntry> = {
     groups: CanvasGroup<E>[];
     freshKeys?: ReadonlySet<string>;
-    /** 画布顶上的一行说明。 */
-    hint: string;
+    /** 画布顶上的一行说明（展开整页不写，改在右边那一列写操作提示）。 */
+    hint?: string;
     ariaLabel: string;
     testId?: string;
     /** 卡片上播放钮的名字。 */
@@ -79,6 +107,14 @@ type ScratchpadCanvasProps<E extends CanvasEntry> = {
     focusKey?: string;
     /** 画布底下的整本动作（速记簿有）。 */
     footer?: React.ReactNode;
+    /** 卡片画成哪一种（展开整页：笔记本 / 相片 / 胶片）。 */
+    variant?: CardVariant;
+    /** 画布所在的纸转了几度（展开整页 6°，降低动态效果时 0）。 */
+    tilt?: number;
+    /** 卡片右边的跳到栏与操作提示（展开整页）。 */
+    side?: CanvasSide;
+    /** 胶片里正在播的那一格片边印的字。 */
+    currentLabel?: string;
 };
 
 /** 按下之后走过这么远才算拖（以内是点击）。 */
@@ -136,6 +172,9 @@ type MenuAnchor = { centerX: number; y: number; placement: 'above' | 'below' };
 
 /** 挂卡片的那一档（内容坐标）。 */
 type Band = { top: number; bottom: number };
+
+/** 跳到栏的一项：一组（或一组里的一段）从哪张卡开始。 */
+type JumpTarget = { id: string; groupKey: string; index: number; label: string; count: number; holdsFocus: boolean };
 
 const NO_KEYS: ReadonlySet<string> = new Set();
 
@@ -205,6 +244,86 @@ const ThreadLayer = memo<{ thread: CanvasThread; count: number; columns: number;
     );
 });
 
+/**
+ * 卡片右边的那一列（展开整页）：跳到栏（一组一项，只有一组时一段一项；看得见的那几项垫一档浅黑，正在播的那一项记号用点缀色），
+ * 下面「定位正在播放」，再下面贴着底的几条操作提示。自己听滚动、自己重渲染，不连累整块画布。
+ * targets 的 top / bottom 是这一项在内容坐标里的上下沿。
+ */
+const CanvasSidePanel = memo<{
+    side: CanvasSide;
+    targets: readonly (JumpTarget & { top: number; bottom: number })[];
+    scrollRef: React.RefObject<HTMLDivElement | null>;
+    onLocate?: () => void;
+}>(({ side, targets, scrollRef, onLocate }) => {
+    const [view, setView] = useState({ top: 0, bottom: 0 });
+    useEffect(() => {
+        const element = scrollRef.current;
+        if (!element) return;
+        let frame = 0;
+        const read = () => {
+            frame = 0;
+            setView(current => (
+                current.top === element.scrollTop && current.bottom === element.scrollTop + element.clientHeight
+                    ? current
+                    : { top: element.scrollTop, bottom: element.scrollTop + element.clientHeight }
+            ));
+        };
+        const onScroll = () => {
+            if (!frame) frame = requestAnimationFrame(read);
+        };
+        read();
+        element.addEventListener('scroll', onScroll, { passive: true });
+        const observer = new ResizeObserver(onScroll);
+        observer.observe(element);
+        return () => {
+            element.removeEventListener('scroll', onScroll);
+            observer.disconnect();
+            if (frame) cancelAnimationFrame(frame);
+        };
+    }, [scrollRef]);
+    const jump = (top: number) => scrollRef.current?.scrollTo({ top: Math.max(0, top - 8), behavior: 'smooth' });
+    return (
+        <aside className="scratchpad-canvas-side">
+            {targets.length > 1 && (
+                <nav className="scratchpad-jump" aria-label={side.jumpLabel}>
+                    <span className="scratchpad-side-title">{side.jumpLabel}</span>
+                    {targets.map(target => {
+                        const inView = target.bottom > view.top && target.top < view.bottom;
+                        return (
+                            <button
+                                key={target.id}
+                                type="button"
+                                className={`scratchpad-jump-item${inView ? ' is-in-view' : ''}${target.holdsFocus ? ' is-current' : ''}`}
+                                onClick={() => jump(target.top)}
+                            >
+                                <ScratchpadShape kind={side.mark} size={9} fill="currentColor" className="scratchpad-jump-mark" />
+                                <span className="scratchpad-jump-label">{target.label}</span>
+                                <span className="scratchpad-jump-count">{target.count}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+            )}
+            {onLocate && side.locateLabel && (
+                <button type="button" className="scratchpad-pill scratchpad-jump-locate" onClick={onLocate}>
+                    <span>{side.locateLabel}</span>
+                </button>
+            )}
+            <div className="scratchpad-tips" role="note" aria-label={side.tipsLabel}>
+                <span className="scratchpad-side-title">{side.tipsLabel}</span>
+                {side.tips.map(tip => (
+                    <span key={tip.key} className="scratchpad-tip">
+                        <ScratchpadShape kind={side.mark} size={7} fill="var(--scratchpad-mark-dark)" />
+                        <b>{tip.key}</b>
+                        <span>{tip.label}</span>
+                    </span>
+                ))}
+            </div>
+        </aside>
+    );
+});
+CanvasSidePanel.displayName = 'CanvasSidePanel';
+
 function ScratchpadCanvas<E extends CanvasEntry>({
     groups,
     freshKeys = NO_KEYS,
@@ -222,6 +341,10 @@ function ScratchpadCanvas<E extends CanvasEntry>({
     spacing = DEFAULT_SPACING,
     focusKey,
     footer,
+    variant,
+    tilt = 0,
+    side,
+    currentLabel,
 }: ScratchpadCanvasProps<E>) {
     const { t } = useTranslation();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -257,8 +380,9 @@ function ScratchpadCanvas<E extends CanvasEntry>({
     }, [groups]);
 
     // 计时器里（手指按住 0.4 秒之后）读的是这一刻的值，不是按下那一刻的。
-    const latest = useRef({ groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd });
-    latest.current = { groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd };
+    const latest = useRef({ groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt });
+    latest.current = { groupOf, columns, selected, spacing, onMove, onDragStart, onDragEnd, tilt };
+    const card = cardSize(spacing);
 
     // 条目被移走（这里删的、别处删的）时，选择里也去掉它们。
     useEffect(() => {
@@ -298,6 +422,16 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             current.size === next.size && [...next].every(([key, top]) => current.get(key) === top) ? current : next
         ));
     }, [columns, groups]);
+
+    /** focusKey 那张卡在内容坐标里的顶边（还没量到网格时是 null）。 */
+    const focusTop = useCallback((): number | null => {
+        if (!focusKey) return null;
+        const group = groupOf.get(focusKey);
+        const gridTop = group ? gridTops.get(group.key) : undefined;
+        if (!group || gridTop === undefined) return null;
+        const index = group.entries.findIndex(entry => entry.key === focusKey);
+        return gridTop + slotPosition(index, columns, spacing).y;
+    }, [columns, focusKey, gridTops, groupOf, spacing]);
 
     // 打开时滚到 focusKey 那张卡（量到网格顶边之后，只做一次）：它落在可视高度的三分之一处。
     const didFocusRef = useRef(false);
@@ -394,8 +528,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         const group = groupsByKey.get(press.entry.key);
         const current = dragRef.current;
         if (!grid || !group || !current) return;
-        const gridRect = grid.getBoundingClientRect();
-        const topLeft = { x: clientX - gridRect.left - press.grab.x, y: clientY - gridRect.top - press.grab.y };
+        const point = clientToLocal(grid, { x: clientX, y: clientY }, latest.current.tilt);
+        const topLeft = { x: point.x - press.grab.x, y: point.y - press.grab.y };
         // 被拖的卡：按下的那张在指针下，同组其余选中的错开叠在它后面。
         current.stack.forEach((key, order) => {
             const motion = motions.current.get(key);
@@ -419,13 +553,13 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         const grid = group ? gridRefs.current.get(group.key) : undefined;
         if (!group || !motion || !grid) return;
         scrollRef.current?.focus({ preventScroll: true });
-        const gridRect = grid.getBoundingClientRect();
+        const point = clientToLocal(grid, { x: event.clientX, y: event.clientY }, latest.current.tilt);
         const press: Press = {
             entry,
             groupKey: group.key,
             pointerId: event.pointerId,
             start: { x: event.clientX, y: event.clientY },
-            grab: { x: event.clientX - gridRect.left - motion.x.get(), y: event.clientY - gridRect.top - motion.y.get() },
+            grab: { x: point.x - motion.x.get(), y: point.y - motion.y.get() },
             modifiers: { shift: event.shiftKey, toggle: event.ctrlKey || event.metaKey },
             dragging: false,
             isTouch: event.pointerType === 'touch',
@@ -518,10 +652,9 @@ function ScratchpadCanvas<E extends CanvasEntry>({
 
     // —— 空白处：框选 ——
 
-    const contentPoint = (event: { clientX: number; clientY: number }) => {
-        const rect = contentRef.current!.getBoundingClientRect();
-        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    };
+    const contentPoint = (event: { clientX: number; clientY: number }) => (
+        clientToLocal(contentRef.current!, { x: event.clientX, y: event.clientY }, tilt)
+    );
 
     const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0 || !contentRef.current) return;
@@ -530,9 +663,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         if ((event.target as HTMLElement).closest('button, .scratchpad-card')) return;
         // 按在滚动条上（Chromium 也派发 pointerdown）：是滚动，不框选，也不清掉选择。
         const scroller = scrollRef.current;
-        if (scroller && event.clientX - scroller.getBoundingClientRect().left >= scroller.clientWidth) return;
+        if (scroller && clientToLocal(scroller, { x: event.clientX, y: event.clientY }, tilt).x >= scroller.clientWidth) return;
         scrollRef.current?.focus({ preventScroll: true });
-        const contentRect = contentRef.current.getBoundingClientRect();
         const additive = event.shiftKey || event.ctrlKey || event.metaKey;
         marqueeStateRef.current = {
             pointerId: event.pointerId,
@@ -542,8 +674,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             grids: groups.flatMap(group => {
                 const grid = gridRefs.current.get(group.key);
                 if (!grid) return [];
-                const rect = grid.getBoundingClientRect();
-                return [{ origin: { x: rect.left - contentRect.left, y: rect.top - contentRect.top }, keys: group.entries.map(entry => entry.key) }];
+                return [{ origin: { x: grid.offsetLeft, y: grid.offsetTop }, keys: group.entries.map(entry => entry.key) }];
             }),
             pending: null,
             frame: 0,
@@ -557,18 +688,33 @@ function ScratchpadCanvas<E extends CanvasEntry>({
         if (!marquee.moved && Math.hypot(point.x - marquee.start.x, point.y - marquee.start.y) < DRAG_THRESHOLD) return;
         if (!marquee.moved) setIsBoxSelecting(true);
         marquee.moved = true;
-        const rect = rectFromPoints(marquee.start, point);
+        const content = contentRef.current!;
         const box = marqueeRef.current;
-        if (box) {
-            box.hidden = false;
-            box.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
-            box.style.width = `${rect.right - rect.left}px`;
-            box.style.height = `${rect.bottom - rect.top}px`;
+        // 不倾斜：框就是内容坐标里的矩形。倾斜：框是屏幕方向的（起点按内容坐标记着，滚动过也对得上），四个角换回内容坐标是斜的。
+        let hits: (rect: Rect) => boolean;
+        if (tilt === 0) {
+            const rect = rectFromPoints(marquee.start, point);
+            hits = cardBox => rectsIntersect(rect, cardBox);
+            if (box) {
+                box.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+                box.style.width = `${rect.right - rect.left}px`;
+                box.style.height = `${rect.bottom - rect.top}px`;
+            }
+        } else {
+            const screen = rectFromPoints(localToClient(content, marquee.start, tilt), { x: client.clientX, y: client.clientY });
+            const corners = rectCorners(screen).map(corner => clientToLocal(content, corner, tilt));
+            hits = cardBox => polygonsIntersect(corners, rectCorners(cardBox));
+            if (box) {
+                box.style.transform = `translate(${corners[0].x}px, ${corners[0].y}px) rotate(${-tilt}deg)`;
+                box.style.width = `${screen.right - screen.left}px`;
+                box.style.height = `${screen.bottom - screen.top}px`;
+            }
         }
+        if (box) box.hidden = false;
         const next = new Set(marquee.base);
         for (const grid of marquee.grids) {
             grid.keys.forEach((key, index) => {
-                if (rectsIntersect(rect, cardRect(grid.origin, index, columns, spacing))) next.add(key);
+                if (hits(cardRect(grid.origin, index, columns, spacing))) next.add(key);
             });
         }
         setSelected(current => (sameSet(current, next) ? current : next));
@@ -623,13 +769,11 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             setMenu(null);
             return;
         }
-        const contentRect = content.getBoundingClientRect();
         let union: Rect | null = null;
         for (const group of groups) {
             const grid = gridRefs.current.get(group.key);
             if (!grid) continue;
-            const gridRect = grid.getBoundingClientRect();
-            const origin = { x: gridRect.left - contentRect.left, y: gridRect.top - contentRect.top };
+            const origin = { x: grid.offsetLeft, y: grid.offsetTop };
             group.entries.forEach((entry, index) => {
                 if (!selected.has(entry.key)) return;
                 const rect = cardRect(origin, index, columns, spacing);
@@ -643,9 +787,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
             return;
         }
         const box: Rect = union;
-        // 看得见的那一段，内容坐标。
-        const scrollerRect = scroller.getBoundingClientRect();
-        const viewTop = scrollerRect.top - contentRect.top;
+        // 看得见的那一段，内容坐标（内容挂在滚动容器里，滚过的量就是看得见的顶边）。
+        const viewTop = scroller.scrollTop - content.offsetTop;
         const viewBottom = viewTop + scroller.clientHeight;
         const centerX = (box.left + box.right) / 2;
         let next: MenuAnchor;
@@ -699,11 +842,57 @@ function ScratchpadCanvas<E extends CanvasEntry>({
 
     const menuButtons = menu ? selectionActions(selectedEntries) : [];
 
+    // 跳到栏：一组一项（只有一组、给了 chunk 时一段一项）；上下沿按量到的网格顶边算（还没量到的组不列）。
+    const jumpTargets = useMemo(() => {
+        if (!side) return [];
+        const targets: (JumpTarget & { top: number; bottom: number })[] = [];
+        const span = (groupKey: string, from: number, to: number) => {
+            const gridTop = gridTops.get(groupKey);
+            if (gridTop === undefined) return null;
+            return {
+                top: gridTop + slotPosition(from, columns, spacing).y,
+                bottom: gridTop + slotPosition(to, columns, spacing).y + card.height,
+            };
+        };
+        const chunk = groups.length === 1 && side.chunk ? side.chunk : 0;
+        for (const group of groups) {
+            const focusIndex = focusKey ? group.entries.findIndex(entry => entry.key === focusKey) : -1;
+            if (chunk > 0) {
+                for (let from = 0; from < group.entries.length; from += chunk) {
+                    const to = Math.min(group.entries.length, from + chunk) - 1;
+                    const box = span(group.key, from, to);
+                    if (!box) continue;
+                    const holdsFocus = focusIndex >= from && focusIndex <= to;
+                    targets.push({
+                        id: `${group.key}:${from}`, groupKey: group.key, index: from, count: to - from + 1, holdsFocus,
+                        label: holdsFocus ? `${from + 1}–${to + 1} · ▶ ${focusIndex + 1}` : `${from + 1}–${to + 1}`,
+                        ...box,
+                    });
+                }
+                continue;
+            }
+            const box = span(group.key, 0, Math.max(0, group.entries.length - 1));
+            if (!box) continue;
+            // 组头也算这一项：跳过去时组名露在顶上。
+            targets.push({
+                id: group.key, groupKey: group.key, index: 0, count: group.entries.length, holdsFocus: focusIndex >= 0,
+                label: group.jumpLabel ?? group.label, top: box.top - 44, bottom: box.bottom,
+            });
+        }
+        return targets;
+    }, [card.height, columns, focusKey, gridTops, groups, side, spacing]);
+    const locate = useCallback(() => {
+        const top = focusTop();
+        const scroller = scrollRef.current;
+        if (top === null || !scroller) return;
+        scroller.scrollTo({ top: Math.max(0, top - scroller.clientHeight / 3), behavior: 'smooth' });
+    }, [focusTop]);
+
     return (
         <>
             <div
                 ref={scrollRef}
-                className={`scratchpad-canvas${isBoxSelecting ? ' is-box-selecting' : ''}`}
+                className={`scratchpad-canvas${variant ? ` is-${variant}` : ''}${isBoxSelecting ? ' is-box-selecting' : ''}`}
                 data-testid={testId}
                 role="listbox"
                 aria-multiselectable="true"
@@ -722,7 +911,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                     // 左右留白跟着空隙走：时间轴第一列前面的节点要伸出网格。
                     style={spacing.edge === undefined ? undefined : { paddingLeft: spacing.edge, paddingRight: spacing.edge }}
                 >
-                    <p className="scratchpad-canvas-hint">{hint}</p>
+                    {hint && <p className="scratchpad-canvas-hint">{hint}</p>}
                     {groups.map(group => {
                         const keys = group.entries.map(entry => entry.key);
                         const preview = drag?.groupKey === group.key ? previewSlots(keys, drag.moving, drag.dropIndex) : null;
@@ -740,6 +929,8 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                                     label={group.label}
                                     count={group.entries.length}
                                     buttons={[selectAll, ...(group.buttons ?? [])]}
+                                    mark={group.mark}
+                                    lead={group.lead}
                                 />
                                 <div
                                     ref={element => {
@@ -765,7 +956,7 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                                         if (!isMoving) {
                                             if (gridTop === undefined) return null;
                                             const top = gridTop + slot.y;
-                                            if (top + CARD_HEIGHT < band.top || top > band.bottom) return null;
+                                            if (top + card.height < band.top || top > band.bottom) return null;
                                         }
                                         return (
                                             <ScratchpadCard
@@ -777,6 +968,10 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                                                 movingCount={isMoving && drag?.stack[0] === entry.key && drag.moving.size > 1 ? drag.moving.size : 0}
                                                 isSelected={selected.has(entry.key)}
                                                 isFresh={freshKeys.has(entry.key)}
+                                                width={card.width}
+                                                height={card.height}
+                                                variant={variant}
+                                                currentLabel={currentLabel}
                                                 playLabel={playLabel}
                                                 register={register}
                                                 onPointerDown={handleCardPointerDown}
@@ -829,6 +1024,14 @@ function ScratchpadCanvas<E extends CanvasEntry>({
                 </div>
             </div>
 
+            {side && (
+                <CanvasSidePanel
+                    side={side}
+                    targets={jumpTargets}
+                    scrollRef={scrollRef}
+                    onLocate={focusKey ? locate : undefined}
+                />
+            )}
             {footer}
         </>
     );

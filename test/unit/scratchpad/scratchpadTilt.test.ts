@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+import { clientToLocal, localToClient, rotatePoint, type TiltBox } from '@/components/app/scratchpad/scratchpadTilt';
+import {
+    FILM_SPACING,
+    NOTE_SPACING,
+    cardRect,
+    cardSize,
+    columnsFor,
+    polygonsIntersect,
+    rectCorners,
+    slotPosition,
+} from '@/components/app/scratchpad/canvasLayout';
+import { mulberry32, scatterFullBandDecos, scatterSlimDecos } from '@/components/app/scratchpad/scratchpadLook';
+
+// test/unit/scratchpad/scratchpadTilt.test.ts
+// 展开整页那张倾斜的纸：屏幕坐标与元素自己坐标的换算、斜着的框选框碰没碰到卡片、三种卡片的格子大小、信息条装饰按种子撒。
+
+/** 一个 w × h 的元素，左上角（没转时）在 origin，整个绕 pivot 转了 deg 度：它的外接框与自身宽高。 */
+const tiltedBox = (origin: { x: number; y: number }, w: number, h: number, pivot: { x: number; y: number }, deg: number): TiltBox => {
+    const corners = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => {
+        const turned = rotatePoint({ x: origin.x + x - pivot.x, y: origin.y + y - pivot.y }, deg);
+        return { x: turned.x + pivot.x, y: turned.y + pivot.y };
+    });
+    const xs = corners.map(point => point.x);
+    const ys = corners.map(point => point.y);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    return {
+        offsetWidth: w,
+        offsetHeight: h,
+        getBoundingClientRect: () => ({
+            left, top, right: Math.max(...xs), bottom: Math.max(...ys),
+            width: Math.max(...xs) - left, height: Math.max(...ys) - top, x: left, y: top, toJSON: () => null,
+        }),
+    };
+};
+
+describe('tilted sheet coordinates', () => {
+    const box = tiltedBox({ x: 200, y: 300 }, 1200, 600, { x: 720, y: 450 }, 6);
+
+    it('maps the element corners back to its own corners', () => {
+        const topLeftOnScreen = localToClient(box, { x: 0, y: 0 }, 6);
+        const local = clientToLocal(box, topLeftOnScreen, 6);
+        expect(local.x).toBeCloseTo(0, 6);
+        expect(local.y).toBeCloseTo(0, 6);
+        const far = clientToLocal(box, localToClient(box, { x: 1200, y: 600 }, 6), 6);
+        expect(far.x).toBeCloseTo(1200, 6);
+        expect(far.y).toBeCloseTo(600, 6);
+    });
+
+    it('turns the way the sheet turns: further right is further down on screen', () => {
+        const left = localToClient(box, { x: 0, y: 100 }, 6);
+        const right = localToClient(box, { x: 1000, y: 100 }, 6);
+        expect(right.y - left.y).toBeCloseTo(1000 * Math.sin((6 * Math.PI) / 180), 6);
+    });
+
+    it('is a plain offset when the sheet does not turn', () => {
+        const flat = tiltedBox({ x: 40, y: 50 }, 300, 200, { x: 0, y: 0 }, 0);
+        expect(clientToLocal(flat, { x: 100, y: 80 }, 0)).toEqual({ x: 60, y: 30 });
+        expect(localToClient(flat, { x: 60, y: 30 }, 0)).toEqual({ x: 100, y: 80 });
+    });
+});
+
+describe('marquee against cards', () => {
+    const card = { left: 100, top: 100, right: 200, bottom: 220 };
+
+    it('agrees with plain rectangles when nothing is turned', () => {
+        expect(polygonsIntersect(rectCorners({ left: 150, top: 150, right: 300, bottom: 300 }), rectCorners(card))).toBe(true);
+        expect(polygonsIntersect(rectCorners({ left: 201, top: 100, right: 300, bottom: 300 }), rectCorners(card))).toBe(false);
+        // Only touching an edge is not a hit.
+        expect(polygonsIntersect(rectCorners({ left: 200, top: 100, right: 300, bottom: 300 }), rectCorners(card))).toBe(false);
+    });
+
+    it('catches a card that only a turned box overlaps', () => {
+        // A thin box turned 45° that crosses the card's corner region diagonally.
+        const diamond = [{ x: 190, y: 90 }, { x: 230, y: 130 }, { x: 225, y: 135 }, { x: 185, y: 95 }];
+        expect(polygonsIntersect(diamond, rectCorners(card))).toBe(true);
+        // The same shape moved past the corner misses, though its bounding box still overlaps the card.
+        const missed = diamond.map(point => ({ x: point.x + 12, y: point.y - 12 }));
+        expect(polygonsIntersect(missed, rectCorners(card))).toBe(false);
+    });
+});
+
+describe('full-page card sizes', () => {
+    it('lays notebook cards out on their own size', () => {
+        expect(cardSize(NOTE_SPACING)).toEqual({ width: 112, height: 132 });
+        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 122, y: 142 });
+        expect(columnsFor(122 * 10 - 10, NOTE_SPACING)).toBe(10);
+    });
+
+    it('butts film frames together with no gap', () => {
+        const first = cardRect({ x: 0, y: 0 }, 0, 10, FILM_SPACING);
+        const second = cardRect({ x: 0, y: 0 }, 1, 10, FILM_SPACING);
+        expect(second.left).toBe(first.right);
+    });
+});
+
+describe('band decorations', () => {
+    it('draws the same numbers as the design generator', () => {
+        // mulberry32(11): the first values of the reference implementation.
+        const random = mulberry32(11);
+        const first = random();
+        const second = random();
+        expect(first).toBeGreaterThanOrEqual(0);
+        expect(first).toBeLessThan(1);
+        expect(second).not.toBe(first);
+        expect(mulberry32(11)()).toBe(first);
+    });
+
+    it('places the same shapes every time, inside their zones, without overlapping', () => {
+        const decos = scatterFullBandDecos('history', 1760);
+        expect(scatterFullBandDecos('history', 1760)).toEqual(decos);
+        expect(decos.length).toBeGreaterThan(8);
+        for (const deco of decos) {
+            expect(deco.x).toBeGreaterThanOrEqual(742);
+            expect(deco.x + deco.size).toBeLessThanOrEqual(1760 - 220);
+        }
+        for (let a = 0; a < decos.length; a += 1) {
+            for (let b = a + 1; b < decos.length; b += 1) {
+                const one = decos[a];
+                const other = decos[b];
+                const overlap = one.x < other.x + other.size && one.x + one.size > other.x && one.y < other.y + other.size && one.y + one.size > other.y;
+                expect(overlap).toBe(false);
+            }
+        }
+        expect(scatterSlimDecos('queue').every(deco => deco.x > 500)).toBe(true);
+    });
+});

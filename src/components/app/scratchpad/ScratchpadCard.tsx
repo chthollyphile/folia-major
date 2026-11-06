@@ -5,6 +5,28 @@ import type { SongResult } from '../../../types';
 import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
 import { CARD_HEIGHT, CARD_WIDTH } from './canvasLayout';
 
+/**
+ * 展开整页（设计稿 F）里卡片的三种样子：速记簿是笔记本上的一条记录（封面在上，红页边线、斜体的来源），
+ * 播放历史是一张回忆相片（泛黄、暗角、微微歪着，底下写几点放的），播放队列是一格电影胶片（上下齿孔，片边印序号）。
+ * 缺省是原来的卡片。样子全在 scratchpad.css，这里只多画胶片片边那一行、给相片一个歪的角度。
+ */
+export type CardVariant = 'note' | 'photo' | 'film';
+
+/** 相片歪的角度：按 key 固定挑一个（同一张相片每次都一样歪，挪动后也不变）。 */
+const PHOTO_ROTATIONS = [-2.2, 1.4, -0.6, 2, -1.5, 0.8, -2.4, 1.7, -0.9, 1.1];
+const photoRotation = (key: string) => {
+    let hash = 0;
+    for (let index = 0; index < key.length; index += 1) hash = (hash * 31 + key.charCodeAt(index)) | 0;
+    return PHOTO_ROTATIONS[Math.abs(hash) % PHOTO_ROTATIONS.length];
+};
+
+/** 歌的时长写成 m:ss（胶片片边）。 */
+const durationLabel = (ms: number) => {
+    if (!Number.isFinite(ms) || ms <= 0) return '';
+    const seconds = Math.round(ms / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
+
 // src/components/app/scratchpad/ScratchpadCard.tsx
 // 画布上的一张卡片。位置是两个 MotionValue（相对组网格原点）：平时弹簧动画到自己的格子；被拖的时候由画布在指针事件里
 // 直接 set（不进 React state），松手后再弹回新格子——这就是「自由拖动、吸附到索引位置」。卡片把自己的 MotionValue
@@ -39,6 +61,12 @@ type ScratchpadCardProps = {
     isFresh: boolean;
     /** 拖着一摞卡时按下的那张：角标写一共挪几张（0 不写）。 */
     movingCount?: number;
+    /** 卡片的宽高（缺省 CARD_WIDTH × CARD_HEIGHT）。 */
+    width?: number;
+    height?: number;
+    variant?: CardVariant;
+    /** 胶片里正在播的那一格片边印的字。 */
+    currentLabel?: string;
     playLabel: string;
     register: (key: string, motion: CardMotion | null) => void;
     onPointerDown: (entry: CanvasEntry, event: React.PointerEvent<HTMLDivElement>) => void;
@@ -55,6 +83,10 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
     isSelected,
     isFresh,
     movingCount = 0,
+    width = CARD_WIDTH,
+    height = CARD_HEIGHT,
+    variant,
+    currentLabel = '',
     playLabel,
     register,
     onPointerDown,
@@ -83,6 +115,7 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
 
     const className = [
         'scratchpad-card',
+        variant ? `is-${variant}` : '',
         isSelected ? 'is-selected' : '',
         isMoving ? 'is-moving' : '',
         isFresh ? 'is-fresh' : '',
@@ -96,7 +129,14 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
             data-scratchpad-key={entry.key}
             aria-selected={isSelected}
             role="option"
-            style={{ x, y, width: CARD_WIDTH, height: CARD_HEIGHT }}
+            style={{
+                x,
+                y,
+                width,
+                height,
+                ...(variant === 'photo' ? { '--scratchpad-photo-rotate': `${photoRotation(entry.key)}deg` } as React.CSSProperties : null),
+            }}
+            title={variant === 'film' ? `${entry.song.name} · ${getSongArtistLabel(entry.song)}` : undefined}
             onPointerDown={event => onPointerDown(entry, event)}
             onDoubleClick={() => onPlay(entry)}
         >
@@ -118,7 +158,15 @@ const ScratchpadCard: React.FC<ScratchpadCardProps> = ({
             </span>
             {movingCount > 1 && <span className="scratchpad-card-count" aria-hidden="true">{movingCount}</span>}
             <span className="scratchpad-card-name">{entry.song.name}</span>
-            <span className="scratchpad-card-meta">{entry.meta ?? getSongArtistLabel(entry.song)}</span>
+            {variant === 'film' ? (
+                // 胶片的片边：左边印序号（正在播的那一格印「▶ 正在播放」），右边印时长。
+                <span className="scratchpad-card-edge">
+                    <span>{entry.isCurrent ? `▶ ${currentLabel}` : entry.position !== undefined ? `▸ ${entry.position}` : ''}</span>
+                    <span>{durationLabel(entry.song.durationMs)}</span>
+                </span>
+            ) : (
+                <span className="scratchpad-card-meta">{entry.meta ?? getSongArtistLabel(entry.song)}</span>
+            )}
         </motion.div>
     );
 };

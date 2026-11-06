@@ -13,15 +13,18 @@ type ScratchpadGroupHeaderProps = {
     label: string;
     count: number;
     buttons: ScratchpadAction[];
-    /** 组名前面画这个几何体、条数后面画一道短杠（左缘面板的列表）。 */
+    /** 组名前面画这个几何体、条数后面画一道短杠（左缘面板的列表、展开整页）。 */
     mark?: ScratchpadShapeKind;
+    /** 组名前面大号的字（展开整页里播放历史那一天是几号，像相册的页眉）。 */
+    lead?: string;
 };
 
-const ScratchpadGroupHeader: React.FC<ScratchpadGroupHeaderProps> = ({ label, count, buttons, mark }) => {
+const ScratchpadGroupHeader: React.FC<ScratchpadGroupHeaderProps> = ({ label, count, buttons, mark, lead }) => {
     const { t } = useTranslation();
     return (
-        <div className="scratchpad-group-header">
+        <div className={`scratchpad-group-header${lead ? ' is-day' : ''}`}>
             {mark && <ScratchpadShape kind={mark} size={10} fill="var(--scratchpad-mark-wall)" />}
+            {lead && <span className="scratchpad-day-number">{lead}</span>}
             <span className="scratchpad-group-label">{label}</span>
             <span className="scratchpad-group-count">{t('scratchpad.count', { count })}</span>
             {mark && <span className="scratchpad-group-rule" aria-hidden="true" />}
