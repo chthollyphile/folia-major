@@ -1,4 +1,4 @@
-import type { OmniProviderCapabilities } from '../../../../types/onlineMusic';
+import type { OmniProviderCapabilities, RecommendationPresentation } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
 
 // src/library/core/home/online/onlineHomeProvider.service.ts
@@ -30,3 +30,12 @@ export const readOnlineProviderCapabilities = (providerId: string): OmniProvider
 };
 
 export const readOnlineProviderLabel = (providerId: string): string => omni.getProviderLabel(providerId);
+
+/** Read the current language's recommendation names, including when a mod has gone away. */
+export const readOnlineRecommendationPresentation = (providerId: string): RecommendationPresentation => {
+    try {
+        return omni.getRecommendationPresentation(providerId);
+    } catch {
+        return {};
+    }
+};

@@ -22,6 +22,7 @@ import { errorMessage } from '../utils/errorText';
 // gives its place, heading and all, to one of those the read brought.) A section that
 // has nothing but what it shows stays as it is. No section leaves the page for a refresh or
 // changes its place: the list is never lower than it was, and stays where it was scrolled to.
+// Fixed entry sections (`placement: 'first'`) are the exception: they lead the ordinary sections.
 // A provider may say, with the page it answers a read from the start with, that a refresh reads
 // its page anew (`ProviderExplorePage.refreshReadsAnew`): then no section is asked to go on, the
 // page is read anew at once, and a section's cursor serves its "more" alone.
@@ -147,10 +148,11 @@ const taken = (section: OmniExploreSection, batch: number): KeptSection => ({
     pool: withoutTakenOut(section.items), from: 0, size: section.items.length, batch, wentRound: false, ...(section.moreCursor ? { cursor: section.moreCursor } : {}),
 });
 /** The section as shown: `count` entries of the pool, from where the kept one stands. */
-const shownOf = (section: Pick<OmniExploreSection, 'id' | 'title' | 'changesWithRead'>, kept: KeptSection, count: number): OmniExploreSection => {
+const shownOf = (section: Pick<OmniExploreSection, 'id' | 'title' | 'placement' | 'changesWithRead'>, kept: KeptSection, count: number): OmniExploreSection => {
     const end = kept.from + count;
     return {
         id: section.id, title: section.title, items: kept.pool.slice(kept.from, end),
+        ...(section.placement ? { placement: section.placement } : {}),
         ...(end < kept.pool.length || kept.cursor ? { moreCursor: kept.cursor ?? READ_ALREADY } : {}),
         ...(section.changesWithRead ? { changesWithRead: true } : {}),
     };
@@ -208,7 +210,9 @@ const startedOver = (section: OmniExploreSection, kept: KeptSection, fresh?: Omn
     const again = fresh ? taken(fresh, kept.batch + 1) : { ...kept, from: 0, batch: kept.batch + 1, wentRound: true };
     if (!areSame(again.pool.slice(0, again.size), section.items)) return { kept: again, count: again.size };
     // (What the page just read has of it is kept in the order it is shown in: a provider hands the same entries back in another.)
-    return { kept: fresh ? { ...again, pool: section.items, batch: kept.batch } : kept, count: section.items.length };
+    // Keep that order while adopting the read's current previews, artwork and other item metadata.
+    const current = new Map(again.pool.map(item => [nameOf(item), item]));
+    return { kept: fresh ? { ...again, pool: section.items.map(item => current.get(nameOf(item)) ?? item), batch: kept.batch } : kept, count: section.items.length };
 };
 
 // At most this many sections ask the provider for their further items at a time. None asks once
@@ -306,9 +310,12 @@ const exchanged = async (key: string, feed: ExploreFeed, goesOn: () => boolean, 
     const went: Array<Awaited<ReturnType<typeof wentOn>>> = feed.refreshReadsAnew
         ? feed.sections.map(section => ({ kept: feed.kept[section.id], count: section.items.length, further: 'none' }))
         : await inTurn(feed.sections, section => wentOn(section, feed.kept[section.id]), goesOn);
-    // (`headings`: the heading each section has now, where it is another than it stood under.)
-    const settled = (exchanges: Exchange[], headings: Array<string | undefined> = []) => ({
-        sections: exchanges.map(({ kept, count }, index) => shownOf({ ...feed.sections[index], title: headings[index] ?? feed.sections[index].title }, kept, count)),
+    // A section read anew supplies its heading and placement; ones absent from that read keep theirs.
+    const settled = (exchanges: Exchange[], fresh: Array<OmniExploreSection | undefined> = []) => ({
+        sections: exchanges.map(({ kept, count }, index) => shownOf({
+            ...feed.sections[index],
+            ...(fresh[index] ? { title: fresh[index]!.title, placement: fresh[index]!.placement } : {}),
+        }, kept, count)),
         kept: Object.fromEntries(exchanges.map(({ kept }, index) => [feed.sections[index].id, kept])),
     });
     const round = (section: OmniExploreSection, { kept, count, further }: typeof went[number]) => (further === 'none' ? startedOver(section, kept) : { kept, count });
@@ -320,11 +327,21 @@ const exchanged = async (key: string, feed: ExploreFeed, goesOn: () => boolean, 
     // (The cursors of the read before went with it: a section the page no longer has goes on through the entries read for it.)
     const next = settled(went.map((exchange, index) => (fresh[index]
         ? startedOver(feed.sections[index], feed.kept[feed.sections[index].id], fresh[index])
-        : round(feed.sections[index], { ...exchange, kept: { ...exchange.kept, cursor: undefined } }))), fresh.map(section => section?.title));
+        : round(feed.sections[index], { ...exchange, kept: { ...exchange.kept, cursor: undefined } }))), fresh);
     // (All of them are handed over, so that every heading seen is noted as seen. Only the new ones are placed by the order.)
     const joining = arrived(inKeptOrder(key, [...feed.sections, ...others]).filter(section => others.includes(section)));
+    // Ordinary sections retain their places; fixed entries lead in this read's provider order.
+    const firstOrder = new Map(page.sections.filter(section => section.placement === 'first').map((section, index) => {
+        const oldIndex = fresh.indexOf(section);
+        return [oldIndex < 0 ? section.id : feed.sections[oldIndex].id, index];
+    }));
+    const sections = [...next.sections, ...joining.sections].sort((left, right) => {
+        if (left.placement !== 'first' && right.placement !== 'first') return 0;
+        if (left.placement !== right.placement) return left.placement === 'first' ? -1 : 1;
+        return (firstOrder.get(left.id) ?? firstOrder.size) - (firstOrder.get(right.id) ?? firstOrder.size);
+    });
     return {
-        sections: [...next.sections, ...joining.sections], kept: { ...next.kept, ...joining.kept }, nextCursor: page.nextCursor, pages: page.pages,
+        sections, kept: { ...next.kept, ...joining.kept }, nextCursor: page.nextCursor, pages: page.pages,
         ...(page.refreshReadsAnew ? { refreshReadsAnew: true } : {}),
     };
 };
@@ -408,7 +425,7 @@ export const useExploreFeedStore = create<ExploreFeedStore>((set, get) => {
                     const further = arrived(inKeptOrder(get().key!, page.sections.filter(section => !standsOn(current, section))));
                     return {
                         ...current,
-                        sections: [...current.sections, ...further.sections],
+                        sections: [...current.sections, ...further.sections].sort((left, right) => Number(right.placement === 'first') - Number(left.placement === 'first')),
                         kept: { ...current.kept, ...further.kept },
                         nextCursor: page.nextCursor,
                         pages: current.pages + 1,

@@ -3,6 +3,7 @@ import type { PersonalFmCatalog } from '../../types/personalFm';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
     AudioQualityPreference,
+    DailySongPreview,
     DailyStyleGroup,
     DailyStyleSelection,
     DailyStyleSongs,
@@ -31,6 +32,7 @@ import type {
     OnlineMusicProvider,
     OnlineSearchProvider,
     PersonalFmRequestOptions,
+    RecommendationPresentation,
     ProviderCatalogEntityKind,
     ProviderExternalPlaybackStatus,
     ProviderLoginForm,
@@ -93,6 +95,7 @@ import { withoutCredentials } from './rawResponse';
 import { resolveSongCatalogRefSet } from './catalogRefs';
 import { ARTIST_SONGS_CAP, readAlignedPages } from './alignedPages';
 import type { AccountReadOutcome, AccountReadReason } from './account/accountRead';
+import { createDailySongPreviews } from './dailySongPreviews';
 
 // src/services/onlineMusic/omni.ts
 // Online Music Network Interface (Omni) - a unified interface for interacting with multiple online music providers.
@@ -157,6 +160,13 @@ const activeProviderId = (): OmniProviderId => {
 };
 
 const activeProvider = () => requireOnlineMusicProvider(activeProviderId());
+
+const dailySongPreviews = createDailySongPreviews(activeProviderId);
+const unsubscribeDailyPreviewRegistry = subscribeOnlineMusicProviderRegistry(dailySongPreviews.checkOwner);
+import.meta.hot?.dispose(() => {
+    dailySongPreviews.dispose();
+    unsubscribeDailyPreviewRegistry();
+});
 
 /** A provider has recommendation preferences when it declares the capability and can both read and save them. */
 const hasRecommendationPreferences = (provider: OnlineMusicProvider | null | undefined): provider is OnlineMusicProvider => (
@@ -497,13 +507,17 @@ const accountMoments = createAccountMoments({
 let activeRequestGeneration = 0;
 
 // Rejects late active-provider responses after an account switch transaction begins.
-const withActiveProvider = async <T>(run: (provider: OnlineMusicProvider) => Promise<T>): Promise<T> => {
+const withActiveProvider = async <T>(
+    run: (provider: OnlineMusicProvider) => Promise<T>,
+    accepted?: (result: T) => void,
+): Promise<T> => {
     const providerId = activeProviderId();
     const generation = activeRequestGeneration;
     const result = await run(requireOnlineMusicProvider(providerId));
     if (generation !== activeRequestGeneration || providerId !== activeProviderId()) {
         throw new DOMException('Active online provider changed', 'AbortError');
     }
+    accepted?.(result);
     return result;
 };
 
@@ -590,6 +604,10 @@ export const omni = {
 
     supportsDailySongs(providerId: OmniProviderId): boolean {
         return typeof requireOnlineMusicProvider(providerId).recommendations?.getDailySongs === 'function';
+    },
+
+    getRecommendationPresentation(providerId: OmniProviderId): RecommendationPresentation {
+        return requireOnlineMusicProvider(providerId).recommendations?.getPresentation?.() ?? {};
     },
 
     getProviderLabel(providerId: OmniProviderId): string {
@@ -922,18 +940,22 @@ export const omni = {
     }> {
         return withActiveProvider(async provider => {
             const recommendations = provider.recommendations;
+            // Explore owns these actions for some providers; the Radio feed must not claim their preview batch.
+            const presentation = recommendations?.getPresentation?.();
+            const readsPersonalFm = (presentation?.personalFmHomeTab ?? presentation?.homeTab) !== 'explore';
+            const readsDailySongs = presentation?.homeTab !== 'explore';
             // 三块各自成败：一块失败（例如日推被上游拒绝）只让那一块为空、结果标成 partial，不把 FM 与推荐歌单
             // 一起拖下去；三块都失败才算这次首页推荐失败。作废（AbortError）不算某一块的失败，整次照常作废。
             const [personalFm, dailySongs, recommendedCollections] = await Promise.allSettled([
-                recommendations?.getPersonalFm?.() ?? [],
-                recommendations?.getDailySongs?.() ?? [],
+                readsPersonalFm ? recommendations?.getPersonalFm?.() ?? [] : [],
+                readsDailySongs ? recommendations?.getDailySongs?.() ?? [] : [],
                 recommendations?.getRecommendedCollections?.(limit) ?? [],
             ]);
             const settled = [personalFm, dailySongs, recommendedCollections];
             const failures = settled.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
             const aborted = failures.find(failure => (failure.reason as { name?: unknown } | null)?.name === 'AbortError');
             if (aborted) throw aborted.reason;
-            if (failures.length === settled.length) throw failures[0].reason;
+            if (failures.length === (1 + Number(readsPersonalFm) + Number(readsDailySongs))) throw failures[0].reason;
             failures.forEach(failure => console.warn('[Omni] Home feed section failed', {
                 providerId: provider.id,
                 ...errorFields(failure.reason),
@@ -962,7 +984,20 @@ export const omni = {
     },
 
     async getDailySongs(refresh?: boolean): Promise<UnifiedSong[]> {
-        return withActiveProvider(async provider => provider.recommendations?.getDailySongs?.(refresh) ?? []);
+        const read = dailySongPreviews.begin();
+        return withActiveProvider(
+            async provider => provider.recommendations?.getDailySongs?.(refresh) ?? [],
+            songs => dailySongPreviews.publish(read, songs[0]),
+        );
+    },
+
+    /** Stable, account-owned snapshot of today's daily preview; reading it starts no request. */
+    getDailySongPreview(): DailySongPreview | null {
+        return dailySongPreviews.getSnapshot();
+    },
+
+    subscribeDailySongPreview(listener: () => void): () => void {
+        return dailySongPreviews.subscribe(listener);
     },
 
     async getRecommendationHistory(): Promise<OmniHistoryEntry[]> {
@@ -1049,7 +1084,23 @@ export const omni = {
     // The active provider's own recommendation page; `cursor` asks for its further sections, and
     // `listened` (see `OnlineExploreProvider`) goes with a read from the start.
     async getExploreFeed(cursor?: string, listened?: UnifiedSong[]): Promise<OmniExplorePage> {
-        return withActiveProvider(async provider => provider.explore?.getFeed(cursor, listened) ?? { sections: [] });
+        const read = dailySongPreviews.begin();
+        return withActiveProvider(
+            async provider => provider.explore?.getFeed(cursor, listened) ?? { sections: [] },
+            page => {
+                // An empty feed card may follow a partial failure; only a successful daily read clears a preview.
+                const dailyEntry = page.sections.flatMap(section => section.items).find(item => (
+                    item.kind === 'collection'
+                    && item.collection.providerId === read.providerId
+                    && item.collection.type === 'daily_recommendations'
+                    && item.collection.songPreview?.dailySongs === true
+                    && Boolean(item.collection.songPreview.firstSong)
+                ));
+                if (dailyEntry?.kind === 'collection') {
+                    dailySongPreviews.publish(read, dailyEntry.collection.songPreview?.firstSong);
+                }
+            },
+        );
     },
 
     async getExploreSectionItems(cursor: string): Promise<OmniExploreItemsPage> {

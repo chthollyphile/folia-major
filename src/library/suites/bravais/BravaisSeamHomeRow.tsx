@@ -78,12 +78,13 @@ const BravaisSeamHomeRow: React.FC<{
     const { seam } = layer;
     const home = seam.home;
     const tabs = seam.tabs ?? [];
-    // 书脊不画中段（二级切换、直达入口等），只排页签。
+    // 书脊不画普通中段（二级切换、直达入口等）；固定推荐独立占位。
     const sections = !compact && home?.sections && home.sections.length > 0 ? home.sections : null;
-    const shortcuts = home?.shortcuts && home.shortcuts.length > 0 ? home.shortcuts : null;
-    const rowShortcuts = compact ? null : shortcuts;
+    const allShortcuts = home?.shortcuts ?? [];
+    const pinnedShortcuts = allShortcuts.filter(shortcut => shortcut.pinned);
+    const rowShortcuts = compact ? null : allShortcuts.filter(shortcut => !shortcut.pinned);
     const rowEntries = !compact && home?.entries && home.entries.length > 0 ? home.entries : null;
-    const hasRowJumps = rowShortcuts !== null || rowEntries !== null;
+    const hasRowJumps = Boolean(rowShortcuts?.length) || rowEntries !== null;
     const reveal = bravaisRevealMotion(useBravaisReducedTransitions());
     const filterEditing = useBravaisUiStore(state => state.filterEditing);
     const labelsKey = tabs.map(tab => tab.label).join('\u0000');
@@ -121,7 +122,7 @@ const BravaisSeamHomeRow: React.FC<{
 
     return (
         <div ref={rowRef} className={`bravais-seam-home-row${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam
-            data-bravais-home-fit={fit.level} data-bravais-home-shortcuts={hasRowJumps ? (shortcutsInRow ? 'column' : 'menu') : undefined}>
+            data-bravais-home-fit={fit.level} data-bravais-home-shortcuts={hasRowJumps || pinnedShortcuts.length > 0 ? (shortcutsInRow || pinnedShortcuts.length > 0 ? 'column' : 'menu') : undefined}>
             <button type="button" className="bravais-seam-icon" data-bravais-seam-action="hide" onClick={() => setLevel('hidden')}
                 aria-label={t('libraryBravais.seamFold')} title={t('libraryBravais.seamFold')}>
                 <FoldHorizontal aria-hidden />
@@ -181,6 +182,11 @@ const BravaisSeamHomeRow: React.FC<{
                     aria-label={seam.filter.placeholder} title={`${seam.filter.placeholder} · ${seam.filter.query}`}>
                     <ListFilter aria-hidden />
                 </button>
+            )}
+            {pinnedShortcuts.length > 0 && (
+                <div className="bravais-seam-home-jumps is-pinned" data-bravais-home-jumps>
+                    <HomeSeamShortcuts shortcuts={pinnedShortcuts} label={home?.shortcutsLabel} rule={false} onOpen={openShortcut} />
+                </div>
             )}
             {home?.account && (
                 <div ref={accountRef} className="bravais-seam-row-account">

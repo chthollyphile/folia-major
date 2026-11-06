@@ -3,6 +3,9 @@ import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { summaryOfSection } from '../../../components/app/lattice/exploreWall';
 import type { WallSection } from '../../../components/app/lattice/wallLayout';
 import type { BravaisItem, BravaisItemKind } from './bravaisLayer';
+import type { OmniExploreSection } from '../../../types/onlineMusic';
+import type { BravaisHomeShortcut } from './bravaisHomeModels';
+import { resolveLibraryHomeSpecial } from '../../core/home/homeSpecialCards';
 import { formatDuration } from './bravaisProjection';
 
 // src/library/suites/bravais/bravaisExploreProjection.ts
@@ -30,7 +33,10 @@ export const projectExploreItems = (tiles: readonly LatticeTile[]): BravaisItem[
         subtitle: tile.artist,
         coverUrl: tile.coverUrl,
         badge: tile.label ?? '',
+        ...(tile.kind === 'collection' && tile.collection.coverOverlay ? { coverOverlay: tile.collection.coverOverlay } : {}),
     };
+    // Named streams play in place; they do not leave a collection transition origin behind.
+    if (tile.kind === 'collection' && tile.collection.personalFm) item.direct = true;
     if (tile.kind !== 'song') return item;
     const { song } = tile;
     return {
@@ -43,6 +49,23 @@ export const projectExploreItems = (tiles: readonly LatticeTile[]): BravaisItem[
 });
 
 const twoDigits = (value: number) => String(value).padStart(2, '0');
+
+/** Featured actions also stay reachable from the Explore seam when the wall has been panned. */
+export const projectExploreShortcuts = (
+    tiles: readonly LatticeTile[],
+    sections: readonly OmniExploreSection[],
+): Array<Omit<BravaisHomeShortcut, 'open'>> => {
+    const first = new Set(sections.filter(section => section.placement === 'first').map(section => section.id));
+    const seen = new Set<string>();
+    return tiles.flatMap(tile => {
+        if (tile.kind !== 'collection' || !first.has(tile.sectionKey ?? '')) return [];
+        const { collection } = tile;
+        const special = resolveLibraryHomeSpecial({ id: collection.id, type: collection.type, raw: collection }, 'online');
+        if (!special || seen.has(special)) return [];
+        seen.add(special);
+        return [{ special, label: collection.name, shortLabel: collection.name, pinned: true, itemKey: tile.id, direct: Boolean(collection.personalFm) }];
+    });
+};
 
 /** 每个 section 的标题磁贴（按 section 的序号，与探索形状的 headingAt 对上）。 */
 export const projectExploreHeadings = (sections: readonly WallSection[], t: (key: string) => string): BravaisItem[] => (

@@ -14,6 +14,7 @@ import type {
 } from '../../../../types/appPlayback';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../../stores/usePlaybackStore';
+import { noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
 import { askedSongKeyRef, makeSongCurrent, startRestore } from '../currentSong';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
@@ -159,7 +160,7 @@ export function useElectronWindowPlaybackHandoff({
     const cachedCoverUrl = usePlaybackStore(state => state.cachedCoverUrl);
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const playQueue = usePlaybackStore(state => state.playQueue);
-    const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const acceptedFmPlayback = usePlaybackStore(state => state.acceptedFmPlayback);
     const playerState = usePlaybackStore(state => state.playerState);
     const duration = usePlaybackStore(state => state.duration);
     const currentLineIndex = usePlaybackStore(state => state.currentLineIndex);
@@ -192,7 +193,10 @@ export function useElectronWindowPlaybackHandoff({
             currentSong,
             currentTime,
             duration,
-            isFmMode,
+            // A pending play already changed the requested flag; only the queue that landed travels as FM.
+            isFmMode: Boolean(acceptedFmPlayback && currentSong
+                && acceptedFmPlayback.songKeys.has(getPlaybackSongKey(currentSong))
+                && playQueue.some(song => getPlaybackSongKey(song) === getPlaybackSongKey(currentSong))),
             lyrics,
             playQueue,
             // Read after the external player was paused above: the handoff must not claim a
@@ -210,7 +214,9 @@ export function useElectronWindowPlaybackHandoff({
             mainPlayback,
             activePlayback,
             // Which extra radio the FM queue came from, so the new window tops it up from the same one.
-            ...(mainPlayback?.isFmMode ? { fmStations: captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
+            ...(mainPlayback?.isFmMode ? { fmStations: activePlaybackContext === 'main'
+                ? (acceptedFmPlayback?.selection.station ? { [acceptedFmPlayback.providerId]: acceptedFmPlayback.selection.station } : undefined)
+                : captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
             stage: {
                 status: stageStatus,
                 source: stageSource,
@@ -243,7 +249,7 @@ export function useElectronWindowPlaybackHandoff({
         currentView,
         duration,
         getNowPlayingDisplayTime,
-        isFmMode,
+        acceptedFmPlayback,
         isPlayerChromeHidden,
         lyrics,
         mainPlaybackSnapshotRef,
@@ -283,6 +289,7 @@ export function useElectronWindowPlaybackHandoff({
             if (!queueRewritten) {
                 setPlayQueue([]);
                 setIsFmMode(false);
+                noteAcceptedFmPlayback(null, [], false);
             } else {
                 // The old window's empty queue is the listener's: the replacement's undo puts it back.
                 reportYieldedQueue({ queue: [], isFmMode: false, song: null });
@@ -309,6 +316,7 @@ export function useElectronWindowPlaybackHandoff({
             setPlayQueue(restoredQueue);
             setIsFmMode(snapshot.isFmMode);
             if (snapshot.isFmMode) restoreActiveStations(fmStations);
+            noteAcceptedFmPlayback(snapshot.currentSong, restoredQueue, snapshot.isFmMode);
         } else {
             // Saved again now that a song is current, as the session restore does: the replacement's own save
             // found none, so it kept nothing, and the source's restore saves only on some of its paths.

@@ -5,6 +5,7 @@ import { parseWallSlotKey } from '../../../components/wall/wallSlots';
 import { isWallDoubleClickOn, noteWallPress } from '../../../components/wall/wallDoubleClick';
 import { countRender } from '../../../dev/renderCount';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
+import { ExploreCoverOverlay } from '../../../components/app/home/explore/ExploreCoverOverlay';
 import {
     BRAVAIS_ALBUM_COVER_PX,
     BRAVAIS_METRICS,
@@ -412,6 +413,7 @@ function BravaisTile({
                         {/* 实测反馈 1：熄灯层（wall.css；全透明档的窗与聚焦卡等豁免在 bravais.css）。 */}
                         <span className="lattice-poster-lights-out" />
                         {!face.seeThrough && <span className="lattice-poster-tint" />}
+                        {!face.seeThrough && <ExploreCoverOverlay overlay={display.coverOverlay} className="absolute right-3 top-3 h-7 w-28" />}
                         <BravaisTileBadge item={display} current={isCurrent} />
                         {(display.hideable || display.selected) && (
                             <BravaisTileMarks

@@ -1176,7 +1176,12 @@ describe('a play moved to the other engine: where it starts, whether it plays, a
         expect(usePlaybackStore.getState()).toMatchObject({ isLoadingToPlay: true });
         expect(status()).toMatchObject({ type: 'success', text: 'status.localMusicLoaded' });
         expect(start.stillWanted?.()).toBe(true);
-        startPlay();
+        const pending = startPlay();
+        expect(start.stillWanted?.()).toBe(false);
+        dropPlaysInFlight({ keepShownPlayback: true });
+        expect(pending()).toBe(false);
+        expect(start.stillWanted?.()).toBe(true);
+        dropPlaysInFlight();
         expect(start.stillWanted?.()).toBe(false);
     });
 

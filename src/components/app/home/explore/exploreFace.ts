@@ -1,4 +1,4 @@
-import type { OmniExploreItem } from '../../../../types/onlineMusic';
+import type { OmniCollection, OmniExploreItem } from '../../../../types/onlineMusic';
 import { getProviderCollectionArtistLabel } from '../../../../library/core/home/homeCards';
 
 // src/components/app/home/explore/exploreFace.ts
@@ -19,7 +19,18 @@ export interface Face {
     shape: 'wide' | 'square' | 'round';
     /** A song's length; 0 for a card and for a song of unknown length. */
     durationMs: number;
+    coverOverlay?: OmniCollection['coverOverlay'];
 }
+
+/** The collection's semantic label; radio and daily recommendations keep their own identity. */
+export const exploreCollectionLabelKey = (item: Extract<OmniExploreItem, { kind: 'collection' }>): string => {
+    const { collection } = item;
+    if (collection.personalFm || collection.type === 'radio') return 'home.radio';
+    if (collection.type === 'daily_recommendations') return 'home.dailyRecommendations';
+    if (collection.type === 'artist') return 'home.exploreArtist';
+    if (collection.type === 'album') return 'home.exploreAlbum';
+    return item.isMix ? 'home.exploreMix' : 'home.explorePlaylist';
+};
 
 export const faceOf = (item: OmniExploreItem, t: (key: string) => string): Face => {
     if (item.kind === 'song') {
@@ -36,17 +47,21 @@ export const faceOf = (item: OmniExploreItem, t: (key: string) => string): Face 
     }
     const { collection } = item;
     const isArtist = collection.type === 'artist';
-    const kindLabel = t(isArtist ? 'home.exploreArtist' : collection.type === 'album' ? 'home.exploreAlbum' : item.isMix ? 'home.exploreMix' : 'home.explorePlaylist');
-    const coverUrl = collection.coverUrl ?? '';
+    const kindLabel = t(exploreCollectionLabelKey(item));
+    const preview = collection.songPreview?.currentSong ?? collection.songPreview?.firstSong;
+    const artists = preview?.artists.map(artist => artist.name).filter(Boolean).join(', ');
+    const previewLabel = preview ? [preview.name, artists].filter(Boolean).join(' — ') : '';
+    const coverUrl = preview?.album.coverUrl || collection.coverUrl || '';
     // An artist is always its own cover in a circle.
-    const wideCoverUrl = isArtist ? undefined : item.wideCoverUrl;
+    const wideCoverUrl = isArtist || preview ? undefined : item.wideCoverUrl;
     return {
         kind: collection.type,
         title: collection.name,
-        subtitle: item.subtitle ?? ((isArtist ? '' : getProviderCollectionArtistLabel(collection)) || kindLabel),
+        subtitle: previewLabel || (item.subtitle ?? ((isArtist ? '' : getProviderCollectionArtistLabel(collection)) || kindLabel)),
         pictureUrl: wideCoverUrl ?? coverUrl,
         coverUrl,
         shape: isArtist ? 'round' : wideCoverUrl ? 'wide' : 'square',
         durationMs: 0,
+        ...(collection.coverOverlay ? { coverOverlay: collection.coverOverlay } : {}),
     };
 };

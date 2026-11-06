@@ -2,6 +2,7 @@ import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamAlbum, BravaisSe
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 import type { BravaisLayerShape } from './bravaisWallShape';
+import type { OmniCollection } from '../../../types/onlineMusic';
 
 // src/library/suites/bravais/bravaisLayer.ts
 // bravais 的层描述（设计稿 §8.1）：surface 把 core binding 的数据投影成它，推进 bravaisStageStore，stage 只读它画墙。
@@ -22,6 +23,7 @@ export type BravaisItem = {
     title: string;
     subtitle: string;
     coverUrl?: string;
+    coverOverlay?: OmniCollection['coverOverlay'];
     /** 专辑墙（has-album-wall）上这首的封面画法；没有就照常画整张封面。 */
     coverArt?: BravaisCoverArt;
     /** 徽标文字：集合层是条目序号（01、02…），首页与歌手页是种类（歌单 / 专辑…），集合带曲目数（「歌单 · 124」）。 */
