@@ -39,7 +39,7 @@ export type ScratchpadShapeKind = 'circle' | 'tri' | 'chev';
 export type ScratchpadDecoStyle = 'fill' | 'wire' | 'ink' | 'hollow' | 'image';
 
 export type ScratchpadDeco = {
-    /** 相对信息条左上角（px），可以探出条外，被条的斜切裁掉。 */
+    /** 相对信息条左上角（px），可以探出条外，被条的边裁掉。 */
     x: number;
     y: number;
     size: number;

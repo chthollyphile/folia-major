@@ -29,10 +29,19 @@ export const DEFAULT_SPACING: Spacing = { x: CARD_GAP, y: CARD_GAP };
  * 行与行之间隔得开（用户定，2026-11-06）：当时框选框是屏幕方向的，纸斜着，横着一拉就斜着碰到下一行，
  * 原来 10px 的行距一拉就串行，行距放到了 44–48px。后来框选框改成跟着纸斜（2026-11-07），行距留着，看着也松快。
  * 速记簿与播放队列的卡片后来又放大了（用户要的，2026-11-06）：笔记本 128 × 152、胶片 140 × 128，行距不变。
+ * 2026-11-07 用户嫌展开整页太密、挂的卡也多：三种卡再放大约 1.45 倍，空隙跟着放宽，一屏的卡少一半左右
+ * （画布只挂看得见的那几行，卡少了渲染也轻）。三行总览一行只放头几张，仍用原来的尺寸（*_ROW_SPACING）。
+ * 卡片里面的尺寸（封面高、字号）在 scratchpad.css 的「展开整页的大卡」一节，改这里的宽高要一起改。
  */
-export const NOTE_SPACING: Spacing = { x: 16, y: 44, edge: 10, card: { width: 128, height: 152 } };
-export const PHOTO_SPACING: Spacing = { x: 16, y: 48, edge: 10, card: { width: 104, height: 128 } };
-export const FILM_SPACING: Spacing = { x: 0, y: 48, edge: 28, card: { width: 140, height: 128 } };
+export const NOTE_SPACING: Spacing = { x: 28, y: 56, edge: 10, card: { width: 184, height: 220 } };
+export const PHOTO_SPACING: Spacing = { x: 28, y: 60, edge: 10, card: { width: 152, height: 188 } };
+/** 胶片宽是 28 的整数倍：齿孔每 28px 一个，一格接一格时间距接得上。 */
+export const FILM_SPACING: Spacing = { x: 0, y: 56, edge: 28, card: { width: 196, height: 176 } };
+
+/** 三行总览里一行卡的尺寸（展开整页放大之前的那一套）。 */
+export const NOTE_ROW_SPACING: Spacing = { x: 16, y: 44, edge: 10, card: { width: 128, height: 152 } };
+export const PHOTO_ROW_SPACING: Spacing = { x: 16, y: 48, edge: 10, card: { width: 104, height: 128 } };
+export const FILM_ROW_SPACING: Spacing = { x: 0, y: 48, edge: 28, card: { width: 140, height: 128 } };
 
 /** 这么宽的网格放得下几列（至少一列）。 */
 export const columnsFor = (width: number, spacing: Spacing = DEFAULT_SPACING): number => (
