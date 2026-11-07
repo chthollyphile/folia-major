@@ -22,8 +22,11 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 
 /** How many songs that follow are put in the app's queue. */
 const PREPARED_SONGS = 2;
-/** What the app's own answer to a start says (N8): it took the track, a newer start took over, or it never got to it. */
-type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded';
+/**
+ * What the app's own answer to a start says (N8): it took the track, a newer start took over, it took
+ * the track but an advertisement of a free account still runs before it, or it never got to it.
+ */
+type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement';
 /** A track change this close to the end of the song Folia asked for is that song ending. */
 const END_TOLERANCE_MS = 3000;
 
@@ -180,8 +183,24 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
     return status;
 };
 
+/**
+ * The failures that mean Spotify's app itself is out of reach: it was closed, its DevTools port
+ * stopped answering, or the call to steer it never got there. A track the app will not load, a call
+ * it refuses, and the app not being on this computer are about the song or the setup instead, and
+ * take the ordinary path of a play that failed.
+ */
+const unreachableClientFailure = (error: unknown): boolean => {
+    if (!(error instanceof OnlineProviderError)) return false;
+    if (error.cause === 'client-missing') return false;
+    return error.code === 'unavailable' || error.code === 'network';
+};
+
 export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     canPlay: song => songIdOf(song) !== null,
+    // This way plays in Spotify's own app, which keeps a media session of its own: while it sounds
+    // Folia's song, the keys are held by Folia (useExternalPlaybackBridge.ts says why).
+    holdsMediaKeys: () => true,
+    isUnreachableFailure: unreachableClientFailure,
     isPrepared(song) {
         const id = songIdOf(song);
         return id !== null && (handoffId === id || Boolean(attempt?.hasPlayed && attempt.nextIds[0] === id));
@@ -231,6 +250,12 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // A newer start replaced this one: nothing went wrong, and there is nothing to report (N8).
         if (answer === 'preempted') {
             console.info('[SpotifyClient] a newer play took the app; this one stops');
+            return;
+        }
+        // An advertisement of a free account was on the screen when the app took the call: the track
+        // is accepted, and the status reads follow it (an advertisement reads as the song loading).
+        if (answer === 'advertisement') {
+            console.info('[SpotifyClient] an advertisement plays before the song; the app follows it');
             return;
         }
         // The app took the call and never got to the track: that is a failure of this song (N8).

@@ -81,7 +81,8 @@ const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
-const { createMediaKeyTakeover } = require('./spotify/mediaKeys.cjs');
+const { createSpotifyMediaKeyTakeover } = require('./spotify/mediaKeys.cjs');
+const { createQuitShutdownGate } = require('./quitShutdown.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -6419,9 +6420,10 @@ const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'close_external_player_on_quit
 const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
 // Set while a quit is held for such work (see before-quit).
 let isQuitHeldForAccounts = false;
-// Set once the bridges were asked to shut down: the quit asked for again after their work settled
-// must not ask them a second time (the player outside Folia is closed once, not on every one).
-let isQuitShutdownAsked = false;
+// Which quit asks the bridges to shut down. The quit asked again after their work held it is the same
+// quit and must not ask them twice (the player outside Folia is closed once, not on every one); a quit
+// that was cancelled halfway leaves nothing behind, so the next one asks again (quitShutdown.cjs).
+const quitShutdownGate = createQuitShutdownGate();
 
 app.on('before-quit', (event) => {
   // Work of a bridge that must not be cut off: a web sign-in under way, whose ended browser leaves
@@ -6435,15 +6437,18 @@ app.on('before-quit', (event) => {
   // still answers on the DevTools port Folia opened it with.
   // Every bridge is asked the same way: the one that does not know the option ignores it.
   let held = [];
-  if (!isQuitShutdownAsked) {
-    isQuitShutdownAsked = true;
+  if (quitShutdownGate.asks({ holding: isQuitHeldForAccounts })) {
     const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) === true;
     held = quitHoldingBridges.map(bridge => bridge.shutdown({ closePlayerOnQuit })).filter(Boolean);
   }
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
-    void Promise.all(held).then(() => app.quit());
+    void Promise.all(held).then(() => {
+      // This is the quit they held, asked for again: the bridges were asked for by it already.
+      quitShutdownGate.resume();
+      app.quit();
+    });
     return;
   }
   isQuitHeldForAccounts = false;
@@ -7573,13 +7578,14 @@ ipcMain.handle('global-shortcuts-backend', () => (
   usesGlobalShortcutsPortal({ ozonePlatform: app.commandLine.getSwitchValue('ozone-platform') }) ? 'portal' : 'native'
 ));
 
-// The media keys while an external player sounds the song: held only while the renderer asks.
+// The system media keys while Spotify's own app sounds the song: held only while the renderer asks,
+// which it does for as long as that app's session exists (electron/spotify/mediaKeys.cjs says why).
 let externalMediaKeys = null;
 ipcMain.handle('external-media-keys-set', (event, enabled) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to take the media keys.');
   }
-  externalMediaKeys ??= createMediaKeyTakeover({
+  externalMediaKeys ??= createSpotifyMediaKeyTakeover({
     globalShortcut,
     onKey: (action) => {
       if (mainWindow && !mainWindow.isDestroyed()) {

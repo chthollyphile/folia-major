@@ -1154,9 +1154,19 @@ export const omni = {
     },
 
     // Whether an advance Folia made by itself that the external player cannot take stops where it is,
-    // instead of failing the song: for a player that would have to be started again for it.
-    stopsAutoAdvanceWhenExternalUnreachable(song: SongResult): boolean {
-        return providerForSong(song).externalPlayback?.stopsAutoAdvanceWhenUnreachable?.() === true;
+    // instead of failing the song: only a player that would have to be started again for it, and only
+    // when the failure is that player being out of reach (a song it will not play, or a way to play
+    // that is not set up, takes the ordinary path of a play that failed).
+    stopsAutoAdvanceWhenExternalUnreachable(song: SongResult, error: unknown): boolean {
+        const external = providerForSong(song).externalPlayback;
+        if (external?.stopsAutoAdvanceWhenUnreachable?.() !== true) return false;
+        return external.isUnreachableFailure?.(error) === true;
+    },
+
+    // Whether the system media keys belong to the external player while it sounds this song: the one
+    // that keeps a media session of its own takes a key Folia gave back, so Folia holds it instead.
+    holdsExternalPlaybackMediaKeys(song: SongResult): boolean {
+        return getOnlineMusicProviderForSong(song)?.externalPlayback?.holdsMediaKeys?.() === true;
     },
 
     async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {

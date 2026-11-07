@@ -933,8 +933,10 @@ export function usePlaybackQueueController({
                     await beginExternalPlayback(song, options.startAtSec ?? 0, { userAction: options.autoAdvance !== true });
                 } catch (error) {
                     // Only a player that asks for it stops here (one that would have to be started again for
-                    // this advance); the others report the failure as before.
-                    if (!options.autoAdvance || !omni.stopsAutoAdvanceWhenExternalUnreachable(song)) throw error;
+                    // this advance), and only when the player itself could not be reached: a song it will not
+                    // play, or a way to play that is not set up, fails as any other play does (said, counted
+                    // down to the next song, skipped), so the real reason is not swallowed.
+                    if (!options.autoAdvance || !omni.stopsAutoAdvanceWhenExternalUnreachable(song, error)) throw error;
                     if (!isLatestPlaybackRequest()) {
                         isLatestPlaybackRequest.abandon();
                         return;

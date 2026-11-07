@@ -539,6 +539,19 @@ export interface OnlineExternalPlaybackProvider {
      * song. True for a player that would have to be started again for it; absent or false elsewhere.
      */
     stopsAutoAdvanceWhenUnreachable?(): boolean;
+    /**
+     * Whether `error` means the player itself could not be reached, as opposed to a song it will not
+     * play or a setting that is missing. Read only where `stopsAutoAdvanceWhenUnreachable` is true:
+     * the failures that are not this one take the ordinary path of a song that did not play.
+     */
+    isUnreachableFailure?(error: unknown): boolean;
+    /**
+     * Whether the system media keys belong to this player while a track of Folia's sounds in it
+     * (the player registers a media session of its own, so a key Folia does not hold goes to it).
+     * True only where the player is steered by its own program with its own queue; absent or false
+     * leaves the keys to the app's own media session.
+     */
+    holdsMediaKeys?(): boolean;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */

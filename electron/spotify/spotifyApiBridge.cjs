@@ -149,9 +149,11 @@ function createSpotifyApiBridge({
   const signIn = givenSignIn ?? createSpotifySignIn({ fetch, openExternal, language, now, log, warn });
   let renewing = null;
   let adopting = false;
-  // The failure line last logged: a status read that keeps failing (the app is not running) is
-  // logged once, and a success or a different failure lets it log again.
-  let lastFailure = '';
+  // The failure line last logged for each operation, by the operation it belongs to: a status read
+  // that keeps failing (the app is not running) is logged once, and a success, or a different failure,
+  // of that same operation lets it log again. Another operation's failure says nothing about this one,
+  // so it neither keeps it quiet nor makes it log twice.
+  const lastFailures = new Map();
   // The approved sign-in whose account is being read, and when it was first asked for.
   let approved = null;
   let accountReadAt = 0;
@@ -640,17 +642,18 @@ function createSpotifyApiBridge({
       if (params === null || typeof params !== 'object' || Array.isArray(params)) {
         return { ok: false, error: { code: 'invalid-response', message: 'Invalid Spotify request' } };
       }
+      const key = operation === 'query' ? `query ${String(params.name).slice(0, 40)}` : operation;
       try {
         const data = await handlers[operation](params);
-        lastFailure = '';
+        lastFailures.delete(key);
         return { ok: true, data };
       } catch (error) {
         // The renderer gets a code and a fixed sentence; what Spotify or the network said is kept here.
-        // A status read runs twice a second while the app is not running: the same failure is logged
-        // once, and a different one (or a success, which clears this) logs again.
-        const line = `[Spotify] ${operation}${operation === 'query' ? ` ${String(params.name).slice(0, 40)}` : ''} failed: ${describeError(error)}`;
-        if (line !== lastFailure) {
-          lastFailure = line;
+        // A status read runs twice a second while the app is not running: the same failure of that
+        // operation is logged once, and a different one (or a success, which clears this) logs again.
+        const line = `[Spotify] ${key} failed: ${describeError(error)}`;
+        if (line !== lastFailures.get(key)) {
+          lastFailures.set(key, line);
           warn(line);
         }
         return toErrorResult(error);

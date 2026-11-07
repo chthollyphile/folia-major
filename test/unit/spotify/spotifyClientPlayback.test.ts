@@ -22,6 +22,8 @@ import { normalizeSpotifySong } from '@/services/onlineMusic/spotify/spotifyNorm
 import {
     canSteerSpotifyApp, resetSpotifyClientPlayback, spotifyClientAttempt, spotifyClientPlayback, statusOfClient,
 } from '@/services/onlineMusic/spotify/spotifyClientPlayback';
+import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
+import { readSpotifyPlaybackMode, setSpotifyPlaybackMode } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
 import type { SongResult } from '@/types';
 
 const id = (letter: string) => letter.repeat(22);
@@ -434,5 +436,51 @@ describe('an app that is not there', () => {
             .mockRejectedValueOnce(new OnlineProviderError('invalid-response', 'Invalid Spotify track', 'spotify'));
         await expect(spotifyClientPlayback.play!(a, 0)).rejects.toMatchObject({ code: 'invalid-response' });
         expect(canSteerSpotifyApp()).toBe(true);
+    });
+});
+
+describe('an advertisement the start waits through', () => {
+    it('is an accepted start, and the status reads follow it', async () => {
+        const a = songOf('a');
+        request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce('advertisement');
+        await expect(spotifyClientPlayback.play!(a, 0)).resolves.toBeUndefined();
+        // The song is held, and the advertisement reads as it still loading rather than as its end.
+        const status = statusOfClient({ id: '', ad: true, isPaused: false, isBuffering: false, positionMs: 0, durationMs: 30000 });
+        expect(status.advertisement).toBe(true);
+        expect(status.mediaId).toBe(id('a'));
+    });
+});
+
+describe('the media keys and the failures that stop an advance', () => {
+    it('declares that its app keeps a media session of its own (the keys are held)', () => {
+        expect(spotifyClientPlayback.holdsMediaKeys?.()).toBe(true);
+    });
+
+    it('counts only the app being out of reach as unreachable', () => {
+        const unreachable = spotifyClientPlayback.isUnreachableFailure!;
+        expect(unreachable(new OnlineProviderError('unavailable', 'The Spotify app cannot be reached', 'spotify'))).toBe(true);
+        expect(unreachable(new OnlineProviderError('network', 'Spotify desktop request failed', 'spotify'))).toBe(true);
+        // A song the app will not play, a call it refuses, and the app not being there are other cases.
+        expect(unreachable(new OnlineProviderError('not-playable', 'Not a Spotify track', 'spotify'))).toBe(false);
+        expect(unreachable(new OnlineProviderError('unavailable', 'The Spotify app is not installed', 'spotify', 'client-missing'))).toBe(false);
+        expect(unreachable(new OnlineProviderError('invalid-response', 'Invalid Spotify seek position', 'spotify'))).toBe(false);
+        expect(unreachable(new Error('something else'))).toBe(false);
+    });
+
+    it('is declared by the way Spotify plays, not by every way of playing it', async () => {
+        // Soloist takes no keys: its own program registers no media session with a queue of its own.
+        request.mockResolvedValueOnce({ mode: 'soloist', soloist: true, client: true });
+        await readSpotifyPlaybackMode();
+        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(false);
+        expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable?.()).toBe(false);
+
+        request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
+        await readSpotifyPlaybackMode();
+        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(true);
+        expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable?.()).toBe(true);
+
+        // The standard way has no external player at all.
+        await setSpotifyPlaybackMode('standard');
+        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(false);
     });
 });

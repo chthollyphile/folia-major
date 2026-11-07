@@ -16,9 +16,26 @@ const { spotifyError } = require('./errors.cjs');
 // queue write never starts Spotify and never closes it: a listener who closed Spotify keeps it
 // closed, and a Spotify running without the port stays as it is until the listener plays a song.
 
+// The port Folia asked CEF for before it let CEF pick one: the last candidate a search probes, and
+// the port a Spotify an older run of Folia started is on. Only 127.0.0.1 is ever asked.
 const CDP_PORT = 9283;
 const CDP_HOST = '127.0.0.1';
+// The file a Chromium or CEF writes the DevTools port it chose into, when it was asked for port 0.
+const ACTIVE_PORT_FILE = 'DevToolsActivePort';
+// The Microsoft Store build keeps its CEF profile under the package's LocalCache; the installer build
+// keeps it under %APPDATA%\Spotify.
+const STORE_PACKAGE_DIR = 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0';
+// A search that found nothing is not repeated at once: it costs a netstat and a probe per listener,
+// and the Spotify it waits for may not have opened its port yet.
+const PORT_SCAN_COOLDOWN_MS = 1000;
+// How many loopback listeners one search probes, and how long each probe may take.
+const MAX_PORT_CANDIDATES = 32;
+const PORT_PROBE_LIMIT_MS = 600;
 const LAUNCH_WAIT_MS = 25000;
+// How long a play waits for its track: the time the track itself makes no progress (a free account's
+// advertisement does not count against it), and the whole wait, advertisement and all.
+const START_LIMIT_MS = 5000;
+const AD_START_LIMIT_MS = 60000;
 const CALL_LIMIT_MS = 8000;
 const FIRST_SESSION_CALL_LIMIT_MS = 20000;
 // The whole DevTools connection, the target list and the socket handshake both: a port taken by
@@ -52,7 +69,6 @@ const FIND_APIS = `(() => {
     if (!o || typeof o !== 'object' || seen.has(o) || depth > 4) return;
     seen.add(o);
     if (!found.player && has(o, 'seekTo') && has(o, 'skipToNext') && has(o, 'getState')) found.player = o;
-    // The mute helper is used where the volume API has one, but not asked for to find it.
     if (!found.playback && has(o, 'setVolume') && has(o, 'getVolume') && !has(o, 'seekTo')) found.playback = o;
     let keys = [];
     try { keys = Object.keys(o).slice(0, 80); } catch { return; }
@@ -114,6 +130,30 @@ const repeatNameOf = (modes, value) => Object.keys(modes).find(name => modes[nam
 const isAdvertisementItem = item => Boolean(item && (
   item.metadata?.is_advertisement === 'true' || item.metadata?.is_advertisement === true || item.type === 'ad'
 ));
+
+// The wait a play makes for the track it asked for, run in the page. A free account's start is often
+// preceded by an advertisement, and the time the app spends on one is no sign that the track will not
+// come: only the time with no advertisement on the screen counts against the start, and the whole wait
+// is capped, so a start can neither fail on an advertisement nor hang on one that does not end.
+// Answers 'loaded' (the track is the one loaded), 'advertisement' (the app took the track and an
+// advertisement still runs before it: the status reads follow it), 'not-loaded' (the track never came)
+// or 'preempted' (a newer play took the app). A source string because it is the page's code; a test
+// drives it with a stand-in player.
+const START_WAIT_SOURCE = `async ({ api, uri, isAd, current, sleep }) => {
+  let waited = 0;
+  let total = 0;
+  let lastWasAd = false;
+  while (true) {
+    const s = api.player.getState();
+    if (s && s.item && s.item.uri === uri) return 'loaded';
+    lastWasAd = isAd(s && s.item);
+    total += 100;
+    if (!lastWasAd) waited += 100;
+    if (waited >= ${START_LIMIT_MS} || total >= ${AD_START_LIMIT_MS}) return lastWasAd ? 'advertisement' : 'not-loaded';
+    await sleep(100);
+    if (!current()) return 'preempted';
+  }
+}`;
 
 // The player's state, read at `now`, as Folia's status. A playing track's position is its position
 // at `timestamp` plus the time since, never past its end.
@@ -237,8 +277,41 @@ function findLauncher(env) {
   return null;
 }
 
-// One DevTools connection to Spotify's page, opened again when it closes.
-function createPageConnection({ fetch, port }) {
+// What a call the page refused is answered with: a call it refuses for its parameter is not the
+// player being out of reach (M2), everything else the page threw is.
+const refusalCode = text => (/invalid|argument|must be/i.test(String(text)) ? 'invalid-response' : 'unavailable');
+
+// The CEF profiles Spotify's DevTools port file may be written into: the Microsoft Store build keeps
+// its profile under the package's LocalCache (measured: `Local State`, `Default` and `Browser` there),
+// the installer build under %APPDATA%\Spotify.
+function spotifyProfileDirs(env) {
+  const dirs = [];
+  const store = env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Packages', STORE_PACKAGE_DIR, 'LocalCache');
+  if (store) {
+    dirs.push(path.join(store, 'Spotify'));
+    dirs.push(path.join(store, 'Local', 'Spotify', 'User Data'));
+  }
+  if (env.LOCALAPPDATA) dirs.push(path.join(env.LOCALAPPDATA, 'Spotify'));
+  if (env.APPDATA) dirs.push(path.join(env.APPDATA, 'Spotify'));
+  return dirs;
+}
+
+// The port the CEF wrote into its profile, or null. The file holds the port on its first line and the
+// page's browser path on the second.
+function portFromProfile(env) {
+  for (const dir of spotifyProfileDirs(env)) {
+    try {
+      const [first] = fs.readFileSync(path.join(dir, ACTIVE_PORT_FILE), 'utf8').split(/\r?\n/);
+      const port = Number.parseInt(String(first).trim(), 10);
+      if (Number.isInteger(port) && port > 0 && port < 65536) return port;
+    } catch { /* this profile has no port file */ }
+  }
+  return null;
+}
+
+// One DevTools connection to Spotify's page, opened again when it closes. `portOf` answers the port
+// Spotify listens on now: it is looked for lazily, so a page opened before the port is known finds it.
+function createPageConnection({ fetch, portOf }) {
   let socket = null;
   let opening = null;
   let nextId = 0;
@@ -251,6 +324,8 @@ function createPageConnection({ fetch, port }) {
   };
 
   const open = async () => {
+    const port = await portOf();
+    if (!port) throw spotifyError('unavailable', 'Spotify has no DevTools port Folia can reach', 'no port was found');
     const list = await (await fetch(`http://${CDP_HOST}:${port}/json/list`)).json();
     const page = Array.isArray(list) ? list.find(target => target.type === 'page' && /xpui/.test(String(target.url))) : null;
     if (!page?.webSocketDebuggerUrl) throw spotifyError('unavailable', 'Spotify has no page open yet');
@@ -291,19 +366,31 @@ function createPageConnection({ fetch, port }) {
 
   return {
     async evaluate(expression) {
-      const ws = await connection();
+      let ws;
+      try {
+        ws = await connection();
+      } catch (error) {
+        // Nothing was sent: whatever the call is, it cannot have run on the page, so a caller that
+        // may only run it again when it certainly did not (see `evaluateInPage`) may do so.
+        if (error && typeof error === 'object') error.notDelivered = true;
+        throw error;
+      }
       const id = ++nextId;
       const answer = await withLimit(new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
         ws.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true, awaitPromise: true } }));
       }), CALL_LIMIT_MS, 'Spotify').finally(() => pending.delete(id));
+      // A protocol error is a call that failed: it must not read as an answer with nothing in it.
+      if (answer.error) {
+        const text = String(answer.error.message ?? answer.error.code ?? '');
+        throw spotifyError(refusalCode(text), 'Spotify\'s player refused the call', text);
+      }
       const details = answer.result?.exceptionDetails;
       if (details) {
         const text = String(details.exception?.description ?? details.text ?? '');
         // Everything the page threw means the player cannot be reached, except a call it refuses
         // for its parameter: that one must not be answered with the media session (M2).
-        const refused = /invalid|argument|must be/i.test(text);
-        throw spotifyError(refused ? 'invalid-response' : 'unavailable', 'Spotify\'s player refused the call', text.split('\n')[0]);
+        throw spotifyError(refusalCode(text), 'Spotify\'s player refused the call', text.split('\n')[0]);
       }
       return answer.result?.result?.value;
     },
@@ -452,9 +539,10 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
   };
 }
 
-// `env` names the folders the launcher is looked for in; `platform` is process.platform.
+// `env` names the folders the launcher is looked for in; `platform` is process.platform. `port` is
+// the DevTools port to ask for: 0 (the default) lets Spotify's CEF pick one, which is then looked for.
 function createSpotifyOfficialClient({
-  env = process.env, platform = process.platform, fetch = globalThis.fetch, port = CDP_PORT,
+  env = process.env, platform = process.platform, fetch = globalThis.fetch, port = 0,
   spawnProcess = spawn, runFile = execFile, waitFor = wait,
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
 } = {}) {
@@ -462,7 +550,73 @@ function createSpotifyOfficialClient({
   // program wrote must not decide which tasklist runs, nor which PowerShell (L5).
   const systemTool = name => path.join(env.SystemRoot || 'C:\\Windows', 'System32', name);
 
-  const page = createPageConnection({ fetch, port });
+  // The port asked for: 0 lets CEF pick one, and the one it picked is looked for below.
+  const requestedPort = Number.isInteger(port) && port > 0 ? port : 0;
+  // The port found for the Spotify this run steers, and when a search that found nothing may run again.
+  let foundPort = null;
+  let nextScanAt = 0;
+
+  // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
+  // port is not Folia's, and Spotify must not be closed for it (D3).
+  const spotifyAnswersOnPort = async (candidate, limitMs = 1500) => {
+    if (!candidate) return false;
+    try {
+      const response = await withLimit(fetch(`http://${CDP_HOST}:${candidate}/json/version`), limitMs, 'Spotify');
+      if (!response.ok) return false;
+      const version = await response.json();
+      return /spotify/i.test(`${version?.Browser ?? ''} ${version?.['User-Agent'] ?? ''}`);
+    } catch { return false; }
+  };
+
+  // The loopback ports this computer's listening sockets name: `netstat -ano` lays a listener out as
+  // protocol, local address, foreign address 0.0.0.0:0, state, pid, so no localized word is read.
+  // Which of them is Spotify's is decided by asking the port itself.
+  const listeningLoopbackPorts = () => new Promise(resolve => {
+    runFile(systemTool('netstat.exe'), ['-ano'], { windowsHide: true, timeout: 4000 }, (error, stdout) => {
+      const ports = [];
+      if (!error) {
+        for (const line of String(stdout).split(/\r?\n/)) {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length < 5 || parts[0].toUpperCase() !== 'TCP') continue;
+          if (parts[2] !== '0.0.0.0:0' && parts[2] !== '[::]:0') continue;
+          const match = /^(?:127\.0\.0\.1|0\.0\.0\.0):(\d+)$/.exec(parts[1]);
+          if (!match) continue;
+          const candidate = Number(match[1]);
+          if (candidate > 0 && !ports.includes(candidate)) ports.push(candidate);
+        }
+      }
+      resolve(ports.slice(0, MAX_PORT_CANDIDATES));
+    });
+  });
+
+  // The port Spotify listens on now, or null. A named port is the only one asked. Otherwise the port
+  // is looked for: the file CEF writes into its profile first, which costs one read, then the
+  // machine's loopback listeners, each asked whether it is Spotify's; the port older runs used last.
+  // `again` looks once more where it stands, for a caller that is about to start Spotify.
+  const findPort = async ({ again = false } = {}) => {
+    if (requestedPort) return foundPort ?? requestedPort;
+    if (foundPort && !again) return foundPort;
+    if (!again && Date.now() < nextScanAt) return null;
+    const fromProfile = portFromProfile(env);
+    if (fromProfile && await spotifyAnswersOnPort(fromProfile)) {
+      foundPort = fromProfile;
+      return foundPort;
+    }
+    const candidates = (await listeningLoopbackPorts()).filter(candidate => candidate !== fromProfile);
+    const answers = await Promise.all(candidates.map(async candidate => (
+      await spotifyAnswersOnPort(candidate, PORT_PROBE_LIMIT_MS) ? candidate : null
+    )));
+    foundPort = answers.find(candidate => candidate !== null) ?? null;
+    if (!foundPort && await spotifyAnswersOnPort(CDP_PORT)) foundPort = CDP_PORT;
+    if (foundPort) log(`[SpotifyClient] Spotify's DevTools port is ${foundPort}`);
+    else nextScanAt = Date.now() + PORT_SCAN_COOLDOWN_MS;
+    return foundPort;
+  };
+  // Whether a DevTools port answers for Spotify now, which is what decides whether Spotify has to be
+  // started (D1): the port is asked, not merely named.
+  const debugPortAnswers = async () => spotifyAnswersOnPort(await findPort({ again: true }));
+
+  const page = createPageConnection({ fetch, portOf: () => findPort() });
   const mediaSession = platform === 'win32' ? createMediaSession({ spawnProcess, warn, shellPath: systemTool('WindowsPowerShell\\v1.0\\powershell.exe') }) : null;
   let starting = null;
   let failedStartAt = 0;
@@ -472,24 +626,6 @@ function createSpotifyOfficialClient({
   // Whether this run of Folia started Spotify: the app is closed with Folia only when it did, or
   // when the DevTools port Folia opened it with still answers (D3).
   let startedByUs = false;
-
-  const debugPortAnswers = async () => {
-    try {
-      const response = await withLimit(fetch(`http://${CDP_HOST}:${port}/json/version`), 1500, 'Spotify');
-      return response.ok;
-    } catch { return false; }
-  };
-
-  // Whether the program answering on the port is Spotify: another program that happens to hold
-  // 9283 is not Folia's, and Spotify must not be closed for it (D3).
-  const spotifyAnswersOnPort = async () => {
-    try {
-      const response = await withLimit(fetch(`http://${CDP_HOST}:${port}/json/version`), 1500, 'Spotify');
-      if (!response.ok) return false;
-      const version = await response.json();
-      return /spotify/i.test(`${version?.Browser ?? ''} ${version?.['User-Agent'] ?? ''}`);
-    } catch { return false; }
-  };
 
   // Both tools are bounded (N3): a taskkill that hangs must not hold the quit.
   const spotifyIsRunning = () => new Promise(resolve => {
@@ -542,7 +678,13 @@ function createSpotifyOfficialClient({
       }
       // Started in the tray where Spotify honours the flag, so Folia raising it neither opens a
       // window nor takes the focus; the window is hidden into the tray below where it came up anyway.
-      const child = spawnProcess(launcher, [START_MINIMIZED_FLAG, `--remote-debugging-port=${port}`, `--remote-allow-origins=http://${CDP_HOST}:${port}`], { detached: true, stdio: 'ignore', windowsHide: false });
+      // The port is CEF's to pick where none was named: it writes the one it took into its profile,
+      // and the search above reads it there, or finds the listener it opened. The origins CEF is told
+      // to accept cannot name a port that is not known yet, and Folia's own client sends none.
+      foundPort = null;
+      nextScanAt = 0;
+      const origins = requestedPort ? `http://${CDP_HOST}:${requestedPort}` : '*';
+      const child = spawnProcess(launcher, [START_MINIMIZED_FLAG, `--remote-debugging-port=${requestedPort}`, `--remote-allow-origins=${origins}`], { detached: true, stdio: 'ignore', windowsHide: false });
       spawned = true;
       child.on?.('error', error => warn('[SpotifyClient] Spotify could not be started', error));
       child.unref?.();
@@ -580,11 +722,18 @@ function createSpotifyOfficialClient({
 
   // The player kept in the page is dropped and looked for once more before a call is called a
   // failure: Spotify replaces its React tree when its UI changes (M2).
-  const evaluateInPage = async body => {
+  //
+  // Only a call that may be made twice is made twice. `retry` is false for the calls that change what
+  // Spotify plays: running a play again starts the song from its beginning, and running a queue write
+  // again empties the queue prepared behind it (L3, L4). A failed connection says nothing about
+  // whether the first run reached the page, so such a call is run again only when it certainly did
+  // not — a connection that never opened marks its error `notDelivered` (createPageConnection).
+  const evaluateInPage = async (body, { retry = true } = {}) => {
     try {
       return await page.evaluate(inPage(body));
     } catch (error) {
       if (error?.code === 'invalid-response') throw error;
+      if (!retry && error?.notDelivered !== true) throw error;
       try { await page.evaluate(FORGET_APIS); } catch { /* the page is gone as well */ }
       return page.evaluate(inPage(body));
     }
@@ -592,9 +741,9 @@ function createSpotifyOfficialClient({
 
   // One call in the page. `allowStart` is set only for a call a listener asked for (a play):
   // every other call reports what it could not do instead of touching Spotify (D1, H1, H2).
-  async function call(body, { allowStart = false } = {}) {
+  async function call(body, { allowStart = false, retry = true } = {}) {
     try {
-      return await evaluateInPage(body);
+      return await evaluateInPage(body, { retry });
     } catch (error) {
       if (error?.code === 'invalid-response') throw error;
       page.close();
@@ -605,7 +754,7 @@ function createSpotifyOfficialClient({
         throw spotifyError('unavailable', 'The Spotify app cannot be reached', 'a start was given up a moment ago');
       }
       await ensure({ allowRestart: true });
-      return evaluateInPage(body);
+      return evaluateInPage(body, { retry });
     }
   }
 
@@ -649,7 +798,7 @@ function createSpotifyOfficialClient({
       if (platform !== 'win32') return false;
       // A Spotify this run started and the listener closed meanwhile is not Folia's to close.
       if (startedByUs && !(await spotifyIsRunning())) startedByUs = false;
-      if (!startedByUs && !(await spotifyAnswersOnPort())) return false;
+      if (!startedByUs && !(await spotifyAnswersOnPort(await findPort({ again: true })))) return false;
       page.close();
       await stopSpotify();
       startedByUs = false;
@@ -662,7 +811,9 @@ function createSpotifyOfficialClient({
     // Resolves once Spotify has the track loaded, so a status read after it is about this track.
     //
     // Answers where it stopped (N8): 'loaded' when the track is the one playing, 'preempted' when a
-    // newer play took over (nothing went wrong), and 'not-loaded' when Spotify never got to it.
+    // newer play took over (nothing went wrong), 'advertisement' when the app took the track and an
+    // advertisement still runs before it (the status reads follow it), and 'not-loaded' when Spotify
+    // never got to the track.
     // `userAction` says a listener asked for this song; only then may Spotify be started or started
     // again (D1). An advance Folia made by itself passes false: the app it could not reach stays
     // as it is.
@@ -680,16 +831,16 @@ function createSpotifyOfficialClient({
         if (!current()) return 'preempted';
         await api.player.play({ uri }, {}, {});
         if (!current()) return 'preempted';
-        let loaded = false;
-        for (let i = 0; i < 50; i += 1) {
-          const s = api.player.getState();
-          if (s && s.item && s.item.uri === uri) { loaded = true; break; }
-          await new Promise(r => setTimeout(r, 100));
-          if (!current()) return 'preempted';
-        }
+        const waited = await (${START_WAIT_SOURCE})({
+          api, uri, current,
+          isAd: (${isAdvertisementItem.toString()}),
+          sleep: ms => new Promise(r => setTimeout(r, ms)),
+        });
         // The track is moved and adjusted only once it is the one loaded: an advertisement playing
-        // meanwhile is never seeked into (L3).
-        if (!loaded) return 'not-loaded';
+        // meanwhile is never seeked into (L3). An advertisement still on the screen is an accepted
+        // start rather than a track that never came (the status reads follow it, and
+        // statusOfClient.ts reads an advertisement as the song still loading).
+        if (waited !== 'loaded') return waited;
         if (!current()) return 'preempted';
         const s = api.player.getState();
         if (s && s.repeat !== 0) await api.player.setRepeat(0);
@@ -697,7 +848,7 @@ function createSpotifyOfficialClient({
         if (s && s.shuffle) await api.player.setShuffle(false);
         if (${from} > 0) await api.player.seekTo(${from});
         return 'loaded';
-      `, { allowStart: userAction });
+      `, { allowStart: userAction, retry: false });
     },
 
     // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. A
@@ -710,7 +861,7 @@ function createSpotifyOfficialClient({
         const uris = ${JSON.stringify(uris)};
         if (uris.length) await api.player.addToQueue(uris.map(uri => ({ uri })));
         return uris.length;
-      `);
+      `, { retry: false });
     },
 
     // Pausing, resuming and seeking never start or close Spotify (D1, H2): they answer from the
@@ -758,5 +909,5 @@ function createSpotifyOfficialClient({
 }
 
 module.exports = {
-  CDP_PORT, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+  CDP_PORT, START_WAIT_SOURCE, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 };

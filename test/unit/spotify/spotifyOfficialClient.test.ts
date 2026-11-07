@@ -19,11 +19,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+    START_WAIT_SOURCE, createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
-const { createMediaKeyTakeover, MEDIA_KEYS } = require('../../../electron/spotify/mediaKeys.cjs');
+const { createSpotifyMediaKeyTakeover, SPOTIFY_MEDIA_KEYS } = require('../../../electron/spotify/mediaKeys.cjs');
 
 const TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 // A call that cannot reach the page costs three connections: the call itself, the look again with
@@ -87,7 +87,7 @@ describe('repeat modes', () => {
 
 // --- the app itself, with the page it is steered in replaced by a stand-in ---------------
 
-type Outcome = { value?: unknown; details?: string };
+type Outcome = { value?: unknown; details?: string; error?: string };
 let handle: (expression: string) => Outcome = () => ({ value: true });
 
 /** One DevTools socket of the stand-in page, opened, refused or left hanging by the test. */
@@ -96,6 +96,7 @@ class FakeSocket {
     static failuresLeft = 0;
     static alwaysFail = false;
     static silent = false;
+    static muteSend = false;
     static closeBeforeOpen = false;
     url: string;
     expressions: string[] = [];
@@ -119,8 +120,14 @@ class FakeSocket {
         const command = JSON.parse(text);
         const expression = String(command.params && command.params.expression ? command.params.expression : '');
         this.expressions.push(expression);
+        if (FakeSocket.muteSend) return;
         const outcome = handle(expression);
         queueMicrotask(() => {
+            if (outcome.error !== undefined) {
+                // A DevTools protocol error: the call failed, and no answer came with it.
+                this.onmessage?.({ data: JSON.stringify({ id: command.id, error: { code: -32000, message: outcome.error } }) });
+                return;
+            }
             if (outcome.details !== undefined) {
                 this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { exceptionDetails: { text: outcome.details, exception: { description: outcome.details } } } }) });
                 return;
@@ -184,6 +191,12 @@ type ClientOptions = {
     portIdentity?: 'spotify' | 'other';
     listOk?: boolean;
     appDirectory?: string;
+    /** The DevTools port to ask for; 0 lets the app pick one, which is then looked for. Default 9283. */
+    port?: number;
+    /** The port written into the profile's DevToolsActivePort file, as CEF writes the one it took. */
+    activePort?: number;
+    /** What `netstat -ano` answers: the loopback listeners of the machine, as it lays them out. */
+    netstat?: string;
 };
 
 const makeClient = (options: ClientOptions = {}) => {
@@ -191,6 +204,10 @@ const makeClient = (options: ClientOptions = {}) => {
     const runFile = vi.fn((file: string, _args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
         if (String(file).includes('tasklist')) {
             callback(null, options.running === false ? 'INFO: No tasks are running' : 'Spotify.exe    1234 Console    1    120,000 K');
+            return;
+        }
+        if (String(file).includes('netstat')) {
+            callback(null, options.netstat ?? '');
             return;
         }
         callback(null, '');
@@ -211,10 +228,20 @@ const makeClient = (options: ClientOptions = {}) => {
         if (options.listOk === false) throw new TypeError('fetch failed');
         return { ok: true, json: async () => [{ type: 'page', url: 'https://xpui.app.spotify.com/', webSocketDebuggerUrl: 'ws://127.0.0.1:9283/devtools/page/1' }] };
     });
-    const env = options.appDirectory ? { LOCALAPPDATA: options.appDirectory } : {};
+    // A profile is what the app writes its DevTools port into: the caller's own folder when it named
+    // one, else a folder of its own where the port file is put as the app would put it.
+    const root = options.appDirectory
+        ?? (options.activePort === undefined ? undefined : mkdtempSync(join(tmpdir(), 'folia-spotify-profile-')));
+    if (root && options.activePort !== undefined) {
+        const profile = join(root, 'Packages', 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0', 'LocalCache', 'Spotify');
+        mkdirSync(profile, { recursive: true });
+        writeFileSync(join(profile, 'DevToolsActivePort'), `${options.activePort}\n/devtools/browser/stand-in${NEWLINE}`);
+    }
+    const env = root ? { LOCALAPPDATA: root } : {};
     const warn = vi.fn();
     const client = createSpotifyOfficialClient({
         platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log: () => {}, warn,
+        port: options.port ?? 9283,
     });
     const helperSpawns = () => spawned.filter(file => /powershell\.exe$/i.test(file)).length;
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
@@ -229,6 +256,7 @@ beforeEach(() => {
     FakeSocket.failuresLeft = 0;
     FakeSocket.alwaysFail = false;
     FakeSocket.silent = false;
+    FakeSocket.muteSend = false;
     FakeSocket.closeBeforeOpen = false;
     heldOp = null;
     spawnError = false;
@@ -712,9 +740,9 @@ describe('the media key takeover', () => {
     it('holds the three keys and tells which transport action each one is', () => {
         const globalShortcut = makeShortcut();
         const onKey = vi.fn();
-        const takeover = createMediaKeyTakeover({ globalShortcut, onKey, log: () => {}, warn: () => {} });
+        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey, log: () => {}, warn: () => {} });
 
-        expect(takeover.set(true).held.sort()).toEqual(Object.keys(MEDIA_KEYS).sort());
+        expect(takeover.set(true).held.sort()).toEqual(Object.keys(SPOTIFY_MEDIA_KEYS).sort());
         globalShortcut.handlers.get('MediaNextTrack')!();
         globalShortcut.handlers.get('MediaPreviousTrack')!();
         globalShortcut.handlers.get('MediaPlayPause')!();
@@ -723,7 +751,7 @@ describe('the media key takeover', () => {
 
     it('registers nothing twice and gives every key back when asked', () => {
         const globalShortcut = makeShortcut();
-        const takeover = createMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
+        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
         takeover.set(true);
         takeover.set(true);
         expect(globalShortcut.register).toHaveBeenCalledTimes(3);
@@ -737,7 +765,7 @@ describe('the media key takeover', () => {
         const refused = ['MediaNextTrack'];
         const globalShortcut = makeShortcut(refused);
         const warn = vi.fn();
-        const takeover = createMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn });
+        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn });
 
         expect(takeover.set(true).held).not.toContain('MediaNextTrack');
         expect(warn).toHaveBeenCalled();
@@ -748,7 +776,184 @@ describe('the media key takeover', () => {
     it('does not throw when the system throws on register', () => {
         const globalShortcut = makeShortcut();
         globalShortcut.register.mockImplementation(() => { throw new Error('no'); });
-        const takeover = createMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
+        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
         expect(takeover.set(true)).toEqual({ enabled: false, held: [] });
+    });
+});
+
+// --- the wait a play makes for its track, driven by a stand-in player --------------------------
+
+describe('M9: a start an advertisement plays before', () => {
+    const TRACK_URI = `spotify:track:${TRACK}`;
+    const AD = { uri: 'spotify:ad:1', type: 'ad' };
+    const OTHER = { uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQD' };
+    const startWait = (new Function(`return (${String(START_WAIT_SOURCE)})`)()) as (input: unknown) => Promise<string>;
+    /** A player that shows these states one look each, then keeps showing the last one. */
+    const playerShowing = (states: unknown[]) => {
+        let look = 0;
+        return { getState: () => states[Math.min(look++, states.length - 1)] };
+    };
+    const run = (states: unknown[], current: () => boolean = () => true) => startWait({
+        api: { player: playerShowing(states) }, uri: TRACK_URI, isAd: isAdvertisementItem, current, sleep: () => Promise.resolve(),
+    });
+
+    it('waits an advertisement out and takes the track that comes after it', async () => {
+        await expect(run([{ item: AD }, { item: AD }, { item: AD }, { item: { uri: TRACK_URI } }])).resolves.toBe('loaded');
+    });
+
+    it('takes an advertisement that outlasts the whole wait as an accepted start', async () => {
+        // The advertisement never ends: the start is accepted rather than reported as a track that
+        // did not load, and the status reads follow it.
+        await expect(run([{ item: AD }])).resolves.toBe('advertisement');
+    });
+
+    it('reports a track that never came when no advertisement ran', async () => {
+        await expect(run([{ item: OTHER }])).resolves.toBe('not-loaded');
+    });
+
+    it('reports a track that never came after an advertisement ended', async () => {
+        // An advertisement that is over is no accepted start: the track itself still did not load.
+        await expect(run([{ item: AD }, { item: OTHER }])).resolves.toBe('not-loaded');
+    });
+
+    it('stops where a newer play took the app', async () => {
+        let looks = 0;
+        await expect(run([{ item: AD }], () => ++looks < 3)).resolves.toBe('preempted');
+    });
+});
+
+describe('L3: a call that may not be made twice', () => {
+    it('does not run a play again when the connection failed after the call went out', async () => {
+        FakeSocket.muteSend = true;
+        const app = makeClient({ running: true, portAnswers: true });
+        // The expectation is attached before the clock moves, so the rejection has a handler on it.
+        const playing = expect(app.client.play({ id: TRACK, startMs: 0, userAction: false })).rejects.toMatchObject({ code: 'network' });
+        await vi.advanceTimersByTimeAsync(20000);
+        await playing;
+        const plays = FakeSocket.sockets.flatMap(socket => socket.expressions).filter(text => text.includes('window.__foliaPlay'));
+        expect(plays).toHaveLength(1);
+    });
+
+    it('does not run a queue write again when the connection failed after the call went out', async () => {
+        FakeSocket.muteSend = true;
+        const app = makeClient({ running: true, portAnswers: true });
+        const queued = expect(app.client.queue({ ids: [TRACK] })).rejects.toMatchObject({ code: 'network' });
+        await vi.advanceTimersByTimeAsync(20000);
+        await queued;
+        const writes = FakeSocket.sockets.flatMap(socket => socket.expressions).filter(text => text.includes('addToQueue'));
+        expect(writes).toHaveLength(1);
+    });
+
+    it('looks at the page again for a read-only call whose first look failed', async () => {
+        let looks = 0;
+        handle = expression => {
+            if (expression.includes('delete window.__foliaSpotify')) return { value: true };
+            looks += 1;
+            return looks === 1 ? { details: 'Error: player-unavailable' } : { value: { isPaused: true, positionMs: 0, durationMs: 1000, repeat: 0 } };
+        };
+        const app = makeClient({ running: true, portAnswers: true });
+        // The player cached in the page was dropped and looked for once more (M2).
+        await expect(app.client.status()).resolves.toMatchObject({ isPaused: true });
+        expect(looks).toBe(2);
+        await app.client.close();
+    });
+
+    it('does not look at the page again for a play whose first look failed', async () => {
+        let looks = 0;
+        handle = expression => {
+            if (expression.includes('delete window.__foliaSpotify')) return { value: true };
+            looks += 1;
+            return { details: 'Error: player-unavailable' };
+        };
+        const app = makeClient({ running: true, portAnswers: true });
+        await expect(app.client.play({ id: TRACK, startMs: 0, userAction: false })).rejects.toMatchObject({ code: 'unavailable' });
+        expect(looks).toBe(1);
+        await app.client.close();
+    });
+});
+
+describe('M7: a DevTools protocol error', () => {
+    it('is a call that failed, never an answer with nothing in it', async () => {
+        mediaAnswers.pause = true;
+        handle = () => ({ error: 'Runtime.evaluate was refused' });
+        const app = makeClient({ running: true, portAnswers: true });
+        // The player could not be asked: the pause is answered by the media session instead of
+        // reading as an empty result.
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(app.helperSpawns()).toBe(1);
+        await app.client.close();
+    });
+});
+
+describe('N9: the DevTools port Spotify chose', () => {
+    it('reads the port the app wrote into its profile', async () => {
+        const app = makeClient({ running: true, port: 0, activePort: 54123, portAnswers: true });
+        await expect(app.client.pause()).resolves.toBe(true);
+        const urls = app.fetch.mock.calls.map(call => String(call[0]));
+        // Only 127.0.0.1 is ever asked, and the page is reached on the port the app wrote down.
+        expect(urls.every(url => url.startsWith('http://127.0.0.1:'))).toBe(true);
+        expect(urls).toContain('http://127.0.0.1:54123/json/list');
+        await app.client.close();
+    });
+
+    it('finds the port from a listener of the running app when the profile names none', async () => {
+        const netstat = [
+            '  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321',
+            '  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4',
+            '  TCP    127.0.0.1:54124        127.0.0.1:52000        ESTABLISHED     4321',
+        ].join(NEWLINE);
+        const app = makeClient({ running: true, port: 0, netstat, portAnswers: true });
+        await expect(app.client.pause()).resolves.toBe(true);
+        const urls = app.fetch.mock.calls.map(call => String(call[0]));
+        expect(urls).toContain('http://127.0.0.1:54124/json/list');
+        // A listener that is not the page's is asked what it is and left alone; an established
+        // connection is no listener at all.
+        expect(urls).toContain('http://127.0.0.1:445/json/version');
+        expect(urls.some(url => url.includes(':445/json/list'))).toBe(false);
+        await app.client.close();
+    });
+
+    it('takes no port when the program answering is not Spotify', async () => {
+        mediaAnswers.pause = true;
+        const app = makeClient({ running: true, port: 0, activePort: 54125, portAnswers: true, portIdentity: 'other' });
+        await expect(app.client.pause()).resolves.toBe(true);
+        // Nothing was opened against it: the pause went to the media session.
+        expect(app.helperSpawns()).toBe(1);
+        expect(app.fetch.mock.calls.every(call => String(call[0]).startsWith('http://127.0.0.1:'))).toBe(true);
+        await app.client.close();
+    });
+});
+
+describe('the bridge log', () => {
+    const makeBridgeWith = (officialClient: unknown) => {
+        const warn = vi.fn();
+        const bridge = createSpotifyApiBridge({
+            store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
+            openExternal: vi.fn(), officialClient, now: () => 0, log: () => {}, warn,
+        });
+        return { bridge, warn };
+    };
+
+    it('says a repeated failure once, and another operation own failure on its own account', async () => {
+        const unreachable = async () => { throw spotifyError('unavailable', 'The Spotify app cannot be reached'); };
+        const officialClient: any = { play: vi.fn(unreachable), pause: vi.fn(unreachable), close: vi.fn(async () => {}) };
+        const { bridge, warn } = makeBridgeWith(officialClient);
+
+        // A status read fails twice a second while the app is not running: one line, not two.
+        await bridge.request('client_pause');
+        await bridge.request('client_pause');
+        expect(warn).toHaveBeenCalledTimes(1);
+
+        // Another operation's failure is a line of its own: the first one does not keep it quiet.
+        await bridge.request('client_play', { id: TRACK });
+        expect(warn).toHaveBeenCalledTimes(2);
+
+        // A success lets the same failure of that operation be said again.
+        officialClient.pause.mockImplementationOnce(async () => true);
+        await bridge.request('client_pause');
+        officialClient.pause.mockImplementation(unreachable);
+        await bridge.request('client_pause');
+        expect(warn).toHaveBeenCalledTimes(3);
+        await bridge.shutdown();
     });
 });

@@ -13,6 +13,11 @@ const current = (): OnlineExternalPlaybackProvider => (spotifyPlaybackMode() ===
 export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     // Spotify's own app is not started again by an advance of Folia's own; Soloist's failures are reported.
     stopsAutoAdvanceWhenUnreachable: () => spotifyPlaybackMode() === 'client',
+    isUnreachableFailure: error => (current().isUnreachableFailure?.(error) ?? false),
+    // Only the official app keeps a media session of its own with its own queue in it: the keys are
+    // held while that session sounds, so a press cannot reach Spotify's queue instead of Folia's.
+    // Soloist registers no such session, and its keys stay the ones the app's own media session has.
+    holdsMediaKeys: () => current().holdsMediaKeys?.() === true,
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming) {
