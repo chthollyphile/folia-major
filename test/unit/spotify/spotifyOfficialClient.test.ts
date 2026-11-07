@@ -194,13 +194,54 @@ type ClientOptions = {
     activePort?: number;
     /** What `netstat -ano` answers: the loopback listeners of the machine, as it lays them out. */
     netstat?: string;
+    /** The Spotify processes running before this run starts one (none when `running: false`). */
+    existingPids?: number[];
+    /** The processes one start of Folia's own creates: the group the quit closes. Default [2001, 2002]. */
+    startedPids?: number[];
+    /** Whether the processes a close without /F asks to go really end; false is a Spotify that will not. */
+    gracefulClose?: boolean;
 };
 
 const makeClient = (options: ClientOptions = {}) => {
     const { spawnProcess, spawned, procs } = makeSpawn();
-    const runFile = vi.fn((file: string, _args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
+    // The Spotify processes on this computer, as `tasklist` would list them: the one the listener had
+    // open before Folia started anything, and the group a start of Folia's own creates. A close asked
+    // for without /F ends the ids it names (unless the test says this Spotify will not go), and a /F
+    // ends them as well.
+    const userPids = new Set<number>(options.running === false ? [] : (options.existingPids ?? [1234]));
+    const groupPids = new Set<number>();
+    const startedPids = options.startedPids ?? [2001, 2002];
+    const launchCount = () => spawned.filter(file => !/powershell\.exe$/i.test(String(file))).length;
+    let launchesWithGroup = 0;
+    const running = () => [...userPids, ...groupPids];
+    // Every launch of Folia's own brings its group up, once: an id a close ended stays ended.
+    const noteLaunch = () => {
+        const count = launchCount();
+        if (count <= launchesWithGroup) return;
+        launchesWithGroup = count;
+        for (const pid of startedPids) groupPids.add(pid);
+    };
+    const runFile = vi.fn((file: string, args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
         if (String(file).includes('tasklist')) {
-            callback(null, options.running === false ? 'INFO: No tasks are running' : '"Spotify.exe","1234","Console","1","120,000 K"');
+            noteLaunch();
+            const list = running();
+            callback(null, list.length === 0
+                ? 'INFO: No tasks are running'
+                : list.map(pid => `"Spotify.exe","${pid}","Console","1","120,000 K"`).join('\r\n'));
+            return;
+        }
+        if (String(file).includes('taskkill')) {
+            const asked = args.map(String);
+            if (asked.includes('/IM')) groupPids.clear();
+            else if (asked.includes('/F') || options.gracefulClose !== false) {
+                for (let index = 0; index < asked.length; index += 1) {
+                    if (asked[index] !== '/PID') continue;
+                    const pid = Number(asked[index + 1]);
+                    userPids.delete(pid);
+                    groupPids.delete(pid);
+                }
+            }
+            callback(null, '');
             return;
         }
         if (String(file).includes('netstat')) {
@@ -250,7 +291,18 @@ const makeClient = (options: ClientOptions = {}) => {
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
-    return { client, runFile, spawnProcess, spawned, procs, fetch, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
+    // What each taskkill was asked to close, argument for argument.
+    const killed = () => runFile.mock.calls
+        .filter(call => String(call[0]).includes('taskkill'))
+        .map(call => (call[1] as string[]).map(String));
+    // A Spotify the listener opens themselves while Folia runs: an id Folia never started.
+    const openSpotify = (pid: number) => userPids.add(pid);
+    // The group Folia started going away, the way the listener closing Spotify themselves ends it.
+    const endStartedGroup = () => groupPids.clear();
+    return {
+        client, runFile, spawnProcess, spawned, procs, fetch, warn, helperSpawns, watchSpawns, spotifySpawns,
+        taskkills, tasklists, killed, openSpotify, endStartedGroup, running, scriptOf,
+    };
 };
 
 beforeEach(() => {
@@ -477,19 +529,18 @@ describe('the quit, the helper and the port', () => {
         openExternal: vi.fn(), officialClient, now: () => 0, log: () => {}, warn: () => {},
     });
 
-    it('closes Spotify when the port answering is Spotify itself, and leaves the port alone otherwise (N9)', async () => {
-        const spotify = makeClient({ portAnswers: true });
-        expect(await spotify.client.closeForQuit()).toBe(true);
+    it('leaves a Spotify this run did not start alone, even with its DevTools port answering (D3)', async () => {
+        // Spotify was already running when Folia came up, with the port and without: it is the
+        // listener's own app, so nothing of it is closed on the way out.
+        const theirs = makeClient({ running: true, portAnswers: true });
+        expect(await theirs.client.closeForQuit()).toBe(false);
+        expect(theirs.taskkills()).toBe(0);
+        expect(theirs.running()).toEqual([1234]);
 
-        // Another program holds 9283: it is not Folia's Spotify, and Spotify is not closed for it.
-        const other = makeClient({ portAnswers: true, portIdentity: 'other' });
-        expect(await other.client.closeForQuit()).toBe(false);
-        expect(other.taskkills()).toBe(0);
-
-        // No port, and this run did not start it: nothing to close.
-        const quiet = makeClient({ portAnswers: false });
+        const quiet = makeClient({ running: true, portAnswers: false });
         expect(await quiet.client.closeForQuit()).toBe(false);
         expect(quiet.taskkills()).toBe(0);
+        expect(quiet.running()).toEqual([1234]);
     });
 
     it('closes the Spotify this run started, even with no port answering (D3)', async () => {
@@ -501,6 +552,58 @@ describe('the quit, the helper and the port', () => {
         app.fetch.mockImplementation((async () => ({ ok: false, json: async () => ({}) })) as never);
         await expect(app.client.closeForQuit()).resolves.toBe(true);
         expect(app.taskkills()).toBe(2);
+    });
+
+    it('closes the group it started, and only that group (D3)', async () => {
+        // Spotify is not running when Folia starts one, so every process that appears is Folia's,
+        // and the quit closes exactly those ids — asked to close, not forced, while they still go.
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({
+            running: false, portAnswers: false, appDirectory: makeLauncherDirectory(),
+            startedPids: [2001, 2002, 2003],
+        });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(app.spotifySpawns()).toBe(1);
+        // The listener opens their own Spotify meanwhile: an id Folia never started.
+        app.openSpotify(4777);
+
+        expect(await app.client.closeForQuit()).toBe(true);
+        expect(app.killed()).toEqual([['/PID', '2001', '/PID', '2002', '/PID', '2003', '/T']]);
+        expect(app.running()).toEqual([4777]);
+        // One quit closes once: a second one has nothing of Folia's left to close.
+        expect(await app.client.closeForQuit()).toBe(false);
+    });
+
+    it('does not close a Spotify the listener opened after Folia started its own (D3)', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(app.spotifySpawns()).toBe(1);
+        // The listener closed what Folia started, then opened Spotify themselves: new ids, not Folia's.
+        app.endStartedGroup();
+        app.openSpotify(3001);
+
+        expect(await app.client.closeForQuit()).toBe(false);
+        expect(app.taskkills()).toBe(0);
+        expect(app.running()).toEqual([3001]);
+    });
+
+    it('asks Spotify to close, and ends it for certain only once it did not go (D3)', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({
+            running: false, portAnswers: false, appDirectory: makeLauncherDirectory(),
+            gracefulClose: false,
+        });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+
+        expect(await app.client.closeForQuit()).toBe(true);
+        // The window manager's close first (taskkill without /F), and the forced one only after the
+        // group was still there once its time ran out — both against the same recorded ids.
+        expect(app.killed()).toEqual([
+            ['/PID', '2001', '/PID', '2002', '/T'],
+            ['/PID', '2001', '/PID', '2002', '/T', '/F'],
+        ]);
+        expect(app.running()).toEqual([]);
     });
 
     it('does not close a Spotify this run started and the listener closed meanwhile (N9)', async () => {
@@ -530,13 +633,17 @@ describe('the quit, the helper and the port', () => {
     });
 
     it('ends the quit within its limit even when taskkill hangs (N3)', async () => {
-        const app = makeClient({ portAnswers: true });
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
         const timeouts: unknown[] = [];
-        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, _callback: (error: Error | null, stdout?: string) => void) => {
+        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, callback: (error: Error | null, stdout?: string) => void) => {
             if (String(file).includes('taskkill')) {
                 timeouts.push(options.timeout);
                 return; // never answers: a taskkill that hangs
             }
+            // The group this run started is still there, so the close is asked for and hangs there.
+            if (String(file).includes('tasklist')) callback(null, '"Spotify.exe","2001","Console","1","120,000 K"');
         });
         const bridge = makeBridge(app.client);
         const quit = bridge.shutdown({ closePlayerOnQuit: true });

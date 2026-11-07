@@ -52,6 +52,11 @@ const RESTART_COOLDOWN_MS = 30000;
 // How often one run of Folia may close and start Spotify again (D1). A run that spent it stays on
 // the media session until Folia is started again.
 const MAX_FORCE_RESTARTS = 1;
+// The quit closes the Spotify this run started, and only that one (D3): it is asked to close first
+// the way the listener closes it (taskkill without /F posts WM_CLOSE to its windows), and a group
+// still there after this long is ended for certain. The whole quit holds 3 s, so the ask is short.
+const GRACEFUL_CLOSE_WAIT_MS = 1200;
+const GRACEFUL_CLOSE_POLL_MS = 250;
 const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 const MAX_QUEUED = 5;
 
@@ -797,9 +802,12 @@ function createSpotifyOfficialClient({
   let fallbackNoted = false;
   // How often Spotify was closed and started again in this run (D1).
   let forceRestarts = 0;
-  // Whether this run of Folia started Spotify: the app is closed with Folia only when it did, or
-  // when the DevTools port Folia opened it with still answers (D3).
+  // Whether this run of Folia started Spotify: the app is closed with Folia only when it did (D3),
+  // and only the processes it started then — never a Spotify the listener opened themselves.
   let startedByUs = false;
+  // The ids of the Spotify processes this run started: the quit closes these and nothing else (D3).
+  // A Spotify that ran before the start, and one the listener opens afterwards, is never in here.
+  let startedPids = new Set();
 
   // Both tools are bounded (N3): a taskkill that hangs must not hold the quit.
   const spotifyIsRunning = () => new Promise(resolve => {
@@ -878,6 +886,36 @@ function createSpotifyOfficialClient({
     runFile(systemTool('taskkill.exe'), ['/IM', 'Spotify.exe', '/F'], { windowsHide: true, timeout: 2000 }, () => resolve());
   });
 
+  // Which of `pids` Spotify still runs: only an id seen in the process list now is acted on, so an
+  // id that came back as another program is not closed, and one that is gone is not waited for.
+  const stillRunning = async pids => {
+    const running = await spotifyProcessIds();
+    return pids.filter(pid => running.includes(pid));
+  };
+
+  // Closes exactly the Spotify processes Folia started, by id (D3). The listener's own close is asked
+  // for first — taskkill without /F posts WM_CLOSE to each process's windows, and /T takes the
+  // children a process left behind — and the ids decide whether it worked: a Spotify tucked into the
+  // tray can answer a close by hiding again, so a window that went away proves nothing. A group still
+  // there after GRACEFUL_CLOSE_WAIT_MS is ended with /F.
+  // Both tools are bounded (N3): a taskkill that hangs must not hold the quit.
+  const closeStartedPids = async pids => {
+    const taskkill = (ids, forced) => new Promise(resolve => {
+      const args = ids.flatMap(pid => ['/PID', String(pid)]);
+      args.push('/T');
+      if (forced) args.push('/F');
+      runFile(systemTool('taskkill.exe'), args, { windowsHide: true, timeout: 2000 }, () => resolve());
+    });
+    await taskkill(pids, false);
+    const deadline = Date.now() + GRACEFUL_CLOSE_WAIT_MS;
+    let left = await stillRunning(pids);
+    while (left.length && Date.now() < deadline) {
+      await waitFor(GRACEFUL_CLOSE_POLL_MS);
+      left = await stillRunning(pids);
+    }
+    if (left.length) await taskkill(left, true);
+  };
+
   // Spotify open with the DevTools port and its player found.
   //
   // `allowRestart` is the listener's own action (a play, the launch switch): only then may a
@@ -892,6 +930,9 @@ function createSpotifyOfficialClient({
     // The Spotify processes running before this start: a window of one of them is the listener's, and
     // stays where it is.
     let skipPids = [];
+    // The processes the Spotify this start creates, written down as they appear: the quit closes these
+    // and nothing else (D3). A start that spawns nothing writes none down.
+    let recordStartedPids = async () => {};
     if (!answers) {
       const launcher = findLauncher(env);
       if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed');
@@ -909,6 +950,7 @@ function createSpotifyOfficialClient({
         // The Spotify this run started is not running any more: the listener closed it, so the one
         // started below is a new one, and the quit must not close a Spotify it did not start (D3).
         startedByUs = false;
+        startedPids = new Set();
       }
       // Started in the tray, and followed by a watcher that hides its window the moment Spotify shows
       // it: the flag below is what a build that honours it needs, the watcher is what the builds that
@@ -926,6 +968,16 @@ function createSpotifyOfficialClient({
       const args = [START_MINIMIZED_FLAG, `--remote-debugging-port=${requestedPort}`];
       if (requestedPort) args.push(`--remote-allow-origins=http://${CDP_HOST}:${requestedPort}`);
       skipPids = await spotifyProcessIds();
+      // Every id that was not running before this start is a process of the Spotify it creates — the
+      // window, renderer and GPU processes are all Spotify.exe — and those are the ones the quit may
+      // close (D3). They are read again on each round of the wait below, because a child appears a
+      // moment after the launcher runs, and only the ids in here are ever closed.
+      startedPids = new Set();
+      recordStartedPids = async () => {
+        for (const pid of await spotifyProcessIds()) {
+          if (!skipPids.includes(pid)) startedPids.add(pid);
+        }
+      };
       windowWatch = armWindowWatch(skipPids);
       const armedInTime = await Promise.race([windowWatch.armed, waitFor(WATCH_ARM_LIMIT_MS).then(() => false)]);
       if (!armedInTime) warn('[SpotifyClient] the Spotify window watcher did not arm in time; the sweep hides the window instead');
@@ -945,6 +997,9 @@ function createSpotifyOfficialClient({
     try {
       while (Date.now() < deadline) {
         rounds += 1;
+        // The processes this start created are written down as they appear (D3): the quit closes
+        // these, so a child that came up with the window is never mistaken for the listener's own.
+        if (spawned) await recordStartedPids();
         // The fallback sweep runs at the first round a window can exist, not at the third: measured,
         // Spotify shows its window 0.5-1.1 s after the alias is run, so a sweep at 1.4 s is a window
         // on the screen for the whole of the load before it.
@@ -952,6 +1007,7 @@ function createSpotifyOfficialClient({
         try {
           if (await page.evaluate(`Boolean(${FIND_APIS})`)) {
             if (spawned) await sweepSpotifyWindows(skipPids);
+            if (spawned) await recordStartedPids();
             return;
           }
         } catch (error) {
@@ -1046,18 +1102,27 @@ function createSpotifyOfficialClient({
       return findLauncher(env) ? { available: true } : { available: false, reason: 'not-installed' };
     },
 
-    // D3: Folia quits and the listener asked for Spotify to be closed with it. Closed when this
-    // run started it, or when it runs with the DevTools port Folia opened it with; a Spotify the
-    // listener started without the port is left alone, and so is a port another program holds.
+    // D3: Folia quits and the listener asked for Spotify to be closed with it. Only the Spotify this
+    // run started is closed, and only while it still runs: a Spotify the listener had open before
+    // Folia started one, one they opened themselves afterwards, and one that runs with the DevTools
+    // port without Folia having started it are all left alone — Folia closes the processes it wrote
+    // down at its own start, and nothing else.
     async closeForQuit() {
       if (platform !== 'win32') return false;
-      // A Spotify this run started and the listener closed meanwhile is not Folia's to close.
-      if (startedByUs && !(await spotifyIsRunning())) startedByUs = false;
-      if (!startedByUs && !(await spotifyAnswersOnPort(await findPort({ again: true })))) return false;
+      if (!startedByUs || startedPids.size === 0) return false;
+      const ours = await stillRunning([...startedPids]);
+      // The Spotify this run started is gone: the listener closed it meanwhile, or it ended by
+      // itself. Whatever runs now is not Folia's, so nothing is closed.
+      if (ours.length === 0) {
+        startedByUs = false;
+        startedPids = new Set();
+        return false;
+      }
       page.close();
-      await stopSpotify();
+      await closeStartedPids(ours);
       startedByUs = false;
-      log('[SpotifyClient] Spotify was closed as Folia quits');
+      startedPids = new Set();
+      log('[SpotifyClient] Spotify was closed as Folia quits', ours.join(', '));
       return true;
     },
 
