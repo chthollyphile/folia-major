@@ -11,6 +11,11 @@ const loadLyricsStateMock = vi.hoisted(() => vi.fn());
 const saveLyricsStateMock = vi.hoisted(() => vi.fn());
 const isUrlValidMock = vi.hoisted(() => vi.fn(() => true));
 const updatePrefetchedAudioUrlMock = vi.hoisted(() => vi.fn());
+const lyricSettings = vi.hoisted(() => ({
+    autoUseBestLyric: true,
+    preferredAlternativeLyricSource: 'qq',
+    keepProviderWordTiming: true,
+}));
 
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     getCachedSongAudioBlob: cachedAudioMock,
@@ -29,11 +34,15 @@ vi.mock('@/services/onlineMusic/omni', () => ({
     },
 }));
 
-afterEach(() => prefersOwnWordByWordMock.mockReturnValue(false));
+afterEach(() => {
+    prefersOwnWordByWordMock.mockReturnValue(false);
+    lyricSettings.preferredAlternativeLyricSource = 'qq';
+    lyricSettings.keepProviderWordTiming = true;
+});
 
 vi.mock('@/stores/useLyricSettingsStore', () => ({
     useLyricSettingsStore: {
-        getState: () => ({ autoUseBestLyric: true, preferredAlternativeLyricSource: 'qq' }),
+        getState: () => lyricSettings,
     },
 }));
 
@@ -570,11 +579,12 @@ describe('lyrics a provider keeps as its own timing', () => {
         isWordByWord: true,
     };
 
-    it('keeps the provider\'s word-level lyrics instead of searching other sources', async () => {
+    const load = async () => {
         prefersOwnWordByWordMock.mockReturnValue(true);
         lyricsMock.mockResolvedValue({ lyrics: wordLevel, isPureMusic: false });
         songCacheMock.mockResolvedValue(null);
         loadLyricsStateMock.mockResolvedValue(null);
+        autoMatchMock.mockResolvedValue(null);
 
         const onLyrics = vi.fn();
         await loadOnlineSongLyrics(song, null, null, {
@@ -582,8 +592,34 @@ describe('lyrics a provider keeps as its own timing', () => {
             onLyrics,
             onDone: vi.fn(),
         });
+        return onLyrics;
+    };
+
+    it('keeps the provider\'s word-level lyrics without a search when it is the preferred source', async () => {
+        lyricSettings.preferredAlternativeLyricSource = 'kugou';
+
+        const onLyrics = await load();
 
         expect(onLyrics).toHaveBeenCalledWith(wordLevel);
         expect(autoMatchMock).not.toHaveBeenCalled();
+    });
+
+    it('still asks another preferred source, passing the setting on (issue #1127)', async () => {
+        const onLyrics = await load();
+
+        expect(onLyrics).toHaveBeenCalledWith(wordLevel);
+        expect(autoMatchMock).toHaveBeenCalledWith('Song', '', 1000, expect.objectContaining({
+            preferredSource: 'qq',
+            keepOwnWordTiming: true,
+        }));
+    });
+
+    it('searches as for any song when keeping the provider\'s timing is off', async () => {
+        lyricSettings.preferredAlternativeLyricSource = 'kugou';
+        lyricSettings.keepProviderWordTiming = false;
+
+        await load();
+
+        expect(autoMatchMock).toHaveBeenCalledWith('Song', '', 1000, expect.objectContaining({ keepOwnWordTiming: false }));
     });
 });
