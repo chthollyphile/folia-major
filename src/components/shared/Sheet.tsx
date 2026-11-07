@@ -27,8 +27,8 @@ import { escapeCloses, tabTarget } from './sheetKeys';
 /**
  * s: a question or a short notice. m: a dialog with content of its own. l: a work window. xl: a work
  * window with two wide panes.
- * side: a dialog with a column of choices beside its content (`aside`); it is at least 420 high,
- * or as high as the window lets it be: in a lower window its body scrolls, as in the other sizes.
+ * side: a dialog with a column of choices beside its content (`aside`); it is 420 high, or as high
+ * as the window lets it be, and its body scrolls, as in the other sizes.
  */
 export type SheetSize = 's' | 'm' | 'l' | 'xl' | 'side';
 
@@ -127,8 +127,9 @@ type SheetProps = {
     /** Drawn on the sheet's surface, behind everything else in it: a tint. It takes no pointer. */
     underlay?: React.ReactNode;
     /**
-     * The height the sheet has at rest. Its top edge stays where a sheet of that height sits when
-     * centred, so content that unfolds makes it taller downwards only.
+     * The height the sheet has at rest: it keeps that height while it is open, whatever page of it
+     * is showing, and the body scrolls what does not fit. Its top edge stays where a sheet of that
+     * height sits when centred.
      */
     restHeight?: number;
     /** Drawn over everything in the sheet but the close button: a picture the sheet ends on. It takes no pointer. */
@@ -308,8 +309,10 @@ const SheetFrame: React.FC<SheetFrameProps> = ({
                 animate={{ opacity: 1, x: 0, y: 0, scale: 1, transition: kitTransition('unfold', reduced) }}
                 exit={exit}
                 className={`st-window relative flex max-h-[min(720px,100%)] max-w-full flex-col overflow-hidden rounded-2xl bg-[var(--st-win)] text-[color:var(--st-t1)] shadow-[var(--sheet-shadow),0_0_0_1px_var(--st-line2)] ${SIZE_CLASS[size]}${underlay ? ' isolate' : ''}`}
-                // The panel holds focus without a mark of its own.
-                style={{ outline: 'none', ...panelTokens(isDaylight, theme, reduced) }}
+                // The panel holds focus without a mark of its own. A sheet that says how high it
+                // rests holds that height: turning to a page with more on it keeps the same size,
+                // and the body scrolls the rest.
+                style={{ outline: 'none', ...(restHeight ? { height: `min(${restHeight}px, 100%)` } : null), ...panelTokens(isDaylight, theme, reduced) }}
             >
                 <SettingsKitThemeContext.Provider value={childTheme}>
                     {underlay && <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">{underlay}</div>}

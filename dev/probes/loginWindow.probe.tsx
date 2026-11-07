@@ -149,6 +149,22 @@ const STEPS_VIEW: ProviderSetupView = {
         { id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done', actions: [{ id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' }] },
     ],
 };
+/** Spotify's own desktop app plays it: one thing to have installed, and the way to change it. */
+const CLIENT_VIEW: ProviderSetupView = {
+    titleKey: 'soloist.setup.clientTitle',
+    noteKey: 'soloist.setup.clientNote',
+    complete: true,
+    steps: [
+        { id: 'app', titleKey: 'soloist.step.clientApp', noteKey: 'soloist.clientApp.ready', state: 'done' },
+        {
+            id: 'mode', titleKey: 'soloist.step.modeClient', noteKey: 'soloist.mode.clientNote', state: 'done',
+            actions: [
+                { id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' },
+                { id: 'use-soloist', labelKey: 'soloist.action.useSoloist', kind: 'run' },
+            ],
+        },
+    ],
+};
 const setupOf = (view: ProviderSetupView, origin: 'sign-in' | 'account'): LibraryProviderSetupSnapshot => ({ providerId: 'spotify', view, busy: false, origin });
 const chosen = (providerId: string, lead: RowLead) => ({ providerId, lead });
 const IN_BROWSER = new Set(['spotify', 'ytm']);
@@ -213,7 +229,9 @@ const shownFor = (state: string): Shown => {
             setup: setupOf(NO_KEY_VIEW, 'sign-in'),
         };
         case 'setup-steps': return { chosen: chosen('spotify', 'account'), login: null, setup: setupOf(STEPS_VIEW, 'account') };
+        case 'setup-client': return { chosen: chosen('spotify', 'account'), login: null, setup: setupOf(CLIENT_VIEW, 'account') };
         case 'account': return { chosen: chosen('qq', 'account'), login: null };
+        case 'account-spotify': return { chosen: chosen('spotify', 'account'), login: null };
         case 'account-nameless': return { chosen: chosen('spotify', 'account'), login: null };
         case 'account-gone': return { chosen: chosen('kugou', 'account'), login: null };
         case 'accountless': return { chosen: chosen('stand-in-5', 'accountless'), login: null };
@@ -277,6 +295,8 @@ function LoginWindowProbe(props: ProbeProps) {
     // A played sign-in: its platform is signed in from the moment the account is read.
     const platforms = state === 'account-nameless'
         ? PLATFORMS.map(entry => (entry.providerId === 'spotify' ? { ...entry, status: 'authenticated' as const } : entry))
+        : state === 'account-spotify' || state === 'setup-client'
+            ? PLATFORMS.map(entry => (entry.providerId === 'spotify' ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
         : played && step === 3
             ? PLATFORMS.map(entry => (entry.providerId === played ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
             : PLATFORMS;
