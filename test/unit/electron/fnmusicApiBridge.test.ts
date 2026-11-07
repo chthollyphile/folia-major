@@ -1,13 +1,15 @@
+import { EventEmitter } from 'node:events';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createRequire } from 'node:module';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/fnmusicApiBridge.test.ts — host persistence, parameter validation
 // and protocol URL shaping for the fnOS (飞牛) music bridge.
 
 const require = createRequire(import.meta.url);
 const { createFnmusicApiBridge, resolveServer, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../electron/fnmusic/fnmusicApiBridge.cjs');
+const https = require('node:https');
 
 const CONFIG_STORE_KEY = 'fnmusic-config';
 
@@ -53,13 +55,26 @@ describe('FnMusic desktop bridge', () => {
     describe('FN Connect relay (外网登录)', () => {
         it('maps a bare FN ID to the fnos.net relay host', () => {
             expect(resolveServer('mynas')).toBe('https://mynas.fnos.net');
-            expect(resolveServer(' https://mynas ')).toBe('https://mynas.fnos.net');
+            expect(resolveServer(' MyNAS-2 ')).toBe('https://mynas-2.fnos.net');
         });
 
         it('leaves LAN addresses untouched for direct connection', () => {
             expect(resolveServer('192.168.1.10:5666')).toBe('192.168.1.10:5666');
             expect(resolveServer('http://192.168.1.10:5666')).toBe('http://192.168.1.10:5666');
             expect(resolveServer('nas.local:5666')).toBe('nas.local:5666');
+            expect(resolveServer('[::1]:5666')).toBe('[::1]:5666');
+        });
+
+        it('keeps single-label LAN hosts direct once a scheme, port or path is written, and never relays localhost', () => {
+            for (const input of ['http://mynas', 'https://mynas', 'mynas:5666', 'http://mynas/music', 'localhost', 'LOCALHOST']) {
+                expect(resolveServer(input)).toBe(input);
+            }
+        });
+
+        it('does not build a relay host from anything but DNS label characters', () => {
+            for (const input of ['evil#', 'a@b', 'x\\y', 'mynas?x=1', 'nas_1', '-nas', '%2e', '我的nas']) {
+                expect(resolveServer(input)).toBe(input);
+            }
         });
 
         it('builds the auth cookie: relay adds mode=relay, token is always included', () => {
@@ -132,6 +147,62 @@ describe('FnMusic desktop bridge', () => {
         expect(bridge.getStatus()).toMatchObject({ configured: false, authenticated: false });
     });
 
+    describe('FN Connect relay requests', () => {
+        // 拦下 https.request：记下目标与请求头，然后让请求以网络错误结束（不真的连公网）。
+        const captureHttps = () => {
+            const calls: Array<{ url: URL; headers: Record<string, string>; rejectUnauthorized: boolean }> = [];
+            vi.spyOn(https, 'request').mockImplementation(((url: URL, options: { headers: Record<string, string>; rejectUnauthorized: boolean }) => {
+                calls.push({ url, headers: options.headers, rejectUnauthorized: options.rejectUnauthorized });
+                const req = Object.assign(new EventEmitter(), {
+                    write: () => true,
+                    end: () => { queueMicrotask(() => req.emit('error', new Error('offline'))); },
+                    destroy: () => {},
+                    setTimeout: () => {},
+                });
+                return req;
+            }) as never);
+            return calls;
+        };
+        const relayStore = (base: string) => {
+            const store = createStore();
+            store.set(CONFIG_STORE_KEY, cipher().encryptString(JSON.stringify({ base, token: 'fixture-token', username: 'u' })).toString('base64'));
+            return store;
+        };
+        afterEach(() => { vi.restoreAllMocks(); });
+
+        it('logs a bare FN ID in through the relay over strict https with mode=relay', async () => {
+            const calls = captureHttps();
+            const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+            await bridge.login({ base: 'mynas', username: 'admin', password: 'secret' });
+            expect(calls).toHaveLength(1);
+            expect(calls[0].url.href).toBe('https://mynas.fnos.net/music/api/v1/user/password-login');
+            expect(calls[0].headers.Cookie).toBe('mode=relay');
+            expect(calls[0].rejectUnauthorized).toBe(true);
+        });
+
+        it('upgrades a relay host typed without https to https', async () => {
+            const calls = captureHttps();
+            const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
+            await bridge.login({ base: 'mynas.fnos.net', username: 'admin', password: 'secret' });
+            expect(calls[0].url.href).toBe('https://mynas.fnos.net/music/api/v1/user/password-login');
+        });
+
+        it('sends mode=relay with the token on later requests and streams for a saved relay config', async () => {
+            const calls = captureHttps();
+            const bridge = createFnmusicApiBridge({ store: relayStore('https://mynas.fnos.net'), safeStorage: cipher() });
+            await bridge.request({ path: '/music/api/v1/track/list' });
+            await bridge.handleProtocolRequest(new Request('folia-fnmusic://stream?guid=t1'));
+            expect(calls.map(call => call.headers.Cookie)).toEqual(['music-token=fixture-token; mode=relay', 'music-token=fixture-token; mode=relay']);
+        });
+
+        it('judges the relay by host name, not by a path that mentions fnos.net', async () => {
+            const calls = captureHttps();
+            const bridge = createFnmusicApiBridge({ store: relayStore('https://evil.example/.fnos.net'), safeStorage: cipher() });
+            await bridge.request({ path: '/music/api/v1/track/list' });
+            expect(calls[0].headers.Cookie).toBe('music-token=fixture-token');
+        });
+    });
+
     describe('signing in against a server', () => {
         let server: Server | null = null;
         const seen: Array<{ url: string; body: Record<string, unknown>; cookie?: string }> = [];
@@ -166,13 +237,13 @@ describe('FnMusic desktop bridge', () => {
             expect(bridge.getStatus()).toMatchObject({ base: `http://${host}`, username: 'admin', userId: 'user-guid-1', nickname: 'Alice', authenticated: true });
         });
 
-        it('sends the relay cookie on the login request but marks the LAN config as non-relay', async () => {
+        it('keeps the relay cookie off LAN logins and later LAN requests', async () => {
             const host = await serve();
             const bridge = createFnmusicApiBridge({ store: createStore(), safeStorage: cipher() });
             await bridge.login({ base: host, username: 'admin', password: 'secret' });
-            // 登录请求恒带 mode=relay（FN Connect 网关放行条件；局域网 NAS 忽略它，无害）。
-            expect(seen[0].cookie).toContain('mode=relay');
-            // 局域网地址不入库 relay 标志：后续 API/媒体请求不带中继 cookie。
+            await bridge.request({ path: '/music/api/v1/track/list' });
+            expect(seen[0].cookie).toBeUndefined();
+            expect(seen[1].cookie).toBe('music-token=fixture-token');
             expect(bridge.getStatus()).toMatchObject({ base: `http://${host}`, authenticated: true });
         });
 

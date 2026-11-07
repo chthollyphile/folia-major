@@ -15,10 +15,10 @@
 //  - 播放流：GET /music/api/v1/track/stream?guid= 直接回原始音频文件（实测 200 audio/x-flac），不分音质
 //
 // FN Connect 中继（外网登录）：
-//  - 登录框填纯 FN ID（不含 . : / 的短码）→ 自动解析为 https://<fnid>.fnos.net（外网中继）；
-//    填 IP / 域名 / 带端口地址 → 原样走局域网直连。
-//  - FN Connect 网关要求 API 请求带 Cookie: mode=relay 才放行；登录请求恒带该 cookie
-//    （局域网直连时 NAS 忽略它，无害）；后续 API / 媒体请求按配置里的 relay 标志决定是否携带。
+//  - 登录框整段只填一个 FN ID（DNS 标签字符，不含协议 / 端口 / 路径）→ 解析为 https://<fnid>.fnos.net（外网中继）；
+//    填 IP / 域名 / 带协议或端口的地址（含 http://mynas 这类局域网单段主机名）→ 原样走局域网直连。
+//  - FN Connect 网关要求 API 请求带 Cookie: mode=relay 才放行；只在服务器主机是 *.fnos.net 时携带
+//    （每次请求按地址现算，不另存标志），*.fnos.net 一律走 https。
 //  - 中继走公网 *.fnos.net，证书校验严格（rejectUnauthorized 只对私网自签名 NAS 放行）。
 //
 // 安全约定（与桌面端其他平台的主进程桥一致）：
@@ -55,15 +55,30 @@ const DEVICE_STORE_KEY = 'fnmusic-device-id';
 const RELAY_DOMAIN = 'fnos.net';
 const RELAY_COOKIE = 'mode=relay';
 
-/** 智能识别服务器地址：纯 FN ID（不含 . : / 的短码）→ https://<fnid>.fnos.net（FN Connect 中继）；
- *  其余原样返回（局域网直连，交给 normalizeBase 补协议/校验）。 */
+// FN ID 是 fnos.net 下的一段主机名：只收 DNS 标签字符。# ? @ \ 之类的字符会被 URL 解析成别的主机或片段，不能拼。
+const FN_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
+
+/** 智能识别服务器地址：整段输入就是一个 FN ID → https://<fnid>.fnos.net（FN Connect 中继）；
+ *  其余原样返回（局域网直连，交给 normalizeBase 补协议/校验）。写了协议、端口、路径的单段主机名
+ *  （http://mynas、mynas:5666）照旧直连；localhost 永远是本机。 */
 const resolveServer = (input) => {
   const s = String(input ?? '').trim();
-  const host = s.replace(/^https?:\/\//i, '').split('/')[0] ?? '';
-  if (host && !host.includes('.') && !host.includes(':')) {
-    return `https://${host}.${RELAY_DOMAIN}`;
+  if (FN_ID_PATTERN.test(s) && s.toLowerCase() !== 'localhost') {
+    return `https://${s.toLowerCase()}.${RELAY_DOMAIN}`;
   }
   return s;
+};
+
+/** 主机名是否为 FN Connect 中继（*.fnos.net）。 */
+const isRelayHostname = hostname => String(hostname || '').toLowerCase().endsWith(`.${RELAY_DOMAIN}`);
+
+/** 已规范化的服务器地址是否走 FN Connect 中继：按主机名判定，不看路径。 */
+const isRelayBase = (base) => {
+  try {
+    return isRelayHostname(new URL(base).hostname);
+  } catch {
+    return false;
+  }
 };
 
 /** 构造请求 Cookie 头：token + 中继标志（登录请求无 token 时只带 mode=relay）。 */
@@ -83,6 +98,8 @@ const normalizeBase = (value) => {
     const url = new URL(withScheme);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     if (!url.hostname) return null;
+    // FN Connect 中继走公网：*.fnos.net 一律 https（用户抄地址时漏了协议也不明文发密码摘要）。
+    if (url.protocol === 'http:' && isRelayHostname(url.hostname)) url.protocol = 'https:';
     return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
   } catch {
     return null;
@@ -252,7 +269,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (value != null) targetUrl.searchParams.set(key, String(value));
     }
     const headers = { Accept: '*/*' };
-    const authCookie = buildAuthCookie({ token: config.token, relay: Boolean(config.relay) });
+    const authCookie = buildAuthCookie({ token: config.token, relay: isRelayBase(config.base) });
     if (authCookie) headers.Cookie = authCookie;
     if (range) headers.Range = range;
     const transport = targetUrl.protocol === 'https:' ? https : http;
@@ -343,8 +360,9 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (!base) {
         return { ok: false, status: 0, error: { code: 'invalid-base', message: '服务器地址无效' } };
       }
-      // 地址是否走 FN Connect 中继：*.fnos.net 域名判定（仅此情形带 mode=relay cookie）。
-      const relay = base.includes(`.${RELAY_DOMAIN}`) ? 1 : 0;
+      // 地址是否走 FN Connect 中继：按主机名 *.fnos.net 判定（仅此情形带 mode=relay cookie）。
+      const relay = isRelayBase(base);
+      log(`登录走${relay ? ' FN Connect 中继' : '局域网直连'} host=${new URL(base).host}`);
       // 持久复用 deviceId：同一台机器登录同一 NAS 不产生新设备（与飞牛网页端一致）；登出之后也留着。
       const storedDeviceId = store.get(DEVICE_STORE_KEY);
       const effectiveDeviceId = deviceId
@@ -356,9 +374,8 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
         method: 'POST',
         path: '/music/api/v1/user/password-login',
         body: { username, password: SHA256(password), deviceId: effectiveDeviceId },
-        // 登录请求恒带 mode=relay cookie：FN Connect 网关放行 API 的必要条件
-        // （局域网直连时 NAS 忽略该 cookie，无害）。
-        relay: true,
+        // 中继地址必须带 mode=relay cookie：FN Connect 网关放行 API 的必要条件；局域网直连不带。
+        relay,
         // 登录接口实测不校验 authx 签名（2026-10-28 服务端实测：无 authx 同样 code 0 登录成功），
         // 全接口也不做签名（见文件头注释），排除电脑系统时钟偏差导致签名校验失败的变量。
       });
@@ -375,7 +392,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       const user = isRecord(result.data.user) ? result.data.user : {};
       const userId = String(user.guid ?? user.id ?? user.uid ?? '');
       const nickname = String(user.name ?? user.nickname ?? user.username ?? '');
-      writeConfig({ base, username, token: result.data.userToken, deviceId: effectiveDeviceId, userId, nickname, relay });
+      writeConfig({ base, username, token: result.data.userToken, deviceId: effectiveDeviceId, userId, nickname });
       return { ok: true, status: result.status, data: { user: result.data.user } };
     },
 
@@ -383,7 +400,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
     async logout() {
       const config = readConfig();
       if (config?.base && config.token) {
-        await performRequest({ base: config.base, method: 'POST', path: '/music/api/v1/user/logout', token: config.token, relay: Boolean(config.relay) });
+        await performRequest({ base: config.base, method: 'POST', path: '/music/api/v1/user/logout', token: config.token, relay: isRelayBase(config.base) });
       }
       writeConfig(null);
       return { ok: true, status: 200, data: null };
@@ -395,7 +412,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (!config?.base) {
         return { ok: false, status: 0, error: { code: 'unconfigured', message: '飞牛尚未配置服务器' } };
       }
-      return performRequest({ base: config.base, method: method || 'GET', path, params, body, token: config.token, relay: Boolean(config.relay) });
+      return performRequest({ base: config.base, method: method || 'GET', path, params, body, token: config.token, relay: isRelayBase(config.base) });
     },
 
     /** 播放地址：返回 folia-fnmusic:// 协议 URL（协议 handler 实时转发，URL 不带凭据）。 */
