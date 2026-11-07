@@ -217,8 +217,8 @@ const queuedIdsOf = (answer: SpotifyClientQueueAnswer | null | undefined): strin
  * The songs that follow, written into the app's queue. The app empties its queue first where it can,
  * and where it cannot only the songs it does not hold already are added: one added twice is one the
  * app plays twice. What it holds afterwards is read back where the state it reports names its queue -
- * a queue that is not these songs, or that holds one of them twice, is emptied and written once more -
- * and is left to Folia's own record where it does not name it.
+ * a queue that is not these songs, or that holds one of them twice, is written once more - and is
+ * left to Folia's own record where it does not name it.
  */
 const writeClientQueue = async (ids: string[], held: string[]): Promise<void> => {
     const answer = await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued: held });
@@ -232,10 +232,17 @@ const writeClientQueue = async (ids: string[], held: string[]): Promise<void> =>
     }
     const missing = ids.filter(id => !queued.includes(id));
     if (new Set(queued).size === queued.length && missing.length === 0) return;
-    // A queue the app cannot be followed by is emptied and written once more, and what it holds then
-    // is what Folia goes by: it is not written a third time.
-    const again = queuedIdsOf(await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued: ids }));
-    console.info(`[SpotifyClient] the app's queue held ${queued.length} songs where Folia wrote ${ids.length}; it is emptied and written once more${again ? '' : ', and what it holds cannot be read'}`);
+    // Written once more with what the app itself said it holds: emptied first where it can be, and
+    // where it cannot only the songs missing from there are added. Folia's own list is never passed
+    // off as the app's queue here - a write that is told the songs are already there adds nothing,
+    // which is exactly the queue this second write is for. It is not written a third time.
+    const again = await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued });
+    const how = !again
+        ? 'what it holds after that could not be read'
+        : again.cleared === true
+            ? `it was emptied and ${ids.length} songs written again`
+            : `${typeof again.added === 'number' ? again.added : 0} songs added behind what it already held`;
+    console.info(`[SpotifyClient] the app's queue held ${queued.length} songs where Folia wrote ${ids.length}; ${how}`);
 };
 
 /** Turns what the app said into Folia's status for the song it asked for. */

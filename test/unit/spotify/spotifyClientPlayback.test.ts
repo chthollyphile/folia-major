@@ -575,9 +575,43 @@ describe('the songs that follow, kept three deep and written once', () => {
             const writes = request.mock.calls.filter(call => call[0] === 'client_queue');
             // Written once, and then once more asking for exactly these songs.
             expect(writes).toHaveLength(2);
-            expect(writes[1]).toEqual(['client_queue', { ids: [id('b'), id('c')], queued: [id('b'), id('c')] }]);
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('[SpotifyClient]'));
+            // The second write is handed the queue the app reported, not the list Folia wants.
+            expect(writes[1]).toEqual(['client_queue', { ids: [id('b'), id('c')], queued: [id('b'), id('c'), id('c')] }]);
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('it was emptied and 2 songs written again'));
             expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c')]);
+        } finally {
+            info.mockRestore();
+        }
+    });
+
+
+    it('writes the songs that are missing when the queue it reads back holds one of them twice', async () => {
+        const a = songOf('a');
+        const b = songOf('b');
+        const c = songOf('c');
+        const d = songOf('d');
+        await spotifyClientPlayback.play!(a, 0);
+        // The app names a queue that holds the first song twice and does not hold the other two, and
+        // says its queue could not be emptied.
+        request.mockImplementation(async (operation: string) => {
+            if (operation === 'client_play') return 'loaded';
+            return operation === 'client_queue'
+                ? { added: 3, cleared: false, queue: [id('b'), id('b')] }
+                : { available: true };
+        });
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
+
+            const writes = request.mock.calls.filter(call => call[0] === 'client_queue');
+            expect(writes).toHaveLength(2);
+            const second = writes[1]?.[1] as { ids: string[]; queued: string[] };
+            // Told the songs were already there, a write that cannot empty the queue adds nothing:
+            // the second one is given the queue the app reported instead, so what it adds is the gap.
+            expect(second).toEqual({ ids: [id('b'), id('c'), id('d')], queued: [id('b'), id('b')] });
+            expect(second.ids.filter(song => !second.queued.includes(song))).toEqual([id('c'), id('d')]);
+            // And the log says what that write did, not what it was meant to do.
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('3 songs added behind what it already held'));
         } finally {
             info.mockRestore();
         }
