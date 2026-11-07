@@ -47,6 +47,8 @@ type PonderHoldOptions = {
     accepts: (event: KeyboardEvent) => boolean;
     /** 哪个键松开算放弃。 */
     releasedBy: (event: KeyboardEvent) => boolean;
+    /** 按着的时候又按了一个不归这条入口的键，算不算放弃。不给就不算。 */
+    abandonedByKeyDown?: (event: KeyboardEvent) => boolean;
     /** 长按开始的那一下。 */
     onPress?: () => void;
     /** 按满了。 */
@@ -56,14 +58,14 @@ type PonderHoldOptions = {
 };
 
 /** 听键盘、计时、画进度。返回此刻是不是正按着。 */
-export const usePonderHold = ({ enabled, resetKey, accepts, releasedBy, onPress, onFull, refs }: PonderHoldOptions): boolean => {
+export const usePonderHold = ({ enabled, resetKey, accepts, releasedBy, abandonedByKeyDown, onPress, onFull, refs }: PonderHoldOptions): boolean => {
     const [isHolding, setIsHolding] = useState(false);
     const { wipeRef, labelRef, holdLabelRef, cellRef } = refs;
     const animationsRef = useRef<Animation[]>([]);
     // 监听不跟着每次渲染重挂（重挂会把正在进行的长按取消）；入口此刻的说法每次渲染换进来。
-    const entryRef = useRef({ accepts, releasedBy, onPress, onFull });
+    const entryRef = useRef({ accepts, releasedBy, abandonedByKeyDown, onPress, onFull });
     useLayoutEffect(() => {
-        entryRef.current = { accepts, releasedBy, onPress, onFull };
+        entryRef.current = { accepts, releasedBy, abandonedByKeyDown, onPress, onFull };
     });
 
     useEffect(() => {
@@ -89,6 +91,9 @@ export const usePonderHold = ({ enabled, resetKey, accepts, releasedBy, onPress,
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!entryRef.current.accepts(event)) {
+                if (entryRef.current.abandonedByKeyDown?.(event)) {
+                    release();
+                }
                 return;
             }
             // 这个键归我们了。自动重复的那几下也吃掉：按住的这 400ms 里它一旦开始，
