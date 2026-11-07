@@ -5,6 +5,7 @@ import { Settings2, X, Command } from 'lucide-react';
 import type { Theme } from '../../../types';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import LanCastControl from '../../lan-cast/LanCastControl';
 
 // src/components/panelTab/shell/PanelHandle.tsx
 // The round button at the bottom right of the playing page that opens the panel and, white, closes
@@ -311,7 +312,19 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
     }, []);
 
     return (
-        <AnimatePresence>
+        <>
+            <LanCastControl
+                hidden={
+                    hideToggleButton ||
+                    (isOpen && !showOpenPanelCloseButton) ||
+                    isCommandPaletteOpen
+                }
+                bottom={bottomBarBottomPx}
+                isDaylight={isDaylight}
+                isOpen={isOpen}
+                isCommandPaletteOpen={isCommandPaletteOpen}
+            />
+            <AnimatePresence>
             {!hideToggleButton && (!isOpen || showOpenPanelCloseButton) && !isCommandPaletteOpen && (
                 <motion.div
                     initial={{ opacity: 0, x: 20, y: 12, scale: 0.92 }}
@@ -404,7 +417,8 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
                     </div>
                 </motion.div>
             )}
-        </AnimatePresence>
+            </AnimatePresence>
+        </>
     );
 };
 

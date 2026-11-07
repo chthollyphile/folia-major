@@ -70,6 +70,7 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
+const { createLanCastController } = require('./lanCast/index.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
@@ -441,6 +442,10 @@ const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
     return chosen.canceled ? null : chosen.filePaths[0] ?? null;
   },
 });
+// 局域网音响投送：SSDP 发现在 electron/lanCast/ssdp.cjs，SOAP 控制在 soap.cjs，
+// 回环地址与自定义协议由 gateway.cjs 转成音响自己能拉的 http 地址（自定义协议走
+// net.fetch，与已注册的 protocol.handle 同一份实现）。投送期间才起网关，停止即关。
+const lanCastController = createLanCastController({ log: text => console.info(text) });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
 // leave the main process: the renderer only sees AI_API_KEYS_CONFIGURED (#586).
@@ -7222,6 +7227,27 @@ registerLoginBackendIpc({
 const isFirstPartyWindowContents = (event) => (
   isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
 );
+
+// 局域网投送：发现与推送都会对局域网发/收包，只允许第一方窗口调用。
+ipcMain.handle('lan-cast-discover', createSenderGuardedHandler({
+  channel: 'lan-cast-discover',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ devices: [] }),
+  handler: (event, options) => lanCastController.discover({ timeoutMs: options?.timeoutMs })
+    .then(devices => ({ devices })),
+}));
+ipcMain.handle('lan-cast-cast', createSenderGuardedHandler({
+  channel: 'lan-cast-cast',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ ok: false }),
+  handler: (event, track) => lanCastController.cast(track),
+}));
+ipcMain.handle('lan-cast-stop', createSenderGuardedHandler({
+  channel: 'lan-cast-stop',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ ok: false }),
+  handler: (event, options) => lanCastController.stop({ controlUrl: options?.controlUrl }),
+}));
 
 ipcMain.handle('kugou-api-status', createSenderGuardedHandler({
   channel: 'kugou-api-status',

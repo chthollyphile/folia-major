@@ -4,6 +4,19 @@ export default {
   "appleMusic": {
     "libraryPlaylistName": "Semua lagu"
   },
+  "lanCastTitle": "Cast ke speaker",
+  "lanCastHint": "Cari speaker DLNA / UPnP di jaringan yang sama",
+  "lanCastNoTrack": "Tidak ada lagu yang sedang diputar",
+  "lanCastScanning": "Mencari…",
+  "lanCastDevices": "Ditemukan {{count}} speaker",
+  "lanCastDevices_other": "Ditemukan {{count}} speaker",
+  "lanCastRescan": "Cari ulang",
+  "lanCastNoDevice": "Speaker tidak ditemukan. Pastikan speaker berada di jaringan yang sama (router yang sama) dan DLNA casting sudah aktif.",
+  "lanCastPlaying": "Suara sudah dialihkan ke {{name}}, perangkat ini dibisukan",
+  "lanCastFollowed": "Ganti lagu otomatis dikirim ke {{name}}",
+  "lanCastLocalHint": "Perangkat ini dibisukan; progres dan lirik tetap berjalan, suara hanya keluar dari speaker. Ganti lagu mengikuti otomatis.",
+  "lanCastStop": "Hentikan cast dan aktifkan kembali suara perangkat ini",
+  "lanCastClose": "Tutup",
   "scratchpad": {
     "title": "Buku catatan",
     "count_one": "{{count}} lagu",
