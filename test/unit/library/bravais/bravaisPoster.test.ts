@@ -7,7 +7,7 @@ import {
     BRAVAIS_SEAM_POSTER_MAX_WIDTH,
     BRAVAIS_SEAM_POSTER_MIN_WIDTH,
 } from '@/library/suites/bravais/bravaisConstants';
-import { computeBravaisFrame, getTiltReach, planPosterOpening, posterSafeArea, withTilt } from '@/library/suites/bravais/bravaisFrame';
+import { computeBravaisFrame, getTiltReach, planPosterOpening, posterSafeArea, seamTransforms, withTilt } from '@/library/suites/bravais/bravaisFrame';
 import {
     resolvePosterWidth,
     resolveSeamTarget,
@@ -99,6 +99,67 @@ describe('poster frame', () => {
         expect(getViewLineX(view) + (plan.anchorX - plan.center.x) * view.scale).toBeCloseTo(280);
         const preferX = getSeamBoundaryX(3, BRAVAIS_METRICS);
         expect(planPosterOpening({ center: { x: 0, y: 0 }, view, width: 560, preferX }).anchorX).toBe(preferX);
+    });
+});
+
+describe('seamTransforms', () => {
+    const view = { width: 1200, height: 800, scale: 0.5 };
+    // 把 translate / translate3d / rotate 拼成的 transform 串当成 2D 仿射变换作用到一个点上（从右往左，transform-origin 0 0）。
+    const apply = (transform: string, [x, y]: [number, number]): [number, number] => {
+        const steps = [...transform.matchAll(/(translate3d|translate|rotate)\(([^)]*)\)/g)].reverse();
+        return steps.reduce<[number, number]>(([px, py], [, name, args]) => {
+            const values = args.split(',').map(value => parseFloat(value));
+            if (name === 'rotate') {
+                const radians = values[0] * Math.PI / 180;
+                return [px * Math.cos(radians) - py * Math.sin(radians), px * Math.sin(radians) + py * Math.cos(radians)];
+            }
+            return [px + values[0], py + (values[1] ?? 0)];
+        }, [x, y]);
+    };
+    const tiltedFrame = (centerX: number) => {
+        const plan = planPosterOpening({ center: { x: centerX, y: 0 }, view, width: 560 });
+        return computeBravaisFrame({
+            center: { x: plan.center.x + 37.3, y: 0 }, view, anchorX: plan.anchorX, openWidth: 560, contentWidth: 560, hidden: false, poster: true, tiltDeg: -10,
+        });
+    };
+
+    it('keeps the old single-transform geometry while the tilt is still turning', () => {
+        const frame = tiltedFrame(0);
+        const left = frame.seam.x - frame.seam.width / 2;
+        expect(seamTransforms(frame, { tiltSettled: false, devicePixelRatio: 1.25 })).toEqual({
+            track: withTilt(`translate3d(${left}px, 0, 0)`, frame.tilt),
+            seam: '',
+        });
+    });
+
+    it('moves the turn onto the seam once settled, same place on screen up to the device-pixel snap', () => {
+        const frame = tiltedFrame(0);
+        const left = frame.seam.x - frame.seam.width / 2;
+        const settled = seamTransforms(frame, { tiltSettled: true, devicePixelRatio: 1.25 });
+        expect(settled.track).not.toContain('rotate');
+        expect(settled.seam).toContain('rotate(-10deg)');
+        const trackX = parseFloat(settled.track.slice('translate3d('.length));
+        expect(Number.isInteger(Math.round(trackX * 1.25 * 1000) / 1000)).toBe(true);
+        const old = withTilt(`translate3d(${left}px, 0, 0)`, frame.tilt);
+        for (const point of [[0, 0], [560, 0], [0, 800], [560, 800], [280, 400]] as [number, number][]) {
+            const before = apply(old, point);
+            const after = apply(settled.track, apply(settled.seam, point));
+            expect(Math.abs(after[0] - before[0])).toBeLessThanOrEqual(0.5 / 1.25 + 1e-6);
+            expect(Math.abs(after[1] - before[1])).toBeLessThan(1e-6);
+        }
+    });
+
+    it('does not change the seam transform while the poster is dragged sideways', () => {
+        const a = seamTransforms(tiltedFrame(0), { tiltSettled: true, devicePixelRatio: 1.25 });
+        const b = seamTransforms(tiltedFrame(0.37), { tiltSettled: true, devicePixelRatio: 1.25 });
+        expect(b.seam).toBe(a.seam);
+    });
+
+    it('only translates the track when there is no tilt or the seam runs across', () => {
+        const flat = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: 0, openWidth: 360, contentWidth: 360, hidden: false });
+        expect(seamTransforms(flat, { tiltSettled: true, devicePixelRatio: 2 }).seam).toBe('');
+        const row = computeBravaisFrame({ center: { x: 0, y: 0 }, view, anchorX: null, anchorY: 0, openWidth: 200, contentWidth: 200, hidden: false });
+        expect(seamTransforms(row, { tiltSettled: true, devicePixelRatio: 2 })).toEqual({ track: `translate3d(0, ${row.seam.y - row.seam.width / 2}px, 0)`, seam: '' });
     });
 });
 

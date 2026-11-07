@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clientToLocal, localToClient, rotatePoint, type TiltBox } from '@/components/app/scratchpad/scratchpadTilt';
 import {
+    FILM_ROW_SPACING,
     FILM_SPACING,
     NOTE_SPACING,
     PHOTO_SPACING,
@@ -67,9 +68,14 @@ describe('tilted sheet coordinates', () => {
 
 describe('full-page card sizes', () => {
     it('lays notebook cards out on their own size', () => {
-        expect(cardSize(NOTE_SPACING)).toEqual({ width: 128, height: 152 });
-        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 144, y: 196 });
-        expect(columnsFor(144 * 10 - 16, NOTE_SPACING)).toBe(10);
+        expect(cardSize(NOTE_SPACING)).toEqual({ width: 184, height: 220 });
+        expect(slotPosition(11, 10, NOTE_SPACING)).toEqual({ x: 212, y: 276 });
+        expect(columnsFor(212 * 10 - 28, NOTE_SPACING)).toBe(10);
+    });
+
+    it('sizes film frames in whole sprocket steps so the holes line up across frames', () => {
+        expect(cardSize(FILM_SPACING).width % 28).toBe(0);
+        expect(cardSize(FILM_ROW_SPACING).width % 28).toBe(0);
     });
 
     it('keeps rows far enough apart that a long sideways marquee on the tilted sheet stays in its row', () => {

@@ -649,6 +649,14 @@ describe('Spotify playback ways: standard and Soloist', () => {
         return { bridge, store, soloist, logs, openExternal, signInWith };
     };
 
+    // A window rebuild that hands nothing on: nobody follows Soloist's playback any more.
+    it('pauses Soloist for the main process, and does nothing where Soloist is not offered', async () => {
+        const offered = build();
+        await offered.bridge.pauseSoloist();
+        expect(offered.soloist!.pause).toHaveBeenCalledTimes(1);
+        await expect(build({ withSoloist: false }).bridge.pauseSoloist()).resolves.toBeUndefined();
+    });
+
     it('plays the standard way unless Soloist is offered and picked', async () => {
         const without = build({ withSoloist: false });
         expect(await without.bridge.request('playback_mode', { mode: 'soloist' })).toEqual({ ok: true, data: { mode: 'standard', soloist: false, client: expect.any(Boolean) } });

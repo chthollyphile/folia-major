@@ -108,6 +108,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "lyrics_font_scale",
   "lyrics_font_style",
   "lyrics_font_weight",
+  "lyrics_keep_provider_word_timing",
   "lyrics_staff_absorb_mode",
   "lyrics_staff_min_dwell",
   "lyrics_staff_pattern",

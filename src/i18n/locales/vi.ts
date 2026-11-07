@@ -432,6 +432,8 @@ export default {
     "homeBgEnabled": "Đã bật nền động trang chủ",
     "autoBestLyricOn": "Đã bật tự dùng lời tối ưu",
     "autoBestLyricOff": "Đã tắt tự dùng lời tối ưu",
+    "keepProviderWordTimingOn": "Đã giữ lời từng từ có sẵn của nền tảng",
+    "keepProviderWordTimingOff": "Không còn giữ lời từng từ có sẵn của nền tảng",
     "autoAiLyricSegmentationOn": "Đã bật tự tách từ bằng AI",
     "autoAiLyricSegmentationOff": "Đã tắt tự tách từ bằng AI",
     "lyricSourceChanged": "Đã chuyển nguồn lời ưu tiên sang {{source}}",
@@ -1003,6 +1005,7 @@ export default {
       "settings-netease-scrobble": { "title": "Báo cáo nghe nhạc NetEase", "description": "Đi tới cài đặt gửi lịch sử nghe tới NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "Báo cáo nghe nhạc NetEase", "description": "Bật hoặc tắt gửi lịch sử nghe tới NetEase" },
       "auto-ai-lyric-segmentation-toggle": { "title": "Tự tách từ lời bài hát bằng AI", "description": "Bật hoặc tắt tự động dùng AI tách lời bài mới thành từ" },
+      "keep-provider-word-timing-toggle": { "title": "Giữ lời từng từ có sẵn của nền tảng", "description": "Bật hoặc tắt việc giữ lời từng từ có sẵn của Apple Music và các nền tảng tương tự" },
       "settings-audio-output": { "title": "Đầu ra âm thanh", "description": "Đi tới cài đặt thiết bị và định dạng đầu ra âm thanh" },
       "hifi-toggle": { "title": "Công cụ phát mpv", "description": "Chuyển bài hát cục bộ và Navidrome giữa Web Audio và mpv, công cụ gửi âm thanh thẳng đến thiết bị đầu ra" },
       "hifi-settings": { "title": "Cài đặt công cụ phát", "description": "Mở cài đặt công cụ phát: Web Audio hoặc mpv, cùng thiết bị đầu ra, chế độ độc quyền và DSD của mpv" },
@@ -2655,6 +2658,8 @@ export default {
     "autoUseBestLyricDescSpotify": "Tự động tìm kiếm lời bài hát từ NetEase, AMLLDB, QQ, Kugou và Spotify; tự động ưu tiên lời từng từ khớp thời gian hoàn hảo.",
     "lyricMatchPriority": "Ưu tiên khớp lời bài hát",
     "lyricMatchPriorityDesc": "Ưu tiên nguồn này khi nhiều nguồn lời bài hát đều có kết quả khớp tin cậy cao.",
+    "keepProviderWordTiming": "Giữ lời từng từ có sẵn của nền tảng",
+    "keepProviderWordTimingDesc": "Khi bài trên Apple Music có sẵn lời từng từ, chỉ thay lời đó nếu nguồn chọn ở Ưu tiên khớp lời bài hát cũng có lời từng từ; không tìm ở nguồn khác. Tắt để chọn trong mọi nguồn theo thứ tự ưu tiên như các bài khác.",
     "localLyricsPriority": "Ưu tiên lời bài hát nội bộ",
     "localLyricsPriorityDesc": "Chọn lời bài hát ưu tiên khi bài hát nội bộ cũng có lời khớp trực tuyến. Nguồn lời chọn thủ công vẫn được giữ nguyên.",
     "localLyricsPriorityLocal": "Lời nội bộ",
@@ -4066,6 +4071,25 @@ export default {
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
       }
     },
+    "v0_7_27": {
+      "intro": "Chào mừng bạn đến với 0.7.27. Spotify có thêm cách phát Soloist, nên tài khoản không nhận được khóa âm thanh vẫn nghe được nhạc; âm lượng và tắt tiếng của Apple Music giờ đã hoạt động, thư viện có thêm Tất cả bài hát, và lời từng từ có sẵn sẽ nhường cho nguồn lời bạn ưu tiên; và fnOS Music đăng nhập được từ bên ngoài mạng LAN bằng FN ID.",
+      "soloist": {
+        "title": "Spotify: phát bằng Soloist",
+        "description": "Một số tài khoản Spotify (thường là tài khoản tạo sau cuối năm 2024) không bao giờ nhận được khóa âm thanh, nên cách phát của chính Folia không phát được. Giờ khi đăng nhập bạn có thể chọn Tiêu chuẩn hoặc Soloist: Soloist là chương trình phát chính thức của Spotify, tải về riêng và cần một khóa API tạo bằng tài khoản Premium. Với Tiêu chuẩn, sau khi đăng nhập Folia kiểm tra xem tài khoản có lấy được khóa không và gợi ý chuyển sang Soloist nếu không. Danh sách thiết lập hướng dẫn bạn cài chương trình, nhập khóa và ghép đôi thiết bị; mở nó từ trang tài khoản, Thiết lập phát nhạc của nền tảng trong bảng lệnh, hoặc thông báo phát lỗi. Soloist đưa âm thanh thẳng ra đầu ra hệ thống, nên bộ cân bằng, Automix và xuất video của Folia không áp dụng cho nó. Đồng thời sửa lỗi: trên Linux cả ứng dụng có thể bị treo khi phát Spotify lần đầu."
+      },
+      "amUpdate": {
+        "title": "Cải tiến Apple Music",
+        "description": "Thanh âm lượng và nút tắt tiếng giờ điều khiển được âm thanh của Apple Music. Danh sách phát trong thư viện có thêm Tất cả bài hát để duyệt mọi bài bạn đã lưu. Khi khởi động, tài khoản lần trước hiện ngay thay vì để trống chờ vài giây, và trên máy tính bài đang phát không còn dừng khi cửa sổ được dựng lại (ví dụ khi bật tắt cửa sổ trong suốt)—cửa sổ mới phát tiếp. Khi bài hát có sẵn lời từng từ, Folia chuyển sang nguồn được chọn trong Ưu tiên khớp lời bài hát (mặc định là QQ Music) nếu nguồn đó cũng có lời từng từ, nên bạn không phải tự đổi sang lời có bản dịch cho từng bài. Cài đặt lời bài hát mới, Giữ lời từng từ có sẵn của nền tảng, có thể tắt để bài Apple Music chọn lời tốt nhất từ mọi nguồn như các bài khác."
+      },
+      "fnConnect": {
+        "title": "fnOS Music: đăng nhập bằng FN ID",
+        "description": "Địa chỉ máy chủ fnOS Music giờ chỉ cần là FN ID (ví dụ mynas): Folia kết nối tới thiết bị fnOS của bạn qua máy chủ chuyển tiếp FN Connect, nên bạn có thể đăng nhập và phát nhạc bên ngoài mạng nội bộ. Địa chỉ có giao thức, cổng hoặc đường dẫn vẫn kết nối trực tiếp, và kết nối qua chuyển tiếp luôn dùng HTTPS."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Các dòng không có itunes:key trong lời .ttml cục bộ không còn bị bỏ, nên TTML do công cụ khác chuyển đổi hiển thị đúng. Sửa lỗi tài khoản Kugou bị hỏng (và không tải được bài) sau khi mở danh sách phát công khai của người khác. Bảng Sổ ghi nhanh giờ có dải thông tin ở trên và các dải giấy mảnh ở dưới, thẻ ở chế độ mở toàn trang lớn hơn một cỡ, và màn hình điện thoại hẹp không còn chật chội. Trên macOS, ghim trợ giúp và mở trang nền tảng của bài hát từ tiêu đề giờ dùng ⌘, gợi ý cũng hiện theo nền tảng. Bể cá của Nebbia không còn cháy trắng dưới đèn chiếu, và khi theo nhịp, rong chỉ đung đưa theo nhịp. Áp phích album của Bravais không còn tràn khi có nhiều nghệ sĩ hoặc phần giới thiệu dài, danh sách nghệ sĩ dài có thể mở rộng, và chữ trên áp phích nghiêng không còn bị nhòe."
+      }
+    },
     "v0_7_26": {
       "intro": "Chào mừng bạn đến với 0.7.26, Fawkes Update—một bản cập nhật lớn. Phiên bản này thêm Sổ ghi nhanh, ngăn kéo trượt ra từ bên trái để giữ bài hát tạm thời; Nebbia có khung cảnh và lớp kính mới, gồm bể cá, sương đọng và tuyết; Apple Music và fnOS Music là hai nền tảng mới; bài hát từ các nền tảng khác nhau có thể nằm chung một hàng đợi, và trang tìm kiếm giờ tìm được cả album lẫn danh sách phát; viên thanh tiến trình hiện các lệnh thường dùng, và các nút bên phải có thể đổi ngay tại chỗ; gợi ý cũng phong phú hơn, với gợi ý theo phong cách cho Hằng ngày của NetEase cùng radio Có thể bạn thích và tùy chọn âm nhạc cho QQ Music.",
       "scratchpad": {
@@ -5059,7 +5083,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "Áp phích album",
-    "openArtist": "Mở nghệ sĩ {{name}}"
+    "openArtist": "Mở nghệ sĩ {{name}}",
+    "expandArtists": "Hiện tất cả {{count}} nghệ sĩ",
+    "collapseArtists": "Thu gọn"
   },
   "artistGrid": {
     "localArtist": "Nghệ sĩ nội bộ: {{artistName}}",

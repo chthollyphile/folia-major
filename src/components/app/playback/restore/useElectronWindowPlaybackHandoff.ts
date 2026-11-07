@@ -27,7 +27,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
@@ -95,6 +95,7 @@ type UseElectronWindowPlaybackHandoffParams = {
 
 const buildPlaybackSnapshot = ({
     audioRef,
+    pendingResumeTime,
     audioSrc,
     cachedCoverUrl,
     currentLineIndex,
@@ -109,6 +110,8 @@ const buildPlaybackSnapshot = ({
 // hook now, so they are no longer part of its parameter type.
 }: Omit<PlaybackSnapshot, 'currentTime'> & {
     audioRef: MutableRefObject<HTMLAudioElement | null>;
+    /** Where a restored song resumes once <audio> has loaded it; null when there is none waiting. */
+    pendingResumeTime: number | null;
     /** The signal, not a value: the snapshot resolves it to a number on the way out. */
     currentTime: MotionValue<number>;
 }): PlaybackSnapshot => ({
@@ -120,8 +123,11 @@ const buildPlaybackSnapshot = ({
     isFmMode,
     playerState,
     // On the HiFi route <audio> sits idle: the position is mpv's, as its clock reads it now.
-    // The external player's clock answers for itself the same way.
-    currentTime: isHifiRoute() ? getHifiPosition() : isExternalPlaybackSounding() ? getExternalPosition() : (audioRef.current?.currentTime ?? currentTime.get()),
+    // The external player's clock answers for itself the same way. A song restored on <audio> sits at 0
+    // until its metadata loads: the position it resumes at is where it is.
+    currentTime: isHifiRoute() ? getHifiPosition()
+        : isExternalPlaybackSounding() ? getExternalPosition()
+            : pendingResumeTime ?? (audioRef.current?.currentTime ?? currentTime.get()),
     duration,
     currentLineIndex,
 });
@@ -197,6 +203,7 @@ export function useElectronWindowPlaybackHandoff({
         if (isExternalRoute() && !handsOverExternal) pauseExternalPlayback();
         const activePlayback = withUntransformedLyrics(buildPlaybackSnapshot({
             audioRef,
+            pendingResumeTime: pendingResumeTimeRef.current,
             audioSrc,
             cachedCoverUrl,
             currentLineIndex,
@@ -262,6 +269,7 @@ export function useElectronWindowPlaybackHandoff({
         nowPlayingProgressMs,
         nowPlayingProgressQuality,
         nowPlayingTrack,
+        pendingResumeTimeRef,
         playQueue,
         playerState,
         showTransparentWindowBorder,
@@ -270,6 +278,9 @@ export function useElectronWindowPlaybackHandoff({
         stageStatus,
         transparentPlayerBackground,
     ]);
+    // Read after an await by the rebuild capture below: the closure of the latest render.
+    const captureWindowPlaybackHandoffRef = useRef(captureWindowPlaybackHandoff);
+    captureWindowPlaybackHandoffRef.current = captureWindowPlaybackHandoff;
 
     const restoreMainPlaybackSnapshot = useCallback(async (snapshot: PlaybackSnapshot | null, fmStations?: unknown) => {
         mainPlaybackSnapshotRef.current = snapshot;
@@ -450,9 +461,39 @@ export function useElectronWindowPlaybackHandoff({
     ]);
     restoreWindowPlaybackHandoffRef.current = restoreWindowPlaybackHandoff;
 
+    /**
+     * The snapshot a rebuild of this window takes. A window still restoring the snapshot it was handed
+     * has not got its playback yet (the song may not be on screen, the external player not taken over):
+     * it passes that snapshot on as it came, and the player with it. A song asked for here meanwhile
+     * stands instead: this window answers for itself, and the handed-over player nobody will take now
+     * is stopped.
+     */
+    const captureWindowPlaybackHandoffForRebuild = useCallback(async (): Promise<WindowPlaybackHandoff> => {
+        const reading = consumeHandoffPromiseRef.current;
+        if (reading && !hasCompletedRestoreCheckRef.current) {
+            const received = await reading.catch(() => null);
+            // The song the restore puts on screen: a Stage hand-off shows its Stage song, the main one waits.
+            const shownPlayback = received?.activePlaybackContext === 'stage'
+                ? received.stage.playback ?? received.activePlayback
+                : received?.mainPlayback ?? received?.activePlayback;
+            const handedSong = received ? shownPlayback?.currentSong ?? null : null;
+            if (received && handedSong) {
+                const asked = askedSongKeyRef.current;
+                if (asked === null || asked === getPlaybackSongKey(handedSong)) {
+                    // Only the main song is ever left sounding in a provider's player (a Stage song plays here).
+                    if (received.activePlaybackContext !== 'stage' && omni.canPlayExternally(handedSong)) handOverExternalPlaybackDuringRestore();
+                    console.info('[Electron] window rebuilt while restoring its handoff: passing that handoff on');
+                    return received;
+                }
+                releaseUnclaimedExternalTrack(handedSong, 'another song was asked for');
+            }
+        }
+        return captureWindowPlaybackHandoffRef.current();
+    }, []);
+
     const toggleTransparentModeWithHandoff = useCallback(async (enabled: boolean) => {
         if (isElectronWindow && window.electron?.setWindowTransparentMode) {
-            const handoff = captureWindowPlaybackHandoff();
+            const handoff = await captureWindowPlaybackHandoffForRebuild();
             let applied: boolean;
             try {
                 applied = await window.electron.setWindowTransparentMode(enabled, handoff);
@@ -469,7 +510,7 @@ export function useElectronWindowPlaybackHandoff({
             }
         }
         applyTransparentPlayerBackground(enabled);
-    }, [applyTransparentPlayerBackground, captureWindowPlaybackHandoff, isElectronWindow]);
+    }, [applyTransparentPlayerBackground, captureWindowPlaybackHandoffForRebuild, isElectronWindow]);
 
     useEffect(() => {
         if (!isElectronWindow || !window.electron?.onWindowPlaybackHandoffRequested || !window.electron?.submitWindowPlaybackHandoff) {
@@ -477,9 +518,9 @@ export function useElectronWindowPlaybackHandoff({
         }
 
         return window.electron.onWindowPlaybackHandoffRequested(({ requestId }) => {
-            void window.electron?.submitWindowPlaybackHandoff(requestId, captureWindowPlaybackHandoff());
+            void captureWindowPlaybackHandoffForRebuild().then(handoff => window.electron?.submitWindowPlaybackHandoff(requestId, handoff));
         });
-    }, [captureWindowPlaybackHandoff, isElectronWindow]);
+    }, [captureWindowPlaybackHandoffForRebuild, isElectronWindow]);
 
     useEffect(() => {
         if (!isElectronWindow || !window.electron?.consumeWindowPlaybackHandoff) {

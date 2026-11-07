@@ -432,6 +432,8 @@ export default {
     "homeBgEnabled": "Latar belakang dinamis beranda diaktifkan",
     "autoBestLyricOn": "Fitur lirik terbaik otomatis diaktifkan",
     "autoBestLyricOff": "Fitur lirik terbaik otomatis dimatikan",
+    "keepProviderWordTimingOn": "Lirik per kata bawaan platform dipertahankan",
+    "keepProviderWordTimingOff": "Lirik per kata bawaan platform tidak lagi dipertahankan",
     "autoAiLyricSegmentationOn": "Segmentasi AI otomatis aktif",
     "autoAiLyricSegmentationOff": "Segmentasi AI otomatis nonaktif",
     "lyricSourceChanged": "Sumber lirik utama diganti ke {{source}}",
@@ -1003,6 +1005,7 @@ export default {
       "settings-netease-scrobble": { "title": "Laporan dengar NetEase", "description": "Langsung ke pengaturan pelaporan pemutaran ke NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "Laporan dengar NetEase", "description": "Aktifkan atau matikan pelaporan pemutaran ke NetEase Cloud Music" },
       "auto-ai-lyric-segmentation-toggle": { "title": "Segmentasi lirik AI otomatis", "description": "Aktifkan atau matikan segmentasi otomatis lirik lagu baru menjadi kata dengan AI" },
+      "keep-provider-word-timing-toggle": { "title": "Pertahankan lirik per kata bawaan platform", "description": "Aktifkan atau matikan mempertahankan lirik per kata bawaan Apple Music dan platform serupa" },
       "settings-audio-output": { "title": "Keluaran audio", "description": "Langsung ke pengaturan perangkat dan format keluaran audio" },
       "hifi-toggle": { "title": "Mesin pemutaran mpv", "description": "Beralih antara Web Audio dan mpv untuk lagu lokal dan Navidrome; mpv mengirim langsung ke perangkat output" },
       "hifi-settings": { "title": "Pengaturan mesin pemutaran", "description": "Buka pengaturan mesin pemutaran: Web Audio atau mpv, serta perangkat output, mode eksklusif, dan DSD mpv" },
@@ -2655,6 +2658,8 @@ export default {
     "autoUseBestLyricDescSpotify": "Secara otomatis mencari lirik NetEase, AMLLDB, QQ, Kugou, dan Spotify, mengutamakan lirik per kata dengan kecocokan waktu sempurna.",
     "lyricMatchPriority": "Prioritas pencocokan lirik",
     "lyricMatchPriorityDesc": "Saat beberapa sumber lirik memiliki kecocokan berkualitas tinggi, utamakan sumber ini terlebih dahulu.",
+    "keepProviderWordTiming": "Pertahankan lirik per kata bawaan platform",
+    "keepProviderWordTimingDesc": "Saat lagu Apple Music punya lirik per kata bawaan, lirik itu hanya diganti jika sumber yang dipilih di Prioritas pencocokan lirik juga punya lirik per kata; sumber lain tidak dicari. Matikan untuk memilih dari semua sumber sesuai prioritas, seperti lagu lain.",
     "localLyricsPriority": "Prioritas lirik lagu lokal",
     "localLyricsPriorityDesc": "Pilih lirik mana yang digunakan pertama kali saat lagu lokal juga memiliki kecocokan online. Pilihan sumber lirik manual tetap dipertahankan.",
     "localLyricsPriorityLocal": "Lirik lokal",
@@ -4066,6 +4071,25 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_27": {
+      "intro": "Selamat datang di 0.7.27. Spotify mendapat pemutaran Soloist, sehingga akun yang tidak mendapat kunci audio tetap bisa memutar lagu; volume dan bisu Apple Music kini berfungsi, pustakanya menambah Semua lagu, dan lirik per kata bawaannya mengalah pada sumber lirik prioritasmu; dan fnOS Music bisa masuk dari luar jaringan lokal dengan FN ID.",
+      "soloist": {
+        "title": "Spotify: pemutaran Soloist",
+        "description": "Sebagian akun Spotify (umumnya yang dibuat setelah akhir 2024) tidak pernah menerima kunci audio, sehingga pemutaran bawaan Folia tidak bisa memutarnya. Saat masuk, kini kamu bisa memilih Standar atau Soloist: Soloist adalah program pemutar resmi Spotify yang diunduh terpisah dan memerlukan kunci API yang dibuat dengan akun Premium. Dengan Standar, setelah masuk Folia memeriksa apakah akun itu bisa mendapat kunci dan menyarankan Soloist jika tidak. Daftar pengaturan memandumu memasang program, mengisi kunci, dan memasangkan perangkat; buka dari halaman akun, Pengaturan pemutaran platform di palet perintah, atau pemberitahuan gagal putar. Soloist mengirim suaranya langsung ke keluaran sistem, jadi equalizer, Automix, dan ekspor video Folia tidak berlaku untuknya. Juga diperbaiki: di Linux seluruh aplikasi bisa macet saat Spotify pertama kali diputar."
+      },
+      "amUpdate": {
+        "title": "Peningkatan Apple Music",
+        "description": "Penggeser volume dan tombol bisu kini mengendalikan suara Apple Music. Playlist pustakamu menambah Semua lagu untuk menjelajah semua lagu yang kamu simpan. Saat dibuka, akun terakhir langsung tampil tanpa menunggu kosong, dan di desktop lagu yang sedang diputar tidak lagi berhenti saat jendela dibangun ulang (misalnya saat mengubah transparansi jendela)—jendela baru melanjutkannya. Jika lagu punya lirik per kata bawaan, Folia beralih ke sumber yang dipilih di Prioritas pencocokan lirik (bawaannya QQ Music) bila sumber itu juga punya lirik per kata, jadi kamu tak perlu mengganti ke lirik berterjemahan secara manual untuk setiap lagu. Pengaturan lirik baru, Pertahankan lirik per kata bawaan platform, bisa dimatikan agar lagu Apple Music memilih lirik terbaik dari semua sumber seperti lagu lainnya."
+      },
+      "fnConnect": {
+        "title": "fnOS Music: masuk dengan FN ID",
+        "description": "Alamat server fnOS Music kini cukup diisi FN ID (misalnya mynas): Folia menjangkau perangkat fnOS-mu lewat relai FN Connect, sehingga kamu bisa masuk dan memutar lagu di luar jaringan lokal. Alamat yang menyertakan skema, port, atau path tetap terhubung langsung, dan koneksi lewat relai selalu memakai HTTPS."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Baris tanpa itunes:key di lirik .ttml lokal tidak lagi dibuang, sehingga TTML hasil konversi alat lain tampil dengan benar. Diperbaiki: akun Kugou rusak (dan lagu gagal dimuat) setelah membuka playlist publik milik orang lain. Panel Buku catatan kini memakai strip info di atas dan strip kertas tipis di bawah, kartu di tampilan satu halaman penuh lebih besar satu tingkat, dan layar ponsel yang sempit tidak lagi berdesakan. Di macOS, menyematkan Ponder dan membuka halaman platform lagu dari judulnya kini memakai ⌘, dengan petunjuk sesuai platform. Akuarium Nebbia tidak lagi memutih di bawah sorot lampu, dan dengan gerak ketukan tanamannya hanya bergoyang mengikuti ketukan. Poster album Bravais tidak lagi meluap saat artis atau deskripsinya banyak, daftar artis yang panjang bisa dibentangkan, dan teks pada poster yang miring tidak lagi buram."
+      }
+    },
     "v0_7_26": {
       "intro": "Selamat datang di 0.7.26, Fawkes Update—sebuah pembaruan besar. Versi ini menghadirkan Buku catatan, laci yang bergeser dari kiri untuk menampung lagu dengan cepat; Nebbia mendapat pemandangan dan kaca baru, dengan akuarium, embun, dan salju; Apple Music dan fnOS Music hadir sebagai platform baru; lagu dari platform berbeda bisa berada di satu antrean, dan pencarian kini juga menemukan album dan playlist; kapsul progres menampilkan perintah yang sering dipakai, dan tombol di kanannya bisa diganti di tempat; serta rekomendasi makin beragam, dengan rekomendasi gaya di NetEase Harian dan radio Mungkin Kamu Suka serta preferensi musik untuk QQ Music.",
       "scratchpad": {
@@ -5059,7 +5083,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "Poster album",
-    "openArtist": "Buka artis {{name}}"
+    "openArtist": "Buka artis {{name}}",
+    "expandArtists": "Tampilkan semua {{count}} artis",
+    "collapseArtists": "Ciutkan"
   },
   "artistGrid": {
     "localArtist": "Artis Lokal: {{artistName}}",

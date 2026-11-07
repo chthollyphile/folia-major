@@ -751,6 +751,66 @@ describe('external playback route', () => {
             expect(engine.getExternalSong()).toBeNull();
         });
 
+        // The new window is rebuilt again before its own restore took the player over: the snapshot
+        // goes on to the next window as it came, and the take-over here must not follow the player.
+        describe('asked to hand over while still restoring', () => {
+            const followEnd = () => {
+                const ended = vi.fn();
+                const unsubscribe = engine.subscribeExternalPlayback(event => { if (event.type === 'ended') ended(); });
+                return { ended, unsubscribe };
+            };
+
+            it('lands a later take-over handed over: shown as it sounds, not followed, taken back when no rebuild came', async () => {
+                usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+                engine.handOverExternalPlaybackDuringRestore();
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                expect(engine.isExternalPlaybackSounding()).toBe(true);
+                expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+                const { ended, unsubscribe } = followEnd();
+                const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+
+                omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, ended: true, positionMs: 200000 }));
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+                expect(ended).not.toHaveBeenCalled();
+                expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+
+                await vi.advanceTimersByTimeAsync(9000);
+                expect(ended).toHaveBeenCalledTimes(1);
+                unsubscribe();
+            });
+
+            it('lands a take-over already on its way handed over', async () => {
+                usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+                let answer!: (value: ProviderExternalPlaybackStatus) => void;
+                omniMock.getExternalPlaybackStatus.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+                const adopting = engine.adoptExternalPlayback(song);
+                await flush();
+                engine.handOverExternalPlaybackDuringRestore();
+                answer(status());
+                expect(await adopting).toBe(true);
+                expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+            });
+
+            it('hands a take-over already done over at once', async () => {
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                engine.handOverExternalPlaybackDuringRestore();
+                const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            });
+
+            it('follows the take-over as usual once the rebuild was refused', async () => {
+                engine.handOverExternalPlaybackDuringRestore();
+                engine.reclaimExternalPlayback('refused');
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                await vi.advanceTimersByTimeAsync(500);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+            });
+        });
+
         it('takes nothing over when the player has no track or cannot be asked', async () => {
             omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: false }));
             expect(await engine.adoptExternalPlayback(song)).toBe(false);

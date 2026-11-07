@@ -78,14 +78,15 @@ Omni 的爱心读取、未决操作和写入共用这个 ID，播放 ID 不变�
 真实账号追加结果尚待验收。
 TTML 经现有 `parseTTML` 转成 `LyricData`：`isWordByWord` 和 `ttml.timingMode` 来自文件的 `itunes:timing`，
 逐行文件不会标成逐词；Apple 没有歌词时交出 `lyrics: null`，不报成错误。provider 声明
-`prefersOwnWordByWord`：自己的歌词是逐词时，自动匹配不再拿别的来源替换它。
+`prefersOwnWordByWord`：自己的歌词是逐词时，自动匹配只先问“歌词匹配优先级”选的来源，它有逐词歌词才替换，
+其他来源不再搜（#1127）；歌词设置里的“保留平台自带的逐字歌词”关掉后，和别的歌一样按优先级择优。
 
 Apple 的音频受 DRM 保护，不能交出地址，所以能力是 `externalPlayback: true`、`playback: false`。播放走
 `src/services/onlineMusic/externalPlayback.ts` 的 `external` 路线（`PlaybackRoute` 的第三个值）：Folia 经
 `omni.playSongExternally` / `pauseExternalPlayback` / `resumeExternalPlayback` / `seekExternalPlayback` 驱动
 companion；声音不经过 Folia 的增益节点，音量和静音由 `setExternalPlaybackVolume` 交给页面里的 MusicKit（启播前后各发一次，拖动时一次只发一个、最后发最新值）。`getExternalPlaybackStatus` 每 500 ms 报告一次位置和状态，`externalPlayback` 用外推时钟驱动歌词和
 进度条；换到别的音源、HiFi 或 Stage 时这条路线会停掉 companion 的播放器。播放器自己换到别的歌时暂停并提示。
-主窗口重建（透明背景、壁纸换屏等）时播放器不停：旧窗口抓完交接快照就交出（`handOverExternalPlayback`，不再轮询、不再按答复动作），新窗口恢复时问一次状态，还是那首就接管（`adoptExternalPlayback`，经 `omni.adoptExternalPlayback` 让平台重建自己的播放尝试），不是或没有新窗口接管就停掉；旧窗口最后没被重建（主进程拒绝或放弃）时把播放器收回来（`reclaimExternalPlayback`）。
+主窗口重建（透明背景、壁纸换屏等）时播放器不停：旧窗口抓完交接快照就交出（`handOverExternalPlayback`，不再轮询、不再按答复动作），新窗口恢复时问一次状态，还是那首就接管（`adoptExternalPlayback`，经 `omni.adoptExternalPlayback` 让平台重建自己的播放尝试），不是或没有新窗口接管就停掉；旧窗口最后没被重建（主进程拒绝或放弃）时把播放器收回来（`reclaimExternalPlayback`）。主进程自己发起的重建（壁纸窗口按桌面架构改透明度、壁纸助手放弃）同样先向页面要快照（`electron/main.cjs` 的 `rebuildMainWindowWithPlaybackHandoff`）；新窗口还没恢复完就又被重建时，把收到的快照原样交给下一个窗口，自己随后的接管落成已交出（`handOverExternalPlaybackDuringRestore`），恢复中途有人点了别的歌则照常答自己的状态、停掉没人接的那首；窗口来不及听到请求就被换掉时，主进程把它在请求发出后读走的快照转给下一个窗口（`windowPlaybackHandoff.cjs` 的 `carryForward`）；重建时下一个窗口什么快照都拿不到（旧窗口没及时回答），主进程直接暂停还在运行的外部播放器（`pauseExternalPlayersNobodyFollows`），因为换掉的旧窗口已经够不着它们。
 companion 读到账号后先导航到账号的 storefront（`https://music.apple.com/<storefront>/`）再回答账号请求：MusicKit 只按页面地区解析目录 id，页面地区和账号不同时会接受队列却播不出来。播放命令在 companion 里串行执行，暂停/换歌不会被并发拒绝丢掉。Apple Music 在 macOS 和 Windows 上声明可用（`getAppleMusicTransportAvailability`），Linux 显示暂未支援。companion 的窗口、协议和安全边界见 `electron/appleMusic/README.md`。
 
 仍未完成的验收包括：正式安装包、Windows 编译与 DRM 实机测试、退出清理与异常恢复全流程、

@@ -375,6 +375,7 @@ export type CommandPaletteSettingsContext = {
     togglePlaybackReport: () => void;
     /** 自动 AI 分词: segment songs with no saved split by themselves (issue #960). */
     toggleAutoAiLyricSegmentation: () => void;
+    toggleKeepProviderWordTiming: () => void;
     voiceInputPauseSupported: boolean;
     /** Lab switch for the experimental mod system; gates the `mods` command. */
     modSystemEnabled: boolean;

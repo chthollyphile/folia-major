@@ -611,16 +611,20 @@ function isWindowsWallpaperTransparentSupported() {
 // The user preference (TRANSPARENT_PLAYER_BACKGROUND) is independent of what the current
 // window can render: wallpaper mode on the classic desktop derives an opaque window. After an
 // attach reports a different architecture than the window was built for, bring them back in
-// sync with one rebuild.
+// sync with one rebuild. This often lands right after the rebuild that entered wallpaper mode,
+// while the new page is still restoring: the playback handoff carries the session on regardless.
 function reconcileWindowsWallpaperWindowTransparency() {
-  if (process.platform !== 'win32' || !isWindowsWallpaperMode() || !mainWindow || mainWindow.isDestroyed()) {
+  const needsRebuild = () => {
+    if (process.platform !== 'win32' || !isWindowsWallpaperMode() || !mainWindow || mainWindow.isDestroyed()) {
+      return false;
+    }
+    const desiredTransparent = isTransparentPlayerBackgroundEnabled() && isWindowsWallpaperTransparentSupported();
+    return mainWindow.__wallpaperWindowTransparent !== desiredTransparent;
+  };
+  if (!needsRebuild()) {
     return;
   }
-  const desiredTransparent = isTransparentPlayerBackgroundEnabled() && isWindowsWallpaperTransparentSupported();
-  if (mainWindow.__wallpaperWindowTransparent === desiredTransparent) {
-    return;
-  }
-  recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
+  void rebuildMainWindowWithPlaybackHandoff('wallpaper window transparency', needsRebuild);
 }
 
 // The helper ships as resources/folia-wallpaper-helper.exe (built by
@@ -714,7 +718,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
     }
-    recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
+    void rebuildMainWindowWithPlaybackHandoff('wallpaper mode given up');
   },
   onReattachNeeded: () => {
     rebuildWindowsWallpaperSession();
@@ -2620,6 +2624,9 @@ const windowPlaybackHandoffStore = createWindowPlaybackHandoffStore({
   ttlMs: 60_000,
 });
 const pendingWindowPlaybackHandoffRequests = new Map();
+// When the main window was last asked for its playback: a window that read a handoff after that and
+// never answered was asked before its page listened (see recreateMainWindowWithTransparencyMode).
+let lastWindowPlaybackHandoffRequestAt = Number.POSITIVE_INFINITY;
 let pendingWindowStateSave = null;
 let windowStateSaveTimer = null;
 let wallpaperModeRelaunchTimer = null;
@@ -5272,6 +5279,7 @@ function requestWindowPlaybackHandoff(timeoutMs = WINDOW_PLAYBACK_HANDOFF_REQUES
     });
 
     try {
+      lastWindowPlaybackHandoffRequestAt = Date.now();
       mainWindow.webContents.send('window-playback-handoff-requested', { requestId });
     } catch (error) {
       clearTimeout(timeoutId);
@@ -5279,6 +5287,43 @@ function requestWindowPlaybackHandoff(timeoutMs = WINDOW_PLAYBACK_HANDOFF_REQUES
       console.warn('[Electron] Failed to request window playback handoff', error);
       resolve(null);
     }
+  });
+}
+
+// Generation of the rebuilds the main process starts for reasons of its own: a newer one supersedes
+// one still waiting for the page's answer.
+let mainProcessWindowRebuildGeneration = 0;
+
+/**
+ * Rebuilds the main window for a reason of the main process's own (the desktop's transparency, the
+ * wallpaper helper given up). The page is asked for its playback first, like every other rebuild:
+ * the players outside the window (mpv, a provider's own player) outlive it and go on to the next
+ * window, never left sounding with nobody following them. `stillWanted` is asked again once the page
+ * has answered: the rebuild may not be needed anymore by then.
+ */
+async function rebuildMainWindowWithPlaybackHandoff(reason, stillWanted = () => true) {
+  mainProcessWindowRebuildGeneration += 1;
+  const generation = mainProcessWindowRebuildGeneration;
+  const handoff = await requestWindowPlaybackHandoff();
+  if (generation !== mainProcessWindowRebuildGeneration || !stillWanted()) {
+    console.log('[Electron] main window rebuild no longer needed', { reason });
+    return false;
+  }
+  console.log('[Electron] rebuilding the main window', { reason, withHandoff: Boolean(handoff) });
+  recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), handoff);
+  return true;
+}
+
+// The players outside the window, which outlive it (a provider's companion or program of its own).
+// A rebuild that hands nothing on to the next window stops them: no window follows them any more, and
+// the window that did can no longer reach them once it is replaced (its requests are refused).
+function pauseExternalPlayersNobodyFollows(reason) {
+  console.log('[Electron] no window takes the playback over; pausing the players outside the window', { reason });
+  appleMusicClient.pauseIfRunning().catch((error) => {
+    console.warn('[Electron] the companion player could not be paused', error);
+  });
+  spotifyApiBridge.pauseSoloist().catch((error) => {
+    console.warn('[Electron] Soloist could not be paused', error);
   });
 }
 
@@ -6117,7 +6162,19 @@ function createWindow(options = {}) {
 
 function recreateMainWindowWithTransparencyMode(enabled, handoff = null) {
   store.set(TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY, Boolean(enabled));
-  rememberWindowPlaybackHandoff(handoff);
+  if (handoff) {
+    rememberWindowPlaybackHandoff(handoff);
+  } else if (windowPlaybackHandoffStore.carryForward(mainWindow, lastWindowPlaybackHandoffRequestAt)) {
+    // No answer from the window being replaced: it was asked before its page listened, then read the
+    // handoff of the rebuild before and is restoring it (a provider's player it takes over keeps
+    // sounding). The next window restores that one instead of starting with nothing.
+    console.log('[Electron] the replaced window never answered for its playback; passing on the handoff it read');
+  } else if (mainWindow && !windowPlaybackHandoffStore.peek()) {
+    // The window being replaced did not answer in time (busy, hung, gone) and the next one restores
+    // nothing: a provider's player it was following, or had already handed over, would sound on
+    // with nobody following it.
+    pauseExternalPlayersNobodyFollows('the window was rebuilt without a handoff');
+  }
 
   // Windows wallpaper mode: whatever window ends up as the main window must be re-attached —
   // the helper holds the old window's hwnd, which is about to be destroyed. Detach (graceful)
@@ -6363,6 +6420,7 @@ app.whenReady().then(async () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
       }
+      // Not asked for a handoff: this window was created just above and its page plays nothing yet.
       recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
     }
   }
@@ -7479,7 +7537,7 @@ ipcMain.handle('window-playback-handoff-consume', (event) => {
     return null;
   }
 
-  return windowPlaybackHandoffStore.consume();
+  return windowPlaybackHandoffStore.consume(mainWindow);
 });
 
 ipcMain.handle('window-playback-handoff-submit', (event, requestId, handoff) => {

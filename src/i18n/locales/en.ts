@@ -432,6 +432,8 @@ export default {
     "homeBgEnabled": "Home dynamic background enabled",
     "autoBestLyricOn": "Auto-use best lyrics enabled",
     "autoBestLyricOff": "Auto-use best lyrics disabled",
+    "keepProviderWordTimingOn": "Platform word-timed lyrics kept",
+    "keepProviderWordTimingOff": "Platform word-timed lyrics no longer kept",
     "autoAiLyricSegmentationOn": "Automatic AI segmentation on",
     "autoAiLyricSegmentationOff": "Automatic AI segmentation off",
     "lyricSourceChanged": "Preferred lyric source switched to {{source}}",
@@ -1003,6 +1005,7 @@ export default {
       "settings-netease-scrobble": { "title": "NetEase listening report", "description": "Jump to whether finished plays are reported to NetEase Cloud Music" },
       "netease-scrobble-toggle": { "title": "NetEase listening report", "description": "Turn reporting of finished NetEase plays on or off" },
       "auto-ai-lyric-segmentation-toggle": { "title": "Automatic AI lyric segmentation", "description": "Turn on or off segmenting each new song’s lyrics into words with AI by itself" },
+      "keep-provider-word-timing-toggle": { "title": "Keep platform word-timed lyrics", "description": "Turn on or off keeping the word-timed lyrics a song’s own platform comes with" },
       "settings-audio-output": { "title": "Audio output", "description": "Jump to the audio output device and format settings" },
       "hifi-toggle": { "title": "mpv playback engine", "description": "Switch local and Navidrome songs between Web Audio and mpv, which sends them straight to the output device" },
       "hifi-settings": { "title": "Playback engine settings", "description": "Open the playback engine settings: Web Audio or mpv, and mpv's output device, exclusive mode and DSD" },
@@ -2655,6 +2658,8 @@ export default {
     "autoUseBestLyricDescSpotify": "Automatically search NetEase, AMLLDB, QQ, Kugou, and Spotify lyrics, prioritizing word-by-word lyrics with perfect timing matches.",
     "lyricMatchPriority": "Lyric match priority",
     "lyricMatchPriorityDesc": "When multiple lyric sources have high-confidence matches, prefer this source first.",
+    "keepProviderWordTiming": "Keep platform word-timed lyrics",
+    "keepProviderWordTimingDesc": "When an Apple Music song comes with word-timed lyrics, they are replaced only if the source chosen in Lyric match priority has word-timed lyrics too; no other source is searched. Turn off to pick among all sources by priority, like any other song.",
     "localLyricsPriority": "Local song lyrics priority",
     "localLyricsPriorityDesc": "Choose which lyrics are used first when a local song also has an online match. Manual lyric source choices are preserved.",
     "localLyricsPriorityLocal": "Local lyrics",
@@ -4066,6 +4071,25 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_27": {
+      "intro": "Welcome to 0.7.27. Spotify gains Soloist playback, so accounts that cannot get audio keys can still play; Apple Music’s volume and mute now work, the library gets All songs, and its built-in word-timed lyrics give way to your preferred lyric source; and fnOS Music can sign in from outside your LAN with an FN ID.",
+      "soloist": {
+        "title": "Spotify: Soloist playback",
+        "description": "Some Spotify accounts (often ones created after late 2024) never receive audio keys, so Folia’s own playback cannot play them. When signing in you can now choose between Standard and Soloist: Soloist is Spotify’s official playback program, downloaded separately, and needs an API key generated with a Premium account. With Standard, Folia checks after sign-in whether the account can get keys and suggests Soloist if it cannot. A setup checklist walks you through installing the program, entering the key and pairing; open it from the account page, Platform playback setup in the command palette, or a playback failure notice. Soloist sends its sound straight to the system output, so Folia’s equalizer, Automix and video export do not apply to it. Also fixed: on Linux the whole app could freeze the first time Spotify played."
+      },
+      "amUpdate": {
+        "title": "Apple Music improvements",
+        "description": "The volume slider and mute now control Apple Music’s sound. Your library’s playlists gain All songs, for browsing every song you have saved. Startup shows your last account right away instead of a blank wait, and on desktop the playing song no longer stops when the window is rebuilt (for example when toggling window transparency)—the new window carries on. When a song has built-in word-timed lyrics, Folia switches to the source chosen in Lyric match priority (QQ Music by default) if it also has word-timed lyrics, so you no longer swap in translated lyrics by hand for every song. A new lyric setting, Keep platform word-timed lyrics, can be turned off to let Apple Music songs pick the best lyrics from all sources like any other song."
+      },
+      "fnConnect": {
+        "title": "fnOS Music: sign in with an FN ID",
+        "description": "The fnOS Music server address can now be just an FN ID (such as mynas): Folia reaches your fnOS device through the FN Connect relay, so you can sign in and play outside your local network. Addresses with a scheme, port or path still connect directly, and relayed connections always use HTTPS."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "Lines without itunes:key in local .ttml lyrics are no longer dropped, so TTML converted by other tools displays properly. Fixed Kugou accounts breaking (and songs failing to load) after opening someone else’s public playlist. The Scratchpad panel now uses an info strip on top and slim paper strips at the bottom, cards in the full-page view are a size larger, and narrow phone screens no longer crowd. On macOS, pinning Ponder and opening a song’s platform page from its title now use ⌘, with hints shown per platform. Nebbia’s aquarium no longer blows out to white under the spotlights, and with beat motion its plants sway only to the beat. Bravais album posters no longer overflow when there are many artists or a long blurb, long artist lists can be expanded, and text on the tilted poster is no longer blurry."
+      }
+    },
     "v0_7_26": {
       "intro": "Welcome to 0.7.26, the Fawkes Update—a major update. This version adds the Scratchpad, a drawer that slides out from the left to hold songs on the fly; Nebbia gets new views and glass, with an aquarium, dew and snow; Apple Music and fnOS Music join as new platforms; songs from different platforms can share one queue, and search now finds albums and playlists too; the progress capsule offers your common commands, and its right-hand buttons can be swapped in place; and recommendations grow, with style recommendations in NetEase Daily and the Guess You Like radio and music preferences for QQ Music.",
       "scratchpad": {
@@ -5059,7 +5083,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "Album poster",
-    "openArtist": "Open artist {{name}}"
+    "openArtist": "Open artist {{name}}",
+    "expandArtists": "Show all {{count}} artists",
+    "collapseArtists": "Show less"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",

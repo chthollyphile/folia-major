@@ -432,6 +432,8 @@ export default {
     "homeBgEnabled": "主页动态背景已开启",
     "autoBestLyricOn": "自动使用最佳歌词已开启",
     "autoBestLyricOff": "自动使用最佳歌词已关闭",
+    "keepProviderWordTimingOn": "已保留平台自带的逐字歌词",
+    "keepProviderWordTimingOff": "平台自带的逐字歌词不再优先保留",
     "autoAiLyricSegmentationOn": "自动 AI 分词已开启",
     "autoAiLyricSegmentationOff": "自动 AI 分词已关闭",
     "lyricSourceChanged": "优先匹配歌词源已切换为{{source}}",
@@ -1003,6 +1005,7 @@ export default {
       "settings-netease-scrobble": { "title": "网易云听歌打卡", "description": "直接跳到是否把播放记录上报给网易云音乐" },
       "netease-scrobble-toggle": { "title": "网易云听歌打卡", "description": "开启或关闭把播放记录上报给网易云音乐" },
       "auto-ai-lyric-segmentation-toggle": { "title": "自动 AI 分词", "description": "开启或关闭新歌自动用 AI 给歌词分词" },
+      "keep-provider-word-timing-toggle": { "title": "保留平台自带的逐字歌词", "description": "开启或关闭自动择优时保留 Apple Music 等平台自带的逐字歌词" },
       "settings-audio-output": { "title": "音频输出", "description": "直接跳到音频输出设备与格式设置" },
       "hifi-toggle": { "title": "mpv 播放引擎", "description": "在 Web Audio 和 mpv 之间切换本地与 Navidrome 歌曲的播放引擎；mpv 直接送到输出设备" },
       "hifi-settings": { "title": "播放引擎设置", "description": "打开播放引擎设置：Web Audio 或 mpv，以及 mpv 的输出设备、独占模式和 DSD" },
@@ -2655,6 +2658,8 @@ export default {
     "autoUseBestLyricDescSpotify": "自动检索网易云、AMLLDB、QQ、酷狗和 Spotify 歌词，若存在完美匹配的逐字歌词则自动优先采用。",
     "lyricMatchPriority": "歌词匹配优先级",
     "lyricMatchPriorityDesc": "在多个歌词源都存在匹配度满足要求的歌词时，优先选择该歌词源的结果。",
+    "keepProviderWordTiming": "保留平台自带的逐字歌词",
+    "keepProviderWordTimingDesc": "Apple Music 的歌自带逐字歌词时，只有“歌词匹配优先级”选的歌词源也有逐字歌词才换掉它，其他歌词源不再搜索。关闭后和其他歌一样，按优先级在各歌词源里择优。",
     "localLyricsPriority": "本地歌曲歌词优先级",
     "localLyricsPriorityDesc": "本地歌曲同时存在在线匹配歌词时，选择优先使用的歌词。手动指定的歌词来源不受影响。",
     "localLyricsPriorityLocal": "本地歌词",
@@ -4066,6 +4071,25 @@ export default {
         "description": "登录后，自己创建的不公开歌单也能读取歌曲，并支持真正的分页加载。自建后端需要升级到 qq-music-api 3.1.2 或更新版本；旧后端会自动回退，读不到时会明确提示「不是公开歌单」，不再静默显示为空。"
       }
     },
+    "v0_7_27": {
+      "intro": "欢迎来到 0.7.27。Spotify 新增 Soloist 播放方式，拿不到音频密钥的账号也能听歌；Apple Music 的音量和静音现在能用了，资料库多了「全部歌曲」，自带的逐字歌词也会让位给你选的优先歌词源；飞牛音乐在局域网外填 FN ID 就能登录。",
+      "soloist": {
+        "title": "Spotify：Soloist 播放",
+        "description": "有些 Spotify 账号（多见于 2024 年底以后注册的）拿不到音频密钥，Folia 自己的播放方式放不了。现在登录时可以在「标准播放」和「Soloist 播放」之间二选一：Soloist 是 Spotify 官方的播放程序，需要另外下载，并用 Premium 账号生成一把 API 密钥。选标准播放时，登录后会先试一下这个账号能不能拿到密钥，拿不到就提示改用 Soloist。配置清单一步步带你装好程序、填好密钥、配对设备，也可以从账号页、命令面板的「平台播放设置」或播放失败的提示里打开。Soloist 自己把声音送到系统输出，Folia 的均衡器、Automix 和视频导出不作用于它。另外修复了 Linux 上第一次播放 Spotify 时整个应用卡住的问题。"
+      },
+      "amUpdate": {
+        "title": "Apple Music 改进",
+        "description": "音量条和静音现在能控制 Apple Music 的声音。资料库的歌单里多了「全部歌曲」，可以浏览收藏的所有歌曲。启动时直接显示上次登录的账号，不再空着等几秒；桌面版窗口重建（例如开关窗口透明）时，正在放的歌不再停下，新窗口接着播放。歌曲自带逐字歌词时，「歌词匹配优先级」选的歌词源（默认 QQ 音乐）如果也有逐字歌词，就改用它，想要带翻译的歌词不必每首手动换；歌词设置里新增「保留平台自带的逐字歌词」，关掉后 Apple Music 的歌和其他歌一样，在全部歌词源里择优。"
+      },
+      "fnConnect": {
+        "title": "飞牛音乐：外网用 FN ID 登录",
+        "description": "飞牛音乐的服务器地址可以只填 FN ID（例如 mynas），Folia 经 FN Connect 中继连上你的 fnOS 设备，不在同一个局域网也能登录和播放。填了协议、端口或路径的地址仍按原样直连；经中继时一律走 HTTPS。"
+      },
+      "moreDetails": {
+        "title": "更多改进",
+        "description": "本地 .ttml 歌词里没有 itunes:key 的行不再被整行丢掉，其他工具转出来的 TTML 也能正常显示。修复酷狗打开别人的公开歌单后账号失效、取歌失败的问题。速记簿的面板改成顶上的信息条和底部的细纸带，展开整页的卡片放大一档，手机宽度下不再挤在一起。macOS 上思索的固定和歌名打开平台页面改用 ⌘ 键，提示也按平台显示。雾笺水族箱的聚光灯处不再白成一片，跟拍时水草只随节拍摆动。Bravais 的专辑海报在歌手和简介很多时不再溢出，歌手多了可以展开查看；倾斜的海报文字不再发糊。"
+      }
+    },
     "v0_7_26": {
       "intro": "欢迎来到 0.7.26「Fawkes Update」：这是一次重大更新。这一版新增「速记簿」，随手把歌收进左侧滑出的暂存区；「雾笺」的窗外和玻璃多了水族箱、凝露和融雪；新接入 Apple Music 和飞牛音乐；不同平台的歌可以排进同一个队列，搜索页也能搜专辑和歌单；进度条胶囊上会浮出常用命令，右侧按钮可以原地更换；推荐也更丰富：网易云每日推荐加了风格推荐，QQ 音乐接上「猜你喜欢」电台和音乐偏好。",
       "scratchpad": {
@@ -5059,7 +5083,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "专辑海报",
-    "openArtist": "打开歌手 {{name}}"
+    "openArtist": "打开歌手 {{name}}",
+    "expandArtists": "展开全部 {{count}} 位歌手",
+    "collapseArtists": "收起"
   },
   "artistGrid": {
     "localArtist": "本地歌手: {{artistName}}",

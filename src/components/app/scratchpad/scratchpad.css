@@ -108,7 +108,7 @@
 /* 完整的标签从常驻的那一点长出来（用户要的，2026-11-06），手感照上一版的玻璃小舌头：同一个东西变大，0.2s ease，
    字跟着淡入，不是两样东西交叉淡入。平时标签的纸裁成常驻那一点的框（--scratchpad-rest-*）；指针进热区或键盘聚焦时
    常驻那一点立刻让位给同样大小、同样透明度（--scratchpad-rest-opacity）的标签，标签的纸亮起来、裁切框撑到整张标签
-   （斜切的下端也是这个框的一部分），投影跟着长出来。收回时反过来：缩回那一点、暗回那个透明度，到头的那一刻换回常驻那一点。
+   （标签是方正的长方形，2026-11-07 用户要去掉原来右下的斜切），投影跟着长出来。收回时反过来：缩回那一点、暗回那个透明度，到头的那一刻换回常驻那一点。
    显隐在按钮上（瞬间），亮暗在纸上（过渡）：用 CSS 动画去亮起会挡掉收回时的过渡。
    投影画在按钮上（drop-shadow，跟着裁过的纸走）：clip-path 会把同一个元素的投影一起裁掉，所以裁在里面那层纸上。
    没展开时按钮不接指针：它比热区高，会挡住下面 Bravais 信息条的标签；键盘照样聚焦得到。 */
@@ -149,7 +149,7 @@
     padding: 10px 0 16px;
     border-top: 4px solid var(--scratchpad-mark);
     background: var(--scratchpad-paper);
-    /* 四个角一一对应展开后的四个角（左上、右上、右下斜切处、左下），裁切框才能平滑地撑开。 */
+    /* 四个角一一对应展开后的四个角（左上、右上、右下、左下），裁切框才能平滑地撑开。 */
     clip-path: polygon(
         var(--scratchpad-rest-x) var(--scratchpad-rest-top),
         var(--scratchpad-rest-right) var(--scratchpad-rest-top),
@@ -161,7 +161,7 @@
 }
 
 .scratchpad-edge:is(:hover, :focus-within) .scratchpad-handle-paper {
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
     opacity: 1;
 }
 
@@ -950,7 +950,7 @@
 .scratchpad-root.is-calm .scratchpad-edge:is(:hover, :focus-within) :is(.scratchpad-handle, .scratchpad-edge-rest) { transition: opacity 0.12s ease; }
 
 .scratchpad-root.is-calm .scratchpad-handle-paper {
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 0 100%);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
     opacity: 1;
     transition: none;
 }
@@ -973,7 +973,7 @@
 
 .scratchpad-drawer.is-panel .scratchpad-footer { padding-bottom: 16px; }
 
-/* 米白信息条（ScratchpadBand）：比内容区宽 36px，探出面板；右端斜切。投影画在外面那层上（clip-path 会把同一个元素的投影裁掉）。 */
+/* 米白信息条（ScratchpadBand）：比内容区宽 36px，探出面板；方正的长方形（2026-11-07 去掉右端的斜切）。投影画在外面那层上（clip-path 会把同一个元素的投影裁掉）。 */
 .scratchpad-band-wrap {
     position: relative;
     z-index: 6;
@@ -987,7 +987,7 @@
 .scratchpad-panel-band > button { pointer-events: auto; }
 
 /* 面板里的三条纸（ScratchpadPanel）：各自一层，换页时挪动、长高变矮（框由 framer 写）。纸画在这一层上，里面那一面透明，
-   换样子时交叉淡入，中途不露出底下的面板；右端斜切 7px。投影画在外面那层（clip-path 会把同一个元素的投影裁掉）：
+   换样子时交叉淡入，中途不露出底下的面板；方正的长方形（原来右端斜切 7px，2026-11-07 用户要去掉）。投影画在外面那层：
    信息条朝下，细纸带朝上、压在列表上面。面板里细纸带的字挪到左边 26px（--scratchpad-slim-shift，见 scratchpadPaper.ts）。 */
 .scratchpad-drawer.is-panel { --scratchpad-slim-shift: 160px; }
 
@@ -1005,7 +1005,6 @@
     position: absolute;
     inset: 0;
     background: var(--scratchpad-paper);
-    clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
 }
 
 .scratchpad-panel-paper .scratchpad-band-wrap { width: 100%; height: 100%; filter: none; }
@@ -1048,7 +1047,7 @@
 /* 面板那一条的字从收起钮右边起（展开整页开头那一下也是这一面，位置一样）。 */
 .scratchpad-band.is-panel .scratchpad-band-head { left: 56px; }
 
-/* 「展开整页」：墨色的方钮压在信息条右端探出面板的那一截上（右端斜切了 7px，离边再留一点），竖着居中在纸面里
+/* 「展开整页」：墨色的方钮压在信息条右端探出面板的那一截上（离右边 18px），竖着居中在纸面里
    （上边 4px 的点缀色、下边 3px 的墨色之间）。 */
 .scratchpad-band-expand {
     position: absolute;
@@ -1086,7 +1085,6 @@
     border-bottom: 3px solid var(--scratchpad-ink);
     background: var(--scratchpad-paper);
     color: var(--scratchpad-ink);
-    clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
     isolation: isolate;
 }
 
@@ -1878,6 +1876,25 @@
 }
 
 .scratchpad-card.is-film .scratchpad-card-play { top: 6px; bottom: auto; }
+
+/* 展开整页的大卡（2026-11-07 用户嫌太密）：画布里的三种卡比三行总览里的大约 1.45 倍（宽高见 canvasLayout.ts 的
+   NOTE / PHOTO / FILM_SPACING），封面、页边线、字号跟着放大；三行总览里的卡不在 .scratchpad-canvas 里，还是上面那一套。 */
+.scratchpad-canvas .scratchpad-card-placeholder svg { width: 36px; height: 36px; }
+.scratchpad-canvas .scratchpad-card-play { width: 36px; height: 36px; }
+.scratchpad-canvas .scratchpad-card-play svg { width: 15px; height: 15px; }
+
+.scratchpad-canvas .scratchpad-card.is-note::before { top: 136px; left: 18px; }
+.scratchpad-canvas .scratchpad-card.is-note .scratchpad-card-cover { height: 136px; }
+.scratchpad-canvas .scratchpad-card.is-note .scratchpad-card-name { margin: 12px 12px 0 30px; font-size: 15.5px; }
+.scratchpad-canvas .scratchpad-card.is-note .scratchpad-card-meta { margin: 6px 12px 0 30px; padding-top: 5px; font-size: 12.5px; }
+
+.scratchpad-canvas .scratchpad-card.is-photo { grid-template-rows: 134px auto; padding: 9px 9px 0; }
+.scratchpad-canvas .scratchpad-card.is-photo .scratchpad-card-cover { width: 134px; height: 134px; }
+.scratchpad-canvas .scratchpad-card.is-photo .scratchpad-card-name { margin-top: 8px; font-size: 13px; }
+.scratchpad-canvas .scratchpad-card.is-photo .scratchpad-card-meta { font-size: 11.5px; }
+
+.scratchpad-canvas .scratchpad-card.is-film .scratchpad-card-name { right: 12px; bottom: 33px; left: 12px; font-size: 15px; }
+.scratchpad-canvas .scratchpad-card-edge { right: 9px; left: 9px; font-size: 11px; }
 
 /* 选中后的浮动菜单（展开整页）：一块墨色的板，跟着纸一起斜。按钮不描边（用户嫌纸色粗描边太重，2026-11-07）：
    方角、垫一档浅一点的黑（分区靠深浅，不靠线），悬停翻成纸色底墨色字。 */
