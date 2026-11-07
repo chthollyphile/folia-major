@@ -19,6 +19,21 @@ export const O = {
     syncToken: option(SERVICES, 'r2SyncToken', 'options.r2SyncToken'),
     discord: option(SERVICES, 'discordRichPresence', 'options.discordRichPresence', { electronOnly: true }),
     scrobble: option(SERVICES, 'scrobbleSettings', 'options.neteaseScrobble'),
+    wakeExternalPlayers: option(SERVICES, 'wakeExternalPlayersOnLaunch', 'options.wakeExternalPlayersOnLaunch', {
+        electronOnly: true,
+        // Only the Windows build steers a player of another program it can also start.
+        available: () => window.electron?.platform === 'win32',
+    }),
+    holdMediaKeys: option(SERVICES, 'holdMediaKeysForExternalPlayer', 'options.holdMediaKeysForExternalPlayer', {
+        electronOnly: true,
+        // The keys are held for that same Windows player.
+        available: () => window.electron?.platform === 'win32',
+    }),
+    closeExternalPlayerOnQuit: option(SERVICES, 'closeExternalPlayerOnQuit', 'options.closeExternalPlayerOnQuit', {
+        electronOnly: true,
+        // The quit is the Windows app's, the same player the row above wakes.
+        available: () => window.electron?.platform === 'win32',
+    }),
     transparentBackground: option(STREAMING, 'transparentPlayerBackground', 'options.transparentPlayerBackground'),
     obs: option(STREAMING, 'obsBrowserSource', 'options.obsBrowserSource', { electronOnly: true }),
     obsKeepAnimation: option(STREAMING, 'obsKeepMainWindowAnimation', 'options.obsKeepMainWindowAnimation', { electronOnly: true }),

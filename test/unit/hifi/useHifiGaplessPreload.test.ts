@@ -366,7 +366,7 @@ describe('useHifiGaplessPreload', () => {
         const queued = await pushSwitch();
         expect(useHifiTrackStore.getState().current).toMatchObject({ trackKey: queued.trackKey, promotedByGapless: true });
         expect(handleNextTrack).toHaveBeenCalledTimes(1);
-        expect(handleNextTrack).toHaveBeenCalledWith({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+        expect(handleNextTrack).toHaveBeenCalledWith({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
         expect(shimEvents).toEqual([]);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
         expect(api.stop).not.toHaveBeenCalled();

@@ -18,6 +18,12 @@ const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cj
 const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = require('./backgroundThrottling.cjs');
 const {
+  DISPLAY_MEDIA_ROUTE_SPECTRUM,
+  DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT,
+  createSpectrumArm,
+  decideDisplayMediaRoute,
+} = require('./displayMediaRoute.cjs');
+const {
   GPU_PREFERENCE_SETTING_KEY,
   applyGpuPreference,
   createActiveGpuReader,
@@ -81,6 +87,8 @@ const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
+const { createMediaKeyTakeover } = require('./mediaKeys.cjs');
+const { createQuitShutdownGate } = require('./quitShutdown.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -2573,6 +2581,22 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
+// The renderer's arm for the machine's own sound, for the external playback route's spectrum
+// (createSpectrumArm says what it guarantees).
+const externalSpectrumArm = createSpectrumArm({
+  onLapse: () => console.info('[ExternalSpectrum] The arm for the machine\'s sound lapsed unspent'),
+});
+// Set while the renderer holds the capture that arm bought: the window must stay live for it.
+let externalSpectrumCaptureActive = false;
+
+// A capture cannot outlive the page that asked for it, and its arm must not answer a later request.
+const forgetExternalSpectrumCapture = () => {
+  externalSpectrumArm.disarm();
+  if (!externalSpectrumCaptureActive) return;
+  externalSpectrumCaptureActive = false;
+  backgroundThrottling.refresh();
+};
+
 // The 后台节流 switch; refresh() wherever one of its stand-down reasons can change.
 const backgroundThrottling = createBackgroundThrottling({
   isEnabled: () => readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
@@ -2580,6 +2604,7 @@ const backgroundThrottling = createBackgroundThrottling({
     if (isWallpaperModeEnabled()) return 'wallpaper mode';
     if (videoExportWindowRestoreState) return 'video export';
     if (obsBrowserSourceClients.size > 0) return 'OBS browser source';
+    if (externalSpectrumCaptureActive) return 'system sound capture';
     return null;
   },
 });
@@ -3615,6 +3640,12 @@ function isSpeakerSelectionPermission(permission) {
   return permission === 'speaker-selection';
 }
 
+// getDisplayMedia's own permission. What it may capture is decided by the display-media request
+// handler below, which grants the main window a source only while one of its features armed it.
+function isDisplayCapturePermission(permission) {
+  return permission === 'display-capture';
+}
+
 function isAudioMediaPermission(permission, details) {
   if (permission !== 'media') {
     return false;
@@ -3630,6 +3661,7 @@ function isAllowedMainWindowPermission(permission, details) {
     isFontAccessPermission(permission) ||
     isClipboardWritePermission(permission) ||
     isSpeakerSelectionPermission(permission) ||
+    isDisplayCapturePermission(permission) ||
     isAudioMediaPermission(permission, details) ||
     permission === 'unknown'
   );
@@ -5791,6 +5823,8 @@ function fitMainWindowBoundsToExportSize(exportSize) {
   return { exportDpr, cssWidth, cssHeight };
 }
 
+// A session has one display-media request handler, and two features ask it for a source.
+//
 // Video export records the main window's own webContents (Chromium tab capture) instead of
 // picking an OS window out of desktopCapturer. Matching that window by id or title is
 // unreliable — under Wayland the portal returns nameless sources whose ids never match
@@ -5798,15 +5832,50 @@ function fitMainWindowBoundsToExportSize(exportSize) {
 // needs no OS capture permission, keeps rendering when the window is covered, and its frames
 // are exactly the content area. Requests are granted only to the main window while an export
 // has prepared the window, so nothing else can silently capture the player.
-function setupVideoExportDisplayMediaHandler() {
+//
+// The external playback route asks for the machine's own sound, so the visualizer can follow a song
+// another program is playing. Windows' loopback Streams is the only way to it: 'loopbackWithMute'
+// would silence what the listener hears, so it is never used. The video half is the main window's own
+// frame — the only source that needs no screen and no OS picker — and the renderer keeps that track
+// without ever reading a frame from it. Nothing is granted unless the renderer armed the capture for
+// this one call.
+function setupDisplayMediaRequestHandler() {
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     const requester = request.frame ? electronWebContents.fromFrame(request.frame) : null;
-    if (!videoExportWindowRestoreState || !isTrustedMainWindowContents(requester)) {
-      callback({});
+    const route = decideDisplayMediaRoute({
+      trusted: isTrustedMainWindowContents(requester),
+      videoExportActive: Boolean(videoExportWindowRestoreState),
+      spectrumCaptureArmed: externalSpectrumArm.isArmed(),
+      audioRequested: request.audioRequested === true,
+      platform: process.platform,
+    });
+
+    if (route === DISPLAY_MEDIA_ROUTE_SPECTRUM) {
+      // The arm buys one call: spending it here keeps a later request of the same renderer from
+      // being answered with the machine's sound.
+      externalSpectrumArm.spend();
+      // The window must stay live for the capture, even out of sight (backgroundThrottling.cjs).
+      externalSpectrumCaptureActive = true;
+      backgroundThrottling.refresh();
+      console.log('[ExternalSpectrum] Granting system-sound capture to the main window');
+      callback({ video: mainWindow.webContents.mainFrame, audio: 'loopback' });
       return;
     }
 
-    callback({ video: mainWindow.webContents.mainFrame });
+    if (route === DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT) {
+      callback({ video: mainWindow.webContents.mainFrame });
+      return;
+    }
+
+    if (externalSpectrumArm.isArmed() || videoExportWindowRestoreState) {
+      console.log('[ExternalSpectrum] Refused a display-media request', {
+        trusted: isTrustedMainWindowContents(requester),
+        audioRequested: request.audioRequested === true,
+        videoExport: Boolean(videoExportWindowRestoreState),
+        platform: process.platform,
+      });
+    }
+    callback({});
   });
 }
 
@@ -5921,6 +5990,15 @@ function createWindow(options = {}) {
   win.on('session-end', () => {
     modSystem?.noteNormalQuit();
   });
+  // A reload, or a jump to another page, is a new page: whatever capture the old one held went with
+  // it, and its arm must not be spent by the new page's own requests. The app's own view changes
+  // (pushState, a hash) are not (details.isSameDocument): the page that holds the capture stays.
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument && win === mainWindow) forgetExternalSpectrumCapture();
+  });
+  win.webContents.on('destroyed', () => {
+    if (win === mainWindow) forgetExternalSpectrumCapture();
+  });
   // The page itself did not load (-3 is a load given up for another, such as a reload): for the
   // start note that start went wrong, like a page whose process ended (below).
   win.webContents.on('did-fail-load', (_event, errorCode, _errorDescription, _url, isMainFrame) => {
@@ -5933,6 +6011,8 @@ function createWindow(options = {}) {
   win.webContents.on('render-process-gone', (_event, details) => {
     // Whatever ended it, the page that may have been stuck is gone.
     noteWindowNotStuck(win);
+    // The page that held the capture is gone too.
+    if (win === mainWindow) forgetExternalSpectrumCapture();
     if (win.__reopeningWithoutMods) {
       // Ended on purpose by offerReopenWithoutMods, which loads the page again itself.
       win.__reopeningWithoutMods = false;
@@ -6252,7 +6332,7 @@ app.whenReady().then(async () => {
   }
 
   setupFileSystemAccessPermissionHandlers();
-  setupVideoExportDisplayMediaHandler();
+  setupDisplayMediaRequestHandler();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
@@ -6525,10 +6605,18 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Windows desktop only: close the external player with Folia, so the DevTools port Folia opened it
+// with stops answering. Written by the renderer through `save-settings`, read here at the quit.
+// The renderer's own key for this switch (useDesktopSettingsStore.ts) is published already and
+// stays; this shared store's key is the upper-case one every other switch here uses.
+const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';
+
 // The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
 const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
 // Set while a quit is held for such work (see before-quit).
 let isQuitHeldForAccounts = false;
+// Which quit asks the bridges to shut down; the rules are in electron/quitShutdown.cjs.
+const quitShutdownGate = createQuitShutdownGate();
 
 app.on('before-quit', (event) => {
   // Work of a bridge that must not be cut off: a web sign-in under way, whose ended browser leaves
@@ -6537,11 +6625,22 @@ app.on('before-quit', (event) => {
   // while there is such work, settled in 3 seconds at most. The quit is held until all have
   // settled, and then asked for again; nothing below has run by then. A quit with no such work is
   // not held, and neither is one that arrives while another is held.
-  const held = quitHoldingBridges.map(bridge => bridge.shutdown()).filter(Boolean);
+  // The listener's settings row, read from the shared store the renderer writes through
+  // `save-settings`. Every bridge is asked the same way: the one that does not know the option
+  // ignores it.
+  let held = [];
+  if (quitShutdownGate.asks({ holding: isQuitHeldForAccounts })) {
+    const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) === true;
+    held = quitHoldingBridges.map(bridge => bridge.shutdown({ closePlayerOnQuit })).filter(Boolean);
+  }
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
-    void Promise.all(held).then(() => app.quit());
+    void Promise.all(held).then(() => {
+      // This is the quit they held, asked for again: the bridges were asked for by it already.
+      quitShutdownGate.resume();
+      app.quit();
+    });
     return;
   }
   isQuitHeldForAccounts = false;
@@ -6640,6 +6739,36 @@ ipcMain.handle('report-device-pixel-ratio', (event, ratio) => {
   if (Number.isFinite(dpr) && dpr > 0) {
     mainWindow.__dpr = dpr;
   }
+});
+
+// The external playback route's spectrum: the renderer arms the machine's own sound around one
+// getDisplayMedia call and disarms it again (see setupDisplayMediaRequestHandler). Only the main
+// window may arm it, so no other page can talk the handler into starting a system capture.
+ipcMain.handle('external-spectrum-capture-arm', (event, armed) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to arm system-sound capture.');
+  }
+
+  const next = armed === true;
+  if (next === externalSpectrumArm.isArmed()) return true;
+  if (next) {
+    externalSpectrumArm.arm();
+    console.log('[ExternalSpectrum] System-sound capture armed');
+  } else {
+    externalSpectrumArm.disarm();
+    console.log('[ExternalSpectrum] System-sound capture disarmed');
+  }
+  return true;
+});
+
+// The renderer reports the end of the capture it held (the route left the player, or the attempt
+// failed after the grant), so the window may be throttled again.
+ipcMain.handle('external-spectrum-capture-stopped', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer reported the end of system-sound capture.');
+  }
+  forgetExternalSpectrumCapture();
+  return true;
 });
 
 ipcMain.handle('get-settings', () => {
@@ -6762,7 +6891,8 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY ||
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
-    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY
+    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY ||
+    key === CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }
@@ -7673,6 +7803,25 @@ ipcMain.handle('global-shortcuts-backend', () => (
   usesGlobalShortcutsPortal({ ozonePlatform: app.commandLine.getSwitchValue('ozone-platform') }) ? 'portal' : 'native'
 ));
 
+// The system media keys while another program is the one that sounds Folia's songs: held only while
+// the renderer asks, which it does for as long as the player of that program keeps a media session of
+// its own (electron/mediaKeys.cjs says why, and who may ask).
+let externalMediaKeys = null;
+ipcMain.handle('external-media-keys-set', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to take the media keys.');
+  }
+  externalMediaKeys ??= createMediaKeyTakeover({
+    globalShortcut,
+    onKey: (action) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('external-media-key', action);
+      }
+    },
+  });
+  return externalMediaKeys.set(enabled === true);
+});
+
 ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to set global shortcuts.');
@@ -7685,6 +7834,7 @@ app.on('will-quit', () => {
   appleMusicClient.close();
   stageApi.dispose();
   globalShortcutController?.dispose();
+  externalMediaKeys?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();
   hifiInstaller.cancel();

@@ -920,6 +920,13 @@ declare global {
       setWallpaperHitRegions?: (rects: Array<{ left: number; top: number; width: number; height: number }>) => void;
       setPlaybackDisplaySleepBlockingActive: (active: boolean) => Promise<boolean>;
       /**
+       * Arms the machine's own sound for the one getDisplayMedia call that follows it: the external
+       * playback route's real spectrum. Resolves to whether the main process now holds the arm.
+       */
+      armExternalSpectrumCapture?: (armed: boolean) => Promise<boolean>;
+      /** Reports that the capture that arm bought is over, so the window may be throttled again. */
+      noteExternalSpectrumCaptureStopped?: () => Promise<boolean>;
+      /**
        * The 后台节流 switch for the main window: `active` while it is on and not standing down
        * (wallpaper, video export, OBS browser source); `hidden` while it is and the window is
        * minimised or hidden to the tray.
@@ -1066,6 +1073,9 @@ declare global {
       getGlobalShortcutBackend: () => Promise<'native' | 'portal'>;
       setGlobalShortcuts: (accelerators: string[]) => Promise<{ backend: 'native' | 'portal'; results: Array<{ accelerator: string; registered: boolean }> }>;
       onGlobalShortcut: (callback: (accelerator: string) => void) => () => void;
+      /** Holds the system media keys (true) or gives them back (false), for the time an external player sounds the song. */
+      setExternalMediaKeys: (enabled: boolean) => Promise<{ enabled: boolean; held: string[] }>;
+      onExternalMediaKey: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       openRemoteControl: () => Promise<boolean>;

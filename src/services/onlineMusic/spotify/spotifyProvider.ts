@@ -18,7 +18,8 @@ import { spotifyMutations } from './spotifyMutations';
 import { resetSpotifyRecommendations, spotifyRecommendations } from './spotifyRecommendations';
 import { describeSpotifyLoginFailure, spotifyLoginFailure } from './spotifyLoginFailure';
 import { describeSpotifyFailure } from './spotifyFailure';
-import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistOffered, spotifySoloistPlayback } from './spotifySoloistPlayback';
+import { readSpotifyPlaybackMode, spotifyClientOffered, spotifyPlaybackMode, spotifyPlaysExternally, spotifySoloistOffered } from './spotifySoloistPlayback';
+import { spotifyExternalPlayback } from './spotifyExternalPlayback';
 import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from './spotifySetup';
 
 // src/services/onlineMusic/spotify/spotifyProvider.ts
@@ -72,10 +73,11 @@ i18n.on('languageChanged', clearSpotifyCatalogCache);
 void readSpotifyPlaybackMode();
 
 // The two ways of signing in: the same sign-in in the browser (the library, the lyrics and the
-// search need it either way), and then one of the two ways Spotify plays (spotifySoloistPlayback.ts).
+// search need it either way), and then one of the ways Spotify plays (spotifySoloistPlayback.ts).
 const SPOTIFY_LOGIN_METHODS: LoginMethod[] = [
     { id: 'standard', labelKey: 'soloist.method.standard', iconKey: '', noteKey: 'soloist.method.standardNote' },
     { id: 'soloist', labelKey: 'soloist.method.soloist', iconKey: '', noteKey: 'soloist.method.soloistNote' },
+    { id: 'client', labelKey: 'soloist.method.client', iconKey: '', noteKey: 'soloist.method.clientNote' },
 ];
 
 export const spotifyProvider: OnlineMusicProvider = {
@@ -86,8 +88,8 @@ export const spotifyProvider: OnlineMusicProvider = {
     // `recommendations` is the radio tab: a personal FM, daily songs and playlists, each made of
     // what Spotify has for the account (spotifyRecommendations.ts). `personalFmModes` stays off:
     // the FM here has no modes. Spotify's recommendation page is the explore tab.
-    // `externalPlayback` follows the way Spotify plays: through Soloist, the app steers that program
-    // (`externalPlayback` below); else `playback.getAudioSource` gives a URL. `playback` stays on
+    // `externalPlayback` follows the way Spotify plays: through Soloist or Spotify's own app, the app
+    // steers that program (`externalPlayback` below); else `playback.getAudioSource` gives a URL. `playback` stays on
     // either way for `getSongDetail`.
     capabilities: {
         search: true, playback: true, lyrics: true, wordByWordLyrics: false, auth: true,
@@ -95,7 +97,9 @@ export const spotifyProvider: OnlineMusicProvider = {
         // `playlistSubscription` is albums and other people's playlists (`mutations.canSubscribe`).
         recommendations: true, explore: true, mutations: true, likes: true, playlistTrackMutations: true,
         playlistSubscription: true,
-        get externalPlayback() { return spotifyPlaysThroughSoloist(); },
+        // The songs sound outside Folia, steered from here, when Spotify plays through Soloist or through
+        // Spotify's own desktop app (spotifyExternalPlayback.ts); the standard way gives an audio URL.
+        get externalPlayback() { return spotifyPlaysExternally(); },
     },
     normalizeSong: normalizeSpotifySong, normalizeUser: normalizeSpotifyUser, normalizeCollection: normalizeSpotifyCollection,
     songMetadata: { getSongMetadata: createProviderSongMetadata },
@@ -199,13 +203,18 @@ export const spotifyProvider: OnlineMusicProvider = {
             resetSpotifyRecommendations();
             await requestSpotify('logout');
         },
-        // Two ways only where Soloist is offered (the desktop side says so); else the one sign-in.
-        // The way it plays now is picked to begin with: signing in again does not change it unasked.
+        // The ways offered are those the desktop side says it can do (Soloist; Spotify's own app on
+        // Windows); with none besides the standard way there is the one sign-in. The way it plays now
+        // is picked to begin with: signing in again does not change it unasked.
         async resolveLoginMethods() {
             const answer = await readSpotifyPlaybackMode();
-            if (!(answer?.soloist ?? spotifySoloistOffered())) return [];
+            const soloist = answer?.soloist ?? spotifySoloistOffered();
+            const client = answer?.client ?? spotifyClientOffered();
+            if (!soloist && !client) return [];
             const now = answer?.mode ?? spotifyPlaybackMode();
-            return SPOTIFY_LOGIN_METHODS.map(method => ({ ...method, preferred: method.id === now }));
+            return SPOTIFY_LOGIN_METHODS
+                .filter(method => method.id === 'standard' || (method.id === 'soloist' ? soloist : client))
+                .map(method => ({ ...method, preferred: method.id === now }));
         },
         // The way picked goes with the sign-in: the desktop side keeps it once Spotify approves.
         async startLogin(methodId) {
@@ -238,7 +247,7 @@ export const spotifyProvider: OnlineMusicProvider = {
         getSetup: getSpotifySetup,
         runSetupAction: runSpotifySetupAction,
     },
-    externalPlayback: spotifySoloistPlayback,
+    externalPlayback: spotifyExternalPlayback,
     catalog: spotifyCatalog,
     library: spotifyLibrary,
     mutations: spotifyMutations,

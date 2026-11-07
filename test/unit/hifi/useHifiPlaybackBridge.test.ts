@@ -295,7 +295,7 @@ describe('useHifiPlaybackBridge', () => {
 
         await pushState({ trackKey, status: 'ended', paused: true, durationSec: 180 });
         expect(handleNextTrack).toHaveBeenCalledTimes(1);
-        expect(handleNextTrack).toHaveBeenCalledWith({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+        expect(handleNextTrack).toHaveBeenCalledWith({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
         expect(api.stop).not.toHaveBeenCalled();
 
         // The same end pushed again (a snapshot, a coalesced repeat) is not a second end.

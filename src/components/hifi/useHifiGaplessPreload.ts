@@ -88,7 +88,7 @@ const followGaplessSwitch = async (track: HifiTrack, previous: HifiTrack | null,
         console.info('[HiFi] mpv switched gaplessly while a newer play was on its way, leaving the song to it', { trackKey: track.trackKey });
         return;
     }
-    await latest().handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+    await latest().handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
     const now = useHifiTrackStore.getState().current;
     if (!isHifiRoute() || now?.trackKey !== track.trackKey || !now.promotedByGapless) return;
     if (usePlaybackStore.getState().playerState !== PlayerState.IDLE) return;

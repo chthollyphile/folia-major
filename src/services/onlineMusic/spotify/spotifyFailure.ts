@@ -16,7 +16,7 @@ const NAMED: Record<string, OnlineFailureDetail> = {
     'Spotify refused the audio key for now': { case: 'retry-later' },
 };
 
-// Soloist's failures (electron/spotify/soloist.cjs), by the reason word the desktop side gives them:
+// Soloist's failures (electron/spotify/soloist.cjs) and the Spotify app's, by the reason word they are given:
 // one that setting it up mends (the program, its key, its pairing, a start that fails) is a source
 // that is not set up, and the failure offers the setup checklist; the program gone or refusing a
 // track may pass when tried again.
@@ -28,6 +28,9 @@ const SOLOIST_REASONS: Record<string, OnlineFailureDetail> = {
     'soloist-start': { case: 'not-configured' },
     'soloist-gone': { case: 'unreachable' },
     'soloist-refused': { case: 'refused' },
+    // Spotify's own desktop app is not on this computer (spotifyClientPlayback.ts): installing it, or
+    // another way to play, mends it, so the failure offers the setup checklist as well.
+    'client-missing': { case: 'not-configured' },
 };
 
 export const describeSpotifyFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {

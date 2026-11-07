@@ -46,6 +46,18 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
+/** Makes the status polling fail up to its back-off cap: four refusals, the next ask already 10s away. */
+const backOffStatusAsks = async () => {
+    omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+    omniMock.getExternalPlaybackStatus.mockClear();
+    const seen: number[] = [];
+    for (const step of [500, 2000, 4000, 8000]) {
+        await vi.advanceTimersByTimeAsync(step);
+        seen.push(omniMock.getExternalPlaybackStatus.mock.calls.length);
+    }
+    expect(seen).toEqual([1, 2, 3, 4]);
+};
+
 describe('external playback route', () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -88,7 +100,7 @@ describe('external playback route', () => {
         const playing = engine.beginExternalPlayback(song, 12);
         await flush();
         await playing;
-        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 12);
+        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 12, { userAction: true });
         expect(usePlaybackStore.getState().playbackRoute).toBe('external');
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
         // The old song is still on screen: observers keep what they had until the app shows the new one.
@@ -456,6 +468,74 @@ describe('external playback route', () => {
         expect(engine.getExternalSong()).toBeNull();
     });
 
+    it('asks a player that stopped answering ever more rarely, and one answer puts the ordinary rate back', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // The player stopped answering (it was closed, or its page is gone): every poll fails.
+        omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+        omniMock.getExternalPlaybackStatus.mockClear();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        // The next ask comes 2s after the first failure.
+        await vi.advanceTimersByTimeAsync(1999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+        // One more failure: 4s.
+        await vi.advanceTimersByTimeAsync(3999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
+        // One more: 8s.
+        await vi.advanceTimersByTimeAsync(7999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+        // The cap of 10s: it does not grow further, and the machine is not asked more often either.
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        // One answer puts the ordinary 500ms back.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(7);
+    });
+
+    // The player answered one of Folia's own commands, so it is still there: the next ask must not wait on the failure rate.
+    it('puts the ordinary rate back when the player answers a press of the listener', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await backOffStatusAsks();
+
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        expect(engine.resumeExternalPlayback()).toBe(true);
+        await flush();
+        // A press of play must not wait on the retry rate of a failure either.
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+    });
+
+    it('does the same for a pause and for the volume the app writes there', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await backOffStatusAsks();
+
+        // A pause too: the player took the pause.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
+        expect(engine.pauseExternalPlayback()).toBe(true);
+        await flush();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+
+        // Same for the volume Folia writes there: a good write says the page is still there.
+        await backOffStatusAsks();
+        useAudioSettingsStore.setState({ volume: 0.5 });
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.5);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+    });
     // Two providers play through players of their own (the companion, Spotify's Soloist): a song of
     // one does not replace a track sounding in the other.
     describe('moving between external players', () => {
@@ -742,5 +822,51 @@ describe('external playback route', () => {
             expect(engine.getExternalSong()).toBeNull();
             expect(omniMock.playSongExternally).not.toHaveBeenCalled();
         });
+    });
+});
+
+// The player answering through its coarse channel: said once in a run of Folia, whichever way it
+// comes and goes.
+describe('the player answering coarsely', () => {
+    let events: string[] = [];
+    let unsubscribe = () => {};
+
+    beforeEach(async () => {
+        vi.useFakeTimers();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0, currentSong: null });
+        omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
+        events = [];
+        unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'degraded') events.push(`degraded:${event.active}`);
+            if (event.type === 'ended') events.push('ended');
+        });
+    });
+
+    afterEach(() => {
+        unsubscribe();
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE });
+        vi.useRealTimers();
+    });
+
+
+    it('tells the fallback once in a run of Folia, not once an episode', async () => {
+        await engine.beginExternalPlayback(song);
+        engine.announceExternalPlayback();
+
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: true, degraded: true }));
+        await vi.advanceTimersByTimeAsync(1200);
+        expect(events.filter(event => event.startsWith('degraded:'))).toEqual(['degraded:true']);
+
+        // The player comes back to its precise channel and falls back again: the listener was told
+        // once already, and is not told again in this run.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 20000 }));
+        await vi.advanceTimersByTimeAsync(600);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', degraded: true }));
+        await vi.advanceTimersByTimeAsync(600);
+        expect(events.filter(event => event.startsWith('degraded:'))).toEqual(['degraded:true']);
     });
 });

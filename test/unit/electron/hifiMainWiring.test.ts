@@ -38,6 +38,7 @@ const RENDER_GONE_NAMES = [
     'process',
     'isMacWallpaperMode',
     'hifiSession',
+    'forgetExternalSpectrumCapture',
 ];
 
 const CLOSED_NAMES = [
@@ -83,18 +84,26 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
             process: { platform: 'linux' },
             isMacWallpaperMode: () => false,
             hifiSession,
+            forgetExternalSpectrumCapture: vi.fn(),
             ...overrides,
         };
         const handler = compileHandler(renderGoneBody, RENDER_GONE_NAMES, '_event, details');
-        return { run: (details: Deps) => handler(deps)(null, details), win: deps.win as ReturnType<typeof createWin>, hifiSession };
+        return {
+            run: (details: Deps) => handler(deps)(null, details),
+            win: deps.win as ReturnType<typeof createWin>,
+            hifiSession,
+            forgetCapture: deps.forgetExternalSpectrumCapture as ReturnType<typeof vi.fn>,
+        };
     };
 
     it('render-process-gone: stops mpv when the main page is not loaded again (killed, oom, crashed past the reload limit)', () => {
         for (const reason of ['killed', 'oom', 'crashed', 'launch-failed']) {
-            const { run, hifiSession, win } = renderGone();
+            const { run, hifiSession, win, forgetCapture } = renderGone();
             run({ reason });
             expect(hifiSession.stop, reason).toHaveBeenCalledTimes(1);
             expect(win.webContents.reload, reason).not.toHaveBeenCalled();
+            // 死掉的那个页面占着的采集随它一起去，不管进程是怎么结束的。
+            expect(forgetCapture, reason).toHaveBeenCalledOnce();
         }
     });
 
@@ -117,6 +126,8 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
         const otherWindow = renderGone({ mainWindow: createWin() });
         otherWindow.run({ reason: 'killed' });
         expect(otherWindow.hifiSession.stop).not.toHaveBeenCalled();
+        // 整机声音只有主窗口的页面能占着，所以也只有它的结束才清掉采集。
+        expect(otherWindow.forgetCapture).not.toHaveBeenCalled();
     });
 
     const closed = (overrides: Deps = {}) => {

@@ -585,6 +585,7 @@ export default {
     "playbackError": "播放出错",
     "loadingSong": "正在获取歌曲链接...",
     "preparingExternalPlayback": "正在准备播放...",
+    "externalPlayerUnreachable": "连不上 Spotify，已停在这首",
     "dataSynced": "数据同步成功",
     "syncFailed": "同步失败",
     "loginExpired": "登录状态已失效，请重新登录",
@@ -621,6 +622,7 @@ export default {
     "externalBypassTitle": "这首歌由平台自己的播放器播放",
     "externalBypassBody": "声音不经过 Folia，这里的均衡器和音效不会改变你听到的声音。设置会保留，播放其他歌曲时照常生效。",
     "externalReplayGainBypassed": "由平台自己的播放器播放，不应用 ReplayGain",
+    "externalPlayerFallback": "播放器目前经由系统媒体会话应答：远程调试恢复前，控制精度会降低",
     "songUnavailableAlternativeTitle": "可播放其他版本",
     "songUnavailableAlternativeDescription": "当前歌曲已下架，{{typeDesc}}。是否改为播放其他版本？",
     "songUnavailableAlternativeDefaultType": "存在可播放的其他版本",
@@ -871,6 +873,9 @@ export default {
       "settings-obs-browser-source": { "title": "OBS 浏览器源", "description": "打开 OBS 浏览器源设置" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS 连接时保持主窗口动画", "description": "切换 OBS 连接时主窗口是否继续渲染歌词动画" },
       "obs-toggle-track-card": { "title": "OBS 浏览器源显示歌曲信息卡片", "description": "切换 OBS 浏览器源里是否也画歌曲信息卡片" },
+      "external-player-wake-on-launch": { "title": "打开 Folia 时唤起外部播放器", "description": "切换打开 Folia 时是否一并启动出声的播放器" },
+      "external-player-close-on-quit": { "title": "Folia 退出时关闭外部播放器", "description": "切换 Folia 退出时是否关闭它启动的 Spotify" },
+    "external-player-hold-media-keys": { "title": "使用官方客户端时接管媒体键", "description": "切换外部播放器的官方客户端在运行时是否一直由 Folia 接管系统媒体键" },
       "desktop-toggle-lyric-api": { "title": "歌词接口", "description": "切换本地免鉴权歌词接口" },
       "settings-obs-copy-css": { "title": "复制 OBS CSS", "description": "复制 OBS 浏览器源的自定义 CSS，把上传的背景/立绘等资产带到 OBS" },
       "settings-storage": { "title": "存储设置", "description": "打开缓存和存储设置" },
@@ -2788,6 +2793,12 @@ export default {
     "remoteControlTextShadeHint": "透明背景下给闲置文字垫一层半透明黑底，亮色桌面上更易读",
     "openPlayerOnLaunch": "启动后直接进入播放界面",
     "openPlayerOnLaunchDesc": "应用启动时自动进入播放界面。跟随“播放后进入的视图”：选择 Lattice 时，启动后进入队列拼贴。",
+    "wakeExternalPlayersOnLaunch": "打开 Folia 时唤起外部播放器",
+    "wakeExternalPlayersOnLaunchDesc": "打开 Folia 时一并启动 Spotify 桌面版，第一首歌不用等它。Spotify 已开着但没带调试端口时，会被重启一次。",
+    "closeExternalPlayerOnQuit": "Folia 退出时关闭 Spotify",
+    "closeExternalPlayerOnQuitDesc": "退出 Folia 时关掉 Spotify 桌面版。只在它由 Folia 启动、或带着 Folia 的调试端口运行时才关。",
+    "holdMediaKeysForExternalPlayer": "使用官方客户端时始终接管媒体键",
+    "holdMediaKeysForExternalPlayerDesc": "开着时，用官方客户端方式期间媒体键一直由 Folia 处理，暂停或队列放完后也是；关掉时只在 Spotify 放 Folia 的歌时接管。接管期间其他程序收不到媒体键。",
     "wallpaperMode": "壁纸模式",
     "wallpaperModeDesc": "窗口沉到桌面最底层，作为歌词壁纸。键盘不可用",
     "wallpaperModeMacPermissionHint": "Mac 壁纸模式需要“输入监控”权限：请在 系统设置 → 隐私与安全性 → 输入监控 中勾选 Folia 然后重启应用。",
@@ -5244,13 +5255,17 @@ export default {
       "standard": "标准播放",
       "standardNote": "在浏览器里登录 Spotify，歌曲由 Folia 自己播放。均衡器、Automix 和跟着音乐跳动的效果都能用。",
       "soloist": "Soloist 播放",
-      "soloistNote": "在浏览器里登录 Spotify，歌曲交给 Spotify 官方的 Soloist 程序播放，适合拿不到音频密钥的账号。需要另外下载 Soloist，并用 Premium 账号生成一把 API 密钥。"
+      "soloistNote": "在浏览器里登录 Spotify，歌曲交给 Spotify 官方的 Soloist 程序播放，适合拿不到音频密钥的账号。需要另外下载 Soloist，并用 Premium 账号生成一把 API 密钥。",
+      "client": "官方客户端播放",
+      "clientNote": "在浏览器里登录 Spotify，歌曲交给这台电脑上的 Spotify 桌面版播放，免费账号也能用。需要先装好 Spotify 桌面版；Folia 会以本机调试端口（只监听 127.0.0.1）启动它来控制播放。声音不经过 Folia，均衡器和效果器不生效。仅限 Windows。"
     },
     "setup": {
       "title": "Spotify Soloist 播放设置",
       "note": "Soloist 是 Spotify 官方的播放程序，装在这台电脑上，自己把声音送到系统输出；Folia 控制它，并跟着它的进度显示歌词。Folia 的均衡器、Automix 和跟着音乐跳动的效果不处理它的声音。",
       "titleStandard": "Spotify 播放方式",
-      "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。"
+      "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。",
+      "clientTitle": "Spotify 官方客户端播放设置",
+      "clientNote": "Spotify 桌面版装在这台电脑上，自己把声音送到系统输出；Folia 控制它，并跟着它的进度显示歌词。Folia 会以只在本机（127.0.0.1）监听的调试端口启动它，你点播放时它没开也会被重新拉起。声音不经过 Folia，所以 Folia 的均衡器、Automix 和跟着音乐跳动的效果对它不起作用。"
     },
     "noKey": {
       "title": "这个账号拿不到 Spotify 的音频密钥",
@@ -5261,12 +5276,16 @@ export default {
       "key": "API 密钥",
       "pair": "配对设备",
       "modeStandard": "播放方式：标准",
-      "modeSoloist": "播放方式：Soloist"
+      "modeSoloist": "播放方式：Soloist",
+      "modeClient": "播放方式：官方客户端",
+      "clientApp": "Spotify 桌面版"
     },
     "mode": {
       "standardNote": "Spotify 的歌曲由 Folia 自己播放。",
       "soloistNote": "Spotify 的歌曲由 Soloist 播放。",
-      "noKeyNote": "Folia 自己的播放方式放不了这个账号的歌。"
+      "noKeyNote": "Folia 自己的播放方式放不了这个账号的歌。",
+      "clientNote": "Spotify 的歌曲由 Spotify 桌面版播放，声音不经过 Folia。",
+      "freeNote": "这是免费账号，Spotify 不允许 Folia 自己播放它的歌。"
     },
     "program": {
       "todo": "从 Spotify 官方页面下载适合这台电脑的 Soloist，解压后选择里面的 soloist 程序（Windows 上是 soloist.exe）。Folia 不附带这个程序。",
@@ -5301,7 +5320,16 @@ export default {
       "download": "官方下载页",
       "keyPage": "打开开发者控制台",
       "saveKey": "保存密钥",
-      "reconnect": "重新连接"
+      "reconnect": "重新连接",
+      "useClient": "改用官方客户端播放"
+    },
+    "clientApp": {
+      "ready": "已找到 Spotify 桌面版。",
+      "missing": "没有找到 Spotify 桌面版。请先从 spotify.com/download 或微软商店安装，再回来播放。"
+    },
+    "free": {
+      "title": "这是免费账号",
+      "note": "Spotify 只让 Premium 账号在 Folia 里播放。免费账号可以改用 Spotify 桌面版播放：Folia 控制它，声音由它输出。需要先装好 Spotify 桌面版，仅限 Windows。"
     },
     "message": {
       "picked": "已选好程序。",

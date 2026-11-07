@@ -8,8 +8,9 @@ import { PlatformMark, platformMarkOf } from '../PlatformMark';
 import '../login.css';
 
 // src/components/login/window/LoginWindow.tsx
-// 登录窗口的框和版面：772 宽、至少 420 高，左边是平台的那一列，右边上面是标题，下面是那一块画和它
-// 旁边的话。框是共用的 Sheet（背后的遮罩、焦点留在窗口里、关闭按钮、Esc、点遮罩关闭都是它的）。
+// 登录窗口的框和版面：772 宽、420 高，左边是平台的那一列，右边上面是标题，下面是那一块画和它
+// 旁边的话。框是共用的 Sheet（背后的遮罩、焦点留在窗口里、关闭按钮、Esc、点遮罩关闭都是它的）；
+// 窗口开着就是这一个大小，换了页面也不变，装不下的内容在右边那块里滚动。
 // 窗口带一点正在看的那个平台的颜色；等待时从那一块画往外走的圈也画在窗口的底上。
 // 应用的窗口比它窄的时候，那一列横到上面成一排，那一块画站到话的上面。
 // 窗口从按下去的那个东西的那一边出来，平台的记号从那里走进标题。
@@ -95,7 +96,7 @@ type LoginWindowProps = {
     column: (lie: 'column' | 'row') => React.ReactNode;
     tile: React.ReactNode;
     message: React.ReactNode;
-    /** 那一块画和话的下面：展开的详情。只有它让窗口变高，往下长。 */
+    /** 那一块画和话的下面：展开的详情、平台给的配置清单。它不改变窗口的大小，装不下就在窗口里滚动。 */
     below?: React.ReactNode;
     /** 按下去打开窗口的那个东西在哪：窗口从那一边出来。 */
     origin?: LoginOrigin | null;

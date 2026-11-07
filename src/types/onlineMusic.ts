@@ -487,10 +487,38 @@ export interface ProviderExternalPlaybackStatus {
     durationMs: number;
     /** The player's own state says the track ran out. */
     ended: boolean;
+    /**
+     * With `ended`: the player was moved off the track by its own controls rather than by running
+     * out, and the app's queue takes the step in this direction instead of its usual advance.
+     */
+    skipped?: 'next' | 'previous';
     /** An intentional player-side seek, so small backward jumps must not be smoothed away. */
     seeking?: boolean;
     /** The player accepted a start/resume and is still buffering; this is not a user pause. */
     starting?: boolean;
+    /**
+     * The player is sounding an advertisement between songs (a free account has some). Folia only
+     * recognises it, so that it is never taken for the song's end or for a track it did not ask
+     * for: nothing about the advertisement is shown, muted or otherwise changed.
+     */
+    advertisement?: boolean;
+    /**
+     * The answer came from the player's fallback channel (Windows' media session) rather than the
+     * one that can be steered precisely: the app still follows it, coarsely. Told once per episode.
+     */
+    degraded?: boolean;
+}
+
+/**
+ * Who asked for a song to be started in a player outside Folia.
+ */
+export interface ExternalPlaybackStartOptions {
+    /**
+     * false only for an advance Folia made by itself at the end of a song, never for a press. A
+     * player that would have to be started or restarted for it is not woken, and reports that it
+     * cannot take the song instead.
+     */
+    userAction?: boolean;
 }
 
 /**
@@ -499,6 +527,46 @@ export interface ProviderExternalPlaybackStatus {
  * Only the song's own provider can answer these calls.
  */
 export interface OnlineExternalPlaybackProvider {
+    /**
+     * Starts the player itself, for a player that has to be running before anything can sound in
+     * it. Absent where the player needs no start. Called once, at launch, and only where the
+     * listener asked for it (omni.warmUpExternalPlayers).
+     */
+    warmUp?(): Promise<void>;
+    /**
+     * Whether an advance the app made by itself (the track ended, the queue moved on) that this
+     * player cannot take stops the playback where it is with one line said, instead of failing the
+     * song. True for a player that would have to be started again for it; absent or false elsewhere.
+     */
+    stopsAutoAdvanceWhenUnreachable?(): boolean;
+    /**
+     * Whether `error` means the player itself could not be reached, as opposed to a song it will not
+     * play or a setting that is missing. Read only where `stopsAutoAdvanceWhenUnreachable` is true:
+     * the failures that are not this one take the ordinary path of a song that did not play.
+     */
+    isUnreachableFailure?(error: unknown): boolean;
+    /**
+     * Whether the system media keys belong to this player while a track of Folia's sounds in it
+     * (the player registers a media session of its own, so a key Folia does not hold goes to it).
+     * True only where the player is steered by its own program with its own queue; absent or false
+     * leaves the keys to the app's own media session.
+     */
+    holdsMediaKeys?(): boolean;
+    /**
+     * Whether this player asks for the system media keys for as long as Folia runs, not only while a
+     * track of Folia's sounds in it: its own program keeps a media session of its own between those
+     * tracks too, so a key let go while Folia is idle, on another route or after that program stopped
+     * is taken by it and never comes back to Folia. Read only where the listener left the setting
+     * that holds the keys for the whole run on; absent or false leaves the keys to the session rule
+     * above.
+     */
+    holdsMediaKeysWhileRunning?(): boolean;
+    /**
+     * Notified when `holdsMediaKeysWhileRunning` may have changed - the way this player plays is picked
+     * in its own setup, which is not a change of Folia's state. Absent where nothing but the session
+     * decides, which the app already follows from the player's answers.
+     */
+    subscribeMediaKeysWanted?(listener: () => void): () => void;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
@@ -506,7 +574,7 @@ export interface OnlineExternalPlaybackProvider {
     /** Whether a handoff can reuse an already prepared successor (not a guarantee of buffered audio). */
     isPrepared?(song: SongResult): boolean;
     /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
-    play(song: SongResult, startSec: number): Promise<void>;
+    play(song: SongResult, startSec: number, options?: ExternalPlaybackStartOptions): Promise<void>;
     /**
      * The player already has `song` loaded (started by a window of this app that is gone): take it
      * as this provider's current playback without starting it, so successors can be prepared for it.
@@ -517,6 +585,23 @@ export interface OnlineExternalPlaybackProvider {
     seek(seconds: number): Promise<void>;
     /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
     setVolume?(volume: number): Promise<void>;
+    /**
+     * Where the player is on `song` right now, in milliseconds, or null where it is not running that
+     * song (another track, nothing loaded, a read that failed). For a song restored while the player
+     * kept sounding it through a restart. A read only: nothing is started, resumed or paused for it.
+     * Absent where the player cannot be asked without being steered.
+     */
+    runningPositionMs?(song: SongResult): Promise<number | null>;
+    /**
+     * What the player has for `song` when the session restored at launch asks: one read, nothing
+     * cached. Absent where the player cannot be asked without steering it. The read may look for the
+     * way this app steers the player, because a player of its own outlives the app and need not run
+     * the way this run started, so a provider that may be playing a song nobody here started overrides
+     * it. A read only: nothing is started, resumed or paused for it. Where the player cannot be
+     * reached, the answer names no track. An answer from a coarse channel may still name `song` where
+     * the track it shows is that song, by the title and the artist it shows; that answer is `degraded`.
+     */
+    runningStatus?(song: SongResult): Promise<ProviderExternalPlaybackStatus | null>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */

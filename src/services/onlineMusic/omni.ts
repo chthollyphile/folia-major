@@ -6,6 +6,7 @@ import type {
     DailyStyleGroup,
     DailyStyleSelection,
     DailyStyleSongs,
+    ExternalPlaybackStartOptions,
     LoginStep,
     MediaId,
     OmniAudioSource,
@@ -1122,12 +1123,12 @@ export const omni = {
         return canPlaySongExternally(song);
     },
 
-    async playSongExternally(song: SongResult, startSec = 0): Promise<void> {
+    async playSongExternally(song: SongResult, startSec = 0, options: ExternalPlaybackStartOptions = {}): Promise<void> {
         const provider = providerForSong(song);
         if (!providerSupports(provider, 'externalPlayback') || !provider.externalPlayback) {
             return unsupported(provider.id, 'externalPlayback');
         }
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec));
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec, options));
     },
 
     // A window rebuild keeps the player sounding: the new window takes the running song over
@@ -1158,10 +1159,63 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.resume());
     },
 
+    // Whether an advance Folia made by itself that the external player cannot take stops where it is,
+    // instead of failing the song: only a player that would have to be started again for it, and only
+    // when the failure is that player being out of reach (a song it will not play, or a way to play
+    // that is not set up, takes the ordinary path of a play that failed).
+    stopsAutoAdvanceWhenExternalUnreachable(song: SongResult, error: unknown): boolean {
+        const external = providerForSong(song).externalPlayback;
+        if (external?.stopsAutoAdvanceWhenUnreachable?.() !== true) return false;
+        return external.isUnreachableFailure?.(error) === true;
+    },
+
+    // Whether the system media keys belong to the external player while it sounds this song: the one
+    // that keeps a media session of its own takes a key Folia gave back, so Folia holds it instead.
+    holdsExternalPlaybackMediaKeys(song: SongResult): boolean {
+        return getOnlineMusicProviderForSong(song)?.externalPlayback?.holdsMediaKeys?.() === true;
+    },
+
+    // Whether some player asks for the system media keys for as long as Folia runs, not only while a
+    // track of Folia's sounds in it: that player's own program keeps a media session of its own
+    // between songs, so a key Folia let go is taken by it (the provider's declaration says why). The
+    // app asks no provider which song is on screen: the answer is about that program, not a track.
+    wantsMediaKeyTakeoverWhileRunning(): boolean {
+        return listOnlineMusicProviders().some(provider => provider.externalPlayback?.holdsMediaKeysWhileRunning?.() === true);
+    },
+
+    // Told when that answer may have changed: the way a player plays is picked in its own setup, and
+    // nothing of Folia's state changes with it. A provider that cannot be told is asked on every
+    // change of Folia's state instead.
+    subscribeMediaKeyTakeoverWanted(listener: () => void): () => void {
+        const stops = listOnlineMusicProviders()
+            .map(provider => provider.externalPlayback?.subscribeMediaKeysWanted?.(listener))
+            .filter((stop): stop is () => void => typeof stop === 'function');
+        return () => {
+            for (const stop of stops) stop();
+        };
+    },
+
     async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
         await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
+    },
+
+    // Starts every registered provider's own player that has a start to give (a player that has to
+    // be running before a song can sound in it), for the setting that wakes it with the app. A
+    // provider that fails, or that has no external player here, does not stop the others.
+    async warmUpExternalPlayers(): Promise<void> {
+        for (const provider of listOnlineMusicProviders()) {
+            // A provider whose external player is only sometimes on (by the way it plays)
+            // decides inside its own warmUp.
+            const external = provider.externalPlayback;
+            if (!external?.warmUp) continue;
+            try {
+                await external.warmUp();
+            } catch (error) {
+                console.warn(`[Omni] ${provider.id}'s own player could not be started`, error);
+            }
+        }
     },
 
     // A player without its own level control is left alone: the call is a no-op, not an error.
@@ -1179,6 +1233,25 @@ export const omni = {
 
     isExternalPlaybackStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isStatusForSong(song, status) === true;
+    },
+
+    // Where a provider's own player is on this song right now, in milliseconds, or null where it is
+    // not running it and where its player cannot be asked. Read once for a restored song, which shows
+    // that position; nothing is started, resumed or paused for it.
+    async getExternalPlaybackRunningPositionMs(song: SongResult): Promise<number | null> {
+        const external = getOnlineMusicProviderForSong(song)?.externalPlayback;
+        if (!external?.runningPositionMs) return null;
+        return await external.runningPositionMs(song);
+    },
+
+    // What a provider's own player has for this song right now, for a session restored at launch: a
+    // track it is playing is taken over as it stands, anything else is only shown where it is. One
+    // read, which for a player with a port of its own may be the run's one search for that port.
+    // Nothing is started, resumed or paused for it.
+    async getExternalPlaybackRunningStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus | null> {
+        const external = getOnlineMusicProviderForSong(song)?.externalPlayback;
+        if (!external?.runningStatus) return null;
+        return await external.runningStatus(song);
     },
 
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;

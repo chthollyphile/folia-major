@@ -115,6 +115,12 @@ contextBridge.exposeInMainWorld('electron', {
     },
     setWallpaperHitRegions: (rects) => ipcRenderer.send('wallpaper-hit-regions', rects),
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
+    // Puts the display-media handler on the machine's own sound for one getDisplayMedia call (the
+    // external playback route's spectrum). Windows only: the handler refuses everywhere else.
+    armExternalSpectrumCapture: (armed) => ipcRenderer.invoke('external-spectrum-capture-arm', armed === true),
+    // Reports that the renderer no longer holds the captured sound: the main window may be throttled
+    // again, and the capture cannot outlive the page that asked for it.
+    noteExternalSpectrumCaptureStopped: () => ipcRenderer.invoke('external-spectrum-capture-stopped'),
     getBackgroundThrottlingState: () => ipcRenderer.invoke('background-throttling-get'),
     onBackgroundThrottlingChanged: (callback) => {
         const listener = (_event, state) => callback(state);
@@ -263,6 +269,12 @@ contextBridge.exposeInMainWorld('electron', {
         const listener = (_event, accelerator) => callback(accelerator);
         ipcRenderer.on('global-shortcut-triggered', listener);
         return () => ipcRenderer.removeListener('global-shortcut-triggered', listener);
+    },
+    setExternalMediaKeys: (enabled) => ipcRenderer.invoke('external-media-keys-set', enabled),
+    onExternalMediaKey: (callback) => {
+        const listener = (_event, action) => callback(action);
+        ipcRenderer.on('external-media-key', listener);
+        return () => ipcRenderer.removeListener('external-media-key', listener);
     },
     updateTaskbarControls: (state) => ipcRenderer.invoke('thumbar-update-buttons', state),
     onTaskbarControl: (callback) => {
