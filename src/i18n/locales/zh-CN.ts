@@ -40,9 +40,8 @@ export default {
     "alreadyInAll": "这些歌都已在速记簿里",
     "full": "速记簿满了（最多 {{count}} 首），先清掉一些",
     "saveFailed": "速记簿没存上（本机存储已满），重启后这次改动会丢失",
-    "expandCanvas": "展开成画布",
-    "collapseCanvas": "收回列表",
-    "canvasHint": "拖动卡片排序。框选或按住 {{mod}} 点击来多选，Shift 点击选一段。触屏上长按卡片再拖，选中一张后点别的卡片加选。",
+    "expandCanvas": "展开整页",
+    "collapseCanvas": "收回侧栏",
     "selectGroup": "选中本组",
     "enqueueGroup": "本组全部入队",
     "addGroupToPlaylist": "本组加入歌单…",
@@ -54,15 +53,49 @@ export default {
     "queue": "播放队列",
     "queueHint": "正在播的这份队列。点一首就播它；展开后能多选、拖动排序。",
     "queueEmpty": "播放队列是空的。",
+    "historyHint": "最近 7 天放过的歌，一天一组，新的在上。",
+    "historyListHint": "点一首插进队列播放；展开整页后能框选、从播放历史删除。",
+    "shuffleQueue": "打乱队列",
+    "nowPlaying": "正在播放",
+    "playedHidden_one": "已播放 {{count}} 首 · 已收起，点开",
+    "playedHidden_other": "已播放 {{count}} 首 · 已收起，点开",
+    "playedShown_one": "已播放 {{count}} 首 · 点一下收起",
+    "playedShown_other": "已播放 {{count}} 首 · 点一下收起",
+    "historyBandHint": "按时间排 · 不能拖动重排 · 双击播放",
+    "expandPage": "展开整页",
+    "crumb": "展开 › {{page}}",
+    "jumpTo": "跳到",
+    "tipsTitle": "操作",
+    "locateCurrent": "定位正在播放",
+    "tipMarqueeKey": "拖空白",
+    "tipMarquee": "框选",
+    "tipAddKey": "{{mod}} + 点",
+    "tipAdd": "加选",
+    "tipReorderKey": "拖卡片",
+    "tipReorderGroup": "组内重排",
+    "tipReorder": "重排",
+    "tipPlayKey": "双击",
+    "tipPlay": "播放",
+    "tipDeleteKey": "Delete",
+    "tipDelete": "删记录",
+    "tipEscKey": "Esc",
+    "tipEsc": "取消选择",
+    "overview": "三行总览",
+    "crumbOverview": "{{title}} › 展开",
+    "overviewMore_one": "还有 {{count}} 首",
+    "overviewMore_other": "还有 {{count}} 首",
+    "overviewQueueMore_one": "接下来还有 {{count}} 首",
+    "overviewQueueMore_other": "接下来还有 {{count}} 首",
+    "overviewRemove": "移除",
+    "overviewRemoveQueueHint": "队列里的歌到「播放队列」那一页移出",
+    "overviewHelpLabel": "操作说明",
+    "overviewHelp": "空白处拖动框选（可以跨行），按住 {{mod}} 加选；双击播放；点信息条上的「展开整页」看全部、拖动重排",
     "playFromQueue": "播放这首",
     "playNext": "下一首播放",
     "moveToEnd": "移到末尾",
     "removeFromQueue": "移出队列",
     "cannotRemoveCurrent": "正在播放的这首不能移出队列",
     "originQueue": "播放队列",
-    "queueCanvasHint": "按箭头顺序播放。双击播放，拖动卡片调整顺序；框选或按住 {{mod}} / Shift 点击可多选。",
-    "queueCanvasHintReadOnly": "按箭头顺序播放。双击播放；框选或按住 {{mod}} / Shift 点击可多选。当前队列不能调整。",
-    "historyCanvasHint": "时间轴从新到旧穿过每一天。框选或按住 {{mod}} 点击来多选，Shift 点击选一段，双击播放；选中后按 Delete 从播放历史删除。",
     "deleteFromHistory": "从播放历史删除",
     "historyDeleted_one": "已从播放历史删除 {{count}} 首",
     "historyDeleted_other": "已从播放历史删除 {{count}} 首",
@@ -579,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} 暂未提供歌单库。",
     "songUnavailable": "歌曲已下架",
     "externalPlayerMovedOn": "播放器已换到其他歌曲，已暂停",
+    "externalVideoExportUnavailable": "这首歌由平台自己的播放器播放，声音不经过 Folia，无法导出视频。",
+    "externalBypassTitle": "这首歌由平台自己的播放器播放",
+    "externalBypassBody": "声音不经过 Folia，这里的均衡器和音效不会改变你听到的声音。设置会保留，播放其他歌曲时照常生效。",
+    "externalReplayGainBypassed": "由平台自己的播放器播放，不应用 ReplayGain",
     "songUnavailableAlternativeTitle": "可播放其他版本",
     "songUnavailableAlternativeDescription": "当前歌曲已下架，{{typeDesc}}。是否改为播放其他版本？",
     "songUnavailableAlternativeDefaultType": "存在可播放的其他版本",
@@ -795,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "偏好设置", "description": "调整保存在账号上、影响推荐的偏好" },
       "settings-help": { "title": "打开帮助", "description": "打开帮助和快捷键" },
       "ponder-current-page": { "title": "思索当前页面", "description": "打开当前页面的交互式介绍" },
+      "provider-playback-setup": { "title": "平台播放设置", "description": "打开当前平台的播放配置清单" },
       "settings-options": { "title": "打开选项", "description": "打开设置中心" },
       "settings-now-playing-card-position": { "title": "调整卡片位置", "description": "拖动正在播放卡片到新的位置" },
       "settings-ai-provider": { "title": "AI 供应商设置", "description": "选择 AI 供应商和模型" },
@@ -1628,6 +1666,14 @@ export default {
     "rowSignedOut": "未登录",
     "signInRanOut": "登录已过期",
     "readingAccount": "正在读取账号…",
+    "checkingAccount": "正在检查这个账号能否播放…",
+    "setupOpen": "播放设置",
+    "setupDone": "完成",
+    "setupLater": "稍后再说",
+    "setupBack": "返回",
+    "setupSecretChange": "更换",
+    "setupSecretCancel": "保留已存的",
+    "setupState": { "done": "已完成", "todo": "待完成", "warn": "需要注意", "error": "出错" },
     "openBrowser": "打开浏览器",
     "details": "详情",
     "retryIn": "{{seconds}} 秒后可重试",
@@ -1699,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "可能需要会员才能播放",
     "noteMaybeRegion": "可能受地区限制",
     "skipCountdown": "{{seconds}} 秒后跳到下一首",
-    "signIn": "登录"
+    "signIn": "登录",
+    "openSetup": "播放设置"
   },
   "home": {
     "welcome": "欢迎使用 Folia",
@@ -2446,6 +2493,12 @@ export default {
     "scratchpadShowHandleDesc": "窗口左缘的那道把手。关掉后仍可用 Ctrl / ⌘ + J 或命令面板打开速记簿。",
     "scratchpadHandlePosition": "悬浮标签高度",
     "scratchpadHandlePositionDesc": "把手在左缘上的位置，0% 在最上面，100% 贴近窗口底部。中段会和 Bravais 信息条收起后的标签叠在一起。",
+    "scratchpadHandleStyle": "悬浮标签样式",
+    "scratchpadHandleStyleDesc": "指针没到左缘时，标签只露一点点、半透明，不打扰页面；指针移到左缘才展开成完整的标签。",
+    "scratchpadHandleStyleStrip": "米白小条",
+    "scratchpadHandleStyleLine": "细竖线",
+    "scratchpadHandleStyleDot": "小圆点",
+    "scratchpadHandleStyleShapes": "几何体",
     "showHomeTabPlaylist": "显示歌单",
     "showHomeTabRadio": "显示推荐",
     "showHomeTabExplore": "显示探索",
@@ -5153,6 +5206,81 @@ export default {
       "subtitle": "尽情享受您的音乐之旅。"
     }
   },
+  "soloist": {
+    "method": {
+      "standard": "标准播放",
+      "standardNote": "在浏览器里登录 Spotify，歌曲由 Folia 自己播放。均衡器、Automix 和跟着音乐跳动的效果都能用。",
+      "soloist": "Soloist 播放",
+      "soloistNote": "在浏览器里登录 Spotify，歌曲交给 Spotify 官方的 Soloist 程序播放，适合拿不到音频密钥的账号。需要另外下载 Soloist，并用 Premium 账号生成一把 API 密钥。"
+    },
+    "setup": {
+      "title": "Spotify Soloist 播放设置",
+      "note": "Soloist 是 Spotify 官方的播放程序，装在这台电脑上，自己把声音送到系统输出；Folia 控制它，并跟着它的进度显示歌词。Folia 的均衡器、Automix 和跟着音乐跳动的效果不处理它的声音。",
+      "titleStandard": "Spotify 播放方式",
+      "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。"
+    },
+    "noKey": {
+      "title": "这个账号拿不到 Spotify 的音频密钥",
+      "note": "Spotify 不给这个账号发放音频密钥，Folia 自己的播放方式放不了它的歌（2024 年底以后注册的账号常见）。可以改用 Spotify 官方的 Soloist 播放：下载 Soloist 程序，用 Premium 账号生成一把 API 密钥，再在 Spotify 应用里选一次设备。歌单、歌词和搜索不受影响。"
+    },
+    "step": {
+      "program": "Soloist 程序",
+      "key": "API 密钥",
+      "pair": "配对设备",
+      "modeStandard": "播放方式：标准",
+      "modeSoloist": "播放方式：Soloist"
+    },
+    "mode": {
+      "standardNote": "Spotify 的歌曲由 Folia 自己播放。",
+      "soloistNote": "Spotify 的歌曲由 Soloist 播放。",
+      "noKeyNote": "Folia 自己的播放方式放不了这个账号的歌。"
+    },
+    "program": {
+      "todo": "从 Spotify 官方页面下载适合这台电脑的 Soloist，解压后选择里面的 soloist 程序（Windows 上是 soloist.exe）。Folia 不附带这个程序。",
+      "valid": "版本 {{version}}，{{expires}} 到期，还剩 {{days}} 天。",
+      "expiring": "版本 {{version}}，还剩 {{days}} 天就到期（{{expires}}）。每个构建只能用 90 天，请下载新版，解压后重新选择。",
+      "unknown": "版本 {{version}}。读不出这个构建的日期，不知道什么时候到期。每个构建只能用 90 天，到期后 Soloist 会拒绝启动。",
+      "clock": "这个构建的日期比这台电脑的时间还晚，可能是系统时间不对，剩余天数算不准。",
+      "expired": "这个构建已经过期（{{expires}}），Soloist 不会再启动。请下载新版，解压后重新选择。",
+      "missing": "找不到之前选的程序，可能被移动或删除了。请重新选择。",
+      "invalid": "选的文件不是能运行的 Soloist 程序。请重新选择。"
+    },
+    "key": {
+      "label": "Soloist API 密钥",
+      "todo": "用 Premium 账号打开 Spotify 开发者控制台，生成 Soloist 的 API 密钥，填在下面。密钥用系统钥匙串加密后保存在这台电脑上。Soloist 只能从命令行接收密钥，它运行时这台电脑上的其他用户能在进程列表里看到它。",
+      "saved": "密钥已加密保存。Soloist 只能从命令行接收密钥，它运行时这台电脑上的其他用户能在进程列表里看到它。",
+      "locked": "系统钥匙串现在打不开，读不出保存的密钥。解锁钥匙串后点「重新连接」。",
+      "noKeychain": "这台电脑没有可用的系统钥匙串（例如 Linux 的 basic_text），密钥无法安全保存，所以不保存。",
+      "unreadable": "保存的密钥读不出来（可能换过系统账号或钥匙串）。请重新填一次。"
+    },
+    "pair": {
+      "done": "已配对，可以播放。",
+      "waiting": "先完成上面两步。",
+      "todo": "在同一局域网里的 Spotify 应用（手机或电脑）上打开设备列表，选择「Folia」。只需要做一次，之后会自动登录。",
+      "starting": "Soloist 还没启动。",
+      "startFailed": "Soloist 没能启动。确认程序和密钥都对，然后点「重新连接」。"
+    },
+    "action": {
+      "useStandard": "改回标准播放",
+      "useSoloist": "改用 Soloist 播放",
+      "pick": "选择已下载的程序",
+      "pickAgain": "重新选择",
+      "download": "官方下载页",
+      "keyPage": "打开开发者控制台",
+      "saveKey": "保存密钥",
+      "reconnect": "重新连接"
+    },
+    "message": {
+      "picked": "已选好程序。",
+      "pickedExpired": "这个构建已经过期，没有使用。请下载新版。",
+      "pickedInvalid": "这个文件不是能运行的 Soloist 程序，没有使用。",
+      "keySaved": "密钥已保存。",
+      "keychain": "系统钥匙串不可用，密钥没有保存。",
+      "keyShape": "密钥格式不对：应该是一串不含空格的字符。",
+      "startFailed": "Soloist 没能启动。",
+      "failed": "操作没有完成，详情见运行日志。"
+    }
+  },
   "remote": {
     "backgroundDefault": "默认背景",
     "backgroundCover": "封面色彩",
@@ -5301,7 +5429,7 @@ export default {
       "theme_settings": "预设、自定义配色从哪来，以及配色什么时候自己变。",
       "sign_in": "主页的登录按钮和右下角那一枚开的是同一个窗口。",
       "lyric_match": "给一首歌手动挑一份歌词：换来源、搜索、先看再保存。",
-      "scratchpad": "左缘那本速记簿：怎么收进歌、按来源分组处理、展开成画布整理。"
+      "scratchpad": "左缘那本速记簿：怎么收进歌、按来源分组处理、展开整页整理。"
     },
     "categories": {
       "basics": "上手",
@@ -5831,7 +5959,7 @@ export default {
         "rowActions": "行内按钮",
         "footer": "对全部的操作",
         "historyTab": "播放历史",
-        "expand": "展开成画布",
+        "expand": "展开整页",
         "canvas": "画布",
         "canvasGroup": "画布里的一组",
         "slot": "吸附的位置",
@@ -6052,7 +6180,7 @@ export default {
       "lyricMatchLocal": "本地歌曲多出来的三个开关",
       "scratchpadCollect": "收进来",
       "scratchpadDrawer": "打开与分组",
-      "scratchpadCanvas": "展开成画布",
+      "scratchpadCanvas": "展开整页",
       "playerBarQuickActions": "停一下，浮出快捷操作"
     },
     "captions": {
@@ -6529,18 +6657,18 @@ export default {
       "scratchpad": {
         "hover": "指针停在一首歌的卡片上，右上角出现两颗按钮，左边这颗把它加入速记簿。网格的卡片、Bravais 的磁贴和聚焦卡、搜索结果的每一行都有这一对。",
         "save": "右边那颗是收藏到歌单。能点喜欢的来源，选歌单的窗口第一行是「我喜欢的音乐」；也可以就地新建一个歌单再放进去。",
-        "notQueue": "加入速记簿不会动播放队列，正在放的照常放。指针移到左缘上部，把手展开，上面写着里面有几首；速记簿空着时，把手平时看不见。",
+        "notQueue": "加入速记簿不会动播放队列，正在放的照常放。左缘上部常驻一个小而半透明的记号；指针移过去，它展开成米白的标签，上面写着里面有几首。记号的样子在设置里换。",
         "otherWays": "正在播的这首：按 : 进执行模式再按 S，就记下来了。集合页上的「全部加入速记簿」把这一页的歌一次收进来，筛选过就只收筛出来的；网格在信息栏里，Bravais 在信息条的「⋯ 更多」里。",
         "open": "点把手，或者按 {{mod}} + J，打开速记簿；执行模式里是 J。再按一次就收起来。",
         "groups": "里面的歌按来源分组：一个在线平台一组，本地一组，Navidrome 一组。从哪个歌单、哪次搜索收来的，写在每一行歌手后面。",
         "groupActions": "组头右端是「本组全部入队」和「本组加入歌单…」。一个歌单只收一个来源的歌；按来源分了组，整组放进同一个歌单正好。",
         "rowActions": "指针停在一行上，右端出现插进队列播放、加入队列、加入歌单、移出速记簿。入了队、进了歌单，这一行也还留着，不要了自己移出。",
-        "footer": "最底下这一排：全部入队、用速记簿替换队列播放，以及清空。清空要连点两次。",
-        "history": "抽屉顶上的「播放历史」是第二页：最近 7 天在这台设备上放过的歌（在线平台、本地、Navidrome），按天分段，新的在前。每一行可以插进队列播放、加入队列、加入速记簿或收藏到歌单。",
-        "expand": "抽屉顶上、关闭左边那颗是「展开成画布」。",
-        "canvas": "展开之后每首歌是一张卡片，仍旧按来源分组；组头多一颗「选中本组」。Esc 先取消选择，没有选择时收回列表。",
+        "footer": "细纸带上面这一排：全部入队、用速记簿替换队列播放，以及清空。清空要连点两次。",
+        "history": "底部细纸带上的「播放历史」是第二页（点一下，它升到顶上当信息条，速记簿落到底部）：最近 7 天在这台设备上放过的歌（在线平台、本地、Navidrome），按天分段，新的在前，每首是一张小相片。每一行可以插进队列播放、加入队列、加入速记簿或收藏到歌单。",
+        "expand": "信息条右端那颗墨色的方钮是「展开整页」。",
+        "canvas": "展开整页之后整张纸斜着铺开：这一页的信息条横在上面，每首歌是一张笔记本卡，仍旧按来源分组，组头多一颗「选中本组」；右边一列是跳到栏和操作提示，另外两页收成细纸带压在左下角。Esc 先取消选择，没有选择时收回侧栏。",
         "drag": "拖动卡片整理顺序。只能在自己那一组里挪，松手时吸附到最近的位置。触屏上先按住卡片，拿起来了再拖。",
-        "select": "在空白处拖出一个框，框住的卡片就选中了；按住 {{mod}} 点卡片可以逐张加减。选中的卡片上方浮出一个菜单：入队、加入歌单、移出、取消选择。选中的来自不同来源时，加入歌单是灰的。"
+        "select": "在空白处拖出一个框，框住的卡片就选中了；按住 {{mod}} 点卡片可以逐张加减。选中的卡片旁边浮出一块板：入队、加入歌单、移出、取消选择。选中的来自不同来源时，加入歌单是灰的。"
       }
     }
   }

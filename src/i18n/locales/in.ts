@@ -40,9 +40,8 @@ export default {
     "alreadyInAll": "Semuanya sudah ada di buku catatan",
     "full": "Buku catatan penuh (maks. {{count}} lagu). Kosongkan sebagian dulu.",
     "saveFailed": "Buku catatan gagal disimpan (penyimpanan lokal penuh); perubahan ini hilang saat dimulai ulang",
-    "expandCanvas": "Bentangkan jadi kanvas",
-    "collapseCanvas": "Kembali ke daftar",
-    "canvasHint": "Seret kartu untuk mengurutkan. Seret kotak atau {{mod}}+klik untuk memilih beberapa, Shift+klik untuk satu rentang. Di layar sentuh, tekan lama kartu untuk menyeret; setelah satu terpilih, ketuk kartu lain untuk menambahkannya.",
+    "expandCanvas": "Bentangkan satu halaman",
+    "collapseCanvas": "Kembali ke panel samping",
     "selectGroup": "Pilih grup ini",
     "enqueueGroup": "Antrekan grup ini",
     "addGroupToPlaylist": "Tambahkan grup ini ke daftar putar…",
@@ -54,15 +53,49 @@ export default {
     "queue": "Antrean",
     "queueHint": "Antrean yang sedang diputar. Klik lagu untuk memutarnya; bentangkan untuk memilih beberapa dan menyeret untuk mengurutkan.",
     "queueEmpty": "Antrean kosong.",
+    "historyHint": "Lagu yang diputar dalam 7 hari terakhir, satu grup per hari, terbaru di atas.",
+    "historyListHint": "Klik lagu untuk menyisipkannya ke antrean; bentangkan untuk memilih dengan kotak dan menghapus dari riwayat.",
+    "shuffleQueue": "Acak antrean",
+    "nowPlaying": "Sedang diputar",
+    "playedHidden_one": "{{count}} sudah diputar · disembunyikan, klik untuk menampilkan",
+    "playedHidden_other": "{{count}} sudah diputar · disembunyikan, klik untuk menampilkan",
+    "playedShown_one": "{{count}} sudah diputar · klik untuk menyembunyikan",
+    "playedShown_other": "{{count}} sudah diputar · klik untuk menyembunyikan",
+    "historyBandHint": "Urut waktu · tidak bisa diurutkan ulang · klik dua kali untuk memutar",
+    "expandPage": "Satu halaman",
+    "crumb": "Dibentangkan › {{page}}",
+    "jumpTo": "Lompat ke",
+    "tipsTitle": "Kontrol",
+    "locateCurrent": "Cari yang sedang diputar",
+    "tipMarqueeKey": "Seret area kosong",
+    "tipMarquee": "pilih kotak",
+    "tipAddKey": "{{mod}} + klik",
+    "tipAdd": "tambah",
+    "tipReorderKey": "Seret kartu",
+    "tipReorderGroup": "urutkan di grup",
+    "tipReorder": "urutkan",
+    "tipPlayKey": "Klik dua kali",
+    "tipPlay": "putar",
+    "tipDeleteKey": "Delete",
+    "tipDelete": "hapus catatan",
+    "tipEscKey": "Esc",
+    "tipEsc": "batalkan pilihan",
+    "overview": "Tiga baris",
+    "crumbOverview": "{{title}} › Dibentangkan",
+    "overviewMore_one": "{{count}} lagu lagi",
+    "overviewMore_other": "{{count}} lagu lagi",
+    "overviewQueueMore_one": "{{count}} lagu lagi berikutnya",
+    "overviewQueueMore_other": "{{count}} lagu lagi berikutnya",
+    "overviewRemove": "Hapus",
+    "overviewRemoveQueueHint": "Hapus lagu antrean di halaman “Antrean”",
+    "overviewHelpLabel": "Cara pakai",
+    "overviewHelp": "Seret area kosong untuk memilih kotak (lintas baris), tahan {{mod}} untuk menambah; klik dua kali untuk memutar; pakai “Satu halaman” di pita untuk melihat semua dan mengurutkan",
     "playFromQueue": "Putar lagu ini",
     "playNext": "Putar berikutnya",
     "moveToEnd": "Pindah ke akhir",
     "removeFromQueue": "Hapus dari antrean",
     "cannotRemoveCurrent": "Lagu yang sedang diputar tidak bisa dihapus",
     "originQueue": "Antrean",
-    "queueCanvasHint": "Lagu diputar sesuai urutan panah. Klik ganda untuk memutar, seret untuk mengubah urutan; seret kotak atau {{mod}}/Shift+klik untuk memilih beberapa.",
-    "queueCanvasHintReadOnly": "Lagu diputar sesuai urutan panah. Klik ganda untuk memutar; seret kotak atau {{mod}}/Shift+klik untuk memilih beberapa. Antrean ini tidak bisa diubah sekarang.",
-    "historyCanvasHint": "Garis waktu melintasi setiap hari, terbaru di depan. Seret kotak atau {{mod}}+klik untuk memilih beberapa, Shift+klik untuk satu rentang, klik ganda untuk memutar; tekan Delete untuk menghapus pilihan dari riwayat.",
     "deleteFromHistory": "Hapus dari riwayat",
     "historyDeleted_one": "{{count}} lagu dihapus dari riwayat putar",
     "historyDeleted_other": "{{count}} lagu dihapus dari riwayat putar",
@@ -579,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} tidak menyediakan perpustakaan playlist.",
     "songUnavailable": "Lagu telah dihapus",
     "externalPlayerMovedOn": "Pemutar berpindah ke lagu lain; pemutaran dijeda",
+    "externalVideoExportUnavailable": "Lagu ini diputar di pemutar milik platform dan suaranya tidak melewati Folia, jadi video tidak bisa diekspor.",
+    "externalBypassTitle": "Lagu ini diputar di pemutar milik platform",
+    "externalBypassBody": "Suaranya tidak melewati Folia, jadi ekualiser dan efek di sini tidak mengubah yang Anda dengar. Pengaturan tetap disimpan dan berlaku untuk lagu lain seperti biasa.",
+    "externalReplayGainBypassed": "Diputar di pemutar milik platform; ReplayGain tidak diterapkan",
     "songUnavailableAlternativeTitle": "Versi alternatif tersedia",
     "songUnavailableAlternativeDescription": "\"{{song}}\" tidak tersedia. {{typeDesc}}. Mainkan versi alternatif?",
     "songUnavailableAlternativeDefaultType": "Versi lain bisa diputar",
@@ -795,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferensi", "description": "Atur preferensi di akun Anda yang memengaruhi rekomendasi" },
       "settings-help": { "title": "Buka Bantuan", "description": "Buka panduan dan pintasan" },
       "ponder-current-page": { "title": "Ponder halaman ini", "description": "Buka panduan interaktif untuk halaman saat ini" },
+      "provider-playback-setup": { "title": "Pengaturan pemutaran platform", "description": "Buka daftar pengaturan pemutaran platform saat ini" },
       "settings-options": { "title": "Buka Opsi", "description": "Buka pusat opsi" },
       "settings-now-playing-card-position": { "title": "Atur posisi kartu lagu", "description": "Seret kartu yang sedang diputar ke posisi baru" },
       "settings-ai-provider": { "title": "Pengaturan penyedia AI", "description": "Pilih penyedia dan model AI" },
@@ -1628,6 +1666,14 @@ export default {
     "rowSignedOut": "Belum login",
     "signInRanOut": "Login kedaluwarsa",
     "readingAccount": "Membaca akun…",
+    "checkingAccount": "Memeriksa apakah akun ini dapat memutar…",
+    "setupOpen": "Pengaturan pemutaran",
+    "setupDone": "Selesai",
+    "setupLater": "Nanti saja",
+    "setupBack": "Kembali",
+    "setupSecretChange": "Ganti",
+    "setupSecretCancel": "Pakai yang tersimpan",
+    "setupState": { "done": "selesai", "todo": "belum", "warn": "perlu perhatian", "error": "gagal" },
     "openBrowser": "Buka browser",
     "details": "Detail",
     "retryIn": "Coba lagi dalam {{seconds}} dtk",
@@ -1699,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "Mungkin perlu keanggotaan untuk memutar",
     "noteMaybeRegion": "Mungkin dibatasi di wilayah Anda",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
-    "signIn": "Masuk"
+    "signIn": "Masuk",
+    "openSetup": "Pengaturan pemutaran"
   },
   "home": {
     "welcome": "Selamat datang di Folia",
@@ -2446,6 +2493,12 @@ export default {
     "scratchpadShowHandleDesc": "Tab di tepi kiri jendela. Saat disembunyikan, Ctrl / ⌘ + J atau palet perintah tetap membuka buku catatan.",
     "scratchpadHandlePosition": "Tinggi tab samping",
     "scratchpadHandlePositionDesc": "Letak tab di tepi kiri: 0% di atas, 100% dekat bagian bawah jendela. Di sekitar tengah, tab ini menumpuk dengan tab seam Bravais yang dilipat.",
+    "scratchpadHandleStyle": "Gaya tab samping",
+    "scratchpadHandleStyleDesc": "Tampilan tab saat penunjuk tidak di dekatnya: kecil dan samar agar tidak mengganggu. Arahkan penunjuk ke tepi kiri dan tab terbuka penuh.",
+    "scratchpadHandleStyleStrip": "Strip kertas",
+    "scratchpadHandleStyleLine": "Garis tipis",
+    "scratchpadHandleStyleDot": "Titik kecil",
+    "scratchpadHandleStyleShapes": "Bentuk",
     "showHomeTabPlaylist": "Tampilkan Playlist",
     "showHomeTabRadio": "Tampilkan Radio",
     "showHomeTabExplore": "Tampilkan Jelajahi",
@@ -5153,6 +5206,81 @@ export default {
       "subtitle": "Nikmati perjalanan musik Anda bersama Folia."
     }
   },
+  "soloist": {
+    "method": {
+      "standard": "Standar",
+      "standardNote": "Masuk ke Spotify di peramban; Folia memutar lagunya sendiri. Ekualiser, Automix, dan efek yang mengikuti musik semuanya berfungsi.",
+      "soloist": "Soloist",
+      "soloistNote": "Masuk ke Spotify di peramban; program Soloist resmi dari Spotify yang memutar lagunya. Untuk akun yang tidak mendapat kunci audio. Soloist diunduh terpisah, dan kunci API-nya dibuat dengan akun Premium."
+    },
+    "setup": {
+      "title": "Pengaturan Spotify Soloist",
+      "note": "Soloist adalah pemutar resmi Spotify, program di komputer ini yang mengirim suaranya sendiri ke keluaran sistem; Folia mengendalikannya dan mengikuti posisinya untuk lirik. Ekualiser, Automix, dan efek Folia yang mengikuti musik tidak memproses suaranya.",
+      "titleStandard": "Cara Spotify diputar",
+      "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify."
+    },
+    "noKey": {
+      "title": "Akun ini tidak mendapat kunci audio dari Spotify",
+      "note": "Spotify tidak memberi akun ini kunci audio, sehingga cara Folia sendiri tidak bisa memutar lagunya (umum untuk akun yang dibuat sejak akhir 2024). Anda bisa memutar lewat Soloist resmi dari Spotify: unduh program Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
+    },
+    "step": {
+      "program": "Program Soloist",
+      "key": "Kunci API",
+      "pair": "Pasangkan perangkat",
+      "modeStandard": "Diputar: standar",
+      "modeSoloist": "Diputar: Soloist"
+    },
+    "mode": {
+      "standardNote": "Folia memutar lagu Spotify sendiri.",
+      "soloistNote": "Soloist memutar lagu Spotify.",
+      "noKeyNote": "Cara Folia sendiri tidak bisa memutar lagu akun ini."
+    },
+    "program": {
+      "todo": "Unduh Soloist untuk komputer ini dari halaman Spotify, ekstrak, lalu pilih program soloist di dalamnya (soloist.exe di Windows). Folia tidak menyertakannya.",
+      "valid": "Versi {{version}}, berlaku sampai {{expires}} (sisa {{days}} hari).",
+      "expiring": "Versi {{version}} berhenti berfungsi dalam {{days}} hari ({{expires}}). Setiap build berlaku 90 hari: unduh yang baru, ekstrak, lalu pilih lagi.",
+      "unknown": "Versi {{version}}. Tanggal build ini tidak terbaca, jadi tidak diketahui kapan berhenti berfungsi. Setiap build berlaku 90 hari; setelah itu Soloist menolak berjalan.",
+      "clock": "Tanggal build ini lebih lambat dari jam komputer ini: jamnya mungkin salah, dan sisa hari tidak bisa dihitung.",
+      "expired": "Build ini sudah kedaluwarsa ({{expires}}) dan Soloist tidak akan berjalan. Unduh yang baru, ekstrak, lalu pilih lagi.",
+      "missing": "Program yang dipilih sebelumnya tidak ada lagi; mungkin dipindah atau dihapus. Pilih lagi.",
+      "invalid": "Berkas yang dipilih bukan program Soloist yang bisa berjalan. Pilih yang lain."
+    },
+    "key": {
+      "label": "Kunci API Soloist",
+      "todo": "Buka dasbor pengembang Spotify dengan akun Premium, buat kunci API Soloist, lalu masukkan di bawah. Kunci disimpan di komputer ini, disegel dengan rantai kunci sistem. Soloist hanya menerima kunci lewat baris perintah, jadi pengguna lain komputer ini bisa melihatnya di daftar proses selama berjalan.",
+      "saved": "Kunci tersimpan dan disegel. Soloist hanya menerima kunci lewat baris perintah, jadi pengguna lain komputer ini bisa melihatnya di daftar proses selama berjalan.",
+      "locked": "Rantai kunci sistem tidak bisa dibuka sekarang, jadi kunci tersimpan tidak terbaca. Buka kuncinya, lalu tekan Sambungkan ulang.",
+      "noKeychain": "Komputer ini tidak punya rantai kunci sistem untuk menyegel kunci (misalnya basic_text di Linux), jadi kunci tidak disimpan.",
+      "unreadable": "Kunci tersimpan tidak terbaca (mungkin akun sistem atau rantai kunci lain). Masukkan lagi."
+    },
+    "pair": {
+      "done": "Sudah dipasangkan: siap diputar.",
+      "waiting": "Selesaikan dua langkah di atas dulu.",
+      "todo": "Di aplikasi Spotify pada jaringan yang sama (ponsel atau komputer), buka daftar perangkat dan pilih \"Folia\". Cukup sekali: setelah itu masuk sendiri.",
+      "starting": "Soloist belum berjalan.",
+      "startFailed": "Soloist gagal berjalan. Periksa program dan kuncinya, lalu tekan Sambungkan ulang."
+    },
+    "action": {
+      "useStandard": "Putar dengan cara standar",
+      "useSoloist": "Putar lewat Soloist",
+      "pick": "Pilih program yang diunduh",
+      "pickAgain": "Pilih lagi",
+      "download": "Unduhan resmi",
+      "keyPage": "Buka dasbor pengembang",
+      "saveKey": "Simpan kunci",
+      "reconnect": "Sambungkan ulang"
+    },
+    "message": {
+      "picked": "Program dipilih.",
+      "pickedExpired": "Build itu sudah kedaluwarsa dan tidak dipakai. Unduh yang baru.",
+      "pickedInvalid": "Berkas itu bukan program Soloist yang bisa berjalan dan tidak dipakai.",
+      "keySaved": "Kunci tersimpan.",
+      "keychain": "Rantai kunci sistem tidak tersedia; kunci tidak disimpan.",
+      "keyShape": "Itu bukan kunci: seharusnya satu deret karakter tanpa spasi.",
+      "startFailed": "Soloist gagal berjalan.",
+      "failed": "Tidak berhasil; log runtime menjelaskan sebabnya."
+    }
+  },
   "remote": {
     "backgroundDefault": "Latar Belakang Bawaan",
     "backgroundCover": "Warna Sampul",
@@ -5301,7 +5429,7 @@ export default {
       "theme_settings": "Preset, asal palet kustom, dan kapan ia berubah sendiri.",
       "sign_in": "Tombol Login di beranda dan pil di kanan bawah membuka jendela yang sama.",
       "lyric_match": "Pilih lirik untuk sebuah lagu secara manual: ganti sumber, cari, lihat dulu, lalu simpan.",
-      "scratchpad": "Buku catatan di tepi kiri: mengumpulkan lagu, membereskannya per sumber, dan kanvasnya."
+      "scratchpad": "Buku catatan di tepi kiri: mengumpulkan lagu, membereskannya per sumber, dan tampilan satu halaman."
     },
     "categories": {
       "basics": "Memulai",
@@ -5831,7 +5959,7 @@ export default {
         "rowActions": "Tombol baris",
         "footer": "Aksi untuk semua",
         "historyTab": "Riwayat putar",
-        "expand": "Bentangkan jadi kanvas",
+        "expand": "Bentangkan satu halaman",
         "canvas": "Kanvas",
         "canvasGroup": "Satu kelompok di kanvas",
         "slot": "Tempat menempel",
@@ -6052,7 +6180,7 @@ export default {
       "lyricMatchLocal": "Tiga sakelar tambahan untuk lagu lokal",
       "scratchpadCollect": "Mengumpulkan lagu",
       "scratchpadDrawer": "Membuka dan kelompok",
-      "scratchpadCanvas": "Kanvas",
+      "scratchpadCanvas": "Satu halaman",
       "playerBarQuickActions": "Berhenti sejenak untuk aksi cepat"
     },
     "captions": {
@@ -6529,18 +6657,18 @@ export default {
       "scratchpad": {
         "hover": "Arahkan penunjuk ke kartu lagu, dua tombol muncul di kanan atasnya; yang kiri menambahkan lagu ke buku catatan. Kartu Grid, ubin dan kartu fokus Bravais, serta setiap baris hasil pencarian punya pasangan ini.",
         "save": "Yang kanan menyimpannya ke daftar putar. Untuk sumber yang mendukung suka, baris pertama pemilih daftar putar adalah Lagu Disukai; Anda juga bisa membuat daftar putar baru di sana lalu memasukkan lagunya.",
-        "notQueue": "Menambahkan ke buku catatan tidak mengubah antrean putar; yang sedang diputar tetap berjalan. Arahkan penunjuk ke tepi kiri atas dan pegangannya terbuka, menunjukkan jumlah lagu di dalamnya; selama buku catatan kosong, pegangannya tersembunyi.",
+        "notQueue": "Menambahkan ke buku catatan tidak mengubah antrean putar; yang sedang diputar tetap berjalan. Tanda kecil yang samar selalu ada di tepi kiri atas; arahkan penunjuk ke sana dan tanda itu terbuka menjadi label kertas yang menunjukkan jumlah lagu di dalamnya. Bentuk tandanya bisa diganti di Pengaturan.",
         "otherWays": "Untuk lagu yang sedang diputar, tekan : untuk mode eksekusi lalu S. Di halaman koleksi, “Tambahkan semua ke buku catatan” mengambil lagu halaman itu sekaligus, hanya yang tersaring bila filter aktif: di Grid ada di panel info, di Bravais di bawah “⋯ Lainnya” pada strip info.",
         "open": "Klik pegangannya, atau tekan {{mod}} + J, untuk membuka buku catatan; di mode eksekusi tombolnya J. Tekan lagi untuk menutupnya.",
         "groups": "Lagu dikelompokkan per sumber: satu kelompok per platform daring, satu untuk berkas lokal, satu untuk Navidrome. Asal tiap lagu (daftar putar atau pencarian mana) tertulis setelah artisnya.",
         "groupActions": "Di kanan kepala kelompok: “Antrekan grup ini” dan “Tambahkan grup ini ke daftar putar…”. Satu daftar putar hanya menerima lagu dari satu sumber; karena dikelompokkan per sumber, satu kelompok pas untuk satu daftar putar.",
         "rowActions": "Arahkan penunjuk ke sebuah baris untuk: putar di antrean, tambahkan ke antrean, tambahkan ke daftar putar, dan keluarkan dari buku catatan. Lagu tetap ada setelah dimasukkan ke antrean atau daftar putar; keluarkan sendiri bila sudah tidak perlu.",
-        "footer": "Baris paling bawah: tambahkan semua ke antrean, ganti antrean dengan buku catatan, dan kosongkan. Mengosongkan perlu dua klik.",
-        "history": "“Riwayat putar” di atas laci adalah halaman kedua: lagu yang diputar di perangkat ini dalam 7 hari terakhir (platform daring, berkas lokal, Navidrome), per hari, terbaru di atas. Tiap baris bisa diputar di antrean, diantrekan, ditambahkan ke buku catatan, atau disimpan ke daftar putar.",
-        "expand": "Di atas laci, di kiri tombol tutup: “Bentangkan jadi kanvas”.",
-        "canvas": "Setelah dibentangkan, tiap lagu menjadi kartu, tetap dikelompokkan per sumber, dan kepala kelompok mendapat “Pilih grup ini”. Esc lebih dulu membatalkan pilihan, lalu kembali ke daftar.",
+        "footer": "Baris di atas pita kertas: tambahkan semua ke antrean, ganti antrean dengan buku catatan, dan kosongkan. Mengosongkan perlu dua klik.",
+        "history": "“Riwayat putar” di pita kertas paling bawah adalah halaman kedua (klik, ia naik ke atas dan buku catatan turun ke bawah): lagu yang diputar di perangkat ini dalam 7 hari terakhir (platform daring, berkas lokal, Navidrome), per hari, terbaru di atas, masing-masing berupa foto kecil. Tiap baris bisa diputar di antrean, diantrekan, ditambahkan ke buku catatan, atau disimpan ke daftar putar.",
+        "expand": "Kotak gelap di ujung kanan pita: “Bentangkan satu halaman”.",
+        "canvas": "Setelah dibentangkan satu halaman, seluruh lembar miring: pita halaman ini membentang di atas, tiap lagu menjadi kartu catatan, tetap dikelompokkan per sumber, dan kepala kelompok mendapat “Pilih grup ini”; kolom di kanan berisi daftar lompat dan kontrol, dan dua halaman lainnya terlipat menjadi pita tipis di kiri bawah. Esc lebih dulu membatalkan pilihan, lalu kembali ke panel samping.",
         "drag": "Seret kartu untuk mengatur urutan. Kartu hanya berpindah di dalam kelompoknya sendiri, dan menempel ke tempat terdekat saat dilepas. Di layar sentuh, tekan lama kartu sampai terangkat, lalu seret.",
-        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Sebuah menu mengambang di atas kartu yang dipilih: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan, batalkan pilihan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
+        "select": "Seret kotak di tempat kosong untuk memilih kartu di dalamnya; {{mod}}-klik sebuah kartu untuk menambah atau menguranginya. Sebuah panel mengambang di samping kartu yang dipilih: tambahkan ke antrean, tambahkan ke daftar putar, keluarkan, batalkan pilihan. Bila pilihan berasal dari sumber berbeda, tambahkan ke daftar putar menjadi abu-abu."
       }
     }
   }

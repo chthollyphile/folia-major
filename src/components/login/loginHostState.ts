@@ -45,6 +45,8 @@ export interface LoginHostPorts {
     switchTo(providerId: OnlineProviderId): Promise<boolean> | null;
     /** 退出这个平台的登录，回它是不是真的退出了（用的人可以在确认框里取消）；此刻退不了是 null。 */
     signOut(providerId: OnlineProviderId): Promise<boolean> | null;
+    /** 打开这个平台的配置清单（controller 的 openSetup：先停下正在进行的登录）。 */
+    openSetup(providerId: OnlineProviderId): void;
 }
 
 const NOTHING_CHOSEN: LoginHostState = { chosen: null, done: false };
@@ -119,15 +121,25 @@ export const createLoginHostState = (ports: LoginHostPorts) => {
         switchToChosen: (): void => forChosen(providerId => ports.switchTo(providerId), () => ports.closeWindow()),
         /** 退出选中的平台的登录；真的退出了才关窗，在确认框里点了取消窗口留着。 */
         signOutChosen: (): void => forChosen(providerId => ports.signOut(providerId), () => ports.closeWindow()),
+        /** 打开选中的平台的配置清单（账号那一幅的按钮）。 */
+        openSetupChosen: (): void => {
+            if (open && state.chosen?.lead === 'account' && !state.done) ports.openSetup(state.chosen.providerId);
+        },
 
-        /** 窗口打开了一次：给了平台就选中它，没给就什么都不选、什么都不开始。 */
-        opened(providerId: OnlineProviderId | null): void {
+        /**
+         * 窗口打开了一次：给了平台就选中它，没给就什么都不选、什么都不开始。要直接到配置清单（`intent`）而这个平台
+         * 已经登录着：选中之后打开它的清单；没登录就照常登录。
+         */
+        opened(providerId: OnlineProviderId | null, intent: 'setup' | null = null): void {
             turn += 1;
             open = true;
             confirmedSeen = false;
             ports.closeLogin();
             set(NOTHING_CHOSEN);
             if (providerId) choose(providerId);
+            if (providerId && intent === 'setup' && state.chosen?.providerId === providerId && state.chosen.lead === 'account') {
+                ports.openSetup(providerId);
+            }
         },
 
         /**

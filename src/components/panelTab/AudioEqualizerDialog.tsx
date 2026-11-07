@@ -20,6 +20,7 @@ import EqualizerBandGrid from './equalizer/EqualizerBandGrid';
 import PresetChips from './equalizer/PresetChips';
 import ModCurveNotice from './equalizer/ModCurveNotice';
 import HifiBypassNotice from '../hifi/HifiBypassNotice';
+import ExternalPlayerNotice, { useIsExternalPlayerRoute } from './ExternalPlayerNotice';
 import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 
@@ -51,7 +52,9 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
     const curveHeard = Boolean(modCurve) && !modCurveSuspended;
     // On the HiFi route mpv plays the song and none of this is heard: the window only shows the settings, kept for the web engine.
     const isHifiRoute = useIsHifiRoute();
-    const readOnly = curveHeard || isHifiRoute;
+    // A platform's own player sounds the song on the external route: nothing here reaches it either.
+    const isExternalRoute = useIsExternalPlayerRoute();
+    const readOnly = curveHeard || isHifiRoute || isExternalRoute;
     const [draft, setDraft] = useState<AudioEqualizerSettings>(settings);
     const draftRef = useRef(draft);
     const mountedRef = useRef(false);
@@ -200,6 +203,7 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
             {/* 这一层排窗口里的内容（至少和窗口一样高，多出的高度给推子），也让这扇对话框自己能被思索命中。 */}
             <div data-ponder="audio-equalizer" className="flex min-h-full flex-col">
                 <HifiBypassNotice />
+                <ExternalPlayerNotice />
                 <ModCurveNotice />
                 {isHifiRoute ? (
                     // Out of reach on HiFi as well: a preset would write a sound that is not heard.

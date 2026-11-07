@@ -165,6 +165,10 @@ describe('getState', () => {
         expect(eqMod().getState().hostPlaysAudio).toBe(true);
         usePlaybackStore.setState({ activePlaybackContext: 'main', audioSrc: null });
         expect(eqMod().getState().hostPlaysAudio).toBe(true);
+        // A song a platform sounds in a player of its own.
+        usePlaybackStore.setState({ playbackRoute: 'external' });
+        expect(eqMod().getState().hostPlaysAudio).toBe(false);
+        usePlaybackStore.setState({ playbackRoute: 'web' });
     });
 
     it('needs no permission', () => {

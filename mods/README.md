@@ -1058,7 +1058,7 @@ export default function activate(folium) {
 | `gains` | 每段的增益（dB），按 `bands` 的顺序，在 `minGain`–`maxGain` 之间。`enabled` 为 `false` 时照样给，只是听不到 |
 | `bands` | 每段的 `{ frequency, shape }`，从低到高。1.7 是 10 段（31 Hz 到 16 kHz）；首段 `lowshelf`、末段 `highshelf`、其余 `peaking`，不认识的 `shape` 当成 `peaking`。每次读都是同一个冻结数组 |
 | `minGain` / `maxGain` | 一段增益的范围，1.7 是 -12 / 12 dB |
-| `hostPlaysAudio` | 声音是否经过宿主自己的音频（均衡器就在那里）。外部 Stage 播放时（别的播放器的正在播放、只有歌词没有音频的 Stage 源）为 `false`，均衡器没有东西可作用；设置等宿主自己放歌时照样生效 |
+| `hostPlaysAudio` | 声音是否经过宿主自己的音频（均衡器就在那里）。外部 Stage 播放时（别的播放器的正在播放、只有歌词没有音频的 Stage 源），以及平台用自己的播放器发声时（Apple Music 的页面、Spotify 的 Soloist 程序）为 `false`，均衡器没有东西可作用；设置等宿主自己放歌时照样生效 |
 | `writable` | 音频效果器开着时为 `false`：这时会改变东西的写入被拒 `panel-open`，窗口关上时发一次 `equalizer.changed`。权限和限频不算在里面 |
 
 不交出来的：用户不在播放的那个自定义栏位的内容（用户数据；正在播放的那个，它的曲线就是 `gains`）；效果链的 9 项参数（预设的效果链只能随 `setMode` 整体切换）；

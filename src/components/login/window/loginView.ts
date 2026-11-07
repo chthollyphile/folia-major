@@ -49,6 +49,8 @@ export type LoginScene =
     | 'browser'         // 等浏览器里确认
     | 'scanned'
     | 'reading'         // 确认了，正在读账号
+    | 'checking'        // 账号读到了，正在做平台的登录后检查
+    | 'setup'           // 平台的配置清单（登录之后的检查给的，或者从账号那一幅打开的）
     | 'failed';
 
 /**
@@ -59,7 +61,7 @@ export const accountView = (status: RowStatus | null, hasUser: boolean): 'user' 
     status !== 'signed-in' ? 'gone' : hasUser ? 'user' : 'nameless'
 );
 
-export const loginScene = ({ lead, phase, inBrowser, failed, providerId }: {
+export const loginScene = ({ lead, phase, inBrowser, failed, providerId, setup = false }: {
     /** 选中的那一行通向什么；null 是没有选。 */
     lead: RowLead | null;
     /** 这一行的登录走到哪一步；还没有登录会话（正在开始）是 null。 */
@@ -69,8 +71,11 @@ export const loginScene = ({ lead, phase, inBrowser, failed, providerId }: {
     failed: boolean;
     /** 选中的平台；null 是没有选。表单式登录平台（账号密码类）不自动开始登录，直接给表单。 */
     providerId?: OnlineProviderId | null;
+    /** 选中的平台开着一份配置清单：不管这一行通向什么，都画清单。 */
+    setup?: boolean;
 }): LoginScene => {
     if (lead === null) return 'none';
+    if (setup) return 'setup';
     if (lead === 'account' || lead === 'accountless') return lead;
     if (failed) return 'failed';
     // 表单式登录平台：弹窗右侧直接给账号密码表单，不在弹窗里自动开始登录。
@@ -81,6 +86,7 @@ export const loginScene = ({ lead, phase, inBrowser, failed, providerId }: {
         case 'waiting': return inBrowser ? 'browser' : 'code';
         case 'scanned': return 'scanned';
         case 'confirmed': return 'reading';
+        case 'checking': return 'checking';
         default: return 'preparing';
     }
 };
@@ -98,6 +104,7 @@ export const sceneHeadline = (scene: LoginScene, inBrowser: boolean): string => 
         case 'browser': return 'home.loginCodeWaiting';
         case 'scanned': return 'home.qrScanned';
         case 'reading': return 'login.readingAccount';
+        case 'checking': return 'login.checkingAccount';
         case 'failed': return 'case';
         case 'form': return 'title';
         default: return 'title';
@@ -124,13 +131,18 @@ export const failureQuote = (failure: LoginFailure, serviceError: string | null)
     return serviceSaid ? { text: serviceSaid } : undefined;
 };
 
-export type StepMark = 'code' | 'browser' | 'phone' | 'account';
+export type StepMark = 'code' | 'browser' | 'phone' | 'account' | 'check';
 
-/** 步骤标记：有哪几个、现在在第几个。不在登录途中就没有。 */
-export const stepMarks = (scene: LoginScene, inBrowser: boolean): { marks: StepMark[]; current: number } | null => {
+/**
+ * 步骤标记：有哪几个、现在在第几个。不在登录途中就没有。平台读到账号之后还要多查一步（`checks`）时，
+ * 最后多一格「检查」。
+ */
+export const stepMarks = (scene: LoginScene, inBrowser: boolean, checks = false): { marks: StepMark[]; current: number } | null => {
     const marks: StepMark[] = inBrowser ? ['browser', 'account'] : ['code', 'phone', 'account'];
+    if (checks) marks.push('check');
     if (scene === 'preparing' || scene === 'code' || scene === 'browser') return { marks, current: 0 };
     if (scene === 'scanned') return { marks, current: 1 };
-    if (scene === 'reading') return { marks, current: marks.length - 1 };
+    if (scene === 'reading') return { marks, current: marks.indexOf('account') };
+    if (scene === 'checking') return { marks, current: marks.length - 1 };
     return null;
 };

@@ -77,6 +77,7 @@ describe('the sign-in window, drawn', () => {
             login: {
                 id: 1, providerId: 'a', phase, methods: [], selectedMethodId: null, inBrowser: false, codeImage: '', canReopenLoginPage: false,
                 failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
+                checksAfterLogin: false,
             },
             onChoose: () => { }, onStart: () => { }, onSubmitForm: async () => ({ sessionId: 0, providerId: 'a', outcome: 'completed' }), onSelectMethod: () => { }, onReopenBrowser: () => { }, onRestartService: () => { },
             onSwitch: () => { }, onSignOut: () => { }, onSync: () => { }, buildReport: async () => '',

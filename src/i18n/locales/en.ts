@@ -40,9 +40,8 @@ export default {
     "alreadyInAll": "All already in the scratchpad",
     "full": "Scratchpad full ({{count}} songs max). Clear some first.",
     "saveFailed": "Scratchpad not saved (local storage is full); this change is lost on restart",
-    "expandCanvas": "Expand into a canvas",
-    "collapseCanvas": "Back to the list",
-    "canvasHint": "Drag cards to reorder. Drag a box or {{mod}}-click to select several, Shift-click for a run. On touch, hold a card to drag it; once one is selected, tap others to add them.",
+    "expandCanvas": "Expand to full page",
+    "collapseCanvas": "Back to the side panel",
     "selectGroup": "Select this group",
     "enqueueGroup": "Queue this group",
     "addGroupToPlaylist": "Add this group to a playlist…",
@@ -54,15 +53,49 @@ export default {
     "queue": "Queue",
     "queueHint": "The queue that is playing now. Click a song to play it; expand to select several and drag to reorder.",
     "queueEmpty": "The queue is empty.",
+    "historyHint": "Songs played in the last 7 days, one group per day, newest first.",
+    "historyListHint": "Click a song to slot it into the queue; expand to box-select and delete from history.",
+    "shuffleQueue": "Shuffle queue",
+    "nowPlaying": "Now playing",
+    "playedHidden_one": "{{count}} played · hidden, click to show",
+    "playedHidden_other": "{{count}} played · hidden, click to show",
+    "playedShown_one": "{{count}} played · click to hide",
+    "playedShown_other": "{{count}} played · click to hide",
+    "historyBandHint": "In time order · can't be reordered · double-click to play",
+    "expandPage": "Full page",
+    "crumb": "Expanded › {{page}}",
+    "jumpTo": "Jump to",
+    "tipsTitle": "Controls",
+    "locateCurrent": "Find now playing",
+    "tipMarqueeKey": "Drag blank",
+    "tipMarquee": "box-select",
+    "tipAddKey": "{{mod}} + click",
+    "tipAdd": "add",
+    "tipReorderKey": "Drag card",
+    "tipReorderGroup": "reorder in group",
+    "tipReorder": "reorder",
+    "tipPlayKey": "Double-click",
+    "tipPlay": "play",
+    "tipDeleteKey": "Delete",
+    "tipDelete": "delete record",
+    "tipEscKey": "Esc",
+    "tipEsc": "clear selection",
+    "overview": "Three rows",
+    "crumbOverview": "{{title}} › Expanded",
+    "overviewMore_one": "{{count}} more song",
+    "overviewMore_other": "{{count}} more songs",
+    "overviewQueueMore_one": "{{count}} more coming up",
+    "overviewQueueMore_other": "{{count}} more coming up",
+    "overviewRemove": "Remove",
+    "overviewRemoveQueueHint": "Remove queued songs on the “Queue” page",
+    "overviewHelpLabel": "How it works",
+    "overviewHelp": "Drag on blank space to box-select (across rows), hold {{mod}} to add; double-click to play; use “Full page” on a band to see everything and reorder",
     "playFromQueue": "Play this song",
     "playNext": "Play next",
     "moveToEnd": "Move to end",
     "removeFromQueue": "Remove from queue",
     "cannotRemoveCurrent": "The song that is playing cannot be removed",
     "originQueue": "Queue",
-    "queueCanvasHint": "Songs play in arrow order. Double-click to play, drag to reorder; drag a box or {{mod}}/Shift-click to select several.",
-    "queueCanvasHintReadOnly": "Songs play in arrow order. Double-click to play; drag a box or {{mod}}/Shift-click to select several. This queue can't be changed right now.",
-    "historyCanvasHint": "The timeline runs through each day, newest first. Drag a box or {{mod}}-click to select several, Shift-click for a run, double-click to play; press Delete to remove the selection from the history.",
     "deleteFromHistory": "Delete from history",
     "historyDeleted_one": "Deleted {{count}} song from the play history",
     "historyDeleted_other": "Deleted {{count}} songs from the play history",
@@ -579,6 +612,10 @@ export default {
     "providerLibraryUnavailable": "{{provider}} does not provide a playlist library.",
     "songUnavailable": "Song has been taken down",
     "externalPlayerMovedOn": "The player moved to another track; playback is paused",
+    "externalVideoExportUnavailable": "This song plays in the platform's own player and its sound does not pass through Folia, so no video can be exported.",
+    "externalBypassTitle": "This song plays in the platform's own player",
+    "externalBypassBody": "Its sound does not pass through Folia, so the equalizer and effects here do not change what you hear. The settings are kept and apply to other songs as usual.",
+    "externalReplayGainBypassed": "Plays in the platform's own player; no ReplayGain is applied",
     "songUnavailableAlternativeTitle": "Alternate version available",
     "songUnavailableAlternativeDescription": "\"{{song}}\" is unavailable. {{typeDesc}}. Play an alternate version instead?",
     "songUnavailableAlternativeDefaultType": "Another version can be played",
@@ -795,6 +832,7 @@ export default {
       "playback-recommendation-preferences": { "title": "Preferences", "description": "Adjust the preferences kept on your account that steer what is recommended" },
       "settings-help": { "title": "Open Help", "description": "Open help and shortcuts" },
       "ponder-current-page": { "title": "Ponder this page", "description": "Open the interactive guide for the current page" },
+      "provider-playback-setup": { "title": "Platform playback setup", "description": "Open the playback setup checklist of the current platform" },
       "settings-options": { "title": "Open Options", "description": "Open the options center" },
       "settings-now-playing-card-position": { "title": "Reposition song card", "description": "Drag the now playing card to a new position" },
       "settings-ai-provider": { "title": "AI provider settings", "description": "Choose an AI provider and model" },
@@ -1628,6 +1666,14 @@ export default {
     "rowSignedOut": "Not signed in",
     "signInRanOut": "Sign-in expired",
     "readingAccount": "Reading your account…",
+    "checkingAccount": "Checking whether this account can play…",
+    "setupOpen": "Playback setup",
+    "setupDone": "Done",
+    "setupLater": "Not now",
+    "setupBack": "Back",
+    "setupSecretChange": "Change",
+    "setupSecretCancel": "Keep the saved one",
+    "setupState": { "done": "done", "todo": "to do", "warn": "needs attention", "error": "failed" },
     "openBrowser": "Open the browser",
     "details": "Details",
     "retryIn": "Try again in {{seconds}} s",
@@ -1699,7 +1745,8 @@ export default {
     "noteMaybeSubscription": "May need a membership to play",
     "noteMaybeRegion": "May be restricted in your region",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "openSetup": "Playback setup"
   },
   "home": {
     "welcome": "Welcome to Folia",
@@ -2446,6 +2493,12 @@ export default {
     "scratchpadShowHandleDesc": "The tab on the left edge of the window. With it hidden, Ctrl / ⌘ + J or the command palette still opens the scratchpad.",
     "scratchpadHandlePosition": "Side tab height",
     "scratchpadHandlePositionDesc": "Where the tab sits on the left edge: 0% at the top, 100% near the bottom of the window. Around the middle it overlaps the folded Bravais seam tab.",
+    "scratchpadHandleStyle": "Side tab style",
+    "scratchpadHandleStyleDesc": "What the tab shows while the pointer is away: small and faint, so it stays out of the way. Move the pointer to the left edge and it opens into the full tab.",
+    "scratchpadHandleStyleStrip": "Paper strip",
+    "scratchpadHandleStyleLine": "Thin line",
+    "scratchpadHandleStyleDot": "Small dot",
+    "scratchpadHandleStyleShapes": "Shapes",
     "showHomeTabPlaylist": "Show Playlists",
     "showHomeTabRadio": "Show Radio",
     "showHomeTabExplore": "Show Explore",
@@ -5153,6 +5206,81 @@ export default {
       "subtitle": "Enjoy your music journey with Folia."
     }
   },
+  "soloist": {
+    "method": {
+      "standard": "Standard",
+      "standardNote": "Sign in to Spotify in the browser; Folia plays the songs itself. The equalizer, Automix and the effects that move with the music all work.",
+      "soloist": "Soloist",
+      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account."
+    },
+    "setup": {
+      "title": "Spotify Soloist setup",
+      "note": "Soloist is Spotify's own player, a program on this computer that sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia's equalizer, Automix and the effects that move with the music do not reach its sound.",
+      "titleStandard": "How Spotify plays",
+      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist."
+    },
+    "noKey": {
+      "title": "This account gets no audio key from Spotify",
+      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common for accounts made since late 2024). You can play through Spotify's own Soloist instead: download the Soloist program, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are not affected."
+    },
+    "step": {
+      "program": "Soloist program",
+      "key": "API key",
+      "pair": "Pair the device",
+      "modeStandard": "Plays: standard",
+      "modeSoloist": "Plays: Soloist"
+    },
+    "mode": {
+      "standardNote": "Folia plays Spotify's songs itself.",
+      "soloistNote": "Soloist plays Spotify's songs.",
+      "noKeyNote": "Folia's own way cannot play this account's songs."
+    },
+    "program": {
+      "todo": "Download Soloist for this computer from Spotify's page, unpack it and pick the soloist program inside (soloist.exe on Windows). Folia does not include it.",
+      "valid": "Version {{version}}, runs until {{expires}} ({{days}} days left).",
+      "expiring": "Version {{version}} stops running in {{days}} days ({{expires}}). Each build runs for 90 days: download the new one, unpack it and pick it again.",
+      "unknown": "Version {{version}}. This build's date cannot be read, so when it stops running is not known. Each build runs for 90 days; then Soloist refuses to start.",
+      "clock": "This build is dated later than this computer's clock: the clock may be wrong, and the days left cannot be counted.",
+      "expired": "This build expired ({{expires}}) and Soloist will not start. Download the new one, unpack it and pick it again.",
+      "missing": "The program picked before is not there any more; it may have been moved or deleted. Pick it again.",
+      "invalid": "The file picked is not a Soloist program that runs. Pick another."
+    },
+    "key": {
+      "label": "Soloist API key",
+      "todo": "Open Spotify's developer dashboard with a Premium account, make a Soloist API key and enter it below. It is kept on this computer, sealed with the system keychain. Soloist takes the key only on its command line, so other users of this computer can see it in the process list while it runs.",
+      "saved": "The key is saved, sealed. Soloist takes the key only on its command line, so other users of this computer can see it in the process list while it runs.",
+      "locked": "The system keychain cannot be opened now, so the saved key cannot be read. Unlock it, then press Reconnect.",
+      "noKeychain": "This computer has no system keychain to seal the key with (basic_text on Linux, for one), so the key is not saved.",
+      "unreadable": "The saved key cannot be read (another system account or keychain, perhaps). Enter it again."
+    },
+    "pair": {
+      "done": "Paired: ready to play.",
+      "waiting": "Do the two steps above first.",
+      "todo": "In a Spotify app on the same network (phone or computer), open the device list and pick \"Folia\". Once is enough: it signs in by itself afterwards.",
+      "starting": "Soloist has not started yet.",
+      "startFailed": "Soloist did not start. Check the program and the key, then press Reconnect."
+    },
+    "action": {
+      "useStandard": "Play the standard way",
+      "useSoloist": "Play through Soloist",
+      "pick": "Pick the downloaded program",
+      "pickAgain": "Pick again",
+      "download": "Official downloads",
+      "keyPage": "Open the developer dashboard",
+      "saveKey": "Save the key",
+      "reconnect": "Reconnect"
+    },
+    "message": {
+      "picked": "Program picked.",
+      "pickedExpired": "That build has expired and was not used. Download the new one.",
+      "pickedInvalid": "That file is not a Soloist program that runs and was not used.",
+      "keySaved": "Key saved.",
+      "keychain": "The system keychain is not available; the key was not saved.",
+      "keyShape": "That is not a key: it should be one run of characters without spaces.",
+      "startFailed": "Soloist did not start.",
+      "failed": "That did not work; the runtime log says why."
+    }
+  },
   "remote": {
     "backgroundDefault": "Default Background",
     "backgroundCover": "Cover Colors",
@@ -5301,7 +5429,7 @@ export default {
       "theme_settings": "Presets, where a custom palette comes from, and when it changes by itself.",
       "sign_in": "The home page’s Login button and the pill at the bottom right open the same window.",
       "lyric_match": "Pick lyrics for a song by hand: change the source, search, look, then save.",
-      "scratchpad": "The scratchpad on the left edge: collecting songs, sorting them out by source, and the canvas."
+      "scratchpad": "The scratchpad on the left edge: collecting songs, sorting them out by source, and the full page."
     },
     "categories": {
       "basics": "Getting started",
@@ -5831,7 +5959,7 @@ export default {
         "rowActions": "Row buttons",
         "footer": "Actions on everything",
         "historyTab": "Play history",
-        "expand": "Expand to canvas",
+        "expand": "Expand to full page",
         "canvas": "Canvas",
         "canvasGroup": "A group on the canvas",
         "slot": "Where it snaps",
@@ -6052,7 +6180,7 @@ export default {
       "lyricMatchLocal": "Three extra switches for a local song",
       "scratchpadCollect": "Collecting songs",
       "scratchpadDrawer": "Opening it, and the groups",
-      "scratchpadCanvas": "The canvas",
+      "scratchpadCanvas": "The full page",
       "playerBarQuickActions": "Rest on it for quick actions"
     },
     "captions": {
@@ -6529,18 +6657,18 @@ export default {
       "scratchpad": {
         "hover": "Hover a song card and two buttons appear at its top right; the left one adds the song to the scratchpad. Grid cards, Bravais tiles and focus cards, and every search result row have this pair.",
         "save": "The right one saves it to a playlist. For sources that take likes, the first row of the playlist picker is Liked Songs; you can also create a playlist right there and put the song in it.",
-        "notQueue": "Adding to the scratchpad leaves the play queue alone; what is playing keeps playing. Move the pointer to the upper left edge and the handle opens up, showing how many songs are inside; while the scratchpad is empty, the handle is hidden.",
+        "notQueue": "Adding to the scratchpad leaves the play queue alone; what is playing keeps playing. A small, faint mark rests on the upper left edge; move the pointer there and it opens into the paper tab, showing how many songs are inside. You can change the mark in Settings.",
         "otherWays": "For the song that is playing, press : for execute mode and then S. On a collection page, “Add all to scratchpad” takes the songs of that page at once, only the filtered ones when a filter is on: in Grid it is in the info panel, in Bravais under “⋯ More” in the info strip.",
         "open": "Click the handle, or press {{mod}} + J, to open the scratchpad; in execute mode it is J. Press it again to close it.",
         "groups": "Songs are grouped by source: one group per online platform, one for local files, one for Navidrome. Where each came from (which playlist, which search) is written after its artist.",
         "groupActions": "At the right of a group header: “Queue this group” and “Add this group to a playlist…”. A playlist takes songs from one source only; grouped by source, a whole group fits one playlist.",
         "rowActions": "Hover a row for: play it in the queue, add to queue, add to playlist, and take out of the scratchpad. A song stays after you queue it or save it to a playlist; take it out yourself when you are done with it.",
-        "footer": "The bottom row: add all to queue, replace the queue with the scratchpad, and clear. Clearing takes two clicks.",
-        "history": "“Play history” at the top of the drawer is the second page: songs played on this device in the last 7 days (online platforms, local files, Navidrome), by day, newest first. Each row can be played in the queue, queued, added to the scratchpad or saved to a playlist.",
-        "expand": "At the top of the drawer, left of the close button: “Expand into a canvas”.",
-        "canvas": "Expanded, every song is a card, still grouped by source, and each group header gains “Select this group”. Esc first clears the selection, then goes back to the list.",
+        "footer": "The row above the strips: add all to queue, replace the queue with the scratchpad, and clear. Clearing takes two clicks.",
+        "history": "“Play history”, on a strip at the bottom, is the second page (click it and it rises to the top while the scratchpad drops to the bottom): songs played on this device in the last 7 days (online platforms, local files, Navidrome), by day, newest first, each one a small photo. Each row can be played in the queue, queued, added to the scratchpad or saved to a playlist.",
+        "expand": "The dark square at the right end of the band: “Expand to full page”.",
+        "canvas": "Expanded to a full page, the whole sheet tilts: this page's band runs across the top, every song is a notebook card, still grouped by source, and each group header gains “Select this group”; the column on the right holds the jump list and the controls, and the other two pages fold into thin strips at the lower left. Esc first clears the selection, then goes back to the side panel.",
         "drag": "Drag cards to reorder them. A card moves only within its own group, and snaps to the nearest place when you let go. On a touch screen, press and hold a card until it lifts, then drag.",
-        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. A menu floats above the selected cards: add to queue, add to playlist, take out, clear selection. When the selection mixes sources, add to playlist is greyed out."
+        "select": "Drag a box on an empty spot to select the cards inside it; {{mod}}-click a card to add or remove it. A panel floats beside the selected cards: add to queue, add to playlist, take out, clear selection. When the selection mixes sources, add to playlist is greyed out."
       }
     }
   }

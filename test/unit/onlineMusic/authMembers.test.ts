@@ -24,9 +24,11 @@ const AUTH_MEMBERS: Record<string, string[]> = {
     bodian: [
         'cancelLogin', 'checkLogin', 'createQr', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'startLogin',
     ],
+    // Two ways to play, picked at the sign-in; after it, whether the account gets audio keys is
+    // checked, and the Soloist setup is a checklist of its own.
     spotify: [
-        'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',
-        'startLogin',
+        'cancelLogin', 'checkAfterLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'getSetup',
+        'logout', 'openLoginPage', 'resolveLoginMethods', 'runSetupAction', 'startLogin',
     ],
     ytm: [
         'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',

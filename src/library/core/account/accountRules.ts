@@ -112,11 +112,12 @@ export const isAwaitingLoginMethod = ({ methods, selectedMethodId }: LoginMethod
 );
 
 /**
- * 登录正在进行：平台还在说有哪几种登录方式、正在要码、等着扫或等着确认、或者确认了正在读账号。这时再来一次
- * 会取消掉它、向平台再要一把新的 key（再选一次同一行什么都不做；本地服务重启之后不再开始一次）。
+ * 登录正在进行：平台还在说有哪几种登录方式、正在要码、等着扫或等着确认、确认了正在读账号，或者读到了正在做登录
+ * 之后的检查。这时再来一次会取消掉它、向平台再要一把新的 key（再选一次同一行什么都不做；本地服务重启之后不再开始一次）。
  */
 export const isLoginUnderWay = (phase: LibraryLoginPhase): boolean => (
     phase === 'resolving-methods' || phase === 'loading' || phase === 'waiting' || phase === 'scanned' || phase === 'confirmed'
+    || phase === 'checking'
 );
 
 /** 平台要求稍后再试、又没说等多久时等的时间。 */

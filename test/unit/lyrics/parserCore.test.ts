@@ -232,6 +232,36 @@ describe('parserCore', () => {
         expect(lyrics.lines.every(line => line.backgroundVocal === undefined)).toBe(true);
     });
 
+    it('keeps TTML lines written without itunes:key', () => {
+        const fixture = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<tt xmlns="http://www.w3.org/ns/ttml">',
+            '<body><div>',
+            '<p begin="00:00:01.000" end="00:00:03.000"><span begin="00:00:01.000" end="00:00:02.000">Love</span> <span begin="00:00:02.000" end="00:00:03.000">Incident</span></p>',
+            '<p begin="4.5s" end="6s">Line timed only</p>',
+            '</div></body>',
+            '</tt>',
+        ].join('\n');
+        const lyrics = parseTTML(fixture, '', { includeInterludes: false });
+
+        expect(lyrics.lines.map(line => [line.startTime, line.fullText])).toEqual([
+            [1, 'Love Incident'],
+            [4.5, 'Line timed only'],
+        ]);
+    });
+
+    it('gives unkeyed TTML lines keys that do not collide with existing ones', () => {
+        const fixture = TTML_AGENT_OVERLAP_FIXTURE
+            .replace(' itunes:key="L1"', '')
+            .replace(' itunes:key="L3"', '');
+        const lyrics = parseTTML(fixture, '', { includeInterludes: false });
+
+        expect(lyrics.lines.map(line => line.fullText)).toEqual(['Main', 'Next']);
+        expect(lyrics.lines[0].backgroundVocal?.text).toBe('Harmony');
+        const ids = [lyrics.lines[0].id, lyrics.lines[1].id];
+        expect(new Set([...ids, 'L2']).size).toBe(3);
+    });
+
     it('dispatches formats through parseLyricsByFormat', () => {
         const lyrics = parseLyricsByFormat(
             'enhanced-lrc',
