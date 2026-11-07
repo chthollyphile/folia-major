@@ -58,9 +58,9 @@ export const useRemoteTrackHandoff = ({
     // 点击当场就翻方向：AnimatePresence 让退场的那张面沿用它最后一次在场时的 props，
     // 等快照回来才翻的话，退场的那张会和进场的那张朝同一个方向走。
     // trackIdentity 一并作为依赖，好让 TTL 在每次换歌时重新判一遍。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const trackTransitionDirection = useMemo<'prev' | 'next'>(() => (
         navIntent.at > 0 && Date.now() - navIntent.at < NAV_INTENT_TTL_MS ? navIntent.direction : 'next'
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- trackIdentity 是有意加的依赖：每次换歌都让 TTL 重新判一遍
     ), [navIntent, trackIdentity]);
 
     const recordNavIntent = useCallback((direction: 'prev' | 'next') => {

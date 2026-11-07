@@ -81,7 +81,6 @@ export const CappellaMessageRow = React.forwardRef<HTMLDivElement, CappellaMessa
                 paddingY: bubblePaddingY,
             })
             : null,
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [bubbleFontSize, bubblePaddingX, bubblePaddingY, isActiveMessage, lineHeightPx, maxTextWidth, message, metricsCache, theme]
     );
     const [visibleCharacterCount, setVisibleCharacterCount] = useState(() => (
