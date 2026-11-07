@@ -536,6 +536,88 @@ describe('external playback route', () => {
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
     });
+    // Two providers play through players of their own (the companion, Spotify's Soloist): a song of
+    // one does not replace a track sounding in the other.
+    describe('moving between external players', () => {
+        const soloistSong: SongResult = {
+            id: 'track1',
+            name: 'Other',
+            artists: [{ id: '', name: 'Artist' }],
+            album: { id: '', name: 'Album' },
+            durationMs: 180000,
+            sourceRef: { kind: 'online', providerId: 'spotify', mediaId: 'track1' },
+        };
+
+        it('stops the old player before the other one starts, in both directions', async () => {
+            const order: string[] = [];
+            omniMock.pauseExternalPlayback.mockImplementation(async (paused: unknown) => { order.push(`pause:${(paused as SongResult).id}`); });
+            omniMock.playSongExternally.mockImplementation(async (played: unknown) => { order.push(`play:${(played as SongResult).id}`); });
+
+            await engine.beginExternalPlayback(soloistSong, 0);
+            engine.announceExternalPlayback();
+            await engine.beginExternalPlayback(song, 0);
+            expect(order).toEqual(['play:track1', 'pause:track1', 'play:123']);
+            expect(engine.getExternalSong()).toBe(song);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('external');
+
+            engine.announceExternalPlayback();
+            order.length = 0;
+            await engine.beginExternalPlayback(soloistSong, 0);
+            expect(order).toEqual(['pause:123', 'play:track1']);
+            expect(engine.getExternalSong()).toBe(soloistSong);
+        });
+
+        it('leaves the player alone when the next song plays in the same one', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            await engine.beginExternalPlayback({ ...song, id: '456', sourceRef: { kind: 'online', providerId: 'appleMusic', mediaId: '456', providerData: { resourceType: 'songs' } } }, 0);
+            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        });
+
+        it('stops a start the other player took over while it was still starting', async () => {
+            let started!: () => void;
+            const order: string[] = [];
+            omniMock.pauseExternalPlayback.mockImplementation(async (paused: unknown) => { order.push(`pause:${(paused as SongResult).id}`); });
+            omniMock.playSongExternally.mockImplementationOnce(async () => {
+                await new Promise<void>(done => { started = done; });
+                order.push('play:track1');
+            });
+            const first = engine.beginExternalPlayback(soloistSong, 0);
+            await flush();
+            await engine.beginExternalPlayback(song, 0);
+            // A player may take the stop ahead of a start still on its way (the companion's urgent
+            // pause skips its command chain): once the overtaken start is through, it is stopped again.
+            started();
+            await first;
+            expect(order.slice(-2)).toEqual(['play:track1', 'pause:track1']);
+            expect(engine.getExternalSong()).toBe(song);
+        });
+
+        it('stops a start a web song took over while it was still starting', async () => {
+            let started!: () => void;
+            omniMock.playSongExternally.mockImplementationOnce(async () => {
+                await new Promise<void>(done => { started = done; });
+            });
+            const first = engine.beginExternalPlayback(soloistSong, 0);
+            await flush();
+            engine.yieldExternalPlayback('another song started');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            started();
+            await first;
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(2);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenLastCalledWith(soloistSong);
+        });
+
+        it('stops a handed-over track of the other player while a session is live here', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            omniMock.pauseExternalPlayback.mockClear();
+            engine.releaseUnclaimedExternalTrack(soloistSong, 'test');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(soloistSong);
+            expect(engine.getExternalSong()).toBe(song);
+        });
+    });
 
     // A window rebuild: the player kept sounding, and the new window takes the track over without
     // starting it again.

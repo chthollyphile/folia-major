@@ -926,7 +926,8 @@ export function usePlaybackQueueController({
             if (isExternal) {
                 // Another engine must stop before the companion starts, or both sound at once. The
                 // companion itself is not paused first: its next play replaces the track in one
-                // call, and pausing it here would race that play in the companion's queue.
+                // call, and pausing it here would race that play in the companion's queue. A song of
+                // another provider plays in another player: `beginExternalPlayback` stops the old one.
                 if (!isExternalRoute()) pauseWhatIsSounding(audioRef.current);
                 try {
                     // An advance Folia made by itself may not wake or restart the player.
