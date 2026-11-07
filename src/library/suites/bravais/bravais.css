@@ -158,17 +158,35 @@
 
 /* ---------- 缝：Lattice 主题材质，位置与宽度由 stage 每帧写 ---------- */
 
+/* 缝外面的轨道：铺满 stage、不挡点击，缝的平移写在它身上（它自己成合成层）；倾斜落定后缝的旋转画进这一层
+ * （bravaisFrame 的 seamTransforms）。层叠位置原来是缝的，现在给它。
+ * 缝自己写回 pointer-events: auto，祖先给的 none（宿主藏起首页、翻牌交接）就传不到它了：stage 在这两种时候给根节点挂
+ * data-bravais-seam-pointer="off"，由下面那条补上。不用 visibility: hidden 让轨道不挡点击：那样 Chromium 不再把缝的
+ * 旋转画进轨道那一层，又成了被合成器整块转过去的层。 */
+.bravais-seam-track {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    transform-origin: 0 0;
+    pointer-events: none;
+}
+
+.bravais-root[data-bravais-seam-pointer='off'] .bravais-seam {
+    pointer-events: none;
+}
+
 .bravais-seam {
     position: absolute;
     top: 0;
     bottom: 0;
     left: 0;
-    /* 每帧写的 transform 都按屏幕原点算（倾斜时绕海报右缘转，见 bravaisFrame 的 withTilt）。 */
+    /* 每帧写的 transform 都按屏幕原点算（倾斜时绕海报右缘转，见 bravaisFrame 的 withTilt / seamTransforms）。 */
     transform-origin: 0 0;
     z-index: 5;
     width: 0;
     overflow: hidden;
     visibility: hidden;
+    pointer-events: auto;
     color: var(--text-primary, #f7f4ee);
     /* 材质（预设 / 透明的缝）见 bravaisSeamLooks.css；没写 --bravais-seam-surface 时就是主题纸色。 */
     background: var(--bravais-seam-surface, var(--bravais-seam-paper));

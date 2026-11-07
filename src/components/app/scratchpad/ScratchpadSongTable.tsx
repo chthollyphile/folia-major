@@ -1,16 +1,19 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { Music2, Play } from 'lucide-react';
-import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 import type { CanvasEntry } from './ScratchpadCard';
 import type { ScratchpadAction } from './scratchpadModel';
 
 // src/components/app/scratchpad/ScratchpadSongTable.tsx
 // 速记簿「播放队列」页收起时（抽屉窄的时候）的列表：虚拟列表（队列可能有上千首），一行一首，点标题做主动作
 // （播放这首），悬停 / 聚焦出行内按钮。展开后换成卡片画布（ScratchpadCanvas），多选、框选、拖动排序都在那边。
+// 在左缘面板里画成一条竖着走的胶片（scratchpad.css）：行带着队列里的序号时（CanvasEntry.position），片边印「▸ 序号」，
+// 正在播的那一格印「▶ 正在播放」。
 
-/** 一行的高度（px），与 .scratchpad-row 一致。 */
-export const SONG_TABLE_ROW_HEIGHT = 52;
+/** 一行的高度（px），与 .scratchpad-table-row 一致。 */
+export const SONG_TABLE_ROW_HEIGHT = 56;
 
 type ScratchpadSongTableProps = {
     rows: CanvasEntry[];
@@ -21,6 +24,8 @@ type ScratchpadSongTableProps = {
     rowActions: (row: CanvasEntry) => ScratchpadAction[];
     /** 打开时滚到这一行（居中）；之后它变了时平滑跟过去。 */
     focusIndex?: number;
+    /** 正在播的那一格片边印的字。 */
+    currentLabel: string;
     ariaLabel: string;
     testId: string;
 };
@@ -28,19 +33,20 @@ type ScratchpadSongTableProps = {
 type SongTableRowProps = {
     rows: CanvasEntry[];
     primaryLabel: string;
+    currentLabel: string;
     rowActions: (row: CanvasEntry) => ScratchpadAction[];
     onActivate: (row: CanvasEntry) => void;
 };
 
-function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, rowActions, onActivate }: RowComponentProps<SongTableRowProps>) {
+function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, currentLabel, rowActions, onActivate }: RowComponentProps<SongTableRowProps>) {
     const row = rows[index];
     const [coverFailed, setCoverFailed] = useState(false);
-    const coverUrl = getSongCoverUrl(row.song);
+    const coverUrl = scratchpadCoverUrl(row.song, 96);
     return (
         <div
             {...ariaAttributes}
             style={style}
-            className={`scratchpad-row scratchpad-table-row${row.isCurrent ? ' is-current' : ''}`}
+            className={`scratchpad-row scratchpad-table-row${row.isCurrent ? ' is-current' : ''}${row.isDimmed ? ' is-dimmed' : ''}`}
             data-scratchpad-table-row={row.key}
         >
             <span className="scratchpad-cover" aria-hidden="true">
@@ -50,7 +56,12 @@ function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, ro
             </span>
             <button type="button" className="scratchpad-song" title={primaryLabel} onClick={() => onActivate(row)}>
                 <span className="scratchpad-name">{row.song.name}</span>
-                <span className="scratchpad-meta">{row.meta ?? getSongArtistLabel(row.song)}</span>
+                <span className="scratchpad-meta">
+                    {row.position !== undefined && (
+                        <span className="scratchpad-film-edge">{row.isCurrent ? `▶ ${currentLabel}` : `▸ ${row.position}`}</span>
+                    )}
+                    {row.meta ?? getSongArtistLabel(row.song)}
+                </span>
             </button>
             <span className="scratchpad-row-actions">
                 <button
@@ -88,7 +99,7 @@ function SongTableRowView({ ariaAttributes, index, style, rows, primaryLabel, ro
 
 const rowKeyOf = (index: number, props: SongTableRowProps) => props.rows[index]?.key ?? index;
 
-const ScratchpadSongTable: React.FC<ScratchpadSongTableProps> = ({ rows, primaryLabel, onActivate, rowActions, focusIndex, ariaLabel, testId }) => {
+const ScratchpadSongTable: React.FC<ScratchpadSongTableProps> = ({ rows, primaryLabel, onActivate, rowActions, focusIndex, currentLabel, ariaLabel, testId }) => {
     const listRef = useListRef(null);
 
     // 打开时把正在播放的那一首滚到正中；之后它变了（切歌）平滑跟过去。行数变了（入队）不把列表拽回去。
@@ -120,7 +131,10 @@ const ScratchpadSongTable: React.FC<ScratchpadSongTableProps> = ({ rows, primary
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [focusIndex]);
 
-    const rowProps = useMemo<SongTableRowProps>(() => ({ rows, primaryLabel, rowActions, onActivate }), [onActivate, primaryLabel, rowActions, rows]);
+    const rowProps = useMemo<SongTableRowProps>(
+        () => ({ rows, primaryLabel, currentLabel, rowActions, onActivate }),
+        [currentLabel, onActivate, primaryLabel, rowActions, rows],
+    );
 
     return (
         <div className="scratchpad-table" data-testid={testId}>

@@ -59,6 +59,7 @@ const quillLogin: LibraryLoginSessionSnapshot = {
     canReopenLoginPage: true,
     failure: null,
     selfCheck: null,
+    checksAfterLogin: false,
     localService: { available: false, failed: false, error: null, restarting: false },
     texts: null,
 };
@@ -87,6 +88,7 @@ const baseSnapshot = (): LibraryAccountSnapshot => ({
     providers: PROVIDERS,
     activeProviderId: 'netease',
     login: null,
+    setup: null,
     pendingSwitch: null,
     logout: { providerId: null, status: 'idle' },
     sync: { providerId: null, status: 'idle' },

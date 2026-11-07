@@ -15,10 +15,10 @@ import { omni } from '../../../../services/onlineMusic/omni';
 import { useGridViewSettingsStore } from '../../../../stores/useGridViewSettingsStore';
 import { useHomeLayoutSettingsStore } from '../../../../stores/useHomeLayoutSettingsStore';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
-import { useScratchpadSettingsStore } from '../../../../stores/useScratchpadSettingsStore';
+import { SCRATCHPAD_HANDLE_STYLE_LABEL_KEYS, SCRATCHPAD_HANDLE_STYLES, useScratchpadSettingsStore } from '../../../../stores/useScratchpadSettingsStore';
 import { Button, Chips, Group, PictureChoice, Reveal, Row, Segmented, Slider, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { BRAVAIS_WALL_OPTIONS, BravaisWallGroup } from './BravaisWallGroup';
-import { GridCardsPreview, HomeCardStylePicture } from './pictures';
+import { GridCardsPreview, HomeCardStylePicture, ScratchpadHandleStylePicture } from './pictures';
 
 // src/components/modal/settings/pages/HomePage.tsx
 // The 主页与歌单 page: which library UI the home screen, collections and artists are browsed in
@@ -27,7 +27,8 @@ import { GridCardsPreview, HomeCardStylePicture } from './pictures';
 // home cards are drawn and the look of the card grid a playlist or album opens into. Every library
 // UI reads the entries; the card style, the remembered card and the card grid only the grid
 // (isGridLibraryActive), so under another UI they are not drawn and the search leaves them out.
-// Last, the scratchpad's group: whether its tab on the left edge shows, and how high on the edge it sits.
+// Last, the scratchpad's group: whether its tab on the left edge shows, how high on the edge it sits, and
+// what it looks like while the pointer is away (small and faint; it opens into the full tab on hover).
 
 // The choice of suite is not part of the config export.
 const SUITE: SettingsGroupDef = { id: 'librarySuite', titleKey: 'options.librarySuite', available: hasLibrarySuiteChoice };
@@ -52,6 +53,7 @@ const O = {
     minCardOpacity: option(GRID, 'gridViewMinCardOpacity', 'options.gridViewMinCardOpacity'),
     scratchpadShowHandle: option(SCRATCHPAD, 'scratchpadShowHandle', 'options.scratchpadShowHandle'),
     scratchpadHandlePosition: option(SCRATCHPAD, 'scratchpadHandlePosition', 'options.scratchpadHandlePosition'),
+    scratchpadHandleStyle: option(SCRATCHPAD, 'scratchpadHandleStyle', 'options.scratchpadHandleStyle'),
 };
 
 export const OPTIONS: SettingsOptionDef[] = [...Object.values(O), ...BRAVAIS_WALL_OPTIONS];
@@ -92,8 +94,10 @@ const HomePage: React.FC = () => {
     const scratchpad = useScratchpadSettingsStore(useShallow(state => ({
         showHandle: state.showHandle,
         handlePosition: state.handlePosition,
+        handleStyle: state.handleStyle,
         setShowHandle: state.setShowHandle,
         setHandlePosition: state.setHandlePosition,
+        setHandleStyle: state.setHandleStyle,
     })));
     // The capsule has an explore tab only where the platform in use has an explore page.
     const hasExplore = useOnlineProviderAccountStore(() => omni.getActiveCapabilities().explore === true);
@@ -200,8 +204,19 @@ const HomePage: React.FC = () => {
                 <Row option={O.scratchpadShowHandle} note={t('options.scratchpadShowHandleDesc')}>
                     <Toggle checked={scratchpad.showHandle} onChange={scratchpad.setShowHandle} />
                 </Row>
-                {/* The height only means anything while the tab is drawn. */}
+                {/* The height and the look only mean anything while the tab is drawn. */}
                 <Reveal when={scratchpad.showHandle}>
+                    <Row sub option={O.scratchpadHandleStyle} note={t('options.scratchpadHandleStyleDesc')}>
+                        <PictureChoice
+                            value={scratchpad.handleStyle}
+                            options={SCRATCHPAD_HANDLE_STYLES.map(style => ({
+                                value: style,
+                                label: t(SCRATCHPAD_HANDLE_STYLE_LABEL_KEYS[style]),
+                                picture: <ScratchpadHandleStylePicture handleStyle={style} />,
+                            }))}
+                            onChange={scratchpad.setHandleStyle}
+                        />
+                    </Row>
                     <Row sub option={O.scratchpadHandlePosition} note={t('options.scratchpadHandlePositionDesc')}>
                         <Slider
                             value={scratchpad.handlePosition}

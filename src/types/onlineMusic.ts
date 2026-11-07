@@ -507,9 +507,16 @@ export interface OnlineExternalPlaybackProvider {
     isPrepared?(song: SongResult): boolean;
     /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
     play(song: SongResult, startSec: number): Promise<void>;
+    /**
+     * The player already has `song` loaded (started by a window of this app that is gone): take it
+     * as this provider's current playback without starting it, so successors can be prepared for it.
+     */
+    adopt?(song: SongResult): void;
     pause(): Promise<void>;
     resume(): Promise<void>;
     seek(seconds: number): Promise<void>;
+    /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
+    setVolume?(volume: number): Promise<void>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
@@ -523,8 +530,10 @@ export interface OnlineLyricsProvider {
     getSearchAlias?(song: SongResult): Promise<ProviderLyricSearchAlias | null>;
     getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<ProviderLyricsResult>;
     /**
-     * Where its own lyrics are word-level, they are the timings to use even with automatic
-     * matching on: another source may have words too, but not this platform's own timing.
+     * Where its own lyrics are word-level, the automatic pick asks only the listener's preferred
+     * source before them, and takes that source's words alone over them: another source may have
+     * words too, but not this platform's own timing. The listener can turn this off (lyric
+     * settings), and the platform's lyrics are then matched like any other source's.
      * Off where the platform leaves the choice to the automatic pick.
      */
     prefersOwnWordByWord?: boolean;
@@ -542,6 +551,53 @@ export interface LoginMethod {
     id: string;          // 传给后端的识别值（QQ: 'qq' | 'wechat'）
     labelKey: string;    // i18n key，由 UI 层翻译
     iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
+    // 选中这种方式时那一行说明（i18n key）：浏览器登录的几种方式靠它说清楚彼此差在哪。不给就用平台的登录说明。
+    noteKey?: string;
+    // 在浏览器里确认的几种方式里，开始时先替用的人选上的那一种（例如此刻在用的那一种）；都不标就是第一种。
+    preferred?: boolean;
+}
+
+// —— 平台的配置清单 ——
+// 登录之外、要用的人一步步做完的事（例如装一个本机程序、填一把密钥），登录窗口按平台给的清单逐步画出来。
+// 清单只有数据：每一步的状态、说明和操作都由平台决定，窗口不认识任何平台。
+
+/** 清单里一步的一个操作。 */
+export interface ProviderSetupAction {
+    id: string;
+    labelKey: string;
+    /**
+     * link：打开平台说的页面；run：做一件事；pick-file：选一个本机文件（平台自己弹系统的选择框）；
+     * submit-secret：交出这一步密码框里填的内容。
+     */
+    kind: 'link' | 'run' | 'pick-file' | 'submit-secret';
+    primary?: boolean;
+}
+
+/** 清单里的一步。 */
+export interface ProviderSetupStep {
+    id: string;
+    titleKey: string;
+    noteKey?: string;
+    /** titleKey 与 noteKey 的插值。 */
+    params?: Record<string, string | number>;
+    state: 'done' | 'todo' | 'warn' | 'error';
+    /** 原样显示的一行事实（路径、版本）；不翻译。 */
+    detail?: string;
+    /** 这一步有一个密码框。saved：已经存过一份（框里只画掩码，要换才清空）。 */
+    secret?: { labelKey: string; saved: boolean };
+    actions?: ProviderSetupAction[];
+}
+
+/** 平台此刻的配置清单。 */
+export interface ProviderSetupView {
+    titleKey: string;
+    noteKey?: string;
+    params?: Record<string, string | number>;
+    steps: ProviderSetupStep[];
+    /** 每一步都做完了：可以结束。 */
+    complete: boolean;
+    /** 平台对刚做的那一个操作说的话（i18n key）；没有可说的就不给。 */
+    message?: { key: string; tone: 'ok' | 'warn' | 'error' };
 }
 
 // —— 表单式登录（账号密码类平台）——
@@ -734,6 +790,14 @@ export interface OnlineAuthProvider {
     // canRunLoginSelfCheck 同步回答此刻能不能检查（界面据此决定要不要显示「正在检查」）。
     canRunLoginSelfCheck?(): boolean;
     runLoginSelfCheck?(): Promise<LoginSelfCheckResult | null>;
+    // 登录确认、账号读到之后多走的一步：查这个账号此刻能不能用（例如能不能播放）。回一份配置清单，
+    // 登录窗口就停在清单上让用的人做完；回 null 是没有要做的。methodId 是这一次选的登录方式。
+    // 有时限，超时或抛错都当作 null：这一步挡不住登录。
+    checkAfterLogin?(methodId: string | null): Promise<ProviderSetupView | null>;
+    // 平台此刻的配置清单（登录之后也能从账号那一幅打开）；此刻没有要配置的回 null。窗口开着清单时会反复问它。
+    getSetup?(): Promise<ProviderSetupView | null>;
+    // 做清单上的一个操作，回做完之后的清单。value 是 submit-secret 交出的内容。操作失败写在回的清单里，不抛错。
+    runSetupAction?(stepId: string, actionId: string, value?: string): Promise<ProviderSetupView>;
 }
 
 declare const builtDiagnosticLine: unique symbol;

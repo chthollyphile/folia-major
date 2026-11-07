@@ -19,7 +19,7 @@ describe('Apple Music data adapter', () => {
         })) } });
         // One row wanted: the server's own next offset is kept, and no second page is read.
         await expect(getAppleMusicPlaylists(1, 0)).resolves.toMatchObject({
-            nextOffset: 5, hasMore: true, items: [{ id: 'p.example', providerId: 'appleMusic' }],
+            nextOffset: 5, hasMore: true, items: [{ id: 'library-songs', providerId: 'appleMusic' }, { id: 'p.example', providerId: 'appleMusic' }],
         });
     });
 
@@ -43,7 +43,7 @@ describe('Apple Music data adapter', () => {
             },
         })) } });
         await expect(getAppleMusicPlaylists(10, 0)).resolves.toMatchObject({
-            items: [{ id: 'p.1', providerId: 'appleMusic' }],
+            items: [{ id: 'library-songs', providerId: 'appleMusic' }, { id: 'p.1', providerId: 'appleMusic' }],
             nextOffset: 2,
             hasMore: false,
         });

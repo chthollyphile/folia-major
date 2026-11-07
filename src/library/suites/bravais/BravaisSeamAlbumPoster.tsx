@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ListFilter, ListPlus, Play } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, ListFilter, ListPlus, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisLayer } from './bravaisLayer';
@@ -79,6 +79,49 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
         '--bravais-album-hero-deg': `${composition.hero.deg}deg`,
     } as React.CSSProperties;
     const year = album?.kicker;
+    // 歌手行收起时截在两行（#1097）：只有真的截掉了才给「展开全部」按钮。展开着时不量（不截了，量出来总是放得下）；
+    // 换专辑按 layer.key 重新挂载，展开状态随之归位。
+    // 截掉的那几位（中心落在两行之下）收起时不进焦点序列：缝里方向键聚焦不滚动（preventScroll），停上去就看不见了。
+    // 按 offsetTop 量（歌手行自己是定位元素），不按屏幕矩形：海报倾斜着，屏幕矩形是转过的外接框。
+    const artistsRef = useRef<HTMLSpanElement>(null);
+    const [artistsOpen, setArtistsOpen] = useState(false);
+    const [artistsClamped, setArtistsClamped] = useState(false);
+    const [artistsClippedFrom, setArtistsClippedFrom] = useState<number | null>(null);
+    const albumArtists = album?.artists;
+    useLayoutEffect(() => {
+        const line = artistsRef.current;
+        if (!line || artistsOpen) return;
+        // 展开时可能在行内滚过：收起回到开头，不然两行里露的是中间几位。
+        line.scrollTop = 0;
+        const check = () => {
+            setArtistsClamped(line.scrollHeight > line.clientHeight + 1);
+            const names = [...line.querySelectorAll<HTMLElement>(':scope > .bravais-album-artist')];
+            const clipped = names.findIndex(name => name.offsetTop + name.offsetHeight / 2 > line.clientHeight);
+            setArtistsClippedFrom(clipped < 0 ? null : clipped);
+        };
+        check();
+        const observer = new ResizeObserver(check);
+        observer.observe(line);
+        // 字体晚到会改折行，但收起的歌手行高度不变、ResizeObserver 不报：字体到齐再量一次。
+        let alive = true;
+        void document.fonts?.ready.then(() => {
+            if (alive) check();
+        });
+        return () => {
+            alive = false;
+            observer.disconnect();
+        };
+    }, [albumArtists, artistsOpen]);
+    /** 展开后歌手行封顶、在行内滚动：方向键停到行外的名字时把它滚进来（聚焦本身不滚动）。 */
+    const revealFocusedArtist = (event: React.FocusEvent<HTMLSpanElement>) => {
+        const line = event.currentTarget;
+        const target = event.target;
+        if (!artistsOpen || target === line || !(target instanceof HTMLElement)) return;
+        const top = target.offsetTop;
+        const bottom = top + target.offsetHeight;
+        if (top < line.scrollTop) line.scrollTop = top;
+        else if (bottom > line.scrollTop + line.clientHeight) line.scrollTop = bottom - line.clientHeight;
+    };
     // 封面飞行（bravaisCoverFlight）：从墙上被点的那张专辑飞来时，自己的封面先藏着、落地再露出；卸载（返回）时飞回那一格。
     const coverRef = useRef<HTMLElement>(null);
     const flownFromRef = useRef<{ slotKey: string; cardKey: string } | null>(null);
@@ -185,12 +228,15 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                 <div className="bravais-poster-bottom bravais-album-bottom">
                     <div className="bravais-album-facts" data-bravais-album-facts>
                         {album && album.artists.length > 0 && (
-                            <span className="bravais-album-artists" data-bravais-album-artists>
+                            // 收起时最多两行（bravaisAlbumPoster.css），截掉了才在后面放「展开全部」，点开后变「收起」。
+                            <span ref={artistsRef} className={`bravais-album-artists${artistsOpen ? ' is-open' : ''}`} data-bravais-album-artists
+                                onFocus={revealFocusedArtist}>
                                 {album.artists.map((artist, index) => (
                                     <React.Fragment key={`${artist.targetId ?? ''}:${index}`}>
                                         {index > 0 && <span className="bravais-album-artist-separator" aria-hidden> / </span>}
                                         {artist.targetId !== undefined && album.onOpenArtist ? (
                                             <button type="button" className="bravais-album-artist" data-bravais-seam-action="open-artist"
+                                                tabIndex={!artistsOpen && artistsClippedFrom !== null && index >= artistsClippedFrom ? -1 : undefined}
                                                 onClick={() => album.onOpenArtist?.(artist)} title={t('libraryBravaisAlbum.openArtist', { name: artist.name })}>
                                                 {artist.name}
                                             </button>
@@ -198,6 +244,14 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                                     </React.Fragment>
                                 ))}
                             </span>
+                        )}
+                        {album && (artistsClamped || artistsOpen) && (
+                            <button type="button" className="bravais-album-artists-toggle" data-bravais-seam-action="artists-toggle"
+                                aria-expanded={artistsOpen} onClick={() => setArtistsOpen(open => !open)}>
+                                {artistsOpen
+                                    ? <><ChevronUp aria-hidden />{t('libraryBravaisAlbum.collapseArtists')}</>
+                                    : <><ChevronDown aria-hidden />{t('libraryBravaisAlbum.expandArtists', { count: album.artists.length })}</>}
+                            </button>
                         )}
                         {seam.meta && <BravaisSeamMetaLine as="span" meta={seam.meta} reload={collection?.reload} className="bravais-poster-meta" />}
                         {album?.facts.filter(fact => fact !== seam.meta).map(fact => <span key={fact} className="bravais-album-fact">{fact}</span>)}

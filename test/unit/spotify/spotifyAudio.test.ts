@@ -377,3 +377,43 @@ describe('Spotify audio', () => {
         expect(await bare.audio.kept(issued.url)).toBe(false);
     });
 });
+
+describe('Spotify audio · the key probe after a sign-in', () => {
+    const REFUSED_KEY = 'audio key unavailable: Error { kind: Unavailable, error: AesKey }';
+
+    it('says the account gets keys from the first track that answers, without fetching any audio', async () => {
+        const { audio, fetch, sessions } = setup();
+        await expect(audio.probe([TRACK, '1111111111111111111111'])).resolves.toBe('ok');
+        expect(sessions[0].resolveAudioFileAsync).toHaveBeenCalledTimes(1);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('says an account Spotify gives no key, and a refusal after it gave one is no refusal of the account', async () => {
+        const refused = setup({ fail: REFUSED_KEY });
+        await expect(refused.audio.probe([TRACK])).resolves.toBe('no-key');
+
+        const given = setup();
+        await given.audio.issue(TRACK, 160);
+        given.sessions[0].fail = REFUSED_KEY;
+        await expect(given.audio.probe(['1111111111111111111111'])).resolves.toBe('ok');
+    });
+
+    it('passes over a track Spotify has no audio for, and knows nothing from other failures or nothing to ask', async () => {
+        const { audio, sessions } = setup({ fail: 'track is unavailable' });
+        const probing = audio.probe([TRACK, '1111111111111111111111']);
+        await expect(probing).resolves.toBe('unknown');
+        expect(sessions[0].resolveAudioFileAsync).toHaveBeenCalledTimes(2);
+
+        const broken = setup({ fail: 'something else entirely' });
+        await expect(broken.audio.probe([TRACK])).resolves.toBe('unknown');
+        await expect(broken.audio.probe(['not-a-track'])).resolves.toBe('unknown');
+    });
+
+    it('gives up past its limit', async () => {
+        const { audio, sessions, logs } = setup();
+        await audio.issue(TRACK, 160);
+        sessions[0].resolveAudioFileAsync.mockImplementation(() => new Promise(() => { }));
+        await expect(audio.probe(['1111111111111111111111'], 5)).resolves.toBe('unknown');
+        expect(logs.at(-1)).toMatch(/probe took over 5ms/);
+    });
+});

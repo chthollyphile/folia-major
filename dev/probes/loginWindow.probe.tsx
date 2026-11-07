@@ -10,8 +10,8 @@ import { useMotionSettingsStore } from '../../src/stores/useMotionSettingsStore'
 import type { RowLead } from '../../src/components/login/window/loginView';
 import { loginCaseOf, loginFailureFacts } from '../../src/services/onlineMusic/login/loginFailureCase';
 import type { LoginFailure } from '../../src/types/loginFailure';
-import type { LibraryLoginSessionSnapshot } from '../../src/library/core/account/account.contract';
-import type { LoginCaseId, LoginFailureDetail, LoginMethod, LoginStep, ProviderAccountSummary } from '../../src/types/onlineMusic';
+import type { LibraryLoginSessionSnapshot, LibraryProviderSetupSnapshot } from '../../src/library/core/account/account.contract';
+import type { LoginCaseId, LoginFailureDetail, LoginMethod, LoginStep, ProviderAccountSummary, ProviderSetupView } from '../../src/types/onlineMusic';
 import type { ProbeDefinition } from './definition';
 import { probeAccountController } from './probeAccountController';
 // dev/probes/loginWindow.probe.tsx
@@ -25,6 +25,10 @@ import { probeAccountController } from './probeAccountController';
  * state: none, preparing, code, scanned, reading, expired, methods, methods-code, browser-ready,
  * browser-opening, browser, account (syncing=1: its data is syncing; syncing=other: another platform's is), account-other, account-nameless (signed in, no profile),
  * account-gone (the sign-in ran out while the account was shown), accountless, off, or fail-<case id>.
+ * browser-methods: a sign-in in the browser with two methods, each with its own note; checking: the check a
+ * platform makes after the account is read (a fourth step mark); setup-nokey: the checklist that check gives
+ * for an account that cannot play; setup-steps: a checklist of three steps opened from the account (one done,
+ * one with a saved secret, one to do, and a message).
  * count=7–12 fills the column up to that many platforms with stand-ins (the search field shows from 12 up).
  * A test passes the same as props.
  *
@@ -113,7 +117,39 @@ const failureOf = (id: LoginCaseId): LoginFailure => {
     return { case: loginCaseOf(facts), facts, at: Date.now() };
 };
 
-type Shown = Pick<LoginScreenProps, 'chosen' | 'login'>;
+type Shown = Pick<LoginScreenProps, 'chosen' | 'login' | 'setup'>;
+
+// Two ways to sign in in the browser, as a platform with two ways to play declares them.
+const BROWSER_METHODS: LoginMethod[] = [
+    { id: 'standard', labelKey: 'soloist.method.standard', iconKey: '', noteKey: 'soloist.method.standardNote' },
+    { id: 'soloist', labelKey: 'soloist.method.soloist', iconKey: '', noteKey: 'soloist.method.soloistNote' },
+];
+const NO_KEY_VIEW: ProviderSetupView = {
+    titleKey: 'soloist.noKey.title',
+    noteKey: 'soloist.noKey.note',
+    complete: false,
+    steps: [{ id: 'mode', titleKey: 'soloist.step.modeStandard', noteKey: 'soloist.mode.noKeyNote', state: 'warn', actions: [{ id: 'use-soloist', labelKey: 'soloist.action.useSoloist', kind: 'run', primary: true }] }],
+};
+const STEPS_VIEW: ProviderSetupView = {
+    titleKey: 'soloist.setup.title',
+    noteKey: 'soloist.setup.note',
+    complete: false,
+    message: { key: 'soloist.message.keySaved', tone: 'ok' },
+    steps: [
+        {
+            id: 'program', titleKey: 'soloist.step.program', noteKey: 'soloist.program.expiring', state: 'warn',
+            params: { version: '1.4.2', days: 9, expires: '2026年11月15日' }, detail: 'C:\\Users\\listener\\Downloads\\soloist\\soloist.exe',
+            actions: [{ id: 'download', labelKey: 'soloist.action.download', kind: 'link' }, { id: 'pick', labelKey: 'soloist.action.pickAgain', kind: 'pick-file' }],
+        },
+        {
+            id: 'key', titleKey: 'soloist.step.key', noteKey: 'soloist.key.saved', state: 'done', secret: { labelKey: 'soloist.key.label', saved: true },
+            actions: [{ id: 'key-page', labelKey: 'soloist.action.keyPage', kind: 'link' }, { id: 'save-key', labelKey: 'soloist.action.saveKey', kind: 'submit-secret', primary: true }],
+        },
+        { id: 'pair', titleKey: 'soloist.step.pair', noteKey: 'soloist.pair.todo', state: 'todo', actions: [{ id: 'restart', labelKey: 'soloist.action.reconnect', kind: 'run' }] },
+        { id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done', actions: [{ id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' }] },
+    ],
+};
+const setupOf = (view: ProviderSetupView, origin: 'sign-in' | 'account'): LibraryProviderSetupSnapshot => ({ providerId: 'spotify', view, busy: false, origin });
 const chosen = (providerId: string, lead: RowLead) => ({ providerId, lead });
 const IN_BROWSER = new Set(['spotify', 'ytm']);
 // The local service of the platform that has one, as the desktop app reports it: down for its case.
@@ -134,6 +170,7 @@ const sessionOf = (providerId: string, patch: Partial<LibraryLoginSessionSnapsho
     selfCheck: null,
     localService: providerId === 'netease' ? SERVICE_UP : { available: false, failed: false, error: null, restarting: false },
     texts: null,
+    checksAfterLogin: false,
     ...patch,
 });
 
@@ -165,6 +202,17 @@ const shownFor = (state: string): Shown => {
         case 'browser-ready': return { chosen: chosen('spotify', 'sign-in'), login: sessionOf('spotify', { phase: 'ready' }) };
         case 'browser-opening': return { chosen: chosen('ytm', 'sign-in'), login: sessionOf('ytm') };
         case 'browser': return { chosen: chosen('spotify', 'sign-in'), login: sessionOf('spotify', { phase: 'waiting' }) };
+        case 'browser-methods': return {
+            chosen: chosen('spotify', 'sign-in'),
+            login: sessionOf('spotify', { phase: 'ready', methods: BROWSER_METHODS, selectedMethodId: 'soloist', checksAfterLogin: true }),
+        };
+        case 'checking': return { chosen: chosen('spotify', 'sign-in'), login: sessionOf('spotify', { phase: 'checking', checksAfterLogin: true }) };
+        case 'setup-nokey': return {
+            chosen: chosen('spotify', 'sign-in'),
+            login: sessionOf('spotify', { phase: 'checking', checksAfterLogin: true }),
+            setup: setupOf(NO_KEY_VIEW, 'sign-in'),
+        };
+        case 'setup-steps': return { chosen: chosen('spotify', 'account'), login: null, setup: setupOf(STEPS_VIEW, 'account') };
         case 'account': return { chosen: chosen('qq', 'account'), login: null };
         case 'account-nameless': return { chosen: chosen('spotify', 'account'), login: null };
         case 'account-gone': return { chosen: chosen('kugou', 'account'), login: null };
@@ -257,6 +305,11 @@ function LoginWindowProbe(props: ProbeProps) {
                     activeProviderId={activeProviderId}
                     chosen={view.chosen}
                     login={view.login}
+                    setup={view.setup ?? null}
+                    canOpenSetup={view.chosen?.providerId === 'spotify'}
+                    onOpenSetup={() => setShown(current => ({ ...current, setup: setupOf(STEPS_VIEW, 'account') }))}
+                    onSetupAction={async (stepId, actionId, value) => { setSaid(`setup ${stepId} ${actionId}${value ? ' (a value)' : ''}`); return true; }}
+                    onFinishSetup={() => { setSaid('setup finished'); setShown(current => ({ ...current, setup: null })); }}
                     buildReport={async () => '### Folia QR login diagnostics (a sample made by the probe)'}
                     onChoose={providerId => {
                         setSaid(`chosen ${providerId}`);

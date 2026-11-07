@@ -27,6 +27,7 @@ import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { setIsPanelOpen } from '../stores/useAppViewStore';
 import { currentTime } from '../stores/motionSignals';
 import { isHifiRoute } from '../services/hifi/hifiPlayback';
+import { isExternalRoute } from '../services/onlineMusic/externalPlayback';
 
 // src/hooks/useElectronVideoExportController.ts
 // Records the real player window so audio.currentTime remains the single animation clock.
@@ -79,6 +80,16 @@ export const useElectronVideoExportController = ({
                 status: 'error',
                 presetId: preset.id,
                 error: t('hifi.videoExportUnavailable'),
+            });
+            return;
+        }
+        // A song a platform sounds in a player of its own never reaches the deck either.
+        if (isExternalRoute()) {
+            setExportState({
+                ...idleVideoExportState(),
+                status: 'error',
+                presetId: preset.id,
+                error: t('status.externalVideoExportUnavailable'),
             });
             return;
         }

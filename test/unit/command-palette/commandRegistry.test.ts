@@ -161,6 +161,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             canReportPlayback: vi.fn(() => false),
             togglePlaybackReport: vi.fn(),
             toggleAutoAiLyricSegmentation: vi.fn(),
+            toggleKeepProviderWordTiming: vi.fn(),
             voiceInputPauseSupported: false,
             modSystemEnabled: false,
             toggleVoiceInputPause: vi.fn(),

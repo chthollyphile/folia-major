@@ -7,6 +7,7 @@ import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
+import { providerSetupCommand } from './providerSetupCommand';
 import { subtitleSettingsCommand } from './subtitleSettingsCommand';
 import { lyricExportCommands } from './lyricExportCommands';
 import { Gauge, Images, Languages, Layers3, Library } from 'lucide-react';
@@ -63,6 +64,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     },
     sleepTimerCommand,
     nowPlayingCardPositionCommand,
+    providerSetupCommand,
     createSettingsCommand('settings-options', 'Open Options', 'Open the options center', ['settings', 'options', '设置', '选项'], 'options', null, { executeShortcut: 'o' }),
     createSettingsCommand('settings-appearance', 'Appearance settings', 'Open visual and appearance settings', ['appearance', 'visual settings', '外观', '视觉'], 'options', 'appearance'),
     createSettingsAnchorCommand('settings-ai-provider', 'AI provider settings', 'Choose an AI provider and model', ['model connection', 'api key', '模型设置', '供应商', '密钥', 'deepseek', 'kimi', 'glm', 'qwen', '通义', '智谱'], 'electronSettings', { platform: ['electron'] }),
@@ -175,6 +177,14 @@ export const settingsCommands: CommandPaletteCommand[] = [
         'Turn on or off segmenting each new song’s lyrics into words with AI by itself',
         ['auto segmentation', 'ai word split', 'auto ai segmentation', '自动分词', '自动AI分词', 'AI分词'],
         context => context.settings.toggleAutoAiLyricSegmentation(),
+    ),
+    createToggleCommand(
+        'keep-provider-word-timing-toggle',
+        'settings',
+        'Keep platform word-timed lyrics',
+        'Turn on or off keeping the word-timed lyrics a song’s own platform comes with',
+        ['platform lyrics', 'own lyrics', 'word timing', 'lyric source', '自带歌词', '逐字歌词', '歌词源', '平台歌词'],
+        context => context.settings.toggleKeepProviderWordTiming(),
     ),
     createSettingsAnchorCommand('settings-local-lyric-format-order', 'Local lyric file format priority', 'Choose which format wins when a track has several lyric files', ['lyric format priority', 'lyric file order', 'lrc ttml priority', '本地歌词文件格式优先级', '歌词格式', '格式优先级', 'geciwenjiangeshi', 'gcgsyxj'], 'localLyricFormatOrder'),
     createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Now Playing, and Navidrome settings', ['integration', 'stage', 'now playing', 'navidrome settings', '集成', '连接'], 'options', 'integration'),

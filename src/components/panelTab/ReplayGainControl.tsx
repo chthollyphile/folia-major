@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ReplayGainInfo, ReplayGainMode } from '../../types';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
+import { useIsExternalPlayerRoute } from './ExternalPlayerNotice';
 import { PanelRow } from './shell/PanelRow';
 import { Segments } from './shell/Segments';
 
@@ -28,6 +29,8 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
     const estimated = usePlaybackStore(state => state.replayGainEstimated);
     // mpv plays the song on the HiFi route and applies no gain; the mode is kept for the web engine.
     const isHifiRoute = useIsHifiRoute();
+    // A platform's own player sounds the song on the external route; no gain reaches it either.
+    const isExternalRoute = useIsExternalPlayerRoute();
     const labels: Record<ReplayGainMode, string> = {
         off: t('localMusic.replayGainOff'),
         auto: t('localMusic.replayGainAuto'),
@@ -44,6 +47,7 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
         measured.push(`${labels.album} ${formatGain(values.albumGain)}`);
     }
     const hint = isHifiRoute ? [t('hifi.player.replayGainBypassed'), ...measured].join(' · ')
+        : isExternalRoute ? t('status.externalReplayGainBypassed')
         : mode === 'off' ? undefined
         : mode !== 'auto' && !hasTags ? t('localMusic.replayGainUnavailable')
         : `${labels[mode]} ${formatGain(appliedDb)}${mode === 'auto' && estimated ? ` · ${t('localMusic.replayGainEstimated')}` : ''}`;
