@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createRequire } from 'node:module';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/spotify/spotifyClientPlayback.test.ts — what the Spotify app's own answers become for
@@ -25,6 +26,12 @@ import {
 import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
 import { readSpotifyPlaybackMode, setSpotifyPlaybackMode } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
 import type { SongResult } from '@/types';
+
+// The page's own queue code, run here as the app runs it: the two layers are mocked apart in every
+// other case, and a song written twice is exactly what the seam between them can produce.
+const { QUEUE_SOURCE } = createRequire(import.meta.url)('../../../electron/spotify/officialClient.cjs') as {
+    QUEUE_SOURCE: string;
+};
 
 const id = (letter: string) => letter.repeat(22);
 const songOf = (letter: string): SongResult => normalizeSpotifySong({
@@ -209,8 +216,8 @@ describe('the press of play on a song whose Spotify was closed', () => {
         expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 83000, userAction: true });
         // What was queued in the closed app went with it: the songs that follow are put back, and
         // Folia's record of them holds again (its prepared-queue key does not change, so it would not ask).
-        // They are named as the songs to write down: a queue that could not be emptied still holds them.
-        expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')], queued: [id('b')] });
+        // The start emptied the app's queue: none of them is reported as something it already holds.
+        expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')], queued: [] });
         expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
         expect(spotifyClientAttempt()?.hasPlayed).toBe(false);
         expect(spotifyClientPlayback.isPrepared!(b)).toBe(false);
@@ -577,7 +584,7 @@ describe('the songs that follow, kept three deep and written once', () => {
             expect(writes).toHaveLength(2);
             // The second write is handed the queue the app reported, not the list Folia wants.
             expect(writes[1]).toEqual(['client_queue', { ids: [id('b'), id('c')], queued: [id('b'), id('c'), id('c')] }]);
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('it was emptied and 2 songs written again'));
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('it is emptied and 2 songs written once more'));
             expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c')]);
         } finally {
             info.mockRestore();
@@ -585,7 +592,7 @@ describe('the songs that follow, kept three deep and written once', () => {
     });
 
 
-    it('writes the songs that are missing when the queue it reads back holds one of them twice', async () => {
+    it('leaves a queue it cannot empty as it is instead of adding a song the app may already hold', async () => {
         const a = songOf('a');
         const b = songOf('b');
         const c = songOf('c');
@@ -603,15 +610,13 @@ describe('the songs that follow, kept three deep and written once', () => {
         try {
             await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
 
+            // A read taken a moment after the write cannot prove a song is missing, so a queue that
+            // could not be emptied is not written again: that is how a song ends up there twice.
             const writes = request.mock.calls.filter(call => call[0] === 'client_queue');
-            expect(writes).toHaveLength(2);
-            const second = writes[1]?.[1] as { ids: string[]; queued: string[] };
-            // Told the songs were already there, a write that cannot empty the queue adds nothing:
-            // the second one is given the queue the app reported instead, so what it adds is the gap.
-            expect(second).toEqual({ ids: [id('b'), id('c'), id('d')], queued: [id('b'), id('b')] });
-            expect(second.ids.filter(song => !second.queued.includes(song))).toEqual([id('c'), id('d')]);
-            // And the log says what that write did, not what it was meant to do.
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('3 songs added behind what it already held'));
+            expect(writes).toHaveLength(1);
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('it cannot empty its queue, so nothing is written again'));
+            // The duplicate it read back is what Folia goes by until the app can empty its queue.
+            expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
         } finally {
             info.mockRestore();
         }
@@ -635,6 +640,69 @@ describe('the songs that follow, kept three deep and written once', () => {
     });
 });
 
+describe('the queue write against the app own queue code', () => {
+    const writeInPage = (new Function(`return (${QUEUE_SOURCE})`)()) as (input: unknown) => Promise<{
+        added: number; cleared: boolean; queue: string[] | null;
+    }>;
+    /**
+     * A player that writes its state a moment late: every read taken after an `addToQueue` still shows
+     * the queue as it was, until the test says a tick has passed. A read is no proof that a song is
+     * absent while it does.
+     */
+    const laggingPlayer = (start: string[]) => {
+        const held: string[] = [...start];
+        let shown: string[] | null = null;
+        const asState = (ids: string[]) => ({ nextTracks: ids.map(id => ({ uri: `spotify:track:${id}` })) });
+        const player = {
+            getState: () => asState(shown ?? held),
+            addToQueue: (entries: { uri: string }[]) => {
+                shown ??= [...held];
+                for (const entry of entries) held.push(entry.uri.slice(14));
+            },
+        };
+        return { player, held, settle: () => { shown = null; } };
+    };
+    /** The renderer's queue write, answered by the page code rather than by a stand-in answer. */
+    const answerInPage = (player: unknown) => {
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return 'loaded';
+            if (operation !== 'client_queue') return { available: true };
+            const { ids, queued } = params as { ids: string[]; queued: string[] };
+            return writeInPage({
+                api: { player },
+                uris: ids.map(id => `spotify:track:${id}`),
+                queued,
+            });
+        });
+    };
+
+    it('does not add a song again when the read right after a write still shows the queue as it was', async () => {
+        // The read comes back short of the song just written: taken as proof it is missing, the
+        // write would add it a second time, and the app would play it twice.
+        const app = laggingPlayer([id('b'), id('c')]);
+        answerInPage(app.player);
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+
+        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+
+        expect(app.held).toEqual([id('b'), id('c'), id('d')]);
+    });
+
+    it('adds nothing more once the read has caught up with what was written', async () => {
+        const app = laggingPlayer([id('b')]);
+        answerInPage(app.player);
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+
+        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+        app.settle();
+        // A queue edit asks again: the songs are there, so the second write puts none of them in twice.
+        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+
+        expect(app.held).toEqual([id('b'), id('c'), id('d')]);
+    });
+});
 
 describe('the media keys and the failures that stop an advance', () => {
     it('declares that its app keeps a media session of its own (the keys are held)', () => {

@@ -139,37 +139,40 @@ const STATE_BODY = `
 `;
 
 
-// The songs that are to follow, written into the app's queue, run in the page. The queue is emptied
-// first where the player offers it: emptied, the app holds exactly these songs. Where it cannot be
-// emptied, only the songs it does not hold already are added - one added twice is one played twice -
-// and `queued` is the caller's own record of them, for a player whose state does not name its queue.
-// What the app holds afterwards answers `queue`, which is null where its state does not name it.
+// The songs that are to follow, written into the app's queue, run in the page: one added twice is one
+// played twice. `queued` is the caller's own record of them, for a player whose state does not name
+// its queue. What the app holds afterwards answers `queue`, which is null where it does not say.
 const QUEUE_SOURCE = `async ({ api, uris, queued }) => {
   // The tracks the app plays after the one playing, as its state names them; null where it does not.
+  // One of these names may be an alias the app always leaves empty while the queue is in another, so
+  // an empty list is that name saying nothing, not a queue that is empty.
   const readQueue = () => {
     let s;
     try { s = api.player.getState(); } catch { return null; }
+    let sawEmpty = false;
+    let sawUnknown = false;
     for (const key of ['nextTracks', 'nextItems', 'queue']) {
       const list = s && s[key];
       if (!Array.isArray(list)) continue;
-      if (list.length === 0) return [];
+      if (list.length === 0) { sawEmpty = true; continue; }
       const ids = [];
       for (const entry of list) {
         const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
         if (uri.indexOf('spotify:track:') === 0) ids.push(uri.slice(14));
       }
-      // An entry shape this does not know is no queue at all: the caller's own record is used instead.
-      return ids.length ? ids : null;
+      if (ids.length) return ids;
+      // An entry shape this does not know says nothing either: the caller's record is used instead.
+      sawUnknown = true;
     }
-    return null;
+    return sawUnknown ? null : sawEmpty ? [] : null;
   };
-  const held = readQueue() ?? (Array.isArray(queued) ? queued : []);
+  let held = readQueue() ?? (Array.isArray(queued) ? queued : []);
   let cleared = false;
   if (typeof api.player.clearQueue === 'function') {
     try { await api.player.clearQueue(); cleared = true; } catch { cleared = false; }
-    // A clear that ran and left songs behind emptied nothing: they are still what the app plays next.
+    // A clear that ran and left songs behind emptied nothing: what is left is what the app plays next.
     const left = cleared ? readQueue() : null;
-    if (left && left.length) cleared = false;
+    if (left && left.length) { held = left; cleared = false; }
   }
   const add = cleared ? uris : uris.filter(uri => !held.includes(uri.slice(14)));
   if (add.length) await api.player.addToQueue(add.map(uri => ({ uri })));
@@ -1214,7 +1217,7 @@ function createSpotifyOfficialClient({
     // Spotify: it reports what it could not do, and the caller asks again.
     queue({ ids, queued }) {
       const uris = (Array.isArray(ids) ? ids : []).slice(0, MAX_QUEUED).map(trackUri);
-      const held = (Array.isArray(queued) ? queued : []).slice(0, MAX_QUEUED);
+      const held = Array.isArray(queued) ? queued : [];
       return call(`
         const uris = ${JSON.stringify(uris)};
         const queued = ${JSON.stringify(held)};

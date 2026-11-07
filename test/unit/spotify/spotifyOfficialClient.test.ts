@@ -947,11 +947,15 @@ describe('a queue write in the app', () => {
      * A player whose queue holds `start`, with the queue API the test gives it: `works` empties it,
      * `noop` answers and empties nothing, and no `clearQueue` at all is a player without one.
      */
-    const playerWith = (start: string[], clearQueue?: 'works' | 'noop', namesQueue = true) => {
+    const playerWith = (start: string[], clearQueue?: 'works' | 'noop', queue: true | false | 'alias' = true) => {
         const held = start.map(idOf);
         const added: string[] = [];
+        const named = () => held.map(id => ({ uri: `spotify:track:${id}` }));
         const player: Record<string, unknown> = {
-            getState: () => (namesQueue ? { nextTracks: held.map(id => ({ uri: `spotify:track:${id}` })) } : {}),
+            // `alias` is the state whose first queue name is always empty while the queue is in the next.
+            getState: () => (queue === false
+                ? {}
+                : queue === 'alias' ? { nextTracks: [], nextItems: named() } : { nextTracks: named() }),
             addToQueue: (entries: { uri: string }[]) => {
                 for (const entry of entries) { held.push(entry.uri.slice(14)); added.push(entry.uri.slice(14)); }
             },
@@ -989,6 +993,16 @@ describe('a queue write in the app', () => {
         expect(app.added).toEqual([idOf('d')]);
     });
 
+    it('reads the queue from the name that holds it, not from an alias left empty', async () => {
+        // One of the state's queue names is an alias the app always leaves empty: read as a queue
+        // that is empty, every write would put the whole tail in again.
+        const app = playerWith(['c', 'd'], undefined, 'alias');
+        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+
+        expect(app.added).toEqual([idOf('e')]);
+        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+    });
+
     it('counts from the songs the caller holds when the app names no queue', async () => {
         const app = playerWith([], undefined, false);
         const answer = await writeQueue({ api: app.api, uris: ['c', 'd'].map(trackUri), queued: [idOf('c')] });
@@ -997,7 +1011,6 @@ describe('a queue write in the app', () => {
         expect(app.added).toEqual([idOf('d')]);
     });
 });
-
 
 describe('a call that may not be made twice', () => {
     it('does not run a play again when the connection failed after the call went out', async () => {
