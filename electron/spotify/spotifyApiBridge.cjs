@@ -663,9 +663,8 @@ function createSpotifyApiBridge({
     // once it has come, and the refresh token it replaces may not be taken by the next run.
     // Answers null when there is nothing to wait for. Else the quit is to be held for the promise
     // answered: it resolves once the renewal was stored, or failed, or after SHUTDOWN_LIMIT_MS.
-    // `closePlayerOnQuit` is the listener's setting: Folia closes the Spotify this run started, and
-    // only that one, as it quits — a Spotify the listener opened themselves stays. Soloist, where it
-    // runs, is stopped as well.
+    // `closePlayerOnQuit` is the listener's setting: Folia closes the Spotify it started, or the one
+    // running with the DevTools port Folia opened, as it quits. Soloist, where it runs, is stopped as well.
     shutdown({ closePlayerOnQuit = false } = {}) {
       const stopping = soloist?.shutdown() ?? null;
       // The page has to be touched only for a Spotify that is closed with Folia. Without it the

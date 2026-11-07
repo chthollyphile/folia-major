@@ -2788,7 +2788,7 @@ export default {
     "wakeExternalPlayersOnLaunch": "打开 Folia 时唤起外部播放器",
     "wakeExternalPlayersOnLaunchDesc": "打开 Folia 时一并唤起真正出声的播放器（Spotify 官方客户端），第一首歌不必再等它启动；Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
     "closeExternalPlayerOnQuit": "Folia 退出时关闭 Spotify",
-    "closeExternalPlayerOnQuitDesc": "Folia 退出时只关掉本次运行里它自己拉起的那组 Spotify 进程（先正常关闭，超时再强制结束）；你自己打开的、或启动 Folia 之前就已在运行的 Spotify 一律不关。Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
+    "closeExternalPlayerOnQuitDesc": "Folia 退出时关掉它启动过、或带着调试端口运行的 Spotify 官方客户端，把调试端口还回去；Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
     "holdMediaKeysForExternalPlayer": "使用官方客户端时始终接管媒体键",
     "holdMediaKeysForExternalPlayerDesc": "开着时：只要 Spotify 走的是官方客户端方式，媒体键就一直由 Folia 接管，只有换回标准或 Soloist 方式、或退出 Folia 才释放。队列放完、由 Folia 自己出声、Spotify 停下之后，按键都由 Folia 处理：播放从队列第一首重新开始，下一首接着走 Folia 的队列，停下后按播放会重新唤起 Spotify 并从停下处继续。关掉时：只在 Spotify 正在放 Folia 的歌时接管。Folia 占着期间，浏览器等其它程序收不到媒体键。",
     "wallpaperMode": "壁纸模式",

@@ -2788,7 +2788,7 @@ export default {
     "wakeExternalPlayersOnLaunch": "Wake the external player on launch",
     "wakeExternalPlayersOnLaunchDesc": "Starts the player that sounds your songs (the Spotify app) when Folia opens, so the first song does not wait for a launch. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
     "closeExternalPlayerOnQuit": "Close Spotify when Folia quits",
-    "closeExternalPlayerOnQuitDesc": "Closes only the Spotify processes Folia itself started in this run as Folia quits - asked to close first, forced only if they do not go. A Spotify you opened yourself, or had open before Folia started it, is never closed. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
+    "closeExternalPlayerOnQuitDesc": "Closes the Spotify app Folia started, or the one running with its DevTools port, when Folia quits, handing the port back. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
     "holdMediaKeysForExternalPlayer": "Always hold the media keys with the official app",
     "holdMediaKeysForExternalPlayerDesc": "On: as long as Spotify plays through its official app, the media keys stay Folia's - released only when you switch back to the standard or Soloist way, or quit Folia. A finished queue, Folia sounding the song itself, or a stopped Spotify all keep working from Folia's side: play restarts the list, next goes on in Folia's queue, and play after Spotify stopped brings it back from where it stopped. Off: the keys are held only while Spotify sounds Folia's song. While Folia holds them, browsers and other programs receive no media keys at all.",
     "wallpaperMode": "Wallpaper mode",
