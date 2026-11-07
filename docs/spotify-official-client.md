@@ -12,7 +12,7 @@
 | Soloist 播放 | Spotify 的 Soloist 程序 | 拿不到密钥的 Premium 账号 | 下载 Soloist、Premium 账号生成的 API 密钥、在 Spotify 应用里配对 |
 | 官方客户端播放 | Spotify 桌面版 | **免费账号**；不想配置 Soloist 的账号 | 装好 Spotify 桌面版（Windows） |
 
-能用标准播放就用标准播放：只有它的声音经过 Folia，均衡器、Automix、跟着音频跳动的效果和视频导出才有用。
+能用标准播放就用标准播放：只有它的声音经过 Folia，均衡器、Automix 和视频导出才有用（跟着音频跳动的效果在这种方式下靠整机声音采集也能动，见下面的"真实频谱"）。
 
 入口和 Soloist 一样：
 
@@ -33,6 +33,7 @@
 
 进度、播放/暂停、切歌、循环、随机、打乱、歌单播放与编辑、音量（含静音）、插队、喜欢，都由 Folia 的队列和控件完成。另外：
 
+- **真实频谱**：Windows 桌面版会采集整机正在发出的声音（Chromium 的 loopback），只在内存里分析出频谱交给可视化，所以跟着音频跳动的效果照实际声音动，不是只跟着进度模拟。不录制、不保存任何音频。采的是整机声音，浏览器、其它播放器的声音也会混进来；免费账号的广告也会照实跳动。采集不到时（非 Windows、网页版、系统不允许、一直静音）回退到按播放进度模拟，有声音后自动回到真实频谱。没有开关：Windows 桌面版一直尝试。
 - **媒体键**：这种方式开着、Folia 在运行时，媒体键一直由 Folia 接管，上一首/播放暂停/下一首都走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走；只在换回标准/Soloist 方式或退出 Folia 时还给系统。接管范围只限这种方式：Soloist 和 Apple Music 的媒体键还是上游本来的行为（走 `useMediaSessionBridge` 的媒体会话）。按键在各种状态下都由 Folia 处理：
   - **外部播放停了**（手动停、失败中止）：按播放=用户主动操作，重新唤起 Spotify 并从停下时的歌曲与进度继续（沿用"拉起、最多强杀 1 次、拉起时进托盘"的规则）；上一首/下一首照常走 Folia 的队列。
   - **队列放完**（最后一首结束、没有下一首）：按播放或下一首=从当前队列第一首重新开始（随机是队列本身的顺序，循环在队尾结束的情形已经不存在）；上一首=重放刚放完的最后一首。
@@ -61,7 +62,7 @@
 
 - **只验证了 Windows**：Windows 11、微软商店版 Spotify 1.3.6、免费账号。其他版本和安装方式没有测。
 - **调试端口的发现依赖 Spotify 自己的行为**：随机端口靠 Spotify 的 CEF 写出的 `DevToolsActivePort`，或者它在本机回环地址上开的监听端口。两者都读不到时会退到固定端口 9283；如果哪个版本连这两样都不给，这种方式就连不上 Spotify 页面，只能靠系统媒体会话粗放地暂停和继续。这一条要在真机上确认（见下）。
-- **声音不经过 Folia**：均衡器、音效、ReplayGain、Automix 和跟着音频跳动的效果都不处理它，视频导出也不可用。
+- **声音不经过 Folia**：均衡器、音效、ReplayGain 和 Automix 都不处理它，视频导出也不可用。跟着音频跳动的效果在 Windows 桌面版用上面那条"真实频谱"的整机声音采集，拿到的不是这首歌的音频流：采不到时退回按播放进度模拟，混进来的别的声音也会带着它动。
 - **广告照常播放**：免费账号在歌与歌之间会有广告。Folia 不做任何屏蔽或静音（Spotify 的条款禁止屏蔽广告），音量也不动。Folia 只是认得出它是广告，所以它既不会被当成当前这首的结束，也不会被当成你在 Spotify 窗口里切了歌：队列和进度都停在这首上。
 - **起播时的片头广告**：免费账号点歌时常常先放一段广告，再放点的那首。等起播时广告的时间不算在 5 秒的等待里（整段等待最多 60 秒），广告结束后点的那首出现就算起播成功；广告长到 60 秒还没结束时，这次起播按"已接受、广告中"交给状态轮询接着跟，既不报成这首放不了，也不会触发"无法播放时自动跳过"。
 - **Spotify 的页面结构会变**：播放器是在页面的 React 树里找到的，Spotify 改版后可能找不到，这时会退到媒体会话，精度降低。
@@ -86,4 +87,5 @@
 - 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口与端口发现、播放器调用、媒体会话）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）、`../quitShutdown.cjs`（哪一次退出去问各个 bridge 关闭）。**媒体键是通用的**，不在这个目录里：`electron/mediaKeys.cjs`（与 `quitShutdown.cjs` 同级）只管在 `globalShortcut` 上占住三个键并把手势交给渲染进程；要不要占、按键做什么由下面这条通用 bridge 决定。
 - 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现），`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派，并声明"这种方式要一直占着媒体键"），`spotifySetup.ts`（配置清单）。
 - 公共部分：`src/components/app/playback/bridges/useMediaKeyTakeoverBridge.ts`（通用的媒体键接管：问 omni 要不要占、按一次键跑播放暂停/上一首/下一首、队列放完时重新开始、外部停了之后重新唤起都在这里，路由无关），`externalPlayback.ts` 里的 `skipped`（播放器被它自己的控件换了歌）和降级状态，`externalPlayerWake.ts`（启动时唤起）。
+- 真实频谱（跟着音频跳动的效果）：`src/components/app/playback/externalSpectrumCapture.ts`（整机声音的采集与分析）、`spectrumBands.ts`（频谱折成本机播放用的同一套频段）、`electron/displayMediaRoute.cjs` 与 `main.cjs` 的 `setupDisplayMediaRequestHandler`（一个 session 只有一个 display-media handler，视频导出和频谱在这里分派）。采集只在外部路由上起，离开就停。
 - 平台只声明、通用层不认平台：`OnlineExternalPlaybackProvider` 的 `holdsMediaKeys`（它的会话在放时占着）和 `holdsMediaKeysWhileRunning`（它的程序在跑就一直占着）由 `spotifyExternalPlayback.ts` 按当前方式回答，omni 汇总成 `wantsMediaKeyTakeoverWhileRunning()`。

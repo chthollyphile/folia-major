@@ -15,7 +15,7 @@ export type ExternalSpectrumBands = {
 };
 
 /** The bins a synthetic spectrum has: enough for the bar-like modes, and no analyser to match. */
-const SPECTRUM_BINS = 128;
+export const SPECTRUM_BINS = 128;
 /** A beat at 120 BPM: the bass swells on it and falls back through the beat. */
 const BEAT_SEC = 0.5;
 /** Everything the bands are scaled to: the analyser's own range. */

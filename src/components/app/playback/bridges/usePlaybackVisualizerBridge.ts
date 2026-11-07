@@ -23,6 +23,9 @@ import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } 
 import { getHifiPosition } from '../../../../services/hifi/hifiPlayback';
 import { getExternalPosition, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
 import { externalSpectrumAt } from '../externalSpectrum';
+import { readCapturedExternalSpectrum } from '../externalSpectrumCapture';
+import { emptySpectrumBandLevels, readSpectrumBandLevels } from '../spectrumBands';
+import type { SpectrumBandLevels } from '../spectrumBands';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
 
@@ -111,6 +114,8 @@ export function usePlaybackVisualizerBridge({
     const incomingLyrics = usePlaybackStore(state => state.lyrics);
 
     const currentLineIndexRef = useRef(-1);
+    // The deck's folded bands, written in place every frame (M3).
+    const deckBandsRef = useRef<SpectrumBandLevels>(emptySpectrumBandLevels());
     // 智能动感模式: loads the track's beats while it is on; the clock is stepped below. A ref, so
     // switching it does not rebuild the frame loop.
     const beatFxWantedRef = useRef(false);
@@ -261,40 +266,24 @@ export function usePlaybackVisualizerBridge({
             analyserRef.current.getByteFrequencyData(dataArray);
             audioBands.spectrum?.set(dataArray);
 
-            const getEnergy = (minHz: number, maxHz: number): number => {
-                const start = Math.floor(minHz / 21.5);
-                const end = Math.floor(maxHz / 21.5);
-                let sum = 0;
-                for (let index = start; index <= end; index += 1) {
-                    sum += dataArray[index];
-                }
-                const count = end - start + 1;
-                return count > 0 ? sum / count : 0;
-            };
-
-            const bass = getEnergy(20, 150);
-            const lowMid = getEnergy(150, 400);
-            const mid = getEnergy(400, 1200);
-            const vocal = getEnergy(1000, 3500);
-            const treble = getEnergy(3500, 12000);
-
-            const process = (value: number, boost = 2) => {
-                const normalized = value / 255;
-                return Math.pow(normalized, boost) * 255;
-            };
-
-            audioPower.set(process((bass + lowMid) / 2, 3));
-            audioBands.bass.set(process(bass, 1.8));
-            audioBands.lowMid.set(process(lowMid, 2));
-            audioBands.mid.set(process(mid, 2));
-            audioBands.vocal.set(process(vocal, 1.5));
-            audioBands.treble.set(process(treble, 2));
+            // Folded by the same function the external route's captured sound is folded by.
+            const bands = readSpectrumBandLevels(dataArray, deckBandsRef.current);
+            audioPower.set(bands.power);
+            audioBands.bass.set(bands.bass);
+            audioBands.lowMid.set(bands.lowMid);
+            audioBands.mid.set(bands.mid);
+            audioBands.vocal.set(bands.vocal);
+            audioBands.treble.set(bands.treble);
         } else if (isExternalRouteActive) {
-            // The external player hands the app no audio to analyse: the bands follow the player's
-            // own clock, so they move with the song and freeze where it is paused, advertising, or
-            // still loading a track. The route never falls back to the breathing animation, and the
-            // bands are written in place: no frame allocates (M3).
-            const bands = externalSpectrumAt(getExternalPosition());
+            // The external player hands the app no audio to analyse, unless this build captures the
+            // machine's own sound (Windows desktop, see externalSpectrumCapture): then these are the
+            // bands of what is actually playing. Otherwise they follow the player's own clock, so
+            // they move with the song and freeze where it is paused, advertising, or still loading a
+            // track. The route never falls back to the breathing animation, and the bands are
+            // written in place: no frame allocates (M3). A capture that is silent for a couple of
+            // seconds hands the frame back to the simulation, which sits still where the player is
+            // paused or still loading.
+            const bands = readCapturedExternalSpectrum() ?? externalSpectrumAt(getExternalPosition());
             audioPower.set(bands.power);
             audioBands.bass.set(bands.bass);
             audioBands.lowMid.set(bands.lowMid);

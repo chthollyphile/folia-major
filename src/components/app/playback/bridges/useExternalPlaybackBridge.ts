@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NextTrackOptions } from '../../../../types/appPlayback';
 import { installExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
+import { stopExternalSpectrumCapture, syncExternalSpectrumForRoute } from '../externalSpectrumCapture';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { runExternalPlayerWarmUp } from '../externalPlayerWake';
@@ -38,6 +39,28 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
             useDesktopSettingsStore.getState().wakeExternalPlayersOnLaunch,
             () => omni.warmUpExternalPlayers(),
         );
+    }, []);
+
+    // The external route's real spectrum, where the build can capture the machine's own sound: held
+    // exactly as long as the route is the external player's, because Folia's own decks would
+    // otherwise be captured too once it sounds a song itself. A new track gets a fresh attempt, in
+    // case the capture died with the player that carried the last one.
+    useEffect(() => {
+        const sync = (
+            state: ReturnType<typeof usePlaybackStore.getState>,
+            previous?: ReturnType<typeof usePlaybackStore.getState>,
+        ) => {
+            const songChanged = !previous
+                || previous.playbackRoute !== 'external'
+                || previous.currentSong !== state.currentSong;
+            syncExternalSpectrumForRoute(state.playbackRoute, songChanged);
+        };
+        sync(usePlaybackStore.getState());
+        const unsubscribe = usePlaybackStore.subscribe(sync);
+        return () => {
+            unsubscribe();
+            stopExternalSpectrumCapture();
+        };
     }, []);
 
     useEffect(() => {
