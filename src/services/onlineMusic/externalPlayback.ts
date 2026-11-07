@@ -42,6 +42,12 @@ const HANDOVER_RECLAIM_MS = 10_000;
  * keeps room for, so this is the longest tail any of them is asked for: the rest are dropped.
  */
 const PREPARED_TAIL = 3;
+/**
+ * How long after a start the prepared queue is left alone. The player's page is loading the song
+ * then, and a queue write sent into that moment competes with it for the page: such a write is left
+ * to the next poll (half a second later) instead.
+ */
+const PREPARED_QUEUE_HOLD_MS = 300;
 
 export type ExternalPlaybackEvent =
     | { type: 'status' }
@@ -110,6 +116,10 @@ let wantedVolume: number | null = null;
 let volumeFailureNoted = false;
 /** Bumped by every start: a write sent before it cannot vouch for the level after it. */
 let volumeEpoch = 0;
+/** When the last start was asked for (`performance.now()`): see `PREPARED_QUEUE_HOLD_MS`. */
+let lastStartAt = 0;
+/** Numbers the starts, so one run's summary lines are told apart by the number they carry. */
+let startCounter = 0;
 /** The coarser channel is told once in a run of Folia, not once per episode. */
 let degradedNotified = false;
 const listeners = new Set<(event: ExternalPlaybackEvent) => void>();
@@ -208,6 +218,8 @@ const validDurationSec = (ms: number): number | null => (
 const refreshPreparedQueue = () => {
     const current = session;
     if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
+    // A start is still loading its song in the player: this write waits for the next poll.
+    if (performance.now() - lastStartAt < PREPARED_QUEUE_HOLD_MS) return;
     const state = usePlaybackStore.getState();
     const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
@@ -457,10 +469,62 @@ export function previewExternalPlaybackVolume(volume: number): void {
 const playsInSamePlayer = (a: SongResult, b: SongResult) => getOnlineProviderIdForSong(a) === getOnlineProviderIdForSong(b);
 
 /**
+ * Where a start spent its time, in milliseconds, as the summary line reports it. The parts the caller
+ * knows (what the interface showed) are written here by the caller, against `askedAt`.
+ */
+export type ExternalStartTimings = {
+    /** From the ask to the session and the route being ready. */
+    prepareMs: number;
+    /** The player taking the song: the page probe it makes and the play it needs, as its provider does them. */
+    playMs: number | null;
+    /** The one status read after the start, which the clock is seeded with. */
+    statusMs: number | null;
+    /** Until the song's lyrics were known. */
+    lyricsMs: number | null;
+    /** Until the song was on screen. */
+    visibleMs: number | null;
+    /** Until the cover was known. */
+    coverMs: number | null;
+};
+
+/** A start already under way: the session and the route are ready, the player is loading the song. */
+export type ExternalPlaybackStart = {
+    /** Which start this is: every one bumps it, so an older one knows it was overtaken. */
+    attempt: number;
+    /** `performance.now()` the start was asked at: the origin every timing is measured from. */
+    askedAt: number;
+    /**
+     * The player taking the song. Resolves once it has it, or once a newer start took the song over;
+     * rejects where the player would not play it, after the route has been given back.
+     */
+    started: Promise<void>;
+    /** The status read after the start, waited for only by a caller that shows nothing until then. */
+    seeded: Promise<void>;
+    /** Where the start spent its time, filled in as it goes. */
+    timings: ExternalStartTimings;
+};
+
+/**
+ * One line for every start: the times that make a switch feel slow, read back afterwards. The number
+ * counts the starts of the run, so a start is found in the log by it; a part that never landed (the
+ * start failed before it, or the song was replaced) is a dash.
+ */
+const writeStartSummary = (seq: number, askedAt: number, timings: ExternalStartTimings, failed: boolean): void => {
+    const ms = (value: number | null) => (value === null ? '-' : `${Math.round(value)}ms`);
+    const total = Math.round(performance.now() - askedAt);
+    console.info(`[Playback] external start ${total}ms #${seq} visible ${ms(timings.visibleMs)} prepare ${ms(timings.prepareMs)} play ${ms(timings.playMs)} status ${ms(timings.statusMs)} lyrics ${ms(timings.lyricsMs)} cover ${ms(timings.coverMs)}${failed ? ' failed' : ''}`);
+};
+
+/**
  * Starts a track in the external player and puts the app on that route. `userAction` is false only
  * for an advance Folia made by itself: that one may not wake or restart the player.
+ *
+ * This returns as soon as the session and the route are ready: the player takes 0.6-2.5s to load the
+ * song (longer while a free account is shown an advertisement), and the caller has the song's name,
+ * lyrics and cover to show without it (see `ExternalPlaybackStart`).
  */
-export async function beginExternalPlayback(song: SongResult, startSec = 0, { userAction = true }: { userAction?: boolean } = {}): Promise<void> {
+export function startExternalPlayback(song: SongResult, startSec = 0, { userAction = true }: { userAction?: boolean } = {}): ExternalPlaybackStart {
+    const askedAt = performance.now();
     if (isExternalRoute()) {
         // Already on the route: within the same player replacing the track is one call, and the old
         // clock must not speak for the new song while it does. A song of another provider starts in
@@ -495,42 +559,74 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0, { us
     appliedVolume = null;
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
-    try {
-        await omni.playSongExternally(song, Math.max(0, startSec), { userAction });
-    } catch (error) {
-        if (session?.attempt === attempt) {
-            stopExternalPlayback('the player refused the song');
-            // Nothing is sounding there: the next song's play decides its own route.
-            withoutRouteGuard(() => setPlaybackRoute('web'));
+    lastStartAt = askedAt;
+    const seq = ++startCounter;
+    const timings: ExternalStartTimings = {
+        prepareMs: performance.now() - askedAt, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null,
+    };
+    const playAskedAt = performance.now();
+    let failed = false;
+    // The one status read after the start, held here so the waiting form below lets it land.
+    let seed: Promise<void> = Promise.resolve();
+    const started = (async () => {
+        try {
+            await omni.playSongExternally(song, Math.max(0, startSec), { userAction });
+        } catch (error) {
+            timings.playMs = performance.now() - playAskedAt;
+            failed = true;
+            if (session?.attempt === attempt) {
+                stopExternalPlayback('the player refused the song');
+                // Nothing is sounding there: the next song's play decides its own route.
+                withoutRouteGuard(() => setPlaybackRoute('web'));
+            }
+            throw error;
         }
-        throw error;
-    }
-    if (session?.attempt !== attempt || !isExternalRoute()) {
-        // Overtaken while the player was starting it. A newer song in the same player replaces it
-        // there; otherwise the stop sent when it was overtaken may have reached the player before
-        // this start did, and the track would sound with nobody following it: it is stopped again.
-        if (!session || !playsInSamePlayer(session.song, song)) {
-            void omni.pauseExternalPlayback(song).catch(error => {
-                console.warn('[ExternalPlayback] an overtaken start could not be stopped', error);
-            });
+        timings.playMs = performance.now() - playAskedAt;
+        if (session?.attempt !== attempt || !isExternalRoute()) {
+            // Overtaken while the player was starting it. A newer song in the same player replaces it
+            // there; otherwise the stop sent when it was overtaken may have reached the player before
+            // this start did, and the track would sound with nobody following it: it is stopped again.
+            if (!session || !playsInSamePlayer(session.song, song)) {
+                void omni.pauseExternalPlayback(song).catch(error => {
+                    console.warn('[ExternalPlayback] an overtaken start could not be stopped', error);
+                });
+            }
+            return;
         }
-        return;
-    }
-    // The level sent ahead may have landed on a page the companion then replaced (it moves to the
-    // account's storefront between requests): once the player has the song, send the level again.
-    volumeEpoch += 1;
-    appliedVolume = null;
-    setExternalPlaybackVolume();
-    // Seed the incoming clock before announcement instead of showing a paused/loading frame for 500 ms.
-    const sampledAt = performance.now();
-    const positionRevision = session.positionRevision;
-    try {
-        const status = await omni.getExternalPlaybackStatus(song);
-        if (session?.attempt === attempt && session.positionRevision === positionRevision && !session.seekPending && isExternalRoute()) applyStatus(status, sampledAt);
-    } catch (error) {
-        console.warn('[ExternalPlayback] Initial player status unavailable', error);
-    }
-    if (session?.attempt === attempt && isExternalRoute()) schedulePoll(STATUS_INTERVAL_MS);
+        // The level sent ahead may have landed on a page the companion then replaced (it moves to the
+        // account's storefront between requests): once the player has the song, send the level again.
+        volumeEpoch += 1;
+        appliedVolume = null;
+        setExternalPlaybackVolume();
+        // The incoming clock is seeded from what the player has, without waiting for the answer: the
+        // poll that follows asks the same question half a second later, so waiting here only holds
+        // whoever asked for the start.
+        const seededAt = performance.now();
+        const positionRevision = session.positionRevision;
+        seed = omni.getExternalPlaybackStatus(song).then(status => {
+            timings.statusMs = performance.now() - seededAt;
+            if (session?.attempt === attempt && session.positionRevision === positionRevision && !session.seekPending && isExternalRoute()) applyStatus(status, seededAt);
+        }, error => {
+            timings.statusMs = performance.now() - seededAt;
+            console.warn('[ExternalPlayback] Initial player status unavailable', error);
+        });
+        schedulePoll(STATUS_INTERVAL_MS);
+    })();
+    const seeded = started.then(() => seed, () => undefined);
+    // Written once the whole start is over, so the one line carries every part of it.
+    void seeded.then(() => writeStartSummary(seq, askedAt, timings, failed));
+    return { attempt, askedAt, started, seeded, timings };
+}
+
+/**
+ * The waiting form of a start, for a caller that shows nothing until the player has the song: it
+ * resolves once the player has it and the clock is seeded, and rejects where the player would not
+ * play it. The play path of the app does not wait for a start (see `startExternalPlayback`).
+ */
+export async function beginExternalPlayback(song: SongResult, startSec = 0, options: { userAction?: boolean } = {}): Promise<void> {
+    const start = startExternalPlayback(song, startSec, options);
+    await start.started;
+    await start.seeded;
 }
 
 /**
