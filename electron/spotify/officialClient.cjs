@@ -37,6 +37,10 @@ const LAUNCH_WAIT_MS = 25000;
 const START_LIMIT_MS = 5000;
 const AD_START_LIMIT_MS = 60000;
 const CALL_LIMIT_MS = 8000;
+// A start waits for its track inside one call, so that call's own limit has to cover the whole wait
+// (a free account's advertisement included) — a start cut off by the call's limit would fail where
+// the wait would have succeeded.
+const START_CALL_LIMIT_MS = AD_START_LIMIT_MS + CALL_LIMIT_MS;
 const FIRST_SESSION_CALL_LIMIT_MS = 20000;
 // The whole DevTools connection, the target list and the socket handshake both: a port taken by
 // another program must not hold a play open for ever (M7).
@@ -365,7 +369,7 @@ function createPageConnection({ fetch, portOf }) {
   }
 
   return {
-    async evaluate(expression) {
+    async evaluate(expression, { limitMs = CALL_LIMIT_MS } = {}) {
       let ws;
       try {
         ws = await connection();
@@ -379,7 +383,7 @@ function createPageConnection({ fetch, portOf }) {
       const answer = await withLimit(new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
         ws.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true, awaitPromise: true } }));
-      }), CALL_LIMIT_MS, 'Spotify').finally(() => pending.delete(id));
+      }), limitMs, 'Spotify').finally(() => pending.delete(id));
       // A protocol error is a call that failed: it must not read as an answer with nothing in it.
       if (answer.error) {
         const text = String(answer.error.message ?? answer.error.code ?? '');
@@ -572,7 +576,8 @@ function createSpotifyOfficialClient({
   // protocol, local address, foreign address 0.0.0.0:0, state, pid, so no localized word is read.
   // Which of them is Spotify's is decided by asking the port itself.
   const listeningLoopbackPorts = () => new Promise(resolve => {
-    runFile(systemTool('netstat.exe'), ['-ano'], { windowsHide: true, timeout: 4000 }, (error, stdout) => {
+    // Bounded tightly: this also runs on the way out of the app, where the quit waits 3 s at most.
+    runFile(systemTool('netstat.exe'), ['-ano'], { windowsHide: true, timeout: 2000 }, (error, stdout) => {
       const ports = [];
       if (!error) {
         for (const line of String(stdout).split(/\r?\n/)) {
@@ -728,22 +733,22 @@ function createSpotifyOfficialClient({
   // again empties the queue prepared behind it (L3, L4). A failed connection says nothing about
   // whether the first run reached the page, so such a call is run again only when it certainly did
   // not — a connection that never opened marks its error `notDelivered` (createPageConnection).
-  const evaluateInPage = async (body, { retry = true } = {}) => {
+  const evaluateInPage = async (body, { retry = true, limitMs } = {}) => {
     try {
-      return await page.evaluate(inPage(body));
+      return await page.evaluate(inPage(body), { limitMs });
     } catch (error) {
       if (error?.code === 'invalid-response') throw error;
       if (!retry && error?.notDelivered !== true) throw error;
       try { await page.evaluate(FORGET_APIS); } catch { /* the page is gone as well */ }
-      return page.evaluate(inPage(body));
+      return page.evaluate(inPage(body), { limitMs });
     }
   };
 
   // One call in the page. `allowStart` is set only for a call a listener asked for (a play):
   // every other call reports what it could not do instead of touching Spotify (D1, H1, H2).
-  async function call(body, { allowStart = false, retry = true } = {}) {
+  async function call(body, { allowStart = false, retry = true, limitMs } = {}) {
     try {
-      return await evaluateInPage(body, { retry });
+      return await evaluateInPage(body, { retry, limitMs });
     } catch (error) {
       if (error?.code === 'invalid-response') throw error;
       page.close();
@@ -754,7 +759,7 @@ function createSpotifyOfficialClient({
         throw spotifyError('unavailable', 'The Spotify app cannot be reached', 'a start was given up a moment ago');
       }
       await ensure({ allowRestart: true });
-      return evaluateInPage(body, { retry });
+      return evaluateInPage(body, { retry, limitMs });
     }
   }
 
@@ -848,7 +853,7 @@ function createSpotifyOfficialClient({
         if (s && s.shuffle) await api.player.setShuffle(false);
         if (${from} > 0) await api.player.seekTo(${from});
         return 'loaded';
-      `, { allowStart: userAction, retry: false });
+      `, { allowStart: userAction, retry: false, limitMs: START_CALL_LIMIT_MS });
     },
 
     // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. A

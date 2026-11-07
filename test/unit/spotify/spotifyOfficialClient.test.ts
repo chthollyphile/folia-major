@@ -827,8 +827,10 @@ describe('L3: a call that may not be made twice', () => {
         FakeSocket.muteSend = true;
         const app = makeClient({ running: true, portAnswers: true });
         // The expectation is attached before the clock moves, so the rejection has a handler on it.
+        // A start's own limit covers the whole wait for its track (a free account's advertisement
+        // included), so the clock is moved past that limit.
         const playing = expect(app.client.play({ id: TRACK, startMs: 0, userAction: false })).rejects.toMatchObject({ code: 'network' });
-        await vi.advanceTimersByTimeAsync(20000);
+        await vi.advanceTimersByTimeAsync(70000);
         await playing;
         const plays = FakeSocket.sockets.flatMap(socket => socket.expressions).filter(text => text.includes('window.__foliaPlay'));
         expect(plays).toHaveLength(1);
