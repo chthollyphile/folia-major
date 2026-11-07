@@ -4,6 +4,19 @@ export default {
   "appleMusic": {
     "libraryPlaylistName": "全部歌曲"
   },
+  "lanCastTitle": "投送到音响",
+  "lanCastHint": "搜索同一局域网内支持 DLNA / UPnP 的音响",
+  "lanCastNoTrack": "当前没有播放的歌曲",
+  "lanCastScanning": "正在搜索…",
+  "lanCastDevices": "找到 {{count}} 台音响",
+  "lanCastDevices_other": "找到 {{count}} 台音响",
+  "lanCastRescan": "重新搜索",
+  "lanCastNoDevice": "没搜到音响。请确认音响和本机在同一个局域网（同一路由器下）、且音响已开启 DLNA 投送。",
+  "lanCastPlaying": "声音已交给 {{name}}，本机已静音",
+  "lanCastFollowed": "切歌已自动推送到 {{name}}",
+  "lanCastLocalHint": "本机已静音，进度条和歌词照常走，声音只在音响上；切歌会自动跟着换。",
+  "lanCastStop": "停止投送并恢复本机声音",
+  "lanCastClose": "关闭",
   "scratchpad": {
     "title": "速记簿",
     "count_one": "{{count}} 首",

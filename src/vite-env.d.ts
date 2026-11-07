@@ -810,6 +810,20 @@ declare global {
 
   interface Window {
     electron?: {
+      /** 局域网音响投送（electron/lanCast/）：发现、推送、停止与地址中继都在主进程。 */
+      lanCastDiscover?: (options?: { timeoutMs?: number }) => Promise<{
+        devices: Array<{ id: string; name: string; location: string; controlUrl: string; manufacturer: string }>;
+      }>;
+      lanCastCast?: (track: {
+        url: string;
+        title: string;
+        artist: string;
+        album?: string;
+        coverUrl?: string;
+        durationMs?: number;
+        controlUrl: string;
+      }) => Promise<{ ok: boolean; url?: string }>;
+      lanCastStop?: (options?: { controlUrl?: string }) => Promise<{ ok: boolean }>;
       webUtils?: {
         /** Resolves the OS path of a dropped File (File.path was removed in modern Electron). */
         getPathForFile: (file: File) => string;

@@ -4,6 +4,19 @@ export default {
   "appleMusic": {
     "libraryPlaylistName": "All songs"
   },
+  "lanCastTitle": "Cast to speaker",
+  "lanCastHint": "Find DLNA / UPnP speakers on the same network",
+  "lanCastNoTrack": "Nothing is playing right now",
+  "lanCastScanning": "Searching…",
+  "lanCastDevices": "Found {{count}} speakers",
+  "lanCastDevices_other": "Found {{count}} speakers",
+  "lanCastRescan": "Search again",
+  "lanCastNoDevice": "No speaker found. Make sure the speaker is on the same network (same router) and has DLNA casting enabled.",
+  "lanCastPlaying": "Sound is now on {{name}}, this device is muted",
+  "lanCastFollowed": "Track changes follow {{name}} automatically",
+  "lanCastLocalHint": "This device is muted; the progress bar and lyrics keep running, and the sound plays only on the speaker. Track changes follow automatically.",
+  "lanCastStop": "Stop casting and unmute this device",
+  "lanCastClose": "Close",
   "scratchpad": {
     "title": "Scratchpad",
     "count_one": "{{count}} song",

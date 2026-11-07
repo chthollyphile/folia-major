@@ -76,6 +76,11 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('debug-memory-sample', listener);
         return () => ipcRenderer.removeListener('debug-memory-sample', listener);
     },
+    // 局域网音响投送（electron/lanCast）：发现、推送、停止都由主进程做，
+    // 渲染层只拿设备列表与结果；地址中继也在主进程内完成。
+    lanCastDiscover: (options) => ipcRenderer.invoke('lan-cast-discover', options),
+    lanCastCast: (track) => ipcRenderer.invoke('lan-cast-cast', track),
+    lanCastStop: (options) => ipcRenderer.invoke('lan-cast-stop', options),
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,
     getSettings: () => ipcRenderer.invoke('get-settings'),

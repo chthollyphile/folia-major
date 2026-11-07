@@ -4,6 +4,19 @@ export default {
   "appleMusic": {
     "libraryPlaylistName": "Tất cả bài hát"
   },
+  "lanCastTitle": "Truyền tới loa",
+  "lanCastHint": "Tìm loa DLNA / UPnP trong cùng mạng",
+  "lanCastNoTrack": "Hiện không có bài nào đang phát",
+  "lanCastScanning": "Đang tìm…",
+  "lanCastDevices": "Đã tìm thấy {{count}} loa",
+  "lanCastDevices_other": "Đã tìm thấy {{count}} loa",
+  "lanCastRescan": "Tìm lại",
+  "lanCastNoDevice": "Không tìm thấy loa. Hãy chắc chắn loa ở cùng mạng (cùng router) và đã bật truyền DLNA.",
+  "lanCastPlaying": "Âm thanh đã chuyển sang {{name}}, thiết bị này đã tắt tiếng",
+  "lanCastFollowed": "Đổi bài sẽ tự động gửi tới {{name}}",
+  "lanCastLocalHint": "Thiết bị này đã tắt tiếng; thanh tiến trình và lời vẫn chạy, âm thanh chỉ phát ở loa. Đổi bài sẽ tự động theo.",
+  "lanCastStop": "Dừng truyền và bật lại âm thanh thiết bị này",
+  "lanCastClose": "Đóng",
   "scratchpad": {
     "title": "Sổ ghi nhanh",
     "count_one": "{{count}} bài",

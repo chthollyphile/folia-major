@@ -70,6 +70,7 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
+const { createLanCastController } = require('./lanCast/index.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
@@ -440,6 +441,27 @@ const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
     const chosen = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
     return chosen.canceled ? null : chosen.filePaths[0] ?? null;
   },
+});
+// 局域网音响投送：SSDP 发现在 electron/lanCast/ssdp.cjs，SOAP 控制在 soap.cjs，
+// 回环地址与自定义协议由 gateway.cjs 转成音响自己能拉的 http 地址。
+// resolveProtocol 复用已注册的自定义协议处理器，投送期间才起网关，停止即关。
+const lanCastController = createLanCastController({
+  resolveProtocol: (url) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === `${FN_MUSIC_SCHEME}:`) {
+        return request => fnMusicApiBridge.handleProtocolRequest(request);
+      }
+      if (parsed.protocol === `${YTM_AUDIO_SCHEME}:`) {
+        return request => ytmApiBridge.handleAudioRequest(request);
+      }
+      if (parsed.protocol === `${SPOTIFY_AUDIO_SCHEME}:`) {
+        return request => spotifyApiBridge.handleAudioRequest(request);
+      }
+    } catch { /* 不是合法 URL：交给调用方当普通地址处理。 */ }
+    return null;
+  },
+  log: text => console.info(text),
 });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
@@ -7222,6 +7244,27 @@ registerLoginBackendIpc({
 const isFirstPartyWindowContents = (event) => (
   isTrustedMainWindowContents(event.sender) || isTrustedRemoteControlContents(event.sender)
 );
+
+// 局域网投送：发现与推送都会对局域网发/收包，只允许第一方窗口调用。
+ipcMain.handle('lan-cast-discover', createSenderGuardedHandler({
+  channel: 'lan-cast-discover',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ devices: [] }),
+  handler: (event, options) => lanCastController.discover({ timeoutMs: options?.timeoutMs })
+    .then(devices => ({ devices })),
+}));
+ipcMain.handle('lan-cast-cast', createSenderGuardedHandler({
+  channel: 'lan-cast-cast',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ ok: false }),
+  handler: (event, track) => lanCastController.cast(track),
+}));
+ipcMain.handle('lan-cast-stop', createSenderGuardedHandler({
+  channel: 'lan-cast-stop',
+  isTrusted: isFirstPartyWindowContents,
+  onUntrusted: () => ({ ok: false }),
+  handler: (event, options) => lanCastController.stop({ controlUrl: options?.controlUrl }),
+}));
 
 ipcMain.handle('kugou-api-status', createSenderGuardedHandler({
   channel: 'kugou-api-status',
