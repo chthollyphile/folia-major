@@ -29,3 +29,17 @@ export type ScratchpadAction = {
     /** 悬停提示（缺省是 label）：不能用时说明为什么。 */
     title?: string;
 };
+
+/** 展开整页右边那一列的操作提示：每页四条（拖空白框选、Ctrl + 点加选，再加这一页能做的两件事）。 */
+export const scratchpadTips = (
+    tab: 'notes' | 'history' | 'queue',
+    t: TFunction,
+    modifier: string,
+    canReorder = true,
+): { key: string; label: string }[] => {
+    const tip = (key: string, label: string) => ({ key: t(`scratchpad.${key}`, { mod: modifier }), label: t(`scratchpad.${label}`) });
+    const common = [tip('tipMarqueeKey', 'tipMarquee'), tip('tipAddKey', 'tipAdd')];
+    if (tab === 'notes') return [...common, tip('tipReorderKey', 'tipReorderGroup'), tip('tipEscKey', 'tipEsc')];
+    if (tab === 'history') return [...common, tip('tipPlayKey', 'tipPlay'), tip('tipDeleteKey', 'tipDelete')];
+    return [...common, ...(canReorder ? [tip('tipReorderKey', 'tipReorder')] : []), tip('tipPlayKey', 'tipPlay')];
+};

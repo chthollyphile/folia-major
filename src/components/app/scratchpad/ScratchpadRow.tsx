@@ -1,7 +1,8 @@
 import React, { memo, useState } from 'react';
 import { ListPlus, Music2, Play, Star, X } from 'lucide-react';
 import type { ScratchpadEntry } from '../../../stores/useScratchpadStore';
-import { getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
+import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { scratchpadCoverUrl } from './scratchpadCover';
 
 // src/components/app/scratchpad/ScratchpadRow.tsx
 // 速记簿列表的一行：封面、标题、歌手 · 从哪收来的（来源写在组头上）；悬停 / 聚焦时出现四个动作（播放、加入队列、加入歌单、移除）。
@@ -31,7 +32,7 @@ type ScratchpadRowProps = {
 
 const ScratchpadRow: React.FC<ScratchpadRowProps> = ({ entry, canAddToPlaylist, isFresh, actions, labels }) => {
     const { song } = entry;
-    const coverUrl = getSongCoverUrl(song);
+    const coverUrl = scratchpadCoverUrl(song, 96);
     // 本地歌的封面是上次启动的 blob 地址，重启后就读不到了：读不到时换成占位图标。
     const [coverFailed, setCoverFailed] = useState(false);
     const artist = getSongArtistLabel(song);

@@ -19,15 +19,22 @@ type LoginWindowState = {
     origin: LoginOrigin | null;
     // 一次登录确认了，登录成功的动画还没放完：这个平台的头像要飞向切换器，切换器画的是它的时候先不画自己的那一个。
     landing: OnlineProviderId | null;
+    // 打开时要直接到哪里：setup 是这个平台的配置清单（已登录才有；没登录就照常登录，登录之后的检查会给清单）。
+    intent: LoginWindowIntent | null;
 };
 
-export const useLoginWindowStore = create<LoginWindowState>(() => ({ isOpen: false, providerId: null, requestId: 0, origin: null, landing: null }));
+export type LoginWindowIntent = 'setup';
 
-/** 打开登录窗口。`pressed` 是按下去的那个东西（按钮、头像），给了窗口就从它那一边出来。 */
-export const openLoginWindow = (providerId: OnlineProviderId | null = null, pressed?: Element | null): void => {
+export const useLoginWindowStore = create<LoginWindowState>(() => ({ isOpen: false, providerId: null, requestId: 0, origin: null, landing: null, intent: null }));
+
+/**
+ * 打开登录窗口。`pressed` 是按下去的那个东西（按钮、头像），给了窗口就从它那一边出来。`intent` 是打开时要直接
+ * 到的地方（例如这个平台的配置清单）。
+ */
+export const openLoginWindow = (providerId: OnlineProviderId | null = null, pressed?: Element | null, intent: LoginWindowIntent | null = null): void => {
     const box = pressed?.getBoundingClientRect();
     const origin = box && box.width > 0 ? { x: box.left + box.width / 2, y: box.top + box.height / 2, size: Math.min(box.width, box.height), providerId } : null;
-    useLoginWindowStore.setState(state => ({ isOpen: true, providerId, origin, requestId: state.requestId + 1 }));
+    useLoginWindowStore.setState(state => ({ isOpen: true, providerId, origin, intent, requestId: state.requestId + 1 }));
 };
 
 export const closeLoginWindow = (): void => {

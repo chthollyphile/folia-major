@@ -74,6 +74,7 @@ const snapshotWith = (provider: ProviderAccountSummary): LibraryAccountSnapshot 
     providers: [provider],
     activeProviderId: provider.providerId,
     login: null,
+    setup: null,
     pendingSwitch: null,
     logout: { providerId: null, status: 'idle' },
     sync: { providerId: null, status: 'idle' },

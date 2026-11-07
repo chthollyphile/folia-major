@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createProviderAccountController } from '@/library/core/account/providerAccountController.service';
+import { createProviderAccountController, LOGIN_CHECK_LIMIT_MS, SETUP_POLL_MS } from '@/library/core/account/providerAccountController.service';
 import { PROVIDER_LOGIN_POLL_INTERVAL_MS } from '@/library/core/account/providerLoginSession.service';
 import type {
     LibraryAccountAuthPort,
@@ -12,7 +12,7 @@ import type {
 } from '@/library/core/account/account.contract';
 import { diagnosticLine } from '@/services/onlineMusic/login/loginDiagnosticReport';
 import { noteLoginFailure } from '@/services/onlineMusic/login/loginFailureCase';
-import type { LoginLocalService, LoginLocalServiceStatus, LoginMethod, LoginState, OnlineProviderId, ProviderAccountSummary } from '@/types/onlineMusic';
+import type { LoginLocalService, LoginLocalServiceStatus, LoginMethod, LoginState, OnlineProviderId, ProviderAccountSummary, ProviderSetupView } from '@/types/onlineMusic';
 
 // test/unit/library/core/providerAccountController.test.ts
 // 在线账户 controller：切换（不问，离开旧平台后直接切，没有待确认请求）、登录（只开始不选平台、
@@ -212,6 +212,11 @@ beforeEach(() => {
         getLoginDiagnostics: vi.fn().mockResolvedValue([diagnosticLine`runtime: test`]),
         canRunLoginSelfCheck: vi.fn().mockReturnValue(false),
         runLoginSelfCheck: vi.fn().mockResolvedValue(null),
+        checksAfterLogin: vi.fn().mockReturnValue(false),
+        checkAfterLogin: vi.fn().mockResolvedValue(null),
+        hasSetup: vi.fn().mockReturnValue(false),
+        getSetup: vi.fn().mockResolvedValue(null),
+        runSetupAction: vi.fn(),
         dropRequestLimits: vi.fn(),
     };
     // 读到了就当拿到了登录态（真实的读账号会把账户写进 store）。
@@ -809,5 +814,245 @@ describe('providerAccountController · failures are logged', () => {
         const failures = warned.filter(([, event]) => event === 'login:refresh-error' || event === 'logout:error');
         expect(failures.length).toBeGreaterThanOrEqual(2);
         for (const [, , detail] of failures) expect(detail).toMatchObject({ name: 'Error', message: said });
+    });
+});
+
+// ─── 登录之后的检查与配置清单 ───────────────────────────────────────────
+
+const WEBBY_METHODS: LoginMethod[] = [
+    { id: 'plain', labelKey: 'webby.plain', iconKey: '', noteKey: 'webby.plainNote' },
+    { id: 'helper', labelKey: 'webby.helper', iconKey: '', noteKey: 'webby.helperNote' },
+];
+
+const setupView = (complete = false, noteKey = 'setup.note'): ProviderSetupView => ({
+    titleKey: 'setup.title',
+    noteKey,
+    complete,
+    steps: [{ id: 'program', titleKey: 'setup.program', state: complete ? 'done' : 'todo', actions: [{ id: 'pick', labelKey: 'setup.pick', kind: 'pick-file' }] }],
+});
+
+describe('providerAccountController · browser sign-in with several methods', () => {
+    beforeEach(() => {
+        auth.resolveLoginMethods.mockImplementation(async (providerId: OnlineProviderId) => (providerId === 'webby' ? WEBBY_METHODS : []));
+    });
+
+    it('picks the first method and waits at «open the browser»; another method is chosen without opening anything', async () => {
+        const controller = createController();
+        await expect(controller.startLogin('webby')).resolves.toMatchObject({ status: 'started', step: 'ready' });
+        expect(controller.getSnapshot().login).toMatchObject({ phase: 'ready', methods: WEBBY_METHODS, selectedMethodId: 'plain' });
+
+        await expect(controller.selectLoginMethod('helper')).resolves.toMatchObject({ status: 'requested' });
+        expect(controller.getSnapshot().login).toMatchObject({ phase: 'ready', selectedMethodId: 'helper' });
+        expect(auth.startLogin).not.toHaveBeenCalled();
+
+        await controller.retryLogin();
+        await manual.flush();
+        expect(opsOf('start', 'open-page')).toEqual([['start', 'webby', 'helper', 'key-1'], ['open-page', 'webby', 'key-1']]);
+    });
+
+    it('picks the method the platform marks to begin with', async () => {
+        auth.resolveLoginMethods.mockResolvedValue([WEBBY_METHODS[0], { ...WEBBY_METHODS[1], preferred: true }]);
+        const controller = createController();
+        await controller.startLogin('webby');
+        expect(controller.getSnapshot().login).toMatchObject({ phase: 'ready', selectedMethodId: 'helper' });
+    });
+
+    it('keeps the method once the platform has confirmed the sign-in', async () => {
+        refresh.mockReturnValueOnce(new Promise(() => { }));
+        const controller = createController();
+        await controller.startLogin('webby');
+        await controller.retryLogin();
+        await manual.flush();
+        await confirmNextPoll();
+        expect(controller.getSnapshot().login?.phase).toBe('confirmed');
+        await expect(controller.selectLoginMethod('helper')).resolves.toEqual({ status: 'rejected', reason: 'not-retryable' });
+        expect(opsOf('cancel')).toEqual([]);
+    });
+
+    it('stops a sign-in already in the browser when the method changes, and waits again', async () => {
+        const controller = createController();
+        await controller.startLogin('webby');
+        await controller.retryLogin();
+        await manual.flush();
+        expect(controller.getSnapshot().login?.phase).toBe('waiting');
+
+        await controller.selectLoginMethod('helper');
+        await manual.flush();
+        expect(opsOf('cancel')).toEqual([['cancel', 'webby', 'key-1']]);
+        expect(controller.getSnapshot().login).toMatchObject({ phase: 'ready', selectedMethodId: 'helper' });
+    });
+});
+
+describe('providerAccountController · checking after a sign-in', () => {
+    beforeEach(() => {
+        auth.checksAfterLogin.mockImplementation((providerId: OnlineProviderId) => providerId === 'gamma');
+    });
+
+    it('says it checks, shows the check as a phase and completes when nothing is to be set up', async () => {
+        accounts = createAccounts('gamma');
+        const checking = deferred<ProviderSetupView | null>();
+        auth.checkAfterLogin.mockReturnValueOnce(checking.promise);
+        const controller = createController();
+        await controller.startLogin('gamma');
+        expect(controller.getSnapshot().login?.checksAfterLogin).toBe(true);
+        await confirmNextPoll();
+        expect(controller.getSnapshot().login?.phase).toBe('checking');
+        expect(auth.checkAfterLogin).toHaveBeenCalledWith('gamma', null);
+        expect(controller.getSnapshot().lastLoginCompletion).toBeNull();
+
+        checking.resolve(null);
+        await manual.flush();
+        expect(controller.getSnapshot()).toMatchObject({ login: null, setup: null, lastLoginCompletion: { providerId: 'gamma', outcome: 'completed' } });
+    });
+
+    it('stops at the checklist the check gives, switches to the provider at once, and completes when it is finished', async () => {
+        auth.checkAfterLogin.mockResolvedValueOnce(setupView());
+        const controller = createController();
+        await controller.startLogin('gamma');
+        await confirmNextPoll();
+        await manual.flush();
+        expect(controller.getSnapshot()).toMatchObject({
+            login: null,
+            activeProviderId: 'gamma',
+            lastLoginCompletion: null,
+            setup: { providerId: 'gamma', origin: 'sign-in', busy: false, view: { titleKey: 'setup.title' } },
+        });
+
+        await controller.finishSetup();
+        expect(controller.getSnapshot()).toMatchObject({ setup: null, lastLoginCompletion: { providerId: 'gamma', outcome: 'completed' } });
+    });
+
+    it('does not wait for a check without end: past the limit the sign-in completes', async () => {
+        accounts = createAccounts('gamma');
+        auth.checkAfterLogin.mockReturnValueOnce(new Promise(() => { }));
+        const controller = createController();
+        await controller.startLogin('gamma');
+        await confirmNextPoll();
+        expect(controller.getSnapshot().login?.phase).toBe('checking');
+        await manual.advance(LOGIN_CHECK_LIMIT_MS);
+        expect(controller.getSnapshot()).toMatchObject({ login: null, lastLoginCompletion: { outcome: 'completed' } });
+        expect(log).toHaveBeenCalledWith('warn', 'login:check-timeout', expect.objectContaining({ providerId: 'gamma' }));
+    });
+
+    it('completes the sign-in when the check throws', async () => {
+        accounts = createAccounts('gamma');
+        auth.checkAfterLogin.mockRejectedValueOnce(new Error('probe failed'));
+        const controller = createController();
+        await controller.startLogin('gamma');
+        await confirmNextPoll();
+        expect(controller.getSnapshot()).toMatchObject({ login: null, setup: null, lastLoginCompletion: { outcome: 'completed' } });
+        expect(log).toHaveBeenCalledWith('warn', 'login:check-error', expect.objectContaining({ message: 'probe failed' }));
+    });
+
+    it('drops the rest when the window closes while it checks: no switch, no completion, no checklist', async () => {
+        const checking = deferred<ProviderSetupView | null>();
+        auth.checkAfterLogin.mockReturnValueOnce(checking.promise);
+        const controller = createController();
+        await controller.startLogin('gamma');
+        await confirmNextPoll();
+        controller.closeLogin();
+        checking.resolve(setupView());
+        await manual.flush();
+        expect(controller.getSnapshot()).toMatchObject({ login: null, setup: null, lastLoginCompletion: null, activeProviderId: 'alpha' });
+        expect(opsOf('set-active')).toEqual([]);
+    });
+
+    it('keeps the method out of reach while it checks', async () => {
+        auth.checkAfterLogin.mockReturnValueOnce(new Promise(() => { }));
+        auth.resolveLoginMethods.mockResolvedValue(QUILL_METHODS);
+        const controller = createController();
+        await controller.startLogin('gamma');
+        await controller.selectLoginMethod('qq');
+        await confirmNextPoll();
+        await expect(controller.selectLoginMethod('wechat')).resolves.toEqual({ status: 'rejected', reason: 'not-retryable' });
+        expect(auth.checkAfterLogin).toHaveBeenCalledWith('gamma', 'qq');
+    });
+});
+
+describe('providerAccountController · the setup checklist', () => {
+    beforeEach(() => {
+        auth.hasSetup.mockImplementation((providerId: OnlineProviderId) => providerId === 'alpha');
+        auth.getSetup.mockResolvedValue(setupView());
+    });
+
+    it('opens from the account, asks the platform again every while, and closes back to the account', async () => {
+        const controller = createController();
+        await expect(controller.openSetup('alpha')).resolves.toEqual({ status: 'opened', providerId: 'alpha' });
+        expect(controller.getSnapshot().setup).toMatchObject({ providerId: 'alpha', origin: 'account', view: { complete: false } });
+
+        auth.getSetup.mockResolvedValue(setupView(true));
+        await manual.advance(SETUP_POLL_MS);
+        expect(controller.getSnapshot().setup?.view.complete).toBe(true);
+
+        await controller.finishSetup();
+        expect(controller.getSnapshot()).toMatchObject({ setup: null, lastLoginCompletion: null });
+        const asked = auth.getSetup.mock.calls.length;
+        await manual.advance(SETUP_POLL_MS * 3);
+        expect(auth.getSetup.mock.calls.length).toBe(asked);
+    });
+
+    it('is unavailable for a provider without a checklist', async () => {
+        const controller = createController();
+        await expect(controller.openSetup('beta')).resolves.toEqual({ status: 'unavailable', providerId: 'beta' });
+        expect(controller.getSnapshot().setup).toBeNull();
+    });
+
+    it('runs an action, busy while it runs, and keeps the value out of the log', async () => {
+        const running = deferred<ProviderSetupView>();
+        auth.runSetupAction.mockReturnValueOnce(running.promise);
+        const controller = createController();
+        await controller.openSetup('alpha');
+        const done = controller.runSetupAction('key', 'save', 'secret-value');
+        expect(controller.getSnapshot().setup?.busy).toBe(true);
+        await expect(controller.runSetupAction('key', 'save', 'again')).resolves.toEqual({ status: 'busy' });
+
+        running.resolve(setupView(true, 'setup.saved'));
+        await expect(done).resolves.toEqual({ status: 'done' });
+        expect(auth.runSetupAction).toHaveBeenCalledWith('alpha', 'key', 'save', 'secret-value');
+        expect(controller.getSnapshot().setup).toMatchObject({ busy: false, view: { complete: true, noteKey: 'setup.saved' } });
+        expect(JSON.stringify(log.mock.calls)).not.toContain('secret-value');
+    });
+
+    it('does not let a check of the platform asked before an action cover the answer of the action', async () => {
+        const controller = createController();
+        await controller.openSetup('alpha');
+        const polled = deferred<ProviderSetupView | null>();
+        auth.getSetup.mockReturnValueOnce(polled.promise);
+        await manual.advance(SETUP_POLL_MS);
+        auth.runSetupAction.mockResolvedValueOnce(setupView(true, 'setup.after-action'));
+        await controller.runSetupAction('program', 'pick');
+        polled.resolve(setupView(false, 'setup.stale'));
+        await manual.flush();
+        expect(controller.getSnapshot().setup?.view.noteKey).toBe('setup.after-action');
+    });
+
+    it('keeps the checklist when an action throws, and says it failed', async () => {
+        auth.runSetupAction.mockRejectedValueOnce(new Error('dialog gone'));
+        const controller = createController();
+        await controller.openSetup('alpha');
+        await expect(controller.runSetupAction('program', 'pick')).resolves.toEqual({ status: 'failed' });
+        expect(controller.getSnapshot().setup).toMatchObject({ busy: false, view: { titleKey: 'setup.title' } });
+    });
+
+    it('closes with the window, and a checklist still being asked for is dropped', async () => {
+        const controller = createController();
+        await controller.openSetup('alpha');
+        controller.closeLogin();
+        expect(controller.getSnapshot().setup).toBeNull();
+
+        const asking = deferred<ProviderSetupView | null>();
+        auth.getSetup.mockReturnValueOnce(asking.promise);
+        const opening = controller.openSetup('alpha');
+        controller.closeLogin();
+        asking.resolve(setupView());
+        await expect(opening).resolves.toEqual({ status: 'none', providerId: 'alpha' });
+        expect(controller.getSnapshot().setup).toBeNull();
+    });
+
+    it('closes the checklist when a sign-in starts', async () => {
+        const controller = createController();
+        await controller.openSetup('alpha');
+        await controller.startLogin('gamma');
+        expect(controller.getSnapshot().setup).toBeNull();
     });
 });

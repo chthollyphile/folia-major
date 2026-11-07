@@ -67,6 +67,7 @@
 | 32+ | `src/components/visualizer/tuningRegistry.ts` |
 | 32+ | `src/components/wall/layout.ts` |
 | 32+ | `src/components/wall/wallSlots.ts` |
+| 32+ | `src/hooks/useReducedMotionFor.ts` |
 | 32+ | `src/library/core/account/account.contract.ts` |
 | 32+ | `src/library/core/directory/directory.contract.ts` |
 | 32+ | `src/library/core/home/homeModel.contract.ts` |
