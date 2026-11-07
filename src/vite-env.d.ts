@@ -916,6 +916,11 @@ declare global {
       setWallpaperHitRegions?: (rects: Array<{ left: number; top: number; width: number; height: number }>) => void;
       setPlaybackDisplaySleepBlockingActive: (active: boolean) => Promise<boolean>;
       /**
+       * Arms the machine's own sound for the one getDisplayMedia call that follows it: the external
+       * playback route's real spectrum. Resolves to whether the main process now holds the arm.
+       */
+      armExternalSpectrumCapture?: (armed: boolean) => Promise<boolean>;
+      /**
        * The 后台节流 switch for the main window: `active` while it is on and not standing down
        * (wallpaper, video export, OBS browser source); `hidden` while it is and the window is
        * minimised or hidden to the tray.

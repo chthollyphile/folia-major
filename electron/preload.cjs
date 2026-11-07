@@ -115,6 +115,9 @@ contextBridge.exposeInMainWorld('electron', {
     },
     setWallpaperHitRegions: (rects) => ipcRenderer.send('wallpaper-hit-regions', rects),
     setPlaybackDisplaySleepBlockingActive: (active) => ipcRenderer.invoke('playback-display-sleep-set-active', active),
+    // Puts the display-media handler on the machine's own sound for one getDisplayMedia call (the
+    // external playback route's spectrum). Windows only: the handler refuses everywhere else.
+    armExternalSpectrumCapture: (armed) => ipcRenderer.invoke('external-spectrum-capture-arm', armed === true),
     getBackgroundThrottlingState: () => ipcRenderer.invoke('background-throttling-get'),
     onBackgroundThrottlingChanged: (callback) => {
         const listener = (_event, state) => callback(state);

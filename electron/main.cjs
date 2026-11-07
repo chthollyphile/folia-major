@@ -18,6 +18,11 @@ const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cj
 const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = require('./backgroundThrottling.cjs');
 const {
+  DISPLAY_MEDIA_ROUTE_SPECTRUM,
+  DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT,
+  decideDisplayMediaRoute,
+} = require('./displayMediaRoute.cjs');
+const {
   GPU_PREFERENCE_SETTING_KEY,
   applyGpuPreference,
   createActiveGpuReader,
@@ -2571,6 +2576,9 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
+// Set while the renderer is asking for the machine's own sound (external playback's spectrum, see
+// setupDisplayMediaRequestHandler). Held only across one getDisplayMedia call: the handler spends it.
+let externalSpectrumCaptureArmed = false;
 // The 后台节流 switch; refresh() wherever one of its stand-down reasons can change.
 const backgroundThrottling = createBackgroundThrottling({
   isEnabled: () => readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
@@ -3604,6 +3612,12 @@ function isSpeakerSelectionPermission(permission) {
   return permission === 'speaker-selection';
 }
 
+// getDisplayMedia's own permission. What it may capture is decided by the display-media request
+// handler below, which grants the main window a source only while one of its features armed it.
+function isDisplayCapturePermission(permission) {
+  return permission === 'display-capture';
+}
+
 function isAudioMediaPermission(permission, details) {
   if (permission !== 'media') {
     return false;
@@ -3619,6 +3633,7 @@ function isAllowedMainWindowPermission(permission, details) {
     isFontAccessPermission(permission) ||
     isClipboardWritePermission(permission) ||
     isSpeakerSelectionPermission(permission) ||
+    isDisplayCapturePermission(permission) ||
     isAudioMediaPermission(permission, details) ||
     permission === 'unknown'
   );
@@ -5691,6 +5706,8 @@ function fitMainWindowBoundsToExportSize(exportSize) {
   return { exportDpr, cssWidth, cssHeight };
 }
 
+// A session has one display-media request handler, and two features ask it for a source.
+//
 // Video export records the main window's own webContents (Chromium tab capture) instead of
 // picking an OS window out of desktopCapturer. Matching that window by id or title is
 // unreliable — under Wayland the portal returns nameless sources whose ids never match
@@ -5698,15 +5715,47 @@ function fitMainWindowBoundsToExportSize(exportSize) {
 // needs no OS capture permission, keeps rendering when the window is covered, and its frames
 // are exactly the content area. Requests are granted only to the main window while an export
 // has prepared the window, so nothing else can silently capture the player.
-function setupVideoExportDisplayMediaHandler() {
+//
+// The external playback route asks for the machine's own sound, so the visualizer can follow a song
+// another program is playing. Windows' loopback Streams is the only way to it: 'loopbackWithMute'
+// would silence what the listener hears, so it is never used. The video half is the main window's own
+// frame — the only source that needs no screen and no OS picker — and the renderer keeps that track
+// without ever reading a frame from it. Nothing is granted unless the renderer armed the capture for
+// this one call.
+function setupDisplayMediaRequestHandler() {
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     const requester = request.frame ? electronWebContents.fromFrame(request.frame) : null;
-    if (!videoExportWindowRestoreState || !isTrustedMainWindowContents(requester)) {
-      callback({});
+    const route = decideDisplayMediaRoute({
+      trusted: isTrustedMainWindowContents(requester),
+      videoExportActive: Boolean(videoExportWindowRestoreState),
+      spectrumCaptureArmed: externalSpectrumCaptureArmed,
+      audioRequested: request.audioRequested === true,
+      platform: process.platform,
+    });
+
+    if (route === DISPLAY_MEDIA_ROUTE_SPECTRUM) {
+      // The arm buys one call and is spent here: a renderer that reloaded between arming and asking
+      // cannot leave the handler answering the machine's sound to some later request of its own.
+      externalSpectrumCaptureArmed = false;
+      console.log('[ExternalSpectrum] Granting system-sound capture to the main window');
+      callback({ video: mainWindow.webContents.mainFrame, audio: 'loopback' });
       return;
     }
 
-    callback({ video: mainWindow.webContents.mainFrame });
+    if (route === DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT) {
+      callback({ video: mainWindow.webContents.mainFrame });
+      return;
+    }
+
+    if (externalSpectrumCaptureArmed || videoExportWindowRestoreState) {
+      console.log('[ExternalSpectrum] Refused a display-media request', {
+        trusted: isTrustedMainWindowContents(requester),
+        audioRequested: request.audioRequested === true,
+        videoExport: Boolean(videoExportWindowRestoreState),
+        platform: process.platform,
+      });
+    }
+    callback({});
   });
 }
 
@@ -6140,7 +6189,7 @@ app.whenReady().then(async () => {
   }
 
   setupFileSystemAccessPermissionHandlers();
-  setupVideoExportDisplayMediaHandler();
+  setupDisplayMediaRequestHandler();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
@@ -6549,6 +6598,21 @@ ipcMain.handle('report-device-pixel-ratio', (event, ratio) => {
   if (Number.isFinite(dpr) && dpr > 0) {
     mainWindow.__dpr = dpr;
   }
+});
+
+// The external playback route's spectrum: the renderer arms the machine's own sound around one
+// getDisplayMedia call and disarms it again (see setupDisplayMediaRequestHandler). Only the main
+// window may arm it, so no other page can talk the handler into starting a system capture.
+ipcMain.handle('external-spectrum-capture-arm', (event, armed) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to arm system-sound capture.');
+  }
+
+  const next = armed === true;
+  if (externalSpectrumCaptureArmed === next) return true;
+  externalSpectrumCaptureArmed = next;
+  console.log(`[ExternalSpectrum] System-sound capture ${next ? 'armed' : 'disarmed'}`);
+  return true;
 });
 
 ipcMain.handle('get-settings', () => {
