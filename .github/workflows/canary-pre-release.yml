@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]
 
     steps:
       - name: Check out Git repository
@@ -155,7 +155,12 @@ jobs:
       - name: Package Electron app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npx electron-builder --publish never --config.publish.channel=alpha
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
+        run: npx electron-builder --publish never --config.publish.channel=${{ matrix.os == 'windows-11-arm' && 'alpha-arm64' || 'alpha' }}
+
+      - name: Verify Windows ARM64 installation
+        if: matrix.os == 'windows-11-arm'
+        run: node packaging/windows/verify-arm64-install.mjs
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v6

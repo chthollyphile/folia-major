@@ -66,8 +66,14 @@ function getReleaseUrl(channel, version, releasesUrl) {
   return normalizedVersion ? `${releasesUrl}/tag/v${normalizedVersion}` : releasesUrl;
 }
 
+// Windows installers are published separately; ARM64 must never consume the x64 feed.
+function getUpdaterChannel(releaseChannel, { platform = process.platform, arch = process.arch } = {}) {
+  const channel = releaseChannel.updaterChannel;
+  return channel && platform === 'win32' && arch === 'arm64' ? `${channel}-arm64` : channel;
+}
+
 // Builds a provider configuration that can read rolling prerelease assets without GitHub's release-feed selection.
-function getUpdateProviderConfig(releaseChannel, github) {
+function getUpdateProviderConfig(releaseChannel, github, target) {
   if (!releaseChannel?.updateEnabled) {
     return null;
   }
@@ -76,7 +82,7 @@ function getUpdateProviderConfig(releaseChannel, github) {
     return {
       provider: 'generic',
       url: `https://github.com/${github.owner}/${github.repo}/releases/download/${releaseChannel.rollingReleaseTag}/`,
-      channel: releaseChannel.updaterChannel,
+      channel: getUpdaterChannel(releaseChannel, target),
       useMultipleRangeRequest: false,
     };
   }
@@ -85,11 +91,11 @@ function getUpdateProviderConfig(releaseChannel, github) {
     provider: 'github',
     owner: github.owner,
     repo: github.repo,
-    channel: releaseChannel.updaterChannel,
+    channel: getUpdaterChannel(releaseChannel, target),
   };
 }
 
-function getUpdateDiscoveryConfig(releaseChannel, github) {
+function getUpdateDiscoveryConfig(releaseChannel, github, target) {
   if (!releaseChannel?.updateEnabled) {
     return null;
   }
@@ -97,13 +103,13 @@ function getUpdateDiscoveryConfig(releaseChannel, github) {
   if (releaseChannel.rollingReleaseTag) {
     return {
       format: 'yaml',
-      url: `https://github.com/${github.owner}/${github.repo}/releases/download/${releaseChannel.rollingReleaseTag}/${releaseChannel.updaterChannel}.yml`,
+      url: `https://github.com/${github.owner}/${github.repo}/releases/download/${releaseChannel.rollingReleaseTag}/${getUpdaterChannel(releaseChannel, target)}.yml`,
     };
   }
 
   return {
     format: 'yaml',
-    url: `https://github.com/${github.owner}/${github.repo}/releases/latest/download/${releaseChannel.updaterChannel}.yml`,
+    url: `https://github.com/${github.owner}/${github.repo}/releases/latest/download/${getUpdaterChannel(releaseChannel, target)}.yml`,
   };
 }
 

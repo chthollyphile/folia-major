@@ -8,7 +8,9 @@
 
 ## 下载说明
 
-- Windows：下载 `Folia-Setup-<version>.exe`
+- Windows：
+  - Intel / AMD：下载 `Folia-Setup-<version>-x64.exe`
+  - ARM64（骁龙等设备）：下载 `Folia-Setup-<version>-arm64.exe`
 - macOS：
   - Apple Silicon：下载 `Folia-<version>-arm64.dmg`
   - Intel Mac：下载 `Folia-<version>-x64.dmg`
