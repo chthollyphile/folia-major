@@ -54,6 +54,20 @@ const RESTART_COOLDOWN_MS = 30000;
 const MAX_FORCE_RESTARTS = 1;
 const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 const MAX_QUEUED = 5;
+// A Windows tool is given at most this long: a tasklist or a taskkill that hangs must not hold a play
+// or the quit (N3).
+const TOOL_LIMIT_MS = 2000;
+// Never less than this: a wait of a few milliseconds only ever fails, and `timeout: 0` means no limit
+// at all to execFile.
+const TOOL_LIMIT_FLOOR_MS = 100;
+// How long a Spotify port takes to answer when nothing else says so.
+const PORT_VERIFY_LIMIT_MS = 1500;
+// The quit waits for the close at most 3 s in all (spotifyApiBridge's SHUTDOWN_LIMIT_MS). The taskkill
+// has to be under way inside that, so what is asked before it - the tasklist, then the port search -
+// waits only for what is left of this budget, less the little the taskkill itself needs to be handed
+// to Windows (L4): a close that spends the whole gate probing ports closes nothing.
+const QUIT_CLOSE_BUDGET_MS = 2400;
+const QUIT_TASK_ISSUE_RESERVE_MS = 250;
 
 // Runs in the Spotify page: finds the player and the volume API in the app's React tree and keeps
 // them on the window, so later calls do not walk the tree again.
@@ -707,6 +721,12 @@ function createSpotifyOfficialClient({
   // program wrote must not decide which tasklist runs, nor which PowerShell (L5).
   const systemTool = name => path.join(env.SystemRoot || 'C:\\Windows', 'System32', name);
 
+  // How long a step of the quit close may wait: what is left before `deadline`, never more than that
+  // tool's own limit, and never so little that the call could only time out (L4).
+  const waitLimit = (limitMs, deadline) => (
+    deadline ? Math.max(TOOL_LIMIT_FLOOR_MS, Math.min(limitMs, deadline - Date.now())) : limitMs
+  );
+
   // The port asked for: 0 lets CEF pick one, and the one it picked is looked for below.
   const requestedPort = Number.isInteger(port) && port > 0 ? port : 0;
   // The port found for the Spotify this run steers, when a search that found nothing may run again,
@@ -717,7 +737,7 @@ function createSpotifyOfficialClient({
 
   // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
   // port is not Folia's, and Spotify must not be closed for it (D3).
-  const spotifyAnswersOnPort = async (candidate, limitMs = 1500) => {
+  const spotifyAnswersOnPort = async (candidate, limitMs = PORT_VERIFY_LIMIT_MS) => {
     if (!candidate) return false;
     try {
       const response = await withLimit(fetch(`http://${CDP_HOST}:${candidate}/json/version`), limitMs, 'Spotify');
@@ -730,9 +750,9 @@ function createSpotifyOfficialClient({
   // The loopback ports this computer's listening sockets name: `netstat -ano` lays a listener out as
   // protocol, local address, foreign address 0.0.0.0:0, state, pid, so no localized word is read.
   // Which of them is Spotify's is decided by asking the port itself.
-  const listeningLoopbackPorts = () => new Promise(resolve => {
+  const listeningLoopbackPorts = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
     // Bounded tightly: this also runs on the way out of the app, where the quit waits 3 s at most.
-    runFile(systemTool('netstat.exe'), ['-ano'], { windowsHide: true, timeout: 2000 }, (error, stdout) => {
+    runFile(systemTool('netstat.exe'), ['-ano'], { windowsHide: true, timeout: timeoutMs }, (error, stdout) => {
       const ports = [];
       if (!error) {
         for (const line of String(stdout).split(/\r?\n/)) {
@@ -754,28 +774,29 @@ function createSpotifyOfficialClient({
   // machine's loopback listeners, each asked whether it is Spotify's; the port older runs used last.
   // `again` looks once more where it stands, for a caller that is about to start Spotify or close it.
   //
-  // `passive` is a read nobody asked for — the status of a song that plays — and it only follows the
-  // port already found: a page polled twice a second must not start a search of its own, which is a
-  // netstat and a probe per listener on a computer whose Spotify may be closed. A search is the work
-  // of a listener's own action (a play, the launch switch, a restart) and of the quit.
-  const findPort = async ({ again = false, passive = false } = {}) => {
+  // What keeps a search cheap is the answer itself: a port already found is not looked for again (a
+  // page polled twice a second follows it for free), and one search that found nothing is not repeated
+  // before `nextScanAt` has passed, so a computer whose Spotify is closed is not swept per poll.
+  // `deadline` caps every wait of the search: the quit's close passes it so that its taskkill is
+  // issued inside the quit's gate (L4).
+  const findPort = async ({ again = false, deadline = 0 } = {}) => {
     if (requestedPort) return foundPort ?? requestedPort;
     if (foundPort && !again) return foundPort;
-    if (passive) return null;
     if (!again && Date.now() < nextScanAt) return null;
+    const capWait = limitMs => waitLimit(limitMs, deadline);
     const fromProfile = portFromProfile(env);
-    if (fromProfile && await spotifyAnswersOnPort(fromProfile)) {
+    if (fromProfile && await spotifyAnswersOnPort(fromProfile, capWait(PORT_VERIFY_LIMIT_MS))) {
       foundPort = fromProfile;
       scanFailures = 0;
       nextScanAt = 0;
       return foundPort;
     }
-    const candidates = (await listeningLoopbackPorts()).filter(candidate => candidate !== fromProfile);
+    const candidates = (await listeningLoopbackPorts(capWait(TOOL_LIMIT_MS))).filter(candidate => candidate !== fromProfile);
     const answers = await Promise.all(candidates.map(async candidate => (
-      await spotifyAnswersOnPort(candidate, PORT_PROBE_LIMIT_MS) ? candidate : null
+      await spotifyAnswersOnPort(candidate, capWait(PORT_PROBE_LIMIT_MS)) ? candidate : null
     )));
     foundPort = answers.find(candidate => candidate !== null) ?? null;
-    if (!foundPort && await spotifyAnswersOnPort(CDP_PORT)) foundPort = CDP_PORT;
+    if (!foundPort && await spotifyAnswersOnPort(CDP_PORT, capWait(PORT_VERIFY_LIMIT_MS))) foundPort = CDP_PORT;
     if (foundPort) {
       log(`[SpotifyClient] Spotify's DevTools port is ${foundPort}`);
       scanFailures = 0;
@@ -802,16 +823,16 @@ function createSpotifyOfficialClient({
   let startedByUs = false;
 
   // Both tools are bounded (N3): a taskkill that hangs must not hold the quit.
-  const spotifyIsRunning = () => new Promise(resolve => {
-    runFile(systemTool('tasklist.exe'), ['/FI', 'IMAGENAME eq Spotify.exe', '/NH'], { windowsHide: true, timeout: 2000 }, (error, stdout) => {
+  const spotifyIsRunning = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
+    runFile(systemTool('tasklist.exe'), ['/FI', 'IMAGENAME eq Spotify.exe', '/NH'], { windowsHide: true, timeout: timeoutMs }, (error, stdout) => {
       resolve(!error && /Spotify\.exe/i.test(String(stdout)));
     });
   });
 
   // The Spotify processes running now, by id: a window opened by one of them is the listener's, and
   // the one a start creates is the only one Folia hides.
-  const spotifyProcessIds = () => new Promise(resolve => {
-    runFile(systemTool('tasklist.exe'), ['/FI', 'IMAGENAME eq Spotify.exe', '/NH', '/FO', 'CSV'], { windowsHide: true, timeout: 2000 }, (error, stdout) => {
+  const spotifyProcessIds = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
+    runFile(systemTool('tasklist.exe'), ['/FI', 'IMAGENAME eq Spotify.exe', '/NH', '/FO', 'CSV'], { windowsHide: true, timeout: timeoutMs }, (error, stdout) => {
       const pids = [];
       if (!error) {
         for (const line of String(stdout).split(/\r?\n/)) {
@@ -874,8 +895,9 @@ function createSpotifyOfficialClient({
     windowWatch = null;
   };
 
-  const stopSpotify = () => new Promise(resolve => {
-    runFile(systemTool('taskkill.exe'), ['/IM', 'Spotify.exe', '/F'], { windowsHide: true, timeout: 2000 }, () => resolve());
+  // Every Spotify process, by image name: the close is not narrowed to the ones this run started (D3).
+  const stopSpotify = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
+    runFile(systemTool('taskkill.exe'), ['/IM', 'Spotify.exe', '/F'], { windowsHide: true, timeout: timeoutMs }, () => resolve());
   });
 
   // Spotify open with the DevTools port and its player found.
@@ -1051,11 +1073,17 @@ function createSpotifyOfficialClient({
     // listener started without the port is left alone, and so is a port another program holds.
     async closeForQuit() {
       if (platform !== 'win32') return false;
+      // The instant the taskkill has to be under way by; what is left of the budget is all the
+      // probing before it may take (L4).
+      const issueBy = Date.now() + QUIT_CLOSE_BUDGET_MS - QUIT_TASK_ISSUE_RESERVE_MS;
       // A Spotify this run started and the listener closed meanwhile is not Folia's to close.
-      if (startedByUs && !(await spotifyIsRunning())) startedByUs = false;
-      if (!startedByUs && !(await spotifyAnswersOnPort(await findPort({ again: true })))) return false;
+      if (startedByUs && !(await spotifyIsRunning(waitLimit(TOOL_LIMIT_MS, issueBy)))) startedByUs = false;
+      if (!startedByUs) {
+        const port = await findPort({ again: true, deadline: issueBy });
+        if (!(await spotifyAnswersOnPort(port, waitLimit(PORT_VERIFY_LIMIT_MS, issueBy)))) return false;
+      }
       page.close();
-      await stopSpotify();
+      await stopSpotify(waitLimit(TOOL_LIMIT_MS, issueBy));
       startedByUs = false;
       log('[SpotifyClient] Spotify was closed as Folia quits');
       return true;

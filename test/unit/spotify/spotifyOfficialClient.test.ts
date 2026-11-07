@@ -546,6 +546,66 @@ describe('the quit, the helper and the port', () => {
         expect(timeouts).toEqual([2000]);
     });
 
+    it('narrows what it waits for so the taskkill is issued inside the quit gate (L4)', async () => {
+        const app = makeClient({ port: 0, portAnswers: true });
+        const startedAt = Date.now();
+        let netstatTimeout = 0;
+        let taskkillTimeout = 0;
+        let taskkillAt = 0;
+        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, callback: (error: Error | null, stdout?: string) => void) => {
+            if (String(file).includes('netstat')) {
+                netstatTimeout = options.timeout ?? 0;
+                // 一个慢的 netstat：在它自己的时限之内答，但已经花掉了闸门的大半。
+                setTimeout(() => callback(null, ''), 1990);
+                return;
+            }
+            if (String(file).includes('taskkill')) {
+                taskkillTimeout = options.timeout ?? 0;
+                taskkillAt = Date.now() - startedAt;
+                setTimeout(() => callback(null, ''), 50);
+                return;
+            }
+            callback(null, '');
+        });
+        const quit = app.client.closeForQuit();
+        await vi.advanceTimersByTimeAsync(3000);
+        await expect(quit).resolves.toBe(true);
+        expect(netstatTimeout).toBe(2000);
+        // 探测花掉的预算是 taskkill 的，不是退出闸门的：它在 3s 之内发出，等它的时限也只剩剩下的那些。
+        expect(taskkillAt).toBeLessThan(3000);
+        expect(taskkillTimeout).toBeLessThan(2000);
+    });
+
+    it('gives up a port it cannot confirm inside the gate instead of holding the quit for it (L4)', async () => {
+        const app = makeClient({ port: 0, portAnswers: true });
+        const startedAt = Date.now();
+        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, callback: (error: Error | null, stdout?: string) => void) => {
+            if (String(file).includes('netstat')) {
+                // 慢到只能靠它自己的时限结束：端口探测从这里开始就已经只剩一点预算。
+                setTimeout(() => callback(null, ''), options.timeout ?? 0);
+                return;
+            }
+            callback(null, '');
+        });
+        // 端口每次都要 1.4s 才答：第一次还答得上，确认的那一次已经在预算之外。
+        app.fetch.mockImplementation(((url: string) => {
+            if (!String(url).includes('/json/version')) return Promise.resolve({ ok: true, json: async () => [] });
+            return new Promise(resolve => setTimeout(() => resolve({
+                ok: true, json: async () => ({ 'User-Agent': 'Mozilla/5.0 Spotify/1.2.31' }),
+            }), 1400));
+        }) as never);
+        let answeredAt = 0;
+        const quit = app.client.closeForQuit().then((answer: boolean) => {
+            answeredAt = Date.now();
+            return answer;
+        });
+        await vi.advanceTimersByTimeAsync(6000);
+        // 确认不了就不关，而不是把退出拖过闸门之后才关。
+        await expect(quit).resolves.toBe(false);
+        expect(answeredAt - startedAt).toBeLessThan(3000);
+        expect(app.taskkills()).toBe(0);
+    });
+
     it('does not hold the quit when the setting is off (N3)', async () => {
         const app = makeClient({ portAnswers: true });
         const bridge = makeBridge(app.client);
