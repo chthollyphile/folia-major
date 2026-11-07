@@ -1,15 +1,38 @@
 import type { LyricData, LyricProviderSource } from '../../types';
 import { isLyricMatchSourceOffered } from './lyricMatchSources';
+import { getLyricSource } from './lyricSources';
 import { buildLyricSourceOrder } from './sourcePriority';
 
 // src/utils/lyrics/ownWordTiming.ts
 // When the automatic lyric pick keeps a song's own word-level lyrics (a platform that sets
 // `prefersOwnWordByWord`) and when it asks the preferred source first (issue #1127).
 
-/** The source the automatic pick asks first: the preferred one while it is on offer, else the default. */
-export const firstLyricSourceAsked = (preferredSource?: LyricProviderSource): LyricProviderSource => (
-    buildLyricSourceOrder(preferredSource && isLyricMatchSourceOffered(preferredSource) ? preferredSource : undefined)[0]
-);
+/**
+ * The source the automatic pick asks first: the preferred one while it is on offer, else the
+ * default. The song's own platform always is: its lyrics are in hand, even while its account is
+ * still being read at startup.
+ */
+export const firstLyricSourceAsked = (
+    preferredSource?: LyricProviderSource,
+    ownSource?: LyricProviderSource | null,
+): LyricProviderSource => buildLyricSourceOrder(
+    preferredSource && (preferredSource === ownSource || isLyricMatchSourceOffered(preferredSource))
+        ? preferredSource
+        : undefined,
+)[0];
+
+/**
+ * Whether the pick asks the source first asked before it settles on the song's own word timing:
+ * not when that is the song's own platform, nor when it has lines only and so could
+ * never give words to take over.
+ */
+export const asksBeforeOwnWordTiming = (
+    ownSource: LyricProviderSource | null | undefined,
+    preferredSource: LyricProviderSource | undefined,
+): boolean => {
+    const first = firstLyricSourceAsked(preferredSource, ownSource);
+    return first !== ownSource && !getLyricSource(first).linesOnly;
+};
 
 export interface OwnWordTimingCheck {
     /** The lyric source the song's own platform is, if it is one. */
@@ -37,4 +60,4 @@ export const keepsOwnWordTiming = ({ ownSource, prefersOwn, lyrics, keepOwn }: O
 export const settlesOnOwnWordTiming = (
     check: OwnWordTimingCheck,
     preferredSource: LyricProviderSource | undefined,
-): boolean => keepsOwnWordTiming(check) && firstLyricSourceAsked(preferredSource) === check.ownSource;
+): boolean => keepsOwnWordTiming(check) && !asksBeforeOwnWordTiming(check.ownSource, preferredSource);

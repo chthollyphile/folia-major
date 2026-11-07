@@ -14,7 +14,7 @@ import { getLyricSourceAccess, isLyricMatchSourceOffered } from './lyricMatchSou
 import { getLyricSource } from './lyricSources';
 import type { PlatformLyricSource } from './lyricSources';
 import type { LocalSongMetadataLyricCandidate } from './localSongMatchContext';
-import { keepsOwnWordTiming } from './ownWordTiming';
+import { asksBeforeOwnWordTiming, keepsOwnWordTiming } from './ownWordTiming';
 
 // src/utils/lyrics/autoMatchBestLyric.ts
 // Utility module for preferring word-by-word lyrics while retaining a usable line-by-line fallback.
@@ -202,8 +202,10 @@ async function matchUnderArtist(
     // Written by the steps below; the cast keeps the type wide for the reads after them.
     let lineByLineFallback = null as AutoMatchBestLyricMatch | null;
 
-    // A preferred source that is not on offer (Spotify with no account signed in) counts as none chosen.
-    const preferredSource = options.preferredSource && isLyricMatchSourceOffered(options.preferredSource)
+    // A preferred source that is not on offer (Spotify with no account signed in) counts as none
+    // chosen; the song's own platform is always on offer, its lyrics being in hand.
+    const preferredSource = options.preferredSource
+        && (options.preferredSource === providerCandidate?.providerId || isLyricMatchSourceOffered(options.preferredSource))
         ? options.preferredSource
         : undefined;
     const searchOrder = options.exactMatchOnly && options.metadataCandidate
@@ -443,7 +445,7 @@ async function matchUnderArtist(
         keepOwn: options.keepOwnWordTiming !== false,
     })) {
         const first = searchOrder[0];
-        if (first && first !== providerCandidate.providerId) {
+        if (first && first !== providerCandidate.providerId && !getLyricSource(first).linesOnly) {
             const preferred = await trySource(first);
             // Its lines, or a pure-music verdict, do not outweigh the words the song has.
             if (preferred && !preferred.isPureMusic && preferred.lyrics.isWordByWord) {
@@ -487,7 +489,13 @@ export async function autoMatchBestLyric(
     options: AutoMatchBestLyricOptions = {}
 ): Promise<AutoMatchBestLyricResult> {
     const match = await matchUnderArtist(title, artist, durationMs, options);
-    if (match && (match.isPureMusic || match.lyrics.isWordByWord)) return match;
+    // The song's own word timing is not final while the source asked first may still list the
+    // song under its original name (a title in Latin letters, say).
+    const ownWordsAfterAsking = match !== null && !match.isPureMusic
+        && match.source === options.providerCandidate?.providerId
+        && getOnlineMusicProvider(match.source)?.lyrics?.prefersOwnWordByWord === true
+        && asksBeforeOwnWordTiming(match.source, options.preferredSource);
+    if (match && (match.isPureMusic || match.lyrics.isWordByWord) && !ownWordsAfterAsking) return match;
     // The alias comes from the song's own provider, not the active Omni one: the caller asks it,
     // since a platform that is not a lyric source has no providerCandidate here.
     if (options.searchAlias) {

@@ -78,7 +78,8 @@ Omni 的爱心读取、未决操作和写入共用这个 ID，播放 ID 不变�
 真实账号追加结果尚待验收。
 TTML 经现有 `parseTTML` 转成 `LyricData`：`isWordByWord` 和 `ttml.timingMode` 来自文件的 `itunes:timing`，
 逐行文件不会标成逐词；Apple 没有歌词时交出 `lyrics: null`，不报成错误。provider 声明
-`prefersOwnWordByWord`：自己的歌词是逐词时，自动匹配不再拿别的来源替换它。
+`prefersOwnWordByWord`：自己的歌词是逐词时，自动匹配只先问“歌词匹配优先级”选的来源，它有逐词歌词才替换，
+其他来源不再搜（#1127）；歌词设置里的“保留平台自带的逐字歌词”关掉后，和别的歌一样按优先级择优。
 
 Apple 的音频受 DRM 保护，不能交出地址，所以能力是 `externalPlayback: true`、`playback: false`。播放走
 `src/services/onlineMusic/externalPlayback.ts` 的 `external` 路线（`PlaybackRoute` 的第三个值）：Folia 经
