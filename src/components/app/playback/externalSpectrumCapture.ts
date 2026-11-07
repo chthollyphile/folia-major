@@ -1,13 +1,13 @@
+import type { ExternalSpectrumBands } from './externalSpectrum';
+import { SPECTRUM_BINS } from './externalSpectrum';
+import { emptySpectrumBandLevels, readSpectrumBandLevels } from './spectrumBands';
+
 // src/components/app/playback/externalSpectrumCapture.ts
 // On the Windows desktop build the external route can analyse what the machine is actually playing:
 // Chromium's loopback Streams hands the renderer the system's own sound, which is analysed in memory
 // here and read by the visualizer in place of the simulated bands. Nothing is recorded or written.
 
-import type { ExternalSpectrumBands } from './externalSpectrum';
-import { SPECTRUM_BINS } from './externalSpectrum';
-import { emptySpectrumBandLevels, readSpectrumBandLevels } from './spectrumBands';
-
-/** Silent this long and the simulated bands take over again (a muted player, a paused one). */
+/** Silence from the very start of a capture for this long, and the simulated bands take over. */
 const SILENCE_LIMIT_MS = 2000;
 /** The first refusal waits this long before another attempt; each one after doubles it. */
 const RETRY_BASE_MS = 60_000;
@@ -21,12 +21,21 @@ let audioContext: AudioContext | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserBins: Uint8Array<ArrayBuffer> | null = null;
 let silentSinceMs: number | null = null;
+/**
+ * Whether this capture has carried sound already. Silence before that means nothing reached the
+ * capture at all; silence after it means a paused or muted player, and the bars hold still.
+ */
+let heardSound = false;
+/** The first failure of an episode is logged; the ones after it only lengthen the back-off. */
+let failureLogged = false;
+/** Which of the two the last frame showed, so a switch between them is logged once per edge. */
+let showingCaptured = false;
 /** Bumped whenever the capture is released, so an attempt still in flight sees that it is unwanted. */
 let generation = 0;
 let failures = 0;
 let retryAfterMs = 0;
 
-// Read every frame, so both are made once and written in place: no frame allocates (M3).
+// Read every frame, so both are made once and written in place: no frame allocates.
 const BANDS: ExternalSpectrumBands = { ...emptySpectrumBandLevels(), spectrum: new Uint8Array(SPECTRUM_BINS) };
 
 const bridge = () => (typeof window === 'undefined' ? undefined : window.electron);
@@ -55,27 +64,65 @@ const stopTracks = (target: MediaStream | null) => {
     }
 };
 
+/** Stops the captured tracks and closes the context, whether the attempt failed or the route left. */
+const closeCaptureResources = (heldStream: MediaStream | null, heldContext: AudioContext | null) => {
+    stopTracks(heldStream);
+    if (!heldContext) return;
+    try {
+        void Promise.resolve(heldContext.close()).catch(error => {
+            console.warn('[ExternalSpectrum] Could not close the capture context', error);
+        });
+    } catch (error) {
+        console.warn('[ExternalSpectrum] Could not close the capture context', error);
+    }
+};
+
+/** Tells the main process the capture is over, so the window may be throttled again. */
+const noteCaptureStopped = () => {
+    const api = bridge();
+    if (typeof api?.noteExternalSpectrumCaptureStopped !== 'function') return;
+    void Promise.resolve(api.noteExternalSpectrumCaptureStopped()).catch(error => {
+        console.warn('[ExternalSpectrum] Could not report the end of the capture', error);
+    });
+};
+
+/**
+ * Logs the edge between the captured sound and the simulated bands. Every frame passes through here,
+ * so it compares two booleans and writes nothing until the answer changes.
+ */
+const noteCaptured = (captured: boolean) => {
+    if (captured === showingCaptured) return;
+    showingCaptured = captured;
+    console.info(captured
+        ? '[ExternalSpectrum] Showing the machine\'s sound'
+        : '[ExternalSpectrum] Showing the simulated bands');
+};
+
+/** Gives back everything an attempt took. Every way an attempt can end short of running comes here. */
+const abandonAttempt = (heldStream: MediaStream | null, heldContext: AudioContext | null) => {
+    state = 'idle';
+    closeCaptureResources(heldStream, heldContext);
+    noteCaptureStopped();
+};
+
 const release = () => {
     generation += 1;
-    const held = stream;
-    const context = audioContext;
+    const heldStream = stream;
+    const heldContext = audioContext;
     stream = null;
     audioContext = null;
     analyser = null;
     analyserBins = null;
     silentSinceMs = null;
+    heardSound = false;
     state = 'idle';
     // Leaving the route ends the episode: the next one may try again at once.
     failures = 0;
     retryAfterMs = 0;
-    stopTracks(held);
-    if (context) {
-        try {
-            void Promise.resolve(context.close()).catch(() => {});
-        } catch (error) {
-            console.warn('[ExternalSpectrum] Could not close the capture context', error);
-        }
-    }
+    failureLogged = false;
+    noteCaptured(false);
+    closeCaptureResources(heldStream, heldContext);
+    noteCaptureStopped();
 };
 
 /**
@@ -86,6 +133,10 @@ const release = () => {
 const noteFailure = (reason: string, error: unknown) => {
     failures += 1;
     retryAfterMs = Date.now() + Math.min(RETRY_BASE_MS * 2 ** (failures - 1), RETRY_MAX_MS);
+    // One line per episode: a machine that cannot hand its sound over fails on every song, and the
+    // same sentence sixty times tells the listener nothing new.
+    if (failureLogged) return;
+    failureLogged = true;
     if (error === null) console.warn(`[ExternalSpectrum] ${reason}`);
     else console.warn(`[ExternalSpectrum] ${reason}`, error);
 };
@@ -126,11 +177,14 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
             noteFailure('could not capture the machine\'s sound', error);
         } finally {
             // The main process spends the arm on the grant itself; this undoes one that bought nothing
-            // (a refused request, or a call that never reached the handler).
-            try {
-                await api.armExternalSpectrumCapture(false);
-            } catch (error) {
-                console.warn('[ExternalSpectrum] Could not disarm the system-sound capture', error);
+            // (a refused request, or a call that never reached the handler). An attempt the route has
+            // released in the meantime owes the main process nothing.
+            if (attemptGeneration === generation) {
+                try {
+                    await api.armExternalSpectrumCapture(false);
+                } catch (error) {
+                    console.warn('[ExternalSpectrum] Could not disarm the system-sound capture', error);
+                }
             }
         }
     }
@@ -145,21 +199,35 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
 
     if (attemptGeneration !== generation) {
         // The route left the external player while the sound was being handed over.
-        stopTracks(granted);
+        abandonAttempt(granted, null);
         return;
     }
 
     if (granted.getAudioTracks().length === 0) {
-        stopTracks(granted);
-        state = 'idle';
-        noteFailure('the granted stream carries no audio', null);
+        // A video export holds the handler and answered with a picture only. Nothing is wrong with the
+        // machine's sound, so this is not a failure and nothing is backed off: the next song asks again.
+        console.info('[ExternalSpectrum] The granted stream carries no audio');
+        abandonAttempt(granted, null);
         return;
     }
 
+    let context: AudioContext | null = null;
     try {
         const AudioContextClass = window.AudioContext
             || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        const context = new AudioContextClass();
+        context = new AudioContextClass();
+        // Chromium hands over a suspended context until the page may play, and an analyser on one
+        // answers silence for ever: a context that will not run is a failed attempt, not a quiet one.
+        await context.resume();
+        if (attemptGeneration !== generation) {
+            // The route left the external player while the context was starting.
+            abandonAttempt(granted, context);
+            return;
+        }
+        if (context.state !== 'running') {
+            throw new Error(`the capture context stayed ${context.state}`);
+        }
+
         const node = context.createAnalyser();
         node.fftSize = 2048;
         node.smoothingTimeConstant = 0.6;
@@ -177,9 +245,14 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
         analyser = node;
         analyserBins = new Uint8Array(node.frequencyBinCount);
         silentSinceMs = null;
+        // A new episode starts without having heard anything: until sound arrives, silence here means
+        // the capture reaches nothing. A song change inside the route keeps the capture and this flag,
+        // because the gaps between songs are silence too and the bars must hold still through them.
+        heardSound = false;
         state = 'running';
         failures = 0;
         retryAfterMs = 0;
+        failureLogged = false;
         // The capture can end on its own (a revoked sharing session, a device that went away): the
         // next frame finds nothing to read and the simulated bands take over.
         for (const track of granted.getTracks()) {
@@ -187,21 +260,23 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
         }
         console.log('[ExternalSpectrum] Analysing the machine\'s sound');
     } catch (error) {
-        stopTracks(granted);
-        state = 'idle';
+        abandonAttempt(granted, context);
         noteFailure('could not analyse the captured sound', error);
     }
 };
 
 /**
- * The bands of the machine's sound, or null when there is nothing to show - not capturing, or silent
- * long enough that the simulated bands should move with the song again. Written in place: the
- * visualizer calls this every frame (M3).
+ * The bands of the machine's sound, or null when there is nothing to show - not capturing, or a
+ * capture that has never carried sound and stays silent past the limit. Written in place: the
+ * visualizer calls this every frame.
  */
 export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => {
     const node = analyser;
     const data = analyserBins;
-    if (state !== 'running' || !node || !data) return null;
+    if (state !== 'running' || !node || !data) {
+        noteCaptured(false);
+        return null;
+    }
 
     // Deliberately no exception guard: without it the attempt is dead and the simulated bands are
     // what the listener sees, which is the right answer for a capture that broke mid-song.
@@ -213,15 +288,24 @@ export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => 
     }
 
     if (loudest === 0) {
+        if (heardSound) {
+            // A capture that has carried sound is now on a paused, muted or between-songs player: the
+            // bands keep the frame they had, so pausing stops the bars where they are instead of
+            // flattening them and jumping back up when the sound returns.
+            noteCaptured(true);
+            return BANDS;
+        }
         const now = Date.now();
         if (silentSinceMs === null) {
             silentSinceMs = now;
         } else if (now - silentSinceMs >= SILENCE_LIMIT_MS) {
-            // Silence is a muted player or a paused one: the simulated bands keep the song moving.
-            // The analyser keeps being read, so sound coming back is noticed at once.
+            // Nothing has ever come through this capture: the machine mutes what it plays, or the
+            // device answers zero. The simulated bands move with the song instead.
+            noteCaptured(false);
             return null;
         }
     } else {
+        heardSound = true;
         silentSinceMs = null;
     }
 
@@ -239,6 +323,7 @@ export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => 
         }
         BANDS.spectrum[index] = Math.round(sum / (end - start));
     }
+    noteCaptured(true);
     return BANDS;
 };
 
@@ -262,6 +347,7 @@ export const stopExternalSpectrumCapture = (): void => {
     if (state === 'idle' && !stream && !audioContext) {
         failures = 0;
         retryAfterMs = 0;
+        failureLogged = false;
         return;
     }
     release();

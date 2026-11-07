@@ -114,8 +114,11 @@ export function usePlaybackVisualizerBridge({
     const incomingLyrics = usePlaybackStore(state => state.lyrics);
 
     const currentLineIndexRef = useRef(-1);
-    // The deck's folded bands, written in place every frame (M3).
+    // The deck's folded bands, written in place every frame.
     const deckBandsRef = useRef<SpectrumBandLevels>(emptySpectrumBandLevels());
+    // The analyser's bins, kept across frames: the same analyser always answers the same count, so a
+    // frame that draws only reuses this array instead of asking for a new one sixty times a second.
+    const analyserBinsRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
     // 智能动感模式: loads the track's beats while it is on; the clock is stepped below. A ref, so
     // switching it does not rebuild the frame loop.
     const beatFxWantedRef = useRef(false);
@@ -262,7 +265,10 @@ export function usePlaybackVisualizerBridge({
             // The bands keep their last values: nothing draws from them while held.
         } else if (hasAudibleSignal && analyserRef.current) {
             const bufferLength = analyserRef.current.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
+            if (analyserBinsRef.current?.length !== bufferLength) {
+                analyserBinsRef.current = new Uint8Array(bufferLength);
+            }
+            const dataArray = analyserBinsRef.current;
             analyserRef.current.getByteFrequencyData(dataArray);
             audioBands.spectrum?.set(dataArray);
 
@@ -277,12 +283,11 @@ export function usePlaybackVisualizerBridge({
         } else if (isExternalRouteActive) {
             // The external player hands the app no audio to analyse, unless this build captures the
             // machine's own sound (Windows desktop, see externalSpectrumCapture): then these are the
-            // bands of what is actually playing. Otherwise they follow the player's own clock, so
-            // they move with the song and freeze where it is paused, advertising, or still loading a
-            // track. The route never falls back to the breathing animation, and the bands are
-            // written in place: no frame allocates (M3). A capture that is silent for a couple of
-            // seconds hands the frame back to the simulation, which sits still where the player is
-            // paused or still loading.
+            // bands of what is actually playing, and a capture that goes quiet holds the frame it
+            // had, so pausing stops the bars where they are. Without a capture they follow the
+            // player's own clock and freeze while it is paused, advertising or still loading. The
+            // route never falls back to the breathing animation, and neither answer allocates a
+            // frame: both are written into arrays their module already holds.
             const bands = readCapturedExternalSpectrum() ?? externalSpectrumAt(getExternalPosition());
             audioPower.set(bands.power);
             audioBands.bass.set(bands.bass);
