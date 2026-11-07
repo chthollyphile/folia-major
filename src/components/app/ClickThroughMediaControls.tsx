@@ -21,24 +21,21 @@ const ClickThroughMediaControls: React.FC<ClickThroughMediaControlsProps> = ({ v
     const hasSong = usePlaybackStore(state => Boolean(state.currentSong));
     const isPlaying = usePlaybackStore(selectDisplayPlayerState) === PlayerState.PLAYING;
     const shown = visible && hasSong;
-    const buttonClass = `flex h-full w-7 items-center justify-center rounded-lg transition-colors duration-200 ${
-        isDaylight ? 'hover:bg-black/[0.05] hover:text-zinc-900' : 'hover:bg-white/10 hover:text-white'
+    const buttonClass = `flex h-full w-7 items-center justify-center rounded-full transition-colors duration-150 ${
+        isDaylight ? 'hover:bg-black/[0.07] hover:text-zinc-900' : 'hover:bg-white/15 hover:text-white'
     }`;
     const playPauseLabel = isPlaying ? t('remote.pause') : t('remote.play');
 
-    if (!hasSong) return null;
-
     return (
         <div
-            // Three 28px buttons plus two 1px gaps preserve the existing 86px unlock hotspot.
-            className={`flex h-7 items-center gap-px transition-all duration-200 ${
+            className={`flex h-7 items-center rounded-full border shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-md transition-all duration-200 ${
                 shown
                     ? 'click-through-interactive pointer-events-auto opacity-100 translate-y-0'
                     : 'pointer-events-none opacity-0 -translate-y-1'
             } ${
                 isDaylight
-                    ? 'text-zinc-800'
-                    : 'text-white/75'
+                    ? 'border-black/[0.06] bg-white/80 text-zinc-700'
+                    : 'border-white/15 bg-black/55 text-white/85'
             }`}
         >
             <button

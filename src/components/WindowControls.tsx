@@ -56,8 +56,8 @@ export default function WindowControls({
     const remoteControlVisible = revealed && !isMainWindowClickThroughEnabled;
     const standardControlsVisible = revealed && !isMainWindowClickThroughEnabled;
     // Keep the full titlebar hit area while centering the rounded hover surface on the icon.
-    const buttonBaseClass = `relative flex items-center justify-center w-11 h-full transition-all duration-200 before:pointer-events-none before:absolute before:inset-x-1 before:rounded-lg before:transition-colors before:duration-200 before:content-[''] [&_svg]:relative ${
-        isMac ? 'before:top-1.5 before:-bottom-0.5' : 'before:top-0.5 before:bottom-0.5'
+    const buttonBaseClass = `relative flex items-center justify-center w-11 h-full transition-all duration-200 before:pointer-events-none before:absolute before:left-1/2 before:h-7 before:w-7 before:-translate-x-1/2 before:rounded-full before:transition-colors before:duration-200 before:content-[''] [&_svg]:relative ${
+        isMac ? 'before:top-1.5' : 'before:top-0.5'
     }`;
     const remoteBtnClass = `${buttonBaseClass} ${
         remoteControlVisible

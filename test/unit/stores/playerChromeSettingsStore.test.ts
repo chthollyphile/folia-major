@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // The macOS native-fullscreen window button is experimental and must remain opt-in.
 
 describe('player chrome settings store', () => {
-    it.each([['darwin', 'left'], ['win32', 'right'], ['linux', 'right']])('defaults controls on %s to %s', async (platform, side) => {
+    it.each([['darwin', 'right'], ['win32', 'right'], ['linux', 'right']])('defaults controls on %s to %s', async (platform, side) => {
         vi.stubGlobal('window', { electron: { platform }, localStorage });
         const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
         expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe(side);
@@ -12,11 +12,18 @@ describe('player chrome settings store', () => {
         expect(values.get('window_titlebar_side')).toBe(side === 'left' ? 'right' : 'left');
     });
 
-    it('restores an explicit side over the platform default', async () => {
-        values.set('window_titlebar_side', 'right');
+    it('falls back to the right for a malformed saved side on macOS', async () => {
+        values.set('window_titlebar_side', 'invalid');
         vi.stubGlobal('window', { electron: { platform: 'darwin' }, localStorage });
         const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
         expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe('right');
+    });
+
+    it('restores an explicit left side over the default', async () => {
+        values.set('window_titlebar_side', 'left');
+        vi.stubGlobal('window', { electron: { platform: 'darwin' }, localStorage });
+        const { usePlayerChromeSettingsStore } = await import('@/stores/usePlayerChromeSettingsStore');
+        expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe('left');
     });
 
     let values: Map<string, string>;

@@ -10,7 +10,7 @@ function isCursorInsideUnlockHotspot({ bounds, cursor, hotspot, viewportWidth, v
 }
 
 function createUnlockHoverRequests({ platform, pollCursor, setHover }) {
-  let side = platform === 'darwin' ? 'left' : 'right';
+  let side = 'right';
   let viewportWidth = null;
   let originOffset = 0;
   return {

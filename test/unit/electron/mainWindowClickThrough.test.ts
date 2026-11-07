@@ -12,9 +12,9 @@ describe('main window click-through unlock', () => {
         expect(isCursorInsideUnlockHotspot({ ...options, cursor: { x: 1200, y: 70 } })).toBe(false);
         expect(isCursorInsideUnlockHotspot({ ...options, scale: 1.5, viewportOrigin: 370, viewportWidth: 600, cursor: { x: 730, y: 80 } })).toBe(true);
         const requests = createUnlockHoverRequests({ platform: 'darwin', pollCursor: () => true, setHover: vi.fn() });
-        expect(requests.getSide()).toBe('left');
-        requests.handle(false, 930, undefined, options.bounds, 1, 'right');
         expect(requests.getSide()).toBe('right');
+        requests.handle(false, 930, undefined, options.bounds, 1, 'left');
+        expect(requests.getSide()).toBe('left');
     });
 
     it('uses the page width when DevTools narrows the window', () => {

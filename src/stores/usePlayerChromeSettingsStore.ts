@@ -20,9 +20,9 @@ const PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY = 'player_bottom_bar_offset';
 const PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY = 'player_control_slot_primary';
 const PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY = 'player_control_slot_secondary';
 
-/** Explicit choices override the platform default; ignore malformed persisted values. */
+/** All platforms default to the right; explicit choices are kept and malformed values ignored. */
 const readTitlebarSide = (): 'left' | 'right' => {
-    const fallback = typeof window !== 'undefined' && window.electron?.platform === 'darwin' ? 'left' : 'right';
+    const fallback = 'right';
     const value = getStoredString('window_titlebar_side', fallback);
     return value === 'left' || value === 'right' ? value : fallback;
 };
