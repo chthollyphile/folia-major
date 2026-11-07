@@ -213,6 +213,46 @@ describe('Apple Music lyrics and external playback', () => {
         await expect(external.getStatus(song)).resolves.toMatchObject({ mediaId: '123', ended: true });
     });
 
+    // A window rebuild: the companion still plays the song a window that is gone started.
+    it('takes over a song another window started: prepares its successors and adopts their native advance', async () => {
+        let data = { itemId: '123', catalogId: '123', isPlaying: true, state: 2, positionMs: 179000, durationMs: 180000 };
+        const request = vi.fn(async (_operation: string, _params?: Record<string, unknown>) => ({ ok: true, data }));
+        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        const external = createAppleMusicProvider(() => ({ configured: true })).externalPlayback!;
+        const next = normalizeAppleMusicSong({ id: '456', type: 'songs', attributes: { name: 'Next' } });
+        // Without a play of this window's there is nothing to prepare successors for.
+        await external.prepareNext!(song, [next]);
+        expect(request).not.toHaveBeenCalledWith('prepareNext', expect.anything());
+
+        external.adopt!(song);
+        await external.getStatus(song);
+        await external.prepareNext!(song, [next]);
+        expect(request).toHaveBeenCalledWith('prepareNext', { catalogId: '123', nextIds: ['456'] });
+        expect(request).not.toHaveBeenCalledWith('playSong', expect.anything());
+        data = { ...data, itemId: '456', catalogId: '456', positionMs: 100 };
+        await expect(external.getStatus(song)).resolves.toMatchObject({ mediaId: '123', ended: true });
+        expect(external.isPrepared!(next)).toBe(true);
+    });
+
+    it('takes over a song whose end MusicKit already cleared, and a live station without a song attempt', async () => {
+        let data = { itemId: '', catalogId: '', isPlaying: false, state: 10, positionMs: 0, durationMs: 0 };
+        const request = vi.fn(async (_operation: string, _params?: Record<string, unknown>) => ({ ok: true, data }));
+        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        const external = createAppleMusicProvider(() => ({ configured: true })).externalPlayback!;
+        external.adopt!(song);
+        await expect(external.getStatus(song)).resolves.toMatchObject({ mediaId: '123', ended: true });
+
+        const station = { ...song, sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: 'ra.123', providerData: { resourceType: 'stations', isLive: true } } };
+        external.adopt!(station);
+        data = { itemId: 'ra.123', catalogId: 'ra.123', isPlaying: true, state: 2, positionMs: 0, durationMs: 0 };
+        await expect(external.getStatus(station)).resolves.toMatchObject({ mediaId: 'ra.123', isPlaying: true });
+        await external.prepareNext!(station, [song]);
+        // A live broadcast has no timeline: a seek is not sent, as after the station was started here.
+        await external.seek(30);
+        expect(request).not.toHaveBeenCalledWith('prepareNext', expect.anything());
+        expect(request).not.toHaveBeenCalledWith('seek', expect.anything());
+    });
+
     it('is the provider the registry holds', () => {
         const registered = getOnlineMusicProvider('appleMusic');
         expect(registered?.capabilities.externalPlayback).toBe(true);

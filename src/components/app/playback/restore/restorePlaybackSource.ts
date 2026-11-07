@@ -382,7 +382,9 @@ const restoreSourceForSong = async (
     if (omni.canPlayExternally(song)) {
         // A provider's own player has no track after a restart: the remembered song is shown as it
         // was - paused, at its position - and the play path starts it when the listener asks. Its
-        // lyrics are still restored, so the screen is not empty.
+        // lyrics are still restored, so the screen is not empty. (A window rebuild is different: the
+        // player outlives the window, and the hand-off's restore takes the running track over after
+        // this returns; see useElectronWindowPlaybackHandoff.)
         try {
             const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
             if (overtaken()) return 'stale';
