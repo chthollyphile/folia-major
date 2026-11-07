@@ -35,7 +35,7 @@ const shortcuts: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readB' },
 
-        { kind: 'keypress', id: 'modG', keys: ['Ctrl G'], at: { anchor: 'page', y: 1, offset: { y: 18 } }, durationMs: 1000, keyframe: true },
+        { kind: 'keypress', id: 'modG', keys: ['Mod G'], at: { anchor: 'page', y: 1, offset: { y: 18 } }, durationMs: 1000, keyframe: true },
         {
             kind: 'caption', id: 'ponderKey',
             textKey: 'ponder.captions.onboarding.shortcutG',

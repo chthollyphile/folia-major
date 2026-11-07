@@ -1131,6 +1131,12 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec, options));
     },
 
+    // A window rebuild keeps the player sounding: the new window takes the running song over
+    // instead of starting it again. A provider without the call has nothing of its own to carry over.
+    adoptExternalPlayback(song: SongResult): void {
+        getOnlineMusicProviderForSong(song)?.externalPlayback?.adopt?.(song);
+    },
+
     isExternalPlaybackPrepared(song: SongResult): boolean {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isPrepared?.(song) === true;
     },

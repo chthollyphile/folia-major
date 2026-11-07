@@ -39,10 +39,11 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'getLoginTexts', 'getLoginTtlMs', 'logout', 'signInRanOut', 'startLogin',
     ],
     // Signs in inside the companion window: no code to show, and the window is gone when the
-    // attempt is cancelled, so there is no TTL of its own.
+    // attempt is cancelled, so there is no TTL of its own. The sign-in lives in the companion's
+    // profile on this machine, so the kept account shows at app start.
     appleMusic: [
         'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'logout', 'openLoginPage',
-        'opensLoginPageItself', 'signInRanOut', 'startLogin',
+        'opensLoginPageItself', 'showsKeptAccountAtStart', 'signInRanOut', 'startLogin',
     ],
     // 表单式登录：不扫码不开浏览器，登录窗口按 getLoginForm 声明渲染账号密码表单。
     fnmusic: [

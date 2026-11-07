@@ -235,7 +235,7 @@ const PonderNavigationPage: React.FC<PonderNavigationPageProps> = ({ theme, isDa
                                             {t('ponder.title')}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <PonderKeyCombo combo="Ctrl G" {...PONDER_QUIET_CAP} />
+                                            <PonderKeyCombo combo="Mod G" {...PONDER_QUIET_CAP} />
                                             {t('ponder.hintCapsulePage')}
                                         </div>
                                     </div>

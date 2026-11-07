@@ -104,9 +104,9 @@ const {
   getReleaseUrl,
   getUpdateDiscoveryConfig,
   getUpdateProviderConfig,
-  parseUpdateMetadataVersion,
   resolveReleaseChannel,
 } = require('./updateChannels.cjs');
+const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
@@ -2608,6 +2608,12 @@ const backgroundThrottling = createBackgroundThrottling({
 // from the fragment timeline once recording ends.
 const videoExportFileWriter = createVideoExportFileWriter({ finalizeFile: finalizeVideoExportFile });
 let autoUpdater = null;
+// The updater's own check of GitHub is running: its failure is handled where it was started (the
+// mirrors get asked), so the updater's 'error' event leaves the state alone meanwhile.
+let updaterCheckRunning = false;
+// The updater's requests have no working timeout in Electron (it hangs its timer on a 'socket' event
+// Electron's net requests never fire), so a stalled connection to GitHub would hold the check forever.
+const UPDATER_CHECK_TIMEOUT_MS = 20000;
 // Backed by the settings store so a handoff survives a full process relaunch (wallpaper mode)
 const windowPlaybackHandoffStore = createWindowPlaybackHandoffStore({
   storage: store,
@@ -4013,6 +4019,11 @@ function isDevUpdatePreviewEnabled() {
   return process.env.ELECTRON_DEV === 'true' && process.env.FOLIA_DEV_UPDATE_PREVIEW === 'true';
 }
 
+// The preview's version as if GitHub could not be read and a mirror found it: the download then fails.
+function isDevUpdatePreviewGithubFailed() {
+  return isDevUpdatePreviewEnabled() && process.env.FOLIA_DEV_UPDATE_PREVIEW_GITHUB_FAILED === 'true';
+}
+
 // Builds a believable next patch version so the preview stays aligned with package metadata.
 function getDevUpdatePreviewVersion() {
   const currentVersion = normalizeVersion(app.getVersion());
@@ -4054,6 +4065,12 @@ const updateState = {
   error: null,
   lastCheckedAt: null,
   downloadProgress: null,
+  // Where the last found version came from: 'github', or 'mirror' when GitHub could not be read and a
+  // public proxy answered instead. The updater can only download what it has read from GitHub itself.
+  checkedVia: null,
+  // The last request to GitHub for this update (the check, or the download) failed: the settings
+  // page then offers the two network drives up front.
+  githubFailed: false,
 };
 
 function getUpdateStatus() {
@@ -4137,6 +4154,8 @@ function setupAutoUpdater() {
       error: null,
       lastCheckedAt: Date.now(),
       downloadProgress: null,
+      checkedVia: 'github',
+      githubFailed: false,
     });
   });
 
@@ -4148,6 +4167,8 @@ function setupAutoUpdater() {
       error: null,
       lastCheckedAt: Date.now(),
       downloadProgress: null,
+      checkedVia: 'github',
+      githubFailed: false,
     });
   });
 
@@ -4160,6 +4181,7 @@ function setupAutoUpdater() {
         transferred: progress.transferred,
         total: progress.total,
       },
+      githubFailed: false,
     });
   });
 
@@ -4169,16 +4191,31 @@ function setupAutoUpdater() {
       availableVersion: normalizeVersion(info?.version) || updateState.availableVersion,
       error: null,
       downloadProgress: null,
+      githubFailed: false,
     });
   });
 
   updater.on('error', (error) => {
+    if (updaterCheckRunning) {
+      return;
+    }
     setUpdateState({
       status: 'error',
       error: error instanceof Error ? error.message : String(error),
       downloadProgress: null,
+      githubFailed: true,
     });
   });
+}
+
+// Runs the updater's check of GitHub, waiting at most UPDATER_CHECK_TIMEOUT_MS for it. A check that
+// is given up on keeps running; the updater hands it to the next caller instead of starting another.
+function runUpdaterCheck(updater) {
+  updaterCheckRunning = true;
+  const check = Promise.resolve(updater.checkForUpdates()).finally(() => {
+    updaterCheckRunning = false;
+  });
+  return settleWithin(check, UPDATER_CHECK_TIMEOUT_MS, 'GitHub update check timed out.');
 }
 
 function configureAutoUpdaterChannel(updater) {
@@ -4194,7 +4231,9 @@ function configureAutoUpdaterChannel(updater) {
 
 async function downloadAvailableUpdate() {
   if (isDevUpdatePreviewEnabled()) {
-    setUpdateState({ status: 'downloaded', error: null, downloadProgress: null });
+    setUpdateState(isDevUpdatePreviewGithubFailed()
+      ? { status: 'error', error: 'net::ERR_CONNECTION_RESET', downloadProgress: null, githubFailed: true }
+      : { status: 'downloaded', error: null, downloadProgress: null });
     return getUpdateStatus();
   }
 
@@ -4215,9 +4254,24 @@ async function downloadAvailableUpdate() {
 
   if (!updateState.availableVersion) {
     await checkForUpdates({ manual: true });
+  } else if (updateState.checkedVia === 'mirror') {
+    // The version came through a proxy: the updater downloads only against metadata it has read
+    // from GitHub itself, so it reads it now. Failing here leaves the found version and the drives.
+    try {
+      updater.autoDownload = false;
+      await runUpdaterCheck(updater);
+    } catch (error) {
+      console.warn('[Updater] GitHub still unreachable before download', error);
+      setUpdateState({
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        downloadProgress: null,
+        githubFailed: true,
+      });
+    }
   }
 
-  if (!updateState.availableVersion) {
+  if (!updateState.availableVersion || updateState.checkedVia !== 'github') {
     return getUpdateStatus();
   }
 
@@ -4229,6 +4283,7 @@ async function downloadAvailableUpdate() {
       status: 'error',
       error: error instanceof Error ? error.message : String(error),
       downloadProgress: null,
+      githubFailed: true,
     });
   }
 
@@ -4245,6 +4300,8 @@ async function checkForUpdates({ manual = false } = {}) {
       error: null,
       lastCheckedAt: Date.now(),
       downloadProgress: null,
+      checkedVia: isDevUpdatePreviewGithubFailed() ? 'mirror' : 'github',
+      githubFailed: isDevUpdatePreviewGithubFailed(),
     });
     return getUpdateStatus();
   }
@@ -4275,20 +4332,36 @@ async function checkForUpdates({ manual = false } = {}) {
     }
 
     updater.autoDownload = getAutoUpdateEnabled();
-    await updater.checkForUpdates();
+    await runUpdaterCheck(updater);
   } catch (error) {
-    setUpdateState({
-      status: 'error',
-      error: error instanceof Error ? error.message : String(error),
-      lastCheckedAt: Date.now(),
-      downloadProgress: null,
-    });
+    // GitHub could not be read: the public proxies can still say whether there is a new version.
+    console.warn('[Updater] GitHub update check failed, asking the mirrors', error);
+    return checkForManualUpdateAvailability({ githubError: error });
   }
 
   return getUpdateStatus();
 }
 
-async function checkForManualUpdateAvailability() {
+// Reads one update metadata file through its own session, so refreshing proxy state cannot interrupt
+// playback, provider requests or other live connections on the default one.
+async function readUpdateMetadataText(url, signal) {
+  const ses = session.fromPartition('folia-update-check');
+  const response = await ses.fetch(url, {
+    headers: {
+      Accept: 'text/yaml, text/plain',
+      'User-Agent': `Folia/${app.getVersion()}`,
+    },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`Update metadata request to ${new URL(url).host} failed: ${response.status} ${response.statusText}`);
+  }
+  return response.text();
+}
+
+// Finds the newest version without the updater: from GitHub, then from the public proxies when GitHub
+// cannot be read. `githubError` says the updater has just failed to read GitHub, which is not tried again.
+async function checkForManualUpdateAvailability({ githubError = null } = {}) {
   const releaseChannel = getCurrentReleaseChannel();
   const discovery = getUpdateDiscoveryConfig(releaseChannel, FOLIA_GITHUB_REPOSITORY);
   if (!discovery) {
@@ -4296,54 +4369,38 @@ async function checkForManualUpdateAvailability() {
     return getUpdateStatus();
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
   setUpdateState({ status: 'checking', error: null, downloadProgress: null });
 
+  let found = null;
   try {
-    // Keep the startup check off the app's default session so refreshing proxy state cannot
-    // interrupt playback, provider requests, or other live connections.
     const ses = session.fromPartition('folia-update-check');
     await ses.setProxy({ mode: 'system' });
     await ses.forceReloadProxyConfig();
-    const response = await ses.fetch(discovery.url, {
-      headers: {
-        Accept: 'text/yaml, text/plain',
-        'User-Agent': `Folia/${app.getVersion()}`,
-      },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`Update metadata request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const metadata = await response.text();
-    const latestVersion = parseUpdateMetadataVersion(metadata);
-    if (!latestVersion) {
-      throw new Error('Update metadata did not include a version.');
-    }
-
-    const hasUpdate = compareVersions(latestVersion, app.getVersion()) > 0;
-    setUpdateState({
-      status: hasUpdate ? 'available' : 'latest',
-      availableVersion: hasUpdate ? latestVersion : null,
-      updateUrl: hasUpdate
-        ? getReleaseUrl(releaseChannel.id, latestVersion, FOLIA_RELEASES_URL)
-        : FOLIA_RELEASES_URL,
-      error: null,
-      lastCheckedAt: Date.now(),
-      downloadProgress: null,
-    });
+    found = await discoverUpdateVersion({ githubUrl: discovery.url, readText: readUpdateMetadataText, githubError });
   } catch (error) {
     setUpdateState({
       status: 'error',
       error: error instanceof Error ? error.message : String(error),
       lastCheckedAt: Date.now(),
       downloadProgress: null,
+      githubFailed: true,
     });
-  } finally {
-    clearTimeout(timeout);
+    return getUpdateStatus();
   }
+
+  const hasUpdate = compareVersions(found.version, app.getVersion()) > 0;
+  setUpdateState({
+    status: hasUpdate ? 'available' : 'latest',
+    availableVersion: hasUpdate ? found.version : null,
+    updateUrl: hasUpdate
+      ? getReleaseUrl(releaseChannel.id, found.version, FOLIA_RELEASES_URL)
+      : FOLIA_RELEASES_URL,
+    error: null,
+    lastCheckedAt: Date.now(),
+    downloadProgress: null,
+    checkedVia: found.via,
+    githubFailed: found.via === 'mirror',
+  });
 
   return getUpdateStatus();
 }
@@ -6888,7 +6945,7 @@ ipcMain.handle('save-settings', (event, key, value) => {
         });
       });
     } else {
-      setUpdateState({ status: 'disabled', error: null, availableVersion: null, downloadProgress: null });
+      setUpdateState({ status: 'disabled', error: null, availableVersion: null, downloadProgress: null, checkedVia: null, githubFailed: false });
     }
   }
 
@@ -6916,6 +6973,8 @@ ipcMain.handle('save-settings', (event, key, value) => {
       updateUrl: FOLIA_RELEASES_URL,
       error: null,
       downloadProgress: null,
+      checkedVia: null,
+      githubFailed: false,
     });
 
     if (getUpdateCheckEnabled() && isPackagedUpdateRuntime() && isUpdateCheckSupported()) {

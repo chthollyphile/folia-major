@@ -27,7 +27,7 @@ type Locations = Record<string, WebGLUniformLocation | null>;
 const PALETTE_UNIFORMS = ['uSky0', 'uSky1', 'uLa', 'uLb', 'uLc'];
 // 水族箱的（uJelly 这些）在街景的程序里取不到位置，设了也没事
 const SCENE_UNIFORMS = ['uRes', 'uSceneShift', 'uTime', 'uBus', 'uNeon', ...PALETTE_UNIFORMS, 'uSpotSrc', 'uSpotSrc2', 'uSpotTgt', 'uSpotR', 'uSpotI', 'uScenery', 'uBldOn', 'uBldGeo',
-    'uJelly', 'uJellyC', 'uJellyN', 'uBubbles', 'uSway', 'uBurst', 'uBurstN', 'uBeatRows'];
+    'uJelly', 'uJellyC', 'uJellyN', 'uBubbles', 'uSway', 'uBurst', 'uBurstN', 'uBeatRows', 'uWeedIdle'];
 const MAIN_UNIFORMS = [...SCENE_UNIFORMS, 'uDewGlint', 'uMist', 'uEdge', 'uRefract', 'uGlint', 'uGlassShift', 'uBreathOn', 'uBreathThick', 'uNoiseOn', 'uSeeThrough', 'uMistTint'];
 
 /** uScenery 里楼群那一位（nebbiaFrameUniforms.ts 的 SCENERY_BITS），和关着时给着色器的楼群缓存状态。 */
@@ -250,6 +250,7 @@ export class NebbiaGl {
             gl.uniform1i(L.uJellyN, u.aqua.count); gl.uniform1f(L.uBubbles, u.aqua.bubbles);
             gl.uniform4fv(L.uSway, u.aqua.sway); gl.uniform4fv(L.uBurst, u.aqua.bursts); gl.uniform1i(L.uBurstN, u.aqua.burstCount);
             gl.uniform1f(L.uBeatRows, u.aqua.beatRows);
+            gl.uniform1f(L.uWeedIdle, u.aqua.weedIdle);
         }
     }
 

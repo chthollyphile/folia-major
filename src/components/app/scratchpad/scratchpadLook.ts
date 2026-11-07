@@ -52,7 +52,7 @@ const deco = (x: number, y: number, size: number, style: ScratchpadDecoStyle, ro
 
 /**
  * 左缘面板顶上那条米白信息条的装饰：每页一组固定的「随机」位置，撒在标题右边那段空白里（设计稿 A 按 F 适配的那一版，原样搬过来）。
- * 条宽 340px（面板内容区 304px，再探出 36px）。
+ * 条宽 404px（面板 368px，再探出 36px；原来左边有一列页签时是 340px，2026-11-07 去掉页签列后整组右移 64px）。
  */
 /** 固定种子的伪随机数（mulberry32）：装饰每次生成都一样。 */
 export const mulberry32 = (seed: number) => {
@@ -85,7 +85,8 @@ export const scatterBandDecos = (tab: ScratchpadTab, width: number, variant: 'fu
     const random = mulberry32(DECO_SEEDS[tab] * (full ? 7 : 3));
     const inner = BAND_HEIGHTS[variant] - 7;
     const split = width - ACTION_ROOM[variant][tab];
-    const zones: [number, number, number][] = full ? [[742, split, 99], [split, width - 220, 54]] : [[650, split, 99]];
+    // 按钮上方那一截也不早于标题的右边（742px）：纸窄时（手机）按钮区的左沿会落到标题前面，装饰就压在标题与「‹ 三行总览」上。
+    const zones: [number, number, number][] = full ? [[742, split, 99], [Math.max(split, 742), width - 220, 54]] : [[650, split, 99]];
     const placed: ScratchpadDeco[] = [];
     for (let tries = 0; placed.length < (full ? 15 : 11) && tries < 600; tries += 1) {
         const style = SCATTER_STYLES[Math.floor(random() * SCATTER_STYLES.length)];
@@ -129,9 +130,9 @@ export const scatterSlimDecos = (tab: ScratchpadTab): ScratchpadDeco[] => {
 };
 
 export const SCRATCHPAD_PANEL_BAND_DECOS: Record<ScratchpadTab, readonly ScratchpadDeco[]> = {
-    notes: [deco(176, -10, 26, 'fill'), deco(206, 14, 30, 'wire'), deco(244, -6, 40, 'image'), deco(292, 22, 20, 'hollow'), deco(312, -12, 30, 'fill'), deco(262, 38, 14, 'ink')],
-    history: [deco(182, 8, 28, 'wire', -14), deco(216, -12, 36, 'image', 18), deco(258, 26, 18, 'fill', -22), deco(282, -8, 30, 'fill', 9), deco(318, 18, 22, 'hollow', -6), deco(176, 40, 12, 'ink', 25)],
-    queue: [deco(178, 12, 28, 'fill', -8), deco(214, -10, 40, 'image', 12), deco(262, 18, 24, 'wire', -20), deco(292, -6, 22, 'ink', 16), deco(316, 26, 18, 'hollow'), deco(190, -12, 14, 'fill', 24)],
+    notes: [deco(240, -10, 26, 'fill'), deco(270, 14, 30, 'wire'), deco(308, -6, 40, 'image'), deco(356, 22, 20, 'hollow'), deco(376, -12, 30, 'fill'), deco(326, 38, 14, 'ink')],
+    history: [deco(246, 8, 28, 'wire', -14), deco(280, -12, 36, 'image', 18), deco(322, 26, 18, 'fill', -22), deco(346, -8, 30, 'fill', 9), deco(382, 18, 22, 'hollow', -6), deco(240, 40, 12, 'ink', 25)],
+    queue: [deco(242, 12, 28, 'fill', -8), deco(278, -10, 40, 'image', 12), deco(326, 18, 24, 'wire', -20), deco(356, -6, 22, 'ink', 16), deco(380, 26, 18, 'hollow'), deco(254, -12, 14, 'fill', 24)],
 };
 
 /** 每一页的几何体。 */

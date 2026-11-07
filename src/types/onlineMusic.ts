@@ -575,6 +575,11 @@ export interface OnlineExternalPlaybackProvider {
     isPrepared?(song: SongResult): boolean;
     /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
     play(song: SongResult, startSec: number, options?: ExternalPlaybackStartOptions): Promise<void>;
+    /**
+     * The player already has `song` loaded (started by a window of this app that is gone): take it
+     * as this provider's current playback without starting it, so successors can be prepared for it.
+     */
+    adopt?(song: SongResult): void;
     pause(): Promise<void>;
     resume(): Promise<void>;
     seek(seconds: number): Promise<void>;

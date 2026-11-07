@@ -76,6 +76,41 @@ describe('Apple Music companion requests', () => {
         expect(executeJavaScript).toHaveBeenCalledTimes(2);
     });
 
+    it('uses the existing pagination bounds for library songs', () => {
+        expect(validateRequest({ id: 'library', operation: 'librarySongs', params: { limit: 100, offset: 100000 } }))
+            .toMatchObject({ operation: 'librarySongs', params: { limit: 100, offset: 100000 } });
+        for (const offset of [-1, 0.5, 100001, Number.MAX_SAFE_INTEGER]) {
+            expect(validateRequest({ id: 'library', operation: 'librarySongs', params: { limit: 100, offset } })).toBeNull();
+        }
+        expect(validateRequest({ id: 'library', operation: 'librarySongs', params: { limit: 101 } })).toBeNull();
+    });
+
+    it('reads library songs with catalog relationships without dropping unmapped rows', async () => {
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [
+                { id: 'i.mapped', type: 'library-songs', attributes: { name: 'Mapped' }, relationships: { catalog: { data: [{ id: '123' }] } } },
+                { id: 'i.upload', type: 'library-songs', attributes: { name: 'Upload', token: 'private-token' } },
+            ], next: '/v1/me/library/songs?offset=5' } });
+        const request = validateRequest({ id: 'library', operation: 'librarySongs', params: { limit: 2, offset: 0 } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, URL });
+        expect(call).toHaveBeenLastCalledWith('v1/me/library/songs', { limit: 2, offset: 0, include: 'catalog' });
+        expect(result).toMatchObject({ ok: true, data: { items: [
+            { id: 'i.mapped', attributes: { playParams: { catalogId: '123' } } },
+            { id: 'i.upload', attributes: { name: 'Upload', playParams: { catalogId: '' } } },
+        ], hasMore: true, nextOffset: 5 } });
+        expect(JSON.stringify(result)).not.toContain('private-token');
+    });
+
+    it('rejects library-song cursors beyond the existing bound', async () => {
+        const call = vi.fn(async (path: string) => path === 'v1/me/storefront'
+            ? { status: 200, data: { data: [{ id: 'cn' }] } }
+            : { status: 200, data: { data: [{ id: 'i.song', type: 'library-songs' }], next: '/v1/me/library/songs?offset=100001' } });
+        const request = validateRequest({ id: 'library', operation: 'librarySongs', params: { limit: 1, offset: 99999 } });
+        expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } }, URL }))
+            .toMatchObject({ ok: false, error: 'invalid-response' });
+    });
+
     it('rejects unknown operations, dangerous IDs and invalid page sizes', () => {
         expect(validateRequest({ id: '1', operation: 'evaluate', params: { code: 'anything' } })).toBeNull();
         expect(validateRequest({ id: '1', operation: 'lyrics', params: { songId: '../me' } })).toBeNull();

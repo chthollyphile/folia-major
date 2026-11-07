@@ -13,6 +13,8 @@ export const NEBBIA_AQUA_GLSL = /* glsl */ `${NEBBIA_SCENE_COMMON_GLSL}${NEBBIA_
 // 「舞潮踏拍」的水草一项（nebbiaWeedSway.ts）：弹簧现在、0.05、0.1、0.15 秒前的位置；根取现在、梢取 0.15 秒前，
 // 从根往梢传
 uniform vec4 uSway;
+// 水草自己的摆动留多少：1 照常，舞潮踏拍的水草一项开着时 0（只跟拍走），切换时慢慢过渡（nebbiaAquarium.ts）
+uniform float uWeedIdle;
 float weedKick(float s) {
   float f = clamp(s, 0.0, 1.0) * 3.0;
   return f < 1.0 ? mix(uSway.x, uSway.y, f) : f < 2.0 ? mix(uSway.y, uSway.z, f - 1.0) : mix(uSway.z, uSway.w, f - 2.0);
@@ -73,7 +75,7 @@ vec3 scene(vec2 q, float b) {
       float sway = t * (3.6 + 1.8 * h) + h * 20.0, bend = 0.07 * (0.7 + 0.6 * h);
       if (weeds) {
         float s = clamp((base - q.y) / len, 0.0, 1.0);
-        float x0 = (n + 0.5) * cw + sin(q.y * 11.0 + sway) * 0.025 * s + weedKick(s) * bend * s * s;
+        float x0 = (n + 0.5) * cw + sin(q.y * 11.0 + sway) * 0.025 * uWeedIdle * s + weedKick(s) * bend * s * s;
         float w = 0.003 * (1.0 - s * 0.6), we = sqrt(w * w + b * b), dx = q.x - x0;
         float a = (w / we) * exp(-dx * dx / (we * we)) * smoothstep(top - b, top + 0.02 + b, q.y) * step(q.y, base) * 0.5;
         col = mix(col, mix(deep, vec3(0.02, 0.08, 0.05), 0.6), a);
@@ -84,7 +86,7 @@ vec3 scene(vec2 q, float b) {
       float N = 11.0, gap = len / (N - 1.0);
       // 雾后面（预渲染）粒子糊成一条：按连续的一条光带算，不一颗颗算，免得光晕比间距宽时漏算出断层
       if (b > 0.012) {
-        float xs = (n + 0.5) * cw + sin(q.y * 11.0 + sway) * 0.025 * s + weedKick(s) * bend * s * s, dx = q.x - xs;
+        float xs = (n + 0.5) * cw + sin(q.y * 11.0 + sway) * 0.025 * uWeedIdle * s + weedKick(s) * bend * s * s, dx = q.x - xs;
         float fj = s * (N - 1.0), ja = floor(fj);
         vec3 pc = mix(mix(pick(h1(n * 3.0 + ja)), pick(h1(n * 3.0 + ja + 1.0)), fj - ja), vec3(1.0), 0.25);
         float line = 0.0;
@@ -106,7 +108,7 @@ vec3 scene(vec2 q, float b) {
         float j = j0 + dj, sj = j / (N - 1.0);
         if (j < 0.0 || j > N - 1.0) continue;
         float py = base - sj * len;
-        vec2 pp = vec2((n + 0.5) * cw + sin(py * 11.0 + sway) * 0.025 * sj + weedKick(sj) * bend * sj * sj, py);
+        vec2 pp = vec2((n + 0.5) * cw + sin(py * 11.0 + sway) * 0.025 * uWeedIdle * sj + weedKick(sj) * bend * sj * sj, py);
         float tw = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(t * (2.5 + h1(n * 9.0 + j) * 3.0) + j * 1.7 + h * 30.0), 2.0);
         float pr = 0.0018 + 0.0018 * sj;
         vec3 pc = mix(pick(h1(n * 3.0 + j)), vec3(1.0), 0.25);
