@@ -95,6 +95,8 @@
       "build/thumbar/*.png"
     ],
     "asarUnpack": [
+      "electron/analysis/htdemucs_runner.py",
+      "electron/macosMusicNowPlaying/*.applescript",
       "node_modules/@koromix/koffi-*/**/*.node",
       "node_modules/@lox-audioserver/node-librespot/prebuilds/**/*.node"
     ],

@@ -2870,6 +2870,23 @@ const stageApi = createStageApi({
   connectionFilePath: resolveStageConnectionFilePath({ userDataDir: app.getPath('userData') }),
 });
 
+const { createMacosMusicNowPlayingController } = require('./macosMusicNowPlaying/index.cjs');
+const macosMusicNowPlaying = createMacosMusicNowPlayingController();
+
+function syncMacosMusicNowPlaying() {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  const modeEnabled = readStoredBoolean(STAGE_MODE_ENABLED_SETTING_KEY, false);
+  const source = store.get(STAGE_MODE_SOURCE_SETTING_KEY);
+  void macosMusicNowPlaying.sync({
+    modeEnabled,
+    source: typeof source === 'string' ? source : 'stage-api',
+  }).catch((error) => {
+    console.warn('[MacMusicNP] Failed to sync built-in Music Now Playing bridge', error);
+  });
+}
+
 const lyricApi = createLyricApi({
   store,
   getMainWindow: () => mainWindow,
@@ -6299,6 +6316,7 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('[Stage] Failed to start stage server during app startup', error);
   }
+  syncMacosMusicNowPlaying();
   try {
     await startObsBrowserSourceServerIfNeeded();
   } catch (error) {
@@ -6545,6 +6563,7 @@ app.on('before-quit', (event) => {
     return;
   }
   isQuitHeldForAccounts = false;
+  void macosMusicNowPlaying.stop();
   transcodeService.dispose();
   hifiSession.killSync();
   // An mpv download the quit cuts off is stopped: its partial files go now if there is time, or
@@ -6953,10 +6972,11 @@ ipcMain.handle('save-settings', (event, key, value) => {
     applyRemoteControlWindowPresentation(remoteControlWindow);
   }
 
-  if (key === STAGE_MODE_SOURCE_SETTING_KEY) {
+  if (key === STAGE_MODE_SOURCE_SETTING_KEY || key === STAGE_MODE_ENABLED_SETTING_KEY) {
     void stageApi.syncStageModeState?.().catch((error) => {
       console.error('[Stage] Failed to sync Stage mode source setting', error);
     });
+    syncMacosMusicNowPlaying();
   }
 
   if (key === DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY) {
@@ -7597,7 +7617,9 @@ ipcMain.handle('stage-get-status', () => {
 });
 
 ipcMain.handle('stage-set-enabled', async (_event, enabled) => {
-  return stageApi.setStageEnabled(enabled);
+  const status = await stageApi.setStageEnabled(enabled);
+  syncMacosMusicNowPlaying();
+  return status;
 });
 
 ipcMain.handle('stage-regenerate-token', async () => {
