@@ -119,6 +119,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-transition",
   "settings-local-lyrics-priority",
   "auto-ai-lyric-segmentation-toggle",
+  "keep-provider-word-timing-toggle",
   "settings-local-lyric-format-order",
   "settings-integration",
   "settings-navidrome",
