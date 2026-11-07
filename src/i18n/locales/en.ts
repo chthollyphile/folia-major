@@ -5048,7 +5048,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "Album poster",
-    "openArtist": "Open artist {{name}}"
+    "openArtist": "Open artist {{name}}",
+    "expandArtists": "Show all {{count}} artists",
+    "collapseArtists": "Show less"
   },
   "artistGrid": {
     "localArtist": "Local Artist: {{artistName}}",
