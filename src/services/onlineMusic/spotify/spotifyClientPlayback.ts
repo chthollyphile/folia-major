@@ -99,7 +99,11 @@ const ended = (current: Attempt): ProviderExternalPlaybackStatus => ({
     durationMs: current.durationMs, positionMs: current.durationMs || current.positionMs,
 });
 
-const plainName = (text: unknown): string => String(text ?? '').trim().toLocaleLowerCase();
+// NFKC folds the full-width letters and brackets a Chinese layout types into their plain forms.
+const plainName = (text: unknown): string => String(text ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+
+/** A title without the trailing credit "(feat. …)", "(ft. …)" or "(with …)", which the two sides need not write alike. */
+const plainTitle = (text: unknown): string => plainName(text).replace(/\s*[([]\s*(?:feat|ft|with)\b[^)\]]*[)\]]\s*$/i, '');
 
 /** Whether one of the artist names the media session shows is the song's own (it joins them its way). */
 const mentionsArtist = (wanted: string, shown: string): boolean => {
@@ -117,27 +121,37 @@ const mentionsArtist = (wanted: string, shown: string): boolean => {
 const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boolean => {
     const title = String(data.title ?? '').trim();
     if (!title || !current.name) return false;
-    if (plainName(title) !== plainName(current.name)) return true;
+    if (plainTitle(title) !== plainTitle(current.name)) return true;
     const artist = String(data.artist ?? '').trim();
     return Boolean(artist && current.artist) && !mentionsArtist(current.artist, artist);
 };
 
 /**
- * Whether the title and the artists the media session shows are this song's. Both are needed: that
- * answer names no track id. Stricter than `mentionsArtist` on purpose - that one answers whether
- * the session named another song, and a name it merely contains is not another song there; a
- * position read here belongs to one track, so each of this song's artists has to be one of the
- * names shown. A song whose title or artists are not known here is never taken for it.
+ * Whether the title and the artist the media session shows are this song's. Both are needed: that
+ * answer names no track id. The session reports only the leading artist of a track - measured, a
+ * song of two artists shows one - so one of the song's own names being one of the names shown is
+ * enough, read the same way `mentionsArtist` reads it. A song whose title or artists are not
+ * known here is never taken for it.
  */
 const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean => {
     const title = String(data.title ?? '').trim();
     const shownArtist = String(data.artist ?? '').trim();
     const name = String(song.name ?? '').trim();
     if (!title || !shownArtist || !name) return false;
-    if (plainName(title) !== plainName(name)) return false;
-    const shown = shownArtist.split(/[,;&/]/).map(part => plainName(part)).filter(Boolean);
-    const own = artistNamesOf(song).split(/[,;&/]/).map(part => plainName(part)).filter(Boolean);
-    return own.length > 0 && shown.length > 0 && own.every(artist => shown.includes(artist));
+    if (plainTitle(title) !== plainTitle(name)) return false;
+    return artistNamesOf(song).split(/[,;&/]/).map(part => part.trim()).filter(Boolean)
+        .some(artist => mentionsArtist(artist, shownArtist));
+};
+
+/** The one line of a read refused: what the app shows, and what Folia holds, so a pasted log says why. */
+const logAnotherTrack = (song: SongResult, data: SpotifyWireClientStatus): void => {
+    const id = String(data.id ?? '').trim();
+    // The app's own player names the track and no title.
+    const shown = id
+        ? `the track ${id}`
+        : `"${String(data.title ?? '').trim()}" by "${String(data.artist ?? '').trim()}"`;
+    const held = `"${String(song.name ?? '').trim()}" by "${artistNamesOf(song)}"`;
+    console.info(`[SpotifyClient] the app is on another track, so no position is read: it plays ${shown}, Folia holds ${held}`);
 };
 
 /** Turns what the app said into Folia's status for the song it asked for. */
@@ -363,7 +377,15 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             console.warn('[SpotifyClient] the app could not say which track it is on', error);
             return null;
         }
-        if (data.ad || !namesThatSong(song, data)) return null;
+        if (data.ad) return null;
+        // An answer that names the track comes from the app's own player: the id decides, whatever
+        // artist names its page lists. Only a media session's answer, which names no track, is read
+        // by the title and artist it shows. A refused read says both sides, once.
+        const shownId = String(data.id ?? '').trim();
+        if (!(shownId ? shownId === songIdOf(song) : namesThatSong(song, data))) {
+            logAnotherTrack(song, data);
+            return null;
+        }
         return Math.max(0, Math.round(Number(data.positionMs) || 0));
     },
     async getStatus() {

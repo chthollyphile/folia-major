@@ -34,6 +34,17 @@ const songOf = (letter: string): SongResult => normalizeSpotifySong({
     duration: { totalMilliseconds: 200000 },
 } as never);
 
+/** A song Spotify lists two artists for: its media session names only the leading one. */
+const duetOf = (letter: string): SongResult => normalizeSpotifySong({
+    __typename: 'Track', uri: `spotify:track:${id(letter)}`, name: `Song ${letter}`,
+    artists: { items: [
+        { uri: `spotify:artist:${id('r')}`, profile: { name: 'Artist' } },
+        { uri: `spotify:artist:${id('s')}`, profile: { name: 'Guest' } },
+    ] },
+    albumOfTrack: { uri: `spotify:album:${id('m')}`, name: 'Album', coverArt: { sources: [] } },
+    duration: { totalMilliseconds: 200000 },
+} as never);
+
 const playing = (mediaId: string, extra: Record<string, unknown> = {}) => ({
     id: mediaId, ad: false, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 200000, ...extra,
 });
@@ -539,11 +550,50 @@ describe('a song restored while the app is still on it', () => {
         await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
     });
 
-    it('answers nothing where the title is the same but the artist is not', async () => {
+    it('answers nothing where the title is the same but the artist is not the song\'s', async () => {
         await mode();
-        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Another Artist', positionMs: 75_400 }));
+        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Nobody Here', positionMs: 75_400 }));
 
         await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+    });
+
+    it('answers its position where the session names only the leading artist of a duet', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Artist', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBe(75_400);
+    });
+
+    it('names the two sides in the log of a position it refuses', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Nobody Here', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBeNull();
+        expect(info).toHaveBeenCalledTimes(1);
+        expect(String(info.mock.calls[0][0])).toContain('Nobody Here');
+        info.mockRestore();
+    });
+
+    it('reads a full-width title and a trailing credit as the song\'s own', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Ｓｏｎｇ ａ (feat. Guest)', artist: 'Artist', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBe(75_400);
+    });
+
+    it('answers its position where the app names the track Folia asked for', async () => {
+        await mode();
+        request.mockResolvedValueOnce(playing(id('a'), { positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBe(75_400);
+    });
+
+    it('answers nothing where the app names another track', async () => {
+        await mode();
+        request.mockResolvedValueOnce(playing(id('b'), { positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBeNull();
     });
 
     it('answers nothing where the media session answers without a title', async () => {

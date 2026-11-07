@@ -100,12 +100,12 @@ const otherSong: SongResult = {
 };
 
 /** The session restore's call; a window hand-off is the same call without the flag (see below). */
-const restore = (options: { sessionRestore?: boolean } = {}) => restorePlaybackSourceForSong(song, {
+const restore = (options: { sessionRestore?: boolean; forSong?: SongResult } = {}) => restorePlaybackSourceForSong(options.forSong ?? song, {
     audioQuality: 'high',
     blobUrlRef: { current: null },
     currentOnlineAudioUrlFetchedAtRef: { current: null },
     setLyrics: vi.fn(),
-    queue: [song],
+    queue: [options.forSong ?? song],
     stillWanted: startRestore(),
     ...(options.sessionRestore === false ? {} : { resumeExternalPosition: true }),
 });
@@ -134,6 +134,27 @@ describe('a restored song whose own player is still running it', () => {
         expect(pauseMock).not.toHaveBeenCalled();
         expect(seekMock).not.toHaveBeenCalled();
         expect(warmUpMock).not.toHaveBeenCalled();
+    });
+
+    it('writes the position of a Spotify song its session names one artist of', async () => {
+        // The report: Spotify keeps playing after Folia quits, and its media session names only the
+        // leading artist of a song Folia remembers with both.
+        const duet: SongResult = {
+            ...song,
+            id: 'helpless',
+            name: 'Helpless',
+            artists: [
+                { id: 'artist-psoo', name: 'Phillipa Soo' },
+                { id: 'artist-obc', name: 'Original Broadway Cast of Hamilton' },
+            ],
+            sourceRef: { kind: 'online', providerId: 'spotify', mediaId: 'helpless' },
+        };
+        askForSong(duet);
+        runningPositionMock.mockImplementation(async () => 75_400);
+
+        await expect(restore({ forSong: duet })).resolves.toBe('restored');
+        expect(runningPositionMock).toHaveBeenCalledWith(duet);
+        expect(setCurrentTimeMock).toHaveBeenCalledWith(75.4);
     });
 
     it('leaves the song at its beginning where the player is on another track', async () => {
