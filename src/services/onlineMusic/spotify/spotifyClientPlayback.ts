@@ -21,13 +21,21 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 // its coarse position never replaces the song's duration, and a title it shows that is not the
 // song Folia asked for ends this external session so Folia's own queue takes the next song.
 
-/** How many songs that follow are put in the app's queue. */
-const PREPARED_SONGS = 2;
+/**
+ * How many songs that follow are put in the app's queue. The app moves on to the first of them by
+ * itself without a gap, so the tail is what it has to be given the song after that one.
+ */
+const PREPARED_SONGS = 3;
 /**
  * What the app's own answer to a start says: it took the track, a newer start took over, it took
  * the track but an advertisement of a free account still runs before it, or it never got to it.
  */
 type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement';
+/**
+ * What the app answers a queue write: how many songs it added, whether it emptied its queue first,
+ * and the ids its queue holds afterwards, where the state it reports names them at all.
+ */
+type SpotifyClientQueueAnswer = { added?: number; cleared?: boolean; queue?: unknown };
 /** A track change this close to the end of the song Folia asked for is that song ending. */
 const END_TOLERANCE_MS = 3000;
 
@@ -54,6 +62,8 @@ let attempt: Attempt | null = null;
 let handoffId: string | null = null;
 /** The question being asked, so two songs in a row ask it once. */
 let probing: Promise<boolean> | null = null;
+/** The app was already told its queue cannot be read, so that is said once in a run. */
+let queueUnreadable = false;
 
 /** Whether this build can reach the desktop side at all: the Windows desktop app only. */
 const spotifyTransportReady = (): boolean => (
@@ -187,6 +197,47 @@ const askAgainWhereItsPortIs = async (first: SpotifyWireClientStatus): Promise<S
     }
 };
 
+/**
+ * The tail a handoff leaves: the ids the app still holds after the track it moved on to. The song it
+ * moved to was the first of what Folia put there; the rest is still queued and is not written again.
+ */
+const tailAfter = (previous: Attempt | null, id: string): string[] => {
+    const nextIds = previous ? previous.nextIds : [];
+    const at = nextIds.indexOf(id);
+    return at < 0 ? [] : nextIds.slice(at + 1);
+};
+
+/** The ids the app says its queue holds, where its answer names them at all. */
+const queuedIdsOf = (answer: SpotifyClientQueueAnswer | null | undefined): string[] | null => {
+    const queued = answer?.queue;
+    return Array.isArray(queued) ? queued.filter((id): id is string => typeof id === 'string') : null;
+};
+
+/**
+ * The songs that follow, written into the app's queue. The app empties its queue first where it can,
+ * and where it cannot only the songs it does not hold already are added: one added twice is one the
+ * app plays twice. What it holds afterwards is read back where the state it reports names its queue -
+ * a queue that is not these songs, or that holds one of them twice, is emptied and written once more -
+ * and is left to Folia's own record where it does not name it.
+ */
+const writeClientQueue = async (ids: string[], held: string[]): Promise<void> => {
+    const answer = await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued: held });
+    const queued = queuedIdsOf(answer);
+    if (!queued) {
+        if (!queueUnreadable) {
+            queueUnreadable = true;
+            console.info('[SpotifyClient] the app does not say what its queue holds; the songs that follow are counted from what Folia wrote');
+        }
+        return;
+    }
+    const missing = ids.filter(id => !queued.includes(id));
+    if (new Set(queued).size === queued.length && missing.length === 0) return;
+    // A queue the app cannot be followed by is emptied and written once more, and what it holds then
+    // is what Folia goes by: it is not written a third time.
+    const again = queuedIdsOf(await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued: ids }));
+    console.info(`[SpotifyClient] the app's queue held ${queued.length} songs where Folia wrote ${ids.length}; it is emptied and written once more${again ? '' : ', and what it holds cannot be read'}`);
+};
+
 /** Turns what the app said into Folia's status for the song it asked for. */
 export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalPlaybackStatus => {
     const current = attempt;
@@ -290,10 +341,11 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             if (!id || ids.length >= PREPARED_SONGS) break;
             ids.push(id);
         }
+        // Already what the app was given, in that order: writing it again would queue it twice.
         if (ids.join() === current.nextIds.join()) return;
         // Written only once the app took them: a queue write that failed leaves nothing prepared,
         // so the next try asks again instead of reporting a song as ready.
-        await requestSpotify('client_queue', { ids });
+        await writeClientQueue(ids, current.nextIds);
         current.nextIds = ids;
     },
     async play(song, startSec, options: ExternalPlaybackStartOptions = {}) {
@@ -306,10 +358,13 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const startMs = Math.max(0, Math.round(startSec * 1000));
         const adopt = handoffId === id && startMs === 0;
         const previousId = attempt && attempt.id !== id ? attempt.id : attempt?.previousId ?? '';
+        // The app moved to the song Folia put first: what it still holds after that one is its queue,
+        // and is not written again.
+        const carried = adopt ? tailAfter(attempt, id) : [];
         handoffId = null;
         attempt = {
             id, name: String(song.name ?? ''), artist: artistNamesOf(song),
-            hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs ?? 0, nextIds: [], degraded: false,
+            hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs ?? 0, nextIds: carried, degraded: false,
             previousId, pulledBack: false,
         };
         if (adopt) {
@@ -340,14 +395,16 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     },
     // The attempt of the window that started the song died with it: a fresh one lets prepareNext
     // write the app's queue again, and lets the app's own advance be read as this song's end, for the
-    // track it is still playing. Nothing is started here.
+    // track it is still playing. What the app holds of the old tail is kept, so it is not written
+    // twice. Nothing is started here.
     adopt(song) {
         const id = songIdOf(song);
         if (!id) return;
+        const carried = tailAfter(attempt, id);
         handoffId = null;
         attempt = {
             id, name: String(song.name ?? ''), artist: artistNamesOf(song),
-            hasPlayed: true, positionMs: 0, durationMs: song.durationMs ?? 0, nextIds: [], degraded: false,
+            hasPlayed: true, positionMs: 0, durationMs: song.durationMs ?? 0, nextIds: carried, degraded: false,
             previousId: '', pulledBack: false,
         };
     },
@@ -381,7 +438,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             // A song asked for in the meantime owns the queue now.
             if (attempt !== current || prepared.length === 0) return;
             try {
-                await requestSpotify('client_queue', { ids: prepared });
+                await writeClientQueue(prepared, prepared);
                 current.nextIds = prepared;
             } catch (queueError) {
                 // The song plays; only its tail is missing, and the next queue edit writes it again.
@@ -474,6 +531,7 @@ export const resetSpotifyClientPlayback = (): void => {
     attempt = null;
     handoffId = null;
     probing = null;
+    queueUnreadable = false;
 };
 
 /** Test seam: what is held of the song asked for. */

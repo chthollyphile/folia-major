@@ -37,6 +37,11 @@ const END_TOLERANCE_SEC = 0.75;
  * rebuild): it follows the player again.
  */
 const HANDOVER_RECLAIM_MS = 10_000;
+/**
+ * How many songs that follow are offered to the player. Each player writes as many of them as it
+ * keeps room for, so this is the longest tail any of them is asked for: the rest are dropped.
+ */
+const PREPARED_TAIL = 3;
 
 export type ExternalPlaybackEvent =
     | { type: 'status' }
@@ -204,7 +209,7 @@ const refreshPreparedQueue = () => {
     const current = session;
     if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
     const state = usePlaybackStore.getState();
-    const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong);
+    const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
     if (current.preparedQueueKey === key) return;
     current.preparedQueueKey = key;

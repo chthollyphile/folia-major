@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    START_WAIT_SOURCE, createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+    QUEUE_SOURCE, START_WAIT_SOURCE, createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
@@ -934,6 +934,70 @@ describe('a start an advertisement plays before', () => {
         await expect(run([{ item: AD }], () => ++looks < 3)).resolves.toBe('preempted');
     });
 });
+
+// --- the songs that follow, written into the app's queue, driven by a stand-in player ------------
+
+describe('a queue write in the app', () => {
+    const trackUri = (letter: string) => `spotify:track:${letter.repeat(22)}`;
+    const idOf = (letter: string) => letter.repeat(22);
+    type Answer = { added: number; cleared: boolean; queue: string[] | null };
+    const writeQueue = (new Function(`return (${String(QUEUE_SOURCE)})`)()) as (input: unknown) => Promise<Answer>;
+
+    /**
+     * A player whose queue holds `start`, with the queue API the test gives it: `works` empties it,
+     * `noop` answers and empties nothing, and no `clearQueue` at all is a player without one.
+     */
+    const playerWith = (start: string[], clearQueue?: 'works' | 'noop', namesQueue = true) => {
+        const held = start.map(idOf);
+        const added: string[] = [];
+        const player: Record<string, unknown> = {
+            getState: () => (namesQueue ? { nextTracks: held.map(id => ({ uri: `spotify:track:${id}` })) } : {}),
+            addToQueue: (entries: { uri: string }[]) => {
+                for (const entry of entries) { held.push(entry.uri.slice(14)); added.push(entry.uri.slice(14)); }
+            },
+        };
+        if (clearQueue === 'works') player.clearQueue = async () => { held.length = 0; };
+        if (clearQueue === 'noop') player.clearQueue = async () => {};
+        return { api: { player }, held, added };
+    };
+
+    it('adds every song once the queue is emptied, and says the queue was emptied', async () => {
+        const app = playerWith(['c', 'd'], 'works');
+        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.added).toBe(3);
+        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+    });
+
+    it('adds only the song the app does not hold when its queue cannot be emptied', async () => {
+        // Spotify's player offers no clearQueue here: the songs it holds are left alone, so the one
+        // already queued is not there twice.
+        const app = playerWith(['c'], undefined);
+        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+
+        expect(answer.cleared).toBe(false);
+        expect(app.added).toEqual([idOf('d'), idOf('e')]);
+        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+    });
+
+    it('treats a clear that leaves songs behind as no clear at all', async () => {
+        const app = playerWith(['c'], 'noop');
+        const answer = await writeQueue({ api: app.api, uris: ['c', 'd'].map(trackUri), queued: [] });
+
+        expect(answer.cleared).toBe(false);
+        expect(app.added).toEqual([idOf('d')]);
+    });
+
+    it('counts from the songs the caller holds when the app names no queue', async () => {
+        const app = playerWith([], undefined, false);
+        const answer = await writeQueue({ api: app.api, uris: ['c', 'd'].map(trackUri), queued: [idOf('c')] });
+
+        expect(answer.queue).toBeNull();
+        expect(app.added).toEqual([idOf('d')]);
+    });
+});
+
 
 describe('a call that may not be made twice', () => {
     it('does not run a play again when the connection failed after the call went out', async () => {

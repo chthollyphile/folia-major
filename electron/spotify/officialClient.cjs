@@ -139,6 +139,43 @@ const STATE_BODY = `
 `;
 
 
+// The songs that are to follow, written into the app's queue, run in the page. The queue is emptied
+// first where the player offers it: emptied, the app holds exactly these songs. Where it cannot be
+// emptied, only the songs it does not hold already are added - one added twice is one played twice -
+// and `queued` is the caller's own record of them, for a player whose state does not name its queue.
+// What the app holds afterwards answers `queue`, which is null where its state does not name it.
+const QUEUE_SOURCE = `async ({ api, uris, queued }) => {
+  // The tracks the app plays after the one playing, as its state names them; null where it does not.
+  const readQueue = () => {
+    let s;
+    try { s = api.player.getState(); } catch { return null; }
+    for (const key of ['nextTracks', 'nextItems', 'queue']) {
+      const list = s && s[key];
+      if (!Array.isArray(list)) continue;
+      if (list.length === 0) return [];
+      const ids = [];
+      for (const entry of list) {
+        const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
+        if (uri.indexOf('spotify:track:') === 0) ids.push(uri.slice(14));
+      }
+      // An entry shape this does not know is no queue at all: the caller's own record is used instead.
+      return ids.length ? ids : null;
+    }
+    return null;
+  };
+  const held = readQueue() ?? (Array.isArray(queued) ? queued : []);
+  let cleared = false;
+  if (typeof api.player.clearQueue === 'function') {
+    try { await api.player.clearQueue(); cleared = true; } catch { cleared = false; }
+    // A clear that ran and left songs behind emptied nothing: they are still what the app plays next.
+    const left = cleared ? readQueue() : null;
+    if (left && left.length) cleared = false;
+  }
+  const add = cleared ? uris : uris.filter(uri => !held.includes(uri.slice(14)));
+  if (add.length) await api.player.addToQueue(add.map(uri => ({ uri })));
+  return { added: add.length, cleared, queue: readQueue() };
+}`;
+
 // Spotify's repeat (0 off, 1 the list, 2 the track) by the names the renderer sends.
 const REPEAT_MODES = Object.freeze({ off: 0, all: 1, one: 2 });
 // The media session's MediaPlaybackAutoRepeatMode (0 None, 1 Track, 2 List) by the same names.
@@ -1171,16 +1208,17 @@ function createSpotifyOfficialClient({
       `, { allowStart: userAction, retry: false, limitMs: START_CALL_LIMIT_MS });
     },
 
-    // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. A
-    // queue write is never a reason to start or close Spotify: it reports what it could not
-    // do, and the caller keeps its prepared tail unset and asks again.
-    queue({ ids }) {
+    // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. What it
+    // answers says whether the queue was emptied first and which songs the app holds afterwards, so
+    // the caller learns what is there without another call. A queue write never starts or closes
+    // Spotify: it reports what it could not do, and the caller asks again.
+    queue({ ids, queued }) {
       const uris = (Array.isArray(ids) ? ids : []).slice(0, MAX_QUEUED).map(trackUri);
+      const held = (Array.isArray(queued) ? queued : []).slice(0, MAX_QUEUED);
       return call(`
-        if (typeof api.player.clearQueue === 'function') await api.player.clearQueue();
         const uris = ${JSON.stringify(uris)};
-        if (uris.length) await api.player.addToQueue(uris.map(uri => ({ uri })));
-        return uris.length;
+        const queued = ${JSON.stringify(held)};
+        return (${QUEUE_SOURCE})({ api, uris, queued });
       `, { retry: false });
     },
 
@@ -1245,5 +1283,5 @@ function createSpotifyOfficialClient({
 }
 
 module.exports = {
-  CDP_PORT, START_WAIT_SOURCE, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+  CDP_PORT, QUEUE_SOURCE, START_WAIT_SOURCE, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 };

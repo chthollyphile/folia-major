@@ -92,10 +92,10 @@ describe('shuffling the queue of an external song', () => {
         await vi.advanceTimersByTimeAsync(600);
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(a, [b, c]);
 
-        // The shuffle of the queue Folia holds: the two songs after this one are now others, and the
+        // The shuffle of the queue Folia holds: the songs after this one are now others, and the
         // player is told the new order rather than the one prepared before it.
         usePlaybackStore.setState({ playQueue: [a, d, b, c] });
         await vi.advanceTimersByTimeAsync(600);
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(a, [d, b]);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(a, [d, b, c]);
     });
 });
