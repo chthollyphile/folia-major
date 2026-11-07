@@ -62,7 +62,7 @@ describe('nebbia scenery toggles', () => {
         const aquarium = { ...DEFAULT_NEBBIA_TUNING, behind: 'aquarium' as const };
         expect(nebbiaSeesThrough(aquarium, undefined)).toBe(false);
         expect(nebbiaSeesThrough(aquarium, { transparent: true })).toBe(true);
-        const aqua = { jelly: new Float32Array(96), jellyColor: new Float32Array(96), count: 0, bubbles: 0.6, sway: new Float32Array(4), bursts: new Float32Array(48), burstCount: 0, beatRows: 0, spotScale: 1 };
+        const aqua = { jelly: new Float32Array(96), jellyColor: new Float32Array(96), count: 0, bubbles: 0.6, sway: new Float32Array(4), weedIdle: 1, bursts: new Float32Array(48), burstCount: 0, beatRows: 0, spotScale: 1 };
         const street = nebbiaFrameUniforms(DEFAULT_NEBBIA_TUNING, [0, 0], spot, 800, 600, 0);
         const tank = nebbiaFrameUniforms(aquarium, [0, 0], spot, 800, 600, 0, aqua);
         expect(street.aqua).toBeNull();

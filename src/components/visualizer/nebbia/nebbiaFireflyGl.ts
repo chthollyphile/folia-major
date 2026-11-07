@@ -67,7 +67,8 @@ void main() {
   rgb = vec3(0.92, 0.95, 1.0) * lit * ha + rgb * (1.0 - ha);
   float a = ha + ca * (1.0 - ha);
   // 靠近亮光：散一圈很淡的柔光（只加颜色）；没有光照（透明）时不加
-  float soft = float(uLit) * smoothstep(0.12, 0.6, lum) * 0.45 * exp(-d * d * 0.3 / (uHalo * uHalo)) * vP.z;
+  // 身后已经很亮（聚光灯正照着）时柔光收掉大半：再往亮处加光只会叠成一片白
+  float soft = float(uLit) * smoothstep(0.12, 0.6, lum) * (1.0 - 0.75 * smoothstep(0.6, 1.2, lum)) * 0.45 * exp(-d * d * 0.3 / (uHalo * uHalo)) * vP.z;
   // 尾巴的光：肚子尖上一小团，外面一小圈光晕，只加颜色（自己发光，不挡后面）；没对上焦时糊大
   float dt = length(q - vec2(-0.55, 0.0)), gr = 0.45 + 0.35 * (1.0 - p);
   float lamp = (1.0 - smoothstep(0.0, gr, dt)) + 0.8 * exp(-dt * dt * 0.7);

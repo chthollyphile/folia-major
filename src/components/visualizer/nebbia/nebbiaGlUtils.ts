@@ -22,6 +22,8 @@ export interface NebbiaAquaUniforms {
     bubbles: number;
     /** 水草跟拍的弹簧：现在、0.05、0.1、0.15 秒前的横向偏移（nebbiaWeedSway.ts）。 */
     sway: Float32Array;
+    /** 水草自己摆动的幅度 0..1：跟拍时落到 0，只剩跟拍的推动。 */
+    weedIdle: number;
     /** 跟拍冒的一排排大泡，每排 4 个数：x、冒出的时刻（窗外时钟）、大小 0..1、种子；长度是着色器数组的 NEBBIA_MAX_BURSTS 排。 */
     bursts: Float32Array;
     burstCount: number;
