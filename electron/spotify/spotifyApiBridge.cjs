@@ -23,7 +23,7 @@ const SPOTIFY_OPERATIONS = Object.freeze([
   // Spotify's own desktop app as the player (officialClient.cjs). `client_probe` answers whether
   // the app is on this computer at all, without starting anything.
   'client_launch', 'client_restart', 'client_play', 'client_queue', 'client_pause', 'client_resume', 'client_seek', 'client_volume',
-  'client_status', 'client_probe',
+  'client_status', 'client_status_found', 'client_probe',
 ]);
 // How Spotify plays here: 'standard' (librespot, in this process, audio.cjs), 'soloist' (Spotify's
 // own Soloist program on this computer, soloist.cjs) or 'client' (Spotify's desktop app, steered
@@ -605,6 +605,10 @@ function createSpotifyApiBridge({
     client_seek: params => client().seek(params),
     client_volume: params => client().setVolume(params),
     client_status: () => client().status(),
+    // The same state for a session restore, which may find an app Folia did not start: it comes
+    // with this run's one search for that app's DevTools port. Nothing is started, closed or paused
+    // for it, and where no port answers the answer is the system media session's.
+    client_status_found: () => client().statusWithPortSearch(),
     // Whether Spotify's app is on this computer, answered from a cached look at the launcher.
     async client_probe() {
       if (availability && now() - availabilityReadAt < AVAILABILITY_TTL_MS) return availability;

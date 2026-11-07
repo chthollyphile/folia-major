@@ -592,6 +592,16 @@ export interface OnlineExternalPlaybackProvider {
      * Absent where the player cannot be asked without being steered.
      */
     runningPositionMs?(song: SongResult): Promise<number | null>;
+    /**
+     * What the player has for `song` when the session restored at launch asks: one read, nothing
+     * cached. Absent where the player cannot be asked without steering it. The read may look for the
+     * way this app steers the player, because a player of its own outlives the app and need not run
+     * the way this run started, so a provider that may be playing a song nobody here started overrides
+     * it. A read only: nothing is started, resumed or paused for it. Where the player cannot be
+     * reached, the answer names no track. An answer from a coarse channel may still name `song` where
+     * the track it shows is that song, by the title and the artist it shows; that answer is `degraded`.
+     */
+    runningStatus?(song: SongResult): Promise<ProviderExternalPlaybackStatus | null>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */

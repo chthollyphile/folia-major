@@ -619,3 +619,95 @@ describe('a song restored while the app is still on it', () => {
         await expect(spotifyExternalPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
     });
 });
+
+describe('the state a session restore reads', () => {
+    const song = songOf('a');
+    // Every read answers what the test says it does, and the one look more a run is allowed is taken
+    // at once rather than a few seconds later.
+    const reads = (answer: () => Record<string, unknown>) => request.mockImplementation(async (operation: string) => (
+        operation === 'client_status_found' ? answer() : { available: true }
+    ));
+    const readAfterTheSecondLook = async (song: SongResult) => {
+        vi.useFakeTimers();
+        try {
+            const answer = spotifyClientPlayback.runningStatus!(song);
+            await vi.advanceTimersByTimeAsync(3000);
+            return await answer;
+        } finally {
+            vi.useRealTimers();
+        }
+    };
+
+    it('names the song the coarse channel shows by its title and artist, so its position comes with it', async () => {
+        reads(() => ({ ...degraded(), title: 'Song a', artist: 'Artist' }));
+
+        const status = await readAfterTheSecondLook(song);
+
+        // The answer is this song's own - it carries the id a restore compares with - and it stays
+        // degraded: the coarse channel names a track, it cannot steer one.
+        expect(status?.mediaId).toBe(id('a'));
+        expect(status?.degraded).toBe(true);
+        expect(status?.positionMs).toBe(1000);
+    });
+
+    it('names a song of two artists when the session shows only the leading one', async () => {
+        // Measured: the media session of a two-artist track reports one artist. The track taken over
+        // on that answer is still the song Folia remembers, and its position comes with it.
+        reads(() => ({ ...degraded(), title: 'Song a', artist: 'Artist', positionMs: 42_000 }));
+
+        const status = await readAfterTheSecondLook(duetOf('a'));
+
+        expect(status?.mediaId).toBe(id('a'));
+        expect(status?.degraded).toBe(true);
+        expect(status?.positionMs).toBe(42_000);
+    });
+
+    it('names no track where the coarse channel shows another song', async () => {
+        reads(() => ({ ...degraded(), title: 'Song b', artist: 'Artist' }));
+
+        const status = await readAfterTheSecondLook(song);
+
+        expect(status?.mediaId).toBe('');
+        expect(status?.degraded).toBe(true);
+    });
+
+    it('asks again a few seconds later where the first read named no track', async () => {
+        vi.useFakeTimers();
+        try {
+            const answers = [{ ...degraded() }, { ...playing(id('a')) }];
+            reads(() => (answers.length > 1 ? answers.shift()! : answers[0]));
+
+            const answer = spotifyClientPlayback.runningStatus!(song);
+            await vi.advanceTimersByTimeAsync(3000);
+            const status = await answer;
+
+            expect(status?.mediaId).toBe(id('a'));
+            expect(status?.degraded).toBe(false);
+            expect(request.mock.calls.filter(call => call[0] === 'client_status_found')).toHaveLength(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('keeps the first answer where the second read fails', async () => {
+        vi.useFakeTimers();
+        try {
+            let read = 0;
+            request.mockImplementation(async (operation: string) => {
+                if (operation !== 'client_status_found') return { available: true };
+                read += 1;
+                if (read > 1) throw new OnlineProviderError('network', 'The request did not arrive', 'spotify');
+                return { ...degraded(), title: 'Song a', artist: 'Artist' };
+            });
+
+            const answer = spotifyClientPlayback.runningStatus!(song);
+            await vi.advanceTimersByTimeAsync(3000);
+            const status = await answer;
+
+            expect(status?.mediaId).toBe(id('a'));
+            expect(status?.degraded).toBe(true);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
