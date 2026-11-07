@@ -3,7 +3,7 @@ import { usePonderStore } from '../../../stores/usePonderStore';
 import { openCurrentPagePonder, readCurrentPagePonderTarget } from '../../../services/ponder/pagePonderTarget';
 import type { PonderTargetId } from '../../../types/ponder';
 import { effectiveKeyCode, isKeyCaptureTarget } from '../../../utils/keyboardTargets';
-import { isPrimaryModifierPressed, isSecondaryModifierPressed } from '../../../utils/platform';
+import { isMacPlatform, isPrimaryModifierPressed, isSecondaryModifierPressed } from '../../../utils/platform';
 import type { PonderHoldProgressRefs } from './ponderHoldProgress';
 import { usePonderHold } from './usePonderHold';
 
@@ -40,6 +40,13 @@ export const releasesPagePonderShortcut = (event: KeyboardEvent): boolean => (
     effectiveKeyCode(event) === 'KeyG' || event.key === 'Control' || event.key === 'Meta'
 );
 
+/**
+ * 按着的时候又按了别的键：macOS 上算放弃。那里松开 G 的 keyup 收不到，「⌘G 松手接着 ⌘K」
+ * 只能靠下一下 keydown 看出 G 已经不在了，否则命令窗口开了之后思索也跟着按满。
+ * 其他平台松 G 有 keyup，行为保持原样。
+ */
+export const abandonsPagePonderShortcut = (_event: KeyboardEvent): boolean => isMacPlatform;
+
 export type PagePonderShortcutState = {
     /** 正在按住 Ctrl+G。提示胶囊靠它决定要不要出现。 */
     isHolding: boolean;
@@ -59,6 +66,7 @@ export const usePagePonderShortcut = (refs: PonderHoldProgressRefs): PagePonderS
         enabled: true,
         accepts: acceptsPagePonderShortcut,
         releasedBy: releasesPagePonderShortcut,
+        abandonedByKeyDown: abandonsPagePonderShortcut,
         onPress: () => {
             // 提示一出现就把教程层那个 chunk 预热，400ms 按满时通常已经就绪。
             void import('../PonderStage');

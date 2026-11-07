@@ -11,7 +11,7 @@ vi.hoisted(() => {
 });
 
 const { isMacPlatform } = await import('@/utils/platform');
-const { acceptsPagePonderShortcut, releasesPagePonderShortcut } = await import('@/components/ponder/hold/usePagePonderShortcut');
+const { abandonsPagePonderShortcut, acceptsPagePonderShortcut, releasesPagePonderShortcut } = await import('@/components/ponder/hold/usePagePonderShortcut');
 
 type KeyInit = Partial<Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>>;
 
@@ -40,5 +40,9 @@ describe('page Ponder shortcut on macOS', () => {
         expect(releasesPagePonderShortcut(keyEvent({ key: 'Control', code: 'ControlLeft' }))).toBe(true);
         expect(releasesPagePonderShortcut(keyEvent({}))).toBe(true);
         expect(releasesPagePonderShortcut(keyEvent({ key: 'Shift', code: 'ShiftLeft' }))).toBe(false);
+    });
+
+    it('gives up the hold when another key goes down, since the G keyup never comes while Meta is held', () => {
+        expect(abandonsPagePonderShortcut(keyEvent({ key: 'k', code: 'KeyK', metaKey: true }))).toBe(true);
     });
 });
