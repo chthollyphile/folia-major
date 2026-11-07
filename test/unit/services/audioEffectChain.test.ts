@@ -119,12 +119,43 @@ describe('audio effect chain', () => {
         expect(created.gains.filter(node => node.gain.value === 1).length).toBeGreaterThanOrEqual(4);
     });
 
+    it('routes around the cutoff filters while both sit at their neutral ends', () => {
+        const { chain, input } = createChain();
+        type FakeGain = { gain: { value: number } };
+        type FakeNode = { connect: ReturnType<typeof vi.fn> };
+        const fromInput = vi.mocked(input.connect).mock.calls.map(([node]) => node as unknown);
+        const bypass = fromInput.find(node => 'gain' in (node as object)) as FakeGain;
+        const highpass = fromInput.find(node => 'frequency' in (node as object)) as FakeNode;
+        const lowpass = highpass.connect.mock.calls[0][0] as FakeNode;
+        const filterReturn = lowpass.connect.mock.calls[0][0] as FakeGain;
+
+        // Neutral: the signal goes round the biquads, whose phase turn at 20 Hz lifts a loud master's peaks.
+        expect(bypass.gain.value).toBe(1);
+        expect(filterReturn.gain.value).toBe(0);
+
+        chain.apply({ ...createNeutralAudioEffects(), highpass: 120 }, true);
+        expect(bypass.gain.value).toBe(0);
+        expect(filterReturn.gain.value).toBe(1);
+
+        chain.apply({ ...createNeutralAudioEffects(), lowpass: 8000 }, true);
+        expect(bypass.gain.value).toBe(0);
+        expect(filterReturn.gain.value).toBe(1);
+
+        // A disabled chain is neutral whatever its settings say.
+        chain.apply({ ...createNeutralAudioEffects(), highpass: 120 }, false);
+        expect(bypass.gain.value).toBe(1);
+        expect(filterReturn.gain.value).toBe(0);
+    });
+
     it('releases the noise source and oscillators on dispose', () => {
-        const { chain, created } = createChain();
+        const { chain, created, input } = createChain();
 
         chain.apply(AUDIO_SOUND_PRESETS.lofi.effects, true);
         chain.dispose();
 
+        // Both of the input's taps are let go: the filter branch and the bypass round it.
+        const tapped = vi.mocked(input.connect).mock.calls.map(([node]) => node);
+        tapped.forEach(node => expect(input.disconnect).toHaveBeenCalledWith(node));
         expect(created.bufferSources[0].stop).toHaveBeenCalled();
         created.oscillators.forEach(oscillator => expect(oscillator.stop).toHaveBeenCalled());
     });

@@ -50,6 +50,12 @@ export const createAudioEffectChain = ({
 
         rampParam(context, nodes.highpass.frequency, active.highpass);
         rampParam(context, nodes.lowpass.frequency, Math.min(active.lowpass, context.sampleRate * 0.475));
+        // Both cutoffs at their neutral ends take the bypass (see connectAudioEffectNodes); moving
+        // either one crossfades over to the filtered branch, so the switch itself makes no click.
+        const filtersNeutral = active.highpass <= DEFAULT_AUDIO_EFFECT_SETTINGS.highpass
+            && active.lowpass >= DEFAULT_AUDIO_EFFECT_SETTINGS.lowpass;
+        rampParam(context, nodes.filterBypass.gain, filtersNeutral ? 1 : 0);
+        rampParam(context, nodes.filterReturn.gain, filtersNeutral ? 0 : 1);
 
         if (active.drive !== lastDrive) {
             lastDrive = active.drive;
