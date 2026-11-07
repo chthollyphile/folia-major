@@ -15,6 +15,9 @@ const env = vi.hoisted(() => ({
     duringRestore: () => {},
     adopted: true,
     externalRoute: false,
+    /** The song the external session has, and whether the app has shown and announced it. */
+    externalSong: null as unknown,
+    sounding: false,
     calls: [] as string[],
 }));
 
@@ -46,9 +49,11 @@ vi.mock('@/services/onlineMusic/externalPlayback', () => ({
     adoptExternalPlayback: async (song: SongResult) => { env.calls.push(`adopt ${song.id}`); return env.adopted; },
     releaseUnclaimedExternalTrack: (song: SongResult, reason: string) => { env.calls.push(`release ${song.id} (${reason})`); },
     handOverExternalPlayback: () => { env.calls.push('hand over'); },
+    pauseExternalPlayback: () => { env.calls.push('pause'); return true; },
+    getExternalSong: () => env.externalSong,
     reclaimExternalPlayback: (reason: string) => { env.calls.push(`reclaim (${reason})`); },
     isExternalRoute: () => env.externalRoute,
-    isExternalPlaybackSounding: () => env.externalRoute,
+    isExternalPlaybackSounding: () => env.externalRoute && env.sounding,
     getExternalPosition: () => 42,
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({
@@ -146,6 +151,8 @@ beforeEach(() => {
     env.duringRestore = () => {};
     env.adopted = true;
     env.externalRoute = false;
+    env.externalSong = null;
+    env.sounding = false;
     env.calls.length = 0;
 });
 afterEach(() => {
@@ -202,6 +209,8 @@ describe('the old window handing the player over', () => {
         makeSongCurrent(externalSong);
         usePlaybackStore.setState({ playerState: PlayerState.PLAYING, playbackRoute: 'external' });
         env.externalRoute = true;
+        env.externalSong = externalSong;
+        env.sounding = true;
     };
 
     it('records the player as it sounds, and hands it over with the snapshot', () => {
@@ -210,6 +219,23 @@ describe('the old window handing the player over', () => {
         const handoff = surface.captureWindowPlaybackHandoff();
         expect(handoff.activePlayback).toMatchObject({ playerState: PlayerState.PLAYING, currentTime: 42 });
         expect(env.calls).toEqual(['hand over']);
+    });
+
+    it('stops a start still on its way rather than hand it over: the snapshot names the song before it', () => {
+        makeSongCurrent(webSong);
+        usePlaybackStore.setState({ playerState: PlayerState.PAUSED, playbackRoute: 'external' });
+        env.externalRoute = true;
+        env.externalSong = externalSong;
+        const { surface } = mountHook({});
+        const handoff = surface.captureWindowPlaybackHandoff();
+        expect(env.calls).toEqual(['pause']);
+        expect(handoff.activePlayback).toMatchObject({ currentSong: { id: 'x1' }, playerState: PlayerState.PAUSED });
+
+        // The first song of the session: nothing is on screen yet.
+        env.calls.length = 0;
+        makeSongCurrent(null);
+        mountHook({}).surface.captureWindowPlaybackHandoff();
+        expect(env.calls).toEqual(['pause']);
     });
 
     it('takes the player back when the rebuild is refused or fails, and keeps it handed over when it happens', async () => {

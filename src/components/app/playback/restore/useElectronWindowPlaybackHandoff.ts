@@ -27,7 +27,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { adoptExternalPlayback, getExternalPosition, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
@@ -188,6 +188,13 @@ export function useElectronWindowPlaybackHandoff({
         // process's, not this window's): the snapshot says playing, and the next window adopts it.
         // This window stops following the player once the snapshot is taken: a track ending in the
         // second or two before it is destroyed must not start the next song from here.
+        // Only the song the snapshot names is handed over. A start still on its way (the song on
+        // screen is the one before it) is one the next window knows nothing of: the player is
+        // stopped, and the snapshot reads the state that leaves.
+        const externalSong = getExternalSong();
+        const handsOverExternal = isExternalPlaybackSounding() && externalSong !== null && currentSong !== null
+            && getPlaybackSongKey(externalSong) === getPlaybackSongKey(currentSong);
+        if (isExternalRoute() && !handsOverExternal) pauseExternalPlayback();
         const activePlayback = withUntransformedLyrics(buildPlaybackSnapshot({
             audioRef,
             audioSrc,
@@ -199,9 +206,9 @@ export function useElectronWindowPlaybackHandoff({
             isFmMode,
             lyrics,
             playQueue,
-            playerState,
+            playerState: isExternalRoute() && !handsOverExternal ? usePlaybackStore.getState().playerState : playerState,
         }));
-        if (isExternalRoute()) handOverExternalPlayback();
+        if (handsOverExternal) handOverExternalPlayback();
         const mainPlayback = activePlaybackContext === 'main'
             ? activePlayback
             : withUntransformedLyrics(mainPlaybackSnapshotRef.current);
