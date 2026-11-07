@@ -5048,7 +5048,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "专辑海报",
-    "openArtist": "打开歌手 {{name}}"
+    "openArtist": "打开歌手 {{name}}",
+    "expandArtists": "展开全部 {{count}} 位歌手",
+    "collapseArtists": "收起"
   },
   "artistGrid": {
     "localArtist": "本地歌手: {{artistName}}",

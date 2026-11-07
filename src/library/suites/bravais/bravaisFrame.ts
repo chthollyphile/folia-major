@@ -218,3 +218,28 @@ export const withTilt = (transform: string, tilt: BravaisFrame['tilt']) => (
         ? transform
         : `translate(${tilt.pivotX}px, ${tilt.pivotY}px) rotate(${tilt.deg}deg) translate(${-tilt.pivotX}px, ${-tilt.pivotY}px) ${transform}`
 );
+
+/**
+ * 缝的两层 transform：外面的轨道（.bravais-seam-track）只平移、自己成合成层，缝本身只在倾斜落定后带一段 2D 旋转。
+ * 合成层被合成器整块转过去时，里面的字是先按没转的样子光栅化、再当图片旋转重采样的，会发糊；旋转写在不成层的缝上，
+ * 字就带着旋转直接画进轨道那一层（清楚）。代价是旋转角变化时要重画缝，所以倾斜补间期间（tiltSettled 为 false）
+ * 仍整块交给合成器转，落定后才换过来。落定时轨道的平移取整到设备像素：没转的合成层停在半像素上同样会糊。
+ * 两种写法在屏幕上是同一个几何：绕 p 转再平移 x0 = 先平移 x0、再在缝自己的坐标里绕 p − x0 转。转轴在缝自己的坐标里
+ * 是缝的右缘（宽度）、视口半高，拖动时不变，缝的 transform 也就不变、不重画；取整丢掉的那不到半个设备像素不补回来
+ * （补回来转轴就跟着拖动逐帧变了），缝相对两半墙最多差这么一点。
+ */
+export const seamTransforms = (frame: BravaisFrame, { tiltSettled, devicePixelRatio }: { tiltSettled: boolean; devicePixelRatio: number }) => {
+    const { seam, tilt } = frame;
+    if (seam.axis === 'y') return { track: `translate3d(0, ${seam.y - seam.width / 2}px, 0)`, seam: '' };
+    const left = seam.x - seam.width / 2;
+    if (Math.abs(tilt.deg) < 0.001) return { track: `translate3d(${left}px, 0, 0)`, seam: '' };
+    if (!tiltSettled) return { track: withTilt(`translate3d(${left}px, 0, 0)`, tilt), seam: '' };
+    const ratio = devicePixelRatio > 0 ? devicePixelRatio : 1;
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const pivotX = round(tilt.pivotX - left);
+    const pivotY = round(tilt.pivotY);
+    return {
+        track: `translate3d(${Math.round(left * ratio) / ratio}px, 0, 0)`,
+        seam: `translate(${pivotX}px, ${pivotY}px) rotate(${tilt.deg}deg) translate(${-pivotX}px, ${-pivotY}px)`,
+    };
+};

@@ -5048,7 +5048,9 @@ export default {
   },
   "libraryBravaisAlbum": {
     "posterLabel": "Áp phích album",
-    "openArtist": "Mở nghệ sĩ {{name}}"
+    "openArtist": "Mở nghệ sĩ {{name}}",
+    "expandArtists": "Hiện tất cả {{count}} nghệ sĩ",
+    "collapseArtists": "Thu gọn"
   },
   "artistGrid": {
     "localArtist": "Nghệ sĩ nội bộ: {{artistName}}",
