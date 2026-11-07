@@ -2,7 +2,7 @@ import type { ProviderExternalPlaybackStatus } from '../../types/onlineMusic';
 import type { SongResult } from '../../types';
 import { PlayerState } from '../../types';
 import { usePlaybackStore, setAudioSrc, setDuration, setPlaybackRoute, setPlayerState } from '../../stores/usePlaybackStore';
-import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
+import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { createExternalClock } from './externalClock';
 import { setExternalRouteMedia } from '../hifi/hifiMediaShim';
 import { leaveHifiRoute } from '../hifi/hifiRouteGuard';
@@ -389,11 +389,19 @@ export function previewExternalPlaybackVolume(volume: number): void {
     setExternalPlaybackVolume(useAudioSettingsStore.getState().isMuted ? 0 : Math.min(1, Math.max(0, volume)));
 }
 
+/**
+ * Whether two songs play in the same external player. Each provider steers a player of its own, so
+ * a song of another provider never replaces the track sounding in this one.
+ */
+const playsInSamePlayer = (a: SongResult, b: SongResult) => getOnlineProviderIdForSong(a) === getOnlineProviderIdForSong(b);
+
 /** Starts a track in the external player and puts the app on that route. */
 export async function beginExternalPlayback(song: SongResult, startSec = 0): Promise<void> {
     if (isExternalRoute()) {
-        // Already on the route: replacing the track is one call, and the old clock must not speak
-        // for the new song while it does.
+        // Already on the route: within the same player replacing the track is one call, and the old
+        // clock must not speak for the new song while it does. A song of another provider starts in
+        // another player, which leaves the old one sounding: that one is stopped first.
+        if (session && !playsInSamePlayer(session.song, song)) stopExternalPlayback('another player takes the song');
     } else if (usePlaybackStore.getState().playbackRoute === 'hifi') {
         // mpv must give the song up before the other player starts, or both sound at once.
         leaveHifiRoute('external player');
@@ -431,7 +439,17 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
         }
         throw error;
     }
-    if (session?.attempt !== attempt || !isExternalRoute()) return;
+    if (session?.attempt !== attempt || !isExternalRoute()) {
+        // Overtaken while the player was starting it. A newer song in the same player replaces it
+        // there; otherwise the stop sent when it was overtaken may have reached the player before
+        // this start did, and the track would sound with nobody following it: it is stopped again.
+        if (!session || !playsInSamePlayer(session.song, song)) {
+            void omni.pauseExternalPlayback(song).catch(error => {
+                console.warn('[ExternalPlayback] an overtaken start could not be stopped', error);
+            });
+        }
+        return;
+    }
     // The level sent ahead may have landed on a page the companion then replaced (it moves to the
     // account's storefront between requests): once the player has the song, send the level again.
     volumeEpoch += 1;
@@ -550,10 +568,12 @@ export function reclaimExternalPlayback(reason: string): void {
 /**
  * A handed-over song this window did not take over (another song was asked for first, its restore
  * failed, or the player had something else): the player is nobody's, so it is stopped. Nothing
- * happens while an external session is live here: the player is that session's then.
+ * happens while an external session of the same player is live here: the player is that session's
+ * then. A session in another provider's player leaves this one nobody's all the same.
  */
 export function releaseUnclaimedExternalTrack(song: SongResult, reason: string): void {
-    if (isExternalRoute() || !omni.canPlayExternally(song)) return;
+    if (!omni.canPlayExternally(song)) return;
+    if (isExternalRoute() && session && playsInSamePlayer(session.song, song)) return;
     console.info('[ExternalPlayback] stopping the player nobody took over', { reason, songKey: getPlaybackSongKey(song) });
     void omni.pauseExternalPlayback(song).catch(error => {
         console.warn('[ExternalPlayback] the player nobody took over could not be paused', error);
