@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { getAppleMusicLyricSearchAlias } from './appleMusicOriginal';
@@ -211,8 +211,10 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             getArtistDetail: async id => (await getAppleMusicCatalogPage('catalogArtist', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
             getArtistSongs: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistSongs', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
             getArtistAlbums: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistAlbums', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types/onlineMusic').ProviderCollection>,
-            getPlaylistTracks: (id, limit, offset) => String(id).startsWith('ra.')
-                ? getAppleMusicLiveStationTracks(String(id), offset) : getAppleMusicPlaylistTracks(String(id), limit, offset),
+            getPlaylistTracks: (id, limit, offset) => id === APPLE_MUSIC_LIBRARY_PLAYLIST_ID
+                ? getAppleMusicLibrarySongs(limit, offset)
+                : String(id).startsWith('ra.')
+                    ? getAppleMusicLiveStationTracks(String(id), offset) : getAppleMusicPlaylistTracks(String(id), limit, offset),
         },
         // Apple's TTML carries the song's own word timing (and its translations and voices): where
         // it is word-level, the automatic pick must not replace it with another source's.

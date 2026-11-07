@@ -26,7 +26,8 @@ describe('Apple Music playlist counts', () => {
                 : { ok: true, data: { total: params.playlistId === 'p.a' ? 63 : 0 } });
         vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
         const result = await getAppleMusicPlaylists(100, 0, true);
-        expect(result.items.map(item => item.trackCount)).toEqual([63, 0, undefined]);
+        expect(result.items.map(item => item.trackCount)).toEqual([undefined, 63, 0, undefined]);
+        expect(request.mock.calls.filter(([op]) => op === 'playlistTrackCount').map(([, params]) => params.playlistId)).toEqual(['p.a', 'p.b', 'p.c']);
         expect(result.hasMore).toBe(false);
         vi.restoreAllMocks();
     });
@@ -44,7 +45,7 @@ describe('Apple Music playlist counts', () => {
         vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
         const result = await getAppleMusicPlaylists(100, 0, true);
         expect(maximum).toBe(2);
-        expect(result.items.map(item => item.trackCount)).toEqual([12, 12, 12, 12, 12]);
+        expect(result.items.map(item => item.trackCount)).toEqual([undefined, 12, 12, 12, 12, 12]);
     });
     it('does not fetch optional counts for internal favorite-list discovery', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { items: [{ id: 'p.a', type: 'library-playlists', attributes: {} }], hasMore: false, nextOffset: 1 } }));

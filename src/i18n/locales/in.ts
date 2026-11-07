@@ -1,6 +1,9 @@
 
 
 export default {
+  "appleMusic": {
+    "libraryPlaylistName": "Semua lagu"
+  },
   "scratchpad": {
     "title": "Buku catatan",
     "count_one": "{{count}} lagu",

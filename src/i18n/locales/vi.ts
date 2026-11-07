@@ -1,6 +1,9 @@
 // Vietnamese (vi) interface text, laid out line for line like en.ts.
 
 export default {
+  "appleMusic": {
+    "libraryPlaylistName": "Tất cả bài hát"
+  },
   "scratchpad": {
     "title": "Sổ ghi nhanh",
     "count_one": "{{count}} bài",

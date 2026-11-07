@@ -1,6 +1,9 @@
 
 
 export default {
+  "appleMusic": {
+    "libraryPlaylistName": "All songs"
+  },
   "scratchpad": {
     "title": "Scratchpad",
     "count_one": "{{count}} song",

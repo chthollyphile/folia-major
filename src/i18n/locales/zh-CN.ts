@@ -1,6 +1,9 @@
 
 
 export default {
+  "appleMusic": {
+    "libraryPlaylistName": "全部歌曲"
+  },
   "scratchpad": {
     "title": "速记簿",
     "count_one": "{{count}} 首",

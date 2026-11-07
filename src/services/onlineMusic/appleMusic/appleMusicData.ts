@@ -1,4 +1,5 @@
 import type { SongResult, UnifiedSong } from '../../../types';
+import i18n from '../../../i18n/config';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../types/onlineMusic';
 import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
@@ -45,6 +46,7 @@ const isPlaylistResource = (item: unknown): boolean => {
 // Apple's API takes at most this many rows in one request, while Folia's callers ask for pages
 // of their own size (a collection asks 150 for its first page and 1000 for the rest).
 const MAX_ROWS_PER_REQUEST = 100;
+export const APPLE_MUSIC_LIBRARY_PLAYLIST_ID = 'library-songs';
 
 /**
  * Reads `limit` rows from `offset`, one Apple page at a time. The returned next offset is the
@@ -125,6 +127,12 @@ export async function getAppleMusicCatalogPage(operation: 'catalogSong' | 'catal
             item => ['albums', 'artists'].includes(String((item as { type?: unknown } | null)?.type)));
 }
 
+// Keep library identity and unmapped uploads, using the existing validated page reader.
+export async function getAppleMusicLibrarySongs(limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+    const page = pageInputs(limit, offset);
+    return readPage('librarySongs', {}, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
+}
+
 // Read library albums and their tracks using the same validated pagination as playlists.
 export async function getAppleMusicLibraryAlbums(limit: number, offset: number): Promise<ProviderPage<ProviderCollection>> {
     const page = pageInputs(limit, offset);
@@ -139,12 +147,20 @@ export async function getAppleMusicLibraryAlbumTracks(albumId: string, limit: nu
 export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = false): Promise<ProviderPage<ProviderCollection>> {
     const page = pageInputs(limit, offset);
     const result = await readPage('playlists', {}, page.limit, page.offset, normalizeAppleMusicPlaylist, isPlaylistResource);
+    if (page.offset === 0) {
+        // This read-only virtual playlist opens all library songs, not the favorites list.
+        result.items.unshift({
+            providerId: 'appleMusic', id: APPLE_MUSIC_LIBRARY_PLAYLIST_ID, type: 'playlist',
+            name: i18n.t('appleMusic.libraryPlaylistName'), isOwned: true,
+        });
+    }
     if (!includeCounts) return result;
     // The playlist list has no count. Ask only for one track and use Apple's total, with two reads at a time.
     let cursor = 0;
     const readCounts = async () => {
         while (cursor < result.items.length) {
             const item = result.items[cursor++];
+            if (item.id === APPLE_MUSIC_LIBRARY_PLAYLIST_ID) continue;
             try {
                 const answer = await requestAppleMusic<{ total?: unknown }>('playlistTrackCount', { playlistId: String(item.id) });
                 if (typeof answer?.total === 'number' && Number.isSafeInteger(answer.total) && answer.total >= 0) item.trackCount = answer.total;
@@ -205,7 +221,7 @@ export function appleMusicSongLikeId(song: SongResult): string | number {
 
 // Only Apple's explicitly editable library playlists accept additions; favorites use the heart action.
 export function canAddToAppleMusicPlaylist(playlist: ProviderCollection): boolean {
-    return playlist.providerId === 'appleMusic' && playlist.type === 'playlist' && playlist.isLiked !== true
+    return playlist.providerId === 'appleMusic' && playlist.type === 'playlist' && playlist.id !== APPLE_MUSIC_LIBRARY_PLAYLIST_ID && playlist.isLiked !== true
         && playlist.providerData?.resourceType === 'library-playlists' && playlist.providerData?.canEdit === true;
 }
 
