@@ -203,7 +203,7 @@ const makeClient = (options: ClientOptions = {}) => {
     const { spawnProcess, spawned, procs } = makeSpawn();
     const runFile = vi.fn((file: string, _args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
         if (String(file).includes('tasklist')) {
-            callback(null, options.running === false ? 'INFO: No tasks are running' : 'Spotify.exe    1234 Console    1    120,000 K');
+            callback(null, options.running === false ? 'INFO: No tasks are running' : '"Spotify.exe","1234","Console","1","120,000 K"');
             return;
         }
         if (String(file).includes('netstat')) {
@@ -243,11 +243,17 @@ const makeClient = (options: ClientOptions = {}) => {
         platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log: () => {}, warn,
         port: options.port ?? 9283,
     });
-    const helperSpawns = () => spawned.filter(file => /powershell\.exe$/i.test(file)).length;
+    // The script a PowerShell was started with: -EncodedCommand is UTF-16LE in base64.
+    const scriptOf = (args: string[]) => Buffer.from(String(args[args.indexOf('-EncodedCommand') + 1] ?? ''), 'base64').toString('utf16le');
+    const powershellSpawns = () => (spawnProcess.mock.calls as unknown as [string, string[]][])
+        .filter(call => /powershell\.exe$/i.test(String(call[0])));
+    // The window watcher of a start is a PowerShell of its own (WINDOW_WATCH_SCRIPT), not a helper.
+    const watchSpawns = () => powershellSpawns().filter(call => scriptOf(call[1]).includes('FoliaSpotifyWindow'));
+    const helperSpawns = () => powershellSpawns().filter(call => !scriptOf(call[1]).includes('FoliaSpotifyWindow')).length;
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
-    return { client, runFile, spawnProcess, spawned, procs, fetch, warn, helperSpawns, spotifySpawns, taskkills, tasklists };
+    return { client, runFile, spawnProcess, spawned, procs, fetch, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
 };
 
 beforeEach(() => {
@@ -562,23 +568,92 @@ describe('the quit, the helper and the port', () => {
 });
 
 describe('how Folia raises Spotify: in the tray, out of the way', () => {
-    const minimizers = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
-        .filter(call => String(call[0]).endsWith('powershell.exe') && (call[1] as string[]).includes('-EncodedCommand'));
+    // The sweeping fallback, run through runFile rather than as a process of its own.
+    const sweeps = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
+        .filter(call => app.scriptOf(call[1] as string[]).includes('Folia.SpotifyWin'));
+    const spotifyCall = (app: ReturnType<typeof makeClient>) => (app.spawnProcess.mock.calls as unknown as [string, string[], object][])
+        .find(call => !/powershell\.exe$/i.test(String(call[0])));
 
-    it('starts Spotify with the minimized flag next to its DevTools port and hides the window it started into the tray', async () => {
+    it('starts Spotify in the tray and hides the window it started the moment Spotify shows it', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
         await expect(app.client.launch()).resolves.toBe(true);
-        const args = (app.spawnProcess.mock.calls as unknown as unknown[][]).find(call => !/powershell\.exe$/i.test(String(call[0])))?.[1] as string[];
+        const spotify = spotifyCall(app);
+        const args = spotify?.[1] as string[];
         expect(args).toContain('--minimized');
         expect(args.some(arg => arg.startsWith('--remote-debugging-port='))).toBe(true);
         // A port Folia names itself gets exactly its own origin, and nothing wider.
         expect(args).toContain('--remote-allow-origins=http://127.0.0.1:9283');
-        const script = Buffer.from(String((minimizers(app)[0]?.[1] as string[]).at(-1)), 'base64').toString('utf16le');
-        // Hidden into the tray without activation (SW_HIDE), never closed: the tray icon still restores it,
-        // and only a non-zero handle is touched.
-        expect(script).toContain('ShowWindowAsync($p.MainWindowHandle, 0)');
-        expect(script).toContain('$p.MainWindowHandle -ne [System.IntPtr]::Zero');
+        // The start is asked for without a window as well (STARTUPINFO's SW_HIDE). Measured, this Spotify
+        // ignores it, which is why the watcher below is what keeps the window off the screen.
+        expect(spotify?.[2]).toMatchObject({ windowsHide: true });
+
+        // The watcher is armed before Spotify is run: a hook that arrives after the window is shown is a
+        // window on the screen, and that wait is what used to show one for 1.4 s.
+        const calls = app.spawnProcess.mock.calls as unknown as [string, string[]][];
+        const watchIndex = app.watchSpawns().length ? calls.findIndex(call => app.scriptOf(call[1]).includes('FoliaSpotifyWindow')) : -1;
+        const spotifyIndex = calls.findIndex(call => /Spotify\.exe$/i.test(String(call[0])));
+        expect(watchIndex).toBeGreaterThan(-1);
+        expect(watchIndex).toBeLessThan(spotifyIndex);
+
+        const script = app.scriptOf(calls[watchIndex][1]);
+        // The show itself is caught (EVENT_OBJECT_SHOW) and the hide is ShowWindow, which waits for
+        // Spotify's own thread to take it: the window is hidden in the frame it is shown in, before the
+        // taskbar has anything to draw.
+        expect(script).toContain('SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW');
+        expect(script).toContain('ShowWindow(window, SW_HIDE)');
+        expect(script).toContain('Chrome_WidgetWin_1');
+        // Hidden, never closed: the tray icon still restores it.
+        expect(script).not.toContain('CloseWindow');
+        // Nothing was running before this start, so every Spotify window it can see is the one it made.
+        expect(script).toContain('new int[] {}');
+        await app.client.close();
+    });
+
+    it('hides the window it made at the first moment a window can exist, not at the third round', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const order: string[] = [];
+        const runFileImpl = app.runFile.getMockImplementation();
+        app.runFile.mockImplementation((file: string, args: string[], options: object, callback: (error: Error | null, stdout?: string) => void) => {
+            if (app.scriptOf(args).includes('Folia.SpotifyWin')) order.push('sweep');
+            return (runFileImpl as (...call: unknown[]) => unknown)(file, args, options, callback);
+        });
+        const waitImpl = waitFor.getMockImplementation();
+        waitFor.mockImplementation(async (ms: number) => {
+            order.push('wait:' + ms);
+            await (waitImpl as unknown as (ms: number) => Promise<void>)(ms);
+        });
+        await expect(app.client.launch()).resolves.toBe(true);
+        // One cadence (700 ms) between the start and the first sweep: measured, Spotify shows its window
+        // 0.5-1.1 s in, so the third round (1.4 s) hid it a second late. The second sweep is the one that
+        // runs with the page ready.
+        const beforeFirstSweep = order.slice(0, order.indexOf('sweep'));
+        expect(beforeFirstSweep.filter(step => step === 'wait:700')).toHaveLength(1);
+        expect(order.filter(step => step === 'sweep')).toHaveLength(2);
+        await app.client.close();
+    });
+
+    it('hides the window of the Spotify this start made and leaves the one that was already there', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.launch()).resolves.toBe(true);
+        // A Spotify was running before this start (the mock's 1234): its window is the listener's to keep,
+        // and both the watcher and the fallback sweep are told so.
+        const watch = app.scriptOf(app.watchSpawns()[0]?.[1] as string[]);
+        expect(watch).toContain('new int[] {1234}');
+        expect(app.scriptOf(sweeps(app)[0]?.[1] as string[])).toContain('$skip = @(1234)');
+        await app.client.close();
+    });
+
+    it('lets the watcher go once the start is over, so the tray opens the window as usual', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.launch()).resolves.toBe(true);
+        // The watcher is the process of the start: it ends with it, and nothing hides a window afterwards.
+        const calls = app.spawnProcess.mock.calls as unknown as [string, string[]][];
+        const watcher = app.procs[calls.findIndex(call => app.scriptOf(call[1]).includes('FoliaSpotifyWindow'))];
+        expect(watcher.kill).toHaveBeenCalled();
         await app.client.close();
     });
 
@@ -613,18 +688,23 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         const app = makeClient({ running: true, portAnswers: true, appDirectory: makeLauncherDirectory() });
         await expect(app.client.launch()).resolves.toBe(true);
         expect(app.spotifySpawns()).toBe(0);
-        expect(minimizers(app)).toHaveLength(0);
+        // Nothing was started, so there is no window of Folia's to hide: no watcher, no sweep.
+        expect(app.watchSpawns()).toHaveLength(0);
+        expect(sweeps(app)).toHaveLength(0);
         await app.client.close();
     });
 
-    it('does not fail a start when the window cannot be minimized', async () => {
+    it('does not fail a start when the window cannot be hidden at all', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        spawnError = true;
         const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
-        app.runFile.mockImplementation((file: string, _args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
+        app.runFile.mockImplementation((file: string, args: string[], _options: object, callback: (error: Error | null, stdout?: string) => void) => {
             if (String(file).includes('tasklist')) { callback(null, 'INFO: No tasks are running'); return; }
-            callback(String(file).endsWith('powershell.exe') ? new Error('blocked') : null, '');
+            if (String(file).includes('taskkill')) { callback(null, ''); return; }
+            callback(app.scriptOf(args).includes('Folia.SpotifyWin') ? new Error('blocked') : null, '');
         });
         await expect(app.client.launch()).resolves.toBe(true);
+        // Both the watcher and the sweep failed: said once each, and the start itself still went on.
         expect(app.warn).toHaveBeenCalled();
         await app.client.close();
     });
