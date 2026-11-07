@@ -5,7 +5,9 @@
 // renderer holds the lyric animation while the window is minimised or hidden to the tray
 // (src/components/app/backgroundThrottling/). Losing the focus alone does not count: a window that
 // is still on screen keeps moving. The switch stands down while something needs the window live
-// even out of sight: wallpaper mode, a video export, a connected OBS browser source.
+// even out of sight: wallpaper mode, a video export, a connected OBS browser source, and the
+// external playback route's system-sound capture (a throttled page stops reading its analyser, and
+// the bars would freeze with the song still playing).
 
 const BACKGROUND_THROTTLING_SETTING_KEY = 'BACKGROUND_THROTTLING';
 

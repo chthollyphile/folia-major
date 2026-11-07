@@ -31,9 +31,57 @@ function decideDisplayMediaRoute({ trusted, videoExportActive, spectrumCaptureAr
   return DISPLAY_MEDIA_ROUTE_DENY;
 }
 
+/** An arm buys one display-media call; one that is never spent lapses after this long. */
+const SPECTRUM_ARM_TTL_MS = 10_000;
+
+/**
+ * The renderer's arm for the machine's own sound. One arm buys exactly one call: the handler spends
+ * it when answering, and it lapses by itself when that call never comes. Everything that ends or
+ * replaces the page (a crash, a reload, a navigation) disarms it, so a renderer cannot leave the
+ * handler answering the machine's sound to some later request of its own.
+ */
+function createSpectrumArm({
+  ttlMs = SPECTRUM_ARM_TTL_MS,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+  onLapse = null,
+} = {}) {
+  let expiry = null;
+
+  const clearExpiry = () => {
+    if (expiry === null) return;
+    clearTimer(expiry);
+    expiry = null;
+  };
+
+  const arm = () => {
+    clearExpiry();
+    expiry = setTimer(() => {
+      expiry = null;
+      if (onLapse) onLapse();
+    }, ttlMs);
+  };
+
+  /** Clears the arm without spending it. Answers whether one was held. */
+  const disarm = () => {
+    if (expiry === null) return false;
+    clearExpiry();
+    return true;
+  };
+
+  /** Spends the arm on the one call it bought. Answers whether that call was expected. */
+  const spend = () => disarm();
+
+  const isArmed = () => expiry !== null;
+
+  return { arm, disarm, spend, isArmed };
+}
+
 module.exports = {
   DISPLAY_MEDIA_ROUTE_DENY,
   DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT,
   DISPLAY_MEDIA_ROUTE_SPECTRUM,
+  SPECTRUM_ARM_TTL_MS,
   decideDisplayMediaRoute,
+  createSpectrumArm,
 };

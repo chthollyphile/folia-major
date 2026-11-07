@@ -118,6 +118,9 @@ contextBridge.exposeInMainWorld('electron', {
     // Puts the display-media handler on the machine's own sound for one getDisplayMedia call (the
     // external playback route's spectrum). Windows only: the handler refuses everywhere else.
     armExternalSpectrumCapture: (armed) => ipcRenderer.invoke('external-spectrum-capture-arm', armed === true),
+    // Reports that the renderer no longer holds the captured sound: the main window may be throttled
+    // again, and the capture cannot outlive the page that asked for it.
+    noteExternalSpectrumCaptureStopped: () => ipcRenderer.invoke('external-spectrum-capture-stopped'),
     getBackgroundThrottlingState: () => ipcRenderer.invoke('background-throttling-get'),
     onBackgroundThrottlingChanged: (callback) => {
         const listener = (_event, state) => callback(state);

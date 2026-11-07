@@ -20,6 +20,7 @@ const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = requir
 const {
   DISPLAY_MEDIA_ROUTE_SPECTRUM,
   DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT,
+  createSpectrumArm,
   decideDisplayMediaRoute,
 } = require('./displayMediaRoute.cjs');
 const {
@@ -2576,9 +2577,23 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
-// Set while the renderer is asking for the machine's own sound (external playback's spectrum, see
-// setupDisplayMediaRequestHandler). Held only across one getDisplayMedia call: the handler spends it.
-let externalSpectrumCaptureArmed = false;
+// The renderer's arm for the machine's own sound (external playback's spectrum, see
+// setupDisplayMediaRequestHandler). It buys one getDisplayMedia call, lapses if that call never
+// comes, and anything that ends or replaces the page clears it.
+const externalSpectrumArm = createSpectrumArm({
+  onLapse: () => console.info('[ExternalSpectrum] The arm for the machine\'s sound lapsed unspent'),
+});
+// Set while the renderer holds the capture that arm bought: the window must stay live for it.
+let externalSpectrumCaptureActive = false;
+
+// A capture cannot outlive the page that asked for it, and its arm must not answer a later request.
+const forgetExternalSpectrumCapture = () => {
+  externalSpectrumArm.disarm();
+  if (!externalSpectrumCaptureActive) return;
+  externalSpectrumCaptureActive = false;
+  backgroundThrottling.refresh();
+};
+
 // The 后台节流 switch; refresh() wherever one of its stand-down reasons can change.
 const backgroundThrottling = createBackgroundThrottling({
   isEnabled: () => readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
@@ -2586,6 +2601,7 @@ const backgroundThrottling = createBackgroundThrottling({
     if (isWallpaperModeEnabled()) return 'wallpaper mode';
     if (videoExportWindowRestoreState) return 'video export';
     if (obsBrowserSourceClients.size > 0) return 'OBS browser source';
+    if (externalSpectrumCaptureActive) return 'system sound capture';
     return null;
   },
 });
@@ -5728,7 +5744,7 @@ function setupDisplayMediaRequestHandler() {
     const route = decideDisplayMediaRoute({
       trusted: isTrustedMainWindowContents(requester),
       videoExportActive: Boolean(videoExportWindowRestoreState),
-      spectrumCaptureArmed: externalSpectrumCaptureArmed,
+      spectrumCaptureArmed: externalSpectrumArm.isArmed(),
       audioRequested: request.audioRequested === true,
       platform: process.platform,
     });
@@ -5736,7 +5752,11 @@ function setupDisplayMediaRequestHandler() {
     if (route === DISPLAY_MEDIA_ROUTE_SPECTRUM) {
       // The arm buys one call and is spent here: a renderer that reloaded between arming and asking
       // cannot leave the handler answering the machine's sound to some later request of its own.
-      externalSpectrumCaptureArmed = false;
+      externalSpectrumArm.spend();
+      // The window has to stay live for the capture, even out of sight: a throttled page stops
+      // reading its analyser, and the bars would freeze with the song still playing.
+      externalSpectrumCaptureActive = true;
+      backgroundThrottling.refresh();
       console.log('[ExternalSpectrum] Granting system-sound capture to the main window');
       callback({ video: mainWindow.webContents.mainFrame, audio: 'loopback' });
       return;
@@ -5747,7 +5767,7 @@ function setupDisplayMediaRequestHandler() {
       return;
     }
 
-    if (externalSpectrumCaptureArmed || videoExportWindowRestoreState) {
+    if (externalSpectrumArm.isArmed() || videoExportWindowRestoreState) {
       console.log('[ExternalSpectrum] Refused a display-media request', {
         trusted: isTrustedMainWindowContents(requester),
         audioRequested: request.audioRequested === true,
@@ -5870,6 +5890,14 @@ function createWindow(options = {}) {
   win.on('session-end', () => {
     modSystem?.noteNormalQuit();
   });
+  // A page that navigates or reloads is a new page: whatever capture the old one held went with it,
+  // and its arm must not be spent by the new page's own requests.
+  win.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
+    if (isMainFrame && win === mainWindow) forgetExternalSpectrumCapture();
+  });
+  win.webContents.on('destroyed', () => {
+    if (win === mainWindow) forgetExternalSpectrumCapture();
+  });
   // The page itself did not load (-3 is a load given up for another, such as a reload): for the
   // start note that start went wrong, like a page whose process ended (below).
   win.webContents.on('did-fail-load', (_event, errorCode, _errorDescription, _url, isMainFrame) => {
@@ -5882,6 +5910,9 @@ function createWindow(options = {}) {
   win.webContents.on('render-process-gone', (_event, details) => {
     // Whatever ended it, the page that may have been stuck is gone.
     noteWindowNotStuck(win);
+    // The page that held the capture is gone too, and the arm it left behind must not answer the
+    // next request the reloaded page makes on its own.
+    if (win === mainWindow) forgetExternalSpectrumCapture();
     if (win.__reopeningWithoutMods) {
       // Ended on purpose by offerReopenWithoutMods, which loads the page again itself.
       win.__reopeningWithoutMods = false;
@@ -6609,9 +6640,24 @@ ipcMain.handle('external-spectrum-capture-arm', (event, armed) => {
   }
 
   const next = armed === true;
-  if (externalSpectrumCaptureArmed === next) return true;
-  externalSpectrumCaptureArmed = next;
-  console.log(`[ExternalSpectrum] System-sound capture ${next ? 'armed' : 'disarmed'}`);
+  if (next === externalSpectrumArm.isArmed()) return true;
+  if (next) {
+    externalSpectrumArm.arm();
+    console.log('[ExternalSpectrum] System-sound capture armed');
+  } else {
+    externalSpectrumArm.disarm();
+    console.log('[ExternalSpectrum] System-sound capture disarmed');
+  }
+  return true;
+});
+
+// The renderer reports the end of the capture it held (the route left the player, or the attempt
+// failed after the grant), so the window may be throttled again.
+ipcMain.handle('external-spectrum-capture-stopped', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer reported the end of system-sound capture.');
+  }
+  forgetExternalSpectrumCapture();
   return true;
 });
 

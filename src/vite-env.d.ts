@@ -920,6 +920,8 @@ declare global {
        * playback route's real spectrum. Resolves to whether the main process now holds the arm.
        */
       armExternalSpectrumCapture?: (armed: boolean) => Promise<boolean>;
+      /** Reports that the capture that arm bought is over, so the window may be throttled again. */
+      noteExternalSpectrumCaptureStopped?: () => Promise<boolean>;
       /**
        * The 后台节流 switch for the main window: `active` while it is on and not standing down
        * (wallpaper, video export, OBS browser source); `hidden` while it is and the window is
