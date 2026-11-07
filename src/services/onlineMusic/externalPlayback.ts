@@ -42,12 +42,6 @@ const HANDOVER_RECLAIM_MS = 10_000;
  * keeps room for, so this is the longest tail any of them is asked for: the rest are dropped.
  */
 const PREPARED_TAIL = 3;
-/**
- * How long after a start the prepared queue is left alone. The player's page is loading the song
- * then, and a queue write sent into that moment competes with it for the page: such a write is left
- * to the next poll (half a second later) instead.
- */
-const PREPARED_QUEUE_HOLD_MS = 300;
 
 export type ExternalPlaybackEvent =
     | { type: 'status' }
@@ -116,8 +110,11 @@ let wantedVolume: number | null = null;
 let volumeFailureNoted = false;
 /** Bumped by every start: a write sent before it cannot vouch for the level after it. */
 let volumeEpoch = 0;
-/** When the last start was asked for (`performance.now()`): see `PREPARED_QUEUE_HOLD_MS`. */
-let lastStartAt = 0;
+/**
+ * The start whose play the player is still taking, or null when none is: the prepared queue waits for
+ * it (see `refreshPreparedQueue`).
+ */
+let startPendingAttempt: number | null = null;
 /** Numbers the starts, so one run's summary lines are told apart by the number they carry. */
 let startCounter = 0;
 /** The coarser channel is told once in a run of Folia, not once per episode. */
@@ -218,8 +215,10 @@ const validDurationSec = (ms: number): number | null => (
 const refreshPreparedQueue = () => {
     const current = session;
     if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
-    // A start is still loading its song in the player: this write waits for the next poll.
-    if (performance.now() - lastStartAt < PREPARED_QUEUE_HOLD_MS) return;
+    // The player's page is loading the song it was just given (its play runs and polls inside that
+    // page): a queue write sent now would compete with that load for the same page. The poll that
+    // follows the start writes the tail instead.
+    if (startPendingAttempt !== null) return;
     const state = usePlaybackStore.getState();
     const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
@@ -475,7 +474,11 @@ const playsInSamePlayer = (a: SongResult, b: SongResult) => getOnlineProviderIdF
 export type ExternalStartTimings = {
     /** From the ask to the session and the route being ready. */
     prepareMs: number;
-    /** The player taking the song: the page probe it makes and the play it needs, as its provider does them. */
+    /**
+     * The player taking the song, as the one call the provider makes: the page probe it needs first
+     * (`client_probe`) and the play itself (`client_play`). Timed as one because the probe is the
+     * provider's to make, inside its own start.
+     */
     playMs: number | null;
     /** The one status read after the start, which the clock is seeded with. */
     statusMs: number | null;
@@ -559,7 +562,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     appliedVolume = null;
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
-    lastStartAt = askedAt;
+    startPendingAttempt = attempt;
     const seq = ++startCounter;
     const timings: ExternalStartTimings = {
         prepareMs: performance.now() - askedAt, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null,
@@ -612,6 +615,10 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
         });
         schedulePoll(STATUS_INTERVAL_MS);
     })();
+    // The queue may be written again once this start lands, whether it took the song or not.
+    started.finally(() => {
+        if (startPendingAttempt === attempt) startPendingAttempt = null;
+    }).catch(() => undefined);
     const seeded = started.then(() => seed, () => undefined);
     // Written once the whole start is over, so the one line carries every part of it.
     void seeded.then(() => writeStartSummary(seq, askedAt, timings, failed));
@@ -800,6 +807,8 @@ export function announceExternalPlayback(): void {
 /** Leaves the external route and stops its player. The route itself is the caller's to set. */
 export function stopExternalPlayback(reason: string): void {
     const current = session;
+    // No page of a session that is gone is loading anything for this app.
+    startPendingAttempt = null;
     stopTimer();
     stopReclaimTimer();
     handOverOnAdoption = false;

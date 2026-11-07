@@ -6,7 +6,7 @@ import type { ProviderExternalPlaybackStatus } from '@/types/onlineMusic';
 // test/unit/onlineMusic/externalPlayback.test.ts
 // What a start costs the interface: it hands the play path back as soon as the session and the route
 // are ready and loads the song in the player afterwards, the queue write waits for that start to
-// settle, and every start is timed in one line that names its number. The last block pins the limits
+// land, and every start is timed in one line that names its number. The last block pins the limits
 // the Spotify transport puts on the app's own status, level and queue calls, which is what makes a
 // wedged page fail instead of holding the queue.
 
@@ -135,16 +135,20 @@ describe('a start that runs on after the interface', () => {
         expect(returned).toBe(true);
     });
 
-    it('leaves the queue alone right after a start and writes it on the next poll', async () => {
-        // The seeded answer already shows the player moving, so the queue would be written here if
-        // the start had not just been asked for.
-        await engine.beginExternalPlayback(song, 0);
+    it('leaves the queue alone while the player is still taking the song, and writes it on the poll after', async () => {
+        const playing = deferred();
+        omniMock.playSongExternally.mockImplementation(() => playing.promise);
+        const start = engine.startExternalPlayback(song, 0);
+        // The song is on screen and the queue is edited while the page is still loading the track:
+        // neither writes anything into that page.
         engine.announceExternalPlayback();
         usePlaybackStore.setState({ playQueue: [song, b, c] });
-        await vi.advanceTimersByTimeAsync(100);
+        await vi.advanceTimersByTimeAsync(1000);
         expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
 
-        // The poll that follows asks the player again and writes the tail it asked for.
+        // The player has it: the poll that follows asks again and writes the tail the queue holds.
+        playing.resolve();
+        await start.seeded;
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(song, [b, c]);
