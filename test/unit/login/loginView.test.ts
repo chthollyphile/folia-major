@@ -149,7 +149,7 @@ describe('what a chosen row leads to', () => {
         expect(rowLeadsTo('signed-out')).toBe('sign-in');
         expect(rowLeadsTo('ran-out')).toBe('sign-in');
         expect(rowLeadsTo('off')).toBeNull();
-        expect(rowLeadsTo('checking')).toBeNull();
+        expect(rowLeadsTo('checking')).toBe('sign-in');
     });
 });
 

@@ -9,7 +9,7 @@ import './bravaisAccount.css';
 // 已登录时按钮是头像 + 昵称，窗口开在正在用的平台上；无需登录的平台是记号 + 平台名；没有人登录时是连接图标 +
 // 「连接在线平台」，窗口不替用的人选平台。换平台、登录、退出登录都在那个窗口里（平台再多也只是窗口左边那一列长一些）。
 // 平台名与账户状态进 aria-label / title。书脊上只留一个图标按钮，点它也直接打开窗口。
-// data-bravais-account：已登录 signed-in，未登录 guest。
+// data-bravais-account：已登录 signed-in，未登录 guest，正在确认 checking。
 
 const BravaisSeamAccountSwitcher: React.FC<{
     account: BravaisHomeAccount;

@@ -30,7 +30,7 @@ export const filterRows = (
 export type RowLead = 'account' | 'accountless' | 'sign-in';
 
 export const rowLeadsTo = (status: RowStatus): RowLead | null => {
-    if (status === 'off' || status === 'checking') return null;
+    if (status === 'off') return null;
     if (status === 'signed-in') return 'account';
     if (status === 'accountless') return 'accountless';
     return 'sign-in';

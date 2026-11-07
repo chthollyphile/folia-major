@@ -137,7 +137,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
         return () => list.removeEventListener('wheel', onWheel);
     }, [lie]);
 
-    const canChoose = (row: ProviderAccountSummary) => !['off', 'checking'].includes(rowStatus(row));
+    const canChoose = (row: ProviderAccountSummary) => rowStatus(row) !== 'off';
     const handleKeyDown = (event: React.KeyboardEvent) => {
         // 搜索框里左右键、Home、End 和空格是打字用的，不是移动高亮。
         const inField = event.target instanceof HTMLInputElement;
@@ -213,7 +213,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                             // 黄点和头像是画出来的：读屏的人从这一句知道这一行是已登录、登录失效还是不能选。
                             aria-label={state ? `${name} · ${state}` : undefined}
                             aria-selected={chosen}
-                            aria-disabled={status === 'off' || status === 'checking' || undefined}
+                            aria-disabled={status === 'off' || undefined}
                             aria-busy={status === 'checking' || undefined}
                             onMouseEnter={() => { if (status !== 'off') setPointed(row.providerId); }}
                             onClick={() => { if (canChoose(row)) onChoose(row); }}

@@ -300,6 +300,17 @@ describe.each([
         expect(auth.getLoginStatus).not.toHaveBeenCalled();
     });
 
+    it.each(['start', 'sync', 'sign-in'] as const)('shows checking without a user during %s, then shows the result', async reason => {
+        const status = held<ProviderUser | null>();
+        const { auth } = platform({ auth: { getLoginStatus: vi.fn(() => status.promise) } });
+        const read = omni.readAccount(providerId, reason);
+        await vi.waitFor(() => expect(auth.getLoginStatus).toHaveBeenCalledTimes(1));
+        expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, freshness: 'refreshing' });
+        status.answer(null);
+        await expect(read).resolves.toBe('nobody');
+        expect(account()).toMatchObject({ status: 'anonymous', hydration: 'ready', user: null, freshness: 'fresh' });
+    });
+
     // QQ names some accounts with neither an id nor a name: the user the adapter gives is the sign.
     it('takes a user without an id or a name for somebody signed in', async () => {
         const nameless: ProviderUser = { id: '', nickname: '' };
@@ -861,6 +872,7 @@ describe.each([
 
             const entered = omni.accountMoment('home-entered');
             const again = omni.accountMoment('home-entered');
+            expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, freshness: 'refreshing' });
             status.answer(user);
 
             await expect(Promise.all([entered, again])).resolves.toEqual(['read', 'read']);

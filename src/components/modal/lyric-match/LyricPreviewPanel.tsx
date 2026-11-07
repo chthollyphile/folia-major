@@ -1,3 +1,4 @@
+import { LoadingBars } from '../../shared/LoadingBars';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Music, Sparkles, Languages } from 'lucide-react';
@@ -5,7 +6,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { SongResult, LyricData, Line } from '../../../types';
 import { findLatestActiveLineIndex } from '../../../utils/appPlaybackHelpers';
 import { fetchLyricsForMatchSource } from '../../../utils/lyrics/lyricMatchSources';
-import LoadingDots from '../../shared/LoadingDots';
 import type { LyricMatchSource } from '../../../utils/lyrics/matchResult';
 
 // src/components/modal/lyric-match/LyricPreviewPanel.tsx
@@ -337,7 +337,7 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     if (isLoading) {
         return (
             <div className={`w-full flex-1 flex flex-col items-center justify-center p-4 border rounded-xl ${previewBoxBg}`}>
-                <LoadingDots isDaylight={isDaylight} />
+                <LoadingBars className="opacity-50 mb-2" size={28} />
                 <span className={`text-xs opacity-60 ${textPrimary}`}>{t('localMusic.loadingLyrics')}</span>
             </div>
         );

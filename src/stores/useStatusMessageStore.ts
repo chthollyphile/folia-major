@@ -23,13 +23,23 @@ type StatusMessageState = {
     setMessage: StatusSetter;
 };
 
+let activitySequence = 0;
+
 export const useStatusMessageStore = create<StatusMessageState>((set) => ({
     message: null,
     held: false,
     setMessage: (next) => set(state => {
-        const message = typeof next === 'function'
+        let message = typeof next === 'function'
             ? (next as (prev: StatusMessage | null) => StatusMessage | null)(state.message)
             : next;
+        if (message !== state.message && message) {
+            if (message.activity === 'loading' && message.activityId === undefined) {
+                message = { ...message, activityId: ++activitySequence };
+            } else if (state.message?.activity === 'loading' && state.message.activityId !== undefined
+                && !message.activity && (message.type === 'success' || message.type === 'error')) {
+                message = { ...message, activity: message.type, activityId: state.message.activityId };
+            }
+        }
         return message === state.message ? { message } : { message, held: false };
     }),
 }));
@@ -77,4 +87,42 @@ export const runStatusMessageTime = (ms: number, onEnd: () => void): (() => void
         stopWatching();
         stand();
     };
+};
+
+/** Starts one owned loading toast; a current error keeps its place. */
+export const beginStatusLoading = (text: string): StatusMessage => {
+    const message: StatusMessage = { type: 'info', activity: 'loading', activityId: ++activitySequence, text, persistent: true };
+    setStatusMessage(previous => previous?.type === 'error' ? previous : message);
+    return message;
+};
+
+/** Only this operation's still-visible loader can become its result. */
+export const completeStatusLoading = (loading: StatusMessage | null, text: string): void => {
+    if (!loading) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { type: 'success', activity: 'success', activityId: loading.activityId, text, durationMs: 850 }
+        : previous);
+};
+
+/** A failed operation only replaces its own loading indicator. */
+export const failStatusLoading = (loading: StatusMessage | null, text: string): void => {
+    if (!loading) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { type: 'error', activity: 'error', activityId: loading.activityId, text }
+        : previous);
+};
+
+/** Drops only the cancelled operation's own pending indicator. */
+export const cancelStatusLoading = (loading: StatusMessage | null): void => {
+    if (!loading) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId ? null : previous);
+};
+
+/** Decorate before callers retain a toast by identity (for example a skip countdown). */
+export const withStatusLoadingResult = (message: StatusMessage): StatusMessage => {
+    const previous = useStatusMessageStore.getState().message;
+    return previous?.activity === 'loading' && previous.activityId !== undefined
+        && (message.type === 'success' || message.type === 'error')
+        ? { ...message, activity: message.type, activityId: previous.activityId }
+        : message;
 };
