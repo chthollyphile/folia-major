@@ -2786,7 +2786,7 @@ export default {
     "openPlayerOnLaunch": "Open playback view on launch",
     "openPlayerOnLaunchDesc": "Opens the playback view when the app starts. Follows \"View opened by Play\": with Lattice selected, launch opens the queue collage.",
     "wakeExternalPlayersOnLaunch": "Wake the external player on launch",
-        "wakeExternalPlayersOnLaunchDesc": "Starts the player that sounds your songs (the Spotify app) when Folia opens, so the first song does not wait for a launch. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
+    "wakeExternalPlayersOnLaunchDesc": "Starts the player that sounds your songs (the Spotify app) when Folia opens, so the first song does not wait for a launch. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
     "closeExternalPlayerOnQuit": "Close Spotify when Folia quits",
     "closeExternalPlayerOnQuitDesc": "Closes the Spotify app Folia started, or the one running with its DevTools port, when Folia quits, handing the port back. Spotify runs with a DevTools port; if it is already running without one, Folia restarts it once",
     "holdMediaKeysForExternalPlayer": "Always hold the media keys with the official app",

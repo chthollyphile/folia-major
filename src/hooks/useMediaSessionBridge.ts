@@ -9,6 +9,7 @@ import {
     publishMediaSessionTrack,
 } from '../utils/mediaSessionSync';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
+import { mediaKeyPressGate } from '../utils/mediaKeyPressGate';
 import { useHifiTrackStore } from '../services/hifi/hifiPlayback';
 import { getObservedMedia } from '../services/hifi/hifiMediaShim';
 
@@ -79,6 +80,11 @@ export const useMediaSessionBridge = ({
             if (isNowPlayingControlDisabledRef.current || !audioRef.current) {
                 return;
             }
+            // 主进程占着媒体键时（useMediaKeyTakeoverBridge），同一次按键也可能落到这里：两条路径共用
+            // 一份记录，只让它执行一次。
+            if (!mediaKeyPressGate.claim('play-pause')) {
+                return;
+            }
 
             try {
                 await mediaSessionPlayRef.current();
@@ -90,6 +96,9 @@ export const useMediaSessionBridge = ({
             if (isNowPlayingControlDisabledRef.current || !audioRef.current) {
                 return;
             }
+            if (!mediaKeyPressGate.claim('play-pause')) {
+                return;
+            }
 
             mediaSessionPauseRef.current();
         });
@@ -97,10 +106,16 @@ export const useMediaSessionBridge = ({
             if (isNowPlayingControlDisabledRef.current) {
                 return;
             }
+            if (!mediaKeyPressGate.claim('previous')) {
+                return;
+            }
             mediaSessionPrevRef.current();
         });
         setActionHandlerSafely('nexttrack', () => {
             if (isNowPlayingControlDisabledRef.current) {
+                return;
+            }
+            if (!mediaKeyPressGate.claim('next')) {
                 return;
             }
             void mediaSessionNextRef.current();

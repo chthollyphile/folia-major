@@ -6,6 +6,7 @@ import { getExternalSong, subscribeExternalPlayback } from '../../../../services
 import { omni } from '../../../../services/onlineMusic/omni';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { mediaKeyPressGate } from '../../../../utils/mediaKeyPressGate';
 import type { TransportButtonAction } from './useTransportCommandRefs';
 
 // src/components/app/playback/bridges/useMediaKeyTakeoverBridge.ts
@@ -77,18 +78,45 @@ export const planMediaKeyAction = (action: TransportButtonAction, queuePlayedOut
 };
 
 /**
- * Whether a press is the same one arriving twice: the keys held on globalShortcut and this app's own
- * media session (useMediaSessionBridge) must not both run one physical press. The shortcut takes the
- * key from the system before the session sees it, so only one of the two runs it; this is the guard
- * for the case where both do, and it is far shorter than any second press of the same key.
+ * The wish sent to the main process, and what became of it.
+ *
+ * Only an answer that came back is remembered: a send that failed leaves the wish outstanding, so the
+ * next change of state sends it again instead of reading as already in force. `force` sends it even
+ * when it looks like it is already there — the mount, whose main process may hold what a window
+ * before this one left.
  */
-const SAME_PRESS_MS = 120;
-
-export const isRepeatedMediaKeyPress = (
-    previous: { action: TransportButtonAction; atMs: number } | null,
-    action: TransportButtonAction,
-    nowMs: number,
-): boolean => previous !== null && previous.action === action && nowMs - previous.atMs < SAME_PRESS_MS;
+export const createMediaKeyHoldSender = (
+    send: (wanted: boolean) => Promise<unknown>,
+    onError: (wanted: boolean, error: unknown) => void,
+) => {
+    /** What the main process last accepted: null until a send landed. */
+    let held: boolean | null = null;
+    /** The wish on its way, or null: a newer one is only sent over a settled one. */
+    let inFlight: boolean | null = null;
+    const settles = (wanted: boolean) => {
+        if (inFlight !== wanted) return false;
+        inFlight = null;
+        return true;
+    };
+    return {
+        apply(wanted: boolean, force = false) {
+            if (!force && (wanted === held || wanted === inFlight)) return;
+            inFlight = wanted;
+            void send(wanted).then(() => {
+                if (settles(wanted)) held = wanted;
+            }, error => {
+                if (settles(wanted)) onError(wanted, error);
+            });
+        },
+        /** This bridge is leaving: the keys go back whatever the main process last accepted. */
+        release() {
+            if (held === false && inFlight !== true) return;
+            inFlight = null;
+            held = false;
+            void Promise.resolve(send(false)).catch(error => onError(false, error));
+        },
+    };
+};
 
 type UseMediaKeyTakeoverBridgeParams = {
     /** One press of previous / play-pause / next, run the way the taskbar buttons run it. */
@@ -120,19 +148,17 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
         const electron = window.electron;
         if (!electron?.setExternalMediaKeys || !electron.onExternalMediaKey) return;
 
-        let held = false;
-        // Read anew rather than remembered: the answer changes with the setting, the way the player
-        // plays, the route and the player's session. Nothing is sent while it stays the same.
-        const applyHold = () => {
-            const wanted = shouldHoldMediaKeys(readHoldFacts());
-            if (wanted === held) return;
-            held = wanted;
-            void electron.setExternalMediaKeys(wanted).catch(error => {
+        const holder = createMediaKeyHoldSender(
+            wanted => electron.setExternalMediaKeys(wanted),
+            (wanted, error) => {
                 console.warn(wanted
                     ? '[MediaKeys] the media keys could not be taken'
                     : '[MediaKeys] the media keys could not be given back', error);
-            });
-        };
+            },
+        );
+        // Read anew rather than remembered: the answer changes with the setting, the way the player
+        // plays, the route and the player's session. Nothing is sent while it stays the same.
+        const applyHold = () => holder.apply(shouldHoldMediaKeys(readHoldFacts()));
 
         const runPress = (action: TransportButtonAction) => {
             const state = usePlaybackStore.getState();
@@ -150,18 +176,19 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
             });
         };
 
-        let lastPress: { action: TransportButtonAction; atMs: number } | null = null;
         const stopListening = electron.onExternalMediaKey(action => {
-            const nowMs = performance.now();
-            if (isRepeatedMediaKeyPress(lastPress, action, nowMs)) {
+            // The app's own media session may receive the same press (useMediaSessionBridge): the two
+            // paths share this record, so the press runs once.
+            if (!mediaKeyPressGate.claim(action)) {
                 console.info('[MediaKeys] the same press arrived twice; only the first one runs');
                 return;
             }
-            lastPress = { action, atMs: nowMs };
             runPress(action);
         });
 
-        applyHold();
+        // Sent whatever it is at the mount: the main process may hold what a window before this one
+        // left, and this window is the one that answers a press from now on.
+        holder.apply(shouldHoldMediaKeys(readHoldFacts()), true);
         const stopPlaybackWatch = usePlaybackStore.subscribe(applyHold);
         const stopSettingsWatch = useDesktopSettingsStore.subscribe(applyHold);
         // Every answer of the player, a paused session's included: the session coming or going is
@@ -176,9 +203,7 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
             stopPlaybackWatch();
             stopListening();
             // The app, or this bridge, is leaving: the keys are given back whatever the session did.
-            if (held) void electron.setExternalMediaKeys(false).catch(error => {
-                console.warn('[MediaKeys] the media keys could not be given back', error);
-            });
+            holder.release();
         };
     }, []);
 }

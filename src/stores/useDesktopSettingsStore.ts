@@ -48,8 +48,9 @@ export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 export const WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY = 'wake_external_players_on_launch';
 
 // Windows desktop only: close the external player this run started (or the one running with the
-// DevTools port Folia opened it with) when Folia quits, so the port is released. The main process
-// reads the same key from its shared store at the quit (electron/main.cjs).
+// DevTools port Folia opened it with) when Folia quits, so the port is released. This key is the
+// renderer's own and is published; the main process keeps the value under its own upper-case key in
+// the shared store, the name every other switch there has (electron/main.cjs).
 export const CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY = 'close_external_player_on_quit';
 
 // The system media keys stay Folia's for as long as the external player's own app runs, not only
@@ -418,12 +419,13 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         set({ wakeExternalPlayersOnLaunch: enable });
     },
     // The main process does this one at the quit, so the value is written to its store too: the
-    // renderer keeps the persisted copy the settings row reads, the main process the one it acts on.
+    // renderer keeps the persisted copy the settings row reads, the main process the one it acts on,
+    // under its own upper-case key (electron/main.cjs). The key above is published and stays.
     handleToggleCloseExternalPlayerOnQuit: (enable) => {
         setStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
         set({ closeExternalPlayerOnQuit: enable });
         if (window.electron?.saveSettings) {
-            void window.electron.saveSettings(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
+            void window.electron.saveSettings('CLOSE_EXTERNAL_PLAYER_ON_QUIT', enable);
         }
     },
     // Renderer-only, like the wake-up: the bridge that holds the keys reads it from here.

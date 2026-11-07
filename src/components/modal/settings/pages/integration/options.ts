@@ -26,6 +26,8 @@ export const O = {
     }),
     holdMediaKeys: option(SERVICES, 'holdMediaKeysForExternalPlayer', 'options.holdMediaKeysForExternalPlayer', {
         electronOnly: true,
+        // The keys are held for the player of the two rows above: that one is the Windows app.
+        available: () => window.electron?.platform === 'win32',
     }),
     closeExternalPlayerOnQuit: option(SERVICES, 'closeExternalPlayerOnQuit', 'options.closeExternalPlayerOnQuit', {
         electronOnly: true,

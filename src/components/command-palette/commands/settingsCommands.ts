@@ -277,7 +277,8 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { platform: ['win'] },
     ),
     // The same player's media session: while its app runs the keys stay Folia's, so a press never
-    // reaches that app's own queue (electron/mediaKeys.cjs, useMediaKeyTakeoverBridge.ts).
+    // reaches that app's own queue (electron/mediaKeys.cjs, useMediaKeyTakeoverBridge.ts). That app is
+    // the Windows one, so this command is the Windows build's.
     createToggleCommand(
         'external-player-hold-media-keys',
         'settings',
@@ -290,7 +291,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
             const desktop = useDesktopSettingsStore.getState();
             desktop.handleToggleHoldMediaKeysForExternalPlayer(!desktop.holdMediaKeysForExternalPlayer);
         },
-        { platform: ['electron'] },
+        { platform: ['win'] },
     ),
     {
         id: 'desktop-toggle-lyric-api',

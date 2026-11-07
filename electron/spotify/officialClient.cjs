@@ -25,9 +25,10 @@ const ACTIVE_PORT_FILE = 'DevToolsActivePort';
 // The Microsoft Store build keeps its CEF profile under the package's LocalCache; the installer build
 // keeps it under %APPDATA%\Spotify.
 const STORE_PACKAGE_DIR = 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0';
-// A search that found nothing is not repeated at once: it costs a netstat and a probe per listener,
-// and the Spotify it waits for may not have opened its port yet.
-const PORT_SCAN_COOLDOWN_MS = 1000;
+// A search that found nothing is not repeated at once, and each one in a row waits longer: it costs
+// a netstat and a probe per listener, and the Spotify it waits for may not have opened its port yet.
+// A search that finds the port clears it.
+const PORT_SCAN_BACKOFF_MS = Object.freeze([1000, 5000, 30000]);
 // How many loopback listeners one search probes, and how long each probe may take.
 const MAX_PORT_CANDIDATES = 32;
 const PORT_PROBE_LIMIT_MS = 600;
@@ -708,9 +709,11 @@ function createSpotifyOfficialClient({
 
   // The port asked for: 0 lets CEF pick one, and the one it picked is looked for below.
   const requestedPort = Number.isInteger(port) && port > 0 ? port : 0;
-  // The port found for the Spotify this run steers, and when a search that found nothing may run again.
+  // The port found for the Spotify this run steers, when a search that found nothing may run again,
+  // and how many such searches in a row have found nothing.
   let foundPort = null;
   let nextScanAt = 0;
+  let scanFailures = 0;
 
   // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
   // port is not Folia's, and Spotify must not be closed for it (D3).
@@ -749,14 +752,22 @@ function createSpotifyOfficialClient({
   // The port Spotify listens on now, or null. A named port is the only one asked. Otherwise the port
   // is looked for: the file CEF writes into its profile first, which costs one read, then the
   // machine's loopback listeners, each asked whether it is Spotify's; the port older runs used last.
-  // `again` looks once more where it stands, for a caller that is about to start Spotify.
-  const findPort = async ({ again = false } = {}) => {
+  // `again` looks once more where it stands, for a caller that is about to start Spotify or close it.
+  //
+  // `passive` is a read nobody asked for — the status of a song that plays — and it only follows the
+  // port already found: a page polled twice a second must not start a search of its own, which is a
+  // netstat and a probe per listener on a computer whose Spotify may be closed. A search is the work
+  // of a listener's own action (a play, the launch switch, a restart) and of the quit.
+  const findPort = async ({ again = false, passive = false } = {}) => {
     if (requestedPort) return foundPort ?? requestedPort;
     if (foundPort && !again) return foundPort;
+    if (passive) return null;
     if (!again && Date.now() < nextScanAt) return null;
     const fromProfile = portFromProfile(env);
     if (fromProfile && await spotifyAnswersOnPort(fromProfile)) {
       foundPort = fromProfile;
+      scanFailures = 0;
+      nextScanAt = 0;
       return foundPort;
     }
     const candidates = (await listeningLoopbackPorts()).filter(candidate => candidate !== fromProfile);
@@ -765,8 +776,14 @@ function createSpotifyOfficialClient({
     )));
     foundPort = answers.find(candidate => candidate !== null) ?? null;
     if (!foundPort && await spotifyAnswersOnPort(CDP_PORT)) foundPort = CDP_PORT;
-    if (foundPort) log(`[SpotifyClient] Spotify's DevTools port is ${foundPort}`);
-    else nextScanAt = Date.now() + PORT_SCAN_COOLDOWN_MS;
+    if (foundPort) {
+      log(`[SpotifyClient] Spotify's DevTools port is ${foundPort}`);
+      scanFailures = 0;
+      nextScanAt = 0;
+    } else {
+      scanFailures += 1;
+      nextScanAt = Date.now() + PORT_SCAN_BACKOFF_MS[Math.min(scanFailures, PORT_SCAN_BACKOFF_MS.length) - 1];
+    }
     return foundPort;
   };
   // Whether a DevTools port answers for Spotify now, which is what decides whether Spotify has to be
@@ -1123,10 +1140,15 @@ function createSpotifyOfficialClient({
     },
 
     // The player's state; from the media session (then `fallback` is set and no track is named)
-    // when the page cannot be reached. A status read never starts or closes Spotify (D1, H2).
+    // when the page cannot be reached. A status read never starts or closes Spotify (D1, H2), and it
+    // never looks for the DevTools port either: it is polled while a song plays, so it takes the port
+    // Folia already found (or the one it named) and answers from the media session meanwhile.
     async status() {
       let state;
       try {
+        if (!requestedPort && !foundPort) {
+          throw spotifyError('unavailable', 'Spotify has no DevTools port Folia has found', 'a status read does not look for one');
+        }
         state = await evaluateInPage(STATE_BODY);
       } catch (error) {
         if (error?.code === 'invalid-response') throw error;

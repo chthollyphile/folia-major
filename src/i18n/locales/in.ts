@@ -2786,7 +2786,7 @@ export default {
     "openPlayerOnLaunch": "Buka tampilan pemutaran saat diluncurkan",
     "openPlayerOnLaunchDesc": "Membuka tampilan pemutaran saat aplikasi dimulai. Mengikuti \"Tampilan yang dibuka Putar\": jika Lattice dipilih, peluncuran membuka kolase antrean.",
     "wakeExternalPlayersOnLaunch": "Bangunkan pemutar eksternal saat diluncurkan",
-        "wakeExternalPlayersOnLaunchDesc": "Menjalankan pemutar yang membunyikan lagu Anda (aplikasi Spotify) saat Folia dibuka, sehingga lagu pertama tidak menunggu peluncurannya. Spotify berjalan dengan port DevTools; bila sudah berjalan tanpa port itu, Folia memulainya ulang sekali",
+    "wakeExternalPlayersOnLaunchDesc": "Menjalankan pemutar yang membunyikan lagu Anda (aplikasi Spotify) saat Folia dibuka, sehingga lagu pertama tidak menunggu peluncurannya. Spotify berjalan dengan port DevTools; bila sudah berjalan tanpa port itu, Folia memulainya ulang sekali",
     "closeExternalPlayerOnQuit": "Tutup Spotify saat Folia keluar",
     "closeExternalPlayerOnQuitDesc": "Menutup aplikasi Spotify yang dijalankan Folia, atau yang berjalan dengan port DevTools-nya, saat Folia keluar, sehingga port itu dikembalikan. Spotify berjalan dengan port DevTools; bila sudah berjalan tanpa port itu, Folia memulainya ulang sekali",
     "holdMediaKeysForExternalPlayer": "Selalu ambil alih tombol media saat memakai aplikasi resmi",

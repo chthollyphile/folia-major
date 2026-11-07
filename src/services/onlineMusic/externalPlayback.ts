@@ -25,6 +25,8 @@ import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 const STATUS_INTERVAL_MS = 500;
 /** After a failed answer, a slower retry keeps a signed-out player from being asked twice a second. */
 const STATUS_RETRY_INTERVAL_MS = 2000;
+/** A player that keeps not answering is asked this rarely at most: it is not coming back by itself. */
+const STATUS_RETRY_MAX_INTERVAL_MS = 10000;
 /** How far a position answer may be extrapolated, as `hifiClock` does. */
 const MAX_SAMPLE_AGE_SEC = 1;
 /** A player that stopped this close to the length has finished the track. */
@@ -77,6 +79,8 @@ let pollRunning = false;
 let installed = false;
 let ownWriteDepth = 0;
 let failureNoted = false;
+/** How many answers in a row did not come: each one pushes the next ask further out. */
+let pollFailures = 0;
 /** The level the player last confirmed, or null when unknown (a new start, a failed write). */
 let appliedVolume: number | null = null;
 /** The level of the write in flight, or null when none is: at most one is sent at a time. */
@@ -145,6 +149,15 @@ const stopTimer = () => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
 };
+
+/**
+ * How long to wait before asking the player again after `failures` answers in a row did not come: a
+ * player that stopped answering (it was closed, its page is gone) is asked ever more rarely, and one
+ * answer puts the ordinary rate back.
+ */
+export const statusRetryDelayMs = (failures: number): number => (
+    Math.min(STATUS_RETRY_INTERVAL_MS * 2 ** Math.max(0, failures - 1), STATUS_RETRY_MAX_INTERVAL_MS)
+);
 
 const schedulePoll = (delayMs: number) => {
     stopTimer();
@@ -337,9 +350,11 @@ async function poll(): Promise<void> {
         // The answer names a position the page read about half a round trip ago.
         applyStatus(status, (startedAt + performance.now()) / 2);
         failureNoted = false;
+        pollFailures = 0;
     } catch (error) {
         if (session !== current || !isExternalRoute() || current.positionRevision !== positionRevision) return;
-        delay = STATUS_RETRY_INTERVAL_MS;
+        pollFailures += 1;
+        delay = statusRetryDelayMs(pollFailures);
         if (!failureNoted) {
             failureNoted = true;
             console.warn('[ExternalPlayback] the player could not be asked for its position', error);
@@ -425,6 +440,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0, { us
         degraded: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
+    pollFailures = 0;
     externalMediaShim.beginTrack(songKey);
     withoutRouteGuard(() => {
         setAudioSrc(null);

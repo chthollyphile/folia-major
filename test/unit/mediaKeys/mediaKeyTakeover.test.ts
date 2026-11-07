@@ -20,9 +20,12 @@ vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
 import { PlayerState } from '@/types';
 import type { SongResult } from '@/types';
 import {
-    isQueuePlayedOut, isRepeatedMediaKeyPress, planMediaKeyAction, shouldHoldMediaKeys,
+    createMediaKeyHoldSender, isQueuePlayedOut, planMediaKeyAction, shouldHoldMediaKeys,
     type MediaKeyHoldFacts,
 } from '@/components/app/playback/bridges/useMediaKeyTakeoverBridge';
+import {
+    SAME_PRESS_MS, createMediaKeyPressGate, isRepeatedMediaKeyPress,
+} from '@/utils/mediaKeyPressGate';
 import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
 import { readSpotifyPlaybackMode } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
 
@@ -162,6 +165,59 @@ describe('one press arriving twice', () => {
         // next straight after play is two different presses.
         expect(isRepeatedMediaKeyPress({ action: 'play-pause', atMs: 1000 }, 'next', 1005)).toBe(false);
         expect(isRepeatedMediaKeyPress(null, 'next', 1005)).toBe(false);
+    });
+
+    it('lets one press run once across both paths that can receive it', () => {
+        let nowMs = 1000;
+        const gate = createMediaKeyPressGate(() => nowMs);
+        // 同一个按键：主进程占着的全局快捷键先到，应用自己的媒体会话在同一瞬间也收到一次。
+        expect(gate.claim('play-pause')).toBe(true);
+        expect(gate.claim('play-pause')).toBe(false);
+        // 另一个动作，或间隔够长的同一个动作，都是另一次按键。
+        expect(gate.claim('next')).toBe(true);
+        nowMs += SAME_PRESS_MS;
+        expect(gate.claim('next')).toBe(true);
+    });
+});
+
+describe('the wish sent to the main process', () => {
+    const makeSender = () => {
+        const send = vi.fn(async (_wanted: boolean) => {});
+        const onError = vi.fn();
+        return { send, onError, sender: createMediaKeyHoldSender(send, onError) };
+    };
+
+    it('sends the wish the window mounts with, even when it looks like nothing changed', async () => {
+        const { send, sender } = makeSender();
+        // 主进程可能还留着上一个窗口占住的键：挂载时无条件说一次"现在不占"。
+        sender.apply(false, true);
+        expect(send).toHaveBeenCalledWith(false);
+        await Promise.resolve();
+        // 同一个愿望不重复发。
+        sender.apply(false);
+        sender.apply(false);
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends it again after a send that did not land', async () => {
+        const { send, onError, sender } = makeSender();
+        send.mockRejectedValueOnce(new Error('ipc failed'));
+        sender.apply(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError.mock.calls[0][0]).toBe(true);
+        // 上一次没有生效：下一次状态变化照样再发一次，而不是当作已经占了。
+        sender.apply(true);
+        expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives the keys back when the bridge leaves, whatever the session did', async () => {
+        const { send, sender } = makeSender();
+        sender.apply(true);
+        await Promise.resolve();
+        sender.release();
+        expect(send.mock.calls.map(call => call[0])).toEqual([true, false]);
     });
 });
 

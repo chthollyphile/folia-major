@@ -2786,7 +2786,7 @@ export default {
     "openPlayerOnLaunch": "Vào giao diện phát khi khởi động",
     "openPlayerOnLaunchDesc": "Mở giao diện phát khi khởi động ứng dụng. Tuân theo \"Chế độ xem khi nhấn Phát\": nếu chọn Lattice, khởi động sẽ mở hàng đợi Lattice.",
     "wakeExternalPlayersOnLaunch": "Đánh thức trình phát ngoài khi mở Folia",
-        "wakeExternalPlayersOnLaunchDesc": "Khởi động trình phát thực sự phát nhạc (ứng dụng Spotify) khi mở Folia, để bài đầu tiên không phải chờ nó khởi động. Spotify chạy với cổng DevTools; nếu nó đang chạy mà không có cổng đó, Folia sẽ khởi động lại nó một lần",
+    "wakeExternalPlayersOnLaunchDesc": "Khởi động trình phát thực sự phát nhạc (ứng dụng Spotify) khi mở Folia, để bài đầu tiên không phải chờ nó khởi động. Spotify chạy với cổng DevTools; nếu nó đang chạy mà không có cổng đó, Folia sẽ khởi động lại nó một lần",
     "closeExternalPlayerOnQuit": "Đóng Spotify khi thoát Folia",
     "closeExternalPlayerOnQuitDesc": "Đóng ứng dụng Spotify do Folia khởi động, hoặc đang chạy với cổng DevTools của nó, khi thoát Folia để trả lại cổng đó. Spotify chạy với cổng DevTools; nếu nó đang chạy mà không có cổng đó, Folia sẽ khởi động lại nó một lần",
     "holdMediaKeysForExternalPlayer": "Luôn giữ phím media khi dùng ứng dụng chính thức",

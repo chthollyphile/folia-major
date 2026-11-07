@@ -453,6 +453,40 @@ describe('external playback route', () => {
         expect(usePlaybackStore.getState().playbackRoute).toBe('web');
         expect(engine.getExternalSong()).toBeNull();
     });
+
+    it('asks a player that stopped answering ever more rarely, and one answer puts the ordinary rate back', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // 播放器不再回应（它被关掉了，或者它的页面没了）：每一次轮询都失败。
+        omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+        omniMock.getExternalPlaybackStatus.mockClear();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        // 第一次失败之后 2s 才再问。
+        await vi.advanceTimersByTimeAsync(1999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+        // 又失败一次：4s。
+        await vi.advanceTimersByTimeAsync(3999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
+        // 再失败一次：8s。
+        await vi.advanceTimersByTimeAsync(7999);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+        // 上限 10s：不再继续拉长，这台机器也不会被问得更频繁。
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        // 一次成功就回到 500ms。
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        await vi.advanceTimersByTimeAsync(10000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(7);
+    });
 });
 
 // The player answering through its coarse channel: said once in a run of Folia, whichever way it

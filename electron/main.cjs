@@ -6414,7 +6414,9 @@ app.on('window-all-closed', () => {
 
 // Windows desktop only: close the external player with Folia, so the DevTools port Folia opened it
 // with stops answering (D3). Written by the renderer through `save-settings`, read here at the quit.
-const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'close_external_player_on_quit';
+// The renderer's own key for this switch (useDesktopSettingsStore.ts) is a different, already
+// published name; only this shared store's key is the upper-case one every other switch here uses.
+const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';
 
 // The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
 const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
@@ -6669,7 +6671,8 @@ ipcMain.handle('save-settings', (event, key, value) => {
     key === WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY ||
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
-    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY
+    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY ||
+    key === CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }

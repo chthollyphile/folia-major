@@ -40,4 +40,15 @@ describe('the bridges a quit asks', () => {
         expect(gate.asks()).toBe(false);
         expect(gate.asks()).toBe(true);
     });
+
+    it('does not hand the held quit\'s resume to the quit after it', () => {
+        const gate = createQuitShutdownGate();
+        expect(gate.asks()).toBe(true);
+        // The bridges' work holds this quit; they settle and ask for it again.
+        gate.resume();
+        // A quit arrives while that one is still under way: it asks nothing, and the mark it carried
+        // must not stop the next quit from asking (the player outside Folia would stay open).
+        expect(gate.asks({ holding: true })).toBe(false);
+        expect(gate.asks()).toBe(true);
+    });
 });

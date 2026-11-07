@@ -10,8 +10,9 @@
  * `resume()` marks the quit that is asked for again after the bridges held it, and `asks()` tells
  * whether this `before-quit` must ask them — consuming the mark, because the quit it belongs to has
  * arrived. `holding` is true while a quit the bridges held is still under way: that quit was asked
- * already, and a quit that arrives meanwhile is no new one to ask for. A quit nobody held starts out
- * asking.
+ * already, and a quit that arrives meanwhile is no new one to ask for. That quit spends the mark too:
+ * it is the quit the mark was made for, so the quit after it must ask rather than inherit the answer.
+ * A quit nobody held starts out asking.
  */
 function createQuitShutdownGate() {
   let resumed = false;
@@ -20,9 +21,11 @@ function createQuitShutdownGate() {
       resumed = true;
     },
     asks({ holding = false } = {}) {
-      if (holding) return false;
+      // Spent by whichever quit arrives, the held one included: a quit that comes while the bridges
+      // still hold another is the quit they were asked for, and the quit after it is a new one.
       const wasResumed = resumed;
       resumed = false;
+      if (holding) return false;
       return !wasResumed;
     },
   };

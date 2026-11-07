@@ -974,6 +974,67 @@ describe('N9: the DevTools port Spotify chose', () => {
     });
 });
 
+describe('M3: what a polled status read costs', () => {
+    const netstats = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
+        .filter(call => String(call[0]).includes('netstat')).length;
+
+    it('never searches the machine for a port: it takes the one already found, or the media session', async () => {
+        mediaAnswers.status = { isPaused: true, positionMs: 5000, durationMs: 3000, repeat: 2 };
+        const netstat = [
+            '  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321',
+        ].join(NEWLINE);
+        const app = makeClient({ running: true, port: 0, netstat, portAnswers: false, listOk: false });
+        // 每首歌里它每 500ms 被问一次：一次也不该起 netstat、也不该探那台机器的回环端口。
+        await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
+        await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
+        await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
+        expect(netstats(app)).toBe(0);
+        await app.client.close();
+    });
+
+    it('leaves the search to the listener\'s own action, and waits longer each time one finds nothing', async () => {
+        const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false });
+        // 第一下：没有缓存端口，一次 pause 起一次搜索。
+        await app.client.pause();
+        expect(netstats(app)).toBe(1);
+        // 1s 之内不再搜：这台机器上的监听端口不会因为再问一次就变。
+        await app.client.pause();
+        expect(netstats(app)).toBe(1);
+        vi.setSystemTime(Date.now() + 1000);
+        await app.client.pause();
+        expect(netstats(app)).toBe(2);
+        // 连着两次没搜到之后要等 5s。
+        vi.setSystemTime(Date.now() + 4999);
+        await app.client.pause();
+        expect(netstats(app)).toBe(2);
+        vi.setSystemTime(Date.now() + 1);
+        await app.client.pause();
+        expect(netstats(app)).toBe(3);
+        // 第三次之后 30s。
+        vi.setSystemTime(Date.now() + 29999);
+        await app.client.pause();
+        expect(netstats(app)).toBe(3);
+        vi.setSystemTime(Date.now() + 1);
+        await app.client.pause();
+        expect(netstats(app)).toBe(4);
+        await app.client.close();
+    });
+
+    it('stops searching once the port is found', async () => {
+        const netstat = [
+            '  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321',
+        ].join(NEWLINE);
+        const app = makeClient({ running: true, port: 0, netstat, portAnswers: true });
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(netstats(app)).toBe(1);
+        // 记下了端口：之后的每一问都只用它。
+        await app.client.pause();
+        await app.client.pause();
+        expect(netstats(app)).toBe(1);
+        await app.client.close();
+    });
+});
+
 describe('the bridge log', () => {
     const makeBridgeWith = (officialClient: unknown) => {
         const warn = vi.fn();

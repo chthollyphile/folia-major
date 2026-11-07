@@ -2786,7 +2786,7 @@ export default {
     "openPlayerOnLaunch": "启动后直接进入播放界面",
     "openPlayerOnLaunchDesc": "应用启动时自动进入播放界面。跟随“播放后进入的视图”：选择 Lattice 时，启动后进入队列拼贴。",
     "wakeExternalPlayersOnLaunch": "打开 Folia 时唤起外部播放器",
-        "wakeExternalPlayersOnLaunchDesc": "打开 Folia 时一并唤起真正出声的播放器（Spotify 官方客户端），第一首歌不必再等它启动；Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
+    "wakeExternalPlayersOnLaunchDesc": "打开 Folia 时一并唤起真正出声的播放器（Spotify 官方客户端），第一首歌不必再等它启动；Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
     "closeExternalPlayerOnQuit": "Folia 退出时关闭 Spotify",
     "closeExternalPlayerOnQuitDesc": "Folia 退出时关掉它启动过、或带着调试端口运行的 Spotify 官方客户端，把调试端口还回去；Spotify 会带调试端口运行，若它已在运行但没带端口，Folia 会重启它一次",
     "holdMediaKeysForExternalPlayer": "使用官方客户端时始终接管媒体键",
