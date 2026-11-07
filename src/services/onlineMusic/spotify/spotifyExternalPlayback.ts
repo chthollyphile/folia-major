@@ -30,6 +30,7 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
         await current().prepareNext?.(song, upcoming);
     },
     play: (song, startSec, options) => current().play(song, startSec, options),
+    adopt: song => current().adopt?.(song),
     pause: () => current().pause(),
     resume: () => current().resume(),
     seek: seconds => current().seek(seconds),

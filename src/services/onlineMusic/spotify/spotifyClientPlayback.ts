@@ -273,6 +273,19 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         }
         console.info('[SpotifyClient] The app plays the song');
     },
+    // The attempt of the window that started the song died with it: a fresh one lets prepareNext
+    // write the app's queue again, and lets the app's own advance be read as this song's end, for the
+    // track it is still playing. Nothing is started here.
+    adopt(song) {
+        const id = songIdOf(song);
+        if (!id) return;
+        handoffId = null;
+        attempt = {
+            id, name: String(song.name ?? ''), artist: artistNamesOf(song),
+            hasPlayed: true, positionMs: 0, durationMs: song.durationMs ?? 0, nextIds: [], degraded: false,
+            previousId: '', pulledBack: false,
+        };
+    },
     async pause() {
         await requestSpotify('client_pause');
     },

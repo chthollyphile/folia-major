@@ -451,6 +451,33 @@ describe('an advertisement the start waits through', () => {
     });
 });
 
+describe('a track the app is still playing after the window that started it', () => {
+    it('takes the track over so the queue that follows is written and its end is read again', async () => {
+        request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
+        await setSpotifyPlaybackMode('client');
+        const a = songOf('a');
+        const b = songOf('b');
+
+        // The window that started the song is gone: the app plays on and nothing is started here.
+        spotifyExternalPlayback.adopt!(a);
+        expect(request).not.toHaveBeenCalledWith('client_play', expect.anything());
+        expect(spotifyClientAttempt()?.id).toBe(id('a'));
+
+        // What the app's queue held for the window that is gone is written again, so the app still
+        // moves on without a gap.
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')] });
+        expect(spotifyClientPlayback.isPrepared!(b)).toBe(true);
+
+        // The app going on to a song of its own after this one ran out is this song's end, not a
+        // track Folia knows nothing about.
+        expect(statusOfClient(playing(id('a'))).mediaId).toBe(id('a'));
+        const ranOut = statusOfClient(playing(id('z'), { positionMs: 199000 }));
+        expect(ranOut.ended).toBe(true);
+        expect(ranOut.mediaId).toBe(id('a'));
+    });
+});
+
 describe('the media keys and the failures that stop an advance', () => {
     it('declares that its app keeps a media session of its own (the keys are held)', () => {
         expect(spotifyClientPlayback.holdsMediaKeys?.()).toBe(true);
