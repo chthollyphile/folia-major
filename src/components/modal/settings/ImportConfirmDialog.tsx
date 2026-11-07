@@ -106,6 +106,7 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
     latticeBadgeCurrentOnly: 'options.latticeBadgeCurrentOnly',
     scratchpadHandleStyle: 'options.scratchpadHandleStyle',
     playerHeaderBlur: 'options.playerHeaderBlur',
+    titlebarSide: 'options.titlebarSide',
 };
 
 // The per-renderer tunings borrow the renderer's own display name instead of inventing one.

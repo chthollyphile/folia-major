@@ -140,6 +140,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     if (has('visualizerOpacity')) {
         storeVisualizer.handleSetVisualizerOpacity(config.visualizerOpacity);
     }
+    if (has('titlebarSide') && (config.titlebarSide === 'left' || config.titlebarSide === 'right')) {
+        usePlayerChromeSettingsStore.getState().handleSetTitlebarSide(config.titlebarSide);
+    }
     if (has('playerHeaderBlur')) {
         usePlayerChromeSettingsStore.getState().handleTogglePlayerHeaderBlur(Boolean(config.playerHeaderBlur));
     }

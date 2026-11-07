@@ -4,11 +4,13 @@ import { Copy, Maximize, Minimize, Minus, Radio, Square, X } from 'lucide-react'
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 
 export default function WindowControls({
+    side = 'right',
     revealed,
     isDaylight = false,
     isMainWindowClickThroughEnabled = false,
     hideFullscreenButton,
 }: {
+    side?: 'left' | 'right';
     revealed: boolean;
     isDaylight?: boolean;
     isMainWindowClickThroughEnabled?: boolean;
@@ -54,8 +56,8 @@ export default function WindowControls({
     const remoteControlVisible = revealed && !isMainWindowClickThroughEnabled;
     const standardControlsVisible = revealed && !isMainWindowClickThroughEnabled;
     // Keep the full titlebar hit area while centering the rounded hover surface on the icon.
-    const buttonBaseClass = `relative flex items-center justify-center w-11 h-full transition-all duration-200 before:pointer-events-none before:absolute before:inset-x-1 before:rounded-lg before:transition-colors before:duration-200 before:content-[''] [&_svg]:relative ${
-        isMac ? 'before:top-1.5 before:-bottom-0.5' : 'before:top-0.5 before:bottom-0.5'
+    const buttonBaseClass = `relative flex items-center justify-center w-11 h-full transition-all duration-200 before:pointer-events-none before:absolute before:left-1/2 before:h-7 before:w-7 before:-translate-x-1/2 before:rounded-full before:transition-colors before:duration-200 before:content-[''] [&_svg]:relative ${
+        isMac ? 'before:top-1.5' : 'before:top-0.5'
     }`;
     const remoteBtnClass = `${buttonBaseClass} ${
         remoteControlVisible
@@ -79,6 +81,70 @@ export default function WindowControls({
             : 'pointer-events-none opacity-0 -translate-y-1'
     }`;
 
+    const remoteControl = (
+        <button
+            className={remoteBtnClass}
+            title={t('ui.remoteControl')}
+            tabIndex={remoteControlVisible ? 0 : -1}
+            onClick={() => void electron.openRemoteControl?.()}
+        >
+            <Radio size={15} />
+        </button>
+    );
+    const fullscreenControl = hideFullscreenButton ? null : (
+        <button
+            className={btnClass}
+            tabIndex={standardControlsVisible ? 0 : -1}
+            title={t(isFullscreen ? 'ui.exitFullscreen' : 'ui.enterFullscreen')}
+            aria-label={t(isFullscreen ? 'ui.exitFullscreen' : 'ui.enterFullscreen')}
+            onClick={() => void electron.toggleFullscreenWindow()}
+        >
+            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+        </button>
+    );
+    const minimizeControl = (
+        <button
+            className={btnClass}
+            tabIndex={standardControlsVisible ? 0 : -1}
+            onClick={() => electron.minimizeWindow()}
+        >
+            <Minus size={16} />
+        </button>
+    );
+    const maximizeControl = (
+        <button
+            className={btnClass}
+            tabIndex={standardControlsVisible ? 0 : -1}
+            title={t(usesNativeFullscreen
+                ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
+                : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
+            aria-label={t(usesNativeFullscreen
+                ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
+                : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
+            onClick={async () => {
+                if (usesNativeFullscreen) {
+                    await electron.toggleFullscreenWindow();
+                } else {
+                    await electron.toggleMaximizeWindow();
+                    setIsMaximized(await electron.isWindowMaximized());
+                }
+            }}
+        >
+            {usesNativeFullscreen
+                ? isExpanded ? <Minimize size={13} /> : <Maximize size={13} />
+                : isExpanded ? <Copy size={13} /> : <Square size={13} />}
+        </button>
+    );
+    const closeControl = (
+        <button
+            className={closeBtnClass}
+            tabIndex={standardControlsVisible ? 0 : -1}
+            onClick={() => electron.closeWindow()}
+        >
+            <X size={16} />
+        </button>
+    );
+
     return (
         <div
             className={`flex h-full ${isMac ? '[&_svg]:translate-y-1' : ''} ${isDaylight ? 'text-zinc-800' : 'text-[var(--text-primary)]'}`}
@@ -87,61 +153,9 @@ export default function WindowControls({
                 pointerEvents: 'none',
             } as React.CSSProperties}
         >
-            <button
-                className={remoteBtnClass}
-                title={t('ui.remoteControl')}
-                tabIndex={remoteControlVisible ? 0 : -1}
-                onClick={() => void electron.openRemoteControl?.()}
-            >
-                <Radio size={15} />
-            </button>
-            {!hideFullscreenButton && (
-                <button
-                    className={btnClass}
-                    tabIndex={standardControlsVisible ? 0 : -1}
-                    title={t(isFullscreen ? 'ui.exitFullscreen' : 'ui.enterFullscreen')}
-                    aria-label={t(isFullscreen ? 'ui.exitFullscreen' : 'ui.enterFullscreen')}
-                    onClick={() => void electron.toggleFullscreenWindow()}
-                >
-                    {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
-                </button>
-            )}
-            <button
-                className={btnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                onClick={() => electron.minimizeWindow()}
-            >
-                <Minus size={16} />
-            </button>
-            <button
-                className={btnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                title={t(usesNativeFullscreen
-                    ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
-                    : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
-                aria-label={t(usesNativeFullscreen
-                    ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
-                    : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
-                onClick={async () => {
-                    if (usesNativeFullscreen) {
-                        await electron.toggleFullscreenWindow();
-                    } else {
-                        await electron.toggleMaximizeWindow();
-                        setIsMaximized(await electron.isWindowMaximized());
-                    }
-                }}
-            >
-                {usesNativeFullscreen
-                    ? isExpanded ? <Minimize size={13} /> : <Maximize size={13} />
-                    : isExpanded ? <Copy size={13} /> : <Square size={13} />}
-            </button>
-            <button
-                className={closeBtnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                onClick={() => electron.closeWindow()}
-            >
-                <X size={16} />
-            </button>
+            {side === 'left'
+                ? <>{closeControl}{minimizeControl}{maximizeControl}{fullscreenControl}{remoteControl}</>
+                : <>{remoteControl}{fullscreenControl}{minimizeControl}{maximizeControl}{closeControl}</>}
         </div>
     );
 }

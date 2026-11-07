@@ -604,6 +604,7 @@ export const compressConfig = (config: any): string => {
     if (config.libraryWallBackdropBlur !== undefined) minified.lwbb = config.libraryWallBackdropBlur;
     if (config.libraryWallSeamDirection !== undefined) minified.lwsd = config.libraryWallSeamDirection;
     if (config.latticeBadgeCurrentOnly !== undefined) minified.lbco = config.latticeBadgeCurrentOnly;
+    if (config.titlebarSide === 'left' || config.titlebarSide === 'right') minified.wts = config.titlebarSide;
     if (config.playerHeaderBlur !== undefined) minified.phb = config.playerHeaderBlur;
     if (config.scratchpadHandleStyle !== undefined) minified.sphs = config.scratchpadHandleStyle;
 
@@ -762,6 +763,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.lwbb !== undefined) decompressed.libraryWallBackdropBlur = parsed.lwbb;
         if (parsed.lwsd !== undefined) decompressed.libraryWallSeamDirection = parsed.lwsd;
         if (parsed.lbco !== undefined) decompressed.latticeBadgeCurrentOnly = parsed.lbco;
+        if (parsed.wts === 'left' || parsed.wts === 'right') decompressed.titlebarSide = parsed.wts;
         if (parsed.phb !== undefined) decompressed.playerHeaderBlur = parsed.phb;
         if (parsed.sphs !== undefined) decompressed.scratchpadHandleStyle = parsed.sphs;
 
@@ -790,6 +792,7 @@ export const decompressConfig = (str: string): any => {
             'libraryWallSeamDirection',
             'latticeBadgeCurrentOnly',
             'playerHeaderBlur',
+            'titlebarSide',
             'scratchpadHandleStyle',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);

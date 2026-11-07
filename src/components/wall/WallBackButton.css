@@ -58,3 +58,6 @@
 @media (max-width: 640px) {
     .lattice-back { top: 14px; left: 16px; }
 }
+
+/* Keep the wall return button below left-aligned native window controls, including compact layouts. */
+.lattice-back.is-below-titlebar { top: 48px; }
