@@ -568,10 +568,12 @@ export function reclaimExternalPlayback(reason: string): void {
 /**
  * A handed-over song this window did not take over (another song was asked for first, its restore
  * failed, or the player had something else): the player is nobody's, so it is stopped. Nothing
- * happens while an external session is live here: the player is that session's then.
+ * happens while an external session of the same player is live here: the player is that session's
+ * then. A session in another provider's player leaves this one nobody's all the same.
  */
 export function releaseUnclaimedExternalTrack(song: SongResult, reason: string): void {
-    if (isExternalRoute() || !omni.canPlayExternally(song)) return;
+    if (!omni.canPlayExternally(song)) return;
+    if (isExternalRoute() && session && playsInSamePlayer(session.song, song)) return;
     console.info('[ExternalPlayback] stopping the player nobody took over', { reason, songKey: getPlaybackSongKey(song) });
     void omni.pauseExternalPlayback(song).catch(error => {
         console.warn('[ExternalPlayback] the player nobody took over could not be paused', error);

@@ -505,11 +505,36 @@ describe('external playback route', () => {
             const first = engine.beginExternalPlayback(soloistSong, 0);
             await flush();
             await engine.beginExternalPlayback(song, 0);
-            // The stop may reach Soloist before the start it overtook: once that start is through,
-            // Soloist is stopped again.
+            // A player may take the stop ahead of a start still on its way (the companion's urgent
+            // pause skips its command chain): once the overtaken start is through, it is stopped again.
             started();
             await first;
             expect(order.slice(-2)).toEqual(['play:track1', 'pause:track1']);
+            expect(engine.getExternalSong()).toBe(song);
+        });
+
+        it('stops a start a web song took over while it was still starting', async () => {
+            let started!: () => void;
+            omniMock.playSongExternally.mockImplementationOnce(async () => {
+                await new Promise<void>(done => { started = done; });
+            });
+            const first = engine.beginExternalPlayback(soloistSong, 0);
+            await flush();
+            engine.yieldExternalPlayback('another song started');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            started();
+            await first;
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(2);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenLastCalledWith(soloistSong);
+        });
+
+        it('stops a handed-over track of the other player while a session is live here', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            omniMock.pauseExternalPlayback.mockClear();
+            engine.releaseUnclaimedExternalTrack(soloistSong, 'test');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(soloistSong);
             expect(engine.getExternalSong()).toBe(song);
         });
     });
