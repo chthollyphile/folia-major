@@ -42,6 +42,13 @@ const HANDOVER_RECLAIM_MS = 10_000;
  * keeps room for, so this is the longest tail any of them is asked for: the rest are dropped.
  */
 const PREPARED_TAIL = 3;
+/**
+ * How long a start may hold the prepared queue back. Its own play normally lands in a second or two;
+ * a page that stopped answering must not leave the queue unprepared for the rest of the run, so past
+ * this the write is let through (the start itself is left alone: it is not stopped, and its attempt
+ * still decides what is acted on).
+ */
+const PREPARED_QUEUE_START_LIMIT_MS = 15_000;
 
 export type ExternalPlaybackEvent =
     | { type: 'status' }
@@ -115,6 +122,10 @@ let volumeEpoch = 0;
  * it (see `refreshPreparedQueue`).
  */
 let startPendingAttempt: number | null = null;
+/** When that start was asked for: how long it may hold the queue is `PREPARED_QUEUE_START_LIMIT_MS`. */
+let startPendingSince = 0;
+/** The over-long start already said so: one line per stuck start, not one per write it let through. */
+let startPendingOverdueNoted = false;
 /** Numbers the starts, so one run's summary lines are told apart by the number they carry. */
 let startCounter = 0;
 /** The coarser channel is told once in a run of Folia, not once per episode. */
@@ -218,7 +229,11 @@ const refreshPreparedQueue = () => {
     // The player's page is loading the song it was just given (its play runs and polls inside that
     // page): a queue write sent now would compete with that load for the same page. The poll that
     // follows the start writes the tail instead.
-    if (startPendingAttempt !== null) return;
+    if (startPendingAttempt !== null && performance.now() - startPendingSince < PREPARED_QUEUE_START_LIMIT_MS) return;
+    if (startPendingAttempt !== null && !startPendingOverdueNoted) {
+        startPendingOverdueNoted = true;
+        console.warn(`[ExternalPlayback] the start has not landed in ${PREPARED_QUEUE_START_LIMIT_MS / 1000}s: the prepared queue is written again`, { attempt: startPendingAttempt });
+    }
     const state = usePlaybackStore.getState();
     const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
     const key = JSON.stringify(next.map(getPlaybackSongKey));
@@ -563,6 +578,8 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
     startPendingAttempt = attempt;
+    startPendingSince = askedAt;
+    startPendingOverdueNoted = false;
     const seq = ++startCounter;
     const timings: ExternalStartTimings = {
         prepareMs: performance.now() - askedAt, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null,
