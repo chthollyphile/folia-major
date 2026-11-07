@@ -12,10 +12,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // a pause, a seek and a queue write never start it and never close it. M2: a page that throws is
 // given one more look with the cached player dropped. M7: the whole DevTools connection is bounded,
 // and a socket that closes before it opened is a refused connection. L5: Windows' own tools run by
-// their absolute path. The last block is
-// the system media keys Folia holds while an external player sounds the song (mediaKeys.cjs): the
-// three keys are registered and mapped to transport actions, given back on request, and a key the
-// system refused is tried again the next time.
+// their absolute path. The system media keys Folia holds are no longer this player's: the module and
+// its tests are generic and live with every route (test/unit/mediaKeys/mediaKeyTakeover.test.ts).
 
 const require = createRequire(import.meta.url);
 const {
@@ -23,7 +21,6 @@ const {
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
-const { createSpotifyMediaKeyTakeover, SPOTIFY_MEDIA_KEYS } = require('../../../electron/spotify/mediaKeys.cjs');
 
 const TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 // A call that cannot reach the page costs three connections: the call itself, the look again with
@@ -829,64 +826,6 @@ describe('without the DevTools port, off Windows', () => {
     it('is not steered', async () => {
         const client = createSpotifyOfficialClient({ platform: 'linux', fetch: () => Promise.reject(new TypeError('fetch failed')) });
         await expect(client.launch()).rejects.toMatchObject({ code: 'unsupported' });
-    });
-});
-
-const makeShortcut = (refused: string[] = []) => {
-    const handlers = new Map<string, () => void>();
-    return {
-        handlers,
-        register: vi.fn((accelerator: string, handler: () => void) => {
-            if (refused.includes(accelerator)) return false;
-            handlers.set(accelerator, handler);
-            return true;
-        }),
-        unregister: vi.fn((accelerator: string) => { handlers.delete(accelerator); }),
-    };
-};
-
-describe('the media key takeover', () => {
-    it('holds the three keys and tells which transport action each one is', () => {
-        const globalShortcut = makeShortcut();
-        const onKey = vi.fn();
-        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey, log: () => {}, warn: () => {} });
-
-        expect(takeover.set(true).held.sort()).toEqual(Object.keys(SPOTIFY_MEDIA_KEYS).sort());
-        globalShortcut.handlers.get('MediaNextTrack')!();
-        globalShortcut.handlers.get('MediaPreviousTrack')!();
-        globalShortcut.handlers.get('MediaPlayPause')!();
-        expect(onKey.mock.calls.map(call => call[0])).toEqual(['next', 'previous', 'play-pause']);
-    });
-
-    it('registers nothing twice and gives every key back when asked', () => {
-        const globalShortcut = makeShortcut();
-        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
-        takeover.set(true);
-        takeover.set(true);
-        expect(globalShortcut.register).toHaveBeenCalledTimes(3);
-
-        expect(takeover.set(false)).toEqual({ enabled: false, held: [] });
-        expect(globalShortcut.unregister).toHaveBeenCalledTimes(3);
-        expect(globalShortcut.handlers.size).toBe(0);
-    });
-
-    it('reports a key the system refused and tries it again on the next call', () => {
-        const refused = ['MediaNextTrack'];
-        const globalShortcut = makeShortcut(refused);
-        const warn = vi.fn();
-        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn });
-
-        expect(takeover.set(true).held).not.toContain('MediaNextTrack');
-        expect(warn).toHaveBeenCalled();
-        refused.length = 0;
-        expect(takeover.set(true).held).toContain('MediaNextTrack');
-    });
-
-    it('does not throw when the system throws on register', () => {
-        const globalShortcut = makeShortcut();
-        globalShortcut.register.mockImplementation(() => { throw new Error('no'); });
-        const takeover = createSpotifyMediaKeyTakeover({ globalShortcut, onKey: () => {}, log: () => {}, warn: () => {} });
-        expect(takeover.set(true)).toEqual({ enabled: false, held: [] });
     });
 });
 

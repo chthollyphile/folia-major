@@ -94,6 +94,7 @@ import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './components/app/playback/bridges/useElectronPlaybackBridge';
 import { useHifiPlaybackBridge } from './components/hifi/useHifiPlaybackBridge';
 import { useExternalPlaybackBridge } from './components/app/playback/bridges/useExternalPlaybackBridge';
+import { useMediaKeyTakeoverBridge } from './components/app/playback/bridges/useMediaKeyTakeoverBridge';
 import { useExternalAutomixGate } from './components/app/playback/externalPlaybackGate';
 import { previewExternalPlaybackVolume, seekExternalPlayback } from './services/onlineMusic/externalPlayback';
 import { seekExternalSongIfNotLoaded, startExternalSong } from './components/app/playback/start/externalSongStart';
@@ -1417,10 +1418,12 @@ export default function App() {
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
     } = transportCommandRefs;
-    useExternalPlaybackBridge({
-        handleNextTrack,
-        handlePrevTrack,
+    useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack });
+    // The system media keys, held while a player asks for them: one press runs Folia's transport and
+    // queue on whatever route the song on screen sounds (the bridge says which press runs what).
+    useMediaKeyTakeoverBridge({
         runTransportAction: (action) => runTransportButtonAction({ ...transportCommandRefs, isNowPlayingControlDisabledRef, audioRef }, action),
+        playSong,
     });
 
     const mediaSessionOptions = {

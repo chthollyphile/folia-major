@@ -81,7 +81,7 @@ const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
-const { createSpotifyMediaKeyTakeover } = require('./spotify/mediaKeys.cjs');
+const { createMediaKeyTakeover } = require('./mediaKeys.cjs');
 const { createQuitShutdownGate } = require('./quitShutdown.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
@@ -7578,14 +7578,15 @@ ipcMain.handle('global-shortcuts-backend', () => (
   usesGlobalShortcutsPortal({ ozonePlatform: app.commandLine.getSwitchValue('ozone-platform') }) ? 'portal' : 'native'
 ));
 
-// The system media keys while Spotify's own app sounds the song: held only while the renderer asks,
-// which it does for as long as that app's session exists (electron/spotify/mediaKeys.cjs says why).
+// The system media keys while another program is the one that sounds Folia's songs: held only while
+// the renderer asks, which it does for as long as the player of that program keeps a media session of
+// its own (electron/mediaKeys.cjs says why, and who may ask).
 let externalMediaKeys = null;
 ipcMain.handle('external-media-keys-set', (event, enabled) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to take the media keys.');
   }
-  externalMediaKeys ??= createSpotifyMediaKeyTakeover({
+  externalMediaKeys ??= createMediaKeyTakeover({
     globalShortcut,
     onKey: (action) => {
       if (mainWindow && !mainWindow.isDestroyed()) {

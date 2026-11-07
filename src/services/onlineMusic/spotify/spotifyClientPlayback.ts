@@ -198,8 +198,15 @@ const unreachableClientFailure = (error: unknown): boolean => {
 export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     canPlay: song => songIdOf(song) !== null,
     // This way plays in Spotify's own app, which keeps a media session of its own: while it sounds
-    // Folia's song, the keys are held by Folia (useExternalPlaybackBridge.ts says why).
+    // Folia's song, the keys are held by Folia (electron/mediaKeys.cjs says why).
     holdsMediaKeys: () => true,
+    // And that session is Spotify's for as long as the app runs, not only while Folia's song sounds in
+    // it: at the end of a queue, on leaving this route for Folia's own decks, and after the app stopped
+    // playing, the app still holds the session Windows hands an unheld media key to. So the keys are
+    // Folia's for the whole run while this way is the one picked, and only turning this way off (or
+    // quitting Folia) lets them go. The listener's switch for it is the desktop settings' (it is the
+    // only place that decides, so nothing here reads it).
+    holdsMediaKeysWhileRunning: () => true,
     isUnreachableFailure: unreachableClientFailure,
     isPrepared(song) {
         const id = songIdOf(song);

@@ -52,6 +52,12 @@ export const WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY = 'wake_external_player
 // reads the same key from its shared store at the quit (electron/main.cjs).
 export const CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY = 'close_external_player_on_quit';
 
+// The system media keys stay Folia's for as long as the external player's own app runs, not only
+// while a track of Folia's sounds in it. On by default: that app keeps a media session of its own
+// (measured on Windows), so a key Folia lets go is handed to it - it resumes and moves on in its own
+// queue, bypassing Folia. Read by the media key bridge, so no main-process value mirrors it.
+export const HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY = 'hold_media_keys_for_external_player';
+
 // Mirrored from the main process's GPU_PREFERENCE (electron/gpuPreference.cjs), which reads it
 // before the GPU process starts. Windows only; a change takes effect on the next launch.
 export const GPU_PREFERENCE_STORAGE_KEY = 'gpu_preference';
@@ -105,6 +111,9 @@ export type DesktopSettingsState = {
     wakeExternalPlayersOnLaunch: boolean;
     /** Windows desktop only: close the external player Folia started when the app quits (D3). */
     closeExternalPlayerOnQuit: boolean;
+    /** Keep the system media keys in Folia's hands while the external player's app runs, rather than
+     *  only while it sounds a track of Folia's (measured on Windows). On by default. */
+    holdMediaKeysForExternalPlayer: boolean;
     /** Windows only: the saved GPU choice, which the next launch starts with. */
     gpuPreference: GpuPreference;
     /**
@@ -141,6 +150,7 @@ export type DesktopSettingsState = {
     handleToggleOpenPlayerOnLaunch: (enable: boolean) => void;
     handleToggleWakeExternalPlayersOnLaunch: (enable: boolean) => void;
     handleToggleCloseExternalPlayerOnQuit: (enable: boolean) => void;
+    handleToggleHoldMediaKeysForExternalPlayer: (enable: boolean) => void;
     handleSetGpuPreference: (preference: GpuPreference) => void;
     handleToggleBackgroundThrottling: (enable: boolean) => void;
 };
@@ -164,6 +174,7 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
     wakeExternalPlayersOnLaunch: getStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, false),
     closeExternalPlayerOnQuit: getStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, false),
+    holdMediaKeysForExternalPlayer: getStoredBoolean(HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY, true),
     gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',
     backgroundThrottling: getStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, false),
     windowAlwaysOnTopSupported: true,
@@ -414,6 +425,11 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
         if (window.electron?.saveSettings) {
             void window.electron.saveSettings(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
         }
+    },
+    // Renderer-only, like the wake-up: the bridge that holds the keys reads it from here.
+    handleToggleHoldMediaKeysForExternalPlayer: (enable) => {
+        setStoredBoolean(HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY, enable);
+        set({ holdMediaKeysForExternalPlayer: enable });
     },
     // The main process owns the value: it adds the Chromium switch before the next launch's GPU process starts.
     handleSetGpuPreference: (preference) => {

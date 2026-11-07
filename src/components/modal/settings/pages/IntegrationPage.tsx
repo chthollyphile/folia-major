@@ -36,6 +36,8 @@ const IntegrationPage: React.FC = () => {
     const setWakeExternalPlayers = useDesktopSettingsStore(state => state.handleToggleWakeExternalPlayersOnLaunch);
     const closeExternalPlayerOnQuit = useDesktopSettingsStore(state => state.closeExternalPlayerOnQuit);
     const setCloseExternalPlayerOnQuit = useDesktopSettingsStore(state => state.handleToggleCloseExternalPlayerOnQuit);
+    const holdMediaKeys = useDesktopSettingsStore(state => state.holdMediaKeysForExternalPlayer);
+    const setHoldMediaKeys = useDesktopSettingsStore(state => state.handleToggleHoldMediaKeysForExternalPlayer);
     // The row is drawn where the player it wakes can be steered from here at all: the Windows build.
     const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
@@ -81,6 +83,14 @@ const IntegrationPage: React.FC = () => {
                             <Toggle checked={closeExternalPlayerOnQuit} onChange={setCloseExternalPlayerOnQuit} />
                         </Row>
                     </>
+                )}
+                {/* The keys are held between songs too, so this row is not narrowed to Windows with the two
+                    above: it is drawn wherever the takeover can run (every desktop build), and turning it
+                    off goes back to holding them only while that player sounds a song. */}
+                {isElectron && (
+                    <Row option={O.holdMediaKeys} hint={t('options.holdMediaKeysForExternalPlayerDesc')}>
+                        <Toggle checked={holdMediaKeys} onChange={setHoldMediaKeys} />
+                    </Row>
                 )}
             </Group>
 

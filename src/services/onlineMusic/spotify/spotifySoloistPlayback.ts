@@ -37,12 +37,33 @@ let reading: Promise<SpotifyWirePlaybackMode | null> | null = null;
 
 const MODE_NAMES: Record<SpotifyPlaybackMode, string> = { standard: 'the standard way', soloist: 'Soloist', client: 'the Spotify app' };
 
+/** Told when the way Spotify plays changes: the media keys answered from it follow at once. */
+const modeListeners = new Set<() => void>();
+
+export const subscribeSpotifyPlaybackMode = (listener: () => void): (() => void) => {
+    modeListeners.add(listener);
+    return () => {
+        modeListeners.delete(listener);
+    };
+};
+
 const keep = (answer: SpotifyWirePlaybackMode): SpotifyWirePlaybackMode => {
     const next: SpotifyPlaybackMode = answer.mode === 'soloist' || answer.mode === 'client' ? answer.mode : 'standard';
-    if (next !== mode) console.info(`[Spotify] Plays through ${MODE_NAMES[next]}`);
+    const changed = next !== mode;
+    if (changed) console.info(`[Spotify] Plays through ${MODE_NAMES[next]}`);
     mode = next;
     soloistOffered = answer.soloist === true;
     clientOffered = answer.client === true;
+    // After the answers above are in force: a listener reads the new way, not the one it replaced.
+    if (changed) {
+        for (const listener of modeListeners) {
+            try {
+                listener();
+            } catch (error) {
+                console.warn('[Spotify] a listener of the way Spotify plays threw', error);
+            }
+        }
+    }
     return answer;
 };
 

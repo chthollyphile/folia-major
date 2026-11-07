@@ -70,6 +70,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "harmony_subtitle_background",
   "hidden_grid_playlists",
   "hide_taskbar_icon",
+  "hold_media_keys_for_external_player",
   "home_layout_style",
   "last_home_view_tab",
   "latent_background_tuning",

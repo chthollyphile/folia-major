@@ -33,15 +33,20 @@
 
 进度、播放/暂停、切歌、循环、随机、打乱、歌单播放与编辑、音量（含静音）、插队、喜欢，都由 Folia 的队列和控件完成。另外：
 
-- **媒体键**：这种方式放歌期间，Folia 接管系统的上一首/播放暂停/下一首，走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走。接管范围只限这种方式：Soloist 和 Apple Music 的媒体键还是上游本来的行为（走 `useMediaSessionBridge` 的媒体会话）。接管从这首在 Spotify 里开始，一直持续到它结束（暂停时也不放手），外部播放停了、离开外部播放、队列放完或换回别的方式才还给系统。暂停时不放手是实测的结论：Spotify 客户端自己注册了一个系统媒体会话，暂停时 Windows 的当前会话仍是 Spotify（`GlobalSystemMediaTransportControlsSessionManager.GetCurrentSession()` 是 `SpotifyAB.SpotifyMusic…!Spotify`，状态 Paused），这时把播放键还回去，系统会直接交给 Spotify 自己恢复、切歌也走它自己的队列，绕过 Folia。
+- **媒体键**：这种方式开着、Folia 在运行时，媒体键一直由 Folia 接管，上一首/播放暂停/下一首都走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走；只在换回标准/Soloist 方式或退出 Folia 时还给系统。接管范围只限这种方式：Soloist 和 Apple Music 的媒体键还是上游本来的行为（走 `useMediaSessionBridge` 的媒体会话）。按键在各种状态下都由 Folia 处理：
+  - **外部播放停了**（手动停、失败中止）：按播放=用户主动操作，重新唤起 Spotify 并从停下时的歌曲与进度继续（沿用"拉起、最多强杀 1 次、拉起时进托盘"的规则）；上一首/下一首照常走 Folia 的队列。
+  - **队列放完**（最后一首结束、没有下一首）：按播放或下一首=从当前队列第一首重新开始（随机是队列本身的顺序，循环在队尾结束的情形已经不存在）；上一首=重放刚放完的最后一首。
+  - **离开外部路由**（在放本地歌、Navidrome 或其他平台的歌，Folia 自己出声）：按键照常控制 Folia——播放/暂停当前歌、Folia 队列的上一首/下一首。
+  一直不放手是实测的结论：Spotify 客户端自己注册了一个系统媒体会话，而且这会话常驻——暂停时 Windows 的当前会话仍是 Spotify（`GlobalSystemMediaTransportControlsSessionManager.GetCurrentSession()` 是 `SpotifyAB.SpotifyMusic…!Spotify`，状态 Paused），队列放完、Folia 自己出声、Spotify 停下时也都还在。只要 Folia 一释放，系统就把按键交给这个会话，Spotify 会自己恢复、并在它自己的队列里往下走，绕过 Folia。
 - **在 Spotify 里手动切歌**：在 Spotify 窗口里点上一首/下一首，Folia 会拉回自己的队列：往前走就是 Folia 的下一首，往回走就是 Folia 的上一首，队首时从头重放当前这首。
 - **手动关了 Spotify**：之后点播放，Folia 重新拉起它，并从原来的进度继续。自动续播和暂停永远不会拉起 Spotify。
 - **自动续播失败时**：只有"连不上 Spotify"（客户端被关掉、调试端口没有回应、请求没送到）才停在这首、提示"连不上 Spotify"；这首歌本身放不了（Spotify 不给它加载）或者电脑上没装客户端，还是走原来的失败流程：说出真正的原因，并按"无法播放时自动跳过"的设置在倒数后跳过。
 - **每次运行最多强杀 1 次**：Spotify 已在运行但没带调试端口时，Folia 要关掉再带端口启动，这一次只允许一次；用完后只走媒体会话，直到下次启动 Folia。
 - **拉起时不出现窗口**：Folia 启动 Spotify 之前先起一个隐藏的监视进程（`SetWinEventHook` 抓 `EVENT_OBJECT_SHOW`，再加 20ms 轮询兜住创建即可见的窗口），窗口一被显示就在同一帧用 `ShowWindow` 隐藏——实测（5ms 采样，三次冷启动）窗口一次都没被采样到，最差一次 ≤15ms；旧做法是页面就绪时才隐藏，同一次实测里可见约 1.5s。同时仍带 `--minimized`、仍对 STARTUPINFO 要 SW_HIDE：商店版两者都忽略（实测），所以真正起作用的是监视进程。只对这次启动出来的进程生效（启动前已存在的 PID 一律跳过），你自己开着的 Spotify 窗口不会被隐藏；监视进程随这次启动结束一起退出，之后从托盘点开一切照常。万一监视进程没起来，页面就绪时还会再扫一次同样的 SW_HIDE 兜底。
-- **两个开关**（设置里的集成页，也在命令面板里，默认都关）：
-  - 打开 Folia 时唤起外部播放器（只在官方客户端播放开着时生效）；
-  - Folia 退出时关闭它启动的 Spotify，或带着 Folia 的调试端口运行的 Spotify。
+- **三个开关**（设置里的集成页「连接与集成」，也在命令面板里）：
+  - 打开 Folia 时唤起外部播放器（只在官方客户端播放开着时生效，默认关）；
+  - Folia 退出时关闭它启动的 Spotify，或带着 Folia 的调试端口运行的 Spotify（默认关）；
+  - **使用官方客户端时始终接管媒体键**（默认开）：按上面那条媒体键规则一直占着；关掉时回到这一版之前的规则——只在 Spotify 正放着 Folia 的歌（含暂停）时占着，队列放完、离开外部路由、外部播放停下就还给系统。占着期间浏览器等其它程序收不到媒体键。
 
 ## 找不到 Spotify 桌面版时
 
@@ -70,12 +75,15 @@
 | 随机调试端口 | 用这种方式放一首，看日志里 `[SpotifyClient] Spotify's DevTools port is …` 报出的端口是否每次不同、是否读自 `DevToolsActivePort` 或监听端口扫描 | 待补 |
 | 免费账号片头广告 | 免费账号点一首平时会先出广告的歌：广告期间不报"无法播放"、不触发自动跳过，广告结束后正常起播 | 待补 |
 | 暂停时的媒体键 | 暂停后按键盘播放键 / 任务栏媒体控件：应当由 Folia 恢复，而不是 Spotify 自己恢复 | 待补 |
-| 媒体键不越界 | 切到 Soloist 或 Apple Music 播放，媒体键应当回到上游行为（不再由 Folia 接管） | 待补 |
+| 媒体键不越界 | 切到 Soloist 或 Apple Music 播放，媒体键应当回到上游行为（不再由 Folia 接管）；关掉"始终接管媒体键"后，队列放完/离开外部路由/外部播放停下时也应该还给系统 | 待补 |
+| 媒体键在三种状态下（始终接管开着） | 队列放完按播放/下一首=从第一首重新开始、上一首=重放最后一首；在放本地歌时按键控制 Folia；Spotify 停下后按播放=重新唤起并从停下处继续 | 待补 |
+| 同一次按键只跑一次 | 占着时按一次键只应该有一次响应（`globalShortcut` 与 Folia 自己的媒体会话不应各跑一遍） | 待补 |
 | 自动续播的三类失败 | 正常续播；手动退出 Spotify 后续播（应停在这首并提示连不上）；播放一首放不了的歌（应走原来的失败流程与跳过倒计时） | 待补 |
 | 退出时关闭 Spotify | 打开"Folia 退出时关闭它启动的 Spotify"，退出一次（中途取消后再退出一次），Spotify 只关一次且第二次退出仍会走关闭流程 | 待补 |
 
 ## 实现
 
-- 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口与端口发现、播放器调用、媒体会话）、`mediaKeys.cjs`（只服务这种方式：它放歌期间接管媒体键）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）、`../quitShutdown.cjs`（哪一次退出去问各个 bridge 关闭）。
-- 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现），`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派），`spotifySetup.ts`（配置清单）。
-- 公共部分：`externalPlayback.ts` 里的 `skipped`（播放器被它自己的控件换了歌）和降级状态，`externalPlayerWake.ts`（启动时唤起）。
+- 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口与端口发现、播放器调用、媒体会话）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）、`../quitShutdown.cjs`（哪一次退出去问各个 bridge 关闭）。**媒体键是通用的**，不在这个目录里：`electron/mediaKeys.cjs`（与 `quitShutdown.cjs` 同级）只管在 `globalShortcut` 上占住三个键并把手势交给渲染进程；要不要占、按键做什么由下面这条通用 bridge 决定。
+- 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现），`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派，并声明"这种方式要一直占着媒体键"），`spotifySetup.ts`（配置清单）。
+- 公共部分：`src/components/app/playback/bridges/useMediaKeyTakeoverBridge.ts`（通用的媒体键接管：问 omni 要不要占、按一次键跑播放暂停/上一首/下一首、队列放完时重新开始、外部停了之后重新唤起都在这里，路由无关），`externalPlayback.ts` 里的 `skipped`（播放器被它自己的控件换了歌）和降级状态，`externalPlayerWake.ts`（启动时唤起）。
+- 平台只声明、通用层不认平台：`OnlineExternalPlaybackProvider` 的 `holdsMediaKeys`（它的会话在放时占着）和 `holdsMediaKeysWhileRunning`（它的程序在跑就一直占着）由 `spotifyExternalPlayback.ts` 按当前方式回答，omni 汇总成 `wantsMediaKeyTakeoverWhileRunning()`。

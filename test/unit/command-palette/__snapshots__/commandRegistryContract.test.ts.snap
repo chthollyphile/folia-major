@@ -133,6 +133,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "obs-toggle-track-card",
   "external-player-wake-on-launch",
   "external-player-close-on-quit",
+  "external-player-hold-media-keys",
   "desktop-toggle-lyric-api",
   "settings-obs-copy-css",
   "settings-storage",

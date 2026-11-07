@@ -3,7 +3,7 @@ import { isSyncConfigured } from '../../../services/sync/syncConfig';
 import { buildObsCustomCss } from '../../../services/obs/obsCustomCss';
 import { hasUploadedObsAsset } from '../../../services/obs/visualSettingsConfig';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
-import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
+import { useDesktopSettingsStore, type GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
@@ -275,6 +275,22 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['close player', 'quit player', 'close on quit', '释放端口', '退出时关闭播放器', '关闭外部播放器', 'tuichu guanbi'],
         context => context.settings.toggleCloseExternalPlayerOnQuit(),
         { platform: ['win'] },
+    ),
+    // The same player's media session: while its app runs the keys stay Folia's, so a press never
+    // reaches that app's own queue (electron/mediaKeys.cjs, useMediaKeyTakeoverBridge.ts).
+    createToggleCommand(
+        'external-player-hold-media-keys',
+        'settings',
+        'Hold the media keys with the official app',
+        'Toggle keeping the system media keys in Folia while the external player app runs',
+        ['media keys', 'media key', 'play pause key', 'next track key', 'takeover', '媒体键', '多媒体键', '播放暂停键', '接管媒体键'],
+        // Read here rather than through the palette's context: it is one stored switch, and the
+        // context carries no entry for it (scratchpadCommands.ts flips its own switch the same way).
+        () => {
+            const desktop = useDesktopSettingsStore.getState();
+            desktop.handleToggleHoldMediaKeysForExternalPlayer(!desktop.holdMediaKeysForExternalPlayer);
+        },
+        { platform: ['electron'] },
     ),
     {
         id: 'desktop-toggle-lyric-api',

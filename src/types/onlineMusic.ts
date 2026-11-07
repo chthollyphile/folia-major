@@ -552,6 +552,21 @@ export interface OnlineExternalPlaybackProvider {
      * leaves the keys to the app's own media session.
      */
     holdsMediaKeys?(): boolean;
+    /**
+     * Whether this player asks for the system media keys for as long as Folia runs, not only while a
+     * track of Folia's sounds in it: its own program keeps a media session of its own between those
+     * tracks too, so a key let go while Folia is idle, on another route or after that program stopped
+     * is taken by it and never comes back to Folia. Read only where the listener left the setting
+     * that holds the keys for the whole run on; absent or false leaves the keys to the session rule
+     * above.
+     */
+    holdsMediaKeysWhileRunning?(): boolean;
+    /**
+     * Notified when `holdsMediaKeysWhileRunning` may have changed - the way this player plays is picked
+     * in its own setup, which is not a change of Folia's state. Absent where nothing but the session
+     * decides, which the app already follows from the player's answers.
+     */
+    subscribeMediaKeysWanted?(listener: () => void): () => void;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */

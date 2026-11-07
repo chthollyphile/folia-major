@@ -1,6 +1,6 @@
 import type { OnlineExternalPlaybackProvider } from '../../../types/onlineMusic';
 import { spotifyClientPlayback } from './spotifyClientPlayback';
-import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback } from './spotifySoloistPlayback';
+import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback, subscribeSpotifyPlaybackMode } from './spotifySoloistPlayback';
 
 // src/services/onlineMusic/spotify/spotifyExternalPlayback.ts
 // Spotify's external player is one of two programs, by the way Spotify plays (spotifySoloistPlayback.ts
@@ -18,6 +18,12 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     // held while that session sounds, so a press cannot reach Spotify's queue instead of Folia's.
     // Soloist registers no such session, and its keys stay the ones the app's own media session has.
     holdsMediaKeys: () => current().holdsMediaKeys?.() === true,
+    // Spotify's own app keeps its media session between Folia's songs too, so while it is the way
+    // Spotify plays, the keys stay Folia's for as long as Folia runs (the setting that asks for them
+    // is the desktop settings'). Soloist registers no session of its own: its keys stay the app's.
+    holdsMediaKeysWhileRunning: () => current().holdsMediaKeysWhileRunning?.() === true,
+    // The way Spotify plays is picked in Folia's own setup, which changes nothing else the app reads.
+    subscribeMediaKeysWanted: listener => subscribeSpotifyPlaybackMode(listener),
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming) {
