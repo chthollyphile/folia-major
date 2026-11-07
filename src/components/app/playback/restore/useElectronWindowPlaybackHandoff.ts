@@ -27,7 +27,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { adoptExternalPlayback, getExternalPosition, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { adoptExternalPlayback, getExternalPosition, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
@@ -365,21 +365,24 @@ export function useElectronWindowPlaybackHandoff({
         }
         // A provider's own player kept sounding the song through the rebuild: take it over as it
         // stands. With another track or none there, the player is stopped (as mpv's track is
-        // released above when nothing restores it), the song stays shown paused, as the restore left
-        // it, and the play path starts it when the listener asks.
+        // released above when nothing restores it), the song is shown paused, and the play path
+        // starts it when the listener asks.
         if (!omni.canPlayExternally(snapshot.currentSong)) return;
-        if (restored !== 'restored' || !stillThatSong) {
-            releaseUnclaimedExternalTrack(snapshot.currentSong, `restore ${restored}`);
-            return;
+        if (restored === 'restored' && stillThatSong) {
+            // Nothing of this window starts the player by itself; the adoption says whether it plays.
+            shouldAutoPlayRef.current = false;
+            if (await adoptExternalPlayback(snapshot.currentSong)) return;
+            releaseUnclaimedExternalTrack(snapshot.currentSong, 'not taken over');
+        } else {
+            releaseUnclaimedExternalTrack(snapshot.currentSong, stillThatSong ? `restore ${restored}` : 'the restore was overtaken');
+            // A failed restore fell back to the old window's address above: that source plays it.
+            if (fallbackAudioSrc) return;
         }
-        // Nothing of this window starts the player by itself; the adoption says whether it plays.
-        shouldAutoPlayRef.current = false;
-        const adopted = await adoptExternalPlayback(snapshot.currentSong);
-        if (adopted) return;
-        releaseUnclaimedExternalTrack(snapshot.currentSong, 'not taken over');
-        if (stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong)
-            && usePlaybackStore.getState().playerState === PlayerState.PLAYING) {
-            setPlayerState(PlayerState.PAUSED);
+        // The snapshot said playing; nothing here sounds the song now. A song asked for meanwhile
+        // keeps the state its own play gives it.
+        if (stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong)) {
+            shouldAutoPlayRef.current = false;
+            if (usePlaybackStore.getState().playerState === PlayerState.PLAYING) setPlayerState(PlayerState.PAUSED);
         }
     }, [
         audioQuality,
@@ -443,10 +446,18 @@ export function useElectronWindowPlaybackHandoff({
     const toggleTransparentModeWithHandoff = useCallback(async (enabled: boolean) => {
         if (isElectronWindow && window.electron?.setWindowTransparentMode) {
             const handoff = captureWindowPlaybackHandoff();
-            const applied = await window.electron.setWindowTransparentMode(enabled, handoff);
+            let applied: boolean;
+            try {
+                applied = await window.electron.setWindowTransparentMode(enabled, handoff);
+            } catch (error) {
+                // No rebuild: this window keeps the player it handed over.
+                reclaimExternalPlayback('the rebuild failed');
+                throw error;
+            }
             // Main refuses the enable toggle when the current desktop cannot present a
             // transparent wallpaper window (classic Windows wallpaper mode); keep the old state.
             if (applied === false) {
+                reclaimExternalPlayback('the rebuild was refused');
                 return;
             }
         }

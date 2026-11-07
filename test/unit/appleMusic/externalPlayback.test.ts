@@ -528,9 +528,64 @@ describe('external playback route', () => {
             expect(ended).not.toHaveBeenCalled();
             expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
             expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
-            // Leaving the route afterwards (the window's teardown) does not stop the next window's player.
-            engine.stopExternalPlayback('window gone');
-            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        });
+
+        it('acts on no answer that was in flight when it handed over, a failed one included', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            const events = vi.fn();
+            const unsubscribe = engine.subscribeExternalPlayback(event => events(event.type));
+            let fail!: (error: unknown) => void;
+            omniMock.getExternalPlaybackStatus.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+            await vi.advanceTimersByTimeAsync(500);
+            const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+
+            engine.handOverExternalPlayback();
+            fail(new Error('the companion is busy'));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(events).not.toHaveBeenCalled();
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            unsubscribe();
+        });
+
+        it('takes the player back when the window is not replaced, and follows it to the end', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            const ended = vi.fn();
+            const unsubscribe = engine.subscribeExternalPlayback(event => { if (event.type === 'ended') ended(); });
+
+            engine.handOverExternalPlayback();
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, ended: true, positionMs: 200000 }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(ended).not.toHaveBeenCalled();
+            // The rebuild was refused: followed again at once.
+            engine.reclaimExternalPlayback('refused');
+            await flush();
+            expect(ended).toHaveBeenCalledTimes(1);
+            unsubscribe();
+        });
+
+        it('takes the player back by itself when no rebuild came', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            engine.handOverExternalPlayback();
+            const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+            await vi.advanceTimersByTimeAsync(9000);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(omniMock.getExternalPlaybackStatus.mock.calls.length).toBeGreaterThan(asked);
+        });
+
+        it('still stops the player when this window leaves it after handing over', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            engine.handOverExternalPlayback();
+            // Another song in this window, or the listener's stop: a window that was not replaced
+            // after all must not leave the player sounding with nobody to stop it.
+            engine.yieldExternalPlayback('another song started');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(song);
+            expect(engine.getExternalSong()).toBeNull();
         });
 
         it('takes nothing over when the player has no track or cannot be asked', async () => {
