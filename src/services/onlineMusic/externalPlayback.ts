@@ -168,6 +168,18 @@ const schedulePoll = (delayMs: number) => {
     }, delayMs);
 };
 
+/**
+ * The player answered one of the app's own commands (a press of the listener, the volume it sent):
+ * it is there, so the next status ask is the ordinary rate again rather than the one a run of failed
+ * asks pushed it out to. A listener who just pressed play must not wait up to ten seconds to hear
+ * what became of it.
+ */
+const notePlayerAnswered = () => {
+    pollFailures = 0;
+    // A poll already on its way arms the next ask itself; a second timer here would only replace it.
+    if (!pollRunning) schedulePoll(STATUS_INTERVAL_MS);
+};
+
 const validDurationSec = (ms: number): number | null => (
     Number.isFinite(ms) && ms > 0 ? ms / 1000 : null
 );
@@ -395,6 +407,7 @@ export function setExternalPlaybackVolume(level = settingsVolume()): void {
         if (epoch !== volumeEpoch) return;
         appliedVolume = level;
         volumeFailureNoted = false;
+        if (session === current) notePlayerAnswered();
     }, error => {
         appliedVolume = null;
         if (!volumeFailureNoted) {
@@ -536,7 +549,10 @@ export const pauseExternalPlayback = (): boolean => {
     const current = session;
     if (!current) return false;
     markPaused(current.clock.read());
-    void omni.pauseExternalPlayback(current.song).catch(error => {
+    void omni.pauseExternalPlayback(current.song).then(() => {
+        // The player took the command: it is there, whatever its status asks said before (M1).
+        if (session === current) notePlayerAnswered();
+    }, error => {
         console.warn('[ExternalPlayback] pause failed', error);
         emit({ type: 'failure', error });
     });
@@ -548,7 +564,10 @@ export const resumeExternalPlayback = (): boolean => {
     const current = session;
     if (!current) return false;
     markPlaying(current.clock.read());
-    void omni.resumeExternalPlayback(current.song).catch(error => {
+    void omni.resumeExternalPlayback(current.song).then(() => {
+        // The press reached the player: the next status ask is the ordinary rate again (M1).
+        if (session === current) notePlayerAnswered();
+    }, error => {
         console.warn('[ExternalPlayback] resume failed', error);
         markPaused(current.clock.read());
         emit({ type: 'failure', error });
