@@ -64,7 +64,7 @@ function validateRequest(message) {
         return { id, operation, params: { songId: params.songId } };
     }
     const { offset = 0, limit = 25 } = params;
-    if (!Number.isSafeInteger(offset) || offset < 0 || (operation !== 'librarySongs' && offset > 100000)
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000
         || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) return null;
     if (operation === 'search') {
         if (typeof params.query !== 'string' || !params.query.trim() || params.query.length > 200) return null;
@@ -388,7 +388,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             const offsetText = next.searchParams.get('offset');
             const suppliedOffset = offsetText && /^\d+$/.test(offsetText) ? Number(offsetText) : NaN;
             if (!Number.isSafeInteger(suppliedOffset) || suppliedOffset < request.params.offset + items.length
-                || suppliedOffset <= request.params.offset || (request.operation !== 'librarySongs' && suppliedOffset > 100000)) {
+                || suppliedOffset <= request.params.offset || suppliedOffset > 100000) {
                 return { ok: false, error: 'invalid-response' };
             }
             nextOffset = suppliedOffset;

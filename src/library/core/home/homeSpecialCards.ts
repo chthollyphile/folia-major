@@ -54,7 +54,6 @@ export const resolveLibraryHomeSpecial = (card: SpecialCardFields, source: Libra
             if (isPersonalFmCard(card)) return 'personal-fm';
             if (card.type === 'daily_recommendations' && card.id === DAILY_RECOMMENDATIONS_CARD_ID) return 'daily';
             if (card.type === 'cloud') return 'cloud';
-            if (card.type === 'library_songs') return 'all-songs';
             // provider 把「我喜欢的音乐」标成 isLiked（网易云 specialType liked、酷狗 is_liked、波点 liked）。
             if (card.type !== 'album' && isLikedCollection(card.raw)) return 'liked';
             return null;

@@ -33,14 +33,13 @@ type RowProps = {
 };
 
 const ListRow = ({ index, style, items, highlightKey, nowPlayingKey, actions }: RowComponentProps<RowProps>): React.ReactElement | null => {
-    const { t } = useTranslation();
     const item = items[index];
     if (!item) return null;
     const classes = [
         'bravais-list-row',
         item.key === highlightKey ? 'is-linked' : '',
         item.key === nowPlayingKey ? 'is-current' : '',
-        item.unavailable || item.playbackUnsupported ? 'is-unavailable' : '',
+        item.unavailable ? 'is-unavailable' : '',
     ].filter(Boolean).join(' ');
     return (
         <div
@@ -52,12 +51,12 @@ const ListRow = ({ index, style, items, highlightKey, nowPlayingKey, actions }: 
             onMouseEnter={() => setBravaisLinkedKey(item.key)}
             onMouseLeave={() => setBravaisLinkedKey(null)}
             onClick={() => actions.locate(item.key)}
-            onDoubleClick={() => { if (!item.unavailable && !item.playbackUnsupported) actions.play(item.key); }}
+            onDoubleClick={() => actions.play(item.key)}
         >
             <span className="bravais-list-badge">{item.badge}</span>
             <span className="bravais-list-text">
                 <strong>{item.title}</strong>
-                {(item.playbackUnsupported || item.subtitle) && <small>{item.playbackUnsupported ? t('librarySongs.unsupportedPlayback') : item.subtitle}</small>}
+                {item.subtitle && <small>{item.subtitle}</small>}
             </span>
             {item.durationLabel && <span className="bravais-list-time">{item.durationLabel}</span>}
         </div>

@@ -67,15 +67,6 @@ Linux 登录行显示「Linux 暂未支援」。构建和验证范围见 `electr
 歌曲搜索、个人歌单及分页、歌单歌曲、账号，以及 `v1/catalog/<store>/songs/<id>/syllable-lyrics` 的 TTML。
 目录歌曲与资料库歌曲的 id 分别保留（`sourceRef.providerData.catalogId`），歌词和播放都按目录 id 请求。
 Apple Music 已提供资料库专辑页签及专辑歌曲分页；账号社交资料有头像时显示头像，没有时仍显示字母。
-账号的独立「全部歌曲」经 `userSongs` / `omni.getUserSongs(userId, page)` 读取；`library_songs` 集合以账号 ID
-为集合 ID，经 `library.getUserSongs` 路由，不借用云盘或歌单。companion 的 `librarySongs` 只读
-`v1/me/library/songs`（`include: catalog`），每次最多读 100 行并立即返回该上游页，不合并多页；调用方保存
-上游 offset 游标，失败仅重试失败页。此操作的 offset 接受所有非负安全整数，不沿用其他操作的 100000 上限。
-没有目录映射的资料库行也保留，不会因此标成下架，也不新增播放能力。空库、多页、失败页重试、大 offset、
-身份与游标路由已由单元测试覆盖。Windows Electron 开发版已用真实登录会话读完 666 首（7 个上游页），
-其中 2 首无目录映射仍保留；实测 Grid / Bravais 浏览、664 首入队、跳过提示及映射曲目的 external 播放状态和进度。
-桌面运行时还用单页故障注入验证保留旧列表、禁用不完整批量播放和失败 offset 续读；源切换与应用账户失效探针
-验证缓存清空、迟到响应不回填。故障及失效由探针模拟，不代表实测了上游故障或 Apple 原生退出；空库和 TUI 由自动回归覆盖。
 歌曲的专辑与歌手使用目录关系按需解析：资料库曲目先使用其目录映射，多艺人的关系只有 ID 时逐个取名字，
 再经 Omni 打开目录专辑、歌手热门歌曲和歌手专辑。真实 macOS 账号已核验资料库专辑、其曲目的目录映射、
 目录专辑及歌手端点；首页呈现、头像及点击导航仍需真人验收。

@@ -51,12 +51,6 @@ export interface CollectionResourceSnapshot {
     readonly tracks: SongResult[];
     readonly error: CollectionLoadError | null;
     readonly sync: CollectionSyncState;
-    /** Memory-only full-library read progress; refreshing keeps the previous visible tracks until success. */
-    readonly librarySongs?: {
-        readonly complete: boolean;
-        readonly loadedCount: number;
-        readonly refreshing: boolean;
-    };
     /** 集合的详情（封面、简介、总数等；Navidrome 只有专辑有），没有时为 null。 */
     readonly detail: CollectionDetail | null;
     readonly hint: CollectionUpdateHint;
@@ -64,16 +58,8 @@ export interface CollectionResourceSnapshot {
     readonly generation: number;
 }
 
-/** Valid signed-in scope for the active online source; hosts must not derive this from a restored descriptor. */
-export type LibrarySongsAccessScope = {
-    providerId: string;
-    userId: MediaId;
-};
-
 export type CollectionResourceContext = {
     currentUserId?: MediaId | null;
-    /** Missing/null denies account-library access, without affecting ordinary collections. */
-    librarySongsScope?: LibrarySongsAccessScope | null;
 };
 
 export interface CollectionResource {

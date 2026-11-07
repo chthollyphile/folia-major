@@ -237,9 +237,8 @@ const emptyPage = <T>(offset: number): OmniPage<T> => ({ items: [], hasMore: fal
 
 // Lists the app makes from a provider's reads, that are nobody's playlist: the listening ranking
 // (the platform's count of plays) and an artist's every song (`artist_songs`, #918). Nobody edits
-// or saves them; their id is not a playlist's. The account's independent all-songs library
-// (`library_songs`) is likewise not a playlist that can be saved or edited here.
-const isReadOnlyListType = (type: string): boolean => type === 'listening_rank' || type === 'artist_songs' || type === 'library_songs';
+// or saves them; their id is not a playlist's.
+const isReadOnlyListType = (type: string): boolean => type === 'listening_rank' || type === 'artist_songs';
 
 // A search with the caller's context (`ProviderSearchContext`) where it gave one, handed on as it
 // is; a search without one reaches the provider as the host's own searches always have.
@@ -875,10 +874,6 @@ export const omni = {
         return withActiveProvider(async provider => provider.library?.getUserAlbums?.(userId, page.limit, page.offset) ?? emptyPage(page.offset));
     },
 
-    async getUserSongs(userId: MediaId, page: PageInput): Promise<OmniPage<UnifiedSong>> {
-        return withActiveProvider(async provider => provider.library?.getUserSongs?.(userId, page.limit, page.offset) ?? emptyPage(page.offset));
-    },
-
     // A provider without this read answers with nothing read, and not whole: nothing held is taken away.
     async getLikedSongIds(userId: MediaId): Promise<ProviderLikedSongIds> {
         return withActiveProvider(async provider => provider.library?.getLikedSongIds?.(userId) ?? { ids: [], whole: false });
@@ -1303,9 +1298,6 @@ export const omni = {
         return runRequest(provider, 'collection', async () => {
             if (collection.type === 'album') {
                 return await (provider.catalog?.getAlbumTracks?.(collection.id, page.limit, page.offset, collection) ?? emptyPage(page.offset));
-            }
-            if (collection.type === 'library_songs') {
-                return await (provider.library?.getUserSongs?.(collection.id, page.limit, page.offset) ?? emptyPage(page.offset));
             }
             if (collection.type === 'cloud') {
                 return await (provider.catalog?.getCloudTracks?.(page.limit, page.offset, collection) ?? emptyPage(page.offset));

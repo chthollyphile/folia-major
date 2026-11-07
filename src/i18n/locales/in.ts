@@ -1,17 +1,8 @@
 
 
 export default {
-  "librarySongs": {
-    "title": "Semua lagu",
-    "description": "Lagu di perpustakaan musik Anda",
-    "loading": "{{count}} lagu dimuat · Memuat sisanya…",
-    "loaded": "{{count}} lagu dimuat · Lengkap",
-    "incomplete": "{{count}} lagu dimuat · Belum lengkap",
-    "refreshing": "Memperbarui · Daftar sebelumnya dipertahankan ({{count}} lagu dimuat)",
-    "refreshFailed": "Belum diperbarui · Pembaruan gagal; daftar sebelumnya dipertahankan ({{count}} lagu dimuat)",
-    "unsupportedPlayback": "Pemutaran tidak didukung",
-    "skipped": "Melewati {{count}} lagu tanpa jalur pemutaran yang didukung",
-    "filterPartial": "Penyaringan hanya mencakup lagu yang sudah dimuat hingga pemuatan selesai."
+  "appleMusic": {
+    "libraryPlaylistName": "Semua lagu"
   },
   "scratchpad": {
     "title": "Buku catatan",

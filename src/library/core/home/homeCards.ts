@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { MediaId, ProviderCollection } from '../../../types/onlineMusic';
+import type { ProviderCollection } from '../../../types/onlineMusic';
 import type { LibraryHomeCard, LibraryHomeRadioFeed } from './homeModel.contract';
 
 // src/library/core/home/homeCards.ts
@@ -35,19 +35,6 @@ export const buildOnlinePlaylistCards = (collections: readonly ProviderCollectio
         raw: collection,
     }))
 );
-
-/** 账号资料库的独立只读入口；歌曲数等完整分页结束才知道，不从歌单或专辑猜。 */
-export const buildLibrarySongsCard = (providerId: string, userId: MediaId, t: TFunction): LibraryHomeCard => {
-    const collection: ProviderCollection = {
-        providerId,
-        id: userId,
-        name: t('librarySongs.title'),
-        description: t('librarySongs.description'),
-        type: 'library_songs',
-        isOwned: false,
-    };
-    return buildOnlinePlaylistCards([collection], t)[0];
-};
 
 /** 收藏专辑页签。 */
 export const buildOnlineAlbumCards = (albums: readonly ProviderCollection[], t: TFunction): LibraryHomeCard[] => (

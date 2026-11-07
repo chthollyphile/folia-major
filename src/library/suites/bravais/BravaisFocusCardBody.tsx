@@ -140,14 +140,13 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
                     </>
                 )}
             </span>
-            {item.playbackUnsupported && <span className="text-xs opacity-70">{t('librarySongs.unsupportedPlayback')}</span>}
             <span className="bravais-focus-actions">
                 <button
                     type="button"
                     className="bravais-chrome-button is-icon"
                     data-bravais-action="play"
                     data-bravais-playback={toggles ? (isPlaying ? 'playing' : 'paused') : undefined}
-                    disabled={(item.unavailable || item.playbackUnsupported) && !toggles}
+                    disabled={item.unavailable && !toggles}
                     aria-label={playLabel}
                     title={playLabel}
                     onClick={handled(() => actions.play(slotKey))}
@@ -172,7 +171,7 @@ const BravaisFocusCardBody: React.FC<BravaisFocusCardBodyProps> = ({ slotKey, it
                     className={`bravais-chrome-button${queued && !current ? ' has-hover-label' : ''}`}
                     data-bravais-action="enqueue"
                     data-bravais-queued={queued || undefined}
-                    disabled={item.unavailable || item.playbackUnsupported}
+                    disabled={item.unavailable}
                     onClick={handled(() => actions.enqueue(slotKey))}
                 >
                     {queued && !current ? (

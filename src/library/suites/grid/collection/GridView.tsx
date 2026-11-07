@@ -4,10 +4,7 @@ import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Loader2,
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
-import { canPlaySongInCurrentRoute, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
-import { LibrarySongsStatus } from '../../../../components/shared/LibrarySongsStatus';
-import { resolveGridPlaybackScope, runGridPlaybackScope } from './gridPlaybackScope';
-import { resolveReloadCapability } from '../../../core/collection/collectionCapabilities';
+import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -523,19 +520,12 @@ export const GridView: React.FC<GridViewProps> = ({
     const isNavidromeCollection = collectionSource === 'navidrome';
     const isAlbumCollection = collection?.type === 'album';
     const isDailyRecommendationsCollection = collectionSource === 'online' && collection?.type === 'daily_recommendations';
-    const isLibrarySongsCollection = collection?.type === 'library_songs';
     // 每日推荐自带「刷新」，私人 FM 不分页；其余在线集合都能跳过缓存整张重新拉取。
     const canReloadOnlineCollection = mode === 'tracks'
         && collectionSource === 'online'
         && isOnlineResource
         && !isDailyRecommendationsCollection
         && collection?.type !== 'radio';
-    const reloadCapability = resolveReloadCapability({
-        kind: resource?.kind ?? 'static',
-        status: resourceSnapshot?.status ?? 'idle',
-        collectionType: collection?.type,
-        syncStatus: resourceSnapshot?.sync.status,
-    });
     // 本地排序只给文件夹（含虚拟的「全部歌曲」）：这是视图规则，不随变更能力走。
     const supportsLocalTrackSorting = isLocalCollection && collection?.type === 'folder';
     const {
@@ -588,18 +578,6 @@ export const GridView: React.FC<GridViewProps> = ({
         contextTracks: contextActionTracks,
         occurrences: trackOccurrences,
     } = collectionView;
-    const rawPlaybackScope = useMemo(() => resolveGridPlaybackScope(displayTracks, matchIndexes), [displayTracks, matchIndexes]);
-    const collectActionTracks = isLibrarySongsCollection ? rawPlaybackScope : contextActionTracks;
-    const canPlayScope = (collection?.type !== 'library_songs' || resourceSnapshot?.librarySongs?.complete === true)
-        && contextActionTracks.length > 0;
-    const playScope = () => {
-        if (!canPlayScope || !onPlayAll) return;
-        runGridPlaybackScope(collection?.type, () => resource?.getSnapshot(), rawPlaybackScope, onPlayAll);
-    };
-    const enqueueScope = () => {
-        if (!canPlayScope || !onAddAllToQueue) return;
-        runGridPlaybackScope(collection?.type, () => resource?.getSnapshot(), rawPlaybackScope, onAddAllToQueue);
-    };
 
     useEffect(() => {
         if (isDraggingRef.current || pendingFocusCommitTimeoutRef.current) return;
@@ -667,16 +645,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
     // 续传、重新拉取都交给资源；资源负责作废晚到的旧结果。
     const resumeBackgroundSync = () => resource?.resumeSync();
-    const reloadOnlineCollection = () => {
-        const latest = resource?.getSnapshot();
-        if (!latest || !resolveReloadCapability({
-            kind: latest.kind,
-            status: latest.status,
-            collectionType: collection?.type,
-            syncStatus: latest.sync.status,
-        }).enabled) return;
-        resource?.reload();
-    };
+    const reloadOnlineCollection = () => resource?.reload();
 
     // An owned online playlist edits in place; a local or Navidrome one commits a rename on the way
     // out. Shared so the command palette and the panel button cannot end up meaning different things.
@@ -1247,7 +1216,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                     return () => void mutations?.matchSong(track);
                                 })()}
                                 onSelect={() => {
-                                    if (mode === 'tracks' && onSelectTrack && item.rawTrack && canPlaySongInCurrentRoute(item.rawTrack)) {
+                                    if (mode === 'tracks' && onSelectTrack && item.rawTrack) {
                                         persistNavigationState(idx);
                                         onSelectTrack(item.rawTrack, contextActionTracks);
                                     } else if (mode === 'collection' && onSelectCollection) {
@@ -1259,7 +1228,7 @@ export const GridView: React.FC<GridViewProps> = ({
                                     centerOnIndex(idx, true);
                                 }}
                                 onAddQueue={() => {
-                                    if (mode === 'tracks' && onAddTrackToQueue && item.rawTrack && canPlaySongInCurrentRoute(item.rawTrack)) {
+                                    if (mode === 'tracks' && onAddTrackToQueue && item.rawTrack) {
                                         onAddTrackToQueue(item.rawTrack);
                                     }
                                 }}
@@ -1606,18 +1575,16 @@ export const GridView: React.FC<GridViewProps> = ({
     const gridSurfaceParams = buildCoreSurfaceParams({
         declaredActions,
         filteredTrackCount: contextActionTracks.length,
-        collectTrackCount: collectActionTracks.length,
         isFilterActive: hasSearchQuery,
         supportsLocalTrackSorting,
         sortField: localTrackSortField,
         sortDirection: localTrackSortDirection,
         setSortField: handleLocalTrackSortFieldChange,
         setSortDirection: handleLocalTrackSortDirectionChange,
-        canReloadOnlineCollection: canReloadOnlineCollection && reloadCapability.enabled,
-        canPlayScope,
-        playFiltered: playScope,
-        enqueueFiltered: enqueueScope,
-        collectFiltered: onCollectAll ? () => onCollectAll(collectActionTracks) : undefined,
+        canReloadOnlineCollection: canReloadOnlineCollection && !loading,
+        playFiltered: () => onPlayAll?.(contextActionTracks),
+        enqueueFiltered: () => onAddAllToQueue?.(contextActionTracks),
+        collectFiltered: onCollectAll ? () => onCollectAll(contextActionTracks) : undefined,
         reloadOnlineCollection,
         mutationSnapshot,
         mutations: mutations ?? null,
@@ -1676,67 +1643,62 @@ export const GridView: React.FC<GridViewProps> = ({
                 落点，否则正在退出的上一层网格会被当成落点。订阅关在子组件里，见 ActiveGridMarker。 */}
             <ActiveGridMarker />
 
-            {/* Library progress has its own flow row: long notices must not cover the title or back button. */}
-            <div className={isLibrarySongsCollection ? 'relative z-[70] shrink-0 px-4 pt-5 pb-2' : 'contents'}>
-                {/* Back Button */}
+            {/* Back Button */}
+            <button
+                // 返回按钮表示看完了（onDone）：宿主清掉浏览会话、让每套 suite 忘掉布局记录（网格的 sessionStorage
+                // 记录经 entry 的 layout.forget），再返回。Escape 与浏览器后退保留（onBack）。P4.5 起不在这里清。
+                onClick={onDone}
+                className="absolute left-6 top-5 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95 z-[70]"
+                style={{
+                    backgroundColor: isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
+                    backdropFilter: 'blur(8px)',
+                }}
+            >
+                <ChevronLeft size={20} />
+            </button>
+
+            {(progressiveLoading.backgroundLoading || backgroundLoadError) && (
                 <button
-                    // 返回按钮表示看完了（onDone）：宿主清掉浏览会话、让每套 suite 忘掉布局记录（网格的 sessionStorage
-                    // 记录经 entry 的 layout.forget），再返回。Escape 与浏览器后退保留（onBack）。P4.5 起不在这里清。
-                    onClick={onDone}
-                    className="absolute left-6 top-5 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95 z-[70]"
-                    style={{
-                        backgroundColor: isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
-                        backdropFilter: 'blur(8px)',
-                    }}
+                    type="button"
+                    onClick={resumeBackgroundSync}
+                    disabled={!backgroundLoadError}
+                    className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs tabular-nums backdrop-blur-md disabled:cursor-default"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}
+                    title={backgroundFailureSaid
+                        ? t('playlist.syncFailedHint', {
+                            error: backgroundFailureSaid.quote
+                                ? `${backgroundFailureSaid.title}: ${[backgroundFailureSaid.quote.text, backgroundFailureSaid.quote.code].filter(Boolean).join(' ')}`
+                                : backgroundFailureSaid.title,
+                        })
+                        : backgroundSyncLabel}
                 >
-                    <ChevronLeft size={20} />
+                    <RefreshCw size={14} className={progressiveLoading.backgroundLoading ? 'animate-spin' : ''} />
+                    {backgroundSyncLabel}
+                    {backgroundLoadError && <span className="font-semibold">{t('ui.retry')}</span>}
                 </button>
+            )}
 
-                {!resourceSnapshot?.librarySongs && (progressiveLoading.backgroundLoading || backgroundLoadError) && (
-                    <button
-                        type="button"
-                        onClick={resumeBackgroundSync}
-                        disabled={!backgroundLoadError}
-                        className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs tabular-nums backdrop-blur-md disabled:cursor-default"
-                        style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}
-                        title={backgroundFailureSaid
-                            ? t('playlist.syncFailedHint', {
-                                error: backgroundFailureSaid.quote
-                                    ? `${backgroundFailureSaid.title}: ${[backgroundFailureSaid.quote.text, backgroundFailureSaid.quote.code].filter(Boolean).join(' ')}`
-                                    : backgroundFailureSaid.title,
-                            })
-                            : backgroundSyncLabel}
-                    >
-                        <RefreshCw size={14} className={progressiveLoading.backgroundLoading ? 'animate-spin' : ''} />
-                        {backgroundSyncLabel}
-                        {backgroundLoadError && <span className="font-semibold">{t('ui.retry')}</span>}
-                    </button>
+            {/* Center Clickable Area */}
+            <div
+                onClick={() => {
+                    if (!hasCutInPanel) return;
+                    setShowCutInPanel(!showCutInPanel);
+                }}
+                className={`group/grid-title absolute left-1/2 top-5 -translate-x-1/2 z-[70] text-center flex flex-col items-center select-none transition-all px-5 py-2 rounded-2xl backdrop-blur-md ${hasCutInPanel ? 'cursor-pointer hover:scale-[1.01] active:scale-98' : ''}`}
+                style={{
+                    backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
+                    color: 'var(--text-primary)',
+                }}
+            >
+                <h2 className="text-lg font-bold tracking-tight flex items-center gap-1.5 justify-center">
+                    {infoCollection?.name || collectionName || title}
+                    {hasCutInPanel && <GridPanelToggleIndicator isOpen={showCutInPanel} />}
+                </h2>
+                {(infoCollection?.description || subtitle) && (
+                    <p className="mt-0.5 max-w-[min(40rem,calc(100vw-8rem))] text-xs leading-relaxed opacity-50 line-clamp-2 whitespace-normal break-words">
+                        {infoCollection?.description || subtitle}
+                    </p>
                 )}
-
-                {/* Center Clickable Area */}
-                <div
-                    onClick={() => {
-                        if (!hasCutInPanel) return;
-                        setShowCutInPanel(!showCutInPanel);
-                    }}
-                    className={`group/grid-title ${isLibrarySongsCollection ? 'relative mx-auto w-fit max-w-[calc(100%_-_8rem)]' : 'absolute left-1/2 top-5 -translate-x-1/2'} z-[70] text-center flex flex-col items-center select-none transition-all px-5 py-2 rounded-2xl backdrop-blur-md ${hasCutInPanel ? 'cursor-pointer hover:scale-[1.01] active:scale-98' : ''}`}
-                    style={{
-                        backgroundColor: 'color-mix(in srgb, var(--bg-color) 20%, transparent)',
-                        color: 'var(--text-primary)',
-                    }}
-                >
-                    <h2 className="text-lg font-bold tracking-tight flex items-center gap-1.5 justify-center">
-                        {infoCollection?.name || collectionName || title}
-                        {hasCutInPanel && <GridPanelToggleIndicator isOpen={showCutInPanel} />}
-                    </h2>
-                    {(infoCollection?.description || subtitle) && (
-                        <p className="mt-0.5 max-w-[min(40rem,calc(100vw-8rem))] text-xs leading-relaxed opacity-50 line-clamp-2 whitespace-normal break-words">
-                            {infoCollection?.description || subtitle}
-                        </p>
-                    )}
-                </div>
-                <LibrarySongsStatus snapshot={resourceSnapshot} onResume={resumeBackgroundSync}
-                    className="relative mx-auto mt-3 max-w-2xl rounded-xl bg-[var(--bg-color)]/90 px-3 py-2 text-xs break-words shadow-sm" />
             </div>
 
             {/* Honeycomb Drag/Viewport Canvas Area */}
@@ -2040,8 +2002,12 @@ export const GridView: React.FC<GridViewProps> = ({
                                 style={{ borderTopColor: 'color-mix(in srgb, var(--text-primary) 12%, transparent)' }}
                             >
                                 <button
-                                    onClick={playScope}
-                                    disabled={!canPlayScope}
+                                    onClick={() => {
+                                        if (onPlayAll && contextActionTracks.length > 0) {
+                                            onPlayAll(contextActionTracks);
+                                        }
+                                    }}
+                                    disabled={contextActionTracks.length === 0}
                                     className="w-full py-3 rounded-full font-bold text-xs transition-transform hover:scale-102 active:scale-98 flex items-center justify-center gap-1.5 shadow-md disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
                                     style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                 >
@@ -2051,8 +2017,12 @@ export const GridView: React.FC<GridViewProps> = ({
                                         : t('playlist.playAll')}
                                 </button>
                                 <button
-                                    onClick={enqueueScope}
-                                    disabled={!canPlayScope}
+                                    onClick={() => {
+                                        if (onAddAllToQueue && contextActionTracks.length > 0) {
+                                            onAddAllToQueue(contextActionTracks);
+                                        }
+                                    }}
+                                    disabled={contextActionTracks.length === 0}
                                     className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                 >
                                     <ListPlus size={14} />
@@ -2063,15 +2033,15 @@ export const GridView: React.FC<GridViewProps> = ({
                                 {onCollectAll && (
                                     <button
                                         onClick={() => {
-                                            if (collectActionTracks.length > 0) onCollectAll(collectActionTracks);
+                                            if (contextActionTracks.length > 0) onCollectAll(contextActionTracks);
                                         }}
-                                        disabled={collectActionTracks.length === 0}
+                                        disabled={contextActionTracks.length === 0}
                                         data-grid-action="collect-scope"
                                         className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                     >
                                         <NotebookPen size={14} />
                                         {hasSearchQuery
-                                            ? t('scratchpad.collectFiltered', { count: collectActionTracks.length })
+                                            ? t('scratchpad.collectFiltered', { count: contextActionTracks.length })
                                             : t('scratchpad.collectScope')}
                                     </button>
                                 )}
@@ -2117,10 +2087,10 @@ export const GridView: React.FC<GridViewProps> = ({
                                 {canReloadOnlineCollection && (
                                     <button
                                         onClick={reloadOnlineCollection}
-                                        disabled={!reloadCapability.enabled}
+                                        disabled={loading}
                                         className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
                                     >
-                                        {reloadCapability.pending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                        {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                                         {t('playlist.reload')}
                                     </button>
                                 )}
@@ -2295,14 +2265,13 @@ export const GridView: React.FC<GridViewProps> = ({
                             index={index}
                             style={style}
                             isUnavailable={isSongUnavailable(track)}
-                            playbackUnsupported={!isSongUnavailable(track) && !canPlaySongInCurrentRoute(track)}
                             isActive={index === listFocusedIndex}
                             albumTrackLabel={getAlbumTrackLabel(track)}
                             onPlay={() => {
-                                if (canPlaySongInCurrentRoute(track)) onSelectTrack?.(track, playableTracks);
+                                onSelectTrack?.(track, playableTracks);
                             }}
                             onAddToQueue={onAddTrackToQueue ? () => {
-                                if (canPlaySongInCurrentRoute(track)) onAddTrackToQueue(track);
+                                onAddTrackToQueue(track);
                             } : undefined}
                             onCollect={onCollectTrack ? () => onCollectTrack(track) : undefined}
                         />

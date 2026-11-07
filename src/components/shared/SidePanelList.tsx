@@ -168,15 +168,12 @@ export const TrackListItem = React.memo<{
     /** 收进速记簿（不动队列）；不给就没有这颗按钮。 */
     onCollect?: () => void;
     isUnavailable?: boolean;
-    /** A retained row without a supported playback route; other track actions stay available. */
-    playbackUnsupported?: boolean;
     isActive?: boolean;
     albumTrackLabel?: string | null;
-}>(({ track, index, style, onPlay, onAddToQueue, onCollect, isUnavailable, playbackUnsupported, isActive, albumTrackLabel }) => {
+}>(({ track, index, style, onPlay, onAddToQueue, onCollect, isUnavailable, isActive, albumTrackLabel }) => {
     const { t } = useTranslation();
     const coverUrl = getSongCoverUrl(track) || '';
     const artistName = getSongArtistLabel(track).split(',')[0]?.trim() || 'Unknown Artist';
-    const playbackDisabled = isUnavailable || playbackUnsupported;
     
     return (
         <div 
@@ -184,9 +181,9 @@ export const TrackListItem = React.memo<{
             className="px-2 py-1"
         >
             <div 
-                onClick={playbackDisabled ? undefined : onPlay}
-                className={`group flex items-center gap-3 p-2 rounded-lg transition-colors w-full h-full ${
-                    playbackDisabled
+                onClick={isUnavailable ? undefined : onPlay}
+                className={`flex items-center gap-3 p-2 rounded-lg transition-colors w-full h-full ${
+                    isUnavailable 
                         ? 'opacity-40 cursor-not-allowed' 
                         : isActive
                             ? 'bg-black/10 dark:bg-white/10 cursor-pointer group'
@@ -202,7 +199,7 @@ export const TrackListItem = React.memo<{
                             loading="lazy"
                         />
                     )}
-                    {!playbackDisabled && (
+                    {!isUnavailable && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <Play size={16} className="text-white fill-white ml-0.5" />
                         </div>
@@ -218,9 +215,6 @@ export const TrackListItem = React.memo<{
                         )}
                     </div>
                     <div className="text-[10px] opacity-60 truncate leading-tight mt-0.5">{artistName}</div>
-                    {playbackUnsupported && !isUnavailable && (
-                        <span className="text-[10px] opacity-60 leading-tight mt-0.5">{t('librarySongs.unsupportedPlayback')}</span>
-                    )}
                 </div>
                 {!isUnavailable && onCollect && (
                     <button
@@ -237,7 +231,7 @@ export const TrackListItem = React.memo<{
                         <NotebookPen size={15} />
                     </button>
                 )}
-                {!playbackDisabled && onAddToQueue && (
+                {!isUnavailable && onAddToQueue && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

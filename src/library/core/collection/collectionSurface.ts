@@ -45,11 +45,7 @@ export type CoreSurfaceParams = {
      */
     declaredActions?: LibraryDeclaredActions;
 
-    /** 批量播放 / 入队范围可用；资料库分页未完成时为 false。 */
-    canPlayScope?: boolean;
     filteredTrackCount: number;
-    /** 收藏范围可以包含当前播放方式不支持的歌曲；不给时沿用播放范围。 */
-    collectTrackCount?: number;
     isFilterActive: boolean;
     sortField: LocalSongFolderSortField;
     sortDirection: LocalSongFolderSortDirection;
@@ -95,11 +91,7 @@ export type GridSurfaceParams = CoreSurfaceParams & RendererSurfaceParams;
 export type CoreSurfaceInputs = {
     declaredActions?: LibraryDeclaredActions;
 
-    /** 批量播放 / 入队范围可用；资料库分页未完成时为 false。 */
-    canPlayScope?: boolean;
     filteredTrackCount: number;
-    /** 收藏范围可以包含当前播放方式不支持的歌曲；不给时沿用播放范围。 */
-    collectTrackCount?: number;
     isFilterActive: boolean;
     supportsLocalTrackSorting: boolean;
     sortField: LocalSongFolderSortField;
@@ -166,9 +158,7 @@ export const buildCoreSurfaceParams = (
         isSourceActionPending: snapshot.sourceActionPending,
         isSubscribing: snapshot.subscribing,
 
-        canPlayScope: inputs.canPlayScope,
         filteredTrackCount: inputs.filteredTrackCount,
-        collectTrackCount: inputs.collectTrackCount,
         isFilterActive: inputs.isFilterActive,
         sortField: inputs.sortField,
         sortDirection: inputs.sortDirection,
@@ -232,9 +222,9 @@ export const buildGridSurfaceState = (params: GridSurfaceParams): GridSurfaceSta
     const canRunSourceAction = !params.isSourceActionPending;
 
     const availableActions: GridSurfaceActionId[] = [];
-    if (hasTracks && params.canPlayScope !== false) availableActions.push('play-filtered', 'enqueue-filtered');
-    if ((params.collectTrackCount ?? params.filteredTrackCount) > 0 && params.collectFiltered) {
-        availableActions.push('collect-filtered');
+    if (hasTracks) {
+        availableActions.push('play-filtered', 'enqueue-filtered');
+        if (params.collectFiltered) availableActions.push('collect-filtered');
     }
     if (params.supportsLocalTrackSorting) {
         availableActions.push('sort-file-name', 'sort-modified-date', 'sort-album-track', 'sort-toggle-direction');

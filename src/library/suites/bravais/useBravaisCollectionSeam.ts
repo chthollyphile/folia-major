@@ -12,7 +12,6 @@ import type { CollectionView } from '../../core/collection/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
 import type { DailyStyleSelection } from '../../../types/onlineMusic';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
-import { projectLibrarySongsPresentation } from '../../core/collection/librarySongsPresentation';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem, BravaisSeamReload } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
@@ -103,8 +102,6 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         },
         counts,
     );
-    const librarySongs = projectLibrarySongsPresentation(snapshot?.librarySongs, snapshot?.status ?? null, sync.status);
-    const librarySongsLabel = librarySongs ? t(`librarySongs.${librarySongs.key}`, { count: librarySongs.count }) : undefined;
     const status = projection.status;
     const syncLine = projection.sync && (projection.sync.onResume && !declares('resume-sync') ? { ...projection.sync, onResume: undefined } : projection.sync);
 
@@ -306,8 +303,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
     }, [collection.name, dailyPending, dailyStyleGroups, dailyStyleGroupsFailed, dailyStyleSelection, formState, forms, input.displayTitle, isLocalFolder, offers, pending, playlists, t]);
 
     // 标题下的描述：详情盖在集合描述上（与网格信息面板同一条规则），空的不给。
-    const baseDescription = resolveCollectionDescription(collection, snapshot?.detail);
-    const description = [baseDescription, librarySongs?.filterPartial ? t('librarySongs.filterPartial') : ''].filter(Boolean).join(' · ');
+    const description = resolveCollectionDescription(collection, snapshot?.detail);
     const seamCollection = useMemo<BravaisSeamCollection>(() => ({
         description,
         subscribe,
@@ -379,5 +375,5 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         cancelForm: forms.cancel,
     }), [declares, formState, forms.cancel, input.query, isDaily, sortInput.direction, sortInput.field, sortInput.supported, t]);
 
-    return { seamCollection, filter, wall, entries, matchLabel, librarySongsLabel };
+    return { seamCollection, filter, wall, entries, matchLabel };
 };

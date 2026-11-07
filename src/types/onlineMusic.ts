@@ -81,8 +81,6 @@ export interface ProviderCapabilities {
     playlistTrackMutations?: boolean;
     likes?: boolean;
     userAlbums?: boolean;
-    /** The account's independent all-songs library, including rows that cannot be played. */
-    userSongs?: boolean;
     /** The provider accepts a listening report for a track the user actually played. */
     playbackReports?: boolean;
     /** The provider has a recommendation page of its own, read through `explore`. */
@@ -238,10 +236,8 @@ export interface ProviderCollection {
     /**
      * `artist_songs` is every song of the artist whose id this is (the artist page's "all songs", #918):
      * a read-only list the app makes, read through `catalog.getArtistSongs`.
-     * `library_songs` is the account's independent all-songs library: its id is the userId passed to
-     * `library.getUserSongs`, read-only here and separate from playlists and cloud uploads.
      */
-    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | 'artist_songs' | 'library_songs' | string;
+    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | 'artist_songs' | string;
     coverUrl?: string;
     description?: string;
     trackCount?: number;
@@ -789,8 +785,6 @@ export interface OnlineLibraryProvider {
      */
     areSongsLiked?(ids: MediaId[]): Promise<Record<string, boolean>>;
     getUserAlbums?(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
-    /** All account-library songs, not cloud uploads or a playlist; retain unplayable rows and their identities. */
-    getUserSongs?(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
     /** The entry that stands for the account's cloud songs among its collections; null where it has none to show. */
     getCloudCollection?(user?: ProviderUser): Promise<ProviderCollection | null>;
     /**

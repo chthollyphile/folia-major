@@ -60,7 +60,7 @@ const PosterSong: React.FC<{ item: BravaisItem; index: number; onPlay?: (key: st
     const play = useCallback(() => onPlay?.(item.key), [item.key, onPlay]);
     return (
         <li>
-            <button type="button" className="bravais-poster-song" onClick={play} disabled={!onPlay || item.unavailable || item.playbackUnsupported}
+            <button type="button" className="bravais-poster-song" onClick={play} disabled={!onPlay || item.unavailable}
                 data-bravais-poster-song={item.key} aria-label={item.subtitle ? `${item.title} · ${item.subtitle}` : item.title}>
                 <span className="bravais-poster-song-index" aria-hidden>{String(index + 1).padStart(2, '0')}</span>
                 <span className="bravais-poster-song-title" aria-hidden>

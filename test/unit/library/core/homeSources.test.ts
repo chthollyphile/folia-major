@@ -88,12 +88,6 @@ describe('resolveHomeOnlineSource', () => {
         expect(source({ capabilities: NONE })).toMatchObject({ canUsePlaylists: false, canUseAlbums: false, canUseRadio: false });
     });
 
-    it('offers account songs only when the independent userSongs capability exists', () => {
-        expect(source({ capabilities: ALL }).canUseSongs).toBe(false);
-        expect(source({ capabilities: { ...ALL, userSongs: true } }).canUseSongs).toBe(true);
-        expect(source({ capabilities: { ...NONE, userSongs: true } }).canUseSongs).toBe(false);
-    });
-
     it('reads the account view and an expired login from the summary', () => {
         expect(source({ provider: summary({ status: 'unknown', hydration: 'loading' } as Partial<ProviderAccountSummary>) }).accountView).toBe('resolving');
         expect(source({ provider: summary({ status: 'anonymous' }), platformAvailable: true }).accountView).toBe('guest');
@@ -185,16 +179,6 @@ describe('online loading and import state', () => {
         expect(resolveOnlineHomeLoading({ ...base, tab: 'playlist', source: { ...signedIn, collections: [collection('a')] } })).toBe(false);
         expect(resolveOnlineHomeLoading({ ...base, tab: 'playlist', source: { ...signedIn, user: null } })).toBe(false);
         expect(resolveOnlineHomeLoading({ ...base, tab: 'playlist', source: { ...signedIn, canUsePlaylists: false } })).toBe(false);
-    });
-
-    it('does not hide the all-songs entry behind playlist skeletons when the account has no playlists', () => {
-        const online = source({
-            capabilities: { ...ALL, userSongs: true },
-            provider: summary({ user: { id: 'library-owner', nickname: 'U' }, collections: [] }),
-        });
-        expect(resolveOnlineHomeLoading({
-            tab: 'playlist', source: online, favoriteAlbumsLoading: false, radioFeedLoading: false,
-        })).toBe(false);
     });
 
     it('albums and radio follow their resources, unless the tab is unavailable', () => {

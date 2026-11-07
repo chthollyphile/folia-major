@@ -5,7 +5,6 @@ import type { CollectionResourceSnapshot } from '../../core/shared/resource.cont
 import type { LibraryCapability } from '../../core/shared/capability.contract';
 import type { CollectionMutationSnapshot } from '../../core/collection/mutations/mutations.contract';
 import { resolveCollectionSyncCounts } from '../../core/collection/collectionProgress';
-import { LibrarySongsStatus } from '../../../components/shared/LibrarySongsStatus';
 
 // src/library/suites/tui/LibraryTuiHeader.tsx
 // TUI 的状态栏：返回、集合名（改名后显示新名字）、订阅星标、来源、加载进度（中断时可续传）、重新拉取、
@@ -98,12 +97,12 @@ const LibraryTuiHeader: React.FC<LibraryTuiHeaderProps> = ({
                 <span className="tabular-nums opacity-70">
                     {counts ? t('libraryTui.loadedOfTotal', counts) : t('libraryTui.loaded', { loaded: loaded.toLocaleString() })}
                 </span>
-                {!snapshot?.librarySongs && sync.status === 'syncing' && (
+                {sync.status === 'syncing' && (
                     <span className="opacity-70" data-tui-sync="syncing">
                         {counts ? t('playlist.syncProgress', counts) : t('playlist.loading')}
                     </span>
                 )}
-                {!snapshot?.librarySongs && sync.status === 'interrupted' && (
+                {sync.status === 'interrupted' && (
                     <button
                         type="button"
                         data-tui-sync="interrupted"
@@ -148,7 +147,6 @@ const LibraryTuiHeader: React.FC<LibraryTuiHeaderProps> = ({
                 )}
                 {isLoading && <span className="opacity-50">{t('playlist.loading')}</span>}
             </div>
-            <LibrarySongsStatus snapshot={snapshot} onResume={onResumeSync} className="mt-1 text-xs" />
             {mutations.showDailyDate && (
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1" role="group" aria-label={t('home.recommendationDate')} data-tui-daily-date>
                     <span className="opacity-50">{`${t('home.recommendationDate')}:`}</span>

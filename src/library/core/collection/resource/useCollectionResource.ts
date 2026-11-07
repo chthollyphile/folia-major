@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import type { SongResult } from '../../../../types';
 import type { MediaId } from '../../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../collection.contract';
-import type { CollectionResource, LibrarySongsAccessScope } from '../../shared/resource.contract';
+import type { CollectionResource } from '../../shared/resource.contract';
 import { collectionResourceRegistry } from './collectionResourceRegistry.service';
-import { acquireCollectionResource, resolveCollectionResourceKey } from './createCollectionResource.service';
-import { canAccessCollectionResource } from './collectionResourceScope.service';
+import { createCollectionResource, resolveCollectionResourceKey } from './createCollectionResource.service';
 import { createStaticCollectionResource } from './staticCollectionResource.service';
 
 // src/library/core/collection/resource/useCollectionResource.ts
@@ -15,7 +14,6 @@ import { createStaticCollectionResource } from './staticCollectionResource.servi
 type UseCollectionResourceParams = {
     descriptor: LibraryCollectionDescriptor | null;
     currentUserId?: MediaId | null;
-    librarySongsScope?: LibrarySongsAccessScope | null;
     /** 本地集合的曲目由宿主在渲染期算好，直接包成静态资源。 */
     localTracks?: SongResult[];
 };
@@ -23,13 +21,9 @@ type UseCollectionResourceParams = {
 export const useCollectionResource = ({
     descriptor,
     currentUserId,
-    librarySongsScope,
     localTracks,
 }: UseCollectionResourceParams): CollectionResource | null => {
-    const context = { currentUserId, librarySongsScope };
-    const key = descriptor && canAccessCollectionResource(descriptor, context)
-        ? resolveCollectionResourceKey(descriptor, currentUserId)
-        : null;
+    const key = descriptor ? resolveCollectionResourceKey(descriptor, currentUserId) : null;
     const isLocal = descriptor?.source === 'local';
     // 资源被 registry 回收时（例如长时间只 peek 未 retain），换一代重新拿。
     const [peekEpoch, setPeekEpoch] = useState(0);
@@ -37,7 +31,7 @@ export const useCollectionResource = ({
     const resource = useMemo(() => {
         if (!descriptor || !key) return null;
         if (isLocal) return createStaticCollectionResource(key, localTracks ?? []);
-        return acquireCollectionResource(key, descriptor, context);
+        return collectionResourceRegistry.peekOrCreate(key, descriptor, () => createCollectionResource(key, descriptor));
         // descriptor 本身不进依赖：同一个 key 下的描述变化由 ensure 处理（按版本决定是否重新加载）。
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, isLocal, localTracks, peekEpoch]);
@@ -54,9 +48,9 @@ export const useCollectionResource = ({
 
     useEffect(() => {
         if (resource && descriptor) {
-            resource.ensure(descriptor, { currentUserId, librarySongsScope });
+            resource.ensure(descriptor, { currentUserId });
         }
-    }, [currentUserId, librarySongsScope, descriptor, resource]);
+    }, [currentUserId, descriptor, resource]);
 
     return resource;
 };

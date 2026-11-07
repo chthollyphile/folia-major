@@ -1,4 +1,3 @@
-import type { MediaId } from '../../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../collection.contract';
 import type { CollectionResource } from '../../shared/resource.contract';
 import { createResourceRegistry, type ResourceRegistry, type ResourceRegistryOptions } from '../../shared/resourceRegistry.service';
@@ -24,20 +23,7 @@ export const createCollectionResourceRegistry = (
 ): CollectionResourceRegistry => createResourceRegistry<CollectionResource, LibraryCollectionDescriptor>({
     ...options,
     retainable: resource => resource.kind === 'online',
-    sessionRetained: resource => resource.getSnapshot()?.librarySongs !== undefined,
 });
-
-/** Account/source owners call this even when the library view is not mounted; null discards every library read. */
-export const invalidateLibrarySongsResources = (
-    scope: { providerId: string; userId: MediaId } | null,
-    registry: CollectionResourceRegistry = collectionResourceRegistry,
-): void => {
-    registry.invalidate(resource => resource.getSnapshot()?.librarySongs !== undefined && (
-        scope === null
-        || !resource.key.startsWith(`online:${scope.providerId}:library_songs:`)
-        || !resource.key.endsWith(`|u:${scope.userId}`)
-    ));
-};
 
 /** 应用里共用的那一个。 */
 export const collectionResourceRegistry = createCollectionResourceRegistry();

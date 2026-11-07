@@ -96,7 +96,6 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         declaredActions,
         supportsLocalTrackSorting,
         canReloadOnlineCollection: actions.capabilities.reload.enabled,
-        canPlayScope: actions.capabilities.scope.enabled,
         filteredTrackCount: view.contextTracks.length,
         isFilterActive: view.isFilterActive,
         sortField,
@@ -218,14 +217,14 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
 
     const playRow = (row: number) => {
         const track = trackAtRow(row);
-        if (!track || !actions.canPlayTrack(track)) return;
+        if (!track) return;
         focus.focusRow(row);
         focus.persistFocus(row);
         actions.playTrack(track);
     };
     const enqueueRow = (row: number) => {
         const track = trackAtRow(row);
-        if (track && actions.canPlayTrack(track)) actions.enqueueTrack(track);
+        if (track) actions.enqueueTrack(track);
     };
 
     useLibraryTuiKeyboard({
@@ -276,7 +275,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
         onOpenArtistRow: canOpenArtist ? openArtistAt : undefined,
     // playRow / enqueueRow / matchRow / openAlbumAt / openArtistAt 每次渲染都是新函数，但它们只读当前的 focus、view 与控制器。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [actions, accentColor, canMatchSong, canOpenAlbum, canOpenArtist, focus.focusRow, focus.focusedRow, focus.rowDisplayIndexes, focus.rowKeys, isDaylight, pendingKeys, t, view.displayTracks]);
+    }), [accentColor, canMatchSong, canOpenAlbum, canOpenArtist, focus.focusRow, focus.focusedRow, focus.rowDisplayIndexes, focus.rowKeys, isDaylight, pendingKeys, t, view.displayTracks]);
 
     const isEmpty = focus.rowDisplayIndexes.length === 0;
     const isLoading = !snapshot || snapshot.status === 'idle' || snapshot.status === 'loading';

@@ -1,17 +1,8 @@
 
 
 export default {
-  "librarySongs": {
-    "title": "全部歌曲",
-    "description": "音乐资料库中的歌曲",
-    "loading": "已加载 {{count}} 首 · 正在继续加载…",
-    "loaded": "已加载 {{count}} 首 · 已完整加载",
-    "incomplete": "已加载 {{count}} 首 · 尚未完整加载",
-    "refreshing": "正在刷新 · 暂时保留旧列表（已加载 {{count}} 首）",
-    "refreshFailed": "尚未更新 · 刷新失败，保留旧列表（已加载 {{count}} 首）",
-    "unsupportedPlayback": "暂不支持播放",
-    "skipped": "已跳过 {{count}} 首暂无可用播放路径的歌曲",
-    "filterPartial": "加载完成前，筛选仅覆盖已加载的歌曲。"
+  "appleMusic": {
+    "libraryPlaylistName": "全部歌曲"
   },
   "scratchpad": {
     "title": "速记簿",

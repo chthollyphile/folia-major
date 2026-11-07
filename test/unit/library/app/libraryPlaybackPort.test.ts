@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import i18next from 'i18next';
 import type { LocalSong, SongResult } from '@/types';
 import { createLibraryPlaybackPort } from '@/library/app/createLibraryPlaybackPort';
 import { buildLocalQueue, buildNavidromeQueue } from '@/services/playbackAdapters';
@@ -8,8 +7,6 @@ import type { NavidromeSong } from '@/types/navidrome';
 // test/unit/library/app/libraryPlaybackPort.test.ts
 // 播放端口把单曲入队按来源分流（与原先宿主里的逻辑逐字一致）：本地歌交给本地队列，
 // Navidrome 歌交出播放载体，找不到本地原歌或载体的退回在线入队。整批入队把选项与收下的条数原样转交。
-
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ canPlaySongInCurrentRoute: (track: SongResult) => track.id !== 'unsupported' }));
 
 const localSong = { id: 'local-1', fileName: '1.mp3', filePath: '1.mp3', duration: 1, fileSize: 1, mimeType: 'audio/mpeg', addedAt: 1, title: 'L', titleOrigin: 'import', importedMetadata: { title: 'L', titleSource: 'embedded', artistNames: [] } } as LocalSong;
 const onlineSong = { id: 9, name: 'O', artists: [], album: { id: 0, name: '' }, durationMs: 1, sourceRef: { kind: 'online', providerId: 'netease', mediaId: '9' } } as SongResult;
@@ -29,24 +26,6 @@ const surface = (localSongs: LocalSong[] = [localSong]) => ({
 });
 
 describe('library playback port', () => {
-    it('drops unsupported playback rows but reports how many the batch skipped', () => {
-        const translate = vi.spyOn(i18next, 't').mockReturnValue('skipped 1');
-        const props = { ...surface(), onStatusMessage: vi.fn() };
-        const unsupported: SongResult = { ...onlineSong, id: 'unsupported' };
-        const port = createLibraryPlaybackPort(props);
-        port.playTrack(unsupported, [onlineSong, unsupported]);
-        port.enqueueTrack(unsupported);
-        expect(props.onPlaySong).not.toHaveBeenCalled();
-        expect(props.onAddSongToQueue).not.toHaveBeenCalled();
-        port.playAll([onlineSong, unsupported]);
-        expect(props.onPlayAll).toHaveBeenCalledWith([onlineSong]);
-        port.enqueueAll([onlineSong, unsupported]);
-        expect(props.onAddAllToQueue).toHaveBeenCalledWith([onlineSong], { suppressToast: true });
-        expect(props.onStatusMessage).toHaveBeenLastCalledWith({ type: 'info', text: 'skipped 1' });
-        expect(translate).toHaveBeenLastCalledWith('librarySongs.skipped', { count: 1 });
-        translate.mockRestore();
-    });
-
     it('routes a local song to the local queue with its library entry', () => {
         const props = surface();
         createLibraryPlaybackPort(props).enqueueTrack(buildLocalQueue([localSong])[0]);

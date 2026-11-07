@@ -52,8 +52,6 @@ export type LibraryHomeOnlineSource = {
     collections: ProviderCollection[];
     canUsePlaylists: boolean;
     canUseAlbums: boolean;
-    /** 平台能分页读取当前账号的全部歌曲（独立于歌单与云盘）。 */
-    canUseSongs?: boolean;
     canUseRadio: boolean;
     /** provider 有自己的推荐页（capabilities.explore）：没有时探索页签不出现。 */
     canUseExplore: boolean;
