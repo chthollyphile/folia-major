@@ -195,8 +195,10 @@ export function useSessionRestoreController({
                         stillWanted,
                         queueWritesAtStart: writesAtStart,
                         // The remembered song's player outlived the app that quit: where it is on
-                        // that song is what the session shows, paused, for the press of play.
+                        // that song is what the session shows, paused, for the press of play - or, a
+                        // track it is sounding, the player itself, taken over.
                         resumeExternalPosition: true,
+                        shouldAutoPlayRef,
                     });
                 } catch (error) {
                     console.warn('Failed to restore audio/lyrics for last session', error);

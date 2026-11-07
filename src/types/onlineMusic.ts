@@ -592,6 +592,15 @@ export interface OnlineExternalPlaybackProvider {
      * Absent where the player cannot be asked without being steered.
      */
     runningPositionMs?(song: SongResult): Promise<number | null>;
+    /**
+     * The player's state for `song` as a session restored at launch finds it, read once and from no
+     * cache: absent where the player cannot be asked without being steered. The read may look for the
+     * way this app steers the player (a player of its own that outlives the app is not running the way
+     * this run started), so a provider that can be running a song nobody here started overrides it.
+     * A read only: nothing is started, resumed or paused for it, and where the player cannot be
+     * reached the answer names no track.
+     */
+    runningStatus?(song: SongResult): Promise<ProviderExternalPlaybackStatus | null>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */

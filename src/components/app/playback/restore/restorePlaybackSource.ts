@@ -27,8 +27,9 @@ import { isPureMusicLyricText } from '../../../../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../../../../utils/lyrics/renderHints';
 import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../../utils/onlineLyricsState';
-import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
+import type { AudioQualityPreference, MediaId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { adoptExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -57,11 +58,20 @@ import type { PlaybackRoute } from '../../../../types/hifi';
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
 /**
- * Shows where a provider's own player is on the remembered song. The player outlives Folia, so a
- * track that kept sounding through the restart is at its position and not at its beginning, and the
- * press of play starts from there. Only a read happens here: nothing is started, resumed or paused.
- * Read once - an answer that fails or names another track leaves the song where it was - and dropped
- * where the restore was overtaken while it waited, so a song asked for meanwhile keeps its own.
+ * Shows a position on the remembered song: never past its end, where a song shown at its end starts
+ * over as a replay does, and never where the restore was overtaken while it waited, so a song asked
+ * for meanwhile keeps its own place.
+ */
+const showExternalPosition = (song: SongResult, positionMs: number | null, overtaken: () => boolean): void => {
+    if (positionMs === null || !Number.isFinite(positionMs) || positionMs <= 0) return;
+    if (overtaken()) return;
+    const seconds = positionMs / 1000;
+    currentTime.set(song.durationMs > 0 ? Math.min(seconds, song.durationMs / 1000) : seconds);
+};
+
+/**
+ * Asks the provider's own player where it is on the remembered song and shows it. An answer that
+ * fails or names another track leaves the song where it was.
  */
 const showRunningExternalPosition = async (song: SongResult, overtaken: () => boolean): Promise<void> => {
     let positionMs: number | null;
@@ -71,11 +81,40 @@ const showRunningExternalPosition = async (song: SongResult, overtaken: () => bo
         console.warn('[restorePlaybackSourceForSong] The player could not say where the song is; it stays at its beginning', error);
         return;
     }
-    if (positionMs === null || !Number.isFinite(positionMs) || positionMs <= 0) return;
+    showExternalPosition(song, positionMs, overtaken);
+};
+
+/**
+ * The remembered song's own player outlived the app: read once what it has now. A player sounding
+ * this song is taken over as it stands - the external route, its clock, the media keys and the songs
+ * that follow it are the ones this app follows anyway - and the intent to play the restore armed is
+ * dropped, because what sounds there is the player's and nothing here starts it. Anything else (a
+ * pause, another track, an advertisement, an answer that could not be had) only shows where it is,
+ * as a player Folia never started is nobody's to steer. Neither path starts, resumes or pauses it.
+ */
+const resumeRunningExternalPlayback = async (
+    song: SongResult,
+    overtaken: () => boolean,
+    shouldAutoPlayRef?: MutableRefObject<boolean>,
+): Promise<void> => {
+    let running: ProviderExternalPlaybackStatus | null = null;
+    try {
+        running = await omni.getExternalPlaybackRunningStatus(song);
+    } catch (error) {
+        console.warn('[restorePlaybackSourceForSong] The player could not say what it has; the song stays paused at its beginning', error);
+    }
     if (overtaken()) return;
-    // Never past the end of the song: a song shown at its end starts over, as a replay does.
-    const seconds = positionMs / 1000;
-    currentTime.set(song.durationMs > 0 ? Math.min(seconds, song.durationMs / 1000) : seconds);
+    if (running !== null && omni.isExternalPlaybackStatusForSong(song, running)) {
+        if (running.isPlaying && await adoptExternalPlayback(song)) {
+            if (shouldAutoPlayRef) shouldAutoPlayRef.current = false;
+            return;
+        }
+        // A take-over that failed has left the route to this app; the song is shown where the
+        // player has it, as a player that is not sounding the song is.
+        showExternalPosition(song, running.positionMs, overtaken);
+        return;
+    }
+    await showRunningExternalPosition(song, overtaken);
 };
 
 // 'restored': the song plays from a fresh source. 'failed': it could not be restored (what went
@@ -119,10 +158,16 @@ type RestorePlaybackSourceParams = {
     /**
      * A session read back at launch, rather than a window hand-off: a provider's own player outlives
      * this app, so it may still be running the remembered song where the listener left it. That one
-     * position is read and shown, and the press of play starts from there. A hand-off takes its
-     * position from the old window's snapshot instead, and asks the player nothing.
+     * state is read: a player sounding the song is taken over as it stands, and anything else is shown
+     * at its position, from where the press of play starts. A hand-off takes its position from the old
+     * window's snapshot instead, and asks the player nothing.
      */
     resumeExternalPosition?: boolean;
+    /**
+     * The caller's intent to play, taken by the restore where it takes a running player over: what
+     * sounds there is the player's own, so nothing of this window's autoplay is left to fire.
+     */
+    shouldAutoPlayRef?: MutableRefObject<boolean>;
 };
 
 // null on the HiFi route, which makes no blob URL: the one that was there is revoked all the same.
@@ -196,6 +241,7 @@ const restoreSourceForSong = async (
         queueWritesAtStart,
         pendingResumeTimeRef,
         resumeExternalPosition = false,
+        shouldAutoPlayRef,
     }: RestorePlaybackSourceParams,
 ): Promise<RestorePlaybackSourceOutcome> => {
     let restoredSongKey = getPlaybackSongKey(song);
@@ -411,11 +457,11 @@ const restoreSourceForSong = async (
     }
 
     if (omni.canPlayExternally(song)) {
-        // A provider's own player has no track after a restart: the remembered song is shown as it
-        // was - paused, at its position - and the play path starts it when the listener asks. Its
-        // lyrics are still restored, so the screen is not empty. (A window rebuild is different: the
-        // player outlives the window, and the hand-off's restore takes the running track over after
-        // this returns; see useElectronWindowPlaybackHandoff.)
+        // A provider's own player outlives the app: a session restore reads what it has (a track it
+        // sounds is taken over, anything else is shown where it is), and the play path starts the song
+        // otherwise. Its lyrics are still restored, so the screen is not empty. (A window rebuild is
+        // different: the player outlives the window, and the hand-off's restore takes the running
+        // track over itself; see useElectronWindowPlaybackHandoff.)
         try {
             const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
             if (overtaken()) return 'stale';
@@ -426,7 +472,7 @@ const restoreSourceForSong = async (
             if (overtaken()) return 'stale';
             console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored for the external player', error);
         }
-        if (resumeExternalPosition) await showRunningExternalPosition(song, overtaken);
+        if (resumeExternalPosition) await resumeRunningExternalPlayback(song, overtaken, shouldAutoPlayRef);
         return 'restored';
     }
 

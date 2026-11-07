@@ -1101,6 +1101,51 @@ describe('what a polled status read costs', () => {
     });
 });
 
+describe('the status read a session restore asks for', () => {
+    const netstats = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
+        .filter(call => String(call[0]).includes('netstat')).length;
+    // The page of an app that is playing one track: the state the status read asks for.
+    const playingPage = () => {
+        handle = expression => (expression.includes('getState')
+            ? { value: { item: { uri: 'spotify:track:' + TRACK }, isPaused: false, isBuffering: false, positionAsOfTimestamp: 1000, timestamp: Date.now(), duration: 200000, repeat: 0 } }
+            : { value: true });
+    };
+    const oneListener = ['  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321'].join(NEWLINE);
+
+    it('finds the port of an app Folia did not start and names the track it is on', async () => {
+        playingPage();
+        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true });
+        const status = await app.client.statusFound();
+        expect(status).toMatchObject({ id: TRACK, isPaused: false });
+        expect(status.fallback).toBeUndefined();
+        // A read of its own: nothing was started, closed or paused for it.
+        expect(app.spotifySpawns()).toBe(0);
+        expect(app.taskkills()).toBe(0);
+        expect(app.helperSpawns()).toBe(0);
+        await app.client.close();
+    });
+
+    it('searches once in a run, however often it is asked', async () => {
+        playingPage();
+        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true });
+        await app.client.statusFound();
+        await app.client.statusFound();
+        await app.client.statusFound();
+        expect(netstats(app)).toBe(1);
+        await app.client.close();
+    });
+
+    it('falls back to the media session where no port answers, and starts nothing', async () => {
+        mediaAnswers.status = { isPaused: false, positionMs: 12000, durationMs: 200000, repeat: 0, title: 'Song', artist: 'Artist' };
+        const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false });
+        await expect(app.client.statusFound()).resolves.toMatchObject({ id: '', fallback: true, positionMs: 12000 });
+        expect(netstats(app)).toBe(1);
+        expect(app.spotifySpawns()).toBe(0);
+        expect(app.taskkills()).toBe(0);
+        await app.client.close();
+    });
+});
+
 describe('the bridge log', () => {
     const makeBridgeWith = (officialClient: unknown) => {
         const warn = vi.fn();

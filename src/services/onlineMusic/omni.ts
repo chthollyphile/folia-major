@@ -1244,6 +1244,16 @@ export const omni = {
         return await external.runningPositionMs(song);
     },
 
+    // What a provider's own player has for this song right now, for a session restored at launch: a
+    // track it is playing is taken over as it stands, anything else is only shown where it is. One
+    // read, which for a player with a port of its own may be the run's one search for that port.
+    // Nothing is started, resumed or paused for it.
+    async getExternalPlaybackRunningStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus | null> {
+        const external = getOnlineMusicProviderForSong(song)?.externalPlayback;
+        if (!external?.runningStatus) return null;
+        return await external.runningStatus(song);
+    },
+
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
     // standard, high, lossless and hires without it): the ones the quality option shows for it.
     // Read anew on every call: a provider's list may change with its account.

@@ -732,6 +732,8 @@ function createSpotifyOfficialClient({
   let foundPort = null;
   let nextScanAt = 0;
   let scanFailures = 0;
+  // Whether the one search a session restore may make has been made in this run.
+  let portSearchedForStatus = false;
 
   // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
   // port is not Folia's, and Spotify must not be closed for it.
@@ -1047,6 +1049,22 @@ function createSpotifyOfficialClient({
     }
   }
 
+  // The player's state as a status read answers it, once, from wherever it can still be had.
+  const readStatus = async () => {
+    let state;
+    try {
+      if (!requestedPort && !foundPort) {
+        throw spotifyError('unavailable', 'Spotify has no DevTools port Folia has found', 'a status read does not look for one');
+      }
+      state = await evaluateInPage(STATE_BODY);
+    } catch (error) {
+      if (error?.code === 'invalid-response') throw error;
+      page.close();
+      if (!mediaSession) throw error;
+      return statusFromMediaSession(await mediaSession.ask('status'));
+    }
+    return statusFromPlayerState(state, Date.now());
+  };
 
   return {
     // Asked by the launch switch (or at app start): tries again even within the cool-down, and
@@ -1169,20 +1187,20 @@ function createSpotifyOfficialClient({
     // when the page cannot be reached. A status read never starts or closes Spotify, and it
     // never looks for the DevTools port either: it is polled while a song plays, so it takes the port
     // Folia already found (or the one it named) and answers from the media session meanwhile.
-    async status() {
-      let state;
-      try {
-        if (!requestedPort && !foundPort) {
-          throw spotifyError('unavailable', 'Spotify has no DevTools port Folia has found', 'a status read does not look for one');
-        }
-        state = await evaluateInPage(STATE_BODY);
-      } catch (error) {
-        if (error?.code === 'invalid-response') throw error;
-        page.close();
-        if (!mediaSession) throw error;
-        return statusFromMediaSession(await mediaSession.ask('status'));
+    status: readStatus,
+
+    // The same state for a session restore, with this run's one search for the DevTools port first:
+    // a Spotify the listener left running is named by the track it is on only once the port it
+    // listens on is known, and a fresh run has found none. The search reads the app's port file and
+    // asks the machine's loopback ports; it starts, closes and pauses nothing, and it happens once in
+    // a run, so what follows cannot turn into a search per poll. Where it finds nothing the answer is
+    // the media session's, as any status read's is.
+    async statusFound() {
+      if (!requestedPort && !portSearchedForStatus) {
+        portSearchedForStatus = true;
+        await findPort({ again: true });
       }
-      return statusFromPlayerState(state, Date.now());
+      return readStatus();
     },
 
     // The app is quitting: the page connection and the media session helper are let go. Nothing in

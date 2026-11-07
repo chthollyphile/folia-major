@@ -11,7 +11,7 @@ export type SpotifyOperation =
     | 'playback_mode' | 'soloist_state' | 'soloist_pick' | 'soloist_key' | 'soloist_restart' | 'soloist_open'
     | 'soloist_play' | 'soloist_pause' | 'soloist_resume' | 'soloist_seek' | 'soloist_volume' | 'soloist_status'
     | 'client_launch' | 'client_restart' | 'client_play' | 'client_queue' | 'client_pause' | 'client_resume' | 'client_seek'
-    | 'client_volume' | 'client_status' | 'client_probe';
+    | 'client_volume' | 'client_status' | 'client_status_found' | 'client_probe';
 // The queries the main process sends for the renderer (`RENDERER_QUERIES` in the bridge).
 export type SpotifyQuery =
     | 'home' | 'homeSection' | 'browsePage' | 'queryWhatsNewFeed' | 'libraryV3' | 'fetchLibraryTracks' | 'fetchPlaylist'

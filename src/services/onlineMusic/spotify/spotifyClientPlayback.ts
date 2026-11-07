@@ -366,6 +366,19 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         if (data.ad || !namesThatSong(song, data)) return null;
         return Math.max(0, Math.round(Number(data.positionMs) || 0));
     },
+    // What the app has for a song Folia did not start, as a session restore finds it: the read brings
+    // this run's one search for the app's DevTools port, so an app left running is named by the track
+    // it is on. Nothing is started, resumed or paused for it; an app that cannot be asked, one on
+    // another track and one that fell back to the media session all answer a status that names no
+    // track of this song, and the restore tells those apart by `isStatusForSong`.
+    async runningStatus() {
+        try {
+            return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status_found'));
+        } catch (error) {
+            console.warn('[SpotifyClient] the app could not say which track it is on', error);
+            return null;
+        }
+    },
     async getStatus() {
         return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status'));
     },
