@@ -64,7 +64,7 @@ const ponderOverview: PonderSceneScript = {
     },
     anchors: ONBOARDING_ILLUSTRATION,
     steps: [
-        { kind: 'keypress', id: 'pressCtrlG', keys: ['Ctrl G'], at: { anchor: 'page', y: 1, offset: { y: 20 } }, durationMs: 1400, keyframe: true },
+        { kind: 'keypress', id: 'pressCtrlG', keys: ['Mod G'], at: { anchor: 'page', y: 1, offset: { y: 20 } }, durationMs: 1400, keyframe: true },
         { kind: 'highlight', id: 'markPage', anchor: 'page', intensity: [0, 0.35], durationMs: 520, withPrevious: true },
         {
             kind: 'caption', id: 'ctrlG',

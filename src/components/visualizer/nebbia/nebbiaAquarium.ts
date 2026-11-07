@@ -35,6 +35,7 @@ export class NebbiaAquarium {
         count: 0,
         bubbles: 0,
         sway: new Float32Array(4),
+        weedIdle: 1,
         bursts: new Float32Array(NEBBIA_MAX_BURSTS * 4),
         burstCount: 0,
         beatRows: 0,
@@ -87,6 +88,9 @@ export class NebbiaAquarium {
         this.spotAge += dt;
         out.spotScale = 1 + SPOT_GROW * this.spotLevel();
         this.weed.step(dt, sway);
+        // 舞潮踏拍的水草一项开着：水草自己的摆动按 0.6 秒的时间常数收掉（0.6 秒剩约 1/3，2 秒左右收干净），只跟拍走；关掉时同样慢慢摆回来
+        const idle = beats && beats.weed > 0 ? 0 : 1;
+        out.weedIdle += (idle - out.weedIdle) * (1 - Math.exp(-dt / 0.6));
         // 着色器只看前 burstCount 排：把早浮出去的排除掉（时钟回绕、换歌归零时冒出时刻在将来的也丢）
         let n = 0;
         for (let i = 0; i < NEBBIA_MAX_BURSTS; i += 1) {

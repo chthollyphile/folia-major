@@ -162,7 +162,7 @@ const PonderHintCapsule: React.FC<PonderHintCapsuleProps> = ({
                     style={{ transform: 'scaleX(0)' }}
                 />
                 <span className="relative flex">
-                    <PonderKeyCombo combo={isPinned ? 'Ctrl G' : 'G'} {...PONDER_QUIET_CAP} />
+                    <PonderKeyCombo combo={isPinned ? 'Mod G' : 'G'} {...PONDER_QUIET_CAP} />
                 </span>
                 {/* 两段文案叠在同一格里交替；这一格平时是「思索」那么宽。两段都靠右：
                     「进入思索」的后两个字正好压在「思索」上，变宽时露出来的只是前面的「进入」。 */}

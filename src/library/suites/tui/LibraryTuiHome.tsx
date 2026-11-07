@@ -12,6 +12,7 @@ import { useLibraryHomeDirectory } from '../../core/home/useLibraryHomeDirectory
 import { useLibraryHomeTabsRegistration } from '../../core/home/useLibraryHomeSurfaceRegistration';
 import { useNavidromeHomeSectionStore } from '../../core/home/navidrome/useNavidromeHomeSectionStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { LibraryTuiLocalList, LibraryTuiNavidromeList, LibraryTuiOnlineList } from './LibraryTuiHomeLists';
 import type { LibraryTuiPromptRequest } from './LibraryTuiPrompt';
 import { useLibraryTuiHomePageKeys } from './useLibraryTuiHomeKeyboard';
@@ -260,7 +261,7 @@ const LibraryTuiHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
                 {t('libraryTui.homeHints')}
                 {` · ${t('libraryTui.homeAccountsHint')}`}
                 {activeSource === 'local' && localSectionKey === 'folders' ? ` · ${t('libraryTui.homeTreeHints')}` : ''}
-                {showBatchHints ? ` · ${t('libraryTui.homeBatchHints')}` : ''}
+                {showBatchHints ? ` · ${t('libraryTui.homeBatchHints', { mod: PRIMARY_MODIFIER_LABEL })}` : ''}
             </footer>
         </div>
     );

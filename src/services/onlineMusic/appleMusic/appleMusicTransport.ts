@@ -4,7 +4,7 @@ import type { ProviderAvailability, ProviderErrorCode } from '../../../types/onl
 // The provider's sole renderer-side boundary to the isolated desktop companion.
 // The queue is Folia's: no next/previous of the companion's own.
 export type AppleMusicOperation = 'showWindow' | 'hideWindow' | 'logout' | 'accountStatus' | 'search' | 'playlists' | 'playlistTracks' | 'playlistTrackCount' | 'lyrics'
-    | 'songOriginal' | 'catalogSong' | 'catalogAlbum' | 'catalogAlbumTracks' | 'catalogArtist' | 'catalogArtistSongs' | 'catalogArtistAlbums' | 'libraryAlbums' | 'libraryAlbumTracks' | 'stations' | 'station' | 'playStation' | 'personalFm' | 'addPlaylistTracks' | 'likeSong' | 'prepareNext' | 'playbackStatus' | 'playSong' | 'pause' | 'resume' | 'seek' | 'setVolume';
+    | 'songOriginal' | 'catalogSong' | 'catalogAlbum' | 'catalogAlbumTracks' | 'catalogArtist' | 'catalogArtistSongs' | 'catalogArtistAlbums' | 'libraryAlbums' | 'librarySongs' | 'libraryAlbumTracks' | 'stations' | 'station' | 'playStation' | 'personalFm' | 'addPlaylistTracks' | 'likeSong' | 'prepareNext' | 'playbackStatus' | 'playSong' | 'pause' | 'resume' | 'seek' | 'setVolume';
 export type AppleMusicParams = Record<string, string | number | boolean | string[] | undefined>;
 export type AppleMusicBridgeResult =
     | { ok: true; data: unknown }

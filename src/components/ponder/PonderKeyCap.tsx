@@ -10,8 +10,8 @@ import { PRIMARY_MODIFIER_LABEL } from '../../utils/platform';
 //
 // 修饰键分两种写法，不要混：
 // - `Mod` 是「这个平台的主修饰键」，macOS 上是 Cmd，其余是 Ctrl。命令窗口的 Ctrl/Cmd+K
-//   这类由 openHotkey 的 `ctrl` 声明出来的快捷键都属于它。
-// - `Ctrl` 是字面意义的 Ctrl，哪个平台都是 Ctrl。页面级思索的 Ctrl+G 就是这种。
+//   这类由 openHotkey 的 `ctrl` 声明出来的快捷键都属于它，页面级思索的 Mod+G 也是。
+// - `Ctrl` 是字面意义的 Ctrl，哪个平台都是 Ctrl。
 
 /** 脚本里写 `Mod` 的地方，落到画面上是这个。 */
 export const PONDER_MODIFIER_TOKEN = 'Mod';

@@ -16,17 +16,20 @@ export const runsOnWindows = (): boolean => (
     typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win')
 );
 
+/** A keyboard or mouse event: both carry the modifier flags, so Ctrl/Cmd+click asks the same question. */
+type ModifierEvent = Pick<KeyboardEvent, 'ctrlKey' | 'metaKey'>;
+
 /**
  * The modifier a shortcut declared as `ctrl` actually uses here: Cmd on macOS, Ctrl elsewhere.
  * Shortcuts are declared once with `ctrl` and translated at the point of use, rather than each
  * declaration carrying a per-platform variant.
  */
-export const isPrimaryModifierPressed = (event: KeyboardEvent): boolean => (
+export const isPrimaryModifierPressed = (event: ModifierEvent): boolean => (
     isMacPlatform ? event.metaKey : event.ctrlKey
 );
 
 /** The modifier that must stay *up* for a primary-modifier shortcut to be unambiguous. */
-export const isSecondaryModifierPressed = (event: KeyboardEvent): boolean => (
+export const isSecondaryModifierPressed = (event: ModifierEvent): boolean => (
     isMacPlatform ? event.ctrlKey : event.metaKey
 );
 
