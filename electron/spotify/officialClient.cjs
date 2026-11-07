@@ -684,12 +684,17 @@ function createSpotifyOfficialClient({
       // Started in the tray where Spotify honours the flag, so Folia raising it neither opens a
       // window nor takes the focus; the window is hidden into the tray below where it came up anyway.
       // The port is CEF's to pick where none was named: it writes the one it took into its profile,
-      // and the search above reads it there, or finds the listener it opened. The origins CEF is told
-      // to accept cannot name a port that is not known yet, and Folia's own client sends none.
+      // and the search above reads it there, or finds the listener it opened.
       foundPort = null;
       nextScanAt = 0;
-      const origins = requestedPort ? `http://${CDP_HOST}:${requestedPort}` : '*';
-      const child = spawnProcess(launcher, [START_MINIMIZED_FLAG, `--remote-debugging-port=${requestedPort}`, `--remote-allow-origins=${origins}`], { detached: true, stdio: 'ignore', windowsHide: false });
+      // CEF refuses a WebSocket that carries an Origin header it was not told to accept, and Folia's
+      // own DevTools client sends none (measured: Node's WebSocket sends no Origin). So no origin is
+      // allowed when the port is not known yet — a wildcard would let any page in a browser reach the
+      // port and steer the signed-in Spotify, which is exactly what must not happen. A port Folia names
+      // itself is allowed, and only its own origin.
+      const args = [START_MINIMIZED_FLAG, `--remote-debugging-port=${requestedPort}`];
+      if (requestedPort) args.push(`--remote-allow-origins=http://${CDP_HOST}:${requestedPort}`);
+      const child = spawnProcess(launcher, args, { detached: true, stdio: 'ignore', windowsHide: false });
       spawned = true;
       child.on?.('error', error => warn('[SpotifyClient] Spotify could not be started', error));
       child.unref?.();

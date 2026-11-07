@@ -572,11 +572,40 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         const args = (app.spawnProcess.mock.calls as unknown as unknown[][]).find(call => !/powershell\.exe$/i.test(String(call[0])))?.[1] as string[];
         expect(args).toContain('--minimized');
         expect(args.some(arg => arg.startsWith('--remote-debugging-port='))).toBe(true);
+        // A port Folia names itself gets exactly its own origin, and nothing wider.
+        expect(args).toContain('--remote-allow-origins=http://127.0.0.1:9283');
         const script = Buffer.from(String((minimizers(app)[0]?.[1] as string[]).at(-1)), 'base64').toString('utf16le');
         // Hidden into the tray without activation (SW_HIDE), never closed: the tray icon still restores it,
         // and only a non-zero handle is touched.
         expect(script).toContain('ShowWindowAsync($p.MainWindowHandle, 0)');
         expect(script).toContain('$p.MainWindowHandle -ne [System.IntPtr]::Zero');
+        await app.client.close();
+    });
+
+    it('never lets a page in a browser steer the DevTools port it let Spotify pick (N9)', async () => {
+        const app = makeClient({ running: false, port: 0, activePort: 54123, appDirectory: makeLauncherDirectory() });
+        // The port answers only once Spotify has been started: before that none is found, so the
+        // launch happens as it does on a machine where Spotify is not running.
+        app.fetch.mockImplementation((async (url: string) => {
+            if (String(url).includes('/json/version')) {
+                return {
+                    ok: app.spotifySpawns() > 0,
+                    json: async () => ({ Browser: 'Chrome/122.0.0.0', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Spotify/1.2.31' }),
+                };
+            }
+            return {
+                ok: true,
+                json: async () => [{ type: 'page', url: 'https://xpui.app.spotify.com/', webSocketDebuggerUrl: 'ws://127.0.0.1:54123/devtools/page/1' }],
+            };
+        }) as never);
+        await expect(app.client.launch()).resolves.toBe(true);
+        const args = (app.spawnProcess.mock.calls as unknown as unknown[][]).find(call => !/powershell\.exe$/i.test(String(call[0])))?.[1] as string[];
+        expect(args).toContain('--remote-debugging-port=0');
+        // No origin is allowed at all: Folia's own DevTools client sends no Origin header, and a page
+        // in a browser always sends one — a wildcard here would let any page steer the signed-in
+        // Spotify through the port it scans for.
+        expect(args.some(arg => arg.startsWith('--remote-allow-origins'))).toBe(false);
+        expect(args).not.toContain('--remote-allow-origins=*');
         await app.client.close();
     });
 
