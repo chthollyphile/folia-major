@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
+import { withStatusLoadingResult, beginStatusLoading, completeStatusLoading, failStatusLoading, holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
 
 // test/unit/stores/statusMessageStore.test.ts
 // Guards the two properties the toast channel's callers depend on: the updater form still sees
@@ -10,6 +10,49 @@ import { holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMes
 describe('status message store', () => {
     beforeEach(() => {
         useStatusMessageStore.setState({ message: null, held: false });
+    });
+
+    it('keeps the loader identity for success and rejects an older completion', () => {
+        const first = beginStatusLoading('first');
+        const second = beginStatusLoading('second');
+        completeStatusLoading(first, 'old result');
+        expect(useStatusMessageStore.getState().message).toBe(second);
+        completeStatusLoading(second, 'done');
+        expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success', activityId: second.activityId, text: 'done' });
+        expect(useStatusMessageStore.getState().message?.persistent).not.toBe(true);
+    });
+
+    it('morphs a failure without losing its actions or countdown', () => {
+        const loading = beginStatusLoading('loading');
+        const onAction = vi.fn();
+        const countdown = { text: 'skip', seconds: 5, totalMs: 5000 };
+        setStatusMessage({ type: 'error', text: 'failed', persistent: true, countdown, onAction });
+        expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'error', activityId: loading.activityId, text: 'failed', persistent: true, countdown, onAction });
+        completeStatusLoading(loading, 'late success');
+        expect(useStatusMessageStore.getState().message?.text).toBe('failed');
+    });
+
+    it('keeps the predecorated failure identity used by countdown updates', () => {
+        beginStatusLoading('loading');
+        const failure = withStatusLoadingResult({ type: 'error', text: 'failed', persistent: true });
+        setStatusMessage(failure);
+        expect(useStatusMessageStore.getState().message).toBe(failure);
+        setStatusMessage(previous => previous === failure ? { ...failure, text: 'next second' } : previous);
+        expect(useStatusMessageStore.getState().message?.text).toBe('next second');
+    });
+
+    it('does not cover an error or fail a newer loading operation', () => {
+        setStatusMessage({ type: 'error', text: 'error' });
+        const hidden = beginStatusLoading('loading');
+        completeStatusLoading(hidden, 'done');
+        expect(useStatusMessageStore.getState().message?.text).toBe('error');
+        setStatusMessage(null);
+        const first = beginStatusLoading('first');
+        const second = beginStatusLoading('second');
+        failStatusLoading(first, 'old error');
+        expect(useStatusMessageStore.getState().message).toBe(second);
+        failStatusLoading(second, 'failed');
+        expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'error', text: 'failed', activityId: second.activityId });
     });
 
     it('stores a message set directly', () => {

@@ -1,6 +1,7 @@
+import { LoadingBars } from '../../shared/LoadingBars';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Music, Sparkles, Languages } from 'lucide-react';
+import { Music, Sparkles, Languages } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SongResult, LyricData, Line } from '../../../types';
 import { findLatestActiveLineIndex } from '../../../utils/appPlaybackHelpers';
@@ -336,7 +337,7 @@ export const LyricPreviewPanel: React.FC<LyricPreviewPanelProps> = ({
     if (isLoading) {
         return (
             <div className={`w-full flex-1 flex flex-col items-center justify-center p-4 border rounded-xl ${previewBoxBg}`}>
-                <Loader2 className="animate-spin opacity-50 mb-2" size={20} />
+                <LoadingBars className="opacity-50 mb-2" size={28} />
                 <span className={`text-xs opacity-60 ${textPrimary}`}>{t('localMusic.loadingLyrics')}</span>
             </div>
         );

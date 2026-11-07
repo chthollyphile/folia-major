@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OnlineLyricsState, UnifiedSong } from '@/types';
+import type { LocalSong, OnlineLyricsState, UnifiedSong } from '@/types';
 
 // test/unit/playback/currentSongPlaySong.test.ts
 // Pins what playSong writes for an online song, and in which order: the key of the song the player
@@ -16,6 +16,7 @@ const env = vi.hoisted(() => ({
     blockedIds: new Set<string>(),
     external: false,
     externalPrepared: false,
+    retryAudio: false,
     externalStarts: vi.fn(async (..._args: unknown[]) => {}),
     note: (_label: string) => {},
     lyricsStateFor: new Map<string, Promise<unknown>>(),
@@ -97,8 +98,9 @@ vi.mock('@/services/playbackBlobUrls', async importOriginal => {
 });
 vi.mock('@/services/onlinePlayback', () => ({
     applyOnlineAudioSourceMetadata: (song: unknown) => song,
-    loadOnlineSongAudioSource: async (song: { id: string }, _quality: unknown, prefetched: unknown) => {
+    loadOnlineSongAudioSource: async (song: { id: string }, _quality: unknown, prefetched: unknown, options?: { retry?: { onRetrying: (failure: { providerId: string }) => void } }) => {
         env.note(`wait audio source ${song.id}${prefetched ? ' (with what was prefetched)' : ''}`);
+        if (env.retryAudio) options?.retry?.onRetrying({ providerId: 'bodian' });
         await env.audioGate.get(song.id);
         return env.audioResultFor.get(song.id) ?? { kind: 'ok', audioSrc: `https://audio.test/${song.id}` };
     },
@@ -120,7 +122,7 @@ const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePl
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
-const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
+const { makeSongCurrent, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { removeFromCache } = await import('@/services/db');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
@@ -145,6 +147,7 @@ beforeEach(() => {
     env.blockedIds.clear();
     env.external = false;
     env.externalPrepared = false;
+    env.retryAudio = false;
     env.externalStarts.mockClear();
     env.lyricsStateFor.clear();
     env.audioGate.clear();
@@ -165,14 +168,14 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-function mount({ address = false } = {}) {
+function mount({ address = false, localSongs = [] as LocalSong[], onPlayLocalSong = vi.fn(async () => {}) } = {}) {
     const refs = usePlaybackRuntimeRefs();
     const watch = watchCurrentSong(refs.currentSongRef, address ? refs : undefined);
     env.note = watch.note;
     env.detail = watch.detail;
     const interruptStage = vi.fn();
     const queue = usePlaybackQueueController({
-        localSongs: [], localLibraryCatalog: {}, isNowPlayingStageActive: false,
+        localSongs, onPlayLocalSong, localLibraryCatalog: {}, isNowPlayingStageActive: false,
         setLyrics: (lyrics: unknown) => watch.note(`lyrics=${lyrics ? 'set' : 'null'}`),
         setIsLyricsLoading: vi.fn(),
         navigateToPlaybackView: vi.fn(),
@@ -214,6 +217,81 @@ describe('playSong and the current song (online)', () => {
         unsubscribe();
     });
 
+
+    it.each([true, false])('manual=%s prepared external queue step only shows feedback for manual input', async manual => {
+        env.external = true;
+        env.externalPrepared = true;
+        usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB] });
+        const gate = deferred<void>();
+        env.externalStarts.mockImplementationOnce(async () => { await gate.promise; });
+        const { queue } = mount();
+        await queue.handleNextTrack(manual ? undefined : { allowStopOnMissing: true, shouldNavigateToPlayer: false });
+        await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
+        if (manual) expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'loading', text: 'status.loadingSong' });
+        else expect(useStatusMessageStore.getState().message).toBeNull();
+        gate.resolve();
+        await vi.waitFor(() => expect(usePlaybackStore.getState().currentSong?.id).toBe('2'));
+        if (manual) expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success', text: 'status.loadingComplete' });
+        else expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    it('clears a cancelled manual load after its external preparation returns', async () => {
+        env.external = true;
+        env.externalPrepared = true;
+        const gate = deferred<void>();
+        env.externalStarts.mockImplementationOnce(async () => { await gate.promise; });
+        const { queue } = mount();
+        const play = queue.playSong(songA, [songA, songB], false, { manualQueueStep: true });
+        await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
+        expect(useStatusMessageStore.getState().message?.activity).toBe('loading');
+        dropPlaysInFlight();
+        gate.resolve();
+        await play;
+        expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    it('keeps retry feedback in the same loader until it becomes success', async () => {
+        env.retryAudio = true;
+        const gate = deferred<void>();
+        env.audioGate.set('1', gate.promise);
+        const { queue } = mount();
+        const play = queue.playSong(songA, [songA, songB], false, { manualQueueStep: true });
+        await vi.waitFor(() => expect(useStatusMessageStore.getState().message?.text).toBe('status.songRetrying'));
+        const id = useStatusMessageStore.getState().message?.activityId;
+        expect(useStatusMessageStore.getState().message?.activity).toBe('loading');
+        gate.resolve();
+        await play;
+        expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success', activityId: id });
+    });
+
+    it('does not report success when a delegated local play was cancelled', async () => {
+        const gate = deferred<void>();
+        const local = { id: 'local-1', title: 'Local' } as LocalSong;
+        const localSong = { ...songA, id: 'local-1', sourceRef: { kind: 'local' as const, mediaId: 'local-1' }, localRef: { songId: 'local-1' } } as UnifiedSong;
+        const onPlayLocalSong = vi.fn(async () => { await gate.promise; });
+        const { queue } = mount({ localSongs: [local], onPlayLocalSong });
+        const play = queue.playSong(localSong, [localSong], false, { manualQueueStep: true });
+        await vi.waitFor(() => expect(onPlayLocalSong).toHaveBeenCalled());
+        dropPlaysInFlight();
+        gate.resolve();
+        await play;
+        expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    it('clears the automatic lyric loader when its song was dropped', async () => {
+        const gate = deferred<void>();
+        env.lyricsGate.set('1', gate.promise);
+        const { refs, queue } = mount();
+        const play = queue.playSong(songA, [songA]);
+        await vi.waitFor(() => expect(env.lyricCallbacks.has('1')).toBe(true));
+        const callbacks = env.lyricCallbacks.get('1') as unknown as { onAutoMatchStart: () => void };
+        callbacks.onAutoMatchStart();
+        expect(useStatusMessageStore.getState().message?.activity).toBe('loading');
+        emptyThePlayer(refs);
+        gate.resolve();
+        await play;
+        expect(useStatusMessageStore.getState().message).toBeNull();
+    });
 
     it('shows preparation feedback on a cold external start', async () => {
         env.external = true;

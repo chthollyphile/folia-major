@@ -15,6 +15,8 @@ import type { MediaId } from './onlineMusic';
 // Shared playback-specific types extracted from App.tsx.
 export type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
+    /** Manual queue steps show preparation feedback even when their media was prefetched. */
+    manualQueueStep?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];
     /**

@@ -46,12 +46,13 @@ export const usePlaybackUiEffects = ({
     }, [blobUrlRef, volumePreviewFrameRef]);
 
     useEffect(() => {
-        if (!statusMsg || statusMsg.persistent) {
+        if (!statusMsg || statusMsg.persistent
+            || (statusMsg.activity && statusMsg.activity !== 'loading' && !statusMsg.countdown && !statusMsg.onAction)) {
             return;
         }
 
         // Stands still while the pointer rests on the toast.
-        return runStatusMessageTime(statusMsg.durationMs ?? 3000, () => setStatusMsg(null));
+        return runStatusMessageTime(statusMsg.durationMs ?? 3000, () => setStatusMsg(previous => previous === statusMsg ? null : previous));
     }, [setStatusMsg, statusMsg]);
 
     useEffect(() => {
