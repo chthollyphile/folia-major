@@ -102,7 +102,7 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
             run({ reason });
             expect(hifiSession.stop, reason).toHaveBeenCalledTimes(1);
             expect(win.webContents.reload, reason).not.toHaveBeenCalled();
-            // The capture the dead page held goes with it, whatever ended the process.
+            // 死掉的那个页面占着的采集随它一起去，不管进程是怎么结束的。
             expect(forgetCapture, reason).toHaveBeenCalledOnce();
         }
     });
@@ -126,7 +126,7 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
         const otherWindow = renderGone({ mainWindow: createWin() });
         otherWindow.run({ reason: 'killed' });
         expect(otherWindow.hifiSession.stop).not.toHaveBeenCalled();
-        // Only the main window's page can hold the machine's sound, so only its end clears it.
+        // 整机声音只有主窗口的页面能占着，所以也只有它的结束才清掉采集。
         expect(otherWindow.forgetCapture).not.toHaveBeenCalled();
     });
 

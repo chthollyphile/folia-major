@@ -8,8 +8,8 @@ import { runExternalPlayerWarmUp } from '@/components/app/playback/externalPlaye
 // The other setting, 「打开 Folia 时唤起外部播放器」, is run by externalPlayerWake.ts at launch: asked for
 // or not, and a player that refuses to start (the last block).
 
-// 渲染进程自己存的键已经发布，不能改名；主进程 electron-store 那个键没发布过，和同类开关一样用
-// UPPER_SNAKE。
+// The key the renderer keeps is published and cannot be renamed; the main process's electron-store
+// one was never published and is UPPER_SNAKE like the switches beside it.
 const STORAGE_KEY = 'close_external_player_on_quit';
 const MAIN_PROCESS_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';
 
@@ -41,7 +41,7 @@ describe('the quit switch', () => {
         store.getState().handleToggleCloseExternalPlayerOnQuit(true);
         expect(store.getState().closeExternalPlayerOnQuit).toBe(true);
         expect(saveSettings).toHaveBeenCalledWith(MAIN_PROCESS_KEY, true);
-        // 渲染进程留着自己那份（已发布的键）：设置行读的是它。
+        // The renderer keeps its own one (the published key): it is what the settings row reads.
         expect(window.localStorage.getItem(STORAGE_KEY)).toBe('true');
 
         store.getState().handleToggleCloseExternalPlayerOnQuit(false);

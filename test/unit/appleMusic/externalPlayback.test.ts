@@ -45,7 +45,7 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
-/** 让状态的轮询连着失败到退避上限：4 次都在拒绝之下，下一次问已经排到 10s 之后。 */
+/** Makes the status polling fail up to its back-off cap: four refusals, the next ask already 10s away. */
 const backOffStatusAsks = async () => {
     omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
     omniMock.getExternalPlaybackStatus.mockClear();
@@ -469,30 +469,30 @@ describe('external playback route', () => {
     it('asks a player that stopped answering ever more rarely, and one answer puts the ordinary rate back', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
-        // 播放器不再回应（它被关掉了，或者它的页面没了）：每一次轮询都失败。
+        // The player stopped answering (it was closed, or its page is gone): every poll fails.
         omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
         omniMock.getExternalPlaybackStatus.mockClear();
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
-        // 第一次失败之后 2s 才再问。
+        // The next ask comes 2s after the first failure.
         await vi.advanceTimersByTimeAsync(1999);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
         await vi.advanceTimersByTimeAsync(1);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
-        // 又失败一次：4s。
+        // One more failure: 4s.
         await vi.advanceTimersByTimeAsync(3999);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
         await vi.advanceTimersByTimeAsync(1);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
-        // 再失败一次：8s。
+        // One more: 8s.
         await vi.advanceTimersByTimeAsync(7999);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
         await vi.advanceTimersByTimeAsync(1);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
-        // 上限 10s：不再继续拉长，这台机器也不会被问得更频繁。
+        // The cap of 10s: it does not grow further, and the machine is not asked more often either.
         await vi.advanceTimersByTimeAsync(10000);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
-        // 一次成功就回到 500ms。
+        // One answer puts the ordinary 500ms back.
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
         await vi.advanceTimersByTimeAsync(10000);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
@@ -500,7 +500,7 @@ describe('external playback route', () => {
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(7);
     });
 
-    // 播放器对 Folia 自己的命令回了话，说明它还在：下一问不该再按失败的那套等下去。
+    // The player answered one of Folia's own commands, so it is still there: the next ask must not wait on the failure rate.
     it('puts the ordinary rate back when the player answers a press of the listener', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
@@ -509,7 +509,7 @@ describe('external playback route', () => {
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
         expect(engine.resumeExternalPlayback()).toBe(true);
         await flush();
-        // 用户按了播放，就不该再按失败的重试间隔等下去。
+        // A press of play must not wait on the retry rate of a failure either.
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
     });
@@ -519,14 +519,14 @@ describe('external playback route', () => {
         engine.announceExternalPlayback();
         await backOffStatusAsks();
 
-        // 暂停也一样：播放器收下了这次暂停。
+        // A pause too: the player took the pause.
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
         expect(engine.pauseExternalPlayback()).toBe(true);
         await flush();
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
 
-        // 音量写也一样：写成功说明这个页面还在。
+        // Same for the volume Folia writes there: a good write says the page is still there.
         await backOffStatusAsks();
         useAudioSettingsStore.setState({ volume: 0.5 });
         await flush();

@@ -15,7 +15,8 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 // This is the third way Spotify plays (spotifySoloistPlayback.ts keeps which one is on; the
 // provider's `externalPlayback` picks this one or Soloist's by it). When the app is not on this
 // computer a song fails with a reason that opens the setup checklist (spotifySetup.ts), where the
-// other ways are offered: nothing falls back to Folia's own player, which a free account cannot use.
+// other ways are offered. Nothing falls back to Folia's own player, which a free account cannot use
+// (docs/spotify-official-client.md).
 // The media session names no track. While it answers, nothing is prepared in the app's queue,
 // its coarse position never replaces the song's duration, and a title it shows that is not the
 // song Folia asked for ends this external session so Folia's own queue takes the next song.

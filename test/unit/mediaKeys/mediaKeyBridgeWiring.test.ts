@@ -4,12 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/mediaKeys/mediaKeyBridgeWiring.test.ts
-// 一次物理媒体键可能落到两条路径上：主进程在 globalShortcut 上占住的那三个键（交付给
-// useMediaKeyTakeoverBridge 的 onExternalMediaKey），和应用自己的媒体会话（useMediaSessionBridge
-// 的四个 action handler）。两条路径共用 mediaKeyPressGate 的这一份记录，同一个动作只执行一次。
-// 这里钉的是接线：五个入口都确实去 claim，被挡下的那一个什么都不做，而它放行的那个照常执行。
+// One physical media key can reach two paths: the three keys the main process holds on
+// globalShortcut (delivered to useMediaKeyTakeoverBridge as onExternalMediaKey), and the app's own
+// media session (useMediaSessionBridge's four action handlers). Both share mediaKeyPressGate's one
+// record, so an action runs once. What is pinned here is the wiring: all five entries really claim,
+// the one held back does nothing, and the one let through runs as usual.
 
-// 桥挂载时会从桌面侧读这种播放方式（Soloist / 官方客户端）的媒体键接管要求，这里给它一个可用的答案。
+// Mounting the bridge asks the desktop side whether this way of playing (Soloist / the official
+// client) wants the keys, so this gives it an answer it can use.
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
     requestSpotify: vi.fn(async () => ({ available: true })),
     getSpotifyTransportAvailability: () => ({ configured: true }),
@@ -23,7 +25,7 @@ const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 
 type ActionHandler = (details?: unknown) => void | Promise<void>;
 
-/** 媒体会话上挂着的 handler，按 action 名取。 */
+/** The handlers the media session has attached, by action name. */
 const handlers = new Map<string, ActionHandler>();
 
 const runTransportAction = vi.fn((_action: string) => {});
@@ -39,7 +41,7 @@ const setExternalMediaKeys = vi.fn(async (enabled: boolean) => ({ enabled, held:
 let root: Root | null = null;
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/** 隔开一次按键的时间：同一动作在 SAME_PRESS_MS 内的两次到达算同一次按键。 */
+/** Waits out one press: the same action arriving twice within SAME_PRESS_MS counts as one press. */
 const sleepPastOnePress = () => new Promise(resolve => setTimeout(resolve, SAME_PRESS_MS + 30));
 
 const installMediaSession = () => {
@@ -95,13 +97,13 @@ const TakeoverProbe = () => {
     return null;
 };
 
-/** 只挂媒体会话那一条路径。 */
+/** Only the media session's path is mounted. */
 const renderMediaSession = () => {
     root = createRoot(document.createElement('div'));
     act(() => { root!.render(React.createElement(MediaSessionProbe)); });
 };
 
-/** 两条路径都挂着：一次按键两条都可能收到。 */
+/** Both paths are mounted: one press may reach both. */
 const renderBothPaths = () => {
     root = createRoot(document.createElement('div'));
     act(() => { root!.render(React.createElement(() => React.createElement(React.Fragment, null,
@@ -111,7 +113,7 @@ const renderBothPaths = () => {
 };
 
 beforeEach(async () => {
-    // 共用记录是上一次用例留下的：先隔开一次按键的时间，它不会挡住这一次。
+    // The shared record is left over from the case before: wait out one press, so it does not block this one.
     await sleepPastOnePress();
     vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -137,7 +139,7 @@ describe('the media session handlers', () => {
         await act(async () => { await handlers.get('play')!(); });
         expect(play).toHaveBeenCalledTimes(1);
 
-        // 同一次按键的第二次到达（只是另一个动作名）：什么都不做。
+        // The same press arriving again (only under another action name): nothing runs.
         await act(async () => { await handlers.get('pause')!(); });
         expect(pause).not.toHaveBeenCalled();
 
@@ -146,7 +148,7 @@ describe('the media session handlers', () => {
         await act(async () => { await handlers.get('previoustrack')!(); });
         expect(previous).toHaveBeenCalledTimes(1);
 
-        // 隔开一次按键的时间之后，同一个动作就是另一次按键。
+        // Once one press has gone by, the same action is another press.
         await sleepPastOnePress();
         await act(async () => { await handlers.get('pause')!(); });
         expect(pause).toHaveBeenCalledTimes(1);

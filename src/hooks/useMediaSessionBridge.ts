@@ -80,8 +80,8 @@ export const useMediaSessionBridge = ({
             if (isNowPlayingControlDisabledRef.current || !audioRef.current) {
                 return;
             }
-            // 主进程占着媒体键时（useMediaKeyTakeoverBridge），同一次按键也可能落到这里：两条路径共用
-            // 一份记录，只让它执行一次。
+            // While the main process holds the media keys (useMediaKeyTakeoverBridge) the same press may land
+            // here too: the two paths share this record, so it runs once.
             if (!mediaKeyPressGate.claim('play-pause')) {
                 return;
             }

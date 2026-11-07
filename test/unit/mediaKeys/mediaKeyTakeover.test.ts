@@ -170,10 +170,11 @@ describe('one press arriving twice', () => {
     it('lets one press run once across both paths that can receive it', () => {
         let nowMs = 1000;
         const gate = createMediaKeyPressGate(() => nowMs);
-        // 同一个按键：主进程占着的全局快捷键先到，应用自己的媒体会话在同一瞬间也收到一次。
+        // One press: the global shortcut the main process holds comes first, and the app's own media
+        // session receives it in the same instant.
         expect(gate.claim('play-pause')).toBe(true);
         expect(gate.claim('play-pause')).toBe(false);
-        // 另一个动作，或间隔够长的同一个动作，都是另一次按键。
+        // Another action, or the same one long enough after, is another press.
         expect(gate.claim('next')).toBe(true);
         nowMs += SAME_PRESS_MS;
         expect(gate.claim('next')).toBe(true);
@@ -196,11 +197,12 @@ describe('the wish sent to the main process', () => {
 
     it('sends the wish the window mounts with, even when it looks like nothing changed', async () => {
         const { send, sender } = makeSender();
-        // 主进程可能还留着上一个窗口占住的键：挂载时无条件说一次"现在不占"。
+        // The main process may still hold keys a window before this one took: mounting says "not now"
+        // unconditionally.
         sender.apply(false, true);
         expect(send).toHaveBeenCalledWith(false);
         await Promise.resolve();
-        // 同一个愿望不重复发。
+        // The same wish is not sent twice.
         sender.apply(false);
         sender.apply(false);
         expect(send).toHaveBeenCalledTimes(1);
@@ -214,21 +216,21 @@ describe('the wish sent to the main process', () => {
         await Promise.resolve();
         expect(onError).toHaveBeenCalledTimes(1);
         expect(onError.mock.calls[0][0]).toBe(true);
-        // 上一次没有生效：下一次状态变化照样再发一次，而不是当作已经占了。
+        // The last one did not land: the next change of state sends again rather than reading it as held.
         sender.apply(true);
         expect(send).toHaveBeenCalledTimes(2);
     });
 
     it('does not read a refusal as holding the keys', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-        // 系统把三个键都给了别的程序：主进程回答 enabled: false。
+        // The system gave all three keys to another program: the main process answers enabled: false.
         const { send, sender } = makeSender(() => ({ enabled: false, held: [] }));
         sender.apply(true);
         await Promise.resolve();
         await Promise.resolve();
         expect(warn).toHaveBeenCalledTimes(1);
         expect(String(warn.mock.calls[0][0])).toMatch(/^\[MediaKeys\]/);
-        // 没有记成"已经占着"：订阅事件再来一次，愿望就再发一次，而不是当它已经生效。
+        // Not recorded as held: a subscription event sends the wish again rather than reading it as in force.
         sender.apply(true);
         expect(send.mock.calls.map(call => call[0])).toEqual([true, true]);
         warn.mockRestore();
@@ -239,7 +241,7 @@ describe('the wish sent to the main process', () => {
         sender.apply(true);
         await Promise.resolve();
         await Promise.resolve();
-        // 主进程说它占住了：同一个愿望不再重复发。
+        // The main process says it holds them: the same wish is not sent again.
         sender.apply(true);
         expect(send.mock.calls.map(call => call[0])).toEqual([true]);
     });
@@ -249,8 +251,8 @@ describe('the wish sent to the main process', () => {
         sender.apply(true);
         await Promise.resolve();
         await Promise.resolve();
-        // 上一次落地的是"占着"；"给回去"还在路上，接着又来了"占着"：它不能被当成已经占着而丢掉，
-        // 否则主进程会停在"给回去"。
+        // The last one that landed was "held"; "give back" is still on its way, and "held" arrives over
+        // it: it must not be dropped as already there, or the main process stays on "give back".
         sender.apply(false);
         sender.apply(true);
         expect(send.mock.calls.map(call => call[0])).toEqual([true, false, true]);

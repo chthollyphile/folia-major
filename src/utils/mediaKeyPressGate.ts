@@ -1,18 +1,19 @@
 // src/utils/mediaKeyPressGate.ts
-// 一次物理按键可能落到两条路径上：主进程在 globalShortcut 上占住的那三个键
-// （useMediaKeyTakeoverBridge），和应用自己的媒体会话 navigator.mediaSession（useMediaSessionBridge）。
-// 两条路径共用这一份记录，同一个动作在 SAME_PRESS_MS 内只执行一次。
+// One physical press can reach two paths: the three keys the main process holds on globalShortcut
+// (useMediaKeyTakeoverBridge), and the app's own media session, navigator.mediaSession
+// (useMediaSessionBridge). Both share this record, so one action runs once within SAME_PRESS_MS.
 
-/** 一次按键在 Folia 这边的名字：任务栏按钮、全局快捷键和媒体会话说的都是这三个。 */
+/** What one press is called on Folia's side: the taskbar buttons, the shortcuts and the media session. */
 export type MediaKeyPressAction = 'previous' | 'play-pause' | 'next';
 
 /**
- * 比任何一次重复按键都短：这是同一次按键的两次到达，不是两次按键。全局快捷键先把键从系统那里拿走，
- * 正常情况下只有一条路径收到它；这里是两条都收到时的兜底。
+  * Shorter than any repeated press: this is one press arriving twice, not two presses. The global
+  * shortcut takes the key from the system first, so normally only one path receives it; this is the
+  * fallback for the case where both do.
  */
 export const SAME_PRESS_MS = 120;
 
-/** 上一次执行的按键与这一次是同一个动作、且隔得够近：这是同一次按键的第二次到达。 */
+/** The last press ran the same action this one does, and not long ago: this is that press arriving again. */
 export const isRepeatedMediaKeyPress = (
     previous: { action: MediaKeyPressAction; atMs: number } | null,
     action: MediaKeyPressAction,
@@ -20,7 +21,7 @@ export const isRepeatedMediaKeyPress = (
 ): boolean => previous !== null && previous.action === action && nowMs - previous.atMs < SAME_PRESS_MS;
 
 export type MediaKeyPressGate = {
-    /** 这次按下可以执行时返回 true 并记下它；同动作在 SAME_PRESS_MS 内的再次到达返回 false。 */
+    /** True and recorded when this press may run; false for the same action arriving again within SAME_PRESS_MS. */
     claim: (action: MediaKeyPressAction) => boolean;
 };
 
@@ -36,5 +37,5 @@ export const createMediaKeyPressGate = (now: () => number = () => performance.no
     };
 };
 
-/** 两条路径共用的那一份（见文件头）：一次按键只会从其中一条被执行。 */
+/** The one both paths share (see the file header): a press runs from one of them only. */
 export const mediaKeyPressGate = createMediaKeyPressGate();
