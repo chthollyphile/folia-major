@@ -12,11 +12,17 @@ const resumeMock = vi.hoisted(() => vi.fn(async () => undefined));
 const playMock = vi.hoisted(() => vi.fn(async () => undefined));
 const seekMock = vi.hoisted(() => vi.fn(async () => undefined));
 const warmUpMock = vi.hoisted(() => vi.fn(async () => undefined));
+const getSongDetailMock = vi.hoisted(() => vi.fn(async (_providerId: string, _id: string): Promise<unknown> => null));
+const loadLyricsMock = vi.hoisted(() => vi.fn(async () => undefined));
+const setPlayQueueMock = vi.hoisted(() => vi.fn());
+const setCurrentSongMock = vi.hoisted(() => vi.fn());
+const persistMock = vi.hoisted(() => vi.fn(async () => undefined));
 const playbackState = vi.hoisted(() => ({ currentSong: null as unknown, playQueue: [] as unknown[] }));
 
 vi.mock('@/i18n/config', () => ({ default: { t: translateMock, on: () => {}, language: 'en' } }));
 vi.mock('@/services/onlinePlayback', () => ({
     loadOnlineSongAudioSource: vi.fn(),
+    loadOnlineSongLyrics: loadLyricsMock,
     applyOnlineAudioSourceMetadata: (song: unknown) => song,
 }));
 // The provider's own player, as a song restored from the last session finds it: the restore only
@@ -36,6 +42,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         seekExternalPlayback: seekMock,
         warmUpExternalPlayers: warmUpMock,
         getLyrics: vi.fn(),
+        getSongDetail: getSongDetailMock,
         getProviderLabel: (id: string) => id,
     },
 }));
@@ -48,7 +55,7 @@ vi.mock('@/stores/motionSignals', () => ({
 vi.mock('@/stores/usePlaybackStore', () => ({
     usePlaybackStore: { getState: () => playbackState },
     setAudioSrc: vi.fn(),
-    setCurrentSong: vi.fn(),
+    setCurrentSong: setCurrentSongMock,
     setCachedCoverUrl: vi.fn(),
     setActiveLocalLyricsSource: vi.fn(),
     setDuration: setDurationMock,
@@ -88,10 +95,14 @@ import { askForSong, startRestore } from '@/components/app/playback/currentSong'
 import type { SongResult } from '@/types';
 
 // test/unit/playback/restoreExternalPosition.test.ts
-// A song whose player outlived the app: the session restored at launch shows where that player is
-// on it, paused, so the press of play starts from there. Only a session restore asks - a window
-// hand-off carries the position of the window that is gone - and only a read is ever made: the
-// player is never started, resumed or paused for it.
+// A song whose player outlived the app, as the session restored at launch finds it. The player is
+// read once: sounding the remembered song, it is taken over as it stands; on another track, that
+// track is looked up by the id the player names and taken over in its place, with the queue going on
+// behind it; paused on another track it is only shown there; and where the player is paused on the
+// remembered song, or answers through its coarse channel, only that song's position is shown, so the
+// press of play starts from there. Only a session restore asks - a window hand-off carries the
+// state of the window that is gone - and only reads are made: nothing here starts, resumes or
+// pauses the player.
 
 const song: SongResult = {
     id: 'bodian-song',
@@ -109,12 +120,19 @@ const otherSong: SongResult = {
 };
 
 /** The session restore's call; a window hand-off is the same call without the flag (see below). */
-const restore = (options: { sessionRestore?: boolean; shouldAutoPlayRef?: { current: boolean } } = {}) => restorePlaybackSourceForSong(song, {
+const restore = (options: {
+    sessionRestore?: boolean;
+    shouldAutoPlayRef?: { current: boolean };
+    queue?: SongResult[];
+    setPlayQueue?: (next: SongResult[] | ((previous: SongResult[]) => SongResult[])) => void;
+} = {}) => restorePlaybackSourceForSong(song, {
     audioQuality: 'high',
     blobUrlRef: { current: null },
     currentOnlineAudioUrlFetchedAtRef: { current: null },
     setLyrics: vi.fn(),
-    queue: [song],
+    queue: options.queue ?? [song],
+    setPlayQueue: options.setPlayQueue ?? setPlayQueueMock,
+    persistLastPlaybackCache: persistMock,
     stillWanted: startRestore(),
     ...(options.sessionRestore === false ? {} : { resumeExternalPosition: true }),
     ...(options.shouldAutoPlayRef ? { shouldAutoPlayRef: options.shouldAutoPlayRef } : {}),
@@ -327,5 +345,134 @@ describe('a session restored onto a player that kept running the song', () => {
         expect(runningStatusMock).not.toHaveBeenCalled();
         expect(adoptMock).not.toHaveBeenCalled();
         expect(setCurrentTimeMock).not.toHaveBeenCalled();
+    });
+});
+
+// A player that moved on by itself: the track it names is looked up by its id and taken over, so the
+// app follows what sounds instead of showing a song nobody plays. The queue goes on behind it.
+describe('a session restored onto a player that is on another track', () => {
+    const status = (mediaId: string, isPlaying: boolean) => ({
+        mediaId, isPlaying, ended: false, positionMs: 75_400, durationMs: 200_000,
+    });
+    const previous: SongResult = {
+        ...song, id: 'bodian-previous', sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'bodian-previous' },
+    };
+    const following: SongResult = {
+        ...song, id: 'bodian-following', sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'bodian-following' },
+    };
+    const queue = [previous, song, following];
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        canPlayExternallyMock.mockReturnValue(true);
+        runningPositionMock.mockImplementation(async () => null);
+        runningStatusMock.mockImplementation(async () => null);
+        adoptMock.mockImplementation(async () => false);
+        getSongDetailMock.mockImplementation(async () => otherSong);
+        playbackState.currentSong = song;
+        askForSong(song);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('makes the track it names current and takes the player over, in front of the remembered song', async () => {
+        const shouldAutoPlayRef = { current: true };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => true);
+
+        await expect(restore({ queue, shouldAutoPlayRef })).resolves.toBe('restored');
+        expect(getSongDetailMock).toHaveBeenCalledWith('bodian', 'bodian-other');
+        expect(setCurrentSongMock).toHaveBeenCalledWith(otherSong);
+        expect(adoptMock).toHaveBeenCalledWith(otherSong);
+        // The remembered song and what followed it stay behind the track taken over.
+        expect(setPlayQueueMock).toHaveBeenCalledWith([previous, otherSong, song, following]);
+        expect(persistMock).toHaveBeenCalledWith(otherSong, [previous, otherSong, song, following]);
+        // The player sounds the track: an intent to play left armed would fire on what comes next.
+        expect(shouldAutoPlayRef.current).toBe(false);
+        expect(playMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+        expect(resumeMock).not.toHaveBeenCalled();
+        expect(seekMock).not.toHaveBeenCalled();
+        expect(warmUpMock).not.toHaveBeenCalled();
+    });
+
+    it('loads the lyrics and the cover of the track it shows, and starts nothing for them', async () => {
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => true);
+
+        await restore({ queue });
+
+        expect(loadLyricsMock).toHaveBeenCalledWith(otherSong, null, undefined, expect.anything());
+        expect(playMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+    });
+
+    it('shows a paused track at its own position without taking it over', async () => {
+        const shouldAutoPlayRef = { current: true };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', false));
+
+        await expect(restore({ queue, shouldAutoPlayRef })).resolves.toBe('restored');
+        expect(setCurrentSongMock).toHaveBeenCalledWith(otherSong);
+        expect(adoptMock).not.toHaveBeenCalled();
+        expect(setCurrentTimeMock).toHaveBeenCalledWith(75.4);
+        expect(setPlayQueueMock).toHaveBeenCalledWith([previous, otherSong, song, following]);
+        // The press of play starts it there: nothing of this window is left to start it by itself.
+        expect(shouldAutoPlayRef.current).toBe(false);
+        expect(playMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+        expect(seekMock).not.toHaveBeenCalled();
+    });
+
+    it('leaves everything as it was where the track it names cannot be looked up', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        getSongDetailMock.mockImplementation(async () => null);
+
+        await expect(restore({ queue })).resolves.toBe('restored');
+        expect(setCurrentSongMock).not.toHaveBeenCalled();
+        expect(adoptMock).not.toHaveBeenCalled();
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        expect(setCurrentTimeMock).not.toHaveBeenCalled();
+        expect(playMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+        expect(warn).toBeDefined();
+    });
+
+    it('leaves everything as it was where looking the track up failed', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        getSongDetailMock.mockImplementation(async () => { throw new Error('the platform is out of reach'); });
+
+        await expect(restore({ queue })).resolves.toBe('restored');
+        expect(setCurrentSongMock).not.toHaveBeenCalled();
+        expect(adoptMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalled();
+    });
+
+    it('puts the remembered song back where the take-over does not hold', async () => {
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => false);
+
+        await expect(restore({ queue })).resolves.toBe('restored');
+        expect(setCurrentSongMock).toHaveBeenLastCalledWith(song);
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        expect(pauseMock).not.toHaveBeenCalled();
+        expect(playMock).not.toHaveBeenCalled();
+    });
+
+    it('drops a track looked up after another song was asked for', async () => {
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        getSongDetailMock.mockImplementation(async () => {
+            askForSong(following);
+            return otherSong;
+        });
+
+        await restore({ queue });
+        expect(setCurrentSongMock).not.toHaveBeenCalled();
+        expect(adoptMock).not.toHaveBeenCalled();
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
     });
 });
