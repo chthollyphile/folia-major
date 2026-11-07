@@ -144,6 +144,38 @@ describe('autoMatchBestLyric', () => {
             expect(kugouSearch).not.toHaveBeenCalled();
         });
 
+        it('asks the preferred source again under the original name before keeping its own timing', async () => {
+            // A Latin-letter Apple Music title finds nothing on QQ; the original name does.
+            const alias = vi.fn().mockResolvedValueOnce({ song: appleSong, title: '原名', artist: '原歌手' });
+            searchQQLyricsMock.mockImplementation(async query => query.includes('原名') ? [{ ...qqSong, name: '原名', artists: [{ id: 1, name: '原歌手' }] }] : []);
+            fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
+
+            const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+                preferredSource: 'qq',
+                providerCandidate: appleCandidate,
+                searchAlias: alias,
+            });
+
+            expect(result).toMatchObject({ source: 'qq', id: 201 });
+            expect(alias).toHaveBeenCalledOnce();
+        });
+
+        it('keeps its own timing without a search when it is the preferred source, before its account is read', async () => {
+            // At startup the account is not read yet, so Apple Music is not "on offer"; its own lyrics are in hand anyway.
+            useOnlineProviderAccountStore.setState({ accounts: {} });
+            const alias = vi.fn().mockResolvedValue(null);
+
+            const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, {
+                preferredSource: 'appleMusic',
+                providerCandidate: appleCandidate,
+                searchAlias: alias,
+            });
+
+            expect(result).toMatchObject({ source: 'appleMusic', lyrics: { isWordByWord: true } });
+            expect(searchQQLyricsMock).not.toHaveBeenCalled();
+            expect(alias).not.toHaveBeenCalled();
+        });
+
         it('matches its own lyrics like any other source\'s when keeping them is off', async () => {
             cloudSearchMock.mockResolvedValue({ result: { songs: [] } });
             searchQQLyricsMock.mockResolvedValue([qqSong]);
