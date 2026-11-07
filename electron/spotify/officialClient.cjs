@@ -58,6 +58,9 @@ const RESTART_COOLDOWN_MS = 30000;
 // the media session until Folia is started again.
 const MAX_FORCE_RESTARTS = 1;
 const TRACK_ID = /^[0-9A-Za-z]{22}$/;
+// The most songs one queue write may take. The renderer decides how many songs follow (its
+// PREPARED_SONGS, one of them a single song where the app cannot empty its queue); this is only the
+// ceiling of the page, and a test holds it to that window so a tail can never be cut here.
 const MAX_QUEUED = 5;
 // A Windows tool is given at most this long: a tasklist or a taskkill that hangs must not hold a play
 // or the quit.
@@ -140,9 +143,14 @@ const STATE_BODY = `
 
 
 // The songs that are to follow, written into the app's queue, run in the page: one added twice is one
-// played twice. `queued` is the caller's own record of them, for a player whose state does not name
-// its queue. What the app holds afterwards answers `queue`, which is null where it does not say.
-const QUEUE_SOURCE = `async ({ api, uris, queued }) => {
+// played twice. `queued` is the caller's own record - the ids it wrote that the app has not played
+// yet - and it is what decides whether a song is written. A read taken after a write names fewer
+// songs than were written, and a player that only adds can never take one back, so the read is used
+// for the log and for whether the app can empty its queue at all: `probed`, null until this run's
+// first write asks, and the answer kept until a later clear shows the app cannot do it after all.
+// `generation` is the play this write belongs to, and a play that started meanwhile has emptied the
+// queue for songs of its own.
+const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
   // The tracks the app plays after the one playing, as its state names them; null where it does not.
   // One of these names may be an alias the app always leaves empty while the queue is in another, so
   // an empty list is that name saying nothing, not a queue that is empty.
@@ -166,17 +174,38 @@ const QUEUE_SOURCE = `async ({ api, uris, queued }) => {
     }
     return sawUnknown ? null : sawEmpty ? [] : null;
   };
-  let held = readQueue() ?? (Array.isArray(queued) ? queued : []);
-  let cleared = false;
-  if (typeof api.player.clearQueue === 'function') {
-    try { await api.player.clearQueue(); cleared = true; } catch { cleared = false; }
-    // A clear that ran and left songs behind emptied nothing: what is left is what the app plays next.
-    const left = cleared ? readQueue() : null;
-    if (left && left.length) { held = left; cleared = false; }
+  const held = new Set(Array.isArray(queued) ? queued : []);
+  // A play of a newer song emptied the app's queue for its own tail, so the songs this write would
+  // add belong behind the song before it. A page loaded again has run no play at all: its generation
+  // is taken as it stands rather than read as a newer one.
+  if (window.__foliaPlay === undefined) window.__foliaPlay = generation;
+  if (window.__foliaPlay !== generation) {
+    return { aborted: true, canClear: probed, cleared: false, written: [], read: null };
   }
-  const add = cleared ? uris : uris.filter(uri => !held.includes(uri.slice(14)));
-  if (add.length) await api.player.addToQueue(add.map(uri => ({ uri })));
-  return { added: add.length, cleared, queue: readQueue() };
+  // The queue as this run found it, before it wrote anything: the app may still hold the tail a
+  // window before this one wrote, and a song of Folia's is never added twice behind it.
+  const before = readQueue();
+  let canClear = probed;
+  if (canClear !== false) {
+    if (typeof api.player.clearQueue !== 'function') canClear = false;
+    else { try { await api.player.clearQueue(); } catch { canClear = false; } }
+  }
+  // A queue that reads back empty was emptied, so the whole tail is written into it. One that still
+  // names songs was not emptied, and one the app does not name says nothing either way: both are
+  // added to, one song at a time, and a song Folia wrote or the app already holds is left alone.
+  // This is also how the first write of a run learns whether the app can empty its queue at all.
+  const left = canClear === false ? null : readQueue();
+  const cleared = Boolean(left) && left.length === 0;
+  // A clear that ran and left songs behind emptied nothing: one song at a time for the rest of the
+  // run. A queue that cannot be read says nothing, and what this run already found stands.
+  if (left) canClear = cleared;
+  if (window.__foliaPlay !== generation) {
+    return { aborted: true, canClear, cleared: false, written: [], read: null };
+  }
+  const written = (cleared ? uris : uris.filter(uri => !held.has(uri.slice(14)) && !(before || []).includes(uri.slice(14))))
+    .map(uri => uri.slice(14));
+  if (written.length) await api.player.addToQueue(written.map(id => ({ uri: 'spotify:track:' + id })));
+  return { aborted: false, canClear, cleared, written, read: readQueue() };
 }`;
 
 // Spotify's repeat (0 off, 1 the list, 2 the track) by the names the renderer sends.
@@ -784,6 +813,14 @@ function createSpotifyOfficialClient({
   // one started.
   let statusPortSearches = 0;
   let statusPortSearchedAt = 0;
+  // The play this run is on: a start takes the next number and writes it into the page, and a queue
+  // write says which one it belongs to, so a write handed over before a start is dropped instead of
+  // putting the songs of the song before behind the new one.
+  let playSerial = 0;
+  // Whether the app's queue can be emptied, asked by this run's first queue write and kept after: a
+  // player that says no is not asked again, because a queue that only grows makes an emptied one
+  // look like a queue of songs that simply are not there yet.
+  let queueClearable = null;
 
   // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
   // port is not Folia's, and Spotify must not be closed for it.
@@ -1180,13 +1217,16 @@ function createSpotifyOfficialClient({
     async play({ id, startMs = 0, userAction = true }) {
       const uri = trackUri(id);
       const from = Math.max(0, Math.round(Number(startMs) || 0));
+      // The number a queue write of this song is allowed to see: anything else there is a start that
+      // came later, and a write that belongs to the song before it.
+      playSerial += 1;
+      const serial = playSerial;
       return call(`
         const uri = ${JSON.stringify(uri)};
         // A newer play makes this one stop after its next wait, before it can seek or change the
         // repeat of the track the listener asked for afterwards.
-        window.__foliaPlay = (window.__foliaPlay || 0) + 1;
-        const serial = window.__foliaPlay;
-        const current = () => window.__foliaPlay === serial;
+        window.__foliaPlay = ${serial};
+        const current = () => window.__foliaPlay === ${serial};
         if (typeof api.player.clearQueue === 'function') await api.player.clearQueue();
         if (!current()) return 'preempted';
         await api.player.play({ uri }, {}, {});
@@ -1211,18 +1251,25 @@ function createSpotifyOfficialClient({
       `, { allowStart: userAction, retry: false, limitMs: START_CALL_LIMIT_MS });
     },
 
-    // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. What it
-    // answers says whether the queue was emptied first and which songs the app holds afterwards, so
-    // the caller learns what is there without another call. A queue write never starts or closes
-    // Spotify: it reports what it could not do, and the caller asks again.
-    queue({ ids, queued }) {
+    // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. The
+    // answer says what was written, whether the queue was emptied first, whether this app can empty
+    // it at all, and what it names afterwards: one call tells the caller everything it needs, and a
+    // read taken right after a write is never proof of what is missing. A queue write never starts
+    // or closes Spotify.
+    async queue({ ids, queued }) {
       const uris = (Array.isArray(ids) ? ids : []).slice(0, MAX_QUEUED).map(trackUri);
       const held = Array.isArray(queued) ? queued : [];
-      return call(`
+      const probed = queueClearable;
+      const generation = playSerial;
+      const answer = await call(`
         const uris = ${JSON.stringify(uris)};
         const queued = ${JSON.stringify(held)};
-        return (${QUEUE_SOURCE})({ api, uris, queued });
+        const probed = ${JSON.stringify(probed)};
+        const generation = ${generation};
+        return (${QUEUE_SOURCE})({ api, uris, queued, probed, generation });
       `, { retry: false });
+      if (typeof answer?.canClear === 'boolean') queueClearable = answer.canClear;
+      return answer;
     },
 
     // Pausing, resuming and seeking never start or close Spotify: they answer from the
@@ -1286,5 +1333,5 @@ function createSpotifyOfficialClient({
 }
 
 module.exports = {
-  CDP_PORT, QUEUE_SOURCE, START_WAIT_SOURCE, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+  CDP_PORT, MAX_QUEUED, QUEUE_SOURCE, START_WAIT_SOURCE, createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 };

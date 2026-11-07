@@ -21,6 +21,7 @@ import { OnlineProviderError } from '@/types/onlineMusic';
 import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
 import { normalizeSpotifySong } from '@/services/onlineMusic/spotify/spotifyNormalize';
 import {
+    PREPARED_SONGS, PREPARED_SONGS_UNCLEARABLE,
     canSteerSpotifyApp, resetSpotifyClientPlayback, spotifyClientAttempt, spotifyClientPlayback, statusOfClient,
 } from '@/services/onlineMusic/spotify/spotifyClientPlayback';
 import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
@@ -29,7 +30,8 @@ import type { SongResult } from '@/types';
 
 // The page's own queue code, run here as the app runs it: the two layers are mocked apart in every
 // other case, and a song written twice is exactly what the seam between them can produce.
-const { QUEUE_SOURCE } = createRequire(import.meta.url)('../../../electron/spotify/officialClient.cjs') as {
+const { MAX_QUEUED, QUEUE_SOURCE } = createRequire(import.meta.url)('../../../electron/spotify/officialClient.cjs') as {
+    MAX_QUEUED: number;
     QUEUE_SOURCE: string;
 };
 
@@ -69,6 +71,15 @@ const degraded = (extra: Record<string, unknown> = {}) => ({
     id: '', ad: false, fallback: true, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 0, ...extra,
 });
 
+/**
+ * What the page answers a queue write the app took whole, into a queue it can empty: the shape most
+ * cases need, so a case about the queue itself is told apart by the player it runs against.
+ */
+const queueTaken = (params?: unknown) => {
+    const ids = (params as { ids?: string[] } | undefined)?.ids ?? [];
+    return { aborted: false, cleared: true, canClear: true, written: ids, read: ids };
+};
+
 beforeEach(() => {
     // The steering asks the desktop side whether the app is there at all.
     Object.defineProperty(window, 'electron', {
@@ -77,7 +88,12 @@ beforeEach(() => {
         writable: true,
     });
     request.mockReset();
-    request.mockImplementation(async (operation: string) => (operation === 'client_play' ? 'loaded' : { available: true }));
+    delete (window as unknown as { __foliaPlay?: number }).__foliaPlay;
+    request.mockImplementation(async (operation: string, params?: unknown) => {
+        if (operation === 'client_play') return 'loaded';
+        if (operation === 'client_queue') return queueTaken(params);
+        return { available: true };
+    });
     resetSpotifyClientPlayback();
 });
 
@@ -204,8 +220,9 @@ describe('the press of play on a song whose Spotify was closed', () => {
         await spotifyClientPlayback.prepareNext!(a, [b]);
         statusOfClient(playing(id('a'), { positionMs: 83000 }));
         request.mockClear();
-        request.mockImplementation(async (operation: string) => {
+        request.mockImplementation(async (operation: string, params?: unknown) => {
             if (operation === 'client_resume') throw gone();
+            if (operation === 'client_queue') return queueTaken(params);
             return operation === 'client_play' ? 'loaded' : { available: true };
         });
 
@@ -216,7 +233,7 @@ describe('the press of play on a song whose Spotify was closed', () => {
         expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 83000, userAction: true });
         // What was queued in the closed app went with it: the songs that follow are put back, and
         // Folia's record of them holds again (its prepared-queue key does not change, so it would not ask).
-        // The start emptied the app's queue: none of them is reported as something it already holds.
+        // The restart began a new player, so nothing written before is recorded as still held.
         expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')], queued: [] });
         expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
         expect(spotifyClientAttempt()?.hasPlayed).toBe(false);
@@ -253,7 +270,7 @@ describe('the press of play on a song whose Spotify was closed', () => {
         statusOfClient(playing(id('a'), { positionMs: 5000 }));
         request.mockClear();
         let changed = false;
-        request.mockImplementation(async (operation: string) => {
+        request.mockImplementation(async (operation: string, params?: unknown) => {
             if (operation === 'client_resume') throw gone();
             if (operation === 'client_play' && !changed) {
                 // The listener picks another song while Spotify is still starting.
@@ -261,6 +278,7 @@ describe('the press of play on a song whose Spotify was closed', () => {
                 await spotifyClientPlayback.play!(c, 0);
                 return 'loaded';
             }
+            if (operation === 'client_queue') return queueTaken(params);
             return operation === 'client_play' ? 'loaded' : { available: true };
         });
         await spotifyClientPlayback.resume!();
@@ -515,26 +533,38 @@ describe('a track the app is still playing after the window that started it', ()
 });
 
 describe('the songs that follow, kept three deep and written once', () => {
-    it('keeps three songs queued after the one playing', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
-        const d = songOf('d');
+    /** The write Folia makes on its own clock: the first one asks the app what it can do, the next fills the tail in. */
+    const prepare = async (song: SongResult, following: SongResult[]) => {
+        await spotifyClientPlayback.prepareNext!(song, following);
+        await spotifyClientPlayback.prepareNext!(song, following);
+    };
+    /** What an app that cannot empty its queue answers a write: it takes the songs it is given. */
+    const cannotEmpty = (params?: unknown) => {
+        const ids = (params as { ids?: string[] } | undefined)?.ids ?? [];
+        return { aborted: false, cleared: false, canClear: false, written: ids, read: ids };
+    };
+
+    it('keeps three songs queued after the one playing, once it knows the app can empty its queue', async () => {
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
+        // The first write of a run is the one that asks whether the app can empty its queue, and it
+        // takes the least that can be taken back: one song.
+        await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
+        expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')], queued: [] });
         await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
 
-        expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b'), id('c'), id('d')], queued: [] });
+        expect(request).toHaveBeenLastCalledWith('client_queue', {
+            ids: [id('b'), id('c'), id('d')], queued: [id('b')],
+        });
         expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c'), id('d')]);
+        // What the app named is a record of its own, kept apart from what Folia wrote.
+        expect(spotifyClientAttempt()?.confirmedIds).toEqual([id('b'), id('c'), id('d')]);
     });
 
-    it('tops the tail up after the app moves on, adding only the song it does not hold', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
-        const d = songOf('d');
-        const e = songOf('e');
+    it('tops the tail up after the app moves on, handing over the songs it already holds', async () => {
+        const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
-        await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
+        await prepare(a, [b, c, d]);
         statusOfClient(playing(id('a')));
         expect(statusOfClient(playing(id('b'))).ended).toBe(true);
 
@@ -543,7 +573,6 @@ describe('the songs that follow, kept three deep and written once', () => {
         expect(spotifyClientAttempt()?.nextIds).toEqual([id('c'), id('d')]);
         request.mockClear();
 
-        // Three again, and only the song the app does not hold is added to what it already has.
         await spotifyClientPlayback.prepareNext!(b, [c, d, e]);
         expect(request).toHaveBeenLastCalledWith('client_queue', {
             ids: [id('c'), id('d'), id('e')], queued: [id('c'), id('d')],
@@ -552,157 +581,303 @@ describe('the songs that follow, kept three deep and written once', () => {
     });
 
     it('writes nothing again when the songs that follow are the ones the app was given', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
-        await spotifyClientPlayback.prepareNext!(a, [b, c]);
+        await prepare(a, [b, c]);
         request.mockClear();
 
         await spotifyClientPlayback.prepareNext!(a, [b, c]);
         expect(request).not.toHaveBeenCalledWith('client_queue', expect.anything());
     });
 
-    it('empties and writes once more a queue that does not hold what was written', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
-        await spotifyClientPlayback.play!(a, 0);
-        // The app names the queue it holds, and it holds one of the two songs twice.
-        request.mockImplementation(async (operation: string) => {
-            if (operation === 'client_play') return 'loaded';
-            return operation === 'client_queue'
-                ? { added: 2, cleared: true, queue: [id('b'), id('c'), id('c')] }
-                : { available: true };
-        });
-        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-        try {
-            await spotifyClientPlayback.prepareNext!(a, [b, c]);
-
-            const writes = request.mock.calls.filter(call => call[0] === 'client_queue');
-            // Written once, and then once more asking for exactly these songs.
-            expect(writes).toHaveLength(2);
-            // The second write is handed the queue the app reported, not the list Folia wants.
-            expect(writes[1]).toEqual(['client_queue', { ids: [id('b'), id('c')], queued: [id('b'), id('c'), id('c')] }]);
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('it is emptied and 2 songs written once more'));
-            expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c')]);
-        } finally {
-            info.mockRestore();
-        }
-    });
-
-
-    it('leaves a queue it cannot empty as it is instead of adding a song the app may already hold', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
-        const d = songOf('d');
-        await spotifyClientPlayback.play!(a, 0);
-        // The app names a queue that holds the first song twice and does not hold the other two, and
-        // says its queue could not be emptied.
-        request.mockImplementation(async (operation: string) => {
-            if (operation === 'client_play') return 'loaded';
-            return operation === 'client_queue'
-                ? { added: 3, cleared: false, queue: [id('b'), id('b')] }
-                : { available: true };
-        });
-        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-        try {
-            await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
-
-            // A read taken a moment after the write cannot prove a song is missing, so a queue that
-            // could not be emptied is not written again: that is how a song ends up there twice.
-            const writes = request.mock.calls.filter(call => call[0] === 'client_queue');
-            expect(writes).toHaveLength(1);
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('it cannot empty its queue, so nothing is written again'));
-            // The duplicate it read back is what Folia goes by until the app can empty its queue.
-            expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
-        } finally {
-            info.mockRestore();
-        }
-    });
-
-    it('counts from what Folia wrote when the app does not name its queue', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        const c = songOf('c');
-        await spotifyClientPlayback.play!(a, 0);
-        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
-        try {
-            await spotifyClientPlayback.prepareNext!(a, [b, c]);
-
-            expect(request.mock.calls.filter(call => call[0] === 'client_queue')).toHaveLength(1);
-            expect(info).toHaveBeenCalledWith(expect.stringContaining('does not say what its queue holds'));
-            expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c')]);
-        } finally {
-            info.mockRestore();
-        }
-    });
-});
-
-describe('the queue write against the app own queue code', () => {
-    const writeInPage = (new Function(`return (${QUEUE_SOURCE})`)()) as (input: unknown) => Promise<{
-        added: number; cleared: boolean; queue: string[] | null;
-    }>;
-    /**
-     * A player that writes its state a moment late: every read taken after an `addToQueue` still shows
-     * the queue as it was, until the test says a tick has passed. A read is no proof that a song is
-     * absent while it does.
-     */
-    const laggingPlayer = (start: string[]) => {
-        const held: string[] = [...start];
-        let shown: string[] | null = null;
-        const asState = (ids: string[]) => ({ nextTracks: ids.map(id => ({ uri: `spotify:track:${id}` })) });
-        const player = {
-            getState: () => asState(shown ?? held),
-            addToQueue: (entries: { uri: string }[]) => {
-                shown ??= [...held];
-                for (const entry of entries) held.push(entry.uri.slice(14));
-            },
-        };
-        return { player, held, settle: () => { shown = null; } };
-    };
-    /** The renderer's queue write, answered by the page code rather than by a stand-in answer. */
-    const answerInPage = (player: unknown) => {
+    it('keeps one song, and says why, when the app cannot empty its queue', async () => {
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
         request.mockImplementation(async (operation: string, params?: unknown) => {
             if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') return cannotEmpty(params);
+            return { available: true };
+        });
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            await spotifyClientPlayback.play!(a, 0);
+            await prepare(a, [b, c, d]);
+
+            // One song and no more: the window is one while a queue can only grow, so the second
+            // write asked for the song it was already given and nothing went.
+            expect(request.mock.calls.filter(call => call[0] === 'client_queue')).toHaveLength(1);
+            expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('it cannot empty its queue, so one song is kept at a time'));
+        } finally {
+            info.mockRestore();
+        }
+    });
+
+    it('says in one line on every write what the app took, what it read, and whether it can empty its queue', async () => {
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            await spotifyClientPlayback.play!(a, 0);
+            await prepare(a, [b, c]);
+
+            // A write that went as asked is logged as well: it says the queue was emptied first, how
+            // many songs were written and how many the app named afterwards.
+            expect(info).toHaveBeenCalledWith(
+                '[SpotifyClient] the songs that follow: its queue was emptied first, 1 of 1 written, 1 read back, the same songs',
+            );
+        } finally {
+            info.mockRestore();
+        }
+    });
+});
+
+describe('the queue a window writes into the app own player', () => {
+    const writeInPage = (new Function('return (' + QUEUE_SOURCE + ')')()) as (input: unknown) => Promise<{
+        aborted?: boolean; canClear: boolean | null; cleared: boolean; written: string[]; read: string[] | null;
+    }>;
+
+    /**
+     * The app as the page drives it: the songs it holds behind the one playing, in the order it will
+     * play them, whether it can empty that queue at all, and a read that may still show the queue as
+     * it was before a write, because Spotify writes its own state a moment late.
+     */
+    const fakeApp = (options: { start?: string[]; clear?: 'works' | 'noop' | 'none'; lag?: boolean } = {}) => {
+        const queue: string[] = [...(options.start ?? [])];
+        /** Every id the app was ever given, in the order it was given them. */
+        const given: string[] = [];
+        let playing = '';
+        let shown: string[] | null = null;
+        const track = (entry: { uri: string }) => entry.uri.slice(14);
+        const asState = (ids: string[]) => ({ nextTracks: ids.map(entry => ({ uri: 'spotify:track:' + entry })) });
+        const player: Record<string, unknown> = {
+            getState: () => asState(shown ?? queue),
+            addToQueue: (entries: { uri: string }[]) => {
+                if (options.lag) shown ??= [...queue];
+                for (const entry of entries) { queue.push(track(entry)); given.push(track(entry)); }
+            },
+        };
+        if (options.clear === 'works') player.clearQueue = async () => { queue.length = 0; };
+        if (options.clear === 'noop') player.clearQueue = async () => {};
+        return {
+            player, queue, given,
+            /** A start: the app plays that track, and empties its queue for it where it can. */
+            begin: (next: string) => { playing = next; if (options.clear === 'works') queue.length = 0; },
+            /** The app ends the track it plays and moves on to the first song of its own queue. */
+            advance: () => { playing = queue.shift() ?? ''; return playing; },
+            current: () => playing,
+            /** The read catches up with what was written. */
+            settle: () => { shown = null; },
+        };
+    };
+
+    /**
+     * The renderer's queue write, answered by the page's own code, with the page's own memory of this
+     * run: the capability its first write found, and the play every write belongs to.
+     */
+    let probed: boolean | null = null;
+    let generation = 0;
+    const answerInPage = (app: ReturnType<typeof fakeApp>) => {
+        probed = null;
+        generation = 0;
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') {
+                // A start takes the next generation and writes it into the page, as the client does.
+                generation += 1;
+                (window as unknown as { __foliaPlay?: number }).__foliaPlay = generation;
+                app.begin((params as { id: string }).id);
+                return 'loaded';
+            }
             if (operation !== 'client_queue') return { available: true };
             const { ids, queued } = params as { ids: string[]; queued: string[] };
-            return writeInPage({
-                api: { player },
-                uris: ids.map(id => `spotify:track:${id}`),
-                queued,
+            const answer = await writeInPage({
+                api: { player: app.player },
+                uris: ids.map(entry => 'spotify:track:' + entry),
+                queued, probed, generation,
             });
+            if (typeof answer.canClear === 'boolean') probed = answer.canClear;
+            return answer;
         });
     };
 
-    it('does not add a song again when the read right after a write still shows the queue as it was', async () => {
-        // The read comes back short of the song just written: taken as proof it is missing, the
-        // write would add it a second time, and the app would play it twice.
-        const app = laggingPlayer([id('b'), id('c')]);
-        answerInPage(app.player);
-        const a = songOf('a');
+    /** The write Folia makes on its own clock, twice: the first asks the app, the second fills the tail in. */
+    const prepare = async (song: SongResult, following: SongResult[]) => {
+        await spotifyClientPlayback.prepareNext!(song, following);
+        await spotifyClientPlayback.prepareNext!(song, following);
+    };
+    /** The app ends this song and moves on to the song Folia put next, and Folia follows it there. */
+    const handOver = async (app: ReturnType<typeof fakeApp>, next: string) => {
+        statusOfClient(playing(app.current()));
+        expect(app.advance()).toBe(id(next));
+        const adopted = statusOfClient(playing(id(next)));
+        expect(adopted.ended).toBe(true);
+        expect(adopted.skipped).toBeUndefined();
+        await spotifyClientPlayback.play!(songOf(next), 0);
+    };
+
+    it('never holds a song twice, over four songs in a row', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
 
-        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+        await handOver(app, 'b');
+        await prepare(b, [c, d, e]);
+        expect(app.queue).toEqual([id('c'), id('d'), id('e')]);
 
-        expect(app.held).toEqual([id('b'), id('c'), id('d')]);
+        await handOver(app, 'c');
+        await prepare(c, [d, e]);
+        await handOver(app, 'd');
+        await prepare(d, [e]);
+
+        expect(app.queue).toEqual([id('e')]);
+        expect(new Set(app.queue).size).toBe(app.queue.length);
     });
 
-    it('adds nothing more once the read has caught up with what was written', async () => {
-        const app = laggingPlayer([id('b')]);
-        answerInPage(app.player);
+    it('plays what Folia has next after the songs that follow were rewritten, and skips no song', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c]);
+        expect(app.queue).toEqual([id('b'), id('c')]);
+
+        // The listener shuffles: the songs after this one are others now.
+        await spotifyClientPlayback.prepareNext!(a, [d, c]);
+        expect(app.queue).toEqual([id('d'), id('c')]);
+
+        // The app moves on to the first song Folia put there, and that song is the one Folia has
+        // next: a handoff, not a move of the app's own that Folia then has to follow.
+        statusOfClient(playing(id('a')));
+        expect(app.advance()).toBe(id('d'));
+        const handoff = statusOfClient(playing(id('d')));
+        expect(handoff.ended).toBe(true);
+        expect(handoff.skipped).toBeUndefined();
+    });
+
+    it('keeps three songs queued while the app can empty its queue', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
+        expect(app.queue).toHaveLength(PREPARED_SONGS);
+    });
+
+    it('keeps one song and grows no further while the app cannot empty its queue', async () => {
+        const app = fakeApp({ clear: 'none' });
+        answerInPage(app);
+        const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+        expect(app.queue).toEqual([id('b')]);
+        expect(app.queue).toHaveLength(PREPARED_SONGS_UNCLEARABLE);
+
+        await handOver(app, 'b');
+        await prepare(b, [c, d, e]);
+        expect(app.queue).toEqual([id('c')]);
+        await handOver(app, 'c');
+        await prepare(c, [d, e]);
+        expect(app.queue).toEqual([id('d')]);
+
+        // Four songs in: each was written once, and one at a time waits behind the song playing.
+        expect(app.given).toEqual([id('b'), id('c'), id('d')]);
+        expect(app.queue).toHaveLength(PREPARED_SONGS_UNCLEARABLE);
+    });
+
+    it('adds nothing behind the tail the app already holds, where a read comes back short', async () => {
+        // A window before this one left the app with a tail, and this one starts knowing nothing of
+        // it. Spotify writes its own state a moment late, so a read is no proof of what is missing:
+        // what the app names before this run wrote anything is what it holds.
+        const app = fakeApp({ clear: 'none', lag: true, start: [id('b'), id('c')] });
+        answerInPage(app);
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [songOf('b'), songOf('c'), songOf('d')]);
 
-        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+        expect(app.given).toEqual([]);
+        expect(app.queue).toEqual([id('b'), id('c')]);
+    });
+
+    it('adds a song once when the read after the write still shows the queue as it was', async () => {
+        const app = fakeApp({ clear: 'none', lag: true });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+        expect(app.queue).toEqual([id('b')]);
+
+        // The app goes on to the song, and Folia asks for the tail behind it while the read still
+        // shows the queue of a moment ago.
+        await handOver(app, 'b');
+        await prepare(b, [c, d]);
         app.settle();
-        // A queue edit asks again: the songs are there, so the second write puts none of them in twice.
-        await spotifyClientPlayback.prepareNext!(a, [songOf('b'), songOf('c'), songOf('d')]);
+        await prepare(b, [c, d]);
 
-        expect(app.held).toEqual([id('b'), id('c'), id('d')]);
+        expect(app.given).toEqual([id('b'), id('c')]);
+    });
+
+    it('writes only the one or two songs the queue has left behind the song playing', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        expect(app.queue).toEqual([id('b')]);
+
+        await prepare(a, [b, c]);
+        expect(app.queue).toEqual([id('b'), id('c')]);
+    });
+
+    it('leaves the app own queue alone when the song goes on to nothing', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
+
+        // Repeat one: the queue Folia has hands the app nothing, and the app's own queue is not
+        // emptied for a list that has nothing to say.
+        request.mockClear();
+        await spotifyClientPlayback.prepareNext!(a, []);
+
+        expect(request).not.toHaveBeenCalledWith('client_queue', expect.anything());
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
+        expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c'), id('d')]);
+    });
+
+    it('drops a write a newer play took the app from, and records nothing of it', async () => {
+        const app = fakeApp({ clear: 'none' });
+        answerInPage(app);
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        const handedOver = generation;
+
+        // The listener picks another song while this write is under way: a start has emptied the
+        // queue for its own tail, and the songs of the song before it do not go behind it.
+        await spotifyClientPlayback.play!(c, 0);
+        const stale = await writeInPage({
+            api: { player: app.player }, uris: ['spotify:track:' + id('b')], queued: [], probed: true,
+            generation: handedOver,
+        });
+
+        expect(stale.aborted).toBe(true);
+        expect(stale.written).toEqual([]);
+        expect(app.queue).toEqual([id('b')]);
+    });
+
+    it('lets the page take a tail no shorter than the one the renderer keeps', () => {
+        // One number over two sides: the renderer decides how many songs follow, and the page only
+        // caps them, so a tail can never be cut by a ceiling smaller than the window.
+        expect(MAX_QUEUED).toBeGreaterThanOrEqual(PREPARED_SONGS);
+        expect(PREPARED_SONGS).toBeGreaterThan(PREPARED_SONGS_UNCLEARABLE);
     });
 });
+
 
 describe('the media keys and the failures that stop an advance', () => {
     it('declares that its app keeps a media session of its own (the keys are held)', () => {

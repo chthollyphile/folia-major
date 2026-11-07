@@ -934,14 +934,28 @@ describe('a start an advertisement plays before', () => {
         await expect(run([{ item: AD }], () => ++looks < 3)).resolves.toBe('preempted');
     });
 });
-
 // --- the songs that follow, written into the app's queue, driven by a stand-in player ------------
 
 describe('a queue write in the app', () => {
-    const trackUri = (letter: string) => `spotify:track:${letter.repeat(22)}`;
     const idOf = (letter: string) => letter.repeat(22);
-    type Answer = { added: number; cleared: boolean; queue: string[] | null };
-    const writeQueue = (new Function(`return (${String(QUEUE_SOURCE)})`)()) as (input: unknown) => Promise<Answer>;
+    const trackUri = (letter: string) => 'spotify:track:' + idOf(letter);
+    type Answer = {
+        aborted?: boolean; canClear: boolean | null; cleared: boolean; written: string[]; read: string[] | null;
+    };
+    const writeQueue = (new Function('return (' + String(QUEUE_SOURCE) + ')')()) as (input: unknown) => Promise<Answer>;
+
+    /**
+     * The page the queue code runs in. It keeps the play generation on its own global, so the test
+     * gives it the window the page would have; a fresh one is a page loaded again.
+     */
+    const page: { __foliaPlay?: number } = {};
+    beforeEach(() => {
+        (globalThis as unknown as { window?: unknown }).window = page;
+        delete page.__foliaPlay;
+    });
+    afterEach(() => {
+        delete (globalThis as unknown as { window?: unknown }).window;
+    });
 
     /**
      * A player whose queue holds `start`, with the queue API the test gives it: `works` empties it,
@@ -950,7 +964,7 @@ describe('a queue write in the app', () => {
     const playerWith = (start: string[], clearQueue?: 'works' | 'noop', queue: true | false | 'alias' = true) => {
         const held = start.map(idOf);
         const added: string[] = [];
-        const named = () => held.map(id => ({ uri: `spotify:track:${id}` }));
+        const named = () => held.map(id => ({ uri: 'spotify:track:' + id }));
         const player: Record<string, unknown> = {
             // `alias` is the state whose first queue name is always empty while the queue is in the next.
             getState: () => (queue === false
@@ -965,31 +979,42 @@ describe('a queue write in the app', () => {
         return { api: { player }, held, added };
     };
 
-    it('adds every song once the queue is emptied, and says the queue was emptied', async () => {
+    /** One write as the page makes it: the capability this run found (null the first time), and the play it belongs to. */
+    const write = (
+        api: unknown, letters: string[], queued: string[], probed: boolean | null = null, generation = 0,
+    ) => writeQueue({ api, uris: letters.map(trackUri), queued, probed, generation });
+
+    it('takes every song once the app emptied its queue, and says the queue was emptied', async () => {
         const app = playerWith(['c', 'd'], 'works');
-        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+        const answer = await write(app.api, ['c', 'd', 'e'], []);
 
         expect(answer.cleared).toBe(true);
-        expect(answer.added).toBe(3);
-        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+        expect(answer.canClear).toBe(true);
+        expect(answer.written).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+        expect(answer.read).toEqual([idOf('c'), idOf('d'), idOf('e')]);
     });
 
-    it('adds only the song the app does not hold when its queue cannot be emptied', async () => {
-        // Spotify's player offers no clearQueue here: the songs it holds are left alone, so the one
-        // already queued is not there twice.
+    it('asks once per run whether the queue can be emptied, and adds one song at a time when it cannot', async () => {
+        // The player offers no clearQueue here: the songs it holds are left alone, and only a song
+        // Folia has not written is added.
         const app = playerWith(['c'], undefined);
-        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+        const first = await write(app.api, ['c', 'd'], []);
+        expect(first.cleared).toBe(false);
+        expect(first.canClear).toBe(false);
+        expect(app.added).toEqual([idOf('d')]);
 
-        expect(answer.cleared).toBe(false);
+        // The next write is handed what this run found, so the app is not asked again.
+        const second = await write(app.api, ['d', 'e'], [idOf('c'), idOf('d')], first.canClear);
+        expect(second.canClear).toBe(false);
         expect(app.added).toEqual([idOf('d'), idOf('e')]);
-        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
     });
 
-    it('treats a clear that leaves songs behind as no clear at all', async () => {
+    it('treats a clear that leaves songs behind as no clear at all, and adds only what is missing', async () => {
         const app = playerWith(['c'], 'noop');
-        const answer = await writeQueue({ api: app.api, uris: ['c', 'd'].map(trackUri), queued: [] });
+        const answer = await write(app.api, ['c', 'd'], []);
 
         expect(answer.cleared).toBe(false);
+        expect(answer.canClear).toBe(false);
         expect(app.added).toEqual([idOf('d')]);
     });
 
@@ -997,20 +1022,53 @@ describe('a queue write in the app', () => {
         // One of the state's queue names is an alias the app always leaves empty: read as a queue
         // that is empty, every write would put the whole tail in again.
         const app = playerWith(['c', 'd'], undefined, 'alias');
-        const answer = await writeQueue({ api: app.api, uris: ['c', 'd', 'e'].map(trackUri), queued: [] });
+        const answer = await write(app.api, ['c', 'd', 'e'], []);
 
         expect(app.added).toEqual([idOf('e')]);
-        expect(answer.queue).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+        expect(answer.read).toEqual([idOf('c'), idOf('d'), idOf('e')]);
+    });
+
+    it('leaves the tail a window before this one wrote where it is', async () => {
+        // This run wrote nothing of these: they were queued before it, and a song is never added
+        // behind itself.
+        const app = playerWith(['c', 'd'], undefined);
+        const answer = await write(app.api, ['c', 'd', 'e'], []);
+
+        expect(answer.written).toEqual([idOf('e')]);
+        expect(app.added).toEqual([idOf('e')]);
     });
 
     it('counts from the songs the caller holds when the app names no queue', async () => {
         const app = playerWith([], undefined, false);
-        const answer = await writeQueue({ api: app.api, uris: ['c', 'd'].map(trackUri), queued: [idOf('c')] });
+        const answer = await write(app.api, ['c', 'd'], [idOf('c')]);
 
-        expect(answer.queue).toBeNull();
+        expect(answer.read).toBeNull();
+        expect(app.added).toEqual([idOf('d')]);
+    });
+
+    it('drops a write a newer play took the app from, and writes nothing', async () => {
+        const app = playerWith(['c'], 'works');
+        // The page is on a later play than the one this write was handed over for: the queue that
+        // play emptied is not filled with the songs of the song before it.
+        page.__foliaPlay = 2;
+        const answer = await write(app.api, ['d'], [], null, 1);
+
+        expect(answer.aborted).toBe(true);
+        expect(answer.written).toEqual([]);
+        expect(app.added).toEqual([]);
+    });
+
+    it('takes the generation of a page loaded again as it stands', async () => {
+        // Spotify navigated and the page was loaded again: no play has run there, and the write is
+        // not dropped for a generation the page has never seen.
+        const app = playerWith([], 'works');
+        const answer = await write(app.api, ['d'], [], null, 4);
+
+        expect(answer.aborted).toBe(false);
         expect(app.added).toEqual([idOf('d')]);
     });
 });
+
 
 describe('a call that may not be made twice', () => {
     it('does not run a play again when the connection failed after the call went out', async () => {
