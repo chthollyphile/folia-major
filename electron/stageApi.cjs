@@ -292,6 +292,7 @@ function createStageApi({
   const getStageModeSource = () => {
     const configuredSource = store.get(stageModeSourceSettingKey);
     if (configuredSource === 'now-playing') return 'now-playing';
+    if (configuredSource === 'dux' && process.platform === 'linux') return 'dux';
     if (configuredSource === 'playercap') return 'playercap';
     return 'stage-api';
   };

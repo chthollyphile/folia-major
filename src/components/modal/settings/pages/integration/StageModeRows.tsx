@@ -124,7 +124,19 @@ const NowPlayingRow: React.FC = () => {
     );
 };
 
-/** The desktop app's stage mode: the app serves or follows one of three sources. */
+/** The Dux Stage source: Linux desktop only, with its own loopback endpoint. */
+const DuxRow: React.FC = () => {
+    const { t } = useTranslation();
+    const connection = nowPlayingConnection(useSettingsPage().viewProps.integration.stage.nowPlayingConnectionStatus);
+
+    return (
+        <Row sub label="Dux" hint={t('options.duxStageDesc')}>
+            <Status tone={connection.tone}>{t(connection.labelKey)}</Status>
+        </Row>
+    );
+};
+
+/** The desktop app's stage mode: the app serves or follows one of four sources. */
 export const DesktopStageRows: React.FC = () => {
     const { t } = useTranslation();
     const { stageStatus, stageSource, onToggleStageMode, onStageSourceChange, onRegenerateStageToken } = useSettingsPage().viewProps.integration.stage;
@@ -134,6 +146,12 @@ export const DesktopStageRows: React.FC = () => {
     }
     const on = Boolean(stageStatus.modeEnabled);
     const source = stageSource ?? 'stage-api';
+    const sourceOptions: Array<{ value: StageSource; label: string }> = [
+        { value: 'stage-api', label: 'Stage API' },
+        { value: 'now-playing', label: 'Now Playing' },
+        ...(window.electron?.platform === 'linux' ? [{ value: 'dux' as const, label: 'Dux' }] : []),
+        { value: 'playercap', label: 'PlayerCap' },
+    ];
     const token = stageStatus.token;
     const regenerateToken = async () => {
         setRegenerating(true);
@@ -153,11 +171,7 @@ export const DesktopStageRows: React.FC = () => {
                 <Row sub option={O.stageSource}>
                     <Segmented<StageSource>
                         value={source}
-                        options={[
-                            { value: 'stage-api', label: 'Stage API' },
-                            { value: 'now-playing', label: 'Now Playing' },
-                            { value: 'playercap', label: 'PlayerCap' },
-                        ]}
+                        options={sourceOptions}
                         onChange={next => void onStageSourceChange?.(next)}
                     />
                 </Row>
@@ -166,6 +180,9 @@ export const DesktopStageRows: React.FC = () => {
                 </Reveal>
                 <Reveal when={source === 'now-playing'}>
                     <NowPlayingRow />
+                </Reveal>
+                <Reveal when={source === 'dux'}>
+                    <DuxRow />
                 </Reveal>
                 <Reveal when={source === 'stage-api'}>
                     <Row sub label={t('options.stageAddress')}>
