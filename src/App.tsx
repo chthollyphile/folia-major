@@ -1420,7 +1420,7 @@ export default function App() {
     } = transportCommandRefs;
     useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack });
     // The system media keys, held while a player asks for them: one press runs Folia's transport and
-    // queue on whatever route the song on screen sounds (the bridge says which press runs what).
+    // queue on whatever route the song on screen sounds.
     useMediaKeyTakeoverBridge({
         runTransportAction: (action) => runTransportButtonAction({ ...transportCommandRefs, isNowPlayingControlDisabledRef, audioRef }, action),
         playSong,

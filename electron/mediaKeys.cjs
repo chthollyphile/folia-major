@@ -1,10 +1,11 @@
 // electron/mediaKeys.cjs
 // The system media keys, held by Folia so that a press stays Folia's.
-// Windows hands a media key to the media session that played last, and the player that sounds
-// Folia's songs is another program with a media session of its own, which it keeps between Folia's
-// songs too (measured for the desktop app Folia steers: GlobalSystemMediaTransportControlsSessionManager.GetCurrentSession()
-// names it, status Paused, while it holds a track Folia paused there). A key Folia lets go is
-// therefore taken by that program, which resumes and moves on in its own queue and never asks Folia.
+// Windows hands a media key to the media session that played last, and the program that sounds
+// Folia's songs has a media session of its own, which it keeps between Folia's songs too. Measured
+// on the desktop app Folia steers:
+// GlobalSystemMediaTransportControlsSessionManager.GetCurrentSession() names it, status Paused, while
+// it holds a track Folia paused there. A key Folia lets go is therefore taken by that program, which
+// resumes and moves on in its own queue and never asks Folia.
 // Which players ask for the keys, and why, is theirs to declare (the external playback capability in
 // src/types/onlineMusic.ts, answered through omni from the renderer); this module only holds the
 // three keys while the renderer says so, and reports each press as one transport action. It names no

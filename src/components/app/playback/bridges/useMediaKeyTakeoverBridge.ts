@@ -11,11 +11,11 @@ import type { TransportButtonAction } from './useTransportCommandRefs';
 
 // src/components/app/playback/bridges/useMediaKeyTakeoverBridge.ts
 // The system media keys while Folia holds them: whether to hold them at all, and what one press runs.
-// Why holding is the only way to keep a press is electron/mediaKeys.cjs (Windows gives a key Folia lets
-// go to the other program's own media session, which then resumes and moves on in its own queue). Who
-// may ask for them is the provider's own declaration, answered through omni: Folia here knows only
-// that some player asks, never which one. Held, a press runs Folia's own transport and queue, on
-// whatever route the song on screen sounds: the other program's player, this app's decks, or mpv.
+// Holding is the only way to keep a press - Windows gives a key Folia lets go to the other program's
+// own media session, which then resumes and moves on in its own queue (electron/mediaKeys.cjs). Who
+// may ask for them is the provider's own declaration, answered through omni: Folia knows only that
+// some player asks, never which one. Held, a press runs Folia's own transport and queue on whatever
+// route the song on screen sounds: that program's player, this app's decks, or mpv.
 
 type PlaySong = (
     song: SongResult,
@@ -41,10 +41,10 @@ export type MediaKeyHoldFacts = {
 /**
  * Whether Folia holds the media keys now.
  *
- * The setting asks for them for the whole run: the player's own program keeps its media session
- * between Folia's songs, so a key let go at the end of a queue, on leaving that player's route, or
- * when that program stopped, is handed to that program and never comes back to Folia. Turned off,
- * the answer is the one before it: only while that player's session exists (a paused one too).
+ * With the setting on it is the whole run while that player asks for them: its program keeps its own
+ * media session between Folia's songs, so a key let go at the end of a queue, on leaving that route or
+ * when the program stopped is handed to it and never comes back. With the setting off, only while that
+ * player's session exists (a paused one too).
  */
 export const shouldHoldMediaKeys = (facts: MediaKeyHoldFacts): boolean => {
     if (facts.holdWhileRunning && facts.playerAsksForAsLongAsFoliaRuns) return true;
@@ -66,11 +66,10 @@ export type MediaKeyActionPlan = 'transport' | 'restart-list' | 'replay-last';
 /**
  * The plan of one press.
  *
- * At the end of a played-out queue there is nothing for the transport to step to, so play and next
- * start the list over from its first song (a shuffle reorders the queue itself, so its first song is
- * the one the listener would start with; nothing played out under a repeat mode to begin with), and
- * previous replays the song that just ended, which is the last one in the queue - the step back a
- * listener asking for "that one again" means, rather than a silent no-op.
+ * At the end of a played-out queue the transport has nothing to step to, so play and next start the
+ * list over from its first song (a shuffle reorders the queue itself, so its first song is the one the
+ * listener would start with; nothing plays out under a repeat mode), and previous replays the song
+ * that just ended rather than doing nothing.
  */
 export const planMediaKeyAction = (action: TransportButtonAction, queuePlayedOut: boolean): MediaKeyActionPlan => {
     if (!queuePlayedOut) return 'transport';
@@ -87,14 +86,12 @@ export type MediaKeyHoldAnswer = {
 /**
  * The wish sent to the main process, and what became of it.
  *
- * Only an answer that came back, and that says the wish is now the state, is remembered: a send that
- * failed leaves the wish outstanding, and so does one the main process could not carry out - the
- * system refusing a key is answered as `enabled: false` (electron/mediaKeys.cjs), and reading that
- * as done would leave Folia believing it holds keys another program took. Both send again on the next
- * change of state instead. `force` sends it even when it looks like it is already there - the mount,
- * whose main process may hold what a window before this one left. A wish is compared with a wish on
- * its way before the last answer: one sent over an outstanding opposite one is the one that decides,
- * and dropping it as "already there" would leave the main process where the older one left it.
+ * Only an answer that came back saying the wish is in force counts as done: a failed send leaves the
+ * wish outstanding, and so does one the main process could not carry out - the system refusing a key
+ * is answered as `enabled: false` (electron/mediaKeys.cjs), and reading that as done would leave
+ * Folia believing it holds keys another program took. A wish is compared with the one on its way
+ * before the last answer, so an opposite wish is never dropped as already there. `force` sends
+ * regardless: the mount, whose main process may hold what a window before this one left.
  */
 export const createMediaKeyHoldSender = (
     send: (wanted: boolean) => Promise<MediaKeyHoldAnswer | null | undefined>,

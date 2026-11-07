@@ -2,15 +2,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runExternalPlayerWarmUp } from '@/components/app/playback/externalPlayerWake';
 
-// test/unit/stores/closeExternalPlayerOnQuit.test.ts — D3: the settings row 「Folia 退出时关闭 Spotify」.
-// The renderer keeps the value the settings row reads, and writes it to the main process's store,
-// which is where the quit reads it, because the renderer may only reach the main process through
-// preload (electron/preload.cjs, `saveSettings`).
+// The settings row 「Folia 退出时关闭 Spotify」. The renderer keeps the value the row reads, and writes
+// it to the main process's store, which is where the quit reads it, because the renderer may only
+// reach the main process through preload (electron/preload.cjs, `saveSettings`).
 // The other setting, 「打开 Folia 时唤起外部播放器」, is run by externalPlayerWake.ts at launch: asked for
 // or not, and a player that refuses to start (the last block).
 
-// 渲染进程自己存的键（已发布，不改）与主进程 electron-store 的键（upstream 从未发布过，和同类开关
-// 一样是 UPPER_SNAKE）。
+// 渲染进程自己存的键已经发布，不能改名；主进程 electron-store 那个键没发布过，和同类开关一样用
+// UPPER_SNAKE。
 const STORAGE_KEY = 'close_external_player_on_quit';
 const MAIN_PROCESS_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';
 

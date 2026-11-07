@@ -16,14 +16,14 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 // provider's `externalPlayback` picks this one or Soloist's by it). When the app is not on this
 // computer a song fails with a reason that opens the setup checklist (spotifySetup.ts), where the
 // other ways are offered: nothing falls back to Folia's own player, which a free account cannot use.
-// M4: the media session names no track. While it answers, nothing is prepared in the app's queue,
+// The media session names no track. While it answers, nothing is prepared in the app's queue,
 // its coarse position never replaces the song's duration, and a title it shows that is not the
 // song Folia asked for ends this external session so Folia's own queue takes the next song.
 
 /** How many songs that follow are put in the app's queue. */
 const PREPARED_SONGS = 2;
 /**
- * What the app's own answer to a start says (N8): it took the track, a newer start took over, it took
+ * What the app's own answer to a start says: it took the track, a newer start took over, it took
  * the track but an advertisement of a free account still runs before it, or it never got to it.
  */
 type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement';
@@ -138,7 +138,7 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
     const id = fallback ? current?.id ?? '' : data.id;
     const status: ProviderExternalPlaybackStatus = {
         mediaId: id, isPlaying, ended: false, positionMs: data.positionMs,
-        // A coarse answer knows no duration for this song: it never replaces the one held (M4).
+        // A coarse answer knows no duration for this song: it never replaces the one held.
         durationMs: fallback && current ? current.durationMs : data.durationMs,
         starting: !data.isPaused && data.isBuffering,
         degraded: fallback,
@@ -146,7 +146,7 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
     if (!current) return status;
     if (fallback) {
         // The media session names no track, so the app's own move to another song is read from the
-        // title it shows: the external session ends and Folia's queue takes the next song (M4).
+        // title it shows: the external session ends and Folia's queue takes the next song.
         if (current.hasPlayed && namesAnotherTrack(current, data)) {
             console.info('[SpotifyClient] Spotify moved on to another track; the external session ends');
             return ended(current);
@@ -216,7 +216,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const current = attempt;
         if (!current || current.id !== songIdOf(song)) return;
         // The media session names no track: what the app would move on to cannot be checked, so
-        // nothing is prepared while the app is steered coarsely (M4).
+        // nothing is prepared while the app is steered coarsely.
         if (current.degraded) return;
         const ids: string[] = [];
         for (const next of upcoming) {
@@ -226,7 +226,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         }
         if (ids.join() === current.nextIds.join()) return;
         // Written only once the app took them: a queue write that failed leaves nothing prepared,
-        // so the next try asks again instead of reporting a song as ready (L4).
+        // so the next try asks again instead of reporting a song as ready.
         await requestSpotify('client_queue', { ids });
         current.nextIds = ids;
     },
@@ -251,10 +251,10 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             return;
         }
         // An advance Folia made by itself is not a press: the desktop side is told so, and does not
-        // start or restart Spotify for it (T5): that one stops there when the app cannot be reached.
+        // start or restart Spotify for it: that one stops there when the app cannot be reached.
         const userAction = options.userAction !== false;
         const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', { id, startMs, userAction });
-        // A newer start replaced this one: nothing went wrong, and there is nothing to report (N8).
+        // A newer start replaced this one: nothing went wrong, and there is nothing to report.
         if (answer === 'preempted') {
             console.info('[SpotifyClient] a newer play took the app; this one stops');
             return;
@@ -265,7 +265,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             console.info('[SpotifyClient] an advertisement plays before the song; the app follows it');
             return;
         }
-        // The app took the call and never got to the track: that is a failure of this song (N8).
+        // The app took the call and never got to the track: that is a failure of this song.
         // One track Spotify will not load says nothing about the next one.
         if (answer !== 'loaded') {
             throw new OnlineProviderError('not-playable', 'The Spotify app did not load the song', 'spotify');
@@ -281,7 +281,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         } catch (error) {
             // The listener pressed play and the app cannot be resumed: it was closed (or is gone
             // from its port). That press is the listener's own action, so the app is started again
-            // on the song Folia holds, from the position Folia holds (D1). A pause, and the advance
+            // on the song Folia holds, from the position Folia holds. A pause, and the advance
             // Folia makes by itself, never come here.
             const code = (error as { code?: string } | null)?.code;
             const current = attempt;
@@ -330,7 +330,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     warmUp: () => launchSpotifyApp(),
 };
 
-/** Starts Spotify's app with its DevTools port (the setting that wakes it with Folia, D1). */
+/** Starts Spotify's app with its DevTools port (the setting that wakes it with Folia). */
 export const launchSpotifyApp = async (): Promise<void> => {
     if (!canSteerSpotifyApp()) return;
     await requestSpotify('client_launch');

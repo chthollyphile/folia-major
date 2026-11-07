@@ -97,8 +97,8 @@ const REQUEST_LIMIT_MS = 30 * 1000;
 const SHUTDOWN_LIMIT_MS = 3000;
 // The account (its name, and whether it pays) is read again at most this often.
 const ACCOUNT_MAX_AGE_MS = 10 * 60 * 1000;
-// Whether Spotify's app is installed is read again at most this often (D2): it is a look at the
-// launcher on disk, but not one worth taking before every song.
+// How long one answer of `client_probe` is reused: the app is installed or removed between runs,
+// not between two songs.
 const AVAILABILITY_TTL_MS = 60 * 1000;
 // After Spotify approved a sign-in, a read of its account that failed on the line is made again
 // with the next poll for this long from the first read; then the sign-in ends.
@@ -149,10 +149,9 @@ function createSpotifyApiBridge({
   const signIn = givenSignIn ?? createSpotifySignIn({ fetch, openExternal, language, now, log, warn });
   let renewing = null;
   let adopting = false;
-  // The failure line last logged for each operation, by the operation it belongs to: a status read
-  // that keeps failing (the app is not running) is logged once, and a success, or a different failure,
-  // of that same operation lets it log again. Another operation's failure says nothing about this one,
-  // so it neither keeps it quiet nor makes it log twice.
+  // The failure line last logged for each operation, so a failure that repeats logs once (see
+  // request() below). A different failure, or a success, lets that operation log again; another
+  // operation's line says nothing about this one.
   const lastFailures = new Map();
   // The approved sign-in whose account is being read, and when it was first asked for.
   let approved = null;
@@ -319,7 +318,7 @@ function createSpotifyApiBridge({
 
   // Made on first use: a run that never plays Spotify starts no helper process.
   let officialClient = givenOfficialClient ?? null;
-  // The last answer of `client_probe`, and when it was read (D2).
+  // The last answer of `client_probe`, and when it was read.
   let availability = null;
   let availabilityReadAt = 0;
   // Its own fetch: the Spotify app is on this computer, never behind the partition's proxy.
@@ -448,8 +447,8 @@ function createSpotifyApiBridge({
 
     // Whether Spotify gives the signed-in account audio keys (asked right after a sign-in):
     // 'ok', 'no-key', 'free' (Spotify plays for Premium only), 'skipped' (it plays through
-    // Soloist or Spotify's own app, which need no key here) or 'unknown'. The key is asked of the account's own
-    // latest liked songs, which play in its market, or else of songs that play in most.
+    // Soloist or Spotify's own app, which need no key here) or 'unknown'. The key is asked of the
+    // account's own latest liked songs, which play in its market, or else of songs that play in most.
     async audio_probe() {
       if (playbackMode() !== 'standard') return 'skipped';
       if (!repo.get()) return 'unknown';
@@ -596,7 +595,7 @@ function createSpotifyApiBridge({
       return { uri: made.uri };
     },
 
-    // The official app steers: it needs no sign-in of Folia's, only the app on this computer.
+    // Spotify's own app as the player: it needs no sign-in of Folia's, only the app on the computer.
     client_launch: () => client().launch(),
     client_restart: () => client().restart(),
     client_play: params => client().play(params),
@@ -606,8 +605,7 @@ function createSpotifyApiBridge({
     client_seek: params => client().seek(params),
     client_volume: params => client().setVolume(params),
     client_status: () => client().status(),
-    // D2: whether Spotify's app is on this computer. Answered from a cached look at the launcher:
-    // the answer changes when the app is installed or removed, not between two songs.
+    // Whether Spotify's app is on this computer, answered from a cached look at the launcher.
     async client_probe() {
       if (availability && now() - availabilityReadAt < AVAILABILITY_TTL_MS) return availability;
       availability = client().available();

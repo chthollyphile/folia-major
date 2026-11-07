@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/spotify/spotifyOfficialClient.test.ts — steering Spotify's own app: the player state
 // turned into Folia's status, the repeat names, the media session answering when the DevTools port
 // does not, and — the part that is behaviour rather than wiring — what a call may do to Spotify.
-// D1: only a play or the launch switch may close and start it again, once in a run; a status read,
-// a pause, a seek and a queue write never start it and never close it. M2: a page that throws is
-// given one more look with the cached player dropped. M7: the whole DevTools connection is bounded,
-// and a socket that closes before it opened is a refused connection. L5: Windows' own tools run by
-// their absolute path. The system media keys Folia holds are no longer this player's: the module and
-// its tests are generic and live with every route (test/unit/mediaKeys/mediaKeyTakeover.test.ts).
+// Only a play or the launch switch may close and start it again, once in a run; a status read, a
+// pause, a seek and a queue write never start it and never close it. A page that throws is given one
+// more look with the cached player dropped, and the whole DevTools connection is bounded: a socket
+// that closes before it opened is a refused connection. Windows' own tools run by their absolute
+// path. The system media keys Folia holds are not this player's: the module and its tests are
+// generic and live with every route (test/unit/mediaKeys/mediaKeyTakeover.test.ts).
 
 const require = createRequire(import.meta.url);
 const {
@@ -24,7 +24,7 @@ const { spotifyError } = require('../../../electron/spotify/errors.cjs');
 
 const TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 // A call that cannot reach the page costs three connections: the call itself, the look again with
-// the cached player dropped (M2), and the call once more (officialClient.cjs's `evaluateInPage`).
+// the cached player dropped, and the call once more (officialClient.cjs's `evaluateInPage`).
 const FAILED_CONNECTIONS = 3;
 const NEWLINE = String.fromCharCode(10);
 
@@ -74,7 +74,7 @@ describe('repeat modes', () => {
         expect(statusFromMediaSession({ repeat: -1 }).repeat).toBeNull();
     });
 
-    it('names the track only by the title and artist the session shows (M4)', () => {
+    it('names the track only by the title and artist the session shows', () => {
         const status = statusFromMediaSession({ title: 'Song', artist: 'Artist' });
         expect(status.id).toBe('');
         expect(status.title).toBe('Song');
@@ -145,7 +145,7 @@ let spawnError = false;
 /**
  * A PowerShell stand-in: it answers every command with what the test put under its op, unless the
  * test holds that op. Each process it made is kept, with the lines written to it, so a test can end
- * the old one by hand (N4).
+ * the old one by hand.
  */
 const makeSpawn = () => {
     const spawned: string[] = [];
@@ -213,7 +213,7 @@ const makeClient = (options: ClientOptions = {}) => {
         if (String(url).includes('/json/version')) {
             return {
                 ok: options.portAnswers === true,
-                // What the port says about itself: Spotify's own DevTools endpoint names it (N9).
+                // What the port says about itself: Spotify's own DevTools endpoint names it.
                 json: async () => ({
                     Browser: 'Chrome/122.0.0.0',
                     'User-Agent': options.portIdentity === 'other'
@@ -263,8 +263,8 @@ beforeEach(() => {
     FakeSocket.closeBeforeOpen = false;
     heldOp = null;
     spawnError = false;
-    // The stand-in page runs nothing: a start is answered with the word the real page answers with
-    // (N8), and every other call with true.
+    // The stand-in page runs nothing: a start is answered with the word the real page answers with,
+    // and every other call with true.
     handle = expression => ({ value: expression.includes('window.__foliaPlay') ? 'loaded' : true });
     waitFor.mockClear();
     for (const key of Object.keys(mediaAnswers)) delete mediaAnswers[key];
@@ -276,7 +276,7 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-describe('D1: what a call may do to Spotify', () => {
+describe('what a call may do to Spotify', () => {
     it('reads the status without starting or closing Spotify, even while it runs without the port', async () => {
         mediaAnswers.status = { isPaused: true, positionMs: 5000, durationMs: 3000, repeat: 2 };
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
@@ -343,7 +343,7 @@ describe('D1: what a call may do to Spotify', () => {
         await app.client.close();
     });
 
-    it('tells whether the app is installed without starting it (D2)', async () => {
+    it('tells whether the app is installed without starting it', async () => {
         const installed = makeClient({ appDirectory: makeLauncherDirectory() });
         expect(installed.client.available()).toEqual({ available: true });
         expect(installed.spawned).toEqual([]);
@@ -353,7 +353,7 @@ describe('D1: what a call may do to Spotify', () => {
         await missing.client.close();
     });
 
-    it('runs Windows own tools by their absolute path (L5)', async () => {
+    it('runs Windows own tools by their absolute path', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
         await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
@@ -364,7 +364,7 @@ describe('D1: what a call may do to Spotify', () => {
     });
 });
 
-describe('M2: the player cached in the page', () => {
+describe('the player cached in the page', () => {
     it('is dropped and looked for once more before a call is called a failure', async () => {
         let seen = 0;
         handle = expression => {
@@ -383,7 +383,7 @@ describe('M2: the player cached in the page', () => {
     });
 });
 
-describe('M7: the DevTools connection', () => {
+describe('the DevTools connection', () => {
     it('treats a socket that closes before it opened as a refused connection', async () => {
         FakeSocket.closeBeforeOpen = true;
         const app = makeClient({ running: true, portAnswers: true });
@@ -424,7 +424,7 @@ describe('the bridge over the official client', () => {
         available: vi.fn(() => ({ available: true })), closeForQuit: vi.fn(async () => true), close: vi.fn(async () => {}),
     });
 
-    it('keeps the answer about the installed app instead of asking before every song (D2)', async () => {
+    it('keeps the answer about the installed app instead of asking before every song', async () => {
         const officialClient = makeOfficialClient();
         const bridge = makeBridge(officialClient, () => 0);
         expect(await bridge.request('client_probe')).toEqual({ ok: true, data: { available: true } });
@@ -433,7 +433,7 @@ describe('the bridge over the official client', () => {
         await bridge.shutdown();
     });
 
-    it('no longer offers the operations the renderer never called (L6)', async () => {
+    it('offers no operation the renderer never called', async () => {
         const officialClient = makeOfficialClient();
         const bridge = makeBridge(officialClient);
         for (const operation of ['client_next', 'client_previous', 'client_repeat']) {
@@ -443,7 +443,7 @@ describe('the bridge over the official client', () => {
         await bridge.shutdown();
     });
 
-    it('closes Spotify at the quit only when the setting asked for it (D3)', async () => {
+    it('closes Spotify at the quit only when the setting asked for it', async () => {
         const quiet = makeOfficialClient();
         await makeBridge(quiet).shutdown();
         expect(quiet.closeForQuit).not.toHaveBeenCalled();
@@ -477,7 +477,7 @@ describe('the quit, the helper and the port', () => {
         openExternal: vi.fn(), officialClient, now: () => 0, log: () => {}, warn: () => {},
     });
 
-    it('closes Spotify when the port answering is Spotify itself, and leaves the port alone otherwise (N9)', async () => {
+    it('closes Spotify when the port answering is Spotify itself, and leaves the port alone otherwise', async () => {
         const spotify = makeClient({ portAnswers: true });
         expect(await spotify.client.closeForQuit()).toBe(true);
 
@@ -492,7 +492,7 @@ describe('the quit, the helper and the port', () => {
         expect(quiet.taskkills()).toBe(0);
     });
 
-    it('closes the Spotify this run started, even with no port answering (D3)', async () => {
+    it('closes the Spotify this run started, even with no port answering', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
         await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
@@ -503,8 +503,9 @@ describe('the quit, the helper and the port', () => {
         expect(app.taskkills()).toBe(2);
     });
 
-    it('does not close a Spotify this run started and the listener closed meanwhile (N9)', async () => {
-        // The page cannot be reached at first, so the play starts Spotify with the port as D1 allows.
+    it('does not close a Spotify this run started and the listener closed meanwhile', async () => {
+        // The page cannot be reached at first, so the play starts Spotify with the port, as a
+        // listener's play may.
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
         await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
@@ -519,7 +520,7 @@ describe('the quit, the helper and the port', () => {
         expect(app.taskkills()).toBe(killedWhileStarting);
     });
 
-    it('does not ask the bridges to shut down twice for one quit (N9)', async () => {
+    it('does not ask the bridges to shut down twice for one quit', async () => {
         // The flag lives in main.cjs, which the bridge cannot see: what is pinned here is the one
         // wire the flag leans on — a shutdown that already finished answers nothing to hold, and a
         // second call is what main.cjs must not make.
@@ -529,7 +530,7 @@ describe('the quit, the helper and the port', () => {
         expect(officialClient.closeForQuit).not.toHaveBeenCalled();
     });
 
-    it('ends the quit within its limit even when taskkill hangs (N3)', async () => {
+    it('ends the quit within its limit even when taskkill hangs', async () => {
         const app = makeClient({ portAnswers: true });
         const timeouts: unknown[] = [];
         app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, _callback: (error: Error | null, stdout?: string) => void) => {
@@ -546,7 +547,7 @@ describe('the quit, the helper and the port', () => {
         expect(timeouts).toEqual([2000]);
     });
 
-    it('narrows what it waits for so the taskkill is issued inside the quit gate (L4)', async () => {
+    it('narrows what it waits for so the taskkill is issued inside the quit gate', async () => {
         const app = makeClient({ port: 0, portAnswers: true });
         const startedAt = Date.now();
         let netstatTimeout = 0;
@@ -555,7 +556,7 @@ describe('the quit, the helper and the port', () => {
         app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, callback: (error: Error | null, stdout?: string) => void) => {
             if (String(file).includes('netstat')) {
                 netstatTimeout = options.timeout ?? 0;
-                // 一个慢的 netstat：在它自己的时限之内答，但已经花掉了闸门的大半。
+                // A slow netstat: it answers inside its own limit, but has taken most of the gate.
                 setTimeout(() => callback(null, ''), 1990);
                 return;
             }
@@ -571,23 +572,26 @@ describe('the quit, the helper and the port', () => {
         await vi.advanceTimersByTimeAsync(3000);
         await expect(quit).resolves.toBe(true);
         expect(netstatTimeout).toBe(2000);
-        // 探测花掉的预算是 taskkill 的，不是退出闸门的：它在 3s 之内发出，等它的时限也只剩剩下的那些。
+        // What the probing spends comes out of the taskkill's own limit, not the quit's gate: the
+        // taskkill is issued inside 3 s, and only what the gate has left is left for its wait.
         expect(taskkillAt).toBeLessThan(3000);
         expect(taskkillTimeout).toBeLessThan(2000);
     });
 
-    it('gives up a port it cannot confirm inside the gate instead of holding the quit for it (L4)', async () => {
+    it('gives up a port it cannot confirm inside the gate instead of holding the quit for it', async () => {
         const app = makeClient({ port: 0, portAnswers: true });
         const startedAt = Date.now();
         app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, callback: (error: Error | null, stdout?: string) => void) => {
             if (String(file).includes('netstat')) {
-                // 慢到只能靠它自己的时限结束：端口探测从这里开始就已经只剩一点预算。
+                // Slow enough that only its own limit ends it: the port probe starts with little
+                // budget left.
                 setTimeout(() => callback(null, ''), options.timeout ?? 0);
                 return;
             }
             callback(null, '');
         });
-        // 端口每次都要 1.4s 才答：第一次还答得上，确认的那一次已经在预算之外。
+        // The port takes 1.4 s to answer every time: the first answer lands inside the gate, the
+        // confirming one is past it.
         app.fetch.mockImplementation(((url: string) => {
             if (!String(url).includes('/json/version')) return Promise.resolve({ ok: true, json: async () => [] });
             return new Promise(resolve => setTimeout(() => resolve({
@@ -600,13 +604,13 @@ describe('the quit, the helper and the port', () => {
             return answer;
         });
         await vi.advanceTimersByTimeAsync(6000);
-        // 确认不了就不关，而不是把退出拖过闸门之后才关。
+        // Unconfirmed is not closed: the quit is not held past its gate to close it.
         await expect(quit).resolves.toBe(false);
         expect(answeredAt - startedAt).toBeLessThan(3000);
         expect(app.taskkills()).toBe(0);
     });
 
-    it('does not hold the quit when the setting is off (N3)', async () => {
+    it('does not hold the quit when the setting is off', async () => {
         const app = makeClient({ portAnswers: true });
         const bridge = makeBridge(app.client);
         expect(await bridge.shutdown()).toBeNull();
@@ -614,7 +618,7 @@ describe('the quit, the helper and the port', () => {
         await expect(bridge.shutdown({ closePlayerOnQuit: true })).resolves.toBeUndefined();
     });
 
-    it('does not wake or restart Spotify for an advance Folia made by itself (T5)', async () => {
+    it('does not wake or restart Spotify for an advance Folia made by itself', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
         // The call fails where it stands: no restart, no start, whatever the socket said.
@@ -646,7 +650,7 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         expect(spotify?.[2]).toMatchObject({ windowsHide: true });
 
         // The watcher is armed before Spotify is run: a hook that arrives after the window is shown is a
-        // window on the screen, and that wait is what used to show one for 1.4 s.
+        // window on the screen, and a start that arms late is what shows one for 1.4 s.
         const calls = app.spawnProcess.mock.calls as unknown as [string, string[]][];
         const watchIndex = app.watchSpawns().length ? calls.findIndex(call => app.scriptOf(call[1]).includes('FoliaSpotifyWindow')) : -1;
         const spotifyIndex = calls.findIndex(call => /Spotify\.exe$/i.test(String(call[0])));
@@ -714,7 +718,7 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         await app.client.close();
     });
 
-    it('never lets a page in a browser steer the DevTools port it let Spotify pick (N9)', async () => {
+    it('never lets a page in a browser steer the DevTools port it let Spotify pick', async () => {
         const app = makeClient({ running: false, port: 0, activePort: 54123, appDirectory: makeLauncherDirectory() });
         // The port answers only once Spotify has been started: before that none is found, so the
         // launch happens as it does on a machine where Spotify is not running.
@@ -794,7 +798,7 @@ describe('the press of play on a song whose Spotify is gone', () => {
 });
 
 describe('the media session helper', () => {
-    it('does not fail the new helper with the old one ending (N4)', async () => {
+    it('does not fail the new helper with the old one ending', async () => {
         heldOp = 'pause';
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
         // The first helper never answers: it is given up, and the run waits out the backoff.
@@ -815,7 +819,7 @@ describe('the media session helper', () => {
         await expect(second).resolves.toBe(true);
     });
 
-    it('ends a helper that did not answer and starts a fresh one after the backoff (N7)', async () => {
+    it('ends a helper that did not answer and starts a fresh one after the backoff', async () => {
         heldOp = 'pause';
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
         const first = expect(app.client.pause()).rejects.toMatchObject({ code: 'network' });
@@ -833,7 +837,7 @@ describe('the media session helper', () => {
         expect(app.helperSpawns()).toBe(2);
     });
 
-    it('lets a helper go when its input fails, and fails what it still owed (N7)', async () => {
+    it('lets a helper go when its input fails, and fails what it still owed', async () => {
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
         await expect(app.client.pause()).resolves.toBe(true);
 
@@ -853,7 +857,7 @@ describe('the media session helper', () => {
         expect(app.helperSpawns()).toBe(2);
     });
 
-    it('starts the helper again only after the backoff it has reached (N6)', async () => {
+    it('starts the helper again only after the backoff it has reached', async () => {
         spawnError = true;
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
         await expect(app.client.pause()).rejects.toBeTruthy();
@@ -875,7 +879,7 @@ describe('the media session helper', () => {
         expect(app.warn.mock.calls.filter(call => String(call[0]).includes('could not be started'))).toHaveLength(1);
     });
 
-    it('starts the helper by its absolute path, not by whatever PATH says (N6)', async () => {
+    it('starts the helper by its absolute path, not by whatever PATH says', async () => {
         const app = makeClient({ running: true, portAnswers: false, listOk: false });
         await expect(app.client.pause()).resolves.toBe(true);
         expect(app.spawned[0]).toMatch(/System32[\\/]WindowsPowerShell[\\/]v1\.0[\\/]powershell\.exe$/);
@@ -891,7 +895,7 @@ describe('without the DevTools port, off Windows', () => {
 
 // --- the wait a play makes for its track, driven by a stand-in player --------------------------
 
-describe('M9: a start an advertisement plays before', () => {
+describe('a start an advertisement plays before', () => {
     const TRACK_URI = `spotify:track:${TRACK}`;
     const AD = { uri: 'spotify:ad:1', type: 'ad' };
     const OTHER = { uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQD' };
@@ -930,7 +934,7 @@ describe('M9: a start an advertisement plays before', () => {
     });
 });
 
-describe('L3: a call that may not be made twice', () => {
+describe('a call that may not be made twice', () => {
     it('does not run a play again when the connection failed after the call went out', async () => {
         FakeSocket.muteSend = true;
         const app = makeClient({ running: true, portAnswers: true });
@@ -962,7 +966,7 @@ describe('L3: a call that may not be made twice', () => {
             return looks === 1 ? { details: 'Error: player-unavailable' } : { value: { isPaused: true, positionMs: 0, durationMs: 1000, repeat: 0 } };
         };
         const app = makeClient({ running: true, portAnswers: true });
-        // The player cached in the page was dropped and looked for once more (M2).
+        // The player cached in the page was dropped and looked for once more.
         await expect(app.client.status()).resolves.toMatchObject({ isPaused: true });
         expect(looks).toBe(2);
         await app.client.close();
@@ -982,7 +986,7 @@ describe('L3: a call that may not be made twice', () => {
     });
 });
 
-describe('M7: a DevTools protocol error', () => {
+describe('a DevTools protocol error', () => {
     it('is a call that failed, never an answer with nothing in it', async () => {
         mediaAnswers.pause = true;
         handle = () => ({ error: 'Runtime.evaluate was refused' });
@@ -995,7 +999,7 @@ describe('M7: a DevTools protocol error', () => {
     });
 });
 
-describe('N9: the DevTools port Spotify chose', () => {
+describe('the DevTools port Spotify chose', () => {
     it('reads the port the app wrote into its profile', async () => {
         const app = makeClient({ running: true, port: 0, activePort: 54123, portAnswers: true });
         await expect(app.client.pause()).resolves.toBe(true);
@@ -1034,7 +1038,7 @@ describe('N9: the DevTools port Spotify chose', () => {
     });
 });
 
-describe('M3: what a polled status read costs', () => {
+describe('what a polled status read costs', () => {
     const netstats = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
         .filter(call => String(call[0]).includes('netstat')).length;
 
@@ -1044,7 +1048,8 @@ describe('M3: what a polled status read costs', () => {
             '  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321',
         ].join(NEWLINE);
         const app = makeClient({ running: true, port: 0, netstat, portAnswers: false, listOk: false });
-        // 每首歌里它每 500ms 被问一次：一次也不该起 netstat、也不该探那台机器的回环端口。
+        // It is asked twice a second while a song plays: none of those may run a netstat or probe the
+        // machine's loopback ports.
         await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
         await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
         await expect(app.client.status()).resolves.toMatchObject({ fallback: true });
@@ -1054,23 +1059,24 @@ describe('M3: what a polled status read costs', () => {
 
     it('leaves the search to the listener\'s own action, and waits longer each time one finds nothing', async () => {
         const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false });
-        // 第一下：没有缓存端口，一次 pause 起一次搜索。
+        // The first one: no port cached yet, so one pause starts one search.
         await app.client.pause();
         expect(netstats(app)).toBe(1);
-        // 1s 之内不再搜：这台机器上的监听端口不会因为再问一次就变。
+        // No search within 1 s: the machine's listeners do not change because the question was
+        // asked again.
         await app.client.pause();
         expect(netstats(app)).toBe(1);
         vi.setSystemTime(Date.now() + 1000);
         await app.client.pause();
         expect(netstats(app)).toBe(2);
-        // 连着两次没搜到之后要等 5s。
+        // After two searches that found nothing, the next one waits 5 s.
         vi.setSystemTime(Date.now() + 4999);
         await app.client.pause();
         expect(netstats(app)).toBe(2);
         vi.setSystemTime(Date.now() + 1);
         await app.client.pause();
         expect(netstats(app)).toBe(3);
-        // 第三次之后 30s。
+        // After the third, 30 s.
         vi.setSystemTime(Date.now() + 29999);
         await app.client.pause();
         expect(netstats(app)).toBe(3);
@@ -1087,7 +1093,7 @@ describe('M3: what a polled status read costs', () => {
         const app = makeClient({ running: true, port: 0, netstat, portAnswers: true });
         await expect(app.client.pause()).resolves.toBe(true);
         expect(netstats(app)).toBe(1);
-        // 记下了端口：之后的每一问都只用它。
+        // The port is kept: every later question uses it alone.
         await app.client.pause();
         await app.client.pause();
         expect(netstats(app)).toBe(1);

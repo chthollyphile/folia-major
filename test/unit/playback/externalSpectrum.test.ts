@@ -32,7 +32,7 @@ describe('the bands of an external song', () => {
         const spectrum = first.spectrum;
         const second = externalSpectrumAt(11);
         // The visualizer reads this every frame: a route that allocated a bins array per frame would
-        // hand the collector sixty of them a second (M3).
+        // hand the collector sixty of them a second.
         expect(second).toBe(first);
         expect(second.spectrum).toBe(spectrum);
     });

@@ -266,7 +266,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleWakeExternalPlayersOnLaunch(),
         { platform: ['win'] },
     ),
-    // The same external player, at the other end of the run: it is closed with Folia (D3).
+    // The same external player, at the other end of the run: it is closed with Folia.
     createToggleCommand(
         'external-player-close-on-quit',
         'settings',

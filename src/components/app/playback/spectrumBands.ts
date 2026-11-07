@@ -43,7 +43,7 @@ export const emptySpectrumBandLevels = (): SpectrumBandLevels => ({
 
 /**
  * Writes the bands of `data` into `out` and hands it back. The visualizer reads this every frame, so
- * the answer is written in place rather than made (M3).
+ * the answer is written in place rather than made.
  */
 export const readSpectrumBandLevels = (data: Uint8Array, out: SpectrumBandLevels): SpectrumBandLevels => {
     const bass = energyOf(data, 20, 150);

@@ -26,12 +26,12 @@ export const O = {
     }),
     holdMediaKeys: option(SERVICES, 'holdMediaKeysForExternalPlayer', 'options.holdMediaKeysForExternalPlayer', {
         electronOnly: true,
-        // The keys are held for the player of the two rows above: that one is the Windows app.
+        // The keys are held for that same Windows player.
         available: () => window.electron?.platform === 'win32',
     }),
     closeExternalPlayerOnQuit: option(SERVICES, 'closeExternalPlayerOnQuit', 'options.closeExternalPlayerOnQuit', {
         electronOnly: true,
-        // The quit that closes it is the Windows app's: the same player the row above wakes.
+        // The quit is the Windows app's, the same player the row above wakes.
         available: () => window.electron?.platform === 'win32',
     }),
     transparentBackground: option(STREAMING, 'transparentPlayerBackground', 'options.transparentPlayerBackground'),

@@ -38,7 +38,7 @@ const IntegrationPage: React.FC = () => {
     const setCloseExternalPlayerOnQuit = useDesktopSettingsStore(state => state.handleToggleCloseExternalPlayerOnQuit);
     const holdMediaKeys = useDesktopSettingsStore(state => state.holdMediaKeysForExternalPlayer);
     const setHoldMediaKeys = useDesktopSettingsStore(state => state.handleToggleHoldMediaKeysForExternalPlayer);
-    // The rows are drawn where the player they steer can be steered from here at all: the Windows build.
+    // The rows are drawn where the player they steer exists at all: the Windows build.
     const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
     const setScrobbleEnabled = useAudioSettingsStore(state => state.handleToggleNeteaseScrobble);

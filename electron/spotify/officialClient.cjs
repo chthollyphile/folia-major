@@ -11,10 +11,10 @@ const { spotifyError } = require('./errors.cjs');
 // player, the one its own UI uses, is found in the React tree of its page and called there. When
 // that port cannot be reached the system media session (SMTC) still pauses, resumes and seeks.
 //
-// D1: Spotify is closed and started again only for a listener's own action (a play, the launch
-// switch), and a run of Folia does that at most once. A status read, a pause, a resume, a seek or a
-// queue write never starts Spotify and never closes it: a listener who closed Spotify keeps it
-// closed, and a Spotify running without the port stays as it is until the listener plays a song.
+// Spotify is closed and started again only for a listener's own action (a play, the launch switch),
+// and a run of Folia does that at most once. A status read, a pause, a resume, a seek or a queue
+// write never starts Spotify and never closes it: a listener who closed Spotify keeps it closed, and
+// a Spotify running without the port stays as it is until the listener plays a song.
 
 // The port Folia asked CEF for before it let CEF pick one: the last candidate a search probes, and
 // the port a Spotify an older run of Folia started is on. Only 127.0.0.1 is ever asked.
@@ -44,18 +44,18 @@ const CALL_LIMIT_MS = 8000;
 const START_CALL_LIMIT_MS = AD_START_LIMIT_MS + CALL_LIMIT_MS;
 const FIRST_SESSION_CALL_LIMIT_MS = 20000;
 // The whole DevTools connection, the target list and the socket handshake both: a port taken by
-// another program must not hold a play open for ever (M7).
+// another program must not hold a play open for ever.
 const CONNECT_LIMIT_MS = 4000;
 // After a start that failed, an ordinary call goes to the media session for this long instead of
-// starting Spotify again; a listener's own play asks once more regardless (D1).
+// starting Spotify again; a listener's own play asks once more regardless.
 const RESTART_COOLDOWN_MS = 30000;
-// How often one run of Folia may close and start Spotify again (D1). A run that spent it stays on
+// How often one run of Folia may close and start Spotify again. A run that spent it stays on
 // the media session until Folia is started again.
 const MAX_FORCE_RESTARTS = 1;
 const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 const MAX_QUEUED = 5;
 // A Windows tool is given at most this long: a tasklist or a taskkill that hangs must not hold a play
-// or the quit (N3).
+// or the quit.
 const TOOL_LIMIT_MS = 2000;
 // Never less than this: a wait of a few milliseconds only ever fails, and `timeout: 0` means no limit
 // at all to execFile.
@@ -65,7 +65,7 @@ const PORT_VERIFY_LIMIT_MS = 1500;
 // The quit waits for the close at most 3 s in all (spotifyApiBridge's SHUTDOWN_LIMIT_MS). The taskkill
 // has to be under way inside that, so what is asked before it - the tasklist, then the port search -
 // waits only for what is left of this budget, less the little the taskkill itself needs to be handed
-// to Windows (L4): a close that spends the whole gate probing ports closes nothing.
+// to Windows: a close that spends the whole gate probing ports closes nothing.
 const QUIT_CLOSE_BUDGET_MS = 2400;
 const QUIT_TASK_ISSUE_RESERVE_MS = 250;
 
@@ -195,7 +195,7 @@ function statusFromPlayerState(state, now) {
 // The media session's answer as the same status: it names no track (`fallback`), knows no
 // advertisement, gives -1 for a repeat mode it does not report, and names the track only by the
 // title and artist it shows. Those two are what tells a track the app moved on to by itself from
-// the one Folia asked for, which the media session cannot name (M4).
+// the one Folia asked for, which the media session cannot name.
 function statusFromMediaSession(data) {
   const d = data ?? {};
   const durationMs = Math.max(0, Math.round(Number(d.durationMs) || 0));
@@ -419,7 +419,7 @@ const WATCH_LIFETIME_MS = 60000;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// A promise that gives up after `ms`; the timer is cleared once either side settled (L1).
+// A promise that gives up after `ms`; the timer is cleared once either side settled.
 const withLimit = (promise, ms, what) => {
   let timer = null;
   const limit = new Promise((resolve, reject) => {
@@ -449,7 +449,7 @@ function findLauncher(env) {
 }
 
 // What a call the page refused is answered with: a call it refuses for its parameter is not the
-// player being out of reach (M2), everything else the page threw is.
+// player being out of reach, everything else the page threw is.
 const refusalCode = text => (/invalid|argument|must be/i.test(String(text)) ? 'invalid-response' : 'unavailable');
 
 // The CEF profiles Spotify's DevTools port file may be written into: the Microsoft Store build keeps
@@ -502,7 +502,7 @@ function createPageConnection({ fetch, portOf }) {
     if (!page?.webSocketDebuggerUrl) throw spotifyError('unavailable', 'Spotify has no page open yet');
     const ws = new WebSocket(page.webSocketDebuggerUrl);
     // A socket that closes before it opened is a refused connection, not a connection: it rejects
-    // here, and the walk is over (M7).
+    // here, and the walk is over.
     await new Promise((resolve, reject) => {
       ws.onopen = resolve;
       ws.onerror = () => reject(spotifyError('network', 'Spotify refused the DevTools connection'));
@@ -522,7 +522,7 @@ function createPageConnection({ fetch, portOf }) {
   };
 
   // The target list and the handshake are bounded together: a port that never answers is not a
-  // connection to wait on (M7). A failed walk leaves nothing open behind it.
+  // connection to wait on. A failed walk leaves nothing open behind it.
   const connect = () => withLimit(open(), CONNECT_LIMIT_MS, 'Spotify').catch(error => {
     socket = null;
     opening = null;
@@ -560,7 +560,7 @@ function createPageConnection({ fetch, portOf }) {
       if (details) {
         const text = String(details.exception?.description ?? details.text ?? '');
         // Everything the page threw means the player cannot be reached, except a call it refuses
-        // for its parameter: that one must not be answered with the media session (M2).
+        // for its parameter: that one must not be answered with the media session.
         throw spotifyError(refusalCode(text), 'Spotify\'s player refused the call', text.split('\n')[0]);
       }
       return answer.result?.result?.value;
@@ -576,12 +576,12 @@ function createPageConnection({ fetch, portOf }) {
   };
 }
 
-// A helper that answers nothing within its limit is ended and started again (M5).
+// A helper that answers nothing within its limit is ended and started again.
 const HELPER_RETRY_MS = Object.freeze([20000, 60000, 300000]);
 
 // The PowerShell that speaks to the media session; started on first use, again after it ends. A
 // helper that could not be started is not started again at once: each start that failed in a row
-// pushes the next one further out, and one answer clears it (M5). A PowerShell this computer does
+// pushes the next one further out, and one answer clears it. A PowerShell this computer does
 // not have would otherwise be spawned once per status read.
 function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', now = Date.now }) {
   let child = null;
@@ -606,7 +606,7 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
 
   // The helper is let go whole: its pending answers fail, its process ends and the next command
   // starts a new one. Its buffer goes too, so half a line of the old helper never reaches the new
-  // one's answers (M5).
+  // one's answers.
   const drop = error => {
     const proc = child;
     child = null;
@@ -640,17 +640,15 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
         else entry.reject(spotifyError('unavailable', 'The media session did not answer', String(answer.error ?? '')));
       }
     });
-    // A helper whose input went away cannot answer anything again: it is let go, and the next
-    // command starts a fresh one (M5).
+    // A helper whose input went away cannot answer anything again: it is let go.
     proc.stdin.on('error', error => {
       warn('[SpotifyClient] the media session helper lost its input', error);
       if (child !== proc) return;
       noteFailure();
       drop(spotifyError('unavailable', 'The media session helper is not reachable'));
     });
-    // A helper that ended is let go, and the next command starts a new one. Only the helper that is
-    // still the current one: an older process ending later must not fail the answers of the new one
-    // (M5, L1).
+    // A helper that ended is let go. Only the helper that is still the current one: an older process
+    // ending later must not fail the answers of the new one.
     proc.on('exit', () => {
       if (child !== proc) return;
       child = null;
@@ -674,7 +672,7 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
 
   return {
     ask(op, extra = {}) {
-      // A helper that just failed to start waits its backoff out before another is started (M5).
+      // A helper that just failed to start waits its backoff out.
       if (!child && now() < retryAt) {
         return Promise.reject(spotifyError('unavailable', 'The media session is not reachable', 'its helper is being retried'));
       }
@@ -694,7 +692,7 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
         throw error;
       }).finally(() => {
         pending.delete(id);
-        // A helper that did not answer is ended: the next command starts a fresh one (M5).
+        // A helper that did not answer is ended.
         if (timedOut && child === proc) {
           noteFailure();
           drop(spotifyError('unavailable', 'The media session helper was restarted'));
@@ -718,11 +716,11 @@ function createSpotifyOfficialClient({
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
 } = {}) {
   // Windows' own tools are run by their absolute path: a process started with a PATH another
-  // program wrote must not decide which tasklist runs, nor which PowerShell (L5).
+  // program wrote must not decide which tasklist runs, nor which PowerShell.
   const systemTool = name => path.join(env.SystemRoot || 'C:\\Windows', 'System32', name);
 
   // How long a step of the quit close may wait: what is left before `deadline`, never more than that
-  // tool's own limit, and never so little that the call could only time out (L4).
+  // tool's own limit, and never so little that the call could only time out.
   const waitLimit = (limitMs, deadline) => (
     deadline ? Math.max(TOOL_LIMIT_FLOOR_MS, Math.min(limitMs, deadline - Date.now())) : limitMs
   );
@@ -736,7 +734,7 @@ function createSpotifyOfficialClient({
   let scanFailures = 0;
 
   // Whether the program answering on `candidate` is Spotify: another program that happens to hold a
-  // port is not Folia's, and Spotify must not be closed for it (D3).
+  // port is not Folia's, and Spotify must not be closed for it.
   const spotifyAnswersOnPort = async (candidate, limitMs = PORT_VERIFY_LIMIT_MS) => {
     if (!candidate) return false;
     try {
@@ -778,7 +776,7 @@ function createSpotifyOfficialClient({
   // page polled twice a second follows it for free), and one search that found nothing is not repeated
   // before `nextScanAt` has passed, so a computer whose Spotify is closed is not swept per poll.
   // `deadline` caps every wait of the search: the quit's close passes it so that its taskkill is
-  // issued inside the quit's gate (L4).
+  // issued inside the quit's gate.
   const findPort = async ({ again = false, deadline = 0 } = {}) => {
     if (requestedPort) return foundPort ?? requestedPort;
     if (foundPort && !again) return foundPort;
@@ -808,7 +806,7 @@ function createSpotifyOfficialClient({
     return foundPort;
   };
   // Whether a DevTools port answers for Spotify now, which is what decides whether Spotify has to be
-  // started (D1): the port is asked, not merely named.
+  // started: the port is asked, not merely named.
   const debugPortAnswers = async () => spotifyAnswersOnPort(await findPort({ again: true }));
 
   const page = createPageConnection({ fetch, portOf: () => findPort() });
@@ -816,13 +814,13 @@ function createSpotifyOfficialClient({
   let starting = null;
   let failedStartAt = 0;
   let fallbackNoted = false;
-  // How often Spotify was closed and started again in this run (D1).
+  // How often Spotify was closed and started again in this run.
   let forceRestarts = 0;
   // Whether this run of Folia started Spotify: the app is closed with Folia only when it did, or
-  // when the DevTools port Folia opened it with still answers (D3).
+  // when the DevTools port Folia opened it with still answers.
   let startedByUs = false;
 
-  // Both tools are bounded (N3): a taskkill that hangs must not hold the quit.
+  // Both tools are bounded: a taskkill that hangs must not hold the quit.
   const spotifyIsRunning = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
     runFile(systemTool('tasklist.exe'), ['/FI', 'IMAGENAME eq Spotify.exe', '/NH'], { windowsHide: true, timeout: timeoutMs }, (error, stdout) => {
       resolve(!error && /Spotify\.exe/i.test(String(stdout)));
@@ -895,7 +893,7 @@ function createSpotifyOfficialClient({
     windowWatch = null;
   };
 
-  // Every Spotify process, by image name: the close is not narrowed to the ones this run started (D3).
+  // Every Spotify process, by image name: the close is not narrowed to the ones this run started.
   const stopSpotify = (timeoutMs = TOOL_LIMIT_MS) => new Promise(resolve => {
     runFile(systemTool('taskkill.exe'), ['/IM', 'Spotify.exe', '/F'], { windowsHide: true, timeout: timeoutMs }, () => resolve());
   });
@@ -903,7 +901,7 @@ function createSpotifyOfficialClient({
   // Spotify open with the DevTools port and its player found.
   //
   // `allowRestart` is the listener's own action (a play, the launch switch): only then may a
-  // Spotify running without the port be closed and started again, and only once in a run (D1).
+  // Spotify running without the port be closed and started again, and only once in a run.
   // Spotify that is not running is only started, never closed. Anything else answers the media
   // session instead, so a status read never closes the app the listener opened.
   async function start({ restart = false, allowRestart = false } = {}) {
@@ -929,7 +927,7 @@ function createSpotifyOfficialClient({
         await waitFor(1500);
       } else if (startedByUs) {
         // The Spotify this run started is not running any more: the listener closed it, so the one
-        // started below is a new one, and the quit must not close a Spotify it did not start (D3).
+        // started below is a new one, and the quit must not close a Spotify it did not start.
         startedByUs = false;
       }
       // Started in the tray, and followed by a watcher that hides its window the moment Spotify shows
@@ -967,9 +965,9 @@ function createSpotifyOfficialClient({
     try {
       while (Date.now() < deadline) {
         rounds += 1;
-        // The fallback sweep runs at the first round a window can exist, not at the third: measured,
-        // Spotify shows its window 0.5-1.1 s after the alias is run, so a sweep at 1.4 s is a window
-        // on the screen for the whole of the load before it.
+        // The fallback sweep runs at the first round a window can exist: measured, Spotify shows its
+        // window 0.5-1.1 s after the alias is run, so a sweep at 1.4 s is a window on the screen for
+        // the whole of the load before it.
         if (spawned && rounds === 2) await sweepSpotifyWindows(skipPids);
         try {
           if (await page.evaluate(`Boolean(${FIND_APIS})`)) {
@@ -998,11 +996,11 @@ function createSpotifyOfficialClient({
   };
 
   // The player kept in the page is dropped and looked for once more before a call is called a
-  // failure: Spotify replaces its React tree when its UI changes (M2).
+  // failure: Spotify replaces its React tree when its UI changes.
   //
   // Only a call that may be made twice is made twice. `retry` is false for the calls that change what
   // Spotify plays: running a play again starts the song from its beginning, and running a queue write
-  // again empties the queue prepared behind it (L3, L4). A failed connection says nothing about
+  // again empties the queue prepared behind it. A failed connection says nothing about
   // whether the first run reached the page, so such a call is run again only when it certainly did
   // not — a connection that never opened marks its error `notDelivered` (createPageConnection).
   const evaluateInPage = async (body, { retry = true, limitMs } = {}) => {
@@ -1017,7 +1015,7 @@ function createSpotifyOfficialClient({
   };
 
   // One call in the page. `allowStart` is set only for a call a listener asked for (a play):
-  // every other call reports what it could not do instead of touching Spotify (D1, H1, H2).
+  // every other call reports what it could not do instead of touching Spotify.
   async function call(body, { allowStart = false, retry = true, limitMs } = {}) {
     try {
       return await evaluateInPage(body, { retry, limitMs });
@@ -1026,8 +1024,8 @@ function createSpotifyOfficialClient({
       page.close();
       if (!allowStart) throw error;
       if (failedStartAt && Date.now() - failedStartAt < RESTART_COOLDOWN_MS) {
-        // A start that failed a moment ago is not tried again (D1): the renderer is told the app
-        // cannot be reached rather than what the socket said, so it can fall back (D2, M4).
+        // A start that failed a moment ago is not tried again: the renderer is told the app
+        // cannot be reached rather than what the socket said, so it can fall back.
         throw spotifyError('unavailable', 'The Spotify app cannot be reached', 'a start was given up a moment ago');
       }
       await ensure({ allowRestart: true });
@@ -1052,29 +1050,29 @@ function createSpotifyOfficialClient({
 
   return {
     // Asked by the launch switch (or at app start): tries again even within the cool-down, and
-    // may close and start Spotify once, as the listener asked for it (D1).
+    // may close and start Spotify once, as the listener asked for it.
     launch: () => ensure({ allowRestart: true }).then(() => true),
     // Closes Spotify and starts it again with the DevTools port (a start under way is waited for
-    // instead). Counted against the same once-a-run budget (D1).
+    // instead). Counted against the same once-a-run budget.
     restart() {
       page.close();
       return ensure({ restart: true, allowRestart: true }).then(() => true);
     },
 
     // Whether Spotify's app is on this computer at all, without starting anything: the launcher
-    // is looked for on disk and nothing else (D2). The caller caches the answer.
+    // is looked for on disk and nothing else. The caller caches the answer.
     available() {
       if (platform !== 'win32') return { available: false, reason: 'unsupported' };
       return findLauncher(env) ? { available: true } : { available: false, reason: 'not-installed' };
     },
 
-    // D3: Folia quits and the listener asked for Spotify to be closed with it. Closed when this
+    // Folia quits and the listener asked for Spotify to be closed with it. Closed when this
     // run started it, or when it runs with the DevTools port Folia opened it with; a Spotify the
     // listener started without the port is left alone, and so is a port another program holds.
     async closeForQuit() {
       if (platform !== 'win32') return false;
       // The instant the taskkill has to be under way by; what is left of the budget is all the
-      // probing before it may take (L4).
+      // probing before it may take.
       const issueBy = Date.now() + QUIT_CLOSE_BUDGET_MS - QUIT_TASK_ISSUE_RESERVE_MS;
       // A Spotify this run started and the listener closed meanwhile is not Folia's to close.
       if (startedByUs && !(await spotifyIsRunning(waitLimit(TOOL_LIMIT_MS, issueBy)))) startedByUs = false;
@@ -1093,12 +1091,12 @@ function createSpotifyOfficialClient({
     // Plays one track from `startMs` with Spotify's own repeat and shuffle off: the order is Folia's.
     // Resolves once Spotify has the track loaded, so a status read after it is about this track.
     //
-    // Answers where it stopped (N8): 'loaded' when the track is the one playing, 'preempted' when a
+    // Answers where it stopped: 'loaded' when the track is the one playing, 'preempted' when a
     // newer play took over (nothing went wrong), 'advertisement' when the app took the track and an
     // advertisement still runs before it (the status reads follow it), and 'not-loaded' when Spotify
     // never got to the track.
     // `userAction` says a listener asked for this song; only then may Spotify be started or started
-    // again (D1). An advance Folia made by itself passes false: the app it could not reach stays
+    // again. An advance Folia made by itself passes false: the app it could not reach stays
     // as it is.
     async play({ id, startMs = 0, userAction = true }) {
       const uri = trackUri(id);
@@ -1106,7 +1104,7 @@ function createSpotifyOfficialClient({
       return call(`
         const uri = ${JSON.stringify(uri)};
         // A newer play makes this one stop after its next wait, before it can seek or change the
-        // repeat of the track the listener asked for afterwards (L3).
+        // repeat of the track the listener asked for afterwards.
         window.__foliaPlay = (window.__foliaPlay || 0) + 1;
         const serial = window.__foliaPlay;
         const current = () => window.__foliaPlay === serial;
@@ -1120,7 +1118,7 @@ function createSpotifyOfficialClient({
           sleep: ms => new Promise(r => setTimeout(r, ms)),
         });
         // The track is moved and adjusted only once it is the one loaded: an advertisement playing
-        // meanwhile is never seeked into (L3). An advertisement still on the screen is an accepted
+        // meanwhile is never seeked into. An advertisement still on the screen is an accepted
         // start rather than a track that never came (the status reads follow it, and
         // statusOfClient.ts reads an advertisement as the song still loading).
         if (waited !== 'loaded') return waited;
@@ -1135,8 +1133,8 @@ function createSpotifyOfficialClient({
     },
 
     // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. A
-    // queue write is never a reason to start or close Spotify (D1): it reports what it could not
-    // do, and the caller keeps its prepared tail unset and asks again (L4).
+    // queue write is never a reason to start or close Spotify: it reports what it could not
+    // do, and the caller keeps its prepared tail unset and asks again.
     queue({ ids }) {
       const uris = (Array.isArray(ids) ? ids : []).slice(0, MAX_QUEUED).map(trackUri);
       return call(`
@@ -1147,7 +1145,7 @@ function createSpotifyOfficialClient({
       `, { retry: false });
     },
 
-    // Pausing, resuming and seeking never start or close Spotify (D1, H2): they answer from the
+    // Pausing, resuming and seeking never start or close Spotify: they answer from the
     // media session when the page cannot be reached, and fail there when it cannot either.
     pause: () => orMediaSession('await api.player.pause(); return true;', 'pause'),
     resume: () => orMediaSession('await api.player.resume(); return true;', 'resume'),
@@ -1168,7 +1166,7 @@ function createSpotifyOfficialClient({
     },
 
     // The player's state; from the media session (then `fallback` is set and no track is named)
-    // when the page cannot be reached. A status read never starts or closes Spotify (D1, H2), and it
+    // when the page cannot be reached. A status read never starts or closes Spotify, and it
     // never looks for the DevTools port either: it is polled while a song plays, so it takes the port
     // Folia already found (or the one it named) and answers from the media session meanwhile.
     async status() {

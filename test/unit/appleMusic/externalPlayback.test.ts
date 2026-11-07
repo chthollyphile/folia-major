@@ -45,7 +45,7 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
-/** 让状态的轮询连着失败到退避上限：4 次都在拒绝之下，下一次问已经排到 10s 之后（M1）。 */
+/** 让状态的轮询连着失败到退避上限：4 次都在拒绝之下，下一次问已经排到 10s 之后。 */
 const backOffStatusAsks = async () => {
     omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
     omniMock.getExternalPlaybackStatus.mockClear();
@@ -500,7 +500,7 @@ describe('external playback route', () => {
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(7);
     });
 
-    // 播放器对 Folia 自己的命令回了话，说明它还在：下一问不该再按失败的那套等下去（M1）。
+    // 播放器对 Folia 自己的命令回了话，说明它还在：下一问不该再按失败的那套等下去。
     it('puts the ordinary rate back when the player answers a press of the listener', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
@@ -509,7 +509,7 @@ describe('external playback route', () => {
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
         expect(engine.resumeExternalPlayback()).toBe(true);
         await flush();
-        // 放宽之前这里要等 10s：用户按了播放，界面却要等这么久才看到播放器回来。
+        // 用户按了播放，就不该再按失败的重试间隔等下去。
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
     });
@@ -537,7 +537,7 @@ describe('external playback route', () => {
 });
 
 // The player answering through its coarse channel: said once in a run of Folia, whichever way it
-// comes and goes (L8).
+// comes and goes.
 describe('the player answering coarsely', () => {
     let events: string[] = [];
     let unsubscribe = () => {};
@@ -564,7 +564,7 @@ describe('the player answering coarsely', () => {
     });
 
 
-    it('tells the fallback once in a run of Folia, not once an episode (L8)', async () => {
+    it('tells the fallback once in a run of Folia, not once an episode', async () => {
         await engine.beginExternalPlayback(song);
         engine.announceExternalPlayback();
 

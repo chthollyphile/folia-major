@@ -1,18 +1,17 @@
 // electron/quitShutdown.cjs
-// Which quit asks the bridges to shut down. Every quit of its own asks them: their work — a sign-in
-// under way, a renewal whose answer is not stored yet, the player outside Folia — belongs to that
-// quit, and a quit that was cancelled halfway (another handler took it, a window refused to close)
-// leaves nothing behind for the next one, which asks again. The one quit that does not ask is the
-// same quit asked for again after that work held it: the bridges were asked for by the quit they held,
-// and their work must not be done twice (the player outside Folia is closed once, not on every quit).
+// Which quit asks the bridges to shut down. Every quit asks them: their work — a sign-in under way, a
+// renewal whose answer is not stored yet, the player outside Folia — belongs to that quit. A quit
+// that was cancelled halfway (another handler took it, a window refused to close) leaves nothing
+// behind, so the next one asks again. The one quit that does not ask is the same quit asked for
+// again after that work held it: their work must not be done twice (the player outside Folia is
+// closed once, not on every quit).
 
 /**
- * `resume()` marks the quit that is asked for again after the bridges held it, and `asks()` tells
- * whether this `before-quit` must ask them — consuming the mark, because the quit it belongs to has
- * arrived. `holding` is true while a quit the bridges held is still under way: that quit was asked
- * already, and a quit that arrives meanwhile is no new one to ask for. That quit spends the mark too:
- * it is the quit the mark was made for, so the quit after it must ask rather than inherit the answer.
- * A quit nobody held starts out asking.
+ * `resume()` marks the quit that comes back after the bridges held it; `asks()` reports whether this
+ * `before-quit` must ask them, consuming the mark because the quit it belongs to has arrived.
+ * `holding` is true while a quit the bridges held is still under way: that quit was asked already,
+ * and one arriving meanwhile is no new quit to ask for. It spends the mark too, so the quit after it
+ * asks rather than inheriting the answer. A quit nobody held starts out asking.
  */
 function createQuitShutdownGate() {
   let resumed = false;

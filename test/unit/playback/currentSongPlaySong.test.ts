@@ -208,8 +208,8 @@ const deferred = <T,>() => {
     return { promise, resolve };
 };
 
-describe('the play that goes outside the app (T5)', () => {
-    it('stops where it is when its own advance cannot reach a player that asks for it (T5)', async () => {
+describe('the play that goes outside the app', () => {
+    it('stops where it is when its own advance cannot reach a player that asks for it', async () => {
         env.external = true;
         env.stopsAutoAdvance = true;
         env.externalStarts.mockImplementation(async () => {
@@ -231,7 +231,7 @@ describe('the play that goes outside the app (T5)', () => {
         unsubscribe();
     });
 
-    it('fails a song the app will not play as any other song that did not play (T5)', async () => {
+    it('fails a song the app will not play as any other song that did not play', async () => {
         env.external = true;
         env.stopsAutoAdvance = true;
         env.externalStarts.mockImplementation(async () => {
@@ -249,7 +249,7 @@ describe('the play that goes outside the app (T5)', () => {
         unsubscribe();
     });
 
-    it('fails a song whose Spotify app is not on this computer the same way (T5)', async () => {
+    it('fails a song whose Spotify app is not on this computer the same way', async () => {
         env.external = true;
         env.stopsAutoAdvance = true;
         env.externalStarts.mockImplementation(async () => {

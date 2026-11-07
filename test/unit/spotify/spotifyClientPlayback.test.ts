@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/spotify/spotifyClientPlayback.test.ts — what the Spotify app's own answers become for
 // Folia: the song it was told to play, the handoff to a track Folia put in the app's queue, the end
 // of the song near its own end, an advertisement between songs, the fallback answer that names no
-// track (M4), the queue that is only written once the app took it (L4), and the run that stops
-// steering fails with a reason of its own where the app is not on this computer.
+// track, the queue that is only written once the app took it, and the run that stops steering
+// with a reason of its own where the app is not on this computer.
 
-// A start answers the word the app answers with (N8): it took the track. Every other call answers
+// A start answers the word the app answers with: it took the track. Every other call answers
 // the probe's answer unless the test says otherwise.
 const request = vi.hoisted(() => vi.fn(async (operation: string, _params?: unknown): Promise<unknown> => (
     operation === 'client_play' ? 'loaded' : { available: true }
@@ -281,7 +281,7 @@ describe('the songs that follow', () => {
         expect(spotifyClientAttempt()?.nextIds).toEqual([]);
     });
 
-    it('remembers only the queue the app took, so a failed write is tried again (L4)', async () => {
+    it('remembers only the queue the app took, so a failed write is tried again', async () => {
         const a = songOf('a');
         const b = songOf('b');
         await spotifyClientPlayback.play!(a, 0);
@@ -317,7 +317,7 @@ describe('an advertisement between songs', () => {
     });
 });
 
-describe('the fallback answer (M4)', () => {
+describe('the fallback answer', () => {
     it('is marked degraded when the media session answered instead of the app', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
@@ -375,26 +375,26 @@ describe('the fallback answer (M4)', () => {
 });
 
 describe('a start and where it stopped', () => {
-    it('tells the desktop side that no one pressed play for an advance of its own (T5)', async () => {
+    it('tells the desktop side that no one pressed play for an advance of its own', async () => {
         await spotifyClientPlayback.play!(songOf('a'), 0, { userAction: false });
         expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 0, userAction: false });
     });
 
-    it('says nothing when a newer play took the app (N8)', async () => {
+    it('says nothing when a newer play took the app', async () => {
         request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce('preempted');
         await expect(spotifyClientPlayback.play!(songOf('a'), 0)).resolves.toBeUndefined();
         // Nothing went wrong: the app is still steered.
         expect(canSteerSpotifyApp()).toBe(true);
     });
 
-    it('reports a failure when the app never got to the song, and keeps steering (N8)', async () => {
+    it('reports a failure when the app never got to the song, and keeps steering', async () => {
         request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce('not-loaded');
         await expect(spotifyClientPlayback.play!(songOf('a'), 0)).rejects.toMatchObject({ code: 'not-playable' });
         // One track the app did not load does not retire the app for the rest of the run.
         expect(canSteerSpotifyApp()).toBe(true);
     });
 
-    it('keeps steering when an advance of its own could not reach the app (T5)', async () => {
+    it('keeps steering when an advance of its own could not reach the app', async () => {
         request.mockResolvedValueOnce({ available: true })
             .mockRejectedValueOnce(new OnlineProviderError('unavailable', 'Spotify runs without its DevTools port', 'spotify'));
         await expect(spotifyClientPlayback.play!(songOf('a'), 0, { userAction: false })).rejects.toMatchObject({ code: 'unavailable' });

@@ -1179,7 +1179,7 @@ export const omni = {
 
     // Told when that answer may have changed: the way a player plays is picked in its own setup, and
     // nothing of Folia's state changes with it. A provider that cannot be told is asked on every
-    // change of Folia's state instead, which is where it was read before.
+    // change of Folia's state instead.
     subscribeMediaKeyTakeoverWanted(listener: () => void): () => void {
         const stops = listOnlineMusicProviders()
             .map(provider => provider.externalPlayback?.subscribeMediaKeysWanted?.(listener))

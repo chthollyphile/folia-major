@@ -5,7 +5,7 @@ import type { ProviderExternalPlaybackStatus } from '@/types/onlineMusic';
 
 // test/unit/playback/queueShuffleRoutes.test.ts — what the queue shuffle stands on, and what it
 // does on the route where another program sounds the songs: it is Folia's own queue order, so
-// shuffling it hands the player's queue the new order instead of the one prepared before (L6).
+// shuffling it hands the player's queue the new order instead of the one prepared before.
 // Only the real Stage, whose queue another window drives, refuses the shuffle.
 
 const omniMock = vi.hoisted(() => ({

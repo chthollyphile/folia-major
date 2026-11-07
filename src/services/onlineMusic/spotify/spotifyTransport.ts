@@ -34,7 +34,7 @@ export interface SpotifyWireLyrics { timed: boolean; lines: Array<{ startMs: num
  * Spotify's own app, as electron/spotify/officialClient.cjs reads it. `id` is empty for an
  * advertisement (`ad`) and when the media session answered (`fallback`: it names no track). The
  * media session still names the track by its title and artist, which is how a song the app moved
- * on to by itself is told from the one Folia asked for (M4).
+ * on to by itself is told from the one Folia asked for.
  */
 export interface SpotifyWireClientStatus {
     id: string; ad: boolean; fallback?: boolean; isPaused: boolean; isBuffering: boolean; positionMs: number; durationMs: number;

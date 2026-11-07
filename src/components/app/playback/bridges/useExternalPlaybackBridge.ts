@@ -81,7 +81,7 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                     return;
                 }
                 // As <audio>'s ended handler does: nothing after this when the queue is over. The
-                // player moved on by itself, so this play may not wake it again (T5).
+                // player moved on by itself, so this play may not wake it again.
                 void latestRef.current.handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
                 return;
             }

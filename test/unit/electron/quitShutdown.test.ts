@@ -4,9 +4,9 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { createQuitShutdownGate } = require('../../../electron/quitShutdown.cjs');
 
-// test/unit/electron/quitShutdown.test.ts — N9: which quit asks the bridges to shut down. A quit the
-// bridges' work held is asked for again: that one must not ask them twice (the player outside Folia is
-// closed once), and a quit that was cancelled halfway must not leave a latch behind for the next one.
+// Which quit asks the bridges to shut down. A quit the bridges' work held is asked for again: that
+// one must not ask them twice (the player outside Folia is closed once), and a quit that was
+// cancelled halfway must not leave a latch behind for the next one.
 
 describe('the bridges a quit asks', () => {
     it('asks on every quit of its own, and not again for the quit it held', () => {

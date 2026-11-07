@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // 的四个 action handler）。两条路径共用 mediaKeyPressGate 的这一份记录，同一个动作只执行一次。
 // 这里钉的是接线：五个入口都确实去 claim，被挡下的那一个什么都不做，而它放行的那个照常执行。
 
-// 这种方式（Soloist / 官方客户端）的播放方式从桌面侧读，桥的挂载就要读到它。
+// 桥挂载时会从桌面侧读这种播放方式（Soloist / 官方客户端）的媒体键接管要求，这里给它一个可用的答案。
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
     requestSpotify: vi.fn(async () => ({ available: true })),
     getSpotifyTransportAvailability: () => ({ configured: true }),

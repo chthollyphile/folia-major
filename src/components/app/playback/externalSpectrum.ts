@@ -22,7 +22,7 @@ const BEAT_SEC = 0.5;
 const LEVEL = 255;
 
 // The visualizer reads these every frame, so both are made once and written in place: a route that
-// allocated a bin array per frame would hand the collector 60 of them a second (M3).
+// allocated a bin array per frame would hand the collector 60 of them a second.
 const SPECTRUM = new Uint8Array(SPECTRUM_BINS);
 const BANDS: ExternalSpectrumBands = { power: 0, bass: 0, lowMid: 0, mid: 0, vocal: 0, treble: 0, spectrum: SPECTRUM };
 
@@ -36,7 +36,7 @@ const clamp = (value: number): number => Math.min(LEVEL, Math.max(0, value));
  * The bands of the external player's song at `positionSec` into it, written into the one answer
  * this module holds. A pure function of the position, so two frames at the same position draw the
  * same picture: a paused song and a track still loading both keep the frame they had, instead of
- * falling back to a breathing animation (M3).
+ * falling back to a breathing animation.
  */
 export const externalSpectrumAt = (positionSec: number): ExternalSpectrumBands => {
     const position = Number.isFinite(positionSec) && positionSec > 0 ? positionSec : 0;

@@ -516,7 +516,7 @@ export interface ExternalPlaybackStartOptions {
     /**
      * false only for an advance Folia made by itself at the end of a song, never for a press. A
      * player that would have to be started or restarted for it is not woken, and reports that it
-     * cannot take the song instead (T5).
+     * cannot take the song instead.
      */
     userAction?: boolean;
 }

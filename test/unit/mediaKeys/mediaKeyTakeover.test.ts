@@ -103,8 +103,8 @@ const factsOf = (over: Partial<MediaKeyHoldFacts> = {}): MediaKeyHoldFacts => ({
 
 describe('whether Folia holds the media keys', () => {
     it('holds them for the whole run while the setting is on and a player asks for them', () => {
-        // The three states that used to give the keys back: the queue played out (Folia idle), a
-        // song of Folia's own sounding, and the player's own session gone after it stopped.
+        // The three states that let go when only a sounding song counts: the queue played out (Folia
+        // idle), a song of Folia's own sounding, and the player's own session gone after it stopped.
         expect(shouldHoldMediaKeys(factsOf({ route: 'web' }))).toBe(true);
         expect(shouldHoldMediaKeys(factsOf({ route: 'hifi' }))).toBe(true);
         expect(shouldHoldMediaKeys(factsOf({ route: 'external', externalSong: null }))).toBe(true);
@@ -115,8 +115,8 @@ describe('whether Folia holds the media keys', () => {
         // Back to the standard way, or to the player that registers no media session of its own: no
         // player asks any more and nothing is held - the release the listener asked for.
         expect(shouldHoldMediaKeys(factsOf({ playerAsksForAsLongAsFoliaRuns: false }))).toBe(false);
-        // Unless a session of its own is still there and the player declares it (the rule kept as it
-        // was): that one holds while it sounds.
+        // Unless a session of its own is still there and the player declares it: that one holds while
+        // it sounds.
         expect(shouldHoldMediaKeys(factsOf({ playerAsksForAsLongAsFoliaRuns: false, route: 'external', externalSong: song, sessionDeclares: true }))).toBe(true);
     });
 
@@ -124,7 +124,7 @@ describe('whether Folia holds the media keys', () => {
         const off = { holdWhileRunning: false, route: 'external', sessionDeclares: true } as const;
         expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: song }))).toBe(true);
         // Its session is gone (it stopped, or its song ended), the queue is over, or Folia is the one
-        // sounding: nothing is held, exactly as before the setting existed.
+        // sounding: nothing is held.
         expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: null }))).toBe(false);
         expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: song, route: 'web' }))).toBe(false);
         // A player that declares no session of its own keeps the app's own media session either way.
@@ -219,7 +219,7 @@ describe('the wish sent to the main process', () => {
         expect(send).toHaveBeenCalledTimes(2);
     });
 
-    it('does not read a refusal as holding the keys (M2)', async () => {
+    it('does not read a refusal as holding the keys', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         // 系统把三个键都给了别的程序：主进程回答 enabled: false。
         const { send, sender } = makeSender(() => ({ enabled: false, held: [] }));
@@ -234,7 +234,7 @@ describe('the wish sent to the main process', () => {
         warn.mockRestore();
     });
 
-    it('keeps what the main process says it now holds (M2)', async () => {
+    it('keeps what the main process says it now holds', async () => {
         const { send, sender } = makeSender();
         sender.apply(true);
         await Promise.resolve();
@@ -244,7 +244,7 @@ describe('the wish sent to the main process', () => {
         expect(send.mock.calls.map(call => call[0])).toEqual([true]);
     });
 
-    it('sends the wish that arrived over the opposite one on its way (L1)', async () => {
+    it('sends the wish that arrived over the opposite one on its way', async () => {
         const { send, sender } = makeSender();
         sender.apply(true);
         await Promise.resolve();

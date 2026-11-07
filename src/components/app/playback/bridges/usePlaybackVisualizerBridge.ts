@@ -281,13 +281,11 @@ export function usePlaybackVisualizerBridge({
             audioBands.vocal.set(bands.vocal);
             audioBands.treble.set(bands.treble);
         } else if (isExternalRouteActive) {
-            // The external player hands the app no audio to analyse, unless this build captures the
-            // machine's own sound (Windows desktop, see externalSpectrumCapture): then these are the
-            // bands of what is actually playing, and a capture that goes quiet holds the frame it
-            // had, so pausing stops the bars where they are. Without a capture they follow the
-            // player's own clock and freeze while it is paused, advertising or still loading. The
-            // route never falls back to the breathing animation, and neither answer allocates a
-            // frame: both are written into arrays their module already holds.
+            // The external player hands the app no audio to analyse unless this build captures the
+            // machine's own sound (Windows desktop, see externalSpectrumCapture), and a capture that has
+            // gone quiet holds the frame it had, so pausing stops the bars where they are. Without a
+            // capture the bands follow the player's own clock and freeze while it is paused. Neither
+            // answer allocates a frame, and the route never falls back to the breathing animation.
             const bands = readCapturedExternalSpectrum() ?? externalSpectrumAt(getExternalPosition());
             audioPower.set(bands.power);
             audioBands.bass.set(bands.bass);

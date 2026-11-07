@@ -17,10 +17,10 @@ const DISPLAY_MEDIA_ROUTE_SPECTRUM = 'spectrum';
  * Which source a display-media request may see.
  *
  * Trust comes first: only the main window may ever be granted one. The spectrum is granted only while
- * the renderer has armed it, only to a request that asked for audio, only off Windows (the only
- * platform whose loopback Streams supports), and never while an export holds the handler - the export
- * and the spectrum would then both be recognised as the same request, and the recorder must not be
- * handed a stream of the system's sound.
+ * the renderer has armed it, only to a request that asked for audio, only on Windows (the one platform
+ * whose loopback Streams supports), and never while an export holds the handler: the export and the
+ * spectrum would then look like the same request, and the recorder must not be handed a stream of the
+ * system's sound.
  */
 function decideDisplayMediaRoute({ trusted, videoExportActive, spectrumCaptureArmed, audioRequested, platform }) {
   if (!trusted) return DISPLAY_MEDIA_ROUTE_DENY;

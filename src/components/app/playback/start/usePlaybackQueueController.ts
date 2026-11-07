@@ -689,7 +689,7 @@ export function usePlaybackQueueController({
             notifyPlaybackFailed({ song, reason: shown?.case ?? null, phase: 'play', willAutoSkip });
         };
 
-        // T5: an advance Folia made by itself (the deck ran out, the blend moved on, the player's own
+        // An advance Folia made by itself (the deck ran out, the blend moved on, the player's own
         // track ended) that the player outside the app could not take stops here. Nothing was
         // pressed, so nothing pops up: the song stays on screen, paused, with one line said.
         const stopOnUnreachableExternalPlayer = () => {
@@ -929,7 +929,7 @@ export function usePlaybackQueueController({
                 // call, and pausing it here would race that play in the companion's queue.
                 if (!isExternalRoute()) pauseWhatIsSounding(audioRef.current);
                 try {
-                    // An advance Folia made by itself may not wake or restart the player (T5).
+                    // An advance Folia made by itself may not wake or restart the player.
                     await beginExternalPlayback(song, options.startAtSec ?? 0, { userAction: options.autoAdvance !== true });
                 } catch (error) {
                     // Only a player that asks for it stops here (one that would have to be started again for

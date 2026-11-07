@@ -90,7 +90,7 @@ let wantedVolume: number | null = null;
 let volumeFailureNoted = false;
 /** Bumped by every start: a write sent before it cannot vouch for the level after it. */
 let volumeEpoch = 0;
-/** The coarser channel is told once in a run of Folia, not once per episode (L8). */
+/** The coarser channel is told once in a run of Folia, not once per episode. */
 let degradedNotified = false;
 const listeners = new Set<(event: ExternalPlaybackEvent) => void>();
 
@@ -256,7 +256,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     if (degraded !== current.degraded) {
         current.degraded = degraded;
         // Said once in a run of Folia: a player that drops to its coarse channel and back all
-        // evening must not say so all evening (L8).
+        // evening must not say so all evening.
         if (degraded && !degradedNotified) {
             degradedNotified = true;
             emit({ type: 'degraded', active: true });
@@ -431,7 +431,7 @@ export function previewExternalPlaybackVolume(volume: number): void {
 
 /**
  * Starts a track in the external player and puts the app on that route. `userAction` is false only
- * for an advance Folia made by itself: that one may not wake or restart the player (T5).
+ * for an advance Folia made by itself: that one may not wake or restart the player.
  */
 export async function beginExternalPlayback(song: SongResult, startSec = 0, { userAction = true }: { userAction?: boolean } = {}): Promise<void> {
     if (isExternalRoute()) {
@@ -550,7 +550,7 @@ export const pauseExternalPlayback = (): boolean => {
     if (!current) return false;
     markPaused(current.clock.read());
     void omni.pauseExternalPlayback(current.song).then(() => {
-        // The player took the command: it is there, whatever its status asks said before (M1).
+        // The player took the command: it is there.
         if (session === current) notePlayerAnswered();
     }, error => {
         console.warn('[ExternalPlayback] pause failed', error);
@@ -565,7 +565,7 @@ export const resumeExternalPlayback = (): boolean => {
     if (!current) return false;
     markPlaying(current.clock.read());
     void omni.resumeExternalPlayback(current.song).then(() => {
-        // The press reached the player: the next status ask is the ordinary rate again (M1).
+        // The press reached the player.
         if (session === current) notePlayerAnswered();
     }, error => {
         console.warn('[ExternalPlayback] resume failed', error);

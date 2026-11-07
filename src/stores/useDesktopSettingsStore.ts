@@ -110,7 +110,7 @@ export type DesktopSettingsState = {
     /** Wake the external players (the platform's own player) when the app starts. Off by default:
      *  only a listener whose songs play there wants another program started at launch. */
     wakeExternalPlayersOnLaunch: boolean;
-    /** Windows desktop only: close the external player Folia started when the app quits (D3). */
+    /** Windows desktop only: close the external player Folia started when the app quits. */
     closeExternalPlayerOnQuit: boolean;
     /** Keep the system media keys in Folia's hands while the external player's app runs, rather than
      *  only while it sounds a track of Folia's (measured on Windows). On by default. */
