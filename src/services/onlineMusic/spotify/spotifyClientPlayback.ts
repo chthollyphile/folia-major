@@ -140,6 +140,23 @@ const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean
     return own.length > 0 && shown.length > 0 && own.every(artist => shown.includes(artist));
 };
 
+/** How long a session restore waits before asking the app again where its DevTools port is. */
+const PORT_SEARCH_RETRY_MS = 3000;
+
+/**
+ * The app asked once more where its DevTools port is, a few seconds after a read the media session
+ * answered. A read that fails again leaves the first answer standing.
+ */
+const askAgainWhereItsPortIs = async (first: SpotifyWireClientStatus): Promise<SpotifyWireClientStatus> => {
+    await new Promise(resolve => setTimeout(resolve, PORT_SEARCH_RETRY_MS));
+    try {
+        return await requestSpotify<SpotifyWireClientStatus>('client_status_found');
+    } catch (error) {
+        console.warn('[SpotifyClient] the app could not be asked again which track it is on', error);
+        return first;
+    }
+};
+
 /** Turns what the app said into Folia's status for the song it asked for. */
 export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalPlaybackStatus => {
     const current = attempt;
@@ -371,9 +388,26 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     // it is on. Nothing is started, resumed or paused for it; an app that cannot be asked, one on
     // another track and one that fell back to the media session all answer a status that names no
     // track of this song, and the restore tells those apart by `isStatusForSong`.
-    async runningStatus() {
+    async runningStatus(song) {
         try {
-            return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status_found'));
+            let data = await requestSpotify<SpotifyWireClientStatus>('client_status_found');
+            // The media session answered instead of the app: nothing named the track. A run that
+            // starts both apps asks this before the app has opened its port, so the question is put
+            // once more a few seconds later (the desktop side searches at most twice in a run, that
+            // far apart). Where the second read fails, the first answer stands.
+            if (data.fallback === true) {
+                data = await askAgainWhereItsPortIs(data);
+            }
+            const status = statusOfClient(data);
+            // The media session names the track only by the title and the artist it shows. Where
+            // those are this song's, the answer is this song's own, with the position it has: a
+            // restore reads that once and shows it instead of asking the player again. It stays
+            // degraded - the app cannot steer this channel.
+            const songId = status.mediaId ? '' : songIdOf(song) ?? '';
+            if (songId && !status.advertisement && namesThatSong(song, data)) {
+                return { ...status, mediaId: songId };
+            }
+            return status;
         } catch (error) {
             console.warn('[SpotifyClient] the app could not say which track it is on', error);
             return null;

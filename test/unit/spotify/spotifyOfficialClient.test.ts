@@ -1114,8 +1114,8 @@ describe('the status read a session restore asks for', () => {
 
     it('finds the port of an app Folia did not start and names the track it is on', async () => {
         playingPage();
-        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true });
-        const status = await app.client.statusFound();
+        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true, appDirectory: makeLauncherDirectory() });
+        const status = await app.client.statusWithPortSearch();
         expect(status).toMatchObject({ id: TRACK, isPaused: false });
         expect(status.fallback).toBeUndefined();
         // A read of its own: nothing was started, closed or paused for it.
@@ -1125,20 +1125,72 @@ describe('the status read a session restore asks for', () => {
         await app.client.close();
     });
 
-    it('searches once in a run, however often it is asked', async () => {
+    it('searches at most twice in a run, and no closer than a few seconds apart', async () => {
         playingPage();
-        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true });
-        await app.client.statusFound();
-        await app.client.statusFound();
-        await app.client.statusFound();
+        const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false, appDirectory: makeLauncherDirectory() });
+        // The first look of a run.
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(1);
+        // Asked again at once: the machine's listeners do not change because the question was repeated.
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(1);
+        // The one more look a run is allowed, a few seconds later.
+        vi.setSystemTime(Date.now() + 3000);
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(2);
+        // And no third.
+        vi.setSystemTime(Date.now() + 60000);
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(2);
+        await app.client.close();
+    });
+
+    it('finds the port on the second look where the first found none', async () => {
+        playingPage();
+        const options: ClientOptions = {
+            running: true, port: 0, netstat: '', portAnswers: false, appDirectory: makeLauncherDirectory(),
+        };
+        const app = makeClient(options);
+        // Start both apps together: the first look comes before the app opened its port.
+        await expect(app.client.statusWithPortSearch()).resolves.toMatchObject({ fallback: true });
+        expect(netstats(app)).toBe(1);
+        options.portAnswers = true;
+        options.netstat = oneListener;
+        vi.setSystemTime(Date.now() + 3000);
+        // The app answered by then, and the track it is on is named from the second look.
+        await expect(app.client.statusWithPortSearch()).resolves.toMatchObject({ id: TRACK });
+        expect(netstats(app)).toBe(2);
+        expect(app.spotifySpawns()).toBe(0);
+        await app.client.close();
+    });
+
+    it('never looks for the port where the app is not installed', async () => {
+        mediaAnswers.status = { isPaused: false, positionMs: 12000, durationMs: 200000, repeat: 0, title: 'Song', artist: 'Artist' };
+        const app = makeClient({
+            running: true, port: 0, netstat: oneListener, portAnswers: true, listOk: false,
+            appDirectory: mkdtempSync(join(tmpdir(), 'folia-empty-')),
+        });
+        await expect(app.client.statusWithPortSearch()).resolves.toMatchObject({ fallback: true });
+        expect(netstats(app)).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        await app.client.close();
+    });
+
+    it('does not look again where the port is already known', async () => {
+        playingPage();
+        const app = makeClient({ running: true, port: 0, netstat: oneListener, portAnswers: true, appDirectory: makeLauncherDirectory() });
+        await app.client.pause();
+        expect(netstats(app)).toBe(1);
+        await app.client.statusWithPortSearch();
+        await app.client.statusWithPortSearch();
         expect(netstats(app)).toBe(1);
         await app.client.close();
     });
 
     it('falls back to the media session where no port answers, and starts nothing', async () => {
         mediaAnswers.status = { isPaused: false, positionMs: 12000, durationMs: 200000, repeat: 0, title: 'Song', artist: 'Artist' };
-        const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false });
-        await expect(app.client.statusFound()).resolves.toMatchObject({ id: '', fallback: true, positionMs: 12000 });
+        const app = makeClient({ running: true, port: 0, netstat: '', portAnswers: false, listOk: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.statusWithPortSearch()).resolves.toMatchObject({ id: '', fallback: true, positionMs: 12000 });
         expect(netstats(app)).toBe(1);
         expect(app.spotifySpawns()).toBe(0);
         expect(app.taskkills()).toBe(0);

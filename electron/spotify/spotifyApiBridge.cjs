@@ -608,7 +608,7 @@ function createSpotifyApiBridge({
     // The same state for a session restore, which may find an app Folia did not start: it comes
     // with this run's one search for that app's DevTools port. Nothing is started, closed or paused
     // for it, and where no port answers the answer is the system media session's.
-    client_status_found: () => client().statusFound(),
+    client_status_found: () => client().statusWithPortSearch(),
     // Whether Spotify's app is on this computer, answered from a cached look at the launcher.
     async client_probe() {
       if (availability && now() - availabilityReadAt < AVAILABILITY_TTL_MS) return availability;
