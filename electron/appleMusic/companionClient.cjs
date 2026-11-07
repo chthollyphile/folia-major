@@ -102,6 +102,13 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             }
             return result;
         },
+        // Pauses the player when the companion runs; a companion that does not run sounds nothing,
+        // and asking it would start one. False when there was nothing to pause or the pause failed.
+        async pauseIfRunning() {
+            if (!child?.connected) return false;
+            const result = await this.request('pause');
+            return result.ok === true;
+        },
         // Disconnecting the parent channel makes the companion exit and clears pending work.
         close() {
             const instance = child;

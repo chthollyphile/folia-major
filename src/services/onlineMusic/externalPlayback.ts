@@ -76,6 +76,11 @@ let attemptCounter = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
 /** Takes a handed-over player back when the window was not replaced (`HANDOVER_RECLAIM_MS`). */
 let reclaimTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * This window was asked to hand over while it was still restoring the snapshot it was handed: the
+ * take-over that restore ends with lands handed over (`handOverExternalPlaybackDuringRestore`).
+ */
+let handOverOnAdoption = false;
 let pollRunning = false;
 let installed = false;
 let ownWriteDepth = 0;
@@ -523,6 +528,14 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
     if (session?.attempt !== attempt || !isExternalRoute()) return true;
     // Announcing shows a playing player; a paused one is said here rather than on the next answer.
     if (!session.playing && !session.ended) markPaused(session.clock.read());
+    if (handOverOnAdoption) {
+        // The window replacing this one has the snapshot and takes the player; shown here as it sounds,
+        // not followed, and taken back with the reclaim if that window never came.
+        handOverOnAdoption = false;
+        session.handedOver = true;
+        console.info('[ExternalPlayback] took the player over already handed on to the next window', { songKey });
+        return true;
+    }
     schedulePoll(STATUS_INTERVAL_MS);
     console.info('[ExternalPlayback] took the running player over', { songKey, playing: status.isPlaying });
     return true;
@@ -531,6 +544,14 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
 const stopReclaimTimer = () => {
     if (reclaimTimer !== null) clearTimeout(reclaimTimer);
     reclaimTimer = null;
+};
+
+const startReclaimTimer = () => {
+    stopReclaimTimer();
+    reclaimTimer = setTimeout(() => {
+        reclaimTimer = null;
+        reclaimExternalPlayback('the window was not replaced');
+    }, HANDOVER_RECLAIM_MS);
 };
 
 /**
@@ -544,12 +565,24 @@ export function handOverExternalPlayback(): void {
     if (!current) return;
     stopTimer();
     current.handedOver = true;
-    stopReclaimTimer();
-    reclaimTimer = setTimeout(() => {
-        reclaimTimer = null;
-        reclaimExternalPlayback('the window was not replaced');
-    }, HANDOVER_RECLAIM_MS);
+    startReclaimTimer();
     console.info('[ExternalPlayback] handed the player over to the next window', { songKey: current.songKey });
+}
+
+/**
+ * This window is replaced before it finished restoring the snapshot it was handed, and passes that
+ * snapshot on as it came: the player goes on to the next window with it. A take-over already done is
+ * handed over now; one still on its way, or not begun yet, lands handed over. Either way this window
+ * takes the player back `HANDOVER_RECLAIM_MS` later if it was not replaced.
+ */
+export function handOverExternalPlaybackDuringRestore(): void {
+    if (session?.announced) {
+        handOverExternalPlayback();
+        return;
+    }
+    handOverOnAdoption = true;
+    startReclaimTimer();
+    console.info('[ExternalPlayback] handing the player on before taking it over: the window is replaced while it restores');
 }
 
 /**
@@ -558,6 +591,7 @@ export function handOverExternalPlayback(): void {
  */
 export function reclaimExternalPlayback(reason: string): void {
     stopReclaimTimer();
+    handOverOnAdoption = false;
     const current = session;
     if (!current?.handedOver) return;
     current.handedOver = false;
@@ -611,6 +645,7 @@ export function stopExternalPlayback(reason: string): void {
     const current = session;
     stopTimer();
     stopReclaimTimer();
+    handOverOnAdoption = false;
     session = null;
     externalMediaShim.reset();
     if (!current) return;

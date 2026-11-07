@@ -12,7 +12,7 @@ import type { PlaybackSnapshot, WindowPlaybackHandoff } from '@/types/appPlaybac
 const env = vi.hoisted(() => ({
     effects: [] as Array<() => unknown>,
     restoreOutcome: 'restored' as 'restored' | 'failed' | 'stale',
-    duringRestore: () => {},
+    duringRestore: (): unknown => undefined,
     adopted: true,
     externalRoute: false,
     /** The song the external session has, and whether the app has shown and announced it. */
@@ -41,7 +41,7 @@ vi.mock('zustand', async importOriginal => {
 vi.mock('@/i18n/config', () => ({ default: { t: (key: string) => key, on: () => {}, language: 'en' } }));
 vi.mock('@/components/app/playback/restore/restorePlaybackSource', () => ({
     restorePlaybackSourceForSong: async () => {
-        env.duringRestore();
+        await env.duringRestore();
         return env.restoreOutcome;
     },
 }));
@@ -49,6 +49,7 @@ vi.mock('@/services/onlineMusic/externalPlayback', () => ({
     adoptExternalPlayback: async (song: SongResult) => { env.calls.push(`adopt ${song.id}`); return env.adopted; },
     releaseUnclaimedExternalTrack: (song: SongResult, reason: string) => { env.calls.push(`release ${song.id} (${reason})`); },
     handOverExternalPlayback: () => { env.calls.push('hand over'); },
+    handOverExternalPlaybackDuringRestore: () => { env.calls.push('hand over during restore'); },
     pauseExternalPlayback: () => { env.calls.push('pause'); return true; },
     getExternalSong: () => env.externalSong,
     reclaimExternalPlayback: (reason: string) => { env.calls.push(`reclaim (${reason})`); },
@@ -93,7 +94,7 @@ const handoffOf = (snapshot: PlaybackSnapshot) => ({
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
-const mountHook = (electron: Record<string, unknown>) => {
+const mountHook = (electron: Record<string, unknown>, pendingResumeTimeRef: { current: number | null } = { current: null }) => {
     const shouldAutoPlayRef = { current: false };
     const applyTransparentPlayerBackground = vi.fn();
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
@@ -113,12 +114,12 @@ const mountHook = (electron: Record<string, unknown>) => {
         nowPlayingProgressMs: 0,
         nowPlayingProgressQuality: 'coarse',
         getNowPlayingDisplayTime: () => 0,
-        restoreStagePlaybackHandoff: vi.fn(async () => undefined),
+        restoreStagePlaybackHandoff: vi.fn(async () => { await env.duringRestore(); }),
         setLyrics: vi.fn(),
         setIsLyricsLoading: vi.fn(),
         blobUrlRef: { current: null },
         shouldAutoPlayRef,
-        pendingResumeTimeRef: { current: null },
+        pendingResumeTimeRef,
         lastAudioRecoverySourceRef: { current: null },
         currentOnlineAudioUrlFetchedAtRef: { current: null },
         applyTransparentPlayerBackground,
@@ -148,7 +149,7 @@ const restoreFrom = async (song: SongResult, askedMeanwhile: SongResult | null =
 beforeEach(() => {
     resetPlaybackStore();
     env.restoreOutcome = 'restored';
-    env.duringRestore = () => {};
+    env.duringRestore = () => undefined;
     env.adopted = true;
     env.externalRoute = false;
     env.externalSong = null;
@@ -256,5 +257,130 @@ describe('the old window handing the player over', () => {
         await refused.surface.toggleTransparentModeWithHandoff(true);
         expect(env.calls).toEqual(['hand over']);
         expect(refused.applyTransparentPlayerBackground).toHaveBeenCalledWith(true);
+    });
+});
+
+// Rebuilt again before it finished restoring what it was handed (a wallpaper window rebuilt once more
+// for the desktop's transparency, two rebuilds close together): the window has not got its playback yet.
+describe('a window rebuilt again while it restores the snapshot it was handed', () => {
+    const rebuildWhileRestoring = (consumed: Promise<WindowPlaybackHandoff | null>) => {
+        askForSong(null);
+        let requested!: (request: { requestId: string }) => void;
+        const submitWindowPlaybackHandoff = vi.fn(async (_requestId: string, _handoff: WindowPlaybackHandoff) => true);
+        const setWindowTransparentMode = vi.fn(async (_enabled: boolean, _handoff: WindowPlaybackHandoff) => true);
+        const mounted = mountHook({
+            consumeWindowPlaybackHandoff: () => consumed,
+            onWindowPlaybackHandoffRequested: (callback: typeof requested) => { requested = callback; return () => {}; },
+            submitWindowPlaybackHandoff,
+            setWindowTransparentMode,
+        });
+        // Mounted in the order App runs them: the request listener, then the read of the hand-off.
+        for (const effect of env.effects) effect();
+        return { ...mounted, request: (requestId: string) => requested({ requestId }), submitWindowPlaybackHandoff, setWindowTransparentMode };
+    };
+    const blockRestore = () => {
+        let finish!: () => void;
+        env.duringRestore = () => new Promise<void>(resolve => { finish = resolve; });
+        return () => finish();
+    };
+
+    it('passes the snapshot it is restoring on as it came, and the player with it', async () => {
+        const finishRestore = blockRestore();
+        const handoff = handoffOf(snapshotOf(externalSong));
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(Promise.resolve(handoff));
+        await settle();
+        request('r1');
+        await settle();
+        expect(submitWindowPlaybackHandoff).toHaveBeenCalledTimes(1);
+        expect(submitWindowPlaybackHandoff.mock.calls[0]).toEqual(['r1', handoff]);
+        expect(env.calls).toEqual(['hand over during restore']);
+
+        // Its own take-over still happens; the external route lands it handed over.
+        finishRestore();
+        await settle();
+        await settle();
+        expect(env.calls).toEqual(['hand over during restore', 'adopt am1']);
+    });
+
+    it('waits for the hand-off it is still reading, and passes that on', async () => {
+        blockRestore();
+        let answer!: (handoff: WindowPlaybackHandoff) => void;
+        const handoff = handoffOf(snapshotOf(externalSong));
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(new Promise(resolve => { answer = resolve; }));
+        request('r1');
+        await settle();
+        expect(submitWindowPlaybackHandoff).not.toHaveBeenCalled();
+        answer(handoff);
+        await settle();
+        await settle();
+        expect(submitWindowPlaybackHandoff.mock.calls[0]).toEqual(['r1', handoff]);
+        expect(env.calls).toEqual(['hand over during restore']);
+    });
+
+    it('keeps a song asked for here meanwhile, and stops the handed-over player nobody will take', async () => {
+        const finishRestore = blockRestore();
+        const handoff = handoffOf(snapshotOf(externalSong));
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(Promise.resolve(handoff));
+        await settle();
+        askForSong(webSong);
+        request('r1');
+        await settle();
+        expect(submitWindowPlaybackHandoff.mock.calls[0][1]).not.toBe(handoff);
+        expect(env.calls).toEqual(['release am1 (another song was asked for)']);
+        finishRestore();
+        await settle();
+    });
+
+    it('passes it on for a transparency toggle too, and takes the player back when the toggle is refused', async () => {
+        blockRestore();
+        const handoff = handoffOf(snapshotOf(externalSong));
+        const { surface, setWindowTransparentMode } = rebuildWhileRestoring(Promise.resolve(handoff));
+        await settle();
+        setWindowTransparentMode.mockResolvedValueOnce(false);
+        await surface.toggleTransparentModeWithHandoff(true);
+        expect(setWindowTransparentMode.mock.calls[0]).toEqual([true, handoff]);
+        expect(env.calls).toEqual(['hand over during restore', 'reclaim (the rebuild was refused)']);
+    });
+
+    it('passes a Stage hand-off on as it came: the Stage song is the one its restore shows', async () => {
+        const finishRestore = blockRestore();
+        const stageSong: SongResult = { ...webSong, id: 'stage1', name: 'S', sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'stage1' } };
+        const stagePlayback = snapshotOf(stageSong);
+        const handoff = {
+            ...handoffOf(snapshotOf(externalSong)),
+            activePlaybackContext: 'stage',
+            activePlayback: stagePlayback,
+            stage: { status: null, source: null, playback: stagePlayback, lyricsClock: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
+        } as unknown as WindowPlaybackHandoff;
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(Promise.resolve(handoff));
+        await settle();
+        // The Stage restore has put its song up and is still loading it.
+        askForSong(stageSong);
+        request('r1');
+        await settle();
+        expect(submitWindowPlaybackHandoff.mock.calls[0]).toEqual(['r1', handoff]);
+        expect(env.calls).toEqual([]);
+        finishRestore();
+        await settle();
+    });
+
+    it('answers for itself once its restore is done', async () => {
+        const handoff = handoffOf(snapshotOf(webSong));
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(Promise.resolve(handoff));
+        await settle();
+        await settle();
+        request('r1');
+        await settle();
+        expect(submitWindowPlaybackHandoff.mock.calls[0][1]).not.toBe(handoff);
+        expect(env.calls).toEqual([]);
+    });
+});
+
+describe('the position a snapshot records for a song restored on <audio>', () => {
+    it('is where the song resumes while <audio> has not loaded it yet', () => {
+        makeSongCurrent(webSong);
+        usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+        const { surface } = mountHook({}, { current: 95 });
+        expect(surface.captureWindowPlaybackHandoff().activePlayback).toMatchObject({ currentTime: 95 });
     });
 });

@@ -56,6 +56,26 @@ describe('Apple Music companion client', () => {
         client.close();
     });
 
+    // A window rebuild that hands nothing on pauses the player nobody follows, and must not start a
+    // companion that was not running just to pause it.
+    it('pauses only a running companion', async () => {
+        const spawnProcess = vi.fn();
+        const idle = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess });
+        expect(await idle.pauseIfRunning()).toBe(false);
+        expect(spawnProcess).not.toHaveBeenCalled();
+
+        const child = new Child();
+        child.send = vi.fn((message: unknown, callback: (error?: Error) => void) => {
+            callback();
+            child.emit('message', { id: (message as { id: string }).id, ok: true, data: {} });
+        });
+        const running = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess: () => child });
+        await running.request('accountStatus');
+        expect(await running.pauseIfRunning()).toBe(true);
+        expect(child.send.mock.calls.map(([message]) => (message as { operation: string }).operation)).toEqual(['accountStatus', 'pause']);
+        running.close();
+    });
+
     it('rejects invalid requests before starting a child', async () => {
         const spawnProcess = vi.fn();
         const client = createCompanionClient({ nativeExecutablePath: '/runtime', profilePath: '/profile', spawnProcess });

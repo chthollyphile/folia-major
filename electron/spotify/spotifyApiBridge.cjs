@@ -601,6 +601,11 @@ function createSpotifyApiBridge({
         return toErrorResult(error);
       }
     },
+    // Nobody follows Soloist's playback any more (the main window was rebuilt and no window takes it
+    // over): it is paused. Soloist pauses only where it runs, and starts nothing for it.
+    pauseSoloist() {
+      return soloist ? soloist.pause() : Promise.resolve();
+    },
     // The app is quitting. A token renewal under way is waited for: its answer is stored only
     // once it has come, and the refresh token it replaces may not be taken by the next run.
     // Answers null when there is nothing to wait for. Else the quit is to be held for the promise
