@@ -5888,10 +5888,11 @@ function createWindow(options = {}) {
   win.on('session-end', () => {
     modSystem?.noteNormalQuit();
   });
-  // A page that navigates or reloads is a new page: whatever capture the old one held went with it,
-  // and its arm must not be spent by the new page's own requests.
-  win.webContents.on('did-start-navigation', (_event, _url, _isInPlace, isMainFrame) => {
-    if (isMainFrame && win === mainWindow) forgetExternalSpectrumCapture();
+  // A reload, or a jump to another page, is a new page: whatever capture the old one held went with
+  // it, and its arm must not be spent by the new page's own requests. The app's own view changes
+  // (pushState, a hash) are not (details.isSameDocument): the page that holds the capture stays.
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument && win === mainWindow) forgetExternalSpectrumCapture();
   });
   win.webContents.on('destroyed', () => {
     if (win === mainWindow) forgetExternalSpectrumCapture();
