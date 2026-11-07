@@ -16,6 +16,7 @@ import { rubberBand } from './bravaisFiniteWall';
 import { computeBravaisFrame, getTiltReach } from './bravaisFrame';
 import type { BravaisFrameState } from './useBravaisFrame';
 import { seamBoundsOf } from './bravaisAnchor';
+import { createBravaisDragMotion } from './bravaisDragMotion';
 
 // src/library/suites/bravais/useBravaisCamera.ts
 // 相机：真源是视图中心（缝基准线下的世界点，B5 的约定），存在帧状态里；拖动 / 滚轮 / 惯性复用 wall 的
@@ -103,14 +104,25 @@ export const useBravaisCamera = ({
         });
     }, [frameRef]);
 
-    /** 移到一个视图中心：写 DOM；快到裁剪边缘时（或调用方要求时）重新裁剪。 */
-    const moveTo = useCallback((center: WallViewCenter, forceRecull = false) => {
+    /** 写实际画出的中心，裁剪也按它算；拖拽目标相机不被逐帧插值覆盖。 */
+    const renderCenter = useCallback((center: WallViewCenter, forceRecull = false) => {
         frameRef.current.center = center;
-        syncPointerCamera();
         renderFrame();
         const visible = getVisibleWorldBounds(frameRef.current);
         if (visible && (forceRecull || needsRecull(visible, boundsRef.current))) scheduleRecull();
-    }, [frameRef, renderFrame, scheduleRecull, syncPointerCamera]);
+    }, [frameRef, renderFrame, scheduleRecull]);
+    const dragMotion = useMemo(() => createBravaisDragMotion({
+        read: () => frameRef.current.center,
+        write: renderCenter,
+        scale: () => frameRef.current.view?.scale ?? 1,
+    }), [frameRef, renderCenter]);
+
+    /** 程序化定位和滚轮照常立即到位，同时作废之前的拖拽目标。 */
+    const moveTo = useCallback((center: WallViewCenter, forceRecull = false) => {
+        dragMotion.stop();
+        renderCenter(center, forceRecull);
+        syncPointerCamera();
+    }, [dragMotion, renderCenter, syncPointerCamera]);
 
     /**
      * 相机没动、可见范围变了（缝开口补间：两半各让出半个开口，可见的世界范围随之变宽）时按此刻的可见范围重新裁剪
@@ -125,7 +137,9 @@ export const useBravaisCamera = ({
     const stopCamera = useCallback(() => {
         animationRef.current?.stop();
         animationRef.current = null;
-    }, []);
+        dragMotion.stop();
+        syncPointerCamera();
+    }, [dragMotion, syncPointerCamera]);
 
     /** 补间到一个视图中心；开始时把目的地并进裁剪范围，免得飞行途中墙是空的。 */
     const tweenTo = useCallback((target: WallViewCenter, duration = BRAVAIS_CAMERA_TWEEN_S) => {
@@ -186,25 +200,29 @@ export const useBravaisCamera = ({
     const settle = useCallback(() => {
         const range = rangeRef.current;
         if (!range) return;
-        const { center } = frameRef.current;
+        const center = dragMotion.target() ?? frameRef.current.center;
         const target = {
             x: Math.min(range.maxX, Math.max(range.minX, center.x)),
             y: Math.min(range.maxY, Math.max(range.minY, center.y)),
         };
         if (Math.abs(target.x - center.x) > 0.5 || Math.abs(target.y - center.y) > 0.5) tweenTo(target);
-    }, [frameRef, tweenTo]);
+    }, [dragMotion, frameRef, tweenTo]);
     /** 有限态给范围，回到无限态给 null；settle 为真时立即落回范围里。 */
     const setRange = useCallback((range: WallCameraRange | null, settleNow = false) => {
         rangeRef.current = range;
         if (range && settleNow) settle();
     }, [settle]);
 
-    // 拖动与滚轮：wall 的 hook 交回平移相机，换算成视图中心再走同一条 moveTo。
-    const applyCamera = useCallback((next: LatticeCamera, updateBounds?: boolean) => {
+    // 输入相机换成视图中心；拖拽与释放惯性按帧追目标，滚轮保留原来的更新节奏。
+    const applyCamera = useCallback((next: LatticeCamera, updateBounds?: boolean, source?: 'pointer') => {
         const view = frameRef.current.view;
         if (!view) return;
-        moveTo(constrain(viewCenterFromCamera(next, view)), Boolean(updateBounds));
-    }, [constrain, frameRef, moveTo]);
+        const center = constrain(viewCenterFromCamera(next, view));
+        if (source === 'pointer' && !reducedMotion) {
+            cameraRef.current = cameraFromViewCenter(center, view);
+            dragMotion.setTarget(center, Boolean(updateBounds));
+        } else moveTo(center, Boolean(updateBounds));
+    }, [constrain, dragMotion, frameRef, moveTo, reducedMotion]);
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
@@ -226,7 +244,8 @@ export const useBravaisCamera = ({
     useEffect(() => () => {
         if (cullFrameRef.current !== null) cancelAnimationFrame(cullFrameRef.current);
         animationRef.current?.stop();
-    }, []);
+        dragMotion.stop();
+    }, [dragMotion]);
 
     // 记下「正在拖」（弹性只在手指 / 鼠标按着时有），松手没有惯性就立即落回范围。
     const { onPointerDown: panDown, onPointerUp: panUp, onPointerCancel: panCancel, onPointerMove, onClickCapture, didDragRef } = pointer;

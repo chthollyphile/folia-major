@@ -18,7 +18,8 @@ const WHEEL_LATCH_MS = 160;
 const LATCH_MOVE_PX = 4;
 
 type WallPointerPanOptions = {
-    applyCamera: (camera: LatticeCamera, updateBounds?: boolean) => void;
+    /** pointer 标记拖拽及其释放惯性，供宿主单独合并写入；滚轮不加这一层插值。 */
+    applyCamera: (camera: LatticeCamera, updateBounds?: boolean, source?: 'pointer') => void;
     animationRef: MutableRefObject<{ stop: () => void } | null>;
     stopPan: () => void;
     containerRef: RefObject<HTMLDivElement | null>;
@@ -49,7 +50,7 @@ export const useWallPointerPan = ({
     const didDragRef = useRef(false);
 
     // Republishing bounds is what triggers a re-cull, so only do it near the edge of what is culled.
-    const updateCamera = useCallback((x: number, y: number) => {
+    const updateCamera = useCallback((x: number, y: number, source?: 'pointer') => {
         const next = { ...cameraRef.current, x, y };
         const visible = getWorldBounds(next, viewportRef.current);
         const culled = boundsRef.current;
@@ -58,7 +59,7 @@ export const useWallPointerPan = ({
             || visible.right > culled.right + padding
             || visible.top < culled.top - padding
             || visible.bottom > culled.bottom + padding;
-        applyCamera(next, nearCullEdge);
+        applyCamera(next, nearCullEdge, source);
     }, [applyCamera, cameraRef, getWorldBounds, overscan, viewportRef]);
 
     const interrupt = useCallback(() => {
@@ -98,7 +99,7 @@ export const useWallPointerPan = ({
             pointer.vy = (event.clientY - pointer.last.y) / elapsed * 1000;
         }
         pointer.last = { x: event.clientX, y: event.clientY, time: event.timeStamp };
-        if (pointer.dragged) updateCamera(pointer.camera.x + dx, pointer.camera.y + dy);
+        if (pointer.dragged) updateCamera(pointer.camera.x + dx, pointer.camera.y + dy, 'pointer');
     }, [updateCamera]);
 
     // Continue along the release velocity; stale samples and cancelled gestures never coast.
@@ -115,7 +116,7 @@ export const useWallPointerPan = ({
         animationRef.current = animate(0, velocity * WALL_PAN_INERTIA.power, {
             type: 'inertia', velocity, power: WALL_PAN_INERTIA.power, timeConstant: WALL_PAN_INERTIA.timeConstant,
             restDelta: WALL_PAN_INERTIA.restDelta,
-            onUpdate: distance => updateCamera(from.x + distance * pointer.vx / speed, from.y + distance * pointer.vy / speed),
+            onUpdate: distance => updateCamera(from.x + distance * pointer.vx / speed, from.y + distance * pointer.vy / speed, 'pointer'),
         });
     }, [animationRef, cameraRef, reducedMotion, updateCamera]);
 
@@ -219,9 +220,9 @@ export const useWallPointerPan = ({
             if (source === 'trackpad' || reducedMotion) {
                 // 直接跟手：把还没走完的平滑位移一并补上，当帧到位（滚动总量与输入一致）。
                 const carry = wheel && animationRef.current === wheel.handle ? wheel.pending : { x: 0, y: 0 };
-                const from = cameraRef.current;
                 stopPan();
                 stopWheel();
+                const from = cameraRef.current;
                 updateCamera(from.x + carry.x - dx, from.y + carry.y - dy);
                 return;
             }
