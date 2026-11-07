@@ -121,4 +121,16 @@ describe('nebbia aquarium', () => {
         const out = runTo(new NebbiaAquarium(), all(events), 0, 8);
         expect(out.burstCount).toBe(0);
     });
+
+    it('fades the idle weed sway out while the weed follows the beat, and back in when it stops', () => {
+        const aquarium = new NebbiaAquarium();
+        expect(runTo(aquarium, null, 0, 1).weedIdle).toBe(1);
+        // 水草一项开着：一下子不跳，几秒内收到 0
+        const first = aquarium.step(DT, 1, 1.6, tuning, all([]));
+        expect(first.weedIdle).toBeGreaterThan(0.9);
+        expect(runTo(aquarium, all([]), 1, 4).weedIdle).toBeLessThan(0.01);
+        // 水草一项关掉（或不跟拍）：慢慢摆回来
+        expect(runTo(aquarium, all([], { weed: 0 }), 4, 4.1).weedIdle).toBeLessThan(0.5);
+        expect(runTo(aquarium, null, 4.1, 8).weedIdle).toBeGreaterThan(0.99);
+    });
 });
