@@ -192,10 +192,13 @@
     padding: 0 var(--bravais-poster-pad);
 }
 
+/* 底色留 1% 透明：倾斜落定后整张海报是带着旋转画进缝的轨道那一层的（bravaisFrame 的 seamTransforms）。不透明底上的字
+ * Chromium 要单独成层保子像素抗锯齿，这块标签自己又转了 2°，就被拆成一个由合成器旋转的层、字反倒糊了。这是按 Chromium
+ * 眼下的分层规则绕开的（DevTools 的 Layers 面板里看得到），它的规则变了这里可能要跟着改。 */
 .bravais-album-kicker {
     display: inline-block;
     padding: 6px 12px;
-    background: var(--album-ink);
+    background: color-mix(in srgb, var(--album-ink) 99%, transparent);
     color: var(--album-paper);
     font-size: 12px;
     font-weight: 800;
@@ -481,7 +484,9 @@ button.bravais-album-artist:focus-visible {
  * 0.3s 起 标题每个词从不同方向拼上来（每词错开 70ms），立体残影晚半拍
  * 0.5s 起 小标签、下划线（从左拉出）、信息、简介、按钮依次浮上来
  * 0.8s    胶带啪地贴上；碎字与网纹淡入
- * 降低动态效果：整张只淡入。 */
+ * 降低动态效果：整张只淡入。
+ * 关键帧都只写起点（终点就是元素自己的样子），所以只填 backwards：放完就不再「生效」。填 both 的话放完了动画仍算
+ * 在场，透明度 / 缩放动画让元素一直单独成合成层，压在它上面的字被挤进跟着倾斜整块旋转的层里，转糊了。 */
 @keyframes bravais-album-paper-in {
     from { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
 }
@@ -509,44 +514,44 @@ button.bravais-album-artist:focus-visible {
     from { scale: 0 1; }
 }
 
-.bravais-album-paper { animation: bravais-album-paper-in 620ms cubic-bezier(.65, 0, .25, 1) both; }
-.bravais-album-hatch { animation: bravais-album-fade-in 360ms ease-out 480ms both; }
+.bravais-album-paper { animation: bravais-album-paper-in 620ms cubic-bezier(.65, 0, .25, 1) backwards; }
+.bravais-album-hatch { animation: bravais-album-fade-in 360ms ease-out 480ms backwards; }
 .bravais-album-dots,
-.bravais-album-ghost { animation: bravais-album-fade-in 600ms ease-out 520ms both; }
-.bravais-album-cover { animation: bravais-album-cover-in 560ms cubic-bezier(.2, .9, .3, 1.08) 120ms both; }
-.bravais-album-tape { animation: bravais-album-tape-in 300ms cubic-bezier(.3, .7, .3, 1.2) 820ms both; }
-.bravais-album-scrap { animation: bravais-album-fade-in 500ms ease-out 700ms both; }
-.bravais-album-kicker { animation: bravais-album-rise-in 380ms cubic-bezier(.2, .8, .3, 1) 420ms both; }
+.bravais-album-ghost { animation: bravais-album-fade-in 600ms ease-out 520ms backwards; }
+.bravais-album-cover { animation: bravais-album-cover-in 560ms cubic-bezier(.2, .9, .3, 1.08) 120ms backwards; }
+.bravais-album-tape { animation: bravais-album-tape-in 300ms cubic-bezier(.3, .7, .3, 1.2) 820ms backwards; }
+.bravais-album-scrap { animation: bravais-album-fade-in 500ms ease-out 700ms backwards; }
+.bravais-album-kicker { animation: bravais-album-rise-in 380ms cubic-bezier(.2, .8, .3, 1) 420ms backwards; }
 
 .bravais-album-title .bravais-album-word {
     display: inline-block;
     --word-from-x: -0.5em;
     --word-from-y: 0.35em;
     --word-from-deg: -8deg;
-    animation: bravais-album-word-in 520ms cubic-bezier(.2, .9, .3, 1.1) calc(300ms + var(--bravais-album-word-index, 0) * 70ms) both;
+    animation: bravais-album-word-in 520ms cubic-bezier(.2, .9, .3, 1.1) calc(300ms + var(--bravais-album-word-index, 0) * 70ms) backwards;
 }
 .bravais-album-title .bravais-album-word[data-space] { display: inline; animation: none; }
 .bravais-album-title .bravais-album-word:nth-child(3n + 2) { --word-from-x: 0.4em; --word-from-y: -0.45em; --word-from-deg: 7deg; }
 .bravais-album-title .bravais-album-word:nth-child(3n) { --word-from-x: 0; --word-from-y: 0.6em; --word-from-deg: 4deg; }
-.bravais-album-title { animation: bravais-album-extrude-in 420ms ease-out 640ms both; }
+.bravais-album-title { animation: bravais-album-extrude-in 420ms ease-out 640ms backwards; }
 
 .bravais-album-underline {
     transform-origin: 0 50%;
-    animation: bravais-album-underline-in 420ms cubic-bezier(.6, 0, .2, 1) 620ms both;
+    animation: bravais-album-underline-in 420ms cubic-bezier(.6, 0, .2, 1) 620ms backwards;
 }
-.bravais-album-bottom > * { animation: bravais-album-rise-in 420ms cubic-bezier(.2, .8, .3, 1) both; }
+.bravais-album-bottom > * { animation: bravais-album-rise-in 420ms cubic-bezier(.2, .8, .3, 1) backwards; }
 .bravais-album-bottom > :nth-child(1) { animation-delay: 560ms; }
 .bravais-album-bottom > :nth-child(2) { animation-delay: 620ms; }
 .bravais-album-bottom > :nth-child(3) { animation-delay: 680ms; }
 .bravais-album-bottom > :nth-child(n + 4) { animation-delay: 740ms; }
-.bravais-album-poster .bravais-poster-top { animation: bravais-album-fade-in 400ms ease-out 200ms both; }
+.bravais-album-poster .bravais-poster-top { animation: bravais-album-fade-in 400ms ease-out 200ms backwards; }
 
 :root[data-reduce-motion~='lattice'] .bravais-album-poster,
 :root[data-reduce-motion~='lattice'] .bravais-album-poster * {
     animation: none !important;
 }
 :root[data-reduce-motion~='lattice'] .bravais-album-poster {
-    animation: bravais-album-fade-in 180ms ease-out both !important;
+    animation: bravais-album-fade-in 180ms ease-out backwards !important;
 }
 
 /* 封面从墙上飞过来：飞的时候自己的先藏着，落地同一帧露出；两种状态都不放「落下」的入场（不然落地后又播一遍）。 */

@@ -131,10 +131,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const leftRef = useRef<HTMLDivElement>(null);
     const rightRef = useRef<HTMLDivElement>(null);
     const seamRef = useRef<HTMLDivElement>(null);
+    const seamTrackRef = useRef<HTMLDivElement>(null);
     const seamContentRef = useRef<HTMLDivElement>(null);
     const tabRef = useRef<HTMLButtonElement>(null);
     const hintRef = useRef<HTMLDivElement>(null);
-    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef, hint: hintRef }), []);
+    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamTrack: seamTrackRef, seamContent: seamContentRef, tab: tabRef, hint: hintRef }), []);
     const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
     const { wallLook, seamLook } = useBravaisWallLook(reportPlayerOcclusion, reportPlayerBackdrop);
     const view = useBravaisViewport(rootRef);
@@ -559,6 +560,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
+            // 缝在轨道里自己写回了 pointer-events: auto（轨道不挡点击），宿主藏起首页、翻牌交接时祖先给的 none 传不到它，
+            // 由这里补上（bravais.css 的 .bravais-seam-track）。
+            data-bravais-seam-pointer={isInteractive && handoff.role === null ? undefined : 'off'}
             data-bravais-settling={settling || undefined}
             data-wall-handoff={handoff.role ?? undefined}
             data-wall-handoff-phase={handoff.phase ?? undefined}
@@ -610,6 +614,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             </div>
             <BravaisSeam
                 seamRef={seamRef}
+                trackRef={seamTrackRef}
                 contentRef={seamContentRef}
                 tabRef={tabRef}
                 variant={seam.rendered.variant}

@@ -41,14 +41,24 @@ export const useBravaisPosterTilt = ({
         const from = frameRef.current.tiltDeg;
         animationRef.current?.stop();
         animationRef.current = null;
-        if (Math.abs(to - from) < 0.01) return;
+        // 补间中缝整块交给合成器转，落定后旋转才画进轨道那一层（字清楚，见 bravaisFrame 的 seamTransforms）。
+        const settle = () => {
+            frameRef.current.tiltSettled = true;
+            renderFrame();
+        };
+        if (Math.abs(to - from) < 0.01) {
+            if (!frameRef.current.tiltSettled) settle();
+            return;
+        }
         if (reducedMotion) {
             frameRef.current.tiltDeg = to;
+            frameRef.current.tiltSettled = true;
             renderFrame();
             checkCull(true);
             return;
         }
         const turningIn = Math.abs(to) > Math.abs(from);
+        frameRef.current.tiltSettled = false;
         animationRef.current = animate(from, to, {
             duration: turningIn ? BRAVAIS_POSTER_TILT_IN_S : BRAVAIS_POSTER_TILT_OUT_S,
             delay: turningIn ? BRAVAIS_POSTER_TILT_IN_DELAY_S : 0,
@@ -59,6 +69,7 @@ export const useBravaisPosterTilt = ({
             },
             onComplete: () => {
                 animationRef.current = null;
+                settle();
                 checkCull(true);
             },
         });
