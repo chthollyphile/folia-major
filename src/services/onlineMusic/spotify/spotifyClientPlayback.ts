@@ -122,6 +122,24 @@ const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boo
     return Boolean(artist && current.artist) && !mentionsArtist(current.artist, artist);
 };
 
+/**
+ * Whether the title and the artists the media session shows are this song's. Both are needed: that
+ * answer names no track id. Stricter than `mentionsArtist` on purpose - that one answers whether
+ * the session named another song, and a name it merely contains is not another song there; a
+ * position read here belongs to one track, so each of this song's artists has to be one of the
+ * names shown. A song whose title or artists are not known here is never taken for it.
+ */
+const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean => {
+    const title = String(data.title ?? '').trim();
+    const shownArtist = String(data.artist ?? '').trim();
+    const name = String(song.name ?? '').trim();
+    if (!title || !shownArtist || !name) return false;
+    if (plainName(title) !== plainName(name)) return false;
+    const shown = shownArtist.split(/[,;&/]/).map(part => plainName(part)).filter(Boolean);
+    const own = artistNamesOf(song).split(/[,;&/]/).map(part => plainName(part)).filter(Boolean);
+    return own.length > 0 && shown.length > 0 && own.every(artist => shown.includes(artist));
+};
+
 /** Turns what the app said into Folia's status for the song it asked for. */
 export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalPlaybackStatus => {
     const current = attempt;
@@ -332,6 +350,21 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     },
     async setVolume(volume) {
         await requestSpotify('client_volume', { value: Math.min(1, Math.max(0, volume)) });
+    },
+    // Where the app is on this song right now. A fresh run has found no port yet, so the answer is the
+    // media session's, which names the track only by the title and artist it shows: both have to be
+    // this song's. The call reads the app's state and nothing else - it starts, resumes and pauses
+    // nothing - and an answer that cannot be had is no position at all.
+    async runningPositionMs(song) {
+        let data: SpotifyWireClientStatus;
+        try {
+            data = await requestSpotify<SpotifyWireClientStatus>('client_status');
+        } catch (error) {
+            console.warn('[SpotifyClient] the app could not say which track it is on', error);
+            return null;
+        }
+        if (data.ad || !namesThatSong(song, data)) return null;
+        return Math.max(0, Math.round(Number(data.positionMs) || 0));
     },
     async getStatus() {
         return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status'));

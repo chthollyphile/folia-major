@@ -511,3 +511,61 @@ describe('the media keys and the failures that stop an advance', () => {
         expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(false);
     });
 });
+
+describe('a song restored while the app is still on it', () => {
+    // Where the app is on that song, read once: a fresh run has found no port yet, so the answer is
+    // the media session's, which names the track only by the title and artist it shows.
+    const mode = async () => {
+        request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
+        await setSpotifyPlaybackMode('client');
+    };
+
+    it('answers its position where both the title and the artist are that song\'s', async () => {
+        await mode();
+        const a = songOf('a');
+        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Artist', positionMs: 75_400 }));
+
+        await expect(spotifyExternalPlayback.runningPositionMs!(a)).resolves.toBe(75_400);
+        // A read and nothing else: no start, no pause, no resume, no seek, no launch, and no attempt
+        // held of a song Folia was never told to play.
+        expect(request.mock.calls.map(call => call[0])).toEqual(['playback_mode', 'client_status']);
+        expect(spotifyClientAttempt()).toBeNull();
+    });
+
+    it('answers nothing where the app is on another title', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Another song', artist: 'Artist', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+    });
+
+    it('answers nothing where the title is the same but the artist is not', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: 'Another Artist', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+    });
+
+    it('answers nothing where the media session answers without a title', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+    });
+
+    it('answers nothing where the app could not be asked', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        await mode();
+        request.mockRejectedValueOnce(new OnlineProviderError('unavailable', 'The Spotify app cannot be reached', 'spotify'));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    it('answers nothing for a way of playing that steers no app of its own', async () => {
+        await setSpotifyPlaybackMode('standard');
+
+        await expect(spotifyExternalPlayback.runningPositionMs!(songOf('a'))).resolves.toBeNull();
+    });
+});

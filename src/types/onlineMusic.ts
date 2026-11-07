@@ -585,6 +585,13 @@ export interface OnlineExternalPlaybackProvider {
     seek(seconds: number): Promise<void>;
     /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
     setVolume?(volume: number): Promise<void>;
+    /**
+     * Where the player is on `song` right now, in milliseconds, or null where it is not running that
+     * song (another track, nothing loaded, a read that failed). For a song restored while the player
+     * kept sounding it through a restart. A read only: nothing is started, resumed or paused for it.
+     * Absent where the player cannot be asked without being steered.
+     */
+    runningPositionMs?(song: SongResult): Promise<number | null>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */

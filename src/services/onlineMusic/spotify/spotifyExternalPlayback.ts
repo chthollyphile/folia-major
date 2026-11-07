@@ -35,6 +35,9 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     resume: () => current().resume(),
     seek: seconds => current().seek(seconds),
     setVolume: volume => current().setVolume?.(volume) ?? Promise.resolve(),
+    // Only the way that runs Spotify's own app can be running a track Folia is not: Soloist's player
+    // is steered by Folia alone, so it answers nothing here.
+    runningPositionMs: async song => (await current().runningPositionMs?.(song)) ?? null,
     getStatus: song => current().getStatus(song),
     isStatusForSong: (song, status) => current().isStatusForSong(song, status),
     // Only Spotify's own app has to be running before a song can sound in it; Soloist is started by
