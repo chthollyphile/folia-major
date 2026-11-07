@@ -13,7 +13,7 @@ import type { OnlineAuthProvider, OnlineLibraryProvider, OnlineMusicProvider, On
 //
 // The read knows no platform. The platforms differ in what their adapters say of themselves, and
 // one thing they say changes the read: whether what was kept of the account shows at once at app
-// start (`showsKeptAccountAtStart`: NetEase, KuGou, QQ) or waits for the platform to name the user
+// start (`showsKeptAccountAtStart`: NetEase, KuGou, QQ, Apple Music) or waits for the platform to name the user
 // (Bodian, YouTube Music, Spotify). Every case below that does not hang on it runs for both kinds.
 
 const stored = vi.hoisted(() => new Map<string, string>());

@@ -159,8 +159,10 @@
 .bravais-poster-grain {
     position: absolute;
     inset: -100cqh 0;
-    opacity: 0.22;
-    mix-blend-mode: overlay;
+    /* 普通叠加，不用 overlay：倾斜落定后缝的旋转是画进轨道那一层的（bravaisFrame 的 seamTransforms），混合模式在旋转
+     * 底下没法并进那一层，会连同后面画的字一起拆成单独的层、被合成器整块转糊。原来是 overlay 0.22，纯色上量过，
+     * 这样亮度差不到 3 个色阶、颗粒粗细相当。 */
+    opacity: 0.055;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 

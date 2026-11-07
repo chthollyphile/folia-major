@@ -606,6 +606,7 @@ export const compressConfig = (config: any): string => {
     if (config.latticeBadgeCurrentOnly !== undefined) minified.lbco = config.latticeBadgeCurrentOnly;
     if (config.titlebarSide === 'left' || config.titlebarSide === 'right') minified.wts = config.titlebarSide;
     if (config.playerHeaderBlur !== undefined) minified.phb = config.playerHeaderBlur;
+    if (config.scratchpadHandleStyle !== undefined) minified.sphs = config.scratchpadHandleStyle;
 
     const jsonStr = JSON.stringify(minified);
     const bytes = new TextEncoder().encode(jsonStr);
@@ -680,7 +681,9 @@ export const decompressConfig = (str: string): any => {
         || parsed.lwsd !== undefined
         // Numbering only the playing song on both tile walls (#930), for the same reason.
         || parsed.lbco !== undefined
-        || parsed.phb !== undefined;
+        || parsed.phb !== undefined
+        // The scratchpad side tab's resting look, for the same reason.
+        || parsed.sphs !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -762,6 +765,7 @@ export const decompressConfig = (str: string): any => {
         if (parsed.lbco !== undefined) decompressed.latticeBadgeCurrentOnly = parsed.lbco;
         if (parsed.wts === 'left' || parsed.wts === 'right') decompressed.titlebarSide = parsed.wts;
         if (parsed.phb !== undefined) decompressed.playerHeaderBlur = parsed.phb;
+        if (parsed.sphs !== undefined) decompressed.scratchpadHandleStyle = parsed.sphs;
 
         return decompressed;
     } else {
@@ -789,6 +793,7 @@ export const decompressConfig = (str: string): any => {
             'latticeBadgeCurrentOnly',
             'playerHeaderBlur',
             'titlebarSide',
+            'scratchpadHandleStyle',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);
         if (!hasValidKey) {

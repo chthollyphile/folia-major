@@ -1,6 +1,6 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import { formatWorldTransform, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
-import { computeBravaisFrame, posterSafeArea, wallHintRowSpan, wallHintSpan, withTilt } from './bravaisFrame';
+import { computeBravaisFrame, posterSafeArea, seamTransforms, wallHintRowSpan, wallHintSpan, withTilt } from './bravaisFrame';
 
 // src/library/suites/bravais/useBravaisFrame.ts
 // stage 每帧要写的那几样（相机、缝的锚点与动画中的开口、缝内容的排版宽度、是否折叠）放在一个可变的 ref 里，
@@ -24,12 +24,16 @@ export type BravaisFrameState = {
     poster: boolean;
     /** 整层此刻的倾斜角（度；补间中逐帧变）。 */
     tiltDeg: number;
+    /** 倾斜没在补间：缝的旋转画进轨道那一层（字清楚），补间中整块交给合成器转（bravaisFrame 的 seamTransforms）。 */
+    tiltSettled: boolean;
 };
 
 export type BravaisFrameRefs = {
     left: RefObject<HTMLDivElement | null>;
     right: RefObject<HTMLDivElement | null>;
     seam: RefObject<HTMLDivElement | null>;
+    /** 缝外面的轨道（BravaisSeam）：缝的平移写在它上面，它自己成合成层。 */
+    seamTrack: RefObject<HTMLDivElement | null>;
     seamContent: RefObject<HTMLDivElement | null>;
     tab: RefObject<HTMLButtonElement | null>;
     /** 空墙说明（BravaisWallHint）：只在它显示着时写（data-bravais-wall-hint="shown"）。 */
@@ -48,6 +52,11 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
         hidden: false,
         poster: false,
         tiltDeg: 0,
+        tiltSettled: true,
+    });
+    /** 上一次写给轨道与缝的 transform（连同写给的节点）：只在变了时写（读回的 style.transform 会被浏览器规范化，不能拿来比）。 */
+    const writtenRef = useRef<{ trackNode: HTMLElement | null; track: string; seamNode: HTMLElement | null; seam: string }>({
+        trackNode: null, track: '', seamNode: null, seam: '',
     });
 
     const renderFrame = useCallback(() => {
@@ -64,14 +73,13 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             poster: state.poster,
             tiltDeg: state.tiltDeg,
         });
-        const { left, right, seam, seamContent, tab, hint } = refs;
+        const { left, right, seam, seamTrack, seamContent, tab, hint } = refs;
         if (left.current) left.current.style.transform = withTilt(formatWorldTransform(frame.left.x, frame.left.y, frame.scale), frame.tilt);
         if (right.current) right.current.style.transform = withTilt(formatWorldTransform(frame.right.x, frame.right.y, frame.scale), frame.tilt);
         const seamElement = seam.current;
         if (seamElement) {
             // 另一个方向上的尺寸交还给样式表（竖的缝满高、横的满宽；样式按缝上的 data-bravais-seam-axis，见 BravaisSeam）。
             if (frame.seam.axis === 'y') {
-                seamElement.style.transform = `translate3d(0, ${frame.seam.y - frame.seam.width / 2}px, 0)`;
                 seamElement.style.height = `${frame.seam.width}px`;
                 if (seamElement.style.width) seamElement.style.width = '';
                 // 横条张开到排版高度（不在开合途中、没被视口边挤窄）时不裁内容，菜单可以伸出横条；菜单往视口宽的那边弹。
@@ -85,9 +93,22 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             } else {
                 if (seamElement.dataset.bravaisSeamSettled !== undefined) delete seamElement.dataset.bravaisSeamSettled;
                 if (seamElement.style.height) seamElement.style.height = '';
-                // 缝与两半墙同一层：倾斜时一起转（缝的 transform-origin 对准屏幕原点，见 bravais.css / bravaisPoster.css）。
-                seamElement.style.transform = withTilt(`translate3d(${frame.seam.x - frame.seam.width / 2}px, 0, 0)`, frame.tilt);
                 seamElement.style.width = `${frame.seam.width}px`;
+            }
+            // 缝与两半墙同一层：倾斜时一起转（轨道与缝的 transform-origin 都对准屏幕原点，见 bravais.css）。平移写在轨道上，
+            // 旋转落定后写在缝上（seamTransforms）；只在变了时写，拖动中缝的那段不变就不重画。
+            const transforms = seamTransforms(frame, { tiltSettled: state.tiltSettled, devicePixelRatio: window.devicePixelRatio });
+            const written = writtenRef.current;
+            const track = seamTrack.current;
+            if (track && (written.trackNode !== track || written.track !== transforms.track)) {
+                track.style.transform = transforms.track;
+                written.trackNode = track;
+                written.track = transforms.track;
+            }
+            if (written.seamNode !== seamElement || written.seam !== transforms.seam) {
+                seamElement.style.transform = transforms.seam;
+                written.seamNode = seamElement;
+                written.seam = transforms.seam;
             }
             const visibility = frame.seam.visible ? 'visible' : 'hidden';
             if (seamElement.style.visibility !== visibility) seamElement.style.visibility = visibility;

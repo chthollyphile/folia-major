@@ -7,6 +7,8 @@ const LEGACY_SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const SESSION_KEY = 'KUGOU_API_SESSION_V2';
 const SESSION_ENVELOPE_VERSION = 2;
 const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid']);
+// The cookies that say which account is signed in; only a confirmed sign-in writes them.
+const ACCOUNT_COOKIE_KEYS = new Set(['token', 'userid', 'user_id']);
 const OPERATION_MODULES = {
   register_dev: ['register_dev'],
   login_qr_key: ['login_qr_key'],
@@ -281,19 +283,44 @@ function createKugouApiBridge({
     }
   };
 
-  const mergeResponseSession = (result) => {
+  // Who is signed in changes only with a confirmed QR sign-in (status 4), and only as a whole pair:
+  // other answers carry the userid of whoever owns what was read (a public playlist's creator),
+  // which written into the session would pair another account's id with this account's token (#1101).
+  const mergeResponseSession = (operation, result) => {
     const sessionCookies = ensureCookies();
     const tokenBefore = sessionCookies.token;
+    const body = result?.body ?? result;
+    const data = body?.data ?? body;
+    const responseCookies = {};
     const nextCookies = Array.isArray(result?.cookie) ? result.cookie : [];
     nextCookies.forEach(entry => {
       const parsed = parseCookieEntry(entry);
-      // An empty account cookie ('token=') does not blank the stored one: only a sign-out removes it.
-      if (parsed && !(parsed[1] === '' && AUTH_COOKIE_KEYS.has(parsed[0].toLowerCase()))) sessionCookies[parsed[0]] = parsed[1];
+      if (!parsed) return;
+      const key = parsed[0].toLowerCase();
+      if (ACCOUNT_COOKIE_KEYS.has(key)) {
+        // The SDK writes these cookies from the answer's fields with a template string, so a
+        // missing field arrives as 'undefined'.
+        if (!['', 'undefined', 'null'].includes(parsed[1])) responseCookies[key] = parsed[1];
+        return;
+      }
+      // An empty device cookie ('dfid=') does not blank the stored one: only a new registration replaces it.
+      if (!(parsed[1] === '' && AUTH_COOKIE_KEYS.has(key))) sessionCookies[parsed[0]] = parsed[1];
     });
-    const body = result?.body ?? result;
-    const data = body?.data ?? body;
-    if (data?.token) sessionCookies.token = String(data.token);
-    if (data?.userid ?? data?.user_id) sessionCookies.userid = String(data.userid ?? data.user_id);
+    if (operation === 'login_qr_check' && Number(data?.status) === 4) {
+      const token = data?.token || responseCookies.token;
+      const userId = data?.userid ?? data?.user_id ?? responseCookies.userid ?? responseCookies.user_id;
+      if (token && userId) {
+        sessionCookies.token = String(token);
+        sessionCookies.userid = String(userId);
+        delete sessionCookies.user_id;
+      } else {
+        // Half of a pair is not taken: the other half would be the previous account's.
+        warn('[KuGouSession] A confirmed sign-in came without both a token and an account id; the session is unchanged', {
+          hasToken: Boolean(token),
+          hasUserId: Boolean(userId),
+        });
+      }
+    }
     if (data?.dfid) sessionCookies.dfid = String(data.dfid);
     // A token this run did not have is a sign-in: it takes the place of a stored session this run could not load.
     if (sessionCookies.token && sessionCookies.token !== tokenBefore) keepStored = false;
@@ -335,7 +362,7 @@ function createKugouApiBridge({
       ...(token ? { token } : {}),
       cookie: { ...sessionCookies },
     });
-    return mergeResponseSession(result);
+    return mergeResponseSession(operation, result);
   };
 
   const ensureRegistered = async (force = false) => {

@@ -32,9 +32,10 @@ export const useScratchpadPlayback = (
 export const useScratchpadQueuePort = (
     playSong: (song: SongResult, queue: SongResult[], isFmCall: boolean, options: PlaybackNavigationOptions) => unknown,
     setQueueOrder: (order: SongResult[]) => void,
+    shuffleQueue: () => void,
 ): ScratchpadQueuePort => {
-    const latest = useRef({ playSong, setQueueOrder });
-    latest.current = { playSong, setQueueOrder };
+    const latest = useRef({ playSong, setQueueOrder, shuffleQueue });
+    latest.current = { playSong, setQueueOrder, shuffleQueue };
     return useMemo(() => ({
         playSong: song => {
             // 私人 FM 时按 FM 播：传 false 会把 FM 关掉，FM 那一批歌变成普通队列、不再续歌。
@@ -42,5 +43,6 @@ export const useScratchpadQueuePort = (
             void latest.current.playSong(song, playQueue, isFmMode, { shouldNavigateToPlayer: false });
         },
         setOrder: order => latest.current.setQueueOrder(order),
+        shuffle: () => latest.current.shuffleQueue(),
     }), []);
 };

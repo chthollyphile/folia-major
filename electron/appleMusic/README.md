@@ -36,7 +36,7 @@ Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时�
 - `nativePaths.cjs`：开发输出、正式资源与平台启用策略。
 - `nativeSpawn.cjs`：私有管道适配、文档代数、退出登录清理与超时换页恢复。
 - `macos/`、`windows/`：各自系统 WebView、导航白名单和登录窗口管理。
-- `companionRequests.cjs`：操作白名单、参数验证、串行调度与注入页面的受限读取函数。
+- `companionRequests.cjs`：操作白名单、参数验证、串行调度与注入页面的受限读取函数。音量（`setVolume`，0–1 线性）也在这里写进页面的 MusicKit，和播放命令同一条串行链。
 - `companionQueue.cjs`：最多两首后继的队列预备和复用。
 - `companionFavorites.cjs`、`companionPlaylist.cjs`：喜爱与歌单写入，不自动重试可能已成功的追加。
 - `companionStorefront.cjs`：将页面地区跟随账号，避免跨区目录导致队列就绪却无法播放。

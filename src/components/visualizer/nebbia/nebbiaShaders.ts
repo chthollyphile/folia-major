@@ -68,7 +68,7 @@ void main() { outColor = vec4(staticNoise(gl_FragCoord.xy), 1.0); }`;
 
 const MAIN_FS = (fogTex: boolean, uniforms = SCENE_UNIFORMS, dew = false) => /* glsl */ `#version 300 es
 #define NEBBIA_FOG_TEX ${fogTex ? 1 : 0}
-${dew ? '#define NEBBIA_DEW 1\n' : ''}${uniforms}
+${dew ? '#define NEBBIA_DEW 1\n' : ''}${uniforms === AQUA_UNIFORMS ? '#define NEBBIA_SOFT_HIGHLIGHT 1\n' : ''}${uniforms}
 uniform sampler2D uMask, uDrop, uField;
 #ifdef NEBBIA_DEW
 // 凝露玻璃上冷凝水珠的高光（tuning.dewGlint）；细水珠折射的窗外（nebbiaFogGl.ts 预渲染的清晰的那层）
@@ -219,6 +219,14 @@ void main() {
     }
     col = mix(col, lens, dmask);
   }
+#ifdef NEBBIA_SOFT_HIGHLIGHT
+  // 水族箱：聚光灯、水母、凝露的水珠叠在同一处会加过 1，烧成一块白。最亮的那个通道过了 0.75 以后
+  // 按指数慢慢逼近 1，三个通道同比例压，颜色不变；0.75 以下不动
+  if (!uSeeThrough) {
+    float pk = max(col.r, max(col.g, col.b));
+    if (pk > 0.75) col *= (0.75 + 0.25 * (1.0 - exp((0.75 - pk) / 0.25))) / pk;
+  }
+#endif
   outColor = uSeeThrough ? vec4(max(col, 0.0), alpha) : vec4(col, 1.0);
 }`;
 

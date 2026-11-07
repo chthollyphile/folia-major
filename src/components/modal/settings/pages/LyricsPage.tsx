@@ -25,6 +25,7 @@ const FORMATS: SettingsGroupDef = { id: 'localLyricFormatOrder', titleKey: 'opti
 const O = {
     autoBest: option(SOURCE, 'autoUseBestLyric', 'options.autoUseBestLyric'),
     matchPriority: option(SOURCE, 'lyricMatchPriority', 'settings.lyricMatchPriority'),
+    keepProviderWordTiming: option(SOURCE, 'keepProviderWordTiming', 'options.keepProviderWordTiming'),
     localPriority: option(SOURCE, 'localLyricsPriority', 'options.localLyricsPriority'),
     globalOffset: option(ADJUST, 'globalLyricTimelineOffset', 'options.globalLyricTimelineOffset'),
     filter: option(ADJUST, 'lyricFilterRegex', 'options.lyricFilterRegex'),
@@ -40,12 +41,14 @@ const LyricsPage: React.FC = () => {
     const lyric = useLyricSettingsStore(useShallow(state => ({
         autoBest: state.autoUseBestLyric,
         preferredSource: state.preferredAlternativeLyricSource,
+        keepProviderWordTiming: state.keepProviderWordTiming,
         localPriority: state.localLyricsPriority,
         formatOrder: state.localLyricFormatOrder,
         globalOffsetMs: state.globalLyricTimelineOffsetMs,
         autoAiSegmentation: state.autoAiLyricSegmentation,
         setAutoBest: state.handleToggleAutoUseBestLyric,
         setPreferredSource: state.handleSetPreferredAlternativeLyricSource,
+        setKeepProviderWordTiming: state.handleToggleKeepProviderWordTiming,
         setLocalPriority: state.handleSetLocalLyricsPriority,
         setFormatOrder: state.handleSetLocalLyricFormatOrder,
         setAutoAiSegmentation: state.handleToggleAutoAiLyricSegmentation,
@@ -91,6 +94,9 @@ const LyricsPage: React.FC = () => {
                         options={sources.map(source => ({ value: source, label: getLyricProviderPreferenceLabel(source) }))}
                         onChange={lyric.setPreferredSource}
                     />
+                </Row>
+                <Row option={O.keepProviderWordTiming} note={t('options.keepProviderWordTimingDesc')}>
+                    <Toggle checked={lyric.keepProviderWordTiming} onChange={lyric.setKeepProviderWordTiming} />
                 </Row>
                 <Row
                     option={O.localPriority}

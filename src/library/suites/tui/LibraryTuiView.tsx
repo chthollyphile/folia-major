@@ -19,6 +19,7 @@ import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistration';
 import { useLocalTrackSortStore } from '../../core/directory/useLocalTrackSortStore';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import LibraryTuiHeader from './LibraryTuiHeader';
 import LibraryTuiRow, { LIBRARY_TUI_COLUMNS, LIBRARY_TUI_ROW_HEIGHT, type LibraryTuiRowProps } from './LibraryTuiRow';
 import LibraryTuiPrompt, { type LibraryTuiPromptRequest } from './LibraryTuiPrompt';
@@ -355,7 +356,7 @@ const LibraryTuiView: React.FC<LibraryCollectionSurfaceProps> = ({
                 />
             )}
             <footer className="shrink-0 border-t border-current/10 px-4 py-1.5 text-[11px] opacity-50">
-                {t('libraryTui.hints')}
+                {t('libraryTui.hints', { mod: PRIMARY_MODIFIER_LABEL })}
                 {canRemoveEntry && ` · ${t(isDailyRecommendations ? 'libraryTui.hintDislike' : 'libraryTui.hintRemove')}`}
                 {(canOpenAlbum || canOpenArtist) && ` · ${t('libraryTui.hintOpenLinks')}`}
             </footer>

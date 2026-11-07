@@ -15,10 +15,12 @@ const omniMock = vi.hoisted(() => ({
     pauseExternalPlayback: vi.fn(async (_song: unknown) => {}),
     resumeExternalPlayback: vi.fn(async (_song: unknown) => {}),
     seekExternalPlayback: vi.fn(async (_song: unknown, _seconds: number) => {}),
+    setExternalPlaybackVolume: vi.fn(async (_song: unknown, _volume: number) => {}),
     getExternalPlaybackStatus: vi.fn(async (_song: unknown): Promise<ProviderExternalPlaybackStatus> => ({
         mediaId: '123', isPlaying: true, positionMs: 10000, durationMs: 200000, ended: false,
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
+    adoptExternalPlayback: vi.fn((_song: unknown) => {}),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
@@ -27,6 +29,7 @@ const engine = await import('@/services/onlineMusic/externalPlayback');
 const { getObservedMedia } = await import('@/services/hifi/hifiMediaShim');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
+const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 
 const song: SongResult = {
     id: '123',
@@ -54,8 +57,11 @@ describe('external playback route', () => {
         omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
         omniMock.resumeExternalPlayback.mockReset().mockResolvedValue(undefined);
         omniMock.seekExternalPlayback.mockReset().mockResolvedValue(undefined);
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+        omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
         omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
         omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
+        omniMock.adoptExternalPlayback.mockClear();
     });
 
     afterEach(() => {
@@ -97,6 +103,64 @@ describe('external playback route', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
         await vi.advanceTimersByTimeAsync(500);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+    });
+
+    it('hands the player the app volume before the start, and muted as silence', async () => {
+        useAudioSettingsStore.setState({ volume: 0.4, isMuted: false });
+        const order: string[] = [];
+        omniMock.setExternalPlaybackVolume.mockImplementation(async () => { order.push('volume'); });
+        omniMock.playSongExternally.mockImplementation(async () => { order.push('play'); });
+        await engine.beginExternalPlayback(song, 0);
+        // Again once the player has the song: the page may have been replaced between the two.
+        expect(order).toEqual(['volume', 'play', 'volume']);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledWith(song, 0.4);
+
+        useAudioSettingsStore.setState({ isMuted: true });
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0);
+        useAudioSettingsStore.setState({ isMuted: false });
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.4);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(4);
+    });
+
+    it('sends one volume at a time during a drag and then the newest level', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        await flush();
+        omniMock.setExternalPlaybackVolume.mockClear();
+        let finish!: () => void;
+        omniMock.setExternalPlaybackVolume.mockImplementationOnce(() => new Promise<void>(done => { finish = done; }));
+        engine.setExternalPlaybackVolume(0.8);
+        engine.setExternalPlaybackVolume(0.6);
+        engine.setExternalPlaybackVolume(0.5);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(1);
+        finish();
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(2);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.5);
+        // A level the player already has is not sent again.
+        engine.setExternalPlaybackVolume(0.5);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(2);
+    });
+
+    it('previews a drag with the stored mute applied', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        await flush();
+        engine.previewExternalPlaybackVolume(0.3);
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.3);
+        useAudioSettingsStore.setState({ isMuted: true });
+        await flush();
+        engine.previewExternalPlaybackVolume(0.7);
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0);
+    });
+
+    it('does not touch the player volume off the external route', () => {
+        useAudioSettingsStore.setState({ volume: 0.3 });
+        engine.setExternalPlaybackVolume(0.2);
+        engine.previewExternalPlaybackVolume(0.2);
+        expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
     });
 
     it('follows the player position and length between answers', async () => {
@@ -390,5 +454,293 @@ describe('external playback route', () => {
         await expect(engine.beginExternalPlayback(song, 0)).rejects.toThrow('refused');
         expect(usePlaybackStore.getState().playbackRoute).toBe('web');
         expect(engine.getExternalSong()).toBeNull();
+    });
+
+    // Two providers play through players of their own (the companion, Spotify's Soloist): a song of
+    // one does not replace a track sounding in the other.
+    describe('moving between external players', () => {
+        const soloistSong: SongResult = {
+            id: 'track1',
+            name: 'Other',
+            artists: [{ id: '', name: 'Artist' }],
+            album: { id: '', name: 'Album' },
+            durationMs: 180000,
+            sourceRef: { kind: 'online', providerId: 'spotify', mediaId: 'track1' },
+        };
+
+        it('stops the old player before the other one starts, in both directions', async () => {
+            const order: string[] = [];
+            omniMock.pauseExternalPlayback.mockImplementation(async (paused: unknown) => { order.push(`pause:${(paused as SongResult).id}`); });
+            omniMock.playSongExternally.mockImplementation(async (played: unknown) => { order.push(`play:${(played as SongResult).id}`); });
+
+            await engine.beginExternalPlayback(soloistSong, 0);
+            engine.announceExternalPlayback();
+            await engine.beginExternalPlayback(song, 0);
+            expect(order).toEqual(['play:track1', 'pause:track1', 'play:123']);
+            expect(engine.getExternalSong()).toBe(song);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('external');
+
+            engine.announceExternalPlayback();
+            order.length = 0;
+            await engine.beginExternalPlayback(soloistSong, 0);
+            expect(order).toEqual(['pause:123', 'play:track1']);
+            expect(engine.getExternalSong()).toBe(soloistSong);
+        });
+
+        it('leaves the player alone when the next song plays in the same one', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            await engine.beginExternalPlayback({ ...song, id: '456', sourceRef: { kind: 'online', providerId: 'appleMusic', mediaId: '456', providerData: { resourceType: 'songs' } } }, 0);
+            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        });
+
+        it('stops a start the other player took over while it was still starting', async () => {
+            let started!: () => void;
+            const order: string[] = [];
+            omniMock.pauseExternalPlayback.mockImplementation(async (paused: unknown) => { order.push(`pause:${(paused as SongResult).id}`); });
+            omniMock.playSongExternally.mockImplementationOnce(async () => {
+                await new Promise<void>(done => { started = done; });
+                order.push('play:track1');
+            });
+            const first = engine.beginExternalPlayback(soloistSong, 0);
+            await flush();
+            await engine.beginExternalPlayback(song, 0);
+            // A player may take the stop ahead of a start still on its way (the companion's urgent
+            // pause skips its command chain): once the overtaken start is through, it is stopped again.
+            started();
+            await first;
+            expect(order.slice(-2)).toEqual(['play:track1', 'pause:track1']);
+            expect(engine.getExternalSong()).toBe(song);
+        });
+
+        it('stops a start a web song took over while it was still starting', async () => {
+            let started!: () => void;
+            omniMock.playSongExternally.mockImplementationOnce(async () => {
+                await new Promise<void>(done => { started = done; });
+            });
+            const first = engine.beginExternalPlayback(soloistSong, 0);
+            await flush();
+            engine.yieldExternalPlayback('another song started');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            started();
+            await first;
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(2);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenLastCalledWith(soloistSong);
+        });
+
+        it('stops a handed-over track of the other player while a session is live here', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            omniMock.pauseExternalPlayback.mockClear();
+            engine.releaseUnclaimedExternalTrack(soloistSong, 'test');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(soloistSong);
+            expect(engine.getExternalSong()).toBe(song);
+        });
+    });
+
+    // A window rebuild: the player kept sounding, and the new window takes the track over without
+    // starting it again.
+    describe('adopting a running player', () => {
+        it('takes over the same track as playing, at the player position, and polls it', async () => {
+            usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 42000 }));
+            expect(await engine.adoptExternalPlayback(song)).toBe(true);
+            expect(omniMock.playSongExternally).not.toHaveBeenCalled();
+            expect(omniMock.adoptExternalPlayback).toHaveBeenCalledWith(song);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('external');
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+            expect(engine.isExternalPlaybackSounding()).toBe(true);
+            expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(42);
+            expect(engine.getExternalPosition()).toBeLessThan(43);
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 42500 }));
+            await vi.advanceTimersByTimeAsync(500);
+            expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(42.5);
+        });
+
+        it('takes over the same track paused as paused', async () => {
+            usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 42000 }));
+            expect(await engine.adoptExternalPlayback(song)).toBe(true);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('external');
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+            expect(engine.isExternalPaused()).toBe(true);
+            expect(engine.getExternalPosition()).toBe(42);
+            // Taken over: resuming is the player's resume, not a start from the beginning.
+            engine.resumeExternalPlayback();
+            expect(omniMock.resumeExternalPlayback).toHaveBeenCalledWith(song);
+            expect(omniMock.playSongExternally).not.toHaveBeenCalled();
+        });
+
+        it('takes nothing over when the player has another track, and leaves it alone', async () => {
+            omniMock.isExternalPlaybackStatusForSong.mockReturnValue(false);
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '999' }));
+            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(omniMock.adoptExternalPlayback).not.toHaveBeenCalled();
+            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+            expect(usePlaybackStore.getState().playbackRoute).toBe('web');
+            expect(engine.getExternalSong()).toBeNull();
+            expect(engine.isExternalPlaybackSounding()).toBe(false);
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops a player nobody took over, and never one a live session owns', async () => {
+            engine.releaseUnclaimedExternalTrack(song, 'test');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(song);
+
+            omniMock.pauseExternalPlayback.mockClear();
+            await engine.beginExternalPlayback(song, 0);
+            engine.releaseUnclaimedExternalTrack(song, 'test');
+            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        });
+
+        it('stops following the player once handed over: no polling, no end, no pause', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+            const ended = vi.fn();
+            engine.subscribeExternalPlayback(event => { if (event.type === 'ended') ended(); });
+            const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+
+            engine.handOverExternalPlayback();
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, ended: true, positionMs: 200000 }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            expect(ended).not.toHaveBeenCalled();
+            expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        });
+
+        it('acts on no answer that was in flight when it handed over, a failed one included', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            const events = vi.fn();
+            const unsubscribe = engine.subscribeExternalPlayback(event => events(event.type));
+            let fail!: (error: unknown) => void;
+            omniMock.getExternalPlaybackStatus.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+            await vi.advanceTimersByTimeAsync(500);
+            const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+
+            engine.handOverExternalPlayback();
+            fail(new Error('the companion is busy'));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(events).not.toHaveBeenCalled();
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            unsubscribe();
+        });
+
+        it('takes the player back when the window is not replaced, and follows it to the end', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            const ended = vi.fn();
+            const unsubscribe = engine.subscribeExternalPlayback(event => { if (event.type === 'ended') ended(); });
+
+            engine.handOverExternalPlayback();
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, ended: true, positionMs: 200000 }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(ended).not.toHaveBeenCalled();
+            // The rebuild was refused: followed again at once.
+            engine.reclaimExternalPlayback('refused');
+            await flush();
+            expect(ended).toHaveBeenCalledTimes(1);
+            unsubscribe();
+        });
+
+        it('takes the player back by itself when no rebuild came', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            engine.handOverExternalPlayback();
+            const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+            await vi.advanceTimersByTimeAsync(9000);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            await vi.advanceTimersByTimeAsync(1500);
+            expect(omniMock.getExternalPlaybackStatus.mock.calls.length).toBeGreaterThan(asked);
+        });
+
+        it('still stops the player when this window leaves it after handing over', async () => {
+            await engine.beginExternalPlayback(song, 0);
+            engine.announceExternalPlayback();
+            engine.handOverExternalPlayback();
+            // Another song in this window, or the listener's stop: a window that was not replaced
+            // after all must not leave the player sounding with nobody to stop it.
+            engine.yieldExternalPlayback('another song started');
+            expect(omniMock.pauseExternalPlayback).toHaveBeenCalledWith(song);
+            expect(engine.getExternalSong()).toBeNull();
+        });
+
+        // The new window is rebuilt again before its own restore took the player over: the snapshot
+        // goes on to the next window as it came, and the take-over here must not follow the player.
+        describe('asked to hand over while still restoring', () => {
+            const followEnd = () => {
+                const ended = vi.fn();
+                const unsubscribe = engine.subscribeExternalPlayback(event => { if (event.type === 'ended') ended(); });
+                return { ended, unsubscribe };
+            };
+
+            it('lands a later take-over handed over: shown as it sounds, not followed, taken back when no rebuild came', async () => {
+                usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+                engine.handOverExternalPlaybackDuringRestore();
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                expect(engine.isExternalPlaybackSounding()).toBe(true);
+                expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+                const { ended, unsubscribe } = followEnd();
+                const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+
+                omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, ended: true, positionMs: 200000 }));
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+                expect(ended).not.toHaveBeenCalled();
+                expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+
+                await vi.advanceTimersByTimeAsync(9000);
+                expect(ended).toHaveBeenCalledTimes(1);
+                unsubscribe();
+            });
+
+            it('lands a take-over already on its way handed over', async () => {
+                usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+                let answer!: (value: ProviderExternalPlaybackStatus) => void;
+                omniMock.getExternalPlaybackStatus.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+                const adopting = engine.adoptExternalPlayback(song);
+                await flush();
+                engine.handOverExternalPlaybackDuringRestore();
+                answer(status());
+                expect(await adopting).toBe(true);
+                expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+            });
+
+            it('hands a take-over already done over at once', async () => {
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                engine.handOverExternalPlaybackDuringRestore();
+                const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
+                await vi.advanceTimersByTimeAsync(2000);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asked);
+            });
+
+            it('follows the take-over as usual once the rebuild was refused', async () => {
+                engine.handOverExternalPlaybackDuringRestore();
+                engine.reclaimExternalPlayback('refused');
+                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                await vi.advanceTimersByTimeAsync(500);
+                expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
+            });
+        });
+
+        it('takes nothing over when the player has no track or cannot be asked', async () => {
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: false }));
+            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('web');
+
+            omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('companion gone'));
+            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(usePlaybackStore.getState().playbackRoute).toBe('web');
+            expect(engine.getExternalSong()).toBeNull();
+            expect(omniMock.playSongExternally).not.toHaveBeenCalled();
+        });
     });
 });

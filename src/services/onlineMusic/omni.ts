@@ -41,6 +41,7 @@ import type {
     LoginLocalService,
     LoginMethod,
     LoginSelfCheckResult,
+    ProviderSetupView,
     ProviderNotice,
     LoginState,
     LoginTexts,
@@ -750,6 +751,31 @@ export const omni = {
         return await requireOnlineMusicProvider(providerId).auth?.runLoginSelfCheck?.() ?? null;
     },
 
+    // 登录读到账号之后还要不要多查一步（`checkAfterLogin`）。宽松查询：平台不在了就是不查。
+    checksAfterLogin(providerId: OmniProviderId): boolean {
+        return Boolean(getOnlineMusicProvider(providerId)?.auth?.checkAfterLogin);
+    },
+
+    // 登录之后的那一步检查：回一份要用的人做完的配置清单，没有要做的回 null。抛错照常抛出，由账户 controller 记日志。
+    async checkAfterLogin(providerId: OmniProviderId, methodId: string | null): Promise<ProviderSetupView | null> {
+        return await requireOnlineMusicProvider(providerId).auth?.checkAfterLogin?.(methodId) ?? null;
+    },
+
+    // 平台有没有配置清单（账号那一幅、命令面板与播放失败的提示据它给「播放设置」的入口）。宽松查询。
+    hasSetup(providerId: OmniProviderId): boolean {
+        return Boolean(getOnlineMusicProvider(providerId)?.auth?.getSetup);
+    },
+
+    async getSetup(providerId: OmniProviderId): Promise<ProviderSetupView | null> {
+        return await requireOnlineMusicProvider(providerId).auth?.getSetup?.() ?? null;
+    },
+
+    async runSetupAction(providerId: OmniProviderId, stepId: string, actionId: string, value?: string): Promise<ProviderSetupView> {
+        const auth = requireOnlineMusicProvider(providerId).auth;
+        if (!auth?.runSetupAction) return unsupported(providerId, 'setup');
+        return auth.runSetupAction(stepId, actionId, value);
+    },
+
     // 只有明确声明了这一次登录有效期的 provider 才由前端计时；其余照旧只认后端报出的过期状态。
     getLoginTtlMs(providerId: OmniProviderId): number | null {
         const ttlMs = requireOnlineMusicProvider(providerId).auth?.getLoginTtlMs?.();
@@ -1104,6 +1130,12 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.play(song, startSec));
     },
 
+    // A window rebuild keeps the player sounding: the new window takes the running song over
+    // instead of starting it again. A provider without the call has nothing of its own to carry over.
+    adoptExternalPlayback(song: SongResult): void {
+        getOnlineMusicProviderForSong(song)?.externalPlayback?.adopt?.(song);
+    },
+
     isExternalPlaybackPrepared(song: SongResult): boolean {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isPrepared?.(song) === true;
     },
@@ -1130,6 +1162,13 @@ export const omni = {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
         await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
+    },
+
+    // A player without its own level control is left alone: the call is a no-op, not an error.
+    async setExternalPlaybackVolume(song: SongResult, volume: number): Promise<void> {
+        const provider = providerForSong(song);
+        if (!provider.externalPlayback?.setVolume) return;
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.setVolume!(volume));
     },
 
     async getExternalPlaybackStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus> {
