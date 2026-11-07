@@ -77,19 +77,30 @@ export const planMediaKeyAction = (action: TransportButtonAction, queuePlayedOut
     return action === 'previous' ? 'replay-last' : 'restart-list';
 };
 
+/** What the main process answers a wish with: whether it holds the keys now, and which ones it took. */
+export type MediaKeyHoldAnswer = {
+    enabled: boolean;
+    /** The accelerators the system let Folia have; empty when it refused all three. */
+    held: string[];
+};
+
 /**
  * The wish sent to the main process, and what became of it.
  *
- * Only an answer that came back is remembered: a send that failed leaves the wish outstanding, so the
- * next change of state sends it again instead of reading as already in force. `force` sends it even
- * when it looks like it is already there — the mount, whose main process may hold what a window
- * before this one left.
+ * Only an answer that came back, and that says the wish is now the state, is remembered: a send that
+ * failed leaves the wish outstanding, and so does one the main process could not carry out - the
+ * system refusing a key is answered as `enabled: false` (electron/mediaKeys.cjs), and reading that
+ * as done would leave Folia believing it holds keys another program took. Both send again on the next
+ * change of state instead. `force` sends it even when it looks like it is already there - the mount,
+ * whose main process may hold what a window before this one left. A wish is compared with a wish on
+ * its way before the last answer: one sent over an outstanding opposite one is the one that decides,
+ * and dropping it as "already there" would leave the main process where the older one left it.
  */
 export const createMediaKeyHoldSender = (
-    send: (wanted: boolean) => Promise<unknown>,
+    send: (wanted: boolean) => Promise<MediaKeyHoldAnswer | null | undefined>,
     onError: (wanted: boolean, error: unknown) => void,
 ) => {
-    /** What the main process last accepted: null until a send landed. */
+    /** What the main process last accepted: null until a send landed and said the wish is in force. */
     let held: boolean | null = null;
     /** The wish on its way, or null: a newer one is only sent over a settled one. */
     let inFlight: boolean | null = null;
@@ -100,10 +111,20 @@ export const createMediaKeyHoldSender = (
     };
     return {
         apply(wanted: boolean, force = false) {
-            if (!force && (wanted === held || wanted === inFlight)) return;
+            // Only with nothing on its way does a settled answer speak for the state: an outstanding
+            // wish is older than this one, whatever it is.
+            if (!force && (wanted === inFlight || (inFlight === null && wanted === held))) return;
             inFlight = wanted;
-            void send(wanted).then(() => {
-                if (settles(wanted)) held = wanted;
+            void send(wanted).then(answer => {
+                if (!settles(wanted)) return;
+                if (answer?.enabled === wanted) {
+                    held = wanted;
+                    return;
+                }
+                // Not in force: the next change of state asks again, as it does after a failed send.
+                console.warn(wanted
+                    ? '[MediaKeys] the system did not give Folia the media keys'
+                    : '[MediaKeys] the system still holds the media keys', answer);
             }, error => {
                 if (settles(wanted)) onError(wanted, error);
             });

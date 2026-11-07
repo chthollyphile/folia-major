@@ -181,8 +181,15 @@ describe('one press arriving twice', () => {
 });
 
 describe('the wish sent to the main process', () => {
-    const makeSender = () => {
-        const send = vi.fn(async (_wanted: boolean) => {});
+    // What the main process answers: by default it carries the wish out (that is the whole set of
+    // keys the system let Folia have).
+    const makeSender = (
+        answer: (wanted: boolean) => { enabled: boolean; held: string[] } = wanted => ({
+            enabled: wanted,
+            held: wanted ? ['MediaPlayPause'] : [],
+        }),
+    ) => {
+        const send = vi.fn(async (wanted: boolean) => answer(wanted));
         const onError = vi.fn();
         return { send, onError, sender: createMediaKeyHoldSender(send, onError) };
     };
@@ -210,6 +217,43 @@ describe('the wish sent to the main process', () => {
         // 上一次没有生效：下一次状态变化照样再发一次，而不是当作已经占了。
         sender.apply(true);
         expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not read a refusal as holding the keys (M2)', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // 系统把三个键都给了别的程序：主进程回答 enabled: false。
+        const { send, sender } = makeSender(() => ({ enabled: false, held: [] }));
+        sender.apply(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0][0])).toMatch(/^\[MediaKeys\]/);
+        // 没有记成"已经占着"：订阅事件再来一次，愿望就再发一次，而不是当它已经生效。
+        sender.apply(true);
+        expect(send.mock.calls.map(call => call[0])).toEqual([true, true]);
+        warn.mockRestore();
+    });
+
+    it('keeps what the main process says it now holds (M2)', async () => {
+        const { send, sender } = makeSender();
+        sender.apply(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        // 主进程说它占住了：同一个愿望不再重复发。
+        sender.apply(true);
+        expect(send.mock.calls.map(call => call[0])).toEqual([true]);
+    });
+
+    it('sends the wish that arrived over the opposite one on its way (L1)', async () => {
+        const { send, sender } = makeSender();
+        sender.apply(true);
+        await Promise.resolve();
+        await Promise.resolve();
+        // 上一次落地的是"占着"；"给回去"还在路上，接着又来了"占着"：它不能被当成已经占着而丢掉，
+        // 否则主进程会停在"给回去"。
+        sender.apply(false);
+        sender.apply(true);
+        expect(send.mock.calls.map(call => call[0])).toEqual([true, false, true]);
     });
 
     it('gives the keys back when the bridge leaves, whatever the session did', async () => {
