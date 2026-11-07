@@ -8,7 +8,7 @@ const { Readable } = require('stream');
 // 桌面端的「局域网中继」。
 //
 // 音响只能拉 http 地址，而渲染层的播放地址可能是：
-//   - 自定义协议（folia-fnmusic://、folia-ytm://、folia-spotify://），音响根本不认识；
+//   - 自定义协议（`folia-*` 这一类），音响根本不认识；
 //   - 需要 Referer / 特殊请求头的 CDN 直链，音响拉不到。
 // 所以投送期间由主进程起一个只服务本次会话的 HTTP 网关，把这几类地址统一转成
 // `http://<本机局域网 IPv4>:<port>/cast/<token>`，音响拉这个地址，主进程再去取源。
@@ -104,10 +104,10 @@ const writeResponse = async (res, response, isHead) => {
 /**
  * 起一个投送专用网关。
  *
- * resolveProtocol(url) 返回自定义协议的处理器（与 protocol.handle 注册的是同一个函数），
- * 找不到就返回 null：那种地址只能走 http(s) 直连。
+ * fetchCustom(url, init) 取自定义协议（`folia-*`）的源响应：主进程注入的实现走
+ * `net.fetch`，与已注册的 `protocol.handle` 是同一份处理逻辑。没注入就只认 http(s)。
  */
-const createGateway = ({ resolveProtocol = () => null } = {}) => {
+const createGateway = ({ fetchCustom = null } = {}) => {
     /** token → { url } */
     const sources = new Map();
     let server = null;
@@ -137,13 +137,11 @@ const createGateway = ({ resolveProtocol = () => null } = {}) => {
         const range = typeof req.headers.range === 'string' ? req.headers.range : undefined;
         const isHead = req.method === 'HEAD';
 
-        const protocolHandler = resolveProtocol(source.url);
-        if (protocolHandler) {
+        const isCustomScheme = !/^https?:/i.test(source.url);
+        if (isCustomScheme) {
             try {
-                const request = new Request(source.url, {
-                    headers: range ? { range } : {},
-                });
-                const response = await protocolHandler(request);
+                if (!fetchCustom) throw new Error('没有可用的自定义协议取流器');
+                const response = await fetchCustom(source.url, range ? { headers: { range } } : undefined);
                 await writeResponse(res, response, isHead);
             } catch (error) {
                 res.writeHead(502, { 'Content-Length': 0, Connection: 'close' });

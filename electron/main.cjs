@@ -443,26 +443,9 @@ const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
   },
 });
 // 局域网音响投送：SSDP 发现在 electron/lanCast/ssdp.cjs，SOAP 控制在 soap.cjs，
-// 回环地址与自定义协议由 gateway.cjs 转成音响自己能拉的 http 地址。
-// resolveProtocol 复用已注册的自定义协议处理器，投送期间才起网关，停止即关。
-const lanCastController = createLanCastController({
-  resolveProtocol: (url) => {
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol === `${FN_MUSIC_SCHEME}:`) {
-        return request => fnMusicApiBridge.handleProtocolRequest(request);
-      }
-      if (parsed.protocol === `${YTM_AUDIO_SCHEME}:`) {
-        return request => ytmApiBridge.handleAudioRequest(request);
-      }
-      if (parsed.protocol === `${SPOTIFY_AUDIO_SCHEME}:`) {
-        return request => spotifyApiBridge.handleAudioRequest(request);
-      }
-    } catch { /* 不是合法 URL：交给调用方当普通地址处理。 */ }
-    return null;
-  },
-  log: text => console.info(text),
-});
+// 回环地址与自定义协议由 gateway.cjs 转成音响自己能拉的 http 地址（自定义协议走
+// net.fetch，与已注册的 protocol.handle 同一份实现）。投送期间才起网关，停止即关。
+const lanCastController = createLanCastController({ log: text => console.info(text) });
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
 // leave the main process: the renderer only sees AI_API_KEYS_CONFIGURED (#586).

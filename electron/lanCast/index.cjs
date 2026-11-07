@@ -40,7 +40,7 @@ const isCustomScheme = value => {
 /**
  * 把渲染层的播放地址变成音响能真正拉到的地址。
  *
- * - 自定义协议（folia-fnmusic 等）：音响不认识，必须经网关转成 http。
+ * - 自定义协议（`folia-*` 等）：音响不认识，必须经网关转成 http。
  * - 本机回环地址（http://127.0.0.1:port/...）：音响会把 127.0.0.1 当成它自己，也必须经网关。
  * - 公网 http(s) 直链：直接交给音响（与安卓侧一致，少一跳中转）。
  */
@@ -66,8 +66,15 @@ const toCastableUrl = async (raw, gateway, preferHost) => {
     return `http://${lanIp}:${port}${path}`;
 };
 
-const createLanCastController = ({ resolveProtocol = () => null, log = () => {} } = {}) => {
-    const gateway = createGateway({ resolveProtocol });
+// 自定义协议的源响应交给 Electron 的 net.fetch：它和 protocol.handle 用同一份实现，
+// 所以新增一个平台的自定义协议不必在这里补一条分支。懒取 electron，纯 Node 下导入不炸。
+const fetchCustomProtocol = async (url, init) => {
+    const { net } = require('electron');
+    return net.fetch(url, init);
+};
+
+const createLanCastController = ({ fetchCustom = fetchCustomProtocol, log = () => {} } = {}) => {
+    const gateway = createGateway({ fetchCustom });
     let activeControlUrl = '';
 
     /** 扫一遍局域网，返回可投送的 MediaRenderer。 */
