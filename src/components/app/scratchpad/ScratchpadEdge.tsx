@@ -5,7 +5,7 @@ import ScratchpadShape from './ScratchpadShape';
 
 // src/components/app/scratchpad/ScratchpadEdge.tsx
 // 左缘的热区：常驻时只露一点点（ScratchpadHandleRest，样式在设置里选，小而半透明，不打扰页面）；指针进来或键盘聚焦时，
-// 完整的标签从左边滑出来——一条竖着的米白小信息条：红顶边、圆形记号、竖排「速记簿」、红色计数斜块、网点纹理、斜切的下端。
+// 完整的标签从左边滑出来——一条竖着的米白小信息条：红顶边、圆形记号、竖排「速记簿」、红色计数斜块、网点纹理，方正的长方形。
 // 位置不变（左上 72px 起，沿用「悬浮标签高度」）。收进新歌时常驻的那一点闪一下。展开与否全由 CSS 的 :hover / :focus-within 管。
 
 type ScratchpadEdgeProps = {

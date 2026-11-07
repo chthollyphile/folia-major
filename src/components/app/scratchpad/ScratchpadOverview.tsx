@@ -13,7 +13,7 @@ import { forgetPlays } from '../home/explore/recentPlays';
 import ScratchpadCard, { type CanvasEntry, type CardMotion, type CardVariant } from './ScratchpadCard';
 import ScratchpadShape from './ScratchpadShape';
 import { historyScopes, useScratchpadHistory } from './useScratchpadHistory';
-import { FILM_SPACING, NOTE_SPACING, PHOTO_SPACING, cardSize, overviewBottomInset, overviewRowTops, rectFromPoints, rectsIntersect, type Point, type Rect, type Spacing } from './canvasLayout';
+import { FILM_ROW_SPACING, NOTE_ROW_SPACING, PHOTO_ROW_SPACING, cardSize, overviewBottomInset, overviewRowTops, rectFromPoints, rectsIntersect, type Point, type Rect, type Spacing } from './canvasLayout';
 import { SCRATCHPAD_TABS, SCRATCHPAD_TAB_SHAPES } from './scratchpadLook';
 import { clientToLocal } from './scratchpadTilt';
 import type { ScratchpadPlayback, ScratchpadQueuePort } from './ScratchpadHost';
@@ -32,7 +32,7 @@ const CARDS_LEFT = 196;
 const CARDS_BELOW_BAND = 84;
 const RIGHT_ROOM = 184 + 170;
 
-const ROW_SPACING: Record<ScratchpadTab, Spacing> = { notes: NOTE_SPACING, history: PHOTO_SPACING, queue: FILM_SPACING };
+const ROW_SPACING: Record<ScratchpadTab, Spacing> = { notes: NOTE_ROW_SPACING, history: PHOTO_ROW_SPACING, queue: FILM_ROW_SPACING };
 const ROW_VARIANT: Record<ScratchpadTab, CardVariant> = { notes: 'note', history: 'photo', queue: 'film' };
 /** 每行最多几张。 */
 const ROW_CAP: Record<ScratchpadTab, number> = { notes: 10, history: 6, queue: 10 };
