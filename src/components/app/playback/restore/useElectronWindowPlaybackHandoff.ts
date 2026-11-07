@@ -27,11 +27,14 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { getExternalPosition, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
+import { adoptExternalPlayback, getExternalPosition, handOverExternalPlayback, isExternalPlaybackSounding, isExternalRoute, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
 // src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts
-// Captures and restores renderer playback state across Electron BrowserWindow rebuilds.
+// Captures and restores renderer playback state across Electron BrowserWindow rebuilds. The players
+// outside the renderer (mpv, a provider's own player) outlive the window: the snapshot records them
+// as they are, and the new window takes the running track over rather than starting it again.
 
 // Snapshots cross IPC, so the lyrics on screen arrive as a new object the new window's pipeline
 // cannot recognise and would transform and filter again. Hand off the lyrics as they were before
@@ -181,9 +184,10 @@ export function useElectronWindowPlaybackHandoff({
     const handoffQueueWritesRef = useRef<number | null>(null);
 
     const captureWindowPlaybackHandoff = useCallback((): WindowPlaybackHandoff => {
-        // The provider's player cannot be adopted by the next window: stop it sounding under a
-        // window that will show the song paused.
-        if (isExternalRoute()) pauseExternalPlayback();
+        // The provider's player keeps sounding through the rebuild (its process is the main
+        // process's, not this window's): the snapshot says playing, and the next window adopts it.
+        // This window stops following the player once the snapshot is taken: a track ending in the
+        // second or two before it is destroyed must not start the next song from here.
         const activePlayback = withUntransformedLyrics(buildPlaybackSnapshot({
             audioRef,
             audioSrc,
@@ -195,10 +199,9 @@ export function useElectronWindowPlaybackHandoff({
             isFmMode,
             lyrics,
             playQueue,
-            // Read after the external player was paused above: the handoff must not claim a
-            // playing song when nothing of the next window will sound it.
-            playerState: isExternalRoute() ? usePlaybackStore.getState().playerState : playerState,
+            playerState,
         }));
+        if (isExternalRoute()) handOverExternalPlayback();
         const mainPlayback = activePlaybackContext === 'main'
             ? activePlayback
             : withUntransformedLyrics(mainPlaybackSnapshotRef.current);
@@ -266,6 +269,7 @@ export function useElectronWindowPlaybackHandoff({
         // A song asked for in the new window while the handoff was being read stands.
         if (askedSongKeyRef.current !== null) {
             void releaseTrackLeftInMpv();
+            if (snapshot?.currentSong) releaseUnclaimedExternalTrack(snapshot.currentSong, 'another song was asked for');
             return;
         }
         const queueWritesAtStart = handoffQueueWritesRef.current ?? undefined;
@@ -358,6 +362,24 @@ export function useElectronWindowPlaybackHandoff({
         const stillThatSong = stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong);
         if (restored === 'failed' && stillThatSong && fallbackAudioSrc) {
             setAudioSrc(fallbackAudioSrc);
+        }
+        // A provider's own player kept sounding the song through the rebuild: take it over as it
+        // stands. With another track or none there, the player is stopped (as mpv's track is
+        // released above when nothing restores it), the song stays shown paused, as the restore left
+        // it, and the play path starts it when the listener asks.
+        if (!omni.canPlayExternally(snapshot.currentSong)) return;
+        if (restored !== 'restored' || !stillThatSong) {
+            releaseUnclaimedExternalTrack(snapshot.currentSong, `restore ${restored}`);
+            return;
+        }
+        // Nothing of this window starts the player by itself; the adoption says whether it plays.
+        shouldAutoPlayRef.current = false;
+        const adopted = await adoptExternalPlayback(snapshot.currentSong);
+        if (adopted) return;
+        releaseUnclaimedExternalTrack(snapshot.currentSong, 'not taken over');
+        if (stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong)
+            && usePlaybackStore.getState().playerState === PlayerState.PLAYING) {
+            setPlayerState(PlayerState.PAUSED);
         }
     }, [
         audioQuality,

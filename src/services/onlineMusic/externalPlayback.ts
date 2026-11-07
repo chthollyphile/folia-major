@@ -55,6 +55,8 @@ type ExternalSession = {
     ended: boolean;
     /** Set when the player moved to a track this app did not ask for. */
     foreign: boolean;
+    /** The player now belongs to the window replacing this one: answers are no longer acted on. */
+    handedOver: boolean;
     preparedQueueKey: string;
     positionRevision: number;
     seekPending: boolean;
@@ -210,7 +212,7 @@ const markEnded = (positionSec: number) => {
 };
 
 const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number) => {
-    if (!session) return;
+    if (!session || session.handedOver) return;
     const current = session;
     const positionSec = status.positionMs / 1000;
     // A late completion belonging to the previous song cannot fill or finish the new session.
@@ -302,7 +304,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
 
 async function poll(): Promise<void> {
     const current = session;
-    if (!current || pollRunning || !isExternalRoute()) return;
+    if (!current || current.handedOver || pollRunning || !isExternalRoute()) return;
     if (current.seekPending) { schedulePoll(STATUS_INTERVAL_MS); return; }
     const positionRevision = current.positionRevision;
     pollRunning = true;
@@ -395,7 +397,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -439,6 +441,94 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
 }
 
 /**
+ * Takes over a track the player is already sounding (a window rebuild hands the song over; the
+ * player outlives the window). The player is asked once: with `song` loaded, the route becomes the
+ * external one, the clock and the polling attach to it and it is announced as it stands, playing or
+ * paused. With another track or none, nothing is taken and the caller shows the song as it would
+ * after a restart: paused. Never starts the player.
+ */
+export async function adoptExternalPlayback(song: SongResult): Promise<boolean> {
+    installExternalPlayback();
+    if (!omni.canPlayExternally(song)) return false;
+    stopTimer();
+    const attempt = ++attemptCounter;
+    const songKey = getPlaybackSongKey(song);
+    const durationSec = validDurationSec(song.durationMs) ?? null;
+    const clock = createExternalClock();
+    clock.setDuration(durationSec);
+    clock.sync({ positionSec: 0, paused: true });
+    session = {
+        song, songKey, attempt, clock, durationSec,
+        announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+    };
+    failureNoted = false;
+    externalMediaShim.beginTrack(songKey);
+    withoutRouteGuard(() => {
+        setAudioSrc(null);
+        setPlaybackRoute('external');
+    });
+    const sampledAt = performance.now();
+    let status: ProviderExternalPlaybackStatus | null = null;
+    try {
+        status = await omni.getExternalPlaybackStatus(song);
+    } catch (error) {
+        console.warn('[ExternalPlayback] the player could not be asked what it has', error);
+    }
+    if (session?.attempt !== attempt) return false;
+    if (!status?.mediaId || !omni.isExternalPlaybackStatusForSong(song, status)) {
+        // Not the song: the route goes back to the app's engine. What the player has (another track
+        // the old window's queue moved it to, or nothing) is nobody's now; the caller stops it.
+        session = null;
+        externalMediaShim.reset();
+        withoutRouteGuard(() => setPlaybackRoute('web'));
+        emit({ type: 'status' });
+        console.info('[ExternalPlayback] the player has no track to take over', { songKey, hasTrack: Boolean(status?.mediaId) });
+        return false;
+    }
+    omni.adoptExternalPlayback(song);
+    // The level it sounds at was set by the window that is gone; said again so it is known here.
+    volumeEpoch += 1;
+    appliedVolume = null;
+    volumeFailureNoted = false;
+    setExternalPlaybackVolume();
+    applyStatus(status, sampledAt);
+    announceExternalPlayback();
+    if (session?.attempt !== attempt || !isExternalRoute()) return true;
+    // Announcing shows a playing player; a paused one is said here rather than on the next answer.
+    if (!session.playing && !session.ended) markPaused(session.clock.read());
+    schedulePoll(STATUS_INTERVAL_MS);
+    console.info('[ExternalPlayback] took the running player over', { songKey, playing: status.isPlaying });
+    return true;
+}
+
+/**
+ * This window is about to be replaced and has handed its playback over (the snapshot is taken):
+ * the player sounds on for the next window to adopt. Polling stops and the answers already in
+ * flight are not acted on, so a track ending or changing meanwhile moves nothing here. The player
+ * itself is not touched.
+ */
+export function handOverExternalPlayback(): void {
+    const current = session;
+    if (!current) return;
+    stopTimer();
+    current.handedOver = true;
+    console.info('[ExternalPlayback] handed the player over to the next window', { songKey: current.songKey });
+}
+
+/**
+ * A handed-over song this window did not take over (another song was asked for first, its restore
+ * failed, or the player had something else): the player is nobody's, so it is stopped. Nothing
+ * happens while an external session is live here: the player is that session's then.
+ */
+export function releaseUnclaimedExternalTrack(song: SongResult, reason: string): void {
+    if (isExternalRoute() || !omni.canPlayExternally(song)) return;
+    console.info('[ExternalPlayback] stopping the player nobody took over', { reason, songKey: getPlaybackSongKey(song) });
+    void omni.pauseExternalPlayback(song).catch(error => {
+        console.warn('[ExternalPlayback] the player nobody took over could not be paused', error);
+    });
+}
+
+/**
  * The app has put the song on screen: from now on the player drives the transport, the shim and
  * the media observers. Called by the play path that began this track.
  */
@@ -473,6 +563,8 @@ export function stopExternalPlayback(reason: string): void {
     if (!current) return;
     emit({ type: 'status' });
     console.info('[ExternalPlayback] left the external player', { reason, songKey: current.songKey });
+    // Handed over: the player is the next window's, and this window's leaving must not stop it.
+    if (current.handedOver) return;
     void omni.pauseExternalPlayback(current.song).catch(error => {
         console.warn('[ExternalPlayback] the player could not be paused as the route is left', error);
     });

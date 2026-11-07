@@ -286,6 +286,19 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 // queue's own keys are the facts worth keeping, the song's words never are.
                 console.info('[AppleMusic] play started', result);
             },
+            // The previous window's attempt died with it; a fresh one lets prepareNext and the
+            // native-advance adoption in getStatus work for the song the companion is still playing.
+            adopt(song) {
+                const stationId = appleMusicLiveStationId(song);
+                handoffId = null;
+                if (stationId) {
+                    playback = null;
+                    liveStationId = stationId;
+                    return;
+                }
+                liveStationId = null;
+                playback = { catalogId: appleMusicCatalogSongId(song), hasPlayed: true, durationMs: 0, positionMs: 0, nextIds: [], nativeNextId: '', queueRevision: 0 };
+            },
             async pause() {
                 await requestAppleMusic('pause');
             },
