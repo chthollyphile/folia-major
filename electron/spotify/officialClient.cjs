@@ -735,6 +735,9 @@ function createSpotifyOfficialClient({
   // The port found for the Spotify this run steers, when a search that found nothing may run again,
   // and how many such searches in a row have found nothing.
   let foundPort = null;
+  // Where that port was found: the file CEF writes into its profile, the machine's listeners, or the
+  // port older runs used. Kept so a log line can say which one answered.
+  let foundPortFrom = '';
   let nextScanAt = 0;
   let scanFailures = 0;
   // How many of the searches a session restore may make have been made in this run, and when the last
@@ -786,7 +789,8 @@ function createSpotifyOfficialClient({
   // before `nextScanAt` has passed, so a computer whose Spotify is closed is not swept per poll.
   // `deadline` caps every wait of the search: the quit's close passes it so that its taskkill is
   // issued inside the quit's gate.
-  const findPort = async ({ again = false, deadline = 0 } = {}) => {
+  // `quiet` leaves the line about the port found to the caller, which words it its own way.
+  const findPort = async ({ again = false, deadline = 0, quiet = false } = {}) => {
     if (requestedPort) return foundPort ?? requestedPort;
     if (foundPort && !again) return foundPort;
     if (!again && Date.now() < nextScanAt) return null;
@@ -794,8 +798,10 @@ function createSpotifyOfficialClient({
     const fromProfile = portFromProfile(env);
     if (fromProfile && await spotifyAnswersOnPort(fromProfile, capWait(PORT_VERIFY_LIMIT_MS))) {
       foundPort = fromProfile;
+      foundPortFrom = 'the port file';
       scanFailures = 0;
       nextScanAt = 0;
+      if (!quiet) log(`[SpotifyClient] the DevTools port of Spotify is ${foundPort}, from ${foundPortFrom}`);
       return foundPort;
     }
     const candidates = (await listeningLoopbackPorts(capWait(TOOL_LIMIT_MS))).filter(candidate => candidate !== fromProfile);
@@ -803,9 +809,13 @@ function createSpotifyOfficialClient({
       await spotifyAnswersOnPort(candidate, capWait(PORT_PROBE_LIMIT_MS)) ? candidate : null
     )));
     foundPort = answers.find(candidate => candidate !== null) ?? null;
-    if (!foundPort && await spotifyAnswersOnPort(CDP_PORT, capWait(PORT_VERIFY_LIMIT_MS))) foundPort = CDP_PORT;
+    if (foundPort) foundPortFrom = 'the listening ports';
+    if (!foundPort && await spotifyAnswersOnPort(CDP_PORT, capWait(PORT_VERIFY_LIMIT_MS))) {
+      foundPort = CDP_PORT;
+      foundPortFrom = 'the usual port';
+    }
     if (foundPort) {
-      log(`[SpotifyClient] Spotify's DevTools port is ${foundPort}`);
+      if (!quiet) log(`[SpotifyClient] the DevTools port of Spotify is ${foundPort}, from ${foundPortFrom}`);
       scanFailures = 0;
       nextScanAt = 0;
     } else {
@@ -1216,9 +1226,9 @@ function createSpotifyOfficialClient({
       if (searching) {
         statusPortSearches += 1;
         statusPortSearchedAt = Date.now();
-        const port = await findPort({ again: true });
+        const port = await findPort({ again: true, quiet: true });
         const which = 'search ' + statusPortSearches + ' of ' + STATUS_PORT_SEARCHES;
-        if (port) log('[SpotifyClient] the DevTools port of Spotify is ' + port + ' (' + which + ')');
+        if (port) log('[SpotifyClient] the DevTools port of Spotify is ' + port + ', from ' + foundPortFrom + ' (' + which + ')');
         else log('[SpotifyClient] this status read found no DevTools port for Spotify (' + which + ')');
       }
       return readStatus();

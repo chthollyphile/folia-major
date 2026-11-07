@@ -178,6 +178,10 @@ const adoptRunningTrack = async (
         // Paused there: shown where the player has it, and from there the press of play starts it.
         // A player nobody started here is not taken over, so no intent to play is left to start it.
         dropPlayIntent(options.shouldAutoPlayRef);
+        // The progress bar reads this track's own length: the duration still held is the remembered
+        // song's, which is another one. The player's own answer comes first.
+        const durationMs = running.durationMs > 0 ? running.durationMs : track.durationMs;
+        if (durationMs > 0) setDuration(durationMs / 1000);
         showExternalPosition(track, running.positionMs, () => !stillCurrent());
     }
     const queue = queueWithRunningTrack(options.queueBase(), track, song);
@@ -201,8 +205,10 @@ const adoptRunningTrack = async (
  * dropped, because what sounds there is the player's and nothing here starts it. A player on another
  * track, named by the id it carries, has that track taken over as well, so the app follows what
  * sounds instead of showing a song nobody plays. Anything else (a pause, an advertisement, an answer
- * that names no track at all) only shows where it is, as a player Folia never started is nobody's to
- * steer. Neither path starts, resumes or pauses it.
+ * that names no track at all) only shows where it is.
+ * Nothing here steers the player: it starts, resumes and pauses nothing, and it leaves the rest of its
+ * state as it is. Once a track is taken over, the volume and the songs that follow it are Folia's
+ * (docs/spotify-official-client.md).
  */
 const resumeRunningExternalPlayback = async (
     song: SongResult,

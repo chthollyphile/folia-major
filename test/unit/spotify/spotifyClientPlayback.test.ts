@@ -45,6 +45,14 @@ const duetOf = (letter: string): SongResult => normalizeSpotifySong({
     duration: { totalMilliseconds: 200000 },
 } as never);
 
+/** A song of the given title and artists, whose artist names the media session may show a part of. */
+const named = (letter: string, name: string, artists: string[]): SongResult => normalizeSpotifySong({
+    __typename: 'Track', uri: `spotify:track:${id(letter)}`, name,
+    artists: { items: artists.map((artist, index) => ({ uri: `spotify:artist:${id(String.fromCharCode(114 + index))}`, profile: { name: artist } })) },
+    albumOfTrack: { uri: `spotify:album:${id('m')}`, name: 'Album', coverArt: { sources: [] } },
+    duration: { totalMilliseconds: 200000 },
+} as never);
+
 const playing = (mediaId: string, extra: Record<string, unknown> = {}) => ({
     id: mediaId, ad: false, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 200000, ...extra,
 });
@@ -375,6 +383,15 @@ describe('the fallback answer', () => {
         expect(status.mediaId).toBe(id('a'));
     });
 
+    it('reads a title that only gained a "(with …)" credit as another song', async () => {
+        const a = named('a', 'Song', ['Artist']);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+
+        const status = statusOfClient(degraded({ title: 'Song (With You)', artist: 'Artist' }));
+        expect(status.ended).toBe(true);
+    });
+
     it('keeps the session when the title it shows is the same song', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
@@ -564,6 +581,33 @@ describe('a song restored while the app is still on it', () => {
         await expect(spotifyClientPlayback.runningPositionMs!(duetOf('a'))).resolves.toBe(75_400);
     });
 
+    it('answers nothing where the session shows only part of an artist name the song has', async () => {
+        await mode();
+        const reported: [string, string][] = [['DJ Snake', 'DJ'], ['Earth, Wind & Fire', 'Fire'], ['AC/DC', 'DC']];
+        for (const [artist, shown] of reported) {
+            request.mockResolvedValueOnce(degraded({ title: 'Song a', artist: shown, positionMs: 75_400 }));
+
+            await expect(spotifyClientPlayback.runningPositionMs!(named('a', 'Song a', [artist]))).resolves.toBeNull();
+        }
+    });
+
+    it('answers its position where the session names one artist of a duet, or both of them', async () => {
+        await mode();
+        const helpless = named('a', 'Helpless', ['Phillipa Soo', 'Original Broadway Cast of Hamilton']);
+        request.mockResolvedValueOnce(degraded({ title: 'Helpless', artist: 'Phillipa Soo', positionMs: 75_400 }));
+        await expect(spotifyClientPlayback.runningPositionMs!(helpless)).resolves.toBe(75_400);
+
+        request.mockResolvedValueOnce(degraded({ title: 'Helpless', artist: 'Phillipa Soo, Lin-Manuel Miranda', positionMs: 75_400 }));
+        await expect(spotifyClientPlayback.runningPositionMs!(helpless)).resolves.toBe(75_400);
+    });
+
+    it('answers nothing where the session adds a "(with …)" credit to the title', async () => {
+        await mode();
+        request.mockResolvedValueOnce(degraded({ title: 'Song (With You)', artist: 'Artist', positionMs: 75_400 }));
+
+        await expect(spotifyClientPlayback.runningPositionMs!(named('a', 'Song', ['Artist']))).resolves.toBeNull();
+    });
+
     it('names the two sides in the log of a position it refuses', async () => {
         const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
         await mode();
@@ -669,6 +713,27 @@ describe('the state a session restore reads', () => {
 
         expect(status?.mediaId).toBe('');
         expect(status?.degraded).toBe(true);
+    });
+
+    it('answers at once where the coarse channel already names the song, and asks no second time', async () => {
+        reads(() => ({ ...degraded(), title: 'Song a', artist: 'Artist' }));
+        vi.useFakeTimers();
+        try {
+            let answered = false;
+            const answer = spotifyClientPlayback.runningStatus!(song).then(status => {
+                answered = true;
+                return status;
+            });
+            // No few seconds waited: the answer already names the song.
+            await vi.advanceTimersByTimeAsync(0);
+            expect(answered).toBe(true);
+
+            const status = await answer;
+            expect(status?.mediaId).toBe(id('a'));
+            expect(request.mock.calls.filter(call => call[0] === 'client_status_found')).toHaveLength(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('asks again a few seconds later where the first read named no track', async () => {

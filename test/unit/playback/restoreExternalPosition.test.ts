@@ -452,6 +452,16 @@ describe('a session restored onto a player that is on another track', () => {
         expect(seekMock).not.toHaveBeenCalled();
     });
 
+    it('shows a paused track with its own length, not the length remembered of another song', async () => {
+        const longer: SongResult = { ...otherSong, durationMs: 300_000 };
+        getSongDetailMock.mockImplementation(async () => longer);
+        runningStatusMock.mockImplementation(async () => ({ ...status('bodian-other', false), durationMs: 0 }));
+
+        await restore({ queue });
+
+        expect(setDurationMock).toHaveBeenCalledWith(300);
+    });
+
     it('shows the track it took over with its own theme, and keeps a late one out', async () => {
         runningStatusMock.mockImplementation(async () => status('bodian-other', false));
 

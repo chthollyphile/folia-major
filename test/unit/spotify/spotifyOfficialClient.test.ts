@@ -236,8 +236,9 @@ const makeClient = (options: ClientOptions = {}) => {
     }
     const env = root ? { LOCALAPPDATA: root } : {};
     const warn = vi.fn();
+    const log = vi.fn();
     const client = createSpotifyOfficialClient({
-        platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log: () => {}, warn,
+        platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log, warn,
         port: options.port ?? 9283,
     });
     // The script a PowerShell was started with: -EncodedCommand is UTF-16LE in base64.
@@ -250,7 +251,7 @@ const makeClient = (options: ClientOptions = {}) => {
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
-    return { client, runFile, spawnProcess, spawned, procs, fetch, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
+    return { client, runFile, spawnProcess, spawned, procs, fetch, log, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
 };
 
 beforeEach(() => {
@@ -1184,6 +1185,19 @@ describe('the status read a session restore asks for', () => {
         await app.client.statusWithPortSearch();
         await app.client.statusWithPortSearch();
         expect(netstats(app)).toBe(1);
+        await app.client.close();
+    });
+
+    it('says in one line where the port it found came from, and which search it was', async () => {
+        playingPage();
+        const app = makeClient({
+            running: true, port: 0, activePort: 54124, portAnswers: true, appDirectory: makeLauncherDirectory(),
+        });
+
+        await app.client.statusWithPortSearch();
+
+        const lines = app.log.mock.calls.map(call => String(call[0])).filter(line => line.includes('the DevTools port'));
+        expect(lines).toEqual(['[SpotifyClient] the DevTools port of Spotify is 54124, from the port file (search 1 of 2)']);
         await app.client.close();
     });
 

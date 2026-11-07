@@ -84,15 +84,17 @@ const songIdOf = (song: SongResult): string | null => {
     try { return requireSpotifySong(song); } catch { return null; }
 };
 
-/** The song's artist names, however the provider keeps them. */
-const artistNamesOf = (song: SongResult): string => {
+/** The song's artist names, one entry each, as the provider lists them. */
+const artistNameListOf = (song: SongResult): string[] => {
     const artists = (song as { artists?: unknown }).artists;
-    if (!Array.isArray(artists)) return '';
+    if (!Array.isArray(artists)) return [];
     return artists
         .map(artist => (typeof artist === 'string' ? artist : String((artist as { name?: unknown })?.name ?? '')))
-        .filter(Boolean)
-        .join(', ');
+        .filter(Boolean);
 };
+
+/** The song's artist names, however the provider keeps them. */
+const artistNamesOf = (song: SongResult): string => artistNameListOf(song).join(', ');
 
 const ended = (current: Attempt): ProviderExternalPlaybackStatus => ({
     mediaId: current.id, isPlaying: false, ended: true,
@@ -102,8 +104,8 @@ const ended = (current: Attempt): ProviderExternalPlaybackStatus => ({
 // NFKC folds the full-width letters and brackets a Chinese layout types into their plain forms.
 const plainName = (text: unknown): string => String(text ?? '').normalize('NFKC').trim().toLocaleLowerCase();
 
-/** A title without the trailing credit "(feat. …)", "(ft. …)" or "(with …)", which the two sides need not write alike. */
-const plainTitle = (text: unknown): string => plainName(text).replace(/\s*[([]\s*(?:feat|ft|with)\b[^)\]]*[)\]]\s*$/i, '');
+/** A title without the trailing credit "(feat. …)", "(ft. …)" or "(featuring …)", which the two sides need not write alike. A "(with …)" stays: it is part of the title, not a credit. */
+const plainTitle = (text: unknown): string => plainName(text).replace(/\s*[([]\s*(?:featuring|feat\.?|ft\.?)\b[^)\]]*[)\]]\s*$/i, '');
 
 /** Whether one of the artist names the media session shows is the song's own (it joins them its way). */
 const mentionsArtist = (wanted: string, shown: string): boolean => {
@@ -127,11 +129,22 @@ const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boo
 };
 
 /**
+ * Every whole artist name the media session's one string can hold: the string itself, and the names
+ * it joins with a comma, a slash or an ampersand, or writes a collaboration with as "A x B". A name
+ * is never cut: "DJ" is not a part of "DJ Snake".
+ */
+const shownArtistNames = (shown: string): string[] => {
+    const whole = plainName(shown);
+    const joined = shown.split(/[,/&]|\bfeat\.?\b|\bft\.?\b|\bx\b/i).map(part => plainName(part)).filter(Boolean);
+    return whole ? [whole, ...joined] : joined;
+};
+
+/**
  * Whether the title and the artist the media session shows are this song's. Both are needed: that
  * answer names no track id. The session reports only the leading artist of a track - measured, a
  * song of two artists shows one - so one of the song's own names being one of the names shown is
- * enough, read the same way `mentionsArtist` reads it. A song whose title or artists are not
- * known here is never taken for it.
+ * enough. Names are compared whole, never as a part of each other. A song whose title or artists
+ * are not known here is never taken for it.
  */
 const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean => {
     const title = String(data.title ?? '').trim();
@@ -139,8 +152,11 @@ const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean
     const name = String(song.name ?? '').trim();
     if (!title || !shownArtist || !name) return false;
     if (plainTitle(title) !== plainTitle(name)) return false;
-    return artistNamesOf(song).split(/[,;&/]/).map(part => part.trim()).filter(Boolean)
-        .some(artist => mentionsArtist(artist, shownArtist));
+    const shown = shownArtistNames(shownArtist);
+    return artistNameListOf(song)
+        .map(artist => plainName(artist))
+        .filter(Boolean)
+        .some(artist => shown.includes(artist));
 };
 
 /** The one line of a read refused: what the app shows, and what Folia holds, so a pasted log says why. */
@@ -413,11 +429,12 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     async runningStatus(song) {
         try {
             let data = await requestSpotify<SpotifyWireClientStatus>('client_status_found');
-            // The media session answered instead of the app: nothing named the track. A run that
-            // starts both apps asks this before the app has opened its port, so the question is put
-            // once more a few seconds later (the desktop side searches at most twice in a run, that
-            // far apart). Where the second read fails, the first answer stands.
-            if (data.fallback === true) {
+            // The media session answered instead of the app: it named no track id. Where its title and
+            // artist are already this song's there is nothing to wait for. Otherwise a run that starts
+            // both apps asks this before the app has opened its port, so the question is put once more a
+            // few seconds later (the desktop side searches at most twice in a run, that far apart).
+            // Where the second read fails, the first answer stands.
+            if (data.fallback === true && !namesThatSong(song, data)) {
                 data = await askAgainWhereItsPortIs(data);
             }
             const status = statusOfClient(data);
