@@ -9,6 +9,10 @@ import { canAnalyseTracks } from '../../../../services/automix/transitionStrateg
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { useAutomixSettingsStore } from '../../../../stores/useAutomixSettingsStore';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
+import { RNG_KINDS, STRATEGIES, useShuffleSettingsStore } from '../../../../stores/useShuffleSettingsStore';
+import { useShuffleStatusStore } from '../../../../stores/useShuffleStatusStore';
+import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
+import { rngLabelKey, strategyLabelKey } from '../../../../utils/shuffle/labels';
 import { runsOnWindows } from '../../../../utils/platform';
 import { Button, Chips, Group, Reveal, Row, Segmented, Slider, Status, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import AudioOutputDeviceRow from './AudioOutputDeviceRow';
@@ -23,6 +27,7 @@ import { useSettingsPage } from './settingsPageContext';
 const TRANSITION: SettingsGroupDef = { id: 'transitionSettings', titleKey: 'options.transitionSettings' };
 const SOUND: SettingsGroupDef = { id: 'audioOutputSettings', titleKey: 'options.settingsHeadingSound' };
 const BEHAVIOR: SettingsGroupDef = { id: 'queueSettings', titleKey: 'options.settingsHeadingPlaybackBehavior' };
+const SHUFFLE: SettingsGroupDef = { id: 'shuffleSettings', titleKey: 'shuffle.sectionTitle' };
 
 const O = {
     transition: option(TRANSITION, 'transitionEnable', 'options.transitionEnable'),
@@ -40,6 +45,10 @@ const O = {
     autoSkipUnplayable: option(BEHAVIOR, 'autoSkipUnplayable', 'options.autoSkipUnplayable'),
     preventSleep: option(BEHAVIOR, 'preventDisplaySleepDuringPlayback', 'options.preventDisplaySleepDuringPlayback', { electronOnly: true }),
     voiceInputPause: option(BEHAVIOR, 'voiceInputPause', 'options.voiceInputPause', { electronOnly: true, available: () => runsOnWindows() }),
+    shuffleStrategy: option(SHUFFLE, 'shuffleStrategy', 'shuffle.optionStrategy'),
+    shuffleRng: option(SHUFFLE, 'shuffleRng', 'shuffle.optionRng'),
+    shuffleToast: option(SHUFFLE, 'shuffleToast', 'shuffle.optionToast'),
+    shuffleStatus: option(SHUFFLE, 'shuffleStatus', 'shuffle.statusTitle'),
 };
 
 export const OPTIONS: SettingsOptionDef[] = [...HIFI_OPTIONS, ...Object.values(O)];
@@ -85,6 +94,15 @@ const PlaybackPage: React.FC = () => {
     })));
     const preventSleep = useDesktopSettingsStore(state => state.preventDisplaySleepDuringPlayback);
     const setPreventSleep = useDesktopSettingsStore(state => state.handleTogglePreventDisplaySleepDuringPlayback);
+    const shuffle = useShuffleSettingsStore(useShallow(state => ({
+        strategy: state.shuffleStrategy,
+        rng: state.shuffleRng,
+        toast: state.shuffleToast,
+        setStrategy: state.handleSetShuffleStrategy,
+        setRng: state.handleSetShuffleRng,
+        setToast: state.handleSetShuffleToast,
+    })));
+    const shuffleStatus = useShuffleStatusStore(state => state.lastShuffle);
 
     // Asked on every render, not kept: whether the models are on disk can change while the page is
     // open, and the subscription below only makes the page render again when it does.
@@ -98,6 +116,14 @@ const PlaybackPage: React.FC = () => {
         : !analysable || capabilities.full
             ? t('options.transitionAutomixDesc')
             : t(capabilities.desktop ? 'options.transitionEngineNeedsModels' : 'options.transitionEngineLiteDesc');
+
+    const copySeed = (seed: string) => {
+        void navigator.clipboard.writeText(seed).then(() => {
+            setStatusMessage({ type: 'info', text: t('shuffle.seedCopied') });
+        }).catch(() => {});
+    };
+
+    const shuffleSeedHex = shuffleStatus?.seedHex;
 
     // Switching a drawing on plays it once at once; otherwise it would wait for the next long blend.
     const animationChip = (def: SettingsOptionDef, renderer: TransitionRenderer, checked: boolean, set: (enabled: boolean) => void) => ({
@@ -238,6 +264,36 @@ const PlaybackPage: React.FC = () => {
                         <Toggle checked={voiceInputPause.enabled} onChange={voiceInputPause.onToggle} />
                     </Row>
                 )}
+            </Group>
+            <Group def={SHUFFLE}>
+                <Row option={O.shuffleStrategy} hint={t('shuffle.optionStrategyDesc')}>
+                    <Segmented
+                        value={shuffle.strategy}
+                        options={STRATEGIES.map(s => ({ value: s, label: t(strategyLabelKey(s)) }))}
+                        onChange={value => shuffle.setStrategy(value)}
+                    />
+                </Row>
+                <Row option={O.shuffleRng} hint={t('shuffle.optionRngDesc')}>
+                    <Segmented
+                        value={shuffle.rng}
+                        options={RNG_KINDS.map(k => ({ value: k, label: t(rngLabelKey(k)) }))}
+                        onChange={value => shuffle.setRng(value)}
+                    />
+                </Row>
+                <Row option={O.shuffleToast} hint={t('shuffle.optionToastDesc')}>
+                    <Toggle checked={shuffle.toast} onChange={shuffle.setToast} />
+                </Row>
+                <Row option={O.shuffleStatus} note={shuffleStatus ? (
+                    <>
+                        {t(strategyLabelKey(shuffleStatus.strategy))} · {t(rngLabelKey(shuffleStatus.rng))}
+                        {shuffleStatus.seedHex ? (' · seed ' + shuffleStatus.seedHex) : (' · ' + t('shuffle.noSeedReplay'))}
+                        {` · fresh ${shuffleStatus.stats.fresh} / deferred ${shuffleStatus.stats.deferred}`}
+                    </>
+                ) : t('shuffle.statusNone')}>
+                    {shuffleSeedHex !== undefined && (
+                        <Button onClick={() => copySeed(shuffleSeedHex)}>{t('shuffle.copySeed')}</Button>
+                    )}
+                </Row>
             </Group>
         </>
     );

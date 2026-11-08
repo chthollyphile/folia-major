@@ -2,6 +2,8 @@ import React from 'react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { ListEnd, ListMusic, ListPlus, NotebookPen, PanelsTopLeft, Shuffle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useShuffleSettingsStore } from '../../stores/useShuffleSettingsStore';
+import { rngLabelKey, strategyLabelKey } from '../../utils/shuffle/labels';
 import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
 import { Button } from '../modal/settings/kit';
@@ -146,6 +148,8 @@ const QueueTab: React.FC<QueueTabProps> = ({
 }) => {
     const { t } = useTranslation();
     const reduced = useKitReducedMotion();
+    const shuffleStrategy = useShuffleSettingsStore(state => state.shuffleStrategy);
+    const shuffleRng = useShuffleSettingsStore(state => state.shuffleRng);
     const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
     // As tall as its rows up to the most it shows; never under two rows, so in a very low window
     // the tab scrolls instead.
@@ -266,7 +270,7 @@ const QueueTab: React.FC<QueueTabProps> = ({
                         </PanelIconButton>
                     )}
                     {onShuffle && (
-                        <PanelIconButton size="s" label={t('queue.shuffle')} onClick={onShuffle}>
+                        <PanelIconButton size="s" label={t('shuffle.tooltip', { strategy: t(strategyLabelKey(shuffleStrategy)), rng: t(rngLabelKey(shuffleRng)) })} onClick={onShuffle}>
                             <Shuffle size={15} />
                         </PanelIconButton>
                     )}

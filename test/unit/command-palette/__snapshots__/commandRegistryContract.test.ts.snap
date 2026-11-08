@@ -73,6 +73,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "playback-volume-up",
   "playback-volume-down",
   "playback-shuffle",
+  "shuffle-strategy",
   "playback-clear-queue",
   "playback-undo-queue-replace",
   "playback-auto-match-best-lyric",

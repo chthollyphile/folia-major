@@ -10,6 +10,10 @@ import { recommendationPreferencesCommand } from './recommendationPreferencesCom
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
 import { createToggleCommand, createReplayGainCommand, createSoundPresetCommand, defineCommand } from '../commandFactories';
 import { canShuffleQueue } from '../../../utils/playbackNeighbors';
+import { STRATEGIES, useShuffleSettingsStore } from '../../../stores/useShuffleSettingsStore';
+import { setStatusMessage } from '../../../stores/useStatusMessageStore';
+import { strategyLabelKey } from '../../../utils/shuffle/labels';
+import i18n from '../../../i18n/config';
 import { undoFoliumQueueReplace, useFoliumQueueUndoStore } from '../../../mods/runtime/queue/queueReplaceUndo';
 
 // src/components/command-palette/commands/playbackCommands.ts
@@ -185,6 +189,21 @@ export const playbackCommands: CommandPaletteCommand[] = [
         isAvailable: context => (context ? canShuffleQueue(context.playback.queue.length, context.playback.isFmMode, false) : true),
         capsuleAction: true,
     }),
+    {
+        id: 'shuffle-strategy',
+        group: 'playback',
+        title: 'Cycle shuffle strategy',
+        description: 'Switch to the next shuffle strategy and name it in a notice',
+        keywords: ['shuffle strategy', 'shuffle mode', '洗牌策略', '切换洗牌', '洗牌方式'],
+        execute: () => {
+            const store = useShuffleSettingsStore.getState();
+            const currentIndex = STRATEGIES.indexOf(store.shuffleStrategy);
+            const next = STRATEGIES[(currentIndex + 1) % STRATEGIES.length];
+            store.handleSetShuffleStrategy(next);
+            setStatusMessage({ type: 'info', text: i18n.t(strategyLabelKey(next)) });
+            return true;
+        },
+    },
     {
         id: 'playback-clear-queue',
         isAvailable: context => (context ? !context.playback.isFmMode && context.playback.queue.length > 0 : true),
