@@ -13,7 +13,7 @@ import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
 import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
-import { buildPendoloDialProjection, buildPendoloHubViewProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
+import { buildPendoloDialProjection, buildPendoloHubViewProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform, resolvePendoloSpaceCssTransform } from './pendoloDialProjection';
 import { PENDOLO_BALANCE_ICON_HEIGHT, PENDOLO_LYRIC_LAYER_HEIGHT } from './pendoloParallax';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
@@ -433,6 +433,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     // 镜像时轨道反着转，弧线在屏幕上才和原版对称地走
     const railRotationDeg = useTransform(wheelRotationDeg, value => value * sideSign);
     const textRotationCorrectionDeg = useTransform(railRotationDeg, value => -value * 0.65);
+    // 轮心视角下句子立起来：抵掉轨道的转角，字的横向朝相机的右手（布局里是 (0, sideSign)）
+    const standUpRotationDeg = useTransform(railRotationDeg, value => sideSign * 90 - value);
     const gearRotationAngleRad = useTransform(tickSpring, value => value * angleStepRad);
 
     // Pendolo lays subtitles out inside its own clockwork layout, not the shared bottom subtitle. 'both' stacks
@@ -532,17 +534,20 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     // 分层视差：摆轮图标和歌词各自浮在表盘平面上方一段高度，按各自那一层的投影画；
     // 只在倾斜时有高度（parallaxScalePx 为 0 时两层都是表盘平面本身）。
     const parallaxScalePx = tiltProjection.flat ? 0 : (pendoloTuning.parallaxDepth ?? 1) * baseRadius;
-    const resolveLayerStyle = (heightRatio: number, zIndex: number): React.CSSProperties | undefined => (
-        tiltProjection.flat
-            ? undefined
-            : {
-                transform: resolvePendoloPlaneCssTransform(buildPendoloLayerProjection(tiltProjection, heightRatio * parallaxScalePx)),
-                transformOrigin: `${centerX}px ${centerY}px`,
-                zIndex,
-            }
-    );
+    const resolveLayerStyle = (heightRatio: number, zIndex: number, standUp = false): React.CSSProperties | undefined => {
+        if (tiltProjection.flat) return undefined;
+        const layer = buildPendoloLayerProjection(tiltProjection, heightRatio * parallaxScalePx);
+        return {
+            transform: standUp ? resolvePendoloSpaceCssTransform(layer) : resolvePendoloPlaneCssTransform(layer),
+            transformOrigin: `${centerX}px ${centerY}px`,
+            transformStyle: standUp ? 'preserve-3d' : undefined,
+            zIndex,
+        };
+    };
     const iconLayerStyle = resolveLayerStyle(PENDOLO_BALANCE_ICON_HEIGHT, 1);
-    const lyricLayerStyle = resolveLayerStyle(PENDOLO_LYRIC_LAYER_HEIGHT, 2);
+    // 轮心视角下歌词立起来：图层带上高度方向（z），轨道层也保留 3D，句子各自绕底边转起来
+    const standLyrics = hubView;
+    const lyricLayerStyle = resolveLayerStyle(PENDOLO_LYRIC_LAYER_HEIGHT, 2, standLyrics);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
     const textOrigin = mirrored ? 'right center' : 'left center';
@@ -657,6 +662,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             rotate: railRotationDeg,
                             transformOrigin: `${centerX}px ${centerY}px`,
                             WebkitTransform: 'translateZ(0)',
+                            transformStyle: standLyrics ? 'preserve-3d' : undefined,
                         }}
                     >
                         {lineItems.map((item) => {
@@ -693,6 +699,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     waveStrength={beatFx.waveStrength}
                                     waveX={beatFx.waveX}
                                     waveY={beatFx.waveY}
+                                    standUpRotationDeg={standLyrics ? standUpRotationDeg : undefined}
                                     fontFamily={fontFamily}
                                     fontWeight={fontWeight}
                                     canSeek={Boolean(onLyricLineSeek)}
@@ -703,12 +710,12 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                 >
                                     <motion.div
                                         className="inline-block"
-                                        style={{ rotate: textRotationCorrectionDeg, transformOrigin: textOrigin, WebkitTransform: 'translateZ(0)' }}
+                                        style={{ rotate: standLyrics ? 0 : textRotationCorrectionDeg, transformOrigin: textOrigin, WebkitTransform: 'translateZ(0)' }}
                                     >
                                     <div
                                         className="relative inline-block"
                                         style={{
-                                            transform: `rotate(${sideSign * item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
+                                            transform: `rotate(${standLyrics ? 0 : sideSign * item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
                                             transformOrigin: textOrigin,
                                             textAlign: mirrored ? 'right' : undefined,
                                             isolation: 'isolate',

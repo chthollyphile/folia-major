@@ -194,6 +194,18 @@ export const invertPendoloProjectionMatrix = (m: Float32Array): Float32Array => 
 };
 
 /**
+ * 轮心视角下歌词立起来用的 CSS matrix3d：和 resolvePendoloPlaneCssTransform 一样把平面点投到屏幕，再把
+ * z（离表盘平面的高度，朝观看者为正）接到抬高方向上，子元素用 preserve-3d 立起来时也按同一个相机投影。
+ * 只对 invFocal 为 0 的投影（轮心视角）成立：那时高度是纯线性的一项，不再按 1 - h/f 缩。
+ * 输出的 z 恒为 0：浏览器只靠 x、y、w 画，不靠 z 裁剪。
+ */
+export const resolvePendoloSpaceCssTransform = (projection: PendoloDialProjection): string => {
+    const [a, b, c, d, e, f, g, h, i] = projection.matrix;
+    const [lx, ly, lw] = projection.lift;
+    return `matrix3d(${a}, ${d}, 0, ${g}, ${b}, ${e}, 0, ${h}, ${lx}, ${ly}, 0, ${lw}, ${c}, ${f}, 0, ${i})`;
+};
+
+/**
  * 同一个投影写成 CSS matrix3d（transform-origin 要放在轮心）：平面点 (x, y, 0, 1) 映成
  * (M·[x,y,1] 的 x', y', 0, w)，浏览器做透视除法，和着色器里的结果一致。
  */

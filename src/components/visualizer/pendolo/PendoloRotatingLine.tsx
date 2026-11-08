@@ -25,6 +25,11 @@ interface PendoloRotatingLineProps {
     /** Where the lens travels out from, screen CSS px from the hub (set under drum hits; else 0). */
     waveX?: MotionValue<number>;
     waveY?: MotionValue<number>;
+    /**
+     * 轮心视角：句子绕自己的底边立起来，垂直于表盘、正对相机。值是句子在平面内要转的角度（抵掉轨道的转角，
+     * 让字的横向朝相机的右手）；没有时句子平躺在表盘上，和原来一样。
+     */
+    standUpRotationDeg?: MotionValue<number>;
     fontFamily: string;
     fontWeight: number;
     canSeek: boolean;
@@ -48,6 +53,7 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
     waveStrength,
     waveX,
     waveY,
+    standUpRotationDeg,
     fontFamily,
     fontWeight,
     canSeek,
@@ -90,6 +96,8 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
                 transformOrigin: mirrored ? 'right center' : 'left center',
                 x,
                 y,
+                // 先绕 X 轴转 -90°（字的上方朝离开表盘的方向），再在平面内转向相机
+                ...(standUpRotationDeg ? { rotate: standUpRotationDeg, rotateX: -90 } : null),
                 opacity,
                 fontFamily,
                 fontWeight,

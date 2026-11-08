@@ -6,6 +6,7 @@ import {
     buildPendoloTiltProjection,
     invertPendoloProjectionMatrix,
     projectPendoloDialPoint,
+    resolvePendoloSpaceCssTransform,
 } from '@/components/visualizer/pendolo/pendoloDialProjection';
 import { calculatePendoloWheelLayout } from '@/components/visualizer/pendolo/pendoloGeometry';
 import { DEFAULT_PENDOLO_TUNING, type Line } from '@/types';
@@ -65,6 +66,17 @@ describe('pendolo hub view projection', () => {
         const viaLayer = raw(layer.matrix, 700, 0);
         expect(viaLayer.x).toBeCloseTo(raised.x);
         expect(viaLayer.y).toBeCloseTo(raised.y);
+    });
+
+    it('carries the height axis in the CSS matrix so stood-up lyrics share the camera', () => {
+        const projection = view(1);
+        const values = resolvePendoloSpaceCssTransform(projection)
+            .slice('matrix3d('.length, -1).split(',').map(Number);
+        // 第三列（z 的系数）就是抬高方向
+        expect(values[8]).toBeCloseTo(projection.lift[0]);
+        expect(values[9]).toBeCloseTo(projection.lift[1]);
+        expect(values[11]).toBeCloseTo(projection.lift[2]);
+        expect(values[15]).toBeCloseTo(projection.matrix[8]);
     });
 
     it('mirrors to look the other way when the pointer points left', () => {
