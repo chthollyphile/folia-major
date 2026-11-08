@@ -58,14 +58,14 @@ describe('lint:fix-style picks the files to fix', () => {
     it('fixes every style rule that has no old debt in the file, the same rules CI reports', () => {
         const suppressions = {
             'src/App.tsx': { '@stylistic/indent': { count: 120 } },
-            'src/stores/x.ts': { '@typescript-eslint/no-explicit-any': { count: 2 } },
+            'src/services/x.ts': { '@typescript-eslint/no-explicit-any': { count: 2 } },
             'src/legacy.ts': allStyle,
         };
-        const changed = ['src/App.tsx', 'src/lan/Cast.tsx', 'src/stores/x.ts', 'README.md', 'src/lan/Cast.tsx', 'electron/lan.cjs', 'src/legacy.ts']
+        const changed = ['src/App.tsx', 'src/lan/Cast.tsx', 'src/services/x.ts', 'README.md', 'src/lan/Cast.tsx', 'electron/lan.cjs', 'src/legacy.ts']
             .map(file => ({ file }));
         expect(pickStyleFixTargets(changed, suppressions)).toEqual({
             groups: [
-                { files: ['electron/lan.cjs', 'src/lan/Cast.tsx', 'src/stores/x.ts'], keep: [] },
+                { files: ['electron/lan.cjs', 'src/lan/Cast.tsx', 'src/services/x.ts'], keep: [] },
                 // 只记了缩进旧账：引号、换行照修，缩进不动
                 { files: ['src/App.tsx'], keep: ['@stylistic/indent'] },
             ],
