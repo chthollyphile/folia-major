@@ -16,7 +16,7 @@ import { readSuppressions, spawnEslint } from './run.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
-const UPSTREAM_REPO = /[/:]chthollyphile\/folia-major(\.git)?$/;
+const UPSTREAM_REPO = /[/:]chthollyphile\/folia-major(\.git)?\/?$/i;
 const FALLBACK_BASES = ['upstream/main', 'origin/main', 'main'];
 /** 风格类规则（D430–D432）：能自动修的只有它们。 */
 const STYLE_RULES = Object.keys(ESLINT_RULE_CODES).filter(rule => /^D43[0-2]$/.test(ESLINT_RULE_CODES[rule]));
@@ -83,13 +83,21 @@ const ensureRuntime = () => {
     return result.status === 0;
 };
 
+/** `--base <ref>` 或 `--base=<ref>`；没给是 undefined，给了但没值是空字符串。 */
+const baseArgument = args => {
+    const joined = args.find(arg => arg.startsWith('--base='));
+    if (joined !== undefined) return joined.slice('--base='.length);
+    const index = args.indexOf('--base');
+    return index >= 0 ? (args[index + 1] ?? '') : undefined;
+};
+
 function main(args) {
-    const baseIndex = args.indexOf('--base');
-    if (baseIndex >= 0 && !args[baseIndex + 1]) {
+    const given = baseArgument(args);
+    if (given === '' || given?.startsWith('-')) {
         console.error('[Dedicatus] --base 后面要跟一个分支或提交，例如 --base upstream/main。');
         return 2;
     }
-    const base = baseIndex >= 0 ? args[baseIndex + 1] : findBase();
+    const base = given ?? findBase();
     if (!base || !refExists(base)) {
         console.error(base
             ? `[Dedicatus] 找不到 ${base}：先 git fetch。`
@@ -114,6 +122,7 @@ function main(args) {
         return 2;
     }
     const before = new Map(targets.map(file => [file, fs.readFileSync(path.join(root, file), 'utf8')]));
+    const fixedSoFar = () => targets.filter(file => fs.readFileSync(path.join(root, file), 'utf8') !== before.get(file));
     let remaining = 0;
     for (const { files, keep } of groups) {
         // 记着旧账的风格规则这一组不修；结果用 JSON 收起来不打印：剩下的不是排版问题，混在这里看不清
@@ -123,11 +132,13 @@ function main(args) {
         ], { capture: true });
         if (result.status === 2 || !result.stdout) {
             console.error(result.stderr || '[Dedicatus] ESLint 没跑起来。');
+            const fixed = fixedSoFar();
+            if (fixed.length > 0) console.error(`[Dedicatus] 出错之前已经修好了这些文件的排版：${fixed.join('、')}`);
             return 2;
         }
         remaining += JSON.parse(result.stdout).reduce((sum, entry) => sum + entry.errorCount + entry.warningCount, 0);
     }
-    const fixed = targets.filter(file => fs.readFileSync(path.join(root, file), 'utf8') !== before.get(file));
+    const fixed = fixedSoFar();
     console.log(fixed.length > 0
         ? `[Dedicatus] 修好了 ${fixed.length} 个文件的排版（只动了空白和标点）：${fixed.join('、')}`
         : '[Dedicatus] 排版本来就没问题，什么都没改。');

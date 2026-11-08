@@ -70,6 +70,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 - D608 只管“系统加密可不可用”的判断在哪里做，不管“app ready 之前不解密”。
 - D611 是按词匹配的 diff 检查，只看新增的行。
 - 挪动判定逐行比对：挪的时候每隔一行就改一行、或者只挪了一行长代码，这几行不算挪过来的，上面的旧违规会当成新写的报，`--adopt-moved` 也转不过去。
+- `lint:fix-style` 靠 git 认改名：没 `git add` 的 `mv`、或者改动大到 git 认不出是改名的，新文件按全新的算，整个文件会被重排（CI 那边同样认不出）。先 `git mv` 再改。
 
 ESLint 装在隔离环境里，钉住 TypeScript 6.0。原因是 typescript-eslint 要用 TypeScript 的编译器 API，而项目用的 TypeScript 7 没有提供。等 typescript-eslint 正式支持 TypeScript 7.1，就撤掉这个隔离环境。
 

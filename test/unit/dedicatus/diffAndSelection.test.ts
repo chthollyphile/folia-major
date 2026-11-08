@@ -153,6 +153,26 @@ describe('dedicatus diff parsing', () => {
         expect(movedLines(both).get('src/b/part.ts')).toEqual(new Set([1, 2, 3]));
     });
 
+    it('does not count two neighbouring lines that were removed from two different places', () => {
+        const scattered = parseDiff(source(
+            'diff --git a/src/a.ts b/src/a.ts',
+            '--- a/src/a.ts',
+            '+++ b/src/a.ts',
+            '@@ -10,1 +10,0 @@',
+            '-        startTime: line.startTime,',
+            '@@ -80,1 +79,0 @@',
+            '-        fullText: line.text,',
+            'diff --git a/src/lines.ts b/src/lines.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/lines.ts',
+            '@@ -0,0 +1,2 @@',
+            '+        startTime: line.startTime,',
+            '+        fullText: line.text,',
+        ));
+        expect(movedLines(scattered).get('src/lines.ts')).toBeUndefined();
+    });
+
     it('counts a small two-line function moved into a new file, and asks to adopt its old debt', () => {
         const split = parseDiff(source(
             'diff --git a/src/big.ts b/src/big.ts',

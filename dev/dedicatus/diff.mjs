@@ -68,7 +68,8 @@ export function changedLines(files) {
 const MOVE_MIN_LENGTH = 12;
 /**
  * 一段挪过来的代码至少要有这么多行配得上。单独一行配上多半是巧合（`<AnimatePresence>`、`} catch (error) {`），
- * 不算挪动：否则全新的文件会被要求跑 --adopt-moved，落在这些行上的问题也会漏掉。
+ * 不算挪动：否则全新的文件会被要求跑 --adopt-moved，落在这些行上的问题也会漏掉。只有两行的一段，还要求删掉的那边
+ * 也是同一个文件里隔得一样远的两行（挪了一个两行的小函数），两行各自在别处被删过的巧合不算。
  * 代价：挪的时候每隔一行就改一行、或者只挪了一行长代码的，不算挪动，那几行上的旧违规要当成新写的处理。
  */
 const MOVE_MIN_RUN = 2;
@@ -82,12 +83,20 @@ const MOVE_MIN_RUN = 2;
  */
 export function movedLines(files) {
     const removedCounts = new Map();
+    /** 删掉的行在哪儿：两行的一段要核对删掉的那边是不是也挨在一起。 */
+    const removedAt = new Map();
     for (const file of files) {
         for (const entry of file.removed) {
             const text = entry.text.trim();
-            if (text.length >= MOVE_MIN_LENGTH) removedCounts.set(text, (removedCounts.get(text) ?? 0) + 1);
+            if (text.length < MOVE_MIN_LENGTH) continue;
+            removedCounts.set(text, (removedCounts.get(text) ?? 0) + 1);
+            if (!removedAt.has(text)) removedAt.set(text, []);
+            removedAt.get(text).push({ file: file.oldPath ?? file.newPath, line: entry.oldLine });
         }
     }
+    /** 两行在删掉的那边也是同一个文件里、隔得一样远的两行。 */
+    const removedTogether = (first, second) => (removedAt.get(first.text) ?? []).some(a => (removedAt.get(second.text) ?? [])
+        .some(b => a.file === b.file && b.line - a.line === second.line - first.line));
     const moved = new Map();
     for (const file of files) {
         if (!file.newPath) continue;
@@ -96,7 +105,7 @@ export function movedLines(files) {
         let run = [];
         let previousLine = null;
         const closeRun = () => {
-            if (run.length >= MOVE_MIN_RUN) {
+            if (run.length > MOVE_MIN_RUN || (run.length === MOVE_MIN_RUN && removedTogether(run[0], run[1]))) {
                 if (!moved.has(file.newPath)) moved.set(file.newPath, new Set());
                 for (const { line } of run) moved.get(file.newPath).add(line);
             } else {

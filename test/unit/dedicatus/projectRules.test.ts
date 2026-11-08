@@ -308,6 +308,9 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); const url = await fetchUrl(song); switch (stillWanted()) { case false: return; default: setAudioSrc(url); } }' },
             // 令牌交给了被等待的函数（过期时回空值），之后判了它的结果（#1109 的 adoptRunningTrack）
             { filename: playbackFile, options: tokenOptions, code: 'async function adopt(song, stillWanted) { const track = await resolveRunningTrack(song, () => stillWanted()); if (!track) return false; makeSongCurrent(track); }' },
+            // #1109 的真实写法：交的是只引用了 askedSongKeyRef 的复核函数；令牌放在对象里交；写入在 if (结果) 的成立分支里
+            { filename: playbackFile, options: tokenOptions, code: 'function restore(song) { const stillWanted = startRestore(); const overtaken = () => askedSongKeyRef.current !== song.key; const adopt = async () => { const track = await resolveRunningTrack(song, () => !overtaken()); if (!track) return false; makeSongCurrent(track); }; }' },
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song, stillWanted) { const url = await resolveUrl(song, { isCurrent: stillWanted }); if (url) setAudioSrc(url); }' },
         ],
         invalid: [
             // #796 / #1016 那类：等待之后不问令牌就写

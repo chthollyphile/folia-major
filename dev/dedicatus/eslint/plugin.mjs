@@ -664,16 +664,19 @@ const staleAfterAwait = {
             return parent?.type === 'VariableDeclarator' && parent.init === awaitNode && parent.id.type === 'Identifier' ? parent.id.name : null;
         };
 
-        /** 一处读在 `if (…) return / throw` 这种守卫的条件里。写入实参里的三元、`&&`、`??` 不算：过期时写进去的是空值。 */
-        const inExitGuard = node => {
+        /**
+         * 一处读所在的 if（读在它的条件里）；不在任何 if 的条件里返回 null。写入实参里的三元、`&&`、`??` 不算：
+         * 过期时写进去的是空值。
+         */
+        const ifTestOf = node => {
             let child = node;
             for (const ancestor of sourceCode.getAncestors(node).reverse()) {
-                if (isFunction(ancestor)) return false;
-                if (ancestor.type === 'IfStatement' && ancestor.test === child) return alwaysExits(ancestor.consequent);
-                if (/Statement$|Declaration$/.test(ancestor.type)) return false;
+                if (isFunction(ancestor)) return null;
+                if (ancestor.type === 'IfStatement' && ancestor.test === child) return ancestor;
+                if (/Statement$|Declaration$/.test(ancestor.type)) return null;
                 child = ancestor;
             }
-            return false;
+            return null;
         };
 
         /** 一个函数体里的事件：await 结束、读令牌（token：是不是令牌；check：算不算复核）、写状态。不进嵌套函数。 */
@@ -687,8 +690,10 @@ const staleAfterAwait = {
                 if (node.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)) && !isNameOnly(node)) {
                     events.push({ kind: 'read', at: node.range[0], node, token: tokens.has(node.name), check: inCondition(node) });
                 }
-                if (node.type === 'Identifier' && delegatedResults.has(node.name) && !isNameOnly(node) && inExitGuard(node)) {
-                    events.push({ kind: 'read', at: node.range[0], node, token: false, check: true, forAwait: delegatedResults.get(node.name) });
+                const guardIf = node.type === 'Identifier' && delegatedResults.has(node.name) && !isNameOnly(node) ? ifTestOf(node) : null;
+                if (guardIf) {
+                    // `if (!结果) return;` 护住后面所有写入；`if (结果) 写入` 只护住成立分支里的写入
+                    events.push({ kind: 'read', at: node.range[0], node, token: false, check: true, forAwait: delegatedResults.get(node.name), guardIf, exits: alwaysExits(guardIf.consequent) });
                 }
                 if (node.type === 'CallExpression') {
                     const name = calledName(node);
@@ -736,7 +741,8 @@ const staleAfterAwait = {
             const checks = events.filter(event => event.kind === 'read' && event.check);
             for (const write of events.filter(event => event.kind === 'write')) {
                 if (delegates(write.node)) continue;
-                const protects = read => !skippedByThrow(read.node, write.node);
+                const protects = read => !skippedByThrow(read.node, write.node)
+                    && (!read.guardIf || read.exits || within(write.node, read.guardIf.consequent));
                 // 判被等待函数的结果只复核产生它的那一次 await
                 const answers = (read, wait) => !read.forAwait || read.forAwait === wait.node;
                 const stale = awaits.some(wait => {
