@@ -41,23 +41,8 @@ export const PENDOLO_BALANCE_ICON_HEIGHT = 0.22;
 /** 随拍的叠加层（刻度点亮、宝石闪光、火花）：贴着刻度。 */
 export const PENDOLO_BEAT_OVERLAY_HEIGHT = 0.02;
 
-/** 没登记落脚层的齿轮的厚度（轮盘半径的比例）：低处线比高处线低这么多，不低于表盘平面。 */
+/** 齿轮的厚度（轮盘半径的比例）：低处线比高处线低这么多，不低于表盘平面。 */
 export const PENDOLO_GEAR_THICKNESS = 0.05;
-
-/**
- * 齿轮立在哪一层上（轮盘半径的比例）：低处线直接落到这一层的表面，齿轮看起来是立在下层上的厚块，
- * 层和层之间连着。大轮上面的齿轮都落在大轮顶面（main-esc 的高度）；没登记的按齿轮厚度往下。
- */
-const MAIN_WHEEL_TOP = 0.05;
-const PART_SUPPORTS: Array<[prefix: string, support: number]> = [
-    ['main-esc', DIAL_FACE],
-    ['main-sun', MAIN_WHEEL_TOP],
-    ['idler', MAIN_WHEEL_TOP],
-    ['second-', MAIN_WHEEL_TOP],
-    ['planet-', MAIN_WHEEL_TOP],
-    ['trans-', MAIN_WHEEL_TOP],
-    ['balance-', MAIN_WHEEL_TOP],
-];
 
 /** 部件 key 加上它，就是这个齿轮的低处线（齿轮底面那圈齿形）。 */
 export const PENDOLO_PART_BASE_SUFFIX = '#base';
@@ -65,10 +50,7 @@ export const PENDOLO_PART_BASE_SUFFIX = '#base';
 /** 一个网格部件的高度（轮盘半径的比例）；没登记的部件留在表盘平面上。 */
 export const resolvePendoloPartHeight = (partKey: string): number => {
     if (partKey.endsWith(PENDOLO_PART_BASE_SUFFIX)) {
-        const key = partKey.slice(0, -PENDOLO_PART_BASE_SUFFIX.length);
-        const top = resolvePendoloPartHeight(key);
-        const support = PART_SUPPORTS.find(([prefix]) => key.startsWith(prefix))?.[1];
-        if (support !== undefined && support < top) return support;
+        const top = resolvePendoloPartHeight(partKey.slice(0, -PENDOLO_PART_BASE_SUFFIX.length));
         return Math.max(0, top - PENDOLO_GEAR_THICKNESS);
     }
     for (const [prefix, height] of PART_HEIGHTS) {
