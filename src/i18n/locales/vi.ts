@@ -3547,6 +3547,7 @@ export default {
     "gpuPreferenceActive": "Đang dùng",
     "visualizerFrameRateValue": "Giới hạn",
     "lyricRenderScale": "Độ phân giải khung lời bài hát",
+    "importFieldLyricRenderQuality": "Độ phân giải và khử răng cưa khung lời bài hát",
     "lyricRenderScaleDesc": "Các kiểu lời bài hát vẽ bằng canvas hoặc WebGL (Machi, Hanabi, Lumiere, Nebbia và các kiểu khác) hiển thị theo bội số này; 1× là độ sắc nét thường ngày của từng kiểu, trên 1× là siêu lấy mẫu cho cạnh mịn hơn nhưng tốn GPU hơn. Mọi kiểu đều theo cài đặt này trừ khi cài đặt riêng của kiểu đó chọn giá trị khác.",
     "lyricAntialias": "Khử răng cưa khung lời bài hát",
     "lyricAntialiasDesc": "Tự động giữ mặc định của từng kiểu; Bật làm mịn các cạnh hình học (đường nét, thẻ, mảng màu) đổi lại tốn bộ nhớ video và một chút tốc độ khung hình. Mọi kiểu mặc định theo cài đặt này.",

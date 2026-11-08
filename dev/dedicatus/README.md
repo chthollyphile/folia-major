@@ -46,7 +46,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | D443、D444 | 界面文字尽量走 i18n（D443 是 warning，不阻断；品牌名、产品名、单位在 `eslint.config.mjs` 的 allow 里，网址和“主机:端口”不算）；错误原文不直接进界面 | `ui-literal-text`、`error-text-in-ui` |
 | D445、D508、D606、D607、D608、D609 | 只在登记的地方：按词分割器、localStorage、`(window as any).electron`、同步 IPC、系统加密判断、外链 | `restrictedApis.mjs`（含 #594 的明文例外） |
 | D507 | 所有持久化的键登记在案，不改名不删 | `storageKeys.mjs`（契约测试） |
-| D509 | 每种歌曲资源缓存都有分表和清理分类 | 契约测试（`theme` 暂列待决定） |
+| D509 | 每种歌曲资源缓存都有分表和清理分类 | 契约测试 |
 | D510 | 以主进程为准的桌面偏好只经它的 store 写 | 契约测试 |
 | D511 | 外观类 store 的每个持久化键写明去向：进配置码的哪个字段，或者不进和原因；配置码编码的字段和导入认的字段一致 | `appearanceDestinations.mjs`（契约测试） |
 | D512 | 外观短键只加不改 | `appearanceShortKeys.mjs`（契约测试） |
@@ -57,7 +57,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | D611 | 不读别的应用的凭据 | `checks/foreignCredentials.mjs`（diff 检查） |
 | D122 | 新平台在各处登记齐 | 契约测试 |
 
-契约测试在 `test/unit/dedicatus/contracts/`，跑在 `npm run test:unit` 里，所以它们一开始就是阻断的（不受 report 模式影响）；都是按现状写的，现在全部通过。`appearanceDestinations.mjs` 里标着“待复核”的条目是 2026-11-08 的现状，不是确认过合规；IPC 通道 2026-11-08 复核过（见 `ipcChannels.mjs` 文件头）。
+契约测试在 `test/unit/dedicatus/contracts/`，跑在 `npm run test:unit` 里，所以它们一开始就是阻断的（不受 report 模式影响）；都是按现状写的，现在全部通过。登记表 2026-11-08 都复核过：IPC 通道见 `ipcChannels.mjs` 文件头，外观设置的去向见 `appearanceDestinations.mjs`（用户定配置码只加 OBS 页面看得到的）。
 
 已知查不到的：
 
