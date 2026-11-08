@@ -7252,6 +7252,7 @@ registerLoginBackendIpc({
   getDefaultSession: () => session.defaultSession,
   neteaseBackend,
   qqBackend,
+  isTrustedSender: isFirstPartyWindowContents,
 });
 
 // Both channels reach the embedded KuGou API. `kugou-api-request` forwards the renderer's operation
