@@ -329,8 +329,8 @@ export const buildPendoloClockworkCacheKey = (input: PendoloClockworkFrameInput)
         input.showGearDecor,
         input.primaryTextColor,
         input.accentTextColor,
-        // 视差开着时多一圈顶圈（bezel-top）
-        input.parallaxScalePx ? 'bezel' : '',
+        // 视差开着时多出齿轮的低处线和侧壁
+        input.parallaxScalePx ? 'parallax' : '',
     ].join('|')
 );
 
@@ -492,14 +492,6 @@ export const buildPendoloClockworkCachedScene = (
     pushPart('main-jewel', () => {
         appendJewelLocal(mesh, 4.5, 2.5, palette.jewelStrokeColor, palette.jewelFillColor, 1.2, 0.8);
     }, mainOrigin, fixedRotation(0));
-
-    // 分层视差：最外圈表盘再画一圈在高处，和表盘平面上那圈一高一低。只在倾斜且有视差时生成：
-    // 平放时两圈重合会叠成一条更亮的线，画面就和原来不一样了。
-    if (input.parallaxScalePx) {
-        pushPart('bezel-top', () => {
-            mesh.appendCircleStroke(0, 0, baseRadius * 1.4, 1, parseRgba(palette.primaryAlpha15));
-        }, mainOrigin, fixedRotation(0));
-    }
 
     pushPart('main-ticks', () => {
         const outerTickR = baseRadius * 1.15;

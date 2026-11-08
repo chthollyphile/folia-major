@@ -21,7 +21,7 @@ import { buildPendoloSubtitleFontSpec, resolvePendoloSubtitleTracks, sumPendoloS
 import { resolvePendoloChorusPresentation, resolvePendoloMotionProfile } from './pendoloMotionProfile';
 import { resolvePendoloPointWave } from './pendoloBeatFx';
 import { resolvePendoloFallbackAnchorIndex } from './pendoloTimeline';
-import PendoloRotatingLine from './PendoloRotatingLine';
+import PendoloRotatingLine, { type PendoloStandUp } from './PendoloRotatingLine';
 import { resolvePendoloWaveReach, usePendoloBeatFx } from './usePendoloBeatFx';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { smartBeatActive } from '../../../services/beatFx/beatEffects';
@@ -54,6 +54,18 @@ const clampScrollSteps = (steps: number) => {
  * Renders lyrics arranged in an adjustable circular arc on the left side of the screen.
  * Advance of song lines triggers a springy mechanical escapement ratchet step and subtle balance wheel motion.
  */
+/**
+ * 轮心视角下非焦点句的不透明度倍数：立起来以后离焦点句越近越容易和它叠在一起，所以越近越淡。
+ * 紧挨着的前后句最淡（0.18），往外每一句加一档，到第 4 句回到原来的不透明度。
+ */
+const PENDOLO_STAND_SIDE_LINE_ALPHA_MIN = 0.18;
+const PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE = 4;
+const resolvePendoloStandSideLineAlpha = (distance: number) => Math.min(
+    1,
+    PENDOLO_STAND_SIDE_LINE_ALPHA_MIN
+        + ((1 - PENDOLO_STAND_SIDE_LINE_ALPHA_MIN) * (distance - 1)) / (PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE - 1),
+);
+
 const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const {
         currentTime,
@@ -547,10 +559,17 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const iconLayerStyle = resolveLayerStyle(PENDOLO_BALANCE_ICON_HEIGHT, 1);
     // 轮心视角下歌词立起来：图层带上高度方向（z），轨道层也保留 3D，句子各自绕底边转起来
     const standLyrics = hubView;
+    // 字面正对相机：上方取相机的上方 (s·H, 0, D')，绕底边转 -atan2(D', H)；相机越高、字越往后仰
+    const standUpTiltDeg = (-Math.atan2(lyricRingRadius + hubCameraBackPx, hubCameraHeightPx) * 180) / Math.PI;
+    const lyricStandUp = useMemo<PendoloStandUp | undefined>(
+        () => (standLyrics ? { rotationDeg: standUpRotationDeg, tiltDeg: standUpTiltDeg } : undefined),
+        [standLyrics, standUpRotationDeg, standUpTiltDeg],
+    );
     const lyricLayerStyle = resolveLayerStyle(PENDOLO_LYRIC_LAYER_HEIGHT, 2, standLyrics);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
-    const textOrigin = mirrored ? 'right center' : 'left center';
+    // 立起来时句子以中点对着刻度针，放大也从中点放，不然放大的那部分全堆到一侧
+    const textOrigin = standLyrics ? 'center center' : mirrored ? 'right center' : 'left center';
     const balanceLensInputs = [beatFx.waveRadius, beatFx.waveBand, beatFx.waveStrength, beatFx.waveX, beatFx.waveY];
     const balanceIconX = useTransform(balanceLensInputs, ([radius, band, strength, x, y]: number[]) => (
         resolvePendoloPointWave(balanceGearX - centerX - x, balanceGearY - centerY - y, radius, band, strength).x
@@ -689,7 +708,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     mirrored={mirrored}
                                     railWidth={viewportSize.width}
                                     baseAngleDeg={item.angleDeg}
-                                    baseOpacity={item.alpha}
+                                    // 轮心视角下突出焦点句：离它越近的句子越淡
+                                    baseOpacity={standLyrics && !isFocal
+                                        ? item.alpha * resolvePendoloStandSideLineAlpha(item.distanceFromActive)
+                                        : item.alpha}
                                     left={item.x}
                                     top={item.y}
                                     hubX={centerX}
@@ -699,7 +721,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     waveStrength={beatFx.waveStrength}
                                     waveX={beatFx.waveX}
                                     waveY={beatFx.waveY}
-                                    standUpRotationDeg={standLyrics ? standUpRotationDeg : undefined}
+                                    standUp={lyricStandUp}
                                     fontFamily={fontFamily}
                                     fontWeight={fontWeight}
                                     canSeek={Boolean(onLyricLineSeek)}
@@ -747,7 +769,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                 }}
                                             />
                                         )}
-                                    <div style={{ transform: 'translateY(-50%)' }}>
+                                    <div style={{ transform: standLyrics ? 'translateY(-100%)' : 'translateY(-50%)' }}>
                                             {showChorusMarker && (
                                                 <span
                                                     aria-hidden

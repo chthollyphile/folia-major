@@ -5,6 +5,13 @@ import { resolvePendoloLineWave, resolvePendoloLitOpacity } from './pendoloBeatF
 
 // src/components/visualizer/pendolo/PendoloRotatingLine.tsx
 
+export interface PendoloStandUp {
+    /** 句子在平面内要转的角度（抵掉轨道的转角，字的横向朝相机的右手）。 */
+    rotationDeg: MotionValue<number>;
+    /** 绕底边立起来的角度（rotateX，度）：-90 垂直于表盘，按相机俯角少转一点，字面正对相机。 */
+    tiltDeg: number;
+}
+
 interface PendoloRotatingLineProps {
     /** The rail's on-screen rotation (deg); mirrored, it is the wheel's rotation negated. */
     wheelRotationDeg: MotionValue<number>;
@@ -26,10 +33,10 @@ interface PendoloRotatingLineProps {
     waveX?: MotionValue<number>;
     waveY?: MotionValue<number>;
     /**
-     * 轮心视角：句子绕自己的底边立起来，垂直于表盘、正对相机。值是句子在平面内要转的角度（抵掉轨道的转角，
-     * 让字的横向朝相机的右手）；没有时句子平躺在表盘上，和原来一样。
+     * 轮心视角：句子绕自己的底边立起来、正对相机，中点对着自己在弧线上的锚点。没有时句子平躺在表盘上，
+     * 和原来一样。
      */
-    standUpRotationDeg?: MotionValue<number>;
+    standUp?: PendoloStandUp;
     fontFamily: string;
     fontWeight: number;
     canSeek: boolean;
@@ -53,7 +60,7 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
     waveStrength,
     waveX,
     waveY,
-    standUpRotationDeg,
+    standUp,
     fontFamily,
     fontWeight,
     canSeek,
@@ -93,11 +100,12 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
             style={{
                 ...(mirrored ? { right: railWidth - left } : { left }),
                 top,
-                transformOrigin: mirrored ? 'right center' : 'left center',
+                // 立起来时绕锚点那条线转（盒子顶边就是锚点所在的高度），句子才正对刻度针，不往一侧偏半行字高
+                transformOrigin: `${mirrored ? 'right' : 'left'} ${standUp ? 'top' : 'center'}`,
                 x,
                 y,
-                // 先绕 X 轴转 -90°（字的上方朝离开表盘的方向），再在平面内转向相机
-                ...(standUpRotationDeg ? { rotate: standUpRotationDeg, rotateX: -90 } : null),
+                // 先绕 X 轴立起来（字的上方朝离开表盘、略向后仰到正对相机），再在平面内转向相机
+                ...(standUp ? { rotate: standUp.rotationDeg, rotateX: standUp.tiltDeg } : null),
                 opacity,
                 fontFamily,
                 fontWeight,
