@@ -13,7 +13,7 @@ import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
 import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
-import { buildPendoloDialProjection, buildPendoloTiltProjection, projectPendoloDialPoint } from './pendoloDialProjection';
+import { buildPendoloDialProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
 import { buildPendoloSubtitleFontSpec, resolvePendoloSubtitleTracks, sumPendoloSubtitleTrackHeights } from './pendoloSubtitleTracks';
@@ -367,7 +367,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         140,
         Math.min(viewportSize.width * 0.46, mirrored ? centerX - baseRadius - 48 : viewportSize.width - maxItemX - 48),
     );
-    // 表盘倾斜：歌词锚点和摆轮图标只吃倾斜（它们的位置已经按镜像排过），表盘画布还要先镜像
+    // 表盘倾斜：歌词和摆轮图标放在一层里整体按倾斜投影（它们已经按镜像排过），表盘画布还要先镜像
     const tiltDeg = pendoloTuning.tiltDeg ?? 0;
     const tiltAxisDeg = pendoloTuning.tiltAxisDeg ?? 0;
     const tiltProjection = useMemo(
@@ -492,10 +492,20 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         return `radial-gradient(circle closest-side, ${at(0)} 0%, ${at(0)} 45%, ${at(PENDOLO_HALO_ALPHA * 0.15)} 65%, `
             + `${at(PENDOLO_HALO_ALPHA)} 88%, ${at(0)} 100%)`;
     }, [beatFx.color]);
-    // 摆轮在表盘平面上的位置（镜像翻到另一侧），再按倾斜投到屏幕上
-    const balanceGearPoint = projectPendoloDialPoint(tiltProjection, sideSign * baseRadius * 0.2, -baseRadius * 0.75);
-    const balanceGearX = centerX + balanceGearPoint.x;
-    const balanceGearY = centerY + balanceGearPoint.y;
+    // 镜像时摆轮翻到轮心另一侧；倾斜由外面的表盘平面层统一投影
+    const balanceGearX = centerX + sideSign * baseRadius * 0.2;
+    const balanceGearY = centerY - baseRadius * 0.75;
+    // 倾斜时歌词和摆轮图标所在的那一层：和表盘画布同一个矩阵，字也躺在表盘平面上。
+    // 不倾斜时这层没有 transform / zIndex，不成层叠上下文，画面和原来一样。
+    const planeLayerStyle = useMemo<React.CSSProperties | undefined>(() => (
+        tiltProjection.flat
+            ? undefined
+            : {
+                transform: resolvePendoloPlaneCssTransform(tiltProjection),
+                transformOrigin: `${centerX}px ${centerY}px`,
+                zIndex: 2,
+            }
+    ), [centerX, centerY, tiltProjection]);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
     const textOrigin = mirrored ? 'right center' : 'left center';
@@ -572,6 +582,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     mirrored={mirrored}
                     projection={dialProjection}
                 />
+                <div className="absolute inset-0 pointer-events-none" style={planeLayerStyle}>
                 {pendoloTuning.showGearDecor !== 'none' && (
                     <div
                         className="absolute pointer-events-none"
@@ -579,9 +590,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             left: `${balanceGearX}px`,
                             top: `${balanceGearY}px`,
                             zIndex: 1,
-                            transform: tiltProjection.flat
-                                ? 'translate(-50%, -50%)'
-                                : `translate(-50%, -50%) scale(${balanceGearPoint.depthScale})`,
+                            transform: 'translate(-50%, -50%)',
                         }}
                     >
                         <motion.div style={{ x: balanceIconX, y: balanceIconY }}>
@@ -630,7 +639,6 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     wheelRotationDeg={railRotationDeg}
                                     mirrored={mirrored}
                                     railWidth={viewportSize.width}
-                                    tilt={tiltProjection}
                                     baseAngleDeg={item.angleDeg}
                                     baseOpacity={item.alpha}
                                     left={item.x}
@@ -764,6 +772,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         })}
                     </motion.div>
                 )}
+                </div>
                 </motion.div>
             </div>
         </VisualizerShell>

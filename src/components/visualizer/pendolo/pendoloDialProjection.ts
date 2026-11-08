@@ -94,3 +94,13 @@ export const invertPendoloProjectionMatrix = (m: Float32Array): Float32Array => 
         C * inv, -(a * h - b * g) * inv, (a * e - b * d) * inv,
     ]);
 };
+
+/**
+ * 同一个投影写成 CSS matrix3d（transform-origin 要放在轮心）：平面点 (x, y, 0, 1) 映成
+ * (M·[x,y,1] 的 x', y', 0, w)，浏览器做透视除法，和着色器里的结果一致。
+ */
+export const resolvePendoloPlaneCssTransform = (projection: PendoloDialProjection): string => {
+    const [a, b, c, d, e, f, g, h, i] = projection.matrix;
+    // matrix3d 按列给：第一列是 x 的系数，第二列 y，第三列 z（保持不动），第四列常数项
+    return `matrix3d(${a}, ${d}, 0, ${g}, ${b}, ${e}, 0, ${h}, 0, 0, 1, 0, ${c}, ${f}, 0, ${i})`;
+};
