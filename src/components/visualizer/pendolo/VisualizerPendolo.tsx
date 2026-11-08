@@ -62,8 +62,9 @@ const PENDOLO_STAND_SIDE_LINE_ALPHA_MIN = 0.18;
 const PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE = 4;
 const resolvePendoloStandSideLineAlpha = (distance: number) => Math.min(
     1,
+    // 间奏时没有焦点句，最近的两句离刻度针只有半档：按紧挨着的一句算，不再往下压
     PENDOLO_STAND_SIDE_LINE_ALPHA_MIN
-        + ((1 - PENDOLO_STAND_SIDE_LINE_ALPHA_MIN) * (distance - 1)) / (PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE - 1),
+        + ((1 - PENDOLO_STAND_SIDE_LINE_ALPHA_MIN) * (Math.max(1, distance) - 1)) / (PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE - 1),
 );
 
 const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
@@ -391,7 +392,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const hubView = clockworkWebgl && requestedHubView;
     // 相机至少要比最高的一层（摆轮图标）高一截，不然那几层会跑到相机上面、从底下被看到
     const hubCameraHeightPx = baseRadius * Math.max(
-        pendoloTuning.hubViewHeight ?? 1,
+        pendoloTuning.hubViewHeight ?? DEFAULT_PENDOLO_TUNING.hubViewHeight ?? 1.4,
         PENDOLO_BALANCE_ICON_HEIGHT * (pendoloTuning.parallaxDepth ?? 1) + 0.15,
     );
     // 相机从轮心沿刻度针反方向后退这么远，越过轮心看向焦点句，整套齿轮在近处

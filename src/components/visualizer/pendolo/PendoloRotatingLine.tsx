@@ -5,6 +5,14 @@ import { resolvePendoloLineWave, resolvePendoloLitOpacity } from './pendoloBeatF
 
 // src/components/visualizer/pendolo/PendoloRotatingLine.tsx
 
+/** 轮心视角下弧线上的句子转过这个角度（度）开始淡出，到 PENDOLO_STAND_HIDE_DEG 完全看不见。 */
+const PENDOLO_STAND_FADE_DEG = 65;
+const PENDOLO_STAND_HIDE_DEG = 75;
+const resolvePendoloStandEdgeFade = (angleDeg: number) => Math.max(
+    0,
+    Math.min(1, (PENDOLO_STAND_HIDE_DEG - Math.abs(angleDeg)) / (PENDOLO_STAND_HIDE_DEG - PENDOLO_STAND_FADE_DEG)),
+);
+
 export interface PendoloStandUp {
     /** 句子在平面内要转的角度（抵掉轨道的转角，字的横向朝相机的右手）。 */
     rotationDeg: MotionValue<number>;
@@ -87,7 +95,10 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
     const opacity = useTransform(
         lensInputs ? [wheelRotationDeg, ...lensInputs] : [wheelRotationDeg],
         ([rotationDeg, ...lens]: number[]) => {
-            const base = resolvePendoloRotatingLineOpacity(baseAngleDeg, mirrored ? -rotationDeg : rotationDeg, baseOpacity);
+            const unmirrored = mirrored ? -rotationDeg : rotationDeg;
+            let base = resolvePendoloRotatingLineOpacity(baseAngleDeg, unmirrored, baseOpacity);
+            // 立起来时弧线两端的句子贴近相机平面，透视会把它们放得很大（DOM 没有近平面裁剪）：转过一定角度就淡掉
+            if (standUp) base *= resolvePendoloStandEdgeFade(baseAngleDeg + unmirrored);
             return lens.length ? resolvePendoloLitOpacity(base, resolveLens(lens).light) : base;
         },
     );

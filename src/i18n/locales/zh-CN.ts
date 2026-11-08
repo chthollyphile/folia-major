@@ -3018,7 +3018,6 @@ export default {
     "claddaghLetterSpacingOffset": "字符间距",
     "pendoloSettings": "时计参数",
     "pendoloSettingsDesc": "调整歌词弧形轮盘圆心位置、轮盘半径、弧度角度与擒纵咬合力度。",
-    "pendoloSettingsReset": "恢复默认",
     "pendoloWheelCenterX": "轮盘水平位置 (0 = 左边缘)",
     "pendoloArcRadius": "轮盘半径",
     "pendoloArcAngleDeg": "弧度角度",

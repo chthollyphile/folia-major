@@ -56,12 +56,19 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
     const groupDefaults = Object.fromEntries(
         groupKeys.map(key => [key, DEFAULT_PENDOLO_TUNING[key]]),
     ) as Partial<PendoloTuning>;
-    // 这一组现在是不是正好等于某一套（默认或预设）：是的话那个按钮变灰
-    const matchesGroup = (target: Partial<PendoloTuning>) => groupKeys
-        .every(key => (resolvedTuning[key] ?? DEFAULT_PENDOLO_TUNING[key]) === target[key]);
-    const presetTiltForward = { ...groupDefaults, ...PENDOLO_PRESET_TILT_FORWARD };
-    const presetTilt = { ...groupDefaults, ...PENDOLO_PRESET_TILT };
-    const presetHubView = { ...groupDefaults, ...PENDOLO_PRESET_HUB_VIEW };
+    // 这一组现在是不是正好等于某一套（默认或预设）：是的话那个按钮变灰。滑块拖出来的小数有浮点误差，数值按容差比
+    const matchesGroup = (target: Partial<PendoloTuning>) => groupKeys.every((key) => {
+        const value = resolvedTuning[key] ?? DEFAULT_PENDOLO_TUNING[key];
+        const expected = target[key];
+        return typeof value === 'number' && typeof expected === 'number'
+            ? Math.abs(value - expected) < 1e-6
+            : value === expected;
+    });
+    // 预设只换视角和轮盘，左右镜像保持用户现在的选择；默认才连镜像一起还原
+    const presetBase = { ...groupDefaults, mirrorLayout: mirrored };
+    const presetTiltForward = { ...presetBase, ...PENDOLO_PRESET_TILT_FORWARD };
+    const presetTilt = { ...presetBase, ...PENDOLO_PRESET_TILT };
+    const presetHubView = { ...presetBase, ...PENDOLO_PRESET_HUB_VIEW };
 
     return (
         <>

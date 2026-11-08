@@ -66,7 +66,8 @@ export const buildPendoloTiltProjection = (
 /** 轮心视角相机高度、后退距离的可调范围（轮盘半径的倍数）。 */
 export const PENDOLO_HUB_VIEW_HEIGHT_MIN = 0.4;
 export const PENDOLO_HUB_VIEW_HEIGHT_MAX = 3;
-export const PENDOLO_HUB_VIEW_BACK_MIN = 0;
+// 后退距离不到 0 时相机就在轮心正上方，弧线两端的句子贴近相机平面；留一点距离，配合两端淡出
+export const PENDOLO_HUB_VIEW_BACK_MIN = 0.2;
 export const PENDOLO_HUB_VIEW_BACK_MAX = 3;
 
 /** 轮心视角的视距按视口长边的倍数算：比倾斜的 1.2 广一些，左右两侧的歌词也进得了画面。 */
