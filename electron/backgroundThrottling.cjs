@@ -25,10 +25,10 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
   let lastReason = null;
   let told = { active: false, hidden: false };
 
-  // A window is usable only while its page is too: a closing or reloading BrowserWindow stays
-  // undestroyed for a moment after its webContents is destroyed, and both setBackgroundThrottling
-  // and send throw "Object has been destroyed" on that page, which reaches the app as an
-  // uncaughtException. Anything that touches the page goes through here.
+  // A window is usable only while its page is too: a closing BrowserWindow stays undestroyed for a
+  // moment after its webContents is destroyed, and both setBackgroundThrottling and send throw
+  // "Object has been destroyed" on that page, which reaches the app as an uncaughtException.
+  // Anything that touches the page goes through here.
   const liveContents = () => {
     if (!window || window.isDestroyed()) return null;
     const contents = window.webContents;
@@ -43,14 +43,19 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
     return { active: applied, hidden };
   };
 
+  // Nothing is applied, and the renderer has been told nothing: whoever attaches the next window
+  // starts from setBackgroundThrottling and from an empty mind.
+  const resetApplied = () => {
+    applied = false;
+    lastReason = null;
+    told = { active: false, hidden: false };
+  };
+
   const refresh = () => {
     const contents = liveContents();
     if (!contents) {
-      // The page is gone ahead of its window, so nothing can be applied to it any more. The flags
-      // go back to not-applied: whoever attaches the next window must start from setBackgroundThrottling.
-      applied = false;
-      lastReason = null;
-      told = { active: false, hidden: false };
+      // The page (or its window) is gone, so nothing can be applied to it any more.
+      resetApplied();
       return;
     }
     const enabled = isEnabled();
@@ -74,9 +79,7 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
   // A new main window starts at backgroundThrottling: false and has not been told anything yet.
   const attach = (win) => {
     window = win;
-    applied = false;
-    lastReason = null;
-    told = { active: false, hidden: false };
+    resetApplied();
     for (const event of ['minimize', 'restore', 'hide', 'show']) {
       win.on(event, refresh);
     }
