@@ -12,12 +12,19 @@ export const STRATEGIES: readonly ShuffleStrategy[] = ['fisher-yates', 'round', 
 export const RNG_KINDS: readonly RngKind[] = ['mt19937', 'math'];
 
 // 设置读写走 storagePrimitives（D508：渲染进程不直接读写 localStorage）；键集中定义在 utils/shuffle/persistence.ts。
-export const readShuffleStrategy = (): ShuffleStrategy => parseShuffleStrategy(getStoredString(SHUFFLE_STRATEGY_KEY, ''));
-export const readShuffleRng = (): RngKind => parseShuffleRng(getStoredString(SHUFFLE_RNG_KEY, ''));
-export const readShuffleToast = (): boolean => getStoredBoolean(SHUFFLE_TOAST_KEY, true);
-export const writeShuffleStrategy = (value: ShuffleStrategy): void => { setStoredString(SHUFFLE_STRATEGY_KEY, value); };
-export const writeShuffleRng = (value: RngKind): void => { setStoredString(SHUFFLE_RNG_KEY, value); };
-export const writeShuffleToast = (value: boolean): void => { setStoredBoolean(SHUFFLE_TOAST_KEY, value); };
+// 测试或非浏览器环境可能 window 存在但没有 localStorage：读取一律容错回落默认值。
+const readSetting = (read: () => string | null): string | null => {
+    try { return read(); } catch { return null; }
+};
+export const readShuffleStrategy = (): ShuffleStrategy => parseShuffleStrategy(readSetting(() => getStoredString(SHUFFLE_STRATEGY_KEY, '')));
+export const readShuffleRng = (): RngKind => parseShuffleRng(readSetting(() => getStoredString(SHUFFLE_RNG_KEY, '')));
+export const readShuffleToast = (): boolean => {
+    try { return getStoredBoolean(SHUFFLE_TOAST_KEY, true); } catch { return true; }
+};
+const writeSetting = (write: () => void): void => { try { write(); } catch { /* 无存储环境：内存态继续 */ } };
+export const writeShuffleStrategy = (value: ShuffleStrategy): void => { writeSetting(() => setStoredString(SHUFFLE_STRATEGY_KEY, value)); };
+export const writeShuffleRng = (value: RngKind): void => { writeSetting(() => setStoredString(SHUFFLE_RNG_KEY, value)); };
+export const writeShuffleToast = (value: boolean): void => { writeSetting(() => setStoredBoolean(SHUFFLE_TOAST_KEY, value)); };
 
 type ShuffleSettingsState = {
     shuffleStrategy: ShuffleStrategy;

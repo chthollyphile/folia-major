@@ -11,14 +11,21 @@ import {
     type ShuffleRoundState,
 } from '../utils/shuffle/persistence';
 
-export const readShuffleHistory = (): HistoryEntry[] => parseShuffleHistory(getStoredString(SHUFFLE_HISTORY_KEY, ''));
-export const writeShuffleHistory = (history: readonly HistoryEntry[]): void => { setStoredString(SHUFFLE_HISTORY_KEY, serializeShuffleHistory(history)); };
+const readRaw = (key: string): string | null => {
+    try { return getStoredString(key, ''); } catch { return null; }
+};
+const writeRaw = (write: () => void): void => { try { write(); } catch { /* 无存储环境：内存态继续 */ } };
 
-export const readShuffleRound = (): ShuffleRoundState | null => parseShuffleRound(getStoredString(SHUFFLE_ROUND_KEY, ''));
+export const readShuffleHistory = (): HistoryEntry[] => parseShuffleHistory(readRaw(SHUFFLE_HISTORY_KEY));
+export const writeShuffleHistory = (history: readonly HistoryEntry[]): void => { writeRaw(() => setStoredString(SHUFFLE_HISTORY_KEY, serializeShuffleHistory(history))); };
+
+export const readShuffleRound = (): ShuffleRoundState | null => parseShuffleRound(readRaw(SHUFFLE_ROUND_KEY));
 export const writeShuffleRound = (state: ShuffleRoundState | null): void => {
     const raw = serializeShuffleRound(state);
-    if (raw === null) removeStoredKey(SHUFFLE_ROUND_KEY);
-    else setStoredString(SHUFFLE_ROUND_KEY, raw);
+    writeRaw(() => {
+        if (raw === null) removeStoredKey(SHUFFLE_ROUND_KEY);
+        else setStoredString(SHUFFLE_ROUND_KEY, raw);
+    });
 };
 
 /** 删除三个设置键并清空历史 / round，用于 §11 门禁「删除设置键重启回落默认」。 */
