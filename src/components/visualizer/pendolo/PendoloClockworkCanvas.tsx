@@ -119,6 +119,10 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     const motionStateRef = useRef(createPendoloClockworkMotionState());
     const lastTimestampRef = useRef<number | null>(null);
     const coverImageRef = useRef<HTMLImageElement | null>(null);
+    // 封面图源不带 CORS 时 WebGL 传不了，这一张要走 Canvas2D。带 CORS 的请求一失败就记下，不等上传报错；
+    // 按图源记住，下一首同一图源的封面一换上就走 2D，后端不会每首歌先 WebGL 再 2D 来回切
+    const coverNeeds2dRef = useRef(false);
+    const noCorsCoverOriginsRef = useRef(new Set<string>());
     // Beats for the gear train come from the clock through a counter of the canvas's own, so the
     // seconds gear and the balance step on the frame they fire, independent of the FX loop.
     const beatCounterRef = useRef(createPendoloBeatCounter());
@@ -206,10 +210,25 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     ]);
 
     useEffect(() => {
+        // 三层都关时画布不画也不跑循环，不会再上报后端；按 WebGL 报一次，上层不会一直卡在 2D 关着倾斜
+        if (showGearDecor !== 'none' || showCenterGradient || showCover) return;
+        lastBackendRef.current = null;
+        onBackendChangeRef.current?.(true);
+    }, [showGearDecor, showCenterGradient, showCover]);
+
+    useEffect(() => {
         // The previous song's cover must not stay on screen (or be uploaded under the new song)
         // while the new one loads.
         coverImageRef.current = null;
+        coverNeeds2dRef.current = false;
         if (!showCover || !coverUrl) return undefined;
+        let origin = '';
+        try {
+            origin = new URL(coverUrl, window.location.href).origin;
+        } catch {
+            origin = '';
+        }
+        coverNeeds2dRef.current = noCorsCoverOriginsRef.current.has(origin);
         let cancelled = false;
         let img: HTMLImageElement | null = null;
         // CORS first, like the other cover consumers: WebGL cannot upload a tainted image. A
@@ -218,12 +237,22 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             const next = new Image();
             if (crossOrigin) next.crossOrigin = 'anonymous';
             next.onload = () => {
-                if (!cancelled) coverImageRef.current = next;
+                if (cancelled) return;
+                coverImageRef.current = next;
+                if (crossOrigin) {
+                    coverNeeds2dRef.current = false;
+                    noCorsCoverOriginsRef.current.delete(origin);
+                }
             };
             next.onerror = () => {
                 if (cancelled) return;
-                if (crossOrigin) load(false);
-                else coverImageRef.current = null;
+                if (crossOrigin) {
+                    coverNeeds2dRef.current = true;
+                    noCorsCoverOriginsRef.current.add(origin);
+                    load(false);
+                } else {
+                    coverImageRef.current = null;
+                }
             };
             next.src = coverUrl;
             img = next;
@@ -387,7 +416,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             // WebGL cannot upload a cover served without CORS headers, so frames that show such
             // a cover are drawn with Canvas2D, which can. The renderer stays attached.
             const coverNeeds2d = Boolean(
-                frame.showCover && renderer?.isCoverRejected(frame.coverImage),
+                frame.showCover && (coverNeeds2dRef.current || renderer?.isCoverRejected(frame.coverImage)),
             );
 
             const drawWebgl = Boolean(useWebglRef.current && renderer && !coverNeeds2d);
