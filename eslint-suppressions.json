@@ -820,6 +820,9 @@
   "electron/bodian/session.cjs": {
     "@stylistic/indent": {
       "count": 80
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "electron/debug/redactCredentials.cjs": {
@@ -850,6 +853,9 @@
   "electron/fnmusic/fnmusicApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 306
+    },
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "electron/globalShortcuts.cjs": {
@@ -948,6 +954,9 @@
     "@stylistic/indent": {
       "count": 5634
     },
+    "dedicatus/restricted-apis": {
+      "count": 6
+    },
     "no-control-regex": {
       "count": 1
     },
@@ -993,6 +1002,11 @@
   "electron/modSystem/modProtocol.cjs": {
     "@stylistic/eol-last": {
       "count": 1
+    }
+  },
+  "electron/modSystem/modSecrets.cjs": {
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "electron/modSystem/modSignature.cjs": {
@@ -1082,6 +1096,11 @@
       "count": 3
     }
   },
+  "electron/qishui/session.cjs": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "electron/qq/qqApiStartup.cjs": {
     "@stylistic/indent": {
       "count": 93
@@ -1128,6 +1147,9 @@
   "electron/spotify/session.cjs": {
     "@stylistic/indent": {
       "count": 82
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "electron/spotify/signIn.cjs": {
@@ -1138,6 +1160,9 @@
   "electron/spotify/soloist.cjs": {
     "@stylistic/indent": {
       "count": 620
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "electron/spotify/soloistBuild.cjs": {
@@ -1361,6 +1386,9 @@
   "electron/ytm/webSignIn.cjs": {
     "@stylistic/indent": {
       "count": 267
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "electron/ytm/ytmApiBridge.cjs": {
@@ -1502,6 +1530,9 @@
     "@typescript-eslint/no-unused-vars": {
       "count": 28
     },
+    "dedicatus/registered-sites": {
+      "count": 1
+    },
     "react-hooks/exhaustive-deps": {
       "count": 22
     }
@@ -1540,6 +1571,12 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 2
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 23
     }
   },
   "src/components/FloatingPlayerControls.tsx": {
@@ -1727,6 +1764,11 @@
       "count": 2
     }
   },
+  "src/components/app/home/explore/ExploreSurface.tsx": {
+    "dedicatus/hot-callback-state": {
+      "count": 1
+    }
+  },
   "src/components/app/home/explore/exploreFeedMemory.ts": {
     "@typescript-eslint/no-dynamic-delete": {
       "count": 2
@@ -1797,6 +1839,11 @@
       "count": 1
     }
   },
+  "src/components/app/lattice/LatticeFocusButton.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    }
+  },
   "src/components/app/lattice/LatticePoster.tsx": {
     "@stylistic/indent": {
       "count": 3
@@ -1828,6 +1875,9 @@
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 2
     }
   },
   "src/components/app/lattice/exploreLayout.ts": {
@@ -2241,6 +2291,12 @@
     "dedicatus/log-module-prefix": {
       "count": 2
     },
+    "dedicatus/restricted-apis": {
+      "count": 1
+    },
+    "dedicatus/stale-after-await": {
+      "count": 1
+    },
     "no-useless-assignment": {
       "count": 2
     },
@@ -2266,6 +2322,9 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 2
+    },
+    "dedicatus/stale-after-await": {
+      "count": 7
     },
     "react-hooks/exhaustive-deps": {
       "count": 19
@@ -2418,6 +2477,9 @@
   "src/components/command-palette/SleepTimerControl.tsx": {
     "@stylistic/indent": {
       "count": 1
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/components/command-palette/availability.ts": {
@@ -2429,6 +2491,9 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 2
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/components/command-palette/commandFrequency.ts": {
@@ -2545,6 +2610,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/error-text-in-ui": {
+      "count": 2
     }
   },
   "src/components/command-palette/surfaces/PickerSurfaceView.tsx": {
@@ -2602,6 +2670,11 @@
     },
     "react-hooks/exhaustive-deps": {
       "count": 1
+    }
+  },
+  "src/components/debug/MemoryMonitorWindow.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 8
     }
   },
   "src/components/hifi/hifiRouteTransport.ts": {
@@ -2848,6 +2921,9 @@
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 19
+    },
     "react-hooks/exhaustive-deps": {
       "count": 2
     }
@@ -2868,6 +2944,9 @@
   "src/components/modal/UserGuidePageContent.tsx": {
     "@typescript-eslint/no-unused-vars": {
       "count": 2
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/components/modal/lyric-filter/LyricRuleList.tsx": {
@@ -2905,6 +2984,9 @@
   },
   "src/components/modal/lyric-match/LyricMatchWindow.tsx": {
     "@stylistic/indent": {
+      "count": 1
+    },
+    "dedicatus/ui-literal-text": {
       "count": 1
     }
   },
@@ -2978,6 +3060,11 @@
       "count": 2
     }
   },
+  "src/components/modal/settings/GlobalLyricOffsetModal.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    }
+  },
   "src/components/modal/settings/GlobalLyricOffsetPreview.tsx": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
@@ -2988,6 +3075,11 @@
       "count": 8
     },
     "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    }
+  },
+  "src/components/modal/settings/kit/ColorPicker.tsx": {
+    "dedicatus/ui-literal-text": {
       "count": 1
     }
   },
@@ -3034,6 +3126,16 @@
       "count": 1
     }
   },
+  "src/components/modal/settings/pages/IntegrationPage.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    }
+  },
+  "src/components/modal/settings/pages/PlayerPage.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    }
+  },
   "src/components/modal/settings/pages/graphics/GpuPreferenceRow.tsx": {
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
@@ -3047,6 +3149,11 @@
   "src/components/modal/settings/pages/integration/StageModeRows.tsx": {
     "@typescript-eslint/switch-exhaustiveness-check": {
       "count": 2
+    }
+  },
+  "src/components/modal/settings/pages/integration/SyncServerRows.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/components/modal/settings/pages/storage/visualConfigTransfer.ts": {
@@ -3101,6 +3208,11 @@
   },
   "src/components/obs/ObsWebSourceApp.tsx": {
     "react-hooks/exhaustive-deps": {
+      "count": 1
+    }
+  },
+  "src/components/panelTab/AccountTab.tsx": {
+    "dedicatus/ui-literal-text": {
       "count": 1
     }
   },
@@ -3173,12 +3285,22 @@
       "count": 1
     }
   },
+  "src/components/panelTab/equalizer/EqualizerBandGrid.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 3
+    }
+  },
   "src/components/panelTab/shell/PanelHandle.tsx": {
     "@stylistic/quotes": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
+    }
+  },
+  "src/components/panelTab/shell/PanelShell.tsx": {
+    "dedicatus/hot-callback-state": {
+      "count": 1
     }
   },
   "src/components/panelTab/shell/SongCredits.tsx": {
@@ -3199,6 +3321,11 @@
     },
     "dedicatus/log-module-prefix": {
       "count": 2
+    }
+  },
+  "src/components/panelTab/shell/SongHeader.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/components/ponder/PonderFocusFrame.tsx": {
@@ -3245,6 +3372,16 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 5
+    }
+  },
+  "src/components/ponder/surfaces/PonderBravaisHomeSeamSurface.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 2
+    }
+  },
+  "src/components/ponder/surfaces/player/latticePage.surface.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 2
     }
   },
   "src/components/ponder/surfaces/relativeRectStyle.ts": {
@@ -3469,9 +3606,17 @@
       "count": 1
     }
   },
+  "src/components/shared/ConsoleLogPanel.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 5
+    }
+  },
   "src/components/shared/CoverSizeAuditPanel.tsx": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 8
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 19
     }
   },
   "src/components/shared/CustomSelect.tsx": {
@@ -3488,6 +3633,9 @@
     }
   },
   "src/components/shared/DraggableDebugWindow.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    },
     "no-restricted-globals": {
       "count": 2
     }
@@ -3523,6 +3671,9 @@
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 3
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 1
     }
   },
   "src/components/shared/SlideActionButton.tsx": {
@@ -3701,6 +3852,11 @@
       "count": 1
     }
   },
+  "src/components/visualizer/backgrounds/url/UrlBackgroundSettingsCard.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    }
+  },
   "src/components/visualizer/backgrounds/url/settings.ts": {
     "@typescript-eslint/no-empty-object-type": {
       "count": 1
@@ -3798,6 +3954,9 @@
       "count": 1
     },
     "@typescript-eslint/no-deprecated": {
+      "count": 1
+    },
+    "dedicatus/ui-literal-text": {
       "count": 1
     }
   },
@@ -5325,6 +5484,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 1
     }
   },
   "src/components/visualizer/monet/monetBackgroundPaint.ts": {
@@ -5413,6 +5575,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/components/visualizer/nebbia/nebbiaDrops.ts": {
@@ -6363,6 +6528,17 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
+    },
+    "dedicatus/error-text-in-ui": {
+      "count": 1
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 1
+    }
+  },
+  "src/components/visualizer/window/FontTiles.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/components/visualizer/window/VisPlayground.tsx": {
@@ -6482,6 +6658,9 @@
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 5
+    },
     "react-hooks/exhaustive-deps": {
       "count": 1
     }
@@ -6517,6 +6696,9 @@
   "src/hooks/useAudioOutputDevices.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 4
+    },
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "src/hooks/useBeatFxTrack.ts": {
@@ -6674,6 +6856,11 @@
       "count": 3
     }
   },
+  "src/hooks/useOneTimeHint.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/hooks/useOnlineSongMetadataHydration.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 3
@@ -6709,6 +6896,11 @@
       "count": 1
     }
   },
+  "src/hooks/usePlayerChromeAutoHide.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/hooks/usePlayerOverlayLayout.ts": {
     "react-hooks/exhaustive-deps": {
       "count": 1
@@ -6724,6 +6916,11 @@
       "count": 2
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 2
+    }
+  },
+  "src/hooks/useStartupExperienceGate.ts": {
+    "dedicatus/restricted-apis": {
       "count": 2
     }
   },
@@ -6748,6 +6945,9 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 5
     }
   },
   "src/hooks/useTranscodeFallback.ts": {
@@ -6780,6 +6980,9 @@
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "src/i18n/locales/en.ts": {
@@ -7057,6 +7260,11 @@
       "count": 1
     }
   },
+  "src/library/core/collection/useHiddenCollectionsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/library/core/directory/directorySession.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
@@ -7085,6 +7293,11 @@
       "count": 2
     }
   },
+  "src/library/core/directory/useLocalTrackSortStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 4
+    }
+  },
   "src/library/core/home/home.contract.ts": {
     "@typescript-eslint/no-invalid-void-type": {
       "count": 1
@@ -7105,6 +7318,11 @@
   },
   "src/library/core/home/navidrome/useLibraryHomeNavidrome.ts": {
     "@typescript-eslint/unbound-method": {
+      "count": 2
+    }
+  },
+  "src/library/core/home/navidrome/useNavidromeHomeSectionStore.ts": {
+    "dedicatus/restricted-apis": {
       "count": 2
     }
   },
@@ -7170,6 +7388,11 @@
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
+    }
+  },
+  "src/library/core/suite/useLibrarySuiteStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/library/registry.ts": {
@@ -7247,6 +7470,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/hot-callback-state": {
+      "count": 2
     }
   },
   "src/library/suites/bravais/BravaisSeamCollection.tsx": {
@@ -7408,6 +7634,9 @@
   "src/library/suites/bravais/bravaisLayoutMemory.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/library/suites/bravais/bravaisLook.ts": {
@@ -7423,6 +7652,9 @@
   "src/library/suites/bravais/bravaisPlayingCard.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/library/suites/bravais/bravaisPosterPalette.ts": {
@@ -7474,6 +7706,11 @@
   "src/library/suites/bravais/describeBravaisTrack.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
+    }
+  },
+  "src/library/suites/bravais/entry.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/library/suites/bravais/useBravaisArtistLinks.ts": {
@@ -7574,6 +7811,9 @@
     },
     "@typescript-eslint/no-deprecated": {
       "count": 1
+    },
+    "dedicatus/effect-cleanup": {
+      "count": 1
     }
   },
   "src/library/suites/bravais/useBravaisSeam.ts": {
@@ -7620,8 +7860,19 @@
     "@typescript-eslint/unbound-method": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 3
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    },
     "react-hooks/exhaustive-deps": {
       "count": 5
+    }
+  },
+  "src/library/suites/grid/artist/ArtistPicture.tsx": {
+    "dedicatus/ui-literal-text": {
+      "count": 1
     }
   },
   "src/library/suites/grid/collection/DailyStylePickerDialog.tsx": {
@@ -7680,6 +7931,12 @@
     "dedicatus/log-module-prefix": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 1
+    },
+    "dedicatus/ui-literal-text": {
+      "count": 1
+    },
     "react-hooks/exhaustive-deps": {
       "count": 7
     }
@@ -7729,6 +7986,11 @@
   "src/library/suites/grid/directory/GridMapBatchPanel.tsx": {
     "@stylistic/indent": {
       "count": 5
+    }
+  },
+  "src/library/suites/grid/gridLayout.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/library/suites/grid/home/DesktopGrid3DSurface.tsx": {
@@ -7830,6 +8092,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/library/suites/grid/shared/hexViewport.ts": {
@@ -8336,6 +8601,9 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/mods/params/params.ts": {
@@ -8421,6 +8689,11 @@
       "count": 2
     }
   },
+  "src/mods/runtime/missingEntries.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
   "src/mods/runtime/omni/hostOmni.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
@@ -8464,6 +8737,9 @@
   "src/mods/runtime/status.ts": {
     "@typescript-eslint/no-dynamic-delete": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/mods/runtime/visualizer/hostVisualizer.ts": {
@@ -8512,6 +8788,9 @@
     },
     "dedicatus/log-module-prefix": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "src/services/analysis/beatGrid.ts": {
@@ -8740,6 +9019,9 @@
   "src/services/beatFx/beatFxLive.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/services/beatFx/beatFxSource.ts": {
@@ -9089,6 +9371,9 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 16
     }
   },
   "src/services/nowPlayingProvider.ts": {
@@ -9369,6 +9654,9 @@
     },
     "@typescript-eslint/require-await": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/services/onlineMusic/fnmusic/fnmusicTransport.ts": {
@@ -9391,6 +9679,9 @@
       "count": 5
     },
     "@typescript-eslint/no-unsafe-member-access": {
+      "count": 6
+    },
+    "dedicatus/restricted-apis": {
       "count": 6
     }
   },
@@ -9438,6 +9729,9 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 2
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/services/onlineMusic/kugou/kugouProvider.ts": {
@@ -9576,6 +9870,9 @@
     "dedicatus/log-module-prefix": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 1
+    },
     "no-useless-escape": {
       "count": 1
     }
@@ -9711,6 +10008,9 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/services/onlineMusic/omni.ts": {
@@ -9752,6 +10052,11 @@
   "src/services/onlineMusic/providerRegistry.ts": {
     "@typescript-eslint/unbound-method": {
       "count": 1
+    }
+  },
+  "src/services/onlineMusic/providerStorage.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 9
     }
   },
   "src/services/onlineMusic/qishui/qishuiCatalog.ts": {
@@ -9981,6 +10286,9 @@
       "count": 22
     },
     "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    },
+    "dedicatus/restricted-apis": {
       "count": 1
     }
   },
@@ -10319,6 +10627,11 @@
       "count": 1
     }
   },
+  "src/services/onlineMusic/ytm/ytmAccount.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/services/onlineMusic/ytm/ytmCatalog.ts": {
     "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
       "count": 1
@@ -10420,6 +10733,11 @@
       "count": 3
     }
   },
+  "src/services/ponder/loopShuffleHint.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/services/prefetchService.ts": {
     "@stylistic/indent": {
       "count": 7
@@ -10509,9 +10827,17 @@
       "count": 1
     }
   },
+  "src/services/sync/syncConfig.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 3
+    }
+  },
   "src/services/sync/syncCoordinator.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/services/sync/syncFingerprint.ts": {
@@ -10525,6 +10851,9 @@
   "src/services/sync/syncRepository.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/services/sync/themeSyncRegistry.ts": {
@@ -10536,6 +10865,9 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 3
     }
   },
   "src/services/temperaImageArchive.ts": {
@@ -10562,6 +10894,9 @@
   "src/services/themePreferences.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 10
     }
   },
   "src/services/videoExportFramePipeline.ts": {
@@ -10608,9 +10943,17 @@
       "count": 1
     }
   },
+  "src/stores/useAudioSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 17
+    }
+  },
   "src/stores/useAutomixSettingsStore.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 5
     }
   },
   "src/stores/useExploreFeedStore.ts": {
@@ -10619,6 +10962,11 @@
     },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
+    }
+  },
+  "src/stores/useGridViewSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/stores/useHifiSettingsStore.ts": {
@@ -10634,14 +10982,25 @@
   "src/stores/useHomeLayoutSettingsStore.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 10
     }
   },
   "src/stores/useInteractionSettingsStore.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
+    "dedicatus/restricted-apis": {
+      "count": 2
+    },
     "no-useless-assignment": {
       "count": 1
+    }
+  },
+  "src/stores/useLatticeSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/stores/useLibraryPlayerOcclusionStore.ts": {
@@ -10652,11 +11011,17 @@
   "src/stores/useLibraryWallLookStore.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 2
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/stores/useLyricSettingsStore.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 22
     }
   },
   "src/stores/useMotionSettingsStore.ts": {
@@ -10667,6 +11032,9 @@
   "src/stores/useOnlineProviderAccountStore.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 6
     }
   },
   "src/stores/usePersonalFmModeStore.ts": {
@@ -10683,9 +11051,32 @@
       "count": 1
     }
   },
+  "src/stores/usePlaybackEntryViewStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
+  "src/stores/usePlaybackStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
   "src/stores/usePlayerChromeSettingsStore.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 5
+    }
+  },
+  "src/stores/usePlayingSongLocatorStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
+  "src/stores/usePonderStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 4
     }
   },
   "src/stores/useScratchpadStore.ts": {
@@ -10705,11 +11096,27 @@
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/stores/useSettingsModalStore.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
+  "src/stores/useSleepTimerStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 3
+    }
+  },
+  "src/stores/useStageSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 10
     }
   },
   "src/stores/useStatusMessageStore.ts": {
@@ -10717,11 +11124,27 @@
       "count": 1
     }
   },
+  "src/stores/useThemeSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
   "src/stores/useTypographySettingsStore.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
     "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    },
+    "dedicatus/error-text-in-ui": {
+      "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 31
+    }
+  },
+  "src/stores/useVideoLayerSettingsStore.ts": {
+    "dedicatus/restricted-apis": {
       "count": 1
     }
   },
@@ -10736,11 +11159,17 @@
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 8
     }
   },
   "src/stores/visualizerSettingsPersistence.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 9
     }
   },
   "src/types.ts": {
@@ -10897,6 +11326,9 @@
     },
     "@typescript-eslint/no-unsafe-member-access": {
       "count": 999
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/utils/appearanceImportPlan.ts": {
@@ -10907,6 +11339,11 @@
   "src/utils/artistTopSongsQueue.ts": {
     "@typescript-eslint/no-invalid-void-type": {
       "count": 1
+    }
+  },
+  "src/utils/audioEqualizer.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/utils/blobGuards.ts": {
@@ -10933,6 +11370,14 @@
     },
     "@typescript-eslint/no-unnecessary-type-arguments": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
+    }
+  },
+  "src/utils/consoleLogFilters.ts": {
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/utils/coverPlaceholders.ts": {
@@ -10968,6 +11413,14 @@
       "count": 2
     },
     "dedicatus/log-module-prefix": {
+      "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
+  "src/utils/glowBlurQuantize.ts": {
+    "dedicatus/restricted-apis": {
       "count": 1
     }
   },
@@ -11206,6 +11659,9 @@
   "src/utils/lyrics/lyricOffsetMemory.ts": {
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
+    },
+    "dedicatus/restricted-apis": {
+      "count": 2
     }
   },
   "src/utils/lyrics/lyricSegmentationRecord.ts": {
@@ -11338,6 +11794,9 @@
     "@typescript-eslint/no-unused-vars": {
       "count": 2
     },
+    "dedicatus/restricted-apis": {
+      "count": 1
+    },
     "no-empty": {
       "count": 1
     },
@@ -11392,6 +11851,9 @@
   "src/utils/lyrics/wordSegmentation.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 2
+    },
+    "dedicatus/restricted-apis": {
+      "count": 1
     }
   },
   "src/utils/lyrics/workerClient.ts": {

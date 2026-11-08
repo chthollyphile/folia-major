@@ -13,7 +13,7 @@ const OPTIONS_WITH_VALUE = new Set([
     '-c', '--config', '-f', '--format', '-o', '--output-file', '--rule', '--fix-type', '--max-warnings',
     '--cache-location', '--cache-strategy', '--suppressions-location', '--ignore-pattern', '--parser', '--parser-options',
     '--plugin', '--global', '--env', '--resolve-plugins-relative-to', '--rulesdir', '--ext', '--report-unused-disable-directives-severity',
-    '--report-unused-inline-configs', '--stats', '--concurrency', '--flag',
+    '--report-unused-inline-configs', '--stats', '--concurrency', '--flag', '--suppress-rule',
 ]);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');

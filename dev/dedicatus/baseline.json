@@ -45,6 +45,7 @@
         "D301:src/components/visualizer/tempera/TemperaSettingsPanel.tsx",
         "D301:src/components/visualizer/tempera/entry.tsx",
         "D301:src/components/visualizer/tilt/entry.tsx",
-        "D301:src/stores/useVisualizerSettingsStore.ts"
+        "D301:src/stores/useVisualizerSettingsStore.ts",
+        "D306:src/utils/lyrics/matchScore.ts:opencc-js"
     ]
 }

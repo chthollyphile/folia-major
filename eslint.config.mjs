@@ -1,4 +1,16 @@
+import {
+    CREDENTIAL_KEYS,
+    CREDENTIAL_OBJECT_FACTORIES,
+    CREDENTIAL_OBJECTS,
+    CREDENTIAL_STORAGE_KEY_CALLS,
+    CREDENTIAL_WRITE_CALLS,
+    CREDENTIAL_WRITERS,
+} from './dev/dedicatus/credentialWriters.mjs';
 import dedicatus from './dev/dedicatus/eslint/plugin.mjs';
+import { REGISTERED_SITES } from './dev/dedicatus/registeredSites.mjs';
+import { PLAYBACK_TOKENS } from './dev/dedicatus/playbackTokens.mjs';
+import { RESTRICTED_APIS } from './dev/dedicatus/restrictedApis.mjs';
+import { WINDOW_REBUILD } from './dev/dedicatus/windowRebuild.mjs';
 import { comments, globals, js, reactHooks, stylistic, tseslint } from './dev/dedicatus/lint/plugins.mjs';
 // eslint.config.mjs
 // Dedicatus 的 ESLint 配置。ESLint 和插件装在 dev/dedicatus/lint/ 的隔离环境里（钉 TypeScript 6.0：
@@ -40,6 +52,14 @@ export default tseslint.config(
             'no-warning-comments': ['error', { terms: ['@note version control'], location: 'start' }],
             // 项目约定规则在 ESLint 里都是 error，旧违规才进得了批量抑制；是否阻断由 Dedicatus 的代码级别决定（D413、D414 是 warning）。
             'dedicatus/no-icon-libraries': 'error',
+            // 某些 API 只在登记过的地方用（D445、D508、D607、D608、D609…），每条的范围和例外在登记表里
+            'dedicatus/restricted-apis': ['error', { entries: RESTRICTED_APIS }],
+            // 某种写法只能出现在登记过的文件或函数里（D121、D120、D442…）
+            'dedicatus/registered-sites': ['error', { entries: REGISTERED_SITES }],
+            // D610：重建主窗口要带播放交接快照（只看 electron/main.cjs）
+            'dedicatus/window-rebuild-handoff': ['error', WINDOW_REBUILD],
+            // D311：播放路径等待之后要先复核起播令牌再写状态（只看登记的播放路径文件）
+            'dedicatus/stale-after-await': ['error', PLAYBACK_TOKENS],
         },
     },
     {
@@ -47,6 +67,17 @@ export default tseslint.config(
         rules: {
             'dedicatus/log-module-prefix': 'error',
             'dedicatus/log-error-object': 'error',
+            // D444：错误原文不直接交给界面的提示函数
+            'dedicatus/error-text-in-ui': ['error', { notifiers: ['setStatusMessage', 'showStatusMessage', 'showToast', 'pushToast', 'toast', 'setError'] }],
+            // D604：账号凭据只在 dev/dedicatus/credentialWriters.mjs 登记过的函数里写（#1104 那类问题）
+            'dedicatus/credential-write-sites': ['error', {
+                keys: CREDENTIAL_KEYS,
+                calls: CREDENTIAL_WRITE_CALLS,
+                objects: CREDENTIAL_OBJECTS,
+                objectFactories: CREDENTIAL_OBJECT_FACTORIES,
+                storageKeyCalls: CREDENTIAL_STORAGE_KEY_CALLS,
+                writers: CREDENTIAL_WRITERS,
+            }],
         },
     },
 
@@ -87,6 +118,22 @@ export default tseslint.config(
                 selector: "JSXOpeningElement[name.name='select']",
                 message: 'D410：不用系统 <select>，设置页用 settings/kit 的 Select，别处用 shared/CustomSelect。',
             }],
+        },
+    },
+    // 热路径与界面文案（D440、D441、D443）：只管应用的渲染进程代码
+    {
+        files: ['src/**/*.{ts,tsx}'],
+        ignores: ['src/dev/**'],
+        rules: {
+            'dedicatus/hot-callback-state': 'error',
+            'dedicatus/effect-cleanup': 'error',
+        },
+    },
+    {
+        files: ['src/**/*.tsx'],
+        ignores: ['src/dev/**'],
+        rules: {
+            'dedicatus/ui-literal-text': ['error', { allow: ['Folia', 'Folium', 'Bravais', 'Lattice', 'Navidrome', 'GitHub', 'OBS', 'Stage', 'Discord'] }],
         },
     },
     {

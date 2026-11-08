@@ -6341,6 +6341,7 @@ app.whenReady().then(async () => {
         mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
       }
       // Not asked for a handoff: this window was created just above and its page plays nothing yet.
+      // eslint-disable-next-line dedicatus/window-rebuild-handoff -- the window was created just above and plays nothing yet
       recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
     }
   }

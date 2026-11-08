@@ -28,6 +28,7 @@
 - **在线歌曲只走 omni。** 搜索、播放、歌词、歌单、账户都调 `src/services/onlineMusic/omni.ts`；只有各平台的 `<id>Provider.ts` 和 `<id>Transport.ts` 碰平台的原始接口（网易云没有 Transport，请求在 `src/services/onlineMusic/netease/netease.ts`）。omni 缺一项能力时，在 `src/types/onlineMusic.ts` 和 `omni.ts` 加上，再在各平台实现，不另开旁路。细则见 `online-song-omni-routing`。
 - **一个平台的规则留在那个平台的目录里。** 只是看着像的不要合并成共用规则。平台目录外每个文件提到平台名的次数记在 `test/unit/onlineMusic/platformNamePlaces.ts`，`test/unit/onlineMusic/omniArchitecture.test.ts` 核对它。
 - **加一个同类的东西只动它自己的目录和注册点**：歌词样式和背景放各自的 `entry.tsx`，由 registry 自动发现；平台在 `providerRegistry.ts` 登记；命令放 `src/components/command-palette/commands/`，一组命令一个 `<组>Commands.ts`，自带界面的单条命令一个 `*Command.ts`，都用 `commandFactories.ts` 里的函数建，切换歌词样式的命令写在那个样式的 `entry.tsx` 里。不在 `App.tsx` 里加分支。衡量一个模块看“再加一个平台、一个歌词样式、一种模组要改哪些地方”。
+- **账号凭据只在登记过的入口写。** 处理一般响应的代码不改登录账号。代表“谁登录着”的 token、userid、cookie 只在小而专一的函数里写：要么只在确认的登录（或同一会话的续期）之后调用，要么函数自己挡掉账号项。写入点登记在 `dev/dedicatus/credentialWriters.mjs`，Dedicatus D604 检查渲染进程经 `providerStorage` 的写入和酷狗桥接层的会话对象；其他平台主进程里的会话仓库还没纳入检查，照同样的规矩写。
 - **渲染进程只经 `electron/preload.cjs` 暴露的接口找主进程。** 窗口都开 `contextIsolation`、关 `nodeIntegration`。
 
 ### 命名
@@ -57,7 +58,8 @@
 ### 存下来的数据
 
 - 设置值放在 `src/stores/` 对应领域的 `use*SettingsStore` 里，组件里不另起一套 localStorage 读写。新写的读写用 `src/stores/storagePrimitives.ts`；一些旧文件还直接调 localStorage。
-- 已经发布的存储键不改名。`src/stores/` 和各样式 `tuning.ts` 里的键由 `test/unit/stores/storeContract.test.ts` 记着快照；别处的键没有测试钉住，同样不改名。
+- 已经发布的存储键不改名。`src/stores/` 和各样式 `tuning.ts` 里的键由 `test/unit/stores/storeContract.test.ts` 记着快照；全仓的键（含平台会话、主进程 electron-store）登记在 `dev/dedicatus/storageKeys.mjs`（D507），新键追加进去。外观类 store 的新键还要在 `dev/dedicatus/appearanceDestinations.mjs` 写明进不进配置导入导出（D511）。
+- 主进程新加 IPC 通道，先在 `dev/dedicatus/ipcChannels.mjs` 登记信任级别（D605）。
 
 ### 日志
 

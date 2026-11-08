@@ -17,6 +17,10 @@ import {
 } from './baseline.mjs';
 import { checkBoundaries } from './checks/boundaries.mjs';
 import { checkCycles } from './checks/cycles.mjs';
+import { checkFoliumApi } from './checks/foliumApi.mjs';
+import { checkForeignCredentials } from './checks/foreignCredentials.mjs';
+import { checkModIntegration } from './checks/modIntegration.mjs';
+import { checkStartupWeight } from './checks/startupWeight.mjs';
 import { checkNotes } from './checks/notes.mjs';
 import { CODE_PATTERN, DEFAULT_MODE, codeInfo } from './codes.mjs';
 import { addedFiles, movedLines, parseDiff, renames, writtenLines } from './diff.mjs';
@@ -82,13 +86,18 @@ function loadDiffContext(options) {
     return { base, files, written: writtenLines(files), moved: movedLines(files), renameMap: renames(files), newFiles: addedFiles(files), touched };
 }
 
+/** 模块图上的全部检查：分层边界、循环依赖、模组接入点、首屏重型包。结果都能进基线。dir 是这张图对应的代码目录。 */
+const graphFindings = (graph, dir = root) => [
+    ...checkBoundaries(graph), ...checkCycles(graph), ...checkModIntegration(graph), ...checkStartupWeight(dir, graph),
+];
+
 /** 比较基点上的模块图检查结果（key 已按这次的改名换成新路径），以及那时的基线。 */
 const BASE_TREE_PATHS = ['src', 'electron', 'dev', 'test', 'shared', 'worker', 'api-ts', 'api'];
 function baseGraphState(context) {
     const tree = extractTree(root, context.base, BASE_TREE_PATHS);
     try {
         const graph = buildModuleGraph(tree.dir);
-        const keys = [...checkBoundaries(graph), ...checkCycles(graph)].map(finding => finding.key);
+        const keys = graphFindings(graph, tree.dir).map(finding => finding.key);
         return { findings: new Set(migrateKeys(keys, context.renameMap)), readOld: file => {
             const full = path.join(tree.dir, file);
             return fs.existsSync(full) ? fs.readFileSync(full, 'utf8') : showAt(root, context.base, file);
@@ -125,7 +134,7 @@ async function adoptMoved(context) {
         return;
     }
     const graph = buildModuleGraph(root);
-    const current = [...checkBoundaries(graph), ...checkCycles(graph)];
+    const current = graphFindings(graph);
     const present = new Set(current.map(finding => finding.key));
     const adopted = current.filter(finding => context.newFiles.has(finding.file)).map(finding => finding.key);
     saveBaseline(root, [...loadBaseline(root).filter(key => present.has(key)), ...adopted]);
@@ -137,7 +146,7 @@ async function adoptMoved(context) {
 /** 模块图检查：边界 + 环，和基线对账；有比较基点时再查基线增长与 @note。 */
 function runGraphChecks(options, context) {
     const graph = buildModuleGraph(root);
-    const findings = [...checkBoundaries(graph), ...checkCycles(graph)];
+    const findings = graphFindings(graph);
     const entries = loadBaseline(root);
     const comparison = compareWithBaseline(findings, entries);
     const baseState = context.base ? baseGraphState(context) : null;
@@ -184,6 +193,10 @@ function finishGraphChecks(options, context, entries, comparison, baseState) {
             fresh.push({ code: 'D001', file: BASELINE_FILE, message: `基线新增了条目：${key}（基线只减不增，修掉违规而不是登记它）`, key: `D001:${key}` });
         }
         fresh.push(...checkNotes(context.files, baseState?.readOld ?? (file => showAt(root, context.base, file))));
+        fresh.push(...checkForeignCredentials(context.files));
+        const readBase = baseState?.readOld ?? (file => showAt(root, context.base, file));
+        const readCurrent = file => (fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null);
+        fresh.push(...checkFoliumApi(context.files, { readBase, readCurrent }));
     }
 
     return { fresh, known: comparison.known };
