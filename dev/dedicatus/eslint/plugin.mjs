@@ -629,14 +629,40 @@ const staleAfterAwait = {
             || (node.parent?.type === 'Property' && node.parent.key === node && !node.parent.computed && !node.parent.shorthand)
             || (node.parent?.type === 'MemberExpression' && node.parent.property === node && !node.parent.computed);
 
+        /** 一个表达式里（含内联函数 `() => !overtaken()`）提到了令牌或别的复核写法。 */
+        const mentionsCheck = node => {
+            if (!node || typeof node.type !== 'string') return false;
+            if (node.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)) && !isNameOnly(node)) return true;
+            return (visitorKeys[node.type] ?? []).some(key => {
+                const child = node[key];
+                return Array.isArray(child) ? child.some(mentionsCheck) : mentionsCheck(child);
+            });
+        };
+
+        /**
+         * `const track = await resolve(…, () => !overtaken())`：被等待的函数收了令牌，过期时回空值。之后在条件里判这个结果
+         * （`if (!track) return;`）也算复核。直接把结果写进状态（`setLyrics(await f(song, stillWanted))`）不算。
+         * @returns {string | null} 结果的变量名
+         */
+        const delegatedResultOf = awaitNode => {
+            const call = awaitNode.argument;
+            if (call?.type !== 'CallExpression' || !call.arguments.some(mentionsCheck)) return null;
+            const parent = awaitNode.parent;
+            return parent?.type === 'VariableDeclarator' && parent.init === awaitNode && parent.id.type === 'Identifier' ? parent.id.name : null;
+        };
+
         /** 一个函数体里的事件：await 结束、读令牌（token：是不是令牌；check：算不算复核）、写状态。不进嵌套函数。 */
         const eventsOf = fn => {
             const events = [];
+            const delegatedResults = new Set();
             const walk = (node, root) => {
                 if (!node || typeof node.type !== 'string') return;
                 if (!root && isFunction(node)) return;
                 if (node.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)) && !isNameOnly(node)) {
                     events.push({ kind: 'read', at: node.range[0], node, token: tokens.has(node.name), check: inCondition(node) });
+                }
+                if (node.type === 'Identifier' && delegatedResults.has(node.name) && !isNameOnly(node) && inCondition(node)) {
+                    events.push({ kind: 'read', at: node.range[0], node, token: false, check: true });
                 }
                 if (node.type === 'CallExpression') {
                     const name = calledName(node);
@@ -650,7 +676,11 @@ const staleAfterAwait = {
                     if (Array.isArray(child)) child.forEach(item => walk(item, false));
                     else walk(child, false);
                 }
-                if (node.type === 'AwaitExpression') events.push({ kind: 'await', at: node.range[1], node });
+                if (node.type === 'AwaitExpression') {
+                    events.push({ kind: 'await', at: node.range[1], node });
+                    const result = delegatedResultOf(node);
+                    if (result) delegatedResults.add(result);
+                }
             };
             walk(fn.body, true);
             return events.sort((a, b) => a.at - b.at);

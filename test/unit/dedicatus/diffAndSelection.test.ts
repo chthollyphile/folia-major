@@ -75,22 +75,51 @@ describe('dedicatus diff parsing', () => {
             'diff --git a/src/big.ts b/src/big.ts',
             '--- a/src/big.ts',
             '+++ b/src/big.ts',
-            '@@ -10,2 +10,0 @@',
+            '@@ -10,5 +10,0 @@',
             '-export const parse = (raw: any) => raw.value;',
+            '-export const parseAll = (rows: any[]) => rows.map(parse);',
+            '-',
+            '-export const parseFirst = (rows: any[]) => parse(rows[0]);',
             '-}',
             'diff --git a/src/big/part.ts b/src/big/part.ts',
             'new file mode 100644',
             '--- /dev/null',
             '+++ b/src/big/part.ts',
-            '@@ -0,0 +1,3 @@',
+            '@@ -0,0 +1,6 @@',
             '+    export const parse = (raw: any) => raw.value;',
+            '+export const parseAll = (rows: any[]) => rows.map(parse);',
+            '+',
+            '+export const parseFirst = (rows: any[]) => parse(rows[0]);',
             '+export const fresh = (input: any) => input;',
             '+}',
         ));
         expect(addedFiles(split)).toEqual(new Set(['src/big/part.ts']));
-        expect(movedLines(split).get('src/big/part.ts')).toEqual(new Set([1]));
+        // 连成一段的三行（中间的空行不打断）算挪过来的
+        expect(movedLines(split).get('src/big/part.ts')).toEqual(new Set([1, 2, 4]));
         // 太短的 `}` 不算挪动：宁可当成新写的
-        expect(writtenLines(split).get('src/big/part.ts')).toEqual(new Set([2, 3]));
+        expect(writtenLines(split).get('src/big/part.ts')).toEqual(new Set([3, 5, 6]));
+    });
+
+    it('does not count a lone common line that happens to match a removed one as moved', () => {
+        const fresh = parseDiff(source(
+            'diff --git a/src/panel.tsx b/src/panel.tsx',
+            '--- a/src/panel.tsx',
+            '+++ b/src/panel.tsx',
+            '@@ -20,2 +20,0 @@',
+            '-            <AnimatePresence>',
+            '-    } catch (error) {',
+            'diff --git a/src/cast.tsx b/src/cast.tsx',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/cast.tsx',
+            '@@ -0,0 +1,4 @@',
+            '+  const devices = useDevices();',
+            '+  <AnimatePresence>',
+            '+  const label = devices.length;',
+            '+  } catch (error) {',
+        ));
+        expect(movedLines(fresh).get('src/cast.tsx')).toBeUndefined();
+        expect(writtenLines(fresh).get('src/cast.tsx')).toEqual(new Set([1, 2, 3, 4]));
     });
 });
 

@@ -306,6 +306,8 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
             { filename: inRepo('src/components/app/playback/useStagePlaybackController.ts'), options: tokenOptions, code: 'function useStage() { const stageLyricsLoadIdRef = useRef(0); const refresh = useCallback(async () => { const songs = await load(); setPlayQueue(songs); }, []); fetchCover().then(url => setCachedCoverUrl(url)); }' },
             // switch 的判断值也是复核
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); const url = await fetchUrl(song); switch (stillWanted()) { case false: return; default: setAudioSrc(url); } }' },
+            // 令牌交给了被等待的函数（过期时回空值），之后判了它的结果（#1109 的 adoptRunningTrack）
+            { filename: playbackFile, options: tokenOptions, code: 'async function adopt(song, stillWanted) { const track = await resolveRunningTrack(song, () => stillWanted()); if (!track) return false; makeSongCurrent(track); }' },
         ],
         invalid: [
             // #796 / #1016 那类：等待之后不问令牌就写
@@ -325,6 +327,9 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); setLyrics(await load(song)); setPlayQueue((await loadQueue()).songs); }', errors: [{ messageId: 'stale' }, { messageId: 'stale' }] },
             // 令牌交给的是里面的调用，不是写入函数自己
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); const x = await load(); setCurrentSong(pick(x, stillWanted)); }', errors: [{ messageId: 'stale' }] },
+            // 令牌交给了被等待的函数，但没判结果就写：过期时写进去的是空值
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); setLyrics(await fetchLyrics(song, stillWanted)); }', errors: [{ messageId: 'stale' }] },
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); const lyrics = await fetchLyrics(song, stillWanted); setLyrics(lyrics); }', errors: [{ messageId: 'stale' }] },
         ],
     });
 
