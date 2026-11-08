@@ -9,6 +9,8 @@ const DIAL_FACE = 0;
 /** 网格各部件离表盘平面的高度（轮盘半径的比例）；按 pendoloClockworkMeshes 里 pushPart 的 key 前缀找。 */
 const PART_HEIGHTS: Array<[prefix: string, height: number]> = [
     ['main-static', DIAL_FACE],
+    // 中心宝石浮在太阳轮上面
+    ['main-jewel', 0.12],
     ['main-ticks', 0.02],
     ['main-esc', 0.05],
     ['main-sun', 0.09],
@@ -19,7 +21,8 @@ const PART_HEIGHTS: Array<[prefix: string, height: number]> = [
     ['planet-', 0.11],
     ['trans-spin', 0.14],
     ['trans-jewel', 0.16],
-    ['balance-static', 0.18],
+    // 摆轮中心的环和宝石压在摆轮上面，要比摆轮高，倾斜时才不会被摆轮的面挡住
+    ['balance-static', 0.21],
     ['balance-gear', 0.2],
     ['hairspring', 0.22],
     // 最外圈表盘的顶圈：和底下那圈（main-static）一高一低，表盘看得出厚度；只在视差开着时生成

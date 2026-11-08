@@ -53,11 +53,12 @@ export const buildPendoloTiltProjection = (
     matrix[4] = cos + uy * uy * k;
     matrix[6] = (uy * sin) / focal;
     matrix[7] = (-ux * sin) / focal;
-    // 法线 (0,0,1) 转过之后是 (uy·sinθ, -ux·sinθ, cosθ)（z 为正是离开观看者），朝观看者就取反
+    // 上面的 z 对应绕 u 转 -θ，法线 (0,0,1) 同样转过之后是 (-uy·sinθ, ux·sinθ, cosθ)（z 为正是离开观看者），
+    // 朝观看者就取反；抬高的层在屏幕上往表盘远侧挪，和真实 3D 一致，深度遮挡才对得上
     return {
         matrix,
         flat: false,
-        lift: [-uy * sin, ux * sin, -cos / focal],
+        lift: [uy * sin, -ux * sin, -cos / focal],
         invFocal: 1 / focal,
     };
 };

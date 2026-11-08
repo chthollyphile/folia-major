@@ -64,9 +64,26 @@ describe('pendolo layer parallax', () => {
         const tilt = buildPendoloTiltProjection(45, 0, 1920, 1080);
         const at = (height: number) => projectPendoloDialPoint(buildPendoloLayerProjection(tilt, height), 0, 0);
         expect(at(0).y).toBeCloseTo(0);
-        // 水平轴、正倾斜（上方往里退）：法线朝观看者偏向下方，抬高的层往下错开
-        expect(at(60).y).toBeGreaterThan(0);
-        expect(at(120).y).toBeGreaterThan(at(60).y);
+        // 水平轴、正倾斜（上方往里退）：法线朝观看者偏向上方，抬高的层往上（表盘远侧）错开
+        expect(at(60).y).toBeLessThan(0);
+        expect(at(120).y).toBeLessThan(at(60).y);
+    });
+
+    it('puts a raised layer nearer than the dial along the same screen ray', () => {
+        // 遮挡靠深度测试：同一个屏幕像素上，越高的层 w 必须越小（越近），否则上层反被下层挡住
+        const tilt = buildPendoloTiltProjection(53, -57, 1280, 720);
+        const wAtPixel = (height: number, sx: number, sy: number) => {
+            const m = buildPendoloLayerProjection(tilt, height).matrix;
+            const inv = invertPendoloProjectionMatrix(m);
+            const z = inv[6] * sx + inv[7] * sy + inv[8];
+            const x = (inv[0] * sx + inv[1] * sy + inv[2]) / z;
+            const y = (inv[3] * sx + inv[4] * sy + inv[5]) / z;
+            return m[6] * x + m[7] * y + m[8];
+        };
+        for (const [sx, sy] of [[186, -185], [-150, 120], [0, 0]]) {
+            expect(wAtPixel(40, sx, sy)).toBeLessThan(wAtPixel(0, sx, sy));
+            expect(wAtPixel(90, sx, sy)).toBeLessThan(wAtPixel(40, sx, sy));
+        }
     });
 });
 

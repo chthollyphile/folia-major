@@ -39,6 +39,8 @@ uniform vec2 u_origins[${PENDOLO_MAX_PARTS}];
 uniform float u_rotations[${PENDOLO_MAX_PARTS}];
 // 各部件离表盘平面的高度（CSS px）；不倾斜时全是 0
 uniform float u_heights[${PENDOLO_MAX_PARTS}];
+// 遮挡面那一遍把面往下压一点（CSS px），和面同高的线、填色才不会被自己的面挡住
+uniform float u_depthBias;
 // Shockwave lens: centre (CSS px), and crest radius, width, push share, light share.
 uniform vec2 u_waveCenter;
 uniform vec4 u_wave;
@@ -75,16 +77,21 @@ void main() {
       v_light = u_wave.w * b;
     }
   }
+  float depth = 0.0;
   if (u_projOn > 0.5) {
-    vec3 h = projectDial(world, u_heights[id]);
-    world = u_hub + h.xy / max(h.z, 0.001);
+    vec3 h = projectDial(world, u_heights[id] - u_depthBias);
+    float w = max(h.z, 0.001);
+    world = u_hub + h.xy / w;
+    // 深度取 1/w 的线性函数：透视除法已经在这里做了，屏幕上线性插值的量对平面来说只有 1/w 是准的；
+    // 近处 1/w 大、深度小。只有分层视差的遮挡打开深度测试时才用得上。
+    depth = clamp((1.0 - 1.0 / w) * 0.5, -0.999, 0.999);
   }
   vec2 px = world * u_dpr;
   vec2 clip = vec2(
     (px.x / u_resolution.x) * 2.0 - 1.0,
     1.0 - (px.y / u_resolution.y) * 2.0
   );
-  gl_Position = vec4(clip, 0.0, 1.0);
+  gl_Position = vec4(clip, depth, 1.0);
 }
 `;
 
@@ -435,6 +442,15 @@ export class PendoloClockworkRenderer {
 
     private meshUniformHeights: WebGLUniformLocation | null = null;
 
+    private meshUniformDepthBias: WebGLUniformLocation | null = null;
+
+    private faceVbo: WebGLBuffer | null = null;
+
+    private faceVao: WebGLVertexArrayObject | null = null;
+
+    /** faceVbo 里现在是哪个场景的遮挡面。 */
+    private faceSceneKey = '';
+
     private fxUniformHeight: WebGLUniformLocation | null = null;
 
     private coverVerts = new Float32Array(16);
@@ -448,6 +464,9 @@ export class PendoloClockworkRenderer {
             alpha: true,
             premultipliedAlpha: true,
             antialias,
+            // 分层视差的遮挡：深度缓冲记齿轮顶面，模板缓冲从面上抠洞
+            depth: true,
+            stencil: true,
             powerPreference: 'high-performance',
         });
         if (!gl) return;
@@ -466,6 +485,7 @@ export class PendoloClockworkRenderer {
             this.meshUniformWaveTint = gl.getUniformLocation(this.meshProgram, 'u_waveTint');
             this.meshProjection = getProjectionUniforms(gl, this.meshProgram);
             this.meshUniformHeights = gl.getUniformLocation(this.meshProgram, 'u_heights');
+            this.meshUniformDepthBias = gl.getUniformLocation(this.meshProgram, 'u_depthBias');
         }
         if (this.gradProgram) {
             this.gradUniformCenter = gl.getUniformLocation(this.gradProgram, 'u_center');
@@ -533,6 +553,11 @@ export class PendoloClockworkRenderer {
         if (this.coverVao) gl.deleteVertexArray(this.coverVao);
         if (this.fullscreenVao) gl.deleteVertexArray(this.fullscreenVao);
         if (this.meshVbo) gl.deleteBuffer(this.meshVbo);
+        if (this.faceVbo) gl.deleteBuffer(this.faceVbo);
+        if (this.faceVao) gl.deleteVertexArray(this.faceVao);
+        this.faceVbo = null;
+        this.faceVao = null;
+        this.faceSceneKey = '';
         if (this.coverVbo) gl.deleteBuffer(this.coverVbo);
         if (this.meshProgram) gl.deleteProgram(this.meshProgram);
         if (this.gradProgram) gl.deleteProgram(this.gradProgram);
@@ -822,7 +847,75 @@ export class PendoloClockworkRenderer {
         const tint = beatFx?.wave ? beatFx.color : null;
         gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);
         gl.uniform1f(this.meshUniformWaveTint, tint ? PENDOLO_WAVE_TINT : 0);
+        gl.uniform1f(this.meshUniformDepthBias, 0);
+        const occluding = heightScale > 0 && Boolean(scene.faces?.length) && this.drawOccluders(scene, heightScale);
+        gl.bindVertexArray(this.meshVao);
         gl.drawArrays(gl.TRIANGLES, 0, scene.vertexCount);
+        if (occluding) {
+            gl.disable(gl.DEPTH_TEST);
+            gl.depthMask(true);
+        }
         gl.bindVertexArray(null);
+    }
+
+    /**
+     * 分层视差的遮挡：先把各齿轮的顶面写进深度缓冲（不出颜色），每块面先用模板把自己的洞标出来、
+     * 写深度时跳过洞；之后的线和填色按深度测试画，被上层齿轮挡住的就不画。网格程序和高度表已经设好。
+     */
+    private drawOccluders(scene: PendoloCachedScene, heightScale: number) {
+        const gl = this.gl!;
+        if (!scene.faceData || !scene.faces) return false;
+        if (!this.faceVbo) {
+            this.faceVbo = gl.createBuffer();
+            this.faceVao = gl.createVertexArray();
+            gl.bindVertexArray(this.faceVao);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.faceVbo);
+            const strideBytes = PENDOLO_MESH_STRIDE * 4;
+            gl.enableVertexAttribArray(0);
+            gl.enableVertexAttribArray(1);
+            gl.enableVertexAttribArray(2);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, strideBytes, 0);
+            gl.vertexAttribPointer(1, 4, gl.FLOAT, false, strideBytes, 8);
+            gl.vertexAttribPointer(2, 1, gl.FLOAT, false, strideBytes, 24);
+        }
+        gl.bindVertexArray(this.faceVao);
+        if (this.faceSceneKey !== scene.key) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.faceVbo);
+            gl.bufferData(gl.ARRAY_BUFFER, scene.faceData, gl.STATIC_DRAW);
+            this.faceSceneKey = scene.key;
+        }
+        // 写入遮罩会影响 clear，先放开再清
+        gl.depthMask(true);
+        gl.stencilMask(0xff);
+        gl.clearDepth(1);
+        gl.clearStencil(0);
+        gl.clear(gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.STENCIL_TEST);
+        // 面本身有填色的写透明，没填色的齿轮写一层淡底色（在建网格时定好），洞的颜色是透明
+        // 面往下压的量：远小于最小的层间距（0.01 倍半径乘强度），又不至于小到和同高的线打架
+        gl.uniform1f(this.meshUniformDepthBias, Math.max(0.02, 0.0025 * heightScale));
+        scene.faces.forEach((face, index) => {
+            const ref = (index % 255) + 1;
+            if (face.holeCount > 0) {
+                gl.disable(gl.DEPTH_TEST);
+                gl.depthMask(false);
+                gl.stencilFunc(gl.ALWAYS, ref, 0xff);
+                gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+                gl.drawArrays(gl.TRIANGLES, face.holeStart, face.holeCount);
+                gl.enable(gl.DEPTH_TEST);
+            }
+            gl.depthMask(true);
+            gl.depthFunc(gl.LESS);
+            gl.stencilFunc(gl.NOTEQUAL, ref, 0xff);
+            gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+            gl.drawArrays(gl.TRIANGLES, face.fanStart, face.fanCount);
+        });
+        gl.disable(gl.STENCIL_TEST);
+        gl.uniform1f(this.meshUniformDepthBias, 0);
+        // 线和填色只测不写：同高的过，低处被面盖住的不过
+        gl.depthFunc(gl.LEQUAL);
+        gl.depthMask(false);
+        return true;
     }
 }
