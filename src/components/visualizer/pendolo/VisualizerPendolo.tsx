@@ -497,15 +497,22 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const balanceGearY = centerY - baseRadius * 0.75;
     // 倾斜时歌词和摆轮图标所在的那一层：和表盘画布同一个矩阵，字也躺在表盘平面上。
     // 不倾斜时这层没有 transform / zIndex，不成层叠上下文，画面和原来一样。
+    // 冲击环是 plus-lighter 叠加，不能再包一层（那层会把它隔离、叠加失效），所以把同一个矩阵直接
+    // 放在它自己的 transform 最前面；它的盒子以轮心为中心，默认的变换原点就是轮心。
+    const planeCssTransform = tiltProjection.flat ? null : resolvePendoloPlaneCssTransform(tiltProjection);
+    const haloTransformTemplate = useCallback(
+        (_: unknown, generated: string) => `${planeCssTransform} ${generated === 'none' ? '' : generated}`,
+        [planeCssTransform],
+    );
     const planeLayerStyle = useMemo<React.CSSProperties | undefined>(() => (
         tiltProjection.flat
             ? undefined
             : {
-                transform: resolvePendoloPlaneCssTransform(tiltProjection),
+                transform: planeCssTransform ?? undefined,
                 transformOrigin: `${centerX}px ${centerY}px`,
                 zIndex: 2,
             }
-    ), [centerX, centerY, tiltProjection]);
+    ), [centerX, centerY, planeCssTransform, tiltProjection.flat]);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
     const textOrigin = mirrored ? 'right center' : 'left center';
@@ -535,6 +542,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     <motion.div
                         aria-hidden
                         className="absolute pointer-events-none"
+                        transformTemplate={planeCssTransform ? haloTransformTemplate : undefined}
                         style={{
                             left: centerX - haloReach,
                             top: centerY - haloReach,
