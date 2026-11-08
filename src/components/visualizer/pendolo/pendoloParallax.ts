@@ -41,8 +41,8 @@ export const PENDOLO_BALANCE_ICON_HEIGHT = 0.22;
 /** 随拍的叠加层（刻度点亮、宝石闪光、火花）：贴着刻度。 */
 export const PENDOLO_BEAT_OVERLAY_HEIGHT = 0.02;
 
-/** 齿轮的厚度（轮盘半径的比例）：低处线比高处线低这么多，不低于表盘平面。 */
-export const PENDOLO_GEAR_THICKNESS = 0.05;
+/** 齿轮的厚度（轮盘半径的比例）：低处线比高处线低这么多，不低于表盘平面。0.05 时小齿轮显得太厚。 */
+export const PENDOLO_GEAR_THICKNESS = 0.025;
 
 /** 部件 key 加上它，就是这个齿轮的低处线（齿轮底面那圈齿形）。 */
 export const PENDOLO_PART_BASE_SUFFIX = '#base';
