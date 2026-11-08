@@ -41,13 +41,18 @@ export interface PendoloCachedScene {
     vertexCount: number;
 }
 
-/** 齿轮外缘的齿形，记下来给分层视差补「低处线」（齿轮底面）用。 */
-interface PendoloGearOutline {
+/**
+ * 齿轮上的轮廓线：外缘齿形（polyline），以及辐条轮的轮毂圈、轮缘圈和上面的洞（circle）。
+ * 记下来给分层视差补「低处线」（齿轮底面上的同一条线）用。
+ */
+type PendoloGearOutline = {
     partKey: string;
-    pts: Array<{ x: number; y: number }>;
     lineWidth: number;
-    stroke: string;
-}
+    rgba: [number, number, number, number];
+} & (
+    | { kind: 'polyline'; pts: Array<{ x: number; y: number }> }
+    | { kind: 'circle'; cx: number; cy: number; radius: number; segments: number }
+);
 
 class PendoloMeshBuilder {
     private data: number[] = [];
@@ -315,7 +320,7 @@ const appendGearLocal = (
     const pts = gearTeethPointsLocal(radius, teethCount, toothDepth);
     if (fill) mesh.appendFilledPolygonFromCenter(0, 0, pts, parseRgba(fill));
     mesh.appendPolyline(pts, lineWidth, parseRgba(stroke), true);
-    mesh.gearOutlines?.push({ partKey: mesh.activePartKey, pts, lineWidth, stroke });
+    mesh.gearOutlines?.push({ partKey: mesh.activePartKey, kind: 'polyline', pts, lineWidth, rgba: parseRgba(stroke) });
 };
 
 const appendSpokedWheelLocal = (
@@ -324,8 +329,13 @@ const appendSpokedWheelLocal = (
     stroke: string, lineWidth: number,
 ) => {
     const rgba = parseRgba(stroke);
-    mesh.appendCircleStroke(0, 0, hubR, lineWidth, rgba);
-    mesh.appendCircleStroke(0, 0, rimR, lineWidth, rgba);
+    // 轮毂圈、轮缘圈和洞在分层视差时也要有低处线：透过洞能看到洞的下沿
+    const circle = (cx: number, cy: number, radius: number, segments = 64) => {
+        mesh.appendCircleStroke(cx, cy, radius, lineWidth, rgba, segments);
+        mesh.gearOutlines?.push({ partKey: mesh.activePartKey, kind: 'circle', cx, cy, radius, segments, lineWidth, rgba });
+    };
+    circle(0, 0, hubR);
+    circle(0, 0, rimR);
     const angleStep = (Math.PI * 2) / spokeCount;
     for (let i = 0; i < spokeCount; i++) {
         const a = i * angleStep;
@@ -339,7 +349,7 @@ const appendSpokedWheelLocal = (
     const holeR = (rimR - hubR) * 0.22;
     for (let i = 0; i < spokeCount; i++) {
         const a = i * angleStep + angleStep * 0.5;
-        mesh.appendCircleStroke(midR * Math.cos(a), midR * Math.sin(a), holeR, lineWidth, rgba, 24);
+        circle(midR * Math.cos(a), midR * Math.sin(a), holeR, 24);
     }
 };
 
@@ -616,20 +626,31 @@ export const buildPendoloClockworkCachedScene = (
     }
     // 低处线画在最前面，被上面的齿轮（和它们的填色）盖住；跟着各自齿轮的原点和转角走
     const base = new PendoloMeshBuilder();
+    // 同一个部件的低处线共用一个部件编号（同一原点、转角和高度）
+    const baseIds = new Map<string, number>();
     for (const outline of mesh.gearOutlines) {
         const source = parts[partKeys.get(outline.partKey) ?? -1];
         if (!source) continue;
-        if (parts.length >= PENDOLO_MAX_PARTS) {
-            console.warn('[pendoloClockworkMeshes] exceeded PENDOLO_MAX_PARTS (gear bases)');
-            break;
+        let baseId = baseIds.get(outline.partKey);
+        if (baseId === undefined) {
+            if (parts.length >= PENDOLO_MAX_PARTS) {
+                console.warn('[pendoloClockworkMeshes] exceeded PENDOLO_MAX_PARTS (gear bases)');
+                continue;
+            }
+            baseId = parts.length;
+            baseIds.set(outline.partKey, baseId);
+            parts.push({
+                getOrigin: source.getOrigin,
+                getRotation: source.getRotation,
+                height: resolvePendoloPartHeight(`${outline.partKey}${PENDOLO_PART_BASE_SUFFIX}`),
+            });
         }
-        base.setActivePartId(parts.length);
-        parts.push({
-            getOrigin: source.getOrigin,
-            getRotation: source.getRotation,
-            height: resolvePendoloPartHeight(`${outline.partKey}${PENDOLO_PART_BASE_SUFFIX}`),
-        });
-        base.appendPolyline(outline.pts, outline.lineWidth, parseRgba(outline.stroke), true);
+        base.setActivePartId(baseId);
+        if (outline.kind === 'polyline') {
+            base.appendPolyline(outline.pts, outline.lineWidth, outline.rgba, true);
+        } else {
+            base.appendCircleStroke(outline.cx, outline.cy, outline.radius, outline.lineWidth, outline.rgba, outline.segments);
+        }
     }
     const front = base.toFloat32();
     const back = mesh.toFloat32();
