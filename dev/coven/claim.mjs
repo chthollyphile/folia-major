@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { catalogueLabel } from './catalogue.mjs';
 import { ROOT, covenPath, gh, ghApiLines, isDryRun, loadConfig, loadState, nowIso, parseArgs, readJson, requireSupervisor, runCli, saveState, splitList } from './common.mjs';
 // dev/coven/claim.mjs
 // `coven:` 认领协议（plan/coven-semi-auto-plan.md 第 4 节）：多位维护者各自跑监控 session 时，不处理同一条。
@@ -171,12 +172,13 @@ function formatLease(iso, { timeZone, timeZoneLabel }) {
 }
 
 /**
- * 认领评论的正文：一行给人看的，加一个给脚本读的隐藏标记。只写账号、动作、条目、范围名、租约，
+ * 认领评论的正文：一行给人看的，加一个给脚本读的隐藏标记。只写账号、代号（作品号，分进任务后是任务号）、动作、条目、范围名、租约，
  * 不写本机路径、主机名、session id、花费。
  */
 export function renderClaimComment(claim, config) {
     const action = ACTION_LABELS[claim.action] ?? claim.action ?? '';
-    const subject = `${action} \`${claim.item}\``.trim();
+    const catalogue = catalogueLabel(claim);
+    const subject = `${catalogue ? `${catalogue} · ` : ''}${action} \`${claim.item}\``.trim();
     const lease = `租约至 ${formatLease(claim.leaseUntil, config)}`;
     const takeover = claim.takeover ? ` · 接手 @${claim.takeover.owner} 的过期认领` : '';
     const head = {
@@ -190,7 +192,7 @@ export function renderClaimComment(claim, config) {
     if (!head) throw new Error(`不认识的认领状态 ${claim.state}`);
     const marker = {
         state: claim.state, owner: claim.owner, claimId: claim.claimId, item: claim.item, action: claim.action ?? null,
-        scope: claim.scope ?? null, leaseUntil: claim.leaseUntil,
+        scope: claim.scope ?? null, ...(claim.run ? { run: claim.run } : {}), ...(claim.task ? { task: claim.task } : {}), leaseUntil: claim.leaseUntil,
         ...(claim.pr ? { pr: claim.pr } : {}), ...(claim.code ? { code: claim.code } : {}),
         ...(claim.from ? { from: claim.from } : {}), ...(claim.takeover ? { takeover: claim.takeover } : {}),
     };
@@ -276,7 +278,7 @@ export function claimItems({ keys, state, config, io, now = Date.now() }) {
             }
             const expired = resolution.expired[0];
             const claim = {
-                state: 'claimed', owner: state.owner, claimId: newClaimId(), item: key, action: mine?.action ?? 'refactor', scope: state.scope,
+                state: 'claimed', owner: state.owner, claimId: newClaimId(), item: key, action: mine?.action ?? 'refactor', scope: state.scope, run: state.run, task: mine?.task ?? null,
                 leaseUntil: leaseFrom(now, config.leaseHours),
                 ...(expired ? { takeover: { owner: expired.owner, claimId: expired.claimId } } : {}),
             };
@@ -355,7 +357,7 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
             const next = { ...mine.claim, ...change };
             if (ownExpired && ACTIVE_STATES.has(next.state)) revived.push(key);
             const claim = {
-                state: next.state, owner: state.owner, claimId: mine.claimId, item: key, action: mine.action ?? 'refactor', scope: state.scope,
+                state: next.state, owner: state.owner, claimId: mine.claimId, item: key, action: mine.action ?? 'refactor', scope: state.scope, run: state.run, task: mine.task ?? null,
                 leaseUntil: leaseFrom(now, config.leaseHours), pr: next.pr ?? null, code: next.state === 'blocked' ? next.code : null,
                 ...(mine.takeover ? { takeover: mine.takeover } : {}),
             };
@@ -370,7 +372,7 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
             const mine = state.items[key];
             const holder = resolutionOf(after, key).holder;
             if (holder?.claimId === mine.claimId) continue;
-            const claim = { state: 'released', owner: state.owner, claimId: mine.claimId, item: key, action: mine.action ?? 'refactor', scope: state.scope, leaseUntil: leaseFrom(now, config.leaseHours) };
+            const claim = { state: 'released', owner: state.owner, claimId: mine.claimId, item: key, action: mine.action ?? 'refactor', scope: state.scope, run: state.run, task: mine.task ?? null, leaseUntil: leaseFrom(now, config.leaseHours) };
             io.edit(issue, mine.commentId, renderClaimComment(claim, config));
             mine.claim = { state: 'released' };
             updated.splice(updated.indexOf(key), 1);

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { contractFingerprint } from '../../../dev/coven/contract.mjs';
 import { prPreflight, renderPrBody } from '../../../dev/coven/pr.mjs';
-import { auditWrites, claimChangeFor, createState, runRecord, transition } from '../../../dev/coven/state.mjs';
+import { auditWrites, claimChangeFor, createState, pushCreatedRef, runRecord, transition } from '../../../dev/coven/state.mjs';
 import type { CovenTask } from '../../../dev/coven/state.mjs';
+import { requireCurrentFormat } from '../../../dev/coven/common.mjs';
 import { baselineShrink, growthProblems, parseNameStatus } from '../../../dev/coven/verify.mjs';
 
 // test/unit/coven/state.test.ts
@@ -69,13 +70,24 @@ describe('coven task phases', () => {
 });
 
 describe('coven run record and audit', () => {
-    it('names the run by the maintainer\'s local date', () => {
-        const state = createState({ scope: 'arch', owner: 'alice', integrationBranch: 'coven/run-2026-11-09', trackingIssue: null, dryRun: true, now: '2026-11-08T17:00:00.000Z', timeZone: 'Asia/Shanghai' });
-        expect(state.run).toBe('2026-11-09-arch');
+    it('names the run by its opus number and keeps the maintainer\'s local date', () => {
+        const state = createState({ run: 'op3', scope: 'fugue-boundaries', owner: 'alice', trackingIssue: null, dryRun: false, now: '2026-11-08T17:00:00.000Z', timeZone: 'Asia/Shanghai' });
+        expect(state).toMatchObject({ run: 'op3', integrationBranch: 'coven/op3', date: '2026-11-09' });
+    });
+
+    it('takes an opus number only when the push created the branch', () => {
+        // 两边都从同一个 origin/main 切出时，远端已有的分支 git 只报“已是最新”、退出码 0
+        const branch = 'refs/heads/coven/op3';
+        const tag = 'refs/tags/coven-op3';
+        const both = `To origin\n*\t${branch}:${branch}\t[new branch]\n*\t${tag}:${tag}\t[new tag]\nDone\n`;
+        expect([branch, tag].every(ref => pushCreatedRef(both, ref))).toBe(true);
+        expect(pushCreatedRef(`To origin\n=\t${branch}:${branch}\t[up to date]\nDone\n`, branch)).toBe(false);
+        expect(pushCreatedRef(`To origin\n!\t${branch}:${branch}\t[rejected] (stale info)\nDone\n`, branch)).toBe(false);
+        expect(pushCreatedRef('To origin\n*\trefs/heads/coven/op31:refs/heads/coven/op31\t[new branch]\n', branch)).toBe(false);
     });
 
     it('counts interventions, rounds, tokens and escalations', () => {
-        const state = createState({ scope: 'arch', owner: 'alice', integrationBranch: 'coven/run-2026-11-09', trackingIssue: 42, dryRun: true, now: '2026-11-09T01:00:00.000Z' });
+        const state = createState({ run: 'woo1', scope: 'fugue', owner: 'alice', trackingIssue: 42, dryRun: true, now: '2026-11-09T01:00:00.000Z' });
         state.tasks.a = { ...task({ phase: 'done', rounds: 2, tokens: 1_500_000, pr: 1201 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }, { at: '2026-11-09T02:40:00.000Z', phase: 'done' }] };
         state.tasks.b = { ...task({ phase: 'blocked', code: 'D811', rounds: 2, tokens: 500_000 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }] };
         state.escalations = [{ items: ['D190:x->y'], code: 'D812', question: 'tuningRegistry 按路径被找，挪还是放行？' }];
@@ -155,22 +167,22 @@ describe('coven verify', () => {
 
 describe('coven pr preflight', () => {
     const contract = {
-        task: 'a', items: ['D102:a->b'], risk: 'R2', action: 'refactor', goal: 'g', nonGoals: [], scope: { paths: ['src/'] },
+        task: 'op3-no1', title: 'a', items: ['D102:a->b'], risk: 'R2', action: 'refactor', goal: 'g', nonGoals: [], scope: { paths: ['src/'] },
         criteria: [{ id: 'c1', description: '基线', verify: { kind: 'baseline' }, passes: true }],
     };
-    const config = { integrationBranchPrefix: 'coven/run-' };
-    const verify = { task: 'a', head: 'abc1234def', base: 'coven/run-2026-11-09', mergeBase: 'm', ok: true, criteria: { c1: true }, changed: ['M src/a.ts'], checks: [{ id: 'c1', kind: 'baseline', ok: true, summary: '已消掉' }] };
+    const verify = { task: 'op3-no1', head: 'abc1234def', base: 'coven/op3', mergeBase: 'm', ok: true, criteria: { c1: true }, changed: ['M src/a.ts'], checks: [{ id: 'c1', kind: 'baseline', ok: true, summary: '已消掉' }] };
     const passed = { round: 1, passes: true, head: 'abc1234def', fingerprint: contractFingerprint(contract) };
     const stateWith = (overrides: Partial<CovenTask> = {}) => ({
-        run: '2026-11-09-arch', integrationBranch: 'coven/run-2026-11-09',
-        tasks: { a: { ...task({ phase: 'evaluating', rounds: 1, lastVerdict: passed }), ...overrides } },
+        run: 'op3', scope: 'fugue-boundaries', integrationBranch: 'coven/op3',
+        tasks: { 'op3-no1': { ...task({ phase: 'evaluating', rounds: 1, lastVerdict: passed }), ...overrides } },
     });
-    const input = { config, taskId: 'a', contract, approved: { contract }, verify, branch: 'coven/task-2026-11-09-a', branchHead: 'abc1234def', reviewExists: true };
+    const input = { taskId: 'op3-no1', contract, approved: { contract }, verify, branch: 'coven/op3-no1', branchHead: 'abc1234def', reviewExists: true };
 
     it('lets a fully verified and reviewed task through', () => {
         expect(prPreflight({ ...input, state: stateWith() })).toEqual([]);
-        const body = renderPrBody({ state: stateWith(), taskId: 'a', contract, verify, reviewText: '# a 第 1 轮评审：pass\n\n只是改引用。' });
-        expect(body).toContain('coven/run-2026-11-09');
+        const body = renderPrBody({ state: stateWith(), taskId: 'op3-no1', contract, verify, reviewText: '# Op. 3 No. 1 第 1 轮评审：pass\n\n只是改引用。' });
+        expect(body.split('\n')[0]).toBe('> Coven Op. 3 No. 1 "a" · Fugue "boundaries" · Andante（R2） · 评审 1 轮 · 用量 0 token');
+        expect(body).toContain('coven/op3');
         expect(body).toContain('只是改引用。');
     });
 
@@ -201,6 +213,14 @@ describe('coven pr preflight', () => {
     it('wants verify against the integration branch and a coven task branch', () => {
         const text = prPreflight({ ...input, state: stateWith(), verify: { ...verify, base: 'HEAD~1' }, branch: 'main' }).join('\n');
         expect(text).toContain('不要用 --base');
-        expect(text).toContain('coven/task-');
+        expect(text).toContain('coven/op3-no1');
+    });
+});
+
+describe('coven state format', () => {
+    it('refuses to continue a run from before the catalogue names', () => {
+        expect(() => requireCurrentFormat({ version: 1, run: '2026-11-08-arch-1108' })).toThrow('finish --force');
+        const current = createState({ run: 'op3', scope: 'fugue', owner: 'alice', trackingIssue: null, dryRun: false });
+        expect(requireCurrentFormat(current)).toBe(current);
     });
 });

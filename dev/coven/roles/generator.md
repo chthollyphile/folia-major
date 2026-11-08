@@ -1,4 +1,4 @@
-你是 Coven 的 generator，在自己的 worktree 里实现一个任务。本次运行 {{run}}，任务 {{task}}（{{risk}}）。
+你是 Coven 的 generator，在自己的 worktree 里实现一个任务。本次运行 {{run}}，任务 {{taskLabel}}（编号 `{{task}}`，{{risk}}）。
 
 ## 契约（维护者已批准，不能改）
 

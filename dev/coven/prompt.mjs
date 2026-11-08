@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROOT, covenPath, loadConfig, loadState, parseArgs, readJson, runCli, writeText } from './common.mjs';
+import { runLabel, scopeLabel, taskBranchOf, taskLabel } from './catalogue.mjs';
+import { ROOT, covenPath, loadConfig, loadState, requireCurrentFormat, parseArgs, readJson, runCli, writeText } from './common.mjs';
 import { contractFile, renderContract } from './contract.mjs';
 // dev/coven/prompt.mjs
 // 把 dev/coven/roles/ 下的角色提示模板填成可以直接交给子代理或工作 session 的文字。
@@ -40,12 +41,10 @@ export function wrapUntrusted(source, text) {
     ].join('\n');
 }
 
-export const taskBranchName = (state, task) => `coven/task-${state.date ?? state.startedAt.slice(0, 10)}-${task}`;
-
 const PLANNER_SCHEMA = `{
   "tasks": [
     {
-      "task": "lyric-match-sources",
+      "title": "lyric-match-sources",
       "items": ["D102:src/utils/lyrics/lyricMatchSources.ts->src/stores/useOnlineProviderAccountStore.ts"],
       "risk": "R2",
       "action": "refactor",
@@ -68,7 +67,7 @@ const PLANNER_SCHEMA = `{
 }`;
 
 const EVALUATOR_SCHEMA = `{
-  "task": "<任务>",
+  "task": "<任务编号，就是上面写的那个，例如 op3-no2>",
   "round": 1,
   "head": "<你审的提交，就是上面写的那个>",
   "verdict": "pass | fail | escalate",
@@ -92,7 +91,7 @@ function itemsTable(state, scope) {
 
 export function plannerVars(state, scope, config) {
     return {
-        run: state.run, scopeName: state.scope, integrationBranch: state.integrationBranch,
+        run: runLabel(state.run), scopeName: scopeLabel(state.scope), integrationBranch: state.integrationBranch,
         items: itemsTable(state, scope), maxReviewRounds: String(config.maxReviewRounds), schema: PLANNER_SCHEMA,
     };
 }
@@ -101,8 +100,8 @@ export function generatorVars(state, config, contract, feedback) {
     const task = state.tasks[contract.task];
     const usesLint = contract.criteria.some(criterion => criterion.verify.kind === 'dedicatus' && criterion.verify.target === 'all');
     return {
-        run: state.run, task: contract.task, risk: contract.risk, integrationBranch: state.integrationBranch,
-        branch: task?.branch ?? taskBranchName(state, contract.task),
+        run: runLabel(state.run), task: contract.task, taskLabel: taskLabel(contract.task, contract.title), risk: contract.risk, integrationBranch: state.integrationBranch,
+        branch: task?.branch ?? taskBranchOf(contract.task),
         contract: `${renderContract(contract)}\n\n\`\`\`json\n${JSON.stringify(contract, null, 2)}\n\`\`\``,
         lintInstall: usesLint ? '；契约要跑 ESLint，再 `npm run lint:install`' : '',
         commitRule: config.git.signCommits ? '照常签名提交' : '提交不签名：`git -c commit.gpgsign=false commit`（无人值守时 GPG 的密码框会卡住）',
@@ -114,7 +113,7 @@ export function evaluatorVars(state, config, contract, verify, worktree) {
     const task = state.tasks[contract.task];
     const mustRun = contract.risk === 'R3' || contract.criteria.some(criterion => ['preview', 'desktop'].includes(criterion.verify.kind));
     return {
-        task: contract.task, risk: contract.risk, round: String(task.rounds), maxRounds: String(config.maxReviewRounds),
+        task: contract.task, taskLabel: taskLabel(contract.task, contract.title), risk: contract.risk, round: String(task.rounds), maxRounds: String(config.maxReviewRounds),
         worktree, base: verify.mergeBase, head: verify.head,
         contract: `${renderContract(contract)}\n\n\`\`\`json\n${JSON.stringify(contract, null, 2)}\n\`\`\``,
         verify: verify.checks.map(check => `- ${check.ok ? '✓' : '✗'} ${check.id}（${check.kind}）：${check.summary}`).join('\n'),
@@ -130,7 +129,7 @@ const readTemplate = role => fs.readFileSync(path.join(ROOT, 'dev/coven/roles', 
 function main() {
     const { positional, options } = parseArgs(process.argv.slice(2), [], ['task', 'feedback', 'worktree', 'out']);
     const role = positional[0];
-    const state = loadState(ROOT);
+    const state = requireCurrentFormat(loadState(ROOT));
     const config = loadConfig(ROOT);
     let vars;
     if (role === 'planner') {

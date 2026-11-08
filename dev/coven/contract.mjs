@@ -2,13 +2,14 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ROOT, covenPath, loadConfig, loadState, nowIso, parseArgs, readJson, runCli, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
+import { TITLE, isTaskId, nextTaskNumber, taskIdOf, taskLabel, tempoLabel } from './catalogue.mjs';
+import { ROOT, covenPath, loadConfig, loadState, requireCurrentFormat, nowIso, parseArgs, readJson, runCli, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
 import { RISKS, maxRisk, riskRank, scopeRiskOf } from './risk.mjs';
 // dev/coven/contract.mjs
 // 契约：每个任务一份，列出目标、不做什么、能动的路径和验收项。HD2 批准的那一版存成 .approved.json，
 // 之后只允许翻验收项的 passes（D804），diff 不能出 scope.paths（D803），有一项没过就不能开 PR（D802）。
 //
-//   npm run coven:contract -- import <planner 输出的 JSON>   写入各任务的契约，在状态文件里登记任务和分组
+//   npm run coven:contract -- import <planner 输出的 JSON>   按顺序给任务编号（op<n>-no<k>），写入契约，在状态文件里登记任务和分组
 //   npm run coven:contract -- show <任务>                      给维护者看（HD2）
 //   npm run coven:contract -- approve <任务> --by <账号>       HD2 批准；R0/R1 用 --auto 跳过 HD2；批准过的只有维护者要求时 --reapprove
 //   npm run coven:contract -- verdict <任务> <evaluator 输出的 JSON>   按评审结论翻 passes，写评审记录
@@ -21,7 +22,6 @@ export const ACTIONS = ['refactor', 'issue-to-pr', 'fix'];
 /** 任何任务都可以改的文件：基线和抑制只许变小，由 verify 的 baseline 检查和 Dedicatus 的 D001 把关。 */
 export const ALWAYS_IN_SCOPE = ['dev/dedicatus/baseline.json', 'eslint-suppressions.json'];
 
-const TASK_ID = /^[a-z0-9][a-z0-9-]{0,60}$/;
 const SAFE_PATH = /^[\w@.\-/]+$/;
 
 const isRelativePath = value => typeof value === 'string' && value.length > 0 && SAFE_PATH.test(value) && !value.startsWith('/') && !value.split('/').includes('..');
@@ -37,7 +37,8 @@ export function validateContract(contract, { itemRisks = {}, riskRules = null, f
     const problems = [];
     const add = (message, code = null) => problems.push({ code, message });
     if (!contract || typeof contract !== 'object') return [{ code: null, message: '契约不是对象' }];
-    if (!TASK_ID.test(contract.task ?? '')) add('task 要用小写字母、数字和连字符');
+    if (!isTaskId(contract.task)) add('task 要是 op<n>-no<k> 这样的编号（由 coven:contract -- import 分配）');
+    if (!TITLE.test(contract.title ?? '')) add('title 要用小写字母、数字和连字符，最长 48 个字符');
     if (!Array.isArray(contract.items) || contract.items.length === 0 || contract.items.some(item => typeof item !== 'string')) add('items 要是非空的字符串数组（基线 key）');
     if (!RISKS.includes(contract.risk)) add(`risk 只能是 ${RISKS.join('、')}`);
     if (!ACTIONS.includes(contract.action)) add(`action 只能是 ${ACTIONS.join('、')}`);
@@ -98,7 +99,7 @@ function stableJson(value) {
 export function compareWithApproved(approved, current) {
     if (contractFingerprint(approved) === contractFingerprint(current)) return [];
     const changed = [];
-    for (const field of ['task', 'items', 'risk', 'action', 'goal', 'nonGoals', 'scope']) {
+    for (const field of ['task', 'title', 'items', 'risk', 'action', 'goal', 'nonGoals', 'scope']) {
         if (stableJson(approved[field]) !== stableJson(current[field])) changed.push(field);
     }
     const before = new Map((approved.criteria ?? []).map(criterion => [criterion.id, criterion]));
@@ -167,7 +168,7 @@ export function verdictPasses(contract, verdict) {
 
 export function renderContract(contract) {
     const lines = [
-        `### ${contract.task}（${contract.risk}，${contract.action}）`,
+        `### ${taskLabel(contract.task, contract.title)} · ${tempoLabel(contract.risk)} · ${contract.action}`,
         '',
         `**目标**：${contract.goal}`,
         '',
@@ -187,7 +188,7 @@ export function renderContract(contract) {
 export function renderReview(task, round, verdict) {
     const issues = verdict.issues ?? [];
     return [
-        `# ${task} 第 ${round} 轮评审：${verdict.verdict}`,
+        `# ${taskLabel(task)} 第 ${round} 轮评审：${verdict.verdict}`,
         '',
         verdict.summary ?? '',
         '',
@@ -213,7 +214,44 @@ export function isApprovedCurrent(root, task, contract) {
 }
 
 /**
- * 检查 planner 的输出能不能导入。已经登记过的任务一律拒绝：重新导入会把轮数和花费清零，D811、D813 就形同虚设。
+ * 给 planner 的输出编号：planner 只写 title，任务编号由这里按 order（没写的按出现顺序）接着这次运行已有的号往下分，
+ * order 里的标题也换成编号。planner 自己写了 task、标题重复或和已登记的任务撞了、order 里有不认识的标题，都报错。
+ * @param {any} state
+ * @param {any} plan
+ * @returns {{ plan: any, errors: string[] }}
+ */
+export function numberPlan(state, plan) {
+    const errors = [];
+    const tasks = plan.tasks ?? [];
+    const existingTitles = new Set(Object.values(state.tasks).map(task => task.title).filter(Boolean));
+    const titles = new Set();
+    for (const contract of tasks) {
+        const label = contract.title ?? '?';
+        if (contract.task !== undefined) errors.push(`${label}：task 由脚本编号，planner 只写 title`);
+        if (!TITLE.test(contract.title ?? '')) errors.push(`${label}：title 要用小写字母、数字和连字符，最长 48 个字符`);
+        else if (titles.has(contract.title)) errors.push(`${label}：同一份输出里标题重复`);
+        else if (existingTitles.has(contract.title)) errors.push(`${label}：这次运行已经有同名的任务`);
+        titles.add(contract.title);
+    }
+    const order = plan.order ?? [];
+    for (const title of order) if (!titles.has(title)) errors.push(`order 里的 ${title} 不是这份输出里的任务标题`);
+    if (errors.length > 0) return { plan, errors };
+    const sequence = [...order.filter((title, index) => order.indexOf(title) === index), ...tasks.map(contract => contract.title).filter(title => !order.includes(title))];
+    const ids = new Map();
+    let next = nextTaskNumber(state.run, Object.keys(state.tasks));
+    for (const title of sequence) ids.set(title, taskIdOf(state.run, next++));
+    return {
+        plan: {
+            ...plan,
+            tasks: tasks.map(contract => ({ task: ids.get(contract.title), ...contract })),
+            ...(plan.order ? { order: sequence.filter(title => order.includes(title)).map(title => ids.get(title)) } : {}),
+        },
+        errors: [],
+    };
+}
+
+/**
+ * 检查（编过号的）planner 输出能不能导入。已经登记过的任务一律拒绝：重新导入会把轮数和花费清零，D811、D813 就形同虚设。
  * 条目要是这个监控 session 认领着（claimed，或者升级时标成了 blocked）、还没分进任务的。
  * @returns {{ errors: string[], uncovered: string[], fromBlocked: string[] }}
  */
@@ -252,7 +290,7 @@ export function planImportProblems(state, scope, plan, validateOptions = {}) {
 export function applyPlanImport(state, plan, now = nowIso()) {
     const imported = new Set();
     for (const contract of plan.tasks ?? []) {
-        state.tasks[contract.task] = { items: contract.items, risk: contract.risk, phase: 'planning', rounds: 0, tokens: 0, history: [{ at: now, phase: 'planning' }] };
+        state.tasks[contract.task] = { items: contract.items, title: contract.title, risk: contract.risk, phase: 'planning', rounds: 0, tokens: 0, history: [{ at: now, phase: 'planning' }] };
         for (const item of contract.items) {
             state.items[item].task = contract.task;
             imported.add(item);
@@ -319,10 +357,12 @@ function validateOptionsFor(state) {
 function main() {
     const { positional, options } = parseArgs(process.argv.slice(2), ['auto', 'reapprove'], ['by']);
     const [command, task, file] = positional;
-    const state = loadState(ROOT);
+    const state = requireCurrentFormat(loadState(ROOT));
     if (command === 'import') {
         if (!task) throw new Error('要给 planner 输出的 JSON 文件');
-        const plan = readJson(path.resolve(task));
+        const numbered = numberPlan(state, readJson(path.resolve(task)));
+        if (numbered.errors.length > 0) throw new Error(`planner 的输出不合格，什么都没导入：\n${numbered.errors.join('\n')}`);
+        const plan = numbered.plan;
         const { scope, options: validateOptions } = validateOptionsFor(state);
         const { errors, uncovered, fromBlocked } = planImportProblems(state, scope, plan, validateOptions);
         if (errors.length > 0) throw new Error(`planner 的输出不合格，什么都没导入：\n${errors.join('\n')}`);
@@ -330,6 +370,7 @@ function main() {
         applyPlanImport(state, plan);
         saveState(ROOT, state);
         console.log(`登记了 ${(plan.tasks ?? []).length} 个任务，${(plan.escalations ?? []).length} 条新的升级。`);
+        for (const contract of plan.tasks ?? []) console.log(`  ${contract.task}  ${taskLabel(contract.task, contract.title)}`);
         if (fromBlocked.length > 0) console.log(`这些条目原来标成 blocked，开工前先 npm run coven:claim -- set --items ${fromBlocked.join(',')} --state claimed`);
         if (uncovered.length > 0) console.log(`这些认领着的条目 planner 没有分配：${uncovered.join('，')}`);
         return;
@@ -349,6 +390,8 @@ function main() {
         if (problems.length > 0) throw new Error(`不能批准 ${task}：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
         const by = options.auto ? 'auto（R0/R1 跳过 HD2）' : options.by;
         writeJson(approvedFile(ROOT, task), { approvedAt: nowIso(), by, fingerprint: contractFingerprint(contract), contract });
+        // 批准前维护者可能改了标题：账本跟着批准的这一版，show 和运行总结才不会出现两个名字
+        state.tasks[task].title = contract.title;
         if (!options.auto) state.interventions.push({ at: nowIso(), kind: 'HD2', note: `${alreadyApproved ? '重新批准' : '批准'} ${task}` });
         saveState(ROOT, state);
         console.log(`已${alreadyApproved ? '重新' : ''}批准 ${task}（${by}）。`);
