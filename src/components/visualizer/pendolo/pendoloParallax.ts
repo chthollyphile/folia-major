@@ -38,8 +38,18 @@ export const PENDOLO_BALANCE_ICON_HEIGHT = 0.22;
 /** 随拍的叠加层（刻度点亮、宝石闪光、火花）：贴着刻度。 */
 export const PENDOLO_BEAT_OVERLAY_HEIGHT = 0.02;
 
+/** 齿轮的厚度（轮盘半径的比例）：低处线比高处线低这么多，不低于表盘平面。 */
+export const PENDOLO_GEAR_THICKNESS = 0.05;
+
+/** 部件 key 加上它，就是这个齿轮的低处线（齿轮底面那圈齿形）。 */
+export const PENDOLO_PART_BASE_SUFFIX = '#base';
+
 /** 一个网格部件的高度（轮盘半径的比例）；没登记的部件留在表盘平面上。 */
 export const resolvePendoloPartHeight = (partKey: string): number => {
+    if (partKey.endsWith(PENDOLO_PART_BASE_SUFFIX)) {
+        const top = resolvePendoloPartHeight(partKey.slice(0, -PENDOLO_PART_BASE_SUFFIX.length));
+        return Math.max(0, top - PENDOLO_GEAR_THICKNESS);
+    }
     for (const [prefix, height] of PART_HEIGHTS) {
         if (partKey.startsWith(prefix)) return height;
     }

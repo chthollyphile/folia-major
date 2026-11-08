@@ -4,14 +4,15 @@ import {
     resolvePendoloClockworkAnchors,
     type PendoloClockworkFrameInput,
 } from './pendoloClockworkScene';
-import { resolvePendoloPartHeight } from './pendoloParallax';
+import { PENDOLO_PART_BASE_SUFFIX, resolvePendoloPartHeight } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloClockworkMeshes.ts
 // Cached local-space mesh with per-vertex partId; one draw, uniform transform table.
 
 /** x,y,rgba,partId */
 export const PENDOLO_MESH_STRIDE = 7;
-export const PENDOLO_MAX_PARTS = 32;
+/** 部件上限：原来的部件（约 24 个）加上分层视差时各齿轮的低处线。 */
+export const PENDOLO_MAX_PARTS = 44;
 /** Canvas2D's default miterLimit; sharper joins are bevelled, as Canvas2D does. */
 const PENDOLO_MITER_LIMIT = 10;
 
@@ -40,10 +41,24 @@ export interface PendoloCachedScene {
     vertexCount: number;
 }
 
+/** 齿轮外缘的齿形，记下来给分层视差补「低处线」（齿轮底面）用。 */
+interface PendoloGearOutline {
+    partKey: string;
+    pts: Array<{ x: number; y: number }>;
+    lineWidth: number;
+    stroke: string;
+}
+
 class PendoloMeshBuilder {
     private data: number[] = [];
 
     private activePartId = 0;
+
+    /** 当前在画的部件的 key（pushPart 设）。 */
+    activePartKey = '';
+
+    /** 不为 null 时，appendGearLocal 把画过的齿形记在这里（分层视差开着时）。 */
+    gearOutlines: PendoloGearOutline[] | null = null;
 
     get vertexCount() {
         return this.data.length / PENDOLO_MESH_STRIDE;
@@ -300,6 +315,7 @@ const appendGearLocal = (
     const pts = gearTeethPointsLocal(radius, teethCount, toothDepth);
     if (fill) mesh.appendFilledPolygonFromCenter(0, 0, pts, parseRgba(fill));
     mesh.appendPolyline(pts, lineWidth, parseRgba(stroke), true);
+    mesh.gearOutlines?.push({ partKey: mesh.activePartKey, pts, lineWidth, stroke });
 };
 
 const appendSpokedWheelLocal = (
@@ -394,8 +410,12 @@ export const buildPendoloClockworkCachedScene = (
             parts.push({ getOrigin, getRotation, height: resolvePendoloPartHeight(transformKey) });
         }
         mesh.setActivePartId(partId);
+        mesh.activePartKey = transformKey;
         build();
     };
+    // 分层视差：每个齿轮除了自己高度上的这圈（高处线），再在低一个齿轮厚度的地方补一圈齿形（低处线）
+    const parallax = Boolean(input.parallaxScalePx);
+    if (parallax) mesh.gearOutlines = [];
 
     pushPart('main-static', () => {
         const ringRgba = parseRgba(palette.primaryAlpha15);
@@ -586,11 +606,41 @@ export const buildPendoloClockworkCachedScene = (
         mesh.appendArrowHead(centerX + anchors.focalAxisEndRadius, centerY, axis);
     }, fixedOrigin(0, 0), fixedRotation(0));
 
+    if (!parallax || !mesh.gearOutlines?.length) {
+        return {
+            key,
+            data: mesh.toFloat32(),
+            parts,
+            vertexCount: mesh.vertexCount,
+        };
+    }
+    // 低处线画在最前面，被上面的齿轮（和它们的填色）盖住；跟着各自齿轮的原点和转角走
+    const base = new PendoloMeshBuilder();
+    for (const outline of mesh.gearOutlines) {
+        const source = parts[partKeys.get(outline.partKey) ?? -1];
+        if (!source) continue;
+        if (parts.length >= PENDOLO_MAX_PARTS) {
+            console.warn('[pendoloClockworkMeshes] exceeded PENDOLO_MAX_PARTS (gear bases)');
+            break;
+        }
+        base.setActivePartId(parts.length);
+        parts.push({
+            getOrigin: source.getOrigin,
+            getRotation: source.getRotation,
+            height: resolvePendoloPartHeight(`${outline.partKey}${PENDOLO_PART_BASE_SUFFIX}`),
+        });
+        base.appendPolyline(outline.pts, outline.lineWidth, parseRgba(outline.stroke), true);
+    }
+    const front = base.toFloat32();
+    const back = mesh.toFloat32();
+    const data = new Float32Array(front.length + back.length);
+    data.set(front, 0);
+    data.set(back, front.length);
     return {
         key,
-        data: mesh.toFloat32(),
+        data,
         parts,
-        vertexCount: mesh.vertexCount,
+        vertexCount: base.vertexCount + mesh.vertexCount,
     };
 };
 
