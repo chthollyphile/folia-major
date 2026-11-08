@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+    COMPACT_CAPSULE_BASE_BOTTOM_PX,
+    COMPACT_SUBTITLE_CLEARANCE_PX,
     PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
     PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX,
     clampPlayerBottomBarOffset,
     resolvePlayerBottomBarMaxOffset,
     resolvePlayerBottomComponentBottomPx,
+    resolveBottomLayout,
     resolvePlayerSubtitleBottomFromPresence,
     resolveUnscaledSubtitleBarOffset,
 } from '../../../src/utils/playerBottomBarLayout';
@@ -141,5 +144,46 @@ describe('resolveUnscaledSubtitleBarOffset', () => {
 
     it('is the baseline on an unscaled stage', () => {
         expect(resolveUnscaledSubtitleBarOffset(1)).toBe(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX);
+    });
+});
+
+describe('resolveBottomLayout (progress-bar v3)', () => {
+    it('splits at 960 when there is no previous layout', () => {
+        expect(resolveBottomLayout(959, null)).toBe('compact');
+        expect(resolveBottomLayout(960, null)).toBe('desktop');
+        expect(resolveBottomLayout(375, null)).toBe('compact');
+    });
+
+    it('keeps the previous layout inside the 944-975 band', () => {
+        expect(resolveBottomLayout(950, 'desktop')).toBe('desktop');
+        expect(resolveBottomLayout(970, 'compact')).toBe('compact');
+        expect(resolveBottomLayout(944, 'desktop')).toBe('desktop');
+        expect(resolveBottomLayout(975, 'compact')).toBe('compact');
+    });
+
+    it('switches once the window leaves the band', () => {
+        expect(resolveBottomLayout(943, 'desktop')).toBe('compact');
+        expect(resolveBottomLayout(976, 'compact')).toBe('desktop');
+    });
+
+    it('keeps the previous layout for a width it cannot read', () => {
+        expect(resolveBottomLayout(Number.NaN, 'compact')).toBe('compact');
+        expect(resolveBottomLayout(0, null)).toBe('desktop');
+    });
+});
+
+describe('resolvePlayerSubtitleBottomFromPresence in the compact layout', () => {
+    const compact = { baseBottomPx: COMPACT_CAPSULE_BASE_BOTTOM_PX, clearancePx: COMPACT_SUBTITLE_CLEARANCE_PX };
+
+    it('sits 16px above the 56px capsule that sits 16px from the bottom', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, 1, compact)).toBe(88);
+    });
+
+    it('drops to the compact baseline when the control bar is gone', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, 0, compact)).toBe(COMPACT_CAPSULE_BASE_BOTTOM_PX);
+    });
+
+    it('follows a lifted baseline by the same amount', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX + 40, 1, compact)).toBe(128);
     });
 });
