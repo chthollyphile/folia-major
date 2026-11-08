@@ -10,12 +10,14 @@ v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.
 
 | 概念 | 显示名 | 机器名 | 怎么来 |
 | --- | --- | --- | --- |
-| 一次真跑 | 作品号 `Op. 3` | `op3`，集成分支 `coven/op3` | `coven:state -- init --live` 取远端和本地用过的最大号加 1，立刻推上去占号 |
+| 一次真跑 | 作品号 `Op. 3` | `op3`，集成分支 `coven/op3`，占号标签 `coven-op3` | `coven:state -- init --live` 取远端和本地用过的最大号加 1，把集成分支和标签一起推上去占号 |
 | 一次干跑 | `WoO 2`（没有作品号的作品，没正式发表） | `woo2`，集成分支 `coven/woo2`（只在本地） | `coven:state -- init` 取本地用过的最大号加 1，不占 Op. 号 |
 | 任务 | `Op. 3 No. 2 "lyric-match-sources"` | `op3-no2`，工作分支 `coven/op3-no2` | `coven:contract -- import` 按 planner 给的 `order` 编号；planner 只起标题 |
 | 范围 | `Fugue "boundaries"` | `fugue-boundaries` | `coven:scope --name <体裁>[-<标题>]`，体裁按清理的性质挑 |
 
-号只增不回收：放弃的运行、释放的任务，号都不再用。
+号只增不回收：放弃的运行、释放的任务，号都不再用。集成分支合完可以删，占号标签 `coven-op<n>` 不要删：别的检出取号时靠它知道这个号用过。
+
+仓库规则（要求单测通过、禁止强推）的分支模式写 `coven/op*`，同时排除任务分支 `coven/op*-no*`：任务分支评审后还要推新提交，不能被“要求状态检查通过”挡住。
 
 范围的体裁（`GENRES`，有新的清理性质就往里加）：
 

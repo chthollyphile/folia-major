@@ -28,7 +28,7 @@ v1 只有一种动作：**按基线重构**。输入是 Dedicatus 的基线条�
 
 先跑 `npm run coven:state -- show`。
 
-- 有没收尾的运行：接着跑。先 `npm run coven:claim -- status` 和认领评论对账，再从各任务当前的阶段继续，不要重复派发。
+- 有没收尾的运行：接着跑。先 `npm run coven:claim -- status` 和认领评论对账，再从各任务当前的阶段继续，不要重复派发。旧格式的运行（代号改成乐谱编目之前开的，集成分支是 `coven/run-*`）不能接着跑，脚本会报错：`finish --force` 收尾，再从第 1 步重新开。
 - 没有：从第 1 步开始。上一次运行的契约、verify、评审记录会在 `init` 时整批挪进 `.coven/runs/<上次的运行>/`，不会被同名任务带进这一次。
 
 ### 代号
@@ -37,7 +37,7 @@ v1 只有一种动作：**按基线重构**。输入是 Dedicatus 的基线条�
 
 ### 1. 准备
 
-1. 集成分支不用自己切：第 2 步的 `init` 会取下一个作品号，从最新的 `origin/main` 切出 `coven/op<n>`（干跑是 `coven/woo<n>`），真跑时立刻推上去占号。
+1. 集成分支不用自己切：第 2 步的 `init` 会取下一个作品号，从最新的 `origin/main` 切出 `coven/op<n>`（干跑是 `coven/woo<n>`），真跑时把集成分支和占号标签 `coven-op<n>` 一起推上去。标签不要删。
 2. 真跑时，维护者开一个跟踪 issue（例如“Coven 试运行：清除现有架构违约”），把编号填进 `dev/coven/config.json` 的 `trackingIssue`。干跑不需要。
 
 ### 2. 范围（HD1）
@@ -136,7 +136,6 @@ npm run coven:state -- audit      # 对照 GitHub：这段时间这个账号的�
 `init` 不加 `--live`，或者 `hd0Confirmed` 为 false，就是干跑：
 
 - 运行编 WoO 号（`WoO 2`，集成分支 `coven/woo2`），不占 Op. 号，集成分支只在本地。
-
 - 认领评论只记在 `.coven/state.json` 的 `dryComments` 里。有跟踪 issue 时，照样会读真实的评论，用来看别人的认领。
 - `coven:pr` 不推送、不开 PR，只写正文。
 - 工作 session 照常在 worktree 里改代码、提交，评审照常进行。

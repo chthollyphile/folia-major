@@ -42,10 +42,21 @@ export function requireSupervisor(root = ROOT) {
     if (!fs.existsSync(file)) {
         throw new Error(`${STATE_FILE} 不存在：只有监控 session 能执行这个命令（先 npm run coven:state -- init）。工作 session 不做任何 GitHub 写操作。`);
     }
-    return readJson(file);
+    return requireCurrentFormat(readJson(file));
 }
 
 export const loadState = (root = ROOT) => readJson(path.join(root, STATE_FILE));
+
+/** 账本的格式版本：2 起运行和任务用乐谱编目的代号（catalogue.mjs）。 */
+export const STATE_VERSION = 2;
+
+/** 旧格式的运行（日期加范围名的运行、coven/run-* 集成分支、自由格式的任务名）不能接着跑：直接说清楚怎么办，不要走到 PR 才报错。 */
+export function requireCurrentFormat(state) {
+    if (state?.version !== STATE_VERSION) {
+        throw new Error(`.coven/state.json 是旧格式的运行 ${state?.run}（代号改成乐谱编目之前开的），不能接着跑：先 npm run coven:state -- finish --force 收尾，再重新 init`);
+    }
+    return state;
+}
 
 export const saveState = (root, state) => writeJson(path.join(root, STATE_FILE), state);
 

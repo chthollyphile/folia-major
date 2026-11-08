@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BRANCH_PREFIX, integrationBranchOf, nextRunNumber, runIdOf, runLabel, scopeLabel, taskBranchOf, taskLabel, tempoLabel } from './catalogue.mjs';
-import { ROOT, STATE_FILE, covenPath, gh, ghApiLines, git, isDryRun, loadConfig, loadState, localDate, nowIso, parseArgs, readJson, runCli, saveState, tryGit, writeJson, writeText } from './common.mjs';
+import { BRANCH_PREFIX, TAG_PREFIX, catalogueTagOf, integrationBranchOf, nextRunNumber, runIdOf, runLabel, scopeLabel, taskBranchOf, taskLabel, tempoLabel } from './catalogue.mjs';
+import { ROOT, STATE_FILE, covenPath, gh, ghApiLines, git, isDryRun, loadConfig, loadState, localDate, nowIso, parseArgs, readJson, requireCurrentFormat, runCli, saveState, tryGit, writeJson, writeText } from './common.mjs';
 import { contractFile, isApprovedCurrent } from './contract.mjs';
 import { githubIo, keysOfTask, updateClaims } from './claim.mjs';
 import { riskRank } from './risk.mjs';
@@ -207,24 +207,25 @@ function archivePreviousRun(root, previousRun) {
     for (const [from, to] of moves) fs.renameSync(from, to);
 }
 
-/** git push --porcelain 的输出里，这个分支是不是新建的（标记 *）；= 是远端早就有了，! 是被拒。 */
-export const pushCreatedRef = (output, branch) => output.split('\n').some(line => line.startsWith('*\t') && line.includes(`:refs/heads/${branch}\t`));
+/** git push --porcelain 的输出里，这个 ref（完整名字）是不是新建的（标记 *）；= 是远端早就有了，! 是被拒。 */
+export const pushCreatedRef = (output, ref) => output.split('\n').some(line => line.startsWith('*\t') && line.includes(`:${ref}\t`));
 
-/** 用过的作品号：本地 coven/ 下的分支、.coven/runs/ 下的运行记录，真跑时再加远端的分支。 */
+/** 用过的作品号：本地 coven/ 下的分支和 coven- 标签、.coven/runs/ 下的运行记录，真跑时再加远端的分支和标签。 */
 function usedRunNames(root, live) {
-    const names = git(root, ['for-each-ref', '--format=%(refname)', `refs/heads/${BRANCH_PREFIX}`]).split('\n').filter(Boolean);
+    const names = git(root, ['for-each-ref', '--format=%(refname)', `refs/heads/${BRANCH_PREFIX}`, `refs/tags/${TAG_PREFIX}*`]).split('\n').filter(Boolean);
     const runsDir = covenPath(root, 'runs');
     if (fs.existsSync(runsDir)) names.push(...fs.readdirSync(runsDir));
-    if (live) names.push(...git(root, ['ls-remote', '--heads', 'origin', `refs/heads/${BRANCH_PREFIX}*`]).split('\n').map(line => line.split('\t')[1]).filter(Boolean));
+    if (live) names.push(...git(root, ['ls-remote', 'origin', `refs/heads/${BRANCH_PREFIX}*`, `refs/tags/${TAG_PREFIX}*`]).split('\n').map(line => line.split('\t')[1]).filter(Boolean));
     return names;
 }
 
 /**
- * 取号并切出集成分支。真跑时立刻推上去占号：推送只在远端还没有这个分支时成功（--force-with-lease 的期望值为空），
- * 两位维护者同时取到同一个号时后到的会失败，删掉本地分支换下一个号，最多试三次。
- * 远端已经有同名分支、而且正好指着同一个提交（两边都从同一个 origin/main 切出）时，git 只说“已是最新”、退出码也是 0，
- * 所以要看 --porcelain 的输出：只有标着 *（新建了这个分支）才算占到。
- * @returns {{ run: string, branch: string, pushed: boolean }}
+ * 取号并切出集成分支。真跑时立刻把集成分支和占号标签 coven-op<n> 一起推上去（--atomic，要么都成要么都不成）：
+ * 推送只在远端还没有它们时成功（--force-with-lease 的期望值为空），两位维护者同时取到同一个号时后到的会失败，
+ * 删掉本地分支和标签换下一个号，最多试三次。标签不随分支删除，之后在别的检出里取号也看得到这个号用过。
+ * 远端已经有同名的 ref、而且正好指着同一个提交（两边都从同一个 origin/main 切出）时，git 只说“已是最新”、退出码也是 0，
+ * 所以要看 --porcelain 的输出：两个 ref 都标着 *（新建）才算占到。
+ * @returns {{ run: string, branch: string, tag: string|null, pushed: boolean }}
  */
 function allocateRun(root, { live, base }) {
     let lastError = '';
@@ -232,11 +233,15 @@ function allocateRun(root, { live, base }) {
         const run = runIdOf({ dryRun: !live, number: nextRunNumber(usedRunNames(root, live), !live) });
         const branch = integrationBranchOf(run);
         git(root, ['branch', branch, base]);
-        if (!live) return { run, branch, pushed: false };
-        const push = tryGit(root, ['push', '--porcelain', `--force-with-lease=refs/heads/${branch}:`, 'origin', `refs/heads/${branch}:refs/heads/${branch}`]);
-        if (push.ok && pushCreatedRef(push.output, branch)) return { run, branch, pushed: true };
+        if (!live) return { run, branch, tag: null, pushed: false };
+        const tag = catalogueTagOf(run);
+        git(root, ['tag', tag, base]);
+        const refs = [`refs/heads/${branch}`, `refs/tags/${tag}`];
+        const push = tryGit(root, ['push', '--porcelain', '--atomic', ...refs.map(ref => `--force-with-lease=${ref}:`), 'origin', ...refs.map(ref => `${ref}:${ref}`)]);
+        if (push.ok && refs.every(ref => pushCreatedRef(push.output, ref))) return { run, branch, tag, pushed: true };
         lastError = push.output;
         git(root, ['branch', '-D', branch]);
+        git(root, ['tag', '-d', tag]);
         console.log(`${runLabel(run)} 推不上去（可能被别的监控 session 先占了），换下一个号。`);
     }
     throw new Error(`连续三次没能占到作品号：${lastError.slice(0, 500)}`);
@@ -265,14 +270,16 @@ function main() {
         const owner = options.owner ?? currentLogin();
         const base = options.base ?? 'origin/main';
         if (!options.base) git(ROOT, ['fetch', 'origin', 'main']);
-        const { run, branch, pushed } = allocateRun(ROOT, { live, base });
+        const { run, branch, tag, pushed } = allocateRun(ROOT, { live, base });
         const state = createState({ run, scope: options.scope, owner, trackingIssue: config.trackingIssue, dryRun: !live, timeZone: config.timeZone });
-        if (pushed) state.github.push({ at: nowIso(), dryRun: false, action: 'push', branch });
+        if (pushed) state.github.push({ at: nowIso(), dryRun: false, action: 'push', branch, tag });
         saveState(ROOT, state);
-        console.log(`已开始运行 ${runLabel(run)}，集成分支 ${branch}（从 ${base} 切出${pushed ? '，已推上去' : ''}）${state.dryRun ? '。干跑：认领和 PR 只记在本地' : ''}。下一步：npm run coven:claim -- claim`);
+        console.log(`已开始运行 ${runLabel(run)}，集成分支 ${branch}（从 ${base} 切出${pushed ? `，已推上去，占号标签 ${tag}` : ''}）${state.dryRun ? '。干跑：认领和 PR 只记在本地' : ''}。下一步：npm run coven:claim -- claim`);
         return;
     }
     const state = loadState(ROOT);
+    // 旧格式（代号改成乐谱编目之前）的运行只能看、收尾、审计，不能接着跑
+    if (!['show', 'finish', 'audit'].includes(command)) requireCurrentFormat(state);
     if (command === 'show') {
         printState(state);
         return;

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runLabel, scopeLabel, taskBranchOf, taskLabel } from './catalogue.mjs';
-import { ROOT, covenPath, loadConfig, loadState, parseArgs, readJson, runCli, writeText } from './common.mjs';
+import { ROOT, covenPath, loadConfig, loadState, requireCurrentFormat, parseArgs, readJson, runCli, writeText } from './common.mjs';
 import { contractFile, renderContract } from './contract.mjs';
 // dev/coven/prompt.mjs
 // 把 dev/coven/roles/ 下的角色提示模板填成可以直接交给子代理或工作 session 的文字。
@@ -129,7 +129,7 @@ const readTemplate = role => fs.readFileSync(path.join(ROOT, 'dev/coven/roles', 
 function main() {
     const { positional, options } = parseArgs(process.argv.slice(2), [], ['task', 'feedback', 'worktree', 'out']);
     const role = positional[0];
-    const state = loadState(ROOT);
+    const state = requireCurrentFormat(loadState(ROOT));
     const config = loadConfig(ROOT);
     let vars;
     if (role === 'planner') {

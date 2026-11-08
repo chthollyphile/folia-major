@@ -278,7 +278,7 @@ export function claimItems({ keys, state, config, io, now = Date.now() }) {
             }
             const expired = resolution.expired[0];
             const claim = {
-                state: 'claimed', owner: state.owner, claimId: newClaimId(), item: key, action: mine?.action ?? 'refactor', scope: state.scope, run: state.run,
+                state: 'claimed', owner: state.owner, claimId: newClaimId(), item: key, action: mine?.action ?? 'refactor', scope: state.scope, run: state.run, task: mine?.task ?? null,
                 leaseUntil: leaseFrom(now, config.leaseHours),
                 ...(expired ? { takeover: { owner: expired.owner, claimId: expired.claimId } } : {}),
             };

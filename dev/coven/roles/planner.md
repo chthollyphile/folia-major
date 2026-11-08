@@ -27,7 +27,7 @@
 3. `risk` 不能低于条目上标的风险级，只能往上调。
 4. `scope.paths` 尽量窄：要改的文件、要挪去的目录、对应的测试目录。目录以 `/` 结尾。基线和抑制文件不用写：它们总是允许改，但只许变小。
 5. 要挪文件的任务，在 `goal` 里写明“挪文件单独一个提交，只挪不改”。
-6. 每个任务起一个 `title`：小写字母、数字和连字符，说清改的是什么（例如 `lyric-match-sources`），一份输出里不重复。不要写 `task`：任务编号（`op3-no2`，显示成 `Op. 3 No. 2`）由导入脚本按 `order` 分配。`order` 里写的是 `title`。
+6. 每个任务起一个 `title`：小写字母、数字和连字符，最长 48 个字符，说清改的是什么（例如 `lyric-match-sources`），一份输出里不重复。不要写 `task`：任务编号（`op3-no2`，显示成 `Op. 3 No. 2`）由导入脚本按 `order` 分配。`order` 里写的是 `title`。
 7. 验收项（`criteria`），全部写 `"passes": false`：
    - 重构必须有一项 `{"kind":"baseline"}`：条目从基线消掉，Dedicatus 也查不出来。
    - 一项 `{"kind":"dedicatus","target":"graph"}`：模块图没有新违规。动了 ESLint 抑制的写 `"target":"all"`。

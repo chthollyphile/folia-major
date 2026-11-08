@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TITLE, isTaskId, nextTaskNumber, taskIdOf, taskLabel, tempoLabel } from './catalogue.mjs';
-import { ROOT, covenPath, loadConfig, loadState, nowIso, parseArgs, readJson, runCli, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
+import { ROOT, covenPath, loadConfig, loadState, requireCurrentFormat, nowIso, parseArgs, readJson, runCli, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
 import { RISKS, maxRisk, riskRank, scopeRiskOf } from './risk.mjs';
 // dev/coven/contract.mjs
 // 契约：每个任务一份，列出目标、不做什么、能动的路径和验收项。HD2 批准的那一版存成 .approved.json，
@@ -357,7 +357,7 @@ function validateOptionsFor(state) {
 function main() {
     const { positional, options } = parseArgs(process.argv.slice(2), ['auto', 'reapprove'], ['by']);
     const [command, task, file] = positional;
-    const state = loadState(ROOT);
+    const state = requireCurrentFormat(loadState(ROOT));
     if (command === 'import') {
         if (!task) throw new Error('要给 planner 输出的 JSON 文件');
         const numbered = numberPlan(state, readJson(path.resolve(task)));
@@ -390,6 +390,8 @@ function main() {
         if (problems.length > 0) throw new Error(`不能批准 ${task}：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
         const by = options.auto ? 'auto（R0/R1 跳过 HD2）' : options.by;
         writeJson(approvedFile(ROOT, task), { approvedAt: nowIso(), by, fingerprint: contractFingerprint(contract), contract });
+        // 批准前维护者可能改了标题：账本跟着批准的这一版，show 和运行总结才不会出现两个名字
+        state.tasks[task].title = contract.title;
         if (!options.auto) state.interventions.push({ at: nowIso(), kind: 'HD2', note: `${alreadyApproved ? '重新批准' : '批准'} ${task}` });
         saveState(ROOT, state);
         console.log(`已${alreadyApproved ? '重新' : ''}批准 ${task}（${by}）。`);

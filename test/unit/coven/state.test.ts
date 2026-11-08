@@ -3,6 +3,7 @@ import { contractFingerprint } from '../../../dev/coven/contract.mjs';
 import { prPreflight, renderPrBody } from '../../../dev/coven/pr.mjs';
 import { auditWrites, claimChangeFor, createState, pushCreatedRef, runRecord, transition } from '../../../dev/coven/state.mjs';
 import type { CovenTask } from '../../../dev/coven/state.mjs';
+import { requireCurrentFormat } from '../../../dev/coven/common.mjs';
 import { baselineShrink, growthProblems, parseNameStatus } from '../../../dev/coven/verify.mjs';
 
 // test/unit/coven/state.test.ts
@@ -76,10 +77,13 @@ describe('coven run record and audit', () => {
 
     it('takes an opus number only when the push created the branch', () => {
         // 两边都从同一个 origin/main 切出时，远端已有的分支 git 只报“已是最新”、退出码 0
-        expect(pushCreatedRef('To origin\n*\trefs/heads/coven/op3:refs/heads/coven/op3\t[new branch]\nDone\n', 'coven/op3')).toBe(true);
-        expect(pushCreatedRef('To origin\n=\trefs/heads/coven/op3:refs/heads/coven/op3\t[up to date]\nDone\n', 'coven/op3')).toBe(false);
-        expect(pushCreatedRef('To origin\n!\trefs/heads/coven/op3:refs/heads/coven/op3\t[rejected] (stale info)\nDone\n', 'coven/op3')).toBe(false);
-        expect(pushCreatedRef('To origin\n*\trefs/heads/coven/op31:refs/heads/coven/op31\t[new branch]\n', 'coven/op3')).toBe(false);
+        const branch = 'refs/heads/coven/op3';
+        const tag = 'refs/tags/coven-op3';
+        const both = `To origin\n*\t${branch}:${branch}\t[new branch]\n*\t${tag}:${tag}\t[new tag]\nDone\n`;
+        expect([branch, tag].every(ref => pushCreatedRef(both, ref))).toBe(true);
+        expect(pushCreatedRef(`To origin\n=\t${branch}:${branch}\t[up to date]\nDone\n`, branch)).toBe(false);
+        expect(pushCreatedRef(`To origin\n!\t${branch}:${branch}\t[rejected] (stale info)\nDone\n`, branch)).toBe(false);
+        expect(pushCreatedRef('To origin\n*\trefs/heads/coven/op31:refs/heads/coven/op31\t[new branch]\n', branch)).toBe(false);
     });
 
     it('counts interventions, rounds, tokens and escalations', () => {
@@ -210,5 +214,13 @@ describe('coven pr preflight', () => {
         const text = prPreflight({ ...input, state: stateWith(), verify: { ...verify, base: 'HEAD~1' }, branch: 'main' }).join('\n');
         expect(text).toContain('不要用 --base');
         expect(text).toContain('coven/op3-no1');
+    });
+});
+
+describe('coven state format', () => {
+    it('refuses to continue a run from before the catalogue names', () => {
+        expect(() => requireCurrentFormat({ version: 1, run: '2026-11-08-arch-1108' })).toThrow('finish --force');
+        const current = createState({ run: 'op3', scope: 'fugue', owner: 'alice', trackingIssue: null, dryRun: false });
+        expect(requireCurrentFormat(current)).toBe(current);
     });
 });

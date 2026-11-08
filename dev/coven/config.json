@@ -1,5 +1,5 @@
 {
-    "note": "Coven v1 的运行配置（dev/coven/README.md）。HD0 由维护者 2026-11-08 定：角色模型如下；预算按 token（Max 订阅），每任务 200 万、整次不设；generator 不签名；认领用维护者本人账号；并发 1、租约 12 小时；PR 打 bot: skip；coven/run-* 有仓库规则（要求单测通过、禁止强推）；之后代号改成乐谱编目（dev/coven/catalogue.mjs），集成分支变成 coven/op<n>，规则的分支模式要跟着改成 coven/op*。hd0Confirmed 为 false 时只能干跑。",
+    "note": "Coven v1 的运行配置（dev/coven/README.md）。HD0 由维护者 2026-11-08 定：角色模型如下；预算按 token（Max 订阅），每任务 200 万、整次不设；generator 不签名；认领用维护者本人账号；并发 1、租约 12 小时；PR 打 bot: skip；coven/run-* 有仓库规则（要求单测通过、禁止强推）；之后代号改成乐谱编目（dev/coven/catalogue.mjs），集成分支变成 coven/op<n>，规则的分支模式要跟着改成 coven/op*，并排除任务分支 coven/op*-no*（任务分支要能推送评审后的新提交）；占号标签 coven-op* 不要删。hd0Confirmed 为 false 时只能干跑。",
     "hd0Confirmed": true,
     "repo": "chthollyphile/folia-major",
     "trackingIssue": 1156,

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { baselineGrowthWithTransfers, parseBaseline, suppressionGrowth } from '../dedicatus/baseline.mjs';
-import { ROOT, covenPath, git, loadConfig, loadState, nowIso, parseArgs, readJson, runCli, withoutTokens, writeJson } from './common.mjs';
+import { ROOT, covenPath, git, loadConfig, loadState, requireCurrentFormat, nowIso, parseArgs, readJson, runCli, withoutTokens, writeJson } from './common.mjs';
 import { ALWAYS_IN_SCOPE, DETERMINISTIC_KINDS, approvedFile, checkScope, compareWithApproved, contractFile } from './contract.mjs';
 import { riskRank, sensitiveRiskOf } from './risk.mjs';
 // dev/coven/verify.mjs
@@ -119,7 +119,7 @@ const readAt = (worktree, ref, file) => {
 
 function main() {
     const { options } = parseArgs(process.argv.slice(2), [], ['task', 'worktree', 'base']);
-    const state = loadState(ROOT);
+    const state = requireCurrentFormat(loadState(ROOT));
     const task = options.task;
     if (!task || !state.tasks[task]) throw new Error('--task 要是状态文件里登记过的任务');
     if (!options.worktree) throw new Error('--worktree 要给工作 session 的 worktree 路径');

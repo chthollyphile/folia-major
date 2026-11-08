@@ -2,9 +2,11 @@
 // Coven 的代号按古典乐谱编目：一次真跑是一个作品号 Op. n，干跑是 WoO n（没有作品号的作品，没正式发表），
 // 运行里的任务是 No. k，planner 起的名字做标题；范围用音乐体裁起名；风险级在给人看的地方配速度术语。
 // 显示名给人读（`Op. 3 No. 2 "lyric-match-sources"`），机器名进分支、文件名和 id（`op3-no2`），两者在这里互转。
-// 号只增不回收：放弃的运行、释放的任务，号都不再用。
+// 号只增不回收：放弃的运行、释放的任务，号都不再用。真跑占号时除了集成分支还推一个永久的标签 coven-op<n>，
+// 分支合完删掉以后，别的维护者在别的检出里取号也看得到这个号用过。
 
 export const BRANCH_PREFIX = 'coven/';
+export const TAG_PREFIX = 'coven-';
 
 const RUN_ID = /^(op|woo)([1-9]\d{0,4})$/;
 const TASK_ID = /^((?:op|woo)[1-9]\d{0,4})-no([1-9]\d{0,3})$/;
@@ -55,13 +57,15 @@ export function taskLabel(task, title = null) {
 export const catalogueLabel = ({ run, task }) => (task ? taskLabel(task) : run ? runLabel(run) : '');
 
 export const integrationBranchOf = run => `${BRANCH_PREFIX}${run}`;
+/** 占号的标签：不要删，删了这个号就可能被再用一次。 */
+export const catalogueTagOf = run => `${TAG_PREFIX}${run}`;
 export const taskBranchOf = task => `${BRANCH_PREFIX}${task}`;
 export const isIntegrationBranch = branch => typeof branch === 'string' && branch.startsWith(BRANCH_PREFIX) && isRunId(branch.slice(BRANCH_PREFIX.length));
 export const isTaskBranch = branch => typeof branch === 'string' && branch.startsWith(BRANCH_PREFIX) && isTaskId(branch.slice(BRANCH_PREFIX.length));
 
 /**
- * 下一个作品号：已经用过的名字（远端和本地的分支、.coven/runs/ 下的运行记录）里同一类的最大号加 1。
- * 名字可以是 `coven/op3`、`op3`、`op3.json`、`op3-no2` 这样的，只看开头的运行名。
+ * 下一个作品号：已经用过的名字（远端和本地的分支、占号标签、.coven/runs/ 下的运行记录）里同一类的最大号加 1。
+ * 名字可以是 `refs/heads/coven/op3`、`refs/tags/coven-op3`、`op3`、`op3.json`、`op3-no2` 这样的，只看开头的运行名。
  * @param {string[]} usedNames
  * @param {boolean} dryRun 干跑数 WoO，真跑数 Op.
  */
@@ -69,7 +73,7 @@ export function nextRunNumber(usedNames, dryRun) {
     const kind = dryRun ? 'woo' : 'op';
     let top = 0;
     for (const name of usedNames) {
-        const bare = String(name).replace(/^refs\/heads\//, '').replace(BRANCH_PREFIX, '');
+        const bare = String(name).replace(/^refs\/(?:heads|tags)\//, '').replace(/^coven[/-]/, '');
         const match = /^(op|woo)([1-9]\d{0,4})(?![0-9])/.exec(bare);
         if (match && match[1] === kind) top = Math.max(top, Number(match[2]));
     }

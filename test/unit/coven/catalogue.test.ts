@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    catalogueTagOf,
     integrationBranchOf,
     isIntegrationBranch,
     isTaskBranch,
@@ -27,6 +28,7 @@ describe('coven catalogue names', () => {
         expect(parseTaskId('woo1-no10')).toEqual({ run: 'woo1', number: 10 });
         expect(parseTaskId('op0-no1')).toBeNull();
         expect(integrationBranchOf('op3')).toBe('coven/op3');
+        expect(catalogueTagOf('op3')).toBe('coven-op3');
         expect(taskBranchOf('op3-no2')).toBe('coven/op3-no2');
         expect(isIntegrationBranch('coven/op3')).toBe(true);
         expect(isIntegrationBranch('coven/op3-no2')).toBe(false);
@@ -38,6 +40,8 @@ describe('coven catalogue names', () => {
     it('hands out the next opus number per kind and never reuses one', () => {
         const used = ['refs/heads/coven/op2', 'refs/heads/coven/op2-no5', 'coven/op10', 'op7.json', 'woo4', 'refs/heads/coven/run-2026-11-09', 'unknown-x'];
         expect(nextRunNumber(used, false)).toBe(11);
+        // 分支合完删掉了，占号标签还在：号不会被再用
+        expect(nextRunNumber(['refs/tags/coven-op12', 'refs/heads/coven/op3'], false)).toBe(13);
         expect(nextRunNumber(used, true)).toBe(5);
         expect(nextRunNumber([], false)).toBe(1);
         expect(nextTaskNumber('op3', ['op3-no1', 'op3-no4', 'op2-no9'])).toBe(5);
