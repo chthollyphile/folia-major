@@ -178,7 +178,11 @@ export function usePlaybackAudioBridge({
         // not let this run twice, because createMediaElementSource throws on a second call.
         if (!audioRef.current || audioContextRef.current) return;
         try {
-            const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+                try {
+                        const nav = navigator as Navigator & { audioSession?: { type: string } };
+                    if (nav.audioSession) nav.audioSession.type = 'playback';
+                } catch { /* audioSession unsupported */ }
+                    const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
             const ctx = new AudioContextClass();
             audioContextRef.current = ctx;
             void applySavedAudioOutputToContext(ctx, useAudioSettingsStore.getState().audioOutputDeviceId);
