@@ -369,7 +369,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         Math.min(viewportSize.width * 0.46, mirrored ? centerX - baseRadius - 48 : viewportSize.width - maxItemX - 48),
     );
     // 表盘倾斜：歌词和摆轮图标放在一层里整体按倾斜投影（它们已经按镜像排过），表盘画布还要先镜像
-    const tiltDeg = pendoloTuning.tiltDeg ?? 0;
+    // Canvas2D 回退画不了透视，歌词层却是 matrix3d 透视加视差，两边会对不上：回退时整体不倾斜
+    const [clockworkWebgl, setClockworkWebgl] = useState(true);
+    const requestedTiltDeg = pendoloTuning.tiltDeg ?? 0;
+    const tiltDeg = clockworkWebgl ? requestedTiltDeg : 0;
     const tiltAxisDeg = pendoloTuning.tiltAxisDeg ?? 0;
     const tiltProjection = useMemo(
         () => buildPendoloTiltProjection(tiltDeg, tiltAxisDeg, viewportSize.width, viewportSize.height),
@@ -596,6 +599,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     mirrored={mirrored}
                     projection={dialProjection}
                     parallaxScalePx={parallaxScalePx}
+                    depthStencil={requestedTiltDeg !== 0 && (pendoloTuning.parallaxDepth ?? 1) > 0}
+                    onBackendChange={setClockworkWebgl}
                 />
                 <div className="absolute inset-0 pointer-events-none" style={iconLayerStyle}>
                 {pendoloTuning.showGearDecor !== 'none' && (

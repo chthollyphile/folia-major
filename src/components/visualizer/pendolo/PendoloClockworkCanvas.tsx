@@ -65,6 +65,13 @@ export interface PendoloClockworkCanvasProps {
     projection?: PendoloDialProjection;
     /** 分层视差：各层高度（轮盘半径的比例）乘上它是 CSS px；不倾斜时传 0。 */
     parallaxScalePx?: number;
+    /**
+     * WebGL 上下文要不要深度、模板缓冲（分层视差的遮挡用）；按设置里请求的倾斜和视差给，
+     * 不按实际后端，免得后端一变画布换 key、又变回来来回重建。变了换一块画布。
+     */
+    depthStencil?: boolean;
+    /** 实际用哪个后端画（true = WebGL）变了时告诉上层；Canvas2D 画不了透视，上层据此关掉倾斜。 */
+    onBackendChange?: (webgl: boolean) => void;
 }
 
 /**
@@ -98,11 +105,17 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     mirrored = false,
     projection,
     parallaxScalePx = 0,
+    depthStencil = false,
+    onBackendChange,
 }) => {
     const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const canvas2dRef = useRef<HTMLCanvasElement | null>(null);
     const rendererRef = useRef<PendoloClockworkRenderer | null>(null);
     const useWebglRef = useRef(false);
+    // 上一帧实际用的后端，变了才通知上层
+    const lastBackendRef = useRef<boolean | null>(null);
+    const onBackendChangeRef = useRef(onBackendChange);
+    onBackendChangeRef.current = onBackendChange;
     const motionStateRef = useRef(createPendoloClockworkMotionState());
     const lastTimestampRef = useRef<number | null>(null);
     const coverImageRef = useRef<HTMLImageElement | null>(null);
@@ -239,7 +252,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
 
         const attachRenderer = () => {
             if (!webglCanvas || rendererRef.current) return;
-            const created = new PendoloClockworkRenderer(webglCanvas, antialias);
+            const created = new PendoloClockworkRenderer(webglCanvas, antialias, depthStencil);
             if (created.isReady) {
                 rendererRef.current = created;
                 useWebglRef.current = true;
@@ -377,7 +390,12 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 frame.showCover && renderer?.isCoverRejected(frame.coverImage),
             );
 
-            if (useWebglRef.current && renderer && !coverNeeds2d) {
+            const drawWebgl = Boolean(useWebglRef.current && renderer && !coverNeeds2d);
+            if (lastBackendRef.current !== drawWebgl) {
+                lastBackendRef.current = drawWebgl;
+                onBackendChangeRef.current?.(drawWebgl);
+            }
+            if (drawWebgl && renderer) {
                 if (webglCanvasRef.current) webglCanvasRef.current.style.visibility = 'visible';
                 if (canvas2dRef.current) canvas2dRef.current.style.visibility = 'hidden';
                 // Glow comes from the same CSS drop-shadow as Canvas2D, so both backends match.
@@ -445,7 +463,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             webglCanvas?.removeEventListener('webglcontextlost', handleContextLost);
             webglCanvas?.removeEventListener('webglcontextrestored', handleContextRestored);
         };
-    }, [showGearDecor, showCenterGradient, showCover, audioBassMotionValue, escapementAngleMotionValue, beatFxRef, antialias]);
+    }, [showGearDecor, showCenterGradient, showCover, audioBassMotionValue, escapementAngleMotionValue, beatFxRef, antialias, depthStencil]);
 
     useEffect(() => () => {
         rendererRef.current?.release();
@@ -471,9 +489,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
 
     return (
         <div className="absolute pointer-events-none" style={boxStyle}>
-            {/* 上下文属性跟着画布走：抗锯齿变了换一块新画布 */}
+            {/* 上下文属性跟着画布走：抗锯齿、深度模板变了换一块新画布 */}
             <canvas
-                key={antialias ? 'msaa' : 'plain'}
+                key={`${antialias ? 'msaa' : 'plain'}${depthStencil ? '-depth' : ''}`}
                 ref={webglCanvasRef}
                 className={canvasClass}
                 style={{ filter: lineGlow }}

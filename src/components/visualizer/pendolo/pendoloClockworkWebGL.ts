@@ -457,22 +457,29 @@ export class PendoloClockworkRenderer {
 
     private coverVerts = new Float32Array(16);
 
+    /** 上下文真的带了深度和模板缓冲，分层视差的遮挡才做。 */
+    private canOcclude = false;
+
     /**
      * `antialias` 是上下文的 MSAA（#929，默认开）。建上下文时就定了，一块画布只认第一次拿到的上下文，
      * 所以改它要换一块新画布、建一个新的渲染器（PendoloClockworkCanvas 按它给画布换 key）。
      */
-    constructor(readonly canvas: HTMLCanvasElement, antialias = true) {
+    constructor(readonly canvas: HTMLCanvasElement, antialias = true, depthStencil = false) {
         const gl = canvas.getContext('webgl2', {
             alpha: true,
             premultipliedAlpha: true,
             antialias,
-            // 分层视差的遮挡：深度缓冲记齿轮顶面，模板缓冲从面上抠洞
-            depth: true,
-            stencil: true,
+            // 分层视差的遮挡：深度缓冲记齿轮顶面，模板缓冲从面上抠洞。只在倾斜且开视差时要，
+            // 平放时不多占这两块缓冲（开 MSAA 时还是多重采样的）；变了换画布（同 antialias）
+            depth: depthStencil,
+            stencil: depthStencil,
             powerPreference: 'high-performance',
         });
         if (!gl) return;
         this.gl = gl;
+        // 上下文属性只是请求，实际拿没拿到要问；缺一个就不做遮挡，免得洞抠不出来整块面挡住
+        const attributes = gl.getContextAttributes();
+        this.canOcclude = Boolean(depthStencil && attributes?.depth && attributes?.stencil);
         this.meshProgram = linkProgram(gl, VERT, FRAG);
         this.gradProgram = linkProgram(gl, GRAD_VERT, GRAD_FRAG);
         this.coverProgram = linkProgram(gl, COVER_VERT, COVER_FRAG);
@@ -852,7 +859,8 @@ export class PendoloClockworkRenderer {
         gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);
         gl.uniform1f(this.meshUniformWaveTint, tint ? PENDOLO_WAVE_TINT : 0);
         gl.uniform1f(this.meshUniformDepthBias, 0);
-        const occluding = heightScale > 0 && Boolean(scene.faces?.length) && this.drawOccluders(scene, heightScale);
+        const occluding = this.canOcclude && heightScale > 0 && Boolean(scene.faces?.length)
+            && this.drawOccluders(scene, heightScale);
         gl.bindVertexArray(this.meshVao);
         gl.drawArrays(gl.TRIANGLES, 0, scene.vertexCount);
         if (occluding) {

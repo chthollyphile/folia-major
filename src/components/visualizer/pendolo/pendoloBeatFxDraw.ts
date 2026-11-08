@@ -169,11 +169,12 @@ const pushSegment = (
     width: number,
     color: readonly [number, number, number],
     alpha: number,
+    height = PENDOLO_BEAT_OVERLAY_HEIGHT,
 ) => {
     const length = Math.hypot(bx - ax, by - ay) || 1;
     const nx = (-(by - ay) / length) * width * 0.5;
     const ny = ((bx - ax) / length) * width * 0.5;
-    return pushQuad(out, at, [ax + nx, ay + ny, bx + nx, by + ny, ax - nx, ay - ny, bx - nx, by - ny], color, alpha, false);
+    return pushQuad(out, at, [ax + nx, ay + ny, bx + nx, by + ny, ax - nx, ay - ny, bx - nx, by - ny], color, alpha, false, height);
 };
 
 /** A dial ring lit as bright as `light`: a soft wide glow under a hot thin line. */
@@ -186,6 +187,8 @@ const pushLitRing = (
     light: number,
     color: readonly [number, number, number],
 ): number => {
+    // 被点亮的两圈（刻度底圈、最外圈）都在 main-static 里，贴着表盘平面（高度 0）
+    const height = 0;
     const hot = heatPendoloBeatFxColor(color, 0.3 * light);
     for (let index = 0; index < DIAL_SEGMENTS; index += 1) {
         const a0 = (index * Math.PI * 2) / DIAL_SEGMENTS;
@@ -194,8 +197,8 @@ const pushLitRing = (
         const y0 = centerY + dialR * Math.sin(a0);
         const x1 = centerX + dialR * Math.cos(a1);
         const y1 = centerY + dialR * Math.sin(a1);
-        at = pushSegment(out, at, x0, y0, x1, y1, DIAL_GLOW_WIDTH, color, 0.22 * light);
-        at = pushSegment(out, at, x0, y0, x1, y1, 1.5 + 1.5 * light, hot, light);
+        at = pushSegment(out, at, x0, y0, x1, y1, DIAL_GLOW_WIDTH, color, 0.22 * light, height);
+        at = pushSegment(out, at, x0, y0, x1, y1, 1.5 + 1.5 * light, hot, light, height);
     }
     return at;
 };
