@@ -32,22 +32,50 @@ describe('dedicatus output for readers', () => {
         expect(findings[4].message).toContain(FIX_STYLE_COMMAND);
     });
 
-    it('leaves a few findings of one rule as they are', () => {
+    it('leaves a few findings of one rule as they are, and findings without a line or a rule untouched', () => {
         const fresh = [strict('src/a.ts', 1), strict('src/a.ts', 2)];
         expect(compressForReaders(fresh).findings).toEqual(fresh);
+        const notice = { code: 'D430', file: 'src/old.tsx', rule: '@stylistic/indent', level: 'notice', message: '另有 89 条不在新写的行上', key: 'D430:src/old.tsx:folded' };
+        const stale = { code: 'D002', file: 'eslint-suppressions.json', message: '抑制记多了', key: 'D002:x' };
+        const logs = [1, 2, 3, 4].map(line => ({ code: 'D413', file: 'src/b.ts', line, rule: 'dedicatus/log-module-prefix', message: '缺模块前缀', key: `D413:${line}` }));
+        const { findings } = compressForReaders([notice, stale, ...logs]);
+        expect(findings.filter(finding => finding.code !== 'D413')).toEqual([stale, notice]);
+        // warning 级的合成一行，级别不变（按代码表）
+        expect(findings.filter(finding => finding.code === 'D413')).toHaveLength(1);
+    });
+
+    it('only sorts, without folding, for the local text output', () => {
+        const fresh = [indent('src/cast.tsx', 1), indent('src/cast.tsx', 2), { code: 'D311', file: 'src/play.ts', line: 9, message: 'x', key: 'D311:y' }];
+        const { findings, styleCount } = compressForReaders(fresh, { fold: false });
+        expect(findings.map(finding => finding.code)).toEqual(['D311', 'D430', 'D430']);
+        expect(styleCount).toBe(2);
     });
 });
 
 describe('lint:fix-style picks the files to fix', () => {
-    it('fixes changed code files and skips files that are old style already', () => {
+    const allStyle = { '@stylistic/indent': { count: 9 }, '@stylistic/quotes': { count: 2 }, '@stylistic/eol-last': { count: 1 }, '@stylistic/linebreak-style': { count: 1 } };
+
+    it('fixes every style rule that has no old debt in the file, the same rules CI reports', () => {
         const suppressions = {
             'src/App.tsx': { '@stylistic/indent': { count: 120 } },
             'src/stores/x.ts': { '@typescript-eslint/no-explicit-any': { count: 2 } },
+            'src/legacy.ts': allStyle,
         };
-        const changed = ['src/App.tsx', 'src/lan/Cast.tsx', 'src/stores/x.ts', 'README.md', 'src/lan/Cast.tsx', 'electron/lan.cjs'];
+        const changed = ['src/App.tsx', 'src/lan/Cast.tsx', 'src/stores/x.ts', 'README.md', 'src/lan/Cast.tsx', 'electron/lan.cjs', 'src/legacy.ts']
+            .map(file => ({ file }));
         expect(pickStyleFixTargets(changed, suppressions)).toEqual({
-            targets: ['electron/lan.cjs', 'src/lan/Cast.tsx', 'src/stores/x.ts'],
-            legacy: ['src/App.tsx'],
+            groups: [
+                { files: ['electron/lan.cjs', 'src/lan/Cast.tsx', 'src/stores/x.ts'], keep: [] },
+                // 只记了缩进旧账：引号、换行照修，缩进不动
+                { files: ['src/App.tsx'], keep: ['@stylistic/indent'] },
+            ],
+            skipped: ['src/legacy.ts'],
         });
+    });
+
+    it('looks up the old debt of a renamed file under its old path', () => {
+        const suppressions = { 'src/old.ts': { '@stylistic/indent': { count: 40 } } };
+        expect(pickStyleFixTargets([{ file: 'src/new.ts', from: 'src/old.ts' }], suppressions).groups)
+            .toEqual([{ files: ['src/new.ts'], keep: ['@stylistic/indent'] }]);
     });
 });

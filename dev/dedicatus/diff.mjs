@@ -69,12 +69,14 @@ const MOVE_MIN_LENGTH = 12;
 /**
  * 一段挪过来的代码至少要有这么多行配得上。单独一行配上多半是巧合（`<AnimatePresence>`、`} catch (error) {`），
  * 不算挪动：否则全新的文件会被要求跑 --adopt-moved，落在这些行上的问题也会漏掉。
+ * 代价：挪的时候每隔一行就改一行、或者只挪了一行长代码的，不算挪动，那几行上的旧违规要当成新写的处理。
  */
-const MOVE_MIN_RUN = 3;
+const MOVE_MIN_RUN = 2;
 
 /**
  * 挪过来的行：新增的行里，和别处删掉的行（任何文件）去掉首尾空白后一模一样的，按出现次数一对一配对；
  * 只有连成一段的才算（相邻的新增行里至少 MOVE_MIN_RUN 行配得上，中间的短行和空行不打断这一段）。
+ * 凑不成一段的配对把额度还回去，免得一行巧合占掉别处真正挪过来的那一行。
  * 拆文件、调整顺序时搬过去的旧代码靠它和真正新写的代码分开。
  * @returns {Map<string, Set<number>>} 改动后的文件 → 挪过来的行号
  */
@@ -90,12 +92,15 @@ export function movedLines(files) {
     for (const file of files) {
         if (!file.newPath) continue;
         const entries = [...file.added].sort((a, b) => a.newLine - b.newLine);
+        /** @type {{ line: number, text: string }[]} */
         let run = [];
         let previousLine = null;
         const closeRun = () => {
             if (run.length >= MOVE_MIN_RUN) {
                 if (!moved.has(file.newPath)) moved.set(file.newPath, new Set());
-                for (const line of run) moved.get(file.newPath).add(line);
+                for (const { line } of run) moved.get(file.newPath).add(line);
+            } else {
+                for (const { text } of run) removedCounts.set(text, (removedCounts.get(text) ?? 0) + 1);
             }
             run = [];
         };
@@ -110,7 +115,7 @@ export function movedLines(files) {
                 continue;
             }
             removedCounts.set(text, left - 1);
-            run.push(entry.newLine);
+            run.push({ line: entry.newLine, text });
         }
         closeRun();
     }

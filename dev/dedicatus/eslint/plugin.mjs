@@ -537,7 +537,8 @@ const calledName = node => (node.callee.type === 'Identifier' ? node.callee.name
  * - try 里的复核护不住 catch / finally 里的写入（等待抛错时复核根本没执行）；
  * - 循环里写入排在 await 前面的，经过回边也算在 await 之后；
  * - 只有在条件里（if、三元、&&、||、!、循环条件）读令牌才算复核，`stillWanted.abandon()`、`log(t)` 不算；
- *   写入函数自己收了令牌（`showSong(song, { stillWanted })`）的，由它自己复核。
+ *   写入函数自己收了令牌（`showSong(song, { stillWanted })`）的，由它自己复核；
+ *   令牌交给被等待的函数、它过期时回空值，再用 `if (!结果) return;` 判这个结果的，算那一次 await 之后的复核。
  * 查的函数：自己拿了令牌（发令牌、读令牌、参数收令牌）的 async 函数；外层函数拿了令牌的 async 闭包；
  * 外层函数拿了令牌的 `.then` / `.catch` / `.finally` 回调（回调本身就在等待之后）。认不出属于哪一次起播的不查。
  */
@@ -629,40 +630,65 @@ const staleAfterAwait = {
             || (node.parent?.type === 'Property' && node.parent.key === node && !node.parent.computed && !node.parent.shorthand)
             || (node.parent?.type === 'MemberExpression' && node.parent.property === node && !node.parent.computed);
 
-        /** 一个表达式里（含内联函数 `() => !overtaken()`）提到了令牌或别的复核写法。 */
-        const mentionsCheck = node => {
-            if (!node || typeof node.type !== 'string') return false;
-            if (node.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)) && !isNameOnly(node)) return true;
-            return (visitorKeys[node.type] ?? []).some(key => {
-                const child = node[key];
-                return Array.isArray(child) ? child.some(mentionsCheck) : mentionsCheck(child);
-            });
+        /** 令牌或别的复核写法本身（`stillWanted`、`askedSongKeyRef.current`、`stillWanted.onceShown`）。 */
+        const isCheckValue = node => (node?.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)))
+            || (node?.type === 'MemberExpression' && isCheckValue(node.object));
+
+        /** 内联的判断函数：函数体就是对令牌的判断（`() => stillWanted()`、`() => !overtaken()`、`() => askedSongKeyRef.current === key`）。 */
+        const isCheckPredicate = node => {
+            if (!node || (node.type !== 'ArrowFunctionExpression' && node.type !== 'FunctionExpression')) return false;
+            let body = node.body;
+            if (body.type === 'BlockStatement') {
+                if (body.body.length !== 1 || body.body[0].type !== 'ReturnStatement') return false;
+                body = body.body[0].argument;
+            }
+            const strip = expression => (expression?.type === 'UnaryExpression' && expression.operator === '!' ? strip(expression.argument) : expression);
+            const asks = expression => isCheckValue(expression) || (expression?.type === 'CallExpression' && isCheckValue(expression.callee));
+            const core = strip(body);
+            return core?.type === 'BinaryExpression' ? asks(strip(core.left)) || asks(strip(core.right)) : asks(core);
         };
 
+        /** 令牌直接交给了被等待的函数：实参本身是令牌或内联的判断函数，或者对象字面量第一层的值是它们。 */
+        const passesCheck = argument => isCheckValue(argument) || isCheckPredicate(argument)
+            || (argument.type === 'ObjectExpression' && argument.properties.some(property => property.type === 'Property'
+                && (isCheckValue(property.value) || isCheckPredicate(property.value))));
+
         /**
-         * `const track = await resolve(…, () => !overtaken())`：被等待的函数收了令牌，过期时回空值。之后在条件里判这个结果
-         * （`if (!track) return;`）也算复核。直接把结果写进状态（`setLyrics(await f(song, stillWanted))`）不算。
+         * `const track = await resolve(…, () => !overtaken())`：被等待的函数收了令牌，过期时回空值。
          * @returns {string | null} 结果的变量名
          */
         const delegatedResultOf = awaitNode => {
             const call = awaitNode.argument;
-            if (call?.type !== 'CallExpression' || !call.arguments.some(mentionsCheck)) return null;
+            if (call?.type !== 'CallExpression' || !call.arguments.some(passesCheck)) return null;
             const parent = awaitNode.parent;
             return parent?.type === 'VariableDeclarator' && parent.init === awaitNode && parent.id.type === 'Identifier' ? parent.id.name : null;
+        };
+
+        /** 一处读在 `if (…) return / throw` 这种守卫的条件里。写入实参里的三元、`&&`、`??` 不算：过期时写进去的是空值。 */
+        const inExitGuard = node => {
+            let child = node;
+            for (const ancestor of sourceCode.getAncestors(node).reverse()) {
+                if (isFunction(ancestor)) return false;
+                if (ancestor.type === 'IfStatement' && ancestor.test === child) return alwaysExits(ancestor.consequent);
+                if (/Statement$|Declaration$/.test(ancestor.type)) return false;
+                child = ancestor;
+            }
+            return false;
         };
 
         /** 一个函数体里的事件：await 结束、读令牌（token：是不是令牌；check：算不算复核）、写状态。不进嵌套函数。 */
         const eventsOf = fn => {
             const events = [];
-            const delegatedResults = new Set();
+            /** 被等待的函数交回来的结果 → 产生它的那次 await。判这个结果只算那一次 await 之后的复核。 */
+            const delegatedResults = new Map();
             const walk = (node, root) => {
                 if (!node || typeof node.type !== 'string') return;
                 if (!root && isFunction(node)) return;
                 if (node.type === 'Identifier' && (tokens.has(node.name) || readers.has(node.name)) && !isNameOnly(node)) {
                     events.push({ kind: 'read', at: node.range[0], node, token: tokens.has(node.name), check: inCondition(node) });
                 }
-                if (node.type === 'Identifier' && delegatedResults.has(node.name) && !isNameOnly(node) && inCondition(node)) {
-                    events.push({ kind: 'read', at: node.range[0], node, token: false, check: true });
+                if (node.type === 'Identifier' && delegatedResults.has(node.name) && !isNameOnly(node) && inExitGuard(node)) {
+                    events.push({ kind: 'read', at: node.range[0], node, token: false, check: true, forAwait: delegatedResults.get(node.name) });
                 }
                 if (node.type === 'CallExpression') {
                     const name = calledName(node);
@@ -679,7 +705,7 @@ const staleAfterAwait = {
                 if (node.type === 'AwaitExpression') {
                     events.push({ kind: 'await', at: node.range[1], node });
                     const result = delegatedResultOf(node);
-                    if (result) delegatedResults.add(result);
+                    if (result) delegatedResults.set(result, node);
                 }
             };
             walk(fn.body, true);
@@ -711,14 +737,16 @@ const staleAfterAwait = {
             for (const write of events.filter(event => event.kind === 'write')) {
                 if (delegates(write.node)) continue;
                 const protects = read => !skippedByThrow(read.node, write.node);
+                // 判被等待函数的结果只复核产生它的那一次 await
+                const answers = (read, wait) => !read.forAwait || read.forAwait === wait.node;
                 const stale = awaits.some(wait => {
                     if (inExclusiveBranches(wait.node, write.node) || exitsBefore(wait.node, write.node)) return false;
-                    if (wait.at <= write.at) return !checks.some(read => read.at > wait.at && read.at < write.at && protects(read));
+                    if (wait.at <= write.at) return !checks.some(read => read.at > wait.at && read.at < write.at && protects(read) && answers(read, wait));
                     // 写入排在 await 前面：只有同一个循环（在这个函数里）的回边能让它在 await 之后执行
                     const loop = sourceCode.getAncestors(write.node).reverse()
                         .find(ancestor => isLoop(ancestor) && within(ancestor, fn.body) && within(wait.node, ancestor));
                     if (!loop) return false;
-                    return !checks.some(read => within(read.node, loop) && (read.at < write.at || read.at > wait.at) && protects(read));
+                    return !checks.some(read => within(read.node, loop) && (read.at < write.at || read.at > wait.at) && protects(read) && answers(read, wait));
                 });
                 if (stale) context.report({ node: write.node, messageId: 'stale', data: { writer: write.name, tokens: [...factories].join('、') } });
             }

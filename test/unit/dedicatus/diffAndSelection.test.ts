@@ -121,6 +121,70 @@ describe('dedicatus diff parsing', () => {
         expect(movedLines(fresh).get('src/cast.tsx')).toBeUndefined();
         expect(writtenLines(fresh).get('src/cast.tsx')).toEqual(new Set([1, 2, 3, 4]));
     });
+
+    it('gives a lone match back, so it does not cut a block really moved into another file', () => {
+        const both = parseDiff(source(
+            'diff --git a/src/big.ts b/src/big.ts',
+            '--- a/src/big.ts',
+            '+++ b/src/big.ts',
+            '@@ -30,3 +30,0 @@',
+            '-    try { load(source as any); }',
+            '-    } catch (error) {',
+            '-        report(error as any);',
+            // 排在前面的新文件碰巧也有一行 `} catch (error) {`
+            'diff --git a/src/a/coincidence.ts b/src/a/coincidence.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/a/coincidence.ts',
+            '@@ -0,0 +1,3 @@',
+            '+    try { start(); }',
+            '+    } catch (error) {',
+            '+    console.warn(\'[A] failed\', error);',
+            'diff --git a/src/b/part.ts b/src/b/part.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/b/part.ts',
+            '@@ -0,0 +1,3 @@',
+            '+    try { load(source as any); }',
+            '+    } catch (error) {',
+            '+        report(error as any);',
+        ));
+        expect(movedLines(both).get('src/a/coincidence.ts')).toBeUndefined();
+        expect(movedLines(both).get('src/b/part.ts')).toEqual(new Set([1, 2, 3]));
+    });
+
+    it('counts a small two-line function moved into a new file, and asks to adopt its old debt', () => {
+        const split = parseDiff(source(
+            'diff --git a/src/big.ts b/src/big.ts',
+            '--- a/src/big.ts',
+            '+++ b/src/big.ts',
+            '@@ -40,3 +40,0 @@',
+            '-export function toKey(song: any) {',
+            '-    return `${song.source}:${song.id}`;',
+            '-}',
+            'diff --git a/src/keys.ts b/src/keys.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/keys.ts',
+            '@@ -0,0 +1,4 @@',
+            '+export function toKey(song: any) {',
+            '+    return `${song.source}:${song.id}`;',
+            '+}',
+            '+export const fresh = (input: any) => input;',
+        ));
+        const moved = movedLines(split);
+        expect(moved.get('src/keys.ts')).toEqual(new Set([1, 2]));
+        const any = '@typescript-eslint/no-explicit-any';
+        const finding = (line: number) => ({ code: 'D403', file: 'src/keys.ts', line, column: 1, rule: any, message: 'm', key: `D403:src/keys.ts:${line}:1:${any}` });
+        const result = selectNewFindings([finding(1), finding(4)], {
+            suppressions: {},
+            written: writtenLines(split),
+            moved,
+            newFiles: addedFiles(split),
+            touched: new Set(['src/keys.ts']),
+        });
+        expect(result.map(item => item.key)).toEqual(['D403:src/keys.ts:4:1:@typescript-eslint/no-explicit-any', 'D002:src/keys.ts:adopt']);
+    });
 });
 
 describe('dedicatus @note guard', () => {

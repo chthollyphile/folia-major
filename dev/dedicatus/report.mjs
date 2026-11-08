@@ -3,7 +3,7 @@ import { codeInfo } from './codes.mjs';
 // dev/dedicatus/report.mjs
 // 把检查结果写出来：给人读的文本、给 Aeolian 读的 JSON、给 GitHub 的注解和 job summary。
 // 对外输出要克制（README 的“输出”一节）：每条一行，只写代码和位置；不发 PR 评论，job summary 最多列 SUMMARY_LIMIT 行；
-// 给人看的版本先合并（compressForReaders）。
+// 给人看的版本先排序，GitHub 上再合并（compressForReaders）。
 
 const SUMMARY_LIMIT = 30;
 /** 同一文件同一条通用规则超过这么多处，合成一行。 */
@@ -21,21 +21,22 @@ export const levelOf = finding => finding.level ?? codeInfo(finding.code)?.level
 const rankOf = finding => (STYLE_CODE.test(finding.code) ? 2 : GENERIC_CODE.test(finding.code) ? 1 : 0);
 
 /**
- * 给人看的版本（终端、GitHub 注解、job summary）：项目规则排在最前面；风格问题每个“文件 × 规则”合成一行，
+ * 给人看的版本：项目规则排在最前面。GitHub 注解和 job summary 还要合并（fold）：风格问题每个“文件 × 规则”合成一行，
  * 指向自动修复的命令；同一文件同一条通用规则超过 FOLD_AT 处的也合成一行。GitHub 每个步骤只显示前 10 个注解、
  * summary 只列前 SUMMARY_LIMIT 行，不合并的话一个 2 空格缩进的新文件就能把真正要看的问题全挤掉。
- * JSON（给 Aeolian）不合并。
+ * 本机的文字输出只排序不合并：要改的人得看到每一处在哪一行。JSON（给 Aeolian）既不排序也不合并。
  * @param {import('./baseline.mjs').Finding[]} fresh
+ * @param {{ fold?: boolean }} [options]
  * @returns {{ findings: import('./baseline.mjs').Finding[], styleCount: number }}
  */
-export function compressForReaders(fresh) {
+export function compressForReaders(fresh, { fold = true } = {}) {
     const groups = new Map();
     const kept = [];
     let styleCount = 0;
     for (const finding of fresh) {
         const rank = rankOf(finding);
         if (rank === 2 && finding.line) styleCount += 1;
-        if (rank === 0 || !finding.rule || !finding.line) {
+        if (!fold || rank === 0 || !finding.rule || !finding.line) {
             kept.push(finding);
             continue;
         }
@@ -72,7 +73,9 @@ export const formatLine = finding => {
 
 export function printText(result, { showKnown = false } = {}) {
     const lines = [];
-    for (const finding of compressForReaders(result.fresh).findings) lines.push(formatLine(finding));
+    const { findings, styleCount } = compressForReaders(result.fresh, { fold: false });
+    for (const finding of findings) lines.push(formatLine(finding));
+    if (styleCount > 0) lines.push('', `风格问题 ${styleCount} 处（缩进、引号、换行），都能自动修：${FIX_STYLE_COMMAND}`);
     if (showKnown && result.known.length > 0) {
         lines.push('', `基线内的已知问题（${result.known.length} 条）：`);
         for (const finding of result.known) lines.push(`  ${formatLine(finding)}`);

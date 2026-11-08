@@ -15,7 +15,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | `npm run dedicatus -- --migrate-renames` | 挪了文件（git 能认出的改名）以后，把基线和抑制文件里的旧路径换成新路径 |
 | `npm run dedicatus -- --adopt-moved` | 拆了文件以后，把新文件里搬过去的旧违规登记进基线和抑制文件，并删掉旧文件里记多的条目 |
 | `npm run lint:fix -- <路径>` | 自动修复。必须给路径 |
-| `npm run lint:fix-style` | 只修这次改过的文件的排版（缩进、引号、换行），不改代码的意思；跳过本来就是旧风格的文件。开 PR 前跑一次。隔离环境没装时先装 |
+| `npm run lint:fix-style` | 只修这次改过的文件的排版（缩进、引号、换行），不改代码的意思。旧风格的文件只修没记旧账的那几条规则（和 CI 追究的一致），改了名的按旧路径找旧账。目标分支先找指向主仓库的远程，`--base <ref>` 可换。开 PR 前跑一次。隔离环境没装时先装 |
 
 其他参数：`--json`、`--github`、`--base <ref>`、`--no-base`、`--show-known`、`--mode report|enforce`。
 
@@ -61,7 +61,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 
 - 按函数名放行（D121、D442、D604）：登记一个函数，等于放行它里面（含匿名回调）的所有写法。`useCallback` / `useMemo` 包着的函数按变量名算。
 - D121 把交给查询函数（`.includes`、`.has`、`isX(…)` 等）、比较、下标的 `'taken-down'` 当成读；交给别的函数的当成给出。
-- D311 按源码顺序近似判断，不是真正的控制流分析。令牌交给被等待的函数、再在条件里判它的结果（`const track = await resolve(…, stillWanted); if (!track) return;`）算复核；令牌存进别的变量再判断（`const fresh = stillWanted(); if (!fresh) …`）不算复核；守卫写反了（`if (stillWanted()) return;`）也算复核。引用了令牌的函数整个算令牌，不管它多大。
+- D311 按源码顺序近似判断，不是真正的控制流分析。令牌直接交给被等待的函数（令牌本身或 `() => !overtaken()` 这样的判断函数）、再用 `if (!结果) return;` 判它交回的结果，算那一次 await 之后的复核（`const track = await resolve(…, stillWanted); if (!track) return;`）；令牌存进别的变量再判断（`const fresh = stillWanted(); if (!fresh) …`）不算复核；守卫写反了（`if (stillWanted()) return;`）也算复核。引用了令牌的函数整个算令牌，不管它多大。
 - D440 只认 useState 的 setter、从 `use*Store` 取出来的 `set*`、store 的 `setState` / `getState().set*`；经 props 传进来的写入函数认不出。前面任何 `if (…) return;` 都算守卫，判空的提前返回也算。
 - D442 只认字面的 `import.meta.env.DEV`，存进变量或用 `MODE`、`PROD` 判断的守卫认不出（会误报）。
 - D605 “收 webContents 的判断函数”是测试里写死的名单；内联箭头写的 isTrusted 不核对。
@@ -69,6 +69,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 - D444 不管经 `t('键', { error: … })` 插进翻译文案的原文。
 - D608 只管“系统加密可不可用”的判断在哪里做，不管“app ready 之前不解密”。
 - D611 是按词匹配的 diff 检查，只看新增的行。
+- 挪动判定逐行比对：挪的时候每隔一行就改一行、或者只挪了一行长代码，这几行不算挪过来的，上面的旧违规会当成新写的报，`--adopt-moved` 也转不过去。
 
 ESLint 装在隔离环境里，钉住 TypeScript 6.0。原因是 typescript-eslint 要用 TypeScript 的编译器 API，而项目用的 TypeScript 7 没有提供。等 typescript-eslint 正式支持 TypeScript 7.1，就撤掉这个隔离环境。
 
@@ -86,7 +87,7 @@ ESLint 装在隔离环境里，钉住 TypeScript 6.0。原因是 typescript-esli
 有比较基点时，只追究这次 PR 带来的问题。CI 上的比较基点是 PR 的目标分支，本机默认是 `origin/main`。
 
 - 模块图检查：目标分支上本来就有的违规和环，不算这次的。
-- ESLint：只报落在**新写的行**上的问题。挪过来的行（连续至少 3 行和别处删掉的行一样，单独一行配上的不算）不算新写，所以拆文件时搬过去的旧违规不会被当成新问题。这次碰过的文件里多出来的其他问题，合成一条 notice，不阻断；它们可能是目标分支上已有的，也可能是别处的改动引起的。没碰过的文件不报。
+- ESLint：只报落在**新写的行**上的问题。挪过来的行（连续至少 2 行和别处删掉的行一样；单独一行配上的多半是巧合，不算）不算新写，所以拆文件时搬过去的旧违规不会被当成新问题。这次碰过的文件里多出来的其他问题，合成一条 notice，不阻断；它们可能是目标分支上已有的，也可能是别处的改动引起的。没碰过的文件不报。
 - 过期的基线和抑制条目（修好了但没 prune）：只追究这次碰过的文件。
 
 目标分支上漏进去的问题，由目标分支自己的 CI 报出来。那次检查在 push 时运行，没有比较基点。
@@ -94,5 +95,5 @@ ESLint 装在隔离环境里，钉住 TypeScript 6.0。原因是 typescript-esli
 ## 输出
 
 - 每个问题一行，只写代码和位置。在 CI 上以注解的形式标在 PR 的 “Files changed” 里，job summary 最多列 30 行。**不发 PR 评论。**
-- 给人看的输出（终端、注解、summary）先合并再排序：项目规则排在最前面；风格问题每个“文件 × 规则”合成一行，并提示 `npm run lint:fix-style`；同一文件同一条通用 ESLint 规则超过 3 处的也合成一行。GitHub 每个步骤只显示前 10 个注解，不合并的话一个缩进不对的新文件就能把真正要看的问题全挤掉。`--json` 不合并。
+- 给人看的输出把项目规则排在最前面。GitHub 注解和 job summary 还要合并：风格问题每个“文件 × 规则”合成一行，并提示 `npm run lint:fix-style`；同一文件同一条通用 ESLint 规则超过 3 处的也合成一行。GitHub 每个步骤只显示前 10 个注解，不合并的话一个缩进不对的新文件就能把真正要看的问题全挤掉。本机的文字输出只排序不合并（要看到每一处的行号）；`--json` 既不排序也不合并。
 - `report` 模式下照常输出，但不让 CI 失败。`enforce` 模式下，有新的 error 级问题就会失败。默认模式写在 `codes.mjs` 的 `DEFAULT_MODE`。

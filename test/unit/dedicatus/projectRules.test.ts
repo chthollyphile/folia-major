@@ -330,6 +330,10 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
             // 令牌交给了被等待的函数，但没判结果就写：过期时写进去的是空值
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); setLyrics(await fetchLyrics(song, stillWanted)); }', errors: [{ messageId: 'stale' }] },
             { filename: playbackFile, options: tokenOptions, code: 'async function play(song) { const stillWanted = startPlay(); const lyrics = await fetchLyrics(song, stillWanted); setLyrics(lyrics); }', errors: [{ messageId: 'stale' }] },
+            // 判结果只复核产生它的那次 await；判断写在写入的实参里不算；令牌没当判断交出去不算
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song, stillWanted) { const track = await resolve(song, stillWanted); const lyrics = await loadLyrics(track); if (!track) return; setLyrics(lyrics); }', errors: [{ messageId: 'stale' }] },
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song, stillWanted) { const track = await resolve(song, stillWanted); setLyrics(track ? track.lyrics : null); setCurrentSong(track ?? fallback); }', errors: [{ messageId: 'stale' }, { messageId: 'stale' }] },
+            { filename: playbackFile, options: tokenOptions, code: 'async function play(song, stillWanted) { const r = await fetchLyrics(song, { onProgress: () => console.log(stillWanted) }); if (!r) return; setLyrics(r); }', errors: [{ messageId: 'stale' }] },
         ],
     });
 

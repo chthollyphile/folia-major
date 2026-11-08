@@ -3,29 +3,48 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ESLINT_RULE_CODES } from '../codes.mjs';
 import { readSuppressions, spawnEslint } from './run.mjs';
 // dev/dedicatus/eslint/fixStyle.mjs
 // npm run lint:fix-style：把这次改过的文件的排版（缩进、引号、换行……）自动修好，开 PR 前跑一次。
-// - 改过的文件：相对目标分支（依次找 upstream/main、origin/main、main，--base 可换）的分叉点，含没提交的改动和新文件；
-// - 跳过本来就是旧风格的文件（抑制文件里记着风格规则的）：修它们会把整个文件重排，PR 的 diff 会很难看；
-//   这些文件的风格问题本来就不追究；
+// - 改过的文件：相对目标分支的分叉点，含没提交的改动和新文件。目标分支先找指向主仓库（chthollyphile/folia-major）
+//   的远程的 main，再找 upstream/main、origin/main、main；--base <ref> 可换；
+// - 文件本来就是旧风格的（抑制文件里记着某条风格规则）：只修没记旧账的那几条，记了的不动，和 CI 只追究没记旧账的规则一致；
+//   不然整个文件会被重排，PR 的 diff 会很难看。改了名的文件按改名前的路径找旧账；
 // - 只做排版类修复（--fix-type layout）：只动空白和标点，不改代码的意思。剩下的问题要自己改，跑 npm run lint 看；
 // - ESLint 的隔离环境（dev/dedicatus/lint）没装时先装。
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
-const BASE_CANDIDATES = ['upstream/main', 'origin/main', 'main'];
+const UPSTREAM_REPO = /[/:]chthollyphile\/folia-major(\.git)?$/;
+const FALLBACK_BASES = ['upstream/main', 'origin/main', 'main'];
+/** 风格类规则（D430–D432）：能自动修的只有它们。 */
+const STYLE_RULES = Object.keys(ESLINT_RULE_CODES).filter(rule => /^D43[0-2]$/.test(ESLINT_RULE_CODES[rule]));
 
 /**
- * 要修的文件：改过的代码文件里，去掉本来就是旧风格的（抑制文件里这个文件记着风格规则）。
- * @param {string[]} changed 改过的文件（仓库相对路径，正斜杠）
+ * 要修的文件，按“哪些风格规则记着旧账、这次不修”分组。全部风格规则都记着旧账的文件跳过。
+ * @param {{ file: string, from?: string }[]} changed 改过的文件（仓库相对路径，正斜杠）；from 是改名前的路径
  * @param {Record<string, Record<string, { count: number }>>} suppressions eslint-suppressions.json
- * @returns {{ targets: string[], legacy: string[] }}
+ * @returns {{ groups: { files: string[], keep: string[] }[], skipped: string[] }} keep：这一组不修的规则
  */
 export function pickStyleFixTargets(changed, suppressions) {
-    const code = [...new Set(changed)].filter(file => SOURCE.test(file)).sort();
-    const isLegacy = file => Object.keys(suppressions[file] ?? {}).some(rule => rule.startsWith('@stylistic/'));
-    return { targets: code.filter(file => !isLegacy(file)), legacy: code.filter(isLegacy) };
+    const seen = new Set();
+    const byKeep = new Map();
+    const skipped = [];
+    for (const { file, from } of [...changed].sort((a, b) => a.file.localeCompare(b.file))) {
+        if (!SOURCE.test(file) || seen.has(file)) continue;
+        seen.add(file);
+        const recorded = rule => Number(suppressions[file]?.[rule]?.count ?? 0) > 0 || (from !== undefined && Number(suppressions[from]?.[rule]?.count ?? 0) > 0);
+        const keep = STYLE_RULES.filter(recorded);
+        if (keep.length === STYLE_RULES.length) {
+            skipped.push(file);
+            continue;
+        }
+        const key = keep.join(',');
+        if (!byKeep.has(key)) byKeep.set(key, { files: [], keep });
+        byKeep.get(key).files.push(file);
+    }
+    return { groups: [...byKeep.values()], skipped };
 }
 
 const git = args => execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -38,14 +57,23 @@ const refExists = ref => {
     }
 };
 
-/** 这次改过、现在还在的文件：分叉点之后提交的、没提交的，加上还没 add 的新文件。 */
-const changedFiles = base => {
-    const forkPoint = git(['merge-base', base, 'HEAD']).trim();
-    const lines = text => text.split('\n').map(line => line.trim()).filter(Boolean);
-    return [
-        ...lines(git(['diff', '--name-only', '--diff-filter=ACMR', forkPoint])),
-        ...lines(git(['ls-files', '--others', '--exclude-standard'])),
-    ].filter(file => fs.existsSync(path.join(root, file)));
+/** 目标分支：指向主仓库的远程的 main 优先（fork 里 origin 往往是自己的 fork）。 */
+const findBase = () => {
+    const upstreamRemotes = git(['remote', '-v']).split('\n')
+        .map(line => line.split(/\s+/))
+        .filter(([, url]) => url && UPSTREAM_REPO.test(url))
+        .map(([name]) => `${name}/main`);
+    return [...new Set([...upstreamRemotes, ...FALLBACK_BASES])].find(refExists) ?? null;
+};
+
+/** 这次改过、现在还在的文件：分叉点之后提交的、没提交的，加上还没 add 的新文件；改了名的记下改名前的路径。 */
+const changedFiles = forkPoint => {
+    const changed = git(['diff', '--name-status', '-M', '--diff-filter=ACMR', forkPoint]).split('\n')
+        .map(line => line.split('\t'))
+        .filter(parts => parts.length >= 2)
+        .map(([status, first, second]) => (status.startsWith('R') ? { file: second, from: first } : { file: first }));
+    const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n').map(line => line.trim()).filter(Boolean).map(file => ({ file }));
+    return [...changed, ...untracked].filter(({ file }) => fs.existsSync(path.join(root, file)));
 };
 
 const ensureRuntime = () => {
@@ -57,32 +85,49 @@ const ensureRuntime = () => {
 
 function main(args) {
     const baseIndex = args.indexOf('--base');
-    const base = baseIndex >= 0 ? args[baseIndex + 1] : BASE_CANDIDATES.find(refExists);
-    if (!base || !refExists(base)) {
-        console.error(`[Dedicatus] 找不到目标分支（试过 ${BASE_CANDIDATES.join('、')}）：先 git fetch，或者用 --base <ref> 指定。`);
+    if (baseIndex >= 0 && !args[baseIndex + 1]) {
+        console.error('[Dedicatus] --base 后面要跟一个分支或提交，例如 --base upstream/main。');
         return 2;
     }
-    const { targets, legacy } = pickStyleFixTargets(changedFiles(base), readSuppressions(root));
-    if (legacy.length > 0) console.log(`[Dedicatus] 跳过 ${legacy.length} 个旧风格的文件（它们的风格不追究，整文件重排会让 diff 很难看）：${legacy.join('、')}`);
-    if (targets.length === 0) {
-        console.log(`[Dedicatus] 相对 ${base} 没有要修排版的代码文件。`);
-        return 0;
+    const base = baseIndex >= 0 ? args[baseIndex + 1] : findBase();
+    if (!base || !refExists(base)) {
+        console.error(base
+            ? `[Dedicatus] 找不到 ${base}：先 git fetch。`
+            : '[Dedicatus] 找不到主仓库的 main：先 git remote add upstream https://github.com/chthollyphile/folia-major.git && git fetch upstream，或者用 --base <ref> 指定。');
+        return 2;
     }
+    let forkPoint;
+    try {
+        forkPoint = git(['merge-base', base, 'HEAD']).trim();
+    } catch {
+        console.error(`[Dedicatus] 算不出这个分支和 ${base} 的分叉点（浅克隆的话先 git fetch --unshallow），或者用 --base <ref> 指定。`);
+        return 2;
+    }
+    const changed = changedFiles(forkPoint);
+    const { groups, skipped } = pickStyleFixTargets(changed, readSuppressions(root));
+    const targets = groups.flatMap(group => group.files);
+    console.log(`[Dedicatus] 相对 ${base}（分叉点 ${forkPoint.slice(0, 9)}）改过 ${changed.length} 个文件，其中 ${targets.length} 个代码文件要看排版。`);
+    if (skipped.length > 0) console.log(`[Dedicatus] 跳过 ${skipped.length} 个旧风格的文件（风格旧账都还记着，不追究；整文件重排会让 diff 很难看）：${skipped.join('、')}`);
+    if (targets.length === 0) return 0;
     if (!ensureRuntime()) {
         console.error('[Dedicatus] ESLint 的隔离环境没装上，先手动跑 npm run lint:install。');
         return 2;
     }
     const before = new Map(targets.map(file => [file, fs.readFileSync(path.join(root, file), 'utf8')]));
-    // 结果用 JSON 收起来不打印：剩下的不是排版问题，混在这里看不清；--no-warn-ignored：配置里忽略的文件不提示
-    const result = spawnEslint(root, [
-        '--fix', '--fix-type', 'layout', '--no-warn-ignored', '--pass-on-unpruned-suppressions', '-f', 'json', ...targets,
-    ], { capture: true });
-    if (result.status === 2 || !result.stdout) {
-        console.error(result.stderr || '[Dedicatus] ESLint 没跑起来。');
-        return 2;
+    let remaining = 0;
+    for (const { files, keep } of groups) {
+        // 记着旧账的风格规则这一组不修；结果用 JSON 收起来不打印：剩下的不是排版问题，混在这里看不清
+        const off = keep.flatMap(rule => ['--rule', JSON.stringify({ [rule]: 'off' })]);
+        const result = spawnEslint(root, [
+            '--fix', '--fix-type', 'layout', '--no-warn-ignored', '--pass-on-unpruned-suppressions', ...off, '-f', 'json', ...files,
+        ], { capture: true });
+        if (result.status === 2 || !result.stdout) {
+            console.error(result.stderr || '[Dedicatus] ESLint 没跑起来。');
+            return 2;
+        }
+        remaining += JSON.parse(result.stdout).reduce((sum, entry) => sum + entry.errorCount + entry.warningCount, 0);
     }
     const fixed = targets.filter(file => fs.readFileSync(path.join(root, file), 'utf8') !== before.get(file));
-    const remaining = JSON.parse(result.stdout).reduce((sum, entry) => sum + entry.errorCount + entry.warningCount, 0);
     console.log(fixed.length > 0
         ? `[Dedicatus] 修好了 ${fixed.length} 个文件的排版（只动了空白和标点）：${fixed.join('、')}`
         : '[Dedicatus] 排版本来就没问题，什么都没改。');
@@ -90,6 +135,12 @@ function main(args) {
     return 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    process.exitCode = main(process.argv.slice(2));
-}
+const isEntry = () => {
+    try {
+        return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+    } catch {
+        return false;
+    }
+};
+
+if (isEntry()) process.exitCode = main(process.argv.slice(2));
