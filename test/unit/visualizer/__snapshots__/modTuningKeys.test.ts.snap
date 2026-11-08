@@ -655,6 +655,11 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "hubView": {
       "type": "boolean",
     },
+    "hubViewBack": {
+      "max": 3,
+      "min": 0,
+      "type": "number",
+    },
     "hubViewHeight": {
       "max": 3,
       "min": 0.4,

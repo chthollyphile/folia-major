@@ -3035,6 +3035,7 @@ export default {
     "pendoloParallaxDepth": "Layer Parallax (when tilted or in hub view)",
     "pendoloHubView": "Hub View (look along the pointer)",
     "pendoloHubViewHeight": "View Height",
+    "pendoloHubViewBack": "View Distance Behind Hub",
     "sonnetMotionSection": "Motion and composition",
     "sonnetDisplaySection": "Visible elements",
     "sonnetQualitySection": "Rendering quality",

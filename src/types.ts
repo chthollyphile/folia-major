@@ -610,10 +610,12 @@ export interface PendoloTuning {
   tiltAxisDeg?: number;
   /** 分层视差强度：倾斜时齿轮、摆轮、歌词按各自高度浮在表盘上方，0 是全在一个平面上。 */
   parallaxDepth?: number;
-  /** 轮心视角：相机立在轮心上方、朝刻度针（焦点句）的方向看，代替倾斜；只在 WebGL 下生效。 */
+  /** 轮心视角：相机在轮心后上方、顺着刻度针看向焦点句，代替倾斜；只在 WebGL 下生效。 */
   hubView?: boolean;
   /** 轮心视角的相机高度（轮盘半径的倍数）：低时贴着表盘平视，高时接近俯视。 */
   hubViewHeight?: number;
+  /** 轮心视角的相机从轮心沿刻度针反方向后退多远（轮盘半径的倍数），0 是正在轮心上方。 */
+  hubViewBack?: number;
 }
 
 export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
@@ -633,7 +635,8 @@ export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
   tiltAxisDeg: 0,
   parallaxDepth: 1,
   hubView: false,
-  hubViewHeight: 1,
+  hubViewHeight: 1.4,
+  hubViewBack: 1.2,
 };
 
 export type SonnetOuterFrameMode = 'none' | 'frame' | 'full';

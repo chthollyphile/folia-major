@@ -3035,6 +3035,7 @@ export default {
     "pendoloParallaxDepth": "Paralaks Lapisan (saat miring)",
     "pendoloHubView": "Tampilan dari Poros (searah jarum)",
     "pendoloHubViewHeight": "Ketinggian Tampilan",
+    "pendoloHubViewBack": "Jarak Mundur Tampilan",
     "sonnetMotionSection": "Gerakan dan komposisi",
     "sonnetDisplaySection": "Elemen terlihat",
     "sonnetQualitySection": "Kualitas rendering",

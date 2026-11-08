@@ -16,7 +16,7 @@ import { DEFAULT_PENDOLO_TUNING, type Line } from '@/types';
 describe('pendolo hub view projection', () => {
     const hubX = 0;
     const hubY = 540;
-    const view = (side: 1 | -1) => buildPendoloHubViewProjection(400, 500, side, hubX, hubY, 1920, 1080);
+    const view = (side: 1 | -1, back = 300) => buildPendoloHubViewProjection(400, back, 500, side, hubX, hubY, 1920, 1080);
     // 齐次结果，不做 w 的下限保护，背后的点也能看出符号
     const raw = (m: Float32Array, x: number, y: number, h = 0, lift: [number, number, number] = [0, 0, 0]) => {
         const w = m[6] * x + m[7] * y + m[8] + h * lift[2];
@@ -31,16 +31,24 @@ describe('pendolo hub view projection', () => {
         const p = raw(view(1).matrix, 500, 0);
         expect(p.w).toBeCloseTo(1);
         expect(hubX + p.x).toBeCloseTo(960);
-        expect(hubY + p.y).toBeCloseTo(1080 * 0.72);
+        expect(hubY + p.y).toBeCloseTo(1080 * 0.42);
     });
 
-    it('looks along the pointer: farther along it rises toward the horizon, behind the camera w < 0', () => {
+    it('looks along the pointer from behind the hub: farther along rises toward the horizon, behind the camera w < 0', () => {
         const projection = view(1);
         const near = raw(projection.matrix, 500, 0);
         const far = raw(projection.matrix, 2000, 0);
         expect(far.y).toBeLessThan(near.y);
         expect(far.x).toBeCloseTo(near.x);
         expect(raw(projection.matrix, -2000, 0).w).toBeLessThan(0);
+        // 相机退到轮心后面：轮心在相机前方，画面里比焦点句低
+        const hub = raw(projection.matrix, 0, 0);
+        expect(hub.w).toBeGreaterThan(0);
+        expect(hub.y).toBeGreaterThan(near.y);
+        // 正上方（不后退）时焦点句仍落在同一点
+        const overhead = raw(view(1, 0).matrix, 500, 0);
+        expect(overhead.w).toBeCloseTo(1);
+        expect(overhead.x).toBeCloseTo(near.x);
         // 右手边是表盘平面里的 +y（屏幕下方）
         expect(raw(projection.matrix, 500, 200).x).toBeGreaterThan(near.x);
     });

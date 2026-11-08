@@ -4,7 +4,7 @@ import { Button, Group, Row, Segmented, type SettingsGroupDef } from '../../moda
 import { type VisualizerSettingsPanelProps } from '../definition';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
-import { PENDOLO_HUB_VIEW_HEIGHT_MAX, PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
+import { PENDOLO_HUB_VIEW_BACK_MAX, PENDOLO_HUB_VIEW_BACK_MIN, PENDOLO_HUB_VIEW_HEIGHT_MAX, PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
 
 // src/components/visualizer/pendolo/PendoloSettingsPanel.tsx
 // Owns Pendolo-specific tuning controls, drawn as groups of the settings kit.
@@ -85,16 +85,28 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     onChange={(next) => onPendoloTuningChange({ hubView: next })}
                 />
                 {hubView ? (
-                    <SliderRow
-                        {...drag}
-                        label={t('options.pendoloHubViewHeight')}
-                        value={resolvedTuning.hubViewHeight ?? 1}
-                        min={PENDOLO_HUB_VIEW_HEIGHT_MIN}
-                        max={PENDOLO_HUB_VIEW_HEIGHT_MAX}
-                        step={0.05}
-                        format={times}
-                        onChange={(value) => onPendoloTuningChange({ hubViewHeight: value })}
-                    />
+                    <>
+                        <SliderRow
+                            {...drag}
+                            label={t('options.pendoloHubViewHeight')}
+                            value={resolvedTuning.hubViewHeight ?? 1.4}
+                            min={PENDOLO_HUB_VIEW_HEIGHT_MIN}
+                            max={PENDOLO_HUB_VIEW_HEIGHT_MAX}
+                            step={0.05}
+                            format={times}
+                            onChange={(value) => onPendoloTuningChange({ hubViewHeight: value })}
+                        />
+                        <SliderRow
+                            {...drag}
+                            label={t('options.pendoloHubViewBack')}
+                            value={resolvedTuning.hubViewBack ?? 1.2}
+                            min={PENDOLO_HUB_VIEW_BACK_MIN}
+                            max={PENDOLO_HUB_VIEW_BACK_MAX}
+                            step={0.05}
+                            format={times}
+                            onChange={(value) => onPendoloTuningChange({ hubViewBack: value })}
+                        />
+                    </>
                 ) : (
                     <>
                         <SliderRow
