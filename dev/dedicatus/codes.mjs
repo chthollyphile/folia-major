@@ -105,6 +105,26 @@ export const CODES = {
     D608: { name: '系统加密的可用性各自判断', level: 'error' },
     D609: { name: '外链绕过协议白名单', level: 'error' },
     D611: { name: '读取别的应用的凭据', level: 'error' },
+
+    // 8xx：Coven 流程（dev/coven/，由监控 session 调用的脚本报出）
+    // 80x：Aeolian 开 PR 前的阻断项（coven:verify、coven:pr）
+    D801: { name: '缺少契约或契约没批准', level: 'error' },
+    D802: { name: '契约项未通过', level: 'error' },
+    D803: { name: '越出契约范围', level: 'error' },
+    D804: { name: '契约被改写', level: 'error' },
+    D805: { name: '疑似提示注入', level: 'error' },
+    D806: { name: '重构未消减基线', level: 'error' },
+    D807: { name: '风险级被下调', level: 'error' },
+    // 81x：任务停下等人（blocked）
+    D810: { name: '重试耗尽', level: 'warning' },
+    D811: { name: '评审两轮未过', level: 'warning' },
+    D812: { name: '需要取舍', level: 'warning' },
+    D813: { name: '预算耗尽', level: 'warning' },
+    D820: { name: '外部代码未获准运行', level: 'error' },
+    // 83x：coven: 认领协议
+    D830: { name: '认领冲突', level: 'warning' },
+    D831: { name: '无效认领', level: 'notice' },
+    D832: { name: '租约过期', level: 'notice' },
 };
 
 /** ESLint 规则 id → 代码。没列出的规则统一报 D490 并附规则 id；消息以 `Dxxx` 开头的（项目约定规则）按消息里的代码。 */

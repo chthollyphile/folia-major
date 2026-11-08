@@ -1,0 +1,45 @@
+{
+    "note": "Coven v1 的运行配置（dev/coven/README.md）。hd0Confirmed 为 false 时只能干跑：认领、开 PR 只打印不发。模型、预算、身份、签名是 HD0，由维护者拍板后改这里。",
+    "hd0Confirmed": false,
+    "repo": "chthollyphile/folia-major",
+    "trackingIssue": null,
+    "integrationBranchPrefix": "coven/run-",
+    "leaseHours": 12,
+    "timeZone": "Asia/Shanghai",
+    "timeZoneLabel": "UTC+8",
+    "concurrency": 2,
+    "maxReviewRounds": 2,
+    "budget": {
+        "perTaskUsd": null,
+        "perRunUsd": null
+    },
+    "git": {
+        "signCommits": false
+    },
+    "roles": {
+        "planner": { "model": "opus", "effort": "xhigh" },
+        "generator": { "model": "opus", "effort": "high" },
+        "evaluator": { "model": "opus", "effort": "xhigh" }
+    },
+    "risk": {
+        "r4": [
+            { "prefix": "AGENTS.md", "why": "项目规则" },
+            { "prefix": ".github/workflows/", "why": "CI" },
+            { "prefix": "dev/dedicatus/", "why": "检查规则本身" },
+            { "prefix": "dev/coven/", "why": "编排本身" },
+            { "prefix": "package.json", "why": "依赖" },
+            { "prefix": "package-lock.json", "why": "依赖" },
+            { "prefix": "eslint.config.mjs", "why": "检查规则本身" }
+        ],
+        "r3": [
+            { "prefix": "skills/", "why": "开发基础设施（D702）" },
+            { "prefix": ".github/", "why": "开发基础设施（D702）" },
+            { "prefix": "electron/", "why": "主进程、IPC、凭据" },
+            { "pattern": "^src/services/onlineMusic/[^/]+/[^/]*(Provider|Transport)\\.ts$", "why": "平台接口" },
+            { "prefix": "src/stores/usePlaybackStore.ts", "why": "播放时序" },
+            { "prefix": "src/components/visualizer/registry.tsx", "why": "歌词样式注册表：eager glob 拉进所有渲染器，碰启动顺序" },
+            { "prefix": "src/utils/appearanceCodec.ts", "why": "外观配置码的持久化格式" },
+            { "pattern": "^src/stores/use\\w*SettingsStore\\.ts$", "why": "持久化的设置" }
+        ]
+    }
+}
