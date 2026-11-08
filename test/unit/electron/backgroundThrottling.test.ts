@@ -26,6 +26,8 @@ const createWindow = () => {
         on: (event: string, listener: () => void) => { listeners.set(event, listener); },
         emit: (event: string) => listeners.get(event)?.(),
         webContents: {
+            destroyed: false,
+            isDestroyed: () => win.webContents.destroyed,
             setBackgroundThrottling: vi.fn(),
             send: vi.fn(),
         },
@@ -149,5 +151,41 @@ describe('backgroundThrottling', () => {
         throttling.refresh();
         expect(second.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
         expect(first.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+    });
+
+    // A closing or reloading window keeps its BrowserWindow object alive for a while after its
+    // webContents is gone; setBackgroundThrottling and send throw on that page.
+    it('holds still while the window outlives its page', () => {
+        enabled = true;
+        const throttling = create();
+        const win = createWindow();
+        throttling.attach(win);
+        expect(win.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+        expect(win.webContents.send).toHaveBeenCalledTimes(1);
+
+        win.webContents.destroyed = true;
+        expect(() => throttling.refresh()).not.toThrow();
+        expect(win.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+        expect(win.webContents.send).toHaveBeenCalledTimes(1);
+        expect(throttling.getState()).toEqual({ active: false, hidden: false });
+
+        win.destroyed = true;
+        expect(() => throttling.getState()).not.toThrow();
+    });
+
+    it('applies the switch afresh once a page of that window lives again', () => {
+        enabled = true;
+        const throttling = create();
+        const win = createWindow();
+        throttling.attach(win);
+
+        win.webContents.destroyed = true;
+        throttling.refresh();
+        win.webContents.destroyed = false;
+        throttling.refresh();
+
+        expect(win.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(2);
+        expect(win.webContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true);
+        expect(throttling.getState()).toEqual({ active: true, hidden: false });
     });
 });
