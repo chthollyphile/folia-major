@@ -1,6 +1,32 @@
 // Vietnamese (vi) interface text, laid out line for line like en.ts.
 
 export default {
+  "shuffle": {
+    "sectionTitle": "Xáo trộn",
+    "strategy": {
+      "fisherYates": "Ngẫu nhiên đều",
+      "round": "Không lặp lại",
+      "fewerRepeats": "Ít lặp hơn",
+      "weighted": "Ưu tiên lâu chưa phát"
+    },
+    "rng": {
+      "mt19937": "MT19937",
+      "math": "Math.random"
+    },
+    "optionStrategy": "Chiến lược xáo trộn",
+    "optionStrategyDesc": "Cách xáo trộn hàng đợi. Ngẫu nhiên đều giống cách cũ.",
+    "optionRng": "Nguồn ngẫu nhiên",
+    "optionRngDesc": "MT19937 không lệch; Math.random tương thích chính xác với cách xáo trộn cũ.",
+    "optionToast": "Hiện kết quả xáo trộn",
+    "optionToastDesc": "Hiện thông báo nêu chiến lược và nguồn ngẫu nhiên sau mỗi lần xáo trộn.",
+    "toast": "Đã xáo trộn · {{strategy}} · {{rng}}",
+    "tooltip": "Xáo trộn hàng đợi (hiện tại: {{strategy}} · {{rng}})",
+    "statusTitle": "Lần xáo trộn trước",
+    "statusNone": "Xáo trộn một lần để xem kết quả ở đây",
+    "copySeed": "Sao chép seed",
+    "seedCopied": "Đã sao chép seed",
+    "noSeedReplay": "Math.random không hỗ trợ phát lại seed"
+  },
   "appleMusic": {
     "libraryPlaylistName": "Tất cả bài hát"
   },
@@ -1041,6 +1067,7 @@ export default {
       "playback-volume-up": { "title": "Tăng âm lượng", "description": "Tăng âm lượng thêm 5%" },
       "playback-volume-down": { "title": "Giảm âm lượng", "description": "Giảm âm lượng đi 5%" },
       "playback-shuffle": { "title": "Xáo trộn hàng đợi", "description": "Xáo trộn hàng đợi phát hiện tại" },
+      "shuffle-strategy": { "title": "Xoay vòng chiến lược xáo trộn", "description": "Chuyển sang chiến lược xáo trộn tiếp theo và nêu tên trong thông báo" },
       "playback-clear-queue": { "title": "Xóa hàng đợi", "description": "Xóa toàn bộ bài hát khỏi hàng đợi phát" },
       "playback-undo-queue-replace": { "title": "Hoàn tác thay thế hàng chờ từ mod", "description": "Khôi phục hàng đợi phát từ trước khi mod thay thế" },
       "theme-generate-current": { "title": "Tạo chủ đề AI", "description": "Tạo chủ đề AI cho bài hát hiện tại" },

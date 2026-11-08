@@ -1,6 +1,32 @@
 
 
 export default {
+  "shuffle": {
+    "sectionTitle": "Acak",
+    "strategy": {
+      "fisherYates": "Seragam",
+      "round": "Tanpa ulang",
+      "fewerRepeats": "Kurangi ulang",
+      "weighted": "Sudah lama"
+    },
+    "rng": {
+      "mt19937": "MT19937",
+      "math": "Math.random"
+    },
+    "optionStrategy": "Strategi acak",
+    "optionStrategyDesc": "Cara antrean diacak. Seragam sama dengan perilaku klasik.",
+    "optionRng": "Sumber acak",
+    "optionRngDesc": "MT19937 tanpa bias; Math.random persis kompatibel dengan acak lama.",
+    "optionToast": "Tampilkan hasil acak",
+    "optionToastDesc": "Tampilkan strategi dan sumber acak setelah setiap diacak.",
+    "toast": "Diacak · {{strategy}} · {{rng}}",
+    "tooltip": "Acak antrean (sekarang: {{strategy}} · {{rng}})",
+    "statusTitle": "Acak terakhir",
+    "statusNone": "Acak sekali untuk menampilkan hasilnya di sini",
+    "copySeed": "Salin seed",
+    "seedCopied": "Seed disalin",
+    "noSeedReplay": "Math.random tidak mendukung pemutaran ulang seed"
+  },
   "appleMusic": {
     "libraryPlaylistName": "Semua lagu"
   },
@@ -1041,6 +1067,7 @@ export default {
       "playback-volume-up": { "title": "Volume naik", "description": "Naikkan volume 5%" },
       "playback-volume-down": { "title": "Volume turun", "description": "Turunkan volume 5%" },
       "playback-shuffle": { "title": "Acak antrean", "description": "Acak antrean putar saat ini" },
+      "shuffle-strategy": { "title": "Ganti strategi acak", "description": "Beralih ke strategi acak berikutnya dan sebutkan namanya di pemberitahuan" },
       "playback-clear-queue": { "title": "Kosongkan antrean", "description": "Hapus semua lagu dari antrean putar saat ini" },
       "playback-undo-queue-replace": { "title": "Urungkan penggantian antrean oleh mod", "description": "Pulihkan antrean putar dari sebelum diganti oleh mod" },
       "theme-generate-current": { "title": "Buat tema AI", "description": "Buat tema AI untuk lagu saat ini" },

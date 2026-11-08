@@ -1,6 +1,32 @@
 
 
 export default {
+  "shuffle": {
+    "sectionTitle": "洗牌",
+    "strategy": {
+      "fisherYates": "均匀乱序",
+      "round": "一轮不重复",
+      "fewerRepeats": "减少重复",
+      "weighted": "优先久未播放"
+    },
+    "rng": {
+      "mt19937": "MT19937",
+      "math": "Math.random"
+    },
+    "optionStrategy": "洗牌策略",
+    "optionStrategyDesc": "决定队列如何被打乱。均匀乱序等同经典行为。",
+    "optionRng": "随机源",
+    "optionRngDesc": "MT19937 无偏；Math.random 与旧版洗牌完全一致。",
+    "optionToast": "显示洗牌结果",
+    "optionToastDesc": "每次洗牌后用提示显示所用策略与随机源。",
+    "toast": "已打乱 · {{strategy}} · {{rng}}",
+    "tooltip": "打乱队列（当前：{{strategy}} · {{rng}}）",
+    "statusTitle": "上次洗牌",
+    "statusNone": "洗牌一次后在此显示结果",
+    "copySeed": "复制种子",
+    "seedCopied": "种子已复制",
+    "noSeedReplay": "Math.random 不支持种子复现"
+  },
   "appleMusic": {
     "libraryPlaylistName": "全部歌曲"
   },
@@ -1041,6 +1067,7 @@ export default {
       "playback-volume-up": { "title": "音量加", "description": "音量调高 5%" },
       "playback-volume-down": { "title": "音量减", "description": "音量调低 5%" },
       "playback-shuffle": { "title": "打乱队列", "description": "打乱当前播放队列" },
+      "shuffle-strategy": { "title": "轮换洗牌策略", "description": "切换到下一个洗牌策略并在提示中说明" },
       "playback-clear-queue": { "title": "清空队列", "description": "移除当前播放队列中的所有歌曲" },
       "playback-undo-queue-replace": { "title": "撤销模组替换的队列", "description": "恢复模组替换之前的播放队列" },
       "theme-generate-current": { "title": "生成 AI 主题", "description": "为当前歌曲生成 AI 主题" },

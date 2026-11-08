@@ -1,6 +1,32 @@
 
 
 export default {
+  "shuffle": {
+    "sectionTitle": "Shuffle",
+    "strategy": {
+      "fisherYates": "Uniform",
+      "round": "No repeats",
+      "fewerRepeats": "Fewer repeats",
+      "weighted": "Least recent first"
+    },
+    "rng": {
+      "mt19937": "MT19937",
+      "math": "Math.random"
+    },
+    "optionStrategy": "Shuffle strategy",
+    "optionStrategyDesc": "How the queue is shuffled. Uniform matches the classic behaviour.",
+    "optionRng": "Random source",
+    "optionRngDesc": "MT19937 is unbiased; Math.random keeps exact compatibility with the old shuffle.",
+    "optionToast": "Show shuffle result",
+    "optionToastDesc": "Show a toast naming the strategy and random source after each shuffle.",
+    "toast": "Shuffled · {{strategy}} · {{rng}}",
+    "tooltip": "Shuffle queue (current: {{strategy}} · {{rng}})",
+    "statusTitle": "Last shuffle",
+    "statusNone": "Shuffle once to show the result here",
+    "copySeed": "Copy seed",
+    "seedCopied": "Seed copied",
+    "noSeedReplay": "Math.random does not support seed replay"
+  },
   "appleMusic": {
     "libraryPlaylistName": "All songs"
   },
@@ -1041,6 +1067,7 @@ export default {
       "playback-volume-up": { "title": "Volume up", "description": "Raise the volume by 5%" },
       "playback-volume-down": { "title": "Volume down", "description": "Lower the volume by 5%" },
       "playback-shuffle": { "title": "Shuffle queue", "description": "Shuffle current play queue" },
+      "shuffle-strategy": { "title": "Cycle shuffle strategy", "description": "Switch to the next shuffle strategy and name it in a notice" },
       "playback-clear-queue": { "title": "Clear queue", "description": "Remove all songs from the current play queue" },
       "playback-undo-queue-replace": { "title": "Undo mod queue replacement", "description": "Bring back the play queue from before a mod replaced it" },
       "theme-generate-current": { "title": "Generate AI theme", "description": "Generate an AI theme for the current song" },
