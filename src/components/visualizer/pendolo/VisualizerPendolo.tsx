@@ -710,14 +710,20 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                 >
                                     <motion.div
                                         className="inline-block"
-                                        style={{ rotate: standLyrics ? 0 : textRotationCorrectionDeg, transformOrigin: textOrigin, WebkitTransform: 'translateZ(0)' }}
+                                        style={{
+                                            rotate: standLyrics ? 0 : textRotationCorrectionDeg,
+                                            // 立起来时句子的中点对准锚点（刻度针的方向），不再从锚点往一侧排开
+                                            x: standLyrics ? (mirrored ? '50%' : '-50%') : 0,
+                                            transformOrigin: textOrigin,
+                                            WebkitTransform: 'translateZ(0)',
+                                        }}
                                     >
                                     <div
                                         className="relative inline-block"
                                         style={{
                                             transform: `rotate(${standLyrics ? 0 : sideSign * item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
                                             transformOrigin: textOrigin,
-                                            textAlign: mirrored ? 'right' : undefined,
+                                            textAlign: standLyrics ? 'center' : mirrored ? 'right' : undefined,
                                             isolation: 'isolate',
                                         }}
                                     >
@@ -772,6 +778,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                         accentMix={chorusPresentation.accentMix}
                                                         chorusGlowMultiplier={chorusPresentation.glowMultiplier}
                                                         alignRight={mirrored}
+                                                        alignCenter={standLyrics}
                                                     />
                                                 ) : (
                                                     <div
