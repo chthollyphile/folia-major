@@ -608,6 +608,8 @@ export interface PendoloTuning {
   tiltDeg?: number;
   /** 倾斜轴的方向（度）：0 是水平轴（前后俯仰），±90 是竖直轴（左右偏转）。 */
   tiltAxisDeg?: number;
+  /** 分层视差强度：倾斜时齿轮、摆轮、歌词按各自高度浮在表盘上方，0 是全在一个平面上。 */
+  parallaxDepth?: number;
 }
 
 export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
@@ -625,6 +627,7 @@ export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
   mirrorLayout: false,
   tiltDeg: 0,
   tiltAxisDeg: 0,
+  parallaxDepth: 1,
 };
 
 export type SonnetOuterFrameMode = 'none' | 'frame' | 'full';

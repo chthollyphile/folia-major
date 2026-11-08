@@ -35,6 +35,13 @@ export interface PendoloClockworkFrameInput extends PendoloClockworkLayout {
     projectionPerspective?: boolean;
     /** 歌词左右镜像：投影里已经翻过，封面贴图要再翻回来，字才不是反的。 */
     mirrored?: boolean;
+    /**
+     * 分层视差：各层高度（轮盘半径的比例）乘上它就是 CSS px；只在倾斜时大于 0。`parallaxLift` 和
+     * `parallaxInvFocal` 是投影的抬高方向与 1/视距（pendoloDialProjection.ts）。
+     */
+    parallaxScalePx?: number;
+    parallaxLift?: [number, number, number];
+    parallaxInvFocal?: number;
 }
 
 export interface PendoloClockworkPalette {

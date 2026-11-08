@@ -3032,6 +3032,7 @@ export default {
     "pendoloMirrorLayout": "Cerminkan Lirik Kiri/Kanan",
     "pendoloTiltDeg": "Kemiringan Dial",
     "pendoloTiltAxisDeg": "Sumbu Kemiringan (0 = horizontal)",
+    "pendoloParallaxDepth": "Paralaks Lapisan (saat miring)",
     "sonnetMotionSection": "Gerakan dan komposisi",
     "sonnetDisplaySection": "Elemen terlihat",
     "sonnetQualitySection": "Kualitas rendering",

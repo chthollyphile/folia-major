@@ -13,7 +13,8 @@ import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
 import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
-import { buildPendoloDialProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
+import { buildPendoloDialProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
+import { PENDOLO_BALANCE_ICON_HEIGHT, PENDOLO_LYRIC_LAYER_HEIGHT } from './pendoloParallax';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
 import { buildPendoloSubtitleFontSpec, resolvePendoloSubtitleTracks, sumPendoloSubtitleTrackHeights } from './pendoloSubtitleTracks';
@@ -504,15 +505,20 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         (_: unknown, generated: string) => `${planeCssTransform} ${generated === 'none' ? '' : generated}`,
         [planeCssTransform],
     );
-    const planeLayerStyle = useMemo<React.CSSProperties | undefined>(() => (
+    // 分层视差：摆轮图标和歌词各自浮在表盘平面上方一段高度，按各自那一层的投影画；
+    // 只在倾斜时有高度（parallaxScalePx 为 0 时两层都是表盘平面本身）。
+    const parallaxScalePx = tiltProjection.flat ? 0 : (pendoloTuning.parallaxDepth ?? 1) * baseRadius;
+    const resolveLayerStyle = (heightRatio: number, zIndex: number): React.CSSProperties | undefined => (
         tiltProjection.flat
             ? undefined
             : {
-                transform: planeCssTransform ?? undefined,
+                transform: resolvePendoloPlaneCssTransform(buildPendoloLayerProjection(tiltProjection, heightRatio * parallaxScalePx)),
                 transformOrigin: `${centerX}px ${centerY}px`,
-                zIndex: 2,
+                zIndex,
             }
-    ), [centerX, centerY, planeCssTransform, tiltProjection.flat]);
+    );
+    const iconLayerStyle = resolveLayerStyle(PENDOLO_BALANCE_ICON_HEIGHT, 1);
+    const lyricLayerStyle = resolveLayerStyle(PENDOLO_LYRIC_LAYER_HEIGHT, 2);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
     const textOrigin = mirrored ? 'right center' : 'left center';
@@ -589,8 +595,9 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     antialias={clockworkAntialias}
                     mirrored={mirrored}
                     projection={dialProjection}
+                    parallaxScalePx={parallaxScalePx}
                 />
-                <div className="absolute inset-0 pointer-events-none" style={planeLayerStyle}>
+                <div className="absolute inset-0 pointer-events-none" style={iconLayerStyle}>
                 {pendoloTuning.showGearDecor !== 'none' && (
                     <div
                         className="absolute pointer-events-none"
@@ -611,7 +618,9 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         </motion.div>
                     </div>
                 )}
+                </div>
 
+                <div className="absolute inset-0 pointer-events-none" style={lyricLayerStyle}>
                 {/* Lyric Wheel Arc Items */}
                 {showText && (
                     <motion.div

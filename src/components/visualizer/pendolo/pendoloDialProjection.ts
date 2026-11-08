@@ -16,6 +16,13 @@ export interface PendoloDialProjection {
     matrix: Float32Array;
     /** 倾斜是不是 0（镜像不算）；是的话透视除法恒为 1，可以按原来的仿射路径画。 */
     flat: boolean;
+    /**
+     * 分层视差：离表盘平面高 1px（朝观看者）的点，在齐次坐标里多出来的那一份，[x', y', w]。
+     * 就是倾斜后表盘法线朝观看者的方向（w 那一项已除过视距）。平放时是 (0, 0, -1/f)。
+     */
+    lift: [number, number, number];
+    /** 1 / 视距，抬高 h 的一层先在平面内按 1 - h/f 缩一下，平放时正好抵掉透视放大。 */
+    invFocal: number;
 }
 
 /**
@@ -29,14 +36,14 @@ export const buildPendoloTiltProjection = (
     viewportHeight: number,
 ): PendoloDialProjection => {
     const matrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    if (!tiltDeg) return { matrix, flat: true };
+    const focal = PENDOLO_PERSPECTIVE_FACTOR * Math.max(1, viewportWidth, viewportHeight);
+    if (!tiltDeg) return { matrix, flat: true, lift: [0, 0, -1 / focal], invFocal: 1 / focal };
     const theta = (Math.max(-PENDOLO_TILT_LIMIT_DEG, Math.min(PENDOLO_TILT_LIMIT_DEG, tiltDeg)) * Math.PI) / 180;
     const phi = (axisDeg * Math.PI) / 180;
     const ux = Math.cos(phi);
     const uy = Math.sin(phi);
     const cos = Math.cos(theta);
     const sin = Math.sin(theta);
-    const focal = PENDOLO_PERSPECTIVE_FACTOR * Math.max(1, viewportWidth, viewportHeight);
     // Rodrigues：平面上的点 p 绕轴 u 转 θ 后，xy = p·cosθ + u(u·p)(1-cosθ)，深度 z = (uy·x - ux·y)·sinθ
     // （z 为正是离开观看者）。透视：屏幕 = xy · f / (f + z)，写成齐次就是第三行 z/f + 1。
     const k = 1 - cos;
@@ -46,7 +53,13 @@ export const buildPendoloTiltProjection = (
     matrix[4] = cos + uy * uy * k;
     matrix[6] = (uy * sin) / focal;
     matrix[7] = (-ux * sin) / focal;
-    return { matrix, flat: false };
+    // 法线 (0,0,1) 转过之后是 (uy·sinθ, -ux·sinθ, cosθ)（z 为正是离开观看者），朝观看者就取反
+    return {
+        matrix,
+        flat: false,
+        lift: [-uy * sin, ux * sin, -cos / focal],
+        invFocal: 1 / focal,
+    };
 };
 
 /** 表盘本身的投影：先镜像（平面左右翻转），再倾斜。 */
@@ -60,6 +73,30 @@ export const buildPendoloDialProjection = (
     return {
         matrix: new Float32Array([-m[0], m[1], m[2], -m[3], m[4], m[5], -m[6], m[7], m[8]]),
         flat: tilt.flat,
+        lift: tilt.lift,
+        invFocal: tilt.invFocal,
+    };
+};
+
+/**
+ * 分层视差：离表盘平面高 `heightPx`（朝观看者）的一层的投影。平面内先缩 1 - h/f，再加上抬高的
+ * 那一份；平放时 w = 1 - h/f 正好抵掉缩放，和高度 0 完全一样，所以只有倾斜时各层才错开。
+ */
+export const buildPendoloLayerProjection = (
+    projection: PendoloDialProjection,
+    heightPx: number,
+): PendoloDialProjection => {
+    if (projection.flat || !heightPx) return projection;
+    const m = projection.matrix;
+    const shrink = 1 - heightPx * projection.invFocal;
+    const [lx, ly, lw] = projection.lift;
+    return {
+        ...projection,
+        matrix: new Float32Array([
+            m[0] * shrink, m[1] * shrink, m[2] + heightPx * lx,
+            m[3] * shrink, m[4] * shrink, m[5] + heightPx * ly,
+            m[6] * shrink, m[7] * shrink, m[8] + heightPx * lw,
+        ]),
     };
 };
 

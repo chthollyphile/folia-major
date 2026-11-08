@@ -18,6 +18,7 @@ import {
 } from './pendoloBeatFxDraw';
 import { PENDOLO_WAVE_TINT } from './pendoloBeatFx';
 import { invertPendoloProjectionMatrix } from './pendoloDialProjection';
+import { PENDOLO_BEAT_OVERLAY_HEIGHT } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloClockworkWebGL.ts
 // WebGL2 renderer for Pendolo clockwork; falls back when context/shaders fail.
@@ -36,6 +37,8 @@ uniform vec2 u_resolution;
 uniform float u_dpr;
 uniform vec2 u_origins[${PENDOLO_MAX_PARTS}];
 uniform float u_rotations[${PENDOLO_MAX_PARTS}];
+// 各部件离表盘平面的高度（CSS px）；不倾斜时全是 0
+uniform float u_heights[${PENDOLO_MAX_PARTS}];
 // Shockwave lens: centre (CSS px), and crest radius, width, push share, light share.
 uniform vec2 u_waveCenter;
 uniform vec4 u_wave;
@@ -44,6 +47,13 @@ uniform vec4 u_wave;
 uniform float u_projOn;
 uniform vec2 u_hub;
 uniform mat3 u_proj;
+// 分层视差：离表盘平面高 hgt（CSS px，朝观看者）的点先在平面内缩 1 - hgt/f，再加上抬高方向；
+// hgt = 0 时就是平面本身的投影（pendoloDialProjection.ts 的 buildPendoloLayerProjection 同一个式子）。
+uniform vec3 u_lift;
+uniform float u_invFocal;
+vec3 projectDial(vec2 world, float hgt) {
+  return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
+}
 out vec4 v_color;
 out float v_light;
 void main() {
@@ -66,7 +76,7 @@ void main() {
     }
   }
   if (u_projOn > 0.5) {
-    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    vec3 h = projectDial(world, u_heights[id]);
     world = u_hub + h.xy / max(h.z, 0.001);
   }
   vec2 px = world * u_dpr;
@@ -102,11 +112,19 @@ layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_uv;
 uniform vec2 u_resolution;
 uniform float u_dpr;
+uniform float u_fxHeight;
 // 表盘投影（pendoloDialProjection.ts）：镜像 / 倾斜时 u_projOn = 1，平面上相对轮心的点 p 投到
 // u_hub + (M·p).xy / (M·p).z；关着时不碰顶点，画面和原来一样。
 uniform float u_projOn;
 uniform vec2 u_hub;
 uniform mat3 u_proj;
+// 分层视差：离表盘平面高 hgt（CSS px，朝观看者）的点先在平面内缩 1 - hgt/f，再加上抬高方向；
+// hgt = 0 时就是平面本身的投影（pendoloDialProjection.ts 的 buildPendoloLayerProjection 同一个式子）。
+uniform vec3 u_lift;
+uniform float u_invFocal;
+vec3 projectDial(vec2 world, float hgt) {
+  return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
+}
 out vec4 v_color;
 out vec2 v_uv;
 void main() {
@@ -114,7 +132,7 @@ void main() {
   v_uv = a_uv;
   vec2 world = a_pos;
   if (u_projOn > 0.5) {
-    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    vec3 h = projectDial(world, u_fxHeight);
     world = u_hub + h.xy / max(h.z, 0.001);
   }
   vec2 px = world * u_dpr;
@@ -193,13 +211,20 @@ uniform float u_dpr;
 uniform float u_projOn;
 uniform vec2 u_hub;
 uniform mat3 u_proj;
+// 分层视差：离表盘平面高 hgt（CSS px，朝观看者）的点先在平面内缩 1 - hgt/f，再加上抬高方向；
+// hgt = 0 时就是平面本身的投影（pendoloDialProjection.ts 的 buildPendoloLayerProjection 同一个式子）。
+uniform vec3 u_lift;
+uniform float u_invFocal;
+vec3 projectDial(vec2 world, float hgt) {
+  return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
+}
 out vec2 v_uv;
 void main() {
   v_uv = a_uv;
   vec2 world = a_pos;
   float w = 1.0;
   if (u_projOn > 0.5) {
-    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    vec3 h = projectDial(world, 0.0);
     w = max(h.z, 0.001);
     world = u_hub + h.xy / w;
   }
@@ -264,12 +289,16 @@ interface ProjectionUniforms {
     on: WebGLUniformLocation | null;
     hub: WebGLUniformLocation | null;
     proj: WebGLUniformLocation | null;
+    lift: WebGLUniformLocation | null;
+    invFocal: WebGLUniformLocation | null;
 }
 
 const getProjectionUniforms = (gl: WebGL2RenderingContext, program: WebGLProgram): ProjectionUniforms => ({
     on: gl.getUniformLocation(program, 'u_projOn'),
     hub: gl.getUniformLocation(program, 'u_hub'),
     proj: gl.getUniformLocation(program, 'u_proj'),
+    lift: gl.getUniformLocation(program, 'u_lift'),
+    invFocal: gl.getUniformLocation(program, 'u_invFocal'),
 });
 
 /** 把表盘投影交给一个着色器；没有投影时只把开关置 0，顶点原样走。 */
@@ -281,6 +310,10 @@ const setProjectionUniforms = (gl: WebGL2RenderingContext, locs: ProjectionUnifo
     gl.uniform2f(locs.hub, input.centerX, input.centerY);
     // 矩阵是行主序，GLSL 的 mat3 按列读，所以上传时转置
     gl.uniformMatrix3fv(locs.proj, true, m);
+    // 分层视差：没有高度时抬高方向也给 0，各层都按平面本身投影
+    const lift = input.parallaxScalePx ? input.parallaxLift : null;
+    gl.uniform3f(locs.lift, lift?.[0] ?? 0, lift?.[1] ?? 0, lift?.[2] ?? 0);
+    gl.uniform1f(locs.invFocal, lift ? input.parallaxInvFocal ?? 0 : 0);
 };
 
 const colorToRgb = (color: string): [number, number, number] => {
@@ -397,6 +430,13 @@ export class PendoloClockworkRenderer {
 
     private rotationTable = new Float32Array(PENDOLO_MAX_PARTS);
 
+    /** 各部件的视差高度（CSS px）；不倾斜时全是 0。 */
+    private heightTable = new Float32Array(PENDOLO_MAX_PARTS);
+
+    private meshUniformHeights: WebGLUniformLocation | null = null;
+
+    private fxUniformHeight: WebGLUniformLocation | null = null;
+
     private coverVerts = new Float32Array(16);
 
     /**
@@ -425,6 +465,7 @@ export class PendoloClockworkRenderer {
             this.meshUniformWaveColor = gl.getUniformLocation(this.meshProgram, 'u_waveColor');
             this.meshUniformWaveTint = gl.getUniformLocation(this.meshProgram, 'u_waveTint');
             this.meshProjection = getProjectionUniforms(gl, this.meshProgram);
+            this.meshUniformHeights = gl.getUniformLocation(this.meshProgram, 'u_heights');
         }
         if (this.gradProgram) {
             this.gradUniformCenter = gl.getUniformLocation(this.gradProgram, 'u_center');
@@ -617,6 +658,7 @@ export class PendoloClockworkRenderer {
         this.fxUniformRes = gl.getUniformLocation(this.fxProgram, 'u_resolution');
         this.fxUniformDpr = gl.getUniformLocation(this.fxProgram, 'u_dpr');
         this.fxProjection = getProjectionUniforms(gl, this.fxProgram);
+        this.fxUniformHeight = gl.getUniformLocation(this.fxProgram, 'u_fxHeight');
         this.fxVerts = new Float32Array(PENDOLO_OVERLAY_MAX_VERTICES * PENDOLO_OVERLAY_STRIDE);
         this.fxVbo = gl.createBuffer();
         this.fxVao = gl.createVertexArray();
@@ -654,6 +696,7 @@ export class PendoloClockworkRenderer {
         gl.uniform2f(this.fxUniformRes, pixelW, pixelH);
         gl.uniform1f(this.fxUniformDpr, dpr);
         setProjectionUniforms(gl, this.fxProjection, input);
+        gl.uniform1f(this.fxUniformHeight, PENDOLO_BEAT_OVERLAY_HEIGHT * (input.parallaxScalePx ?? 0));
         gl.blendFunc(gl.ONE, gl.ONE);
         gl.drawArrays(gl.TRIANGLES, 0, count);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -772,6 +815,9 @@ export class PendoloClockworkRenderer {
         const waveSide = input.mirrored ? -1 : 1;
         gl.uniform2f(this.meshUniformWaveCenter, input.centerX + waveSide * (beatFx?.wave?.x ?? 0), input.centerY + (beatFx?.wave?.y ?? 0));
         setProjectionUniforms(gl, this.meshProjection, input);
+        const heightScale = input.projection ? input.parallaxScalePx ?? 0 : 0;
+        for (let i = 0; i < scene.parts.length; i++) this.heightTable[i] = scene.parts[i].height * heightScale;
+        gl.uniform1fv(this.meshUniformHeights, this.heightTable);
         gl.uniform4f(this.meshUniformWave, wave[0], wave[1], wave[2], wave[3]);
         const tint = beatFx?.wave ? beatFx.color : null;
         gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);

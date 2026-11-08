@@ -3032,6 +3032,7 @@ export default {
     "pendoloMirrorLayout": "Lật trái/phải lời bài hát",
     "pendoloTiltDeg": "Độ nghiêng mặt đồng hồ",
     "pendoloTiltAxisDeg": "Trục nghiêng (0 = ngang)",
+    "pendoloParallaxDepth": "Thị sai phân lớp (khi nghiêng)",
     "sonnetMotionSection": "Chuyển động và bố cục",
     "sonnetDisplaySection": "Thành phần hiển thị",
     "sonnetQualitySection": "Chất lượng kết xuất",

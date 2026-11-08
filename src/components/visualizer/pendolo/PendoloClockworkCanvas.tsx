@@ -63,6 +63,8 @@ export interface PendoloClockworkCanvasProps {
     mirrored?: boolean;
     /** 表盘平面到屏幕的投影（含镜像与倾斜）；单位阵且不镜像时按原样画。 */
     projection?: PendoloDialProjection;
+    /** 分层视差：各层高度（轮盘半径的比例）乘上它是 CSS px；不倾斜时传 0。 */
+    parallaxScalePx?: number;
 }
 
 /**
@@ -95,6 +97,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     antialias = true,
     mirrored = false,
     projection,
+    parallaxScalePx = 0,
 }) => {
     const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const canvas2dRef = useRef<HTMLCanvasElement | null>(null);
@@ -151,6 +154,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
         projectionMatrix,
         projectionPerspective: Boolean(projection && !projection.flat),
         mirrored,
+        parallaxScalePx: projection && !projection.flat ? parallaxScalePx : 0,
+        parallaxLift: projection?.lift,
+        parallaxInvFocal: projection?.invFocal,
     });
 
     useEffect(() => {
@@ -175,9 +181,12 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             projectionMatrix,
             projectionPerspective: Boolean(projection && !projection.flat),
             mirrored,
+            parallaxScalePx: projection && !projection.flat ? parallaxScalePx : 0,
+            parallaxLift: projection?.lift,
+            parallaxInvFocal: projection?.invFocal,
         };
     }, [
-        projectionMatrix, projection, mirrored,
+        projectionMatrix, projection, mirrored, parallaxScalePx,
         contentBox, centerX, centerY, baseRadius, lyricRingRadius, audioBass,
         primaryTextColor, accentTextColor, backgroundColor, showGearDecor,
         showCenterGradient, showCover, coverUrl, enableLineGlow, paused, motionProfile, renderScale,
@@ -320,6 +329,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 projection: p.projectionMatrix,
                 projectionPerspective: p.projectionPerspective,
                 mirrored: p.mirrored,
+                parallaxScalePx: p.parallaxScalePx,
+                parallaxLift: p.parallaxLift,
+                parallaxInvFocal: p.parallaxInvFocal,
             };
 
             // Between beats, with nothing lit or moving, the frame is drawn exactly as with the switch off.

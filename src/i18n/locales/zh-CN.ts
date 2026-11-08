@@ -3032,6 +3032,7 @@ export default {
     "pendoloMirrorLayout": "歌词左右镜像",
     "pendoloTiltDeg": "表盘倾斜",
     "pendoloTiltAxisDeg": "倾斜轴方向 (0 = 水平)",
+    "pendoloParallaxDepth": "分层视差（倾斜时生效）",
     "sonnetMotionSection": "动态与构图",
     "sonnetDisplaySection": "显示内容",
     "sonnetQualitySection": "渲染质量",

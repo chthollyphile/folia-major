@@ -38,6 +38,7 @@ const resolve = (values: Partial<PendoloTuning>, base: PendoloTuning): PendoloTu
         : base.mirrorLayout ?? DEFAULT_PENDOLO_TUNING.mirrorLayout,
     tiltDeg: numberWithin(values.tiltDeg, base.tiltDeg ?? 0, -PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
     tiltAxisDeg: numberWithin(values.tiltAxisDeg, base.tiltAxisDeg ?? 0, -90, 90),
+    parallaxDepth: numberWithin(values.parallaxDepth, base.parallaxDepth ?? DEFAULT_PENDOLO_TUNING.parallaxDepth ?? 1, 0, 2),
 });
 
 export default defineVisualizerTuning<PendoloTuning>({
@@ -57,6 +58,7 @@ export default defineVisualizerTuning<PendoloTuning>({
         mirrorLayout: MOD_SWITCH,
         tiltDeg: modNumber(-PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
         tiltAxisDeg: modNumber(-90, 90),
+        parallaxDepth: modNumber(0, 2),
     },
     settingsKey: 'pendoloTuning',
     settingsSetterKey: 'handleSetPendoloTuning',

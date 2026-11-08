@@ -4,6 +4,7 @@ import {
     resolvePendoloClockworkAnchors,
     type PendoloClockworkFrameInput,
 } from './pendoloClockworkScene';
+import { resolvePendoloPartHeight } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloClockworkMeshes.ts
 // Cached local-space mesh with per-vertex partId; one draw, uniform transform table.
@@ -28,6 +29,8 @@ export interface PendoloCachedPart {
     getOrigin: (motion: PendoloMotionSample) => { x: number; y: number };
     /** Spin around origin in radians. */
     getRotation: (motion: PendoloMotionSample) => number;
+    /** 分层视差里离表盘平面的高度（轮盘半径的比例，pendoloParallax.ts）。 */
+    height: number;
 }
 
 export interface PendoloCachedScene {
@@ -386,7 +389,7 @@ export const buildPendoloClockworkCachedScene = (
             }
             partId = parts.length;
             partKeys.set(transformKey, partId);
-            parts.push({ getOrigin, getRotation });
+            parts.push({ getOrigin, getRotation, height: resolvePendoloPartHeight(transformKey) });
         }
         mesh.setActivePartId(partId);
         build();

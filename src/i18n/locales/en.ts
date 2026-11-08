@@ -3032,6 +3032,7 @@ export default {
     "pendoloMirrorLayout": "Mirror Lyrics Left/Right",
     "pendoloTiltDeg": "Dial Tilt",
     "pendoloTiltAxisDeg": "Tilt Axis (0 = horizontal)",
+    "pendoloParallaxDepth": "Layer Parallax (when tilted)",
     "sonnetMotionSection": "Motion and composition",
     "sonnetDisplaySection": "Visible elements",
     "sonnetQualitySection": "Rendering quality",

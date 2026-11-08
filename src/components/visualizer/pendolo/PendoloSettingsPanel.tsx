@@ -95,6 +95,16 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                 />
                 <SliderRow
                     {...drag}
+                    label={t('options.pendoloParallaxDepth')}
+                    value={resolvedTuning.parallaxDepth ?? 1}
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => onPendoloTuningChange?.({ parallaxDepth: value })}
+                />
+                <SliderRow
+                    {...drag}
                     label={t('options.pendoloTickSnappiness')}
                     value={resolvedTuning.tickSnappiness}
                     min={0.5}

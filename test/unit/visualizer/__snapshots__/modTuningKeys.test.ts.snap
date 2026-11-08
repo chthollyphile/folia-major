@@ -655,6 +655,11 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "mirrorLayout": {
       "type": "boolean",
     },
+    "parallaxDepth": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
     "showCenterGradient": {
       "type": "boolean",
     },

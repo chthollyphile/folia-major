@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildPendoloDialProjection,
+    buildPendoloLayerProjection,
     buildPendoloTiltProjection,
     invertPendoloProjectionMatrix,
     projectPendoloDialPoint,
@@ -42,11 +43,30 @@ describe('pendolo dial projection', () => {
 
     it('inverts back to the dial plane', () => {
         const projection = buildPendoloDialProjection(buildPendoloTiltProjection(-35, 25, 1600, 900), true);
-        const inverse = { matrix: invertPendoloProjectionMatrix(projection.matrix), flat: false };
+        const inverse = { ...projection, matrix: invertPendoloProjectionMatrix(projection.matrix) };
         const screen = projectPendoloDialPoint(projection, 180, -90);
         const back = projectPendoloDialPoint(inverse, screen.x, screen.y);
         expect(back.x).toBeCloseTo(180, 3);
         expect(back.y).toBeCloseTo(-90, 3);
+    });
+});
+
+describe('pendolo layer parallax', () => {
+    it('leaves a raised layer exactly where the dial is while the dial lies flat', () => {
+        const flat = buildPendoloTiltProjection(0, 0, 1920, 1080);
+        const raised = buildPendoloLayerProjection(flat, 120);
+        const p = projectPendoloDialPoint(raised, 300, -200);
+        expect(p.x).toBeCloseTo(300, 6);
+        expect(p.y).toBeCloseTo(-200, 6);
+    });
+
+    it('shifts a raised layer off the dial once it tilts, nearer layers more', () => {
+        const tilt = buildPendoloTiltProjection(45, 0, 1920, 1080);
+        const at = (height: number) => projectPendoloDialPoint(buildPendoloLayerProjection(tilt, height), 0, 0);
+        expect(at(0).y).toBeCloseTo(0);
+        // 水平轴、正倾斜（上方往里退）：法线朝观看者偏向下方，抬高的层往下错开
+        expect(at(60).y).toBeGreaterThan(0);
+        expect(at(120).y).toBeGreaterThan(at(60).y);
     });
 });
 
