@@ -52,12 +52,12 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 | D512 | 外观短键只加不改 | `appearanceShortKeys.mjs`（契约测试） |
 | D513 | Folium 稳定接口只加不改，新增要升 minor | `checks/foliumApi.mjs`（diff 检查） |
 | D604 | 账号凭据只在登记的入口写 | `credentialWriters.mjs` |
-| D605、D606 | 每个 IPC 通道登记信任级别、第一方通道校验来源；preload 和主进程的通道对得上 | `ipcChannels.mjs`（契约测试） |
+| D605、D606 | 每个 IPC 通道登记信任级别、第一方通道校验来源；带 preload 的窗口开不出别的窗口、导航不到应用以外的页面；preload 和主进程的通道对得上 | `ipcChannels.mjs`（契约测试） |
 | D610 | 重建主窗口带上播放交接快照 | `windowRebuild.mjs` |
 | D611 | 不读别的应用的凭据 | `checks/foreignCredentials.mjs`（diff 检查） |
 | D122 | 新平台在各处登记齐 | 契约测试 |
 
-契约测试在 `test/unit/dedicatus/contracts/`，跑在 `npm run test:unit` 里，所以它们一开始就是阻断的（不受 report 模式影响）；都是按现状写的，现在全部通过。登记表里标着“待复核”的条目是 2026-11-08 的现状，不是确认过合规。
+契约测试在 `test/unit/dedicatus/contracts/`，跑在 `npm run test:unit` 里，所以它们一开始就是阻断的（不受 report 模式影响）；都是按现状写的，现在全部通过。`appearanceDestinations.mjs` 里标着“待复核”的条目是 2026-11-08 的现状，不是确认过合规；IPC 通道 2026-11-08 复核过（见 `ipcChannels.mjs` 文件头）。
 
 已知查不到的：
 

@@ -1,6 +1,7 @@
 const { createDebugLogWriter, logsRoot } = require('./debugLogWriter.cjs');
 const { createMemoryMonitor } = require('./memoryMonitor.cjs');
 const { redactCredentials } = require('./redactCredentials.cjs');
+const { createSenderGuardedHandler } = require('../ipcAccessGuard.cjs');
 const fs = require('fs');
 
 // electron/debug/debugHost.cjs
@@ -168,7 +169,12 @@ const consoleText = args => args.map((value) => {
     try { return JSON.stringify(value, errorReplacer); } catch { return String(value); }
 }).join(' ');
 
-const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
+const createDebugHost = ({ app, ipcMain, store, BrowserWindow, isTrustedSender }) => {
+    // 只给第一方窗口（主窗口、遥控窗口）：判断由宿主 main.cjs 注入，没注入时按不可信处理（fail closed）。
+    // 单向的 send 通道对不可信来源静默忽略：监听函数里抛错会变成主进程的未捕获异常。
+    const isTrusted = event => typeof isTrustedSender === 'function' && isTrustedSender(event);
+    const firstParty = (channel, handler) => createSenderGuardedHandler({ channel, isTrusted, handler });
+    const firstPartyEvent = (channel, handler) => createSenderGuardedHandler({ channel, isTrusted, handler, onUntrusted: () => undefined });
     const root = logsRoot(app);
     const monitor = createMemoryMonitor();
     const panel = createPanelFeed();
@@ -349,20 +355,20 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
 
     // ---- wiring ------------------------------------------------------------
 
-    ipcMain.handle('debug-get-state', () => describe());
-    ipcMain.handle('debug-set-state', (_event, patch) => apply(patch && typeof patch === 'object' ? patch : {}));
+    ipcMain.handle('debug-get-state', firstParty('debug-get-state', () => describe()));
+    ipcMain.handle('debug-set-state', firstParty('debug-set-state', (_event, patch) => apply(patch && typeof patch === 'object' ? patch : {})));
     // One-way and batched by the renderer: a per-line round trip on a subsystem that logs forty
     // lines in a burst is exactly the overhead this module must not add.
-    ipcMain.on('debug-runtime-lines', (_event, lines) => {
+    ipcMain.on('debug-runtime-lines', firstPartyEvent('debug-runtime-lines', (_event, lines) => {
         if (!Array.isArray(lines)) return;
         for (const entry of lines) {
             if (!entry) continue;
             writeRuntime(entry.at || Date.now(), entry.level || 'log', entry.tag || null, entry.text ?? '');
         }
-    });
+    }));
     // The renderer's answer about itself, sent back one tick after each sample it receives.
-    ipcMain.on('debug-renderer-memory', (_event, report) => rememberReport(report));
-    ipcMain.handle('debug-open-logs', async (_event, which) => {
+    ipcMain.on('debug-renderer-memory', firstPartyEvent('debug-renderer-memory', (_event, report) => rememberReport(report)));
+    ipcMain.handle('debug-open-logs', firstParty('debug-open-logs', async (_event, which) => {
         const { shell } = require('electron');
         const path = require('path');
         const target = which === 'runtime' || which === 'memory' ? path.join(root, which) : root;
@@ -372,9 +378,9 @@ const createDebugHost = ({ app, ipcMain, store, BrowserWindow }) => {
         } catch {
             return false;
         }
-    });
+    }));
 
-    ipcMain.on('debug-main-lines-ready', event => panel.subscribe(event.sender));
+    ipcMain.on('debug-main-lines-ready', firstPartyEvent('debug-main-lines-ready', event => panel.subscribe(event.sender)));
 
     // Main's own console into the same file and into the app's log panel. Patched rather than
     // routed through call sites so that everything already logging - the analysis worker's tee,
