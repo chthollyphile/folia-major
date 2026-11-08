@@ -48,6 +48,19 @@ describe('D605 IPC channels and who may call them', () => {
         expect(broken, 'D605：守卫工厂不再校验来源了；改了写法就同步 scanIpc.mjs 的 GUARD_FACTORIES').toEqual([]);
     });
 
+    // 2026-11-08 复核：any 通道之所以只有第一方窗口调得到，是因为带 preload 的两个窗口开不出别的窗口
+    // （window.open、target="_blank"、中键点链接开出来的会继承 preload），也导航不到应用以外的页面
+    it('keeps the two windows that load the preload from opening or navigating to other pages', () => {
+        const text = readFileSync(path.join(ROOT, 'electron/main.cjs'), 'utf8');
+        const preloadWindows = text.match(/preload: path\.join\(__dirname, 'preload\.cjs'\)/g) ?? [];
+        const isolated = text.match(/\bisolateFirstPartyWindow\(win\);/g) ?? [];
+        expect(preloadWindows.length, 'D605：带 preload 的窗口数变了，新窗口也要过 isolateFirstPartyWindow').toBe(2);
+        expect(isolated.length, 'D605：每个带 preload 的窗口建好后都要调 isolateFirstPartyWindow(win)').toBe(preloadWindows.length);
+        const body = /function isolateFirstPartyWindow\(win\) \{[\s\S]*?\n\}/.exec(text)?.[0] ?? '';
+        expect(body).toMatch(/setWindowOpenHandler\([\s\S]*action: 'deny'/);
+        expect(body).toMatch(/'will-navigate'[\s\S]*preventDefault\(\)/);
+    });
+
     it('lets no window but a first-party one send platform requests', () => {
         const open = Object.entries(IPC_CHANNELS)
             .filter(([channel, entry]) => /-request$/.test(channel) && !Object.hasOwn(NOT_PLATFORM_REQUESTS, channel) && entry.level === 'any');

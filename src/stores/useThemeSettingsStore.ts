@@ -5,6 +5,10 @@
 // receiving isDaylight as a prop for now: it is read in 187 files, and giving each of them its
 // own subscription would wake 187 components on every toggle without removing the re-render.
 // Changing how it is consumed is a separate, one-shot migration.
+//
+// @note default_theme_daylight（OBS 链接另有 isDaylight 参数）、disable_home_dynamic_background（以及只在迁移时读的旧键 enable_home_dynamic_background） 是用户明确决定「不进外观配置导入导出」的设置（2026-11-08）：配置码也用于 web 版 OBS 链接，
+// 只加 OBS 页面看得到的，这些在 OBS 页面上看不到。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 import { create } from 'zustand';
 import i18n from '../i18n/config';

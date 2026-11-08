@@ -5,6 +5,10 @@ import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } 
 // 速记簿的设置：左缘的悬浮把手显不显示、放在左缘的什么高度。设置页「主页与歌单」的「速记簿」一组、
 // 命令面板和 ScratchpadHost 三处读写。把手藏起来以后 Ctrl / ⌘ + J 与命令面板照常能开合抽屉。
 // 另有把手常驻时的样子（handleStyle）：视觉设置，随外观配置导入导出（appearanceCodec 的短码 sphs）。
+//
+// @note scratchpad_show_handle、scratchpad_handle_position 是用户明确决定「不进外观配置导入导出」的设置（2026-11-08）：配置码也用于 web 版 OBS 链接，
+// 只加 OBS 页面看得到的，这些在 OBS 页面上看不到。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 const SHOW_HANDLE_KEY = 'scratchpad_show_handle';
 const HANDLE_POSITION_KEY = 'scratchpad_handle_position';
