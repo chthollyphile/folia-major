@@ -48,6 +48,10 @@ interface CapsuleQuickActionsProps {
     isDaylight?: boolean;
     /** 手指点开的：按钮放大到手指点得准的 44px，音量不上（见 capsuleQuickActionSelection）。 */
     touch?: boolean;
+    /** 紧凑档（progress-bar v3）：画成展开胶囊里的一行，不浮在胶囊外面；命令面板那一格推到最右。 */
+    inline?: boolean;
+    /** 最多几条（不算命令面板那一格）；窄胶囊里放不下默认那么多时由调用方给。 */
+    limit?: number;
 }
 
 /** 一条命令画成按钮要的东西。能放进槽位的命令借槽位的解析，喜爱的实心心、打乱的可用性才跟胶囊一致。 */
@@ -72,6 +76,8 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
     context,
     isDaylight = false,
     touch = false,
+    inline = false,
+    limit,
 }) => {
     const { t } = useTranslation();
     // 频次只在放不下时用来取舍，浮出那一刻读一次就够，不跟着播放刷新。
@@ -89,27 +95,32 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
         },
         counts,
         touch,
-    }), [context, counts, slotPrimary, slotSecondary, touch]);
+        limit,
+    }), [context, counts, slotPrimary, slotSecondary, touch, limit]);
     const buttonPadding = touch ? 'p-3' : 'p-2';
     const iconSize = touch ? 20 : 16;
 
     return (
         <motion.div
             // 下边距画在自己身上而不是外层：指针从胶囊往上挪到这排按钮时一直在悬停区里，胶囊不会中途收起。
-            className="pointer-events-auto pb-3"
+            // 紧凑档（inline）里这一排是展开胶囊里的一行，没有自己的玻璃，也不用垫下边距。
+            className={inline ? 'pointer-events-auto w-full' : 'pointer-events-auto pb-3'}
             data-testid="capsule-quick-actions"
-            initial={{ opacity: 0, y: 6 }}
+            // 紧凑档的这一行由外面那层的 compact-reveal 淡入，这里不再叠一层。
+            initial={inline ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
+            exit={inline ? undefined : { opacity: 0, y: 6 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
             onClick={event => event.stopPropagation()}
         >
             <div
                 role="group"
                 aria-label={t('player.capsuleQuickActions')}
-                className={`flex items-center gap-0.5 rounded-full p-1 ${capsuleGlassClass(isDaylight)}`}
+                className={inline
+                    ? 'flex w-full items-center gap-0.5'
+                    : `flex items-center gap-0.5 rounded-full p-1 ${capsuleGlassClass(isDaylight)}`}
                 // 和进度条胶囊同一层玻璃。
-                style={capsuleGlassStyle(isDaylight)}
+                style={inline ? { color: 'var(--text-primary)' } : capsuleGlassStyle(isDaylight)}
             >
                 {commands.map(command => {
                     const button = resolveButton(command, context);
@@ -133,7 +144,7 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                     );
                 })}
                 {commands.length > 0 && (
-                    <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-current opacity-15" />
+                    <span aria-hidden="true" className={`mx-0.5 h-4 w-px shrink-0 bg-current opacity-15 ${inline ? 'ml-auto' : ''}`} />
                 )}
                 {/* 固定在最右：不管上面挑出了几条，总有一条路通到完整的命令面板，从进度条原地长出来。 */}
                 <button

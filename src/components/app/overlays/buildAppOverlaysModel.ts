@@ -190,11 +190,11 @@ export const buildAppOverlaysModel = ({
     playerControlSlotSecondary,
     playerControlSlotContext,
     onCommitPlayerBottomBarOffset,
-}: BuildAppOverlaysModelParams): AppOverlaysModel => ({
+}: BuildAppOverlaysModelParams): AppOverlaysModel => {
     // Gated on stageTrackPillOnScreen (computed in App: display mode plus which page allows the
     // card) rather than on the view directly, so the countdown that feeds the "up next" preview
     // and the card that shows it can never disagree about where the card lives.
-    nowPlayingToast: stageTrackPillOnScreen && currentSong
+    const nowPlayingToast: NowPlayingToastProps | null = stageTrackPillOnScreen && currentSong
         ? {
             song: {
                 title: currentSong.name || '',
@@ -219,111 +219,127 @@ export const buildAppOverlaysModel = ({
                     ? stageTrackPillFocusLatticeLabel
                     : stageTrackPillOpenSongCardLabel,
         }
-        : null,
-    searchOverlay: currentView === 'home'
-        ? {
-            theme,
-            isDaylight,
-            onClose: closeSearchView,
-            onSubmitSearch: handleSearchOverlaySubmit,
-            onLoadMore: handleSearchLoadMore,
-            onPlayTrack: handleSearchResultPlay,
-            onAddTrackToQueue: handleSearchResultAddToQueue,
-            onOpenArtist: handleSearchResultArtistOpen,
-            onOpenAlbum: handleSearchResultAlbumOpen,
-            onOpenCollection: handleSearchResultCollectionOpen,
-            resolveTrackDisplay: resolveSearchResultDisplay,
-            hasLocalSongs,
-        }
-        : null,
-    // Not gated on the view, and that was a real hole: the app cold-starts on the home page,
-    // so after a restart the chord opened nothing until something had been played - which
-    // reads exactly like the switch in Settings having lost its setting. This overlay is the
-    // only console the packaged build has, and the pages it could not be opened from are the
-    // ones where a problem stops you ever reaching the player.
-    debugOverlay: isDevDebugOverlayVisible && devDebugSnapshot
-        ? {
-            snapshot: devDebugSnapshot,
-            currentTime,
-            lyricCurrentTime,
-            isDaylight,
-            onClose: () => setIsDevDebugOverlayVisible(false),
-        }
-        : null,
-    // Independent of the log window on purpose: they answer different questions and are read side
-    // by side. Closing either one stops neither the console buffer nor the sampling behind it.
-    memoryMonitor: isMemoryMonitorVisible
-        ? {
-            isDaylight,
-            shortcutLabel: memoryMonitorShortcutLabel,
-            onClose: () => setIsMemoryMonitorVisible(false),
-        }
-        : null,
-    floatingControls: currentSong
-        ? {
-            currentSong,
-            playerState,
-            currentTime,
-            lyricCurrentTime,
-            duration,
-            loopMode: effectiveLoopMode,
-            currentView,
-            audioSrc,
-            canTogglePlay: canToggleCurrentPlayback,
-            controlsDisabled: isNowPlayingControlDisabled,
-            lyrics,
-            onSeek: (time) => {
-                if (isNowPlayingControlDisabled) {
-                    return;
-                }
-
-                if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
-                    syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
-                    currentTime.set(time);
-                    if (playerState !== PlayerState.PLAYING) {
-                        setPlayerState(PlayerState.PLAYING);
+        : null;
+    return {
+        nowPlayingToast,
+        searchOverlay: currentView === 'home'
+            ? {
+                theme,
+                isDaylight,
+                onClose: closeSearchView,
+                onSubmitSearch: handleSearchOverlaySubmit,
+                onLoadMore: handleSearchLoadMore,
+                onPlayTrack: handleSearchResultPlay,
+                onAddTrackToQueue: handleSearchResultAddToQueue,
+                onOpenArtist: handleSearchResultArtistOpen,
+                onOpenAlbum: handleSearchResultAlbumOpen,
+                onOpenCollection: handleSearchResultCollectionOpen,
+                resolveTrackDisplay: resolveSearchResultDisplay,
+                hasLocalSongs,
+            }
+            : null,
+        // Not gated on the view, and that was a real hole: the app cold-starts on the home page,
+        // so after a restart the chord opened nothing until something had been played - which
+        // reads exactly like the switch in Settings having lost its setting. This overlay is the
+        // only console the packaged build has, and the pages it could not be opened from are the
+        // ones where a problem stops you ever reaching the player.
+        debugOverlay: isDevDebugOverlayVisible && devDebugSnapshot
+            ? {
+                snapshot: devDebugSnapshot,
+                currentTime,
+                lyricCurrentTime,
+                isDaylight,
+                onClose: () => setIsDevDebugOverlayVisible(false),
+            }
+            : null,
+        // Independent of the log window on purpose: they answer different questions and are read side
+        // by side. Closing either one stops neither the console buffer nor the sampling behind it.
+        memoryMonitor: isMemoryMonitorVisible
+            ? {
+                isDaylight,
+                shortcutLabel: memoryMonitorShortcutLabel,
+                onClose: () => setIsMemoryMonitorVisible(false),
+            }
+            : null,
+        floatingControls: currentSong
+            ? {
+                currentSong,
+                playerState,
+                currentTime,
+                lyricCurrentTime,
+                duration,
+                loopMode: effectiveLoopMode,
+                currentView,
+                audioSrc,
+                canTogglePlay: canToggleCurrentPlayback,
+                controlsDisabled: isNowPlayingControlDisabled,
+                lyrics,
+                onSeek: (time) => {
+                    if (isNowPlayingControlDisabled) {
+                        return;
                     }
-                    void onStagePlayerSeek();
-                } else {
-                    onSeekMainAudio(time);
-                }
-            },
-            onTogglePlay: togglePlay,
-            onToggleLoop: toggleLoop,
-            onNavigateToPlayer: navigateFromPlayerCapsule,
-            onFocusLatticeCurrentSong: locatePlayingSongOnWall,
-            noTrackText,
-            primaryColor: 'var(--text-primary)',
-            secondaryColor: 'var(--text-secondary)',
-            theme,
-            isDaylight,
-            isHidden: currentView === 'player' && isPlayerChromeHidden,
-            hideControlBar: shouldHidePlayerProgressBar,
-            slotPrimary: playerControlSlotPrimary,
-            slotSecondary: playerControlSlotSecondary,
-            slotContext: playerControlSlotContext,
-            onCommitBottomBarOffset: onCommitPlayerBottomBarOffset,
-            trackNavigation: ((): FloatingControlsProps['trackNavigation'] => {
-                const neighbors = resolvePlaybackNeighbors({
-                    playQueue,
-                    currentSong,
-                    loopMode: effectiveLoopMode,
-                    isFmMode,
-                    isStageActive: isNowPlayingStageActive,
-                });
 
-                return {
-                    currentTrackKey: getPlaybackSongKey(currentSong),
-                    onPrev: handlePrevTrack,
-                    onNext: handleNextTrack,
-                    canPrev: neighbors.prev.canGo && !isNowPlayingControlDisabled,
-                    canNext: neighbors.next.canGo && !isNowPlayingControlDisabled,
-                    prevTitle: neighbors.prev.title,
-                    nextTitle: neighbors.next.title,
-                    prevLabel: prevTrackLabel,
-                    nextLabel: nextTrackLabel,
-                };
-            })(),
-        }
-        : null,
-});
+                    if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
+                        syncStageLyricsClock(time, duration, playerState, stageLyricsClockRef.current.startTimeSec);
+                        currentTime.set(time);
+                        if (playerState !== PlayerState.PLAYING) {
+                            setPlayerState(PlayerState.PLAYING);
+                        }
+                        void onStagePlayerSeek();
+                    } else {
+                        onSeekMainAudio(time);
+                    }
+                },
+                onTogglePlay: togglePlay,
+                onToggleLoop: toggleLoop,
+                onNavigateToPlayer: navigateFromPlayerCapsule,
+                onFocusLatticeCurrentSong: locatePlayingSongOnWall,
+                noTrackText,
+                primaryColor: 'var(--text-primary)',
+                secondaryColor: 'var(--text-secondary)',
+                theme,
+                isDaylight,
+                isHidden: currentView === 'player' && isPlayerChromeHidden,
+                hideControlBar: shouldHidePlayerProgressBar,
+                slotPrimary: playerControlSlotPrimary,
+                slotSecondary: playerControlSlotSecondary,
+                slotContext: playerControlSlotContext,
+                onCommitBottomBarOffset: onCommitPlayerBottomBarOffset,
+                // 紧凑档（窗口窄于 960）里卡片收进胶囊左端：同一份数据、同一个“能不能在这一页出现”的判断。
+                card: nowPlayingToast
+                    ? {
+                        song: nowPlayingToast.song,
+                        trackKey: nowPlayingToast.trackKey,
+                        nextUp: nowPlayingToast.nextUp ?? null,
+                        isNextUp: nowPlayingToast.isNextUp ?? false,
+                        mode: nowPlayingToast.mode ?? 'auto',
+                        timeoutSec: nowPlayingToast.timeoutSec ?? 10,
+                        onActivate: nowPlayingToast.onActivate,
+                        activateLabel: nowPlayingToast.activateLabel,
+                    }
+                    : null,
+                trackNavigation: ((): FloatingControlsProps['trackNavigation'] => {
+                    const neighbors = resolvePlaybackNeighbors({
+                        playQueue,
+                        currentSong,
+                        loopMode: effectiveLoopMode,
+                        isFmMode,
+                        isStageActive: isNowPlayingStageActive,
+                    });
+
+                    return {
+                        currentTrackKey: getPlaybackSongKey(currentSong),
+                        onPrev: handlePrevTrack,
+                        onNext: handleNextTrack,
+                        canPrev: neighbors.prev.canGo && !isNowPlayingControlDisabled,
+                        canNext: neighbors.next.canGo && !isNowPlayingControlDisabled,
+                        prevTitle: neighbors.prev.title,
+                        nextTitle: neighbors.next.title,
+                        prevLabel: prevTrackLabel,
+                        nextLabel: nextTrackLabel,
+                    };
+                })(),
+            }
+            : null,
+    };
+};

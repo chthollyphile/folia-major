@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Play, Pause } from 'lucide-react';
@@ -30,6 +30,19 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { resolveLyricSeekMediaTime } from '../utils/lyrics/lyricSeekTime';
 import { HifiProgressRow } from './hifi/HifiBadge';
 import { useIsHifiRoute } from './hifi/useHifiSignalPath';
+import { selectWallLocate, useBottomDockStore, type DockCapsuleState } from '../stores/useBottomDockStore';
+import { COMPACT_CAPSULE_BASE_BOTTOM_PX } from '../utils/playerBottomBarLayout';
+import { CAPSULE_QUICK_ACTION_LIMIT } from './floating-player/capsuleQuickActionSelection';
+import {
+    COMPACT_CAPSULE_RADIUS_PX,
+    CompactCapsuleBorder,
+    type CompactCapsuleCard,
+    type CompactCapsuleInfo,
+} from './floating-player/compact/CompactCapsuleViews';
+import CompactCapsuleContent from './floating-player/compact/CompactCapsuleContent';
+import { useNowPlayingCardVisibility } from './app/overlays/now-playing-toast/useNowPlayingCardVisibility';
+import { useTransitionBorderCue } from './app/overlays/now-playing-toast/useTransitionBorderCue';
+import './floating-player/bottomDock.css';
 
 export interface TrackNavigation {
     /** 当前曲目的稳定身份，用于识别「确实换歌了」；相邻两首同名时标题字符串不变，不能拿标题判断 */
@@ -49,9 +62,19 @@ const CONTROL_LAYOUT_SPRING = {
     stiffness: 280,
     damping: 24,
 };
+/** 紧凑档：布局照常跟踪，但不做补间，换形态的样子交给 bottomDock.css 的 clip-path。 */
+const INSTANT_LAYOUT = { duration: 0 };
 
+/** 紧凑档收起的那一下：展开的内容再画这么久，clip-path 往下收完再换成收起的样子（bottomDock.css 同一个时长）。 */
+const COMPACT_CLOSE_MS = 280;
 const HOVER_EXPAND_DELAY_MS = 20;
 const HOVER_COLLAPSE_DELAY_MS = 100;
+/**
+ * 紧凑档的悬停稍慢一点：胶囊在窄窗口里占满底边，指针路过就展开、一离开就收，一闪一闪很毛糙。
+ * 进来多等一下，离开多留一会儿（也给指针挪到挂在右端的按钮上留出余地）。
+ */
+const COMPACT_HOVER_EXPAND_DELAY_MS = 70;
+const COMPACT_HOVER_COLLAPSE_DELAY_MS = 180;
 const HOVER_HITBOX_BOTTOM_BUFFER_PX = 32;
 /** 手指浮出的那排命令（连同它撑开的胶囊）这么久没碰就收起。 */
 const TOUCH_REVEAL_MS = 4000;
@@ -113,7 +136,23 @@ interface FloatingPlayerControlsProps {
     slotContext: SlotContextFromApp;
     /** 提交定位结果；由 App 写回持久化设置。 */
     onCommitBottomBarOffset: (offsetPx: number) => void;
+    /**
+     * 这一页的歌曲卡片（卡片能在这一页出现时才有）。紧凑档（窗口窄于 960，progress-bar v3）里卡片收进胶囊左端，
+     * 胶囊按它画封面和歌名；宽屏不用，卡片还是 NowPlayingToast 自己画。
+     */
+    card?: CompactCapsuleCard | null;
 }
+
+/**
+ * 紧凑档的快捷行最多放几条（不算命令面板那一格）：按胶囊此刻能有的宽度（窗口宽减两侧 12、最宽 520，再减内边距）
+ * 和按钮大小（手指 44、鼠标 32，各带 2px 间隔）算。只在这一行出现时按窗口宽度算一次，不量元素。
+ */
+const resolveCompactQuickActionLimit = (touch: boolean): number => {
+    if (typeof window === 'undefined') return CAPSULE_QUICK_ACTION_LIMIT;
+    const inner = Math.min(window.innerWidth - 24, 520) - 16;
+    const button = (touch ? 44 : 32) + 2;
+    return Math.max(2, Math.min(CAPSULE_QUICK_ACTION_LIMIT, Math.floor((inner - button - 8) / button)));
+};
 
 
 const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
@@ -145,8 +184,21 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     slotSecondary,
     slotContext,
     onCommitBottomBarOffset,
+    card = null,
 }) => {
     const { t } = useTranslation();
+    // 紧凑档（progress-bar v3）：卡片收进胶囊左端，面板按钮或墙工具按钮挂到右端（它们各自登记成“挂件”）。
+    const isCompact = useBottomDockStore(state => state.layout === 'compact');
+    const companionCount = useBottomDockStore(state => Object.keys(state.companions).length);
+    const companionHovered = useBottomDockStore(state => state.companionHovered);
+    const isCompanionOpen = useBottomDockStore(state => Object.keys(state.openCompanions).length > 0);
+    const wallLocate = useBottomDockStore(selectWallLocate);
+    const hasCompanion = isCompact && companionCount > 0;
+    // 首页上没有挂件（网格集合页右下角是它自己的按钮）时胶囊照旧让出两边，底距也照旧。
+    const isCompactWide = isCompact && (currentView !== 'home' || hasCompanion);
+    const capsuleBaseBottomPx = isCompactWide ? COMPACT_CAPSULE_BASE_BOTTOM_PX : PLAYER_BOTTOM_BAR_BASE_OFFSET_PX;
+    // 挂件的面板开着：胶囊不再悬停展开，两块玻璃不叠在一起。
+    const isHoverSuppressed = isCompact && isCompanionOpen;
     const slotCustomization = usePlayerControlSlotCustomization(slotPrimary, slotSecondary);
     const { slotPicker, closeSlotPicker, slotSuggestion } = slotCustomization;
     // 自动隐藏播放页控件只看鼠标移动：盯着更换浮层看选项时不动鼠标，浮层不能跟着整条控制条一起淡出。
@@ -239,7 +291,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     const expandTimeoutRef = useRef<number | null>(null);
     const collapseTimeoutRef = useRef<number | null>(null);
 
-    const bottomBarBottomPx = usePlayerBottomBarBottomPx();
+    const bottomBarBottomPx = usePlayerBottomBarBottomPx(capsuleBaseBottomPx);
     const isPositioning = usePlayerBottomBarLayoutStore(state => state.isPositioning);
     const commitPositioning = usePlayerBottomBarLayoutStore(state => state.commitPositioning);
     const cancelPositioning = usePlayerBottomBarLayoutStore(state => state.cancelPositioning);
@@ -258,10 +310,12 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 主指针是触屏的设备不走停留；带触屏的笔记本主指针是鼠标，再按这一次进来的是不是手指拦。
     // 手指另走下面的 showTouchQuickActions：点开胶囊或暂停时直接浮出。
     const supportsFinePointer = useSupportsFinePointer();
-    const hasDwelled = useCapsuleQuickActionsDwell(isHovered && !isTouchHover);
+    // 紧凑档里指针从胶囊挪到挂在右端的按钮上时，胶囊当作还在悬停（按钮不是胶囊的子节点）。
+    const isHoverActive = (isHovered || (isCompact && companionHovered)) && !isHoverSuppressed;
+    const hasDwelled = useCapsuleQuickActionsDwell(isHoverActive && !isTouchHover);
     // 手指浮出的只在播放页：首页点胶囊是去播放页，歌曲墙上是定位到当前歌曲，都不是要这排。
     const touchRowAllowed = currentView === 'player' && !showSlotSuggestion && slotPicker === null
-        && !isHidden && !isPositioning && !controlsDisabled;
+        && !isHidden && !isPositioning && !controlsDisabled && !isHoverSuppressed;
     const showTouchQuickActions = isTouchRevealed && touchRowAllowed;
     touchRowShownRef.current = showTouchQuickActions;
     touchRowAllowedRef.current = touchRowAllowed;
@@ -277,15 +331,91 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 手指点胶囊就点出那排的地方（clickOpensPalette），补发的 mouseenter 不再撑开胶囊，撑开交给浮出计时，
     // 不然 4 秒后那排收了胶囊还开着。播放入口设成歌曲墙时手指点不出那排，胶囊照旧靠补发的 mouseenter 撑开，
     // 不然正在放时收起的胶囊里只有进度条，拿不到暂停和切歌。
-    const hoverExpands = isHovered && !(isTouchHover && clickOpensPalette);
+    const hoverExpands = isHoverActive && !(isTouchHover && clickOpensPalette);
     // 定位模式强制展开：用户要看到的是最终形态的胶囊，而不是一条细进度条。
     // 更换浮层和提议开着时也展开：两者说的都是槽位按钮，按钮得看得见；提议条贴在胶囊上沿，
     // 要是悬停才展开，指针移上提议条那一下胶囊长高、提议条被顶走，会在展开和收起之间来回抖。
     // 刚换完按钮也再展开一会儿，让人看见换上去的结果。
     // 变成命令面板期间胶囊照常收起或展开，只是看不见：它在面板接手的那一刻就立刻隐去，
     // 收起时透过遮罩看不到它往下缩；面板收回时量的正是它此刻的样子，收回去的宽度就对得上。
-    const showExpanded = isPositioning || hoverExpands || (isTouchRevealed && currentView === 'player') || slotPicker !== null || showSlotSuggestion || slotCustomization.isShowingChange || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home');
+    const showExpanded = isPositioning || hoverExpands || (isTouchRevealed && currentView === 'player') || slotPicker !== null || showSlotSuggestion || slotCustomization.isShowingChange || (canAutoExpand && playerState !== PlayerState.PLAYING && currentView !== 'home' && !isHoverSuppressed);
     showExpandedRef.current = showExpanded;
+
+    // 胶囊的离散状态写进 store（再写到 <html data-capsule>）：挂件、卡片让位、字幕按它摆，不量胶囊。
+    // 胶囊淡出了（播放页控件自动隐藏、或者它正当着命令面板）就算收着：暂停时它虽然“展开”，
+    // 但看不见，字幕和卡片不该为它让位；挂件仍算挂着，免得控件一隐一现时右下角的按钮来回跳。
+    const isCapsuleVisible = !isHidden && !isMorphedIntoPalette;
+    const dockCapsuleState: DockCapsuleState = hideControlBar
+        ? 'none'
+        : !isCapsuleVisible ? 'rest'
+            : showQuickActions && showExpanded ? 'quick' : showExpanded ? 'expanded' : 'rest';
+    useEffect(() => {
+        useBottomDockStore.getState().setCapsule(dockCapsuleState);
+    }, [dockCapsuleState]);
+    useEffect(() => () => useBottomDockStore.getState().setCapsule('none'), []);
+
+    // 紧凑档的形态切换不走 framer 的 layout 动画（那是缩放，按钮会被拉扁、内容会从顶边往上挪）：胶囊直接定到
+    // 最终尺寸，用 clip-path 从底边往上展开（open）、快捷行多出的那一截往上长（grow）、收起时往下收（close，
+    // 这 200ms 里还画着展开的内容，收完再换）。最下一行离底边的距离两种形态一样，所以它全程不动。
+    const [compactPhase, setCompactPhase] = useState<'none' | 'open' | 'grow' | 'close'>('none');
+    // 从带快捷行的样子收起时，收的那 200ms 里快捷行也留着，胶囊顶边不先跳下一截。
+    const [closingQuick, setClosingQuick] = useState<{ touch: boolean; limit: number; } | null>(null);
+    const compactQuick = showQuickActions && showExpanded
+        ? { touch: showTouchQuickActions, limit: resolveCompactQuickActionLimit(showTouchQuickActions) }
+        : null;
+    const prevDockCapsuleRef = useRef(dockCapsuleState);
+    // 上一次提交时的快捷行（下面第二个 layout effect 每次提交后更新）：收起那一刻要知道刚才有没有它。
+    const prevCompactQuickRef = useRef(compactQuick);
+    useLayoutEffect(() => {
+        const prev = prevDockCapsuleRef.current;
+        const prevQuick = prevCompactQuickRef.current;
+        prevDockCapsuleRef.current = dockCapsuleState;
+        if (prev === dockCapsuleState) return;
+        if (!isCompact || dockCapsuleState === 'none') {
+            setCompactPhase('none');
+        } else if (dockCapsuleState === 'rest') {
+            const closing = prev === 'expanded' || prev === 'quick';
+            setClosingQuick(closing && prev === 'quick' ? prevQuick : null);
+            setCompactPhase(closing ? 'close' : 'none');
+        } else if (prev === 'rest' || prev === 'none') {
+            setCompactPhase('open');
+        } else if (dockCapsuleState === 'quick') {
+            setCompactPhase('grow');
+        }
+    }, [dockCapsuleState, isCompact]);
+    useLayoutEffect(() => {
+        prevCompactQuickRef.current = compactQuick;
+    });
+    useEffect(() => {
+        if (compactPhase !== 'close') return undefined;
+        const timer = window.setTimeout(() => {
+            setCompactPhase('none');
+            setClosingQuick(null);
+        }, COMPACT_CLOSE_MS);
+        return () => window.clearTimeout(timer);
+    }, [compactPhase]);
+    const renderCompactExpanded = showExpanded || compactPhase === 'close';
+
+    // 紧凑档胶囊左端的那一份歌曲卡片：显示与否和宽屏卡片同一套计时（限时、常驻、不显示，预告和混音时按住）。
+    const transitionCue = useTransitionBorderCue();
+    const isCardVisible = useNowPlayingCardVisibility({
+        mode: card?.mode ?? 'never',
+        timeoutSec: card?.timeoutSec ?? 10,
+        trackKey: card?.trackKey ?? '',
+        isNextUp: card?.isNextUp ?? false,
+        isMixing: transitionCue !== null,
+    });
+    const cardSong = card ? (card.isNextUp && card.nextUp ? card.nextUp : card.song) : null;
+    const compactInfo: CompactCapsuleInfo | null = isCompact && card && cardSong && isCardVisible
+        ? {
+            title: cardSong.title,
+            artist: cardSong.artist,
+            coverUrl: cardSong.coverUrl,
+            label: card.isNextUp && card.nextUp ? t('ui.stageTrackPillNext') : null,
+        }
+        : null;
+    // 墙上（首页的资料库墙、Lattice）封面就是定位按钮，原来叠在墙工具按钮上方的那颗紧凑档里不画。
+    const compactLocate = isCompact && currentView !== 'player' ? wallLocate : null;
 
     // 一暂停就浮出：只在播放页、主指针是触屏（或者上一次碰胶囊的是手指）时。只认从播放到暂停那一下，
     // 打开应用、切到播放页时本来就停着的不算。
@@ -302,7 +432,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     }, [currentView, isHidden, isMorphedIntoPalette, isPositioning, isTouchHover, playerState, revealOnTouch, supportsFinePointer]);
 
     // 离开播放页、控件自动隐藏、进定位模式、胶囊变成命令面板：浮出的那排都不该留着，面板交还时胶囊照常收着。
-    const touchRevealMustEnd = currentView !== 'player' || isHidden || isPositioning || isMorphedIntoPalette;
+    const touchRevealMustEnd = currentView !== 'player' || isHidden || isPositioning || isMorphedIntoPalette || isHoverSuppressed;
     useEffect(() => {
         if (touchRevealMustEnd) {
             endTouchReveal();
@@ -451,9 +581,10 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 读的是已保存值而不是拖动中的 MotionValue：这个数要参与 padding/margin 的布局计算，
     // 跟着每帧变就得每帧 setState。拖动过程中 hover 展开本来也不起作用，落定后自然就对了。
     const savedBottomBarOffset = usePlayerChromeSettingsStore(state => state.playerBottomBarOffset);
+    // 补丁的高度就是胶囊离底边的距离：桌面 32，紧凑档 16。
     const hoverHitboxBufferPx = Math.max(
         0,
-        Math.round(HOVER_HITBOX_BOTTOM_BUFFER_PX - (savedBottomBarOffset - PLAYER_BOTTOM_BAR_BASE_OFFSET_PX)),
+        Math.round(Math.min(HOVER_HITBOX_BOTTOM_BUFFER_PX, capsuleBaseBottomPx) - (savedBottomBarOffset - PLAYER_BOTTOM_BAR_BASE_OFFSET_PX)),
     );
 
     // 槽位上下文：调用方给的那份，加上胶囊自己掌握的循环模式、歌词时间轴和相邻曲目可用性。
@@ -496,7 +627,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         expandTimeoutRef.current = window.setTimeout(() => {
             setIsHovered(true);
             expandTimeoutRef.current = null;
-        }, HOVER_EXPAND_DELAY_MS);
+        }, isCompact ? COMPACT_HOVER_EXPAND_DELAY_MS : HOVER_EXPAND_DELAY_MS);
     };
 
     const handleMouseLeave = () => {
@@ -512,7 +643,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
         collapseTimeoutRef.current = window.setTimeout(() => {
             setIsHovered(false);
             collapseTimeoutRef.current = null;
-        }, HOVER_COLLAPSE_DELAY_MS);
+        }, isCompact ? COMPACT_HOVER_COLLAPSE_DELAY_MS : HOVER_COLLAPSE_DELAY_MS);
     };
 
     clickOpensPaletteRef.current = clickOpensPalette && !isPositioning;
@@ -586,9 +717,12 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
             */}
             <motion.div
                 className={`absolute left-1/2 -translate-x-1/2 z-60 w-full flex justify-center pointer-events-none
-                    ${currentView === 'home'
-                        ? 'max-w-[calc(100vw-120px)] md:max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),calc(100vw-120px))]'
-                        : 'max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),100vw)] px-4'}`}
+                    ${isCompactWide
+                        // 紧凑档：两侧各留 12，最宽 520（再加模组的加宽量）；bottomDock.css 里挂件的位置按同一组数算。
+                        ? 'max-w-[min(calc(544px_+_var(--folium-player-bar-extra,0px)),100vw)] px-3'
+                        : currentView === 'home'
+                            ? 'max-w-[calc(100vw-120px)] md:max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),calc(100vw-120px))]'
+                            : 'max-w-[min(calc(32rem_+_var(--folium-player-bar-extra,0px)),100vw)] px-4'}`}
                 style={{ bottom: bottomBarBottomPx }}
                 onUpdate={invalidateLayout}
             >
@@ -642,7 +776,8 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                     </div>
                     <div className="pointer-events-none absolute bottom-full left-0 right-0 flex justify-center">
                         <AnimatePresence>
-                            {showQuickActions && (
+                            {/* 紧凑档里快捷操作是展开胶囊里的一行（CompactCapsuleContent），不浮在外面。 */}
+                            {showQuickActions && !isCompact && (
                                 <CapsuleQuickActions
                                     key="quick-actions"
                                     slotPrimary={slotPrimary}
@@ -654,13 +789,28 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                             )}
                         </AnimatePresence>
                     </div>
+                    {/* 包一层是为了紧凑档的 automix 描边：它贴着胶囊外沿画，得是胶囊的兄弟、和胶囊同一个参照框。 */}
+                    <div className="relative flex w-full justify-center">
+                    {isCompact && compactInfo && transitionCue && (
+                        <CompactCapsuleBorder
+                            targetRef={capsuleElementRef}
+                            cue={transitionCue}
+                            shape={dockCapsuleState}
+                            isDaylight={isDaylight}
+                            theme={theme}
+                        />
+                    )}
                     <motion.div
                         ref={capsuleRef}
                         title={clickOpensPalette && !isPositioning ? t('player.capsuleOpensPalette') : undefined}
                         onUpdate={invalidateLayout}
                         onLayoutAnimationComplete={invalidateLayout}
+                        // layout 一直开着（framer 只在挂载时决定要不要跟踪布局，中途打开不生效：窗口从窄拉宽后
+                        // 宽屏胶囊的伸缩动画会没了）。紧凑档里把它的时长设成 0：那里的形态切换交给 clip-path，
+                        // 不能有缩放把按钮拉扁。
                         layout
-                        transition={{ layout: CONTROL_LAYOUT_SPRING }}
+                        transition={{ layout: isCompact ? INSTANT_LAYOUT : CONTROL_LAYOUT_SPRING }}
+                        data-compact-phase={isCompact ? compactPhase : undefined}
                         onClick={handleClick}
                         // 用原生 pointer 事件而不是 framer-motion 的 drag：位移已经由 playerBottomBarLiveOffset
                         // 经外层 lift 表达，再让 drag 往这个节点写一份 y 会叠加成两倍位移；
@@ -670,18 +820,55 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                         onPointerMove={handlePositionDragMove}
                         onPointerUp={handlePositionDragEnd}
                         onPointerCancel={handlePositionDragEnd}
-                        style={{ touchAction: isPositioning ? 'none' : undefined }}
-                        className={`backdrop-blur-xl shadow-2xl overflow-hidden rounded-full relative transition-colors duration-300
+                        style={{
+                            touchAction: isPositioning ? 'none' : undefined,
+                            borderRadius: isCompact ? COMPACT_CAPSULE_RADIUS_PX : undefined,
+                            // 多出快捷行那一截的高度（grow 从这里往上展开）：手指 44 一格，鼠标 32，加分隔线和间距。
+                            '--compact-quick-h': showTouchQuickActions ? '65px' : '53px',
+                        } as React.CSSProperties}
+                        className={`backdrop-blur-xl shadow-2xl overflow-hidden relative transition-colors duration-300
                             ${isPositioning ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
-                            ${showExpanded ? `p-3 ${glassBgExpanded} w-full` : `px-4 py-2 ${glassBgCollapsed} ${COLLAPSED_WIDTH_CLASS}`}`}
+                            ${isCompact
+                                // 紧凑档收起和展开同一个宽度、同一个圆角（展开是圆角卡片，不是更高的胶囊），内边距交给里面的排布。
+                                ? `compact-capsule w-full ${glassBgExpanded}`
+                                : `rounded-full ${showExpanded ? `p-3 ${glassBgExpanded} w-full` : `px-4 py-2 ${glassBgCollapsed} ${COLLAPSED_WIDTH_CLASS}`}`}`}
                     >
                         <motion.div
                             layout
-                            transition={{ layout: CONTROL_LAYOUT_SPRING }}
+                            transition={{ layout: isCompact ? INSTANT_LAYOUT : CONTROL_LAYOUT_SPRING }}
                             // 定位模式下 seek 和所有按钮一起失效：这时胶囊是个被拖的物体，不是控件。
                             className={`w-full ${isPositioning ? 'pointer-events-none select-none' : ''}`}
                         >
-                            {showExpanded ? (
+                            {isCompact ? (
+                                <CompactCapsuleContent
+                                    expanded={renderCompactExpanded}
+                                    info={compactInfo}
+                                    card={card}
+                                    cardSong={cardSong}
+                                    locate={compactLocate}
+                                    hasCompanion={hasCompanion}
+                                    currentSong={currentSong}
+                                    playerState={playerState}
+                                    currentTime={currentTime}
+                                    duration={duration}
+                                    canTogglePlay={canTogglePlay}
+                                    onSeek={onSeek}
+                                    onTogglePlay={onTogglePlay}
+                                    noTrackText={noTrackText}
+                                    primaryColor={primaryColor}
+                                    secondaryColor={secondaryColor}
+                                    trackColor={trackColor}
+                                    isDaylight={isDaylight}
+                                    controlsDisabled={controlsDisabled || isPositioning}
+                                    trackNavigation={trackNavigation}
+                                    slotPrimary={slotPrimary}
+                                    slotSecondary={slotSecondary}
+                                    slotContext={resolvedSlotContext}
+                                    onCustomizePrimary={slotCustomization.openPrimaryPicker}
+                                    onCustomizeSecondary={slotCustomization.openSecondaryPicker}
+                                    quick={compactQuick ?? (compactPhase === 'close' ? closingQuick : null)}
+                                />
+                            ) : showExpanded ? (
                                 <ExpandedView
                                     currentSong={currentSong}
                                     playerState={playerState}
@@ -717,6 +904,7 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
                             )}
                         </motion.div>
                     </motion.div>
+                    </div>
                 </div>
             </motion.div>
             </motion.div>
