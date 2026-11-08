@@ -809,6 +809,12 @@ declare global {
   }
 
   interface Window {
+    /** 安卓壳（capacitor）注入的原生桥；桌面端与网页端没有。 */
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      getPlatform?: () => string;
+      Plugins?: Record<string, unknown>;
+    };
     electron?: {
       /** 局域网音响投送（electron/lanCast/）：发现、推送、停止与地址中继都在主进程。 */
       lanCastDiscover?: (options?: { timeoutMs?: number }) => Promise<{

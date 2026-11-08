@@ -4,6 +4,7 @@
 // 以及投送会话本身的生命周期（本机静音 / 还原、跨组件共享当前音响）。
 
 import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
+import { getStoredString, removeStoredKey, setStoredString } from '../stores/storagePrimitives';
 
 export type LanSpeaker = {
     id: string;
@@ -42,24 +43,28 @@ type CapacitorRelayPlugin = {
 /** 桌面端：主进程的投送控制器（见 electron/lanCast）。 */
 const desktop = (): DesktopCastApi | null => {
     if (typeof window === 'undefined') return null;
-    const api = (window as any).electron as DesktopCastApi | undefined;
+    const api = window.electron;
     if (!api || typeof api.lanCastDiscover !== 'function' || typeof api.lanCastCast !== 'function') return null;
-    return api;
+    return {
+        lanCastDiscover: api.lanCastDiscover,
+        lanCastCast: api.lanCastCast,
+        lanCastStop: api.lanCastStop,
+    };
 };
 
-const nativePlugin = <T>(name: string): T | null => {
+/** 安卓壳往 window 注入的原生插件表（capacitor 的桥），这里只取用到的名字。 */
+const nativePlugin = (name: string): unknown => {
     if (typeof window === 'undefined') return null;
-    const capacitor = (window as any).Capacitor;
-    return (capacitor?.Plugins?.[name] ?? null) as T | null;
+    return window.Capacitor?.Plugins?.[name] ?? null;
 };
 
-const relay = (): CapacitorRelayPlugin | null => nativePlugin<CapacitorRelayPlugin>('FoliaNative');
-const capacitorCast = (): CapacitorCastPlugin | null => nativePlugin<CapacitorCastPlugin>('FoliaLanCast');
+const relay = (): CapacitorRelayPlugin | null => nativePlugin('FoliaNative') as CapacitorRelayPlugin | null;
+const capacitorCast = (): CapacitorCastPlugin | null => nativePlugin('FoliaLanCast') as CapacitorCastPlugin | null;
 
 const isAndroidShell = (): boolean => {
     if (typeof window === 'undefined') return false;
-    const capacitor = (window as any).Capacitor;
-    return Boolean(capacitor?.isNativePlatform?.() && capacitor?.getPlatform?.() === 'android');
+    const capacitor = window.Capacitor;
+    return Boolean(capacitor?.isNativePlatform?.() && capacitor.getPlatform?.() === 'android');
 };
 
 /**
@@ -73,7 +78,7 @@ export const isLanCastAvailable = (): boolean => {
 };
 
 const errorText = (error: unknown): string => {
-    const raw = error instanceof Error ? error.message : String(error ?? '');
+    const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
     // Capacitor 把 reject 包成 "Error: xxx"，去掉前缀免得界面上重复两遍。
     return raw.replace(/^Error:\s*/i, '').trim() || '未知错误';
 };
@@ -99,7 +104,7 @@ const isLoopbackUrl = (value: string): boolean => {
  * `http://<局域网 IPv4>:<port>/cast/<token>`），这里原样把地址交过去即可。
  */
 const toCastableUrl = async (raw: string): Promise<string> => {
-    const value = String(raw || '').trim();
+    const value = (raw || '').trim();
     if (!value) throw new Error('当前没有正在播放的歌曲');
     if (value.startsWith('blob:') || value.startsWith('data:') || value.startsWith('file:')) {
         throw new Error('本机文件没有局域网地址，暂时不能投送');
@@ -107,10 +112,10 @@ const toCastableUrl = async (raw: string): Promise<string> => {
     if (!/^https?:\/\//i.test(value)) throw new Error('这首歌的地址不能投送');
     if (!isLoopbackUrl(value)) return value;
 
-    const bridge = relay();
-    if (!bridge?.lanCastPrepare) throw new Error('当前版本不支持本机中继投送');
-    const info = await bridge.lanCastPrepare();
-    if (!info?.lanIp || !info?.port) {
+    const prepare = relay()?.lanCastPrepare;
+    if (!prepare) throw new Error('当前版本不支持本机中继投送');
+    const info = await prepare();
+    if (!info.lanIp || !info.port) {
         throw new Error('没取到手机的局域网地址，请确认已连接 WiFi');
     }
     const url = new URL(value);
@@ -144,10 +149,7 @@ export const subscribeCasting = (listener: () => void): (() => void) => {
 export const getCastingSpeaker = (): LanSpeaker | null => activeSession?.speaker ?? null;
 export const isCasting = (): boolean => activeSession !== null;
 
-const readStoredMuted = (): string | null => {
-    if (typeof window === 'undefined') return null;
-    try { return localStorage.getItem(MUTE_STORAGE_KEY); } catch { return null; }
-};
+const readStoredMuted = (): string | null => getStoredString(MUTE_STORAGE_KEY, '') || null;
 
 /**
  * handleSetMuted 会顺手把状态写进 localStorage。投送期间的静音只该是「这一次会话」的，
@@ -155,11 +157,8 @@ const readStoredMuted = (): string | null => {
  * 内存里的 isMuted 仍然是 true，音量链路照常读到 0。
  */
 const undoMutePersistence = (stored: string | null) => {
-    if (typeof window === 'undefined') return;
-    try {
-        if (stored === null) localStorage.removeItem(MUTE_STORAGE_KEY);
-        else localStorage.setItem(MUTE_STORAGE_KEY, stored);
-    } catch { /* 存储不可用时忽略。 */ }
+    if (stored === null) removeStoredKey(MUTE_STORAGE_KEY);
+    else setStoredString(MUTE_STORAGE_KEY, stored);
 };
 
 /** 投送中已推给音响的曲目（跨组件共享）：面板和全局跟随都读它，避免面板推送后又被跟随重复推一次。 */
@@ -206,12 +205,12 @@ export const discoverLanSpeakers = async (timeoutMs = 3200): Promise<LanSpeaker[
     const api = desktop();
     if (api?.lanCastDiscover) {
         const result = await api.lanCastDiscover({ timeoutMs });
-        return (result?.devices ?? []).filter(device => Boolean(device?.controlUrl && device?.name));
+        return (result?.devices ?? []).filter(device => Boolean(device.controlUrl && device.name));
     }
     const plugin = capacitorCast();
     if (!plugin?.discover) throw new Error('当前设备不支持局域网投送');
     const result = await plugin.discover({ timeoutMs });
-    return (result?.devices ?? []).filter(device => Boolean(device?.controlUrl && device?.name));
+    return (result.devices ?? []).filter(device => Boolean(device.controlUrl && device.name));
 };
 
 export const castTrackToSpeaker = async (speaker: LanSpeaker, track: LanCastTrack): Promise<void> => {
@@ -227,7 +226,7 @@ export const castTrackToSpeaker = async (speaker: LanSpeaker, track: LanCastTrac
         try {
             await plugin.play({ ...track, url, controlUrl: speaker.controlUrl });
         } catch (error) {
-            throw new Error(errorText(error));
+            throw new Error(errorText(error), { cause: error });
         }
     }
     // 换音响时，等新音响确实接上了再停旧的；推送失败就什么都不动，
@@ -268,7 +267,7 @@ export const stopCastingToSpeaker = async (): Promise<void> => {
         await relay()?.lanCastRelease?.();
     } catch { /* 收口失败不影响还原。 */ }
     restoreCastingMute();
-    if (stopError) throw new Error(errorText(stopError));
+    if (stopError) throw new Error(errorText(stopError), { cause: stopError });
 };
 
 export const lanCastErrorText = errorText;

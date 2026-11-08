@@ -349,7 +349,6 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
                 hidden={!isButtonShown}
                 bottom={bottomBarBottomPx}
                 isDaylight={isDaylight}
-                isOpen={isOpen}
                 isCommandPaletteOpen={isCommandPaletteOpen}
             />
             <AnimatePresence>
