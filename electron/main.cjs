@@ -715,9 +715,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
   getHwnd: getMainWindowNativeHwnd,
   onDegrade: () => {
     refreshWindowsDesktopWallpaper();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
     void rebuildMainWindowWithPlaybackHandoff('wallpaper mode given up');
   },
   onReattachNeeded: () => {
@@ -732,9 +730,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
     }
     wallpaperWindowsAttachMode = mode;
     store.set(WALLPAPER_WINDOWS_ATTACH_MODE_KEY, mode);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
     reconcileWindowsWallpaperWindowTransparency();
   },
   onMouseInput: forwardWallpaperMouseInput,
@@ -831,9 +827,7 @@ async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = 
       void launchWrappedSelf({
         onError: () => {
           setMainWindowClickThroughEnabled(false);
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-          }
+          sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
         },
       });
     } else {
@@ -955,9 +949,7 @@ function getWallpaperDisplaysState() {
 }
 
 function notifyWallpaperDisplaysChanged() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-displays-changed', getWallpaperDisplaysState());
-  }
+  sendToMainWindow('wallpaper-displays-changed', getWallpaperDisplaysState());
   // The tray lists the same choice, so it follows every change the settings page is told of.
   refreshTrayMenu();
 }
@@ -1467,18 +1459,14 @@ function notifyMacWallpaperModeChanged() {
   refreshTrayMenu();
   // macOS switches wallpaper mode in place, not always through save-settings: every change ends here.
   backgroundThrottling.refresh();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-  }
+  sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
 }
 
 // Input Monitoring is required to forward desktop clicks/hover into the wallpaper window. When it
 // is missing the renderer shows a toast pointing at System Settings (mirrors the Windows
 // wallpaper-transparent-refused prompt pattern).
 function notifyMacWallpaperInputMonitoringNeeded() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-input-monitor-requested', null);
-  }
+  sendToMainWindow('wallpaper-input-monitor-requested', null);
 }
 
 // Dock auto-hide during a wallpaper session is position-aware: the Dock is hidden only while it
@@ -2051,9 +2039,7 @@ function getMacWallpaperClickGuard() {
 // on the bare wallpaper still send the stage aside. Asked once per session; never turns the
 // wallpaper off.
 function notifyMacWallpaperAccessibilitySuggested() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-accessibility-suggested', null);
-  }
+  sendToMainWindow('wallpaper-accessibility-suggested', null);
 }
 
 function flushMacWallpaperPendingDrag() {
@@ -2581,6 +2567,27 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
+
+// A window can outlive its page: a closing BrowserWindow stays undestroyed for a moment after its
+// webContents is gone, and send throws "Object has been destroyed" on that page, which reaches the
+// app as an uncaughtException. Everything that pushes to a window goes through here, so a page that
+// is gone costs the message instead of the process.
+function sendToWindow(targetWindow, channel, ...args) {
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    return false;
+  }
+  const contents = targetWindow.webContents;
+  if (!contents || contents.isDestroyed()) {
+    return false;
+  }
+  contents.send(channel, ...args);
+  return true;
+}
+
+function sendToMainWindow(channel, ...args) {
+  return sendToWindow(mainWindow, channel, ...args);
+}
+
 // The renderer's arm for the machine's own sound, for the external playback route's spectrum
 // (createSpectrumArm says what it guarantees).
 const externalSpectrumArm = createSpectrumArm({
@@ -2864,9 +2871,7 @@ function buildObsBrowserSourceStatus() {
 
 function broadcastObsBrowserSourceStatus() {
   backgroundThrottling.refresh();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('obs-browser-source-status-changed', buildObsBrowserSourceStatus());
-  }
+  sendToMainWindow('obs-browser-source-status-changed', buildObsBrowserSourceStatus());
 }
 
 mainWindowSkipTaskbarEnabled = readStoredBoolean(HIDE_TASKBAR_ICON_SETTING_KEY, false);
@@ -2906,9 +2911,7 @@ const discordPresence = createDiscordPresenceController({
   getApplicationId: () => DEFAULT_DISCORD_APPLICATION_ID,
   isEnabled: () => readStoredBoolean(DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY, false),
   onStatusChange: (status) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('discord-presence-status-changed', status);
-    }
+    sendToMainWindow('discord-presence-status-changed', status);
   },
 });
 
@@ -2937,9 +2940,7 @@ function buildPlaybackSyncBridgeStatus() {
 }
 
 function broadcastPlaybackSyncBridgeStatus() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('playback-sync-bridge-status-changed', buildPlaybackSyncBridgeStatus());
-  }
+  sendToMainWindow('playback-sync-bridge-status-changed', buildPlaybackSyncBridgeStatus());
 }
 
 function getStoredWindowState() {
@@ -3069,11 +3070,7 @@ function isWindowsThumbarSupported() {
 }
 
 function sendThumbarAction(action) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.webContents.send('thumbar-action', action);
+  sendToMainWindow('thumbar-action', action);
 }
 
 function updateWindowThumbarButtons(state = {}) {
@@ -3295,9 +3292,7 @@ function applyRemoteControlWindowPresentation(win) {
   }
 
   syncRemoteControlMouseIgnore();
-  if (!win.webContents.isDestroyed()) {
-    win.webContents.send('remote-control-window-settings-changed', buildRemoteControlWindowSettings());
-  }
+  sendToWindow(win, 'remote-control-window-settings-changed', buildRemoteControlWindowSettings());
   return true;
 }
 
@@ -3307,9 +3302,7 @@ function setRemoteControlClickThroughEnabled(enabled) {
   store.set(REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY, remoteControlClickThroughEnabled);
   applyRemoteControlWindowPresentation(remoteControlWindow);
   refreshTrayMenu();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-  }
+  sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
   return remoteControlClickThroughEnabled;
 }
 
@@ -4103,11 +4096,7 @@ function getUpdateStatus() {
 }
 
 function publishUpdateStatus() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.webContents.send('update-status-changed', getUpdateStatus());
+  sendToMainWindow('update-status-changed', getUpdateStatus());
 }
 
 function setUpdateState(patch) {
@@ -4963,9 +4952,7 @@ networkRecorder.start();
 
 function broadcastToWindows(channel, payload) {
   BrowserWindow.getAllWindows().forEach((win) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, payload);
-    }
+    sendToWindow(win, channel, payload);
   });
 }
 
@@ -5280,7 +5267,11 @@ function requestWindowPlaybackHandoff(timeoutMs = WINDOW_PLAYBACK_HANDOFF_REQUES
 
     try {
       lastWindowPlaybackHandoffRequestAt = Date.now();
-      mainWindow.webContents.send('window-playback-handoff-requested', { requestId });
+      // The page is gone, so nothing can answer: the catch below is the one way out of a failed
+      // request, and a dropped send has to take it just like a throwing one did.
+      if (!sendToMainWindow('window-playback-handoff-requested', { requestId })) {
+        throw new Error('The main window has no page to carry the handoff request.');
+      }
     } catch (error) {
       clearTimeout(timeoutId);
       pendingWindowPlaybackHandoffRequests.delete(requestId);
@@ -5355,14 +5346,13 @@ function patchRemoteControlSnapshot(patch) {
 }
 
 function publishMainWindowClickThroughState() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  mainWindow.webContents.send('main-window-click-through-changed', {
+  const sent = sendToMainWindow('main-window-click-through-changed', {
     enabled: mainWindowClickThroughEnabled,
     unlockHoverActive: mainWindowClickThroughUnlockHover,
   });
+  if (!sent) {
+    return false;
+  }
   refreshTrayMenu();
   return true;
 }
@@ -5477,12 +5467,7 @@ function setMainWindowClickThroughUnlockHover(active) {
 }
 
 function sendRemoteControlSnapshot(snapshot) {
-  if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
-    return false;
-  }
-
-  remoteControlWindow.webContents.send('remote-control-snapshot', snapshot);
-  return true;
+  return sendToWindow(remoteControlWindow, 'remote-control-snapshot', snapshot);
 }
 
 // The remote window is draggable by everything that is not a button, and on Windows a drag
@@ -5523,9 +5508,7 @@ function syncRemoteControlPointerInside() {
   }
 
   remoteControlPointerInside = inside;
-  if (remoteControlWindow && !remoteControlWindow.isDestroyed() && !remoteControlWindow.webContents.isDestroyed()) {
-    remoteControlWindow.webContents.send('remote-control-pointer-inside', inside);
-  }
+  sendToWindow(remoteControlWindow, 'remote-control-pointer-inside', inside);
 }
 
 // The whole window ignores the mouse in click-through; otherwise only the part left of the card.
@@ -6099,13 +6082,13 @@ function createWindow(options = {}) {
       }
       win.__transparentFullscreen = true;
     }
-    win.webContents.send('window-fullscreen-changed', true);
+    sendToWindow(win, 'window-fullscreen-changed', true);
   });
   win.on('leave-full-screen', () => {
     if (process.platform === 'win32' && useTransparentWindow) {
       win.__transparentFullscreen = false;
     }
-    win.webContents.send('window-fullscreen-changed', false);
+    sendToWindow(win, 'window-fullscreen-changed', false);
   });
   win.on('maximize', () => {
     saveWindowState(win);
@@ -6263,9 +6246,7 @@ async function setMainWindowTransparentMode(enabled, handoff = null) {
   // (the wallpaper goes black); refuse the toggle instead of recreating into a broken state.
   // The renderer keeps its previous state and shows the unsupported hint.
   if (nextEnabled && process.platform === 'win32' && isWindowsWallpaperMode() && !isWindowsWallpaperTransparentSupported()) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-transparent-refused', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-transparent-refused', getPublicSettings());
     return false;
   }
   patchRemoteControlSnapshot({
@@ -6417,9 +6398,7 @@ app.whenReady().then(async () => {
       // recreated as an ordinary window or the user is left with a borderless, immovable
       // shell — same recovery the degrade path performs.
       store.set(WALLPAPER_MODE_SETTING_KEY, false);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-      }
+      sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
       // Not asked for a handoff: this window was created just above and its page plays nothing yet.
       recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
     }
@@ -7790,9 +7769,7 @@ const getGlobalShortcutController = () => {
       // press with no window does nothing. Reopening the window, or letting the keys go on `closed`,
       // is undecided until it can be tried on a Mac.
       onTrigger: (accelerator) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('global-shortcut-triggered', accelerator);
-        }
+        sendToMainWindow('global-shortcut-triggered', accelerator);
       },
     });
   }
@@ -7814,9 +7791,7 @@ ipcMain.handle('external-media-keys-set', (event, enabled) => {
   externalMediaKeys ??= createMediaKeyTakeover({
     globalShortcut,
     onKey: (action) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('external-media-key', action);
-      }
+      sendToMainWindow('external-media-key', action);
     },
   });
   return externalMediaKeys.set(enabled === true);
@@ -8039,12 +8014,7 @@ ipcMain.handle('remote-control-send-command', (event, command) => {
     return true;
   }
 
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  mainWindow.webContents.send('remote-control-command', command);
-  return true;
+  return sendToMainWindow('remote-control-command', command);
 });
 
 ipcMain.handle('video-export-choose-path', async (event, defaultName, extension, displayName) => {
