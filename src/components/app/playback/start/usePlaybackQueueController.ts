@@ -44,6 +44,13 @@ import {
     queueLoopMode,
     resolvePlaybackNeighbors,
 } from '../../../../utils/playbackNeighbors';
+import { computeShuffledQueue } from '../../../../utils/shuffle/algorithms';
+import { recordHistory } from '../../../../utils/shuffle/history';
+import { queueFingerprint } from '../../../../utils/shuffle/round';
+import { createRng } from '../../../../utils/shuffle/rng';
+import { readShuffleRng, readShuffleStrategy, readShuffleToast } from '../../../../stores/useShuffleSettingsStore';
+import { rngLabelKey, strategyLabelKey } from '../../../../utils/shuffle/labels';
+import { readShuffleHistory, readShuffleRound, reportLastShuffle, writeShuffleHistory, writeShuffleRound } from '../../../../stores/useShuffleStatusStore';
 import { freshFmSongs } from '../../../../utils/fmQueue';
 import { applyQueueAddBehavior, queueForPlayingNow } from '../../../../utils/queueAddBehavior';
 import { moveQueueItem } from '../../../../utils/queueReorder';
@@ -1796,29 +1803,59 @@ export function usePlaybackQueueController({
     const shuffleQueue = useCallback(() => {
         if (!playQueue || !canShuffleQueue(playQueue.length, isFmMode, isNowPlayingStageActive)) return;
 
-        const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-        let songsToShuffle: SongResult[] = [];
-        let firstSong: SongResult | null = null;
+        const strategy = readShuffleStrategy();
+        const rng = createRng(readShuffleRng());
+        const now = Date.now();
+        const keyOf = (song: SongResult) => getPlaybackSongKey(song);
+        const currentIndex = currentSong
+            ? playQueue.findIndex(song => getPlaybackSongKey(song) === getPlaybackSongKey(currentSong))
+            : -1;
 
-        if (currentSongKey) {
-            firstSong = playQueue.find(song => getPlaybackSongKey(song) === currentSongKey) || null;
-            songsToShuffle = playQueue.filter(song => getPlaybackSongKey(song) !== currentSongKey);
-        } else {
-            songsToShuffle = [...playQueue];
+        // 先记后洗（§9）；fisher-yates 不写历史（B3）。refresh=false 为旧版语义（D-B 默认）。
+        let history = readShuffleHistory();
+        if (strategy !== 'fisher-yates') {
+            history = recordHistory(playQueue, currentIndex, keyOf, history, now, { refresh: false });
         }
 
-        for (let index = songsToShuffle.length - 1; index > 0; index -= 1) {
-            const randomIndex = Math.floor(Math.random() * (index + 1));
-            [songsToShuffle[index], songsToShuffle[randomIndex]] = [songsToShuffle[randomIndex], songsToShuffle[index]];
+        // round：队列身份用顺序无关指纹，增删/替换/换来源重置，纯换序不重置。
+        const fingerprint = queueFingerprint(playQueue, keyOf, 'play-queue');
+        const round = readShuffleRound();
+        const playedThisRound = strategy === 'round' && round && round.fp === fingerprint
+            ? new Set(round.played)
+            : new Set<string>();
+
+        const result = computeShuffledQueue(strategy, {
+            queue: playQueue,
+            currentIndex,
+            keyOf,
+            history,
+            playedThisRound,
+            rng,
+            now,
+        });
+
+        setPlayQueue(result.nextQueue);
+        if (strategy !== 'fisher-yates') {
+            writeShuffleHistory(history);
+        }
+        if (strategy === 'round') {
+            writeShuffleRound({ fp: fingerprint, played: [...(result.nextPlayedThisRound ?? [])] });
         }
 
-        const nextQueue = firstSong ? [firstSong, ...songsToShuffle] : songsToShuffle;
+        reportLastShuffle({
+            strategy,
+            rng: rng.name,
+            seedHex: rng.seedHex,
+            stats: result.stats,
+            timestamp: now,
+        });
 
-        setPlayQueue(nextQueue);
-        setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
+        if (readShuffleToast()) {
+            setStatusMsg({ type: 'success', text: t('shuffle.toast', { strategy: t(strategyLabelKey(strategy)), rng: t(rngLabelKey(rng.name)) }) });
+        }
 
-        if (currentSong && nextQueue.length > 1) {
-            invalidateAndRefetch(currentSong, nextQueue, audioQuality, userId);
+        if (currentSong && result.nextQueue.length > 1) {
+            invalidateAndRefetch(currentSong, result.nextQueue, audioQuality, userId);
         }
     }, [audioQuality, currentSong, isFmMode, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
 
@@ -1830,6 +1867,37 @@ export function usePlaybackQueueController({
         void persistLastPlaybackCache(currentSong, []);
         setStatusMsg({ type: 'success', text: t('status.queueCleared') || 'Queue cleared', nonce: Date.now(), durationMs: 1200 });
     }, [currentSong, isNowPlayingStageActive, persistLastPlaybackCache, playQueue, setPlayQueue, setStatusMsg, t]);
+
+    const roundResettingRef = useRef(false);
+    // round 自动重置只监听 currentSong：队列与洗牌回调从 ref 取最新值，避免写进依赖后每次队列变化都重跑。
+    const roundQueueRef = useRef(playQueue);
+    const roundShuffleRef = useRef(shuffleQueue);
+    useEffect(() => {
+        roundQueueRef.current = playQueue;
+        roundShuffleRef.current = shuffleQueue;
+    });
+
+    // round 自动重置（§9）：歌曲切换时把新当前歌记为已播；整轮播完就重洗一次，不打断播放。只监听 currentSong。
+    useEffect(() => {
+        const queue = roundQueueRef.current;
+        if (readShuffleStrategy() !== 'round' || !currentSong || queue.length === 0) return;
+        const keyOf = (song: SongResult) => getPlaybackSongKey(song);
+        const fingerprint = queueFingerprint(queue, keyOf, 'play-queue');
+        const round = readShuffleRound();
+        const played = round && round.fp === fingerprint ? new Set(round.played) : new Set<string>();
+        played.add(keyOf(currentSong));
+        const allPlayed = queue.every(song => played.has(keyOf(song)));
+        if (allPlayed && !roundResettingRef.current) {
+            roundResettingRef.current = true;
+            try {
+                roundShuffleRef.current();
+            } finally {
+                roundResettingRef.current = false;
+            }
+            return;
+        }
+        writeShuffleRound({ fp: fingerprint, played: [...played] });
+    }, [currentSong]);
 
     // Wrapped so the callbacks this hook hands back keep one identity for the app's lifetime. They
     // are all invoked from events or effects, and their churn was what kept every build*Model memo

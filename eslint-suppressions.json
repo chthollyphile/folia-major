@@ -2298,7 +2298,7 @@
       "count": 1
     },
     "no-useless-assignment": {
-      "count": 2
+      "count": 1
     },
     "react-hooks/exhaustive-deps": {
       "count": 11
