@@ -22,12 +22,15 @@ const PART_HEIGHTS: Array<[prefix: string, height: number]> = [
     ['balance-static', 0.18],
     ['balance-gear', 0.2],
     ['hairspring', 0.22],
-    // 焦点轴指向歌词，和歌词在同一层
-    ['axis', 0.28],
+    // 焦点轴连着刻度环和歌词，和它们在同一层
+    ['axis', 0.02],
 ];
 
-/** 歌词弧线那一层：浮在最上面。 */
-export const PENDOLO_LYRIC_LAYER_HEIGHT = 0.28;
+/**
+ * 歌词弧线那一层：贴着刻度环，和刻度同高。歌词是沿着刻度环排的，浮高了倾斜时会整体离开刻度环、
+ * 看起来错位，所以只让齿轮和摆轮做视差。
+ */
+export const PENDOLO_LYRIC_LAYER_HEIGHT = 0.02;
 /** 摆轮上的主题图标：和游丝同高。 */
 export const PENDOLO_BALANCE_ICON_HEIGHT = 0.22;
 /** 随拍的叠加层（刻度点亮、宝石闪光、火花）：贴着刻度。 */
