@@ -49,6 +49,8 @@
 
 提交 PR 前，先审查本地完整 diff，确认每个文件和每项变更都与本次主题有关，再人工核验所有审查结果。验证必须覆盖 PR 声称解决的问题或提供的功能，不能只检查代码是否编译。
 
+开 PR 前在仓库根目录跑一次 `npm run lint:fix-style`。它只修这次改过的文件的排版（缩进、引号、换行），不改代码的意思；第一次运行会先装好 ESLint 的独立环境。不能自动修的问题用 `npm run lint` 查看。CI 上带 `D` 代码的注解来自 Dedicatus 架构检查，说明见 [`dev/dedicatus/README.md`](dev/dedicatus/README.md)。单元测试里的 Dedicatus 契约测试失败时，按失败信息在 `dev/dedicatus/` 的登记表里补上（例如新的 IPC 通道登记在 `ipcChannels.mjs`，新的持久化键登记在 `storageKeys.mjs`）。
+
 在 PR 中如实记录执行过的检查和结果；未验证的环境、已知限制或仍存在的问题也应明确写出。
 
 ## 提交 Pull Request

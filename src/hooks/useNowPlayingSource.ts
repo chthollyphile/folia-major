@@ -101,7 +101,6 @@ export function useNowPlayingSource({ enabled, host }: UseNowPlayingSourceOption
 
     provider.start();
     return () => provider.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, host]);
 
   const getCurrentTimeSec = useCallback((nowMs: number) => currentWebLyricTimeSec(clockRef.current, nowMs), []);

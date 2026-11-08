@@ -6400,6 +6400,7 @@ app.whenReady().then(async () => {
       store.set(WALLPAPER_MODE_SETTING_KEY, false);
       sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
       // Not asked for a handoff: this window was created just above and its page plays nothing yet.
+      // eslint-disable-next-line dedicatus/window-rebuild-handoff -- the window was created just above and plays nothing yet
       recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
     }
   }
