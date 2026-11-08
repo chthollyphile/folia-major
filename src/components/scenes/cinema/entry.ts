@@ -16,7 +16,7 @@ export default defineScene({
         surfaces: [{ id: 'screen', aspect: 14 / 7.57, occludable: true }],
         lyrics: { style: { surface: 'screen' } },
         background: { host: { surface: 'screen' } },
-        seats: 'anchors',
+        viewpoints: 'anchors',
         sound: { acoustics: 'mesh', music: 'speakers' },
         quality: {
             default: 'medium',

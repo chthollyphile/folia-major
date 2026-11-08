@@ -21,17 +21,17 @@ export const SCREEN_CORNERS: readonly [Vec3, Vec3, Vec3, Vec3] = [
 /** The row the preferred seat is in: about two thirds back (where halls are calibrated). */
 const PREFERRED_ROW = Math.round((ROWS.count - 1) * (2 / 3));
 
-type SeatAnchor = Extract<SceneAnchor, { kind: 'seat' }>;
+type ViewpointAnchor = Extract<SceneAnchor, { kind: 'viewpoint' }>;
 
 /** Every seat, row by row from the front, left to right; ids `R<row>-<number>`. */
-export const cinemaSeats = (): SeatAnchor[] => {
+export const cinemaSeats = (): ViewpointAnchor[] => {
     const xs = seatXs();
-    const seats: SeatAnchor[] = [];
+    const seats: ViewpointAnchor[] = [];
     for (let row = 0; row < ROWS.count; row += 1) {
         xs.forEach((x, index) => {
             const eye: Vec3 = [x, rowFloor(row) + 1.15, rowZ(row, x) - 0.3];
             seats.push({
-                kind: 'seat',
+                kind: 'viewpoint',
                 id: `R${row + 1}-${index + 1}`,
                 ear: eye,
                 eye,

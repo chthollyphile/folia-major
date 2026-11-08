@@ -69,7 +69,7 @@ export interface SceneManifest {
     /** 背景永远是用户选的背景：`host` 放在哪（'none' 这个场景不用背景，它自己就是画面）；`exclude` 同上。 */
     background: { host: SceneBackgroundPlacement; exclude?: string[] };
     /** 场景发布了座位锚点时，宿主给一张座位图。 */
-    seats?: 'anchors' | 'none';
+    viewpoints?: 'anchors' | 'none';
     sound?: { acoustics: 'mesh' | 'none'; music: 'speakers' | 'off' };
     /** 低/中/高三档各自的值；用户自己选，宿主从不自动调。 */
     quality: { presets: Record<SceneQualityPreset, Record<string, number | boolean>>; default: SceneQualityPreset };
@@ -79,10 +79,10 @@ export interface SceneManifest {
 
 // ---------------------------------------------------------------- 锚点
 
-/** 场景里一个有名字、有用途的位置。宿主和声音引擎只通过锚点理解场景。数据场景用 glTF 空物体的名字：`seat.R7-12`、`speaker.L`、`surface.screen`。 */
+/** 场景里一个有名字、有用途的位置。宿主和声音引擎只通过锚点理解场景。数据场景用 glTF 空物体的名字：`viewpoint.R7-12`、`speaker.L`、`surface.screen`。 */
 export type SceneAnchor =
     | { kind: 'surface'; id: string; corners: readonly [Vec3, Vec3, Vec3, Vec3] }
-    | { kind: 'seat'; id: string; ear: Vec3; eye: Vec3; lookAt: Vec3; row?: string; number?: number; occupied?: boolean; preferred?: boolean }
+    | { kind: 'viewpoint'; id: string; ear: Vec3; eye: Vec3; lookAt: Vec3; row?: string; number?: number; occupied?: boolean; preferred?: boolean }
     | { kind: 'speaker'; id: 'L' | 'R' | 'C'; position: Vec3 }
     | { kind: 'emitter'; id: string; position: Vec3 }
     | { kind: 'lyricPlace'; id: string; surface: string; rect: { x: number; y: number; width: number; height: number } }
@@ -202,7 +202,7 @@ export interface SceneSound {
     setAcoustics(world: AcousticWorld): void;
     moveObject(id: string, matrix: ArrayLike<number>): void;
     /** 听者；宿主默认放在用户选的座位上。不跟摄像机。 */
-    setListener(pose: Pose | { seat: string }): void;
+    setListener(pose: Pose | { viewpoint: string }): void;
     play(clip: string, at: Pose | { emitter: string }, options?: { loop?: boolean; gainDb?: number; audible?: SceneSoundAudible }): SoundHandle;
     readonly tier: 'realtime' | 'cached' | 'baked' | 'estimated' | 'off';
 }
@@ -236,7 +236,7 @@ export interface SceneContext {
         place(id: string, cornersOnScreen: ScreenQuad | null, look?: { opacity?: number }): void;
     };
     /** 用户在座位图上选的座位锚点 id，没选时为 null（场景用自己的 preferred 座位）。 */
-    readonly seats: { chosen(): string | null };
+    readonly viewpoints: { chosen(): string | null };
     readonly sound: SceneSound;
     on<K extends keyof SceneEvents>(type: K, fn: (event: SceneEvents[K]) => void): Disposer;
     /** 第一帧画好了；宿主这时才把场景露出来。 */

@@ -263,14 +263,14 @@ describe('room sound', () => {
         const { api, requests } = fakeApi(ok);
         const { stage, played } = fakeStage();
         const slot = { context: { sampleRate: RATE } } as unknown as RoomSlot;
-        const sound = createRoomSound({ anchors: { seats: () => seats, speakers: () => speakers }, api, getSlot: () => slot, onSlot: () => () => {}, createStage: () => stage });
+        const sound = createRoomSound({ anchors: { viewpoints: () => seats, speakers: () => speakers }, api, getSlot: () => slot, onSlot: () => () => {}, createStage: () => stage });
         return { sound, api, requests, stage, played };
     };
 
     it('takes the gain from the default seat and keeps the chosen seat physically louder', async () => {
         const { sound, requests, played } = make();
         sound.setOptions({ enabled: true, output: 'speakers' });
-        sound.setListener({ seat: 'R2-7' });
+        sound.setListener({ viewpoint: 'R2-7' });
         sound.setAcoustics(world);
         await vi.waitFor(() => expect(played).toHaveLength(1));
         expect(requests).toHaveLength(2);
@@ -314,7 +314,7 @@ describe('room sound', () => {
     it('stays off with no api at all, and adds nothing to the graph', async () => {
         const audio = createFakeAudio();
         const before = [...audio.edges];
-        const sound = createRoomSound({ anchors: { seats: () => seats, speakers: () => speakers }, api: null, getSlot: () => audio.slot, onSlot: () => () => {} });
+        const sound = createRoomSound({ anchors: { viewpoints: () => seats, speakers: () => speakers }, api: null, getSlot: () => audio.slot, onSlot: () => () => {} });
         sound.setAcoustics(world);
         await settle();
         expect(sound.tier).toBe('off');

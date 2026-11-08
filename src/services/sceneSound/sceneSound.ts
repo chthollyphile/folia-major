@@ -14,11 +14,11 @@ export type RoomOutput = RoomRequest['output'];
 export type RoomTier = 'realtime' | 'cached' | 'off';
 
 type Point = readonly [number, number, number];
-interface SeatPoint { id: string; ear: Point; lookAt: Point; preferred?: boolean }
+interface ViewpointPoint { id: string; ear: Point; lookAt: Point; preferred?: boolean }
 interface SpeakerPoint { id: string; position: Point }
 
 export interface RoomSoundAnchors {
-    seats: () => readonly SeatPoint[];
+    viewpoints: () => readonly ViewpointPoint[];
     speakers: () => readonly SpeakerPoint[];
 }
 
@@ -27,7 +27,7 @@ export interface RoomSoundOptions {
     output: RoomOutput;
 }
 
-type Listener = { position: Point; lookAt?: Point } | { seat: string };
+type Listener = { position: Point; lookAt?: Point } | { viewpoint: string };
 
 export interface RoomSound {
     setAcoustics(world: AcousticMeshes): void;
@@ -61,14 +61,14 @@ const normalize = (x: number, y: number, z: number): Vec3 => {
  * A seat or a pose as the listener: a seat's ear, facing its look-at point level (the way a seated
  * listener faces the screen); a pose facing its look-at point, or -z.
  */
-export const resolveListener = (listener: Listener | null, seats: readonly SeatPoint[]): RoomRequest['listener'] | null => {
+export const resolveListener = (listener: Listener | null, seats: readonly ViewpointPoint[]): RoomRequest['listener'] | null => {
     const up: Vec3 = [0, 1, 0];
     if (listener && 'position' in listener) {
         const [x, y, z] = listener.position;
         const look = listener.lookAt;
         return { position: vec(listener.position), forward: look ? normalize(look[0] - x, look[1] - y, look[2] - z) : [0, 0, -1], up };
     }
-    const seat = (listener && seats.find(entry => entry.id === listener.seat)) ?? seats.find(entry => entry.preferred) ?? seats[0];
+    const seat = (listener && seats.find(entry => entry.id === listener.viewpoint)) ?? seats.find(entry => entry.preferred) ?? seats[0];
     if (!seat) return null;
     return { position: vec(seat.ear), forward: normalize(seat.lookAt[0] - seat.ear[0], 0, seat.lookAt[2] - seat.ear[2]), up };
 };
@@ -136,7 +136,7 @@ export const createRoomSound = ({
         const speakerAt = (id: string) => anchors.speakers().find(speaker => speaker.id === id)?.position;
         const left = speakerAt('L');
         const right = speakerAt('R');
-        const seats = anchors.seats();
+        const seats = anchors.viewpoints();
         const pose = resolveListener(listener, seats);
         const defaultPose = resolveListener(null, seats);
         if (!left || !right || !pose || !defaultPose) {

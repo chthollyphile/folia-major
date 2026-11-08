@@ -12,7 +12,7 @@ import { useChosenScene } from '../registry';
 import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
 import { createSceneEventBus } from './sceneEvents';
 import { onQueueEnd } from './queueEnd';
-import { publishSceneSeats, type SeatAnchor } from './sceneSeats';
+import { publishSceneViewpoints, type ViewpointAnchor } from './sceneViewpoints';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackLook, type SceneSignalSnapshot } from './sceneSignals';
 import { createHostSceneSound, silentSceneSound } from './sceneSound';
@@ -100,7 +100,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 console.warn('[SceneHost] scene dispose threw', id, error);
             }
             runtime = null;
-            publishSceneSeats(id, null);
+            publishSceneViewpoints(id, null);
             box.replaceChildren();
         };
         const fail = (error: unknown) => {
@@ -174,7 +174,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                     quads.current.set(surfaceId, { quad: Number.isFinite(opacity) && opacity > 0 ? quad : null, opacity: Number.isFinite(opacity) ? opacity : 1 });
                 },
             },
-            seats: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.seat ?? null },
+            viewpoints: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.viewpoint ?? null },
             sound: room?.sound ?? silentSceneSound,
             on: bus.on,
             ready: show,
@@ -243,7 +243,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                     return;
                 }
                 runtime = created;
-                publishSceneSeats(id, anchors.filter((anchor): anchor is SeatAnchor => anchor.kind === 'seat'));
+                publishSceneViewpoints(id, anchors.filter((anchor): anchor is ViewpointAnchor => anchor.kind === 'viewpoint'));
                 runtime.resize?.({ width: box.clientWidth, height: box.clientHeight, dpr: window.devicePixelRatio || 1 });
                 console.info('[SceneHost] scene loaded', id, { attempt });
                 readyTimer = window.setTimeout(show, READY_LIMIT_MS);

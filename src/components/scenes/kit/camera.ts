@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import type { LyricPhase, SceneContext } from '../definition';
 
 // src/components/scenes/kit/camera.ts
-// 可选工具箱：机位和导演。seatRig 坐在座位上；pathRig 沿 path 锚点慢慢走；phaseDirector 按歌词阶段选机位：
-// 下一句还很远时去巡游，下一句前几秒回到座位。用户按住拖动转头（Head，turnHead），seatRig 和拿到 Head 的机位
+// 可选工具箱：机位和导演。viewpointRig 坐在座位上；pathRig 沿 path 锚点慢慢走；phaseDirector 按歌词阶段选机位：
+// 下一句还很远时去巡游，下一句前几秒回到座位。用户按住拖动转头（Head，turnHead），viewpointRig 和拿到 Head 的机位
 // 在自己看的方向上再转这么多。只动摄像机，听者不跟它。
 
 export interface CameraRig {
@@ -42,21 +42,21 @@ export const aimCamera = (camera: THREE.PerspectiveCamera, position: THREE.Vecto
     camera.rotation.set(basePitch + head.pitch, baseYaw + head.yaw, 0, 'YXZ');
 };
 
-export interface SeatRigOptions {
-    /** The seat anchor's id; without one, the user's seat (ctx.seats), else the preferred one, else the first. */
-    seat?: string | (() => string | undefined);
+export interface ViewpointRigOptions {
+    /** The seat anchor's id; without one, the user's seat (ctx.viewpoints), else the preferred one, else the first. */
+    viewpoint?: string | (() => string | undefined);
     /** The user's head (turnHead); without one the rig looks straight at the seat's lookAt. */
     head?: Head;
 }
 
-export const seatRig = (ctx: SceneContext, options: SeatRigOptions = {}): CameraRig => {
+export const viewpointRig = (ctx: SceneContext, options: ViewpointRigOptions = {}): CameraRig => {
     const still: Head = { yaw: 0, pitch: 0 };
     const eye = new THREE.Vector3();
     const target = new THREE.Vector3();
     return {
         update: (camera) => {
-            const seats = ctx.anchors.list('seat');
-            const wanted = (typeof options.seat === 'function' ? options.seat() : options.seat) ?? ctx.seats.chosen() ?? undefined;
+            const seats = ctx.anchors.list('viewpoint');
+            const wanted = (typeof options.viewpoint === 'function' ? options.viewpoint() : options.viewpoint) ?? ctx.viewpoints.chosen() ?? undefined;
             // A taken seat is not sat in (as the seat map shows it): the preferred one instead.
             const seat = seats.find(entry => entry.id === wanted && !entry.occupied) ?? seats.find(entry => entry.preferred) ?? seats[0];
             if (!seat) return;

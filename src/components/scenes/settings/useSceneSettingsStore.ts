@@ -21,7 +21,7 @@ const readRoomOutput = (): SceneRoomOutput => (getStoredString(SCENE_ROOM_OUTPUT
 export interface SceneOptions {
     quality?: SceneQualityPreset;
     /** The seat anchor's id. */
-    seat?: string;
+    viewpoint?: string;
     /** The values of the manifest's settings table, by key. */
     values?: Record<string, string | number | boolean>;
 }
@@ -47,7 +47,7 @@ export const sanitizeSceneOptions = (value: unknown): SceneOptionsById => {
         if (!isSceneId(id) || !isRecord(raw)) continue;
         const options: SceneOptions = {};
         if (typeof raw.quality === 'string' && QUALITIES.includes(raw.quality)) options.quality = raw.quality as SceneQualityPreset;
-        if (typeof raw.seat === 'string' && raw.seat !== '') options.seat = raw.seat;
+        if (typeof raw.viewpoint === 'string' && raw.viewpoint !== '') options.viewpoint = raw.viewpoint;
         if (isRecord(raw.values)) {
             const values = Object.entries(raw.values).filter(([, entry]) => ['string', 'number', 'boolean'].includes(typeof entry));
             if (values.length > 0) options.values = Object.fromEntries(values) as SceneOptions['values'];

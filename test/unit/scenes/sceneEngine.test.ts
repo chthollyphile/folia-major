@@ -11,7 +11,7 @@ import {
 import { diffSceneSignals, type SceneSignalSnapshot } from '../../../src/components/scenes/engine/sceneSignals';
 import { quadHomography, quadToMatrix3d } from '../../../src/components/scenes/engine/surfaceQuad';
 import * as THREE from 'three';
-import { chooseDirectorShot, seatRig } from '../../../src/components/scenes/kit/camera';
+import { chooseDirectorShot, viewpointRig } from '../../../src/components/scenes/kit/camera';
 import type { SceneAnchor, SceneContext } from '../../../src/components/scenes/definition';
 import type { Line } from '../../../src/types';
 
@@ -121,17 +121,17 @@ describe('phase director', () => {
 });
 
 describe('seat rig', () => {
-    const seat = (id: string, x: number, extra: Partial<Extract<SceneAnchor, { kind: 'seat' }>> = {}): Extract<SceneAnchor, { kind: 'seat' }> => (
-        { kind: 'seat', id, ear: [x, 1, 0], eye: [x, 1.2, 0], lookAt: [x, 1.2, -10], ...extra }
+    const seat = (id: string, x: number, extra: Partial<Extract<SceneAnchor, { kind: 'viewpoint' }>> = {}): Extract<SceneAnchor, { kind: 'viewpoint' }> => (
+        { kind: 'viewpoint', id, ear: [x, 1, 0], eye: [x, 1.2, 0], lookAt: [x, 1.2, -10], ...extra }
     );
     const sitIn = (chosen: string | null) => {
         const seats = [seat('A1', 0), seat('A2', 1, { occupied: true }), seat('A3', 2, { preferred: true })];
         const ctx = {
             anchors: { list: () => seats },
-            seats: { chosen: () => chosen },
+            viewpoints: { chosen: () => chosen },
         } as unknown as SceneContext;
         const camera = new THREE.PerspectiveCamera();
-        seatRig(ctx).update(camera, 0);
+        viewpointRig(ctx).update(camera, 0);
         return camera.position.x;
     };
 

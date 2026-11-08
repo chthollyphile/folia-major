@@ -3,7 +3,7 @@ import { motionValue } from 'framer-motion';
 import SceneHost from '../../src/components/scenes/engine/SceneHost';
 import { defineScene, type SceneManifest } from '../../src/components/scenes/definition';
 import { registerScene } from '../../src/components/scenes/registry';
-import { useSceneSeats } from '../../src/components/scenes/engine/sceneSeats';
+import { useSceneViewpoints } from '../../src/components/scenes/engine/sceneViewpoints';
 import SeatMap from '../../src/components/scenes/settings/SeatMap';
 import { useSceneSettingsStore } from '../../src/components/scenes/settings/useSceneSettingsStore';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
@@ -141,7 +141,7 @@ const SceneHostProbe: React.FC = () => {
     const sceneId = useSceneSettingsStore(state => state.sceneId);
     const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
     const hallOptions = useSceneSettingsStore(state => state.sceneOptions.cinema);
-    const seats = useSceneSeats('cinema');
+    const seats = useSceneViewpoints('cinema');
     const coverUrl = useMemo(probeCover, []);
     const setSceneId = useSceneSettingsStore(state => state.setSceneId);
     const [paused, setPaused] = useState(false);
@@ -204,7 +204,7 @@ const SceneHostProbe: React.FC = () => {
             </div>
             {sceneId === 'cinema' && seats.length > 0 && (
                 <div className="absolute right-4 top-4 z-50 w-80 rounded-xl bg-black/70 p-3" style={KIT_COLORS} data-probe-seatmap>
-                    <SeatMap seats={seats} chosen={hallOptions?.seat ?? null} onPick={seat => setSceneOptions('cinema', { seat })} />
+                    <SeatMap seats={seats} chosen={hallOptions?.viewpoint ?? null} onPick={viewpoint => setSceneOptions('cinema', { viewpoint })} />
                 </div>
             )}
         </div>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mixColors, parseColorChannels } from '../../visualizer/colorMix';
 import type { SceneFactory, SceneSong } from '../definition';
-import { phaseDirector, seatRig, turnHead, type CameraRig, type Head } from '../kit/camera';
+import { phaseDirector, viewpointRig, turnHead, type CameraRig, type Head } from '../kit/camera';
 import { createThreeStage } from '../kit/threeStage';
 import { cinemaAcousticWorld } from './cinemaAcoustics';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
@@ -42,7 +42,7 @@ export const createCinemaRuntime: SceneFactory = (ctx) => {
 
     // The user's head, turned by dragging: the same in the seat and on the tour.
     const head: Head = { yaw: 0, pitch: 0 };
-    const seat = seatRig(ctx, { head });
+    const seat = viewpointRig(ctx, { head });
     const seated: CameraRig = {
         update: (camera, dt) => {
             seat.update(camera, dt);

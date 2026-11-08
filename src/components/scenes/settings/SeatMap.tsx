@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SeatAnchor } from '../engine/sceneSeats';
+import type { ViewpointAnchor } from '../engine/sceneViewpoints';
 
 // src/components/scenes/settings/SeatMap.tsx
 // A seat map like a ticket app's for any scene with seat anchors: the seats seen from above, the screen
@@ -8,7 +8,7 @@ import type { SeatAnchor } from '../engine/sceneSeats';
 // it reads only the anchors (where the eye is, where it looks), never a scene's own code.
 
 interface SeatMapProps {
-    seats: readonly SeatAnchor[];
+    seats: readonly ViewpointAnchor[];
     /** The chosen seat's id; null shows the best seat as the one sat in (the camera rigs do the same). */
     chosen: string | null;
     onPick: (seatId: string) => void;
@@ -32,7 +32,7 @@ const SeatMap: React.FC<SeatMapProps> = ({ seats, chosen, onPick }) => {
     const gaps = sorted.slice(1).map((x, index) => x - sorted[index]).filter(gap => gap > 1e-3);
     const size = Math.min(8, ((gaps.length ? Math.min(...gaps) : spanX) / spanX) * 80);
     const sitting = chosen && seats.some(seat => seat.id === chosen && !seat.occupied) ? chosen : seats.find(seat => seat.preferred)?.id ?? null;
-    const name = (seat: SeatAnchor) => (seat.row && seat.number !== undefined ? t('ui.sceneSeatName', { row: seat.row, number: seat.number }) : seat.id);
+    const name = (seat: ViewpointAnchor) => (seat.row && seat.number !== undefined ? t('ui.sceneSeatName', { row: seat.row, number: seat.number }) : seat.id);
 
     return (
         <div className="flex flex-col gap-2">

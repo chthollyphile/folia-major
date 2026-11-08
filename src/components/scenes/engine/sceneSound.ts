@@ -22,7 +22,7 @@ export const silentSceneSound: SceneSound = {
 export const createHostSceneSound = (sceneId: string, anchors: () => readonly SceneAnchor[]): { sound: RoomSound; dispose: () => void } => {
     const sound = createRoomSound({
         anchors: {
-            seats: () => anchors().filter((anchor): anchor is Extract<SceneAnchor, { kind: 'seat' }> => anchor.kind === 'seat'),
+            viewpoints: () => anchors().filter((anchor): anchor is Extract<SceneAnchor, { kind: 'viewpoint' }> => anchor.kind === 'viewpoint'),
             speakers: () => anchors().filter((anchor): anchor is Extract<SceneAnchor, { kind: 'speaker' }> => anchor.kind === 'speaker'),
         },
     });
@@ -30,10 +30,10 @@ export const createHostSceneSound = (sceneId: string, anchors: () => readonly Sc
     const sync = () => {
         const state = useSceneSettingsStore.getState();
         sound.setOptions({ enabled: state.roomSound, output: state.roomOutput });
-        const chosen = state.sceneOptions[sceneId]?.seat ?? null;
+        const chosen = state.sceneOptions[sceneId]?.viewpoint ?? null;
         if (chosen !== seat) {
             seat = chosen;
-            sound.setListener({ seat: chosen ?? '' });
+            sound.setListener({ viewpoint: chosen ?? '' });
         }
     };
     sync();

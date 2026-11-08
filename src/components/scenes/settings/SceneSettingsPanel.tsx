@@ -4,7 +4,7 @@ import { Popover, Segmented, Toggle } from '../../modal/settings/kit';
 import { FoliumParamFields, type FoliumParamFieldToken } from '../../../mods/params/FoliumParamFields';
 import { mergeFoliumParamValues } from '../../../mods/params/params';
 import type { SceneManifest, SceneQualityPreset } from '../definition';
-import { useSceneSeats } from '../engine/sceneSeats';
+import { useSceneViewpoints } from '../engine/sceneViewpoints';
 import SeatMap from './SeatMap';
 import { useSceneSettingsStore, type SceneRoomOutput } from './useSceneSettingsStore';
 
@@ -38,7 +38,7 @@ const SceneSettingsPanel: React.FC<SceneSettingsPanelProps> = ({ manifest, ancho
     const { t } = useTranslation();
     const options = useSceneSettingsStore(state => state.sceneOptions[manifest.id]);
     const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
-    const seats = useSceneSeats(manifest.id);
+    const seats = useSceneViewpoints(manifest.id);
     const schema = manifest.settings ?? [];
     const values = useMemo(() => mergeFoliumParamValues(schema, options?.values), [schema, options?.values]);
     const qualities = QUALITIES.map(value => ({ value, label: t(`ui.sceneQuality_${value}`) }));
@@ -83,8 +83,8 @@ const SceneSettingsPanel: React.FC<SceneSettingsPanelProps> = ({ manifest, ancho
                     />
                 </div>
             )}
-            {manifest.seats === 'anchors' && seats.length > 0 && (
-                <SeatMap seats={seats} chosen={options?.seat ?? null} onPick={seat => setSceneOptions(manifest.id, { seat })} />
+            {manifest.viewpoints === 'anchors' && seats.length > 0 && (
+                <SeatMap seats={seats} chosen={options?.viewpoint ?? null} onPick={viewpoint => setSceneOptions(manifest.id, { viewpoint })} />
             )}
         </Popover>
     );

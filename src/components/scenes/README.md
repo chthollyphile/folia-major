@@ -22,9 +22,9 @@ src/components/scenes/
     sceneTheme.ts      歌曲那对亮/暗主题（App 从 useThemeController 传进来）配上歌词字体；借到表面上的歌词样式用哪个主题
   kit/               可选工具箱（用 three.js 的场景才用）
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
-    camera.ts          seatRig、pathRig、phaseDirector、chooseDirectorShot
+    camera.ts          viewpointRig、pathRig、phaseDirector、chooseDirectorShot
   settings/
-    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 座位 / 设置值，房间声音开关和耳机/音箱（键 scene_id、scene_options、scene_room_sound、scene_room_output）
+    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 视点 / 设置值，房间声音开关和耳机/音箱（键 scene_id、scene_options、scene_room_sound、scene_room_output）
     SceneRow.tsx              播放面板外观区的「场景」一行
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约定）、acousticMaterials.ts（声学材质表）、
@@ -37,9 +37,10 @@ src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约�
 
 - 清单是纯数据，能原样写成 JSON；内建场景 `entry.ts` 里的清单和数据包的 `scene.json` 是同一个形状，用同一个 `checkSceneManifest` 检查。
 - 坐标单位米，Y 朝上，右手坐标，和 glTF 一致。
-- 听者和摄像机分开：`ctx.sound` 不读摄像机，听者是座位锚点或显式位置。
+- 听者和摄像机分开：`ctx.sound` 不读摄像机，听者是视点锚点或显式位置。
+- 术语：固定的观看位置叫**视点**（`viewpoint`），可以自由走动的范围叫**活动区**（`roamArea`，还没做）。影厅界面上视点显示为「座位」；影厅里真实的椅子模型仍叫 seat。
 - id：内建 `cinema`（小写开头，字母数字）；模组 `mod:<模组>:<id>`；数据包 `pkg:<id>`。`engine`、`kit`、`packages`、`settings`、`editor` 不能当内建 id（它们是本目录的子目录）。
-- 锚点命名（数据场景在 Blender 里给空物体起名）：`surface.*`、`seat.*`、`speaker.L/R/C`、`emitter.*`、`path.*`、`slot.*`，`lyricPlace` 写在清单或代码里。
+- 锚点命名（数据场景在 Blender 里给空物体起名）：`surface.*`、`viewpoint.*`、`speaker.L/R/C`、`emitter.*`、`path.*`、`slot.*`，`lyricPlace` 写在清单或代码里。
 - 版本：`format` 是包格式（现在 1），`engine` 是要求的接口范围（`'^1.0'`），`version` 是场景自己的。1.x 之内接口只增不改。
 
 ## 写代码加一个内建场景
@@ -67,9 +68,9 @@ src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约�
 2. 把 `'rooftop'` 加进 `src/types/sceneIds.ts` 的 `BUILTIN_SCENE_IDS`。漏了或多了，名单初始化时就抛错。
 3. `rooftop/rooftopRuntime.ts`：`(ctx) => ({ frame, resize?, dispose })`。
    - 画布放进 `ctx.container`，或用 `kit/threeStage.ts` 的 `createThreeStage(ctx)`。画布要透明，才能在荧幕处露出下面的背景。
-   - 发布锚点：`ctx.anchors.add({ kind: 'seat', ... })` 等。
+   - 发布锚点：`ctx.anchors.add({ kind: 'viewpoint', ... })` 等。
    - 有表面的场景每帧调 `ctx.surfaces.place('screen', stage.projectQuad(corners))`；看不到时传 `null`。第三个参数 `{ opacity }` 让贴上去的东西变暗或消失（影厅：放映机遮光板关上时）。
-   - 有座位锚点（清单写 `seats: 'anchors'`）时，宿主在「场景设置」里自动给座位图；用户选的座位从 `ctx.seats.chosen()` 读，工具箱的 `seatRig` 已经在读。
+   - 有视点锚点（清单写 `viewpoints: 'anchors'`）时，宿主在「场景设置」里自动给座位图；用户选的视点从 `ctx.viewpoints.chosen()` 读，工具箱的 `viewpointRig` 已经在读。
    - 第一帧画好调 `ctx.ready()`。宿主在这之前显示用户原来的歌词样式，最多等 4 秒。
    - 事件用 `ctx.on('songChange' | 'blendStart' | 'lineChange' | 'phaseChange' | 'play' | 'pause' | 'seek' | 'queueEnd', fn)`。事件只报变化，第一帧没有事件：开始时直接读 `ctx.song.current()`、`ctx.lyrics.phase()` 这些。
    - 每帧的 `dt` 是秒，暂停时为 0。不要每帧写 React state。
