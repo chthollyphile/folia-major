@@ -3,6 +3,17 @@ name: Linux arm64 Package Check
 # 发布 workflow 只在发版时跑，Linux arm64 包要是被打包脚本、原生依赖或 extraResources 的改动
 # 弄坏，平时没人会知道，要等到下一次发版那一跑才炸。这里在 PR 碰到打包路径时，原样走一遍
 # 发布 workflow 的 Linux 打包步骤（不发布），并逐个确认包里的原生二进制确实是 aarch64。
+#
+# 只在会改变打包结果的路径上跑。electron/ 里的主进程代码只是原样装进 app.asar，改了也不会让
+# 包缺东西或架构不对，所以不看它。会改变打包结果的是：
+#   - package.json / package-lock.json：新的原生依赖，以及 build 字段（files、asarUnpack、
+#     extraResources、beforePack、afterPack）；
+#   - build/、packaging/：beforePack、afterPack 和它们调的脚本（ffmpeg、MNN、模型、windowtolayer）；
+#   - native/：beforePack 编出的 MNN 运行库的源码（native/folia-mnn）；
+#   - shared/modelManifest.json：beforePack 拉模型时按它核对文件和哈希；
+#   - 发布 workflow 本身。
+# electron/appleMusic 下的伴随程序只在 Windows、macOS 上由 beforePack 编，不进 Linux 包。
+# beforePack、afterPack 以后引用了这些路径之外的文件，要一起加进下面的 paths。
 on:
   pull_request:
     paths:
@@ -10,7 +21,8 @@ on:
       - package-lock.json
       - build/**
       - packaging/**
-      - electron/**
+      - native/**
+      - shared/modelManifest.json
       - .github/workflows/linux-arm64-package-check.yml
       - .github/workflows/electron-release.yml
       - .github/workflows/release-candidate.yml
