@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { applyImportedConfig, buildCurrentConfig, type ConfigThemeControls } from '@/components/modal/settings/pages/storage/visualConfigTransfer';
 import { useStageSettingsStore } from '@/stores/useStageSettingsStore';
+import { useLatticeSettingsStore } from '@/stores/useLatticeSettingsStore';
 import { useThemeSettingsStore } from '@/stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import type { DualTheme } from '@/types';
@@ -65,12 +66,33 @@ describe('applyImportedConfig', () => {
         expect([card.stageTrackPillMode, card.stageTrackPillTimeoutSec]).toEqual(['never', 12]);
     });
 
+    // 用户 2026-11-08 定：歌词画布的分辨率与抗锯齿进外观配置（OBS 页面看得到）；导出带上，导入读成合法值
+    it('exports and imports the lyric render quality', () => {
+        useVisualizerSettingsStore.getState().handleSetLyricRenderQuality({ scale: 1.5, antialias: 'on' });
+        expect((buildCurrentConfig(controls(), 'none') as Record<string, unknown>).lyricRenderQuality).toEqual({ scale: 1.5, antialias: 'on' });
+        applyImportedConfig({ lyricRenderQuality: { scale: 0.75, antialias: 'sharp' } }, ['lyricRenderQuality'], controls());
+        expect(useVisualizerSettingsStore.getState().lyricRenderQuality).toEqual({ scale: 0.75, antialias: 'auto' });
+        useVisualizerSettingsStore.getState().handleSetLyricRenderQuality({ scale: 1, antialias: 'auto' });
+    });
+
     it('turns following the system theme on and off', () => {
         applyImportedConfig({ followSystemTheme: true }, ['followSystemTheme'], controls());
         expect(useThemeSettingsStore.getState().followSystemTheme).toBe(true);
 
         applyImportedConfig({ followSystemTheme: false }, ['followSystemTheme'], controls());
         expect(useThemeSettingsStore.getState().followSystemTheme).toBe(false);
+    });
+
+    it('writes numbering only the playing song to the tile wall store, and only when picked', () => {
+        onTestFinished(() => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(false));
+        applyImportedConfig({ latticeBadgeCurrentOnly: true }, ['latticeBadgeCurrentOnly'], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(true);
+
+        applyImportedConfig({ latticeBadgeCurrentOnly: false }, [], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(true);
+
+        applyImportedConfig({ latticeBadgeCurrentOnly: false }, ['latticeBadgeCurrentOnly'], controls());
+        expect(useLatticeSettingsStore.getState().latticeBadgeCurrentOnly).toBe(false);
     });
 
     it('takes the picked side of an incoming theme and keeps the saved other side', () => {

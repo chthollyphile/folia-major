@@ -41,14 +41,15 @@ const sortByKey = <T,>(record: Record<string, T>): Record<string, T> => (
 
 const KINDS = [
     'plain', 'palette', 'picker', 'queue', 'volume', 'grid-page', 'grid-view-page', 'local-grid-map',
-    'player-page', 'lattice-page', 'settings-page', 'player-bar', 'ponder-onboarding', 'bottom-ui-settings',
+    'player-page', 'lattice-page', 'settings-page', 'player-bar', 'capsule-quick-actions', 'capsule-palette',
+    'slot-picker', 'ponder-onboarding', 'bottom-ui-settings',
     'side-panel', 'lattice-chrome', 'lyrics-animation-settings', 'theme-settings', 'grid3d-card-style',
     'grid-view-card-settings', 'lattice-style-settings', 'grid-action-button', 'grid-view-cards',
     'local-folder-actions', 'local-track-list', 'local-grid-controls', 'online-collection-actions',
     'desktop-features', 'queue-command', 'transition-settings', 'library-watch-settings', 'queue-settings',
     'lyrics-source-settings', 'grid-hotkey-settings', 'custom-shortcut-settings', 'pinned-commands-settings',
     'replay-gain-settings', 'import-export-settings', 'audio-equalizer', 'vis-playground', 'theme-park',
-    'lyric-style', 'lyric-export', 'sign-in', 'lyric-match',
+    'lyric-style', 'lyric-export', 'sign-in', 'lyric-match', 'scratchpad',
 ] as const satisfies readonly PonderSurfaceKind[];
 
 const drawingOf = (kind: PonderSurfaceKind | undefined) => {

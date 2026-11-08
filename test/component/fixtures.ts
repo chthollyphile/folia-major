@@ -16,7 +16,7 @@ export const test = base.extend<{ seededStorage: void }>({
     seededStorage: [async ({ page }, use) => {
         await page.addInitScript(([version, guideKey]) => {
             localStorage.clear();
-            localStorage.setItem('i18nextLng', 'en');
+            localStorage.setItem('folia_app_language', 'en');
             localStorage.setItem('static_mode', 'true');
             localStorage.setItem(guideKey, version);
             // 首启提问的「资料库界面」页每个安装问一次、不看版本：种成已问过。

@@ -55,8 +55,8 @@ describe('signing out of a platform asks first', () => {
         const ask = vi.fn(async () => false);
         mocks.accounts = { qq: { user: { nickname: 'someone' } } };
 
-        await expect(askProviderSignOut({ providerId: 'qq', emptiesPlayer: false }, ask, t)).resolves.toBe(false);
-        await askProviderSignOut({ providerId: 'spotify', emptiesPlayer: false }, ask, t);
+        await expect(askProviderSignOut({ providerId: 'qq', removesSongs: false }, ask, t)).resolves.toBe(false);
+        await askProviderSignOut({ providerId: 'spotify', removesSongs: false }, ask, t);
 
         expect(ask).toHaveBeenNthCalledWith(1, {
             title: 'account.logoutConfirmTitle:{"provider":"label:qq"}',
@@ -68,21 +68,21 @@ describe('signing out of a platform asks first', () => {
         expect(mocks.signOutAccount).not.toHaveBeenCalled();
     });
 
-    it('says in the question that the queue goes, after the account name, only where the sign-out empties the player', async () => {
+    it('says in the question that the platform songs leave the queue, after the account name, only where the player holds some', async () => {
         const ask = vi.fn(async (_question: { description?: unknown }) => true);
         mocks.accounts = { netease: { user: { nickname: 'someone' } }, qq: { user: { nickname: 'other' } } };
 
-        await askProviderSignOut({ providerId: 'netease', emptiesPlayer: true }, ask, t);
-        await askProviderSignOut({ providerId: 'qq', emptiesPlayer: false }, ask, t);
-        await askProviderSignOut({ providerId: 'netease', emptiesPlayer: false }, ask, t);
+        await askProviderSignOut({ providerId: 'netease', removesSongs: true }, ask, t);
+        await askProviderSignOut({ providerId: 'qq', removesSongs: false }, ask, t);
+        await askProviderSignOut({ providerId: 'netease', removesSongs: false }, ask, t);
         mocks.accounts = {};
-        await askProviderSignOut({ providerId: 'netease', emptiesPlayer: true }, ask, t);
+        await askProviderSignOut({ providerId: 'netease', removesSongs: true }, ask, t);
 
         expect(ask.mock.calls.map(([question]) => question.description)).toEqual([
-            'someone\naccount.logoutClearsQueue',
+            'someone\naccount.logoutRemovesSongs',
             'other',
             'someone',
-            'account.logoutClearsQueue',
+            'account.logoutRemovesSongs',
         ]);
     });
 });

@@ -1,30 +1,37 @@
 import React, { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { LibraryAccountController, LibraryAccountSnapshot, LibraryLoginSessionSnapshot } from '../../library/core/account/account.contract';
 import {
+    selectAccountSyncProviderId,
     useLibraryAccountLogin,
     useLibraryAccountProviders,
     useLibraryAccountSelector,
 } from '../../library/core/account/useLibraryAccount';
+import { omni } from '../../services/onlineMusic/omni';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
 import { loginDoneLanding, loginDonePlays } from './done/loginDoneFrame';
 import { createLoginHostState } from './loginHostState';
 import { closeLoginWindow, loginHostMounted, setLoginLanding, useLoginWindowStore } from './loginWindowStore';
 import { orderRows } from './platformRows';
+import { syncAccountData } from './syncAccountData';
 import LoginScreen from './window/LoginScreen';
 
 // src/components/login/LoginHost.tsx
 // 登录窗口：App 最外层挂一个（换 suite、离开首页都不卸载），由 loginWindowStore 的 openLoginWindow 打开。它把三样东西接在一起：
 // 账户 controller（平台那一列、登录会话、切换、退出、本地服务重启都经它），窗口背后的决定（loginHostState.ts：
 // 选中哪一行、它通向什么、晚到的回答作不作数），和窗口的开关。画什么由 window/LoginScreen 决定。
-// 这里不调 omni，不读账户 store：数据和动作都来自 controller。
+// 这里不读账户 store：数据和动作都来自 controller。只向 omni 问两件选中一行时就要知道、controller 不管的事：
+// 这个平台是不是表单登录（getLoginForm），有没有配置清单（hasSetup）。
 
 type LoginHostProps = {
     account: LibraryAccountController;
 };
 
 const selectCompletion = (snapshot: LibraryAccountSnapshot) => snapshot.lastLoginCompletion;
+const selectSetup = (snapshot: LibraryAccountSnapshot) => snapshot.setup;
 
 const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
+    const { t } = useTranslation();
     const requestId = useLoginWindowStore(state => state.requestId);
     const isOpen = useLoginWindowStore(state => state.isOpen);
     const origin = useLoginWindowStore(state => state.origin);
@@ -32,6 +39,8 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
     const rows = useMemo(() => orderRows(providers, activeProviderId), [providers, activeProviderId]);
     const login = useLibraryAccountLogin(account);
     const completion = useLibraryAccountSelector(account, selectCompletion);
+    const syncingProviderId = useLibraryAccountSelector(account, selectAccountSyncProviderId);
+    const setup = useLibraryAccountSelector(account, selectSetup);
     const reducedMotion = useKitReducedMotion();
 
     // host 每次去问都拿到这一次渲染的东西。
@@ -42,18 +51,24 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
         login: () => live.current.account.getSnapshot().login,
         startLogin: providerId => { void live.current.account.startLogin(providerId); },
         closeLogin: () => { live.current.account.closeLogin(); },
+        hasLoginForm: providerId => omni.getLoginForm(providerId) !== null,
+        submitForm: (providerId, values) => live.current.account.submitFormLogin(providerId, values),
         closeWindow: closeLoginWindow,
         playsDone: () => loginDonePlays(live.current.reducedMotion),
         switchTo: providerId => live.current.account.requestSwitch(providerId).then(result => result.status === 'switched'),
         // 在确认框里点了取消、或者没退成，窗口留着。
         signOut: providerId => live.current.account.logout(providerId).then(result => result.status === 'logged-out'),
+        openSetup: providerId => { void live.current.account.openSetup(providerId); },
     }), []);
     const { chosen, done } = useSyncExternalStore(host.subscribe, host.getState);
     const providerId = chosen?.providerId ?? null;
 
     // 跟着窗口的开关走：每打开一次从头来；关了（不管是谁关的）就停下正在进行的登录。
     useEffect(() => {
-        if (isOpen) host.opened(useLoginWindowStore.getState().providerId);
+        if (isOpen) {
+            const opening = useLoginWindowStore.getState();
+            host.opened(opening.providerId, opening.intent);
+        }
         else host.closed();
     }, [requestId, isOpen, host]);
 
@@ -88,7 +103,10 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
 
     // 头像要从窗口飞向切换器：告诉切换器是哪个平台的（规则在 loginDoneLanding）。切换器画的是这个平台时
     // 先不画自己的那一个，名字也等头像落下再展开；画的是别的平台就什么都不变。
-    const landing = loginDoneLanding({ open: isOpen, still: reducedMotion, confirmed: shownLogin?.phase === 'confirmed', done, providerId });
+    // 停在配置清单上时还不算登录完成：切换器照常画它自己的头像，清单做完放动画时才交给飞过去的那一个。
+    const onSetup = setup !== null && setup.providerId === providerId;
+    const confirmed = (shownLogin?.phase === 'confirmed' || shownLogin?.phase === 'checking') && !onSetup;
+    const landing = loginDoneLanding({ open: isOpen, still: reducedMotion, confirmed, done, providerId });
     useEffect(() => {
         setLoginLanding(landing);
         return () => setLoginLanding(null);
@@ -112,11 +130,24 @@ const LoginHost: React.FC<LoginHostProps> = ({ account }) => {
             login={shownLogin}
             onChoose={host.choose}
             onStart={() => void account.retryLogin()}
+            // 表单式登录提交：经 host 走账户 controller 的完整链路（provider 提交 → 读账号 → activate-after-login → 报完成），
+            // 完成的一声由 host.completed 接到，和扫码确认一样放动画/关窗；读账号失败（refresh-failed）由
+            // FormLogin 显示提示（token 已存，不静默关窗）。
+            onSubmitForm={host.submitForm}
             onSelectMethod={methodId => void account.selectLoginMethod(methodId)}
             onReopenBrowser={() => void account.openLoginPage()}
             onRestartService={() => void account.restartLocalService()}
             onSwitch={host.switchToChosen}
             onSignOut={host.signOutChosen}
+            // 同步选中的这个平台（不一定是正在用的那个），结果用一句提示说。
+            onSync={() => { if (providerId) void syncAccountData(account, providerId, t); }}
+            syncingProviderId={syncingProviderId}
+            setup={setup}
+            // 有配置清单的平台（omni.hasSetup）：账号那一幅多一个打开它的按钮。
+            canOpenSetup={providerId !== null && omni.hasSetup(providerId)}
+            onOpenSetup={host.openSetupChosen}
+            onSetupAction={(stepId, actionId, value) => account.runSetupAction(stepId, actionId, value).then(result => result.status === 'done')}
+            onFinishSetup={() => void account.finishSetup()}
             buildReport={async () => {
                 const result = await account.buildLoginDiagnosticReport();
                 return result.status === 'ok' ? result.report : '';

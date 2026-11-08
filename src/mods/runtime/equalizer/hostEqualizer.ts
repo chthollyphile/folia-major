@@ -60,10 +60,10 @@ const RETIRED_PRESET_IDS: Readonly<Record<string, AudioSoundPresetId>> = Object.
  * playback (another player's now-playing, a Stage source with lyrics and no audio) has none: it is Stage
  * with no audio source of the host's. A Stage media session that hands over an audio source plays through
  * the host's element, equalizer included. Stage is read from `activePlaybackContext`, as hostQueue.ts reads
- * it for the queue kind.
+ * it for the queue kind. A song a platform sounds in a player of its own (the external route) has none either.
  */
 const hostPlaysAudioNow = (state: PlaybackState = usePlaybackStore.getState()): boolean => (
-    !(state.activePlaybackContext === 'stage' && !state.audioSrc)
+    !(state.activePlaybackContext === 'stage' && !state.audioSrc) && state.playbackRoute !== 'external'
 );
 
 /* The host's sound for a mode a mod named, retired ids mapped; null for one the host has not. */

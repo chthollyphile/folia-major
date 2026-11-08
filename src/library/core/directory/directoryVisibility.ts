@@ -9,7 +9,7 @@ import type {
 // 目录条目的隐藏规则（原网格的 gridItemVisibility，以及 DesktopGrid3DSurface / GridMap 各写一份的隐藏过滤）。
 //
 // 隐藏项的产品语义：
-// - 只有「歌单类」条目可隐藏：在线歌单 / 云盘 / 电台 / 每日推荐、本地自建歌单（含「我喜欢」）、
+// - 只有「歌单类」条目可隐藏：在线歌单 / 云盘 / 听歌排行 / 电台 / 每日推荐、本地自建歌单（含「我喜欢」）、
 //   Navidrome 歌单（含随机 / 收藏两个虚拟歌单）。专辑、歌手、文件夹不可隐藏。
 // - 隐藏按来源作用域记：`online:${providerId}`、`local`、`navidrome`（没声明作用域的目录落在 `default`）；
 //   同一 id 在不同作用域互不影响。存储 key 与格式不变（localStorage `hidden_grid_playlists`，
@@ -24,6 +24,7 @@ import type {
 const HIDEABLE_DIRECTORY_ITEM_TYPES = new Set([
     'playlist',
     'cloud',
+    'listening_rank',
     'radio',
     'daily_recommendations',
 ]);

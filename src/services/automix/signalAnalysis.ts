@@ -648,7 +648,13 @@ export const LUFS_OFFSET_DB = -0.691;
 export const kWeight = (samples: Float32Array, sampleRate: number): Float32Array => {
     const out = new Float32Array(samples.length);
     if (!(sampleRate > 0) || !samples.length) return out;
+    const step = kWeightStep(sampleRate);
+    for (let index = 0; index < samples.length; index += 1) out[index] = step(samples[index]);
+    return out;
+};
 
+/** The same filter, running: each call takes the next sample and gives the weighted one. */
+export const kWeightStep = (sampleRate: number): ((x: number) => number) => {
     // Stage 1: the head/torso shelf.
     const shelfHz = 1681.974450955533;
     const shelfGainDb = 3.999843853973347;
@@ -673,16 +679,86 @@ export const kWeight = (samples: Float32Array, sampleRate: number): Float32Array
 
     let x1 = 0; let x2 = 0; let y1 = 0; let y2 = 0;
     let p1 = 0; let p2 = 0; let q1 = 0; let q2 = 0;
-    for (let index = 0; index < samples.length; index += 1) {
-        const x = samples[index];
+    return (x) => {
         const y = b[0] * x + b[1] * x1 + b[2] * x2 - a[0] * y1 - a[1] * y2;
         x2 = x1; x1 = x; y2 = y1; y1 = y;
         // b coefficients of the high-pass are exactly 1, -2, 1.
         const z = y - 2 * p1 + p2 - c[0] * q1 - c[1] * q2;
         p2 = p1; p1 = y; q2 = q1; q1 = z;
-        out[index] = z;
+        return z;
+    };
+};
+
+/** BS.1770's gates: blocks under -70 LUFS are silence, and blocks 10 LU under the rest are left out too. */
+export const ABSOLUTE_GATE_LUFS = -70;
+const RELATIVE_GATE_LU = 10;
+
+/**
+ * A track's integrated loudness after ITU-R BS.1770-4, and the loudest sample of either channel.
+ *
+ * Unlike the level series above, both channels count (a wide mix is not a quieter one) and the gates
+ * leave out silence and quiet passages (a long intro does not make a master read quieter). 400 ms blocks
+ * every 100 ms. The channels come as mid and side, as the analysis decodes them: left = mid + side,
+ * right = mid - side; without a side channel the mid counts as both.
+ */
+export const measureProgramLoudness = (
+    mid: Float32Array,
+    side: Float32Array | null,
+    sampleRate: number,
+): { loudness: number; peak: number } | null => {
+    const stepLength = Math.round(sampleRate / 10);
+    if (!(stepLength > 0) || mid.length < stepLength * 4) return null;
+    const left = kWeightStep(sampleRate);
+    const right = kWeightStep(sampleRate);
+    // Mean weighted power, both channels summed, of each 100 ms.
+    const steps: number[] = [];
+    let power = 0;
+    let filled = 0;
+    let peak = 0;
+    for (let index = 0; index < mid.length; index += 1) {
+        const offset = side ? side[index] : 0;
+        const l = mid[index] + offset;
+        const r = mid[index] - offset;
+        peak = Math.max(peak, Math.abs(l), Math.abs(r));
+        const wl = left(l);
+        const wr = right(r);
+        power += wl * wl + wr * wr;
+        filled += 1;
+        if (filled === stepLength) {
+            steps.push(power / stepLength);
+            power = 0;
+            filled = 0;
+        }
     }
-    return out;
+    return { loudness: gatedLoudness(steps), peak };
+};
+
+/**
+ * BS.1770's integrated loudness from mean K-weighted power per 100 ms, both channels summed: 400 ms
+ * blocks every 100 ms, then the absolute and relative gates. SILENCE_DB when no block is audible. Shared
+ * by the file measurement above and the volume balance's live meter, so the two read the same unit.
+ */
+export const gatedLoudness = (steps: readonly number[]): number => {
+    const blocks: number[] = [];
+    for (let index = 3; index < steps.length; index += 1) {
+        blocks.push((steps[index - 3] + steps[index - 2] + steps[index - 1] + steps[index]) / 4);
+    }
+    const lufs = (blockPower: number) => LUFS_OFFSET_DB + 10 * Math.log10(blockPower);
+    const meanAbove = (gate: number) => {
+        let sum = 0;
+        let count = 0;
+        for (const block of blocks) {
+            if (block > 0 && lufs(block) > gate) {
+                sum += block;
+                count += 1;
+            }
+        }
+        return count ? sum / count : 0;
+    };
+    const audible = meanAbove(ABSOLUTE_GATE_LUFS);
+    if (!(audible > 0)) return SILENCE_DB;
+    // The relative gate adds to the absolute one: on a very quiet track it would sit under -70 LUFS.
+    return lufs(meanAbove(Math.max(ABSOLUTE_GATE_LUFS, lufs(audible) - RELATIVE_GATE_LU)));
 };
 
 // ---------------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@ const {
 const { createNeteaseLoginDiagnostics } = require('./neteaseLoginDiagnostics.cjs');
 const { createNeteaseLoginIdentity } = require('./neteaseLoginIdentity.cjs');
 const { createNetworkRecorder } = require('../networkRecorder.cjs');
+const { preferIpv4Upstream } = require('./upstreamAddressOrder.cjs');
 const {
   createStartupRecorder,
   describeError,
@@ -77,6 +78,10 @@ const xeapiPublicKeyPath = path.resolve(os.tmpdir(), 'xeapi_public_key');
 // 要在任何请求发出之前开始订阅。
 const networkRecorder = createNetworkRecorder();
 networkRecorder.start();
+
+// 上游连接先试 IPv4（#1068：IPv6 上请求途中被重置，答成 502）。原因写在 upstreamAddressOrder.cjs；
+// 只改这个线程，要在任何请求发出之前。
+preferIpv4Upstream();
 const startup = createStartupRecorder({ name: 'Netease API' });
 
 // 读缓存的 xeapi 公钥：不存在、读不出都不算错，交给刷新步骤处理；返回值同时说明缓存的状态。

@@ -1,6 +1,7 @@
 import type { SongResult } from '../../../../types';
-import type { SubsonicSong } from '../../../../types/navidrome';
+import type { NavidromeConfig, SubsonicAlbum, SubsonicSong } from '../../../../types/navidrome';
 import type { NavidromeGridViewCollectionDescriptor } from '../collection.contract';
+import type { CollectionDetail } from '../../shared/resource.contract';
 import { getNavidromeConfig, navidromeApi } from '../../../../services/navidromeService';
 import { buildNavidromeQueue } from '../../../../services/playbackAdapters';
 
@@ -14,13 +15,40 @@ export const resolveNavidromeServerScope = (): string => {
     return config ? `${config.serverUrl}|${config.username}` : '';
 };
 
+/** 专辑歌手（带 id，页头的歌手名可以点开歌手页）：OpenSubsonic 的 artists 优先，老服务器用 artistId + artist。 */
+const navidromeAlbumArtists = (album: SubsonicAlbum): Pick<CollectionDetail, 'artists'> => {
+    const artists = (album.artists ?? []).filter(artist => artist?.id && artist.name);
+    if (artists.length) return { artists: artists.map(artist => ({ id: artist.id, name: artist.name })) };
+    return album.artistId && album.artist ? { artists: [{ id: album.artistId, name: album.artist }] } : {};
+};
+
+/**
+ * getAlbum 读回来的专辑信息，写法与首页专辑卡（navidromeHomeModel 的 buildNavidromeAlbumCards）一致：
+ * 从歌曲、播放器、搜索跳到专辑时，集合描述里只有 id、名字和歌曲封面，页头的歌手、年份、流派、时长靠它补全。
+ */
+export const toNavidromeAlbumDetail = (config: NavidromeConfig, album: SubsonicAlbum): CollectionDetail => ({
+    id: album.id,
+    name: album.name,
+    type: 'album',
+    ...(album.coverArt ? { coverUrl: navidromeApi.getCoverArtUrl(config, album.coverArt, 600) } : {}),
+    description: album.artist,
+    trackCount: album.songCount,
+    albumArtist: album.artist,
+    ...navidromeAlbumArtists(album),
+    albumYear: album.year,
+    albumGenre: album.genre,
+    albumDuration: album.duration,
+    publishedAt: album.year ? new Date(album.year, 0, 1).getTime() : undefined,
+});
+
 // Loads Navidrome tracks for GridView without moving Navidrome service logic into GridView itself.
 // `failed` says that a read brought nothing back (the service answers nothing for such a read,
 // it does not throw), or that no server is set up to read from: the tracks are then not the
 // whole collection. An artist's tracks may still be those of the albums that were read.
+// `detail` is the album's own information, for an album that was read.
 export const resolveNavidromeGridViewTracks = async (
     descriptor: NavidromeGridViewCollectionDescriptor
-): Promise<{ tracks: SongResult[]; failed: boolean }> => {
+): Promise<{ tracks: SongResult[]; failed: boolean; detail?: CollectionDetail }> => {
     const config = getNavidromeConfig();
     if (!config) {
         return { tracks: [], failed: true };
@@ -28,11 +56,13 @@ export const resolveNavidromeGridViewTracks = async (
 
     let subsonicSongs: SubsonicSong[] = [];
     let failed = false;
+    let detail: CollectionDetail | undefined;
 
     if (descriptor.type === 'album') {
         const albumDetail = await navidromeApi.getAlbum(config, descriptor.id);
         failed = !albumDetail;
         subsonicSongs = albumDetail?.song || [];
+        detail = albumDetail ? toNavidromeAlbumDetail(config, albumDetail) : undefined;
     } else if (descriptor.type === 'playlist') {
         const playlistDetail = await navidromeApi.getPlaylist(config, descriptor.id);
         failed = !playlistDetail;
@@ -54,5 +84,5 @@ export const resolveNavidromeGridViewTracks = async (
     }
 
     const navidromeSongs = subsonicSongs.map(song => navidromeApi.toNavidromeSong(config, song));
-    return { tracks: buildNavidromeQueue(navidromeSongs), failed };
+    return { tracks: buildNavidromeQueue(navidromeSongs), failed, ...(detail ? { detail } : {}) };
 };

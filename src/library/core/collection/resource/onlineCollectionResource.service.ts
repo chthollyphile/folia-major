@@ -65,6 +65,13 @@ export const UNVERSIONED_COLLECTION_REUSE_MS = 5 * 60 * 1000;
 
 const isPersonalFm = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'radio' && collection.id === 'personal_fm';
 const isDailyRecommendations = (collection: OnlineGridViewCollectionDescriptor) => collection.type === 'daily_recommendations';
+/**
+ * 没有版本、但短时间里不会变的集合：读完之后在 UNVERSIONED_COLLECTION_REUSE_MS 内可以原样复用。歌手的「全部歌曲」
+ * （artist_songs，#918）也算：从它打开一张专辑再返回，不该把几百上千首从头再读一遍。
+ */
+const isShortlyReusable = (collection: OnlineGridViewCollectionDescriptor) => (
+    collection.type === 'playlist' || collection.type === 'album' || collection.type === 'artist_songs'
+);
 
 export const createOnlineCollectionResource = (key: string, deps: OnlineCollectionResourceDeps): CollectionResource => {
     const state = createCollectionResourceState(key, 'online');
@@ -118,6 +125,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
         totalOverride?: number,
         startOffset = initialTracks.length,
         likedListRead: LikedListRead | null = null,
+        upstreamTotal?: number,
     ) => {
         const collection = descriptor;
         if (!collection) return;
@@ -134,6 +142,8 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             initialItems: initialTracks,
             startOffset,
             total: totalTracks,
+            // 只有刚读的首页回答里带的总数可信到能直接收尾；缓存、续传时的总数可能来自过期的集合描述。
+            ...(upstreamTotal !== undefined ? { upstreamTotal } : {}),
             fetchPage: pageOffset => deps.getCollectionTracks(collection, { limit: ONLINE_COLLECTION_BACKGROUND_PAGE_SIZE, offset: pageOffset }),
             // Where the collection names its rows, two rows of one song are two rows; a row that
             // comes a second time (the list moved between two pages) still has its one name.
@@ -243,7 +253,10 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             state.set({ status: 'ready', tracks }, 'background');
             void deps.writeCache(cacheKey(), tracks, targetTime, { nextOffset: upstreamOffset, hasMore, total });
             if (hasMore) {
-                void startSync(tracks, targetTime, total, upstreamOffset, likedListRead);
+                // 首页回答里的总数要比已经读到的位置大，才当上游的总数用：读到了「总数」却还说有，说明那个数只是
+                // 这一页的条数（有的平台的 count 就是这样），拿它收尾就只剩第一页。
+                const upstreamTotal = typeof total === 'number' && total > upstreamOffset ? total : undefined;
+                void startSync(tracks, targetTime, total, upstreamOffset, likedListRead, upstreamTotal);
             }
         } catch (error) {
             if (stale()) return;
@@ -299,7 +312,7 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
                 && collectionRevision(next) === revision
                 && tombstones.size === 0
                 && (resolveOnlineTracksTargetTime(next) > 0
-                    || ((next.type === 'playlist' || next.type === 'album') && now() < reusableUntil))
+                    || (isShortlyReusable(next) && now() < reusableUntil))
                 && (status === 'ready' || sync.status === 'interrupted');
         },
         pause: () => {
@@ -355,7 +368,8 @@ export const createOnlineCollectionResource = (key: string, deps: OnlineCollecti
             try {
                 const tracks = await loadAll();
                 if (disposed || generation !== loadGeneration) return false;
-                state.set({ status: 'ready', tracks }, 'urgent');
+                // 换好了就不再是之前那次读取的失败（每日推荐从读失败的那份换到另一份时）。
+                state.set({ status: 'ready', tracks, error: null }, 'urgent');
                 return true;
             } catch (error) {
                 if (disposed || generation !== loadGeneration) return false;

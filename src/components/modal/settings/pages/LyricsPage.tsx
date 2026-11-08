@@ -14,19 +14,22 @@ import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/LyricsPage.tsx
 // The 歌词 page: where a song's lyrics come from, the two tools that shift and filter them (their
-// rows open the existing dialogs), and a folded group with the order in which lyric files beside a
-// local song are preferred.
+// rows open the existing dialogs), the switch that segments lyrics into words with AI by itself, and
+// a folded group with the order in which lyric files beside a local song are preferred.
 
 const SOURCE: SettingsGroupDef = { id: 'lyrics', titleKey: 'options.settingsHeadingLyricSource' };
 const ADJUST: SettingsGroupDef = { id: 'lyricAdjust', titleKey: 'options.settingsHeadingLyricTiming' };
+const WORDS: SettingsGroupDef = { id: 'lyricWordSegmentation', titleKey: 'options.settingsHeadingLyricSegmentation' };
 const FORMATS: SettingsGroupDef = { id: 'localLyricFormatOrder', titleKey: 'options.localLyricFormatOrder' };
 
 const O = {
     autoBest: option(SOURCE, 'autoUseBestLyric', 'options.autoUseBestLyric'),
     matchPriority: option(SOURCE, 'lyricMatchPriority', 'settings.lyricMatchPriority'),
+    keepProviderWordTiming: option(SOURCE, 'keepProviderWordTiming', 'options.keepProviderWordTiming'),
     localPriority: option(SOURCE, 'localLyricsPriority', 'options.localLyricsPriority'),
     globalOffset: option(ADJUST, 'globalLyricTimelineOffset', 'options.globalLyricTimelineOffset'),
     filter: option(ADJUST, 'lyricFilterRegex', 'options.lyricFilterRegex'),
+    autoAiSegmentation: option(WORDS, 'autoAiLyricSegmentation', 'options.autoAiLyricSegmentation'),
     formatOrder: option(FORMATS, 'localLyricFormatOrderList', 'options.localLyricFormatOrderList'),
 };
 
@@ -38,13 +41,17 @@ const LyricsPage: React.FC = () => {
     const lyric = useLyricSettingsStore(useShallow(state => ({
         autoBest: state.autoUseBestLyric,
         preferredSource: state.preferredAlternativeLyricSource,
+        keepProviderWordTiming: state.keepProviderWordTiming,
         localPriority: state.localLyricsPriority,
         formatOrder: state.localLyricFormatOrder,
         globalOffsetMs: state.globalLyricTimelineOffsetMs,
+        autoAiSegmentation: state.autoAiLyricSegmentation,
         setAutoBest: state.handleToggleAutoUseBestLyric,
         setPreferredSource: state.handleSetPreferredAlternativeLyricSource,
+        setKeepProviderWordTiming: state.handleToggleKeepProviderWordTiming,
         setLocalPriority: state.handleSetLocalLyricsPriority,
         setFormatOrder: state.handleSetLocalLyricFormatOrder,
+        setAutoAiSegmentation: state.handleToggleAutoAiLyricSegmentation,
     })));
     const sources = useLyricMatchSources();
     // A choice that is not on offer now is not in force either: the matcher falls back the same way.
@@ -88,6 +95,9 @@ const LyricsPage: React.FC = () => {
                         onChange={lyric.setPreferredSource}
                     />
                 </Row>
+                <Row option={O.keepProviderWordTiming} note={t('options.keepProviderWordTimingDesc')}>
+                    <Toggle checked={lyric.keepProviderWordTiming} onChange={lyric.setKeepProviderWordTiming} />
+                </Row>
                 <Row
                     option={O.localPriority}
                     hint={t(lyric.localPriority === 'local' ? 'options.localLyricsPriorityLocalDesc' : 'options.localLyricsPriorityOnlineDesc')}
@@ -109,6 +119,12 @@ const LyricsPage: React.FC = () => {
                     <Value>{`${lyric.globalOffsetMs > 0 ? '+' : ''}${lyric.globalOffsetMs} ms`}</Value>
                 </Row>
                 <Row option={O.filter} hint={t('options.lyricFilterRegexDesc')} onClick={onOpenLyricFilterSettings} />
+            </Group>
+
+            <Group def={WORDS}>
+                <Row option={O.autoAiSegmentation} note={t('options.autoAiLyricSegmentationDesc')}>
+                    <Toggle checked={lyric.autoAiSegmentation} onChange={lyric.setAutoAiSegmentation} />
+                </Row>
             </Group>
 
             <FoldedGroup def={FORMATS} summary={t('options.localLyricFormatOrderFirst', { format: `.${lyric.formatOrder[0]}` })}>

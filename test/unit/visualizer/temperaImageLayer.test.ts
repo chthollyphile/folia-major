@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as pixi from 'pixi.js';
 import type { TemperaLayerImage } from '@/types';
 import {
+    buildTemperaImageLayer,
     resolveTemperaImagePlacement,
     resolveTemperaShotImage,
 } from '@/components/visualizer/tempera/temperaImageLayer';
@@ -133,5 +135,44 @@ describe('Tempera image placement', () => {
         )).filter(Boolean).length;
         expect(flipped).toBeGreaterThan(90);
         expect(flipped).toBeLessThan(210);
+    });
+});
+
+describe('Tempera image depth blur bake', () => {
+    // A baker that only counts: the real one renders through the GPU (temperaDepth.ts).
+    const fakeBaker = () => ({
+        bake: vi.fn(() => ({ texture: new pixi.Texture(), anchorX: 0.5, anchorY: 0.5 })),
+        release: vi.fn(),
+    });
+    const build = (pool: TemperaLayerImage[], baker: ReturnType<typeof fakeBaker>) => buildTemperaImageLayer(pixi, {
+        pool,
+        frequency: 1,
+        depth: 'back',
+        textures: new Map(pool.map(entry => [entry.id, new pixi.Texture({ source: new pixi.TextureSource({ width: 100, height: 200 }) })])),
+        width: 1280,
+        height: 720,
+        seed: 5,
+        flowAngle: 0,
+        previousId: null,
+        blur: { baker, back: 1.6, front: 6 },
+    });
+
+    it('bakes once per placement and keeps the bake while only the opacity moves', () => {
+        const baker = fakeBaker();
+        const pool = [image('a')];
+        const layer = build(pool, baker);
+        expect(baker.bake).toHaveBeenCalledTimes(1);
+        layer.applyPool(pool);
+        layer.applyPool([image('a', { opacity: 0.4 })]);
+        expect(baker.bake).toHaveBeenCalledTimes(1);
+        expect(baker.release).not.toHaveBeenCalled();
+    });
+
+    it('bakes again, and frees the old bake, when the size changes', () => {
+        const baker = fakeBaker();
+        const layer = build([image('a')], baker);
+        layer.applyPool([image('a', { scale: 0.9 })]);
+        expect(baker.bake).toHaveBeenCalledTimes(2);
+        expect(baker.release).toHaveBeenCalledTimes(1);
     });
 });

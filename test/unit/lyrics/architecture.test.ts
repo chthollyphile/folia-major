@@ -25,7 +25,7 @@ const collectSourceFiles = async (relativeDir: string): Promise<string[]> => {
     return files.flat();
 };
 
-describe('lyrics architecture', () => {
+describe('D113 lyrics architecture', () => {
     it('keeps Netease call sites on the shared processing helper', async () => {
         const directProcessingCallSites = [
             'src/services/onlineMusic/netease/neteaseProvider.ts',
@@ -98,7 +98,9 @@ describe('lyrics architecture', () => {
         ];
 
         for (const file of callers) {
-            expect(await readRepoFile(file), file).toMatch(/alternateArtist: \(\) => omni\.getAlternateArtistName\(/);
+            const content = await readRepoFile(file);
+            expect(content, file).toMatch(/alternateArtist: \(\) => omni\.getAlternateArtistName\(/);
+            expect(content, file).toMatch(/searchAlias: \(\) => omni\.getLyricSearchAlias\(/);
         }
     });
 

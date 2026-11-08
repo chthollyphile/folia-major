@@ -103,6 +103,19 @@ const countIn = text => {
 const holds = (value, keys) => Boolean(value) && typeof value === 'object'
   && Object.entries(value).some(([key, child]) => keys.includes(key) || holds(child, keys));
 
+// Ownership can be absent on the library card and present in the signed-in playlist header.
+function playlistOwnershipOf(data) {
+  const editable = 'musicEditablePlaylistDetailHeaderRenderer';
+  const headers = [data?.header];
+  const browse = data?.contents?.twoColumnBrowseResultsRenderer ?? data?.contents?.singleColumnBrowseResultsRenderer;
+  for (const tab of browse?.tabs ?? []) {
+    headers.push(...(tab?.tabRenderer?.content?.sectionListRenderer?.contents ?? []));
+  }
+  if (headers.some(header => Boolean(header?.[editable]))) return true;
+  if (headers.some(header => PLAYLIST_HEADERS.some(key => Boolean(header?.[key])))) return false;
+  return undefined;
+}
+
 // A playlist or album card of the library's tabs, in the shape the renderer is answered in.
 // null for any other card: the playlists tab begins with one that makes a new playlist.
 function collectionFromRow(row) {
@@ -181,4 +194,4 @@ function playlistCountOf(data) {
   return line === undefined ? undefined : countIn(line);
 }
 
-module.exports = { accountFromList, collectionFromRow, playlistCountOf, playlistRowsOf, premiumFromMenu, readGrid, ROW_ID, signedInMarkOf };
+module.exports = { accountFromList, collectionFromRow, playlistCountOf, playlistOwnershipOf, playlistRowsOf, premiumFromMenu, readGrid, ROW_ID, signedInMarkOf };

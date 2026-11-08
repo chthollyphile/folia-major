@@ -7,7 +7,7 @@ import type { CommandPaletteContext } from '../../command-palette/types';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
-import { getPersonalFmSelection, usePersonalFmModeStore } from '../../../stores/usePersonalFmModeStore';
+import { personalFmPickerContext } from './personalFmPicker';
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
 import { openAddToPlaylist, useAddToPlaylistStore } from '../../../stores/useAddToPlaylistStore';
 import { useInteractionSettingsStore } from '../../../stores/useInteractionSettingsStore';
@@ -33,7 +33,8 @@ export type PlaybackCommandContextDeps = Pick<
     | 'previewVolume' | 'togglePlay' | 'toggleLoop' | 'next' | 'prev' | 'queue'
     | 'shuffleQueue' | 'clearQueue' | 'applyQueueBatchOperation' | 'removeQueueSong'
     | 'moveQueueSongToNext' | 'moveQueueSongToEnd' | 'setReplayGainMode' | 'isFmMode'
-    | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'runAutoMatchBestLyric' | 'toggleCurrentSongPureMusicMark'
+    | 'isPersonalFmModeSupported' | 'setPersonalFmSelection' | 'isRecommendationPreferencesOffered'
+    | 'runAutoMatchBestLyric' | 'toggleCurrentSongPureMusicMark'
     | 'toggleSongLike' | 'isSongLiked'
 > & {
     playSong: (song: SongResult, queue?: SongResult[], isFmCall?: boolean, options?: PlaybackNavigationOptions) => void | Promise<void>;
@@ -88,8 +89,8 @@ export const buildPlaybackCommandContext = (
         openAddToPlaylist,
         canAddCurrentSongToPlaylist: useAddToPlaylistStore.getState().availability.canAdd,
         canToggleCurrentSongPureMusicMark: isLocalPlaybackSong(usePlaybackStore.getState().currentSong),
-        personalFmSelection: getPersonalFmSelection(useOnlineProviderAccountStore.getState().activeProviderId),
-        personalFmCatalog: usePersonalFmModeStore.getState().catalogs[useOnlineProviderAccountStore.getState().activeProviderId],
+        // The picker follows the extra radio on air, if FM plays one, and the Personal FM otherwise.
+        ...personalFmPickerContext(),
         openAudioEqualizer: audio.openAudioEqualizer,
         applyAudioSoundPreset: audio.handleApplyAudioSoundPreset,
         // Read at the press: a mod's curve comes and goes without this context being rebuilt.

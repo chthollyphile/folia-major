@@ -48,6 +48,8 @@ const runSearch = async (
     const didSearch = await context.search.submitSearch({
         query: trimmedQuery,
         sourceTab,
+        // 命令窗口的搜索说的是「搜索歌曲」，不跟搜索页上次停在的种类走。
+        kind: 'song',
         deps: {
             localSongs: context.search.localSongs,
             localLibraryCatalog: context.search.localLibraryCatalog,

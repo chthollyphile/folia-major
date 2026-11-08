@@ -1997,6 +1997,25 @@ test.describe('[bravais-only] collection page', () => {
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
     });
 
+    test('reloading is the track count itself, not an entry of the more menu', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const count = seam.locator('.bravais-seam-full .bravais-seam-meta > button');
+        await expect(count).toHaveAttribute('data-bravais-seam-action', 'reload');
+        await expect(count).toHaveAttribute('title', 'Reload');
+        await expect(count).toContainText(/\d/);
+        await expect(count.locator('svg')).toHaveCount(1);
+        await seam.locator('.bravais-seam-full [data-bravais-seam-action="more"]').click();
+        await expect(seam.locator('[data-bravais-seam-menu]')).toBeVisible();
+        await expect(seam.locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+
+        await clearLog(page);
+        await count.click();
+        await expect.poll(async () => (await requests(page, 'playlistTracks')).some(request => request.offset === 0)).toBe(true);
+        await waitForScope(page, publicScope());
+    });
+
     test('the more menu floats above the buttons: nothing in the strip moves, and a click elsewhere or Escape closes it', async ({ mount, page }) => {
         await openPublic(mount, page);
         const seam = seamOf(page);

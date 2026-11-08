@@ -36,10 +36,3 @@
     --bravais-seam-paper: color-mix(in srgb, var(--bg-color, #070707) 50%, transparent);
 }
 
-/* 纸条两侧一道主色发丝线（透明时缝的边界只靠阴影不够清楚）。 */
-.lattice-root.bravais-root.has-clear-seam :is(.bravais-seam, .bravais-seam-tab) {
-    box-shadow:
-        inset 1px 0 0 color-mix(in srgb, var(--text-primary, #f7f4ee) 12%, transparent),
-        inset -1px 0 0 color-mix(in srgb, var(--text-primary, #f7f4ee) 12%, transparent),
-        var(--bravais-seam-shadow);
-}

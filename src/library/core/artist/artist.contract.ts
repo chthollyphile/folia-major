@@ -81,6 +81,11 @@ export type LibraryArtistSnapshot = {
     readonly detail: LibraryArtistDetail | null;
     /** 热门歌曲（最多 10 首，按显示顺序，含不可播放的）；每次变化都是新数组。 */
     readonly topSongs: SongResult[];
+    /**
+     * 热门歌曲之外这位歌手还有歌（在线：取热门歌曲的那一页答了 hasMore）。为 true 时歌手页给「全部歌曲」入口
+     * （#918：不在任何专辑里的单曲只在那里看得到）。本地与 Navidrome 歌手恒为 false：它们的歌都在专辑里。
+     */
+    readonly hasMoreSongs: boolean;
     /** 全部专辑（未筛选），按上游顺序去重；每次变化都是新数组。 */
     readonly albums: LibraryArtistAlbum[];
     readonly albumSync: LibraryArtistAlbumSync;
@@ -125,7 +130,7 @@ export type LibraryArtistCapabilities = { readonly [Action in LibraryArtistActio
 /**
  * 歌手页交给命令面板的动作（artist surface）。与语义动作的对应见 core/artist/artistSurface 的
  * ARTIST_SURFACE_ACTION_SOURCES：play-top-songs → play-scope、enqueue-top-songs → enqueue-scope、
- * reload → reload、retry-albums → resume-sync、edit-entity → edit-entity。单曲播放 / 入队、打开专辑 / 歌手
+ * reload → reload、retry-albums → resume-sync、edit-entity → edit-entity、open-all-songs → open-all-songs。单曲播放 / 入队、打开专辑 / 歌手
  * 作用于某一项，不进命令面板（与集合 surface 的 play / enqueue 一样）。
  */
 export type LibraryArtistSurfaceActionId =
@@ -133,7 +138,8 @@ export type LibraryArtistSurfaceActionId =
     | 'enqueue-top-songs'
     | 'reload'
     | 'retry-albums'
-    | 'edit-entity';
+    | 'edit-entity'
+    | 'open-all-songs';
 
 /** 命令面板问歌手页的状态；每次现读，不缓存。 */
 export interface LibraryArtistSurfaceState {

@@ -53,9 +53,18 @@ interface MpvRuntimeInstaller {
 }
 
 const require = createRequire(import.meta.url);
-const { createMpvRuntimeInstaller, safeEntrySegments } = require('../../../electron/hifi/mpvRuntimeInstaller.cjs') as {
+const {
+    createMpvRuntimeInstaller,
+    safeEntrySegments,
+    downloadSourcesFor,
+    FAILOVER_STALL_TIMEOUT_MS,
+    FAILOVER_SLOW_AFTER_MS,
+} = require('../../../electron/hifi/mpvRuntimeInstaller.cjs') as {
     createMpvRuntimeInstaller: (options: InstallerOptions) => MpvRuntimeInstaller;
     safeEntrySegments: (name: unknown) => string[] | null | undefined;
+    downloadSourcesFor: (manifest: unknown, build: { url: string }) => string[];
+    FAILOVER_STALL_TIMEOUT_MS: number;
+    FAILOVER_SLOW_AFTER_MS: number;
 };
 
 const ASSET_URL = 'https://github.example.test/mpv-player/mpv/releases/download/v0.41.0/mpv-test-win.zip';
@@ -159,6 +168,23 @@ const createFakeFetch = (bytes: Uint8Array, options: StreamOptions & { status?: 
     return { fetchFn, calls };
 };
 
+/** 按地址给不同响应的假 fetch：routes[url] 每次被请求时调用；没登记的地址当作连不上。 */
+const createRoutedFetch = (routes: Record<string, () => Response>) => {
+    const calls: string[] = [];
+    const fetchFn: FetchFn = async (url, init) => {
+        calls.push(url);
+        if (init.signal.aborted) throw new DOMException('aborted', 'AbortError');
+        const route = routes[url];
+        if (!route) throw new TypeError(`fetch failed: ${url}`);
+        return route();
+    };
+    return { fetchFn, calls };
+};
+
+const MIRROR_URL = `https://gh-proxy.example.test/${ASSET_URL}`;
+const mirrored = (manifest: Record<string, unknown>) => ({ ...manifest, mirrors: ['https://gh-proxy.example.test/{url}'] });
+const zipResponse = (bytes: Uint8Array, options: StreamOptions = {}) => () => new Response(streamOf(bytes, options));
+
 const errnoError = (code: string, target: string) => Object.assign(new Error(`${code}: ${target}`), { code });
 
 describe('safeEntrySegments', () => {
@@ -169,6 +195,23 @@ describe('safeEntrySegments', () => {
         for (const unsafe of ['../evil.dll', 'doc/../../evil.dll', '/etc/passwd', 'C:/Windows/evil.dll', 'a\\..\\b', 'mpv.exe:stream', 42]) {
             expect(safeEntrySegments(unsafe)).toBeUndefined();
         }
+    });
+});
+
+describe('downloadSourcesFor', () => {
+    it('tries the original address first, then each https mirror template, without repeats', () => {
+        const manifest = {
+            mirrors: [
+                'https://gh-proxy.example.test/{url}',
+                'http://insecure.example.test/{url}',
+                'https://no-placeholder.example.test/',
+                'https://gh-proxy.example.test/{url}',
+                '{url}',
+                42,
+            ],
+        };
+        expect(downloadSourcesFor(manifest, { url: ASSET_URL })).toEqual([ASSET_URL, MIRROR_URL]);
+        expect(downloadSourcesFor({}, { url: ASSET_URL })).toEqual([ASSET_URL]);
     });
 });
 
@@ -335,6 +378,97 @@ describe('createMpvRuntimeInstaller', () => {
         expect(result.errorCode).toBe('INSTALL_FAILED');
         expect(await leftovers()).toEqual([]);
         expect(progress.at(-1)?.phase).toBe('error');
+    });
+
+    it('moves on to the mirror when the original address fails, and restarts the progress', async () => {
+        const zip = windowsZip();
+        const fetch = createRoutedFetch({
+            [ASSET_URL]: () => new Response('nope', { status: 502 }),
+            [MIRROR_URL]: zipResponse(zip),
+        });
+        const { installer, progress } = windowsInstaller(mirrored(windowsManifest(zip)), fetch.fetchFn);
+        const result = await installer.install();
+        expect(result.ok).toBe(true);
+        expect(fetch.calls).toEqual([ASSET_URL, MIRROR_URL]);
+        expect(new Uint8Array(await fsp.readFile(path.join(root, '0.41.0', 'mpv.exe')))).toEqual(MPV_EXE);
+        expect(await leftovers()).toEqual(['0.41.0']);
+        // 每个源开始时都从 0 报起。
+        expect(progress.filter(event => event.phase === 'downloading' && event.receivedBytes === 0)).toHaveLength(2);
+    });
+
+    it('moves on when a source serves the wrong bytes, and reports the last source\'s failure', async () => {
+        const zip = windowsZip();
+        const wrong = windowsZip({ 'extra.txt': new TextEncoder().encode('not the official build') });
+        const recovered = createRoutedFetch({ [ASSET_URL]: zipResponse(wrong), [MIRROR_URL]: zipResponse(zip) });
+        expect((await windowsInstaller(mirrored(windowsManifest(zip)), recovered.fetchFn).installer.install()).ok).toBe(true);
+        expect(recovered.calls).toEqual([ASSET_URL, MIRROR_URL]);
+
+        await fsp.rm(root, { recursive: true, force: true });
+        const failing = createRoutedFetch({ [ASSET_URL]: zipResponse(wrong), [MIRROR_URL]: () => new Response('nope', { status: 404 }) });
+        const result = await windowsInstaller(mirrored(windowsManifest(zip)), failing.fetchFn).installer.install();
+        expect(result.errorCode).toBe('INSTALL_FAILED');
+        expect(await leftovers()).toEqual([]);
+    });
+
+    it('gives up on a stalled source when a mirror is left, but waits on the last one', async () => {
+        const zip = windowsZip();
+        const fetch = createRoutedFetch({ [ASSET_URL]: zipResponse(zip, { stallAfter: 2 }), [MIRROR_URL]: zipResponse(zip) });
+        const waits: number[] = [];
+        const { installer } = windowsInstaller(mirrored(windowsManifest(zip)), fetch.fetchFn, {
+            setTimeoutFn: (callback, ms) => {
+                waits.push(ms);
+                return setTimeout(callback, ms === FAILOVER_STALL_TIMEOUT_MS ? 20 : ms);
+            },
+        });
+        expect((await installer.install()).ok).toBe(true);
+        expect(fetch.calls).toEqual([ASSET_URL, MIRROR_URL]);
+        // 没有镜像时同一个卡住的源不设卡住的时限，等用户取消。
+        waits.length = 0;
+        await fsp.rm(root, { recursive: true, force: true });
+        const single = windowsInstaller(windowsManifest(zip), createFakeFetch(zip, { stallAfter: 2 }).fetchFn, {
+            setTimeoutFn: (callback, ms) => {
+                waits.push(ms);
+                return setTimeout(callback, ms);
+            },
+        });
+        const pending = single.installer.install();
+        await until(() => fs.existsSync(path.join(root, `${zipName}.part`)) && fs.statSync(path.join(root, `${zipName}.part`)).size === 2 * 8192);
+        expect(waits).not.toContain(FAILOVER_STALL_TIMEOUT_MS);
+        void single.installer.cancel();
+        expect((await pending).errorCode).toBe('INSTALL_CANCELLED');
+    });
+
+    it('gives up on a source that trickles when a mirror is left', async () => {
+        const zip = windowsZip();
+        const fetch = createRoutedFetch({ [ASSET_URL]: zipResponse(zip), [MIRROR_URL]: zipResponse(zip) });
+        let clock = 0;
+        const logged: unknown[][] = [];
+        const { installer } = windowsInstaller(mirrored(windowsManifest(zip)), fetch.fetchFn, {
+            // 第一个源每次看表都过去 1 s：8 KB/s，远低于换源的线。
+            now: () => {
+                if (fetch.calls.length === 1) clock += 1000;
+                return clock;
+            },
+            logWarn: (...args) => logged.push(args),
+        });
+        expect((await installer.install()).ok).toBe(true);
+        expect(fetch.calls).toEqual([ASSET_URL, MIRROR_URL]);
+        expect(String(logged[0]?.[0])).toContain('trying gh-proxy.example.test');
+        expect(String(logged[0]?.[1])).toContain('too slow');
+        expect(clock).toBeGreaterThanOrEqual(FAILOVER_SLOW_AFTER_MS);
+    });
+
+    it('does not try the mirror once the listener cancels', async () => {
+        const zip = windowsZip();
+        const fetch = createRoutedFetch({ [ASSET_URL]: zipResponse(zip, { stallAfter: 2 }), [MIRROR_URL]: zipResponse(zip) });
+        const { installer } = windowsInstaller(mirrored(windowsManifest(zip)), fetch.fetchFn);
+        const pending = installer.install();
+        const partPath = path.join(root, `${zipName}.part`);
+        await until(() => fs.existsSync(partPath) && fs.statSync(partPath).size === 2 * 8192);
+        void installer.cancel();
+        expect((await pending).errorCode).toBe('INSTALL_CANCELLED');
+        expect(fetch.calls).toEqual([ASSET_URL]);
+        expect(await leftovers()).toEqual([]);
     });
 
     it('cancels while a read is stalled and releases the response body', async () => {
@@ -675,7 +809,8 @@ describe('createMpvRuntimeInstaller', () => {
             { file: executablePath, args: ['--version'] },
         ]);
         expect(result).toEqual({ ok: true, errorCode: null, version: '0.41.0', executablePath });
-        expect(fs.statSync(executablePath).mode & 0o777).toBe(0o755);
+        // Windows 的文件系统没有 unix 权限位，chmod 只能动只读位，读回来总是 0o666；只在别的系统上核对。
+        if (process.platform !== 'win32') expect(fs.statSync(executablePath).mode & 0o777).toBe(0o755);
         expect(fs.existsSync(path.join(root, '0.41.0', 'mpv.tar.gz'))).toBe(false);
         expect(await leftovers()).toEqual(['0.41.0']);
         expect(await installer.listInstalled()).toEqual(['0.41.0']);
@@ -714,7 +849,7 @@ describe('shared/mpvRuntimeManifest.json', () => {
         for (const entry of manifest.versions) expect(isSupportedMpvVersion(entry.version)).toBe(true);
     });
 
-    it('lists official v0.41.0 builds with a hash, a size and an executable for each platform', () => {
+    it('lists official v0.42.0 builds with a hash, a size and an executable for each platform', () => {
         const manifest = require('../../../shared/mpvRuntimeManifest.json') as {
             schema: number;
             recommended: string;
@@ -724,10 +859,21 @@ describe('shared/mpvRuntimeManifest.json', () => {
         const recommended = manifest.versions.find(entry => entry.version === manifest.recommended);
         expect(Object.keys(recommended?.builds ?? {}).sort()).toEqual(['darwin-arm64', 'darwin-x64', 'win32-arm64', 'win32-x64']);
         for (const [key, build] of Object.entries(recommended?.builds ?? {})) {
-            expect(build.url).toMatch(/^https:\/\/github\.com\/mpv-player\/mpv\/releases\/download\/v0\.41\.0\//);
+            expect(build.url).toMatch(/^https:\/\/github\.com\/mpv-player\/mpv\/releases\/download\/v0\.42\.0\//);
             expect(build.sha256).toMatch(/^[0-9a-f]{64}$/);
             expect(Number.isSafeInteger(build.bytes)).toBe(true);
             expect(build.executable).toBe(key.startsWith('win32') ? 'mpv.exe' : 'mpv.app/Contents/MacOS/mpv');
+        }
+    });
+
+    it('falls back from GitHub to gh-proxy', () => {
+        const manifest = require('../../../shared/mpvRuntimeManifest.json') as {
+            recommended: string;
+            versions: Array<{ version: string; builds: Record<string, { url: string }> }>;
+        };
+        const recommended = manifest.versions.find(entry => entry.version === manifest.recommended);
+        for (const build of Object.values(recommended?.builds ?? {})) {
+            expect(downloadSourcesFor(manifest, build)).toEqual([build.url, `https://gh-proxy.com/${build.url}`]);
         }
     });
 });

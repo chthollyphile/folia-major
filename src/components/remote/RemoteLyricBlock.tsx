@@ -29,6 +29,8 @@ type RemoteLyricLineProps = {
     texts: RemoteLyricTexts;
     clock: RemoteClock;
     lyricOffsetSec: number;
+    /** The switch "text shade" with the transparent background: the pieces mark themselves for the shade to cover. */
+    shade: boolean;
 };
 
 const renderSegments = (
@@ -58,7 +60,7 @@ const renderSegments = (
 };
 
 /** One line with what goes under it. Owns its fill, so a line that is leaving keeps the fill it had. */
-const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, lyricOffsetSec }) => {
+const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, lyricOffsetSec, shade }) => {
     const segments = useMemo(() => buildRemoteLyricSegments(line), [line]);
     const nodesRef = useRef<Array<HTMLSpanElement | null>>([]);
     const measureRef = useRef<HTMLDivElement | null>(null);
@@ -90,11 +92,7 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
                     return;
                 }
                 painted[index] = fill;
-                // Sung and not yet sung are plain text; only the piece in between is a gradient.
-                node.dataset.fill = fill >= 100 ? 'full' : fill <= 0 ? 'none' : 'part';
-                if (fill > 0 && fill < 100) {
-                    node.style.setProperty('--remote-fill', `${fill}%`);
-                }
+                node.style.setProperty('--remote-fill', `${fill}%`);
             });
         };
 
@@ -108,25 +106,28 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
         hasSecond: Boolean(texts.second),
     });
 
+    // Without the shade the attribute is left out altogether.
+    const shadeMark = shade ? '' : undefined;
+
     return (
         <>
             <div ref={measureRef} className="remote-lyric__hero remote-lyric__measure" aria-hidden>
                 {renderSegments(segments, line)}
             </div>
-            <div className="remote-lyric__hero" data-size={fit.size} data-remote-shade="">
+            <div className="remote-lyric__hero" data-size={fit.size} data-remote-shade={shadeMark}>
                 {renderSegments(segments, line, (index, node) => {
                     nodesRef.current[index] = node;
                 })}
             </div>
             {fit.showRomanization && texts.romanization && (
-                <div className="remote-lyric__roma" data-remote-shade="">{texts.romanization}</div>
+                <div className="remote-lyric__roma" data-remote-shade={shadeMark}>{texts.romanization}</div>
             )}
             {texts.second && fit.secondMaxLines > 0 && (
                 <div
                     className="remote-lyric__sub"
                     data-kind={texts.second.kind}
                     data-lines={fit.secondMaxLines}
-                    data-remote-shade=""
+                    data-remote-shade={shadeMark}
                 >
                     {texts.second.text}
                 </div>
@@ -150,6 +151,8 @@ type RemoteLyricBlockProps = {
     clock: RemoteClock;
     lyricOffsetSec: number;
     reduceMotion: boolean;
+    /** The switch "text shade" with the transparent background. */
+    shade: boolean;
 };
 
 const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
@@ -160,6 +163,7 @@ const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
     clock,
     lyricOffsetSec,
     reduceMotion,
+    shade,
 }) => {
     // The pair on screen. While it leaves it keeps what it had; once it is gone the latest line
     // comes in, whichever lines came and went meanwhile. A line that comes back while its pair is
@@ -219,7 +223,7 @@ const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
                             transition: { duration: reduceMotion ? 0 : 0.26, ease: [0.2, 0.8, 0.2, 1] },
                         }}
                 >
-                    <RemoteLyricLine line={shown.line} texts={texts} clock={clock} lyricOffsetSec={lyricOffsetSec} />
+                    <RemoteLyricLine line={shown.line} texts={texts} clock={clock} lyricOffsetSec={lyricOffsetSec} shade={shade} />
                 </motion.div>
             )}
         </div>

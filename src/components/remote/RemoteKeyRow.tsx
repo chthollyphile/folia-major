@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Ellipsis, Heart, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { Ellipsis, Heart, ListMusic, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../types';
 import type { RemoteControlSnapshot } from '../../types/remoteControl';
@@ -10,7 +10,7 @@ import type { RemoteClock } from './useRemoteClock';
 
 // src/components/remote/RemoteKeyRow.tsx
 // The row under the line. Previous, play and next are always there, as bare glyphs. The time on
-// the left and like / loop / more on the right have their places reserved and light up with the
+// the left and like / loop / queue / more on the right have their places reserved and light up with the
 // pointer. Resting on previous or next swaps the slot on that side for that song; resting on a
 // heart that cannot be used swaps the time for the reason.
 
@@ -35,9 +35,11 @@ type RemoteKeyRowProps = {
     /** No song, or the main window has the controls locked. */
     primaryDisabled: boolean;
     isSheetOpen: boolean;
+    isQueueOpen: boolean;
     /** A recording is busy: with the sheet closed, "more" carries a red dot. */
     isExportBusy: boolean;
     onToggleSheet: () => void;
+    onToggleQueue: () => void;
     onNavigate: (direction: 'prev' | 'next') => void;
 };
 
@@ -46,8 +48,10 @@ const RemoteKeyRow: React.FC<RemoteKeyRowProps> = ({
     clock,
     primaryDisabled,
     isSheetOpen,
+    isQueueOpen,
     isExportBusy,
     onToggleSheet,
+    onToggleQueue,
     onNavigate,
 }) => {
     const { t } = useTranslation();
@@ -184,6 +188,16 @@ const RemoteKeyRow: React.FC<RemoteKeyRowProps> = ({
                     >
                         <LoopIcon size={15} />
                         {snapshot.loopMode !== 'off' && <span className="remote-key__dot" />}
+                    </button>
+                    <button
+                        type="button"
+                        aria-label={t('remote.queue')}
+                        aria-expanded={isQueueOpen}
+                        data-on={isQueueOpen}
+                        className="remote-key remote-key--small"
+                        onClick={onToggleQueue}
+                    >
+                        <ListMusic size={15} />
                     </button>
                     <button
                         type="button"

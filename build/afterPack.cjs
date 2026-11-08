@@ -35,6 +35,40 @@ async function pathExists(candidate) {
   }
 }
 
+/*
+ * electron-builder 拿 electronLanguages 里的字符串去比对盘上的文件名，不在连字符和下划线之间换算。
+ * Windows/Linux 的 Chromium 语言包叫 locales/zh-CN.pak，所以 build.electronLanguages 写连字符；
+ * macOS 的是 zh_CN.lproj，所以 build.mac.electronLanguages 单独写一份下划线的。写错了对应目录会被
+ * 当成没人要的语言删掉，Chromium 的 app.getLocale() 落回英文，「跟随系统」也就成了英文，而应用里
+ * 没有任何报错。macOS 上应用包里的 .lproj 告诉系统支持哪些语言，Electron 框架里的 locale.pak 才是
+ * 真正的翻译，两边都要在。
+ */
+const BUNDLED_LOCALES = {
+  darwin: ['en', 'zh_CN', 'zh_TW', 'id', 'vi'],
+  win32: ['en-US', 'zh-CN', 'zh-TW', 'id', 'vi'],
+  linux: ['en-US', 'zh-CN', 'zh-TW', 'id', 'vi'],
+};
+
+async function verifyBundledLocales(context) {
+  const locales = BUNDLED_LOCALES[context.electronPlatformName];
+  if (!locales) return;
+  const files = context.electronPlatformName === 'darwin'
+    ? locales.flatMap(locale => [
+      path.join(context.packager.getResourcesDir(context.appOutDir), `${locale}.lproj`),
+      path.join(context.packager.getMacOsElectronFrameworkResourcesDir(context.appOutDir), `${locale}.lproj`, 'locale.pak'),
+    ])
+    : locales.map(locale => path.join(context.appOutDir, 'locales', `${locale}.pak`));
+  const missing = [];
+  for (const file of files) {
+    if (!(await pathExists(file))) missing.push(file);
+  }
+  if (missing.length > 0) {
+    throw new Error(`[afterPack] locales were pruned: ${missing.join(', ')} - "follow system" would fall back to English; check electronLanguages`);
+  }
+}
+
+exports.verifyBundledLocales = verifyBundledLocales;
+
 const LIBRESPOT_PREBUILDS_RELATIVE_PATH = path.join(
   'app.asar.unpacked',
   'node_modules',
@@ -68,9 +102,16 @@ async function pruneLibrespotBinaries(context) {
 }
 
 exports.default = async (context) => {
+  await verifyBundledLocales(context);
   await verifyBundledMnn(context);
   await pruneLibrespotBinaries(context);
+  if (context.electronPlatformName === 'win32') {
+    const { verifyWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    await verifyWindowsCompanion(context.packager.getResourcesDir(context.appOutDir));
+  }
   if (context.electronPlatformName === 'darwin') {
+    const { verifyMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    await verifyMacCompanion(context.packager.getResourcesDir(context.appOutDir));
     const { verifyBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await verifyBundledKoffi({
       resourcesDir: context.packager.getResourcesDir(context.appOutDir),

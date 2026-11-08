@@ -1,6 +1,7 @@
 import type { LyricData, Line, Word } from '../../types';
 import type { StructuredLyric, StructuredLyricCueLine } from '../../types/navidrome';
 import { detectTimedLyricFormat } from './formatDetection';
+import { buildTimedWords, estimateLrcLineEndTime } from './estimatedLineTiming';
 import { finalizeParsedLyricLines, findTranslationsForSortedStartTimes, type TimedTextEntry } from './parserCore';
 import { isRomanizationCandidate, hasCjkScript } from './timelineSplitter';
 import type { LyricProcessingOptions } from './types';
@@ -111,12 +112,20 @@ const parseNavidromeLineLyrics = (
         return null;
     }
 
-    const lines: Line[] = timedLines.map((line, index) => ({
-        words: [],
-        startTime: line.startTime,
-        endTime: Math.max(timedLines[index + 1]?.startTime ?? (line.startTime + 5), line.startTime + 0.001),
-        fullText: line.text,
-    }));
+    // Same per-character placeholder timing as an LRC file, so line-synced Navidrome lyrics sweep and wrap
+    // like line-synced lyrics from any other source (#1066).
+    const lines: Line[] = timedLines.map((line, index) => {
+        const endTime = Math.max(
+            estimateLrcLineEndTime(line.text, line.startTime, timedLines[index + 1]?.startTime),
+            line.startTime + 0.001
+        );
+        return {
+            words: buildTimedWords(line.text, line.startTime, endTime),
+            startTime: line.startTime,
+            endTime,
+            fullText: line.text,
+        };
+    });
 
     return {
         lines: finalizeParsedLyricLines(lines, options),

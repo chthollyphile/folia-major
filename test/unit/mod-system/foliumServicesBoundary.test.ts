@@ -63,7 +63,7 @@ const walkRuntimeClosure = (entry: string, { dynamic = true }: { dynamic?: boole
     return { files: [...packagesByFile.keys()].sort(), packagesByFile, unresolved };
 };
 
-describe('folium services import boundary', () => {
+describe('D114 folium services import boundary', () => {
     const closure = walkRuntimeClosure(ENTRY);
 
     it('walks the whole runtime closure of services.ts', () => {
@@ -102,7 +102,7 @@ describe('folium services import boundary', () => {
  * - service.ts 和 requestQuota.ts 确实在闭包里（否则上面两条会因为没走到而安静地为绿）。
  * 不照搬「不含 src/stores」：api.ts 的闭包本来就含 useMotionSettingsStore 等。
  */
-describe('folium.omni import boundary', () => {
+describe('D114 folium.omni import boundary', () => {
     const API = 'src/mods/folium/api.ts';
     const loaded = walkRuntimeClosure(API, { dynamic: false });
     const reachable = walkRuntimeClosure(API);
@@ -151,5 +151,26 @@ describe('folium.equalizer import boundary', () => {
     it('never reaches the host side of folium.equalizer from api.ts, lazily loaded chunks included', () => {
         expect(loaded.files.filter(file => /^src\/mods\/runtime\/equalizer\//.test(file))).toEqual([]);
         expect(reachable.files.filter(file => /^src\/mods\/runtime\/equalizer\//.test(file))).toEqual([]);
+    });
+});
+
+/*
+ * Folium 1.8 `folium.visualizer`：和 equalizer 同样的分法。模组那一半（folium/visualizer/service.ts）随 api.ts 进导出
+ * 窗口的包，读写 visualizer 设置 store 的宿主层（runtime/visualizer/）只在主窗口的 mainWindowStart.ts 里装上。钉住：
+ * service.ts 在 api.ts 随它一起加载的闭包里；两种闭包都到不了 runtime/visualizer/ 下的任何文件。
+ */
+describe('folium.visualizer import boundary', () => {
+    const API = 'src/mods/folium/api.ts';
+    const loaded = walkRuntimeClosure(API, { dynamic: false });
+    const reachable = walkRuntimeClosure(API);
+
+    it('loads the visualizer service with api.ts', () => {
+        expect(loaded.unresolved).toEqual([]);
+        expect(loaded.files).toContain('src/mods/folium/visualizer/service.ts');
+    });
+
+    it('never reaches the host side of folium.visualizer from api.ts, lazily loaded chunks included', () => {
+        expect(loaded.files.filter(file => /^src\/mods\/runtime\/visualizer\//.test(file))).toEqual([]);
+        expect(reachable.files.filter(file => /^src\/mods\/runtime\/visualizer\//.test(file))).toEqual([]);
     });
 });

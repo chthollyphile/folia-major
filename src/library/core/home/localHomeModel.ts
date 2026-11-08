@@ -16,7 +16,8 @@ import { isHomeImportBusy } from './homeSources';
 /** 本地封面资源 id → URL（services/localCoverAssetUrl 的 getLocalCoverAssetUrl）。 */
 export type LocalCoverAssetUrlResolver = (assetId: string | undefined, size?: number) => string | null;
 
-const getLocalCoverUrl = (songs: LocalSong[], coverAssetUrl: LocalCoverAssetUrlResolver): string | undefined => {
+/** 一组本地歌的自动封面（最近加入、带封面的那首的封面）。集合封面对话框预览「恢复默认」后的样子也用它。 */
+export const getLocalCoverUrl = (songs: LocalSong[], coverAssetUrl: LocalCoverAssetUrlResolver): string | undefined => {
     const sortedSongs = [...songs].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
     const preferredSong = sortedSongs.find(song => {
         const hasEmbeddedCover = Boolean(coverAssetUrl(song.localCoverAssetId));

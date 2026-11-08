@@ -17,6 +17,7 @@
 - 图形语汇：`temperaHatch.ts`（纯生成器）、`temperaShapes.ts`（Pixi Graphics 工厂）、`temperaBlocks.ts`（运动状态）
 - 文字反色：`temperaDifferenceFilter.ts`；scene 级 filter 挂载：`temperaSceneFilters.ts`；调色板：`temperaPalette.ts`；镜头：`temperaCamera.ts`
 - 画布图片池：`temperaImageLayer.ts`、`TemperaImageLayerControls.tsx`、`TemperaImageLayerDialog.tsx`、`useTemperaLayerImageThumbnails.ts`、`src/services/temperaLayerImages.ts`；整组 zip 导入导出 `src/services/temperaImageArchive.ts`
+- 智能动感模式「墨染奥行」：墨 `temperaInkFlash.ts`，景深与运镜 `temperaDepth.ts`（见下面「墨染奥行」）
 
 ## 编译期：段落、shot、slice
 
@@ -122,8 +123,16 @@
 
 ## tuning 的下发与重建
 
-tuning 变化通过 `runtime.setTuning()` **就地下发**，不重建 runtime：滑块拖动时每次 pointermove 都会产出新 tuning，而重建意味着重新初始化 WebGL、重新解码所有图片、重新测量所有行。只有真正改变 scene *内容* 的字段（色彩模式、显示开关、后处理、图片增删或层次变化）才清空 scene 缓存；cameraIntensity/glyphMotion 每帧现读，图片的位置/大小/旋转/透明度直接重设到已有 sprite 上。图片 blob 的加载按 **id 集合**（字符串 key）而不是数组引用触发，否则拖一次滑块就会把 IndexedDB 全读一遍。
+tuning 变化通过 `runtime.setTuning()` **就地下发**，不重建 runtime：滑块拖动时每次 pointermove 都会产出新 tuning，而重建意味着重新初始化 WebGL、重新解码所有图片、重新测量所有行。只有真正改变 scene *内容* 的字段（色彩模式、显示开关、后处理、图片增删或层次变化）才清空 scene 缓存；cameraIntensity/glyphMotion 每帧现读，墨染奥行的 depthPan/glyphDepth 也是；depthOfField 一半现读（视差幅度）、一半烘焙在 scene 里（模糊），所以它不进 `requiresSceneRebuild`，而是滑块停住 250ms 后重建一次 scene（`scheduleDepthBlurRebake`），拖动过程中只有视差跟手；图片的位置/大小/旋转/透明度直接重设到已有 sprite 上（开着景深时，只有大小、翻转变了才重新烘焙那张图的模糊，见下面「墨染奥行」）。图片 blob 的加载按 **id 集合**（字符串 key）而不是数组引用触发，否则拖一次滑块就会把 IndexedDB 全读一遍。
+
+## 墨染奥行（智能动感模式）
+
+凝彩的动感效果（`entry.tsx` 的 `beatEffects`，id `tempera.inkFlash`，读 htdemucs 的鼓点）。一个开关管两件事，关着时凝彩和没有这个效果时一样：
+
+- **墨**（`temperaInkFlash.ts`）：纸面平时一层浅灰水渍，底鼓、军鼓打下时漫过一片凝彩强调色的墨渍、水渍同时退掉，约 0.4 秒淡回。一张全屏 mesh、一个 GLSL ES 3.0 pass 画水渍和前后两次墨渍；每帧只由当前时间之前最近的鼓点决定，不累积状态，拖进度条、暂停后画面一致。只在 WebGL2 下开；静态模式、这首歌还没有鼓点时整层隐藏。四张噪声纹理每个进程生成一次，在效果打开后用 `requestIdleCallback` 分批生成，不占帧循环，齐之前墨不显示。
+- **景深与运镜**（`temperaDepth.ts`，逐帧部分在 `temperaShotFrame.ts`）：水印和背景图片在后、略虚、走得慢；前景图片在前、更虚、走得快；歌词层不模糊也不跟着视差动（反色滤镜要读它下面的像素）。模糊在建 scene 时按一半渲染分辨率烘焙成图（`createTemperaBlurBaker`），之后只平移这张图；图片的烘焙只在大小、翻转或半径变了时重做（`temperaImageLayer.ts` 的 bake key）。每个 shot 沿上下左右之一移镜头；字号即远近：大字在前、领先镜头，小字在后、落后并变淡，位移有上限，不会被带出画面。
+- 三个强度 tuning：`depthOfField`（景深：模糊半径和视差，模糊部分停手 250ms 后重建 scene）、`depthPan`（移镜头）、`glyphDepth`（歌词远近）。开关切换时运行时重建 scene（模糊是烘焙的），镜头和字的远近在 0.6 秒内缓入缓出（`depthMix`）。
 
 ## 音频
 
-Tempera 渲染层不消费音频（`audioPower`/`audioBands` 只传给共享背景层）。
+Tempera 渲染层不消费音频（`audioPower`/`audioBands` 只传给共享背景层）；「墨染奥行」读的是鼓点，见上一节。

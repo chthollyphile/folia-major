@@ -1,0 +1,252 @@
+/* src/components/remote/RemoteQueue.css
+   The play queue the remote window grows to show (RemoteQueue). The block is the card in use's
+   width and column (420 px, 174 px from the card's left), 6 px below or above it; the window grew
+   by exactly its height plus that gap (useRemoteQueue.remoteQueueWantedHeight), so it fills what
+   the window gained. [data-queue] on the window says which side, and anchors the card to the other
+   edge (remote.css). Colours are the ink at some strength, on the paper of the background mode. */
+
+.remote-queue {
+  position: absolute;
+  left: calc(50% - 123px);
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;
+  border-radius: 18px;
+  overflow: hidden;
+  color: rgb(var(--remote-ink));
+  background: linear-gradient(180deg, #18181c 0%, #0f0f12 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(var(--remote-ink), 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  user-select: none;
+}
+
+/* Its height is set on it (what the window grew by, less the gap). Below the card it follows a
+   longer or shorter queue smoothly (useRemoteQueue sizes the window around that); above, the
+   window's top edge moves and the page is faded out meanwhile, so it just takes the new height. */
+.remote-window[data-queue='down'] .remote-queue {
+  top: 186px;
+  transition: height 220ms var(--remote-settle);
+}
+
+.remote-window[data-queue='up'] .remote-queue {
+  bottom: 186px;
+}
+
+.remote-window[data-bg='default'][data-theme='light'] .remote-queue {
+  background: linear-gradient(180deg, #fbfaf8 0%, #f3f2ee 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(17, 17, 22, 0.09);
+}
+
+.remote-window[data-bg='cover'] .remote-queue {
+  background: #0d0d10;
+}
+
+/* Transparent: the same dark base the card in use gets (.remote-glass). */
+.remote-window[data-bg='transparent'] .remote-queue {
+  background: rgba(13, 13, 17, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* ---- the search field ---- */
+
+.remote-queue-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px 0 18px;
+  color: rgba(var(--remote-ink), 0.45);
+  border-bottom: 1px solid rgba(var(--remote-ink), 0.07);
+  cursor: text;
+}
+
+.remote-queue-search:focus-within {
+  color: rgba(var(--remote-ink), 0.75);
+}
+
+.remote-queue-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: rgb(var(--remote-ink));
+  user-select: text;
+}
+
+.remote-queue-search input::placeholder {
+  color: rgba(var(--remote-ink), 0.38);
+}
+
+.remote-queue-search input:focus-visible {
+  outline: none;
+}
+
+.remote-queue-search__clear {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: rgba(var(--remote-ink), 0.56);
+}
+
+.remote-queue-search__clear:hover {
+  background: rgba(var(--remote-ink), 0.12);
+  color: rgb(var(--remote-ink));
+}
+
+/* ---- the list ---- */
+
+.remote-queue-list {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Thin, in the ink. Not scrollbar-width / scrollbar-color: in Chromium those replace these rules
+   with the system's bar, arrows and all. */
+.remote-queue-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.remote-queue-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.remote-queue-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background: rgba(var(--remote-ink), 0.2);
+  background-clip: content-box;
+}
+
+.remote-queue-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--remote-ink), 0.34);
+  background-clip: content-box;
+}
+
+.remote-queue-note {
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 11.5px;
+  color: rgba(var(--remote-ink), 0.45);
+}
+
+.remote-queue-row {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 6px;
+}
+
+.remote-queue-song {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 4px;
+  border-radius: 9px;
+  text-align: left;
+  transition: background-color 120ms ease-out;
+}
+
+.remote-queue-row:hover .remote-queue-song:not(:disabled),
+.remote-queue-song:focus-visible {
+  background: rgba(var(--remote-ink), 0.08);
+}
+
+.remote-queue-song__position {
+  flex: none;
+  width: 26px;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: rgba(var(--remote-ink), 0.32);
+}
+
+.remote-queue-row[data-current='true'] .remote-queue-song__position {
+  color: rgb(var(--remote-ink));
+  font-weight: 700;
+}
+
+.remote-queue-song__text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.remote-queue-song__title {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 1;
+}
+
+.remote-queue-song__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(var(--remote-ink), 0.86);
+}
+
+.remote-queue-row[data-current='true'] .remote-queue-song__name {
+  font-weight: 700;
+  color: rgb(var(--remote-ink));
+}
+
+.remote-queue-song__tag {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  line-height: 15px;
+  color: rgba(var(--remote-ink), 0.6);
+  background: rgba(var(--remote-ink), 0.1);
+}
+
+.remote-queue-song__artist {
+  min-width: 0;
+  flex-shrink: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: rgba(var(--remote-ink), 0.45);
+}
+
+/* The three actions: under the pointer or the focus only. */
+.remote-queue-actions {
+  flex: none;
+  display: none;
+  gap: 1px;
+  margin-left: 4px;
+}
+
+.remote-queue-row:hover .remote-queue-actions,
+.remote-queue-row:focus-within .remote-queue-actions {
+  display: flex;
+}
+
+.remote-queue-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: rgba(var(--remote-ink), 0.56);
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+
+.remote-queue-action:hover {
+  background: rgba(var(--remote-ink), 0.12);
+  color: rgb(var(--remote-ink));
+}

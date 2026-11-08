@@ -103,6 +103,7 @@ vi.mock('@/services/prefetchService', async importOriginal => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         canPlaySong: () => true,
+        canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getSongReplacement: async () => ({
             song: { id: 'other', name: 'Other version', artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'other' } },
@@ -110,7 +111,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         }),
     },
 }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: (song: { id: string }) => env.takenDown.has(String(song.id)) }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: (song: { id: string }) => env.takenDown.has(String(song.id)) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: async () => null,

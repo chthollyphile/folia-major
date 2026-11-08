@@ -1,4 +1,5 @@
 import type { OnlineLibraryProvider, ProviderCollection } from '../../../types/onlineMusic';
+import { loadProviderAccountSnapshot } from '../providerAccountCache';
 import { createYtmPager, normalizeYtmCollection } from './ytmNormalize';
 import { requestYtm } from './ytmTransport';
 import type { YtmOperation, YtmWireCollection, YtmWirePage, YtmWirePlaylistPage, YtmWireSong } from './ytmTransport';
@@ -24,7 +25,18 @@ const libraryPage = (operation: YtmOperation, type: string, limit: number, offse
 );
 
 export const ytmLibrary: OnlineLibraryProvider = {
-    getUserPlaylists: (_userId, limit, offset) => libraryPage('user_playlists', 'playlist', limit, offset),
+    async getUserPlaylists(userId, limit, offset) {
+        const page = await libraryPage('user_playlists', 'playlist', limit, offset);
+        if (!page.items.some(item => item.isOwned === undefined)) return page;
+        // An inconclusive detail should not erase confirmed ownership from the same account's snapshot.
+        const previous = await loadProviderAccountSnapshot('ytm').catch(() => null);
+        if (!previous || previous.user.id !== userId) return page;
+        const owned = new Set(previous.collections.filter(item => item.type === 'playlist' && item.isOwned).map(item => item.id));
+        return {
+            ...page,
+            items: page.items.map(item => item.isOwned === undefined && owned.has(item.id) ? { ...item, isOwned: true } : item),
+        };
+    },
     // The id of every liked song, which is what shows a song's heart as full.
     async getLikedSongIds() {
         const ids: string[] = [];

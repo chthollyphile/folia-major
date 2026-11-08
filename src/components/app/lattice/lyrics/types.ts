@@ -4,6 +4,7 @@ import type { VisualizerSharedProps } from '../../../visualizer/definition';
 export type LatticeLyricSource = Pick<VisualizerSharedProps,
     'currentTime' | 'currentLineIndex' | 'lines' | 'theme' | 'subtitleTheme' |
     'showSubtitleTranslation' | 'hideTranslationSubtitle' | 'subtitleContentMode' |
+    'showHarmonySubtitle' | 'harmonySubtitleBackground' |
     'paused' | 'staticMode'>;
 
 export type LatticeLyricInput = LatticeLyricSource & {

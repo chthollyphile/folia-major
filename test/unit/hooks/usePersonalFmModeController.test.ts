@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const refs = vi.hoisted(() => ({ slots: [] as Array<{ current: unknown }>, at: 0 }));
 vi.mock('react', () => ({
     useCallback: (callback: unknown) => callback,
+    // Effects run at once, each render: enough for one that only reacts to FM going off air.
+    useEffect: (effect: () => void) => { effect(); },
     useMemo: (factory: () => unknown) => factory(),
     useRef: (current: unknown) => {
         refs.slots[refs.at] ??= { current };
@@ -24,16 +26,24 @@ const omniMock = vi.hoisted(() => ({
 vi.mock('../../../src/services/onlineMusic/omni', () => ({ omni: omniMock }));
 vi.mock('../../../src/hooks/usePersonalFmCatalog', async () => {
     const { DEFAULT_PERSONAL_FM_CATALOG } = await import('../../../src/services/onlineMusic/fmModes');
-    return { usePersonalFmCatalog: () => DEFAULT_PERSONAL_FM_CATALOG };
+    return { usePersonalFmCatalog: () => DEFAULT_PERSONAL_FM_CATALOG, usePersonalFmStationCatalog: () => DEFAULT_PERSONAL_FM_CATALOG };
 });
 
 const storeMock = vi.hoisted(() => ({
     selection: { mode: 'DEFAULT', scene: null } as { mode: string; scene: string | null },
     setSelection: vi.fn(),
     setProviderSelection: vi.fn(),
+    /** The extra radio on air, if any: its choice lives apart from the stored Personal FM mode. */
+    station: null as null | { id: string; selection: { mode: string; scene: string | null } },
+    setStationSelection: vi.fn(),
+    /** Streams a card put on air for the provider; a mode switch from an earlier one is not put back over a later one. */
+    run: 0,
+    resetStationSelections: vi.fn(),
 }));
 vi.mock('../../../src/stores/usePersonalFmModeStore', () => ({
     selectProviderPersonalFm: (state: typeof storeMock) => state.selection,
+    selectActiveStation: (state: typeof storeMock) => state.station,
+    selectFmRun: (state: typeof storeMock) => state.run,
     usePersonalFmModeStore: Object.assign((selector: (state: typeof storeMock) => unknown) => selector(storeMock), { getState: () => storeMock }),
 }));
 vi.mock('../../../src/stores/useOnlineProviderAccountStore', () => ({
@@ -47,6 +57,7 @@ const { usePersonalFmModeController } = await import('../../../src/hooks/usePers
 const { useStatusMessageStore } = await import('../../../src/stores/useStatusMessageStore');
 const { noteQueueStart } = await import('../../../src/components/app/playback/start/queueStarts');
 const { noteWholeQueueWrite } = await import('../../../src/services/wholeQueueWrites');
+const { takePersonalFmLanding } = await import('../../../src/components/app/playback/start/personalFmLanding');
 
 const SONGS = [
     { id: 1, name: 'First' },
@@ -76,6 +87,14 @@ beforeEach(() => {
     playbackMock.playQueue = [];
     useStatusMessageStore.setState({ message: null });
     storeMock.selection = { mode: 'DEFAULT', scene: null };
+    storeMock.station = null;
+    storeMock.run = 0;
+    storeMock.resetStationSelections.mockReset();
+    storeMock.setStationSelection.mockReset();
+    storeMock.setStationSelection.mockImplementation((_id, selection: { mode: string; scene: string | null }) => {
+        if (storeMock.station) storeMock.station = { ...storeMock.station, selection };
+        return selection;
+    });
     storeMock.setSelection.mockReset();
     storeMock.setProviderSelection.mockReset();
     storeMock.setProviderSelection.mockImplementation((_id, selection) => storeMock.setSelection(selection));
@@ -223,4 +242,99 @@ describe('usePersonalFmModeController', () => {
         await pending;
         expect(playSong).toHaveBeenCalledTimes(1);
     });
+});
+
+describe('usePersonalFmModeController with an extra radio on air', () => {
+    const onAir = (selection = { mode: 'DEFAULT', scene: null as string | null }) => {
+        storeMock.station = { id: 'radio', selection };
+    };
+
+    it('shows the choice of the radio, and offers modes without the provider flag', () => {
+        onAir({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+        storeMock.selection = { mode: 'EXPLORE', scene: null };
+        omniMock.getProviderCapabilities.mockReturnValueOnce({ personalFmModes: false });
+        const { controller } = createController();
+        expect(controller.personalFmSelection).toEqual({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+        expect(controller.isPersonalFmModeSupported).toBe(true);
+        expect(controller.personalFmStation).toBe('radio');
+    });
+
+    it('keeps to the stored Personal FM mode when FM is not on air', () => {
+        onAir({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+        const { controller } = createController({ isFmMode: false });
+        expect(controller.personalFmSelection).toEqual({ mode: 'DEFAULT', scene: null });
+        expect(controller.personalFmStation).toBeNull();
+    });
+
+    it('keeps the radio mode until its new batch lands', async () => {
+        onAir();
+        const { controller, playSong } = createController();
+
+        await controller.setPersonalFmSelection({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+
+        expect(storeMock.setStationSelection).not.toHaveBeenCalled();
+        expect(storeMock.station?.selection).toEqual({ mode: 'DEFAULT', scene: null });
+        expect(storeMock.setProviderSelection).not.toHaveBeenCalled();
+        expect(omniMock.getPersonalFm).toHaveBeenCalledWith({ mode: 'SCENE_RCMD', submode: 'SLEEP_HELP', station: 'radio' });
+        expect(playSong).toHaveBeenCalledWith(SONGS[0], SONGS, true);
+        takePersonalFmLanding(SONGS)?.();
+        expect(storeMock.setStationSelection).toHaveBeenCalledWith('netease', { mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+    });
+
+    it('keeps the original radio mode when beforePlay cancels the batch', async () => {
+        onAir();
+        const { controller } = createController();
+        await controller.setPersonalFmSelection({ mode: 'FAMILIAR', scene: null });
+        expect(storeMock.station?.selection).toEqual({ mode: 'DEFAULT', scene: null });
+        expect(storeMock.setStationSelection).not.toHaveBeenCalled();
+        takePersonalFmLanding(SONGS);
+    });
+
+    it('puts the earlier choice of the radio back when the mode returns nothing', async () => {
+        onAir();
+        omniMock.getPersonalFm.mockResolvedValue([]);
+        const { controller, playSong } = createController();
+
+        await controller.setPersonalFmSelection({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+
+        expect(playSong).not.toHaveBeenCalled();
+        expect(storeMock.station?.selection).toEqual({ mode: 'DEFAULT', scene: null });
+    });
+
+    it('does not play the songs of a radio that went off air meanwhile', async () => {
+        onAir();
+        let release!: (songs: typeof SONGS) => void;
+        omniMock.getPersonalFm.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+        const { controller, playSong } = createController();
+        const pending = controller.setPersonalFmSelection({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+        storeMock.station = null;
+        release(SONGS);
+        await pending;
+        expect(playSong).not.toHaveBeenCalled();
+    });
+});
+
+describe('usePersonalFmModeController across streams', () => {
+    it('does not put the mode of an earlier stream back over the one a card put on air meanwhile', async () => {
+        // A radio on air in FAMILIAR; a switch in it waits for its songs.
+        storeMock.station = { id: 'radio', selection: { mode: 'FAMILIAR', scene: null } };
+        let release!: (songs: typeof SONGS) => void;
+        omniMock.getPersonalFm
+            .mockImplementationOnce(() => new Promise(resolve => { release = resolve; }))
+            .mockResolvedValueOnce([]);
+        const { controller, render } = createController();
+        const pending = controller.setPersonalFmSelection({ mode: 'EXPLORE', scene: null });
+        // The Personal FM card plays meanwhile: a new stream, with its own stored mode.
+        noteQueueStart();
+        storeMock.station = null;
+        storeMock.run = 1;
+        // A switch in the Personal FM that brings nothing puts back the Personal FM's own mode, not the radio's.
+        await render().setPersonalFmSelection({ mode: 'SCENE_RCMD', scene: 'SLEEP_HELP' });
+        expect(storeMock.selection).toEqual({ mode: 'DEFAULT', scene: null });
+        release(SONGS);
+        await pending;
+        expect(storeMock.selection).toEqual({ mode: 'DEFAULT', scene: null });
+    });
+
+
 });

@@ -143,6 +143,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         canPlaySong: () => env.canPlay,
+        canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getLyrics: async (song: { id: string }) => { env.note(`wait lyrics ${song.id}`); return { lyrics: null, isPureMusic: true }; },
     },
@@ -152,7 +153,8 @@ vi.mock('@/services/onlineMusic/resourceCache', () => ({
     getSongCacheWithLegacyMigration: async () => { env.reached('cached lyrics'); return env.cachedLyrics; },
 }));
 vi.mock('@/services/onlineMusic/songMetadata', () => ({ getSongCoverUrl: () => null }));
-vi.mock('@/services/prefetchService', () => ({ prefetchNearbySongs: vi.fn() }));
+// The two after it are what a sign-out does to the prefetch (dropProviderSongs); nothing is fetched here.
+vi.mock('@/services/prefetchService', () => ({ prefetchNearbySongs: vi.fn(), refreshPrefetchAfterQueueEdit: vi.fn(), clearPrefetchRuntime: vi.fn() }));
 
 const { restorePlaybackSourceForSong } = await import('@/components/app/playback/restore/restorePlaybackSource');
 const { createOnlineRecoveryController } = await import('@/components/app/playback/restore/createOnlineRecoveryController');
@@ -160,7 +162,9 @@ const { useSessionRestoreController } = await import('@/components/app/playback/
 const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { askedSongKeyRef, askForSong, dropPlaysInFlight, makeSongCurrent, startRestore } = await import('@/components/app/playback/currentSong');
+const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { useHifiSettingsStore } = await import('@/stores/useHifiSettingsStore');
@@ -1137,6 +1141,15 @@ describe('a whole-queue write while the last session is read', () => {
         expect(persistLastPlaybackCache.mock.calls.every(([, queue]) => queue === modQueue)).toBe(true);
     });
 
+    it('restores the FM queue at the default station mode after a mod replacement is undone', () => {
+        replacePlayQueue([onlineSong, otherSong], true);
+        usePersonalFmModeStore.setState({ stations: { bodian: { id: 'radio', selection: { mode: 'FAMILIAR', scene: null } } } });
+        replaceAsAMod([otherSong], []);
+        expect(undoFoliumQueueReplace()).toBe(true);
+        expect(usePlaybackStore.getState().isFmMode).toBe(true);
+        expect(usePersonalFmModeStore.getState().stations.bodian).toEqual({ id: 'radio', selection: { mode: 'DEFAULT', scene: null } });
+    });
+
     it('the undo of the replacement puts back the remembered queue, not the empty one of launch, and saves it', async () => {
         const saved: SongResult[][] = [];
         await restoreWithReplacement(onlineSong, [onlineSong, otherSong], [], () => replaceAsAMod([otherSong], saved));
@@ -1198,6 +1211,95 @@ describe('a whole-queue write while the last session is read', () => {
         await settle();
 
         expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'y1']);
+    });
+});
+
+// A sign-out of a platform while the last session is restored (the real one, library/app/createLibraryAccountPort's
+// dropProviderSongs: it drops that platform's plays and takes its songs out of the store's queue). Its songs are not
+// restored, not put in the queue and not fetched around; the remembered song one of them, nothing is restored.
+describe('a sign-out of a platform while the last session is restored', () => {
+    const qqSong: SongResult = { ...onlineSong, id: 'q1', name: 'Q', sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'q1' } };
+    const host = {
+        automixRef: { current: null }, audioRef: { current: null }, shouldAutoPlay: { current: false },
+        setLyrics: () => {}, setIsLyricsLoading: () => {},
+    } as unknown as Parameters<typeof dropProviderSongs>[0];
+    const queued = () => usePlaybackStore.getState().playQueue.map(song => song.id);
+    /** Restores `song` and `queue` from the cache; `providerId` is signed out of when the restore first reaches `wait`. */
+    const restoreWhileSigningOut = async (song: SongResult, queue: SongResult[], wait: string, providerId: 'bodian' | 'qq') => {
+        const { refs, setLyrics } = watchWithRefs();
+        env.cache.set('last_song', song);
+        env.cache.set('last_queue', queue);
+        env.reached = reached => {
+            if (reached !== wait) return;
+            env.reached = () => {};
+            dropProviderSongs(host, providerId);
+        };
+        // The App's save is a wait of the restore too (the rebuilt local snapshot is saved before the song is current).
+        const persistLastPlaybackCache = vi.fn(async (_song: SongResult | null, _queue: SongResult[]) => { env.reached('persist'); });
+        useSessionRestoreController({
+            blobUrlRef: refs.blobUrlRef,
+            currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+            setLyrics,
+            restoreCachedThemeForSong: vi.fn(async () => 'none'),
+            persistLastPlaybackCache,
+            clearPersistedStagePlaybackCache: vi.fn(async () => undefined),
+            loadLocalSongs: vi.fn(async () => undefined),
+            loadLocalPlaylists: vi.fn(async () => undefined),
+            shouldAutoPlayRef: refs.shouldAutoPlay,
+        } as never);
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        effectNaming('last_song')();
+        await settle();
+        return { refs, persistLastPlaybackCache };
+    };
+    const savedNames = (persistLastPlaybackCache: ReturnType<typeof vi.fn<(song: SongResult | null, queue: SongResult[]) => Promise<void>>>) => (
+        persistLastPlaybackCache.mock.calls.map(([, queue]) => queue.map(song => song.name))
+    );
+
+    it('of the remembered song\'s platform while the session is read: nothing is restored', async () => {
+        const { refs } = await restoreWhileSigningOut(onlineSong, [onlineSong, qqSong], 'cache last_queue', 'bodian');
+
+        expect(refs.currentSongRef.current).toBeNull();
+        expect(usePlaybackStore.getState().currentSong).toBeNull();
+        expect(usePlaybackStore.getState().audioSrc).toBeNull();
+        expect(queued()).toEqual([]);
+        expect(prefetchNearbySongs).not.toHaveBeenCalled();
+        expect(env.released).toEqual(['nothing to restore']);
+    });
+
+    it('of another platform while the session is read: its songs are not put in the queue', async () => {
+        const { refs } = await restoreWhileSigningOut(onlineSong, [onlineSong, qqSong, otherSong], 'cache last_queue', 'qq');
+
+        expect(refs.currentSongRef.current).toBe('online:bodian:x1');
+        expect(queued()).toEqual(['x1', 'y1']);
+        expect(prefetchNearbySongs).toHaveBeenCalledWith(expect.objectContaining({ id: 'x1' }), usePlaybackStore.getState().playQueue, 'high', undefined);
+    });
+
+    it('of another platform while the library is read for a local snapshot: neither the queue nor what is saved holds its songs', async () => {
+        const { persistLastPlaybackCache } = await restoreWhileSigningOut(localSong, [localSong, qqSong], 'library', 'qq');
+
+        expect(usePlaybackStore.getState().currentSong).toMatchObject({ name: 'L' });
+        // The rebuilt local song has the library's id, not the remembered one's: compared by name.
+        expect(usePlaybackStore.getState().playQueue.map(song => song.name)).toEqual(['L']);
+        // Saved once rebuilt, and again once restored.
+        expect(savedNames(persistLastPlaybackCache)).toEqual([['L'], ['L']]);
+    });
+
+    it('of another platform while the rebuilt local snapshot is saved: the queue, and what is saved next, are without its songs', async () => {
+        const { persistLastPlaybackCache } = await restoreWhileSigningOut(localSong, [localSong, qqSong], 'persist', 'qq');
+
+        expect(usePlaybackStore.getState().currentSong).toMatchObject({ name: 'L' });
+        expect(usePlaybackStore.getState().playQueue.map(song => song.name)).toEqual(['L']);
+        // The save the sign-out came during still holds them; the one made once restored does not.
+        expect(savedNames(persistLastPlaybackCache)).toEqual([['L', 'Q'], ['L']]);
+    });
+
+    it('of another platform while the remembered song\'s address is fetched: the prefetch goes around the queue without its songs', async () => {
+        await restoreWhileSigningOut(onlineSong, [onlineSong, qqSong, otherSong], 'wait audio source x1', 'qq');
+
+        expect(queued()).toEqual(['x1', 'y1']);
+        expect(vi.mocked(prefetchNearbySongs).mock.calls.map(([, queue]) => queue.map(song => song.id))).toEqual([['x1', 'y1']]);
     });
 });
 

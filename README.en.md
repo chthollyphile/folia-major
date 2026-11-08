@@ -9,7 +9,7 @@
 
 Lyrics Reimagined // 辞曲新境
 
-[简体中文](README.md) | [English](README.en.md)
+[简体中文](README.md) | English
 
 [![GitHub release](https://img.shields.io/github/v/release/chthollyphile/folia-major?label=release)](https://github.com/chthollyphile/folia-major/releases)
 [![License](https://img.shields.io/github/license/chthollyphile/folia-major)](https://github.com/chthollyphile/folia-major/blob/main/LICENSE)

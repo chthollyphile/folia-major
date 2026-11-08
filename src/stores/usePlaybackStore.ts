@@ -62,6 +62,10 @@ type PlaybackStoreState = {
     activePlaybackContext: PlaybackContext;
     isFmMode: boolean;
     replayGainMode: ReplayGainMode;
+    /** The gain the playing song is played at, in dB, whatever the mode took it from. */
+    replayGainAppliedDb: number;
+    /** True while 智能平衡 plays the song on a stand-in reading, until the song is read whole. */
+    replayGainEstimated: boolean;
     lyricTimelineOffsetMs: number;
     /**
      * The picture frozen on the outgoing track for the length of a blend.
@@ -97,6 +101,8 @@ type PlaybackStoreState = {
     setActivePlaybackContext: SetState<PlaybackContext>;
     setIsFmMode: SetState<boolean>;
     setReplayGainMode: SetState<ReplayGainMode>;
+    setReplayGainAppliedDb: SetState<number>;
+    setReplayGainEstimated: SetState<boolean>;
     setLyricTimelineOffsetMs: SetState<number>;
     setTransitionDisplay: SetState<TransitionDisplay | null>;
     setPlaybackRoute: SetState<PlaybackRoute>;
@@ -113,7 +119,7 @@ const resolve = <T,>(next: React.SetStateAction<T>, previous: T): T => (
 const readStoredReplayGainMode = (): ReplayGainMode => {
     if (typeof window === 'undefined') return 'off';
     const saved = localStorage.getItem('local_replaygain_mode');
-    return saved === 'track' || saved === 'album' ? saved : 'off';
+    return saved === 'track' || saved === 'album' || saved === 'auto' ? saved : 'off';
 };
 
 export const usePlaybackStore = create<PlaybackStoreState>((set, get) => ({
@@ -131,6 +137,8 @@ export const usePlaybackStore = create<PlaybackStoreState>((set, get) => ({
     activePlaybackContext: 'main',
     isFmMode: false,
     replayGainMode: readStoredReplayGainMode(),
+    replayGainAppliedDb: 0,
+    replayGainEstimated: false,
     lyricTimelineOffsetMs: 0,
     transitionDisplay: null,
     transitionEnd: null,
@@ -153,6 +161,8 @@ export const usePlaybackStore = create<PlaybackStoreState>((set, get) => ({
     setActivePlaybackContext: (next) => set({ activePlaybackContext: resolve(next, get().activePlaybackContext) }),
     setIsFmMode: (next) => set({ isFmMode: resolve(next, get().isFmMode) }),
     setReplayGainMode: (next) => set({ replayGainMode: resolve(next, get().replayGainMode) }),
+    setReplayGainAppliedDb: (next) => set({ replayGainAppliedDb: resolve(next, get().replayGainAppliedDb) }),
+    setReplayGainEstimated: (next) => set({ replayGainEstimated: resolve(next, get().replayGainEstimated) }),
     setLyricTimelineOffsetMs: (next) => set({ lyricTimelineOffsetMs: resolve(next, get().lyricTimelineOffsetMs) }),
     setTransitionDisplay: (next) => set({ transitionDisplay: resolve(next, get().transitionDisplay) }),
     setPlaybackRoute: (next) => set({ playbackRoute: resolve(next, get().playbackRoute) }),
@@ -181,6 +191,8 @@ export const setPlayQueue: SetState<SongResult[]> = (next) => usePlaybackStore.g
 export const setActivePlaybackContext: SetState<PlaybackContext> = (next) => usePlaybackStore.getState().setActivePlaybackContext(next);
 export const setIsFmMode: SetState<boolean> = (next) => usePlaybackStore.getState().setIsFmMode(next);
 export const setReplayGainMode: SetState<ReplayGainMode> = (next) => usePlaybackStore.getState().setReplayGainMode(next);
+export const setReplayGainAppliedDb: SetState<number> = (next) => usePlaybackStore.getState().setReplayGainAppliedDb(next);
+export const setReplayGainEstimated: SetState<boolean> = (next) => usePlaybackStore.getState().setReplayGainEstimated(next);
 export const setLyricTimelineOffsetMs: SetState<number> = (next) => usePlaybackStore.getState().setLyricTimelineOffsetMs(next);
 export const setTransitionDisplay: SetState<TransitionDisplay | null> = (next) => usePlaybackStore.getState().setTransitionDisplay(next);
 export const setPlaybackRoute: SetState<PlaybackRoute> = (next) => usePlaybackStore.getState().setPlaybackRoute(next);

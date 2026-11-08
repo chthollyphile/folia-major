@@ -10,7 +10,7 @@ import type { LibraryNavigationContext } from '../../core/suite/suite.contract';
 // B6（骨架）只实现首页（「歌单」页签）与集合页的浏览，按「声明以 entry 为准」只声明做到了的 surface 与动作：
 // 歌手页与账户没声明，照常回退 grid；首页的目录 / 导入等动作、集合页的过滤与变更动作在 B7–B10 补齐。
 // B8 起歌手页也由 bravais 渲染（10 个动作）；B8 当时账户仍回退 grid，B10 起账户也由 bravais 渲染（见下一行）。
-// B9 起首页五个页签都铺墙，声明 grid 的全部 15 个首页动作（见 HOME_ACTIONS）。
+// B9 起首页五个页签都铺墙，声明 grid 的全部 15 个首页动作（见 HOME_ACTIONS）；后来探索页卡片上的两个只有 bravais 声明（共 17 个）。
 // B10 起账户也由 bravais 渲染（登录与确认在缝里，见 ACCOUNT_ACTIONS），不再回退 grid 的登录弹窗。
 // 本文件只能静态 import react（test/unit/library/suiteEntries.test.ts）：组件与 stage 一律 React.lazy，
 // 没选 bravais 的人不加载它的任何 chunk。
@@ -62,6 +62,11 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'enqueue',
     'play-scope',
     'enqueue-scope',
+    // 歌曲磁贴与聚焦卡右上角悬浮的「加入速记簿」「收藏到歌单」（应用的歌单选择器，含「我喜欢」）；缝「⋯ 更多」的
+    // 「全部加入速记簿」（命令面板的 collect-filtered）。
+    'collect',
+    'collect-scope',
+    'save-to-playlist',
     'filter',
     'sort',
     'reload',
@@ -74,6 +79,8 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'resync-all-folders',
     'export-playlist',
     'edit-entity',
+    // 「⋯ 更多」里的「设置封面」：本地文件夹 / 专辑 / 歌单的自定义封面（宿主的封面对话框）。
+    'set-cover',
     'organize-song-info',
     'match-song',
     'add-to-playlist',
@@ -83,7 +90,7 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
     'open-artist',
 ];
 
-// 首页（B9，设计稿 §10.5）：15 个动作全部声明。
+// 首页（B9，设计稿 §10.5）：17 个动作全部声明。
 // - 当前页过滤（directory-filter，设计稿 §7.6）：每个页签的墙上直接打字，进首页窄缝里的输入位；目录树面板里是同一个。
 // - 目录树面板（本地窄缝的 ▤，面板 = 批量模式）：卡片 / 树节点的选择与全选、
 //   底部的播放 / 入队 / 建歌单（表单态）/ 移除所选（确认态）；根节点行悬停的重新扫描、移除根（确认态）、恢复忽略。
@@ -92,6 +99,7 @@ const COLLECTION_ACTIONS: readonly LibraryActionId[] = [
 // 在线账户：首页在线页签窄缝里只有一个账户入口，点了打开共用的登录窗口（src/components/login）；换平台、登录、
 // 登出、选方式、失败详情与本地服务重启都在窗口里。bravais 不声明 account surface：切换确认
 // 整体回退到 grid 的确认框（registry 的回退规则）。
+// - 探索页签的歌曲磁贴与聚焦卡：右上角悬浮的「加入速记簿」「收藏到歌单」（explore-collect / explore-save-to-playlist）。
 const HOME_ACTIONS: readonly LibraryHomeActionId[] = [
     'directory-filter',
     'directory-select',
@@ -108,11 +116,14 @@ const HOME_ACTIONS: readonly LibraryHomeActionId[] = [
     'home-refresh-folders',
     'home-import-playlist',
     'home-refresh-navidrome',
+    'explore-collect',
+    'explore-save-to-playlist',
 ];
 
-// 歌手页（B8，入口见设计稿 §10.4，与 grid 的歌手页声明同一组 10 个）：热门歌曲磁贴 → 聚焦卡（播放 / 入队，其他歌手与
+// 歌手页（B8，入口见设计稿 §10.4，与 grid 的歌手页声明同一组，B8 时 10 个、#918 起 11 个）：热门歌曲磁贴 → 聚焦卡（播放 / 入队，其他歌手与
 // 专辑的链接）；单击专辑磁贴进入专辑；缝里的播放热门 / 加入热门歌曲、过滤位（只筛专辑名）、错误态的「重试」与专辑分页中断时
-// 元数据行的「续页」、「⋯ 更多」里的重新拉取与本地歌手的实体编辑（宿主对话框）。
+// 元数据行的「续页」、「⋯ 更多」里的重新拉取与本地歌手的实体编辑（宿主对话框）；#918 起多一个 open-all-songs：
+// 在线歌手倾斜信息条（海报）上的「全部歌曲」按钮（进那一层集合，命令面板里也有）。
 const ARTIST_ACTIONS: readonly LibraryArtistActionId[] = [
     'play',
     'enqueue',
@@ -124,6 +135,7 @@ const ARTIST_ACTIONS: readonly LibraryArtistActionId[] = [
     'edit-entity',
     'open-album',
     'open-artist',
+    'open-all-songs',
 ];
 
 // 外观动作（suite-chrome，只出现在命令面板里）：缝的三级开口、在这里裂开缝、定位正在播放。

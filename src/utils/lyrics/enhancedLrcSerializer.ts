@@ -57,7 +57,7 @@ export const formatLrcWordTimestamp = (seconds: number): string => {
 /**
  * 这份歌词是否真的带逐字时轴，只看 `isWordByWord`。
  *
- * 逐行歌词的 words 是解析器按字数均分出来的占位（parserCore 的 buildTimedWords），
+ * 逐行歌词的 words 是解析器按字数均分出来的占位（estimatedLineTiming 的 buildTimedWords），
  * 从数值上猜不出来：行尾的全角标点、字数多的短行都会让它的结尾偏离任何固定比例。
  * 所以由各个解析器在产出时写明；没有写的旧数据一律按逐行导出，宁可丢掉逐字，也不编造逐字。
  */

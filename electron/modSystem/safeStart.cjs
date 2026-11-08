@@ -85,6 +85,16 @@ const SAFE_START_LOCALE = {
         stuckWait: 'Terus menunggu',
         stuckReopen: 'Buka ulang tanpa mod',
     },
+    vi: {
+        startMessage: 'Folia không hoàn tất khởi động ở lần mở trước.',
+        startDetail: 'Sự cố có thể do một mod gây ra. Bạn có muốn khởi động không kèm mod lần này không? Lựa chọn này chỉ áp dụng cho lần này: cài đặt không đổi, và các mod sẽ khởi động bình thường vào lần mở Folia tiếp theo.',
+        startWithout: 'Khởi động không kèm mod',
+        startAsUsual: 'Khởi động như thường lệ',
+        stuckMessage: 'Cửa sổ Folia không phản hồi.',
+        stuckDetail: 'Có thể một mod đang bị treo. Bạn có thể tiếp tục đợi, hoặc mở lại cửa sổ mà không kèm mod. Mở lại chỉ áp dụng cho lần này: cài đặt không đổi, và các mod sẽ khởi động bình thường vào lần mở Folia tiếp theo.',
+        stuckWait: 'Tiếp tục đợi',
+        stuckReopen: 'Mở lại không kèm mod',
+    },
 };
 
 /*

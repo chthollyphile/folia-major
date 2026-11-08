@@ -3,10 +3,12 @@ import React from 'react';
 import { Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import { DEFAULT_HANABI_TUNING, type HanabiTuning } from './types';
 
 // src/components/visualizer/hanabi/HanabiSettingsPanel.tsx
-// 花火的参数面板：烟花、画面、文字、装饰、配色五组，每组是设置套件的一个 Group；滑块遵循 VisPlayground 的草稿 / 松手提交语义。
+// 花火的参数面板：烟花、画面、文字、装饰、配色、性能、渲染（分辨率 / 抗锯齿，#929）几组，每组是设置套件的一个 Group；
+// 滑块遵循 VisPlayground 的草稿 / 松手提交语义。
 
 type NumberKey = { [K in keyof HanabiTuning]: HanabiTuning[K] extends number ? K : never }[keyof HanabiTuning];
 type BooleanKey = { [K in keyof HanabiTuning]: HanabiTuning[K] extends boolean ? K : never }[keyof HanabiTuning];
@@ -26,6 +28,7 @@ const TEXT_GROUP: SettingsGroupDef = { id: 'vis-hanabi-text', titleKey: 'options
 const DECOR_GROUP: SettingsGroupDef = { id: 'vis-hanabi-decor', titleKey: 'options.hanabiDecorSection' };
 const COLOR_GROUP: SettingsGroupDef = { id: 'vis-hanabi-color', titleKey: 'options.hanabiColorSection' };
 const PERFORMANCE_GROUP: SettingsGroupDef = { id: 'vis-hanabi-performance', titleKey: 'options.hanabiPerformanceSection' };
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-hanabi-render', titleKey: 'options.lyricRenderSection' };
 
 const FIREWORKS_CONTROLS: ControlSpec[] = [
     slider('sparkAmount', 'options.hanabiSparkAmount', 0, 2),
@@ -131,6 +134,13 @@ const HanabiSettingsPanel: React.FC<VisualizerSettingsPanelProps<HanabiTuning>> 
                         onChange={renderQuality => onTuningChange?.({ renderQuality })}
                     />
                 </Row>
+            </Group>
+
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={tuning.render}
+                    onChange={patch => onTuningChange?.({ render: { ...tuning.render, ...patch } })}
+                />
             </Group>
         </>
     );

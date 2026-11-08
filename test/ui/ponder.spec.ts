@@ -17,7 +17,7 @@ const openPlayerPage = async (page: Page, slots?: { primary: string; secondary: 
     }) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'zh-CN');
+        localStorage.setItem('folia_app_language', 'zh-CN');
         localStorage.setItem('open_player_on_launch', 'true');
         localStorage.setItem('visualizer_mode', 'classic');
         localStorage.setItem('static_mode', 'true');

@@ -5,11 +5,25 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OUTSIDE_LOAD } from './scenarios.mjs';
 import { PUBLIC_DIR, writeSong } from './song.mjs';
+import {
+    darwinProcessTree,
+    darwinTopology,
+    ELECTRON_DARWIN,
+    keepDarwinAwake,
+    startDarwinSampler,
+    stopDarwinStrays,
+} from './darwin.mjs';
 
 // dev/perf/rig.mjs
 // What dev/perf/run.mjs and dev/perf/shots.mjs share: building and serving the measuring page,
 // starting the Electron shell (held to a set of processors where a profile asks for it), talking
 // to it over the DevTools protocol, and the Windows helper (dev/perf/win.ps1).
+//
+// macOS runs the same page, scenarios and report through dev/perf/darwin.mjs: the branches below
+// pick the platform's Electron binary, sampler, screen keeper and process tree. What macOS does
+// not give an unprivileged process - processor pinning (so only the `host` profile exists there),
+// GPU-engine and video-memory counters, the screen's refresh rate - is refused or left out there,
+// never faked; see darwin.mjs.
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, '../..');
@@ -25,7 +39,7 @@ export const SHOTS_DIST_DIR = path.join(BUILD_DIR, 'dist-shots');
 const PAGE_PORT = 47830;
 let pageOrigin = `http://127.0.0.1:${PAGE_PORT}`;
 
-export const ELECTRON = path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe');
+export const ELECTRON = process.platform === 'darwin' ? ELECTRON_DARWIN : path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe');
 const VITE = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
 const WIN_SCRIPT = path.join(HERE, 'win.ps1');
 const SHELL = path.join(HERE, 'shell.cjs');
@@ -236,11 +250,36 @@ let topologyAsked = null;
  * the lowest efficiency class (the "E" cores of a hybrid Intel chip); a PC without two classes
  * gets its last processors instead, and `hasSlowCores` says so. A PC that cannot give exactly the
  * number a profile asks for is refused: `laptop` on two slow cores would be `old` under another name.
+ *
+ * macOS has no processor pinning for an unprivileged process (darwin.mjs), so there only `host`
+ * exists; `laptop` and `old` are refused rather than run without their limits under those names.
  */
 export const resolveProfile = (name) => {
     const profile = PROFILES[name];
     if (!profile) {
         throw new Error(`[perf] no profile named "${name}" (host, laptop, old)`);
+    }
+    if (process.platform === 'darwin' && profile.cores) {
+        throw new Error(`[perf] profile "${name}" holds the app to ${profile.cores} processors, and macOS offers no processor pinning: run the ${name} scenarios under --profile host`);
+    }
+    if (process.platform === 'darwin') {
+        topologyAsked ??= darwinTopology();
+        return {
+            name,
+            heldProcessors: null,
+            affinityMask: null,
+            samplerMask: null,
+            hasSlowCores: false,
+            /** macOS reads no graphics-card counters (darwin.mjs): nothing averages the zeros in. */
+            gpuCounters: false,
+            cpuName: topologyAsked.name,
+            logicalProcessors: topologyAsked.logicalProcessors,
+            slowProcessors: [],
+            memoryGb: topologyAsked.memoryGb,
+            videoCard: topologyAsked.videoCard,
+            screen: topologyAsked.screen,
+            screenRefreshRate: topologyAsked.refreshRate,
+        };
     }
     topologyAsked ??= winAction('topology');
     const topology = topologyAsked;
@@ -279,15 +318,18 @@ export const resolveProfile = (name) => {
 /**
  * What other programs did over some of the sampler's lines, and which of the limits in OUTSIDE_LOAD
  * (scenarios.mjs) that broke. Shared by dev/perf/run.mjs and dev/perf/app/run.mjs.
+ *
+ * `profile.gpuCounters === false` (macOS, darwin.mjs) leaves the graphics-card numbers out instead
+ * of averaging the sampler's zeros into them, and the card's limit cannot break.
  */
 export const outsideLoad = (samples, profile) => {
     const held = profile.heldProcessors;
+    const gpuCounters = profile.gpuCounters !== false;
     const withOwn = samples.filter(sample => typeof sample.ownCpu === 'number');
     const ofAllProcessors = mean(withOwn.map(sample => Math.max(0, sample.cpuTotal / 100 - sample.ownCpu / profile.logicalProcessors)));
     const ofHeldProcessors = held
         ? mean(withOwn.map(sample => Math.max(0, held.reduce((sum, index) => sum + Number(sample.cores?.[index] ?? 0) / 100, 0) - sample.ownCpu) / held.length))
         : null;
-    const gpuPercent = mean(samples.map(sample => Number(sample.gpuOutside ?? 0)));
     const brokenLimits = [];
     if (ofAllProcessors > OUTSIDE_LOAD.ofAllProcessors) {
         brokenLimits.push('processors');
@@ -295,33 +337,40 @@ export const outsideLoad = (samples, profile) => {
     if (ofHeldProcessors !== null && ofHeldProcessors > OUTSIDE_LOAD.ofHeldProcessors) {
         brokenLimits.push('held processors');
     }
-    if (gpuPercent > OUTSIDE_LOAD.gpuPercent) {
+    if (gpuCounters && mean(samples.map(sample => Number(sample.gpuOutside ?? 0))) > OUTSIDE_LOAD.gpuPercent) {
         brokenLimits.push('graphics card');
     }
     return {
         ofAllProcessors,
         ...(ofHeldProcessors === null ? {} : { ofHeldProcessors }),
-        gpuPercent,
-        videoMemoryMb: mean(samples.map(sample => Number(sample.videoMemoryOutside ?? 0))) / (1024 * 1024),
+        ...(gpuCounters ? {
+            gpuPercent: mean(samples.map(sample => Number(sample.gpuOutside ?? 0))),
+            videoMemoryMb: mean(samples.map(sample => Number(sample.videoMemoryOutside ?? 0))) / (1024 * 1024),
+        } : {}),
         brokenLimits,
     };
 };
 
-/** The one-line-a-second sampler of win.ps1 for a set of processes: GPU use, video memory, working sets, CPU. */
+/** The one-line-a-second sampler (win.ps1 on Windows, darwinSampler.mjs on macOS) for a set of processes. */
 export const startSampler = ({ pids, processors, selfMask }) => {
-    const args = [...POWERSHELL, '-Action', 'sample'];
-    if (pids.length) {
-        args.push('-Pids', pids.join(','));
+    let child;
+    if (process.platform === 'darwin') {
+        child = startDarwinSampler({ pids });
+    } else {
+        const args = [...POWERSHELL, '-Action', 'sample'];
+        if (pids.length) {
+            args.push('-Pids', pids.join(','));
+        }
+        if (processors?.length) {
+            args.push('-Cores', processors.join(','));
+        }
+        if (selfMask) {
+            args.push('-Mask', selfMask);
+        }
+        // The sampler ends by itself once this process is gone: a runner that was killed cannot stop it.
+        args.push('-RunnerPid', String(process.pid));
+        child = spawn('powershell.exe', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     }
-    if (processors?.length) {
-        args.push('-Cores', processors.join(','));
-    }
-    if (selfMask) {
-        args.push('-Mask', selfMask);
-    }
-    // The sampler ends by itself once this process is gone: a runner that was killed cannot stop it.
-    args.push('-RunnerPid', String(process.pid));
-    const child = spawn('powershell.exe', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const samples = [];
     let header = null;
     let pending = '';
@@ -360,9 +409,13 @@ export const startSampler = ({ pids, processors, selfMask }) => {
     const sampler = {
         pids,
         samples,
+        /** The sampler's own `ready` line: on macOS it says `gpuCounters: false` (darwin.mjs). */
+        header: () => header,
+        /** True when the sampler counts the graphics card (Windows only); false on macOS. */
+        gpuCounters: () => header?.gpuCounters !== false,
         /** When the first line of numbers came (Date.now()). The lines of the seconds after it read high: the sampler's own start-up. */
         readyAt: 0,
-        /** True once the PowerShell process has ended: no more lines will come. */
+        /** True once the sampler process has ended: no more lines will come. */
         hasExited: () => exited,
         ready: ready.then(() => {
             if (samples.length === 0) {
@@ -380,7 +433,9 @@ export const startSampler = ({ pids, processors, selfMask }) => {
  * cannot close its engine, and an engine nobody sees keeps drawing and holds the user-data folder
  * the next launch wants to clear. Returns the process ids it stopped.
  */
-export const stopStrayEngines = () => winAction('strays', ['-ShellPath', SHELL])?.stopped ?? [];
+export const stopStrayEngines = () => (process.platform === 'darwin'
+    ? { stopped: stopDarwinStrays(SHELL) }
+    : winAction('strays', ['-ShellPath', SHELL]))?.stopped ?? [];
 
 /**
  * Turns the screen on and keeps it on for as long as this process lives: a helper tells Windows
@@ -391,6 +446,9 @@ export const stopStrayEngines = () => winAction('strays', ['-ShellPath', SHELL])
  * on without it, and every launch still checks what rate its window is paced at).
  */
 export const keepAwake = () => {
+    if (process.platform === 'darwin') {
+        return keepDarwinAwake();
+    }
     const child = spawn('powershell.exe', [...POWERSHELL, '-Action', 'awake', '-RunnerPid', String(process.pid)], { stdio: ['ignore', 'pipe', 'ignore'] });
     const ready = new Promise((resolve) => {
         child.stdout.once('data', () => resolve(true));
@@ -461,6 +519,9 @@ export class Cdp {
  * process it starts are held to those processors from their first instruction.
  */
 export const launchEngine = async ({ width, height, deviceScale, affinityMask = null, windowMode = 'offscreen', userDataName = 'userdata' }) => {
+    if (process.platform === 'darwin' && affinityMask) {
+        throw new Error('[perf] processor affinity is a Windows thing; macOS runs the host profile only (resolveProfile)');
+    }
     // shots.mjs runs several engines at once and gives each a folder of its own.
     const userData = path.join(BUILD_DIR, userDataName);
     fs.rmSync(userData, { recursive: true, force: true });
@@ -485,8 +546,26 @@ export const launchEngine = async ({ width, height, deviceScale, affinityMask = 
         return await attachToEngine(child, shellLog);
     } catch (error) {
         // Nothing can close an engine that never answered: its whole process tree is stopped here.
-        spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+        killTree(process.platform, child.pid);
         throw error;
+    }
+};
+
+/**
+ * Stops an engine that cannot be closed politely. On Windows `taskkill /t /f` kills the whole
+ * process tree; on macOS only the root gets SIGKILL, and Electron's helpers are expected to exit
+ * with it.
+ */
+const killTree = (platform, pid) => {
+    if (!pid) return;
+    if (platform === 'win32') {
+        spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' });
+        return;
+    }
+    try {
+        process.kill(pid, 'SIGKILL');
+    } catch {
+        // Already gone.
     }
 };
 
@@ -570,8 +649,11 @@ const attachToEngine = async (child, shellLog) => {
             await cdp.send('Page.navigate', { url }, sessionId);
             await Promise.race([loaded, sleep(60_000).then(() => { throw new Error(`[perf] ${url} did not load`); })]);
         },
-        /** Every process of the app with the processors it is held to (asked of Windows, not of the engine). */
+        /** Every process of the app with the processors it is held to (asked of the OS, not of the engine). */
         tree: () => {
+            if (process.platform === 'darwin') {
+                return darwinProcessTree(browserPid);
+            }
             const found = winAction('tree', ['-RootPid', String(browserPid)]);
             return found === null ? [] : (Array.isArray(found) ? found : [found]);
         },
@@ -582,7 +664,7 @@ const attachToEngine = async (child, shellLog) => {
                 // It is going away either way.
             }
             await sleep(800);
-            spawnSync('taskkill', ['/pid', String(browserPid), '/t', '/f'], { stdio: 'ignore' });
+            killTree(process.platform, browserPid);
             child.kill();
         },
     };

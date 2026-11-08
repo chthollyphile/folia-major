@@ -10,10 +10,39 @@
 
 const { resolveLinuxOzonePlatform } = require('./windowAlwaysOnTopSupport.cjs');
 
-/** The only accelerators accepted: the fixed modifiers plus one letter or digit. */
-const ACCELERATOR_PATTERN = /^Control\+Alt\+Shift\+[A-Z0-9]$/;
+/** The modifiers an accelerator may hold, each at most once, and at least one of them. */
+const ACCELERATOR_MODIFIERS = new Set(['Control', 'Alt', 'Shift', 'Super']);
+/** The named keys Electron knows besides the letters and digits: what the settings may bind. */
+const NAMED_KEYS = new Set([
+  'Space', 'Tab', 'Return', 'Backspace', 'Delete', 'Insert',
+  'Up', 'Down', 'Left', 'Right', 'Home', 'End', 'PageUp', 'PageDown',
+]);
 /** Five chosen keys natively; on the Wayland portal every playback command, eight today. */
 const MAX_SHORTCUTS = 10;
+
+/** Whether a value is an accelerator this app registers: at least one modifier and one key on the list. */
+function isAccelerator(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const parts = value.split('+');
+  const key = parts.pop();
+  if (parts.length === 0 || !isAcceleratorKey(key)) {
+    return false;
+  }
+  const held = new Set();
+  for (const part of parts) {
+    if (!ACCELERATOR_MODIFIERS.has(part) || held.has(part)) {
+      return false;
+    }
+    held.add(part);
+  }
+  return true;
+}
+
+function isAcceleratorKey(key) {
+  return /^[A-Z0-9]$/.test(key) || /^F(?:[1-9]|1[0-9]|2[0-4])$/.test(key) || NAMED_KEYS.has(key);
+}
 
 /** Whether shortcuts go through the desktop portal: true only on the native Wayland backend. */
 function usesGlobalShortcutsPortal(options) {
@@ -55,7 +84,7 @@ function createGlobalShortcutController({ globalShortcut, onTrigger, backend }) 
 
   const apply = (accelerators) => {
     const requested = Array.isArray(accelerators)
-      ? [...new Set(accelerators.filter(value => typeof value === 'string' && ACCELERATOR_PATTERN.test(value)))].slice(0, MAX_SHORTCUTS)
+      ? [...new Set(accelerators.filter(isAccelerator))].slice(0, MAX_SHORTCUTS)
       : [];
     const added = [];
     const removed = [];

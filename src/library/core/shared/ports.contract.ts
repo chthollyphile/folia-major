@@ -20,7 +20,22 @@ export interface LibraryPlaybackPort {
      * 那首的播放键改为它。宿主没给时为 undefined（卡片照旧「立即播放」）。
      */
     togglePlayback?(): void;
+    /**
+     * 收进速记簿（不动队列的暂存区）：这一首或这一批，origin 说从哪收来的（集合名）。宿主没给时为 undefined，
+     * 集合的 collect / collect-scope 入口就不出现。和播放、入队一样是「这些歌交给应用」，所以放在播放端口上。
+     */
+    collectTracks?(tracks: SongResult[], origin?: LibraryCollectOrigin): void;
+    /**
+     * 打开应用的歌单选择器（按歌自己的来源列歌单，在线歌还有「我喜欢」一行），把这几首放进去；与集合变更里只管
+     * Navidrome 的 add-to-playlist 不是一回事。宿主没给时为 undefined。
+     */
+    pickPlaylistFor?(tracks: SongResult[]): void;
+    /** 这首能不能交给选择器（来源支持歌单或红心）；与 pickPlaylistFor 一起给。 */
+    canPickPlaylistFor?(track: SongResult): boolean;
 }
+
+/** 收进速记簿时记下的出处（速记簿行上的小字）。 */
+export type LibraryCollectOrigin = { label: string };
 
 /** 整批入队的选项（与应用播放控制器 addOnlineSongsToQueue 的同名选项一致）。 */
 export type LibraryEnqueueOptions = { suppressToast?: boolean };
@@ -28,7 +43,7 @@ export type LibraryEnqueueOptions = { suppressToast?: boolean };
 /** 「加入歌单」选择器里的一项。 */
 export type LibraryPlaylistOption = { id: string | number; name: string; description?: string };
 
-/** 本地曲库的来源动作；最后三个只打开宿主挂载的对话框。 */
+/** 本地曲库的来源动作；最后四个只打开宿主挂载的对话框。 */
 export interface LibraryLocalMutationPort {
     removePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
     /** 重新读取本地曲库（歌单、歌曲）。 */
@@ -42,6 +57,8 @@ export interface LibraryLocalMutationPort {
     editEntity?: (entityId: string) => Promise<void> | void;
     organizeFolder?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;
     matchSong?: (songId: string) => Promise<void> | void;
+    /** 本地文件夹 / 专辑 / 歌单的自定义封面对话框。 */
+    editCover?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;
 }
 
 /** Navidrome 的来源动作。删歌按资源里的原始下标，不是界面上的显示下标。 */

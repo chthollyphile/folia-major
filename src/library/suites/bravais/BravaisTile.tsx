@@ -2,6 +2,7 @@ import React, { memo, useLayoutEffect, useRef, useState, type MouseEvent, type M
 import { WallTitle } from '../../../components/wall/WallTitle';
 import { useWallPosterArtwork } from '../../../components/wall/useWallPosterArtwork';
 import { parseWallSlotKey } from '../../../components/wall/wallSlots';
+import { isWallDoubleClickOn, noteWallPress } from '../../../components/wall/wallDoubleClick';
 import { countRender } from '../../../dev/renderCount';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import {
@@ -15,6 +16,7 @@ import { resolveTileTransition, type BravaisEntrance, type BravaisFlipStep } fro
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
+import BravaisTileQuickActions, { BRAVAIS_QUICK_ACTIONS_MIN_WIDTH } from './BravaisTileQuickActions';
 import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
 import { useBravaisArtistTone } from './bravaisArtistTone';
 import { noteCoverFlightSource } from './bravaisCoverFlight';
@@ -60,6 +62,8 @@ const pointerStayed = (event: MouseEvent<HTMLElement>) => (
 export type BravaisTileHandlers = BravaisFocusCardActions & {
     /** 点了这张磁贴（拖动后的残余点击已在外面吞掉）。 */
     activate: (slotKey: string) => void;
+    /** 双击了这张磁贴（#834）：歌曲直接播放，不用再点聚焦卡上的播放键。 */
+    playFromWall: (slotKey: string) => void;
     /** B9：首页歌单类卡片的眼睛按钮（directory-toggle-hidden）。 */
     toggleHidden?: (slotKey: string) => void;
 };
@@ -304,8 +308,11 @@ function BravaisTile({
         ? null
         : art.mode === 'mosaic' ? mosaicPlacement(rect, parseWallSlotKey(slotKey) ?? { column: 0, row: 0 }) : artSpots ? shardPlacement(artSpots, display.key, rect) : null;
 
+    const pressKey = `bravais:${slotKey}:${display?.key ?? ''}`;
     const handleClick = (event: MouseEvent<HTMLElement>) => {
-        if (event.target instanceof Element && event.target.closest('button')) return;
+        const onButton = event.target instanceof Element && Boolean(event.target.closest('button'));
+        noteWallPress(event, onButton ? '' : pressKey);
+        if (onButton) return;
         if (didDragRef.current) {
             didDragRef.current = false;
             return;
@@ -315,6 +322,13 @@ function BravaisTile({
             noteCoverFlightSource(event.currentTarget.parentElement, display.key, slotKey, display.coverUrl);
         }
         handlers.activate(slotKey);
+    };
+
+    // 双击 = 两下单击（第一下已经展开了聚焦卡）之后再播放；双击在按钮上的归按钮自己。第一下点的必须就是这张、显示的
+    // 还是同一项：双击歌单 / 专辑卡时第一下已经推入新层、第一首翻进了这个 slot，那不算双击了这首歌。
+    const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+        if (event.target instanceof Element && event.target.closest('button')) return;
+        if (isTrack && isWallDoubleClickOn(pressKey)) handlers.playFromWall(slotKey);
     };
 
     const style = {
@@ -358,6 +372,7 @@ function BravaisTile({
                 tabIndex={-1}
                 onMouseDown={isWindow ? preventFocus : undefined}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
             >
                 {display && isHeading && (
                     <>
@@ -414,6 +429,10 @@ function BravaisTile({
                                 actions={handlers}
                             />
                         ) : (
+                            <>
+                            {rect.width >= BRAVAIS_QUICK_ACTIONS_MIN_WIDTH && (
+                                <BravaisTileQuickActions slotKey={slotKey} item={display} actions={handlers} />
+                            )}
                             <span className="lattice-poster-copy">
                                 <WallTitle
                                     title={display.title}
@@ -423,6 +442,7 @@ function BravaisTile({
                                 />
                                 {display.subtitle && <small>{display.subtitle}</small>}
                             </span>
+                            </>
                         )}
                     </>
                 )}

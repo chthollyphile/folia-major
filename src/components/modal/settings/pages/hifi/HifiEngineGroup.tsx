@@ -7,6 +7,7 @@ import ConfirmDialog from '../../../../shared/ConfirmDialog';
 import { hifiEngine, useHifiEngineStore } from '../../../../../services/hifi/hifiEngine';
 import { useHifiSettingsStore } from '../../../../../stores/useHifiSettingsStore';
 import type { HifiErrorCode, HifiInstallProgress } from '../../../../../types/hifi';
+import { openOutsideLink } from '../../../../../utils/system/outsideLink';
 import { Button, CopyValue, Group, Progress, Reveal, Row, Segmented, Status, Toggle, Value, useSettingsKitTheme } from '../../kit';
 import { ENGINE, HIFI_PLATFORM, O } from './options';
 import { canOfferRuntimeDownload, isRuntimeInstalling, runtimeLine } from './runtimeState';
@@ -14,10 +15,10 @@ import { canOfferRuntimeDownload, isRuntimeInstalling, runtimeLine } from './run
 // src/components/modal/settings/pages/hifi/HifiEngineGroup.tsx
 // The playback engine group at the top of the 播放控制 page: Web Audio or mpv for local and
 // Navidrome songs (the first switch to mpv asks to accept that the output is at full volume), and
-// what mpv turns off. With mpv chosen: which mpv is in use, the download of the recommended mpv with
-// its progress, an mpv file of one's own, on Linux the package-manager lines in place of a download,
-// and whether Navidrome songs use mpv too. The settings are pushed to the main process by the
-// playback bridge, not from here.
+// what mpv turns off. With mpv chosen: which mpv is in use, the download of the recommended mpv (or
+// of the newest older one the system can take) with its progress, the cloud-drive copies for when
+// GitHub and its mirror are slow, an mpv file of one's own, on Linux the package-manager lines in place of a download, and whether Navidrome songs use
+// mpv too. The settings are pushed to the main process by the playback bridge, not from here.
 
 const IS_LINUX = HIFI_PLATFORM === 'linux';
 
@@ -26,6 +27,16 @@ const LINUX_INSTALL_COMMANDS = [
     { distro: 'Arch Linux', command: 'sudo pacman -S mpv' },
     { distro: 'Debian / Ubuntu', command: 'sudo apt install mpv' },
     { distro: 'Fedora', command: 'sudo dnf install mpv' },
+] as const;
+
+/**
+ * Shares of their own, apart from the installers' (SettingsModal.tsx): the official mpv zips the
+ * manifest lists, unchanged, in the folder 原生音频组件. Downloaded by hand, then picked as an mpv
+ * file of one's own. The Baidu link carries its extraction code.
+ */
+const MPV_DRIVE_LINKS = [
+    { id: 'quark', labelKey: 'options.quarkDrive', url: 'https://pan.quark.cn/s/c6c57fff6d32' },
+    { id: 'baidu', labelKey: 'options.baiduDrive', url: 'https://pan.baidu.com/s/1VyUD0pgXam3fgd0Xqug9yg?pwd=9zcw' },
 ] as const;
 
 const MIB = 1024 * 1024;
@@ -99,6 +110,9 @@ export const HifiEngineGroup: React.FC = () => {
                 : download?.supported
                     ? t('hifi.settings.runtimeMissingDownloadHint')
                     : t('hifi.settings.runtimeMissingHint');
+    // Offered while the download is wanted: no mpv yet, one is downloading, or it just failed.
+    const offerDrive = !IS_LINUX && Boolean(download?.supported)
+        && (runtime?.available === false || installing || shownInstallError !== null);
 
     const redetect = async () => {
         setDetecting(true);
@@ -173,6 +187,17 @@ export const HifiEngineGroup: React.FC = () => {
                         </Reveal>
                         <Reveal when={shownInstallError !== null}>
                             <Row sub label={<Status tone="error">{shownInstallError ? t(`hifi.errors.${shownInstallError}`) : ''}</Status>} />
+                        </Reveal>
+                        <Reveal when={offerDrive}>
+                            <Row
+                                sub
+                                label={t('hifi.settings.driveDownload')}
+                                hint={t(HIFI_PLATFORM === 'darwin' ? 'hifi.settings.driveDownloadHintMac' : 'hifi.settings.driveDownloadHint', { version: download?.version ?? '' })}
+                            >
+                                {MPV_DRIVE_LINKS.map(link => (
+                                    <Button key={link.id} variant="quiet" onClick={() => void openOutsideLink(link.url)}>{t(link.labelKey)}</Button>
+                                ))}
+                            </Row>
                         </Reveal>
                         <Reveal when={IS_LINUX && runtime !== null && !runtime.available}>
                             {LINUX_INSTALL_COMMANDS.map(({ distro, command }) => (

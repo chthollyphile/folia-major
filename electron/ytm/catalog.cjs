@@ -1,4 +1,5 @@
 const { VIDEO_ID } = require('./tiles.cjs');
+const { videoFieldsOf } = require('./songVersion.cjs');
 
 // electron/ytm/catalog.cjs
 // Maps youtubei.js's parsed YouTube Music nodes (search, album, artist, watch queue) to wire shapes.
@@ -45,6 +46,8 @@ function songFromListItem(item, context = {}) {
       coverUrl: thumbnailUrl(item.thumbnail?.contents ?? item.thumbnails) || context.coverUrl || '',
     },
     durationMs: Math.max(0, Number(item.duration?.seconds) || 0) * 1000,
+    // (A row's title leads to what it plays, and says what kind of track that is.)
+    ...videoFieldsOf(item.flex_columns?.[0]?.title?.runs?.[0]?.endpoint?.payload),
   };
 }
 
@@ -57,6 +60,7 @@ function songFromQueueItem(item) {
     artists: artistsOf(item.artists),
     album: { id: str(item.album?.id), name: str(item.album?.name), coverUrl: thumbnailUrl(item.thumbnail) },
     durationMs: Math.max(0, Number(item.duration?.seconds) || 0) * 1000,
+    ...videoFieldsOf(item.endpoint?.payload),
   };
 }
 
@@ -68,6 +72,24 @@ function albumFromCard(item, artists = []) {
     id, type: 'album', name: str(item.title), coverUrl: thumbnailUrl(item.thumbnail),
     artists: artistsOf(item.artists).length > 0 ? artistsOf(item.artists) : artists,
     ...(publishedAt === undefined ? {} : { publishedAt }),
+  };
+}
+
+// An album or playlist row of a search (`music.search` with type 'album' or 'playlist'). Its one
+// artist or maker is the row's `author`; its art is a list thumbnail. A playlist's row leads to the
+// page `VL` and the list's id (measured 2026-10-31), and goes by the list's id as the explore page's do.
+function albumFromSearchItem(item) {
+  return albumFromCard({ ...item, thumbnail: item?.thumbnail?.contents ?? item?.thumbnails, artists: item?.artists ?? (item?.author ? [item.author] : []) });
+}
+
+function playlistFromSearchItem(item) {
+  const browseId = str(item?.id);
+  const id = browseId.startsWith('VL') ? browseId.slice(2) : '';
+  if (!id) return null;
+  const maker = artistsOf(item.author ? [item.author] : []);
+  return {
+    id, type: 'playlist', name: str(item.title), coverUrl: thumbnailUrl(item.thumbnail?.contents ?? item.thumbnails),
+    ...(maker.length > 0 ? { artists: maker } : {}),
   };
 }
 
@@ -164,6 +186,6 @@ function lrcFromLyricsPage(page) {
 }
 
 module.exports = {
-  albumFromCard, albumFromPage, artistFromPage, lrcFromLyricsPage, lyricsBrowseId, songFromListItem, songFromQueueItem,
+  albumFromCard, albumFromPage, albumFromSearchItem, playlistFromSearchItem, artistFromPage, lrcFromLyricsPage, lyricsBrowseId, songFromListItem, songFromQueueItem,
   thumbnailUrl,
 };

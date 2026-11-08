@@ -66,7 +66,8 @@ const capability = (supported: boolean, enabled: boolean, reason?: LibraryCapabi
  * - reload：在线 / Navidrome 歌手（本地歌手由 catalog 同步派生，没有可重新拉取的）或任何加载失败的歌手，加载中不可用；
  * - resume-sync：专辑分页失败中断时才有；
  * - edit-entity：本地歌手且描述带实体 id（宿主的实体编辑对话框）；
- * - open-album：有专辑；open-artist：有热门歌曲（歌曲上的歌手 / 专辑链接）。
+ * - open-album：有专辑；open-artist：有热门歌曲（歌曲上的歌手 / 专辑链接）；
+ * - open-all-songs：在线歌手才支持；详情已到且热门歌曲之外还有歌（hasMoreSongs）才可用。
  */
 export const resolveArtistCapabilities = ({
     collection,
@@ -91,6 +92,11 @@ export const resolveArtistCapabilities = ({
         'edit-entity': capability(collection.source === 'local' && Boolean(collection.entityId), true),
         'open-album': capability(true, (snapshot?.albums.length ?? 0) > 0, emptyReason),
         'open-artist': capability(true, (snapshot?.topSongs.length ?? 0) > 0, emptyReason),
+        'open-all-songs': capability(
+            collection.source === 'online',
+            status === 'ready' && Boolean(snapshot?.detail) && Boolean(snapshot?.hasMoreSongs),
+            emptyReason,
+        ),
     };
 };
 
@@ -101,6 +107,7 @@ export const ARTIST_SURFACE_ACTION_SOURCES: Readonly<Record<LibraryArtistSurface
     reload: 'reload',
     'retry-albums': 'resume-sync',
     'edit-entity': 'edit-entity',
+    'open-all-songs': 'open-all-songs',
 };
 
 const ARTIST_SURFACE_ACTION_ORDER = Object.keys(ARTIST_SURFACE_ACTION_SOURCES) as LibraryArtistSurfaceActionId[];

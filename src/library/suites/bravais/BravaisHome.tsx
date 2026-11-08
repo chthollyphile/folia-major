@@ -90,6 +90,8 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
                     online={online}
                     account={account}
                     isInteractive={isInteractive}
+                    declaredActions={declaredActions}
+                    playback={props.playback}
                     onPlaySong={props.onPlaySong}
                     onOpenGridView={onOpenGridView}
                 />

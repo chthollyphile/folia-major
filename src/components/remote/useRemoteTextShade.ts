@@ -1,8 +1,9 @@
 import { useEffect, type RefObject } from 'react';
 
 // src/components/remote/useRemoteTextShade.ts
-// Transparent background only: sizes the soft dark shade behind the type to the type that is
-// showing, so a short line does not leave a wide grey patch on the picture behind the window.
+// Transparent background with the settings switch "text shade" on (off by default): sizes the
+// soft dark shade behind the type to the type that is showing, so a short line does not leave a
+// wide grey patch on the picture behind the window.
 // The pieces to cover mark themselves with `data-remote-shade`.
 
 // The left side is held by the window's edge; the right side has room, and the shade's blurred

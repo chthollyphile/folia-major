@@ -9,7 +9,10 @@ import type { SongResult } from '@/types';
 // a new song is being set up, is not the new song's start.
 
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { isPreviewAudioSource: (url: string) => url.includes('trial') },
+    omni: {
+        isPreviewAudioSource: (url: string) => url.includes('trial'),
+        previewNoticeKey: () => 'status.songPreviewOnly',
+    },
 }));
 
 const { notePreviewPlaying } = await import('@/components/app/playback/source/previewNotice');

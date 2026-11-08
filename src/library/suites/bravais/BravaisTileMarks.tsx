@@ -15,12 +15,14 @@ import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
  * 左上角的类型标签（Lattice 的 .lattice-poster-badge）。特殊集合（item.special：我喜欢的音乐、私人 FM、全部歌曲…）的标签
  * 换一身：强调色底、底色字，前面一个小图标（与缝里直达入口同一个，bravaisSpecialIcons），挂 is-special 与
  * data-bravais-special；文字仍是种类（歌单 / 电台 / 文件夹），读屏不念图标。普通卡片原样。
+ * 歌曲的序号（item.badgeIsIndex：集合页、歌手页的歌曲）挂 is-index：「只显示正在播放的序号」开着时，墙面根上的
+ * has-badge-current-only 把不是正在播放的那些藏起来（wall.css）；带文字的类型标签（首页卡片、探索页）照旧。
  */
 export const BravaisTileBadge: React.FC<{ item: BravaisItem; current: boolean }> = ({ item, current }) => {
     const Icon = item.special ? BRAVAIS_SPECIAL_ICONS[item.special] : null;
     return (
         <span
-            className={`lattice-poster-badge${current ? ' is-current' : ''}${Icon ? ' is-special' : ''}`}
+            className={`lattice-poster-badge${item.badgeIsIndex ? ' is-index' : ''}${current ? ' is-current' : ''}${Icon ? ' is-special' : ''}`}
             data-bravais-special={item.special}
         >
             {Icon && <Icon aria-hidden className="bravais-badge-icon" />}

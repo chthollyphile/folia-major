@@ -1,4 +1,5 @@
 import { GRID_VIEW_CARD_GEOMETRY as G } from '../../surfaces/settings/appearanceSettings.geometry';
+import { isGridLibraryActive } from '../../../../library/app/gridLibraryActive';
 import type { PonderAnchorSource, PonderRelativeRect, PonderSceneScript, PonderTargetDefinition } from '../../../../types/ponder';
 
 // src/components/ponder/targets/settings/gridViewCardSettings.target.ts
@@ -100,6 +101,8 @@ export default {
     category: 'appearance',
     summaryKey: 'ponder.summaries.grid_view_card_settings',
     hoverSelector: '[data-settings-anchor="gridViewCardSettings"]',
+    // 只有网格界面有这一组（设置页同一个谓词），别的资料库界面下无处可讲。
+    isAvailable: isGridLibraryActive,
     relatedTargetIds: ['grid3d-card-style', 'lattice-style-settings', 'grid-view-page'],
     scenes: [coverShape, falloff],
 } satisfies PonderTargetDefinition;

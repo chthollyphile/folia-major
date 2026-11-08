@@ -184,6 +184,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             }
         },
         settings: useVisualizerSettingsStore.getState() as unknown as VisualizerTuningSettings,
+        onClosePanel,
     });
     const hasStyleQuickControls = styleQuickControls !== null && styleQuickControls !== undefined && styleQuickControls !== false;
 

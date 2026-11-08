@@ -14,11 +14,20 @@ const {
 } = require('./mpvRuntime.cjs');
 
 // 替用户下载 mpv：边下边算 sha256，核对后解压到 userData/hifi-runtime/mpv/<version>/，只留最新两个版本。
+// 下载源先是清单里的原址，再是清单 `mirrors` 套出来的镜像；一个源不行就换下一个，最后一个源一直等到用户取消。
 
 /** 进度最多这么频繁地报一次；70 MB 的 zip 有上千个块。 */
 const PROGRESS_INTERVAL_MS = 200;
 /** 只管响应头多久内到；传输本身慢不算失败，用户可以取消。 */
 const RESPOND_TIMEOUT_MS = 45_000;
+/**
+ * 后面还有下载源时，换源的三条线：响应头这么久没到、这么久没来一块数据、下了 FAILOVER_SLOW_AFTER_MS
+ * 以后平均还不到 FAILOVER_MIN_BYTES_PER_SECOND。国内直连 GitHub 常常不是断开，而是几十 KB/s 地拖着。
+ */
+const FAILOVER_RESPOND_TIMEOUT_MS = 15_000;
+const FAILOVER_STALL_TIMEOUT_MS = 20_000;
+const FAILOVER_SLOW_AFTER_MS = 10_000;
+const FAILOVER_MIN_BYTES_PER_SECOND = 256 * 1024;
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
 const KEEP_VERSIONS = 2;
 /** 核对上次留下的 zip 时每次读这么多。 */
@@ -43,6 +52,18 @@ const safeEntrySegments = name => {
     const segments = name.split('/').filter(segment => segment !== '' && segment !== '.');
     if (segments.some(segment => segment === '..' || segment.includes('\\') || segment.includes(':'))) return undefined;
     return name.endsWith('/') || segments.length === 0 ? null : segments;
+};
+
+/**
+ * 一个构建依次试的下载地址：原址，再是清单 `mirrors` 里每个模板把 `{url}` 换成原址（如 gh-proxy 的前缀）。
+ * 只认 https 模板；重复的去掉。镜像给的字节对不对由 sha256 把关。
+ */
+const downloadSourcesFor = (manifest, build) => {
+    const templates = Array.isArray(manifest?.mirrors) ? manifest.mirrors : [];
+    const mirrored = templates
+        .filter(template => typeof template === 'string' && template.startsWith('https://') && template.includes('{url}'))
+        .map(template => template.replace('{url}', build.url));
+    return [...new Set([build.url, ...mirrored])];
 };
 
 const assetNameOf = url => {
@@ -147,24 +168,39 @@ const createMpvRuntimeInstaller = ({
     });
 
     /**
-     * 把 zip 流进 `.part`，边写边算 sha256；字节数超过清单就立刻停。取消时连读带写一起停：
-     * 不指望 fetch 的实现会让正在读的流报错，直接取消 reader。
+     * 从 url 把 zip 流进 `.part`，边写边算 sha256；字节数超过清单就立刻停。取消时连读带写一起停：
+     * 不指望 fetch 的实现会让正在读的流报错，直接取消 reader。failover 为真（后面还有源）时，没响应、
+     * 卡住和太慢都放弃这个源，报 INSTALL_FAILED。
      */
-    const downloadTo = async (build, partPath, signal, onBytes) => {
-        const host = new URL(build.url).host;
+    const downloadTo = async (url, build, partPath, signal, onBytes, { failover = false } = {}) => {
+        const host = new URL(url).host;
         const controller = new AbortController();
         const abort = () => controller.abort(signal.reason);
         signal.addEventListener('abort', abort, { once: true });
         if (signal.aborted) abort();
-        let deadline = setTimeoutFn(() => controller.abort(new Error('no response')), RESPOND_TIMEOUT_MS);
+        const giveUp = reason => controller.abort(new Error(reason));
+        let deadline = setTimeoutFn(() => giveUp('no response'), failover ? FAILOVER_RESPOND_TIMEOUT_MS : RESPOND_TIMEOUT_MS);
+        // 只在 failover 时用：每来一块重新计时。
+        const armStall = () => {
+            if (!failover) return;
+            if (deadline) clearTimeoutFn(deadline);
+            deadline = setTimeoutFn(() => giveUp('transfer stalled'), FAILOVER_STALL_TIMEOUT_MS);
+        };
         let handle = null;
         let response = null;
         let reader = null;
         const cancelReader = () => {
             reader?.cancel().catch(() => { });
         };
+        // 这个源被放弃（不是用户取消）时报的错。
+        const abandoned = () => createHifiError('INSTALL_FAILED', `${host}: ${controller.signal.reason?.message ?? 'aborted'}`);
         try {
-            response = await fetchFn(build.url, { redirect: 'follow', signal: controller.signal });
+            try {
+                response = await fetchFn(url, { redirect: 'follow', signal: controller.signal });
+            } catch (error) {
+                if (controller.signal.aborted && !signal.aborted) throw abandoned();
+                throw error;
+            }
             clearTimeoutFn(deadline);
             deadline = null;
             if (!response.ok || !response.body) {
@@ -177,10 +213,13 @@ const createMpvRuntimeInstaller = ({
             reader = response.body.getReader();
             controller.signal.addEventListener('abort', cancelReader, { once: true });
             let received = 0;
+            const startedAt = failover ? now() : 0;
+            armStall();
             for (;;) {
                 if (controller.signal.aborted) break;
                 const { done, value } = await reader.read();
                 if (done || controller.signal.aborted) break;
+                armStall();
                 received += value.byteLength;
                 if (received > build.bytes) {
                     throw createHifiError('INSTALL_CHECKSUM_MISMATCH', `${host}: more than ${build.bytes} bytes`);
@@ -188,8 +227,13 @@ const createMpvRuntimeInstaller = ({
                 hash.update(value);
                 await handle.write(value);
                 onBytes(received);
+                const elapsed = failover ? now() - startedAt : 0;
+                if (elapsed >= FAILOVER_SLOW_AFTER_MS && received * 1000 < FAILOVER_MIN_BYTES_PER_SECOND * elapsed) {
+                    giveUp(`too slow (${Math.round(received / elapsed)} KB/s)`);
+                }
             }
-            throwIfCancelled(controller.signal);
+            throwIfCancelled(signal);
+            if (controller.signal.aborted) throw abandoned();
             return { received, digest: hash.digest('hex') };
         } finally {
             if (deadline) clearTimeoutFn(deadline);
@@ -350,6 +394,38 @@ const createMpvRuntimeInstaller = ({
     };
 
     /**
+     * 按顺序试每个下载源，下完一个就核对字节数和 sha256；不对（镜像给错了文件）也换下一个。最后一个源的错原样抛出。
+     * onPhase('start') 在每个源开始时调用（进度从 0 重新算），之后是 'downloading' 和 'verifying'。
+     */
+    const downloadFromSources = async (version, build, partPath, signal, onPhase, onBytes) => {
+        const sources = downloadSourcesFor(manifest, build);
+        for (let index = 0; index < sources.length; index += 1) {
+            const url = sources[index];
+            const host = new URL(url).host;
+            const failover = index < sources.length - 1;
+            logInfo(`[HiFi] install: downloading mpv ${version} from ${host}`);
+            onPhase('start');
+            try {
+                const downloaded = await downloadTo(url, build, partPath, signal, onBytes, { failover });
+                onPhase('downloading');
+                onPhase('verifying');
+                if (downloaded.received !== build.bytes || downloaded.digest !== build.sha256) {
+                    throw createHifiError(
+                        'INSTALL_CHECKSUM_MISMATCH',
+                        `${host}: ${downloaded.received} bytes, sha256 ${downloaded.digest.slice(0, 12)}`
+                        + ` (wanted ${build.bytes}, ${build.sha256.slice(0, 12)})`,
+                    );
+                }
+                return;
+            } catch (error) {
+                if (signal.aborted || !failover) throw error;
+                logWarn(`[HiFi] install: ${host} did not work, trying ${new URL(sources[index + 1]).host}`, error);
+                await removeQuietly(partPath);
+            }
+        }
+    };
+
+    /**
      * 一次完整安装：下载 → 校验 → 解压到 <version>.tmp → 核对可执行文件 → 改名到位 → 探测能跑 → 清旧版本。
      * 已装的版本只有探测得通才算数，起不来的（缺了 DLL、被杀毒隔离）重新装。
      */
@@ -385,10 +461,15 @@ const createMpvRuntimeInstaller = ({
                 emit('verifying');
             } else {
                 await removeQuietly(zipPath);
-                logInfo(`[HiFi] install: downloading mpv ${version} from ${new URL(build.url).host}`);
-                announced = now();
-                emit('downloading');
-                const downloaded = await downloadTo(build, partPath, signal, (bytes) => {
+                await downloadFromSources(version, build, partPath, signal, (phase) => {
+                    if (phase === 'start') {
+                        received = 0;
+                        announced = now();
+                        emit('downloading');
+                        return;
+                    }
+                    emit(phase);
+                }, (bytes) => {
                     received = bytes;
                     const at = now();
                     if (at - announced >= PROGRESS_INTERVAL_MS) {
@@ -396,16 +477,6 @@ const createMpvRuntimeInstaller = ({
                         emit('downloading');
                     }
                 });
-                emit('downloading');
-
-                emit('verifying');
-                if (downloaded.received !== build.bytes || downloaded.digest !== build.sha256) {
-                    throw createHifiError(
-                        'INSTALL_CHECKSUM_MISMATCH',
-                        `${downloaded.received} bytes, sha256 ${downloaded.digest.slice(0, 12)}`
-                        + ` (wanted ${build.bytes}, ${build.sha256.slice(0, 12)})`,
-                    );
-                }
                 await renameWithRetry(partPath, zipPath, signal);
             }
             throwIfCancelled(signal);
@@ -511,6 +582,11 @@ const createMpvRuntimeInstaller = ({
 
 module.exports = {
     PROGRESS_INTERVAL_MS,
+    FAILOVER_RESPOND_TIMEOUT_MS,
+    FAILOVER_STALL_TIMEOUT_MS,
+    FAILOVER_SLOW_AFTER_MS,
+    FAILOVER_MIN_BYTES_PER_SECOND,
+    downloadSourcesFor,
     KEEP_VERSIONS,
     safeEntrySegments,
     createMpvRuntimeInstaller,

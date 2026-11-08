@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tailwind 自动扫描整个仓库找类名，而且在 dev 服务器的主线程上同步扫。dev/prototypes 里是独立的原型页面，
+   不用 Tailwind，却可能放着几 MB 的单行数据文件（fog-write/strokes.js 一行 4.4 MB），类名提取器碰上
+   这种文件要扫好几分钟，期间 dev 服务器一个请求都不回，页面和 Electron 窗口就一直停在开屏。 */
+@source not "../dev/prototypes";
+
 /* Folium mod stylesheets (registries.styles) live in this layer. Declaring it
    after Tailwind's layers makes mod rules win over host utilities without
    !important, independent of when a mod's <style> is injected. */
@@ -14,6 +19,13 @@
   --font-cjk-serif: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", "Noto Serif JP", "Source Han Serif JP";
   --font-sans: ui-sans-serif, system-ui, var(--font-cjk-sans), sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, var(--font-cjk-serif), serif;
+}
+
+/* 越南语一个字母上常叠两个符号（ệ、ộ、ở）。中文 Windows 上 system-ui 解析成 Microsoft YaHei UI，没装 Inter 时
+   body 也落到 Microsoft YaHei；它们缺大部分越南语预组合字母，排版时拆成字母加组合符号，符号落在字母旁边。
+   界面是越南语时把越南语字形齐全的 Segoe UI 放到它们前面；别的系统没有 Segoe UI，照旧往后找（macOS 的 system-ui 本身就齐全）。 */
+:root:lang(vi) {
+  --font-sans: "Segoe UI", ui-sans-serif, system-ui, var(--font-cjk-sans), sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 @font-face {
@@ -38,6 +50,10 @@ body {
   color: #e4e4e7;
   font-family: 'Inter', var(--font-cjk-sans), sans-serif;
   overflow: hidden;
+}
+
+body:lang(vi) {
+  font-family: 'Inter', "Segoe UI", system-ui, var(--font-cjk-sans), sans-serif;
 }
 
 /* 播放页空闲时隐藏鼠标指针。挂点在播放页的视觉层容器上，弹窗和浮动控件都在它外面，

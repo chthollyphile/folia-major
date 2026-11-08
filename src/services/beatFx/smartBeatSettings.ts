@@ -16,6 +16,22 @@ const resolveSmartBeatStrength = (value: unknown, fallback: number): number => (
 /** An effect id as stored: `<mode>.<name>`, nothing a hand-edited or imported file could abuse. */
 const BEAT_EFFECT_ID = /^[A-Za-z0-9_-]{1,32}\.[A-Za-z0-9_-]{1,32}$/;
 const MAX_STORED_BEAT_EFFECTS = 64;
+/** A part key as stored (BeatEffectSetting `parts`), and how many one effect keeps. */
+const BEAT_EFFECT_PART = /^[A-Za-z0-9_-]{1,32}$/;
+const MAX_BEAT_EFFECT_PARTS = 8;
+
+/** An effect's part strengths: `incoming`'s valid ones clamped onto `current`'s. Undefined with none. */
+const resolveBeatEffectParts = (incoming: unknown, current: Readonly<Record<string, number>> | undefined): Record<string, number> | undefined => {
+    const parts: Record<string, number> = { ...(current ?? {}) };
+    if (incoming && typeof incoming === 'object') {
+        for (const [key, value] of Object.entries(incoming)) {
+            if (!BEAT_EFFECT_PART.test(key)) continue;
+            if (!(key in parts) && Object.keys(parts).length >= MAX_BEAT_EFFECT_PARTS) continue;
+            parts[key] = resolveSmartBeatStrength(value, parts[key] ?? 1);
+        }
+    }
+    return Object.keys(parts).length ? parts : undefined;
+};
 
 const SMART_BEAT_MODES: readonly SmartBeatMode[] = ['off', 'cached', 'on'];
 
@@ -57,9 +73,11 @@ export const resolveSmartBeatSettings = (
         if (!BEAT_EFFECT_ID.test(id) || !value || typeof value !== 'object') continue;
         if (!(id in effects) && Object.keys(effects).length >= MAX_STORED_BEAT_EFFECTS) continue;
         const current = effects[id] ?? BEAT_EFFECT_DEFAULT;
+        const parts = resolveBeatEffectParts(value.parts, current.parts);
         effects[id] = {
             on: typeof value.on === 'boolean' ? value.on : current.on,
             strength: resolveSmartBeatStrength(value.strength, current.strength),
+            ...(parts ? { parts } : {}),
         };
     }
     return { mode: resolveSmartBeatMode(patch, base.mode), effects };

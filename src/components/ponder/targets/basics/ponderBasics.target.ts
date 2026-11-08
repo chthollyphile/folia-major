@@ -66,7 +66,7 @@ const wholePage: PonderSceneScript = {
     steps: [
         // 这一章不切到 ponder-open：整屏接管的样子上一章末尾刚演过，再演一遍没有新东西，
         // 而它是整屏替换 —— 切过去之后右下角那颗灯泡就不在画面上了，第二段没法指。
-        { kind: 'keypress', id: 'ctrlG', keys: ['Ctrl G'], at: { anchor: 'page', y: 1, offset: { y: 20 } }, durationMs: 1100, keyframe: true },
+        { kind: 'keypress', id: 'ctrlG', keys: ['Mod G'], at: { anchor: 'page', y: 1, offset: { y: 20 } }, durationMs: 1100, keyframe: true },
         { kind: 'highlight', id: 'markPage', anchor: 'page', intensity: [0, 0.35], durationMs: 460, withPrevious: true },
         {
             kind: 'caption', id: 'wholePage',

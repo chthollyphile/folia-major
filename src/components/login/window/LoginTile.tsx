@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppWindow, Ban, CircleHelp, Clock, RefreshCw, ServerOff, Smartphone, User, UserX, WifiOff, type LucideIcon } from 'lucide-react';
+import { AppWindow, Ban, CircleHelp, Clock, ListChecks, RefreshCw, ServerOff, Smartphone, User, UserX, WifiOff, type LucideIcon } from 'lucide-react';
 import type { LoginCaseKind } from '../../../types/loginFailure';
 import type { OnlineProviderId, ProviderUser } from '../../../types/onlineMusic';
 import { AccountPicture, PlatformMark } from '../PlatformMark';
@@ -107,6 +107,15 @@ export const LoginTile: React.FC<LoginTileProps> = ({
         picture = <Disc tone="calm"><Smartphone size={34} className="text-[color:var(--st-t1)]" /></Disc>;
     } else if (scene === 'reading') {
         picture = <Disc tone="calm" arc><User size={34} className="text-[color:var(--st-t1)]" /></Disc>;
+    } else if (scene === 'checking') {
+        // 账号读到了，正在做平台的登录后检查（动效开着时这一块由登录成功的动画画，见 doneLayer）。
+        picture = <Disc tone="calm" arc><ListChecks size={34} className="text-[color:var(--st-t1)]" /></Disc>;
+    } else if (scene === 'setup') {
+        // 配置清单：账号的头像（有的话），没有就是平台的记号。清单画在下面。
+        picture = user ? <AccountPicture user={user} size={88} providerId={providerId} /> : <PlatformMark providerId={providerId} label={label} size={56} />;
+    } else if (scene === 'form') {
+        // 表单式登录：静态的平台记号（没有码要等，也不转圈）。
+        picture = <PlatformMark providerId={providerId} label={label} size={56} />;
     } else {
         // 正在取二维码：平台的记号，外面一道转着的弧。
         picture = <span className="login-arc relative grid h-[54px] w-[54px] place-items-center"><PlatformMark providerId={providerId} label={label} size={30} /></span>;

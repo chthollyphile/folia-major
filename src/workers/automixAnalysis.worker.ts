@@ -1,4 +1,5 @@
 import { melSpectrogram } from '../services/analysis/beatThis';
+import { measureProgramLoudness } from '../services/automix/signalAnalysis';
 import { analyseTrack } from '../services/automix/trackProfile';
 
 // src/workers/automixAnalysis.worker.ts
@@ -18,6 +19,7 @@ import { analyseTrack } from '../services/automix/trackProfile';
 
 type Request =
     | { id: number; kind: 'mel'; mono: Float32Array }
+    | { id: number; kind: 'loudness'; mid: Float32Array; side: Float32Array | null; sampleRate: number }
     | {
         id: number;
         kind: 'profile';
@@ -34,6 +36,10 @@ self.onmessage = async (event: MessageEvent<Request>) => {
             // Transferred rather than copied: six megabytes for a four-minute track, and this side
             // has no further use for it.
             self.postMessage({ id: request.id, result: mel }, { transfer: [mel.data.buffer] });
+            return;
+        }
+        if (request.kind === 'loudness') {
+            self.postMessage({ id: request.id, result: measureProgramLoudness(request.mid, request.side, request.sampleRate) });
             return;
         }
         const profile = await analyseTrack(request.mono, request.sampleRate, request.options);

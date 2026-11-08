@@ -3,11 +3,12 @@ import { motion } from 'framer-motion';
 import { Hourglass } from 'lucide-react';
 import { DEFAULT_FUME_TUNING, FumeTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import { colorWithAlpha } from '../colorMix';
 
 import { type VisualizerSharedProps } from '../definition';
 import { buildFumeBackgroundScene } from './FumeBackground';
-import { getRecentCompletedLine, getUpcomingLines } from '../runtime';
+import { getRecentCompletedLine, getSubtitleNextLines } from '../runtime';
 import VisualizerShell from '../VisualizerShell';
 import { fumeBackgroundConfig } from './backgroundConfig';
 import VisualizerSubtitleOverlay from '../VisualizerSubtitleOverlay';
@@ -72,9 +73,9 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         subtitleUpcomingLyricsBlur,
         isPlayerChromeHidden = false,
         hideTranslationSubtitle = false,
-        showSubtitleTranslation = true,
-        subtitleContentMode,
+        subtitleOverlayLayout,
         paused = false,
+        isPreviewMode = false,
     } = props;
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -121,18 +122,20 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
     const runtime = useMemo(() => {
         const activeLine = lines[currentLineIndex] ?? null;
         const timeNow = currentTime.get();
+        const recentCompletedLine = getRecentCompletedLine({
+            lines,
+            currentLineIndex,
+            currentTime: timeNow,
+            getLineEndTime: getLineRenderEndTime,
+        });
         return {
             activeLine,
-            recentCompletedLine: getRecentCompletedLine({
-                lines,
-                currentLineIndex,
-                currentTime: timeNow,
-                getLineEndTime: getLineRenderEndTime,
-            }),
-            nextLines: getUpcomingLines(lines, currentLineIndex, 2),
+            recentCompletedLine,
+            nextLines: getSubtitleNextLines(lines, currentLineIndex, recentCompletedLine),
         };
     }, [currentLineIndex, lines]);
     const resolvedFumeTuning = useMemo<FumeTuning>(() => ({
+        render: fumeTuning?.render ?? DEFAULT_FUME_TUNING.render,
         hidePrintSymbols: fumeTuning?.hidePrintSymbols ?? DEFAULT_FUME_TUNING.hidePrintSymbols,
         disableGeometricBackground: fumeTuning?.disableGeometricBackground ?? DEFAULT_FUME_TUNING.disableGeometricBackground,
         backgroundObjectOpacity: clamp(
@@ -317,7 +320,9 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
         },
     }), [audioBands, audioPower, currentTime]);
 
-    useFumeCanvasStage(canvasRef, stageScene, stageDriver, paused);
+    // 分辨率倍数（#929）：全局挡位叠上这个样式的覆盖；预览（样式架小图等）保持原来的密度。
+    const renderQuality = useLyricRenderQuality(fumeTuning?.render);
+    useFumeCanvasStage(canvasRef, stageScene, stageDriver, paused, isPreviewMode ? 1 : renderQuality.scale);
     // After the stage's effect, which draws the article's first frame.
     useEffect(() => {
         if (article) firstFrameDrawn();
@@ -411,8 +416,7 @@ const VisualizerFume: React.FC<VisualizerProps> = (props) => {
                 subtitleFontScale={subtitleFontScale}
                 isPlayerChromeHidden={isPlayerChromeHidden}
                 hideTranslationSubtitle={hideTranslationSubtitle}
-                showSubtitleTranslation={showSubtitleTranslation}
-                subtitleContentMode={subtitleContentMode}
+                subtitleOverlayLayout={subtitleOverlayLayout}
             />
         </VisualizerShell>
     );

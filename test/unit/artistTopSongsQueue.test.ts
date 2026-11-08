@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../src/types';
-vi.mock('../../src/services/onlineMusic/songAvailability', () => ({
+vi.mock('../../src/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null,
     isSongUnavailable: (s: { unavailable?: boolean } | null) => Boolean(s?.unavailable),
 }));
 

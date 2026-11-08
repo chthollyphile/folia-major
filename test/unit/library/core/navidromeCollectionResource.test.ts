@@ -76,6 +76,16 @@ describe('navidrome collection resource', () => {
         expect(listener).not.toHaveBeenCalled();
     });
 
+    // #1039: the header of an album opened from a song is drawn from what the read brought.
+    it('gives the album information that the read brought as the detail', async () => {
+        const detail = { id: 'al-1', name: 'Album', type: 'album', albumArtist: 'Artist', albumYear: 2015 };
+        const resource = createNavidromeCollectionResource('k', vi.fn(async () => ({ tracks: [song('a')], failed: false, detail })));
+        expect(resource.getSnapshot().detail).toBeNull();
+        resource.ensure(album(), {});
+        await settle();
+        expect(resource.getSnapshot()).toMatchObject({ status: 'ready', detail });
+    });
+
     it('is never reused, so random songs are drawn again on every open', () => {
         expect(createNavidromeCollectionResource('k', vi.fn(async () => ({ tracks: [], failed: false }))).canReuse(album())).toBe(false);
     });

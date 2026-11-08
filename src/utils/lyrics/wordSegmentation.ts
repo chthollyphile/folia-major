@@ -81,7 +81,7 @@ const EDGE_WHITESPACE = /^(\s*)(.*?)(\s*)$/su;
  * Intl.Segmenter always emits a whitespace run as a segment in its own right, and every consumer is
  * written against that. tempera tells a real word gap from a bare CJK word boundary by the hole a
  * dropped whitespace segment leaves in the offsets, and cjkSemanticLayout skips whitespace segments
- * when aligning to parser words, which never contain any. The saved format is the other way round:
+ * when aligning to parser words. The saved format is the other way round:
  * the prompt tells the model that a space belongs to the segment before it, and
  * realignSegmentsToText attaches the line's real whitespace to whichever slice sits next to it. So
  * an unsplit boundary arrives downstream as a word with a space glued on — which read as "no space

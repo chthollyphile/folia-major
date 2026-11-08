@@ -76,6 +76,8 @@ export type UnavailableReplacementRequest = {
      * `queue` and `isFmCall` stand.
      */
     liveQueue?: () => { queue: SongResult[]; isFmCall: boolean } | null;
+    /** Personal FM was ended from outside since the play that opened it (a switch to another platform): the other version plays without it. */
+    fmEnded?: () => boolean;
 };
 
 export type PlaybackSnapshot = {
@@ -133,6 +135,8 @@ export type WindowPlaybackHandoff = {
     activePlaybackContext: 'main' | 'stage';
     mainPlayback: PlaybackSnapshot | null;
     activePlayback: PlaybackSnapshot | null;
+    /** Provider id → the extra radio on air in it, while FM plays: which radio the queue came from. Its mode choice is not carried. */
+    fmStations?: Record<string, string>;
     stage: WindowPlaybackHandoffStageState;
     nowPlaying: WindowPlaybackHandoffNowPlayingState;
     ui: WindowPlaybackHandoffUiState;

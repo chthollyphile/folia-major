@@ -133,9 +133,11 @@ type RemoteSongLineProps = {
     mode: 'line' | 'card';
     handoff: RemoteTrackHandoff;
     reduceMotion: boolean;
+    /** The switch "text shade" with the transparent background: the text showing marks itself for the shade. */
+    shade: boolean;
 };
 
-const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMotion }) => {
+const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMotion, shade }) => {
     const enterOffset = reduceMotion ? 0 : handoff.trackEnterOffset;
     const renderFaces = (form: 'line' | 'card') => (
         <AnimatePresence initial={false}>
@@ -144,7 +146,7 @@ const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMo
                     ? handoff.handoffIncomingOpacity
                     : handoff.isHandoffActive ? handoff.handoffOutgoingOpacity : undefined;
                 // The soft shade of the transparent background is sized to the text that is showing.
-                const shade = form === mode && face.mode === 'current' ? '' : undefined;
+                const shadeMark = shade && form === mode && face.mode === 'current' ? '' : undefined;
                 return (
                     <motion.div
                         key={`${form}-${face.key}`}
@@ -157,12 +159,12 @@ const RemoteSongLine: React.FC<RemoteSongLineProps> = ({ mode, handoff, reduceMo
                             : { duration: reduceMotion ? 0 : SWITCH_SECONDS, ease: 'easeInOut' }}
                     >
                         {form === 'line' ? (
-                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__row" shade={shade}>
+                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__row" shade={shadeMark}>
                                 <span className="remote-song__title">{face.title}</span>
                                 {face.artist && <span className="remote-song__artist">{face.artist}</span>}
                             </HandoffFade>
                         ) : (
-                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__cardtext" shade={shade}>
+                            <HandoffFade follow={handoffOpacity} reduceMotion={reduceMotion} className="remote-song__cardtext" shade={shadeMark}>
                                 <div className="remote-song__cardtitle">{face.title}</div>
                                 {face.artist && <div className="remote-song__cardartist">{face.artist}</div>}
                             </HandoffFade>

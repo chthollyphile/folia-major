@@ -9,6 +9,7 @@ import {
     CappellaEmojiImage,
     MonetPortraitImage,
     SubtitleContentMode,
+    SubtitleOverlayLayout,
     Theme,
     VisualizerMode,
 } from '../../../types';
@@ -20,7 +21,7 @@ import {
 import { getVisualizerScopedSeed } from '../../visualizer/registry';
 import type { VisualizerTuningBundle } from '../../visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../../visualizer/backgrounds/definition';
-import VisPlaygroundSampleStage from '../../visualizer/window/VisPlaygroundSampleStage';
+import VisPlaygroundSampleStage, { SampleBox } from '../../visualizer/window/VisPlaygroundSampleStage';
 import PreviewSourceSwitch, { type PreviewSource } from '../../visualizer/preview/PreviewSourceSwitch';
 import type { LivePreviewContent } from '../../visualizer/preview/livePreviewFeed';
 import { Tooltip } from '../settings/kit';
@@ -94,6 +95,7 @@ const ThemePreview: React.FC<{
     monetPortraitImage?: MonetPortraitImage | null;
     showSubtitleTranslation: boolean;
     subtitleContentMode?: SubtitleContentMode;
+    subtitleOverlayLayout?: SubtitleOverlayLayout;
     lyricsFontScale: number;
     currentTime: PreviewClock;
     progressTime: PreviewClock;
@@ -123,6 +125,7 @@ const ThemePreview: React.FC<{
     monetPortraitImage,
     showSubtitleTranslation,
     subtitleContentMode,
+    subtitleOverlayLayout,
     lyricsFontScale,
     currentTime,
     progressTime,
@@ -140,15 +143,16 @@ const ThemePreview: React.FC<{
         const pauseLabel = isPaused ? t('ui.playPreview') : t('ui.pausePreview');
 
         return (
-            <div
+            <SampleBox
                 ref={boxRef}
-                className="relative isolate h-full overflow-hidden rounded-xl bg-[var(--ts-bg)] shadow-[0_0_0_1px_var(--st-line)]"
+                room="h-full"
+                className="relative isolate overflow-hidden rounded-xl bg-[var(--ts-bg)] shadow-[0_0_0_1px_var(--st-line)]"
                 style={themeSampleVars(theme)}
             >
                 {/* Styles lay out from the app's window (vw, window.innerWidth), so the style is drawn
-                    as large as the window and scaled to fit, as in the lyric style window, then zoomed
-                    in a little. The song card below is not scaled, so the subtitle keeps
-                    a set height above it (SUBTITLE_BOTTOM_PX). */}
+                    as large as the window and scaled to fit, as in the lyric style window. The song
+                    card below is not scaled, so the subtitle keeps a set height above it
+                    (SUBTITLE_BOTTOM_PX). */}
                 <VisPlaygroundSampleStage subtitleBottomPx={SUBTITLE_BOTTOM_PX}>
                     <div className="absolute inset-0">
                         <VisualizerRenderer
@@ -173,6 +177,7 @@ const ThemePreview: React.FC<{
                             lyricsFontScale={lyricsFontScale}
                             showSubtitleTranslation={showSubtitleTranslation}
                             subtitleContentMode={subtitleContentMode}
+                            subtitleOverlayLayout={subtitleOverlayLayout}
                             cappellaCustomEmojiImages={cappellaCustomEmojiImages}
                             cappellaCustomAvatarImages={cappellaCustomAvatarImages}
                             monetPortraitImage={monetPortraitImage}
@@ -213,7 +218,7 @@ const ThemePreview: React.FC<{
                         {isPaused ? <Play size={14} className="translate-x-[1px]" fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
                     </button>
                 </Tooltip>
-            </div>
+            </SampleBox>
         );
     };
 

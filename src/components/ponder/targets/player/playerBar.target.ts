@@ -1,5 +1,5 @@
 import { usePlayerBottomBarLayoutStore } from '../../../../stores/usePlayerBottomBarLayoutStore';
-import { PLAYER_BAR_GEOMETRY as G } from '../../surfaces/player/playerBar.geometry';
+import { CAPSULE_QUICK_ACTIONS_GEOMETRY as Q, PLAYER_BAR_GEOMETRY as G } from '../../surfaces/player/playerBar.geometry';
 import type { PonderAnchorSource, PonderSceneScript, PonderSurfaceKind, PonderTargetDefinition } from '../../../../types/ponder';
 
 // src/components/ponder/targets/player/playerBar.target.ts
@@ -66,7 +66,7 @@ const centeredSurface = (
 /**
  * 第一章：这条胶囊上都有什么，以及为什么它和别的播放器长得不一样。
  *
- * 放在最前面是因为后面四章讲的都是「这一处和你预期的不同」，而不同之于什么，
+ * 放在最前面是因为后面几章讲的都是「这一处和你预期的不同」，而不同之于什么，
  * 得先把这条胶囊整个交代一遍才说得清。
  */
 const barBasics: PonderSceneScript = {
@@ -169,7 +169,85 @@ const barBasics: PonderSceneScript = {
     ],
 };
 
-/** 第二章：整条可以拖着改高度，但要先进定位模式。 */
+/**
+ * 第二章：指针停一下，上方浮出一排快捷操作；最右那颗把命令窗口从胶囊原地长出来。
+ *
+ * 单独成章，而不是塞进第一章：浮出来的那排和长出来的窗口都只能放出来、收不回去，
+ * 放在第一章里，后面「移开指针收成一根进度条」那一步会被它们盖着。
+ */
+const quickActions: PonderSceneScript = {
+    id: 'player-bar-quick-actions',
+    titleKey: 'ponder.scenes.playerBarQuickActions',
+    anchors: {
+        ...BAR_ANCHORS,
+        /** 胶囊正上方那一排，比胶囊窄得多，也是一条胶囊。 */
+        quickActions: {
+            kind: 'synthetic',
+            rect: { left: 0.5, top: 0.535, width: 0.3, height: 0.065, anchorX: 'center' },
+            role: 'surface',
+            surfaceKind: 'capsule-quick-actions',
+            radius: '9999px',
+            labelKey: 'ponder.anchors.playerBar.quickActions',
+            startsHidden: true,
+        },
+        paletteButton: {
+            kind: 'relative',
+            from: 'quickActions',
+            rect: Q.paletteButton,
+            role: 'region',
+            labelKey: 'ponder.anchors.playerBar.paletteButton',
+        },
+        /**
+         * 从胶囊长出来的窗口：下沿和胶囊齐平，往上长，比胶囊略宽 —— 真实的也是，胶囊这时整条让开。
+         * 声明在那一排后面，画在它上面。
+         */
+        capsulePalette: {
+            kind: 'synthetic',
+            rect: { left: 0.5, top: 0.27, width: 0.66, height: 0.48, anchorX: 'center' },
+            role: 'surface',
+            surfaceKind: 'capsule-palette',
+            labelKey: 'ponder.anchors.playerBar.capsulePalette',
+            startsHidden: true,
+        },
+    },
+    steps: [
+        { kind: 'cursor', id: 'rest', to: { anchor: 'title' }, durationMs: 620, keyframe: true },
+        { kind: 'reveal', id: 'rowFloats', anchor: 'quickActions', transition: 'slide-up', durationMs: 420 },
+        {
+            kind: 'caption',
+            id: 'intro',
+            textKey: 'ponder.captions.playerBar.quickIntro',
+            pointTo: { anchor: 'quickActions' },
+            durationMs: 6200,
+            withPrevious: true,
+        },
+        { kind: 'pause', id: 'readIntro' },
+
+        { kind: 'cursor', id: 'pressPalette', to: { anchor: 'paletteButton' }, press: 'tap', durationMs: 620, keyframe: true },
+        { kind: 'reveal', id: 'paletteGrows', anchor: 'capsulePalette', transition: 'slide-up', durationMs: 520 },
+        {
+            kind: 'caption',
+            id: 'palette',
+            textKey: 'ponder.captions.playerBar.quickPalette',
+            pointTo: { anchor: 'capsulePalette' },
+            durationMs: 5400,
+            withPrevious: true,
+        },
+        { kind: 'pause', id: 'readPalette' },
+
+        {
+            kind: 'caption',
+            id: 'otherWays',
+            textKey: 'ponder.captions.playerBar.quickOther',
+            pointTo: { anchor: 'capsulePalette' },
+            durationMs: 5000,
+            keyframe: true,
+        },
+        { kind: 'pause', id: 'settle' },
+    ],
+};
+
+/** 第三章：整条可以拖着改高度，但要先进定位模式。 */
 const adjustHeight: PonderSceneScript = {
     id: 'player-bar-height',
     titleKey: 'ponder.scenes.playerBarHeight',
@@ -231,7 +309,12 @@ const adjustHeight: PonderSceneScript = {
     ],
 };
 
-/** 第三章：右边那两个位置的按钮可以换。 */
+/**
+ * 第四章：右边那两个位置的按钮可以换，而且就在按钮上换。
+ *
+ * 演的是按住：外圈画满、正上方弹出浮层。右键是同一件事，字幕里一句带过；
+ * 章节底下的按钮仍然去设置里那一组，那里能一次改两个。
+ */
 const swappableSlots: PonderSceneScript = {
     id: 'player-bar-slots',
     titleKey: 'ponder.scenes.playerBarSlots',
@@ -242,7 +325,15 @@ const swappableSlots: PonderSceneScript = {
     },
     anchors: {
         ...BAR_ANCHORS,
-        picker: centeredSurface('ponder.anchors.playerBar.picker', 0.3, 0.3, 0.12, 'picker'),
+        /** 弹在第一个槽位正上方的浮层，和真实的一样贴着胶囊上沿。 */
+        picker: {
+            kind: 'synthetic',
+            rect: { left: 0.735, top: 0.33, width: 0.25, height: 0.27, anchorX: 'center' },
+            role: 'surface',
+            surfaceKind: 'slot-picker',
+            labelKey: 'ponder.anchors.playerBar.picker',
+            startsHidden: true,
+        },
     },
     steps: [
         { kind: 'highlight', id: 'markPrimary', anchor: 'primarySlot', intensity: [0, 1], durationMs: 460, keyframe: true },
@@ -257,21 +348,43 @@ const swappableSlots: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readIntro' },
 
+        { kind: 'cursor', id: 'pressDown', to: { anchor: 'primarySlot' }, press: 'down', durationMs: 620, keyframe: true },
+        { kind: 'surfaceState', id: 'holding', anchor: 'bar', state: 'slots-holding', durationMs: 500 },
+        {
+            kind: 'caption',
+            id: 'hold',
+            textKey: 'ponder.captions.playerBar.slotsHold',
+            pointTo: { anchor: 'primarySlot' },
+            durationMs: 3600,
+            withPrevious: true,
+        },
+        { kind: 'pause', id: 'readHold' },
+
         { kind: 'reveal', id: 'openPicker', anchor: 'picker', transition: 'zoom', durationMs: 460, keyframe: true },
         {
             kind: 'caption',
-            id: 'where',
-            textKey: 'ponder.captions.playerBar.slotsWhere',
+            id: 'pick',
+            textKey: 'ponder.captions.playerBar.slotsPick',
             pointTo: { anchor: 'picker' },
-            durationMs: 3800,
+            durationMs: 5600,
             withPrevious: true,
+        },
+        { kind: 'pause', id: 'readPick' },
+
+        {
+            kind: 'caption',
+            id: 'suggest',
+            textKey: 'ponder.captions.playerBar.slotsSuggest',
+            pointTo: { anchor: 'slots' },
+            durationMs: 4800,
+            keyframe: true,
         },
         { kind: 'pause', id: 'settle' },
     ],
 };
 
 /**
- * 第四章：随机不是一个模式。
+ * 第五章：随机不是一个模式。
  *
  * 不按「槽位里此刻放着随机吗」来筛：没把它放上去的人更需要知道这里的随机和别处不一样，
  * 合成界面直接把第一个槽位换成随机按钮。
@@ -310,7 +423,7 @@ const shuffleIsOneShot: PonderSceneScript = {
     ],
 };
 
-/** 第五章：没有常驻音量条。同样不按槽位筛。 */
+/** 第六章：没有常驻音量条。同样不按槽位筛。 */
 const volumeInPalette: PonderSceneScript = {
     id: 'player-bar-volume',
     titleKey: 'ponder.scenes.playerBarVolume',
@@ -352,5 +465,5 @@ export default {
     hoverSelector: '[data-ponder="player-bar"]',
     // 已经在定位模式里了就不必教了，那时整条胶囊本来就是个被拖的物体。
     isAvailable: () => !usePlayerBottomBarLayoutStore.getState().isPositioning,
-    scenes: [barBasics, adjustHeight, swappableSlots, shuffleIsOneShot, volumeInPalette],
+    scenes: [barBasics, quickActions, adjustHeight, swappableSlots, shuffleIsOneShot, volumeInPalette],
 } satisfies PonderTargetDefinition;

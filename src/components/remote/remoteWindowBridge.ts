@@ -6,7 +6,7 @@ import { idleVideoExportState } from '../../types/videoExport';
 
 // src/components/remote/remoteWindowBridge.ts
 // What the remote window hears from the main process and says back: the playback snapshot, the
-// window's own two switches (and whether always-on-top works at all), whether the pointer is in the
+// window's own switches (and whether always-on-top works at all), whether the pointer is in the
 // window, and the command sender.
 
 export const sendRemoteCommand = (command: RemoteControlCommand) => {
@@ -55,7 +55,7 @@ const EMPTY_REMOTE_SNAPSHOT: RemoteControlSnapshot = {
     updatedAt: 0,
 };
 
-/** The latest snapshot. The 500 ms publishes leave the lyrics out, so the last lyrics sent are kept. */
+/** The latest snapshot. The 500 ms publishes leave the lyrics and the queue out, so the last ones sent are kept. */
 export const useRemoteSnapshot = (): RemoteControlSnapshot => {
     const [snapshot, setSnapshot] = useState<RemoteControlSnapshot>(EMPTY_REMOTE_SNAPSHOT);
 
@@ -76,6 +76,9 @@ export const useRemoteSnapshot = (): RemoteControlSnapshot => {
                 lyrics: Object.prototype.hasOwnProperty.call(nextSnapshot, 'lyrics')
                     ? nextSnapshot.lyrics ?? null
                     : previous.lyrics ?? null,
+                queue: Object.prototype.hasOwnProperty.call(nextSnapshot, 'queue')
+                    ? nextSnapshot.queue
+                    : previous.queue,
             }));
         });
 
@@ -95,6 +98,8 @@ export interface RemoteWindowPresentation {
     clickThrough: boolean;
     /** The settings switch "expand cover": when idle, the cover opens into the large sleeve. On by default. */
     expandCover: boolean;
+    /** The settings switch "text shade": with the transparent background the idle type sits on a soft dark shade. Off by default. */
+    textShade: boolean;
     /** False on native Wayland, where Electron cannot keep a window on top: both pin switches grey out. */
     alwaysOnTopSupported: boolean;
 }
@@ -103,6 +108,7 @@ const DEFAULT_REMOTE_WINDOW_PRESENTATION: RemoteWindowPresentation = {
     hideTitlebar: false,
     clickThrough: false,
     expandCover: true,
+    textShade: false,
     alwaysOnTopSupported: true,
 };
 
@@ -116,12 +122,14 @@ export const useRemoteWindowPresentation = (): RemoteWindowPresentation => {
                 hideTitlebar: Boolean(settings.hideTitlebar),
                 clickThrough: Boolean(settings.clickThrough),
                 expandCover: settings.expandCover !== false,
+                textShade: settings.textShade === true,
                 alwaysOnTopSupported: settings.alwaysOnTopSupported !== false,
             };
             setPresentation(previous => (
                 previous.hideTitlebar === next.hideTitlebar
                     && previous.clickThrough === next.clickThrough
                     && previous.expandCover === next.expandCover
+                    && previous.textShade === next.textShade
                     && previous.alwaysOnTopSupported === next.alwaysOnTopSupported
                     ? previous
                     : next

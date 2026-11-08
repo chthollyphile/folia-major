@@ -73,9 +73,11 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     randomVisualizerModePerSong: 'visualizer',
     randomVisualizerModes: 'visualizer',
     visualizerOpacity: 'visualizer',
+    lyricRenderQuality: 'visualizer',
     hidePlayerTranslationSubtitle: 'visualizer',
     showSubtitleTranslation: 'visualizer',
     subtitleContentMode: 'visualizer',
+    subtitleOverlayLayout: 'visualizer',
     subtitleOverlayBackground: 'visualizer',
     subtitleUpcomingLyricsBlur: 'visualizer',
     subtitleOverlayOpacity: 'visualizer',
@@ -140,6 +142,8 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     stageTrackPillMode: 'trackCard',
     stageTrackPillTimeoutSec: 'trackCard',
     stageTrackPillOnHome: 'trackCard',
+    stageTrackPillPosition: 'trackCard',
+    stageTrackPillInObs: 'trackCard',
 
     // The bravais wall's collection stack edges. Its own group: it styles the library wall, not the
     // picture or the card, and someone taking a look for its colours has a reason to leave it alone.
@@ -150,6 +154,15 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     libraryWallBackdropLyrics: 'libraryWall',
     libraryWallBackdropBlur: 'libraryWall',
     libraryWallSeamDirection: 'libraryWall',
+    // Numbering only the playing song styles the tiles of both walls (queue collage and bravais): the
+    // library wall group is where the other tile looks are.
+    latticeBadgeCurrentOnly: 'libraryWall',
+    // The scratchpad's side tab sits on the library's edge and follows the wall's look: same group.
+    scratchpadHandleStyle: 'libraryWall',
+
+    // The frosted bar behind the player page's titlebar. Under visualizer with the other player-page
+    // switch that travels (hidePlayerTranslationSubtitle): it is part of how the playing screen looks.
+    playerHeaderBlur: 'visualizer',
 };
 
 // Fields the import applies only when the incoming value is truthy, so an incoming null means "the
@@ -161,6 +174,8 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     // applyImportedConfig only applies subtitleContentMode for the known enum values, all of which
     // are truthy strings, so an empty/absent one is skipped there the same as here.
     'subtitleContentMode',
+    // Likewise applied only when it parses as a layout, every one of which is a non-empty string.
+    'subtitleOverlayLayout',
     'lyricsFontStyle',
     'lyricsFontFallbackFamilies',
     'lyricsCustomFontFamily',
@@ -193,8 +208,10 @@ const TRUTHY_GUARDED_FIELDS = new Set([
     'stageTrackPillMode',
     // applyImportedConfig only applies a known info strip preset, all of which are truthy strings.
     'libraryWallSeamStyle',
-    // Likewise a known info strip direction (auto / vertical / horizontal).
+    // Likewise a known info strip direction (auto / auto-reverse / vertical / horizontal).
     'libraryWallSeamDirection',
+    // Likewise a known scratchpad side tab style.
+    'scratchpadHandleStyle',
 ]);
 
 // Per-renderer tunings the import skips whenever the visualizerTunings bundle is present. The three

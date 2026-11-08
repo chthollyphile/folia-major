@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const Busboy = require('busboy');
 const { WebSocket, WebSocketServer } = require('ws');
 const { finished } = require('stream/promises');
+const { createStageConnectionFile } = require('./stageConnectionFile.cjs');
+const { createStageLyricsInput } = require('./stageLyricsInput.cjs');
 
 // Stage API server for desktop-local integrations. External tools can push
 // one parser-compatible lyrics session, push one media session, or ask Folia
@@ -64,6 +66,45 @@ class StageApiError extends Error {
 }
 
 const normalizeStageText = (value) => (typeof value === 'string' ? value.trim() : '');
+
+// A bare numeric songId names a song of the local music service, as it always has.
+const STAGE_DEFAULT_SONG_PROVIDER_ID = 'netease';
+// An omni provider id: a built-in one or a mod's (`folium.<modid>.<name>`).
+const STAGE_PROVIDER_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+const STAGE_SONG_REF_ID_MAX_LENGTH = 256;
+
+const isStageProviderId = (value) => typeof value === 'string' && STAGE_PROVIDER_ID_PATTERN.test(value);
+
+const buildStageSongRef = (providerId, songId) => `${providerId}:${songId}`;
+
+// Reads a Stage song reference: a positive integer (or a string of one) is a song of the local
+// service; `<provider>:<songId>` is a song at that omni provider. null for neither.
+const parseStageSongRef = (value) => {
+  if (typeof value === 'string' && value.includes(':')) {
+    const text = value.trim();
+    const separatorIndex = text.indexOf(':');
+    const providerId = text.slice(0, separatorIndex);
+    const rawSongId = text.slice(separatorIndex + 1).trim();
+    if (!isStageProviderId(providerId) || !rawSongId || rawSongId.length > STAGE_SONG_REF_ID_MAX_LENGTH) {
+      return null;
+    }
+    if (providerId !== STAGE_DEFAULT_SONG_PROVIDER_ID) {
+      return { providerId, songId: rawSongId, songRef: buildStageSongRef(providerId, rawSongId) };
+    }
+    // The default provider's `<provider>:42` is the same song as `42`, so it carries the same numeric id.
+    value = rawSongId;
+  }
+
+  const songId = Number(value);
+  if (!Number.isInteger(songId) || songId <= 0) {
+    return null;
+  }
+  return {
+    providerId: STAGE_DEFAULT_SONG_PROVIDER_ID,
+    songId,
+    songRef: buildStageSongRef(STAGE_DEFAULT_SONG_PROVIDER_ID, songId),
+  };
+};
 
 // Lyric files from older Chinese tools are GBK and end lines with "\r\r\n" or a bare "\r".
 // A BOM wins, then strict UTF-8, then GB18030; line endings become "\n" for the LRC parser.
@@ -194,8 +235,13 @@ function createStageApi({
   defaultStageApiPort,
   getNeteasePort,
   searchStageSongs,
+  connectionFilePath = /** @type {string | null} */ (null),
 }) {
   let stageServer = null;
+  // Set once the server listens: a server whose listen failed (port taken) is not advertised.
+  let stageServerListening = false;
+  // Bumped by every push and clear of the Stage input: a push that awaited is dropped when another came meanwhile.
+  let stageInputVersion = 0;
   let stageLyricsSession = null;
   let stageMediaSession = null;
   let stageActiveEntryKind = null;
@@ -208,6 +254,7 @@ function createStageApi({
   const pendingExternalPlayRequests = new Map();
   const pendingStagePlayerControlRequests = new Map();
   const pendingStagePlayerQueueRequests = new Map();
+  const pendingStagePlayerSearchRequests = new Map();
   const stagePlayerWebSockets = new Set();
   let stagePlayerWebSocketServer = null;
   let stagePlayerSnapshot = null;
@@ -223,6 +270,16 @@ function createStageApi({
       return;
     }
     method(`[Stage] ${message}`, details);
+  };
+
+  // 本机外部程序读的连接文件（stageConnectionFile.cjs）：服务开着时写，关掉时删
+  const connectionFile = createStageConnectionFile({
+    filePath: connectionFilePath,
+    log: (level, message, details) => logStage(level, message, details),
+  });
+  const writeConnectionFile = () => {
+    if (!stageServer || !stageServerListening) return;
+    connectionFile.write({ port: getConfiguredStagePort(), token: getStageToken() });
   };
 
   const getConfiguredStagePort = () => {
@@ -745,7 +802,7 @@ function createStageApi({
     }
   };
 
-  const rememberStageSessionAssets = (sessionId, sessionFiles) => {
+  const rememberStageSessionAssets = (sessionId, sessionFiles, coverMimeType = null) => {
     if (!sessionId) {
       return;
     }
@@ -757,6 +814,7 @@ function createStageApi({
     stageSessionAssetIndex.set(sessionId, {
       audioPath: sessionFiles?.audioPath || null,
       coverPath: sessionFiles?.coverPath || null,
+      coverMimeType: coverMimeType || null,
       workingDirectory: getStageSessionDirectory(sessionId),
     });
   };
@@ -782,6 +840,7 @@ function createStageApi({
   };
 
   const clearStageStateData = async () => {
+    stageInputVersion += 1;
     clearPendingExternalPlayRequests('Stage state was cleared.');
     stageLyricsSession = null;
     stageMediaSession = null;
@@ -1307,8 +1366,14 @@ function createStageApi({
     };
   };
 
-  const normalizeStageLyricsSessionPayload = (payload = {}) => {
-    const rawLyricSource = payload?.lyricSource;
+  // 外部播放器推来的时钟、长度、封面（stageLyricsInput.cjs）
+  const {
+    normalizeStageLyricsClock,
+    normalizeStageDurationMs,
+    normalizeStageLyricsCover,
+  } = createStageLyricsInput({ invalid: (message, code) => createStageValidationError(message, code) });
+
+  const normalizeStageLyricSource = (rawLyricSource) => {
     if (!rawLyricSource || typeof rawLyricSource !== 'object') {
       throw createStageValidationError(
         'Stage lyrics payload requires a parser-compatible lyricSource object.',
@@ -1444,12 +1509,42 @@ function createStageApi({
       );
     }
 
+    return lyricSource;
+  };
+
+  // /stage/lyrics 的载荷：lyricSource 可以没有（外部播放器先报曲目、歌词晚到或找不到），这时至少要有 title
+  const normalizeStageLyricsSessionPayload = (payload = {}) => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw createStageValidationError(
+        'Stage lyrics payload must be a JSON object.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+    const title = normalizeStageText(payload.title);
+    const hasLyricSource = payload.lyricSource !== undefined && payload.lyricSource !== null;
+    if (!hasLyricSource && !title) {
+      throw createStageValidationError(
+        'Stage lyrics payload requires a parser-compatible lyricSource object, or a title for a session without lyrics.',
+        'INVALID_STAGE_LYRICS',
+      );
+    }
+    const lyricSource = hasLyricSource ? normalizeStageLyricSource(payload.lyricSource) : null;
+    const durationMs = normalizeStageDurationMs(payload.durationMs);
+    const clock = payload.positionMs !== undefined && payload.positionMs !== null ? normalizeStageLyricsClock(payload) : null;
+    const cover = normalizeStageLyricsCover(payload);
+
     return {
-      ...(normalizeStageText(payload.title) ? { title: normalizeStageText(payload.title) } : {}),
-      ...(normalizeStageText(payload.artist) ? { artist: normalizeStageText(payload.artist) } : {}),
-      ...(normalizeStageText(payload.album) ? { album: normalizeStageText(payload.album) } : {}),
-      lyricSource,
-      updatedAt: Date.now(),
+      session: {
+        ...(title ? { title } : {}),
+        ...(normalizeStageText(payload.artist) ? { artist: normalizeStageText(payload.artist) } : {}),
+        ...(normalizeStageText(payload.album) ? { album: normalizeStageText(payload.album) } : {}),
+        ...(lyricSource ? { lyricSource } : {}),
+        ...(durationMs ? { durationMs } : {}),
+        ...(cover.coverUrl ? { coverUrl: cover.coverUrl } : {}),
+        ...(clock ? { clock } : {}),
+        updatedAt: Date.now(),
+      },
+      coverUpload: cover.upload,
     };
   };
 
@@ -1503,7 +1598,7 @@ function createStageApi({
     return songs.map(normalizeStageSearchResult).filter((song) => Number.isFinite(song.songId) && song.songId > 0);
   };
 
-  const requestStageSongPlay = async (songId, options = {}) => {
+  const requestStageSongPlay = async ({ providerId, songId }, options = {}) => {
     const mainWindow = getMainWindow();
     if (!mainWindow || mainWindow.isDestroyed()) {
       throw new StageApiError('Folia main window is unavailable for external play requests.', {
@@ -1520,13 +1615,14 @@ function createStageApi({
         reject(new StageApiError('Stage external play request timed out.', {
           statusCode: 504,
           code: 'STAGE_PLAY_TIMEOUT',
-          details: { requestId, songId },
+          details: { requestId, providerId, songId },
         }));
       }, STAGE_PLAY_REQUEST_TIMEOUT_MS);
 
       pendingExternalPlayRequests.set(requestId, { resolve, reject, timer });
       mainWindow.webContents.send('stage-external-play-request', {
         requestId,
+        providerId,
         songId,
         appendToQueue: options.appendToQueue === true,
       });
@@ -1615,6 +1711,65 @@ function createStageApi({
       'STAGE_PLAYER_QUEUE_UNAVAILABLE',
     );
 
+  // A search at one omni provider runs in the renderer, which holds the providers and their sessions.
+  const requestStageProviderSearch = (providerId, query, limit) =>
+    requestStagePlayerRendererAction(
+      'stage-player-search-request',
+      pendingStagePlayerSearchRequests,
+      'stage-player-search',
+      { providerId, query, limit },
+      'STAGE_PLAYER_SEARCH_UNAVAILABLE',
+    );
+
+  // One song the renderer found at `providerId`, in the shape the local service's search answers with;
+  // null for one without an id to play it by. Its songId is read back from its reference, so it is
+  // the same value a play of that reference answers with.
+  const normalizeStageProviderSearchResult = (providerId, song = {}) => {
+    const rawSongId = typeof song.songId === 'number' && Number.isFinite(song.songId)
+      ? String(song.songId)
+      : normalizeStageText(song.songId);
+    const songRef = rawSongId ? parseStageSongRef(buildStageSongRef(providerId, rawSongId)) : null;
+    if (!songRef) {
+      return null;
+    }
+
+    return {
+      songId: songRef.songId,
+      title: normalizeStageText(song.title) || 'Unknown Song',
+      artists: Array.isArray(song.artists) ? song.artists.map(normalizeStageText).filter(Boolean) : [],
+      album: normalizeStageText(song.album),
+      durationMs: Number.isFinite(song.durationMs) && song.durationMs > 0 ? Math.floor(song.durationMs) : null,
+      coverUrl: normalizeStageText(song.coverUrl) || null,
+      provider: providerId,
+      songRef: songRef.songRef,
+    };
+  };
+
+  const completeStagePlayerSearchRequest = ({ requestId, ok, error, songs } = {}) => {
+    const normalizedRequestId = normalizeStageText(requestId);
+    const pendingRequest = normalizedRequestId ? pendingStagePlayerSearchRequests.get(normalizedRequestId) : null;
+    if (!pendingRequest) {
+      return false;
+    }
+
+    clearTimeout(pendingRequest.timer);
+    pendingStagePlayerSearchRequests.delete(normalizedRequestId);
+
+    if (ok) {
+      pendingRequest.resolve(Array.isArray(songs) ? songs : []);
+      return true;
+    }
+
+    pendingRequest.reject(new StageApiError(normalizeStageText(error) || 'Renderer rejected the Stage search request.', {
+      statusCode: 502,
+      code: 'STAGE_SEARCH_REJECTED',
+      details: {
+        requestId: normalizedRequestId,
+      },
+    }));
+    return true;
+  };
+
   const completeStagePlayerControlRequest = (result) =>
     completeStagePlayerRendererRequest(pendingStagePlayerControlRequests, result);
 
@@ -1682,14 +1837,38 @@ function createStageApi({
     if (!query) {
       throw createStageValidationError('Stage player search query is required.', 'INVALID_STAGE_PLAYER_SEARCH_QUERY');
     }
+    // Without a provider the search stays on the local service; with one it goes through omni.
+    const hasProvider = payload.provider !== undefined && payload.provider !== null;
+    const providerId = hasProvider ? normalizeStageText(payload.provider) : STAGE_DEFAULT_SONG_PROVIDER_ID;
+    if (hasProvider && !isStageProviderId(providerId)) {
+      throw createStageValidationError(
+        'Stage player search provider must be an omni provider id.',
+        'INVALID_STAGE_PLAYER_SEARCH_PROVIDER',
+      );
+    }
 
-    const songs = searchStageSongs
-      ? await searchStageSongs(query, limit)
-      : await defaultSearchStageSongs(query, limit);
+    let songs;
+    if (hasProvider) {
+      const found = await requestStageProviderSearch(providerId, query, limit);
+      songs = found
+        .map((song) => normalizeStageProviderSearchResult(providerId, song))
+        .filter(Boolean)
+        .slice(0, limit);
+    } else {
+      const found = searchStageSongs
+        ? await searchStageSongs(query, limit)
+        : await defaultSearchStageSongs(query, limit);
+      songs = found.map((song) => ({
+        ...song,
+        provider: STAGE_DEFAULT_SONG_PROVIDER_ID,
+        songRef: buildStageSongRef(STAGE_DEFAULT_SONG_PROVIDER_ID, song.songId),
+      }));
+    }
 
     return withStagePlayerOutsideInMetadata({
       ...(deprecated ? { deprecated: true, replacement: '/stage/player/search' } : {}),
       query,
+      provider: providerId,
       songs,
     });
   };
@@ -1700,13 +1879,16 @@ function createStageApi({
       'Failed to parse Stage player play JSON payload.',
       'INVALID_STAGE_PLAYER_PLAY_JSON',
     );
-    const songId = Number(payload.songId);
+    const songRef = parseStageSongRef(payload.songId);
     const appendToQueue = payload.appendToQueue === true;
-    if (!Number.isInteger(songId) || songId <= 0) {
-      throw createStageValidationError('Stage player play payload requires a positive integer songId.', 'INVALID_STAGE_PLAYER_PLAY_SONG_ID');
+    if (!songRef) {
+      throw createStageValidationError(
+        'Stage player play payload requires a positive integer songId or a "<provider>:<songId>" reference.',
+        'INVALID_STAGE_PLAYER_PLAY_SONG_ID',
+      );
     }
 
-    const result = await requestStageSongPlay(songId, { appendToQueue });
+    const result = await requestStageSongPlay(songRef, { appendToQueue });
     return withStagePlayerOutsideInMetadata({
       ...(deprecated ? { deprecated: true, replacement: '/stage/player/play' } : {}),
       ok: true,
@@ -1714,7 +1896,9 @@ function createStageApi({
       ...(result?.deduplicated !== undefined ? { deduplicated: result.deduplicated } : {}),
       ...(result?.affectedCount !== undefined ? { affectedCount: result.affectedCount } : {}),
       ...(result?.diff ? { diff: result.diff } : {}),
-      songId,
+      songId: songRef.songId,
+      provider: songRef.providerId,
+      songRef: songRef.songRef,
       appendToQueue,
     });
   };
@@ -1828,10 +2012,16 @@ function createStageApi({
     const action = normalizeStageText(payload.action);
     const status = ensureStagePlayerQueueAllowed(action);
 
+    // `songIds` wins over `songId` when it names any song; each takes a number or a `<provider>:<songId>`.
+    const listedSongs = Array.isArray(payload.songIds)
+      ? payload.songIds.map(parseStageSongRef).filter(Boolean)
+      : [];
+    const singleSong = parseStageSongRef(payload.songId);
+    const songs = listedSongs.length > 0 ? listedSongs : singleSong ? [singleSong] : [];
+
     const result = await requestStagePlayerQueueOperation({
       action,
-      songId: Number.isInteger(Number(payload.songId)) ? Number(payload.songId) : undefined,
-      songIds: Array.isArray(payload.songIds) ? payload.songIds.map(Number).filter((songId) => Number.isInteger(songId) && songId > 0) : undefined,
+      songs: songs.length > 0 ? songs.map(({ providerId, songId }) => ({ providerId, songId })) : undefined,
       queueItemId: normalizeStageText(payload.queueItemId) || undefined,
       fromQueueItemId: normalizeStageText(payload.fromQueueItemId) || undefined,
       fromIndex: Number.isInteger(Number(payload.fromIndex)) ? Number(payload.fromIndex) : undefined,
@@ -1909,9 +2099,9 @@ function createStageApi({
         return;
       }
 
-      const mimeType = requestedSessionId === stageMediaSession?.id
+      const mimeType = sessionAssets.coverMimeType || (requestedSessionId === stageMediaSession?.id
         ? stageMediaSession.coverMimeType
-        : 'application/octet-stream';
+        : 'application/octet-stream');
       const buffer = await fsp.readFile(coverPath);
       sendStageBinary(res, 200, buffer, mimeType || 'application/octet-stream');
       return;
@@ -1977,20 +2167,119 @@ function createStageApi({
         });
       }
 
-      stageLyricsSession = normalizeStageLyricsSessionPayload(payload);
+      const { session: nextLyricsSession, coverUpload } = normalizeStageLyricsSessionPayload(payload);
+      stageInputVersion += 1;
+      const pushVersion = stageInputVersion;
+      let nextSessionId = null;
+      let nextCoverPath = null;
+      if (coverUpload) {
+        // An uploaded cover lives in its own session directory, served like a media session's cover.
+        nextSessionId = `stage-${nextLyricsSession.updatedAt}-${crypto.randomUUID()}`;
+        await ensureStageSessionsDirectory();
+        const workingDirectory = await createStageWorkingDirectory(nextSessionId);
+        nextCoverPath = path.join(workingDirectory, `cover${coverUpload.extension}`);
+        try {
+          await fsp.writeFile(nextCoverPath, coverUpload.bytes);
+        } catch (error) {
+          await removeStageSessionDirectory(workingDirectory);
+          throw error;
+        }
+        // Another push (or a clear) came while the cover was written: it is newer, this one is dropped.
+        if (pushVersion !== stageInputVersion) {
+          await removeStageSessionDirectory(workingDirectory);
+          throw new StageApiError('A newer Stage input replaced this lyrics session before it was applied.', {
+            statusCode: 409,
+            code: 'STAGE_INPUT_SUPERSEDED',
+          });
+        }
+        nextLyricsSession.coverUrl = buildStageSessionMediaUrl(nextSessionId, 'cover', nextLyricsSession.updatedAt);
+      }
+
+      stageLyricsSession = nextLyricsSession;
       stageMediaSession = null;
       stageActiveEntryKind = 'lyrics';
-      stageActiveSessionId = null;
+      stageActiveSessionId = nextSessionId;
+      // The cover is served only from its session's address (in coverUrl), not from the
+      // token-free /stage/media/current/cover any page could poll.
       stageActiveSessionFiles = {
         audioPath: null,
         coverPath: null,
       };
+      if (nextSessionId) {
+        rememberStageSessionAssets(nextSessionId, { audioPath: null, coverPath: nextCoverPath }, coverUpload.mimeType);
+        void cleanupInactiveStageSessions();
+      }
       broadcastStageEvent('stage-session-updated');
       sendStageJson(res, 200, buildStageStatus());
       return;
     }
 
+    // Moves the clock of the lyrics session on screen, without reloading it: an external player
+    // reports where it is whenever it plays, pauses or seeks (and now and then against drift).
+    if (pathname === '/stage/lyrics/clock' && req.method === 'POST') {
+      const requestBody = await readRequestBodyWithLimit(req, STAGE_JSON_BODY_LIMIT_BYTES);
+      let payload;
+      try {
+        payload = JSON.parse(requestBody.toString('utf-8') || '{}');
+      } catch (error) {
+        throw new StageApiError('Failed to parse Stage lyrics clock JSON payload.', {
+          statusCode: 400,
+          code: 'INVALID_STAGE_LYRICS_CLOCK',
+          details: {
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        });
+      }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw createStageValidationError('Stage lyrics clock payload must be a JSON object.', 'INVALID_STAGE_LYRICS_CLOCK');
+      }
+
+      if (stageActiveEntryKind !== 'lyrics' || !stageLyricsSession) {
+        throw new StageApiError('No Stage lyrics session is active.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_INACTIVE',
+        });
+      }
+      // A clock meant for an earlier session (the player changed track meanwhile) is not applied.
+      if (payload.sessionUpdatedAt !== undefined && payload.sessionUpdatedAt !== stageLyricsSession.updatedAt) {
+        throw new StageApiError('The Stage lyrics session has changed.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_CHANGED',
+          details: { sessionUpdatedAt: stageLyricsSession.updatedAt },
+        });
+      }
+
+      // A session pushed without positionMs runs on Folia's own clock (lyrics bounds, loop mode): it is not driven from outside.
+      if (!stageLyricsSession.clock) {
+        throw new StageApiError('The Stage lyrics session was pushed without positionMs, so it has no external clock.', {
+          statusCode: 409,
+          code: 'STAGE_LYRICS_SESSION_UNCLOCKED',
+        });
+      }
+
+      const clock = normalizeStageLyricsClock(payload, stageLyricsSession.clock);
+      const durationMs = normalizeStageDurationMs(payload.durationMs);
+      stageLyricsSession = {
+        ...stageLyricsSession,
+        clock,
+        ...(durationMs ? { durationMs } : {}),
+      };
+      const clockUpdate = {
+        sessionUpdatedAt: stageLyricsSession.updatedAt,
+        clock,
+        ...(stageLyricsSession.durationMs ? { durationMs: stageLyricsSession.durationMs } : {}),
+      };
+      // Only the clock goes to the window: the session (and its lyrics) did not change.
+      const mainWindow = getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('stage-lyrics-clock-updated', clockUpdate);
+      }
+      sendStageJson(res, 200, withStageInputMetadata(clockUpdate));
+      return;
+    }
+
     if (pathname === '/stage/session' && req.method === 'POST') {
+      stageInputVersion += 1;
       const contentType = req.headers['content-type'] || '';
       const nextWorkingSessionId = `stage-${Date.now()}-${crypto.randomUUID()}`;
       await ensureStageSessionsDirectory();
@@ -2067,6 +2356,7 @@ function createStageApi({
     clearPendingExternalPlayRequests('Stage server stopped.');
     clearPendingStagePlayerRequests(pendingStagePlayerControlRequests, 'Stage server stopped.', 'STAGE_PLAYER_CONTROL_UNAVAILABLE');
     clearPendingStagePlayerRequests(pendingStagePlayerQueueRequests, 'Stage server stopped.', 'STAGE_PLAYER_QUEUE_UNAVAILABLE');
+    clearPendingStagePlayerRequests(pendingStagePlayerSearchRequests, 'Stage server stopped.', 'STAGE_PLAYER_SEARCH_UNAVAILABLE');
     closeStagePlayerWebSockets();
 
     await new Promise((resolve) => {
@@ -2079,6 +2369,8 @@ function createStageApi({
     });
 
     stageServer = null;
+    stageServerListening = false;
+    connectionFile.remove();
     stagePlayerSnapshot = null;
     stagePlayerTrackKey = null;
     stagePlayerQueueKey = null;
@@ -2123,11 +2415,13 @@ function createStageApi({
       stageServer.once('error', reject);
       stageServer.listen(getConfiguredStagePort(), '127.0.0.1', () => {
         stageServer.off('error', reject);
+        stageServerListening = true;
         resolve();
       });
     });
 
     logStage('info', `Stage API server listening on http://127.0.0.1:${getConfiguredStagePort()}.`);
+    writeConnectionFile();
   };
 
   const syncStageModeState = async () => {
@@ -2163,6 +2457,7 @@ function createStageApi({
 
     if (isStageEnabled()) {
       await startStageServerIfNeeded();
+      writeConnectionFile();
     }
 
     const status = buildStageStatus();
@@ -2170,13 +2465,20 @@ function createStageApi({
     return status;
   };
 
+  // 退出时调：删掉连接文件（服务随进程一起关）
+  const dispose = () => {
+    connectionFile.remove();
+  };
+
   return {
+    dispose,
     buildStageStatus,
     clearStageState,
     clearStageStateData,
     completeStageExternalPlayRequest,
     completeStagePlayerControlRequest,
     completeStagePlayerQueueRequest,
+    completeStagePlayerSearchRequest,
     publishStagePlayerSnapshot,
     logStage,
     regenerateStageToken,

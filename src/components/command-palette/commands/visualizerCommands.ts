@@ -1,11 +1,12 @@
 import { defineCommand } from '../commandFactories';
 import { backgroundPickerSurface, visualizerPickerSurface } from '../surfaces/pickerSurface';
-import { LayoutGrid, Wallpaper } from 'lucide-react';
+import { Camera, LayoutGrid, Wallpaper } from 'lucide-react';
 import type { CommandPaletteCommand } from '../types';
 import { createBackgroundCommand, createToggleCommand, createVisualizerCommand } from '../commandFactories';
 import { lyricSegmentationCommand } from './lyricSegmentationCommand';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
+import { isMachiCameraBarOpen, toggleMachiCameraBar } from '../../visualizer/machi/cameraBar';
 
 // src/components/command-palette/commands/visualizerCommands.ts
 // Commands in the `visualizer` group: switching lyric animation modes and background layouts.
@@ -67,6 +68,7 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         description: 'Browse lyric animation modes and click one to switch',
         keywords: ['visualizer picker', 'pick visualizer', 'browse visualizers', '可视化选择器', '选择可视化', '歌词动画选择'],
         icon: LayoutGrid,
+        capsuleAction: true,
         requiresInput: true,
         surface: visualizerPickerSurface,
         placeholder: context => context.shared.t('commandPalette.pickerFilterPlaceholder', 'Type to filter, then click or press Enter'),
@@ -95,6 +97,52 @@ export const visualizerCommands: CommandPaletteCommand[] = [
     ...VISUALIZER_REGISTRY.flatMap(({ mode, command }) => (
         command ? [createVisualizerCommand(mode, command.title, command.description, command.keywords)] : []
     )),
+    // 町景的取景控制条（machi/MachiCameraBar.tsx）：只在播放页、正在画町景时有；打开时收起侧边面板，让出画面。
+    defineCommand({
+        id: 'visualizer-machi-camera-bar',
+        group: 'visualizer',
+        title: 'Machi: Viewfinder',
+        description: "Show or hide Machi's viewfinder bar on the player page to set the view, focus, aperture and drift",
+        keywords: ['viewfinder', 'photo mode', 'camera', 'aperture', 'bokeh', 'depth of field', 'focus', 'machi camera', '取景', '取景控制条', '拍照模式', '摄影机', '镜头', '光圈', '景深', '对焦', '町景'],
+        icon: Camera,
+        isAvailable: context => (context ? context.scope.view === 'player' && context.visualizer.visualizerMode === 'machi' : false),
+        execute: (_input, context) => {
+            toggleMachiCameraBar();
+            if (isMachiCameraBarOpen()) context.panel.setIsPanelOpen(false);
+            return true;
+        },
+    }),
+    // 雾笺的窗外和前面的玻璃：只在正在画雾笺时有，换完在状态栏报一声换成了哪个
+    defineCommand({
+        id: 'visualizer-nebbia-behind-cycle',
+        group: 'visualizer',
+        title: 'Nebbia: Switch window scene',
+        description: "Switch what is outside Nebbia's window: night street, Dream Sea Glow or the background; the front glass stays as it is",
+        keywords: ['nebbia scene', 'window scene', 'outside the window', 'aquarium', 'night street', 'dream sea glow', '雾笺', '窗外', '切换窗外', '背景样式', '梦海流萤', '雨夜街景', '水族箱'],
+        icon: Wallpaper,
+        isAvailable: context => (context ? context.visualizer.visualizerMode === 'nebbia' : false),
+        execute: (_input, context) => {
+            const { t } = context.shared;
+            const behind = context.visualizer.cycleNebbiaBehind();
+            context.shared.setStatusMsg({ type: 'success', text: `${t('options.nebbiaBehind', 'Outside the window')}: ${t(`options.nebbiaBehind_${behind}`, behind)}` });
+            return true;
+        },
+    }),
+    defineCommand({
+        id: 'visualizer-nebbia-glass-cycle',
+        group: 'visualizer',
+        title: 'Nebbia: Switch front glass',
+        description: "Switch the glass in front of Nebbia's window between rain and dew",
+        keywords: ['nebbia glass', 'front glass', 'glass style', 'rain glass', 'dew', 'condensation', '雾笺', '玻璃', '切换玻璃', '玻璃样式', '雨窗', '凝露'],
+        icon: Wallpaper,
+        isAvailable: context => (context ? context.visualizer.visualizerMode === 'nebbia' : false),
+        execute: (_input, context) => {
+            const { t } = context.shared;
+            const glass = context.visualizer.cycleNebbiaGlass();
+            context.shared.setStatusMsg({ type: 'success', text: `${t('options.nebbiaGlass', 'Front glass')}: ${t(`options.nebbiaGlass_${glass}`, glass)}` });
+            return true;
+        },
+    }),
     createToggleCommand('video-layer-toggle', 'visualizer', 'Video layer behind lyrics', 'Show or hide the muted video layer behind the lyrics', ['video layer', 'background video', 'video behind lyrics', '视频层', '背景视频', '歌词后方视频'], context => context.visualizer.toggleVideoLayer()),
     defineCommand({
         id: 'video-layer-pick',

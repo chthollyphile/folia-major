@@ -91,13 +91,13 @@ describe('the table', () => {
     it('stops playback for exactly the refusals the listener can act on, and a platform not configured here', () => {
         const stopping = ONLINE_FAILURE_CASE_IDS.filter(id => stopsPlayback(audio({ case: id })));
         expect(stopping.sort()).toEqual([
-            'entitlement-required', 'not-configured', 'preview-only', 'purchase-required', 'region-restricted', 'sign-in-needed', 'subscription-required',
+            'account-refused', 'entitlement-required', 'not-configured', 'preview-only', 'purchase-required', 'region-restricted', 'sign-in-needed', 'subscription-required',
         ]);
     });
 
     it('counts down past the refusals of only this song once 「无法播放时自动跳过」 is on, not past a sign-in or a platform not configured', () => {
         const stopping = ONLINE_FAILURE_CASE_IDS.filter(id => stopsPlayback(audio({ case: id }), true));
-        expect(stopping.sort()).toEqual(['not-configured', 'sign-in-needed']);
+        expect(stopping.sort()).toEqual(['account-refused', 'not-configured', 'sign-in-needed']);
     });
 
     it('asks again by itself only where the platform could not be reached, once where the request ran out of time', () => {

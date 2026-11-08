@@ -8,6 +8,7 @@ import {
     MonetPortraitImage,
     SongResult,
     SubtitleContentMode,
+    SubtitleOverlayLayout,
     Theme,
     VisualizerMode,
 } from '../../types';
@@ -52,6 +53,7 @@ interface ThemeParkProps {
     monetPortraitImage?: MonetPortraitImage | null;
     showSubtitleTranslation?: boolean;
     subtitleContentMode?: SubtitleContentMode;
+    subtitleOverlayLayout?: SubtitleOverlayLayout;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsFontWeight?: number | null;
@@ -74,6 +76,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     monetPortraitImage = null,
     showSubtitleTranslation = true,
     subtitleContentMode,
+    subtitleOverlayLayout,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsFontWeight,
@@ -187,6 +190,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
                     monetPortraitImage={monetPortraitImage}
                     showSubtitleTranslation={showSubtitleTranslation}
                     subtitleContentMode={subtitleContentMode}
+                    subtitleOverlayLayout={subtitleOverlayLayout}
                     lyricsFontScale={lyricsFontScale}
                     currentTime={currentTime}
                     progressTime={liveContent ? livePreview.playbackTime : sampleClock.currentTime}

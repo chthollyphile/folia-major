@@ -123,6 +123,17 @@ Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 
 - 不要为了“确认一下”再启动第二个 dev server
 - 优先读取现有终端错误和浏览器/运行时反馈
 
+在浏览器里看开发版时，两个只在开发构建里有的捷径（`src/dev/devLaunchFlags.ts`）：
+
+- **跳过首启流程**：地址带 `?skipStartup`（或 `.env.local` 写 `VITE_SKIP_STARTUP_EXPERIENCE=true`），
+  更新说明、「资料库用哪种界面」/ 播放去处选择、思索引导都不弹。什么都不写进 localStorage，去掉参数就恢复。
+- **立刻放一首 mock 歌**：地址带 `?mockSong`，或在页面里 `await window.__foliaDev.playMockSong()`。
+  一段合成的 72 秒 120 BPM 音频 + 逐字歌词（中英日、翻译、间奏）+ 封面，写进 OPFS 后按本地文件夹导入再播放，
+  走的是真实的本地播放和歌词链路，不需要网络和登录；重复调用复用同一条曲库记录。
+  素材在 `src/dev/mockSongAssets.ts`。没有用户手势时浏览器可能拦自动播放，那就点一下播放键。
+
+两个一起用：`http://localhost:3000/?skipStartup&mockSong`。
+
 ### 6. 仅改文档、issue template、配置说明
 
 通常不需要运行测试。

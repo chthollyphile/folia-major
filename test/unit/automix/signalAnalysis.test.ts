@@ -7,6 +7,7 @@ import {
     estimateDownbeat,
     estimateTempo,
     kWeight,
+    measureProgramLoudness,
     planBlendShape,
     rmsDb,
     spectralFlux,
@@ -575,5 +576,41 @@ describe('buildCrossfadeCurves', () => {
             expect(plain.out[index]).toBeLessThan(plain.out[index - 1]);
             expect(plain.in[index]).toBeGreaterThan(plain.in[index - 1]);
         }
+    });
+});
+
+describe('measureProgramLoudness', () => {
+    const RATE = 22050;
+    const tone = (seconds: number, amplitude: number) => Float32Array.from(
+        { length: Math.round(seconds * RATE) }, (_, index) => amplitude * Math.sin((2 * Math.PI * 1000 * index) / RATE),
+    );
+    const join = (...parts: Float32Array[]) => {
+        const out = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
+        let at = 0;
+        for (const part of parts) { out.set(part, at); at += part.length; }
+        return out;
+    };
+
+    it('reads a full-scale 1 kHz tone in both channels at 0 LUFS, and in one channel 3 dB under', () => {
+        const both = measureProgramLoudness(tone(5, 1), null, RATE)!;
+        expect(both.loudness).toBeCloseTo(0, 0);
+        expect(both.peak).toBeCloseTo(1, 2);
+        // Left only: mid and side are each half of it.
+        const half = tone(5, 0.5);
+        expect(measureProgramLoudness(half, half, RATE)!.loudness).toBeCloseTo(-3, 0);
+    });
+
+    it('leaves silence and passages far under the rest out of the reading', () => {
+        const loud = measureProgramLoudness(tone(10, 0.5), null, RATE)!.loudness;
+        const withQuietIntro = measureProgramLoudness(join(new Float32Array(RATE * 10), tone(10, 0.01), tone(10, 0.5)), null, RATE)!.loudness;
+        // Ungated, the twenty quiet seconds would pull it about 5 dB down; only blocks straddling the edge count.
+        expect(Math.abs(withQuietIntro - loud)).toBeLessThan(0.2);
+    });
+
+    it('keeps the -70 LUFS gate on a track so quiet the relative gate falls under it', () => {
+        // Ten seconds at -62 LUFS and ten at -71: the relative gate is -72, but -71 is still silence.
+        const quiet = measureProgramLoudness(tone(10, 10 ** (-62 / 20)), null, RATE)!.loudness;
+        const withNearSilence = measureProgramLoudness(join(tone(10, 10 ** (-62 / 20)), tone(10, 10 ** (-71 / 20))), null, RATE)!.loudness;
+        expect(Math.abs(withNearSilence - quiet)).toBeLessThan(0.2);
     });
 });

@@ -1,4 +1,4 @@
-import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamAlbum, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamAlbum, BravaisSeamArtist, BravaisSeamArtistSongs, BravaisSeamCollection, BravaisSeamFilter } from './bravaisSeamModels';
 import type { BravaisHomeLayer, BravaisHomeSeam } from './bravaisHomeModels';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 import type { BravaisLayerShape } from './bravaisWallShape';
@@ -26,6 +26,11 @@ export type BravaisItem = {
     coverArt?: BravaisCoverArt;
     /** 徽标文字：集合层是条目序号（01、02…），首页与歌手页是种类（歌单 / 专辑…），集合带曲目数（「歌单 · 124」）。 */
     badge: string;
+    /**
+     * 徽标是歌曲的序号（formatEntryBadge 给的，集合页与歌手页的歌曲）而不是种类文字。「只显示正在播放的序号」（#930）
+     * 按它藏起其他歌曲的序号，不从徽标文字猜。
+     */
+    badgeIsIndex?: boolean;
     /**
      * 集合的曲目数（已翻译的「N 首」，设计稿 §7.7）：只有集合（专辑 / 歌单 / 文件夹 / 每日推荐）有，而且只在曲目数已知时给；
      * 它进磁贴的可访问名，标签上写的是「种类 · N」；给了它，副标题里就不再重复曲目数。
@@ -78,6 +83,8 @@ export type BravaisSeamModel = {
     /** 播放 / 加入当前范围；没声明或不可用时不给。 */
     onPlayScope?: () => void;
     onEnqueueScope?: () => void;
+    /** 歌手页：打开这位歌手的「全部歌曲」（#918，倾斜信息条上的按钮）；没声明或不可用时不给。 */
+    onOpenAllSongs?: () => void;
     /**
      * 这面墙的「当前页过滤」输入位（设计稿 §7.6）：首页各页签、集合、歌手页、目录面板都有；suite 没声明过滤时不给。
      * 完整信息条、面板与首页窄缝把它画成缝自己的输入框（BravaisSeamFilterField）。
@@ -89,6 +96,8 @@ export type BravaisSeamModel = {
     home?: BravaisHomeSeam;
     /** B8 歌手页：头像、别名、简介与统计（ArtistGridView 的信息）。 */
     artist?: BravaisSeamArtist;
+    /** 歌手的「全部歌曲」那一层：画成歌手海报的变体（见 bravaisSeamModels 的 BravaisSeamArtistSongs）。 */
+    artistSongs?: BravaisSeamArtistSongs;
     /** 专辑页：封面、歌手、年份与元信息（左边钉住的专辑海报，见 bravaisAlbumModel）。只有专辑类型的集合有。 */
     album?: BravaisSeamAlbum;
     /** B8：播放 / 加入当前范围的按钮文案（歌手页是「播放热门」「加入热门歌曲」）；不给就是「播放全部」「加入队列」。 */
@@ -132,6 +141,14 @@ export type BravaisLayer = {
     onOpenItem?: (key: string) => void;
     onPlayItem?: (key: string) => void;
     onEnqueueItem?: (key: string) => void;
+    /**
+     * 歌曲卡片上悬浮才出现的两颗（BravaisTileQuickActions）：收进速记簿、收藏到歌单（应用的歌单选择器，含「我喜欢」）。
+     * 能不能做由 surface 判定（suite 声明 ∩ 宿主端口 ∩ 这首的来源）；不给就没有那颗。
+     */
+    canCollectItem?: (key: string) => boolean;
+    onCollectItem?: (key: string) => void;
+    canSaveItemToPlaylist?: (key: string) => boolean;
+    onSaveItemToPlaylist?: (key: string) => void;
     /** 聚焦卡上的专辑 / 歌手链接；能不能打开由 surface 判定（canOpen*）。 */
     canOpenAlbum?: (key: string) => boolean;
     onOpenAlbum?: (key: string) => void;

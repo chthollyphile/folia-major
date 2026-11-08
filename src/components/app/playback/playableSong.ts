@@ -25,5 +25,5 @@ export const isQueueSongPlayable = (song: SongResult): boolean => {
  * play it, marked unavailable or not.
  */
 export const isRestoredSongPlayable = (song: SongResult): boolean => (
-    song.sourceRef?.kind !== 'online' || omni.canPlaySong(song)
+    song.sourceRef?.kind !== 'online' || omni.canPlaySong(song) || omni.canPlayExternally(song)
 );

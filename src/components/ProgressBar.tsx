@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import { MotionValue, useMotionValueEvent } from 'framer-motion';
 import { FoliumProgressButtons, FoliumProgressLayers, useFoliumProgressContext } from '../mods/folium/registries/progress';
+import { getProgressFillStep, getProgressFillStepFraction } from './progressFillStep';
 
 // Folium public parts (mods/README.md): `data-folium-part` marks what mod CSS may
 // restyle — progress.root / track / fill / thumb / time / duration. Colors come
@@ -51,6 +52,8 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const isDraggingRef = useRef(false);
     const lastDisplayedSecondRef = useRef<number | null>(null);
     const lastInputSecondRef = useRef<number | null>(null);
+    const trackDeviceWidthRef = useRef(0);
+    const lastFillStepRef = useRef<number | null>(null);
 
     // Keeps continuous progress on the compositor while coarse values update only when needed.
     const updateUI = useCallback((value: number, force = false, syncInput = true, bypassDrag = false) => {
@@ -66,8 +69,17 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
         // yet`. Treating unknown as zero drew one frame of empty bar and then snapped back, which
         // reads as the bar being re-created. Holding the last fill for those few frames is the only
         // honest option: the fraction is genuinely unknown until the denominator exists.
-        if (progressRef.current && duration > 0) {
-            const progress = Math.min(1, clampedValue / duration);
+        // The capsule sits on a backdrop blur, so every clip-path write repaints it. A 4-minute song
+        // moves the edge about two device pixels a second, so the fill is written only when its edge
+        // reaches the next quarter device pixel instead of on every frame.
+        const deviceWidth = trackDeviceWidthRef.current;
+        const step = duration > 0 ? getProgressFillStep(clampedValue / duration, deviceWidth) : null;
+        const fillMoved = force || step === null || step !== lastFillStepRef.current;
+        if (progressRef.current && duration > 0 && fillMoved) {
+            lastFillStepRef.current = step;
+            const progress = step === null
+                ? Math.min(1, clampedValue / duration)
+                : getProgressFillStepFraction(step, deviceWidth);
             const hiddenPercent = ((1 - progress) * 100).toFixed(4);
             progressRef.current.style.clipPath = edgeStyle === 'square'
                 ? `inset(0 ${hiddenPercent}% 0 0)`
@@ -97,6 +109,26 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     useMotionValueEvent(currentTime, "change", (latest: number) => {
         updateUI(latest);
     });
+
+    // Tracks the fill's width in device pixels for the quarter-pixel steps; a resize repaints once.
+    useLayoutEffect(() => {
+        const fill = progressRef.current;
+        if (!fill || typeof ResizeObserver === 'undefined') return;
+        // device-pixel-content-box also fires when the window moves to a screen with another scale.
+        const observer = new ResizeObserver(([entry]) => {
+            const deviceWidth = entry?.devicePixelContentBoxSize?.[0]?.inlineSize
+                ?? fill.getBoundingClientRect().width * (window.devicePixelRatio || 1);
+            if (deviceWidth === trackDeviceWidthRef.current) return;
+            trackDeviceWidthRef.current = deviceWidth;
+            updateUI(currentTime.get(), true);
+        });
+        try {
+            observer.observe(fill, { box: 'device-pixel-content-box' });
+        } catch {
+            observer.observe(fill);
+        }
+        return () => observer.disconnect();
+    }, [currentTime, updateUI]);
 
     const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
         if (disabled) {

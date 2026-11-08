@@ -15,12 +15,15 @@ import {
 // animated glow must not sweep a glyph shadow's blur radius. A radius that changes every frame leaked a
 // shared-memory fd in the renderer and GPU process about every thousand distinct radii on Linux,
 // until the compositor stopped producing frames. On, the word glow is a `filter: drop-shadow()`
-// (compositor, no glyph cache) and canvas radii are whole pixels. Off, everything must be exactly the
-// old animation.
+// (compositor, no glyph cache) and canvas radii are whole pixels. Off, the text-shadow halo stays at
+// its peak radii and only opacity animates, so glowing glyphs are not re-rastered every frame.
 
 type Target = { color?: string; textShadow?: unknown; filter?: unknown; opacity?: unknown; transition: { ease?: unknown } };
 const active = (custom: Record<string, unknown>) => (
     (wordGlowVariants.active as unknown as (c: unknown) => Target)(custom)
+);
+const waiting = (custom: Record<string, unknown>) => (
+    (wordGlowVariants.waiting as unknown as (c: unknown) => Target)(custom)
 );
 const passed = (custom: Record<string, unknown>) => (
     (wordGlowVariants.passed as unknown as (c: unknown) => Target)(custom)
@@ -35,16 +38,23 @@ const CUSTOMS = [
 afterEach(() => { setGlowBlurQuantized(false); });
 
 describe('stepped glow radius', () => {
-    it('keeps the original text-shadow animation when the switch is off', () => {
+    it('keeps the text-shadow halo fixed and ramps opacity when the switch is off', () => {
         setGlowBlurQuantized(false);
         const targets = CUSTOMS.map(active);
         expect(targets.map(target => target.transition.ease)).toEqual(['easeOut', 'easeInOut', 'easeInOut', 'easeInOut']);
-        for (const target of targets) {
+        // A text-shadow that changes re-rasters the glyph every frame; the halo is one fixed string
+        // per mode, the same in waiting, active and passed, and only opacity moves.
+        const halos = ['0 0 14px #ffd54f, 0 0 24px #ffd54f', '0 0 18px #ffd54f, 0 0 32px #ffd54f', '0 0 20px #ffd54f, 0 0 40px #ffd54f', '0 0 20px #ffd54f, 0 0 40px #ffd54f'];
+        targets.forEach((target, i) => {
             expect(target.color).toBe('transparent');
             expect(target.filter).toBeUndefined();
-            expect((target.textShadow as string[])[0]).toBe('none');
-        }
-        expect(passed({ wordRevealMode: 'normal' }).textShadow).toBe('none');
+            expect(target.textShadow).toBe(halos[i]);
+            expect(waiting(CUSTOMS[i]).textShadow).toBe(halos[i]);
+            expect(passed(CUSTOMS[i]).textShadow).toBe(halos[i]);
+        });
+        expect(targets.map(target => target.opacity)).toEqual([[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 1]]);
+        expect(waiting(CUSTOMS[0]).opacity).toBe(0);
+        expect(passed(CUSTOMS[0]).opacity).toBe(0);
     });
 
     it('draws the glow as a drop-shadow filter, never a text-shadow, when the switch is on', () => {

@@ -19,7 +19,7 @@ description: Use when adding a feature or a file, moving or renaming files, or r
 
 - **先平铺。** 一个目录难以一眼看完（大约 15 个文件以上）才加子目录。不预先建空目录。
 - **代码跟着它服务的东西走。** 只服务一个变体（一个平台、一种后端、一种设备）的代码放在那个变体那里。两个功能都用到了，才挪到共用的地方。
-- **服务层不能 import 界面层。** 代码地图按路径检查依赖方向（`dev/mcp/ts-code-map/codemap.mjs` 的 `BOUNDARY_RULES`）：`src/services`、`src/stores`、`src/utils`、`src/types` 下的文件不能在运行时 import `src/components` 下的文件。所以一个功能的数据部分要给服务层用时，这个功能可以分两处：数据一半在 `src/services/...`，界面一半在 `src/components/...`。在两边的文件头写明这个选择和原因。
+- **服务层不能 import 界面层。** Dedicatus 按路径检查依赖方向（`dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES`，`npm run dedicatus`）：`src/services`、`src/stores`、`src/utils`、`src/types` 下的文件不能在运行时 import `src/components` 下的文件。所以一个功能的数据部分要给服务层用时，这个功能可以分两处：数据一半在 `src/services/...`，界面一半在 `src/components/...`。在两边的文件头写明这个选择和原因。
 - **类型。** 只属于一个功能的类型放在功能目录里；多个功能共用的契约（例如在线平台的 `src/types/onlineMusic.ts`）放 `src/types.ts` / `src/types/*`。
 - **测试跟着功能走。** `vitest.config.ts` 收 `test/unit/**/*.test.ts`，放在 `test/unit/<功能>/` 下照样会跑。
 

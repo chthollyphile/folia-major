@@ -6,6 +6,7 @@ import { installFoliumHostEvents } from './hostEvents';
 import { installFoliumHostAccount } from './hostAccount';
 import { installFoliumHostOmni } from './omni/hostOmni';
 import { installFoliumHostEqualizer } from './equalizer/hostEqualizer';
+import { installFoliumHostVisualizer } from './visualizer/hostVisualizer';
 import { restoreSavedFoliumSelections } from './missingEntries';
 
 // src/mods/runtime/mainWindowStart.ts
@@ -63,6 +64,8 @@ export const startFoliumForMainWindow = async ({ firstScreenWaitMs }: FoliumMain
     installFoliumHostOmni();
     // Folium 1.7 `folium.equalizer`: likewise before any client starts, and before the first mod list arrives.
     installFoliumHostEqualizer();
+    // Folium 1.8 `folium.visualizer`: likewise before any client starts.
+    installFoliumHostVisualizer();
     // Before the clients start: a mod that fails while starting is announced too.
     installFoliumFaultNotice();
     // On time or late: a saved selection comes back when the mod that provides it is up.

@@ -1,5 +1,5 @@
 // electron/backgroundThrottling.cjs
-// The opt-in 后台节流 switch (性能与动效 page) for the main window. Off, the default, the window keeps
+// The opt-in 后台节流 switch (动画与性能 page) for the main window. Off, the default, the window keeps
 // backgroundThrottling: false, so OBS window capture of a covered or minimised Folia stays live for
 // the streamers who rely on it. On, Chromium may throttle the window while it is hidden, and the
 // renderer holds the lyric animation while the window is minimised or hidden to the tray

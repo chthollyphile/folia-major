@@ -30,6 +30,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     grid3dCardStyle: { section: 'home' },
     rememberHomeCardPosition: { section: 'home' },
     gridViewCardSettings: { section: 'home' },
+    scratchpadSettings: { section: 'home' },
 
     // pages/LyricsPage
     localLyricFormatOrder: { section: 'lyrics' },
@@ -86,6 +87,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     graphicsPerformance: { section: 'graphics' },
     graphicsMotion: { section: 'graphics' },
     gpuPreference: { section: 'graphics' },
+    lyricRenderScale: { section: 'graphics' },
 
     // pages/ModsPage
     modSystem: { section: 'mods' },

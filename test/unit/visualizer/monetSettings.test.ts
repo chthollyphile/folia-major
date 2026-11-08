@@ -152,6 +152,7 @@ describe('Monet tuning and lyric helpers', () => {
             fontScale: 3,
             portraitSource: 'custom',
         })).toEqual({
+            render: { scale: 'global', antialias: 'global' },
             keywordColoringEnabled: false,
             showAudioVisualization: false,
             audioStyle: 'line',
@@ -355,6 +356,97 @@ describe('Monet tuning and lyric helpers', () => {
             [', ', 5, 7],
             ['world', 7, 12],
             ['!', 12, 13],
+        ]);
+    });
+
+    it('splits a line without words into timed tokens so a wrapped line sweeps row by row (#1066)', () => {
+        const line: Line = {
+            startTime: 10,
+            endTime: 16,
+            fullText: '廻れ廻れ報われぬ（願えども） and more',
+            words: [],
+        };
+
+        const tokens = buildMonetDisplayTokens(line);
+        const timed = tokens.filter(token => token.timed);
+
+        expect(tokens.map(token => token.text).join('')).toBe(line.fullText);
+        expect(timed.length).toBeGreaterThan(10);
+        expect(timed.every(token => token.text.length <= 4)).toBe(true);
+        expect(timed[0].startTime).toBeCloseTo(10);
+        timed.slice(1).forEach((token, index) => {
+            expect(token.startTime!).toBeGreaterThanOrEqual(timed[index].startTime!);
+        });
+        expect(timed.at(-1)!.endTime!).toBeLessThanOrEqual(16);
+    });
+
+    it('splits a line whose one word spans the whole text, within the span of that word', () => {
+        // PlayerCap and mod lyrics without word timing hand over one word covering the line.
+        const fullText = '廻れ廻れ報われぬ（願えども） and more';
+        const line: Line = {
+            startTime: 10,
+            endTime: 17,
+            fullText,
+            words: [{ text: fullText, startTime: 10, endTime: 16 }],
+        };
+
+        const tokens = buildMonetDisplayTokens(line);
+        const timed = tokens.filter(token => token.timed);
+
+        expect(tokens.map(token => token.text).join('')).toBe(fullText);
+        expect(timed.length).toBeGreaterThan(10);
+        expect(timed[0].startTime).toBeCloseTo(10);
+        // The word's end is a real timestamp: the sweep finishes there, not at the 90% an LRC estimate stops at.
+        expect(timed.at(-1)!.endTime!).toBeCloseTo(16);
+    });
+
+    it('also splits a one-word CJK line without syllables and a padded one-word line', () => {
+        // KRC/YRC lines with a single tag carry no timing inside the word, so splitting loses nothing.
+        const cjk: Line = {
+            startTime: 1,
+            endTime: 2,
+            fullText: '愛してる',
+            words: [{ text: '愛してる', startTime: 1, endTime: 2 }],
+        };
+        const padded: Line = {
+            startTime: 1,
+            endTime: 3,
+            fullText: 'when the wind blows ',
+            words: [{ text: 'when the wind blows', startTime: 1, endTime: 3 }],
+        };
+
+        expect(buildMonetDisplayTokens(cjk).map(token => token.text)).toEqual(['愛', 'し', 'て', 'る']);
+        expect(buildMonetDisplayTokens(cjk).at(-1)!.endTime).toBeCloseTo(2);
+        const paddedTokens = buildMonetDisplayTokens(padded);
+        expect(paddedTokens.map(token => token.text).join('')).toBe(padded.fullText);
+        expect(paddedTokens.filter(token => token.timed).map(token => token.text)).toEqual(['when', 'the', 'wind', 'blows']);
+    });
+
+    it('keeps a single real word as it is', () => {
+        const withSyllables: Line = {
+            startTime: 1,
+            endTime: 2,
+            fullText: '愛してる',
+            words: [{
+                text: '愛してる',
+                startTime: 1,
+                endTime: 2,
+                syllables: [
+                    { text: '愛', startTime: 1, endTime: 1.5 },
+                    { text: 'してる', startTime: 1.5, endTime: 2 },
+                ],
+            }],
+        };
+        const oneLatinWord: Line = {
+            startTime: 1,
+            endTime: 2,
+            fullText: 'Oh',
+            words: [{ text: 'Oh', startTime: 1.2, endTime: 1.8 }],
+        };
+
+        expect(buildMonetDisplayTokens(withSyllables).map(token => token.text)).toEqual(['愛してる']);
+        expect(buildMonetDisplayTokens(oneLatinWord).map(token => [token.text, token.startTime, token.endTime])).toEqual([
+            ['Oh', 1.2, 1.8],
         ]);
     });
 

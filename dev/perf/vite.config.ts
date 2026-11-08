@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { commandPinyinPlugin } from '../pinyin/commandPinyinPlugin.mjs';
+import { traditionalLocalePlugin } from '../i18n/traditionalLocalePlugin.mjs';
+import { icuFoliaDataPlugin } from '../icuFolia/icuFoliaDataPlugin.mjs';
 
 // dev/perf/vite.config.ts
 // Builds the measuring page (dev/perf/page.html) as a production bundle of its own.
@@ -10,8 +12,10 @@ import { commandPinyinPlugin } from '../pinyin/commandPinyinPlugin.mjs';
 // It does not load the app's vite.config.ts: that file asks a web service for the commit's name
 // while it builds, and the rig makes no request beyond this machine. What the page needs of it is
 // repeated here: the React plugin, the command-palette pinyin module (the stores reach it), the
-// `@` alias, the build constants and the separate three.js chunk. The PWA plugin is left out on
-// purpose: a service worker would cache the page between two builds of changed code.
+// zh-TW virtual locale (src/i18n/config.ts imports it) and the ICU 字典 virtual module the lyric
+// engines import, the `@` alias, the build constants and the separate three.js chunk. The PWA
+// plugin is left out on purpose: a service worker would cache the page between two builds of
+// changed code.
 //
 // The bundle is production React but NOT minified by default, so the function names in the
 // long-frame reports can be read. PERF_MINIFY=1 builds it minified like the shipped app.
@@ -53,6 +57,8 @@ export default defineConfig({
     },
     plugins: [
         commandPinyinPlugin(),
+        traditionalLocalePlugin(),
+        icuFoliaDataPlugin(),
         react(),
     ],
     define: {

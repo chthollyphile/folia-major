@@ -126,6 +126,17 @@ describe('stem ranges, from review', () => {
         expect(peekStemSegment('own', 3)).toHaveLength(1);
     });
 
+    it('keeps no drums for the drum hits from a stem pass that reads the voice beside them', async () => {
+        const total = 50;
+        const { left, right } = track(total);
+        const { runStemPass, startStemReader, wholeStemWindow } = await import('@/services/analysis/stemPass');
+        const reader = (source: 'drums' | 'vocals') => ({ source, ...startStemReader(total), window: wholeStemWindow(total), read: () => undefined });
+        // The drum hits of 'self' may still be separated (the default): automix's run would keep its drums.
+        const readers = [reader('drums'), reader('vocals')];
+        expect(await runStemPass({ left, right, key: 'self', readers: () => readers })).toBe(true);
+        for (let index = 0; index < 5; index += 1) expect(peekStemSegment('self', index)).toBeNull();
+    });
+
     it('keeps the drums alone in buffers of their own, not views that hold the other stems', async () => {
         const total = 50;
         const { left, right } = track(total);

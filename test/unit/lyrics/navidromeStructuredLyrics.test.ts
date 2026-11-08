@@ -6,7 +6,7 @@ import {
     selectPreferredNavidromeStructuredLyric,
 } from '@/utils/lyrics/navidromeStructuredLyrics';
 import { normalizeEmbeddedLrcText, normalizeEmbeddedStructuredLyrics } from '@/utils/lyrics/embeddedLrcNormalization';
-import { parseEnhancedLRC } from '@/utils/lyrics/parserCore';
+import { parseEnhancedLRC, parseLRC } from '@/utils/lyrics/parserCore';
 
 // Covers OpenSubsonic songLyrics v2 cue timing emitted by Navidrome v0.63+.
 describe('parseNavidromeStructuredLyrics', () => {
@@ -140,6 +140,46 @@ describe('parseNavidromeStructuredLyrics', () => {
             fullText: 'Line-level main',
             translation: '行级译文',
         });
+    });
+
+    it('estimates per-character words for line-level lyrics the same way an LRC file does (#1066)', () => {
+        const parsed = parseNavidromeStructuredLyricsCollection([
+            {
+                kind: 'main',
+                synced: true,
+                line: [
+                    { start: 44140, value: '雨に打たれる事もなく自由に舞い踊り、短い生を謳歌する。' },
+                    { start: 50300, value: 'Line two goes here' },
+                    { start: 70000, value: 'Last' },
+                ],
+            },
+        ], { includeInterludes: false });
+        const lrc = parseLRC(
+            '[00:44.14]雨に打たれる事もなく自由に舞い踊り、短い生を謳歌する。\n[00:50.30]Line two goes here\n[01:10.00]Last',
+            '',
+            { includeInterludes: false }
+        );
+
+        expect(parsed?.lines.map(line => line.words.map(word => word.text))).toEqual(
+            lrc.lines.map(line => line.words.map(word => word.text))
+        );
+        expect(parsed?.lines[0].words).toHaveLength(27);
+        expect(parsed?.lines[1].words.map(word => word.text)).toEqual(['Line', 'two', 'goes', 'here']);
+        // A line before a long gap ends after its reading time, like an LRC line, instead of at the next start.
+        expect(parsed?.lines[1].endTime).toBeCloseTo(lrc.lines[1].endTime);
+        expect(parsed?.lines[1].endTime).toBeLessThan(70);
+        parsed?.lines.forEach(line => {
+            expect(line.words[0].startTime).toBeCloseTo(line.startTime);
+            expect(line.words.at(-1)!.endTime).toBeLessThanOrEqual(line.endTime + 1e-9);
+        });
+    });
+
+    it('keeps surrogate pairs whole when estimating line-level words', () => {
+        const parsed = parseNavidromeStructuredLyricsCollection([
+            { kind: 'main', synced: true, line: [{ start: 1000, value: 'ありがとう😊 𠮷野家' }] },
+        ], { includeInterludes: false });
+
+        expect(parsed?.lines[0].words.map(word => word.text)).toEqual(['あ', 'り', 'が', 'と', 'う', '😊', '𠮷', '野', '家']);
     });
 
     it('attaches untimed translations interleaved with cue lines', () => {

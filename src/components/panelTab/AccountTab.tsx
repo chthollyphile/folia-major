@@ -6,6 +6,7 @@ import type { LibraryAccountController, LibraryAccountSnapshot } from '../../lib
 import { useLibraryAccountProviders, useLibraryAccountSelector } from '../../library/core/account/useLibraryAccount';
 import { canLogoutProvider } from '../../library/core/account/accountRules';
 import { omni } from '../../services/onlineMusic/omni';
+import { providerDisplayName } from '../../i18n/providerName';
 import { openLoginWindow } from '../login/loginWindowStore';
 import { PlatformMark } from '../login/PlatformMark';
 import { Select } from '../modal/settings/kit';
@@ -14,6 +15,7 @@ import { GroupLine } from './shell/GroupLine';
 import { PanelButton } from './shell/PanelButton';
 import { PanelIconButton } from './shell/PanelIconButton';
 import { PanelRow } from './shell/PanelRow';
+import { shortAccountId } from '../../utils/accountIdDisplay';
 import { PlaybackSignalPathButton } from '../hifi/PlaybackSignalPathButton';
 
 // src/components/panelTab/AccountTab.tsx
@@ -106,7 +108,7 @@ const AccountTab: React.FC<AccountTabProps> = ({
                             )}
                         </div>
                         <div className="truncate text-xs leading-[18px] text-[color:var(--st-t2)]">
-                            {activeSummary?.shortName || activeSummary?.displayName || activeProviderId} · ID: {String(activeUser.id)}
+                            {activeSummary ? providerDisplayName(t, activeSummary, activeProviderId) : activeProviderId} · ID: {shortAccountId(String(activeUser.id))}
                         </div>
                     </div>
                     <PanelIconButton label={t('account.logout')} disabled={!canLogout} onClick={() => void handleLogout()}>

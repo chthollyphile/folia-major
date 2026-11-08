@@ -3,7 +3,8 @@ import type { VisualizerMode } from '../types';
 import { setLyricsState, usePlaybackStore } from '../stores/usePlaybackStore';
 import { getVisualizerRegistryEntry } from '../components/visualizer/registry';
 import { applyAutoWordSegmentation, loadIcuFolia } from '../utils/lyrics/icuFolia';
-import { applyLyricsTransform, untransformedLyrics } from '../services/hostExtensionHooks';
+import { reworkShownLyrics } from '../components/app/playback/createLyricsSetter';
+import { HAN_OR_KANA } from '../utils/lyrics/hanKanaText';
 
 // src/hooks/useIcuFoliaSegmentation.ts
 // Loads icu-folia's engines when they would change something on screen, and bakes its split onto
@@ -17,8 +18,6 @@ import { applyLyricsTransform, untransformedLyrics } from '../services/hostExten
 // store, applied to the pre-transform lyrics with the extension transform re-run from there, and a
 // no-op (same object back) when there is nothing to change. It is not a re-run of the lyric
 // pipeline, which would re-apply the display filter and staff policy to text already filtered.
-
-const HAN_OR_KANA = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 export function useIcuFoliaSegmentation(visualizerMode: VisualizerMode) {
     const usesWords = Boolean(getVisualizerRegistryEntry(visualizerMode).usesWordSegmentation);
@@ -38,11 +37,7 @@ export function useIcuFoliaSegmentation(visualizerMode: VisualizerMode) {
             if (cancelled || !ready) {
                 return;
             }
-            setLyricsState(previous => {
-                const source = untransformedLyrics(previous);
-                const segmented = applyAutoWordSegmentation(source);
-                return segmented === source ? previous : applyLyricsTransform(segmented);
-            });
+            setLyricsState(previous => reworkShownLyrics(previous, applyAutoWordSegmentation));
         });
 
         return () => {

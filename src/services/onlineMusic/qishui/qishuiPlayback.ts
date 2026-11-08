@@ -36,6 +36,8 @@ export async function readQishuiSongs(raw: unknown[]) {
 const TRACK_NOT_RETURNED = 'Qishui did not return the track';
 export const qishuiPlayback: OnlinePlaybackProvider = {
     audioQualityLevels: ['standard'],
+    // A VIP song's clip plays because third-party players get its whole audio encrypted only, not because of the account.
+    previewNoticeKey: 'status.songVipFullUnavailable',
     async getSongDetail(id) {
         let raw: unknown;
         try { raw = await requestQishui('song_detail', { id: String(id) }); }

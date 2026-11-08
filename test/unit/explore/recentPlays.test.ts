@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 import type { SongResult } from '@/types';
-import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, noteSongListened, noteSongPlayed, recentPlaysOf, replayedSongsOf, resetRecentPlays, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
+import { DAY_BEGINS_HOUR, MAX_RECENT_PLAYS, MAX_REPLAYED_SONGS, PLAYS_KEPT_MS, RECENT_PLAYS_KEPT_MS, forgetPlays, navidromePlayAccount, noteSongListened, noteSongPlayed, recentPlayRecordsOf, recentPlaysOf, replayedSongsOf, resetRecentPlays, showRecordedSongsAs, watchRecentPlays } from '@/components/app/home/explore/recentPlays';
 import { whenHeard } from '@/components/app/home/explore/useRecentPlaysRecorder';
 import { readOwnExploreSections } from '@/components/app/home/explore/ownSections';
 
@@ -57,6 +57,27 @@ describe('recent plays', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
+    });
+
+    it('forgets songs in the scopes it is given, stores that and tells the watchers', () => {
+        listen('a');
+        listen('b');
+        listen('a', 'other');
+        const watcher = vi.fn();
+        const stop = watchRecentPlays(watcher);
+        const me = { kind: 'online', providerId: 'ytm', accountId: 'me' } as const;
+        expect(forgetPlays([me], ['online:ytm:a', 'online:ytm:zzz'])).toBe(1);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['b']);
+        // 另一个账户的记录不动。
+        expect(idsOf(recentPlaysOf('ytm', 'other'))).toEqual(['a']);
+        expect(stored()['ytm:me'].map(play => play.song.id)).toEqual(['b']);
+        // 没有可忘的：不写、不通知。
+        const writes = storage.setItem.mock.calls.length;
+        expect(forgetPlays([me], ['online:ytm:a'])).toBe(0);
+        expect(storage.setItem.mock.calls.length).toBe(writes);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        stop();
     });
 
     it('keeps the songs newest first, each once, apart for each platform and account', () => {
@@ -147,8 +168,8 @@ describe('recent plays', () => {
         const again = recentPlaysOf('ytm', 'me');
         expect(again).not.toBe(first);
         watcher.mockClear();
-        // A song that is of no online platform is not recorded.
-        noteSongPlayed({ ...song('local'), sourceRef: { kind: 'local', mediaId: 'local' } } as unknown as SongResult, 'me');
+        // A song on the stage (another app's) is not recorded.
+        noteSongPlayed({ ...song('show'), sourceRef: { kind: 'stage', mediaId: 'show' } } as unknown as SongResult, 'me');
         expect(watcher).toHaveBeenCalledTimes(0);
         // A change gives another list: what renders from it sees that it changed.
         noteSongPlayed(song('b'), 'me');
@@ -157,6 +178,50 @@ describe('recent plays', () => {
         stop();
         noteSongPlayed(song('c'), 'me');
         expect(watcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('lists the recent plays with when each was last played, the same list until a play changes it', () => {
+        noteSongPlayed(song('a'), 'me');
+        later(HOUR);
+        noteSongPlayed(song('b'), 'me');
+        const records = recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' });
+        expect(records.map(play => [String(play.song.id), play.at])).toEqual([['b', START + HOUR], ['a', START]]);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' })).toBe(records);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'someone else' })).toEqual([]);
+
+        later(HOUR);
+        noteSongPlayed(song('a'), 'me');
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' }).map(play => String(play.song.id))).toEqual(['a', 'b']);
+        // Older than seven days: no longer listed, though still kept.
+        later(RECENT_PLAYS_KEPT_MS + 1);
+        expect(recentPlayRecordsOf({ kind: 'online', providerId: 'ytm', accountId: 'me' })).toEqual([]);
+    });
+
+    it('keeps local files and each Navidrome user apart from the platforms, a local file by its reference in the library only', () => {
+        const file = {
+            id: 'f1', name: 'A file', album: { id: 0, name: 'Folder', coverUrl: 'blob:http://app/cover' },
+            isLocal: true, localRef: { songId: 'f1' }, localData: { id: 'f1', fileHandle: {} },
+            sourceRef: { kind: 'local', mediaId: 'f1' },
+        } as unknown as SongResult;
+        const served = { id: 'n1', name: 'Served', sourceRef: { kind: 'navidrome', mediaId: 'n1' } } as unknown as SongResult;
+        const user = navidromePlayAccount({ serverUrl: 'https://music.example/', username: 'me' });
+        expect(user).toBe('me@https://music.example');
+        expect(navidromePlayAccount(null)).toBe('');
+
+        noteSongPlayed(song('a'), 'me');
+        later(MINUTE);
+        noteSongPlayed(file, '');
+        later(MINUTE);
+        noteSongPlayed(served, user);
+        expect(Object.keys(stored())).toEqual(['ytm:me', '#local:', `#navidrome:${user}`]);
+        // The explore page's lists are a platform's: the others stay out of them.
+        expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['a']);
+        const [kept] = recentPlayRecordsOf({ kind: 'local' });
+        expect(kept.song).toMatchObject({ id: 'f1', isLocal: true, localRef: { songId: 'f1' } });
+        expect(kept.song).not.toHaveProperty('localData');
+        expect(kept.song.album?.coverUrl).toBeUndefined();
+        expect(recentPlayRecordsOf({ kind: 'navidrome', accountId: user }).map(play => String(play.song.id))).toEqual(['n1']);
+        expect(recentPlayRecordsOf({ kind: 'navidrome', accountId: 'someone@elsewhere' })).toEqual([]);
     });
 
     it('keeps no more than its limit, dropping the oldest', () => {
@@ -558,6 +623,47 @@ describe('recent plays', () => {
         resetRecentPlays();
         noteSongPlayed(song('a'), 'me');
         expect(idsOf(recentPlaysOf('ytm', 'me'))).toEqual(['a']);
+    });
+
+    it('sets a recorded video right to the song the platform shows it as, with its listenings, asking about each play until it is answered', async () => {
+        listen('video');
+        later(5 * MINUTE);
+        listen('other');
+        later(5 * MINUTE);
+        listen('song');
+        const watcher = vi.fn();
+        const stop = watchRecentPlays(watcher);
+        const asked: string[][] = [];
+        const shownAs = async (songs: SongResult[]) => {
+            asked.push(idsOf(songs));
+            return new Map([['video', song('song', 'ytm', { name: 'The song' })]]);
+        };
+        expect(await showRecordedSongsAs('ytm', 'me', shownAs)).toBe(1);
+        expect(asked).toEqual([['song', 'other', 'video']]);
+        // The song keeps its place, the later time and both listenings: it is one to play again now.
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        expect(stored()['ytm:me'][0].at).toBe(START + 10 * MINUTE);
+        expect(idsOf(replayedSongsOf('ytm', 'me'))).toEqual(['song']);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        // The video, still playing, goes on as the song: it is not recorded again, nor its listening counted twice.
+        noteSongListened(song('video'), 'me', SONG_MS, false);
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        // Nothing answered: nothing is stored and nobody is told.
+        const writes = storage.setItem.mock.calls.length;
+        expect(await showRecordedSongsAs('ytm', 'me', async () => new Map())).toBe(0);
+        expect(storage.setItem.mock.calls.length).toBe(writes);
+        // A song not answered about is asked about again; one answered about, as itself too, never again, after a restart too.
+        const answer = (answers: Map<string, SongResult | null>) => async (songs: SongResult[]) => {
+            asked.push(idsOf(songs));
+            return answers;
+        };
+        expect(await showRecordedSongsAs('ytm', 'me', answer(new Map([['other', null]])))).toBe(0);
+        resetRecentPlays();
+        expect(await showRecordedSongsAs('ytm', 'me', answer(new Map()))).toBe(0);
+        expect(asked).toEqual([['song', 'other', 'video'], ['other']]);
+        expect(counts()).toEqual([['song', 2], ['other', 1]]);
+        expect(watcher).toHaveBeenCalledTimes(1);
+        stop();
     });
 });
 

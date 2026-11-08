@@ -77,7 +77,9 @@ const MIN_WINDOW_SAMPLES = 6;
 const SAMPLER_SETTLE_MS = SAMPLER_SETTLE_SECONDS * 1000;
 
 const parseArgs = (argv) => {
-    const args = { profile: 'laptop', windows: PLAY.windowsPerLoad };
+    // laptop is the Windows default; macOS has only host (resolveProfile in rig.mjs refuses the
+    // others), so a plain `node dev/perf/run.mjs --only ...` there works without typing --profile.
+    const args = { profile: process.platform === 'darwin' ? 'host' : 'laptop', windows: PLAY.windowsPerLoad };
     for (let index = 0; index < argv.length; index += 1) {
         const name = argv[index];
         if (!name.startsWith('--')) {
@@ -279,6 +281,8 @@ const openSession = async (profileName, viewport) => {
             }
             return tree;
         },
+        /** Whether the sampler reads GPU counters (win.ps1 does, darwinSampler.mjs does not); before one runs, the platform's answer. */
+        gpuCounters: () => (sampler ? sampler.gpuCounters() : process.platform !== 'darwin'),
         /** The sampler follows the app's processes; it is started again when one of them was replaced, and when it has ended. */
         ensureSampler: async () => {
             const processes = await engine.processes();
@@ -290,7 +294,9 @@ const openSession = async (profileName, viewport) => {
                 const started = startSampler({ pids, processors: profile.heldProcessors, selfMask: profile.samplerMask });
                 try {
                     await started.ready;
-                    if (!started.samples[0].ownEngines) {
+                    // Windows lists the app's 3D engines from the first line on; macOS has no such
+                    // counters (darwinSampler.mjs says so in its ready line) and the run goes on without them.
+                    if (started.gpuCounters() && !started.samples[0].ownEngines) {
                         throw new Error('Windows lists no 3D engine counter for the app\'s processes');
                     }
                 } catch (error) {
@@ -335,7 +341,8 @@ const readSamples = (session, sampler, processes, beganAt, endedAt) => {
     if (inside.length < MIN_WINDOW_SAMPLES) {
         throw new Error(`the counter sampler gave ${inside.length} lines for this window, it takes ${MIN_WINDOW_SAMPLES}${sampler.hasExited() ? ' (the sampler has ended)' : ''}`);
     }
-    if (!inside.some(sample => sample.ownEngines > 0)) {
+    const gpuCounters = sampler.gpuCounters();
+    if (gpuCounters && !inside.some(sample => sample.ownEngines > 0)) {
         throw new Error('the counter sampler listed no 3D engine of the app during this window');
     }
     const kindOf = new Map(processes.map(process => [String(process.id), process.type]));
@@ -352,8 +359,12 @@ const readSamples = (session, sampler, processes, beganAt, endedAt) => {
     }
     return {
         lines: inside.length,
-        gpuPercent: mean(inside.map(sample => sumOf(sample.gpu))),
-        videoMemoryMb: megabytes(sumOf(last.videoMemory)),
+        // macOS reads no graphics card (darwinSampler.mjs): the gpu and video-memory numbers are
+        // left out entirely rather than written as zeros, so no table can mistake n/a for none.
+        ...(gpuCounters ? {
+            gpuPercent: mean(inside.map(sample => sumOf(sample.gpu))),
+            videoMemoryMb: megabytes(sumOf(last.videoMemory)),
+        } : {}),
         workingSetMb,
         outside: outsideLoad(inside, session.profile),
     };
@@ -465,12 +476,15 @@ const measureWindow = async (session, scenario, isFirst) => {
             heapMb: { start: megabytes(before.metrics.JSHeapUsedSize), end: megabytes(after.metrics.JSHeapUsedSize) },
             domNodes: { start: before.metrics.Nodes, end: after.metrics.Nodes },
             // The app's share of the graphics card's 3D engine, as Windows counts it; at 60 frames a
-            // second it is at least `percentAt60`, for the same reason as above.
-            gpu: {
-                percent: gpuPercent,
-                percentAt60: (gpuPercent * 60) / framesPerSecond,
-            },
-            videoMemoryMb,
+            // second it is at least `percentAt60`, for the same reason as above. Absent on macOS,
+            // where nothing an unprivileged process may read counts the card (darwin.mjs).
+            ...(gpuPercent === undefined ? {} : {
+                gpu: {
+                    percent: gpuPercent,
+                    percentAt60: (gpuPercent * 60) / framesPerSecond,
+                },
+                videoMemoryMb,
+            }),
             workingSetMb,
             // How many of the sampler's lines the GPU, memory and outside numbers of this window rest on.
             samplerLines: lines,
@@ -551,7 +565,8 @@ const measureScenario = async (session, scenario, { windows, busyMs = 0, allowDi
 
 const describe = (result) => {
     const value = name => result.summary[name]?.median ?? 0;
-    return `${value('frames.perSecond').toFixed(0)} fps, main thread ${value('perFrame.totalMs').toFixed(2)} ms/frame (script ${value('perFrame.scriptMs').toFixed(2)}, style+layout ${value('perFrame.styleAndLayoutMs').toFixed(2)}), p95 gap ${value('frames.p95Ms').toFixed(1)} ms, GPU ${value('gpu.percent').toFixed(1)}%${result.disturbed ? ` [disturbed: ${result.disturbedBy.join(', ')}]` : ''}`;
+    const gpu = result.summary['gpu.percent'] ? `, GPU ${value('gpu.percent').toFixed(1)}%` : ', GPU n/a (macOS reads none)';
+    return `${value('frames.perSecond').toFixed(0)} fps, main thread ${value('perFrame.totalMs').toFixed(2)} ms/frame (script ${value('perFrame.scriptMs').toFixed(2)}, style+layout ${value('perFrame.styleAndLayoutMs').toFixed(2)}), p95 gap ${value('frames.p95Ms').toFixed(1)} ms${gpu}${result.disturbed ? ` [disturbed: ${result.disturbedBy.join(', ')}]` : ''}`;
 };
 
 /**
@@ -620,7 +635,9 @@ const checkSession = async (session, folder) => {
             p50Ms: median(gaps),
             p95Ms: percentile(gaps, 0.95),
             worstMs: Math.max(...gaps),
-            gpuPercent: mean(emptySamples.map(sample => sumOf(sample.gpu))),
+            ...(session.gpuCounters()
+                ? { gpuPercent: mean(emptySamples.map(sample => sumOf(sample.gpu))) }
+                : {}),
         },
         benchmark: { runsMs: benchmarkMs.map(value => round(value, 1)), medianMs: median(benchmarkMs), bestMs: Math.min(...benchmarkMs) },
         outside,
@@ -628,7 +645,8 @@ const checkSession = async (session, folder) => {
         disturbedBy: brokenLimits,
     });
     writeJson(path.join(folder, '_check.json'), check);
-    log(`${session.profile.name} check: empty page ${check.emptyPage.framesPerSecond} fps (p95 gap ${check.emptyPage.p95Ms} ms, GPU ${check.emptyPage.gpuPercent}%), benchmark best ${check.benchmark.bestMs} ms, ${glRenderer}`);
+    const gpuText = session.gpuCounters() ? `, GPU ${check.emptyPage.gpuPercent}%` : ', GPU n/a (macOS reads none)';
+    log(`${session.profile.name} check: empty page ${check.emptyPage.framesPerSecond} fps (p95 gap ${check.emptyPage.p95Ms} ms${gpuText}), benchmark best ${check.benchmark.bestMs} ms, ${glRenderer}`);
     return check;
 };
 
@@ -754,7 +772,8 @@ const notReadyNow = async () => {
     // One launch without limits, only to see what rate the empty window is paced at.
     const first = await openSession('host', VIEWPORT);
     await first.close();
-    log(`right now: other programs use ${(outside.ofAllProcessors * 100).toFixed(0)}% of all processors and ${outside.gpuPercent.toFixed(0)}% of the graphics card's 3D engine; the empty window makes ${first.emptyFrameRate.toFixed(0)} frames a second, the screen refreshes ${first.profile.screenRefreshRate ?? '?'} times`);
+    const gpuNow = outside.gpuPercent === undefined ? '' : ` and ${outside.gpuPercent.toFixed(0)}% of the graphics card's 3D engine`;
+    log(`right now: other programs use ${(outside.ofAllProcessors * 100).toFixed(0)}% of all processors${gpuNow}; the empty window makes ${first.emptyFrameRate.toFixed(0)} frames a second, the screen refreshes ${first.profile.screenRefreshRate ?? '?'} times`);
     const reasons = [];
     if (outside.brokenLimits.length) {
         reasons.push(`other programs keep busy: ${outside.brokenLimits.join(', ')}`);
@@ -769,6 +788,17 @@ const notReadyNow = async () => {
 const runBaseline = async (out, options) => {
     const startedAt = Date.now();
     const { all, core } = baselinePlan(options.windows);
+    if (process.platform === 'darwin') {
+        // macOS has one profile (darwin.mjs): everything under host, and the large-viewport pass
+        // picks by main-thread time, the GPU share being a number Windows alone reads.
+        const host = await runPass(out, 'host', VIEWPORT, all, { ...options, check: true });
+        const heaviest = [...host].sort((left, right) => right.summary['perFrame.totalMs'].median - left.summary['perFrame.totalMs'].median).slice(0, 10).map(result => result.scenario);
+        await runPass(out, 'host', LARGE_VIEWPORT, heaviest, options);
+        await runNoise(out, { ...options, profile: 'host' });
+        await runTruth(out, { ...options, profile: 'host' });
+        log(`baseline measured in ${((Date.now() - startedAt) / 60000).toFixed(1)} min`);
+        return;
+    }
     const laptop = await runPass(out, 'laptop', VIEWPORT, all, { ...options, check: true });
     await runPass(out, 'old', VIEWPORT, all, { ...options, check: true });
     await runPass(out, 'host', VIEWPORT, core, { ...options, check: true });
@@ -808,10 +838,19 @@ const main = async () => {
 
     if (args.baseline || args.plan) {
         const plan = baselinePlan(options.windows);
-        log(`baseline: ${plan.all.length} scenarios under laptop and old, ${plan.core.length} under host, 10 again at the large viewport, noise and truth checks; every scenario in a launch of its own`);
-        log(`this takes about ${plan.minutes} minutes; longer when windows have to be repeated`);
+        if (process.platform === 'darwin') {
+            log(`baseline on macOS: all ${plan.all.length} scenarios under host (laptop and old are Windows' profiles), the ten heaviest again at the large viewport, noise and truth checks; every scenario in a launch of its own. The Windows figure of about ${plan.minutes} minutes is for two profiles and a core pass besides; a host-only run is shorter by roughly a pass and a half.`);
+        } else {
+            log(`baseline: ${plan.all.length} scenarios under laptop and old, ${plan.core.length} under host, 10 again at the large viewport, noise and truth checks; every scenario in a launch of its own`);
+            log(`this takes about ${plan.minutes} minutes; longer when windows have to be repeated`);
+        }
     }
     if (args.plan) {
+        if (process.platform === 'darwin') {
+            // The table is written for Windows' counters (report.mjs); the macOS results are the JSON.
+            log('on macOS there is no 画面底数 table to write: run the baseline and read the JSON under claude-notes/perf/data/');
+            return;
+        }
         const table = path.join(notesDir(), '画面底数.md');
         if (fs.existsSync(path.join(notesDir(), 'data', 'baseline'))) {
             log(`a baseline exists already; ${table} left as it is`);
@@ -869,10 +908,16 @@ const main = async () => {
             await runBaseline(working, options);
             endRun({ finished: true });
             const placed = await placeBaseline(working, out);
-            const table = path.join(notesDir(), label === 'baseline' ? '画面底数.md' : `画面底数-${label}.md`);
-            writeReport(placed, table, label === 'baseline' ? {} : { heading: `这一轮的名字是 ${label}，不是底数（底数是不带 --label、电脑空着时跑的那一轮）` });
-            log(`table written to ${table}`);
-            log(`results in ${placed}`);
+            if (process.platform === 'darwin') {
+                // report.mjs writes the Windows table (its GPU columns, the laptop/old passes); the
+                // macOS numbers stay in the JSON, where no column can read n/a as 0.
+                log(`results in ${placed} (no 画面底数 table on macOS: report.mjs is written for Windows' counters)`);
+            } else {
+                const table = path.join(notesDir(), label === 'baseline' ? '画面底数.md' : `画面底数-${label}.md`);
+                writeReport(placed, table, label === 'baseline' ? {} : { heading: `这一轮的名字是 ${label}，不是底数（底数是不带 --label、电脑空着时跑的那一轮）` });
+                log(`table written to ${table}`);
+                log(`results in ${placed}`);
+            }
         } else {
             if (args.noise) {
                 await runNoise(working, options);

@@ -1,5 +1,5 @@
-import type { Artist, UnifiedSong } from '../../../types';
-import type { JsonValue, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
+import type { Artist, SongResult, UnifiedSong } from '../../../types';
+import type { JsonValue, ProviderCollection, ProviderLyricSearchAlias, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 
 // src/services/onlineMusic/bodian/bodianNormalize.ts
@@ -35,11 +35,28 @@ export const normalizeBodianSong = (raw: unknown): UnifiedSong => {
     else if (item.payInfo?.cannotOnlinePlay === 1) data.availability = 'online-play-restricted';
     if (item.payInfo?.refrain_start !== undefined) data.chorusStartMs = Number(item.payInfo.refrain_start);
     if (item.payInfo?.refrain_end !== undefined) data.chorusEndMs = Number(item.payInfo.refrain_end);
+    // 显示用的 `songName` 带版本（「夜に駆ける (Live)」），`name` 是不带它的原名：两者不同时存下，
+    // 歌词搜索在歌名搜不到时用它再搜一次。`FSONGNAME` 是中文译名、`subtitle` 是说明，都不当别名。
+    const name = text(item.songName || item.name);
+    if (item.songName && item.name && text(item.name) !== name) data.originalName = text(item.name);
     return {
-        id: text(item.id), name: text(item.songName || item.name), artists: artistsOf(item),
+        id: text(item.id), name, artists: artistsOf(item),
         album: { id: text(item.albumId), name: text(item.album), coverUrl: cover(item.albumPic), catalogRef: ref('album', item.albumId) },
         durationMs: Math.max(0, Number(item.duration) || 0) * 1000,
         sourceRef: { kind: 'online', providerId: 'bodian', mediaId: text(item.id), providerData: data },
+    };
+};
+
+// 歌名的原名（normalizeBodianSong 存下的 `name`）配上同一组歌手，供歌词搜索换个名字再搜。
+export const getBodianLyricSearchAlias = async (song: SongResult): Promise<ProviderLyricSearchAlias | null> => {
+    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'bodian' ? song.sourceRef : undefined;
+    const originalName = text(sourceRef?.providerData?.originalName).trim();
+    if (!originalName || originalName === song.name) return null;
+    return {
+        song,
+        title: originalName,
+        artist: song.artists.map(artist => artist.name).join(', '),
+        ...(song.album?.name ? { album: song.album.name } : {}),
     };
 };
 

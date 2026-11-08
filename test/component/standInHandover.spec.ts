@@ -208,7 +208,6 @@ test('the stand-in turns over into the centred card: away to edge-on, then the c
     expect(turned).toBeGreaterThan(0);
     // Around the middle of the turn: where one card goes edge-on and the other comes from it.
     const swap = frames.findIndex(frame => frame.hero !== null && frame.hero > 0 && frame.hero < 90);
-    // eslint-disable-next-line no-console
     console.log('TURN', JSON.stringify({
         turnStartsMs: Math.round(frames[turned].at),
         afterLandingMs: Math.round(frames[turned].at - landedAt!),
@@ -271,7 +270,6 @@ test('nothing turns before the centred card has its picture', async ({ mount, pa
 
     const turned = firstTurned(frames);
     const heroShown = frames.find(heroShows);
-    // eslint-disable-next-line no-console
     console.log('LATE PICTURE', JSON.stringify({
         pictureAfterHeroCameMs: Math.round(pictureAt! - heroCameAt!),
         turnAfterPictureMs: Math.round(frames[turned]?.at - pictureAt!),
@@ -307,7 +305,6 @@ test('a picture that never comes does not keep the stand-in: it turns after abou
     await page.unrouteAll({ behavior: 'ignoreErrors' });
 
     const turned = firstTurned(frames);
-    // eslint-disable-next-line no-console
     console.log('NO PICTURE', JSON.stringify({ turnAfterHeroCameMs: Math.round(frames[turned]?.at - heroCameAt!) }));
 
     expect(turned).toBeGreaterThan(0);
@@ -331,7 +328,6 @@ test('a picture that fails is not waited for either: the stand-in turns once the
     await page.unrouteAll({ behavior: 'ignoreErrors' });
 
     const turned = firstTurned(frames);
-    // eslint-disable-next-line no-console
     console.log('PICTURE FAILS', JSON.stringify({
         heroCameMs: Math.round(heroCameAt!), landedMs: Math.round(landedAt!), turnStartsMs: Math.round(frames[turned]?.at),
     }));
@@ -353,7 +349,6 @@ test('a centred card that shows the same picture is not turned into: the stand-i
     const { frames, animated } = await read(page);
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('SAME PICTURE', JSON.stringify({ fadeStartsMs: Math.round(fading[0]?.at), fadesForMs: Math.round(lengthOf(fading)), animated }));
 
     expectNoTurn(frames);
@@ -380,7 +375,6 @@ test('a centred card that shows the same picture from another address is not tur
     const { frames, landedAt, heroCameAt, pictureAt, animated } = await read(page);
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('SAME PICTURE ELSEWHERE', JSON.stringify({
         heroCameMs: Math.round(heroCameAt!), pictureMs: Math.round(pictureAt!), landedMs: Math.round(landedAt!),
         fadeStartsMs: Math.round(fading[0]?.at), fadesForMs: Math.round(lengthOf(fading)), animated, asked,
@@ -415,7 +409,6 @@ test('a picture whose host does not let it be read is taken for another picture:
     const { frames, landedAt, pictureAt } = await read(page);
 
     const turned = firstTurned(frames);
-    // eslint-disable-next-line no-console
     console.log('UNREADABLE PICTURE', JSON.stringify({ pictureMs: Math.round(pictureAt!), landedMs: Math.round(landedAt!), turnStartsMs: Math.round(frames[turned]?.at) }));
 
     expect(turned).toBeGreaterThan(0);
@@ -444,7 +437,6 @@ test('two addresses of one artwork are known for one picture though neither can 
     const { frames, animated } = await read(page);
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('ONE ARTWORK, UNREADABLE', JSON.stringify({ fadeStartsMs: Math.round(fading[0]?.at), animated, asked: [...new Set(asked)] }));
 
     // Both were shown, each from its own address.
@@ -469,7 +461,6 @@ test('a picture that is slow to be read again is not waited for: the stand-in tu
     const { frames, pictureAt } = await read(page);
 
     const turned = firstTurned(frames);
-    // eslint-disable-next-line no-console
     console.log('SLOW TO READ', JSON.stringify({ turnAfterPictureMs: Math.round(frames[turned]?.at - pictureAt!) }));
 
     // It turns, though the two pictures are one: it could not be told in time.
@@ -495,7 +486,6 @@ test('a reading that comes after those 150 ms is still heeded where the stand-in
     const { frames, landedAt, heroCameAt, pictureAt, animated } = await read(page);
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('READ LATE, LANDED LATER', JSON.stringify({
         heroCameMs: Math.round(heroCameAt!), pictureMs: Math.round(pictureAt!), landedMs: Math.round(landedAt!),
         fadeStartsMs: Math.round(fading[0]?.at), turnStartsMs: Math.round(frames[firstTurned(frames)]?.at), animated,
@@ -561,7 +551,6 @@ test('a hero that has its picture from the first is not kept waiting for the rea
     await mount('gridEntrancePerf');
     const seen = await handOverBareCards(page, COVER_AT_ONCE, COVER_ELSEWHERE);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
-    // eslint-disable-next-line no-console
     console.log('PICTURE FROM THE FIRST', JSON.stringify(seen));
 
     expect(seen.complete).toBe(true);
@@ -580,7 +569,6 @@ test('a stand-in that only fades is said to be over before the handover is said 
     await mount('gridEntrancePerf');
     // One picture on both cards: nothing turns, and both words come of the one fade's end.
     const seen = await handOverBareCards(page, COVER_AT_ONCE, COVER_AT_ONCE);
-    // eslint-disable-next-line no-console
     console.log('FADE ON BARE CARDS', JSON.stringify(seen));
 
     expect(seen.gaveWayAfter).not.toBeNull();
@@ -595,7 +583,6 @@ test('that a picture cannot be read is known at once: the stand-in turns without
     }));
     await mount('gridEntrancePerf');
     const seen = await handOverBareCards(page, COVER_AT_ONCE, COVER_ELSEWHERE);
-    // eslint-disable-next-line no-console
     console.log('UNREADABLE FROM THE FIRST', JSON.stringify(seen));
 
     expect(seen.complete).toBe(true);
@@ -649,7 +636,6 @@ test('a handover that is called off leaves nothing held or turned, and says noth
         await wait(700);
         return { heldAt, afterWaiting, later, midTurn, afterTurning, said };
     }, { flown: COVER_AT_ONCE, own: `data:image/svg+xml,${encodeURIComponent(BLUE_AT_ANOTHER_SIZE)}` });
-    // eslint-disable-next-line no-console
     console.log('CALLED OFF', JSON.stringify(seen));
 
     const atRest = { moving: 0, standIn: 'none 1', hero: 'none 1' };
@@ -689,7 +675,6 @@ test('tracks that come after the flight has landed: the stand-in waits for them,
 
     const turned = firstTurned(frames);
     const came = heroCame(frames);
-    // eslint-disable-next-line no-console
     console.log('LATE TRACKS', JSON.stringify({ landedMs: Math.round(landedAt!), heroCameMs: Math.round(heroCameAt!), turnStartsMs: Math.round(frames[turned]?.at), besideMovedBy: [...new Set(beside)].sort() }));
 
     // The hero did come late: long after the flight had landed and the page's plan was taken
@@ -730,7 +715,6 @@ test('a centred card that was dragged from under the stand-in is not turned into
     await page.unrouteAll({ behavior: 'ignoreErrors' });
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('DRAGGED AWAY', JSON.stringify({ fadeStartsAfterHeroCameMs: Math.round(fading[0]?.at - heroCameAt!), fadesForMs: Math.round(lengthOf(fading)), animated }));
 
     expectNoTurn(frames);
@@ -752,7 +736,6 @@ test('a page that has no cards lets its stand-in fade', async ({ mount, page }) 
     const { frames, landedAt, animated } = await read(page);
 
     const fading = fadingOf(frames);
-    // eslint-disable-next-line no-console
     console.log('NO CARDS', JSON.stringify({ fadeAfterLandingMs: Math.round(fading[0]?.at - landedAt!), fadesForMs: Math.round(lengthOf(fading)), animated }));
 
     expect(frames.filter(frame => frame.hero !== null)).toEqual([]);
@@ -794,7 +777,6 @@ test('a turn under way is ended at once for whoever measures the centred card', 
         };
         requestAnimationFrame(look);
     }));
-    // eslint-disable-next-line no-console
     console.log('MID-TURN', JSON.stringify(measured));
 
     expect(measured).not.toBeNull();
@@ -833,7 +815,6 @@ test('a stand-in that has not begun to give way is the card that is measured, an
         };
         requestAnimationFrame(look);
     }));
-    // eslint-disable-next-line no-console
     console.log('MEASURED WHILE WAITING', JSON.stringify(measured));
 
     expect(measured).not.toBeNull();

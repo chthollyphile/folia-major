@@ -19,6 +19,7 @@ import { usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewS
 import { hasLibrarySuiteChoice } from '../../../library/registry';
 import { chooseLibrarySuite, getActiveLibrarySuiteId, listLibrarySuiteOptions } from '../../../library/app/librarySuiteChoice';
 import { isBravaisLibraryActive } from '../../../library/app/bravaisLibraryActive';
+import { isGridLibraryActive } from '../../../library/app/gridLibraryActive';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { usePonderStore } from '../../../stores/usePonderStore';
 import { useHomeLayoutSettingsStore } from '../../../stores/useHomeLayoutSettingsStore';
@@ -96,6 +97,8 @@ export const buildSettingsCommandContext = (
         chooseLibrarySuite,
         // bravais 的透光偏好：与设置分区同一个谓词；值与 setter 都现读 store（面板开着时也会变）。
         isLibraryWallLookAvailable: isBravaisLibraryActive,
+        // 只有网格界面读的设置（首页卡片、网格卡片、海报墙按钮）：与设置页同一个谓词。
+        isGridLibraryActive,
         libraryWallLook: () => useLibraryWallLookStore.getState().look,
         setLibraryWallLook: look => useLibraryWallLookStore.getState().setLook(look),
         libraryWallWindowsPerBlock: () => useLibraryWallLookStore.getState().windowsPerBlock,
@@ -146,6 +149,9 @@ export const buildSettingsCommandContext = (
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
+        toggleLatticeBadgeCurrentOnly: () => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(
+            !useLatticeSettingsStore.getState().latticeBadgeCurrentOnly,
+        ),
         toggleReduceLatticeMotion: () => {
             const motion = useMotionSettingsStore.getState();
             motion.handleToggleReducedMotionSurface('lattice', !motion.reducedMotionSurfaces.lattice);
@@ -170,6 +176,9 @@ export const buildSettingsCommandContext = (
         ),
         toggleAlwaysShowMainWindowTitlebar: () => chrome.handleToggleAlwaysShowMainWindowTitlebar(
             !usePlayerChromeSettingsStore.getState().alwaysShowMainWindowTitlebar,
+        ),
+        togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
+            !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),
         toggleHideFullscreenButton: () => chrome.handleToggleHideFullscreenButton(
             !usePlayerChromeSettingsStore.getState().hideFullscreenButton,
@@ -201,6 +210,14 @@ export const buildSettingsCommandContext = (
         togglePlaybackReport: () => audio.handleToggleNeteaseScrobble(
             !useAudioSettingsStore.getState().neteaseScrobbleEnabled,
         ),
+        toggleAutoAiLyricSegmentation: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleAutoAiLyricSegmentation(!lyric.autoAiLyricSegmentation);
+        },
+        toggleKeepProviderWordTiming: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleKeepProviderWordTiming(!lyric.keepProviderWordTiming);
+        },
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
         modSystemEnabled: desktop.modSystemEnabled,
         toggleVoiceInputPause: () => desktop.handleToggleVoiceInputPause(
@@ -224,9 +241,15 @@ export const buildSettingsCommandContext = (
         toggleRemoteControlExpandCover: () => desktop.handleToggleRemoteControlExpandCover(
             !useDesktopSettingsStore.getState().remoteControlExpandCover,
         ),
+        toggleRemoteControlTextShade: () => desktop.handleToggleRemoteControlTextShade(
+            !useDesktopSettingsStore.getState().remoteControlTextShade,
+        ),
         unlockRemoteControl: () => desktop.handleToggleRemoteControlClickThrough(false),
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
+        ),
+        toggleTrackCardInObs: () => useStageSettingsStore.getState().handleToggleStageTrackPillInObs(
+            !useStageSettingsStore.getState().stageTrackPillInObs,
         ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,

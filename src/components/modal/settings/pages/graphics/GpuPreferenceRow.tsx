@@ -5,7 +5,7 @@ import { GPU_PREFERENCES, useDesktopSettingsStore, type GpuPreference } from '..
 import { Reveal, Row, Segmented, Value, type SettingsOptionDef } from '../../kit';
 
 // src/components/modal/settings/pages/graphics/GpuPreferenceRow.tsx
-// The 渲染显卡 row of the 性能与动效 page (Windows desktop only): the saved choice, the adapter
+// The 渲染显卡 row of the 动画与性能 page (Windows desktop only): the saved choice, the adapter
 // Chromium renders on in this run, and a reminder that a changed choice waits for a restart.
 
 type GpuPreferenceState = Awaited<ReturnType<NonNullable<NonNullable<Window['electron']>['getGpuPreferenceState']>>>;

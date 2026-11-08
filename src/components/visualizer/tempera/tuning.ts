@@ -1,5 +1,6 @@
 import { DEFAULT_TEMPERA_LAYER_IMAGE, DEFAULT_TEMPERA_TUNING, TEMPERA_MAX_LAYER_IMAGES, type TemperaLayerImage, type TemperaTuning } from '../../../types';
-import { defineVisualizerTuning, numberWithin, type StoredTuningFields } from '../tuningDefinition';
+import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/tempera/tuning.ts
 // Tempera's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -44,10 +45,15 @@ const sanitizeLayerImages = (value: unknown): TemperaLayerImage[] => {
 
 /** The tuning `values` ask for, with `base` where they say nothing or something that cannot be: every number inside its range. */
 const resolve = (values: Partial<TemperaTuning>, base: TemperaTuning): TemperaTuning => ({
+    // 分辨率与抗锯齿的覆盖（#929）：旧存档没有这项就是全跟随全局；只改一半的补丁保留另一半，不认识的值回到「跟随全局」。
+    render: normalizeLyricRenderOverride({ ...base.render, ...(values.render ?? {}) }),
     cameraIntensity: numberWithin(values.cameraIntensity, base.cameraIntensity, 0, 2),
     glyphMotion: numberWithin(values.glyphMotion, base.glyphMotion, 0, 2),
     wholeLineLyrics: switchOr(values.wholeLineLyrics, base.wholeLineLyrics),
     glyphSettleStretch: numberWithin(values.glyphSettleStretch, base.glyphSettleStretch, 0, 1),
+    depthOfField: numberWithin(values.depthOfField, base.depthOfField, 0, 2),
+    depthPan: numberWithin(values.depthPan, base.depthPan, 0, 2),
+    glyphDepth: numberWithin(values.glyphDepth, base.glyphDepth, 0, 2),
     colorMode: values.colorMode === 'duo' || values.colorMode === 'mono' || values.colorMode === 'gradient' ? values.colorMode : base.colorMode,
     textInversion: switchOr(values.textInversion, base.textInversion),
     layerImages: values.layerImages ? sanitizeLayerImages(values.layerImages) : base.layerImages,
@@ -73,6 +79,30 @@ export const resolveStoredTemperaTuning = (stored: Partial<TemperaTuning>): Temp
 export default defineVisualizerTuning<TemperaTuning>({
     mode: 'tempera',
     defaults: DEFAULT_TEMPERA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        cameraIntensity: modNumber(0, 2),
+        glyphMotion: modNumber(0, 2),
+        wholeLineLyrics: MOD_SWITCH,
+        glyphSettleStretch: modNumber(0, 1),
+        depthOfField: modNumber(0, 2),
+        depthPan: modNumber(0, 2),
+        glyphDepth: modNumber(0, 2),
+        colorMode: modChoice(['duo', 'mono', 'gradient']),
+        showBlocks: MOD_SWITCH,
+        showDecor: MOD_SWITCH,
+        showCornerMarks: MOD_SWITCH,
+        textInversion: MOD_SWITCH,
+        layerImageDepth: modChoice(['back', 'front']),
+        layerImageFrequency: modNumber(0, 1),
+        enableTransitions: MOD_SWITCH,
+        postProcessEnabled: MOD_SWITCH,
+        postProcessGrain: modNumber(0, 1),
+        postProcessContrast: modNumber(0, 1),
+        postProcessRgbShift: modNumber(0, 1),
+        postProcessVignette: modNumber(0, 2),
+        postProcessLensDistortion: modNumber(0, 2),
+    },
     settingsKey: 'temperaTuning',
     settingsSetterKey: 'handleSetTemperaTuning',
     settingsResetterKey: 'handleResetTemperaTuning',
@@ -84,6 +114,8 @@ export default defineVisualizerTuning<TemperaTuning>({
     },
     // The renderer's resolution reallocates the Pixi backing surface: the sample stays on the saved
     // one while its slider moves and takes the new one once it is saved.
+    // render（分辨率 / 抗锯齿覆盖，#929）不用这样留：那两行是下拉和分段按钮，选了就保存，没有拖动中的草稿；
+    // 而且样式窗口的小图是预览，本来就不跟这两个设置，改了只有窗口后面正在播的画面跟着变。
     preview: (draft, saved) => ({ ...draft, textureResolution: saved.textureResolution }),
     apply: (props, tuning) => ({ ...props, temperaTuning: tuning }),
 });

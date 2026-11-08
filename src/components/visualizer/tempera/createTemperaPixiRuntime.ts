@@ -1,5 +1,6 @@
 import type { MotionValue } from 'framer-motion';
-import type { TemperaTuning, Theme } from '../../../types';
+import type { LyricRenderScale, TemperaTuning, Theme } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import {
     destroyPixiDisplayTree,
     setPixiDisplayTreeVisibility,
@@ -22,6 +23,10 @@ import { setTemperaTransitionBlur } from './temperaSceneFilters';
 import { destroyTemperaGradientFills } from './temperaShapes';
 import { TemperaImageTextures } from './temperaImageTextures';
 import { TemperaOverlay } from './temperaOverlay';
+import { TemperaInkFlash } from './temperaInkFlash';
+import { getBeatEffectStrength, getBeatFxHeard } from '../../../services/beatFx/beatFxLive';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
+import { getDrumHits } from '../../../services/analysis/drumHits';
 import { resolveTemperaCreditsFrame, TemperaCreditsLayer } from './temperaCreditsLayer';
 import { resolveTemperaShotExit, updateTemperaShot } from './temperaShotFrame';
 import {
@@ -40,6 +45,11 @@ import {
 // 片尾海报、画框与擦除块、图片纹理池、shot 逐帧姿态和场景转场决策在相邻模块；这里只管生命周期、
 // 段落场景缓存、换歌交接和每帧调度。
 type PixiModule = typeof import('pixi.js');
+
+/** How long 墨染奥行's camera and glyph depth take to ease in or out when the effect is switched. */
+const DEPTH_EASE_SECONDS = 0.6;
+/** How long the 景深 slider must rest before the scenes are rebuilt with the new baked blur. */
+const DEPTH_BLUR_REBAKE_MS = 250;
 
 export interface TemperaSongMetadata {
     title?: string | null;
@@ -70,6 +80,13 @@ export interface TemperaRuntimeOptions {
     program: TemperaProgram;
     theme: Theme;
     tuning: TemperaTuning;
+    /**
+     * 分辨率倍数（#929，全局挡位叠上样式覆盖）：乘在 `textureResolution` 上再做纹理池吸附。
+     * 就地改，见 setRenderScale。
+     */
+    renderScale: LyricRenderScale;
+    /** 画布开不开 MSAA（#929）：「自动」时就是原来的 `!postProcessEnabled`。只在建上下文时定，变了由外壳重建。 */
+    antialias: boolean;
     currentTime: MotionValue<number>;
     lyricsFontScale: number;
     staticMode: boolean;
@@ -83,6 +100,17 @@ export interface TemperaRuntimeOptions {
     signal?: AbortSignal;
 }
 
+
+/**
+ * 渲染器实际用的 resolution：`textureResolution` 是样式原来的像素密度（base），乘上分辨率倍数（#929）
+ * 后再吸附到纹理池档位。
+ */
+const resolveTemperaRenderResolution = (
+    width: number,
+    height: number,
+    tuning: TemperaTuning,
+    renderScale: LyricRenderScale,
+) => snapResolutionToTexturePool(width, height, resolveLyricPixelRatio(tuning.textureResolution, renderScale));
 
 /** The incoming scene and poster, built a frame before the cut needs them. */
 interface TemperaStagedSong {
@@ -114,7 +142,8 @@ export class TemperaPixiRuntime {
     private lastWidth = 0;
     private lastHeight = 0;
     /**
-     * What the renderer is actually running at: `textureResolution` after the texture-pool snap.
+     * What the renderer is actually running at: `textureResolution` times the 分辨率 multiplier
+     * (#929), after the texture-pool snap.
      * It depends on the viewport as well as the setting, so it is recomputed on every resize and
      * every tuning change rather than read off the tuning - and the fixed-resolution filter
      * passes are derived from this, never from `tuning.textureResolution`.
@@ -125,6 +154,19 @@ export class TemperaPixiRuntime {
     private creditsLayer!: TemperaCreditsLayer;
     private imageTextures!: TemperaImageTextures;
     private overlay!: TemperaOverlay;
+    /** 智能动感模式「墨染奥行」's ink: the stain and the ink flash, between the scenes and the overlay. */
+    private inkFlash!: TemperaInkFlash;
+    private inkFlashSupported: boolean | undefined;
+    /**
+     * 墨染奥行 also owns the depth: the baked depth blur, the parallax, the per-shot camera pan and the
+     * size-as-depth glyphs. Off, Tempera looks as it did before the effect.
+     */
+    private depthOn = false;
+    /** Eases toward `depthOn` (0..1) so switching the effect never jumps the camera or the glyphs. */
+    private depthMix = 0;
+    private depthMixAt: number | null = null;
+    /** Pending rebuild for a 景深 change: the parallax follows the slider live, the baked blur once it rests. */
+    private depthBlurTimer: ReturnType<typeof setTimeout> | null = null;
     /**
      * An in-flight song handover, spread over exactly two frames. A track change is a plain cut
      * here - no wipe, no dissolve - but a cut must not also be a stall, so the incoming scene is
@@ -151,8 +193,9 @@ export class TemperaPixiRuntime {
             // With post-processing the scene is drawn into the filters' own multisampled target and
             // the back buffer only gets the filtered picture and the frame marks: its 4-sample buffer
             // would cost about 70 MB of video memory for those. The marks' edges are then not
-            // smoothed. Switching post-processing rebuilds this runtime (rebuildKey in VisualizerTempera).
-            antialias: !options.tuning.postProcessEnabled,
+            // smoothed. That is the default; the 抗锯齿 setting (#929) can force it either way. The
+            // resolved value is in VisualizerTempera's rebuildKey, so a change rebuilds this runtime.
+            antialias: options.antialias,
             powerPreference: 'high-performance',
             // The lyric layer's difference filter declares blendRequired; without the back
             // buffer the WebGL renderer skips the whole filter stack for that container.
@@ -162,7 +205,7 @@ export class TemperaPixiRuntime {
         const app = new pixi.Application();
         const width = Math.max(options.host.clientWidth, 320);
         const height = Math.max(options.host.clientHeight, 240);
-        const resolution = snapResolutionToTexturePool(width, height, options.tuning.textureResolution);
+        const resolution = resolveTemperaRenderResolution(width, height, options.tuning, options.renderScale);
         await app.init({
             width,
             height,
@@ -176,12 +219,15 @@ export class TemperaPixiRuntime {
         });
         const runtime = new TemperaPixiRuntime(pixi, options, app);
         runtime.renderResolution = resolution;
+        runtime.depthOn = getBeatEffectStrength(BEAT_EFFECT_IDS.temperaInkFlash) > 0;
+        runtime.depthMix = runtime.depthOn ? 1 : 0;
         runtime.sceneContainer = new pixi.Container();
         // Paragraph scenes overlap during a boundary, so they must stack by paragraph order.
         runtime.sceneContainer.sortableChildren = true;
         runtime.creditsLayer = new TemperaCreditsLayer(pixi);
         runtime.overlay = new TemperaOverlay(pixi);
-        app.stage.addChild(runtime.sceneContainer, runtime.creditsLayer.container, runtime.overlay.container);
+        runtime.inkFlash = new TemperaInkFlash(pixi);
+        app.stage.addChild(runtime.sceneContainer, runtime.creditsLayer.container, runtime.inkFlash.container, runtime.overlay.container);
 
         // Textures are loaded once and shared by every scene: paragraph scenes are rebuilt as
         // playback moves, and reloading a character cut-out on each one would thrash.
@@ -231,7 +277,7 @@ export class TemperaPixiRuntime {
     private resolveRenderResolution(tuning: TemperaTuning) {
         const width = this.lastWidth || Math.max(this.options.host.clientWidth, 320);
         const height = this.lastHeight || Math.max(this.options.host.clientHeight, 240);
-        return snapResolutionToTexturePool(width, height, tuning.textureResolution);
+        return resolveTemperaRenderResolution(width, height, tuning, this.options.renderScale);
     }
 
     private resizeToHost() {
@@ -350,6 +396,8 @@ export class TemperaPixiRuntime {
             shot.textLayer.filters = null;
         });
         scene.postProcessFilters.forEach(filter => filter.destroy());
+        scene.bakedTextures.forEach(texture => texture.destroy(true));
+        scene.bakedTextures.clear();
         destroyTemperaGradientFills(this.pixi, scene.container);
         // 逐节点销毁：destroy({ children: true }) 会留下每个 Graphics 自建的 GraphicsContext 与它的 GPU 缓冲。
         destroyPixiDisplayTree(scene.container);
@@ -371,6 +419,8 @@ export class TemperaPixiRuntime {
             staticMode: this.options.staticMode,
             coverColors: song.coverColors,
             imageTextures: this.imageTextures.textures,
+            // The depth blur is baked when the scene is built, and only while 墨染奥行 is on.
+            renderer: this.depthOn ? this.app.renderer : null,
         }, song.program.paragraphs[index]);
     }
 
@@ -390,6 +440,7 @@ export class TemperaPixiRuntime {
         // Advanced before the paragraph lookup so a cut lands on this frame's scene selection
         // instead of leaving one frame of the outgoing program on the incoming one.
         this.songSwap.advance();
+        this.updateDepthSwitch();
         if (this.options.program.paragraphs.length === 0) return;
         const paragraphIndex = findTemperaParagraphIndexAtTime(this.options.program, time);
         if (paragraphIndex !== this.activeParagraphIndex) {
@@ -480,7 +531,7 @@ export class TemperaPixiRuntime {
                     && resolveTemperaShotExit(shot, time) < 1;
                 setPixiDisplayTreeVisibility(shot.container, isShotActive || isHandingOff);
                 if (!shot.container.visible) return;
-                updateTemperaShot(shot, time, width, height, this.options.tuning, this.options.theme);
+                updateTemperaShot(shot, time, width, height, this.options.tuning, this.options.theme, this.depthMix);
             });
             scene.activeShotIndex = activeShotIndex;
 
@@ -510,8 +561,49 @@ export class TemperaPixiRuntime {
         });
 
         if (!wipeDrawn) this.overlay.drawWipe(0, 0, width, height, '#000000');
+        this.updateInkFlash(time, width, height, paragraphIndex);
         this.creditsLayer.applyFrame(creditsFrame, hasCredits, time, finalParagraph?.endTime, width, height);
     };
+
+    /**
+     * Follows the 墨染奥行 switch. The scenes on hand were built with or without the depth blur, so a
+     * change rebuilds them (once, on the frame it lands; not mid song handover); the camera and glyph
+     * depth ease in and out over DEPTH_EASE_SECONDS instead of jumping.
+     */
+    private updateDepthSwitch() {
+        const on = getBeatEffectStrength(BEAT_EFFECT_IDS.temperaInkFlash) > 0;
+        if (on !== this.depthOn && !this.songSwap.active) {
+            this.depthOn = on;
+            this.clearScenes();
+        }
+        const now = performance.now();
+        const dt = this.depthMixAt === null ? 0 : Math.min(0.1, (now - this.depthMixAt) / 1000);
+        this.depthMixAt = now;
+        const step = dt / DEPTH_EASE_SECONDS;
+        this.depthMix = this.depthOn ? Math.min(1, this.depthMix + step) : Math.max(0, this.depthMix - step);
+    }
+
+    /**
+     * 墨染奥行's ink reads the drum hits off the beat clock's heard track, as 时计 does: nothing until the
+     * playing track's hits are in, and nothing past where a track still separating has them.
+     */
+    private updateInkFlash(time: number, width: number, height: number, paragraphIndex: number) {
+        // The ink shader is GLSL ES 3.0; on a WebGL1 or WebGPU fallback the effect stays off.
+        this.inkFlashSupported ??= typeof WebGL2RenderingContext !== 'undefined'
+            && (this.app.renderer as { gl?: unknown }).gl instanceof WebGL2RenderingContext;
+        const strength = this.options.staticMode || !this.inkFlashSupported ? 0 : getBeatEffectStrength(BEAT_EFFECT_IDS.temperaInkFlash);
+        const heard = getBeatFxHeard();
+        const known = strength > 0 ? getDrumHits(heard.key) : null;
+        const hitTime = heard.time ?? time;
+        const hits = known && (known.until === undefined || hitTime < known.until) ? known : null;
+        if (!hits) {
+            // The strength still goes in: with the effect on, the ink's noise starts building before the hits are in.
+            this.inkFlash.update({ time: hitTime, width, height, strength, hits: null, paragraphIndex, inkColor: '' });
+            return;
+        }
+        const inkColor = this.sceneCache.get(paragraphIndex)?.palette.accent ?? this.options.theme.accentColor;
+        this.inkFlash.update({ time: hitTime, width, height, strength, hits, paragraphIndex, inkColor });
+    }
 
     renderOnce() {
         if (this.destroyed || !this.app.canvas.isConnected) return;
@@ -626,25 +718,73 @@ export class TemperaPixiRuntime {
             this.app.renderer.resolution = resolution;
         }
         if (requiresTemperaSceneRebuild(previous, tuning)) {
-            // Staged against the old tuning, so it can no longer be adopted.
-            this.songSwap.dropStaged();
-            this.clearScenes();
-            // Before the first resize pass there is nothing sized to redraw; the install pass
-            // will draw both against real dimensions.
-            if (this.lastWidth > 0 && this.lastHeight > 0) {
-                this.drawOverlay(this.lastWidth, this.lastHeight);
-                this.drawCredits(this.lastWidth, this.lastHeight);
-            }
+            this.rebuildScenes();
         } else {
             this.sceneCache.forEach(scene => {
                 scene.shots.forEach(shot => shot.images.applyPool(tuning.layerImages));
             });
+            if (previous.depthOfField !== tuning.depthOfField && this.depthOn) this.scheduleDepthBlurRebake();
             // The corner marks live only in the overlay, so toggling them needs no scene rebuild.
             if (previous.showCornerMarks !== tuning.showCornerMarks && this.lastWidth > 0 && this.lastHeight > 0) {
                 this.drawOverlay(this.lastWidth, this.lastHeight);
             }
         }
         if (this.options.paused) this.renderOnce();
+    }
+
+    /**
+     * 换分辨率倍数（#929）：和 textureResolution 一样就地改渲染器的 resolution，不重建 WebGL 上下文、
+     * 不重新解码图片；场景上的定分辨率滤镜都由 renderResolution 推出，所以吸附后的值变了就重建场景。
+     */
+    setRenderScale(renderScale: LyricRenderScale) {
+        if (this.destroyed || this.options.renderScale === renderScale) return;
+        this.options.renderScale = renderScale;
+        const resolution = this.resolveRenderResolution(this.options.tuning);
+        if (resolution === this.renderResolution) return;
+        this.renderResolution = resolution;
+        this.app.renderer.resolution = resolution;
+        this.rebuildScenes();
+        if (this.options.paused) this.renderOnce();
+    }
+
+    /** Drops every cached scene (they are rebuilt as playback reaches them) and redraws the overlay and poster. */
+    private rebuildScenes() {
+        this.cancelDepthBlurRebake();
+        // Staged against the old tuning or resolution, so it can no longer be adopted.
+        this.songSwap.dropStaged();
+        this.clearScenes();
+        // Before the first resize pass there is nothing sized to redraw; the install pass
+        // will draw both against real dimensions.
+        if (this.lastWidth > 0 && this.lastHeight > 0) {
+            this.drawOverlay(this.lastWidth, this.lastHeight);
+            this.drawCredits(this.lastWidth, this.lastHeight);
+        }
+    }
+
+    /**
+     * The depth blur is baked when a scene is built, so a 景深 change needs a rebuild; it waits until
+     * the slider has rested, since rebuilding on every pointermove re-lays every line.
+     */
+    private scheduleDepthBlurRebake() {
+        this.cancelDepthBlurRebake();
+        this.depthBlurTimer = setTimeout(() => {
+            this.depthBlurTimer = null;
+            if (this.destroyed) return;
+            // Not under a song handover, as with the 墨染奥行 switch: wait for it to land.
+            if (this.songSwap.active) {
+                this.scheduleDepthBlurRebake();
+                return;
+            }
+            this.songSwap.dropStaged();
+            this.clearScenes();
+            if (this.options.paused) this.renderOnce();
+        }, DEPTH_BLUR_REBAKE_MS);
+    }
+
+    private cancelDepthBlurRebake() {
+        if (this.depthBlurTimer === null) return;
+        clearTimeout(this.depthBlurTimer);
+        this.depthBlurTimer = null;
     }
 
     setPaused(paused: boolean) {
@@ -661,6 +801,7 @@ export class TemperaPixiRuntime {
     destroy() {
         if (this.destroyed) return;
         this.destroyed = true;
+        this.cancelDepthBlurRebake();
         // Release whoever is awaiting the handover before tearing the app down, otherwise that
         // promise never settles and the caller's drain loop stays parked on it.
         this.songSwap.settle(false);
@@ -671,6 +812,7 @@ export class TemperaPixiRuntime {
         this.sceneCache.destroyAll();
         this.creditsLayer.dispose();
         this.overlay.release();
+        this.inkFlash.destroy();
         this.imageTextures.destroy();
         this.app.destroy({ removeView: true }, { children: true, texture: true });
     }

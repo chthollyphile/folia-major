@@ -29,8 +29,8 @@ vi.mock('react-i18next', () => ({
     initReactI18next: { type: '3rdParty', init: vi.fn() },
     useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id } }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: () => false }));
+vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id } }));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: () => false }));
 vi.mock('@/services/prefetchService', () => ({
     getPrefetchedData: () => null,
     prefetchNearbySongs: vi.fn(),

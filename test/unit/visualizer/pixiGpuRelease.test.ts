@@ -86,7 +86,7 @@ describe('商籁 / 凝彩运行时丢场景时放掉 Graphics 的 context', () =
         const sceneContainer = new pixi.Container();
         sceneContainer.addChild(tree.root);
         const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), { sceneContainer, pixi });
-        const scene = { container: tree.root, shots: [{ textLayer: tree.branch }], postProcessFilters: [] };
+        const scene = { container: tree.root, shots: [{ textLayer: tree.branch }], postProcessFilters: [], bakedTextures: new Set() };
         (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene(scene);
         expect(sceneContainer.children).toHaveLength(0);
         expect(tree.ownedContexts.every(context => context.destroyed)).toBe(true);
@@ -108,7 +108,7 @@ describe('商籁 / 凝彩运行时丢场景时放掉 Graphics 的 context', () =
         const sceneContainer = new pixi.Container();
         sceneContainer.addChild(root);
         const runtime = Object.assign(Object.create(TemperaPixiRuntime.prototype), { sceneContainer, pixi });
-        (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene({ container: root, shots: [], postProcessFilters: [] });
+        (runtime as unknown as { destroyScene: (value: unknown) => void }).destroyScene({ container: root, shots: [], postProcessFilters: [], bakedTextures: new Set() });
         expect(destroy).toHaveBeenCalledTimes(1);
         expect(gradient.texture).toBeNull();
     });

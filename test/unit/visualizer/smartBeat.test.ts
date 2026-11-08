@@ -14,8 +14,11 @@ import {
     stopBeatFx,
     tickBeatFx,
 } from '@/services/beatFx/beatFxLive';
-import { liveBeatEffectStrength, visualizerWantsBeatClock, visualizerWantsBeats, visualizerWantsDrumHits, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
-import { BEAT_EFFECT_IDS, resolveBeatEffectSetting, smartBeatActive, smartBeatMayAnalyse } from '@/services/beatFx/beatEffects';
+import { backgroundOnScreen, liveBeatEffectStrength, visualizerWantsBeatClock, visualizerWantsBeats, visualizerWantsDrumHits, visualizerWantsStems, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
+import { anyDrumBeatEffectOn, BEAT_EFFECT_IDS, DRUM_BEAT_EFFECT_IDS, resolveBeatEffectSetting, smartBeatActive, smartBeatMayAnalyse } from '@/services/beatFx/beatEffects';
+import { VISUALIZER_REGISTRY } from '@/components/visualizer/registry';
+import { DEFAULT_NEBBIA_TUNING } from '@/components/visualizer/nebbia/types';
+import { VISUALIZER_BACKGROUND_REGISTRY } from '@/components/visualizer/backgrounds/registry';
 import {
     SONNET_BEAT_FX,
     applySonnetBeatFxLayers,
@@ -142,6 +145,17 @@ describe('智能动感模式 setting', () => {
         expect(useVisualizerSettingsStore.getState().smartBeat.effects).toEqual({});
     });
 
+    it('keeps an effect\'s part strengths, each patched, clamped and round-tripped on its own', () => {
+        const id = BEAT_EFFECT_IDS.nebbiaDrizzleRide;
+        const store = useVisualizerSettingsStore.getState();
+        store.handleSetSmartBeat({ effects: { [id]: { parts: { rain: 1.6 } } } });
+        useVisualizerSettingsStore.getState().handleSetSmartBeat({ effects: { [id]: { parts: { bump: 9, 'bad key': 1 } } } });
+        const setting = useVisualizerSettingsStore.getState().smartBeat.effects[id];
+        expect(setting.parts).toEqual({ rain: 1.6, bump: 2 });
+        const smartBeat = toStoredSmartBeat({ mode: 'on', effects: { [id]: setting } });
+        expect(decompressConfig(compressConfig({ smartBeat })).smartBeat).toEqual(smartBeat);
+    });
+
     it('reads a malformed stored value as the default', () => {
         storage.setItem(SMART_BEAT_STORAGE_KEY, '{not json');
         expect(readStoredSmartBeatSettings()).toEqual(DEFAULT_SMART_BEAT_SETTINGS);
@@ -201,9 +215,20 @@ describe('智能动感模式 setting', () => {
 describe('when the beat clock runs', () => {
     const settings = (patch: Partial<BeatClockSettings>): BeatClockSettings => ({
         smartBeat: on,
-        visualizerMode: 'tempera',
+        visualizerMode: 'partita',
         visualizerBackgroundMode: null,
         ...patch,
+    });
+
+    it('counts the background only where it is drawn', () => {
+        expect(backgroundOnScreen(settings({}))).toBe(true);
+        expect(backgroundOnScreen(settings({ visualizerMode: 'still' }))).toBe(false);
+        expect(backgroundOnScreen(settings({ pageTransparent: true }))).toBe(false);
+        // 雾笺 draws its own night street unless 窗外 is the shared background
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia' }))).toBe(false);
+        const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(true);
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...backdrop }))).toBe(false);
     });
 
     it('never while the switch is off', () => {
@@ -234,6 +259,32 @@ describe('when the beat clock runs', () => {
         expect(visualizerWantsBeats(settings({ visualizerMode: 'pendolo' }))).toBe(false);
         expect(visualizerWantsBeats(settings({ visualizerMode: 'sonnet' }))).toBe(true);
         expect(visualizerWantsDrumHits(settings({ visualizerMode: 'sonnet' }))).toBe(false);
+        // 凝彩: 墨染奥行 reads drums only.
+        expect(visualizerWantsDrumHits(settings({ visualizerMode: 'tempera' }))).toBe(true);
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'tempera' }))).toBe(false);
+        // 雾笺: 疏雨轻车 reads the drum hits and the vocal envelope, off one htdemucs run; the clock carries its key.
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia' }))).toBe(true);
+        expect(visualizerWantsDrumHits(settings({ visualizerMode: 'nebbia' }))).toBe(false);
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia' }))).toBe(false);
+        expect(visualizerWantsBeatClock(settings({ visualizerMode: 'nebbia' }))).toBe(true);
+        expect(visualizerWantsStems(settings({ visualizerMode: 'pendolo' }))).toBe(false);
+    });
+
+    it('runs beat_this for 雾笺\'s 舞潮踏拍 only while the aquarium is on screen, and htdemucs for 疏雨轻车 only while it is not', () => {
+        const aquarium = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'aquarium' as const, glass: 'dew' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(true);
+        expect(liveBeatEffectStrength(settings({ visualizerMode: 'nebbia', ...aquarium }), 'beats')).toBe(1);
+        // 水族箱配凝露玻璃：没有雨打窗、车也不颠，不为疏雨轻车分离音轨；换成雨窗玻璃时雨照旧跟人声
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
+        const rainyTank = { nebbiaTuning: { ...aquarium.nebbiaTuning, glass: 'rain' as const } };
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...rainyTank }))).toBe(true);
+        // 透明时透出后面，但水珠里折射的还是水族箱，照样算；雨夜街景和共用背景都没有水族箱
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(true);
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(false);
+        const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(false);
+        const smartBeat: SmartBeatSettings = { mode: 'on', effects: { [BEAT_EFFECT_IDS.nebbiaAquaBeat]: { on: false, strength: 1 } } };
+        expect(visualizerWantsBeats(settings({ smartBeat, visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
     });
 
     it('not for an effect switched off, and at each effect\'s own strength', () => {
@@ -242,6 +293,26 @@ describe('when the beat clock runs', () => {
         expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'diorama' }), 'beats')).toBeCloseTo(0.4);
         expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'sonnet' }), 'beats')).toBe(1);
         expect(liveBeatEffectStrength(settings({ smartBeat, visualizerMode: 'sonnet' }), 'drums')).toBe(0);
+    });
+});
+
+describe('drum-hit effects on any picture', () => {
+    it('lists every effect a registry entry declares with the drums source', () => {
+        const declared = [...VISUALIZER_REGISTRY, ...VISUALIZER_BACKGROUND_REGISTRY]
+            .flatMap(entry => entry.beatEffects ?? [])
+            .filter(effect => effect.source === 'drums')
+            .map(effect => effect.id);
+        expect([...DRUM_BEAT_EFFECT_IDS].sort()).toEqual([...new Set(declared)].sort());
+    });
+
+    it('counts 墨染奥行 as well as 仿真鼓面, so the drums automix separates stay kept for either', () => {
+        const only = (id: string): SmartBeatSettings => ({
+            mode: 'on',
+            effects: Object.fromEntries(DRUM_BEAT_EFFECT_IDS.map(other => [other, { on: other === id, strength: 1 }])),
+        });
+        expect(anyDrumBeatEffectOn(only(BEAT_EFFECT_IDS.pendoloDrumhead))).toBe(true);
+        expect(anyDrumBeatEffectOn(only(BEAT_EFFECT_IDS.temperaInkFlash))).toBe(true);
+        expect(anyDrumBeatEffectOn(only('none'))).toBe(false);
     });
 });
 

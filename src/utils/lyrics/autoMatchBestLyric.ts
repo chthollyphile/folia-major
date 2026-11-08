@@ -1,6 +1,6 @@
 import { LyricData, LyricProviderSource, SongResult } from '../../types';
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
-import type { OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
+import type { OnlineProviderId, ProviderLyricSearchAlias, ProviderLyricsResult } from '../../types/onlineMusic';
 import { fetchAmllDbLyrics, getAmllDbMusicIds } from './providers/amllDbProvider';
 import { applyChorusRangesByTime } from './chorusEffects';
 import type { ChorusRange } from './chorusEffects';
@@ -14,6 +14,7 @@ import { getLyricSourceAccess, isLyricMatchSourceOffered } from './lyricMatchSou
 import { getLyricSource } from './lyricSources';
 import type { PlatformLyricSource } from './lyricSources';
 import type { LocalSongMetadataLyricCandidate } from './localSongMatchContext';
+import { asksBeforeOwnWordTiming, keepsOwnWordTiming } from './ownWordTiming';
 
 // src/utils/lyrics/autoMatchBestLyric.ts
 // Utility module for preferring word-by-word lyrics while retaining a usable line-by-line fallback.
@@ -45,8 +46,19 @@ export interface AutoMatchBestLyricOptions {
     metadataCandidate?: LocalSongMetadataLyricCandidate;
     exactMatchOnly?: boolean;
     providerCandidate?: AutoMatchProviderCandidate;
+    /**
+     * The listener's setting to keep a platform's own word timing (`prefersOwnWordByWord`) over
+     * every source but the preferred one; on when left out. Off, those lyrics are matched like
+     * any other source's.
+     */
+    keepOwnWordTiming?: boolean;
     /** Another name the artist may be listed under; asked for only when the given one finds nothing. */
     alternateArtist?: () => Promise<string | null>;
+    /**
+     * Another title and artist the song's own provider lists the same song under (its original
+     * name, say); asked for only when the given ones find no word-level lyric.
+     */
+    searchAlias?: () => Promise<ProviderLyricSearchAlias | null>;
     /** @deprecated Use providerCandidate so the baseline follows the song's provider. */
     neteaseCandidate?: {
         id: number | string;
@@ -190,8 +202,10 @@ async function matchUnderArtist(
     // Written by the steps below; the cast keeps the type wide for the reads after them.
     let lineByLineFallback = null as AutoMatchBestLyricMatch | null;
 
-    // A preferred source that is not on offer (Spotify with no account signed in) counts as none chosen.
-    const preferredSource = options.preferredSource && isLyricMatchSourceOffered(options.preferredSource)
+    // A preferred source that is not on offer (Spotify with no account signed in) counts as none
+    // chosen; the song's own platform is always on offer, its lyrics being in hand.
+    const preferredSource = options.preferredSource
+        && (options.preferredSource === providerCandidate?.providerId || isLyricMatchSourceOffered(options.preferredSource))
         ? options.preferredSource
         : undefined;
     const searchOrder = options.exactMatchOnly && options.metadataCandidate
@@ -371,8 +385,8 @@ async function matchUnderArtist(
         return null;
     };
 
-    // AMLL DB keeps lyrics under NetEase and QQ song ids, so it is asked about those two sources'
-    // candidates: the QQ song picked in the metadata dialog when there is one, then NetEase's.
+    // AMLL DB uses NetEase and QQ song IDs: try the metadata-selected candidate first.
+    // The NetEase candidate follows when available.
     const tryAmllDb = async (): Promise<AutoMatchBestLyricResult> => {
         if (options.metadataCandidate?.source === 'qq') {
             const qqCandidate = await getBestCandidate('qq');
@@ -404,18 +418,55 @@ async function matchUnderArtist(
         return null;
     };
 
-    for (const source of searchOrder) {
+    // AMLL DB is the one source that is not a platform: it has no songs of its own to search,
+    // and a step of its own here. Another source that is not a platform has none yet and is
+    // passed over.
+    const trySource = async (source: LyricProviderSource): Promise<AutoMatchBestLyricResult> => {
         try {
-            // AMLL DB is the one source that is not a platform: it has no songs of its own to search,
-            // and a step of its own here. Another source that is not a platform has none yet and is
-            // passed over.
-            const settled = getLyricSource(source).platform
+            return getLyricSource(source).platform
                 ? await tryPlatformSource(source)
                 : source === 'amll' ? await tryAmllDb() : null;
-            if (settled) return settled;
         } catch (error) {
             console.error(`[autoMatchBestLyric] ${source} search/fetch failed:`, error);
+            return null;
         }
+    };
+
+    // A provider whose own word timing is kept (Apple) ends the pick on that timing: another
+    // source may have words too, but not this song's own timing. Only the preferred source is
+    // asked first, and its word-level match wins: the listener chose it, for its translations,
+    // say (issue #1127). The rule lives here so every caller - playback, prefetch, a match
+    // window - obeys it without repeating it.
+    const ownLyrics = providerCandidate?.lyricsResult.lyrics;
+    if (providerCandidate && ownLyrics && keepsOwnWordTiming({
+        ownSource: providerCandidate.providerId,
+        prefersOwn: getOnlineMusicProvider(providerCandidate.providerId)?.lyrics?.prefersOwnWordByWord === true,
+        lyrics: ownLyrics,
+        keepOwn: options.keepOwnWordTiming !== false,
+    })) {
+        const first = searchOrder[0];
+        if (first && first !== providerCandidate.providerId && !getLyricSource(first).linesOnly) {
+            const preferred = await trySource(first);
+            // Its lines, or a pure-music verdict, do not outweigh the words the song has.
+            if (preferred && !preferred.isPureMusic && preferred.lyrics.isWordByWord) {
+                console.log(`[autoMatchBestLyric] Preferred source ${first} has word-level lyrics; taking them over ${providerCandidate.providerId}'s own timing`);
+                return preferred;
+            }
+        }
+        console.log(`[autoMatchBestLyric] ${providerCandidate.providerId} keeps its own word timing`);
+        return {
+            lyrics: ownLyrics,
+            source: providerCandidate.providerId,
+            id: providerCandidate.song.id,
+            song: providerCandidate.song,
+            ...(providerCandidate.song.qqMid ? { qqMid: providerCandidate.song.qqMid } : {}),
+            ...(providerCandidate.song.kgHash ? { kgHash: providerCandidate.song.kgHash } : {}),
+        };
+    }
+
+    for (const source of searchOrder) {
+        const settled = await trySource(source);
+        if (settled) return settled;
     }
 
     if (lineByLineFallback) {
@@ -427,6 +478,8 @@ async function matchUnderArtist(
     return null;
 }
 
+const INSTRUMENTAL_MARKER = /instrumental|\binst\b|off\s*vocal|karaoke|伴奏|カラオケ|インスト/iu;
+
 // A song's provider may name the artist differently from the lyric sources, which then find
 // nothing; `options.alternateArtist` gives the search one more go under the other name.
 export async function autoMatchBestLyric(
@@ -436,6 +489,26 @@ export async function autoMatchBestLyric(
     options: AutoMatchBestLyricOptions = {}
 ): Promise<AutoMatchBestLyricResult> {
     const match = await matchUnderArtist(title, artist, durationMs, options);
+    // The song's own word timing is not final while the source asked first may still list the
+    // song under its original name (a title in Latin letters, say).
+    const ownWordsAfterAsking = match !== null && !match.isPureMusic
+        && match.source === options.providerCandidate?.providerId
+        && getOnlineMusicProvider(match.source)?.lyrics?.prefersOwnWordByWord === true
+        && asksBeforeOwnWordTiming(match.source, options.preferredSource);
+    if (match && (match.isPureMusic || match.lyrics.isWordByWord) && !ownWordsAfterAsking) return match;
+    // The alias comes from the song's own provider, not the active Omni one: the caller asks it,
+    // since a platform that is not a lyric source has no providerCandidate here.
+    if (options.searchAlias) {
+        const alias = await withTimeout(options.searchAlias().catch(() => null), 10000, 'Song alias', null);
+        // An original name leaves the bracketed part out, and that may be what said the song is the
+        // backing track: the match score keeps such markers apart, the alias would lose them.
+        const dropsInstrumental = alias !== null && INSTRUMENTAL_MARKER.test(title) && !INSTRUMENTAL_MARKER.test(alias.title);
+        if (alias && alias.title !== title && !dropsInstrumental) {
+            console.log(`[autoMatchBestLyric] Searching again as "${alias.title}" by "${alias.artist}"`);
+            const result = await matchUnderArtist(alias.title, alias.artist, durationMs, { ...options, album: alias.album || options.album });
+            if (result && (!match || (!result.isPureMusic && result.lyrics.isWordByWord))) return result;
+        }
+    }
     if (match || !options.alternateArtist) return match;
     const alternate = await withTimeout(
         options.alternateArtist().catch(() => null),

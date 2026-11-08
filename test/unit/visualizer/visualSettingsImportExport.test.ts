@@ -51,6 +51,7 @@ describe('Visual Settings Import and Export', () => {
         hidePlayerTranslationSubtitle: true,
         showSubtitleTranslation: false,
         subtitleContentMode: 'romanization' as const,
+        subtitleOverlayLayout: 'current+next+translation' as const,
         subtitleOverlayBackground: true,
         subtitleUpcomingLyricsBlur: false,
         showHarmonySubtitle: false,
@@ -205,6 +206,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
         expect(decoded.subtitleContentMode).toBe('romanization');
+        expect(decoded.subtitleOverlayLayout).toBe('current+next+translation');
         expect(decoded.subtitleOverlayBackground).toBe(true);
         expect(decoded.subtitleUpcomingLyricsBlur).toBe(false);
         expect(decoded.showHarmonySubtitle).toBe(false);
@@ -263,6 +265,7 @@ describe('Visual Settings Import and Export', () => {
         expect(decoded.hidePlayerTranslationSubtitle).toBe(true);
         expect(decoded.showSubtitleTranslation).toBe(false);
         expect(decoded.subtitleContentMode).toBe('romanization');
+        expect(decoded.subtitleOverlayLayout).toBe('current+next+translation');
         expect(decoded.subtitleOverlayBackground).toBe(true);
         expect(decoded.subtitleUpcomingLyricsBlur).toBe(false);
         expect(decoded.showHarmonySubtitle).toBe(false);
@@ -373,6 +376,9 @@ describe('Visual Settings Import and Export', () => {
             glyphMotion: 0.6,
             wholeLineLyrics: true,
             glyphSettleStretch: 0.85,
+            depthOfField: 1.6,
+            depthPan: 0.3,
+            glyphDepth: 0,
             colorMode: 'gradient' as const,
             showBlocks: false,
             showDecor: false,
@@ -400,7 +406,9 @@ describe('Visual Settings Import and Export', () => {
         };
         const decoded = decompressConfig(compressConfig({ temperaTuning }));
 
-        expect(decoded.temperaTuning).toEqual(temperaTuning);
+        // 旧的单独短码字段不带 render（分辨率与抗锯齿的覆盖随 visualizerTunings 那一包走），导入时本机的保留。
+        const { render: _render, ...carried } = temperaTuning;
+        expect(decoded.temperaTuning).toEqual(carried);
     });
 
     it('gracefully throws error on invalid configuration input strings', () => {

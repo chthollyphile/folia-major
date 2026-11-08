@@ -207,6 +207,31 @@ describe('playback engine settings', () => {
         expect(row.textContent).toContain('hifi.settings.download:{"version":"0.41.0"}');
     });
 
+    it('offers the cloud-drive copies while there is no mpv, with the file to pick on each OS', async () => {
+        const missing = { available: false, path: null, version: null, source: null, errorCode: 'MPV_NOT_FOUND' as const };
+        await renderPage('win32', runtimeStatus(missing), MPV);
+        const openExternalUrl = vi.fn(async () => {});
+        (window as any).electron.openExternalUrl = openExternalUrl;
+
+        expect(host.textContent).toContain('hifi.settings.driveDownload');
+        expect(host.textContent).toContain('hifi.settings.driveDownloadHint:{"version":"0.41.0"}');
+        await click(buttonWithText('options.quarkDrive')!);
+        await click(buttonWithText('options.baiduDrive')!);
+        expect(openExternalUrl.mock.calls).toEqual([
+            ['https://pan.quark.cn/s/c6c57fff6d32'],
+            ['https://pan.baidu.com/s/1VyUD0pgXam3fgd0Xqug9yg?pwd=9zcw'],
+        ]);
+        await unmount();
+
+        await renderPage('darwin', runtimeStatus({ ...missing, platform: 'darwin', arch: 'arm64' }), MPV);
+        expect(host.textContent).toContain('hifi.settings.driveDownloadHintMac:{"version":"0.41.0"}');
+        await unmount();
+
+        // An mpv that works needs no cloud drive.
+        await renderPage('win32', runtimeStatus(), MPV);
+        expect(buttonWithText('options.quarkDrive')).toBeUndefined();
+    });
+
     it('says so when the chosen file could not be used', async () => {
         await renderPage('win32', runtimeStatus({ available: false, path: null, version: null, source: null, errorCode: 'MPV_NOT_FOUND', manualPathRejected: true }), MPV);
 

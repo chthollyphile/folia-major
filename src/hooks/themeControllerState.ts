@@ -138,19 +138,10 @@ export const resolveBgModeTheme = ({
     daylightTheme: Theme;
     previousTheme: Theme;
 }): Theme => {
+    // "default" once meant only the default background under the AI foreground; it is now a theme
+    // source of its own, so it returns the built-in theme whole even while an AI theme is loaded.
     if (mode === 'default') {
-        const baseTheme = getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
-        if (!aiTheme) {
-            return baseTheme;
-        }
-
-        const selectedAiTheme = isDaylight ? aiTheme.light : aiTheme.dark;
-        return {
-            ...selectedAiTheme,
-            backgroundColor: baseTheme.backgroundColor,
-            wordColors: previousTheme.wordColors,
-            lyricsIcons: previousTheme.lyricsIcons
-        };
+        return getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
     }
 
     const selectedAiTheme = aiTheme

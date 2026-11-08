@@ -1,5 +1,6 @@
-import { DEFAULT_DIORAMA_TUNING, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type DioramaTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { DEFAULT_DIORAMA_TUNING, DIORAMA_MOTE_CIRCUMFERENCE_MAX, DIORAMA_MOTE_CIRCUMFERENCE_MIN, DIORAMA_MOTE_CIRCUMFERENCE_STEP, DIORAMA_MOTE_RADIAL_MAX, DIORAMA_MOTE_RADIAL_MIN, DIORAMA_MOTE_RADIAL_STEP, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_DENSITY_STEP, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX, DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_SIZE_MAX, DIORAMA_PARTICLE_SIZE_MIN, type DioramaTuning } from '../../../types';
+import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, type StoredTuningFields } from '../tuningDefinition';
 import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from './dioramaMoteField';
 
 // src/components/visualizer/diorama/tuning.ts
@@ -54,11 +55,34 @@ export const resolveStoredDioramaTuning = (parsed: Partial<DioramaTuning>): Dior
     gradientEnabled: parsed.gradientEnabled ?? DEFAULT_DIORAMA_TUNING.gradientEnabled,
     gradientIntensity: Math.min(1.5, Math.max(0.1, parsed.gradientIntensity ?? DEFAULT_DIORAMA_TUNING.gradientIntensity)),
     keywordColoringEnabled: parsed.keywordColoringEnabled ?? DEFAULT_DIORAMA_TUNING.keywordColoringEnabled,
+    // 分辨率 / 抗锯齿覆盖（#929）：旧存档没有这一项就是全跟随全局。
+    render: normalizeLyricRenderOverride(parsed.render),
 });
 
 export default defineVisualizerTuning<DioramaTuning>({
     mode: 'diorama',
     defaults: DEFAULT_DIORAMA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        cameraSpeed: modNumber(0.55, 1.85),
+        motionAmount: modNumber(0.4, 1.6),
+        audioReactivity: modNumber(0, 1.5),
+        particleDensity: modNumber(DIORAMA_PARTICLE_DENSITY_MIN, DIORAMA_PARTICLE_DENSITY_MAX, DIORAMA_PARTICLE_DENSITY_STEP),
+        particleScale: modNumber(DIORAMA_PARTICLE_SIZE_MIN, DIORAMA_PARTICLE_SIZE_MAX),
+        particleGlowEnabled: MOD_SWITCH,
+        particleGlowIntensity: modNumber(DIORAMA_PARTICLE_GLOW_INTENSITY_MIN, DIORAMA_PARTICLE_GLOW_INTENSITY_MAX),
+        showParticles: MOD_SWITCH,
+        backgroundParticleCircumference: modNumber(DIORAMA_MOTE_CIRCUMFERENCE_MIN, DIORAMA_MOTE_CIRCUMFERENCE_MAX, DIORAMA_MOTE_CIRCUMFERENCE_STEP),
+        backgroundParticleRadial: modNumber(DIORAMA_MOTE_RADIAL_MIN, DIORAMA_MOTE_RADIAL_MAX, DIORAMA_MOTE_RADIAL_STEP),
+        glowEnabled: MOD_SWITCH,
+        glowIntensity: modNumber(0.1, 1.5),
+        soulEnabled: MOD_SWITCH,
+        soulIntensity: modNumber(0.1, 1.5),
+        soulActiveEnabled: MOD_SWITCH,
+        gradientEnabled: MOD_SWITCH,
+        gradientIntensity: modNumber(0.1, 1.5),
+        keywordColoringEnabled: MOD_SWITCH,
+    },
     settingsKey: 'dioramaTuning',
     settingsSetterKey: 'handleSetDioramaTuning',
     settingsResetterKey: 'handleResetDioramaTuning',

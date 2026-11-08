@@ -58,7 +58,7 @@ const kindsNamedIn = (source: string): Kind[] => (
     (Object.keys(NAMES) as Kind[]).filter(kind => NAMES[kind].test(source))
 );
 
-describe('AI text services in the window', () => {
+describe('D112 AI text services in the window', () => {
     it('names the routes, the bridge, the addresses and the stored settings only in the door', async () => {
         const files = (await collectSourceFiles('src')).filter(file => file !== DOOR);
         const sources = await Promise.all(files.map(file => readFile(path.join(repoRoot, file), 'utf8')));
@@ -87,7 +87,7 @@ describe('AI text services in the window', () => {
 // another model family or a Bearer header would pass. The two files still read which service is
 // chosen (AI_PROVIDER) and the user's address (OPENAI_API_URL); this does not look for those, nor
 // at any other file under electron/.
-describe('AI text services in the main process', () => {
+describe('D112 AI text services in the main process', () => {
     const SERVICE_DETAIL = /generativelanguage\.googleapis\.com|api\.openai\.com|api\.deepseek\.com|gemini-\d|gpt-\d|deepseek-v\d|x-goog-api-key|(?:GEMINI|OPENAI)_API_KEY/i;
 
     it.each(['electron/main.cjs', 'electron/preload.cjs'])('%s names none of the client\'s hosts, models, key header or key settings', async (file) => {
