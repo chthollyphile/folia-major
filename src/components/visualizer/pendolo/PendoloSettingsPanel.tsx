@@ -4,6 +4,7 @@ import { Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settin
 import { type VisualizerSettingsPanelProps } from '../definition';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
+import { PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
 
 // src/components/visualizer/pendolo/PendoloSettingsPanel.tsx
 // Owns Pendolo-specific tuning controls, drawn as groups of the settings kit.
@@ -21,13 +22,19 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
     const resolvedTuning = pendoloTuning ?? DEFAULT_PENDOLO_TUNING;
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
     const render = resolvedTuning.render ?? DEFAULT_PENDOLO_TUNING.render;
+    const mirrored = resolvedTuning.mirrorLayout === true;
 
     return (
         <>
             <Group def={PENDOLO_GROUP}>
+                <ToggleRow
+                    label={t('options.pendoloMirrorLayout')}
+                    checked={mirrored}
+                    onChange={(next) => onPendoloTuningChange?.({ mirrorLayout: next })}
+                />
                 <SliderRow
                     {...drag}
-                    label={t('options.pendoloWheelCenterX')}
+                    label={t(mirrored ? 'options.pendoloWheelCenterXMirrored' : 'options.pendoloWheelCenterX')}
                     value={resolvedTuning.wheelCenterX}
                     min={-0.2}
                     max={0.4}
@@ -54,6 +61,26 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     step={5}
                     format={(value) => `${Math.round(value)}°`}
                     onChange={(value) => onPendoloTuningChange?.({ arcAngleDeg: value })}
+                />
+                <SliderRow
+                    {...drag}
+                    label={t('options.pendoloTiltDeg')}
+                    value={resolvedTuning.tiltDeg ?? 0}
+                    min={-PENDOLO_TILT_LIMIT_DEG}
+                    max={PENDOLO_TILT_LIMIT_DEG}
+                    step={1}
+                    format={(value) => `${Math.round(value)}°`}
+                    onChange={(value) => onPendoloTuningChange?.({ tiltDeg: value })}
+                />
+                <SliderRow
+                    {...drag}
+                    label={t('options.pendoloTiltAxisDeg')}
+                    value={resolvedTuning.tiltAxisDeg ?? 0}
+                    min={-90}
+                    max={90}
+                    step={1}
+                    format={(value) => `${Math.round(value)}°`}
+                    onChange={(value) => onPendoloTuningChange?.({ tiltAxisDeg: value })}
                 />
                 <SliderRow
                     {...drag}

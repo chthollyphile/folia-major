@@ -17,6 +17,7 @@ import {
     type PendoloBeatFxDrawFrame,
 } from './pendoloBeatFxDraw';
 import { PENDOLO_WAVE_TINT } from './pendoloBeatFx';
+import { invertPendoloProjectionMatrix } from './pendoloDialProjection';
 
 // src/components/visualizer/pendolo/pendoloClockworkWebGL.ts
 // WebGL2 renderer for Pendolo clockwork; falls back when context/shaders fail.
@@ -38,6 +39,11 @@ uniform float u_rotations[${PENDOLO_MAX_PARTS}];
 // Shockwave lens: centre (CSS px), and crest radius, width, push share, light share.
 uniform vec2 u_waveCenter;
 uniform vec4 u_wave;
+// 表盘投影（pendoloDialProjection.ts）：镜像 / 倾斜时 u_projOn = 1，平面上相对轮心的点 p 投到
+// u_hub + (M·p).xy / (M·p).z；关着时不碰顶点，画面和原来一样。
+uniform float u_projOn;
+uniform vec2 u_hub;
+uniform mat3 u_proj;
 out vec4 v_color;
 out float v_light;
 void main() {
@@ -58,6 +64,10 @@ void main() {
       world += rel * (u_wave.z * b);
       v_light = u_wave.w * b;
     }
+  }
+  if (u_projOn > 0.5) {
+    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    world = u_hub + h.xy / max(h.z, 0.001);
   }
   vec2 px = world * u_dpr;
   vec2 clip = vec2(
@@ -92,12 +102,22 @@ layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_uv;
 uniform vec2 u_resolution;
 uniform float u_dpr;
+// 表盘投影（pendoloDialProjection.ts）：镜像 / 倾斜时 u_projOn = 1，平面上相对轮心的点 p 投到
+// u_hub + (M·p).xy / (M·p).z；关着时不碰顶点，画面和原来一样。
+uniform float u_projOn;
+uniform vec2 u_hub;
+uniform mat3 u_proj;
 out vec4 v_color;
 out vec2 v_uv;
 void main() {
   v_color = a_color;
   v_uv = a_uv;
-  vec2 px = a_pos * u_dpr;
+  vec2 world = a_pos;
+  if (u_projOn > 0.5) {
+    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    world = u_hub + h.xy / max(h.z, 0.001);
+  }
+  vec2 px = world * u_dpr;
   gl_Position = vec4((px.x / u_resolution.x) * 2.0 - 1.0, 1.0 - (px.y / u_resolution.y) * 2.0, 0.0, 1.0);
 }
 `;
@@ -136,6 +156,10 @@ uniform vec2 u_center;
 uniform float u_radius;
 uniform vec2 u_resolution;
 uniform vec3 u_bg;
+// 镜像 / 倾斜时从屏幕像素反查回表盘平面（u_projInv 是投影的逆，CSS px 相对轮心），渐变跟着表盘变成椭圆
+uniform float u_projOn;
+uniform float u_gdpr;
+uniform mat3 u_projInv;
 out vec4 outColor;
 // Match Canvas2D stops: 0→0.72, 0.35→0.52, 0.7→0.20, 1→0
 float radialAlpha(float t) {
@@ -146,7 +170,13 @@ float radialAlpha(float t) {
 void main() {
   // u_center is measured from the top like every CSS coordinate here; v_uv.y runs bottom-up.
   vec2 px = vec2(v_uv.x, 1.0 - v_uv.y) * u_resolution;
-  float t = clamp(distance(px, u_center) / max(u_radius, 1.0), 0.0, 1.0);
+  float dist = distance(px, u_center);
+  if (u_projOn > 0.5) {
+    vec3 q = u_projInv * vec3((px - u_center) / u_gdpr, 1.0);
+    if (q.z <= 0.0) discard;
+    dist = length(q.xy / q.z) * u_gdpr;
+  }
+  float t = clamp(dist / max(u_radius, 1.0), 0.0, 1.0);
   float a = radialAlpha(t);
   outColor = vec4(u_bg * a, a);
 }
@@ -158,15 +188,28 @@ layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec2 a_uv;
 uniform vec2 u_resolution;
 uniform float u_dpr;
+// 表盘投影（pendoloDialProjection.ts）：镜像 / 倾斜时 u_projOn = 1，平面上相对轮心的点 p 投到
+// u_hub + (M·p).xy / (M·p).z；关着时不碰顶点，画面和原来一样。
+uniform float u_projOn;
+uniform vec2 u_hub;
+uniform mat3 u_proj;
 out vec2 v_uv;
 void main() {
   v_uv = a_uv;
-  vec2 px = a_pos * u_dpr;
+  vec2 world = a_pos;
+  float w = 1.0;
+  if (u_projOn > 0.5) {
+    vec3 h = u_proj * vec3(world - u_hub, 1.0);
+    w = max(h.z, 0.001);
+    world = u_hub + h.xy / w;
+  }
+  vec2 px = world * u_dpr;
   vec2 clip = vec2(
     (px.x / u_resolution.x) * 2.0 - 1.0,
     1.0 - (px.y / u_resolution.y) * 2.0
   );
-  gl_Position = vec4(clip, 0.0, 1.0);
+  // 乘回 w 让贴图按透视正确插值；w = 1 时就是原来的位置
+  gl_Position = vec4(clip * w, 0.0, w);
 }
 `;
 
@@ -217,6 +260,29 @@ const linkProgram = (gl: WebGL2RenderingContext, vert: string, frag: string) => 
     return program;
 };
 
+interface ProjectionUniforms {
+    on: WebGLUniformLocation | null;
+    hub: WebGLUniformLocation | null;
+    proj: WebGLUniformLocation | null;
+}
+
+const getProjectionUniforms = (gl: WebGL2RenderingContext, program: WebGLProgram): ProjectionUniforms => ({
+    on: gl.getUniformLocation(program, 'u_projOn'),
+    hub: gl.getUniformLocation(program, 'u_hub'),
+    proj: gl.getUniformLocation(program, 'u_proj'),
+});
+
+/** 把表盘投影交给一个着色器；没有投影时只把开关置 0，顶点原样走。 */
+const setProjectionUniforms = (gl: WebGL2RenderingContext, locs: ProjectionUniforms | null, input: PendoloClockworkFrameInput) => {
+    if (!locs) return;
+    const m = input.projection;
+    gl.uniform1f(locs.on, m ? 1 : 0);
+    if (!m) return;
+    gl.uniform2f(locs.hub, input.centerX, input.centerY);
+    // 矩阵是行主序，GLSL 的 mat3 按列读，所以上传时转置
+    gl.uniformMatrix3fv(locs.proj, true, m);
+};
+
 const colorToRgb = (color: string): [number, number, number] => {
     const ch = parseColorChannels(color);
     if (!ch) return [0, 0, 0];
@@ -248,6 +314,23 @@ export class PendoloClockworkRenderer {
     private fxUniformRes: WebGLUniformLocation | null = null;
 
     private fxUniformDpr: WebGLUniformLocation | null = null;
+
+    private fxProjection: ProjectionUniforms | null = null;
+
+    private meshProjection: ProjectionUniforms | null = null;
+
+    private coverProjection: ProjectionUniforms | null = null;
+
+    private gradUniformProjOn: WebGLUniformLocation | null = null;
+
+    private gradUniformDpr: WebGLUniformLocation | null = null;
+
+    private gradUniformProjInv: WebGLUniformLocation | null = null;
+
+    /** 上一次求逆用的投影和结果；投影只随布局 / 设置变，不必每帧求逆。 */
+    private gradInverseSource: Float32Array | null = null;
+
+    private gradInverse: Float32Array | null = null;
 
     private fxVerts: Float32Array | null = null;
 
@@ -341,18 +424,23 @@ export class PendoloClockworkRenderer {
             this.meshUniformWave = gl.getUniformLocation(this.meshProgram, 'u_wave');
             this.meshUniformWaveColor = gl.getUniformLocation(this.meshProgram, 'u_waveColor');
             this.meshUniformWaveTint = gl.getUniformLocation(this.meshProgram, 'u_waveTint');
+            this.meshProjection = getProjectionUniforms(gl, this.meshProgram);
         }
         if (this.gradProgram) {
             this.gradUniformCenter = gl.getUniformLocation(this.gradProgram, 'u_center');
             this.gradUniformRadius = gl.getUniformLocation(this.gradProgram, 'u_radius');
             this.gradUniformRes = gl.getUniformLocation(this.gradProgram, 'u_resolution');
             this.gradUniformBg = gl.getUniformLocation(this.gradProgram, 'u_bg');
+            this.gradUniformProjOn = gl.getUniformLocation(this.gradProgram, 'u_projOn');
+            this.gradUniformDpr = gl.getUniformLocation(this.gradProgram, 'u_gdpr');
+            this.gradUniformProjInv = gl.getUniformLocation(this.gradProgram, 'u_projInv');
         }
         if (this.coverProgram) {
             this.coverUniformRes = gl.getUniformLocation(this.coverProgram, 'u_resolution');
             this.coverUniformDpr = gl.getUniformLocation(this.coverProgram, 'u_dpr');
             this.coverUniformTex = gl.getUniformLocation(this.coverProgram, 'u_tex');
             this.coverUniformOpacity = gl.getUniformLocation(this.coverProgram, 'u_opacity');
+            this.coverProjection = getProjectionUniforms(gl, this.coverProgram);
         }
         this.meshVbo = gl.createBuffer();
         this.meshVao = gl.createVertexArray();
@@ -528,6 +616,7 @@ export class PendoloClockworkRenderer {
         }
         this.fxUniformRes = gl.getUniformLocation(this.fxProgram, 'u_resolution');
         this.fxUniformDpr = gl.getUniformLocation(this.fxProgram, 'u_dpr');
+        this.fxProjection = getProjectionUniforms(gl, this.fxProgram);
         this.fxVerts = new Float32Array(PENDOLO_OVERLAY_MAX_VERTICES * PENDOLO_OVERLAY_STRIDE);
         this.fxVbo = gl.createBuffer();
         this.fxVao = gl.createVertexArray();
@@ -564,6 +653,7 @@ export class PendoloClockworkRenderer {
         gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts, 0, count * PENDOLO_OVERLAY_STRIDE);
         gl.uniform2f(this.fxUniformRes, pixelW, pixelH);
         gl.uniform1f(this.fxUniformDpr, dpr);
+        setProjectionUniforms(gl, this.fxProjection, input);
         gl.blendFunc(gl.ONE, gl.ONE);
         gl.drawArrays(gl.TRIANGLES, 0, count);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -585,6 +675,16 @@ export class PendoloClockworkRenderer {
         gl.uniform1f(this.gradUniformRadius, anchors.gradientR * dpr);
         gl.uniform2f(this.gradUniformRes, pixelW, pixelH);
         gl.uniform3f(this.gradUniformBg, rgb[0], rgb[1], rgb[2]);
+        const m = input.projection;
+        gl.uniform1f(this.gradUniformProjOn, m ? 1 : 0);
+        if (m) {
+            if (this.gradInverseSource !== m || !this.gradInverse) {
+                this.gradInverseSource = m;
+                this.gradInverse = invertPendoloProjectionMatrix(m);
+            }
+            gl.uniform1f(this.gradUniformDpr, dpr);
+            gl.uniformMatrix3fv(this.gradUniformProjInv, true, this.gradInverse);
+        }
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
     }
@@ -603,14 +703,18 @@ export class PendoloClockworkRenderer {
         gl.useProgram(this.coverProgram);
         gl.bindVertexArray(this.coverVao);
         // The quad only moves with the layout, so it is re-uploaded then and not every frame.
-        const quadKey = `${centerX}|${centerY}|${r}`;
+        // 镜像时投影已把表盘翻过，贴图的 u 再翻回来，封面里的字不是反的
+        const flipU = input.mirrored === true;
+        const quadKey = `${centerX}|${centerY}|${r}|${flipU ? 1 : 0}`;
         if (quadKey !== this.coverQuadKey) {
             this.coverQuadKey = quadKey;
+            const u0 = flipU ? 1 : 0;
+            const u1 = flipU ? 0 : 1;
             this.coverVerts.set([
-                centerX - r, centerY - r, 0, 0,
-                centerX + r, centerY - r, 1, 0,
-                centerX - r, centerY + r, 0, 1,
-                centerX + r, centerY + r, 1, 1,
+                centerX - r, centerY - r, u0, 0,
+                centerX + r, centerY - r, u1, 0,
+                centerX - r, centerY + r, u0, 1,
+                centerX + r, centerY + r, u1, 1,
             ]);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.coverVbo);
             gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.coverVerts);
@@ -621,6 +725,7 @@ export class PendoloClockworkRenderer {
         gl.bindTexture(gl.TEXTURE_2D, this.coverTex);
         gl.uniform1i(this.coverUniformTex, 0);
         gl.uniform1f(this.coverUniformOpacity, opacity);
+        setProjectionUniforms(gl, this.coverProjection, input);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.bindVertexArray(null);
     }
@@ -663,7 +768,10 @@ export class PendoloClockworkRenderer {
         gl.uniform2fv(this.meshUniformOrigins, this.originTable);
         gl.uniform1fv(this.meshUniformRotations, this.rotationTable);
         const wave = resolvePendoloWaveUniform(beatFx?.wave ?? null);
-        gl.uniform2f(this.meshUniformWaveCenter, input.centerX + (beatFx?.wave?.x ?? 0), input.centerY + (beatFx?.wave?.y ?? 0));
+        // 波心是屏幕上的偏移；镜像时表盘平面左右是反的，横向偏移跟着取反
+        const waveSide = input.mirrored ? -1 : 1;
+        gl.uniform2f(this.meshUniformWaveCenter, input.centerX + waveSide * (beatFx?.wave?.x ?? 0), input.centerY + (beatFx?.wave?.y ?? 0));
+        setProjectionUniforms(gl, this.meshProjection, input);
         gl.uniform4f(this.meshUniformWave, wave[0], wave[1], wave[2], wave[3]);
         const tint = beatFx?.wave ? beatFx.color : null;
         gl.uniform3f(this.meshUniformWaveColor, tint ? tint[0] / 255 : 0, tint ? tint[1] / 255 : 0, tint ? tint[2] / 255 : 0);

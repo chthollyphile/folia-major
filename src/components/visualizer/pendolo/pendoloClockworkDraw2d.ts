@@ -221,6 +221,12 @@ export const drawPendoloClockwork2d = (
         ctx.globalAlpha = 0.42 * (isFullDecor ? 1.0 : 0.6); // Base opacity
         // Draw square image covering the circle
         const size = coverRadius * 2;
+        // 镜像时整个表盘被翻过，封面再翻回来，图里的字不是反的
+        if (input.mirrored) {
+            ctx.translate(centerX, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-centerX, 0);
+        }
         ctx.drawImage(coverImage, centerX - coverRadius, centerY - coverRadius, size, size);
         ctx.restore();
     }

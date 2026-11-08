@@ -28,6 +28,7 @@ import {
     type PendoloGearDecorMode,
 } from './pendoloClockworkScene';
 import { PendoloClockworkRenderer } from './pendoloClockworkWebGL';
+import type { PendoloDialProjection } from './pendoloDialProjection';
 import type { PendoloBeatFxShared } from './usePendoloBeatFx';
 
 // src/components/visualizer/pendolo/PendoloClockworkCanvas.tsx
@@ -58,6 +59,10 @@ export interface PendoloClockworkCanvasProps {
     renderScale?: LyricRenderScale;
     /** WebGL 上下文开不开 MSAA（#929，默认开）；变了换一块画布重建上下文。 */
     antialias?: boolean;
+    /** 歌词左右镜像（#1124）：表盘整体左右翻转，封面不翻。 */
+    mirrored?: boolean;
+    /** 表盘平面到屏幕的投影（含镜像与倾斜）；单位阵且不镜像时按原样画。 */
+    projection?: PendoloDialProjection;
 }
 
 /**
@@ -88,6 +93,8 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     beatFxRef,
     renderScale = 1,
     antialias = true,
+    mirrored = false,
+    projection,
 }) => {
     const webglCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const canvas2dRef = useRef<HTMLCanvasElement | null>(null);
@@ -115,9 +122,13 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             viewportWidth,
             viewportHeight,
             showCenterGradient,
+            mirrored,
+            Boolean(projection && !projection.flat),
         ),
-        [baseRadius, centerX, centerY, lyricRingRadius, showCenterGradient, viewportHeight, viewportWidth],
+        [baseRadius, centerX, centerY, lyricRingRadius, mirrored, projection, showCenterGradient, viewportHeight, viewportWidth],
     );
+    // 只在镜像或倾斜时把矩阵交给渲染器；都关着时是 null，画法和原来一样
+    const projectionMatrix = mirrored || (projection && !projection.flat) ? projection?.matrix ?? null : null;
 
     const propsRef = useRef({
         contentBox,
@@ -137,6 +148,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
         paused,
         motionProfile,
         renderScale,
+        projectionMatrix,
+        projectionPerspective: Boolean(projection && !projection.flat),
+        mirrored,
     });
 
     useEffect(() => {
@@ -158,8 +172,12 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             paused,
             motionProfile,
             renderScale,
+            projectionMatrix,
+            projectionPerspective: Boolean(projection && !projection.flat),
+            mirrored,
         };
     }, [
+        projectionMatrix, projection, mirrored,
         contentBox, centerX, centerY, baseRadius, lyricRingRadius, audioBass,
         primaryTextColor, accentTextColor, backgroundColor, showGearDecor,
         showCenterGradient, showCover, coverUrl, enableLineGlow, paused, motionProfile, renderScale,
@@ -299,6 +317,9 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 showCenterGradient: p.showCenterGradient,
                 showCover: p.showCover,
                 coverImage: coverImageRef.current,
+                projection: p.projectionMatrix,
+                projectionPerspective: p.projectionPerspective,
+                mirrored: p.mirrored,
             };
 
             // Between beats, with nothing lit or moving, the frame is drawn exactly as with the switch off.
@@ -377,13 +398,27 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
                 ctx.save();
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 ctx.clearRect(0, 0, width, height);
+                // 镜像 / 倾斜在 Canvas2D 回退里只取投影的仿射部分（没有透视）；透镜是对画好的像素做的，放在外面
+                const applyDialTransform = () => {
+                    const m = frame.projection;
+                    if (!m) return;
+                    ctx.translate(frame.centerX, frame.centerY);
+                    ctx.transform(m[0], m[3], m[1], m[4], 0, 0);
+                    ctx.translate(-frame.centerX, -frame.centerY);
+                };
+                ctx.save();
+                applyDialTransform();
                 drawPendoloClockwork2d(ctx, frame);
+                ctx.restore();
                 if (fxFrame) {
                     if (fxFrame.wave) {
                         waveScratchRef.current ??= document.createElement('canvas');
                         drawPendoloWaveLens2d(ctx, canvas, waveScratchRef.current, frame, fxFrame.wave, fxFrame.color, width, height);
                     }
+                    ctx.save();
+                    applyDialTransform();
                     drawPendoloBeatFxOverlay2d(ctx, frame, fxFrame);
+                    ctx.restore();
                 }
                 ctx.restore();
             }

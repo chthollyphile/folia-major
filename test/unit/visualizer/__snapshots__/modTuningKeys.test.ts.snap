@@ -652,6 +652,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "enableLineGlow": {
       "type": "boolean",
     },
+    "mirrorLayout": {
+      "type": "boolean",
+    },
     "showCenterGradient": {
       "type": "boolean",
     },
@@ -669,6 +672,16 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "tickSnappiness": {
       "max": 2,
       "min": 0.5,
+      "type": "number",
+    },
+    "tiltAxisDeg": {
+      "max": 90,
+      "min": -90,
+      "type": "number",
+    },
+    "tiltDeg": {
+      "max": 70,
+      "min": -70,
       "type": "number",
     },
     "wheelCenterX": {

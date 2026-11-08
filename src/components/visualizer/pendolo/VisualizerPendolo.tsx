@@ -12,7 +12,8 @@ import VisualizerShell from '../VisualizerShell';
 import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
-import { calculatePendoloWheelLayout } from './pendoloGeometry';
+import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
+import { buildPendoloDialProjection, buildPendoloTiltProjection, projectPendoloDialPoint } from './pendoloDialProjection';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
 import { buildPendoloSubtitleFontSpec, resolvePendoloSubtitleTracks, sumPendoloSubtitleTrackHeights } from './pendoloSubtitleTracks';
@@ -352,7 +353,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const fontFamily = useMemo(() => resolveThemeFontStack(theme), [theme]);
     const fontWeight = useMemo(() => resolveThemeFontWeight(theme, 400), [theme]);
 
-    const centerX = viewportSize.width * pendoloTuning.wheelCenterX;
+    // 歌词左右镜像（#1124）：表盘在右、弧线朝左；关着时 sideSign 是 1，一切和原来一样
+    const mirrored = pendoloTuning.mirrorLayout === true;
+    const sideSign = mirrored ? -1 : 1;
+    const centerX = resolvePendoloWheelCenterX(viewportSize.width, pendoloTuning);
     const centerY = viewportSize.height * pendoloTuning.wheelCenterY;
     const baseRadius = Math.min(viewportSize.width, viewportSize.height) * pendoloTuning.arcRadius;
     const lyricRadiusOffset = Math.min(viewportSize.width, viewportSize.height) * 0.06;
@@ -361,7 +365,18 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const maxItemX = centerX + baseRadius;
     const availableTextWidth = Math.max(
         140,
-        Math.min(viewportSize.width * 0.46, viewportSize.width - maxItemX - 48),
+        Math.min(viewportSize.width * 0.46, mirrored ? centerX - baseRadius - 48 : viewportSize.width - maxItemX - 48),
+    );
+    // 表盘倾斜：歌词锚点和摆轮图标只吃倾斜（它们的位置已经按镜像排过），表盘画布还要先镜像
+    const tiltDeg = pendoloTuning.tiltDeg ?? 0;
+    const tiltAxisDeg = pendoloTuning.tiltAxisDeg ?? 0;
+    const tiltProjection = useMemo(
+        () => buildPendoloTiltProjection(tiltDeg, tiltAxisDeg, viewportSize.width, viewportSize.height),
+        [tiltAxisDeg, tiltDeg, viewportSize.height, viewportSize.width],
+    );
+    const dialProjection = useMemo(
+        () => buildPendoloDialProjection(tiltProjection, mirrored),
+        [mirrored, tiltProjection],
     );
 
     // Escapement angular shift calculation
@@ -390,7 +405,9 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         tickSpring,
         value => -(value - targetLineIndex) * angleStepRad * (180 / Math.PI),
     );
-    const textRotationCorrectionDeg = useTransform(wheelRotationDeg, value => -value * 0.65);
+    // 镜像时轨道反着转，弧线在屏幕上才和原版对称地走
+    const railRotationDeg = useTransform(wheelRotationDeg, value => value * sideSign);
+    const textRotationCorrectionDeg = useTransform(railRotationDeg, value => -value * 0.65);
     const gearRotationAngleRad = useTransform(tickSpring, value => value * angleStepRad);
 
     // Pendolo lays subtitles out inside its own clockwork layout, not the shared bottom subtitle. 'both' stacks
@@ -475,10 +492,13 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         return `radial-gradient(circle closest-side, ${at(0)} 0%, ${at(0)} 45%, ${at(PENDOLO_HALO_ALPHA * 0.15)} 65%, `
             + `${at(PENDOLO_HALO_ALPHA)} 88%, ${at(0)} 100%)`;
     }, [beatFx.color]);
-    const balanceGearX = centerX + baseRadius * 0.2;
-    const balanceGearY = centerY - baseRadius * 0.75;
+    // 摆轮在表盘平面上的位置（镜像翻到另一侧），再按倾斜投到屏幕上
+    const balanceGearPoint = projectPendoloDialPoint(tiltProjection, sideSign * baseRadius * 0.2, -baseRadius * 0.75);
+    const balanceGearX = centerX + balanceGearPoint.x;
+    const balanceGearY = centerY + balanceGearPoint.y;
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
+    const textOrigin = mirrored ? 'right center' : 'left center';
     const balanceLensInputs = [beatFx.waveRadius, beatFx.waveBand, beatFx.waveStrength, beatFx.waveX, beatFx.waveY];
     const balanceIconX = useTransform(balanceLensInputs, ([radius, band, strength, x, y]: number[]) => (
         resolvePendoloPointWave(balanceGearX - centerX - x, balanceGearY - centerY - y, radius, band, strength).x
@@ -549,6 +569,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     beatFxRef={beatFx.shared}
                     renderScale={clockworkRenderScale}
                     antialias={clockworkAntialias}
+                    mirrored={mirrored}
+                    projection={dialProjection}
                 />
                 {pendoloTuning.showGearDecor !== 'none' && (
                     <div
@@ -557,7 +579,9 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             left: `${balanceGearX}px`,
                             top: `${balanceGearY}px`,
                             zIndex: 1,
-                            transform: 'translate(-50%, -50%)',
+                            transform: tiltProjection.flat
+                                ? 'translate(-50%, -50%)'
+                                : `translate(-50%, -50%) scale(${balanceGearPoint.depthScale})`,
                         }}
                     >
                         <motion.div style={{ x: balanceIconX, y: balanceIconY }}>
@@ -578,7 +602,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         className="absolute inset-0 w-full h-full pointer-events-auto"
                         style={{
                             zIndex: 2,
-                            rotate: wheelRotationDeg,
+                            rotate: railRotationDeg,
                             transformOrigin: `${centerX}px ${centerY}px`,
                             WebkitTransform: 'translateZ(0)',
                         }}
@@ -603,7 +627,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             return (
                                 <PendoloRotatingLine
                                     key={item.line.id ?? `pendolo-line-${item.index}`}
-                                    wheelRotationDeg={wheelRotationDeg}
+                                    wheelRotationDeg={railRotationDeg}
+                                    mirrored={mirrored}
+                                    railWidth={viewportSize.width}
+                                    tilt={tiltProjection}
                                     baseAngleDeg={item.angleDeg}
                                     baseOpacity={item.alpha}
                                     left={item.x}
@@ -625,13 +652,14 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                 >
                                     <motion.div
                                         className="inline-block"
-                                        style={{ rotate: textRotationCorrectionDeg, transformOrigin: 'left center', WebkitTransform: 'translateZ(0)' }}
+                                        style={{ rotate: textRotationCorrectionDeg, transformOrigin: textOrigin, WebkitTransform: 'translateZ(0)' }}
                                     >
                                     <div
                                         className="relative inline-block"
                                         style={{
-                                            transform: `rotate(${item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
-                                            transformOrigin: 'left center',
+                                            transform: `rotate(${sideSign * item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
+                                            transformOrigin: textOrigin,
+                                            textAlign: mirrored ? 'right' : undefined,
                                             isolation: 'isolate',
                                         }}
                                     >
@@ -639,7 +667,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                         initial={false}
                                         animate={{ scale: chorusPresentation.haloScale }}
                                         transition={{ duration: chorusPresentation.transitionDuration, ease: 'easeOut' }}
-                                        style={{ transformOrigin: 'left center' }}
+                                        style={{ transformOrigin: textOrigin }}
                                     >
                                         {chorusPresentation.isActive && (
                                             <motion.div
@@ -650,7 +678,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                 transition={{ duration: chorusPresentation.transitionDuration, ease: 'easeOut' }}
                                                 style={{
                                                     inset: '-0.7em -1.1em',
-                                                    background: `radial-gradient(circle at 42% 50%, ${colorWithAlpha(accentTextColor, 0.14 * chorusPresentation.haloOpacity)} 0%, ${colorWithAlpha(accentTextColor, 0.035 * chorusPresentation.haloOpacity)} 55%, transparent 82%)`,
+                                                    background: `radial-gradient(circle at ${mirrored ? 58 : 42}% 50%, ${colorWithAlpha(accentTextColor, 0.14 * chorusPresentation.haloOpacity)} 0%, ${colorWithAlpha(accentTextColor, 0.035 * chorusPresentation.haloOpacity)} 55%, transparent 82%)`,
                                                     filter: `blur(${Math.round(10 * motionProfile.chorusGlowMultiplier)}px)`,
                                                 }}
                                             />
@@ -663,7 +691,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                     style={{
                                                         width: '0.42em',
                                                         height: '0.42em',
-                                                        left: '-0.95em',
+                                                        ...(mirrored ? { right: '-0.95em' } : { left: '-0.95em' }),
                                                         top: '0.52em',
                                                         backgroundColor: accentTextColor,
                                                         boxShadow: `0 0 7px ${colorWithAlpha(accentTextColor, 0.58)}`,
@@ -685,6 +713,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                         isChorus={chorusPresentation.isActive}
                                                         accentMix={chorusPresentation.accentMix}
                                                         chorusGlowMultiplier={chorusPresentation.glowMultiplier}
+                                                        alignRight={mirrored}
                                                     />
                                                 ) : (
                                                     <div
