@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { IPC_CHANNELS, IPC_DYNAMIC_PREFIXES } from '../../../../dev/dedicatus/ipcChannels.mjs';
 import { GUARD_FACTORIES, scanMainChannels, scanPreloadChannels } from '../../../../dev/dedicatus/ipc/scanIpc.mjs';
 
@@ -60,6 +61,50 @@ describe('D605 IPC channels and who may call them', () => {
             return GUARD_FACTORIES[entry.factory].trustedTakes === 'event' ? takesWebContents : !takesWebContents;
         });
         expect(wrong.map(entry => `${entry.file}:${entry.line} ${entry.factory} ← ${entry.isTrusted}`), 'D605：isTrusted 收的东西和工厂交给它的不一致（#874）').toEqual([]);
+    });
+});
+
+describe('D605 scanner sees guards behind a local wrapper', () => {
+    // #654：一组通道共用一个本地的 guarded(channel, handler)，里面交给 createSenderGuardedHandler。
+    // 认不出的话这些通道算没守卫，作者照实登记成 first-party 反而过不了上面的检查。
+    const dir = mkdtempSync(path.join(tmpdir(), 'd605-'));
+    afterAll(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(path.join(dir, 'electron'), { recursive: true });
+    writeFileSync(path.join(dir, 'electron/backendIpc.cjs'), [
+        "const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');",
+        'function register({ ipcMain, isTrustedSender }) {',
+        '  const guarded = (channel, handler, onUntrusted) => createSenderGuardedHandler({',
+        '    channel,',
+        "    isTrusted: (event) => typeof isTrustedSender === 'function' && isTrustedSender(event),",
+        '    handler,',
+        '  });',
+        "  ipcMain.handle('get-port', guarded('get-port', () => 1, () => null));",
+        "  ipcMain.handle('restart', guarded('restart', (_event, reason) => reason));",
+        "  ipcMain.handle('open', () => 2);",
+        '}',
+        '',
+    ].join('\n'));
+
+    it('counts the inline guards in use: a platform check or-ed with the sender check, an assertion, a ternary', () => {
+        writeFileSync(path.join(dir, 'electron/inline.cjs'), [
+            "ipcMain.handle('gpu', async (event) => {\n  if (process.platform !== 'win32' || !isTrustedMainWindowContents(event.sender)) {\n    return null;\n  }\n});",
+            "ipcMain.handle('export', (event, filePath) => {\n  assertTrustedWriter(event);\n  return open(filePath);\n});",
+            "ipcMain.handle('throttle', (event) => (\n  isTrustedMainWindowContents(event.sender) ? state() : { active: false }\n));",
+            // && 连着的只在条件成立时才校验，不算
+            "ipcMain.handle('half', (event) => {\n  if (dev && !isTrustedMainWindowContents(event.sender)) return null;\n});",
+            '',
+        ].join('\n'));
+        const found = Object.fromEntries(scanMainChannels(dir).filter(entry => entry.file === 'electron/inline.cjs').map(entry => [entry.channel, entry.guarded]));
+        expect(found).toEqual({ gpu: true, export: true, throttle: true, half: false });
+    });
+
+    it('counts a channel handed to the wrapper as guarded by the factory behind it', () => {
+        const found = scanMainChannels(dir).filter(entry => entry.file === 'electron/backendIpc.cjs');
+        expect(found.map(entry => [entry.channel, entry.guarded, entry.factory, entry.via ?? null])).toEqual([
+            ['get-port', true, 'createSenderGuardedHandler', 'guarded'],
+            ['restart', true, 'createSenderGuardedHandler', 'guarded'],
+            ['open', false, null, null],
+        ]);
     });
 });
 

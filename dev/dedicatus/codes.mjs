@@ -75,10 +75,13 @@ export const CODES = {
     D440: { name: '高频回调里无条件写状态', level: 'error' },
     D441: { name: 'effect 里注册的东西没有 cleanup', level: 'error' },
     D442: { name: '调试挂件进了正式包', level: 'error' },
-    D443: { name: '界面硬编码文案', level: 'error' },
+    // warning：不阻断，界面文字尽量走 i18n，但不硬性要求（2026-11-08 放宽）
+    D443: { name: '界面硬编码文案', level: 'warning' },
     D444: { name: '界面直接显示错误原文', level: 'error' },
     D445: { name: '自建按词分割器', level: 'error' },
     D490: { name: '其他严格规则', level: 'error' },
+    // no-unnecessary-condition：一半是对的（必填的 prop 写 ?.()），一半是防运行环境（navigator.mediaDevices?.、import.meta.env?.），只提醒
+    D491: { name: '多余的条件判断', level: 'warning' },
 
     // 5xx：契约与持久化
     D506: { name: '@note 注释被改动', level: 'error' },
@@ -111,6 +114,7 @@ export const ESLINT_RULE_CODES = {
     '@typescript-eslint/no-explicit-any': 'D403',
     '@typescript-eslint/switch-exhaustiveness-check': 'D404',
     '@typescript-eslint/consistent-type-imports': 'D405',
+    '@typescript-eslint/no-unnecessary-condition': 'D491',
     'react-hooks/rules-of-hooks': 'D406',
     'react-hooks/exhaustive-deps': 'D407',
     'dedicatus/no-icon-libraries': 'D412',

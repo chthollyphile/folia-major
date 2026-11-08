@@ -52,6 +52,23 @@ export function parseDiff(text) {
     return files;
 }
 
+/**
+ * 还没 `git add` 的新文件写成和 parseDiff 一样的结构：整个文件都是新加的行。
+ * 文件已经在 diff 里（例如 add 之后又删了索引里的记录）就不重复加。
+ * @param {FileDiff[]} files parseDiff 的结果
+ * @param {{ file: string, text: string }[]} untracked git.mjs 的 untrackedFiles
+ * @returns {FileDiff[]}
+ */
+export function withUntracked(files, untracked) {
+    const known = new Set(files.map(file => file.newPath).filter(Boolean));
+    const added = untracked.filter(({ file }) => !known.has(file)).map(({ file, text }) => {
+        const lines = text.split('\n');
+        if (lines.at(-1) === '') lines.pop();
+        return { oldPath: null, newPath: file, removed: [], added: lines.map((line, index) => ({ newLine: index + 1, text: line })) };
+    });
+    return [...files, ...added];
+}
+
 /** 改动后的文件 → 新增或改写过的行号。 */
 export function changedLines(files) {
     const lines = new Map();

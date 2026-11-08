@@ -5,7 +5,7 @@ import { LINT_TARGETS, spawnEslint } from './run.mjs';
 // dev/dedicatus/eslint/eslint.mjs
 // 直接调用隔离环境里的 ESLint，参数原样转交；没给路径时检查 LINT_TARGETS。
 //   npm run lint:fix -- src/foo.ts   自动修复（必须给路径：全仓一修就是十几万处缩进和引号）
-//   npm run lint:prune               删掉抑制文件里已经修好的条目（--prune-suppressions，只删不加）
+//   npm run lint:prune               删掉抑制文件里已经修好的条目：见 prune.mjs（默认只看这次改过的文件）
 //   node dev/dedicatus/eslint/eslint.mjs src/foo.ts   只看一个文件，原样的 ESLint 输出
 
 /** 后面跟一个值的 ESLint 选项：这个值不是要检查的路径。 */
