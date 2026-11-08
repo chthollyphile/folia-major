@@ -30,6 +30,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 - **ESLint**（4xx）：配置在根目录的 [`eslint.config.mjs`](../../eslint.config.mjs)，包括 `typescript-eslint` strictTypeChecked、react-hooks、风格规则，以及本地插件 [`eslint/plugin.mjs`](eslint/plugin.mjs) 里的项目约定规则。没有专门代码的规则统一报 D490，并附上规则 id；`no-unnecessary-condition` 单独报 D491（warning，只提醒：一半是防运行环境的写法）。
   - 测试文件（`test/**`、`*.test.*`、`*.spec.*`）不管类型感知的严格规则和非空断言、`any`，只留抓漏写 await 之类真 bug 的几条（`no-floating-promises`、`no-misused-promises`、`await-thenable`、`no-array-delete`、`no-for-in-array`）。2026-11-08 拿 open PR 演习时，PR 里的 D490 九成在测试文件。
   - 解构时去掉一个字段（`const { a: _a, ...rest } = obj`）不算没用的变量（`ignoreRestSiblings`）；`no-control-regex` 关掉（这里的控制字符正则都是清洗用的）。
+- **Coven 流程**（8xx）：不由 `npm run dedicatus` 报，而是由 Coven 监控 session 调用的脚本（[`dev/coven/`](../coven/README.md)）报：开 PR 前的阻断项（D801–D807）、任务停下等人（D810–D813）、认领协议（D830–D832）。登记在同一张代码表里。
 
 ### 项目规则和它们的登记表
 
