@@ -3033,6 +3033,8 @@ export default {
     "pendoloTiltDeg": "Độ nghiêng mặt đồng hồ",
     "pendoloTiltAxisDeg": "Trục nghiêng (0 = ngang)",
     "pendoloParallaxDepth": "Thị sai phân lớp (khi nghiêng)",
+    "pendoloHubView": "Góc nhìn từ tâm (theo kim chỉ)",
+    "pendoloHubViewHeight": "Độ cao góc nhìn",
     "sonnetMotionSection": "Chuyển động và bố cục",
     "sonnetDisplaySection": "Thành phần hiển thị",
     "sonnetQualitySection": "Chất lượng kết xuất",

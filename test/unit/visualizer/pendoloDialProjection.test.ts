@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     buildPendoloDialProjection,
+    buildPendoloHubViewProjection,
     buildPendoloLayerProjection,
     buildPendoloTiltProjection,
     invertPendoloProjectionMatrix,
@@ -11,6 +12,62 @@ import { DEFAULT_PENDOLO_TUNING, type Line } from '@/types';
 
 // test/unit/visualizer/pendoloDialProjection.test.ts
 // 时计的表盘倾斜与左右镜像：投影矩阵与镜像后的弧线位置。
+
+describe('pendolo hub view projection', () => {
+    const hubX = 0;
+    const hubY = 540;
+    const view = (side: 1 | -1) => buildPendoloHubViewProjection(400, 500, side, hubX, hubY, 1920, 1080);
+    // 齐次结果，不做 w 的下限保护，背后的点也能看出符号
+    const raw = (m: Float32Array, x: number, y: number, h = 0, lift: [number, number, number] = [0, 0, 0]) => {
+        const w = m[6] * x + m[7] * y + m[8] + h * lift[2];
+        return {
+            x: (m[0] * x + m[1] * y + m[2] + h * lift[0]) / w,
+            y: (m[3] * x + m[4] * y + m[5] + h * lift[1]) / w,
+            w,
+        };
+    };
+
+    it('lands the focal line on its fixed spot with w = 1', () => {
+        const p = raw(view(1).matrix, 500, 0);
+        expect(p.w).toBeCloseTo(1);
+        expect(hubX + p.x).toBeCloseTo(960);
+        expect(hubY + p.y).toBeCloseTo(1080 * 0.72);
+    });
+
+    it('looks along the pointer: farther along it rises toward the horizon, behind the camera w < 0', () => {
+        const projection = view(1);
+        const near = raw(projection.matrix, 500, 0);
+        const far = raw(projection.matrix, 2000, 0);
+        expect(far.y).toBeLessThan(near.y);
+        expect(far.x).toBeCloseTo(near.x);
+        expect(raw(projection.matrix, -2000, 0).w).toBeLessThan(0);
+        // 右手边是表盘平面里的 +y（屏幕下方）
+        expect(raw(projection.matrix, 500, 200).x).toBeGreaterThan(near.x);
+    });
+
+    it('raises higher layers on screen and brings them closer', () => {
+        const projection = view(1);
+        const ground = raw(projection.matrix, 700, 0);
+        const raised = raw(projection.matrix, 700, 0, 100, projection.lift);
+        expect(raised.y).toBeLessThan(ground.y);
+        expect(raised.w).toBeLessThan(ground.w);
+        expect(projection.invFocal).toBe(0);
+        // 分层矩阵和直接加 h·lift 一样（不再按 1 - h/f 缩）
+        const layer = buildPendoloLayerProjection(projection, 100);
+        const viaLayer = raw(layer.matrix, 700, 0);
+        expect(viaLayer.x).toBeCloseTo(raised.x);
+        expect(viaLayer.y).toBeCloseTo(raised.y);
+    });
+
+    it('mirrors to look the other way when the pointer points left', () => {
+        const right = raw(view(1).matrix, 500, 120);
+        const left = raw(view(-1).matrix, -500, 120);
+        expect(left.w).toBeCloseTo(right.w);
+        expect(left.y).toBeCloseTo(right.y);
+        // 朝左看时右手边是 -y
+        expect(left.x - 960).toBeCloseTo(-(right.x - 960));
+    });
+});
 
 describe('pendolo dial projection', () => {
     it('is the identity with no tilt, so the default frame is drawn as before', () => {

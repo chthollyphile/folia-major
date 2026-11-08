@@ -652,6 +652,14 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "enableLineGlow": {
       "type": "boolean",
     },
+    "hubView": {
+      "type": "boolean",
+    },
+    "hubViewHeight": {
+      "max": 3,
+      "min": 0.4,
+      "type": "number",
+    },
     "mirrorLayout": {
       "type": "boolean",
     },

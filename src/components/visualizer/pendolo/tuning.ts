@@ -1,6 +1,6 @@
 import { DEFAULT_PENDOLO_TUNING, type PendoloTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
-import { PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
+import { PENDOLO_HUB_VIEW_HEIGHT_MAX, PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
 import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/pendolo/tuning.ts
@@ -39,6 +39,15 @@ const resolve = (values: Partial<PendoloTuning>, base: PendoloTuning): PendoloTu
     tiltDeg: numberWithin(values.tiltDeg, base.tiltDeg ?? 0, -PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
     tiltAxisDeg: numberWithin(values.tiltAxisDeg, base.tiltAxisDeg ?? 0, -90, 90),
     parallaxDepth: numberWithin(values.parallaxDepth, base.parallaxDepth ?? DEFAULT_PENDOLO_TUNING.parallaxDepth ?? 1, 0, 2),
+    hubView: typeof values.hubView === 'boolean'
+        ? values.hubView
+        : base.hubView ?? DEFAULT_PENDOLO_TUNING.hubView,
+    hubViewHeight: numberWithin(
+        values.hubViewHeight,
+        base.hubViewHeight ?? DEFAULT_PENDOLO_TUNING.hubViewHeight ?? 1,
+        PENDOLO_HUB_VIEW_HEIGHT_MIN,
+        PENDOLO_HUB_VIEW_HEIGHT_MAX,
+    ),
 });
 
 export default defineVisualizerTuning<PendoloTuning>({
@@ -59,6 +68,8 @@ export default defineVisualizerTuning<PendoloTuning>({
         tiltDeg: modNumber(-PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
         tiltAxisDeg: modNumber(-90, 90),
         parallaxDepth: modNumber(0, 2),
+        hubView: MOD_SWITCH,
+        hubViewHeight: modNumber(PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_HUB_VIEW_HEIGHT_MAX),
     },
     settingsKey: 'pendoloTuning',
     settingsSetterKey: 'handleSetPendoloTuning',

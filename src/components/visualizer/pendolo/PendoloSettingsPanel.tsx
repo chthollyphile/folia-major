@@ -4,7 +4,7 @@ import { Button, Group, Row, Segmented, type SettingsGroupDef } from '../../moda
 import { type VisualizerSettingsPanelProps } from '../definition';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
-import { PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
+import { PENDOLO_HUB_VIEW_HEIGHT_MAX, PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
 
 // src/components/visualizer/pendolo/PendoloSettingsPanel.tsx
 // Owns Pendolo-specific tuning controls, drawn as groups of the settings kit.
@@ -23,6 +23,8 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
     const render = resolvedTuning.render ?? DEFAULT_PENDOLO_TUNING.render;
     const mirrored = resolvedTuning.mirrorLayout === true;
+    // 轮心视角代替倾斜：开着时藏起倾斜的两个滑块，换成相机高度
+    const hubView = resolvedTuning.hubView === true;
     // 「时计参数」这一组的恢复默认：只还原这一组的项，渲染（分辨率与抗锯齿）那一组不动
     const groupKeys = (Object.keys(DEFAULT_PENDOLO_TUNING) as (keyof PendoloTuning)[])
         .filter(key => key !== 'render');
@@ -77,26 +79,46 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     format={(value) => `${Math.round(value)}°`}
                     onChange={(value) => onPendoloTuningChange?.({ arcAngleDeg: value })}
                 />
-                <SliderRow
-                    {...drag}
-                    label={t('options.pendoloTiltDeg')}
-                    value={resolvedTuning.tiltDeg ?? 0}
-                    min={-PENDOLO_TILT_LIMIT_DEG}
-                    max={PENDOLO_TILT_LIMIT_DEG}
-                    step={1}
-                    format={(value) => `${Math.round(value)}°`}
-                    onChange={(value) => onPendoloTuningChange({ tiltDeg: value })}
+                <ToggleRow
+                    label={t('options.pendoloHubView')}
+                    checked={hubView}
+                    onChange={(next) => onPendoloTuningChange({ hubView: next })}
                 />
-                <SliderRow
-                    {...drag}
-                    label={t('options.pendoloTiltAxisDeg')}
-                    value={resolvedTuning.tiltAxisDeg ?? 0}
-                    min={-90}
-                    max={90}
-                    step={1}
-                    format={(value) => `${Math.round(value)}°`}
-                    onChange={(value) => onPendoloTuningChange({ tiltAxisDeg: value })}
-                />
+                {hubView ? (
+                    <SliderRow
+                        {...drag}
+                        label={t('options.pendoloHubViewHeight')}
+                        value={resolvedTuning.hubViewHeight ?? 1}
+                        min={PENDOLO_HUB_VIEW_HEIGHT_MIN}
+                        max={PENDOLO_HUB_VIEW_HEIGHT_MAX}
+                        step={0.05}
+                        format={times}
+                        onChange={(value) => onPendoloTuningChange({ hubViewHeight: value })}
+                    />
+                ) : (
+                    <>
+                        <SliderRow
+                            {...drag}
+                            label={t('options.pendoloTiltDeg')}
+                            value={resolvedTuning.tiltDeg ?? 0}
+                            min={-PENDOLO_TILT_LIMIT_DEG}
+                            max={PENDOLO_TILT_LIMIT_DEG}
+                            step={1}
+                            format={(value) => `${Math.round(value)}°`}
+                            onChange={(value) => onPendoloTuningChange({ tiltDeg: value })}
+                        />
+                        <SliderRow
+                            {...drag}
+                            label={t('options.pendoloTiltAxisDeg')}
+                            value={resolvedTuning.tiltAxisDeg ?? 0}
+                            min={-90}
+                            max={90}
+                            step={1}
+                            format={(value) => `${Math.round(value)}°`}
+                            onChange={(value) => onPendoloTuningChange({ tiltAxisDeg: value })}
+                        />
+                    </>
+                )}
                 <SliderRow
                     {...drag}
                     label={t('options.pendoloParallaxDepth')}

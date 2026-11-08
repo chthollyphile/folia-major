@@ -63,6 +63,61 @@ export const buildPendoloTiltProjection = (
     };
 };
 
+/** 轮心视角相机高度的可调范围（轮盘半径的倍数）。 */
+export const PENDOLO_HUB_VIEW_HEIGHT_MIN = 0.4;
+export const PENDOLO_HUB_VIEW_HEIGHT_MAX = 3;
+
+/** 轮心视角的视距按视口长边的倍数算：比倾斜的 1.2 广一些，左右两侧的歌词也进得了画面。 */
+const PENDOLO_HUB_VIEW_FOCAL_FACTOR = 0.75;
+/** 轮心视角下焦点句落在屏幕上的位置（视口宽、高的比例）。 */
+const PENDOLO_HUB_VIEW_TARGET_X = 0.5;
+const PENDOLO_HUB_VIEW_TARGET_Y = 0.72;
+
+/**
+ * 轮心视角：相机立在轮心正上方 `cameraHeightPx` 处，朝刻度针（指着焦点句）的方向看，视线落在焦点句
+ * （离轮心 `targetDistancePx`）上；`side` 是针的朝向（1 朝右，镜像时 -1）。点都是相对轮心的屏幕布局坐标
+ * （和倾斜一样，表盘画布再乘镜像）。`hubX`/`hubY` 是轮心在屏幕上的位置，焦点句投到视口里固定的一点。
+ *
+ * 相机坐标：前方 f = (s·D, 0, -H)/L，右手 r = (0, s, 0)，上方 u = (s·H, 0, D)/L（L = √(D²+H²)）。
+ * 点 (x, y, h) 相对相机是 (x, y, h - H)，屏幕 = 焦点句的位置 + F·(右, -上)/前。整体除以 L，
+ * 焦点句那里 w = 1。高度方向是线性的，所以分层直接加 h·lift，不再按 1 - h/f 缩（invFocal 为 0）。
+ * w ≤ 0 的是相机背后的东西，着色器按齐次坐标裁掉。
+ */
+export const buildPendoloHubViewProjection = (
+    cameraHeightPx: number,
+    targetDistancePx: number,
+    side: 1 | -1,
+    hubX: number,
+    hubY: number,
+    viewportWidth: number,
+    viewportHeight: number,
+): PendoloDialProjection => {
+    const s = side;
+    const H = Math.max(1, cameraHeightPx);
+    const D = Math.max(1, targetDistancePx);
+    const L2 = D * D + H * H;
+    const L = Math.sqrt(L2);
+    const F = PENDOLO_HUB_VIEW_FOCAL_FACTOR * Math.max(1, viewportWidth, viewportHeight);
+    // 焦点句在屏幕上相对轮心的位置
+    const sx = viewportWidth * PENDOLO_HUB_VIEW_TARGET_X - hubX;
+    const sy = viewportHeight * PENDOLO_HUB_VIEW_TARGET_Y - hubY;
+    // w = 前 / L；x' = F·右/L + sx·w；y' = -F·上/L + sy·w
+    const w0 = (s * D) / L2;
+    const wc = (H * H) / L2;
+    const matrix = new Float32Array([
+        sx * w0, (F * s) / L, sx * wc,
+        (-F * s * H) / L2 + sy * w0, 0, (F * D * H) / L2 + sy * wc,
+        w0, 0, wc,
+    ]);
+    const lw = -H / L2;
+    return {
+        matrix,
+        flat: false,
+        lift: [sx * lw, (-F * D) / L2 + sy * lw, lw],
+        invFocal: 0,
+    };
+};
+
 /** 表盘本身的投影：先镜像（平面左右翻转），再倾斜。 */
 export const buildPendoloDialProjection = (
     tilt: PendoloDialProjection,

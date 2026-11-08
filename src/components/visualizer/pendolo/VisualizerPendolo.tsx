@@ -13,7 +13,7 @@ import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
 import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
-import { buildPendoloDialProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
+import { buildPendoloDialProjection, buildPendoloHubViewProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform } from './pendoloDialProjection';
 import { PENDOLO_BALANCE_ICON_HEIGHT, PENDOLO_LYRIC_LAYER_HEIGHT } from './pendoloParallax';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
@@ -374,9 +374,27 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const requestedTiltDeg = pendoloTuning.tiltDeg ?? 0;
     const tiltDeg = clockworkWebgl ? requestedTiltDeg : 0;
     const tiltAxisDeg = pendoloTuning.tiltAxisDeg ?? 0;
+    // 轮心视角：相机立在轮心上方，朝刻度针（焦点句）看；代替倾斜，同样只在 WebGL 下生效
+    const requestedHubView = pendoloTuning.hubView === true;
+    const hubView = clockworkWebgl && requestedHubView;
+    // 相机至少要比最高的一层（摆轮图标）高一截，不然那几层会跑到相机上面、从底下被看到
+    const hubCameraHeightPx = baseRadius * Math.max(
+        pendoloTuning.hubViewHeight ?? 1,
+        PENDOLO_BALANCE_ICON_HEIGHT * (pendoloTuning.parallaxDepth ?? 1) + 0.15,
+    );
     const tiltProjection = useMemo(
-        () => buildPendoloTiltProjection(tiltDeg, tiltAxisDeg, viewportSize.width, viewportSize.height),
-        [tiltAxisDeg, tiltDeg, viewportSize.height, viewportSize.width],
+        () => (hubView
+            ? buildPendoloHubViewProjection(
+                hubCameraHeightPx,
+                lyricRingRadius,
+                sideSign,
+                centerX,
+                centerY,
+                viewportSize.width,
+                viewportSize.height,
+            )
+            : buildPendoloTiltProjection(tiltDeg, tiltAxisDeg, viewportSize.width, viewportSize.height)),
+        [centerX, centerY, hubCameraHeightPx, hubView, lyricRingRadius, sideSign, tiltAxisDeg, tiltDeg, viewportSize.height, viewportSize.width],
     );
     const dialProjection = useMemo(
         () => buildPendoloDialProjection(tiltProjection, mirrored),
@@ -599,7 +617,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     mirrored={mirrored}
                     projection={dialProjection}
                     parallaxScalePx={parallaxScalePx}
-                    depthStencil={requestedTiltDeg !== 0 && (pendoloTuning.parallaxDepth ?? 1) > 0}
+                    depthStencil={(requestedTiltDeg !== 0 || requestedHubView) && (pendoloTuning.parallaxDepth ?? 1) > 0}
                     onBackendChange={setClockworkWebgl}
                 />
                 <div className="absolute inset-0 pointer-events-none" style={iconLayerStyle}>

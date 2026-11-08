@@ -3033,6 +3033,8 @@ export default {
     "pendoloTiltDeg": "Kemiringan Dial",
     "pendoloTiltAxisDeg": "Sumbu Kemiringan (0 = horizontal)",
     "pendoloParallaxDepth": "Paralaks Lapisan (saat miring)",
+    "pendoloHubView": "Tampilan dari Poros (searah jarum)",
+    "pendoloHubViewHeight": "Ketinggian Tampilan",
     "sonnetMotionSection": "Gerakan dan komposisi",
     "sonnetDisplaySection": "Elemen terlihat",
     "sonnetQualitySection": "Kualitas rendering",

@@ -27,6 +27,9 @@ import { invertPendoloProjectionMatrix } from './pendoloDialProjection';
 // before), and an additive overlay pass for the lit ticks, jewel flares and sparks, drawn only on
 // frames that have any.
 
+/** 投影的近平面（w，焦点处是 1）：比它更贴近相机的被裁掉，深度从这里起算。写成 GLSL 浮点字面量。 */
+const PENDOLO_PROJECTION_NEAR = '0.02';
+
 const VERT = `#version 300 es
 precision highp float;
 layout(location = 0) in vec2 a_pos;
@@ -55,6 +58,19 @@ uniform float u_invFocal;
 vec3 projectDial(vec2 world, float hgt) {
   return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
 }
+// 投影后的齐次坐标直接交给 GPU：透视除法和 w ≤ 0（轮心视角时相机背后）的裁剪都由它做，
+// 跨过相机平面的三角形不会被拉成长刺。深度 z/w = 1 - 2·near/w 是 1/w 的线性函数，近处小；
+// 只有分层视差的遮挡打开深度测试时才用得上。w 比 near 还小的（贴着相机）被近平面裁掉。
+vec4 projectedClip(vec3 h) {
+  float w = h.z;
+  vec2 px = (u_hub * w + h.xy) * u_dpr;
+  return vec4(
+    (px.x / u_resolution.x) * 2.0 - w,
+    w - (px.y / u_resolution.y) * 2.0,
+    w - ${PENDOLO_PROJECTION_NEAR} * 2.0,
+    w
+  );
+}
 out vec4 v_color;
 out float v_light;
 void main() {
@@ -76,21 +92,17 @@ void main() {
       v_light = u_wave.w * b;
     }
   }
-  float depth = 0.0;
   if (u_projOn > 0.5) {
     vec3 h = projectDial(world, u_heights[id] - u_depthBias);
-    float w = max(h.z, 0.001);
-    world = u_hub + h.xy / w;
-    // 深度取 1/w 的线性函数：透视除法已经在这里做了，屏幕上线性插值的量对平面来说只有 1/w 是准的；
-    // 近处 1/w 大、深度小。只有分层视差的遮挡打开深度测试时才用得上。
-    depth = clamp((1.0 - 1.0 / w) * 0.5, -0.999, 0.999);
+    gl_Position = projectedClip(h);
+    return;
   }
   vec2 px = world * u_dpr;
   vec2 clip = vec2(
     (px.x / u_resolution.x) * 2.0 - 1.0,
     1.0 - (px.y / u_resolution.y) * 2.0
   );
-  gl_Position = vec4(clip, depth, 1.0);
+  gl_Position = vec4(clip, 0.0, 1.0);
 }
 `;
 
@@ -134,6 +146,19 @@ uniform float u_invFocal;
 vec3 projectDial(vec2 world, float hgt) {
   return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
 }
+// 投影后的齐次坐标直接交给 GPU：透视除法和 w ≤ 0（轮心视角时相机背后）的裁剪都由它做，
+// 跨过相机平面的三角形不会被拉成长刺。深度 z/w = 1 - 2·near/w 是 1/w 的线性函数，近处小；
+// 只有分层视差的遮挡打开深度测试时才用得上。w 比 near 还小的（贴着相机）被近平面裁掉。
+vec4 projectedClip(vec3 h) {
+  float w = h.z;
+  vec2 px = (u_hub * w + h.xy) * u_dpr;
+  return vec4(
+    (px.x / u_resolution.x) * 2.0 - w,
+    w - (px.y / u_resolution.y) * 2.0,
+    w - ${PENDOLO_PROJECTION_NEAR} * 2.0,
+    w
+  );
+}
 out vec4 v_color;
 out vec2 v_uv;
 void main() {
@@ -141,8 +166,8 @@ void main() {
   v_uv = a_uv;
   vec2 world = a_pos;
   if (u_projOn > 0.5) {
-    vec3 h = projectDial(world, a_height * u_fxHeight);
-    world = u_hub + h.xy / max(h.z, 0.001);
+    gl_Position = projectedClip(projectDial(world, a_height * u_fxHeight));
+    return;
   }
   vec2 px = world * u_dpr;
   gl_Position = vec4((px.x / u_resolution.x) * 2.0 - 1.0, 1.0 - (px.y / u_resolution.y) * 2.0, 0.0, 1.0);
@@ -227,23 +252,34 @@ uniform float u_invFocal;
 vec3 projectDial(vec2 world, float hgt) {
   return u_proj * vec3((world - u_hub) * (1.0 - hgt * u_invFocal), 1.0) + hgt * u_lift;
 }
+// 投影后的齐次坐标直接交给 GPU：透视除法和 w ≤ 0（轮心视角时相机背后）的裁剪都由它做，
+// 跨过相机平面的三角形不会被拉成长刺。深度 z/w = 1 - 2·near/w 是 1/w 的线性函数，近处小；
+// 只有分层视差的遮挡打开深度测试时才用得上。w 比 near 还小的（贴着相机）被近平面裁掉。
+vec4 projectedClip(vec3 h) {
+  float w = h.z;
+  vec2 px = (u_hub * w + h.xy) * u_dpr;
+  return vec4(
+    (px.x / u_resolution.x) * 2.0 - w,
+    w - (px.y / u_resolution.y) * 2.0,
+    w - ${PENDOLO_PROJECTION_NEAR} * 2.0,
+    w
+  );
+}
 out vec2 v_uv;
 void main() {
   v_uv = a_uv;
   vec2 world = a_pos;
-  float w = 1.0;
   if (u_projOn > 0.5) {
-    vec3 h = projectDial(world, 0.0);
-    w = max(h.z, 0.001);
-    world = u_hub + h.xy / w;
+    // 齐次坐标交给 GPU 做透视除法，贴图按透视正确插值
+    gl_Position = projectedClip(projectDial(world, 0.0));
+    return;
   }
   vec2 px = world * u_dpr;
   vec2 clip = vec2(
     (px.x / u_resolution.x) * 2.0 - 1.0,
     1.0 - (px.y / u_resolution.y) * 2.0
   );
-  // 乘回 w 让贴图按透视正确插值；w = 1 时就是原来的位置
-  gl_Position = vec4(clip * w, 0.0, w);
+  gl_Position = vec4(clip, 0.0, 1.0);
 }
 `;
 
