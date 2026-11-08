@@ -206,7 +206,6 @@ test('the grid mounts only the cards near the viewport, however big the playlist
     await warmUp(page, root);
     const small = await openAndMeasure(page, root, 500);
     const large = await openAndMeasure(page, root, 5000);
-    // eslint-disable-next-line no-console
     console.log('PERF cards', JSON.stringify({ small, large }));
 
     // 渲染环是「视口附近的卡」：曲目数翻十倍，挂载的卡片数不该跟着涨。
@@ -233,7 +232,6 @@ test('the entrance animation is not what eats the main thread', async ({ mount, 
     await root.locator('[data-probe-entrance]').click();
     const { perf: withEntrance, flyIn: entranceCard } = await openAndFollow(page, root);
 
-    // eslint-disable-next-line no-console
     console.log('PERF entrance', JSON.stringify({ withoutEntrance, withEntrance, controlCard, entranceCard }));
 
     // The comparison is only one if the two come differently. The control is the grid given no
@@ -266,7 +264,6 @@ test('paging the rest of a big playlist in the background does not cost frames',
     const atOnce = await openAndMeasure(page, root, 5000);
     await setPaging(true);
     const paged = await openAndMeasure(page, root, 5000);
-    // eslint-disable-next-line no-console
     console.log('PERF paging', JSON.stringify({ atOnce, paged }));
 
     // 分页按后台更新提交（transition），每页重算网格项也只塑形视口附近的卡：五次整表更新落在测量窗口里，
@@ -290,7 +287,6 @@ test('a fly-in card followed through an opening, at full speed and with the CPU 
         for (const action of ['open', 'open-landing'] as const) {
             for (let opening = 0; opening < 3; opening += 1) {
                 const { flyIn } = await openAndFollow(page, root, action);
-                // eslint-disable-next-line no-console
                 console.log(`PERF fly-in ${action} cpu/${rate}`, JSON.stringify(flyIn));
                 expect(flyIn).not.toBeNull();
                 // A page a cover flies to may have lost its plan before its cards came (slowed,
@@ -441,7 +437,6 @@ test('the cards keep flying in on the screen while the main thread is held', asy
     const moved = inside.length > 1
         ? Math.hypot(inside[inside.length - 1].x - inside[0].x, inside[inside.length - 1].y - inside[0].y)
         : 0;
-    // eslint-disable-next-line no-console
     console.log('PERF held', JSON.stringify({
         blockMs: block.end - block.start,
         animations: block.animations,
@@ -499,7 +494,6 @@ test('a page opened for a flying cover puts a stand-in on its centred card, and 
         }
         return { first, standIn: null, card: null, cardFrame: null };
     });
-    // eslint-disable-next-line no-console
     console.log('STAND-IN', JSON.stringify(seen));
 
     expect(seen.first).not.toBeNull();
@@ -543,7 +537,6 @@ test('the landing and the stand-in\'s leaving do not render the cards again', as
     // The hero comes to rest 260 ms after that, and the page then does render its cards again,
     // for a plan that is over.
     const leaving = timed.slice(landing + 1).filter(commit => commit.at < 420);
-    // eslint-disable-next-line no-console
     console.log('COMMITS', JSON.stringify({ mount79, landing: timed[landing], leaving, all: timed }));
 
     expect(landing).toBeGreaterThan(0);

@@ -53,7 +53,6 @@ export const useLibraryAccountController = (tables: LibraryAccountHostTables): L
             disposedRef.current = true;
         };
         // createController 只读 ref，不进依赖。
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [controller]);
 
     return controller;

@@ -237,7 +237,6 @@ test('the cover flies from the clicked card straight onto the stand-in, by trans
     const flight = await read(page);
     const target = { x: 620, y: 420, width: 200, height: 200 };
     const figures = figuresOf(flight, source, target);
-    // eslint-disable-next-line no-console
     console.log('FLIGHT open', JSON.stringify(figures));
 
     expect(flight.carriers).toBe(1);
@@ -306,7 +305,6 @@ test('the frame\'s edge lights while the card is in the air, on the way in and o
     await root.locator(HOME_CARD).click();
     const inward = await read(page);
     expect(inward.direction).toBe('in');
-    // eslint-disable-next-line no-console
     console.log('EDGE open', JSON.stringify(expectEdgeLit(inward)));
 
     await expect(root.locator('[data-probe-detail-card]')).toHaveCount(1);
@@ -315,7 +313,6 @@ test('the frame\'s edge lights while the card is in the air, on the way in and o
     await root.locator('[data-probe-action="back"]').click();
     const outward = await read(page);
     expect(outward.direction).toBe('out');
-    // eslint-disable-next-line no-console
     console.log('EDGE back', JSON.stringify(expectEdgeLit(outward)));
 });
 
@@ -326,7 +323,6 @@ test('a wide cover lands on a square one without being stretched on the way', as
     await root.locator('[data-probe-wide-card]').click();
     const flight = await read(page);
     const figures = figuresOf(flight, source, { x: 620, y: 420, width: 200, height: 200 });
-    // eslint-disable-next-line no-console
     console.log('FLIGHT wide', JSON.stringify(figures));
 
     expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);
@@ -385,7 +381,6 @@ test('back: the cover at the middle flies back onto the card it was opened from'
     await root.locator('[data-probe-action="back"]').click();
     const flight = await read(page);
     const figures = figuresOf(flight, centred, home);
-    // eslint-disable-next-line no-console
     console.log('FLIGHT back', JSON.stringify(figures));
 
     expect(flight.carriers).toBe(1);
@@ -445,7 +440,6 @@ test('back: the page\'s other cards are pushed out from the one that flies, whic
     });
     await root.locator('[data-probe-action="back"]').click();
     const seen = await page.evaluate(() => (window as unknown as { __scatter: Promise<{ pushed: number[]; centredOpacity: string[]; frames: number; turned: boolean; leftFor: number }> }).__scatter);
-    // eslint-disable-next-line no-console
     console.log('SCATTER', JSON.stringify({ ...seen, centredOpacity: [...new Set(seen.centredOpacity)] }));
 
     expect(seen.frames).toBeGreaterThan(5);
@@ -467,7 +461,6 @@ test('an artist page: the cover lands on the round picture, and its corners end 
     const flight = await read(page);
     // The picture inside its 4px ring: 232 across, at 604 / 434.
     const figures = figuresOf(flight, source, { x: 604, y: 434, width: 232, height: 232 });
-    // eslint-disable-next-line no-console
     console.log('FLIGHT artist', JSON.stringify(figures));
 
     expect(figures.firstKeyframeOffSourcePx).toBeLessThan(0.6);

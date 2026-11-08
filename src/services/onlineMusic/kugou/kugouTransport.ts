@@ -416,22 +416,46 @@ const confirmedSignIn = (operation: KugouOperation, response: any): { token?: st
     return userId ? { token: payload?.token ? String(payload.token) : undefined, userId: String(userId) } : null;
 };
 
+/**
+ * The one place the web session's account is written (registered for Dedicatus D604): the cookies,
+ * the token and the account id of a confirmed sign-in, the token and the id as a whole pair.
+ */
+const rememberConfirmedSignIn = (signIn: { token: string; userId: string }, cookieEntries: string[]): void => {
+    if (cookieEntries.length) writeProviderSessionValue('kugou', 'cookie', cookieEntries.join('; '));
+    writeProviderSessionValue('kugou', 'token', signIn.token);
+    writeProviderSessionValue('kugou', 'userid', signIn.userId);
+};
+
+const ACCOUNT_COOKIE_ENTRY = /^(token|userid|user_id)=/i;
+
+/**
+ * The cookies any other answer brings (registered for Dedicatus D604): it drops the account ones
+ * itself, which only a confirmed sign-in writes (#1101).
+ */
+const rememberSessionCookies = (cookieEntries: string[]): void => {
+    const kept = cookieEntries.filter(entry => !ACCOUNT_COOKIE_ENTRY.test(entry));
+    if (kept.length) writeProviderSessionValue('kugou', 'cookie', kept.join('; '));
+};
+
+/**
+ * The desktop app's hint of who is signed in (registered for Dedicatus D604): passed only the account id
+ * of a confirmed sign-in, or the one the bridge writes into the profile answer from its own session.
+ */
+const rememberSignedInAccountId = (userId: string): void => {
+    writeProviderSessionValue('kugou', 'userid', userId);
+};
+
 const persistWebSession = (operation: KugouOperation, response: any): void => {
     const signIn = confirmedSignIn(operation, response);
     const cookies = response?.cookie || response?.data?.cookie;
-    const cookieEntries: string[] = typeof cookies === 'string' ? cookies.split(';')
-        : Array.isArray(cookies) ? cookies.map(String) : [];
-    // Account cookies of any other answer are left out, like its account fields.
-    const keptCookies = cookieEntries
+    const cookieEntries = (typeof cookies === 'string' ? cookies.split(';')
+        : Array.isArray(cookies) ? cookies.map(String) : [])
         .map(entry => entry.trim())
-        .filter(entry => entry && (signIn?.token || !/^(token|userid|user_id)=/i.test(entry)));
-    if (keptCookies.length) writeProviderSessionValue('kugou', 'cookie', keptCookies.join('; '));
-
-    // Half of a pair is not taken: the other half would be the previous account's.
-    if (signIn?.token) {
-        writeProviderSessionValue('kugou', 'token', signIn.token);
-        writeProviderSessionValue('kugou', 'userid', signIn.userId);
-    }
+        .filter(Boolean);
+    // Half of a pair is not taken: the other half would be the previous account's. Account cookies of
+    // any other answer are left out, like its account fields.
+    if (signIn?.token) rememberConfirmedSignIn({ token: signIn.token, userId: signIn.userId }, cookieEntries);
+    else rememberSessionCookies(cookieEntries);
     const dfid = responsePayload(response)?.dfid;
     if (dfid) writeProviderSessionValue('kugou', 'dfid', String(dfid));
 };
@@ -451,7 +475,7 @@ const persistElectronAccountHint = (operation: KugouOperation, response: any): v
     const userId = operation === 'user_detail'
         ? responsePayload(response)?.userid
         : confirmedSignIn(operation, response)?.userId;
-    if (userId) writeProviderSessionValue('kugou', 'userid', String(userId));
+    if (userId) rememberSignedInAccountId(String(userId));
 };
 
 export const getKugouTransportAvailability = () => {

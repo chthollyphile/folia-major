@@ -55,7 +55,7 @@ core 按功能分文件夹：`account/`、`artist/`、`collection/`（含 `resou
 | state | `use*Store.ts` | zustand store：浏览会话、目录会话、隐藏项、当前 suite、外观动作注册 |
 | binding | 其余 `use*.ts(x)` | React hooks：订阅资源、读写会话、拿到动作、注册外观动作 |
 
-没写后缀的文件按 model 查：它去调 service 或读状态，分层检查当场失败。判断写在 `dev/mcp/ts-code-map/libraryLayers.mjs` 一处，`test/unit/library/layerBoundaries.test.ts`、`test/unit/stores/storeContract.test.ts` 和 `dev/mcp/ts-code-map/codemap.mjs` 的 `BOUNDARY_RULES` 都读它，违反会直接报错。
+没写后缀的文件按 model 查：它去调 service 或读状态，分层检查当场失败。判断写在 `dev/mcp/ts-code-map/libraryLayers.mjs` 一处，`test/unit/library/layerBoundaries.test.ts`、`test/unit/stores/storeContract.test.ts` 和 `dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES`（Dedicatus）都读它，违反会直接报错。
 
 ## 环境与依赖注入
 

@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { areaOf } from './format.mjs';
-import { buildModuleGraph, edgeKey } from './graph/modules.mjs';
-import { LIBRARY_CORE, libraryLayerOf } from './libraryLayers.mjs';
+import { findBoundaryEdges } from '../../dedicatus/checks/boundaries.mjs';
+import { buildModuleGraph } from './graph/modules.mjs';
 // dev/mcp/ts-code-map/codemap.mjs
 
 /**
@@ -46,116 +46,7 @@ const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /** 枢纽的门槛也取 2 的幂，和展示的档位同一套刻度；当前落在这条线以上的有 11 个模块。 */
 const HUB_MIN_DEPS = 32;
 
-/**
- * 分层边界。左边不该在运行时依赖右边。
- * 只看值导入——`import type` 在运行时不存在，把它算成违规会产生大量假警报
- * （比如 stores 只是 `import type { PanelTab }` 就会被误判成依赖了组件）。
- */
-const BOUNDARY_RULES = [
-    { from: /^src\/stores\//, to: /^src\/(components|library\/(suites|app))\//, why: 'store 不应依赖组件' },
-    {
-        from: /^src\/utils\//,
-        to: /^src\/(components|hooks|stores|library\/(suites|app|core\/(state|bindings)))\//,
-        why: '纯变换不应依赖 UI 或状态',
-    },
-    {
-        from: /^src\/types/,
-        to: /^src\/(components|hooks|stores|services|library\/(suites|app|core\/(services|state|bindings)))\//,
-        why: '契约层不应依赖实现',
-    },
-    { from: /^src\/services\//, to: /^src\/(components|library\/(suites|app))\//, why: 'service 不应依赖组件' },
-    // 共享 wall 引擎与内容无关：Lattice 与资料库 suite 都用它（test/unit/wall/wallBoundaries.test.ts 同一条）。
-    {
-        from: /^src\/components\/wall\//,
-        to: /^src\/(components\/app|library)\//,
-        why: 'wall 引擎不应依赖 Lattice（components/app）或资料库',
-    },
-    {
-        from: /^src\/(components|hooks|stores|library\/(core|suites|app))\//,
-        to: /^src\/services\/onlineMusic\/.*(Provider|Transport)\.ts$/,
-        when: from => !from.startsWith(LIBRARY_CORE) || ['state', 'binding'].includes(libraryLayerOf(from)),
-        why: '普通调用应经过 omni，不应直连 provider adapter/transport',
-    },
-    // src/library：headless core 与 UI suites 分开。core 按功能分文件夹，层由文件名说（libraryLayers.mjs），
-    // 与老目录一一对应——contract≈types、model≈utils、service≈services、state≈stores、binding≈hooks；
-    // suites/*、app 与 registry 是 UI，地位等同 components（见 UI_DIRS）。
-    {
-        from: /^src\/library\/core\//,
-        to: /^src\/(components\/|library\/(suites\/|app\/|registry\.))/,
-        why: 'library core 不应依赖 UI（suites、app、registry、components）',
-    },
-    {
-        from: /^src\/library\/core\//,
-        to: /^src\/(?!types)/,
-        when: (from, to) => libraryLayerOf(from) === 'contract' && libraryLayerOf(to) !== 'contract',
-        why: 'core 的契约（*.contract）只引用别的契约与 src/types 的数据类型',
-    },
-    {
-        from: /^src\/library\/core\//,
-        to: /^src\/(components|hooks|stores|services|library\/core)\//,
-        when: (from, to) => libraryLayerOf(from) === 'model'
-            && (!to.startsWith(LIBRARY_CORE) || ['service', 'state', 'binding'].includes(libraryLayerOf(to))),
-        why: 'core 的纯变换（model）是叶子：不读状态、不调 service、不碰绑定',
-    },
-    {
-        from: /^src\/library\/core\//,
-        to: /^src\/(hooks|library\/core)\//,
-        when: (from, to) => ['service', 'state'].includes(libraryLayerOf(from)) && (to.startsWith('src/hooks/') || libraryLayerOf(to) === 'binding'),
-        why: 'core 的 service 与 state 不应依赖 React 绑定',
-    },
-    {
-        from: /^src\/library\/suites\//,
-        to: /^src\/library\/suites\//,
-        when: (from, to) => suiteOf(from) !== suiteOf(to),
-        why: 'suite 之间互不依赖',
-    },
-    {
-        from: /^src\/library\/suites\//,
-        to: /^src\/library\/core\//,
-        when: (_from, to) => libraryLayerOf(to) === 'service',
-        why: 'suite 不直接用 core 的 service：资源与控制器由宿主（app）创建后传入',
-    },
-    {
-        from: /^src\/(?!library\/(suites\/|registry\.))/,
-        to: /^src\/library\/suites\//,
-        why: 'suite 只经 registry 使用：宿主与外壳按 surface 解析，不直接 import 某套 suite',
-    },
-];
-
-/** `src/library/suites/<id>/...` 的 suite id。 */
-const suiteOf = file => /^src\/library\/suites\/([^/]+)\//.exec(file)?.[1] ?? null;
-
-/**
- * 按目录算作 UI 的地方。命中规则、目标却不含 UI 的边记为「目录归属存疑」：依赖方向没问题，
- * 是纯模块住进了 UI 目录（修法是把它挪进 core 对应的功能文件夹或 utils，不是改依赖）。
- */
-const UI_DIRS = /^src\/(components\/|library\/(suites\/|app\/|registry\.))/;
-
-const ruleMatches = (rule, from, to) => rule.from.test(from) && rule.to.test(to) && (!rule.when || rule.when(from, to));
-
-/**
- * 哪些模块在运行时真的会把 React 拉进来。
- *
- * 规则只能看路径，而路径会撒谎：`components/visualizer/colorMix.ts` 是零依赖的纯色彩数学，
- * 只是住在 components 目录下。反过来 `components/visualizer/registry.tsx` 看着人畜无害，
- * 实际用 eager glob 拉进 13 个 renderer。所以「是不是 UI」要从依赖图推，不能从目录猜。
- *
- * 种子是值导入 react 的文件，沿值导入边向依赖方传染（`import type` 不传染，运行时不存在）。
- */
-function computeUiModules(graph) {
-    const tainted = new Set(graph.uiSeeds);
-    const queue = [...graph.uiSeeds];
-    while (queue.length > 0) {
-        const current = queue.pop();
-        for (const dependent of graph.reverse.get(current) ?? []) {
-            if (tainted.has(dependent)) continue;
-            if (graph.typeOnly.has(edgeKey(dependent, current))) continue;
-            tainted.add(dependent);
-            queue.push(dependent);
-        }
-    }
-    return tainted;
-}
+// 分层边界规则与检查在 dev/dedicatus（rules.mjs、checks/boundaries.mjs），这里只取结果写进地图。
 
 function collect(root) {
     const graph = buildModuleGraph(root);
@@ -178,23 +69,7 @@ function collect(root) {
         registries.get(from).push(to);
     }
 
-    const uiModules = computeUiModules(graph);
-    const violations = [];
-    const misplaced = [];
-    for (const [from, targets] of graph.forward) {
-        for (const to of targets) {
-            if (graph.typeOnly.has(edgeKey(from, to))) continue;
-            const rule = BOUNDARY_RULES.find(r => ruleMatches(r, from, to));
-            if (!rule) continue;
-            // 指向 UI 目录（components、library 的 suites / app / registry）但目标其实不含 UI：
-            // 依赖方向没问题，是文件住错了目录。
-            const nominal = UI_DIRS.test(to) && !uiModules.has(to);
-            (nominal ? misplaced : violations).push({ from, to, why: rule.why });
-        }
-    }
-    const byPath = (a, b) => byText(a.from, b.from) || byText(a.to, b.to);
-    violations.sort(byPath);
-    misplaced.sort(byPath);
+    const { violations, misplaced } = findBoundaryEdges(graph);
 
     return { areas, hubs, registries, violations, misplaced };
 }
@@ -247,7 +122,7 @@ function render({ areas, hubs, registries, violations, misplaced }) {
 
     out.push('## 分层边界违规');
     out.push('');
-    out.push('规则是人定的（见 `codemap.mjs` 的 `BOUNDARY_RULES`），拿真实的值导入图去比对。');
+    out.push('规则是人定的（见 `dev/dedicatus/rules.mjs`），拿真实的值导入图去比对；行首是 Dedicatus 的代码（`npm run dedicatus`）。');
     out.push('`import type` 不算——它在运行时不存在。');
     out.push('');
     if (violations.length === 0) {
@@ -255,7 +130,7 @@ function render({ areas, hubs, registries, violations, misplaced }) {
     } else {
         out.push('下面这些边的依赖方向本身就是错的：');
         out.push('');
-        for (const v of violations) out.push(`- \`${v.from}\` → \`${v.to}\`  —— ${v.why}`);
+        for (const v of violations) out.push(`- ${v.code} \`${v.from}\` → \`${v.to}\`  —— ${v.why}`);
     }
     out.push('');
 
@@ -265,7 +140,7 @@ function render({ areas, hubs, registries, violations, misplaced }) {
         out.push('这些边命中了规则，但目标模块在运行时根本不含 UI（不传递依赖 react）。');
         out.push('依赖方向没问题，是文件住在了 UI 目录（`src/components/`、`src/library/` 的 suites / app）下面。修法是移动文件，不是改依赖。');
         out.push('');
-        for (const v of misplaced) out.push(`- \`${v.from}\` → \`${v.to}\``);
+        for (const v of misplaced) out.push(`- D190 \`${v.from}\` → \`${v.to}\``);
         out.push('');
     }
 

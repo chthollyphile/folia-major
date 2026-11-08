@@ -7,7 +7,7 @@ import { scanModuleSpecifiers } from '../../../dev/mcp/ts-code-map/graph/specifi
 
 // test/unit/codemap/moduleGraph.test.ts
 // codemap 的模块图（dev/mcp/ts-code-map/graph）按词读 import / export：写成多行的语句也要进图，
-// 注释、字符串、模板串里长得像 import 的文字不算。分层检查（codemap.mjs 的 BOUNDARY_RULES）只看这张图，
+// 注释、字符串、模板串里长得像 import 的文字不算。分层检查（dev/dedicatus/rules.mjs 的 BOUNDARY_RULES）只看这张图，
 // 漏一条边就漏报一条违规。
 
 const { fixtureFiles } = vi.hoisted(() => ({ fixtureFiles: [] as string[] }));

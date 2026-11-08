@@ -122,7 +122,10 @@ export function buildModuleGraph(root) {
         // 不进首屏。区分它才能回答「这个模块开机要拉多少」。
         // 一对文件之间全是 `import type`（类型位置的 import() 也算）才算仅类型：同一个模块既 `import type`
         // 又值导入（含动态 import()、glob）很常见，那条边在运行时照样成立，标成仅类型的话分层检查和 UI 传染都会跳过它。
+        // `dynamic` 同理只标“全是动态 import()”的边：同一个模块另有静态值导入（或经 glob 急切拉进来）时，
+        // 这条边在加载期照样执行，循环依赖检查（dev/dedicatus/checks/cycles.mjs）不能把它当成懒加载跳过。
         const valueTargets = new Set();
+        const eagerTargets = new Set();
         for (const { specifier: spec, typeOnly: isTypeImport, dynamic: isDynamic } of scanModuleSpecifiers(text, file)) {
             if (UI_PACKAGES.test(spec) && !isTypeImport) uiSeeds.add(file);
             const target = resolveSpecifier(spec, file, fileSet);
@@ -134,7 +137,10 @@ export function buildModuleGraph(root) {
             addEdge(forward, file, target);
             addEdge(reverse, target, file);
             if (isTypeImport) typeOnly.add(edgeKey(file, target));
-            else valueTargets.add(target);
+            else {
+                valueTargets.add(target);
+                if (!isDynamic) eagerTargets.add(target);
+            }
             if (isDynamic) dynamic.add(edgeKey(file, target));
         }
 
@@ -143,8 +149,11 @@ export function buildModuleGraph(root) {
             addEdge(reverse, target, file);
             globEdges.add(edgeKey(file, target));
             valueTargets.add(target);
+            // 仓库里的 import.meta.glob 都是 eager 的，按急切加载算。
+            eagerTargets.add(target);
         }
         for (const target of valueTargets) typeOnly.delete(edgeKey(file, target));
+        for (const target of eagerTargets) dynamic.delete(edgeKey(file, target));
     }
 
     return { files: tracked, fileSet, forward, reverse, typeOnly, dynamic, globEdges, uiSeeds, unresolved };
