@@ -33,11 +33,11 @@ v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.
 - **HD2**：R2 及以上的契约要维护者批准才能进 building；R0/R1 用 `approve --auto`。批准记的是契约指纹，批准后改了契约就不算批准；重新批准要维护者 `--reapprove --by`。
 - **契约**：批准后只有验收项的 `passes` 能变（D804）；diff 不能出 `scope.paths`（D803，基线和抑制文件总是允许，但不许有任何一条增长，D001）；重构必须让条目从基线消掉，Dedicatus 也查不出来（D806）；有一项没过就不能开 PR（D802）。
 - **评审**：每轮新开 evaluator，最多 `maxReviewRounds` 轮，还不过就 blocked（D811）。结论绑定 verify 跑的提交和契约指纹，之后有新提交就要重新评审。blocked 的任务要维护者 `--unblock-by` 才能回去干活。
-- **预算**：`budget.perTaskUsd`、`budget.perRunUsd`，到了就 blocked（D813）。
+- **预算**：按 token 算（Max 订阅按次不花钱，真正的上限是订阅的用量窗口）：`budget.perTaskTokens`、`budget.perRunTokens`，到了就 blocked（D813）。
 
 ## 干跑
 
-`dev/coven/config.json` 的 `hd0Confirmed` 为 false（HD0：模型、预算、身份、签名还没拍板），或者 `coven:state -- init` 没加 `--live`，就是干跑：认领评论只记在状态文件里，PR 只写正文到 `.coven/prs/`。工作 session 照常改代码、提交，评审照常进行。
+`coven:state -- init` 没加 `--live`（或者 `dev/coven/config.json` 的 `hd0Confirmed` 为 false），就是干跑：认领评论只记在状态文件里，PR 只写正文到 `.coven/prs/`。工作 session 照常改代码、提交，评审照常进行。
 
 ## 本地文件（`.coven/`，git 忽略）
 

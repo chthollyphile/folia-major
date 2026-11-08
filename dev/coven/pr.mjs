@@ -53,7 +53,7 @@ export function renderPrBody({ state, taskId, contract, verify, reviewText }) {
     const task = state.tasks[taskId];
     const checks = verify.checks.map(check => `- ${check.ok ? '✅' : '❌'} ${check.id}（${check.kind}）：${check.summary.split('\n')[0]}`);
     return [
-        `> Coven 运行 \`${state.run}\` · 任务 \`${taskId}\` · ${contract.risk} · 评审 ${task.rounds} 轮 · 花费 $${(task.costUsd ?? 0).toFixed(2)}`,
+        `> Coven 运行 \`${state.run}\` · 任务 \`${taskId}\` · ${contract.risk} · 评审 ${task.rounds} 轮 · 用量 ${task.tokens ?? 0} token`,
         `> 合进集成分支 \`${state.integrationBranch}\`，整次运行结束后再由维护者开一个 PR 进 main。`,
         '',
         '## 契约',
