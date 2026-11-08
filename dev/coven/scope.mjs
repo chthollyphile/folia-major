@@ -2,14 +2,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadBaseline } from '../dedicatus/baseline.mjs';
 import { ESLINT_RULE_CODES, codeInfo } from '../dedicatus/codes.mjs';
+import { parseScopeName, scopeLabel, scopeNameHelp } from './catalogue.mjs';
 import { ROOT, covenPath, loadConfig, nowIso, parseArgs, readJson, runCli, splitList, writeJson } from './common.mjs';
 import { riskOf } from './risk.mjs';
 // dev/coven/scope.mjs
 // 范围（HD1）：从 Dedicatus 的基线或 ESLint 抑制生成一批条目，逐条算出风险级，存成 .coven/scopes/<名字>.json。
+// 范围名用音乐体裁：<体裁> 或 <体裁>-<标题>，体裁按这次清理的性质挑（catalogue.mjs 的 GENRES）。
 //
-//   npm run coven:scope -- --name arch-1108 --from-baseline [--codes D1,D190,D301]
-//   npm run coven:scope -- --name style-stores --from-suppressions --rules @stylistic/indent,@stylistic/quotes --paths src/stores/
-//   npm run coven:scope -- --show arch-1108
+//   npm run coven:scope -- --name fugue-boundaries --from-baseline [--codes D1,D190,D301]
+//   npm run coven:scope -- --name etude-stores --from-suppressions --rules @stylistic/indent,@stylistic/quotes --paths src/stores/
+//   npm run coven:scope -- --show fugue-boundaries
 //
 // 基线条目一条一项；抑制按“规则 × 路径前缀”合成一项（一个目录几十个文件，逐个认领会刷屏）。
 
@@ -62,7 +64,7 @@ export function scopeFromSuppressions(suppressions, { rules, prefixes, riskRules
 }
 
 function printScope(scope) {
-    console.log(`范围 ${scope.name}（${scope.items.length} 条，${scope.createdAt}）`);
+    console.log(`范围 ${scopeLabel(scope.name)}（${scope.name}，${scope.items.length} 条，${scope.createdAt}）`);
     scope.items.forEach((item, index) => {
         const extra = item.kind === 'lint' ? `（${item.files.length} 个文件，${item.count} 处）` : '';
         console.log(`${String(index + 1).padStart(3)}  ${item.risk}  ${item.code}  ${item.key}${extra}`);
@@ -76,7 +78,7 @@ function main() {
         printScope(readJson(covenPath(ROOT, 'scopes', `${options.show}.json`)));
         return;
     }
-    if (!options.name || !/^[a-z0-9][a-z0-9-]*$/.test(options.name)) throw new Error('--name 要用小写字母、数字和连字符，例如 arch-1108');
+    if (!parseScopeName(options.name)) throw new Error(`--name 不合格。${scopeNameHelp()}`);
     if (!options['from-baseline'] && !options['from-suppressions']) throw new Error('至少要有 --from-baseline 或 --from-suppressions');
     const config = loadConfig(ROOT);
     const items = [];

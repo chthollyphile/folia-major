@@ -1,31 +1,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { integrationBranchOf, isIntegrationBranch, runLabel, scopeLabel, taskBranchOf, taskLabel, tempoLabel, titleWithCatalogue } from './catalogue.mjs';
 import { ROOT, covenPath, gh, git, isDryRun, loadConfig, nowIso, parseArgs, readJson, requireSupervisor, runCli, saveState, writeText } from './common.mjs';
 import { githubIo, keysOfTask, unheldItems, updateClaims } from './claim.mjs';
 import { approvedFile, compareWithApproved, contractFile, contractFingerprint, failingCriteria, renderContract } from './contract.mjs';
 import { transition } from './state.mjs';
 // dev/coven/pr.mjs
-// 开 PR 的唯一入口：只指向本次运行的集成分支（coven/run-<日期>），不碰 main。
+// 开 PR 的唯一入口：只指向本次运行的集成分支（coven/op<n>），不碰 main。
 // 开之前把关：契约批准过（D801）且没被改（D804）、验收项全过（D802）、verify 的结果对应分支当前的提交且全部通过、
 // 最近一轮评审通过、评审记录在。正文带契约、验证结果、评审结论、轮数和花费。
+// 标题末尾自动带上任务的代号（`refactor(lyrics): …… [Op. 3 No. 2]`），正文首行写全代号、范围和速度术语。
 // 只有监控 session 能执行（要有 .coven/state.json）；干跑时只把正文写到 .coven/prs/<任务>.md。
 //
 //   npm run coven:pr -- --task <任务> --title "refactor(lyrics): ……" [--branch <工作分支>]
 //   npm run coven:pr -- --merge --task <任务> --by <维护者>     维护者说合时执行（HD3），只合进集成分支
 
-export const TASK_BRANCH_PREFIX = 'coven/task-';
-
 /**
  * 开 PR 前的检查（纯函数）。返回问题列表，空数组才能开。
  * 评审结论绑定提交和契约指纹：评审通过之后分支又有新提交、或者契约变了，都要重新评审，不能带着 evaluator 没看过的提交开 PR。
  */
-export function prPreflight({ state, config, taskId, contract, approved, verify, branch, branchHead, reviewExists }) {
+export function prPreflight({ state, taskId, contract, approved, verify, branch, branchHead, reviewExists }) {
     const problems = [];
     const task = state.tasks[taskId];
     if (!task) return [`状态文件里没有任务 ${taskId}`];
-    if (!state.integrationBranch?.startsWith(config.integrationBranchPrefix)) problems.push(`集成分支 ${state.integrationBranch} 不是 ${config.integrationBranchPrefix}<日期>，Coven 的 PR 不直接进 main`);
-    if (!branch?.startsWith(TASK_BRANCH_PREFIX)) problems.push(`工作分支 ${branch} 不是 ${TASK_BRANCH_PREFIX}<日期>-<任务>`);
+    if (!isIntegrationBranch(state.integrationBranch) || state.integrationBranch !== integrationBranchOf(state.run)) problems.push(`集成分支 ${state.integrationBranch} 不是这次运行的 ${integrationBranchOf(state.run)}，Coven 的 PR 不直接进 main`);
+    if (branch !== taskBranchOf(taskId)) problems.push(`工作分支 ${branch} 不是这个任务的 ${taskBranchOf(taskId)}`);
     if (!approved) problems.push('D801：契约还没批准');
     else problems.push(...compareWithApproved(approved.contract, contract).map(problem => `${problem.code}：${problem.message}`));
     const failing = failingCriteria(contract);
@@ -53,8 +53,8 @@ export function renderPrBody({ state, taskId, contract, verify, reviewText }) {
     const task = state.tasks[taskId];
     const checks = verify.checks.map(check => `- ${check.ok ? '✅' : '❌'} ${check.id}（${check.kind}）：${check.summary.split('\n')[0]}`);
     return [
-        `> Coven 运行 \`${state.run}\` · 任务 \`${taskId}\` · ${contract.risk} · 评审 ${task.rounds} 轮 · 用量 ${task.tokens ?? 0} token`,
-        `> 合进集成分支 \`${state.integrationBranch}\`，整次运行结束后再由维护者开一个 PR 进 main。`,
+        `> Coven ${taskLabel(taskId, contract.title)} · ${scopeLabel(state.scope)} · ${tempoLabel(contract.risk)} · 评审 ${task.rounds} 轮 · 用量 ${task.tokens ?? 0} token`,
+        `> 合进 ${runLabel(state.run)} 的集成分支 \`${state.integrationBranch}\`，整次运行结束后再由维护者开一个 PR 进 main。`,
         '',
         '## 契约',
         '',
@@ -79,17 +79,17 @@ export function renderPrBody({ state, taskId, contract, verify, reviewText }) {
 
 function openPr({ state, config, task, taskId, options, dryRun, io }) {
     if (!options.title) throw new Error('--title 要写 PR 标题（中文 Conventional Commits，例如 refactor(lyrics): ……）');
-    const branch = options.branch ?? task.branch;
-    if (!branch) throw new Error('不知道工作分支：--branch，或者在 coven:state -- phase … building --branch 时记下');
+    const branch = options.branch ?? task.branch ?? taskBranchOf(taskId);
     const contract = readJson(contractFile(ROOT, taskId));
     const approved = fs.existsSync(approvedFile(ROOT, taskId)) ? readJson(approvedFile(ROOT, taskId)) : null;
     const verifyFile = covenPath(ROOT, 'verify', `${taskId}-latest.json`);
     const verify = fs.existsSync(verifyFile) ? readJson(verifyFile) : null;
     const reviewFile = covenPath(ROOT, 'reviews', `${taskId}-r${task.rounds}.md`);
     const branchHead = git(ROOT, ['rev-parse', `refs/heads/${branch}`]).trim();
-    const problems = prPreflight({ state, config, taskId, contract, approved, verify, branch, branchHead, reviewExists: fs.existsSync(reviewFile) });
+    const problems = prPreflight({ state, taskId, contract, approved, verify, branch, branchHead, reviewExists: fs.existsSync(reviewFile) });
     if (problems.length > 0) throw new Error(`不能开 PR：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
 
+    const title = titleWithCatalogue(options.title, taskId);
     const bodyFile = covenPath(ROOT, 'prs', `${taskId}.md`);
     writeText(bodyFile, renderPrBody({ state, taskId, contract, verify, reviewText: fs.readFileSync(reviewFile, 'utf8') }));
     const log = entry => {
@@ -101,7 +101,7 @@ function openPr({ state, config, task, taskId, options, dryRun, io }) {
             task.pr = `dry-${taskId}`;
             log({ action: 'pr.create', pr: task.pr, branch, base: state.integrationBranch });
         }
-        console.log(`[干跑] 不推送、不开 PR。标题：${options.title}\n正文在 .coven/prs/${taskId}.md`);
+        console.log(`[干跑] 不推送、不开 PR。标题：${title}\n正文在 .coven/prs/${taskId}.md`);
     } else {
         const remote = git(ROOT, ['ls-remote', '--heads', 'origin', state.integrationBranch]).trim();
         if (!remote) throw new Error(`origin 上还没有集成分支 ${state.integrationBranch}：先推上去`);
@@ -121,7 +121,7 @@ function openPr({ state, config, task, taskId, options, dryRun, io }) {
                 console.log(`分支上已经有 PR #${task.pr}（上次开的），认回来：${existing[0].url}`);
             } else {
                 const labels = (config.prLabels ?? []).flatMap(label => ['--label', label]);
-                const url = gh(['pr', 'create', '--repo', config.repo, '--base', state.integrationBranch, '--head', branch, '--title', options.title, '--body-file', bodyFile, ...labels]).trim().split('\n').at(-1);
+                const url = gh(['pr', 'create', '--repo', config.repo, '--base', state.integrationBranch, '--head', branch, '--title', title, '--body-file', bodyFile, ...labels]).trim().split('\n').at(-1);
                 const number = Number(/\/pull\/(\d+)/.exec(url)?.[1]);
                 if (!number) throw new Error(`gh pr create 没返回 PR 地址：${url}`);
                 task.pr = number;

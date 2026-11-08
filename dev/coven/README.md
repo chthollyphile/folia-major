@@ -2,7 +2,45 @@
 
 Coven 是“Dedicatus 检查 + Aeolian 编排 + 人类关键决策”的整套体系。这里是 v1 的 Aeolian 部分：维护者本机的 Claude Code 监控 session（按 `skills/coven-supervisor` 操作）调用这些确定性脚本，把 Dedicatus 基线里的旧违规一条条清掉。
 
-v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.json` 的条目，或者 `eslint-suppressions.json` 里某条规则在某个目录下的抑制；产出是指向本次集成分支 `coven/run-<日期>`、让基线变小的 PR。
+v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.json` 的条目，或者 `eslint-suppressions.json` 里某条规则在某个目录下的抑制；产出是指向本次集成分支 `coven/op<n>`、让基线变小的 PR。
+
+## 代号
+
+代号按古典乐谱编目（`catalogue.mjs`）：显示名给人读，机器名进分支、文件名和 id。
+
+| 概念 | 显示名 | 机器名 | 怎么来 |
+| --- | --- | --- | --- |
+| 一次真跑 | 作品号 `Op. 3` | `op3`，集成分支 `coven/op3` | `coven:state -- init --live` 取远端和本地用过的最大号加 1，立刻推上去占号 |
+| 一次干跑 | `WoO 2`（没有作品号的作品，没正式发表） | `woo2`，集成分支 `coven/woo2`（只在本地） | `coven:state -- init` 取本地用过的最大号加 1，不占 Op. 号 |
+| 任务 | `Op. 3 No. 2 "lyric-match-sources"` | `op3-no2`，工作分支 `coven/op3-no2` | `coven:contract -- import` 按 planner 给的 `order` 编号；planner 只起标题 |
+| 范围 | `Fugue "boundaries"` | `fugue-boundaries` | `coven:scope --name <体裁>[-<标题>]`，体裁按清理的性质挑 |
+
+号只增不回收：放弃的运行、释放的任务，号都不再用。
+
+范围的体裁（`GENRES`，有新的清理性质就往里加）：
+
+| 体裁 | 用在 |
+| --- | --- |
+| `fugue` Fugue | 理清几个模块之间的依赖：边界违规、循环依赖（基线条目） |
+| `etude` Étude | 机械、重复的格式清理（ESLint 抑制） |
+| `variations` Variations | 同一种改法用在许多处 |
+| `interlude` Interlude | 两次大运行之间的零星小修 |
+| `prelude` Prelude | 给后面的运行铺路：先挪文件、拆模块 |
+| `suite` Suite | 一个功能目录里几类问题打包清理 |
+| `rondo` Rondo | 反复出现的老问题再清一遍 |
+| `sonata` Sonata | 一个模块较大的结构整理 |
+
+风险级在给人看的最终注解上（PR 正文、契约展示、运行总结）配速度术语，越危险越慢：R0 Presto、R1 Allegro、R2 Andante、R3 Adagio、R4 Grave，写成 `Andante（R2）`。检查、代码和命令行仍然只用 R0–R4。
+
+代号出现在这些地方：
+
+- PR 标题：`coven:pr` 在末尾加上任务号，`refactor(stores): …… [Op. 3 No. 2]`；正文首行写全代号、范围和速度术语。
+- 集成分支进 main 的 PR（维护者开）：`chore(dev): Coven Op. 3 合入 main`。
+- 认领评论首行：`coven: claimed @维护者 · Op. 3 · 重构 \`条目\` · 租约至 …`，分进任务后写任务号 `Op. 3 No. 2`。
+- 工作 session 叫 `Coven Op. 3 No. 2`，worktree 目录叫 `op3-no2`。
+- `.coven/` 下的文件按机器名存（`contracts/op3-no2.json`、`runs/op3.json`）。
+
+`claimId`（认领去重的 6 位十六进制）只给脚本读，不用代号。
 
 ## 角色
 
@@ -18,10 +56,10 @@ v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.
 | 命令 | 文件 | 做什么 |
 | --- | --- | --- |
 | `npm run coven:scope` | `scope.mjs` | 从基线或抑制生成范围，逐条算风险级（`risk.mjs`，规则在 `config.json` 的 `risk`） |
-| `npm run coven:state` | `state.mjs` | 账本 `.coven/state.json`：开始、阶段流转、人类介入、花费、收尾写运行记录、运行后审计 |
+| `npm run coven:state` | `state.mjs` | 账本 `.coven/state.json`：开始（取作品号、切集成分支）、阶段流转、人类介入、花费、收尾写运行记录、运行后审计 |
 | `npm run coven:claim` | `claim.mjs` | `coven:` 认领评论：认领、续租、改状态、释放；判定是纯函数 `resolveClaims` |
 | `npm run coven:prompt` | `prompt.mjs` | 把角色模板填成提示，变量没定义直接报错 |
-| `npm run coven:contract` | `contract.mjs` | 导入 planner 的契约、给人看、批准（HD2）、按评审结论翻 `passes` |
+| `npm run coven:contract` | `contract.mjs` | 导入 planner 的契约（给任务编号）、给人看、批准（HD2）、按评审结论翻 `passes` |
 | `npm run coven:verify` | `verify.mjs` | 在工作 session 的 worktree 里跑确定性验收项，查范围、契约改动和基线 |
 | `npm run coven:pr` | `pr.mjs` | 唯一开 PR、合 PR 的入口，只指向集成分支 |
 
@@ -49,11 +87,11 @@ v1 只做一种动作：**按基线重构**。输入是 `dev/dedicatus/baseline.
 | `verify/<任务>-<提交>.json`、`<任务>-latest.json` | 确定性检查的结果 |
 | `reviews/<任务>-r<轮>.md` | 评审记录 |
 | `prs/<任务>.md` | PR 正文 |
-| `runs/` | 运行记录（JSON）和总结（Markdown） |
+| `runs/` | 运行记录 `<运行>.json` 和总结 `<运行>.md`，以及上一次运行整批挪进来的 `<运行>/` |
 
 ## 认领协议
 
-多位维护者各自跑监控 session 时，用 `coven:` 评论防撞车。一条认领从头到尾只用同一条评论，状态变了就编辑它：首行给人看（`coven: claimed @维护者 · 重构 \`条目\` · 租约至 …`），后面跟一个隐藏标记给脚本读。
+多位维护者各自跑监控 session 时，用 `coven:` 评论防撞车。一条认领从头到尾只用同一条评论，状态变了就编辑它：首行给人看（`coven: claimed @维护者 · Op. 3 · 重构 \`条目\` · 租约至 …`），后面跟一个隐藏标记给脚本读。
 
 - 只认维护者（OWNER、MEMBER、COLLABORATOR）发的；别人发的忽略（D831）。
 - 租约内的有效认领里，评论创建得最早的持有条目；晚到的让出（D830）。按 `claimId` 区分，同一位维护者开两个监控 session 也不会撞车。

@@ -66,6 +66,12 @@ function run(command, args, options = {}) {
 
 export const git = (cwd, args, options) => run('git', args, { cwd, ...options }).stdout;
 
+/** 允许失败的 git：返回 { ok, output }，由调用方决定失败了怎么办（比如作品号被别人先占了就换下一个）。 */
+export function tryGit(cwd, args) {
+    const result = run('git', args, { cwd, allowFailure: true });
+    return { ok: result.status === 0, output: `${result.stdout}${result.stderr}`.trim() };
+}
+
 export const gh = (args, options) => run('gh', args, options).stdout;
 
 /** gh api 的分页结果，配 --jq 输出一行一个 JSON。 */
@@ -127,5 +133,5 @@ export function withoutTokens(env = process.env) {
 /** 仓库里某个目录下已跟踪的文件（算风险下限时，目录型的 scope 要看里面有什么）。 */
 export const trackedFilesUnder = (root, dir) => git(root, ['ls-files', '-z', '--', dir]).split('\0').filter(Boolean);
 
-/** 维护者所在时区的日期 YYYY-MM-DD（运行编号、集成分支和任务分支用它，北京时间晚上不会差一天）。 */
+/** 维护者所在时区的日期 YYYY-MM-DD（记在运行的账本里，北京时间晚上不会差一天）。 */
 export const localDate = (iso, timeZone = 'UTC') => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));

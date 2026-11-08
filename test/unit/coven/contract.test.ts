@@ -7,7 +7,9 @@ import {
     checkScope,
     compareWithApproved,
     failingCriteria,
+    numberPlan,
     planImportProblems,
+    renderContract,
     validateContract,
     verdictPasses,
     verdictProblems,
@@ -21,7 +23,8 @@ const ITEM = 'D102:src/utils/lyrics/lyricMatchSources.ts->src/stores/useOnlinePr
 
 function contract(overrides: Record<string, unknown> = {}) {
     return {
-        task: 'lyric-match-sources',
+        task: 'op3-no1',
+        title: 'lyric-match-sources',
         items: [ITEM],
         risk: 'R2',
         action: 'refactor',
@@ -136,6 +139,7 @@ describe('coven contract gates', () => {
 
     const scope = { items: [{ key: ITEM, risk: 'R2' }, { key: 'D190:x.ts->y.ts', risk: 'R2' }] };
     const freshState = () => ({
+        run: 'op3',
         tasks: {} as Record<string, any>,
         escalations: [{ items: ['D190:x.ts->y.ts'], code: 'D812' }],
         order: [] as string[],
@@ -150,7 +154,7 @@ describe('coven contract gates', () => {
         const plan = { tasks: [contract()] };
         expect(planImportProblems(state, scope, plan).errors).toEqual([]);
         applyPlanImport(state, plan, '2026-11-09T01:00:00.000Z');
-        state.tasks['lyric-match-sources'].rounds = 2;
+        state.tasks['op3-no1'].rounds = 2;
         const again = planImportProblems(state, scope, plan).errors.join('\n');
         expect(again).toContain('已经登记过');
         expect(again).toContain('不是这个监控 session 认领着、还没分配的');
@@ -168,17 +172,48 @@ describe('coven contract gates', () => {
 
     it('turns an escalated item into a task once the maintainer decides', () => {
         const state = freshState();
-        const later = { tasks: [contract({ task: 'move-y', items: ['D190:x.ts->y.ts'] })] };
+        const later = { tasks: [contract({ task: 'op3-no2', title: 'move-y', items: ['D190:x.ts->y.ts'] })] };
         const { errors, fromBlocked } = planImportProblems(state, scope, later);
         expect(errors).toEqual([]);
         expect(fromBlocked).toEqual(['D190:x.ts->y.ts']);
         applyPlanImport(state, later);
         expect(state.escalations).toEqual([]);
-        expect(state.order).toEqual(['move-y']);
+        expect(state.order).toEqual(['op3-no2']);
+        expect(state.tasks['op3-no2'].title).toBe('move-y');
+    });
+
+    it('numbers planner tasks in order, after the tasks this run already has', () => {
+        const state = freshState();
+        const { task: _task, ...untitled } = contract();
+        const plan = {
+            tasks: [{ ...untitled, title: 'second' }, { ...untitled, title: 'first' }, { ...untitled, title: 'loose' }],
+            order: ['first', 'second'],
+        };
+        const { plan: numbered, errors } = numberPlan(state, plan);
+        expect(errors).toEqual([]);
+        expect(numbered.tasks.map((entry: any) => [entry.title, entry.task])).toEqual([['second', 'op3-no2'], ['first', 'op3-no1'], ['loose', 'op3-no3']]);
+        expect(numbered.order).toEqual(['op3-no1', 'op3-no2']);
+        // 升级后再导入的任务接着编号，标题不能和已有的撞
+        state.tasks = { 'op3-no1': { title: 'first' }, 'op3-no2': { title: 'second' }, 'op3-no3': { title: 'loose' } };
+        expect(numberPlan(state, { tasks: [{ ...untitled, title: 'later' }] }).plan.tasks[0].task).toBe('op3-no4');
+        const clash = numberPlan(state, { tasks: [{ ...untitled, title: 'first' }], order: ['nope'] }).errors.join('\n');
+        expect(clash).toContain('已经有同名的任务');
+        expect(clash).toContain('order 里的 nope');
+    });
+
+    it('lets only the script hand out task numbers', () => {
+        const errors = numberPlan(freshState(), { tasks: [contract(), { ...contract(), task: undefined, title: 'Bad Title' }] }).errors.join('\n');
+        expect(errors).toContain('planner 只写 title');
+        expect(errors).toContain('title 要用小写字母');
+        expect(validateContract(contract({ task: 'lyric-match-sources' })).map(problem => problem.message).join('\n')).toContain('op<n>-no<k>');
+    });
+
+    it('shows the catalogue name and the tempo to the maintainer', () => {
+        expect(renderContract(contract()).split('\n')[0]).toBe('### Op. 3 No. 1 "lyric-match-sources" · Andante（R2） · refactor');
     });
 
     it('does not let an approval be overwritten without the maintainer, and rechecks the risk', () => {
-        const base = { contract: contract(), taskId: 'lyric-match-sources', task: { phase: 'planning', items: [ITEM] } as any, validateOptions: { itemRisks: { [ITEM]: 'R2' } } };
+        const base = { contract: contract(), taskId: 'op3-no1', task: { phase: 'planning', items: [ITEM] } as any, validateOptions: { itemRisks: { [ITEM]: 'R2' } } };
         expect(approvalProblems({ ...base, alreadyApproved: false, auto: false, by: 'alice', reapprove: false })).toEqual([]);
         expect(approvalProblems({ ...base, alreadyApproved: false, auto: true, by: undefined, reapprove: false }).join('\n')).toContain('只有 R0/R1 能 --auto');
         expect(approvalProblems({ ...base, alreadyApproved: true, auto: false, by: 'alice', reapprove: false }).join('\n')).toContain('--reapprove');
@@ -193,8 +228,8 @@ describe('coven contract gates', () => {
 
     it('records a verdict only for the current task, round, verify result and reviewed commit', () => {
         const task = { phase: 'evaluating', rounds: 2, reviewHead: 'abc' };
-        const verify = { task: 'lyric-match-sources', head: 'abc' };
-        const ok = { taskId: 'lyric-match-sources', task, verdict: { task: 'lyric-match-sources', round: 2, verdict: 'pass', head: 'abc' }, verify };
+        const verify = { task: 'op3-no1', head: 'abc' };
+        const ok = { taskId: 'op3-no1', task, verdict: { task: 'op3-no1', round: 2, verdict: 'pass', head: 'abc' }, verify };
         expect(verdictProblems(ok)).toEqual([]);
         expect(verdictProblems({ ...ok, verdict: { ...ok.verdict, round: 1 } }).join('\n')).toContain('第 1 轮');
         expect(verdictProblems({ ...ok, verdict: { ...ok.verdict, task: 'other' } }).join('\n')).toContain('other');

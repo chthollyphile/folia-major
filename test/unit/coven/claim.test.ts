@@ -82,6 +82,12 @@ describe('coven claim resolution', () => {
         const body = renderClaimComment({ state: 'working', owner: 'alice', claimId: 'a1', item: ITEM, action: 'refactor', scope: 'arch', leaseUntil: '2026-11-09T14:00:00Z', pr: 1200 }, config);
         expect(body.split('\n')[0]).toBe(`coven: working @alice (PR #1200) · 重构 \`${ITEM}\` · 租约至 11-09 22:00（UTC+8）`);
         expect(parseClaimComment({ id: 1, author: 'alice', association: 'OWNER', createdAt: '2026-11-09T03:00:00Z', body }, { leaseHours: 12 })).toMatchObject({ state: 'working', pr: 1200, claimId: 'a1' });
+        // 带上代号：认领时是作品号，分进任务后是任务号
+        const claimed = renderClaimComment({ state: 'claimed', owner: 'alice', claimId: 'a1', item: ITEM, action: 'refactor', run: 'op3', leaseUntil: '2026-11-09T14:00:00Z' }, config);
+        expect(claimed.split('\n')[0]).toBe(`coven: claimed @alice · Op. 3 · 重构 \`${ITEM}\` · 租约至 11-09 22:00（UTC+8）`);
+        const assigned = renderClaimComment({ state: 'working', owner: 'alice', claimId: 'a1', item: ITEM, action: 'refactor', run: 'op3', task: 'op3-no2', pr: 1200, leaseUntil: '2026-11-09T14:00:00Z' }, config);
+        expect(assigned.split('\n')[0]).toBe(`coven: working @alice (PR #1200) · Op. 3 No. 2 · 重构 \`${ITEM}\` · 租约至 11-09 22:00（UTC+8）`);
+        expect(parseClaimComment({ id: 2, author: 'alice', association: 'OWNER', createdAt: '2026-11-09T03:00:00Z', body: assigned }, { leaseHours: 12 })).toMatchObject({ item: ITEM, state: 'working' });
     });
 });
 

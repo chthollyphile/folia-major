@@ -11,13 +11,13 @@ const role = (name: string) => fs.readFileSync(path.resolve(__dirname, '../../..
 
 const ITEM = 'D102:src/utils/lyrics/lyricMatchSources.ts->src/stores/useOnlineProviderAccountStore.ts';
 const contract = {
-    task: 'lyric-match-sources', items: [ITEM], risk: 'R3', action: 'refactor', goal: 'g', nonGoals: [], scope: { paths: ['src/utils/lyrics/'] },
+    task: 'op3-no1', title: 'lyric-match-sources', items: [ITEM], risk: 'R3', action: 'refactor', goal: 'g', nonGoals: [], scope: { paths: ['src/utils/lyrics/'] },
     criteria: [{ id: 'c1', description: '基线', verify: { kind: 'baseline' }, passes: false }],
 };
 const state = {
-    run: '2026-11-09-arch', scope: 'arch', integrationBranch: 'coven/run-2026-11-09', startedAt: '2026-11-09T01:00:00.000Z',
+    run: 'op3', scope: 'fugue-boundaries', integrationBranch: 'coven/op3', startedAt: '2026-11-09T01:00:00.000Z',
     items: { [ITEM]: { claim: { state: 'claimed' } } },
-    tasks: { 'lyric-match-sources': { rounds: 1 } },
+    tasks: { 'op3-no1': { rounds: 1 } },
 };
 
 describe('coven prompts', () => {
@@ -39,8 +39,10 @@ describe('coven prompts', () => {
         const scope = { items: [{ key: ITEM, kind: 'baseline', risk: 'R2', reasons: [] }] };
         const planner = renderTemplate(role('planner'), plannerVars(state, scope, config));
         expect(planner).toContain(`R2 \`${ITEM}\``);
+        expect(planner).toContain('本次运行 Op. 3，范围 Fugue "boundaries"');
         const generator = renderTemplate(role('generator'), generatorVars(state, config, contract, null));
-        expect(generator).toContain('coven/task-2026-11-09-lyric-match-sources');
+        expect(generator).toContain('coven/op3-no1');
+        expect(generator).toContain('任务 Op. 3 No. 1 "lyric-match-sources"（编号 `op3-no1`');
         expect(generator).toContain('git -c commit.gpgsign=false commit');
         const verify = { mergeBase: 'abc', head: 'def1234', checks: [{ id: 'c1', kind: 'baseline', ok: true, summary: '已消掉' }] };
         const evaluator = renderTemplate(role('evaluator'), evaluatorVars(state, config, contract, verify, 'D:/wt'));
