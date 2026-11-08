@@ -18,7 +18,6 @@ import {
 } from './pendoloBeatFxDraw';
 import { PENDOLO_WAVE_TINT } from './pendoloBeatFx';
 import { invertPendoloProjectionMatrix } from './pendoloDialProjection';
-import { PENDOLO_BEAT_OVERLAY_HEIGHT } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloClockworkWebGL.ts
 // WebGL2 renderer for Pendolo clockwork; falls back when context/shaders fail.
@@ -117,8 +116,11 @@ precision highp float;
 layout(location = 0) in vec2 a_pos;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_uv;
+// 分层视差的高度（轮盘半径的比例）：刻度、火花贴着刻度，宝石亮斑和各自的宝石同高
+layout(location = 3) in float a_height;
 uniform vec2 u_resolution;
 uniform float u_dpr;
+// 高度比例换成 CSS px 的倍数（视差强度乘轮盘半径）
 uniform float u_fxHeight;
 // 表盘投影（pendoloDialProjection.ts）：镜像 / 倾斜时 u_projOn = 1，平面上相对轮心的点 p 投到
 // u_hub + (M·p).xy / (M·p).z；关着时不碰顶点，画面和原来一样。
@@ -139,7 +141,7 @@ void main() {
   v_uv = a_uv;
   vec2 world = a_pos;
   if (u_projOn > 0.5) {
-    vec3 h = projectDial(world, u_fxHeight);
+    vec3 h = projectDial(world, a_height * u_fxHeight);
     world = u_hub + h.xy / max(h.z, 0.001);
   }
   vec2 px = world * u_dpr;
@@ -697,6 +699,8 @@ export class PendoloClockworkRenderer {
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, strideBytes, 0);
         gl.vertexAttribPointer(1, 4, gl.FLOAT, false, strideBytes, 8);
         gl.vertexAttribPointer(2, 2, gl.FLOAT, false, strideBytes, 24);
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, strideBytes, 32);
         gl.bindVertexArray(null);
         return true;
     }
@@ -721,7 +725,7 @@ export class PendoloClockworkRenderer {
         gl.uniform2f(this.fxUniformRes, pixelW, pixelH);
         gl.uniform1f(this.fxUniformDpr, dpr);
         setProjectionUniforms(gl, this.fxProjection, input);
-        gl.uniform1f(this.fxUniformHeight, PENDOLO_BEAT_OVERLAY_HEIGHT * (input.parallaxScalePx ?? 0));
+        gl.uniform1f(this.fxUniformHeight, input.parallaxScalePx ?? 0);
         gl.blendFunc(gl.ONE, gl.ONE);
         gl.drawArrays(gl.TRIANGLES, 0, count);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

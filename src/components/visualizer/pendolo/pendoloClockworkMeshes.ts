@@ -267,6 +267,33 @@ class PendoloMeshBuilder {
         }
     }
 
+    /**
+     * 分层视差的轴：圆柱侧面，上沿一圈顶点属于 `topPartId`，下沿属于 `bottomPartId`，两者原点相同、
+     * 高度不同，投影后自然连成一根立着的柱子。半透明侧面在屏幕上前后两层正好各盖一次，颜色是均匀的。
+     */
+    appendTube(
+        radius: number,
+        topPartId: number,
+        bottomPartId: number,
+        rgba: [number, number, number, number],
+        segments = 16,
+    ) {
+        const [r, g, b, a] = rgba;
+        const vert = (angle: number, partId: number) => {
+            this.data.push(radius * Math.cos(angle), radius * Math.sin(angle), r, g, b, a, partId);
+        };
+        for (let i = 0; i < segments; i++) {
+            const a0 = (i * Math.PI * 2) / segments;
+            const a1 = ((i + 1) * Math.PI * 2) / segments;
+            vert(a0, topPartId);
+            vert(a0, bottomPartId);
+            vert(a1, topPartId);
+            vert(a1, topPartId);
+            vert(a0, bottomPartId);
+            vert(a1, bottomPartId);
+        }
+    }
+
     appendArrowHead(tipX: number, tipY: number, rgba: [number, number, number, number]) {
         const [r, g, b, a] = rgba;
         this.pushTri(tipX, tipY - 4, tipX + 8, tipY, tipX, tipY + 4, r, g, b, a);
@@ -654,6 +681,7 @@ export const buildPendoloClockworkCachedScene = (
     }
     // 低处线画在最前面，被上面的齿轮（和它们的填色）盖住；跟着各自齿轮的原点和转角走
     const base = new PendoloMeshBuilder();
+    appendPendoloArbors(base, parts, partKeys, palette, baseRadius);
     // 同一个部件的低处线共用一个部件编号（同一原点、转角和高度）
     const baseIds = new Map<string, number>();
     for (const outline of mesh.gearOutlines) {
@@ -694,6 +722,47 @@ export const buildPendoloClockworkCachedScene = (
         faceData: occluders.data,
         faces: occluders.faces,
     };
+};
+
+/**
+ * 分层视差的轴：浮得比底下那层高出一截的齿轮，从齿轮中心立一根轴下去，落在托着它的那层上，
+ * 各层之间看得出是连着的。[齿轮部件 key, 托着它的部件 key]；齿轮底面已经贴着下层的不用轴。
+ */
+const PENDOLO_ARBORS: Array<[gearKey: string, footKey: string]> = [
+    ['planet-0-gear', 'main-esc'],
+    ['planet-1-gear', 'main-esc'],
+    ['planet-2-gear', 'main-esc'],
+    ['balance-gear', 'main-esc'],
+    ['trans-spin', 'main-esc'],
+];
+
+/** 给每根轴补一个落脚的部件（齿轮的原点、托着它那层的高度），画轴身和落脚处的一圈。 */
+const appendPendoloArbors = (
+    base: PendoloMeshBuilder,
+    parts: PendoloCachedPart[],
+    partKeys: Map<string, number>,
+    palette: ReturnType<typeof buildPendoloClockworkPalette>,
+    baseRadius: number,
+) => {
+    const radius = Math.max(2.5, baseRadius * 0.011);
+    const [r, g, b, a] = parseRgba(palette.gearPrimarySubtleAlpha);
+    const body: [number, number, number, number] = [r, g, b, a * 0.35];
+    const collar: [number, number, number, number] = [r, g, b, a * 0.8];
+    for (const [gearKey, footKey] of PENDOLO_ARBORS) {
+        const gearId = partKeys.get(gearKey);
+        if (gearId === undefined) continue;
+        const footHeight = resolvePendoloPartHeight(footKey);
+        if (resolvePendoloPartHeight(`${gearKey}${PENDOLO_PART_BASE_SUFFIX}`) - footHeight < 0.005) continue;
+        if (parts.length >= PENDOLO_MAX_PARTS) {
+            console.warn('[pendoloClockworkMeshes] exceeded PENDOLO_MAX_PARTS (arbors)');
+            return;
+        }
+        const footId = parts.length;
+        parts.push({ getOrigin: parts[gearId].getOrigin, getRotation: fixedRotation(0), height: footHeight });
+        base.appendTube(radius, gearId, footId, body);
+        base.setActivePartId(footId);
+        base.appendCircleStroke(0, 0, radius, 1, collar, 20);
+    }
 };
 
 /** 洞所在的部件和它要抠的那块面不是同一个部件时（转向不同），在这里对上。 */

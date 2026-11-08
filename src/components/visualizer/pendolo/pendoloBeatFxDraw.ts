@@ -12,6 +12,7 @@ import {
     type PendoloWaveFrame,
 } from './pendoloBeatFx';
 import { resolvePendoloClockworkAnchors, type PendoloClockworkFrameInput, type PendoloClockworkLayout } from './pendoloClockworkScene';
+import { PENDOLO_BEAT_OVERLAY_HEIGHT, resolvePendoloPartHeight } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloBeatFxDraw.ts
 // Where 时计's beat effects land on the clockwork, and how each renderer draws them: the lit ticks,
@@ -46,17 +47,19 @@ interface Jewel {
     x: number;
     y: number;
     small: boolean;
+    /** 分层视差时这颗宝石离表盘平面的高度（轮盘半径的比例），亮斑要和宝石浮在同一层。 */
+    height: number;
 }
 
 /** The jewel bearings that flare: the hub and the balance are the large ones. */
 const resolveJewels = (input: PendoloClockworkFrameInput): Jewel[] => {
     const anchors = resolvePendoloClockworkAnchors(input);
     const jewels: Jewel[] = [
-        { x: input.centerX, y: input.centerY, small: false },
-        { x: anchors.balanceCx, y: anchors.balanceCy, small: false },
-        { x: anchors.transCx, y: anchors.transCy, small: true },
-        { x: anchors.secondGearCx, y: anchors.secondGearCy, small: true },
-        { x: anchors.idlerCx, y: anchors.idlerCy, small: true },
+        { x: input.centerX, y: input.centerY, small: false, height: resolvePendoloPartHeight('main-jewel') },
+        { x: anchors.balanceCx, y: anchors.balanceCy, small: false, height: resolvePendoloPartHeight('balance-static') },
+        { x: anchors.transCx, y: anchors.transCy, small: true, height: resolvePendoloPartHeight('trans-jewel') },
+        { x: anchors.secondGearCx, y: anchors.secondGearCy, small: true, height: resolvePendoloPartHeight('second-jewel') },
+        { x: anchors.idlerCx, y: anchors.idlerCy, small: true, height: resolvePendoloPartHeight('idler-static') },
     ];
     for (let index = 0; index < 3; index += 1) {
         const angle = input.escapementAngle * 0.4 + (index * Math.PI * 2) / 3;
@@ -64,6 +67,7 @@ const resolveJewels = (input: PendoloClockworkFrameInput): Jewel[] => {
             x: input.centerX + anchors.orbitR * Math.cos(angle),
             y: input.centerY + anchors.orbitR * Math.sin(angle),
             small: true,
+            height: resolvePendoloPartHeight(`planet-${index}-jewel`),
         });
     }
     return jewels;
@@ -112,8 +116,11 @@ const hasOverlay = (fx: PendoloBeatFxDrawFrame) => {
 
 // ---------- WebGL: overlay as a vertex list ----------
 
-/** Floats per overlay vertex: x, y (CSS px), r, g, b, a (premultiplied), u, v (u < -1 = solid). */
-export const PENDOLO_OVERLAY_STRIDE = 8;
+/**
+ * Floats per overlay vertex: x, y (CSS px), r, g, b, a (premultiplied), u, v (u < -1 = solid),
+ * height（分层视差的高度，轮盘半径的比例；着色器再乘视差强度）。
+ */
+export const PENDOLO_OVERLAY_STRIDE = 9;
 /** Enough for every tick, the dial twice, every jewel and two segments per spark, six vertices per quad. */
 export const PENDOLO_OVERLAY_MAX_VERTICES = (TICK_COUNT + DIAL_SEGMENTS * 4 + 8 + PENDOLO_MAX_SPARKS * 2) * 6;
 
@@ -124,6 +131,7 @@ const pushQuad = (
     color: readonly [number, number, number],
     alpha: number,
     radial: boolean,
+    height = PENDOLO_BEAT_OVERLAY_HEIGHT,
 ): number => {
     const [x0, y0, x1, y1, x2, y2, x3, y3] = corners;
     const r = (color[0] / 255) * alpha;
@@ -144,6 +152,7 @@ const pushQuad = (
         out[offset + 5] = alpha;
         out[offset + 6] = radial ? u : -2;
         out[offset + 7] = radial ? v : -2;
+        out[offset + 8] = height;
         offset += PENDOLO_OVERLAY_STRIDE;
     }
     return at + 6;
@@ -228,7 +237,7 @@ export const buildPendoloBeatFxOverlay = (
             const flare = jewel.small ? Math.max(fx.jewelFlare, fx.smallJewelFlare) : fx.jewelFlare;
             if (flare <= 0.01) continue;
             const r = flareRadius(flare, jewel.small);
-            at = pushQuad(out, at, [jewel.x - r, jewel.y - r, jewel.x + r, jewel.y - r, jewel.x - r, jewel.y + r, jewel.x + r, jewel.y + r], hot, Math.min(1, flare), true);
+            at = pushQuad(out, at, [jewel.x - r, jewel.y - r, jewel.x + r, jewel.y - r, jewel.x - r, jewel.y + r, jewel.x + r, jewel.y + r], hot, Math.min(1, flare), true, jewel.height);
         }
     }
     const tail = fx.color;
