@@ -479,7 +479,7 @@ export class PendoloClockworkRenderer {
         this.gl = gl;
         // 上下文属性只是请求，实际拿没拿到要问；缺一个就不做遮挡，免得洞抠不出来整块面挡住
         const attributes = gl.getContextAttributes();
-        this.canOcclude = Boolean(depthStencil && attributes?.depth && attributes?.stencil);
+        this.canOcclude = Boolean(depthStencil && attributes?.depth && attributes.stencil);
         this.meshProgram = linkProgram(gl, VERT, FRAG);
         this.gradProgram = linkProgram(gl, GRAD_VERT, GRAD_FRAG);
         this.coverProgram = linkProgram(gl, COVER_VERT, COVER_FRAG);
@@ -875,8 +875,8 @@ export class PendoloClockworkRenderer {
      * 写深度时跳过洞；之后的线和填色按深度测试画，被上层齿轮挡住的就不画。网格程序和高度表已经设好。
      */
     private drawOccluders(scene: PendoloCachedScene, heightScale: number) {
-        const gl = this.gl!;
-        if (!scene.faceData || !scene.faces) return false;
+        const gl = this.gl;
+        if (!gl || !scene.faceData || !scene.faces) return false;
         if (!this.faceVbo) {
             this.faceVbo = gl.createBuffer();
             this.faceVao = gl.createVertexArray();

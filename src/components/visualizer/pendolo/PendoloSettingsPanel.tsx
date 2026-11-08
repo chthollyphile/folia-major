@@ -24,16 +24,20 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
     const render = resolvedTuning.render ?? DEFAULT_PENDOLO_TUNING.render;
     const mirrored = resolvedTuning.mirrorLayout === true;
     // 「时计参数」这一组的恢复默认：只还原这一组的项，渲染（分辨率与抗锯齿）那一组不动
-    const { render: _defaultRender, ...groupDefaults } = DEFAULT_PENDOLO_TUNING;
-    const groupCustomized = (Object.keys(groupDefaults) as (keyof typeof groupDefaults)[])
-        .some(key => (resolvedTuning[key] ?? groupDefaults[key]) !== groupDefaults[key]);
+    const groupKeys = (Object.keys(DEFAULT_PENDOLO_TUNING) as (keyof PendoloTuning)[])
+        .filter(key => key !== 'render');
+    const groupDefaults = Object.fromEntries(
+        groupKeys.map(key => [key, DEFAULT_PENDOLO_TUNING[key]]),
+    ) as Partial<PendoloTuning>;
+    const groupCustomized = groupKeys
+        .some(key => (resolvedTuning[key] ?? DEFAULT_PENDOLO_TUNING[key]) !== DEFAULT_PENDOLO_TUNING[key]);
 
     return (
         <>
             <Group
                 def={PENDOLO_GROUP}
                 action={groupCustomized ? (
-                    <Button variant="quiet" onClick={() => onPendoloTuningChange?.(groupDefaults)}>
+                    <Button variant="quiet" onClick={() => onPendoloTuningChange(groupDefaults)}>
                         {t('options.pendoloSettingsReset')}
                     </Button>
                 ) : undefined}
@@ -41,7 +45,7 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                 <ToggleRow
                     label={t('options.pendoloMirrorLayout')}
                     checked={mirrored}
-                    onChange={(next) => onPendoloTuningChange?.({ mirrorLayout: next })}
+                    onChange={(next) => onPendoloTuningChange({ mirrorLayout: next })}
                 />
                 <SliderRow
                     {...drag}
@@ -81,7 +85,7 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     max={PENDOLO_TILT_LIMIT_DEG}
                     step={1}
                     format={(value) => `${Math.round(value)}°`}
-                    onChange={(value) => onPendoloTuningChange?.({ tiltDeg: value })}
+                    onChange={(value) => onPendoloTuningChange({ tiltDeg: value })}
                 />
                 <SliderRow
                     {...drag}
@@ -91,7 +95,7 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     max={90}
                     step={1}
                     format={(value) => `${Math.round(value)}°`}
-                    onChange={(value) => onPendoloTuningChange?.({ tiltAxisDeg: value })}
+                    onChange={(value) => onPendoloTuningChange({ tiltAxisDeg: value })}
                 />
                 <SliderRow
                     {...drag}
@@ -101,7 +105,7 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
                     max={2}
                     step={0.05}
                     format={times}
-                    onChange={(value) => onPendoloTuningChange?.({ parallaxDepth: value })}
+                    onChange={(value) => onPendoloTuningChange({ parallaxDepth: value })}
                 />
                 <SliderRow
                     {...drag}

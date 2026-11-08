@@ -102,9 +102,9 @@ describe('pendolo mirrored layout', () => {
         const mirrored = calculatePendoloWheelLayout(lines, 2, 0, 1000, 800, { ...tuning, mirrorLayout: true });
         expect(mirrored).toHaveLength(plain.length);
         mirrored.forEach((item, index) => {
-            expect(item.x).toBeCloseTo(1000 - plain[index]!.x);
-            expect(item.y).toBeCloseTo(plain[index]!.y);
-            expect(item.angleDeg).toBeCloseTo(plain[index]!.angleDeg);
+            expect(item.x).toBeCloseTo(1000 - plain[index].x);
+            expect(item.y).toBeCloseTo(plain[index].y);
+            expect(item.angleDeg).toBeCloseTo(plain[index].angleDeg);
         });
     });
 });

@@ -684,8 +684,9 @@ export const buildPendoloClockworkCachedScene = (
     // 同一个部件的低处线共用一个部件编号（同一原点、转角和高度）
     const baseIds = new Map<string, number>();
     for (const outline of mesh.gearOutlines) {
-        const source = parts[partKeys.get(outline.partKey) ?? -1];
-        if (!source) continue;
+        const sourceId = partKeys.get(outline.partKey);
+        if (sourceId === undefined) continue;
+        const source = parts[sourceId];
         let baseId = baseIds.get(outline.partKey);
         if (baseId === undefined) {
             if (parts.length >= PENDOLO_MAX_PARTS) {
@@ -704,7 +705,7 @@ export const buildPendoloClockworkCachedScene = (
         if (outline.kind === 'polyline') {
             // 齿形一圈：高处线和低处线之间补上侧壁，齿轮看起来是立在下层上的一块
             const [wr, wg, wb, wa] = outline.rgba;
-            base.appendWall(outline.pts, partKeys.get(outline.partKey)!, baseId, [wr, wg, wb, wa * PENDOLO_GEAR_WALL_ALPHA]);
+            base.appendWall(outline.pts, sourceId, baseId, [wr, wg, wb, wa * PENDOLO_GEAR_WALL_ALPHA]);
             base.setActivePartId(baseId);
             base.appendPolyline(outline.pts, outline.lineWidth, outline.rgba, true);
         } else {
