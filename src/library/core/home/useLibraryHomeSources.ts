@@ -75,9 +75,9 @@ export const useLibraryHomeSources = ({
         fallbackPlaylists: playlists,
         fallbackCloud: cloudPlaylist,
         platformAvailable: true,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- capabilities 每次读都是新对象，有意按下面用到的几个开关比较
     }), [
         // capabilities 每次读都是新对象：按用到的几个开关比较。
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         canListPlaylists, cloudPlaylist, explore, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
     ]);
 
