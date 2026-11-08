@@ -66,6 +66,15 @@ describe('applyImportedConfig', () => {
         expect([card.stageTrackPillMode, card.stageTrackPillTimeoutSec]).toEqual(['never', 12]);
     });
 
+    // 用户 2026-11-08 定：歌词画布的分辨率与抗锯齿进外观配置（OBS 页面看得到）；导出带上，导入读成合法值
+    it('exports and imports the lyric render quality', () => {
+        useVisualizerSettingsStore.getState().handleSetLyricRenderQuality({ scale: 1.5, antialias: 'on' });
+        expect((buildCurrentConfig(controls(), 'none') as Record<string, unknown>).lyricRenderQuality).toEqual({ scale: 1.5, antialias: 'on' });
+        applyImportedConfig({ lyricRenderQuality: { scale: 0.75, antialias: 'sharp' } }, ['lyricRenderQuality'], controls());
+        expect(useVisualizerSettingsStore.getState().lyricRenderQuality).toEqual({ scale: 0.75, antialias: 'auto' });
+        useVisualizerSettingsStore.getState().handleSetLyricRenderQuality({ scale: 1, antialias: 'auto' });
+    });
+
     it('turns following the system theme on and off', () => {
         applyImportedConfig({ followSystemTheme: true }, ['followSystemTheme'], controls());
         expect(useThemeSettingsStore.getState().followSystemTheme).toBe(true);

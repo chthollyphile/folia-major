@@ -109,6 +109,8 @@ beforeAll(() => {
         },
         getModelsDirs: () => [path.join(REPO, 'models')],
         idleMs: IDLE_MS, // the real two minutes, compressed so the test is not the wait
+        // main.cjs 注入第一方窗口的判断；这里的调用都当成来自主窗口
+        isTrustedSender: () => true,
     });
     cpus.mockRestore();
 });

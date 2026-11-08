@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTrackTitlePreview, type TrackNavSide } from '../../hooks/useTrackTitlePreview';
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
+import { useSupportsFinePointer } from '../../hooks/useSupportsFinePointer';
 // src/components/floating-player/TrackTitleNavigator.tsx
 
 const PREVIEW_OPACITY = 0.55;
@@ -57,7 +58,9 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
         leaveZone,
         beginSwitch,
     } = useTrackTitlePreview({ title, trackKey, prevTitle, nextTitle, disabled });
-    const alwaysShowArrows = usePlayerChromeSettingsStore(state => state.alwaysShowTrackSwitchButtons);
+    // 主指针是触屏时没有悬停可言，箭头常显，等同开了“始终显示切歌按钮”（progress-bar v3）。
+    const supportsFinePointer = useSupportsFinePointer();
+    const alwaysShowArrows = usePlayerChromeSettingsStore(state => state.alwaysShowTrackSwitchButtons) || !supportsFinePointer;
 
     const isPreview = previewTitle !== null;
     const zoneClass = 'absolute inset-y-0 flex items-center';
@@ -85,6 +88,21 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
                 title={target || label}
                 className={arrowClass}
                 style={{ color }}
+                // 手指没有悬停，预告改成按住：按下就预告那一侧的曲名，抬起（click）切歌，滑出箭头取消。
+                // 触屏按下时浏览器会把指针隐式捕获到按钮上，先放掉，滑出去才会有 pointerleave、抬起也不再算点到按钮。
+                onPointerDown={(e) => {
+                    if (e.pointerType !== 'touch') return;
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                    enterZone(side);
+                }}
+                onPointerLeave={(e) => {
+                    if (e.pointerType === 'touch') leaveZone();
+                }}
+                onPointerCancel={(e) => {
+                    if (e.pointerType === 'touch') leaveZone();
+                }}
                 onClick={(e) => {
                     // 必须拦住冒泡：胶囊自身的 onClick 会导航到 player 页
                     e.stopPropagation();
@@ -99,18 +117,19 @@ const TrackTitleNavigator: React.FC<TrackTitleNavigatorProps> = ({
 
     return (
         <div className="group/title relative min-w-0 select-none px-1">
-            {/* 感应区比箭头宽，指针「靠近」箭头即可预览；区内非箭头处的点击不拦截 */}
+            {/* 感应区比箭头宽，指针「靠近」箭头即可预览；区内非箭头处的点击不拦截。
+                只认鼠标和笔：手指点完后浏览器补发的 mouseenter 会让预告一直挂着，手指的预告走箭头上的按住。 */}
             <div
                 className={`${zoneClass} left-0 w-14 justify-start pl-1`}
-                onMouseEnter={() => enterZone('prev')}
-                onMouseLeave={leaveZone}
+                onPointerEnter={(e) => { if (e.pointerType !== 'touch') enterZone('prev'); }}
+                onPointerLeave={(e) => { if (e.pointerType !== 'touch') leaveZone(); }}
             >
                 {renderArrow('prev')}
             </div>
             <div
                 className={`${zoneClass} right-0 w-14 justify-end pr-1`}
-                onMouseEnter={() => enterZone('next')}
-                onMouseLeave={leaveZone}
+                onPointerEnter={(e) => { if (e.pointerType !== 'touch') enterZone('next'); }}
+                onPointerLeave={(e) => { if (e.pointerType !== 'touch') leaveZone(); }}
             >
                 {renderArrow('next')}
             </div>

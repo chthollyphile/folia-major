@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 // test/unit/wall/wallBoundaries.test.ts
 // 共享 wall 引擎（src/components/wall）与内容无关：Lattice 和资料库 suite 都 import 它，它不能反过来依赖
-// 任何一方——不碰 components/app（Lattice 在 components/app/lattice）和 src/library。与 codemap.mjs 的
-// BOUNDARY_RULES 同一条规则；这里连 `import type` 一起查，类型依赖同样会把两边绑死。
+// 任何一方——不碰 components/app（Lattice 在 components/app/lattice）和 src/library。与 Dedicatus 的
+// BOUNDARY_RULES（dev/dedicatus/rules.mjs）同一条规则；这里连 `import type` 一起查，类型依赖同样会把两边绑死。
 
 const ROOT = path.resolve(__dirname, '../../..');
 const WALL = 'src/components/wall';

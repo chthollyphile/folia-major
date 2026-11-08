@@ -3560,6 +3560,7 @@ export default {
     "gpuPreferenceActive": "当前使用",
     "visualizerFrameRateValue": "限制档位",
     "lyricRenderScale": "歌词画布分辨率",
+    "importFieldLyricRenderQuality": "歌词画布分辨率与抗锯齿",
     "lyricRenderScaleDesc": "用 canvas / WebGL 画的歌词样式（町景、花火、绘光、雾笺等）按这个倍数渲染，1× 是各样式原来的清晰度；高于 1× 是超采样，边缘更细，也更吃显卡。各样式默认跟随这里，也能在样式自己的设置里单独指定。",
     "lyricAntialias": "歌词画布抗锯齿",
     "lyricAntialiasDesc": "自动是各样式自己的默认；打开时几何边缘（线条、卡片、色块）更平滑，代价是显存和一点帧率。各样式默认跟随这里。",

@@ -3,6 +3,10 @@
 // addressed, and the now-playing pill's presentation.
 //
 // Split out of useSettingsUiStore.
+//
+// @note enable_now_playing_stage、enable_playercap_stage、playercap_*（4 个）、obs_keep_main_window_animation、web_obs_theme_mode（主题方式另有链接参数 obsTheme） 是用户明确决定「不进外观配置导入导出」的设置（2026-11-08）：配置码也用于 web 版 OBS 链接，
+// 只加 OBS 页面看得到的，这些在 OBS 页面上看不到。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 import { create } from 'zustand';
 import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';

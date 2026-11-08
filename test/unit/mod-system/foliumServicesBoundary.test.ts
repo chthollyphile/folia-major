@@ -63,7 +63,7 @@ const walkRuntimeClosure = (entry: string, { dynamic = true }: { dynamic?: boole
     return { files: [...packagesByFile.keys()].sort(), packagesByFile, unresolved };
 };
 
-describe('folium services import boundary', () => {
+describe('D114 folium services import boundary', () => {
     const closure = walkRuntimeClosure(ENTRY);
 
     it('walks the whole runtime closure of services.ts', () => {
@@ -102,7 +102,7 @@ describe('folium services import boundary', () => {
  * - service.ts 和 requestQuota.ts 确实在闭包里（否则上面两条会因为没走到而安静地为绿）。
  * 不照搬「不含 src/stores」：api.ts 的闭包本来就含 useMotionSettingsStore 等。
  */
-describe('folium.omni import boundary', () => {
+describe('D114 folium.omni import boundary', () => {
     const API = 'src/mods/folium/api.ts';
     const loaded = walkRuntimeClosure(API, { dynamic: false });
     const reachable = walkRuntimeClosure(API);

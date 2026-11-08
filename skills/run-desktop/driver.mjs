@@ -226,7 +226,6 @@ async function runServer(flags) {
       return stringify(await page.evaluate(args.join(' ')));
     },
     async 'main-eval'(args) {
-      // eslint-disable-next-line no-new-func
       const fn = new Function('electron', `return (async () => (${args.join(' ')}))();`);
       return stringify(await app.evaluate(fn));
     },

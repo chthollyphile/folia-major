@@ -36,7 +36,6 @@ const toSourceActions = (port: LibraryMutationPort) => ({
     },
 });
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GridView.tsx（P1 末）里的分支布尔与按钮条件，原样。
 const gridViewReference = ({
     collection,
@@ -133,7 +132,6 @@ const gridViewReference = ({
         },
     };
 };
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const noop = async () => {};
 const FULL_PORT: LibraryMutationPort = {

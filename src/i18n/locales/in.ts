@@ -3560,6 +3560,7 @@ export default {
     "gpuPreferenceActive": "Sedang dipakai",
     "visualizerFrameRateValue": "Batas",
     "lyricRenderScale": "Resolusi kanvas lirik",
+    "importFieldLyricRenderQuality": "Resolusi dan anti-aliasing kanvas lirik",
     "lyricRenderScaleDesc": "Gaya lirik yang digambar dengan canvas atau WebGL (Machi, Hanabi, Lumiere, Nebbia, dan lainnya) dirender pada kelipatan ini; 1× adalah ketajaman bawaan tiap gaya, di atas 1× melakukan supersampling untuk tepi lebih halus dengan beban GPU lebih besar. Setiap gaya mengikuti ini kecuali pengaturannya sendiri memilih nilai lain.",
     "lyricAntialias": "Anti-aliasing kanvas lirik",
     "lyricAntialiasDesc": "Otomatis memakai bawaan tiap gaya; Aktif menghaluskan tepi geometris (garis, kartu, blok warna) dengan biaya memori video dan sedikit laju bingkai. Setiap gaya mengikuti ini secara bawaan.",

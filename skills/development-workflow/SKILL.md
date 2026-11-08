@@ -55,6 +55,7 @@ description: Use for code changes in this repository (feature, non-trivial fix, 
 审查之前先把自己能查出来的问题查掉，别让子代理替你跑类型检查：
 
 - `npm run typecheck`。
+- `npm run dedicatus`（分层边界、循环依赖）和 `npm run lint`（ESLint，先 `npm run lint:install`）：没有新问题。
 - 按 `testing-strategy` 选验证方式：逻辑改动跑相关的单测，该加测试的加上；界面改动看热加载的开发服务器或浏览器预览；主进程和 IPC 改动按 `run-desktop` 在真桌面版里看。
 - 自己读一遍完整改动：`git diff <基点>` 看已跟踪文件（含未提交的部分）；它不列未跟踪的新文件，用 `git status --short` 找出 `??` 开头的逐个打开读。看有没有调试残留、漏掉的 i18n 语言文件、没清理的监听器和 `requestAnimationFrame`、改了名的存储键。
 

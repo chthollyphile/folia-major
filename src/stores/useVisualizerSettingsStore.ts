@@ -9,6 +9,11 @@
 // (its `storage`), its field and its actions are built from that declaration by `tuningFields`,
 // and its part of the type comes from VisualizerTuningSettings, which each tuning.ts adds to. A
 // background's settings that are no tuning object come whole from its settings.ts.
+//
+// @note 帧率上限（visualizer_frame_rate）和辉光模糊量化（visualizer_glow_blur_quantize）是用户明确决定「不进外观配置导入导出」的
+// 设置（2026-11-08）：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的；OBS 的浏览器源按 OBS 自己设的帧率渲染，辉光量化
+// 开关看起来几乎一样。同一批里的歌词画布分辨率与抗锯齿（lyricRenderQuality）进了配置码。不要按 settings-feature-integration
+// 「视觉设置必须进 buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把这两个补进去。
 
 import { create } from 'zustand';
 import { getVisualizerModeLabel } from '../components/visualizer/registry';
