@@ -152,8 +152,16 @@ type RuleTesterClass = {
 };
 const RUNTIME = path.resolve(__dirname, '../../../dev/dedicatus/lint/package.json');
 const hasRuntime = existsSync(path.resolve(__dirname, '../../../dev/dedicatus/lint/node_modules/eslint'));
+/**
+ * 装了 ESLint 隔离环境才注册这一组。不能用 describe.skipIf：vitest 跳过一组时仍会执行它的回调（为了收集里面的测试），
+ * 回调开头解析 eslint 就会抛错。单测任务没装这个环境，这些用例在 CI 的 Lint 任务里跑。
+ */
+const describeWithLintRuntime = (name: string, body: () => Promise<void>) => {
+    if (hasRuntime) describe(name, body);
+    else describe.skip(name, () => { it.skip('需要先 npm run lint:install', () => undefined); });
+};
 
-describe.skipIf(!hasRuntime)('dedicatus project rules (ESLint)', async () => {
+describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
     const eslintEntry = createRequire(RUNTIME).resolve('eslint');
     // eslint 只装在隔离环境里，根目录的 tsc 解析不到它的类型：这里只描述用到的那一点。
     const { RuleTester } = await import(pathToFileURL(eslintEntry).href) as { RuleTester: RuleTesterClass };

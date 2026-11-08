@@ -112,9 +112,9 @@ jobs:
         if: steps.lint-runtime.outputs.cache-hit != 'true'
         run: npm run lint:install
 
-      # 项目约定规则的自测：单测任务里没有 lint 环境，这几条在那边是跳过的。
+      # 项目约定规则的自测（RuleTester）：单测任务里没有 lint 环境，这些用例在那边是跳过的。
       - name: Test Dedicatus lint rules
-        run: npx vitest run -c vitest.config.ts test/unit/dedicatus/eslintRules.test.ts
+        run: npx vitest run -c vitest.config.ts test/unit/dedicatus/eslintRules.test.ts test/unit/dedicatus/projectRules.test.ts
 
       - name: Lint
         run: npm run dedicatus -- --lint --github ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '--no-base' }}
