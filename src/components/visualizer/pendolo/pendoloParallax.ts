@@ -22,6 +22,8 @@ const PART_HEIGHTS: Array<[prefix: string, height: number]> = [
     ['balance-static', 0.18],
     ['balance-gear', 0.2],
     ['hairspring', 0.22],
+    // 最外圈表盘的顶圈：和底下那圈（main-static）一高一低，表盘看得出厚度；只在视差开着时生成
+    ['bezel-top', 0.22],
     // 刻度针（焦点轴）指着焦点句，和歌词在同一层，略高于主轮，倾斜时一起浮起来
     ['axis', 0.1],
 ];
