@@ -19,6 +19,16 @@ import { comments, globals, js, reactHooks, stylistic, tseslint } from './dev/de
 
 /** 带类型信息检查的 TypeScript：用根 tsconfig（api-ts 用它自己的）。 */
 const TYPED = ['src/**/*.{ts,tsx}', 'test/**/*.{ts,tsx,mts}', 'dev/**/*.{ts,tsx}', 'api-ts/**/*.ts', 'worker/**/*.ts', '*.ts'];
+/** 测试文件：类型感知的严格规则不管（见下面测试那一段）。 */
+const TESTS = ['test/**/*.{ts,tsx,mts}', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'];
+/** 测试里也留着的类型感知规则：漏写 await、await 了不是 Promise 的东西、对数组用 delete / for-in，都是真 bug。 */
+const TEST_KEEP = new Set([
+    '@typescript-eslint/no-floating-promises', '@typescript-eslint/no-misused-promises', '@typescript-eslint/await-thenable',
+    '@typescript-eslint/no-array-delete', '@typescript-eslint/no-for-in-array',
+]);
+const rulesOf = configs => Object.assign({}, ...configs.map(config => config.rules ?? {}));
+/** strictTypeChecked 比 strict 多出来的规则：要类型信息的那些（以及被它们替下来的基础规则）。 */
+const TYPE_AWARE_RULES = Object.keys(rulesOf(tseslint.configs.strictTypeChecked)).filter(rule => !(rule in rulesOf(tseslint.configs.strict)));
 /** 应用自己的代码：日志规则（AGENTS.md 的“日志”一节）只管这里，测试、开发脚本和 CLI 的输出不算日志。 */
 const APP_CODE = ['src/**/*.{ts,tsx,js,mjs,cjs}', 'electron/**/*.{ts,js,mjs,cjs}'];
 const SCRIPTS = ['**/*.{js,cjs,mjs}'];
@@ -86,6 +96,8 @@ export default tseslint.config(
         files: SCRIPTS,
         extends: [js.configs.recommended],
         languageOptions: { ecmaVersion: 'latest', globals: { ...globals.browser, ...globals.node } },
+        // 解构时去掉一个字段（const { a: _a, ...rest } = obj）是常见写法，不算没用的变量
+        rules: { 'no-unused-vars': ['error', { ignoreRestSiblings: true }] },
     },
     {
         files: ['**/*.cjs'],
@@ -112,12 +124,27 @@ export default tseslint.config(
             '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true, allowBoolean: true }],
             '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
             '@typescript-eslint/switch-exhaustiveness-check': 'error',
+            // 解构时去掉一个字段（const { render: _render, ...rest } = tuning）是常见写法（#1146 演习）
+            '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
             'react-hooks/rules-of-hooks': 'error',
             'react-hooks/exhaustive-deps': 'error',
             'no-restricted-syntax': ['error', {
                 selector: "JSXOpeningElement[name.name='select']",
                 message: 'D410：不用系统 <select>，设置页用 settings/kit 的 Select，别处用 shared/CustomSelect。',
             }],
+        },
+    },
+    // 测试文件：类型感知的严格规则（no-unsafe-*、require-await、多余的断言……）和非空断言、any 都不管。
+    // 2026-11-08 拿 open PR 演习：PR 里的 D490 九成在测试文件，旧账里测试文件占 2.5 万条；留下 TEST_KEEP 里抓真 bug 的几条。
+    {
+        files: TESTS,
+        rules: {
+            ...Object.fromEntries(TYPE_AWARE_RULES.filter(rule => !TEST_KEEP.has(rule)).map(rule => [rule, 'off'])),
+            '@typescript-eslint/switch-exhaustiveness-check': 'off',
+            '@typescript-eslint/no-non-null-assertion': 'off',
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-invalid-void-type': 'off',
+            '@typescript-eslint/no-dynamic-delete': 'off',
         },
     },
     // 热路径与界面文案（D440、D441、D443）：只管应用的渲染进程代码
@@ -133,7 +160,12 @@ export default tseslint.config(
         files: ['src/**/*.tsx'],
         ignores: ['src/dev/**'],
         rules: {
-            'dedicatus/ui-literal-text': ['error', { allow: ['Folia', 'Folium', 'Bravais', 'Lattice', 'Navidrome', 'GitHub', 'OBS', 'Stage', 'Discord'] }],
+            // 品牌名、产品名、协议名、单位不翻译（D443 是 warning，不阻断）
+            'dedicatus/ui-literal-text': ['error', { allow: [
+                'Folia', 'Folium', 'Bravais', 'Lattice', 'Navidrome', 'OpenSubsonic', 'Subsonic', 'GitHub', 'OBS', 'Stage', 'Discord',
+                'Now Playing', 'Spotify', 'Apple Music', 'YouTube Music', 'DLNA', 'UPnP', 'Dux',
+                'dB', 'Hz', 'kHz', 'ms', 'fps', 'px', 'kbps',
+            ] }],
         },
     },
     {
@@ -148,5 +180,9 @@ export default tseslint.config(
                 { object: 'window', property: 'sessionStorage', message: 'D411：组件不直接读写 sessionStorage，放进 src/stores。' },
             ],
         },
+    },
+    // 控制字符的正则在这里都是故意的：清洗歌词和标题里的控制字符（#1048 演习）
+    {
+        rules: { 'no-control-regex': 'off' },
     },
 );

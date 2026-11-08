@@ -44,6 +44,14 @@ describe('dedicatus output for readers', () => {
         expect(findings.filter(finding => finding.code === 'D413')).toHaveLength(1);
     });
 
+    it('puts the notices without a line last, after style', () => {
+        const notice = (file: string) => ({ code: 'D490', file, rule: '@typescript-eslint/no-unsafe-call', level: 'notice', message: '另有 4 条不在新写的行上', key: `D490:${file}:folded` });
+        const fresh = [notice('src/a.ts'), notice('src/b.ts'), indent('src/c.ts', 1), strict('src/d.ts', 9), { code: 'D311', file: 'src/play.ts', line: 3, message: 'x', key: 'D311:z' }];
+        expect(compressForReaders(fresh).findings.map(finding => `${finding.code} ${finding.file}`)).toEqual([
+            'D311 src/play.ts', 'D490 src/d.ts', 'D430 src/c.ts', 'D490 src/a.ts', 'D490 src/b.ts',
+        ]);
+    });
+
     it('only sorts, without folding, for the local text output', () => {
         const fresh = [indent('src/cast.tsx', 1), indent('src/cast.tsx', 2), { code: 'D311', file: 'src/play.ts', line: 9, message: 'x', key: 'D311:y' }];
         const { findings, styleCount } = compressForReaders(fresh, { fold: false });

@@ -80,7 +80,38 @@ export function extractTree(root, ref, pathspecs) {
     }
 }
 
-/** 基点到工作区（含未提交的改动）的 diff：零上下文、识别改名、固定 a/ b/ 前缀（不受用户 diff 配置影响）。 */
+/**
+ * 基点到工作区（含未提交的改动）的 diff：零上下文、识别改名、固定 a/ b/ 前缀（不受用户 diff 配置影响）。
+ * 不含还没 `git add` 的新文件，它们由 untrackedFiles + diff.mjs 的 addedFileDiff 补上。
+ */
 export function diffFrom(root, base) {
     return git(root, ['diff', '-U0', '-M', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', base]);
+}
+
+/** 文本文件最大读多少：再大的多半是生成的数据，不当成这次写的代码。 */
+const MAX_UNTRACKED_BYTES = 2 * 1024 * 1024;
+
+/**
+ * 还没 `git add` 的新文件（遵守 .gitignore），连同内容。代理和人常在 add 之前就跑检查，
+ * 漏了它们的话新文件里的问题一条都不报（2026-11-08 云端实测）。目录（嵌套的仓库）、二进制和太大的文件跳过。
+ * @returns {{ file: string, text: string }[]}
+ */
+export function untrackedFiles(root) {
+    const listed = git(root, ['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean);
+    const files = [];
+    for (const file of listed) {
+        if (file.endsWith('/')) continue;
+        const full = path.join(root, file);
+        let stat;
+        try {
+            stat = fs.statSync(full);
+        } catch {
+            continue;
+        }
+        if (!stat.isFile() || stat.size > MAX_UNTRACKED_BYTES) continue;
+        const bytes = fs.readFileSync(full);
+        if (bytes.subarray(0, 8000).includes(0)) continue;
+        files.push({ file, text: bytes.toString('utf8') });
+    }
+    return files;
 }
