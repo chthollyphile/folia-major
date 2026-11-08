@@ -3018,6 +3018,7 @@ export default {
     "claddaghLetterSpacingOffset": "Jarak Huruf",
     "pendoloSettings": "Pengaturan Pendolo",
     "pendoloSettingsDesc": "Kontrol posisi pusat roda, radius busur, sebaran sudut, ketegasan escapement, dan intensitas ayunan pendulum.",
+    "pendoloSettingsReset": "Atur Ulang",
     "pendoloWheelCenterX": "Pusat Roda X (0 = Tepi Kiri)",
     "pendoloArcRadius": "Radius Busur",
     "pendoloArcAngleDeg": "Sebaran Sudut Busur",

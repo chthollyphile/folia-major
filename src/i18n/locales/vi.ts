@@ -3018,6 +3018,7 @@ export default {
     "claddaghLetterSpacingOffset": "Khoảng cách ký tự",
     "pendoloSettings": "Cài đặt Pendolo",
     "pendoloSettingsDesc": "Điều chỉnh tâm bánh xe, bán kính cung, góc tỏa và độ nảy bộ hồi.",
+    "pendoloSettingsReset": "Khôi phục mặc định",
     "pendoloWheelCenterX": "Tọa độ X tâm bánh xe (0 = Cạnh trái)",
     "pendoloArcRadius": "Bán kính cung",
     "pendoloArcAngleDeg": "Góc tỏa cung tròn",

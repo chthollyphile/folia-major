@@ -1,6 +1,6 @@
 import React from 'react';
 import { DEFAULT_PENDOLO_TUNING, type PendoloTuning } from '../../../types';
-import { Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
+import { Button, Group, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import { type VisualizerSettingsPanelProps } from '../definition';
 import { percent, SliderRow, times, ToggleRow } from '../panelRows';
 import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
@@ -23,10 +23,21 @@ const PendoloSettingsPanel: React.FC<VisualizerSettingsPanelProps<PendoloTuning>
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
     const render = resolvedTuning.render ?? DEFAULT_PENDOLO_TUNING.render;
     const mirrored = resolvedTuning.mirrorLayout === true;
+    // 「时计参数」这一组的恢复默认：只还原这一组的项，渲染（分辨率与抗锯齿）那一组不动
+    const { render: _defaultRender, ...groupDefaults } = DEFAULT_PENDOLO_TUNING;
+    const groupCustomized = (Object.keys(groupDefaults) as (keyof typeof groupDefaults)[])
+        .some(key => (resolvedTuning[key] ?? groupDefaults[key]) !== groupDefaults[key]);
 
     return (
         <>
-            <Group def={PENDOLO_GROUP}>
+            <Group
+                def={PENDOLO_GROUP}
+                action={groupCustomized ? (
+                    <Button variant="quiet" onClick={() => onPendoloTuningChange?.(groupDefaults)}>
+                        {t('options.pendoloSettingsReset')}
+                    </Button>
+                ) : undefined}
+            >
                 <ToggleRow
                     label={t('options.pendoloMirrorLayout')}
                     checked={mirrored}

@@ -3018,6 +3018,7 @@ export default {
     "claddaghLetterSpacingOffset": "Letter Spacing",
     "pendoloSettings": "Pendolo Settings",
     "pendoloSettingsDesc": "Control wheel center position, arc radius, angle spread, escapement snappiness, and pendulum swing intensity.",
+    "pendoloSettingsReset": "Reset",
     "pendoloWheelCenterX": "Wheel Center X (0 = Left Edge)",
     "pendoloArcRadius": "Arc Radius",
     "pendoloArcAngleDeg": "Arc Angle Spread",
