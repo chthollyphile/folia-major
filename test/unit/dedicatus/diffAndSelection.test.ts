@@ -75,22 +75,135 @@ describe('dedicatus diff parsing', () => {
             'diff --git a/src/big.ts b/src/big.ts',
             '--- a/src/big.ts',
             '+++ b/src/big.ts',
-            '@@ -10,2 +10,0 @@',
+            '@@ -10,5 +10,0 @@',
             '-export const parse = (raw: any) => raw.value;',
+            '-export const parseAll = (rows: any[]) => rows.map(parse);',
+            '-',
+            '-export const parseFirst = (rows: any[]) => parse(rows[0]);',
             '-}',
             'diff --git a/src/big/part.ts b/src/big/part.ts',
             'new file mode 100644',
             '--- /dev/null',
             '+++ b/src/big/part.ts',
-            '@@ -0,0 +1,3 @@',
+            '@@ -0,0 +1,6 @@',
             '+    export const parse = (raw: any) => raw.value;',
+            '+export const parseAll = (rows: any[]) => rows.map(parse);',
+            '+',
+            '+export const parseFirst = (rows: any[]) => parse(rows[0]);',
             '+export const fresh = (input: any) => input;',
             '+}',
         ));
         expect(addedFiles(split)).toEqual(new Set(['src/big/part.ts']));
-        expect(movedLines(split).get('src/big/part.ts')).toEqual(new Set([1]));
+        // 连成一段的三行（中间的空行不打断）算挪过来的
+        expect(movedLines(split).get('src/big/part.ts')).toEqual(new Set([1, 2, 4]));
         // 太短的 `}` 不算挪动：宁可当成新写的
-        expect(writtenLines(split).get('src/big/part.ts')).toEqual(new Set([2, 3]));
+        expect(writtenLines(split).get('src/big/part.ts')).toEqual(new Set([3, 5, 6]));
+    });
+
+    it('does not count a lone common line that happens to match a removed one as moved', () => {
+        const fresh = parseDiff(source(
+            'diff --git a/src/panel.tsx b/src/panel.tsx',
+            '--- a/src/panel.tsx',
+            '+++ b/src/panel.tsx',
+            '@@ -20,2 +20,0 @@',
+            '-            <AnimatePresence>',
+            '-    } catch (error) {',
+            'diff --git a/src/cast.tsx b/src/cast.tsx',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/cast.tsx',
+            '@@ -0,0 +1,4 @@',
+            '+  const devices = useDevices();',
+            '+  <AnimatePresence>',
+            '+  const label = devices.length;',
+            '+  } catch (error) {',
+        ));
+        expect(movedLines(fresh).get('src/cast.tsx')).toBeUndefined();
+        expect(writtenLines(fresh).get('src/cast.tsx')).toEqual(new Set([1, 2, 3, 4]));
+    });
+
+    it('gives a lone match back, so it does not cut a block really moved into another file', () => {
+        const both = parseDiff(source(
+            'diff --git a/src/big.ts b/src/big.ts',
+            '--- a/src/big.ts',
+            '+++ b/src/big.ts',
+            '@@ -30,3 +30,0 @@',
+            '-    try { load(source as any); }',
+            '-    } catch (error) {',
+            '-        report(error as any);',
+            // 排在前面的新文件碰巧也有一行 `} catch (error) {`
+            'diff --git a/src/a/coincidence.ts b/src/a/coincidence.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/a/coincidence.ts',
+            '@@ -0,0 +1,3 @@',
+            '+    try { start(); }',
+            '+    } catch (error) {',
+            '+    console.warn(\'[A] failed\', error);',
+            'diff --git a/src/b/part.ts b/src/b/part.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/b/part.ts',
+            '@@ -0,0 +1,3 @@',
+            '+    try { load(source as any); }',
+            '+    } catch (error) {',
+            '+        report(error as any);',
+        ));
+        expect(movedLines(both).get('src/a/coincidence.ts')).toBeUndefined();
+        expect(movedLines(both).get('src/b/part.ts')).toEqual(new Set([1, 2, 3]));
+    });
+
+    it('does not count two neighbouring lines that were removed from two different places', () => {
+        const scattered = parseDiff(source(
+            'diff --git a/src/a.ts b/src/a.ts',
+            '--- a/src/a.ts',
+            '+++ b/src/a.ts',
+            '@@ -10,1 +10,0 @@',
+            '-        startTime: line.startTime,',
+            '@@ -80,1 +79,0 @@',
+            '-        fullText: line.text,',
+            'diff --git a/src/lines.ts b/src/lines.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/lines.ts',
+            '@@ -0,0 +1,2 @@',
+            '+        startTime: line.startTime,',
+            '+        fullText: line.text,',
+        ));
+        expect(movedLines(scattered).get('src/lines.ts')).toBeUndefined();
+    });
+
+    it('counts a small two-line function moved into a new file, and asks to adopt its old debt', () => {
+        const split = parseDiff(source(
+            'diff --git a/src/big.ts b/src/big.ts',
+            '--- a/src/big.ts',
+            '+++ b/src/big.ts',
+            '@@ -40,3 +40,0 @@',
+            '-export function toKey(song: any) {',
+            '-    return `${song.source}:${song.id}`;',
+            '-}',
+            'diff --git a/src/keys.ts b/src/keys.ts',
+            'new file mode 100644',
+            '--- /dev/null',
+            '+++ b/src/keys.ts',
+            '@@ -0,0 +1,4 @@',
+            '+export function toKey(song: any) {',
+            '+    return `${song.source}:${song.id}`;',
+            '+}',
+            '+export const fresh = (input: any) => input;',
+        ));
+        const moved = movedLines(split);
+        expect(moved.get('src/keys.ts')).toEqual(new Set([1, 2]));
+        const any = '@typescript-eslint/no-explicit-any';
+        const finding = (line: number) => ({ code: 'D403', file: 'src/keys.ts', line, column: 1, rule: any, message: 'm', key: `D403:src/keys.ts:${line}:1:${any}` });
+        const result = selectNewFindings([finding(1), finding(4)], {
+            suppressions: {},
+            written: writtenLines(split),
+            moved,
+            newFiles: addedFiles(split),
+            touched: new Set(['src/keys.ts']),
+        });
+        expect(result.map(item => item.key)).toEqual(['D403:src/keys.ts:4:1:@typescript-eslint/no-explicit-any', 'D002:src/keys.ts:adopt']);
     });
 });
 
