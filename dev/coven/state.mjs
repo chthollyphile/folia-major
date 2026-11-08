@@ -12,13 +12,13 @@ import { riskRank } from './risk.mjs';
 //   npm run coven:state -- init --scope <名字> --branch coven/run-<日期> [--live] [--owner <账号>]
 //   npm run coven:state -- show
 //   npm run coven:state -- phase <任务> <阶段> [--code Dxxx] [--note …] [--session …] [--worktree …] [--branch …]
-//   npm run coven:state -- cost <任务> --usd 1.2 [--tokens 34000]
+//   npm run coven:state -- cost <任务> --tokens 34000          记一次用量（预算按 token 算）
 //   npm run coven:state -- hd <HD1–HD5> --note "…"         记一次人类介入
 //   npm run coven:state -- finish [--force]                  释放没完成的认领，写运行记录 .coven/runs/
 //   npm run coven:state -- audit                             对照 GitHub：运行期间这个账号的评论和 PR 是不是都由脚本发的
 
 /**
- * @typedef {{ items: string[], risk: string, phase: string, rounds: number, costUsd: number, tokens?: number,
+ * @typedef {{ items: string[], risk: string, phase: string, rounds: number, tokens: number,
  *   history: Array<{ at: string, phase: string, code?: string, note?: string }>, code?: string|null, pr?: number|string|null,
  *   session?: string, worktree?: string, branch?: string, reviewHead?: string,
  *   lastVerdict?: { round: number, verdict?: string, passes: boolean, escalation?: object|null } }} CovenTask
@@ -52,7 +52,8 @@ export function createState({ scope, owner, integrationBranch, trackingIssue, dr
 
 /**
  * 任务换阶段。不合规的返回原因（字符串），合规的直接改 task 并返回 null。
- * - 进 building：R4 不行；R2 以上要先过 HD2（契约已批准）；从 evaluating 回来算新一轮，轮数到上限报 D811；超预算报 D813。
+ * - 进 building：R4 不行；R2 以上要先过 HD2（契约已批准）；从 evaluating 回来算新一轮，轮数到上限报 D811；用量到上限报 D813。
+ *   预算按 token 算（HD0：Max 订阅按次不花钱，真正的上限是订阅的用量窗口）。
  * - 进 evaluating：轮数加一。
  * - blocked 要带 D8xx 代码；从 blocked 回去干活（不是 released）要写明哪位维护者解封的（unblockedBy），
  *   否则监控 session 自己连跑 blocked → building 就绕过了 D811 的轮数上限。done、released 之后不再变。
@@ -60,10 +61,10 @@ export function createState({ scope, owner, integrationBranch, trackingIssue, dr
  * @param {CovenTask} task
  * @param {string} phase
  * @param {{ code?: string|null, note?: string|null, approved?: boolean, maxRounds?: number, unblockedBy?: string|null,
- *   budget?: { perTaskUsd?: number|null, perRunUsd?: number|null }, runCostUsd?: number, now?: string }} [options]
+ *   budget?: { perTaskTokens?: number|null, perRunTokens?: number|null }, runTokens?: number, now?: string }} [options]
  * @returns {string|null}
  */
-export function transition(task, phase, { code = null, note = null, approved = false, maxRounds = 2, unblockedBy = null, budget = {}, runCostUsd = 0, now = nowIso() } = {}) {
+export function transition(task, phase, { code = null, note = null, approved = false, maxRounds = 2, unblockedBy = null, budget = {}, runTokens = 0, now = nowIso() } = {}) {
     if (!PHASES.includes(phase)) return `不认识的阶段 ${phase}（${PHASES.join('、')}）`;
     const from = task.phase;
     if (TERMINAL.has(from)) return `任务已经 ${from}，不能再改`;
@@ -86,8 +87,8 @@ export function transition(task, phase, { code = null, note = null, approved = f
         if (task.risk === 'R4') return 'R4 只写方案草稿，不进实现';
         if (!approved) return riskRank(task.risk) <= riskRank('R1') ? '契约还没批准：R0/R1 先跑 coven:contract -- approve <任务> --auto' : `${task.risk} 要先过 HD2（coven:contract -- approve <任务> --by <账号>）`;
         if (from === 'evaluating' && task.rounds >= maxRounds) return `D811：已经评审 ${task.rounds} 轮还没过，改成 blocked 交给维护者`;
-        if (budget.perTaskUsd && task.costUsd >= budget.perTaskUsd) return `D813：任务花费 $${task.costUsd} 到了上限 $${budget.perTaskUsd}`;
-        if (budget.perRunUsd && runCostUsd >= budget.perRunUsd) return `D813：本次运行花费 $${runCostUsd} 到了上限 $${budget.perRunUsd}`;
+        if (budget.perTaskTokens && task.tokens >= budget.perTaskTokens) return `D813：任务用了 ${task.tokens} token，到了上限 ${budget.perTaskTokens}`;
+        if (budget.perRunTokens && runTokens >= budget.perRunTokens) return `D813：本次运行用了 ${runTokens} token，到了上限 ${budget.perRunTokens}`;
     }
     if (phase === 'pr' && !task.lastVerdict?.passes) return '最近一轮评审没有通过，不能开 PR';
     if (phase === 'evaluating') task.rounds += 1;
@@ -106,7 +107,7 @@ export function claimChangeFor(phase, { code, from } = {}) {
     return null;
 }
 
-export const runCost = state => Object.values(state.tasks).reduce((sum, task) => sum + (task.costUsd ?? 0), 0);
+export const runTokens = state => Object.values(state.tasks).reduce((sum, task) => sum + (task.tokens ?? 0), 0);
 
 /** 运行记录：能算出人类介入次数、每个任务的时长与花费、评审轮数、升级原因（plan/coven-v1-plan.md 第 4 节的通过标准）。 */
 export function runRecord(state, now = nowIso()) {
@@ -115,7 +116,7 @@ export function runRecord(state, now = nowIso()) {
         const last = task.history.at(-1)?.at ?? now;
         return {
             task: id, items: task.items, risk: task.risk, phase: task.phase, rounds: task.rounds,
-            costUsd: task.costUsd ?? 0, tokens: task.tokens ?? 0, pr: task.pr ?? null, code: task.code ?? null,
+            tokens: task.tokens ?? 0, pr: task.pr ?? null, code: task.code ?? null,
             minutes: Math.round((Date.parse(last) - Date.parse(first)) / 60_000),
         };
     });
@@ -135,7 +136,7 @@ export function runRecord(state, now = nowIso()) {
             done: tasks.filter(task => task.phase === 'done').length,
             prs: tasks.filter(task => task.pr).length,
             blocked: tasks.filter(task => task.phase === 'blocked').length,
-            costUsd: runCost(state),
+            tokens: runTokens(state),
             githubWrites: state.github.filter(entry => !entry.dryRun).length,
         },
     };
@@ -164,11 +165,11 @@ function renderSummary(record) {
         `- 时间：${record.startedAt} → ${record.finishedAt}`,
         `- 任务 ${record.totals.tasks} 个：完成 ${record.totals.done}，开 PR ${record.totals.prs}，blocked ${record.totals.blocked}`,
         `- 人类介入 ${record.interventionCount} 次：${Object.entries(record.interventions).map(([kind, count]) => `${kind} ×${count}`).join('、') || '无'}`,
-        `- 花费：$${record.totals.costUsd.toFixed(2)}；GitHub 写操作 ${record.totals.githubWrites} 次`,
+        `- 用量：${record.totals.tokens} token；GitHub 写操作 ${record.totals.githubWrites} 次`,
         '',
-        '| 任务 | 风险 | 阶段 | 轮数 | 分钟 | 花费 | PR | 代码 |',
+        '| 任务 | 风险 | 阶段 | 轮数 | 分钟 | token | PR | 代码 |',
         '| --- | --- | --- | --- | --- | --- | --- | --- |',
-        ...record.tasks.map(task => `| ${task.task} | ${task.risk} | ${task.phase} | ${task.rounds} | ${task.minutes} | $${task.costUsd.toFixed(2)} | ${task.pr ? `#${task.pr}` : ''} | ${task.code ?? ''} |`),
+        ...record.tasks.map(task => `| ${task.task} | ${task.risk} | ${task.phase} | ${task.rounds} | ${task.minutes} | ${task.tokens} | ${task.pr ? `#${task.pr}` : ''} | ${task.code ?? ''} |`),
     ];
     if (record.escalations.length > 0) {
         lines.push('', '## 升级', ...record.escalations.map(entry => `- ${entry.code}：${entry.items.join('、')}${entry.question ? ` —— ${entry.question}` : ''}`));
@@ -178,7 +179,7 @@ function renderSummary(record) {
 
 function printState(state) {
     console.log(`运行 ${state.run}${state.dryRun ? '（干跑）' : ''}：范围 ${state.scope}，集成分支 ${state.integrationBranch}，跟踪 issue ${state.trackingIssue ?? '无'}`);
-    console.log(`认领 ${Object.values(state.items).filter(item => item.claim?.state && item.claim.state !== 'released').length}/${Object.keys(state.items).length} 条；人类介入 ${state.interventions.length} 次；花费 $${runCost(state).toFixed(2)}`);
+    console.log(`认领 ${Object.values(state.items).filter(item => item.claim?.state && item.claim.state !== 'released').length}/${Object.keys(state.items).length} 条；人类介入 ${state.interventions.length} 次；用量 ${runTokens(state)} token`);
     for (const id of state.order.length > 0 ? state.order : Object.keys(state.tasks)) {
         const task = state.tasks[id];
         if (!task) continue;
@@ -208,7 +209,7 @@ function currentLogin() {
 }
 
 function main() {
-    const { positional, options } = parseArgs(process.argv.slice(2), ['live', 'force'], ['scope', 'branch', 'owner', 'note', 'usd', 'tokens', 'code', 'session', 'worktree', 'unblock-by']);
+    const { positional, options } = parseArgs(process.argv.slice(2), ['live', 'force'], ['scope', 'branch', 'owner', 'note', 'tokens', 'code', 'session', 'worktree', 'unblock-by']);
     const [command, ...rest] = positional;
     const config = loadConfig(ROOT);
     if (command === 'init') {
@@ -247,10 +248,11 @@ function main() {
     if (command === 'cost') {
         const task = state.tasks[rest[0]];
         if (!task) throw new Error(`没有任务 ${rest[0]}`);
-        task.costUsd = Number(((task.costUsd ?? 0) + Number(options.usd ?? 0)).toFixed(4));
-        task.tokens = (task.tokens ?? 0) + Number(options.tokens ?? 0);
+        const added = Number(options.tokens);
+        if (!Number.isInteger(added) || added < 0) throw new Error('--tokens 要写这次用掉的 token 数（子代理和工作 session 报出的 total tokens）');
+        task.tokens = (task.tokens ?? 0) + added;
         saveState(ROOT, state);
-        console.log(`${rest[0]} 累计 $${task.costUsd}、${task.tokens} tokens；本次运行 $${runCost(state).toFixed(2)}。`);
+        console.log(`${rest[0]} 累计 ${task.tokens} token；本次运行 ${runTokens(state)} token。`);
         return;
     }
     if (command === 'phase') {
@@ -271,7 +273,7 @@ function main() {
         }
         const problem = transition(task, phase, {
             code: options.code, note: options.note, approved: isApprovedCurrent(ROOT, id, readJson(contractFile(ROOT, id))),
-            maxRounds: config.maxReviewRounds, budget: config.budget, runCostUsd: runCost(state), unblockedBy,
+            maxRounds: config.maxReviewRounds, budget: config.budget, runTokens: runTokens(state), unblockedBy,
         });
         if (problem) throw new Error(problem);
         if (reviewHead) task.reviewHead = reviewHead;

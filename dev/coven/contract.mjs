@@ -252,7 +252,7 @@ export function planImportProblems(state, scope, plan, validateOptions = {}) {
 export function applyPlanImport(state, plan, now = nowIso()) {
     const imported = new Set();
     for (const contract of plan.tasks ?? []) {
-        state.tasks[contract.task] = { items: contract.items, risk: contract.risk, phase: 'planning', rounds: 0, costUsd: 0, history: [{ at: now, phase: 'planning' }] };
+        state.tasks[contract.task] = { items: contract.items, risk: contract.risk, phase: 'planning', rounds: 0, tokens: 0, history: [{ at: now, phase: 'planning' }] };
         for (const item of contract.items) {
             state.items[item].task = contract.task;
             imported.add(item);

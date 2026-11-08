@@ -9,7 +9,7 @@ import { baselineShrink, growthProblems, parseNameStatus } from '../../../dev/co
 // 监控 session 的账本：阶段流转里的关口（HD2、两轮评审 D811、预算 D813）、运行记录、运行后审计，
 // 以及 verify 的基线判断（D806）和开 PR 前的把关。
 
-const task = (overrides: Partial<CovenTask> = {}): CovenTask => ({ items: ['D102:a->b'], risk: 'R2', phase: 'planning', rounds: 0, costUsd: 0, history: [], ...overrides });
+const task = (overrides: Partial<CovenTask> = {}): CovenTask => ({ items: ['D102:a->b'], risk: 'R2', phase: 'planning', rounds: 0, tokens: 0, history: [], ...overrides });
 
 describe('coven task phases', () => {
     it('does not start building an R2 task before HD2, but lets R0/R1 skip it once auto-approved', () => {
@@ -34,8 +34,9 @@ describe('coven task phases', () => {
     });
 
     it('stops at the budget with D813 and requires a D8xx code to block', () => {
-        expect(transition(task({ phase: 'spec-review', costUsd: 5 }), 'building', { approved: true, budget: { perTaskUsd: 5 } })).toContain('D813');
-        expect(transition(task({ phase: 'spec-review' }), 'building', { approved: true, budget: { perRunUsd: 20 }, runCostUsd: 21 })).toContain('D813');
+        expect(transition(task({ phase: 'spec-review', tokens: 2_000_000 }), 'building', { approved: true, budget: { perTaskTokens: 2_000_000 } })).toContain('D813');
+        expect(transition(task({ phase: 'spec-review', tokens: 1_999_999 }), 'building', { approved: true, budget: { perTaskTokens: 2_000_000, perRunTokens: null } })).toBeNull();
+        expect(transition(task({ phase: 'spec-review' }), 'building', { approved: true, budget: { perRunTokens: 10_000_000 }, runTokens: 10_000_001 })).toContain('D813');
         expect(transition(task(), 'blocked', {})).toContain('原因代码');
     });
 
@@ -73,17 +74,17 @@ describe('coven run record and audit', () => {
         expect(state.run).toBe('2026-11-09-arch');
     });
 
-    it('counts interventions, rounds, cost and escalations', () => {
+    it('counts interventions, rounds, tokens and escalations', () => {
         const state = createState({ scope: 'arch', owner: 'alice', integrationBranch: 'coven/run-2026-11-09', trackingIssue: 42, dryRun: true, now: '2026-11-09T01:00:00.000Z' });
-        state.tasks.a = { ...task({ phase: 'done', rounds: 2, costUsd: 1.5, pr: 1201 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }, { at: '2026-11-09T02:40:00.000Z', phase: 'done' }] };
-        state.tasks.b = { ...task({ phase: 'blocked', code: 'D811', rounds: 2, costUsd: 0.5 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }] };
+        state.tasks.a = { ...task({ phase: 'done', rounds: 2, tokens: 1_500_000, pr: 1201 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }, { at: '2026-11-09T02:40:00.000Z', phase: 'done' }] };
+        state.tasks.b = { ...task({ phase: 'blocked', code: 'D811', rounds: 2, tokens: 500_000 }), history: [{ at: '2026-11-09T01:10:00.000Z', phase: 'planning' }] };
         state.escalations = [{ items: ['D190:x->y'], code: 'D812', question: 'tuningRegistry 按路径被找，挪还是放行？' }];
         state.interventions = [{ kind: 'HD1' }, { kind: 'HD2' }, { kind: 'HD2' }, { kind: 'HD4' }];
         const record = runRecord(state, '2026-11-09T03:00:00.000Z');
         expect(record.interventions).toEqual({ HD1: 1, HD2: 2, HD4: 1 });
         expect(record.tasks.find(entry => entry.task === 'a')).toMatchObject({ minutes: 90, rounds: 2, pr: 1201 });
         expect(record.escalations.map(entry => entry.code)).toEqual(['D812', 'D811']);
-        expect(record.totals).toMatchObject({ tasks: 2, done: 1, prs: 1, blocked: 1, costUsd: 2 });
+        expect(record.totals).toMatchObject({ tasks: 2, done: 1, prs: 1, blocked: 1, tokens: 2_000_000 });
     });
 
     it('reports GitHub writes that did not go through the scripts', () => {
