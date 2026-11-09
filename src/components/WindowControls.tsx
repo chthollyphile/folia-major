@@ -18,6 +18,7 @@ export default function WindowControls({
     const [isMaximized, setIsMaximized] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const useNativeMacFullscreenButton = usePlayerChromeSettingsStore(state => state.useNativeMacFullscreenButton);
+    const useNativeMacTrafficLights = usePlayerChromeSettingsStore(state => state.useNativeMacTrafficLights);
     const electron = window.electron;
     const isMac = electron?.platform === 'darwin';
     const usesNativeFullscreen = isMac && (useNativeMacFullscreenButton || isFullscreen);
@@ -106,8 +107,8 @@ export default function WindowControls({
                     {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
                 </button>
             )}
-            {/* mac 上最小化/最大化/关闭由系统红绿灯接管（titleBarStyle hidden），右上角不再重复渲染。 */}
-            {!isMac && (
+            {/* mac 上开了原生红绿灯时，最小化/最大化/关闭由系统接管，右上角不再重复渲染。 */}
+            {!(isMac && useNativeMacTrafficLights) && (
                 <>
                     <button
                         className={btnClass}

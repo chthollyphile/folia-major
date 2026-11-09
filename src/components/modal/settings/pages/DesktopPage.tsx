@@ -20,6 +20,7 @@ const O = {
     hideTaskbarIcon: option(WINDOW, 'hideTaskbarIcon', 'options.hideTaskbarIcon'),
     hideFullscreenButton: option(WINDOW, 'hideFullscreenButton', 'options.hideFullscreenButton'),
     nativeMacFullscreen: option(WINDOW, 'useNativeMacFullscreenButton', 'options.useNativeMacFullscreenButton'),
+    nativeMacTrafficLights: option(WINDOW, 'useNativeMacTrafficLights', 'options.useNativeMacTrafficLights'),
     wallpaperMode: option(WINDOW, 'wallpaperMode', 'options.wallpaperMode'),
     // Drawn only with more than one display connected, where wallpaper mode can use any of them.
     wallpaperDisplay: option(WINDOW, 'wallpaperDisplay', 'options.wallpaperDisplay', { available: hasWallpaperDisplayChoice }),
@@ -34,7 +35,7 @@ const O = {
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
 const IS_MAC = PLATFORM === 'darwin';
 const HAS_WALLPAPER_MODE = IS_MAC || PLATFORM === 'win32' || PLATFORM === 'linux';
-const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.wallpaperDock];
+const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.nativeMacTrafficLights, O.wallpaperDock];
 
 // The search lists the two macOS rows only on macOS.
 export const OPTIONS: SettingsOptionDef[] = Object.values(O).filter(row => IS_MAC || !MAC_ONLY.includes(row));
@@ -66,8 +67,10 @@ const DesktopPage: React.FC = () => {
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         hideFullscreenButton: state.hideFullscreenButton,
         nativeMacFullscreen: state.useNativeMacFullscreenButton,
+        trafficLights: state.useNativeMacTrafficLights,
         setHideFullscreenButton: state.handleToggleHideFullscreenButton,
         setNativeMacFullscreen: state.handleToggleNativeMacFullscreenButton,
+        setTrafficLights: state.handleToggleNativeMacTrafficLights,
     })));
     // Counts the switches moved off their default; expand cover is on by default, so it counts when off.
     const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover, desktop.remoteTextShade].filter(Boolean).length;
@@ -93,6 +96,15 @@ const DesktopPage: React.FC = () => {
                 {IS_MAC && (
                     <Row option={O.nativeMacFullscreen} hint={t('options.useNativeMacFullscreenButtonDesc')}>
                         <Toggle checked={chrome.nativeMacFullscreen} onChange={chrome.setNativeMacFullscreen} />
+                    </Row>
+                )}
+                {IS_MAC && (
+                    <Row
+                        option={O.nativeMacTrafficLights}
+                        hint={t('options.useNativeMacTrafficLightsDesc')}
+                        note={t('options.useNativeMacTrafficLightsNotice')}
+                    >
+                        <Toggle checked={chrome.trafficLights} onChange={chrome.setTrafficLights} />
                     </Row>
                 )}
                 {HAS_WALLPAPER_MODE && (

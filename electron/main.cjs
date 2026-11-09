@@ -2647,6 +2647,8 @@ const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY = 'REMOTE_CONTROL_SKIP_TASKBAR';
 const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
+// macOS 原生红绿灯（设置 → 桌面）：默认关，开了才把自绘的最小化/最大化/关闭换成系统红绿灯。
+const USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY = 'USE_NATIVE_MAC_TRAFFIC_LIGHTS';
 const VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY = 'VOICE_INPUT_PAUSE_ENABLED';
 const PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY = 'PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK';
 // Master switch for the experimental mod system. Off by default: with it off no
@@ -5882,11 +5884,12 @@ function createWindow(options = {}) {
   // window remembers what it was built as so the reconcile path can detect mismatches.
   const useTransparentWindow = isTransparentPlayerBackgroundEnabled()
     && !(useWindowsWallpaper && !isWindowsWallpaperTransparentSupported());
-  // macOS 正常模式用系统红绿灯（hidden 标题栏）替代自绘窗口按钮；壁纸模式仍是完全无边框，
-  // 沉进桌面层的窗口不能带着红绿灯。
+  // macOS 正常模式：开了「原生红绿灯」设置才用 hidden 标题栏替代自绘窗口按钮；
+  // 壁纸模式仍是完全无边框，沉进桌面层的窗口不能带着红绿灯。默认关，关时与主线行为一致。
   const useMacNativeTrafficLights = process.platform === 'darwin'
     && !isWallpaperModeEnabled()
-    && !useWallpaperGeometry;
+    && !useWallpaperGeometry
+    && readStoredBoolean(USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY, false);
   const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
   let win;
   try {
@@ -6824,7 +6827,8 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     key === WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY ||
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
-    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY
+    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY ||
+    key === USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }

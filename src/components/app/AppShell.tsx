@@ -75,13 +75,15 @@ const AppShell: React.FC<AppShellProps> = ({
     const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
     const hasFullscreenTitlebarButton = isElectronWindow && !hideFullscreenButton;
     const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
-    // mac 上最小化/最大化/关闭是系统红绿灯（左上角），右上角只剩遥控/全屏按钮，
-    // 锁与切歌组的右缘要贴着它们排，不能沿用 Windows 的全家桶宽度。
+    const useNativeMacTrafficLights = usePlayerChromeSettingsStore(state => state.useNativeMacTrafficLights);
+    // mac 上开了原生红绿灯时，右上角只剩遥控/全屏按钮，锁与切歌组贴着它们排；
+    // 关掉时右上角仍是全家桶，沿用 Windows 的宽度。
     const isMacPlatform = window.electron?.platform === 'darwin';
-    const clickThroughLockRightClass = isMacPlatform
+    const macChromeCompact = isMacPlatform && useNativeMacTrafficLights;
+    const clickThroughLockRightClass = macChromeCompact
         ? (hasFullscreenTitlebarButton ? 'right-[92px]' : 'right-[48px]')
         : (hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]');
-    const clickThroughTransportRightClass = isMacPlatform
+    const clickThroughTransportRightClass = macChromeCompact
         ? (hasFullscreenTitlebarButton ? 'right-[126px]' : 'right-[82px]')
         : (hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]');
 
@@ -179,15 +181,15 @@ const AppShell: React.FC<AppShellProps> = ({
                     : ''
         }`;
     // macOS 原生红绿灯跟标题栏按钮同节奏：平时和点击穿透时藏掉，悬停顶部或常驻设置时放出。
-    // 全屏由系统自动隐藏/唤出，这里照常联动不会打架。
+    // 全屏由系统自动隐藏/唤出，这里照常联动不会打架。仅在设置开启时接管。
     useEffect(() => {
-        if (!isMacPlatform || !window.electron?.setTrafficLightsVisible) {
+        if (!isMacPlatform || !useNativeMacTrafficLights || !window.electron?.setTrafficLightsVisible) {
             return;
         }
         void window.electron.setTrafficLightsVisible(
             areTitlebarControlsVisible && !isMainWindowClickThroughEnabled,
         );
-    }, [isMacPlatform, areTitlebarControlsVisible, isMainWindowClickThroughEnabled]);
+    }, [isMacPlatform, useNativeMacTrafficLights, areTitlebarControlsVisible, isMainWindowClickThroughEnabled]);
 
     return (
         <div
