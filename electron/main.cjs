@@ -104,6 +104,7 @@ const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
 const { createAcousticsHost } = require('./acoustics/host.cjs');
 const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
+const { createSceneScreenHost } = require('./scenes/screenCapture.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
@@ -2914,6 +2915,8 @@ createAcousticsHost({
   libraryFile: steamAudioLibraryPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appRoot: path.join(__dirname, '..') }),
   getCacheDir: () => path.join(app.getPath('userData'), 'scene-acoustics'),
 });
+// A small picture of a scene's screen, which lights the scene (window.electron.sceneScreen). See electron/scenes/screenCapture.cjs.
+createSceneScreenHost({ ipcMain, isTrusted: (event) => isTrustedMainWindowContents(event.sender) });
 
 function buildPlaybackSyncBridgeStatus() {
   return {

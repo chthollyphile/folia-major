@@ -234,6 +234,11 @@ export interface SceneContext {
      */
     readonly surfaces: {
         place(id: string, cornersOnScreen: ScreenQuad | null, look?: { opacity?: number }): void;
+        /**
+         * 这个表面现在显示的画面（用户的歌词样式和背景，看到的样子），缩成 width × height（每边最多 64）。
+         * 拿不到时为 null：网页版、表面没放上或在窗口外、窗口最小化。要截窗口，一秒几次就够。
+         */
+        sample(id: string, width: number, height: number): Promise<ImageBitmap | null>;
     };
     /** 用户在座位图上选的座位锚点 id，没选时为 null（场景用自己的 preferred 座位）。 */
     readonly viewpoints: { chosen(): string | null };

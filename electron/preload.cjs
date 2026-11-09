@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld('electron', {
         available: () => ipcRenderer.invoke('scene-acoustics-available'),
         computeRoom: (request) => ipcRenderer.invoke('scene-acoustics-compute', request),
     },
+    // A small picture of a scene's surface, to light the scene by it. See electron/scenes/screenCapture.cjs.
+    sceneScreen: {
+        capture: (request) => ipcRenderer.invoke('scene-screen-capture', request),
+    },
     // Old automix models left in the folder an earlier version let the listener choose. See main.cjs.
     checkLegacyModels: () => ipcRenderer.invoke('legacy-models-check'),
     resolveLegacyModels: (action) => ipcRenderer.invoke('legacy-models-resolve', action),

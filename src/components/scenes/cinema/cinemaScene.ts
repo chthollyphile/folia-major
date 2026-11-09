@@ -21,7 +21,8 @@ import { createCinemaPost } from './cinemaPost';
 // camera the runtime moved (cinemaRuntime.ts) through the lens passes (cinemaPost.ts). update() moves it
 // one frame from numbers only; dispose() frees every GPU resource it made. The screen's picture area is
 // left see-through: the user's lyric style and background lie under the canvas there (the host's surface).
-// The reel (the cover) is never shown; it only colours the light the projector throws into the hall.
+// The reel (the cover) is never shown; it colours the light the projector throws into the hall until the
+// screen's own picture is sampled (setScreenLight), and again without one.
 
 /** How long a change of reels takes. */
 const REEL_SECONDS = 1.7;
@@ -48,6 +49,8 @@ export interface CinemaFrameInput {
 export interface CinemaScene {
     /** Shows a new reel; with animate, through a change-over, otherwise at once. Null shows the leader. */
     setReel: (reel: CinemaReel | null, animate: boolean) => void;
+    /** The light of what the screen shows now (thirdColors of a sample); null goes back to the reel's light. */
+    setScreenLight: (colors: CinemaReel['colors'] | null) => void;
     /** Moves the hall one frame; returns the projector's shutter, 1 open to 0 shut. */
     update: (input: CinemaFrameInput) => number;
     /** Draws the frame through the lens passes. */
@@ -288,6 +291,20 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
         reelLights(reelB, lightB);
     };
 
+    // The screen's own picture, sampled a few times a second: the hall's light eases to it, and back to the reel without one.
+    const liveTarget = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    const live = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+    let liveOn = false;
+    let liveWeight = 0;
+    const setScreenLight = (colors: CinemaReel['colors'] | null) => {
+        if (colors) {
+            colors.forEach((color, index) => liveTarget[index].set(color.r, color.g, color.b));
+            // The first sample is taken as it is; later ones are eased to.
+            if (liveWeight === 0) live.forEach((light, index) => light.copy(liveTarget[index]));
+        }
+        liveOn = colors !== null;
+    };
+
     const average = new THREE.Vector3();
     /** The screen's light as projected, curtains or not: the beam's strength is held against it. */
     const projected = new THREE.Vector3();
@@ -327,8 +344,11 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
         const uncovered = [side, Math.min(1, gap / third), side];
         average.set(0, 0, 0);
         projected.set(0, 0, 0);
+        liveWeight = ease(liveWeight, liveOn ? 1 : 0, 2, dt);
+        if (liveWeight < 1e-3 && !liveOn) liveWeight = 0;
         lights.forEach((light, index) => {
-            mixed.lerpVectors(lightB[index], lightA[index], cross).multiplyScalar((1 - day) * shutter);
+            live[index].lerp(liveTarget[index], 1 - Math.exp(-3 * dt));
+            mixed.lerpVectors(lightB[index], lightA[index], cross).lerp(live[index], liveWeight).multiplyScalar((1 - day) * shutter);
             // By day the house lights wash the screen out: it gives back a pale, even light.
             mixed.addScalar(day * 0.32);
             light.copy(mixed).multiplyScalar(screenPower);
@@ -342,14 +362,14 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
         uniforms.uDay.value = day;
         uniforms.uShutter.value = shutter;
         uniforms.uChange.value = change;
-        uniforms.uAmbient.value.copy(average).multiplyScalar(0.012).add(new THREE.Vector3(0.0025, 0.0028, 0.0038).multiplyScalar(1 - day));
+        uniforms.uAmbient.value.copy(average).multiplyScalar(0.012).add(new THREE.Vector3(0.0018, 0.002, 0.0027).multiplyScalar(1 - day));
         // By day a little warm air only: more haze greys the far hall over and washes the colours out.
         uniforms.uHaze.value.copy(average).multiplyScalar(0.004 * (1 - day)).add(new THREE.Vector3(0.2, 0.15, 0.1).multiplyScalar(day * 0.1));
         // At night a dim show level stays on, so the rows never vanish whatever colour the screen throws.
-        uniforms.uHouse.value = lerp(0.12, 1.7, day);
-        uniforms.uSconce.value = lerp(1.4, 0.9, day);
-        uniforms.uFoot.value = lerp(0.9, 0.55, day);
-        uniforms.uBoxLamp.value = lerp(1, 0.6, day);
+        uniforms.uHouse.value = lerp(0.085, 1.7, day);
+        uniforms.uSconce.value = lerp(1.05, 0.9, day);
+        uniforms.uFoot.value = lerp(0.7, 0.55, day);
+        uniforms.uBoxLamp.value = lerp(0.78, 0.6, day);
         uniforms.uCove.value.set(cove.r, cove.g, cove.b).multiplyScalar(lerp(0.32, 0.5, day));
         // Bright covers would fill the hall with fog: the beam is held to about the same strength for every cover.
         const screenLuminance = (0.2126 * projected.x + 0.7152 * projected.y + 0.0722 * projected.z) / (3 * Math.max(screenPower, 1e-3));
@@ -388,5 +408,5 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
 
     const compile = (renderer: THREE.WebGLRenderer, camera: THREE.Camera) => post.compile(renderer, scene, camera);
 
-    return { setReel, update, render, compile, dispose };
+    return { setReel, setScreenLight, update, render, compile, dispose };
 };

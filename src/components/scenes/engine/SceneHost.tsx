@@ -13,6 +13,7 @@ import { useSceneSettingsStore } from '../settings/useSceneSettingsStore';
 import { createSceneEventBus } from './sceneEvents';
 import { onQueueEnd } from './queueEnd';
 import { publishSceneViewpoints, type ViewpointAnchor } from './sceneViewpoints';
+import { sampleSurface } from './surfaceSample';
 import { planSceneLayers, resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from './scenePlacement';
 import { createSceneSignals, diffSceneSignals, trackLook, type SceneSignalSnapshot } from './sceneSignals';
 import { createHostSceneSound, silentSceneSound } from './sceneSound';
@@ -178,6 +179,10 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 place: (surfaceId, quad, look) => {
                     const opacity = Math.min(1, Math.max(0, look?.opacity ?? 1));
                     quads.current.set(surfaceId, { quad: Number.isFinite(opacity) && opacity > 0 ? quad : null, opacity: Number.isFinite(opacity) ? opacity : 1 });
+                },
+                sample: async (surfaceId, width, height) => {
+                    const quad = quads.current.get(surfaceId)?.quad;
+                    return quad && !disposed ? sampleSurface(box, quad, width, height).catch(() => null) : null;
                 },
             },
             viewpoints: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.viewpoint ?? null },

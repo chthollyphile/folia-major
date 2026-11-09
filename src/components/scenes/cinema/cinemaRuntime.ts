@@ -6,7 +6,7 @@ import { createThreeStage } from '../kit/threeStage';
 import { cinemaAcousticWorld } from './cinemaAcoustics';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
 import { fitView, SEAT_HALF_TAN } from './cinemaCamera';
-import { loadCinemaReel } from './cinemaReel';
+import { loadCinemaReel, thirdColors } from './cinemaReel';
 import { createCinemaScene, type CinemaScene } from './cinemaScene';
 
 // src/components/scenes/cinema/cinemaRuntime.ts
@@ -22,6 +22,8 @@ import { createCinemaScene, type CinemaScene } from './cinemaScene';
 
 const WARM_WHITE = '#ffd6a8';
 const SURFACE = 'screen';
+/** How often the screen's picture is sampled for the hall's light. */
+const SAMPLE_SECONDS = 0.25;
 
 /** The cove strips take a little of the accent colour of the song's dark theme (linear). */
 const coveOf = (song: SceneSong) => {
@@ -95,6 +97,26 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
     disposers.push(ctx.on('queueEnd', () => { lightsUpAtEnd = true; }));
     disposers.push(ctx.on('play', () => { lightsUpAtEnd = false; }));
 
+    // The hall is lit by what its screen shows (the user's lyric style and background), sampled a few times a
+    // second while the film runs; without a sample (web build, still mode) by the reel's light, the cover's.
+    let sampledAt = 0;
+    let sampling = false;
+    let disposed = false;
+    const sampleScreen = (now: number) => {
+        if (sampling || now - sampledAt < SAMPLE_SECONDS) return;
+        sampling = true;
+        sampledAt = now;
+        void ctx.surfaces.sample(SURFACE, 24, 8).then((picture) => {
+            sampling = false;
+            if (!picture) return;
+            const colors = disposed ? null : thirdColors(picture);
+            picture.close();
+            if (colors) hall.setScreenLight(colors);
+        }, () => {
+            sampling = false;
+        });
+    };
+
     const bufferSize = new THREE.Vector2();
     let lastNow = 0;
     let frames = 0;
@@ -122,6 +144,8 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
                 bufferSize,
             });
             hall.render(renderer, camera);
+            if (ctx.host.staticMode) hall.setScreenLight(null);
+            else if (running && shutter > 0) sampleScreen(now);
             // The bare screen covers the picture as the shutter closes; shut, the box goes (and takes no clicks).
             ctx.surfaces.place(SURFACE, shutter > 0 ? stage.projectQuad(SCREEN_CORNERS) : null);
             frames += 1;
@@ -129,6 +153,7 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
         },
         dispose: () => {
             disposers.forEach(dispose => dispose());
+            disposed = true;
             reelToken += 1;
             hall.dispose();
             stage.dispose();

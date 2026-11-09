@@ -24,7 +24,8 @@ const asLight = (r: number, g: number, b: number) => {
     return color;
 };
 
-const thirdColors = (source: CanvasImageSource): CinemaReel['colors'] | null => {
+/** The light a picture throws, as the average colours of its left, middle and right thirds (linear); null when it cannot be read. */
+export const thirdColors = (source: CanvasImageSource): CinemaReel['colors'] | null => {
     const canvas = document.createElement('canvas');
     canvas.width = SAMPLE_WIDTH;
     canvas.height = SAMPLE_HEIGHT;
