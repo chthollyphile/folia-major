@@ -11,7 +11,7 @@ export default defineScene({
         id: 'cinema',
         version: '1.0.0',
         name: { 'zh-CN': '影厅', en: 'Cinema', in: 'Bioskop' },
-        description: { 'zh-CN': '一座老影院：你的歌词样式和背景放在荧幕上，暂停是中场休息。', en: 'An old picture house: your lyric style and background on the screen, a pause is an intermission.', in: 'Bioskop tua: gaya lirik dan latar Anda di layar, jeda adalah waktu istirahat.' },
+        description: { 'zh-CN': '老式影院，歌词和背景显示在荧幕上。', en: 'A classic cinema with your lyrics and background on the screen.', in: 'Bioskop klasik dengan lirik dan latar Anda di layar.' },
         order: 10,
         surfaces: [{ id: 'screen', aspect: 14 / 7.57, occludable: true }],
         lyrics: { style: { surface: 'screen' } },
@@ -30,7 +30,7 @@ export default defineScene({
             {
                 key: 'houseLights',
                 type: 'boolean',
-                label: { 'zh-CN': '开着厅里的灯', en: 'House lights on', in: 'Lampu ruangan menyala' },
+                label: { 'zh-CN': '开灯', en: 'House lights', in: 'Lampu ruangan' },
                 defaultValue: false,
             },
         ],

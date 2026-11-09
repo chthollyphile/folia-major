@@ -872,7 +872,7 @@ export default {
     "sceneQuality_high": "High",
     "soundTracing": "Sound tracing",
     "soundTracingUnsupported": "This scene has no sound tracing",
-    "soundTracingOutput": "Listening on",
+    "soundTracingOutput": "Device",
     "soundTracingOutput_headphones": "Headphones",
     "soundTracingOutput_speakers": "Speakers",
     "sceneSeat": "Seat",

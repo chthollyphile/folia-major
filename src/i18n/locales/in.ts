@@ -872,7 +872,7 @@ export default {
     "sceneQuality_high": "Tinggi",
     "soundTracing": "Pelacakan suara",
     "soundTracingUnsupported": "Adegan ini tidak punya pelacakan suara",
-    "soundTracingOutput": "Mendengarkan lewat",
+    "soundTracingOutput": "Perangkat",
     "soundTracingOutput_headphones": "Headphone",
     "soundTracingOutput_speakers": "Speaker",
     "sceneSeat": "Kursi",
