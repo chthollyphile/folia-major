@@ -125,7 +125,7 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     ctx.setTransform(cs * c.s * k, sn * c.s * k, -sn * c.s * k, cs * c.s * k, (c.x - c.s / 2 * (cs - sn)) * k, (c.y - c.s / 2 * (sn + cs)) * k);
     // 笔画多的字笔画收细一点，不然挤在一起糊成一团；最细 8 像素的下限也跟着收，不然字小时下限盖过了收细
     const thin = clamp(Math.sqrt(9 / g.strokes.length), 0.55, 1);
-    const width = Math.max(ink.strokeWidth * thin, 8 * thin / c.s);
+    const width = ink.strokeWidth * thin;
     const drips: [GlyphStroke, Drip, number][] = [];
     g.strokes.forEach((st, si) => {
         const dur = fadeIn ? 0 : inkTime * st.len / g.total;
