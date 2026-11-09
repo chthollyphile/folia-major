@@ -202,6 +202,12 @@ describe('coven dry-run merge', () => {
 
     it('merges the task branch into the local integration branch without checking anything out', () => {
         const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'coven-merge-'));
+        // 模拟没配 git 身份的机器（CI 的 runner 就是这样）：干跑合并照样要能建合并提交
+        const saved = { global: process.env.GIT_CONFIG_GLOBAL, nosystem: process.env.GIT_CONFIG_NOSYSTEM };
+        const emptyConfig = path.join(repo, '..', `${path.basename(repo)}.gitconfig`);
+        fs.writeFileSync(emptyConfig, '');
+        process.env.GIT_CONFIG_GLOBAL = emptyConfig;
+        process.env.GIT_CONFIG_NOSYSTEM = '1';
         try {
             git(repo, 'init', '-q', '-b', 'main');
             fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
@@ -219,13 +225,19 @@ describe('coven dry-run merge', () => {
             expect(git(repo, 'rev-list', '--parents', '-n', '1', merged).split(' ')).toEqual([merged, before, git(repo, 'rev-parse', 'coven/woo1-no1')]);
             // 后面的任务从集成分支切出时看得到前面任务的文件
             expect(git(repo, 'show', 'coven/woo1:b.txt')).toBe('b');
+            expect(git(repo, 'log', '-1', '--format=%an <%ae>', merged)).toBe('Coven <coven@localhost>');
             // 检出着的分支不移动它
             expect(() => mergeLocally(repo, { into: 'main', from: 'coven/woo1-no1', message: 'x' })).toThrow('检出着');
             // 合过了再合一次（上次合完、记账之前中断了）：不再造新的合并提交
             expect(mergeLocally(repo, { into: 'coven/woo1', from: 'coven/woo1-no1', message: 'again' })).toBe(merged);
             expect(git(repo, 'rev-parse', 'coven/woo1')).toBe(merged);
         } finally {
+            for (const [name, value] of [['GIT_CONFIG_GLOBAL', saved.global], ['GIT_CONFIG_NOSYSTEM', saved.nosystem]]) {
+                if (value === undefined) delete process.env[name];
+                else process.env[name] = value;
+            }
             fs.rmSync(repo, { recursive: true, force: true });
+            fs.rmSync(emptyConfig, { force: true });
         }
     });
 

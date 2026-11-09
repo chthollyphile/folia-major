@@ -156,7 +156,10 @@ export function mergeLocally(root, { into, from, message }) {
     if (tree.status === 1) throw new Error(`${from} 合进 ${into} 有冲突，干跑合并没做：${tree.output.slice(0, 500)}`);
     if (!tree.ok) throw new Error(`git merge-tree 没跑成（要 git 2.38 以上）：${tree.output.slice(0, 500)}`);
     const treeId = tree.output.split('\n')[0].trim();
-    const commit = git(root, ['commit-tree', treeId, '-p', target, '-p', source, '-m', message]).trim();
+    // 干跑的合并提交只留在本地、不推送：没配 git 身份的机器（CI、新开的云端环境）用一个固定的名字，不要因此失败
+    const hasIdentity = tryGit(root, ['config', 'user.name']).ok && tryGit(root, ['config', 'user.email']).ok;
+    const identity = hasIdentity ? {} : { env: { ...process.env, GIT_AUTHOR_NAME: 'Coven', GIT_AUTHOR_EMAIL: 'coven@localhost', GIT_COMMITTER_NAME: 'Coven', GIT_COMMITTER_EMAIL: 'coven@localhost' } };
+    const commit = git(root, ['commit-tree', treeId, '-p', target, '-p', source, '-m', message], identity).trim();
     git(root, ['update-ref', `refs/heads/${into}`, commit, target]);
     return commit;
 }
