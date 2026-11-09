@@ -1,19 +1,19 @@
 import * as THREE from 'three';
 import { mixColors, parseColorChannels } from '../../visualizer/colorMix';
 import type { SceneFactory, SceneSong } from '../definition';
-import { phaseDirector, viewpointRig, turnHead, type CameraRig, type Head } from '../kit/camera';
+import { viewpointRig, turnHead, type Head } from '../kit/camera';
 import { createThreeStage } from '../kit/threeStage';
 import { cinemaAcousticWorld } from './cinemaAcoustics';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
-import { fitView, SEAT_HALF_TAN, tourRig } from './cinemaCamera';
+import { fitView, SEAT_HALF_TAN } from './cinemaCamera';
 import { loadCinemaReel } from './cinemaReel';
 import { createCinemaScene, type CinemaScene } from './cinemaScene';
 
 // src/components/scenes/cinema/cinemaRuntime.ts
-// The hall as a scene runtime: the kit's transparent canvas, the hall (cinemaScene.ts) filmed from the
-// user's seat while a line is sung and on its tour when the next line is far (the kit's phaseDirector),
-// the screen's corners handed to the host each frame, where the user's lyric style and background show
-// (the hall draws no lyrics and no picture of its own). A drag turns the head, in the seat and on the tour.
+// The hall as a scene runtime: the kit's transparent canvas, the hall (cinemaScene.ts) seen from the
+// user's seat the whole time (the camera never moves by itself; a drag turns the head), the screen's
+// corners handed to the host each frame, where the user's lyric style and background show
+// (the hall draws no lyrics and no picture of its own).
 // A pause is an intermission (cinemaIntermission.ts) and play starts the music at once while the curtains
 // open; at the end of the queue the house lights come up; an automix blend changes reels as it starts.
 // The hall's lights are its own: the app's light or dark mode never reaches them; the cove takes a little
@@ -53,17 +53,9 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
     const disposers: (() => void)[] = [];
     let lightsUpAtEnd = false;
 
-    // The user's head, turned by dragging: the same in the seat and on the tour.
+    // The user's seat, the head turned by dragging.
     const head: Head = { yaw: 0, pitch: 0 };
     const seat = viewpointRig(ctx, { head });
-    const seated: CameraRig = {
-        update: (camera, dt) => {
-            seat.update(camera, dt);
-            fitView(camera, SEAT_HALF_TAN);
-            camera.updateMatrixWorld();
-        },
-    };
-    const director = phaseDirector(ctx, { seat: seated, tour: tourRig(ctx, head) });
 
     // The projector's light: the cover's colours on the reel; a blend changes reels as it starts, so the hall's light moves on with the music.
     let onProjector: string | null | undefined;
@@ -114,7 +106,9 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
             const running = !ctx.player.paused();
             const { camera, renderer } = stage;
             turnHead(ctx, head);
-            director.update(camera, running ? dt : 0);
+            seat.update(camera, running ? dt : 0);
+            fitView(camera, SEAT_HALF_TAN);
+            camera.updateMatrixWorld();
             renderer.getDrawingBufferSize(bufferSize);
             const shutter = hall.update({
                 dt,

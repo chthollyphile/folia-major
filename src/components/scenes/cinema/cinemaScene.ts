@@ -29,7 +29,7 @@ const DUST_COUNT = 520;
 const SCREEN_MARGIN = 0.32;
 
 export interface CinemaFrameInput {
-    /** Seconds since the last frame, paused or not: a pause stops the film and the tour, not the hall's air and grain. */
+    /** Seconds since the last frame, paused or not: a pause stops the film, not the hall's air and grain. */
     dt: number;
     running: boolean;
     /** Audio, each 0..1. */
