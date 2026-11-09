@@ -4,11 +4,7 @@ import { riskOf } from './risk.mjs';
 // packages/coven/src/scope.mjs
 // 范围（HD1）：从适配层的来源取一批条目，逐条算出风险级，存成 .coven/scopes/<名字>.json。
 // 范围名用音乐体裁：<体裁> 或 <体裁>-<标题>，体裁按这次清理的性质挑（catalogue.mjs 的 GENRES）。
-//
-//   coven scope --name <范围名> --from <来源>[,<来源>] [来源自己的选项]
-//   coven scope --show <范围名>
-//
-// 来源和它们的选项由适配层定（Folia：baseline 收 --codes，lint 收 --rules、--paths），coven scope --help 会列出来。
+// 来源和它们的选项由适配层定（Folia：baseline 收 --codes，lint 收 --rules、--paths）。用法见 usage（coven scope --help）。
 
 /**
  * 从适配层的来源生成范围条目，补上风险级和敏感原因。
@@ -44,14 +40,19 @@ const sourceHelp = adapter => Object.entries(adapter.sources)
     .map(([name, source]) => `  ${name.padEnd(10)} ${source.describe}${source.options?.length ? `；选项：${source.options.map(option => `--${option}`).join(' ')}` : ''}`)
     .join('\n');
 
+export const usage = ({ adapter }) => [
+    'coven scope --name <范围名> --from <来源>[,<来源>] [来源的选项]   从来源生成范围，存成 .coven/scopes/<范围名>.json（HD1）',
+    'coven scope --show <范围名>                                     再看一次已有的范围',
+    '',
+    `来源（适配层 ${adapter.id}）：`,
+    sourceHelp(adapter),
+    scopeNameHelp(),
+].join('\n');
+
 export async function run(host, argv) {
     const { root, config, adapter } = host;
     const sourceOptions = [...new Set(Object.values(adapter.sources).flatMap(source => source.options ?? []))];
-    const { options } = parseArgs(argv, ['help'], ['name', 'from', 'show', ...sourceOptions]);
-    if (options.help) {
-        console.log(`coven scope --name <范围名> --from <来源>[,<来源>] [选项]\n来源（适配层 ${adapter.id}）：\n${sourceHelp(adapter)}\n${scopeNameHelp()}`);
-        return;
-    }
+    const { options } = parseArgs(argv, [], ['name', 'from', 'show', ...sourceOptions]);
     if (options.show) {
         printScope(readJson(covenPath(root, 'scopes', `${options.show}.json`)));
         return;

@@ -125,7 +125,44 @@ describe('folia ledger and baseline check', () => {
     it('checks the shape of unit and dedicatus criteria', () => {
         expect(adapter.checks.unit.validate?.({ kind: 'unit', target: ['test/unit/a.test.ts; curl evil'] })).toContain('unit 要写 target');
         expect(adapter.checks.unit.validate?.({ kind: 'unit', target: ['test/unit/a.test.ts'] })).toBeNull();
-        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'everything' })).toContain('graph 或 all');
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'everything' })).toContain('不用写 target');
+        // 旧契约里的 graph、all 照样认
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus' })).toBeNull();
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'graph' })).toBeNull();
+    });
+
+    // Op. 1：挪出 src/components/ 后 D411 变成 D508，只跑模块图的 verify 看不见，要到 CI 的 lint 才暴露
+    it('always lints the changed files, even when the contract only asked for the module graph', () => {
+        const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'coven-folia-lint-'));
+        try {
+            const calls: string[][] = [];
+            const memoStore = new Map<string, unknown>();
+            const ctx = (criterion: object) => ({
+                worktree, mergeBase: 'base1', criterion, contract: { items: [] },
+                memo: <T>(key: string, compute: () => T): T => {
+                    if (!memoStore.has(key)) memoStore.set(key, compute());
+                    return memoStore.get(key) as T;
+                },
+                run: (_command: string, args: string[]) => {
+                    calls.push(args);
+                    return { ok: true, status: 0, seconds: 1, output: JSON.stringify({ fresh: [{ level: 'error', code: 'D508', file: 'src/stores/exploreFeedMemory.ts', line: 3, key: 'k' }], known: [] }) };
+                },
+                readAt: () => null,
+            });
+            const missing = adapter.checks.dedicatus.run?.(ctx({ id: 'c2', verify: { kind: 'dedicatus', target: 'graph' } }) as never);
+            expect(missing).toMatchObject({ ok: false, summary: expect.stringContaining('npm run lint:install') });
+            expect(calls).toEqual([]);
+
+            memoStore.clear();
+            fs.mkdirSync(path.join(worktree, 'dev/dedicatus/lint/node_modules'), { recursive: true });
+            const result = adapter.checks.dedicatus.run?.(ctx({ id: 'c2', verify: { kind: 'dedicatus', target: 'graph' } }) as never);
+            expect(result).toMatchObject({ ok: false, summary: expect.stringContaining('D508 src/stores/exploreFeedMemory.ts:3') });
+            adapter.checks.baseline.run?.(ctx({ id: 'c1', verify: { kind: 'baseline' } }) as never);
+            // baseline 共用同一次 Dedicatus 的结果，只跑一遍
+            expect(calls).toEqual([['dev/dedicatus/cli.mjs', '--json', '--base', 'base1', '--all']]);
+        } finally {
+            fs.rmSync(worktree, { recursive: true, force: true });
+        }
     });
 });
 
@@ -151,9 +188,13 @@ describe('folia role prompts', () => {
         expect(planner).toContain('`skills/file-modularization/SKILL.md`');
         expect(planner).toContain('{"kind":"baseline"}');
         expect(planner).toContain('"title": "lyric-match-sources"');
+        expect(planner).toContain('挪进 `src/stores/` 以后报 D508');
+        expect(checked.worktree.flags).toEqual([]);
         const generator = renderTemplate(readTemplate('generator'), generatorVars(state, config, checked, contract, null));
-        // 契约要跑 ESLint：准备步骤带上 --lint；装不上的包不要自己绕
-        expect(generator).toContain('npm run coven:setup -- --lint');
+        // 准备步骤总是装 ESLint 隔离环境（verify 每次都跑 ESLint）；装不上的包不要自己绕
+        expect(generator).toContain('`npm run coven:setup`（装依赖和 ESLint 隔离环境）');
+        expect(generator).not.toContain('--lint');
+        expect(generator).toContain('`npm run dedicatus -- --all`');
         expect(generator).toContain('不要自己想办法绕');
         expect(generator).toContain('npm run dedicatus -- --migrate-renames');
         expect(generator).toContain('先 cd 进你的 worktree 根目录');

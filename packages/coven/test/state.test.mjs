@@ -4,9 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { prLabel, requireCurrentFormat } from '../src/common.mjs';
-import { contractFingerprint } from '../src/contract.mjs';
+import { applyPlanImport, contractFingerprint } from '../src/contract.mjs';
+import { applyDecision, closeOpenEscalations, decisionProblems } from '../src/escalations.mjs';
 import { mergeLocally, prPreflight, renderPrBody } from '../src/pr.mjs';
-import { auditWrites, claimChangeFor, createState, pushCreatedRef, runRecord, transition } from '../src/state.mjs';
+import { auditWrites, claimChangeFor, createState, pushCreatedRef, renderSummary, runRecord, runTokens, transition } from '../src/state.mjs';
 import { parseNameStatus } from '../src/verify.mjs';
 
 // packages/coven/test/state.test.mjs
@@ -101,6 +102,60 @@ describe('coven run record and audit', () => {
         expect(record.tasks.find(entry => entry.task === 'a')).toMatchObject({ minutes: 90, rounds: 2, pr: 1201 });
         expect(record.escalations.map(entry => entry.code)).toEqual(['D812', 'D811']);
         expect(record.totals).toMatchObject({ tasks: 2, done: 1, prs: 1, blocked: 1, tokens: 2_000_000 });
+    });
+
+    // Op. 1：planner 没出任务时用量记不上；D812 在导入任务时被删掉；HD4 只记了次数，看不出选了什么
+    it('keeps the escalation, the maintainer decision, every intervention and run-level tokens in the record', () => {
+        const ITEM = 'D190:src/components/app/home/explore/exploreFeedMemory.ts';
+        const state = createState({ run: 'op1', scope: 'fugue-explore', owner: 'alice', trackingIssue: 42, dryRun: false, now: '2026-11-09T07:13:00.000Z' });
+        state.items[ITEM] = { claim: { state: 'blocked', code: 'D812' } };
+        applyPlanImport(state, { tasks: [], escalations: [{ items: [ITEM], code: 'D812', question: '挪出 components 后 D411 变 D508，怎么办？', options: ['挪进 stores、改走 storagePrimitives', '放行'] }] }, '2026-11-09T07:20:00.000Z');
+        // planner 一个任务都没出：用量记到运行本身
+        state.costs.push({ at: '2026-11-09T07:21:00.000Z', task: null, role: 'planner', tokens: 186_648, approx: true });
+        expect(runTokens(state)).toBe(186_648);
+        expect(decisionProblems(state, { id: 'e1', outcome: 'replan' }).join('\n')).toMatch(/--by[\s\S]*--note/);
+        expect(decisionProblems(state, { id: 'e9', outcome: 'replan', by: 'alice', note: 'x' })[0]).toContain('没有升级 e9');
+        applyDecision(state, { id: 'e1', outcome: 'replan', by: 'alice', note: '选一：挪进 src/stores/，storeContract 加放行边', now: '2026-11-09T07:25:00.000Z' });
+        state.interventions.push({ at: '2026-11-09T07:25:00.000Z', kind: 'HD4', note: '@alice 对 e1（D812）：replan —— 选一' });
+        state.items[ITEM].claim = { state: 'claimed' };
+        applyPlanImport(state, { tasks: [{ task: 'op1-no1', title: 'explore-feed-memory-into-stores', items: [ITEM], risk: 'R2' }] }, '2026-11-09T07:30:00.000Z');
+        state.tasks['op1-no1'].tokens = 112_328;
+        state.costs.push({ at: '2026-11-09T07:40:00.000Z', task: 'op1-no1', role: 'generator', tokens: 112_328, approx: true });
+        expect(decisionProblems(state, { id: 'e1', outcome: 'release', by: 'alice', note: 'x' })[0]).toContain('已经了结（分进了 op1-no1）');
+
+        const record = runRecord(state, '2026-11-09T07:46:00.000Z');
+        expect(record.escalations).toEqual([expect.objectContaining({
+            id: 'e1', code: 'D812', options: ['挪进 stores、改走 storagePrimitives', '放行'],
+            decision: expect.objectContaining({ outcome: 'replan', by: 'alice' }), resolution: expect.objectContaining({ how: 'tasks', tasks: ['op1-no1'] }),
+        })]);
+        expect(record.tasks[0]).toMatchObject({ codes: ['D812'], escalations: ['e1'], approxTokens: true });
+        expect(record.interventionLog).toEqual([{ at: '2026-11-09T07:25:00.000Z', kind: 'HD4', note: '@alice 对 e1（D812）：replan —— 选一' }]);
+        expect(record.totals).toMatchObject({ tokens: 298_976, approxTokens: true, overhead: { planner: 186_648 } });
+        const summary = renderSummary(record);
+        expect(summary).toContain('用量：约 298976 token（含估算值），其中不属于任务的 planner 186648');
+        expect(summary).toContain('| 约 112328 | ');
+        expect(summary).toContain('| D812、e1 |');
+        expect(summary).toContain('  - 决定（HD4，@alice）：replan —— 选一：挪进 src/stores/，storeContract 加放行边');
+        expect(summary).toContain('  - 结果：分进了 op1-no1');
+        expect(summary).toContain('- 2026-11-09 07:25Z HD4：@alice 对 e1（D812）：replan —— 选一');
+    });
+
+    it('releases an escalation outright when the maintainer decides not to do it', () => {
+        const state = createState({ run: 'op1', scope: 'fugue', owner: 'alice', trackingIssue: 42, dryRun: false });
+        state.items['D190:a'] = { claim: { state: 'blocked', code: 'D812' } };
+        applyPlanImport(state, { tasks: [], escalations: [{ items: ['D190:a'], code: 'D812' }] }, '2026-11-09T01:00:00.000Z');
+        expect(decisionProblems(state, { id: 'e1', outcome: 'later', by: 'alice', note: 'x' })[0]).toContain('replan、release、hold');
+        applyDecision(state, { id: 'e1', outcome: 'release', by: 'alice', note: '不做', now: '2026-11-09T02:00:00.000Z' });
+        expect(state.escalations[0].resolution).toEqual({ at: '2026-11-09T02:00:00.000Z', how: 'released' });
+        expect(runRecord(state).escalations[0]).toMatchObject({ resolution: { how: 'released' } });
+    });
+
+    it('marks escalations still open at finish as closed by the finish, not as waiting forever', () => {
+        const state = createState({ run: 'op1', scope: 'fugue', owner: 'alice', trackingIssue: 42, dryRun: false });
+        state.items['D190:a'] = { claim: { state: 'blocked', code: 'D812' } };
+        applyPlanImport(state, { tasks: [], escalations: [{ items: ['D190:a'], code: 'D812', question: '?' }] }, '2026-11-09T01:00:00.000Z');
+        closeOpenEscalations(state, '2026-11-09T05:00:00.000Z');
+        expect(renderSummary(runRecord(state))).toContain('  - 结果：收尾时还没了结，认领已释放');
     });
 
     it('reports GitHub writes that did not go through the scripts', () => {

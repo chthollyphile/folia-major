@@ -46,9 +46,9 @@ npm run coven:scope -- --name etude-stores --from lint --rules @stylistic/indent
 
 ## 准备 worktree
 
-generator 开工第一步，是在自己的 worktree 里跑 `npm run coven:setup`。契约里有 `{"kind":"dedicatus","target":"all"}` 时加 `-- --lint`，顺带装 ESLint 隔离环境。
+generator 开工第一步，是在自己的 worktree 里跑 `npm run coven:setup`。
 
-- 先跑 `npm ci --ignore-scripts`。不要链接主检出的 `node_modules`。
+- 先跑 `npm ci --ignore-scripts`，再装 ESLint 隔离环境（verify 每次都跑 ESLint）。不要链接主检出的 `node_modules`。
 - 云端环境装不上 KuGouMusicApi（GitHub tarball 返回 403）时，脚本会去掉它再装一次：在 worktree 旁边的临时目录里，用改过的 package.json 和 lock 装，worktree 里跟踪的文件不动。
 - verify 会把“没装 kugoumusicapi”写进结果。evaluator 据此不把涉及酷狗的失败算成这次改动的问题。
 
@@ -57,7 +57,7 @@ generator 开工第一步，是在自己的 worktree 里跑 `npm run coven:setup
 | 种类 | 由谁判 | 内容 |
 | --- | --- | --- |
 | `baseline` | verify | 条目从基线消掉，Dedicatus 也查不出来；lint 条目的抑制降到 0（D806）。重构必须有这一项 |
-| `dedicatus` | verify | `graph`：模块图没有新的 error；`all`：再加 ESLint |
+| `dedicatus` | verify | 模块图和改过的文件的 ESLint 都没有新的 error（和 CI 一样）。不用写 `target` |
 | `typecheck` | verify | `tsc --noEmit` |
 | `unit` | verify | 指定的 vitest 测试文件 |
 | `review` | evaluator | 只是搬移和改引用、没有行为变化；挪文件的提交只挪不改；没加 `eslint-disable`、基线或抑制条目 |

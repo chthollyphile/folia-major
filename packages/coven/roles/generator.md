@@ -6,7 +6,8 @@
 
 ## 怎么做
 
-- 开工：确认当前分支是从 `{{integrationBranch}}` 切出的 `{{branch}}`。{{project.setup}}
+- 开工：{{project.setup}}
+- 分支：先 `git branch --show-current`。不是 `{{branch}}` 就 `git branch -m {{branch}}` 改过来（桌面版建 worktree 时会给分支名加前缀和后缀，开 PR 只认 `{{branch}}`），再确认它是从 `{{integrationBranch}}` 切出的。`{{branch}}` 已经存在、改名失败的，不要删它、不要强改，停下来报告。
 {{project.steps}}
 - 提交：Conventional Commits，例如 `{{project.commitExample}}`，不带 Claude 署名行或 session 链接；{{commitRule}}。做完时工作区要干净，没有未提交的改动。
 

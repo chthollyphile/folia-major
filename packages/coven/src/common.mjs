@@ -35,14 +35,31 @@ export function writeText(file, text) {
 
 /** 只有监控 session 的检出里才有 .coven/state.json；写 GitHub 的命令先过这一关。 */
 export function requireSupervisor(root) {
-    const file = path.join(root, STATE_FILE);
-    if (!fs.existsSync(file)) {
+    if (!hasState(root)) {
         throw new Error(`${STATE_FILE} 不存在：只有监控 session 能执行这个命令（先 coven state init）。工作 session 不做任何 GitHub 写操作。`);
     }
-    return requireCurrentFormat(readJson(file));
+    return requireCurrentFormat(loadState(root));
 }
 
-export const loadState = root => readJson(path.join(root, STATE_FILE));
+export const hasState = root => fs.existsSync(path.join(root, STATE_FILE));
+
+/**
+ * 读账本，补上后来加的字段：costs（每一笔用量，含不属于任务的 planner 用量）、升级的编号。
+ * 这些字段加在同一个格式版本里，旧账本读进来照样能接着跑。
+ */
+export function loadState(root) {
+    const state = readJson(path.join(root, STATE_FILE));
+    if (state && typeof state === 'object') {
+        state.costs ??= [];
+        state.escalations ??= [];
+        state.escalations.forEach((entry, index) => {
+            entry.id ??= `e${index + 1}`;
+            entry.decision ??= null;
+            entry.resolution ??= null;
+        });
+    }
+    return state;
+}
 
 /** 账本的格式版本：2 起运行和任务用乐谱编目的代号（catalogue.mjs）。 */
 export const STATE_VERSION = 2;
@@ -88,6 +105,14 @@ export function ghApiLines(endpoint, jq) {
     return out.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
 }
 
+/** 参数里有 --help（或 -h）：命令行入口接住它，打印这个命令的用法，什么都不做。每个命令都先解析参数再动手。 */
+export class HelpRequested extends Error {
+    constructor() {
+        super('要看用法：coven <命令> --help');
+        this.name = 'HelpRequested';
+    }
+}
+
 /**
  * 命令行参数：`--key value`、`--flag`，其余按位置。不认识的选项直接报错：
  * 打错一个字（`--tasks`）不能被当成“没指定”，否则 `set --state done` 会改到整个范围。
@@ -100,6 +125,8 @@ export function parseArgs(argv, flags = [], values = []) {
     const options = {};
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
+        // 只在选项的位置认 --help：`--note -h` 里的 -h 是 --note 的值，照常往下走
+        if (arg === '--help' || arg === '-h') throw new HelpRequested();
         if (!arg.startsWith('--')) {
             positional.push(arg);
             continue;
