@@ -33,46 +33,43 @@ export const playbackSourceOf = (source: PlaybackSource | null, queue: SongResul
     return [song, ...queue].every(entry => source.songKeys.has(getPlaybackSongKey(entry))) ? source.collection : null;
 };
 
-// A queue that was asked for and that the player has not taken yet: where it was started, its
-// songs, and what the player had then (its queue, and the song that played). It becomes the source
-// once the player has put a queue of its songs in the place of the one it had, and plays a song of it.
+// A queue that was asked for and that the player has not taken yet: where it was started and its
+// songs. It becomes the source once the controller explicitly accepts that play's song and queue.
 //  - Not when it is asked for: a play may be refused (no song of it can be played, the song is
 //    marked unavailable, an extension cancels it), and the queue that goes on playing keeps its
 //    own source.
 //  - Not by its songs alone: the queue that goes on playing may be made of songs of the one asked
 //    for (the app's own "recently played" holds every song of a queue played here).
-// It is forgotten when another song than one of it begins: the play was refused, or overtaken.
-// Left: after a refused play, a queue that is made of songs of the one asked for, has no other
-// song begin, and is then edited (the player puts the edited queue in its place) is taken for it.
-let asked: { collection: GridViewCollectionDescriptor | null; songKeys: ReadonlySet<string>; queue: SongResult[]; playing: string | null } | null = null;
-const takeAskedQueue = (): void => {
-    if (!asked) return;
-    const { currentSong, playQueue } = usePlaybackStore.getState();
-    if (!currentSong) return;
-    const playing = getPlaybackSongKey(currentSong);
-    if (!asked.songKeys.has(playing)) {
-        if (playing !== asked.playing) asked = null;
-        return;
-    }
-    if (playQueue === asked.queue || !playQueue.every(song => asked!.songKeys.has(getPlaybackSongKey(song)))) return;
-    usePlayingSongLocatorStore.getState().setSource(asked.collection && { collection: asked.collection, songKeys: asked.songKeys });
-    asked = null;
-};
-usePlaybackStore.subscribe(takeAskedQueue);
+// Home names its exact queue before playSong begins. The controller consumes this intent before
+// any wait, and owns its acceptance callback thereafter, including a retry or a library delegate.
+// A failed or superseded play never transfers its collection to a later queue edit or overlapping
+// request; the new request captures its own source independently.
+let asked: { queue: SongResult[]; source: PlaybackSource | null } | null = null;
 
 /**
  * A queue of these songs is being started: on this collection's page, or (null) somewhere that is
  * no collection's page. Whatever starts a queue from the home screen says so (buildHomeModel.ts).
  * Without the second, a queue made of songs that the collection before also holds would pass for
- * that collection's. Not covered: a queue started by something that is not the home screen (the
- * personal radio's own controller, a play asked for over the remote-control interface, an
- * extension) leaves the source as it was. So does a play that ends on another song than one of
- * the queue (an extension sends it elsewhere, the listener takes the song offered in place of an
- * unavailable one): that queue took in a song from elsewhere, and is no collection's.
+ * that collection's. Other callers are classified by the controller: no queue or the live queue
+ * continues playback; a queue of its own has no collection unless Home explicitly named one.
+ * A picked song absent from the page's playable queue still belongs to that named collection.
+ * A play that ends on another song outside this source (an extension redirects it, or the listener
+ * takes another version of an unavailable one) cannot claim this collection when it lands.
  */
-export const noteQueueStarted = (collection: GridViewCollectionDescriptor | null, queue: SongResult[]): void => {
-    const { currentSong, playQueue } = usePlaybackStore.getState();
-    asked = { collection, songKeys: new Set(queue.map(getPlaybackSongKey)), queue: playQueue, playing: currentSong && getPlaybackSongKey(currentSong) };
+export const noteQueueStarted = (collection: GridViewCollectionDescriptor | null, queue: SongResult[], song?: SongResult): void => {
+    asked = { queue, source: collection && { collection, songKeys: new Set((song ? [song, ...queue] : queue).map(getPlaybackSongKey)) } };
+};
+
+/** Captures one play's source intent; only an existing queue continues its origin without an explicit collection. */
+export const takeQueueSourceAcceptance = (queue: SongResult[]): ((song: SongResult, acceptedQueue: SongResult[]) => void) => {
+    const request = asked?.queue === queue ? asked : null;
+    asked = null;
+    const currentQueue = usePlaybackStore.getState().playQueue;
+    const source = request ? request.source : queue.length === 0 || queue === currentQueue ? usePlayingSongLocatorStore.getState().source : null;
+    return (song, acceptedQueue) => {
+        const accepted = source && playbackSourceOf(source, acceptedQueue, song) ? source : null;
+        if (usePlayingSongLocatorStore.getState().source !== accepted) usePlayingSongLocatorStore.getState().setSource(accepted);
+    };
 };
 
 let nonces = 0;

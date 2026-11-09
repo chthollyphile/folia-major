@@ -17,6 +17,8 @@ export type PlaybackNavigationOptions = {
     shouldNavigateToPlayer?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];
+    /** Internal source transaction, carried through retries and library delegates; invoked only after song and queue land. */
+    acceptQueueSource?: (song: SongResult, queue: SongResult[]) => void;
     /**
      * Set only by the automix blend's own advance. That play skips extension `beforePlay` hooks:
      * the blend starts the arriving track on a fixed schedule, and its cancel paths assume the

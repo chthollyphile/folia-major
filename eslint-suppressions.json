@@ -2309,11 +2309,6 @@
       "count": 1
     }
   },
-  "src/components/app/playing-song-locator/playingSongLocator.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
   "src/components/app/presentation/buildVisualizerTheme.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1

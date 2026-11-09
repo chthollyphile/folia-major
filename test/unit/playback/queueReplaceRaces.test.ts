@@ -98,6 +98,10 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
+        getPersonalFmCatalog: async () => ({
+            ...DEFAULT_PERSONAL_FM_CATALOG,
+            scenes: ['33', '44'].map(id => ({ id, category: 'activity', labelKey: '', labelFallback: id, keywords: [] })),
+        }),
         getSongReplacement: async (song: { id: string }) => env.self.replacementFor.get(String(song.id)) ?? null,
         getSongDetail: async (providerId: string, id: number | string) => {
             env.self.detailCalls.push([providerId, id]);
@@ -158,6 +162,10 @@ const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
 const { registerPersonalFmLanding } = await import('@/components/app/playback/start/personalFmLanding');
+const { usePlayingSongLocatorStore } = await import('@/stores/usePlayingSongLocatorStore');
+const { playbackSourceOf, noteQueueStarted } = await import('@/components/app/playing-song-locator/playingSongLocator');
+const { createLibraryHomePort } = await import('@/library/app/createLibraryHomePort');
+const { DEFAULT_PERSONAL_FM_CATALOG } = await import('@/services/onlineMusic/fmModes');
 
 const online = (id: string): SongResult => ({
     id, name: id.toUpperCase(), artists: [], album: { id: '', name: '' }, durationMs: 1000,
@@ -1207,6 +1215,36 @@ describe('a Stage API add', () => {
 });
 
 describe('accepted FM ownership across pending Stage entry', () => {
+    it('the real home landing keeps scene A ownership while scene B is waiting for songs', async () => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        playerWith([a], a);
+        const host = mount();
+        const plays: Promise<void>[] = [];
+        const port = createLibraryHomePort(() => ({
+            localSongs: [], onRefreshLocalSongs: vi.fn(),
+            onPlaySong: (song, queue, fm) => { plays.push(host.queue.playSong(song, queue, fm)); },
+        }));
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        const second = { mode: 'SCENE_RCMD' as const, scene: '44' };
+        const release = holdAddress(f1);
+        const later = deferred<SongResult[]>();
+        try {
+            env.self.fmBatch = Promise.resolve([f1, f2]);
+            const firstQueue = await port.getPersonalFm(first, 'bodian');
+            port.playPersonalFm(f1, firstQueue);
+            await settle();
+            env.self.fmBatch = later.promise;
+            const secondQueue = port.getPersonalFm(second, 'bodian');
+            await settle();
+            expect(usePersonalFmModeStore.getState().providerSelections.bodian).toEqual(second);
+            release();
+            await plays[0];
+            expect(store().acceptedFmPlayback?.selection).toEqual(first);
+            later.resolve([p1, p2]);
+            await secondQueue;
+        } finally { release(); later.resolve([]); }
+    });
+
     it.each([false, true])('Stage corrects a pending FM flag unless that intent was already cancelled (cancelled: %s)', async cancelled => {
         playerWith([a], a, false);
         const host = mount();
@@ -1252,5 +1290,166 @@ describe('accepted FM ownership across pending Stage entry', () => {
             release();
             if (typeof cleanup === 'function') cleanup();
         }
+    });
+});
+
+describe('accepted collection origin through unnamed replacement queues', () => {
+    const daily = { source: 'online' as const, providerId: 'bodian', type: 'daily_recommendations', id: 'daily', name: 'Daily' };
+    const source = () => usePlayingSongLocatorStore.getState().source;
+    const dailyQueue = () => {
+        const songs = [online('da'), online('db')];
+        playerWith(songs, songs[0]);
+        usePlayingSongLocatorStore.getState().setSource({ collection: daily, songKeys: new Set(keys(songs)) });
+        return songs;
+    };
+
+    it('ends daily provenance when a Stage API replacement accepts an overlapping song', async () => {
+        dailyQueue();
+        const { queue } = mount();
+        await queue.handleStageExternalPlayRequest({ requestId: 'daily-overlap', providerId: 'bodian', songId: 'b', appendToQueue: false });
+        expect(keys(store().playQueue)).toEqual(['online:bodian:db']);
+        expect(source()).toBeNull();
+        expect(playbackSourceOf(source(), store().playQueue, store().currentSong)).toBeNull();
+    });
+
+    it('ends daily provenance for a Lattice Explore queue even when its IDs and order are identical', async () => {
+        const songs = dailyQueue();
+        const { queue } = mount();
+        await queue.playSong(songs[1], [...songs], false, { shouldNavigateToPlayer: false });
+        expect(source()).toBeNull();
+    });
+
+    it('keeps the daily source while an overlapping replacement waits or fails, then while the old queue advances', async () => {
+        const songs = dailyQueue();
+        const held = source();
+        const host = mount();
+        const release = holdAddress(songs[1]);
+        env.self.audioResultFor.set('db', unavailable('sign-in-needed'));
+        const pending = host.queue.playSong(songs[1], [songs[1]], false);
+        await settle();
+        expect(source()).toBe(held);
+        release();
+        await pending;
+        expect(source()).toBe(held);
+        env.self.audioResultFor.delete('db');
+        host.render();
+        await host.queue.playSong(songs[1], store().playQueue, false);
+        expect(source()).toBe(held);
+    });
+
+    it('keeps named daily navigation and commits its origin only after the queue is accepted', async () => {
+        playerWith([x], x);
+        usePlayingSongLocatorStore.getState().setSource(null);
+        const songs = [a, b];
+        const { queue } = mount();
+        const release = holdAddress(b);
+        noteQueueStarted(daily, songs, b);
+        const pending = queue.playSong(b, songs, false);
+        await settle();
+        expect(source()).toBeNull();
+        release();
+        await pending;
+        expect(playbackSourceOf(source(), store().playQueue, store().currentSong)).toBe(daily);
+    });
+
+    it('keeps a named daily play-all source when it skips an unavailable first song', async () => {
+        playerWith([x], x);
+        usePlayingSongLocatorStore.getState().setSource(null);
+        const songs = [a, b];
+        env.self.unavailable.add('a');
+        const { queue } = mount();
+        noteQueueStarted(daily, songs);
+        queue.playOnlineQueueFromStart(songs);
+        await settle();
+        expect(store().currentSong).toMatchObject({ id: 'b' });
+        expect(playbackSourceOf(source(), store().playQueue, store().currentSong)).toBe(daily);
+    });
+
+    it('does not retain a named play-all intent when no song is playable', async () => {
+        playerWith([x], x);
+        usePlayingSongLocatorStore.getState().setSource(null);
+        const songs = [a];
+        env.self.unavailable.add('a');
+        const { queue } = mount();
+        noteQueueStarted(daily, songs);
+        queue.playOnlineQueueFromStart(songs);
+        env.self.unavailable.delete('a');
+        await queue.playSong(a, songs, false);
+        expect(source()).toBeNull();
+    });
+
+    it('keeps daily ownership through next and previous after a queue edit', async () => {
+        const songs = dailyQueue();
+        const held = source();
+        setPlayQueue([...songs]);
+        const host = mount();
+        await host.queue.handleNextTrack();
+        await settle();
+        expect(store().currentSong).toMatchObject({ id: 'db' });
+        expect(source()).toBe(held);
+        host.render().handlePrevTrack();
+        await settle();
+        expect(store().currentSong).toMatchObject({ id: 'da' });
+        expect(source()).toBe(held);
+    });
+
+    it('does not give a failed named collection to later queue edits or an unrelated overlapping play', async () => {
+        const songs = dailyQueue();
+        const held = source();
+        const host = mount();
+        const otherQueue = [songs[1], songs[0]];
+        noteQueueStarted({ ...daily, id: 'other' }, otherQueue, songs[1]);
+        env.self.audioResultFor.set('db', unavailable('sign-in-needed'));
+        await host.queue.playSong(songs[1], otherQueue, false);
+        setPlayQueue([...songs].reverse());
+        expect(source()).toBe(held);
+        env.self.audioResultFor.delete('db');
+        await host.render().playSong(songs[1], [...otherQueue], false);
+        expect(source()).toBeNull();
+    });
+
+    it('preserves daily ownership through a queue reorder and explicit Stage queue selection', async () => {
+        const songs = dailyQueue();
+        const held = source();
+        setPlayQueue([...songs].reverse());
+        let onRequest: ((request: unknown) => void) | undefined;
+        const complete = vi.fn();
+        vi.stubGlobal('window', { ...window, electron: {
+            onStagePlayerQueueRequest: (handler: (request: unknown) => void) => { onRequest = handler; return () => {}; },
+            completeStagePlayerQueueRequest: complete,
+        } });
+        mount();
+        env.self.effects.find(effect => String(effect).includes('onStagePlayerQueueRequest'))?.();
+        onRequest?.({ requestId: 'queue-select', action: 'select', index: 0 });
+        await vi.waitFor(() => expect(complete).toHaveBeenCalledWith(expect.objectContaining({ ok: true })));
+        expect(source()).toBe(held);
+        expect(playbackSourceOf(source(), store().playQueue, store().currentSong)).toBe(daily);
+    });
+
+    it('does not restore daily ownership after a whole-queue replacement while a navigation play waits', async () => {
+        const songs = dailyQueue();
+        const { queue } = mount();
+        const release = holdAddress(songs[1]);
+        const pending = queue.playSong(songs[1], store().playQueue, false);
+        await settle();
+        replaceWhole([...songs]);
+        release();
+        await pending;
+        expect(source()).toBeNull();
+    });
+
+    it('does not restore daily ownership when a failed navigation is retried after whole-queue replacement', async () => {
+        const songs = dailyQueue();
+        const { queue, render } = mount();
+        env.self.audioResultFor.set('db', unavailable('unknown'));
+        await queue.playSong(songs[1], store().playQueue, false);
+        expect(status()).toMatchObject({ actionLabel: 'ui.retry' });
+        replaceWhole([...songs]);
+        render();
+        env.self.audioResultFor.delete('db');
+        status()?.onAction?.();
+        await settle();
+        expect(store().currentSong).toMatchObject({ id: 'db' });
+        expect(source()).toBeNull();
     });
 });

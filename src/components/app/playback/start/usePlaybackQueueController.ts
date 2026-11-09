@@ -56,6 +56,7 @@ import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMe
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, setDuration, setIsFmMode, setPlayQueue, setPlayerState, startLoadingToPlay, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { getAcceptedFmSelection, noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
+import { takeQueueSourceAcceptance } from '../../playing-song-locator/playingSongLocator';
 import { askedSongKeyRef, askForSong, keepSongsOfProvidersStanding, playsDroppedSoFar, providerDropsSoFar, providerPlaysDroppedSoFar, showSong, startOfAskedSong, startPlay, withdrawAsk } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
@@ -519,6 +520,8 @@ export function usePlaybackQueueController({
         // out instead of replacing the song the user picked last.
         // An automix advance skips the hook (see `isAutomixAdvance`).
         const onFmLanding = takePersonalFmLanding(queue);
+        const capturedQueueSource = takeQueueSourceAcceptance(queue);
+        const requestedQueueSource = options.acceptQueueSource ?? capturedQueueSource;
         const playSongCallId = ++playSongCallIdRef.current;
         // A route that empties the player while this play waits drops it too (`dropPlaysInFlight`), and so
         // does a sign-out of the requested song's platform (`dropPlaysOfProvider`).
@@ -555,6 +558,10 @@ export function usePlaybackQueueController({
         const yieldsToStore = () => queue.length === 0 || queue === storeQueueAtStart || samePlaybackKeySequence(queue, storeQueueAtStart);
         // A whole-queue write (a mod's replaceQueue, its undo) came while this play waited, and this play's queue was the store's.
         const queueRewritten = () => wholeQueueWritesSoFar() !== queueWritesAtStart && yieldsToStore();
+        // Retries keep this transaction's guard too, so a replaced queue cannot regain its former collection.
+        const acceptQueueSource = (song: SongResult, acceptedQueue: SongResult[]) => {
+            if (!queueRewritten()) requestedQueueSource(song, acceptedQueue);
+        };
         const allowedSong = !options.isAutomixAdvance && hasBeforePlayHook()
             ? await runBeforePlayHook(requestedSong)
             : requestedSong;
@@ -577,7 +584,7 @@ export function usePlaybackQueueController({
                 ? shownQueue.map(queued => (getPlaybackSongKey(queued) === shownKey ? playedSong : queued))
                 : [playedSong];
             if (onFmLanding) registerPersonalFmLanding(playedQueue, onFmLanding);
-            await latestQueueActionsRef.current.playSong(playedSong, playedQueue, asFm(), options);
+            await latestQueueActionsRef.current.playSong(playedSong, playedQueue, asFm(), { ...options, acceptQueueSource });
             return;
         }
         const song = allowedSong;
@@ -664,6 +671,7 @@ export function usePlaybackQueueController({
         // this song was to start, paused or quiet: those are about this song only (see `startOptions`).
         const deferredPlayOptions: PlaybackNavigationOptions = {
             ...options,
+            acceptQueueSource,
             isAutomixAdvance: undefined,
             queueRewritten: undefined,
             startAtSec: undefined,
@@ -861,6 +869,7 @@ export function usePlaybackQueueController({
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
                 queueRewritten,
+                acceptQueueSource,
             });
             return;
         }
@@ -886,6 +895,7 @@ export function usePlaybackQueueController({
                 shouldNavigateToPlayer,
                 unifiedQueue: newQueue,
                 queueRewritten,
+                acceptQueueSource,
             });
             return;
         }
@@ -1017,12 +1027,14 @@ export function usePlaybackQueueController({
         } else if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(landedQueue);
         }
+        let acceptedSelection = onFmLanding ? undefined : fmSelectionAtStart;
         if (isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) {
-            if (usePlaybackStore.getState().isFmMode && !queueRewritten()) onFmLanding?.();
+            if (usePlaybackStore.getState().isFmMode && !queueRewritten()) acceptedSelection = onFmLanding?.() ?? acceptedSelection;
             else if (fmModeToRestore && !usePlaybackStore.getState().isFmMode) usePersonalFmModeStore.getState().resetStationSelections();
         }
 
-        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, onFmLanding ? undefined : fmSelectionAtStart);
+        if (!queueRewritten()) acceptQueueSource(resolvedSong, landedQueue);
+        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, acceptedSelection);
 
         void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, landedQueue);
 
@@ -1157,11 +1169,13 @@ export function usePlaybackQueueController({
         const retainedSongs = getPlayableOnlineQueue(songs);
         const firstPlayableSong = retainedSongs.find(isQueueSongPlayable);
         if (!firstPlayableSong) {
+            // No play will consume Home's source intent for this queue.
+            takeQueueSourceAcceptance(songs);
             setStatusMsg({ type: 'error', text: t('status.noPlayableSongs') });
             return;
         }
 
-        void playSong(firstPlayableSong, retainedSongs, false);
+        void playSong(firstPlayableSong, songs, false);
     }, [getPlayableOnlineQueue, playSong, setStatusMsg, t]);
 
     // 「插进队列播放」（速记簿的行、搜索结果的播放）：已在队列里的直接播，位置不动；不在的照设置里「加入播放队列」
@@ -1751,7 +1765,7 @@ export function usePlaybackQueueController({
                 if (!selectedSong) {
                     throw new Error('Queue item was not found.');
                 }
-                await playSong(selectedSong, baseQueue, isFmMode, { shouldNavigateToPlayer: true });
+                await playSong(selectedSong, playQueue.length > 0 ? playQueue : [], isFmMode, { shouldNavigateToPlayer: true });
                 await complete(
                     true,
                     null,

@@ -796,6 +796,7 @@ export function useLibraryPlaybackController({
                 : [initialMeta.unifiedSong], initialMeta.unifiedSong, providerDropsAtStart);
         const finalQueue = landed.queue;
         if (landed.write) setPlayQueue(landed.write);
+        if (!queueRewritten()) options.acceptQueueSource?.(initialMeta.unifiedSong, finalQueue);
         void persistLastPlaybackCache(initialMeta.unifiedSong, finalQueue);
         // As playSong does for an online song: this song and the one after it are analysed for the
         // blend between them, and online songs queued nearby are fetched ahead.
@@ -1132,6 +1133,7 @@ export function useLibraryPlaybackController({
                     : [unifiedSong], unifiedSong, providerDropsAtStart);
             const finalQueue = landed.queue;
             if (landed.write) setPlayQueue(landed.write);
+            if (!queueRewritten()) options.acceptQueueSource?.(unifiedSong, finalQueue);
             void persistLastPlaybackCache(unifiedSong, finalQueue);
             // As in onPlayLocalSong.
             if (finalQueue.length > 0) {
