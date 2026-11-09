@@ -258,7 +258,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
     if (status === 'failed') return <VisualizerRenderer {...rendererProps} />;
 
     const hidden = status !== 'running';
-    // A style or background chosen before the scene, which the scene does not take, is shown as the first it takes.
+    // A style or background the scene cannot show (chosen, or drawn at random) is shown as the first it can; the choice stays.
     const lyricMode = resolveSceneOffered(mode => sceneOffersLyricStyle(manifest, mode), rendererProps.mode, VISUALIZER_REGISTRY.map(entry => entry.mode));
     const backgroundMode = resolveSceneOffered(
         mode => sceneOffersBackground(manifest, mode),

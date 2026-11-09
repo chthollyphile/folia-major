@@ -34,8 +34,6 @@ import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/useP
 import { usePonderStore } from '../../../stores/usePonderStore';
 import { Toggle, type PictureState } from '../../modal/settings/kit';
 import SceneRow from '../../scenes/settings/SceneRow';
-import { useChosenScene } from '../../scenes/registry';
-import { resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from '../../scenes/engine/scenePlacement';
 
 // src/components/panelTab/controls/AppearanceSection.tsx
 // 外观区：歌词样式、背景、播放页透明背景三件事放在一起。
@@ -92,36 +90,27 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     const visualizerBackgroundMode = useVisualizerSettingsStore(state => state.visualizerBackgroundMode);
     const setVisualizerBackgroundMode = useVisualizerSettingsStore(state => state.handleSetVisualizerBackgroundMode);
 
-    // While a scene is chosen, the styles and backgrounds it does not take are not offered, nor is the
-    // random choice (a scene is no part of the random styles); a row with nothing offered is not shown.
-    const sceneManifest = useChosenScene()?.manifest ?? null;
     const visualizerOptions = useMemo(
         () => [
-            ...VISUALIZER_REGISTRY.filter(entry => sceneOffersLyricStyle(sceneManifest, entry.mode)).map(entry => ({
+            ...VISUALIZER_REGISTRY.map(entry => ({
                 value: entry.mode,
                 label: getVisualizerModeLabel(entry.mode, t),
             })),
-            ...(sceneManifest ? [] : [{ value: RANDOM_VISUALIZER_CHOICE, label: t('ui.visualizerRandom') }]),
+            { value: RANDOM_VISUALIZER_CHOICE, label: t('ui.visualizerRandom') },
         ],
-        [t, sceneManifest],
+        [t],
     );
     const visualizerModes = useMemo(() => visualizerOptions.map(option => option.value), [visualizerOptions]);
-    const shownVisualizerMode = resolveSceneOffered(mode => sceneOffersLyricStyle(sceneManifest, mode), visualizerMode, VISUALIZER_REGISTRY.map(entry => entry.mode));
-    const showsRandom = randomEnabled && !sceneManifest;
     const stepVisualizerMode = useVisualizerModeStepper(visualizerModes);
 
     const backgroundOptions = useMemo(
-        () => VISUALIZER_BACKGROUND_REGISTRY.filter(entry => sceneOffersBackground(sceneManifest, entry.mode)).map(entry => ({
+        () => VISUALIZER_BACKGROUND_REGISTRY.map(entry => ({
             value: entry.mode,
             label: getVisualizerBackgroundModeLabel(entry.mode, t),
         })),
-        [t, sceneManifest],
+        [t],
     );
-    const resolvedBackgroundMode = resolveSceneOffered(
-        mode => sceneOffersBackground(sceneManifest, mode),
-        resolveVisualizerBackgroundMode(visualizerBackgroundMode, visualizerMode),
-        VISUALIZER_BACKGROUND_REGISTRY.map(entry => entry.mode),
-    );
+    const resolvedBackgroundMode = resolveVisualizerBackgroundMode(visualizerBackgroundMode, visualizerMode);
 
     // Which row's picker is open, if any (the random pool's is the style row's second one). The
     // pictures' clock runs only while one of the two rows' pictures is open: a picture moves only
@@ -236,9 +225,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         onOpenChange={open => changeOpenPicker(open ? 'scene' : null)}
                         onOpenMore={openSceneSettings}
                     />
-                    {visualizerOptions.length > 0 && (
                     <ModeStepperRow<VisualizerMode>
-                        value={showsRandom ? RANDOM_VISUALIZER_CHOICE : shownVisualizerMode}
+                        value={randomEnabled ? RANDOM_VISUALIZER_CHOICE : visualizerMode}
                         options={visualizerOptions}
                         onSelect={mode => selectLyricStyleChoice(mode, onVisualizerModeChange)}
                         onStep={stepVisualizerMode}
@@ -256,7 +244,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                                 onClick={cycleAnimationIntensity}
                             />
                         )}
-                        params={showsRandom ? (
+                        params={randomEnabled ? (
                             <>
                                 {/* 这首歌抽到的样式：点一下从随机池里另抽一种。 */}
                                 <QuickControlChip
@@ -291,17 +279,15 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                             </>
                         )}
                     />
-                    )}
                     {/* The pool's layer stays mounted while it leaves (Popover); it opens from the chip above. */}
                     <RandomPoolPicker
                         anchorRef={poolChipRef}
-                        open={showsRandom && openPicker === 'pool'}
+                        open={randomEnabled && openPicker === 'pool'}
                         onClose={() => changeOpenPicker(null)}
                         moreLabel={t('ui.moreSettings')}
                         onOpenMore={openVisualizerSettings}
                     />
 
-                    {backgroundOptions.length > 0 && (
                     <ModeStepperRow<VisualizerBackgroundMode>
                         value={resolvedBackgroundMode}
                         options={backgroundOptions}
@@ -316,7 +302,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                         onOpenChange={open => changeOpenPicker(open ? 'background' : null)}
                         params={backgroundQuickControls}
                     />
-                    )}
                 </LyricPreviewProvider>
             </div>
 

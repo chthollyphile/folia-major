@@ -63,7 +63,7 @@ export interface SceneManifest {
     surfaces?: { id: string; aspect: number; occludable?: boolean; tone?: SceneSurfaceTone }[];
     /**
      * 歌词永远是用户选的歌词样式，场景不自己画歌词：`style` 放在哪（'none' 这个场景不显示歌词）；
-     * `exclude` 放上去不合适的样式 id，选了这个场景时选择器里不出现。
+     * `exclude` 放上去不合适的样式 id：用户选了（或随机抽到）这种样式时，宿主在场景里改显示第一个合适的；选择器不受影响。
      */
     lyrics: { style: SceneLyricPlacement; exclude?: string[] };
     /** 背景永远是用户选的背景：`host` 放在哪（'none' 这个场景不用背景，它自己就是画面）；`exclude` 同上。 */

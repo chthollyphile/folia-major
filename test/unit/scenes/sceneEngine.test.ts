@@ -62,9 +62,8 @@ describe('scene placement', () => {
         expect(planSceneLayers(manifest({ lyrics: { style: 'none' }, background: { host: 'none' } }))).toEqual({ surfaces: [], overlayLyrics: false, behindBackground: false });
     });
 
-    it('offers only the styles and backgrounds the scene takes', () => {
+    it('shows a style the scene cannot take as the first it can', () => {
         const hall = manifest({ lyrics: { style: { surface: 'screen' }, exclude: ['still'] }, background: { host: 'none' } });
-        expect(sceneOffersLyricStyle(null, 'still')).toBe(true);
         expect(sceneOffersLyricStyle(hall, 'still')).toBe(false);
         expect(sceneOffersLyricStyle(hall, 'classic')).toBe(true);
         expect(sceneOffersBackground(hall, 'latent')).toBe(false);

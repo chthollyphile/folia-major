@@ -1,7 +1,7 @@
 import type { SceneManifest } from '../definition';
 
 // src/components/scenes/engine/scenePlacement.ts
-// 按清单决定借来的歌词样式和背景放在哪；以及选了场景时选择器里哪些样式、背景还出现。
+// 按清单决定借来的歌词样式和背景放在哪，以及显示时场景接不接用户选的那一个（选择器不看场景，存着的值不改）。
 
 export interface SceneLayerPlan {
     /** One box per surface that borrows something: the user's lyric style, the user's background, or both. */
@@ -32,16 +32,16 @@ export const planSceneLayers = (manifest: SceneManifest): SceneLayerPlan => {
     return plan;
 };
 
-/** Whether a lyric style is offered while this scene is chosen (null: no scene, everything is). */
-export const sceneOffersLyricStyle = (manifest: SceneManifest | null, mode: string): boolean =>
-    !manifest || (manifest.lyrics.style !== 'none' && !(manifest.lyrics.exclude ?? []).includes(mode));
+/** Whether the scene can show this lyric style (the host's call at display time only). */
+export const sceneOffersLyricStyle = (manifest: SceneManifest, mode: string): boolean =>
+    manifest.lyrics.style !== 'none' && !(manifest.lyrics.exclude ?? []).includes(mode);
 
-export const sceneOffersBackground = (manifest: SceneManifest | null, mode: string): boolean =>
-    !manifest || (manifest.background.host !== 'none' && !(manifest.background.exclude ?? []).includes(mode));
+export const sceneOffersBackground = (manifest: SceneManifest, mode: string): boolean =>
+    manifest.background.host !== 'none' && !(manifest.background.exclude ?? []).includes(mode);
 
 /**
- * The lyric style the scene shows: the user's when the scene offers it, else the first one it offers
- * (a style chosen before the scene was). What is saved is left as it is.
+ * The lyric style (or background) the scene shows: the user's when the scene can show it, else the first
+ * one it can (the user's pick or the random draw is left as it is).
  */
 export const resolveSceneOffered = <T extends string>(offered: (mode: string) => boolean, mode: T, inOrder: readonly T[]): T =>
     offered(mode) ? mode : inOrder.find(candidate => offered(candidate)) ?? mode;
