@@ -16,6 +16,7 @@
     "src",
     "roles",
     "skill",
+    "compass",
     "README.md"
   ],
   "engines": {

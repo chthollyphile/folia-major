@@ -42,6 +42,7 @@
     "coven:verify": "node packages/coven/bin/coven.mjs verify",
     "coven:pr": "node packages/coven/bin/coven.mjs pr",
     "coven:setup": "node packages/coven/bin/coven.mjs setup",
+    "coven:compass": "node packages/coven/bin/coven.mjs compass",
     "test": "vitest run -c vitest.config.ts",
     "test:unit": "vitest run -c vitest.config.ts",
     "test:unit:watch": "vitest -c vitest.config.ts",

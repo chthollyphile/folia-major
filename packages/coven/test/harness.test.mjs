@@ -208,7 +208,7 @@ describe('coven command line help', () => {
 
     // Op. 1：只有 scope 认 --help，别的命令把它当成不认识的选项
     it('answers --help for every command without doing anything', () => {
-        for (const command of ['scope', 'state', 'claim', 'prompt', 'contract', 'verify', 'pr', 'setup']) {
+        for (const command of ['scope', 'state', 'claim', 'prompt', 'contract', 'verify', 'pr', 'setup', 'compass']) {
             const result = coven(command, '--help');
             expect(result.status, `${command}: ${result.stderr}`).toBe(0);
             expect(result.stdout).toContain(`coven ${command}`);

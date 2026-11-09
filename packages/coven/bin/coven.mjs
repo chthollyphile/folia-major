@@ -13,6 +13,7 @@ const COMMANDS = {
     verify: { file: '../src/verify.mjs', what: '在工作 worktree 里跑确定性验收和关口' },
     pr: { file: '../src/pr.mjs', what: '开 PR、合并（只进集成分支）' },
     setup: { file: '../src/setup.mjs', what: '按适配层准备一个工作 worktree（装依赖等）' },
+    compass: { file: '../src/compass.mjs', what: '本机网页：看运行和认领、划范围、看历史（只写范围文件）' },
 };
 
 const HELP = ['--help', '-h'];
