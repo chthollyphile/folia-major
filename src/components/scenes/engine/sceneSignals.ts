@@ -130,8 +130,10 @@ const LOOK_PER_PX = (0.18 * Math.PI) / 180;
  * Drag to look, for every scene alike: a press on the scene that moves turns the head, as a game's mouse
  * look while the button is held; a press that does not move is a click and reaches the lyrics as ever.
  * The click that ends a drag is swallowed, so a drag that starts on a line does not also act on it.
- * A press the lyric style claimed (preventDefault on its pointerdown, as Monet's portrait hanger does
- * while it is placed) is the style's own drag and turns nothing.
+ * A press the lyric style or background claims is its own drag and turns nothing: one on an element marked
+ * `data-takes-drag` (as Machi's canvas is while its camera can be dragged), or one it preventDefaults on
+ * pointerdown (as Monet's portrait hanger does while it is placed). The mark is the way for a style that
+ * drags all the time: preventDefault on every press would also stop the mousedown other parts listen for.
  */
 export const trackLook = (root: HTMLElement) => {
     let yaw = 0;
@@ -141,7 +143,11 @@ export const trackLook = (root: HTMLElement) => {
     const onDown = (event: PointerEvent) => {
         swallowClick = false;
         if (!event.isPrimary || event.button !== 0) return;
-        press = { id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, down: event };
+        if (event.target instanceof Element && event.target.closest('[data-takes-drag]')) {
+            press = null;
+            return;
+        }
+        press ={ id: event.pointerId, x: event.clientX, y: event.clientY, dragging: false, down: event };
     };
     const onMove = (event: PointerEvent) => {
         if (!press || event.pointerId !== press.id) return;
